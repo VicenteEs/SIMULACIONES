@@ -367,30 +367,41 @@ metadatos siguen siendo el problema. Antes de procesar el primer estudio hay que
 fijar de dónde salen las imágenes y con qué autorización. Ver Q-007.
 
 ### O-010 · 2026-08-28 · media · resuelta
-**Docker no arrancaba por dos fallos encadenados, y el segundo era el de fondo.**
+**Docker no arrancaba por tres fallos encadenados; solo el tercero era el de fondo.**
 
-*Primer fallo.* `com.docker.service` estaba detenido con arranque manual y solo
-podía iniciarse con elevación. La cuenta `dynabook` sí pertenece al grupo de
-administradores, pero el control de cuentas de usuario entrega un token filtrado
-donde ese grupo figura como «usado solo para denegar»: por eso una consola
-normal recibía «Acceso denegado» aunque el usuario fuera administrador. Se
-resolvió lanzando el proceso con elevación explícita.
+*Primero.* `com.docker.service` estaba detenido con arranque manual y exigía
+elevación. La cuenta sí pertenece al grupo de administradores, pero el control
+de cuentas entrega un token filtrado donde ese grupo figura como «usado solo
+para denegar»: por eso una consola normal recibía «Acceso denegado» siendo el
+usuario administrador. Resuelto lanzando el proceso con elevación explícita.
 
-*Segundo fallo, el verdadero.* WSL estaba instalado y sano (2.6.3, kernel
-6.6.87) pero **sin ninguna distribución**. Docker Desktop en modo WSL2 aloja su
-motor dentro de una distribución propia, `docker-desktop`, que no existía. Sin
-ella el motor no podía crearse, `docker info` se colgaba esperando una tubería
-inexistente (`npipe:////./pipe/dockerDesktopLinuxEngine`) y la aplicación se
-cerraba sola en cada intento. Se resolvió con `wsl --update` y
-`wsl --install --no-distribution` en una consola elevada.
+*Segundo.* WSL estaba instalado y sano pero **sin ninguna distribución**, y
+Docker Desktop aloja su motor dentro de una propia. Resuelto con `wsl --update`
+y `wsl --install --no-distribution`.
 
-*Lección que conviene recordar:* que la interfaz de Docker Desktop aparezca en
-la lista de procesos no significa que el motor exista. El estado real se
-comprueba con `docker info` y con `wsl --list`, nunca mirando la ventana.
+*Tercero, el verdadero.* Cada cierre abrupto de Docker Desktop deja **sockets
+huérfanos** que el propio Docker intenta borrar al arrancar y no puede, lo que
+tumba un servicio distinto en cada intento. El error iba avanzando por la fila
+—Inference Manager, luego Secrets Engine— y esa progresión fue la pista: cada
+limpieza arreglaba un servicio y destapaba el siguiente. Windows no permite
+borrar esos puntos de reanálisis, pero **sí permite renombrar la carpeta que los
+contiene**, y esa es la maniobra que funciona:
 
-*Descartado en el camino:* reinstalar Docker. El fallo no estaba en los
-archivos, y la reinstalación habría exigido la misma elevación tras una descarga
-larga, dejando además la distribución de WSL igual de ausente.
+    %LOCALAPPDATA%\Dockerun
+    %LOCALAPPDATA%\docker-secrets-engine
+
+Se renombran con sufijo y se recrean vacías. Con ambas limpias, el motor arrancó
+a la primera.
+
+*Lecciones que conviene recordar:*
+- Que Docker Desktop aparezca entre los procesos no significa que el motor
+  exista. El estado real se comprueba con `docker info` y `wsl --list`.
+- Un error que cambia entre intentos indica progreso, no un fallo nuevo.
+- No hubo antivirus de terceros ni protección de carpetas de por medio: se
+  descartaron ambos antes de seguir.
+
+*Descartado:* reinstalar Docker. Los dos primeros fallos eran de permisos y de
+WSL, y el tercero se resolvió en segundos apartando dos carpetas.
 
 
 ---

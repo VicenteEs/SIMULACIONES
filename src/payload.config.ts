@@ -2,6 +2,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { buildConfig } from 'payload'
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import sharp from 'sharp'
 import { COLECCIONES } from '@/collections'
 import { editorClinico } from '@/blocks'
 
@@ -37,6 +38,8 @@ export default buildConfig({
   db: postgresAdapter({
     pool: { connectionString: process.env.DATABASE_URI || '' },
   }),
+  // sharp genera las miniaturas de las imagenes subidas.
+  sharp,
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
   graphQL: { disable: true },
   upload: {
