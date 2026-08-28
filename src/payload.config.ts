@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url'
 import { buildConfig } from 'payload'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import sharp from 'sharp'
+import { es } from '@payloadcms/translations/languages/es'
 import { COLECCIONES } from '@/collections'
 import { editorClinico } from '@/blocks'
 
@@ -26,6 +27,8 @@ export default buildConfig({
     },
   },
   collections: COLECCIONES,
+  // El panel se muestra en espanol: quien redacta es el traumatologo.
+  i18n: { supportedLanguages: { es }, fallbackLanguage: 'es' },
   editor: editorClinico,
   localization: {
     locales: [

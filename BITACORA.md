@@ -278,6 +278,23 @@ ejemplo. *Por qué:* el momento en que se pierde una base de datos es siempre un
 despliegue apurado, y una comprobación que falla temprano cuesta segundos
 mientras que una restauración cuesta días.
 
+### D-028 · 2026-08-28 · vigente
+**El primer usuario de la plataforma nace administrador y activo.**
+Toda cuenta nace lectora y desactivada por D-020, y esa regla es correcta salvo
+para la primera de todas: quien instala la plataforma no tiene a nadie que lo
+active, de modo que si se crea a sí mismo como lector inactivo queda encerrado
+fuera de su propio panel y hay que rescatarlo a mano desde la base de datos. Un
+gancho detecta que no existen cuentas y promueve esa primera. La lógica vive
+aislada de Payload para poder probarla sin base de datos.
+
+### D-029 · 2026-08-29 · vigente
+**El panel de administración se muestra en español.**
+Quien redacta a diario es el traumatólogo. *Consecuencia observada de
+inmediato:* dos pruebas de integración se rompieron porque comprobaban el texto
+del error de permiso, que ahora llega traducido. Se corrigieron para mirar el
+código de estado 403, que no depende del idioma. Regla que queda fijada: una
+prueba nunca debe depender de un mensaje traducible.
+
 ---
 
 ## 3. Observaciones
@@ -387,7 +404,8 @@ limpieza arreglaba un servicio y destapaba el siguiente. Windows no permite
 borrar esos puntos de reanálisis, pero **sí permite renombrar la carpeta que los
 contiene**, y esa es la maniobra que funciona:
 
-    %LOCALAPPDATA%\Dockerun
+    %LOCALAPPDATA%\Docker
+un
     %LOCALAPPDATA%\docker-secrets-engine
 
 Se renombran con sufijo y se recrean vacías. Con ambas limpias, el motor arrancó

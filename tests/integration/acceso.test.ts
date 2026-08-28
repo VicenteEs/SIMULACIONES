@@ -31,6 +31,22 @@ const conexion = await (async (): Promise<Payload | null> => {
 const usuario = (rol: string, activo: boolean) =>
   ({ id: 1, rol, activo, collection: 'usuarios' }) as never
 
+/**
+ * Comprueba que la operación fue rechazada por falta de permiso.
+ *
+ * Se mira el código de estado y no el texto del error: el panel está en
+ * español, de modo que el mensaje depende del idioma y una aserción sobre la
+ * frase se rompería al cambiarlo. El 403 no cambia nunca.
+ */
+async function esperarRechazoPorPermiso(operacion: Promise<unknown>) {
+  const error = await operacion.then(
+    () => null,
+    (e: unknown) => e,
+  )
+  expect(error, 'la operación debía ser rechazada y no lo fue').not.toBeNull()
+  expect((error as { status?: number }).status).toBe(403)
+}
+
 describe.skipIf(conexion === null)('acceso a través de la API local', () => {
   const payload = conexion as Payload
   let segmentoId: number | string
@@ -59,19 +75,19 @@ describe.skipIf(conexion === null)('acceso a través de la API local', () => {
   it('rechaza la consulta cuando no hay sesión', async () => {
     // Payload no devuelve una lista vacía: rechaza la operación entera, que es
     // el comportamiento más seguro de los dos.
-    await expect(
+    await esperarRechazoPorPermiso(
       payload.find({ collection: 'patologias', overrideAccess: false, user: null }),
-    ).rejects.toThrow(/forbidden|not allowed/i)
+    )
   })
 
   it('rechaza la consulta de una cuenta que el administrador no ha activado', async () => {
-    await expect(
+    await esperarRechazoPorPermiso(
       payload.find({
         collection: 'patologias',
         overrideAccess: false,
         user: usuario('lector', false),
       }),
-    ).rejects.toThrow(/forbidden|not allowed/i)
+    )
   })
 
   it('un lector activo sí puede consultar, pero no recibe borradores', async () => {

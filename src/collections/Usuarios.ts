@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { administracionDeUsuarios } from '@/access/payload'
+import { ajustarPrimerUsuario } from './hooks/primerUsuario'
 
 /**
  * Cuentas de la plataforma (decisión D-020).
@@ -30,6 +31,19 @@ export const Usuarios: CollectionConfig = {
     update: administracionDeUsuarios,
     delete: administracionDeUsuarios,
     admin: administracionDeUsuarios,
+  },
+  hooks: {
+    beforeChange: [
+      async ({ data, req, operation }) =>
+        ajustarPrimerUsuario({
+          data,
+          operacion: operation,
+          contarUsuarios: async () => {
+            const { totalDocs } = await req.payload.count({ collection: 'usuarios' })
+            return totalDocs
+          },
+        }),
+    ],
   },
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre y apellido' },
