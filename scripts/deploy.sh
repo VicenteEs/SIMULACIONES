@@ -78,6 +78,14 @@ for intento in $(seq 1 90); do
   sleep 1
 done
 
+paso "Comprobando el tunel"
+if docker compose -f docker-compose.prod.yml logs tunel 2>/dev/null | grep -qi "Registered tunnel connection"; then
+  verde "    el tunel esta conectado a Cloudflare"
+else
+  rojo "    el tunel aun no registra conexiones."
+  rojo "    Revise el token en .env y consulte: docker compose -f docker-compose.prod.yml logs tunel"
+fi
+
 paso "Limpiando imagenes antiguas"
 docker image prune -f >/dev/null
 

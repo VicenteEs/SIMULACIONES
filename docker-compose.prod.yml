@@ -42,13 +42,32 @@ services:
       - medios:/app/public/media
     networks: [interna]
 
+  # Tunel de Cloudflare. Abre una conexion SALIENTE hacia Cloudflare, de modo
+  # que el router no expone ningun puerto y la IP del servidor no se publica.
+  #
+  # Hace falta un solo tunel por servidor, no uno por servicio: los demas
+  # servicios se agregan como nombres publicos en el panel de Cloudflare,
+  # apuntando a su direccion interna. Ver docs/CLOUDFLARE.md
+  #
+  # Para que este tunel alcance servicios que corren FUERA de este compose,
+  # agregar aqui su red o usar la direccion del anfitrion:
+  #   extra_hosts:
+  #     - "anfitrion:host-gateway"
+  # y en el panel apuntar a http://anfitrion:PUERTO
   tunel:
     image: cloudflare/cloudflared:latest
     container_name: trauma-tunel
     restart: unless-stopped
     depends_on: [app]
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?falta}
+    extra_hosts:
+      - "anfitrion:host-gateway"
     networks: [interna]
+    healthcheck:
+      test: ["CMD", "cloudflared", "--version"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
 
 volumes:
   datos-db:
