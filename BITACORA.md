@@ -216,6 +216,52 @@ dependencias, contenedores, migraciones, primer administrador y túnel. *Por qu�
 un despliegue que sólo existe en la memoria de una persona no se puede repetir
 ni recuperar después de un incidente.
 
+### D-020 · 2026-08-28 · vigente
+**Nada es visible sin sesión, y las cuentas las activa el administrador.**
+No hay registro abierto ni contenido público: toda lectura exige usuario
+autenticado y con la cuenta marcada como activa. Se implementa en tres capas que
+deben coincidir —control de acceso por colección en el CMS, middleware que
+redirige al inicio de sesión, y comprobación en cada ruta de API—, porque
+proteger sólo la interfaz deja la API abierta. Consecuencia grata: la plataforma
+queda fuera del alcance de buscadores mientras se construye, y el asunto de
+datos personales se reduce al mínimo.
+
+### D-021 · 2026-08-28 · vigente
+**El primer módulo que se construye es la Biblioteca de patologías.**
+Es el módulo con más contenido y el que alimenta a los demás; su modelo de
+bloques se reutiliza después en examen físico, técnica AO y simulador. Empezar
+por él es lo que antes revela si la estructura de contenido resiste el uso real.
+
+### D-022 · 2026-08-28 · vigente
+**Los modelos 3D provienen de TC y RM segmentadas con MONAI, no de maquetas.**
+El flujo es: imagen médica → segmentación con MONAI sobre la GPU local →
+malla → decimación y compresión → `.glb` servido a la web. Es la decisión que
+más diferencia esta plataforma de cualquier atlas ilustrado, y la única parte
+del proyecto donde la GPU del servidor trabaja de verdad.
+*Consecuencia obligatoria:* entre la malla cruda y la web hay un paso de
+reducción que no es opcional. Ver O-008.
+
+### D-023 · 2026-08-28 · vigente
+**El servidor de producción es Ubuntu Server 22.04 o 24.04 LTS.**
+El script de despliegue se escribe para esa base: `apt`, repositorio oficial de
+Docker y `systemd`. No se soportan otras distribuciones sin registrar una
+decisión que supere a ésta.
+
+### D-024 · 2026-08-28 · vigente
+**Gestor de paquetes: npm.**
+`corepack enable pnpm` falla por permisos de escritura en `C:\Program Files
+odejs`.
+npm 11 ya está instalado y funciona bien con Payload. Se evita añadir una
+herramienta más por una ganancia de velocidad que no es el cuello de botella
+del proyecto.
+
+### D-025 · 2026-08-28 · vigente
+**El proyecto se construye a mano, sin `create-payload-app`.**
+El generador oficial exige terminal interactiva y falla en un entorno
+automatizado (`uv_tty_init returned EBADF`). Escribir la estructura a mano
+tiene una ventaja propia: el control de acceso de D-020 queda escrito desde el
+primer archivo en lugar de añadirse sobre una plantilla abierta por omisión.
+
 ---
 
 ## 3. Observaciones
@@ -285,6 +331,25 @@ manual, no de resumen. El propio prototipo advierte que el contenido definitivo
 un producto propio y un problema de derechos de autor. Conviene decidir pronto
 quién firma cada ficha.
 
+### O-008 · 2026-08-28 · alta · abierta
+**Una malla recién salida de una segmentación no se puede servir a la web.**
+El algoritmo de superficie sobre una TC produce del orden de millones de
+triángulos por hueso, que son cientos de megabytes. El objetivo para navegador
+está entre 50.000 y 150.000 triángulos, y por debajo de 5 MB comprimido con
+Draco o Meshopt. Entre MONAI y la plataforma hace falta, por tanto, una etapa de
+reducción y compresión que conviene automatizar como script desde el principio,
+porque hacerla a mano modelo por modelo no escala.
+*Dónde se resolverá:* `scripts/malla-a-glb.py` y `scripts/optimizar-glb.sh`.
+
+### O-009 · 2026-08-28 · alta · abierta
+**Las imágenes médicas de origen exigen anonimización antes de entrar al flujo.**
+Un archivo DICOM lleva en sus metadatos nombre, identificador nacional, fecha de
+nacimiento e institución, y esos campos viajan con el archivo aunque la imagen
+se vea anónima. Además, una reconstrucción tridimensional de cráneo o cara es
+identificable por sí misma; en huesos largos el riesgo es bajo, pero los
+metadatos siguen siendo el problema. Antes de procesar el primer estudio hay que
+fijar de dónde salen las imágenes y con qué autorización. Ver Q-007.
+
 ---
 
 ## 4. Preguntas abiertas
@@ -326,6 +391,15 @@ fijar un equipo mínimo de prueba —un notebook modesto, no la máquina de
 desarrollo— y un presupuesto por modelo de 5 MB comprimido. Sin ese objetivo
 explícito, los modelos crecen hasta que la plataforma deja de abrirse en la
 mitad de los equipos.
+
+### Q-007 · ¿De dónde salen las TC y RM que se van a segmentar?
+Es la pregunta que hay que responder antes de procesar el primer estudio, no
+después. Tres caminos, de menor a mayor fricción: conjuntos públicos ya
+anonimizados y con licencia clara —TotalSegmentator trae 1.200 tomografías con
+117 estructuras ya segmentadas bajo CC BY 4.0—; estudios del hospital
+anonimizados con autorización del comité correspondiente; o estudios propios con
+consentimiento explícito. El primero permite empezar mañana sin ningún trámite y
+es lo que recomiendo para construir y probar toda la cadena.
 
 ---
 
