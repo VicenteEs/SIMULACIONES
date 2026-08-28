@@ -262,6 +262,22 @@ automatizado (`uv_tty_init returned EBADF`). Escribir la estructura a mano
 tiene una ventaja propia: el control de acceso de D-020 queda escrito desde el
 primer archivo en lugar de añadirse sobre una plantilla abierta por omisión.
 
+### D-026 · 2026-08-28 · vigente
+**El despliegue en producción no publica ningún puerto en el anfitrión.**
+`docker-compose.prod.yml` deja la aplicación y la base en una red interna del
+compose; el único camino de entrada es el contenedor de `cloudflared`, que abre
+una conexión saliente. Ni siquiera el anfitrión puede alcanzar la aplicación por
+un puerto local. La imagen de producción corre con un usuario sin privilegios y
+se construye en varias etapas para no arrastrar el código fuente.
+
+### D-027 · 2026-08-28 · vigente
+**El despliegue respalda la base antes de tocar nada.**
+`scripts/deploy.sh` vuelca la base a `backups/` antes de reconstruir, y aborta
+si falta una variable de entorno o si `PAYLOAD_SECRET` conserva el valor de
+ejemplo. *Por qué:* el momento en que se pierde una base de datos es siempre un
+despliegue apurado, y una comprobación que falla temprano cuesta segundos
+mientras que una restauración cuesta días.
+
 ---
 
 ## 3. Observaciones
@@ -349,6 +365,20 @@ se vea anónima. Además, una reconstrucción tridimensional de cráneo o cara e
 identificable por sí misma; en huesos largos el riesgo es bajo, pero los
 metadatos siguen siendo el problema. Antes de procesar el primer estudio hay que
 fijar de dónde salen las imágenes y con qué autorización. Ver Q-007.
+
+### O-010 · 2026-08-28 · media · abierta
+**El motor de Docker no arranca en la máquina de desarrollo por falta de privilegios.**
+`com.docker.service` está detenido, con arranque manual, y solo puede iniciarse
+con permisos de administrador: `Start-Service` devuelve «Cannot open
+com.docker.service». La interfaz de Docker Desktop sí corre, lo que confunde el
+diagnóstico. WSL está instalado y sano (2.6.3, kernel 6.6.87) pero sin
+distribuciones, que es lo que el motor crearía al iniciarse.
+*Remedio:* PowerShell como administrador y
+`Set-Service com.docker.service -StartupType Automatic; Start-Service com.docker.service`.
+*Descartado:* reinstalar Docker. El fallo es de permisos, no de archivos, y la
+reinstalación exige la misma elevación tras una descarga larga.
+*Consecuencia mientras dure:* las pruebas de integración y de extremo a extremo
+quedan sin ejecutar; las unitarias no dependen de la base y siguen corriendo.
 
 ---
 
