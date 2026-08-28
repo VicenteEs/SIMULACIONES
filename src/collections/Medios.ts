@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaDeContenido, escrituraDeContenido } from '@/access/payload'
+import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
 
 /** Imágenes y videos que el traumatólogo inserta en los bloques. */
 export const Medios: CollectionConfig = {
@@ -7,7 +7,7 @@ export const Medios: CollectionConfig = {
   labels: { singular: 'Archivo', plural: 'Medios' },
   admin: { useAsTitle: 'alt', group: 'Estructura' },
   access: {
-    read: lecturaDeContenido,
+    read: lecturaSimple,
     create: escrituraDeContenido,
     update: escrituraDeContenido,
     delete: escrituraDeContenido,

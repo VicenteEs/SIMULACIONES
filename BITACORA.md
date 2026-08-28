@@ -456,6 +456,25 @@ aserción.
 la construcción de la imagen y el arranque del conjunto son tres puertas
 distintas, y cada una atrapó algo que las otras dos no.
 
+### O-012 · 2026-08-29 · alta · resuelta
+**El filtro de publicados se aplicaba a colecciones que no tienen ese campo.**
+`filtroDeLectura` devuelve `{ _status: { equals: 'published' } }` para el
+lector, y ese filtro consulta una columna que solo existe donde hay borradores
+activados. Al aplicarlo también a `segmentos`, `medios` y `modelos-3d`, la
+consulta reventaba con «Cannot find field for path at _status» y **un lector se
+quedaba sin poder leer nada de esas tres colecciones**, es decir, sin segmentos
+ni imágenes en la biblioteca.
+
+No lo detectaron las pruebas anteriores porque no había datos: el fallo apareció
+al crear la primera ficha con su segmento y consultarla como lector.
+
+Resuelto separando `lecturaDeContenido`, que filtra por estado, de
+`lecturaSimple`, que exige lo mismo pero responde con un booleano. El invariante
+de `tests/unit/colecciones.test.ts` comprueba ahora que ninguna colección filtre
+por `_status` sin tener borradores, de modo que no puede repetirse.
+
+*Lección:* una suite verde sobre una base vacía prueba menos de lo que parece.
+
 ---
 
 ## 4. Preguntas abiertas

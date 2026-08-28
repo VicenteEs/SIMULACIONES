@@ -51,3 +51,104 @@ p.entrada { font-size: 17px; color: var(--pizarra); margin: 0 0 28px; }
   padding-top: 16px;
   margin-top: 36px;
 }
+
+/* ---------- navegación ---------- */
+.miga { font-size: 13px; color: var(--pizarra); margin-bottom: 18px; }
+.miga a { color: var(--campo); text-decoration: none; }
+.miga a:hover { text-decoration: underline; }
+
+/* ---------- cabecera de ficha ---------- */
+.cabecera-ficha { border-bottom: 1px solid var(--linea); padding-bottom: 20px; margin-bottom: 28px; }
+.etiquetas { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.codigo {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+  background: var(--campo); color: #fff; padding: 3px 9px; border-radius: 3px;
+}
+.etiqueta, .borrador {
+  font-size: 12px; padding: 3px 9px; border-radius: 3px;
+  border: 1px solid var(--linea); color: var(--pizarra);
+}
+.borrador { border-color: #d9c79b; color: #8a6a20; background: #f8f2e3; }
+
+/* ---------- rejilla de fichas ---------- */
+.grupo-segmento { margin-bottom: 36px; }
+.grupo-segmento h2 { font-size: 20px; margin-bottom: 14px; }
+.vacio { color: var(--pizarra); font-size: 14px; font-style: italic; }
+.rejilla-fichas { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.tarjeta-ficha {
+  display: block; background: var(--superficie); border: 1px solid var(--linea);
+  border-radius: 10px; padding: 16px 18px; text-decoration: none; color: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.tarjeta-ficha:hover { border-color: var(--campo); transform: translateY(-1px); }
+.tarjeta-ficha h3 { font-size: 16px; margin: 10px 0 4px; }
+.tarjeta-ficha p { font-size: 13px; color: var(--pizarra); margin: 0; }
+
+/* ---------- pestañas de contenido ---------- */
+.pestana { margin-bottom: 40px; }
+.pestana > h2 {
+  font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--campo); border-bottom: 1px solid var(--linea);
+  padding-bottom: 8px; margin-bottom: 18px;
+}
+.bloque { margin-bottom: 22px; }
+.bloque h3 { font-size: 17px; margin-bottom: 8px; }
+.lista-clinica { padding-left: 20px; }
+.lista-clinica li { margin-bottom: 8px; }
+
+/* ---------- tabla de clasificación ---------- */
+.tabla-desplazable { overflow-x: auto; }
+.clasificacion { border-collapse: collapse; width: 100%; font-size: 14px; }
+.clasificacion th, .clasificacion td {
+  text-align: left; vertical-align: top; padding: 9px 12px;
+  border-bottom: 1px solid var(--linea);
+}
+.clasificacion th { white-space: nowrap; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+/* ---------- advertencias ---------- */
+.advertencia { border-left: 3px solid var(--campo); background: #eef5f6; padding: 14px 16px; border-radius: 0 6px 6px 0; margin-bottom: 22px; }
+.advertencia p { margin: 4px 0 0; }
+.advertencia-etiqueta { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: var(--campo-hondo); }
+.advertencia.error-frecuente { border-left-color: #9e2e27; background: #f9ecea; }
+.advertencia.error-frecuente .advertencia-etiqueta { color: #9e2e27; }
+.advertencia.perla { border-left-color: #9e7526; background: #f8f2e3; }
+.advertencia.perla .advertencia-etiqueta { color: #7a5a1c; }
+
+/* ---------- figuras ---------- */
+.figura { margin: 0 0 22px; }
+.figura img, .figura video { max-width: 100%; height: auto; border-radius: 6px; display: block; }
+.figura.media { max-width: 50%; }
+.figura.pequena { max-width: 32%; float: right; margin-left: 20px; }
+figcaption { font-size: 13px; color: var(--pizarra); margin-top: 6px; }
+
+/* ---------- visor 3D ---------- */
+.visor-3d-marco {
+  border: 1px dashed var(--linea); border-radius: 8px; background: var(--superficie);
+  min-height: 260px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px;
+}
+.visor-3d-nombre { font-weight: 600; }
+.visor-3d-nota { font-size: 13px; color: var(--pizarra); }
+
+/* ---------- fases de rehabilitación ---------- */
+.fases { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--linea); }
+.fases li { padding: 0 0 22px 20px; position: relative; }
+.fases li::before {
+  content: ""; position: absolute; left: -6px; top: 6px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--campo); border: 2px solid var(--papel);
+}
+.fase-cuando { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--campo); font-weight: 600; }
+.fases h4 { font-size: 15px; margin: 4px 0 6px; }
+.fases p { font-size: 14px; margin: 0 0 6px; }
+.fase-criterio { color: var(--pizarra); font-size: 13px; }
+
+@media (max-width: 640px) {
+  main { padding: 32px 18px; }
+  .figura.pequena, .figura.media { max-width: 100%; float: none; margin-left: 0; }
+}
+
+.row-botones { display: flex; gap: 10px; flex-wrap: wrap; }
+.boton.secundario { background: transparent; color: var(--campo); border: 1px solid var(--linea); }
+.boton.secundario:hover { background: var(--papel); }

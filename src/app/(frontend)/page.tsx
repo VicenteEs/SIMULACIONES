@@ -50,9 +50,14 @@ export default async function Inicio() {
           <p>
             Sesión iniciada como <strong>{(user as { nombre?: string }).nombre}</strong>.
           </p>
-          <a className="boton" href="/admin">
-            Ir al panel de contenido
-          </a>
+          <div className="row-botones">
+            <a className="boton" href="/biblioteca">
+              Ver la biblioteca
+            </a>
+            <a className="boton secundario" href="/admin">
+              Panel de contenido
+            </a>
+          </div>
         </div>
       )}
 

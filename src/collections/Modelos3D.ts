@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaDeContenido, escrituraDeContenido } from '@/access/payload'
+import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
 import { validarModelo3D } from '@/uploads/validarModelo3D'
 
 /**
@@ -14,7 +14,7 @@ export const Modelos3D: CollectionConfig = {
   labels: { singular: 'Modelo 3D', plural: 'Modelos 3D' },
   admin: { useAsTitle: 'nombre', defaultColumns: ['nombre', 'origen'], group: 'Estructura' },
   access: {
-    read: lecturaDeContenido,
+    read: lecturaSimple,
     create: escrituraDeContenido,
     update: escrituraDeContenido,
     delete: escrituraDeContenido,

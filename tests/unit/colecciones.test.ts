@@ -84,4 +84,27 @@ describe('invariantes de seguridad de las colecciones', () => {
       ).toBeTruthy()
     }
   })
+  it('solo las colecciones con borradores filtran por estado de publicación', async () => {
+    // El filtro { _status: ... } exige una columna que solo existe en las
+    // colecciones versionadas. Aplicarlo a las demás rompe la consulta con
+    // "Cannot find field for path at _status", y el lector se queda sin poder
+    // leer segmentos, medios ni modelos.
+    const lectorActivo = { req: { user: { rol: 'lector', activo: true } } } as never
+
+    for (const coleccion of COLECCIONES) {
+      const resultado = await coleccion.access!.read!(lectorActivo)
+      const filtraPorEstado =
+        typeof resultado === 'object' && resultado !== null && '_status' in resultado
+      const tieneBorradores = Boolean(
+        coleccion.versions && (coleccion.versions as { drafts?: unknown }).drafts,
+      )
+
+      if (filtraPorEstado) {
+        expect(
+          tieneBorradores,
+          `${coleccion.slug} filtra por _status pero no tiene borradores`,
+        ).toBe(true)
+      }
+    }
+  })
 })

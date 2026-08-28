@@ -135,4 +135,29 @@ describe.skipIf(conexion === null)('acceso a través de la API local', () => {
     creados.push(ficha.id)
     expect(ficha.id).toBeTruthy()
   })
+  it('un lector activo recibe la ficha publicada con sus bloques', async () => {
+    const publicada = await payload.create({
+      collection: 'patologias',
+      data: {
+        nombre: 'Ficha publicada de prueba',
+        segmento: segmentoId,
+        _status: 'published',
+        definicion: [{ blockType: 'advertencia', tono: 'perla', texto: 'Contenido visible.' }],
+      } as never,
+      overrideAccess: true,
+    })
+    creados.push(publicada.id)
+
+    const resultado = await payload.find({
+      collection: 'patologias',
+      overrideAccess: false,
+      user: usuario('lector', true),
+      depth: 1,
+    })
+
+    const encontrada = resultado.docs.find((d) => d.id === publicada.id)
+    expect(encontrada, 'la ficha publicada debía llegar al lector').toBeTruthy()
+    // El contenido viaja completo: es lo que la página renderiza en bloques.
+    expect(Array.isArray((encontrada as { definicion?: unknown }).definicion)).toBe(true)
+  })
 })

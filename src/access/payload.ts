@@ -9,6 +9,7 @@
 import type { Access } from 'payload'
 import {
   filtroDeLectura,
+  puedeLeerContenido,
   puedeEditarContenido,
   puedeAdministrarUsuarios,
   type Rol,
@@ -31,7 +32,25 @@ function normalizar(usuario: unknown): UsuarioSesion | null {
 const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
   normalizar(args?.req?.user)
 
+/**
+ * Lectura de una colección **versionada**.
+ *
+ * Devuelve un filtro que deja fuera los borradores para el lector. Ese filtro
+ * consulta la columna `_status`, que solo existe donde hay borradores
+ * activados: usarlo en una colección sin versiones rompe la consulta con
+ * «Cannot find field for path at _status». Para esas, ver `lecturaSimple`.
+ */
 export const lecturaDeContenido: Access = (args) => filtroDeLectura(usuarioDe(args))
+
+/**
+ * Lectura de una colección **sin versiones** (segmentos, medios, modelos).
+ *
+ * Exige lo mismo —sesión con cuenta activa— pero responde con un booleano, sin
+ * filtrar por estado de publicación, porque en estas colecciones no existe tal
+ * estado. El invariante de `tests/unit/colecciones.test.ts` impide que se
+ * vuelvan a confundir.
+ */
+export const lecturaSimple: Access = (args) => puedeLeerContenido(usuarioDe(args))
 
 export const escrituraDeContenido: Access = (args) => puedeEditarContenido(usuarioDe(args))
 

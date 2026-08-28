@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaDeContenido, escrituraDeContenido } from '@/access/payload'
+import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
 
 /**
  * Segmentos anatómicos. Ordenan la biblioteca y el mapa corporal del examen
@@ -10,7 +10,7 @@ export const Segmentos: CollectionConfig = {
   labels: { singular: 'Segmento', plural: 'Segmentos' },
   admin: { useAsTitle: 'nombre', defaultColumns: ['nombre', 'orden'], group: 'Estructura' },
   access: {
-    read: lecturaDeContenido,
+    read: lecturaSimple,
     create: escrituraDeContenido,
     update: escrituraDeContenido,
     delete: escrituraDeContenido,
