@@ -1,5 +1,6 @@
 import React from 'react'
 import { RichText } from '@payloadcms/richtext-lexical/react'
+import { Visor3D } from './Visor3D'
 
 /**
  * Renderizado de los bloques de contenido.
@@ -102,12 +103,22 @@ function BloqueVideo({ bloque }: { bloque: Bloque }) {
 
 function BloqueModelo3D({ bloque }: { bloque: Bloque }) {
   const modelo = bloque.modelo as { nombre?: string; url?: string } | undefined
+  const encuadre = (bloque.encuadre ?? {}) as Record<string, number>
+
+  if (!modelo?.url) {
+    return (
+      <figure className="figura completo">
+        <div className="visor-3d-marco">
+          <span className="visor-3d-nombre">Modelo no disponible</span>
+          <span className="visor-3d-nota">El archivo del modelo no se pudo cargar.</span>
+        </div>
+      </figure>
+    )
+  }
+
   return (
-    <figure className="figura completo visor-3d">
-      <div className="visor-3d-marco">
-        <span className="visor-3d-nombre">{modelo?.nombre ?? 'Modelo tridimensional'}</span>
-        <span className="visor-3d-nota">Visor interactivo pendiente de integración</span>
-      </div>
+    <figure className="figura completo">
+      <Visor3D url={modelo.url} encuadre={encuadre} nombre={modelo.nombre} />
       {typeof bloque.pie === 'string' && bloque.pie ? <figcaption>{bloque.pie}</figcaption> : null}
     </figure>
   )

@@ -304,6 +304,34 @@ como root, que la base no publica puerto en el anfitrión, que la API responde
 seguridad. Recién entonces se despliega. *Por qué:* el ensayo destapó tres
 fallos que ni las pruebas ni el modo desarrollo mostraban. Ver O-011.
 
+### D-031 · 2026-08-29 · vigente
+**La vista previa de rol solo baja privilegios, nunca los sube.**
+El conmutador «ver como residente» guarda el rol simulado en una cookie, y la
+cookie la puede escribir cualquiera desde el navegador. Por eso la validación
+ocurre en el servidor y la jerarquía es estricta: un lector que envíe
+`rol=admin` sigue siendo lector. Sin esa comprobación, un conmutador de
+comodidad se convertiría en una escalada de privilegios.
+*Detalle que la hace útil:* el rol efectivo se pasa a las consultas, de modo que
+el filtrado lo hace la base y la vista previa enseña exactamente lo que el
+residente recibiría, no una imitación dibujada por la página.
+
+### D-032 · 2026-08-29 · vigente
+**Publicar avisa, no recarga.**
+Al publicar se incrementa una versión que los navegadores reciben por un flujo
+de eventos, y aparece un aviso discreto con la opción de recargar. La página
+nunca se recarga sola. *Por qué:* a un residente que está leyendo no se le mueve
+el texto bajo los ojos; eso se percibe como una avería y no como una mejora.
+Guardar un borrador no avisa a nadie: solo la publicación.
+*Límite conocido:* el contador vive en memoria del proceso. Con una sola
+instancia basta; si algún día hay varias, hará falta un canal compartido y el
+`LISTEN/NOTIFY` de PostgreSQL es el camino natural.
+
+### D-033 · 2026-08-29 · vigente
+**El instrumental del simulador se deduce de los pasos.**
+La lista de instrumentos disponibles se arma con los que aparecen en el guion,
+en lugar de mantenerla aparte. Así el autor no puede dejar dos listas
+desincronizadas ni ofrecer un instrumento que ningún paso admite.
+
 ---
 
 ## 3. Observaciones

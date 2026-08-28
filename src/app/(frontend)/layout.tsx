@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
 import React from 'react'
+import { Navegacion } from '@/components/Navegacion'
+import { AvisoActualizacion } from '@/components/AvisoActualizacion'
+import { obtenerSesion } from '@/lib/sesion'
 import './estilos.css'
 
 export const metadata: Metadata = {
@@ -9,10 +12,22 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  const sesion = await obtenerSesion()
+
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        {sesion.activo ? (
+          <Navegacion
+            nombre={sesion.usuario?.nombre as string | undefined}
+            rolReal={sesion.rolReal ?? 'lector'}
+            simulando={sesion.simulando}
+          />
+        ) : null}
+        {sesion.activo ? <AvisoActualizacion /> : null}
+        {children}
+      </body>
     </html>
   )
 }

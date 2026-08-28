@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { obtenerSesion } from '@/lib/sesion'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,9 +14,13 @@ export const dynamic = 'force-dynamic'
  */
 export default async function Biblioteca() {
   const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers: await siguientesCabeceras() })
+  // Se consulta con el rol efectivo: cuando un editor mira «como residente»,
+  // el filtrado lo hace la base y no esta página, de modo que la vista previa
+  // enseña exactamente lo que el residente recibiría.
+  const { activo, usuarioEfectivo } = await obtenerSesion()
+  const user = usuarioEfectivo as never
 
-  if (!user || !(user as { activo?: boolean }).activo) {
+  if (!activo) {
     return (
       <main>
         <h1>Biblioteca de patologías</h1>

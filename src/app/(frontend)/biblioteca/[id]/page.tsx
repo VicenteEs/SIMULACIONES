@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { obtenerSesion } from '@/lib/sesion'
 import { pestanasConContenido } from '@/lib/fichas'
 import { Bloques } from '@/components/Bloques'
 
@@ -20,9 +20,10 @@ export const dynamic = 'force-dynamic'
 export default async function Ficha({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers: await siguientesCabeceras() })
+  const { activo, usuarioEfectivo } = await obtenerSesion()
+  const user = usuarioEfectivo as never
 
-  if (!user || !(user as { activo?: boolean }).activo) {
+  if (!activo) {
     return (
       <main>
         <div className="tarjeta">

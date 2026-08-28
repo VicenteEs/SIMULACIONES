@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { lecturaDeContenido, escrituraDeContenido } from '@/access/payload'
 import { pilaDeBloques } from '@/blocks'
+import { registrarPublicacion } from '@/lib/publicaciones'
 
 /**
  * Módulo 01 · Biblioteca de patologías (decisión D-021).
@@ -25,6 +26,17 @@ export const Patologias: CollectionConfig = {
     delete: escrituraDeContenido,
   },
   versions: { drafts: true, maxPerDoc: 50 },
+  hooks: {
+    // Avisa a los navegadores conectados solo cuando algo se publica de verdad;
+    // guardar un borrador no interrumpe a nadie.
+    afterChange: [
+      ({ doc }) => {
+        if ((doc as { _status?: string })._status === 'published') {
+          registrarPublicacion(`Ficha actualizada: ${(doc as { nombre?: string }).nombre ?? ''}`)
+        }
+      },
+    ],
+  },
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre de la patología' },
     { name: 'subtitulo', type: 'text', label: 'Subtítulo' },

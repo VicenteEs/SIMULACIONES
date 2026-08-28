@@ -1,6 +1,4 @@
-import { headers as siguientesCabeceras } from 'next/headers'
-import { getPayload } from 'payload'
-import config from '@payload-config'
+import { obtenerSesion } from '@/lib/sesion'
 
 /**
  * Esta página consulta la sesión en cada visita, de modo que nunca debe
@@ -15,10 +13,7 @@ export const dynamic = 'force-dynamic'
  * muestra contenido, solo la puerta de entrada.
  */
 export default async function Inicio() {
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers: await siguientesCabeceras() })
-
-  const activo = Boolean(user && (user as { activo?: boolean }).activo)
+  const { usuario: user, activo } = await obtenerSesion()
 
   return (
     <main>
