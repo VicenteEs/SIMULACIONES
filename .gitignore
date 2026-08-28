@@ -1,0 +1,49 @@
+# dependencias
+node_modules/
+.pnpm-store/
+
+# build
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# entorno — NUNCA versionar secretos
+.env
+.env.*
+!.env.example
+
+# payload
+/media/
+/public/media/
+/src/app/(payload)/admin/importMap.js
+
+# base de datos y respaldos
+*.sql
+*.dump
+/backups/
+
+# modelos 3D subidos por usuarios (viven en el volumen, no en git)
+/uploads/
+
+# pruebas
+/coverage/
+/test-results/
+/playwright-report/
+/blob-report/
+.playwright/
+
+# sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# editores
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# logs
+*.log
+npm-debug.log*

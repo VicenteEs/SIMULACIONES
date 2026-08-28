@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($f = \"C:\\\\Users\\\\dynabook\\\\Desktop\\\\SIMILACIONES\\\\prototipo-traumatologia_4.html\"; $c = Get-Content $f -Raw; \"TOTAL LINEAS: \" + \\(Get-Content $f | Measure-Object -Line\\).Lines; \"TOTAL CHARS: \" + $c.Length)"
+    ]
+  }
+}
