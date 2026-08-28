@@ -3,6 +3,14 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 
 /**
+ * Esta página consulta la sesión en cada visita, de modo que nunca debe
+ * prerenderizarse: una portada estática mostraría el mismo HTML a todo el
+ * mundo sin comprobar quién entra, y además rompe la compilación cuando no hay
+ * base de datos accesible, como ocurre al construir la imagen de producción.
+ */
+export const dynamic = 'force-dynamic'
+
+/**
  * Portada. La plataforma es cerrada (decisión D-020): sin sesión activa no se
  * muestra contenido, solo la puerta de entrada.
  */

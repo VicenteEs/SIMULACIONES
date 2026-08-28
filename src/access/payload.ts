@@ -37,3 +37,13 @@ export const escrituraDeContenido: Access = (args) => puedeEditarContenido(usuar
 
 export const administracionDeUsuarios: Access = (args) =>
   puedeAdministrarUsuarios(usuarioDe(args))
+
+/**
+ * Acceso al panel de administración.
+ *
+ * Payload exige aquí un booleano estricto y no admite un filtro de consulta,
+ * a diferencia del resto de las operaciones. Se declara aparte para que el
+ * tipo sea el correcto en lugar de forzarlo con una aserción.
+ */
+export const accesoAlPanel = (args: { req?: { user?: unknown } }): boolean =>
+  puedeAdministrarUsuarios(usuarioDe(args))

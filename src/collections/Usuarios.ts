@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { administracionDeUsuarios } from '@/access/payload'
+import { administracionDeUsuarios, accesoAlPanel } from '@/access/payload'
 import { ajustarPrimerUsuario } from './hooks/primerUsuario'
 
 /**
@@ -30,7 +30,7 @@ export const Usuarios: CollectionConfig = {
     create: administracionDeUsuarios,
     update: administracionDeUsuarios,
     delete: administracionDeUsuarios,
-    admin: administracionDeUsuarios,
+    admin: accesoAlPanel,
   },
   hooks: {
     beforeChange: [

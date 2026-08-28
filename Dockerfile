@@ -7,18 +7,21 @@ WORKDIR /app
 # --- dependencias ---
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# Se usa "npm install" y no "npm ci" a proposito: el lockfile se genera en
+# Windows y lista binarios opcionales de otras plataformas (esbuild para aix,
+# darwin y demas). "npm ci" los valida de forma estricta y falla al construir
+# sobre linux/amd64, aunque esos paquetes jamas se usen aqui.
+RUN npm install --no-audit --no-fund
 
 # --- compilacion ---
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# La compilacion no necesita una base real, pero Payload exige que las
-# variables existan para poder leer la configuracion.
-ENV DATABASE_URI=postgres://build:build@localhost:5432/build
-ENV PAYLOAD_SECRET=solo-para-compilar
-RUN npm run build
+# Las variables se definen solo para este comando y no se graban en la imagen.
+# Payload exige que existan para poder leer su configuracion, pero la
+# compilacion no toca la base de datos: son valores de relleno.
+RUN DATABASE_URI=postgres://relleno:relleno@localhost:5432/relleno     PAYLOAD_SECRET=valor-de-relleno-solo-para-compilar     npm run build
 
 # --- ejecucion ---
 FROM base AS runner

@@ -295,6 +295,15 @@ del error de permiso, que ahora llega traducido. Se corrigieron para mirar el
 código de estado 403, que no depende del idioma. Regla que queda fijada: una
 prueba nunca debe depender de un mensaje traducible.
 
+### D-030 · 2026-08-29 · vigente
+**El despliegue se ensaya con la imagen real antes de tocar el servidor.**
+Se construye la imagen de producción, se levanta el conjunto completo en un
+proyecto Docker aislado y se comprueban cinco cosas: que la aplicación no corre
+como root, que la base no publica puerto en el anfitrión, que la API responde
+403 sin sesión, que se prohíbe la indexación y que llegan las cabeceras de
+seguridad. Recién entonces se despliega. *Por qué:* el ensayo destapó tres
+fallos que ni las pruebas ni el modo desarrollo mostraban. Ver O-011.
+
 ---
 
 ## 3. Observaciones
@@ -421,6 +430,31 @@ a la primera.
 *Descartado:* reinstalar Docker. Los dos primeros fallos eran de permisos y de
 WSL, y el tercero se resolvió en segundos apartando dos carpetas.
 
+
+### O-011 · 2026-08-29 · alta · resuelta
+**Construir la imagen de producción destapó tres fallos que nada más mostraba.**
+
+*Uno.* La portada consultaba la sesión pero Next intentaba prerenderizarla. En
+la máquina de desarrollo pasaba inadvertido porque la base estaba accesible; al
+construir la imagen, sin base, la compilación fallaba. El fondo era peor que un
+fallo de compilación: **una portada estática habría servido el mismo HTML a
+todo el mundo sin comprobar quién entra.** Resuelto con `force-dynamic` y el
+comentario que explica por qué no debe quitarse.
+
+*Dos.* `npm ci` falla dentro del contenedor. El lockfile se genera en Windows y
+lista binarios opcionales de otras plataformas —esbuild para aix, darwin y
+demás— que `npm ci` valida de forma estricta y no encuentra en linux/amd64,
+aunque jamás se usen. Resuelto usando `npm install` en la etapa de dependencias.
+
+*Tres.* El typecheck de producción rechazaba `access.admin`, que exige un
+booleano estricto y no admite un filtro de consulta como el resto de las
+operaciones. El modo desarrollo no comprueba tipos y lo dejaba pasar. Resuelto
+con una función `accesoAlPanel` del tipo correcto, en lugar de forzarlo con una
+aserción.
+
+*Lección:* `npm run dev` no prueba el despliegue. La compilación de producción,
+la construcción de la imagen y el arranque del conjunto son tres puertas
+distintas, y cada una atrapó algo que las otras dos no.
 
 ---
 
