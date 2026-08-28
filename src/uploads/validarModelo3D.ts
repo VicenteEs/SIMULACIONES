@@ -36,7 +36,7 @@ export interface ResultadoValidacion {
  */
 export function nombreSeguroDeArchivo(nombre: string): string {
   const partes = nombre
-    .split(/[\/]+/)
+    .split(/[\\/]+/)
     .filter((p) => p !== '' && p !== '.' && p !== '..')
   return partes
     .join('-')

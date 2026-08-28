@@ -61,4 +61,20 @@ describe('validarModelo3D', () => {
   it('acepta también la extensión .gltf', () => {
     expect(validarModelo3D({ nombre: 'femur.gltf', contenido: glbValido() }).valido).toBe(true)
   })
+  it('tambien neutraliza una ruta al estilo de Windows', () => {
+    const bs = String.fromCharCode(92) // barra invertida de Windows
+    const ruta = ['..', '..', 'Windows', 'System32', 'algo.glb'].join(bs)
+    const r = validarModelo3D({ nombre: ruta, contenido: glbValido() })
+    expect(r.valido).toBe(true)
+    expect(r.nombreSeguro).toBe('Windows-System32-algo.glb')
+  })
+
+  it('usa el largo del contenido cuando no se declara el peso del archivo', () => {
+    const enorme = Buffer.alloc(LIMITE_BYTES_MODELO_3D + 1)
+    enorme.write('glTF', 0, 'ascii')
+    enorme.writeUInt32LE(2, 4)
+    const r = validarModelo3D({ nombre: 'femur.glb', contenido: enorme })
+    expect(r.valido).toBe(false)
+    expect(r.motivo).toMatch(/tamaño|peso/i)
+  })
 })
