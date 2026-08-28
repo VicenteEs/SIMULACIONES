@@ -1,0 +1,59 @@
+# Producción en el servidor Ubuntu. Se despliega clonando el repositorio y
+# ejecutando scripts/deploy.sh (decisión D-019).
+#
+# La aplicación NO publica puertos en el anfitrión: el único camino de entrada
+# es el túnel de Cloudflare, que abre una conexión saliente hacia la red de
+# Cloudflare. El router no expone ningún puerto (decisión D-010).
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: trauma-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?falta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta}
+      POSTGRES_DB: ${POSTGRES_DB:?falta}
+    volumes:
+      - datos-db:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interna]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trauma-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET:?falta}
+      NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?falta}
+      NODE_ENV: production
+    volumes:
+      # Los archivos subidos viven fuera de la imagen para sobrevivir a los despliegues.
+      - medios:/app/public/media
+    networks: [interna]
+
+  tunel:
+    image: cloudflare/cloudflared:latest
+    container_name: trauma-tunel
+    restart: unless-stopped
+    depends_on: [app]
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?falta}
+    networks: [interna]
+
+volumes:
+  datos-db:
+  medios:
+
+networks:
+  interna:
+    driver: bridge

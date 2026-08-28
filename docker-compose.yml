@@ -1,0 +1,26 @@
+# Desarrollo local. Solo la base de datos corre en contenedor; la aplicación
+# se ejecuta con "npm run dev" para tener recarga en caliente en Windows.
+#
+# Producción: ver docker-compose.prod.yml
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: trauma-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-trauma}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-trauma}
+    ports:
+      # Solo accesible desde esta máquina, nunca desde la red.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - datos-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trauma} -d ${POSTGRES_DB:-trauma}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  datos-db:
