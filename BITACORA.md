@@ -366,19 +366,32 @@ identificable por sí misma; en huesos largos el riesgo es bajo, pero los
 metadatos siguen siendo el problema. Antes de procesar el primer estudio hay que
 fijar de dónde salen las imágenes y con qué autorización. Ver Q-007.
 
-### O-010 · 2026-08-28 · media · abierta
-**El motor de Docker no arranca en la máquina de desarrollo por falta de privilegios.**
-`com.docker.service` está detenido, con arranque manual, y solo puede iniciarse
-con permisos de administrador: `Start-Service` devuelve «Cannot open
-com.docker.service». La interfaz de Docker Desktop sí corre, lo que confunde el
-diagnóstico. WSL está instalado y sano (2.6.3, kernel 6.6.87) pero sin
-distribuciones, que es lo que el motor crearía al iniciarse.
-*Remedio:* PowerShell como administrador y
-`Set-Service com.docker.service -StartupType Automatic; Start-Service com.docker.service`.
-*Descartado:* reinstalar Docker. El fallo es de permisos, no de archivos, y la
-reinstalación exige la misma elevación tras una descarga larga.
-*Consecuencia mientras dure:* las pruebas de integración y de extremo a extremo
-quedan sin ejecutar; las unitarias no dependen de la base y siguen corriendo.
+### O-010 · 2026-08-28 · media · resuelta
+**Docker no arrancaba por dos fallos encadenados, y el segundo era el de fondo.**
+
+*Primer fallo.* `com.docker.service` estaba detenido con arranque manual y solo
+podía iniciarse con elevación. La cuenta `dynabook` sí pertenece al grupo de
+administradores, pero el control de cuentas de usuario entrega un token filtrado
+donde ese grupo figura como «usado solo para denegar»: por eso una consola
+normal recibía «Acceso denegado» aunque el usuario fuera administrador. Se
+resolvió lanzando el proceso con elevación explícita.
+
+*Segundo fallo, el verdadero.* WSL estaba instalado y sano (2.6.3, kernel
+6.6.87) pero **sin ninguna distribución**. Docker Desktop en modo WSL2 aloja su
+motor dentro de una distribución propia, `docker-desktop`, que no existía. Sin
+ella el motor no podía crearse, `docker info` se colgaba esperando una tubería
+inexistente (`npipe:////./pipe/dockerDesktopLinuxEngine`) y la aplicación se
+cerraba sola en cada intento. Se resolvió con `wsl --update` y
+`wsl --install --no-distribution` en una consola elevada.
+
+*Lección que conviene recordar:* que la interfaz de Docker Desktop aparezca en
+la lista de procesos no significa que el motor exista. El estado real se
+comprueba con `docker info` y con `wsl --list`, nunca mirando la ventana.
+
+*Descartado en el camino:* reinstalar Docker. El fallo no estaba en los
+archivos, y la reinstalación habría exigido la misma elevación tras una descarga
+larga, dejando además la distribución de WSL igual de ausente.
+
 
 ---
 

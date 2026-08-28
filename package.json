@@ -19,7 +19,8 @@
     "payload": "payload",
     "generate:types": "payload generate:types",
     "db:migrate": "payload migrate",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "test:integration": "vitest run tests/integration"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.88.0",
