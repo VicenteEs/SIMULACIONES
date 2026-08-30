@@ -131,7 +131,7 @@ gestor de medios, versionado, borradores, vista previa en vivo y campos
 traducibles. Consecuencia: se ahorran del orden de cuatro a cinco meses de
 trabajo a cambio de aceptar las convenciones del framework.
 
-### D-010 · 2026-08-28 · vigente
+### D-010 · 2026-08-28 · superada por D-034
 **Producción en el servidor propio, expuesto mediante Cloudflare Tunnel.**
 No se abre ningún puerto del router: la IP doméstica no queda expuesta y se
 obtienen HTTPS y protección de borde sin costo. Consecuencia asumida: la
@@ -331,6 +331,24 @@ instancia basta; si algún día hay varias, hará falta un canal compartido y el
 La lista de instrumentos disponibles se arma con los que aparecen en el guion,
 en lugar de mantenerla aparte. Así el autor no puede dejar dos listas
 desincronizadas ni ofrecer un instrumento que ningún paso admite.
+
+### D-034 · 2026-08-29 · vigente · supera a D-010
+**El túnel de producción es Tailscale, no Cloudflare.**
+El servidor ya publica varios servicios por Tailscale y se mantiene esa vía por
+coherencia operativa: una sola herramienta que administrar en lugar de dos.
+Cloudflare queda documentado y soportado en el código para cuando exista un
+dominio propio.
+
+*Diferencia técnica que hay que tener presente:* con Cloudflare el túnel corre
+como contenedor dentro de la red del compose, de modo que la aplicación no
+publica **ningún** puerto en el anfitrión. Con Tailscale el demonio corre en el
+anfitrión, fuera de esa red, así que la aplicación debe publicar un puerto para
+que `tailscale serve` lo alcance. Ese puerto se publica en `127.0.0.1` y nunca
+en `0.0.0.0`: queda accesible para el propio servidor y para Tailscale, y sigue
+invisible desde la red local y desde internet.
+
+*Cómo se elige:* `scripts/deploy.sh` usa Tailscale por omisión y acepta
+`TUNEL=cloudflare` para la otra vía. Cada uno con su archivo de compose.
 
 ---
 

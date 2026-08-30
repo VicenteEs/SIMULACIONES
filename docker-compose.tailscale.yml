@@ -1,0 +1,66 @@
+# Produccion detras de un tunel de Tailscale.
+#
+# Alternativa a docker-compose.prod.yml, que usa Cloudflare. La diferencia es
+# una sola y conviene tenerla clara:
+#
+#   Cloudflare -> el tunel corre como contenedor en esta misma red, de modo que
+#                 la aplicacion NO publica ningun puerto en el anfitrion.
+#   Tailscale  -> el demonio corre en el anfitrion, no en la red del compose,
+#                 asi que la aplicacion debe publicar un puerto para que
+#                 "tailscale serve" pueda alcanzarlo.
+#
+# Ese puerto se publica SOLO en 127.0.0.1, nunca en 0.0.0.0: queda accesible
+# para el propio servidor y para Tailscale, y sigue sin verse desde la red local
+# ni desde internet.
+#
+# Uso:
+#   docker compose -f docker-compose.tailscale.yml up -d
+#   sudo tailscale serve --bg 3000          # privado, solo la tailnet
+#   sudo tailscale funnel --bg 3000         # publico en internet, con HTTPS
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: trauma-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?falta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta}
+      POSTGRES_DB: ${POSTGRES_DB:?falta}
+    volumes:
+      - datos-db:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interna]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trauma-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET:?falta}
+      NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?falta}
+      NODE_ENV: production
+    ports:
+      # Solo el anfitrion. Tailscale lo toma desde aqui.
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - medios:/app/public/media
+    networks: [interna]
+
+volumes:
+  datos-db:
+  medios:
+
+networks:
+  interna:
+    driver: bridge
