@@ -259,3 +259,34 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   .figura.pequena, .figura.media { max-width: 100%; float: none; margin: 0 0 22px; }
   .aviso-actualizacion { left: 18px; right: 18px; bottom: 18px; }
 }
+
+/* ---------- buscador y filtros ---------- */
+.barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.campo-busqueda { position: relative; flex: 1; min-width: 240px; }
+.icono-lupa { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 17px; height: 17px; color: var(--mudo); pointer-events: none; }
+.campo-busqueda input { width: 100%; padding: 10px 14px 10px 36px; border: 1px solid var(--linea); border-radius: var(--r); font-size: 14px; font-family: inherit; background: var(--superficie); color: var(--tinta); }
+.campo-busqueda input:focus { outline: none; border-color: var(--campo); box-shadow: 0 0 0 3px var(--campo-tenue); }
+.barra-filtros select { padding: 10px 12px; border: 1px solid var(--linea); border-radius: var(--r); font-size: 14px; font-family: inherit; background: var(--superficie); color: var(--tinta); cursor: pointer; }
+.barra-filtros select:focus { outline: none; border-color: var(--campo); box-shadow: 0 0 0 3px var(--campo-tenue); }
+.limpiar { background: none; border: none; color: var(--campo); font-size: 13px; cursor: pointer; padding: 8px 4px; font-family: inherit; text-decoration: underline; }
+.recuento { font-size: 13px; color: var(--mudo); margin: 0 0 22px; }
+
+/* ---------- índice lateral de la ficha ---------- */
+.ficha-cuerpo { display: grid; grid-template-columns: 190px 1fr; gap: 40px; align-items: start; }
+.indice-ficha { position: sticky; top: 80px; }
+.indice-titulo { display: block; font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.13em; color: var(--mudo); font-weight: 600; margin-bottom: 12px; }
+.indice-ficha ul { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--linea); }
+.indice-ficha li a { display: block; padding: 7px 0 7px 14px; margin-left: -2px; border-left: 2px solid transparent; font-size: 13.5px; color: var(--pizarra); text-decoration: none; transition: color 0.15s ease, border-color 0.15s ease; }
+.indice-ficha li a:hover { color: var(--tinta); }
+.indice-ficha li a.activa { color: var(--campo); font-weight: 600; border-left-color: var(--campo); }
+.ficha-contenido { min-width: 0; }
+/* El desplazamiento al pulsar un enlace del índice descuenta la barra fija. */
+.pestana { scroll-margin-top: 78px; }
+
+@media (max-width: 900px) {
+  .ficha-cuerpo { grid-template-columns: 1fr; gap: 20px; }
+  .indice-ficha { position: static; border-bottom: 1px solid var(--linea); padding-bottom: 14px; }
+  .indice-ficha ul { display: flex; flex-wrap: wrap; gap: 4px; border-left: none; }
+  .indice-ficha li a { padding: 6px 12px; border: 1px solid var(--linea); border-radius: 100px; margin-left: 0; }
+  .indice-ficha li a.activa { background: var(--campo-tenue); border-color: var(--campo); }
+}

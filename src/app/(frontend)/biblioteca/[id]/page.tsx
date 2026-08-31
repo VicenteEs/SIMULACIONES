@@ -5,6 +5,7 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { pestanasConContenido } from '@/lib/fichas'
 import { Bloques } from '@/components/Bloques'
+import { IndiceFicha } from '@/components/IndiceFicha'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +60,9 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
         </div>
       </header>
 
+      <div className="ficha-cuerpo">
+        <IndiceFicha pestanas={pestanas} />
+        <div className="ficha-contenido">
       {pestanas.length === 0 ? (
         <div className="tarjeta">
           <p>Esta ficha aún no tiene contenido publicado.</p>
@@ -87,6 +91,8 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
           </section>
         ))
       )}
+        </div>
+      </div>
     </main>
   )
 }
