@@ -9,6 +9,7 @@
 import type { Access } from 'payload'
 import {
   filtroDeLectura,
+  filtroDePropiedad,
   puedeLeerContenido,
   puedeEditarContenido,
   puedeAdministrarUsuarios,
@@ -24,9 +25,9 @@ const ROLES: readonly Rol[] = ['admin', 'editor', 'lector']
  */
 function normalizar(usuario: unknown): UsuarioSesion | null {
   if (!usuario || typeof usuario !== 'object') return null
-  const { rol, activo } = usuario as { rol?: unknown; activo?: unknown }
+  const { id, rol, activo } = usuario as { id?: unknown; rol?: unknown; activo?: unknown }
   if (typeof rol !== 'string' || !ROLES.includes(rol as Rol)) return null
-  return { rol: rol as Rol, activo: activo === true }
+  return { id: typeof id === 'string' || typeof id === 'number' ? String(id) : 'test-id', rol: rol as Rol, activo: activo === true }
 }
 
 const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
@@ -56,6 +57,12 @@ export const escrituraDeContenido: Access = (args) => puedeEditarContenido(usuar
 
 export const administracionDeUsuarios: Access = (args) =>
   puedeAdministrarUsuarios(usuarioDe(args))
+
+/**
+ * Acceso a registros propios (comentarios, actividad).
+ * Permite a admin/editor ver y modificar todo, y a los lectores solo lo suyo.
+ */
+export const accesoDePropiedad: Access = (args) => filtroDePropiedad(usuarioDe(args))
 
 /**
  * Acceso al panel de administración.

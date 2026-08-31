@@ -290,3 +290,184 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   .indice-ficha li a { padding: 6px 12px; border: 1px solid var(--linea); border-radius: 100px; margin-left: 0; }
   .indice-ficha li a.activa { background: var(--campo-tenue); border-color: var(--campo); }
 }
+
+/* ==========================================================================
+   Mejoras de Diseño (Grillas, Tarjetas y UI de Comentarios)
+   ========================================================================== */
+
+/* Rejilla de fichas (Biblioteca) */
+.rejilla-fichas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 0;
+  margin: 1.5rem 0 3rem;
+  list-style: none;
+}
+
+/* Diseño de tarjeta individual */
+.tarjeta-ficha {
+  display: flex;
+  flex-direction: column;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.tarjeta-ficha:hover, .tarjeta-ficha:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.06);
+  border-color: var(--campo);
+}
+
+.tarjeta-ficha h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: var(--tinta);
+  line-height: 1.3;
+}
+
+.tarjeta-ficha p {
+  margin: 0;
+  color: var(--pizarra);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tarjeta-ficha .etiquetas {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.tarjeta-ficha .codigo, .tarjeta-ficha .borrador {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tarjeta-ficha .codigo {
+  background: var(--campo-tenue);
+  color: var(--campo-hondo);
+}
+
+.tarjeta-ficha .borrador {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+/* Formulario de Comentarios */
+.contenedor-comentario-toggle {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--linea-suave);
+  text-align: center;
+}
+
+.boton-comentar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 20px;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  color: var(--pizarra);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.boton-comentar:hover {
+  background: var(--campo-tenue);
+  color: var(--campo-hondo);
+  border-color: var(--campo);
+}
+
+.formulario-comentario {
+  margin-top: 3rem;
+  padding: 2rem;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-left: 4px solid var(--campo);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.formulario-comentario h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: var(--campo-hondo);
+}
+
+.formulario-comentario .descripcion {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: var(--mudo);
+  font-size: 0.9rem;
+}
+
+.formulario-comentario textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid var(--linea);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 1rem;
+  resize: vertical;
+  margin-bottom: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.formulario-comentario textarea:focus {
+  outline: none;
+  border-color: var(--campo);
+  box-shadow: 0 0 0 3px var(--campo-tenue);
+}
+
+.acciones-formulario {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.boton.sutil {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--pizarra);
+}
+
+.boton.sutil:hover {
+  background: var(--papel);
+}
+
+.alerta.exito {
+  padding: 1rem;
+  background: var(--campo-tenue);
+  color: var(--campo-hondo);
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.texto-error {
+  color: #d32f2f;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+

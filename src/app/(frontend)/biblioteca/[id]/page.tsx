@@ -7,6 +7,8 @@ import { pestanasConContenido } from '@/lib/fichas'
 import { Bloques } from '@/components/Bloques'
 import { IndiceFicha } from '@/components/IndiceFicha'
 
+import { FormularioComentario } from '@/components/FormularioComentario'
+
 export const dynamic = 'force-dynamic'
 
 /**
@@ -93,6 +95,8 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
       )}
         </div>
       </div>
+      
+      <FormularioComentario coleccion="patologias" documentoId={id} />
     </main>
   )
 }

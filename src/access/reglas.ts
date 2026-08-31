@@ -10,6 +10,7 @@
 export type Rol = 'admin' | 'editor' | 'lector'
 
 export interface UsuarioSesion {
+  id: string
   rol: Rol
   activo: boolean
 }
@@ -47,4 +48,16 @@ export const filtroDeLectura = (
   if (!habilitada(u)) return false
   if (u.rol === 'admin' || u.rol === 'editor') return true
   return SOLO_PUBLICADO
+}
+
+/**
+ * Filtro para registros que pertenecen a un usuario (ej. comentarios, actividad).
+ * Admin/editor acceden a todos; el lector solo a los suyos.
+ */
+export const filtroDePropiedad = (
+  u: UsuarioSesion | null | undefined,
+): boolean | { usuario: { equals: string } } => {
+  if (!habilitada(u)) return false
+  if (u.rol === 'admin' || u.rol === 'editor') return true
+  return { usuario: { equals: u.id } }
 }
