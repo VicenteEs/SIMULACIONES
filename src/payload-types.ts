@@ -346,7 +346,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
@@ -439,7 +439,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
@@ -532,7 +532,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
@@ -625,7 +625,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
@@ -718,7 +718,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
@@ -811,7 +811,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
@@ -931,7 +931,7 @@ export interface Maniobra {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
@@ -1049,7 +1049,7 @@ export interface CasosAo {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
@@ -1171,7 +1171,7 @@ export interface Cirugia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
@@ -1304,7 +1304,7 @@ export interface EstudiosIa {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.
+             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
              */
             encuadre?: {
               escala?: number | null;
