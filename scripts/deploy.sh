@@ -108,6 +108,14 @@ else
   fi
 fi
 
+paso "Programando el respaldo diario"
+linea_cron="0 3 * * * cd $(pwd) && TUNEL=$TUNEL ./scripts/respaldar.sh >> backups/respaldo.log 2>&1"
+if crontab -l 2>/dev/null | grep -q "respaldar.sh"; then
+  verde "    ya estaba programado"
+else
+  (crontab -l 2>/dev/null; echo "$linea_cron") | crontab - &&     verde "    respaldo diario a las 03:00" ||     rojo "    no se pudo programar; agreguelo a mano con: crontab -e"
+fi
+
 paso "Limpiando imagenes antiguas"
 docker image prune -f >/dev/null
 

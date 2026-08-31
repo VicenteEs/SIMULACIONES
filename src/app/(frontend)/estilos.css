@@ -229,3 +229,11 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 6px; }
   .simulador-registro { position: static; }
   .barra-interior { height: auto; flex-wrap: wrap; padding: 10px 18px; gap: 12px; }
 }
+
+/* ---------- editor de encuadre (panel) ---------- */
+.editor-encuadre { border: 1px solid var(--linea); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+.editor-encuadre-lienzo canvas { display: block; width: 100% !important; height: 320px !important; touch-action: none; }
+.editor-encuadre-pie { padding: 12px 14px; border-top: 1px solid var(--linea); background: var(--superficie); }
+.editor-encuadre-pie p { font-size: 13px; color: var(--pizarra); margin: 0 0 10px; }
+.editor-encuadre-botones { display: flex; gap: 8px; }
+.editor-encuadre-aviso { font-size: 13px; color: var(--pizarra); padding: 14px; border: 1px dashed var(--linea); border-radius: 8px; margin-bottom: 14px; }

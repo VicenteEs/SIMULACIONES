@@ -140,7 +140,11 @@ export const BloqueModelo3D: Block = {
       label: 'Encuadre inicial',
       admin: {
         description:
-          'Posición desde la que se ve el modelo al abrir la ficha. Se ajusta en el visor y se guarda aquí.',
+          'Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.',
+        components: {
+          // Editor visual: sustituye escribir cinco números a mano.
+          afterInput: ['@/components/admin/EditorEncuadre#EditorEncuadre'],
+        },
       },
       fields: [
         { name: 'escala', type: 'number', defaultValue: 1, min: 0.01, max: 100, label: 'Escala' },

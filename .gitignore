@@ -23,6 +23,7 @@ build/
 *.sql
 *.dump
 /backups/
+playwright/.cache/
 
 # modelos 3D subidos por usuarios (viven en el volumen, no en git)
 /uploads/

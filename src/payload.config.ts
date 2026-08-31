@@ -4,6 +4,7 @@ import { buildConfig } from 'payload'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import sharp from 'sharp'
 import { es } from '@payloadcms/translations/languages/es'
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { COLECCIONES } from '@/collections'
 import { editorClinico } from '@/blocks'
 
@@ -38,6 +39,26 @@ export default buildConfig({
     defaultLocale: 'es',
     fallback: true,
   },
+  // Correo saliente. Sin esto, Payload escribe los mensajes en la consola en
+  // lugar de enviarlos, y la recuperación de contraseña no llega a nadie.
+  // Si no hay servidor configurado se deja el comportamiento de consola, para
+  // que la aplicación arranque igual en desarrollo.
+  email: process.env.SMTP_HOST
+    ? nodemailerAdapter({
+        defaultFromAddress: process.env.SMTP_DESDE || 'no-responder@localhost',
+        defaultFromName: 'Plataforma de traumatología',
+        transportOptions: {
+          host: process.env.SMTP_HOST,
+          port: Number(process.env.SMTP_PUERTO || 587),
+          // 465 exige TLS desde el saludo inicial; 587 lo negocia después.
+          secure: Number(process.env.SMTP_PUERTO || 587) === 465,
+          auth: {
+            user: process.env.SMTP_USUARIO,
+            pass: process.env.SMTP_CLAVE,
+          },
+        },
+      })
+    : undefined,
   db: postgresAdapter({
     pool: { connectionString: process.env.DATABASE_URI || '' },
   }),

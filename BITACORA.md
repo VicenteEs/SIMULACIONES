@@ -350,6 +350,32 @@ invisible desde la red local y desde internet.
 *Cómo se elige:* `scripts/deploy.sh` usa Tailscale por omisión y acepta
 `TUNEL=cloudflare` para la otra vía. Cada uno con su archivo de compose.
 
+### D-035 · 2026-08-31 · vigente
+**Sin segundo factor por ahora.**
+Se descarta el TOTP que preveía la fase 1. El acceso queda protegido por
+contraseña con bloqueo tras cinco intentos, cuentas que un administrador debe
+activar y, cuando exista dominio, la puerta adicional de Cloudflare Access.
+*Riesgo asumido:* si una contraseña de administrador se filtra, no hay segunda
+barrera. Conviene reconsiderarlo antes de dar de alta a residentes ajenos al
+equipo.
+
+### D-036 · 2026-08-31 · vigente
+**El respaldo diario se programa solo al desplegar.**
+`scripts/deploy.sh` inscribe en cron una ejecución a las 03:00 de
+`scripts/respaldar.sh`, que vuelca base y archivos subidos, descarta lo anterior
+a treinta días y aborta si el volcado sale sospechosamente pequeño.
+`scripts/restaurar.sh` hace el camino inverso, pero exige escribir RESTAURAR y
+respalda el estado actual antes de sobrescribir nada.
+*Probado de verdad:* el respaldo se ejecutó contra la base de desarrollo y se
+verificó su integridad; no es un script que solo parezca correcto.
+
+### D-037 · 2026-08-31 · vigente
+**El encuadre de un modelo 3D se ajusta arrastrando, no escribiendo números.**
+Un componente propio del panel muestra el modelo, deja girarlo con el ratón y
+escribe los valores en el formulario al pulsar «Capturar encuadre». *Por qué:*
+pedirle al traumatólogo que adivine que la escala es 1,4 y el giro 35 grados, y
+que guarde para ver el resultado, era exactamente lo que R5 pedía evitar.
+
 ---
 
 ## 3. Observaciones
@@ -520,6 +546,21 @@ de `tests/unit/colecciones.test.ts` comprueba ahora que ninguna colección filtr
 por `_status` sin tener borradores, de modo que no puede repetirse.
 
 *Lección:* una suite verde sobre una base vacía prueba menos de lo que parece.
+
+### O-013 · 2026-08-31 · media · resuelta
+**La verificación del respaldo fallaba por SIGPIPE, no por un respaldo malo.**
+`gzip -dc archivo | head -50 | grep -q ...` bajo `set -o pipefail` devuelve
+error: `head` cierra el conducto, `gzip` recibe SIGPIPE y el conducto entero se
+considera fallido aunque `grep` haya encontrado lo que buscaba. El respaldo era
+correcto —27 KB con su cabecera— y el script lo declaraba inválido.
+Resuelto capturando la salida en una variable antes de examinarla.
+
+Del mismo episodio salió un segundo arreglo: si `pg_dump` fallaba a mitad,
+`gzip` ya había creado el archivo y quedaba un respaldo truncado de 20 bytes con
+aspecto de respaldo bueno en el listado. Ahora una trampa de salida lo descarta.
+
+*Lección:* un script de respaldo no probado es peor que ninguno, porque da
+tranquilidad sin darla.
 
 ---
 

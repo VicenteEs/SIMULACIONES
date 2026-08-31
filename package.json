@@ -21,10 +21,14 @@
     "db:migrate": "payload migrate",
     "db:seed": "tsx scripts/seed.ts",
     "test:integration": "vitest run tests/integration",
-    "demo": "tsx scripts/demo.ts"
+    "demo": "tsx scripts/demo.ts",
+    "test:e2e:ui": "playwright test --ui",
+    "respaldar": "bash scripts/respaldar.sh",
+    "restaurar": "bash scripts/restaurar.sh"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.88.0",
+    "@payloadcms/email-nodemailer": "^3.88.0",
     "@payloadcms/next": "3.88.0",
     "@payloadcms/richtext-lexical": "3.88.0",
     "@payloadcms/ui": "3.88.0",
