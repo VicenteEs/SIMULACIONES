@@ -471,6 +471,37 @@ visible y «Plataforma docente de traumatología» queda como descripción. En l
 barra se usa la marca sola —`icon.png`—, porque `logo.png` ya lleva el nombre
 escrito y ponerlo junto a un texto lo repetía.
 
+
+### D-046 · 2026-09-06 · vigente · matiza a D-034
+**En el servidor compartido, la plataforma cuelga de `/traumahub`.**
+El servidor `ved` sirve varias páginas tras un mismo Nginx Proxy Manager,
+detrás de un Funnel de Tailscale en el 10000. La raíz es de APCE, así que
+TraumaHub se monta bajo un prefijo, y su API queda en `/traumahub/api` sin
+chocar con el `/api` que ya usa APCE.
+
+*Cómo:* `basePath` de Next, fijado al compilar mediante el argumento
+`BASE_PATH` del Dockerfile. Lo que Next no prefija solo —imágenes escritas a
+mano, `fetch`, el flujo de eventos— pasa por `ruta()` de `src/lib/rutas.ts`.
+
+*Por qué todo relativo:* si un enlace fuera absoluto, mandaría al mismo dominio
+**sin el puerto**, y en el 443 no hay nada. Manteniéndolo relativo, el
+navegador nunca sale del origen por el que entró.
+
+*La ruta del proxy* se da de alta como fragmento en
+`data/nginx/custom/server_proxy.conf` y no desde el panel, para no tocar la
+configuración de las páginas que ya funcionan. El destino va en una variable a
+propósito: con un `proxy_pass` literal, un TraumaHub caído impediría arrancar a
+nginx y se caerían todas las demás.
+
+### D-047 · 2026-09-06 · vigente
+**El esquema de producción se crea con migraciones, no con `push`.**
+El primer despliegue levantó la aplicación contra una base de cero tablas: el
+`push` de Drizzle solo actúa en desarrollo y el proyecto no tenía migraciones.
+Se congeló el esquema en `src/migrations` y se le pasa al adaptador como
+`prodMigrations`, de modo que la imagen aplica al arrancar lo que falte.
+*Consecuencia que hay que recordar:* en desarrollo sigue mandando el `push`, y
+cada cambio de esquema hay que congelarlo con `npx payload migrate:create`.
+
 ---
 
 ## 3. Observaciones
