@@ -51,7 +51,7 @@ fi
 echo
 
 echo "Aplicacion"
-respuesta=$(docker compose -f "$COMPOSE" exec -T app wget -qO- http://127.0.0.1:3000/api/salud 2>/dev/null || true)
+respuesta=$(docker compose -f "$COMPOSE" exec -T app wget -qO- "http://127.0.0.1:3000${BASE_PATH:-}/api/salud" 2>/dev/null || true)
 case "$respuesta" in
   *'"estado":"ok"'*) bien "responde y alcanza la base" ;;
   *'"estado"'*)      fallo "responde pero no alcanza la base: $respuesta" ;;

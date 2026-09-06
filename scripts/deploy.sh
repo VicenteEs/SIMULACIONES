@@ -81,7 +81,7 @@ paso "Esperando a que la aplicacion responda"
 # que un "ok" significa aplicacion y base en pie, no solo el puerto abierto.
 sano=0
 for intento in $(seq 1 90); do
-  if docker compose -f "$COMPOSE" exec -T app wget -qO- http://127.0.0.1:3000/api/salud 2>/dev/null | grep -q '"estado":"ok"'; then
+  if docker compose -f "$COMPOSE" exec -T app wget -qO- "http://127.0.0.1:3000${BASE_PATH:-}/api/salud" 2>/dev/null | grep -q '"estado":"ok"'; then
     verde "    responde y alcanza la base tras ${intento}s"
     sano=1
     break

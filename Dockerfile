@@ -37,6 +37,13 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# El prefijo se repite aqui porque las variables no cruzan de una etapa a otra,
+# y esta etapa lo necesita para que la comprobacion de salud consulte la ruta
+# real. Sin esto el contenedor queda «unhealthy» aunque este sirviendo bien:
+# pregunta por /api/salud cuando el extremo vive en /traumahub/api/salud.
+ARG BASE_PATH=""
+ENV NEXT_PUBLIC_BASE_PATH=$BASE_PATH
+
 # El cliente de PostgreSQL viaja en la imagen para que el panel pueda respaldar
 # la base sin abrir una sesion SSH. Son unos pocos megabytes y evitan que el
 # unico camino al respaldo sea la linea de comandos del servidor.
@@ -65,6 +72,6 @@ ENV RESPALDOS_DIR=/backups
 # para todos los efectos practicos: /api/salud consulta PostgreSQL antes de
 # declararse sano, y de ahi lo lee tanto compose como el script de despliegue.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3000/api/salud >/dev/null || exit 1
+  CMD wget -qO- "http://127.0.0.1:3000${NEXT_PUBLIC_BASE_PATH}/api/salud" >/dev/null || exit 1
 
 CMD ["node", "server.js"]
