@@ -269,8 +269,6 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 @media (max-width: 640px) {
   main { padding: 30px 18px 70px; }
   h1 { font-size: 30px; }
-  .barra-interior { height: auto; flex-wrap: wrap; padding: 12px 18px; gap: 12px; }
-  .modulos { gap: 14px; font-size: 13px; }
   .figura.pequena, .figura.media { max-width: 100%; float: none; margin: 0 0 22px; }
   .aviso-actualizacion { left: 18px; right: 18px; bottom: 18px; }
 }
@@ -710,21 +708,6 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 /* La marca del logotipo es cuadrada: se le da su proporción y algo más de aire. */
 .marca-logo { height: 30px; width: 30px; }
 
-/* ---------- la barra en dos filas antes de que apriete ----------
-   El punto de quiebre estaba en 640px, pero los cinco módulos más el nombre y
-   los tres controles de la derecha dejan de caber mucho antes. */
-@media (max-width: 1000px) {
-  .barra-interior {
-    height: auto;
-    flex-wrap: wrap;
-    padding: 10px 24px;
-    gap: 10px 18px;
-  }
-  .modulos { order: 3; width: 100%; gap: 18px; }
-  .barra-derecha { margin-left: auto; }
-  .pestana { scroll-margin-top: 110px; }
-  .indice-ficha { top: 110px; }
-}
 
 /* ---------- foco visible también sobre fondo oscuro ----------
    El contorno azul de la marca se pierde sobre el marino de la barra. */
@@ -753,16 +736,414 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 }
 
 
-/* En un teléfono, los controles de la derecha tampoco caben: se desplazan en
-   lugar de recortarse, que es lo que dejaba «Salir» medio fuera de la pantalla. */
-@media (max-width: 700px) {
-  .barra-derecha {
-    width: 100%;
-    margin-left: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-  }
-  .barra-derecha::-webkit-scrollbar { display: none; }
-  .quien { display: none; }
+/* ==========================================================================
+   Menú de pantalla estrecha.
+
+   Las dos navegaciones se pintan siempre y CSS elige cuál se ve: medir la
+   ventana en JavaScript daría un salto visible en la primera pintada.
+   ========================================================================== */
+
+.barra-movil { display: none; }
+
+.menu-boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #2c4270;
+  border-radius: var(--r);
+  background: none;
+  color: #e9eefb;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
 }
+
+.menu-boton:hover { border-color: #6284c4; }
+
+.menu-icono {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 18px;
+  height: 14px;
+}
+
+.menu-icono span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: currentColor;
+  border-radius: 2px;
+  transition:
+    transform 0.18s ease,
+    opacity 0.14s ease;
+}
+
+/* Las tres barras se convierten en una cruz: el mismo botón abre y cierra, y
+   la forma dice en cuál de los dos estados está. */
+.menu-icono-abierto span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.menu-icono-abierto span:nth-child(2) { opacity: 0; }
+.menu-icono-abierto span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+.menu-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 26, 56, 0.5);
+  z-index: 60;
+  animation: menu-aparecer 0.15s ease;
+}
+
+.menu-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(310px, 84vw);
+  background: var(--superficie);
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  box-shadow: -8px 0 30px rgba(12, 26, 56, 0.18);
+  overflow-y: auto;
+  outline: none;
+  transform: translateX(100%);
+  transition: transform 0.2s cubic-bezier(0.3, 0.8, 0.4, 1);
+}
+
+.menu-panel-abierto { transform: translateX(0); }
+
+@keyframes menu-aparecer {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-panel { transition: none; }
+}
+
+.menu-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--linea-suave);
+}
+
+.menu-titulo {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mudo);
+  font-weight: 600;
+}
+
+.menu-cerrar {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: none;
+  color: var(--pizarra);
+  font-size: 17px;
+  cursor: pointer;
+  border-radius: var(--r);
+  line-height: 1;
+}
+
+.menu-cerrar:hover { background: var(--linea-suave); color: var(--tinta); }
+
+.menu-enlaces { display: flex; flex-direction: column; }
+
+.menu-enlace {
+  display: block;
+  /* 48px de alto: un enlace de navegación se pulsa con el pulgar y en marcha. */
+  padding: 13px 12px;
+  border-radius: var(--r);
+  color: var(--tinta);
+  text-decoration: none;
+  font-size: 16px;
+  border-left: 3px solid transparent;
+}
+
+.menu-enlace:hover { background: var(--papel); }
+
+.menu-enlace-activo {
+  color: var(--marca);
+  font-weight: 600;
+  border-left-color: var(--marca);
+  background: var(--marca-tenue);
+}
+
+.menu-separador {
+  height: 1px;
+  background: var(--linea-suave);
+  margin: 10px 0;
+}
+
+.menu-pie {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--linea-suave);
+}
+
+.menu-quien { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
+.menu-quien-nombre { font-size: 14px; font-weight: 600; color: var(--tinta); }
+
+.menu-quien-rol {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mudo);
+}
+
+/* ---------- el cambio de una navegación a la otra ---------- */
+@media (max-width: 1000px) {
+  .barra-interior {
+    height: 58px;
+    flex-wrap: nowrap;
+    padding: 0 18px;
+    gap: 12px;
+  }
+
+  .modulos,
+  .barra-derecha { display: none; }
+
+  .barra-movil {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  /* Con la barra en una sola fila vuelve a valer el desplazamiento original. */
+  .pestana { scroll-margin-top: 78px; }
+  .indice-ficha { top: 80px; }
+}
+
+@media (max-width: 520px) {
+  .barra-interior { padding: 0 14px; gap: 8px; }
+  .marca-sub { display: none; }
+}
+
+.menu-conmutador { padding: 0 12px 12px; }
+
+.menu-salir {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: none;
+  color: var(--pizarra);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.menu-salir:hover:not(:disabled) { border-color: var(--alerta); color: var(--alerta); }
+.menu-salir:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ==========================================================================
+   Portada sin sesión.
+
+   Es lo primero que ve alguien que llega, y hasta ahora era medio formulario y
+   medio folleto. Ahora es una sola pantalla: marca, qué es esto, y la puerta.
+   El fondo recoge la malla de nodos del logotipo, muy tenue, para que la marca
+   se reconozca antes de leer nada.
+   ========================================================================== */
+
+.portada-publica {
+  position: relative;
+  min-height: 100vh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(165deg, #0a1633 0%, #10254f 55%, #143063 100%);
+  color: #e9eefb;
+  overflow: hidden;
+}
+
+.portada-fondo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--cian);
+  opacity: 0.16;
+}
+
+.portada-malla { width: 100%; height: 100%; display: block; }
+
+/* Un halo detrás del texto, para que la malla no compita con la lectura. */
+.portada-fondo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(70% 62% at 50% 45%, rgba(10, 22, 51, 0.95) 0%, rgba(10, 22, 51, 0.35) 60%, rgba(10, 22, 51, 0) 100%);
+}
+
+.portada-hero {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 64px 24px 40px;
+  max-width: 660px;
+}
+
+.portada-logo {
+  width: 260px;
+  max-width: 72%;
+  height: auto;
+  margin: 0 auto 34px;
+  display: block;
+  /* El logotipo es azul sobre blanco; sobre el marino se aclara para no
+     quedar como un recuadro pegado encima del degradado. */
+  filter: brightness(0) invert(1);
+  opacity: 0.96;
+}
+
+.portada-titular {
+  font-size: clamp(30px, 5.2vw, 50px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  margin: 0 0 20px;
+  color: #fff;
+}
+
+.portada-titular em {
+  font-style: normal;
+  color: var(--cian);
+}
+
+.portada-bajada {
+  font-size: clamp(15px, 1.7vw, 18px);
+  line-height: 1.6;
+  color: #b6c7e6;
+  margin: 0 auto 34px;
+  max-width: 52ch;
+}
+
+.portada-boton {
+  display: inline-block;
+  background: var(--cian);
+  color: #06122b;
+  font-weight: 650;
+  font-size: 16px;
+  padding: 14px 34px;
+  border-radius: 100px;
+  text-decoration: none;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+  box-shadow: 0 8px 28px rgba(30, 159, 224, 0.28);
+}
+
+.portada-boton:hover {
+  background: #4fb8ea;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 34px rgba(30, 159, 224, 0.36);
+}
+
+.portada-nota {
+  font-size: 13px;
+  color: #7f95bd;
+  margin: 22px 0 0;
+}
+
+/* ---------- tira de módulos ---------- */
+.portada-tira {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 0;
+  width: 100%;
+  max-width: 1000px;
+  padding: 26px 24px 56px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  margin-top: 20px;
+}
+
+.portada-tira-item {
+  flex: 1 1 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  text-align: center;
+}
+
+.portada-tira-numero {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--cian);
+  opacity: 0.75;
+}
+
+.portada-tira-nombre {
+  font-size: 13px;
+  color: #a9bcdd;
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  .portada-hero { padding: 44px 22px 30px; }
+  .portada-logo { margin-bottom: 26px; }
+  .portada-tira { padding: 20px 18px 40px; gap: 14px 0; }
+  .portada-tira-item { flex-basis: 45%; }
+}
+
+/* ==========================================================================
+   Portada con sesión: cifras y remate de las tarjetas.
+   ========================================================================== */
+
+.portada-cifras {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+  margin: 0 0 26px;
+  padding: 18px 0;
+  border-top: 1px solid var(--linea);
+  border-bottom: 1px solid var(--linea);
+}
+
+.portada-cifra { display: flex; flex-direction: column; gap: 2px; }
+
+.portada-cifra strong {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--tinta);
+  line-height: 1;
+}
+
+.portada-cifra span {
+  font-size: 12.5px;
+  color: var(--mudo);
+}
+
+.continuar-leyendo { margin-bottom: 56px; }
+
+.tarjeta-ficha-accion {
+  margin-top: auto;
+  padding-top: 14px;
+  color: var(--marca);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tarjeta-ficha .codigo { text-transform: capitalize; }

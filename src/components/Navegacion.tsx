@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ConmutadorVista } from './ConmutadorVista'
 import { BotonSalir } from './BotonSalir'
+import { MenuMovil } from './MenuMovil'
 
 const MODULOS = [
   { ruta: '/biblioteca', etiqueta: 'Biblioteca' },
@@ -13,8 +14,13 @@ const MODULOS = [
 /**
  * Barra superior de la plataforma.
  *
- * El enlace al panel lo ven administrador y editor, y en ambos casos lleva al
- * panel propio: la interfaz de Payload no se ofrece a nadie.
+ * Dos navegaciones para el mismo destino: la fila de módulos en pantalla ancha
+ * y un panel desplegable en el teléfono. Se pintan las dos y CSS decide cuál se
+ * ve, en lugar de medir la ventana en JavaScript: así la primera pintada ya es
+ * la correcta y no hay un salto cuando el componente descubre el tamaño.
+ *
+ * El enlace al panel lo ven administrador y editor, y lleva al panel propio:
+ * la interfaz de Payload no se ofrece a nadie.
  */
 export function Navegacion({
   nombre,
@@ -25,6 +31,8 @@ export function Navegacion({
   rolReal: string
   simulando: boolean
 }) {
+  const hayPanel = rolReal === 'admin' || rolReal === 'editor'
+
   return (
     <header className="barra">
       <div className="barra-interior">
@@ -38,22 +46,34 @@ export function Navegacion({
             <span className="marca-sub">Plataforma docente</span>
           </div>
         </Link>
-        <nav className="modulos">
+
+        <nav className="modulos" aria-label="Módulos">
           {MODULOS.map((m) => (
             <Link key={m.ruta} href={m.ruta}>
               {m.etiqueta}
             </Link>
           ))}
         </nav>
+
         <div className="barra-derecha">
           <ConmutadorVista rolReal={rolReal} simulando={simulando} />
-          {rolReal === 'admin' || rolReal === 'editor' ? (
+          {hayPanel ? (
             <Link href="/admin-panel" className="enlace-nav">
               Panel
             </Link>
           ) : null}
           {nombre ? <span className="quien">{nombre}</span> : null}
           <BotonSalir />
+        </div>
+
+        <div className="barra-movil">
+          <MenuMovil
+            modulos={MODULOS}
+            nombre={nombre}
+            rolReal={rolReal}
+            simulando={simulando}
+            hayPanel={hayPanel}
+          />
         </div>
       </div>
     </header>
