@@ -87,7 +87,7 @@ conserva el valor de ejemplo. También respalda la base antes de reconstruir.
 
 ### La primera cuenta
 
-Al terminar, abrir `https://plataforma.sudominio.cl/admin` y crear la primera
+Al terminar, abrir `https://plataforma.sudominio.cl/instalar` y crear la primera
 cuenta. **Esa primera cuenta queda como administradora y activa de forma
 automática** (decisión D-028); todas las siguientes nacen como lectoras
 desactivadas y hay que habilitarlas a mano desde el panel.
@@ -144,7 +144,7 @@ docker compose -f docker-compose.prod.yml logs -f app
 
 ### Una segunda puerta para el panel
 
-En Cloudflare Zero Trust se puede exigir que `/admin` solo sea accesible desde
+En Cloudflare Zero Trust se puede exigir que `/admin-panel` solo sea accesible desde
 correos concretos, con código de verificación por correo, antes incluso de
 llegar al inicio de sesión de la plataforma. Es gratuito hasta cincuenta
 usuarios y se configura en **Access → Applications**. Muy recomendable.

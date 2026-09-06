@@ -35,7 +35,7 @@ async function main() {
   console.log('')
   console.log('Abra este enlace y elija una contraseña nueva:')
   console.log('')
-  console.log(`  ${base}/admin/reset/${testigo}`)
+  console.log(`  ${base}/clave/${testigo}`)
   console.log('')
   console.log('Caduca en una hora y sirve una sola vez.')
   process.exit(0)

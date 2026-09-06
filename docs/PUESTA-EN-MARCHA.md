@@ -24,7 +24,7 @@
    npm run dev
    ```
 
-4. Abrir http://localhost:3000/admin y crear la primera cuenta de
+4. Abrir http://localhost:3000/instalar y crear la primera cuenta de
    administrador. Recordar marcarla como activa: una cuenta sin activar no ve
    nada (decisión D-020).
 

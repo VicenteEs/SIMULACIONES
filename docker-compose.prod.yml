@@ -1,9 +1,12 @@
-# Producción en el servidor Ubuntu. Se despliega clonando el repositorio y
-# ejecutando scripts/deploy.sh (decisión D-019).
+# Producción detrás de un túnel de Cloudflare (alternativa a Tailscale, D-034).
 #
-# La aplicación NO publica puertos en el anfitrión: el único camino de entrada
-# es el túnel de Cloudflare, que abre una conexión saliente hacia la red de
-# Cloudflare. El router no expone ningún puerto (decisión D-010).
+# La aplicación NO publica ningún puerto en el anfitrión: el único camino de
+# entrada es el túnel, que abre una conexión SALIENTE hacia la red de
+# Cloudflare. El router no expone ningún puerto y la IP del servidor no se
+# publica (decisión D-010, luego matizada por D-034).
+#
+# Uso:
+#   TUNEL=cloudflare ./scripts/deploy.sh
 services:
   db:
     image: postgres:17-alpine
@@ -13,6 +16,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?falta}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta}
       POSTGRES_DB: ${POSTGRES_DB:?falta}
+      LANG: es_ES.UTF-8
     volumes:
       - datos-db:/var/lib/postgresql/data
       - ./backups:/backups
@@ -22,11 +26,17 @@ services:
       timeout: 5s
       retries: 10
     networks: [interna]
+    logging: &registro
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
+    image: plataforma-trauma:local
     container_name: trauma-app
     restart: unless-stopped
     depends_on:
@@ -37,23 +47,25 @@ services:
       PAYLOAD_SECRET: ${PAYLOAD_SECRET:?falta}
       NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?falta}
       NODE_ENV: production
+      TZ: ${TZ:-America/Santiago}
+      RESPALDOS_DIR: /backups
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PUERTO: ${SMTP_PUERTO:-587}
+      SMTP_USUARIO: ${SMTP_USUARIO:-}
+      SMTP_CLAVE: ${SMTP_CLAVE:-}
+      SMTP_DESDE: ${SMTP_DESDE:-}
     volumes:
-      # Los archivos subidos viven fuera de la imagen para sobrevivir a los despliegues.
       - medios:/app/public/media
+      - ./backups:/backups
     networks: [interna]
+    logging: *registro
 
-  # Tunel de Cloudflare. Abre una conexion SALIENTE hacia Cloudflare, de modo
-  # que el router no expone ningun puerto y la IP del servidor no se publica.
+  # Túnel de Cloudflare. Hace falta uno solo por servidor, no uno por servicio:
+  # los demás servicios se agregan como nombres públicos en el panel de
+  # Cloudflare apuntando a su dirección interna. Ver docs/CLOUDFLARE.md
   #
-  # Hace falta un solo tunel por servidor, no uno por servicio: los demas
-  # servicios se agregan como nombres publicos en el panel de Cloudflare,
-  # apuntando a su direccion interna. Ver docs/CLOUDFLARE.md
-  #
-  # Para que este tunel alcance servicios que corren FUERA de este compose,
-  # agregar aqui su red o usar la direccion del anfitrion:
-  #   extra_hosts:
-  #     - "anfitrion:host-gateway"
-  # y en el panel apuntar a http://anfitrion:PUERTO
+  # Para alcanzar servicios que corren FUERA de este compose, apuntar en el
+  # panel a http://anfitrion:PUERTO gracias al extra_hosts de abajo.
   tunel:
     image: cloudflare/cloudflared:latest
     container_name: trauma-tunel
@@ -63,6 +75,7 @@ services:
     extra_hosts:
       - "anfitrion:host-gateway"
     networks: [interna]
+    logging: *registro
     healthcheck:
       test: ["CMD", "cloudflared", "--version"]
       interval: 60s

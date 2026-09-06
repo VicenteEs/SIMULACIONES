@@ -18,6 +18,8 @@
     "test:e2e": "playwright test",
     "payload": "payload",
     "generate:types": "payload generate:types",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
     "db:migrate": "payload migrate",
     "db:seed": "tsx scripts/seed.ts",
     "test:integration": "vitest run tests/integration",
@@ -25,6 +27,9 @@
     "test:e2e:ui": "playwright test --ui",
     "respaldar": "bash scripts/respaldar.sh",
     "restaurar": "bash scripts/restaurar.sh",
+    "salud": "bash scripts/salud.sh",
+    "desplegar": "bash scripts/deploy.sh",
+    "actualizar": "bash scripts/actualizar.sh",
     "clave:restablecer": "tsx scripts/restablecer-clave.ts"
   },
   "dependencies": {

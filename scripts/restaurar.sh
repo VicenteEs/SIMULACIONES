@@ -5,10 +5,14 @@
 # hacerlo y, aun asi, respalda el estado actual primero: si la restauracion sale
 # mal, todavia hay a donde volver.
 #
-#   ./scripts/restaurar.sh backups/base-20260829-030000.sql.gz
+#   ./scripts/restaurar.sh backups/base-20260906-030000.sql.gz
+#
+# Un respaldo que nunca se restauro no es un respaldo. Conviene probar esto una
+# vez, con la plataforma todavia vacia, antes de necesitarlo de verdad.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+. scripts/comun.sh
 
 archivo="${1:-}"
 if [ -z "$archivo" ]; then
@@ -19,46 +23,63 @@ if [ -z "$archivo" ]; then
   exit 1
 fi
 
-[ -f "$archivo" ] || { echo "No existe: $archivo" >&2; exit 1; }
+[ -f "$archivo" ] || morir "No existe: $archivo"
 
-TUNEL="${TUNEL:-tailscale}"
-case "$TUNEL" in
-  tailscale)  COMPOSE="docker-compose.tailscale.yml" ;;
-  cloudflare) COMPOSE="docker-compose.prod.yml" ;;
-  local)      COMPOSE="docker-compose.yml" ;;
-  *) echo "TUNEL debe ser tailscale, cloudflare o local." >&2; exit 1 ;;
-esac
+elegir_compose
+cargar_env
 
-set -a; . ./.env; set +a
+paso "Comprobando el archivo antes de tocar nada"
+gzip -t "$archivo" || morir "El archivo esta corrupto."
+# El contenido se captura antes de examinarlo: encadenar gzip con head bajo
+# "pipefail" hace fallar el conducto por SIGPIPE aunque el contenido sea bueno.
+cabecera=$(gzip -dc "$archivo" 2>/dev/null | head -50 || true)
+printf '%s' "$cabecera" | grep -q "PostgreSQL database dump" ||
+  morir "No parece un volcado de PostgreSQL."
+verde "    el archivo es valido"
 
-echo "==> Comprobando el archivo antes de tocar nada"
-gzip -t "$archivo" || { echo "El archivo esta corrupto." >&2; exit 1; }
-gzip -dc "$archivo" | head -50 | grep -q "PostgreSQL database dump"   || { echo "No parece un volcado de PostgreSQL." >&2; exit 1; }
-echo "    el archivo es valido"
+servicio_en_marcha db || morir "El contenedor de la base no esta en marcha."
 
 echo
-echo "Se va a SOBRESCRIBIR la base '$POSTGRES_DB' con el contenido de:"
-echo "    $archivo"
+rojo "Se va a SOBRESCRIBIR la base '$POSTGRES_DB' con el contenido de:"
+echo "    $archivo   ($(du -h "$archivo" | cut -f1), del $(date -r "$archivo" '+%Y-%m-%d %H:%M'))"
 echo
 printf "Escriba RESTAURAR para continuar: "
 read -r respuesta
 [ "$respuesta" = "RESTAURAR" ] || { echo "Cancelado."; exit 1; }
 
-echo "==> Respaldando el estado actual por si acaso"
-previo="backups/antes-de-restaurar-$(date +%Y%m%d-%H%M%S).sql.gz"
+paso "Respaldando el estado actual por si acaso"
 mkdir -p backups
-docker compose -f "$COMPOSE" exec -T db   pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists | gzip -9 > "$previo"
-echo "    $previo"
+previo="backups/base-$(date +%Y%m%d-%H%M%S).sql.gz"
+docker compose -f "$COMPOSE" exec -T db \
+  pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists | gzip -9 > "$previo"
+verde "    $previo"
 
-echo "==> Restaurando"
-gzip -dc "$archivo" | docker compose -f "$COMPOSE" exec -T db   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --quiet
+paso "Deteniendo la aplicacion mientras se restaura"
+# Restaurar con la aplicacion escribiendo encima deja la base a medio camino
+# entre las dos versiones, que es el peor resultado posible.
+detenida=0
+if servicio_en_marcha app; then
+  docker compose -f "$COMPOSE" stop app >/dev/null
+  detenida=1
+  verde "    aplicacion detenida"
+fi
 
-echo "==> Comprobando el resultado"
-usuarios=$(docker compose -f "$COMPOSE" exec -T db   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from usuarios;" | tr -d ' 
-')
-echo "    cuentas restauradas: $usuarios"
+paso "Restaurando"
+gzip -dc "$archivo" | docker compose -f "$COMPOSE" exec -T db \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --quiet
+
+paso "Comprobando el resultado"
+usuarios=$(docker compose -f "$COMPOSE" exec -T db \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from usuarios;" | tr -d '\r ')
+verde "    cuentas restauradas: $usuarios"
+
+if [ "$detenida" -eq 1 ]; then
+  paso "Volviendo a levantar la aplicacion"
+  docker compose -f "$COMPOSE" start app >/dev/null
+  verde "    en marcha"
+fi
 
 echo
-echo "Restauracion completada."
-echo "Reinicie la aplicacion:  docker compose -f $COMPOSE restart app"
+verde "Restauracion completada."
 echo "Si algo salio mal, el estado previo esta en: $previo"
+echo "Compruebe todo con:  ./scripts/salud.sh"

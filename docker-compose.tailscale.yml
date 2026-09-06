@@ -1,12 +1,12 @@
-# Produccion detras de un tunel de Tailscale.
+# Producción detrás de un túnel de Tailscale (decisión D-034, la vía por
+# omisión).
 #
-# Alternativa a docker-compose.prod.yml, que usa Cloudflare. La diferencia es
-# una sola y conviene tenerla clara:
+# Diferencia con la alternativa de Cloudflare, y conviene tenerla clara:
 #
-#   Cloudflare -> el tunel corre como contenedor en esta misma red, de modo que
-#                 la aplicacion NO publica ningun puerto en el anfitrion.
-#   Tailscale  -> el demonio corre en el anfitrion, no en la red del compose,
-#                 asi que la aplicacion debe publicar un puerto para que
+#   Cloudflare -> el túnel corre como contenedor en esta misma red, de modo que
+#                 la aplicación NO publica ningún puerto en el anfitrión.
+#   Tailscale  -> el demonio corre en el anfitrión, fuera de la red del compose,
+#                 así que la aplicación debe publicar un puerto para que
 #                 "tailscale serve" pueda alcanzarlo.
 #
 # Ese puerto se publica SOLO en 127.0.0.1, nunca en 0.0.0.0: queda accesible
@@ -14,9 +14,9 @@
 # ni desde internet.
 #
 # Uso:
-#   docker compose -f docker-compose.tailscale.yml up -d
+#   ./scripts/deploy.sh
 #   sudo tailscale serve --bg 3000          # privado, solo la tailnet
-#   sudo tailscale funnel --bg 3000         # publico en internet, con HTTPS
+#   sudo tailscale funnel --bg 3000         # público en internet, con HTTPS
 services:
   db:
     image: postgres:17-alpine
@@ -26,6 +26,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?falta}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta}
       POSTGRES_DB: ${POSTGRES_DB:?falta}
+      # Sin esto, un volcado con acentos puede restaurarse mal en otra máquina.
+      LANG: es_ES.UTF-8
     volumes:
       - datos-db:/var/lib/postgresql/data
       - ./backups:/backups
@@ -35,11 +37,17 @@ services:
       timeout: 5s
       retries: 10
     networks: [interna]
+    logging: &registro
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
+    image: plataforma-trauma:local
     container_name: trauma-app
     restart: unless-stopped
     depends_on:
@@ -50,12 +58,24 @@ services:
       PAYLOAD_SECRET: ${PAYLOAD_SECRET:?falta}
       NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?falta}
       NODE_ENV: production
+      TZ: ${TZ:-America/Santiago}
+      RESPALDOS_DIR: /backups
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PUERTO: ${SMTP_PUERTO:-587}
+      SMTP_USUARIO: ${SMTP_USUARIO:-}
+      SMTP_CLAVE: ${SMTP_CLAVE:-}
+      SMTP_DESDE: ${SMTP_DESDE:-}
     ports:
-      # Solo el anfitrion. Tailscale lo toma desde aqui.
+      # Solo el anfitrión. Tailscale lo toma desde aquí.
       - "127.0.0.1:3000:3000"
     volumes:
+      # Los archivos subidos viven fuera de la imagen para sobrevivir a los
+      # despliegues; los respaldos, además, fuera del contenedor, para que el
+      # panel y el cron del anfitrión vean los mismos archivos.
       - medios:/app/public/media
+      - ./backups:/backups
     networks: [interna]
+    logging: *registro
 
 volumes:
   datos-db:

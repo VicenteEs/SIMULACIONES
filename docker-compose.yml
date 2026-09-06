@@ -1,7 +1,8 @@
 # Desarrollo local. Solo la base de datos corre en contenedor; la aplicación
 # se ejecuta con "npm run dev" para tener recarga en caliente en Windows.
 #
-# Producción: ver docker-compose.prod.yml
+# Producción: ver docker-compose.tailscale.yml (por omisión) o
+# docker-compose.prod.yml (túnel de Cloudflare).
 services:
   db:
     image: postgres:17-alpine
@@ -9,6 +10,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-trauma}
+      # Sin valor por omisión a propósito: una contraseña escrita en un archivo
+      # versionado deja de ser una contraseña en cuanto el repositorio se clona.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
       POSTGRES_DB: ${POSTGRES_DB:-trauma}
     ports:
@@ -16,6 +19,7 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - datos-db:/var/lib/postgresql/data
+      - ./backups:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trauma} -d ${POSTGRES_DB:-trauma}"]
       interval: 5s

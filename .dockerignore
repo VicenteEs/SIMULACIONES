@@ -1,13 +1,35 @@
+# Lo que no debe entrar en el contexto de construccion.
 node_modules
 .next
 .git
+.github
+.claude
+
+# Secretos: la imagen recibe su configuracion por variables de entorno.
 .env
 .env.*
+
+# Datos y artefactos que viven fuera de la imagen.
 backups
 coverage
 test-results
 playwright-report
+blob-report
 archivo
+public/media
+
+# Documentacion, pruebas y utilidades de despliegue: no hacen falta en el
+# contenedor y su cambio no debe invalidar la cache de construccion.
 docs
 tests
+despliegue
 *.md
+*.log
+tsconfig.tsbuildinfo
+iniciar.bat
+
+# Material suelto del escritorio de trabajo.
+logo_trauma_*.png
+prueba_*.glb
+generar_modelo.py
+add_model.ts
