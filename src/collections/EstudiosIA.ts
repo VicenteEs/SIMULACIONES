@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaDeContenido, escrituraDeContenido } from '@/access/payload'
+import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { pilaDeBloques } from '@/blocks'
 
 /**
@@ -19,10 +19,11 @@ export const EstudiosIA: CollectionConfig = {
     description: 'Casos precargados. No hay modelo de inferencia: los resultados están escritos.',
   },
   access: {
-    read: lecturaDeContenido,
-    create: escrituraDeContenido,
-    update: escrituraDeContenido,
-    delete: escrituraDeContenido,
+    // Permisos por modulo: un editor puede tener asignados solo algunos.
+    read: lecturaDeModulo('estudios-ia'),
+    create: escrituraDeModulo('estudios-ia'),
+    update: escrituraDeModulo('estudios-ia'),
+    delete: escrituraDeModulo('estudios-ia'),
   },
   versions: { drafts: true, maxPerDoc: 50 },
   fields: [

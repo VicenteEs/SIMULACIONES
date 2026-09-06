@@ -1,7 +1,7 @@
 # Cómo escribir una ficha
 
 Guía para el traumatólogo. No hace falta saber nada de informática: se escribe
-dentro de la plataforma, en `/admin`, y se publica con un botón.
+dentro de la plataforma, en `/admin-panel/contenido`, y se publica con un botón.
 
 ---
 

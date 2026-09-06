@@ -91,7 +91,7 @@ export const EditorEncuadre: React.FC<{ path: string }> = ({ path }) => {
     <div className="editor-encuadre">
       <div className="editor-encuadre-lienzo">
         <Canvas camera={{ position: [0, 0, 3], fov: 45 }}>
-          <color attach="background" args={['#f2f5f6']} />
+          <color attach="background" args={['#f3f6fb']} />
           <ambientLight intensity={0.7} />
           <directionalLight position={[4, 6, 5]} intensity={1.1} />
           <React.Suspense fallback={<Html center>Cargando…</Html>}>

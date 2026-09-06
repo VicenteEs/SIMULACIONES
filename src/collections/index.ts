@@ -9,6 +9,7 @@ import { CasosAO } from './CasosAO'
 import { Cirugias } from './Cirugias'
 import { EstudiosIA } from './EstudiosIA'
 import { Comentarios } from './Comentarios'
+import { Actividad } from './Actividad'
 
 /** Los cinco módulos de la plataforma, en el orden en que se presentan. */
 export const SLUGS_DE_MODULOS = [
@@ -35,6 +36,7 @@ export const COLECCIONES: CollectionConfig[] = [
   Cirugias,
   EstudiosIA,
   Comentarios,
+  Actividad,
 ]
 
 export {
@@ -48,4 +50,5 @@ export {
   Cirugias,
   EstudiosIA,
   Comentarios,
+  Actividad,
 }

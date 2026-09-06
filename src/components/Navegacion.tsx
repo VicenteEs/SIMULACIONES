@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ConmutadorVista } from './ConmutadorVista'
+import { BotonSalir } from './BotonSalir'
 
 const MODULOS = [
   { ruta: '/biblioteca', etiqueta: 'Biblioteca' },
@@ -9,6 +10,12 @@ const MODULOS = [
   { ruta: '/imagenes', etiqueta: 'Imágenes' },
 ]
 
+/**
+ * Barra superior de la plataforma.
+ *
+ * El enlace al panel lo ven administrador y editor, y en ambos casos lleva al
+ * panel propio: la interfaz de Payload no se ofrece a nadie.
+ */
 export function Navegacion({
   nombre,
   rolReal,
@@ -21,9 +28,15 @@ export function Navegacion({
   return (
     <header className="barra">
       <div className="barra-interior">
+        {/* La marca sola, no el logotipo completo: el archivo `logo.png` ya
+            lleva el nombre escrito, y ponerlo al lado de un texto distinto
+            deja dos nombres compitiendo en el mismo sitio. */}
         <Link href="/" className="marca">
-          Traumatología
-          <span className="marca-sub">Plataforma docente</span>
+          <img src="/icon.png" alt="" className="marca-logo" />
+          <div>
+            TraumaHub
+            <span className="marca-sub">Plataforma docente</span>
+          </div>
         </Link>
         <nav className="modulos">
           {MODULOS.map((m) => (
@@ -34,12 +47,13 @@ export function Navegacion({
         </nav>
         <div className="barra-derecha">
           <ConmutadorVista rolReal={rolReal} simulando={simulando} />
-          {rolReal !== 'lector' ? (
-            <a href="/admin" className="enlace-nav">
+          {rolReal === 'admin' || rolReal === 'editor' ? (
+            <Link href="/admin-panel" className="enlace-nav">
               Panel
-            </a>
+            </Link>
           ) : null}
           {nombre ? <span className="quien">{nombre}</span> : null}
+          <BotonSalir />
         </div>
       </div>
     </header>

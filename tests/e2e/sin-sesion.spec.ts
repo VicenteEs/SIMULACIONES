@@ -53,9 +53,16 @@ test.describe('visitante sin sesión', () => {
     expect(r.status()).toBe(401)
   })
 
-  test('el panel muestra el formulario de acceso', async ({ page }) => {
-    await page.goto('/admin')
+  test('la pantalla de entrada propia pide correo y contraseña', async ({ page }) => {
+    await page.goto('/entrar')
     await expect(page.locator('input[type="email"]').first()).toBeVisible({ timeout: 20_000 })
+    await expect(page.locator('input[type="password"]').first()).toBeVisible()
+  })
+
+  test('la ruta antigua del panel de Payload lleva a la propia', async ({ page }) => {
+    await page.goto('/admin')
+    // Sin sesión, el panel propio devuelve a la portada; con sesión, al panel.
+    expect(page.url()).not.toContain('/admin/login')
   })
 
   test('la plataforma pide no ser indexada', async ({ page, request }) => {

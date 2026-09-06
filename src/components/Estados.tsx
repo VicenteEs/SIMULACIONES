@@ -7,9 +7,9 @@ export function SinAcceso({ titulo }: { titulo: string }) {
       <h1>{titulo}</h1>
       <div className="tarjeta">
         <p>Necesita una cuenta activa para ver el contenido.</p>
-        <a className="boton" href="/admin">
+        <Link className="boton" href="/entrar">
           Iniciar sesión
-        </a>
+        </Link>
       </div>
     </main>
   )
@@ -27,9 +27,9 @@ export function Vacio({ texto, enlace, accion }: { texto: string; enlace?: strin
     <div className="tarjeta">
       <p>{texto}</p>
       {enlace && accion ? (
-        <a className="boton" href={enlace}>
+        <Link className="boton" href={enlace}>
           {accion}
-        </a>
+        </Link>
       ) : null}
     </div>
   )

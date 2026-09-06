@@ -7,9 +7,9 @@ import {
   type UsuarioSesion,
 } from '@/access/reglas'
 
-const admin: UsuarioSesion = { rol: 'admin', activo: true }
-const editor: UsuarioSesion = { rol: 'editor', activo: true }
-const lector: UsuarioSesion = { rol: 'lector', activo: true }
+const admin: UsuarioSesion = { id: 'admin-1', rol: 'admin', activo: true }
+const editor: UsuarioSesion = { id: 'editor-1', rol: 'editor', activo: true }
+const lector: UsuarioSesion = { id: 'lector-1', rol: 'lector', activo: true }
 
 describe('puedeLeerContenido', () => {
   it('niega el acceso cuando no hay sesión', () => {
@@ -17,11 +17,11 @@ describe('puedeLeerContenido', () => {
   })
 
   it('niega el acceso a una cuenta que el administrador no ha activado', () => {
-    expect(puedeLeerContenido({ rol: 'lector', activo: false })).toBe(false)
+    expect(puedeLeerContenido({ id: 'inactivo-1', rol: 'lector', activo: false })).toBe(false)
   })
 
   it('niega el acceso a un administrador desactivado', () => {
-    expect(puedeLeerContenido({ rol: 'admin', activo: false })).toBe(false)
+    expect(puedeLeerContenido({ id: 'admin-inactivo', rol: 'admin', activo: false })).toBe(false)
   })
 
   it('permite leer a un lector con la cuenta activa', () => {
@@ -44,7 +44,7 @@ describe('puedeEditarContenido', () => {
   })
 
   it('niega la edición a un editor desactivado', () => {
-    expect(puedeEditarContenido({ rol: 'editor', activo: false })).toBe(false)
+    expect(puedeEditarContenido({ id: 'editor-inactivo', rol: 'editor', activo: false })).toBe(false)
   })
 
   it('permite editar al editor activo', () => {
@@ -70,7 +70,7 @@ describe('puedeAdministrarUsuarios', () => {
   })
 
   it('niega la administración a un administrador desactivado', () => {
-    expect(puedeAdministrarUsuarios({ rol: 'admin', activo: false })).toBe(false)
+    expect(puedeAdministrarUsuarios({ id: 'admin-inactivo', rol: 'admin', activo: false })).toBe(false)
   })
 
   it('permite la administración al administrador activo', () => {
@@ -84,7 +84,7 @@ describe('filtroDeLectura', () => {
   })
 
   it('no devuelve resultados para una cuenta desactivada', () => {
-    expect(filtroDeLectura({ rol: 'editor', activo: false })).toBe(false)
+    expect(filtroDeLectura({ id: 'editor-inactivo', rol: 'editor', activo: false })).toBe(false)
   })
 
   it('restringe al lector a lo publicado: un borrador no debe alcanzarle', () => {

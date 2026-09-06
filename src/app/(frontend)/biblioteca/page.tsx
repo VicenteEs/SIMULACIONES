@@ -65,13 +65,13 @@ export default async function Biblioteca() {
       {segmentos.totalDocs === 0 ? (
         <Vacio
           texto="Aún no hay segmentos anatómicos. Son la estructura sobre la que se ordenan las fichas y se crean primero."
-          enlace="/admin/collections/segmentos/create"
+          enlace="/admin-panel/contenido/segmentos/nuevo"
           accion="Crear el primer segmento"
         />
       ) : fichas.totalDocs === 0 ? (
         <Vacio
           texto="Todavía no hay fichas escritas."
-          enlace="/admin/collections/patologias/create"
+          enlace="/admin-panel/contenido/patologias/nuevo"
           accion="Crear la primera ficha"
         />
       ) : (

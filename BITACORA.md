@@ -376,6 +376,59 @@ escribe los valores en el formulario al pulsar «Capturar encuadre». *Por qué:
 pedirle al traumatólogo que adivine que la escala es 1,4 y el giro 35 grados, y
 que guarde para ver el resultado, era exactamente lo que R5 pedía evitar.
 
+
+### D-038 · 2026-09-06 · vigente · supera la parte de interfaz de D-025
+**La administración es propia; de Payload solo queda el motor de datos.**
+Se retiró la interfaz de Payload (`@payloadcms/next/views`) y con ella la ruta
+`/admin`, que hoy solo redirige. El panel entero —listados, editor de fichas,
+editor de bloques, editor de texto con formato, medios, cuentas, permisos,
+actividad, estadísticas, respaldos y estado del sistema— vive en
+`/admin-panel`, y las pantallas de sesión en `/entrar`, `/clave` e `/instalar`.
+
+*Por qué:* dos administraciones sobre los mismos datos acaban mostrando cosas
+distintas, y la de Payload hablaba otro idioma visual, no conocía los permisos
+por módulo ni podía ofrecer respaldos ni estadísticas. *Coste asumido:* cada
+campo nuevo hay que describirlo en `src/admin/esquema.ts` además de en la
+colección; `tests/unit/esquema.test.ts` comprueba que los dos no se separen.
+*Lo que NO se reescribió:* el almacenamiento, las versiones, el control de
+acceso, el cifrado de contraseñas y el formato del texto rico siguen siendo de
+Payload. La cáscara es propia; el motor no.
+
+### D-039 · 2026-09-06 · vigente
+**El contenido rico se sigue guardando en el formato de Lexical.**
+El editor propio trabaja con un modelo intermedio de párrafos y fragmentos, y
+`src/lib/textoRico.ts` traduce en las dos direcciones. *Por qué:* cambiar el
+formato de almacenamiento habría obligado a migrar todo lo escrito y a rehacer
+el renderizador público, que pinta el árbol con componentes propios y sin
+`dangerouslySetInnerHTML`. Esa promesa —el contenido del autor es texto, nunca
+marcado— se mantiene intacta, y el editor la respeta: escribe en el DOM con
+`createTextNode`, y lo que se pega entra como texto llano.
+
+### D-040 · 2026-09-06 · vigente
+**Los permisos tienen dos capas: el rol dice qué, los módulos dicen sobre qué.**
+Sobre los tres roles se añadió una lista opcional de módulos visibles y otra de
+módulos editables por cuenta. La capa de módulos solo restringe, nunca amplía.
+*Regla que hay que tener presente:* una lista vacía significa **todos**, no
+ninguno; es lo que evita que una cuenta recién creada no vea nada sin que se
+entienda por qué, y obliga a que restringir sea un acto deliberado.
+
+### D-041 · 2026-09-06 · vigente
+**La paleta sale del logotipo.**
+El sistema visual pasa del verde quirúrgico al azul de TraumaHub: el marino del
+wordmark, el azul del libro y el cian de los nodos. Los tokens se renombraron
+de `--campo*` a `--marca*`. El ámbar y el rojo se quedan fuera de la familia a
+propósito: si todo es azul menos lo que exige atención, lo que exige atención
+se ve sin leer nada.
+
+### D-042 · 2026-09-06 · vigente
+**Al eliminar una cuenta, su actividad se borra y sus comentarios se conservan
+sin autor.**
+Antes el borrado fallaba con un error de la base en cuanto la persona había
+abierto una ficha. *Por qué así:* la actividad es seguimiento de lectura de
+alguien concreto y sin esa persona no significa nada; los comentarios son
+observaciones sobre el contenido y valen por lo que dicen, no por quién las
+dijo. Borrarlos castigaría al contenido por un cambio en el personal.
+
 ---
 
 ## 3. Observaciones
@@ -561,6 +614,36 @@ aspecto de respaldo bueno en el listado. Ahora una trampa de salida lo descarta.
 
 *Lección:* un script de respaldo no probado es peor que ninguno, porque da
 tranquilidad sin darla.
+
+---
+
+### O-014 · 2026-09-06 · alta · resuelta
+**Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
+El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
+`req`, de modo que Payload abría una transacción nueva que intentaba escribir
+la misma fila que el propio login tenía tomada. La segunda esperaba a que la
+primera terminara, y la primera esperaba a que terminara el gancho. Se vio en
+la base: la transacción del login en `idle in transaction` y todas las demás
+encoladas detrás. Entrar tardaba entre uno y tres minutos.
+*Arreglo:* pasar `req` al update, para que la escritura entre en la transacción
+que ya está abierta. Comprobado: de 3 minutos a 1 segundo.
+
+### O-015 · 2026-09-06 · alta · resuelta
+**El editor de texto se borraba solo mientras se escribía.**
+El `ref` del `contenteditable` era una función nueva en cada render, así que
+React lo desmontaba y lo volvía a montar; el registro creía que era un renglón
+nuevo y lo repintaba con su contenido inicial, que estaba vacío. Cada tecla
+borraba lo escrito. *Arreglo:* recordar qué renglones ya se volcaron al DOM y
+no repintarlos nunca más; el nodo se olvida solo cuando el renglón se elimina
+de verdad.
+
+### O-016 · 2026-09-06 · media · resuelta
+**Los desplegables de relación entregaban el identificador como texto.**
+Un `<select>` siempre devuelve cadenas y las claves de PostgreSQL son enteros:
+Payload rechazaba la relación con un «campo inválido» que no señalaba nada
+tocable en pantalla. *Arreglo:* `depurarDocumento` convierte a entero lo que lo
+parece, y el editor salta a la pestaña donde está el campo que falta en lugar
+de mostrar el aviso arriba y dejar a la persona buscándolo.
 
 ---
 

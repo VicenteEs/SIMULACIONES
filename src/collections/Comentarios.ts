@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { accesoDePropiedad, administracionDeUsuarios } from '@/access/payload'
+import { escaparHtml } from '@/lib/validacion'
 
 export const Comentarios: CollectionConfig = {
   slug: 'comentarios',
@@ -7,6 +8,7 @@ export const Comentarios: CollectionConfig = {
   admin: {
     useAsTitle: 'texto',
     defaultColumns: ['usuario', 'coleccion', 'estado', 'createdAt'],
+    group: 'Administración',
   },
   access: {
     read: accesoDePropiedad,
@@ -38,12 +40,15 @@ export const Comentarios: CollectionConfig = {
             const adminEmails = adminQuery.docs.map((a: any) => a.email).filter(Boolean)
 
             if (adminEmails.length > 0) {
+              // El texto lo escribe un usuario y aquí entra en un cuerpo HTML:
+              // sin escapar, un comentario con etiquetas llegaria convertido en
+              // marcado dentro del correo del administrador.
               await req.payload.sendEmail({
                 to: adminEmails,
                 subject: `Nuevo comentario en ${doc.coleccion}`,
                 html: `<p>Se ha publicado un nuevo comentario.</p>
-                       <p><strong>Usuario:</strong> ${req.user?.email || 'Desconocido'}</p>
-                       <p><strong>Comentario:</strong> ${doc.texto}</p>`,
+                       <p><strong>Usuario:</strong> ${escaparHtml(req.user?.email || 'Desconocido')}</p>
+                       <p><strong>Comentario:</strong> ${escaparHtml(String(doc.texto ?? ''))}</p>`,
               })
             }
           } catch (error) {
@@ -59,7 +64,10 @@ export const Comentarios: CollectionConfig = {
       name: 'usuario',
       type: 'relationship',
       relationTo: 'usuarios',
-      required: true,
+      // No es obligatorio a proposito: al dar de baja una cuenta, sus
+      // comentarios se conservan sin autor. Valen por lo que dicen del
+      // contenido, no por quien los escribio. El gancho de creacion siempre
+      // pone el autor, de modo que un comentario nuevo nunca nace anonimo.
       admin: {
         readOnly: true,
       },
@@ -83,6 +91,9 @@ export const Comentarios: CollectionConfig = {
       name: 'documentoId',
       type: 'text',
       required: true,
+      // Se consulta por ficha al abrirla: sin indice, cada apertura recorre la
+      // tabla entera de comentarios.
+      index: true,
       admin: {
         readOnly: true,
       },

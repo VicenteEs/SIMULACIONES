@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaDeContenido, escrituraDeContenido } from '@/access/payload'
+import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { pilaDeBloques } from '@/blocks'
 import { registrarPublicacion } from '@/lib/publicaciones'
 
@@ -20,10 +20,11 @@ export const Patologias: CollectionConfig = {
     description: 'Fichas por segmento. Cada una termina en manejo y rehabilitación.',
   },
   access: {
-    read: lecturaDeContenido,
-    create: escrituraDeContenido,
-    update: escrituraDeContenido,
-    delete: escrituraDeContenido,
+    // Permisos por modulo: un editor puede tener asignados solo algunos.
+    read: lecturaDeModulo('patologias'),
+    create: escrituraDeModulo('patologias'),
+    update: escrituraDeModulo('patologias'),
+    delete: escrituraDeModulo('patologias'),
   },
   versions: { drafts: true, maxPerDoc: 50 },
   hooks: {

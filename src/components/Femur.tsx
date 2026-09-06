@@ -31,13 +31,13 @@ function Malla({ recorte, desde, hasta }: { recorte: string; desde: number; hast
   return (
     <g clipPath={`url(#${recorte})`}>
       {horizontales.map((y) => (
-        <path key={`h${y}`} d={`M36,${y} H266`} stroke="#7EC4CC" strokeWidth="0.65" opacity="0.26" />
+        <path key={`h${y}`} d={`M36,${y} H266`} stroke="#5CB8E8" strokeWidth="0.65" opacity="0.26" />
       ))}
       {verticales.map((x) => (
         <path
           key={`v${x}`}
           d={`M${x},${desde} V${hasta}`}
-          stroke="#7EC4CC"
+          stroke="#5CB8E8"
           strokeWidth="0.65"
           opacity="0.18"
         />
@@ -57,19 +57,19 @@ export function Femur() {
           <path d={FRAGMENTO_DISTAL} />
         </clipPath>
         <linearGradient id="brillo-hueso" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#B8E4EA" stopOpacity="0.9" />
-          <stop offset="0.55" stopColor="#9FD9E0" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#7EC4CC" stopOpacity="0.35" />
+          <stop offset="0" stopColor="#BEE8FB" stopOpacity="0.9" />
+          <stop offset="0.55" stopColor="#8ED8F7" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#5CB8E8" stopOpacity="0.35" />
         </linearGradient>
       </defs>
 
       <g className="femur-fragmento">
-        <path d={FRAGMENTO_PROXIMAL} fill="url(#brillo-hueso)" stroke="#9FD9E0" strokeWidth="1.4" />
+        <path d={FRAGMENTO_PROXIMAL} fill="url(#brillo-hueso)" stroke="#8ED8F7" strokeWidth="1.4" />
         <Malla recorte="recorte-proximal" desde={40} hasta={400} />
       </g>
 
       <g className="femur-fragmento femur-distal">
-        <path d={FRAGMENTO_DISTAL} fill="url(#brillo-hueso)" stroke="#9FD9E0" strokeWidth="1.4" />
+        <path d={FRAGMENTO_DISTAL} fill="url(#brillo-hueso)" stroke="#8ED8F7" strokeWidth="1.4" />
         <Malla recorte="recorte-distal" desde={340} hasta={540} />
       </g>
 

@@ -72,7 +72,7 @@ Se genera en `myaccount.google.com/apppasswords`.
 ## Comprobarlo
 
 1. Reiniciar la aplicación para que tome las variables nuevas.
-2. En `/admin`, cerrar sesión y pulsar **¿Olvidó su contraseña?**
+2. En `/entrar`, pulsar **Olvidé mi contraseña**
 3. Escribir el correo de una cuenta existente.
 4. Debe llegar un mensaje con el enlace de restablecimiento.
 

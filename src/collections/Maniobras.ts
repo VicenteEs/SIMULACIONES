@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaDeContenido, escrituraDeContenido } from '@/access/payload'
+import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { pilaDeBloques } from '@/blocks'
 
 /** Módulo 02 · Repositorio de examen físico. */
@@ -13,10 +13,11 @@ export const Maniobras: CollectionConfig = {
     description: 'Maniobras por segmento, con técnica, interpretación y video.',
   },
   access: {
-    read: lecturaDeContenido,
-    create: escrituraDeContenido,
-    update: escrituraDeContenido,
-    delete: escrituraDeContenido,
+    // Permisos por modulo: un editor puede tener asignados solo algunos.
+    read: lecturaDeModulo('maniobras'),
+    create: escrituraDeModulo('maniobras'),
+    update: escrituraDeModulo('maniobras'),
+    delete: escrituraDeModulo('maniobras'),
   },
   versions: { drafts: true, maxPerDoc: 50 },
   fields: [

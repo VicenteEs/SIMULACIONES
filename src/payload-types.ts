@@ -76,6 +76,8 @@ export interface Config {
     'casos-ao': CasosAo;
     cirugias: Cirugia;
     'estudios-ia': EstudiosIa;
+    comentarios: Comentario;
+    actividad: Actividad;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -92,6 +94,8 @@ export interface Config {
     'casos-ao': CasosAoSelect<false> | CasosAoSelect<true>;
     cirugias: CirugiasSelect<false> | CirugiasSelect<true>;
     'estudios-ia': EstudiosIaSelect<false> | EstudiosIaSelect<true>;
+    comentarios: ComentariosSelect<false> | ComentariosSelect<true>;
+    actividad: ActividadSelect<false> | ActividadSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -147,6 +151,22 @@ export interface Usuario {
    */
   activo?: boolean | null;
   institucion?: string | null;
+  /**
+   * Sin marcar ninguno, ve los cinco. Marque solo para restringir.
+   */
+  modulosVisibles?: ('patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia')[] | null;
+  /**
+   * Solo tiene efecto sobre un editor: un lector no escribe nada y un administrador lo escribe todo.
+   */
+  modulosEditables?: ('patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia')[] | null;
+  /**
+   * Lo anota la plataforma en cada inicio de sesión.
+   */
+  ultimoAcceso?: string | null;
+  /**
+   * Visible solo para administradores. Por ejemplo, quién pidió esta cuenta.
+   */
+  notas?: string | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -1325,6 +1345,36 @@ export interface EstudiosIa {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "comentarios".
+ */
+export interface Comentario {
+  id: number;
+  usuario?: (number | null) | Usuario;
+  coleccion: 'patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia';
+  documentoId: string;
+  texto: string;
+  estado: 'pendiente' | 'resuelto';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Qué ha visitado y marcado como leído cada residente.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "actividad".
+ */
+export interface Actividad {
+  id: number;
+  usuario: number | Usuario;
+  coleccion: 'patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia';
+  documentoId: string;
+  ultimaVisita?: string | null;
+  completado?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -1382,6 +1432,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'estudios-ia';
         value: number | EstudiosIa;
+      } | null)
+    | ({
+        relationTo: 'comentarios';
+        value: number | Comentario;
+      } | null)
+    | ({
+        relationTo: 'actividad';
+        value: number | Actividad;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1434,6 +1492,10 @@ export interface UsuariosSelect<T extends boolean = true> {
   rol?: T;
   activo?: T;
   institucion?: T;
+  modulosVisibles?: T;
+  modulosEditables?: T;
+  ultimoAcceso?: T;
+  notas?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -2475,6 +2537,32 @@ export interface EstudiosIaSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "comentarios_select".
+ */
+export interface ComentariosSelect<T extends boolean = true> {
+  usuario?: T;
+  coleccion?: T;
+  documentoId?: T;
+  texto?: T;
+  estado?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "actividad_select".
+ */
+export interface ActividadSelect<T extends boolean = true> {
+  usuario?: T;
+  coleccion?: T;
+  documentoId?: T;
+  ultimaVisita?: T;
+  completado?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

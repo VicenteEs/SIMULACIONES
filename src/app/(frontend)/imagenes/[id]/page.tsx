@@ -4,6 +4,7 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { SinAcceso, Miga } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
+import { FormularioComentario } from '@/components/FormularioComentario'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,6 +109,12 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
         Las opciones se muestran como apoyo docente. La decisión es del cirujano tratante y depende
         del paciente, del entorno y del material disponible.
       </p>
+
+      <FormularioComentario 
+        coleccion="estudios-ia" 
+        documentoId={id} 
+        label="¿Sugerencia o corrección sobre este caso de imágenes? Comentar" 
+      />
     </main>
   )
 }

@@ -75,7 +75,7 @@ export function Visor3D({
         // se quiere exportar una imagen del encuadre.
         gl={{ preserveDrawingBuffer: true, antialias: true }}
       >
-        <color attach="background" args={['#f2f5f6']} />
+        <color attach="background" args={['#f3f6fb']} />
         <ambientLight intensity={0.7} />
         <directionalLight position={[4, 6, 5]} intensity={1.1} />
         <directionalLight position={[-4, -2, -5]} intensity={0.4} />

@@ -10,7 +10,14 @@ export const metadata: Metadata = {
   description: 'Estudio, exploración física, técnica quirúrgica y lectura de imágenes.',
   // Acceso cerrado: la plataforma no debe indexarse (decisión D-020).
   robots: { index: false, follow: false },
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
 }
+
+export const dynamic = 'force-dynamic'
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const sesion = await obtenerSesion()

@@ -58,15 +58,20 @@ export default async function Inicio() {
       <main className="portada">
         <section className="entrada-hero">
           <div>
+            <img 
+              src="/logo.png" 
+              alt="Plataforma de Traumatología" 
+              style={{ height: '52px', width: 'auto', marginBottom: '18px', display: 'block' }} 
+            />
             <span className="eyebrow">Plataforma docente</span>
             <h1>Una sola plataforma para estudiar, examinar y operar mejor.</h1>
             <p className="lead">
               Cinco módulos que conectan el estudio de la patología, la exploración física, la
               técnica quirúrgica y la lectura de imágenes.
             </p>
-            <a className="boton grande" href="/admin">
+            <Link className="boton grande" href="/entrar">
               Iniciar sesión
-            </a>
+            </Link>
             <p className="pie-acceso">
               El acceso es cerrado. Si necesita una cuenta, solicítela al equipo docente.
             </p>
@@ -108,6 +113,42 @@ export default async function Inicio() {
         .catch(() => 0),
     ),
   )
+  
+  // Buscar actividad reciente no completada
+  const actividad = await payload.find({
+    collection: 'actividad',
+    where: {
+      and: [
+        { usuario: { equals: usuario?.id } },
+        { completado: { equals: false } }
+      ]
+    },
+    sort: '-ultimaVisita',
+    limit: 3,
+    user: usuario as never,
+  })
+
+  // Obtener detalles de los documentos para "Continuar leyendo"
+  const continuarLeyendo = []
+  for (const act of (actividad.docs as any[])) {
+    try {
+      const doc = await payload.findByID({
+        collection: act.coleccion as any,
+        id: act.documentoId,
+        user: usuario as never,
+      })
+      if (doc && (doc as any).nombre) {
+        continuarLeyendo.push({
+          id: act.documentoId,
+          nombre: (doc as any).nombre as string,
+          coleccion: act.coleccion,
+          ruta: MODULOS.find(m => m.coleccion === act.coleccion)?.ruta || '/biblioteca'
+        })
+      }
+    } catch {
+      // Ignorar si el doc fue borrado o no hay acceso
+    }
+  }
 
   return (
     <main className="portada">
@@ -136,6 +177,23 @@ export default async function Inicio() {
           </div>
         </div>
       </section>
+
+      {continuarLeyendo.length > 0 && (
+        <section className="continuar-leyendo" style={{ marginBottom: '4rem' }}>
+          <h2 className="titulo-seccion">Continúa leyendo</h2>
+          <div className="rejilla-fichas">
+            {continuarLeyendo.map(item => (
+              <Link key={item.id} href={`${item.ruta}/${item.id}`} className="tarjeta-ficha">
+                <div className="etiquetas">
+                  <span className="codigo" style={{ textTransform: 'capitalize' }}>{item.coleccion.replace('-', ' ')}</span>
+                </div>
+                <h3>{item.nombre}</h3>
+                <p style={{ marginTop: 'auto', paddingTop: '1rem', color: 'var(--marca)' }}>Retomar lectura →</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <span className="eyebrow">Los cinco módulos</span>
       <h2 className="titulo-seccion">Qué incluye la plataforma</h2>

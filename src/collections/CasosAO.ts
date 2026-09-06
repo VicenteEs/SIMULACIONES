@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaDeContenido, escrituraDeContenido } from '@/access/payload'
+import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { pilaDeBloques } from '@/blocks'
 
 /** Módulo 03 · Técnica AO paso a paso. */
@@ -13,10 +13,11 @@ export const CasosAO: CollectionConfig = {
     description: 'La secuencia quirúrgica con el principio AO que sustenta cada gesto.',
   },
   access: {
-    read: lecturaDeContenido,
-    create: escrituraDeContenido,
-    update: escrituraDeContenido,
-    delete: escrituraDeContenido,
+    // Permisos por modulo: un editor puede tener asignados solo algunos.
+    read: lecturaDeModulo('casos-ao'),
+    create: escrituraDeModulo('casos-ao'),
+    update: escrituraDeModulo('casos-ao'),
+    delete: escrituraDeModulo('casos-ao'),
   },
   versions: { drafts: true, maxPerDoc: 50 },
   fields: [

@@ -3,6 +3,7 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { SinAcceso, Vacio } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
+import { FormularioComentario } from '@/components/FormularioComentario'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +30,7 @@ export default async function ExamenFisico() {
       {maniobras.totalDocs === 0 ? (
         <Vacio
           texto="Todavía no hay maniobras registradas."
-          enlace="/admin/collections/maniobras/create"
+          enlace="/admin-panel/contenido/maniobras/nuevo"
           accion="Crear la primera maniobra"
         />
       ) : (
@@ -60,6 +61,11 @@ export default async function ExamenFisico() {
                     ) : null}
                   </dl>
                   <Bloques bloques={m.contenido} />
+                  <FormularioComentario 
+                    coleccion="maniobras" 
+                    documentoId={String(m.id)} 
+                    label={`Comentar mejora sobre ${m.nombre}`} 
+                  />
                 </article>
               ))}
             </section>

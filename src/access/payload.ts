@@ -9,9 +9,11 @@
 import type { Access } from 'payload'
 import {
   filtroDeLectura,
+  filtroDeLecturaDeModulo,
   filtroDePropiedad,
   puedeLeerContenido,
   puedeEditarContenido,
+  puedeEditarModulo,
   puedeAdministrarUsuarios,
   type Rol,
   type UsuarioSesion,
@@ -19,15 +21,26 @@ import {
 
 const ROLES: readonly Rol[] = ['admin', 'editor', 'lector']
 
+/** Lista de textos, o `undefined` si lo que viene no lo es. */
+const comoLista = (valor: unknown): string[] | undefined =>
+  Array.isArray(valor) ? valor.filter((v): v is string => typeof v === 'string') : undefined
+
 /**
  * Convierte lo que venga en la sesión a un usuario reconocible, o a `null`.
  * Un usuario con forma inesperada nunca obtiene permisos.
  */
 function normalizar(usuario: unknown): UsuarioSesion | null {
   if (!usuario || typeof usuario !== 'object') return null
-  const { id, rol, activo } = usuario as { id?: unknown; rol?: unknown; activo?: unknown }
+  const registro = usuario as Record<string, unknown>
+  const { id, rol, activo } = registro
   if (typeof rol !== 'string' || !ROLES.includes(rol as Rol)) return null
-  return { id: typeof id === 'string' || typeof id === 'number' ? String(id) : 'test-id', rol: rol as Rol, activo: activo === true }
+  return {
+    id: typeof id === 'string' || typeof id === 'number' ? String(id) : 'test-id',
+    rol: rol as Rol,
+    activo: activo === true,
+    modulosVisibles: comoLista(registro.modulosVisibles),
+    modulosEditables: comoLista(registro.modulosEditables),
+  }
 }
 
 const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
@@ -42,6 +55,23 @@ const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
  * «Cannot find field for path at _status». Para esas, ver `lecturaSimple`.
  */
 export const lecturaDeContenido: Access = (args) => filtroDeLectura(usuarioDe(args))
+
+/**
+ * Lectura de un módulo concreto, con permisos por módulo.
+ *
+ * Es una fábrica y no una función suelta porque la función de acceso de Payload
+ * no sabe a qué colección pertenece: el módulo se le dice al declararla.
+ */
+export const lecturaDeModulo =
+  (modulo: string): Access =>
+  (args) =>
+    filtroDeLecturaDeModulo(usuarioDe(args), modulo)
+
+/** Escritura de un módulo concreto, con permisos por módulo. */
+export const escrituraDeModulo =
+  (modulo: string): Access =>
+  (args) =>
+    puedeEditarModulo(usuarioDe(args), modulo)
 
 /**
  * Lectura de una colección **sin versiones** (segmentos, medios, modelos).

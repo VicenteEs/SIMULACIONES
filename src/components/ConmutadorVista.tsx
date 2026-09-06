@@ -18,7 +18,7 @@ export function ConmutadorVista({ rolReal, simulando }: { rolReal: string; simul
 
   async function cambiar(rol: string | null) {
     setOcupado(true)
-    await fetch('/api/vista-previa', {
+    await fetch('/simulaciones/api/vista-previa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rol }),

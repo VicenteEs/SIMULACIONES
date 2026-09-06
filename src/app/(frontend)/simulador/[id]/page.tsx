@@ -4,6 +4,7 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { SinAcceso, Miga, Vacio } from '@/components/Estados'
 import { Simulador } from '@/components/Simulador'
+import { FormularioComentario } from '@/components/FormularioComentario'
 import type { PasoQuirurgico } from '@/lib/simulador'
 
 export const dynamic = 'force-dynamic'
@@ -41,6 +42,12 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
       ) : (
         <Simulador pasos={pasos} instrumentos={instrumentos} />
       )}
+
+      <FormularioComentario 
+        coleccion="cirugias" 
+        documentoId={id} 
+        label="¿Sugerencia o corrección sobre esta simulación? Comentar" 
+      />
     </main>
   )
 }

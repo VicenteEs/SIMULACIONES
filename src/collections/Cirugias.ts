@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaDeContenido, escrituraDeContenido } from '@/access/payload'
+import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { pilaDeBloques } from '@/blocks'
 
 /**
@@ -19,10 +19,11 @@ export const Cirugias: CollectionConfig = {
     description: 'Guion quirúrgico paso a paso con instrumental y fuerza aplicada.',
   },
   access: {
-    read: lecturaDeContenido,
-    create: escrituraDeContenido,
-    update: escrituraDeContenido,
-    delete: escrituraDeContenido,
+    // Permisos por modulo: un editor puede tener asignados solo algunos.
+    read: lecturaDeModulo('cirugias'),
+    create: escrituraDeModulo('cirugias'),
+    update: escrituraDeModulo('cirugias'),
+    delete: escrituraDeModulo('cirugias'),
   },
   versions: { drafts: true, maxPerDoc: 50 },
   fields: [

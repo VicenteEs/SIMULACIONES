@@ -27,7 +27,7 @@ export default async function Listado() {
       {resultado.totalDocs === 0 ? (
         <Vacio
           texto="Todavía no hay contenido en este módulo."
-          enlace="/admin/collections/estudios-ia/create"
+          enlace="/admin-panel/contenido/estudios-ia/nuevo"
           accion="Crear el primero"
         />
       ) : (

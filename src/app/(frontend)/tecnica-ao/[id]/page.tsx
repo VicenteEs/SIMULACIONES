@@ -5,6 +5,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { SinAcceso, Miga, Vacio } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { Visor3D } from '@/components/Visor3D'
+import { FormularioComentario } from '@/components/FormularioComentario'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,6 +67,12 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
       )}
 
       <Bloques bloques={caso.contenido} />
+
+      <FormularioComentario 
+        coleccion="casos-ao" 
+        documentoId={id} 
+        label="¿Sugerencia o corrección sobre esta técnica AO? Comentar" 
+      />
     </main>
   )
 }

@@ -4,38 +4,27 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { pestanasConContenido } from '@/lib/fichas'
+import { SinAcceso } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { IndiceFicha } from '@/components/IndiceFicha'
 
 import { FormularioComentario } from '@/components/FormularioComentario'
 
+import { BotonImprimir } from '@/components/BotonImprimir'
+import { RastreadorActividad } from '@/components/RastreadorActividad'
+
 export const dynamic = 'force-dynamic'
 
 /**
  * Ficha de patología.
- *
- * El acceso se resuelve en la consulta: se pasa el usuario de la sesión y se
- * deja que Payload aplique las reglas. Si la ficha es un borrador y quien mira
- * es un lector, la consulta no la devuelve y aquí llega un 404, que es lo
- * correcto: un lector no debe poder distinguir entre «no existe» y «existe pero
- * no puedes verla».
  */
 export default async function Ficha({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const payload = await getPayload({ config })
   const { activo, usuarioEfectivo } = await obtenerSesion()
-  const user = usuarioEfectivo as never
+  if (!activo) return <SinAcceso titulo="Biblioteca de patologías" />
 
-  if (!activo) {
-    return (
-      <main>
-        <div className="tarjeta">
-          <p>Necesita una cuenta activa para ver esta ficha.</p>
-          <a className="boton" href="/admin">Iniciar sesión</a>
-        </div>
-      </main>
-    )
-  }
+  const payload = await getPayload({ config })
+  const user = usuarioEfectivo as never
 
   const ficha = await payload
     .findByID({ collection: 'patologias', id, overrideAccess: false, user, depth: 2 })
@@ -43,14 +32,37 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
 
   if (!ficha) notFound()
 
+  const userId = (usuarioEfectivo as { id?: string | number } | null)?.id
+
+  // Buscar actividad previa para saber si ya está leída
+  const actividadQuery = userId
+    ? await payload.find({
+        collection: 'actividad',
+        where: {
+          and: [
+            { usuario: { equals: userId } },
+            { coleccion: { equals: 'patologias' } },
+            { documentoId: { equals: id } },
+          ],
+        },
+        user,
+        limit: 1,
+      })
+    : { docs: [] }
+  
+  const completadoInicial = actividadQuery.docs.length > 0 ? Boolean((actividadQuery.docs[0] as any).completado) : false
+
   const pestanas = pestanasConContenido(ficha as never)
   const segmento = ficha.segmento as { nombre?: string } | undefined
 
   return (
     <main>
-      <nav className="miga">
-        <Link href="/biblioteca">Biblioteca</Link>
-        {segmento?.nombre ? <span> · {segmento.nombre}</span> : null}
+      <nav className="miga" style={{ display: 'flex', alignItems: 'center' }}>
+        <div>
+          <Link href="/biblioteca">Biblioteca</Link>
+          {segmento?.nombre ? <span> · {segmento.nombre}</span> : null}
+        </div>
+        <BotonImprimir />
       </nav>
 
       <header className="cabecera-ficha">
@@ -60,6 +72,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
           {ficha.codigo ? <span className="codigo">{ficha.codigo as string}</span> : null}
           {segmento?.nombre ? <span className="etiqueta">{segmento.nombre}</span> : null}
         </div>
+        <RastreadorActividad coleccion="patologias" documentoId={id} completadoInicial={completadoInicial as boolean} />
       </header>
 
       <div className="ficha-cuerpo">
