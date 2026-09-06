@@ -1,0 +1,80 @@
+# TraumaHub en el servidor de `paginas/`, junto a las demás páginas.
+#
+# Se copia como `docker-compose.override.yml` dentro del clon. Docker Compose lo
+# fusiona solo con el `docker-compose.yml` del repositorio —que en desarrollo
+# levanta únicamente PostgreSQL—, de modo que:
+#
+#   · `start-all.sh` y `auto-update.sh` de ese servidor siguen funcionando sin
+#     tocarlos: los dos hacen `docker compose up -d` sobre la carpeta y la
+#     fusión ocurre sola;
+#   · `git pull --ff-only` nunca choca, porque este archivo no está versionado
+#     dentro del clon (lo ignora .gitignore).
+#
+# Instalación:
+#   cd /home/chesscore/Escritorio/paginas
+#   git clone git@github.com:VicenteEs/SIMULACIONES.git traumahub
+#   cd traumahub
+#   cp despliegue/paginas/docker-compose.override.yml .
+#   cp despliegue/paginas/env.ejemplo .env   # y completar los secretos
+#   docker compose up -d --build
+#
+# Después hay que dar de alta la ruta /traumahub en Nginx Proxy Manager
+# apuntando a http://traumahub:3000 (ver despliegue/paginas/LEEME.md).
+
+services:
+  db:
+    # El resto lo hereda del docker-compose.yml del repositorio.
+    environment:
+      # Sin esto, un volcado con acentos puede restaurarse mal en otra máquina.
+      LANG: es_ES.UTF-8
+    logging: &registro
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # El prefijo se incrusta al compilar. Cambiarlo exige reconstruir.
+        BASE_PATH: /traumahub
+    image: traumahub:local
+    container_name: traumahub-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URI: postgres://${POSTGRES_USER:-trauma}:${POSTGRES_PASSWORD:?falta}@db:5432/${POSTGRES_DB:-trauma}
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET:?falta}
+      NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?falta}
+      NODE_ENV: production
+      TZ: ${TZ:-America/Santiago}
+      RESPALDOS_DIR: /backups
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PUERTO: ${SMTP_PUERTO:-587}
+      SMTP_USUARIO: ${SMTP_USUARIO:-}
+      SMTP_CLAVE: ${SMTP_CLAVE:-}
+      SMTP_DESDE: ${SMTP_DESDE:-}
+    volumes:
+      # Los archivos subidos sobreviven a cada despliegue.
+      - medios:/app/public/media
+      # Los respaldos, fuera del contenedor: los ve el panel y los ve el cron.
+      - ./backups:/backups
+    # No se publica ningún puerto en el anfitrión: la única entrada es el proxy,
+    # igual que las demás páginas de este servidor.
+    networks:
+      default: {}
+      proxy:
+        aliases:
+          - traumahub
+    logging: *registro
+
+volumes:
+  medios:
+
+networks:
+  proxy:
+    external: true

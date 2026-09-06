@@ -9,8 +9,10 @@ dist/
 build/
 *.tsbuildinfo
 
-# ajustes propios de un servidor concreto (ver despliegue/paginas/)
-docker-compose.override.yml
+# Ajustes propios de un servidor concreto. La barra inicial ancla el patron a
+# la raiz: sin ella tambien ignoraria la plantilla de despliegue/paginas/, que
+# si tiene que viajar en el repositorio.
+/docker-compose.override.yml
 
 # entorno — NUNCA versionar secretos
 .env
