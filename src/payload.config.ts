@@ -6,6 +6,7 @@ import sharp from 'sharp'
 import { es } from '@payloadcms/translations/languages/es'
 import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { COLECCIONES } from '@/collections'
+import { migrations } from './migrations'
 import { editorClinico } from '@/blocks'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -61,6 +62,16 @@ export default buildConfig({
     : undefined,
   db: postgresAdapter({
     pool: { connectionString: process.env.DATABASE_URI || '' },
+    // En producción el esquema NO se sincroniza solo: la imagen arranca y
+    // aplica las migraciones pendientes de `src/migrations`. Sin esto, un
+    // despliegue nuevo levanta la aplicación contra una base sin una sola
+    // tabla, que fue exactamente lo que pasó la primera vez en el servidor.
+    //
+    // En desarrollo sigue mandando el `push` de Drizzle, que es lo cómodo
+    // mientras el modelo de contenido se mueve todos los días. Cada cambio de
+    // esquema hay que congelarlo después con:
+    //     npx payload migrate:create <nombre>
+    prodMigrations: migrations,
   }),
   // sharp genera las miniaturas de las imagenes subidas.
   sharp,
