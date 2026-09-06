@@ -580,30 +580,27 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 
 .acceso-marca {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 20px;
-  margin-bottom: 22px;
+  justify-content: center;
+  padding-bottom: 18px;
+  margin-bottom: 20px;
   border-bottom: 1px solid var(--linea-suave);
 }
 
-.acceso-logo { height: 40px; width: auto; object-fit: contain; }
-
-.acceso-titulo {
-  font-size: 19px;
-  line-height: 1.2;
-  margin: 0;
-  letter-spacing: -0.02em;
+/* El logotipo completo lleva el nombre escrito: por debajo de unos 150px de
+   ancho deja de leerse y se convierte en una mancha azul. */
+.acceso-logo {
+  width: 190px;
+  max-width: 70%;
+  height: auto;
+  object-fit: contain;
 }
 
-.acceso-sub {
-  display: block;
-  font-family: var(--mono);
-  font-size: 9.5px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--mudo);
-  margin-top: 2px;
+.acceso-titulo {
+  font-size: 21px;
+  line-height: 1.2;
+  margin: 0 0 20px;
+  letter-spacing: -0.02em;
+  text-align: center;
 }
 
 .acceso-formulario { display: flex; flex-direction: column; gap: 16px; }
