@@ -6,6 +6,7 @@ import sharp from 'sharp'
 import { es } from '@payloadcms/translations/languages/es'
 import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { COLECCIONES } from '@/collections'
+import { origenDe, PREFIJO } from '@/lib/rutas'
 import { migrations } from './migrations'
 import { editorClinico } from '@/blocks'
 
@@ -19,7 +20,16 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
  * la estructura de datos ni migrar contenido.
  */
 export default buildConfig({
-  serverURL: process.env.NEXT_PUBLIC_SERVER_URL,
+  // Solo el ORIGEN, sin la ruta. Payload mete `serverURL` en su lista de CSRF
+  // y la compara con la cabecera `Origin`, que nunca lleva ruta: dejarle el
+  // prefijo hace que descarte la cookie de sesion en toda peticion que traiga
+  // esa cabecera (observacion O-018).
+  serverURL: origenDe(process.env.NEXT_PUBLIC_SERVER_URL || ''),
+
+  // El prefijo va aqui. Es lo que Payload antepone al construir las URLs
+  // absolutas de los archivos subidos, que de otro modo saldrian sin el y
+  // apuntarian a otra pagina del mismo servidor.
+  routes: { api: `${PREFIJO}/api` },
   secret: process.env.PAYLOAD_SECRET || '',
   admin: {
     user: 'usuarios',

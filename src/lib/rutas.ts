@@ -36,3 +36,25 @@ export function ruta(camino: string): string {
   if (!camino.startsWith('/')) return camino
   return `${PREFIJO}${camino}`
 }
+
+/**
+ * Origen de una dirección: esquema, servidor y puerto, sin ruta.
+ *
+ * Es lo que el navegador manda en la cabecera `Origin`, y por tanto lo único
+ * que Payload puede comparar contra su lista de CSRF. Si a `serverURL` se le
+ * deja el prefijo —«https://servidor:10000/traumahub»—, la comparación falla
+ * siempre y Payload **descarta la cookie de sesión** en toda petición que
+ * lleve `Origin`: las páginas siguen abriéndose, porque una navegación no
+ * manda esa cabecera, pero cualquier acción de servidor responde «acceso
+ * denegado». Costó encontrarlo justamente por eso (ver O-018).
+ *
+ * Ante una dirección que no se puede analizar se devuelve tal cual: es mejor
+ * que Payload compare algo que no casa a que arranque sin `serverURL`.
+ */
+export function origenDe(direccion: string): string {
+  try {
+    return new URL(direccion).origin
+  } catch {
+    return direccion
+  }
+}

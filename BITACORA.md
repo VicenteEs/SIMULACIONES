@@ -732,6 +732,34 @@ versiones y las de filas de arreglo, que es donde se olvida.
 
 ---
 
+### O-018 · 2026-09-06 · alta · resuelta
+**Las páginas cargaban y todas las acciones respondían «acceso denegado».**
+En el servidor, el panel se abría y mostraba la cuenta como administradora,
+pero cualquier acción —activar a alguien, generar un enlace de clave, crear una
+cuenta— fallaba con «se requiere rol de administrador».
+
+*Causa:* la protección CSRF de Payload. `sanitize.js` mete `serverURL` en la
+lista `csrf`, y `extractJWT` **descarta la cookie de sesión** cuando la petición
+trae una cabecera `Origin` que no está en esa lista. Con
+`serverURL = https://servidor:10000/traumahub` la comparación no podía casar
+nunca, porque un `Origin` jamás lleva ruta.
+
+*Por qué costó verlo:* la misma función admite la cookie cuando **no** hay
+`Origin`, cayendo en `Sec-Fetch-Site`. Una navegación normal no manda `Origin`
+y manda `Sec-Fetch-Site: none` → la página se pintaba con sesión válida. Una
+acción de servidor es un POST del navegador y **sí** manda `Origin` → sesión
+descartada. De ahí el síntoma exacto: se ve todo, no se puede hacer nada.
+
+*Cómo se aisló:* el mismo testigo funcionaba en `Authorization: JWT …` y no en
+`Cookie:`, lo que descartaba el testigo, la base y el rol, y dejaba solo la
+lectura de la cookie.
+
+*Arreglo:* `serverURL` pasa a ser únicamente el origen, y el prefijo se declara
+en `routes.api`, que es lo que Payload antepone al construir las URLs
+absolutas de los archivos subidos.
+
+---
+
 ## 4. Preguntas abiertas
 
 ### Q-001 · ¿A quién se le presenta este prototipo?
