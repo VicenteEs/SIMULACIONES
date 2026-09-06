@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
-import { pilaDeBloques } from '@/blocks'
+import { editorClinico, pilaDeBloques } from '@/blocks'
 
 /**
  * Módulo 04 · Simulador quirúrgico.
@@ -29,7 +29,12 @@ export const Cirugias: CollectionConfig = {
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre de la cirugía' },
     { name: 'codigo', type: 'text', label: 'Código AO/OTA' },
-    { name: 'resumen', type: 'textarea', label: 'Resumen del procedimiento' },
+    {
+      name: 'resumen',
+      type: 'richText',
+      editor: editorClinico,
+      label: 'Resumen del procedimiento',
+    },
     {
       name: 'pasos',
       type: 'array',
@@ -37,7 +42,13 @@ export const Cirugias: CollectionConfig = {
       labels: { singular: 'Paso', plural: 'Pasos' },
       fields: [
         { name: 'titulo', type: 'text', required: true, label: 'Título del paso' },
-        { name: 'descripcion', type: 'textarea', required: true, label: 'Qué se hace' },
+        {
+          name: 'descripcion',
+          type: 'richText',
+          required: true,
+          editor: editorClinico,
+          label: 'Qué se hace',
+        },
         { name: 'instrumento', type: 'text', required: true, label: 'Instrumento correcto' },
         {
           type: 'row',
@@ -49,7 +60,12 @@ export const Cirugias: CollectionConfig = {
         { name: 'exito', type: 'textarea', required: true, label: 'Resultado correcto' },
         { name: 'insuficiente', type: 'textarea', required: true, label: 'Si la fuerza es insuficiente' },
         { name: 'excesivo', type: 'textarea', required: true, label: 'Si la fuerza es excesiva' },
-        { name: 'riesgo', type: 'textarea', label: 'Estructura o principio en juego' },
+        {
+          name: 'riesgo',
+          type: 'richText',
+          editor: editorClinico,
+          label: 'Estructura o principio en juego',
+        },
       ],
     },
     pilaDeBloques('contenido', 'Material adicional'),

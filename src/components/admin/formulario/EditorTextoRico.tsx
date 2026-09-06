@@ -1,371 +1,281 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import {
-  aRenglones,
-  desdeLexical,
-  desdeRenglones,
-  haciaLexical,
-  renglonNuevo,
-  type Fragmento,
-  type Renglon,
-  type TipoDeParrafo,
-} from '@/lib/textoRico'
+import { useEffect, useReducer, useRef } from 'react'
+import { useEditor, EditorContent, type Content, type Editor } from '@tiptap/react'
+import { StarterKit } from '@tiptap/starter-kit'
+import { Underline } from '@tiptap/extension-underline'
+import { Link } from '@tiptap/extension-link'
+import { TextAlign } from '@tiptap/extension-text-align'
+import { lexicalATipTap, tipTapALexical } from '@/lib/textoRico'
 
 /**
- * Editor de texto con formato, propio.
+ * Editor de texto con formato.
  *
- * Cada renglón es un `contenteditable` independiente en lugar de un único
- * campo enorme. Es más código, pero resuelve de una vez los tres problemas que
- * tiene un editor de un solo campo: cambiar el tipo de una línea no obliga a
- * seleccionar nada, React no pelea con el cursor al re-renderizar, y un fallo
- * al leer una línea no arrastra al resto del texto.
+ * Es TipTap, el mismo editor que ya se usa en la página de cursos, para que
+ * escribir aquí se sienta igual que allá y no haya que aprender dos cosas.
  *
- * El contenido se guarda en el formato de Lexical, el mismo que ya usa la
- * plataforma: ver `src/lib/textoRico.ts`.
+ * Lo que cambia respecto de allá es qué se guarda: aquí no sale HTML sino el
+ * árbol de Lexical, que es lo que el renderizador público sabe pintar con
+ * componentes propios y sin `dangerouslySetInnerHTML`. La conversión en las dos
+ * direcciones vive en `src/lib/textoRico.ts` y está probada aparte.
+ *
+ * No hay imagen ni tabla en la barra a propósito: la plataforma ya tiene
+ * bloques de Imagen, Video, Tabla de clasificación y Modelo 3D, que se
+ * presentan bastante mejor dentro de una ficha que un archivo suelto metido en
+ * mitad de un párrafo.
  */
-
-const TIPOS: { valor: TipoDeParrafo; etiqueta: string; titulo: string }[] = [
-  { valor: 'parrafo', etiqueta: '¶', titulo: 'Párrafo' },
-  { valor: 'h2', etiqueta: 'T1', titulo: 'Título' },
-  { valor: 'h3', etiqueta: 'T2', titulo: 'Subtítulo' },
-  { valor: 'h4', etiqueta: 'T3', titulo: 'Encabezado menor' },
-  { valor: 'vinetas', etiqueta: '•', titulo: 'Viñeta' },
-  { valor: 'numerada', etiqueta: '1.', titulo: 'Lista numerada' },
-]
-
-/**
- * Lee un renglón del DOM.
- *
- * Recorre los nodos arrastrando el formato heredado de los ancestros, de modo
- * que `<strong>fractura <em>abierta</em></strong>` sale como dos fragmentos con
- * el formato correcto cada uno.
- */
-function leerFragmentos(raiz: HTMLElement): Fragmento[] {
-  const fragmentos: Fragmento[] = []
-
-  const recorrer = (nodo: Node, negrita: boolean, cursiva: boolean) => {
-    if (nodo.nodeType === Node.TEXT_NODE) {
-      const texto = nodo.textContent ?? ''
-      if (texto.length === 0) return
-      const ultimo = fragmentos[fragmentos.length - 1]
-      // Fragmentos contiguos con el mismo formato se funden: el navegador
-      // parte el texto en muchos nodos al escribir, y guardarlos por separado
-      // llenaría la base de trozos de una letra.
-      if (ultimo && Boolean(ultimo.negrita) === negrita && Boolean(ultimo.cursiva) === cursiva) {
-        ultimo.texto += texto
-      } else {
-        fragmentos.push({
-          texto,
-          ...(negrita ? { negrita: true } : {}),
-          ...(cursiva ? { cursiva: true } : {}),
-        })
-      }
-      return
-    }
-
-    if (nodo.nodeType !== Node.ELEMENT_NODE) return
-    const elemento = nodo as HTMLElement
-    const etiqueta = elemento.tagName.toLowerCase()
-    if (etiqueta === 'br') {
-      fragmentos.push({ texto: '\n' })
-      return
-    }
-    const estilo = elemento.style?.fontWeight
-    const masNegrita =
-      negrita || etiqueta === 'b' || etiqueta === 'strong' || estilo === 'bold' || estilo === '700'
-    const masCursiva = cursiva || etiqueta === 'i' || etiqueta === 'em'
-    for (const hijo of Array.from(elemento.childNodes)) recorrer(hijo, masNegrita, masCursiva)
-  }
-
-  for (const hijo of Array.from(raiz.childNodes)) recorrer(hijo, false, false)
-  return fragmentos.filter((f) => f.texto.length > 0)
-}
-
-/**
- * Escribe un renglón en el DOM, sin pasar por HTML en texto.
- *
- * Se construye con `createElement` y `createTextNode` a propósito: así no hay
- * ninguna cadena de marcado que escapar, y el editor mantiene la misma promesa
- * que el renderizador público —el contenido del autor es texto, nunca marcado.
- */
-function pintarFragmentos(raiz: HTMLElement, fragmentos: Fragmento[]) {
-  raiz.replaceChildren()
-  for (const fragmento of fragmentos) {
-    for (const [i, linea] of fragmento.texto.split('\n').entries()) {
-      if (i > 0) raiz.appendChild(document.createElement('br'))
-      if (linea.length === 0) continue
-      const texto = document.createTextNode(linea)
-      let nodo: Node = texto
-      if (fragmento.cursiva) {
-        const em = document.createElement('em')
-        em.appendChild(nodo)
-        nodo = em
-      }
-      if (fragmento.negrita) {
-        const strong = document.createElement('strong')
-        strong.appendChild(nodo)
-        nodo = strong
-      }
-      raiz.appendChild(nodo)
-    }
-  }
-}
-
-interface RenglonConId extends Renglon {
-  clave: string
-}
-
-let contador = 0
-const nuevaClave = () => `r${++contador}`
 
 export function EditorTextoRico({
   valor,
   alCambiar,
-  etiqueta,
 }: {
   valor: unknown
   alCambiar: (nuevo: unknown) => void
-  etiqueta?: string
 }) {
-  const idBase = useId()
-  const [renglones, setRenglones] = useState<RenglonConId[]>(() => {
-    const iniciales = aRenglones(desdeLexical(valor))
-    const lista = iniciales.length > 0 ? iniciales : [renglonNuevo()]
-    return lista.map((r) => ({ ...r, clave: nuevaClave() }))
-  })
-  const [activo, setActivo] = useState<string | null>(null)
-  const cajas = useRef(new Map<string, HTMLDivElement>())
-  // Renglones cuyo contenido ya se volcó en el DOM. React llama al `ref` con
-  // null y con el nodo otra vez en cada render cuando la función del ref es
-  // nueva, de modo que sin esta marca el renglón se repintaría con su valor
-  // inicial en cada tecla y el texto se borraría solo mientras se escribe.
-  const pintados = useRef(new Set<string>())
-  const aEnfocar = useRef<string | null>(null)
+  // Refresca la barra cuando cambia la selección: sin esto, los botones no se
+  // encienden al poner el cursor sobre un texto que ya tiene formato.
+  const [, refrescar] = useReducer((n: number) => n + 1, 0)
 
-  /** Publica hacia arriba en el formato que se guarda. */
-  const publicar = useCallback(
-    (lista: RenglonConId[]) => {
-      alCambiar(haciaLexical(desdeRenglones(lista.map(({ tipo, fragmentos }) => ({ tipo, fragmentos })))))
-    },
-    [alCambiar],
-  )
-
-  const actualizar = useCallback(
-    (lista: RenglonConId[]) => {
-      setRenglones(lista)
-      publicar(lista)
-    },
-    [publicar],
-  )
-
-  // Tras insertar o borrar un renglón, el cursor debe quedar donde la persona
-  // espera: en el renglón nuevo, o al final del anterior si borró uno.
+  // La función del padre cambia de identidad en cada render; guardarla en una
+  // referencia evita recrear el editor y perder el cursor a cada tecla.
+  const alCambiarRef = useRef(alCambiar)
   useEffect(() => {
-    const clave = aEnfocar.current
-    if (!clave) return
-    aEnfocar.current = null
-    const caja = cajas.current.get(clave)
-    if (!caja) return
-    caja.focus()
-    const seleccion = window.getSelection()
-    const rango = document.createRange()
-    rango.selectNodeContents(caja)
-    rango.collapse(false)
-    seleccion?.removeAllRanges()
-    seleccion?.addRange(rango)
-  }, [renglones])
+    alCambiarRef.current = alCambiar
+  }, [alCambiar])
 
-  const registrar = (clave: string, fragmentos: Fragmento[]) => (caja: HTMLDivElement | null) => {
-    // Al desmontar no se olvida el nodo: React lo hace y lo deshace en el mismo
-    // render, y borrar aquí haría creer al siguiente registro que el renglón es
-    // nuevo. Los renglones que se van de verdad se limpian en `olvidar`.
-    if (!caja) return
-    cajas.current.set(clave, caja)
-    if (!pintados.current.has(clave)) {
-      // Solo la primera vez: después manda el DOM, no React. Volver a pintarlo
-      // en cada render movería el cursor al principio en cada tecla.
-      pintarFragmentos(caja, fragmentos)
-      pintados.current.add(clave)
-    }
-  }
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit.configure({
+        link: false,
+        underline: false,
+        // El h1 se reserva para el título de la página; dentro del contenido la
+        // jerarquía empieza en h2 (decisión del editor clínico, D-011).
+        heading: { levels: [2, 3, 4] },
+        horizontalRule: false,
+        codeBlock: false,
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+      }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    ],
+    content: lexicalATipTap(valor) as Content,
+    editorProps: {
+      attributes: { class: 'rte-contenido' },
+      // Lo que se pega viene de Word o de un PDF y trae fuentes, colores y
+      // tamaños que no pintan nada aquí: el aspecto vive en el código y no en
+      // lo que el autor traiga pegado (D-011). TipTap ya limpia lo que no
+      // entiende; esto además descarta el marcado que sí entendería pero que
+      // la plataforma no ofrece.
+      transformPastedHTML: (html) =>
+        html
+          .replace(/<(img|table|thead|tbody|tr|th|td|figure|figcaption)[^>]*>/gi, '')
+          .replace(/<\/(img|table|thead|tbody|tr|th|td|figure|figcaption)>/gi, ''),
+    },
+    onUpdate: ({ editor }) => {
+      alCambiarRef.current(tipTapALexical(editor.getJSON()))
+    },
+    onSelectionUpdate: () => refrescar(),
+    onTransaction: () => refrescar(),
+  })
 
-  /** Olvida un renglón que ya no existe, para no acumular nodos muertos. */
-  const olvidar = (clave: string) => {
-    cajas.current.delete(clave)
-    pintados.current.delete(clave)
-  }
+  return (
+    <div className="rte">
+      {editor ? <Barra editor={editor} /> : null}
+      <EditorContent editor={editor} />
+    </div>
+  )
+}
 
-  const leerTodo = (): RenglonConId[] =>
-    renglones.map((renglon) => {
-      const caja = cajas.current.get(renglon.clave)
-      return caja ? { ...renglon, fragmentos: leerFragmentos(caja) } : renglon
-    })
+// ---------------------------------------------------------------------------
 
-  const alEscribir = () => publicar(leerTodo())
+function Boton({
+  alPulsar,
+  activo,
+  deshabilitado,
+  titulo,
+  children,
+}: {
+  alPulsar: () => void
+  activo?: boolean
+  deshabilitado?: boolean
+  titulo: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      className="rte-boton"
+      data-activo={activo ? 'true' : undefined}
+      disabled={deshabilitado}
+      title={titulo}
+      aria-label={titulo}
+      aria-pressed={activo}
+      // Sin esto se pierde la selección del editor al pulsar, y el formato se
+      // aplicaría a un cursor que ya no está donde estaba.
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={alPulsar}
+    >
+      {children}
+    </button>
+  )
+}
 
-  const cambiarTipo = (clave: string, tipo: TipoDeParrafo) => {
-    actualizar(leerTodo().map((r) => (r.clave === clave ? { ...r, tipo } : r)))
-  }
+const Separador = () => <span className="rte-separador" aria-hidden="true" />
 
-  const alTeclear = (clave: string) => (evento: React.KeyboardEvent<HTMLDivElement>) => {
-    if (evento.key === 'Enter' && !evento.shiftKey) {
-      evento.preventDefault()
-      const lista = leerTodo()
-      const indice = lista.findIndex((r) => r.clave === clave)
-      const actual = lista[indice]
-      // Un Enter en una viñeta sigue la lista; en un título vuelve a párrafo,
-      // porque nadie escribe dos títulos seguidos.
-      const tipoNuevo: TipoDeParrafo =
-        actual.tipo === 'vinetas' || actual.tipo === 'numerada' ? actual.tipo : 'parrafo'
-      const nuevo: RenglonConId = { tipo: tipoNuevo, fragmentos: [], clave: nuevaClave() }
-      aEnfocar.current = nuevo.clave
-      actualizar([...lista.slice(0, indice + 1), nuevo, ...lista.slice(indice + 1)])
+function Barra({ editor }: { editor: Editor }) {
+  const c = () => editor.chain().focus()
+
+  const ponerEnlace = () => {
+    const actual = editor.getAttributes('link').href as string | undefined
+    const url = window.prompt('Dirección del enlace (vacío para quitarlo):', actual ?? 'https://')
+    if (url === null) return
+    if (url.trim() === '') {
+      c().extendMarkRange('link').unsetLink().run()
       return
     }
-
-    if (evento.key === 'Backspace') {
-      const caja = cajas.current.get(clave)
-      const vacio = (caja?.textContent ?? '').length === 0
-      if (!vacio || renglones.length === 1) return
-      evento.preventDefault()
-      const lista = leerTodo()
-      const indice = lista.findIndex((r) => r.clave === clave)
-      aEnfocar.current = lista[Math.max(0, indice - 1)]?.clave ?? null
-      olvidar(clave)
-      actualizar(lista.filter((r) => r.clave !== clave))
-    }
-  }
-
-  /**
-   * Pegar entra siempre como texto llano.
-   *
-   * Lo que se pega en una ficha viene de Word o de un PDF y trae fuentes,
-   * colores y tamaños que no pintan nada aquí: el aspecto de la plataforma vive
-   * en el código, no en lo que el autor traiga pegado (D-011).
-   */
-  const alPegar = (evento: React.ClipboardEvent<HTMLDivElement>) => {
-    evento.preventDefault()
-    const texto = evento.clipboardData.getData('text/plain')
-    if (!texto) return
-    document.execCommand('insertText', false, texto.replace(/\r/g, ''))
-    alEscribir()
-  }
-
-  const aplicarFormato = (comando: 'bold' | 'italic') => {
-    document.execCommand(comando)
-    alEscribir()
-  }
-
-  const mover = (clave: string, direccion: -1 | 1) => {
-    const lista = leerTodo()
-    const indice = lista.findIndex((r) => r.clave === clave)
-    const destino = indice + direccion
-    if (destino < 0 || destino >= lista.length) return
-    const copia = [...lista]
-    ;[copia[indice], copia[destino]] = [copia[destino], copia[indice]]
-    actualizar(copia)
+    c().extendMarkRange('link').setLink({ href: url.trim() }).run()
   }
 
   return (
-    <div className="rico" onBlur={alEscribir}>
-      {etiqueta ? <span className="rico-etiqueta">{etiqueta}</span> : null}
+    <div className="rte-barra" role="toolbar" aria-label="Formato del texto">
+      <Boton titulo="Deshacer" alPulsar={() => c().undo().run()} deshabilitado={!editor.can().undo()}>
+        ↶
+      </Boton>
+      <Boton titulo="Rehacer" alPulsar={() => c().redo().run()} deshabilitado={!editor.can().redo()}>
+        ↷
+      </Boton>
+      <Separador />
 
-      <div className="rico-barra" role="toolbar" aria-label="Formato del texto">
-        <button
-          type="button"
-          className="rico-boton"
-          title="Negrita (Ctrl+B)"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => aplicarFormato('bold')}
-        >
-          <strong>N</strong>
-        </button>
-        <button
-          type="button"
-          className="rico-boton"
-          title="Cursiva (Ctrl+I)"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => aplicarFormato('italic')}
-        >
-          <em>C</em>
-        </button>
-        <span className="rico-separador" />
-        {TIPOS.map((t) => (
-          <button
-            key={t.valor}
-            type="button"
-            className={`rico-boton${
-              activo && renglones.find((r) => r.clave === activo)?.tipo === t.valor
-                ? ' rico-boton-activo'
-                : ''
-            }`}
-            title={t.titulo}
-            disabled={!activo}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => activo && cambiarTipo(activo, t.valor)}
-          >
-            {t.etiqueta}
-          </button>
-        ))}
-      </div>
+      <Boton titulo="Negrita" activo={editor.isActive('bold')} alPulsar={() => c().toggleBold().run()}>
+        <b>B</b>
+      </Boton>
+      <Boton titulo="Cursiva" activo={editor.isActive('italic')} alPulsar={() => c().toggleItalic().run()}>
+        <i>I</i>
+      </Boton>
+      <Boton
+        titulo="Subrayado"
+        activo={editor.isActive('underline')}
+        alPulsar={() => c().toggleUnderline().run()}
+      >
+        <u>U</u>
+      </Boton>
+      <Boton titulo="Tachado" activo={editor.isActive('strike')} alPulsar={() => c().toggleStrike().run()}>
+        <s>S</s>
+      </Boton>
+      <Separador />
 
-      <div className="rico-cuerpo">
-        {renglones.map((renglon, i) => (
-          <div
-            key={renglon.clave}
-            className={`rico-renglon rico-${renglon.tipo}${
-              activo === renglon.clave ? ' rico-renglon-activo' : ''
-            }`}
-          >
-            <span className="rico-marca" aria-hidden="true">
-              {renglon.tipo === 'vinetas'
-                ? '•'
-                : renglon.tipo === 'numerada'
-                  ? `${renglones.slice(0, i + 1).filter((r) => r.tipo === 'numerada').length}.`
-                  : ''}
-            </span>
-            <div
-              id={`${idBase}-${renglon.clave}`}
-              ref={registrar(renglon.clave, renglon.fragmentos)}
-              className="rico-caja"
-              contentEditable
-              suppressContentEditableWarning
-              role="textbox"
-              aria-multiline="false"
-              onInput={alEscribir}
-              onFocus={() => setActivo(renglon.clave)}
-              onKeyDown={alTeclear(renglon.clave)}
-              onPaste={alPegar}
-            />
-            <span className="rico-acciones">
-              <button
-                type="button"
-                title="Subir"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => mover(renglon.clave, -1)}
-                disabled={i === 0}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                title="Bajar"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => mover(renglon.clave, 1)}
-                disabled={i === renglones.length - 1}
-              >
-                ↓
-              </button>
-            </span>
-          </div>
-        ))}
-      </div>
+      <Boton
+        titulo="Título"
+        activo={editor.isActive('heading', { level: 2 })}
+        alPulsar={() => c().toggleHeading({ level: 2 }).run()}
+      >
+        H1
+      </Boton>
+      <Boton
+        titulo="Subtítulo"
+        activo={editor.isActive('heading', { level: 3 })}
+        alPulsar={() => c().toggleHeading({ level: 3 }).run()}
+      >
+        H2
+      </Boton>
+      <Boton
+        titulo="Encabezado menor"
+        activo={editor.isActive('heading', { level: 4 })}
+        alPulsar={() => c().toggleHeading({ level: 4 }).run()}
+      >
+        H3
+      </Boton>
+      <Separador />
 
-      <p className="rico-pie">
-        Enter crea un renglón · Shift+Enter salta de línea dentro del mismo · lo que se pega entra
-        como texto llano
-      </p>
+      <Boton
+        titulo="Viñetas"
+        activo={editor.isActive('bulletList')}
+        alPulsar={() => c().toggleBulletList().run()}
+      >
+        • Lista
+      </Boton>
+      <Boton
+        titulo="Lista numerada"
+        activo={editor.isActive('orderedList')}
+        alPulsar={() => c().toggleOrderedList().run()}
+      >
+        1. Lista
+      </Boton>
+      <Boton
+        titulo="Cita"
+        activo={editor.isActive('blockquote')}
+        alPulsar={() => c().toggleBlockquote().run()}
+      >
+        ❝
+      </Boton>
+      <Separador />
+
+      <Boton
+        titulo="Alinear a la izquierda"
+        activo={editor.isActive({ textAlign: 'left' })}
+        alPulsar={() => c().setTextAlign('left').run()}
+      >
+        <IconoAlinear variante="left" />
+      </Boton>
+      <Boton
+        titulo="Centrar"
+        activo={editor.isActive({ textAlign: 'center' })}
+        alPulsar={() => c().setTextAlign('center').run()}
+      >
+        <IconoAlinear variante="center" />
+      </Boton>
+      <Boton
+        titulo="Alinear a la derecha"
+        activo={editor.isActive({ textAlign: 'right' })}
+        alPulsar={() => c().setTextAlign('right').run()}
+      >
+        <IconoAlinear variante="right" />
+      </Boton>
+      <Boton
+        titulo="Justificar"
+        activo={editor.isActive({ textAlign: 'justify' })}
+        alPulsar={() => c().setTextAlign('justify').run()}
+      >
+        <IconoAlinear variante="justify" />
+      </Boton>
+      <Separador />
+
+      <Boton titulo="Insertar enlace" activo={editor.isActive('link')} alPulsar={ponerEnlace}>
+        🔗
+      </Boton>
+      <Boton titulo="Quitar formato" alPulsar={() => c().unsetAllMarks().clearNodes().run()}>
+        T✕
+      </Boton>
     </div>
+  )
+}
+
+function IconoAlinear({ variante }: { variante: 'left' | 'center' | 'right' | 'justify' }) {
+  const trazos: Record<typeof variante, string[]> = {
+    left: ['M2 4h14', 'M2 8h9', 'M2 12h12', 'M2 16h7'],
+    center: ['M3 4h12', 'M5 8h8', 'M4 12h10', 'M6 16h6'],
+    right: ['M4 4h14', 'M7 8h11', 'M5 12h13', 'M9 16h9'],
+    justify: ['M2 4h16', 'M2 8h16', 'M2 12h16', 'M2 16h16'],
+  }
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      {trazos[variante].map((d, i) => (
+        <path key={i} d={d} />
+      ))}
+    </svg>
   )
 }

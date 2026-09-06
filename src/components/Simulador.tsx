@@ -7,6 +7,7 @@ import {
   RESULTADOS,
   type PasoQuirurgico,
 } from '@/lib/simulador'
+import { Rico, tieneContenido } from '@/components/Rico'
 
 /**
  * Interfaz del simulador quirúrgico.
@@ -79,10 +80,10 @@ export function Simulador({ pasos, instrumentos }: { pasos: PasoQuirurgico[]; in
               Paso {indice + 1} de {pasos.length}
             </span>
             <h2>{paso?.titulo}</h2>
-            {paso?.riesgo ? (
+            {tieneContenido(paso?.riesgo) ? (
               <aside className="advertencia atencion">
                 <span className="advertencia-etiqueta">Estructura o principio en juego</span>
-                <p>{paso.riesgo}</p>
+                <Rico valor={paso.riesgo} />
               </aside>
             ) : null}
 

@@ -1,44 +1,53 @@
 import { describe, it, expect } from 'vitest'
 import {
-  aRenglones,
   desdeLexical,
-  desdeRenglones,
   desdeTextoLlano,
+  desdeTipTap,
+  enlaceSeguro,
   estaVacio,
   haciaLexical,
+  haciaTipTap,
+  lexicalATipTap,
   textoPlano,
+  tipTapALexical,
   type Parrafo,
 } from '@/lib/textoRico'
 
 /**
- * El contenido rico se guarda en el formato de Lexical, que ya lee el
- * renderizador público. Estas funciones son el único puente entre ese formato y
- * el editor del panel: si se rompen, el contenido escrito deja de verse.
+ * Tres formatos y dos traducciones: el árbol de Lexical que se guarda y que lee
+ * el renderizador público, el documento de TipTap que edita el panel, y el
+ * modelo de en medio. Si estas conversiones se rompen, el contenido escrito
+ * deja de verse o deja de poder editarse, así que se prueban de las dos
+ * direcciones y, sobre todo, en el viaje de ida y vuelta.
  */
 
-const raiz = (hijos: unknown[]) => ({ root: { type: 'root', children: hijos } })
+const raizLexical = (hijos: unknown[]) => ({ root: { type: 'root', children: hijos } })
 
 const parrafoLexical = (texto: string, formato = 0) => ({
   type: 'paragraph',
   children: [{ type: 'text', text: texto, format: formato }],
 })
 
+// ---------------------------------------------------------------- Lexical
+
 describe('lectura del formato de Lexical', () => {
   it('lee un párrafo llano', () => {
-    expect(desdeLexical(raiz([parrafoLexical('Fractura de fémur')]))).toEqual([
+    expect(desdeLexical(raizLexical([parrafoLexical('Fractura de fémur')]))).toEqual([
       { tipo: 'parrafo', fragmentos: [{ texto: 'Fractura de fémur' }] },
     ])
   })
 
-  it('lee la negrita y la cursiva de la máscara de bits', () => {
+  it('lee los cuatro formatos de la máscara de bits', () => {
     const [parrafo] = desdeLexical(
-      raiz([
+      raizLexical([
         {
           type: 'paragraph',
           children: [
-            { type: 'text', text: 'negrita', format: 1 },
-            { type: 'text', text: 'cursiva', format: 2 },
-            { type: 'text', text: 'ambas', format: 3 },
+            { type: 'text', text: 'n', format: 1 },
+            { type: 'text', text: 'c', format: 2 },
+            { type: 'text', text: 't', format: 4 },
+            { type: 'text', text: 's', format: 8 },
+            { type: 'text', text: 'todo', format: 15 },
           ],
         },
       ]),
@@ -46,61 +55,64 @@ describe('lectura del formato de Lexical', () => {
     expect(parrafo).toEqual({
       tipo: 'parrafo',
       fragmentos: [
-        { texto: 'negrita', negrita: true },
-        { texto: 'cursiva', cursiva: true },
-        { texto: 'ambas', negrita: true, cursiva: true },
+        { texto: 'n', negrita: true },
+        { texto: 'c', cursiva: true },
+        { texto: 't', tachado: true },
+        { texto: 's', subrayado: true },
+        { texto: 'todo', negrita: true, cursiva: true, tachado: true, subrayado: true },
       ],
     })
   })
 
-  it('lee los encabezados que el editor sabe representar', () => {
+  it('lee encabezados, cita y listas', () => {
     const leidos = desdeLexical(
-      raiz([
+      raizLexical([
         { type: 'heading', tag: 'h2', children: [{ type: 'text', text: 'Dos' }] },
-        { type: 'heading', tag: 'h3', children: [{ type: 'text', text: 'Tres' }] },
+        { type: 'quote', children: [{ type: 'text', text: 'Citado' }] },
+        {
+          type: 'list',
+          listType: 'number',
+          children: [{ type: 'listitem', children: [{ type: 'text', text: 'uno' }] }],
+        },
       ]),
     )
-    expect(leidos.map((p) => p.tipo)).toEqual(['h2', 'h3'])
+    expect(leidos.map((p) => p.tipo)).toEqual(['h2', 'cita', 'numerada'])
+  })
+
+  it('lee la alineación del bloque', () => {
+    const [parrafo] = desdeLexical(
+      raizLexical([{ type: 'paragraph', format: 'center', children: [{ type: 'text', text: 'x' }] }]),
+    )
+    expect(parrafo).toMatchObject({ alineacion: 'centro' })
+  })
+
+  it('lee un enlace y lo lleva al fragmento', () => {
+    const [parrafo] = desdeLexical(
+      raizLexical([
+        {
+          type: 'paragraph',
+          children: [
+            { type: 'text', text: 'ver ' },
+            {
+              type: 'link',
+              fields: { url: 'https://ao.org' },
+              children: [{ type: 'text', text: 'la guía' }],
+            },
+          ],
+        },
+      ]),
+    )
+    expect(parrafo).toEqual({
+      tipo: 'parrafo',
+      fragmentos: [{ texto: 'ver ' }, { texto: 'la guía', enlace: 'https://ao.org' }],
+    })
   })
 
   it('trata como párrafo un encabezado de nivel que el editor no ofrece', () => {
     const [parrafo] = desdeLexical(
-      raiz([{ type: 'heading', tag: 'h1', children: [{ type: 'text', text: 'Uno' }] }]),
+      raizLexical([{ type: 'heading', tag: 'h1', children: [{ type: 'text', text: 'Uno' }] }]),
     )
     expect(parrafo.tipo).toBe('parrafo')
-  })
-
-  it('lee una lista con sus puntos', () => {
-    const [lista] = desdeLexical(
-      raiz([
-        {
-          type: 'list',
-          listType: 'bullet',
-          children: [
-            { type: 'listitem', children: [{ type: 'text', text: 'uno' }] },
-            { type: 'listitem', children: [{ type: 'text', text: 'dos' }] },
-          ],
-        },
-      ]),
-    )
-    expect(lista).toEqual({
-      tipo: 'vinetas',
-      puntos: [[{ texto: 'uno' }], [{ texto: 'dos' }]],
-    })
-  })
-
-  it('conserva el texto de un nodo que no sabe representar, como un enlace', () => {
-    const [parrafo] = desdeLexical(
-      raiz([
-        {
-          type: 'paragraph',
-          children: [
-            { type: 'link', children: [{ type: 'text', text: 'ver la guía' }] },
-          ],
-        },
-      ]),
-    )
-    expect(textoPlano(haciaLexical([parrafo]))).toBe('ver la guía')
   })
 
   it('no revienta con contenido nulo, vacío o inesperado', () => {
@@ -113,24 +125,38 @@ describe('lectura del formato de Lexical', () => {
 
 describe('escritura del formato de Lexical', () => {
   it('un contenido vacío sale con un párrafo, que es lo que Lexical espera', () => {
-    const arbol = haciaLexical([]) as { root: { children: unknown[] } }
+    const arbol = haciaLexical([]) as { root: { children: { type: string }[] } }
     expect(arbol.root.children).toHaveLength(1)
-    expect((arbol.root.children[0] as { type: string }).type).toBe('paragraph')
+    expect(arbol.root.children[0].type).toBe('paragraph')
   })
 
-  it('escribe la negrita como el bit que corresponde', () => {
+  it('escribe los formatos como los bits que corresponden', () => {
     const arbol = haciaLexical([
-      { tipo: 'parrafo', fragmentos: [{ texto: 'a', negrita: true }] },
+      {
+        tipo: 'parrafo',
+        fragmentos: [{ texto: 'a', negrita: true, cursiva: true, subrayado: true, tachado: true }],
+      },
     ]) as { root: { children: { children: { format: number }[] }[] } }
-    expect(arbol.root.children[0].children[0].format).toBe(1)
+    expect(arbol.root.children[0].children[0].format).toBe(1 | 2 | 4 | 8)
   })
 
-  it('una lista se escribe con su etiqueta y su tipo', () => {
+  it('agrupa en un solo nodo los fragmentos seguidos con el mismo enlace', () => {
     const arbol = haciaLexical([
-      { tipo: 'numerada', puntos: [[{ texto: 'uno' }]] },
-    ]) as { root: { children: { tag: string; listType: string }[] } }
-    expect(arbol.root.children[0].tag).toBe('ol')
-    expect(arbol.root.children[0].listType).toBe('number')
+      {
+        tipo: 'parrafo',
+        fragmentos: [
+          { texto: 'la ', enlace: 'https://ao.org' },
+          { texto: 'guía', enlace: 'https://ao.org', negrita: true },
+          { texto: ' suelta' },
+        ],
+      },
+    ]) as { root: { children: { children: { type: string; children?: unknown[] }[] }[] } }
+
+    const hijos = arbol.root.children[0].children
+    expect(hijos).toHaveLength(2)
+    expect(hijos[0].type).toBe('link')
+    expect(hijos[0].children).toHaveLength(2)
+    expect(hijos[1].type).toBe('text')
   })
 
   it('el viaje de ida y vuelta no pierde nada', () => {
@@ -138,55 +164,180 @@ describe('escritura del formato de Lexical', () => {
       { tipo: 'h2', fragmentos: [{ texto: 'Manejo' }] },
       {
         tipo: 'parrafo',
+        alineacion: 'justificado',
         fragmentos: [
           { texto: 'La reducción es ' },
-          { texto: 'urgente', negrita: true },
-          { texto: ' en la luxación.' },
+          { texto: 'urgente', negrita: true, subrayado: true },
+          { texto: ' en la ' },
+          { texto: 'luxación', enlace: 'https://ao.org' },
+          { texto: '.' },
         ],
       },
+      { tipo: 'cita', fragmentos: [{ texto: 'Primero no dañar.' }] },
       { tipo: 'vinetas', puntos: [[{ texto: 'primero' }], [{ texto: 'después' }]] },
     ]
     expect(desdeLexical(haciaLexical(original))).toEqual(original)
   })
 })
 
-describe('renglones del editor', () => {
-  it('una lista se abre en un renglón por punto', () => {
-    const renglones = aRenglones([{ tipo: 'vinetas', puntos: [[{ texto: 'a' }], [{ texto: 'b' }]] }])
-    expect(renglones).toEqual([
-      { tipo: 'vinetas', fragmentos: [{ texto: 'a' }] },
-      { tipo: 'vinetas', fragmentos: [{ texto: 'b' }] },
-    ])
+// ----------------------------------------------------------------- TipTap
+
+describe('lectura del documento de TipTap', () => {
+  it('lee las marcas del editor', () => {
+    const parrafos = desdeTipTap({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'n', marks: [{ type: 'bold' }] },
+            { type: 'text', text: 's', marks: [{ type: 'underline' }] },
+            { type: 'text', text: 't', marks: [{ type: 'strike' }] },
+          ],
+        },
+      ],
+    })
+    expect(parrafos[0]).toEqual({
+      tipo: 'parrafo',
+      fragmentos: [
+        { texto: 'n', negrita: true },
+        { texto: 's', subrayado: true },
+        { texto: 't', tachado: true },
+      ],
+    })
   })
 
-  it('los renglones seguidos del mismo tipo se funden en una sola lista', () => {
-    const parrafos = desdeRenglones([
-      { tipo: 'vinetas', fragmentos: [{ texto: 'a' }] },
-      { tipo: 'vinetas', fragmentos: [{ texto: 'b' }] },
-      { tipo: 'parrafo', fragmentos: [{ texto: 'aparte' }] },
-      { tipo: 'vinetas', fragmentos: [{ texto: 'c' }] },
-    ])
-    expect(parrafos).toHaveLength(3)
-    expect(parrafos[0]).toEqual({ tipo: 'vinetas', puntos: [[{ texto: 'a' }], [{ texto: 'b' }]] })
-    expect(parrafos[2]).toEqual({ tipo: 'vinetas', puntos: [[{ texto: 'c' }]] })
+  it('aplana el párrafo que TipTap mete dentro de cada punto de lista', () => {
+    const [lista] = desdeTipTap({
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: 'uno' }] }],
+            },
+          ],
+        },
+      ],
+    })
+    expect(lista).toEqual({ tipo: 'vinetas', puntos: [[{ texto: 'uno' }]] })
   })
 
-  it('una lista con viñetas y otra numerada no se mezclan', () => {
-    const parrafos = desdeRenglones([
-      { tipo: 'vinetas', fragmentos: [{ texto: 'a' }] },
-      { tipo: 'numerada', fragmentos: [{ texto: 'b' }] },
-    ])
-    expect(parrafos.map((p) => p.tipo)).toEqual(['vinetas', 'numerada'])
+  it('un encabezado de nivel 1 se guarda como el mayor que ofrece la ficha', () => {
+    // El h1 es el título de la página; dentro del contenido no debe repetirse.
+    const [parrafo] = desdeTipTap({
+      type: 'doc',
+      content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'A' }] }],
+    })
+    expect(parrafo.tipo).toBe('h2')
   })
 
-  it('renglones y párrafos son inversos entre sí', () => {
-    const parrafos: Parrafo[] = [
-      { tipo: 'parrafo', fragmentos: [{ texto: 'uno' }] },
-      { tipo: 'vinetas', puntos: [[{ texto: 'a' }], [{ texto: 'b' }]] },
-    ]
-    expect(desdeRenglones(aRenglones(parrafos))).toEqual(parrafos)
+  it('descarta lo que la plataforma no ofrece', () => {
+    const parrafos = desdeTipTap({
+      type: 'doc',
+      content: [
+        { type: 'horizontalRule' },
+        { type: 'paragraph', content: [{ type: 'text', text: 'queda' }] },
+      ],
+    })
+    expect(parrafos).toHaveLength(1)
+  })
+
+  it('no revienta con un documento vacío o de otra forma', () => {
+    for (const valor of [null, undefined, {}, { type: 'doc' }, 'texto']) {
+      expect(desdeTipTap(valor)).toEqual([])
+    }
   })
 })
+
+describe('el puente entre el editor y lo que se guarda', () => {
+  it('sobrevive al viaje completo Lexical → TipTap → Lexical', () => {
+    const original: Parrafo[] = [
+      { tipo: 'h3', fragmentos: [{ texto: 'Clasificación' }] },
+      {
+        tipo: 'parrafo',
+        alineacion: 'centro',
+        fragmentos: [
+          { texto: 'tipo ' },
+          { texto: 'A1', negrita: true, cursiva: true },
+          { texto: ' — ver ' },
+          { texto: 'AO', enlace: 'https://ao.org' },
+        ],
+      },
+      { tipo: 'numerada', puntos: [[{ texto: 'reducir' }], [{ texto: 'fijar' }]] },
+      { tipo: 'cita', fragmentos: [{ texto: 'Estabilidad relativa.' }] },
+    ]
+
+    const guardado = haciaLexical(original)
+    const enElEditor = lexicalATipTap(guardado)
+    const devuelta = tipTapALexical(enElEditor)
+
+    expect(desdeLexical(devuelta)).toEqual(original)
+  })
+
+  it('el salto de línea dentro de un párrafo sobrevive', () => {
+    const original: Parrafo[] = [{ tipo: 'parrafo', fragmentos: [{ texto: 'una\notra' }] }]
+    expect(desdeTipTap(haciaTipTap(original))).toEqual(original)
+  })
+
+  it('un contenido vacío da un documento con un párrafo, no uno sin nada', () => {
+    const documento = haciaTipTap([]) as { content: unknown[] }
+    expect(documento.content).toHaveLength(1)
+  })
+})
+
+// -------------------------------------------------------------- seguridad
+
+describe('direcciones de enlace', () => {
+  it('acepta lo que se puede publicar', () => {
+    for (const url of [
+      'https://ao.org/guia',
+      'http://intranet.local',
+      'mailto:jefe@hospital.cl',
+      'tel:+56912345678',
+      '/biblioteca/12',
+    ]) {
+      expect(enlaceSeguro(url), url).toBe(url)
+    }
+  })
+
+  it('rechaza los esquemas que ejecutan código', () => {
+    for (const url of [
+      'javascript:alert(1)',
+      'JavaScript:alert(1)',
+      'data:text/html,<script>',
+      'vbscript:msgbox',
+      '  javascript:alert(1)  ',
+      '//evil.example.com',
+    ]) {
+      expect(enlaceSeguro(url), url).toBeUndefined()
+    }
+  })
+
+  it('un enlace peligroso no sobrevive a la conversión', () => {
+    const parrafos = desdeTipTap({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: 'pulse',
+              marks: [{ type: 'link', attrs: { href: 'javascript:alert(1)' } }],
+            },
+          ],
+        },
+      ],
+    })
+    expect(JSON.stringify(parrafos)).not.toContain('javascript')
+    expect(JSON.stringify(haciaLexical(parrafos))).not.toContain('javascript')
+  })
+})
+
+// ------------------------------------------------------------- utilidades
 
 describe('utilidades', () => {
   it('el texto llano sirve para resumir un bloque', () => {
@@ -205,10 +356,16 @@ describe('utilidades', () => {
     )
   })
 
-  it('al pegar texto llano, una línea en blanco separa párrafos', () => {
+  it('el texto llano de la migración se parte por líneas en blanco', () => {
     expect(desdeTextoLlano('uno\n\ndos')).toEqual([
       { tipo: 'parrafo', fragmentos: [{ texto: 'uno' }] },
       { tipo: 'parrafo', fragmentos: [{ texto: 'dos' }] },
+    ])
+  })
+
+  it('un salto simple no parte el párrafo: era un salto de línea, no de idea', () => {
+    expect(desdeTextoLlano('una\notra')).toEqual([
+      { tipo: 'parrafo', fragmentos: [{ texto: 'una\notra' }] },
     ])
   })
 })

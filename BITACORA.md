@@ -429,6 +429,48 @@ alguien concreto y sin esa persona no significa nada; los comentarios son
 observaciones sobre el contenido y valen por lo que dicen, no por quién las
 dijo. Borrarlos castigaría al contenido por un cambio en el personal.
 
+
+### D-043 · 2026-09-06 · vigente · matiza a D-011
+**El editor de texto es TipTap, y lo que se guarda sigue siendo Lexical.**
+Se adopta el mismo editor que ya usa la página de cursos del equipo, para que
+escribir en las dos sea la misma experiencia y no haya que aprender dos cosas.
+La barra trae deshacer y rehacer, negrita, cursiva, subrayado, tachado, tres
+niveles de encabezado, viñetas, lista numerada, cita, las cuatro alineaciones,
+enlace y quitar formato.
+
+*Lo que no trae, y es deliberado:* imagen y tabla. La plataforma ya tiene
+bloques de Imagen, Video, Tabla de clasificación y Modelo 3D, que se presentan
+mejor dentro de una ficha que un archivo suelto en mitad de un párrafo, y
+tenerlos en los dos sitios daría dos formas de hacer lo mismo con resultados
+distintos.
+
+*Lo que no cambia:* el almacenamiento. `src/lib/textoRico.ts` traduce entre el
+documento de TipTap y el árbol de Lexical en las dos direcciones. Así el
+renderizador público sigue pintando el contenido con componentes propios y sin
+`dangerouslySetInnerHTML`, que es lo que impide que un autor introduzca
+comportamiento en la página, y no hubo que migrar nada de lo ya escrito.
+
+### D-044 · 2026-09-06 · vigente
+**Los campos largos también tienen formato.**
+La técnica, el positivo y la nota de una maniobra; el procedimiento de un caso
+AO y el resumen de una cirugía; y la descripción y la nota de cada paso dejan
+de ser un área de texto plano. *Por qué:* son textos de párrafos, con pasos
+enumerados y términos que conviene destacar, y escribirlos sin formato obligaba
+a inventar convenciones con guiones y mayúsculas.
+
+*Coste:* cambia el tipo de la columna en PostgreSQL, de texto a `jsonb`, y ese
+cambio no lo puede hacer el arranque solo. Para eso está
+`scripts/migrar-a-texto-rico.ts`, que rescata lo escrito, cambia el tipo y lo
+devuelve convertido en párrafos.
+
+### D-045 · 2026-09-06 · vigente
+**La marca visible es TraumaHub.**
+El logotipo dice TraumaHub y la barra decía «Traumatología» al lado: dos
+nombres compitiendo en el mismo sitio. Se adopta el del logotipo como nombre
+visible y «Plataforma docente de traumatología» queda como descripción. En la
+barra se usa la marca sola —`icon.png`—, porque `logo.png` ya lleva el nombre
+escrito y ponerlo junto a un texto lo repetía.
+
 ---
 
 ## 3. Observaciones
@@ -644,6 +686,18 @@ Payload rechazaba la relación con un «campo inválido» que no señalaba nada
 tocable en pantalla. *Arreglo:* `depurarDocumento` convierte a entero lo que lo
 parece, y el editor salta a la pestaña donde está el campo que falta en lugar
 de mostrar el aviso arriba y dejar a la persona buscándolo.
+
+---
+
+### O-017 · 2026-09-06 · alta · resuelta
+**PostgreSQL no convierte texto a `jsonb` por su cuenta, y con razón.**
+Al pasar los campos largos a texto con formato, el arranque de la aplicación
+falló con `ALTER TABLE "casos_ao_pasos" ALTER COLUMN "descripcion" SET DATA
+TYPE jsonb`. La base se niega porque «fractura conminuta» no es un documento
+JSON. *Arreglo:* `scripts/migrar-a-texto-rico.ts`, que hace los tres pasos en
+el orden correcto —rescatar lo escrito, cambiar el tipo con `USING NULL`,
+devolver el contenido convertido en párrafos— y cubre también las tablas de
+versiones y las de filas de arreglo, que es donde se olvida.
 
 ---
 

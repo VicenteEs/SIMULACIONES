@@ -6,6 +6,7 @@ import { SinAcceso, Miga, Vacio } from '@/components/Estados'
 import { Simulador } from '@/components/Simulador'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import type { PasoQuirurgico } from '@/lib/simulador'
+import { Rico } from '@/components/Rico'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
     <main>
       <Miga href="/simulador" texto="Simulador" />
       <h1>{cirugia.nombre as string}</h1>
-      {cirugia.resumen ? <p className="entrada">{cirugia.resumen as string}</p> : null}
+      <Rico valor={cirugia.resumen} className="entrada" />
 
       {pasos.length === 0 ? (
         <Vacio texto="Esta cirugía todavía no tiene pasos escritos." />

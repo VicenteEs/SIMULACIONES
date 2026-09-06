@@ -6,6 +6,7 @@ import { SinAcceso, Miga, Vacio } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { Visor3D } from '@/components/Visor3D'
 import { FormularioComentario } from '@/components/FormularioComentario'
+import { Rico } from '@/components/Rico'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,7 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
       <Miga href="/tecnica-ao" texto="Técnica AO" />
       <header className="cabecera-ficha">
         <h1>{caso.titulo as string}</h1>
-        {caso.procedimiento ? <p className="entrada">{caso.procedimiento as string}</p> : null}
+        <Rico valor={caso.procedimiento} className="entrada" />
         {caso.codigo ? (
           <div className="etiquetas">
             <span className="codigo">{caso.codigo as string}</span>
@@ -51,14 +52,14 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
               <li key={i}>
                 <span className="paso-numero">Paso {i + 1}</span>
                 <h2>{p.titulo as string}</h2>
-                <p>{p.descripcion as string}</p>
+                <Rico valor={p.descripcion} />
                 {p.principio ? (
                   <aside className="advertencia perla">
                     <span className="advertencia-etiqueta">Principio AO</span>
                     <p>{p.principio as string}</p>
                   </aside>
                 ) : null}
-                {p.nota ? <p className="nota-tecnica">{p.nota as string}</p> : null}
+                <Rico valor={p.nota} className="nota-tecnica" />
                 {modelo?.url ? <Visor3D url={modelo.url} nombre={modelo.nombre} /> : null}
               </li>
             )

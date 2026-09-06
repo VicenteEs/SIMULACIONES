@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
-import { pilaDeBloques } from '@/blocks'
+import { editorClinico, pilaDeBloques } from '@/blocks'
 
 /** Módulo 03 · Técnica AO paso a paso. */
 export const CasosAO: CollectionConfig = {
@@ -23,7 +23,12 @@ export const CasosAO: CollectionConfig = {
   fields: [
     { name: 'titulo', type: 'text', required: true, label: 'Título del caso' },
     { name: 'codigo', type: 'text', label: 'Código AO/OTA' },
-    { name: 'procedimiento', type: 'textarea', label: 'Procedimiento' },
+    {
+      name: 'procedimiento',
+      type: 'richText',
+      editor: editorClinico,
+      label: 'Procedimiento',
+    },
     {
       name: 'pasos',
       type: 'array',
@@ -31,9 +36,15 @@ export const CasosAO: CollectionConfig = {
       labels: { singular: 'Paso', plural: 'Pasos' },
       fields: [
         { name: 'titulo', type: 'text', required: true, label: 'Título del paso' },
-        { name: 'descripcion', type: 'textarea', required: true, label: 'Qué se hace' },
+        {
+          name: 'descripcion',
+          type: 'richText',
+          required: true,
+          editor: editorClinico,
+          label: 'Qué se hace',
+        },
         { name: 'principio', type: 'text', required: true, label: 'Principio AO en juego' },
-        { name: 'nota', type: 'textarea', label: 'Nota técnica' },
+        { name: 'nota', type: 'richText', editor: editorClinico, label: 'Nota técnica' },
         {
           name: 'modelo',
           type: 'relationship',

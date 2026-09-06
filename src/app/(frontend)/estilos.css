@@ -1147,3 +1147,50 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 }
 
 .tarjeta-ficha .codigo { text-transform: capitalize; }
+
+/* ==========================================================================
+   Campos con formato fuera de los bloques.
+
+   La técnica de una maniobra o la descripción de un paso ya no son un texto
+   plano sino contenido con formato, así que llegan envueltos en un div con sus
+   propios párrafos. Estas reglas evitan el doble margen que eso provoca y le
+   dan a los encabezados un tamaño acorde al sitio donde caen, que es dentro de
+   una ficha y no al nivel de un título de sección.
+   ========================================================================== */
+
+.entrada > p:last-child,
+.nota-tecnica > p:last-child,
+dd > div > p:last-child { margin-bottom: 0; }
+
+.nota-tecnica > p { margin-bottom: 8px; }
+
+dd > div > h2,
+dd > div > h3,
+dd > div > h4,
+.nota-tecnica h2,
+.nota-tecnica h3,
+.nota-tecnica h4 {
+  font-size: 14px;
+  margin: 14px 0 6px;
+  color: var(--tinta);
+}
+
+dd > div ul,
+dd > div ol,
+.entrada ul,
+.entrada ol { padding-left: 1.3em; margin: 8px 0; }
+
+dd > div li,
+.entrada li { margin-bottom: 4px; }
+
+dd > div blockquote,
+.entrada blockquote {
+  border-left: 3px solid var(--marca);
+  background: var(--marca-tenue);
+  padding: 10px 14px;
+  margin: 12px 0;
+  border-radius: 0 var(--r) var(--r) 0;
+}
+
+dd > div blockquote p:last-child,
+.entrada blockquote p:last-child { margin-bottom: 0; }

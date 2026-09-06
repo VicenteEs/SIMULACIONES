@@ -4,6 +4,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { SinAcceso, Vacio } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { FormularioComentario } from '@/components/FormularioComentario'
+import { Rico, tieneContenido } from '@/components/Rico'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,13 +51,13 @@ export default async function ExamenFisico() {
                     <dt>Evalúa</dt>
                     <dd>{m.evalua as string}</dd>
                     <dt>Técnica</dt>
-                    <dd>{m.tecnica as string}</dd>
+                    <dd><Rico valor={m.tecnica} /></dd>
                     <dt>Positivo</dt>
-                    <dd>{m.positivo as string}</dd>
-                    {m.nota ? (
+                    <dd><Rico valor={m.positivo} /></dd>
+                    {tieneContenido(m.nota) ? (
                       <>
                         <dt>Nota</dt>
-                        <dd>{m.nota as string}</dd>
+                        <dd><Rico valor={m.nota} /></dd>
                       </>
                     ) : null}
                   </dl>

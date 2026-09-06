@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
-import { pilaDeBloques } from '@/blocks'
+import { editorClinico, pilaDeBloques } from '@/blocks'
 
 /** Módulo 02 · Repositorio de examen físico. */
 export const Maniobras: CollectionConfig = {
@@ -30,9 +30,26 @@ export const Maniobras: CollectionConfig = {
       label: 'Segmento',
     },
     { name: 'evalua', type: 'text', required: true, label: 'Qué evalúa' },
-    { name: 'tecnica', type: 'textarea', required: true, label: 'Técnica' },
-    { name: 'positivo', type: 'textarea', required: true, label: 'Qué se considera positivo' },
-    { name: 'nota', type: 'textarea', label: 'Nota de interpretación' },
+    {
+      name: 'tecnica',
+      type: 'richText',
+      required: true,
+      editor: editorClinico,
+      label: 'Técnica',
+    },
+    {
+      name: 'positivo',
+      type: 'richText',
+      required: true,
+      editor: editorClinico,
+      label: 'Qué se considera positivo',
+    },
+    {
+      name: 'nota',
+      type: 'richText',
+      editor: editorClinico,
+      label: 'Nota de interpretación',
+    },
     pilaDeBloques('contenido', 'Material adicional'),
   ],
 }

@@ -210,14 +210,14 @@ export const Maniobras: EsquemaDeColeccion = {
           medio: true,
         },
         { tipo: 'texto', nombre: 'evalua', etiqueta: 'Qué evalúa', requerido: true, medio: true },
-        { tipo: 'area', nombre: 'tecnica', etiqueta: 'Técnica', requerido: true, filas: 5 },
+        { tipo: 'rico', nombre: 'tecnica', etiqueta: 'Técnica', requerido: true },
         {
-          tipo: 'area',
+          tipo: 'rico',
           nombre: 'positivo',
           etiqueta: 'Qué se considera positivo',
           requerido: true,
         },
-        { tipo: 'area', nombre: 'nota', etiqueta: 'Nota de interpretación' },
+        { tipo: 'rico', nombre: 'nota', etiqueta: 'Nota de interpretación' },
       ],
     },
     { titulo: 'Material adicional', campos: [bloques('contenido', 'Material adicional')] },
@@ -245,7 +245,7 @@ export const CasosAO: EsquemaDeColeccion = {
       campos: [
         { tipo: 'texto', nombre: 'titulo', etiqueta: 'Título del caso', requerido: true },
         { tipo: 'texto', nombre: 'codigo', etiqueta: 'Código AO/OTA', medio: true },
-        { tipo: 'area', nombre: 'procedimiento', etiqueta: 'Procedimiento' },
+        { tipo: 'rico', nombre: 'procedimiento', etiqueta: 'Procedimiento' },
       ],
     },
     {
@@ -259,14 +259,14 @@ export const CasosAO: EsquemaDeColeccion = {
           singular: 'Paso',
           campos: [
             { tipo: 'texto', nombre: 'titulo', etiqueta: 'Título del paso', requerido: true },
-            { tipo: 'area', nombre: 'descripcion', etiqueta: 'Qué se hace', requerido: true },
+            { tipo: 'rico', nombre: 'descripcion', etiqueta: 'Qué se hace', requerido: true },
             {
               tipo: 'texto',
               nombre: 'principio',
               etiqueta: 'Principio AO en juego',
               requerido: true,
             },
-            { tipo: 'area', nombre: 'nota', etiqueta: 'Nota técnica' },
+            { tipo: 'rico', nombre: 'nota', etiqueta: 'Nota técnica' },
             {
               tipo: 'relacion',
               nombre: 'modelo',
@@ -302,7 +302,7 @@ export const Cirugias: EsquemaDeColeccion = {
       campos: [
         { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre de la cirugía', requerido: true },
         { tipo: 'texto', nombre: 'codigo', etiqueta: 'Código AO/OTA', medio: true },
-        { tipo: 'area', nombre: 'resumen', etiqueta: 'Resumen del procedimiento' },
+        { tipo: 'rico', nombre: 'resumen', etiqueta: 'Resumen del procedimiento' },
       ],
     },
     {
@@ -317,7 +317,7 @@ export const Cirugias: EsquemaDeColeccion = {
           singular: 'Paso',
           campos: [
             { tipo: 'texto', nombre: 'titulo', etiqueta: 'Título del paso', requerido: true },
-            { tipo: 'area', nombre: 'descripcion', etiqueta: 'Qué se hace', requerido: true },
+            { tipo: 'rico', nombre: 'descripcion', etiqueta: 'Qué se hace', requerido: true },
             {
               tipo: 'texto',
               nombre: 'instrumento',
@@ -351,7 +351,7 @@ export const Cirugias: EsquemaDeColeccion = {
               etiqueta: 'Si la fuerza es excesiva',
               requerido: true,
             },
-            { tipo: 'area', nombre: 'riesgo', etiqueta: 'Estructura o principio en juego' },
+            { tipo: 'rico', nombre: 'riesgo', etiqueta: 'Estructura o principio en juego' },
           ],
         },
       ],
