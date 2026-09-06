@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { useRouter } from 'next/navigation'
+import { ruta } from '@/lib/rutas'
 
 /**
  * Conmutador «ver como residente».
@@ -18,7 +19,7 @@ export function ConmutadorVista({ rolReal, simulando }: { rolReal: string; simul
 
   async function cambiar(rol: string | null) {
     setOcupado(true)
-    await fetch('/simulaciones/api/vista-previa', {
+    await fetch(ruta('/api/vista-previa'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rol }),

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { faltaLaPrimeraCuenta } from '@/app/(frontend)/acciones/sesion'
 import { FormularioInstalar } from './FormularioInstalar'
+import { ruta } from '@/lib/rutas'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ export default async function PaginaInstalar() {
     <main className="acceso">
       <div className="acceso-caja">
         <div className="acceso-marca">
-          <img src="/logo.png" alt="TraumaHub" className="acceso-logo" />
+          <img src={ruta('/logo.png')} alt="TraumaHub" className="acceso-logo" />
         </div>
         <h1 className="acceso-titulo">Primera cuenta</h1>
 

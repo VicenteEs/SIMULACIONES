@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { obtenerSesion } from '@/lib/sesion'
 import { faltaLaPrimeraCuenta } from '@/app/(frontend)/acciones/sesion'
 import { FormularioEntrar } from './FormularioEntrar'
+import { ruta } from '@/lib/rutas'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,7 @@ export default async function PaginaEntrar() {
     <main className="acceso">
       <div className="acceso-caja">
         <div className="acceso-marca">
-          <img src="/logo.png" alt="TraumaHub" className="acceso-logo" />
+          <img src={ruta('/logo.png')} alt="TraumaHub" className="acceso-logo" />
         </div>
         <h1 className="acceso-titulo">Entrar</h1>
 

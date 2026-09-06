@@ -30,7 +30,13 @@ const fechaHora = (valor: string) =>
     minute: '2-digit',
   })
 
-export function TablaComentarios({ comentarios }: { comentarios: ComentarioDelPanel[] }) {
+export function TablaComentarios({
+  comentarios,
+  puedeEliminar,
+}: {
+  comentarios: ComentarioDelPanel[]
+  puedeEliminar: boolean
+}) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
@@ -223,17 +229,19 @@ export function TablaComentarios({ comentarios }: { comentarios: ComentarioDelPa
                       >
                         {c.estado === 'pendiente' ? 'Resolver' : 'Reabrir'}
                       </button>
-                      <button
-                        className="admin-btn admin-btn-sm admin-btn-danger"
-                        disabled={enCurso}
-                        onClick={() => {
-                          if (confirm('¿Eliminar este comentario? No se puede deshacer.')) {
-                            ejecutar(() => eliminarComentario(c.id), 'Comentario eliminado.')
-                          }
-                        }}
-                      >
-                        Eliminar
-                      </button>
+                      {puedeEliminar ? (
+                        <button
+                          className="admin-btn admin-btn-sm admin-btn-danger"
+                          disabled={enCurso}
+                          onClick={() => {
+                            if (confirm('¿Eliminar este comentario? No se puede deshacer.')) {
+                              ejecutar(() => eliminarComentario(c.id), 'Comentario eliminado.')
+                            }
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

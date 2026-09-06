@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { borrarRespaldo, respaldarAhora } from '@/app/(frontend)/acciones/respaldos'
 import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
+import { ruta } from '@/lib/rutas'
 
 const fechaHora = (valor: string) =>
   new Date(valor).toLocaleString('es-CL', {
@@ -140,7 +141,7 @@ export function PanelDeRespaldos({
                     <div className="admin-acciones">
                       <a
                         className="admin-btn admin-btn-sm admin-btn-secondary"
-                        href={`/api/respaldos/${r.nombre}`}
+                        href={ruta(`/api/respaldos/${r.nombre}`)}
                       >
                         Descargar
                       </a>

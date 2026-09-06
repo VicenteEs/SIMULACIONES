@@ -18,6 +18,13 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Prefijo bajo el que se sirve la aplicacion. Next.js lo incrusta en cada
+# enlace y en cada recurso al compilar, de modo que no se puede cambiar
+# despues arrancando el contenedor con otra variable: hay que reconstruir.
+#   docker compose build --build-arg BASE_PATH=/traumahub app
+ARG BASE_PATH=""
+ENV NEXT_PUBLIC_BASE_PATH=$BASE_PATH
 # Las variables se definen solo para este comando y no se graban en la imagen.
 # Payload exige que existan para poder leer su configuracion, pero la
 # compilacion no toca la base de datos: son valores de relleno.

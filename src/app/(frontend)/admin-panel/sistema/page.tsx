@@ -4,6 +4,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { tamanoLegible } from '@/lib/respaldos'
 import { directorioDeRespaldos, hayPgDump, listarRespaldos } from '@/lib/respaldosServidor'
 import { clientePayload } from '../datos'
+import { ruta } from '@/lib/rutas'
 
 export const dynamic = 'force-dynamic'
 
@@ -221,7 +222,7 @@ export default async function PaginaSistema() {
           </p>
           <div className="admin-card-actions">
             <a
-              href="/api/salud"
+              href={ruta('/api/salud')}
               className="admin-btn admin-btn-secondary"
               target="_blank"
               rel="noopener noreferrer"

@@ -6,6 +6,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { NavegacionAdmin, type SeccionDeMenu } from '@/components/admin/NavegacionAdmin'
 import { BotonSalir } from '@/components/BotonSalir'
 import './admin.css'
+import { ruta } from '@/lib/rutas'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,7 +86,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="admin-layout">
       <aside className="admin-sidebar">
         <div className="admin-sidebar-header">
-          <img src="/icon.png" alt="" className="admin-sidebar-logo" />
+          <img src={ruta('/icon.png')} alt="" className="admin-sidebar-logo" />
           <div>
             <div className="admin-sidebar-title">TraumaHub</div>
             <span className="admin-sidebar-sub">Panel de control</span>

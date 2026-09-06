@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { ruta } from '@/lib/rutas'
 
 /**
  * Aviso de contenido actualizado.
@@ -13,7 +14,7 @@ export function AvisoActualizacion() {
   const versionInicial = React.useRef<number | null>(null)
 
   React.useEffect(() => {
-    const fuente = new EventSource('/api/cambios')
+    const fuente = new EventSource(ruta('/api/cambios'))
 
     fuente.onmessage = (evento) => {
       try {

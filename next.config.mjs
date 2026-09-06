@@ -1,9 +1,23 @@
 import { withPayload } from '@payloadcms/next/withPayload'
 
+/**
+ * Prefijo bajo el que se sirve la aplicación.
+ *
+ * Vacío en desarrollo, `/traumahub` en el servidor, donde comparte dominio y
+ * puerto con las demás páginas detrás del mismo proxy. Se fija al **compilar**
+ * —Next.js lo incrusta en cada enlace y en cada recurso—, así que la imagen de
+ * producción se construye con el prefijo que le toca a ese despliegue.
+ *
+ * Ver `src/lib/rutas.ts` para lo que Next no prefija solo.
+ */
+const prefijo = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').replace(/\/+$/, '')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Salida autocontenida: la imagen de produccion no arrastra node_modules.
   output: 'standalone',
+
+  ...(prefijo ? { basePath: prefijo } : {}),
 
   // Cabeceras de seguridad para toda la aplicación.
   async headers() {

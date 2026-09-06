@@ -15,7 +15,7 @@
 
 import { revalidatePath } from 'next/cache'
 import type { Payload } from 'payload'
-import { exigirAdmin, accion, type Respuesta } from '@/lib/guardias'
+import { exigirAdmin, exigirEditor, accion, type Respuesta } from '@/lib/guardias'
 import {
   exigirContrasena,
   exigirCorreo,
@@ -219,7 +219,8 @@ export async function generarEnlaceDeClave(
 
 export async function actualizarComentario(id: unknown, estado: unknown): Promise<Respuesta> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    // El editor también resuelve: es quien arregla lo que se le señala.
+    const { payload, usuario } = await exigirEditor()
     if (estado !== 'pendiente' && estado !== 'resuelto') {
       throw new Error('El estado del comentario no es válido.')
     }
@@ -250,7 +251,7 @@ export async function eliminarComentario(id: unknown): Promise<Respuesta> {
 /** Marca como resueltos todos los comentarios pendientes de una sola vez. */
 export async function resolverTodosLosComentarios(): Promise<Respuesta<{ resueltos: number }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirEditor()
     const resultado = await payload.update({
       collection: 'comentarios',
       where: { estado: { equals: 'pendiente' } },

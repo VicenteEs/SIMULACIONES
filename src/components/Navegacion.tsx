@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ConmutadorVista } from './ConmutadorVista'
 import { BotonSalir } from './BotonSalir'
 import { MenuMovil } from './MenuMovil'
+import { ruta } from '@/lib/rutas'
 
 const MODULOS = [
   { ruta: '/biblioteca', etiqueta: 'Biblioteca' },
@@ -40,7 +41,7 @@ export function Navegacion({
             lleva el nombre escrito, y ponerlo al lado de un texto distinto
             deja dos nombres compitiendo en el mismo sitio. */}
         <Link href="/" className="marca">
-          <img src="/icon.png" alt="" className="marca-logo" />
+          <img src={ruta('/icon.png')} alt="" className="marca-logo" />
           <div>
             TraumaHub
             <span className="marca-sub">Plataforma docente</span>

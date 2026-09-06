@@ -4,6 +4,7 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { Femur } from '@/components/Femur'
 import { MallaDeNodos } from '@/components/MallaDeNodos'
+import { ruta } from '@/lib/rutas'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,7 +73,7 @@ export default async function Inicio() {
         </div>
 
         <section className="portada-hero">
-          <img src="/logo.png" alt="TraumaHub" className="portada-logo" />
+          <img src={ruta('/logo.png')} alt="TraumaHub" className="portada-logo" />
 
           <h1 className="portada-titular">
             Estudiar, examinar y <em>operar mejor</em>.

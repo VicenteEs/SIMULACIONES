@@ -15,7 +15,11 @@ export const dynamic = 'force-dynamic'
  */
 export default async function PaginaComentarios() {
   const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
+  // Entra también el editor: es quien escribe el contenido y, por tanto, quien
+  // resuelve lo que se comenta sobre él. Eliminar sigue siendo cosa del
+  // administrador, porque borra la observación de otra persona.
+  const rol = sesion.rolReal
+  if (!sesion?.usuario || !sesion.activo || (rol !== 'admin' && rol !== 'editor')) redirect('/')
 
   const payload = await clientePayload()
   const { docs } = await payload.find({
@@ -41,5 +45,5 @@ export default async function PaginaComentarios() {
     }
   })
 
-  return <TablaComentarios comentarios={comentarios} />
+  return <TablaComentarios comentarios={comentarios} puedeEliminar={rol === 'admin'} />
 }

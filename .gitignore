@@ -9,6 +9,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# ajustes propios de un servidor concreto (ver despliegue/paginas/)
+docker-compose.override.yml
+
 # entorno — NUNCA versionar secretos
 .env
 .env.*

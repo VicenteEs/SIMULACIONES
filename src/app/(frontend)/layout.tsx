@@ -4,6 +4,7 @@ import { Navegacion } from '@/components/Navegacion'
 import { AvisoActualizacion } from '@/components/AvisoActualizacion'
 import { obtenerSesion } from '@/lib/sesion'
 import './estilos.css'
+import { ruta } from '@/lib/rutas'
 
 export const metadata: Metadata = {
   title: 'Plataforma docente de traumatología',
@@ -11,9 +12,9 @@ export const metadata: Metadata = {
   // Acceso cerrado: la plataforma no debe indexarse (decisión D-020).
   robots: { index: false, follow: false },
   icons: {
-    icon: '/icon.png',
-    shortcut: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
+    icon: ruta('/icon.png'),
+    shortcut: ruta('/favicon.ico'),
+    apple: ruta('/apple-touch-icon.png'),
   },
 }
 

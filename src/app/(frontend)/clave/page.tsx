@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { FormularioPedirClave } from './FormularioPedirClave'
+import { ruta } from '@/lib/rutas'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export default function PaginaPedirClave() {
     <main className="acceso">
       <div className="acceso-caja">
         <div className="acceso-marca">
-          <img src="/logo.png" alt="TraumaHub" className="acceso-logo" />
+          <img src={ruta('/logo.png')} alt="TraumaHub" className="acceso-logo" />
         </div>
         <h1 className="acceso-titulo">Recuperar contraseña</h1>
 
