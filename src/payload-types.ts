@@ -421,6 +421,16 @@ export interface Patologia {
             blockName?: string | null;
             blockType: 'modelo-3d';
           }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
+          }
       )[]
     | null;
   /**
@@ -513,6 +523,16 @@ export interface Patologia {
             id?: string | null;
             blockName?: string | null;
             blockType: 'modelo-3d';
+          }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
           }
       )[]
     | null;
@@ -607,6 +627,16 @@ export interface Patologia {
             blockName?: string | null;
             blockType: 'modelo-3d';
           }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
+          }
       )[]
     | null;
   /**
@@ -699,6 +729,16 @@ export interface Patologia {
             id?: string | null;
             blockName?: string | null;
             blockType: 'modelo-3d';
+          }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
           }
       )[]
     | null;
@@ -793,6 +833,16 @@ export interface Patologia {
             blockName?: string | null;
             blockType: 'modelo-3d';
           }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
+          }
       )[]
     | null;
   /**
@@ -885,6 +935,16 @@ export interface Patologia {
             id?: string | null;
             blockName?: string | null;
             blockType: 'modelo-3d';
+          }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
           }
       )[]
     | null;
@@ -1048,6 +1108,16 @@ export interface Maniobra {
             blockName?: string | null;
             blockType: 'modelo-3d';
           }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
+          }
       )[]
     | null;
   updatedAt: string;
@@ -1207,6 +1277,16 @@ export interface CasosAo {
             id?: string | null;
             blockName?: string | null;
             blockType: 'modelo-3d';
+          }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
           }
       )[]
     | null;
@@ -1372,6 +1452,16 @@ export interface Cirugia {
             blockName?: string | null;
             blockType: 'modelo-3d';
           }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
+          }
       )[]
     | null;
   updatedAt: string;
@@ -1504,6 +1594,16 @@ export interface EstudiosIa {
             id?: string | null;
             blockName?: string | null;
             blockType: 'modelo-3d';
+          }
+        | {
+            /**
+             * Se arman en el taller anatómico del panel.
+             */
+            preparacion: number | InstanciasAtlas;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'instancia-atlas';
           }
       )[]
     | null;
@@ -1872,6 +1972,14 @@ export interface PatologiasSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
+              id?: T;
+              blockName?: T;
+            };
       };
   mecanismo?:
     | T
@@ -1951,6 +2059,14 @@ export interface PatologiasSelect<T extends boolean = true> {
                     giroZ?: T;
                     distanciaCamara?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
@@ -2036,6 +2152,14 @@ export interface PatologiasSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
+              id?: T;
+              blockName?: T;
+            };
       };
   evaluacion?:
     | T
@@ -2115,6 +2239,14 @@ export interface PatologiasSelect<T extends boolean = true> {
                     giroZ?: T;
                     distanciaCamara?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
@@ -2200,6 +2332,14 @@ export interface PatologiasSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
+              id?: T;
+              blockName?: T;
+            };
       };
   rehabilitacion?:
     | T
@@ -2279,6 +2419,14 @@ export interface PatologiasSelect<T extends boolean = true> {
                     giroZ?: T;
                     distanciaCamara?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
@@ -2388,6 +2536,14 @@ export interface ManiobrasSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
+              id?: T;
+              blockName?: T;
+            };
       };
   updatedAt?: T;
   createdAt?: T;
@@ -2489,6 +2645,14 @@ export interface CasosAoSelect<T extends boolean = true> {
                     giroZ?: T;
                     distanciaCamara?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
@@ -2597,6 +2761,14 @@ export interface CirugiasSelect<T extends boolean = true> {
                     giroZ?: T;
                     distanciaCamara?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
@@ -2716,6 +2888,14 @@ export interface EstudiosIaSelect<T extends boolean = true> {
                     giroZ?: T;
                     distanciaCamara?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'instancia-atlas'?:
+          | T
+          | {
+              preparacion?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
