@@ -71,6 +71,7 @@ export interface Config {
     segmentos: Segmento;
     medios: Medio;
     'modelos-3d': Modelos3D;
+    'instancias-atlas': InstanciasAtlas;
     patologias: Patologia;
     maniobras: Maniobra;
     'casos-ao': CasosAo;
@@ -89,6 +90,7 @@ export interface Config {
     segmentos: SegmentosSelect<false> | SegmentosSelect<true>;
     medios: MediosSelect<false> | MediosSelect<true>;
     'modelos-3d': Modelos3DSelect<false> | Modelos3DSelect<true>;
+    'instancias-atlas': InstanciasAtlasSelect<false> | InstanciasAtlasSelect<true>;
     patologias: PatologiasSelect<false> | PatologiasSelect<true>;
     maniobras: ManiobrasSelect<false> | ManiobrasSelect<true>;
     'casos-ao': CasosAoSelect<false> | CasosAoSelect<true>;
@@ -274,6 +276,46 @@ export interface Modelos3D {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+}
+/**
+ * Recortes del atlas listos para insertar en una ficha.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instancias-atlas".
+ */
+export interface InstanciasAtlas {
+  id: number;
+  nombre: string;
+  /**
+   * Qué muestra y en qué ficha se piensa usar.
+   */
+  descripcion?: string | null;
+  /**
+   * Ordena las preparaciones junto al resto del contenido.
+   */
+  segmento?: (number | null) | Segmento;
+  /**
+   * Lo calcula la plataforma al guardar.
+   */
+  numeroDePiezas?: number | null;
+  /**
+   * Lo escribe el taller del atlas. No se edita a mano.
+   */
+  contenido:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Con qué preparación del atlas se creó. Si el atlas se regenera, sirve para avisar de las piezas que ya no existan.
+   */
+  atlasVersion?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Fichas por segmento. Cada una termina en manejo y rehabilitación.
@@ -1540,6 +1582,10 @@ export interface PayloadLockedDocument {
         value: number | Modelos3D;
       } | null)
     | ({
+        relationTo: 'instancias-atlas';
+        value: number | InstanciasAtlas;
+      } | null)
+    | ({
         relationTo: 'patologias';
         value: number | Patologia;
       } | null)
@@ -1720,6 +1766,20 @@ export interface Modelos3DSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instancias-atlas_select".
+ */
+export interface InstanciasAtlasSelect<T extends boolean = true> {
+  nombre?: T;
+  descripcion?: T;
+  segmento?: T;
+  numeroDePiezas?: T;
+  contenido?: T;
+  atlasVersion?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

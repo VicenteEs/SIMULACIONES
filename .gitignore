@@ -9,6 +9,11 @@ dist/
 build/
 *.tsbuildinfo
 
+# Material de terceros del que se parte para preparar el atlas. No se versiona:
+# lo que si viaja en el repositorio es el resultado, public/atlas/, que es lo
+# que la plataforma sirve. Ver scripts/atlas/preparar.mjs
+/.vendor/
+
 # Ajustes propios de un servidor concreto. La barra inicial ancla el patron a
 # la raiz: sin ella tambien ignoraria la plantilla de despliegue/paginas/, que
 # si tiene que viajar en el repositorio.

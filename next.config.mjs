@@ -23,6 +23,25 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Los paquetes del atlas viajan comprimidos y los descomprime el
+        // propio navegador. Sin esta cabecera llegarían como un archivo .gz
+        // opaco y habría que descomprimirlos en JavaScript, que es más lento y
+        // más código. El `basePath` se antepone solo al `source`.
+        source: '/atlas/:archivo*.bin.gz',
+        headers: [
+          { key: 'Content-Encoding', value: 'gzip' },
+          { key: 'Content-Type', value: 'application/octet-stream' },
+          // El atlas no cambia nunca: si cambia, cambia su versión y con ella
+          // el nombre. Revalidar 31 MB en cada visita por un túnel sería
+          // absurdo.
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/atlas/catalogo.json',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }],
+      },
+      {
         source: '/:path*',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },

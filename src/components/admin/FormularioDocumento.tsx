@@ -50,7 +50,7 @@ export function FormularioDocumento({
 
   /** Colecciones a las que apunta algún campo del esquema o de los bloques. */
   const coleccionesRelacionadas = useMemo(
-    () => ['segmentos', 'medios', 'modelos-3d'],
+    () => ['segmentos', 'medios', 'modelos-3d', 'instancias-atlas'],
     [],
   )
 

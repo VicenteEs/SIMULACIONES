@@ -164,6 +164,30 @@ export const BloqueModelo3D: Block = {
 }
 
 /** Los bloques disponibles en cualquier pestaña de contenido. */
+/**
+ * Una preparación anatómica del atlas dentro de una ficha.
+ *
+ * Es el hueco por el que el trabajo del taller llega al residente. A diferencia
+ * del bloque de Modelo 3D, no apunta a un archivo subido sino a una selección
+ * de piezas del atlas compartido: el navegador descarga el atlas una vez y esa
+ * descarga sirve para todas las preparaciones de todas las fichas.
+ */
+const BloqueInstanciaAtlas: Block = {
+  slug: 'instancia-atlas',
+  labels: { singular: 'Preparación anatómica', plural: 'Preparaciones anatómicas' },
+  fields: [
+    {
+      name: 'preparacion',
+      type: 'relationship',
+      relationTo: 'instancias-atlas',
+      required: true,
+      label: 'Preparación',
+      admin: { description: 'Se arman en el taller anatómico del panel.' },
+    },
+    { name: 'pie', type: 'text', label: 'Pie del visor' },
+  ],
+}
+
 export const BLOQUES: Block[] = [
   BloqueTexto,
   BloqueLista,
@@ -172,6 +196,7 @@ export const BLOQUES: Block[] = [
   BloqueImagen,
   BloqueVideo,
   BloqueModelo3D,
+  BloqueInstanciaAtlas,
 ]
 
 /**

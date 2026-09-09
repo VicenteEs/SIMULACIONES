@@ -141,6 +141,22 @@ export const BLOQUES: EsquemaDeBloque[] = [
     ],
   },
   {
+    slug: 'instancia-atlas',
+    nombre: 'Preparación anatómica',
+    resumen: (v) => recorta(v.pie) || 'preparación del atlas',
+    campos: [
+      {
+        tipo: 'relacion',
+        nombre: 'preparacion',
+        etiqueta: 'Preparación',
+        coleccion: 'instancias-atlas',
+        requerido: true,
+        ayuda: 'Se arman en el taller anatómico del panel.',
+      },
+      { tipo: 'texto', nombre: 'pie', etiqueta: 'Pie del visor' },
+    ],
+  },
+  {
     slug: 'modelo-3d',
     nombre: 'Modelo 3D',
     resumen: (v) => recorta(v.pie) || 'modelo 3D',

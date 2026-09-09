@@ -3,6 +3,7 @@ import { Usuarios } from './Usuarios'
 import { Segmentos } from './Segmentos'
 import { Medios } from './Medios'
 import { Modelos3D } from './Modelos3D'
+import { InstanciasAtlas } from './InstanciasAtlas'
 import { Patologias } from './Patologias'
 import { Maniobras } from './Maniobras'
 import { CasosAO } from './CasosAO'
@@ -30,6 +31,7 @@ export const COLECCIONES: CollectionConfig[] = [
   Segmentos,
   Medios,
   Modelos3D,
+  InstanciasAtlas,
   Patologias,
   Maniobras,
   CasosAO,
@@ -44,6 +46,7 @@ export {
   Segmentos,
   Medios,
   Modelos3D,
+  InstanciasAtlas,
   Patologias,
   Maniobras,
   CasosAO,

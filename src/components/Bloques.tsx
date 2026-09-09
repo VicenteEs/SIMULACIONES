@@ -1,6 +1,7 @@
 import React from 'react'
 import { RichText } from '@payloadcms/richtext-lexical/react'
 import { Visor3D } from './Visor3D'
+import { VisorInstancia } from './atlas/VisorInstancia'
 
 /**
  * Renderizado de los bloques de contenido.
@@ -124,6 +125,37 @@ function BloqueModelo3D({ bloque }: { bloque: Bloque }) {
   )
 }
 
+function BloqueInstanciaAtlas({ bloque }: { bloque: Bloque }) {
+  const preparacion = bloque.preparacion as
+    | { contenido?: unknown; nombre?: string }
+    | undefined
+  const contenido = preparacion?.contenido as
+    | { piezas?: unknown[]; vista?: unknown }
+    | undefined
+
+  // La relación puede quedar en nulo si alguien borró la preparación: se avisa
+  // en lugar de romper la ficha entera.
+  if (!contenido || !Array.isArray(contenido.piezas) || contenido.piezas.length === 0) {
+    return (
+      <figure className="figura completo">
+        <div className="visor-3d-marco">
+          <span className="visor-3d-nombre">Preparación no disponible</span>
+          <span className="visor-3d-nota">
+            La preparación anatómica de este bloque ya no existe.
+          </span>
+        </div>
+      </figure>
+    )
+  }
+
+  return (
+    <VisorInstancia
+      contenido={contenido as never}
+      pie={typeof bloque.pie === 'string' ? bloque.pie : undefined}
+    />
+  )
+}
+
 const RENDERIZADORES: Record<string, React.ComponentType<{ bloque: Bloque }>> = {
   texto: BloqueTexto,
   'lista-clinica': BloqueLista,
@@ -132,6 +164,7 @@ const RENDERIZADORES: Record<string, React.ComponentType<{ bloque: Bloque }>> = 
   imagen: BloqueImagen,
   video: BloqueVideo,
   'modelo-3d': BloqueModelo3D,
+  'instancia-atlas': BloqueInstanciaAtlas,
 }
 
 export function Bloques({ bloques }: { bloques: unknown }) {

@@ -68,7 +68,10 @@ describe('el esquema del panel cubre las colecciones', () => {
   it('no deja editar usuarios, comentarios ni actividad desde el editor de contenido', () => {
     // Son colecciones con reglas propias: las cuentas se gestionan en su
     // sección, y los comentarios y la actividad los escribe la plataforma.
-    for (const slug of ['usuarios', 'comentarios', 'actividad']) {
+    // `instancias-atlas` tampoco: se arma en el taller del atlas, con su
+    // visor, y en el editor genérico saldría como un cuadro de texto con
+    // miles de identificadores dentro.
+    for (const slug of ['usuarios', 'comentarios', 'actividad', 'instancias-atlas']) {
       expect(esColeccionEditable(slug), slug).toBe(false)
     }
   })

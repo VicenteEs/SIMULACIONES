@@ -4,6 +4,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { tamanoLegible } from '@/lib/respaldos'
 import { directorioDeRespaldos, hayPgDump, listarRespaldos } from '@/lib/respaldosServidor'
 import { clientePayload } from '../datos'
+import { versionDelAtlas } from '@/app/(frontend)/acciones/atlas'
 import { ruta } from '@/lib/rutas'
 
 export const dynamic = 'force-dynamic'
@@ -77,9 +78,10 @@ export default async function PaginaSistema() {
     base = { ok: false, detalle: error instanceof Error ? error.message : 'error desconocido' }
   }
 
-  const [respaldos, pgDump] = await Promise.all([
+  const [respaldos, pgDump, atlas] = await Promise.all([
     listarRespaldos().catch(() => []),
     hayPgDump(),
+    versionDelAtlas(),
   ])
   const ultimo = respaldos.find((r) => r.tipo === 'base')
 
@@ -104,6 +106,15 @@ export default async function PaginaSistema() {
       estado: pgDump
         ? { ok: true, detalle: 'pg_dump disponible' }
         : { ok: false, detalle: 'pg_dump no está en este entorno' },
+    },
+    {
+      // El atlas es un archivo estático que viaja aparte del código: si un
+      // despliegue se lo deja, el taller anatómico abre vacío y sin explicar
+      // por qué. Vale más verlo aquí.
+      titulo: 'Atlas anatómico',
+      estado: atlas.exito && atlas.datos
+        ? { ok: true, detalle: `${atlas.datos.piezas} piezas · ${atlas.datos.version}` }
+        : { ok: false, detalle: 'no está instalado: falta public/atlas/catalogo.json' },
     },
     {
       titulo: 'Correo saliente',

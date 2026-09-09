@@ -54,6 +54,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       entradas: [
         { ruta: '/admin-panel', etiqueta: 'Resumen', icono: 'panel' },
         { ruta: '/admin-panel/contenido', etiqueta: 'Contenido', icono: 'contenido' },
+        { ruta: '/admin-panel/atlas', etiqueta: 'Taller anatómico', icono: 'atlas' },
         {
           ruta: '/admin-panel/comentarios',
           etiqueta: 'Comentarios',

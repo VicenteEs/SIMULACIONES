@@ -502,6 +502,49 @@ Se congeló el esquema en `src/migrations` y se le pasa al adaptador como
 *Consecuencia que hay que recordar:* en desarrollo sigue mandando el `push`, y
 cada cambio de esquema hay que congelarlo con `npx payload migrate:create`.
 
+
+### D-048 · 2026-09-10 · vigente
+**Una «copia» del cuerpo es una selección de piezas, no geometría duplicada.**
+El taller anatómico deja abrir el atlas completo, apagar lo que estorbe y
+guardar el resto como una *preparación* que después se inserta en una ficha.
+Esa preparación guarda **qué piezas sobreviven**, no una copia de las mallas.
+
+*Por qué así:* con una selección, «el original se mantiene» deja de ser una
+promesa de la interfaz y pasa a ser estructural —el atlas es material estático y
+no existe ninguna acción de servidor capaz de escribirlo—; borrar se vuelve
+reversible, porque la pieza que se quitó nunca se perdió; preparar una tibia
+ocupa cuatro identificadores en vez de decenas de megabytes; y el navegador
+descarga el atlas una sola vez para todas las preparaciones de todas las fichas.
+
+*Coste asumido:* una preparación no puede reutilizar el bloque de Modelo 3D,
+que exige un archivo subido. Hubo que añadir un bloque propio a los dos
+esquemas paralelos y un visor de solo lectura.
+
+### D-049 · 2026-09-10 · vigente · acota a O-008
+**El atlas tiene su propio presupuesto de rendimiento.**
+O-008 fija de 50.000 a 150.000 triángulos y menos de 5 MB por modelo. El atlas
+son 2,29 millones de triángulos y 31 MB. No es una contradicción sino un caso
+distinto, y conviene dejarlo escrito: aquel presupuesto rige para los modelos
+que se suben por ficha y se cargan dentro de una lección; el atlas es material
+compartido, se dibuja en **quince llamadas** —una por sistema, no una por
+pieza—, se sirve con caché permanente y solo se descargan los paquetes que
+contienen las piezas que se van a ver.
+
+### D-050 · 2026-09-10 · vigente
+**La región anatómica se deduce en dos pasos, y se distingue cuál se usó.**
+BodyParts3D clasifica por sistema pero no por región, y «déjame solo la tibia»
+es una pregunta de región. Se resuelve primero con los conceptos FMA del propio
+atlas —`right lower limb` y compañía, que son anatomía verificable— y solo lo
+que queda fuera, sobre todo vasos y nervios que atraviesan regiones, cae en una
+regla sobre la caja envolvente. Cada pieza queda marcada con cuál de los dos
+caminos la clasificó, y el árbol muestra las estimadas con una marca: presentar
+una estimación como un dato es lo que no se puede hacer en material clínico.
+
+*Calibración:* la regla mira la **separación lateral** antes que la altura.
+Medido sobre los propios conceptos, con los brazos caídos la mano queda a
+0,74–0,86 m, más abajo que buena parte del muslo; lo que nunca se solapa es la
+distancia al eje —brazo 0,22–0,32 m frente a pierna 0,07–0,17 m.
+
 ---
 
 ## 3. Observaciones

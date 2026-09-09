@@ -111,24 +111,44 @@ export async function listarDocumentos(
 }
 
 /** Opciones de un desplegable de relación (segmentos, modelos, medios). */
+/**
+ * Colecciones que se pueden **listar** para llenar un desplegable, aunque no se
+ * editen desde el editor genérico.
+ *
+ * «Se puede listar» y «se puede editar» son permisos distintos y conviene que
+ * no se confundan: las preparaciones anatómicas se arman en el taller del
+ * atlas, con su propio visor, y dejarlas caer en el editor de campos genérico
+ * mostraría un cuadro de texto con miles de identificadores dentro.
+ */
+const LISTABLES_APARTE: Record<string, string> = {
+  'instancias-atlas': 'nombre',
+}
+
 export async function opcionesDeRelacion(
   coleccion: unknown,
 ): Promise<Respuesta<{ id: string; etiqueta: string; url?: string; tipo?: string }[]>> {
   return accion(async () => {
-    const esquema = esquemaValidado(coleccion)
+    const aparte =
+      typeof coleccion === 'string' ? LISTABLES_APARTE[coleccion] : undefined
+    const slug = aparte ? (coleccion as string) : esquemaValidado(coleccion).slug
+    const titulo = aparte ?? esquemaDe(slug).titulo
+
     const { payload } = await exigirEditor()
     const { docs } = await payload.find({
-      collection: esquema.slug as never,
+      collection: slug as never,
       limit: 500,
-      sort: esquema.slug === 'segmentos' ? 'orden' : esquema.titulo,
+      sort: slug === 'segmentos' ? 'orden' : titulo,
       depth: 0,
       overrideAccess: true,
     })
     return docs.map((documento) => {
       const doc = documento as unknown as Record<string, unknown>
+      const piezas = doc.numeroDePiezas
       return {
         id: String(doc.id),
-        etiqueta: String(doc[esquema.titulo] ?? doc.filename ?? `#${doc.id}`),
+        etiqueta:
+          String(doc[titulo] ?? doc.filename ?? `#${doc.id}`) +
+          (typeof piezas === 'number' ? ` · ${piezas} piezas` : ''),
         url: typeof doc.url === 'string' ? doc.url : undefined,
         tipo: typeof doc.mimeType === 'string' ? doc.mimeType : undefined,
       }
