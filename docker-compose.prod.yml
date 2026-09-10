@@ -55,7 +55,7 @@ services:
       SMTP_CLAVE: ${SMTP_CLAVE:-}
       SMTP_DESDE: ${SMTP_DESDE:-}
     volumes:
-      - medios:/app/public/media
+      - medios:/app/medios
       - ./backups:/backups
     networks: [interna]
     logging: *registro

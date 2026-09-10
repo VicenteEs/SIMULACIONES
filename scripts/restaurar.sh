@@ -98,6 +98,39 @@ usuarios=$(dc exec -T db \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from usuarios;" | tr -d '\r ')
 verde "    cuentas restauradas: $usuarios"
 
+# --- archivos subidos -------------------------------------------------------
+# Se respaldaban y no se restauraban nunca. Una base restaurada sin sus medios
+# deja cada ficha con las imagenes rotas y los modelos 3D ausentes, que es
+# justo lo irreemplazable: la base se puede volver a escribir, una resonancia
+# segmentada no. Se busca el respaldo de medios de la misma marca de tiempo que
+# el volcado, porque restaurar medios de otro dia junto a una base de hoy deja
+# documentos apuntando a archivos que no existen.
+marca_del_volcado=$(basename "$archivo" | sed -n 's/^base-\(.*\)\.sql\.gz$/\1/p')
+archivo_medios="backups/medios-${marca_del_volcado}.tar.gz"
+
+if [ -z "$marca_del_volcado" ]; then
+  ambar "    el nombre del volcado no lleva marca de tiempo; los medios no se tocan"
+elif [ ! -f "$archivo_medios" ]; then
+  ambar "    no hay respaldo de medios de esa misma fecha ($archivo_medios)"
+  echo "     La base quedo restaurada. Si hacen falta los archivos subidos,"
+  echo "     restaurelos a mano dentro del contenedor:"
+  echo "       gzip -dc backups/medios-FECHA.tar.gz | $(orden_compose) exec -T app tar xzf - -C /app"
+else
+  paso "Restaurando los archivos subidos"
+  # La aplicacion esta detenida en este punto —se detuvo antes de tocar la
+  # base—, asi que se escribe en el volumen desde un contenedor desechable con
+  # los mismos montajes, igual que hace respaldar.sh para leerlos.
+  # `--no-deps` evita levantar la base solo para copiar archivos.
+  if gzip -dc "$archivo_medios" |
+      dc run --rm --no-deps --entrypoint sh -T app -c 'tar xzf - -C /app' 2>/dev/null; then
+    verde "    $archivo_medios"
+  else
+    ambar "    no se pudieron restaurar los medios; la base SI quedo restaurada"
+    echo "     Reintente a mano, con la plataforma ya en pie:"
+    echo "       gzip -dc $archivo_medios | $(orden_compose) exec -T app tar xzf - -C /app"
+  fi
+fi
+
 if [ "$detenida" -eq 1 ]; then
   paso "Volviendo a levantar la aplicacion"
   dc start app >/dev/null

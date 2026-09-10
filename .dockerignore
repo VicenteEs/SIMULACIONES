@@ -16,7 +16,9 @@ test-results
 playwright-report
 blob-report
 archivo
-public/media
+# Los archivos subidos: viven en un volumen, no en la imagen. Fuera de
+# `public/` a proposito, para que Next no los sirva sin comprobar la sesion.
+medios
 
 # Documentacion, pruebas y utilidades de despliegue: no hacen falta en el
 # contenedor y su cambio no debe invalidar la cache de construccion.

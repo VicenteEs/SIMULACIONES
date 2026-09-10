@@ -6,7 +6,7 @@ import sharp from 'sharp'
 import { es } from '@payloadcms/translations/languages/es'
 import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { COLECCIONES } from '@/collections'
-import { origenDe, PREFIJO } from '@/lib/rutas'
+import { origenDe } from '@/lib/rutas'
 import { migrations } from './migrations'
 import { editorClinico } from '@/blocks'
 
@@ -26,10 +26,24 @@ export default buildConfig({
   // esa cabecera (observacion O-018).
   serverURL: origenDe(process.env.NEXT_PUBLIC_SERVER_URL || ''),
 
-  // El prefijo va aqui. Es lo que Payload antepone al construir las URLs
-  // absolutas de los archivos subidos, que de otro modo saldrian sin el y
-  // apuntarian a otra pagina del mismo servidor.
-  routes: { api: `${PREFIJO}/api` },
+  // Sin el prefijo. Payload ya lo pone él.
+  //
+  // Aquí hubo un error que llegó a producción sin que nadie lo viera. Se
+  // escribía `${PREFIJO}/api` creyendo que así las direcciones de los archivos
+  // subidos saldrían con el prefijo, pero `formatAdminURL` —la función que las
+  // arma— antepone por su cuenta `NEXT_BASE_PATH`, que `withPayload` rellena
+  // con el `basePath` de Next al compilar. Resultado en el servidor:
+  //
+  //   https://servidor:10000/traumahub/traumahub/api/medios/file/foto.png
+  //
+  // es decir, un 404 en toda imagen, todo vídeo y todo modelo 3D de toda
+  // ficha. No se notó porque el campo `url` es virtual y no queda escrito en
+  // ninguna parte que se pueda mirar, y porque todavía no había casi nada
+  // subido. La API REST sí funcionaba con el prefijo doblado, y eso ayudó a
+  // esconderlo: su envoltorio construye la ruta entrante con la misma función,
+  // de modo que el doblez aparecía a los dos lados de la comparación y se
+  // cancelaba. Solo fallaba lo que resuelve el navegador de verdad.
+  routes: { api: '/api' },
   secret: process.env.PAYLOAD_SECRET || '',
   admin: {
     user: 'usuarios',

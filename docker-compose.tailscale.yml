@@ -72,7 +72,7 @@ services:
       # Los archivos subidos viven fuera de la imagen para sobrevivir a los
       # despliegues; los respaldos, además, fuera del contenedor, para que el
       # panel y el cron del anfitrión vean los mismos archivos.
-      - medios:/app/public/media
+      - medios:/app/medios
       - ./backups:/backups
     networks: [interna]
     logging: *registro

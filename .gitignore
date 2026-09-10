@@ -25,8 +25,14 @@ build/
 !.env.example
 
 # payload
-/media/
-/public/media/
+# Los archivos subidos viven fuera de `public/` a propósito: dentro, Next los
+# servía además como estáticos y se saltaba el control de acceso. Ver el
+# comentario de src/collections/Medios.ts.
+/medios/*
+!/medios/.gitkeep
+!/medios/modelos/
+/medios/modelos/*
+!/medios/modelos/.gitkeep
 /src/app/(payload)/admin/importMap.js
 
 # base de datos y respaldos

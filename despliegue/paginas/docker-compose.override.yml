@@ -60,7 +60,7 @@ services:
       SMTP_DESDE: ${SMTP_DESDE:-}
     volumes:
       # Los archivos subidos sobreviven a cada despliegue.
-      - medios:/app/public/media
+      - medios:/app/medios
       # Los respaldos, fuera del contenedor: los ve el panel y los ve el cron.
       - ./backups:/backups
     # No se publica ningún puerto en el anfitrión: la única entrada es el proxy,

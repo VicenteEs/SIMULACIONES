@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
 import { validarModelo3D } from '@/uploads/validarModelo3D'
+import { cacheDeArchivoPrivado } from './hooks/cacheDeArchivos'
 
 /**
  * Modelos tridimensionales obtenidos de TC y RM segmentadas (decisión D-022).
@@ -20,7 +21,12 @@ export const Modelos3D: CollectionConfig = {
     delete: escrituraDeContenido,
   },
   upload: {
-    staticDir: 'public/media/modelos',
+    // Fuera de `public/`, por lo mismo que los medios: ver Medios.ts. Se queda
+    // como subcarpeta de `medios/` para que el volumen del servidor siga
+    // siendo uno solo y los archivos ya subidos no haya que moverlos.
+    staticDir: 'medios/modelos',
+    // Privada y con `Vary: Cookie`: ver el comentario de la función.
+    modifyResponseHeaders: cacheDeArchivoPrivado,
     mimeTypes: ['model/gltf-binary', 'model/gltf+json', 'application/octet-stream'],
   },
   hooks: {

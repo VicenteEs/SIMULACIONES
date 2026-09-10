@@ -76,7 +76,7 @@ medios_ok=0
 
 if servicio_en_marcha app; then
   # Con la aplicacion viva se lee de su propio contenedor.
-  if dc exec -T app tar czf - -C /app/public media 2>/dev/null > "$archivo_medios"; then
+  if dc exec -T app tar czf - -C /app medios 2>/dev/null > "$archivo_medios"; then
     medios_ok=1
   fi
 else
@@ -84,7 +84,7 @@ else
   # `--no-deps` evita arrastrar la base solo para leer archivos.
   rm -f "$archivo_medios"
   if dc run --rm --no-deps --entrypoint sh app \
-      -c 'tar czf - -C /app/public media' 2>/dev/null > "$archivo_medios"; then
+      -c 'tar czf - -C /app medios' 2>/dev/null > "$archivo_medios"; then
     medios_ok=1
   fi
 fi
