@@ -14,6 +14,32 @@ const OPCIONES_DE_MODULO = [
 ]
 
 /**
+ * Correo para elegir contraseña nueva.
+ *
+ * Existe porque el de Payload manda a `serverURL` + `/admin/reset/…`, y las dos
+ * mitades están mal aquí. `serverURL` es solo el origen, sin el `/traumahub`
+ * —tiene que serlo, o Payload descarta la cookie de sesión en cada acción, ver
+ * O-018—, y `/admin` es la interfaz que se retiró. En el servidor compartido
+ * eso daba un enlace a la raíz del dominio, es decir **a otra página**, con el
+ * testigo de restablecimiento dentro.
+ *
+ * La dirección se arma con `NEXT_PUBLIC_SERVER_URL`, que sí lleva el prefijo, y
+ * apunta a la pantalla propia. Es la misma que entrega el panel al administrador
+ * cuando genera el enlace a mano.
+ */
+export function correoDeClaveNueva(testigo: string): string {
+  const base = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')
+  const enlace = `${base}/clave/${testigo}`
+  return `
+    <p>Alguien pidió una contraseña nueva para su cuenta de TraumaHub.</p>
+    <p><a href="${enlace}">Elegir una contraseña nueva</a></p>
+    <p>O copie esta dirección en el navegador:<br>${enlace}</p>
+    <p>Si no fue usted, no hace falta hacer nada: la contraseña actual sigue
+    siendo válida.</p>
+  `
+}
+
+/**
  * Cuentas de la plataforma (decisión D-020).
  *
  * No hay registro abierto: el administrador crea cada cuenta y la activa. Una
@@ -35,6 +61,10 @@ export const Usuarios: CollectionConfig = {
     lockTime: 10 * 60 * 1000,
     tokenExpiration: 8 * 60 * 60,
     cookies: { sameSite: 'Lax', secure: process.env.NODE_ENV === 'production' },
+    forgotPassword: {
+      generateEmailSubject: () => 'TraumaHub · elegir una contraseña nueva',
+      generateEmailHTML: ({ token } = {}) => correoDeClaveNueva(String(token ?? '')),
+    },
   },
   access: {
     read: administracionDeUsuarios,

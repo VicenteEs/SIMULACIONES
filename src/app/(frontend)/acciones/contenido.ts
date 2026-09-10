@@ -16,7 +16,7 @@
 import { revalidatePath } from 'next/cache'
 import { accion, exigirEdicionDe, exigirEditor, type Respuesta } from '@/lib/guardias'
 import { esColeccionEditable, esquemaDe, type EsquemaDeColeccion } from '@/admin/esquema'
-import { depurarDocumento, faltantes } from '@/admin/depurar'
+import { depurarDocumento, faltantes, sinIdentificadoresDeFila } from '@/admin/depurar'
 import { exigirIdentificador } from '@/lib/validacion'
 
 const rutaDeLista = (slug: string) => `/admin-panel/contenido/${slug}`
@@ -227,11 +227,20 @@ export async function cambiarPublicacion(
     if (!esquema.versionada) throw new Error('Esta colección no distingue borrador de publicado.')
     const { payload, usuario } = await exigirEdicionDe(esquema.slug)
 
+    // `draft: false` en los dos sentidos, y esto importa.
+    //
+    // Retirar de publicacion escribia con `draft: true`, que en Payload guarda
+    // una version de borrador nueva y **deja intacto el documento publicado**:
+    // el boton respondia «retirada», el panel la mostraba como borrador y el
+    // residente seguia viendo la ficha. Comprobado contra la base: tras la
+    // llamada, `_status` seguia siendo `published` y una consulta de lector la
+    // devolvia igual. Con `draft: false` el estado se escribe en el documento
+    // y deja de verse, que es lo que el boton promete.
     await payload.update({
       collection: esquema.slug as never,
       id: exigirIdentificador(id, 'El documento'),
       data: { _status: publicar === true ? 'published' : 'draft' } as never,
-      draft: publicar !== true,
+      draft: false,
       user: usuario as never,
     })
     revalidatePath(rutaDeLista(esquema.slug))
@@ -277,7 +286,7 @@ export async function duplicarDocumento(
       overrideAccess: true,
     })) as unknown as Record<string, unknown>
 
-    const copia = depurarDocumento(esquema, original)
+    const copia = sinIdentificadoresDeFila(depurarDocumento(esquema, original))
     const titulo = copia[esquema.titulo]
     if (typeof titulo === 'string') copia[esquema.titulo] = `${titulo} (copia)`
     // La copia nace siempre como borrador: duplicar no es publicar.

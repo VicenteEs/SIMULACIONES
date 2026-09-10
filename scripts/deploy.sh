@@ -79,9 +79,23 @@ paso "Esperando a que la aplicacion responda"
 # aplicacion no publica ningun puerto en el anfitrion, asi que no hay a donde
 # llamar desde fuera. /api/salud consulta la base antes de responder, de modo
 # que un "ok" significa aplicacion y base en pie, no solo el puerto abierto.
+#
+# El prefijo se le pregunta al contenedor recien levantado. Antes se leia de
+# $BASE_PATH, una variable que ningun compose ni ninguna plantilla de .env
+# define en el anfitrion: solo existe como ARG de compilacion dentro de
+# despliegue/paginas/docker-compose.override.yml. Asi que en el servidor esto
+# consultaba /api/salud contra una aplicacion que sirve /traumahub/api/salud,
+# no obtenia respuesta en 90 segundos y **revertia un despliegue sano** a la
+# imagen anterior. El mismo fallo que salud.sh tenia, en el guion que ademas
+# deshace su propio trabajo al creerselo.
+#
+# Se lee dentro del bucle porque el contenedor acaba de arrancar y todavia
+# puede no aceptar un `exec`. Si falla, el prefijo sale vacio, la consulta de
+# ese segundo no acierta y se vuelve a intentar: se corrige solo.
 sano=0
 for intento in $(seq 1 90); do
-  if dc exec -T app wget -qO- "http://127.0.0.1:3000${BASE_PATH:-}/api/salud" 2>/dev/null | grep -q '"estado":"ok"'; then
+  prefijo=$(prefijo_de_la_app)
+  if dc exec -T app wget -qO- "http://127.0.0.1:3000${prefijo}/api/salud" 2>/dev/null | grep -q '"estado":"ok"'; then
     verde "    responde y alcanza la base tras ${intento}s"
     sano=1
     break

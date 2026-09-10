@@ -163,6 +163,37 @@ export function depurarDocumento(
 }
 
 /**
+ * El mismo documento, pero sin los identificadores de sus filas y bloques.
+ *
+ * Es lo que hace falta para **copiar** y no para guardar. Cada bloque y cada
+ * fila de un documento lleva un `id` propio que en PostgreSQL es la clave
+ * primaria de su tabla: al guardar, ese identificador es lo que dice «esta es
+ * la misma fila de antes» y hay que conservarlo. Al duplicar, en cambio, viaja
+ * dentro de la copia y Payload rechaza el documento entero con «El siguiente
+ * campo es inválido: id», de modo que duplicar cualquier ficha con contenido
+ * fallaba siempre. Una ficha de demostración con dos bloques y una lista
+ * arrastraba catorce.
+ *
+ * No toca el identificador del documento: aquí solo llegan campos del esquema.
+ */
+export function sinIdentificadoresDeFila(documento: Record<string, unknown>): Record<string, unknown> {
+  const limpiar = (valor: unknown): unknown => {
+    if (Array.isArray(valor)) return valor.map(limpiar)
+    if (valor === null || typeof valor !== 'object') return valor
+    const salida: Record<string, unknown> = {}
+    for (const [clave, contenido] of Object.entries(valor as Record<string, unknown>)) {
+      if (clave === 'id') continue
+      salida[clave] = limpiar(contenido)
+    }
+    return salida
+  }
+
+  const salida: Record<string, unknown> = {}
+  for (const [clave, valor] of Object.entries(documento)) salida[clave] = limpiar(valor)
+  return salida
+}
+
+/**
  * Comprueba lo obligatorio y devuelve los problemas en español.
  *
  * Payload también valida, pero su mensaje llega en forma de excepción con el
