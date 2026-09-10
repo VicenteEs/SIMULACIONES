@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { evaluarGesto, RESULTADOS } from '@/lib/simulador'
+import { evaluarGesto, objetivoDelPaso, RESULTADOS } from '@/lib/simulador'
 
+/**
+ * Un paso de fuerza escrito **sin** declarar el objetivo, como los que había
+ * antes de que existieran los cuatro. Se prueba así a propósito: es el caso en
+ * el que el motor tiene que deducir qué se mide, y el que fallaría en silencio
+ * si volviera a darse por hecho que basta con elegir el instrumento.
+ */
 const paso = {
   titulo: 'Incisión cutánea',
   instrumento: 'Bisturí hoja 23',
@@ -18,11 +24,16 @@ describe('evaluarGesto', () => {
     expect(r.avanza).toBe(false)
   })
 
-  it('rechaza el instrumento equivocado y lo dice con nombre y apellido', () => {
-    const r = evaluarGesto(paso, { instrumento: 'Separador de Farabeuf', fuerza: 12 })
+  it('rechaza el instrumento equivocado y nombra el que se cogió', () => {
+    const r = evaluarGesto(paso, {
+      instrumento: 'separador',
+      instrumentoNombre: 'Separador de Farabeuf',
+      fuerza: 12,
+    })
     expect(r.resultado).toBe(RESULTADOS.INSTRUMENTO_INCORRECTO)
     expect(r.mensaje).toContain('Separador de Farabeuf')
-    expect(r.mensaje).toContain('Bisturí hoja 23')
+    // Y no nombra el correcto: el residente tiene que deducirlo, no leerlo.
+    expect(r.mensaje).not.toContain('Bisturí hoja 23')
     expect(r.avanza).toBe(false)
   })
 
@@ -58,6 +69,18 @@ describe('evaluarGesto', () => {
   it('un newton por fuera del rango ya cuenta como error', () => {
     expect(evaluarGesto(paso, { instrumento: paso.instrumento, fuerza: 7 }).avanza).toBe(false)
     expect(evaluarGesto(paso, { instrumento: paso.instrumento, fuerza: 21 }).complicacion).toBe(true)
+  })
+
+  it('deduce qué se mide cuando el paso no lo dice', () => {
+    // Un paso guardado con su rango de fuerza y sin objetivo se evaluaba como
+    // si bastara con elegir el instrumento: el rango estaba escrito y nadie lo
+    // miraba. Un límite que no se comprueba enseña que no existe.
+    expect(objetivoDelPaso(paso)).toBe('fuerza')
+    expect(objetivoDelPaso({ trazoMinimo: 40, trazoMaximo: 80 })).toBe('trazo')
+    expect(objetivoDelPaso({ toleranciaAngulacion: 5 })).toBe('reduccion')
+    expect(objetivoDelPaso({ instrumento: 'bisturi' })).toBe('instrumento')
+    // Lo que el paso declara manda sobre la deducción.
+    expect(objetivoDelPaso({ objetivo: 'trazo', fuerzaMinima: 8 })).toBe('trazo')
   })
 
   it('un paso sin rango declarado no puede producir una complicación', () => {

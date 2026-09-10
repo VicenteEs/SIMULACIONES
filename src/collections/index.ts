@@ -11,6 +11,14 @@ import { Cirugias } from './Cirugias'
 import { EstudiosIA } from './EstudiosIA'
 import { Comentarios } from './Comentarios'
 import { Actividad } from './Actividad'
+import {
+  CATALOGOS_DEL_SIMULADOR,
+  ClasificacionesAO,
+  FasesQuirurgicas,
+  HuesosAO,
+  Instrumental,
+  TecnicasQuirurgicas,
+} from './catalogos'
 
 /** Los cinco módulos de la plataforma, en el orden en que se presentan. */
 export const SLUGS_DE_MODULOS = [
@@ -32,6 +40,7 @@ export const COLECCIONES: CollectionConfig[] = [
   Medios,
   Modelos3D,
   InstanciasAtlas,
+  ...CATALOGOS_DEL_SIMULADOR,
   Patologias,
   Maniobras,
   CasosAO,
@@ -47,6 +56,11 @@ export {
   Medios,
   Modelos3D,
   InstanciasAtlas,
+  HuesosAO,
+  ClasificacionesAO,
+  TecnicasQuirurgicas,
+  FasesQuirurgicas,
+  Instrumental,
   Patologias,
   Maniobras,
   CasosAO,

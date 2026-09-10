@@ -297,29 +297,122 @@ export const Cirugias: EsquemaDeColeccion = {
   singular: 'Cirugía simulada',
   plural: 'Cirugías simuladas',
   titulo: 'nombre',
-  descripcion: 'Guion quirúrgico con instrumental y rangos de fuerza.',
+  descripcion: 'Caso quirúrgico con su modelo 3D, su guion de pasos y su puntaje.',
   versionada: true,
   familia: 'modulos',
   buscarEn: ['nombre', 'codigo'],
   columnas: [
-    { nombre: 'nombre', etiqueta: 'Cirugía' },
+    { nombre: 'nombre', etiqueta: 'Caso' },
     { nombre: 'codigo', etiqueta: 'Código' },
     { nombre: '_status', etiqueta: 'Estado', formato: 'estado' },
-    { nombre: 'updatedAt', etiqueta: 'Editada', formato: 'fecha' },
+    { nombre: 'updatedAt', etiqueta: 'Editado', formato: 'fecha' },
   ],
   secciones: [
     {
-      titulo: 'La cirugía',
+      titulo: 'El caso',
+      descripcion:
+        'Hueso, trazo y técnica salen de catálogos que usted mismo edita en Contenido. Si falta alguno, créelo ahí y vuelva.',
       campos: [
-        { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre de la cirugía', requerido: true },
-        { tipo: 'texto', nombre: 'codigo', etiqueta: 'Código AO/OTA', medio: true },
+        { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre del caso', requerido: true },
+        { tipo: 'relacion', nombre: 'hueso', etiqueta: 'Hueso', coleccion: 'huesos-ao', medio: true },
+        {
+          tipo: 'relacion',
+          nombre: 'clasificacion',
+          etiqueta: 'Clasificación AO',
+          coleccion: 'clasificaciones-ao',
+          medio: true,
+        },
+        {
+          tipo: 'relacion',
+          nombre: 'tecnica',
+          etiqueta: 'Técnica',
+          coleccion: 'tecnicas-quirurgicas',
+          medio: true,
+        },
+        {
+          tipo: 'texto',
+          nombre: 'codigo',
+          etiqueta: 'Código AO/OTA',
+          medio: true,
+          ayuda: 'Déjelo vacío y se compone solo con el número del hueso y el de la clasificación.',
+        },
         { tipo: 'rico', nombre: 'resumen', etiqueta: 'Resumen del procedimiento' },
+      ],
+    },
+    {
+      titulo: 'El modelo',
+      descripcion:
+        'Exporte desde Blender el hueso ya partido y REDUCIDO, con cada trozo como un objeto con nombre. El desplazamiento de la fractura se describe aquí abajo, no en el archivo: así la reducción correcta es siempre volver al cero y la consola puede medir cuánto falta.',
+      campos: [
+        {
+          tipo: 'relacion',
+          nombre: 'modelo',
+          etiqueta: 'Modelo 3D del caso',
+          coleccion: 'modelos-3d',
+        },
+        {
+          tipo: 'numero',
+          nombre: 'milimetrosPorUnidad',
+          etiqueta: 'Milímetros por unidad',
+          medio: true,
+          ayuda: 'glTF trabaja en metros: 1000 es lo normal. Si exportó en milímetros, ponga 1.',
+        },
+        {
+          tipo: 'seleccion',
+          nombre: 'ejeLargo',
+          etiqueta: 'Eje largo del hueso',
+          medio: true,
+          opciones: [
+            { valor: 'y', etiqueta: 'Y (vertical, lo habitual)' },
+            { valor: 'x', etiqueta: 'X' },
+            { valor: 'z', etiqueta: 'Z' },
+          ],
+        },
+        {
+          tipo: 'lista',
+          nombre: 'piezas',
+          etiqueta: 'Piezas del modelo',
+          singular: 'Pieza',
+          ayuda:
+            'El nombre tiene que coincidir exactamente con el del objeto en Blender. Marque una sola como fragmento móvil: es la que el residente reduce.',
+          campos: [
+            { tipo: 'texto', nombre: 'nodo', etiqueta: 'Nombre del objeto', requerido: true, medio: true },
+            { tipo: 'texto', nombre: 'etiqueta', etiqueta: 'Cómo llamarlo en pantalla', medio: true },
+            {
+              tipo: 'seleccion',
+              nombre: 'rol',
+              etiqueta: 'Qué es',
+              requerido: true,
+              opciones: [
+                { valor: 'piel', etiqueta: 'Piel' },
+                { valor: 'musculo', etiqueta: 'Músculo' },
+                { valor: 'hueso', etiqueta: 'Hueso (fijo)' },
+                { valor: 'fragmento', etiqueta: 'Fragmento móvil' },
+                { valor: 'implante', etiqueta: 'Implante' },
+              ],
+            },
+          ],
+        },
+        {
+          tipo: 'grupo',
+          nombre: 'desplazamientoInicial',
+          etiqueta: 'Desplazamiento inicial de la fractura',
+          ayuda: 'Cómo está el fragmento al abrir el caso. En milímetros y grados.',
+          campos: [
+            { tipo: 'numero', nombre: 'x', etiqueta: 'Lateral (mm)', medio: true },
+            { tipo: 'numero', nombre: 'y', etiqueta: 'Axial (mm)', medio: true },
+            { tipo: 'numero', nombre: 'z', etiqueta: 'Anteroposterior (mm)', medio: true },
+            { tipo: 'numero', nombre: 'giroX', etiqueta: 'Angulación X (°)', medio: true },
+            { tipo: 'numero', nombre: 'giroY', etiqueta: 'Rotación Y (°)', medio: true },
+            { tipo: 'numero', nombre: 'giroZ', etiqueta: 'Angulación Z (°)', medio: true },
+          ],
+        },
       ],
     },
     {
       titulo: 'Guion quirúrgico',
       descripcion:
-        'Cada paso define el instrumento correcto y la ventana de fuerza en la que sale bien.',
+        'Cada paso declara qué se le mide al residente. Solo el título y el objetivo son obligatorios: rellene lo demás cuando lo tenga claro, y publique cuando esté completo.',
       campos: [
         {
           tipo: 'lista',
@@ -327,41 +420,82 @@ export const Cirugias: EsquemaDeColeccion = {
           etiqueta: 'Pasos del guion',
           singular: 'Paso',
           campos: [
-            { tipo: 'texto', nombre: 'titulo', etiqueta: 'Título del paso', requerido: true },
-            { tipo: 'rico', nombre: 'descripcion', etiqueta: 'Qué se hace', requerido: true },
+            { tipo: 'texto', nombre: 'titulo', etiqueta: 'Título del paso', requerido: true, medio: true },
             {
-              tipo: 'texto',
+              tipo: 'relacion',
+              nombre: 'fase',
+              etiqueta: 'Fase',
+              coleccion: 'fases-quirurgicas',
+              medio: true,
+            },
+            { tipo: 'rico', nombre: 'descripcion', etiqueta: 'Qué se hace' },
+            {
+              tipo: 'seleccion',
+              nombre: 'objetivo',
+              etiqueta: 'Qué se evalúa',
+              requerido: true,
+              medio: true,
+              opciones: [
+                { valor: 'instrumento', etiqueta: 'Elegir el instrumento correcto' },
+                { valor: 'trazo', etiqueta: 'Trazar una incisión de la longitud correcta' },
+                { valor: 'reduccion', etiqueta: 'Reducir dentro de la tolerancia' },
+                { valor: 'fuerza', etiqueta: 'Aplicar la fuerza correcta' },
+              ],
+            },
+            {
+              tipo: 'relacion',
               nombre: 'instrumento',
               etiqueta: 'Instrumento correcto',
-              requerido: true,
+              coleccion: 'instrumental',
+              medio: true,
+            },
+            { tipo: 'numero', nombre: 'puntos', etiqueta: 'Puntos que vale', medio: true },
+            {
+              tipo: 'numero',
+              nombre: 'trazoMinimo',
+              etiqueta: 'Incisión mínima (mm)',
+              medio: true,
+              ayuda: 'Solo si el objetivo es trazar.',
+            },
+            { tipo: 'numero', nombre: 'trazoMaximo', etiqueta: 'Incisión máxima (mm)', medio: true },
+            {
+              tipo: 'numero',
+              nombre: 'toleranciaDesplazamiento',
+              etiqueta: 'Desplazamiento aceptable (mm)',
+              medio: true,
+              ayuda: 'Solo si el objetivo es reducir.',
+            },
+            {
+              tipo: 'numero',
+              nombre: 'toleranciaDiastasis',
+              etiqueta: 'Diástasis aceptable (mm)',
+              medio: true,
+            },
+            {
+              tipo: 'numero',
+              nombre: 'toleranciaAngulacion',
+              etiqueta: 'Angulación aceptable (°)',
+              medio: true,
             },
             {
               tipo: 'numero',
               nombre: 'fuerzaMinima',
               etiqueta: 'Fuerza mínima útil (N)',
-              requerido: true,
               medio: true,
+              ayuda: 'Solo si el objetivo es la fuerza.',
             },
+            { tipo: 'numero', nombre: 'fuerzaMaxima', etiqueta: 'Fuerza máxima útil (N)', medio: true },
             {
-              tipo: 'numero',
-              nombre: 'fuerzaMaxima',
-              etiqueta: 'Fuerza máxima útil (N)',
-              requerido: true,
-              medio: true,
+              tipo: 'lista',
+              nombre: 'muestra',
+              etiqueta: 'Piezas que se ven en este paso',
+              singular: 'Pieza',
+              ayuda: 'Vacío: se mantiene lo del paso anterior.',
+              campos: [{ tipo: 'texto', nombre: 'nodo', etiqueta: 'Nombre del objeto', requerido: true }],
             },
-            { tipo: 'area', nombre: 'exito', etiqueta: 'Resultado correcto', requerido: true },
-            {
-              tipo: 'area',
-              nombre: 'insuficiente',
-              etiqueta: 'Si la fuerza es insuficiente',
-              requerido: true,
-            },
-            {
-              tipo: 'area',
-              nombre: 'excesivo',
-              etiqueta: 'Si la fuerza es excesiva',
-              requerido: true,
-            },
+            { tipo: 'area', nombre: 'exito', etiqueta: 'Si lo hace bien' },
+            { tipo: 'area', nombre: 'insuficiente', etiqueta: 'Si se queda corto' },
+            { tipo: 'area', nombre: 'excesivo', etiqueta: 'Si se pasa' },
             { tipo: 'rico', nombre: 'riesgo', etiqueta: 'Estructura o principio en juego' },
           ],
         },
@@ -586,6 +720,188 @@ export const Modelos3D: EsquemaDeColeccion = {
 
 // ----------------------------------------------------------------- registro
 
+// ------------------------------------------------- catálogos del simulador
+//
+// Cinco listas cortas que forman el vocabulario de un caso quirúrgico. Están
+// en el panel, y no escritas en el código, para que el traumatólogo pueda
+// añadir un separador o una técnica sin esperar a un despliegue.
+
+export const HuesosAO: EsquemaDeColeccion = {
+  slug: 'huesos-ao',
+  singular: 'Hueso',
+  plural: 'Huesos y segmentos',
+  titulo: 'nombre',
+  descripcion: 'Hueso y tercio, con el número que le da la AO.',
+  versionada: false,
+  familia: 'apoyo',
+  buscarEn: ['nombre', 'codigo'],
+  columnas: [
+    { nombre: 'nombre', etiqueta: 'Hueso' },
+    { nombre: 'codigo', etiqueta: 'Número AO' },
+    { nombre: 'orden', etiqueta: 'Orden', formato: 'numero' },
+  ],
+  secciones: [
+    {
+      titulo: 'El hueso',
+      campos: [
+        { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre', requerido: true },
+        {
+          tipo: 'texto',
+          nombre: 'codigo',
+          etiqueta: 'Número AO',
+          medio: true,
+          ayuda: 'El primero del código: «42» es la diáfisis de la tibia.',
+        },
+        { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden de aparición', medio: true },
+      ],
+    },
+  ],
+}
+
+export const ClasificacionesAO: EsquemaDeColeccion = {
+  slug: 'clasificaciones-ao',
+  singular: 'Clasificación AO',
+  plural: 'Clasificaciones AO',
+  titulo: 'nombre',
+  descripcion: 'Tipo y grupo del trazo de fractura, sin el hueso.',
+  versionada: false,
+  familia: 'apoyo',
+  buscarEn: ['codigo', 'nombre'],
+  columnas: [
+    { nombre: 'codigo', etiqueta: 'Código' },
+    { nombre: 'nombre', etiqueta: 'Trazo' },
+    { nombre: 'tipo', etiqueta: 'Tipo' },
+    { nombre: 'orden', etiqueta: 'Orden', formato: 'numero' },
+  ],
+  secciones: [
+    {
+      titulo: 'La clasificación',
+      descripcion:
+        'Va sin el número del hueso: el mismo trazo A2 existe en la tibia y en el fémur, y la consola compone el código completo al mostrarlo.',
+      campos: [
+        {
+          tipo: 'texto',
+          nombre: 'codigo',
+          etiqueta: 'Código',
+          requerido: true,
+          medio: true,
+          ayuda: '«A2», «B1», «C3».',
+        },
+        { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre del trazo', requerido: true, medio: true },
+        {
+          tipo: 'seleccion',
+          nombre: 'tipo',
+          etiqueta: 'Tipo',
+          medio: true,
+          opciones: [
+            { valor: 'A', etiqueta: 'A · Simple' },
+            { valor: 'B', etiqueta: 'B · En cuña' },
+            { valor: 'C', etiqueta: 'C · Compleja' },
+          ],
+        },
+        { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden de aparición', medio: true },
+        { tipo: 'area', nombre: 'descripcion', etiqueta: 'Qué la caracteriza' },
+      ],
+    },
+  ],
+}
+
+export const TecnicasQuirurgicas: EsquemaDeColeccion = {
+  slug: 'tecnicas-quirurgicas',
+  singular: 'Técnica',
+  plural: 'Técnicas quirúrgicas',
+  titulo: 'nombre',
+  descripcion: 'Clavo endomedular, placa, tornillos, fijador externo.',
+  versionada: false,
+  familia: 'apoyo',
+  buscarEn: ['nombre'],
+  columnas: [
+    { nombre: 'nombre', etiqueta: 'Técnica' },
+    { nombre: 'orden', etiqueta: 'Orden', formato: 'numero' },
+  ],
+  secciones: [
+    {
+      titulo: 'La técnica',
+      campos: [
+        { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre de la técnica', requerido: true },
+        { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden de aparición', medio: true },
+        { tipo: 'area', nombre: 'descripcion', etiqueta: 'Cuándo se elige' },
+      ],
+    },
+  ],
+}
+
+export const FasesQuirurgicas: EsquemaDeColeccion = {
+  slug: 'fases-quirurgicas',
+  singular: 'Fase',
+  plural: 'Fases quirúrgicas',
+  titulo: 'nombre',
+  descripcion: 'Abordaje, reducción, fijación, cierre. Agrupan los pasos del guion.',
+  versionada: false,
+  familia: 'apoyo',
+  buscarEn: ['nombre'],
+  columnas: [
+    { nombre: 'nombre', etiqueta: 'Fase' },
+    { nombre: 'orden', etiqueta: 'Orden', formato: 'numero' },
+  ],
+  secciones: [
+    {
+      titulo: 'La fase',
+      campos: [
+        { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre de la fase', requerido: true },
+        { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden en el acto quirúrgico', medio: true },
+      ],
+    },
+  ],
+}
+
+export const Instrumental: EsquemaDeColeccion = {
+  slug: 'instrumental',
+  singular: 'Instrumento',
+  plural: 'Instrumental',
+  titulo: 'nombre',
+  descripcion: 'La bandeja de la consola. Cada paso declara cuál es el correcto.',
+  versionada: false,
+  familia: 'apoyo',
+  buscarEn: ['nombre'],
+  columnas: [
+    { nombre: 'nombre', etiqueta: 'Instrumento' },
+    { nombre: 'icono', etiqueta: 'Icono' },
+    { nombre: 'orden', etiqueta: 'Orden', formato: 'numero' },
+  ],
+  secciones: [
+    {
+      titulo: 'El instrumento',
+      descripcion:
+        'La bandeja de un caso la forman los instrumentos que sus pasos declaran, no este catálogo entero: una bandeja con los cuarenta del hospital no enseña a elegir.',
+      campos: [
+        { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre del instrumento', requerido: true },
+        {
+          tipo: 'seleccion',
+          nombre: 'icono',
+          etiqueta: 'Icono',
+          medio: true,
+          opciones: [
+            { valor: 'generico', etiqueta: 'Genérico' },
+            { valor: 'bisturi', etiqueta: 'Bisturí' },
+            { valor: 'separador', etiqueta: 'Separador' },
+            { valor: 'pinza', etiqueta: 'Pinza' },
+            { valor: 'tijera', etiqueta: 'Tijera' },
+            { valor: 'punzon', etiqueta: 'Punzón' },
+            { valor: 'guia', etiqueta: 'Guía' },
+            { valor: 'fresa', etiqueta: 'Fresa' },
+            { valor: 'martillo', etiqueta: 'Martillo' },
+            { valor: 'atornillador', etiqueta: 'Atornillador' },
+            { valor: 'aguja', etiqueta: 'Aguja' },
+          ],
+        },
+        { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden en la bandeja', medio: true },
+        { tipo: 'area', nombre: 'descripcion', etiqueta: 'Para qué sirve' },
+      ],
+    },
+  ],
+}
+
 export const ESQUEMAS: EsquemaDeColeccion[] = [
   Patologias,
   Maniobras,
@@ -593,6 +909,11 @@ export const ESQUEMAS: EsquemaDeColeccion[] = [
   Cirugias,
   EstudiosIA,
   Segmentos,
+  HuesosAO,
+  ClasificacionesAO,
+  TecnicasQuirurgicas,
+  FasesQuirurgicas,
+  Instrumental,
   Medios,
   Modelos3D,
 ]

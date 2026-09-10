@@ -778,6 +778,61 @@ sin migración; una prueba que nunca falla no protege de nada.
 cree que puede perder datos, **pregunta** y se queda esperando. Una suite que
 espera una respuesta que nadie va a dar no falla: se cuelga.
 
+
+### D-057 · 2026-09-10 · vigente
+**El vocabulario del simulador lo escribe el traumatólogo, no el programador.**
+Los pasos de una cirugía nombraban su instrumento en un campo de texto libre.
+Escrito así, «Bisturí N°10», «bisturí n10» y «Bisturi 10» son tres instrumentos
+distintos para la máquina y el mismo para quien lo escribe, de modo que la
+bandeja se llena de duplicados y ningún caso se puede comparar con otro. Se
+crean cinco catálogos —huesos AO, clasificaciones AO, técnicas, fases e
+instrumental— y los pasos pasan a **apuntar** a ellos.
+
+La parte que importa no es la normalización, es de quién son los catálogos: se
+editan desde el panel como cualquier otra colección, con los mismos permisos por
+módulo. El médico que sube la data añade un instrumento nuevo cuando lo necesita,
+sin pedirle nada a nadie y sin tocar código. Un vocabulario cerrado que hay que
+recompilar para ampliarlo se queda corto la primera semana y entonces vuelve el
+texto libre por la puerta de atrás.
+
+*Consecuencia:* añadir un campo al vocabulario ahora es una migración, no una
+línea. A cambio, el código AO de un caso se compone solo —el número del hueso y
+el de la clasificación, «42» y «A2», dan «42-A2»— y la bandeja de cada caso sale
+de sus propios pasos, sin escribirla aparte.
+
+### D-058 · 2026-09-10 · vigente
+**El modelo se exporta reducido y el caso declara cuánto está desplazado.**
+Hacía falta un convenio para saber dónde está «bien». La alternativa era exportar
+dos estados del hueso —roto y reducido— y hacerlos coincidir, que es trabajo
+manual del médico para resolver un problema del código. Se elige el contrario: el
+traumatólogo exporta el hueso **en su sitio anatómico** y escribe en el caso
+cuántos milímetros y grados lo separa de ahí al empezar. La posición correcta es
+siempre el cero, y lo que la consola mide es cuánto falta.
+
+*Consecuencia:* el mismo modelo sirve para varios casos con desplazamientos
+distintos, y cambiar la dificultad de un caso es cambiar seis números, no
+reexportar en Blender. A cambio, el modelo tiene que estar bien centrado: si el
+hueso exportado no está reducido, todo el caso mide contra un cero equivocado y
+los números salen creíbles y falsos. Por eso `docs/COMO-SUBIR-UN-MODELO.md`
+empieza por ahí.
+
+### D-059 · 2026-09-10 · vigente
+**Cada paso declara qué se le mide, y son cuatro cosas distintas.**
+La primera versión medía siempre lo mismo, una fuerza en newtons, y obligaba a
+inventar un rango de fuerza para el gesto de trazar una incisión. Los cuatro
+objetivos son elegir el instrumento, trazar con la longitud correcta, reducir
+dentro de tolerancia y aplicar la fuerza correcta. Los cuatro exigen además el
+instrumento en la mano.
+
+La distinción que sostiene el módulo es la que separa el fallo inocuo del que
+deja secuelas: quedarse corto es reintento, pasarse es **complicación** y queda
+registrada. Un simulador en el que equivocarse no cuesta nada no enseña nada.
+
+*Consecuencia:* el motor vive en `src/lib/simulador.ts`, aislado de la interfaz y
+probado entero sin navegador. Y cuando un paso antiguo no declara objetivo, se
+**deduce** de lo que sí declara: un rango de fuerza guardado y no evaluado sería
+una regla que el residente cree estar cumpliendo.
+
 ---
 
 ## 3. Observaciones
@@ -1210,6 +1265,45 @@ revalidarse siempre, porque es la pieza que decide qué versión se pide. Ademá
 esa versión se calcula ahora sobre el catálogo entero y no solo sobre la lista
 de identificadores: un atlas reempaquetado con las mismas piezas conservaba la
 versión y no habría cambiado nada.
+
+### O-027 · 2026-09-10 · alta · resuelta
+**Una tolerancia guardada en la base no llegaba al navegador.**
+El paso de reducción del caso de prueba acepta 4 mm de diástasis. En la tabla
+estaba el 4; en pantalla la consola aceptaba 5, que es el valor por omisión.
+`src/lib/casoQuirurgico.ts` aplanaba el documento de Payload y no copiaba ese
+campo, así que llegaba nulo y el motor caía al valor por omisión sin decir nada.
+
+*Cómo apareció:* recorriendo el caso en el navegador y comparando la instrucción
+en pantalla contra lo que decía la fila. No hay error, no hay aviso y los números
+son creíbles: es exactamente la clase de fallo que no se encuentra mirando el
+código. Es la tercera vez en el día que aparece la misma forma —un dato escrito
+que nadie lee—, y por eso ahora hay una prueba que compara las tres tolerancias
+del documento contra las que recibe la consola.
+
+### O-028 · 2026-09-10 · media · resuelta
+**El desplazamiento se enseñaba como un solo número y se podía llegar a un
+callejón sin salida.**
+Recorriendo el caso entero me quedé atascado en 8,7 mm de desplazamiento: lo que
+faltaba por corregir estaba en profundidad, perpendicular al plano que estaba
+mirando, y arrastrar de lado no bajaba el número. Sin desglose, la única pista
+era que el número no se movía.
+
+*Arreglo:* la medida se muestra ahora también eje por eje. Además de destrabar la
+maniobra, es lo que se hace en pabellón: cuando una proyección no basta, se pide
+la otra. La consola ya tenía el modo Orbitar; lo que faltaba era la razón para
+usarlo.
+
+### O-029 · 2026-09-10 · alta · resuelta
+**Subir un modelo de más de 1 MB fallaba sin explicar por qué.**
+El límite por omisión de las acciones de servidor de Next son 1 MB. Un GLB de
+tibia realista pasa de eso con facilidad, y el error que llegaba a pantalla no
+mencionaba ningún tamaño. Es el bloqueo que impedía al médico usar su propio
+material, que es el punto entero del módulo.
+
+*Arreglo:* `bodySizeLimit` a 8 MB en `next.config.mjs`. El techo se deja
+explícito y no infinito a propósito: **Q-006** fija el presupuesto por modelo en
+5 MB comprimido, y un límite generoso pero visible es lo que mantiene esa
+conversación viva. Si un modelo no cabe en 8 MB, el problema es el modelo.
 
 ---
 

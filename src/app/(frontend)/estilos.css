@@ -249,6 +249,280 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
    editor de ahora está en el panel propio y reutiliza los estilos del visor
    (.visor-3d-*), que es el mismo componente que ve el residente. */
 
+/* ---------- consola quirúrgica (módulo 04) ---------- */
+/* Tres columnas y dos franjas, como una mesa de pabellón: los mandos a los
+   lados y el campo en el centro. En pantalla estrecha se apila, pero el lienzo
+   nunca baja de 300 px: por debajo de eso no se distingue un fragmento de
+   otro y la consola deja de enseñar nada. */
+
+.consola {
+  border: 1px solid var(--linea);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--superficie);
+  margin: 24px 0 32px;
+}
+
+.consola-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--linea);
+  background: var(--marca-tenue);
+}
+
+.consola-rotulo {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mudo);
+  font-weight: 600;
+  margin: 0 0 2px;
+}
+
+.consola-titulo { margin: 0; font-size: 18px; }
+
+.consola-datos { display: flex; flex-wrap: wrap; gap: 18px; margin: 0; }
+.consola-datos dt {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mudo);
+}
+.consola-datos dd { margin: 2px 0 0; font-size: 13px; color: var(--pizarra); font-weight: 600; }
+
+.consola-puntaje { display: flex; align-items: baseline; gap: 8px; }
+.consola-puntaje-numero { font-size: 26px; font-weight: 700; color: var(--marca); }
+.consola-puntaje-total { font-size: 13px; color: var(--mudo); }
+
+.consola-cuerpo {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 250px;
+  gap: 0;
+}
+
+.consola-panel { padding: 14px; border-right: 1px solid var(--linea); }
+.consola-panel-der { border-right: none; border-left: 1px solid var(--linea); overflow-y: auto; max-height: 620px; }
+
+.consola-subtitulo {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mudo);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.consola-panel .consola-subtitulo:not(:first-child) { margin-top: 20px; }
+
+.consola-capas { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.consola-capas label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.consola-capa-vacia { opacity: 0.45; cursor: not-allowed; }
+
+.consola-modos { display: grid; gap: 6px; }
+.consola-modo,
+.consola-boton {
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 7px 10px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+  color: var(--pizarra);
+  cursor: pointer;
+}
+.consola-modo:hover,
+.consola-boton:hover { border-color: var(--marca); color: var(--marca); }
+.consola-modo.activo { background: var(--marca); border-color: var(--marca); color: #fff; }
+.consola-boton-ancho { width: 100%; text-align: center; margin-top: 12px; }
+
+.consola-centro { display: flex; flex-direction: column; min-width: 0; }
+.consola-lienzo-marco { position: relative; }
+.consola-lienzo { height: 420px; background: #f3f6fb; }
+.consola-lienzo canvas { display: block; width: 100% !important; height: 100% !important; }
+.consola-lienzo-cargando {
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--mudo);
+}
+
+.consola-fluoro {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--pizarra);
+  cursor: pointer;
+}
+.consola-fluoro.activo { background: #0d1117; border-color: #0d1117; color: #cfe0f2; }
+
+.consola-codigo {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 4px 9px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+  color: var(--pizarra);
+}
+
+.consola-medidas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin: 0;
+  padding: 11px 16px;
+  border-top: 1px solid var(--linea);
+  background: var(--superficie);
+}
+.consola-medidas dt {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mudo);
+}
+.consola-medidas dd { margin: 2px 0 0; font-family: var(--mono); font-size: 14px; color: var(--marca); }
+.consola-medidas dd.consola-desglose { margin-top: 1px; font-size: 11px; color: var(--mudo); letter-spacing: 0.04em; }
+
+.consola-bandeja { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.instrumento {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  padding: 7px 9px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+  color: var(--pizarra);
+  cursor: pointer;
+}
+.instrumento:hover { border-color: var(--marca); color: var(--marca); }
+.instrumento.activo { border-color: var(--marca); background: var(--marca-tenue); color: var(--marca); font-weight: 600; }
+.instrumento-icono { width: 20px; height: 20px; flex: none; }
+
+.consola-objetivo { margin-top: 20px; }
+.consola-instruccion { font-size: 12.5px; color: var(--mudo); line-height: 1.5; margin: 0 0 10px; }
+
+.consola-fuerza,
+.consola-giro { display: block; font-size: 12.5px; color: var(--pizarra); margin: 10px 0; }
+.consola-fuerza input,
+.consola-giro input { width: 100%; margin-top: 4px; }
+.consola-angulacion { margin-top: 4px; }
+
+.consola-aplicar {
+  width: 100%;
+  margin-top: 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px;
+  border: none;
+  border-radius: var(--r);
+  background: var(--marca);
+  color: #fff;
+  cursor: pointer;
+}
+.consola-aplicar:hover { background: var(--marca-honda); }
+.consola-aplicar:disabled { background: var(--linea); color: var(--mudo); cursor: not-allowed; }
+
+.consola-fin { margin-top: 20px; padding: 14px; border: 1px solid var(--linea); border-radius: var(--r); }
+.consola-fin p { margin: 6px 0 0; font-size: 13px; color: var(--pizarra); }
+
+/* La franja de pasos: se desplaza en horizontal como el guion de pabellón. */
+.consola-pasos {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border-top: 1px solid var(--linea);
+  background: var(--marca-tenue);
+}
+.consola-paso {
+  flex: none;
+  width: 175px;
+  padding: 9px 11px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+}
+.consola-paso.actual { border-color: var(--marca); box-shadow: inset 3px 0 0 var(--marca); }
+.consola-paso.resuelto { opacity: 0.62; }
+.consola-paso-numero {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mudo);
+}
+.consola-paso-titulo { display: block; font-size: 12.5px; color: var(--pizarra); margin: 3px 0; line-height: 1.35; }
+.consola-paso-fase {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--marca);
+}
+
+.consola-pie {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  padding: 16px 18px;
+  border-top: 1px solid var(--linea);
+}
+.consola-riesgo { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--linea); }
+.consola-riesgo h4 { font-size: 12.5px; margin: 0 0 6px; color: var(--pizarra); }
+.consola-vacio { font-size: 13px; color: var(--mudo); font-style: italic; margin: 0; }
+
+.consola-registro { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.consola-registro li {
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 7px 10px;
+  border-left: 3px solid var(--linea);
+  background: #fbfcfe;
+}
+.consola-registro .bien { border-left-color: #1c7a4b; }
+.consola-registro .aviso { border-left-color: var(--ambar); }
+.consola-registro .grave { border-left-color: #b03a2e; }
+
+@media (max-width: 1000px) {
+  .consola-cuerpo { grid-template-columns: 1fr; }
+  .consola-panel { border-right: none; border-bottom: 1px solid var(--linea); }
+  .consola-panel-der { border-left: none; border-top: 1px solid var(--linea); max-height: none; }
+  .consola-bandeja { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .consola-pie { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .consola-lienzo { height: 320px; }
+  .consola-medidas { gap: 14px; }
+}
+
 /* ---------- accesibilidad ---------- */
 :focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; border-radius: 2px; }
 @media (prefers-reduced-motion: reduce) {

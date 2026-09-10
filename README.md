@@ -129,6 +129,35 @@ declara `SLUGS_DE_MODULOS` con estos cinco.
 Cómo se escribe una ficha, paso a paso, está en
 [docs/COMO-ESCRIBIR-UNA-FICHA.md](docs/COMO-ESCRIBIR-UNA-FICHA.md).
 
+## La consola quirúrgica
+
+El módulo de simulación abre un caso en un lienzo 3D y lo evalúa. El residente
+enciende y apaga capas —piel, músculo, hueso—, elige instrumental de una bandeja
+y ejecuta los pasos: traza la incisión sobre el modelo, reduce el fragmento
+arrastrándolo y graduando la angulación, y gradúa la fuerza. La consola mide el
+resultado y lo puntúa. Quedarse corto es un reintento; pasarse es una
+complicación, y queda registrada.
+
+El vocabulario con el que se escriben los casos —huesos AO, clasificaciones AO,
+técnicas, fases e instrumental— son cinco colecciones que el traumatólogo edita
+desde el panel, con los mismos permisos que el resto del contenido.
+
+El convenio del que depende todo: **el modelo se exporta reducido** y el caso
+declara cuánto está desplazado al empezar. La posición correcta es siempre el
+cero, y lo que la consola mide es cuánto falta para llegar.
+
+| Archivo | Qué hace |
+|---|---|
+| `src/lib/simulador.ts` | El motor. Los cuatro objetivos de un paso, sin interfaz |
+| `src/lib/reduccion.ts` | La geometría: desplazamiento, diástasis, angulación y largo del trazo |
+| `src/lib/casoQuirurgico.ts` | Aplana el documento de Payload en lo que la consola necesita |
+| `src/components/simulador/LienzoQuirurgico.tsx` | El lienzo three.js: capas, trazo, arrastre y fluoroscopia |
+| `src/components/simulador/ConsolaQuirurgica.tsx` | La consola: bandeja, medidas, pasos y bitácora |
+| `src/collections/catalogos.ts` | Los cinco catálogos |
+
+Cómo preparar el hueso en Blender y armar un caso está en
+[docs/COMO-SUBIR-UN-MODELO.md](docs/COMO-SUBIR-UN-MODELO.md).
+
 ## Despliegue
 
 Se clona en un Ubuntu y se ejecuta `./scripts/instalar-servidor.sh`, que instala
@@ -150,6 +179,7 @@ Guía completa: [docs/SERVIDOR.md](docs/SERVIDOR.md).
 | [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) | Exponer el servicio con un túnel de Cloudflare, sin abrir puertos del router |
 | [docs/CORREO.md](docs/CORREO.md) | Correo saliente. Sin él, quien olvide su clave depende de un administrador |
 | [docs/COMO-ESCRIBIR-UNA-FICHA.md](docs/COMO-ESCRIBIR-UNA-FICHA.md) | Guía para el traumatólogo: segmentos, bloques, borrador y publicación |
+| [docs/COMO-SUBIR-UN-MODELO.md](docs/COMO-SUBIR-UN-MODELO.md) | Guía para el traumatólogo: preparar el hueso en Blender y armar un caso quirúrgico paso a paso |
 | [docs/testing/fase-1-acceso.tdd.md](docs/testing/fase-1-acceso.tdd.md) | Evidencia del ciclo de pruebas de la fase 1, control de acceso y subidas |
 | [despliegue/paginas/LEEME.md](despliegue/paginas/LEEME.md) | Cómo encaja esta plataforma junto a las otras páginas del servidor compartido |
 | [archivo/LEEME.md](archivo/LEEME.md) | Qué es el prototipo que se conserva y por qué su contenido no se cargó |

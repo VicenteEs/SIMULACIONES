@@ -72,6 +72,11 @@ export interface Config {
     medios: Medio;
     'modelos-3d': Modelos3D;
     'instancias-atlas': InstanciasAtlas;
+    'huesos-ao': HuesosAo;
+    'clasificaciones-ao': ClasificacionesAo;
+    'tecnicas-quirurgicas': TecnicasQuirurgica;
+    'fases-quirurgicas': FasesQuirurgica;
+    instrumental: Instrumental;
     patologias: Patologia;
     maniobras: Maniobra;
     'casos-ao': CasosAo;
@@ -91,6 +96,11 @@ export interface Config {
     medios: MediosSelect<false> | MediosSelect<true>;
     'modelos-3d': Modelos3DSelect<false> | Modelos3DSelect<true>;
     'instancias-atlas': InstanciasAtlasSelect<false> | InstanciasAtlasSelect<true>;
+    'huesos-ao': HuesosAoSelect<false> | HuesosAoSelect<true>;
+    'clasificaciones-ao': ClasificacionesAoSelect<false> | ClasificacionesAoSelect<true>;
+    'tecnicas-quirurgicas': TecnicasQuirurgicasSelect<false> | TecnicasQuirurgicasSelect<true>;
+    'fases-quirurgicas': FasesQuirurgicasSelect<false> | FasesQuirurgicasSelect<true>;
+    instrumental: InstrumentalSelect<false> | InstrumentalSelect<true>;
     patologias: PatologiasSelect<false> | PatologiasSelect<true>;
     maniobras: ManiobrasSelect<false> | ManiobrasSelect<true>;
     'casos-ao': CasosAoSelect<false> | CasosAoSelect<true>;
@@ -318,6 +328,105 @@ export interface InstanciasAtlas {
   createdAt: string;
 }
 /**
+ * Hueso y tercio, con el número que le da la AO.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "huesos-ao".
+ */
+export interface HuesosAo {
+  id: number;
+  nombre: string;
+  /**
+   * El primero del código. «42» para la diáfisis de la tibia.
+   */
+  codigo?: string | null;
+  orden?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Tipo y grupo del trazo de fractura, sin el hueso.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "clasificaciones-ao".
+ */
+export interface ClasificacionesAo {
+  id: number;
+  /**
+   * «A2», «B1», «C3». Sin el número del hueso.
+   */
+  codigo: string;
+  nombre: string;
+  /**
+   * Los tres tipos de la AO. Esta lista sí es cerrada: es la propia clasificación.
+   */
+  tipo?: ('A' | 'B' | 'C') | null;
+  descripcion?: string | null;
+  orden?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Clavo endomedular, placa, tornillos, fijador externo.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tecnicas-quirurgicas".
+ */
+export interface TecnicasQuirurgica {
+  id: number;
+  nombre: string;
+  descripcion?: string | null;
+  orden?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Abordaje, reducción, fijación, cierre.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "fases-quirurgicas".
+ */
+export interface FasesQuirurgica {
+  id: number;
+  nombre: string;
+  orden?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * La bandeja de la consola. Cada paso declara cuál es el correcto.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instrumental".
+ */
+export interface Instrumental {
+  id: number;
+  nombre: string;
+  icono?:
+    | (
+        | 'generico'
+        | 'bisturi'
+        | 'separador'
+        | 'pinza'
+        | 'tijera'
+        | 'punzon'
+        | 'guia'
+        | 'fresa'
+        | 'martillo'
+        | 'atornillador'
+        | 'aguja'
+      )
+    | null;
+  descripcion?: string | null;
+  /**
+   * Solo para ordenar el catálogo. La bandeja de un caso la forman los instrumentos que sus pasos declaran, no esta lista.
+   */
+  tecnicas?: (number | TecnicasQuirurgica)[] | null;
+  orden?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Fichas por segmento. Cada una termina en manejo y rehabilitación.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -408,7 +517,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -511,7 +620,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -614,7 +723,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -717,7 +826,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -820,7 +929,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -923,7 +1032,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -1095,7 +1204,7 @@ export interface Maniobra {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -1265,7 +1374,7 @@ export interface CasosAo {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -1295,7 +1404,7 @@ export interface CasosAo {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * Guion quirúrgico paso a paso con instrumental y fuerza aplicada.
+ * Caso quirúrgico con su modelo, su guion de pasos y su puntaje.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "cirugias".
@@ -1303,6 +1412,12 @@ export interface CasosAo {
 export interface Cirugia {
   id: number;
   nombre: string;
+  hueso?: (number | null) | HuesosAo;
+  clasificacion?: (number | null) | ClasificacionesAo;
+  tecnica?: (number | null) | TecnicasQuirurgica;
+  /**
+   * Se puede dejar vacío: la consola lo compone con el número del hueso y el de la clasificación. Rellénelo solo si este caso lleva uno distinto.
+   */
   codigo?: string | null;
   resumen?: {
     root: {
@@ -1319,10 +1434,48 @@ export interface Cirugia {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * Archivo .glb exportado desde Blender con el hueso ya partido. Cada trozo, un objeto con nombre.
+   */
+  modelo?: (number | null) | Modelos3D;
+  /**
+   * glTF trabaja en metros, así que 1000 es lo normal. Si exportó en milímetros, ponga 1. De este número dependen todas las medidas que ve el residente.
+   */
+  milimetrosPorUnidad?: number | null;
+  /**
+   * Separa la diástasis del desplazamiento lateral: a lo largo del eje es hueco, de lado es desalineación.
+   */
+  ejeLargo?: ('y' | 'x' | 'z') | null;
+  /**
+   * Qué es cada objeto del archivo. El nombre tiene que coincidir exactamente con el del objeto en Blender.
+   */
+  piezas?:
+    | {
+        nodo: string;
+        etiqueta?: string | null;
+        /**
+         * Piel y músculo forman las capas que se encienden y apagan. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.
+         */
+        rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante';
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Exporte el hueso REDUCIDO, en su sitio anatómico, y describa aquí cuánto está desplazado al empezar. Así la reducción correcta es siempre volver al cero, y la consola puede medir cuánto falta.
+   */
+  desplazamientoInicial?: {
+    x?: number | null;
+    y?: number | null;
+    z?: number | null;
+    giroX?: number | null;
+    giroY?: number | null;
+    giroZ?: number | null;
+  };
   pasos?:
     | {
         titulo: string;
-        descripcion: {
+        fase?: (number | null) | FasesQuirurgica;
+        descripcion?: {
           root: {
             type: string;
             children: {
@@ -1336,13 +1489,32 @@ export interface Cirugia {
             version: number;
           };
           [k: string]: unknown;
-        };
-        instrumento: string;
-        fuerzaMinima: number;
-        fuerzaMaxima: number;
-        exito: string;
-        insuficiente: string;
-        excesivo: string;
+        } | null;
+        objetivo: 'instrumento' | 'trazo' | 'reduccion' | 'fuerza';
+        /**
+         * Se exige en todos los objetivos: sin el instrumento en la mano no hay gesto.
+         */
+        instrumento?: (number | null) | Instrumental;
+        puntos?: number | null;
+        trazoMinimo?: number | null;
+        trazoMaximo?: number | null;
+        toleranciaDesplazamiento?: number | null;
+        toleranciaDiastasis?: number | null;
+        toleranciaAngulacion?: number | null;
+        fuerzaMinima?: number | null;
+        fuerzaMaxima?: number | null;
+        /**
+         * Deje la lista vacía para que se vea lo mismo que en el paso anterior. El implante aparece en el paso que lo coloca.
+         */
+        muestra?:
+          | {
+              nodo: string;
+              id?: string | null;
+            }[]
+          | null;
+        exito?: string | null;
+        insuficiente?: string | null;
+        excesivo?: string | null;
         riesgo?: {
           root: {
             type: string;
@@ -1439,7 +1611,7 @@ export interface Cirugia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -1582,7 +1754,7 @@ export interface EstudiosIa {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.
+             * Con qué ángulo y a qué distancia abre el modelo el residente.
              */
             encuadre?: {
               escala?: number | null;
@@ -1684,6 +1856,26 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'instancias-atlas';
         value: number | InstanciasAtlas;
+      } | null)
+    | ({
+        relationTo: 'huesos-ao';
+        value: number | HuesosAo;
+      } | null)
+    | ({
+        relationTo: 'clasificaciones-ao';
+        value: number | ClasificacionesAo;
+      } | null)
+    | ({
+        relationTo: 'tecnicas-quirurgicas';
+        value: number | TecnicasQuirurgica;
+      } | null)
+    | ({
+        relationTo: 'fases-quirurgicas';
+        value: number | FasesQuirurgica;
+      } | null)
+    | ({
+        relationTo: 'instrumental';
+        value: number | Instrumental;
       } | null)
     | ({
         relationTo: 'patologias';
@@ -1878,6 +2070,64 @@ export interface InstanciasAtlasSelect<T extends boolean = true> {
   numeroDePiezas?: T;
   contenido?: T;
   atlasVersion?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "huesos-ao_select".
+ */
+export interface HuesosAoSelect<T extends boolean = true> {
+  nombre?: T;
+  codigo?: T;
+  orden?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "clasificaciones-ao_select".
+ */
+export interface ClasificacionesAoSelect<T extends boolean = true> {
+  codigo?: T;
+  nombre?: T;
+  tipo?: T;
+  descripcion?: T;
+  orden?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tecnicas-quirurgicas_select".
+ */
+export interface TecnicasQuirurgicasSelect<T extends boolean = true> {
+  nombre?: T;
+  descripcion?: T;
+  orden?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "fases-quirurgicas_select".
+ */
+export interface FasesQuirurgicasSelect<T extends boolean = true> {
+  nombre?: T;
+  orden?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instrumental_select".
+ */
+export interface InstrumentalSelect<T extends boolean = true> {
+  nombre?: T;
+  icono?: T;
+  descripcion?: T;
+  tecnicas?: T;
+  orden?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2667,16 +2917,54 @@ export interface CasosAoSelect<T extends boolean = true> {
  */
 export interface CirugiasSelect<T extends boolean = true> {
   nombre?: T;
+  hueso?: T;
+  clasificacion?: T;
+  tecnica?: T;
   codigo?: T;
   resumen?: T;
+  modelo?: T;
+  milimetrosPorUnidad?: T;
+  ejeLargo?: T;
+  piezas?:
+    | T
+    | {
+        nodo?: T;
+        etiqueta?: T;
+        rol?: T;
+        id?: T;
+      };
+  desplazamientoInicial?:
+    | T
+    | {
+        x?: T;
+        y?: T;
+        z?: T;
+        giroX?: T;
+        giroY?: T;
+        giroZ?: T;
+      };
   pasos?:
     | T
     | {
         titulo?: T;
+        fase?: T;
         descripcion?: T;
+        objetivo?: T;
         instrumento?: T;
+        puntos?: T;
+        trazoMinimo?: T;
+        trazoMaximo?: T;
+        toleranciaDesplazamiento?: T;
+        toleranciaDiastasis?: T;
+        toleranciaAngulacion?: T;
         fuerzaMinima?: T;
         fuerzaMaxima?: T;
+        muestra?:
+          | T
+          | {
+              nodo?: T;
+              id?: T;
+            };
         exito?: T;
         insuficiente?: T;
         excesivo?: T;

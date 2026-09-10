@@ -19,6 +19,27 @@ const nextConfig = {
 
   ...(prefijo ? { basePath: prefijo } : {}),
 
+  experimental: {
+    /**
+     * Cuánto puede pesar lo que se sube desde el panel.
+     *
+     * Los archivos se suben con una acción de servidor (`subirArchivo`), y Next
+     * limita el cuerpo de una acción a **1 MB** por omisión. La colección de
+     * modelos 3D anuncia un techo de 5 MB y la validación lo comprueba, pero
+     * ninguno de los dos se llegaba a ejercer: el archivo se cortaba antes, en
+     * el marco, y el traumatólogo veía un fallo genérico de acción sin una
+     * palabra sobre el peso. El único modelo que había pesaba 76 KB, y por eso
+     * nadie tropezó.
+     *
+     * Se pone en 8 MB y no en 5: el cuerpo de la petición lleva además el
+     * formulario y la codificación, así que un archivo de 5 MB justos no cabe
+     * en un límite de 5 MB. Quien decide el techo real sigue siendo
+     * `src/uploads/validarModelo3D.ts`, que rechaza con un mensaje que se
+     * entiende. Este número solo tiene que ser mayor.
+     */
+    serverActions: { bodySizeLimit: '8mb' },
+  },
+
   // Cabeceras de seguridad para toda la aplicación.
   async headers() {
     return [

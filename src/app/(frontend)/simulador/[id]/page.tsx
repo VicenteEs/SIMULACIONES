@@ -2,10 +2,10 @@ import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
-import { SinAcceso, Miga, Vacio } from '@/components/Estados'
-import { Simulador } from '@/components/Simulador'
+import { SinAcceso, Miga } from '@/components/Estados'
+import { ConsolaQuirurgica } from '@/components/simulador/ConsolaQuirurgica'
 import { FormularioComentario } from '@/components/FormularioComentario'
-import type { PasoQuirurgico } from '@/lib/simulador'
+import { casoParaLaConsola } from '@/lib/casoQuirurgico'
 import { Rico } from '@/components/Rico'
 
 export const dynamic = 'force-dynamic'
@@ -22,32 +22,28 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
       id,
       overrideAccess: false,
       user: usuarioEfectivo as never,
-      depth: 1,
+      // Profundidad 2: el paso trae su instrumento y su fase ya poblados, y el
+      // caso trae su modelo con la dirección del archivo. Con profundidad 1 el
+      // instrumento llegaría como número y la bandeja saldría vacía.
+      depth: 2,
     })
     .catch(() => null)
   if (!cirugia) notFound()
 
-  const pasos = (Array.isArray(cirugia.pasos) ? cirugia.pasos : []) as PasoQuirurgico[]
-  // El instrumental sale de los propios pasos: el autor no mantiene dos listas
-  // que puedan desincronizarse.
-  const instrumentos = [...new Set(pasos.map((p) => p.instrumento).filter(Boolean))] as string[]
+  const caso = casoParaLaConsola(cirugia as unknown as Record<string, unknown>)
 
   return (
     <main>
       <Miga href="/simulador" texto="Simulador" />
-      <h1>{cirugia.nombre as string}</h1>
+      <h1>{caso.nombre}</h1>
       <Rico valor={cirugia.resumen} className="entrada" />
 
-      {pasos.length === 0 ? (
-        <Vacio texto="Esta cirugía todavía no tiene pasos escritos." />
-      ) : (
-        <Simulador pasos={pasos} instrumentos={instrumentos} />
-      )}
+      <ConsolaQuirurgica caso={caso} />
 
-      <FormularioComentario 
-        coleccion="cirugias" 
-        documentoId={id} 
-        label="¿Sugerencia o corrección sobre esta simulación? Comentar" 
+      <FormularioComentario
+        coleccion="cirugias"
+        documentoId={id}
+        label="¿Sugerencia o corrección sobre este caso? Comentar"
       />
     </main>
   )

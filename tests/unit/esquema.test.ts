@@ -74,7 +74,23 @@ describe('el esquema del panel cubre las colecciones', () => {
   it('describe todas las colecciones de contenido, y solo esas', () => {
     const editables = ESQUEMAS.map((e) => e.slug).sort()
     expect(editables).toEqual(
-      ['casos-ao', 'cirugias', 'estudios-ia', 'maniobras', 'medios', 'modelos-3d', 'patologias', 'segmentos'].sort(),
+      [
+        'casos-ao',
+        'cirugias',
+        'estudios-ia',
+        'maniobras',
+        'medios',
+        'modelos-3d',
+        'patologias',
+        'segmentos',
+        // Los catálogos del simulador: el vocabulario con el que el
+        // traumatólogo escribe los casos, y que él mismo mantiene.
+        'huesos-ao',
+        'clasificaciones-ao',
+        'tecnicas-quirurgicas',
+        'fases-quirurgicas',
+        'instrumental',
+      ].sort(),
     )
   })
 
