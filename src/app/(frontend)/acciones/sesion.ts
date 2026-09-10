@@ -13,8 +13,9 @@
  */
 
 import { cookies } from 'next/headers'
-import { getPayload } from 'payload'
+import { getPayload, LockedAuth } from 'payload'
 import config from '@payload-config'
+import { MINUTOS_DE_BLOQUEO } from '@/collections/Usuarios'
 import { accion, type Respuesta } from '@/lib/guardias'
 import { exigirContrasena, exigirCorreo, exigirTexto } from '@/lib/validacion'
 import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
@@ -46,9 +47,29 @@ export async function entrar(
         collection: 'usuarios',
         data: { email: exigirCorreo(correo), password: contrasena },
       })
-    } catch {
-      // Un mensaje único para «no existe» y «contraseña incorrecta»: decir cuál
-      // de las dos falla convierte el formulario en un comprobador de correos.
+    } catch (fallo) {
+      // La cuenta bloqueada se dice, y no se disfraza de contraseña mala.
+      //
+      // Antes todo fallo salía como «Correo o contraseña incorrectos», de modo
+      // que quien se equivocaba cinco veces y luego escribía la contraseña
+      // correcta seguía viendo el mismo mensaje: la plataforma le decía que su
+      // contraseña estaba mal cuando estaba bien, sin una sola pista de que
+      // bastaba con esperar. Es el momento exacto en que alguien deja de
+      // intentarlo o escribe pidiendo ayuda.
+      //
+      // Sí, admitirlo revela que la cuenta existe, pero solo a quien ya ha
+      // fallado cinco veces contra ese correo. En una plataforma cerrada donde
+      // las cuentas las crea el administrador a mano, eso vale mucho menos que
+      // dejar a un residente fuera creyéndose la contraseña equivocada.
+      if (fallo instanceof LockedAuth) {
+        throw new Error(
+          `Demasiados intentos fallidos: la cuenta quedó bloqueada durante ${MINUTOS_DE_BLOQUEO} ` +
+            'minutos. Espere y vuelva a intentarlo, o pida a un administrador que la desbloquee.',
+        )
+      }
+      // Para el resto, un mensaje único para «no existe» y «contraseña
+      // incorrecta»: decir cuál de las dos falla convierte el formulario en un
+      // comprobador de correos.
       throw new Error('Correo o contraseña incorrectos.')
     }
 

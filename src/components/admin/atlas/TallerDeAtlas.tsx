@@ -48,20 +48,69 @@ export function TallerDeAtlas() {
 
   const mando = useRef<MandoDelVisor | null>(null)
 
+  // --- trabajo sin guardar --------------------------------------------------
+  //
+  // Apagar piezas una a una hasta dejar la tibia sola es media hora de trabajo,
+  // y hasta ahora se perdía en silencio: «Cuerpo completo» reiniciaba todo sin
+  // preguntar, abrir otra preparación pisaba la que había encima, y cerrar la
+  // pestaña se lo llevaba sin una palabra. Nada de eso daba error, que es lo
+  // que lo hacía peor: el traumatólogo se enteraba al volver a mirar.
+  //
+  // Para saber si hay algo que perder se compara el estado de ahora con el de
+  // la última vez que se guardó o se abrió algo.
+  const [referencia, setReferencia] = useState({ nombre: '', descripcion: '', piezas: '' })
+
+  const clavePiezas = useMemo(() => [...visibles].sort().join(','), [visibles])
+
+  const sucio =
+    catalogo !== null &&
+    (clavePiezas !== referencia.piezas ||
+      nombre.trim() !== referencia.nombre ||
+      descripcion.trim() !== referencia.descripcion)
+
+  /** Toma el estado de ahora como «lo guardado»: nada que perder. */
+  const fijarReferencia = useCallback((piezas: Set<string>, titulo: string, texto: string) => {
+    setReferencia({
+      nombre: titulo.trim(),
+      descripcion: texto.trim(),
+      piezas: [...piezas].sort().join(','),
+    })
+  }, [])
+
+  /** Pregunta antes de tirar el trabajo. Devuelve si se puede continuar. */
+  const confirmarDescarte = (queVaAPasar: string) =>
+    !sucio ||
+    confirm(
+      `Hay cambios sin guardar en esta preparación.\n\n${queVaAPasar}\n\n` +
+        '¿Continuar y perderlos?',
+    )
+
+  // Y el mismo aviso al cerrar la pestaña que usa el editor de fichas.
+  useEffect(() => {
+    if (!sucio) return
+    const alSalir = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', alSalir)
+    return () => window.removeEventListener('beforeunload', alSalir)
+  }, [sucio])
+
   // --- catálogo -------------------------------------------------------------
   useEffect(() => {
     const aborto = new AbortController()
     cargarCatalogo(aborto.signal)
       .then((c) => {
+        const todas = new Set(c.piezas.map((p) => p.id))
         setCatalogo(c)
-        setVisibles(new Set(c.piezas.map((p) => p.id)))
+        setVisibles(todas)
+        // El cuerpo entero y sin nombre es el punto de partida: todavía no hay
+        // nada que perder.
+        fijarReferencia(todas, '', '')
       })
       .catch((e: unknown) => {
         if (aborto.signal.aborted) return
         setFallo(e instanceof Error ? e.message : 'No se pudo leer el catálogo del atlas.')
       })
     return () => aborto.abort()
-  }, [])
+  }, [fijarReferencia])
 
   const refrescarLista = useCallback(() => {
     void listarInstancias().then((r) => {
@@ -72,19 +121,30 @@ export function TallerDeAtlas() {
   useEffect(refrescarLista, [refrescarLista])
 
   // --- acciones -------------------------------------------------------------
-  const empezarDeCero = () => {
+  /**
+   * Vuelve al cuerpo completo.
+   *
+   * `preguntar` es false cuando llega desde otra acción que ya preguntó, como
+   * eliminar la preparación abierta: encadenar dos confirmaciones seguidas por
+   * el mismo gesto enseña a pulsar «aceptar» sin leer.
+   */
+  const empezarDeCero = (preguntar = true) => {
     if (!catalogo) return
+    if (preguntar && !confirmarDescarte('Se volverá al cuerpo completo, sin nombre.')) return
+    const todas = new Set(catalogo.piezas.map((p) => p.id))
     setInstancia(null)
     setNombre('')
     setDescripcion('')
-    setVisibles(new Set(catalogo.piezas.map((p) => p.id)))
+    setVisibles(todas)
     setSeparacion(0)
     setVistaInicial(VISTA_INICIAL)
     mando.current?.irA(VISTA_INICIAL)
+    fijarReferencia(todas, '', '')
     setAviso(null)
   }
 
   const abrir = (id: string) => {
+    if (!confirmarDescarte('Se abrirá otra preparación en su lugar.')) return
     setAviso(null)
     iniciar(async () => {
       const r = await obtenerInstancia(id)
@@ -98,6 +158,11 @@ export function TallerDeAtlas() {
       setVisibles(new Set(r.datos.contenido.piezas.map((p) => p.id)))
       setSeparacion(r.datos.contenido.vista.separacion)
       setVistaInicial(r.datos.contenido.vista)
+      fijarReferencia(
+        new Set(r.datos.contenido.piezas.map((p) => p.id)),
+        r.datos.nombre,
+        r.datos.descripcion ?? '',
+      )
       // Y además se le ordena al visor que vaya: la escena ya está montada y no
       // se vuelve a montar, así que sin esto la cámara se quedaba donde
       // estuviera. Como al guardar se escribe la cámara actual, abrir una
@@ -137,6 +202,8 @@ export function TallerDeAtlas() {
         return
       }
       setInstancia(r.datos.id)
+      // Lo recién guardado pasa a ser la referencia: ya no hay nada que perder.
+      fijarReferencia(visibles, nombre, descripcion)
       setAviso({
         tipo: 'ok',
         texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
@@ -190,17 +257,35 @@ export function TallerDeAtlas() {
   if (!catalogo) return <p className="admin-subtitle">Leyendo el catálogo del atlas…</p>
 
   return (
-    <div className="atlas-taller">
+    <>
+      {/* En pantalla estrecha se enseña esto en lugar del taller. Es CSS y no
+          JavaScript a propósito: medir el ancho al pintar da un primer fotograma
+          equivocado y, en el servidor, no hay ancho que medir. */}
+      <section className="atlas-solo-escritorio">
+        <h2>El taller anatómico necesita un computador</h2>
+        <p>
+          Aquí se trabaja con tres cosas a la vez: el árbol de {catalogo.piezas.length} piezas, el
+          modelo en tres dimensiones y la ficha de la preparación. En un teléfono no caben, y el
+          visor queda tan pequeño que no se distingue una pieza de otra.
+        </p>
+        <p>
+          Abra esta página desde un computador. Las preparaciones que ya haya guardado sí se ven
+          bien en el móvil dentro de sus fichas.
+        </p>
+      </section>
+
+      <div className="atlas-taller">
       <div className="admin-toolbar">
         <div>
           <h1 className="admin-title">Taller anatómico</h1>
           <p className="admin-subtitle">
             {catalogo.piezas.length} piezas · {catalogo.sujeto}
             {instancia ? ' · editando una preparación guardada' : ' · preparación nueva'}
+            {sucio ? <span className="editor-sucio"> · cambios sin guardar</span> : null}
           </p>
         </div>
         <div className="admin-acciones">
-          <button className="admin-btn admin-btn-secondary" onClick={empezarDeCero}>
+          <button className="admin-btn admin-btn-secondary" onClick={() => empezarDeCero()}>
             Cuerpo completo
           </button>
           <button
@@ -216,6 +301,15 @@ export function TallerDeAtlas() {
       </div>
 
       {aviso ? <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>{aviso.texto}</div> : null}
+
+      {sucio ? (
+        <div className="admin-aviso admin-aviso-atencion" role="status">
+          <strong>Hay cambios sin guardar.</strong> Lo que apague o encienda aquí no queda en
+          ninguna parte hasta que pulse{' '}
+          <em>{instancia ? 'Guardar cambios' : 'Guardar preparación'}</em>. Cerrar la pestaña,
+          volver al cuerpo completo o abrir otra preparación se lo llevará.
+        </div>
+      ) : null}
 
       <div className="atlas-marco">
         <aside className="atlas-panel">
@@ -322,7 +416,7 @@ export function TallerDeAtlas() {
                       onClick={() => {
                         if (confirm(`¿Eliminar «${g.nombre}»? No se puede deshacer.`)) {
                           conAviso(() => eliminarInstancia(g.id), 'Preparación eliminada.')
-                          if (g.id === instancia) empezarDeCero()
+                          if (g.id === instancia) empezarDeCero(false)
                         }
                       }}
                     >
@@ -335,6 +429,7 @@ export function TallerDeAtlas() {
           )}
         </aside>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

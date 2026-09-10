@@ -4,6 +4,16 @@ import { ajustarPrimerUsuario } from './hooks/primerUsuario'
 import { impedirAutobloqueo } from './hooks/autobloqueo'
 import { limpiarRastroDeUsuario } from './hooks/bajaDeUsuario'
 
+/**
+ * Cuántos intentos fallidos bloquean una cuenta, y por cuánto tiempo.
+ *
+ * Están aquí y exportados porque la pantalla de entrada tiene que poder
+ * explicárselo a quien se queda fuera. Cuando el mensaje repetía los números a
+ * mano, cambiar el bloqueo dejaba a la pantalla mintiendo.
+ */
+export const INTENTOS_ANTES_DE_BLOQUEAR = 5
+export const MINUTOS_DE_BLOQUEO = 10
+
 /** Los cinco módulos, tal como se ofrecen al asignar permisos. */
 const OPCIONES_DE_MODULO = [
   { label: 'Biblioteca de patologías', value: 'patologias' },
@@ -56,9 +66,11 @@ export const Usuarios: CollectionConfig = {
   },
   auth: {
     // Cinco intentos y diez minutos de bloqueo: frena la fuerza bruta sin
-    // castigar a quien simplemente se equivocó de tecla.
-    maxLoginAttempts: 5,
-    lockTime: 10 * 60 * 1000,
+    // castigar a quien simplemente se equivocó de tecla. Los dos números salen
+    // de las constantes de arriba para que la pantalla de entrada pueda decir
+    // la verdad sin repetirlos.
+    maxLoginAttempts: INTENTOS_ANTES_DE_BLOQUEAR,
+    lockTime: MINUTOS_DE_BLOQUEO * 60 * 1000,
     tokenExpiration: 8 * 60 * 60,
     cookies: { sameSite: 'Lax', secure: process.env.NODE_ENV === 'production' },
     forgotPassword: {
