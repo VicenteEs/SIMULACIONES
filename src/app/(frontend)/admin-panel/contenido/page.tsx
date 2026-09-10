@@ -1,8 +1,8 @@
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { Payload } from 'payload'
-import { obtenerSesion } from '@/lib/sesion'
+import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { ESQUEMAS, type EsquemaDeColeccion } from '@/admin/esquema'
+import { puedeEditar } from '@/lib/guardias'
 import { clientePayload } from '../datos'
 import { rutaPublica } from '../modulos'
 
@@ -74,11 +74,16 @@ async function resumir(payload: Payload, esquema: EsquemaDeColeccion): Promise<R
  * de la plataforma.
  */
 export default async function PaginaContenido() {
-  const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
+  const { sesion } = await exigirPanel()
+
+  // Un editor con módulos asignados solo ve los suyos. Antes se listaban todos
+  // y los ajenos se abrían igual: el «no tiene permiso» llegaba al guardar, con
+  // la ficha ya escrita. Un administrador, y un editor sin restricción, siguen
+  // viéndolo todo.
+  const visibles = ESQUEMAS.filter((e) => puedeEditar(sesion.usuario, e.slug))
 
   const payload = await clientePayload()
-  const resumenes = await Promise.all(ESQUEMAS.map((e) => resumir(payload, e)))
+  const resumenes = await Promise.all(visibles.map((e) => resumir(payload, e)))
 
   const modulos = resumenes.filter((r) => r.esquema.familia === 'modulos')
   const apoyo = resumenes.filter((r) => r.esquema.familia === 'apoyo')

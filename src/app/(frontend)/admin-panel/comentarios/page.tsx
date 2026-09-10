@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { obtenerSesion } from '@/lib/sesion'
+import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { clientePayload } from '../datos'
 import { TablaComentarios, type ComentarioDelPanel } from './TablaComentarios'
 
@@ -14,12 +13,10 @@ export const dynamic = 'force-dynamic'
  * pendientes en todo momento.
  */
 export default async function PaginaComentarios() {
-  const sesion = await obtenerSesion()
   // Entra también el editor: es quien escribe el contenido y, por tanto, quien
   // resuelve lo que se comenta sobre él. Eliminar sigue siendo cosa del
   // administrador, porque borra la observación de otra persona.
-  const rol = sesion.rolReal
-  if (!sesion?.usuario || !sesion.activo || (rol !== 'admin' && rol !== 'editor')) redirect('/')
+  const { esAdmin } = await exigirPanel()
 
   const payload = await clientePayload()
   const { docs } = await payload.find({
@@ -45,5 +42,5 @@ export default async function PaginaComentarios() {
     }
   })
 
-  return <TablaComentarios comentarios={comentarios} puedeEliminar={rol === 'admin'} />
+  return <TablaComentarios comentarios={comentarios} puedeEliminar={esAdmin} />
 }

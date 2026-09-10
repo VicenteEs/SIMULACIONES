@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { obtenerSesion } from '@/lib/sesion'
+import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { clientePayload } from '../datos'
 import { TablaUsuarios, type UsuarioDelPanel } from './TablaUsuarios'
 
@@ -18,8 +17,7 @@ export const dynamic = 'force-dynamic'
  * es un botón mal puesto.
  */
 export default async function PaginaUsuarios() {
-  const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
+  const { sesion } = await exigirPanel('admin')
 
   const payload = await clientePayload()
   const { docs } = await payload.find({

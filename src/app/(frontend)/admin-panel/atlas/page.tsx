@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { obtenerSesion } from '@/lib/sesion'
+import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { TallerDeAtlas } from '@/components/admin/atlas/TallerDeAtlas'
 
 export const dynamic = 'force-dynamic'
@@ -13,11 +12,7 @@ export const dynamic = 'force-dynamic'
  * en su caché y no que viajen dentro de cada respuesta del servidor.
  */
 export default async function PaginaAtlas() {
-  const sesion = await obtenerSesion()
-  const rol = sesion.rolReal
-  if (!sesion?.usuario || !sesion.activo || (rol !== 'admin' && rol !== 'editor')) {
-    redirect('/')
-  }
+  await exigirPanel()
 
   return <TallerDeAtlas />
 }

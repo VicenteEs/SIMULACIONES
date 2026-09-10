@@ -1,5 +1,5 @@
-import { notFound, redirect } from 'next/navigation'
-import { obtenerSesion } from '@/lib/sesion'
+import { notFound } from 'next/navigation'
+import { exigirPanelPara } from '@/app/(frontend)/admin-panel/acceso'
 import { esColeccionEditable, esquemaDe } from '@/admin/esquema'
 import { FormularioDocumento } from '@/components/admin/FormularioDocumento'
 import { clientePayload } from '../../../datos'
@@ -19,10 +19,8 @@ export default async function PaginaEditarDocumento({
 }: {
   params: Promise<{ coleccion: string; id: string }>
 }) {
-  const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
-
   const { coleccion, id } = await params
+  await exigirPanelPara(coleccion)
   if (!esColeccionEditable(coleccion)) notFound()
   const esquema = esquemaDe(coleccion)
 

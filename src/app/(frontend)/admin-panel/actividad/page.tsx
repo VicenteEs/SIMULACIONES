@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { obtenerSesion } from '@/lib/sesion'
+import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { clientePayload } from '../datos'
 import { NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
 
@@ -48,8 +47,7 @@ interface PorPersona {
  * ni recorridos. Sirve para decidir dónde poner el esfuerzo de redacción.
  */
 export default async function PaginaActividad() {
-  const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
+  await exigirPanel('admin')
 
   const payload = await clientePayload()
 

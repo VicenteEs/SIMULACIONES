@@ -12,6 +12,7 @@
  */
 import { getPayload, type Payload } from 'payload'
 import config from '@payload-config'
+import { SLUGS_DE_MODULOS } from '@/collections'
 import { obtenerSesion } from '@/lib/sesion'
 
 export class ErrorDeAcceso extends Error {}
@@ -50,20 +51,37 @@ export const exigirEditor = (): Promise<Contexto> =>
  */
 export async function exigirEdicionDe(coleccion: string): Promise<Contexto> {
   const contexto = await exigirEditor()
-  const usuario = contexto.usuario
-  if (usuario.rol === 'admin') return contexto
+  if (!puedeEditar(contexto.usuario, coleccion)) {
+    throw new ErrorDeAcceso('Su cuenta no tiene permiso para editar este módulo.')
+  }
+  return contexto
+}
+
+/**
+ * ¿Puede esta cuenta escribir en esta colección?
+ *
+ * Está aparte y sin efectos para que las **páginas** del panel puedan
+ * preguntarlo igual que lo hacen las acciones. Sin esto, un editor restringido
+ * veía el módulo ajeno en el listado, abría la ficha, la rellenaba entera y
+ * solo al guardar se enteraba de que no le correspondía.
+ *
+ * Presupone un rol de escritura ya comprobado: contesta sobre el módulo, no
+ * sobre si alguien es editor.
+ */
+export function puedeEditar(usuario: Record<string, unknown>, coleccion: string): boolean {
+  if (usuario.rol === 'admin') return true
 
   const permitidos = usuario.modulosEditables
   const restringido = Array.isArray(permitidos) && permitidos.length > 0
   // Solo los cinco módulos admiten restricción; el material de apoyo lo usan
   // todos los módulos y separarlo por permisos dejaría fichas sin sus imágenes.
-  const esModulo = ['patologias', 'maniobras', 'casos-ao', 'cirugias', 'estudios-ia'].includes(
-    coleccion,
-  )
-  if (esModulo && restringido && !(permitidos as string[]).includes(coleccion)) {
-    throw new ErrorDeAcceso('Su cuenta no tiene permiso para editar este módulo.')
-  }
-  return contexto
+  //
+  // La lista se toma de donde se declaran las colecciones y no se copia aquí.
+  // Copiada, un módulo nuevo entraba sin restricción posible: quedaba fuera de
+  // este `includes`, ningún permiso por módulo se le aplicaba y cualquier
+  // editor podía escribirlo. Un permiso que falla abriendo no se nota.
+  const esModulo = (SLUGS_DE_MODULOS as readonly string[]).includes(coleccion)
+  return !(esModulo && restringido && !(permitidos as string[]).includes(coleccion))
 }
 
 /** Forma uniforme de respuesta de las acciones del panel. */

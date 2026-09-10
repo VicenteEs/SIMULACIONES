@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation'
 import type { Payload } from 'payload'
-import { obtenerSesion } from '@/lib/sesion'
+import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { BarraApilada, BarrasHorizontales, BarrasVerticales, type Punto } from '@/components/admin/Graficos'
 import { clientePayload } from '../datos'
 import { MODULOS, NOMBRE_DE_MODULO } from '../modulos'
@@ -60,8 +59,7 @@ async function fechasDeCreacion(payload: Payload, slug: string): Promise<string[
 }
 
 export default async function PaginaEstadisticas() {
-  const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
+  await exigirPanel('admin')
 
   const payload = await clientePayload()
   const meses = ultimosDoceMeses()

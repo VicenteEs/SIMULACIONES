@@ -1,5 +1,5 @@
-import { notFound, redirect } from 'next/navigation'
-import { obtenerSesion } from '@/lib/sesion'
+import { notFound } from 'next/navigation'
+import { exigirPanelPara } from '@/app/(frontend)/admin-panel/acceso'
 import { esColeccionEditable, esquemaDe } from '@/admin/esquema'
 import { TablaDocumentos } from '@/components/admin/TablaDocumentos'
 
@@ -16,10 +16,11 @@ export default async function PaginaDeColeccion({
 }: {
   params: Promise<{ coleccion: string }>
 }) {
-  const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
-
+  // El acceso se comprueba antes que la validez del slug: un 404 y una
+  // redirección distinguibles le dirían a un curioso sin sesión qué colecciones
+  // existen.
   const { coleccion } = await params
+  await exigirPanelPara(coleccion)
   if (!esColeccionEditable(coleccion)) notFound()
 
   return <TablaDocumentos esquema={esquemaDe(coleccion)} />

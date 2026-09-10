@@ -15,8 +15,11 @@
 
 export type Rol = 'admin' | 'editor' | 'lector'
 
-/** Los cinco módulos, repetidos aquí para que este archivo no dependa de nada. */
-export type Modulo = 'patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia'
+// La lista de módulos no se repite aquí. Estuvo, sin que nadie la usara, y una
+// lista sin lector es una lista que se queda atrás sin que nada lo note. La
+// única está en `src/collections/index.ts` (SLUGS_DE_MODULOS), junto a las
+// colecciones que la definen. Este archivo sigue sin depender de nada porque
+// trabaja con `string` y solo pregunta si una lista contiene un módulo.
 
 export interface UsuarioSesion {
   id: string

@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { obtenerSesion } from '@/lib/sesion'
+import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { directorioDeRespaldos, hayPgDump, listarRespaldos } from '@/lib/respaldosServidor'
 import { PanelDeRespaldos } from './PanelDeRespaldos'
 
@@ -15,8 +14,7 @@ export const dynamic = 'force-dynamic'
  * protege del incendio, únicamente del error.
  */
 export default async function PaginaRespaldos() {
-  const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
+  await exigirPanel('admin')
 
   const [respaldos, disponible] = await Promise.all([
     listarRespaldos().catch(() => []),

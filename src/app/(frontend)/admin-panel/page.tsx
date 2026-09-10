@@ -1,6 +1,6 @@
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { obtenerSesion } from '@/lib/sesion'
+import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { puedeEditar } from '@/lib/guardias'
 import { tamanoLegible } from '@/lib/respaldos'
 import { listarRespaldos } from '@/lib/respaldosServidor'
 import {
@@ -21,24 +21,33 @@ const fecha = (valor: string | Date) =>
 /**
  * Resumen del panel.
  *
- * Responde de un vistazo a las cuatro preguntas que se hacen al entrar: quién
- * tiene acceso, qué hay publicado y qué está a medias, qué se está leyendo, y
- * qué falta por atender. La última tarjeta es la del respaldo, porque el día
- * que importe será tarde para descubrir que el último es de hace dos meses.
+ * Responde de un vistazo a las preguntas que se hacen al entrar: qué hay
+ * publicado y qué está a medias, qué falta por atender y —si quien mira es el
+ * administrador— quién tiene acceso, qué se está leyendo y cuándo fue el
+ * último respaldo. Esa última tarjeta importa porque el día que haga falta
+ * será tarde para descubrir que el último es de hace dos meses.
  */
 export default async function ResumenAdmin() {
-  const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
+  // Entra también el editor. La barra lateral le ofrece «Resumen» desde el
+  // primer día, pero esta página exigía administrador y lo devolvía al inicio:
+  // su primer clic en el panel terminaba fuera del panel. Lo que ve es lo suyo
+  // —qué hay publicado, qué está a medias y qué se ha comentado—; las cuentas,
+  // los respaldos y la lectura son del administrador y no se le muestran.
+  const { sesion, esAdmin } = await exigirPanel()
 
   const payload = await clientePayload()
 
-  const [usuarios, comentarios, modulos, actividad, respaldos] = await Promise.all([
-    resumenDeUsuarios(payload),
+  const [usuarios, comentarios, todosLosModulos, actividad, respaldos] = await Promise.all([
+    esAdmin ? resumenDeUsuarios(payload) : null,
     resumenDeComentarios(payload),
     conteosPorModulo(payload),
-    resumenDeActividad(payload),
-    listarRespaldos().catch(() => []),
+    esAdmin ? resumenDeActividad(payload) : null,
+    esAdmin ? listarRespaldos().catch(() => []) : [],
   ])
+
+  // Un editor con módulos asignados cuenta y ve los suyos: un resumen que suma
+  // fichas que no puede tocar no le sirve para saber qué le queda por hacer.
+  const modulos = todosLosModulos.filter((m) => puedeEditar(sesion.usuario, m.slug))
 
   const publicados = modulos.reduce((total, m) => total + m.publicados, 0)
   const borradores = modulos.reduce((total, m) => total + m.borradores, 0)
@@ -72,7 +81,7 @@ export default async function ResumenAdmin() {
         </p>
       </header>
 
-      {diasSinRespaldo === null ? (
+      {!esAdmin ? null : diasSinRespaldo === null ? (
         <div className="admin-aviso admin-aviso-atencion">
           <strong>No hay ningún respaldo de la base de datos.</strong>
           Cree el primero desde <Link href="/admin-panel/respaldos">Respaldos</Link>; en el
@@ -87,24 +96,26 @@ export default async function ResumenAdmin() {
       ) : null}
 
       <div className="admin-grid">
-        <div className="admin-card">
-          <div className="admin-card-title">Cuentas con acceso</div>
-          <div className="admin-card-value">
-            {usuarios.activos}
-            <span className="admin-numero-tenue"> / {usuarios.total}</span>
+        {usuarios ? (
+          <div className="admin-card">
+            <div className="admin-card-title">Cuentas con acceso</div>
+            <div className="admin-card-value">
+              {usuarios.activos}
+              <span className="admin-numero-tenue"> / {usuarios.total}</span>
+            </div>
+            <p className="admin-card-note">
+              {usuarios.admins} administrador{usuarios.admins === 1 ? '' : 'es'} ·{' '}
+              {usuarios.editores} editor{usuarios.editores === 1 ? '' : 'es'} · {usuarios.lectores}{' '}
+              lector{usuarios.lectores === 1 ? '' : 'es'}
+              {usuarios.inactivos > 0 ? ` · ${usuarios.inactivos} sin activar` : ''}
+            </p>
+            <div className="admin-card-actions">
+              <Link href="/admin-panel/usuarios" className="admin-btn admin-btn-secondary">
+                Gestionar cuentas
+              </Link>
+            </div>
           </div>
-          <p className="admin-card-note">
-            {usuarios.admins} administrador{usuarios.admins === 1 ? '' : 'es'} ·{' '}
-            {usuarios.editores} editor{usuarios.editores === 1 ? '' : 'es'} · {usuarios.lectores}{' '}
-            lector{usuarios.lectores === 1 ? '' : 'es'}
-            {usuarios.inactivos > 0 ? ` · ${usuarios.inactivos} sin activar` : ''}
-          </p>
-          <div className="admin-card-actions">
-            <Link href="/admin-panel/usuarios" className="admin-btn admin-btn-secondary">
-              Gestionar cuentas
-            </Link>
-          </div>
-        </div>
+        ) : null}
 
         <div className="admin-card">
           <div className="admin-card-title">Contenido publicado</div>
@@ -138,39 +149,43 @@ export default async function ResumenAdmin() {
           </div>
         </div>
 
-        <div className="admin-card">
-          <div className="admin-card-title">Lectura de los últimos 7 días</div>
-          <div className="admin-card-value">{actividad.ultimos7dias}</div>
-          <p className="admin-card-note">
-            fichas abiertas por {actividad.lectoresActivos7dias} persona
-            {actividad.lectoresActivos7dias === 1 ? '' : 's'} · {actividad.completados} marcadas
-            como leídas
-          </p>
-          <div className="admin-card-actions">
-            <Link href="/admin-panel/actividad" className="admin-btn admin-btn-secondary">
-              Ver actividad
-            </Link>
+        {actividad ? (
+          <div className="admin-card">
+            <div className="admin-card-title">Lectura de los últimos 7 días</div>
+            <div className="admin-card-value">{actividad.ultimos7dias}</div>
+            <p className="admin-card-note">
+              fichas abiertas por {actividad.lectoresActivos7dias} persona
+              {actividad.lectoresActivos7dias === 1 ? '' : 's'} · {actividad.completados} marcadas
+              como leídas
+            </p>
+            <div className="admin-card-actions">
+              <Link href="/admin-panel/actividad" className="admin-btn admin-btn-secondary">
+                Ver actividad
+              </Link>
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className="admin-card">
-          <div className="admin-card-title">Último respaldo</div>
-          <div className="admin-card-value" style={{ fontSize: '1.5rem' }}>
-            {ultimoRespaldo ? fecha(ultimoRespaldo.creado) : 'ninguno'}
+        {esAdmin ? (
+          <div className="admin-card">
+            <div className="admin-card-title">Último respaldo</div>
+            <div className="admin-card-value" style={{ fontSize: '1.5rem' }}>
+              {ultimoRespaldo ? fecha(ultimoRespaldo.creado) : 'ninguno'}
+            </div>
+            <p className="admin-card-note">
+              {ultimoRespaldo
+                ? `${tamanoLegible(ultimoRespaldo.bytes)} · ${respaldos.length} archivo${
+                    respaldos.length === 1 ? '' : 's'
+                  } conservado${respaldos.length === 1 ? '' : 's'}`
+                : 'la base no se ha respaldado nunca'}
+            </p>
+            <div className="admin-card-actions">
+              <Link href="/admin-panel/respaldos" className="admin-btn admin-btn-secondary">
+                Respaldos
+              </Link>
+            </div>
           </div>
-          <p className="admin-card-note">
-            {ultimoRespaldo
-              ? `${tamanoLegible(ultimoRespaldo.bytes)} · ${respaldos.length} archivo${
-                  respaldos.length === 1 ? '' : 's'
-                } conservado${respaldos.length === 1 ? '' : 's'}`
-              : 'la base no se ha respaldado nunca'}
-          </p>
-          <div className="admin-card-actions">
-            <Link href="/admin-panel/respaldos" className="admin-btn admin-btn-secondary">
-              Respaldos
-            </Link>
-          </div>
-        </div>
+        ) : null}
       </div>
 
       <h2 className="admin-section-title">Contenido por módulo</h2>
@@ -194,13 +209,15 @@ export default async function ResumenAdmin() {
                 {m.total === 0 ? 'sin contenido aún' : `${porcentaje}% publicado`}
               </p>
               <div className="admin-card-actions">
+                {/* Apuntaba a `/admin/collections/…`, que es la interfaz de
+                    Payload: se retiró de esta plataforma y esa ruta hoy solo
+                    reenvía al panel. El botón abría una pestaña nueva, prometía
+                    el módulo y entregaba la portada del panel. */}
                 <Link
-                  href={`/admin/collections/${m.slug}`}
+                  href={`/admin-panel/contenido/${m.slug}`}
                   className="admin-btn admin-btn-secondary"
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
-                  Editar ↗
+                  Editar
                 </Link>
                 <Link href={m.ruta} className="admin-btn admin-btn-primary">
                   Ver público →

@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { obtenerSesion } from '@/lib/sesion'
+import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { tamanoLegible } from '@/lib/respaldos'
 import { directorioDeRespaldos, hayPgDump, listarRespaldos } from '@/lib/respaldosServidor'
 import { clientePayload } from '../datos'
@@ -58,8 +57,7 @@ async function estadoDeLaBase(payload: unknown): Promise<{ version: string; peso
 }
 
 export default async function PaginaSistema() {
-  const sesion = await obtenerSesion()
-  if (!sesion?.usuario || sesion.rolReal !== 'admin') redirect('/')
+  await exigirPanel('admin')
 
   let base: Diagnostico = { ok: false, detalle: 'sin respuesta' }
   let versionBase = 'desconocida'
