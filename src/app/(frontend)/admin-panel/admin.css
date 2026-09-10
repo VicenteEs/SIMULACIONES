@@ -917,6 +917,27 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
   color: var(--pizarra);
 }
 
+/* ---------- editor de encuadre 3D ---------- */
+/* El visor es el mismo componente que ve el residente, así que hereda sus
+   estilos de estilos.css; aquí solo va la botonera que el panel le añade
+   debajo y que el sitio público no tiene. */
+.encuadre-editor { margin-bottom: 1rem; }
+
+.encuadre-mandos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 0 0.25rem;
+}
+
+.encuadre-aviso { color: var(--verde, #16794a); font-weight: 600; }
+
+@media (max-width: 640px) {
+  /* El visor de la ficha sí funciona en el móvil, pero encuadrar con el dedo
+     mientras se escribe una ficha no. Los cinco números siguen ahí debajo. */
+  .encuadre-editor { display: none; }
+}
+
 /* ---------- listas repetibles ---------- */
 .lista-cabecera {
   display: flex;
@@ -1916,10 +1937,38 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   .atlas-panel-derecho { grid-column: 1 / -1; max-height: none; }
 }
 
+/* El taller anatómico es de escritorio, a propósito.
+ *
+ * Necesita tres cosas a la vez —el árbol de 2.234 piezas, el visor 3D y la
+ * ficha de la preparación— y en un teléfono no caben ni apiladas: el visor
+ * quedaba en 152 px de alto, que no da para distinguir una tibia de un peroné,
+ * y apagar piezas una a una con el dedo sobre una lista de casi mil filas no
+ * es trabajo que nadie quiera hacer. En vez de fingir que funciona, se dice.
+ *
+ * Esto NO afecta a `.atlas-instancia`, que es el visor de una preparación ya
+ * hecha dentro de una ficha: el residente sí lee fichas en el móvil, y ahí
+ * girar un hueso con el dedo funciona perfectamente. */
+.atlas-solo-escritorio { display: none; }
+
+@media (max-width: 899px) {
+  .atlas-taller { display: none; }
+
+  .atlas-solo-escritorio {
+    display: block;
+    margin: 24px 0;
+    padding: 20px;
+    border: 1px solid var(--borde);
+    border-left: 3px solid var(--ambar);
+    border-radius: 10px;
+    background: var(--ambar-tenue);
+  }
+  .atlas-solo-escritorio h2 { margin: 0 0 8px; font-size: 1.05rem; }
+  .atlas-solo-escritorio p { margin: 0 0 8px; line-height: 1.5; }
+  .atlas-solo-escritorio p:last-child { margin-bottom: 0; }
+}
+
+/* El visor de una preparación dentro de una ficha sí se adapta. */
 @media (max-width: 820px) {
-  .atlas-marco { grid-template-columns: 1fr; }
-  .atlas-centro { order: -1; }
-  .atlas-lienzo { height: 52vh; }
-  .atlas-panel { max-height: 380px; }
   .atlas-instancia { height: 60vh; }
+  .atlas-instancia .atlas-lienzo { height: 100%; }
 }

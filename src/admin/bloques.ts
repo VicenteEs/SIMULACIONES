@@ -173,8 +173,14 @@ export const BLOQUES: EsquemaDeBloque[] = [
         tipo: 'grupo',
         nombre: 'encuadre',
         etiqueta: 'Encuadre inicial',
+        // El visor y el botón de capturar viven en `EditorDeEncuadre`. Sin
+        // esta bandera esto son cinco casillas numéricas y una ayuda que le
+        // pide al traumatólogo que pulse un botón inexistente: así estuvo desde
+        // que se retiró la interfaz de Payload, que era donde vivía el botón.
+        editor: 'encuadre3d',
         ayuda:
-          'Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar.',
+          'Con qué ángulo y a qué distancia abre el modelo el residente. ' +
+          'Use el visor de aquí abajo; los números se rellenan solos.',
         campos: [
           { tipo: 'numero', nombre: 'escala', etiqueta: 'Escala', medio: true },
           { tipo: 'numero', nombre: 'distanciaCamara', etiqueta: 'Distancia de cámara', medio: true },

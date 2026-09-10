@@ -139,12 +139,10 @@ export const BloqueModelo3D: Block = {
       type: 'group',
       label: 'Encuadre inicial',
       admin: {
-        description:
-          'Gire el modelo hasta dejarlo como quiere que lo vea el residente y pulse capturar. Los números de abajo se rellenan solos.',
-        components: {
-          // Editor visual: sustituye escribir cinco números a mano.
-          afterInput: ['@/components/admin/EditorEncuadre#EditorEncuadre'],
-        },
+        // Esta descripción solo la leería la interfaz de administración de
+        // Payload, que se retiró (D-038). Se deja escueta y verdadera: quien
+        // edita de verdad lo hace en el panel propio, con el visor.
+        description: 'Con qué ángulo y a qué distancia abre el modelo el residente.',
       },
       fields: [
         { name: 'escala', type: 'number', defaultValue: 1, min: 0.01, max: 100, label: 'Escala' },

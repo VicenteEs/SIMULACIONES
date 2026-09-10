@@ -53,7 +53,18 @@ export type Campo =
   | (CampoBase & { tipo: 'archivo'; coleccion: string; acepta?: string })
   | (CampoBase & { tipo: 'rico' })
   | (CampoBase & { tipo: 'lista'; campos: Campo[]; singular: string })
-  | (CampoBase & { tipo: 'grupo'; campos: Campo[] })
+  | (CampoBase & {
+      tipo: 'grupo'
+      campos: Campo[]
+      /**
+       * Editor propio que se pinta encima de los subcampos.
+       *
+       * Hoy solo hay uno, `encuadre3d`: el visor con el que el traumatólogo
+       * deja el modelo como quiere y captura el encuadre. Sin él, ese grupo son
+       * cinco casillas numéricas que nadie sabe con qué rellenar.
+       */
+      editor?: 'encuadre3d'
+    })
   | (CampoBase & { tipo: 'bloques' })
 
 export interface Seccion {

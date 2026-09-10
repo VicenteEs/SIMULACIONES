@@ -5,6 +5,8 @@ import type { Campo } from '@/admin/esquema'
 import { BLOQUES, bloqueDe } from '@/admin/bloques'
 import { subirArchivo } from '@/app/(frontend)/acciones/contenido'
 import { EditorTextoRico } from './EditorTextoRico'
+import { EditorDeEncuadre } from './EditorDeEncuadre'
+import type { Encuadre } from '@/components/Visor3D'
 
 /**
  * Los controles del formulario, uno por tipo de campo del esquema.
@@ -30,12 +32,40 @@ interface Props {
   alCambiar: (nuevo: unknown) => void
   relaciones: Relaciones
   alRecargarRelacion?: (coleccion: string) => void
+  /**
+   * Los valores de los campos que están al mismo nivel que este.
+   *
+   * Casi ningún control los necesita: un campo se pinta con su propio valor y
+   * ya está. La excepción es el editor de encuadre, que tiene que saber qué
+   * modelo eligió el traumatólogo en el campo de al lado para poder enseñarlo.
+   */
+  hermanos?: Record<string, unknown>
 }
 
 const texto = (valor: unknown): string =>
   valor === null || valor === undefined ? '' : String(valor)
 
-export function ControlDeCampo({ campo, valor, alCambiar, relaciones, alRecargarRelacion }: Props) {
+/** Busca una opción de relación por su identificador, venga como sea. */
+function opcionDeRelacion(
+  relaciones: Relaciones,
+  coleccion: string,
+  bruto: unknown,
+): OpcionRelacion | undefined {
+  if (bruto === null || bruto === undefined) return undefined
+  const id =
+    typeof bruto === 'object' ? String((bruto as { id?: unknown }).id ?? '') : String(bruto)
+  if (!id) return undefined
+  return (relaciones[coleccion] ?? []).find((o) => o.id === id)
+}
+
+export function ControlDeCampo({
+  campo,
+  valor,
+  alCambiar,
+  relaciones,
+  alRecargarRelacion,
+  hermanos,
+}: Props) {
   const id = useId()
 
   const etiqueta = (
@@ -174,11 +204,25 @@ export function ControlDeCampo({ campo, valor, alCambiar, relaciones, alRecargar
         </div>
       )
 
-    case 'grupo':
+    case 'grupo': {
+      const modelo =
+        campo.editor === 'encuadre3d'
+          ? opcionDeRelacion(relaciones, 'modelos-3d', hermanos?.modelo)
+          : undefined
       return (
         <fieldset className="campo-grupo">
           <legend>{campo.etiqueta}</legend>
           {ayuda}
+          {campo.editor === 'encuadre3d' ? (
+            <EditorDeEncuadre
+              url={modelo?.url ?? null}
+              nombre={modelo?.etiqueta}
+              valor={(valor ?? {}) as Encuadre}
+              alCambiar={(nuevo) =>
+                alCambiar({ ...((valor ?? {}) as Record<string, unknown>), ...nuevo })
+              }
+            />
+          ) : null}
           <FilaDeCampos
             campos={campo.campos}
             valores={(valor ?? {}) as Record<string, unknown>}
@@ -190,6 +234,7 @@ export function ControlDeCampo({ campo, valor, alCambiar, relaciones, alRecargar
           />
         </fieldset>
       )
+    }
 
     case 'lista':
       return (
@@ -242,6 +287,7 @@ export function FilaDeCampos({
           alCambiar={(nuevo) => alCambiar(campo.nombre, nuevo)}
           relaciones={relaciones}
           alRecargarRelacion={alRecargarRelacion}
+          hermanos={valores}
         />
       ))}
     </div>

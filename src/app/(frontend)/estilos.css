@@ -244,13 +244,10 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .aviso-actualizacion button { background: var(--marca); color: #fff; border: none; padding: 7px 14px; border-radius: var(--r); cursor: pointer; font-size: 13px; }
 @keyframes surgir { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
-/* ---------- editor de encuadre (panel) ---------- */
-.editor-encuadre { border: 1px solid var(--linea); border-radius: var(--r-lg); overflow: hidden; margin-bottom: 14px; }
-.editor-encuadre-lienzo canvas { display: block; width: 100% !important; height: 320px !important; touch-action: none; }
-.editor-encuadre-pie { padding: 13px 15px; border-top: 1px solid var(--linea); background: var(--superficie); }
-.editor-encuadre-pie p { font-size: 13px; color: var(--pizarra); margin: 0 0 10px; }
-.editor-encuadre-botones { display: flex; gap: 8px; }
-.editor-encuadre-aviso { font-size: 13px; color: var(--pizarra); padding: 15px; border: 1px dashed var(--linea); border-radius: var(--r-lg); margin-bottom: 14px; }
+/* Aquí vivían seis clases del antiguo editor de encuadre, el que se montaba
+   dentro de la interfaz de administración de Payload. Se fueron con ella. El
+   editor de ahora está en el panel propio y reutiliza los estilos del visor
+   (.visor-3d-*), que es el mismo componente que ve el residente. */
 
 /* ---------- accesibilidad ---------- */
 :focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; border-radius: 2px; }
