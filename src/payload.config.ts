@@ -81,6 +81,14 @@ export default buildConfig({
     // mientras el modelo de contenido se mueve todos los días. Cada cambio de
     // esquema hay que congelarlo después con:
     //     npx payload migrate:create <nombre>
+    //
+    // Durante las pruebas, nunca. El `push` de Drizzle, cuando detecta que
+    // podría perder datos, **pregunta** —«Accept warnings and push schema?
+    // (y/N)»— y se queda esperando. Una suite que espera una respuesta que
+    // nadie va a dar no falla: se cuelga, en el portátil y en integración
+    // continua. Además, las pruebas no tienen por qué reescribir el esquema de
+    // la base con la que uno está desarrollando.
+    push: process.env.NODE_ENV !== 'test',
     prodMigrations: migrations,
   }),
   // sharp genera las miniaturas de las imagenes subidas.

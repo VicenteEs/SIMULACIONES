@@ -35,13 +35,26 @@ function nombresDeCampos(campos: Field[]): Set<string> {
   return nombres
 }
 
-/** Campos obligatorios de primer nivel de una colección. */
+/**
+ * Campos obligatorios de primer nivel de una colección.
+ *
+ * «Primer nivel» es del dato, no de la pantalla: las pestañas, las filas y los
+ * plegables agrupan al mirar, pero lo que contienen se guarda igual de suelto.
+ * Antes solo se miraban las pestañas, de modo que un campo obligatorio metido
+ * en una fila se escapaba de la comprobación —y era exactamente el caso que
+ * esta prueba existe para impedir: el editor deja guardar sin él y Payload
+ * rechaza el documento señalando un campo que no se ve en pantalla—.
+ */
 function obligatoriosDePrimerNivel(campos: Field[]): string[] {
   const nombres: string[] = []
   const recorrer = (lista: Field[]) => {
     for (const campo of lista) {
       if ('tabs' in campo && Array.isArray(campo.tabs)) {
         for (const pestana of campo.tabs) recorrer(pestana.fields as Field[])
+        continue
+      }
+      if ('fields' in campo && Array.isArray(campo.fields) && !('name' in campo)) {
+        recorrer(campo.fields as Field[])
         continue
       }
       if (
