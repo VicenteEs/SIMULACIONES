@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { tamanoLegible } from '@/lib/respaldos'
+import { espacioEnDisco, UMBRAL_DE_USO } from '@/lib/espacioEnDisco'
 import { directorioDeRespaldos, hayPgDump, listarRespaldos } from '@/lib/respaldosServidor'
 import { clientePayload } from '../datos'
 import { versionDelAtlas } from '@/app/(frontend)/acciones/atlas'
@@ -76,10 +77,11 @@ export default async function PaginaSistema() {
     base = { ok: false, detalle: error instanceof Error ? error.message : 'error desconocido' }
   }
 
-  const [respaldos, pgDump, atlas] = await Promise.all([
+  const [respaldos, pgDump, atlas, disco] = await Promise.all([
     listarRespaldos().catch(() => []),
     hayPgDump(),
     versionDelAtlas(),
+    espacioEnDisco(),
   ])
   const ultimo = respaldos.find((r) => r.tipo === 'base')
 
@@ -131,6 +133,20 @@ export default async function PaginaSistema() {
           ? urlPublica
           : `${urlPublica} — sin HTTPS la cookie de sesión viaja sin cifrar`,
       },
+    },
+    {
+      // Lo que la cabecera de esta página prometía desde el principio y no
+      // miraba nadie. Cuando el disco se llena, el respaldo sale truncado y la
+      // base deja de aceptar escrituras, las dos cosas sin avisar.
+      titulo: 'Espacio en disco',
+      estado: disco
+        ? {
+            ok: disco.usado < UMBRAL_DE_USO,
+            detalle: `${tamanoLegible(disco.bytesLibres)} libres de ${tamanoLegible(
+              disco.bytesTotales,
+            )} · ${disco.usado}% usado`,
+          }
+        : { ok: true, detalle: 'no se puede consultar en este sistema de archivos' },
     },
     {
       titulo: 'Modo de ejecución',
@@ -249,22 +265,11 @@ export default async function PaginaSistema() {
             </Link>
           </div>
         </div>
-        <div className="admin-card">
-          <div className="admin-card-title">CMS de Payload</div>
-          <p className="admin-card-note">
-            Redacción de contenido, versiones y todo lo que este panel no cubre.
-          </p>
-          <div className="admin-card-actions">
-            <Link
-              href="/admin"
-              className="admin-btn admin-btn-secondary"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Abrir CMS ↗
-            </Link>
-          </div>
-        </div>
+        {/* Aquí hubo una tarjeta «CMS de Payload» que abría /admin en una
+            pestaña nueva prometiendo «todo lo que este panel no cubre». Esa
+            interfaz se retiró (D-038) y la ruta solo reenvía aquí mismo: el
+            administrador abría una pestaña para acabar en el panel del que
+            salía. Ya no hay nada que este panel no cubra. */}
       </div>
     </div>
   )

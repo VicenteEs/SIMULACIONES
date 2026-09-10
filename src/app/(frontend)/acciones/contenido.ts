@@ -15,7 +15,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { accion, exigirEdicionDe, exigirEditor, type Respuesta } from '@/lib/guardias'
-import { esColeccionEditable, esquemaDe, type EsquemaDeColeccion } from '@/admin/esquema'
+import { camposDe, esColeccionEditable, esquemaDe, type EsquemaDeColeccion } from '@/admin/esquema'
 import { depurarDocumento, faltantes, sinIdentificadoresDeFila } from '@/admin/depurar'
 import { exigirIdentificador } from '@/lib/validacion'
 
@@ -153,26 +153,6 @@ export async function opcionesDeRelacion(
         tipo: typeof doc.mimeType === 'string' ? doc.mimeType : undefined,
       }
     })
-  })
-}
-
-// ------------------------------------------------------------------ leer
-
-export async function obtenerDocumento(
-  slug: unknown,
-  id: unknown,
-): Promise<Respuesta<Record<string, unknown>>> {
-  return accion(async () => {
-    const esquema = esquemaValidado(slug)
-    const { payload } = await exigirEditor()
-    const documento = await payload.findByID({
-      collection: esquema.slug as never,
-      id: exigirIdentificador(id, 'El documento'),
-      depth: 1,
-      draft: esquema.versionada,
-      overrideAccess: true,
-    })
-    return documento as unknown as Record<string, unknown>
   })
 }
 
@@ -326,7 +306,7 @@ export async function subirArchivo(formulario: FormData): Promise<Respuesta<{ id
     }
 
     const datos: Record<string, unknown> = {}
-    for (const campo of esquema.secciones.flatMap((s) => s.campos)) {
+    for (const campo of camposDe(esquema)) {
       const valor = formulario.get(campo.nombre)
       if (valor !== null) datos[campo.nombre] = valor
     }

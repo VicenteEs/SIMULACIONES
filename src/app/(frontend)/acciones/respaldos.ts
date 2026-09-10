@@ -34,10 +34,3 @@ export async function borrarRespaldo(nombre: unknown): Promise<Respuesta> {
     return null
   })
 }
-
-export async function consultarRespaldos(): Promise<Respuesta<Respaldo[]>> {
-  return accion(async () => {
-    await exigirAdmin()
-    return listarRespaldos()
-  })
-}

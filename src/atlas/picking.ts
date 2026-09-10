@@ -53,9 +53,8 @@ export function piezaBajoElRayo(
   // --- etapa 1: cajas ------------------------------------------------------
   const candidatas: Candidata[] = []
 
-  for (const [indice, rango] of escena.rangos) {
+  for (const indice of escena.rangos.keys()) {
     if (escena.datos[indice * 4 + 3] < ESTADO.VISIBLE) continue
-    void rango
 
     const pieza = catalogo.piezas[indice]
     const [min, max] = pieza.caja
@@ -134,13 +133,19 @@ function distanciaAPieza(
     b.fromBufferAttribute(posiciones, orden.getX(i + 1)).add(desplazamiento)
     c.fromBufferAttribute(posiciones, orden.getX(i + 2)).add(desplazamiento)
 
-    // Las dos caras: el material dibuja a doble cara, así que una pieza vista
-    // desde dentro —una arteria seccionada, la cavidad de un hueso— tiene que
-    // poder señalarse igual.
-    const impacto =
-      rayo.ray.intersectTriangle(a, b, c, false, puntoAuxiliar) ??
-      rayo.ray.intersectTriangle(a, c, b, false, puntoAuxiliar)
-    if (!impacto) continue
+    // Las dos caras, con una sola llamada.
+    //
+    // El `false` es el descarte de caras traseras, y desactivarlo es lo que ya
+    // cubre las dos orientaciones: three calcula la normal del triángulo y
+    // acepta el rayo venga por donde venga. Aquí se llamaba además con los
+    // vértices intercambiados, creyendo cubrir así la cara de dentro; esa
+    // segunda llamada no podía acertar nunca cuando la primera fallaba, porque
+    // invertir dos vértices invierte la normal y con ella el signo, los dos
+    // cambios se cancelan en los coeficientes baricéntricos y las tres pruebas
+    // de dentro-del-triángulo son simétricas. Era aritmética tirada en cada
+    // triángulo que no acierta, que son casi todos, dentro del bucle más
+    // caliente del visor.
+    if (!rayo.ray.intersectTriangle(a, b, c, false, puntoAuxiliar)) continue
 
     const distancia = rayo.ray.origin.distanceTo(puntoAuxiliar)
     if (masCerca === null || distancia < masCerca) masCerca = distancia

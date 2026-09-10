@@ -211,7 +211,7 @@ if [ "$TUNEL" = "tailscale" ]; then
   echo "    sudo tailscale funnel --bg 3000    # publico en internet, con HTTPS"
   echo
 fi
-echo "Primera cuenta:  abra ${NEXT_PUBLIC_SERVER_URL:-la direccion publica}/admin"
+echo "Primera cuenta:  abra ${NEXT_PUBLIC_SERVER_URL:-la direccion publica}/instalar"
 echo "                 la primera cuenta que se cree queda como administradora y activa."
 echo
 echo "Actualizar:      ./scripts/actualizar.sh"

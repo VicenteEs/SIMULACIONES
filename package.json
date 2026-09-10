@@ -21,7 +21,6 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "payload migrate",
-    "db:seed": "tsx scripts/seed.ts",
     "test:integration": "vitest run tests/integration",
     "demo": "tsx scripts/demo.ts",
     "test:e2e:ui": "playwright test --ui",

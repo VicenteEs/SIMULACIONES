@@ -19,15 +19,17 @@ export default async function AdminAntiguo({
   params: Promise<{ resto?: string[] }>
 }) {
   const { resto } = await params
-  const [seccion, testigo] = resto ?? []
+  const [seccion] = resto ?? []
 
   // El caso de una instalacion nueva: quien busca /admin viene a crear la
   // primera cuenta, que antes se creaba justo ahi.
   if (await faltaLaPrimeraCuenta()) redirect('/instalar')
 
-  // Un enlace de restablecimiento antiguo conserva su testigo: sirve igual en
-  // la pantalla nueva.
-  if (seccion === 'reset' && testigo) permanentRedirect(`/clave/${testigo}`)
+  // Aqui hubo una rama mas, para los enlaces de restablecimiento antiguos
+  // (`/admin/reset/<testigo>`). Ya no puede alcanzarla ninguno: el correo se
+  // arma ahora en `src/collections/Usuarios.ts` y apunta a `/clave/<testigo>`,
+  // y los testigos caducan en una hora, asi que tampoco queda vivo ninguno de
+  // los de antes.
   if (seccion === 'login' || seccion === 'logout') permanentRedirect('/entrar')
 
   permanentRedirect('/admin-panel')

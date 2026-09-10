@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Field } from 'payload'
 import { COLECCIONES } from '@/collections'
 import { BLOQUES as BLOQUES_PAYLOAD } from '@/blocks'
-import { ESQUEMAS, esColeccionEditable, recorrerCampos, type Campo } from '@/admin/esquema'
+import { ESQUEMAS, camposDe, esColeccionEditable, recorrerCampos, type Campo } from '@/admin/esquema'
 import { BLOQUES as BLOQUES_PANEL } from '@/admin/bloques'
 
 /**
@@ -100,7 +100,7 @@ describe('el esquema del panel cubre las colecciones', () => {
     for (const esquema of ESQUEMAS) {
       const coleccion = COLECCIONES.find((c) => c.slug === esquema.slug)!
       const existentes = nombresDeCampos(coleccion.fields)
-      for (const campo of esquema.secciones.flatMap((s) => s.campos)) {
+      for (const campo of camposDe(esquema)) {
         expect(existentes, `${esquema.slug}.${campo.nombre} no existe en la colección`).toContain(
           campo.nombre,
         )
@@ -113,7 +113,7 @@ describe('el esquema del panel cubre las colecciones', () => {
     // con un mensaje que no señala nada que se pueda tocar en pantalla.
     for (const esquema of ESQUEMAS) {
       const coleccion = COLECCIONES.find((c) => c.slug === esquema.slug)!
-      const enElEsquema = new Set(esquema.secciones.flatMap((s) => s.campos).map((c) => c.nombre))
+      const enElEsquema = new Set(camposDe(esquema).map((c) => c.nombre))
       for (const obligatorio of obligatoriosDePrimerNivel(coleccion.fields)) {
         expect(enElEsquema, `${esquema.slug}.${obligatorio} falta en el esquema`).toContain(
           obligatorio,
@@ -168,7 +168,7 @@ describe('los bloques del panel cubren los de la plataforma', () => {
 describe('coherencia interna del esquema', () => {
   it('ningún campo se repite dentro de una colección', () => {
     for (const esquema of ESQUEMAS) {
-      const nombres = esquema.secciones.flatMap((s) => s.campos).map((c) => c.nombre)
+      const nombres = camposDe(esquema).map((c) => c.nombre)
       expect(new Set(nombres).size, esquema.slug).toBe(nombres.length)
     }
   })
@@ -190,7 +190,7 @@ describe('coherencia interna del esquema', () => {
     const esTexto = (campo: Campo) => campo.tipo === 'texto' || campo.tipo === 'area'
     for (const esquema of ESQUEMAS) {
       const porNombre = new Map(
-        [...recorrerCampos(esquema.secciones.flatMap((s) => s.campos))].map((c) => [c.nombre, c]),
+        [...recorrerCampos(camposDe(esquema))].map((c) => [c.nombre, c]),
       )
       for (const nombre of esquema.buscarEn) {
         const campo = porNombre.get(nombre)
@@ -206,7 +206,7 @@ describe('coherencia interna del esquema', () => {
 
   it('toda selección ofrece al menos una opción', () => {
     for (const esquema of ESQUEMAS) {
-      for (const campo of recorrerCampos(esquema.secciones.flatMap((s) => s.campos))) {
+      for (const campo of recorrerCampos(camposDe(esquema))) {
         if (campo.tipo === 'seleccion') {
           expect(campo.opciones.length, `${esquema.slug}.${campo.nombre}`).toBeGreaterThan(0)
         }

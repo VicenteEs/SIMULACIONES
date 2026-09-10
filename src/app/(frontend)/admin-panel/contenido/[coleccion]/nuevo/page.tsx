@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { exigirPanelPara } from '@/app/(frontend)/admin-panel/acceso'
-import { esColeccionEditable, esquemaDe, type Campo } from '@/admin/esquema'
+import { camposDe, esColeccionEditable, esquemaDe, type Campo } from '@/admin/esquema'
 import { FormularioDocumento } from '@/components/admin/FormularioDocumento'
 import { contenidoNuevo } from '@/lib/textoRico'
 
@@ -57,7 +57,7 @@ export default async function PaginaNuevoDocumento({
   return (
     <FormularioDocumento
       esquema={esquema}
-      documento={documentoEnBlanco(esquema.secciones.flatMap((s) => s.campos))}
+      documento={documentoEnBlanco(camposDe(esquema))}
       id={null}
       rutaPublica={null}
     />

@@ -12,7 +12,7 @@
  * genérico no sea un agujero, así que conviene que siga siendo aburrida.
  */
 
-import type { Campo, EsquemaDeColeccion } from './esquema'
+import { camposDe, type Campo, type EsquemaDeColeccion } from './esquema'
 import { bloqueDe, esBloqueConocido } from './bloques'
 import { desdeLexical, haciaLexical } from '@/lib/textoRico'
 
@@ -158,7 +158,7 @@ export function depurarDocumento(
   esquema: EsquemaDeColeccion,
   origen: Record<string, unknown>,
 ): Record<string, unknown> {
-  const campos = esquema.secciones.flatMap((s) => s.campos)
+  const campos = camposDe(esquema)
   return depurarCampos(campos, origen)
 }
 
@@ -205,7 +205,7 @@ export function faltantes(
   documento: Record<string, unknown>,
 ): string[] {
   const problemas: string[] = []
-  for (const campo of esquema.secciones.flatMap((s) => s.campos)) {
+  for (const campo of camposDe(esquema)) {
     if (!campo.requerido) continue
     const valor = documento[campo.nombre]
     const vacio =

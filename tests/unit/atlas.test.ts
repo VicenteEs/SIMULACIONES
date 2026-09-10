@@ -4,7 +4,6 @@ import { resolve } from 'node:path'
 import {
   armarArbol,
   buscarPiezas,
-  indexarPiezas,
   normalizar,
   normalizarSeleccion,
   normalizarVista,
@@ -227,7 +226,8 @@ describe('el atlas preparado en esta copia del proyecto', () => {
 
   siHay('no tiene identificadores repetidos', () => {
     // Si se repitieran, una preparación encendería piezas que no eligió nadie.
-    expect(indexarPiezas(catalogo!).size).toBe(catalogo!.piezas.length)
+    const identificadores = new Set(catalogo!.piezas.map((p) => p.id))
+    expect(identificadores.size).toBe(catalogo!.piezas.length)
   })
 
   siHay('cada pieza cae en un sistema y una región declarados', () => {

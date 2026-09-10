@@ -1,7 +1,7 @@
 import { getPayload, type Payload } from 'payload'
 import config from '@payload-config'
 import { SLUGS_DE_MODULOS } from '@/collections'
-import { AUXILIARES, MODULOS, NOMBRE_DE_MODULO, rutaPublica } from './modulos'
+import { MODULOS, NOMBRE_DE_MODULO, rutaPublica } from './modulos'
 
 /**
  * Consultas de sólo lectura que alimentan el panel.
@@ -129,9 +129,4 @@ export async function resumenDeActividad(payload: Payload): Promise<ResumenDeAct
   return { registros, completados, ultimos7dias, lectoresActivos7dias }
 }
 
-/** Total de documentos del contenido auxiliar, para el resumen. */
-export async function conteosAuxiliares(payload: Payload): Promise<number[]> {
-  return Promise.all(AUXILIARES.map((a) => contar(payload, a.slug)))
-}
-
-export { SLUGS_DE_MODULOS, AUXILIARES, MODULOS, NOMBRE_DE_MODULO, rutaPublica }
+export { SLUGS_DE_MODULOS, MODULOS, NOMBRE_DE_MODULO, rutaPublica }

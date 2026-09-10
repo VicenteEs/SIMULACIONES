@@ -409,7 +409,9 @@ export function desdeTextoLlano(texto: string): Parrafo[] {
     .filter(Boolean)
     .map((trozo) => ({
       tipo: 'parrafo' as const,
-      fragmentos: [{ texto: trozo.replace(/\n/g, '\n') }],
+      // Los saltos simples se respetan tal cual. Aquí hubo un `replace` de
+      // salto de línea por salto de línea: no cambiaba absolutamente nada.
+      fragmentos: [{ texto: trozo }],
     }))
 }
 

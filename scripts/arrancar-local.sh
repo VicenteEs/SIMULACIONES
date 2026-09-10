@@ -58,5 +58,5 @@ echo
 echo "Listo. Arranque la aplicacion con:"
 echo "    npm run dev"
 echo
-echo "Y abra http://localhost:3000/admin para crear la primera cuenta."
+echo "Y abra http://localhost:3000/instalar para crear la primera cuenta."
 echo "Recuerde marcarla como activa: una cuenta sin activar no ve nada."

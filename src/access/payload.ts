@@ -46,15 +46,13 @@ function normalizar(usuario: unknown): UsuarioSesion | null {
 const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
   normalizar(args?.req?.user)
 
-/**
- * Lectura de una colección **versionada**.
- *
- * Devuelve un filtro que deja fuera los borradores para el lector. Ese filtro
- * consulta la columna `_status`, que solo existe donde hay borradores
- * activados: usarlo en una colección sin versiones rompe la consulta con
- * «Cannot find field for path at _status». Para esas, ver `lecturaSimple`.
- */
-export const lecturaDeContenido: Access = (args) => filtroDeLectura(usuarioDe(args))
+// Aquí vivió `lecturaDeContenido`, lectura de una colección versionada sin
+// permisos por módulo. No la usaba ninguna colección —los cinco módulos usan
+// `lecturaDeModulo` y las auxiliares `lecturaSimple`— y era la elección
+// equivocada que más se parece a la correcta: quien fuera a declarar una
+// colección nueva se habría encontrado con un nombre que suena a «lectura de
+// contenido» y habría dejado el módulo sin sus permisos, sin que nada fallara.
+// Su lógica no se perdió: `lecturaDeModulo` delega en el mismo `filtroDeLectura`.
 
 /**
  * Lectura de un módulo concreto, con permisos por módulo.

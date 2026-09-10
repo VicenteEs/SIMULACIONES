@@ -297,7 +297,3 @@ export function piezasPerdidas(
   return contenido.piezas.map((p) => p.id).filter((id) => !conocidas.has(id))
 }
 
-/** Índice rápido por identificador, para el visor. */
-export function indexarPiezas(catalogo: CatalogoDelAtlas): Map<string, PiezaDelAtlas> {
-  return new Map(catalogo.piezas.map((p) => [p.id, p]))
-}

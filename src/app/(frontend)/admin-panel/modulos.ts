@@ -15,12 +15,6 @@ export const MODULOS = [
   { slug: 'estudios-ia', nombre: 'Lectura de imágenes', ruta: '/imagenes', numero: '05' },
 ] as const
 
-export const AUXILIARES = [
-  { slug: 'segmentos', nombre: 'Segmentos anatómicos' },
-  { slug: 'medios', nombre: 'Medios (imágenes y video)' },
-  { slug: 'modelos-3d', nombre: 'Modelos 3D' },
-] as const
-
 /** Nombre legible de cada módulo, para mostrar un slug guardado en la base. */
 export const NOMBRE_DE_MODULO: Record<string, string> = Object.fromEntries(
   MODULOS.map((m) => [m.slug, m.nombre]),
