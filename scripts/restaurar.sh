@@ -50,7 +50,7 @@ read -r respuesta
 paso "Respaldando el estado actual por si acaso"
 mkdir -p backups
 previo="backups/base-$(date +%Y%m%d-%H%M%S).sql.gz"
-docker compose -f "$COMPOSE" exec -T db \
+dc exec -T db \
   pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists | gzip -9 > "$previo"
 verde "    $previo"
 
@@ -59,23 +59,51 @@ paso "Deteniendo la aplicacion mientras se restaura"
 # entre las dos versiones, que es el peor resultado posible.
 detenida=0
 if servicio_en_marcha app; then
-  docker compose -f "$COMPOSE" stop app >/dev/null
+  dc stop app >/dev/null
   detenida=1
   verde "    aplicacion detenida"
 fi
 
+# A partir de aqui la plataforma esta apagada, asi que cualquier salida tiene
+# que dejarla en pie y decir en que estado quedo la base. Sin esta trampa, un
+# error de psql dejaba la aplicacion detenida, la base a medio restaurar y al
+# operador delante de un 502 sin una sola indicacion de que hacer.
+al_salir() {
+  local codigo=$?
+  if [ "$codigo" -ne 0 ]; then
+    echo
+    rojo "La restauracion fallo."
+    ambar "La base NO quedo a medias: se restaura dentro de una transaccion,"
+    ambar "asi que sigue como estaba antes de ejecutar este guion."
+    echo
+    echo "El estado previo tambien esta guardado en:  $previo"
+    echo "Para volver a intentarlo:  ./scripts/restaurar.sh $archivo"
+  fi
+  if [ "${detenida:-0}" -eq 1 ]; then
+    dc start app >/dev/null 2>&1 && echo "La aplicacion se volvio a levantar."
+  fi
+  exit "$codigo"
+}
+trap al_salir EXIT
+
 paso "Restaurando"
-gzip -dc "$archivo" | docker compose -f "$COMPOSE" exec -T db \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --quiet
+# `--single-transaction` es lo que convierte esto en todo o nada. El volcado
+# empieza destruyendo objetos (--clean --if-exists), asi que sin transaccion un
+# error a mitad deja el esquema anterior ya borrado y a medio reconstruir.
+gzip -dc "$archivo" | dc exec -T db \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --single-transaction --quiet
 
 paso "Comprobando el resultado"
-usuarios=$(docker compose -f "$COMPOSE" exec -T db \
+usuarios=$(dc exec -T db \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from usuarios;" | tr -d '\r ')
 verde "    cuentas restauradas: $usuarios"
 
 if [ "$detenida" -eq 1 ]; then
   paso "Volviendo a levantar la aplicacion"
-  docker compose -f "$COMPOSE" start app >/dev/null
+  dc start app >/dev/null
+  # Se marca como ya levantada para que la trampa de salida no lo repita ni
+  # vuelva a anunciarlo.
+  detenida=0
   verde "    en marcha"
 fi
 

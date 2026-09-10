@@ -51,6 +51,6 @@ else
   paso "Devolviendo el codigo a $(git rev-parse --short "$ANTES")"
   git reset --hard "$ANTES"
   ambar "    el codigo volvio a la version anterior; la aplicacion tambien."
-  ambar "    Revise el registro:  docker compose -f $COMPOSE logs --tail 100 app"
+  ambar "    Revise el registro:  $(orden_compose) logs --tail 100 app"
   exit 1
 fi

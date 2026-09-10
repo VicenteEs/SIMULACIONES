@@ -38,11 +38,11 @@ fi
 echo
 
 echo "Base de datos"
-if docker compose -f "$COMPOSE" exec -T db pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
-  peso=$(docker compose -f "$COMPOSE" exec -T db \
+if dc exec -T db pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+  peso=$(dc exec -T db \
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
     "select pg_size_pretty(pg_database_size(current_database()));" 2>/dev/null | tr -d '\r ')
-  cuentas=$(docker compose -f "$COMPOSE" exec -T db \
+  cuentas=$(dc exec -T db \
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from usuarios;" 2>/dev/null | tr -d '\r ')
   bien "acepta conexiones · ${peso:-?} · ${cuentas:-?} cuentas"
 else
@@ -51,7 +51,12 @@ fi
 echo
 
 echo "Aplicacion"
-respuesta=$(docker compose -f "$COMPOSE" exec -T app wget -qO- "http://127.0.0.1:3000${BASE_PATH:-}/api/salud" 2>/dev/null || true)
+# El prefijo se le pregunta al contenedor y no se deduce de una variable del
+# anfitrion: se graba en la imagen al compilar y aqui no existe, asi que antes
+# se consultaba /api/salud en una instalacion que sirve /traumahub/api/salud, y
+# se informaba de que no responde una aplicacion perfectamente sana.
+PREFIJO=$(prefijo_de_la_app)
+respuesta=$(dc exec -T app wget -qO- "http://127.0.0.1:3000${PREFIJO}/api/salud" 2>/dev/null || true)
 case "$respuesta" in
   *'"estado":"ok"'*) bien "responde y alcanza la base" ;;
   *'"estado"'*)      fallo "responde pero no alcanza la base: $respuesta" ;;
@@ -79,6 +84,22 @@ else
     fallo "el ultimo respaldo tiene $edad dias: $ultimo"
   fi
   echo "    conservados: $(ls -1 backups/base-*.sql.gz 2>/dev/null | wc -l)"
+fi
+
+# Los medios se miran aparte. La base se puede volver a escribir; las imagenes,
+# los videos y los modelos 3D que subio el traumatologo, no. Mirar solo el
+# volcado dejaba el estado en verde mientras lo irreemplazable no se respaldaba.
+ultimo_medios=$(ls -1t backups/medios-*.tar.gz 2>/dev/null | head -1 || true)
+if [ -z "$ultimo_medios" ]; then
+  ambar "  ·  no hay ningun respaldo de los archivos subidos"
+  echo "     (normal si todavia no se ha subido ninguna imagen ni modelo)"
+else
+  edad_medios=$(( ( $(date +%s) - $(stat -c %Y "$ultimo_medios") ) / 86400 ))
+  if [ "$edad_medios" -le 2 ]; then
+    bien "$ultimo_medios · $(du -h "$ultimo_medios" | cut -f1) · hace $edad_medios dia(s)"
+  else
+    fallo "el ultimo respaldo de archivos subidos tiene $edad_medios dias"
+  fi
 fi
 if command -v systemctl >/dev/null 2>&1 && systemctl list-timers plataforma-respaldo.timer >/dev/null 2>&1; then
   if systemctl is-active --quiet plataforma-respaldo.timer; then

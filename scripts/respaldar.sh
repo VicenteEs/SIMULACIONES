@@ -33,14 +33,19 @@ archivo="$DESTINO/base-$MARCA.sql.gz"
 
 # Si el volcado falla a mitad, gzip ya creo el archivo: se borra al salir con
 # error para no dejar respaldos truncados que parezcan buenos en el listado.
+#
+# Se borra SIEMPRE que el codigo de salida no sea cero, sin mirar el tamano.
+# La version anterior solo descartaba lo que pesara menos de 1 KB, y ese es
+# justo el caso que no ocurre: si el disco se llena a mitad o pg_dump muere sin
+# memoria, lo que queda son cientos de megabytes truncados. El archivo se
+# quedaba, la verificacion no llegaba a ejecutarse porque el guion moria antes,
+# y al dia siguiente el panel y salud.sh lo daban por bueno solo por su fecha.
+# El gemelo en TypeScript ya lo hacia bien (src/lib/respaldosServidor.ts).
 limpiar_si_falla() {
   local codigo=$?
   if [ "$codigo" -ne 0 ] && [ -f "$archivo" ]; then
-    tam=$(stat -c%s "$archivo" 2>/dev/null || stat -f%z "$archivo" 2>/dev/null || echo 0)
-    if [ "$tam" -lt 1024 ]; then
-      rm -f "$archivo"
-      rojo "Se descarto el respaldo incompleto."
-    fi
+    rm -f "$archivo"
+    rojo "Se descarto el respaldo incompleto."
   fi
   exit "$codigo"
 }
@@ -48,7 +53,7 @@ trap limpiar_si_falla EXIT
 
 paso "Volcando la base de datos"
 servicio_en_marcha db || morir "El contenedor de la base no esta en marcha."
-docker compose -f "$COMPOSE" exec -T db \
+dc exec -T db \
   pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists \
   | gzip -9 > "$archivo"
 
@@ -62,19 +67,43 @@ fi
 verde "    $archivo ($tamano bytes)"
 
 paso "Respaldando los archivos subidos"
+# Es lo unico irreemplazable de la plataforma: la base se puede volver a
+# escribir, pero las imagenes, los videos y los modelos 3D que subio el
+# traumatologo no. Por eso aqui no se sale nunca en silencio: si no se puede
+# leer de donde estan, el guion falla y el respaldo no se da por bueno.
 archivo_medios="$DESTINO/medios-$MARCA.tar.gz"
+medios_ok=0
+
 if servicio_en_marcha app; then
-  if docker compose -f "$COMPOSE" exec -T app tar czf - -C /app/public media 2>/dev/null > "$archivo_medios"; then
-    verde "    $archivo_medios"
-  else
+  # Con la aplicacion viva se lee de su propio contenedor.
+  if dc exec -T app tar czf - -C /app/public media 2>/dev/null > "$archivo_medios"; then
+    medios_ok=1
+  fi
+else
+  # Sin ella, un contenedor desechable con los mismos volumenes montados.
+  # `--no-deps` evita arrastrar la base solo para leer archivos.
+  rm -f "$archivo_medios"
+  if dc run --rm --no-deps --entrypoint sh app \
+      -c 'tar czf - -C /app/public media' 2>/dev/null > "$archivo_medios"; then
+    medios_ok=1
+  fi
+fi
+
+if [ "$medios_ok" -eq 1 ]; then
+  tam_medios=$(stat -c%s "$archivo_medios" 2>/dev/null || stat -f%z "$archivo_medios" 2>/dev/null || echo 0)
+  # Un tar.gz de un directorio vacio pesa unas decenas de bytes: eso es
+  # «todavia no hay medios», no un fallo.
+  if [ "$tam_medios" -lt 200 ]; then
     rm -f "$archivo_medios"
     echo "    sin archivos subidos todavia"
+  else
+    verde "    $archivo_medios ($tam_medios bytes)"
   fi
-elif [ -d public/media ]; then
-  tar czf "$archivo_medios" public/media
-  verde "    $archivo_medios"
 else
-  echo "    sin medios que respaldar"
+  rm -f "$archivo_medios"
+  morir "No se pudieron leer los archivos subidos. El respaldo NO esta completo:
+la base se volco pero los medios no. Compruebe que el servicio 'app' existe en
+este despliegue con:  ./scripts/salud.sh"
 fi
 
 if [ "${1:-}" = "--verificar" ]; then

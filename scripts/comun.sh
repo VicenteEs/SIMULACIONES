@@ -58,7 +58,49 @@ exigir_variables() {
   done
 }
 
+# Ejecuta docker compose sobre el despliegue que corresponda.
+#
+# El detalle que importa: cuando el archivo es el `docker-compose.yml` de
+# siempre, **no se pasa -f**. Con -f explicito, Compose deja de fusionar el
+# `docker-compose.override.yml`, y en el servidor de paginas el servicio `app`
+# vive precisamente ahi (ver despliegue/paginas/LEEME.md). Pasarlo hacia que
+# `ps app` fallara en silencio, y con ello que el respaldo de los medios se
+# saltara siempre, que salud.sh informara de averias inexistentes y que
+# restaurar.sh no llegara a detener la aplicacion. Un guion de "-f" de mas.
+dc() {
+  if [ "$COMPOSE" = "docker-compose.yml" ]; then
+    docker compose "$@"
+  else
+    docker compose -f "$COMPOSE" "$@"
+  fi
+}
+
+# La misma orden, escrita, para poder sugerirla en un mensaje.
+#
+# Los guiones terminan diciendo «revise el registro con: ...», y esa linea la
+# copia y pega alguien. Si sugiere un "-f" que aqui evitamos, le entregamos al
+# operador el mismo fallo que acabamos de corregir, y en el peor momento.
+orden_compose() {
+  if [ "$COMPOSE" = "docker-compose.yml" ]; then
+    printf 'docker compose'
+  else
+    printf 'docker compose -f %s' "$COMPOSE"
+  fi
+}
+
 # ¿Esta corriendo un servicio del compose?
 servicio_en_marcha() {
-  docker compose -f "$COMPOSE" ps "$1" --status running -q 2>/dev/null | grep -q .
+  dc ps "$1" --status running -q 2>/dev/null | grep -q .
+}
+
+# El prefijo bajo el que se sirve la plataforma, preguntado al contenedor.
+#
+# Se pregunta y no se deduce: el prefijo se graba en la imagen al compilar
+# (ARG BASE_PATH del Dockerfile) y no existe en el .env del anfitrion, asi que
+# leerlo de una variable de aqui daba siempre vacio y hacia consultar
+# /api/salud en vez de /traumahub/api/salud.
+prefijo_de_la_app() {
+  # La sustitucion de comando ya quita los saltos finales; el tr esta por el
+  # retorno de carro que anade Docker cuando el anfitrion es Windows.
+  dc exec -T app printenv NEXT_PUBLIC_BASE_PATH 2>/dev/null | tr -d '\r'
 }

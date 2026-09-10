@@ -51,7 +51,7 @@ paso "Respaldando la base antes de tocar nada"
 if servicio_en_marcha db; then
   marca=$(date +%Y%m%d-%H%M%S)
   archivo="backups/base-$marca.sql.gz"
-  docker compose -f "$COMPOSE" exec -T db \
+  dc exec -T db \
     pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists | gzip -9 > "$archivo"
   verde "    respaldo en $archivo"
 else
@@ -69,10 +69,10 @@ else
 fi
 
 paso "Construyendo la imagen"
-docker compose -f "$COMPOSE" build app
+dc build app
 
 paso "Levantando los servicios"
-docker compose -f "$COMPOSE" up -d --remove-orphans
+dc up -d --remove-orphans
 
 paso "Esperando a que la aplicacion responda"
 # Se consulta desde dentro del contenedor: con el tunel de Cloudflare la
@@ -81,7 +81,7 @@ paso "Esperando a que la aplicacion responda"
 # que un "ok" significa aplicacion y base en pie, no solo el puerto abierto.
 sano=0
 for intento in $(seq 1 90); do
-  if docker compose -f "$COMPOSE" exec -T app wget -qO- "http://127.0.0.1:3000${BASE_PATH:-}/api/salud" 2>/dev/null | grep -q '"estado":"ok"'; then
+  if dc exec -T app wget -qO- "http://127.0.0.1:3000${BASE_PATH:-}/api/salud" 2>/dev/null | grep -q '"estado":"ok"'; then
     verde "    responde y alcanza la base tras ${intento}s"
     sano=1
     break
@@ -91,11 +91,11 @@ done
 
 if [ "$sano" -ne 1 ]; then
   rojo "La aplicacion no respondio en 90 segundos."
-  docker compose -f "$COMPOSE" logs --tail 60 app
+  dc logs --tail 60 app
   if [ "$HAY_ANTERIOR" -eq 1 ]; then
     paso "Volviendo a la imagen anterior"
     docker tag "$ANTERIOR" "$IMAGEN"
-    docker compose -f "$COMPOSE" up -d --no-build app
+    dc up -d --no-build app
     ambar "    se restauro la version anterior; revise el registro de arriba"
   fi
   exit 1
@@ -103,11 +103,11 @@ fi
 
 paso "Comprobando el tunel"
 if [ "$TUNEL" = "cloudflare" ]; then
-  if docker compose -f "$COMPOSE" logs tunel 2>/dev/null | grep -qi "Registered tunnel connection"; then
+  if dc logs tunel 2>/dev/null | grep -qi "Registered tunnel connection"; then
     verde "    el tunel esta conectado a Cloudflare"
   else
     ambar "    el tunel aun no registra conexiones."
-    ambar "    Revise el token en .env y ejecute: docker compose -f $COMPOSE logs tunel"
+    ambar "    Revise el token en .env y ejecute: $(orden_compose) logs tunel"
   fi
 else
   if command -v tailscale >/dev/null && tailscale serve status 2>/dev/null | grep -q "3000"; then
@@ -125,6 +125,6 @@ docker image prune -f >/dev/null
 echo
 verde "Despliegue completado."
 echo
-echo "Registro en vivo:  docker compose -f $COMPOSE logs -f app"
+echo "Registro en vivo:  $(orden_compose) logs -f app"
 echo "Estado:            ./scripts/salud.sh"
 echo "Respaldo manual:   ./scripts/respaldar.sh --verificar"
