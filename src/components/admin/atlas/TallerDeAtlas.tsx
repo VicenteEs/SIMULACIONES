@@ -79,6 +79,8 @@ export function TallerDeAtlas() {
     setDescripcion('')
     setVisibles(new Set(catalogo.piezas.map((p) => p.id)))
     setSeparacion(0)
+    setVistaInicial(VISTA_INICIAL)
+    mando.current?.irA(VISTA_INICIAL)
     setAviso(null)
   }
 
@@ -96,6 +98,11 @@ export function TallerDeAtlas() {
       setVisibles(new Set(r.datos.contenido.piezas.map((p) => p.id)))
       setSeparacion(r.datos.contenido.vista.separacion)
       setVistaInicial(r.datos.contenido.vista)
+      // Y además se le ordena al visor que vaya: la escena ya está montada y no
+      // se vuelve a montar, así que sin esto la cámara se quedaba donde
+      // estuviera. Como al guardar se escribe la cámara actual, abrir una
+      // preparación y volver a guardarla borraba su encuadre sin avisar.
+      mando.current?.irA(r.datos.contenido.vista)
       if (r.datos.perdidas.length > 0) {
         setAviso({
           tipo: 'error',

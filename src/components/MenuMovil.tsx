@@ -46,9 +46,17 @@ export function MenuMovil({
   const panel = useRef<HTMLDivElement>(null)
 
   // Cerrar al cambiar de página.
-  useEffect(() => {
+  //
+  // Se ajusta durante el pintado y no en un efecto. Con un efecto, el panel
+  // llegaba a pintarse una vez sobre la página nueva antes de cerrarse: un
+  // parpadeo, y un render de más en el móvil, que es donde este menú vive.
+  // Llamar a `setEstado` aquí no es un ciclo: React descarta este pintado y
+  // rehace el componente antes de enseñar nada.
+  const [rutaPintada, setRutaPintada] = useState(ruta)
+  if (ruta !== rutaPintada) {
+    setRutaPintada(ruta)
     setAbierto(false)
-  }, [ruta])
+  }
 
   useEffect(() => {
     if (!abierto) return

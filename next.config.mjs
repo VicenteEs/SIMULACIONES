@@ -31,15 +31,22 @@ const nextConfig = {
         headers: [
           { key: 'Content-Encoding', value: 'gzip' },
           { key: 'Content-Type', value: 'application/octet-stream' },
-          // El atlas no cambia nunca: si cambia, cambia su versión y con ella
-          // el nombre. Revalidar 31 MB en cada visita por un túnel sería
-          // absurdo.
+          // Un año e inmutables. Lo que lo hace cierto no es el nombre del
+          // archivo —«cuerpo-0.bin.gz» se repite entre versiones— sino que
+          // `src/atlas/cargador.ts` los pide con `?v=` y la versión del
+          // catálogo: si el atlas se regenera, la URL cambia. Revalidar 31 MB
+          // en cada visita, por un túnel, sería absurdo.
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
       {
+        // El catálogo, en cambio, se comprueba siempre. Es la pieza que decide
+        // qué versión se pide, así que guardarlo un día dejaba una ventana en
+        // la que un catálogo viejo podía encontrarse con geometría nueva.
+        // Revalidar cuesta una petición condicional que casi siempre acaba en
+        // 304 sin cuerpo.
         source: '/atlas/catalogo.json',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }],
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' }],
       },
       {
         source: '/:path*',

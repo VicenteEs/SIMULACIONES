@@ -200,8 +200,14 @@ Clone primero el repositorio de origen:
     // La versión identifica esta preparación concreta. Una instancia guardada
     // anota cuál usó, de modo que si algún día se regenera el atlas se puede
     // avisar en vez de mostrar piezas equivocadas en silencio.
+    // Se resume el catálogo entero, no solo la lista de identificadores. La
+    // versión no sirve únicamente para avisar de piezas desaparecidas: viaja
+    // en la URL de cada paquete, que se sirve con caché de un año. Resumiendo
+    // solo los ids, un atlas reempaquetado con las mismas piezas conservaba la
+    // versión, la URL no cambiaba y los navegadores seguían usando la
+    // geometría antigua contra los desplazamientos nuevos.
     version: `bp3d-4.0-${createHash('sha1')
-      .update(JSON.stringify(piezas.map((p) => p.id)))
+      .update(JSON.stringify({ piezas, paquetes }))
       .digest('hex')
       .slice(0, 8)}`,
     fuente: 'BodyParts3D 4.0',

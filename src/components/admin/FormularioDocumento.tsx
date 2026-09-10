@@ -62,6 +62,10 @@ export function FormularioDocumento({
   }, [])
 
   useEffect(() => {
+    // El linter marca esto como «setEstado dentro de un efecto», pero no lo es:
+    // `cargarRelacion` escribe el estado después de su `await`, ya fuera del
+    // cuerpo del efecto. No sabe mirar a través del `async`.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     for (const coleccion of coleccionesRelacionadas) void cargarRelacion(coleccion)
   }, [coleccionesRelacionadas, cargarRelacion])
 

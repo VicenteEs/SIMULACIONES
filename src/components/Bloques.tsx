@@ -1,7 +1,6 @@
 import React from 'react'
 import { RichText } from '@payloadcms/richtext-lexical/react'
-import { Visor3D } from './Visor3D'
-import { VisorInstancia } from './atlas/VisorInstancia'
+import { Visor3D, VisorInstancia } from './VisoresPerezosos'
 
 /**
  * Renderizado de los bloques de contenido.

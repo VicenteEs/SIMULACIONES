@@ -107,7 +107,17 @@ export async function cargarPaquetes(
       const paquete = catalogo.paquetes[indice]
       if (!paquete) continue
 
-      const respuesta = await fetch(ruta(`/atlas/${paquete.archivo}`), { signal: senal })
+      // La versión del catálogo viaja en la URL. Los paquetes se sirven con
+      // caché de un año y marcados «immutable», y sus nombres —cuerpo-0.bin.gz,
+      // cuerpo-1.bin.gz…— no la llevan: sin esto, regenerar el atlas dejaría a
+      // quien ya lo hubiera visitado con la geometría vieja y el catálogo
+      // nuevo durante un año, que es la manera silenciosa de enseñar el hueso
+      // equivocado. Al cambiar la versión cambia la URL y el navegador
+      // descarga de nuevo.
+      const respuesta = await fetch(
+        ruta(`/atlas/${paquete.archivo}?v=${encodeURIComponent(catalogo.version)}`),
+        { signal: senal },
+      )
       if (!respuesta.ok) {
         throw new Error(`No se pudo descargar ${paquete.archivo} (${respuesta.status}).`)
       }

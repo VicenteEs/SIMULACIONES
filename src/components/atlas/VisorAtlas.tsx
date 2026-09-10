@@ -3,7 +3,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import type { CatalogoDelAtlas, VistaDeInstancia } from '@/atlas/formato'
+import { VISTA_INICIAL, type CatalogoDelAtlas, type VistaDeInstancia } from '@/atlas/formato'
 import {
   ESTADO,
   aplicarSeparacion,
@@ -33,6 +33,18 @@ export interface MandoDelVisor {
   vistaActual: () => VistaDeInstancia
   /** Encuadra lo que esté visible. */
   encuadrar: () => void
+  /**
+   * Lleva la cámara a un encuadre guardado.
+   *
+   * Es una orden y no una prop a propósito. `vistaInicial` solo se lee al
+   * montar la escena, y abrir una preparación no cambia el catálogo, así que
+   * no hay montaje del que colgarse; y una prop que se aplicara al cambiar de
+   * valor no serviría para reabrir dos veces la misma preparación, que es
+   * justo lo que se hace cuando uno se ha perdido girando.
+   *
+   * No toca la separación: esa tiene su propio estado y su propio efecto.
+   */
+  irA: (vista: VistaDeInstancia) => void
 }
 
 export function VisorAtlas({
@@ -50,6 +62,10 @@ export function VisorAtlas({
   visibles: Set<string> | null
   resaltada: string | null
   separacion: number
+  /**
+   * Encuadre con el que se monta la escena. Se lee **una sola vez**, al montar:
+   * después la cámara es del usuario y solo se mueve si se lo pide `irA`.
+   */
   vistaInicial?: VistaDeInstancia
   soloLectura?: boolean
   alPulsarPieza?: (id: string) => void
@@ -73,8 +89,16 @@ export function VisorAtlas({
   }>({})
 
   // Las props que lee el bucle sin re-montarlo.
-  const ultimas = useRef({ visibles, resaltada, separacion, alPulsarPieza, soloLectura })
-  ultimas.current = { visibles, resaltada, separacion, alPulsarPieza, soloLectura }
+  //
+  // Se refresca en un efecto y no durante el pintado: escribir en un ref
+  // mientras se pinta rompe con el pintado concurrente, que puede empezar un
+  // render y descartarlo. Este efecto va declarado **antes** que el de montaje
+  // para que, cuando aquel se ejecute, el ref ya tenga los valores de este
+  // pintado y no los del primero.
+  const ultimas = useRef({ visibles, resaltada, separacion, alPulsarPieza, soloLectura, vistaInicial })
+  useEffect(() => {
+    ultimas.current = { visibles, resaltada, separacion, alPulsarPieza, soloLectura, vistaInicial }
+  })
 
   useImperativeHandle(mando, () => ({
     vistaActual: () => {
@@ -88,6 +112,14 @@ export function VisorAtlas({
       }
     },
     encuadrar: () => encuadrarVisible(taller.current, catalogo, ultimas.current.visibles),
+    irA: (vista) => {
+      const { camara, controles } = taller.current
+      if (!camara || !controles) return
+      camara.position.set(...vista.camara)
+      controles.target.set(...vista.objetivo)
+      controles.update()
+      taller.current.pedirDibujo?.()
+    },
   }))
 
   // ---------------------------------------------------------------- montaje
@@ -112,7 +144,9 @@ export function VisorAtlas({
       0.02,
       60,
     )
-    const vista = vistaInicial ?? { camara: [0.6, 1.1, 2.6], objetivo: [0, 0.9, 0], separacion: 0 }
+    // Del ref y no de la prop: el efecto solo depende de `catalogo`, asi que
+    // leer la prop directamente aqui congelaba el encuadre del primer pintado.
+    const vista = ultimas.current.vistaInicial ?? VISTA_INICIAL
     camara.position.set(...vista.camara)
 
     const controles = new OrbitControls(camara, render.domElement)
@@ -274,8 +308,8 @@ export function VisorAtlas({
       taller.current = {}
     }
     // Se monta una sola vez por catálogo: el resto son cambios de estado que se
-    // aplican sin rehacer la escena.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // aplican sin rehacer la escena. La lista de dependencias es completa tal
+    // como está, porque todo lo demás se lee del ref `ultimas`.
   }, [catalogo])
 
   // ------------------------------------------------------ cambios de estado
@@ -292,6 +326,7 @@ export function VisorAtlas({
     aplicarSeparacion(escena, separacion)
     taller.current.pedirDibujo?.()
   }, [separacion])
+
 
   return (
     <div className="atlas-lienzo" ref={lienzo}>

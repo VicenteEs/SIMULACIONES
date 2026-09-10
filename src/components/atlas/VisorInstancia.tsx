@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CatalogoDelAtlas, ContenidoDeInstancia } from '@/atlas/formato'
 import { cargarCatalogo } from '@/atlas/cargador'
 import { normalizarSeleccion } from '@/atlas/catalogo'
@@ -37,6 +37,19 @@ export function VisorInstancia({
     return () => aborto.abort()
   }, [])
 
+  // Se vuelve a normalizar contra el catálogo vigente: si el atlas se regeneró
+  // y alguna pieza ya no existe, se muestra el resto en vez de fallar entera.
+  //
+  // Memorizado porque no es gratis: recorre las 2.234 piezas del atlas y
+  // construye un conjunto nuevo. Sin esto se rehacía en cada pintado y, peor,
+  // el conjunto recién creado volvía a disparar el efecto de visibilidad del
+  // visor, que reescribe la textura de estado entera.
+  const preparado = useMemo(() => {
+    if (!catalogo) return null
+    const limpio = normalizarSeleccion(catalogo, contenido.piezas, contenido.vista)
+    return { limpio, visibles: new Set(limpio.piezas.map((p) => p.id)) }
+  }, [catalogo, contenido])
+
   if (fallo) {
     return (
       <figure className="figura completo">
@@ -48,7 +61,7 @@ export function VisorInstancia({
     )
   }
 
-  if (!catalogo) {
+  if (!catalogo || !preparado) {
     return (
       <figure className="figura completo">
         <div className="visor-3d-marco">
@@ -58,20 +71,15 @@ export function VisorInstancia({
     )
   }
 
-  // Se vuelve a normalizar contra el catálogo vigente: si el atlas se regeneró
-  // y alguna pieza ya no existe, se muestra el resto en vez de fallar entera.
-  const limpio = normalizarSeleccion(catalogo, contenido.piezas, contenido.vista)
-  const visibles = new Set(limpio.piezas.map((p) => p.id))
-
   return (
     <figure className="figura completo">
       <div className="atlas-instancia">
         <VisorAtlas
           catalogo={catalogo}
-          visibles={visibles}
+          visibles={preparado.visibles}
           resaltada={null}
-          separacion={limpio.vista.separacion}
-          vistaInicial={limpio.vista}
+          separacion={preparado.limpio.vista.separacion}
+          vistaInicial={preparado.limpio.vista}
           soloLectura
         />
       </div>

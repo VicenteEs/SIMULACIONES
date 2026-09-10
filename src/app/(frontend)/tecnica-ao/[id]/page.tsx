@@ -4,7 +4,7 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { SinAcceso, Miga, Vacio } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
-import { Visor3D } from '@/components/Visor3D'
+import { Visor3D } from '@/components/VisoresPerezosos'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import { Rico } from '@/components/Rico'
 
