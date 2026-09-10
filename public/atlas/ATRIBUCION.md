@@ -29,14 +29,21 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
 - normales cuantizadas a entero de 16 bits con signo;
 - geometría empaquetada en 15 archivos binarios comprimidos;
 - añadida una clasificación por **región anatómica** que el material original no
-  traía: se toma de los conceptos FMA del propio atlas cuando existen y, para
-  las estructuras que atraviesan regiones —vasos y nervios—, se deduce de la
-  posición de su caja envolvente;
+  traía: se toma de los conceptos FMA de región del propio atlas (cabeza, tórax,
+  miembro superior derecho) cuando la pieza figura entre sus elementos y, si no,
+  se deduce de la posición de su caja envolvente;
 - traducidos al español los nombres de los sistemas y de las regiones. Los
   nombres de las estructuras se conservan en su forma original.
 
 La preparación intermedia procede de https://github.com/ashemag/human-atlas
-(código bajo licencia MIT), que documenta las tres primeras adaptaciones.
+(código bajo licencia MIT), que documenta las cuatro primeras adaptaciones.
+
+La mayoría de las piezas tiene la región deducida: solo 875 (el 39 %) tienen un
+concepto FMA que las sitúa; las otras 1.359 (el 61 %) no. No es la excepción de
+vasos y nervios: arterias, venas y nervios son 774 de esas 1.359, el 57 %; el
+resto es sobre todo músculos (345 de 402) y aparato digestivo (94 de 97). Sirve
+igual porque la estimación no se disfraza de dato: cada pieza deducida queda
+marcada en el catálogo y el árbol anatómico la señala con un distintivo.
 
 ## Límites de este material
 

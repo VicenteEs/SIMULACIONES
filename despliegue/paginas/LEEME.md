@@ -101,8 +101,10 @@ El fragmento incluye además:
 - `proxy_buffering off` y `proxy_read_timeout 3600s`, sin los cuales el flujo
   de eventos de «hay contenido nuevo» se queda en el búfer de nginx y el aviso
   no llega nunca;
-- `client_max_body_size 64m`, porque los modelos 3D y los videos pasan de los
-  10 MB que nginx admite por omisión.
+- `client_max_body_size 64m`, porque la plataforma acepta subidas de hasta
+  50 MB (`upload.limits` en `src/payload.config.ts`) y el techo por omisión de
+  nginx queda muy por debajo: sin esta línea, un video largo se rechaza con un
+  413 antes de llegar siquiera a la aplicación.
 
 > Si algún día se prefiere gestionarla desde el panel: **Custom locations** →
 > location `/traumahub`, scheme `http`, hostname `traumahub`, puerto `3000`; y
@@ -169,15 +171,35 @@ es el que aquí corresponde. El volcado se verifica antes de darlo por bueno y
 se conservan treinta días.
 
 El panel (`/traumahub/admin-panel/respaldos`) crea y descarga volcados a mano.
-Para que pueda escribir, el directorio `backups/` lleva permisos `707`: el
-contenedor corre como uid 1001 y de otro modo no podría. No queda expuesto,
-porque para llegar hasta ahí hay que poder atravesar `/home/chesscore`, que
-solo alcanzan `chesscore` y el grupo `ved`.
+Lo que le permite escribir no es el bit de «otros», sino el `chown` de más
+arriba: el directorio `backups/` es del uid 1001, que es el del contenedor, y
+su grupo es el del usuario que despliega. Con `chmod 770` escriben esos dos y
+nadie más entra.
 
-Si algún día se instala `acl` en el servidor, lo correcto es sustituirlo por:
+Los tres scripts que tocan el directorio (`scripts/instalar-servidor.sh`,
+`scripts/deploy.sh` y `scripts/respaldar.sh`) repiten ese `chmod 770`, pero
+solo surte efecto mientras el directorio siga siendo de quien los ejecuta: en
+cuanto pasa a ser del uid 1001, `chmod` únicamente lo puede correr su dueño o
+root. `instalar-servidor.sh` lo tiene previsto y cae en `sudo chmod 770`; los
+otros dos acaban en `|| true` y fallan en silencio a propósito, para no tumbar
+un despliegue ni un respaldo por un permiso que casi siempre ya estaba bien. Si
+alguna vez se pierde, se repone a mano con `sudo chmod 770 backups`.
+
+Si algún día se instala `acl` en el servidor, lo correcto es sustituirlo por
+esto, y en este orden:
 
 ```bash
 sudo apt install acl
-setfacl -m u:1001:rwx backups && setfacl -d -m u:1001:rwx backups
+sudo chown -R "$(id -u)":"$(id -g)" backups
 chmod 700 backups
+setfacl -m u:1001:rwx backups && setfacl -d -m u:1001:rwx backups
 ```
+
+El orden no es capricho. Sobre un directorio que ya tiene ACL extendida,
+`chmod` no toca los permisos del grupo: reescribe la **máscara**, que es el
+techo de todo lo que la ACL conceda. Con el `chmod 700` al final, `u:1001:rwx`
+queda limitado por una máscara vacía y el contenedor pierde la escritura sin
+que nada avise; `getfacl` lo delata con un `#effective:---`. Puesto antes,
+`setfacl` recalcula la máscara solo. El `chown` inicial hace falta porque, tras
+el `chown` a 1001 de la instalación, quien despliega ya no puede ejecutar
+`chmod` sobre ese directorio.

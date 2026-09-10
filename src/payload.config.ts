@@ -15,9 +15,16 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 /**
  * Configuración de la plataforma docente de traumatología.
  *
- * Los campos están marcados como localizables aunque hoy solo se redacte en
- * español (decisión D-012): añadir el inglés más adelante no exigirá rehacer
- * la estructura de datos ni migrar contenido.
+ * Sobre los idiomas, y dicho como es. Aquí abajo se declaran dos —español e
+ * inglés— pero **ningún campo de ninguna colección está marcado como
+ * localizable**: un `grep` de `localized` en todo `src/` no devuelve un solo
+ * resultado. Sin campos marcados, esta declaración no guarda ni una traducción.
+ *
+ * El comentario que había aquí decía lo contrario, y la decisión D-012 también:
+ * que los campos quedaban traducibles desde el inicio y que añadir el inglés no
+ * exigiría tocar la estructura de datos. No es cierto, y conviene saberlo antes
+ * de prometérselo a nadie: habrá que marcar campo por campo y generar una
+ * migración, porque Payload crea tablas `_locales` aparte.
  */
 export default buildConfig({
   // Solo el ORIGEN, sin la ruta. Payload mete `serverURL` en su lista de CSRF

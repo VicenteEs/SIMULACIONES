@@ -26,10 +26,12 @@
  *     como se pide «déjame solo la tibia».
  *  2. La región se deduce en dos pasos, y el orden importa: primero se usan los
  *     conceptos FMA reales del propio atlas (`right lower limb` y compañía),
- *     que son anatomía verificable; solo lo que queda fuera —sobre todo vasos y
- *     nervios, que atraviesan regiones— cae en una regla geométrica sobre la
- *     caja envolvente. Cada pieza queda marcada con cuál de los dos caminos la
- *     clasificó, para no confundir un dato con una estimación.
+ *     que son anatomía verificable; lo que queda fuera cae en una regla
+ *     geométrica sobre la caja envolvente. Ojo con el tamaño del segundo paso:
+ *     es la mayoría del atlas, tres de cada cinco piezas, y no solo los vasos y
+ *     nervios que atraviesan regiones. Por eso cada pieza queda marcada con
+ *     cuál de los dos caminos la clasificó: sin esa marca no habría manera de
+ *     distinguir un dato de una estimación.
  *  3. Los nombres de los sistemas se traducen; los de las piezas **no**. La
  *     terminología anatómica es la que usa el traumatólogo, y traducir 2.234
  *     nombres a mano introduciría errores en el único sitio donde no se pueden
@@ -92,10 +94,13 @@ const REGIONES = [
 /**
  * Región por geometría, para lo que ningún concepto FMA clasifica.
  *
- * Son sobre todo vasos y nervios largos, que por definición atraviesan varias
- * regiones. Se les asigna la región donde está su **centro**, que es lo que
- * hace que al pedir «solo el miembro inferior derecho» aparezca la arteria
- * femoral derecha y no la aorta entera.
+ * Por aquí pasa la mayoría del atlas, no un resto marginal: los vasos y nervios
+ * largos, que por definición atraviesan varias regiones, pero también casi todo
+ * el sistema muscular y el aparato digestivo, cuyas piezas simplemente no
+ * figuran entre los elementos de ningún concepto de región de los de arriba.
+ * Se les asigna la región donde está su **centro**, que es lo que hace que al
+ * pedir «solo el miembro inferior derecho» aparezca la arteria femoral derecha
+ * y no la aorta entera.
  *
  * Las alturas salen del propio cuerpo: 1,73 m, de pie, con los pies en y=0.
  */
@@ -119,9 +124,9 @@ function regionPorGeometria(caja) {
   }
 
   // Mano y pie NO se deducen aquí a propósito. Sus conceptos FMA existen y son
-  // exactos; lo que llega a esta función son sobre todo vasos y nervios largos,
-  // y para esos es más honesto decir «miembro superior» que fingir precisión
-  // sobre dónde acaba la muñeca.
+  // exactos; a esta función llega de todo, y para una pieza que ningún concepto
+  // sitúa es más honesto decir «miembro superior» que fingir precisión sobre
+  // dónde acaba la muñeca.
   if (cy > 1.48) return 'cabeza'
   if (cy > 1.4) return 'cuello'
   if (cy > 1.05) return 'torax'
@@ -239,6 +244,48 @@ Clone primero el repositorio de origen:
   }
 }
 
+/**
+ * El párrafo del ATRIBUCION.md que dice cuánto de la clasificación es estimado.
+ *
+ * Se cuenta sobre el catálogo recién escrito en vez de redactarlo a mano. La
+ * versión a mano decía que deducir la región era la excepción de vasos y
+ * nervios; era falso —son la mayoría de las piezas— y nadie lo notó porque el
+ * texto no dependía de los datos. Contándolo aquí, no puede volver a pasar.
+ */
+function resumenDeRegiones(catalogo) {
+  const VASOS_Y_NERVIOS = ['arterial', 'venous', 'nervous']
+  const estimadas = catalogo.piezas.filter((p) => p.origenRegion === 'caja')
+  const cuantas = (piezas, sistema) => piezas.filter((p) => p.sistema === sistema).length
+
+  const total = catalogo.piezas.length
+  const conConcepto = total - estimadas.length
+  const deVasos = estimadas.filter((p) => VASOS_Y_NERVIOS.includes(p.sistema)).length
+
+  // Los dos sistemas que más aportan al resto, con su nombre y sus cifras: así
+  // el ejemplo sigue siendo cierto aunque cambie el material de origen.
+  const resto = catalogo.sistemas
+    .filter((s) => !VASOS_Y_NERVIOS.includes(s.id))
+    .map((s) => ({
+      nombre: s.nombre.toLocaleLowerCase('es'),
+      estimadas: cuantas(estimadas, s.id),
+      total: cuantas(catalogo.piezas, s.id),
+    }))
+    .sort((a, b) => b.estimadas - a.estimadas)
+    .slice(0, 2)
+    .map((s) => `${s.nombre} (${s.estimadas} de ${s.total})`)
+    .join(' y ')
+
+  const n = (v) => v.toLocaleString('es-CL')
+  const pct = (parte, de) => Math.round((parte * 100) / de)
+
+  return `La mayoría de las piezas tiene la región deducida: solo ${n(conConcepto)} (el ${pct(conConcepto, total)} %) tienen un
+concepto FMA que las sitúa; las otras ${n(estimadas.length)} (el ${pct(estimadas.length, total)} %) no. No es la excepción de
+vasos y nervios: arterias, venas y nervios son ${n(deVasos)} de esas ${n(estimadas.length)}, el ${pct(deVasos, estimadas.length)} %; el
+resto es sobre todo ${resto}. Sirve
+igual porque la estimación no se disfraza de dato: cada pieza deducida queda
+marcada en el catálogo y el árbol anatómico la señala con un distintivo.`
+}
+
 function atribucion(catalogo) {
   return `# Atribución del atlas anatómico
 
@@ -271,14 +318,16 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
 - normales cuantizadas a entero de 16 bits con signo;
 - geometría empaquetada en ${catalogo.paquetes.length} archivos binarios comprimidos;
 - añadida una clasificación por **región anatómica** que el material original no
-  traía: se toma de los conceptos FMA del propio atlas cuando existen y, para
-  las estructuras que atraviesan regiones —vasos y nervios—, se deduce de la
-  posición de su caja envolvente;
+  traía: se toma de los conceptos FMA de región del propio atlas (cabeza, tórax,
+  miembro superior derecho) cuando la pieza figura entre sus elementos y, si no,
+  se deduce de la posición de su caja envolvente;
 - traducidos al español los nombres de los sistemas y de las regiones. Los
   nombres de las estructuras se conservan en su forma original.
 
 La preparación intermedia procede de https://github.com/ashemag/human-atlas
-(código bajo licencia MIT), que documenta las tres primeras adaptaciones.
+(código bajo licencia MIT), que documenta las cuatro primeras adaptaciones.
+
+${resumenDeRegiones(catalogo)}
 
 ## Límites de este material
 

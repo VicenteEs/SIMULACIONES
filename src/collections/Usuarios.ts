@@ -26,16 +26,19 @@ const OPCIONES_DE_MODULO = [
 /**
  * Correo para elegir contraseña nueva.
  *
- * Existe porque el de Payload manda a `serverURL` + `/admin/reset/…`, y las dos
- * mitades están mal aquí. `serverURL` es solo el origen, sin el `/traumahub`
- * —tiene que serlo, o Payload descarta la cookie de sesión en cada acción, ver
- * O-018—, y `/admin` es la interfaz que se retiró. En el servidor compartido
- * eso daba un enlace a la raíz del dominio, es decir **a otra página**, con el
- * testigo de restablecimiento dentro.
+ * El de Payload apunta a `/admin/reset/<testigo>`, y esa ruta es el redirector
+ * de enlaces viejos que quedó al retirar su interfaz (D-038). Funcionaba, y
+ * conviene decirlo con precisión porque aquí llegó a estar escrito lo
+ * contrario: `formatAdminURL` sí antepone el prefijo, así que el enlace caía
+ * dentro de la aplicación y el redirector lo llevaba a `/clave/`. Lo que no
+ * quiere nadie es que el correo de recuperación dependa de un 308 sobre una
+ * ruta retirada, sobre todo el día que esa ruta se limpie.
  *
- * La dirección se arma con `NEXT_PUBLIC_SERVER_URL`, que sí lleva el prefijo, y
- * apunta a la pantalla propia. Es la misma que entrega el panel al administrador
- * cuando genera el enlace a mano.
+ * Así que se arma aquí, en español y apuntando directo a la pantalla propia.
+ * La dirección sale de `NEXT_PUBLIC_SERVER_URL`, que lleva el prefijo, y es la
+ * misma que entrega el panel cuando un administrador genera el enlace a mano.
+ *
+ * Ver O-022 en BITACORA.md.
  */
 export function correoDeClaveNueva(testigo: string): string {
   const base = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')

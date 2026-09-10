@@ -4,58 +4,89 @@ Registro de decisiones y observaciones del proyecto. Una entrada por decisión,
 una por observación. No se borran entradas: se marcan como superadas y se
 enlaza la que las reemplaza.
 
-- **Archivo del prototipo:** `prototipo-traumatologia_4.html` (único archivo, 2.732 líneas, 242 KB)
 - **Inicio de la bitácora:** 2026-08-28
+- **Origen:** `prototipo-traumatologia_4.html`, el prototipo de un solo archivo
+  con el que empezó todo (2.732 líneas, 242 KB)
+- **Cómo leerla:** las decisiones (`D-nnn`) dicen qué se eligió y por qué; las
+  observaciones (`O-nnn`) dicen qué se rompió y cómo se vio. Si algo del código
+  parece raro, casi siempre está explicado en una de las dos.
 
 ---
 
 ## 1. Qué es esto (lectura del estado actual)
 
-Prototipo navegable de una plataforma docente de traumatología, en un solo
-archivo HTML autocontenido: sin backend, sin dependencias externas, sin datos de
-pacientes. Todo el contenido clínico está escrito dentro del archivo y todos los
-gráficos son SVG generados por JavaScript. Se abre con doble clic y funciona sin
-conexión.
+*Actualizado el 2026-09-10. Esta sección es una foto y se reescribe; lo que no
+se reescribe nunca son las decisiones y las observaciones de más abajo.*
 
-**Público declarado:** residentes, traumatólogos y kinesiólogos.
+Plataforma docente de traumatología en español, cerrada, para residentes,
+traumatólogos y kinesiólogos. Next.js 16 con Payload CMS 3 sobre PostgreSQL,
+en contenedores. **Nada es visible sin sesión** y las cuentas las crea y las
+activa un administrador (D-020).
+
+Nació como un prototipo navegable en un solo archivo HTML autocontenido, con el
+contenido clínico escrito dentro y los gráficos generados por JavaScript. De
+aquello queda la estructura de los cinco módulos y el contenido redactado; todo
+lo demás se reescribió.
+
+### Cómo está armada hoy
+
+| Pieza | Dónde | Qué hay que saber |
+|---|---|---|
+| Plataforma pública | `src/app/(frontend)` | Lo que ve el residente. Cada página comprueba la sesión por su cuenta |
+| Panel propio | `src/app/(frontend)/admin-panel` | Contenido, cuentas, permisos, estadísticas, respaldos y sistema. La interfaz de Payload se retiró (D-038) |
+| Taller anatómico | `/admin-panel/atlas` | 2.234 piezas de BodyParts3D. Se apaga lo que estorba y se guarda como preparación con nombre (D-048) |
+| Modelo de datos | `src/collections` | Doce colecciones. Payload manda aquí y solo aquí |
+| Esquema del editor | `src/admin/esquema.ts` | Paralelo al de Payload, no derivado. Pruebas atan los dos (D-042) |
+| Operación | `scripts/` | Despliegue, respaldo, restauración y salud, con un `LEEME` por guion |
+
+Puede vivir bajo un prefijo (`/traumahub`) para compartir dominio y puerto con
+otras páginas detrás del mismo proxy. Eso condiciona más de lo que parece: ver
+`src/lib/rutas.ts`, y las observaciones O-018 y O-019, que son los dos fallos
+que costó encontrar por esa razón.
 
 ### Los cinco módulos
 
-| # | Módulo | Fase | Qué hace hoy en el prototipo |
+| # | Módulo | Ruta pública | Qué es |
 |---|---|---|---|
-| 01 | Biblioteca de patologías | MVP | Fichas por segmento con 6 pestañas: Definición, Mecanismo, Clasificación, Evaluación, Manejo, Rehabilitación |
-| 02 | Examen físico | MVP | Mapa corporal clicable → maniobras por segmento (objetivo, técnica, positivo, nota) |
-| 03 | Técnica AO en 3D | MVP | 8 pasos quirúrgicos con el principio AO de cada gesto, sobre esquema SVG animado |
-| 04 | Simula tu cirugía | Intermedia | Pabellón → zoom al campo → 12 pasos con instrumental, fuerza en newtons y capas de transparencia |
-| 05 | Fractura IA | Tardía | Carga simulada de DICOM → clasificación AO/OTA propuesta → opciones de manejo con pros y contras |
+| 01 | Biblioteca de patologías | `/biblioteca` | Fichas por segmento con 6 pestañas: Definición, Mecanismo, Clasificación, Evaluación, Manejo, Rehabilitación |
+| 02 | Examen físico | `/examen-fisico` | Maniobras por segmento: objetivo, técnica, qué es positivo, nota |
+| 03 | Técnica AO | `/tecnica-ao` | Pasos quirúrgicos con el principio AO de cada gesto |
+| 04 | Simulador quirúrgico | `/simulador` | Pabellón paso a paso, con instrumental y capas |
+| 05 | Lectura de imágenes | `/imagenes` | Clasificación AO/OTA propuesta y opciones de manejo |
 
-### La idea de fondo, tal como la leo
+### La idea de fondo
 
 Los cuatro primeros módulos son la cadena completa de una decisión clínica:
-**estudio → exploración → técnica → ejecución**. El quinto cierra el circuito por
-el lado de la imagen. La biblioteca y el examen físico son el contenido que
-alimenta a los demás; el simulador y la IA son lo que diferencia la plataforma
-de un libro digital.
+**estudio → exploración → técnica → ejecución**. El quinto cierra el circuito
+por el lado de la imagen. La biblioteca y el examen físico son el contenido que
+alimenta a los demás; el simulador y la lectura de imágenes son lo que
+diferencia la plataforma de un libro digital.
 
 La pestaña de **Rehabilitación** en cada ficha no es un anexo: es la puerta que
 abre el producto al kinesiólogo y amplía el público sin duplicar el contenido
-base. El propio texto del prototipo lo dice explícitamente (`rehabNote`).
+base.
 
-### Estado real de cobertura del contenido
+### Estado real del contenido
 
-| Elemento | Completo | Total declarado |
-|---|---|---|
-| Fichas de patología | 4 | 13 |
-| Animaciones de mecanismo | 4 | 13 |
-| Segmentos con examen físico | 7 | 8 (falta fémur) |
-| Casos AO paso a paso | 1 | — |
-| Cirugías simulables | 1 | 3 |
-| Casos de IA precargados | 2 | — |
+Contado en la base de desarrollo el 2026-09-10:
 
-Las cuatro fichas completas son: fractura de diáfisis femoral (32), fractura de
-radio distal (23), lesión del LCA, luxación glenohumeral (GH). Están escritas a
-un nivel de detalle alto y bilingüe. Las nueve restantes existen solo como
-tarjeta con título y están deshabilitadas.
+| Colección | Documentos |
+|---|---|
+| Patologías | 1 |
+| Maniobras, casos AO, cirugías, estudios | 0 |
+| Segmentos anatómicos | 4 |
+| Modelos 3D | 1 |
+| Preparaciones anatómicas | 0 |
+| Cuentas | 5, una por rol más las de prueba |
+
+Conviene mirar este cuadro antes de sacar conclusiones sobre rendimiento. Casi
+todo lo que parece lento en una revisión de código se apoya en un corpus
+imaginario: la plataforma está construida y **vacía**. El cuello de botella del
+proyecto sigue siendo la redacción clínica, no el código (D-013).
+
+Las cuatro fichas escritas para el prototipo —fractura de diáfisis femoral (32),
+fractura de radio distal (23), lesión del LCA y luxación glenohumeral— están
+redactadas a alto nivel de detalle y todavía no se han cargado.
 
 ---
 
@@ -152,13 +183,25 @@ y no debe gastarse en diseñar. Esta frontera es la decisión que mantiene el
 proyecto viable con un solo desarrollador, y no se mueve sin registrar una
 decisión que supere ésta.
 
-### D-012 · 2026-08-28 · vigente · supera a Q-002
-**Se redacta sólo en español; los campos quedan traducibles desde el inicio.**
-Payload permite marcar los campos como localizables sin poblarlos, de modo que
-el inglés se añade cuando exista tracción y sin rehacer la estructura de datos.
-Consecuencia: se detiene la duplicación del costo de redacción, que era el
-mayor costo oculto. El contenido inglés ya escrito en las cuatro fichas
-completas se conserva y se carga en la migración; no se descarta.
+### D-012 · 2026-08-28 · vigente en la decisión, corregida en los hechos el 2026-09-10
+**Se redacta sólo en español.**
+Consecuencia: se detiene la duplicación del costo de redacción, que era el mayor
+costo oculto. El contenido inglés ya escrito en las cuatro fichas completas se
+conserva y se carga en la migración; no se descarta.
+
+*Corrección del 2026-09-10.* Esta entrada añadía «los campos quedan traducibles
+desde el inicio», y el comentario de cabecera de `src/payload.config.ts` lo
+repetía. No es cierto: un `grep` de `localized` en todo `src/` no devuelve un
+solo resultado. Ningún campo de ninguna de las doce colecciones está marcado
+como localizable. Lo que sí existe es el bloque `localization` de la
+configuración, que declara los idiomas es/en, pero sin campos marcados no
+guarda ni una traducción: hoy es decoración.
+
+Que quede escrito con su consecuencia real, porque es lo contrario de lo que la
+entrada prometía: **añadir el inglés sí exigirá tocar la estructura de datos.**
+Habrá que marcar campo por campo y generar una migración, porque Payload crea
+tablas `_locales` aparte. No es un trabajo enorme, pero no es gratis, y la
+decisión de cuándo hacerlo debe tomarse sabiéndolo.
 
 ### D-013 · 2026-08-28 · vigente
 **El traumatólogo empieza a escribir el día uno, no cuando la plataforma esté lista.**
@@ -176,16 +219,25 @@ renderiza con componentes propios. No existe `innerHTML` con contenido de
 autor en ninguna parte de la plataforma. Consecuencia: la vía de inyección
 descrita en O-003 desaparece por diseño en lugar de mitigarse con saneamiento.
 
-### D-015 · 2026-08-28 · vigente
+### D-015 · 2026-08-28 · vigente en la intención, superada en el mecanismo por D-032
 **Publicar no reescribe la pantalla de quien está leyendo.**
-Al publicar se incrementa la versión del contenido, Postgres emite `NOTIFY` y
-el servidor lo reenvía por SSE a los navegadores conectados, que muestran un
-aviso discreto de contenido actualizado con opción de recargar. La
-actualización instantánea queda reservada a la vista previa del administrador.
+Al publicar se incrementa la versión del contenido y el servidor la reenvía por
+SSE a los navegadores conectados, que muestran un aviso discreto de contenido
+actualizado con opción de recargar. La actualización instantánea queda
+reservada a la vista previa del administrador.
 *Por qué:* a un residente al que se le mueve el texto a media lectura le parece
 que la plataforma falla.
 *Aclaración registrada:* el disparador es el botón Publicar del CMS, no un push
 al repositorio. El repositorio guarda código; el contenido vive en base de datos.
+
+*Corrección del 2026-09-10.* Esta entrada decía que «Postgres emite `NOTIFY`».
+Eso no se implementó nunca: un `grep` de NOTIFY o LISTEN en `src/` no devuelve
+una sola línea de código. Lo que hay es un contador en memoria del proceso
+(`src/lib/publicaciones.ts`) que el flujo de eventos reenvía cada 15 segundos,
+de modo que el aviso puede tardar ese tiempo en aparecer. D-032 ya lo describía
+bien un mes después, sin que nadie marcara que superaba a ésta. Queda marcado.
+El transporte por SSE sí es cierto; lo que no existe es el empujón desde la
+base. Hará falta cuando haya más de una instancia del servidor, y no antes.
 
 ### D-016 · 2026-08-28 · vigente
 **La plataforma nace con la base de datos vacía. Las cuatro fichas del prototipo no se migran.**
@@ -216,15 +268,39 @@ dependencias, contenedores, migraciones, primer administrador y túnel. *Por qu�
 un despliegue que sólo existe en la memoria de una persona no se puede repetir
 ni recuperar después de un incidente.
 
-### D-020 · 2026-08-28 · vigente
+### D-020 · 2026-08-28 · vigente · corregida el 2026-09-10 (ver D-053)
 **Nada es visible sin sesión, y las cuentas las activa el administrador.**
 No hay registro abierto ni contenido público: toda lectura exige usuario
-autenticado y con la cuenta marcada como activa. Se implementa en tres capas que
-deben coincidir —control de acceso por colección en el CMS, middleware que
-redirige al inicio de sesión, y comprobación en cada ruta de API—, porque
-proteger sólo la interfaz deja la API abierta. Consecuencia grata: la plataforma
-queda fuera del alcance de buscadores mientras se construye, y el asunto de
-datos personales se reduce al mínimo.
+autenticado y con la cuenta marcada como activa. Consecuencia grata: la
+plataforma queda fuera del alcance de buscadores mientras se construye, y el
+asunto de datos personales se reduce al mínimo.
+
+*Corrección del 2026-09-10.* Esta entrada decía que se implementaba en tres
+capas: acceso por colección, **middleware** que redirige al inicio de sesión, y
+comprobación en cada ruta de API. Ese middleware nunca existió: no hay
+`src/middleware.ts` en el repositorio y el contorno de `(frontend)` no redirige
+a nadie, solo decide si pinta la navegación. Lo que de verdad protege son dos
+capas, y cada página se guarda a sí misma:
+
+1. El control de acceso de cada colección, que Payload aplica a la API y a toda
+   lectura que no pase por `overrideAccess`.
+2. Una comprobación al principio de cada página. En el panel es una sola,
+   `exigirPanel` (D-052); en la plataforma pública, `obtenerSesion` en cada
+   `page.tsx`.
+
+Se sirven sin sesión, a propósito y comprobado una por una: `/entrar`,
+`/clave`, `/instalar`, `/creditos` y `/api/salud`. Las cuatro primeras son las
+pantallas para entrar o para volver a entrar; `/creditos` cumple la atribución
+que exige la licencia del atlas y no muestra contenido clínico.
+
+Y una tercera cosa que esta entrada daba por hecha sin serlo: durante meses los
+archivos subidos se sirvieron sin sesión. Ver D-053.
+
+*Sobre los buscadores.* En el servidor compartido, `public/robots.txt` se sirve
+bajo el prefijo, como `/traumahub/robots.txt`, dirección que ningún buscador
+consulta: robots.txt solo se lee en la raíz del origen, y esa raíz es de otra
+página. Lo que de verdad sostiene esta parte es la cabecera
+`X-Robots-Tag: noindex, nofollow` de `next.config.mjs`.
 
 ### D-021 · 2026-08-28 · vigente
 **El primer módulo que se construye es la Biblioteca de patologías.**
@@ -359,15 +435,31 @@ activar y, cuando exista dominio, la puerta adicional de Cloudflare Access.
 barrera. Conviene reconsiderarlo antes de dar de alta a residentes ajenos al
 equipo.
 
-### D-036 · 2026-08-31 · vigente
-**El respaldo diario se programa solo al desplegar.**
-`scripts/deploy.sh` inscribe en cron una ejecución a las 03:00 de
-`scripts/respaldar.sh`, que vuelca base y archivos subidos, descarta lo anterior
-a treinta días y aborta si el volcado sale sospechosamente pequeño.
+### D-036 · 2026-08-31 · vigente · corregida el 2026-09-10
+**El respaldo diario se programa solo al instalar.**
+`scripts/respaldar.sh` vuelca base y archivos subidos, descarta lo anterior a
+treinta días y aborta si el volcado sale sospechosamente pequeño.
 `scripts/restaurar.sh` hace el camino inverso, pero exige escribir RESTAURAR y
 respalda el estado actual antes de sobrescribir nada.
 *Probado de verdad:* el respaldo se ejecutó contra la base de desarrollo y se
 verificó su integridad; no es un script que solo parezca correcto.
+
+*Corrección del 2026-09-10.* Esta entrada decía que quien lo programa es
+`scripts/deploy.sh`. No programa nada: en sus 150 líneas no aparece `crontab`,
+`systemd` ni `.timer`. Quien lo hace es `scripts/instalar-servidor.sh`, que
+escribe un temporizador de systemd a las 03:00 —con `Persistent=true`, para que
+un servidor apagado a esa hora respalde al encender— y, si no hay systemd, cae
+a una línea de cron. Importa saber cuál de los dos, porque quien busque el
+respaldo programado en el guion equivocado concluirá que no existe.
+
+*Y una promesa que no se cumplía.* Decía «hace el camino inverso», y hasta el
+2026-09-10 la restauración solo devolvía la base: los archivos subidos se
+respaldaban desde el primer día y no se restauraban nunca. Una base restaurada
+dejaba cada ficha con las imágenes rotas y los modelos ausentes, que es justo
+lo irreemplazable: la base se puede volver a escribir, una resonancia segmentada
+no. Ahora `restaurar.sh` restaura los dos, y busca el respaldo de medios de la
+misma marca de tiempo que el volcado, porque medios de otro día contra una base
+de hoy deja documentos apuntando a archivos que no existen.
 
 ### D-037 · 2026-08-31 · vigente
 **El encuadre de un modelo 3D se ajusta arrastrando, no escribiendo números.**
@@ -530,20 +622,161 @@ compartido, se dibuja en **quince llamadas** —una por sistema, no una por
 pieza—, se sirve con caché permanente y solo se descargan los paquetes que
 contienen las piezas que se van a ver.
 
-### D-050 · 2026-09-10 · vigente
+### D-050 · 2026-09-10 · vigente · matizada el mismo día
 **La región anatómica se deduce en dos pasos, y se distingue cuál se usó.**
 BodyParts3D clasifica por sistema pero no por región, y «déjame solo la tibia»
 es una pregunta de región. Se resuelve primero con los conceptos FMA del propio
-atlas —`right lower limb` y compañía, que son anatomía verificable— y solo lo
-que queda fuera, sobre todo vasos y nervios que atraviesan regiones, cae en una
-regla sobre la caja envolvente. Cada pieza queda marcada con cuál de los dos
-caminos la clasificó, y el árbol muestra las estimadas con una marca: presentar
-una estimación como un dato es lo que no se puede hacer en material clínico.
+atlas —`right lower limb` y compañía, que son anatomía verificable— y lo que
+queda fuera cae en una regla sobre la caja envolvente. Cada pieza queda marcada
+con cuál de los dos caminos la clasificó, y el árbol muestra las estimadas con
+una marca: presentar una estimación como un dato es lo que no se puede hacer en
+material clínico.
+
+*Matiz del 2026-09-10, contado sobre `public/atlas/catalogo.json`.* La entrada
+decía «sobre todo vasos y nervios», y eso hace pensar en una excepción. No lo
+es: de las 2.234 piezas, **1.359 tienen la región deducida, el 60,8 %**. Solo
+875 vienen del concepto anatómico. Vasos y nervios son 774 de esas 1.359, poco
+más de la mitad; el segundo grupo son los músculos, de los que están estimados
+345 de 402, el 86 %.
+
+Eso no invalida la decisión, y conviene decir por qué: la marca del árbol
+cumple exactamente para esto. Pero cambia cómo hay que leerla. La regla no es
+un remiendo para unos pocos casos raros, es el camino por el que pasa la
+mayoría del atlas, y el día que alguien se plantee afinarla debe saber que está
+tocando seis de cada diez piezas y no unas cuantas arterias.
 
 *Calibración:* la regla mira la **separación lateral** antes que la altura.
 Medido sobre los propios conceptos, con los brazos caídos la mano queda a
 0,74–0,86 m, más abajo que buena parte del muslo; lo que nunca se solapa es la
 distancia al eje —brazo 0,22–0,32 m frente a pierna 0,07–0,17 m.
+
+
+### D-051 · 2026-09-10 · vigente
+**Una sola guardia para las páginas del panel, y el editor entra de verdad.**
+La comprobación de acceso estaba copiada en las doce páginas del panel y había
+divergido: casi todas exigían `rol === 'admin'`, incluidas las cuatro de la
+sección «Trabajo» que la barra lateral le ofrece al editor, y algunas se habían
+olvidado de mirar `activo`. Se sustituye por `exigirPanel('editor' | 'admin')`
+en `src/app/(frontend)/admin-panel/acceso.ts`, con `exigirPanelPara(coleccion)`
+para lo que además depende de los permisos por módulo.
+
+*Por qué importaba más de lo que parece.* El rol de editor era inalcanzable
+desde la interfaz. El traumatólogo entraba al panel, veía «Contenido», pulsaba y
+volvía al inicio sin una palabra de explicación. Las acciones de servidor lo
+aceptaban perfectamente, así que el sistema de permisos por módulo que existía
+desde D-040 no lo había podido usar nadie. Un fallo que no da error y solo
+devuelve a la portada se lee como «esto no es para mí», no como una avería.
+
+*Y los permisos por módulo llegan a las páginas.* Antes solo los aplicaban las
+acciones: un editor restringido veía el módulo ajeno en el listado, abría la
+ficha, la rellenaba entera y el «no tiene permiso» le llegaba al pulsar guardar.
+
+### D-052 · 2026-09-10 · vigente
+**Los cinco módulos avisan al publicar, y a cada cuenta se le cuenta lo suyo.**
+El gancho que avisa estaba escrito a mano dentro de la colección de patologías y
+las otras cuatro no lo tenían: publicar una maniobra, un caso AO, una cirugía o
+un estudio no interrumpía a nadie. Ahora es un gancho compartido y **sin
+parámetros**: el módulo y el campo que da título salen de la propia colección,
+que es justo lo que impedía copiar el de patologías —cuatro módulos titulan con
+`nombre` y los casos AO con `titulo`—. Añadir un módulo es ponerle la línea, y
+una prueba lo vigila.
+
+*Lo que apareció al hacerlo.* Si el aviso dice de qué módulo viene, un lector
+con `modulosVisibles` restringido se entera de que se publicó algo que no puede
+ver, y al recargar no encuentra nada. Así que el registro se guarda por módulo y
+el flujo filtra con `puedeVerModulo` antes de contar nada (D-020). Efecto útil
+de paso: a quien no ve ese módulo tampoco se le mueve la versión.
+
+### D-053 · 2026-09-10 · vigente · corrige un incumplimiento de D-020
+**Los archivos subidos viven fuera de `public/`.**
+Payload ya servía cada archivo por una ruta con control de acceso —
+`<api>/<colección>/file/<nombre>`, que ejecuta el `access.read` de la colección
+y responde 403 sin sesión—, pero `staticDir` apuntaba dentro de `public/`, así
+que Next servía además una copia idéntica en `/media/<nombre>` sin preguntar
+nada a nadie. Comprobado con `curl`: 200 y 76.232 bytes sin una sola cookie.
+Cualquiera con la dirección de una radiografía la descargaba sin entrar.
+
+*Por qué nadie lo vio.* El control de acceso de la colección estaba bien puesto
+y protegía el registro en la base. Lo que no protegía era el archivo en disco,
+y esa distinción no se ve leyendo la colección: hay que saber que `public/` de
+Next es un directorio servido tal cual. En producción es peor de lo que parece,
+porque Next lee la lista de `public/` una vez al arrancar: quedaba expuesto todo
+lo subido antes del último arranque, que tras cualquier despliegue es todo.
+
+*Consecuencia operativa.* La carpeta pasa a `medios/`, el volumen se monta en
+`/app/medios` y el respaldo empaqueta desde ahí. Las fichas ya escritas no
+necesitan ninguna migración: el campo `url` de Payload es virtual y se recalcula
+en cada lectura. Los archivos se sirven con `private, max-age=3600,
+must-revalidate` y `Vary: Cookie`: sin cabecera, cada imagen se volvía a pedir
+en cada página; con `public`, un proxy compartido se la habría dado a quien no
+tiene sesión, deshaciendo lo que se acababa de cerrar.
+
+### D-054 · 2026-09-10 · vigente · supera a D-037
+**El encuadre de un modelo 3D se elige en el mismo visor que ve el residente.**
+D-037 decidió esto mismo en 2026-08-31 y se implementó como un componente de la
+interfaz de administración de Payload. Al retirarla (D-038) el editor dejó de
+renderizarse, y nadie lo notó: el texto de ayuda siguió pidiendo «gire el modelo
+y pulse capturar» durante meses mientras en pantalla solo había cinco casillas
+numéricas y ningún botón que pulsar.
+
+El editor nuevo es del panel propio y usa **el mismo componente** que la ficha
+del residente, no una imitación. Una vista previa que no coincide con el
+resultado es peor que no tener editor: engaña con confianza.
+
+*Lo que apareció al mirarlo de cerca.* Dos de los cinco números no hacían nada.
+El visor envolvía el modelo en `Bounds`, cuyo `reset()` calcula la distancia
+desde la caja del modelo y solo conserva la *dirección* de la cámara: descartaba
+`distanciaCamara` sin decirlo, y como la caja crece con el modelo, `escala` se
+cancelaba contra esa distancia recalculada. `Bounds` se conserva solo para las
+fichas antiguas, que no tienen encuadre guardado y dependen de que algo las
+encuadre por ellas.
+
+*Y una lección sobre dónde poner la aritmética.* El cálculo del encuadre vive
+aparte, en `src/lib/encuadre.ts`, porque es la parte que puede estar mal sin que
+se note: un signo cambiado da números de aspecto razonable y le enseña al
+residente el hueso del revés. Al escribir su prueba apareció un fallo recién
+introducido: la escala se redondeaba a dos decimales, y un modelo en milímetros
+necesita 0,002, que redondeado es cero. El botón que existe para hacerlo visible
+lo hacía invisible.
+
+### D-055 · 2026-09-10 · vigente
+**El taller anatómico es de escritorio, y lo dice.**
+Necesita tres cosas a la vez —el árbol de 2.234 piezas, el visor y la ficha de
+la preparación— y en un teléfono no caben ni apiladas: el visor quedaba en 152
+píxeles de alto, que no da para distinguir una tibia de un peroné. En vez de
+fingir que funciona, en pantallas de menos de 900 píxeles se muestra un mensaje
+que dice que hace falta un computador.
+
+Esto **no** toca el visor de una preparación dentro de una ficha: el residente
+sí lee fichas en el móvil, y ahí girar un hueso con el dedo funciona bien. Son
+dos componentes distintos y conviene no confundirlos al tocar los estilos.
+
+*Y el trabajo sin guardar se avisa.* Apagar piezas hasta dejar la tibia sola es
+media hora, y se perdía en silencio: «Cuerpo completo» reiniciaba sin preguntar,
+abrir otra preparación pisaba la anterior, y cerrar la pestaña se lo llevaba.
+Nada de eso daba error, que es lo que lo hacía peor.
+
+### D-056 · 2026-09-10 · vigente
+**La plataforma pasa el linter, y las migraciones tienen quien las vigile.**
+`npm run lint` ejecutaba `next lint`, orden que Next 16 retiró, así que fallaba
+con «no such directory: lint»; ESLint no estaba ni instalado. Y como `next
+build` tampoco pasa ya el linter, la plataforma llevaba tiempo sin revisar una
+sola regla: los `eslint-disable` repartidos por el código no desactivaban nada,
+porque no había nadie a quien desactivar. Se instala con el conjunto
+`core-web-vitals` y las reglas se dejan como vienen: bajar el listón para que
+salga verde el primer día convierte al linter en un adorno.
+
+*Y la deriva del esquema.* En desarrollo Payload ajusta la base al vuelo, así
+que un campo nuevo sin migración funciona en el portátil y falla al desplegar, o
+peor, arranca y deja de guardar ese campo en silencio. Ya pasó una vez: la base
+del servidor arrancó con cero tablas. `tests/unit/migraciones.test.ts` lee la
+instantánea que Payload escribe junto a cada migración y comprueba que describa
+lo que declaran las colecciones hoy. Se verificó que falla al añadir un campo
+sin migración; una prueba que nunca falla no protege de nada.
+
+*Y las pruebas dejan de tocar la base de desarrollo.* El `push` de Drizzle, si
+cree que puede perder datos, **pregunta** y se queda esperando. Una suite que
+espera una respuesta que nadie va a dar no falla: se cuelga.
 
 ---
 
@@ -800,6 +1033,183 @@ lectura de la cookie.
 *Arreglo:* `serverURL` pasa a ser únicamente el origen, y el prefijo se declara
 en `routes.api`, que es lo que Payload antepone al construir las URLs
 absolutas de los archivos subidos.
+
+---
+
+---
+
+### O-019 · 2026-09-10 · alta · resuelta
+**El prefijo salía dos veces en la dirección de cada archivo subido.**
+En el servidor, toda imagen, todo vídeo y todo modelo 3D de toda ficha era un
+404. La dirección que publicaba Payload era
+`https://servidor:10000/traumahub/traumahub/api/medios/file/foto.png`.
+
+*Causa:* `routes.api` llevaba el prefijo escrito a mano —`${PREFIJO}/api`—
+mientras que `formatAdminURL`, la función de Payload que arma esas
+direcciones, antepone por su cuenta `process.env.NEXT_BASE_PATH`, que
+`withPayload` rellena con el `basePath` de Next al compilar. El prefijo se
+sumaba dos veces.
+
+*Por qué costó verlo, y por qué llegó a producción.* Tres cosas a la vez. El
+campo `url` es virtual: Payload lo recalcula en cada lectura y no queda escrito
+en ninguna fila que uno pueda mirar. Apenas había archivos subidos, así que
+nadie tropezó. Y la API REST **sí funcionaba** con el prefijo doblado, porque
+su envoltorio construye la ruta entrante con la misma función y el doblez
+aparecía a los dos lados de la comparación, cancelándose. Solo fallaba lo que
+resuelve el navegador de verdad.
+
+*Cómo se comprobó:* llamando a `generateFilePathOrURL` de Payload con
+`NEXT_BASE_PATH=/traumahub` y las dos configuraciones posibles, y comparando la
+salida. Está atado en `tests/unit/archivosSubidos.test.ts`.
+
+*Lección:* la corrección de O-018 dejó escrito que «el prefijo se declara en
+`routes.api`, que es lo que Payload antepone». Era media verdad, y la otra
+media costó este fallo. Cuando una biblioteca ya hace algo por su cuenta,
+hacerlo también a mano no lo refuerza: lo duplica.
+
+---
+
+### O-020 · 2026-09-10 · alta · resuelta
+**«Retirar de publicación» no retiraba nada.**
+El botón respondía «retirada», el panel mostraba la ficha como borrador, y el
+residente la seguía viendo.
+
+*Causa:* la acción escribía con `draft: true`, y en Payload eso guarda una
+versión de borrador nueva **dejando intacto el documento publicado**. Es lo
+correcto para «guardar sin publicar» y lo contrario de lo que hace falta para
+«dejar de publicar», que necesita `draft: false`.
+
+*Cómo se comprobó:* creando una ficha publicada contra la base de desarrollo,
+llamando exactamente a lo que llama el panel y preguntando después por el
+estado. Tras la llamada, `_status` seguía siendo `published` y una consulta de
+lector la devolvía igual.
+
+*Por qué nadie lo notó:* porque todo lo visible decía que había funcionado. El
+único sitio donde se veía la verdad era la sesión de un residente.
+
+---
+
+### O-021 · 2026-09-10 · alta · resuelta
+**Duplicar una ficha con contenido fallaba siempre.**
+«El siguiente campo es inválido: id», sin más.
+
+*Causa:* cada bloque y cada fila de un documento lleva un `id` propio que en
+PostgreSQL es la clave primaria de su tabla. Al copiar, viajaban dentro de la
+copia y Payload rechazaba el documento entero. La ficha de demostración, con
+dos bloques y una lista de tres puntos, arrastraba catorce.
+
+*Arreglo:* se limpian solo en el camino de copia. Al **guardar**, ese
+identificador es lo que dice «esta es la misma fila de antes» y hay que
+conservarlo: quitarlo allí haría que cada guardado borrase y recreara todas las
+filas.
+
+---
+
+### O-022 · 2026-09-10 · baja · resuelta · **corregida el mismo día**
+**El correo de contraseña nueva dependía de una ruta que estaba a punto de irse.**
+
+*Primero, la corrección, porque esta entrada llegó a decir algo falso.* Se
+escribió aquí que el enlace «apuntaba a la raíz del dominio, es decir a otra
+página, llevándole el testigo». **No era cierto.** Al revisar la documentación
+se comprobó llamando a la propia función de Payload: `formatAdminURL` sí antepone
+el prefijo, de modo que el enlace salía como
+`https://servidor:10000/traumahub/admin/reset/<testigo>`, dentro de la
+aplicación. Y la ruta de compatibilidad `/admin` lo reenviaba a
+`/clave/<testigo>`. **El restablecimiento de contraseña funcionaba.**
+
+Queda registrado el error y no se borra, porque tiene su propia lección: el
+razonamiento era «`serverURL` no lleva el prefijo, luego el enlace tampoco», y
+saltó por encima de que quien arma la dirección no usa solo `serverURL`. Es el
+mismo descuido que causó O-019, en el otro sentido. Con esa función hay que
+ejecutarla, no razonarla.
+
+*Lo que sí estaba mal, y por qué se cambió igualmente.* El correo era el de
+Payload: en inglés, y colgado de `/admin`, una ruta que existe solo como
+redirector de enlaces viejos y que en la limpieza del mismo día perdió
+precisamente la rama de `reset`. Un enlace de contraseña que rebota por un 308
+en una ruta retirada es una dependencia que nadie querría descubrir el día que
+haga falta.
+
+*Arreglo:* el correo se arma en la propia colección de usuarios, en español, y
+apunta directamente a `/clave/<testigo>`, la pantalla propia. Atado con pruebas.
+El testigo caduca en una hora, así que ningún enlace anterior al cambio sigue
+vivo y no hacía falta conservar el redirector.
+
+---
+
+### O-023 · 2026-09-10 · alta · resuelta
+**Un «-f» de más dejaba a los guiones de operación sin encontrar la aplicación.**
+Todos pasaban `-f docker-compose.yml` de forma explícita, y con `-f` Compose
+deja de fusionar `docker-compose.override.yml`, que es exactamente donde vive
+el servicio `app` en el servidor de páginas compartido.
+
+*Lo que provocaba, todo junto y todo en silencio:* el respaldo de los archivos
+subidos se saltaba siempre y se informaba como éxito; `salud.sh` daba por caída
+una aplicación sana; y `restaurar.sh` no llegaba a detener la aplicación antes
+de sobrescribir la base, que es el peor de los tres.
+
+*Y su gemelo, que hacía más daño.* `deploy.sh` consultaba la salud con
+`$BASE_PATH`, una variable que ningún compose ni ninguna plantilla de `.env`
+define en el anfitrión: solo existe como argumento de compilación. En el
+servidor no obtenía respuesta en 90 segundos y **revertía un despliegue sano** a
+la imagen anterior.
+
+*Arreglo:* una función `dc` que solo pone `-f` cuando hace falta, y el prefijo
+preguntado al contenedor, que es quien lo sabe porque lo lleva grabado.
+
+---
+
+### O-024 · 2026-09-10 · media · resuelta
+**Reabrir una preparación anatómica y volver a guardarla borraba su encuadre.**
+El visor lee la vista solo al montar la escena, y abrir una preparación no
+cambia el catálogo, así que la cámara se quedaba donde estuviera. Como al
+guardar se escribe la cámara actual, volver a guardar sustituía en silencio el
+encuadre bueno por el que hubiera en pantalla.
+
+*Arreglo:* una orden `irA` en el mando del visor. No una prop que se aplique al
+cambiar de valor: con eso, reabrir dos veces la misma preparación no habría
+movido nada —que es justo lo que se hace cuando uno se ha perdido girando— y
+además el visor público construye ese objeto en cada pintado, de modo que la
+cámara se le habría devuelto sola al residente mientras intentaba girarla.
+
+---
+
+### O-025 · 2026-09-10 · media · resuelta
+**Cada ficha de puro texto descargaba el motor 3D entero.**
+`Bloques.tsx` importaba los dos visores de forma normal y pinta todas las
+fichas, así que three.js, `@react-three/fiber` y `drei` viajaban a cada página.
+Medido sobre la compilación, antes y después:
+
+| Ruta | Antes | Después |
+|---|---|---|
+| `/biblioteca/[id]` | 1049 KB | 37 KB |
+| `/tecnica-ao/[id]` | 1047 KB | 34 KB |
+| `/examen-fisico` | 1047 KB | 34 KB |
+
+*El detalle que importa al arreglarlo:* la envoltura tiene que ser un
+componente de cliente. Un componente de servidor que importa dinámicamente uno
+de cliente **no** divide el paquete, y `ssr: false` solo tiene efecto dentro de
+uno de cliente. Hacerlo en `Bloques.tsx` habría dado la sensación de arreglarlo
+sin arreglar nada.
+
+---
+
+### O-026 · 2026-09-10 · media · resuelta
+**La caché de un año del atlas estaba puesta sobre nombres que no cambian.**
+Los paquetes se sirven como inmutables durante un año y se llaman
+`cuerpo-0.bin.gz`, `cuerpo-1.bin.gz`… sin versión en el nombre. El comentario
+del `next.config.mjs` afirmaba lo contrario: «si cambia, cambia su versión y
+con ella el nombre».
+
+*Lo que habría pasado:* regenerar el atlas dejaba a quien ya lo hubiera
+visitado con la geometría vieja y el catálogo nuevo durante un año, que es la
+manera silenciosa de enseñar el hueso equivocado.
+
+*Arreglo:* la versión del catálogo viaja en la dirección, y el catálogo pasa a
+revalidarse siempre, porque es la pieza que decide qué versión se pide. Además,
+esa versión se calcula ahora sobre el catálogo entero y no solo sobre la lista
+de identificadores: un atlas reempaquetado con las mismas piezas conservaba la
+versión y no habría cambiado nada.
 
 ---
 

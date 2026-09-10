@@ -93,6 +93,13 @@ tunel:
   networks: [interna]
 ```
 
+El token va en el `.env`, como `CLOUDFLARE_TUNNEL_TOKEN`, y hay que **pedir**
+esta variante: `scripts/comun.sh` hace `TUNEL="${TUNEL:-tailscale}"`, así que
+`./scripts/deploy.sh` a secas levanta el despliegue de Tailscale y deja el token
+sin usar. Se despliega con `TUNEL=cloudflare ./scripts/deploy.sh`, y la misma
+variable hace falta en los demás guiones de operación: sin ella miran el
+despliegue equivocado y lo dan por caído. Ver `docs/DESPLIEGUE.md`.
+
 La ventaja de esta variante es fuerte: el contenedor del túnel comparte red con
 la aplicación, de modo que **la aplicación no publica ningún puerto en el
 anfitrión**. Ni siquiera desde el propio servidor se la puede alcanzar por un
@@ -131,15 +138,36 @@ Esto es gratis hasta cincuenta usuarios y conviene hacerlo siempre.
 |---|---|
 | Application name | Panel de contenido |
 | Subdomain / Domain | `plataforma` · el dominio |
-| Path | `admin` |
+| Path | `admin-panel` |
 
 En **Policies**, crear una con acción **Allow** y regla **Emails**, indicando los
 correos que pueden entrar.
 
-El efecto: antes incluso de ver el inicio de sesión de la plataforma, Cloudflare
-pide un código enviado por correo. Quien no esté en esa lista no llega a ver
-nunca el formulario. Son dos cerraduras independientes en la puerta que más
-importa.
+**El camino es `admin-panel` y no `admin`.** Es el error fácil de cometer aquí,
+porque el panel vivió en `/admin` mientras la plataforma usaba la interfaz de
+Payload. Esa interfaz se retiró (decisión D-038) y el panel propio está en
+`/admin-panel`. Lo que queda en `/admin` es un cartel indicador
+—`src/app/(frontend)/admin/[[...resto]]/page.tsx`— que solo redirige: a
+`/instalar` si todavía no hay ninguna cuenta, a `/entrar` desde `/admin/login` y
+`/admin/logout`, y a `/admin-panel` en cualquier otro caso. Existe para que los
+enlaces y marcadores viejos no acaben en un 404.
+
+Una política de Access sobre `admin` protege entonces el redirector y deja el
+panel de verdad con una sola cerradura. Lo peor es que no se nota: quien llega
+por el enlace viejo pasa igual por Cloudflare, recibe el código y termina en el
+panel, así que todo parece bien configurado. Basta escribir `/admin-panel`
+directamente para saltarse esa política.
+
+Si la instalación va bajo un prefijo —`NEXT_PUBLIC_BASE_PATH`, que en el
+servidor compartido vale `/traumahub`—, el camino lo lleva:
+`traumahub/admin-panel`.
+
+El efecto: Cloudflare pide un código enviado por correo antes de que la petición
+llegue siquiera a la aplicación. Quien no esté en esa lista se queda en la
+pantalla de Access y el panel no llega a cargarse. Son dos cerraduras
+independientes en la puerta que más importa: la de Cloudflare y la de la propia
+plataforma, que vuelve a comprobar rol y cuenta activa en cada página del panel
+(`src/app/(frontend)/admin-panel/acceso.ts`).
 
 ---
 
@@ -151,6 +179,11 @@ docker compose -f docker-compose.prod.yml logs tunel | grep -i "registered\|conn
 
 # Desde cualquier parte: responde con certificado válido
 curl -I https://plataforma.midominio.cl
+
+# La comprobación de salud, que contesta sin sesión: dice si la aplicación
+# está en pie y si la base responde, y nada más. Bajo prefijo lleva el prefijo:
+# .../traumahub/api/salud
+curl -s https://plataforma.midominio.cl/api/salud
 ```
 
 En el panel, el túnel debe figurar como **HEALTHY** con cuatro conexiones
@@ -165,12 +198,40 @@ puertos, pero cualquiera que conozca el nombre público llega al servicio. La
 autenticación sigue siendo responsabilidad de la aplicación —en esta plataforma,
 la decisión D-020— y de las políticas de Access.
 
+**Qué contesta sin sesión.** Cinco caminos, ninguno con contenido docente:
+`/api/salud`, `/entrar`, `/clave`, `/instalar` y `/creditos`. La portada `/`
+abre también, pero sin sesión muestra solo la presentación y el botón de entrar.
+`/admin` abre, y solo para redirigir. Cualquier otra página exige cuenta activa.
+
+**Los archivos subidos ya no son públicos.** Vivían en `public/`, donde Next los
+servía como estáticos sin preguntar nada: bastaba conocer la dirección de una
+radiografía para descargarla desde fuera de la plataforma. Hoy están en
+`medios/` y `medios/modelos/`, y los entrega Payload por
+`<api>/<colección>/file/<nombre>`, que sí ejecuta el control de lectura de la
+colección. Conviene tenerlo presente antes de escribir en Cloudflare cualquier
+regla de caché o de omisión sobre esas rutas.
+
+Lo que sigue siendo estático y sin sesión es el contenido de `public/`: el
+logotipo, los iconos, `robots.txt` y los paquetes del atlas anatómico. El atlas
+son 31 MB de geometría de terceros con licencia CC BY 4.0 —anatomía de
+referencia, no la de ningún paciente— y sus paquetes salen marcados como
+públicos e inmutables por un año en `next.config.mjs`, justamente para que un
+intermediario pueda guardarlos y no crucen el túnel en cada visita.
+
 **El plan gratuito no permite servir vídeo masivo.** La sección 2.8 de los
 términos de servicio de Cloudflare prohíbe usar el CDN gratuito para
 distribuir volúmenes grandes de vídeo. Para unos cuantos vídeos de maniobras no
 hay problema, pero si el módulo de examen físico llega a tener horas de material
 propio, corresponde mover ese contenido a Cloudflare Stream, a R2 o a otro
 alojamiento.
+
+Ese material, además, no lo cachea nadie por el camino. Los archivos subidos
+salen con `Cache-Control: private` y `Vary: Cookie`
+(`src/collections/hooks/cacheDeArchivos.ts`), porque una copia guardada por un
+intermediario podría terminar en manos de quien no tiene sesión. La
+contrapartida es que cada imagen y cada vídeo cruzan el túnel hasta el servidor;
+lo único que ahorra peticiones es la caché del navegador de cada persona, de una
+hora.
 
 **Los archivos grandes tienen tope.** El plan gratuito limita la subida a 100 MB
 por petición. Los modelos tridimensionales de esta plataforma pesan menos de 5

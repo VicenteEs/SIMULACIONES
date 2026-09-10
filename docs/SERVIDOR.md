@@ -58,7 +58,8 @@ Lo demás lo resuelve solo:
 3. Prepara `backups/` con los permisos que necesitan a la vez el contenedor
    (que corre como uid 1001) y su usuario del servidor.
 4. Llama a `scripts/deploy.sh`, que construye y levanta todo.
-5. Programa el respaldo diario con un temporizador de `systemd`.
+5. Programa el respaldo diario con un temporizador de `systemd`, o en el
+   `crontab` si la máquina no lo trae.
 6. Ejecuta `scripts/salud.sh` y muestra el estado final.
 
 Si algo falla, el script se detiene y dice qué pasó. Volver a ejecutarlo es
@@ -90,9 +91,15 @@ respaldos y estado del sistema se gestionan desde ahí. Los residentes entran
 por `https://SU-DIRECCION/entrar`.
 
 > La interfaz de administración de Payload ya no existe en esta plataforma
-> (D-038). La ruta `/admin` se conserva únicamente para que los enlaces
-> antiguos —incluido el `/admin/reset/...` de algún correo ya enviado— lleguen
-> a la pantalla que corresponde.
+> (D-038). La ruta `/admin` se conserva solo para que los enlaces y marcadores
+> antiguos no den en un 404 sin explicación: `/admin/login` y `/admin/logout`
+> van a `/entrar`, todo lo demás va a `/admin-panel`, y en una instalación sin
+> ninguna cuenta todo va a `/instalar`. Los `/admin/reset/<testigo>` de algún
+> correo antiguo ya no tienen pantalla propia a la que llegar: acaban en
+> `/admin-panel` y, sin sesión, en la portada. No se pierde nada, porque el
+> testigo caduca al cabo de una hora y ninguno de aquellos enlaces sigue vivo.
+> El correo actual se arma en `src/collections/Usuarios.ts` y apunta a
+> `/clave/<testigo>`.
 
 ---
 
@@ -135,7 +142,9 @@ para leerla.
 
 - **Automático:** todos los días a las 03:00, por un temporizador de `systemd`.
   Si el servidor estaba apagado a esa hora, el respaldo se hace al encender
-  (`Persistent=true`) en lugar de perderse.
+  (`Persistent=true`) en lugar de perderse. Si la máquina no trae `systemd`,
+  `instalar-servidor.sh` deja la misma orden en el `crontab` del usuario, a la
+  misma hora: es el camino de repuesto y pierde la recuperación al encender.
 - **Qué incluye:** un volcado completo de PostgreSQL (`base-*.sql.gz`) y un
   archivo con los medios subidos (`medios-*.tar.gz`).
 - **Dónde:** el directorio `backups/` del clon, en el servidor, fuera del
@@ -157,9 +166,17 @@ journalctl -u plataforma-respaldo.service -n 50
 ### Respaldar y descargar desde el panel
 
 En `/admin-panel/respaldos` puede crear un respaldo con un botón, ver los que
-hay con su fecha y tamaño, **descargarlos** y eliminar los que sobren. Los
-archivos son exactamente los mismos que produce el cron: un solo sistema, no
-dos que se ignoran.
+hay con su fecha y tamaño, **descargarlos** y eliminar los que sobren. La
+página es solo para administradores.
+
+El archivo que sale del botón se llama igual y vive en el mismo directorio que
+el del respaldo automático: un solo sistema, no dos que se ignoran, y
+`restaurar.sh` restaura por igual uno hecho a mano y uno de las 03:00. Con un
+límite que conviene tener claro: el panel vuelca **solo la base**
+(`base-*.sql.gz`). El archivo de los medios (`medios-*.tar.gz`) lo escribe
+únicamente `scripts/respaldar.sh`. Una copia completa son los dos archivos, así
+que llevarse solo el del panel deja fuera las imágenes, los videos y los
+modelos subidos.
 
 El panel avisa en el resumen si el último respaldo tiene más de dos días.
 
@@ -190,6 +207,13 @@ que escriba `RESTAURAR` con esas letras, **respalda el estado actual**, detiene
 la aplicación para que no escriba a mitad de la restauración, restaura, cuenta
 las cuentas recuperadas y vuelve a levantar la aplicación.
 
+Los archivos subidos los repone en el mismo paso, pero solo si en `backups/`
+hay un `medios-*.tar.gz` con la **misma marca de tiempo** que el volcado.
+Restaurar medios de otro día junto a una base de hoy deja fichas apuntando a
+archivos que no existen, así que ante la duda no los toca y lo dice. Es la otra
+cara del límite del panel: un volcado creado desde ahí nunca tiene medios de su
+misma fecha.
+
 > **Un respaldo que nunca se restauró no es un respaldo.** Pruebe una
 > restauración ahora, con la plataforma todavía vacía, y no el día que haga
 > falta de verdad.
@@ -208,8 +232,8 @@ las cuentas recuperadas y vuelve a levantar la aplicación.
                     │  Next.js + Payload          │
                     └──────┬───────────────┬──────┘
                            │ red interna   │ volúmenes
-                    ┌──────▼──────┐  ┌─────▼───────────────┐
-                    │  trauma-db  │  │ medios: /public/media│
+                    ┌──────▼──────┐  ┌─────▼────────────────┐
+                    │  trauma-db  │  │ medios: /app/medios  │
                     │ PostgreSQL  │  │ ./backups: /backups  │
                     └─────────────┘  └──────────────────────┘
 ```
@@ -224,8 +248,12 @@ Puntos que conviene tener presentes:
 - El contenedor no corre como root (uid 1001).
 - Los medios subidos y los respaldos viven fuera de la imagen, de modo que
   reconstruirla no borra nada.
-- `/api/salud` es el único extremo sin sesión, y no revela nada: solo si la
-  aplicación está en pie y si la base responde.
+- `/api/salud` es el único extremo propio de la API que no pide sesión, y no
+  revela nada: solo si la aplicación está en pie y si la base responde. Los de
+  autenticación de Payload tampoco la piden, porque son justamente los que la
+  abren. Entre las pantallas, tampoco piden sesión `/entrar`, `/clave`,
+  `/instalar` y `/creditos`: ninguna de ellas muestra contenido docente. La
+  portada sin sesión enseña la presentación y el enlace a `/entrar`, nada más.
 
 ### La alternativa: Cloudflare
 
@@ -262,8 +290,11 @@ fue el último respaldo y cuánto disco queda.
 | El disco se llenó | `du -sh backups/*` y baje `DIAS_A_CONSERVAR` |
 
 La plataforma se niega a dejar sin administrador activo: no se puede quitar el
-rol ni desactivar la única cuenta que administra, ni desde el panel ni desde el
-CMS. Eso evita el modo más común de quedarse encerrado fuera.
+rol ni desactivar la única cuenta que administra. La regla no vive en el panel
+sino en la colección —`src/collections/hooks/autobloqueo.ts`, enganchado desde
+`src/collections/Usuarios.ts`—, de modo que la respeta también cualquier
+escritura que entre por la API. Eso evita el modo más común de quedarse
+encerrado fuera.
 
 ---
 
