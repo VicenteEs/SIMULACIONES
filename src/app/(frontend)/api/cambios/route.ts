@@ -2,6 +2,7 @@ import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { versionActual } from '@/lib/publicaciones'
+import { puedeVerModulo } from '@/access/reglas'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,13 +23,20 @@ export async function GET() {
     return new Response('No autorizado', { status: 401 })
   }
 
+  // A cada quien lo suyo. Una cuenta con `modulosVisibles` restringido no debe
+  // enterarse siquiera de que se publicó algo en un módulo que no ve: se lo
+  // diría el aviso, recargaría, y no encontraría nada. Y como el aviso nombra
+  // el módulo, callarlo no es cortesía sino la decisión D-020.
+  const sesion = user as unknown as Parameters<typeof puedeVerModulo>[0]
+  const puedeVer = (modulo: string) => puedeVerModulo(sesion, modulo)
+
   const codificador = new TextEncoder()
   let intervalo: ReturnType<typeof setInterval>
 
   const flujo = new ReadableStream({
     start(controlador) {
       const enviar = () => {
-        const datos = JSON.stringify(versionActual())
+        const datos = JSON.stringify(versionActual(puedeVer))
         controlador.enqueue(codificador.encode(`data: ${datos}
 
 `))

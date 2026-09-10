@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { avisarAlPublicar } from './hooks/avisarAlPublicar'
 import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { editorClinico, pilaDeBloques } from '@/blocks'
 
@@ -20,6 +21,9 @@ export const CasosAO: CollectionConfig = {
     delete: escrituraDeModulo('casos-ao'),
   },
   versions: { drafts: true, maxPerDoc: 50 },
+  // Avisa a los navegadores conectados al publicar; el mismo gancho en los
+  // cinco modulos.
+  hooks: { afterChange: [avisarAlPublicar] },
   fields: [
     { name: 'titulo', type: 'text', required: true, label: 'Título del caso' },
     { name: 'codigo', type: 'text', label: 'Código AO/OTA' },

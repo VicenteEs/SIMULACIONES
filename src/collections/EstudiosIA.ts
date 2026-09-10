@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { avisarAlPublicar } from './hooks/avisarAlPublicar'
 import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { pilaDeBloques } from '@/blocks'
 
@@ -26,6 +27,9 @@ export const EstudiosIA: CollectionConfig = {
     delete: escrituraDeModulo('estudios-ia'),
   },
   versions: { drafts: true, maxPerDoc: 50 },
+  // Avisa a los navegadores conectados al publicar; el mismo gancho en los
+  // cinco modulos.
+  hooks: { afterChange: [avisarAlPublicar] },
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre del caso' },
     { name: 'codigo', type: 'text', label: 'Clasificación propuesta' },
