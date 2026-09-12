@@ -109,7 +109,16 @@ export default buildConfig({
     // nadie va a dar no falla: se cuelga, en el portátil y en integración
     // continua. Además, las pruebas no tienen por qué reescribir el esquema de
     // la base con la que uno está desarrollando.
-    push: process.env.NODE_ENV !== 'test',
+    // **Solo en desarrollo.** Estaba escrito como «distinto de test», que en el
+    // servidor es verdadero, así que producción sincronizaba el esquema al
+    // vuelo —lo contrario de lo que dice el párrafo de arriba— y dejaba escrita
+    // una migración llamada `dev` en la tabla. A partir de ahí, cada arranque
+    // veía esa marca y preguntaba por consola «ha corrido Payload en modo
+    // desarrollo… ¿quiere aplicar las migraciones? (y/N)», y se quedaba
+    // esperando. El servicio arrancaba, no servía una sola petición y no daba
+    // ningún error: exactamente la misma trampa que D-056 describe para las
+    // pruebas, y el mismo día en que se creyó cerrada.
+    push: process.env.NODE_ENV === 'development',
     prodMigrations: migrations,
   }),
   // sharp genera las miniaturas de las imagenes subidas.
