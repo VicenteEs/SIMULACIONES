@@ -175,6 +175,7 @@ Guía completa: [docs/SERVIDOR.md](docs/SERVIDOR.md).
 |---|---|
 | [docs/PUESTA-EN-MARCHA.md](docs/PUESTA-EN-MARCHA.md) | Requisitos, arranque local, comandos y qué hacer si Docker no parte en Windows |
 | [docs/SERVIDOR.md](docs/SERVIDOR.md) | Guía única para dejar la plataforma en un servidor Ubuntu propio: instalación, operación diaria, respaldos y qué mirar cuando algo falla |
+| [docs/SERVIDOR-WINDOWS.md](docs/SERVIDOR-WINDOWS.md) | El otro despliegue: Windows sin Docker, tras Tailscale Funnel y bajo un prefijo de ruta. Es el que corre hoy en faraday |
 | [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md) | Los tres modos de publicación según la variable `TUNEL`, lo que hace falta antes de desplegar y qué quedó verificado en el ensayo |
 | [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) | Exponer el servicio con un túnel de Cloudflare, sin abrir puertos del router |
 | [docs/CORREO.md](docs/CORREO.md) | Correo saliente. Sin él, quien olvide su clave depende de un administrador |

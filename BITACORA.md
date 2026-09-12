@@ -833,6 +833,32 @@ probado entero sin navegador. Y cuando un paso antiguo no declara objetivo, se
 **deduce** de lo que sí declara: un rango de fuerza guardado y no evaluado sería
 una regla que el residente cree estar cumpliendo.
 
+
+### D-060 · 2026-09-12 · vigente
+**La plataforma corre también en un Windows de casa, sin Docker y tras Tailscale
+Funnel.**
+El servidor de referencia sigue siendo el Ubuntu con Docker de `docs/SERVIDOR.md`.
+Pero la máquina disponible —faraday, alias `blanco`— es un Windows 11 sin Docker,
+sin WSL y sin PostgreSQL, y no había razón para instalar una capa de
+virtualización entera solo para arrancar un proceso de Node y una base. Se monta
+nativo: PostgreSQL desde los binarios en ZIP, la aplicación como servicio con
+NSSM, y el túnel con Tailscale Funnel, que la máquina ya tenía.
+
+*Consecuencia buena:* la publicación no necesita dominio, ni certificado, ni
+abrir un puerto del router. Funnel emite el certificado y entra por localhost, y
+tanto la aplicación como la base escuchan solo en `127.0.0.1`.
+
+*Consecuencia mala, y hay que decirla:* ahora existen dos caminos de despliegue y
+solo uno está automatizado. Los scripts `.sh` del repositorio —instalar, desplegar,
+respaldar, salud— suponen bash y Docker, así que en Windows no corre ninguno.
+Mientras eso siga así, **este despliegue no tiene respaldo automático**, que es la
+deuda concreta que deja esta decisión. Está anotada en `docs/SERVIDOR-WINDOWS.md`
+junto al volcado a mano que la tapa entretanto.
+
+*Y una advertencia que no es técnica:* Funnel publica en internet abierto, no en
+la red privada de Tailscale. Lo que protege el contenido es que sin sesión no se
+ve nada (D-020), no el túnel.
+
 ---
 
 ## 3. Observaciones
@@ -1304,6 +1330,41 @@ material, que es el punto entero del módulo.
 explícito y no infinito a propósito: **Q-006** fija el presupuesto por modelo en
 5 MB comprimido, y un límite generoso pero visible es lo que mantiene esa
 conversación viva. Si un modelo no cabe en 8 MB, el problema es el modelo.
+
+### O-030 · 2026-09-12 · alta · resuelta
+**Tailscale Funnel recorta el prefijo, y con `basePath` puesto eso da 404 en
+todo.**
+La forma evidente de publicar la plataforma bajo `/simulaciones` era
+`tailscale funnel --set-path /simulaciones`. Hace lo contrario de lo que hace
+falta: monta el servicio en esa ruta y **la recorta** antes de reenviar. Una
+petición a `/simulaciones/api/salud` llega al proceso como `/api/salud`.
+
+Con `basePath` puesto, la aplicación espera el prefijo y recibe la ruta pelada:
+404 en todo. Sin `basePath`, las rutas entran bien pero cada enlace que Next
+escribe sale sin prefijo, el navegador pide `https://host/algo` y ahí no hay
+nada montado. Ninguna de las dos mitades encaja, y las dos fallan de formas que
+parecen otra cosa.
+
+*Cómo apareció:* antes de compilar, con un servidor de siete líneas que solo
+devuelve la ruta que recibe. El prefijo se incrusta al construir, así que
+averiguarlo después habría costado una reconstrucción entera y un rato largo
+buscando el 404 en el sitio equivocado.
+
+*Arreglo:* el túnel se monta en la **raíz** y el prefijo lo pone la aplicación,
+que es la única pieza que puede ponerlo también en los enlaces que genera.
+
+### O-031 · 2026-09-12 · media · resuelta
+**El instalador de PostgreSQL no se puede ejecutar por SSH.**
+El instalador de EnterpriseDB es un BitRock y necesita una sesión de escritorio.
+Por SSH sale con código 1 y no deja registro; con `-RedirectStandardOutput` deja
+uno, y lo que dice es que no pudo escribir su propio `.bat` temporal. Tampoco
+sirve `winget install --custom`: winget ya pasa sus argumentos silenciosos y el
+instalador rechaza el juego duplicado. Antes de eso falló una tercera vez, porque
+`Start-Process -ArgumentList` con un arreglo no entrecomilla los elementos con
+espacios y `C:\Program Files\PostgreSQL` llegaba partido en dos.
+
+*Arreglo:* los binarios en ZIP, `initdb` y `pg_ctl register`. No instalan nada,
+no necesitan escritorio y el proceso entero cabe en un script.
 
 ---
 
