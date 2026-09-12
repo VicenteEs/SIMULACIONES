@@ -14,14 +14,46 @@
  */
 
 import { readFile } from 'node:fs/promises'
+import { gunzip } from 'node:zlib'
 import { join } from 'node:path'
 import { revalidatePath } from 'next/cache'
 import { accion, exigirEditor, type Respuesta } from '@/lib/guardias'
 import { exigirIdentificador, exigirTexto, textoOpcional } from '@/lib/validacion'
 import { normalizarSeleccion, piezasPerdidas } from '@/atlas/catalogo'
 import type { CatalogoDelAtlas, ContenidoDeInstancia } from '@/atlas/formato'
+import { escribirGlb } from '@/lib/glb'
+import {
+  agruparParaGlb,
+  nombresDelArchivo,
+  piezasDeLaPreparacion,
+  TECHO_BYTES,
+  type PiezaLeida,
+} from '@/lib/exportarAtlas'
 
 const RUTA_PANEL = '/admin-panel/atlas'
+
+/**
+ * Un paquete de geometría del atlas, descomprimido en memoria.
+ *
+ * En el navegador no hay ni una línea de descompresión porque los paquetes se
+ * sirven con `Content-Encoding: gzip` y la hace el propio navegador. Aquí se
+ * leen del disco, donde están comprimidos, así que hay que hacerla a mano.
+ *
+ * No se recuerdan entre llamadas a propósito: son decenas de megabytes y una
+ * exportación es algo que se hace de vez en cuando, no en cada petición.
+ */
+async function leerPaquete(catalogo: CatalogoDelAtlas, indice: number): Promise<ArrayBuffer> {
+  const paquete = catalogo.paquetes[indice]
+  if (!paquete) throw new Error(`El atlas no tiene el paquete ${indice}.`)
+  const ruta = join(process.cwd(), 'public', 'atlas', paquete.archivo)
+  const comprimido = await readFile(ruta)
+  const crudo = await new Promise<Buffer>((resolver, rechazar) => {
+    gunzip(comprimido, (error, salida) => (error ? rechazar(error) : resolver(salida)))
+  })
+  // Se copia a un ArrayBuffer propio: el de un Buffer de Node puede estar
+  // compartido con otros, y las vistas tipadas leerían bytes ajenos.
+  return crudo.buffer.slice(crudo.byteOffset, crudo.byteOffset + crudo.byteLength) as ArrayBuffer
+}
 
 /**
  * El catálogo, leído del disco y recordado.
@@ -221,5 +253,127 @@ export async function eliminarInstancia(id: unknown): Promise<Respuesta> {
     })
     revalidatePath(RUTA_PANEL)
     return null
+  })
+}
+
+/**
+ * Exporta una preparación a un modelo 3D que la consola quirúrgica pueda abrir.
+ *
+ * El atlas y el simulador son dos motores distintos: el atlas funde las piezas
+ * de cada sistema en una malla y decide qué se ve con una textura; la consola
+ * carga objetos con nombre, mueve uno y mide milímetros. En vez de enseñarle el
+ * atlas a la consola —que es reescribir el simulador— se escribe un archivo del
+ * mismo formato que sale de Blender, y la consola no se entera de que el atlas
+ * existe.
+ *
+ * El archivo es una copia: el atlas no se toca, y la preparación tampoco.
+ */
+export async function exportarComoModelo(
+  id: unknown,
+  opciones?: { protagonistas?: unknown },
+): Promise<Respuesta<{ id: string; nombre: string; bytes: number; nodos: string[]; perdidas: string[] }>> {
+  return accion(async () => {
+    const { payload, usuario } = await exigirEditor()
+    const identificador = exigirIdentificador(id, 'La preparación')
+
+    const instancia = (await payload.findByID({
+      collection: 'instancias-atlas',
+      id: identificador,
+      user: usuario as never,
+    })) as unknown as Record<string, unknown>
+
+    const contenido = (instancia.contenido ?? {}) as Partial<ContenidoDeInstancia>
+    const ids = Array.isArray(contenido.piezas)
+      ? contenido.piezas.map((p) => String((p as { id?: unknown })?.id ?? '')).filter(Boolean)
+      : []
+    if (ids.length === 0) throw new Error('Esa preparación no tiene ninguna pieza.')
+
+    const catalogo = await leerCatalogo()
+    const { encontradas, perdidas } = piezasDeLaPreparacion(catalogo, ids)
+    if (encontradas.length === 0) {
+      throw new Error(
+        'Ninguna de las piezas de esa preparación existe en el atlas instalado. ' +
+          'Puede que se haya regenerado con otra versión.',
+      )
+    }
+
+    // Un paquete se lee y descomprime una sola vez aunque le toquen cien
+    // piezas: son decenas de megabytes y descomprimirlos por pieza sería
+    // repetir el trabajo ciento treinta y nueve veces.
+    const necesarios = [...new Set(encontradas.map((p) => p.paquete))]
+    const buferes = new Map<number, ArrayBuffer>()
+    for (const indice of necesarios) {
+      buferes.set(indice, await leerPaquete(catalogo, indice))
+    }
+
+    const leidas: PiezaLeida[] = encontradas.map((pieza) => {
+      const bufer = buferes.get(pieza.paquete)!
+      return {
+        id: pieza.id,
+        nombre: pieza.nombre,
+        sistema: pieza.sistema,
+        // Copias, no vistas: las vistas apuntan al paquete entero y al
+        // reindexar se escribiría sobre él.
+        posiciones: new Float32Array(
+          new Float32Array(bufer, pieza.pos, pieza.vertices * 3),
+        ),
+        normales: new Int16Array(new Int16Array(bufer, pieza.nor, pieza.vertices * 3)),
+        indices: new Uint32Array(new Uint32Array(bufer, pieza.idx, pieza.indices)),
+      }
+    })
+
+    const colores = Object.fromEntries(catalogo.sistemas.map((s) => [s.id, s.color]))
+    const protagonistas = Array.isArray(opciones?.protagonistas)
+      ? opciones.protagonistas.map((p) => String(p)).filter(Boolean)
+      : []
+
+    const objetos = agruparParaGlb(leidas, { protagonistas, colores })
+    const glb = escribirGlb(objetos, 'TraumaHub · exportado del atlas anatómico')
+
+    if (glb.byteLength > TECHO_BYTES) {
+      const mb = (n: number) => (n / 1024 / 1024).toFixed(1)
+      throw new Error(
+        `El modelo pesaría ${mb(glb.byteLength)} MB y el techo son ${mb(TECHO_BYTES)} MB. ` +
+          'Quite sistemas de la preparación —la piel es una pieza de cuerpo entero y ' +
+          'ella sola pesa más de un megabyte— o quédese con el esqueleto.',
+      )
+    }
+
+    const nombre = `${String(instancia.nombre ?? 'Preparación')} · del atlas`
+    const archivo = `${String(instancia.nombre ?? 'preparacion')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')}.glb`
+
+    const creado = await payload.create({
+      collection: 'modelos-3d',
+      data: {
+        nombre,
+        origen: 'sintetico',
+        anonimizado: true,
+        notas:
+          `Exportado de la preparación «${String(instancia.nombre ?? '')}» del atlas anatómico ` +
+          `(${catalogo.version}), con ${encontradas.length} piezas. ` +
+          `Objetos del archivo: ${nombresDelArchivo(objetos).join(', ')}.`,
+      } as never,
+      file: {
+        data: Buffer.from(glb),
+        mimetype: 'model/gltf-binary',
+        name: archivo,
+        size: glb.byteLength,
+      },
+      user: usuario as never,
+    })
+
+    revalidatePath(RUTA_PANEL)
+    return {
+      id: String((creado as { id: unknown }).id),
+      nombre,
+      bytes: glb.byteLength,
+      nodos: nombresDelArchivo(objetos),
+      perdidas,
+    }
   })
 }
