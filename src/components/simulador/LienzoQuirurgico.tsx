@@ -4,6 +4,9 @@ import { useEffect, useImperativeHandle, useRef, type RefObject } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
+import { ruta } from '@/lib/rutas'
 import { desplazamientoDesde, posicionAbsoluta } from '@/lib/reduccion'
 
 /**
@@ -74,6 +77,7 @@ export function LienzoQuirurgico({
   alMoverFragmento,
   alCargar,
   alSenalar,
+  alFallar,
   mando,
 }: {
   url: string
@@ -86,6 +90,8 @@ export function LienzoQuirurgico({
   alMoverFragmento?: (posicion: Punto3, giros: Punto3) => void
   /** Se llama una vez, cuando el archivo termina de cargar. */
   alCargar?: () => void
+  /** Se llama si el archivo no se puede abrir, con algo que se pueda leer. */
+  alFallar?: (mensaje: string) => void
   /**
    * Se llama con el nombre del objeto pinchado, en modo «senalar».
    *
@@ -123,9 +129,9 @@ export function LienzoQuirurgico({
   }>({ puntosDelTrazo: [], materialesOriginales: new Map() })
 
   // Lo que leen los manejadores sin volver a montar la escena.
-  const ultimas = useRef({ modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar, alSenalar })
+  const ultimas = useRef({ modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar, alSenalar, alFallar })
   useEffect(() => {
-    ultimas.current = { modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar, alSenalar }
+    ultimas.current = { modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar, alSenalar, alFallar }
   })
 
   useImperativeHandle(mando, () => ({
@@ -249,7 +255,26 @@ export function LienzoQuirurgico({
     }
 
     // --- carga del modelo ---------------------------------------------------
+    /**
+     * Con los decodificadores de compresión puestos.
+     *
+     * Sin ellos, un `.glb` exportado con «Comprimir» desde Blender —que es lo
+     * que la guía del traumatólogo le pide hacer en cuanto el archivo pasa de
+     * unos pocos MB, y lo que hace falta para que una pierna entera quepa bajo
+     * el techo de 5 MB— no se abre. Y no se abre **en silencio**: el lienzo se
+     * queda vacío, la cámara encuadra la nada y no hay ningún mensaje.
+     *
+     * El decodificador se sirve desde la propia plataforma y no desde un CDN:
+     * atarlo a que el hospital deje salir a otro dominio convierte un cortafuegos
+     * en un modelo que no carga. La ruta pasa por `ruta()` porque se escribe a
+     * mano, y bajo un prefijo saldría sin él.
+     */
+    const draco = new DRACOLoader()
+    draco.setDecoderPath(ruta('/draco/'))
+
     const cargador = new GLTFLoader()
+    cargador.setDRACOLoader(draco)
+    cargador.setMeshoptDecoder(MeshoptDecoder)
     cargador.load(
       url,
       (gltf) => {
@@ -284,8 +309,17 @@ export function LienzoQuirurgico({
         sucio = true
       },
       undefined,
-      () => {
-        /* El componente de arriba ya avisa si el modelo no está. */
+      (error) => {
+        // Un fallo de carga tiene que verse. El comentario que había aquí decía
+        // que «el componente de arriba ya avisa», y era falso: arriba solo se
+        // avisa cuando el caso no declara ningún modelo. Si el archivo existe y
+        // no se puede leer —comprimido sin decodificador, cortado a medias, un
+        // permiso— el residente veía un lienzo vacío y nada más.
+        if (!vivo) return
+        const detalle = error instanceof Error ? error.message : String(error)
+        ultimas.current.alFallar?.(
+          `No se pudo abrir el modelo. ${detalle || 'El archivo no se pudo leer.'}`,
+        )
       },
     )
 

@@ -1456,6 +1456,42 @@ petición viaja el formulario (O-029). El que decide sobre el archivo es el de
 portátil del residente. La guía daba el número equivocado en dos sitios, de modo
 que un modelo de 7 MB parecía válido y lo rechazaba la plataforma.
 
+### O-036 · 2026-09-12 · alta · resuelta
+**La consola no sabía abrir un modelo comprimido, y la guía pedía comprimirlo.**
+`LienzoQuirurgico` creaba su `GLTFLoader` a pelo, sin decodificador de Draco ni
+de Meshopt. Un `.glb` exportado con «Comprimir» desde Blender no se abría. Y
+`docs/COMO-SUBIR-UN-MODELO.md` le decía al traumatólogo que encendiera esa
+casilla en cuanto el archivo pasara de unos pocos MB, que es justo lo que hace
+falta para que una pierna entera quepa bajo el techo de 5 MB. Seguir la guía
+daba un caso que no abre.
+
+*Y no avisaba.* El manejador de error de la carga estaba vacío, con un comentario
+que decía que «el componente de arriba ya avisa». Era falso: arriba solo se avisa
+cuando el caso no declara ningún modelo. Con el archivo presente e ilegible, el
+residente veía un lienzo vacío, la cámara encuadrando la nada, y ni un mensaje.
+
+*Arreglo:* los dos decodificadores registrados, con el de Draco servido desde la
+propia plataforma —`public/draco/`, 750 KB versionados— y no desde un CDN: atarlo
+a que el hospital deje salir a otro dominio convierte un cortafuegos en un modelo
+que no carga, otra vez en silencio. Y el fallo de carga ahora se escribe en la
+bitácora del caso y en el taller.
+
+### O-037 · 2026-09-12 · alta · resuelta
+**Actualizar el servidor con el servicio en marcha dejó el sitio caído.**
+El procedimiento documentado era el de siempre: `git pull`, `npm ci`,
+`npm run build`, `Restart-Service`. En Linux funciona. En Windows un archivo
+abierto no se puede borrar, y el servicio tenía medio `node_modules` abierto:
+`npm ci`, que empieza borrándolo entero, se quedó a medias, el build falló, y el
+servicio ya no encontró el binario de Next. El sitio estuvo caído hasta
+reinstalar con el servicio parado.
+
+*Por qué se coló:* el orden equivocado es el correcto en Linux, que es de donde
+viene la costumbre, y el `npm ci` falló **sin escribir nada**: el paso siguiente
+dio el error, tres líneas más abajo y hablando de otra cosa.
+
+*Arreglo:* el servicio se para antes y se arranca al final. Corregido en
+`docs/SERVIDOR-WINDOWS.md`, junto con la señal que lo delata en el registro.
+
 ---
 
 ## 4. Preguntas abiertas

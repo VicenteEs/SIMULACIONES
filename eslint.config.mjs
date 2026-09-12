@@ -45,6 +45,11 @@ const eslintConfig = defineConfig([
     // Migraciones: son SQL dentro de plantillas, escritas una vez y nunca
     // retocadas. Reformatearlas rompería la correspondencia con lo aplicado.
     'src/migrations/**',
+    // `public/` son recursos que se sirven tal cual, no código del proyecto: el
+    // atlas empaquetado y el decodificador de Draco, que viene de three y está
+    // minimizado. Revisarlo daba un error de estilo sobre un archivo ajeno que
+    // aquí no se puede arreglar ni tiene sentido arreglar.
+    'public/**',
   ]),
 ])
 

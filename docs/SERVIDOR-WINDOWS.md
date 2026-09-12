@@ -164,16 +164,30 @@ Restart-Service traumahub
 Get-Content C:\Users\vicen\simulaciones\registros\servidor.log -Tail 50 -Wait
 ```
 
-**Actualizar a la última versión.** El `npm run build` es obligatorio: el
-prefijo y la dirección pública viven dentro de la construcción, no del proceso.
+**Actualizar a la última versión.** El orden importa, y no es el de Linux:
 
 ```powershell
 Set-Location C:\Users\vicen\simulaciones
+Stop-Service traumahub
 git pull
 npm ci
 npm run build
-Restart-Service traumahub
+Start-Service traumahub
 ```
+
+**El servicio se para antes, no al final.** En Windows un archivo abierto no se
+puede borrar, y el servicio tiene medio `node_modules` abierto. `npm ci` empieza
+borrándolo entero, se queda a medias y deja la instalación rota: el `npm run
+build` siguiente falla y el servicio ya no encuentra el binario de Next. Pasó, y
+dejó el sitio caído hasta reinstalar con el servicio parado. En Linux la misma
+secuencia funciona, porque ahí un archivo abierto sí se puede reemplazar, y por
+eso el orden equivocado parece el correcto.
+
+La señal, en el registro, es `Cannot find module ...\node_modules\next\dist\bin\next`.
+La salida es repetir la secuencia entera con el servicio parado.
+
+El `npm run build` tampoco es opcional: el prefijo y la dirección pública viven
+dentro de la construcción, no del proceso.
 
 **Estado del túnel.**
 

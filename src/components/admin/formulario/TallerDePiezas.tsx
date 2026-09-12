@@ -185,6 +185,7 @@ export function TallerDePiezas({
           fluoroscopia={false}
           alCargar={alCargar}
           alSenalar={agregar}
+          alFallar={setAviso}
           mando={mando}
         />
       </div>

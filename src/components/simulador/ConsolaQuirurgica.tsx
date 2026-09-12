@@ -388,6 +388,9 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
                 colocarEnDesplazamientoInicial()
                 refrescarVisibles(indice, capasApagadas)
               }}
+              // Un modelo que no abre tiene que decirlo. Sin esto el residente
+              // se queda mirando un lienzo vacío creyendo que aún carga.
+              alFallar={(mensaje) => anotar(mensaje, 'grave')}
               mando={mando}
             />
             <button
