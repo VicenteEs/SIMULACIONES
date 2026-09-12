@@ -859,6 +859,32 @@ junto al volcado a mano que la tapa entretanto.
 la red privada de Tailscale. Lo que protege el contenido es que sin sesión no se
 ve nada (D-020), no el túnel.
 
+
+### D-061 · 2026-09-12 · vigente
+**Las piezas de un caso se señalan en el modelo, no se escriben de memoria.**
+El autor de un caso tenía que teclear el nombre exacto de cada objeto de Blender
+—`tibia_distal`, con guion bajo y sin tilde— y los seis números del
+desplazamiento inicial. Las dos cosas fallan en silencio: una letra distinta deja
+una capa que no se enciende ni se apaga, y un desplazamiento imaginado da una
+fractura que no se parece a la que se quería enseñar. Ninguna de las dos da
+error, y por eso ninguna se encuentra mirando la pantalla.
+
+El taller de piezas abre el modelo **que ya está subido** dentro del propio
+formulario. Se pincha cada trozo y se añade con su nombre exacto; se le pone su
+papel; se aísla para comprobar que era ese; y el desplazamiento se captura
+arrastrando el fragmento, igual que el encuadre de una ficha. El visor es el
+mismo que ve el residente, no una imitación.
+
+*Consecuencia:* un modelo subido una vez sirve para muchos casos sin volver a
+Blender para nada que no sea partir el hueso. Reutilizar ya se podía —el campo
+siempre fue un desplegable— pero describir el archivo otra vez en cada caso era
+el trabajo que lo hacía parecer imposible.
+
+*Lo que sigue exigiendo Blender:* separar los trozos. La plataforma no corta
+geometría, y la postura no cambia. Señalar un nodo y moverlo es trivial; una
+operación booleana sobre malla de hueso esponjoso es otro proyecto, y uno cuyo
+resultado no está claro que sirva para enseñar.
+
 ---
 
 ## 3. Observaciones
@@ -1387,6 +1413,48 @@ en `docs/SERVIDOR-WINDOWS.md`.
 cambiarlo por otro aleatorio de dos palabras y nada más, y Funnel no admite
 dominios propios. Un nombre de verdad exige Cloudflare Tunnel y un dominio
 delegado (**Q-008**).
+
+### O-033 · 2026-09-12 · alta · resuelta
+**Los desplegables del vocabulario del simulador abrían vacíos.**
+Al escribir un caso, los cinco desplegables de hueso, clasificación AO, técnica,
+fase e instrumental salían sin una sola opción, con los catálogos llenos. El
+formulario del panel precarga las listas de relación a partir de una lista de
+colecciones que estaba **escrita a mano**, y no se actualizó al añadir los cinco
+catálogos con la consola quirúrgica (D-057). Tres de esos campos son
+obligatorios, así que el caso no se podía guardar y la pantalla no decía por qué.
+
+*Lo que lo hizo invisible:* el modelo 3D sí estaba en esa lista, de antes. Su
+desplegable funcionaba, y un formulario donde un desplegable va bien y otro sale
+vacío parece un problema de datos, no de código.
+
+*Arreglo:* la lista se deriva del esquema en vez de escribirse, de modo que un
+campo de relación nuevo trae consigo su precarga. Dos pruebas lo vigilan, y se
+comprobó que fallan con la lista antigua: una prueba que nunca falla no protege
+de nada.
+
+### O-034 · 2026-09-12 · alta · resuelta
+**El fragmento se colocaba en coordenadas absolutas.**
+El desplazamiento de un caso se aplicaba como posición, no como diferencia
+respecto de donde estaba la pieza al cargar. Funcionaba solo porque el modelo de
+prueba sale de Blender centrado en el origen. Con un modelo de verdad —una
+pierna entera, donde la tibia está donde le toca— la primera pieza colocada
+habría aparecido teletransportada al abrir el caso, sin ningún mensaje.
+
+*Por qué salió ahora:* el taller de piezas añade un botón que **escribe** ese
+número. Un fallo que hasta ahora solo deformaba la vista habría pasado a quedar
+grabado en los datos del caso.
+
+*Arreglo:* el visor recuerda dónde estaba el fragmento al cargar y trabaja con la
+diferencia. La aritmética se movió a `src/lib/reduccion.ts`, que es donde vive lo
+que puede estar mal sin que se note, y se prueba sin navegador.
+
+### O-035 · 2026-09-12 · baja · resuelta
+**La guía del médico decía que el límite de un modelo eran 8 MB, y son 5.**
+Ocho megas es el techo del envío, que tiene que ser mayor porque en la misma
+petición viaja el formulario (O-029). El que decide sobre el archivo es el de
+`validarModelo3D.ts`, que son cinco, y existe porque el modelo se descarga en el
+portátil del residente. La guía daba el número equivocado en dos sitios, de modo
+que un modelo de 7 MB parecía válido y lo rechazaba la plataforma.
 
 ---
 

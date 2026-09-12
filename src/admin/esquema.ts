@@ -16,6 +16,10 @@
  * No hay tipos aquí que Payload no sepa guardar, ni al revés.
  */
 
+// `bloques.ts` solo importa de aquí un tipo, que se borra al compilar, así que
+// este par no forma un ciclo en tiempo de ejecución.
+import { BLOQUES } from './bloques'
+
 export type TipoDeCampo =
   | 'texto'
   | 'area'
@@ -52,7 +56,20 @@ export type Campo =
   | (CampoBase & { tipo: 'relacion'; coleccion: string })
   | (CampoBase & { tipo: 'archivo'; coleccion: string; acepta?: string })
   | (CampoBase & { tipo: 'rico' })
-  | (CampoBase & { tipo: 'lista'; campos: Campo[]; singular: string })
+  | (CampoBase & {
+      tipo: 'lista'
+      campos: Campo[]
+      singular: string
+      /**
+       * Editor propio que se pinta encima de las filas.
+       *
+       * `piezas3d` abre el modelo elegido en el campo hermano `modelo` y deja
+       * señalar cada trozo con el ratón. Sin él, esas filas piden el nombre
+       * exacto del objeto de Blender escrito de memoria, y una letra de
+       * diferencia no da error: deja una pieza que no se enciende ni se apaga.
+       */
+      editor?: 'piezas3d'
+    })
   | (CampoBase & {
       tipo: 'grupo'
       campos: Campo[]
@@ -372,6 +389,7 @@ export const Cirugias: EsquemaDeColeccion = {
           tipo: 'lista',
           nombre: 'piezas',
           etiqueta: 'Piezas del modelo',
+          editor: 'piezas3d',
           singular: 'Pieza',
           ayuda:
             'El nombre tiene que coincidir exactamente con el del objeto en Blender. Marque una sola como fragmento móvil: es la que el residente reduce.',
@@ -948,4 +966,35 @@ export function* recorrerCampos(campos: Campo[]): Generator<Campo> {
       yield* recorrerCampos(campo.campos)
     }
   }
+}
+
+/**
+ * Colecciones a las que apunta algún campo de un esquema, con sus bloques.
+ *
+ * El formulario del panel precarga estas listas para poder pintar cada
+ * desplegable de relación. Antes las tenía escritas a mano, y la lista se
+ * quedó atrás en cuanto llegaron los catálogos del simulador: los desplegables
+ * de hueso, clasificación, técnica, fase e instrumental abrían **vacíos**, sin
+ * un solo error, en un formulario donde tres de esos campos son obligatorios.
+ * El caso no se podía guardar y la pantalla no decía por qué.
+ *
+ * Derivarla del esquema en vez de escribirla cierra esa puerta: un campo de
+ * relación nuevo trae consigo su precarga, y no hay una segunda lista que
+ * alguien tenga que acordarse de actualizar.
+ */
+export function coleccionesRelacionadasDe(esquema: EsquemaDeColeccion): string[] {
+  const campos = [
+    ...recorrerCampos(camposDe(esquema)),
+    // Un campo de bloques puede insertar cualquier bloque, y los bloques
+    // también tienen relaciones: la imagen de una ficha sale de «medios».
+    ...(camposDe(esquema).some((c) => c.tipo === 'bloques')
+      ? BLOQUES.flatMap((b) => [...recorrerCampos(b.campos)])
+      : []),
+  ]
+
+  const slugs = new Set<string>()
+  for (const campo of campos) {
+    if (campo.tipo === 'relacion' || campo.tipo === 'archivo') slugs.add(campo.coleccion)
+  }
+  return [...slugs].sort()
 }

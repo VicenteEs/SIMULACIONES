@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { evaluarGesto, puntajeMaximo, RESULTADOS, type PasoQuirurgico } from '@/lib/simulador'
-import { anguloTotal, largoDelTrazo, medirReduccion } from '@/lib/reduccion'
+import {
+  anguloTotal,
+  desplazamientoDesde,
+  largoDelTrazo,
+  medirReduccion,
+  posicionAbsoluta,
+} from '@/lib/reduccion'
 import { casoParaLaConsola, codigoDelCaso } from '@/lib/casoQuirurgico'
 
 /**
@@ -183,6 +189,29 @@ describe('las medidas de la reducción', () => {
     const enX = medirReduccion({ x: 10, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 'x')
     expect(enX.diastasis).toBe(10)
     expect(enX.desplazamiento).toBe(0)
+  })
+
+  it('el desplazamiento se mide desde donde estaba la pieza, no desde el cero', () => {
+    // Con una pieza exportada centrada en el origen, restar o no restar da lo
+    // mismo, y por eso el error vivió escondido. Con una pierna entera, donde
+    // la tibia está donde le toca, no restar teletransporta el hueso al abrir
+    // el caso y no hay ningun mensaje que lo explique.
+    const origen = { x: 0.12, y: -0.35, z: 0.04 }
+    const actual = { x: 0.1325, y: -0.332, z: 0.04 }
+
+    const d = desplazamientoDesde(origen, actual)
+    expect(d.x).toBeCloseTo(0.0125, 6)
+    expect(d.y).toBeCloseTo(0.018, 6)
+    expect(d.z).toBeCloseTo(0, 6)
+
+    // Y el camino de vuelta devuelve exactamente donde estaba.
+    const vuelta = posicionAbsoluta(origen, d)
+    expect(vuelta.x).toBeCloseTo(actual.x, 6)
+    expect(vuelta.y).toBeCloseTo(actual.y, 6)
+    expect(vuelta.z).toBeCloseTo(actual.z, 6)
+
+    // Sin desplazamiento, la pieza se queda en su sitio y no salta al origen.
+    expect(posicionAbsoluta(origen, { x: 0, y: 0, z: 0 })).toEqual(origen)
   })
 
   it('el ángulo no es la suma de los tres giros', () => {

@@ -932,10 +932,82 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 
 .encuadre-aviso { color: var(--verde, #16794a); font-weight: 600; }
 
+/* ---------- taller de piezas ---------- */
+.taller-piezas { margin: 0 0 1rem; }
+
+.taller-piezas-lienzo,
+.taller-piezas-marco {
+  position: relative;
+  height: 340px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--papel);
+}
+.taller-piezas-marco { display: grid; place-items: center; }
+
+.taller-piezas-mandos {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 0 0.25rem;
+}
+.taller-piezas-modos { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+.taller-piezas-sueltas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0 0.6rem;
+}
+.taller-piezas-titulo {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mudo);
+}
+.taller-piezas-suelta {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px dashed var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+  color: var(--marca);
+  cursor: pointer;
+}
+.taller-piezas-suelta:hover { border-style: solid; background: var(--marca-tenue); }
+
+.taller-piezas-tabla { width: 100%; border-collapse: collapse; margin-bottom: 0.6rem; }
+.taller-piezas-tabla th {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mudo);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--linea);
+}
+.taller-piezas-tabla td { padding: 5px 8px; border-bottom: 1px solid var(--linea-suave); }
+.taller-piezas-tabla code { font-family: var(--mono); font-size: 12px; }
+.taller-piezas-acciones { display: flex; gap: 0.35rem; justify-content: flex-end; }
+
+/* Una fila que nombra un objeto que este archivo no tiene: la capa nunca
+   aparecerá y nada más lo avisa. */
+.taller-piezas-huerfana { background: var(--alerta-tenue); }
+.taller-piezas-alerta { color: var(--alerta); font-size: 11px; }
+
 @media (max-width: 640px) {
   /* El visor de la ficha sí funciona en el móvil, pero encuadrar con el dedo
      mientras se escribe una ficha no. Los cinco números siguen ahí debajo. */
   .encuadre-editor { display: none; }
+  /* Lo mismo con el taller: señalar piezas y colocar un fragmento con el dedo
+     no sale. La tabla y las filas de siempre siguen debajo. */
+  .taller-piezas-lienzo,
+  .taller-piezas-mandos,
+  .taller-piezas-sueltas { display: none; }
 }
 
 /* ---------- listas repetibles ---------- */

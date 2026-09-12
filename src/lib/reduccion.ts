@@ -100,6 +100,38 @@ export function medirReduccion(
 }
 
 /**
+ * El desplazamiento de un fragmento respecto de donde estaba al cargar.
+ *
+ * El caso guarda **cuánto se ha ido** el fragmento, no dónde está. La
+ * diferencia solo se nota con un modelo de verdad: si la pieza sale de Blender
+ * centrada en el origen, restar su sitio original o no restarlo da el mismo
+ * número, y el error se esconde. Con una pierna entera, donde la tibia está
+ * donde le toca, escribir la posición absoluta teletransporta el hueso al abrir
+ * el caso y no hay ningún mensaje que lo explique.
+ *
+ * Vive aquí, y no en el visor, porque es aritmética que puede estar mal sin que
+ * se note, y aquí se prueba sin navegador.
+ */
+export function desplazamientoDesde(
+  origen: { x: number; y: number; z: number },
+  actual: { x: number; y: number; z: number },
+): { x: number; y: number; z: number } {
+  return { x: actual.x - origen.x, y: actual.y - origen.y, z: actual.z - origen.z }
+}
+
+/** El camino de vuelta: dónde hay que poner la pieza para ese desplazamiento. */
+export function posicionAbsoluta(
+  origen: { x: number; y: number; z: number },
+  desplazamiento: { x: number; y: number; z: number },
+): { x: number; y: number; z: number } {
+  return {
+    x: origen.x + desplazamiento.x,
+    y: origen.y + desplazamiento.y,
+    z: origen.z + desplazamiento.z,
+  }
+}
+
+/**
  * El giro residual, en grados, como un solo número.
  *
  * No es la suma de los tres ángulos: girar 90° en X y 90° en Y no son 180° de

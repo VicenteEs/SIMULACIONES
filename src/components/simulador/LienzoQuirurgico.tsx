@@ -4,6 +4,7 @@ import { useEffect, useImperativeHandle, useRef, type RefObject } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { desplazamientoDesde, posicionAbsoluta } from '@/lib/reduccion'
 
 /**
  * El lienzo de la consola quirúrgica.
@@ -22,7 +23,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
  * quien está mirando una pantalla quieta.
  */
 
-export type Modo = 'orbitar' | 'trazar' | 'mover'
+export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar'
 
 export interface Punto3 {
   x: number
@@ -72,6 +73,7 @@ export function LienzoQuirurgico({
   alTrazar,
   alMoverFragmento,
   alCargar,
+  alSenalar,
   mando,
 }: {
   url: string
@@ -84,6 +86,14 @@ export function LienzoQuirurgico({
   alMoverFragmento?: (posicion: Punto3, giros: Punto3) => void
   /** Se llama una vez, cuando el archivo termina de cargar. */
   alCargar?: () => void
+  /**
+   * Se llama con el nombre del objeto pinchado, en modo «senalar».
+   *
+   * Es lo que permite que el autor de un caso elija las piezas pinchándolas en
+   * el modelo en vez de copiar los nombres desde el esquema de Blender. Una
+   * letra de diferencia no da error: deja una pieza que no se enciende.
+   */
+  alSenalar?: (nodo: string) => void
   mando?: RefObject<MandoDelLienzo | null>
 }) {
   const lienzo = useRef<HTMLDivElement>(null)
@@ -95,6 +105,17 @@ export function LienzoQuirurgico({
     controles?: OrbitControls
     raiz?: THREE.Object3D
     fragmento?: THREE.Object3D
+    /**
+     * Dónde estaba el fragmento al cargar el archivo.
+     *
+     * El desplazamiento de un caso es **relativo** a eso, no absoluto. Antes se
+     * escribía la posición tal cual, lo que solo funcionaba porque las piezas
+     * de prueba salían de Blender centradas en el origen. Con un modelo de
+     * verdad —una pierna entera, donde la tibia está donde le toca y no en el
+     * cero— la primera pieza que se colocara aparecería teletransportada al
+     * abrir el caso, sin ningún error que lo explicara.
+     */
+    origenDelFragmento?: { posicion: THREE.Vector3; rotacion: THREE.Euler }
     trazo?: THREE.Line
     puntosDelTrazo: Punto3[]
     materialesOriginales: Map<THREE.Mesh, THREE.Material | THREE.Material[]>
@@ -102,9 +123,9 @@ export function LienzoQuirurgico({
   }>({ puntosDelTrazo: [], materialesOriginales: new Map() })
 
   // Lo que leen los manejadores sin volver a montar la escena.
-  const ultimas = useRef({ modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar })
+  const ultimas = useRef({ modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar, alSenalar })
   useEffect(() => {
-    ultimas.current = { modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar }
+    ultimas.current = { modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar, alSenalar }
   })
 
   useImperativeHandle(mando, () => ({
@@ -119,26 +140,41 @@ export function LienzoQuirurgico({
     },
 
     colocarFragmento: (posicion, giros) => {
-      const fragmento = taller.current.fragmento
-      if (!fragmento) return
-      fragmento.position.set(posicion.x, posicion.y, posicion.z)
-      fragmento.rotation.set(radianes(giros.x), radianes(giros.y), radianes(giros.z))
+      const { fragmento, origenDelFragmento: origen } = taller.current
+      if (!fragmento || !origen) return
+      const destino = posicionAbsoluta(origen.posicion, posicion)
+      fragmento.position.set(destino.x, destino.y, destino.z)
+      fragmento.rotation.set(
+        origen.rotacion.x + radianes(giros.x),
+        origen.rotacion.y + radianes(giros.y),
+        origen.rotacion.z + radianes(giros.z),
+      )
       taller.current.pedirDibujo?.()
     },
 
     girarFragmento: (giros) => {
-      const fragmento = taller.current.fragmento
-      if (!fragmento) return
-      fragmento.rotation.set(radianes(giros.x), radianes(giros.y), radianes(giros.z))
+      const { fragmento, origenDelFragmento: origen } = taller.current
+      if (!fragmento || !origen) return
+      fragmento.rotation.set(
+        origen.rotacion.x + radianes(giros.x),
+        origen.rotacion.y + radianes(giros.y),
+        origen.rotacion.z + radianes(giros.z),
+      )
       taller.current.pedirDibujo?.()
     },
 
     estadoDelFragmento: () => {
-      const f = taller.current.fragmento
-      if (!f) return { posicion: { x: 0, y: 0, z: 0 }, giros: { x: 0, y: 0, z: 0 } }
+      const { fragmento: f, origenDelFragmento: origen } = taller.current
+      if (!f || !origen) return { posicion: { x: 0, y: 0, z: 0 }, giros: { x: 0, y: 0, z: 0 } }
+      // Siempre la diferencia contra el sitio original: es lo que el caso
+      // guarda y lo que la consola mide como «cuánto falta para reducir».
       return {
-        posicion: { x: f.position.x, y: f.position.y, z: f.position.z },
-        giros: { x: grados(f.rotation.x), y: grados(f.rotation.y), z: grados(f.rotation.z) },
+        posicion: desplazamientoDesde(origen.posicion, f.position),
+        giros: {
+          x: grados(f.rotation.x - origen.rotacion.x),
+          y: grados(f.rotation.y - origen.rotacion.y),
+          z: grados(f.rotation.z - origen.rotacion.z),
+        },
       }
     },
 
@@ -230,6 +266,10 @@ export function LienzoQuirurgico({
         escena.add(raiz)
         taller.current.raiz = raiz
         taller.current.fragmento = buscarFragmento(raiz, ultimas.current.piezas)
+        const f = taller.current.fragmento
+        taller.current.origenDelFragmento = f
+          ? { posicion: f.position.clone(), rotacion: f.rotation.clone() }
+          : undefined
         aplicarPiezas(taller.current, ultimas.current.piezas)
         if (ultimas.current.fluoroscopia) aplicarFluoroscopia(taller.current, true)
 
@@ -283,6 +323,15 @@ export function LienzoQuirurgico({
       if (modoActual === 'orbitar') return
 
       aCoordenadas(evento)
+
+      if (modoActual === 'senalar') {
+        // Señalar no arrastra ni modifica nada: solo dice qué hay debajo. Se
+        // deja la órbita encendida para poder girar el modelo y seguir
+        // pinchando sin cambiar de modo.
+        const golpe = superficieBajoElCursor()
+        if (golpe?.object.name) ultimas.current.alSenalar?.(golpe.object.name)
+        return
+      }
 
       if (modoActual === 'trazar') {
         const golpe = superficieBajoElCursor()

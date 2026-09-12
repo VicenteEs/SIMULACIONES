@@ -6,6 +6,7 @@ import { BLOQUES, bloqueDe } from '@/admin/bloques'
 import { subirArchivo } from '@/app/(frontend)/acciones/contenido'
 import { EditorTextoRico } from './EditorTextoRico'
 import { EditorDeEncuadre } from './EditorDeEncuadre'
+import { TallerDePiezas, type DesplazamientoInicial } from './TallerDePiezas'
 import type { Encuadre } from '@/components/Visor3D'
 
 /**
@@ -40,6 +41,15 @@ interface Props {
    * modelo eligió el traumatólogo en el campo de al lado para poder enseñarlo.
    */
   hermanos?: Record<string, unknown>
+  /**
+   * Escribe otro campo del mismo nivel.
+   *
+   * Lo necesita el taller de piezas: señalar los trozos escribe `piezas` y
+   * capturar el desplazamiento escribe `desplazamientoInicial`, que es un campo
+   * hermano. Sin esto habría que partir el taller en dos mitades que no se ven
+   * entre sí, y el botón de capturar quedaría lejos del modelo.
+   */
+  alCambiarHermano?: (nombre: string, valor: unknown) => void
 }
 
 const texto = (valor: unknown): string =>
@@ -65,6 +75,7 @@ export function ControlDeCampo({
   relaciones,
   alRecargarRelacion,
   hermanos,
+  alCambiarHermano,
 }: Props) {
   const id = useId()
 
@@ -288,6 +299,7 @@ export function FilaDeCampos({
           relaciones={relaciones}
           alRecargarRelacion={alRecargarRelacion}
           hermanos={valores}
+          alCambiarHermano={alCambiar}
         />
       ))}
     </div>
@@ -302,10 +314,17 @@ function EditorDeLista({
   alCambiar,
   relaciones,
   alRecargarRelacion,
+  hermanos,
+  alCambiarHermano,
 }: Props & { campo: Extract<Campo, { tipo: 'lista' }> }) {
   const filas = Array.isArray(valor) ? (valor as Record<string, unknown>[]) : []
 
   const cambiar = (nuevas: Record<string, unknown>[]) => alCambiar(nuevas)
+
+  const modelo =
+    campo.editor === 'piezas3d'
+      ? opcionDeRelacion(relaciones, 'modelos-3d', hermanos?.modelo)
+      : undefined
 
   const mover = (indice: number, direccion: -1 | 1) => {
     const destino = indice + direccion
@@ -324,6 +343,22 @@ function EditorDeLista({
         </span>
       </div>
       {campo.ayuda ? <p className="campo-ayuda">{campo.ayuda}</p> : null}
+
+      {campo.editor === 'piezas3d' ? (
+        <TallerDePiezas
+          url={modelo?.url ?? null}
+          nombre={modelo?.etiqueta}
+          piezas={filas}
+          alCambiarPiezas={cambiar}
+          desplazamiento={(hermanos?.desplazamientoInicial ?? {}) as DesplazamientoInicial}
+          alCambiarDesplazamiento={(nuevo) =>
+            alCambiarHermano?.('desplazamientoInicial', nuevo)
+          }
+          milimetrosPorUnidad={
+            typeof hermanos?.milimetrosPorUnidad === 'number' ? hermanos.milimetrosPorUnidad : 1000
+          }
+        />
+      ) : null}
 
       {filas.map((fila, i) => (
         <div className="lista-fila" key={(fila.id as string) ?? i}>

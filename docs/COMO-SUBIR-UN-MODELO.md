@@ -54,8 +54,9 @@ encajando exactamente donde estaban. Eso es el hueso reducido.
 En el esquema de la derecha, doble clic sobre cada objeto. Nombres cortos, sin
 tildes ni espacios: `tibia_proximal`, `tibia_distal`, `musculo`, `piel`.
 
-Anótelos. Los va a escribir tal cual en la plataforma, y una letra de diferencia
-significa que esa pieza no se enciende ni se apaga.
+No hace falta que los anote: en la plataforma se señalan con el ratón y el
+nombre lo pone ella. Pero póngaselos igual, porque son lo que va a ver al
+pinchar cada trozo, y `Cube.003` no le va a decir nada dentro de tres meses.
 
 ### 3. Compruebe el origen y la escala
 
@@ -74,10 +75,15 @@ En el panel de la derecha:
 - **Datos → Malla → Aplicar modificadores**: encendido.
 - **Comprimir**: encendido si el archivo pasa de unos pocos MB.
 
-**El archivo debe pesar menos de 8 MB.** Es el techo que acepta la plataforma. Lo
-razonable está bastante por debajo: el modelo se descarga en el navegador del
-residente, muchas veces en un portátil modesto y con la red del hospital. Si se
-pasa, baje el número de caras con un modificador **Decimate** antes de exportar.
+**El archivo debe pesar menos de 5 MB.** Ese es el techo real, y lo comprueba la
+plataforma al subirlo. El motivo no es el servidor: el modelo se descarga en el
+navegador del residente, muchas veces en un portátil modesto y con la red del
+hospital. Si se pasa, baje el número de caras con un modificador **Decimate**
+antes de exportar.
+
+(Si alguna vez lee que el límite son 8 MB, eso es otra cosa: el tamaño máximo del
+envío, que tiene que ser mayor porque en la misma petición viaja el formulario.
+El que decide sobre su archivo es el de 5 MB.)
 
 Si quiere ver cómo debe quedar, `medios/modelos/tibia-de-prueba.glb` es un
 ejemplo mínimo con esos cuatro objetos.
@@ -125,20 +131,40 @@ campo Código si su fractura no sigue esa suma.
   diástasis, que es el hueco a lo largo, del desplazamiento, que es lo que se va
   de lado.
 
-**Las piezas.** Una fila por objeto de Blender: el nombre exacto y su papel.
+**Las piezas.** En cuanto elige el modelo aparece debajo, en el **taller de
+piezas**. Ahí no se escribe nada:
+
+1. Con **Señalar piezas** activo, pinche cada trozo del modelo. Se añade solo,
+   con su nombre exacto. Los objetos que el archivo trae y usted todavía no ha
+   usado salen listados encima, y también se añaden pinchándolos.
+2. Elija qué es cada uno en la columna de al lado.
+3. **Solo esto** esconde el resto para comprobar que pinchó lo que creía.
 
 | Papel | Qué hace la consola con él |
 |---|---|
 | Piel | Capa apagable. Es donde se traza la incisión |
 | Músculo | Capa apagable |
-| Hueso | Capa apagable. La parte que no se mueve |
-| Fragmento | **El trozo que el residente reduce.** Solo uno |
+| Hueso fijo | Capa apagable. La parte que no se mueve |
+| Fragmento móvil | **El trozo que el residente reduce.** Solo uno |
 | Implante | Clavo, placa o tornillo |
 
-**El desplazamiento inicial.** Aquí es donde se rompe el hueso, sin Blender. Seis
-números: cuánto se va el fragmento en cada eje, en milímetros, y cuánto gira en
-cada eje, en grados. El caso de prueba usa 12,5 mm de lado, 18 mm de separación y
-9,8° de angulación, que es una fractura desplazada de aspecto realista.
+De fragmento móvil solo puede haber uno. Si marca un segundo, el primero pasa a
+hueso fijo solo: dos fragmentos no darían error, darían un caso en el que se
+mueve el que no es.
+
+Si una fila queda en rojo diciendo «no está en este archivo», es que nombra un
+objeto que el modelo no trae. Esa capa no aparecería nunca, y antes eso no lo
+avisaba nadie.
+
+**El desplazamiento inicial.** Aquí es donde se rompe el hueso, sin Blender, y
+tampoco hay que escribir números. Pase a **Colocar el fragmento**, arrástrelo
+hasta que la fractura se vea como quiere enseñarla, y pulse **Capturar
+desplazamiento**: los seis se rellenan solos. Siguen ahí debajo por si quiere
+afinarlos a mano.
+
+El caso de prueba usa 12,5 mm de lado, 18 mm de separación y 9,8° de angulación,
+que es una fractura desplazada de aspecto realista, por si quiere una referencia
+de cuánto es mucho.
 
 ### 4. Escriba los pasos
 
@@ -202,4 +228,4 @@ de escribir el primero.
 | Nada se mueve en modo Mover | Ninguna pieza tiene el papel **fragmento** |
 | El fragmento no se ve al empezar | El desplazamiento inicial es enorme y lo sacó del encuadre. Pruebe con decenas de milímetros, no cientos |
 | Las medidas no bajan al arrastrar | Lo que queda está en profundidad. Mire el desglose por ejes bajo el número y gire la cámara con Orbitar |
-| El archivo no sube | Pasa de 8 MB. Reduzca caras con Decimate y exporte comprimido |
+| El archivo no sube | Pasa de 5 MB. Reduzca caras con Decimate y exporte comprimido |

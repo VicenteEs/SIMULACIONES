@@ -2,7 +2,15 @@ import { describe, it, expect } from 'vitest'
 import type { Field } from 'payload'
 import { COLECCIONES } from '@/collections'
 import { BLOQUES as BLOQUES_PAYLOAD } from '@/blocks'
-import { ESQUEMAS, camposDe, esColeccionEditable, recorrerCampos, type Campo } from '@/admin/esquema'
+import {
+  coleccionesRelacionadasDe,
+  ESQUEMAS,
+  camposDe,
+  esColeccionEditable,
+  esquemaDe,
+  recorrerCampos,
+  type Campo,
+} from '@/admin/esquema'
 import { BLOQUES as BLOQUES_PANEL } from '@/admin/bloques'
 
 /**
@@ -227,6 +235,41 @@ describe('coherencia interna del esquema', () => {
           expect(campo.opciones.length, `${esquema.slug}.${campo.nombre}`).toBeGreaterThan(0)
         }
       }
+    }
+  })
+
+  it('el formulario precarga toda colección que algún desplegable necesita', () => {
+    // Esta lista estaba escrita a mano en el formulario y se quedó atrás en
+    // cuanto llegaron los catálogos del simulador: hueso, clasificación,
+    // técnica, fase e instrumental abrían vacíos, sin un solo error, en un
+    // formulario donde tres de ellos son obligatorios. El caso no se podía
+    // guardar y la pantalla no decía por qué. Ahora se deriva del esquema, y
+    // esto comprueba que la derivación no se deje ninguna.
+    for (const esquema of ESQUEMAS) {
+      const precargadas = new Set(coleccionesRelacionadasDe(esquema))
+      for (const campo of recorrerCampos(camposDe(esquema))) {
+        if (campo.tipo === 'relacion' || campo.tipo === 'archivo') {
+          expect(precargadas, `${esquema.slug}.${campo.nombre} -> ${campo.coleccion}`).toContain(
+            campo.coleccion,
+          )
+        }
+      }
+    }
+  })
+
+  it('los catálogos del simulador llegan al formulario de una cirugía', () => {
+    // El caso concreto que falló. Se nombra entero a propósito: una prueba
+    // genérica pasaría igual con la lista vacía.
+    const deCirugias = coleccionesRelacionadasDe(esquemaDe('cirugias'))
+    for (const catalogo of [
+      'huesos-ao',
+      'clasificaciones-ao',
+      'tecnicas-quirurgicas',
+      'fases-quirurgicas',
+      'instrumental',
+      'modelos-3d',
+    ]) {
+      expect(deCirugias, catalogo).toContain(catalogo)
     }
   })
 

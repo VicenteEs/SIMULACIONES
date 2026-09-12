@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { EsquemaDeColeccion } from '@/admin/esquema'
+import { coleccionesRelacionadasDe, type EsquemaDeColeccion } from '@/admin/esquema'
 import {
   cambiarPublicacion,
   duplicarDocumento,
@@ -48,10 +48,16 @@ export function FormularioDocumento({
 
   const publicado = documento._status === 'published' || !esquema.versionada
 
-  /** Colecciones a las que apunta algún campo del esquema o de los bloques. */
+  /**
+   * Colecciones a las que apunta algún campo del esquema o de los bloques.
+   *
+   * Se deriva del esquema, no se escribe. Escrita a mano se quedó atrás en
+   * cuanto llegaron los catálogos del simulador, y los desplegables de hueso,
+   * clasificación y técnica abrían vacíos sin decir por qué.
+   */
   const coleccionesRelacionadas = useMemo(
-    () => ['segmentos', 'medios', 'modelos-3d', 'instancias-atlas'],
-    [],
+    () => coleccionesRelacionadasDe(esquema),
+    [esquema],
   )
 
   const cargarRelacion = useCallback(async (coleccion: string) => {
