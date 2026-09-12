@@ -20,10 +20,19 @@
  * entero, porque es de demostración.
  */
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-import { getPayload, type Payload } from 'payload'
-import config from '../src/payload.config'
-import { textoLlanoALexical } from '../src/lib/textoRico'
+import { join, resolve } from 'node:path'
+import type { Payload } from 'payload'
+
+// tsx no carga el .env como hace Next.js, y las importaciones estáticas se
+// elevan por encima de cualquier línea de este archivo: Payload leería su
+// configuración antes de que las variables existieran y abortaría con «missing
+// secret key». Por eso el .env se carga aquí y todo lo que lo necesita se
+// importa dentro de `principal()`, de forma dinámica.
+//
+// Funcionaba en el portátil de desarrollo por casualidad, con las variables ya
+// en el entorno, y falló la primera vez que se ejecutó en el servidor.
+const archivoEnv = resolve(process.cwd(), '.env')
+if (existsSync(archivoEnv)) process.loadEnvFile(archivoEnv)
 
 const MODELO = join(process.cwd(), 'medios', 'modelos', 'tibia-de-prueba.glb')
 
@@ -102,6 +111,7 @@ async function asegurar(
   return (creado as { id: string | number }).id
 }
 
+let textoLlanoALexical: (texto: string) => unknown
 const parrafo = (texto: string) => textoLlanoALexical(texto)
 
 // ------------------------------------------------------------------ guion
@@ -240,6 +250,9 @@ async function principal() {
     process.exit(1)
   }
 
+  const { getPayload } = await import('payload')
+  const config = (await import('../src/payload.config')).default
+  ;({ textoLlanoALexical } = await import('../src/lib/textoRico'))
   const payload = await getPayload({ config })
 
   console.log('Catálogos')
