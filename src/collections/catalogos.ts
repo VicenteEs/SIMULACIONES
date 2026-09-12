@@ -196,6 +196,16 @@ export const Instrumental: CollectionConfig = {
     },
     { name: 'descripcion', type: 'textarea', label: 'Para qué sirve' },
     {
+      name: 'modelo',
+      type: 'relationship',
+      relationTo: 'modelos-3d',
+      label: 'Modelo 3D del instrumento',
+      admin: {
+        description:
+          'Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez: trece modelos cargando a la vez en la bandeja dejarían la consola inservible en un portátil modesto.',
+      },
+    },
+    {
       name: 'tecnicas',
       type: 'relationship',
       relationTo: 'tecnicas-quirurgicas',

@@ -107,25 +107,58 @@ function pasosDelCaso(documento: Documento): PasoDeConsola[] {
   })
 }
 
+/** Un instrumento poblado, tal como lo devuelve Payload, a lo que ve la bandeja. */
+function instrumentoDeBandeja(bruto: unknown): InstrumentoDeBandeja | null {
+  if (!bruto || typeof bruto !== 'object') return null
+  const doc = bruto as Documento
+  const id = idDeRelacion(doc)
+  const nombre = texto(doc.nombre)
+  if (!id || !nombre) return null
+  const modelo = doc.modelo
+  return {
+    id,
+    nombre,
+    icono: texto(doc.icono) ?? 'generico',
+    // El «para qué sirve» del catálogo. Se escribía desde el primer día y no
+    // llegaba a ninguna pantalla: el residente elegía instrumento sin poder
+    // leer para qué era ninguno.
+    descripcion: texto(doc.descripcion),
+    // El modelo del instrumento viaja como dirección, no como documento: la
+    // consola solo necesita saber de dónde bajarlo, y solo baja el del que el
+    // residente tiene en la mano.
+    modeloUrl:
+      modelo && typeof modelo === 'object' ? texto((modelo as Documento).url) : null,
+  }
+}
+
 /**
  * La bandeja del caso.
  *
- * La forman los instrumentos que sus pasos declaran, no el catálogo entero: una
- * bandeja con los cuarenta instrumentos del hospital no enseña a elegir. Se
- * ordena como el catálogo y no como los pasos, para que la posición de cada uno
- * no delate cuál toca ahora.
+ * **Nunca es el catálogo entero:** una bandeja con los cuarenta instrumentos del
+ * hospital no enseña a elegir. Y nunca deja fuera lo que un paso necesita, por
+ * mucho que el autor se descuide al declararla: un caso con un paso cuyo
+ * instrumento no está en la bandeja no se puede terminar, y no habría forma de
+ * saber por qué.
+ *
+ * Entre esas dos cosas, manda lo que el caso declare. Declararla sirve sobre
+ * todo para **añadir señuelos**: instrumentos que no usa ningún paso pero que en
+ * pabellón estarían ahí. Sin ellos, la bandeja solo contiene respuestas
+ * correctas y acertar es elegir entre lo que ya se sabe que sirve.
+ *
+ * Se ordena por nombre y no por el orden de los pasos, para que la posición de
+ * cada uno no delate cuál toca ahora.
  */
-function bandejaDelCaso(pasos: Documento[]): InstrumentoDeBandeja[] {
+function bandejaDelCaso(pasos: Documento[], declarado: unknown): InstrumentoDeBandeja[] {
   const porId = new Map<string, InstrumentoDeBandeja>()
-  for (const crudo of pasos) {
-    const instrumento = (crudo as Documento)?.instrumento
-    if (!instrumento || typeof instrumento !== 'object') continue
-    const doc = instrumento as Documento
-    const id = idDeRelacion(doc)
-    const nombre = texto(doc.nombre)
-    if (!id || !nombre || porId.has(id)) continue
-    porId.set(id, { id, nombre, icono: texto(doc.icono) ?? 'generico' })
+
+  const agregar = (bruto: unknown) => {
+    const instrumento = instrumentoDeBandeja(bruto)
+    if (instrumento && !porId.has(instrumento.id)) porId.set(instrumento.id, instrumento)
   }
+
+  for (const bruto of Array.isArray(declarado) ? declarado : []) agregar(bruto)
+  for (const crudo of pasos) agregar((crudo as Documento)?.instrumento)
+
   return [...porId.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 }
 
@@ -152,6 +185,9 @@ export function casoParaLaConsola(documento: Documento): CasoDeConsola {
       giroZ: numero(desplazamiento.giroZ, 0),
     },
     pasos: pasosDelCaso(documento),
-    instrumental: bandejaDelCaso(Array.isArray(documento.pasos) ? (documento.pasos as Documento[]) : []),
+    instrumental: bandejaDelCaso(
+      Array.isArray(documento.pasos) ? (documento.pasos as Documento[]) : [],
+      documento.instrumental,
+    ),
   }
 }

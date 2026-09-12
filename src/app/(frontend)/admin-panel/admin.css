@@ -932,6 +932,29 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 
 .encuadre-aviso { color: var(--verde, #16794a); font-weight: 600; }
 
+/* ---------- relación múltiple, con casillas ---------- */
+.campo-casillas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 2px 14px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+  max-height: 220px;
+  overflow-y: auto;
+}
+.campo-casilla {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+.campo-casilla input { margin: 0; }
+
 /* ---------- taller de piezas ---------- */
 .taller-piezas { margin: 0 0 1rem; }
 

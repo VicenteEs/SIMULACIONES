@@ -400,6 +400,24 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .consola-medidas dd { margin: 2px 0 0; font-family: var(--mono); font-size: 14px; color: var(--marca); }
 .consola-medidas dd.consola-desglose { margin-top: 1px; font-size: 11px; color: var(--mudo); letter-spacing: 0.04em; }
 
+/* El instrumento que el residente tiene en la mano: su modelo y para qué sirve. */
+.consola-instrumento {
+  margin: 10px 0 0;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+  overflow: hidden;
+}
+.consola-instrumento .visor-3d-marco { height: 170px; border: 0; border-radius: 0; }
+.consola-instrumento-texto {
+  margin: 0;
+  padding: 9px 11px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--pizarra);
+  border-top: 1px solid var(--linea-suave);
+}
+
 .consola-bandeja { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .instrumento {
   width: 100%;

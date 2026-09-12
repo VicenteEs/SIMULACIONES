@@ -53,7 +53,19 @@ export type Campo =
   | (CampoBase & { tipo: 'numero'; min?: number; max?: number; paso?: number })
   | (CampoBase & { tipo: 'seleccion'; opciones: Opcion[] })
   | (CampoBase & { tipo: 'casilla' })
-  | (CampoBase & { tipo: 'relacion'; coleccion: string })
+  | (CampoBase & {
+      tipo: 'relacion'
+      coleccion: string
+      /**
+       * Varios a la vez, con casillas en vez de desplegable.
+       *
+       * Un desplegable múltiple obliga a mantener pulsada una tecla para
+       * añadir el segundo, cosa que nadie descubre solo. Con casillas se ve de
+       * un vistazo qué está marcado y qué no, que es exactamente lo que hay
+       * que ver al componer una bandeja.
+       */
+      multiple?: boolean
+    })
   | (CampoBase & { tipo: 'archivo'; coleccion: string; acepta?: string })
   | (CampoBase & { tipo: 'rico' })
   | (CampoBase & {
@@ -366,6 +378,15 @@ export const Cirugias: EsquemaDeColeccion = {
           nombre: 'modelo',
           etiqueta: 'Modelo 3D del caso',
           coleccion: 'modelos-3d',
+        },
+        {
+          tipo: 'relacion',
+          nombre: 'instrumental',
+          etiqueta: 'Bandeja del caso',
+          coleccion: 'instrumental',
+          multiple: true,
+          ayuda:
+            'Si se deja vacía, la componen los instrumentos que piden los pasos. Declararla sirve para añadir señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Lo que un paso necesita se añade solo, aunque aquí falte.',
         },
         {
           tipo: 'numero',
@@ -915,6 +936,14 @@ export const Instrumental: EsquemaDeColeccion = {
         },
         { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden en la bandeja', medio: true },
         { tipo: 'area', nombre: 'descripcion', etiqueta: 'Para qué sirve' },
+          {
+            tipo: 'relacion',
+            nombre: 'modelo',
+            etiqueta: 'Modelo 3D del instrumento',
+            coleccion: 'modelos-3d',
+            ayuda:
+              'Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez.',
+          },
       ],
     },
   ],

@@ -885,6 +885,30 @@ geometría, y la postura no cambia. Señalar un nodo y moverlo es trivial; una
 operación booleana sobre malla de hueso esponjoso es otro proyecto, y uno cuyo
 resultado no está claro que sirva para enseñar.
 
+
+### D-062 · 2026-09-12 · vigente
+**La bandeja de un caso se declara, y sirve sobre todo para poner señuelos.**
+Hasta ahora la bandeja se deducía sola de los pasos: siete pasos con siete
+instrumentos daban una bandeja de siete botones, **todos correctos en algún
+momento**. Eso convierte el último paso en un acertijo por eliminación, porque
+queda un solo botón sin usar. Y deja sin sentido el mensaje de error del motor,
+que dice el nombre del instrumento elegido «porque en la bandeja hay
+instrumentos que se parecen»: hoy no los hay.
+
+El caso puede declarar ahora su bandeja, y lo que se gana no es control sino
+**instrumentos que no usa ningún paso** —el Hohmann, el Farabeuf, la tijera de
+Mayo— que en pabellón estarían ahí. Elegir vuelve a ser una decisión.
+
+*La regla que no se toca:* nunca es el catálogo entero. Y nunca deja fuera lo
+que un paso necesita: lo declarado se **suma** a lo deducido, no lo sustituye.
+Un caso con un paso cuyo instrumento no está en la bandeja no se puede terminar,
+y no habría forma de saber por qué; descuidarse al declararla no puede dejar el
+caso sin salida.
+
+*Y de paso:* cada instrumento admite su modelo 3D, que se enseña solo cuando el
+residente lo coge, uno cada vez. Trece modelos cargando a la vez en la bandeja
+dejarían la consola inservible en el portátil que es el equipo de referencia.
+
 ---
 
 ## 3. Observaciones
@@ -1491,6 +1515,33 @@ dio el error, tres líneas más abajo y hablando de otra cosa.
 
 *Arreglo:* el servicio se para antes y se arranca al final. Corregido en
 `docs/SERVIDOR-WINDOWS.md`, junto con la señal que lo delata en el registro.
+
+### O-038 · 2026-09-12 · alta · resuelta
+**El guardián de las migraciones se saltaba las relaciones múltiples.**
+`tests/unit/migraciones.test.ts` comprueba que todo campo de una colección tenga
+su columna en la última instantánea, y lleva una línea que dice: «muchos a
+muchos: también tabla aparte», seguida de un `continue`. Es decir, los saltaba
+para no buscar una columna que no existe, y con eso se saltaba la comprobación
+entera.
+
+*Lo que habría pasado:* un campo de relación múltiple añadido sin migración pasa
+las pruebas en verde y llega al servidor a una base sin la tabla `..._rels`. Es
+exactamente el fallo silencioso que D-056 existe para impedir, con un agujero
+justo en el tipo de campo que más fácil es añadir sin pensar.
+
+*Cómo apareció:* añadiendo la bandeja declarada de un caso (D-062), que es el
+primer campo múltiple del proyecto.
+
+*Arreglo:* una prueba nueva que exige la tabla de enlaces y su columna de
+destino. Se comprobó que falla al quitar la migración.
+
+### O-039 · 2026-09-12 · media · resuelta
+**El «para qué sirve» de cada instrumento no llegaba a ninguna pantalla.**
+El catálogo de instrumental tiene un campo de descripción desde que se creó, se
+rellenó para los trece instrumentos sembrados, y no se mostraba en ningún sitio.
+El residente elegía instrumento sin poder leer para qué era ninguno, que es
+justo lo que hace falta para elegir bien. Ahora se lee al cogerlo, junto a su
+modelo.
 
 ---
 

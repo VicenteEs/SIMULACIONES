@@ -336,3 +336,80 @@ describe('traducir el documento a lo que usa la consola', () => {
     expect(caso.piezas[0].nodo).toBe('tibia_distal')
   })
 })
+
+describe('la bandeja del caso', () => {
+  const bisturi = { id: 1, nombre: 'Bisturí N°10', icono: 'bisturi' }
+  const punzon = { id: 2, nombre: 'Punzón de entrada', icono: 'punzon' }
+  const separador = { id: 3, nombre: 'Separador de Farabeuf', icono: 'separador' }
+
+  const casoCon = (instrumental: unknown) =>
+    casoParaLaConsola({
+      nombre: 'Caso',
+      instrumental,
+      pasos: [
+        { titulo: 'Incisión', instrumento: bisturi },
+        { titulo: 'Entrada', instrumento: punzon },
+      ],
+    })
+
+  it('sin declarar nada, la componen los instrumentos de los pasos', () => {
+    expect(casoCon(undefined).instrumental.map((i) => i.nombre)).toEqual([
+      'Bisturí N°10',
+      'Punzón de entrada',
+    ])
+  })
+
+  it('lo declarado entra aunque ningún paso lo use: son los señuelos', () => {
+    // Es la razón de existir del campo. Con solo los instrumentos de los pasos,
+    // la bandeja contiene únicamente respuestas correctas y acertar es elegir
+    // entre lo que ya se sabe que sirve.
+    const caso = casoCon([bisturi, punzon, separador])
+    expect(caso.instrumental.map((i) => i.nombre)).toContain('Separador de Farabeuf')
+    expect(caso.instrumental).toHaveLength(3)
+  })
+
+  it('lo que un paso necesita se añade aunque falte en lo declarado', () => {
+    // Un caso con un paso cuyo instrumento no está en la bandeja no se puede
+    // terminar, y no habría forma de saber por qué. Descuidarse al declarar la
+    // bandeja no puede dejar el caso sin salida.
+    const caso = casoCon([separador])
+    expect(caso.instrumental.map((i) => i.nombre)).toEqual([
+      'Bisturí N°10',
+      'Punzón de entrada',
+      'Separador de Farabeuf',
+    ])
+  })
+
+  it('no se repite un instrumento declarado que además usa un paso', () => {
+    const caso = casoCon([bisturi])
+    expect(caso.instrumental.filter((i) => i.nombre === 'Bisturí N°10')).toHaveLength(1)
+  })
+
+  it('se ordena por nombre, no por el orden de los pasos', () => {
+    // La posición de cada uno no puede delatar cuál toca ahora.
+    const caso = casoParaLaConsola({
+      nombre: 'Caso',
+      pasos: [{ instrumento: punzon }, { instrumento: bisturi }],
+    })
+    expect(caso.instrumental.map((i) => i.nombre)).toEqual([
+      'Bisturí N°10',
+      'Punzón de entrada',
+    ])
+  })
+
+  it('lleva el modelo 3D del instrumento cuando el catálogo le puso uno', () => {
+    const caso = casoParaLaConsola({
+      nombre: 'Caso',
+      pasos: [
+        { instrumento: { ...bisturi, modelo: { id: 9, url: '/api/modelos-3d/file/bisturi.glb' } } },
+      ],
+    })
+    expect(caso.instrumental[0].modeloUrl).toBe('/api/modelos-3d/file/bisturi.glb')
+  })
+
+  it('sin modelo, la dirección es nula y no una cadena vacía', () => {
+    // La consola decide con esto si hay algo que enseñar; una cadena vacía
+    // pasaría la comprobación y pediría un archivo que no existe.
+    expect(casoCon(undefined).instrumental[0].modeloUrl).toBeNull()
+  })
+})

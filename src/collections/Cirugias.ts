@@ -86,6 +86,18 @@ export const Cirugias: CollectionConfig = {
       label: 'Resumen del procedimiento',
     },
 
+    {
+      name: 'instrumental',
+      type: 'relationship',
+      relationTo: 'instrumental',
+      hasMany: true,
+      label: 'Bandeja del caso',
+      admin: {
+        description:
+          'Lo que el residente tendrá delante. Si se deja vacío, la bandeja la componen los instrumentos que piden los pasos. Declararla sirve para AÑADIR señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Sin ellos, acertar es elegir entre lo que ya se sabe que sirve.',
+      },
+    },
+
     // --- el modelo ---------------------------------------------------------
     {
       name: 'modelo',

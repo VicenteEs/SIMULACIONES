@@ -173,6 +173,44 @@ export function ControlDeCampo({
       )
 
     case 'relacion':
+      if (campo.multiple) {
+        // Los identificadores llegan sueltos o como documentos poblados, según
+        // la profundidad con la que se leyó: se normalizan antes de comparar,
+        // porque «3» y 3 no son la misma casilla marcada.
+        const marcados = (Array.isArray(valor) ? valor : [])
+          .map((v) => (v && typeof v === 'object' ? (v as { id?: unknown }).id : v))
+          .map((v) => texto(v))
+          .filter(Boolean)
+        const opciones = relaciones[campo.coleccion] ?? []
+        return (
+          <div className="campo">
+            {etiqueta}
+            {ayuda}
+            <div className="campo-casillas">
+              {opciones.length === 0 ? (
+                <p className="campo-ayuda">Todavía no hay nada que elegir en ese catálogo.</p>
+              ) : (
+                opciones.map((o) => (
+                  <label key={o.id} className="campo-casilla">
+                    <input
+                      type="checkbox"
+                      checked={marcados.includes(o.id)}
+                      onChange={(e) =>
+                        alCambiar(
+                          e.target.checked
+                            ? [...marcados, o.id]
+                            : marcados.filter((m) => m !== o.id),
+                        )
+                      }
+                    />
+                    <span>{o.etiqueta}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        )
+      }
       return (
         <div className={`campo${campo.medio ? ' campo-medio' : ''}`}>
           {etiqueta}

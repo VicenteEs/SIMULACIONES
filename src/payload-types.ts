@@ -419,6 +419,10 @@ export interface Instrumental {
     | null;
   descripcion?: string | null;
   /**
+   * Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez: trece modelos cargando a la vez en la bandeja dejarían la consola inservible en un portátil modesto.
+   */
+  modelo?: (number | null) | Modelos3D;
+  /**
    * Solo para ordenar el catálogo. La bandeja de un caso la forman los instrumentos que sus pasos declaran, no esta lista.
    */
   tecnicas?: (number | TecnicasQuirurgica)[] | null;
@@ -1435,6 +1439,10 @@ export interface Cirugia {
     [k: string]: unknown;
   } | null;
   /**
+   * Lo que el residente tendrá delante. Si se deja vacío, la bandeja la componen los instrumentos que piden los pasos. Declararla sirve para AÑADIR señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Sin ellos, acertar es elegir entre lo que ya se sabe que sirve.
+   */
+  instrumental?: (number | Instrumental)[] | null;
+  /**
    * Archivo .glb exportado desde Blender con el hueso ya partido. Cada trozo, un objeto con nombre.
    */
   modelo?: (number | null) | Modelos3D;
@@ -2126,6 +2134,7 @@ export interface InstrumentalSelect<T extends boolean = true> {
   nombre?: T;
   icono?: T;
   descripcion?: T;
+  modelo?: T;
   tecnicas?: T;
   orden?: T;
   updatedAt?: T;
@@ -2922,6 +2931,7 @@ export interface CirugiasSelect<T extends boolean = true> {
   tecnica?: T;
   codigo?: T;
   resumen?: T;
+  instrumental?: T;
   modelo?: T;
   milimetrosPorUnidad?: T;
   ejeLargo?: T;

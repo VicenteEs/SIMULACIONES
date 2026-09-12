@@ -78,7 +78,7 @@ function columnasDe(campos: Field[]): string[] {
 
       // Tablas propias, o nada que guardar.
       if (tipo === 'array' || tipo === 'blocks' || tipo === 'group' || tipo === 'ui') continue
-      // Muchos a muchos: también tabla aparte.
+      // Muchos a muchos: también tabla aparte. La vigila `relacionesMultiples`.
       if ((campo as { hasMany?: boolean }).hasMany) continue
 
       salida.push(
@@ -86,6 +86,44 @@ function columnasDe(campos: Field[]): string[] {
           ? `${aColumna(campo.name)}_id`
           : aColumna(campo.name),
       )
+    }
+  }
+
+  recorrer(campos)
+  return salida
+}
+
+/**
+ * Campos de relación «muchos a muchos» de una colección, con su destino.
+ *
+ * No son una columna: Payload les crea una tabla `<coleccion>_rels` con una
+ * columna por cada colección a la que se pueda apuntar.
+ */
+function relacionesMultiples(campos: Field[]): { nombre: string; destino: string }[] {
+  const salida: { nombre: string; destino: string }[] = []
+
+  const recorrer = (lista: Field[]) => {
+    for (const campo of lista) {
+      if ('tabs' in campo && Array.isArray(campo.tabs)) {
+        for (const pestana of campo.tabs) {
+          if ('name' in pestana) continue
+          recorrer(pestana.fields as Field[])
+        }
+        continue
+      }
+      if ('fields' in campo && Array.isArray(campo.fields) && !('name' in campo)) {
+        recorrer(campo.fields as Field[])
+        continue
+      }
+      if (!('name' in campo) || typeof campo.name !== 'string') continue
+      if (campo.type !== 'relationship' && campo.type !== 'upload') continue
+      if (!(campo as { hasMany?: boolean }).hasMany) continue
+
+      const destino = (campo as { relationTo?: unknown }).relationTo
+      // Una relación múltiple a varias colecciones da una columna por cada una;
+      // basta comprobar la primera para saber que la tabla existe.
+      const primero = Array.isArray(destino) ? destino[0] : destino
+      if (typeof primero === 'string') salida.push({ nombre: campo.name, destino: primero })
     }
   }
 
@@ -131,6 +169,29 @@ describe('las migraciones siguen a las colecciones', () => {
         Object.keys(tablas),
         `la colección '${coleccion.slug}' no tiene tabla en ${nombre}: falta una migración`,
       ).toContain(`public.${aTabla(coleccion.slug)}`)
+    }
+  })
+
+  it('toda relación múltiple tiene su tabla de enlaces', () => {
+    // El agujero que esto tapa: `columnasDe` se salta los campos «muchos a
+    // muchos» porque no son una columna, y con eso se saltaba también la
+    // comprobación entera. Un campo de relación múltiple añadido sin migración
+    // pasaba las pruebas en verde y llegaba al servidor a una base sin la tabla
+    // `..._rels`, que es la clase de fallo silencioso que D-056 existe para
+    // impedir. Se descubrió al añadir la bandeja declarada de un caso.
+    const { nombre, tablas } = ultimaInstantanea()
+    for (const coleccion of COLECCIONES) {
+      for (const campo of relacionesMultiples(coleccion.fields)) {
+        const enlaces = tablas[`public.${aTabla(coleccion.slug)}_rels`]
+        expect(
+          enlaces,
+          `${coleccion.slug}.${campo.nombre} es múltiple y no hay tabla de enlaces en ${nombre}: genere una migración`,
+        ).toBeTruthy()
+        expect(
+          Object.keys(enlaces?.columns ?? {}),
+          `${coleccion.slug}.${campo.nombre} apunta a ${campo.destino} y esa columna falta en ${nombre}`,
+        ).toContain(`${aColumna(campo.destino)}_id`)
+      }
     }
   })
 

@@ -3,6 +3,7 @@ import * as migration_20260909_231143_atlas from './20260909_231143_atlas';
 import * as migration_20260910_125744_catalogos_del_simulador from './20260910_125744_catalogos_del_simulador';
 import * as migration_20260910_125801_caso_quirurgico from './20260910_125801_caso_quirurgico';
 import * as migration_20260910_132203_tolerancia_diastasis from './20260910_132203_tolerancia_diastasis';
+import * as migration_20260912_212708_bandeja_y_modelo_de_instrumento from './20260912_212708_bandeja_y_modelo_de_instrumento';
 
 export const migrations = [
   {
@@ -28,6 +29,11 @@ export const migrations = [
   {
     up: migration_20260910_132203_tolerancia_diastasis.up,
     down: migration_20260910_132203_tolerancia_diastasis.down,
-    name: '20260910_132203_tolerancia_diastasis'
+    name: '20260910_132203_tolerancia_diastasis',
+  },
+  {
+    up: migration_20260912_212708_bandeja_y_modelo_de_instrumento.up,
+    down: migration_20260912_212708_bandeja_y_modelo_de_instrumento.down,
+    name: '20260912_212708_bandeja_y_modelo_de_instrumento'
   },
 ];

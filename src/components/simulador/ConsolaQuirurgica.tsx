@@ -13,6 +13,10 @@ import {
 import { desplazamientoCompleto, largoDelTrazo, medirReduccion, type EjeLargo } from '@/lib/reduccion'
 import { Rico, tieneContenido } from '@/components/Rico'
 import { IconoInstrumento } from './IconoInstrumento'
+// El visor del instrumento reutiliza el de las fichas, ya partido en su propio
+// trozo de JavaScript: se descarga cuando el residente coge un instrumento que
+// tiene modelo, y no antes.
+import { Visor3D } from '@/components/VisoresPerezosos'
 import type { MandoDelLienzo, Modo, PiezaDelCaso, Punto3 } from './LienzoQuirurgico'
 
 /**
@@ -60,6 +64,10 @@ export interface InstrumentoDeBandeja {
   id: string
   nombre: string
   icono?: string | null
+  /** Dirección de su modelo 3D, si el catálogo le puso uno. */
+  modeloUrl?: string | null
+  /** Para qué sirve, tal como lo escribió el traumatólogo en el catálogo. */
+  descripcion?: string | null
 }
 
 export interface CasoDeConsola {
@@ -170,7 +178,7 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
 
     const evaluacion = evaluarGesto(paso, {
       instrumento,
-      instrumentoNombre: caso.instrumental.find((i) => i.id === instrumento)?.nombre ?? null,
+      instrumentoNombre: instrumentoElegido?.nombre ?? null,
       trazo: largoDelTrazoMm,
       desplazamiento: reduccion.desplazamiento,
       diastasis: reduccion.diastasis,
@@ -261,6 +269,9 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
   // El código lo compone el servidor con el número del hueso y el de la
   // clasificación; aquí solo se muestra si existe.
   const codigo = caso.codigo
+
+  /** El instrumento que el residente tiene en la mano, ya resuelto. */
+  const instrumentoElegido = caso.instrumental.find((i) => i.id === instrumento) ?? null
 
   // ------------------------------------------------------------- pintado
   if (!caso.modeloUrl) {
@@ -451,6 +462,27 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
               </li>
             ))}
           </ul>
+
+          {/*
+            El modelo del instrumento que tiene en la mano, y solo ese.
+            Trece modelos cargando a la vez en la bandeja dejarían la consola
+            inservible en un portátil modesto, que es el equipo de referencia
+            del residente: se baja uno cada vez, cuando lo coge.
+          */}
+          {instrumentoElegido && (instrumentoElegido.modeloUrl || instrumentoElegido.descripcion) ? (
+            <div className="consola-instrumento">
+              {instrumentoElegido.modeloUrl ? (
+                <Visor3D
+                  key={instrumentoElegido.modeloUrl}
+                  url={instrumentoElegido.modeloUrl}
+                  nombre={instrumentoElegido.nombre}
+                />
+              ) : null}
+              {instrumentoElegido.descripcion ? (
+                <p className="consola-instrumento-texto">{instrumentoElegido.descripcion}</p>
+              ) : null}
+            </div>
+          ) : null}
 
           {terminado ? (
             <div className="consola-fin">
