@@ -1366,9 +1366,40 @@ espacios y `C:\Program Files\PostgreSQL` llegaba partido en dos.
 *Arreglo:* los binarios en ZIP, `initdb` y `pg_ctl register`. No instalan nada,
 no necesitan escritorio y el proceso entero cabe en un script.
 
+### O-032 · 2026-09-12 · media · resuelta
+**Renombrar la máquina en Tailscale no renombra el túnel ni la aplicación.**
+Se cambió el nombre de la máquina de `faraday` a `traumahub` para que la
+dirección pública se pudiera dictar en voz alta. El nombre DNS cambió al
+instante, pero ni el túnel ni la plataforma se enteraron:
+
+- `tailscale funnel status` seguía anunciando el nombre viejo. La configuración
+  del túnel guarda el nombre con el que se creó, así que hubo que `funnel reset`
+  y volver a montarlo para que pidiera certificado sobre el nombre nuevo.
+- La aplicación seguía escribiendo la dirección vieja en cada enlace absoluto,
+  porque `NEXT_PUBLIC_SERVER_URL` se incrusta al compilar. Sin reconstruir, la
+  mitad de la plataforma habría apuntado a un nombre que ya no existe.
+
+*Por qué se anota:* las tres piezas parecen una sola cosa y son tres, y las dos
+que no se actualizan solas fallan sin dar error. El procedimiento completo quedó
+en `docs/SERVIDOR-WINDOWS.md`.
+
+*Lo que no se puede:* el `tailc2094f` de en medio no se elige. Tailscale ofrece
+cambiarlo por otro aleatorio de dos palabras y nada más, y Funnel no admite
+dominios propios. Un nombre de verdad exige Cloudflare Tunnel y un dominio
+delegado (**Q-008**).
+
 ---
 
 ## 4. Preguntas abiertas
+
+### Q-008 · ¿Merece la pena un dominio propio para la plataforma?
+Hoy la dirección es `traumahub.tailc2094f.ts.net/simulaciones`: el nombre de la
+máquina se eligió, el resto no. Tailscale Funnel no admite dominios propios, así
+que un `traumahub.cl` exige cambiar de túnel a Cloudflare, que el repositorio ya
+documenta. El costo es un dominio al año y media tarde de configuración; el
+beneficio es una dirección que un residente pueda escribir de memoria. La
+pregunta no es técnica, es si la plataforma va a repartirse fuera del grupo que
+ya tiene el enlace guardado.
 
 ### Q-001 · ¿A quién se le presenta este prototipo?
 No es lo mismo pulir para una jefatura de servicio, para una universidad, para

@@ -1,12 +1,14 @@
 # La plataforma en un Windows, sin Docker
 
-Guía del despliegue que hoy corre en **faraday** —el alias SSH es `blanco`—, un
-Windows 11 de casa al que se llega por Tailscale. `docs/SERVIDOR.md` describe el
+Guía del despliegue que hoy corre en un Windows 11 de casa al que se llega por
+Tailscale. La máquina tiene tres nombres y conviene no confundirlos: en Windows
+sigue siendo `FARADAY`, el alias de SSH es `blanco`, y en Tailscale es
+`traumahub`, que es el único que aparece en la dirección pública. `docs/SERVIDOR.md` describe el
 camino de Ubuntu con Docker, que es el recomendado; este describe el otro, el
 que hubo que abrir porque la máquina no tenía Docker ni WSL y no había por qué
 instalarlos solo para esto.
 
-La dirección pública es **https://faraday.tailc2094f.ts.net/simulaciones**.
+La dirección pública es **https://traumahub.tailc2094f.ts.net/simulaciones**.
 
 ---
 
@@ -33,7 +35,7 @@ recibe:
 
 ```
 tailscale funnel --bg --set-path /simulaciones http://localhost:3000
-GET https://faraday.tailc2094f.ts.net/simulaciones/api/salud  →  llega /api/salud
+GET https://traumahub.tailc2094f.ts.net/simulaciones/api/salud  →  llega /api/salud
 ```
 
 Eso deja las dos mitades sin encajar. Con `basePath` puesto, la aplicación
@@ -47,19 +49,53 @@ en los enlaces que escribe:
 
 ```
 tailscale funnel --bg --yes http://localhost:3000
-GET https://faraday.tailc2094f.ts.net/simulaciones/api/salud  →  llega /simulaciones/api/salud
+GET https://traumahub.tailc2094f.ts.net/simulaciones/api/salud  →  llega /simulaciones/api/salud
 ```
 
 El prefijo se fija **al compilar**, en `.env`:
 
 ```
 NEXT_PUBLIC_BASE_PATH=/simulaciones
-NEXT_PUBLIC_SERVER_URL=https://faraday.tailc2094f.ts.net/simulaciones
+NEXT_PUBLIC_SERVER_URL=https://traumahub.tailc2094f.ts.net/simulaciones
 ```
 
 Cambiar cualquiera de las dos obliga a reconstruir. Se comprueba después en
 `.next/required-server-files.json`, que guarda el `basePath` con el que se
 construyó.
+
+---
+
+## Cambiar el nombre de la dirección
+
+El nombre público tiene dos mitades y solo una se elige. La máquina —`traumahub`—
+es libre. El tailnet —`tailc2094f`— no: Tailscale solo ofrece cambiarlo por otro
+aleatorio pero pronunciable, de dos palabras, y una vez usado para emitir
+certificados ya no se puede pedir otro. Funnel no admite dominios propios de
+ninguna forma; para eso hacen falta Cloudflare Tunnel y un dominio delegado, que
+están en `docs/CLOUDFLARE.md`.
+
+Renombrar la máquina son tres pasos, y saltarse cualquiera deja el sitio a medias:
+
+```powershell
+# 1. El nombre que Tailscale reporta. No toca el nombre de Windows, que
+#    obligaria a reiniciar la maquina para nada.
+& "C:\Program Files\Tailscale\tailscale.exe" set --hostname=traumahub
+
+# 2. El tunel guarda el nombre viejo dentro y no se entera del cambio. Hay que
+#    rehacerlo para que pida certificado sobre el nombre nuevo.
+& "C:\Program Files\Tailscale\tailscale.exe" funnel reset
+& "C:\Program Files\Tailscale\tailscale.exe" funnel --bg --yes http://localhost:3000
+
+# 3. La direccion vive dentro de la construccion, no del proceso. Sin esto el
+#    servidor sigue escribiendo la direccion vieja en cada enlace absoluto.
+#    Editar NEXT_PUBLIC_SERVER_URL en .env y despues:
+Set-Location C:\Users\vicen\simulaciones
+npm run build
+Restart-Service traumahub
+```
+
+Los enlaces al nombre anterior dejan de funcionar. Es lo esperado, pero conviene
+avisarlo antes de repartir la dirección.
 
 ---
 
@@ -110,7 +146,7 @@ al arrancar el servicio.
 **Ver si está en pie.** Es lo único que responde sin sesión:
 
 ```bash
-curl https://faraday.tailc2094f.ts.net/simulaciones/api/salud
+curl https://traumahub.tailc2094f.ts.net/simulaciones/api/salud
 ```
 
 Devuelve `{"estado":"ok","base":"ok"}` cuando la aplicación y la base responden,
