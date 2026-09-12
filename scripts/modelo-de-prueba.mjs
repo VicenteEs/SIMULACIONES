@@ -3,7 +3,7 @@
  *
  *   node scripts/modelo-de-prueba.mjs
  *
- * Escribe `medios/modelos/tibia-de-prueba.glb`: una tibia esquemática partida
+ * Escribe `ejemplos/tibia-de-prueba.glb`: una tibia esquemática partida
  * en dos, con la envoltura de músculo y piel. No pretende ser anatomía; es un
  * banco de pruebas y, sobre todo, **el ejemplo de la estructura que espera la
  * consola**, que es lo que hay que reproducir al exportar desde Blender:
@@ -32,7 +32,11 @@ import { fileURLToPath } from 'node:url'
 
 const AQUI = dirname(fileURLToPath(import.meta.url))
 const RAIZ = join(AQUI, '..')
-const DESTINO = join(RAIZ, 'medios', 'modelos')
+// Fuera de `medios/modelos/`, que es la carpeta donde Payload deja lo que se
+// sube. Escribiendo ahí, cada siembra dejaba dos tibias: la plantilla y la
+// copia que Payload guardaba con un «-1» pegado al nombre. Quien abriera la
+// carpeta vería dos archivos iguales y ninguna forma de saber cuál es cuál.
+const DESTINO = join(RAIZ, 'ejemplos')
 const ARCHIVO = 'tibia-de-prueba.glb'
 
 /**
@@ -293,6 +297,6 @@ mkdirSync(DESTINO, { recursive: true })
 writeFileSync(join(DESTINO, ARCHIVO), glb)
 
 const triangulos = PIEZAS.reduce((t, p) => t + p.geometria.indices.length / 3, 0)
-console.log(`Escrito ${join('medios', 'modelos', ARCHIVO)}`)
+console.log(`Escrito ${join('ejemplos', ARCHIVO)}`)
 console.log(`  ${PIEZAS.length} objetos · ${triangulos} triángulos · ${(glb.byteLength / 1024).toFixed(1)} KB`)
 console.log(`  nombres: ${PIEZAS.map((p) => p.nombre).join(', ')}`)

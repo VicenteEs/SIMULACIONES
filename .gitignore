@@ -64,3 +64,7 @@ desktop.ini
 # logs
 *.log
 npm-debug.log*
+
+# Modelos de ejemplo generados por scripts/modelo-de-prueba.mjs. Se regeneran
+# con un comando y no tienen por qué viajar en el repositorio.
+/ejemplos/

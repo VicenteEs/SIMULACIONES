@@ -85,7 +85,7 @@ antes de exportar.
 envío, que tiene que ser mayor porque en la misma petición viaja el formulario.
 El que decide sobre su archivo es el de 5 MB.)
 
-Si quiere ver cómo debe quedar, `medios/modelos/tibia-de-prueba.glb` es un
+Si quiere ver cómo debe quedar, `ejemplos/tibia-de-prueba.glb` es un
 ejemplo mínimo con esos cuatro objetos.
 
 ---

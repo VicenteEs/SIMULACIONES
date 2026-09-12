@@ -34,7 +34,7 @@ import type { Payload } from 'payload'
 const archivoEnv = resolve(process.cwd(), '.env')
 if (existsSync(archivoEnv)) process.loadEnvFile(archivoEnv)
 
-const MODELO = join(process.cwd(), 'medios', 'modelos', 'tibia-de-prueba.glb')
+const MODELO = join(process.cwd(), 'ejemplos', 'tibia-de-prueba.glb')
 
 // --------------------------------------------------------------- catálogos
 

@@ -18,6 +18,7 @@
  * orden y las veces que haga falta.
  */
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 // tsx no carga .env como hace Next.js, y las importaciones estáticas se elevan
@@ -72,9 +73,12 @@ const ESQUEMA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height=
 
 async function dibujarEsquema(): Promise<string> {
   const { default: sharp } = await import('sharp')
-  const carpeta = join(process.cwd(), 'medios')
+  // Fuera de `medios/`, que es la carpeta a la que Payload copia lo que se
+  // sube: dejar ahí el original hacía que se guardara dos veces, el segundo con
+  // un «-1» pegado al nombre, y quedaba un archivo suelto que no es de nadie.
+  const carpeta = join(tmpdir(), 'traumahub-demo')
   if (!existsSync(carpeta)) mkdirSync(carpeta, { recursive: true })
-  const destino = join(carpeta, '_esquema-de-demostracion.png')
+  const destino = join(carpeta, 'esquema-de-demostracion.png')
   const png = await sharp(Buffer.from(ESQUEMA_SVG)).png().toBuffer()
   writeFileSync(destino, png)
   return destino
