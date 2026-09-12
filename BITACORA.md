@@ -1543,6 +1543,31 @@ El residente elegía instrumento sin poder leer para qué era ninguno, que es
 justo lo que hace falta para elegir bien. Ahora se lee al cogerlo, junto a su
 modelo.
 
+### O-040 · 2026-09-12 · alta · resuelta
+**El servidor arrancaba, quedaba «Running» y no servía una sola petición.**
+`push` estaba escrito como «distinto de `test`», que en el servidor es
+verdadero, de modo que producción sincronizaba el esquema al vuelo. El
+comentario de al lado decía justo lo contrario. Ganaba el código.
+
+La consecuencia no fue la obvia. Al sincronizar, Payload deja escrita en
+`payload_migrations` una fila llamada `dev`, y a partir de ahí **cada arranque**
+ve esa marca y pregunta por consola si aplicar las migraciones con riesgo de
+pérdida de datos. A un servicio de Windows no le contesta nadie: el servicio
+quedaba en «Running», el registro terminaba en un `(y/N)` y la plataforma no
+respondía. Sin error, sin caída, sin nada que mirar salvo el registro.
+
+Es la misma trampa que D-056 describe para las pruebas —un proceso esperando una
+respuesta que nadie va a dar no falla, se cuelga— aparecida en el sitio donde más
+caro sale, y el mismo día en que se dio por cerrada.
+
+*Arreglo:* `push` solo en desarrollo, y la fila `dev` borrada de la tabla. El
+esquema que representaba ya estaba en la base, puesto por el propio push.
+
+*Lo que queda abierto:* el registro también avisa de que `next start` no es la
+forma de arrancar una construcción `output: standalone`. Funciona, pero es otra
+discrepancia entre lo que se configura y lo que se ejecuta, de la misma familia
+que esta. Anotado para arreglarlo aparte.
+
 ---
 
 ## 4. Preguntas abiertas
