@@ -262,12 +262,24 @@ export function TallerDePiezas({
               const existe = !huerfanas.includes(nodo)
               return (
                 <tr key={`${nodo}-${i}`} className={existe ? undefined : 'taller-piezas-huerfana'}>
-                  <td>
+                  {/*
+                    `<th scope="row">` y no `<td>`: esta celda no es un dato de
+                    la fila, es lo que la identifica. Con ella marcada, el lector
+                    de pantalla antepone el nombre del objeto al leer el
+                    desplegable y los dos botones de al lado, que es exactamente
+                    lo que hace falta en una tabla de quince trozos de .glb
+                    llamados casi igual. El aspecto no cambia: `admin.css` acotó
+                    su regla de cabecera a `thead th` justamente para esto —el
+                    `text-transform: uppercase` sacaría el nombre en mayúsculas y
+                    tiene que coincidir letra por letra con el del archivo— y dio
+                    a `tbody th` el mismo trato que al `<td>`.
+                  */}
+                  <th scope="row">
                     <code>{nodo || '(sin nombre)'}</code>
                     {!existe ? (
                       <span className="taller-piezas-alerta"> no está en este archivo</span>
                     ) : null}
-                  </td>
+                  </th>
                   <td>
                     {/*
                       Cada control lleva el nombre del objeto en su etiqueta, y

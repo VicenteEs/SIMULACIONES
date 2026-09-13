@@ -42,7 +42,7 @@
 |---|---|
 | `npm run dev` | Servidor de desarrollo |
 | `npm test` | Pruebas unitarias y de integración |
-| `npm run test:integration` | Solo las de integración |
+| `npm run test:integration` | Solo las de integración, sin permiso para omitirse |
 | `npm run test:e2e` | Recorridos completos con Playwright |
 | `npm run test:coverage` | Pruebas con informe de cobertura |
 | `npm run typecheck` | Comprobación de tipos |
@@ -51,8 +51,31 @@
 | `npm run build` | Compilación de producción |
 
 `npm test` incluye las pruebas de integración porque `vitest.config.ts` las
-recoge junto a las unitarias. Si PostgreSQL no está en marcha no fallan: se
-omiten solas y avisan por consola de la causa.
+recoge junto a las unitarias. Y si PostgreSQL no está en marcha, **fallan**: eso
+cambió a propósito. Antes se omitían solas y el aviso salía por consola, donde
+Vitest ni siquiera lo imprime, de modo que la suite entera daba verde con las
+seis pruebas de acceso desaparecidas; son las únicas que comprueban que los
+permisos llegan hasta la consulta, así que su ausencia tiene que verse.
+
+Para trabajar sin base a sabiendas está `OMITIR_INTEGRACION=1`: con esa variable
+puesta se omiten y el resultado queda verde, porque alguien lo escribió a mano.
+Es una variable de entorno, y ahí Windows se porta distinto: `OMITIR_INTEGRACION=1
+npm test` solo funciona en bash. En PowerShell va en su propia línea,
+`$env:OMITIR_INTEGRACION = '1'`; escrita delante de la orden no llega a correr
+nada, porque PowerShell toma `OMITIR_INTEGRACION=1` por el nombre del programa
+(«is not recognized as a name of a cmdlet…»). Es el mismo motivo por el que
+`npm run test:integration` se pone su variable con un `node -e` y no con un
+prefijo: los guiones de npm los ejecuta `cmd`, que corta igual.
+
+Lo contrario es `EXIGIR_INTEGRACION=1`, que las declara obligatorias y anula ese
+permiso. Es lo que se pone `npm run test:integration` a sí mismo, y lo que trae
+por su cuenta cualquier servidor de integración con `CI`.
+
+Sobre una base **recién creada** hay que aplicarle antes el esquema con
+`npm run db:migrate`: `npm run db:up` solo levanta el contenedor y las
+migraciones no corren solas fuera de producción. Sin eso el fallo es
+`relation "segmentos" does not exist`, que no menciona ni el esquema ni las
+migraciones.
 
 `npm run test:e2e` necesita antes los navegadores de Playwright:
 

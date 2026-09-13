@@ -1,5 +1,9 @@
 import type { CollectionConfig, FieldAccess } from 'payload'
-import { accesoDePropiedad, administracionDeUsuarios } from '@/access/payload'
+import {
+  accesoDePropiedad,
+  administracionDeUsuarios,
+  mantenimientoDeContenido,
+} from '@/access/payload'
 import { escaparHtml } from '@/lib/validacion'
 
 /**
@@ -27,16 +31,10 @@ import { escaparHtml } from '@/lib/validacion'
  */
 const FIJADO_AL_CREAR: { update: FieldAccess } = { update: () => false }
 
-/**
- * Quién mantiene el contenido: administrador y editor con la cuenta activa.
- *
- * Mira `activo` como el resto de la plataforma (`habilitada()` en
- * `src/access/reglas.ts`). Hoy el acceso de colección ya lo exige, pero una
- * regla de campo que no lo comprueba es una divergencia esperando a que alguien
- * afloje la de arriba.
- */
-const mantenimientoDeContenido: FieldAccess = ({ req: { user } }) =>
-  Boolean(user?.activo && (user.rol === 'admin' || user.rol === 'editor'))
+// `mantenimientoDeContenido` —administrador o editor con la cuenta activa— vivía
+// aquí como constante local. Se mudó a `src/access/payload.ts`, que es donde
+// este proyecto promete tener toda la política junta, y desde allí delega en
+// `reglas.ts` igual que sus vecinas. El comportamiento es el mismo.
 
 /**
  * Cuántos administradores como mucho reciben el aviso de un comentario nuevo.

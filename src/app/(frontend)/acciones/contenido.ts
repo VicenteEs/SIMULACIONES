@@ -16,7 +16,12 @@
 import { revalidatePath } from 'next/cache'
 import { accion, exigirEdicionDe, exigirEditor, type Respuesta } from '@/lib/guardias'
 import { camposDe, esColeccionEditable, esquemaDe, type EsquemaDeColeccion } from '@/admin/esquema'
-import { depurarDocumento, faltantes, sinIdentificadoresDeFila } from '@/admin/depurar'
+import {
+  avisoDeContenidoQueSeBorraria,
+  depurarDocumento,
+  faltantes,
+  sinIdentificadoresDeFila,
+} from '@/admin/depurar'
 import { exigirIdentificador } from '@/lib/validacion'
 
 const rutaDeLista = (slug: string) => `/admin-panel/contenido/${slug}`
@@ -185,9 +190,24 @@ export async function guardarDocumento(
     const { payload, usuario } = await exigirEdicionDe(esquema.slug)
 
     if (!datos || typeof datos !== 'object') throw new Error('No llegó ningún dato que guardar.')
+
+    // Se pregunta por lo que llega crudo, porque lo que se pierde lo pierde la
+    // línea siguiente. Ver `avisoDeContenidoQueSeBorraria`.
+    const aviso = avisoDeContenidoQueSeBorraria(esquema, datos as Record<string, unknown>)
+    if (aviso) throw new Error(aviso)
+
     const documento = depurarDocumento(esquema, datos as Record<string, unknown>)
 
-    const problemas = faltantes(esquema, documento)
+    // Solo al publicar se exige la ficha entera (D-011). Aquí iba `faltantes`
+    // a secas, o sea `profundo: true` siempre, y eso cortaba también «Guardar
+    // borrador»: una maniobra con «Técnica» todavía en blanco —el caso normal
+    // de una ficha que se escribe a lo largo de varios días— respondía «Falta
+    // «técnica».» y no guardaba nada, de modo que lo escrito esa tarde se
+    // perdía al cerrar la pestaña. Payload hace la misma distinción: salta lo
+    // obligatorio cuando escribe con `draft: true`. El formulario ya la hacía
+    // por su lado (`seccionIncompleta(publicar)`), así que era el servidor el
+    // que iba por libre.
+    const problemas = faltantes(esquema, documento, { profundo: publicar === true })
     if (problemas.length > 0) throw new Error(problemas.join(' '))
 
     // Aquí se decide el estado, no en el formulario.
@@ -313,12 +333,31 @@ export async function duplicarDocumento(
 export async function subirArchivo(formulario: FormData): Promise<Respuesta<{ id: string }>> {
   return accion(async () => {
     const esquema = esquemaValidado(formulario.get('coleccion'))
-    if (!esquema.subida) throw new Error('Esa colección no recibe archivos.')
+    const subida = esquema.subida
+    if (!subida) throw new Error('Esa colección no recibe archivos.')
     const { payload, usuario } = await exigirEditor()
 
     const archivo = formulario.get('archivo')
     if (!(archivo instanceof File) || archivo.size === 0) {
       throw new Error('No llegó ningún archivo.')
+    }
+
+    // El techo, comprobado y no solo anunciado.
+    //
+    // Hasta aquí el peso vivía en una frase («Máximo 7 MB») que nadie
+    // comparaba con nada: quien se pasaba no recibía este mensaje sino el corte
+    // mudo de Next, que descarta el cuerpo **antes** de invocar la acción y
+    // deja la pantalla sin una palabra. Esta comprobación no reemplaza a
+    // aquella —un archivo de 9 MB sigue sin llegar hasta aquí—, cubre la franja
+    // de en medio: lo que cabe en el cuerpo de 8 MB pero pasa del techo que la
+    // colección promete, y de paso el camino del que llame a la acción sin
+    // pasar por el panel.
+    if (archivo.size > subida.maximoBytes) {
+      const techo = (subida.maximoBytes / 1024 / 1024).toFixed(0)
+      const pesa = (archivo.size / 1024 / 1024).toFixed(1)
+      throw new Error(
+        `«${archivo.name}» pesa ${pesa} MB y el máximo son ${techo} MB. Redúzcalo y vuelva a subirlo.`,
+      )
     }
 
     const datos: Record<string, unknown> = {}

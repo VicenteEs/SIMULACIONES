@@ -21,7 +21,7 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "payload migrate",
-    "test:integration": "vitest run tests/integration",
+    "test:integration": "node -e \"process.env.EXIGIR_INTEGRACION='1';const r=require('child_process').spawnSync(process.execPath,['node_modules/vitest/vitest.mjs','run','tests/integration'],{stdio:'inherit'});process.exit(r.status ?? 1)\"",
     "demo": "tsx scripts/demo.ts",
     "test:e2e:ui": "playwright test --ui",
     "respaldar": "bash scripts/respaldar.sh",

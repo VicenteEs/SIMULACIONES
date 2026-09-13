@@ -43,6 +43,10 @@ const OBJETIVOS = [
  * `reduccion` queda fuera a propósito: sus tres tolerancias tienen
  * `defaultValue: 5`, de modo que siempre hay rango contra el que medir.
  *
+ * La última regla es la contraria: `instrumento` no puede llevar el rango de
+ * otro objetivo. Ver el comentario de dentro; ahí está el porqué, que no es
+ * simetría sino el motor.
+ *
  * Empieza repitiendo lo que comprobaba Payload —obligatorio y dentro de la
  * lista—, y no es redundancia: ver el comentario de dentro.
  */
@@ -75,6 +79,41 @@ const exigeElRangoDeSuObjetivo = (
   }
   if (valor === 'fuerza' && !declara('fuerzaMinima', 'fuerzaMaxima')) {
     return 'Un paso que evalúa la fuerza necesita al menos uno de los dos topes: sin rango, cualquier fuerza se da por buena.'
+  }
+
+  // La única regla que prohíbe en vez de exigir, y no está por simetría: la
+  // pide el motor. `objetivoDelPaso` (src/lib/simulador.ts) no se fía del valor
+  // `instrumento`, porque es lo que el `DEFAULT` de la columna nueva escribió
+  // en TODA fila anterior al 10 de septiembre (`20260910_125801`), así que ante
+  // él deduce del rango que el paso traiga. Consecuencia: un número de fuerza
+  // olvidado —el editor del panel pinta los siete, uno debajo de otro, sin
+  // esconder los que no tocan— convierte en silencio «elija el punzón» en
+  // «aplique entre 8 y 20 N», y el residente queda medido en algo que el autor
+  // no pidió.
+  //
+  // Ojo con lo que esta regla alcanza: `validate` no corre solo sobre lo que se
+  // escribe, corre en cada guardado sobre el documento entero, también sobre
+  // los pasos que ya estaban guardados. Las filas entre el 6 y el 10 de
+  // septiembre traen justo la combinación que se rechaza aquí —el `DEFAULT` les
+  // puso `instrumento` y su rango de fuerza es de la migración inicial—, así que
+  // sin arreglarlas el traumatólogo abre un caso viejo, corrige una coma y ya no
+  // puede publicarlo, por unos números que él no tecleó. Las arregla
+  // `20260913_041920_objetivo_de_los_pasos_antiguos`, que escribe en la columna
+  // el objetivo que `objetivoDelPaso` ya les venía aplicando: ninguna evaluación
+  // cambia, solo vuelven a poder guardarse. La comprobación de que hoy son cero
+  // filas se hizo contra la base de DESARROLLO, que está resembrada; del
+  // servidor no ha mirado nadie, y por eso el arreglo va en una migración en
+  // lugar de darse por innecesario.
+  //
+  // Las tres tolerancias quedan fuera a propósito: tienen `defaultValue: 5` y
+  // `DEFAULT 5` en la migración, de modo que toda fila las lleva puestas y no
+  // prueban intención de nadie. Los cuatro números de la fuerza y del trazo se
+  // crearon sin `DEFAULT`, así que ahí un número lo tecleó una persona.
+  if (
+    valor === 'instrumento' &&
+    declara('fuerzaMinima', 'fuerzaMaxima', 'trazoMinimo', 'trazoMaximo')
+  ) {
+    return 'Un paso que solo pide elegir el instrumento no puede llevar además un rango de fuerza o de incisión: borre esos números, o cambie el objetivo al que de verdad se mide.'
   }
   return true
 }

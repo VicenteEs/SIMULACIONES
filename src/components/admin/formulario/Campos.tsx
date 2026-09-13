@@ -156,6 +156,28 @@ function valoresPorOmision(campos: Campo[]): Record<string, unknown> {
   return valores
 }
 
+/**
+ * Qué enseña un desplegable que todavía no tiene valor.
+ *
+ * Un `<select>` obligatorio no ofrece opción vacía, así que con `value=''` el
+ * navegador enseña la primera de la lista —y esa lista se ordena para leerla,
+ * no para decidir—. En `piezas[].rol` la primera es «Piel», la capa más
+ * externa, mientras `depurarCampo` guarda `porOmision`, que es «hueso»: el
+ * taller rotulaba «Hueso (fijo)», la fila de abajo decía «Piel» y la base
+ * guardaba «hueso», los tres a la vez y sin que nada fallara. El respaldo de
+ * aquí arriba cerró las filas que nacen en «+ Agregar»; esto cierra las que
+ * llegan del servidor con el campo en blanco, que son las de antes de que ese
+ * respaldo existiera.
+ *
+ * Se calca el respaldo de `depurarCampo` (`src/admin/depurar.ts`, rama
+ * `seleccion`): los dos se mueven juntos o la pantalla vuelve a enseñar una
+ * cosa y la base a guardar otra. Y no se escribe en el documento desde aquí:
+ * quien abre una ficha para corregir una coma no puede encontrársela sucia por
+ * haberla abierto.
+ */
+const seleccionVisible = (campo: Extract<Campo, { tipo: 'seleccion' }>, valor: unknown): string =>
+  texto(valor) || (campo.requerido ? (campo.porOmision ?? campo.opciones[0]?.valor ?? '') : '')
+
 // ---------------------------------------------------------------------------
 
 export function ControlDeCampo({
@@ -271,7 +293,7 @@ export function ControlDeCampo({
             id={id}
             className="campo-control"
             aria-describedby={describe}
-            value={texto(valor)}
+            value={seleccionVisible(campo, valor)}
             onChange={(e) => alCambiar(e.target.value)}
           >
             {!campo.requerido ? <option value="">— sin definir —</option> : null}
@@ -348,7 +370,14 @@ export function ControlDeCampo({
                 <p className="campo-ayuda">Todavía no hay nada que elegir en ese catálogo.</p>
               ) : (
                 opciones.map((o) => (
-                  <label key={o.id} className="campo-casilla">
+                  // Sin clase a propósito: lo viste `.campo-casillas label`, por
+                  // su sitio. Llevaba `campo-casilla`, que es además el nombre de
+                  // la envoltura de un campo booleano, y esa colisión ya volvió
+                  // fila flex al aviso de los metadatos DICOM y lo dejó donde
+                  // nadie lo lee (el porqué entero está en `admin.css`, junto a
+                  // la regla). Perdía por especificidad, así que quitarla no
+                  // cambia un píxel; lo que quita es el nombre con dos dueños.
+                  <label key={o.id}>
                     <input
                       type="checkbox"
                       checked={marcados.includes(o.id)}
@@ -565,6 +594,26 @@ const escalaSustituida = (bruto: unknown): boolean =>
   bruto !== '' &&
   escalaDelCaso(bruto) !== bruto
 
+/**
+ * Cuándo el número que se sustituye ni siquiera se ve en su casilla.
+ *
+ * `<input type="number">` sanea lo que se le asigna: si `String(valor)` no es
+ * un número en punto flotante válido, el navegador deja la casilla vacía, y ni
+ * «Infinity» ni «NaN» lo son. El caso que llega de verdad es el infinito
+ * —`1e999` es una cifra que el control acepta teclear y `Number()` la convierte
+ * en `Infinity`—: la casilla se vacía sola, y ahí el aviso de «mayor que cero»
+ * manda a corregir un cero que nadie ve y deja al traumatólogo buscando un
+ * número que la pantalla ya no enseña. Por eso este caso dice otra cosa: que lo
+ * escrito no se pudo leer y el campo quedó en blanco. El `NaN` va aquí por lo
+ * mismo, aunque hoy no haya manera de teclearlo —el `onChange` del campo
+ * convierte el vacío en `null`—; si algún día llega, se ve igual de vacío.
+ *
+ * Lo que no cambia es la medida: los dos se miden con el respaldo, como el
+ * campo vacío.
+ */
+const escalaIlegible = (bruto: unknown): boolean =>
+  typeof bruto === 'number' && !Number.isFinite(bruto)
+
 function EditorDeLista({
   campo,
   valor,
@@ -621,8 +670,9 @@ function EditorDeLista({
               líneas más arriba. */}
           {escalaSustituida(hermanos?.milimetrosPorUnidad) ? (
             <p className="campo-error" role="alert">
-              «Milímetros por unidad» tiene que ser un número mayor que cero. Se está
-              midiendo con {MILIMETROS_POR_UNIDAD_POR_OMISION}, que es lo normal en glTF.
+              {escalaIlegible(hermanos?.milimetrosPorUnidad)
+                ? `El número de «Milímetros por unidad» no se pudo leer y la casilla quedó en blanco. Se está midiendo con ${MILIMETROS_POR_UNIDAD_POR_OMISION}, que es lo normal en glTF.`
+                : `«Milímetros por unidad» tiene que ser un número mayor que cero. Se está midiendo con ${MILIMETROS_POR_UNIDAD_POR_OMISION}, que es lo normal en glTF.`}
             </p>
           ) : null}
           <TallerDePiezas
@@ -909,21 +959,28 @@ function EditorDeBloques({
 // ------------------------------------------------------------------ archivo
 
 /**
- * Lo que puede pesar un archivo subido desde el panel.
+ * Por qué el peso se pregunta aquí, antes de llamar a la acción.
  *
- * No lo decide esta pantalla: lo decide `serverActions.bodySizeLimit` de
- * `next.config.mjs`, que son 8 MB de cuerpo, y de ahí salen los 7 MB que
- * anuncia `subida.ayuda` en `src/admin/esquema.ts` —el megabyte que sobra es el
- * sobre multiparte y su codificación—. Se comprueba **antes** de llamar a la
- * acción porque Next corta el cuerpo sin llegar a invocarla: el `try/catch` de
- * `accion()` no se ejecuta, no vuelve ninguna respuesta con `mensaje`, y la
- * pantalla se quedaba muda con el desplegable en «— ninguno —», como si el
- * archivo se hubiera adjuntado. Los tres números se mueven juntos.
+ * El techo lo declara la colección —`subida.maximoBytes` en
+ * `src/admin/esquema.ts`— y quien lo hace cumplir es `subirArchivo`. Pero esa
+ * comprobación no llega a correr justo en el caso que importa: por encima de
+ * los 8 MB de `serverActions.bodySizeLimit` (`next.config.mjs`) Next descarta
+ * el cuerpo **sin invocar la acción**, así que no vuelve ninguna respuesta con
+ * `mensaje`, el `try/catch` de `accion()` no se ejecuta y la pantalla se
+ * quedaba muda con el desplegable en «— ninguno —», como si el archivo se
+ * hubiera adjuntado. Preguntando aquí, el motivo se pinta sin que el archivo
+ * llegue a viajar.
+ *
+ * El número ya no se repite en esta pantalla: sale del esquema, que es de donde
+ * sale también la frase que lo anuncia. Había un 7 escrito aquí que valía para
+ * las dos colecciones, y en modelos 3D era mentira —ahí el techo son 5 MB, los
+ * que `validarModelo3D` rechaza por firma—, de modo que un `.glb` de 6 MB
+ * viajaba entero para que el servidor lo rehusara.
  */
-const MAXIMO_MB = 7
-const MAXIMO_BYTES = MAXIMO_MB * 1024 * 1024
-
 const enMegas = (bytes: number): string => (bytes / (1024 * 1024)).toFixed(1).replace('.', ',')
+
+/** El techo dicho como lo dice `subida.ayuda`: en megabytes enteros. */
+const techoEnMegas = (bytes: number): string => String(Math.round(bytes / (1024 * 1024)))
 
 /**
  * Lo que la colección de destino declara sobre sus subidas.
@@ -975,10 +1032,10 @@ function SelectorDeArchivo({
 
   const subir = (archivo: File) => {
     setError(null)
-    if (archivo.size > MAXIMO_BYTES) {
+    if (subida && archivo.size > subida.maximoBytes) {
       setError(
-        `«${archivo.name}» pesa ${enMegas(archivo.size)} MB y el máximo son ${MAXIMO_MB} MB. ` +
-          'Comprímalo, o recorte el video, antes de subirlo.',
+        `«${archivo.name}» pesa ${enMegas(archivo.size)} MB y el máximo son ` +
+          `${techoEnMegas(subida.maximoBytes)} MB. Comprímalo, o recorte el video, antes de subirlo.`,
       )
       return
     }
@@ -1034,12 +1091,24 @@ function SelectorDeArchivo({
             </option>
           ))}
         </select>
+        {/* `aria-disabled` y no `disabled`: este botón es el que tiene el foco
+            justo cuando la subida arranca —el selector de archivo lo devuelve
+            aquí al cerrarse—, y desactivarlo con el foco dentro lo suelta en el
+            `<body>`, de modo que el siguiente tabulador no sigue por el
+            formulario sino que vuelve al principio de la página, en mitad de
+            una ficha a medio escribir. Quien avisa de que está ocupado es el
+            rótulo, y la doble pulsación la corta el `if (enCurso) return`. Es lo
+            mismo que hacen el subidor de `TablaDocumentos.tsx` y las filas de
+            `TablaUsuarios.tsx`. */}
         <button
           type="button"
           className="admin-btn admin-btn-secondary archivo-subir"
-          disabled={enCurso}
+          aria-disabled={enCurso}
           aria-describedby={subida?.ayuda ? idSubida : undefined}
-          onClick={() => entrada.current?.click()}
+          onClick={() => {
+            if (enCurso) return
+            entrada.current?.click()
+          }}
         >
           {enCurso ? 'Subiendo…' : 'Subir nuevo'}
         </button>

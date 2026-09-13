@@ -25,6 +25,7 @@ vi.mock('@/lib/sesion', () => ({
 
 import { ErrorDeAcceso, accion, puedeEditar } from '@/lib/guardias'
 import { SLUGS_DE_MODULOS } from '@/collections'
+import { CATALOGOS_DEL_SIMULADOR } from '@/collections/catalogos'
 
 const admin = { id: 1, rol: 'admin' }
 const editorLibre = { id: 2, rol: 'editor' }
@@ -55,8 +56,37 @@ describe('puedeEditar', () => {
   })
 
   it('el material de apoyo nunca se restringe: sin él las fichas quedan sin imágenes', () => {
-    for (const apoyo of ['medios', 'modelos-3d', 'segmentos', 'instrumental']) {
+    for (const apoyo of ['medios', 'modelos-3d', 'segmentos']) {
       expect(puedeEditar(editorRestringido, apoyo)).toBe(true)
+    }
+  })
+
+  it('los catálogos del simulador siguen el permiso del módulo 04', () => {
+    // El panel escribe con la API local (`overrideAccess: true` por omisión),
+    // de modo que el `escrituraDeModulo('cirugias')` de `catalogos.ts` solo
+    // cierra la API REST. La puerta del panel es esta, y sin la tabla de
+    // vocabulario un editor apartado del simulador entraba por ella y borraba
+    // un instrumento: cada paso que lo pedía se queda con `instrumento` a nulo
+    // y sin forma de superarse.
+    const editorDeManiobras = { id: 6, rol: 'editor', modulosEditables: ['maniobras'] }
+    for (const catalogo of CATALOGOS_DEL_SIMULADOR) {
+      expect(puedeEditar(editorDeManiobras, catalogo.slug as string)).toBe(false)
+      expect(
+        puedeEditar({ id: 7, rol: 'editor', modulosEditables: ['cirugias'] }, catalogo.slug as string),
+      ).toBe(true)
+      // Y el administrador, y el editor sin restricciones, como siempre.
+      expect(puedeEditar(admin, catalogo.slug as string)).toBe(true)
+      expect(puedeEditar(editorLibre, catalogo.slug as string)).toBe(true)
+    }
+  })
+
+  it('un catálogo no se convierte en módulo para el resto de la plataforma', () => {
+    // Se restringe con el permiso de `cirugias`, pero no entra en
+    // `SLUGS_DE_MODULOS`: si entrara, la barra, la portada y las casillas de
+    // permisos de una cuenta nueva enseñarían cinco entradas que no llevan a
+    // ninguna parte.
+    for (const catalogo of CATALOGOS_DEL_SIMULADOR) {
+      expect((SLUGS_DE_MODULOS as readonly string[]).includes(catalogo.slug as string)).toBe(false)
     }
   })
 

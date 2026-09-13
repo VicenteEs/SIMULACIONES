@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import dynamic from 'next/dynamic'
 import type { CatalogoDelAtlas, PiezaDelAtlas, VistaDeInstancia } from '@/atlas/formato'
 import { VISTA_INICIAL } from '@/atlas/formato'
-import { cargarCatalogo } from '@/atlas/cargador'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import {
@@ -18,8 +17,7 @@ import {
 } from '@/app/(frontend)/acciones/atlas'
 
 /**
- * El visor se trae aparte, pero el motor 3D **todavía viaja** en el trozo de
- * entrada de esta página.
+ * El visor —y con él el motor 3D— se trae aparte del trozo de entrada.
  *
  * three.js son 725 KB sin comprimir y es, con diferencia, el trozo más pesado
  * de la plataforma. Lo primero que el taller tiene que enseñar es texto —«Leyendo
@@ -27,19 +25,20 @@ import {
  * abrir—, así que arrastrarlo de forma normal dejaba la pantalla en blanco
  * varios segundos en una tableta para no enseñar nada tridimensional.
  *
- * El título dice «todavía» porque hay una segunda puerta y sigue abierta:
- * `cargarCatalogo` se importa aquí arriba de forma estática y vive en
- * `@/atlas/cargador`, que hace `import * as THREE from 'three'`, de modo que
- * pedir un JSON de cuarenta líneas mete el motor entero igual. Lo que este
- * `dynamic()` deja fuera por ahora es OrbitControls, `@/atlas/picking` y el
- * propio `VisorAtlas`; los 725 KB siguen exactamente donde estaban. El patrón
- * copiado de `VisoresPerezosos` sí adelgaza allí porque aquel módulo no importa
- * three de forma estática, y este sí.
+ * Este `dynamic()` por sí solo no bastaba, y durante una versión entera este
+ * comentario tuvo que confesarlo: había una segunda puerta abierta arriba.
+ * `cargarCatalogo` vive en `@/atlas/cargador`, cuya línea 25 es
+ * `import * as THREE from 'three'`, de modo que pedir un JSON de cuarenta
+ * líneas metía el motor entero en el trozo de entrada y los 725 KB no se movían
+ * de donde estaban. Por eso ese módulo se pide ahora con `import()` desde el
+ * efecto del catálogo, y por eso **este archivo no puede volver a importar nada
+ * de `@/atlas/cargador` de forma estática**: la primera línea que lo haga
+ * deshace las dos mitades a la vez, sin que nada falle ni se note en desarrollo.
  *
- * Para cerrarla hay que sacar `cargarCatalogo` a un módulo sin three y hacer
- * que lo importen de ahí sus dos usuarios —este taller y `VisorInstancia`—,
- * dejando `@/atlas/cargador` para lo que de verdad necesita el motor. Mientras
- * eso no ocurra, no se puede afirmar que el trozo de entrada esté limpio.
+ * Lo limpio sería que `cargarCatalogo` —que es un `fetch` y nada más— viviera
+ * en un módulo sin three, y que lo importaran de ahí sus dos usuarios, este
+ * taller y `VisorInstancia`. Mientras siga donde está, el `import()` es lo que
+ * mantiene la promesa.
  *
  * `ssr: false` porque un lienzo WebGL en el servidor es un hueco vacío, lo
  * mismo que en `VisoresPerezosos`.
@@ -66,6 +65,25 @@ const VisorAtlas = dynamic(
  * menos.
  */
 const HOLGURA_ENCUADRE = 0.002
+
+/**
+ * Lo que se dice cuando la llamada al servidor **rechaza**, que no es lo mismo
+ * que un «no se pudo».
+ *
+ * Las acciones de este panel devuelven `{ exito: false, mensaje }` cuando el
+ * trabajo falla por dentro, pero la llamada misma se puede caer antes de llegar
+ * —wifi que parpadea, despliegue a medias, servidor reiniciándose—. Sin
+ * atenderlo, el rechazo quedaba suelto: el indicador se apagaba, la pantalla se
+ * quedaba igual que antes de pulsar y el traumatólogo volvía a pulsar creyendo
+ * que no había llegado.
+ *
+ * A diferencia del mismo aviso en los otros paneles, este NO manda recargar:
+ * aquí recargar tira la preparación que se esté armando —media hora de apagar
+ * piezas— y el fallo de transporte no la ha tocado.
+ */
+const FALLO_DE_TRANSPORTE =
+  'No se pudo contactar con el servidor. Compruebe la conexión y reintente: ' +
+  'lo que hay en pantalla no se ha perdido.'
 
 /**
  * Taller del atlas anatómico.
@@ -320,7 +338,18 @@ export function TallerDeAtlas() {
   // --- catálogo -------------------------------------------------------------
   useEffect(() => {
     const aborto = new AbortController()
-    cargarCatalogo(aborto.signal)
+    // Con `import()` y no con un import de arriba: `@/atlas/cargador` arrastra
+    // los 725 KB de three y aquí solo se le pide un JSON de cuarenta líneas.
+    // Estático, el motor viajaba en el trozo de entrada de la página y el
+    // `dynamic()` del visor no adelgazaba nada —la pantalla seguía sin poder
+    // pintar ni «Leyendo el catálogo…»—. Pedido así, three viaja en el mismo
+    // trozo asíncrono que el visor, que es el único que lo necesita de verdad.
+    //
+    // Si el aborto llega antes de que el módulo esté, la señal ya viene
+    // cancelada y `fetch` rechaza sin pedir nada: el `catch` de abajo lo
+    // reconoce y no escribe en un componente desmontado.
+    import('@/atlas/cargador')
+      .then(({ cargarCatalogo }) => cargarCatalogo(aborto.signal))
       .then((c) => {
         const todas = new Set(c.piezas.map((p) => p.id))
         setCatalogo(c)
@@ -390,36 +419,42 @@ export function TallerDeAtlas() {
     if (!confirmarDescarte('Se abrirá otra preparación en su lugar.')) return
     setAviso(null)
     iniciar(async () => {
-      const r = await obtenerInstancia(id)
-      if (!r.exito || !r.datos) {
-        setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo abrir la preparación.' })
-        return
-      }
-      setInstancia(r.datos.id)
-      setNombre(r.datos.nombre)
-      setDescripcion(r.datos.descripcion ?? '')
-      setVisibles(new Set(r.datos.contenido.piezas.map((p) => p.id)))
-      setSeparacion(r.datos.contenido.vista.separacion)
-      setVistaInicial(r.datos.contenido.vista)
-      limpiarExportacion()
-      fijarReferencia(
-        new Set(r.datos.contenido.piezas.map((p) => p.id)),
-        r.datos.nombre,
-        r.datos.descripcion ?? '',
-        r.datos.contenido.vista,
-      )
-      // Y además se le ordena al visor que vaya: la escena ya está montada y no
-      // se vuelve a montar, así que sin esto la cámara se quedaba donde
-      // estuviera. Como al guardar se escribe la cámara actual, abrir una
-      // preparación y volver a guardarla borraba su encuadre sin avisar.
-      mando.current?.irA(r.datos.contenido.vista)
-      if (r.datos.perdidas.length > 0) {
-        setAviso({
-          tipo: 'error',
-          texto:
-            `Esta preparación se hizo con otra versión del atlas y ${r.datos.perdidas.length} ` +
-            'de sus piezas ya no existen. Revísela antes de volver a guardarla.',
-        })
+      try {
+        const r = await obtenerInstancia(id)
+        if (!r.exito || !r.datos) {
+          setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo abrir la preparación.' })
+          return
+        }
+        setInstancia(r.datos.id)
+        setNombre(r.datos.nombre)
+        setDescripcion(r.datos.descripcion ?? '')
+        setVisibles(new Set(r.datos.contenido.piezas.map((p) => p.id)))
+        setSeparacion(r.datos.contenido.vista.separacion)
+        setVistaInicial(r.datos.contenido.vista)
+        limpiarExportacion()
+        fijarReferencia(
+          new Set(r.datos.contenido.piezas.map((p) => p.id)),
+          r.datos.nombre,
+          r.datos.descripcion ?? '',
+          r.datos.contenido.vista,
+        )
+        // Y además se le ordena al visor que vaya: la escena ya está montada y
+        // no se vuelve a montar, así que sin esto la cámara se quedaba donde
+        // estuviera. Como al guardar se escribe la cámara actual, abrir una
+        // preparación y volver a guardarla borraba su encuadre sin avisar.
+        mando.current?.irA(r.datos.contenido.vista)
+        if (r.datos.perdidas.length > 0) {
+          setAviso({
+            tipo: 'error',
+            texto:
+              `Esta preparación se hizo con otra versión del atlas y ${r.datos.perdidas.length} ` +
+              'de sus piezas ya no existen. Revísela antes de volver a guardarla.',
+          })
+        }
+      } catch {
+        // El descarte ya se confirmó, pero nada se ha tocado todavía: lo que
+        // había en pantalla sigue entero y se puede reintentar.
+        setAviso({ tipo: 'error', texto: FALLO_DE_TRANSPORTE })
       }
     })
   }
@@ -441,24 +476,34 @@ export function TallerDeAtlas() {
       // devolvía dos encuadres distintos si el traumatólogo seguía girando
       // mientras se guardaba, y entonces lo recién guardado nacía «sucio».
       const vista = mando.current?.vistaActual() ?? { ...VISTA_INICIAL, separacion }
-      const r = await guardarInstancia(instancia, {
-        nombre,
-        descripcion,
-        piezas: [...visibles],
-        vista,
-      })
-      if (!r.exito || !r.datos) {
-        setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo guardar.' })
-        return
+      try {
+        const r = await guardarInstancia(instancia, {
+          nombre,
+          descripcion,
+          piezas: [...visibles],
+          vista,
+        })
+        if (!r.exito || !r.datos) {
+          setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo guardar.' })
+          return
+        }
+        setInstancia(r.datos.id)
+        // Lo recién guardado pasa a ser la referencia: ya no hay nada que
+        // perder.
+        fijarReferencia(visibles, nombre, descripcion, vista)
+        setAviso({
+          tipo: 'ok',
+          texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
+        })
+        refrescarLista()
+      } catch {
+        // Es el peor sitio donde callar: sin aviso, el botón vuelve a decir
+        // «Guardar preparación», la insignia de cambios sin guardar sigue
+        // puesta y las dos cosas juntas se leen como que ya está hecho. La
+        // referencia no se toca, así que el aviso de cerrar la pestaña sigue en
+        // pie y lo de pantalla se puede volver a guardar tal cual.
+        setAviso({ tipo: 'error', texto: FALLO_DE_TRANSPORTE })
       }
-      setInstancia(r.datos.id)
-      // Lo recién guardado pasa a ser la referencia: ya no hay nada que perder.
-      fijarReferencia(visibles, nombre, descripcion, vista)
-      setAviso({
-        tipo: 'ok',
-        texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
-      })
-      refrescarLista()
     })
   }
 
@@ -491,16 +536,24 @@ export function TallerDeAtlas() {
     setTrabajo('exportar')
 
     iniciar(async () => {
-      const r = await exportarComoModelo(instancia, { protagonistas: protagonistasVivas })
-      if (!r.exito || !r.datos) {
-        setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo exportar.' })
-        return
+      try {
+        const r = await exportarComoModelo(instancia, { protagonistas: protagonistasVivas })
+        if (!r.exito || !r.datos) {
+          setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo exportar.' })
+          return
+        }
+        setExportado(r.datos)
+        setAviso({
+          tipo: 'ok',
+          texto: `«${r.datos.nombre}» ya está en la biblioteca de modelos 3D.`,
+        })
+      } catch {
+        // Aquí el rechazo es lo normal cuando algo va mal: son decenas de
+        // megabytes escribiéndose en el servidor y la espera es larga. Sin
+        // aviso, el botón volvía a decir «Crear el modelo» y el recuadro de
+        // nombres se quedaba vacío, que es indistinguible de no haber pulsado.
+        setAviso({ tipo: 'error', texto: FALLO_DE_TRANSPORTE })
       }
-      setExportado(r.datos)
-      setAviso({
-        tipo: 'ok',
-        texto: `«${r.datos.nombre}» ya está en la biblioteca de modelos 3D.`,
-      })
     })
   }
 
@@ -529,16 +582,25 @@ export function TallerDeAtlas() {
     setAviso(null)
     setTrabajo(null)
     iniciar(async () => {
-      const r = await tarea()
-      if (r.exito) {
-        // Antes del aviso y no después: `empezarDeCero` termina limpiando
-        // `aviso`, y puesto detrás se llevaba por delante el «Preparación
-        // eliminada.» que acababa de escribirse.
-        alLograrlo?.()
-        setAviso({ tipo: 'ok', texto: exitoso })
-        refrescarLista()
-      } else {
-        setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo completar.' })
+      try {
+        const r = await tarea()
+        if (r.exito) {
+          // Antes del aviso y no después: `empezarDeCero` termina limpiando
+          // `aviso`, y puesto detrás se llevaba por delante el «Preparación
+          // eliminada.» que acababa de escribirse.
+          alLograrlo?.()
+          setAviso({ tipo: 'ok', texto: exitoso })
+          refrescarLista()
+        } else {
+          setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo completar.' })
+        }
+      } catch {
+        // Duplicar y eliminar pasan por aquí. El silencio es especialmente malo
+        // en el segundo: quien acaba de confirmar «¿Eliminar «Tibia derecha»?»
+        // y no ve nada supone que se borró, y lo que hay es una preparación
+        // viva que sigue en la lista hasta el siguiente refresco. `alLograrlo`
+        // no se llama: el taller no se vacía por un fallo de red.
+        setAviso({ tipo: 'error', texto: FALLO_DE_TRANSPORTE })
       }
     })
   }
@@ -744,7 +806,19 @@ export function TallerDeAtlas() {
         </div>
       ) : null}
 
-      {aviso ? <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>{aviso.texto}</div> : null}
+      {/* La región viva se queda montada aunque no haya nada que decir. Un
+          `role="status"` que aparece junto con su texto no se anuncia: el lector
+          de pantalla tiene que estar observando la región ANTES de que su
+          contenido cambie, y aquí todo lo que se responde —«Guardada con 412
+          piezas», «No se pudo exportar»— llegaba en silencio a quien no mira
+          esta zona de la pantalla. Vacía no ocupa sitio: el borde y el margen
+          los pone `.admin-aviso`, que sí es condicional. Es el mismo reparto
+          que en `TablaUsuarios`. */}
+      <div role="status">
+        {aviso ? (
+          <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>{aviso.texto}</div>
+        ) : null}
+      </div>
 
       {hayQueAvisar ? (
         <div className="admin-aviso admin-aviso-atencion" role="status">

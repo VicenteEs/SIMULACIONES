@@ -128,7 +128,30 @@ dirección local de otra máquina.
 Se repite este paso por cada servicio: otro subdominio, otra URL interna, el
 mismo túnel.
 
-## Paso 6 · Poner una segunda puerta en el panel
+## Paso 6 · Forzar HTTPS en la zona
+
+**SSL/TLS → Edge Certificates → Always Use HTTPS**, activado. Es una casilla, y
+es la que protege la petición que más importa.
+
+Sin ella la zona sigue contestando en el puerto 80. Quien teclea el nombre del
+servidor sin `https://` —que es como se escribe una dirección a mano— hace la
+primera petición en claro, el borde de Cloudflare la atiende, la pantalla de
+`/entrar` se pinta sin cifrar y la contraseña se escribe ahí.
+
+La aplicación manda `Strict-Transport-Security` en producción
+(`next.config.mjs`), pero esa cabecera solo la puede leer un navegador que ya
+recibió una respuesta: protege a partir de la **segunda** visita, y la primera
+es justamente la que lleva la contraseña. Las dos cosas se complementan y
+ninguna sustituye a la otra: la casilla cubre la primera visita de cada
+navegador, la cabecera cubre todas las demás aunque el borde se reconfigure.
+
+Hay un segundo efecto, menos grave pero desconcertante: sin HTTPS nadie entra
+aunque escriba bien la contraseña. La cookie de sesión sale con `Secure`
+(`src/app/(frontend)/acciones/sesion.ts`) y el navegador descarta una cookie
+`Secure` servida por http, así que el formulario vuelve a aparecer sin mensaje y
+la contraseña se entrega una segunda vez por el mismo canal.
+
+## Paso 7 · Poner una segunda puerta en el panel
 
 Esto es gratis hasta cincuenta usuarios y conviene hacerlo siempre.
 

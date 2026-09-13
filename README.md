@@ -52,6 +52,7 @@ levanta la base y arranca el servidor con doble clic.
 | `npm run dev` | Servidor de desarrollo |
 | `npm test` | Pruebas unitarias y de integración |
 | `npm run test:coverage` | Lo mismo, midiendo cobertura contra el umbral de `vitest.config.ts` |
+| `npm run test:integration` | Solo las de acceso contra PostgreSQL, sin permiso para omitirse |
 | `npm run test:e2e` | Recorridos completos con Playwright |
 | `npm run typecheck` | Comprobación de tipos |
 | `npm run lint` | ESLint sobre todo el repositorio |
@@ -66,6 +67,27 @@ producción—, y quien las está poniendo hoy, sin que se note, es el `npm run 
 de ayer. Sobre una base recién creada hay que ejecutar `npm run db:migrate`
 antes de la suite; sin eso el fallo es `relation "segmentos" does not exist`, un
 error que no menciona ni el esquema ni las migraciones.
+
+Sin base, la suite **no** sale en verde. Esas pruebas son las únicas que
+comprueban que la política de acceso llega hasta la consulta, así que su
+ausencia se anuncia en rojo con la causa en vez de desaparecer en silencio. Dos
+variables de entorno gobiernan la excepción, y no hay más:
+
+| Variable | Para qué |
+|---|---|
+| `OMITIR_INTEGRACION=1` | Permiso escrito a mano para trabajar sin base: las de integración se omiten y el resultado queda verde |
+| `EXIGIR_INTEGRACION=1` | Lo contrario: las declara obligatorias, y ahí el permiso anterior ya no vale. Un servidor de integración consigue lo mismo con `CI` |
+
+`npm run test:integration` se pone `EXIGIR_INTEGRACION=1` a sí mismo, para que un
+`OMITIR_INTEGRACION=1` olvidado en la shell no silencie justamente la orden cuyo
+único propósito es correr esas pruebas. El rodeo con `node -e` que se ve en
+`package.json` es por Windows: npm ejecuta los guiones con `cmd`, que no entiende
+el prefijo `VARIABLE=1 orden`. Lo toma como el nombre del programa y corta con
+`"EXIGIR_INTEGRACION" no se reconoce como un comando interno o externo`, así que
+Vitest no llega a lanzarse y la orden falla sin haber comprobado nada.
+`cross-env` haría lo mismo más corto, pero hoy solo está en `node_modules` como
+dependencia de otro paquete, y depender de eso es depender de lo que instale un
+tercero.
 
 `npm run test:e2e` necesita antes `npx playwright install chromium`: la
 instalación de dependencias no baja los navegadores, porque `package.json` no

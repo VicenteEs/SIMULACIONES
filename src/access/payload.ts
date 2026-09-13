@@ -6,7 +6,7 @@
  * la política vive en un solo lugar: si mañana cambia quién puede qué, se
  * cambia en `reglas.ts` y las colecciones no se tocan.
  */
-import type { Access } from 'payload'
+import type { Access, FieldAccess } from 'payload'
 import {
   filtroDeLectura,
   filtroDeLecturaDeModulo,
@@ -100,6 +100,28 @@ export const lecturaDeBorradores =
 export const lecturaSimple: Access = (args) => puedeLeerContenido(usuarioDe(args))
 
 export const escrituraDeContenido: Access = (args) => puedeEditarContenido(usuarioDe(args))
+
+/**
+ * Lo mismo que `escrituraDeContenido`, pero para un **campo**.
+ *
+ * Hacen falta las dos porque Payload no comparte el tipo: `Access` puede
+ * devolver un filtro de consulta y `FieldAccess` solo un booleano, así que una
+ * colección no puede reutilizar la de arriba en `field.access` aunque la
+ * política sea idéntica. La política, que es lo que importa, sigue estando una
+ * sola vez: las dos delegan en `puedeEditarContenido`.
+ *
+ * Se usa donde un campo lo mantiene quien cuida el contenido y nadie más —el
+ * `estado` de un comentario, hoy—. Vivió como constante local en
+ * `Comentarios.ts`, y funcionaba; pero este archivo promete concentrar toda la
+ * política en un sitio, y una regla suelta dentro de una colección es la copia
+ * que se queda atrás el día que la de aquí cambie.
+ *
+ * Mira `activo` porque `puedeEditarContenido` lo mira: el acceso de colección
+ * ya lo exige, pero una regla de campo que no lo comprobara sería una
+ * divergencia esperando a que alguien afloje la de arriba.
+ */
+export const mantenimientoDeContenido: FieldAccess = (args) =>
+  puedeEditarContenido(usuarioDe(args))
 
 export const administracionDeUsuarios: Access = (args) =>
   puedeAdministrarUsuarios(usuarioDe(args))

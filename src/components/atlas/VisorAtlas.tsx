@@ -416,10 +416,39 @@ export function VisorAtlas({
   }, [catalogo])
 
   // ------------------------------------------------------ cambios de estado
+  //
+  // Lo último que se escribió en la textura de estado, para saber si hace falta
+  // repasarla entera. Guarda también la escena porque al cambiar de catálogo se
+  // monta otra distinta y lo anterior deja de valer; comparándola aquí, la
+  // referencia se invalida sola y no hay que acordarse de limpiarla en el
+  // desmontaje.
+  const pintado = useRef<{
+    escena: EscenaDelAtlas
+    visibles: Set<string> | null
+    resaltada: string | null
+  } | null>(null)
+
   useEffect(() => {
     const escena = taller.current.escena
     if (!escena) return
-    aplicarVisibilidad(escena, catalogo, visibles, resaltada)
+    const anterior = pintado.current
+    // Pasar el ratón por el árbol anatómico cambia `resaltada` y nada más, y
+    // eso ocurre decenas de veces mientras se recorre la lista: repasar las
+    // 2.234 piezas en cada paso era trabajo tirado dentro del gesto más
+    // frecuente del taller.
+    //
+    // Que `visibles` sea el MISMO objeto basta para saber que la selección no
+    // cambió, porque aquí nadie muta ese conjunto: el taller y el árbol
+    // construyen un `Set` nuevo en cada cambio. Si algún día alguno pasara a
+    // modificar el suyo en sitio, esta comparación dejaría piezas encendidas
+    // que ya no lo están, y el repaso completo de abajo es lo único que lo
+    // corregiría.
+    if (anterior && anterior.escena === escena && anterior.visibles === visibles) {
+      cambiarResaltado(escena, visibles, anterior.resaltada, resaltada)
+    } else {
+      aplicarVisibilidad(escena, catalogo, visibles, resaltada)
+    }
+    pintado.current = { escena, visibles, resaltada }
     taller.current.pedirDibujo?.()
   }, [catalogo, visibles, resaltada])
 
@@ -500,6 +529,39 @@ function aplicarVisibilidad(
     escena.datos[i * 4 + 3] = estado
   })
   escena.estados.needsUpdate = true
+}
+
+/**
+ * Mueve el resaltado de una pieza a otra sin repasar el catálogo.
+ *
+ * Escribe exactamente el mismo estado que `aplicarVisibilidad` —de ahí que la
+ * fórmula esté repetida: si una cambia, la otra también, o el resaltado dejará
+ * encendida una pieza apagada—, pero tocando solo las dos que cambian. Son las
+ * únicas que pueden cambiar: el resaltado es uno y solo uno.
+ */
+function cambiarResaltado(
+  escena: EscenaDelAtlas,
+  visibles: Set<string> | null,
+  antes: string | null,
+  ahora: string | null,
+) {
+  if (antes === ahora) return
+  const escribir = (id: string | null, resaltar: boolean) => {
+    if (!id) return
+    // `indices` cubre el catálogo entero, no solo lo que se llegó a montar en
+    // la malla: una pieza apagada al cargar también tiene su sitio en la
+    // textura y hay que poder devolverle el suyo.
+    const i = escena.indices.get(id)
+    if (i === undefined) return
+    const encendida = !visibles || visibles.has(id)
+    marcarPieza(
+      escena,
+      i,
+      !encendida ? ESTADO.OCULTA : resaltar ? ESTADO.RESALTADA : ESTADO.VISIBLE,
+    )
+  }
+  escribir(antes, false)
+  escribir(ahora, true)
 }
 
 /**

@@ -53,9 +53,52 @@ entrada condena al siguiente a repetir el error.
 ```bash
 npm run typecheck
 npm run lint
-npx vitest run
+npm run test:coverage
+npm run test:integration
 npm run build
 ```
+
+`npm run test:coverage` sustituye al `npx vitest run` de antes. Corre la misma
+suite —el `include` de `vitest.config.ts` son `tests/unit` y `tests/integration`
+juntas— y encima comprueba el umbral de cobertura, así que no cuesta una pasada
+más. El umbral es el suelo real medido y no una aspiración: mientras pidió un
+80 % sobre una suite al 70, fallaba siempre y por eso no estaba en esta lista.
+Una puerta que falla siempre es una puerta por la que nadie pasa, y no guarda
+nada.
+
+`npm run test:integration` repite las seis pruebas de acceso que la orden
+anterior ya corrió, pero declarándose obligatoria ella misma
+(`EXIGIR_INTEGRACION=1`). Son las únicas que comprueban que los permisos llegan
+hasta la consulta y no se quedan en la interfaz: sin esa insistencia, un
+`OMITIR_INTEGRACION=1` olvidado en la shell las omite, las dos órdenes salen
+verdes y quien va a desplegar cree haber comprobado el control de acceso sin
+haber comprobado nada. Las dos variables están explicadas en `README.md`.
+
+Las de integración hablan con PostgreSQL, así que hace falta `npm run db:up`. Y
+sobre una base recién creada, además `npm run db:migrate`: las migraciones no se
+aplican solas fuera de producción, y sin ellas el fallo es `relation "segmentos"
+does not exist`, que no menciona ni el esquema ni las migraciones.
+
+`npm run db:migrate` solo vale para esa base recién creada, y conviene saber por
+qué antes de escribirlo en ningún guion. En cuanto la base ha arrancado una vez
+en desarrollo, Payload le deja una fila con `batch = -1` en
+`payload-migrations` —la marca de que el esquema se ajustó al vuelo—, y a partir
+de ahí `payload migrate` abre una pregunta interactiva antes de hacer nada:
+
+> It looks like you've run Payload in dev mode… If you'd like to run migrations,
+> data loss will occur. Would you like to proceed? (y/N)
+
+No hay bandera que la salte: `--force-accept-warning` existe para
+`migrate:create` y para `migrate:fresh`, y `migrate` no la mira
+(`@payloadcms/drizzle/dist/migrate.js`). Sin terminal delante —una tarea
+programada, un gancho, una integración continua— el proceso se queda ahí
+esperando para siempre, sin escribir una línea y sin morirse. Es la misma forma
+del arranque colgado del servidor de D-061: el servicio dice «Running» y no
+sirve nada.
+
+Sobre una base de desarrollo que ya trae ese estado, lo que se quiere casi
+siempre es tirarla y rehacerla (`npm run db:down && npm run db:up`), no migrar
+encima.
 
 ## Un cambio de esquema necesita su migración
 

@@ -17,13 +17,13 @@ import { MODULOS, NOMBRE_DE_MODULO, rutaPublica } from './modulos'
  * callarlo hacia dentro: el fallo queda en el registro del servidor y viaja en
  * `ilegible`, al lado de los ceros de relleno.
  *
- * Cuidado: hoy `ilegible` no lo consume nadie. La única pantalla que pinta
- * estos datos —`page.tsx` de este mismo directorio— sigue resolviendo el texto
- * de la tarjeta con `total === 0 ? 'sin contenido aún' : …` y sigue dibujando
- * la barra de progreso al 0 %, de modo que para el administrador una tabla que
- * falta se ve igual que un módulo recién instalado. El dato está listo y le
- * falta el consumidor; mientras no lo tenga, este archivo avisa al registro y a
- * nadie más.
+ * `ilegible` lo consume `page.tsx` de este mismo directorio, y lo usa en tres
+ * sitios: pinta «—» donde iría el cero de relleno, no dibuja la barra de
+ * progreso de un módulo que no se pudo leer, y avisa arriba del todo nombrando
+ * los módulos que faltan, porque cambia cómo se leen todos los números de esa
+ * pantalla. Quien añada aquí un conteo nuevo tiene que propagarle su
+ * `ilegible`: sin eso, esa tarjeta vuelve a enseñar un cero que parece un
+ * recuento y no lo es.
  */
 
 export const clientePayload = (): Promise<Payload> => getPayload({ config })

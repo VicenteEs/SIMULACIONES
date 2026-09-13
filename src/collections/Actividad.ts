@@ -1,5 +1,6 @@
-import type { CollectionConfig, FieldAccess } from 'payload'
+import type { Access, CollectionConfig, FieldAccess } from 'payload'
 import { accesoDePropiedad, administracionDeUsuarios } from '@/access/payload'
+import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 
 /**
  * Los tres campos que identifican la fila: quién, qué módulo y qué ficha.
@@ -27,6 +28,55 @@ import { accesoDePropiedad, administracionDeUsuarios } from '@/access/payload'
 const FIJADO_AL_CREAR: { update: FieldAccess } = { update: () => false }
 
 /**
+ * Crear una fila exige tener ese módulo entre los suyos.
+ *
+ * Antes bastaba con una cuenta activa, y eso deja a una kinesióloga con el
+ * simulador vetado haciendo `POST /api/actividad` con
+ * `{"coleccion":"cirugias","documentoId":"7","completado":true}`: las
+ * estadísticas del panel —de donde el administrador saca quién va al día—
+ * pasan a contarle como leída una ficha de un módulo que ni siquiera puede
+ * abrir. La regla es la misma que gobierna la lectura de ese módulo, y por eso
+ * se pregunta a `puedeVerModulo` y no se inventa otra.
+ *
+ * Sin `coleccion` no hay nada que autorizar, así que se niega: el campo es
+ * obligatorio y un `create` sin él no llegaría a guardarse de todos modos.
+ *
+ * Solo actúa por REST. El panel y `anotar` escriben por la API local, cuyo
+ * `overrideAccess` vale `true` por omisión, así que ni pasan por aquí ni se
+ * ven afectados —y `anotar` ya valida el módulo con `exigirSlugDeModulo`.
+ *
+ * Vive aquí y no en `src/access/payload.ts`, que es donde este proyecto
+ * promete tener junta toda la política, porque necesita `data` y ese archivo
+ * no es de este lote. Queda declarado como pendiente, igual que estuvo
+ * `mantenimientoDeContenido` en `Comentarios.ts` antes de mudarse.
+ */
+const CREACION_DEL_MODULO_PROPIO: Access = ({ req: { user }, data }) => {
+  const modulo = (data as { coleccion?: unknown } | undefined)?.coleccion
+  if (typeof modulo !== 'string' || !user) return false
+  // Se rearma el usuario en lugar de convertirlo de golpe: el documento de
+  // Payload trae `id: number` y `activo?: boolean | null`, y `UsuarioSesion`
+  // pide `id: string` y `activo: boolean`, así que la conversión directa ni
+  // compila ni diría la verdad. Es la misma normalización que hace
+  // `src/access/payload.ts` para sus vecinas, y por eso esto se muda allí en
+  // cuanto ese archivo se pueda tocar.
+  const cuenta = user as {
+    id?: unknown
+    rol?: unknown
+    activo?: unknown
+    modulosVisibles?: unknown
+  }
+  const sesion: UsuarioSesion = {
+    id: String(cuenta.id ?? ''),
+    rol: cuenta.rol as UsuarioSesion['rol'],
+    activo: cuenta.activo === true,
+    modulosVisibles: Array.isArray(cuenta.modulosVisibles)
+      ? (cuenta.modulosVisibles as string[])
+      : undefined,
+  }
+  return puedeVerModulo(sesion, modulo)
+}
+
+/**
  * Seguimiento de lectura: qué ficha visitó cada usuario y cuál dio por leída.
  *
  * No es analítica de producto sino la base del progreso que ve el residente y
@@ -45,10 +95,34 @@ export const Actividad: CollectionConfig = {
   },
   access: {
     read: accesoDePropiedad,
-    create: ({ req: { user } }) => Boolean(user && user.activo),
+    create: CREACION_DEL_MODULO_PROPIO,
     update: accesoDePropiedad,
     delete: administracionDeUsuarios,
   },
+  /**
+   * Una sola fila por usuario y ficha, y que lo garantice la base.
+   *
+   * El invariante lo prometía la cabecera de esta colección —«un registro por
+   * usuario y ficha»— y no lo sostenía nadie: la migración inicial declara
+   * índices sueltos sobre `usuario_id`, `documento_id` y `ultima_visita`, y
+   * ninguno compuesto. `anotar` consulta y, si no hay fila, crea; entre esas
+   * dos operaciones caben dos pestañas abiertas a la vez —abrir una ficha y
+   * marcarla enseguida son dos llamadas que viajan en paralelo— y quedaban dos
+   * filas. Entonces marcar como leída tocaba una y la otra se quedaba en
+   * `completado: false` para siempre: la portada seguía ofreciendo en «Continúa
+   * leyendo» una ficha que el residente marcaba una vez y otra sin entender por
+   * qué, y `resumenDeActividad` contaba la lectura dos veces.
+   *
+   * El lado de la aplicación ya estaba puesto para esto: el `catch` del
+   * `create` de `acciones/actividad.ts` reintenta sobre lo que ya existe, así
+   * que el choque del índice no le llega al residente como un error.
+   *
+   * Ojo al tocarlo: cambiar estos tres campos —o el orden— no basta con
+   * escribirlo aquí. Necesita su `npx payload migrate:create`, y la migración
+   * tiene que empezar borrando los duplicados que ya haya o `CREATE UNIQUE
+   * INDEX` falla y con él el despliegue entero.
+   */
+  indexes: [{ fields: ['usuario', 'coleccion', 'documentoId'], unique: true }],
   hooks: {
     beforeChange: [
       ({ req, data, operation }) => {

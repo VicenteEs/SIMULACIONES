@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import type { CatalogoDelAtlas, PiezaDelAtlas } from '@/atlas/formato'
 import { armarArbol, buscarPiezas } from '@/atlas/catalogo'
 
@@ -42,6 +42,39 @@ export function ArbolAnatomico({
 
   const todas = useMemo(() => catalogo.piezas.map((p) => p.id), [catalogo])
 
+  /**
+   * Los identificadores de cada grupo y de cada rama, con cuántos siguen
+   * encendidos.
+   *
+   * Memorizado sobre `visibles` y no calculado al pintar porque recorre las
+   * 2.234 piezas: al pasar el ratón por una fila cambia `resaltada` en el
+   * taller, que repinta este árbol entero, y con ello se rehacían los quince
+   * `flatMap` y sus recuentos en cada paso del ratón por la lista.
+   *
+   * Va indexado por posición y no por identificador para no tener que
+   * defenderse de un `undefined` que no puede ocurrir: se construye del mismo
+   * `arbol` que se recorre abajo, en el mismo pintado.
+   */
+  const cuentas = useMemo(
+    () =>
+      arbol.map((grupo) => {
+        const ramas = grupo.ramas.map((rama) => {
+          const ids = rama.piezas.map((p) => p.id)
+          let encendidas = 0
+          for (const id of ids) if (visibles.has(id)) encendidas += 1
+          return { ids, encendidas }
+        })
+        const ids: string[] = []
+        let encendidas = 0
+        for (const rama of ramas) {
+          for (const id of rama.ids) ids.push(id)
+          encendidas += rama.encendidas
+        }
+        return { ids, encendidas, ramas }
+      }),
+    [arbol, visibles],
+  )
+
   // --- operaciones sobre la selección --------------------------------------
   const encender = (ids: string[]) => {
     const nuevas = new Set(visibles)
@@ -57,6 +90,33 @@ export function ArbolAnatomico({
 
   /** Deja encendido únicamente esto. Es el gesto central del taller. */
   const soloEsto = (ids: string[]) => alCambiarVisibles(new Set(ids))
+
+  /**
+   * Las dos operaciones de una sola pieza, estables entre pintados.
+   *
+   * Son props de `FilaDePieza`, que va memorizada: una función nueva en cada
+   * pintado la desmemorizaría entera y el `memo` no serviría de nada. Por eso
+   * reciben el identificador como argumento en vez de venir ya cerradas sobre
+   * él, que es como estaban.
+   *
+   * `alternarPieza` depende de `visibles`, así que cambia cuando cambia la
+   * selección —y entonces las filas tienen que repintarse igualmente, porque su
+   * casilla cambia—, pero no cuando lo único que cambia es el resaltado.
+   */
+  const alternarPieza = useCallback(
+    (id: string) => {
+      const nuevas = new Set(visibles)
+      if (nuevas.has(id)) nuevas.delete(id)
+      else nuevas.add(id)
+      alCambiarVisibles(nuevas)
+    },
+    [visibles, alCambiarVisibles],
+  )
+
+  const soloEstaPieza = useCallback(
+    (id: string) => alCambiarVisibles(new Set([id])),
+    [alCambiarVisibles],
+  )
 
   const alternarGrupo = (id: string) => {
     const nuevos = new Set(abiertos)
@@ -110,14 +170,12 @@ export function ArbolAnatomico({
             visibles={visibles}
             resaltada={resaltada}
             alResaltar={alResaltar}
-            alEncender={(id) => encender([id])}
-            alApagar={(id) => apagar([id])}
-            alSoloEsto={(id) => soloEsto([id])}
+            alAlternar={alternarPieza}
+            alSoloEsto={soloEstaPieza}
           />
         ) : (
-          arbol.map((grupo) => {
-            const idsGrupo = grupo.ramas.flatMap((r) => r.piezas.map((p) => p.id))
-            const encendidas = idsGrupo.filter((id) => visibles.has(id)).length
+          arbol.map((grupo, posicionGrupo) => {
+            const { ids: idsGrupo, encendidas } = cuentas[posicionGrupo]
             const abierto = abiertos.has(grupo.id)
 
             return (
@@ -164,9 +222,9 @@ export function ArbolAnatomico({
                 </div>
 
                 {abierto
-                  ? grupo.ramas.map((rama) => {
-                      const ids = rama.piezas.map((p) => p.id)
-                      const vivas = ids.filter((id) => visibles.has(id)).length
+                  ? grupo.ramas.map((rama, posicionRama) => {
+                      const { ids, encendidas: vivas } =
+                        cuentas[posicionGrupo].ramas[posicionRama]
                       return (
                         <div className="atlas-rama" key={`${grupo.id}-${rama.id}`}>
                           <div className="atlas-rama-fila">
@@ -201,10 +259,8 @@ export function ArbolAnatomico({
                                 encendida={visibles.has(pieza.id)}
                                 resaltada={resaltada === pieza.id}
                                 alResaltar={alResaltar}
-                                alAlternar={() =>
-                                  visibles.has(pieza.id) ? apagar([pieza.id]) : encender([pieza.id])
-                                }
-                                alSoloEsto={() => soloEsto([pieza.id])}
+                                alAlternar={alternarPieza}
+                                alSoloEsto={soloEstaPieza}
                               />
                             ))}
                           </ul>
@@ -221,7 +277,22 @@ export function ArbolAnatomico({
   )
 }
 
-function FilaDePieza({
+/**
+ * Una pieza del árbol.
+ *
+ * Memorizada, y no por afición: aquí hay hasta 2.234 de estas, y el ratón
+ * pasando por la lista cambia `resaltada` en el taller, que repinta el árbol
+ * entero. Sin `memo`, cruzar una fila rehacía todas las demás —con su casilla,
+ * su título y su botón—, y el árbol se arrastraba justo durante el gesto que
+ * más se repite al preparar una pieza.
+ *
+ * Para que el `memo` sirva de algo, las tres devoluciones de llamada tienen que
+ * llegar estables desde arriba: de ahí que reciban el identificador como
+ * argumento en lugar de venir cerradas sobre él, que es lo que las hacía nuevas
+ * en cada pintado. Quien las cierre de vuelta no romperá nada visible, solo
+ * volverá a dejar el árbol lento sin que nada lo diga.
+ */
+const FilaDePieza = memo(function FilaDePieza({
   pieza,
   encendida,
   resaltada,
@@ -233,8 +304,8 @@ function FilaDePieza({
   encendida: boolean
   resaltada: boolean
   alResaltar: (id: string | null) => void
-  alAlternar: () => void
-  alSoloEsto: () => void
+  alAlternar: (id: string) => void
+  alSoloEsto: (id: string) => void
 }) {
   return (
     <li
@@ -243,7 +314,7 @@ function FilaDePieza({
       onMouseLeave={() => alResaltar(null)}
     >
       <label className="atlas-casilla">
-        <input type="checkbox" checked={encendida} onChange={alAlternar} />
+        <input type="checkbox" checked={encendida} onChange={() => alAlternar(pieza.id)} />
         <span title={`${pieza.nombre} · ${pieza.fma}`}>{pieza.nombre}</span>
       </label>
       {/* La región deducida de la posición se marca: es una estimación y no un
@@ -253,28 +324,26 @@ function FilaDePieza({
           ~
         </span>
       ) : null}
-      <button type="button" className="atlas-solo" onClick={alSoloEsto}>
+      <button type="button" className="atlas-solo" onClick={() => alSoloEsto(pieza.id)}>
         solo
       </button>
     </li>
   )
-}
+})
 
 function ResultadosDeBusqueda({
   resultados,
   visibles,
   resaltada,
   alResaltar,
-  alEncender,
-  alApagar,
+  alAlternar,
   alSoloEsto,
 }: {
   resultados: { pieza: PiezaDelAtlas }[]
   visibles: Set<string>
   resaltada: string | null
   alResaltar: (id: string | null) => void
-  alEncender: (id: string) => void
-  alApagar: (id: string) => void
+  alAlternar: (id: string) => void
   alSoloEsto: (id: string) => void
 }) {
   if (resultados.length === 0) {
@@ -294,8 +363,8 @@ function ResultadosDeBusqueda({
             encendida={visibles.has(pieza.id)}
             resaltada={resaltada === pieza.id}
             alResaltar={alResaltar}
-            alAlternar={() => (visibles.has(pieza.id) ? alApagar(pieza.id) : alEncender(pieza.id))}
-            alSoloEsto={() => alSoloEsto(pieza.id)}
+            alAlternar={alAlternar}
+            alSoloEsto={alSoloEsto}
           />
         ))}
       </ul>

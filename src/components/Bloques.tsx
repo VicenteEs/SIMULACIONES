@@ -84,14 +84,38 @@ function BloqueAdvertencia({ bloque }: { bloque: Bloque }) {
 }
 
 function BloqueImagen({ bloque }: { bloque: Bloque }) {
-  const imagen = bloque.imagen as { url?: string; alt?: string } | undefined
+  const imagen = bloque.imagen as
+    | { url?: string; alt?: string; width?: number | null; height?: number | null }
+    | undefined
   if (!imagen?.url) return null
   const ancho = typeof bloque.ancho === 'string' ? bloque.ancho : 'completo'
   return (
     <figure className={`figura ${ancho}`}>
-      {/* Se usa img y no next/image: los archivos los sube el autor y sus
-          dimensiones no se conocen de antemano. */}
-      <img src={imagen.url} alt={imagen.alt ?? ''} loading="lazy" />
+      {/* Sigue siendo `img` y no `next/image`: el archivo lo sube el autor a
+          `medios` y la dirección la arma Payload, no el árbol de `public`.
+
+          Lo que no era cierto es la otra mitad de lo que decía aquí este
+          comentario —que las dimensiones «no se conocen de antemano»—, y con eso
+          mandaba al siguiente a no intentarlo: Payload las mide al subir el
+          archivo (`Medio.width` y `Medio.height` en `payload-types.ts`) y la
+          ficha se lee con `depth: 2`, así que llegan pobladas. Puestas en los
+          atributos, el navegador calcula la proporción y reserva el hueco antes
+          de descargar nada; sin ellas, y con `loading="lazy"`, cada imagen
+          clínica empujaba el texto hacia abajo justo mientras el residente lo
+          estaba leyendo.
+
+          No fijan píxeles: `.figura img` conserva en `estilos.css` su
+          `max-width: 100%` con `height: auto`, y es esa pareja la que hace que
+          los atributos aporten solo la proporción. Un medio subido antes de que
+          Payload guardara medidas cae en `undefined` y se pinta como hasta
+          ahora: sin reserva, pero sin romperse. */}
+      <img
+        src={imagen.url}
+        alt={imagen.alt ?? ''}
+        width={imagen.width ?? undefined}
+        height={imagen.height ?? undefined}
+        loading="lazy"
+      />
       {typeof bloque.pie === 'string' && bloque.pie ? <figcaption>{bloque.pie}</figcaption> : null}
     </figure>
   )

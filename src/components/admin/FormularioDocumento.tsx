@@ -28,6 +28,23 @@ import { FilaDeCampos, type Relaciones } from './formulario/Campos'
  * medio escribir por el hecho de haberla guardado.
  */
 
+/**
+ * Qué se pinta cuando la acción de servidor no llega a responder.
+ *
+ * `accion()` (`src/lib/guardias.ts`) envuelve en una `Respuesta` todo lo que
+ * ella ve fallar, pero lo que se cae antes de llegar a ella —la red cortada, la
+ * sesión caducada, un cuerpo que Next rehúsa— sale como excepción dentro de la
+ * transición y nadie la esperaba: se perdía en la consola del navegador, el
+ * botón volvía de «Guardando…» a «Publicar» y la pantalla quedaba idéntica a
+ * una en la que el guardado hubiera salido bien. En una ficha con media hora de
+ * redacción encima, eso es dar por guardado lo que no se guardó. Es el mismo
+ * trato que la subida de archivo ya recibe en `formulario/Campos.tsx`.
+ */
+const motivoDeLaCaida = (fallo: unknown, porOmision: string): string =>
+  fallo instanceof Error && fallo.message
+    ? `${porOmision} ${fallo.message}`
+    : `${porOmision} Compruebe la conexión e inténtelo otra vez.`
+
 export function FormularioDocumento({
   esquema,
   documento,
@@ -223,24 +240,31 @@ export function FormularioDocumento({
     // sola advertencia.
     const edicionesAlEnviar = ediciones.current
     iniciar(async () => {
-      const resultado = await guardarDocumento(esquema.slug, id, valores, publicar)
-      if (!resultado.exito || !resultado.datos) {
-        // El rechazo ya ocurrió: aquí se busca hondo, porque lo que lo causó
-        // puede ser una fila a medias dentro de un bloque.
-        const donde = seccionIncompleta(true)
-        if (donde >= 0) setSeccion(donde)
-        setAviso({ tipo: 'error', texto: resultado.mensaje ?? 'No se pudo guardar.' })
-        return
-      }
-      if (ediciones.current === edicionesAlEnviar) setSucio(false)
-      if (id === null) {
-        router.replace(`/admin-panel/contenido/${esquema.slug}/${resultado.datos.id}`)
-      } else {
-        setAviso({
-          tipo: 'ok',
-          texto: publicar ? 'Publicado. Ya es visible para los lectores.' : 'Borrador guardado.',
-        })
-        router.refresh()
+      try {
+        const resultado = await guardarDocumento(esquema.slug, id, valores, publicar)
+        if (!resultado.exito || !resultado.datos) {
+          // El rechazo ya ocurrió: aquí se busca hondo, porque lo que lo causó
+          // puede ser una fila a medias dentro de un bloque.
+          const donde = seccionIncompleta(true)
+          if (donde >= 0) setSeccion(donde)
+          setAviso({ tipo: 'error', texto: resultado.mensaje ?? 'No se pudo guardar.' })
+          return
+        }
+        if (ediciones.current === edicionesAlEnviar) setSucio(false)
+        if (id === null) {
+          router.replace(`/admin-panel/contenido/${esquema.slug}/${resultado.datos.id}`)
+        } else {
+          setAviso({
+            tipo: 'ok',
+            texto: publicar ? 'Publicado. Ya es visible para los lectores.' : 'Borrador guardado.',
+          })
+          router.refresh()
+        }
+      } catch (fallo) {
+        // Sin esto la ficha se quedaba con la marca de «cambios sin guardar»
+        // puesta y sin una palabra que dijera por qué: la única señal era que el
+        // botón dejaba de decir «Guardando…».
+        setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo guardar.') })
       }
     })
   }
@@ -303,11 +327,15 @@ export function FormularioDocumento({
                 // cliente.
                 if (!puedeSalir()) return
                 iniciar(async () => {
-                  const r = await duplicarDocumento(esquema.slug, id)
-                  if (r.exito && r.datos) {
-                    router.push(`/admin-panel/contenido/${esquema.slug}/${r.datos.id}`)
-                  } else {
-                    setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo duplicar.' })
+                  try {
+                    const r = await duplicarDocumento(esquema.slug, id)
+                    if (r.exito && r.datos) {
+                      router.push(`/admin-panel/contenido/${esquema.slug}/${r.datos.id}`)
+                    } else {
+                      setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo duplicar.' })
+                    }
+                  } catch (fallo) {
+                    setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo duplicar.') })
                   }
                 })
               }}
@@ -424,9 +452,13 @@ export function FormularioDocumento({
                   )
                 ) {
                   iniciar(async () => {
-                    const r = await cambiarPublicacion(esquema.slug, id, false)
-                    if (r.exito) router.refresh()
-                    else setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo retirar.' })
+                    try {
+                      const r = await cambiarPublicacion(esquema.slug, id, false)
+                      if (r.exito) router.refresh()
+                      else setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo retirar.' })
+                    } catch (fallo) {
+                      setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo retirar.') })
+                    }
                   })
                 }
               }}
@@ -446,9 +478,13 @@ export function FormularioDocumento({
                 )
               ) {
                 iniciar(async () => {
-                  const r = await eliminarDocumento(esquema.slug, id)
-                  if (r.exito) router.push(`/admin-panel/contenido/${esquema.slug}`)
-                  else setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo eliminar.' })
+                  try {
+                    const r = await eliminarDocumento(esquema.slug, id)
+                    if (r.exito) router.push(`/admin-panel/contenido/${esquema.slug}`)
+                    else setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo eliminar.' })
+                  } catch (fallo) {
+                    setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo eliminar.') })
+                  }
                 })
               }
             }}

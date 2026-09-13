@@ -32,25 +32,39 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
 
   if (!ficha) notFound()
 
-  const userId = (usuarioEfectivo as { id?: string | number } | null)?.id
+  const usuarioId = (usuarioEfectivo as { id?: string | number } | null)?.id
 
-  // Buscar actividad previa para saber si ya está leída
-  const actividadQuery = userId
-    ? await payload.find({
-        collection: 'actividad',
-        where: {
-          and: [
-            { usuario: { equals: userId } },
-            { coleccion: { equals: 'patologias' } },
-            { documentoId: { equals: id } },
-          ],
-        },
-        user,
-        limit: 1,
-      })
-    : { docs: [] }
-  
-  const completadoInicial = actividadQuery.docs.length > 0 ? Boolean((actividadQuery.docs[0] as any).completado) : false
+  // La casilla de «leída» tiene que nacer sabiendo si ya lo está, y
+  // `RastreadorActividad` es de cliente: no puede consultarlo él.
+  //
+  // Esta consulta está copiada tal cual en `simulador/[id]/page.tsx` y le toca
+  // a `tecnica-ao` e `imagenes` cuando monten su rastreador. Su sitio es
+  // `src/lib`, que no entra en este lote; queda anotado para que no acaben
+  // siendo cuatro copias con cuatro criterios.
+  //
+  // El `.catch` está porque la actividad es una comodidad y la ficha es el
+  // contenido: una avería en esa tabla no puede llevarse por delante la
+  // patología entera, que es lo que pasaba antes.
+  const registroDeLectura = usuarioId
+    ? await payload
+        .find({
+          collection: 'actividad',
+          where: {
+            and: [
+              { usuario: { equals: usuarioId } },
+              { coleccion: { equals: 'patologias' } },
+              { documentoId: { equals: id } },
+            ],
+          },
+          user,
+          limit: 1,
+          depth: 0,
+        })
+        .then((r) => r.docs[0] ?? null)
+        .catch(() => null)
+    : null
+
+  const completadoInicial = registroDeLectura?.completado === true
 
   const pestanas = pestanasConContenido(ficha as never)
   const segmento = ficha.segmento as { nombre?: string } | undefined
@@ -72,7 +86,11 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
           {ficha.codigo ? <span className="codigo">{ficha.codigo as string}</span> : null}
           {segmento?.nombre ? <span className="etiqueta">{segmento.nombre}</span> : null}
         </div>
-        <RastreadorActividad coleccion="patologias" documentoId={id} completadoInicial={completadoInicial as boolean} />
+        <RastreadorActividad
+          coleccion="patologias"
+          documentoId={id}
+          completadoInicial={completadoInicial}
+        />
       </header>
 
       <div className="ficha-cuerpo">

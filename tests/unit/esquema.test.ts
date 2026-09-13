@@ -12,6 +12,7 @@ import {
   type Campo,
 } from '@/admin/esquema'
 import { BLOQUES as BLOQUES_PANEL } from '@/admin/bloques'
+import { LIMITE_BYTES_MODELO_3D } from '@/uploads/validarModelo3D'
 
 /**
  * El esquema del panel es paralelo a la definición de Payload, no derivado.
@@ -42,6 +43,62 @@ function nombresDeCampos(campos: Field[]): Set<string> {
   recorrer(campos)
   return nombres
 }
+
+/**
+ * Los mismos nombres, pero entrando también en grupos y filas.
+ *
+ * `nombresDeCampos` se queda en el primer nivel del dato a propósito: lo usan
+ * las comprobaciones que hablan de columnas del listado y de campos de primer
+ * nivel, y ensancharlas las volvería más flojas. Esta versión es para el
+ * invariante contrario —que no quede en la colección ningún campo que el panel
+ * no describa—, y ahí hay que bajar, porque es abajo donde se esconden: el
+ * campo que se coló fue `instrumental.tecnicas`, y lo que lo mantuvo invisible
+ * es que nadie miraba en esa dirección.
+ *
+ * Los bloques no se recorren: sus campos no son de la colección sino de la
+ * definición del bloque, y de esos se encarga el par de pruebas de abajo —una
+ * por dirección—, que usan esta misma función sobre `bloque.fields`.
+ */
+function nombresDeCamposHondo(campos: Field[]): Set<string> {
+  const nombres = new Set<string>()
+  const recorrer = (lista: Field[]) => {
+    for (const campo of lista) {
+      if ('name' in campo && typeof campo.name === 'string') nombres.add(campo.name)
+      if ('tabs' in campo && Array.isArray(campo.tabs)) {
+        for (const pestana of campo.tabs) recorrer(pestana.fields as Field[])
+      }
+      if ('fields' in campo && Array.isArray(campo.fields)) recorrer(campo.fields as Field[])
+    }
+  }
+  recorrer(campos)
+  return nombres
+}
+
+/**
+ * Lo que pone Payload por su cuenta y ningún esquema tiene por qué describir.
+ *
+ * Estos nombres no salen de `src/collections`: los añade Payload al preparar la
+ * configuración —el identificador, las dos fechas, el estado de publicación de
+ * una colección versionada y los seis del archivo subido—. Si alguno llegara a
+ * declararse a mano en una colección, la comprobación de abajo lo reclamaría en
+ * el panel, donde no pinta nada.
+ */
+const LOS_PONE_PAYLOAD = new Set([
+  'id',
+  'updatedAt',
+  'createdAt',
+  '_status',
+  'filename',
+  'mimeType',
+  'url',
+  'thumbnailURL',
+  'filesize',
+  'width',
+  'height',
+  'sizes',
+  'focalX',
+  'focalY',
+])
 
 /**
  * Campos obligatorios de primer nivel de una colección.
@@ -121,12 +178,39 @@ describe('el esquema del panel cubre las colecciones', () => {
   })
 
   it('todo campo del esquema existe en su colección', () => {
+    // Se baja a las filas y a los grupos por los dos lados: un `pasos[].titlo`
+    // mal escrito en el esquema pinta un cuadro de texto que se rellena, se
+    // guarda y no llega a ninguna columna.
     for (const esquema of ESQUEMAS) {
       const coleccion = COLECCIONES.find((c) => c.slug === esquema.slug)!
-      const existentes = nombresDeCampos(coleccion.fields)
-      for (const campo of camposDe(esquema)) {
+      const existentes = nombresDeCamposHondo(coleccion.fields)
+      for (const campo of recorrerCampos(camposDe(esquema))) {
         expect(existentes, `${esquema.slug}.${campo.nombre} no existe en la colección`).toContain(
           campo.nombre,
+        )
+      }
+    }
+  })
+
+  it('todo campo de la colección está en el esquema', () => {
+    // El invariante que faltaba, y el que habría cazado `instrumental.tecnicas`:
+    // ese campo existía en la colección desde siempre y el panel no lo
+    // describía, así que desde que se retiró la interfaz de Payload (D-038) no
+    // quedó ninguna pantalla desde la que llenarlo —y duplicar un instrumento
+    // lo perdía, porque `depurarDocumento` reconstruye la copia y ahí solo
+    // sobrevive lo descrito—. Un campo que no se puede editar desde ninguna
+    // parte es un campo muerto, y el silencio es lo que lo mantiene vivo en la
+    // base.
+    //
+    // Si algún campo tiene que quedar fuera a propósito, este es el sitio para
+    // decirlo con su porqué, no para no mirar.
+    for (const esquema of ESQUEMAS) {
+      const coleccion = COLECCIONES.find((c) => c.slug === esquema.slug)!
+      const enElEsquema = new Set([...recorrerCampos(camposDe(esquema))].map((c) => c.nombre))
+      for (const nombre of nombresDeCamposHondo(coleccion.fields)) {
+        if (LOS_PONE_PAYLOAD.has(nombre)) continue
+        expect(enElEsquema, `${esquema.slug}.${nombre} falta en el esquema del panel`).toContain(
+          nombre,
         )
       }
     }
@@ -169,6 +253,27 @@ describe('el esquema del panel cubre las colecciones', () => {
       expect(Boolean(esquema.subida), esquema.slug).toBe(Boolean(coleccion.upload))
     }
   })
+
+  it('el techo que se anuncia es el mismo que se comprueba', () => {
+    // La frase la lee el traumatólogo y la cifra la comprueba `subirArchivo`.
+    // Separadas, el panel llegó a prometer 50 MB mientras Next cortaba en 8 sin
+    // decir nada, y nadie lo vio porque una frase no la compara nadie.
+    for (const esquema of ESQUEMAS) {
+      if (!esquema.subida) continue
+      const anunciado = /(\d+)\s*MB/.exec(esquema.subida.ayuda)
+      expect(anunciado, `${esquema.slug}: la ayuda no dice ningún techo en MB`).not.toBeNull()
+      expect(Number(anunciado![1]), `${esquema.slug}: la ayuda y la cifra no dicen lo mismo`).toBe(
+        esquema.subida.maximoBytes / 1024 / 1024,
+      )
+    }
+  })
+
+  it('el techo de los modelos 3D es el que hace cumplir la validación', () => {
+    // No se importa `LIMITE_BYTES_MODELO_3D` desde el esquema para no arrastrar
+    // un módulo de servidor al paquete del navegador —el formulario importa
+    // este esquema—, así que los dos números viven separados y los ata esto.
+    expect(esquemaDe('modelos-3d').subida?.maximoBytes).toBe(LIMITE_BYTES_MODELO_3D)
+  })
 })
 
 describe('los bloques del panel cubren los de la plataforma', () => {
@@ -184,6 +289,26 @@ describe('los bloques del panel cubren los de la plataforma', () => {
       const existentes = nombresDeCampos(original.fields)
       for (const campo of bloque.campos) {
         expect(existentes, `${bloque.slug}.${campo.nombre}`).toContain(campo.nombre)
+      }
+    }
+  })
+
+  it('todo campo de la definición del bloque está en el panel', () => {
+    // El reverso del de arriba, y el que de verdad muerde. El de arriba caza un
+    // nombre mal escrito en el panel; este caza uno que falta, y ahí la
+    // consecuencia es peor que la de `instrumental.tecnicas`: `depurarCampos`
+    // reconstruye cada bloque a partir de `bloqueDe(blockType).campos`, así que
+    // un campo de bloque que el panel no describa no se pierde solo al
+    // duplicar, se pierde en CADA guardado y sin decir nada.
+    //
+    // Se mira hondo por los dos lados porque es abajo donde se esconden: los
+    // puntos de una lista clínica y las filas de una tabla de clasificación son
+    // campos dentro de un `array`, y el primer nivel no los ve.
+    for (const original of BLOQUES_PAYLOAD) {
+      const panel = BLOQUES_PANEL.find((b) => b.slug === original.slug)!
+      const enElPanel = new Set([...recorrerCampos(panel.campos)].map((c) => c.nombre))
+      for (const nombre of nombresDeCamposHondo(original.fields)) {
+        expect(enElPanel, `${original.slug}.${nombre} falta en el panel`).toContain(nombre)
       }
     }
   })
@@ -226,6 +351,42 @@ describe('coherencia interna del esquema', () => {
         expect(esTexto(campo), `${esquema.slug}: se busca en ${nombre}, que no es texto`).toBe(true)
       }
     }
+  })
+
+  it('lo que una selección exige o prohíbe apunta a opciones y a hermanos que existen', () => {
+    // `exigeAlguno` y `prohibeAlguno` repiten en el idioma del panel una
+    // validación de la colección. Una opción mal escrita ahí no rompe nada:
+    // simplemente deja de avisar, y el traumatólogo vuelve a encontrarse el
+    // mensaje en inglés de Payload sin saber qué rellenar. Un fallo que solo se
+    // nota por lo que deja de pasar necesita que alguien lo mire.
+    const revisar = (campos: Campo[], donde: string) => {
+      const hermanos = new Set(campos.map((c) => c.nombre))
+      for (const campo of campos) {
+        if (campo.tipo === 'seleccion') {
+          // Las dos se comprueban igual y por lo mismo, así que se recorren
+          // juntas: separarlas invitaba a que la segunda se quedara sin
+          // vigilar, que es justo como nació.
+          const reglas = [...(campo.exigeAlguno ?? []), ...(campo.prohibeAlguno ?? [])]
+          for (const regla of reglas) {
+            expect(
+              campo.opciones.map((o) => o.valor),
+              `${donde}.${campo.nombre}: tiene una regla para «${regla.opcion}», que no es una opción`,
+            ).toContain(regla.opcion)
+            for (const nombre of regla.campos) {
+              expect(
+                hermanos,
+                `${donde}.${campo.nombre}: su regla nombra «${nombre}», que no es hermano`,
+              ).toContain(nombre)
+            }
+            expect(regla.mensaje.length, `${donde}.${campo.nombre}`).toBeGreaterThan(20)
+          }
+        }
+        if (campo.tipo === 'lista' || campo.tipo === 'grupo') {
+          revisar(campo.campos, `${donde}.${campo.nombre}`)
+        }
+      }
+    }
+    for (const esquema of ESQUEMAS) revisar(camposDe(esquema), esquema.slug)
   })
 
   it('toda selección ofrece al menos una opción', () => {

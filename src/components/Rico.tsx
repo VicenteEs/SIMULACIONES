@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 import { RichText, type JSXConvertersFunction } from '@payloadcms/richtext-lexical/react'
 import { enlaceSeguro, estaVacio } from '@/lib/textoRico'
 import { ruta } from '@/lib/rutas'
@@ -71,8 +71,30 @@ export const conversoresRicos: JSXConvertersFunction = ({ defaultConverters }) =
  * Como el renderizador de Payload, no usa `dangerouslySetInnerHTML`: pinta el
  * árbol con componentes, y por eso el contenido del autor no puede introducir
  * comportamiento en la página.
+ *
+ * Va envuelto en `memo` por un único consumidor, pero es el que importa:
+ * `ConsolaQuirurgica` se repinta con cada movimiento del deslizador de fuerza y
+ * con cada giro del mando de angulación, y en cada uno de esos pintados este
+ * componente volvía a recorrer entero el árbol lexical de la descripción y del
+ * riesgo del paso. Ese árbol no cambia: `paso` sale de `caso.pasos[indice]` y
+ * `caso` llega del servidor como prop, así que la comparación por referencia de
+ * `memo` acierta siempre y el trabajo se hace una vez por paso en lugar de una
+ * por fotograma.
+ *
+ * No estorba en el servidor: el renderizador de Flight desenvuelve
+ * `REACT_MEMO_TYPE` y pinta la función de dentro
+ * (`react-server-dom-webpack-server.node.development.js`, rama
+ * `case REACT_MEMO_TYPE` de `renderElement`), y la compilación `react-server`
+ * exporta `memo`. Las páginas de servidor que lo usan —`tecnica-ao`,
+ * `simulador`, `examen-fisico`— siguen igual.
  */
-export function Rico({ valor, className }: { valor: unknown; className?: string }) {
+export const Rico = memo(function Rico({
+  valor,
+  className,
+}: {
+  valor: unknown
+  className?: string
+}) {
   if (valor === null || valor === undefined) return null
 
   // Contenido anterior a la migración: texto llano guardado tal cual.
@@ -95,7 +117,7 @@ export function Rico({ valor, className }: { valor: unknown; className?: string 
       <RichText data={valor as never} converters={conversoresRicos} />
     </div>
   )
-}
+})
 
 /** ¿Hay algo que mostrar? Útil para decidir si pintar el rótulo del campo. */
 export function tieneContenido(valor: unknown): boolean {

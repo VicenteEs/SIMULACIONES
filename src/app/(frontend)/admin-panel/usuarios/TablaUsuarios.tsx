@@ -589,14 +589,13 @@ export function TablaUsuarios({
  * detrás del velo. El patrón completo ya estaba resuelto en
  * `src/components/MenuMovil.tsx` y es el que se repite aquí.
  *
- * El alto máximo y el desplazamiento van en línea y no en `admin.css` a
- * propósito: `.admin-modal` no declara ninguno de los dos y el de permisos mide
- * unos 675 px, más que la ventana de un portátil 1080p con el escalado de
- * Windows al 125 %. Como el velo es `position: fixed`, desplazar la página no
- * lo mueve: «Guardar permisos» quedaba fuera de la pantalla y sin forma de
- * alcanzarlo, y la única salida era cerrar y perder lo marcado. Arreglarlo en
- * la hoja común cubriría además los modales del resto del panel, pero esa hoja
- * la comparten todas las pantallas y este cambio responde solo por estas tres.
+ * El alto máximo y el desplazamiento estuvieron un tiempo en línea aquí, y ya
+ * no: viven en `.admin-modal-backdrop` y `.admin-modal` de `admin.css`, con su
+ * porqué escrito al lado. El modal de permisos de esta misma pantalla es el que
+ * manda sobre esos cuatro valores —mide unos 675 px y no cabe en un portátil
+ * 1080p con el escalado de Windows al 125 %—, así que quien los cambie tiene
+ * que abrirlo. Repetirlos aquí en línea dejaba dos copias de la misma regla y
+ * los modales del resto del panel sin ninguna.
  */
 function EnvolturaModal({
   titulo,
@@ -704,11 +703,7 @@ function EnvolturaModal({
   }, [])
 
   return (
-    <div
-      className="admin-modal-backdrop"
-      style={{ overflowY: 'auto', padding: '1.5rem 1rem' }}
-      onClick={onCerrar}
-    >
+    <div className="admin-modal-backdrop" onClick={onCerrar}>
       <div
         className="admin-modal"
         role="dialog"
@@ -716,7 +711,6 @@ function EnvolturaModal({
         aria-labelledby={idTitulo}
         ref={caja}
         tabIndex={-1}
-        style={{ maxHeight: 'calc(100vh - 3rem)', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="admin-modal-title" id={idTitulo}>

@@ -2,8 +2,26 @@ import { NextResponse } from 'next/server'
 import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { PREFIJO } from '@/lib/rutas'
 import { COOKIE_VISTA_PREVIA, puedeSimularRol } from '@/lib/vistaPrevia'
 import type { Rol } from '@/access/reglas'
+
+/**
+ * El mismo path que el testigo de sesión: el prefijo, no la raíz.
+ *
+ * En el servidor la plataforma comparte esquema, dominio y puerto con otras
+ * páginas detrás del mismo proxy. Con `path: '/'` esta cookie viajaba a todas
+ * ellas, igual que viajaba el testigo antes de 66bdc2d. No abre nada —solo
+ * puede rebajar el rol, y `rolEfectivo` la valida contra el real—, pero es una
+ * cookie de esta plataforma paseándose por sitios que no son suyos.
+ *
+ * El valor está escrito aquí y en `acciones/sesion.ts` (`PATH_VISTA_PREVIA`)
+ * porque esa acción lleva `'use server'` y no puede exportar una constante. Los
+ * dos tienen que decir lo mismo: lo que se escribe aquí lo borra `salir()`, y
+ * un `delete` con otro path no caduca nada —la simulación sobreviviría a cerrar
+ * la sesión y la siguiente empezaría viendo la plataforma como otro rol—.
+ */
+const PATH_COOKIE = PREFIJO || '/'
 
 /**
  * Activa o desactiva la vista previa de rol.
@@ -27,7 +45,8 @@ export async function POST(peticion: Request) {
   const respuesta = NextResponse.json({ ok: true, rol: rol ?? null })
 
   if (rol === null || rol === undefined || rol === real) {
-    respuesta.cookies.delete(COOKIE_VISTA_PREVIA)
+    // Con el path con el que se escribió, o no se borra nada.
+    respuesta.cookies.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_COOKIE })
     return respuesta
   }
 
@@ -42,7 +61,7 @@ export async function POST(peticion: Request) {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
-    path: '/',
+    path: PATH_COOKIE,
     maxAge: 60 * 60 * 4,
   })
   return respuesta

@@ -175,9 +175,6 @@ export interface Usuario {
    * Lo anota la plataforma en cada inicio de sesión.
    */
   ultimoAcceso?: string | null;
-  /**
-   * Visible solo para administradores. Por ejemplo, quién pidió esta cuenta.
-   */
   notas?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -207,7 +204,7 @@ export interface Segmento {
   nombre: string;
   orden?: number | null;
   /**
-   * Recuadro sensible del mapa. Se ajusta visualmente y se guarda aquí.
+   * Reservado para el mapa corporal: todavía no se dibuja en ninguna página, así que rellenarlo no cambia nada de lo que ve el residente.
    */
   zonaMapa?: {
     x?: number | null;

@@ -101,10 +101,17 @@ El fragmento incluye además:
 - `proxy_buffering off` y `proxy_read_timeout 3600s`, sin los cuales el flujo
   de eventos de «hay contenido nuevo» se queda en el búfer de nginx y el aviso
   no llega nunca;
-- `client_max_body_size 64m`, porque la plataforma acepta subidas de hasta
-  50 MB (`upload.limits` en `src/payload.config.ts`) y el techo por omisión de
-  nginx queda muy por debajo: sin esta línea, un video largo se rechaza con un
-  413 antes de llegar siquiera a la aplicación.
+- `client_max_body_size 64m`, porque el techo por omisión de nginx (1 MB) queda
+  por debajo de lo que la plataforma acepta: sin esta línea, un vídeo se rechaza
+  con un 413 antes de llegar siquiera a la aplicación. Los 64 MB están muy por
+  encima del techo real —7 MB de archivo (`upload.limits` en
+  `src/payload.config.ts`) dentro de un cuerpo de 8 MB
+  (`serverActions.bodySizeLimit` en `next.config.mjs`)— y se dejan así a
+  propósito: el número de nginx no tiene que perseguir al de la aplicación, y un
+  proxy que corta antes que ella devuelve un 413 mudo en vez del mensaje en
+  español. Esta línea decía «hasta 50 MB», que es lo que `upload.limits`
+  prometía antes de corregirse; los 50 MB no existieron nunca en el servidor,
+  porque quien cortaba de verdad era el cuerpo de las acciones de Next.
 
 > Si algún día se prefiere gestionarla desde el panel: **Custom locations** →
 > location `/traumahub`, scheme `http`, hostname `traumahub`, puerto `3000`; y

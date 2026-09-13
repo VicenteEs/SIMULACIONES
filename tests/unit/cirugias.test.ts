@@ -95,6 +95,30 @@ describe('un paso quirúrgico no puede decir que mide algo sin decir cuánto', (
     expect(validar('instrumento', {})).toBe(true)
   })
 
+  it('elegir el instrumento no admite además el rango de otro objetivo', () => {
+    // Es la única regla que prohíbe, y la pide el motor: `objetivoDelPaso` no
+    // se fía del valor «instrumento» —es lo que el DEFAULT de la migración
+    // escribió en toda fila anterior— y ante él deduce del rango que el paso
+    // traiga. Sin esto, un número de fuerza olvidado convertía en silencio
+    // «elija el punzón» en «aplique entre 8 y 20 N».
+    expect(typeof validar('instrumento', { fuerzaMinima: 8, fuerzaMaxima: 20 })).toBe('string')
+    expect(typeof validar('instrumento', { trazoMaximo: 80 })).toBe('string')
+  })
+
+  it('las tres tolerancias no le estorban al instrumento: las lleva toda fila', () => {
+    // `defaultValue: 5` en la colección y `DEFAULT 5` en la migración. Si
+    // contaran como rango declarado, ningún paso de instrumento se podría
+    // guardar, que es la regresión más fácil de introducir en la regla de
+    // arriba.
+    expect(
+      validar('instrumento', {
+        toleranciaDesplazamiento: 5,
+        toleranciaDiastasis: 5,
+        toleranciaAngulacion: 5,
+      }),
+    ).toBe(true)
+  })
+
   it('un rango del objetivo contrario no cuenta como rango propio', () => {
     // Escribir la fuerza y elegir «trazo» es justo el descuido que el campo
     // `condition` de Payload escondía: el editor del panel pinta los siete

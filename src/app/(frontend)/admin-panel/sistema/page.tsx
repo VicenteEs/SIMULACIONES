@@ -1,3 +1,5 @@
+import { connect as abrirSocket, type Socket } from 'node:net'
+import { connect as abrirSocketCifrado } from 'node:tls'
 import Link from 'next/link'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { tamanoLegible } from '@/lib/respaldos'
@@ -57,6 +59,83 @@ async function estadoDeLaBase(payload: unknown): Promise<{ version: string; peso
   }
 }
 
+/** Lo que se espera a que el servidor de correo salude antes de darlo por caído. */
+const TOPE_DE_SALUDO_MS = 4000
+
+/**
+ * ¿Contesta el servidor de correo?
+ *
+ * Esta comprobación decía «ok» con solo mirar que `SMTP_HOST` estuviera puesto,
+ * de modo que con el transporte roto la página que existe para responder «¿qué
+ * está roto?» contestaba «todo en orden» —y es el único aviso que hay: el
+ * adaptador de nodemailer verifica el transporte una sola vez al arrancar y, si
+ * falla, se limita a un `console.error` y sigue (`email-nodemailer`,
+ * `verifyTransport`). El administrador se entera cuando un residente le dice
+ * que el correo de contraseña nueva no llegó.
+ *
+ * Se abre el zócalo y se lee el saludo, que es lo que hace cualquier cliente
+ * SMTP antes de hablar. No se usa `transport.verify()` de nodemailer porque el
+ * adaptador ya inicializado no expone el transporte —solo `sendEmail`— y
+ * `nodemailer` no está en las dependencias de `package.json`: llega de rebote
+ * bajo `@payloadcms/email-nodemailer`, e importarlo desde aquí crearía una
+ * dependencia fantasma que deja de resolverse sin aviso el día que esa versión
+ * cambie.
+ *
+ * Qué prueba y qué no, para que el detalle no prometa de más: prueba que el
+ * nombre resuelve, que el puerto está abierto y que al otro lado hay un SMTP
+ * vivo —los tres fallos habituales tras mover el servidor o cerrar un
+ * cortafuegos—. No prueba las credenciales ni que el destinatario acepte el
+ * mensaje; eso solo lo sabe un envío de verdad, y esta página no manda correo.
+ */
+async function correoResponde(host: string, puerto: number): Promise<Diagnostico> {
+  const direccion = `${host}:${puerto}`
+  // `SMTP_PUERTO=correo` da `NaN`, y `connect` lanza con eso: un error de
+  // escritura en el entorno tumbaría entera la página que existe para
+  // encontrarlo. Se dice cuál es el problema y no se abre nada.
+  if (!Number.isInteger(puerto) || puerto < 1 || puerto > 65535) {
+    return { ok: false, detalle: `${host} — SMTP_PUERTO no es un puerto válido` }
+  }
+  return new Promise<Diagnostico>((resolver) => {
+    // El 465 habla TLS desde el primer byte y el 587 empieza en claro y sube
+    // con STARTTLS. Con el zócalo equivocado la conexión se abre y el saludo no
+    // llega nunca, que desde aquí es indistinguible de un servidor colgado.
+    // Anotado como `Socket` a propósito: `TLSSocket` lo extiende, y sin el tipo
+    // común quedaría una unión sobre la que `once` no resuelve sus sobrecargas.
+    const socket: Socket =
+      puerto === 465
+        ? abrirSocketCifrado({ host, port: puerto, servername: host })
+        : abrirSocket({ host, port: puerto })
+
+    let contestado = false
+    const cerrar = (estado: Diagnostico) => {
+      if (contestado) return
+      contestado = true
+      // Sin esto queda un zócalo abierto por cada carga de esta página.
+      socket.destroy()
+      resolver(estado)
+    }
+
+    socket.setTimeout(TOPE_DE_SALUDO_MS)
+    socket.once('timeout', () =>
+      cerrar({ ok: false, detalle: `${direccion} — no contesta en ${TOPE_DE_SALUDO_MS / 1000} s` }),
+    )
+    socket.once('error', (error: Error) =>
+      cerrar({ ok: false, detalle: `${direccion} — ${error.message}` }),
+    )
+    socket.once('data', (trozo: Buffer) => {
+      // El saludo de SMTP es «220 …» en la primera línea. Cualquier otro código
+      // —un 421 de «demasiadas conexiones», por ejemplo— es un servidor que
+      // está ahí y no va a aceptar el mensaje, y eso también hay que verlo.
+      const saludo = trozo.toString('utf8').split('\r\n')[0].slice(0, 80)
+      cerrar(
+        saludo.startsWith('220')
+          ? { ok: true, detalle: `${direccion} · ${saludo}` }
+          : { ok: false, detalle: `${direccion} — contesta «${saludo}»` },
+      )
+    })
+  })
+}
+
 export default async function PaginaSistema() {
   await exigirPanel('admin')
 
@@ -77,18 +156,35 @@ export default async function PaginaSistema() {
     base = { ok: false, detalle: error instanceof Error ? error.message : 'error desconocido' }
   }
 
-  const [respaldos, pgDump, atlas, disco] = await Promise.all([
+  const servidorSmtp = process.env.SMTP_HOST
+  // El mismo número con el que `src/payload.config.ts` arma el transporte. Si
+  // aquí se calculara de otra manera, la página comprobaría un puerto y el
+  // correo saldría por otro, que es la peor clase de diagnóstico: el que
+  // tranquiliza sobre algo que no ha mirado.
+  const puertoSmtp = Number(process.env.SMTP_PUERTO || 587)
+
+  const [respaldos, pgDump, atlas, disco, correo] = await Promise.all([
     listarRespaldos().catch(() => []),
     hayPgDump(),
     versionDelAtlas(),
     espacioEnDisco(),
+    servidorSmtp
+      ? correoResponde(servidorSmtp, puertoSmtp)
+      : Promise.resolve<Diagnostico>({
+          ok: false,
+          detalle: 'sin servidor SMTP: la recuperación de contraseña no llega a destino',
+        }),
   ])
   const ultimo = respaldos.find((r) => r.tipo === 'base')
 
-  const correoConfigurado = Boolean(process.env.SMTP_HOST)
   const enProduccion = process.env.NODE_ENV === 'production'
   const urlPublica = process.env.NEXT_PUBLIC_SERVER_URL || '(sin definir)'
   const enHttps = urlPublica.startsWith('https://')
+  // El navegador trata `localhost` y `127.0.0.1` como origen seguro y ahí sí
+  // guarda una cookie `Secure`. Es la misma excepción que hace
+  // `scripts/deploy.sh` antes de negarse a desplegar.
+  const enOrigenLocal = /^http:\/\/(localhost|127\.0\.0\.1)([:/]|$)/.test(urlPublica)
+  const laCookieLlega = enHttps || enOrigenLocal
 
   const comprobaciones: Array<{ titulo: string; estado: Diagnostico }> = [
     { titulo: 'Base de datos', estado: base },
@@ -111,27 +207,42 @@ export default async function PaginaSistema() {
       // El atlas es un archivo estático que viaja aparte del código: si un
       // despliegue se lo deja, el taller anatómico abre vacío y sin explicar
       // por qué. Vale más verlo aquí.
+      //
+      // Y con qué arreglarlo. La instrucción de ejecutar el guion estaba en el
+      // taller anatómico y se quitó de allí con razón: esa página la abre un
+      // editor, que no tiene consola en el servidor ni puede desplegar nada.
+      // Esta exige administrador (`exigirPanel('admin')`), que es quien sí.
+      // Entre las dos cosas la instrucción se quedó sin estar en ninguna parte
+      // de la interfaz.
       titulo: 'Atlas anatómico',
       estado: atlas.exito && atlas.datos
         ? { ok: true, detalle: `${atlas.datos.piezas} piezas · ${atlas.datos.version}` }
-        : { ok: false, detalle: 'no está instalado: falta public/atlas/catalogo.json' },
-    },
-    {
-      titulo: 'Correo saliente',
-      estado: correoConfigurado
-        ? { ok: true, detalle: `${process.env.SMTP_HOST}:${process.env.SMTP_PUERTO || '587'}` }
         : {
             ok: false,
-            detalle: 'sin servidor SMTP: la recuperación de contraseña no llega a destino',
+            detalle:
+              'no está instalado: falta public/atlas/catalogo.json. Ejecute «node scripts/atlas/preparar.mjs» en la máquina de trabajo, versione lo que deja en public/atlas/ y vuelva a desplegar.',
           },
     },
+    // El saludo del servidor de correo, no la presencia de la variable: ver
+    // `correoResponde`.
+    { titulo: 'Correo saliente', estado: correo },
     {
+      // Aquí ponía «sin HTTPS la cookie de sesión viaja sin cifrar», y es
+      // falso: la cookie sale con `Secure` en cuanto `NODE_ENV` vale
+      // `production` (`src/collections/Usuarios.ts`), y una cookie `Secure`
+      // llegada por http el navegador la descarta. No es un problema de
+      // confidencialidad sino de acceso: nadie entra. Y sin un solo error en
+      // pantalla, porque la acción de servidor devolvió éxito. Quien leía la
+      // frase anterior buscaba el fallo en la base, en el proxy o en la cuenta.
+      // El mismo texto se corrigió ya en `scripts/deploy.sh`.
       titulo: 'Dirección pública',
       estado: {
-        ok: enHttps || !enProduccion,
-        detalle: enHttps
+        ok: laCookieLlega || !enProduccion,
+        detalle: laCookieLlega
           ? urlPublica
-          : `${urlPublica} — sin HTTPS la cookie de sesión viaja sin cifrar`,
+          : enProduccion
+            ? `${urlPublica} — la cookie de sesión sale con Secure y el navegador la descarta sobre http: nadie puede entrar, y el formulario no da ningún error`
+            : `${urlPublica} — en desarrollo se entra igual, pero desplegado con esta dirección la cookie de sesión saldría con Secure y el navegador la descartaría: no entraría nadie`,
       },
     },
     {

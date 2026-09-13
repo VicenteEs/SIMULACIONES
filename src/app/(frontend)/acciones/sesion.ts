@@ -15,7 +15,11 @@
 import { cookies } from 'next/headers'
 import { getPayload, LockedAuth } from 'payload'
 import config from '@payload-config'
-import { MINUTOS_DE_BLOQUEO } from '@/collections/Usuarios'
+import {
+  CuentaDesactivada,
+  MENSAJE_CUENTA_DESACTIVADA,
+  MINUTOS_DE_BLOQUEO,
+} from '@/collections/Usuarios'
 import { accion, type Respuesta } from '@/lib/guardias'
 import { PREFIJO } from '@/lib/rutas'
 import { exigirContrasena, exigirCorreo, exigirTexto } from '@/lib/validacion'
@@ -106,6 +110,30 @@ async function nombreDeLaCookieDeSesion(): Promise<string> {
  */
 const PATH_COOKIE = PREFIJO || '/'
 
+/**
+ * La de vista previa se muda con ella, y tiene que ser a la vez.
+ *
+ * Viajaba a la raíz igual que viajaba el testigo, así que las páginas vecinas
+ * del proxy recibían también el `vista-previa-rol` de quien estuviera mirando
+ * «como residente». No abre nada —solo baja privilegios, y `rolEfectivo` lo
+ * valida contra el rol real—, pero es una cookie de sesión de esta plataforma
+ * paseándose por sitios que no son suyos, y el motivo de acotar el testigo vale
+ * igual aquí.
+ *
+ * A la vez y no por separado: la escribe `api/vista-previa/route.ts` y la borran
+ * `entrar()` y `salir()` de aquí abajo. Si un lado se muda y el otro no, el
+ * borrado apunta a un path donde no hay nada, la cookie sobrevive y la sesión
+ * siguiente empieza simulando el rol de la anterior.
+ *
+ * Queda el mismo cabo que con el testigo: la que dejaron en `/` las sesiones
+ * anteriores a este cambio sigue ganando mientras viva, porque el navegador
+ * manda primero la del path más específico y quien analiza la cabecera se queda
+ * con la última. Aquí el cabo es corto —cuatro horas de `maxAge` y solo puede
+ * rebajar el rol— y no merece cambiarle el nombre a la cookie, que es lo que
+ * haría falta para cortarlo.
+ */
+const PATH_VISTA_PREVIA = PATH_COOKIE
+
 const OPCIONES_COOKIE = {
   httpOnly: true,
   sameSite: 'lax' as const,
@@ -150,6 +178,16 @@ export async function entrar(
             'minutos. Espere y vuelva a intentarlo, o pida a un administrador que la desbloquee.',
         )
       }
+      // La cuenta sin activar la rechaza ahora el gancho `beforeLogin` de la
+      // colección, que es lo que cierra también `POST /api/usuarios/login`. Se
+      // reconoce por la clase y no por el texto —comparar frases se rompe en
+      // silencio en cuanto alguien reescribe una— y el mensaje se vuelve a
+      // lanzar como `Error` normal porque lo que llega al panel es
+      // `error.message`: un `APIError` viajando hasta aquí no aporta nada y sí
+      // arrastra su `status`, que en una acción de servidor no significa nada.
+      if (fallo instanceof CuentaDesactivada) {
+        throw new Error(MENSAJE_CUENTA_DESACTIVADA)
+      }
       // Para el resto, un mensaje único para «no existe» y «contraseña
       // incorrecta»: decir cuál de las dos falla convierte el formulario en un
       // comprobador de correos.
@@ -158,10 +196,14 @@ export async function entrar(
 
     if (!resultado.token) throw new Error('No se pudo iniciar la sesión.')
 
+    // Segunda cerradura, y a sabiendas de que hoy no llega a girar: el gancho
+    // `beforeLogin` lanza antes y `payload.login` ni devuelve. Se conserva
+    // porque cuesta una comparación y cubre el día que alguien retire el gancho
+    // —quitarlo reabriría `POST /api/usuarios/login`, pero al menos la pantalla
+    // propia seguiría cerrada— y porque el mensaje sale del mismo sitio, así
+    // que las dos capas no pueden discrepar.
     if (resultado.user?.activo !== true) {
-      throw new Error(
-        'Su cuenta existe pero todavía no está activada. Un administrador debe habilitarla.',
-      )
+      throw new Error(MENSAJE_CUENTA_DESACTIVADA)
     }
 
     const almacen = await cookies()
@@ -170,7 +212,9 @@ export async function entrar(
       maxAge: 8 * 60 * 60,
     })
     // Una sesión nueva empieza siempre con el rol real, nunca simulando otro.
-    almacen.delete(COOKIE_VISTA_PREVIA)
+    // Con el path con el que la escribe su ruta: sin él, `delete` caduca una
+    // cookie de la raíz que ya no es la nuestra y la simulación sobrevive.
+    almacen.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_VISTA_PREVIA })
 
     return { destino: resultado.user?.rol === 'admin' ? '/admin-panel' : '/' }
   })
@@ -183,10 +227,9 @@ export async function salir(): Promise<Respuesta> {
     // caduca una cookie de path `/` —el que Next pone por omisión— que ya no es
     // la nuestra, y la sesión seguiría abierta después de pulsar «salir».
     almacen.delete({ name: await nombreDeLaCookieDeSesion(), path: PATH_COOKIE })
-    // La de vista previa se borra en la raíz a propósito: la escribe
-    // `api/vista-previa/route.ts` con `path: '/'`, y borrarla en otro path la
-    // dejaría viva. Las dos tienen que mudarse al prefijo a la vez.
-    almacen.delete(COOKIE_VISTA_PREVIA)
+    // La de vista previa, en el mismo path con el que la escribe su ruta. Ver
+    // `PATH_VISTA_PREVIA`.
+    almacen.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_VISTA_PREVIA })
     return null
   })
 }
@@ -243,7 +286,30 @@ export async function fijarClaveNueva(
         data: { token: testigo, password: contrasena },
         overrideAccess: true,
       })
-      .catch(() => null)
+      .catch((fallo: unknown) => {
+        // La cuenta sin activar también llega por aquí, y decirle que el enlace
+        // caducó es mentirle.
+        //
+        // `resetPassword` corre el mismo gancho `beforeLogin` de la colección
+        // que `login` —lo hace justo antes de firmar el testigo, en
+        // `auth/operations/resetPassword.js`—, así que desde que ese gancho
+        // existe esta llamada lanza `CuentaDesactivada` con una cuenta que
+        // todavía no han habilitado. Y no es un camino raro: el administrador
+        // puede emitir el enlace antes de marcar la casilla, porque ni
+        // `generarEnlaceDeClave` ni `forgotPassword` miran `activo`; en esta
+        // instalación, sin SMTP, ese enlace es el único camino y caduca en una
+        // hora.
+        //
+        // Tragarse el fallo aquí y contestar «el enlace caducó o ya se usó»
+        // manda al residente a pedir otro enlace que fallará igual, y esconde
+        // lo único que falta de verdad, que es la casilla del administrador. Lo
+        // que sí es cierto es que no ha quedado contraseña nueva: el
+        // `killTransaction` de ese mismo `resetPassword.js` deshace la escritura
+        // junto con el vencimiento del testigo, de modo que el enlace sigue
+        // sirviendo en cuanto activen la cuenta y mientras le quede su hora.
+        if (fallo instanceof CuentaDesactivada) throw new Error(MENSAJE_CUENTA_DESACTIVADA)
+        return null
+      })
 
     if (!resultado?.token) {
       throw new Error('El enlace caducó o ya se usó. Pida uno nuevo.')

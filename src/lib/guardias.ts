@@ -13,6 +13,7 @@
 import { getPayload, type Payload } from 'payload'
 import config from '@payload-config'
 import { SLUGS_DE_MODULOS } from '@/collections'
+import { CATALOGOS_DEL_SIMULADOR } from '@/collections/catalogos'
 import { obtenerSesion } from '@/lib/sesion'
 
 export class ErrorDeAcceso extends Error {}
@@ -58,6 +59,38 @@ export async function exigirEdicionDe(coleccion: string): Promise<Contexto> {
 }
 
 /**
+ * Los catálogos del simulador se gobiernan con el permiso de su módulo.
+ *
+ * No son un módulo: no tienen página propia, ni entrada en la barra, ni casilla
+ * que marcar en la ficha de la cuenta. Son el **vocabulario** del módulo 04, y
+ * `catalogos.ts` ya los escribe con `escrituraDeModulo('cirugias')`.
+ *
+ * Aquella declaración gobierna la API REST; esta gobierna el panel, que es la
+ * puerta por la que se entra de verdad. El panel escribe con la API local,
+ * cuyo `overrideAccess` vale `true` por omisión, así que las funciones de
+ * `access` de la colección ni se consultan: lo único que le pregunta algo es
+ * `exigirEdicionDe` → `puedeEditar`. Sin esta tabla, el editor apartado del
+ * simulador no podía tocar un instrumento con `curl` pero seguía borrándolo
+ * desde el panel, y borrar uno deja a nulo el campo `instrumento` de cada paso
+ * que lo pedía: ese paso ya no se puede superar y el caso se queda sin salida.
+ *
+ * Va aparte de `SLUGS_DE_MODULOS` a propósito. Meter los cinco catálogos en esa
+ * lista los convertiría en módulos para todo lo demás que la consulta —la barra
+ * de navegación, la portada, las opciones de permisos de una cuenta nueva— y
+ * aparecerían cinco entradas que no llevan a ninguna parte.
+ *
+ * La lista sale de donde se declaran los catálogos y no se copia aquí, por el
+ * mismo motivo que la de módulos: copiada, el catálogo que se añada mañana
+ * quedaría fuera y cualquier editor podría escribirlo.
+ */
+const MODULO_DEL_VOCABULARIO: Record<string, string> = Object.fromEntries(
+  // El `as const` no es adorno: sin él `map` devuelve `string[][]` y
+  // `Object.fromEntries` cae en su sobrecarga que devuelve `any`, con lo que
+  // una errata en esta línea dejaría de verse al compilar.
+  CATALOGOS_DEL_SIMULADOR.map((catalogo) => [catalogo.slug, 'cirugias'] as const),
+)
+
+/**
  * ¿Puede esta cuenta escribir en esta colección?
  *
  * Está aparte y sin efectos para que las **páginas** del panel puedan
@@ -73,15 +106,19 @@ export function puedeEditar(usuario: Record<string, unknown>, coleccion: string)
 
   const permitidos = usuario.modulosEditables
   const restringido = Array.isArray(permitidos) && permitidos.length > 0
-  // Solo los cinco módulos admiten restricción; el material de apoyo lo usan
-  // todos los módulos y separarlo por permisos dejaría fichas sin sus imágenes.
+  // Admiten restricción los cinco módulos y el vocabulario que cuelga de uno de
+  // ellos. El material de apoyo —medios, modelos 3D, segmentos— no: lo usan los
+  // cinco módulos a la vez y separarlo por permisos dejaría fichas ajenas sin
+  // sus imágenes.
   //
-  // La lista se toma de donde se declaran las colecciones y no se copia aquí.
-  // Copiada, un módulo nuevo entraba sin restricción posible: quedaba fuera de
-  // este `includes`, ningún permiso por módulo se le aplicaba y cualquier
-  // editor podía escribirlo. Un permiso que falla abriendo no se nota.
-  const esModulo = (SLUGS_DE_MODULOS as readonly string[]).includes(coleccion)
-  return !(esModulo && restringido && !(permitidos as string[]).includes(coleccion))
+  // Las dos listas se toman de donde se declaran las colecciones y no se copian
+  // aquí. Copiadas, una colección nueva entraba sin restricción posible:
+  // quedaba fuera de este `includes`, ningún permiso por módulo se le aplicaba
+  // y cualquier editor podía escribirla. Un permiso que falla abriendo no se
+  // nota.
+  const modulo = MODULO_DEL_VOCABULARIO[coleccion] ?? coleccion
+  const esModulo = (SLUGS_DE_MODULOS as readonly string[]).includes(modulo)
+  return !(esModulo && restringido && !(permitidos as string[]).includes(modulo))
 }
 
 /** Forma uniforme de respuesta de las acciones del panel. */

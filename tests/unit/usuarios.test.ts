@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect } from 'vitest'
 import type { Field, FieldAccess } from 'payload'
-import { Usuarios } from '@/collections/Usuarios'
+import {
+  CuentaDesactivada,
+  MENSAJE_CUENTA_DESACTIVADA,
+  Usuarios,
+  correoDeClaveNueva,
+  enlaceDeClave,
+} from '@/collections/Usuarios'
 
 /**
  * Quién puede escribir `ultimoAcceso`.
@@ -71,5 +77,92 @@ describe('el último acceso lo anota la plataforma y nadie más', () => {
     // Se conserva junto al acceso, no en su lugar: describe la intención para
     // quien lea el campo. La puerta real es la de arriba.
     expect((ultimoAcceso as { admin?: { readOnly?: boolean } }).admin?.readOnly).toBe(true)
+  })
+})
+
+/**
+ * La cuenta desactivada no entra, venga por donde venga.
+ *
+ * La regla de D-020 vivía solo en `entrar()`, la pantalla propia. Pero
+ * `payload.login` también lo alcanza `POST /api/usuarios/login`, y por ahí una
+ * cuenta dada de baja recibía un testigo firmado de ocho horas. Lo que la
+ * salvaba después era el `activo` que comprueba cada guardia al resolver la
+ * sesión, no el no tener sesión.
+ *
+ * El gancho se prueba llamándolo a secas: es una función pura sobre el usuario
+ * que Payload le entrega y no toca la base ni la petición.
+ */
+const ganchoDeEntrada = () => {
+  const ganchos = Usuarios.hooks?.beforeLogin
+  if (!ganchos || ganchos.length !== 1) {
+    throw new Error('Usuarios tiene que declarar exactamente un gancho beforeLogin')
+  }
+  return (usuario: unknown) => ganchos[0]({ user: usuario } as never)
+}
+
+describe('la cuenta desactivada no obtiene testigo', () => {
+  const entrar = ganchoDeEntrada()
+
+  it('rechaza la cuenta sin activar', () => {
+    expect(() => entrar({ id: '3', email: 'r@h.cl', activo: false })).toThrow(CuentaDesactivada)
+  })
+
+  it('rechaza también la que no declara el campo, que es lo que manda un cliente a medias', () => {
+    // `activo !== true` y no `!activo`: la comprobación es estricta a propósito,
+    // porque lo que llega aquí puede venir de cualquier parte.
+    for (const usuario of [{ id: '3' }, { id: '3', activo: null }, { id: '3', activo: 'sí' }]) {
+      expect(() => entrar(usuario)).toThrow(CuentaDesactivada)
+    }
+  })
+
+  it('deja pasar la cuenta activa y devuelve el usuario tal cual', () => {
+    // Payload se queda con lo que devuelve el gancho (`user = await hook(…) || user`):
+    // devolver otra cosa cambiaría el usuario que se firma en el testigo.
+    const usuario = { id: '4', email: 'jefe@h.cl', activo: true }
+    expect(entrar(usuario)).toBe(usuario)
+  })
+
+  it('el rechazo sale legible por REST y no como un 500 mudo', () => {
+    // `isErrorPublic` mira el campo, no la clase: sin `isPublic`, `routeError`
+    // sustituye el mensaje por «Something went wrong» y quien llama no sabe si
+    // se equivocó de contraseña o si le dieron de baja.
+    const fallo = new CuentaDesactivada()
+    expect(fallo.isPublic).toBe(true)
+    expect(fallo.status).toBe(403)
+    expect(fallo.message).toBe(MENSAJE_CUENTA_DESACTIVADA)
+    // `formatErrors` compone la respuesta desde `name` y `message`.
+    expect(fallo.name).toBe('CuentaDesactivada')
+  })
+})
+
+/**
+ * El enlace de `/clave/<testigo>`, una sola vez.
+ *
+ * Lo arman el correo de recuperación y el panel, y cuando eran dos copias una
+ * se dejó el recorte de la barra final: con `NEXT_PUBLIC_SERVER_URL` acabada en
+ * `/`, el enlace salía con barra doble, no casaba con la ruta `/clave/[testigo]`
+ * y lo atendía otra página del servidor compartido con un 404.
+ */
+describe('enlaceDeClave', () => {
+  const original = process.env.NEXT_PUBLIC_SERVER_URL
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.NEXT_PUBLIC_SERVER_URL
+    else process.env.NEXT_PUBLIC_SERVER_URL = original
+  })
+
+  it('lleva el prefijo, porque la dirección pública lo trae', () => {
+    process.env.NEXT_PUBLIC_SERVER_URL = 'https://ved.example.net:10000/traumahub'
+    expect(enlaceDeClave('abc123')).toBe('https://ved.example.net:10000/traumahub/clave/abc123')
+  })
+
+  it('no deja una barra doble si la dirección trae barra final', () => {
+    process.env.NEXT_PUBLIC_SERVER_URL = 'https://ved.example.net:10000/traumahub/'
+    expect(enlaceDeClave('abc123')).toBe('https://ved.example.net:10000/traumahub/clave/abc123')
+  })
+
+  it('es exactamente el que se pega en el correo: una sola regla para los dos sitios', () => {
+    process.env.NEXT_PUBLIC_SERVER_URL = 'https://ved.example.net:10000/traumahub/'
+    expect(correoDeClaveNueva('abc123')).toContain(enlaceDeClave('abc123'))
   })
 })

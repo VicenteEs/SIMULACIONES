@@ -24,6 +24,30 @@ const OPCIONES_DE_MODULO = [
 ]
 
 /**
+ * La dirección de la pantalla propia para elegir contraseña.
+ *
+ * Está aparte porque la arman **dos** sitios y tienen que dar exactamente lo
+ * mismo: el correo de recuperación de aquí abajo y el enlace que un
+ * administrador genera a mano desde el panel cuando no hay SMTP
+ * (`generarEnlaceDeClave`, en `acciones/admin.ts`). Mientras fueron dos copias,
+ * una de ellas se dejó el recorte de la barra final y con
+ * `NEXT_PUBLIC_SERVER_URL=…/traumahub/` entregaba `…/traumahub//clave/<testigo>`:
+ * esa dirección no casa con la ruta `/clave/[testigo]`, la atiende otra página
+ * del servidor compartido y devuelve un 404 que no explica nada. En esta
+ * instalación el enlace del panel no es el camino alternativo sino el único, y
+ * el testigo caduca en una hora: no hay margen para depurarlo.
+ *
+ * Aquí no interviene `ruta()`. Esto no es una ruta de la aplicación sino una
+ * dirección absoluta para pegar en un mensaje, y el prefijo ya viene dentro de
+ * `NEXT_PUBLIC_SERVER_URL` —que es la dirección pública completa, a diferencia
+ * de `serverURL` de `payload.config.ts`, que se queda solo con el origen—.
+ */
+export function enlaceDeClave(testigo: string): string {
+  const base = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')
+  return `${base}/clave/${testigo}`
+}
+
+/**
  * Correo para elegir contraseña nueva.
  *
  * El de Payload apunta a `/admin/reset/<testigo>`, y esa ruta es el redirector
@@ -34,15 +58,13 @@ const OPCIONES_DE_MODULO = [
  * quiere nadie es que el correo de recuperación dependa de un 308 sobre una
  * ruta retirada, sobre todo el día que esa ruta se limpie.
  *
- * Así que se arma aquí, en español y apuntando directo a la pantalla propia.
- * La dirección sale de `NEXT_PUBLIC_SERVER_URL`, que lleva el prefijo, y es la
- * misma que entrega el panel cuando un administrador genera el enlace a mano.
+ * Así que se arma aquí, en español y apuntando directo a la pantalla propia,
+ * con la misma `enlaceDeClave` que usa el panel.
  *
  * Ver O-022 en BITACORA.md.
  */
 export function correoDeClaveNueva(testigo: string): string {
-  const base = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')
-  const enlace = `${base}/clave/${testigo}`
+  const enlace = enlaceDeClave(testigo)
   return `
     <p>Alguien pidió una contraseña nueva para su cuenta de TraumaHub.</p>
     <p><a href="${enlace}">Elegir una contraseña nueva</a></p>
@@ -50,6 +72,57 @@ export function correoDeClaveNueva(testigo: string): string {
     <p>Si no fue usted, no hace falta hacer nada: la contraseña actual sigue
     siendo válida.</p>
   `
+}
+
+/**
+ * Lo que se le dice a quien tiene cuenta pero todavía no la han activado.
+ *
+ * Está exportado porque lo dicen dos capas: el gancho de aquí abajo, que es la
+ * cerradura, y `entrar()` en `acciones/sesion.ts`, que es la pantalla. Repetido
+ * a mano, el día que una de las dos se matice la otra sigue diciendo lo de
+ * antes y el residente lee dos explicaciones distintas del mismo portazo.
+ */
+export const MENSAJE_CUENTA_DESACTIVADA =
+  'Su cuenta existe pero todavía no está activada. Un administrador debe habilitarla.'
+
+/**
+ * La cuenta desactivada no entra, venga por donde venga.
+ *
+ * La regla de D-020 —«una cuenta desactivada no ve absolutamente nada»— vivía
+ * solo en `entrar()`, es decir, en la pantalla propia. Pero `payload.login` es
+ * de Payload y también lo alcanza `POST /api/usuarios/login`: hasta aquí, esa
+ * puerta devolvía un testigo firmado de ocho horas a una cuenta dada de baja.
+ * Lo que la salvaba después era el `activo` que comprueba cada guardia al
+ * resolver la sesión, no el hecho de no tener sesión, y esa es una diferencia
+ * que se nota el día que alguien escriba una consulta sin esa comprobación.
+ *
+ * Es una clase propia y no un `Error` suelto porque `entrar()` la reconoce con
+ * `instanceof` para dar su mensaje en español sin comparar el texto de la
+ * excepción, que es lo que se rompe en silencio cuando alguien reescribe una
+ * frase.
+ *
+ * Los dos campos sueltos son el contrato de Payload para que la respuesta REST
+ * diga algo: `isErrorPublic` se conforma con `isPublic === true` —lo comprueba
+ * por el campo, no por la clase— y sin él `routeError` cambia el mensaje por
+ * «Something went wrong». No hereda de `APIError` a propósito: eso obligaría a
+ * importar `payload` como **valor** desde una colección, y media docena de
+ * pruebas sustituyen ese módulo por un doble con dos exportaciones; el día que
+ * se añada la tercera, fallarían archivos que no tienen nada que ver con esto.
+ * `formatErrors` no pide la clase: con `name` y `message` ya compone la
+ * respuesta.
+ *
+ * El 403 y no un 401: las credenciales eran correctas. Quien lee el registro
+ * del servidor tiene que poder distinguir «contraseña mala» de «cuenta de
+ * baja», que se atienden de maneras muy distintas.
+ */
+export class CuentaDesactivada extends Error {
+  readonly status = 403
+  readonly isPublic = true
+
+  constructor() {
+    super(MENSAJE_CUENTA_DESACTIVADA)
+    this.name = 'CuentaDesactivada'
+  }
 }
 
 /**
@@ -191,6 +264,20 @@ export const Usuarios: CollectionConfig = {
             return docs?.length ?? 0
           },
         })
+      },
+    ],
+    // La cuenta desactivada no llega a tener testigo. Ver `CuentaDesactivada`.
+    //
+    // Corre después de `resetLoginAttempts` y antes de `jwtSign`
+    // (`auth/operations/login.js`), así que la contraseña ya se comprobó —por
+    // eso el mensaje puede admitir que la cuenta existe: quien llega aquí ya la
+    // conocía— y todavía no se ha firmado nada que haya que revocar.
+    beforeLogin: [
+      ({ user }) => {
+        if ((user as { activo?: unknown } | null | undefined)?.activo !== true) {
+          throw new CuentaDesactivada()
+        }
+        return user
       },
     ],
     // Deja constancia de la última entrada. Es lo primero que se mira para

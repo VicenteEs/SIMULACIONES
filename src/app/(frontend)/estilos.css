@@ -99,6 +99,27 @@ main { max-width: 1060px; margin: 0 auto; padding: 44px 24px 96px; }
 .modulos { display: flex; gap: 20px; flex: 1; flex-wrap: wrap; }
 .modulos a { color: #b0c4e6; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s ease, border-color 0.15s ease; }
 .modulos a:hover { color: #fff; border-bottom-color: var(--marca); }
+/* El módulo actual, para quien mira la pantalla.
+
+   `BarraDeModulos` ya pone `aria-current="page"` (MenuMovil.tsx), pero sin esta
+   regla el dato existía solo para el lector de pantalla: en escritorio los cinco
+   enlaces seguían siendo idénticos, y de las tres navegaciones con estado activo
+   esta era la única a medias —`.menu-enlace-activo` pinta el panel del teléfono
+   y `.admin-nav-link[aria-current="page"]` la barra del panel—.
+
+   Se cuelga del atributo y no de una clase a propósito: el componente dejó de
+   llevar clase para no tener dos fuentes del mismo dato, y devolvérsela sería
+   reabrir esa grieta.
+
+   El subrayado va en `--cian` y no en `--marca` porque el bloque de correcciones
+   del final de esta hoja reescribe `.modulos a:hover` a cian; con `--marca` aquí,
+   pasar el ratón por encima del módulo en el que ya se está le cambiaba el color
+   sin que hubiera cambiado nada. Las dos reglas tienen la misma especificidad
+   (0,2,1), así que el `:hover` de más abajo sigue mandando por ser posterior, que
+   es justo lo que se quiere: el puntero da su respuesta y al salir vuelve el
+   estado. Y no se toca `font-weight`: la fila es `nowrap` con scroll horizontal
+   entre 640 y 1250 px, y engordar el activo mueve los demás en cada navegación. */
+.modulos a[aria-current="page"] { color: #fff; border-bottom-color: var(--cian); }
 .barra-derecha { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .enlace-nav { color: #b0c4e6; font-size: 13px; background: none; border: 1px solid #2c4270; padding: 5px 12px; border-radius: 100px; cursor: pointer; text-decoration: none; white-space: nowrap; transition: all 0.15s ease; }
 .enlace-nav:hover { color: #fff; border-color: #6284c4; background: rgba(255, 255, 255, 0.05); }
@@ -409,6 +430,26 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .consola-puntaje-numero { font-size: 26px; font-weight: 700; color: var(--marca); }
 .consola-puntaje-total { font-size: 13px; color: var(--mudo); }
 
+/* «Reiniciar caso» tira a la basura todo el avance del caso y estaba a los mismos
+   8 px del «/ 12» que separan el número de su total: leído de corrido parecía una
+   tercera pieza del marcador. Se separa y se desmarca del resto de `.consola-boton`,
+   que comparte con los modos y con «Capturar»: ahí el `:hover` en `--marca` invita
+   a pulsar, y este es el único botón de la consola cuyo clic accidental no se puede
+   deshacer. El aviso es el rojo de la paleta, reservado para alertar y por eso
+   fuera de la familia azul de la marca.
+
+   Se cuelga de `.consola-puntaje .consola-boton` y no de una clase propia porque
+   el marcado vive en `ConsolaQuirurgica.tsx`, de otro lote; es el único
+   `.consola-boton` dentro del marcador, así que el selector no puede alcanzar a
+   ningún otro. Si algún día entra un segundo botón ahí, esto necesita su clase. */
+.consola-puntaje .consola-boton {
+  margin-left: 20px;
+  font-size: 12px;
+  padding: 5px 10px;
+  color: var(--mudo);
+}
+.consola-puntaje .consola-boton:hover { border-color: var(--alerta); color: var(--alerta); }
+
 .consola-cuerpo {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr) 250px;
@@ -564,7 +605,19 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .instrumento-icono { width: 20px; height: 20px; flex: none; }
 
 .consola-objetivo { margin-top: 20px; }
-.consola-instruccion { font-size: 12.5px; color: var(--mudo); line-height: 1.5; margin: 0 0 10px; }
+/* La frase que dice qué hay que hacer en este paso era lo más apagado de toda la
+   consola: 12,5 px en `--mudo`, el gris que esta hoja reserva para las notas al
+   pie, mientras el rótulo de la sección de al lado y las medidas se leían antes
+   que ella. Es el texto que el residente busca primero, así que sube a `--pizarra`
+   —el color del cuerpo de la consola— y a 14 px.
+
+   14 y no los 15 px del `body`: estas frases se pintan también en
+   `.consola-panel-der`, una columna de 250 px con `max-height: 620px` y scroll
+   propio, y debajo de ellas está «Aplicar paso». Cada línea de más empuja ese
+   botón fuera de lo que se ve y obliga a descubrir que el panel se desplaza solo,
+   que es el mismo motivo por el que la vista previa del instrumento está clavada
+   a 170 px unas líneas más abajo. */
+.consola-instruccion { font-size: 14px; color: var(--pizarra); line-height: 1.5; margin: 0 0 10px; }
 
 .consola-fuerza,
 .consola-giro { display: block; font-size: 12.5px; color: var(--pizarra); margin: 10px 0; }
@@ -1541,7 +1594,23 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   font-weight: 500;
 }
 
+/* Ablanda el `text-transform: uppercase` que la insignia recibe del bloque
+   `.tarjeta-ficha .codigo, .tarjeta-ficha .borrador`. Es para los códigos que
+   escribe el autor en las demás rejillas —«31-a1», «s82.3»—. */
 .tarjeta-ficha .codigo { text-transform: capitalize; }
+
+/* Menos en «Continúa leyendo», que es la única insignia que no lleva un código
+   sino el nombre del módulo. La regla de arriba nació cuando ahí se pintaba el
+   slug crudo y servía para que «patologias» no saliera en mayúsculas; desde que
+   esa insignia usa `NOMBRE_DE_MODULO` (page.tsx), `capitalize` le pone mayúscula
+   a la preposición: «Biblioteca De Patologías», «Lectura De Imágenes», en la
+   primera pantalla del residente.
+
+   `none` y no borrar la regla de arriba: sin ella volvería a mandar el
+   `uppercase` de aquel bloque y la insignia pasaría a «BIBLIOTECA DE
+   PATOLOGÍAS». Va por descendencia —especificidad (0,3,0)— para que gane sin
+   depender de dónde caiga en el archivo. */
+.continuar-leyendo .tarjeta-ficha .codigo { text-transform: none; }
 
 /* ==========================================================================
    Campos con formato fuera de los bloques.

@@ -65,6 +65,43 @@ export type Campo =
        * siempre la clave y un `defaultValue` solo se aplica ante `undefined`.
        */
       porOmision?: string
+      /**
+       * Qué más hay que llenar según la opción que se elija.
+       *
+       * Copia en el idioma del panel una validación que la colección ya hace
+       * al publicar. No es redundancia: la de la colección es la que manda —es
+       * el único punto por el que pasan todas las escrituras—, pero Payload la
+       * envuelve en un `ValidationError` cuyo `message` dice «The following
+       * field is invalid: Qué se evalúa», y el texto en español se queda
+       * dentro de `error.data`, que es justo lo que `accion()` no enseña. Así
+       * que el traumatólogo veía media frase en inglés con el nombre del campo
+       * y ninguna pista de qué rellenar.
+       *
+       * Basta con que llegue **uno** de `campos` con un número: son parejas de
+       * mínimo y máximo, y declarar solo un extremo es legítimo.
+       */
+      exigeAlguno?: { opcion: string; campos: string[]; mensaje: string }[]
+      /**
+       * Qué **no** puede venir lleno según la opción que se elija.
+       *
+       * El reverso de `exigeAlguno`, y tampoco está por simetría: lo pide el
+       * motor. `objetivoDelPaso` (src/lib/simulador.ts) no se fía del valor
+       * `instrumento` —es lo que el `DEFAULT` de la columna escribió en TODA
+       * fila anterior—, así que ante él deduce el modo del rango que el paso
+       * traiga; un número de fuerza olvidado convierte en silencio «elija el
+       * punzón» en «aplique entre 8 y 20 N».
+       *
+       * Hace falta aquí por la misma razón que `exigeAlguno`, y más que él: el
+       * editor del panel pinta los siete números uno debajo de otro sin
+       * esconder los que no tocan, de modo que cambiar el objetivo a
+       * «instrumento» dejando un número tecleado es el gesto natural, y lo que
+       * se recibía era el «The following field is invalid: Qué se evalúa» de
+       * Payload con el español encerrado en `error.data`.
+       *
+       * Sobra con que **uno** de `campos` traiga un número: cualquiera de los
+       * cuatro basta para que el motor deduzca otro modo.
+       */
+      prohibeAlguno?: { opcion: string; campos: string[]; mensaje: string }[]
     })
   | (CampoBase & { tipo: 'casilla' })
   | (CampoBase & {
@@ -141,8 +178,15 @@ export interface EsquemaDeColeccion {
   /**
    * Colecciones de archivo: el registro nace de una subida y no de un
    * formulario vacío.
+   *
+   * `maximoBytes` es el mismo techo que anuncia `ayuda`, pero en cifra. La
+   * frase la lee el traumatólogo; la cifra la comprueba `subirArchivo` antes de
+   * entregarle el archivo a Payload. Iban solo en prosa, y por eso el panel
+   * pudo prometer 50 MB mientras Next cortaba el cuerpo en 8 sin decir nada:
+   * una frase no la puede comprobar nadie. Escritos juntos, separarlos exige
+   * verlos a la vez.
    */
-  subida?: { acepta: string; ayuda: string }
+  subida?: { acepta: string; ayuda: string; maximoBytes: number }
 }
 
 // ---------------------------------------------------------------- auxiliares
@@ -509,6 +553,45 @@ export const Cirugias: EsquemaDeColeccion = {
                 { valor: 'reduccion', etiqueta: 'Reducir dentro de la tolerancia' },
                 { valor: 'fuerza', etiqueta: 'Aplicar la fuerza correcta' },
               ],
+              // Las mismas tres reglas —y los mismos tres textos— que
+              // `exigeElRangoDeSuObjetivo` en `src/collections/Cirugias.ts`.
+              // Allá es donde se corta de verdad; aquí es donde el mensaje
+              // llega en español y señalando la fila. Las tres se mueven
+              // juntas: quien añada una regla allá tiene que copiarla aquí, o
+              // el traumatólogo vuelve a recibir el mensaje en inglés de
+              // Payload. `reduccion` no está a propósito: sus tres tolerancias
+              // tienen `defaultValue: 5`, de modo que siempre hay rango contra
+              // el que medir.
+              exigeAlguno: [
+                {
+                  opcion: 'trazo',
+                  campos: ['trazoMinimo', 'trazoMaximo'],
+                  mensaje:
+                    'Un paso que evalúa el trazo necesita al menos una de las dos longitudes: sin rango, cualquier incisión se da por buena.',
+                },
+                {
+                  opcion: 'fuerza',
+                  campos: ['fuerzaMinima', 'fuerzaMaxima'],
+                  mensaje:
+                    'Un paso que evalúa la fuerza necesita al menos uno de los dos topes: sin rango, cualquier fuerza se da por buena.',
+                },
+              ],
+              // La tercera, que es la contraria y la que más se dispara: los
+              // siete números se pintan siempre, así que cambiar el objetivo a
+              // «instrumento» y dejar un tope de fuerza tecleado no cuesta
+              // nada. Las tres tolerancias quedan fuera a propósito —tienen
+              // `defaultValue: 5` y `DEFAULT 5` en la migración, de modo que
+              // las lleva toda fila y no prueban intención de nadie—; los
+              // cuatro números de fuerza y trazo se crearon sin `DEFAULT`, así
+              // que ahí un número lo tecleó una persona.
+              prohibeAlguno: [
+                {
+                  opcion: 'instrumento',
+                  campos: ['fuerzaMinima', 'fuerzaMaxima', 'trazoMinimo', 'trazoMaximo'],
+                  mensaje:
+                    'Un paso que solo pide elegir el instrumento no puede llevar además un rango de fuerza o de incisión: borre esos números, o cambie el objetivo al que de verdad se mide.',
+                },
+              ],
             },
             {
               tipo: 'relacion',
@@ -657,7 +740,13 @@ export const Segmentos: EsquemaDeColeccion = {
   singular: 'Segmento',
   plural: 'Segmentos anatómicos',
   titulo: 'nombre',
-  descripcion: 'Ordenan la biblioteca y el mapa corporal del examen físico.',
+  // Decía «y el mapa corporal del examen físico». No hay tal mapa: `zonaMapa`
+  // se guarda desde la primera migración y no lo lee ninguna página, y
+  // `examen-fisico/page.tsx` agrupa por segmento en secciones con su título,
+  // sin silueta ninguna. La colección ya lo corrigió en su propio texto
+  // (`src/collections/Segmentos.ts`), pero ese texto no lo pinta nadie desde
+  // que se retiró la interfaz de Payload (D-038): el que se lee es este.
+  descripcion: 'Ordenan la biblioteca y agrupan las maniobras del examen físico.',
   versionada: false,
   familia: 'apoyo',
   buscarEn: ['nombre'],
@@ -676,7 +765,15 @@ export const Segmentos: EsquemaDeColeccion = {
     },
     {
       titulo: 'Zona en el mapa corporal',
-      descripcion: 'Recuadro sensible del mapa del examen físico.',
+      // La sección se queda, con su promesa retirada. Las cuatro columnas
+      // existen desde la migración inicial y soltarlas cuesta otra migración,
+      // así que quitarlas de aquí dejaría un campo de la colección sin ninguna
+      // pantalla desde la que tocarlo —justo lo que vigila
+      // `tests/unit/esquema.test.ts`—. Lo que sí se retira es la frase que
+      // anunciaba un mapa que no existe: el traumatólogo rellenaba cuatro
+      // casillas creyendo que dibujaba algo.
+      descripcion:
+        'Reservado para el mapa corporal: todavía no se dibuja en ninguna página, así que rellenarlo no cambia nada de lo que ve el residente.',
       campos: [
         {
           tipo: 'grupo',
@@ -720,6 +817,7 @@ export const Medios: EsquemaDeColeccion = {
     // además el formulario y su codificación. Los dos números se deciden
     // juntos: cambiar uno sin el otro los vuelve a separar.
     ayuda: 'Imagen (PNG, JPG, WEBP, SVG) o video (MP4, WEBM). Máximo 7 MB.',
+    maximoBytes: 7 * 1024 * 1024,
   },
   secciones: [
     {
@@ -755,7 +853,22 @@ export const Modelos3D: EsquemaDeColeccion = {
   ],
   subida: {
     acepta: '.glb,model/gltf-binary',
-    ayuda: 'Archivo .glb de hasta 5 MB. Se comprueba el contenido, no la extensión.',
+    // El porqué del `.glb` va en la ayuda y no en un comentario: quien exporta
+    // desde Blender tiene delante tres opciones —«glTF Separate», «glTF
+    // Embedded» y «glTF Binary»— y elegir mal no da un error que se entienda,
+    // sino un rechazo por firma del archivo. El glTF de texto sale acompañado
+    // de un `.bin` y de las texturas sueltas, y aquí se guarda **un** archivo
+    // por modelo: los demás se quedarían fuera y el modelo abriría sin
+    // geometría o sin color. La razón completa está en
+    // `src/uploads/validarModelo3D.ts`, que es quien rechaza.
+    ayuda:
+      'Archivo .glb de hasta 5 MB. En Blender, «glTF Binary (.glb)»: las otras dos opciones dejan un .bin y las texturas en archivos aparte, y aquí se guarda uno solo. Se comprueba el contenido, no la extensión.',
+    // El mismo número que `LIMITE_BYTES_MODELO_3D` en
+    // `src/uploads/validarModelo3D.ts`, que es quien lo hace cumplir por
+    // firma. No se importa de allá para no arrastrar un módulo de servidor al
+    // paquete del navegador —este esquema lo importa el formulario—; los ata
+    // `tests/unit/esquema.test.ts`, que falla si se separan.
+    maximoBytes: 5 * 1024 * 1024,
   },
   secciones: [
     {

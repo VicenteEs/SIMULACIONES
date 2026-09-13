@@ -9,7 +9,11 @@ import {
   instruccionDelPaso,
   objetivoDelPaso,
   puntajeMaximo,
+  puntosDelPaso,
+  rangoDeFuerzaEnTexto,
+  rangoDeTrazoEnTexto,
   RESULTADOS,
+  topesDeReduccion,
   type Objetivo,
   type PasoQuirurgico,
 } from '@/lib/simulador'
@@ -272,17 +276,6 @@ export function rangoDelDeslizadorDeFuerza(paso: PasoQuirurgico): { min: number;
   return { min: 0, max: 120 }
 }
 
-/** El rango bueno, escrito para el rótulo del deslizador. */
-function rangoUtilEnTexto(paso: PasoQuirurgico): string | null {
-  const { fuerzaMinima: minima, fuerzaMaxima: maxima } = paso
-  if (typeof minima === 'number' && typeof maxima === 'number') {
-    return `rango útil ${minima}–${maxima} N`
-  }
-  if (typeof minima === 'number') return `rango útil: desde ${minima} N`
-  if (typeof maxima === 'number') return `rango útil: hasta ${maxima} N`
-  return null
-}
-
 export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
   const mando = useRef<MandoDelLienzo | null>(null)
 
@@ -306,9 +299,13 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
   }))
   const [puntaje, setPuntaje] = useState(0)
   const [resueltos, setResueltos] = useState<Set<string>>(new Set())
-  // Los pasos que se fallaron alguna vez. Son estos y no los resueltos los que
-  // deciden lo que vale el acierto: ver `aplicarPaso`.
+  // Los pasos que se fallaron alguna vez, y aparte los que además llegaron a
+  // dañar. Son estos dos y no los resueltos los que deciden lo que vale el
+  // acierto (`puntosDelPaso`), y son los únicos que hacen que pasarse y
+  // quedarse corto dejen de costar lo mismo: el registro de abajo, que era lo
+  // único que los distinguía, se recorta a diez líneas y muere al recargar.
   const [fallados, setFallados] = useState<Set<string>>(new Set())
+  const [complicados, setComplicados] = useState<Set<string>>(new Set())
   const [registro, setRegistro] = useState<Anotacion[]>([])
   const [resultado, setResultado] = useState<Anotacion | null>(null)
   // Se arranca con la piel y el músculo apagados, y no encendidos, por el modo
@@ -325,9 +322,12 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
   const terminado = indice >= caso.pasos.length
   const maximo = useMemo(() => puntajeMaximo(caso.pasos), [caso.pasos])
 
-  // La escala, una sola vez y con su guarda. Un cero escrito a mano en el caso
-  // no es `undefined`, así que el valor por omisión de `largoDelTrazo` no lo
-  // repone: la incisión mediría 0 mm siempre y el paso sería insuperable.
+  // La escala, una sola vez y con su guarda. Quien de verdad la garantiza es
+  // `escalaPositiva` en `casoQuirurgico.ts`, que ya convierte el cero y el
+  // negativo en 1000 antes de mandar el caso: esto es el último cerrojo, y se
+  // deja porque lo que hay al otro lado no es un número raro sino un caso
+  // imposible —con escala 0 la incisión mide 0 mm siempre y el paso de trazo no
+  // se puede superar, sin nada en pantalla que lo explique—.
   const escalaMm = caso.milimetrosPorUnidad || 1000
 
   /**
@@ -345,6 +345,7 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
    */
   const objetivo = paso ? objetivoDelPaso(paso) : null
   const modoDelPaso = objetivo ? MODO_DEL_OBJETIVO[objetivo] : null
+  const topes = paso ? topesDeReduccion(paso) : null
 
   /**
    * Deja constancia de algo: en el pie y junto al botón.
@@ -430,34 +431,31 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
       // acierta una sola vez y detrás se avanza, así que preguntar «¿ya estaba
       // resuelto?» antes de sumar era una guarda que no distinguía a nadie.
       //
-      // Pulsar sin instrumento no cuenta. Ahí la consola se para antes de
-      // evaluar nada —no llegó a tocarse al paciente— y ese aviso es ahora el
-      // que explica el botón que antes estaba gris y mudo: cobrárselo sería
-      // cobrar por leer la instrucción.
-      if (evaluacion.resultado !== RESULTADOS.SIN_INSTRUMENTO) {
-        setFallados((previos) => (previos.has(paso.id) ? previos : new Set(previos).add(paso.id)))
-      }
+      // El que daña se apunta aparte del que se queda corto, porque no vale lo
+      // mismo: `puntosDelPaso` le cobra el paso entero. Sin estos dos conjuntos
+      // la diferencia solo existía en la frase del registro.
+      //
+      // Pulsar sin instrumento no cuenta en ninguno de los dos. Ahí la consola
+      // se para antes de evaluar nada —no llegó a tocarse al paciente— y ese
+      // aviso es el que explica el botón que antes estaba gris y mudo:
+      // cobrárselo sería cobrar por leer la instrucción.
+      const anotarEn = (poner: typeof setFallados) =>
+        poner((previos) => (previos.has(paso.id) ? previos : new Set(previos).add(paso.id)))
+      if (evaluacion.complicacion) anotarEn(setComplicados)
+      else if (evaluacion.resultado !== RESULTADOS.SIN_INSTRUMENTO) anotarEn(setFallados)
       return
     }
 
     // El motor no tiene memoria: evalúa un gesto suelto y entrega siempre el
-    // valor entero del paso (ver `Evaluacion.puntos` en `simulador.ts`). Quien
-    // decide cuánto se cobra es la consola, y lo decide por los fallos previos.
-    //
-    // La mitad, y no cero, a propósito: acertar después de que la consola te
-    // corrija sigue siendo haber aprendido el gesto, y cero igualaría al que se
-    // atasca con el que abandona. Lo que no puede seguir pasando es que el que
-    // acierta a la primera y el que aporrea el botón terminen con el mismo
-    // número, porque el registro que los distinguía se pierde a las diez líneas
-    // y no se guarda en ninguna parte.
-    //
-    // Lo que esto cuesta, y hay que saberlo antes de tocarlo: `puntajeMaximo`
-    // suma los pasos enteros, así que el «/ máximo» de la barra deja de ser
-    // alcanzable en cuanto se falla un paso. Se acepta a sabiendas —ese tope es
-    // la referencia del caso, no una promesa de que se pueda igualar—, pero son
-    // dos cuentas de lo mismo en dos sitios: quien cambie una tiene que mirar
-    // la otra o el marcador se queda mintiendo.
-    const puntos = fallados.has(paso.id) ? Math.floor(evaluacion.puntos / 2) : evaluacion.puntos
+    // valor entero del paso. Quién lo cobra y cuánto lo decide `puntosDelPaso`,
+    // que es una función pura del motor y no una regla escondida en la
+    // interfaz: la política de puntuación tiene prueba propia, y la consola
+    // solo aporta lo único que ella sabe, que es lo que pasó antes en este
+    // mismo paso.
+    const puntos = puntosDelPaso(paso, {
+      fallo: fallados.has(paso.id),
+      complicacion: complicados.has(paso.id),
+    })
     if (!resueltos.has(paso.id)) {
       setPuntaje((n) => n + puntos)
       setResueltos((previos) => new Set(previos).add(paso.id))
@@ -501,6 +499,7 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
     setPuntaje(0)
     setResueltos(new Set())
     setFallados(new Set())
+    setComplicados(new Set())
     setRegistro([])
     setResultado(null)
     mando.current?.borrarTrazo()
@@ -565,14 +564,14 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
    * fina —que es lo que el módulo enseña— se convertía en pulsar el botón hasta
    * que dejara pasar.
    *
-   * Solo se pinta el tope que el paso trae escrito. Repetir aquí los valores
-   * por omisión de `evaluarGesto` —el 5, y la diástasis heredando el tope del
-   * desplazamiento— sería la forma segura de que un día enseñe un número y se
-   * mida contra otro. En la práctica toda fila los trae: los tres campos tienen
-   * `defaultValue: 5` en `Cirugias.ts`.
+   * El tope se pregunta a `topesDeReduccion`, que es la misma función que usa
+   * `evaluarGesto`, y no se lee de `paso.tolerancia…` a pelo. Antes se pintaba
+   * solo lo que el paso traía escrito —para no arriesgarse a enseñar un número
+   * y medir contra otro— y un paso antiguo sin tolerancias se quedaba sin
+   * ninguna referencia en pantalla mientras el motor lo juzgaba igual, con sus
+   * respaldos. Con la regla en un solo sitio ese riesgo desaparece.
    */
-  const lineaDeTope = (valor: number, tope: number | null | undefined, unidad: 'mm' | '°') => {
-    if (typeof tope !== 'number') return null
+  const lineaDeTope = (valor: number, tope: number, unidad: 'mm' | '°') => {
     const fuera = valor > tope
     return (
       <dd className="consola-desglose" style={fuera ? { color: 'var(--ambar)' } : undefined}>
@@ -584,14 +583,10 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
   /** La incisión trazada contra el rango que pide el paso. */
   const lineaDelTrazo = () => {
     if (objetivo !== 'trazo' || !paso) return null
+    const rango = rangoDeTrazoEnTexto(paso)
+    if (!rango) return null
     const { trazoMinimo: minimo, trazoMaximo: maximo } = paso
-    if (typeof minimo !== 'number' && typeof maximo !== 'number') return null
-    const pedido =
-      typeof minimo === 'number' && typeof maximo === 'number'
-        ? `objetivo ${minimo}–${maximo} mm`
-        : typeof minimo === 'number'
-          ? `objetivo: desde ${minimo} mm`
-          : `objetivo: hasta ${maximo} mm`
+    const pedido = `objetivo: ${rango}`
     if (largoDelTrazoMm <= 0) {
       return <dd className="consola-desglose">{pedido} · sin trazar</dd>
     }
@@ -610,7 +605,25 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
   const ayudaDelModo = MODOS.find((m) => m.valor === modo)?.ayuda ?? ''
   const etiquetaDelModoDelPaso = MODOS.find((m) => m.valor === modoDelPaso)?.etiqueta ?? null
   const topesDelDeslizador = paso ? rangoDelDeslizadorDeFuerza(paso) : { min: 0, max: 120 }
-  const rangoUtil = paso ? rangoUtilEnTexto(paso) : null
+  const rangoUtil = paso ? rangoDeFuerzaEnTexto(paso) : null
+
+  // Un paso que primero se pasó y después se quedó corto está en los dos
+  // conjuntos: se cuentan los pasos, no los tropiezos, o el resumen diría que
+  // hubo que repetir más pasos de los que tiene el caso.
+  const pasosConTropiezo = new Set([...fallados, ...complicados]).size
+  const complicaciones = complicados.size
+  const resumenDelCaso =
+    pasosConTropiezo === 0
+      ? 'Todos los pasos a la primera.'
+      : `Hubo que repetir ${pasosConTropiezo} ${
+          pasosConTropiezo === 1 ? 'paso' : 'pasos'
+        } de ${caso.pasos.length}${
+          complicaciones > 0
+            ? complicaciones === 1
+              ? ', y uno de ellos terminó en complicación, que no puntúa'
+              : `, y ${complicaciones} de ellos terminaron en complicación, que no puntúan`
+            : ''
+        }; las correcciones están en la retroalimentación clínica, debajo.`
 
   // ------------------------------------------------------------- pintado
   if (!caso.modeloUrl) {
@@ -659,10 +672,11 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
           ) : null}
         </dl>
         {/* El tope lo da `puntajeMaximo`, que suma los pasos enteros, mientras
-            que el acierto tras un fallo cobra la mitad (ver `aplicarPaso`). O
-            sea: este número es la referencia del caso, y en cuanto se falla un
-            paso ya no se puede igualar. Está puesto así a propósito; lo que no
-            se puede hacer es cambiar una de las dos cuentas sin la otra. */}
+            que el acierto tras un fallo cobra la mitad y tras una complicación
+            no cobra nada (`puntosDelPaso`). O sea: este número es la referencia
+            del caso, y en cuanto se falla un paso ya no se puede igualar. Está
+            puesto así a propósito; lo que no se puede hacer es cambiar una de
+            las dos cuentas sin la otra. */}
         <div className="consola-puntaje">
           <span className="consola-puntaje-numero">{puntaje}</span>
           <span className="consola-puntaje-total">/ {maximo}</span>
@@ -674,7 +688,11 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
 
       <div className="consola-cuerpo">
         {/* ------------------------------------------------ panel izquierdo */}
-        <aside className="consola-panel consola-panel-izq">
+        {/* Sin `consola-panel-izq`: ninguna hoja la declaraba. El aspecto de
+            esta columna lo da `.consola-panel` a secas —el borde derecho— y
+            `.consola-panel-der` es la que lo invierte para la otra. Una clase
+            que nadie define parece un enganche que existe y no existe. */}
+        <aside className="consola-panel">
           <h3 className="consola-subtitulo">Capas</h3>
           <ul className="consola-capas">
             {CAPAS.map((capa) => {
@@ -778,22 +796,22 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
                     .join(' · ')}
                 </dd>
               ) : null}
-              {objetivo === 'reduccion'
-                ? lineaDeTope(reduccion.desplazamiento, paso?.toleranciaDesplazamiento, 'mm')
+              {objetivo === 'reduccion' && topes
+                ? lineaDeTope(reduccion.desplazamiento, topes.desplazamiento, 'mm')
                 : null}
             </div>
             <div>
               <dt>Angulación</dt>
               <dd>{reduccion.angulacion}°</dd>
-              {objetivo === 'reduccion'
-                ? lineaDeTope(reduccion.angulacion, paso?.toleranciaAngulacion, '°')
+              {objetivo === 'reduccion' && topes
+                ? lineaDeTope(reduccion.angulacion, topes.angulacion, '°')
                 : null}
             </div>
             <div>
               <dt>Diástasis</dt>
               <dd>{reduccion.diastasis} mm</dd>
-              {objetivo === 'reduccion'
-                ? lineaDeTope(reduccion.diastasis, paso?.toleranciaDiastasis, 'mm')
+              {objetivo === 'reduccion' && topes
+                ? lineaDeTope(reduccion.diastasis, topes.diastasis, 'mm')
                 : null}
             </div>
             <div>
@@ -853,13 +871,12 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
               {/* Terminar no puede ser un callejón: hasta aquí lo único que
                   quedaba era la miga de arriba del todo, fuera de la vista
                   después de seiscientos píxeles de consola. */}
-              <p>
-                {fallados.size === 0
-                  ? 'Todos los pasos a la primera.'
-                  : `Hubo que repetir ${fallados.size} ${
-                      fallados.size === 1 ? 'paso' : 'pasos'
-                    } de ${caso.pasos.length}; las correcciones están en la retroalimentación clínica, debajo.`}
-              </p>
+              {/* Es el único sitio en el que la complicación sobrevive al paso
+                  en el que ocurrió: el registro de abajo se recorta a diez
+                  líneas. Se nombra aparte del reintento porque cuesta aparte
+                  (`puntosDelPaso`), y decir «hubo que repetir 3 pasos» sin
+                  distinguirlas volvería a igualar lo que este cambio separa. */}
+              <p>{resumenDelCaso}</p>
               <button
                 type="button"
                 className="consola-boton consola-boton-ancho"
@@ -944,7 +961,7 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
                       adivinanza que ella misma le había obligado a hacer
                       teniendo el rango guardado a mano. */}
                   <span>
-                    Fuerza · {fuerza} N{rangoUtil ? ` · ${rangoUtil}` : ''}
+                    Fuerza · {fuerza} N{rangoUtil ? ` · rango útil ${rangoUtil}` : ''}
                   </span>
                   <input
                     type="range"

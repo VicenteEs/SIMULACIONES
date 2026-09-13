@@ -25,6 +25,15 @@ import { join } from 'node:path'
  *    guardar lo que ya estaba guardado.
  *
  * Ninguna de las dos averías da error en ninguna parte.
+ *
+ * Y lo segundo que se vigila, por el mismo motivo, es el reparto del motor 3D
+ * en dos mitades: el `dynamic()` del visor y el `import()` del cargador
+ * sostienen la misma promesa y ninguno sirve sin el otro. La línea que deshaga
+ * cualquiera de las dos devuelve los 725 KB de three al trozo de entrada de la
+ * página sin que nada falle, sin que nadie lo note en desarrollo y sin que se
+ * pierda un solo píxel de la pantalla. Ya ocurrió una vez —durante una versión
+ * entera el comentario del taller tuvo que confesarlo— y hasta ahora la única
+ * defensa de esa mitad era ese comentario.
  */
 
 const TALLER = join(
@@ -110,5 +119,59 @@ describe('el taller del atlas y el trabajo sin guardar', () => {
     // posición de retorno no ensancha— del valor inicial, y asignarle después
     // un `() => boolean` no compila. No lo ve ESLint: tumba `npm run build`.
     expect(fuente).toContain('useRef<() => boolean>(() => false)')
+  })
+})
+
+/**
+ * Un import estático de un módulo: con cláusula —`import … from '…'`, en una
+ * línea o repartido en varias, con llaves o con `*`— o de solo efecto
+ * —`import '…'`—. Son todas las formas que meten el módulo en el trozo de
+ * entrada de la página.
+ *
+ * Dos cosas quedan fuera a propósito, y las dos son deliberadas:
+ *
+ *  - `import type`, porque TypeScript lo borra al compilar y no arrastra un
+ *    byte al paquete, que es lo único que estas pruebas defienden. El taller
+ *    importa así `MandoDelVisor` del visor, y eso es correcto.
+ *  - `import('…')`, el dinámico, porque allí el paréntesis va pegado a
+ *    `import` y este patrón exige un espacio. Es justo la forma que se quiere.
+ *
+ * Se construye con `RegExp` y no se escribe literal porque son dos módulos con
+ * el mismo patrón, y `/` dentro del constructor no necesita escaparse.
+ */
+function importaDeFormaEstatica(modulo: string): boolean {
+  return new RegExp(`(?:^|\\n)import\\s+(?!type\\s)(?:[\\w*{},\\s]*from\\s+)?'${modulo}'`).test(
+    fuente,
+  )
+}
+
+describe('el taller del atlas y los 725 KB de three', () => {
+  it('no vuelve a importar `@/atlas/cargador` de forma estática', () => {
+    // `cargador.ts` tiene arriba un `import * as THREE from 'three'`, así que
+    // cualquier import normal de este archivo mete el motor entero en el trozo
+    // de entrada y el `dynamic()` de abajo deja de adelgazar nada: la pantalla
+    // vuelve a tardar segundos en poder pintar «Leyendo el catálogo del
+    // atlas…», que es lo primero que el taller tiene que enseñar. De aquí solo
+    // se quiere `cargarCatalogo`, que es un `fetch` a un JSON de cuarenta
+    // líneas.
+    expect(importaDeFormaEstatica('@/atlas/cargador')).toBe(false)
+  })
+
+  it('sigue pidiendo el cargador con `import()` desde el efecto del catálogo', () => {
+    // La otra cara de la prueba anterior: quitar el import estático y dejar de
+    // pedir el módulo también la haría pasar, y el catálogo no se leería.
+    expect(fuente).toContain("import('@/atlas/cargador')")
+  })
+
+  it('sigue trayendo el visor con `dynamic()` y no de forma estática', () => {
+    // La otra mitad del mismo reparto. Con el visor importado arriba, el
+    // `import()` del cargador no sirve de nada: three llega igual por esta
+    // puerta, porque `VisorAtlas.tsx` sí lo importa de forma normal —y debe,
+    // es quien lo usa—.
+    expect(importaDeFormaEstatica('@/components/atlas/VisorAtlas')).toBe(false)
+    expect(fuente).toContain("import('@/components/atlas/VisorAtlas')")
+    // Y con `ssr: false`, porque un lienzo WebGL en el servidor es un hueco
+    // vacío.
+    expect(entre('const VisorAtlas = dynamic(', 'const HOLGURA_ENCUADRE')).toContain('ssr: false')
   })
 })
