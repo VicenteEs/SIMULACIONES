@@ -2,14 +2,76 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import type { ComponentProps, MouseEvent, ReactNode } from 'react'
+import { puedeSalirSinPerderCambios } from '@/admin/salidaDelEditor'
 
 /**
  * Barra lateral del panel.
  *
- * Es cliente por una sola razón: marcar en qué sección se está. Sin esa marca,
- * en un panel de siete secciones se pierde la referencia de dónde se está
- * trabajando, que es justo lo que una barra lateral existe para evitar.
+ * Es cliente por dos razones. La primera, marcar en qué sección se está: sin
+ * esa marca, en un panel de siete secciones se pierde la referencia de dónde se
+ * está trabajando, que es justo lo que una barra lateral existe para evitar.
+ *
+ * La segunda, preguntar antes de sacar a nadie de una ficha a medio escribir.
+ * Los enlaces de aquí navegaban sin consultar, y la barra está a la vista en
+ * todo momento mientras se edita: «Comentarios» para mirar uno, o «Contenido»
+ * para comprobar un dato de otra ficha, se llevaban media hora de redacción sin
+ * una sola advertencia. La barra no sabe nada del editor: le pregunta a
+ * `src/admin/salidaDelEditor.ts`, donde se apunta cualquier pantalla con
+ * cambios sin guardar.
  */
+
+/**
+ * Cancela la navegación si hay cambios sin guardar y la persona no confirma.
+ *
+ * Va en `onNavigate` y no en `onClick` a propósito: `onNavigate` solo corre en
+ * la navegación de cliente, que es la que desmonta el editor. Un Ctrl+clic o
+ * un clic central abren pestaña nueva, no se llevan nada y no deben preguntar.
+ */
+const alNavegar = (evento: { preventDefault: () => void }) => {
+  if (!puedeSalirSinPerderCambios()) evento.preventDefault()
+}
+
+/**
+ * Un `<Link>` que pregunta antes de salir, para los enlaces de la barra que
+ * pinta `layout.tsx`.
+ *
+ * El `layout` es de servidor y no puede pasarle a `<Link>` una función: el
+ * «Volver a la plataforma» de su pie se escapaba de la guardia por eso, y es
+ * de los que más sacan del panel. Este envoltorio lleva la función puesta desde
+ * el cliente y el `layout` solo le pasa lo serializable.
+ */
+export function EnlaceConGuardia(props: Omit<ComponentProps<typeof Link>, 'onNavigate'>) {
+  return <Link {...props} onNavigate={alNavegar} />
+}
+
+/**
+ * Pregunta antes de dejar actuar a un botón que saca del panel, sin tocar el
+ * botón.
+ *
+ * Es para «Salir»: cierra la sesión y navega con `router.push`, así que se
+ * lleva lo escrito igual que un enlace, pero no es un `<Link>` y no tiene
+ * `onNavigate`. `BotonSalir` se usa también fuera del panel, donde no hay
+ * ficha que perder, y enseñarle a él qué es el editor es justo el acoplamiento
+ * que el registro evita.
+ *
+ * Se intercepta en la fase de captura: parar ahí la propagación hace que el
+ * clic no llegue nunca al `onClick` del botón, de modo que no se cierra la
+ * sesión para después preguntar. `display: contents` para que el envoltorio no
+ * rompa el `flex` del pie de la barra.
+ */
+export function GuardiaDeSalida({ children }: { children: ReactNode }) {
+  const alPulsar = (evento: MouseEvent) => {
+    if (puedeSalirSinPerderCambios()) return
+    evento.stopPropagation()
+    evento.preventDefault()
+  }
+  return (
+    <div style={{ display: 'contents' }} onClickCapture={alPulsar}>
+      {children}
+    </div>
+  )
+}
 
 export interface EntradaDeMenu {
   ruta: string
@@ -80,6 +142,7 @@ export function NavegacionAdmin({ secciones }: { secciones: SeccionDeMenu[] }) {
                 href={entrada.ruta}
                 className={`admin-nav-link${activa ? ' active' : ''}`}
                 aria-current={activa ? 'page' : undefined}
+                onNavigate={alNavegar}
                 {...(entrada.externa
                   ? { target: '_blank', rel: 'noopener noreferrer' }
                   : {})}

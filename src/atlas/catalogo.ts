@@ -21,8 +21,13 @@ import {
 /**
  * Normaliza para comparar: sin acentos, sin mayúsculas, sin signos.
  *
- * Hace falta porque el traumatólogo escribe «fémur» y la pieza se llama
- * «Femur», y porque escribe «tibia derecha» y la pieza es «Right tibia».
+ * Hace falta porque el traumatólogo escribe «fémur» y en el catálogo la pieza
+ * se llama «Left femur», y la ve en pantalla como «Fémur izquierdo». El
+ * catálogo guarda el nombre ORIGINAL de BodyParts3D; el español que se enseña
+ * sale de `src/atlas/nombres-es.json` (ver `src/atlas/nombres.ts`), y lo que
+ * compara las dos cosas —`buscarEnEspanol`, en `arbolEnEspanol.ts`— normaliza
+ * con esta misma función para que el nombre visible y el original se midan
+ * igual.
  */
 export function normalizar(texto: string): string {
   return texto
@@ -35,11 +40,18 @@ export function normalizar(texto: string): string {
 }
 
 /**
- * Equivalencias español → inglés para la búsqueda.
+ * Equivalencias español → inglés para buscar sobre el nombre original.
  *
- * Los nombres de las piezas están en su forma anatómica original y no se
- * traducen (ver `public/atlas/ATRIBUCION.md`). Pero buscar en la lengua en la
- * que uno piensa no es un lujo: sin esto, escribir «rodilla» no encuentra nada.
+ * `buscarPiezas` busca solo en el nombre que trae el catálogo, que es el
+ * original en inglés. Cuando se escribió, era también el único que se
+ * enseñaba; hoy la plataforma enseña los nombres traducidos al español
+ * (`src/atlas/nombres.ts`, y la declaración en `public/atlas/ATRIBUCION.md`), y
+ * buscar por el nombre en español lo hace `casaConLaBusqueda`. Estas
+ * equivalencias siguen haciendo falta para lo que esa no alcanza: las
+ * estructuras que todavía no tienen traducción —se enseñan en inglés, y
+ * escribir «arteria» tiene que encontrarlas— y quien mezcla, escribiendo en
+ * español una palabra de un nombre que solo existe en inglés. Quitarlas sería
+ * que buscar en español dejara de funcionar justo donde no hay español.
  *
  * La lista es corta a propósito. Cubre lateralidad, los huesos largos y las
  * regiones que se operan; el resto de la terminología anatómica es casi idéntica

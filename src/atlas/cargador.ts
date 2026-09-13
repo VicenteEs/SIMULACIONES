@@ -24,6 +24,7 @@
 
 import * as THREE from 'three'
 import { ruta } from '@/lib/rutas'
+import { corregirCatalogo } from './clasificacion'
 import type { CatalogoDelAtlas, PiezaDelAtlas } from './formato'
 
 /** Cuántos canales ocupa cada pieza en la textura de estado. */
@@ -72,6 +73,20 @@ export interface EscenaDelAtlas {
 
 // --------------------------------------------------------------- descarga
 
+/**
+ * Trae el catálogo, ya con los sistemas corregidos.
+ *
+ * La corrección se hace aquí, en la puerta, y no en `montarEscena` ni en el
+ * árbol, porque de este mismo objeto beben los dos: el taller y el visor de
+ * instancia guardan lo que devuelve esta función y se lo pasan a la vez al
+ * árbol anatómico —que agrupa por sistema para «Por sistema»— y al visor —que
+ * lo pasa a `montarEscena`, que fusiona una malla por sistema—. Corregido solo
+ * en uno de los dos, el árbol diría que el peroneo corto es músculo y la escena
+ * lo seguiría pintando del color del hueso y apagándolo con el esqueleto, o al
+ * revés, y el traumatólogo no tendría manera de saber cuál de los dos miente.
+ *
+ * Nadie en el navegador debe leer `catalogo.json` sin pasar por aquí.
+ */
 export async function cargarCatalogo(senal?: AbortSignal): Promise<CatalogoDelAtlas> {
   const respuesta = await fetch(ruta('/atlas/catalogo.json'), { signal: senal })
   if (!respuesta.ok) {
@@ -80,7 +95,7 @@ export async function cargarCatalogo(senal?: AbortSignal): Promise<CatalogoDelAt
         'Compruebe que public/atlas/ está desplegado.',
     )
   }
-  return (await respuesta.json()) as CatalogoDelAtlas
+  return corregirCatalogo((await respuesta.json()) as CatalogoDelAtlas)
 }
 
 /**
@@ -191,6 +206,12 @@ export function montarEscena(
   estados.needsUpdate = true
 
   // --- agrupar por sistema lo que se puede dibujar -------------------------
+  // `pieza.sistema` se lee tal cual llega, sin volver a corregirlo: el catálogo
+  // que recibe esta función es el de `cargarCatalogo`, que ya pasó por
+  // `corregirCatalogo`, y es el mismo objeto que agrupa el árbol. Corregir otra
+  // vez aquí no rompería nada visible, pero taparía el día en que alguien monte
+  // la escena con un catálogo crudo: la escena saldría bien y el árbol, que no
+  // pasa por aquí, seguiría metiendo los peroneos en el esqueleto.
   const porSistema = new Map<string, { pieza: PiezaDelAtlas; indice: number }[]>()
   // Bucle llano y no `forEach`: este es el único sitio donde una función
   // interna miraría `buferes`, y con eso V8 lo mete en el contexto que

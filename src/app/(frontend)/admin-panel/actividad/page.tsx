@@ -3,8 +3,39 @@ import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { NOMBRE_DEL_DESENLACE } from '@/lib/progresoDelSimulador'
 import { clientePayload, resumenDeActividad } from '../datos'
 import { NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
+import {
+  claveDeFicha,
+  leerTitulosDeFichas,
+  type EstadoDeFicha,
+  type ReferenciaDeFicha,
+} from '../titulosDeFichas'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Cómo se nombra una ficha en las tablas de esta página.
+ *
+ * El número de fila solo aparece cuando no hay título que poner, y entonces va
+ * con la razón delante —borrada, sin título, no se pudo leer— para que no
+ * parezca un rótulo sino lo que es. Son los mismos cuatro casos que rotula
+ * «Fichas más leídas» en estadísticas (`rotularFichasLeidas`), con la misma
+ * redacción, para que una ficha no se llame de dos maneras según la pantalla.
+ *
+ * `eliminada` llega de fuera porque la tabla del simulador habla de casos y las
+ * otras de fichas, y en español el participio concuerda.
+ */
+function rotuloDeFicha(estado: EstadoDeFicha, documentoId: string, eliminada: string): string {
+  switch (estado.tipo) {
+    case 'titulo':
+      return estado.titulo
+    case 'sinTitulo':
+      return `Sin título · #${documentoId}`
+    case 'eliminada':
+      return `${eliminada} · #${documentoId}`
+    case 'ilegible':
+      return `Título no disponible · #${documentoId}`
+  }
+}
 
 const fechaHora = (valor?: string | null) =>
   valor
@@ -59,7 +90,15 @@ export default async function PaginaActividad() {
   // Las dos consultas van juntas y ninguna espera a la otra: la de abajo trae
   // la tabla para las tablas de lectura y `resumenDeActividad` cuenta los
   // recorridos del simulador, que es lo que sabe qué fila es un caso jugado.
-  const [{ docs, totalDocs }, resumen] = await Promise.all([
+  //
+  // El `catch` de la tabla devuelve `null` y no una lista vacía. Devolvía
+  // `{ docs: [], totalDocs: 0 }`, y con la tabla sin poder leerse —lo corriente:
+  // un cambio de esquema desplegado sin su migración— la pantalla decía
+  // «Todavía nadie ha abierto una ficha»: la misma confusión entre «no hay» y
+  // «no se pudo leer» que los títulos de abajo arrastraban con «Ficha
+  // eliminada», y que las tarjetas del resumen dejaron de cometer con
+  // `ilegible`.
+  const [listado, resumen] = await Promise.all([
     payload
       .find({
         collection: 'actividad',
@@ -68,13 +107,18 @@ export default async function PaginaActividad() {
         depth: 1,
         overrideAccess: true,
       })
-      .catch(() => ({ docs: [] as unknown[], totalDocs: 0 })),
+      .catch((error) => {
+        console.error('[panel] no se pudo leer la tabla de actividad:', error)
+        return null
+      }),
     resumenDeActividad(payload),
   ])
+  const docs = listado?.docs ?? []
+  const totalDocs = listado?.totalDocs ?? 0
   const simulador = resumen.simulador
   const atascos = simulador.atascos.slice(0, 20)
 
-  const registros: Registro[] = (docs as Record<string, unknown>[]).map((d) => {
+  const registros: Registro[] = (docs as unknown as Record<string, unknown>[]).map((d) => {
     const usuario = d.usuario as { id?: unknown; nombre?: string; email?: string } | null
     return {
       id: String(d.id),
@@ -128,68 +172,78 @@ export default async function PaginaActividad() {
   // Las dos tablas de fichas nombraban cada una con el identificador de fila de
   // la base —«#3», «#17», «#41»—, en la página cuyo único propósito es
   // responder qué se está leyendo: para saber cuál era la ficha más leída del
-  // semestre había que abrirlas de una en una. Se resuelve el título como en la
-  // portada y por la misma razón que allí se explica, que un número no le dice
-  // nada a nadie.
+  // semestre había que abrirlas de una en una.
   //
-  // Son cincuenta como mucho y sin repetir —las veinte más leídas y las treinta
-  // últimas visitas se solapan—, a profundidad 0 y en una página que ya es
-  // `force-dynamic`. Cada consulta falla por su cuenta a propósito: el registro
-  // de lectura sobrevive a la ficha que lo produjo, así que encontrar una
-  // borrada es lo corriente aquí y no puede tumbar la página entera.
-  const claveDeFicha = (coleccion: string, documentoId: string) => `${coleccion}/${documentoId}`
-
-  const porResolver = new Map<string, { coleccion: string; documentoId: string }>()
-  for (const f of [...fichas, ...ultimas]) {
-    porResolver.set(claveDeFicha(f.coleccion, f.documentoId), {
-      coleccion: f.coleccion,
-      documentoId: f.documentoId,
-    })
+  // Los títulos los busca `leerTitulosDeFichas`, la misma que usan
+  // «Fichas más leídas» de estadísticas y la bandeja de comentarios. Aquí se
+  // hacía con un `findByID` por ficha y un `catch` vacío, y ese `catch` era el
+  // defecto: `findByID` lanza igual con la ficha borrada que con la base sin
+  // responder, así que una tabla caída pintaba las cincuenta filas como «Ficha
+  // eliminada» y mandaba a buscar en los respaldos algo que estaba en su sitio.
+  // La función compartida separa las dos cosas, y de paso son cinco consultas
+  // como mucho —una por colección— y no cincuenta.
+  //
+  // Un `documentoId` vacío no se pregunta: en el `id: { in: … }` de su colección
+  // basta con que la base lo rechace para que falle la consulta entera y todo
+  // ese módulo salga ilegible por culpa de una fila.
+  const porResolver = new Map<string, ReferenciaDeFicha>()
+  const pedir = (coleccion: string, documentoId: string) => {
+    if (coleccion === '' || documentoId === '') return
+    porResolver.set(claveDeFicha(coleccion, documentoId), { coleccion, documentoId })
   }
+  for (const f of [...fichas, ...ultimas]) pedir(f.coleccion, f.documentoId)
   // Los casos donde alguien se atascó entran en el mismo barrido: casi siempre
   // ya están —un caso que se juega se visita—, y el mapa los deduplica solo. Sin
   // esto, la tabla de abajo nombraría la cirugía con el número de fila, que es
   // justo lo que esta pantalla dejó de hacer.
-  for (const atasco of atascos) {
-    porResolver.set(claveDeFicha('cirugias', atasco.documentoId), {
-      coleccion: 'cirugias',
-      documentoId: atasco.documentoId,
-    })
-  }
+  for (const atasco of atascos) pedir('cirugias', atasco.documentoId)
 
-  const titulos = new Map<string, string>()
-  await Promise.all(
-    [...porResolver.values()].map(async ({ coleccion, documentoId }) => {
-      try {
-        // `titulo` en los casos AO y `nombre` en los otros cuatro módulos: son
-        // los dos campos que `src/admin/esquema.ts` declara como nombre.
-        const doc = (await payload.findByID({
-          collection: coleccion as never,
-          id: documentoId,
-          depth: 0,
-          overrideAccess: true,
-        })) as Record<string, unknown> | null
-        const nombre = doc?.nombre ?? doc?.titulo
-        if (typeof nombre === 'string' && nombre.trim() !== '') {
-          titulos.set(claveDeFicha(coleccion, documentoId), nombre)
-        }
-      } catch {
-        // Borrada, o de una colección que ya no existe: la fila lo dirá.
-      }
-    }),
+  const estados = await leerTitulosDeFichas(payload, [...porResolver.values()])
+
+  // Una ficha que no llegó a preguntarse no tiene estado. Llamarla «eliminada»
+  // sería inventárselo; `ilegible` es lo único que no afirma nada sobre ella.
+  // Es el mismo criterio que `estadoDeLaFicha` en `fichasMasLeidas.ts`.
+  const estadoDe = (coleccion: string, documentoId: string): EstadoDeFicha =>
+    estados.get(claveDeFicha(coleccion, documentoId)) ?? { tipo: 'ilegible' }
+
+  const modulosIlegibles = Array.from(
+    new Set(
+      [...porResolver.values()]
+        .filter((f) => estadoDe(f.coleccion, f.documentoId).tipo === 'ilegible')
+        .map((f) => NOMBRE_DE_MODULO[f.coleccion] ?? f.coleccion),
+    ),
   )
 
   return (
     <div>
       <header className="admin-header">
         <h1 className="admin-title">Actividad</h1>
-        <p className="admin-subtitle">
-          {totalDocs} registro{totalDocs === 1 ? '' : 's'} de lectura · {personas.length} persona
-          {personas.length === 1 ? '' : 's'} han abierto alguna ficha
-        </p>
+        {/* Sin listado no hay recuento que dar: «0 registros» sería la misma
+            respuesta falsa que el aviso de abajo existe para no dar. */}
+        {listado ? (
+          <p className="admin-subtitle">
+            {totalDocs} registro{totalDocs === 1 ? '' : 's'} de lectura · {personas.length}{' '}
+            persona
+            {personas.length === 1 ? '' : 's'} han abierto alguna ficha
+          </p>
+        ) : null}
       </header>
 
-      {registros.length === 0 ? (
+      {modulosIlegibles.length > 0 ? (
+        <div className="admin-aviso admin-aviso-atencion" role="status">
+          <strong>No se pudieron leer los títulos de {modulosIlegibles.join(', ')}.</strong> Esas
+          fichas aparecen como «Título no disponible», y eso no significa que se hayan eliminado:
+          la consulta falló. El detalle queda en el registro del servidor.
+        </div>
+      ) : null}
+
+      {listado === null ? (
+        <div className="admin-aviso admin-aviso-atencion" role="status">
+          <strong>No se pudo leer la tabla de actividad.</strong> Esto no significa que nadie haya
+          abierto una ficha: la consulta falló. Lo corriente es que falte una tabla —un cambio de
+          esquema desplegado sin su migración—; el detalle queda en el registro del servidor.
+        </div>
+      ) : registros.length === 0 ? (
         <div className="admin-empty">
           <div className="admin-empty-icon">📖</div>
           <p className="admin-empty-text">
@@ -297,18 +351,19 @@ export default async function PaginaActividad() {
                     <tbody>
                       {atascos.map((atasco) => {
                         const clave = claveDeFicha('cirugias', atasco.documentoId)
-                        const titulo = titulos.get(clave)
+                        const estado = estadoDe('cirugias', atasco.documentoId)
+                        const rotulo = rotuloDeFicha(estado, atasco.documentoId, 'Caso eliminado')
                         return (
                           <tr key={`${clave}#${atasco.paso}`}>
                             <th scope="row" className="admin-table-user-name">
-                              {titulo ? (
+                              {estado.tipo === 'eliminada' ? (
+                                rotulo
+                              ) : (
                                 <Link
                                   href={`/admin-panel/contenido/cirugias/${atasco.documentoId}`}
                                 >
-                                  {titulo}
+                                  {rotulo}
                                 </Link>
-                              ) : (
-                                `Caso eliminado · #${atasco.documentoId}`
                               )}
                             </th>
                             <td>
@@ -362,12 +417,13 @@ export default async function PaginaActividad() {
               <tbody>
                 {fichas.map((f) => {
                   const clave = claveDeFicha(f.coleccion, f.documentoId)
-                  const titulo = titulos.get(clave)
+                  const estado = estadoDe(f.coleccion, f.documentoId)
+                  const rotulo = rotuloDeFicha(estado, f.documentoId, 'Ficha eliminada')
                   return (
                     <tr key={clave}>
                       <th scope="row" className="admin-table-user-name">
-                        {titulo ?? `Ficha eliminada · #${f.documentoId}`}
-                        {titulo ? (
+                        {rotulo}
+                        {estado.tipo === 'titulo' ? (
                           <div className="admin-table-user-email">#{f.documentoId}</div>
                         ) : null}
                       </th>
@@ -379,26 +435,28 @@ export default async function PaginaActividad() {
                       <td>{f.lectores}</td>
                       <td>{f.completadas}</td>
                       <td>
-                        {/* Sin título resuelto no hay nada que abrir: la ficha
-                            ya no está y los dos enlaces acababan en un 404, el
-                            del panel y el público. Y «Editar» va primero y al
-                            editor porque es donde se actúa sobre lo que se
-                            acaba de leer, y ese funciona esté publicada o
-                            retirada; el botón de antes solo servía si seguía
-                            publicada. */}
-                        {titulo ? (
+                        {/* Solo se quita lo que se sabe que no lleva a nada: a
+                            una ficha borrada los dos enlaces acababan en un
+                            404, el del panel y el público. La que no se pudo
+                            leer los conserva, porque lo probable es que siga
+                            ahí y abrirla es la forma de comprobarlo. Y
+                            «Editar» va primero y al editor porque es donde se
+                            actúa sobre lo que se acaba de leer, y ese funciona
+                            esté publicada o retirada; el botón de antes solo
+                            servía si seguía publicada. */}
+                        {estado.tipo !== 'eliminada' ? (
                           <div className="admin-acciones">
                             <Link
                               href={`/admin-panel/contenido/${f.coleccion}/${f.documentoId}`}
                               className="admin-btn admin-btn-sm admin-btn-secondary"
-                              aria-label={`Editar «${titulo}»`}
+                              aria-label={`Editar «${rotulo}»`}
                             >
                               Editar
                             </Link>
                             <Link
                               href={rutaPublica(f.coleccion, f.documentoId)}
                               className="admin-btn admin-btn-sm admin-btn-secondary"
-                              aria-label={`Ver «${titulo}» en el sitio público`}
+                              aria-label={`Ver «${rotulo}» en el sitio público`}
                             >
                               Ver
                             </Link>
@@ -426,7 +484,8 @@ export default async function PaginaActividad() {
               </thead>
               <tbody>
                 {ultimas.map((r) => {
-                  const titulo = titulos.get(claveDeFicha(r.coleccion, r.documentoId))
+                  const estado = estadoDe(r.coleccion, r.documentoId)
+                  const rotulo = rotuloDeFicha(estado, r.documentoId, 'Ficha eliminada')
                   return (
                     <tr key={r.id}>
                       <td>
@@ -434,14 +493,12 @@ export default async function PaginaActividad() {
                         <div className="admin-table-user-email">{r.usuarioCorreo}</div>
                       </td>
                       <td>
-                        {titulo ? (
-                          <Link href={`/admin-panel/contenido/${r.coleccion}/${r.documentoId}`}>
-                            {titulo}
-                          </Link>
+                        {estado.tipo === 'eliminada' ? (
+                          <span className="admin-table-user-email">{rotulo}</span>
                         ) : (
-                          <span className="admin-table-user-email">
-                            Ficha eliminada · #{r.documentoId}
-                          </span>
+                          <Link href={`/admin-panel/contenido/${r.coleccion}/${r.documentoId}`}>
+                            {rotulo}
+                          </Link>
                         )}
                       </td>
                       <td>

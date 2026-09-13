@@ -56,6 +56,20 @@ export interface MandoDelLienzo {
   encuadrar: () => void
   /** Los nombres de los objetos que trae el archivo. */
   nodosDelModelo: () => string[]
+  /**
+   * Cada objeto del archivo con lo que trae pegado en `userData`.
+   *
+   * Es por donde llegan al taller de piezas el rol y la etiqueta que el
+   * exportador del atlas escribe en los `extras` de cada nodo. Va aparte de
+   * `nodosDelModelo`, y no en su lugar, porque la consola y la lista de «sin
+   * usar» solo necesitan nombres y no tienen por qué cambiar.
+   */
+  datosDeLosNodos: () => DatosDeNodo[]
+}
+
+export interface DatosDeNodo {
+  nodo: string
+  datos: Record<string, unknown>
 }
 
 export interface PiezaDelCaso {
@@ -218,6 +232,8 @@ export function LienzoQuirurgico({
       })
       return nombres
     },
+
+    datosDeLosNodos: () => (taller.current.raiz ? datosDeLosNodos(taller.current.raiz) : []),
   }))
 
   // ------------------------------------------------------------- montaje
@@ -617,6 +633,27 @@ const perteneceA = (objeto: THREE.Object3D, ancestro: THREE.Object3D): boolean =
     actual = actual.parent
   }
   return false
+}
+
+/**
+ * Las mallas con nombre y su `userData`, en el orden del archivo.
+ *
+ * Solo mallas, igual que `nodosDelModelo`: son lo único que la consola enciende
+ * y apaga, y un grupo vacío con extras propondría una fila para algo que no se
+ * ve. Los datos se copian en un objeto llano para que quien los reciba no
+ * pueda escribir sobre el `userData` de la escena montada.
+ *
+ * Sale del componente para poder probarla contra un archivo de verdad abierto
+ * con `GLTFLoader`, sin WebGL: es el tramo donde el rol escrito por el
+ * exportador podría perderse camino del taller sin ningún error.
+ */
+export function datosDeLosNodos(raiz: THREE.Object3D): DatosDeNodo[] {
+  const salida: DatosDeNodo[] = []
+  raiz.traverse((objeto) => {
+    if (!(objeto as THREE.Mesh).isMesh || !objeto.name) return
+    salida.push({ nodo: objeto.name, datos: { ...objeto.userData } })
+  })
+  return salida
 }
 
 /** El nodo declarado como fragmento móvil, si el archivo lo trae. */

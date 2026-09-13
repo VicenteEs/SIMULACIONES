@@ -52,6 +52,38 @@ function propiedadesDelRastreador(codigo: string): string {
   return codigo.slice(inicio, codigo.indexOf('/>', inicio))
 }
 
+/**
+ * El archivo sin comentarios, con el mismo recorte que `cableadoDelProgreso`.
+ *
+ * Hace falta en las comprobaciones que cuentan: la cabecera de este listado
+ * explica a propósito la consulta que ya no hace y el `.map` en el que no
+ * pregunta, y contando sobre la fuente entera se contaría la explicación.
+ */
+const sinComentarios = (codigo: string): string =>
+  codigo
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\{\s*\}/g, ' ')
+    .replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
+
+const veces = (codigo: string, trozo: string): number => codigo.split(trozo).length - 1
+
+/**
+ * Las propiedades del rastreador de una ficha por documento, esté donde esté.
+ *
+ * El simulador ya no lo monta en la página: va dentro de `CasoConSuLectura`,
+ * junto a la consola que también marca la lectura. Buscar el rastreador solo en
+ * la página devolvía un texto vacío para esa ficha, y un texto vacío «no
+ * contiene `anotarVisita`»: la comprobación salía verde sin mirar nada.
+ */
+function rastreadorDeLaFicha(carpeta: string): string {
+  const pagina = fuente('app', '(frontend)', carpeta, '[id]', 'page.tsx')
+  if (pagina.includes('<RastreadorActividad')) return propiedadesDelRastreador(pagina)
+  if (pagina.includes('<CasoConSuLectura')) {
+    return propiedadesDelRastreador(fuente('components', 'simulador', 'CasoConSuLectura.tsx'))
+  }
+  return ''
+}
+
 describe('el listado marca la lectura maniobra a maniobra', () => {
   it('monta el rastreador sobre «maniobras», dentro de la tarjeta', () => {
     const propiedades = propiedadesDelRastreador(LISTADO)
@@ -64,17 +96,47 @@ describe('el listado marca la lectura maniobra a maniobra', () => {
     // El rastreador es de cliente y nace con `completadoInicial`: sin la
     // consulta previa las treinta casillas salen en blanco en cada carga y el
     // residente vuelve a marcar lo que ya tenía marcado.
-    expect(propiedadesDelRastreador(LISTADO)).toContain('completadoInicial={')
-    expect(LISTADO).toContain(`collection: 'actividad'`)
+    //
+    // La consulta ya no está en esta página sino en `src/lib/lecturas.ts`, así
+    // que lo que se sostiene es el hilo entero: la respuesta se espera antes
+    // del JSX y es la que llega a la casilla de cada maniobra, preguntada por
+    // la misma maniobra que la casilla escribe.
+    const codigo = sinComentarios(LISTADO)
+    const llamada = /const (\w+) = await lecturasDelResidente\(/.exec(codigo)
+    expect(llamada, 'el listado no espera la respuesta de lecturasDelResidente').not.toBeNull()
+    const pintar = codigo.indexOf('return (')
+    expect(pintar).toBeGreaterThan(-1)
+    expect(llamada!.index).toBeLessThan(pintar)
+
+    const propiedades = propiedadesDelRastreador(LISTADO)
+    expect(propiedades).toContain(`completadoInicial={${llamada![1]}.leida(m.id)}`)
+    expect(propiedades).toContain('documentoId={String(m.id)}')
   })
 
   it('lo pregunta en una sola consulta, no en una por tarjeta', () => {
     // La consulta por ficha de los otros cuatro módulos, copiada aquí dentro
     // del `.map`, funcionaría: son treinta consultas idénticas para pintar
     // treinta casillas, y no hay pantalla en la que eso se note.
-    const consultas = LISTADO.split(`collection: 'actividad'`).length - 1
-    expect(consultas, 'hay más de una consulta a actividad en el listado').toBe(1)
-    expect(LISTADO).toMatch(/documentoId: \{ in:/)
+    //
+    // Que la función haga UNA consulta para toda la lista lo prueba
+    // `lecturas.test.ts`, y que el listado la llame una vez y antes de
+    // `grupos.map(`, `lecturasCableadas.test.ts`. Lo que queda por cerrar es
+    // la otra puerta: que el listado no vuelva a viajar a la base por su
+    // cuenta. Sus dos consultas son las maniobras y los segmentos; una tercera
+    // es una copia de la de lecturas o una consulta por tarjeta.
+    const codigo = sinComentarios(LISTADO)
+    expect(veces(codigo, 'payload.find(')).toBe(2)
+    expect(codigo).toContain("collection: 'maniobras'")
+    expect(codigo).toContain("collection: 'segmentos'")
+    expect(codigo).not.toContain("collection: 'actividad'")
+
+    // Y lo que se pinta no espera nada: un `await` o un `payload.` dentro del
+    // JSX es un viaje a PostgreSQL por cada tarjeta que lo recorre.
+    const jsx = codigo.slice(codigo.indexOf('return ('))
+    expect(jsx).toContain('grupos.map(')
+    expect(jsx).not.toMatch(/\bawait\b/)
+    expect(jsx).not.toContain('payload.')
+    expect(jsx).not.toContain('lecturasDelResidente(')
   })
 
   it('pinta los grupos que arma src/lib/maniobras.ts y no un filtro propio', () => {
@@ -87,11 +149,29 @@ describe('el listado marca la lectura maniobra a maniobra', () => {
     expect(LISTADO).not.toMatch(/segmentos\.docs\.map\(/)
   })
 
-  it('pide las filas de lectura con el mismo tope que las maniobras', () => {
+  it('pregunta por las mismas maniobras que trajo el tope, ni una menos', () => {
     // Un tope más bajo en la consulta de `actividad` deja maniobras leídas con
     // la casilla en blanco, y no falla nada al hacerlo.
-    const topes = [...LISTADO.matchAll(/limit: (\w+)/g)].map((c) => c[1])
-    expect(topes.filter((t) => t === 'TOPE_DE_MANIOBRAS')).toHaveLength(2)
+    //
+    // Antes eso se cerraba contando dos `limit: TOPE_DE_MANIOBRAS` en esta
+    // página, uno por consulta. Ahora la de lectura no lleva tope —lo acota su
+    // `in:`, y `lecturas.test.ts` comprueba que no hay `limit`—, así que el
+    // mismo tope se sostiene de otra forma: la lista por la que se pregunta es
+    // exactamente la que salió de la consulta con tope, sin filtrar ni
+    // recortar, y es la misma de la que salen las tarjetas. Una maniobra que se
+    // pinta es una maniobra por la que se preguntó.
+    const codigo = sinComentarios(LISTADO)
+    const topes = [...codigo.matchAll(/limit: (\w+)/g)].map((c) => c[1])
+    expect(topes.filter((t) => t === 'TOPE_DE_MANIOBRAS')).toHaveLength(1)
+    expect(codigo).toMatch(/collection: 'maniobras'[^)]*limit: TOPE_DE_MANIOBRAS/)
+
+    expect(codigo).toMatch(
+      /^\s*const identificadores = maniobras\.docs\.map\(\((\w+)\) => String\(\1\.id\)\)\s*$/m,
+    )
+    expect(codigo).toMatch(/lecturasDelResidente\([^)]*'maniobras', identificadores\)/)
+    expect(codigo).toContain('agruparManiobrasPorSegmento(maniobras.docs, segmentos.docs)')
+    // `identificadores` no se vuelve a asignar entre medias.
+    expect(veces(codigo, 'identificadores =')).toBe(1)
   })
 })
 
@@ -116,10 +196,9 @@ describe('abrir el listado no es visitar todas las maniobras', () => {
     expect(RASTREADOR).toContain('anotarVisita = true')
 
     for (const carpeta of ['biblioteca', 'tecnica-ao', 'simulador', 'imagenes']) {
-      const ficha = fuente('app', '(frontend)', carpeta, '[id]', 'page.tsx')
-      expect(propiedadesDelRastreador(ficha), `${carpeta} dejó de anotar la visita`).not.toContain(
-        'anotarVisita',
-      )
+      const propiedades = rastreadorDeLaFicha(carpeta)
+      expect(propiedades, `no se encontró el rastreador de ${carpeta}`).not.toBe('')
+      expect(propiedades, `${carpeta} dejó de anotar la visita`).not.toContain('anotarVisita')
     }
   })
 

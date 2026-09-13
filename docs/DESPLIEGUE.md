@@ -293,9 +293,13 @@ eso todo lo que hay delante tiene que estar **por encima** de los 50 MB:
 el fallo dentro de la aplicación, donde no está.
 
 Dentro de la aplicación, `next start` no impone ningún tope de cuerpo propio, y
-el único que queda de Next —`serverActions.bodySizeLimit`, hoy 52 MB— no toca
-esta ruta: gobierna la vía antigua, la que el editor de bloques todavía usa para
-insertar un archivo sin salir de la ficha.
+el único que queda de Next —`serverActions.bodySizeLimit`, hoy 4 MB— no toca
+esta ruta ni ninguna otra subida: mide el cuerpo de una acción de servidor, y
+desde que el selector de archivo de un bloque también sube por la ruta ningún
+archivo viaja por una. Lo más grande que pasa por ahí es una ficha al
+guardarla. Así que, si una subida se corta, ese número no es el sospechoso; y si
+lo que falla es **Guardar** sin decir nada sobre una ficha enorme, sí. El
+porqué de la cifra está en el comentario de `next.config.mjs`.
 
 ### Si una subida grande falla
 

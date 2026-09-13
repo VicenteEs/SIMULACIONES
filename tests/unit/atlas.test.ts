@@ -19,6 +19,9 @@ import { MAXIMO_PIEZAS, VISTA_INICIAL, type CatalogoDelAtlas } from '@/atlas/for
  *
  *  - **La búsqueda**, porque de ella depende que «tibia derecha» encuentre la
  *    tibia derecha entre 2.234 estructuras. Si falla, el taller es inusable.
+ *    Aquí se prueba la mitad que busca sobre el nombre original del catálogo;
+ *    la que busca sobre el nombre en español que enseña la plataforma está en
+ *    `atlasEnEspanol.test.ts`.
  *  - **La normalización de una selección**, porque es la última barrera antes
  *    de la base de datos: lo que llega a una acción de servidor es lo que el
  *    navegador quiso enviar, no lo que la interfaz ofreció.
@@ -89,8 +92,12 @@ describe('búsqueda de estructuras', () => {
   })
 
   it('traduce los términos que uno piensa en español', () => {
-    // Los nombres de las piezas están en su forma anatómica original y no se
-    // traducen; sin estas equivalencias, escribir «derecha» no encuentra nada.
+    // `buscarPiezas` mira solo el nombre original del catálogo, en inglés. La
+    // plataforma enseña los nombres en español y los busca así por otra vía
+    // (`casaConLaBusqueda`, en `src/atlas/nombres.ts`); estas equivalencias son
+    // lo que deja encontrar escribiendo en español las estructuras que todavía
+    // no tienen traducción y se enseñan con su nombre original. Sin ellas,
+    // escribir «derecha» no encontraría ninguna.
     expect(terminosDeBusqueda('tibia derecha')).toEqual(['tibia', 'right'])
     expect(terminosDeBusqueda('peroné izquierdo')).toEqual(['fibula', 'left'])
     expect(terminosDeBusqueda('rodilla')).toEqual(['knee'])

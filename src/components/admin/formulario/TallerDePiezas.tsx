@@ -11,8 +11,11 @@ import {
   nodosDeclarados,
   piezasHuerfanas,
   piezasSinUsar,
+  propuestasDelModelo,
   quitarPieza,
+  rellenarDesdeElModelo,
   type PiezaEnEdicion,
+  type PropuestaDelModelo,
   type RolDePieza,
 } from '@/lib/piezasDelCaso'
 
@@ -90,6 +93,20 @@ export function TallerDePiezas({
   const [enElArchivo, setEnElArchivo] = useState<string[]>([])
   const [aislado, setAislado] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  /**
+   * Lo que cada objeto del modelo dice de sí mismo, anotado con el modelo del
+   * que salió.
+   *
+   * La anotación no es un adorno. El lienzo se rehace al cambiar de modelo,
+   * pero este estado no; si el modelo nuevo no llega a cargar —archivo roto,
+   * sin red—, «Rellenar desde el modelo» seguiría ofreciendo los objetos del
+   * anterior y llenaría el caso con nombres que el archivo elegido no tiene.
+   */
+  const [delModelo, setDelModelo] = useState<{
+    url: string
+    propuestas: PropuestaDelModelo[]
+  } | null>(null)
+  const propuestas = delModelo && delModelo.url === url ? delModelo.propuestas : []
 
   const declaradas = nodosDeclarados(piezas)
   const huerfanas = piezasHuerfanas(piezas, enElArchivo)
@@ -105,7 +122,12 @@ export function TallerDePiezas({
     // La lista sale del archivo, no de lo que alguien recuerde. Si un nombre
     // cambió en Blender, aquí se ve en cuanto se abre.
     setEnElArchivo(mando.current?.nodosDelModelo() ?? [])
-  }, [])
+    // Un modelo que no viene del atlas no trae ninguna propuesta: la lista sale
+    // vacía, el botón de rellenar no aparece y el taller queda como estaba.
+    if (url) {
+      setDelModelo({ url, propuestas: propuestasDelModelo(mando.current?.datosDeLosNodos() ?? []) })
+    }
+  }, [url])
 
   if (!url) {
     return (
@@ -117,13 +139,51 @@ export function TallerDePiezas({
   }
 
   const agregar = (nodo: string) => {
-    const nuevas = agregarPieza(piezas, nodo)
+    // Con propuesta, el objeto entra con el papel y la etiqueta que trae dentro
+    // y no como fragmento por ser el primero: ver `agregarPieza`.
+    const nuevas = agregarPieza(piezas, nodo, propuestas.find((p) => p.nodo === nodo))
     if (nuevas === piezas) {
       setAviso(`«${nodo}» ya está en la lista.`)
       return
     }
     alCambiarPiezas(nuevas)
     setAviso(`Añadida «${nodo}».`)
+  }
+
+  /**
+   * Llena la lista con todos los objetos del modelo que dicen qué son.
+   *
+   * Las reglas —no tocar lo escrito, un solo fragmento— viven en
+   * `rellenarDesdeElModelo` y no aquí, porque un fallo en ellas no se ve en
+   * pantalla: se ve abriendo el caso y encontrando dos fragmentos.
+   */
+  const rellenar = () => {
+    const resultado = rellenarDesdeElModelo(piezas, propuestas)
+    if (resultado.piezas === piezas) {
+      setAviso('Todas las piezas del modelo ya estaban en la lista. No se cambió nada.')
+      return
+    }
+    alCambiarPiezas(resultado.piezas)
+    const partes: string[] = []
+    if (resultado.nuevas > 0) {
+      partes.push(
+        resultado.nuevas === 1 ? 'Añadida 1 pieza' : `Añadidas ${resultado.nuevas} piezas`,
+      )
+    }
+    if (resultado.etiquetadas > 0) {
+      const etiquetas =
+        resultado.etiquetadas === 1
+          ? 'puesta la etiqueta de 1 fila que no la tenía'
+          : `puestas las etiquetas de ${resultado.etiquetadas} filas que no la tenían`
+      partes.push(partes.length === 0 ? etiquetas.replace(/^p/, 'P') : etiquetas)
+    }
+    // El archivo del atlas no marca ningún fragmento —qué trozo se reduce es
+    // una decisión clínica, no anatómica—, así que se recuerda aquí en vez de
+    // dejar un caso sin nada que reducir y sin ningún aviso.
+    const falta = hayFragmento(resultado.piezas)
+      ? ''
+      : ' Falta marcar cuál es el fragmento móvil.'
+    setAviso(`${partes.join(' y ')} desde el modelo.${falta}`)
   }
 
   const quitar = (nodo: string) => {
@@ -264,6 +324,24 @@ export function TallerDePiezas({
         ) : null}
       </div>
 
+      {/*
+        Fuera de `.solo-ancho` a propósito: rellenar no necesita señalar ni
+        arrastrar nada, solo que el archivo haya cargado —y carga igual con el
+        visor escondido—, y en un teléfono es justo lo que ahorra escribir
+        quince nombres exactos con el dedo. Solo aparece si el modelo trae
+        propuestas: con uno de Blender el taller se ve como siempre.
+      */}
+      {propuestas.length > 0 ? (
+        <div className="taller-piezas-sueltas">
+          <span className="taller-piezas-titulo">
+            Este modelo dice qué es cada objeto ({propuestas.length}):
+          </span>
+          <button type="button" className="admin-btn admin-btn-primary" onClick={rellenar}>
+            Rellenar desde el modelo
+          </button>
+        </div>
+      ) : null}
+
       {declaradas.length > 0 ? (
         <table className="taller-piezas-tabla">
           <thead>
@@ -358,7 +436,9 @@ export function TallerDePiezas({
         En <strong>Señalar piezas</strong>, pinche cada trozo del modelo y se añade con su nombre
         exacto. Marque uno como <strong>fragmento móvil</strong>: es el que el residente reduce.
         Después pase a <strong>Colocar el fragmento</strong>, arrástrelo hasta que la fractura se
-        vea como quiere enseñarla y pulse <strong>Capturar desplazamiento</strong>.
+        vea como quiere enseñarla y pulse <strong>Capturar desplazamiento</strong>. Un modelo
+        exportado del atlas ya dice qué es cada objeto: <strong>Rellenar desde el modelo</strong>{' '}
+        los añade todos con su papel y su nombre, sin tocar las filas que ya haya.
       </p>
 
       {/*

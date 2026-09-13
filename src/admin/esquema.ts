@@ -896,23 +896,28 @@ export const Segmentos: EsquemaDeColeccion = {
  *   4. `upload.limits` de Payload (`src/payload.config.ts`), que toma **el
  *      mayor** de los dos porque es uno solo para todas las colecciones.
  *
- * Y hay dos más que no pueden vivir aquí —no son de este lenguaje ni, uno de
- * ellos, de este repositorio— pero forman la misma cadena y se rompen igual:
+ * Y hay uno más que no puede vivir aquí —ni es de este lenguaje ni de este
+ * repositorio— pero forma la misma cadena y se rompe igual:
  *
- *   5. `serverActions.bodySizeLimit` en `next.config.mjs`: 52 MB. Es el techo
- *      de la vía **vieja**, la acción de servidor `subirArchivo`, que
- *      `formulario/Campos.tsx` todavía usa para insertar un vídeo dentro de un
- *      bloque. Va por encima de estos 50 para que esa vía no se convierta en el
- *      eslabón corto: Next descarta el cuerpo **antes** de invocar la acción,
- *      así que ahí no hay `try/catch` que valga y la pantalla se queda muda.
- *   6. `client_max_body_size` del nginx por el que entra el otro despliegue:
+ *   5. `client_max_body_size` del nginx por el que entra el otro despliegue:
  *      64 MB (`despliegue/paginas/LEEME.md`).
  *
- * La cadena tiene que crecer hacia fuera —50 ≤ 52 ≤ 64— para que quien corte
- * sea siempre la plataforma, que sabe decir en español qué pasó y cuánto pesaba.
+ * La cadena tiene que crecer hacia fuera —50 ≤ 64— para que quien corte sea
+ * siempre la plataforma, que sabe decir en español qué pasó y cuánto pesaba.
  * Un proxy que corta antes devuelve un 413 sin una palabra dentro. Lo vigila
- * `tests/unit/subidaDeVideo.test.ts`, que abre los tres archivos —este,
- * `next.config.mjs` y el LEEME del despliegue— y compara las cifras.
+ * `tests/unit/subidaDeVideo.test.ts`, que compara estas cifras con la tabla
+ * del LEEME del despliegue.
+ *
+ * En la cadena hubo un eslabón más, el cuerpo de una acción de servidor
+ * (`serverActions.bodySizeLimit`, en `next.config.mjs`), y salió a propósito.
+ * Estaba porque el selector de archivo de un bloque (`formulario/Campos.tsx`)
+ * subía por la acción `subirArchivo`: Next descarta ese cuerpo **antes** de
+ * invocar la acción, así que tenía que ir por encima de estos 50 o esa pantalla
+ * cortaba sin decir nada. Desde que las dos pantallas suben por la ruta y la
+ * acción se retiró, ese límite mide un documento y no está en el camino de
+ * ningún archivo. Volver a citarlo aquí con la cifra que tiene ahora haría
+ * creer que Next corta los vídeos ahí; lo vigila
+ * `tests/unit/subidaDesdeElEditor.test.ts`, que lee este comentario.
  *
  * 50 MB y no 64: el techo de la aplicación se queda **por debajo** del proxy en
  * lugar de empujarlo. Ese nginx vive en otra máquina, en un archivo que este

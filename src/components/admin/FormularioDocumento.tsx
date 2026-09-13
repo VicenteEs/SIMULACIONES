@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { coleccionesRelacionadasDe, estadoEnPalabras, type EsquemaDeColeccion } from '@/admin/esquema'
 import { faltantes } from '@/admin/depurar'
 import { estaVacio } from '@/lib/textoRico'
+import { marcaDe, MENSAJE_DE_CONFLICTO, type Marca } from '@/admin/concurrencia'
+import { apuntarCambiosSinGuardar, PREGUNTA_DE_SALIDA } from '@/admin/salidaDelEditor'
 import {
   cambiarPublicacion,
   duplicarDocumento,
@@ -81,6 +83,38 @@ export function FormularioDocumento({
    * prop trae algo nuevo» de «este componente se volvió a pintar».
    */
   const ultimoDelServidor = useRef(documento)
+
+  /**
+   * El `updatedAt` de la última versión de esta ficha que esta pantalla conoce:
+   * la que abrió, o la que acaba de escribir ella misma. Ver
+   * `src/admin/concurrencia.ts`.
+   *
+   * Se renueva con lo que devuelven sus propias escrituras —guardar y retirar—
+   * y no con lo que llega en cada refresco. El refresco llega también con
+   * cambios pendientes en pantalla, y puede traer ya lo que otra persona
+   * guardó: adoptar su marca entonces sería dar por visto lo que nadie ha
+   * visto, y el siguiente guardado lo borraría sin choque. Hay dos excepciones.
+   * El efecto de abajo la toma del servidor solo cuando también toma de él los
+   * valores: en ese caso lo que hay en pantalla ES lo del servidor. Y
+   * `recargarConservandoLoEscrito` adopta la del choque, porque ahí quien pulsa
+   * ya sabe que va a reemplazar otra versión y lo ha decidido.
+   *
+   * Es un `ref` y no estado porque no se pinta: cambiarla no debe repintar.
+   */
+  const marca = useRef<Marca>(marcaDe(documento))
+
+  /**
+   * El choque abierto, si lo hay, con la marca que había en la base cuando
+   * ocurrió.
+   *
+   * Va aparte de `aviso` porque `cambiar` borra el aviso con cada tecla, y este
+   * no se puede ir solo: mientras no se resuelva, cualquier guardado vuelve a
+   * chocar, y quitarle a la persona el botón de recargar en cuanto escribe una
+   * letra la dejaría sin salida.
+   */
+  const [conflicto, setConflicto] = useState<{ marcaActual: Marca; texto: string } | null>(null)
+  const conflictoRef = useRef<HTMLDivElement>(null)
+  const botonGuardarRef = useRef<HTMLButtonElement>(null)
 
   const publicado = documento._status === 'published' || !esquema.versionada
 
@@ -159,6 +193,10 @@ export function FormularioDocumento({
     if (sucio) return
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setValores(documento)
+    marca.current = marcaDe(documento)
+    // Sin nada pendiente, lo que se acaba de pintar es la versión del servidor
+    // y ya no hay nada que pueda borrarse: el choque, si lo había, se resolvió.
+    setConflicto(null)
   }, [documento, sucio])
 
   // Avisa antes de cerrar la pestaña con cambios sin guardar. Perder media
@@ -168,6 +206,26 @@ export function FormularioDocumento({
     const alSalir = (e: BeforeUnloadEvent) => e.preventDefault()
     window.addEventListener('beforeunload', alSalir)
     return () => window.removeEventListener('beforeunload', alSalir)
+  }, [sucio])
+
+  /**
+   * Se apunta como pantalla con cambios sin guardar para que la barra lateral
+   * del panel pregunte antes de sacar de aquí (`src/admin/salidaDelEditor.ts`).
+   *
+   * La barra vive en el `layout.tsx` del panel, fuera de este componente, y sus
+   * enlaces se llevaban lo escrito sin una palabra: las migas de abajo
+   * preguntaban, y «Contenido» en la barra, a veinte centímetros, no. Se hace
+   * por el registro y no pasándole nada a la barra para que ninguna de las dos
+   * piezas tenga que saber de la otra.
+   *
+   * Desapuntarse al limpiar el efecto cubre las dos salidas: el guardado que
+   * limpia la marca de cambios y el desmontaje al irse. Sin lo segundo, la
+   * barra seguiría preguntando en cualquier pantalla del panel después de
+   * haber salido del editor aceptando perder los cambios.
+   */
+  useEffect(() => {
+    if (!sucio) return
+    return apuntarCambiosSinGuardar()
   }, [sucio])
 
   /**
@@ -182,13 +240,15 @@ export function FormularioDocumento({
    * `<Link>` ofrece para eso, y «Duplicar», que navega a mano con `router.push`
    * y no tiene nada que cancelar —ahí hay que preguntar antes de arrancar la
    * acción—. Una sola frase para los dos, o se responden cosas distintas según
-   * por dónde se salga.
+   * por dónde se salga; y es la misma `PREGUNTA_DE_SALIDA` que hace la barra
+   * lateral, por la misma razón.
+   *
+   * Aquí se pregunta por `sucio` y no por el registro de
+   * `salidaDelEditor.ts`: el registro se pone al día en un efecto, un instante
+   * después de la tecla, y esta pantalla ya sabe de primera mano si tiene algo
+   * pendiente.
    */
-  const puedeSalir = () =>
-    !sucio ||
-    confirm(
-      'Hay cambios sin guardar en esta ficha.\n\n¿Salir igual? Se pierde todo lo escrito desde el último guardado.',
-    )
+  const puedeSalir = () => !sucio || confirm(PREGUNTA_DE_SALIDA)
 
   const confirmarSalida = (evento: { preventDefault: () => void }) => {
     if (!puedeSalir()) evento.preventDefault()
@@ -203,6 +263,46 @@ export function FormularioDocumento({
     if (aviso?.tipo !== 'error') return
     avisoRef.current?.focus()
   }, [aviso])
+
+  // El choque, igual: el guardado vuelve sin mover nada y hay que llevar a la
+  // persona a donde están los dos botones que la sacan de ahí.
+  useEffect(() => {
+    if (conflicto) conflictoRef.current?.focus()
+  }, [conflicto])
+
+  /**
+   * Recarga la ficha sin tocar lo escrito.
+   *
+   * Adopta la marca que había en la base al chocar y pide al servidor la
+   * página otra vez. Los valores no se reponen: el efecto que los toma del
+   * prop no los pisa mientras haya cambios pendientes, y eso es lo que se
+   * quiere aquí. Lo que sí se pone al día es la insignia de publicación, que
+   * puede haber cambiado con lo que guardó la otra persona.
+   *
+   * Después de esto, guardar reemplaza lo que había. Es una decisión de quien
+   * pulsa, y por eso el aviso lo dice con esas palabras y le recuerda que puede
+   * ver la otra versión antes: lo que no puede pasar es que ocurra sin que nadie
+   * lo sepa, que es lo que pasaba antes del choque.
+   */
+  const recargarConservandoLoEscrito = () => {
+    if (!conflicto) return
+    marca.current = conflicto.marcaActual
+    setConflicto(null)
+    setAviso({
+      tipo: 'ok',
+      // Sin cambios pendientes el efecto de más arriba sí repone los valores
+      // con los del servidor, y decir «lo que usted escribió sigue en
+      // pantalla» sería mentir justo sobre lo que la persona está mirando.
+      texto: sucio
+        ? 'Ficha recargada. Lo que usted escribió sigue en pantalla, todavía sin guardar: al guardar reemplazará la versión que había.'
+        : 'Ficha recargada con la versión guardada.',
+    })
+    // El botón que se acaba de pulsar se desmonta con el bloque del choque y
+    // soltaría el foco en el `<body>`. Se lleva antes a guardar, que es lo
+    // siguiente que hay que hacer; el aviso de arriba lo anuncia la región viva.
+    botonGuardarRef.current?.focus()
+    router.refresh()
+  }
 
   const cambiar = (nombre: string, valor: unknown) => {
     ediciones.current += 1
@@ -241,7 +341,22 @@ export function FormularioDocumento({
     const edicionesAlEnviar = ediciones.current
     iniciar(async () => {
       try {
-        const resultado = await guardarDocumento(esquema.slug, id, valores, publicar)
+        const resultado = await guardarDocumento(
+          esquema.slug,
+          id,
+          valores,
+          publicar,
+          marca.current,
+        )
+        if (resultado.conflicto) {
+          // No es un campo que falte: no se cambia de pestaña, que dejaría a
+          // la persona buscando un error en un sitio donde no está.
+          setConflicto({
+            marcaActual: resultado.conflicto.marcaActual,
+            texto: resultado.mensaje ?? MENSAJE_DE_CONFLICTO,
+          })
+          return
+        }
         if (!resultado.exito || !resultado.datos) {
           // El rechazo ya ocurrió: aquí se busca hondo, porque lo que lo causó
           // puede ser una fila a medias dentro de un bloque.
@@ -250,6 +365,14 @@ export function FormularioDocumento({
           setAviso({ tipo: 'error', texto: resultado.mensaje ?? 'No se pudo guardar.' })
           return
         }
+        // La marca de lo que acaba de escribir esta pantalla. Sin esta línea el
+        // segundo guardado seguido chocaría consigo mismo: la base ya lleva el
+        // `updatedAt` de este guardado y `marca` seguiría con el de la apertura.
+        // Se adopta aunque haya teclas nuevas en pantalla: lo que está en la
+        // base es lo que esta pantalla mandó, y lo tecleado durante el viaje
+        // tampoco lo tiene nadie más.
+        marca.current = resultado.datos.marca
+        setConflicto(null)
         if (ediciones.current === edicionesAlEnviar) setSucio(false)
         if (id === null) {
           router.replace(`/admin-panel/contenido/${esquema.slug}/${resultado.datos.id}`)
@@ -400,6 +523,7 @@ export function FormularioDocumento({
           {esquema.versionada ? (
             <>
               <button
+                ref={botonGuardarRef}
                 className="admin-btn admin-btn-secondary"
                 aria-disabled={enCurso}
                 onClick={() => {
@@ -427,6 +551,7 @@ export function FormularioDocumento({
             </>
           ) : (
             <button
+              ref={botonGuardarRef}
               className="admin-btn admin-btn-primary"
               aria-disabled={enCurso}
               onClick={() => {
@@ -466,6 +591,50 @@ export function FormularioDocumento({
         // pestaña por debajo con `setSeccion`.
         <div ref={avisoRef} tabIndex={-1} role="alert" className="admin-aviso admin-aviso-error">
           {aviso.texto}
+        </div>
+      ) : null}
+
+      {conflicto && id !== null ? (
+        // Un bloque propio y no el aviso de error de arriba, por dos cosas: el
+        // aviso se borra con cada tecla y este tiene que quedarse hasta que se
+        // resuelva, y este lleva las dos salidas dentro. Sin ellas, «recargue»
+        // no tenía más camino que el F5 del navegador, que es justo el que se
+        // lleva lo escrito.
+        <div
+          ref={conflictoRef}
+          tabIndex={-1}
+          role="alert"
+          className="admin-aviso admin-aviso-error"
+        >
+          {conflicto.texto}
+          {/* El margen va aquí y no en `admin.css` porque es el único bloque
+              de aviso con botones dentro; una clase para una sola línea en
+              una hoja de dos mil sería más difícil de encontrar que esto. */}
+          <div className="admin-acciones" style={{ marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              className="admin-btn admin-btn-secondary admin-btn-sm"
+              aria-disabled={enCurso}
+              onClick={() => {
+                if (enCurso) return
+                recargarConservandoLoEscrito()
+              }}
+            >
+              Recargar sin perder lo escrito
+            </button>
+            {/* En otra pestaña, y es lo único que la hace útil: abierta aquí,
+                la navegación desmontaría el formulario con lo escrito dentro.
+                Allí la ficha se lee fresca de la base y se puede copiar lo que
+                la otra persona añadió. `<Link>` pone el prefijo de la ruta. */}
+            <Link
+              href={`/admin-panel/contenido/${esquema.slug}/${id}`}
+              target="_blank"
+              rel="noopener"
+              className="admin-btn admin-btn-secondary admin-btn-sm"
+            >
+              Ver la versión guardada ↗
+            </Link>
+          </div>
         </div>
       ) : null}
 
@@ -520,9 +689,21 @@ export function FormularioDocumento({
                 ) {
                   iniciar(async () => {
                     try {
-                      const r = await cambiarPublicacion(esquema.slug, id, false)
-                      if (r.exito) router.refresh()
-                      else setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo retirar.' })
+                      const r = await cambiarPublicacion(esquema.slug, id, false, marca.current)
+                      if (r.conflicto) {
+                        setConflicto({
+                          marcaActual: r.conflicto.marcaActual,
+                          texto: r.mensaje ?? MENSAJE_DE_CONFLICTO,
+                        })
+                      } else if (r.exito && r.datos) {
+                        // Retirar también mueve `updatedAt`: sin adoptar la
+                        // marca, el «Guardar borrador» de después chocaría con
+                        // este mismo «Retirar».
+                        marca.current = r.datos.marca
+                        router.refresh()
+                      } else {
+                        setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo retirar.' })
+                      }
                     } catch (fallo) {
                       setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo retirar.') })
                     }

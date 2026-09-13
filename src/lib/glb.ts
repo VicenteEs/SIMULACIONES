@@ -22,6 +22,21 @@ export interface ObjetoParaGlb {
   indices: Uint32Array
   /** Rojo, verde, azul y opacidad, de 0 a 1. */
   color: [number, number, number, number]
+  /**
+   * Datos que viajan pegados al NODO, en su `extras` de glTF.
+   *
+   * Van en el nodo y no en la malla por dos lectores a la vez. `GLTFLoader` de
+   * three los copia a `object.userData` del objeto que carga, y como aquí cada
+   * nodo tiene una sola primitiva, ese objeto es la propia malla que la consola
+   * enciende por nombre: el dato llega al navegador sin escribir nada más.
+   * Blender los importa como propiedades personalizadas del objeto, que es lo
+   * que el médico ve en el panel lateral; los de la malla quedarían escondidos
+   * en los datos de la geometría.
+   *
+   * No se admite la clave `name`: el cargador de three guarda ahí el nombre del
+   * nodo antes de copiar los extras, y una `name` propia lo pisaría.
+   */
+  extras?: Record<string, string | number | boolean>
 }
 
 /**
@@ -161,7 +176,16 @@ export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8A
         ],
       }) - 1
 
-    nodes.push({ name: nombre, mesh: iMesh })
+    // Sin extras no se escribe la clave: un modelo de prueba sin ellos tiene
+    // que seguir saliendo igual que antes, byte a byte.
+    const extras = objeto.extras
+      ? Object.fromEntries(Object.entries(objeto.extras).filter(([clave]) => clave !== 'name'))
+      : null
+    nodes.push({
+      name: nombre,
+      mesh: iMesh,
+      ...(extras && Object.keys(extras).length > 0 ? { extras } : {}),
+    })
   }
 
   const binario = concatenar(trozos)

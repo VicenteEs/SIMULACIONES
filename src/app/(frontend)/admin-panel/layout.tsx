@@ -1,9 +1,13 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
-import { NavegacionAdmin, type SeccionDeMenu } from '@/components/admin/NavegacionAdmin'
+import {
+  EnlaceConGuardia,
+  GuardiaDeSalida,
+  NavegacionAdmin,
+  type SeccionDeMenu,
+} from '@/components/admin/NavegacionAdmin'
 import { BotonSalir } from '@/components/BotonSalir'
 import './admin.css'
 import { ruta } from '@/lib/rutas'
@@ -96,8 +100,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
         <NavegacionAdmin secciones={secciones} />
 
+        {/* Todo lo que saca del panel desde esta barra pregunta antes si hay
+            una ficha a medio escribir. Aquí no hay `<Link>` a secas: este
+            archivo es de servidor y no puede darle a `<Link>` la función que
+            pregunta, así que la ponen `EnlaceConGuardia` y `GuardiaDeSalida`
+            desde el cliente. `tests/unit/salidaDelEditor.test.ts` lo vigila. */}
         <div className="admin-nav-back">
-          <Link href="/" className="admin-nav-link">
+          <EnlaceConGuardia href="/" className="admin-nav-link">
             <svg
               className="admin-nav-icon"
               viewBox="0 0 24 24"
@@ -111,14 +120,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <path d="M19 12H5 M12 19l-7-7 7-7" />
             </svg>
             <span className="admin-nav-texto">Volver a la plataforma</span>
-          </Link>
+          </EnlaceConGuardia>
           <div className="admin-sidebar-pie">
             <span className="admin-sidebar-quien">
               {(sesion.usuario.nombre as string) || (sesion.usuario.email as string)}
               {' · '}
               {esAdmin ? 'administrador' : 'editor'}
             </span>
-            <BotonSalir clase="admin-salir" />
+            <GuardiaDeSalida>
+              <BotonSalir clase="admin-salir" />
+            </GuardiaDeSalida>
           </div>
         </div>
       </aside>

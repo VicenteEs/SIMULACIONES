@@ -2,7 +2,13 @@
 
 import { memo, useCallback, useMemo, useState } from 'react'
 import type { CatalogoDelAtlas, PiezaDelAtlas } from '@/atlas/formato'
-import { armarArbol, buscarPiezas } from '@/atlas/catalogo'
+import { armarArbol } from '@/atlas/catalogo'
+import {
+  buscarEnEspanol,
+  ordenarArbolEnEspanol,
+  type BusquedaEnEspanol,
+} from '@/atlas/arbolEnEspanol'
+import { nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
 
 /**
  * Navegación de las 2.234 piezas del atlas.
@@ -15,6 +21,12 @@ import { armarArbol, buscarPiezas } from '@/atlas/catalogo'
  * Se puede mirar por **región** —cómo se opera— o por **sistema** —cómo se
  * estudia—. Son los dos ejes con los que un traumatólogo busca, y ninguno
  * sustituye al otro.
+ *
+ * Las estructuras se enseñan en español, con el nombre original en el título
+ * de la fila, y se ordenan y se buscan por lo que se ve: ver
+ * `src/atlas/arbolEnEspanol.ts`. El catálogo que llega ya trae los sistemas
+ * corregidos (`cargarCatalogo`), así que «Por sistema» mete los peroneos en
+ * músculos sin que este archivo tenga que saberlo.
  */
 
 export function ArbolAnatomico({
@@ -34,9 +46,12 @@ export function ArbolAnatomico({
   const [consulta, setConsulta] = useState('')
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
 
-  const arbol = useMemo(() => armarArbol(catalogo, eje), [catalogo, eje])
-  const resultados = useMemo(
-    () => (consulta.trim().length >= 2 ? buscarPiezas(catalogo, consulta) : []),
+  // Reordenado en español encima de `armarArbol`, que ordena por el nombre
+  // original: sin esto el árbol enseña «Tibia derecha» colocada entre las «R»
+  // de «Right…», que es donde estaría si se leyera en inglés.
+  const arbol = useMemo(() => ordenarArbolEnEspanol(armarArbol(catalogo, eje)), [catalogo, eje])
+  const busqueda = useMemo(
+    () => (consulta.trim().length >= 2 ? buscarEnEspanol(catalogo, consulta) : null),
     [catalogo, consulta],
   )
 
@@ -130,7 +145,7 @@ export function ArbolAnatomico({
       <div className="atlas-arbol-cabecera">
         <input
           className="atlas-busqueda"
-          placeholder="Buscar: tibia derecha, fémur, arteria…"
+          placeholder="Buscar en español o en inglés: peroné, fibula…"
           value={consulta}
           onChange={(e) => setConsulta(e.target.value)}
         />
@@ -164,9 +179,9 @@ export function ArbolAnatomico({
       </div>
 
       <div className="atlas-lista">
-        {consulta.trim().length >= 2 ? (
+        {busqueda ? (
           <ResultadosDeBusqueda
-            resultados={resultados}
+            busqueda={busqueda}
             visibles={visibles}
             resaltada={resaltada}
             alResaltar={alResaltar}
@@ -307,6 +322,17 @@ const FilaDePieza = memo(function FilaDePieza({
   alAlternar: (id: string) => void
   alSoloEsto: (id: string) => void
 }) {
+  // El original va en el título y no en una segunda línea: la fila es de una
+  // sola línea con puntos suspensivos, y en el ancho de la columna del taller
+  // un segundo nombre al lado se comería el primero (ver `.atlas-casilla span`
+  // en `admin.css`). En el título se lee al pasar el ratón, con el código FMA,
+  // que es lo que hace falta para encontrar la pieza en la bibliografía.
+  //
+  // `lang="en"` en las que siguen sin traducción, para que un lector de
+  // pantalla no lea «Right fibularis brevis» con fonética española. Mientras la
+  // tabla se llena conviven las dos lenguas en la misma lista, y eso es
+  // deliberado: mejor el original que una traducción inventada.
+  const traducida = tieneTraduccion(pieza.nombre)
   return (
     <li
       className={`atlas-pieza${resaltada ? ' atlas-pieza-resaltada' : ''}`}
@@ -315,7 +341,9 @@ const FilaDePieza = memo(function FilaDePieza({
     >
       <label className="atlas-casilla">
         <input type="checkbox" checked={encendida} onChange={() => alAlternar(pieza.id)} />
-        <span title={`${pieza.nombre} · ${pieza.fma}`}>{pieza.nombre}</span>
+        <span lang={traducida ? undefined : 'en'} title={`${pieza.nombre} · ${pieza.fma}`}>
+          {nombreEnEspanol(pieza.nombre)}
+        </span>
       </label>
       {/* La región deducida de la posición se marca: es una estimación y no un
           dato del atlas, y quien prepara una ficha merece saberlo. */}
@@ -332,31 +360,36 @@ const FilaDePieza = memo(function FilaDePieza({
 })
 
 function ResultadosDeBusqueda({
-  resultados,
+  busqueda,
   visibles,
   resaltada,
   alResaltar,
   alAlternar,
   alSoloEsto,
 }: {
-  resultados: { pieza: PiezaDelAtlas }[]
+  busqueda: BusquedaEnEspanol
   visibles: Set<string>
   resaltada: string | null
   alResaltar: (id: string | null) => void
   alAlternar: (id: string) => void
   alSoloEsto: (id: string) => void
 }) {
-  if (resultados.length === 0) {
+  const { piezas, total } = busqueda
+  if (total === 0) {
     return <p className="atlas-vacio">Ninguna estructura coincide.</p>
   }
 
   return (
     <>
+      {/* Con tope se dice que hay tope. Antes ponía «60 coincidencias» cuando
+          había doscientas, y quien no veía la suya creía que no existía. */}
       <p className="atlas-vacio">
-        {resultados.length} coincidencia{resultados.length === 1 ? '' : 's'}
+        {piezas.length < total
+          ? `Las ${piezas.length} más parecidas de ${total}: afine la búsqueda para ver el resto.`
+          : `${total} coincidencia${total === 1 ? '' : 's'}`}
       </p>
       <ul className="atlas-piezas atlas-piezas-sueltas">
-        {resultados.map(({ pieza }) => (
+        {piezas.map((pieza) => (
           <FilaDePieza
             key={pieza.id}
             pieza={pieza}

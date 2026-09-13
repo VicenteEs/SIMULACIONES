@@ -18,7 +18,11 @@ export const metadata: Metadata = {
  * página es donde se cumple, y el visor enlaza aquí.
  *
  * El texto sale de `public/atlas/ATRIBUCION.md`, que escribe el guion de
- * ingesta: así el crédito y el material que describe no pueden separarse.
+ * ingesta: así el crédito y el material que describe no pueden separarse. La
+ * plantilla está en `scripts/atlas/atribucion.mjs`, y es ahí donde se cambia lo
+ * que esta página dice: el archivo corregido a mano vuelve al texto de la
+ * plantilla en cuanto se regenera, y la página deja de enseñar el cambio sin
+ * que nada falle.
  */
 export default async function PaginaCreditos() {
   let atribucion: string | null = null
@@ -68,21 +72,87 @@ export default async function PaginaCreditos() {
  * para hacer una excepción justo en la página de créditos.
  */
 function formatear(markdown: string) {
-  return markdown.split('\n').map((linea, i) => {
-    const clave = `l${i}`
-    if (linea.startsWith('# ')) return null
-    if (linea.startsWith('## ')) return <h3 key={clave}>{linea.slice(3)}</h3>
-    if (linea.startsWith('> ')) {
-      return (
-        <blockquote key={clave} className="creditos-cita">
-          {linea.slice(2)}
-        </blockquote>
-      )
+  return bloquesDe(markdown).map((bloque, i) => {
+    const clave = `b${i}`
+    switch (bloque.tipo) {
+      case 'titulo':
+        return <h3 key={clave}>{bloque.texto}</h3>
+      case 'cita':
+        return (
+          <blockquote key={clave} className="creditos-cita">
+            {sinMarcas(bloque.texto)}
+          </blockquote>
+        )
+      case 'lista':
+        return (
+          <ul key={clave}>
+            {bloque.elementos.map((elemento, j) => (
+              <li key={`${clave}-${j}`}>{sinMarcas(elemento)}</li>
+            ))}
+          </ul>
+        )
+      case 'parrafo':
+        return <p key={clave}>{sinMarcas(bloque.texto)}</p>
     }
-    if (linea.startsWith('- ')) return <li key={clave}>{sinMarcas(linea.slice(2))}</li>
-    if (linea.trim() === '' || linea.startsWith('---')) return null
-    return <p key={clave}>{sinMarcas(linea)}</p>
   })
+}
+
+type Bloque =
+  | { tipo: 'titulo'; texto: string }
+  | { tipo: 'cita'; texto: string }
+  | { tipo: 'parrafo'; texto: string }
+  | { tipo: 'lista'; elementos: string[] }
+
+/**
+ * Agrupa las líneas del archivo en bloques.
+ *
+ * Antes cada línea era un elemento, y el archivo está cortado a ochenta
+ * columnas: un punto de la lista que ocupaba dos líneas salía partido en un
+ * `<li>` con media frase y un `<p>` suelto con la otra media, y la cita del
+ * crédito exigido, en dos citas. Con las ocho correcciones de sistema y la
+ * traducción de los nombres, «Cambios realizados» —justo lo que la licencia
+ * obliga a declarar— pasaba a leerse a trozos.
+ *
+ * Una línea que no abre bloque continúa el que está abierto; una línea en
+ * blanco lo cierra. Es lo que hace markdown, y lo único que usa este archivo.
+ */
+function bloquesDe(markdown: string): Bloque[] {
+  const bloques: Bloque[] = []
+  let abierto: Bloque | null = null
+
+  // El archivo puede llegar con CRLF si el repositorio se sacó en Windows, y
+  // con el `\r` pegado ninguna línea en blanco parecía en blanco.
+  for (const linea of markdown.replace(/\r\n/g, '\n').split('\n')) {
+    if (linea.trim() === '' || linea.startsWith('---') || linea.startsWith('# ')) {
+      abierto = null
+    } else if (linea.startsWith('## ')) {
+      bloques.push({ tipo: 'titulo', texto: linea.slice(3) })
+      abierto = null
+    } else if (linea.startsWith('> ')) {
+      if (abierto?.tipo === 'cita') {
+        abierto.texto += ` ${linea.slice(2).trim()}`
+      } else {
+        abierto = { tipo: 'cita', texto: linea.slice(2).trim() }
+        bloques.push(abierto)
+      }
+    } else if (linea.startsWith('- ')) {
+      if (abierto?.tipo === 'lista') {
+        abierto.elementos.push(linea.slice(2).trim())
+      } else {
+        abierto = { tipo: 'lista', elementos: [linea.slice(2).trim()] }
+        bloques.push(abierto)
+      }
+    } else if (abierto?.tipo === 'lista') {
+      abierto.elementos[abierto.elementos.length - 1] += ` ${linea.trim()}`
+    } else if (abierto?.tipo === 'cita' || abierto?.tipo === 'parrafo') {
+      abierto.texto += ` ${linea.trim()}`
+    } else {
+      abierto = { tipo: 'parrafo', texto: linea.trim() }
+      bloques.push(abierto)
+    }
+  }
+
+  return bloques
 }
 
 /** Quita el énfasis y los enlaces del markdown, dejando el texto legible. */

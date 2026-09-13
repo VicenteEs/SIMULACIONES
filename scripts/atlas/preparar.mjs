@@ -32,16 +32,31 @@
  *     nervios que atraviesan regiones. Por eso cada pieza queda marcada con
  *     cuál de los dos caminos la clasificó: sin esa marca no habría manera de
  *     distinguir un dato de una estimación.
- *  3. Los nombres de los sistemas se traducen; los de las piezas **no**. La
- *     terminología anatómica es la que usa el traumatólogo, y traducir 2.234
- *     nombres a mano introduciría errores en el único sitio donde no se pueden
- *     permitir.
+ *  3. Los nombres de los sistemas y de las regiones se escriben aquí en
+ *     español. Los de las piezas salen del catálogo con su nombre ORIGINAL y
+ *     así se quedan en `catalogo.json`: la plataforma los enseña en español
+ *     leyendo `src/atlas/nombres-es.json`, una tabla indexada por ese original.
+ *     La tradujeron agentes automáticos con una pasada de revisión clínica, y
+ *     ningún médico la ha leído fila a fila (D-092): quien vea un término que no
+ *     suena a consulta, que lo corrija ahí. Escritos aquí dentro, se
+ *     perderían en cada regeneración; indexados por el original, sobreviven a
+ *     cualquiera que no cambie la anatomía. Por eso este guion no traduce nada:
+ *     quien quiera cambiar una traducción la cambia en la tabla.
+ *
+ * El ATRIBUCION.md no se redacta aquí: lo escribe `atribucion.mjs`, que es la
+ * única plantilla. Aquí hubo otra, y cuando el atlas empezó a enseñarse en
+ * español siguió afirmando que los nombres de las estructuras no se traducían;
+ * nada lo cantaba, porque este guion prepara el atlas entero en cuanto se
+ * importa y ninguna prueba podía llamar a su plantilla. Regenerar habría
+ * borrado sin aviso la declaración de cambios que exige CC BY 4.0 —la
+ * traducción, el original conservado y las correcciones de sistema—.
  * --------------------------------------------------------------------------
  */
 import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { atribucion } from './atribucion.mjs'
 
 const AQUI = dirname(fileURLToPath(import.meta.url))
 const RAIZ = resolve(AQUI, '..', '..')
@@ -226,6 +241,9 @@ Clone primero el repositorio de origen:
   }
 
   writeFileSync(join(DESTINO, 'catalogo.json'), JSON.stringify(catalogo), 'utf8')
+  // El catálogo crudo, con los sistemas del origen: la plantilla aplica ella
+  // misma las correcciones antes de contar y de declararlas, para que quien la
+  // llama no pueda olvidarse (ver `atribucion.mjs`).
   writeFileSync(join(DESTINO, 'ATRIBUCION.md'), atribucion(catalogo), 'utf8')
 
   // --- resumen -------------------------------------------------------------
@@ -242,103 +260,6 @@ Clone primero el repositorio de origen:
     const n = porRegion.get(r.id) ?? 0
     if (n > 0) console.log(`    ${r.nombre.padEnd(30)} ${String(n).padStart(5)}`)
   }
-}
-
-/**
- * El párrafo del ATRIBUCION.md que dice cuánto de la clasificación es estimado.
- *
- * Se cuenta sobre el catálogo recién escrito en vez de redactarlo a mano. La
- * versión a mano decía que deducir la región era la excepción de vasos y
- * nervios; era falso —son la mayoría de las piezas— y nadie lo notó porque el
- * texto no dependía de los datos. Contándolo aquí, no puede volver a pasar.
- */
-function resumenDeRegiones(catalogo) {
-  const VASOS_Y_NERVIOS = ['arterial', 'venous', 'nervous']
-  const estimadas = catalogo.piezas.filter((p) => p.origenRegion === 'caja')
-  const cuantas = (piezas, sistema) => piezas.filter((p) => p.sistema === sistema).length
-
-  const total = catalogo.piezas.length
-  const conConcepto = total - estimadas.length
-  const deVasos = estimadas.filter((p) => VASOS_Y_NERVIOS.includes(p.sistema)).length
-
-  // Los dos sistemas que más aportan al resto, con su nombre y sus cifras: así
-  // el ejemplo sigue siendo cierto aunque cambie el material de origen.
-  const resto = catalogo.sistemas
-    .filter((s) => !VASOS_Y_NERVIOS.includes(s.id))
-    .map((s) => ({
-      nombre: s.nombre.toLocaleLowerCase('es'),
-      estimadas: cuantas(estimadas, s.id),
-      total: cuantas(catalogo.piezas, s.id),
-    }))
-    .sort((a, b) => b.estimadas - a.estimadas)
-    .slice(0, 2)
-    .map((s) => `${s.nombre} (${s.estimadas} de ${s.total})`)
-    .join(' y ')
-
-  const n = (v) => v.toLocaleString('es-CL')
-  const pct = (parte, de) => Math.round((parte * 100) / de)
-
-  return `La mayoría de las piezas tiene la región deducida: solo ${n(conConcepto)} (el ${pct(conConcepto, total)} %) tienen un
-concepto FMA que las sitúa; las otras ${n(estimadas.length)} (el ${pct(estimadas.length, total)} %) no. No es la excepción de
-vasos y nervios: arterias, venas y nervios son ${n(deVasos)} de esas ${n(estimadas.length)}, el ${pct(deVasos, estimadas.length)} %; el
-resto es sobre todo ${resto}. Sirve
-igual porque la estimación no se disfraza de dato: cada pieza deducida queda
-marcada en el catálogo y el árbol anatómico la señala con un distintivo.`
-}
-
-function atribucion(catalogo) {
-  return `# Atribución del atlas anatómico
-
-La geometría anatómica de esta plataforma procede de **BodyParts3D**, y su
-licencia obliga a citarla allí donde se muestre. Este archivo es la fuente de
-ese crédito; la página de créditos de la plataforma lo reproduce.
-
-## Crédito exigido
-
-> BodyParts3D, © The Database Center for Life Science licensed under
-> CC Attribution 4.0 International
-
-- Licencia: https://creativecommons.org/licenses/by/4.0/
-- Términos del origen: https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
-- Conjunto de datos: https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html
-- Publicación: Mitsuhashi et al. (2009), *BodyParts3D: 3D structure database for
-  anatomical concepts*. https://doi.org/10.1093/nar/gkn613
-
-Los comentarios de los archivos OBJ originales mencionan una licencia anterior,
-CC BY-SA 2.1 Japón. La página oficial vigente la sustituye por CC BY 4.0, que no
-obliga a compartir igual.
-
-## Cambios realizados
-
-CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
-
-- ejes y unidades convertidos de milímetros y Z arriba a metros y Y arriba;
-- geometría simplificada con meshoptimizer, con un límite de error relativo del
-  0,2 % por estructura; las 2.234 mallas de origen se conservan todas;
-- normales cuantizadas a entero de 16 bits con signo;
-- geometría empaquetada en ${catalogo.paquetes.length} archivos binarios comprimidos;
-- añadida una clasificación por **región anatómica** que el material original no
-  traía: se toma de los conceptos FMA de región del propio atlas (cabeza, tórax,
-  miembro superior derecho) cuando la pieza figura entre sus elementos y, si no,
-  se deduce de la posición de su caja envolvente;
-- traducidos al español los nombres de los sistemas y de las regiones. Los
-  nombres de las estructuras se conservan en su forma original.
-
-La preparación intermedia procede de https://github.com/ashemag/human-atlas
-(código bajo licencia MIT), que documenta las cuatro primeras adaptaciones.
-
-${resumenDeRegiones(catalogo)}
-
-## Límites de este material
-
-- Es **anatomía de referencia de un varón adulto**. No representa la variación
-  anatómica ni la anatomía femenina.
-- Es material **docente**. No sirve para diagnóstico ni para planificación
-  quirúrgica sobre un paciente concreto.
-
----
-Preparación \`${catalogo.version}\` · ${catalogo.triangulos.toLocaleString('es-CL')} triángulos
-`
 }
 
 principal()

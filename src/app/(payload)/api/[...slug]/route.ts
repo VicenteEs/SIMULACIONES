@@ -16,6 +16,16 @@ import { REST_GET, REST_OPTIONS } from '@payloadcms/next/routes'
  *    editor con sesión, así que un `PATCH /api/patologias/<id>` guardaba texto
  *    rico sin pasar por `depurarDocumento` ni por `faltantes()`, que son las dos
  *    comprobaciones del panel. Lo que entraba por aquí no lo revisaba nadie.
+ *    Y en `usuarios`, abiertas, darían además una respuesta falsa. Cuando el
+ *    disparador del último administrador deshace el cambio al confirmar, el
+ *    adaptador de Payload se traga el error del `COMMIT`
+ *    (`@payloadcms/drizzle`, `transactions/beginTransaction.js`) y
+ *    `updateByID`/`deleteByID` terminan como si hubiera ido bien, así que un
+ *    `PATCH` o un `DELETE` contestaría con éxito sobre un cambio que la base
+ *    no guardó. El panel lo resuelve releyendo la cuenta
+ *    (`escribirSinDejarSinAdministradores`, en `acciones/admin.ts`); aquí no
+ *    hay nadie que relea. Reabrir cualquier escritura de esta API es reabrir
+ *    también eso.
  *  - **Los listados.** `GET /api/medios?limit=500` devolvía nombre, tipo y
  *    dirección de todos los archivos a cualquier cuenta activa, borradores
  *    incluidos. Apretar el `access.read` de Medios NO era la salida: las

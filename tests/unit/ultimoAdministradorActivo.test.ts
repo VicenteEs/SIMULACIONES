@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { migrations } from '@/migrations'
@@ -23,7 +23,54 @@ import { Usuarios } from '@/collections/Usuarios'
  * PostgreSQL 17: dos sesiones desactivando cada una a un administrador distinto
  * a la vez, la primera en confirmar pasa y la segunda se deshace con el error.
  * Ver la cabecera de la migración.
+ *
+ * El último bloque es la excepción, y por eso lleva simulacros: no mira el SQL
+ * sino lo que el panel le dice a quien pierde esa carrera cuando la ven antes
+ * que la base la comprobación de la acción o el gancho de la colección.
  */
+
+// Los simulacros solo sirven al último bloque, el de lo que el panel le dice a
+// quien pierde la carrera antes de llegar a la base. No tocan a los de arriba:
+// `@/migrations` trae `sql` de `@payloadcms/db-postgres`, que vive en
+// `node_modules` y no pasa por estos simulacros, y `Usuarios` solo importa
+// tipos de `payload`.
+const { buscarPorId, actualizar, borrar, contar } = vi.hoisted(() => ({
+  buscarPorId: vi.fn(),
+  actualizar: vi.fn(),
+  borrar: vi.fn(),
+  contar: vi.fn(),
+}))
+
+vi.mock('@/lib/sesion', () => ({
+  obtenerSesion: async () => ({
+    usuario: { id: 1, rol: 'admin', activo: true },
+    activo: true,
+    rolReal: 'admin',
+    rol: 'admin',
+    simulando: false,
+    usuarioEfectivo: { id: 1, rol: 'admin', activo: true },
+  }),
+}))
+
+vi.mock('payload', () => ({
+  getPayload: async () => ({
+    findByID: buscarPorId,
+    update: actualizar,
+    delete: borrar,
+    count: contar,
+  }),
+}))
+
+vi.mock('@payload-config', () => ({ default: {} }))
+
+vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
+
+import {
+  actualizarUsuario,
+  cambiarActivoUsuario,
+  eliminarUsuario,
+} from '@/app/(frontend)/acciones/admin'
+
 
 const NOMBRE = '20260913_043401_ultimo_administrador_activo'
 
@@ -96,13 +143,24 @@ describe('las tres piezas que cierran la carrera', () => {
     expect(seguido).toContain(`WHEN (OLD."rol" = 'admin' AND OLD."activo" = true) EXECUTE FUNCTION`)
   })
 
-  it('el rechazo viaja con SQLSTATE 23514', () => {
-    // PostgreSQL no lanza un `APIError` de Payload, así que el panel lo enseña
-    // como un fallo de servidor sin traducir. El código es lo que permitirá
-    // reconocerlo en `acciones/admin.ts` —pendiente, ese archivo no es de este
-    // lote— sin comparar el texto del mensaje, que es lo que se rompe en
-    // silencio en cuanto alguien reescribe una frase.
-    expect(seguido).toContain(`USING ERRCODE = '23514'`)
+  it('el rechazo viaja con el SQLSTATE que el panel reconoce', () => {
+    // PostgreSQL no lanza un `APIError` de Payload, y su texto —el del
+    // `RAISE`, que manda a «crear otro administrador»— no es verdad para quien
+    // lo recibe desde el panel. `acciones/admin.ts` reconoce el rechazo por
+    // este código y lo cambia por su propia explicación, sin comparar frases,
+    // que es lo que se rompe en silencio en cuanto alguien reescribe una.
+    //
+    // Por eso se comprueba contra la constante del panel y no contra un número
+    // escrito aquí: cambiar el `ERRCODE` sin tocar `SIN_ADMINISTRADORES_ACTIVOS`
+    // devolvería al panel el SQL en crudo, y ninguna de las dos pruebas por
+    // separado lo vería.
+    const codigo = /USING ERRCODE = '(\d{5})'/.exec(seguido)?.[1]
+    expect(codigo).toBe('23514')
+    const panel = readFileSync(
+      join(process.cwd(), 'src', 'app', '(frontend)', 'acciones', 'admin.ts'),
+      'utf8',
+    )
+    expect(/const SIN_ADMINISTRADORES_ACTIVOS = '(\d{5})'/.exec(panel)?.[1]).toBe(codigo)
   })
 })
 
@@ -122,12 +180,142 @@ describe('los guardias de la aplicación siguen puestos', () => {
   it('la colección conserva sus dos ganchos de autobloqueo', () => {
     // El disparador es la red de la carrera, no la puerta de todos los días:
     // solo existe en el servidor y no sabe distinguir «a sí mismo» de «al
-    // último», ni decirlo en español. Quitar los ganchos porque «ya lo mira la
-    // base» dejaría al administrador con un 500 sin explicación, y en
+    // último», ni decirlo en español. Y lo que rechaza no siempre se entera
+    // nadie: el adaptador de Payload se traga el error del `COMMIT`, así que
+    // un guion de mantenimiento que desactivara al último administrador vería
+    // su `payload.update` resolver sin fallo. Quitar los ganchos porque «ya lo
+    // mira la base» dejaría ese guion creyendo que hizo lo que no hizo, y en
     // desarrollo sin ninguna comprobación.
     const antesDeCambiar = Usuarios.hooks?.beforeChange ?? []
     const antesDeBorrar = Usuarios.hooks?.beforeDelete ?? []
     expect(antesDeCambiar.length).toBeGreaterThanOrEqual(2)
     expect(antesDeBorrar.length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+/**
+ * La misma carrera, cuando la ven antes que la base.
+ *
+ * El disparador no es la única puerta por la que llega. `exigirQueQuedeUnAdmin`
+ * cuenta antes de escribir y el gancho de la colección vuelve a contar dentro de
+ * la escritura, y los dos pueden ser los primeros en ver que la otra sesión ya
+ * confirmó. Desde el panel, ninguno de los dos frena nunca el caso evidente
+ * —quien llama no puede ser la cuenta tocada y `exigirAdmin` lo acaba de leer
+ * administrador, así que el conteo lo incluye—: si dan cero, es que a quien
+ * llama le acaban de retirar el acceso. Sus mensajes decían «es el único
+ * administrador activo» y «Cree otro administrador», y eso es exactamente lo
+ * falso que el disparador dejó de decir.
+ */
+describe('la carrera que ven los guardias de la aplicación', () => {
+  const QUIEN_LLAMA = '1'
+  const OBJETIVO = { id: 9, email: 'otra@hospital.cl', rol: 'admin', activo: true }
+  const RETIRADO = { id: 1, email: 'yo@hospital.cl', rol: 'admin', activo: false }
+
+  const laBaseTiene = (quienLlama: Record<string, unknown> | null) =>
+    buscarPorId.mockImplementation(async ({ id }: { id: string }) =>
+      id === QUIEN_LLAMA ? quienLlama : OBJETIVO,
+    )
+
+  /** Lo que lanza `impedirAutobloqueo` cuando cuenta cero: un `Error` sin código. */
+  const delGancho = () =>
+    new Error(
+      'Es el único administrador activo: la plataforma quedaría sin nadie que pueda ' +
+        'gestionar cuentas. Cree otro administrador antes de hacer este cambio.',
+    )
+
+  const ACCIONES = [
+    { nombre: 'desactivar', llamar: () => cambiarActivoUsuario('9', false), escritura: actualizar },
+    {
+      nombre: 'quitar el rol',
+      llamar: () => actualizarUsuario('9', { rol: 'lector' }),
+      escritura: actualizar,
+    },
+    { nombre: 'eliminar', llamar: () => eliminarUsuario('9'), escritura: borrar },
+  ] as const
+
+  beforeEach(() => {
+    for (const simulacro of [buscarPorId, actualizar, borrar, contar]) simulacro.mockReset()
+    actualizar.mockResolvedValue({ id: 9 })
+    borrar.mockResolvedValue({ id: 9 })
+    contar.mockResolvedValue({ totalDocs: 1 })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it.each(ACCIONES)('$nombre: la comprobación previa le dice a quién retiraron', async (caso) => {
+    contar.mockResolvedValue({ totalDocs: 0 })
+    laBaseTiene(RETIRADO)
+
+    const respuesta = await caso.llamar()
+
+    expect(respuesta.exito).toBe(false)
+    expect(respuesta.mensaje).toContain('otra sesión le retiró a usted el acceso de administrador')
+    expect(respuesta.mensaje).toContain('no se cambió nada')
+    expect(respuesta.mensaje).toMatch(/Ya no puede gestionar cuentas desde aquí\.$/)
+    expect(respuesta.mensaje).not.toMatch(/único administrador|Cree otro administrador|recargue/i)
+    // Leído, no deducido: la cuenta que se mira es la de quien llama.
+    expect(buscarPorId).toHaveBeenCalledWith(expect.objectContaining({ id: QUIEN_LLAMA }))
+    // Y se para antes de escribir, que es para lo que está.
+    expect(caso.escritura).not.toHaveBeenCalled()
+  })
+
+  it('si quien llama se lee otra vez administrador, no se le atribuye nada', async () => {
+    // El conteo y la lectura se contradicen: alguien lo cambió entre medias, y
+    // no se sabe quién. Se dice lo que dio el conteo y se manda a la lista.
+    contar.mockResolvedValue({ totalDocs: 0 })
+    laBaseTiene({ id: 1, rol: 'admin', activo: true })
+
+    const respuesta = await cambiarActivoUsuario('9', false)
+
+    expect(respuesta.exito).toBe(false)
+    expect(respuesta.mensaje).toContain('no se cambió nada')
+    expect(respuesta.mensaje).toContain('Recargue la lista')
+    expect(respuesta.mensaje).not.toMatch(/le retiró a usted|Cree otro administrador/)
+    expect(actualizar).not.toHaveBeenCalled()
+  })
+
+  it.each(ACCIONES)('$nombre: el corte del gancho se explica igual', async (caso) => {
+    // La comprobación previa todavía ve a quien llama; dentro de la escritura,
+    // el gancho ya no. Después, la cuenta tocada sigue siendo la última.
+    contar.mockResolvedValueOnce({ totalDocs: 1 }).mockResolvedValue({ totalDocs: 0 })
+    caso.escritura.mockRejectedValue(delGancho())
+    laBaseTiene(RETIRADO)
+
+    const respuesta = await caso.llamar()
+
+    expect(respuesta.exito).toBe(false)
+    expect(respuesta.mensaje).toContain('otra sesión le retiró a usted el acceso de administrador')
+    expect(respuesta.mensaje).toContain('otra@hospital.cl sigue siendo administrador')
+    expect(respuesta.mensaje).not.toMatch(/Cree otro administrador|único administrador/)
+    // El del gancho no se pierde: `accion()` lo anota entero con su causa.
+    const anotado = vi.mocked(console.error).mock.calls.at(-1)?.[1] as Error
+    expect((anotado.cause as Error).message).toMatch(/Cree otro administrador/)
+  })
+
+  it('un fallo con la cuenta tocada fuera de peligro no se disfraza de carrera', async () => {
+    // Quedan otros administradores: sea lo que sea, no es esto.
+    const otro = new Error('duplicate key value violates unique constraint')
+    actualizar.mockRejectedValue(otro)
+    laBaseTiene(RETIRADO)
+
+    const respuesta = await cambiarActivoUsuario('9', false)
+
+    expect(respuesta.mensaje).toBe(otro.message)
+  })
+
+  it('si la lectura que tendría que explicarlo falla, sale el fallo original', async () => {
+    // Una base que no contesta rompe la escritura y rompe también la relectura:
+    // cambiar un error por el de la lectura, o por una carrera que nadie vio,
+    // sería esconder lo único que se sabe.
+    const caida = new Error('Connection terminated unexpectedly')
+    actualizar.mockRejectedValue(caida)
+    buscarPorId.mockRejectedValue(new Error('otra conexión caída'))
+
+    const respuesta = await cambiarActivoUsuario('9', false)
+
+    expect(respuesta.mensaje).toBe(caida.message)
   })
 })

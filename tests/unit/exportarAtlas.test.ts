@@ -4,6 +4,7 @@ import {
   agruparParaGlb,
   colorDeGltf,
   piezasDeLaPreparacion,
+  recortarLaPiel,
   type PiezaLeida,
 } from '@/lib/exportarAtlas'
 import type { CatalogoDelAtlas, PiezaDelAtlas } from '@/atlas/formato'
@@ -78,6 +79,88 @@ describe('agrupar para exportar', () => {
     expect(colorDeGltf('#12509e')).toEqual([18 / 255, 80 / 255, 158 / 255, 1])
     expect(colorDeGltf(undefined)).toEqual([0.8, 0.8, 0.8, 1])
     expect(colorDeGltf('rojo')).toEqual([0.8, 0.8, 0.8, 1])
+  })
+})
+
+describe('recortar la piel', () => {
+  // Objetos escritos a mano, con el rol puesto, para que las cuentas se puedan
+  // hacer en la cabeza. La prueba con una piel de verdad, de miles de vértices,
+  // está en `exportarAlSimulador.test.ts`.
+  const hueso: ObjetoParaGlb = {
+    nombre: 'hueso',
+    posiciones: new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]),
+    normales: new Int16Array(12),
+    indices: new Uint32Array([0, 1, 2, 0, 2, 3]),
+    color: [1, 1, 1, 1],
+    extras: { rol: 'hueso', etiqueta: 'Hueso' },
+  }
+
+  it('compacta los vértices y reindexa, y cada índice sigue apuntando al suyo', () => {
+    // Una tira de seis vértices: el 0 y el 5 quedan a 4 m del hueso. Solo los
+    // dos triángulos del medio tienen sus tres vértices dentro de la zona.
+    const piel: ObjetoParaGlb = {
+      nombre: 'piel',
+      posiciones: new Float32Array([
+        5, 0, 0, // 0, fuera
+        0, 0, 0, // 1
+        1, 0, 0, // 2
+        0, 1, 0, // 3
+        1, 1, 0, // 4
+        5, 1, 0, // 5, fuera
+      ]),
+      // Cada normal distinta, para ver que viaja con su vértice.
+      normales: new Int16Array([0, 0, 10, 0, 0, 11, 0, 0, 12, 0, 0, 13, 0, 0, 14, 0, 0, 15]),
+      indices: new Uint32Array([0, 1, 3, 1, 2, 3, 2, 4, 3, 2, 5, 4]),
+      color: [1, 1, 1, 1],
+      extras: { rol: 'piel', etiqueta: 'Piel' },
+    }
+    const { objetos, recortada, fuera } = recortarLaPiel([hueso, piel])
+    expect([recortada, fuera]).toEqual([true, []])
+    const recortado = objetos[1]
+    // Los vértices 1, 2, 3 y 4 pasan a ser 0, 1, 2 y 3, en su orden.
+    expect([...recortado.posiciones]).toEqual([0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0])
+    expect([...recortado.normales]).toEqual([0, 0, 11, 0, 0, 12, 0, 0, 13, 0, 0, 14])
+    expect([...recortado.indices]).toEqual([0, 1, 2, 1, 3, 2])
+    // El hueso no se toca, ni se copia.
+    expect(objetos[0]).toBe(hueso)
+    // Y la piel que entró sigue entera: el recorte es una copia.
+    expect(piel.indices).toHaveLength(12)
+  })
+
+  it('un índice que apunta a un vértice que no existe descarta su triángulo', () => {
+    // Sin la guarda, `posiciones[99 * 3]` es undefined, ninguna comparación con
+    // undefined es cierta, y el vértice fantasma contaría como dentro.
+    const piel: ObjetoParaGlb = {
+      nombre: 'piel',
+      posiciones: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normales: new Int16Array(9),
+      indices: new Uint32Array([0, 1, 2, 0, 1, 99]),
+      color: [1, 1, 1, 1],
+      extras: { rol: 'piel', etiqueta: 'Piel' },
+    }
+    const [, recortado] = recortarLaPiel([hueso, piel]).objetos
+    expect([...recortado.indices]).toEqual([0, 1, 2])
+  })
+
+  it('una piel que se queda sin triángulos no se escribe, y su etiqueta sale en «fuera»', () => {
+    const lejos: ObjetoParaGlb = {
+      nombre: 'Hair of head',
+      posiciones: new Float32Array([0, 9, 0, 1, 9, 0, 0, 10, 0]),
+      normales: new Int16Array(9),
+      indices: new Uint32Array([0, 1, 2]),
+      color: [1, 1, 1, 1],
+      extras: { rol: 'piel', etiqueta: 'Pelo de la cabeza' },
+    }
+    const { objetos, recortada, fuera } = recortarLaPiel([hueso, lejos])
+    expect(objetos).toEqual([hueso])
+    expect([recortada, fuera]).toEqual([true, ['Pelo de la cabeza']])
+  })
+
+  it('sin nada que no sea piel no hay zona, y no se recorta', () => {
+    const soloPiel = agruparParaGlb([pieza('Skin', 'integumentary'), pieza('otra', 'integumentary', 40)])
+    const resultado = recortarLaPiel(soloPiel)
+    expect(resultado.objetos).toBe(soloPiel)
+    expect(resultado.recortada).toBe(false)
   })
 })
 

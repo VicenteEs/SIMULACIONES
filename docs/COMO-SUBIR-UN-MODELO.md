@@ -81,9 +81,23 @@ navegador del residente, muchas veces en un portátil modesto y con la red del
 hospital. Si se pasa, baje el número de caras con un modificador **Decimate**
 antes de exportar.
 
-(Si alguna vez lee que el límite son 8 MB, eso es otra cosa: el tamaño máximo del
-envío, que tiene que ser mayor porque en la misma petición viaja el formulario.
-El que decide sobre su archivo es el de 5 MB.)
+### Si el modelo sale del taller del atlas
+
+No hace falta pasar por Blender: en **Taller anatómico → Exportar como modelo**
+la plataforma escribe el `.glb` por usted, con los nombres de las piezas en
+español y, dentro del archivo, la capa de la simulación que le toca a cada una
+(piel, músculo o hueso). Al elegir ese modelo en un caso, el taller de piezas
+tiene un botón **Rellenar desde el modelo** que escribe las piezas sin teclear
+nada.
+
+Si aun así lo abre en Blender para retocarlo y lo vuelve a exportar, marque
+**Incluir → Propiedades personalizadas** (*Custom Properties*), que viene
+**apagado** por omisión. Ahí viajan las capas: sin esa casilla el modelo se ve
+igual y funciona, pero «Rellenar desde el modelo» ya no sabe qué es cada pieza y
+habrá que ponerlo a mano.
+
+Los modelos exportados del atlas **antes del 13 de septiembre de 2026** llevan
+los nombres en inglés y ninguna capa dentro: vuelva a exportarlos.
 
 Si quiere ver cómo debe quedar, `ejemplos/tibia-de-prueba.glb` es un
 ejemplo mínimo con esos cuatro objetos.

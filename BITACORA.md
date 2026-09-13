@@ -1765,7 +1765,7 @@ actividad: una avería leyendo recorridos no puede poner «—» en las cifras d
 lectura, que se leyeron perfectamente.
 
 
-### D-087 · 2026-09-13 · vigente · cierra el cabo abierto de D-072
+### D-087 · 2026-09-13 · vigente · cierra el cabo abierto de D-072 · su tope de lectura, retirado por D-104
 **El examen físico registra lectura desde el listado, con una casilla por
 maniobra. Esta la eligió el equipo.**
 La pregunta se le hizo al traumatólogo y contestó «no entiendo, haz lo que mejor
@@ -1817,7 +1817,7 @@ veces «casilla de verificación, Marcar como leída» y marcar la que se acaba 
 leer queda en contar casillas desde arriba.
 
 
-### D-088 · 2026-09-13 · vigente · supera a D-075
+### D-088 · 2026-09-13 · vigente · supera a D-075 · la vía de `Campos.tsx` y la cadena 50 ≤ 52 ≤ 64, superadas por D-099
 **El techo de subida son 50 MB, y el archivo entra por una ruta y no por una
 acción de servidor.**
 La pregunta era si cabe un vídeo de quirófano de verdad, y la respuesta vino
@@ -1993,6 +1993,750 @@ campo recién declarado, antes de regenerar— y que hay que atender aunque se s
 la causa. Es el mismo precio que D-070 paga por la de migraciones, y se acepta
 por lo mismo: una convención que solo vive en la cabeza de quien la recuerda
 dura hasta el siguiente lote. Este lote es la prueba.
+
+
+### D-092 · 2026-09-13 · vigente · amplía D-012 y D-050
+**Las estructuras del atlas se enseñan en español, con una tabla aparte indexada
+por el nombre original.**
+«Quiero que haya un match entre los nombres de mi aplicación con los nombres del
+atlas.» Hasta hoy el taller enseñaba «Right tibia», el archivo exportado llevaba
+un objeto `Right_tibia` y la consola, que habla en español desde el primer día
+(D-012), no tenía con qué casarlo. La regla contraria estaba escrita, pero no
+aquí: vivía en la cabecera de `scripts/atlas/preparar.mjs` —«traducir 2.234
+nombres a mano introduciría errores en el único sitio donde no se pueden
+permitir»— y en `public/atlas/ATRIBUCION.md`. Ese riesgo no desaparece: se
+acepta, y lo que se hizo para pagarlo está más abajo.
+
+El atlas trae 2.234 piezas con 1.674 nombres distintos.
+`src/atlas/nombres-es.json` traduce 1.663, y **once se quedan en inglés a
+propósito**, porque nadie pudo asegurar su equivalente: el músculo perineal
+superficial, los ocho segmentos hepatovenosos y los dos segmentos ureterales de
+la arteria renal. Lo que no tiene traducción se enseña con su nombre original y
+no con una traducción a ciegas: presentar una terminología inventada como
+terminología es lo mismo que D-050 prohíbe con las regiones estimadas.
+
+*El criterio es el de un traumatólogo en consulta, no el de un diccionario.*
+Peroné y no fíbula, peroneo y no fibular, rótula y no patela, hallux. Los huesos
+van sin «Hueso» delante salvo donde hace falta para no confundir: hueso
+temporal, hueso trapecio —el músculo trapecio existe—, hueso grande. Quien añada
+una fila tiene que seguir esa convención, y no la sostiene nada más que esta
+entrada.
+
+*Cómo se hizo, y lo que encontró la parte que parecía de sobra.* Dieciocho
+tandas de traducción, cada una con su revisión clínica, y encima dos pasadas de
+coherencia sobre la tabla entera. Esas dos pasadas encontraron fallos reales que
+ninguna tanda podía ver desde dentro: el pie izquierdo decía «dedo gordo» y el
+derecho «hallux», porque cada lado lo tradujo una tanda distinta; y 29 parejas
+derecha/izquierda no se correspondían —una errata («Genihioideo»), concordancias
+distintas, «Hueso cuboides» frente a «Cuboides»—. Medido sobre la tabla final:
+632 parejas, ninguna discrepa.
+
+*Por qué una tabla aparte y no dentro de `public/atlas/catalogo.json`.* Ese
+archivo lo reescribe entero `preparar.mjs` cada vez que se regenera el atlas, y
+una traducción escrita allí desaparecería sin aviso. Indexada por el nombre
+original, sobrevive a cualquier regeneración que no cambie la anatomía. Por eso
+el catálogo **sigue guardando el original**: es la clave de esta tabla y de las
+correcciones de D-093, y un catálogo con los nombres ya traducidos dejaría las
+dos sin casar con nada, sin un solo error.
+
+*Por qué el original no se tira.* Es lo que se busca en la bibliografía y en la
+Foundational Model of Anatomy, así que el árbol y el taller lo enseñan al pasar
+el ratón, y la búsqueda casa en los dos idiomas: «perone» y «fibula» encuentran
+la misma pieza. Y CC BY 4.0 permite traducir pero obliga a declararlo, cosa que
+ahora hace `ATRIBUCION.md` (D-093).
+
+*La búsqueda tuvo que cambiar con la tabla.* Traducidos, los nombres llevan
+palabras en medio y el lado detrás —«Peroneo corto derecho»—, y buscar la
+consulta de corrido dejaba «peroneo derecho» sin nada: el árbol se quedaba vacío
+y el taller decía que la pieza no estaba encendida. `casaConLaBusqueda`
+(`src/atlas/nombres.ts`) exige todas las palabras, en cualquier orden y sin
+tildes, dentro del nombre en español o dentro del original —no media consulta en
+cada uno—, y la usan el árbol y el taller, para que un buscador no encuentre lo
+que el otro no. El árbol ordena con `localeCompare` en español, que pone
+«Órbita» donde va y no detrás de «Zigomático». Las equivalencias español→inglés
+de `buscarPiezas` se quedan: son lo único que encuentra las once sin traducir
+escribiendo en español.
+
+*Consecuencias malas, y son de mantenimiento.* **La tabla se mantiene a mano.**
+Si el atlas se regenera con estructuras nuevas o renombradas, esas salen en
+inglés hasta que alguien las añada, y lo único que lo delata es el aviso de la
+exportación (D-094), no una prueba. **La coherencia entre lados sí la vigila
+una prueba**, `tests/unit/simetriaDeLasTraducciones.test.ts`, que compara las
+más de seiscientas parejas derecha/izquierda: la sostuvo primero una pasada de
+revisión, y una pasada no protege la próxima fila que se corrija de un solo
+lado. Se comprobó que salta rompiendo a propósito el extensor largo del hallux. Y conviene decir
+con exactitud quién la revisó, porque se llegó a escribir mal: la tradujeron
+agentes automáticos, dieciocho tandas con un segundo agente que hizo de revisor
+clínico, más dos comprobaciones de coherencia hechas con un guion. **Ningún
+médico la ha leído fila a fila.** Durante unas horas tres comentarios del código
+la llamaron «revisada por un traumatólogo», porque así se describió en un
+encargo, y se corrigieron antes de subir. Lo que la termina de validar es que el
+traumatólogo la use y diga dónde no le suena.
+
+
+### D-093 · 2026-09-13 · vigente · amplía D-050
+**Cada sistema del atlas cae en una capa de la simulación, y todo lo que no es
+piel ni hueso es «músculo». Ocho estructuras se cambian de sistema al leer el
+catálogo.**
+Son dos vocabularios que nacieron por separado. El atlas clasifica por sistema
+anatómico, con los identificadores de su origen —`skeletal`, `muscular`,
+`integumentary`—, y la consola apaga y enciende por papel: piel, músculo, hueso,
+fragmento, implante. Un modelo exportado llegaba con objetos llamados `skeletal`
+o `arterial` que ningún filtro de la consola reconocía, y el traumatólogo tenía
+que adivinar qué papel ponerle a cada uno. La correspondencia vive una sola vez,
+`ROL_DE_SISTEMA` en `src/atlas/clasificacion.ts`, y la leen el exportador, que
+la escribe dentro del archivo, y el taller de piezas, que la usa para rellenar
+el caso (D-094). Con dos copias, un sistema nuevo acabaría en una capa en un
+sitio y en otra en el otro.
+
+*Por qué casi todo va a «músculo».* La consola tiene tres capas de tejido y las
+ordena por profundidad, que es como se opera: se incide la piel, se separan las
+partes blandas y se llega al hueso. «Músculo» es en la práctica la capa de
+partes blandas, y ahí van también vasos, nervios, tendones, ligamentos y
+vísceras: en un abordaje de pierna aparecen entre la piel y la tibia. Un sistema
+que el atlas estrene y la tabla no conozca cae también en «músculo» y no en
+«hueso»: una estructura desconocida tratada como hueso fijo quedaría encendida
+debajo de todo y el residente la atravesaría sin poder apagarla.
+
+*Las ocho correcciones.* BodyParts3D mete en el esqueleto los tres peroneos de
+cada lado —corto, largo y tercero, que son músculos— y la cintilla iliotibial,
+que es fascia. En el atlas era un color raro; con capas es un error clínico: con
+la de músculo apagada, el peroneo corto seguía encendido pegado al peroné, como
+si fuera hueso. Los peroneos pasan a músculo y la cintilla a tejido conectivo,
+en `src/atlas/correcciones-de-sistema.json`, por nombre original, que es lo que
+se comprueba a ojo contra la anatomía.
+
+*Se corrige al leer, y en las dos puertas.* No en `catalogo.json`, por lo mismo
+que la tabla de D-092. Y a la vez en `cargarCatalogo`, del navegador, y en
+`leerCatalogo`, del servidor, que es el que exporta: corregido solo en uno, el
+taller pintaría el peroneo como músculo y el archivo lo seguiría fundiendo con
+el esqueleto, con el papel de hueso escrito dentro. `atlasEnEspanol.test.ts`
+recorre el código y falla si alguien lee `catalogo.json` sin pasar por
+`corregirCatalogo`.
+
+*La declaración de la licencia tenía el mismo defecto, y mejor escondido.* CC BY
+4.0 obliga a decir qué se modificó, y `ATRIBUCION.md` lo reescribe
+`preparar.mjs` en cada regeneración. Se corrigió el archivo a mano, y la
+plantilla —dentro de `preparar.mjs`, que prepara el atlas entero en cuanto se
+importa, así que ninguna prueba podía llamarla— se quedó diciendo que los
+nombres «se conservan en su forma original». La siguiente regeneración habría
+borrado la declaración de la traducción y de las correcciones sin que nada
+fallase. La plantilla se muda a `scripts/atlas/atribucion.mjs`, lee la misma
+lista que la plataforma —por eso la lista es JSON y no TypeScript: el guion es
+node a secas— y cuenta las cifras de regiones sobre el catálogo ya corregido;
+`plantillaDeAtribucion.test.ts` compara lo que genera con lo que hay escrito. Y
+la página de créditos agrupa las líneas en bloques: el archivo va cortado a
+ochenta columnas y cada punto de «Cambios realizados», justo lo que la licencia
+obliga a declarar, se pintaba partido en un `<li>` con media frase y un párrafo
+suelto con la otra media.
+
+*Consecuencias malas.* **«Músculo» mezcla vasos y nervios con músculos**: apagar
+la capa apaga también la arteria tibial anterior, y un caso que quiera enseñar a
+proteger una estructura neurovascular mientras se aparta el músculo no puede.
+Separarlos exige un papel nuevo en el `select` de `src/collections/Cirugias.ts`,
+con su migración, y termina en esta tabla. Las correcciones son las que se
+vieron preparando una pierna, no el resultado de revisar los quince sistemas:
+habrá más, y cada una pide su línea en el JSON y su porqué en la plantilla, que
+eso no se deduce de la lista. Y como van por nombre, un atlas regenerado que
+renombre una de las ocho la dejaría sin aplicar; la prueba que lo caza solo
+corre donde el atlas está preparado.
+
+
+### D-094 · 2026-09-13 · vigente · amplía D-080 y D-061
+**El modelo exportado del atlas trae dentro el nombre en español y el papel de
+cada objeto, y el taller de piezas rellena el caso con eso.**
+D-080 tendió el puente y dejó al médico el último tramo: el taller le enseñaba
+los nombres de nodo y él los copiaba al caso fila a fila, con el papel de cada
+uno. Ese tramo era justo donde se rompía el «match»: los nodos venían en inglés
+y el papel había que adivinarlo.
+
+*El nombre del nodo, en español y sin tildes; la etiqueta, con ellas.* El nodo
+es un identificador que se compara a mano, y «Peroné» tecleado puede llegar con
+la tilde como carácter aparte —otra forma de Unicode— y no casar con el del
+archivo aunque en pantalla sean idénticos, sin ningún error. Así que el nodo es
+`Perone_derecho` y la etiqueta, «Peroné derecho». Los nombres que chocan se
+desambiguan con `_2`, `_3`: el atlas trae 231 nombres repetidos en piezas
+distintas, y «Skin» se traduce «Piel», que es también el nombre del sistema
+tegumentario; con dos nodos iguales, `getObjectByName` devuelve siempre el
+primero y el segundo no se puede encender ni marcar. Se empieza en `_2` porque
+`_1` es el sufijo que el cargador de three pone a las mallas repetidas. El orden
+es fijo, así que exportar dos veces la misma preparación da los mismos nombres y
+el caso escrito contra el primer archivo vale con el segundo.
+
+*El papel viaja en los `extras` de glTF, pegado al nodo.* `rol`, `etiqueta` y
+`sistema` en cada objeto, y además `nombreOriginal` y `fma` en las piezas
+sueltas, que la licencia obliga a poder rastrear. En el nodo y no en la malla
+por dos lectores a la vez: `GLTFLoader` los copia al `userData` del mismo objeto
+que la consola enciende por nombre, y Blender los importa como propiedades
+personalizadas del objeto, visibles en su panel lateral. No hace falta
+migración: todo vive en el archivo.
+
+*«Rellenar desde el modelo».* El taller de piezas del caso lee esos `extras` y,
+si el modelo los trae, ofrece llenar la lista entera. Con tres reglas que
+protegen lo que el médico ya decidió: una fila que ya existe no se toca —solo se
+le pone la etiqueta si la tenía vacía, porque el papel siempre tiene valor y no
+hay forma de distinguir el elegido del que quedó por omisión—; un solo
+fragmento, como siempre; y los objetos sin propuesta no entran, así que con un
+modelo de Blender el taller se queda exactamente como estaba. El atlas **no
+marca ningún fragmento**, porque qué trozo se reduce es una decisión clínica y
+no anatómica, y el aviso lo recuerda. Señalar a mano un objeto del atlas también
+usa su papel: con la regla de antes, el primer clic sobre «Esqueleto» —el
+esqueleto entero fundido en una malla— lo convertía en el fragmento que el
+residente arrastra. Y una propuesta exige uno de los cinco papeles exactos y una
+etiqueta con texto, para que un `rol: "Hueso"` puesto a mano en Blender no entre
+como una fila que ningún filtro reconoce; los cinco están copiados en
+`ROLES_DE_PIEZA`, y `exportarAlSimulador.test.ts` los compara con el `select` de
+la colección.
+
+*Lo que se enseña al exportar, y lo que queda escrito.* El taller del atlas
+pinta cada nodo con su etiqueta y su capa, con el nombre de la capa leído del
+esquema del caso (`src/admin/etiquetaDeRol.ts`): las tablas escritas a mano ya
+se habían separado —el taller de piezas decía «Hueso fijo» donde el formulario
+dice «Hueso (fijo)»—, y un peroneo metido en el hueso tiene que verse aquí y no
+dentro del simulador con la capa de músculo apagada. Las notas del modelo
+repiten la lista, dicen qué salió sin traducir y cuánto se desplazó el centro
+(D-096), para quien lo abra meses después.
+
+*Consecuencias malas, las tres de uso.* **Los modelos exportados antes de hoy
+conservan los nombres en inglés y no traen `extras`**: no ofrecen «Rellenar» y
+hay que volver a exportarlos. Exportar crea un modelo nuevo y no toca el viejo,
+así que los casos escritos contra el anterior siguen funcionando con él;
+pasarlos al nuevo es cambiar el modelo del caso, y sus filas con nodos en inglés
+se quedan huérfanas y hay que rellenar otra vez. **Si alguien lo reexporta desde
+Blender sin marcar «Propiedades personalizadas»** (Include → Custom Properties,
+desmarcada por omisión en el exportador glTF), los nombres sobreviven pero los
+papeles se pierden sin aviso: el botón simplemente no aparece y el taller vuelve
+al trabajo a mano. Eso no está escrito en `docs/COMO-SUBIR-UN-MODELO.md`, que es
+donde lo buscaría quien lo haga. Y rellenar no corrige una fila mal puesta: si
+el papel ya estaba, gana el que estaba.
+
+
+### D-095 · 2026-09-13 · vigente · amplía D-048
+**En el taller del atlas, el punto sobre el que gira la cámara sigue a lo que
+está encendido.**
+«Si dejo solo la pierna no me toma el centro de gravedad de la pierna sino todo
+el cuerpo aunque no se vea.» Era literal. OrbitControls gira y acerca siempre
+hacia su objetivo, y ese punto nacía en el de `VISTA_INICIAL` —el centro del
+cuerpo entero, a la altura de la pelvis— y no lo movía nadie salvo «Encuadrar».
+Con la pierna sola, la pierna giraba alrededor de una pelvis apagada y la rueda
+acercaba la cámara a un hueco.
+
+*Cómo se mueve, y por qué así.* Cuando cambian las piezas encendidas o la
+separación, cámara y objetivo se trasladan juntos, con el mismo desplazamiento,
+hasta el centro de lo visible. Mover solo el objetivo gira la imagen de golpe;
+acercar la cámara, como hace «Encuadrar», cambia el tamaño; trasladar las dos
+conserva dirección y distancia, y lo visible se desliza al centro sin crecer ni
+encoger. Espera 250 ms sin cambios y desliza en 300: apagar veinte piezas
+seguidas en el árbol es un deslizamiento y no veinte. No se recoloca si el
+objetivo ya está dentro del 5 % del tamaño de lo visible, con un milímetro de
+suelo, y con esa holgura el cuerpo completo no se mueve nunca —su centro está a
+3,5 cm del de `VISTA_INICIAL`—, que es lo que evita que el taller dé la cámara
+por movida nada más abrir y pregunte por cambios sin guardar que nadie hizo. Con
+`prefers-reduced-motion`, la duración es cero. La cuenta vive en
+`src/atlas/pivote.ts`, fuera del componente, para poder probarla con números sin
+montar nada.
+
+*Guardar a media espera guarda donde va a quedar.* `vistaActual()` devuelve el
+destino si hay un deslizamiento pendiente; sin eso, apagar la última pieza y
+pulsar Guardar enseguida guardaba el objetivo de la pelvis. Y es una pregunta
+sin efectos: cuando adelantaba la espera, cada clic sobre el lienzo deslizaba la
+escena bajo el cursor mientras se apuntaba a la siguiente pieza, y el clic
+siguiente apagaba otra.
+
+*Las preparaciones guardadas antes de hoy se recolocan al abrirse, también en la
+ficha del residente.* Traen el objetivo del cuerpo entero: el de omisión, o el
+que dejó «Encuadrar» antes de apagar el resto. Se recoloca si el objetivo es el
+de omisión o si cae fuera de la caja de lo visible con un milímetro de margen
+(`src/atlas/vistaGuardada.ts`), y no con el 5 % del pivote: con los cuatro
+huesos de la pierna derecha la caja llega casi a la línea media por la cabeza
+del fémur, y ampliada un 5 % se tragaba la pelvis entera. Un objetivo dentro de
+lo visible se respeta aunque esté lejos del centro, porque el foco de fractura
+llevado a mano sobre la tibia distal está casi tan lejos del centro de la pierna
+como la pelvis, y es una decisión de quien preparó la vista.
+
+*Consecuencias malas.* La cámara se mueve sola, y quien estaba mirando un
+detalle ve deslizarse la escena al apagar una pieza. Las preparaciones viejas
+**se corrigen al pintarse y no en la base**: su vista guardada sigue apuntando a
+la pelvis hasta que alguien las vuelva a guardar. Un objetivo puesto a propósito
+fuera de toda anatomía encendida se pierde al abrir. Y el precio en código es
+alto: para que una cámara que se mueve sola no cuente como trabajo del
+traumatólogo hicieron falta tres piezas —`irA` devuelve la vista con la que se
+quedó, el visor avisa con `alAsentarVista` al terminar la descarga y el taller
+vuelve a asentar su referencia—, y cada una tapa un caso en que saltaba «cambios
+sin guardar» sin que nadie hubiera tocado nada, y guardar escribía encima el
+encuadre movido. `cajaDeLoVisible` repite además la traslación de la separación
+que ya hace `picking.ts`: dos copias de una regla que tienen que moverse juntas.
+
+
+### D-096 · 2026-09-13 · vigente · amplía D-080
+**El archivo exportado se centra en lo que se exporta, y la piel del cuerpo
+entero se recorta a esa zona.**
+La otra mitad de la misma queja, fuera del taller. Las piezas del atlas vienen
+en coordenadas del cuerpo, con el origen entre los pies: una pierna derecha
+exportada sola quedaba a un lado y a medio metro de altura, y cualquier visor
+que gire sobre el origen —Blender, el de las fichas, el de la biblioteca— la
+hacía orbitar alrededor de un punto vacío.
+
+*El centro es el de todos los objetos juntos, y sin la piel.* Todos se trasladan
+con el mismo desplazamiento, así que la tibia sigue exactamente donde estaba
+respecto del peroné; centrar cada objeto por su lado los apilaría en el origen,
+uno dentro de otro. La piel no cuenta para la caja porque la del atlas es **una
+sola malla** de 1,72 m: con ella, una pierna exportada con su piel —justo lo que
+un caso necesita para poder incidir— volvía a quedar centrada a sesenta
+centímetros por encima de la tibia. Lo desplazado queda en las notas del modelo,
+en milímetros: es lo que hay que sumar para devolverlo a su sitio en el cuerpo,
+y la única forma de alinear dos exportaciones en Blender.
+
+*Y la piel se recorta.* Exportar «solo la pierna» con la piel encendida metía en
+el simulador una carcasa hueca con forma de persona alrededor de una tibia, y la
+capa que el residente tiene que incidir no era la de la pierna. Se quedan los
+triángulos cuyos **tres** vértices caen dentro de la caja de lo demás ampliada 5
+cm por lado —con que bastara uno, el borde saldría dentado un centímetro más
+allá—, y los vértices se compactan y se reindexan: quitar triángulos sin quitar
+vértices deja en el archivo los veintitrés mil de la piel entera, y quitar
+vértices sin reindexar da una malla cosida al azar que abre sin un error. Los 5
+cm están medidos con el atlas instalado: la piel de una pierna con sus músculos
+queda como mucho a 4,4 cm de su caja; a 6 cm empiezan a colarse trozos de la
+otra pierna, y a 8 son cuatrocientos vértices. Las piezas tegumentarias que
+quedan enteras fuera —cejas, pelo, labios— no se escriben, y las notas dicen
+cuáles: exportar de menos en silencio es entregar una pierna a la que le falta
+algo.
+
+*El orden importa, y vive en `prepararExportacion`
+(`src/lib/exportarAtlas.ts`)*: agrupar, que escribe el papel; recortar, que
+necesita saber qué es piel y medir en las coordenadas del cuerpo; nombrar, para
+que un objeto que se cae no reserve un nombre; y centrar al final. La acción no
+llama a otra cosa, y una prueba lo comprueba.
+
+*Consecuencias malas.* **La piel recortada deja un borde abierto**: no se cierra
+por arriba ni por abajo, se ve el corte y, al mirar dentro, el músculo. Para una
+pieza de disección es lo esperable y no se intenta tapar, pero en Blender parece
+una malla rota, y por eso las notas del modelo lo dicen. **Donde la caja no
+alcanza es el muslo**: los dos se tocan por dentro, y un fémur o un miembro
+inferior entero se lleva una franja de la cara interna del otro muslo y del
+periné; separar dos pieles a un centímetro pide mirar hacia dónde apunta cada
+triángulo, y eso ya no es recortar sino segmentar. Con solo los huesos de la
+pierna sale el 94 % de su piel: falta la cara posterior del gemelo, que no es
+por donde se aborda una tibia. Y los modelos exportados antes de hoy siguen
+descentrados y con la piel del cuerpo entero: se arreglan volviendo a exportar,
+igual que los nombres (D-094).
+
+
+### D-097 · 2026-09-13 · vigente
+**Dos personas sobre la misma ficha: guardar encima de lo que otro guardó se
+rechaza, con la marca de tiempo que Payload ya pone.**
+`guardarDocumento` escribía el documento entero sin mirar qué había en la base.
+Con dos editores en la misma patología —o el mismo traumatólogo con la ficha
+abierta en dos pestañas, que es el caso corriente—, el segundo que guardaba
+borraba lo del primero y los dos leían «Borrador guardado.». Lo perdido aparecía
+días después, leyendo la ficha publicada.
+
+*Por qué `updatedAt` y no un número de versión.* Payload lo pone en cada
+escritura y lo devuelve en cada lectura, así que no hay campo nuevo ni
+migración. El formulario manda la marca con la que abrió; el servidor lee la de
+ahora —con `draft` si la colección se versiona, que es como la leyó el editor—
+y, si no es la misma, no escribe. Se comparan instantes y no cadenas, porque la
+misma hora llega con `Z` o con `+00:00` según la ruta; y cualquier diferencia
+cuenta, también una marca anterior, que es una ficha restaurada que tampoco ha
+visto quien escribe. Está en `src/admin/concurrencia.ts`.
+
+*La trampa de guardar dos veces.* El formulario no se vuelve a montar al
+guardar, así que con la marca de la apertura su segundo guardado chocaría
+consigo mismo. `guardarDocumento` y `cambiarPublicacion` devuelven la marca
+nueva y el formulario la adopta: la de lo que **esta pantalla** acaba de
+escribir, nunca la del refresco siguiente, que podría traer ya lo de la otra
+persona sin que nadie lo haya visto. Comprobado en `payload@3.88` contra
+PostgreSQL: borrador, otro borrador, retirar, publicar y borrador tras publicar
+dan la misma marca al escribir y al leer, al milisegundo.
+
+*Lo que ve quien choca.* Que no se guardó y por qué, que lo suyo sigue en
+pantalla, y dos salidas dentro del propio aviso: «Recargar sin perder lo
+escrito», que adopta la marca de la base sin tocar los valores, y «Ver la
+versión guardada ↗», en otra pestaña porque en la misma se llevaría el
+formulario. El aviso no se borra con cada tecla, como los demás: mientras no se
+resuelva, cualquier guardado vuelve a chocar. Y dice «otra persona, u otra
+pestaña suya», porque acusar a un tercero despistaría a quien tiene dos pestañas
+abiertas.
+
+*Consecuencias malas.* **No hay fusión**: recargar conservando lo escrito y
+guardar reemplaza entera la otra versión, y quien quiera conservar lo de los dos
+tiene que copiarlo a mano desde la otra pestaña. Queda una ventana entre la
+lectura y la escritura, y dos guardados en el mismo instante pasan los dos:
+cerrarla pide la condición dentro de la consulta, y Payload no lo ofrece para un
+borrador, que vive en la tabla de versiones. Una llamada sin marca se deja
+pasar, para no romper a quien no abrió ninguna ficha, así que un llamador nuevo
+que la olvide escribe encima como antes. No cubre las preparaciones del atlas ni
+las cuentas, salvo lo que ya hace D-090 con las notas. Y depende de que Payload
+siga devolviendo la misma marca al escribir que al leer: si una actualización lo
+rompe, el síntoma será que cada segundo guardado del mismo editor pide recargar.
+
+
+### D-098 · 2026-09-13 · vigente · amplía D-055
+**La barra lateral del panel pregunta antes de sacar de una pantalla con cambios
+sin guardar.**
+El editor de fichas ya preguntaba en sus migas y en «Duplicar», y el taller del
+atlas al cerrar la pestaña. La barra lateral, a la vista todo el rato, navegaba
+sin consultar a nadie: «Comentarios» para mirar uno se llevaba media hora de
+redacción o de apagar piezas. `beforeunload` no sirve, porque una navegación de
+cliente del App Router no lo dispara.
+
+*Un registro y no un contexto.* Las pantallas con trabajo pendiente se apuntan
+en `src/admin/salidaDelEditor.ts` y la barra le pregunta a él, sin saber qué
+pantallas existen; un contexto obligaría a envolver en un proveedor de cliente
+el `layout`, que es de servidor. Cada pantalla apunta **una pregunta** y no una
+bandera, por el taller del atlas: lo que puede perder incluye el encuadre, y la
+cámara vive dentro de three.js y no pasa por un pintado, así que una bandera
+puesta desde un efecto se quedaba con un «nada que perder» de antes de girar el
+modelo. La pregunta se hace en el instante del clic, que es cuando la respuesta
+vale.
+
+*Los detalles que la hacen cierta.* Va en `onNavigate` y no en `onClick`, para
+que un Ctrl+clic, que abre otra pestaña y no se lleva nada, no pregunte. «Volver
+a la plataforma» y «Salir» los pinta el `layout` de servidor, que no puede
+pasarle una función a un `<Link>`, y por eso se escaparon de la primera versión;
+ahora van dentro de `EnlaceConGuardia` y `GuardiaDeSalida`. La frase es una
+sola, `PREGUNTA_DE_SALIDA`, para las migas y para la barra: con dos redacciones,
+la que suena menos grave es la que se acepta sin leer. Y una pregunta que lanza
+cuenta como «hay algo que perder»: preguntar de más cuesta un clic; callar de
+más, el trabajo.
+
+*Consecuencias malas.* La pregunta es un `window.confirm`, bloqueante y sin el
+aspecto del panel, porque la navegación tiene que esperar la respuesta para
+poder cancelarse. La guardia cubre los enlaces del panel y no todas las salidas:
+el botón «atrás» del navegador no pasa por ningún `onNavigate`. Y la siguiente
+pantalla con trabajo sin guardar tiene que apuntarse ella: si no lo hace, nada
+lo avisa.
+
+
+### D-099 · 2026-09-13 · vigente · supera en la vía a D-088 y cierra su primer cabo
+**Todas las subidas van por la ruta: `subirArchivo` se retira y el cuerpo de las
+acciones de servidor baja de 52 MB a 4 MB.**
+D-088 dejó escrito el precio de no terminar la mudanza: mientras el selector de
+archivo de un bloque (`formulario/Campos.tsx`) siguiera subiendo por la acción
+vieja, `bodySizeLimit` tenía que quedarse en 52 MB, y eso significaba que
+**cualquier** cuerpo de hasta 52 MB —de quien fuera, a cualquier acción— se
+aceptaba y se retenía entero en la memoria del servidor. El selector sube ahora
+por `api/subidas/[coleccion]`, con la misma barra de progreso que el listado de
+medios.
+
+*La acción se retira aunque ya nadie la llamara.* Una función exportada desde un
+archivo `'use server'` es un extremo HTTP aunque ninguna pantalla la use:
+aceptaba archivos de cualquiera con sesión de editor y escribía en la base.
+Dejarla «por si acaso» obligaba además a mantener alto el límite que se venía a
+bajar. `subidaDeVideo.test.ts` falla si una acción vuelve a recibir un archivo.
+
+*Por qué 4 MB.* La acción más pesada que queda es `guardarDocumento`, con la
+ficha entera y su texto rico en el árbol de Lexical. Medido con la conversión
+real, una ficha de 48.000 palabras —cuarenta bloques de 1.200, con negritas cada
+pocas— ocupa 1 MB, y eso ya es un libro; una ficha de verdad son unos cien
+kilobytes. El 1 MB por omisión de Next no vale justo por ese libro. 4 MB son
+cuatro veces el libro y trece veces menos de lo que antes podía quedarse
+retenido. Y el número sale de la cadena de topes: con 52 tenía que ir por encima
+de los 50 del techo de medios, y con 4, citado allí, haría creer a quien opera
+el servidor que Next corta los vídeos en 4. La cadena queda en **50 ≤ 64**, y
+`subidaDesdeElEditor.test.ts` lee los documentos y falla si alguien vuelve a
+meter este número en ella.
+
+*Lo que costó mudar el selector, que no era cambiar una llamada.* Con la acción,
+subir eran segundos; por la ruta, un vídeo por un túnel doméstico son minutos, y
+en minutos se sigue escribiendo. El `alCambiar` del selector se compone con el
+arreglo de bloques del momento del clic, y llamarlo al terminar habría escrito
+aquel arreglo viejo encima de todo lo tecleado durante la subida. Se lee el
+último al terminar, y si el bloque se desmontó entretanto —quitado o
+**plegado**, que también lo desmonta— no se escribe nada. La descripción y el
+nombre del archivo se rellenan con su nombre sin extensión en vez de pedirlos
+antes de subir: quien inserta una radiografía a mitad de un bloque está
+escribiendo la ficha, y un cuadro que le exige «descripción» se rellena con
+«aaa».
+
+*Consecuencias malas.* Una ficha que pase de 4 MB falla con el corte mudo de
+siempre: Guardar no hace nada y no dice nada. Con texto no la hay, pero queda
+escrito en `docs/DESPLIEGUE.md` para que sea el primer sospechoso si pasa. El
+texto alternativo de lo subido desde un bloque es el nombre del archivo
+—`IMG_2034`— hasta que alguien lo corrija en Medios, que no es lo que la
+exigencia de `alt` de la plataforma pide (D-089). Si se pliega el bloque a mitad
+de subida, el archivo queda subido pero no insertado: aparece en el desplegable
+y hay que elegirlo. Y los 50 MB siguen sin probarse por el túnel (O-044); esto
+no lo cambia.
+
+
+### D-100 · 2026-09-13 · vigente · cierra lo que O-040 dejó abierto
+**`output: 'standalone'` solo lo pide la imagen de Docker.**
+Estaba puesto para todos, y el servidor de Windows (D-060) arranca con `next
+start` sobre el `.next` de siempre: `next start` vuelve a leer la configuración,
+ve `standalone` y avisa en cada arranque de que esa no es la forma de lanzar la
+construcción. Funcionaba igual, y justo por eso hacía daño: un aviso que sale
+siempre y no significa nada enseña a no leer el registro, y es el mismo registro
+donde O-040 escondió el `(y/N)` que dejaba el servidor sin servir. De paso, cada
+`npm run build` en Windows copiaba un árbol de `node_modules` que nadie iba a
+usar.
+
+*Lo pide quien lo usa.* El `Dockerfile` pone `SALIDA_AUTOCONTENIDA=1` en la
+misma orden que compila, y `next.config.mjs` solo enciende la salida
+autocontenida con exactamente `'1'`: aceptar cualquier cosa no vacía convertiría
+`SALIDA_AUTOCONTENIDA=0` en un sí. No se decide por `NODE_ENV`, que es lo
+primero que se ocurre, porque `next build` y `next start` lo dejan en
+`production` en las dos máquinas. Y el `Dockerfile` comprueba después que exista
+`.next/standalone/server.js`, para que olvidar o renombrar la variable falle con
+su nombre y no tres pasos más abajo, en un `COPY` que dice «not found».
+
+*Consecuencia mala:* las dos máquinas ya no ejecutan la misma construcción. Lo
+que solo falle en la salida autocontenida —un archivo que el trazado de
+dependencias de Next no copie— no se verá en Windows ni en desarrollo, solo al
+construir o arrancar la imagen. Y es una variable más que existe en un único
+sitio: quien construya la imagen por un camino que no sea ese `Dockerfile` tiene
+que saberla.
+
+
+### D-101 · 2026-09-13 · vigente · amplía D-084 · la decisión es del equipo
+**Terminar un caso quirúrgico lo da por leído.**
+Hasta hoy terminar la consola guardaba puntaje y complicaciones (D-084) pero no
+la lectura, así que un caso operado entero seguía contando «por leer» en la
+portada hasta que el residente encontraba la casilla. Lo contrario estaba
+decidido, aunque solo en un comentario de `simulador/[id]/page.tsx`: «leída» la
+marca el residente cuando da la ficha por estudiada, y terminar con tres
+complicaciones no es haberla estudiado. Se cambia dentro del «si hay otro punto
+que no se resolvió antes, realízalo» del traumatólogo, así que **conviene que
+conste que la eligió el equipo**, como D-087. El argumento: la ficha de un caso
+quirúrgico es la consola, y recorrerla hasta el final es lo que el módulo pide;
+las complicaciones no se pierden, se quedan en «Su recorrido anterior» y en la
+portada (D-086).
+
+*Con la misma acción que la casilla, y solo pone.* `marcarComoLeida`, y no una
+escritura propia: un segundo camino hacia `completado` acabaría validando otra
+cosa. Nunca quita: si el residente la desmarca a mano, esa decisión es suya
+hasta que termine el caso otra vez. Va fuera de la cola de `guardarRecorrido`
+porque escribe otro campo y Payload solo actualiza los que recibe, así que las
+dos escrituras pueden cruzarse sin borrarse nada. Y el fallo se dice, en el
+registro de la consola y en el panel de «Caso terminado»: callarlo dejaría a ese
+panel afirmando que el caso cuenta como leído.
+
+*La casilla tiene que enterarse sin recargar.* La pinta `RastreadorActividad`,
+que toma su estado una vez al montar, y con la consola marcando por su cuenta
+decía «Marcar como leída» seiscientos píxeles por encima de un panel que decía
+lo contrario. `CasoConSuLectura` junta las dos piezas en el cliente y vuelve a
+montar la casilla con cada marca de la consola; cuenta las marcas y no guarda un
+booleano, por el caso de ida y vuelta —ya leído, desmarcado a mano, terminado
+otra vez—. `router.refresh()` no servía: recargaría el modelo 3D y enseñaría el
+recorrido recién hecho como «Su recorrido anterior» encima del marcador que lo
+está contando.
+
+*Consecuencia mala, y es exactamente el argumento de antes:* el caso terminado
+con complicaciones sale de «Continúa leyendo», que es justo cuando más le
+convendría al residente volver a él. Y volver a montar la casilla anota una
+visita más: adelanta la `ultimaVisita` de una ficha que el residente tiene
+abierta delante, que es verdad, pero es una escritura.
+
+
+### D-102 · 2026-09-13 · vigente · amplía D-079
+**Entrar por la dirección a un módulo que la cuenta no tiene dice «no tiene
+acceso», y «Crear el primero» solo se ofrece a quien puede crear.**
+La barra y la portada esconden los módulos que una cuenta no tiene, pero
+esconder un enlace no cierra una dirección: llega igual quien la escribe a mano,
+la guarda o la recibe de un compañero. Y lo que encontraba mentía de dos
+maneras. En un listado, la regla de lectura devuelve `false` y Payload no
+contesta con una lista vacía sino que lanza `Forbidden`, así que acababa en
+`error.tsx` pidiendo reintentar una avería que no existe. En una ficha era peor
+y más transitado —lo que se pasa un compañero es el enlace a una ficha—: el
+`.catch` que convierte una ficha retirada en `notFound()` se tragaba también el
+`Forbidden`, y el residente leía «Esta ficha ya no está… No es un fallo de la
+plataforma» sobre un caso publicado.
+
+*Una guardia antes de consultar, en las nueve páginas.* Los cinco listados y las
+cuatro fichas preguntan a `puedeVerModulo` con el **usuario efectivo** —el que
+va a la consulta: con el real, un administrador en vista previa pasaría la
+guardia y se estrellaría igual— y pintan `SinAccesoAlModulo`
+(`src/components/Estados.tsx`), con un solo texto que dice qué falta y a quién
+pedírselo. No se arregla afinando el `.catch`: distinguir `Forbidden` de
+`NotFound` por la clase del error ata la página a los nombres internos de
+Payload. Las pruebas sacan la lista de páginas de `admin-panel/modulos.ts`, para
+que un sexto módulo entre solo en la vigilancia.
+
+*Se contesta con un 200 y no con un 403.* El `forbidden()` de Next es
+experimental en esta versión y exige `experimental.authInterrupts`; sin la
+bandera lanza un error corriente que acaba en `error.tsx`, la misma pantalla de
+la que se venía huyendo. En una plataforma cerrada quien lee la respuesta es una
+persona y no un buscador. Si la bandera se pone algún día, el cambio es este
+componente por un `forbidden()` y un `forbidden.tsx` con el mismo texto.
+
+*Y el estado vacío.* «Crear el primero» llevaba al panel, y el panel devuelve a
+la portada sin una palabra a quien no es administrador ni editor. Para el
+residente del primer día, en una plataforma que nace vacía (D-016), era el único
+botón de la pantalla, y pulsarlo parecía una avería. Quedaban Técnica AO e
+Imágenes: ahora se ofrece solo con `rolReal` de administrador o editor **y**
+permiso sobre ese módulo, y al resto se le dice que el equipo docente lo está
+preparando.
+
+*Consecuencias malas:* la guardia está repetida en nueve páginas y la próxima
+tiene que acordarse; lo que se lo recuerda es una prueba que lee el disco, no el
+compilador. Y con el 200, cualquier herramienta que mire códigos de estado ve
+éxito donde hay un acceso denegado.
+
+
+### D-103 · 2026-09-13 · vigente · amplía D-071 y D-073
+**El panel comprueba, releyendo la cuenta, que el cambio a un administrador se
+aplicó, porque Payload se traga el rechazo del disparador.**
+D-071 dejó pendiente traducir el rechazo del disparador del último administrador
+—SQLSTATE 23514—, dando por hecho que llegaría como error. Al ir a traducirlo se
+vio que casi nunca llega: el disparador es diferido y salta al confirmar, y el
+adaptador de Payload (`@payloadcms/drizzle`, `transactions/beginTransaction.js`)
+cuelga un `.catch` de la transacción que se traga el error del `COMMIT`.
+**`payload.update` y `payload.delete` resolvían como si todo hubiera ido bien
+mientras PostgreSQL deshacía el cambio.** Comprobado contra un PostgreSQL 17 de
+verdad: el panel pintaba «Se retiró el acceso» en verde, recargaba la lista y la
+cuenta seguía activa, sin una línea en el registro.
+
+*Por eso se relee.* `escribirSinDejarSinAdministradores` (`acciones/admin.ts`)
+escribe, vuelve a leer la cuenta y comprueba que el cambio está. Si no está y la
+cuenta sigue siendo la última administradora activa, es la carrera; si no, dice
+lo único cierto —que la base no confirmó— sin inventarle una causa. Si algún día
+el rechazo sí sale de la llamada —sin transacción, o cuando Payload deje de
+tragárselo—, se reconoce por el código recorriendo la cadena de `cause`, porque
+arriba Drizzle deja un «Failed query: update "usuarios"…» con los parámetros
+detrás, que era lo que llegaba al panel en crudo. Solo se relee donde el
+disparador puede actuar: quitar el rol, desactivar y borrar.
+
+*Y el mensaje decía una cosa falsa a la única persona que lo leía:* que la
+cuenta tocada era la única administradora y que creara otra. Nadie puede
+retirarse a sí mismo desde el panel, y el disparador, el gancho y la
+comprobación previa cuentan a quien llama; si aun así no queda ninguno, la
+cuenta que retiró la otra sesión **es la de quien lee el aviso**, y ya no puede
+crear a nadie. Se lee su cuenta en vez de deducirlo, y se le dice así.
+`TablaUsuarios` no recarga en esa rama, porque la recarga pasa por
+`exigirPanel('admin')`, que lo manda al inicio y se lleva la explicación
+consigo. Y un rechazo se trae a la vista aunque la región de avisos esté fuera
+de pantalla: un rechazo no cambia la fila, y lo que se deduce entonces es que el
+clic no entró y hay que volver a pulsar.
+
+*Refuerza D-073.* Con la API REST de `usuarios` abierta, un `PATCH` o un
+`DELETE` contestaría con éxito sobre un cambio que la base no guardó, y ahí no
+hay nadie que relea. Queda escrito en la cabecera de
+`(payload)/api/[...slug]/route.ts`: reabrir cualquier escritura de esa API es
+reabrir también esto.
+
+*Consecuencias malas.* Una consulta más en cada cambio de rol, desactivación o
+borrado, y alguna más en la rama del rechazo. La corrección se apoya en un
+detalle interno de Payload que puede cambiar en cualquier versión, en un sentido
+o en el otro; lo fija `ultimoAdministradorEnElPanel.test.ts`. Y cualquier otra
+restricción diferida que se añada a la base tendrá el mismo problema: Payload
+dirá que la escritura fue bien.
+
+
+### D-104 · 2026-09-13 · vigente · cierra el cabo de D-072 · retira el tope de lectura de D-087
+**Lo que estaba copiado entre pantallas, y ya había empezado a discrepar, se
+contesta en un solo sitio: la lectura, el título de una ficha, el enlace de
+contraseña y el path de las cookies.**
+Las cuatro tenían la misma historia: una copia por archivo, un comentario en
+cada una prometiendo la mudanza, y las copias separándose antes de que llegara.
+
+*«¿Ya la leyó?», en `src/lib/lecturas.ts`.* Estaba en las cinco páginas de
+módulo, y los criterios ya eran dos: cuatro miraban la primera fila con `limit:
+1` y la del examen físico se conformaba con que una dijera que sí, así que con
+dos filas gemelas —las de antes del índice único de D-072— una maniobra salía
+marcada y una patología en el mismo estado podía salir en blanco. La función
+pregunta siempre por **una lista** en una sola consulta, porque el examen físico
+pinta treinta casillas y preguntar por maniobra serían treinta viajes; va sin
+tope, porque lo acota el propio `in:`, y eso retira el de 300 filas que D-087
+tenía que igualar a mano con el de las maniobras; y nunca lanza, pero deja el
+fallo en el registro, porque «todas las casillas en blanco» es un síntoma que
+nadie relaciona con una consulta caída.
+
+*El título de una ficha, en `admin-panel/titulosDeFichas.ts`.* `actividad` y
+`comentarios` apuntan a su ficha con dos campos sueltos, y ninguna profundidad
+de consulta la trae. «Fichas más leídas» rotulaba con el número de fila,
+`Biblioteca de patologías · #12`; la pantalla de actividad hacía un `findByID`
+por fila con un `catch` vacío que no distinguía ficha borrada de base caída, y
+con la tabla sin responder pintaba las cincuenta filas «Ficha eliminada» y
+mandaba a buscar en los respaldos algo que estaba en su sitio. Ahora es una
+consulta por colección y cuatro estados que no se mezclan —título, sin título,
+eliminada, ilegible—, con la misma redacción en estadísticas, actividad y
+comentarios.
+
+*El enlace de contraseña.* `enlaceDeClave` decía en su comentario que el panel
+la llamaba, y el panel armaba su copia a mano: la misma que un día se dejó el
+recorte de la barra final y entregaba `…/traumahub//clave/<testigo>`, que
+atiende otra página del servidor con un 404. Ahora la llama, y pregunta
+**antes** si hay dirección pública (`direccionPublica`), porque cada
+`forgotPassword` invalida el testigo anterior y fallar después dejaría muerto un
+enlace que quizá ya estaba entregado.
+
+*El path de las cookies, en `src/lib/pathDeLasCookies.ts` (D-074).* Estaba
+escrito en `acciones/sesion.ts` y en `api/vista-previa/route.ts`, porque ninguno
+de los dos puede exportar una constante. Si se separan, borrar la cookie de
+vista previa apunta a un path vacío, la simulación de rol sobrevive a cerrar la
+sesión y la siguiente persona de la estación compartida empieza viendo la
+plataforma con el rol de la anterior. En desarrollo no se nota: sin prefijo, las
+dos copias valen `/`.
+
+*Consecuencias malas.* Cada una de las cuatro se sostiene con una prueba que lee
+el código fuente y falla si alguien vuelve a copiar, y esas pruebas son frágiles
+ante un renombrado. La redacción de «Ficha eliminada» sigue escrita dos veces,
+porque la tabla de comentarios corre en el navegador y no puede importarla de
+una página de servidor. Y la consulta de lectura sin tope confía en que el
+índice único de `actividad` siga en pie: sin él, el `in:` deja de acotar nada.
+
+
+### D-105 · 2026-09-13 · vigente · amplía D-048
+**Borrar una preparación del atlas se niega si alguna ficha la usa, y dice
+cuáles.**
+D-048 hizo reversible apagar una pieza, pero no borrar la preparación entera, y
+la base no protege nada: la columna de cada tabla de bloques es `ON DELETE set
+null`, así que el borrado pasa sin quejarse y deja la ficha publicada con un
+visor vacío y el editor con un campo obligatorio en blanco que no deja guardar,
+sin que nadie sepa qué preparación había ahí. El taller se limitaba a advertirlo
+en la confirmación, y un aviso que se acepta cada vez enseña a leerlo como un
+riesgo asumido.
+
+*Dónde buscar sale de la configuración montada, no de una lista*
+(`src/lib/usosDeLaPreparacion.ts`). El bloque puede ir en diez pilas —seis
+pestañas de patologías y el material adicional de cuatro módulos—, y una lista
+escrita a mano dejaría de estar completa, sin avisar, el día que alguien añada
+una pila a un módulo nuevo. En las colecciones con borradores se mira dos veces,
+con y sin `draft`: una ficha publicada con la preparación y un borrador que ya
+la quitó sigue enseñándola, y la contraria la perdería al publicar. Comprobado
+contra PostgreSQL, y en esa comprobación salió además que el adaptador no
+distingue la pestaña —las seis comparten tabla—, por eso el mensaje nombra la
+ficha y no la pestaña: esa respuesta no sería de fiar.
+
+*Consecuencias malas.* Son una veintena de consultas pequeñas por cada borrado.
+Un bloque de preparación metido dentro de otro bloque no se busca, porque esa
+consulta no se escribe con `where`; hoy no existe ninguno, y el día que exista
+ese es el sitio. Cada ruta trae como mucho cien fichas. Y se busca con
+`overrideAccess: true` —una ficha que el editor no puede ver se rompe igual—,
+así que **un editor restringido a un módulo lee en el rechazo títulos de fichas
+de otros módulos**, borradores incluidos. Son títulos y no contenido, pero es la
+única pantalla del panel donde pasa.
+
+
+### D-106 · 2026-09-13 · vigente · amplía D-083
+**Las flechas de la casilla de la escala del caso no bajan de 1, y ese suelo no
+va al esquema.**
+«Milímetros por unidad» tenía su guardián y su aviso en el taller de piezas,
+donde el número se gasta, y la casilla donde se teclea seguía sin mínimo: la
+flecha hacia abajo pasaba de 1 a 0 y de 0 a −1, que es justo el número que
+espeja los seis valores del desplazamiento, sin que la casilla se diera por
+enterada.
+
+*Por qué 1 y no un número diminuto, medido en Chromium.* Con `step="any"`, una
+flecha que dejaría el valor por debajo del mínimo no hace nada, y con la casilla
+**vacía** cualquier flecha escribe el mínimo. Con 0,001 de suelo, pulsar una
+flecha en la casilla vacía escribía una escala que encoge el hueso mil veces y
+que el guardián da por buena. 1 es «exporté en milímetros», que la ayuda nombra.
+
+*Por qué no es un `min` en `src/admin/esquema.ts`, aunque parezca su sitio.* Es
+la lección de D-083: `depurarCampo` recorta contra ese `min` al guardar sin
+decir nada, y un 0 guardado se volvería 1 en vez de caer al respaldo de 1000,
+con el caso mil veces más pequeño y ninguna pantalla que lo enseñe. El suelo es
+de la casilla y solo de la casilla; lo que decide si una escala vale sigue
+siendo `escalaDelCaso`, lo mismo que decide la consola. Lo ata
+`escalaEnSuCasilla.test.ts`.
+
+*Consecuencia mala:* un 0,5 **tecleado** se sigue usando, y el navegador lo
+considera por debajo del mínimo. No bloquea nada, porque el panel no valida con
+el formulario nativo, pero un lector de pantalla lo anunciaría como erróneo
+mientras la plataforma lo usa; por eso la casilla declara `aria-invalid`
+siempre, según la plataforma y no según el navegador. Son dos criterios de
+validez sobre el mismo campo, a sabiendas.
 
 ---
 
@@ -2774,7 +3518,7 @@ no se puede hacer desde aquí.
 
 ---
 
-### O-045 · 2026-09-13 · media · abierta
+### O-045 · 2026-09-13 · media · cerrada por 030a59a
 **La pose que se captura en el catálogo llega al bloque de una ficha y a ningún
 otro sitio.**
 D-082 tendió el cable por `encuadreVigente`, y hoy lo llama **un solo**

@@ -3,16 +3,25 @@
  * ruta espera recibir.
  *
  * Vive en un módulo aparte porque lo leen los dos extremos —el navegador en
- * `TablaDocumentos.tsx` y el servidor en
+ * `TablaDocumentos.tsx` y en `formulario/Campos.tsx`, y el servidor en
  * `src/app/(frontend)/api/subidas/[coleccion]/route.ts`— y un nombre de
  * cabecera escrito dos veces es un nombre que se puede separar. Cuando se
  * separa no hay error: la ruta lee `null` donde esperaba el nombre del archivo
  * y contesta «llegó sin nombre» sobre un archivo que sí lo traía.
  *
+ * Son dos pantallas y no una: el listado de medios, que sube en tandas, y el
+ * selector de archivo de un bloque, que sube uno sin salir de la ficha. Esa
+ * segunda iba todavía por la acción `subirArchivo`, y por ella sola
+ * `serverActions.bodySizeLimit` tuvo que estar en 52 MB: cada vídeo insertado
+ * desde el editor se quedaba entero en la memoria del servidor. Desde que las
+ * dos suben por aquí, ese número volvió a medir lo que mide una acción —un
+ * documento en JSON— y el porqué de la cifra nueva está en `next.config.mjs`.
+ *
  * ## Por qué una ruta y no una acción de servidor
  *
- * Un vídeo de quirófano son 20 MB para arriba, y por la acción `subirArchivo`
- * no cabe por dos motivos distintos:
+ * Un vídeo de quirófano son 20 MB para arriba, y por una acción de servidor
+ * —la vía de antes era `subirArchivo`, en `acciones/contenido.ts`— no cabe por
+ * dos motivos distintos:
  *
  *  - Next corta el cuerpo de una acción en `serverActions.bodySizeLimit`
  *    **antes** de invocarla, así que el `try/catch` de `accion()` no llega a
@@ -69,6 +78,34 @@ export const rutaDeSubida = (slug: string): string => ruta(`/api/subidas/${slug}
 
 /** Lo que la pantalla necesita saber mientras el archivo viaja. */
 export type AvisoDeAvance = (fraccion: number) => void
+
+/**
+ * El formulario de un archivo que se sube desde dentro de una ficha.
+ *
+ * La descripción y el nombre se rellenan con el del archivo sin extensión, en
+ * vez de pedirlos antes de subir: quien inserta una radiografía en mitad de un
+ * bloque está escribiendo la ficha, y un cuadro que le exige «descripción» antes
+ * de dejarle seguir es un cuadro que se rellena con «aaa». Se afinan después en
+ * la sección de medios, donde el archivo ya se ve.
+ *
+ * `origen` no se manda, y no por olvido: es un desplegable obligatorio de los
+ * modelos 3D y quien lo rellena es `depurarCampo` con su respaldo, el mismo que
+ * aplica al guardar la ficha. Escribirlo aquí sería un tercer sitio donde
+ * decidir el valor por omisión, y los otros dos ya se mueven juntos.
+ *
+ * Está aquí y no dentro del componente para que la forma se pueda probar sin
+ * pintar nada (`tests/unit/subidaDesdeElEditor.test.ts`): la suite corre en
+ * `node` y `Campos.tsx` no se deja importar.
+ */
+export function formularioDeArchivo(coleccion: string, archivo: File): FormData {
+  const sinExtension = archivo.name.replace(/\.[^.]+$/, '')
+  const formulario = new FormData()
+  formulario.set('coleccion', coleccion)
+  formulario.set('archivo', archivo)
+  formulario.set('alt', sinExtension)
+  formulario.set('nombre', sinExtension)
+  return formulario
+}
 
 /**
  * Compone un subidor que va avisando del avance.

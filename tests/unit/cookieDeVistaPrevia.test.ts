@@ -2,17 +2,21 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
 
 /**
- * El path de la cookie de vista previa está escrito en dos archivos, y esto los
- * ata mientras sigan siendo dos.
+ * La cookie de vista previa se borra en el mismo path en que se escribió.
  *
- * La escribe `api/vista-previa/route.ts` (`PATH_COOKIE`) y la borran `entrar()`
- * y `salir()` de `acciones/sesion.ts` (`PATH_VISTA_PREVIA`). El valor está
- * repetido porque esa acción lleva `'use server'` y no puede exportar una
- * constante: su sitio natural es `src/lib/vistaPrevia.ts`, junto al nombre de la
- * cookie, y hasta que esté allá lo único que impide que se separen es esta
- * prueba.
+ * La escribe y la borra `api/vista-previa/route.ts`, y la vuelven a borrar
+ * `entrar()` y `salir()` de `acciones/sesion.ts`. El valor estuvo copiado en
+ * esos dos archivos —la acción lleva `'use server'` y no podía exportarlo— y hoy
+ * los dos lo toman de `src/lib/pathDeLasCookies.ts` (`PATH_DE_LAS_COOKIES`).
  *
- * Qué se rompe si se separan, que es lo que no se ve mirando cualquiera de los
+ * Eso no deja esta prueba de sobra. Que nadie vuelva a derivar el path a mano lo
+ * vigila `pathDeLasCookies.test.ts`, leyendo el código; esta mira lo que sale de
+ * verdad —la cabecera `Set-Cookie` de la ruta y el `delete` de `salir()`—, que
+ * es lo que un módulo compartido no garantiza: basta con que uno de los dos
+ * sitios deje de pasarle el `path` a la cookie, o le pase otro, para que
+ * importen la misma constante y no coincidan.
+ *
+ * Qué se rompe si no coinciden, que es lo que no se ve mirando cualquiera de los
  * dos archivos: un `delete` con un path distinto del que se usó al escribir **no
  * caduca nada**. La simulación de rol sobreviviría a cerrar la sesión, y la
  * sesión siguiente —otra persona, en la estación compartida— empezaría viendo la

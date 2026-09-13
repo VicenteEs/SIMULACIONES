@@ -4,7 +4,9 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { pestanasConContenido } from '@/lib/fichas'
-import { SinAcceso } from '@/components/Estados'
+import { lecturasDelResidente } from '@/lib/lecturas'
+import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { SinAcceso, SinAccesoAlModulo } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { IndiceFicha } from '@/components/IndiceFicha'
 
@@ -23,6 +25,17 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
   const { activo, usuarioEfectivo } = await obtenerSesion()
   if (!activo) return <SinAcceso titulo="Biblioteca de patologías" />
 
+  // Antes del `findByID`, y con el usuario efectivo que va a él. El `.catch` de
+  // abajo existe para que una ficha retirada acabe en `notFound()`, pero se
+  // traga también el `Forbidden` de la regla de lectura: a quien no tiene el
+  // módulo y abría el enlace que le pasó un compañero le salía «Esta ficha ya
+  // no está» sobre una patología publicada. Con el usuario real, un
+  // administrador en vista previa pasaría la guardia y volvería a caer en lo
+  // mismo. El porqué entero, en la cabecera de `SinAccesoAlModulo`.
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'patologias')) {
+    return <SinAccesoAlModulo titulo="Biblioteca de patologías" />
+  }
+
   const payload = await getPayload({ config })
   const user = usuarioEfectivo as never
 
@@ -32,39 +45,13 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
 
   if (!ficha) notFound()
 
-  const usuarioId = (usuarioEfectivo as { id?: string | number } | null)?.id
-
   // La casilla de «leída» tiene que nacer sabiendo si ya lo está, y
-  // `RastreadorActividad` es de cliente: no puede consultarlo él.
-  //
-  // Esta consulta está copiada tal cual en `simulador/[id]/page.tsx` y le toca
-  // a `tecnica-ao` e `imagenes` cuando monten su rastreador. Su sitio es
-  // `src/lib`, que no entra en este lote; queda anotado para que no acaben
-  // siendo cuatro copias con cuatro criterios.
-  //
-  // El `.catch` está porque la actividad es una comodidad y la ficha es el
-  // contenido: una avería en esa tabla no puede llevarse por delante la
-  // patología entera, que es lo que pasaba antes.
-  const registroDeLectura = usuarioId
-    ? await payload
-        .find({
-          collection: 'actividad',
-          where: {
-            and: [
-              { usuario: { equals: usuarioId } },
-              { coleccion: { equals: 'patologias' } },
-              { documentoId: { equals: id } },
-            ],
-          },
-          user,
-          limit: 1,
-          depth: 0,
-        })
-        .then((r) => r.docs[0] ?? null)
-        .catch(() => null)
-    : null
-
-  const completadoInicial = registroDeLectura?.completado === true
+  // `RastreadorActividad` es de cliente: no puede consultarlo él. La pregunta
+  // es la misma en los cinco módulos y vive en `src/lib/lecturas.ts`, que
+  // explica por qué no lanza aunque la tabla esté caída: la patología se
+  // enseña igual, con la casilla en blanco.
+  const lecturas = await lecturasDelResidente(payload, usuarioEfectivo, 'patologias', [id])
+  const completadoInicial = lecturas.leida(id)
 
   const pestanas = pestanasConContenido(ficha as never)
   const segmento = ficha.segmento as { nombre?: string } | undefined

@@ -52,12 +52,50 @@ const SinSublistas = Extension.create({
   },
 })
 
+/**
+ * Los atributos del área editable, con su nombre accesible.
+ *
+ * TipTap le pone `role="textbox"` al `div contenteditable` y nada más, así que
+ * sin esto el lector de pantalla entra en «cuadro de edición» sin decir de qué
+ * campo. El rótulo del campo lo pinta `Campos.tsx`; aquí solo se cita su `id`.
+ * Nombrar el grupo que envuelve al editor, que es lo que se hizo primero, no
+ * alcanza: el grupo no recibe el foco, y lo que se anuncia al tabular es el
+ * elemento enfocado.
+ *
+ * Los dos `id` se añaden solo si llegan, y eso no es cortesía: ProseMirror
+ * convierte cada atributo con `String()` (`computeDocDeco`, en
+ * `prosemirror-view`), de modo que un `undefined` acaba escrito como
+ * `aria-describedby="undefined"`, que apunta a un elemento que no existe y es
+ * justo el defecto que se viene a cerrar.
+ *
+ * `aria-multiline` porque es verdad —Intro parte el párrafo, no envía nada— y
+ * es lo que hace que el lector lo anuncie como un área de varias líneas y no
+ * como una casilla de una sola.
+ */
+export function atributosDelArea(
+  idEtiqueta: string | undefined,
+  idAyuda: string | undefined,
+): Record<string, string> {
+  return {
+    class: 'rte-contenido',
+    'aria-multiline': 'true',
+    ...(idEtiqueta ? { 'aria-labelledby': idEtiqueta } : {}),
+    ...(idAyuda ? { 'aria-describedby': idAyuda } : {}),
+  }
+}
+
 export function EditorTextoRico({
   valor,
   alCambiar,
+  idEtiqueta,
+  idAyuda,
 }: {
   valor: unknown
   alCambiar: (nuevo: unknown) => void
+  /** El `id` del rótulo del campo. Obligatorio: sin él, el área no tiene nombre. */
+  idEtiqueta: string
+  /** El `id` de la ayuda del campo, si la tiene. */
+  idAyuda?: string
 }) {
   // Refresca la barra cuando cambia la selección: sin esto, los botones no se
   // encienden al poner el cursor sobre un texto que ya tiene formato.
@@ -100,7 +138,7 @@ export function EditorTextoRico({
     ],
     content: lexicalATipTap(valor) as Content,
     editorProps: {
-      attributes: { class: 'rte-contenido' },
+      attributes: atributosDelArea(idEtiqueta, idAyuda),
       // Lo que se pega viene de Word o de un PDF y trae fuentes, colores y
       // tamaños que no pintan nada aquí: el aspecto vive en el código y no en
       // lo que el autor traiga pegado (D-011). TipTap ya limpia lo que no

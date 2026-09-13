@@ -44,7 +44,9 @@ vi.mock('@payload-config', () => ({ default: {} }))
 
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 
-import { guardarDocumento, subirArchivo } from '@/app/(frontend)/acciones/contenido'
+import * as acciones from '@/app/(frontend)/acciones/contenido'
+
+const { guardarDocumento } = acciones
 
 beforeEach(() => {
   crear.mockReset()
@@ -141,27 +143,19 @@ describe('el contenido que este editor no sabe representar', () => {
   })
 })
 
-describe('el techo de una subida', () => {
-  const archivo = (bytes: number) => {
-    const formulario = new FormData()
-    formulario.set('coleccion', 'modelos-3d')
-    formulario.set('nombre', 'Tibia derecha')
-    formulario.set('origen', 'tc')
-    formulario.set('archivo', new File([new Uint8Array(bytes)], 'tibia.glb'))
-    return formulario
-  }
-
-  it('rechaza el que se pasa, con su peso y el máximo en el mensaje', async () => {
-    const respuesta = await subirArchivo(archivo(6 * 1024 * 1024))
-    expect(respuesta.exito).toBe(false)
-    expect(respuesta.mensaje).toContain('6.0 MB')
-    expect(respuesta.mensaje).toContain('5 MB')
-    expect(crear).not.toHaveBeenCalled()
-  })
-
-  it('deja pasar el que cabe', async () => {
-    const respuesta = await subirArchivo(archivo(1024))
-    expect(respuesta.exito).toBe(true)
-    expect(crear).toHaveBeenCalledTimes(1)
+describe('las acciones del editor ya no suben archivos', () => {
+  it('`subirArchivo` no se exporta: una acción sin pantalla sigue siendo una puerta', () => {
+    // Aquí se probaba el techo de peso de `subirArchivo`. Esa acción se retiró
+    // cuando la última pantalla que la usaba —el selector de archivo de un
+    // bloque— pasó a la ruta de subidas, y sus dos casos se mudaron a
+    // `subidaDeVideo.test.ts`, contra la ruta. Lo que queda por vigilar aquí
+    // es que no siga exportada: todo lo que exporta un archivo `'use server'`
+    // Next lo publica como extremo HTTP, lo llame una pantalla o no, y esta
+    // aceptaba un cuerpo del tamaño del límite de las acciones de cualquiera
+    // con sesión de editor y escribía en la base.
+    expect(Object.keys(acciones)).not.toContain('subirArchivo')
+    // Que la importación trae el módulo de verdad, para que lo de arriba no
+    // salga verde sobre un objeto vacío.
+    expect(typeof acciones.guardarDocumento).toBe('function')
   })
 })

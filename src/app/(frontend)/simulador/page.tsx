@@ -3,13 +3,22 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeEditar } from '@/lib/guardias'
-import { SinAcceso, Vacio } from '@/components/Estados'
+import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { SinAcceso, SinAccesoAlModulo, Vacio } from '@/components/Estados'
 
 export const dynamic = 'force-dynamic'
 
 export default async function Listado() {
   const { activo, usuario, rolReal, usuarioEfectivo } = await obtenerSesion()
   if (!activo) return <SinAcceso titulo="Simulador quirúrgico" />
+
+  // Antes de consultar, y con el usuario efectivo que va a la consulta: para
+  // un módulo que la cuenta no tiene, el `find` de abajo no devuelve una lista
+  // vacía sino que lanza `Forbidden`, y eso acababa en la pantalla de avería.
+  // El porqué entero está en la cabecera de `SinAccesoAlModulo`.
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'cirugias')) {
+    return <SinAccesoAlModulo titulo="Simulador quirúrgico" />
+  }
 
   // El enlace del estado vacío lleva al panel, que devuelve a la portada sin
   // mensaje a quien no es admin ni editor (`admin-panel/acceso.ts`). Para el

@@ -6,6 +6,12 @@ import type { CatalogoDelAtlas, PiezaDelAtlas, VistaDeInstancia } from '@/atlas/
 import { VISTA_INICIAL } from '@/atlas/formato'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { MandoDelVisor } from '@/components/atlas/VisorAtlas'
+// Estático sin miedo: `nombres.ts` es una tabla JSON y tres funciones de texto,
+// sin three. Lo que no puede entrar así es `@/atlas/cargador` (ver abajo).
+import { casaConLaBusqueda, nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
+import type { RolDePieza } from '@/lib/piezasDelCaso'
+import { ETIQUETA_DE_ROL } from '@/admin/etiquetaDeRol'
+import { apuntarCambiosSinGuardar } from '@/admin/salidaDelEditor'
 import {
   duplicarInstancia,
   eliminarInstancia,
@@ -73,6 +79,23 @@ const VisorAtlas = dynamic(
 const HOLGURA_ENCUADRE = 0.002
 
 /**
+ * Si dos encuadres son el mismo dentro de `HOLGURA_ENCUADRE`.
+ *
+ * Una sola comparación para las dos preguntas que la hacen: si la cámara se
+ * movió desde la referencia (`encuadreMovido`) y si la referencia es todavía la
+ * cámara que el visor acaba de recolocar al cargar (`asentarReferencia`). Con
+ * una copia en cada una, el día que cambiara la holgura una daría la cámara por
+ * quieta y la otra no la reconocería, y el aviso de cambios sin guardar
+ * volvería a saltar solo.
+ */
+function mismoEncuadre(a: VistaDeInstancia, b: VistaDeInstancia): boolean {
+  return (
+    a.camara.every((n, i) => Math.abs(n - b.camara[i]) <= HOLGURA_ENCUADRE) &&
+    a.objetivo.every((n, i) => Math.abs(n - b.objetivo[i]) <= HOLGURA_ENCUADRE)
+  )
+}
+
+/**
  * Lo que se dice cuando la llamada al servidor **rechaza**, que no es lo mismo
  * que un «no se pudo».
  *
@@ -90,6 +113,23 @@ const HOLGURA_ENCUADRE = 0.002
 const FALLO_DE_TRANSPORTE =
   'No se pudo contactar con el servidor. Compruebe la conexión y reintente: ' +
   'lo que hay en pantalla no se ha perdido.'
+
+/**
+ * Lo que devuelve `exportarComoModelo`, tal como lo pinta el panel.
+ *
+ * `piezas` es opcional a propósito. La acción del servidor está pasando a
+ * decir, además de los nodos, con qué etiqueta y en qué capa entra cada uno;
+ * obligatorio, este archivo no compilaría contra la acción de hoy, que no lo
+ * manda; sin declararlo, no habría manera de leerlo cuando llegue. Con `?`
+ * compila con las dos, y el panel enseña lo que haya.
+ */
+interface ResultadoDeExportar {
+  nombre: string
+  bytes: number
+  nodos: string[]
+  perdidas: string[]
+  piezas?: { nodo: string; etiqueta: string; rol: RolDePieza }[]
+}
 
 /**
  * Taller del atlas anatómico.
@@ -146,12 +186,7 @@ export function TallerDeAtlas() {
   const [panelExportar, setPanelExportar] = useState(false)
   const [protagonistas, setProtagonistas] = useState<Set<string>>(new Set())
   const [filtroProtagonista, setFiltroProtagonista] = useState('')
-  const [exportado, setExportado] = useState<{
-    nombre: string
-    bytes: number
-    nodos: string[]
-    perdidas: string[]
-  } | null>(null)
+  const [exportado, setExportado] = useState<ResultadoDeExportar | null>(null)
 
   /**
    * Las protagonistas que siguen encendidas.
@@ -274,11 +309,7 @@ export function TallerDeAtlas() {
   const encuadreMovido = () => {
     const ahora = mando.current?.vistaActual()
     if (!ahora) return false
-    const antes = referencia.vista
-    return (
-      ahora.camara.some((n, i) => Math.abs(n - antes.camara[i]) > HOLGURA_ENCUADRE) ||
-      ahora.objetivo.some((n, i) => Math.abs(n - antes.objetivo[i]) > HOLGURA_ENCUADRE)
-    )
+    return !mismoEncuadre(ahora, referencia.vista)
   }
 
   /**
@@ -304,6 +335,31 @@ export function TallerDeAtlas() {
       if (encuadreMovido()) setCamaraMovida(true)
     })
   }
+
+  /**
+   * Lleva la referencia a la cámara con la que el visor se quedó al terminar la
+   * carga, si la referencia era la cámara de antes de moverla.
+   *
+   * Abrir una preparación mientras bajan los paquetes toma como referencia lo
+   * que devuelve `irA`, y con el cuerpo separado eso todavía no es la decisión
+   * final: la caja buena necesita la escena, y el visor recoloca al cargar (ver
+   * `alAsentarVista` en el visor). Lo mismo si se abrió antes de que el
+   * `dynamic()` trajera el visor: `irA` no existía y la referencia es lo
+   * pedido. Sin esto, la cámara quedaba lejos de la referencia sin que nadie la
+   * hubiera tocado, saltaba «cambios sin guardar» en la cabecera, al cerrar la
+   * pestaña y desde la barra lateral, y guardar escribía encima el encuadre
+   * movido creyendo que era trabajo del traumatólogo.
+   *
+   * Solo si la referencia sigue siendo `antes`: si entretanto se guardó o se
+   * abrió otra cosa, esa es la referencia buena y no se toca. Con la forma
+   * funcional de `setReferencia` porque llega desde un efecto del visor, fuera
+   * de este pintado, y la `referencia` del cierre podría ser de otro. Tampoco
+   * toca `camaraMovida`: si el traumatólogo movió la cámara de verdad, `antes`
+   * ya no casa y la marca sigue siendo cierta.
+   */
+  const asentarReferencia = useCallback((antes: VistaDeInstancia, despues: VistaDeInstancia) => {
+    setReferencia((r) => (mismoEncuadre(r.vista, antes) ? { ...r, vista: despues } : r))
+  }, [])
 
   /** Pregunta antes de tirar el trabajo. Devuelve si se puede continuar. */
   const confirmarDescarte = (queVaAPasar: string) =>
@@ -340,6 +396,21 @@ export function TallerDeAtlas() {
     window.addEventListener('beforeunload', alSalir)
     return () => window.removeEventListener('beforeunload', alSalir)
   }, [])
+
+  // Y la misma pregunta para la barra lateral del panel, que es la salida que
+  // más cerca queda mientras se trabaja. Sus enlaces son navegaciones de
+  // cliente del App Router y no descargan la página, así que el oyente de
+  // arriba no se entera: «Comentarios» o «Fichas» se llevaban media hora de
+  // apagar piezas sin una palabra, mientras que cerrar la pestaña sí
+  // preguntaba. El registro (`src/admin/salidaDelEditor.ts`) es lo que la barra
+  // consulta sin saber qué pantallas existen.
+  //
+  // Montado una vez y con la función del ref, igual que `beforeunload` y por la
+  // misma razón: el encuadre no pasa por un pintado, y apuntarse solo mientras
+  // `sucio` dejaría fuera la media hora de buscar el ángulo. El registro hace
+  // la pregunta en el instante del clic. La frase la pone el registro y habla
+  // de «pantalla», no de «ficha»: aquí no hay ficha, hay una preparación.
+  useEffect(() => apuntarCambiosSinGuardar(() => hayAlgoQuePerder.current()), [])
 
   // --- catálogo -------------------------------------------------------------
   useEffect(() => {
@@ -415,8 +486,15 @@ export function TallerDeAtlas() {
     setVisibles(todas)
     setSeparacion(0)
     setVistaInicial(VISTA_INICIAL)
-    mando.current?.irA(VISTA_INICIAL)
-    fijarReferencia(todas, '', '', VISTA_INICIAL)
+    // El MISMO conjunto que se le da a React, y no otro igual: el visor anota
+    // con qué selección decidió el pivote y la compara por identidad cuando le
+    // llega la prop. Con un `Set` distinto creería que es un cambio nuevo y
+    // volvería a recolocar lo que `irA` acaba de colocar. Y la referencia es lo
+    // que devuelve `irA`, no lo pedido, por si el visor tuvo que mover el
+    // pivote: comparar con lo pedido daría la cámara por movida sin que nadie
+    // la hubiera tocado.
+    const vista = mando.current?.irA(VISTA_INICIAL, todas) ?? VISTA_INICIAL
+    fijarReferencia(todas, '', '', vista)
     limpiarExportacion()
     setAviso(null)
   }
@@ -431,24 +509,43 @@ export function TallerDeAtlas() {
           setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo abrir la preparación.' })
           return
         }
+        const piezasAbiertas = new Set(r.datos.contenido.piezas.map((p) => p.id))
         setInstancia(r.datos.id)
         setNombre(r.datos.nombre)
         setDescripcion(r.datos.descripcion ?? '')
-        setVisibles(new Set(r.datos.contenido.piezas.map((p) => p.id)))
+        setVisibles(piezasAbiertas)
         setSeparacion(r.datos.contenido.vista.separacion)
         setVistaInicial(r.datos.contenido.vista)
         limpiarExportacion()
-        fijarReferencia(
-          new Set(r.datos.contenido.piezas.map((p) => p.id)),
-          r.datos.nombre,
-          r.datos.descripcion ?? '',
-          r.datos.contenido.vista,
-        )
         // Y además se le ordena al visor que vaya: la escena ya está montada y
         // no se vuelve a montar, así que sin esto la cámara se quedaba donde
         // estuviera. Como al guardar se escribe la cámara actual, abrir una
         // preparación y volver a guardarla borraba su encuadre sin avisar.
-        mando.current?.irA(r.datos.contenido.vista)
+        //
+        // Va antes de fijar la referencia porque la referencia es lo que
+        // devuelve. Una preparación guardada antes de que el pivote siguiera a
+        // lo visible trae el objetivo del cuerpo entero —el de omisión, o el
+        // que dejó «Encuadrar» antes de apagar el resto—, y el visor lo
+        // recoloca sobre sus piezas al abrirla cuando ese objetivo cae fuera de
+        // lo que se ve (ver `recolocarVistaGuardada`); uno dentro, como el foco
+        // de fractura llevado a mano, se respeta. Es lo mismo que hace la ficha
+        // al montarla, así que lo que se ve aquí es lo que ve el residente. Con
+        // lo pedido como referencia, abrir una de esas y pulsar «Cuerpo
+        // completo» preguntaría por cambios sin guardar que nadie ha hecho.
+        // Si se abre mientras bajan los paquetes y con el cuerpo separado, lo
+        // devuelto es todavía lo pedido y la decisión llega al cargar, por
+        // `asentarReferencia`.
+        //
+        // `piezasAbiertas` es el mismo objeto que recibe `setVisibles`: ver por
+        // qué en `empezarDeCero`.
+        const vistaAbierta =
+          mando.current?.irA(r.datos.contenido.vista, piezasAbiertas) ?? r.datos.contenido.vista
+        fijarReferencia(
+          piezasAbiertas,
+          r.datos.nombre,
+          r.datos.descripcion ?? '',
+          vistaAbierta,
+        )
         if (r.datos.perdidas.length > 0) {
           setAviso({
             tipo: 'error',
@@ -481,6 +578,18 @@ export function TallerDeAtlas() {
       // La misma vista se manda y se congela como referencia. Leerla dos veces
       // devolvía dos encuadres distintos si el traumatólogo seguía girando
       // mientras se guardaba, y entonces lo recién guardado nacía «sucio».
+      //
+      // Lleva el pivote sobre lo visible sin hacer nada más aquí: el visor lo
+      // va moviendo al apagar piezas y `vistaActual()` devuelve dónde va a
+      // quedar aunque todavía esté esperando o a medio deslizarse. No hace
+      // falta asentarlo antes de guardar: la espera pendiente, cuando se
+      // cumple, lo deja exactamente en lo que se ha guardado, porque lo que
+      // devuelve `vistaActual()` y lo que hace la espera salen de la misma
+      // cuenta (`saltoDelPivote` en el visor). Así la preparación de una pierna
+      // gira sobre la pierna también al abrirla en la ficha. Lo que NO se hace
+      // es forzarlo al centro al guardar: si el traumatólogo llevó el objetivo
+      // a mano sobre el foco de fractura después de su último cambio, esa es la
+      // vista que quiere guardar.
       const vista = mando.current?.vistaActual() ?? { ...VISTA_INICIAL, separacion }
       try {
         const r = await guardarInstancia(instancia, {
@@ -570,13 +679,20 @@ export function TallerDeAtlas() {
    * completo encendido son las 2.234 del atlas y pintarlas todas convierte el
    * panel en una lista imposible de recorrer. Callar el recorte sería peor:
    * parecería que la pieza que se busca no está encendida.
+   *
+   * La búsqueda pasa por `casaConLaBusqueda` (`src/atlas/nombres.ts`), que casa
+   * en español y en el original, sin tildes y sin mayúsculas. El `includes`
+   * sobre el nombre original que había antes no basta ahora que la lista
+   * enseña «Peroné derecho»: escribir «perone» buscaría en «Right fibula» y no
+   * lo encontraría, y el panel parecería decir que la pieza no está encendida.
+   * No se escribe aquí otra comparación: una función para todos los buscadores
+   * del atlas es lo que impide que uno encuentre lo que otro no.
    */
   const candidatas = useMemo<{ lista: PiezaDelAtlas[]; total: number }>(() => {
     if (!catalogo) return { lista: [], total: 0 }
-    const busca = filtroProtagonista.trim().toLowerCase()
     const encendidas = catalogo.piezas
       .filter((p) => visibles.has(p.id))
-      .filter((p) => !busca || p.nombre.toLowerCase().includes(busca))
+      .filter((p) => casaConLaBusqueda(p.nombre, filtroProtagonista))
     return { lista: encendidas.slice(0, 100), total: encendidas.length }
   }, [catalogo, visibles, filtroProtagonista])
 
@@ -752,7 +868,14 @@ export function TallerDeAtlas() {
                     })
                   }}
                 />
-                <span>{pieza.nombre}</span>
+                {/* El original, al pasar el ratón: es lo que se busca en la
+                    bibliografía y en la Foundational Model of Anatomy, y quien
+                    quiera comprobar la pieza tiene que poder encontrarla (ver
+                    `src/atlas/nombres.ts`). Solo cuando hay traducción, porque
+                    sin ella repetiría lo que ya se lee. */}
+                <span title={tieneTraduccion(pieza.nombre) ? pieza.nombre : undefined}>
+                  {nombreEnEspanol(pieza.nombre)}
+                </span>
               </label>
             ))}
             {candidatas.total === 0 ? (
@@ -792,13 +915,41 @@ export function TallerDeAtlas() {
                 guiones bajos al cargar, y escribir el otro deja una pieza que no se enciende nunca
                 y ningún error que lo explique.
               </p>
-              <ul>
-                {exportado.nodos.map((n) => (
-                  <li key={n}>
-                    <code>{n}</code>
-                  </li>
-                ))}
-              </ul>
+              {/* Con `piezas`, cada nodo con su nombre y su capa: así se ve de
+                  un vistazo que la tibia entra como hueso y los músculos como
+                  músculo, que es lo que decide qué se apaga en la consola con
+                  cada capa. Sin verlo aquí, un peroneo metido en el hueso solo
+                  se notaría dentro del simulador, con la capa de músculo
+                  apagada y el peroneo todavía encendido. Sin `piezas` —la
+                  acción de antes— quedan los nodos solos, como siempre.
+
+                  El nombre de la capa es el del formulario del caso, leído de
+                  su esquema (`src/admin/etiquetaDeRol.ts`) y no de una tabla
+                  propia: aquí se le dice al traumatólogo en qué capa entra cada
+                  pieza para que la busque después en ese formulario, y dos
+                  tablas escritas a mano ya han llegado a llamarla distinto. El
+                  `?? p.rol` es el respaldo de un papel sin opción en el esquema
+                  o que llegue del servidor sin que este panel lo conozca: en
+                  crudo se lee, un hueco no. */}
+              {exportado.piezas?.length ? (
+                <ul>
+                  {exportado.piezas.map((p) => (
+                    <li key={p.nodo}>
+                      <code>{p.nodo}</code>
+                      {p.etiqueta ? ` · ${p.etiqueta}` : null} ·{' '}
+                      <strong>{ETIQUETA_DE_ROL[p.rol] ?? p.rol}</strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ul>
+                  {exportado.nodos.map((n) => (
+                    <li key={n}>
+                      <code>{n}</code>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {exportado.perdidas.length ? (
                 <p>
                   <strong>Atención:</strong> {exportado.perdidas.length} pieza
@@ -865,6 +1016,7 @@ export function TallerDeAtlas() {
             separacion={separacion}
             vistaInicial={vistaInicial}
             mando={mando}
+            alAsentarVista={asentarReferencia}
             // Pulsar una pieza en el visor la apaga: es el gesto directo de
             // «esto me estorba, fuera».
             alPulsarPieza={(id) => {
@@ -971,10 +1123,21 @@ export function TallerDeAtlas() {
                       className="lista-quitar"
                       disabled={enCurso}
                       onClick={() => {
+                        // La confirmación ya no amenaza con un visor vacío,
+                        // porque eso ya no puede pasar: `eliminarInstancia` se
+                        // niega si alguna ficha la usa —en borrador o
+                        // publicada— y dice cuáles. Seguir diciéndolo enseñaba
+                        // a leer el aviso como un riesgo que se acepta, y
+                        // callaba lo que de verdad va a ocurrir. La negativa
+                        // llega como `{ exito: false, mensaje }` y `conAviso`
+                        // la pinta tal cual en el aviso de error, con los
+                        // títulos de las fichas: es lo que hace falta para ir a
+                        // quitar el bloque.
                         if (
                           !confirm(
                             `¿Eliminar «${g.nombre}»? No se puede deshacer.\n\n` +
-                              'Si alguna ficha publicada la usa, su visor se quedará vacío.',
+                              'Si alguna ficha la usa, no se eliminará: se le dirá cuáles, ' +
+                              'para que quite antes el bloque o lo cambie por otra preparación.',
                           )
                         ) {
                           return

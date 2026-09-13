@@ -42,10 +42,22 @@ export interface PaqueteDelAtlas {
  */
 export interface PiezaDelAtlas {
   id: string
-  /** Nombre anatómico, en su forma original. No se traduce (ver ATRIBUCION.md). */
+  /**
+   * Nombre anatómico original de BodyParts3D, en inglés, y así se queda en el
+   * catálogo. Para enseñarlo se pasa por `nombreEnEspanol` (`src/atlas/nombres.ts`),
+   * pero aquí no se reescribe: es la clave de la tabla de traducciones y de
+   * `CORRECCIONES_DE_SISTEMA`, y es lo que se puede buscar en la bibliografía.
+   * Un catálogo con el nombre ya traducido dejaría las dos tablas sin casar con
+   * nada, sin un solo error.
+   */
   nombre: string
   /** Identificador en la Foundational Model of Anatomy. */
   fma: string
+  /**
+   * En `catalogo.json` viene tal como lo clasificó el atlas de origen, que se
+   * equivoca en ocho piezas. Quien lea el catálogo tiene que pasarlo por
+   * `corregirCatalogo` (`src/atlas/clasificacion.ts`) antes de mirar este campo.
+   */
   sistema: string
   region: string
   /**

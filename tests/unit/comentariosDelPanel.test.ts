@@ -51,8 +51,11 @@ const leer = (ruta: string) =>
     .replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
     .replace(/\s+/g, ' ')
 
+const TITULOS = join(RAIZ, 'src', 'app', '(frontend)', 'admin-panel', 'titulosDeFichas.ts')
+
 const pagina = leer(PAGINA)
 const tabla = leer(TABLA)
+const titulos = leer(TITULOS)
 
 describe('el título de la ficha comentada', () => {
   it('lo rellena la página, no se queda en un prop muerto', () => {
@@ -67,8 +70,34 @@ describe('el título de la ficha comentada', () => {
     // `id: { in: … }` es la forma; `findByID` es la que hay que impedir. Con
     // `limit: 500` arriba, una consulta por comentario son quinientos viajes a
     // la base cada vez que alguien abre esta pantalla.
-    expect(pagina).toMatch(/id:\s*\{\s*in:/)
+    //
+    // La consulta se mudó a `leerTitulosDeFichas`, que comparten actividad y
+    // estadísticas: la forma se vigila allí, y aquí que la página la llama y no
+    // ha vuelto a buscar por su cuenta.
+    expect(pagina).toContain('leerTitulosDeFichas(payload,')
     expect(pagina).not.toContain('findByID')
+    expect(titulos).toMatch(/id:\s*\{\s*in:/)
+    expect(titulos).not.toContain('findByID')
+  })
+
+  it('distingue en cada fila la ficha borrada de la que no se pudo leer', () => {
+    // Solo con el título, las dos se pintaban igual —el nombre del módulo y dos
+    // enlaces—, y en la borrada los dos acababan en un 404. El estado tiene que
+    // salir de la página y llegar a la tabla, que es quien quita los enlaces.
+    expect(pagina).toMatch(/fichaEstado:/)
+    expect(tabla).toContain("'eliminada'")
+    expect(tabla).toContain("'ilegible'")
+    expect(tabla).toContain('Ficha eliminada · #')
+    expect(tabla).toContain('Título no disponible · #')
+    // Y los enlaces se quitan de verdad, no solo cambia el rótulo.
+    expect(tabla).toMatch(/c\.fichaEstado === 'eliminada'[^?]*\? null : \( <div className="admin-acciones">/)
+    // Obligatorio: con `?` volvería a compilar una página que no lo rellena.
+    expect(tabla).toMatch(/fichaEstado:\s*EstadoDeFicha\['tipo'\]\s*\|\s*null/)
+    expect(tabla).toMatch(/fichaTitulo:\s*string\s*\|\s*null/)
+  })
+
+  it('avisa del módulo cuyos títulos no se pudieron leer', () => {
+    expect(pagina).toContain('No se pudieron leer los títulos de')
   })
 
   it('solo consulta colecciones que siguen siendo módulos', () => {

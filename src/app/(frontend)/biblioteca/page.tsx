@@ -3,7 +3,8 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeEditar } from '@/lib/guardias'
-import { SinAcceso, Vacio } from '@/components/Estados'
+import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { SinAcceso, SinAccesoAlModulo, Vacio } from '@/components/Estados'
 import { BibliotecaFiltrable } from '@/components/BibliotecaFiltrable'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,20 @@ export const dynamic = 'force-dynamic'
 export default async function Biblioteca() {
   const { activo, usuario, rolReal, usuarioEfectivo } = await obtenerSesion()
   if (!activo) return <SinAcceso titulo="Biblioteca de patologías" />
+
+  // Antes de consultar, y con el usuario efectivo que va a la consulta: para
+  // un módulo que la cuenta no tiene, el `find` de las fichas no devuelve una
+  // lista vacía sino que lanza `Forbidden`, y eso acababa en la pantalla de
+  // avería. El porqué entero está en la cabecera de `SinAccesoAlModulo`.
+  //
+  // Se pregunta por `patologias` y no por `segmentos`: los segmentos son
+  // material de apoyo de los cinco módulos y no admiten restricción, así que
+  // se leerían igual, y lo que decide si esta página es de la cuenta son las
+  // fichas. La guardia va antes de las dos consultas para no pedir segmentos
+  // que no se van a pintar.
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'patologias')) {
+    return <SinAccesoAlModulo titulo="Biblioteca de patologías" />
+  }
 
   const payload = await getPayload({ config })
   const user = usuarioEfectivo as never

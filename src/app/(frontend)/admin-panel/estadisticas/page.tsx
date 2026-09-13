@@ -2,7 +2,13 @@ import type { Payload } from 'payload'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { BarraApilada, BarrasHorizontales, BarrasVerticales, type Punto } from '@/components/admin/Graficos'
 import { clientePayload } from '../datos'
-import { MODULOS, NOMBRE_DE_MODULO } from '../modulos'
+import { MODULOS } from '../modulos'
+import { leerTitulosDeFichas } from '../titulosDeFichas'
+import {
+  fichasConMasLecturas,
+  modulosConTitulosIlegibles,
+  rotularFichasLeidas,
+} from './fichasMasLeidas'
 
 export const dynamic = 'force-dynamic'
 
@@ -122,6 +128,13 @@ export default async function PaginaEstadisticas() {
     leerColeccion(payload, 'usuarios', { limite: 500 }),
   ])
 
+  // Las fichas más leídas se cuentan aquí arriba, y no con el resto de la
+  // lectura, porque piden una segunda vuelta a la base —sus títulos— y lo que
+  // no se pueda leer en esa vuelta tiene que entrar en el aviso de abajo. Solo
+  // se buscan los títulos de las ocho que se enseñan.
+  const masLeidas = actividad === null ? [] : fichasConMasLecturas(actividad, 8)
+  const estadosDeLasMasLeidas = await leerTitulosDeFichas(payload, masLeidas)
+
   // Cada módulo falla por su cuenta: que se caiga la tabla de patologías no
   // invalida el recuento de cirugías. Se suma solo lo que se pudo leer y se
   // nombra arriba lo que falta, en vez de mezclar recuentos con ceros.
@@ -142,6 +155,9 @@ export default async function PaginaEstadisticas() {
     ...(actividad === null ? ['el registro de lecturas'] : []),
     ...(comentarios === null ? ['los comentarios'] : []),
     ...(usuarios === null ? ['las cuentas'] : []),
+    ...modulosConTitulosIlegibles(masLeidas, estadosDeLasMasLeidas).map(
+      (nombre) => `los títulos de ${nombre}`,
+    ),
   ]
 
   // --- contenido creado por mes -------------------------------------------
@@ -165,22 +181,10 @@ export default async function PaginaEstadisticas() {
     valor: registros.filter((r) => claveDeMes(r.ultimaVisita) === mes.clave).length,
   }))
 
-  const fichasMasLeidas: Punto[] = Object.entries(
-    registros.reduce<Record<string, number>>((cuenta, r) => {
-      const clave = `${r.coleccion}/${r.documentoId}`
-      cuenta[clave] = (cuenta[clave] ?? 0) + 1
-      return cuenta
-    }, {}),
-  )
-    .map(([clave, valor]) => {
-      const [coleccion, documento] = clave.split('/')
-      return {
-        etiqueta: `${NOMBRE_DE_MODULO[coleccion] ?? coleccion} · #${documento}`,
-        valor,
-      }
-    })
-    .sort((a, b) => b.valor - a.valor)
-    .slice(0, 8)
+  // Con el título de cada ficha y no con su número de fila, que es como estaba:
+  // «Biblioteca de patologías · #12» obligaba a abrir la tabla en otra ventana
+  // para saber qué se estaba leyendo, que es la única pregunta de esta tarjeta.
+  const fichasMasLeidas: Punto[] = rotularFichasLeidas(masLeidas, estadosDeLasMasLeidas)
 
   // --- comentarios --------------------------------------------------------
   const listaComentarios = comentarios ?? []

@@ -2,8 +2,10 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeEditar } from '@/lib/guardias'
+import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { agruparManiobrasPorSegmento } from '@/lib/maniobras'
-import { SinAcceso, Vacio } from '@/components/Estados'
+import { lecturasDelResidente } from '@/lib/lecturas'
+import { SinAcceso, SinAccesoAlModulo, Vacio } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import { Rico, tieneContenido } from '@/components/Rico'
@@ -13,13 +15,20 @@ import { VisitaDeManiobraEnlazada } from '@/components/VisitaDeManiobraEnlazada'
 export const dynamic = 'force-dynamic'
 
 /**
- * Cuántas maniobras se piden de una vez, y cuántas filas de lectura con ellas.
+ * Cuántas maniobras se piden de una vez.
  *
- * Es el mismo número a propósito, y de ahí que sea una constante y no dos
- * literales: la consulta a `actividad` de abajo busca las filas de estas
- * maniobras y de ninguna otra, así que un tope más bajo allí dejaría maniobras
- * ya leídas con la casilla en blanco. Ese fallo no se ve: la página carga, el
- * residente vuelve a marcar lo que ya tenía marcado y la portada no se mueve.
+ * Pasado este número las de más no se pintan, y por tanto no se pueden leer ni
+ * marcar. Antes era también el tope de la consulta de lectura, y tenía que
+ * serlo: uno más bajo allí dejaba maniobras leídas con la casilla en blanco.
+ * Esa consulta ya no lleva tope (`src/lib/lecturas.ts` explica por qué), así
+ * que este número solo gobierna el listado.
+ *
+ * Lo que lo sigue atando a la lectura es `identificadores`: se pregunta por
+ * exactamente las maniobras que trajo esta consulta, las mismas de las que
+ * salen las tarjetas. Filtrar o recortar esa lista entre medias es volver a
+ * poner a la lectura un tope más bajo que el del listado, con las casillas de
+ * las que se quedan fuera en blanco y sin que falle nada
+ * (`lecturaDelExamenFisico.test.ts` lo vigila).
  */
 const TOPE_DE_MANIOBRAS = 300
 
@@ -27,6 +36,18 @@ const TOPE_DE_MANIOBRAS = 300
 export default async function ExamenFisico() {
   const { activo, usuario, rolReal, usuarioEfectivo } = await obtenerSesion()
   if (!activo) return <SinAcceso titulo="Examen físico" />
+
+  // Antes de consultar, y con el usuario efectivo que va a la consulta. Para
+  // una cuenta sin este módulo, el `find` de maniobras no devuelve una lista
+  // vacía sino que lanza `Forbidden`, y eso acababa en `error.tsx` pidiendo
+  // «vuelva a intentarlo» por una avería que no existe. Con el usuario real, un
+  // administrador en vista previa pasaría la guardia y se estrellaría igual en
+  // la consulta, que va con su rol simulado. Es la misma guardia que los otros
+  // cuatro listados, con la misma pantalla: si aquí dijera otra cosa, se leería
+  // como un problema distinto. El porqué entero, en `SinAccesoAlModulo`.
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'maniobras')) {
+    return <SinAccesoAlModulo titulo="Examen físico" />
+  }
 
   // El botón del estado vacío lleva al panel, y el panel devuelve a la portada
   // sin decir nada a quien no es admin ni editor (`admin-panel/acceso.ts`). La
@@ -47,62 +68,21 @@ export default async function ExamenFisico() {
   ])
 
   const identificadores = maniobras.docs.map((m) => String(m.id))
-  const usuarioId = (usuarioEfectivo as { id?: string | number } | null)?.id
 
-  // Qué maniobras tiene ya marcadas este residente, en UNA consulta.
+  // Qué maniobras tiene ya marcadas este residente, en UNA consulta para todas.
   //
   // Las casillas las pinta `RastreadorActividad`, que es de cliente y nace con
   // `completadoInicial`: sin esto salen todas en blanco en cada carga y el
-  // residente vuelve a marcar lo que ya tenía marcado. Los otros cuatro módulos
-  // resuelven lo mismo con una consulta por ficha porque tienen una ficha por
-  // página; aquí las fichas son treinta en la misma página, así que la consulta
-  // por ficha serían treinta viajes a PostgreSQL para pintar treinta casillas.
-  // Se pregunta por el `in:` de los identificadores que se acaban de traer.
+  // residente vuelve a marcar lo que ya tenía marcado.
   //
-  // El `.catch` está porque la actividad es una comodidad y las maniobras son
-  // el contenido: una avería en esa tabla no puede llevarse por delante el
-  // módulo entero. Lo que se pierde es el estado de las casillas, no el texto.
-  //
-  // Es la quinta consulta de este tipo en la plataforma —`biblioteca/[id]`,
-  // `simulador/[id]`, `tecnica-ao/[id]` e `imagenes/[id]` llevan la suya—, y
-  // las cuatro anteriores ya están anotadas como pendientes de mudarse a
-  // `src/lib`. Esta llega con una diferencia que la mudanza tiene que respetar:
-  // las otras cuatro preguntan por un documento y esta por una lista.
-  //
-  // Va sin `overrideAccess: false` como las otras cuatro, y aquí eso no abre
-  // nada: quien acota a una sola cuenta es el `usuario: { equals: usuarioId }`
-  // de este mismo `where`, que es literalmente el filtro que añadiría
-  // `accesoDePropiedad` para un lector —y que para un admin o un editor no
-  // añade ninguno, porque para ellos devuelve `true`—. Ninguna consulta a
-  // `actividad` de la plataforma pasa hoy por el control de acceso (la portada
-  // escribe `overrideAccess: true` a propósito), así que estrenarlo justo aquí
-  // sería probar un camino nuevo detrás de un `.catch` que se traga el fallo:
-  // si algo no casara, las casillas saldrían todas en blanco y nadie vería por
-  // qué. Si esto cambia, cambia para las cinco a la vez.
-  const yaLeidas =
-    usuarioId && identificadores.length > 0
-      ? await payload
-          .find({
-            collection: 'actividad',
-            where: {
-              and: [
-                { usuario: { equals: usuarioId } },
-                { coleccion: { equals: 'maniobras' } },
-                { documentoId: { in: identificadores } },
-              ],
-            },
-            user,
-            limit: TOPE_DE_MANIOBRAS,
-            depth: 0,
-          })
-          .then(
-            (r) =>
-              new Set(
-                r.docs.filter((d) => d.completado === true).map((d) => String(d.documentoId)),
-              ),
-          )
-          .catch(() => new Set<string>())
-      : new Set<string>()
+  // Se llama una sola vez, fuera del `.map` de las tarjetas, con la lista
+  // entera de identificadores que se acaban de traer. Es la misma función que
+  // usan las cuatro fichas por documento (`src/lib/lecturas.ts`), y pregunta
+  // siempre por una lista precisamente por este listado: llamarla dentro del
+  // `.map` con una maniobra cada vez funcionaría igual y serían treinta viajes
+  // a PostgreSQL para pintar treinta casillas, sin nada en pantalla que lo
+  // delate. Por qué no lanza y por qué no lleva tope, en su cabecera.
+  const lecturas = await lecturasDelResidente(payload, usuarioEfectivo, 'maniobras', identificadores)
 
   // El reparto por segmentos lo hace `src/lib/maniobras.ts` y no un `.filter`
   // dentro del JSX, porque lo que hay que sostener —que las maniobras que
@@ -185,7 +165,7 @@ export default async function ExamenFisico() {
                   <RastreadorActividad
                     coleccion="maniobras"
                     documentoId={String(m.id)}
-                    completadoInicial={yaLeidas.has(String(m.id))}
+                    completadoInicial={lecturas.leida(m.id)}
                     anotarVisita={false}
                     nombreDeLaFicha={String(m.nombre)}
                   />

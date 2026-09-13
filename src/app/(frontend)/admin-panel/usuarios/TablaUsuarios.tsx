@@ -226,6 +226,21 @@ export function TablaUsuarios({
           setAviso({ tipo: 'ok', texto: exitoso })
           router.refresh()
         } else {
+          // Sin `router.refresh()`, a propósito. Se probó a recargar también
+          // aquí, pensando en la lista vieja de la carrera entre dos
+          // administradores, y el aviso no llegaba a leerse: en esa carrera
+          // quien recibe el rechazo es justo la cuenta que la otra sesión
+          // retiró —nadie puede retirarse a sí mismo, y ni la base ni las dos
+          // comprobaciones de antes rechazan mientras quien llama siga siendo
+          // administrador activo, porque las tres lo cuentan—. La recarga
+          // vuelve a pintar `usuarios/page.tsx`, `exigirPanel('admin')` lo manda
+          // al inicio y esta tabla se desmonta con la explicación dentro. Sin
+          // recarga, el mensaje se queda y la siguiente navegación ya redirige.
+          // Por lo mismo ese mensaje no le pide recargar (`CIERRE_SIN_ACCESO`,
+          // en `acciones/admin.ts`). Para los
+          // demás rechazos no se pierde nada: el valor optimista se descarta
+          // solo al acabar la transición, y el mensaje que habla de una lista
+          // vieja pide él mismo recargarla.
           setAviso({ tipo: 'error', texto: resultado.mensaje ?? 'No se pudo completar la acción.' })
         }
       } catch {
@@ -267,6 +282,41 @@ export function TablaUsuarios({
   /** El error que hay que enseñar dentro del modal abierto, si lo hay. */
   const errorDelModal = aviso?.tipo === 'error' ? aviso.texto : null
 
+  /**
+   * El aviso se trae a la vista cuando es lo único que cuenta qué pasó.
+   *
+   * La región vive encima de los filtros, y con la tabla larga quien pulsa
+   * «Desactivar» en la fila treinta la tiene fuera de la pantalla. Un éxito se
+   * ve igual en la propia fila —cambia la insignia, cambia el rol—, pero un
+   * rechazo no cambia nada: la fila se queda como estaba y, sin ver el mensaje,
+   * lo que se deduce es que el clic no entró y se vuelve a pulsar. Con el
+   * rechazo del último administrador eso es pedir dos veces lo que la base ya
+   * dijo que no, y con «Clave» es peor, porque cada pulsación invalida el enlace
+   * anterior. Por eso se desplaza para `error` e `info` y no para `ok`: mover
+   * la página tras cada activación haría perder el sitio a quien activa diez
+   * cuentas seguidas.
+   *
+   * Con un modal abierto no se toca nada: el error ya se pinta dentro de él.
+   * Y se desplaza sin mover el foco, que sigue en el botón de la fila por los
+   * mismos motivos por los que esos botones no se desactivan.
+   *
+   * Si hay modal se lee de una referencia y no se pone en las dependencias,
+   * para que lo único que dispare el desplazamiento sea un aviso nuevo. Con el
+   * modal entre las dependencias, cerrar con «Cancelar» un modal que había
+   * dado error volvía a disparar el efecto con ese error viejo y la página
+   * saltaba arriba sin que acabara de pasar nada. La referencia se pone al día
+   * en un efecto propio, declarado antes, que React corre primero.
+   */
+  const regionDeAvisos = useRef<HTMLDivElement>(null)
+  const hayModalAbierto = useRef(false)
+  useEffect(() => {
+    hayModalAbierto.current = creando || editando !== null || permisos !== null
+  })
+  useEffect(() => {
+    if (!aviso || aviso.tipo === 'ok' || hayModalAbierto.current) return
+    regionDeAvisos.current?.scrollIntoView({ block: 'nearest' })
+  }, [aviso])
+
   return (
     <div>
       <div className="admin-toolbar">
@@ -294,7 +344,7 @@ export function TablaUsuarios({
         «Clave» no anunciaba nada y se volvía a pulsar, invalidando el testigo
         recién emitido.
       */}
-      <div role="status">
+      <div role="status" ref={regionDeAvisos}>
         {aviso ? (
           <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>
             {aviso.texto}

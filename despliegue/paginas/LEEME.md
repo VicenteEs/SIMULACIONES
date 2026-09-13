@@ -109,26 +109,31 @@ El fragmento incluye además:
 
 ### La cadena de topes, y por qué el de nginx es el último
 
-Los cuatro números tienen que ir creciendo hacia fuera, de modo que quien corte
-sea siempre la aplicación, que sabe decir en español qué pasó y cuánto pesaba el
+Los números tienen que ir creciendo hacia fuera, de modo que quien corte sea
+siempre la aplicación, que sabe decir en español qué pasó y cuánto pesaba el
 archivo. Un proxy que corta antes devuelve un 413 sin una palabra dentro.
 
 | Tope | Dónde | Hoy |
 |---|---|---|
 | Techo del archivo en `medios` | `TECHO_DE_MEDIOS_BYTES`, `src/admin/esquema.ts` | 50 MB |
 | Techo del archivo en `modelos-3d` | `TECHO_DE_MODELOS_3D_BYTES`, mismo archivo | 5 MB |
-| Cuerpo de una acción de servidor | `serverActions.bodySizeLimit`, `next.config.mjs` | 52 MB |
 | Cuerpo que admite el proxy | `client_max_body_size`, este fragmento | 64 MB |
 
-50 ≤ 52 ≤ 64. Lo compara `tests/unit/subidaDeVideo.test.ts`, que **lee este
+50 ≤ 64. Lo compara `tests/unit/subidaDeVideo.test.ts`, que **lee este
 archivo**: si alguien sube el techo de la aplicación por encima de los 64 MB sin
 tocar el proxy, la suite falla en vez de dejar dos cifras que no se hablan.
 
-La subida del panel ya no va por una acción de servidor sino por una ruta
+Las dos pantallas del panel que suben —el listado de medios y el selector de
+archivo de un bloque— van por una ruta
 (`src/app/(frontend)/api/subidas/[coleccion]/route.ts`), que recibe el archivo
-en flujo y no lleva el límite de `bodySizeLimit`; el tercer número de la tabla
-sigue ahí porque el editor de bloques todavía inserta archivos por la vía
-antigua. El techo de la aplicación se dejó en 50 y no se subió el del proxy a
+en flujo y no lleva el límite de las acciones de servidor. Por eso
+`serverActions.bodySizeLimit`, de `next.config.mjs`, **ya no está en esta
+tabla**: estuvo, por encima de los 50, mientras el selector de los bloques
+subía por una acción, y hoy mide lo que pesa una ficha al guardarla y no lo que
+pesa un archivo. Si una subida se corta, ese número no es el sospechoso; que
+nadie lo vuelva a meter aquí lo comprueba `tests/unit/subidaDesdeElEditor.test.ts`.
+
+El techo de la aplicación se dejó en 50 y no se subió el del proxy a
 propósito: ese nginx vive en **otra máquina** y en un archivo que este
 repositorio no versiona, así que un número puesto aquí no lo pone allá, y esa es
 exactamente la forma en que nacen dos límites que se contradicen.

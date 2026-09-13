@@ -28,9 +28,26 @@ ENV NEXT_PUBLIC_BASE_PATH=$BASE_PATH
 # Las variables se definen solo para este comando y no se graban en la imagen.
 # Payload exige que existan para poder leer su configuracion, pero la
 # compilacion no toca la base de datos: son valores de relleno.
+#
+# SALIDA_AUTOCONTENIDA=1 es la que enciende `output: 'standalone'` en
+# next.config.mjs, y esta imagen es el unico sitio que la pone. Estaba
+# encendida para todos, y el servidor de Windows, que arranca con `next start`,
+# avisaba en cada arranque de que esa no era la forma de lanzar la construccion.
+# Aqui si hace falta: la etapa de ejecucion copia `.next/standalone`, y sin la
+# variable ese directorio no se genera.
+#
+# Por eso la comprobacion del final. Sin ella, olvidar la variable -o que alguien
+# la renombre en un solo lado- no fallaria aqui sino tres pasos mas abajo, en un
+# COPY que dice «not found» sin nombrar la variable ni este archivo. Se mira
+# `server.js` y no el directorio a secas porque es lo que ejecuta el CMD.
 RUN DATABASE_URI=postgres://relleno:relleno@localhost:5432/relleno \
     PAYLOAD_SECRET=valor-de-relleno-solo-para-compilar \
-    npm run build
+    SALIDA_AUTOCONTENIDA=1 \
+    npm run build \
+ && if [ ! -f .next/standalone/server.js ]; then \
+      echo "La compilacion no dejo .next/standalone/server.js: revise que next.config.mjs siga leyendo SALIDA_AUTOCONTENIDA=1." >&2; \
+      exit 1; \
+    fi
 
 # --- ejecucion ---
 FROM base AS runner

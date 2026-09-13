@@ -12,54 +12,101 @@ import { withPayload } from '@payloadcms/next/withPayload'
  */
 const prefijo = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').replace(/\/+$/, '')
 
+/**
+ * Si esta construcción es la de la imagen de Docker.
+ *
+ * `output: 'standalone'` deja en `.next/standalone` un `server.js` con solo los
+ * `node_modules` que hacen falta, y eso es lo que copia la etapa final del
+ * `Dockerfile`: sin ello la imagen tendría que arrastrar el `node_modules`
+ * entero de la compilación. Solo la imagen lo usa.
+ *
+ * Estaba puesto para todos, y el servidor de Windows (`docs/SERVIDOR-WINDOWS.md`)
+ * no arranca así: arranca con `next start` sobre el `.next` de siempre. `next
+ * start` vuelve a leer este archivo al arrancar, ve `standalone` y avisa en cada
+ * arranque de que esa no es la forma de lanzar esta construcción
+ * (`node_modules/next/dist/server/next.js`). Funcionaba igual, y precisamente
+ * por eso era dañino: un aviso que sale siempre y no significa nada enseña a no
+ * leer el registro, y el día que diga algo que importa nadie lo va a mirar. De
+ * paso, cada `npm run build` de Windows copiaba un árbol de `node_modules` que
+ * nadie iba a usar.
+ *
+ * Por eso lo pide quien lo usa: el `Dockerfile` pone `SALIDA_AUTOCONTENIDA=1`
+ * en la misma orden que compila, y en cualquier otro sitio la variable no
+ * existe. No se decide por `NODE_ENV`, que es lo primero que se ocurre: `next
+ * build` y `next start` lo dejan en `production` en las dos máquinas, así que
+ * no distingue la una de la otra.
+ *
+ * Que la variable no llegue a la imagen no rompe el arranque del contenedor:
+ * `node server.js` no vuelve a leer este archivo, usa la configuración que la
+ * compilación dejó escrita dentro de `.next/standalone`. Donde se notaría es al
+ * construir, y ahí el `Dockerfile` comprueba que `server.js` exista antes de
+ * seguir, para que el olvido falle con su nombre y no como un `COPY` que no
+ * encuentra un directorio.
+ *
+ * Solo vale `'1'`. Un `'true'` o un `'si'` quedan fuera a propósito: aceptar
+ * cualquier cosa no vacía convierte `SALIDA_AUTOCONTENIDA=0` en un sí.
+ */
+const salidaAutocontenida = process.env.SALIDA_AUTOCONTENIDA === '1'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Salida autocontenida: la imagen de produccion no arrastra node_modules.
-  output: 'standalone',
+  ...(salidaAutocontenida ? { output: 'standalone' } : {}),
 
   ...(prefijo ? { basePath: prefijo } : {}),
 
   experimental: {
     /**
-     * Cuánto puede pesar el cuerpo de una acción de servidor. Ya no es el techo
-     * de la plataforma, y ese cambio es el que hay que entender antes de tocar
-     * este número.
+     * Cuánto puede pesar el cuerpo de una acción de servidor. Mide un documento
+     * en JSON, no un archivo, y hay que entender por qué antes de tocarlo.
      *
      * Las subidas del panel iban por la acción `subirArchivo`, y ahí este valor
-     * SÍ era el techo real: Next descarta el cuerpo que se pasa **antes** de
+     * era el techo real: Next descarta el cuerpo que se pasa **antes** de
      * invocar la acción, de modo que el `try/catch` de `accion()` no llega a
-     * ejecutarse y la pantalla se queda muda. Por eso el panel pudo prometer
-     * 50 MB mientras el marco cortaba en 8 sin decir una palabra.
+     * ejecutarse y la pantalla se queda muda. Así fue como el panel prometió
+     * 50 MB mientras el marco cortaba en 8 sin decir una palabra. Y subirlo no
+     * lo arreglaba: una acción recibe el cuerpo ya reunido, de modo que el
+     * archivo entero se queda en la memoria del servidor durante toda la
+     * subida —por un túnel doméstico, minutos—.
      *
-     * Un vídeo de quirófano son 20 MB para arriba, y eso no se arregla subiendo
-     * este número: una acción recibe el cuerpo ya reunido, así que el archivo
-     * entero se queda en la memoria del servidor durante toda la subida —por un
-     * túnel doméstico, minutos—. El camino de las subidas es ahora un manejador
-     * de ruta, `src/app/(frontend)/api/subidas/[coleccion]/route.ts`, que no
-     * lleva este límite y escribe a disco según recibe. El porqué completo está
-     * en `src/admin/subidas.ts`.
+     * Hoy no sube ningún archivo por una acción. Las dos pantallas que suben
+     * —el listado de medios (`TablaDocumentos.tsx`) y el selector de archivo de
+     * un bloque (`formulario/Campos.tsx`)— van por la ruta
+     * `src/app/(frontend)/api/subidas/[coleccion]/route.ts`, que no lleva este
+     * límite y escribe a disco según recibe. El porqué completo, en
+     * `src/admin/subidas.ts`. Este número estuvo en 52 MB mientras el selector
+     * de los bloques seguía por la acción vieja, y eso significaba que cualquier
+     * cuerpo de hasta 52 MB —de quien fuera, a cualquier acción— se aceptaba y
+     * se retenía entero en RAM.
      *
-     * Entonces, ¿por qué sube esto de 8 a 52 MB si ya no es el camino? Porque
-     * todavía queda un consumidor: `src/components/admin/formulario/Campos.tsx`
-     * sigue insertando archivos dentro de un bloque con la acción vieja, y ese
-     * formulario pregunta el peso contra `subida.maximoBytes`, que hoy son
-     * 50 MB. Dejarlo en 8 convertía justo esa pantalla en el eslabón corto: el
-     * navegador dejaría pasar un vídeo de 20 MB porque cabe en el techo
-     * anunciado, y Next lo cortaría sin mensaje. O sea, el defecto de siempre
-     * mudado de sitio.
+     * Lo que queda es la acción más grande que no es una subida:
+     * `guardarDocumento`, que manda la ficha entera con sus bloques y su texto
+     * rico en el árbol de Lexical. Medido con la conversión real
+     * (`haciaLexical`), una ficha de 48.000 palabras —40 bloques de texto de
+     * 1.200 palabras, con negritas cada pocas— ocupa 1 MB, y eso ya es un libro.
+     * Una ficha de verdad son unos pocos miles de palabras y unos cien
+     * kilobytes. `guardarInstancia` del atlas, con sus 2.500 piezas como tope
+     * (`MAXIMO_PIEZAS`), no pasa de unos cientos. De ahí 4 MB: cuatro veces esa
+     * ficha exagerada, para que nadie tope con el corte mudo escribiendo, y
+     * trece veces menos que lo que podía quedarse retenido antes.
      *
-     * 52 y no 50 porque el cuerpo de una acción lleva además el formulario y su
-     * codificación multiparte, así que un archivo de 50 MB justos no cabe en un
-     * límite de 50. Los números de la cadena están declarados y explicados
-     * juntos en `src/admin/esquema.ts` (`TECHO_DE_MEDIOS_BYTES`) y los compara
-     * `tests/unit/subidaDeVideo.test.ts`, que lee este archivo.
+     * El 1 MB por omisión de Next no vale, y no por poco: esa misma ficha de
+     * libro lo pasa, y el síntoma sería el de siempre —Guardar no hace nada y no
+     * dice nada—, que es el peor sitio donde encontrarlo.
      *
-     * Este número se va el día que `Campos.tsx` suba por la ruta como ya sube
-     * el listado de medios. Mientras siga aquí, una inserción de 50 MB desde el
-     * editor de bloques se queda 50 MB en RAM, y eso es lo que se está pagando
-     * por no haber movido todavía esa pantalla.
+     * Si algún día vuelve a hacer falta subirlo por encima del techo de los
+     * medios, la pregunta no es el número sino qué acción ha empezado a mandar
+     * un archivo, y la respuesta es moverla a la ruta. Lo vigila
+     * `tests/unit/subidaDesdeElEditor.test.ts`.
+     *
+     * Por lo mismo, este número salió de la cadena de topes de las subidas
+     * (`TECHO_DE_MEDIOS_BYTES` en `src/admin/esquema.ts` y la tabla de
+     * `despliegue/paginas/LEEME.md`). Estaba en ella con 52 MB porque tenía que
+     * ir por encima de los 50 del techo; con 4 MB, citado allí, haría creer a
+     * quien opera el servidor que Next corta los vídeos en 4. Esa misma prueba
+     * lee esos documentos y falla si dicen que hoy vale otra cosa o si lo
+     * vuelven a meter en la cadena.
      */
-    serverActions: { bodySizeLimit: '52mb' },
+    serverActions: { bodySizeLimit: '4mb' },
 
     /**
      * Enciende `src/app/global-not-found.tsx`.

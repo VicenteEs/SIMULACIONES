@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, useTransition } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { ESQUEMAS, type Campo } from '@/admin/esquema'
 import { BLOQUES, bloqueDe } from '@/admin/bloques'
-import { subirArchivo } from '@/app/(frontend)/acciones/contenido'
+import { formularioDeArchivo, subidorQueAvisa } from '@/admin/subidas'
 import { EditorDeEncuadre } from './EditorDeEncuadre'
 import { TallerDePiezas, type DesplazamientoInicial } from './TallerDePiezas'
 import type { Encuadre } from '@/components/Visor3D'
@@ -256,7 +256,9 @@ export function ControlDeCampo({
    * `for` solo apunta a un elemento etiquetable: sobre un grupo de casillas o
    * sobre el `div contenteditable` de TipTap no nombra nada y además no enfoca
    * al hacer clic. Ahí el nombre lo da `aria-labelledby` contra este `id`, que
-   * antes no existía en ninguna parte del DOM.
+   * antes no existía en ninguna parte del DOM. Quien lo cita tiene que ser el
+   * elemento que recibe el foco, y no solo su envoltorio: en el texto rico eso
+   * lo hace `EditorTextoRico`, que recibe este `id` por props.
    */
   const rotulo = (
     <span className="campo-etiqueta" id={idEtiqueta}>
@@ -310,7 +312,17 @@ export function ControlDeCampo({
         </div>
       )
 
-    case 'numero':
+    case 'numero': {
+      // La escala del caso se cierra aquí, en su propia casilla, además de en
+      // el taller donde se gasta. El guardián y el aviso de `EditorDeLista`
+      // estaban río abajo: la casilla seguía sin mínimo, así que la flecha
+      // hacia abajo del teclado —o el botón de bajar del control— pasaba de 1 a 0
+      // y de 0 a -1, que es justo el número que espeja los seis valores del
+      // desplazamiento, y la casilla no se daba por enterada. El porqué de cada
+      // pieza, junto a `SUELO_DE_LAS_FLECHAS`.
+      const esLaEscala = campo.nombre === CAMPO_DE_ESCALA
+      const escalaMal = esLaEscala && escalaSustituida(valor)
+      const idAviso = `${id}-aviso`
       return (
         <div className={`campo${campo.medio ? ' campo-medio' : ''}`}>
           {etiqueta}
@@ -318,16 +330,29 @@ export function ControlDeCampo({
             id={id}
             type="number"
             className="campo-control"
-            aria-describedby={describe}
-            min={campo.min}
+            aria-describedby={[describe, escalaMal ? idAviso : null].filter(Boolean).join(' ') || undefined}
+            aria-invalid={esLaEscala ? escalaMal : undefined}
+            min={campo.min ?? (esLaEscala ? SUELO_DE_LAS_FLECHAS : undefined)}
             max={campo.max}
             step={campo.paso ?? 'any'}
             value={valor === null || valor === undefined ? '' : String(valor)}
             onChange={(e) => alCambiar(e.target.value === '' ? null : Number(e.target.value))}
           />
+          {escalaMal ? (
+            // No es una alerta: la del taller ya se anuncia al aparecer, y dos
+            // alertas con el mismo motivo se pisan en el lector. Este se oye al
+            // volver a la casilla, que es cuando hace falta, por el
+            // `aria-describedby` de arriba.
+            <p className="campo-error" id={idAviso}>
+              {escalaIlegible(valor)
+                ? `Lo escrito no se pudo leer: se está midiendo con ${MILIMETROS_POR_UNIDAD_POR_OMISION}.`
+                : `Tiene que ser mayor que cero: se está midiendo con ${MILIMETROS_POR_UNIDAD_POR_OMISION}.`}
+            </p>
+          ) : null}
           {ayuda}
         </div>
       )
+    }
 
     case 'seleccion':
       return (
@@ -477,19 +502,30 @@ export function ControlDeCampo({
 
     case 'rico':
       return (
-        // El editor es un `div contenteditable` y no un control etiquetable: se
-        // nombra con `aria-labelledby` sobre el grupo, no con el `for` de la
-        // etiqueta, que apuntaba a un `id` que no existía en ningún elemento.
-        // En un formulario de maniobra hay tres editores ricos seguidos y sin
-        // esto se anuncian los tres igual: «área de edición», sin nombre.
-        <div
-          className="campo"
-          role="group"
-          aria-labelledby={idEtiqueta}
-          aria-describedby={describe}
-        >
+        // El editor es un `div contenteditable` y no un control etiquetable, así
+        // que el `for` de una etiqueta no lo nombra. Se había arreglado a
+        // medias: el nombre se puso en el grupo, y el grupo no recibe el foco.
+        // Quien lo recibe es el `role="textbox"` que TipTap le pone al área
+        // editable, y ese seguía sin nombre, de modo que en un formulario de
+        // maniobra —tres editores ricos seguidos— el lector anunciaba los tres
+        // igual: «cuadro de edición», sin decir de qué campo.
+        //
+        // Ahora el nombre va en los dos, y cada uno por un motivo. El área
+        // editable, porque es donde se escribe. El grupo, porque dentro
+        // también está la barra de formato, y tres barras llamadas «Formato
+        // del texto» solo se distinguen por el grupo que las contiene.
+        //
+        // La ayuda, en cambio, va SOLO en el área: es la regla sobre lo que se
+        // escribe, y puesta también en el grupo se oiría dos veces seguidas al
+        // entrar.
+        <div className="campo" role="group" aria-labelledby={idEtiqueta}>
           {rotulo}
-          <EditorTextoRico valor={valor} alCambiar={alCambiar} />
+          <EditorTextoRico
+            valor={valor}
+            alCambiar={alCambiar}
+            idEtiqueta={idEtiqueta}
+            idAyuda={describe}
+          />
           {ayuda}
         </div>
       )
@@ -675,6 +711,48 @@ const escalaSustituida = (bruto: unknown): boolean =>
  */
 const escalaIlegible = (bruto: unknown): boolean =>
   typeof bruto === 'number' && !Number.isFinite(bruto)
+
+/**
+ * Qué casilla es la escala del caso.
+ *
+ * El mismo nombre que el taller lee en `hermanos?.milimetrosPorUnidad`, aquí
+ * abajo; los ata `tests/unit/escalaEnSuCasilla.test.ts`, porque si se separan
+ * la casilla deja de cerrarse sin que nada falle.
+ */
+const CAMPO_DE_ESCALA = 'milimetrosPorUnidad'
+
+/**
+ * Hasta dónde bajan las flechas en la casilla de la escala. No es la política.
+ *
+ * Lo que decide si una escala vale sigue siendo `escalaDelCaso` —cualquier
+ * número finito mayor que cero— y no se toca, porque la consola decide lo mismo
+ * en `escalaPositiva` (`src/lib/casoQuirurgico.ts`): si la casilla rechazara un
+ * 0,5 que la consola acepta, el taller mediría con 1000 y el residente con 0,5.
+ * Este número solo gobierna las flechas, y está medido en Chromium, no supuesto:
+ *
+ *  - Con `step="any"` las flechas avanzan de uno en uno y **no** se alinean con
+ *    el mínimo: desde 1000 bajan a 999 con este suelo o con cualquier otro.
+ *  - Una flecha que dejaría el valor por debajo del mínimo no hace nada: desde
+ *    1 hacia abajo se queda en 1, desde 1,5 se queda en 1,5. Así que desde
+ *    cualquier escala de 1 para arriba el teclado ya no llega al 0 ni al -1.
+ *  - Con la casilla vacía, cualquier flecha escribe el mínimo. Por eso 1 y no
+ *    un número diminuto como 0,001: con aquel, pulsar una flecha en la casilla
+ *    vacía escribía una escala que encoge el hueso mil veces y que el guardián
+ *    da por buena. 1 es «exporté en milímetros», que la ayuda nombra.
+ *
+ * Lo que queda y se sabe: un 0,5 **tecleado** se sigue usando, y el navegador
+ * lo considera por debajo del mínimo. No bloquea nada —el panel no valida con el
+ * formulario nativo—, y para que el lector no lo anuncie como erróneo mientras
+ * la plataforma lo usa, la casilla declara `aria-invalid` siempre, verdadero o
+ * falso, según `escalaSustituida` y no según el navegador.
+ *
+ * **No va como `min` en `src/admin/esquema.ts`**, aunque parezca su sitio.
+ * `depurarCampo` recorta contra ese `min` al guardar y sin decir nada (D-083):
+ * un 0 guardado se volvería 1 —milímetros— en vez de caer al respaldo de 1000,
+ * y el caso quedaría mil veces más pequeño sin que ninguna pantalla lo
+ * enseñara. El suelo es de la casilla y solo de la casilla.
+ */
+const SUELO_DE_LAS_FLECHAS = 1
 
 function EditorDeLista({
   campo,
@@ -1021,17 +1099,17 @@ function EditorDeBloques({
 // ------------------------------------------------------------------ archivo
 
 /**
- * Por qué el peso se pregunta aquí, antes de llamar a la acción.
+ * Por qué el peso se pregunta aquí, antes de mandar nada.
  *
  * El techo lo declara la colección —`subida.maximoBytes` en
- * `src/admin/esquema.ts`— y quien lo hace cumplir es `subirArchivo`. Pero esa
- * comprobación no llega a correr justo en el caso que importa: por encima de
- * los 8 MB de `serverActions.bodySizeLimit` (`next.config.mjs`) Next descarta
- * el cuerpo **sin invocar la acción**, así que no vuelve ninguna respuesta con
- * `mensaje`, el `try/catch` de `accion()` no se ejecuta y la pantalla se
- * quedaba muda con el desplegable en «— ninguno —», como si el archivo se
- * hubiera adjuntado. Preguntando aquí, el motivo se pinta sin que el archivo
- * llegue a viajar.
+ * `src/admin/esquema.ts`— y quien lo hace cumplir es la ruta de subida
+ * (`src/app/(frontend)/api/subidas/[coleccion]/route.ts`), que corta nada más
+ * leer `Content-Length`. Así que esto ya no tapa un corte mudo, como tapaba
+ * cuando la subida iba por la acción `subirArchivo` y Next descartaba el cuerpo
+ * sin invocarla: hoy la ruta contestaría el mismo mensaje. Lo que ahorra es la
+ * petición entera —abrir la conexión por el túnel para oír un «no»— y la
+ * barra de avance que asomaría un instante para desaparecer. El texto es el
+ * mismo que compone la ruta, porque es el mismo rechazo visto desde dos sitios.
  *
  * El número ya no se repite en esta pantalla: sale del esquema, que es de donde
  * sale también la frase que lo anuncia. Había un 7 escrito aquí que valía para
@@ -1069,8 +1147,63 @@ function SelectorDeArchivo({
   alRecargar: () => void
 }) {
   const id = useId()
-  const [enCurso, iniciar] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  /**
+   * La subida en marcha: de qué archivo se habla y cuánto ha viajado.
+   *
+   * Es la misma forma que el `progreso` de `TablaDocumentos.tsx` sin la cuenta
+   * de la tanda, porque aquí se sube uno. `null` es «no hay subida», y de ahí
+   * sale `enCurso`: guardarlo aparte serían dos estados que dicen lo mismo y
+   * que pueden quedar en desacuerdo si una rama olvida bajar uno de los dos.
+   *
+   * Antes esto era un `useTransition`, que sabe si la acción terminó pero no
+   * cuánto le falta. Con la acción daba igual, porque tampoco había nada que
+   * medir; con un vídeo de 40 MB por un túnel doméstico son minutos con el
+   * botón en «Subiendo…» y ninguna señal de vida, y lo que hace cualquiera
+   * entonces es recargar la ficha a medio escribir.
+   */
+  const [progreso, setProgreso] = useState<{ nombre: string; fraccion: number } | null>(null)
+  const enCurso = progreso !== null
+  /**
+   * Quién recibe el archivo cuando por fin termina de subir.
+   *
+   * El `alCambiar` de las props se lee **al terminar**, no al empezar, y la
+   * diferencia no es de estilo. El que llega aquí lo compone `EditorDeBloques`
+   * con el arreglo de bloques del render en que se pulsó el botón; con la
+   * acción eso eran unos segundos, pero una subida que dura minutos invita
+   * justo a seguir escribiendo mientras tanto, y al terminar se habría escrito
+   * aquel arreglo viejo entero encima de la ficha: todo lo tecleado durante la
+   * subida, en cualquier otro bloque, desaparecido sin aviso. Leyendo el último
+   * se escribe sobre la ficha tal como está.
+   *
+   * Si este selector se desmonta a mitad de subida no se escribe nada, porque
+   * el último `alCambiar` que vio ya no es el último de la ficha. Pasa en dos
+   * casos y el primero es el que obliga: quitar el bloque, donde ese
+   * `alCambiar` lleva el arreglo de antes de quitarlo y llamarlo lo resucitaría.
+   * El segundo es el caro: **plegar** el bloque también lo desmonta
+   * (`EditorDeBloques` no pinta el cuerpo plegado), y ahí escribir con aquel
+   * arreglo borraría lo tecleado después en otros bloques. Así que tampoco se
+   * escribe, y lo que se hace es recargar las opciones: el archivo queda subido
+   * y al desplegar aparece en el desplegable para elegirlo, en vez de no estar
+   * en ninguna parte hasta recargar la página. Lo que lo arreglaría del todo es
+   * que cada nivel del formulario escriba sobre el valor vigente y no sobre el
+   * de su render, y eso ya no es de este selector.
+   */
+  const ultimos = useRef({ alCambiar, alRecargar })
+  useEffect(() => {
+    ultimos.current = { alCambiar, alRecargar }
+  }, [alCambiar, alRecargar])
+  // No es el centinela de «primera vuelta» que el Modo Estricto derrota (ver
+  // `EditorDeBloques`): no recuerda si ya se montó, dice si está montado ahora,
+  // y el efecto lo vuelve a poner en cada montaje, también en la segunda vuelta
+  // del Modo Estricto, después de que la limpieza de la primera lo bajara.
+  const montado = useRef(true)
+  useEffect(() => {
+    montado.current = true
+    return () => {
+      montado.current = false
+    }
+  }, [])
   /**
    * El `<input type="file">` sigue existiendo, pero ya no es el control.
    *
@@ -1101,34 +1234,46 @@ function SelectorDeArchivo({
       )
       return
     }
-    iniciar(async () => {
+    // A cero antes de empezar, como en el listado: la barra aparece con el
+    // nombre del archivo en cuanto arranca y no con el primer evento de avance,
+    // que en un archivo grande puede tardar segundos.
+    const avisar = (fraccion: number) => setProgreso({ nombre: archivo.name, fraccion })
+    avisar(0)
+    void (async () => {
       try {
-        const formulario = new FormData()
-        formulario.set('coleccion', campo.coleccion)
-        formulario.set('archivo', archivo)
-        // La descripción se puede afinar después en la sección de medios; aquí
-        // se pone el nombre del archivo para no bloquear la subida por un campo.
-        formulario.set('alt', archivo.name.replace(/\.[^.]+$/, ''))
-        formulario.set('nombre', archivo.name.replace(/\.[^.]+$/, ''))
-        const resultado = await subirArchivo(formulario)
+        // Por la ruta y no por la acción `subirArchivo`: el porqué entero está
+        // en `src/admin/subidas.ts`, y lo que costaba no haberlo hecho, en
+        // `next.config.mjs`.
+        const resultado = await subidorQueAvisa(avisar)(
+          formularioDeArchivo(campo.coleccion, archivo),
+        )
+        if (!montado.current) {
+          if (resultado.exito) ultimos.current.alRecargar()
+          return
+        }
         if (resultado.exito && resultado.datos) {
-          alCambiar(resultado.datos.id)
-          alRecargar()
+          ultimos.current.alCambiar(resultado.datos.id)
+          ultimos.current.alRecargar()
         } else {
           setError(resultado.mensaje ?? 'No se pudo subir el archivo.')
         }
       } catch (fallo) {
-        // Lo que rechaza el marco —cuerpo demasiado grande, sesión caída, red
-        // cortada— no vuelve como respuesta sino como excepción, y sin esto se
-        // perdía en la consola del navegador: la subida se quedaba en
-        // «Subiendo…» y nadie llegaba a saber por qué.
+        // El subidor devuelve una `Respuesta` también cuando la red se corta o
+        // contesta un proxy, así que por aquí solo cae una avería del propio
+        // navegador —un `setRequestHeader` que no acepta el valor, por
+        // ejemplo—. Sin este `catch` se perdería en la consola y el botón
+        // se quedaría en «Subiendo…» para siempre, que es como se perdió una
+        // vez lo que rechazaba el marco.
+        if (!montado.current) return
         setError(
           fallo instanceof Error && fallo.message
             ? `No se pudo subir el archivo: ${fallo.message}`
             : 'No se pudo subir el archivo. Compruebe la conexión e inténtelo otra vez.',
         )
+      } finally {
+        if (montado.current) setProgreso(null)
       }
-    })
+    })()
   }
 
   return (
@@ -1187,6 +1332,41 @@ function SelectorDeArchivo({
           }}
         />
       </div>
+
+      {/*
+        La barra, calcada de la del listado de medios (`TablaDocumentos.tsx`),
+        y con sus mismas dos decisiones, que allí están explicadas enteras:
+
+         - La región viva se queda montada aunque no haya subida, porque un
+           `role="status"` que aparece junto con su texto no lo anuncia ningún
+           lector. Dentro va el nombre del archivo y NO el porcentaje, que
+           cambia decenas de veces y convertiría el aviso en una letanía; el
+           porcentaje se lee del `<progress>`.
+         - Al llegar al 100 % no ha terminado: falta que el servidor escriba el
+           archivo, saque las miniaturas y cree el registro. Decirlo evita la
+           lectura «se colgó al final», que es la que lleva a recargar.
+
+        Aquí pesa más que allá. En el listado no hay nada a medio escribir; en
+        este formulario, recargar por impaciencia se lleva la ficha.
+      */}
+      <div role="status">
+        {progreso ? (
+          <p className="campo-ayuda">{`Subiendo «${progreso.nombre}».`}</p>
+        ) : null}
+      </div>
+      {progreso ? (
+        <p className="campo-ayuda">
+          <progress
+            style={{ width: '100%' }}
+            max={100}
+            value={Math.round(progreso.fraccion * 100)}
+            aria-label={`Avance de la subida de «${progreso.nombre}»`}
+          />
+          {progreso.fraccion >= 1
+            ? ' Procesando en el servidor…'
+            : ` ${Math.round(progreso.fraccion * 100)} %`}
+        </p>
+      ) : null}
 
       {subida?.ayuda ? (
         <p className="campo-ayuda" id={idSubida}>

@@ -2,7 +2,9 @@ import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
-import { SinAcceso, Miga } from '@/components/Estados'
+import { lecturasDelResidente } from '@/lib/lecturas'
+import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { SinAcceso, SinAccesoAlModulo, Miga } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import { RastreadorActividad } from '@/components/RastreadorActividad'
@@ -13,6 +15,14 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
   const { id } = await params
   const { activo, usuarioEfectivo } = await obtenerSesion()
   if (!activo) return <SinAcceso titulo="Lectura de imágenes" />
+
+  // Antes del `findByID`, y con el usuario efectivo que va a él: su `.catch`
+  // convierte en `notFound()` también el `Forbidden` de la regla de lectura, y
+  // quien no tiene el módulo leía «Esta ficha ya no está» sobre un estudio
+  // publicado. El porqué entero, en la cabecera de `SinAccesoAlModulo`.
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'estudios-ia')) {
+    return <SinAccesoAlModulo titulo="Lectura de imágenes" />
+  }
 
   const payload = await getPayload({ config })
   const estudio = await payload
@@ -33,53 +43,21 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
     ? (estudio.opciones as Record<string, unknown>[])
     : []
 
-  const usuarioId = (usuarioEfectivo as { id?: string | number } | null)?.id
-
   // La casilla de «leída» tiene que nacer sabiendo si ya lo está, y
   // `RastreadorActividad` es de cliente: no puede consultarlo él. Sin esto la
   // casilla aparece en blanco en cada carga y el residente vuelve a marcar lo
   // que ya había marcado.
   //
-  // Hasta aquí, Lectura de imágenes no registraba una sola lectura: ni la visita
-  // ni la marca. La cifra «por leer» de la portada es `totalFichas - leidas`
-  // sobre los cinco módulos, así que cada estudio contaba como pendiente para
-  // siempre y ese número no podía llegar a cero por mucho que se leyera.
+  // Hasta que se montó, Lectura de imágenes no registraba una sola lectura: ni
+  // la visita ni la marca. La cifra «por leer» de la portada es
+  // `totalFichas - leidas` sobre los cinco módulos, así que cada estudio
+  // contaba como pendiente para siempre y ese número no podía llegar a cero por
+  // mucho que se leyera.
   //
-  // Es la cuarta copia literal de esta consulta —`biblioteca/[id]`,
-  // `simulador/[id]` y `tecnica-ao/[id]` llevan la misma—. Su sitio es una
-  // función de `src/lib`, que no entra en este lote y queda anotado como
-  // pendiente: lo que no podía seguir es que tres módulos de cinco no tuvieran
-  // forma de marcarse.
-  //
-  // Ya son los cinco. El examen físico era la excepción mientras no tuvo
-  // página por documento —sus maniobras se pintan todas juntas en el listado,
-  // y por eso `rutaPublica` compone `/examen-fisico#maniobra-<id>`—, y eso
-  // dejaba «por leer» con un suelo igual al número de maniobras publicadas.
-  // Se cerró por la segunda de las dos salidas posibles: un rastreador por
-  // `<article id="maniobra-…">` dentro del listado, en vez de inventar una
-  // ficha por maniobra que nadie había pedido.
-  //
-  // El `.catch` está porque la actividad es una comodidad y el estudio es el
-  // contenido: una avería en esa tabla no puede llevarse por delante la página
-  // entera, que es lo que pasaría sin él.
-  const registroDeLectura = usuarioId
-    ? await payload
-        .find({
-          collection: 'actividad',
-          where: {
-            and: [
-              { usuario: { equals: usuarioId } },
-              { coleccion: { equals: 'estudios-ia' } },
-              { documentoId: { equals: id } },
-            ],
-          },
-          user: usuarioEfectivo as never,
-          limit: 1,
-          depth: 0,
-        })
-        .then((r) => r.docs[0] ?? null)
-        .catch(() => null)
-    : null
+  // La pregunta es la misma en los cinco módulos y vive en `src/lib/lecturas.ts`
+  // —antes era una copia literal por página—, que explica también por qué no
+  // lanza: el estudio se enseña igual con la tabla de actividad caída.
+  const lecturas = await lecturasDelResidente(payload, usuarioEfectivo, 'estudios-ia', [id])
 
   return (
     <main>
@@ -111,7 +89,7 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
         <RastreadorActividad
           coleccion="estudios-ia"
           documentoId={id}
-          completadoInicial={registroDeLectura?.completado === true}
+          completadoInicial={lecturas.leida(id)}
         />
       </header>
 

@@ -12,11 +12,17 @@ import { join } from 'node:path'
  * única forma de que eso no vuelva a pasar es sostener los enganches, que es lo
  * que hace este archivo.
  *
- * Son cinco archivos que no se importan entre sí de forma comprobable: un
- * componente de cliente, tres componentes de servidor y un módulo de consultas.
- * Ninguno se puede ejecutar en esta suite —no hay jsdom ni base de datos—, así
- * que se miran en el disco y siempre por la consecuencia: que el dato salga,
- * que vuelva y que alguien lo enseñe.
+ * Son siete archivos que no se importan entre sí de forma comprobable: dos
+ * componentes de cliente —la consola y `CasoConSuLectura`, el envoltorio por el
+ * que la página la monta desde que terminar el caso lo marca como leído—, tres
+ * componentes de servidor y dos módulos de consultas (`datos.ts` del panel y
+ * `src/lib/lecturas.ts`, que trae la fila). Ninguno se puede ejecutar en esta
+ * suite —no hay jsdom ni base de datos—, así que se miran en el disco y siempre
+ * por la consecuencia: que el dato salga, que vuelva y que alguien lo enseñe.
+ *
+ * El envoltorio es un eslabón más de la cadena y el más fácil de romper sin que
+ * se note: la consola declara `recorridoGuardado` opcional, así que un
+ * envoltorio que se lo deje fuera compila, y la página sigue pasándoselo a él.
  */
 
 const RAIZ = process.cwd()
@@ -24,7 +30,7 @@ const RAIZ = process.cwd()
 /**
  * El archivo sin comentarios.
  *
- * Imprescindible aquí: los comentarios de estos cinco archivos nombran a
+ * Imprescindible aquí: los comentarios de estos siete archivos nombran a
  * propósito lo que cablean —«`documentoId` es lo que le da a la consola dónde
  * escribir»— y sin quitarlos estas comprobaciones casarían contra su propia
  * explicación en vez de contra el código. Es el mismo recorte que hace
@@ -37,13 +43,38 @@ const codigoDe = (...partes: string[]): string =>
     .replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
 
 const CONSOLA = codigoDe('src', 'components', 'simulador', 'ConsolaQuirurgica.tsx')
+const ENVOLTORIO = codigoDe('src', 'components', 'simulador', 'CasoConSuLectura.tsx')
 const PAGINA_DEL_CASO = codigoDe('src', 'app', '(frontend)', 'simulador', '[id]', 'page.tsx')
+const LECTURAS = codigoDe('src', 'lib', 'lecturas.ts')
 const PORTADA = codigoDe('src', 'app', '(frontend)', 'page.tsx')
 const DATOS = codigoDe('src', 'app', '(frontend)', 'admin-panel', 'datos.ts')
 const PANEL_ACTIVIDAD = codigoDe('src', 'app', '(frontend)', 'admin-panel', 'actividad', 'page.tsx')
 
 /** Cuántas veces aparece un trozo de texto. */
 const veces = (codigo: string, trozo: string): number => codigo.split(trozo).length - 1
+
+/**
+ * Las propiedades que lleva una etiqueta: el trozo desde `<Etiqueta` hasta su
+ * `/>`.
+ *
+ * Mirar el archivo entero no basta, y ya dejó pasar un fallo: `documentoId={id}`
+ * lo lleva también `<FormularioComentario>` en la misma página, así que la
+ * comprobación casaba aunque la consola no recibiera nada. Lanza si la etiqueta
+ * no está o no se cierra, para que un trozo vacío no se lea como «no lleva esa
+ * propiedad» en una prueba que la exige.
+ */
+const propiedadesDe = (codigo: string, etiqueta: string): string => {
+  const inicio = codigo.indexOf(`<${etiqueta}`)
+  if (inicio === -1) throw new Error(`no se encontró <${etiqueta}`)
+  const fin = codigo.indexOf('/>', inicio)
+  if (fin === -1) throw new Error(`<${etiqueta} no se cierra con />`)
+  // Una sola aparición: con dos, el trozo sería el de la primera y la segunda
+  // podría montarse sin nada sin que esta suite lo viera.
+  if (codigo.indexOf(`<${etiqueta}`, inicio + 1) !== -1) {
+    throw new Error(`<${etiqueta} aparece más de una vez`)
+  }
+  return codigo.slice(inicio, fin)
+}
 
 describe('la consola manda lo que calcula', () => {
   it('llama a la acción que escribe en actividad', () => {
@@ -145,18 +176,65 @@ describe('la consola sigue siendo compilable', () => {
 })
 
 describe('la página del caso le da a la consola lo que ella no puede pedir', () => {
-  it('pasa la ficha y el recorrido guardado', () => {
+  it('pasa la ficha y el recorrido guardado, y el envoltorio se los entrega a la consola', () => {
     // La consola corre en el navegador: ni sabe en qué fila está ni puede
     // consultarla. Sin estas dos propiedades, lo que calcula vuelve a morir con
     // la pestaña.
-    expect(PAGINA_DEL_CASO).toContain('documentoId={id}')
-    expect(PAGINA_DEL_CASO).toContain('recorridoGuardado={recorridoGuardado(registroDeLectura)}')
+    //
+    // Se mira cada eslabón en su etiqueta. La página no monta la consola: se lo
+    // da todo a `<CasoConSuLectura>`, y es él quien lo reparte. Comprobar solo
+    // la página dejaba en verde un envoltorio que montaba la consola con
+    // `documentoId=""` y `recorridoGuardado={null}` —sin dónde escribir el
+    // recorrido ni la marca, y sin «Su recorrido anterior»—, que es exactamente
+    // lo que este archivo existe para impedir.
+    const enLaPagina = propiedadesDe(PAGINA_DEL_CASO, 'CasoConSuLectura')
+    expect(enLaPagina).toContain('caso={caso}')
+    expect(enLaPagina).toContain('documentoId={id}')
+    expect(enLaPagina).toContain('recorridoGuardado={recorridoGuardado(registroDeLectura)}')
     expect(PAGINA_DEL_CASO).toContain("from '@/lib/progresoDelSimulador'")
+
+    // Y en el envoltorio, lo que recibió y no otra cosa. `recorridoGuardado` es
+    // opcional en la consola, así que olvidarlo aquí compila: solo esta
+    // comprobación lo delata.
+    const enElEnvoltorio = propiedadesDe(ENVOLTORIO, 'ConsolaQuirurgica')
+    expect(enElEnvoltorio).toContain('caso={caso}')
+    expect(enElEnvoltorio).toContain('documentoId={documentoId}')
+    expect(enElEnvoltorio).toContain('recorridoGuardado={recorridoGuardado}')
+    expect(ENVOLTORIO).toMatch(/import \{ ConsolaQuirurgica\b[^}]*\} from '\.\/ConsolaQuirurgica'/)
   })
 
   it('sale de la fila que ya se consultaba, y no de una consulta nueva', () => {
     // Los tres campos viven en la misma fila que dice si la ficha está leída.
-    expect(veces(PAGINA_DEL_CASO, "collection: 'actividad'")).toBe(1)
+    // Antes esa fila la pedía la página con su propio `collection: 'actividad'`,
+    // y aquí se contaba que hubiera uno. Desde que la pregunta vive en
+    // `src/lib/lecturas.ts` la página no consulta nada más que el caso: un
+    // `.find(` que reaparezca es una segunda consulta a la misma fila, o una
+    // copia de la de lecturas con su propio criterio para las gemelas.
+    expect(veces(PAGINA_DEL_CASO, '.find(')).toBe(0)
+    expect(veces(PAGINA_DEL_CASO, '.findByID(')).toBe(1)
+
+    // La casilla y el recorrido salen del mismo objeto, que es el de la única
+    // llamada. Con dos llamadas cada uno podría estar leyendo una fila distinta
+    // de las gemelas, y la prueba de `lecturasCableadas.test.ts` que cuenta
+    // llamadas no distingue de qué variable sale cada cosa.
+    const llamada = /const (\w+) = await lecturasDelResidente\(payload, usuarioEfectivo, 'cirugias', \[id\]\)/.exec(
+      PAGINA_DEL_CASO,
+    )
+    expect(llamada, 'la página del caso no guarda la respuesta de lecturasDelResidente').not.toBeNull()
+    const lecturas = llamada![1]
+    expect(PAGINA_DEL_CASO).toContain(`const registroDeLectura = ${lecturas}.registro(id)`)
+    expect(PAGINA_DEL_CASO).toContain(`completadoInicial={${lecturas}.leida(id)}`)
+  })
+
+  it('la fila llega entera: sin un `select` que se deje fuera el recorrido', () => {
+    // `recorridoGuardado` lee `puntaje`, `puntajeMaximo` y `complicaciones` de
+    // la fila que devuelve `lecturas.registro`. Aligerar la consulta con un
+    // `select` de lo que necesita la casilla —`documentoId` y `completado`—
+    // parece inocuo y es justo lo que la rompe: la casilla sigue bien, el
+    // recorrido anterior deja de salir y no falla nada, porque un campo ausente
+    // se lee igual que un caso nunca jugado.
+    expect(LECTURAS).toContain("collection: 'actividad'")
+    expect(LECTURAS).not.toMatch(/\bselect:/)
   })
 })
 

@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { existsSync, readFileSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { basename, dirname, join, relative } from 'node:path'
 
 /**
  * Que quepa un vídeo de quirófano de verdad.
@@ -17,9 +17,10 @@ import { basename, dirname, join } from 'node:path'
  *  1. **Las cifras.** Hay dos techos —vídeo grande, modelo 3D pequeño— y una
  *     cadena de topes que va desde el esquema del panel hasta el
  *     `client_max_body_size` de un nginx que vive en otra máquina. Este archivo
- *     abre `next.config.mjs` y `despliegue/paginas/LEEME.md` y los compara,
- *     porque «dos números que no se hablan» es exactamente el defecto que se
- *     vino a cerrar.
+ *     abre `despliegue/paginas/LEEME.md` y lo compara con el esquema, porque
+ *     «dos números que no se hablan» es exactamente el defecto que se vino a
+ *     cerrar. Y comprueba que ningún archivo vuelve a viajar por una acción de
+ *     servidor, que es lo que sacó de esa cadena el límite de las acciones.
  *  2. **La ruta.** Se ejercita de verdad: se le mandan peticiones y se mira qué
  *     contesta y qué le entrega a Payload.
  *  3. **El cable.** Que la pantalla llame a lo que se escribió. Escribir una
@@ -109,18 +110,85 @@ describe('los dos techos se declaran juntos y solo sube uno', () => {
   })
 })
 
+/**
+ * Los archivos de `src/` que declaran acciones de servidor, con su texto.
+ *
+ * Se busca la directiva y no se enumeran los archivos de `acciones/`: una
+ * acción nueva puede nacer en cualquier sitio —con `'use server'` al principio
+ * del archivo o dentro de una función—, y una lista escrita a mano es
+ * precisamente la que se olvida de ella.
+ */
+function archivosDeAcciones(): { camino: string; texto: string }[] {
+  const encontrados: { camino: string; texto: string }[] = []
+  const recorrer = (directorio: string) => {
+    for (const entrada of readdirSync(directorio, { withFileTypes: true })) {
+      const camino = join(directorio, entrada.name)
+      if (entrada.isDirectory()) recorrer(camino)
+      else if (/\.tsx?$/.test(entrada.name)) {
+        const texto = readFileSync(camino, 'utf8')
+        if (/^\s*['"]use server['"]/m.test(texto)) {
+          encontrados.push({ camino: relative(RAIZ, camino).replace(/\\/g, '/'), texto })
+        }
+      }
+    }
+  }
+  recorrer(join(RAIZ, 'src'))
+  return encontrados
+}
+
+/**
+ * Lo que delata a una acción que recibe un archivo: un parámetro declarado como
+ * `FormData`, `File` o `Blob`, o la comprobación de que lo que llegó es uno.
+ *
+ * No se busca `file:` en `payload.create`, que parecería lo obvio: la
+ * exportación del atlas (`acciones/atlas.ts`) crea un `.glb` que compone el
+ * propio servidor, y eso no hace viajar ningún archivo por el cuerpo de la
+ * acción.
+ */
+const INDICIOS_DE_ARCHIVO_RECIBIDO = [/:\s*(?:FormData|File|Blob)\b/, /instanceof\s+(?:File|Blob)\b/]
+
+describe('ningún archivo viaja por una acción de servidor', () => {
+  it('el detector reconoce la acción que se retiró', () => {
+    // Sin esto, la prueba de abajo podría quedarse verde por no mirar nada: un
+    // patrón que no casa con el caso real no vigila el caso real. Se comprueba
+    // cada indicio por separado, para que ninguno de los dos sea letra muerta.
+    // Son líneas copiadas tal cual de `acciones/contenido.ts` antes de retirarla.
+    const retirada = [
+      'export async function subirArchivo(formulario: FormData): Promise<Respuesta<{ id: string }>> {',
+      "    const archivo = formulario.get('archivo')",
+      '    if (!(archivo instanceof File) || archivo.size === 0) {',
+    ].join('\n')
+    for (const indicio of INDICIOS_DE_ARCHIVO_RECIBIDO) {
+      expect(retirada).toMatch(indicio)
+    }
+  })
+
+  it('y no la encuentra en ninguna acción de `src/`', () => {
+    // Antes esta prueba exigía lo contrario: que `serverActions.bodySizeLimit`
+    // quedara por encima del techo de los medios, porque el selector de archivo
+    // de un bloque subía por la acción `subirArchivo` y, por debajo, esa
+    // pantalla cortaba sin mensaje. Las dos pantallas suben ya por la ruta y la
+    // acción se retiró, así que lo que hay que vigilar es que no vuelva ninguna:
+    // una acción que reciba un archivo obligaría a subir de nuevo ese límite
+    // —y a retener el archivo entero en memoria— o sería el corte mudo de
+    // siempre. Que el límite se quede por debajo del techo lo fija
+    // `tests/unit/subidaDesdeElEditor.test.ts`.
+    const acciones = archivosDeAcciones()
+    // Si la búsqueda deja de encontrar acciones, el bucle de abajo no comprueba
+    // nada y sale verde; `contenido.ts` es la que tenía la subida.
+    expect(acciones.map((a) => a.camino)).toContain('src/app/(frontend)/acciones/contenido.ts')
+    const quienes = acciones
+      .filter((a) => INDICIOS_DE_ARCHIVO_RECIBIDO.some((indicio) => indicio.test(a.texto)))
+      .map((a) => a.camino)
+    expect(quienes).toEqual([])
+  })
+})
+
 describe('la cadena de topes crece hacia fuera', () => {
   /**
-   * Los dos que no se pueden importar: uno está en un `.mjs` que no pasa por
-   * este compilador y el otro describe un archivo de otra máquina. Se leen del
-   * texto, que es la única cuerda que puede atarlos.
+   * El que no se puede importar: describe un archivo de otra máquina. Se lee
+   * del texto, que es la única cuerda que puede atarlo.
    */
-  const cuerpoDeUnaAccion = (): number => {
-    const encontrado = /bodySizeLimit:\s*'(\d+)mb'/.exec(fuente('next.config.mjs'))
-    expect(encontrado, 'next.config.mjs ya no declara `serverActions.bodySizeLimit`').not.toBeNull()
-    return Number(encontrado![1]) * MEGA
-  }
-
   const cuerpoQueAdmiteElProxy = (): number => {
     // Se lee la fila de la tabla y no la línea de nginx suelta: el LEEME trae
     // además un ejemplo de `sed` con dos cifras dentro, y un `indexOf` a secas
@@ -130,15 +198,6 @@ describe('la cadena de topes crece hacia fuera', () => {
     expect(fila, 'el LEEME del despliegue perdió la fila de `client_max_body_size`').not.toBeNull()
     return Number(fila![1]) * MEGA
   }
-
-  it('el cuerpo de una acción va por encima del techo que el panel anuncia', () => {
-    // La acción es la vía vieja, y `formulario/Campos.tsx` todavía la usa para
-    // insertar un archivo dentro de un bloque. Si este número quedara por
-    // debajo del techo anunciado, esa pantalla sería el eslabón corto: el
-    // navegador dejaría pasar el vídeo porque cabe en lo prometido y Next lo
-    // cortaría sin mensaje.
-    expect(cuerpoDeUnaAccion()).toBeGreaterThan(TECHO_DE_MEDIOS_BYTES)
-  })
 
   it('la guía de despliegue dice el mismo techo que la plataforma aplica', () => {
     // La misma lección que dejó el panel prometiendo 50 MB mientras el marco
@@ -156,9 +215,10 @@ describe('la cadena de topes crece hacia fuera', () => {
     // 413 sin una palabra dentro. Ese nginx vive en otra máquina y en un
     // archivo que este repositorio no versiona: subir el techo de aquí por
     // encima del suyo, sin ir a ponerlo allá, es fabricar dos cifras que no se
-    // hablan.
-    expect(cuerpoQueAdmiteElProxy()).toBeGreaterThanOrEqual(cuerpoDeUnaAccion())
+    // hablan. El cuerpo de una acción ya no se compara: ningún archivo pasa
+    // por ella (ver el `describe` de arriba).
     expect(cuerpoQueAdmiteElProxy()).toBeGreaterThan(TECHO_DE_MEDIOS_BYTES)
+    expect(cuerpoQueAdmiteElProxy()).toBeGreaterThan(TECHO_DE_MODELOS_3D_BYTES)
   })
 })
 
@@ -310,6 +370,32 @@ describe('el techo se hace cumplir, y se dice cuánto pesaba', () => {
     expect(respuesta.status).toBe(413)
     expect(String((await respuesta.json()).mensaje)).toContain('5 MB')
     expect(crear).not.toHaveBeenCalled()
+  })
+
+  it('un modelo 3D se mide con su techo y no con el de los vídeos', async () => {
+    // Estos dos casos vivían en `guardarDocumento.test.ts` contra la acción
+    // `subirArchivo`, y se mudaron aquí al retirarla: sin ellos, nada
+    // comprobaría que la ruta elige el techo de la colección a la que se sube.
+    // Seis megas caben de sobra en los 50 de `medios`, así que una ruta que
+    // tomara el techo equivocado los dejaría pasar.
+    const campos = { nombre: 'Tibia derecha', origen: 'tc' }
+    const pasado = await llamar(
+      peticionDeSubida({ nombre: 'tibia.glb', campos, largoDeclarado: 6 * MEGA }),
+      'modelos-3d',
+    )
+    expect(pasado.status).toBe(413)
+    const mensaje = String((await pasado.json()).mensaje)
+    expect(mensaje).toContain('6,0 MB')
+    expect(mensaje).toContain('el máximo son 5 MB')
+    expect(crear).not.toHaveBeenCalled()
+
+    const cabe = await llamar(
+      peticionDeSubida({ nombre: 'tibia.glb', campos, cuerpo: new Uint8Array(1024) }),
+      'modelos-3d',
+    )
+    expect(cabe.status).toBe(200)
+    expect(crear).toHaveBeenCalledTimes(1)
+    expect((crear.mock.calls[0][0] as { collection: string }).collection).toBe('modelos-3d')
   })
 
   it('un archivo vacío no crea un registro que apunte a nada', async () => {

@@ -114,6 +114,21 @@ describe('el taller del atlas y el trabajo sin guardar', () => {
     expect(confirmar).not.toContain('camaraMovida')
   })
 
+  it('al eliminar no promete un visor vacío: dice que se negará y enseña por qué', () => {
+    // `eliminarInstancia` se niega si una ficha usa la preparación y nombra
+    // cuáles. La confirmación de antes seguía avisando de que «su visor se
+    // quedará vacío», que ya no puede pasar, y callaba la negativa.
+    const eliminar = entre('className="lista-quitar"', 'Eliminar\n')
+    expect(eliminar).not.toContain('se quedará vacío')
+    expect(eliminar).toContain('Si alguna ficha la usa, no se eliminará')
+    // Y la negativa llega a la pantalla: pasa por `conAviso`, que pinta el
+    // `mensaje` de la acción —los títulos de las fichas— y no uno genérico.
+    expect(eliminar).toContain('() => eliminarInstancia(g.id)')
+    expect(entre('const conAviso = (', 'const resumen')).toContain(
+      "setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo completar.' })",
+    )
+  })
+
   it('anota el tipo del ref que avisa al cerrar la pestaña', () => {
     // Sin la anotación, TypeScript infiere `() => false` —el literal, que en
     // posición de retorno no ensancha— del valor inicial, y asignarle después

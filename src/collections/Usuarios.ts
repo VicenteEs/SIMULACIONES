@@ -24,27 +24,52 @@ const OPCIONES_DE_MODULO = [
 ]
 
 /**
+ * La dirección pública de la plataforma, sin barra final, o `''` si no está
+ * configurada.
+ *
+ * Está separada de `enlaceDeClave` para que el panel pueda preguntar si la hay
+ * **antes** de pedir el testigo, y preguntárselo a la misma regla que después
+ * arma el enlace. `generarEnlaceDeClave` no puede comprobarlo sobre el enlace ya
+ * armado: para tenerlo necesita el testigo, y cada `forgotPassword` invalida el
+ * anterior, así que fallar después dejaría muerto un enlace que a lo mejor ya
+ * estaba entregado. Y si la comprobación leyera la variable por su cuenta, el
+ * recorte de la barra volvería a estar escrito dos veces, que es exactamente lo
+ * que produjo la barra doble de abajo.
+ */
+export function direccionPublica(): string {
+  return (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')
+}
+
+/**
  * La dirección de la pantalla propia para elegir contraseña.
  *
- * Está aparte porque la arman **dos** sitios y tienen que dar exactamente lo
- * mismo: el correo de recuperación de aquí abajo y el enlace que un
- * administrador genera a mano desde el panel cuando no hay SMTP
- * (`generarEnlaceDeClave`, en `acciones/admin.ts`). Mientras fueron dos copias,
- * una de ellas se dejó el recorte de la barra final y con
- * `NEXT_PUBLIC_SERVER_URL=…/traumahub/` entregaba `…/traumahub//clave/<testigo>`:
- * esa dirección no casa con la ruta `/clave/[testigo]`, la atiende otra página
- * del servidor compartido y devuelve un 404 que no explica nada. En esta
- * instalación el enlace del panel no es el camino alternativo sino el único, y
- * el testigo caduca en una hora: no hay margen para depurarlo.
+ * Es la única que arma `/clave/<testigo>`, y la llaman **dos** sitios que
+ * tienen que dar exactamente lo mismo: el correo de recuperación de aquí abajo
+ * y el enlace que un administrador genera desde el panel cuando no hay SMTP
+ * (`generarEnlaceDeClave`, en `acciones/admin.ts`). Durante un tiempo el panel
+ * no la llamaba —aunque este comentario ya decía que sí— y armaba su copia a
+ * mano; antes de eso, esa copia se había dejado el recorte de la barra final y
+ * con `NEXT_PUBLIC_SERVER_URL=…/traumahub/` entregaba
+ * `…/traumahub//clave/<testigo>`: esa dirección no casa con la ruta
+ * `/clave/[testigo]`, la atiende otra página del servidor compartido y devuelve
+ * un 404 que no explica nada. En esta instalación el enlace del panel no es el
+ * camino alternativo sino el único, y el testigo caduca en una hora: no hay
+ * margen para depurarlo. `tests/unit/enlaceDeClaveDelPanel.test.ts` falla si el
+ * panel vuelve a armarlo por su cuenta.
  *
  * Aquí no interviene `ruta()`. Esto no es una ruta de la aplicación sino una
  * dirección absoluta para pegar en un mensaje, y el prefijo ya viene dentro de
  * `NEXT_PUBLIC_SERVER_URL` —que es la dirección pública completa, a diferencia
  * de `serverURL` de `payload.config.ts`, que se queda solo con el origen—.
+ *
+ * Sin dirección configurada devuelve una ruta relativa, `/clave/<testigo>`, que
+ * no sirve para pegar en ningún mensaje. No lanza a propósito: el correo de
+ * Payload la llama desde dentro de `forgotPassword`, cuando el testigo ya se
+ * emitió, y lanzar ahí no salva nada. Quien pueda negarse a tiempo —el panel—
+ * pregunta antes a `direccionPublica()`.
  */
 export function enlaceDeClave(testigo: string): string {
-  const base = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')
-  return `${base}/clave/${testigo}`
+  return `${direccionPublica()}/clave/${testigo}`
 }
 
 /**
@@ -59,7 +84,7 @@ export function enlaceDeClave(testigo: string): string {
  * ruta retirada, sobre todo el día que esa ruta se limpie.
  *
  * Así que se arma aquí, en español y apuntando directo a la pantalla propia,
- * con la misma `enlaceDeClave` que usa el panel.
+ * con la misma `enlaceDeClave` que llama `generarEnlaceDeClave` en el panel.
  *
  * Ver O-022 en BITACORA.md.
  */
@@ -410,19 +435,17 @@ export const Usuarios: CollectionConfig = {
       },
     },
     {
-      // Hoy no lo lee ni lo escribe nadie, y conviene decirlo aquí antes de que
-      // alguien cuente con él. La columna existe desde la migración inicial,
-      // pero `usuarios` no está entre los slugs de `src/admin/esquema.ts`, así
-      // que el editor genérico del panel no llega; la pantalla propia de
-      // cuentas no lo pinta; `crearUsuario` no lo pone y `actualizarUsuario`
-      // trabaja con una lista cerrada de campos que no lo incluye. La interfaz
-      // de Payload, que sí lo habría mostrado, se retiró en D-038.
+      // Notas del administrador sobre la cuenta —quién la pidió, por qué se
+      // desactivó—, no de su titular. Estuvo un tiempo sin que nadie la leyera
+      // ni la escribiera, y este comentario lo advertía; ya no es así: la pinta
+      // y la manda `admin-panel/usuarios/TablaUsuarios.tsx`, la aceptan
+      // `crearUsuario` y la lista cerrada de `actualizarUsuario`, y
+      // `tests/unit/notasDeCuenta.test.ts` vigila que el cable siga entero.
       //
-      // Su `admin.description` prometía «visible solo para administradores», que
-      // era visible para nadie: se quita para no seguir describiendo una función
-      // que la plataforma no tiene. O se conecta al panel de cuentas, o se
-      // retira con su migración; mientras tanto, nadie debería guardar aquí algo
-      // que espere volver a ver.
+      // No lleva `admin.description` porque la única interfaz que la leía era
+      // la de Payload, retirada en D-038; el texto de ayuda vive junto al cuadro
+      // en la pantalla de cuentas. Tampoco acceso de campo: la colección entera
+      // ya es solo de administradores, que son quienes la escriben y la leen.
       name: 'notas',
       type: 'textarea',
       label: 'Notas internas',

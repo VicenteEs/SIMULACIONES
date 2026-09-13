@@ -1,5 +1,7 @@
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { clientePayload, SLUGS_DE_MODULOS } from '../datos'
+import { NOMBRE_DE_MODULO } from '../modulos'
+import { claveDeFicha, leerTitulosDeFichas } from '../titulosDeFichas'
 import { TablaComentarios, type ComentarioDelPanel } from './TablaComentarios'
 
 export const dynamic = 'force-dynamic'
@@ -66,7 +68,7 @@ export default async function PaginaComentarios() {
 
   const { docs } = listado
 
-  const basicos: Omit<ComentarioDelPanel, 'fichaTitulo'>[] = docs.map((d) => {
+  const basicos: Omit<ComentarioDelPanel, 'fichaTitulo' | 'fichaEstado'>[] = docs.map((d) => {
     const c = d as unknown as Record<string, unknown>
     const autor = c.usuario as { nombre?: string; email?: string } | null
     return {
@@ -85,65 +87,72 @@ export default async function PaginaComentarios() {
   //
   // `documentoId` es un campo de texto suelto en `Comentarios`, no una
   // relación, así que la profundidad con la que se leen trae al autor y nunca
-  // el documento: hay que ir a buscarlo aparte. Se agrupa por colección y se
-  // hace UNA consulta por colección —cinco como máximo, con `id: { in: … }`—.
-  // El `findByID` por ficha que usa la portada aquí no vale: allí el listado
-  // son cinco comentarios y este trae hasta quinientos, así que serían hasta
-  // quinientas consultas por carga.
-  const idsPorColeccion = new Map<string, Set<string>>()
-  for (const c of basicos) {
-    // `coleccion` es un `select` cerrado a los cinco módulos, pero lo guardado
-    // sobrevive a que se retire una opción: sin este filtro, un slug viejo se
-    // convertiría en un `payload.find` sobre una colección que no existe. El
-    // `catch` de abajo lo recogería, y esa es justo la parte mala —quedaría en
-    // el registro como si la base hubiera fallado.
-    if (!(SLUGS_DE_MODULOS as readonly string[]).includes(c.coleccion)) continue
-    if (c.documentoId === '') continue
-    const ids = idsPorColeccion.get(c.coleccion) ?? new Set<string>()
-    ids.add(c.documentoId)
-    idsPorColeccion.set(c.coleccion, ids)
-  }
+  // el documento: hay que ir a buscarlo aparte. Lo hace `leerTitulosDeFichas`,
+  // la misma que usan «Fichas más leídas» y la pantalla de actividad, con una
+  // consulta por colección y no una por comentario: este listado trae hasta
+  // quinientos, y un `findByID` por ficha serían quinientas consultas por carga.
+  //
+  // Aquí se resolvían a mano, y el `catch` de cada colección dejaba sus fichas
+  // sin título igual que si se hubieran borrado. Con la función compartida las
+  // dos cosas vuelven separadas —`eliminada` e `ilegible`—, llegan así hasta
+  // cada fila y la segunda se cuenta además arriba de la tabla.
+  //
+  // No se pregunta por lo que no sea uno de los cinco módulos: `coleccion` es
+  // un `select` cerrado, pero lo guardado sobrevive a que se retire una opción.
+  // Ni por un `documentoId` vacío, que entraría en el `id: { in: … }` de su
+  // colección: el adaptador lo pasa tal cual a una columna numérica, y con que
+  // PostgreSQL lo rechace falla la consulta entera y todas las fichas de ese
+  // módulo salen ilegibles por culpa de una fila.
+  const sePregunta = (c: { coleccion: string; documentoId: string }) =>
+    (SLUGS_DE_MODULOS as readonly string[]).includes(c.coleccion) && c.documentoId !== ''
+  const referencias = basicos.filter(sePregunta)
+  const estados = await leerTitulosDeFichas(payload, referencias)
 
-  const titulos = new Map<string, string>()
-  await Promise.all(
-    Array.from(idsPorColeccion, async ([coleccion, ids]) => {
-      try {
-        const { docs: fichas } = await payload.find({
-          collection: coleccion as never,
-          // El `as never` va con el de la colección: con el slug sin resolver
-          // en tipos, Payload no puede tipar su propio `where`. Es el mismo
-          // par que usan `datos.ts` y `contenido/page.tsx`.
-          where: { id: { in: Array.from(ids) } } as never,
-          depth: 0,
-          limit: ids.size,
-          overrideAccess: true,
-        })
-        for (const ficha of fichas) {
-          const f = ficha as Record<string, unknown>
-          // `nombre` en cuatro de los cinco módulos y `titulo` en Técnica AO:
-          // es el `useAsTitle` de cada colección.
-          const rotulo = f.nombre ?? f.titulo
-          if (typeof rotulo === 'string' && rotulo.trim() !== '') {
-            titulos.set(`${coleccion}/${String(f.id)}`, rotulo)
-          }
-        }
-      } catch (error) {
-        // Cada colección por su cuenta: un `documentoId` que no es un número o
-        // una tabla que falta no puede dejar sin título a las otras cuatro. El
-        // título es un lujo de esta columna; el comentario es lo que importa y
-        // se sigue viendo con el nombre del módulo.
-        console.error(`[panel] no se pudieron resolver los títulos de «${coleccion}»:`, error)
-      }
-    }),
+  // `fichaTitulo` es `null` cuando no hay título, sea cual sea el motivo, y
+  // `fichaEstado` dice cuál: con él la fila pinta «Ficha eliminada · #12» sin
+  // enlaces, o «Título no disponible · #12» con ellos. Antes solo viajaba el
+  // título, y las dos filas se veían igual —el nombre del módulo y dos enlaces
+  // que en la borrada acababan en un 404—; el aviso de abajo decía qué módulo
+  // había fallado, no qué filas eran de fichas que ya no existen.
+  //
+  // Lo que se preguntó y no volvió cuenta como `ilegible`, no como `null`: es
+  // lo único que no afirma nada sobre la ficha, y el mismo criterio que
+  // `estadoDe` en `actividad/page.tsx`. `null` queda para lo que no se llegó a
+  // preguntar, que es lo único de lo que se sabe que no hay ficha a la que ir.
+  const comentarios: ComentarioDelPanel[] = basicos.map((c) => {
+    const estado = sePregunta(c)
+      ? (estados.get(claveDeFicha(c.coleccion, c.documentoId)) ?? { tipo: 'ilegible' as const })
+      : null
+    return {
+      ...c,
+      fichaTitulo: estado?.tipo === 'titulo' ? estado.titulo : null,
+      fichaEstado: estado?.tipo ?? null,
+    }
+  })
+
+  // Los módulos cuyos títulos no se pudieron leer, sin repetir. La fila ya dice
+  // «Título no disponible», pero veinte filas así no cuentan que fue una sola
+  // consulta la que falló, ni dónde mirar. Se sacan de `comentarios` y no de
+  // `estados` para que el aviso y las filas no discrepen sobre el caso raro de
+  // la ficha que se preguntó y no volvió.
+  const modulosIlegibles = Array.from(
+    new Set(
+      comentarios
+        .filter((c) => c.fichaEstado === 'ilegible')
+        .map((c) => NOMBRE_DE_MODULO[c.coleccion] ?? c.coleccion),
+    ),
   )
 
-  // `null` y no `undefined` cuando no hay título: la ficha pudo borrarse y el
-  // comentario seguir aquí. La tabla cae entonces al nombre del módulo, que es
-  // lo único seguro, y sus dos `aria-label` a la redacción genérica.
-  const comentarios: ComentarioDelPanel[] = basicos.map((c) => ({
-    ...c,
-    fichaTitulo: titulos.get(`${c.coleccion}/${c.documentoId}`) ?? null,
-  }))
-
-  return <TablaComentarios comentarios={comentarios} puedeEliminar={esAdmin} />
+  return (
+    <>
+      {modulosIlegibles.length > 0 ? (
+        <div className="admin-aviso admin-aviso-atencion" role="status">
+          <strong>No se pudieron leer los títulos de {modulosIlegibles.join(', ')}.</strong> Esas
+          fichas aparecen como «Título no disponible», y eso no significa que se hayan eliminado:
+          la consulta falló. El detalle queda en el registro del servidor.
+        </div>
+      ) : null}
+      <TablaComentarios comentarios={comentarios} puedeEliminar={esAdmin} />
+    </>
+  )
 }

@@ -9,6 +9,9 @@ import {
   resolverTodosLosComentarios,
 } from '@/app/(frontend)/acciones/admin'
 import { MODULOS, NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
+// Solo el tipo: `titulosDeFichas.ts` importa los esquemas del panel, y un
+// `import` de valor los metería enteros en el paquete del navegador.
+import type { EstadoDeFicha } from '../titulosDeFichas'
 
 export interface ComentarioDelPanel {
   id: string
@@ -24,11 +27,49 @@ export interface ComentarioDelPanel {
    *
    * `documentoId` es un campo de texto suelto en `Comentarios`, no una
    * relación, así que la profundidad con la que se lee el comentario trae al
-   * autor pero nunca el documento: hay que ir a buscarlo aparte. Es opcional
-   * porque la ficha pudo borrarse y el comentario seguir ahí; sin él la fila
-   * cae al nombre del módulo, que es lo único seguro.
+   * autor pero nunca el documento: hay que ir a buscarlo aparte. `null` cuando
+   * no hay título, sea cual sea el motivo; el motivo lo dice `fichaEstado`.
+   *
+   * Obligatorio y no opcional: estuvo declarado con `?`, pintado y usado en
+   * los `aria-label`, y ninguna página lo rellenaba. Un prop opcional que no
+   * llega compila igual, que es justo lo que lo dejó muerto.
    */
-  fichaTitulo?: string | null
+  fichaTitulo: string | null
+  /**
+   * Por qué la ficha tiene o no tiene título, tal como lo contestó
+   * `leerTitulosDeFichas`.
+   *
+   * Sin él, una ficha borrada y una que no se pudo leer se pintaban igual —el
+   * nombre del módulo y los dos enlaces—, y en la borrada los dos acababan en un
+   * 404. El aviso de encima de la tabla decía qué módulo había fallado, pero no
+   * qué filas concretas eran de fichas que ya no existen.
+   *
+   * `null` cuando no se llegó a preguntar: el comentario apunta a una colección
+   * que ya no es un módulo, o no guarda número de ficha.
+   */
+  fichaEstado: EstadoDeFicha['tipo'] | null
+}
+
+/**
+ * Cómo se nombra la ficha cuando no hay título que poner.
+ *
+ * La misma redacción que `rotuloDeFicha` en `actividad/page.tsx` y que «Fichas
+ * más leídas» de estadísticas, para que una ficha no se llame de dos maneras
+ * según la pantalla. No se importa de allí porque aquella vive en una página de
+ * servidor y esta tabla corre en el navegador. El número de fila va con la razón
+ * delante para que no parezca un rótulo sino lo que es.
+ */
+function rotuloSinTitulo(c: ComentarioDelPanel): string | null {
+  switch (c.fichaEstado) {
+    case 'sinTitulo':
+      return `Sin título · #${c.documentoId}`
+    case 'eliminada':
+      return `Ficha eliminada · #${c.documentoId}`
+    case 'ilegible':
+      return `Título no disponible · #${c.documentoId}`
+    default:
+      return null
+  }
 }
 
 const fechaHora = (valor: string) =>
@@ -67,7 +108,11 @@ export function TablaComentarios({
       // es la ficha: «qué se dijo de la fractura de Colles». `join` convierte
       // nulo y `undefined` en cadena vacía, así que un comentario cuyo título no
       // se pudo resolver no aporta nada al texto contra el que se compara.
-      return [c.texto, c.autorNombre, c.autorCorreo, c.fichaTitulo]
+      //
+      // El rótulo sin título entra también, porque es lo que se lee en la
+      // columna: buscar «eliminada» junta los comentarios que se quedaron
+      // hablando de una ficha que ya no existe, que son los que se pueden cerrar.
+      return [c.texto, c.autorNombre, c.autorCorreo, c.fichaTitulo, rotuloSinTitulo(c)]
         .join(' ')
         .toLowerCase()
         .includes(texto)
@@ -208,8 +253,10 @@ export function TablaComentarios({
                     </div>
                   </td>
                   <td>
-                    {c.fichaTitulo ? (
+                    {c.fichaEstado === 'titulo' && c.fichaTitulo ? (
                       <div className="admin-table-user-name">{c.fichaTitulo}</div>
+                    ) : c.fichaEstado !== null ? (
+                      <div className="admin-table-user-email">{rotuloSinTitulo(c)}</div>
                     ) : null}
                     <div className="admin-table-modulo">
                       {NOMBRE_DE_MODULO[c.coleccion] ?? c.coleccion}
@@ -219,29 +266,38 @@ export function TablaComentarios({
                         algo. El único enlace que había llevaba a la ficha
                         pública: desde ahí, corregirla costaba volver a Panel,
                         Contenido, el módulo, buscar la ficha por nombre y
-                        Editar, con el identificador en pantalla todo el rato. */}
-                    <div className="admin-acciones">
-                      <Link
-                        href={`/admin-panel/contenido/${c.coleccion}/${c.documentoId}`}
-                        className="admin-table-user-email"
-                        aria-label={
-                          c.fichaTitulo ? `Editar «${c.fichaTitulo}»` : 'Editar la ficha comentada'
-                        }
-                      >
-                        editar →
-                      </Link>
-                      <Link
-                        href={rutaPublica(c.coleccion, c.documentoId)}
-                        className="admin-table-user-email"
-                        aria-label={
-                          c.fichaTitulo
-                            ? `Ver «${c.fichaTitulo}» en el sitio público`
-                            : 'Ver la ficha comentada en el sitio público'
-                        }
-                      >
-                        ver ficha →
-                      </Link>
-                    </div>
+                        Editar, con el identificador en pantalla todo el rato.
+
+                        Solo se quitan donde se sabe que no llevan a nada: la
+                        ficha `eliminada`, y la que no se llegó a preguntar
+                        (`null`) porque su colección ya no es un módulo o no
+                        guarda número. La `ilegible` los conserva, igual que en
+                        actividad: lo probable es que siga ahí, y abrirla es la
+                        forma de comprobarlo. */}
+                    {c.fichaEstado === 'eliminada' || c.fichaEstado === null ? null : (
+                      <div className="admin-acciones">
+                        <Link
+                          href={`/admin-panel/contenido/${c.coleccion}/${c.documentoId}`}
+                          className="admin-table-user-email"
+                          aria-label={
+                            c.fichaTitulo ? `Editar «${c.fichaTitulo}»` : 'Editar la ficha comentada'
+                          }
+                        >
+                          editar →
+                        </Link>
+                        <Link
+                          href={rutaPublica(c.coleccion, c.documentoId)}
+                          className="admin-table-user-email"
+                          aria-label={
+                            c.fichaTitulo
+                              ? `Ver «${c.fichaTitulo}» en el sitio público`
+                              : 'Ver la ficha comentada en el sitio público'
+                          }
+                        >
+                          ver ficha →
+                        </Link>
+                      </div>
+                    )}
                   </td>
                   <td style={{ whiteSpace: 'nowrap', fontSize: '0.8125rem' }}>
                     {fechaHora(c.creado)}

@@ -14,8 +14,8 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { accion, exigirEdicionDe, exigirEditor, type Respuesta } from '@/lib/guardias'
-import { camposDe, esColeccionEditable, esquemaDe, type EsquemaDeColeccion } from '@/admin/esquema'
+import { accion, exigirEdicionDe, type Respuesta } from '@/lib/guardias'
+import { esColeccionEditable, esquemaDe, type EsquemaDeColeccion } from '@/admin/esquema'
 import {
   avisoDeContenidoQueSeBorraria,
   depurarDocumento,
@@ -23,6 +23,13 @@ import {
   sinIdentificadoresDeFila,
 } from '@/admin/depurar'
 import { exigirIdentificador } from '@/lib/validacion'
+import {
+  cambioDesde,
+  marcaDe,
+  MENSAJE_DE_CONFLICTO,
+  MENSAJE_DE_FICHA_ELIMINADA,
+  type Marca,
+} from '@/admin/concurrencia'
 
 const rutaDeLista = (slug: string) => `/admin-panel/contenido/${slug}`
 
@@ -179,13 +186,120 @@ export async function opcionesDeRelacion(
 
 // ---------------------------------------------------------------- escribir
 
+/**
+ * Lo que responden las dos acciones que escriben sobre una ficha abierta.
+ *
+ * `conflicto` va fuera de `mensaje` para que el formulario lo reconozca sin
+ * comparar frases: el día que alguien retocara la redacción del aviso, el
+ * formulario dejaría de ofrecer «recargar» y enseñaría un error sin salida.
+ * Trae la marca que hay ahora en la base, que es la que el formulario adopta
+ * si la persona decide recargar conservando lo escrito.
+ */
+export interface RespuestaSobreFichaAbierta<T> extends Respuesta<T> {
+  conflicto?: { marcaActual: Marca }
+}
+
+/**
+ * Se lanza desde dentro de `accion()` para salir por su mismo camino —el
+ * `mensaje` en español y la escritura sin hacer— y se reconoce fuera para
+ * añadir `conflicto` a la respuesta, que `accion()` no sabe poner.
+ */
+class ChoqueDeEdicion extends Error {
+  constructor(readonly marcaActual: Marca) {
+    super(MENSAJE_DE_CONFLICTO)
+  }
+}
+
+/**
+ * Para la escritura si la ficha cambió desde que se abrió. Ver
+ * `src/admin/concurrencia.ts`.
+ *
+ * Se lee igual que la lee la página del editor —`draft` si la colección se
+ * versiona—, porque la marca con la que se compara salió de ahí. Leída sin
+ * `draft`, una ficha publicada con un borrador encima daría la marca de lo
+ * publicado, que nunca es la del borrador abierto, y cada guardado chocaría.
+ *
+ * Sin marca no se comprueba nada. Hoy la manda el único llamador, el
+ * formulario del panel, y esa llamada la fija
+ * `tests/unit/concurrenciaDelEditor.test.ts`. Rechazar sin ella rompería a
+ * quien llama a la acción sin haber abierto la ficha, que no tiene marca que
+ * mandar; la pega es que un llamador nuevo que olvide mandarla escribe encima
+ * sin aviso, igual que antes de esto.
+ *
+ * Entre esta lectura y la escritura queda una ventana: dos guardados que
+ * lleguen en el mismo instante pueden pasar los dos. Por eso se llama justo
+ * antes de escribir y no al principio de la acción —las validaciones de en
+ * medio no tocan la base, pero sí tardan—. Cerrarla del todo pediría escribir
+ * con la condición dentro de la consulta, y Payload no lo ofrece para un
+ * borrador, que vive en la tabla de versiones y no en la del documento.
+ */
+async function exigirQueNoCambio(
+  payload: Awaited<ReturnType<typeof exigirEdicionDe>>['payload'],
+  esquema: EsquemaDeColeccion,
+  id: string,
+  marcaAlAbrir: unknown,
+): Promise<void> {
+  if (typeof marcaAlAbrir !== 'string') return
+  const actual = await payload
+    .findByID({
+      collection: esquema.slug as never,
+      id,
+      depth: 0,
+      draft: esquema.versionada,
+      overrideAccess: true,
+    })
+    .catch((error: unknown) => {
+      // Solo el 404 se traduce. Cualquier otro fallo —la base caída— tiene que
+      // subir tal cual: contarlo como «se eliminó» mandaría a copiar a mano una
+      // ficha que sigue ahí.
+      if ((error as { status?: unknown } | null)?.status === 404) return null
+      throw error
+    })
+  if (!actual) throw new Error(MENSAJE_DE_FICHA_ELIMINADA)
+  const marcaActual = marcaDe(actual)
+  if (cambioDesde(marcaAlAbrir, marcaActual)) throw new ChoqueDeEdicion(marcaActual)
+}
+
+/**
+ * `accion()` con una sola cosa más: si lo que falló fue un choque de edición,
+ * la respuesta lo dice en `conflicto`.
+ *
+ * `accion()` vive en `src/lib/guardias.ts` y la comparten todas las acciones
+ * del panel; enseñarle qué es un choque de edición la ataría a esta. El choque
+ * se anota aquí al pasar y se le pone a la respuesta a la salida.
+ */
+async function conChoqueReconocido<T>(tarea: () => Promise<T>): Promise<RespuestaSobreFichaAbierta<T>> {
+  // Un objeto y no un `let`: asignado dentro de la función de abajo, el
+  // compilador da el `let` por `null` para siempre y el `if` de la salida
+  // quedaría como código muerto a sus ojos.
+  const visto: { choque?: ChoqueDeEdicion } = {}
+  const respuesta = await accion(async () => {
+    try {
+      return await tarea()
+    } catch (error) {
+      if (error instanceof ChoqueDeEdicion) visto.choque = error
+      throw error
+    }
+  })
+  return visto.choque ? { ...respuesta, conflicto: { marcaActual: visto.choque.marcaActual } } : respuesta
+}
+
+/**
+ * Guarda una ficha, nueva o existente.
+ *
+ * `marcaAlAbrir` es el `updatedAt` con el que el formulario abrió la ficha, o
+ * el que le devolvió su último guardado. La respuesta trae la marca nueva en
+ * `datos.marca`, y el formulario tiene que adoptarla: sin eso, su segundo
+ * guardado seguido chocaría consigo mismo.
+ */
 export async function guardarDocumento(
   slug: unknown,
   id: unknown,
   datos: unknown,
   publicar: unknown,
-): Promise<Respuesta<{ id: string; publicado: boolean }>> {
-  return accion(async () => {
+  marcaAlAbrir?: unknown,
+): Promise<RespuestaSobreFichaAbierta<{ id: string; publicado: boolean; marca: Marca }>> {
+  return conChoqueReconocido(async () => {
     const esquema = esquemaValidado(slug)
     const { payload, usuario } = await exigirEdicionDe(esquema.slug)
 
@@ -222,26 +336,52 @@ export async function guardarDocumento(
       ...(esquema.versionada ? { draft: publicar !== true } : {}),
     }
 
-    const guardado =
-      id === null || id === undefined || id === ''
-        ? await payload.create(comun)
-        : await payload.update({ ...comun, id: exigirIdentificador(id, 'El documento') })
+    let guardado: unknown
+    if (id === null || id === undefined || id === '') {
+      guardado = await payload.create(comun)
+    } else {
+      const idValido = exigirIdentificador(id, 'El documento')
+      // Lo último antes de escribir: ver la ventana en `exigirQueNoCambio`.
+      await exigirQueNoCambio(payload, esquema, idValido, marcaAlAbrir)
+      guardado = await payload.update({ ...comun, id: idValido })
+    }
 
     revalidatePath(rutaDeLista(esquema.slug))
     revalidatePath('/admin-panel')
-    return { id: String((guardado as { id: unknown }).id), publicado: publicar === true }
+    return {
+      id: String((guardado as { id: unknown }).id),
+      publicado: publicar === true,
+      marca: marcaDe(guardado),
+    }
   })
 }
 
+/**
+ * Publica o retira una ficha.
+ *
+ * Desde el editor también recibe la marca y la devuelve nueva, por la misma
+ * trampa que `guardarDocumento`: retirar mueve `updatedAt`, y si el formulario
+ * no adoptara la marca, el «Guardar borrador» siguiente a un «Retirar» chocaría
+ * consigo mismo. Y la comprueba antes, porque adoptar a ciegas la marca de
+ * después de retirar taparía lo que otra persona hubiera guardado entre medias:
+ * el siguiente guardado lo borraría sin choque.
+ *
+ * El listado la llama sin marca —no tiene ninguna ficha abierta— y ahí no se
+ * comprueba nada.
+ */
 export async function cambiarPublicacion(
   slug: unknown,
   id: unknown,
   publicar: unknown,
-): Promise<Respuesta> {
-  return accion(async () => {
+  marcaAlAbrir?: unknown,
+): Promise<RespuestaSobreFichaAbierta<{ marca: Marca }>> {
+  return conChoqueReconocido(async () => {
     const esquema = esquemaValidado(slug)
     if (!esquema.versionada) throw new Error('Esta colección no distingue borrador de publicado.')
     const { payload, usuario } = await exigirEdicionDe(esquema.slug)
+    const idValido = exigirIdentificador(id, 'El documento')
+
+    await exigirQueNoCambio(payload, esquema, idValido, marcaAlAbrir)
 
     // `draft: false` en los dos sentidos, y esto importa.
     //
@@ -252,15 +392,15 @@ export async function cambiarPublicacion(
     // llamada, `_status` seguia siendo `published` y una consulta de lector la
     // devolvia igual. Con `draft: false` el estado se escribe en el documento
     // y deja de verse, que es lo que el boton promete.
-    await payload.update({
+    const cambiado = await payload.update({
       collection: esquema.slug as never,
-      id: exigirIdentificador(id, 'El documento'),
+      id: idValido,
       data: { _status: publicar === true ? 'published' : 'draft' } as never,
       draft: false,
       user: usuario as never,
     })
     revalidatePath(rutaDeLista(esquema.slug))
-    return null
+    return { marca: marcaDe(cambiado) }
   })
 }
 
@@ -322,79 +462,21 @@ export async function duplicarDocumento(
 
 // ------------------------------------------------------------------ subidas
 
-/**
- * Sube un archivo a `medios` o `modelos-3d`. **Es la vía vieja**, y le queda un
- * solo consumidor.
- *
- * La vía buena es `src/app/(frontend)/api/subidas/[coleccion]/route.ts`, y la
- * diferencia no es de estilo: una acción de servidor recibe el cuerpo ya
- * reunido, de modo que el archivo entero se queda en la memoria del servidor
- * durante toda la subida, y además Next corta ese cuerpo en
- * `serverActions.bodySizeLimit` **antes** de invocar la acción, así que lo que
- * se pase de ahí ni siquiera llega a este `try/catch` y la pantalla se queda
- * muda. El porqué entero, en `src/admin/subidas.ts`.
- *
- * Quien todavía llama aquí es `src/components/admin/formulario/Campos.tsx`,
- * para insertar un archivo dentro de un bloque sin salir de la ficha. Mientras
- * siga haciéndolo, `bodySizeLimit` tiene que quedar **por encima** del techo
- * que la colección anuncia —hoy 52 MB contra 50— o esta pantalla se convierte
- * en el eslabón corto y el corte mudo vuelve, esta vez solo en el editor de
- * bloques. Eso está escrito también en `next.config.mjs`, que es donde se
- * tropieza con el número.
- *
- * Llega como FormData porque un archivo no cabe en un JSON sin inflarlo un
- * tercio en base64. La validación real del contenido —que un .glb sea de
- * verdad un .glb— la hace el gancho de la colección, mirando la firma del
- * archivo y no su extensión.
- */
-export async function subirArchivo(formulario: FormData): Promise<Respuesta<{ id: string }>> {
-  return accion(async () => {
-    const esquema = esquemaValidado(formulario.get('coleccion'))
-    const subida = esquema.subida
-    if (!subida) throw new Error('Esa colección no recibe archivos.')
-    const { payload, usuario } = await exigirEditor()
-
-    const archivo = formulario.get('archivo')
-    if (!(archivo instanceof File) || archivo.size === 0) {
-      throw new Error('No llegó ningún archivo.')
-    }
-
-    // El techo, comprobado y no solo anunciado.
-    //
-    // Hasta aquí el peso vivía en una frase que nadie comparaba con nada: quien
-    // se pasaba no recibía este mensaje sino el corte mudo de Next, que
-    // descarta el cuerpo **antes** de invocar la acción y deja la pantalla sin
-    // una palabra. La comprobación sale del mismo sitio que esa frase —el
-    // esquema del panel— y cubre lo que el corte del marco no puede cubrir: el
-    // archivo que cabe en el cuerpo pero se pasa del techo de la colección, y
-    // el camino de quien llame a esta acción sin pasar por el panel.
-    if (archivo.size > subida.maximoBytes) {
-      const techo = (subida.maximoBytes / 1024 / 1024).toFixed(0)
-      const pesa = (archivo.size / 1024 / 1024).toFixed(1)
-      throw new Error(
-        `«${archivo.name}» pesa ${pesa} MB y el máximo son ${techo} MB. Redúzcalo y vuelva a subirlo.`,
-      )
-    }
-
-    const datos: Record<string, unknown> = {}
-    for (const campo of camposDe(esquema)) {
-      const valor = formulario.get(campo.nombre)
-      if (valor !== null) datos[campo.nombre] = valor
-    }
-
-    const creado = await payload.create({
-      collection: esquema.slug as never,
-      data: depurarDocumento(esquema, datos) as never,
-      file: {
-        name: archivo.name,
-        data: Buffer.from(await archivo.arrayBuffer()),
-        mimetype: archivo.type,
-        size: archivo.size,
-      },
-      user: usuario as never,
-    })
-
-    revalidatePath(rutaDeLista(esquema.slug))
-    return { id: String((creado as { id: unknown }).id) }
-  })
-}
+// Aquí hubo una acción `subirArchivo`, y no la hay a propósito.
+//
+// Subir un archivo por una acción de servidor falla de dos maneras que no se
+// arreglan desde dentro: Next reúne el cuerpo entero en la memoria antes de
+// invocarla —un vídeo de quirófano, minutos por un túnel doméstico— y lo
+// descarta sin invocarla si pasa de `serverActions.bodySizeLimit`, de modo que
+// la pantalla se queda muda. Las dos pantallas que suben van por
+// `src/app/(frontend)/api/subidas/[coleccion]/route.ts`; el porqué entero, en
+// `src/admin/subidas.ts`.
+//
+// Se retiró cuando se quedó sin consumidores, y no se dejó «por si acaso»
+// porque una acción exportada desde un archivo `'use server'` es un extremo
+// HTTP aunque ninguna pantalla la llame: aceptaba cuerpos de hasta el límite
+// de las acciones de cualquiera con sesión de editor y escribía en la base.
+// Volver a ponerla obligaría además a subir ese límite por encima del techo de
+// los medios, que es justo lo que se bajó (`next.config.mjs`).
+// `tests/unit/subidaDeVideo.test.ts` falla si alguna acción vuelve a recibir
+// un archivo.

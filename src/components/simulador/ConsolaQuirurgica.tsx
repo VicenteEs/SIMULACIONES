@@ -28,7 +28,7 @@ import {
   type RecorridoGuardado,
   type ResultadoDeCirugia,
 } from '@/lib/progresoDelSimulador'
-import { registrarResultadoDeCirugia } from '@/app/(frontend)/acciones/actividad'
+import { marcarComoLeida, registrarResultadoDeCirugia } from '@/app/(frontend)/acciones/actividad'
 import { Rico, tieneContenido } from '@/components/Rico'
 import { IconoInstrumento } from './IconoInstrumento'
 // El visor del instrumento reutiliza el de las fichas, ya partido en su propio
@@ -208,10 +208,21 @@ function capasEnProsa(roles: string[]): string {
   return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`
 }
 
+/**
+ * En qué quedó la marca de «leído» que la consola pone al terminar el caso.
+ *
+ * Tres estados y no un booleano, porque el panel de «Caso terminado» tiene
+ * tres cosas distintas que decir: nada mientras no haya respuesta, que ya
+ * cuenta como leído, o que no se pudo y hay que marcarlo a mano. Con un
+ * booleano, «todavía no ha vuelto» y «falló» se pintarían igual.
+ */
+type LecturaAlTerminar = 'pendiente' | 'marcada' | 'fallida'
+
 export function ConsolaQuirurgica({
   caso,
   documentoId,
   recorridoGuardado = null,
+  alMarcarComoLeido,
 }: {
   caso: CasoDeConsola
   /**
@@ -225,6 +236,19 @@ export function ConsolaQuirurgica({
   documentoId: string
   /** Lo que quedó del último recorrido de este residente en este caso. */
   recorridoGuardado?: RecorridoGuardado | null
+  /**
+   * Avisa de que el caso quedó marcado como leído al terminarlo.
+   *
+   * La casilla de «leída» no es de la consola: la pinta `RastreadorActividad`
+   * encima de ella y nace con lo que había al cargar la página. Sin este aviso,
+   * el residente termina el caso, la base lo da por leído y la casilla de
+   * arriba sigue diciendo «Marcar como leída» hasta que recarga: una pantalla
+   * contradiciendo a la otra. Quien la escucha es `CasoConSuLectura`.
+   *
+   * Obligatoria por lo mismo que `documentoId`: montar la consola sin nadie que
+   * mueva la casilla tiene que fallar al compilar, no quedarse en silencio.
+   */
+  alMarcarComoLeido: () => void
 }) {
   const mando = useRef<MandoDelLienzo | null>(null)
 
@@ -406,6 +430,53 @@ export function ConsolaQuirurgica({
     [documentoId, maximo, anotar],
   )
 
+  // ------------------------------------------------- terminar es haberlo leído
+  const [lecturaAlTerminar, setLecturaAlTerminar] = useState<LecturaAlTerminar>('pendiente')
+
+  /**
+   * Da el caso por leído al llegar al final.
+   *
+   * **Con `marcarComoLeida`, la misma acción que la casilla de las demás
+   * fichas, y no con otra escritura.** Hasta aquí terminar un caso no lo
+   * marcaba: se guardaban el puntaje y las complicaciones, pero `completado`
+   * solo lo ponía la casilla, así que un caso operado entero seguía contando
+   * como «por leer» en la portada. Para el traumatólogo, recorrer el caso hasta
+   * el final es haberlo estudiado —la ficha de un caso quirúrgico es la
+   * consola—, tenga o no complicaciones por el camino: esas no se pierden, se
+   * quedan en «Su recorrido anterior» y en la portada.
+   *
+   * Solo pone, nunca quita. Si el residente la desmarca después a mano, esa
+   * decisión es suya y la consola no vuelve a tocarla hasta que termine el caso
+   * otra vez.
+   *
+   * Aparte de `guardarRecorrido` y no dentro de su cola. Aquella ordena
+   * escrituras del mismo campo, donde la vieja puede pisar a la nueva; esta
+   * escribe `completado` y nada más, y Payload actualiza solo los campos que
+   * recibe —la lista `complicaciones` no se toca si no viaja—, así que las dos
+   * pueden cruzarse sin borrarse nada. Si las dos llegan a crear la fila a la
+   * vez, el choque con el índice único lo resuelve `anotar`.
+   *
+   * El fallo se dice en vez de tragarse, igual que en `guardarRecorrido`: el
+   * panel de «Caso terminado» afirmaría que el caso cuenta como leído.
+   */
+  const marcarCasoComoLeido = useCallback(() => {
+    setLecturaAlTerminar('pendiente')
+    void (async () => {
+      try {
+        await marcarComoLeida('cirugias', documentoId, true)
+        setLecturaAlTerminar('marcada')
+        alMarcarComoLeido()
+      } catch (error) {
+        console.error('[consola] no se pudo marcar el caso como leído:', error)
+        setLecturaAlTerminar('fallida')
+        anotar(
+          'El caso no se pudo marcar como leído. Márquelo con la casilla de arriba de la página.',
+          'aviso',
+        )
+      }
+    })()
+  }, [documentoId, alMarcarComoLeido, anotar])
+
   const refrescarVisibles = useCallback(
     (indicePaso: number, apagadas: Set<string>) => {
       const { nodos, encender } = visibilidadDelPaso(caso.pasos, caso.piezas, indicePaso, apagadas)
@@ -531,11 +602,15 @@ export function ConsolaQuirurgica({
     // sumó nada —tras una complicación vale cero (`puntosDelPaso`)— porque el
     // recorrido avanzó igual; lo que evita la escritura de más es
     // `guardarRecorrido`, que descarta la que sería idéntica a la anterior.
-    // Terminar el caso no necesita nada aparte: el último paso es un hito como
-    // los demás y deja guardado el marcador final.
+    // El marcador final no necesita nada aparte: el último paso es un hito como
+    // los demás y lo deja guardado.
     guardarRecorrido(puntajeTrasElPaso, complicaciones)
 
     const siguiente = indice + 1
+    // La lectura sí: es otro campo y otra acción (`marcarCasoComoLeido`). Se
+    // pregunta con la misma cuenta que pinta «Caso terminado» (`terminado`),
+    // para que no haya un final que se enseñe y no se marque, ni al revés.
+    if (siguiente >= caso.pasos.length) marcarCasoComoLeido()
     setIndice(siguiente)
     setInstrumento(null)
     // `borrarTrazo` avisa por su cuenta con la lista vacía, y ese aviso es el
@@ -1008,6 +1083,18 @@ export function ConsolaQuirurgica({
                 Su puntaje y sus complicaciones quedan guardados: los encontrará
                 al volver a este caso y en su portada.
               </p>
+              {/* Solo cuando la escritura volvió, y en las dos direcciones:
+                  afirmar «cuenta como leído» mientras viaja sería adelantarse a
+                  un fallo posible, y callar el fallo dejaría el caso «por leer»
+                  en la portada sin que el residente sepa por qué. */}
+              {lecturaAlTerminar === 'marcada' ? (
+                <p>El caso cuenta ya como leído en su portada.</p>
+              ) : lecturaAlTerminar === 'fallida' ? (
+                <p>
+                  No se pudo marcar el caso como leído. Márquelo con la casilla
+                  de arriba de la página.
+                </p>
+              ) : null}
               <button
                 type="button"
                 className="consola-boton consola-boton-ancho"

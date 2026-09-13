@@ -21,7 +21,7 @@ import {
   MINUTOS_DE_BLOQUEO,
 } from '@/collections/Usuarios'
 import { accion, type Respuesta } from '@/lib/guardias'
-import { PREFIJO } from '@/lib/rutas'
+import { PATH_DE_LAS_COOKIES } from '@/lib/pathDeLasCookies'
 import { exigirContrasena, exigirCorreo, exigirTexto } from '@/lib/validacion'
 import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
 
@@ -29,9 +29,10 @@ import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
  * Nombre con el que Payload firma y lee la sesión: `<cookiePrefix>-token`.
  *
  * Se le pregunta a la configuración en lugar de escribirlo aquí porque el
- * nombre es la única salida al choque que describe `PATH_COOKIE`, y tenía que
- * poder moverse solo. Ya se movió: `payload.config.ts` declara
- * `cookiePrefix: 'traumahub'`, de modo que Payload firma `traumahub-token`
+ * nombre es la única salida al choque que se describe más abajo —la cookie que
+ * las sesiones antiguas dejaron en `/`—, y tenía que poder moverse solo. Ya se
+ * movió: `payload.config.ts` declara `cookiePrefix: 'traumahub'`, de modo que
+ * Payload firma `traumahub-token`
  * (`auth/cookies.js` arma el nombre así) y lo busca con ese mismo nombre
  * (`auth/extractJWT.js`). Si aquí hubiera quedado escrito a mano el anterior,
  * esta acción escribiría una cookie que nadie lee: entrar respondería «exito» y
@@ -49,32 +50,19 @@ async function nombreDeLaCookieDeSesion(): Promise<string> {
 }
 
 /**
- * El testigo se acota al prefijo de la plataforma, no a la raíz.
+ * Opciones de la cookie de sesión, y el cabo que dejó mudarla de `/` al prefijo.
  *
- * En el servidor TraumaHub no tiene un origen propio: comparte esquema, dominio
- * y puerto con las otras páginas que cuelgan del mismo proxy —`/` y `/api` son
- * de otra, y también `/equipo` y `/senales`; está descrito en
- * `despliegue/paginas/LEEME.md`—. Con `path: '/'` el navegador adjuntaba
- * `payload-token` en **cada** petición a cualquiera de ellas, y ese testigo
- * abre la plataforma entera durante ocho horas sin pedir contraseña: vale por
- * sí solo, como quedó comprobado al aislar el fallo de 66bdc2d. Basta con que
- * una de esas páginas —proyectos distintos, con su propio despliegue— anote
- * cabeceras en un registro de acceso para que la sesión del administrador
- * quede escrita fuera de aquí.
+ * El path de las dos cookies de la plataforma sale de `PATH_DE_LAS_COOKIES`
+ * (`src/lib/pathDeLasCookies.ts`, que explica por qué es el prefijo). Lo que
+ * queda aquí es lo que pasó al mudarlas, porque es el motivo de que la cookie
+ * de sesión se llame como se llama.
  *
- * Lo que esto **no** cierra: un guion inyectado en cualquiera de esas páginas
- * sigue pudiendo llamar a `/traumahub/api/…` con `credentials: 'include'` —el
- * path casa, y el `Origin` coincide con `serverURL`, así que la comprobación
- * CSRF de Payload también pasa—. Eso solo lo cierra un nombre de servidor
- * propio para la plataforma.
- *
- * Y el cabo del despliegue, que es más grave de lo que parece. La cookie que
- * las sesiones anteriores a este cambio dejaron en `/` sigue viva hasta que
- * caduque, y es **ella** la que manda: el navegador manda primero la del path
- * más específico (RFC 6265 §5.4) y `parseCookies` de Payload arma un Map con
- * un `set(nombre, valor)` por cada par, de modo que gana el último, o sea el
- * viejo de `/`. Mientras esa cookie exista, la del prefijo no se lee nunca, y
- * eso no es solo que «salir» no cierre:
+ * La cookie que las sesiones anteriores a la mudanza dejaron en `/` sigue viva
+ * hasta que caduque, y es **ella** la que manda: el navegador manda primero la
+ * del path más específico (RFC 6265 §5.4) y `parseCookies` de Payload arma un
+ * Map con un `set(nombre, valor)` por cada par, de modo que gana el último, o
+ * sea el viejo de `/`. Mientras esa cookie exista, la del prefijo no se lee
+ * nunca, y eso no es solo que «salir» no cierre:
  *
  *  - `entrar()` tampoco cambia de sesión. Escribe el testigo nuevo en el
  *    prefijo, el viejo de `/` lo sigue pisando, y quien entra con OTRA cuenta
@@ -87,7 +75,7 @@ async function nombreDeLaCookieDeSesion(): Promise<string> {
  *    su propio `maxAge`. Por eso rotar el secreto NO sirve como limpieza: deja
  *    a todo el mundo fuera durante esas ocho horas, y por este mismo motivo.
  *    (Cuando el testigo caduca por su cuenta no ocurre: `tokenExpiration` en
- *    `Usuarios.ts` y el `maxAge` de aquí abajo son los mismos ocho horas y se
+ *    `Usuarios.ts` y el `maxAge` de aquí abajo son las mismas ocho horas y se
  *    apagan juntos.)
  *
  * Desde aquí no se puede borrar: `cookies()` guarda **una sola escritura por
@@ -107,6 +95,10 @@ async function nombreDeLaCookieDeSesion(): Promise<string> {
  * de omisión los reabra a los dos. El precio se paga una vez: al desplegar ese
  * cambio, las sesiones abiertas dejan de valer y hay que volver a entrar.
  *
+ * La de vista previa arrastra el mismo cabo —la que quedó en `/` gana mientras
+ * viva—, pero corto: cuatro horas de `maxAge` y solo puede rebajar el rol. No
+ * merece cambiarle el nombre, que es lo que haría falta para cortarlo.
+ *
  * Un último detalle que había que respetar aunque el prefijo se pusiera: quien
  * se autentique por la API REST de Payload vuelve a crear el choque, porque
  * `generatePayloadCookie` escribe siempre con `path: '/'`, sin mirar esto. Esa
@@ -115,44 +107,11 @@ async function nombreDeLaCookieDeSesion(): Promise<string> {
  * acciones y solo por ellas. Reabrir ese extremo sin cambiar antes lo que
  * escribe `generatePayloadCookie` devuelve el choque entero.
  */
-const PATH_COOKIE = PREFIJO || '/'
-
-/**
- * La de vista previa se muda con ella, y tiene que ser a la vez.
- *
- * Viajaba a la raíz igual que viajaba el testigo, así que las páginas vecinas
- * del proxy recibían también el `vista-previa-rol` de quien estuviera mirando
- * «como residente». No abre nada —solo baja privilegios, y `rolEfectivo` lo
- * valida contra el rol real—, pero es una cookie de sesión de esta plataforma
- * paseándose por sitios que no son suyos, y el motivo de acotar el testigo vale
- * igual aquí.
- *
- * A la vez y no por separado: la escribe `api/vista-previa/route.ts` y la borran
- * `entrar()` y `salir()` de aquí abajo. Si un lado se muda y el otro no, el
- * borrado apunta a un path donde no hay nada, la cookie sobrevive y la sesión
- * siguiente empieza simulando el rol de la anterior.
- *
- * El valor está escrito dos veces porque este archivo lleva `'use server'` y no
- * puede exportar una constante. Mientras sea así, los ata
- * `tests/unit/cookieDeVistaPrevia.test.ts`, que los compara con prefijo puesto
- * —sin él los dos valen `/` y coinciden aunque uno esté mal—. El sitio donde
- * dejarían de ser dos es `src/lib/vistaPrevia.ts`, junto a
- * `COOKIE_VISTA_PREVIA`, que es el módulo que los dos ya importan.
- *
- * Queda el mismo cabo que con el testigo: la que dejaron en `/` las sesiones
- * anteriores a este cambio sigue ganando mientras viva, porque el navegador
- * manda primero la del path más específico y quien analiza la cabecera se queda
- * con la última. Aquí el cabo es corto —cuatro horas de `maxAge` y solo puede
- * rebajar el rol— y no merece cambiarle el nombre a la cookie, que es lo que
- * haría falta para cortarlo.
- */
-const PATH_VISTA_PREVIA = PATH_COOKIE
-
 const OPCIONES_COOKIE = {
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: process.env.NODE_ENV === 'production',
-  path: PATH_COOKIE,
+  path: PATH_DE_LAS_COOKIES,
 }
 
 export async function entrar(
@@ -226,9 +185,10 @@ export async function entrar(
       maxAge: 8 * 60 * 60,
     })
     // Una sesión nueva empieza siempre con el rol real, nunca simulando otro.
-    // Con el path con el que la escribe su ruta: sin él, `delete` caduca una
-    // cookie de la raíz que ya no es la nuestra y la simulación sobrevive.
-    almacen.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_VISTA_PREVIA })
+    // Con el path con el que la escribe su ruta, que sale del mismo módulo: sin
+    // él, `delete` caduca una cookie de la raíz que ya no es la nuestra y la
+    // simulación sobrevive.
+    almacen.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_DE_LAS_COOKIES })
 
     return { destino: resultado.user?.rol === 'admin' ? '/admin-panel' : '/' }
   })
@@ -240,10 +200,10 @@ export async function salir(): Promise<Respuesta> {
     // El borrado lleva el mismo path con el que se escribió. Sin él, `delete`
     // caduca una cookie de path `/` —el que Next pone por omisión— que ya no es
     // la nuestra, y la sesión seguiría abierta después de pulsar «salir».
-    almacen.delete({ name: await nombreDeLaCookieDeSesion(), path: PATH_COOKIE })
+    almacen.delete({ name: await nombreDeLaCookieDeSesion(), path: PATH_DE_LAS_COOKIES })
     // La de vista previa, en el mismo path con el que la escribe su ruta. Ver
-    // `PATH_VISTA_PREVIA`.
-    almacen.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_VISTA_PREVIA })
+    // `src/lib/pathDeLasCookies.ts`.
+    almacen.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_DE_LAS_COOKIES })
     return null
   })
 }

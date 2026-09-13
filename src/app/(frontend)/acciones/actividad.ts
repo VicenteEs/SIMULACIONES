@@ -162,6 +162,13 @@ export async function registrarVisita(coleccion: unknown, documentoId: unknown):
  * Lanza si no quedó escrita, y eso es deliberado: es lo que hace que el `catch`
  * de `RastreadorActividad` devuelva la casilla a su sitio. Callar aquí es
  * mentirle al residente sobre su propio progreso.
+ *
+ * Tiene dos clientes, y los dos dependen de que lance: la casilla, y
+ * `ConsolaQuirurgica` al terminar un caso, que da la cirugía por leída con esta
+ * misma acción y no con una escritura propia —un segundo camino hacia
+ * `completado` acabaría validando otra cosa que este—. Si aquí se tragara el
+ * fallo, el panel de «Caso terminado» diría que el caso cuenta como leído
+ * mientras la portada lo sigue ofreciendo «por leer».
  */
 export async function marcarComoLeida(
   coleccion: unknown,

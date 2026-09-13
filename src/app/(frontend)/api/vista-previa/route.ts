@@ -2,32 +2,15 @@ import { NextResponse } from 'next/server'
 import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
-import { PREFIJO } from '@/lib/rutas'
+import { PATH_DE_LAS_COOKIES } from '@/lib/pathDeLasCookies'
 import { COOKIE_VISTA_PREVIA, puedeSimularRol } from '@/lib/vistaPrevia'
 import type { Rol } from '@/access/reglas'
 
-/**
- * El mismo path que el testigo de sesión: el prefijo, no la raíz.
- *
- * En el servidor la plataforma comparte esquema, dominio y puerto con otras
- * páginas detrás del mismo proxy. Con `path: '/'` esta cookie viajaba a todas
- * ellas, igual que viajaba el testigo antes de 66bdc2d. No abre nada —solo
- * puede rebajar el rol, y `rolEfectivo` la valida contra el real—, pero es una
- * cookie de esta plataforma paseándose por sitios que no son suyos.
- *
- * El valor está escrito aquí y en `acciones/sesion.ts` (`PATH_VISTA_PREVIA`)
- * porque esa acción lleva `'use server'` y no puede exportar una constante. Los
- * dos tienen que decir lo mismo: lo que se escribe aquí lo borra `salir()`, y
- * un `delete` con otro path no caduca nada —la simulación sobreviviría a cerrar
- * la sesión y la siguiente empezaría viendo la plataforma como otro rol—.
- *
- * Mientras sigan siendo dos, los ata `tests/unit/cookieDeVistaPrevia.test.ts`,
- * que los compara **con prefijo**: sin él los dos valen `/` y coinciden aunque
- * uno esté mal, así que en desarrollo separarlos no rompe nada visible. Donde
- * dejarían de ser dos es `src/lib/vistaPrevia.ts`, junto a
- * `COOKIE_VISTA_PREVIA`, que es el módulo que los dos ya importan.
- */
-const PATH_COOKIE = PREFIJO || '/'
+// El path no se escribe aquí: sale de `PATH_DE_LAS_COOKIES`, el mismo que usan
+// `entrar()` y `salir()` para borrar esta cookie. Cuando estaba copiado en los
+// dos archivos, bastaba con tocar uno para que el borrado apuntara a un path
+// vacío y la simulación sobreviviera a cerrar la sesión. El porqué del prefijo
+// está en `src/lib/pathDeLasCookies.ts`.
 
 /**
  * Activa o desactiva la vista previa de rol.
@@ -52,7 +35,7 @@ export async function POST(peticion: Request) {
 
   if (rol === null || rol === undefined || rol === real) {
     // Con el path con el que se escribió, o no se borra nada.
-    respuesta.cookies.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_COOKIE })
+    respuesta.cookies.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_DE_LAS_COOKIES })
     return respuesta
   }
 
@@ -67,7 +50,7 @@ export async function POST(peticion: Request) {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
-    path: PATH_COOKIE,
+    path: PATH_DE_LAS_COOKIES,
     maxAge: 60 * 60 * 4,
   })
   return respuesta
