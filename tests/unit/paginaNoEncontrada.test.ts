@@ -111,13 +111,19 @@ describe('la pantalla global de dirección inexistente', () => {
     expect(existsSync(RUTA_GLOBAL)).toBe(true)
   })
 
-  it('deja escrito que depende de una bandera experimental', () => {
+  it('la bandera que la enciende está puesta de verdad', () => {
     // `global-not-found` va detrás de `experimental.globalNotFound` en
     // `next.config.mjs`: apagada, Next ni busca el archivo
     // (`node_modules/next/dist/build/entries.js`) y este queda inerte sin que
     // nada avise. Es el modo de fallar más caro que tiene esta pantalla —parece
-    // cubierto y no lo está—, así que el aviso no puede desaparecer de la
-    // cabecera al reescribirla.
+    // cubierta y no lo está—, y es el que ocurrió: la pantalla se escribió sin
+    // la bandera, y esta misma prueba se conformaba con que la CABECERA del
+    // archivo mencionara la palabra. La suite salía verde sobre una pantalla
+    // que no se pinta nunca. Por eso ahora se lee la configuración y no un
+    // comentario: lo que hay que comprobar es el interruptor, no el letrero
+    // que dice dónde está el interruptor.
+    const configuracion = readFileSync(join(process.cwd(), 'next.config.mjs'), 'utf8')
+    expect(configuracion).toMatch(/globalNotFound:\s*true/)
     const fuente = readFileSync(RUTA_GLOBAL, 'utf8')
     expect(fuente).toContain('globalNotFound')
   })

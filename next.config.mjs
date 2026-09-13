@@ -55,6 +55,21 @@ const nextConfig = {
      * una decisión aparte que hay que dejar escrita en BITACORA.
      */
     serverActions: { bodySizeLimit: '8mb' },
+
+    /**
+     * Enciende `src/app/global-not-found.tsx`.
+     *
+     * Con la bandera apagada, Next ni siquiera busca el archivo
+     * (`node_modules/next/dist/build/entries.js`), así que la pantalla se
+     * escribe, se prueba y queda inerte: una dirección que no casa con ninguna
+     * ruta sigue cayendo en la pantalla en inglés del marco. Se escribió sin
+     * esta línea, y la prueba que la acompañaba solo exigía que el comentario
+     * del archivo *mencionara* la bandera —no que estuviera puesta—, de modo
+     * que la suite salía verde sobre una pantalla que no se pinta nunca.
+     * Eso está corregido en `tests/unit/paginaNoEncontrada.test.ts`, que ahora
+     * lee esta configuración.
+     */
+    globalNotFound: true,
   },
 
   // Cabeceras de seguridad para toda la aplicación.

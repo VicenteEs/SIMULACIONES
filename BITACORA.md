@@ -909,6 +909,604 @@ caso sin salida.
 residente lo coge, uno cada vez. Trece modelos cargando a la vez en la bandeja
 dejarían la consola inservible en el portátil que es el equipo de referencia.
 
+
+### D-063 · 2026-09-13 · vigente
+**La auditoría se aplicó en cuatro olas de lotes de archivos que no se pisan.**
+Una revisión de 203 agentes sobre el código dejó más hallazgos de los que caben
+en una sentada, y aplicarlos en fila habría tardado más que escribirlos. El
+método fue el mismo cuatro veces: repartir el trabajo en lotes de archivos
+**disjuntos**, un agente por lote, un verificador adversario por lote que lee el
+diff de verdad y no el resumen de quien lo escribió, y una fase de reparación
+para los lotes con reparos. Cuarenta y un lotes, 122 agentes, 279 arreglos, tres
+migraciones y la suite de 150 pruebas a 865.
+
+*Consecuencia buena, y es la que paga al verificador:* **101 hallazgos del
+informe se tumbaron por falsos**, cada uno con la línea que lo demuestra —15 en
+la primera ola, 18 en la segunda, 41 en la tercera, 27 en la cuarta—. Un informe
+de auditoría que se aplica sin comprobar mete tantos defectos como quita. El
+caso propio, y el más caro, está en D-066: la petición equivocada la escribí yo.
+
+*Consecuencia mala, y es estructural, no de esta jornada:* un agente no puede
+cerrar un defecto cuyo otro extremo vive en un archivo que no es suyo. Los lotes
+disjuntos evitan que dos agentes se pisen el mismo archivo, y a cambio cortan
+justo por donde pasan los defectos que cruzan: la barra que ponía
+`aria-current="page"` mientras ninguna hoja de estilos lo pintaba, las medidas
+que Payload ya guardaba de cada imagen y el marcado no usaba, el botón de
+reiniciar que solo se puede juzgar mirando el marcador que tiene a ocho píxeles.
+Ninguno de esos lo podía ver un lote solo. Por eso hicieron falta cuatro olas y
+no una: la tercera fue sobre todo convergencia —de sus 41 descartes, la mayoría
+son hallazgos que otro lote de la misma ola ya había cerrado por el otro
+extremo— y la cuarta, lo que quedaba. Quien repita el método que cuente las olas
+desde el principio; con una sola queda un informe a medio aplicar y la falsa
+impresión de haberlo terminado.
+
+
+### D-064 · 2026-09-13 · vigente
+**El modelo de texto rico es plano a propósito, y por eso el tabulador ya no
+anida dentro de una lista.**
+El modelo de en medio —el que viaja entre el editor del panel y la ficha
+pública— tiene una lista que es `Fragmento[][]`: puntos y nada dentro de un
+punto. El editor no lo respetaba. `ListItem` de TipTap admite `paragraph
+block*`, así que el tabulador metía una sublista dentro del punto, y al
+convertir se aplanaba **encima** del padre: «Reducir», con los subpuntos «con
+tracción» y «bajo anestesia», se guardaba como un único «Reducircon
+traccionbajo anestesia». El autor no vio romperse nada, porque el editor
+reconstruye lo que él acaba de escribir; lo roto estaba en la base y en la
+página del residente.
+
+*Qué se hizo.* El editor deja de ofrecer la sublista (`SinSublistas`, en
+`EditorTextoRico.tsx`) y las cuatro conversiones despliegan la que ya exista en
+puntos propios, a la altura del resto. Entre dos bloques hermanos —los dos
+párrafos de una cita, el párrafo que envuelve un punto— se mete un salto: perder
+el nivel es perder forma, pegar las palabras es perder texto, y lo segundo no se
+recupera.
+
+*Consecuencia buena:* lo que se pega desde Word, que trae listas anidadas, entra
+sin destruir nada; y lo que ya estaba guardado con sublistas se lee bien sin
+tocar la base.
+
+*Consecuencia mala, y es la que hay que decirle al siguiente:* **no hay
+sublistas, y no las habrá mientras el modelo sea plano.** Quien las quiera no
+puede añadirlas en el editor: tiene que cambiar el modelo y las **cuatro**
+conversiones a la vez —`desdeLexical`, `haciaLexical`, `desdeTipTap`,
+`haciaTipTap`, en `src/lib/textoRico.ts`—, y decidir además qué hacer con lo ya
+guardado. `puntosDeListaLexical` y `puntosDeListaTipTap` son el sitio por donde
+se empieza.
+
+*Y dos parientes del mismo sitio, por la misma razón —contenido que se
+corrompía sin dar error—:* un salto simple se guarda como nodo `linebreak` y no
+como `\n` dentro del texto, porque el HTML colapsa el `\n` a un espacio y las
+cuatro fases de una maniobra escritas con Mayús+Intro salían fundidas en un
+párrafo corrido; y `estaVacio` mira el árbol y no el texto llano, porque un
+campo cuyo contenido fuese una radiografía o una línea divisoria se daba por
+vacío y la nota entera desaparecía de la ficha.
+
+
+### D-065 · 2026-09-13 · vigente
+**El prefijo de un enlace interno se pone al pintar, y nunca se guarda en la
+base.**
+Lo que el autor escribe es `/biblioteca/12`, y eso es exactamente lo que queda
+guardado. El `/traumahub` lo pone `ruta()` en el momento de pintar, dentro de
+`conversoresRicos` (`src/components/Rico.tsx`). El convertidor que trae Payload
+emite `<a href={fields.url}>` tal cual, y Next no resuelve el prefijo de un
+`<a>`: sin esto, un enlace del autor salía en el servidor sin prefijo, lo
+atendía otra página del mismo dominio detrás del proxy y devolvía un 404 que no
+menciona TraumaHub.
+
+*Por qué al pintar y no al guardar,* que es lo que alguien propondrá tarde o
+temprano porque parece más barato: el prefijo es del despliegue, no del
+contenido. Escrito en la base, la misma ficha deja de servir para un despliegue
+sin prefijo —el de desarrollo, sin ir más lejos—, un cambio de prefijo obliga a
+reescribir todo lo publicado, y el valor guardado se vuelve indistinguible del
+que ya lo traía puesto, que es el camino directo a O-019.
+
+*Y de paso, la comprobación de la dirección baja aquí.* `enlaceSeguro` se
+aplicaba solo al convertir desde el panel, y el panel no era la única vía de
+escritura. Ahora también comprueba el renderizador público, que es el que
+entrega el enlace al navegador. Un enlace que no pasa se pinta como texto, sin
+`<a>`: se lee igual y no queda nada muerto que pulsar. En la propia función se
+cerró además `/<tabulador>/servidor.externo`, que el navegador limpia y resuelve
+como `//servidor.externo`, o sea fuera de la plataforma.
+
+*Consecuencia mala:* olvidarlo no falla donde se nota. Cualquier pantalla nueva
+que pinte un campo rico tiene que usar `conversoresRicos` y no el renderizador
+pelado; en desarrollo, con el prefijo vacío, las dos se ven idénticas. Por eso
+el objeto se exporta en vez de repetirse: dos renderizadores con criterios
+distintos sobre el mismo contenido acaban siendo dos comportamientos que nadie
+recuerda comparar.
+
+
+### D-066 · 2026-09-13 · vigente · no lo vuelvas a intentar · ver O-019
+**La `url` de un archivo subido NO pasa por `ruta()`.**
+Payload la arma con `formatAdminURL`, que antepone por su cuenta el `basePath`
+de Next —`withPayload` lo copia a `NEXT_BASE_PATH` al compilar—, de modo que
+llega con el prefijo ya puesto. Ponérselo otra vez es reproducir **O-019**, el
+apagón en que el prefijo salía dos veces y toda imagen, todo vídeo y todo modelo
+3D de toda ficha era un 404 en el servidor.
+
+*Por qué esta entrada existe, y no es un detalle de estilo.* En esta misma
+jornada le pedí a un agente que «arreglara» esa `url`, que «no lleva el
+prefijo». Era falso. Le pedí también que lo comprobara antes de tocar nada, y
+eso es lo único que lo evitó. Esa es exactamente la forma en que el error vuelve:
+alguien lee un `<img src={imagen.url}>` sin contexto, ve que ahí no hay `ruta()`
+donde el resto del repositorio la tiene, y lo corrige. La petición viene de
+arriba y suena razonable.
+
+*Y taparlo sería fácil, que es lo peor.* Con `NEXT_PUBLIC_SERVER_URL` puesta esa
+`url` es absoluta y `ruta()` la devuelve intacta, así que un `ruta()` de más no
+rompe nada hoy; el día que `serverURL` quedara vacía pasaría a ser relativa y el
+prefijo se doblaría. Rompe mañana, sin que nada avise.
+
+*Consecuencia:* `ruta()` **no es idempotente y no debe serlo**. Hacerla
+tolerante al prefijo doblado taparía justo el error que hay que ver. El porqué
+quedó escrito en `src/lib/rutas.ts` —no solo aquí— y atado con
+`tests/unit/archivosSubidos.test.ts`, que llama a la propia función de Payload
+con `NEXT_BASE_PATH=/traumahub`.
+
+
+### D-067 · 2026-09-13 · vigente · matiza D-059
+**`objetivoDelPaso` solo deduce cuando el paso llega sin objetivo ninguno.**
+D-059 dejó escrito que un paso que no declara objetivo se deduce de lo que sí
+declara. La deducción miraba también las tres tolerancias de reducción, y las
+tres llevan `defaultValue: 5` en `Cirugias.ts` y `DEFAULT 5` en su migración: las
+trae **toda** fila. El resultado era que cualquier paso de instrumento se
+convertía en uno de reducción, y de reducción imposible —el caso de prueba
+arranca con 9,8° de angulación, la consola solo pinta los mandos de girar cuando
+el paso dice `reduccion`, y el segundo paso, que solo pedía coger el punzón, no
+se podía superar—.
+
+*La regla que queda.* Las tolerancias solo hablan si el paso llega sin objetivo.
+Los cuatro números de la fuerza y del trazo sí prueban una intención, porque sus
+columnas se crearon sin `DEFAULT` y sus campos no tienen `defaultValue`: un
+número ahí lo tecleó alguien. Y `'instrumento'` no se toma como declaración,
+porque es lo que la migración de D-059 escribió en toda fila anterior.
+
+*Su migración de datos,* `20260913_041920_objetivo_de_los_pasos_antiguos`. Todo
+paso creado entre el 6 y el 10 de septiembre quedó con `objetivo='instrumento'`
+**más** su rango de fuerza, que es justo lo que rechaza la validación nueva: el
+traumatólogo abría uno de esos, corregía una coma y ya no podía publicarlo, por
+unos números que él no tecleó. El `CASE` es la transcripción literal de
+`objetivoDelPaso`, así que no cambia ni una evaluación: escribe en la columna lo
+que la aplicación ya deducía en memoria. Toca también
+`_cirugias_v_version_pasos`, que es donde viven los borradores, porque publicar
+un borrador viejo era el gesto que se quedaba bloqueado.
+
+*Consecuencia mala, aceptada a sabiendas:* el precio es el inverso. Quien elija
+«elegir el instrumento» y deje escrito además el rango de la fuerza obtiene
+fuerza. Ese descuido sí se ve —sale en la instrucción de pantalla—; el silencio
+del caso contrario no se veía en ninguna parte. *Y no se deshace:* la columna no
+guarda quién escribió su valor, así que revertir arrastraría también los pasos
+que un médico marcó como de fuerza a propósito.
+
+
+### D-068 · 2026-09-13 · vigente
+**La cobertura mide `src/app/**`, y el umbral es el suelo real medido.**
+`src/app/**` estaba excluido entero de la medida, y con él las siete acciones de
+servidor, que son **toda** la superficie de escritura del panel: lo que no se
+mide no se echa de menos, y así se pudo quedar sin una sola prueba el único
+sitio donde se comprueban los permisos por módulo. Ahora entra.
+
+*Y el umbral baja de 80 a 58, que es lo que parece un retroceso y no lo es.*
+Estaba en 80 con la suite en 70: `npm run test:coverage` fallaba siempre, así
+que no estaba en «Antes de subir» ni en ninguna integración continua. **Una
+puerta que falla siempre es una puerta por la que nadie pasa, y no guarda
+nada.** Al dejar de esconder `src/app/**`, la medida honesta bajó a ~60, y el
+umbral se pone dos puntos por debajo: es el suelo medido sin base levantada, que
+es cuando la suite de integración se omite y la cifra es la más baja posible.
+Este número solo sube, y se sube detrás de cada hueco que se cierra.
+
+*Lo que sigue fuera, y por qué no es un descuido:* los 69 componentes `.tsx`. El
+entorno de estas pruebas es `node` y no hay jsdom, así que medirlos los pondría
+a cero y arrastraría el umbral a un número que no significaría nada. Meterlos
+empieza por añadir el entorno, y exige **dos** cambios a la vez —quitar
+`src/**/*.tsx` del `exclude` y ampliar el `include` a `{ts,tsx}`—: con uno solo
+la cifra vuelve a mentir, porque el filtro de cobertura casa sin anclar el final
+y el barrido de no probados sí lo ancla. Está escrito entero en
+`vitest.config.ts`.
+
+*Consecuencia:* `npm run test:coverage` sustituye al `npx vitest run` de antes en
+«Antes de subir» y corre la misma suite, así que no cuesta una pasada más.
+
+
+### D-069 · 2026-09-13 · vigente
+**Las pruebas de integración no se omiten solas: política de tres estados.**
+Las seis pruebas de control de acceso son las **únicas** que comprueban que los
+permisos llegan hasta la consulta y no se quedan en la interfaz. Se omitían
+solas: un `.env` sin `PAYLOAD_SECRET`, el contenedor de Postgres apagado o un
+clon recién hecho dejaban `npx vitest run` en verde, con las seis desaparecidas
+y código de salida 0. El `console.warn` que lo avisaba ni siquiera se veía,
+porque Vitest no lo imprime cuando sale durante la recolección. Quien iba a
+desplegar creía haber comprobado el control de acceso sin haber comprobado nada.
+
+Los tres estados:
+
+- **sin nada puesto:** si la base no responde, una guardia falla en rojo con la
+  causa y con qué hacer. Es el caso que protege al que está por desplegar.
+- **`OMITIR_INTEGRACION=1`:** permiso por escrito para trabajar sin base. Se
+  omiten y el resultado queda verde, porque alguien lo escribió a mano.
+- **`CI` o `EXIGIR_INTEGRACION=1`:** obligatorias, y ahí el permiso anterior ya
+  no vale, para que nadie lo cuele en el entorno del servidor de integración.
+  `npm run test:integration` se lo pone a sí mismo.
+
+*Un detalle que costó y conviene no deshacer:* con Postgres apagado, el
+adaptador de Payload rechaza una promesa interna que nadie espera, y Vitest la
+recoge como «Unhandled Rejection» y devuelve 1 aunque las seis queden omitidas
+con permiso —o sea que `OMITIR_INTEGRACION=1` no servía justo en el caso para el
+que se escribió—. El silenciador se instala **solo** en la rama de fallo, que es
+donde ya se sabe que no hay nada legítimo que esconder; subirlo al ámbito del
+archivo taparía también los de la suite que sí corre.
+
+*Consecuencia mala:* «Antes de subir» pasa a tener cinco órdenes en vez de
+cuatro, y `npm run test:integration` repite pruebas que la anterior ya corrió.
+Se acepta: lo que aporta no es la ejecución, es la insistencia.
+
+
+### D-070 · 2026-09-13 · vigente · amplía D-056
+**Una comprobación que no puede fallar no es una comprobación.**
+Dos vigilantes del repositorio miraban menos de lo que su nombre prometía, y las
+dos veces el defecto era invisible porque se manifiesta no pasando nada.
+
+*La guardia de migraciones* solo miraba el primer nivel del esquema. Un campo
+nuevo dentro de un grupo, de un arreglo, de un bloque o de una pestaña con
+nombre entraba sin migración y la prueba seguía verde, que es exactamente el
+fallo que D-056 la puso a vigilar. Ahora `columnasDe`, `relacionesMultiples` y
+`tablasHijas` bajan por todos esos, una relación polimórfica cuenta como
+múltiple aunque no declare `hasMany`, y se exige también el `_rels` de la
+familia de versiones. **Y hay cuatro pruebas que vigilan al vigilante** con
+campos de mentira: si la guardia dejara de ver, esas caen.
+
+*Las dependencias sin declarar.* `three-stdlib` en `Visor3D.tsx`,
+`@payloadcms/translations` en `payload.config.ts` y `pg` en un guion de
+`scripts/` se importaban sin estar en `package.json`. Funcionaban de arrastre,
+porque npm aplana `node_modules` y la dependencia de una dependencia queda a la
+vista. El día que cualquiera de las tres cambie de versión, la construcción se
+cae con un «Cannot find module» que no nombra por ninguna parte a quien de
+verdad la traía. `tests/unit/dependencias.test.ts` recorre `src/` y `scripts/`,
+mira también los `import type` —uno de los que faltaban era de esos, y quien se
+cae entonces no es `build` sino `typecheck`— y deja escrito lo único que no
+puede ver: `@types/pg`, que no aparece en ninguna línea y se mueve junto a `pg`.
+
+*Consecuencia mala:* las dos guardias son caras de mantener y ninguna de las dos
+entiende de matices. La de migraciones falla también cuando el esquema y la
+última migración se separan por una razón legítima, y entonces hay que crear una
+migración vacía; ya pasó con la de D-067, cuya instantánea es copia de la
+anterior porque no hay cambio de esquema que describir.
+
+
+### D-071 · 2026-09-13 · vigente
+**El invariante de «siempre un administrador activo» pasa a tener dos capas, y
+la de la base es la única que cierra la carrera.**
+`impedirAutobloqueo` e `impedirBorradoDelUltimoAdmin` cuentan cuántos
+administradores activos quedan aparte del que se toca y, si son cero, cortan.
+Eso son dos operaciones, una consulta y después una escritura: dos
+administradores que se desactivan a la vez ven cada uno al otro todavía activo,
+los dos pasan la comprobación y la plataforma se queda sin nadie que pueda crear
+cuentas, activar a nadie ni entrar al panel. La única salida sería entonces
+editar la tabla `usuarios` con `psql` en un servidor compartido. **Ningún código
+de aplicación puede cerrar esa ventana: tiene que arbitrar quien escribe.**
+
+`20260913_043401_ultimo_administrador_activo` añade dos disparadores de
+restricción `DEFERRABLE INITIALLY DEFERRED` sobre `usuarios`, con
+`pg_advisory_xact_lock` dentro. Diferido, porque relevar a un administrador
+—desactivar al saliente y activar al entrante en la misma transacción— pasa por
+un estado intermedio inválido que tiene que seguir siendo legal. Con cerrojo,
+porque sin él las dos transacciones pueden contar antes de que ninguna se haya
+hecho visible y la carrera vuelve, solo que más estrecha. Probado a mano contra
+una base desechable: dos sesiones desactivando cada una a un administrador
+distinto dejan pasar a la primera y deshacen la segunda.
+
+*El disparador solo mira cuando la fila **dejaba** de ser administrador activo,*
+y eso es deliberado dos veces: una base que hoy ya esté sin administradores
+activos no puede quedar bloqueada —se impide el paso de «hay uno» a «no hay
+ninguno», no el estado en sí—, y sin ese filtro cada inicio de sesión de un
+administrador pagaría el recuento y el cerrojo.
+
+*Consecuencias malas, las tres que hay:* en desarrollo **no existe**, porque
+allí manda el `push` de Drizzle y no se aplican migraciones, así que nadie lo va
+a ver funcionar antes de desplegarlo. El mensaje llega al panel como error de
+servidor sin traducir, porque no es un `APIError` de Payload; se lanza con
+SQLSTATE 23514 justamente para que las acciones puedan reconocerlo por el código
+y darlo en español, y eso queda pendiente. Y depende de `READ COMMITTED`, que es
+el nivel por omisión: quien suba el aislamiento tiene que volver a mirar esto.
+
+
+### D-072 · 2026-09-13 · vigente
+**Una sola fila de actividad por usuario y ficha, y lo sostiene la base.**
+La cabecera de la colección prometía «un registro por usuario y ficha» y no lo
+sostenía nadie: había índices sueltos y ninguno compuesto. `anotar` consulta y,
+si no hay fila, crea; entre esas dos operaciones caben dos pestañas —abrir una
+ficha y marcarla enseguida son dos llamadas que viajan en paralelo— y quedaban
+dos filas. Entonces marcar como leída tocaba una y la otra se quedaba en
+`completado: false` para siempre: la portada seguía ofreciendo en «Continúa
+leyendo» una ficha que el residente marcaba una vez y otra sin entender por qué,
+y el resumen contaba la lectura dos veces.
+
+*La migración lleva un `DELETE` escrito a mano que no se puede quitar.* Con un
+solo duplicado, `CREATE UNIQUE INDEX` falla, la transacción se deshace y el
+despliegue se queda a medias sin que el mensaje diga de qué ficha se trata.
+Sobrevive la fila marcada como leída —perder eso sería devolverle al residente
+una lectura que ya hizo— y, entre iguales, la de visita más reciente; el `id`
+deshace el empate para que el resultado no dependa del orden en que PostgreSQL
+devuelva las filas. Se registra cuántas se retiraron, porque esto destruye datos
+en producción sin preguntar y el registro del despliegue es el único sitio donde
+queda constancia.
+
+*Y dos módulos no registraban una sola lectura.* Técnica AO y Lectura de
+imágenes no montaban el rastreador. Como la cifra «por leer» de la portada se
+calcula sobre los cinco módulos, cada caso AO y cada estudio contaba como
+pendiente para siempre y ese número no podía bajar por mucho que se leyera.
+
+*Consecuencia mala, y sigue abierta:* con eso son cuatro módulos de cinco. El
+examen físico no tiene página por documento —las maniobras se pintan todas
+juntas en el listado—, así que sus fichas cuentan en el total y nunca en las
+leídas: **«por leer» tiene hoy un suelo igual al número de maniobras publicadas
+y no puede llegar a cero.** Cerrarlo pide una ficha por maniobra o un rastreador
+por maniobra dentro del listado. Y la consulta de «¿ya la leyó?» está copiada en
+cuatro páginas: su sitio es una función de `src/lib`.
+
+
+### D-073 · 2026-09-13 · vigente · amplía D-038
+**De la API REST de Payload solo queda lo que sirve archivos.**
+D-038 retiró la interfaz de Payload, pero no su API, y eso dejó en pie
+exactamente lo que D-038 existía para quitar: una segunda administración sobre
+los mismos datos por la que no miraba nadie. Un `PATCH /api/patologias/<id>`
+guardaba texto rico sin pasar por `depurarDocumento` ni por `faltantes()`, que
+son las dos comprobaciones del panel. Un `GET /api/medios?limit=500` devolvía
+nombre, tipo y dirección de todos los archivos a cualquier cuenta activa,
+borradores incluidos. Y `POST /api/usuarios/login` escribía la cookie con
+`path: '/'` a fuego, reabriendo el choque que describe D-074.
+
+Queda abierto `/<coleccion>/file/<nombre>`, tres segmentos exactos: es la ruta
+con la que Payload sirve cada imagen, cada vídeo y cada modelo 3D, y la que
+llevan los `<img>` de toda la plataforma. Cerrarla dejaría toda ficha sin
+ilustraciones. Sigue pidiendo sesión. Se responde **403 y no 404** a propósito:
+la dirección existe, lo que pasa es que esta plataforma no la ofrece.
+
+*Por qué apretar el `access.read` de Medios no era la salida,* que es lo primero
+que se intenta: las páginas leen con `overrideAccess: false` y Payload propaga
+ese valor al poblar relaciones, así que negarle la lectura al residente lo
+dejaría sin las imágenes de las fichas publicadas. Lo que sobraba era el
+listado, no el permiso.
+
+*Y la regla de D-020 baja a la colección.* «Una cuenta desactivada no ve
+absolutamente nada» vivía solo en `entrar()`, la pantalla propia. Ahora la
+rechaza un gancho `beforeLogin`, que es el punto por el que pasan todas las
+autenticaciones; la comprobación de la pantalla se conserva como segunda
+cerradura, con el mensaje sacado del mismo sitio para que las dos capas no
+puedan discrepar.
+
+*Y por el lado del panel, el mismo desajuste al revés.* Los cinco catálogos del
+simulador declaran `escrituraDeModulo('cirugias')`, y eso gobierna la API REST;
+pero el panel escribe con la API local, cuyo `overrideAccess` vale `true`, así
+que lo único que le pregunta algo es `puedeEditar`. Un editor apartado del
+simulador no podía tocar un instrumento con `curl` y seguía borrándolo desde el
+panel —y borrar uno deja a nulo el campo `instrumento` de cada paso que lo
+pedía, o sea un caso sin salida—. Los catálogos se gobiernan ahora con el
+permiso del módulo 04, en una tabla aparte de `SLUGS_DE_MODULOS`: meterlos en
+esa lista los convertiría en módulos para la barra, la portada y las opciones de
+permisos, y aparecerían cinco entradas que no llevan a ninguna parte.
+
+*Consecuencia mala:* cualquier integración futura contra esta API está cerrada
+de entrada, y reabrirla exige escribir un extremo concreto con su motivo, no
+devolver los seis métodos. Las escrituras se declaran —en vez de no
+exportarlas— precisamente para que la respuesta explique el motivo: sin ellas
+Next contestaría un 405 pelado y el siguiente creería que se equivocó de método.
+
+
+### D-074 · 2026-09-13 · vigente
+**La cookie de sesión se llama `traumahub-token`, y la de vista previa se muda
+al prefijo con ella.**
+No es cosmético: es la única salida al choque de cookies. Las sesiones
+anteriores a 66bdc2d dejaron un testigo con `path: '/'` que sigue vivo hasta
+caducar, y es **ese** el que manda —el navegador manda primero la del path más
+específico y quien analiza la cabecera se queda con la última—. Mientras las dos
+se llamen igual, la del prefijo no se lee nunca, y pasan dos cosas que no se
+ven: quien entra con **otra** cuenta queda autenticado como el usuario anterior
+—que en una estación compartida de hospital es una anotación firmada por quien
+no la hizo—, y si el testigo viejo deja de verificar sin morirse su cookie, al
+rotar `PAYLOAD_SECRET`, entrar responde «éxito» sobre una plataforma cerrada.
+Con otro nombre, la vieja se vuelve invisible para Payload y se muere sola.
+
+*La de vista previa viaja con ella, y tiene que ser a la vez.* También se
+escribía en la raíz, así que las páginas vecinas del proxy recibían el
+`vista-previa-rol` de quien estuviera mirando «como residente». Si un lado se
+muda y el otro no, el borrado apunta a un path donde no hay nada, la cookie
+sobrevive y la sesión siguiente empieza simulando el rol de la anterior.
+
+*Consecuencia mala:* al desplegar esto, **las sesiones abiertas dejan de valer y
+todos tienen que volver a entrar**. Se paga una vez. Y queda un cabo: la cookie
+de vista previa que dejaron en `/` las sesiones anteriores sigue ganando
+mientras viva; el cabo es corto —cuatro horas y solo puede rebajar el rol— y
+cortarlo exigiría cambiarle también el nombre, que no compensa. Nadie escribe
+`traumahub-token` a mano: se le pregunta a la configuración, y una prueba vigila
+que siga siendo así.
+
+
+### D-075 · 2026-09-13 · vigente
+**El techo de subida es una sola cifra, y sale del panel.**
+Había tres números distintos diciendo cosas distintas: `upload.limits` anunciaba
+50 MB, el panel prometía 50 MB, y Next cortaba el cuerpo de la acción en 8 MB
+**antes** de invocarla, de modo que el `try/catch` no llegaba a ejecutarse y la
+pantalla se quedaba muda. Ahora la cifra vive donde estaba decidida —junto a la
+frase que el traumatólogo lee antes de elegir el archivo, en
+`src/admin/esquema.ts`— y `payload.config.ts` la importa de allí en vez de
+copiarla. Pedir por comentario que dos números se muevan juntos no es atarlos.
+
+*Y el límite pasa a rechazar de verdad.* El analizador multiparte de Payload
+trae `abortOnLimit: false`: dejaba de acumular bytes, marcaba el archivo como
+`truncated` —bandera que Payload escribe y nadie lee— y respondía 201. El
+registro quedaba creado y el archivo cortado en seco: un vídeo que se reproduce
+hasta la mitad, sin un error en ninguna parte. Truncar en silencio es peor que
+no tener límite.
+
+*Consecuencia mala, y es una limitación de producto:* **un vídeo de quirófano de
+verdad, de 20 MB para arriba, no cabe y no se arregla subiendo el número.** Una
+acción de servidor retiene el cuerpo entero en memoria; recibir archivos grandes
+pide una ruta que los reciba en flujo, y eso es otra decisión, todavía sin
+tomar. Mientras tanto el techo es 7 MB anunciados, 7 MB en la configuración y 8
+de cuerpo, que va por encima para que quepa el sobre multiparte.
+
+
+### D-076 · 2026-09-13 · vigente
+**La plataforma no se deja enmarcar por nadie, ni siquiera por sus vecinas del
+dominio.**
+`X-Frame-Options` decía `SAMEORIGIN`, y bajo prefijo «mismo origen» no es esta
+plataforma: es el servidor entero, que sirve además otras tres páginas en `/`,
+`/equipo` y `/senales` —despliegues aparte, que `auto-update.sh` trae del remoto
+cada treinta minutos sin que nadie de aquí mire qué entró—. O sea que la
+cabecera le daba permiso de enmarcado justo a los tres vecinos y no se lo negaba
+a nadie que importara: uno de ellos podía montar un marco invisible de
+`/traumahub/admin-panel/usuarios` sobre un botón propio y conseguir que el
+administrador pulsara «Eliminar» creyendo que pulsaba otra cosa. Pasa a `DENY`,
+con `Content-Security-Policy: frame-ancestors 'none'` al lado para los
+navegadores que ya ignoran la primera. No le quita nada: no hay un solo `iframe`
+en `src/`.
+
+*Y HTTPS obligatorio un año.* Sin `Strict-Transport-Security`, quien teclea el
+nombre del servidor sin `https://` hace la primera petición en claro, la
+pantalla de `/entrar` se pinta sin cifrar y la contraseña se escribe ahí. Y
+encima no deja entrar, porque el navegador descarta una cookie `Secure` servida
+por http: el residente vuelve al formulario sin mensaje y entrega la contraseña
+una segunda vez por el mismo canal.
+
+*Consecuencia mala, y es de vecindad:* el nombre de máquina se comparte, así que
+esta cabecera obliga a HTTPS **también a las otras tres páginas**. Hoy todas
+entran por el mismo túnel cifrado y no cambia nada, pero es una decisión que
+afecta a terceros y por eso va sin `includeSubDomains` ni `preload`. Y solo en
+producción: en desarrollo dejaría el navegador sin poder abrir `http://localhost`
+hasta limpiar el estado HSTS a mano.
+
+
+### D-077 · 2026-09-13 · vigente · sostiene D-011
+**Lo obligatorio se exige entero al publicar y solo por encima al guardar
+borrador.**
+`faltantes()` recorría el primer nivel y nada más, así que lo obligatorio de
+dentro de una fila —`pasos[].titulo`, `piezas[].nodo`— o de dentro de un bloque
+—el `texto` de una advertencia— pasaba de largo y moría después en el validador
+de Payload, que contesta «El siguiente campo es inválido: definicion.0.texto»:
+el nombre interno y el índice crudo, que es justo el mensaje que esta función
+existe para evitar. Ahora desciende a listas, grupos y bloques, y nombra la fila
+por su posición, como se ve en el editor: «Falta «objetivo» en paso 3».
+
+*Y esa misma revisión profunda no puede correr al guardar un borrador,* que es
+la mitad que sostiene D-011. El traumatólogo escribe una ficha a lo largo de
+varios días, y «Guardar borrador» tiene que aceptar una maniobra con la técnica
+en blanco. Si la revisión profunda corriera ahí, el botón devolvería «Falta
+«técnica».» y no guardaría nada: lo escrito esa tarde se perdería al cerrar la
+pestaña. De ahí `profundo`: en superficie al guardar, entero al publicar, que es
+cuando Payload sí va a exigirlos.
+
+*Un caso que se escapaba por la forma:* un texto rico vacío no es `null` ni `''`
+—siempre hay un árbol con un párrafo en blanco dentro—, así que la comprobación
+de forma no podía ser cierta nunca para un campo rico. A un texto rico se le
+pregunta por su contenido, no por su forma.
+
+*Consecuencia mala:* hay dos validaciones sobre lo mismo, la del panel y la de
+la colección, y separarse es fácil. Ya pasó: la regla que **prohíbe** llegó a la
+colección y no al panel, y durante ese tiempo el caso se rechazaba en inglés con
+el español encerrado donde no se enseña. Por eso la lista es una sola
+—`REGLAS_DEL_OBJETIVO_DEL_PASO`, en `src/admin/esquema.ts`— y las dos la
+importan. Vive en el esquema y no en la colección porque el esquema lo carga
+también el navegador y la colección arrastra el adaptador de Payload: es la
+excepción declarada a «esquema y colección son paralelos, no derivados»
+(D-042), y sale barata porque lo que se comparte son datos sin código.
+
+
+### D-078 · 2026-09-13 · vigente
+**En la consola quirúrgica manda el paso, no el interruptor.**
+El lienzo podía quedarse en negro, y era el modo de fallar más caro que tenía la
+pantalla donde el residente opera. Un paso que declara ver la piel —una incisión
+se traza sobre la piel: es exactamente lo que el traumatólogo va a escribir— con
+la piel apagada de salida daba lista vacía, y encender una lista vacía apaga
+**todas** las mallas: gris, sin error, «Encuadrar» mudo porque no hay caja que
+encuadrar, y la única salida en una casilla del panel izquierdo que nadie
+relaciona con lo que acaba de pasar. Ahora el cruce tiene suelo: lo que el paso
+declara se enciende, se dice qué capa hubo que devolver a la vista, y un cruce
+vacío devuelve el modelo entero explicando por qué. Antes que no enseñar nada,
+se enseña algo y se dice.
+
+*De la misma familia, y todos por la misma razón —el paso sabe lo que necesita y
+tiene que ponerlo él—:* el modo de ratón lo fija el objetivo al entrar en el
+paso, porque venir de un trazo a una reducción dejaba el ratón en «trazar» y
+arrastrar el fragmento dibujaba una raya que además se medía; el deslizador de
+fuerza se acota al rango del paso en vez de a un 0-120 inventado, con el que un
+paso de 200 N era insuperable; y el puntaje se decide por los **fallos** y no
+por los resueltos, porque un paso se acierta una sola vez y después se avanza,
+de modo que la guarda anterior nunca se cumplía y daba lo mismo acertar a la
+primera que a la octava.
+
+*Consecuencia buena de dónde se puso la lógica:* `visibilidadDelPaso`,
+`capasQueEnciendeElPaso` y `rangoDelDeslizadorDeFuerza` son funciones puras
+exportadas y probadas sin navegador. *Consecuencia mala:* viven dentro del
+componente de la consola y su sitio es `src/lib`, junto a sus hermanas; mientras
+no se muden, son reglas de dominio escondidas en un archivo de interfaz, que es
+donde nadie las busca.
+
+*El margen del deslizador no se puede quitar,* y conviene dejarlo dicho: un
+deslizador que empieza y acaba dentro de la ventana buena aprueba cualquier
+posición, y un paso en el que no se puede fallar no enseña nada, que es lo
+contrario de D-059.
+
+
+### D-079 · 2026-09-13 · vigente
+**Ninguna pantalla se queda sin red, y ninguna consulta que falle se convierte
+en un cero.**
+No había un solo `error.tsx` en el repositorio, así que cualquier excepción que
+subiera desde una página —un módulo vetado consultado sin `catch`, una relación
+rota, una consulta que se va de tiempo— la atendía la pantalla genérica de Next:
+en inglés, sin barra de navegación y sin más salida que el botón «atrás». Para
+un residente eso es indistinguible de «la plataforma se cayó». El reparto queda
+así, y conviene no confundirlo al tocar cualquiera de las piezas: lo que falla
+**dentro** de una página se queda en `(frontend)/error.tsx`, con la plataforma
+entera alrededor; lo que falla **antes** de que llegue a haber página —el
+layout, o sea la base caída— se va a `global-error.tsx`, que pinta su propio
+documento. Y lo mismo por el lado del «no encontrado», con su vuelta de tuerca
+en O-042.
+
+*La otra mitad, que es la que más engaña:* la página de estadísticas se tragaba
+la excepción y devolvía lista vacía, indistinguible de una colección de verdad
+vacía. Con la tabla de actividad caída decía «0 lecturas registradas» y dibujaba
+los doce meses a cero, **que es una afirmación sobre los residentes y no sobre
+la base**, y lo hacía sin dejar nada en el registro del servidor. Ahora una
+consulta que no se pudo hacer devuelve `null` y la pantalla lo dice. En una
+pantalla cuyo único trabajo es contar, un cero inventado no es un dato
+degradado: es una respuesta falsa a la pregunta que se vino a hacer.
+
+*Consecuencia mala:* el marcado se llena de `=== null` y de estados que hay que
+escribir y mantener, y cada pantalla nueva que cuente algo tiene que decidir lo
+mismo. Es el precio de no mentir con un número.
+
+
+### D-080 · 2026-09-13 · vigente
+**El taller del atlas exporta la preparación como modelo de un caso.**
+El motor estaba desde `209bf83` y le faltaba la pantalla. El puente va del atlas
+a la consola y no al revés, porque son dos motores distintos: el atlas funde
+todas las piezas de un sistema en una malla y decide qué se ve con una textura;
+la consola abre un archivo con objetos con nombre, mueve uno y mide milímetros.
+Lo que se prepara en el taller se **escribe** como un `.glb` igual que el que
+sale de Blender, y para la consola es un modelo más.
+
+Se marcan las piezas que tienen que salir **sueltas** —la que se va a fracturar,
+el fragmento que hay que reducir— y el resto se funde en un objeto por sistema,
+que es lo que hace que el archivo pese poco (Q-006).
+
+*Exige la preparación guardada y sin cambios sueltos,* porque el servidor
+exporta lo que hay en la base y no lo que se ve en pantalla: exportar con la
+pantalla por delante entregaría un archivo que no se parece a lo que el
+traumatólogo está mirando, y nada lo avisaría.
+
+*Al terminar enseña los nombres de nodo saneados,* que son los que hay que
+escribir en las piezas del caso: three.js cambia los espacios por guiones bajos
+al cargar, y escribir el nombre anatómico deja una pieza que no se enciende
+nunca y ningún error que lo explique. Es el mismo fallo mudo que D-061 vino a
+quitar, por la otra puerta.
+
+*Consecuencia mala:* la lista de candidatas enseña cien y dice cuántas quedan
+fuera —el cuerpo completo son ciento treinta y nueve piezas encendidas y
+pintarlas todas hace el panel irrecorrible—, así que con el cuerpo entero hay
+que filtrar por nombre para llegar a la que se busca. Callar el recorte habría
+sido peor: parecería que la pieza no está encendida.
+
 ---
 
 ## 3. Observaciones
@@ -1567,6 +2165,78 @@ esquema que representaba ya estaba en la base, puesto por el propio push.
 forma de arrancar una construcción `output: standalone`. Funciona, pero es otra
 discrepancia entre lo que se configura y lo que se ejecuta, de la misma familia
 que esta. Anotado para arreglarlo aparte.
+
+---
+
+### O-041 · 2026-09-13 · media · abierta · mismo mecanismo que D-061
+**`npm run db:migrate` se cuelga en una pregunta que nadie va a contestar.**
+Apareció al probar la lista nueva de «Antes de subir» (D-068, D-069): la orden
+que la propia lista añade se quedó sin escribir una línea y sin morirse.
+
+*Causa.* En cuanto la base ha arrancado una vez en desarrollo, Payload le deja
+una fila con `batch = -1` en `payload-migrations` —la marca de que el esquema se
+ajustó al vuelo—, y a partir de ahí `payload migrate` abre una pregunta
+interactiva antes de hacer nada: «It looks like you've run Payload in dev mode…
+Would you like to proceed? (y/N)».
+
+*Y no hay bandera que la salte.* `--force-accept-warning` existe para
+`migrate:create` y para `migrate:fresh`; `migrate` no la mira
+(`@payloadcms/drizzle/dist/migrate.js`). Sin terminal delante —una tarea
+programada, un gancho, una integración continua— el proceso espera para siempre.
+
+*Por qué se anota aquí y no solo en AGENTS.md.* **Es la misma forma del arranque
+colgado de D-061:** el servicio dice «Running» y no sirve nada, el proceso dice
+que está trabajando y está esperando. Las dos veces el síntoma es la ausencia de
+síntoma, y las dos veces se pierde la tarde buscando en el sitio equivocado.
+Cualquier automatización que vaya a tocar la base tiene que dar por hecho que
+una orden de Payload puede preguntar.
+
+*Qué hacer en su lugar.* Sobre una base de desarrollo que ya trae ese estado, lo
+que casi siempre se quiere es tirarla y rehacerla (`npm run db:down && npm run
+db:up`), no migrar encima. `npm run db:migrate` solo vale para una base recién
+creada. Queda escrito en AGENTS.md.
+
+*Lo que queda abierto:* no hay un `pretest` en `package.json`, así que sobre una
+base recién creada la suite revienta con `relation "segmentos" does not exist`,
+un error que no menciona ni migraciones ni `push` y manda a buscar muy lejos. El
+esquema lo está poniendo, por accidente, el `npm run dev` de ayer.
+
+---
+
+### O-042 · 2026-09-13 · media · abierta
+**`src/app/global-not-found.tsx` está escrito y no está encendido.**
+La pantalla que atiende una dirección que no casa con ninguna ruta
+—`/traumahub/bibliotecaa`, un enlace copiado a medias, una URL vieja de antes de
+renombrar un módulo— se escribió en la cuarta ola y hoy **no la usa nadie**:
+`experimental.globalNotFound` no está puesto en `next.config.mjs`, y con la
+bandera apagada Next ni siquiera busca el archivo
+(`node_modules/next/dist/build/entries.js`). El residente que se equivoca de
+dirección sigue viendo la pantalla por omisión del marco: en inglés, sin barra y
+sin salida.
+
+*Por qué pasó desapercibido.* La bandera va en `next.config.mjs`, que no era de
+ese lote —es la consecuencia mala de D-063 en estado puro—. El archivo no rompe
+la compilación, no avisa de nada y se queda inerte. Y la prueba que lo acompaña
+comprueba que la **cabecera mencione** la bandera, no que la bandera esté
+puesta: vigila que no se borre el aviso, no que el aviso se haya atendido.
+
+*Arreglo, que es una línea* dentro del `experimental` que ya existe al lado de
+`serverActions`:
+
+```js
+experimental: {
+  globalNotFound: true,
+  serverActions: { bodySizeLimit: '8mb' },
+}
+```
+
+*Lo que conviene añadir con ella:* una prueba que lea `next.config.mjs` y exija
+la bandera. Tal como está, el día que la bandera cambie de nombre al subir de
+versión mayor el síntoma será exactamente este —parece cubierto y no lo está— y
+no habrá nada rojo que lo delate. Los otros dos «no encontrado»
+—`(frontend)/not-found.tsx` y `admin-panel/not-found.tsx`— sí funcionan: atienden
+las llamadas a `notFound()` desde una página que existe, que es la otra mitad
+del problema.
 
 ---
 
