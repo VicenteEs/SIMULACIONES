@@ -203,15 +203,6 @@ export interface Segmento {
   id: number;
   nombre: string;
   orden?: number | null;
-  /**
-   * Reservado para el mapa corporal: todavía no se dibuja en ninguna página, así que rellenarlo no cambia nada de lo que ve el residente.
-   */
-  zonaMapa?: {
-    x?: number | null;
-    y?: number | null;
-    ancho?: number | null;
-    alto?: number | null;
-  };
   updatedAt: string;
   createdAt: string;
 }
@@ -272,6 +263,16 @@ export interface Modelos3D {
    */
   triangulos?: number | null;
   notas?: string | null;
+  /**
+   * Con qué ángulo y a qué distancia abre este modelo. Vacío: lo encuadra el visor.
+   */
+  encuadre?: {
+    escala?: number | null;
+    giroX?: number | null;
+    giroY?: number | null;
+    giroZ?: number | null;
+    distanciaCamara?: number | null;
+  };
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -1815,6 +1816,18 @@ export interface Actividad {
   documentoId: string;
   ultimaVisita?: string | null;
   completado?: boolean | null;
+  puntaje?: number | null;
+  puntajeMaximo?: number | null;
+  complicaciones?:
+    | {
+        paso: string;
+        numero?: number | null;
+        titulo?: string | null;
+        resultado?: string | null;
+        detalle?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1989,14 +2002,6 @@ export interface UsuariosSelect<T extends boolean = true> {
 export interface SegmentosSelect<T extends boolean = true> {
   nombre?: T;
   orden?: T;
-  zonaMapa?:
-    | T
-    | {
-        x?: T;
-        y?: T;
-        ancho?: T;
-        alto?: T;
-      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2052,6 +2057,15 @@ export interface Modelos3DSelect<T extends boolean = true> {
   anonimizado?: T;
   triangulos?: T;
   notas?: T;
+  encuadre?:
+    | T
+    | {
+        escala?: T;
+        giroX?: T;
+        giroY?: T;
+        giroZ?: T;
+        distanciaCamara?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -3222,6 +3236,18 @@ export interface ActividadSelect<T extends boolean = true> {
   documentoId?: T;
   ultimaVisita?: T;
   completado?: T;
+  puntaje?: T;
+  puntajeMaximo?: T;
+  complicaciones?:
+    | T
+    | {
+        paso?: T;
+        numero?: T;
+        titulo?: T;
+        resultado?: T;
+        detalle?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

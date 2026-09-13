@@ -2,7 +2,24 @@ import type { CollectionConfig } from 'payload'
 import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
 import { cacheDeArchivoPrivado } from './hooks/cacheDeArchivos'
 
-/** Imágenes y videos que el traumatólogo inserta en los bloques. */
+/**
+ * Imágenes y videos que el traumatólogo inserta en los bloques.
+ *
+ * Aquí no hay ningún techo de peso escrito, y no es un olvido: el de esta
+ * colección son 50 MB y vive en `TECHO_DE_MEDIOS_BYTES`
+ * (`src/admin/esquema.ts`), declarado al lado del de los modelos 3D para que
+ * quien mueva uno vea el otro. Lo hace cumplir la ruta de subida
+ * (`src/app/(frontend)/api/subidas/[coleccion]/route.ts`), que cuenta los bytes
+ * mientras los recibe. Repetirlo en esta colección sería exactamente la clase
+ * de segunda cifra que ya prometió 50 MB mientras el marco cortaba en 8.
+ *
+ * Lo que sí cambia al aceptar vídeo de verdad —y no hay que tocar nada para que
+ * pase, pero conviene saberlo antes de mover una línea de aquí abajo— es cómo
+ * se sirve: Payload responde peticiones `Range` y manda el archivo en flujo
+ * (`uploads/endpoints/getFile.js`), así que el navegador pide el vídeo por
+ * tramos y el residente lo ve empezar sin haberlo descargado entero. Es lo que
+ * hace soportable un archivo de 40 MB detrás de un túnel doméstico.
+ */
 export const Medios: CollectionConfig = {
   slug: 'medios',
   labels: { singular: 'Archivo', plural: 'Medios' },
@@ -43,6 +60,16 @@ export const Medios: CollectionConfig = {
     staticDir: 'medios',
     // Privada y con `Vary: Cookie`: ver el comentario de la función.
     modifyResponseHeaders: cacheDeArchivoPrivado,
+    // La lista que decide, y se comprueba contra el tipo que Payload deduce del
+    // **contenido** del archivo, no del que declare quien sube: la ruta de
+    // subida entrega el archivo con `filePath`, y `getFileByPath` mira la firma
+    // con `file-type`. Por eso renombrar un `.mov` a `.mp4` no lo cuela.
+    //
+    // Y por eso mismo la lista se queda en estos dos formatos de vídeo aunque
+    // la cámara de pabellón grabe en otro: un QuickTime no se reproduce en
+    // `<video>` fuera de Safari, así que admitirlo sería dejar subir un archivo
+    // que la mitad de los residentes ve como un recuadro negro. La conversión
+    // va antes de la subida, y de eso avisa la ayuda del panel.
     mimeTypes: [
       'image/png',
       'image/jpeg',
@@ -63,7 +90,12 @@ export const Medios: CollectionConfig = {
       required: true,
       label: 'Descripción para lectores de pantalla',
       admin: {
-        description: 'Qué se ve en la imagen. Sin esto la plataforma no es accesible.',
+        // El mismo texto que la ayuda del panel (`src/admin/esquema.ts`), y
+        // nombra el vídeo porque esta colección guarda vídeo: para quien no ve
+        // la pantalla, esta frase es todo lo que hay del gesto quirúrgico que
+        // se está enseñando.
+        description:
+          'Qué se ve en la imagen, o qué gesto se hace en el video. Sin esto la plataforma no es accesible.',
       },
     },
   ],

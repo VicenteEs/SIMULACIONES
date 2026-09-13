@@ -95,9 +95,16 @@ function esMultiple(campo: Field): boolean {
  * saltaban con el resto, con la excusa de que «meterse ahí daría fallos falsos».
  * Era falso: un grupo no crea tabla, crea columnas en la tabla padre con su
  * nombre por delante —`desplazamientoInicial.x` es `desplazamiento_inicial_x` en
- * `cirugias`, `zonaMapa.alto` es `zona_mapa_alto` en `segmentos`—, así que
+ * `cirugias`, `encuadre.giroX` es `encuadre_giro_x` en `modelos_3d`—, así que
  * saltárselo dejaba pasar columnas de verdad sin su migración. El `prefijo` es
  * lo que las reconstruye.
+ *
+ * El otro ejemplo de esta lista era `zonaMapa.alto` en `segmentos`, y se cayó
+ * con el campo: el mapa corporal no se va a dibujar y la migración soltó sus
+ * cuatro columnas. Se deja dicho porque estas pruebas solo miran en una
+ * dirección —que exista la columna que la colección declara— y no ven nunca una
+ * columna que sobra, así que un campo retirado sin su `DROP COLUMN` pasa en
+ * verde y se queda en la base para siempre.
  */
 function columnasDe(campos: Field[], prefijoInicial = ''): string[] {
   const salida: string[] = []

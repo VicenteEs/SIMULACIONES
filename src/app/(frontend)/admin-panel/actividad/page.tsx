@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
-import { clientePayload } from '../datos'
+import { NOMBRE_DEL_DESENLACE } from '@/lib/progresoDelSimulador'
+import { clientePayload, resumenDeActividad } from '../datos'
 import { NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
 
 export const dynamic = 'force-dynamic'
@@ -36,30 +37,42 @@ interface PorPersona {
 }
 
 /**
- * Actividad de lectura.
+ * Actividad de lectura y recorridos del simulador.
  *
- * Responde a dos preguntas distintas y las presenta por separado, porque
+ * Responde a tres preguntas distintas y las presenta por separado, porque
  * mezclarlas no informa de nada: quién está usando la plataforma (una fila por
- * persona) y qué se está leyendo (una fila por ficha). Lo primero dice si el
- * material llega a alguien; lo segundo, qué contenido vale la pena ampliar.
+ * persona), qué se está leyendo (una fila por ficha) y dónde se atasca la gente
+ * en pabellón (una fila por paso del guion). Las dos primeras dicen si el
+ * material llega a alguien y qué contenido vale la pena ampliar; la tercera, qué
+ * gesto hay que explicar mejor.
  *
  * No es vigilancia del residente: son visitas a fichas de estudio, sin tiempos
- * ni recorridos. Sirve para decidir dónde poner el esfuerzo de redacción.
+ * ni recorridos. Sirve para decidir dónde poner el esfuerzo de redacción. Y el
+ * puntaje del simulador no es una nota —lo calcula el navegador y el servidor no
+ * lo puede recalcular—, así que se enseña dicho en la propia pantalla.
  */
 export default async function PaginaActividad() {
   await exigirPanel('admin')
 
   const payload = await clientePayload()
 
-  const { docs, totalDocs } = await payload
-    .find({
-      collection: 'actividad',
-      limit: 1000,
-      sort: '-ultimaVisita',
-      depth: 1,
-      overrideAccess: true,
-    })
-    .catch(() => ({ docs: [] as unknown[], totalDocs: 0 }))
+  // Las dos consultas van juntas y ninguna espera a la otra: la de abajo trae
+  // la tabla para las tablas de lectura y `resumenDeActividad` cuenta los
+  // recorridos del simulador, que es lo que sabe qué fila es un caso jugado.
+  const [{ docs, totalDocs }, resumen] = await Promise.all([
+    payload
+      .find({
+        collection: 'actividad',
+        limit: 1000,
+        sort: '-ultimaVisita',
+        depth: 1,
+        overrideAccess: true,
+      })
+      .catch(() => ({ docs: [] as unknown[], totalDocs: 0 })),
+    resumenDeActividad(payload),
+  ])
+  const simulador = resumen.simulador
+  const atascos = simulador.atascos.slice(0, 20)
 
   const registros: Registro[] = (docs as Record<string, unknown>[]).map((d) => {
     const usuario = d.usuario as { id?: unknown; nombre?: string; email?: string } | null
@@ -131,6 +144,16 @@ export default async function PaginaActividad() {
     porResolver.set(claveDeFicha(f.coleccion, f.documentoId), {
       coleccion: f.coleccion,
       documentoId: f.documentoId,
+    })
+  }
+  // Los casos donde alguien se atascó entran en el mismo barrido: casi siempre
+  // ya están —un caso que se juega se visita—, y el mapa los deduplica solo. Sin
+  // esto, la tabla de abajo nombraría la cirugía con el número de fila, que es
+  // justo lo que esta pantalla dejó de hacer.
+  for (const atasco of atascos) {
+    porResolver.set(claveDeFicha('cirugias', atasco.documentoId), {
+      coleccion: 'cirugias',
+      documentoId: atasco.documentoId,
     })
   }
 
@@ -215,6 +238,114 @@ export default async function PaginaActividad() {
               </tbody>
             </table>
           </div>
+
+          {/* ------------------------------------------------- simulador --
+              La mitad visible de lo que la consola guarda. Sin ella, el puntaje
+              y las complicaciones vuelven a ser tres columnas que se escriben y
+              no lee nadie, que es de donde vienen. */}
+          <h2 className="admin-section-title">Simulador quirúrgico</h2>
+
+          {simulador.ilegible ? (
+            <div className="admin-aviso admin-aviso-error">
+              <strong>No se pudieron leer los recorridos.</strong>
+              Aquí no hay un recuento, hay una consulta que falló: el fallo queda
+              en el registro del servidor.
+            </div>
+          ) : simulador.casos === 0 ? (
+            <p className="admin-subtitle">
+              Todavía nadie ha recorrido un caso del simulador. El registro
+              empieza en cuanto un residente supera el primer paso.
+            </p>
+          ) : (
+            <>
+              {/* Antes de la primera cifra, no debajo: quien mira una tabla de
+                  números la interpreta mientras la lee, y el puntaje se parece
+                  demasiado a una nota. La advertencia detrás llegaría tarde. */}
+              <div className="admin-aviso admin-aviso-atencion">
+                <strong>El puntaje no es una calificación.</strong>
+                Lo calcula la consola en el navegador del residente y el servidor
+                no puede recalcularlo sin repetir la simulación, así que un
+                residente podría escribir el suyo. Sirve para ver quién ha
+                recorrido qué y qué gesto se le atraviesa a la gente, no para
+                evaluar a nadie.
+              </div>
+
+              <p className="admin-subtitle">
+                {simulador.casos} caso{simulador.casos === 1 ? '' : 's'} recorrido
+                {simulador.casos === 1 ? '' : 's'} ·{' '}
+                {simulador.casosConComplicacion} con alguna complicación ·{' '}
+                {simulador.complicaciones} gesto
+                {simulador.complicaciones === 1 ? '' : 's'} que dañaron
+              </p>
+
+              {atascos.length === 0 ? (
+                <p className="admin-subtitle">
+                  Ningún paso ha dado complicaciones todavía.
+                </p>
+              ) : (
+                <div className="admin-table-container">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Caso</th>
+                        <th>Paso</th>
+                        <th>Qué pasó</th>
+                        <th>Veces</th>
+                        <th>Residentes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {atascos.map((atasco) => {
+                        const clave = claveDeFicha('cirugias', atasco.documentoId)
+                        const titulo = titulos.get(clave)
+                        return (
+                          <tr key={`${clave}#${atasco.paso}`}>
+                            <th scope="row" className="admin-table-user-name">
+                              {titulo ? (
+                                <Link
+                                  href={`/admin-panel/contenido/cirugias/${atasco.documentoId}`}
+                                >
+                                  {titulo}
+                                </Link>
+                              ) : (
+                                `Caso eliminado · #${atasco.documentoId}`
+                              )}
+                            </th>
+                            <td>
+                              {/* El número y el título son la copia de cómo vio
+                                  el paso quien lo jugó: el identificador deja de
+                                  encontrar nada en cuanto el guion se reordena,
+                                  y entonces esto es lo único que lo nombra. */}
+                              {atasco.numero ? `${atasco.numero}. ` : ''}
+                              {atasco.titulo ?? 'Paso sin título guardado'}
+                            </td>
+                            <td>
+                              <div className="admin-acciones">
+                                {atasco.desenlaces.length === 0 ? (
+                                  <span className="admin-numero-tenue">Sin desenlace</span>
+                                ) : (
+                                  atasco.desenlaces.map((desenlace) => (
+                                    <span
+                                      key={desenlace}
+                                      className="admin-badge admin-badge-borrador"
+                                    >
+                                      {NOMBRE_DEL_DESENLACE[desenlace]}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            </td>
+                            <td>{atasco.veces}</td>
+                            <td>{atasco.residentes}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
 
           <h2 className="admin-section-title">Fichas más leídas</h2>
           <div className="admin-table-container">

@@ -7,6 +7,8 @@ import * as migration_20260912_212708_bandeja_y_modelo_de_instrumento from './20
 import * as migration_20260913_033442_actividad_una_fila_por_ficha from './20260913_033442_actividad_una_fila_por_ficha';
 import * as migration_20260913_041920_objetivo_de_los_pasos_antiguos from './20260913_041920_objetivo_de_los_pasos_antiguos';
 import * as migration_20260913_043401_ultimo_administrador_activo from './20260913_043401_ultimo_administrador_activo';
+import * as migration_20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_mapa from './20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_mapa';
+import * as migration_20260913_134259_pose_del_bloque_hereda_del_catalogo from './20260913_134259_pose_del_bloque_hereda_del_catalogo';
 
 export const migrations = [
   {
@@ -52,6 +54,16 @@ export const migrations = [
   {
     up: migration_20260913_043401_ultimo_administrador_activo.up,
     down: migration_20260913_043401_ultimo_administrador_activo.down,
-    name: '20260913_043401_ultimo_administrador_activo'
+    name: '20260913_043401_ultimo_administrador_activo',
+  },
+  {
+    up: migration_20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_mapa.up,
+    down: migration_20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_mapa.down,
+    name: '20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_mapa',
+  },
+  {
+    up: migration_20260913_134259_pose_del_bloque_hereda_del_catalogo.up,
+    down: migration_20260913_134259_pose_del_bloque_hereda_del_catalogo.down,
+    name: '20260913_134259_pose_del_bloque_hereda_del_catalogo'
   },
 ];

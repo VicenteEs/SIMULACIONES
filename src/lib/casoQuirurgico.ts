@@ -1,5 +1,12 @@
 import type { CasoDeConsola, InstrumentoDeBandeja, PasoDeConsola } from '@/components/simulador/ConsolaQuirurgica'
 import type { PiezaDelCaso } from '@/components/simulador/LienzoQuirurgico'
+// El tipo y nada más: un `import type` se borra al compilar, así que de aquí no
+// entra una línea de código en ningún paquete. Se pide a
+// `aritmeticaDelEncuadre` y no a `@/lib/encuadre` por costumbre defendida en
+// aquel archivo —el segundo abre con `import * as THREE`—, aunque siendo solo
+// tipo daría igual: escribir la dirección buena aquí evita que el día que
+// alguien necesite además una función copie la dirección mala.
+import type { Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import type { EjeLargo } from '@/lib/reduccion'
 import { objetivoDelPaso, type Objetivo } from '@/lib/simulador'
 
@@ -177,6 +184,35 @@ function instrumentoDeBandeja(bruto: unknown): InstrumentoDeBandeja | null {
     // residente tiene en la mano.
     modeloUrl:
       modelo && typeof modelo === 'object' ? texto((modelo as Documento).url) : null,
+    // Y con la dirección, la pose que el traumatólogo capturó en la ficha de
+    // ese modelo. Aplanada por el mismo motivo: al navegador no cruza el
+    // documento del modelo, solo lo que la consola necesita de él.
+    //
+    // **Esta es la línea que cierra el cable.** `encuadreDelModelo` está
+    // declarado y leído en `ConsolaQuirurgica.tsx`, y esta función es el único
+    // sitio del repositorio donde se construye un `InstrumentoDeBandeja`: sin
+    // escribirlo aquí el campo llegaba siempre `undefined`, `encuadreVigente`
+    // devolvía `undefined` y el visor caía en `Bounds`, o sea que la pose no
+    // llegaba y no había ningún error que lo dijera. La consola quedaba
+    // «lista» y muerta, que es el patrón que más ha costado en este
+    // repositorio: tres apariciones de `encuadreDelModelo` y las tres en el
+    // lector.
+    //
+    // Aquí se pasa el grupo tal cual y **no** se decide nada: quien decide es
+    // `encuadreVigente`, en la consola. Un grupo entero a nulos —lo que
+    // `depurarCampos` deja al guardar desde el panel sin encuadrar— tiene que
+    // salir de aquí como objeto y que la regla lo traduzca a «no dice nada»;
+    // adivinarlo aquí sería la segunda copia de esa decisión.
+    //
+    // Llega poblado porque el caso se lee con `depth: 2`
+    // (`src/app/(frontend)/simulador/[id]/page.tsx`), la misma lectura que ya
+    // trae la `url` de arriba. Con `depth: 1` el modelo sería un número, esto
+    // saldría nulo y el instrumento se abriría como siempre: menos de lo que
+    // se quiere, pero no un fallo.
+    encuadreDelModelo:
+      modelo && typeof modelo === 'object'
+        ? (((modelo as Documento).encuadre as Encuadre | null | undefined) ?? null)
+        : null,
   }
 }
 

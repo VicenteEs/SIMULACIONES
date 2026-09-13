@@ -37,6 +37,12 @@ export default async function PaginaUsuarios() {
       rol: (u.rol as UsuarioDelPanel['rol']) ?? 'lector',
       activo: u.activo === true,
       institucion: (u.institucion as string) ?? '',
+      // La nota del administrador sobre la cuenta. Sin esta línea la tabla la
+      // escribe y no la lee: el modal se abre en blanco sobre una nota que sí
+      // está guardada, y quien la vea vacía la reescribe encima. Esta es la
+      // única función que arma `UsuarioDelPanel`, así que no hay otro sitio
+      // donde pueda entrar.
+      notas: (u.notas as string) ?? '',
       creado: String(u.createdAt ?? ''),
       ultimoAcceso: (u.ultimoAcceso as string) ?? null,
       modulosVisibles: Array.isArray(u.modulosVisibles) ? (u.modulosVisibles as string[]) : [],

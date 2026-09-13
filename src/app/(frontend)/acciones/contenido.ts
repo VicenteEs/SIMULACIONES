@@ -323,7 +323,24 @@ export async function duplicarDocumento(
 // ------------------------------------------------------------------ subidas
 
 /**
- * Sube un archivo a `medios` o `modelos-3d`.
+ * Sube un archivo a `medios` o `modelos-3d`. **Es la vía vieja**, y le queda un
+ * solo consumidor.
+ *
+ * La vía buena es `src/app/(frontend)/api/subidas/[coleccion]/route.ts`, y la
+ * diferencia no es de estilo: una acción de servidor recibe el cuerpo ya
+ * reunido, de modo que el archivo entero se queda en la memoria del servidor
+ * durante toda la subida, y además Next corta ese cuerpo en
+ * `serverActions.bodySizeLimit` **antes** de invocar la acción, así que lo que
+ * se pase de ahí ni siquiera llega a este `try/catch` y la pantalla se queda
+ * muda. El porqué entero, en `src/admin/subidas.ts`.
+ *
+ * Quien todavía llama aquí es `src/components/admin/formulario/Campos.tsx`,
+ * para insertar un archivo dentro de un bloque sin salir de la ficha. Mientras
+ * siga haciéndolo, `bodySizeLimit` tiene que quedar **por encima** del techo
+ * que la colección anuncia —hoy 52 MB contra 50— o esta pantalla se convierte
+ * en el eslabón corto y el corte mudo vuelve, esta vez solo en el editor de
+ * bloques. Eso está escrito también en `next.config.mjs`, que es donde se
+ * tropieza con el número.
  *
  * Llega como FormData porque un archivo no cabe en un JSON sin inflarlo un
  * tercio en base64. La validación real del contenido —que un .glb sea de
@@ -344,14 +361,13 @@ export async function subirArchivo(formulario: FormData): Promise<Respuesta<{ id
 
     // El techo, comprobado y no solo anunciado.
     //
-    // Hasta aquí el peso vivía en una frase («Máximo 7 MB») que nadie
-    // comparaba con nada: quien se pasaba no recibía este mensaje sino el corte
-    // mudo de Next, que descarta el cuerpo **antes** de invocar la acción y
-    // deja la pantalla sin una palabra. Esta comprobación no reemplaza a
-    // aquella —un archivo de 9 MB sigue sin llegar hasta aquí—, cubre la franja
-    // de en medio: lo que cabe en el cuerpo de 8 MB pero pasa del techo que la
-    // colección promete, y de paso el camino del que llame a la acción sin
-    // pasar por el panel.
+    // Hasta aquí el peso vivía en una frase que nadie comparaba con nada: quien
+    // se pasaba no recibía este mensaje sino el corte mudo de Next, que
+    // descarta el cuerpo **antes** de invocar la acción y deja la pantalla sin
+    // una palabra. La comprobación sale del mismo sitio que esa frase —el
+    // esquema del panel— y cubre lo que el corte del marco no puede cubrir: el
+    // archivo que cabe en el cuerpo pero se pasa del techo de la colección, y
+    // el camino de quien llame a esta acción sin pasar por el panel.
     if (archivo.size > subida.maximoBytes) {
       const techo = (subida.maximoBytes / 1024 / 1024).toFixed(0)
       const pesa = (archivo.size / 1024 / 1024).toFixed(1)

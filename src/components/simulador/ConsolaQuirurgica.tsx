@@ -22,12 +22,29 @@ import {
   type PasoQuirurgico,
 } from '@/lib/simulador'
 import { largoDelTrazo, medirReduccion, type EjeLargo } from '@/lib/reduccion'
+import {
+  MAXIMO_DE_COMPLICACIONES,
+  type ComplicacionDelCaso,
+  type RecorridoGuardado,
+  type ResultadoDeCirugia,
+} from '@/lib/progresoDelSimulador'
+import { registrarResultadoDeCirugia } from '@/app/(frontend)/acciones/actividad'
 import { Rico, tieneContenido } from '@/components/Rico'
 import { IconoInstrumento } from './IconoInstrumento'
 // El visor del instrumento reutiliza el de las fichas, ya partido en su propio
 // trozo de JavaScript: se descarga cuando el residente coge un instrumento que
 // tiene modelo, y no antes.
 import { Visor3D } from '@/components/VisoresPerezosos'
+// De `aritmeticaDelEncuadre` y NO de `@/lib/encuadre`, aunque el segundo
+// reexporte lo mismo y quede más uniforme: `encuadre.ts` abre con
+// `import * as THREE from 'three'` para `encuadreCapturado`, y este archivo
+// lleva `'use client'`. Un `export … from` sigue siendo una arista del grafo,
+// así que importar por allí metería three entero en el paquete que descarga el
+// residente al abrir un caso —incluido el caso sin un solo modelo— y desharía
+// las dos importaciones dinámicas de aquí arriba, que existen justo para que el
+// motor 3D viaje aparte. El porqué completo está en la cabecera de los dos
+// módulos.
+import { encuadreVigente, type Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import type { MandoDelLienzo, Modo, PiezaDelCaso } from './LienzoQuirurgico'
 
 /**
@@ -49,6 +66,14 @@ import type { MandoDelLienzo, Modo, PiezaDelCaso } from './LienzoQuirurgico'
  * en negro o un deslizador imposible de acertar pasaban la suite entera en
  * verde mientras esas reglas vivían aquí dentro. Lo que queda en este archivo
  * es estado de React y marcado.
+ *
+ * **El puntaje y las complicaciones ya no mueren con la pestaña.** Vivían aquí,
+ * en estado local, y eso tenía dos precios que se pagaban juntos: pasarse y
+ * quedarse corto acababan valiendo lo mismo —la única señal que los distinguía
+ * era una línea de un registro de diez que se perdía al recargar— y el
+ * «registro de complicaciones» que la portada promete no existía. Ahora se
+ * mandan a `actividad` (`registrarResultadoDeCirugia`) cuando cambian, y la
+ * página del caso los devuelve al abrir en `recorridoGuardado`.
  */
 
 // El motor 3D no viaja con la página: se carga cuando el residente abre un caso
@@ -81,6 +106,18 @@ export interface InstrumentoDeBandeja {
   icono?: string | null
   /** Dirección de su modelo 3D, si el catálogo le puso uno. */
   modeloUrl?: string | null
+  /**
+   * La pose que el traumatólogo dejó capturada en la ficha de ese modelo.
+   *
+   * Va aplanada, como la dirección y por lo mismo: `casoParaLaConsola`
+   * (`src/lib/casoQuirurgico.ts`) traduce el documento de Payload en el
+   * servidor y lo que cruza al navegador es plano. Aquí no se recibe el
+   * documento del modelo, solo lo que la consola necesita de él.
+   *
+   * Opcional a propósito: un instrumento que nadie encuadró no la trae, y eso
+   * significa «ábrelo como siempre, abarcándolo entero».
+   */
+  encuadreDelModelo?: Encuadre | null
   /** Para qué sirve, tal como lo escribió el traumatólogo en el catálogo. */
   descripcion?: string | null
 }
@@ -171,7 +208,24 @@ function capasEnProsa(roles: string[]): string {
   return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`
 }
 
-export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
+export function ConsolaQuirurgica({
+  caso,
+  documentoId,
+  recorridoGuardado = null,
+}: {
+  caso: CasoDeConsola
+  /**
+   * La cirugía cuyo recorrido se guarda.
+   *
+   * Obligatoria, y sin valor por omisión: es lo único que hace falta para que
+   * lo que aquí se calcula llegue a la base, y un caso que se puede montar sin
+   * ella es un caso que se recorre entero para nada. Que falte tiene que
+   * fallar al compilar y no en silencio.
+   */
+  documentoId: string
+  /** Lo que quedó del último recorrido de este residente en este caso. */
+  recorridoGuardado?: RecorridoGuardado | null
+}) {
   const mando = useRef<MandoDelLienzo | null>(null)
 
   const [indice, setIndice] = useState(0)
@@ -201,6 +255,21 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
   // único que los distinguía, se recorta a diez líneas y muere al recargar.
   const [fallados, setFallados] = useState<Set<string>>(new Set())
   const [complicados, setComplicados] = useState<Set<string>>(new Set())
+  /**
+   * Las complicaciones de **este** recorrido, en el orden en que ocurrieron.
+   *
+   * Una fila por gesto que dañó y no una por paso, a diferencia de
+   * `complicados`: aquel decide lo que se cobra y por eso es un conjunto —el
+   * segundo tropiezo del mismo paso no empeora nada (`puntosDelPaso`)—, y esta
+   * es el registro que se guarda, donde insistir tres veces en el mismo gesto
+   * son tres veces que hubo daño y eso es lo que el profesor necesita ver.
+   *
+   * Empieza vacía aunque haya recorrido guardado: `recorridoGuardado` es lo
+   * que pasó la vez anterior y se enseña aparte. Meterlo aquí lo mandaría de
+   * vuelta al servidor mezclado con lo de ahora, duplicando cada complicación
+   * en cada visita.
+   */
+  const [complicaciones, setComplicaciones] = useState<ComplicacionDelCaso[]>([])
   const [registro, setRegistro] = useState<Anotacion[]>([])
   const [resultado, setResultado] = useState<Anotacion | null>(null)
   // Se arranca con la piel y el músculo apagados, y no encendidos, por el modo
@@ -256,6 +325,86 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
     setRegistro((previo) => [{ texto, clase }, ...previo].slice(0, 10))
     setResultado({ texto, clase })
   }, [])
+
+  // ------------------------------------------------------- guardar lo hecho
+  /**
+   * Una escritura a la vez, y siempre la última.
+   *
+   * Dos gestos seguidos son dos llamadas, y la fila es una: llegan por HTTP y
+   * nada garantiza el orden, así que la del paso 3 podía aterrizar después de
+   * la del paso 4 y dejar guardado el puntaje de antes. Con esto, mientras haya
+   * una en vuelo la siguiente se queda en `porMandar` —pisando a la que hubiera
+   * esperando, que ya no interesa— y sale cuando la anterior vuelve.
+   */
+  const enVuelo = useRef(false)
+  const porMandar = useRef<ResultadoDeCirugia | null>(null)
+  /** Lo último que se llegó a mandar, para no repetir una escritura idéntica. */
+  const ultimoMandado = useRef<string | null>(null)
+
+  /**
+   * Manda el recorrido al servidor.
+   *
+   * **Cuándo se llama es la decisión, y está tomada aquí:** en cada *hito*, que
+   * es un paso superado o una complicación. No en cada gesto —eso es una
+   * escritura por clic, y pulsar «Aplicar paso» sin instrumento no cambia nada
+   * que guardar— y no solo al terminar, que pierde entero al que cierra la
+   * pestaña a mitad, que es precisamente el caso corriente en un módulo que se
+   * recorre entre dos turnos. Un caso de diez pasos son unas diez escrituras
+   * repartidas en la media hora que se tarda en recorrerlo.
+   *
+   * No se intenta nada al cerrar la pestaña: `beforeunload` no es sitio para
+   * una acción de servidor —el navegador corta la petición— y prometerlo sería
+   * peor que no tenerlo. Lo que se pierde con esta política es, como mucho, lo
+   * hecho desde el último paso superado.
+   *
+   * Se le pasan los valores en vez de leerlos del estado porque a quien llama
+   * le acaban de cambiar: `setPuntaje` no actualiza `puntaje` hasta el
+   * repintado, así que leerlo aquí guardaría siempre el del hito anterior.
+   */
+  const guardarRecorrido = useCallback(
+    (puntajeActual: number, lista: ComplicacionDelCaso[]) => {
+      const datos: ResultadoDeCirugia = {
+        puntaje: puntajeActual,
+        puntajeMaximo: maximo,
+        complicaciones: lista,
+      }
+      const huella = JSON.stringify(datos)
+      if (huella === ultimoMandado.current) return
+      ultimoMandado.current = huella
+      porMandar.current = datos
+      if (enVuelo.current) return
+      enVuelo.current = true
+
+      void (async () => {
+        try {
+          let siguiente = porMandar.current
+          while (siguiente) {
+            // Se vacía **antes** de mandar: lo que llegue mientras esta viaja
+            // tiene que quedarse esperando, no perderse.
+            porMandar.current = null
+            await registrarResultadoDeCirugia(documentoId, siguiente)
+            siguiente = porMandar.current
+          }
+        } catch (error) {
+          console.error('[consola] no se pudo guardar el recorrido:', error)
+          // Se olvida lo mandado para que el próximo hito vuelva a intentarlo
+          // con el recorrido entero; si no, una escritura fallida dejaría el
+          // resto del caso creyendo que ya está guardado.
+          ultimoMandado.current = null
+          porMandar.current = null
+          // Y se dice. El marcador de arriba seguirá subiendo, así que callar
+          // aquí es dejar al residente terminando un caso que no se guardó.
+          anotar(
+            'Su progreso no se pudo guardar en este momento. Siga con el caso: se reintenta en el paso siguiente.',
+            'aviso',
+          )
+        } finally {
+          enVuelo.current = false
+        }
+      })()
+    },
+    [documentoId, maximo, anotar],
+  )
 
   const refrescarVisibles = useCallback(
     (indicePaso: number, apagadas: Set<string>) => {
@@ -336,8 +485,29 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
       // cobrárselo sería cobrar por leer la instrucción.
       const anotarEn = (poner: typeof setFallados) =>
         poner((previos) => (previos.has(paso.id) ? previos : new Set(previos).add(paso.id)))
-      if (evaluacion.complicacion) anotarEn(setComplicados)
-      else if (evaluacion.resultado !== RESULTADOS.SIN_INSTRUMENTO) anotarEn(setFallados)
+      if (evaluacion.complicacion) {
+        anotarEn(setComplicados)
+        // La complicación es el otro hito que se guarda, y el que más importa
+        // de los dos: el puntaje se puede volver a ganar repitiendo el caso, y
+        // esto es lo que el residente repasa después y lo que el profesor mira
+        // para saber dónde se atasca su gente.
+        //
+        // Se guarda el mensaje entero de `evaluarGesto` porque es lo único que
+        // dice *cuánto* se pasó —«(24.5 mm · se esperan 8–15 mm)»—; el desenlace
+        // solo dice por dónde.
+        const nueva: ComplicacionDelCaso = {
+          paso: paso.id,
+          numero: indice + 1,
+          titulo: paso.titulo ?? null,
+          resultado: evaluacion.resultado,
+          detalle: evaluacion.mensaje,
+        }
+        // Por el final: si alguna vez se llega al tope, lo que hace falta
+        // conservar es lo último que pasó, no lo primero.
+        const nuevas = [...complicaciones, nueva].slice(-MAXIMO_DE_COMPLICACIONES)
+        setComplicaciones(nuevas)
+        guardarRecorrido(puntaje, nuevas)
+      } else if (evaluacion.resultado !== RESULTADOS.SIN_INSTRUMENTO) anotarEn(setFallados)
       return
     }
 
@@ -351,10 +521,19 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
       fallo: fallados.has(paso.id),
       complicacion: complicados.has(paso.id),
     })
+    let puntajeTrasElPaso = puntaje
     if (!resueltos.has(paso.id)) {
-      setPuntaje((n) => n + puntos)
+      puntajeTrasElPaso = puntaje + puntos
+      setPuntaje(puntajeTrasElPaso)
       setResueltos((previos) => new Set(previos).add(paso.id))
     }
+    // El otro hito: un paso superado. Se guarda también cuando el paso no
+    // sumó nada —tras una complicación vale cero (`puntosDelPaso`)— porque el
+    // recorrido avanzó igual; lo que evita la escritura de más es
+    // `guardarRecorrido`, que descarta la que sería idéntica a la anterior.
+    // Terminar el caso no necesita nada aparte: el último paso es un hito como
+    // los demás y deja guardado el marcador final.
+    guardarRecorrido(puntajeTrasElPaso, complicaciones)
 
     const siguiente = indice + 1
     setIndice(siguiente)
@@ -395,6 +574,13 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
     setResueltos(new Set())
     setFallados(new Set())
     setComplicados(new Set())
+    // Lo guardado **no** se borra aquí, y es a propósito: este botón está a
+    // ocho píxeles del marcador y se pulsa sin querer. Vaciar la fila dejaría
+    // al residente sin el registro de complicaciones del recorrido que acaba de
+    // hacer, que es justo lo que iba a repasar, y esta vez sin vuelta atrás. Lo
+    // sustituye el primer hito del recorrido nuevo: la lista que se manda es la
+    // entera y reemplaza a la anterior.
+    setComplicaciones([])
     setRegistro([])
     setResultado(null)
     mando.current?.borrarTrazo()
@@ -511,17 +697,23 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
   // conjuntos: se cuentan los pasos, no los tropiezos, o el resumen diría que
   // hubo que repetir más pasos de los que tiene el caso.
   const pasosConTropiezo = new Set([...fallados, ...complicados]).size
-  const complicaciones = complicados.size
+  // Cuenta **pasos** con complicación, que no es la lista `complicaciones` del
+  // estado: aquella tiene una fila por gesto que dañó y se guarda, esta es el
+  // tamaño de un conjunto de identificadores de paso. Y por eso no puede
+  // llamarse igual: en el ámbito de esta función ya vive el estado con ese
+  // nombre, y repetirlo no era un roce de estilo —`tsc` daba TS2451 en las dos
+  // declaraciones y Turbopack se negaba a compilar el archivo entero—.
+  const pasosConComplicacion = complicados.size
   const resumenDelCaso =
     pasosConTropiezo === 0
       ? 'Todos los pasos a la primera.'
       : `Hubo que repetir ${pasosConTropiezo} ${
           pasosConTropiezo === 1 ? 'paso' : 'pasos'
         } de ${caso.pasos.length}${
-          complicaciones > 0
-            ? complicaciones === 1
+          pasosConComplicacion > 0
+            ? pasosConComplicacion === 1
               ? ', y uno de ellos terminó en complicación, que no puntúa'
-              : `, y ${complicaciones} de ellos terminaron en complicación, que no puntúan`
+              : `, y ${pasosConComplicacion} de ellos terminaron en complicación, que no puntúan`
             : ''
         }; las correcciones están en la retroalimentación clínica, debajo.`
 
@@ -580,6 +772,21 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
         <div className="consola-puntaje">
           <span className="consola-puntaje-numero">{puntaje}</span>
           <span className="consola-puntaje-total">/ {maximo}</span>
+          {/* Lo que quedó de la vez anterior, en el sitio donde el residente
+              mira al llegar. El marcador grande cuenta el recorrido de ahora y
+              arranca en cero a propósito: lo guardado es un estado —el último
+              recorrido—, no un punto de guardado, así que no se sabe qué pasos
+              tenía resueltos. Sumarlo al marcador y dejarle repetir el caso le
+              cobraría los mismos pasos dos veces, y el número subiría solo con
+              recargar. El detalle está abajo, en «Su recorrido anterior». */}
+          {recorridoGuardado ? (
+            <span className="consola-puntaje-total">
+              · anterior {recorridoGuardado.puntaje}
+              {recorridoGuardado.puntajeMaximo !== null
+                ? ` de ${recorridoGuardado.puntajeMaximo}`
+                : ''}
+            </span>
+          ) : null}
           <button type="button" className="consola-boton" onClick={reiniciar}>
             Reiniciar caso
           </button>
@@ -753,6 +960,22 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
                 <Visor3D
                   key={instrumentoElegido.modeloUrl}
                   url={instrumentoElegido.modeloUrl}
+                  // El instrumento no tiene encuadre propio que ofrecer —lo que
+                  // el caso declara es a qué instrumento apunta cada paso, no
+                  // cómo mirarlo—, así que el primer argumento va vacío
+                  // siempre y manda el del catálogo. Se llama a la regla en vez
+                  // de pasar el encuadre a pelo por su tercera rama: un grupo
+                  // entero a nulos tiene que salir como `undefined` para que el
+                  // visor vuelva a abarcar la pieza él solo, y pasándolo a pelo
+                  // el objeto de nulos es verdadero y la cámara se planta a la
+                  // distancia por omisión sobre una placa de 100 mm.
+                  //
+                  // Y aquí importa más que en una ficha: la bandeja enseña un
+                  // instrumento cada vez, en un recuadro pequeño y de lado, así
+                  // que un taladro que abre torcido o diminuto no se corrige
+                  // girándolo —el residente está en mitad de un paso—, se deja
+                  // por imposible.
+                  encuadre={encuadreVigente(undefined, instrumentoElegido.encuadreDelModelo)}
                   nombre={instrumentoElegido.nombre}
                 />
               ) : null}
@@ -777,6 +1000,14 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
                   (`puntosDelPaso`), y decir «hubo que repetir 3 pasos» sin
                   distinguirlas volvería a igualar lo que este cambio separa. */}
               <p>{resumenDelCaso}</p>
+              {/* Que quede dicho, y aquí: es el único momento en el que el
+                  residente decide si repetir el caso, y saber que lo que hizo
+                  no se pierde es lo que separa «repetir para mejorar» de
+                  «repetir porque si no, no queda nada». */}
+              <p>
+                Su puntaje y sus complicaciones quedan guardados: los encontrará
+                al volver a este caso y en su portada.
+              </p>
               <button
                 type="button"
                 className="consola-boton consola-boton-ancho"
@@ -954,6 +1185,45 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
             </ul>
           )}
         </section>
+
+        {/* Lo guardado de la vez anterior, entero y sin recortar a diez líneas.
+            Es la mitad que faltaba: hasta hoy la corrección que el residente
+            recibía por un gesto que dañó se iba con la pestaña, de modo que el
+            único sitio donde la complicación sobrevivía al paso era el resumen
+            de «Caso terminado», y solo hasta recargar. */}
+        {recorridoGuardado ? (
+          <section>
+            <h3 className="consola-subtitulo">Su recorrido anterior</h3>
+            <p className="consola-instruccion">
+              {recorridoGuardado.puntaje}
+              {recorridoGuardado.puntajeMaximo !== null
+                ? ` de ${recorridoGuardado.puntajeMaximo}`
+                : ''}{' '}
+              {recorridoGuardado.puntaje === 1 ? 'punto' : 'puntos'} ·{' '}
+              {recorridoGuardado.complicaciones.length === 0
+                ? 'ninguna complicación'
+                : `${recorridoGuardado.complicaciones.length} ${
+                    recorridoGuardado.complicaciones.length === 1
+                      ? 'complicación'
+                      : 'complicaciones'
+                  }`}
+              . Es lo último que quedó guardado de este caso; el marcador de
+              arriba cuenta el recorrido de ahora.
+            </p>
+            {recorridoGuardado.complicaciones.length > 0 ? (
+              <ul className="consola-registro">
+                {recorridoGuardado.complicaciones.map((complicacion, i) => (
+                  <li key={`${complicacion.paso}-${i}`} className="grave">
+                    {complicacion.numero ? `${complicacion.numero}. ` : ''}
+                    {complicacion.detalle ??
+                      complicacion.titulo ??
+                      'Complicación sin detalle guardado.'}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        ) : null}
       </div>
     </section>
   )

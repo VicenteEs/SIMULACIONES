@@ -143,6 +143,30 @@ export type Campo =
        * Hoy solo hay uno, `encuadre3d`: el visor con el que el traumatólogo
        * deja el modelo como quiere y captura el encuadre. Sin él, ese grupo son
        * cinco casillas numéricas que nadie sabe con qué rellenar.
+       *
+       * Lo piden dos sitios, y no miran al mismo modelo: el bloque «Modelo 3D»
+       * de una ficha (`src/admin/bloques.ts`), que lo elige en el campo hermano
+       * `modelo`, y el encuadre inicial de la propia colección `modelos-3d`, que
+       * es el archivo del documento que se está editando.
+       *
+       * Los dos los resuelve `modeloParaEncuadrar` (`formulario/Campos.tsx`), y
+       * en ese orden: primero el hermano, después el documento. Declarar el
+       * editor no bastaba, y conviene saber por qué antes de declararlo en un
+       * tercer sitio: el primer camino busca la dirección con
+       * `opcionDeRelacion(relaciones, 'modelos-3d', hermanos?.modelo)`, y en el
+       * formulario de un modelo no hay ningún hermano `modelo` —el modelo ES el
+       * documento— ni se precarga esa relación, porque
+       * `coleccionesRelacionadasDe` no encuentra aquí ningún campo que apunte a
+       * `modelos-3d`. Así que `url` llegaba nula y `EditorDeEncuadre` salía por
+       * su rama temprana —«Elija primero un modelo arriba»— debajo de una ayuda
+       * que manda a pulsar «Capturar encuadre»: la misma forma exacta de la
+       * regresión de D-038 que cuenta `src/admin/bloques.ts`. El respaldo se
+       * apoya en que el documento de una colección de subida ya trae `url` y
+       * `nombre` entre los hermanos desde que la pantalla abre, y el orden no se
+       * puede invertir: al revés, un formulario de subida que algún día llevara
+       * un bloque con modelo enseñaría su propio archivo en vez del elegido. Lo
+       * ata `tests/unit/encuadreDelModelo.test.ts`, porque un editor que no se
+       * dibuja no rompe ninguna compilación.
        */
       editor?: 'encuadre3d'
     })
@@ -204,11 +228,15 @@ export interface EsquemaDeColeccion {
    * formulario vacío.
    *
    * `maximoBytes` es el mismo techo que anuncia `ayuda`, pero en cifra. La
-   * frase la lee el traumatólogo; la cifra la comprueba `subirArchivo` antes de
-   * entregarle el archivo a Payload. Iban solo en prosa, y por eso el panel
-   * pudo prometer 50 MB mientras Next cortaba el cuerpo en 8 sin decir nada:
-   * una frase no la puede comprobar nadie. Escritos juntos, separarlos exige
-   * verlos a la vez.
+   * frase la lee el traumatólogo; la cifra la comprueban el navegador antes de
+   * que el archivo viaje y la ruta de subida mientras lo recibe. Iban solo en
+   * prosa, y por eso el panel pudo prometer 50 MB mientras Next cortaba el
+   * cuerpo en 8 sin decir nada: una frase no la puede comprobar nadie.
+   * Escritos juntos, separarlos exige verlos a la vez.
+   *
+   * Ninguna de las dos colecciones escribe aquí su número: los dos salen de
+   * `TECHO_DE_MEDIOS_BYTES` y `TECHO_DE_MODELOS_3D_BYTES`, aquí abajo, que es
+   * donde están declarados juntos con el porqué de que sean dos.
    */
   subida?: { acepta: string; ayuda: string; maximoBytes: number }
 }
@@ -807,12 +835,14 @@ export const Segmentos: EsquemaDeColeccion = {
   plural: 'Segmentos anatómicos',
   genero: 'm',
   titulo: 'nombre',
-  // Decía «y el mapa corporal del examen físico». No hay tal mapa: `zonaMapa`
-  // se guarda desde la primera migración y no lo lee ninguna página, y
+  // Decía «y el mapa corporal del examen físico», y no había tal mapa:
   // `examen-fisico/page.tsx` agrupa por segmento en secciones con su título,
-  // sin silueta ninguna. La colección ya lo corrigió en su propio texto
-  // (`src/collections/Segmentos.ts`), pero ese texto no lo pinta nadie desde
-  // que se retiró la interfaz de Payload (D-038): el que se lee es este.
+  // sin silueta ninguna. Este texto es el único que se lee desde que se retiró
+  // la interfaz de Payload (D-038), así que aquí es donde importaba corregirlo.
+  // El grupo `zonaMapa`, que reservaba las cuatro coordenadas de ese mapa,
+  // tenía debajo su propia sección con la advertencia de que no dibujaba nada;
+  // se fue entera con el campo cuando el traumatólogo decidió que el mapa no se
+  // va a dibujar (ver `src/collections/Segmentos.ts`).
   descripcion: 'Ordenan la biblioteca y agrupan las maniobras del examen físico.',
   versionada: false,
   familia: 'apoyo',
@@ -830,33 +860,80 @@ export const Segmentos: EsquemaDeColeccion = {
         { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden de aparición', medio: true },
       ],
     },
-    {
-      titulo: 'Zona en el mapa corporal',
-      // La sección se queda, con su promesa retirada. Las cuatro columnas
-      // existen desde la migración inicial y soltarlas cuesta otra migración,
-      // así que quitarlas de aquí dejaría un campo de la colección sin ninguna
-      // pantalla desde la que tocarlo —justo lo que vigila
-      // `tests/unit/esquema.test.ts`—. Lo que sí se retira es la frase que
-      // anunciaba un mapa que no existe: el traumatólogo rellenaba cuatro
-      // casillas creyendo que dibujaba algo.
-      descripcion:
-        'Reservado para el mapa corporal: todavía no se dibuja en ninguna página, así que rellenarlo no cambia nada de lo que ve el residente.',
-      campos: [
-        {
-          tipo: 'grupo',
-          nombre: 'zonaMapa',
-          etiqueta: 'Recuadro',
-          campos: [
-            { tipo: 'numero', nombre: 'x', etiqueta: 'X', medio: true },
-            { tipo: 'numero', nombre: 'y', etiqueta: 'Y', medio: true },
-            { tipo: 'numero', nombre: 'ancho', etiqueta: 'Ancho', medio: true },
-            { tipo: 'numero', nombre: 'alto', etiqueta: 'Alto', medio: true },
-          ],
-        },
-      ],
-    },
   ],
 }
+
+// ------------------------------------------------------- los techos de subida
+
+/**
+ * Cuánto puede pesar lo que se sube. Son dos cifras, y están juntas a
+ * propósito.
+ *
+ * Son dos porque miden cosas distintas, no porque nadie se pusiera de acuerdo:
+ *
+ *  - `medios` guarda el vídeo de un quirófano, que son 20 MB para arriba. Ese
+ *    peso no lo paga el residente al abrir la ficha: el navegador pide el vídeo
+ *    por tramos y Payload responde `Range` sirviéndolo en flujo
+ *    (`uploads/endpoints/getFile.js`), así que un archivo grande se empieza a
+ *    ver antes de haberse descargado entero.
+ *  - `modelos-3d` guarda un `.glb` que el visor tiene que cargar **entero** en
+ *    la memoria del navegador antes de pintar el primer triángulo. Ahí los
+ *    5 MB no son tacañería: por encima, la consola deja de abrirse en el equipo
+ *    de un residente (O-008). Ese techo NO sube con el otro, y ese es
+ *    justamente el motivo de escribirlos en la misma pantalla: separados en dos
+ *    archivos, el día que alguien suba el de los vídeos se lleva por delante el
+ *    de los modelos «ya que estamos».
+ *
+ * De `TECHO_DE_MEDIOS_BYTES` salen los cuatro números de la plataforma que
+ * tienen que decir lo mismo, y por eso vive aquí y no en cada archivo:
+ *
+ *   1. La frase que el traumatólogo lee antes de elegir el archivo (`ayuda`).
+ *   2. Lo que comprueba el navegador antes de que el archivo viaje
+ *      (`TablaDocumentos.tsx` y `formulario/Campos.tsx`, los dos por
+ *      `subida.maximoBytes`).
+ *   3. Lo que comprueba el servidor mientras recibe el flujo
+ *      (`src/app/(frontend)/api/subidas/[coleccion]/route.ts`).
+ *   4. `upload.limits` de Payload (`src/payload.config.ts`), que toma **el
+ *      mayor** de los dos porque es uno solo para todas las colecciones.
+ *
+ * Y hay dos más que no pueden vivir aquí —no son de este lenguaje ni, uno de
+ * ellos, de este repositorio— pero forman la misma cadena y se rompen igual:
+ *
+ *   5. `serverActions.bodySizeLimit` en `next.config.mjs`: 52 MB. Es el techo
+ *      de la vía **vieja**, la acción de servidor `subirArchivo`, que
+ *      `formulario/Campos.tsx` todavía usa para insertar un vídeo dentro de un
+ *      bloque. Va por encima de estos 50 para que esa vía no se convierta en el
+ *      eslabón corto: Next descarta el cuerpo **antes** de invocar la acción,
+ *      así que ahí no hay `try/catch` que valga y la pantalla se queda muda.
+ *   6. `client_max_body_size` del nginx por el que entra el otro despliegue:
+ *      64 MB (`despliegue/paginas/LEEME.md`).
+ *
+ * La cadena tiene que crecer hacia fuera —50 ≤ 52 ≤ 64— para que quien corte
+ * sea siempre la plataforma, que sabe decir en español qué pasó y cuánto pesaba.
+ * Un proxy que corta antes devuelve un 413 sin una palabra dentro. Lo vigila
+ * `tests/unit/subidaDeVideo.test.ts`, que abre los tres archivos —este,
+ * `next.config.mjs` y el LEEME del despliegue— y compara las cifras.
+ *
+ * 50 MB y no 64: el techo de la aplicación se queda **por debajo** del proxy en
+ * lugar de empujarlo. Ese nginx vive en otra máquina, en un archivo que este
+ * repositorio no versiona
+ * (`nginx-proxy-manager/data/nginx/custom/server_proxy.conf`), y subir aquí un
+ * número que allá hay que ir a poner a mano es exactamente cómo se fabrican dos
+ * cifras que no se hablan. Si algún día hicieran falta más de 64 MB, el orden
+ * es al revés: primero el proxy, después esto.
+ */
+export const TECHO_DE_MEDIOS_BYTES = 50 * 1024 * 1024
+
+/**
+ * El techo de los modelos 3D, que no se mueve con el otro.
+ *
+ * El mismo número que `LIMITE_BYTES_MODELO_3D` en
+ * `src/uploads/validarModelo3D.ts`, que es quien lo hace cumplir mirando la
+ * firma del archivo. No se importa de allá para no arrastrar un módulo de
+ * servidor al paquete del navegador —este esquema lo carga el formulario—; los
+ * ata `tests/unit/esquema.test.ts`, que falla si se separan.
+ */
+export const TECHO_DE_MODELOS_3D_BYTES = 5 * 1024 * 1024
 
 export const Medios: EsquemaDeColeccion = {
   slug: 'medios',
@@ -875,17 +952,20 @@ export const Medios: EsquemaDeColeccion = {
     { nombre: 'updatedAt', etiqueta: 'Subido', formato: 'fecha' },
   ],
   subida: {
+    // MP4 y WEBM, y no lo que salga de la cámara. Un `.mov` de iPhone o de una
+    // torre de laparoscopia no se reproduce en `<video>` fuera de Safari, así
+    // que admitirlo aquí sería dejar subir un archivo que el residente ve como
+    // un recuadro negro. Se convierte antes de subirlo, y de eso avisa la ayuda
+    // nombrando los dos formatos que sí se ven en todas partes.
     acepta: 'image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm',
-    // Decía 50 MB, que es el techo de `upload.limits` en `payload.config.ts`, y
-    // ese nunca se llega a ejercer: la subida va por acción de servidor y Next
-    // corta el cuerpo en los 8 MB de `serverActions.bodySizeLimit`
-    // (`next.config.mjs`). Un vídeo de 14 MB —el caso corriente del módulo 02—
-    // se rechazaba en el marco, sin mensaje, seis veces por debajo del número
-    // que el panel prometía. Se anuncian 7 MB y no 8 porque el cuerpo lleva
-    // además el formulario y su codificación. Los dos números se deciden
-    // juntos: cambiar uno sin el otro los vuelve a separar.
-    ayuda: 'Imagen (PNG, JPG, WEBP, SVG) o video (MP4, WEBM). Máximo 7 MB.',
-    maximoBytes: 7 * 1024 * 1024,
+    // El techo dicho en prosa, y el aviso de que la subida tarda. Esa segunda
+    // frase no es adorno: hasta que hubo barra de progreso, un vídeo de 40 MB
+    // por un túnel doméstico dejaba el botón en «Subiendo…» durante minutos sin
+    // una sola señal de que algo avanzara, y lo que hace cualquiera entonces es
+    // volver a pulsar o cerrar la pestaña.
+    ayuda:
+      'Imagen (PNG, JPG, WEBP, SVG) o video (MP4, WEBM). Máximo 50 MB. Un video tarda: la barra de abajo dice cuánto lleva subido.',
+    maximoBytes: TECHO_DE_MEDIOS_BYTES,
   },
   secciones: [
     {
@@ -896,7 +976,13 @@ export const Medios: EsquemaDeColeccion = {
           nombre: 'alt',
           etiqueta: 'Descripción para lectores de pantalla',
           requerido: true,
-          ayuda: 'Qué se ve en la imagen. Sin esto la plataforma no es accesible.',
+          // Decía solo «Qué se ve en la imagen», y esta colección guarda
+          // también vídeo: quien subía uno de quirófano leía una instrucción
+          // que no hablaba de lo suyo y escribía el nombre del archivo. El
+          // texto alternativo de un vídeo es lo único que oye quien no ve la
+          // pantalla, así que tiene que decir qué se hace en él.
+          ayuda:
+            'Qué se ve en la imagen, o qué gesto se hace en el video. Sin esto la plataforma no es accesible.',
         },
       ],
     },
@@ -932,12 +1018,10 @@ export const Modelos3D: EsquemaDeColeccion = {
     // `src/uploads/validarModelo3D.ts`, que es quien rechaza.
     ayuda:
       'Archivo .glb de hasta 5 MB. En Blender, «glTF Binary (.glb)»: las otras dos opciones dejan un .bin y las texturas en archivos aparte, y aquí se guarda uno solo. Se comprueba el contenido, no la extensión.',
-    // El mismo número que `LIMITE_BYTES_MODELO_3D` en
-    // `src/uploads/validarModelo3D.ts`, que es quien lo hace cumplir por
-    // firma. No se importa de allá para no arrastrar un módulo de servidor al
-    // paquete del navegador —este esquema lo importa el formulario—; los ata
-    // `tests/unit/esquema.test.ts`, que falla si se separan.
-    maximoBytes: 5 * 1024 * 1024,
+    // Cinco megas, y siguen siendo cinco después de que los de `medios` hayan
+    // pasado a cincuenta. El porqué está arriba, junto al otro techo y no aquí,
+    // para que quien vaya a mover uno vea el otro en la misma pantalla.
+    maximoBytes: TECHO_DE_MODELOS_3D_BYTES,
   },
   secciones: [
     {
@@ -971,6 +1055,70 @@ export const Modelos3D: EsquemaDeColeccion = {
             'Los metadatos DICOM guardan nombre, identificador y fecha de nacimiento aunque la imagen se vea anónima.',
         },
         { tipo: 'area', nombre: 'notas', etiqueta: 'Notas del procesamiento' },
+      ],
+    },
+    {
+      titulo: 'Encuadre inicial',
+      // La sección va aparte y no debajo de las notas porque lleva un visor
+      // dentro: mezclarla con los datos de la malla deja el lienzo en medio de
+      // un formulario de cuatro casillas.
+      //
+      // La descripción dice lo que significa dejarlo vacío, y esa frase es la
+      // mitad del campo: vacío no es «sin rellenar», es «que lo encuadre el
+      // visor», que es lo que la plataforma ha hecho siempre. Sin decirlo, el
+      // traumatólogo capturaría un encuadre en todos los modelos por si acaso,
+      // y los que vienen en milímetros se abrirían peor que antes.
+      descripcion:
+        'Con qué ángulo abre este modelo el residente. Déjelo vacío y lo encuadra el visor: mide la pieza y la enseña entera.',
+      campos: [
+        {
+          tipo: 'grupo',
+          nombre: 'encuadre',
+          etiqueta: 'Encuadre',
+          editor: 'encuadre3d',
+          // La ayuda nombra el botón y además dice que los números se pueden
+          // escribir. Esa segunda frase ya no es lo que salva la pantalla
+          // estrecha, y quien la cambie tiene que saberlo: viaja DENTRO del
+          // envoltorio que `Campos.tsx` esconde por debajo de 640 px —encuadrar
+          // con el dedo no sale—, así que en la tableta no se lee, y allí lo
+          // dice el aviso propio que queda en su sitio. Se queda porque en
+          // pantalla ancha el visor invita a creer que es la única vía: los
+          // cinco números son editables igual, y corregir un grado a mano es
+          // más fino que volver a arrastrar el modelo entero.
+          ayuda:
+            'Gire el modelo hasta dejarlo como quiere que se abra y pulse «Capturar encuadre»: los cinco números se rellenan solos. También se pueden escribir a mano.',
+          campos: [
+            // Los topes son los mismos que declara la colección, y tienen que
+            // serlo: `depurarCampo` recorta contra estos antes de guardar, así
+            // que si aquí fueran más anchos el panel dejaría escribir un número
+            // que Payload rechaza después, con el mensaje en inglés.
+            //
+            // Y si fueran más estrechos, peor todavía, porque ese recorte es
+            // mudo: con `min: 0.01` —que es lo que hubo aquí— «Ajustar al
+            // modelo» capturaba la escala 0,004 de un fémur en milímetros, se
+            // guardaba 0,01 y el hueso se abría cinco veces más grande de lo
+            // que se veía al pulsar. El porqué entero, en `src/lib/encuadre.ts`
+            // y en el campo de `src/collections/Modelos3D.ts`.
+            {
+              tipo: 'numero',
+              nombre: 'escala',
+              etiqueta: 'Escala',
+              min: 0.0001,
+              max: 100,
+              medio: true,
+            },
+            {
+              tipo: 'numero',
+              nombre: 'distanciaCamara',
+              etiqueta: 'Distancia de cámara',
+              min: 0.1,
+              medio: true,
+            },
+            { tipo: 'numero', nombre: 'giroX', etiqueta: 'Giro X (grados)', medio: true },
+            { tipo: 'numero', nombre: 'giroY', etiqueta: 'Giro Y (grados)', medio: true },
+            { tipo: 'numero', nombre: 'giroZ', etiqueta: 'Giro Z (grados)', medio: true },
+          ],
+        },
       ],
     },
   ],

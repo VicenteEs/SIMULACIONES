@@ -51,15 +51,13 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
   // pendiente: lo que no podía seguir es que tres módulos de cinco no tuvieran
   // forma de marcarse.
   //
-  // Quedan cuatro de los cinco. El examen físico sigue fuera y no por olvido:
-  // no tiene página por documento —`admin-panel/modulos.ts` lo deja escrito y
-  // por eso `rutaPublica` compone `/examen-fisico#maniobra-<id>`—, las
-  // maniobras se pintan todas juntas en el listado. Mientras siga así, sus
-  // fichas cuentan en `totalFichas` (`page.tsx`, `MODULOS`) y nunca en
-  // `leidas`, de modo que «por leer» tiene un suelo igual al número de
-  // maniobras publicadas y no llega a cero. Cerrarlo pide una de dos cosas, y
-  // ninguna es de este lote: una ficha por maniobra, o un rastreador por
-  // `<article id="maniobra-…">` en el listado.
+  // Ya son los cinco. El examen físico era la excepción mientras no tuvo
+  // página por documento —sus maniobras se pintan todas juntas en el listado,
+  // y por eso `rutaPublica` compone `/examen-fisico#maniobra-<id>`—, y eso
+  // dejaba «por leer» con un suelo igual al número de maniobras publicadas.
+  // Se cerró por la segunda de las dos salidas posibles: un rastreador por
+  // `<article id="maniobra-…">` dentro del listado, en vez de inventar una
+  // ficha por maniobra que nadie había pedido.
   //
   // El `.catch` está porque la actividad es una comodidad y el estudio es el
   // contenido: una avería en esa tabla no puede llevarse por delante la página

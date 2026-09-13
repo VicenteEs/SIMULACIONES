@@ -1,28 +1,51 @@
 import * as THREE from 'three'
 
+import { redondear, type Encuadre } from './aritmeticaDelEncuadre'
+
 /**
- * La aritmética del encuadre de un modelo 3D.
+ * La captura del encuadre de un modelo 3D, y la puerta de siempre al resto.
  *
  * Está aparte del visor porque es la parte que puede estar mal sin que se note:
  * un signo cambiado da un encuadre que parece razonable en el editor y enseña
  * el hueso del revés cuando el residente abre la ficha. Aquí se puede probar
  * sin navegador y sin lienzo.
+ *
+ * Lo que queda en este archivo es `encuadreCapturado`, que es **la única**
+ * función del encuadre que necesita `three`. La forma de la pose, la pregunta
+ * `tieneEncuadre`, la regla `encuadreVigente` y el encuadre automático se
+ * mudaron a `./aritmeticaDelEncuadre`, y desde aquí se reexportan: quien ya
+ * importaba de `@/lib/encuadre` —`Visor3D.tsx`, `Bloques.tsx`,
+ * `tecnica-ao/[id]/page.tsx` y las pruebas— sigue igual y no tuvo que
+ * cambiarse una línea.
+ *
+ * La mudanza no fue de orden. Este `import * as THREE` entra en el paquete de
+ * quien importe **este** archivo, y desde que la regla la lee también un
+ * componente de cliente —`ConsolaQuirurgica.tsx`— eso habría metido three
+ * entero en lo que descarga el residente al abrir un caso del simulador,
+ * incluido el caso sin un solo modelo, deshaciendo las importaciones dinámicas
+ * con las que el motor 3D viaja aparte. La consola importa de
+ * `./aritmeticaDelEncuadre`, que no sabe de three; los tres de servidor siguen
+ * entrando por aquí, donde el peso no sale del paquete del servidor.
+ *
+ * Y la reexportación de aquí abajo no vale para librarse de three: un `export
+ * … from` sigue siendo una arista del grafo, y sin `sideEffects: false` en el
+ * `package.json` el empaquetador da por hecho que el módulo tiene efectos y lo
+ * incluye entero. O sea, importar `encuadreVigente` desde `@/lib/encuadre` trae
+ * three aunque `encuadreCapturado` no se use. Por eso la consola nombra el otro
+ * archivo y no este, y por eso cambiarle la importación «para que quede
+ * uniforme» le devolvería el megabyte sin ningún aviso.
  */
 
-export interface Encuadre {
-  escala?: number
-  giroX?: number
-  giroY?: number
-  giroZ?: number
-  distanciaCamara?: number
-}
-
-/** Ángulo de visión de la cámara, en grados. Lo comparten visor y cálculos. */
-export const CAMPO_DE_VISION = 45
+export type { Encuadre }
+export {
+  CAMPO_DE_VISION,
+  encuadreQueLoAbarca,
+  encuadreVigente,
+  tieneEncuadre,
+} from './aritmeticaDelEncuadre'
 
 const EJE_Z = new THREE.Vector3(0, 0, 1)
 const aGrados = (radianes: number) => Math.round((radianes * 180) / Math.PI)
-const redondear = (n: number) => Math.round(n * 100) / 100
 
 /**
  * El encuadre que reproduce, desde la cámara frontal, lo que se ve ahora.
@@ -61,28 +84,5 @@ export function encuadreCapturado({
     giroY: aGrados(euler.y),
     giroZ: aGrados(euler.z),
     distanciaCamara: redondear(posicionCamara.distanceTo(objetivo)),
-  }
-}
-
-/**
- * Escala y distancia con las que un modelo se ve entero, venga en la unidad que
- * venga.
- *
- * Una malla salida de una segmentación puede estar en milímetros y otra en
- * metros: sin esto, la mitad de los modelos aparecen como un punto y la otra
- * mitad llenan la pantalla desde dentro. Se lleva el radio a uno y se pone la
- * cámara a la distancia justa para que una esfera de radio uno quepa en el
- * ángulo de visión, con un margen para no rozar los bordes.
- */
-export function encuadreQueLoAbarca(radio: number): Pick<Encuadre, 'escala' | 'distanciaCamara'> | null {
-  if (!Number.isFinite(radio) || radio <= 0) return null
-  const distancia = (1 / Math.sin((CAMPO_DE_VISION * Math.PI) / 360)) * 1.15
-  return {
-    // La escala se redondea a cifras significativas y no a decimales. Un
-    // modelo en milímetros necesita una escala de 0,002, y redondeado a dos
-    // decimales eso es cero: el modelo desaparecía, y el botón que existe
-    // precisamente para hacerlo visible lo hacía invisible.
-    escala: Number((1 / radio).toPrecision(4)),
-    distanciaCamara: redondear(distancia),
   }
 }

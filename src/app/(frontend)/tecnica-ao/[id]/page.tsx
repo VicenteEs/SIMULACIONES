@@ -5,6 +5,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { SinAcceso, Miga, Vacio } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { Visor3D } from '@/components/VisoresPerezosos'
+import { encuadreVigente, type Encuadre } from '@/lib/encuadre'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import { Rico } from '@/components/Rico'
 import { RastreadorActividad } from '@/components/RastreadorActividad'
@@ -48,15 +49,13 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
   // anotado como pendiente; lo que no podía seguir es que tres módulos de cinco
   // no tuvieran forma de marcarse.
   //
-  // Quedan cuatro de los cinco. El examen físico sigue fuera y no por olvido:
-  // no tiene página por documento —`admin-panel/modulos.ts` lo deja escrito y
-  // por eso `rutaPublica` compone `/examen-fisico#maniobra-<id>`—, las
-  // maniobras se pintan todas juntas en el listado. Mientras siga así, sus
-  // fichas cuentan en `totalFichas` (`page.tsx`, `MODULOS`) y nunca en
-  // `leidas`, de modo que «por leer» tiene un suelo igual al número de
-  // maniobras publicadas y no llega a cero. Cerrarlo pide una de dos cosas, y
-  // ninguna es de este lote: una ficha por maniobra, o un rastreador por
-  // `<article id="maniobra-…">` en el listado.
+  // Ya son los cinco. El examen físico era la excepción mientras no tuvo
+  // página por documento —sus maniobras se pintan todas juntas en el listado,
+  // y por eso `rutaPublica` compone `/examen-fisico#maniobra-<id>`—, y eso
+  // dejaba «por leer» con un suelo igual al número de maniobras publicadas.
+  // Se cerró por la segunda de las dos salidas posibles: un rastreador por
+  // `<article id="maniobra-…">` dentro del listado, en vez de inventar una
+  // ficha por maniobra que nadie había pedido.
   //
   // El `.catch` está porque la actividad es una comodidad y el caso es el
   // contenido: una avería en esa tabla no puede llevarse por delante la página
@@ -108,7 +107,31 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
       ) : (
         <ol className="pasos-ao">
           {pasos.map((p, i) => {
-            const modelo = p.modelo as { url?: string; nombre?: string } | undefined
+            // El `encuadre` del modelo llega poblado porque el caso se lee con
+            // `depth: 2`: el paso es una fila del arreglo `pasos` y su
+            // relación `modelo` se puebla en el segundo salto, que es el mismo
+            // que trae la `url`. Con `depth: 1` no habría ni dirección que
+            // abrir y el visor no se montaría.
+            const modelo = p.modelo as
+              | { url?: string; nombre?: string; encuadre?: Encuadre | null }
+              | undefined
+
+            // El paso no tiene encuadre propio que ofrecer: el arreglo `pasos`
+            // de `src/collections/CasosAO.ts` declara la relación `modelo` y
+            // nada más, así que el primer argumento va vacío siempre. Se llama
+            // igual a la regla, en vez de pasar `modelo?.encuadre` a pelo,
+            // porque lo que hace falta aquí es su tercera rama: un grupo
+            // entero a nulos —como los guarda el panel cuando nadie capturó
+            // nada— tiene que salir como `undefined` para que el visor vuelva
+            // a abarcar la pieza él solo. Pasándolo a pelo, el objeto de nulos
+            // es verdadero, `Visor3D` se salta su `Bounds` y planta la cámara
+            // a la distancia por omisión sobre un modelo que puede venir en
+            // milímetros: un punto en el centro de la pantalla.
+            //
+            // Si algún día el paso gana su propio encuadre, se pasa aquí y ya
+            // manda: la precedencia está escrita una sola vez, en
+            // `encuadreVigente` (`src/lib/encuadre.ts`).
+            const encuadre = encuadreVigente(undefined, modelo?.encuadre)
             return (
               <li key={i}>
                 <span className="paso-numero">Paso {i + 1}</span>
@@ -121,7 +144,9 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
                   </aside>
                 ) : null}
                 <Rico valor={p.nota} className="nota-tecnica" />
-                {modelo?.url ? <Visor3D url={modelo.url} nombre={modelo.nombre} /> : null}
+                {modelo?.url ? (
+                  <Visor3D url={modelo.url} encuadre={encuadre} nombre={modelo.nombre} />
+                ) : null}
               </li>
             )
           })}

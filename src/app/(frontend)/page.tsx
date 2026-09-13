@@ -6,9 +6,10 @@ import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { Femur } from '@/components/Femur'
 import { MallaDeNodos } from '@/components/MallaDeNodos'
 import { ruta } from '@/lib/rutas'
+import { recorridoGuardado, type RecorridoGuardado } from '@/lib/progresoDelSimulador'
 // `modulos.ts` no importa Payload a propósito (lo explica su cabecera), así que
 // la portada puede tomar el mapa de nombres sin arrastrar el servidor.
-import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
+import { NOMBRE_DE_MODULO, rutaPublica } from '@/app/(frontend)/admin-panel/modulos'
 
 export const dynamic = 'force-dynamic'
 
@@ -181,33 +182,84 @@ export default async function Inicio() {
     ),
   )
 
+  // Las dos mitades de la resta «por leer» tienen que hablar del mismo
+  // conjunto. `totalFichas` suma solo los módulos que esta cuenta ve, así que
+  // `leidas` se acota a esos mismos: contando todas sus filas, una cuenta a la
+  // que se le retiró un módulo seguía sumando como leídas fichas que ya no
+  // están en el total, y «por leer» salía más baja de lo que era —o pegada al
+  // cero por el `Math.max` de abajo, que es la versión silenciosa del mismo
+  // error—.
+  //
+  // Si la lista está vacía no se pregunta: un `in: []` es una condición que no
+  // dice nada y no hay por qué averiguar a qué la traduce cada adaptador. Esa
+  // cuenta no ve ningún módulo y su total es cero, así que lo leído tampoco
+  // puede ser otra cosa, ni hay ficha que pueda ofrecerse para retomar.
+  const coleccionesVisibles = modulosVisibles.map((m) => m.coleccion)
+
   const [actividad, leidas] = await Promise.all([
-    payload
-      .find({
-        collection: 'actividad',
-        where: {
-          and: [{ usuario: { equals: usuario?.id } }, { completado: { equals: false } }],
-        },
-        sort: '-ultimaVisita',
-        limit: 3,
-        user: usuario as never,
-      })
-      .catch(() => ({ docs: [] as unknown[] })),
-    payload
-      .count({
-        collection: 'actividad',
-        where: {
-          and: [{ usuario: { equals: usuario?.id } }, { completado: { equals: true } }],
-        },
-        overrideAccess: true,
-      })
-      .then((r) => r.totalDocs)
-      .catch(() => 0),
+    // «Continúa leyendo» se acota a los mismos módulos, y aquí el recorte no es
+    // una cuestión de coherencia sino de que la sección tenga algo que enseñar.
+    // El único filtro por visibilidad llegaba tarde: lo hacía el `findByID` con
+    // `overrideAccess: false` del bucle de abajo, que ante un módulo retirado no
+    // devuelve nada sino que lanza `Forbidden` —lo mismo que se explica veinte
+    // líneas más arriba—, y el `catch` de ese bucle lo descarta en silencio. Así
+    // que las tres plazas se las comían filas que la cuenta ya no puede ver y la
+    // sección salía con dos tarjetas, con una o vacía, teniendo el residente
+    // fichas a medias en los módulos que sí ve. Se recorta en la consulta y no
+    // pidiendo de más, porque «de más» no tiene número: pueden ser todas.
+    //
+    // Desde que el examen físico anota lecturas esto pesa más, no menos: sus
+    // maniobras generan filas con `completado: false` y compiten por las mismas
+    // tres plazas.
+    coleccionesVisibles.length === 0
+      ? Promise.resolve({ docs: [] as unknown[] })
+      : payload
+          .find({
+            collection: 'actividad',
+            where: {
+              and: [
+                { usuario: { equals: usuario?.id } },
+                { completado: { equals: false } },
+                { coleccion: { in: coleccionesVisibles } },
+              ],
+            },
+            sort: '-ultimaVisita',
+            limit: 3,
+            user: usuario as never,
+          })
+          .catch(() => ({ docs: [] as unknown[] })),
+    coleccionesVisibles.length === 0
+      ? Promise.resolve(0)
+      : payload
+          .count({
+            collection: 'actividad',
+            where: {
+              and: [
+                { usuario: { equals: usuario?.id } },
+                { completado: { equals: true } },
+                { coleccion: { in: coleccionesVisibles } },
+              ],
+            },
+            overrideAccess: true,
+          })
+          .then((r) => r.totalDocs)
+          .catch(() => 0),
   ])
 
   // Se resuelve el título de cada ficha a medias para poder ofrecer el enlace
   // con su nombre y no con un número, que no le dice nada a nadie.
-  const continuarLeyendo: { id: string; nombre: string; coleccion: string; ruta: string }[] = []
+  //
+  // `destino` sale de `rutaPublica` y no de pegar `${ruta}/${id}`, que es lo que
+  // se hacía. Los cuatro módulos con página por documento daban igual con las
+  // dos formas; el examen físico, no: no existe `examen-fisico/[id]/`, así que
+  // esa concatenación componía `/examen-fisico/7` y aterrizaba en el 404 en
+  // inglés de Next, sin barra para volver. No se notaba porque de las maniobras
+  // no se registraba ninguna lectura y por tanto no aparecían aquí jamás; en
+  // cuanto el listado empezó a anotarlas, la sección estrenaba enlaces rotos.
+  // `rutaPublica` es quien sabe que ese módulo se enlaza por ancla
+  // (`/examen-fisico#maniobra-<id>`) y quien dejará de saberlo el día que tenga
+  // ficha propia.
+  const continuarLeyendo: { id: string; nombre: string; coleccion: string; destino: string }[] = []
   for (const registro of actividad.docs as Record<string, unknown>[]) {
     try {
       const doc = (await payload.findByID({
@@ -233,7 +285,7 @@ export default async function Inicio() {
           id: String(registro.documentoId),
           nombre,
           coleccion: String(registro.coleccion),
-          ruta: MODULOS.find((m) => m.coleccion === registro.coleccion)?.ruta ?? '/biblioteca',
+          destino: rutaPublica(String(registro.coleccion), String(registro.documentoId)),
         })
       }
     } catch {
@@ -242,6 +294,84 @@ export default async function Inicio() {
   }
 
   const totalFichas = conteos.reduce((a, b) => a + b, 0)
+
+  // ------------------------------------------------ su paso por el simulador
+  //
+  // La tarjeta del módulo 04 promete «registro de complicaciones» desde el
+  // primer día, y hasta hoy no existía en ninguna pantalla: la consola lo
+  // pintaba recortado a diez líneas, seiscientos píxeles más abajo, y lo perdía
+  // al recargar. Desde que `registrarResultadoDeCirugia` lo escribe en
+  // `actividad`, este es el sitio donde el residente lo encuentra sin volver a
+  // abrir el caso.
+  //
+  // Va aparte del `Promise.all` de arriba y no dentro: aquellas dos consultas
+  // son las de «Continúa leyendo» y su conteo, y comparten la acotación por
+  // módulos visibles que `tests/unit/continuaLeyendoAcotado.test.ts` sostiene
+  // sobre ese bloque. Esta pregunta otra cosa —los casos que además se jugaron—
+  // y solo tiene sentido si esta cuenta ve el simulador.
+  //
+  // `puntaje: { exists: true }` es lo que separa el caso recorrido del caso
+  // abierto y cerrado: la columna no lleva `defaultValue`, así que el nulo es
+  // el «todavía no» (`src/collections/Actividad.ts`). `recorridoGuardado`
+  // vuelve a filtrar por si acaso, porque de esa condición depende que la
+  // sección no se llene de partidas que nadie jugó.
+  const recorridos: {
+    id: string
+    nombre: string
+    destino: string
+    recorrido: RecorridoGuardado
+  }[] = []
+
+  if (coleccionesVisibles.includes('cirugias')) {
+    const filas = await payload
+      .find({
+        collection: 'actividad',
+        where: {
+          and: [
+            { usuario: { equals: usuario?.id } },
+            { coleccion: { equals: 'cirugias' } },
+            { puntaje: { exists: true } },
+          ],
+        },
+        sort: '-ultimaVisita',
+        limit: 3,
+        depth: 0,
+        overrideAccess: true,
+      })
+      .then((r) => r.docs)
+      .catch(() => [])
+
+    for (const fila of filas) {
+      const recorrido = recorridoGuardado(fila)
+      if (!recorrido) continue
+      const id = String(fila.documentoId)
+      try {
+        // Con el acceso puesto, y por lo mismo que el bucle de «Continúa
+        // leyendo»: la fila la pudo crear `POST /api/actividad` con el
+        // identificador que quisiera, así que sin esto la sección sería otro
+        // listador de títulos de borradores.
+        const doc = await payload.findByID({
+          collection: 'cirugias',
+          id,
+          depth: 0,
+          overrideAccess: false,
+          user: usuarioEfectivo as never,
+        })
+        const nombreDelCaso = doc?.nombre
+        if (typeof nombreDelCaso === 'string' && nombreDelCaso.trim() !== '') {
+          recorridos.push({
+            id,
+            nombre: nombreDelCaso,
+            destino: rutaPublica('cirugias', id),
+            recorrido,
+          })
+        }
+      } catch {
+        // El caso pudo borrarse o dejar de estar publicado: se omite.
+      }
+    }
+  }
+
   const nombre = String(usuario?.nombre ?? '').split(' ')[0]
   const puedeEditar = rolReal === 'admin' || rolReal === 'editor'
 
@@ -302,7 +432,7 @@ export default async function Inicio() {
           <h2 className="titulo-seccion">Continúa leyendo</h2>
           <div className="rejilla-fichas">
             {continuarLeyendo.map((item) => (
-              <Link key={`${item.coleccion}-${item.id}`} href={`${item.ruta}/${item.id}`} className="tarjeta-ficha">
+              <Link key={`${item.coleccion}-${item.id}`} href={item.destino} className="tarjeta-ficha">
                 <div className="etiquetas">
                   {/* El slug crudo solo como último recurso: `replace('-', ' ')`
                       sacaba a la portada el nombre de la tabla de PostgreSQL
@@ -315,6 +445,60 @@ export default async function Inicio() {
               </Link>
             ))}
           </div>
+        </section>
+      ) : null}
+
+      {recorridos.length > 0 ? (
+        <section className="continuar-leyendo">
+          <span className="eyebrow">Pabellón</span>
+          <h2 className="titulo-seccion">Su paso por el simulador</h2>
+          <div className="rejilla-fichas">
+            {recorridos.map((item) => {
+              const cuantas = item.recorrido.complicaciones.length
+              // La última es la de arriba del todo porque es la que se recuerda
+              // —y la que se va a repasar—; el registro entero está en el caso.
+              const ultima = item.recorrido.complicaciones[cuantas - 1]
+              return (
+                <Link key={item.id} href={item.destino} className="tarjeta-ficha">
+                  <div className="etiquetas">
+                    {/* `.etiqueta` y no `.codigo`: la insignia azul de estas
+                        tarjetas es para el código de la ficha, y esto son dos
+                        cifras del recorrido. */}
+                    <span className="etiqueta">
+                      {item.recorrido.puntaje}
+                      {item.recorrido.puntajeMaximo !== null
+                        ? ` de ${item.recorrido.puntajeMaximo}`
+                        : ''}{' '}
+                      {item.recorrido.puntaje === 1 ? 'punto' : 'puntos'}
+                    </span>
+                    <span className="etiqueta">
+                      {cuantas === 0
+                        ? 'Sin complicaciones'
+                        : `${cuantas} ${cuantas === 1 ? 'complicación' : 'complicaciones'}`}
+                    </span>
+                  </div>
+                  <h3>{item.nombre}</h3>
+                  <p>
+                    {ultima
+                      ? `${ultima.numero ? `Paso ${ultima.numero}. ` : ''}${
+                          ultima.detalle ?? ultima.titulo ?? 'Complicación sin detalle guardado.'
+                        }`
+                      : 'Recorrió el caso sin complicaciones.'}
+                  </p>
+                  <span className="tarjeta-ficha-accion">Volver al caso →</span>
+                </Link>
+              )
+            })}
+          </div>
+          {/* Dicho aquí y no solo en el panel. El puntaje lo calcula la consola
+              en el navegador y el servidor no puede recalcularlo sin repetir la
+              simulación (`src/collections/Actividad.ts`), así que es seguimiento
+              del propio progreso y no una nota. Enseñarlo sin esta línea lo
+              convierte, para quien lo lee, en lo segundo. */}
+          <p className="aviso">
+            Estas cifras las lleva la consola para que usted vea lo que le costó
+            cada caso. No son una calificación.
+          </p>
         </section>
       ) : null}
 

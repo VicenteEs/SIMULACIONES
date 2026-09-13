@@ -6,7 +6,7 @@ import sharp from 'sharp'
 import { es } from '@payloadcms/translations/languages/es'
 import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { COLECCIONES } from '@/collections'
-import { Medios as esquemaDeMedios } from '@/admin/esquema'
+import { TECHO_DE_MEDIOS_BYTES, TECHO_DE_MODELOS_3D_BYTES } from '@/admin/esquema'
 import { origenDe } from '@/lib/rutas'
 import { migrations } from './migrations'
 import { editorClinico } from '@/blocks'
@@ -16,36 +16,29 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 /**
  * El techo de subida sale del panel, que es donde estaba decidido.
  *
- * Aquí había un `7 * 1024 * 1024` escrito a mano y un comentario pidiendo que
- * los números se movieran juntos; pedirlo no es atarlo. La cifra ya vive en
- * `src/admin/esquema.ts`, junto a la frase que el traumatólogo lee antes de
- * elegir el archivo, y esas dos sí están atadas por `tests/unit/esquema.test.ts`
- * —la última vez que se separaron, el panel prometió 50 MB mientras el marco
- * cortaba en 8 sin decir nada—. Tomándola de allá, esta configuración entra en
- * esa misma cuerda en lugar de ser un tercer número que nadie compara.
+ * Aquí había un número escrito a mano y un comentario pidiendo que los tres se
+ * movieran juntos; pedirlo no es atarlo. Las dos cifras viven en
+ * `src/admin/esquema.ts`, declaradas la una al lado de la otra y con el porqué
+ * de que sean dos, junto a las frases que el traumatólogo lee antes de elegir
+ * el archivo —y esas sí están atadas por `tests/unit/esquema.test.ts`, porque
+ * la última vez que se separaron el panel prometió 50 MB mientras el marco
+ * cortaba en 8 sin decir nada—. Tomándolas de allá, esta configuración entra en
+ * la misma cuerda en lugar de ser un número más que nadie compara.
  *
  * La dirección del `import` importa y no es reversible: el esquema del panel lo
  * carga también el formulario, o sea el navegador, y por eso no puede importar
  * nada de servidor. Al revés —servidor pidiéndole una constante a un módulo que
  * ya es seguro en el navegador— no arrastra nada a ningún paquete.
  *
- * Se toma el de `medios` y no el de `modelos-3d` porque `upload.limits` es uno
- * solo para todas las colecciones: tiene que ser el mayor de los techos, o la
- * colección más generosa quedaría cortada por el límite de la otra. Los 5 MB de
- * los modelos los hace cumplir `src/uploads/validarModelo3D.ts`, por firma del
- * archivo y por colección.
+ * Se toma **el mayor** con `Math.max` y no el de `medios` a dedo, aunque hoy
+ * sean lo mismo: `upload.limits` es uno solo para todas las colecciones, así
+ * que tiene que ser el techo más alto o la colección más generosa quedaría
+ * cortada por el límite de la otra. Escrito así, una tercera colección de
+ * archivo con un techo mayor entra sola; escrito a dedo, entraría rota. Los
+ * 5 MB de los modelos los sigue haciendo cumplir
+ * `src/uploads/validarModelo3D.ts`, por firma del archivo y por colección.
  */
-const subidaDeMedios = esquemaDeMedios.subida
-if (!subidaDeMedios) {
-  // No puede pasar —`tests/unit/esquema.test.ts` exige que toda colección con
-  // `upload` en Payload declare su `subida` en el panel—, y si pasara, callarlo
-  // con un número de reserva devolvería el problema que este cambio quita.
-  throw new Error(
-    'El esquema del panel para «medios» perdió su bloque `subida`, que es de donde sale el ' +
-      'techo de subida de esta configuración. Ver src/admin/esquema.ts.',
-  )
-}
-const TECHO_DE_SUBIDA_BYTES = subidaDeMedios.maximoBytes
+const TECHO_DE_SUBIDA_BYTES = Math.max(TECHO_DE_MEDIOS_BYTES, TECHO_DE_MODELOS_3D_BYTES)
 
 /**
  * Configuración de la plataforma docente de traumatología.
@@ -208,14 +201,17 @@ export default buildConfig({
     // Techo de subida de la API REST, y solo de ella. Esto no es el techo de la
     // plataforma, por mucho que lo parezca: `limits` lo consume únicamente el
     // analizador multiparte de Payload (`addDataAndFileToRequest`), y el panel
-    // no sube por ahí, sube con la acción de servidor `subirArchivo`, que
-    // entrega el archivo ya leído a `payload.create({ file })`. Por esa vía
-    // manda el `serverActions.bodySizeLimit` de `next.config.mjs` y este número
-    // no se ejerce jamás.
+    // no sube por ahí. Sube por
+    // `src/app/(frontend)/api/subidas/[coleccion]/route.ts`, que recibe el
+    // archivo en flujo, lo cuenta él mismo contra el techo de la colección y se
+    // lo entrega a Payload con `filePath`; por ese camino este número no se
+    // ejerce nunca. Y por el que queda de la acción vieja —`Campos.tsx`— manda
+    // el `serverActions.bodySizeLimit` de `next.config.mjs`, que tampoco es
+    // este.
     //
     // Decía 50 MB y el panel anunciaba 50 MB, mientras Next cortaba en 8 y sin
-    // mensaje. Ahora la cifra es la del panel porque es literalmente la misma
-    // constante: ver `TECHO_DE_SUBIDA_BYTES` arriba.
+    // mensaje. Ahora la cifra sale del mismo sitio que la del panel: ver
+    // `TECHO_DE_SUBIDA_BYTES` arriba.
     //
     // Y desde que `(payload)/api/[...slug]/route.ts` cerró las escrituras de la
     // API REST, este límite no llega a ejercerse por ningún camino: el `POST`

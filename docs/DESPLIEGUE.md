@@ -252,6 +252,65 @@ ilustraciones, esa ruta es el primer sitio donde mirar.
 
 ---
 
+## Cuánto pesa lo que se puede subir, y quién corta primero
+
+Desde que el traumatólogo graba en pabellón, `medios` acepta hasta **50 MB** por
+archivo; los modelos 3D siguen en **5 MB**, y no suben con el otro porque un
+`.glb` lo carga entero el navegador del residente antes de pintar nada. Las dos
+cifras están declaradas juntas, con su porqué, en `src/admin/esquema.ts`
+(`TECHO_DE_MEDIOS_BYTES` y `TECHO_DE_MODELOS_3D_BYTES`), y de ahí salen la frase
+que se lee en el panel, la comprobación del navegador, la del servidor y el
+`upload.limits` de Payload.
+
+El archivo no viaja por una acción de servidor sino por una ruta,
+`src/app/(frontend)/api/subidas/[coleccion]/route.ts`, que lo recibe en flujo y
+lo escribe a un temporal según llega. Eso tiene dos consecuencias que se notan
+al operar:
+
+- **Hace falta espacio en el temporal del sistema.** En el contenedor es `/tmp`;
+  en el Windows de casa, el `%TEMP%` del usuario del servicio. Un archivo por
+  subida en curso, y se borra siempre, también cuando la subida se rechaza a
+  mitad.
+- **La memoria del proceso ya no se queda con el vídeo entero durante toda la
+  subida**, que por un túnel doméstico son minutos. Solo pasa por memoria un
+  instante, al final, cuando Payload lo escribe en `medios/`.
+
+### Quién puede cortar antes que la aplicación
+
+Un tope de la aplicación explica en español qué pasó y cuánto pesaba el archivo.
+Un tope de la red devuelve un 413 mudo, o directamente corta la conexión. Por
+eso todo lo que hay delante tiene que estar **por encima** de los 50 MB:
+
+| Modo | Qué hay delante | Tope de cuerpo |
+|---|---|---|
+| `paginas/` (nginx) | Nginx Proxy Manager | `client_max_body_size 64m`, en el fragmento que describe `despliegue/paginas/LEEME.md`. Es el más bajo de los tres y el único que hay que tocar a mano si algún día se pasa de 64 MB |
+| `cloudflare` | El borde de Cloudflare | 100 MB en los planes Free, Pro y Business. No es del túnel ni de `cloudflared`: lo aplica el borde, y no se sube con configuración |
+| `tailscale` | Tailscale Funnel | Tailscale no publica ningún tope de cuerpo: `serve`/`funnel` hace de proxy inverso y no analiza lo que pasa. Lo que sí dice su documentación es que Funnel no está pensado para tráfico de alto volumen |
+
+**Los 50 MB por Funnel no se han medido aquí.** Si fallan, el síntoma no será un
+413 sino una conexión cortada a mitad de la barra de progreso, y el panel dirá
+«Se cortó la conexión durante la subida». Conviene saberlo antes de ir a buscar
+el fallo dentro de la aplicación, donde no está.
+
+Dentro de la aplicación, `next start` no impone ningún tope de cuerpo propio, y
+el único que queda de Next —`serverActions.bodySizeLimit`, hoy 52 MB— no toca
+esta ruta: gobierna la vía antigua, la que el editor de bloques todavía usa para
+insertar un archivo sin salir de la ficha.
+
+### Si una subida grande falla
+
+1. **«El servidor que está delante… rechazó el archivo por tamaño (413)»**: el
+   proxy corta antes que la aplicación. En el despliegue de `paginas/` se sube
+   `client_max_body_size`; el procedimiento está en `despliegue/paginas/LEEME.md`.
+2. **«Se cortó la conexión durante la subida»**: no es tamaño, es tiempo o red.
+   Con nginx delante, mirar `proxy_read_timeout` (el fragmento ya lo deja en
+   3600 s); con Funnel, probar el mismo archivo contra `http://localhost:3000`
+   desde el propio servidor para saber de qué lado está el corte.
+3. **«pesa N MB y el máximo son 50 MB»**: ese es el techo de la plataforma
+   diciéndolo antes de que el archivo viaje, que es lo que tiene que pasar.
+
+---
+
 ## Después del despliegue
 
 ### Respaldos automáticos

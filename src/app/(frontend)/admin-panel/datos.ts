@@ -1,6 +1,7 @@
 import { getPayload, type Payload } from 'payload'
 import config from '@payload-config'
 import { SLUGS_DE_MODULOS } from '@/collections'
+import { resumirRecorridos, type ResumenDeRecorridos } from '@/lib/progresoDelSimulador'
 import { MODULOS, NOMBRE_DE_MODULO, rutaPublica } from './modulos'
 
 /**
@@ -155,12 +156,36 @@ export async function resumenDeComentarios(payload: Payload): Promise<ResumenDeC
   }
 }
 
+/**
+ * Lo que el simulador lleva escrito, con su propio `ilegible`.
+ *
+ * Separado del `ilegible` de la actividad a propósito, y no por prolijidad:
+ * son dos consultas distintas y la de aquí es la única que mira columnas
+ * nuevas. Compartiendo bandera, una avería en el recuento de partidas pondría
+ * «—» en las cifras de lectura, que se leyeron perfectamente, y un panel que
+ * dice no saber lo que sabe es tan inútil como uno que se inventa lo que no.
+ */
+export interface ActividadDelSimulador extends ResumenDeRecorridos {
+  /** No se pudieron leer los recorridos: los números son de relleno. */
+  ilegible: boolean
+}
+
 export interface ResumenDeActividad {
   registros: number
   completados: number
   ultimos7dias: number
   lectoresActivos7dias: number
-  /** Alguno de los conteos falló: los números son de relleno. */
+  /**
+   * Puntajes y complicaciones del módulo 04.
+   *
+   * Lo pinta `admin-panel/actividad/page.tsx`, que es donde el profesor va a
+   * ver en qué se atasca su gente. Está aquí y no en esa página —que ya se
+   * trae la tabla entera y podría contarlo sola— porque lo que decide qué fila
+   * es un caso jugado no puede vivir en una pantalla: en cuanto lo haga, la
+   * segunda pantalla que lo pregunte contestará otro número.
+   */
+  simulador: ActividadDelSimulador
+  /** Alguno de los conteos de lectura falló: esos números son de relleno. */
   ilegible: boolean
 }
 
@@ -214,7 +239,45 @@ export async function resumenDeActividad(payload: Payload): Promise<ResumenDeAct
     completados: completados ?? 0,
     ultimos7dias,
     lectoresActivos7dias,
+    simulador: await actividadDelSimulador(payload),
     ilegible: fallo || registros === null || completados === null,
+  }
+}
+
+/**
+ * Cuántos casos se han recorrido, cuántos terminaron en daño y en qué paso.
+ *
+ * Se acota a `cirugias` aunque `resumirRecorridos` descarte solo las filas de
+ * los otros cuatro módulos: son la inmensa mayoría de la tabla —cinco módulos
+ * escriben en ella y solo uno juega— y traérselas para tirarlas es gastarse el
+ * tope en lo que no se va a contar.
+ *
+ * Ese tope es el mismo de la actividad reciente y tiene la misma letra
+ * pequeña: pasadas las 1000 filas de simulador, esto se convierte en un suelo
+ * y no en un recuento. Subirlo sin más es traerse la tabla a la memoria del
+ * servidor; lo que hace falta el día que se llegue ahí es contar en la base, y
+ * el agrupado por paso que necesita el panel no se pide con `count`.
+ */
+async function actividadDelSimulador(payload: Payload): Promise<ActividadDelSimulador> {
+  try {
+    const { docs } = await payload.find({
+      collection: 'actividad',
+      where: { coleccion: { equals: 'cirugias' } },
+      limit: 1000,
+      // Profundidad 0: de la fila se leen el puntaje y la lista de
+      // complicaciones, que viven dentro del documento. El usuario no hace
+      // falta —aquí se cuentan pasos, no personas— y poblarlo serían mil
+      // consultas más.
+      depth: 0,
+      overrideAccess: true,
+    })
+    return { ...resumirRecorridos(docs), ilegible: false }
+  } catch (error) {
+    // Un cero aquí se lee como «nadie ha usado el simulador», que es una
+    // conclusión sobre los residentes y no sobre la base. Es el mismo error que
+    // `contar` dejó de cometer.
+    console.error('[panel] no se pudieron leer los recorridos del simulador:', error)
+    return { casos: 0, casosConComplicacion: 0, complicaciones: 0, atascos: [], ilegible: true }
   }
 }
 

@@ -21,40 +21,45 @@ const nextConfig = {
 
   experimental: {
     /**
-     * Cuánto puede pesar lo que se sube desde el panel.
+     * Cuánto puede pesar el cuerpo de una acción de servidor. Ya no es el techo
+     * de la plataforma, y ese cambio es el que hay que entender antes de tocar
+     * este número.
      *
-     * Los archivos se suben con una acción de servidor (`subirArchivo`), y Next
-     * limita el cuerpo de una acción a **1 MB** por omisión. La colección de
-     * modelos 3D anuncia un techo de 5 MB y la validación lo comprueba, pero
-     * ninguno de los dos se llegaba a ejercer: el archivo se cortaba antes, en
-     * el marco, y el traumatólogo veía un fallo genérico de acción sin una
-     * palabra sobre el peso. El único modelo que había pesaba 76 KB, y por eso
-     * nadie tropezó.
+     * Las subidas del panel iban por la acción `subirArchivo`, y ahí este valor
+     * SÍ era el techo real: Next descarta el cuerpo que se pasa **antes** de
+     * invocar la acción, de modo que el `try/catch` de `accion()` no llega a
+     * ejecutarse y la pantalla se queda muda. Por eso el panel pudo prometer
+     * 50 MB mientras el marco cortaba en 8 sin decir una palabra.
      *
-     * Se pone en 8 MB y no en 5: el cuerpo de la petición lleva además el
-     * formulario y la codificación, así que un archivo de 5 MB justos no cabe
-     * en un límite de 5 MB. Quien decide el techo real sigue siendo
-     * `src/uploads/validarModelo3D.ts`, que rechaza con un mensaje que se
-     * entiende. Este número solo tiene que ser mayor.
+     * Un vídeo de quirófano son 20 MB para arriba, y eso no se arregla subiendo
+     * este número: una acción recibe el cuerpo ya reunido, así que el archivo
+     * entero se queda en la memoria del servidor durante toda la subida —por un
+     * túnel doméstico, minutos—. El camino de las subidas es ahora un manejador
+     * de ruta, `src/app/(frontend)/api/subidas/[coleccion]/route.ts`, que no
+     * lleva este límite y escribe a disco según recibe. El porqué completo está
+     * en `src/admin/subidas.ts`.
      *
-     * Y no es solo el techo de los `.glb`: es el de **toda** la plataforma,
-     * porque `subirArchivo` es la única vía de subida del panel y por ella pasa
-     * también `medios`, que acepta vídeo. Ese razonamiento faltaba aquí y el
-     * panel llegó a prometer 50 MB —el `upload.limits` de `payload.config.ts`,
-     * que en esta vía no se ejerce jamás—. Hoy los tres números dicen lo mismo:
-     * 7 MB anunciados en `src/admin/esquema.ts`, 7 MB en `upload.limits` para
-     * quien entre por la API REST, y estos 8 MB de cuerpo, que van por encima
-     * para que quepa el sobre multiparte. Se mueven juntos: separarlos no da
-     * ningún error visible, porque Next corta el cuerpo **antes** de invocar la
-     * acción, el `try/catch` de `accion()` no llega a ejecutarse y la pantalla
-     * se queda muda.
+     * Entonces, ¿por qué sube esto de 8 a 52 MB si ya no es el camino? Porque
+     * todavía queda un consumidor: `src/components/admin/formulario/Campos.tsx`
+     * sigue insertando archivos dentro de un bloque con la acción vieja, y ese
+     * formulario pregunta el peso contra `subida.maximoBytes`, que hoy son
+     * 50 MB. Dejarlo en 8 convertía justo esa pantalla en el eslabón corto: el
+     * navegador dejaría pasar un vídeo de 20 MB porque cabe en el techo
+     * anunciado, y Next lo cortaría sin mensaje. O sea, el defecto de siempre
+     * mudado de sitio.
      *
-     * Que quepa un vídeo de quirófano de verdad —20 MB para arriba— no se
-     * arregla subiendo este número: una acción de servidor retiene el cuerpo
-     * entero en memoria. Eso pide un route handler que reciba en flujo, y es
-     * una decisión aparte que hay que dejar escrita en BITACORA.
+     * 52 y no 50 porque el cuerpo de una acción lleva además el formulario y su
+     * codificación multiparte, así que un archivo de 50 MB justos no cabe en un
+     * límite de 50. Los números de la cadena están declarados y explicados
+     * juntos en `src/admin/esquema.ts` (`TECHO_DE_MEDIOS_BYTES`) y los compara
+     * `tests/unit/subidaDeVideo.test.ts`, que lee este archivo.
+     *
+     * Este número se va el día que `Campos.tsx` suba por la ruta como ya sube
+     * el listado de medios. Mientras siga aquí, una inserción de 50 MB desde el
+     * editor de bloques se queda 50 MB en RAM, y eso es lo que se está pagando
+     * por no haber movido todavía esa pantalla.
      */
-    serverActions: { bodySizeLimit: '8mb' },
+    serverActions: { bodySizeLimit: '52mb' },
 
     /**
      * Enciende `src/app/global-not-found.tsx`.

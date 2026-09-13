@@ -103,15 +103,55 @@ El fragmento incluye además:
   no llega nunca;
 - `client_max_body_size 64m`, porque el techo por omisión de nginx (1 MB) queda
   por debajo de lo que la plataforma acepta: sin esta línea, un vídeo se rechaza
-  con un 413 antes de llegar siquiera a la aplicación. Los 64 MB están muy por
-  encima del techo real —7 MB de archivo (`upload.limits` en
-  `src/payload.config.ts`) dentro de un cuerpo de 8 MB
-  (`serverActions.bodySizeLimit` en `next.config.mjs`)— y se dejan así a
-  propósito: el número de nginx no tiene que perseguir al de la aplicación, y un
-  proxy que corta antes que ella devuelve un 413 mudo en vez del mensaje en
-  español. Esta línea decía «hasta 50 MB», que es lo que `upload.limits`
-  prometía antes de corregirse; los 50 MB no existieron nunca en el servidor,
-  porque quien cortaba de verdad era el cuerpo de las acciones de Next.
+  con un 413 antes de llegar siquiera a la aplicación. **Esta línea no cambia**
+  desde que la plataforma admite vídeo de quirófano, y merece la pena entender
+  por qué no.
+
+### La cadena de topes, y por qué el de nginx es el último
+
+Los cuatro números tienen que ir creciendo hacia fuera, de modo que quien corte
+sea siempre la aplicación, que sabe decir en español qué pasó y cuánto pesaba el
+archivo. Un proxy que corta antes devuelve un 413 sin una palabra dentro.
+
+| Tope | Dónde | Hoy |
+|---|---|---|
+| Techo del archivo en `medios` | `TECHO_DE_MEDIOS_BYTES`, `src/admin/esquema.ts` | 50 MB |
+| Techo del archivo en `modelos-3d` | `TECHO_DE_MODELOS_3D_BYTES`, mismo archivo | 5 MB |
+| Cuerpo de una acción de servidor | `serverActions.bodySizeLimit`, `next.config.mjs` | 52 MB |
+| Cuerpo que admite el proxy | `client_max_body_size`, este fragmento | 64 MB |
+
+50 ≤ 52 ≤ 64. Lo compara `tests/unit/subidaDeVideo.test.ts`, que **lee este
+archivo**: si alguien sube el techo de la aplicación por encima de los 64 MB sin
+tocar el proxy, la suite falla en vez de dejar dos cifras que no se hablan.
+
+La subida del panel ya no va por una acción de servidor sino por una ruta
+(`src/app/(frontend)/api/subidas/[coleccion]/route.ts`), que recibe el archivo
+en flujo y no lleva el límite de `bodySizeLimit`; el tercer número de la tabla
+sigue ahí porque el editor de bloques todavía inserta archivos por la vía
+antigua. El techo de la aplicación se dejó en 50 y no se subió el del proxy a
+propósito: ese nginx vive en **otra máquina** y en un archivo que este
+repositorio no versiona, así que un número puesto aquí no lo pone allá, y esa es
+exactamente la forma en que nacen dos límites que se contradicen.
+
+**Si algún día hacen falta más de 64 MB**, el orden es al revés y no se puede
+saltar: primero el proxy, después la aplicación.
+
+```bash
+# En el servidor, dentro del fragmento que ya existe:
+docker exec nginx-proxy-manager sh -c \
+  "sed -i 's/client_max_body_size 64m/client_max_body_size 128m/' /data/nginx/custom/server_proxy.conf"
+docker exec nginx-proxy-manager nginx -s reload
+```
+
+Y después actualizar la tabla de aquí arriba, que es lo que la prueba lee. Ojo
+con los otros dos vecinos del proxy: el fragmento se incluye en **cada** server
+que genera NPM, así que ese número lo suben también APCE, mi-web-latsib y
+señales sin haberlo pedido.
+
+Esta línea decía «hasta 50 MB», que es lo que `upload.limits` prometía antes de
+corregirse; aquellos 50 MB no existieron nunca en el servidor, porque quien
+cortaba de verdad era el cuerpo de las acciones de Next. Los de ahora sí
+existen, y por eso están en una tabla y no en una frase.
 
 > Si algún día se prefiere gestionarla desde el panel: **Custom locations** →
 > location `/traumahub`, scheme `http`, hostname `traumahub`, puerto `3000`; y

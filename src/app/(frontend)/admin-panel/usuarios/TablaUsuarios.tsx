@@ -32,6 +32,22 @@ export interface UsuarioDelPanel {
   ultimoAcceso: string | null
   modulosVisibles: string[]
   modulosEditables: string[]
+  /**
+   * Notas del administrador **sobre** la cuenta: quién la pidió, por qué se
+   * desactivó. No las escribe ni las ve su titular; esta pantalla ya exige rol
+   * de administrador entera.
+   *
+   * Obligatoria, y no `notas?: string`, porque el único sitio que arma esta
+   * lista es `page.tsx` —`payload.find` sin `select` devuelve el documento
+   * entero, la nota incluida— y con el campo opcional el `map` se la dejó sin
+   * copiar sin que nada protestara: llegaba `undefined` en las quinientas
+   * filas y toda esta pantalla quedaba inerte de golpe, la fila sin nota, la
+   * búsqueda concatenando vacío y el cuadro del modal abriendo en blanco sobre
+   * una nota que sí existía. Exigirla en el tipo convierte ese olvido en un
+   * error de compilación en la línea exacta donde falta, que es la única forma
+   * de que no vuelva a pasar en silencio.
+   */
+  notas: string
 }
 
 const ETIQUETA_ROL: Record<UsuarioDelPanel['rol'], string> = {
@@ -60,6 +76,32 @@ const fecha = (valor?: string | null) =>
  * hay ningún `mensaje` que enseñar, así que lo pone este texto.
  */
 const FALLO_DE_TRANSPORTE = 'No se pudo contactar con el servidor. Recargue la página y reintente.'
+
+/**
+ * Techo de la nota interna, el mismo que exige el servidor
+ * (`LARGO_MAXIMO_NOTA`, en `acciones/admin.ts`).
+ *
+ * Se repite en vez de importarse porque aquel módulo es `'use server'` y solo
+ * puede exportar funciones asíncronas: importar de él una constante es un error
+ * de compilación, no una dependencia pesada. Sin techo aquí, el administrador
+ * escribe la historia entera de la cuenta y el rechazo llega después de pulsar
+ * guardar, cuando ya no hay dónde recuperarla.
+ * `tests/unit/notasDeCuenta.test.ts` falla si los dos números se separan.
+ */
+const LARGO_MAXIMO_NOTA = 2000
+
+/** Lo que se enseña de una nota dentro de la fila, que no es sitio para un párrafo. */
+const RESUMEN_DE_NOTA = 90
+
+const resumirNota = (nota: string): string => {
+  // Los saltos de línea se colapsan a mano: dentro de la celda el navegador ya
+  // los trataría como un espacio, pero el recorte cuenta caracteres y sin esto
+  // una nota de cuatro líneas cortas gastaba el resumen en blancos.
+  const enUnaLinea = nota.replace(/\s+/g, ' ').trim()
+  return enUnaLinea.length > RESUMEN_DE_NOTA
+    ? `${enUnaLinea.slice(0, RESUMEN_DE_NOTA)}…`
+    : enUnaLinea
+}
 
 /**
  * Contraseña inicial sugerida.
@@ -141,7 +183,11 @@ export function TablaUsuarios({
       if (filtroEstado === 'activos' && !u.activo) return false
       if (filtroEstado === 'inactivos' && u.activo) return false
       if (palabras.length === 0) return true
-      const donde = normalizar([u.nombre, u.email, u.institucion].join(' '))
+      // La nota entra en la búsqueda: el caso que el campo resuelve es «quién
+      // pidió esta cuenta», y eso solo sirve si buscando al jefe de servicio
+      // aparecen las cuatro cuentas que pidió. No filtra nada que el
+      // administrador no esté viendo ya: esta pantalla es suya entera.
+      const donde = normalizar([u.nombre, u.email, u.institucion, u.notas].join(' '))
       return palabras.every((palabra) => donde.includes(palabra))
     })
   }, [listaMostrada, busqueda, filtroRol, filtroEstado])
@@ -280,7 +326,7 @@ export function TablaUsuarios({
           <input
             id="buscar-usuario"
             className="admin-input"
-            placeholder="Nombre, correo o institución"
+            placeholder="Nombre, correo, institución o nota"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
@@ -357,6 +403,26 @@ export function TablaUsuarios({
                       <div className="admin-table-user-email">{u.email}</div>
                       {u.institucion ? (
                         <div className="admin-table-user-email">{u.institucion}</div>
+                      ) : null}
+                      {/*
+                        La nota se resume en la fila y se lee entera en el modal
+                        de editar. Aquí importa que se **vea que existe**: una
+                        nota que solo aparece al abrir un modal no se abre nunca,
+                        y el dato que guarda —por qué se desactivó esta cuenta—
+                        se consulta justo mirando la lista, antes de reactivar a
+                        nadie. `.admin-table-text` acota el ancho y pone los
+                        puntos suspensivos de CSS, que es lo que se ve; el
+                        recorte de `resumirNota` no ahorra peso —la nota entera
+                        viaja igual, en el `title` de aquí al lado y en las
+                        props que necesita el modal— sino lectura: sin él, el
+                        nodo de texto conserva los dos mil caracteres que CSS
+                        solo esconde, y un lector de pantalla los recita
+                        enteros en cada una de las quinientas filas.
+                      */}
+                      {u.notas ? (
+                        <div className="admin-table-user-email admin-table-text" title={u.notas}>
+                          Nota: {resumirNota(u.notas)}
+                        </div>
                       ) : null}
                     </td>
                     <td>
@@ -538,6 +604,7 @@ export function TablaUsuarios({
                   datos.rol,
                   datos.institucion,
                   datos.activo,
+                  datos.notas,
                 ),
               `Cuenta creada para ${datos.email}. Contraseña inicial: ${datos.contrasena} — entréguela y pida que la cambie.`,
               { alLograrlo: () => setCreando(false) },
@@ -748,6 +815,7 @@ function ModalNuevaCuenta({
     rol: string
     institucion: string
     activo: boolean
+    notas: string
   }) => void
 }) {
   const [email, setEmail] = useState('')
@@ -756,13 +824,14 @@ function ModalNuevaCuenta({
   const [contrasena, setContrasena] = useState(claveSugerida)
   const [rol, setRol] = useState('lector')
   const [activo, setActivo] = useState(true)
+  const [notas, setNotas] = useState('')
 
   return (
     <EnvolturaModal titulo="Nueva cuenta" error={error} onCerrar={onCerrar}>
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          onCrear({ email, nombre, contrasena, rol, institucion, activo })
+          onCrear({ email, nombre, contrasena, rol, institucion, activo, notas })
         }}
       >
         <div className="admin-form-fila">
@@ -867,6 +936,31 @@ function ModalNuevaCuenta({
           </div>
         </div>
 
+        {/*
+          La nota se pide ya al crear porque el dato que el campo existe para
+          guardar —quién pidió esta cuenta— se sabe ahora y se olvida en una
+          semana. Va después del rol y del acceso, al final del formulario, para
+          no meter un párrafo entre los campos que sí son obligatorios.
+        */}
+        <div className="admin-form-group">
+          <label className="admin-form-label" htmlFor="nueva-nota">
+            Notas internas
+          </label>
+          <textarea
+            id="nueva-nota"
+            className="admin-form-input"
+            rows={3}
+            maxLength={LARGO_MAXIMO_NOTA}
+            style={{ resize: 'vertical' }}
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+          />
+          <p className="admin-form-hint">
+            Opcional y solo para administradores: quién pidió la cuenta, con qué autorización. La
+            persona titular no las ve.
+          </p>
+        </div>
+
         <div className="admin-modal-actions">
           <button type="button" className="admin-btn admin-btn-secondary" onClick={onCerrar}>
             Cancelar
@@ -891,18 +985,34 @@ function ModalEditar({
   enCurso: boolean
   error?: string | null
   onCerrar: () => void
-  onGuardar: (datos: { nombre: string; email: string; institucion: string }) => void
+  onGuardar: (datos: {
+    nombre: string
+    email: string
+    institucion: string
+    notas?: string
+  }) => void
 }) {
   const [nombre, setNombre] = useState(usuario.nombre)
   const [email, setEmail] = useState(usuario.email)
   const [institucion, setInstitucion] = useState(usuario.institucion)
+  const notaOriginal = usuario.notas
+  const [notas, setNotas] = useState(notaOriginal)
 
   return (
     <EnvolturaModal titulo="Editar cuenta" error={error} onCerrar={onCerrar}>
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          onGuardar({ nombre, email, institucion })
+          // La nota solo se manda si se tocó, y es el único campo del formulario
+          // con ese trato. El motivo es la concurrencia entre administradores:
+          // este modal se abre con la nota tal como estaba al abrirlo y puede
+          // quedarse abierto media hora. Mandándola siempre, quien solo venía a
+          // corregir un correo reescribiría además la nota con la copia vieja
+          // que tiene delante, borrando sin decir nada lo que otro administrador
+          // escribió entretanto desde su propia pestaña. `actualizarUsuario`
+          // ignora el campo que no viene, así que omitirla es exactamente «no
+          // tocar», y solo se pisa lo que se pisó a propósito.
+          onGuardar({ nombre, email, institucion, ...(notas === notaOriginal ? {} : { notas }) })
         }}
       >
         <div className="admin-form-group">
@@ -943,6 +1053,32 @@ function ModalEditar({
             value={institucion}
             onChange={(e) => setInstitucion(e.target.value)}
           />
+        </div>
+        {/*
+          El cuadro solo se estira en vertical: `resize` vale `both` por omisión
+          y, arrastrando a lo ancho, el textarea se sale de la caja del modal.
+          `.admin-form-input` sirve igual para un `textarea` —es la clase de los
+          tres formularios de cuentas y declara color además de fondo, que es lo
+          que lo salva en modo oscuro—, así que no hace falta una regla nueva en
+          la hoja.
+        */}
+        <div className="admin-form-group">
+          <label className="admin-form-label" htmlFor="editar-notas">
+            Notas internas
+          </label>
+          <textarea
+            id="editar-notas"
+            className="admin-form-input"
+            rows={4}
+            maxLength={LARGO_MAXIMO_NOTA}
+            style={{ resize: 'vertical' }}
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+          />
+          <p className="admin-form-hint">
+            Solo las ve un administrador, aquí y en la lista de cuentas. Quién pidió la cuenta, por
+            qué se desactivó. La persona titular no las ve nunca.
+          </p>
         </div>
         <div className="admin-modal-actions">
           <button type="button" className="admin-btn admin-btn-secondary" onClick={onCerrar}>

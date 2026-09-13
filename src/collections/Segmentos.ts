@@ -5,10 +5,25 @@ import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
  * Segmentos anatómicos. Ordenan la biblioteca y agrupan las maniobras del
  * examen físico; los define el traumatólogo, no el código.
  *
- * El encabezado decía «y el mapa corporal del examen físico». No hay tal mapa:
- * `zonaMapa` se guarda desde la primera migración y no lo lee nadie —ver el
- * comentario del campo—, y `examen-fisico/page.tsx` agrupa por segmento en
- * secciones con su título, sin silueta ninguna.
+ * Aquí vivió `zonaMapa` —x, y, ancho y alto—, reservado desde la migración
+ * inicial para un mapa corporal sensible que nunca se dibujó. El traumatólogo
+ * ha decidido que no se va a dibujar, así que el grupo se retira y la migración
+ * `20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_mapa` suelta las
+ * cuatro columnas. Lo que el campo costaba mientras tanto no era el espacio:
+ * era que el panel pedía cuatro coordenadas por segmento —veintitantos— para
+ * una pantalla que no existe, y adivinarlas sin una silueta delante no es
+ * trabajo que nadie pueda hacer bien.
+ *
+ * Si el mapa vuelve algún día, vuelve con su pantalla y con su migración.
+ * Declarar el hueco «por si acaso» es exactamente lo que mantuvo cuatro
+ * casillas vivas todo este tiempo, y la advertencia de que no servían para nada
+ * había que escribirla dos veces —aquí y en el esquema del panel— para que el
+ * traumatólogo no las rellenara.
+ *
+ * Las coordenadas que hubiera guardadas se pierden al aplicar la migración, y
+ * no se copian a ninguna parte a propósito: no las leía ningún archivo de
+ * `src/` fuera de esta colección y del esquema del panel, de modo que no
+ * describen nada que se pueda echar de menos.
  */
 export const Segmentos: CollectionConfig = {
   slug: 'segmentos',
@@ -24,30 +39,5 @@ export const Segmentos: CollectionConfig = {
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre del segmento' },
     { name: 'orden', type: 'number', defaultValue: 0, label: 'Orden de aparición' },
-    {
-      // Reservado, y conviene que se sepa. La descripción anterior decía
-      // «Recuadro sensible del mapa. Se ajusta visualmente y se guarda aquí», y
-      // las dos mitades eran falsas: no hay mapa que reaccione —ningún archivo
-      // de `src/` lee `zonaMapa` fuera de este y del esquema del panel— y no se
-      // ajusta visualmente, son cuatro casillas de números. Adivinar
-      // coordenadas para los veintitantos segmentos sin una silueta delante es
-      // trabajo que hoy no se ve en ninguna página.
-      //
-      // Las cuatro columnas se quedan: existen desde la migración inicial y
-      // soltarlas cuesta otra migración. Cuando el mapa se dibuje, esto ya está.
-      name: 'zonaMapa',
-      type: 'group',
-      label: 'Zona en el mapa corporal',
-      admin: {
-        description:
-          'Reservado para el mapa corporal: todavía no se dibuja en ninguna página, así que rellenarlo no cambia nada de lo que ve el residente.',
-      },
-      fields: [
-        { name: 'x', type: 'number', label: 'X' },
-        { name: 'y', type: 'number', label: 'Y' },
-        { name: 'ancho', type: 'number', label: 'Ancho' },
-        { name: 'alto', type: 'number', label: 'Alto' },
-      ],
-    },
   ],
 }

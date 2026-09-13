@@ -99,11 +99,25 @@ export function EditorDeEncuadre({
               type="button"
               className="admin-btn admin-btn-secondary"
               onClick={() => {
-                alCambiar({ escala: 1, giroX: 0, giroY: 0, giroZ: 0, distanciaCamara: 3 })
-                setAviso('Encuadre a cero.')
+                // Vaciar, no «poner a cero». Escribir aquí (1, 0, 0, 0, 3) era
+                // exactamente el tuple que se acaba de retirar del bloque: para
+                // `tieneEncuadre` una distancia de 3 **es** un encuadre, así que
+                // este botón dejaba el bloque ganándole a la pose del catálogo
+                // justo cuando el traumatólogo creía haberlo quitado. Con las
+                // cinco claves nulas, vacío significa lo que dice la ayuda:
+                // hereda del modelo, y si el modelo tampoco tiene, se encuadra
+                // solo.
+                alCambiar({
+                  escala: undefined,
+                  giroX: undefined,
+                  giroY: undefined,
+                  giroZ: undefined,
+                  distanciaCamara: undefined,
+                })
+                setAviso('Encuadre vacío: se usará el del catálogo.')
               }}
             >
-              Reiniciar
+              Vaciar
             </button>
           </div>
         }

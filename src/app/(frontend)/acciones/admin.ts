@@ -29,6 +29,23 @@ import {
 const RUTA_USUARIOS = '/admin-panel/usuarios'
 const RUTA_COMENTARIOS = '/admin-panel/comentarios'
 
+/**
+ * Techo del texto de una nota interna.
+ *
+ * La columna es `text` y no acota nada, y una acción de servidor acepta lo que
+ * el navegador quiera mandarle: sin este límite, una llamada a mano deja media
+ * novela en una fila que la pantalla de cuentas lee entera —las quinientas— en
+ * cada visita. Dos mil caracteres son varios párrafos, de sobra para lo que el
+ * campo existe: quién pidió la cuenta y por qué se desactivó.
+ *
+ * El mismo número está repetido en `TablaUsuarios.tsx`, que frena antes de
+ * enviar. No se importa de aquí porque este módulo es `'use server'` y solo
+ * puede exportar funciones asíncronas; el comentario de allí dice lo mismo desde
+ * el otro lado, y `tests/unit/notasDeCuenta.test.ts` falla si los dos números
+ * dejan de coincidir.
+ */
+const LARGO_MAXIMO_NOTA = 2000
+
 /** Cuántos administradores activos quedan además del indicado. */
 async function otrosAdminsActivos(payload: Payload, exceptoId: string): Promise<number> {
   const { totalDocs } = await payload.count({
@@ -120,6 +137,20 @@ async function devolverElAdminSiNoQuedaNinguno(
 
 // ---------------------------------------------------------------- usuarios
 
+/**
+ * La nota interna, lista para guardar.
+ *
+ * Se recorta antes de validar porque un cuadro de texto que se «vacía» casi
+ * nunca queda vacío: deja un salto de línea o un espacio, y `textoOpcional`
+ * solo convierte en `undefined` la cadena vacía exacta. Sin este recorte,
+ * borrar una nota contestaba «no puede quedar vacío» y la nota seguía donde
+ * estaba, que es justo lo contrario de lo que se pedía.
+ */
+function notaParaGuardar(valor: unknown): string | undefined {
+  const recortado = typeof valor === 'string' ? valor.trim() : valor
+  return textoOpcional(recortado, 'El texto de la nota', LARGO_MAXIMO_NOTA)
+}
+
 export async function crearUsuario(
   email: unknown,
   nombre: unknown,
@@ -127,6 +158,7 @@ export async function crearUsuario(
   rol: unknown,
   institucion?: unknown,
   activo: unknown = true,
+  notas?: unknown,
 ): Promise<Respuesta<{ id: string }>> {
   return accion(async () => {
     const { payload, usuario } = await exigirAdmin()
@@ -139,6 +171,11 @@ export async function crearUsuario(
         rol: exigirRol(rol),
         institucion: textoOpcional(institucion, 'La institución', 160),
         activo: activo !== false,
+        // La nota se acepta ya al crear porque el caso que el campo existe para
+        // resolver —«quién pidió esta cuenta»— se sabe exactamente aquí y en
+        // ningún momento mejor. Obligar a crear primero y anotar después es
+        // pedir un segundo paso que nadie da.
+        notas: notaParaGuardar(notas),
       },
       user: usuario as never,
     })
@@ -147,7 +184,23 @@ export async function crearUsuario(
   })
 }
 
-/** Campos que el panel puede modificar. Cualquier otro se ignora. */
+/**
+ * Campos que el panel puede modificar. Cualquier otro se ignora.
+ *
+ * La lista es cerrada a propósito y se arma campo por campo en `cambios`: lo
+ * que llega aquí es lo que el navegador quiso mandar, y volcarlo entero dejaría
+ * escribir `ultimoAcceso` —del que depende saber si una cuenta sigue en uso— o
+ * `activo`, que tiene su propia acción justamente porque hay que contar
+ * administradores antes de tocarlo.
+ *
+ * `notas` está en la lista desde que el campo se conectó a la pantalla de
+ * cuentas. Son notas **del administrador sobre la cuenta** —quién la pidió, por
+ * qué se desactivó—, no del titular: las escribe y las lee el mismo rol que esta
+ * acción ya exige, así que no necesitan permiso aparte. Quien las pinta y las
+ * manda es `admin-panel/usuarios/TablaUsuarios.tsx`; aceptarlas aquí sin que
+ * nadie las escriba desde la pantalla sería dejar el campo tan muerto como
+ * estaba.
+ */
 export async function actualizarUsuario(
   id: unknown,
   datos: {
@@ -157,6 +210,7 @@ export async function actualizarUsuario(
     email?: unknown
     modulosVisibles?: unknown
     modulosEditables?: unknown
+    notas?: unknown
   },
 ): Promise<Respuesta> {
   return accion(async () => {
@@ -174,6 +228,14 @@ export async function actualizarUsuario(
     }
     if (datos.modulosEditables !== undefined) {
       cambios.modulosEditables = modulosValidos(datos.modulosEditables)
+    }
+    if (datos.notas !== undefined) {
+      // El `?? null` es lo que borra la nota de verdad. `undefined` no viaja en
+      // el cuerpo de la escritura y Payload dejaría el texto anterior en su
+      // sitio: el administrador vaciaría el cuadro, vería «Cuenta actualizada» y
+      // encontraría la nota intacta al volver a abrir. Es el mismo `?? null` de
+      // `institucion`, y por el mismo motivo.
+      cambios.notas = notaParaGuardar(datos.notas) ?? null
     }
     let quitaUnAdmin = false
     if (datos.rol !== undefined) {

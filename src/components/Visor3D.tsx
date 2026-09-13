@@ -26,10 +26,28 @@ import type { OrbitControls as ControlesOrbita } from 'three-stdlib'
  * acepta un `mando`, con el que el editor lee la cámara.
  */
 
-import { CAMPO_DE_VISION, encuadreCapturado, encuadreQueLoAbarca, type Encuadre } from '@/lib/encuadre'
+import {
+  CAMPO_DE_VISION,
+  encuadreCapturado,
+  encuadreQueLoAbarca,
+  tieneEncuadre,
+  type Encuadre,
+} from '@/lib/encuadre'
 import { ruta } from '@/lib/rutas'
 
 export type { Encuadre }
+
+/**
+ * `tieneEncuadre` se escribió aquí y ahora vive en `@/lib/encuadre`.
+ *
+ * Se reexporta —y no se deja una copia— porque este archivo lleva `'use
+ * client'` y `Bloques.tsx` se pinta en el servidor: dos copias de la misma
+ * pregunta acabarían contestando distinto el día que una se mueva, y entonces
+ * el bloque enseñaría una pose y el catálogo otra. Varios comentarios del
+ * repositorio la citan por esta ruta (`src/collections/Modelos3D.ts`), que
+ * sigue siendo cierta.
+ */
+export { tieneEncuadre }
 
 /**
  * El decodificador de Draco, servido por la propia plataforma.
@@ -90,10 +108,6 @@ function esFocoDeTeclado(elemento: HTMLElement): boolean {
     return true
   }
 }
-
-/** ¿Alguien encuadró ya este modelo, o está tal como salió de la segmentación? */
-export const tieneEncuadre = (encuadre: Encuadre | undefined): boolean =>
-  encuadre?.distanciaCamara !== undefined && encuadre.distanciaCamara !== null
 
 export interface MandoDelVisor3D {
   /**

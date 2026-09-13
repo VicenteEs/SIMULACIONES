@@ -1,6 +1,7 @@
 import React from 'react'
 import { RichText } from '@payloadcms/richtext-lexical/react'
 import { conversoresRicos } from '@/components/Rico'
+import { encuadreVigente, type Encuadre } from '@/lib/encuadre'
 import { Visor3D, VisorInstancia } from './VisoresPerezosos'
 
 /**
@@ -139,8 +140,23 @@ function BloqueVideo({ bloque }: { bloque: Bloque }) {
 }
 
 function BloqueModelo3D({ bloque }: { bloque: Bloque }) {
-  const modelo = bloque.modelo as { nombre?: string; url?: string } | undefined
-  const encuadre = (bloque.encuadre ?? {}) as Record<string, number>
+  // El `encuadre` del modelo llega poblado porque las fichas se leen con
+  // profundidad 1 o más, que es la misma lectura que trae la `url`: si alguna
+  // bajara a 0, aquí no habría dirección que abrir y el bloque saldría por el
+  // aviso de abajo antes de llegar al encuadre.
+  const modelo = bloque.modelo as
+    | { nombre?: string; url?: string; encuadre?: Encuadre | null }
+    | undefined
+
+  // Manda el del bloque; si el bloque no dice nada, el del modelo; si ninguno
+  // dice nada, el visor lo encuadra solo. La regla y su porqué —incluido por
+  // qué no puede ser un `??`— están en `encuadreVigente` (`src/lib/encuadre.ts`),
+  // que es también quien la comparte con las demás pantallas que abren un
+  // modelo del catálogo.
+  const encuadre = encuadreVigente(
+    bloque.encuadre as Encuadre | null | undefined,
+    modelo?.encuadre,
+  )
 
   // Aquí no ha fallado ninguna descarga: el visor ni se monta. O el autor no
   // eligió modelo en el desplegable, o la relación quedó en nulo porque alguien

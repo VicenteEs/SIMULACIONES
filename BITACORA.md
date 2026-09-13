@@ -1322,7 +1322,7 @@ cortarlo exigiría cambiarle también el nombre, que no compensa. Nadie escribe
 que siga siendo así.
 
 
-### D-075 · 2026-09-13 · vigente
+### D-075 · 2026-09-13 · vigente en la intención, superada en las cifras y en la vía por D-088
 **El techo de subida es una sola cifra, y sale del panel.**
 Había tres números distintos diciendo cosas distintas: `upload.limits` anunciaba
 50 MB, el panel prometía 50 MB, y Next cortaba el cuerpo de la acción en 8 MB
@@ -1506,6 +1506,493 @@ fuera —el cuerpo completo son ciento treinta y nueve piezas encendidas y
 pintarlas todas hace el panel irrecorrible—, así que con el cuerpo entero hay
 que filtrar por nombre para llegar a la que se busca. Callar el recorte habría
 sido peor: parecería que la pieza no está encendida.
+
+
+### D-081 · 2026-09-13 · vigente
+**El mapa corporal no se va a dibujar, y sus cuatro columnas se sueltan.**
+La pregunta llevaba abierta desde la migración inicial y la contestó hoy el
+traumatólogo: no hay silueta que pulsar ni la va a haber. Lo que él quería de
+esa idea era otra cosa, y está en D-082. El grupo `zonaMapa` —`x`, `y`, `ancho`,
+`alto`— se retira de `src/collections/Segmentos.ts` y del esquema del panel, y
+`20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_mapa` suelta las
+cuatro columnas.
+
+*Por qué no se dejaban «por si acaso», que es lo que se hizo la vez anterior.*
+Lo que costaban no era el espacio: era que el panel pedía cuatro coordenadas por
+segmento —veintitantos— para una pantalla que no existe, y adivinarlas sin una
+silueta delante no es trabajo que nadie pueda hacer bien. La advertencia de que
+no servían para nada había que escribirla **dos veces** —en la colección y en el
+esquema del panel, porque desde D-038 el texto que se lee es el segundo— y aun
+así la sección salía en el formulario con su título. Si el mapa vuelve algún
+día, vuelve con su pantalla y con su migración.
+
+*Consecuencia mala, y hay que aceptarla entera:* volver a tenerlo exige crear
+otra vez las cuatro columnas, y **las coordenadas que hubiera guardadas no
+vuelven**. El `down` repone las columnas vacías, que no es lo mismo que
+deshacer. En la base de desarrollo estaban vacías; de la del servidor no ha
+mirado nadie, y por eso la migración lo deja dicho en el registro del despliegue
+en vez de darlo por sabido: es la parte que destruye datos sin preguntar y ese
+registro es el único sitio donde va a constar que ocurrió. Quien quiera
+conservarlas, el momento es antes de aplicarla, con `npm run respaldar`.
+
+*Y deja un cabo que esta entrada no cierra:* la guardia de migraciones solo
+comprueba que exista la columna que la colección declara, nunca que sobre una
+que ya no declara nadie. Ver O-043.
+
+
+### D-082 · 2026-09-13 · vigente · amplía D-054
+**Un modelo 3D guarda la pose desde la que se abre, con la forma `Encuadre` y no
+con la del atlas.**
+«No así, pero es para enfocar el punto de vista del alumno, dejarle el modelo de
+la pierna por ejemplo en una pose.» Eso era lo que había detrás del mapa
+corporal, y no era un mapa. Hasta hoy el ángulo lo decidía el visor —mide la
+caja del modelo y lo abarca entero—, que es honesto y es la vista de nadie: la
+fractura puede quedar detrás, y el residente que no sabe qué busca no gira el
+modelo, mira el que le enseñan. `modelos-3d` estrena el grupo `encuadre`, que se
+captura con el mismo editor arrastrable de D-054 y en el mismo visor que ve el
+residente.
+
+*Se elegía entre dos formas que ya existían, y elegir mal era crear la tercera.*
+`VistaDeInstancia` (`src/atlas/formato.ts`) guarda dos puntos del espacio
+—cámara y objetivo— más la separación de las piezas, y puede permitírselo porque
+el atlas es **una** escena compartida, un cuerpo entero en metros, donde una
+coordenada absoluta significa siempre lo mismo. Un `.glb` subido viene en las
+unidades del estudio del que salió y centrado donde quiso Blender, de modo que
+«cámara en (0.6, 1.1, 2.6)» no dice nada sobre él; y `separacion` no tiene aquí
+equivalente, porque no hay piezas que apartar. `Encuadre` guarda lo que sí es
+propio del modelo: cuánto girarlo, a qué distancia mirarlo y con qué escala. Es
+lo que produce `encuadreCapturado`, lo que consume `Visor3D` y lo que ya
+guardaba el bloque «Modelo 3D» de una ficha, con estos cinco nombres. Compartir
+nombre y forma es lo que permite que un lector caiga de uno al otro sin traducir
+nada.
+
+*La precedencia es bloque, luego modelo, luego automático.* Manda el del bloque,
+porque quien coloca esa pieza en esa ficha la está mirando para esa ficha; si el
+bloque no dice nada, manda la pose del catálogo, que el traumatólogo capturó una
+vez para todas las fichas; y si ninguno dice nada, el visor abarca la pieza por
+su cuenta, que es lo que la plataforma ha hecho siempre. La regla vive una sola
+vez, en `encuadreVigente` (`src/lib/encuadre.ts`), y **no puede escribirse como
+un `??`**: `depurarCampos` reconstruye el documento recorriendo el esquema y
+escribe siempre las cinco claves del grupo, así que un bloque guardado desde el
+panel trae un `encuadre` que es un objeto aunque esté entero a nulos. El `??` no
+caería jamás al modelo y el respaldo quedaría escrito, probado y muerto. La
+pregunta que sí distingue los dos casos es `tieneEncuadre`, que mira
+`distanciaCamara` porque es la única de las cinco sin valor neutro: los giros
+valen cero en la pose frontal, que es una pose legítima, y la escala vale uno en
+casi todas.
+
+*Y es todo o nada.* Un bloque con los giros escritos y la distancia en blanco
+cae **entero** al del modelo. Juntar la mitad de uno con la mitad del otro
+compone una pose que nadie vio nunca, ni en el editor del bloque ni en la ficha
+del modelo, y el traumatólogo no tendría dónde ir a corregirla.
+
+*Consecuencia mala, y se paga el primer día:* los bloques «Modelo 3D» ya
+insertados traen los `defaultValue` de Payload —escala 1, giros 0, distancia 3—
+sin que nadie los haya capturado, de modo que para `tieneEncuadre` **tienen
+encuadre** y ganan. La pose que se capture en el catálogo no llegará a esas
+fichas hasta que alguien las abra y capture allí, o vacíe la distancia del
+bloque. No hay forma de distinguir un 3 puesto por omisión de un 3 elegido, y
+por eso el campo de la colección nace **sin `defaultValue`**: vacío significa
+«encuádralo tú», y un valor por omisión aquí habría hecho que todo modelo
+naciera con una pose que nadie eligió y que los modelos en milímetros se
+abrieran como un punto en el centro de la pantalla.
+
+*Y la regla la llama hoy un solo renderizador,* que es la mitad que queda
+suelta: el paso de un caso AO y el instrumento de la consola abren su modelo sin
+preguntar por la pose. Ver O-045.
+
+*Y una de arquitectura, que conviene saber antes de mirar el peso del paquete:*
+desde que `Bloques.tsx` —que se pinta en el servidor— lee de
+`src/lib/encuadre.ts`, el `import * as THREE` de ese módulo entra con él en el
+paquete del servidor, donde no se dibuja nada. No llega al navegador del
+residente —los visores siguen viajando aparte, por `VisoresPerezosos`— y no
+cambia ningún comportamiento; el día que ese peso moleste, lo que hay que sacar
+es `encuadreCapturado`, que es la única función de ahí que necesita three.
+`tieneEncuadre` bajó del visor a `src/lib` por esto mismo: llamar desde el
+servidor a algo que vive en un archivo `'use client'` no queda feo, falla, y se
+lleva la ficha entera.
+
+
+### D-083 · 2026-09-13 · vigente
+**El suelo de la escala es 0,0001, y el catálogo y el bloque lo declaran igual.**
+Con `min: 0.01` el tope impedía justo el caso para el que existía.
+`encuadreQueLoAbarca` devuelve `1/radio`, y un fémur de 250 mm de radio da
+0,004. Guardando desde el panel eso no daba error: `depurarCampo` recorta contra
+el tope **sin decir nada**, así que «Ajustar al modelo» capturaba 0,004, se
+guardaba 0,01 y el hueso se abría dos veces y media más grande de lo que el
+traumatólogo acababa de dejar en pantalla —y el factor crece con la pieza: un
+modelo del doble de radio se abría cinco veces más grande—. Por la API local o
+por un guion era peor de otra manera: el mismo número se rechazaba de plano.
+0,0001 sigue impidiendo el cero, que es lo único que había que impedir —con
+escala cero el modelo desaparece—, y deja pasar los milímetros.
+
+*Dónde actuaba de verdad el tope, que no es donde se lo busca.* En el bloque de
+una ficha el `min` de Payload era el **único** que actuaba, porque
+`src/admin/bloques.ts` declara esa escala sin `min` ni `max` y `depurarCampo` la
+deja pasar tal cual: quien rechazaba era Payload, en inglés y sin que `accion()`
+desenvuelva el mensaje. O sea, el recorrido completo del defecto: insertar un
+fémur en milímetros, pulsar «Ajustar al modelo» —el botón que existe
+precisamente para hacer visible el modelo—, pulsar Guardar y no poder guardar lo
+que el botón acababa de capturar.
+
+*Consecuencia mala:* el mismo número está escrito en tres sitios —la colección,
+el bloque de Payload y el esquema del panel— y tiene que seguir estándolo,
+porque el panel recorta antes de que Payload llegue a validar y un tope más
+estrecho arriba devuelve el recorte mudo. Los atan `tests/unit/esquema.test.ts`
+y `tests/unit/encuadreDelModelo.test.ts`; ya se separaron una vez dentro de esta
+misma jornada —el catálogo bajó a 0,0001 y el bloque se quedó en 0,01—, que es
+exactamente la mitad de un arreglo dándose por hecha estando viva.
+
+
+### D-084 · 2026-09-13 · vigente · amplía D-078
+**El puntaje y las complicaciones sobreviven al recargado, y son seguimiento y
+no una nota.**
+La respuesta del traumatólogo fue una palabra: «sobreviven». Hasta hoy vivían en
+estado local de `ConsolaQuirurgica.tsx` y morían con la pestaña, con dos precios
+que se pagaban juntos: pasarse y quedarse corto acababan valiendo lo mismo —la
+única señal que los distinguía era una línea de un registro de diez que se
+perdía al recargar— y el «registro de complicaciones» que la portada promete
+desde el primer día no existía en ninguna parte. `actividad` estrena `puntaje`,
+`puntajeMaximo` y la lista `complicaciones`, en la misma fila que ya guardaba la
+lectura de esa ficha.
+
+*La fila guarda el último recorrido, no un historial, y eso es lo que cuesta.*
+Es una por usuario y ficha —el índice único de D-072— y describe un estado, como
+`completado`: la lista que llega reemplaza entera a la anterior. Acumular
+intentos pide otra colección y otra decisión, que no se ha tomado. Tampoco es un
+punto de guardado: no se guarda por dónde iba el recorrido, así que al volver el
+marcador cuenta desde cero y lo de la vez anterior se enseña aparte, en «Su
+recorrido anterior». Reponerlo dentro del marcador y dejar repetir los mismos
+pasos los cobraría dos veces, y el número subiría solo con recargar.
+
+*`puntajeMaximo` se guarda junto al puntaje porque el guion lo edita el
+traumatólogo.* Sin esa copia, añadir un paso a un caso publicado convierte «18
+de 20» en «18 de 30» en el historial de quien ya lo había terminado, sin que él
+hubiera hecho nada. El numerador y el denominador de un marcador se guardan
+juntos o mienten por separado. Por lo mismo, cada complicación se lleva el
+número y el título con los que el residente vio el paso: `pasos[].id` deja de
+encontrar nada en cuanto el guion se reordena, y entonces esas dos columnas son
+lo único que permite nombrarla.
+
+*Consecuencia mala, y hay que decirla en voz alta:* **el puntaje lo calcula el
+navegador.** `puntosDelPaso` corre en la consola y el servidor no lo puede
+recalcular sin repetir la simulación entera, así que un residente puede escribir
+el que quiera con un `PATCH` a su propia fila —igual que hasta hoy podía
+inspeccionar la consola—. Se acepta porque esto es seguimiento del propio
+progreso y no una calificación: sirve para que él vea lo que le costó el caso y
+para que el profesor sepa quién ha recorrido qué. Por eso la cifra se enseña
+acompañada de esa frase en las dos pantallas donde aparece (D-086). El día que
+cuente como evaluación no basta con cerrar el campo: la cuenta tiene que mudarse
+al servidor, porque lo que viaja es el gesto.
+
+*Y el desenlace se guarda como texto, no como `select`.* Un `select` de Payload
+es un tipo enumerado de PostgreSQL, así que cada desenlace nuevo del motor
+exigiría su migración, y ese olvido no lo caza nadie:
+`tests/unit/migraciones.test.ts` compara nombres de columna y dice en su propia
+cabecera que no mira tipos ni valores. El fallo aparecería en el servidor, al
+guardar, como un `invalid input value for enum` sin traducir y con el residente
+delante. En texto, la columna y las dos comprobaciones —la de la colección y la
+de la acción— derivan de `RESULTADOS`, de modo que un desenlace nuevo se acepta
+solo. Se pierde la garantía del motor de base de datos; se gana que la garantía
+siga siendo cierta.
+
+
+### D-085 · 2026-09-13 · vigente
+**El recorrido se guarda en cada hito: un paso superado o una complicación.**
+Ni en cada gesto —eso es una escritura por clic, y pulsar «Aplicar paso» sin
+instrumento no cambia nada que guardar— ni solo al terminar, que pierde entero
+al que cierra la pestaña a mitad, que es el caso corriente en un módulo que se
+recorre entre dos turnos. Un caso de diez pasos son unas diez escrituras
+repartidas en la media hora que se tarda en recorrerlo. No se intenta nada al
+cerrar la pestaña: `beforeunload` no es sitio para una acción de servidor —el
+navegador corta la petición— y prometerlo sería peor que no tenerlo.
+
+*Una escritura en vuelo y siempre la última.* Dos gestos seguidos son dos
+llamadas, y la fila es una: viajan por HTTP y nada garantiza el orden, así que
+la del paso 3 podía aterrizar después de la del 4 y dejar guardado el puntaje de
+antes. Mientras haya una en vuelo, la siguiente espera en `porMandar` —pisando a
+la que hubiera, que ya no interesa— y sale cuando la anterior vuelve. La
+escritura idéntica a la anterior se descarta, que es lo que evita el viaje del
+paso que no sumó nada.
+
+*El botón de reiniciar no borra lo guardado.* Está a ocho píxeles del marcador y
+se pulsa sin querer: vaciar la fila dejaría al residente sin el registro de
+complicaciones del recorrido que acaba de hacer, que es justo lo que iba a
+repasar, y esta vez sin vuelta atrás. Lo sustituye el primer hito del recorrido
+nuevo, porque la lista que se manda es la entera.
+
+*Consecuencia mala:* lo hecho desde el último paso superado se pierde si se
+cierra la pestaña, y cada hito reescribe la lista entera de complicaciones en
+lugar de añadir una fila. Y cuando una escritura falla, la consola lo dice y
+vuelve a intentarlo en el hito siguiente con el recorrido entero: callar ahí
+sería dejar al residente terminando un caso que no se guardó, con un marcador en
+pantalla que sigue subiendo.
+
+
+### D-086 · 2026-09-13 · vigente
+**Lo que la consola guarda se enseña en tres pantallas, y la advertencia va
+delante de la primera cifra.**
+Este repositorio ya escribió una vez la mitad de esto —tres columnas declaradas,
+migradas y probadas, sin nadie que las escribiera ni las leyera—, y un campo que
+se llena y no se lee es peor que uno que falta: se ve lleno en el panel y quien
+lo rellena cree que ha dejado algo puesto. Así que el recorrido sale por tres
+sitios: la propia consola, con «Su recorrido anterior» entero y sin recortar a
+diez líneas; la portada del residente, en «Su paso por el simulador», que es
+donde estaba prometido el registro de complicaciones; y el panel de actividad,
+con la tabla de los pasos donde se atasca la gente.
+
+*Veces y residentes se cuentan aparte, y esa es la columna que informa.* Un paso
+donde una persona insistió seis veces es un tropiezo suyo; uno donde tropezaron
+seis personas es el guion, y es el que hay que reescribir. Por eso el orden es
+por gestos y, en empate, por personas. El desenlace se enseña en castellano
+—`NOMBRE_DEL_DESENLACE`, un `Record<Resultado, string>` para que el compilador
+pida el nombre el día que el motor estrene uno— y no como la constante cruda,
+que es el nombre de una variable y no una frase.
+
+*La advertencia va antes de la tabla y no debajo.* Quien mira una columna de
+números la interpreta mientras la lee, y un puntaje se parece demasiado a una
+nota; puesta detrás llegaría tarde. Dice lo que D-084 explica: que lo calcula el
+navegador del residente, que el servidor no lo puede recalcular y que sirve para
+ver dónde se atasca la gente, no para evaluar a nadie.
+
+*Consecuencia mala:* el resumen del panel se calcula sobre las últimas 1.000
+filas de `cirugias` —el mismo tope de la actividad reciente y con la misma letra
+pequeña—, así que pasado ese número deja de ser un recuento y es un suelo.
+Subirlo sin más es traerse la tabla a la memoria del servidor; contar en la base
+tampoco sirve tal cual, porque el agrupado por paso que necesita esta tabla no
+se pide con `count`. Y el `ilegible` del simulador es propio y no el de la
+actividad: una avería leyendo recorridos no puede poner «—» en las cifras de
+lectura, que se leyeron perfectamente.
+
+
+### D-087 · 2026-09-13 · vigente · cierra el cabo abierto de D-072
+**El examen físico registra lectura desde el listado, con una casilla por
+maniobra. Esta la eligió el equipo.**
+La pregunta se le hizo al traumatólogo y contestó «no entiendo, haz lo que mejor
+te parezca». **La decisión es del ingeniero y no del médico**, y conviene que
+conste: cambia la forma del módulo y deshacerla cuesta trabajo. D-072 había
+dejado el cabo escrito —cuatro módulos de cinco anotaban lectura, y las fichas
+del quinto contaban en el total de la portada y nunca en las leídas, de modo que
+«por leer» tenía un suelo igual al número de maniobras publicadas— con sus dos
+salidas posibles: una ficha por maniobra, o un rastreador por `<article>` en el
+listado. Se eligió la segunda. La primera inventa una pantalla que nadie pidió y
+parte en treinta páginas un módulo que se lee de corrido.
+
+*Lo que hubo que separar para que la cifra no mintiera de otra manera.* Montar
+treinta rastreadores es anotar treinta visitas de golpe, y «Continúa leyendo»
+—que ordena por `ultimaVisita`— se habría llenado de maniobras que nadie miró,
+tapando justo las fichas que el residente sí dejó a medias. De ahí que el
+listado pase `anotarVisita={false}` y que la visita la anote
+`VisitaDeManiobraEnlazada`, una sola vez y solo cuando la navegación nombró una
+maniobra concreta —lo que llega desde «Ver publicado ↗», desde «abrir ficha →»
+de un comentario y desde la propia portada—. Se comprueba contra las maniobras
+que el listado acaba de pintar, porque el ancla la escribe quien quiera en la
+barra de direcciones y un `#maniobra-9999` a mano dejaba una fila apuntando a
+una ficha inexistente. Marcar «leída» no depende de nada de esto: es un gesto
+del residente sobre una maniobra concreta, no una suposición nuestra.
+
+*Y tres cosas que estaban rotas y no se veían porque de este módulo no salía
+nunca una ficha.* El destino de «Continúa leyendo» se componía pegando
+`${ruta}/${id}`, y no existe `examen-fisico/[id]`: habría estrenado el 404 en
+inglés de Next en cuanto la sección pudiera ofrecer una maniobra; ahora sale de
+`rutaPublica`, que es quien sabe que ese módulo se enlaza por ancla. Las dos
+mitades de la resta «por leer» hablaban de conjuntos distintos —el total cuenta
+solo los módulos que la cuenta ve y lo leído contaba todas sus filas—, así que a
+una cuenta con un módulo retirado le salía una cifra más baja de la que era. Y
+una maniobra sin segmento no se pintaba en ninguna parte, porque el reparto
+recorría los segmentos y filtraba dentro: una ficha publicada que contaba en el
+total y a la que nadie podía llegar a leer, comentar ni marcar.
+`agruparManiobrasPorSegmento` (`src/lib/maniobras.ts`) las junta en «Otras
+maniobras» y vive fuera del JSX porque lo que hay que sostener —que las
+maniobras que entran son exactamente las que salen— no se ve leyendo la página.
+
+*Consecuencia mala, y es de tope:* el listado pide ahora 300 maniobras y las 300
+filas de lectura correspondientes, con el mismo número a propósito —un tope más
+bajo en la segunda consulta dejaría maniobras ya leídas con la casilla en
+blanco, y eso no se ve: la página carga y el residente vuelve a marcar lo que ya
+tenía marcado—. Pasadas las 300 publicadas, las de más no se pintan. Y son N
+casillas seguidas bajo un `<h1>` que dice «Examen físico» y nada más, así que
+cada una necesita su `nombreDeLaFicha`: sin él un lector de pantalla recita N
+veces «casilla de verificación, Marcar como leída» y marcar la que se acaba de
+leer queda en contar casillas desde arriba.
+
+
+### D-088 · 2026-09-13 · vigente · supera a D-075
+**El techo de subida son 50 MB, y el archivo entra por una ruta y no por una
+acción de servidor.**
+La pregunta era si cabe un vídeo de quirófano de verdad, y la respuesta vino
+condicionada: «si es posible subir los límites adelante, de lo contrario no
+tengo pensado dejar vídeos, solo haré simulaciones con los modelos 3D». O sea
+que de esto dependía que el módulo tuviera vídeo o no lo tuviera. D-075 dejó el
+techo en 7 MB y dejó escrito por qué subir el número no bastaba: una acción de
+servidor recibe el cuerpo ya reunido —el archivo entero en la memoria del
+servidor durante toda la subida, que por un túnel doméstico son minutos— y Next
+lo descarta **antes** de invocarla, así que el `try/catch` de `accion()` no
+llega a ejecutarse y la pantalla se queda muda.
+
+*La salida es un manejador de ruta*,
+`src/app/(frontend)/api/subidas/[coleccion]/route.ts`, que no lleva ese límite y
+escribe a disco según recibe. El cuerpo son **los bytes del archivo y nada
+más**: un `multipart/form-data` habría obligado a llamar a `peticion.formData()`,
+que reúne el cuerpo entero en memoria y deshace lo que se venía a ganar. Lo
+demás viaja en cabeceras y no en la dirección, porque el nombre de un archivo
+clínico no tiene por qué quedar escrito en el registro de accesos de un proxy.
+El archivo va a un directorio temporal propio por subida —dos personas subiendo
+a la vez un archivo llamado igual dejarían un registro apuntando a un vídeo que
+es mitad de cada uno— y se borra pase lo que pase.
+
+*Lo que una ruta no trae puesto y una acción sí.* Next comprueba el origen de
+sus acciones; un manejador de ruta, no. Sin esa comprobación, la cookie de
+sesión —acotada al prefijo, pero compartida con las páginas vecinas del mismo
+dominio— dejaría que un guion inyectado en cualquiera de ellas subiera archivos
+con la sesión del traumatólogo. Se comprueba **igual que la comprueba Next**, a
+propósito: más estricta, subir fallaría en un despliegue donde el resto del
+panel funciona y nadie relacionaría las dos cosas; más laxa, sería la puerta
+abierta al lado de la que las acciones ya cierran.
+
+*La cadena de números, que es lo que hay que entender antes de tocar ninguno:*
+**50 ≤ 52 ≤ 64**. Cincuenta megas de techo del archivo en `medios`
+(`TECHO_DE_MEDIOS_BYTES`, en `src/admin/esquema.ts`, de donde salen también la
+frase que se lee en el panel, la comprobación del navegador, la del servidor y
+el `upload.limits` de Payload); cincuenta y dos de cuerpo de acción
+(`next.config.mjs`); sesenta y cuatro de `client_max_body_size` en el nginx del
+otro despliegue. Tiene que crecer hacia fuera para que quien corte sea siempre
+la plataforma, que sabe decir en español qué pasó y cuánto pesaba el archivo: un
+proxy que corta antes devuelve un 413 sin una palabra dentro. Lo compara
+`tests/unit/subidaDeVideo.test.ts`, que abre los tres archivos —el esquema,
+`next.config.mjs` y `despliegue/paginas/LEEME.md`— y los lee.
+
+*Por qué 50 y no 64, que es la pregunta que se hará el siguiente.* El eslabón
+corto vive en una máquina que **este repositorio no versiona**
+(`nginx-proxy-manager/data/nginx/custom/server_proxy.conf`), así que un número
+subido aquí no lo pone allá, y así es exactamente como nacen dos cifras que no
+se hablan. El techo de la aplicación se queda por debajo del proxy en lugar de
+empujarlo. Si algún día hicieran falta más de 64 MB, el orden es al revés y no
+se puede saltar: primero el proxy, después esto. Y con cuidado, porque ese
+fragmento se incluye en **cada** server que genera NPM: subirlo se lo sube
+también a las otras tres páginas del dominio sin que lo hayan pedido.
+
+*El techo de los modelos 3D no se mueve con este, y por eso están escritos
+juntos.* Un `.glb` lo carga **entero** el navegador del residente antes de
+pintar el primer triángulo, así que los 5 MB no son tacañería: por encima, la
+consola deja de abrirse en el equipo de referencia (O-008, Q-006). Separados en
+dos archivos, el día que alguien suba el de los vídeos se lleva por delante el
+de los modelos «ya que estamos».
+
+*Y la barra de progreso no es un adorno.* Un vídeo de 40 MB por un túnel
+doméstico dejaba el botón en «Subiendo…» durante minutos sin una sola señal, y
+lo que hace cualquiera entonces es volver a pulsar o cerrar la pestaña. Va con
+`XMLHttpRequest`, anticuado a sabiendas, porque `fetch` no informa del avance de
+la **subida**. Al llegar al 100 % dice «Procesando en el servidor…», que es
+verdad —falta escribir el archivo, sacar las miniaturas y crear el registro— y
+evita la lectura contraria. La lista de formatos se queda en MP4 y WEBM aunque
+la cámara de pabellón grabe en otra cosa: un QuickTime no se reproduce en
+`<video>` fuera de Safari, así que admitirlo sería dejar subir un archivo que la
+mitad de los residentes ve como un recuadro negro.
+
+*Consecuencias malas, dos y las dos abiertas.* `formulario/Campos.tsx` sigue
+insertando archivos dentro de un bloque por la acción vieja, y por eso
+`bodySizeLimit` tiene que quedarse en 52: mientras siga ahí, una inserción de
+50 MB desde el editor de bloques se queda 50 MB en la memoria del servidor, y
+ese número solo se va el día que esa pantalla suba por la ruta como ya sube el
+listado de medios. Y los 50 MB no están probados por el túnel por el que hoy
+entra la plataforma: ver O-044.
+
+
+### D-089 · 2026-09-13 · vigente
+**Los subtítulos en los vídeos se descartan, y queda escrito para que no vuelvan
+a proponerse.**
+No existían: eran una propuesta de la auditoría de esta mañana. El traumatólogo
+contestó «no, quítalos», y como no había nada que quitar del código —ni un
+`<track>`, ni un `.vtt`, ni un campo—, **esta entrada es lo único que queda de
+la propuesta**. Sin ella, la próxima revisión de accesibilidad la levanta otra
+vez y alguien la implementa, que es precisamente lo que la bitácora existe para
+evitar.
+
+*El porqué es de producto y no técnico.* Hoy no hay un solo vídeo publicado, y
+si los límites no hubieran subido no iba a haberlos nunca (D-088). Un subtítulo
+pide un archivo por vídeo, escrito a mano y minuto a minuto por la misma persona
+que redacta las fichas, que es el trabajo más caro del proyecto; y el público es
+un grupo cerrado que habla un solo idioma (D-012).
+
+*Consecuencia mala, y no es menor:* la plataforma exige `alt` en toda imagen y
+acaba de ampliar esa exigencia al vídeo —«qué gesto se hace en el video»—, así
+que la accesibilidad queda sostenida por un lado y soltada por otro, a
+sabiendas: quien no oye no tiene con qué seguir lo que se dice dentro de un
+vídeo. Se acepta mientras el vídeo sea lo que hoy se piensa que va a ser, un
+gesto quirúrgico de veinte segundos con su explicación escrita al lado. Lo que
+reabriría esto es que el vídeo pase de ilustración a contenido —una clase
+grabada, una explicación hablada que no esté escrita en ninguna parte— o que la
+plataforma salga del grupo que hoy tiene el enlace (Q-001).
+
+
+### D-090 · 2026-09-13 · vigente
+**El campo `notas` de una cuenta se conecta, y son notas del administrador sobre
+la cuenta.**
+«Conéctalo.» Estaba declarado en la colección desde el principio y no lo pintaba
+ninguna pantalla desde que se retiró la interfaz de Payload (D-038): un campo
+que se guarda y no se ve, de la misma familia que `zonaMapa` pero con la
+decisión contraria. Ahora se escribe y se lee en la pantalla de cuentas, en
+cuatro sitios: el modal de crear, porque el dato que el campo existe para
+guardar —quién pidió esta cuenta y con qué autorización— se sabe exactamente ahí
+y se olvida en una semana; el de editar; resumido dentro de la fila, porque una
+nota que solo aparece al abrir un modal no se abre nunca y ese dato se consulta
+justo mirando la lista, antes de reactivar a nadie; y la búsqueda, para que
+buscando al jefe de servicio salgan las cuatro cuentas que pidió.
+
+*Quién las ve, dicho en los dos formularios:* solo un administrador, que es lo
+que esta pantalla exige entera. **La persona titular no las ve nunca.** Esa
+frase es parte del campo: una nota sobre alguien se escribe distinta según quien
+vaya a leerla, y dejarlo a la interpretación de cada uno es la manera de que
+acabe habiendo las dos cosas en la misma columna.
+
+*La nota solo se manda si se tocó,* y es el único campo del formulario con ese
+trato. El modal se abre con la nota tal como estaba al abrirlo y puede quedarse
+abierto media hora: mandándola siempre, quien solo venía a corregir un correo
+reescribiría además la nota con la copia vieja que tiene delante, borrando sin
+decir nada lo que otro administrador escribió entretanto desde su pestaña.
+`actualizarUsuario` ignora el campo que no viene, así que omitirla es
+exactamente «no tocar». Y cuando sí se toca, lo que se guarda es `?? null`:
+`undefined` no viaja en el cuerpo de la escritura y Payload dejaría el texto
+anterior en su sitio, de modo que vaciar el cuadro contestaba «Cuenta
+actualizada» sobre una nota intacta.
+
+*Consecuencia mala, y hay dos.* El techo de 2.000 caracteres está escrito dos
+veces —en la acción y en la pantalla— y no se puede importar de una a otra,
+porque un módulo `'use server'` solo exporta funciones asíncronas; los ata
+`tests/unit/notasDeCuenta.test.ts`. Y más de fondo: la plataforma estrena un
+sitio donde queda escrito por qué se desactivó una cuenta, o sea un dato
+personal sobre una persona identificada que viaja en cada respaldo. Eso entra de
+lleno en lo que Q-005 tiene pendiente decidir, y conviene que la respuesta llegue
+antes de que la columna tenga quinientas filas escritas.
+
+
+### D-091 · 2026-09-13 · vigente
+**`src/payload-types.ts` se regenera en el mismo cambio que el esquema, y ahora
+hay quien lo vigile.**
+Pasó en este mismo lote: se añadieron `encuadre` a `modelos-3d` y `puntaje`,
+`puntajeMaximo` y `complicaciones` a `actividad`, se retiró `zonaMapa` de
+`segmentos`, y los tipos se quedaron como estaban. **No rompe nada el día que se
+atrasa**, y ahí está la trampa: `tsc` pasa, la suite pasa y el archivo sigue
+describiendo el esquema de la semana pasada. La factura la paga el siguiente,
+que abre `Actividad` para escribir el puntaje del caso, no encuentra el campo y
+tiene que decidir si el tipo está mal o el campo no existe.
+`tests/unit/tiposGenerados.test.ts` compara los nombres de primer nivel de cada
+colección contra la configuración y dice qué orden ejecutar
+—`npm run generate:types`, que no necesita la base levantada—.
+
+*Lo que no comprueba, para que nadie confíe de más:* el tipo de cada campo —un
+`text` que pasa a `number` no lo ve—, lo que hay dentro de un grupo o de un
+arreglo, y los bloques. Reimplementar el generador de Payload dentro de una
+prueba habría sido inventar una segunda fuente de verdad para comprobar la
+primera. Se busca por el comentario `via the definition "<slug>"` y no por el
+nombre de la interfaz, que Payload compone con sus propias reglas.
+
+*Consecuencia mala:* una guardia más que puede fallar por una razón legítima —un
+campo recién declarado, antes de regenerar— y que hay que atender aunque se sepa
+la causa. Es el mismo precio que D-070 paga por la de migraciones, y se acepta
+por lo mismo: una convención que solo vive en la cabeza de quien la recuerda
+dura hasta el siguiente lote. Este lote es la prueba.
 
 ---
 
@@ -2237,6 +2724,82 @@ no habrá nada rojo que lo delate. Los otros dos «no encontrado»
 —`(frontend)/not-found.tsx` y `admin-panel/not-found.tsx`— sí funcionan: atienden
 las llamadas a `notFound()` desde una página que existe, que es la otra mitad
 del problema.
+
+---
+
+### O-043 · 2026-09-13 · media · abierta
+**Las guardias del esquema solo miran en una dirección: una columna que sobra no
+la ve nadie.**
+Apareció al retirar `zonaMapa` (D-081). `tests/unit/migraciones.test.ts`
+comprueba que toda columna que una colección declara exista en la última
+migración; lo contrario —una columna que está en la base y ya no la declara
+nadie— pasa en verde. O sea que un campo retirado **sin** su `DROP COLUMN` se
+queda ahí para siempre.
+
+*Dónde se vería:* en ninguna parte, y eso es lo que la hace anotable. La
+aplicación no la lee, Payload no la escribe, la suite no protesta y el respaldo
+se la lleva cada noche. La única señal es acordarse de mirar la migración cuando
+se borra un campo, y la memoria no es una guardia.
+
+*Por qué no se cerró en esta jornada.* La instantánea de Drizzle sí sabe qué
+columnas hay, pero comparar en esa dirección obliga a decidir qué se hace con lo
+que Payload crea por su cuenta —los `_rels`, la familia de versiones, los
+`_order`—, y cada excepción que se escriba es la puerta por la que se colará
+justo el caso que importaba. Lo que sí se hizo fue dejarlo escrito en la
+cabecera de `columnasDe`, que es donde va a mirar quien toque esa prueba.
+
+---
+
+### O-044 · 2026-09-13 · media · abierta
+**Los 50 MB no se han probado por el túnel, y si fallan el síntoma no será un
+413.**
+El techo nuevo (D-088) se midió contra el nginx del despliegue de `paginas/`,
+que declara 64 MB. Por las otras dos vías no ha subido nadie todavía un archivo
+grande: Cloudflare aplica 100 MB en el borde —no es del túnel ni de
+`cloudflared`, y no se sube con configuración— y Tailscale no publica ningún
+tope de cuerpo, aunque su documentación dice que Funnel no está pensado para
+tráfico de alto volumen. Hoy la plataforma entra por Funnel.
+
+*Lo que hay que saber antes de ir a buscarlo donde no está:* si esto falla no
+habrá un 413 sino una conexión cortada a mitad de la barra de progreso, y el
+panel dirá «Se cortó la conexión durante la subida», que es el mensaje de una
+red y no el de un límite. Quien lo lea va a buscar el fallo dentro de la
+aplicación. La forma de separar los dos lados es subir el mismo archivo contra
+`http://localhost:3000` desde el propio servidor: si ahí entra, el corte es del
+túnel.
+
+*Qué haría falta para cerrarla:* un vídeo de pabellón de verdad, de los 40 MB
+para arriba, subido por la dirección pública. Es una prueba de cinco minutos y
+no se puede hacer desde aquí.
+
+---
+
+### O-045 · 2026-09-13 · media · abierta
+**La pose que se captura en el catálogo llega al bloque de una ficha y a ningún
+otro sitio.**
+D-082 tendió el cable por `encuadreVigente`, y hoy lo llama **un solo**
+renderizador: `src/components/Bloques.tsx`. Los otros dos que abren un modelo
+del catálogo siguen encuadrándose solos:
+
+- `src/app/(frontend)/tecnica-ao/[id]/page.tsx`, línea 122: el modelo que el
+  traumatólogo cuelga de un **paso** de un caso AO se pinta con
+  `<Visor3D url={modelo.url} nombre={modelo.nombre} />`, sin encuadre.
+- `src/components/simulador/ConsolaQuirurgica.tsx`, el visor del instrumento que
+  el residente coge: ahí ni siquiera hay pose que pasar, porque
+  `casoQuirurgico.ts` solo se trae `modeloUrl` de la relación.
+
+*Por qué es anotable y no un detalle.* Es la forma exacta de la regresión que
+esta bitácora ya tiene contada dos veces (D-054, O-042): el campo se declara, la
+ayuda dice «gire el modelo y pulse capturar», el traumatólogo captura y guarda,
+y en la pantalla donde lo iba a ver no cambia nada. **No hay error, no hay
+prueba roja y lo que se ve es indistinguible de un encuadre mal capturado**, así
+que lo que va a intentar es capturarlo otra vez.
+
+*Qué cuesta cerrarlo.* Lo primero es una línea —leer el `encuadre` del modelo y
+pasarlo—, con la advertencia de que ahí la relación tiene que llegar poblada.
+Lo segundo es más: hay que subir el campo por `casoParaLaConsola`, y conviene
+decidir antes si un instrumento debe tener pose propia o si el visor de la
+bandeja está mejor abarcando la pieza, que es lo que hace hoy.
 
 ---
 

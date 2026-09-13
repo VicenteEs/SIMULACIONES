@@ -4,12 +4,12 @@ import { useCallback, useEffect, useId, useRef, useState, useTransition } from '
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { estadoEnPalabras, type EsquemaDeColeccion } from '@/admin/esquema'
+import { subidorQueAvisa } from '@/admin/subidas'
 import {
   cambiarPublicacion,
   duplicarDocumento,
   eliminarDocumento,
   listarDocumentos,
-  subirArchivo,
   type FilaDeLista,
 } from '@/app/(frontend)/acciones/contenido'
 
@@ -495,17 +495,16 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
 }
 
 /**
- * Por qué el peso se pregunta aquí, antes de llamar a la acción.
+ * Por qué el peso se pregunta aquí, antes de que el archivo viaje.
  *
  * El techo lo declara la colección —`subida.maximoBytes` en
- * `src/admin/esquema.ts`— y quien lo hace cumplir es `subirArchivo`. Pero esa
- * comprobación no llega a correr justo en el caso que importa: por encima de
- * los 8 MB de `serverActions.bodySizeLimit` (`next.config.mjs`) Next descarta
- * el cuerpo **sin invocar la acción**, así que no vuelve ninguna respuesta con
- * `mensaje` y el listado se recargaba sin el archivo y sin una palabra, como si
- * la subida hubiera salido bien. Preguntando aquí, el motivo se pinta sin que
- * el archivo llegue a viajar, y con el número que esa colección promete: son
- * 7 MB en medios y 5 MB en modelos 3D.
+ * `src/admin/esquema.ts`— y quien lo hace cumplir es la ruta de subida, que lo
+ * mira dos veces: en el `Content-Length` y en el byte que se pasa. Preguntarlo
+ * además aquí no es repetirlo por gusto: un vídeo de 200 MB por un túnel
+ * doméstico tarda minutos en llegar hasta el servidor que lo va a rechazar, y
+ * esos minutos se los ahorra quien sube. El número no está escrito en esta
+ * pantalla: sale del esquema, que es de donde sale también la frase que lo
+ * anuncia justo debajo del botón —50 MB en medios y 5 MB en modelos 3D.
  */
 const enMegas = (bytes: number): string => (bytes / (1024 * 1024)).toFixed(1).replace('.', ',')
 
@@ -523,8 +522,30 @@ function SubidorDeArchivos({
   const id = useId()
   const idAyuda = `${id}-ayuda`
   const idError = `${id}-error`
-  const [enCurso, iniciar] = useTransition()
+  /**
+   * Aquí no se usa `useTransition`, y en el resto del archivo sí.
+   *
+   * Una transición marca sus actualizaciones como aplazables: React puede
+   * retrasar el repintado si tiene algo más urgente, y eso es exactamente lo
+   * contrario de lo que necesita una barra que solo sirve mientras se mueve.
+   * Con la subida dentro de una transición, el porcentaje llegaba a saltos y a
+   * veces solo al final, que es lo mismo que no tener barra.
+   */
+  const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * Cómo va la subida: de qué archivo, cuál de cuántos, y cuánto lleva.
+   *
+   * Es un solo objeto y no cuatro estados sueltos porque las cuatro piezas
+   * cambian a la vez y se leen juntas: `null` significa «no hay ninguna subida
+   * en marcha», que es una pregunta que se hace una vez y no cuatro.
+   */
+  const [progreso, setProgreso] = useState<{
+    nombre: string
+    cual: number
+    total: number
+    fraccion: number
+  } | null>(null)
   /**
    * El `<input type="file">` sigue existiendo, pero ya no es el control.
    *
@@ -557,8 +578,26 @@ function SubidorDeArchivos({
       setError(`${problemas.join(' ')} Comprímalos, o recorte el video, antes de subirlos.`)
       return
     }
-    iniciar(async () => {
+    setEnCurso(true)
+    void (async () => {
+      // La cuenta lleva la voz: «(2 de 5)» es lo que convierte una barra que se
+      // reinicia en una tanda que avanza. Va en una variable de fuera y no en
+      // un `entries()` para que el bucle siga recorriendo archivos y no pares,
+      // que es lo único que hace.
+      let hechos = 0
       for (const archivo of admitidos) {
+        const cual = ++hechos
+        const avisar = (fraccion: number) =>
+          setProgreso({ nombre: archivo.name, cual, total: admitidos.length, fraccion })
+        // A cero antes de empezar: así la barra aparece con el nombre del
+        // archivo en cuanto arranca y no en el primer evento de avance, que en
+        // un archivo grande puede tardar segundos en llegar.
+        avisar(0)
+        // Se compone uno por archivo, no uno por tanda: lo que el subidor lleva
+        // dentro es a quién avisar, y el aviso nombra el archivo del que habla.
+        // Ya no es la acción de servidor que se llamaba igual: esto manda a
+        // `/api/subidas/<coleccion>` (ver `src/admin/subidas.ts`).
+        const subirArchivo = subidorQueAvisa(avisar)
         const formulario = new FormData()
         formulario.set('coleccion', esquema.slug)
         formulario.set('archivo', archivo)
@@ -570,11 +609,13 @@ function SubidorDeArchivos({
           const r = await subirArchivo(formulario)
           if (!r.exito) problemas.push(`«${archivo.name}»: ${r.mensaje ?? 'no se pudo subir'}.`)
         } catch (fallo) {
-          // Lo que rechaza el marco —cuerpo demasiado grande, sesión caída, red
-          // cortada— no vuelve como respuesta sino como excepción, y sin esto
-          // se perdía en la consola del navegador: el botón salía de
-          // «Subiendo…», el listado se recargaba igual y nada decía que
-          // faltaba un archivo.
+          // El subidor devuelve una `Respuesta` en vez de rechazar, incluso
+          // cuando lo que contesta no es de la plataforma, así que por aquí solo
+          // caen las averías del propio navegador —un `setRequestHeader` con un
+          // valor que no acepta, por ejemplo—. Sin este `catch` se perderían en
+          // la consola, que es donde ya se perdió una vez lo que rechazaba el
+          // marco: el botón salía de «Subiendo…», el listado se recargaba igual
+          // y nada decía que faltaba un archivo.
           problemas.push(
             `«${archivo.name}»: ${
               fallo instanceof Error && fallo.message ? fallo.message : 'no se pudo subir'
@@ -582,11 +623,13 @@ function SubidorDeArchivos({
           )
         }
       }
+      setProgreso(null)
+      setEnCurso(false)
       setError(problemas.length > 0 ? problemas.join(' ') : null)
       // Se recarga siempre: aunque alguno fallara, los que sí subieron tienen
       // que aparecer en la tabla.
       alTerminar()
-    })
+    })()
   }
 
   return (
@@ -624,15 +667,59 @@ function SubidorDeArchivos({
         }}
       />
       {/* El techo de tamaño y los formatos aceptados están escritos en
-          `esquema.subida.ayuda` desde que se descubrió que el límite real no es
-          el de Payload sino el del cuerpo de la acción de servidor, pero no se
-          pintaban en ninguna pantalla: el que sube un video de quirófano se
-          enteraba de los 7 MB cuando la subida fallaba a medias. */}
+          `esquema.subida.ayuda` desde que se descubrió que el límite real no
+          era el que anunciaba Payload, pero no se pintaban en ninguna pantalla:
+          el que subía un video de quirófano se enteraba del techo cuando la
+          subida fallaba a medias. Va debajo del botón y no en un `title` porque
+          hay que leerlo ANTES de abrir el cuadro de archivos, que es cuando
+          todavía se puede elegir otro o recortarlo. */}
       {esquema.subida?.ayuda ? (
         <p className="campo-ayuda admin-subida-ayuda" id={idAyuda}>
           {esquema.subida.ayuda}
         </p>
       ) : null}
+
+      {/*
+        La región viva se queda montada aunque no haya subida en marcha, por lo
+        mismo que la del aviso de la tabla: un `role="status"` que aparece junto
+        con su texto no se anuncia, porque el lector de pantalla tiene que estar
+        observando la región antes de que su contenido cambie.
+
+        Dentro va el nombre del archivo y cuál de cuántos es, y NO el
+        porcentaje: eso cambia decenas de veces por archivo y convertiría el
+        aviso en una letanía que tapa todo lo demás. El porcentaje se lee del
+        `<progress>`, que es donde un lector lo busca cuando lo quiere.
+      */}
+      <div role="status">
+        {progreso ? (
+          <p className="campo-ayuda admin-subida-ayuda">
+            {progreso.total > 1
+              ? `Subiendo «${progreso.nombre}» (${progreso.cual} de ${progreso.total}).`
+              : `Subiendo «${progreso.nombre}».`}
+          </p>
+        ) : null}
+      </div>
+      {progreso ? (
+        <p className="campo-ayuda admin-subida-ayuda">
+          {/* `<progress>` del navegador y sin clase propia: la hoja del panel
+              es de otro lote y una barra hecha con dos `<div>` y un ancho en
+              línea no la anuncia ningún lector de pantalla. */}
+          <progress
+            style={{ width: '100%' }}
+            max={100}
+            value={Math.round(progreso.fraccion * 100)}
+            aria-label={`Avance de la subida de «${progreso.nombre}»`}
+          />
+          {/* Al llegar al 100 % la subida no ha terminado: falta que el
+              servidor escriba el archivo, saque las miniaturas y cree el
+              registro. Decirlo evita la lectura contraria —«se colgó al
+              final»— que es justo la que lleva a recargar la página a mitad. */}
+          {progreso.fraccion >= 1
+            ? ' Procesando en el servidor…'
+            : ` ${Math.round(progreso.fraccion * 100)} %`}
+        </p>
+      ) : null}
+
       {error ? (
         <p className="campo-error" id={idError} role="alert">
           {error}

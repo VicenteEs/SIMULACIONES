@@ -180,7 +180,9 @@ export const BLOQUES: EsquemaDeBloque[] = [
         editor: 'encuadre3d',
         ayuda:
           'Con qué ángulo y a qué distancia abre el modelo el residente. ' +
-          'Use el visor de aquí abajo; los números se rellenan solos.',
+          'Use el visor de aquí abajo; los números se rellenan solos. ' +
+          'Déjelo vacío y se usará la pose que el modelo tenga guardada en el ' +
+          'catálogo; si tampoco la tiene, el visor lo encuadra solo.',
         campos: [
           { tipo: 'numero', nombre: 'escala', etiqueta: 'Escala', medio: true },
           { tipo: 'numero', nombre: 'distanciaCamara', etiqueta: 'Distancia de cámara', medio: true },

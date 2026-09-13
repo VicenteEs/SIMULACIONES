@@ -14,7 +14,8 @@ import {
   type Campo,
 } from '@/admin/esquema'
 import { BLOQUES as BLOQUES_PANEL } from '@/admin/bloques'
-import { faltantes } from '@/admin/depurar'
+import { faltantes, depurarCampos } from '@/admin/depurar'
+import { encuadreQueLoAbarca } from '@/lib/encuadre'
 import { LIMITE_BYTES_MODELO_3D } from '@/uploads/validarModelo3D'
 
 /**
@@ -585,5 +586,179 @@ describe('la colección y el panel aplican las mismas reglas del objetivo', () =
       .sort()
     const enLaColeccion = (campoDeLaColeccion.options ?? []).map((o) => o.value).sort()
     expect(enElPanel).toEqual(enLaColeccion)
+  })
+})
+
+/**
+ * El encuadre de un modelo 3D, que ahora se guarda en dos sitios.
+ *
+ * El traumatólogo pidió poder «dejarle el modelo de la pierna en una pose», así
+ * que la colección `modelos-3d` guarda desde hoy su encuadre inicial. Esa forma
+ * ya existía —la del bloque «Modelo 3D» de una ficha—, y lo que estas pruebas
+ * defienden es que siga siendo **una sola**: dos maneras de guardar un encuadre
+ * en la misma plataforma obligan a traducir entre ellas en cada lector, y el
+ * primer lector que se olvide enseña el hueso del revés sin ningún error.
+ *
+ * La tercera candidata era `VistaDeInstancia` (`src/atlas/formato.ts`), que
+ * guarda cámara y objetivo. No encaja y por eso no está: sirve para el atlas,
+ * que es una escena compartida en metros donde una coordenada absoluta
+ * significa siempre lo mismo; un `.glb` subido viene en las unidades de su
+ * estudio y centrado donde quiso Blender. El porqué entero, en el campo.
+ */
+describe('el encuadre inicial de un modelo 3D', () => {
+  /** Los nombres de los subcampos de un grupo, vengan de donde vengan. */
+  const subcamposDe = (campos: Field[], nombre: string): string[] => {
+    const grupo = campos.find((c) => 'name' in c && c.name === nombre) as
+      | { fields?: Field[] }
+      | undefined
+    return (grupo?.fields ?? [])
+      .map((c) => ('name' in c && typeof c.name === 'string' ? c.name : ''))
+      .sort()
+  }
+
+  const modelos3D = COLECCIONES.find((c) => c.slug === 'modelos-3d')!
+  const bloque = BLOQUES_PAYLOAD.find((b) => b.slug === 'modelo-3d')!
+
+  it('se guarda con la misma forma en el modelo y en el bloque que lo inserta', () => {
+    // Se nombran los cinco a propósito, y no solo se comparan entre sí: con dos
+    // listas vacías la comparación pasaría igual.
+    expect(subcamposDe(modelos3D.fields, 'encuadre')).toEqual([
+      'distanciaCamara',
+      'escala',
+      'giroX',
+      'giroY',
+      'giroZ',
+    ])
+    expect(subcamposDe(bloque.fields, 'encuadre')).toEqual(
+      subcamposDe(modelos3D.fields, 'encuadre'),
+    )
+  })
+
+  it('puede quedarse vacío, que es lo que significa «encuádralo tú»', () => {
+    // Ningún `defaultValue`, ni aquí ni en el bloque. `tieneEncuadre`
+    // (`src/lib/aritmeticaDelEncuadre.ts`) decide por `distanciaCamara`: en
+    // cuanto hubiera una por omisión, todo modelo nacería con un encuadre que
+    // nadie capturó, el ajuste automático dejaría de actuar y los modelos en
+    // milímetros volverían a abrirse como un punto.
+    //
+    // El bloque SÍ los llevaba, y eso es lo que hacía que la pose del catálogo
+    // no llegara jamás a una ficha ya escrita: su distancia de 3 contestaba
+    // «sí, tengo encuadre», y la precedencia respeta al bloque por encima del
+    // modelo. Se retiraron, y `tests/unit/poseEnLasTresPantallas.test.ts`
+    // vigila que no vuelvan.
+    const grupo = modelos3D.fields.find((c) => 'name' in c && c.name === 'encuadre') as {
+      fields?: Field[]
+    }
+    for (const campo of grupo.fields ?? []) {
+      const nombre = 'name' in campo ? campo.name : '?'
+      expect(
+        (campo as { defaultValue?: unknown }).defaultValue,
+        `modelos-3d.encuadre.${nombre} trae un valor por omisión: el encuadre dejaría de poder estar vacío`,
+      ).toBeUndefined()
+    }
+  })
+
+  it('el panel declara el editor de captura para ese grupo', () => {
+    // Cinco números sin visor delante no los rellena nadie: ya pasó cuando la
+    // interfaz de Payload se retiró con el botón de capturar dentro (D-038), y
+    // la ayuda siguió meses mandando a pulsar un botón que no existía.
+    //
+    // El título sigue diciendo «declara» y no «lo pinta», porque declarar es
+    // todo lo que esto comprueba: que la pantalla salga es cosa de
+    // `Campos.tsx`, y una prueba que promete más de lo que mira convierte un
+    // verde en una coartada.
+    //
+    // Hubo un rato en que las dos cosas iban por separado y el visor no salía:
+    // `Campos.tsx` buscaba la dirección del modelo solo en el campo hermano
+    // `modelo`, que en el formulario de un modelo no existe. Ya no:
+    // `modeloParaEncuadrar` cae al documento que se está editando, que trae su
+    // propia `url` por ser una colección de subida, y eso lo vigila
+    // `tests/unit/encuadreDelModelo.test.ts`.
+    const campo = [...recorrerCampos(camposDe(esquemaDe('modelos-3d')))].find(
+      (c) => c.nombre === 'encuadre',
+    )
+    expect(campo?.tipo).toBe('grupo')
+    expect((campo as Extract<Campo, { tipo: 'grupo' }>).editor).toBe('encuadre3d')
+  })
+
+  it('los topes del panel son los mismos que los de la colección', () => {
+    // `depurarCampo` recorta con los del panel antes de guardar y Payload
+    // rechaza con los suyos: separados, el panel deja escribir un número que el
+    // servidor devuelve en inglés.
+    const enElPanel = new Map(
+      [...recorrerCampos(camposDe(esquemaDe('modelos-3d')))].map((c) => [c.nombre, c]),
+    )
+    const grupo = modelos3D.fields.find((c) => 'name' in c && c.name === 'encuadre') as {
+      fields?: Field[]
+    }
+    for (const campo of grupo.fields ?? []) {
+      if (!('name' in campo) || typeof campo.name !== 'string') continue
+      const suyo = enElPanel.get(campo.name)
+      expect(suyo?.tipo, `modelos-3d.encuadre.${campo.name}`).toBe('numero')
+      const numero = suyo as Extract<Campo, { tipo: 'numero' }>
+      const declarado = campo as { min?: number; max?: number }
+      expect(numero.min, `min de encuadre.${campo.name}`).toBe(declarado.min)
+      expect(numero.max, `max de encuadre.${campo.name}`).toBe(declarado.max)
+    }
+  })
+
+  it('el suelo de la escala deja pasar un modelo en milímetros, que es lo que tenía que proteger', () => {
+    // El recorrido entero y no el número suelto: se captura como captura el
+    // botón «Ajustar al modelo» y se guarda como guarda el panel. Con `min:
+    // 0.01` —lo que hubo— esta prueba fallaba en la última línea, y fallaba en
+    // silencio en producción: `depurarCampo` recorta **sin avisar**, así que el
+    // traumatólogo veía el fémur encuadrado, pulsaba guardar y el residente lo
+    // abría cinco veces más grande. Un fallo que no da error no lo encuentra
+    // nadie mirando; lo encuentra esto o no se encuentra.
+    const RADIO_DE_UN_FEMUR_EN_MILIMETROS = 250
+    const capturado = encuadreQueLoAbarca(RADIO_DE_UN_FEMUR_EN_MILIMETROS)
+    expect(capturado).not.toBeNull()
+    // Si esto dejara de ser cierto, el caso se habría movido y la prueba estaría
+    // comprobando otra cosa: se afirma para que el fallo lo diga.
+    expect(capturado!.escala!).toBeLessThan(0.01)
+
+    const grupoDelPanel = [...recorrerCampos(camposDe(esquemaDe('modelos-3d')))].find(
+      (c) => c.nombre === 'encuadre',
+    ) as Extract<Campo, { tipo: 'grupo' }>
+    const guardado = depurarCampos(grupoDelPanel.campos, {
+      escala: capturado!.escala,
+      distanciaCamara: capturado!.distanciaCamara,
+    })
+    expect(guardado.escala, 'el panel recortó la escala capturada sin decirlo').toBe(
+      capturado!.escala,
+    )
+
+    // Y por la otra vía —API local, guion de demostración— quien rechaza es
+    // Payload con el `min` de la colección, que tiene que admitir lo mismo.
+    const enLaColeccion = (
+      (
+        modelos3D.fields.find((c) => 'name' in c && c.name === 'encuadre') as {
+          fields?: Field[]
+        }
+      ).fields ?? []
+    ).find((c) => 'name' in c && c.name === 'escala') as { min?: number }
+    expect(enLaColeccion.min!).toBeLessThanOrEqual(capturado!.escala!)
+
+    // Bajar el suelo no era quitarlo: escala cero hace desaparecer el modelo, y
+    // ese es el único caso que el tope existía para impedir.
+    expect(depurarCampos(grupoDelPanel.campos, { escala: 0 }).escala).toBeGreaterThan(0)
+  })
+})
+
+describe('el mapa corporal que no se va a dibujar', () => {
+  it('ni la colección ni el panel siguen pidiendo sus cuatro coordenadas', () => {
+    // `zonaMapa` estuvo desde la migración inicial reservando x, y, ancho y alto
+    // para un mapa sensible que no llegó nunca, y el panel pedía las cuatro por
+    // cada uno de los veintitantos segmentos, con una advertencia al lado que
+    // decía que no servían para nada. El traumatólogo decidió que no se dibuja.
+    //
+    // La prueba se queda después de retirarlo porque el campo se reponía solo
+    // con dos líneas —«total, si el mapa vuelve, esto ya está»—, que es
+    // exactamente el razonamiento que lo mantuvo vivo. Si el mapa vuelve, vuelve
+    // con su pantalla, y esta prueba se borra en ese mismo cambio.
+    const segmentos = COLECCIONES.find((c) => c.slug === 'segmentos')!
+    expect(nombresDeCamposHondo(segmentos.fields)).not.toContain('zonaMapa')
+    const enElPanel = [...recorrerCampos(camposDe(esquemaDe('segmentos')))].map((c) => c.nombre)
+    expect(enElPanel).not.toContain('zonaMapa')
   })
 })

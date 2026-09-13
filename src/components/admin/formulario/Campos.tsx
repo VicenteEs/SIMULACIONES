@@ -85,6 +85,50 @@ function opcionDeRelacion(
   return (relaciones[coleccion] ?? []).find((o) => o.id === id)
 }
 
+/**
+ * Qué archivo tiene que enseñar el editor de encuadre, que no es el mismo en
+ * los dos formularios donde aparece.
+ *
+ * En una ficha, el grupo `encuadre` vive dentro del bloque «Modelo 3D» y el
+ * archivo es el que se eligió en el campo hermano `modelo`: una relación, que
+ * hay que resolver contra las opciones ya cargadas.
+ *
+ * En la ficha de un modelo 3D **no hay ningún hermano `modelo`**, porque el
+ * modelo es el documento que se está editando. Su `url` y su `nombre` están
+ * entre los hermanos desde que la pantalla abre, por ser una colección de
+ * subida, y aun así el editor salía por su rama temprana —«Elija primero un
+ * modelo arriba»— debajo de una ayuda que manda a pulsar «Capturar encuadre».
+ * Es la forma exacta de la regresión de D-038: el campo declarado, la ayuda
+ * escrita y ningún botón en pantalla que pulsar.
+ *
+ * El orden importa y es este: primero el hermano, después el documento. Al
+ * revés, un formulario de subida que algún día llevara un bloque con modelo
+ * enseñaría su propio archivo en vez del elegido. Y la segunda rama no puede
+ * dispararse por error en un bloque ni en una fila de lista: `url` solo existe
+ * en el documento de una colección de subida, y esas nunca se crean desde el
+ * formulario en blanco (`admin-panel/contenido/[coleccion]/nuevo/page.tsx`
+ * redirige al listado), así que cuando existe, trae archivo.
+ */
+function modeloParaEncuadrar(
+  relaciones: Relaciones,
+  hermanos: Record<string, unknown> | undefined,
+): { url: string | null; nombre?: string } {
+  const elegido = opcionDeRelacion(relaciones, 'modelos-3d', hermanos?.modelo)
+  if (elegido) return { url: elegido.url ?? null, nombre: elegido.etiqueta }
+
+  const propia = hermanos?.url
+  if (typeof propia === 'string' && propia) {
+    // Sin `ruta()`: la dirección de un archivo subido ya viene con el prefijo
+    // puesto por Payload, y ponérselo otra vez reproduce el apagón O-019
+    // (`src/lib/rutas.ts`, `tests/unit/archivosSubidos.test.ts`). Es la misma
+    // `url` que sirve `opcionesDeRelacion` para la otra rama.
+    const nombre = hermanos?.nombre ?? hermanos?.filename
+    return { url: propia, nombre: typeof nombre === 'string' ? nombre : undefined }
+  }
+
+  return { url: null }
+}
+
 // ------------------------------------------------- identidad de filas y bloques
 
 /**
@@ -452,9 +496,7 @@ export function ControlDeCampo({
 
     case 'grupo': {
       const modelo =
-        campo.editor === 'encuadre3d'
-          ? opcionDeRelacion(relaciones, 'modelos-3d', hermanos?.modelo)
-          : undefined
+        campo.editor === 'encuadre3d' ? modeloParaEncuadrar(relaciones, hermanos) : undefined
       return (
         <fieldset className="campo-grupo">
           <legend>{campo.etiqueta}</legend>
@@ -474,7 +516,7 @@ export function ControlDeCampo({
                 {ayuda}
                 <EditorDeEncuadre
                   url={modelo?.url ?? null}
-                  nombre={modelo?.etiqueta}
+                  nombre={modelo?.nombre}
                   valor={(valor ?? {}) as Encuadre}
                   alCambiar={(nuevo) =>
                     alCambiar({ ...((valor ?? {}) as Record<string, unknown>), ...nuevo })

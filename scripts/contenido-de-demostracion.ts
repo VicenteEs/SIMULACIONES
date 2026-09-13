@@ -305,7 +305,12 @@ async function principal() {
               blockType: 'modelo-3d',
               modelo: modeloId,
               pie: 'Modelo de demostración con los dos fragmentos separados. Gire con el ratón.',
-              encuadre: { escala: 1, giroX: 0, giroY: 0, giroZ: 0, distanciaCamara: 3 },
+              // Sin encuadre a propósito: el bloque hereda la pose que el
+              // catálogo tenga guardada para ese modelo. Antes esta línea
+              // transcribía a mano los valores por omisión que llevaba el
+              // bloque, y con ellos la demostración fabricaba fichas que le
+              // ganaban al catálogo y en las que capturar una pose no servía
+              // de nada.
             },
           ]
         : []),
