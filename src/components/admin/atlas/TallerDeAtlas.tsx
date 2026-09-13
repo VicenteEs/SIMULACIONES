@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import type { CatalogoDelAtlas, VistaDeInstancia } from '@/atlas/formato'
+import type { CatalogoDelAtlas, PiezaDelAtlas, VistaDeInstancia } from '@/atlas/formato'
 import { VISTA_INICIAL } from '@/atlas/formato'
 import { cargarCatalogo } from '@/atlas/cargador'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
@@ -9,6 +9,7 @@ import { VisorAtlas, type MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import {
   duplicarInstancia,
   eliminarInstancia,
+  exportarComoModelo,
   guardarInstancia,
   listarInstancias,
   obtenerInstancia,
@@ -45,6 +46,29 @@ export function TallerDeAtlas() {
   const [guardadas, setGuardadas] = useState<ResumenDeInstancia[]>([])
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [enCurso, iniciar] = useTransition()
+
+  // --- exportar la preparación como modelo de un caso -----------------------
+  //
+  // El atlas y la consola son dos motores distintos: el atlas funde todas las
+  // piezas de un sistema en una malla y decide qué se ve con una textura; la
+  // consola abre un archivo con objetos con nombre, mueve uno y mide
+  // milímetros. Por eso el puente va de aquí hacia allá y no al revés: lo que
+  // se prepara aquí se **escribe** como un .glb igual que el que sale de
+  // Blender, y para la consola es un modelo más.
+  //
+  // Las protagonistas son las piezas que salen como objeto suelto en vez de
+  // fundirse con su sistema: la tibia que se va a romper, el fragmento que hay
+  // que reducir. Sin marcar ninguna, el archivo sale con un objeto por sistema
+  // y no habría nada que mover en el simulador.
+  const [panelExportar, setPanelExportar] = useState(false)
+  const [protagonistas, setProtagonistas] = useState<Set<string>>(new Set())
+  const [filtroProtagonista, setFiltroProtagonista] = useState('')
+  const [exportado, setExportado] = useState<{
+    nombre: string
+    bytes: number
+    nodos: string[]
+    perdidas: string[]
+  } | null>(null)
 
   const mando = useRef<MandoDelVisor | null>(null)
 
@@ -212,6 +236,64 @@ export function TallerDeAtlas() {
     })
   }
 
+  /**
+   * Escribe la preparación como un modelo 3D de la biblioteca.
+   *
+   * Exige tenerla guardada y sin cambios sueltos porque el servidor exporta lo
+   * que hay en la base, no lo que se ve en pantalla: exportar con la pantalla
+   * por delante entregaría un archivo que no se parece a lo que el
+   * traumatólogo está mirando, y nada lo avisaría.
+   */
+  const exportar = () => {
+    if (!instancia) {
+      setAviso({
+        tipo: 'error',
+        texto: 'Guarde la preparación antes de exportarla: se exporta lo guardado.',
+      })
+      return
+    }
+    if (sucio) {
+      setAviso({
+        tipo: 'error',
+        texto:
+          'Hay cambios sin guardar. Guárdelos primero: se exporta lo que hay en la base, no lo que se ve.',
+      })
+      return
+    }
+    setAviso(null)
+    setExportado(null)
+
+    iniciar(async () => {
+      const r = await exportarComoModelo(instancia, { protagonistas: [...protagonistas] })
+      if (!r.exito || !r.datos) {
+        setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo exportar.' })
+        return
+      }
+      setExportado(r.datos)
+      setAviso({
+        tipo: 'ok',
+        texto: `«${r.datos.nombre}» ya está en la biblioteca de modelos 3D.`,
+      })
+    })
+  }
+
+  /**
+   * Las piezas encendidas, para elegir cuáles salen sueltas.
+   *
+   * Se enseñan las cien primeras y se dice cuántas quedan fuera: el cuerpo
+   * completo son ciento treinta y nueve y pintarlas todas convierte el panel en
+   * una lista imposible de recorrer. Callar el recorte sería peor: parecería
+   * que la pieza que se busca no está encendida.
+   */
+  const candidatas = useMemo<{ lista: PiezaDelAtlas[]; total: number }>(() => {
+    if (!catalogo) return { lista: [], total: 0 }
+    const busca = filtroProtagonista.trim().toLowerCase()
+    const encendidas = catalogo.piezas
+      .filter((p) => visibles.has(p.id))
+      .filter((p) => !busca || p.nombre.toLowerCase().includes(busca))
+    return { lista: encendidas.slice(0, 100), total: encendidas.length }
+  }, [catalogo, visibles, filtroProtagonista])
+
   const conAviso = (
     tarea: () => Promise<{ exito: boolean; mensaje?: string }>,
     exitoso: string,
@@ -294,11 +376,117 @@ export function TallerDeAtlas() {
           >
             Encuadrar
           </button>
+          <button
+            className="admin-btn admin-btn-secondary"
+            aria-expanded={panelExportar}
+            onClick={() => setPanelExportar((abierto) => !abierto)}
+          >
+            {panelExportar ? 'Cerrar exportación' : 'Exportar como modelo'}
+          </button>
           <button className="admin-btn admin-btn-primary" disabled={enCurso} onClick={guardar}>
             {enCurso ? 'Guardando…' : instancia ? 'Guardar cambios' : 'Guardar preparación'}
           </button>
         </div>
       </div>
+
+      {panelExportar ? (
+        <div className="admin-aviso admin-aviso-info">
+          <strong>Exportar esta preparación como modelo 3D</strong>
+          <p>
+            Se escribe un archivo .glb en la biblioteca de modelos, igual que si lo hubiera subido
+            desde Blender, y desde ahí se elige en cualquier caso del simulador. El atlas no se
+            toca: esto no quita ni mueve nada de aquí.
+          </p>
+          <p>
+            Marque las piezas que tengan que salir <strong>sueltas</strong>: la que se va a
+            fracturar y el fragmento que hay que reducir. Todo lo demás sale fundido en un objeto
+            por sistema, que es lo que hace que el archivo pese poco. Sin ninguna marcada no habrá
+            nada que mover en la consola.
+          </p>
+
+          <input
+            className="atlas-busqueda"
+            type="search"
+            value={filtroProtagonista}
+            placeholder="Buscar entre las piezas encendidas…"
+            aria-label="Buscar entre las piezas encendidas"
+            onChange={(e) => setFiltroProtagonista(e.target.value)}
+          />
+
+          <div className="atlas-lista" style={{ maxHeight: 220, marginTop: 8 }}>
+            {candidatas.lista.map((pieza) => (
+              <label className="atlas-casilla" key={pieza.id}>
+                <input
+                  type="checkbox"
+                  checked={protagonistas.has(pieza.id)}
+                  onChange={(e) => {
+                    setProtagonistas((antes) => {
+                      const ahora = new Set(antes)
+                      if (e.target.checked) ahora.add(pieza.id)
+                      else ahora.delete(pieza.id)
+                      return ahora
+                    })
+                  }}
+                />
+                <span>{pieza.nombre}</span>
+              </label>
+            ))}
+            {candidatas.total === 0 ? (
+              <p className="atlas-conteo">Ninguna pieza encendida coincide con esa búsqueda.</p>
+            ) : null}
+            {candidatas.total > candidatas.lista.length ? (
+              <p className="atlas-conteo">
+                Se enseñan {candidatas.lista.length} de {candidatas.total}. Escriba en el buscador
+                para encontrar el resto.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="admin-acciones" style={{ marginTop: 10 }}>
+            <button className="admin-btn admin-btn-primary" disabled={enCurso} onClick={exportar}>
+              {enCurso ? 'Exportando…' : 'Crear el modelo'}
+            </button>
+            <span className="atlas-conteo">
+              {protagonistas.size === 0
+                ? 'Ninguna pieza suelta'
+                : `${protagonistas.size} pieza${protagonistas.size === 1 ? '' : 's'} suelta${
+                    protagonistas.size === 1 ? '' : 's'
+                  }`}
+              {' · '}
+              {visibles.size} encendida{visibles.size === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          {exportado ? (
+            <div className="admin-aviso admin-aviso-ok" style={{ marginTop: 10 }}>
+              <strong>
+                {exportado.nombre} · {(exportado.bytes / 1024 / 1024).toFixed(2)} MB
+              </strong>
+              <p>
+                Estos son los nombres que el caso tiene que escribir en sus piezas. Son los que la
+                consola ve dentro del archivo, no los del atlas: three.js cambia los espacios por
+                guiones bajos al cargar, y escribir el otro deja una pieza que no se enciende nunca
+                y ningún error que lo explique.
+              </p>
+              <ul>
+                {exportado.nodos.map((n) => (
+                  <li key={n}>
+                    <code>{n}</code>
+                  </li>
+                ))}
+              </ul>
+              {exportado.perdidas.length ? (
+                <p>
+                  <strong>Atención:</strong> {exportado.perdidas.length} pieza
+                  {exportado.perdidas.length === 1 ? '' : 's'} de la preparación ya no
+                  {exportado.perdidas.length === 1 ? ' existe' : ' existen'} en el atlas instalado y
+                  no {exportado.perdidas.length === 1 ? 'salió' : 'salieron'} en el archivo.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {aviso ? <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>{aviso.texto}</div> : null}
 
