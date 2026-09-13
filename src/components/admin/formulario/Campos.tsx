@@ -293,6 +293,12 @@ export function ControlDeCampo({
           alCambiar={alCambiar}
           relaciones={relaciones}
           alRecargarRelacion={alRecargarRelacion}
+          // Sin estos dos, el taller de piezas 3D no ve el modelo que se eligió
+          // en el campo de al lado y pide que se elija uno que ya está elegido,
+          // ni puede escribir el desplazamiento capturado. Se declararon en
+          // `EditorDeLista` y no se pasaron aquí: el taller no se dibujaba nunca.
+          hermanos={hermanos}
+          alCambiarHermano={alCambiarHermano}
         />
       )
 

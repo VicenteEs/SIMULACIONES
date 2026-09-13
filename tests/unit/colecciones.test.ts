@@ -108,3 +108,36 @@ describe('invariantes de seguridad de las colecciones', () => {
     }
   })
 })
+
+describe('los borradores no se le enseñan a quien no los puede editar', () => {
+  it('toda colección con borradores declara readVersions', () => {
+    // No es opcional y no hereda. Cuando una colección no declara
+    // `readVersions`, Payload llama a `executeAccess` con `undefined` y esa
+    // función devuelve `true` para CUALQUIER sesión iniciada
+    // (node_modules/payload/dist/auth/executeAccess.js:17-19). Es decir,
+    // `/api/cirugias/versions` entregaba el texto íntegro de todo lo no
+    // publicado a un residente con solo abrir la consola del navegador,
+    // saltándose a la vez el filtro de «solo publicado» y el de permisos por
+    // módulo.
+    for (const coleccion of COLECCIONES) {
+      const borradores = Boolean(
+        coleccion.versions && (coleccion.versions as { drafts?: unknown }).drafts,
+      )
+      if (!borradores) continue
+      expect(
+        typeof coleccion.access?.readVersions,
+        `${coleccion.slug} guarda borradores y no declara readVersions: los lee cualquiera`,
+      ).toBe('function')
+    }
+  })
+
+  it('quien no puede editar un módulo no puede leer sus borradores', async () => {
+    const lector = { id: 1, rol: 'lector', habilitada: true, modulosVisibles: [], modulosEditables: [] }
+    for (const coleccion of COLECCIONES) {
+      const regla = coleccion.access?.readVersions
+      if (typeof regla !== 'function') continue
+      const resultado = await regla({ req: { user: lector } } as never)
+      expect(resultado, `${coleccion.slug}: un lector alcanza los borradores`).toBe(false)
+    }
+  })
+})

@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { avisarAlPublicar } from './hooks/avisarAlPublicar'
-import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
+import { lecturaDeBorradores, lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { editorClinico, pilaDeBloques } from '@/blocks'
 
 /** Módulo 03 · Técnica AO paso a paso. */
@@ -16,6 +16,10 @@ export const CasosAO: CollectionConfig = {
   access: {
     // Permisos por modulo: un editor puede tener asignados solo algunos.
     read: lecturaDeModulo('casos-ao'),
+    // Sin esto, Payload deja leer los borradores a CUALQUIER sesión: cuando
+    // una colección no la declara, no hereda `read`, recibe `undefined` y
+    // aprueba. Un borrador lo lee quien lo puede editar y nadie más.
+    readVersions: lecturaDeBorradores('casos-ao'),
     create: escrituraDeModulo('casos-ao'),
     update: escrituraDeModulo('casos-ao'),
     delete: escrituraDeModulo('casos-ao'),

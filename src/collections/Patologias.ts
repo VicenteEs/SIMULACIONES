@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
+import { lecturaDeBorradores, lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { pilaDeBloques } from '@/blocks'
 import { avisarAlPublicar } from './hooks/avisarAlPublicar'
 
@@ -22,6 +22,10 @@ export const Patologias: CollectionConfig = {
   access: {
     // Permisos por modulo: un editor puede tener asignados solo algunos.
     read: lecturaDeModulo('patologias'),
+    // Sin esto, Payload deja leer los borradores a CUALQUIER sesión: cuando
+    // una colección no la declara, no hereda `read`, recibe `undefined` y
+    // aprueba. Un borrador lo lee quien lo puede editar y nadie más.
+    readVersions: lecturaDeBorradores('patologias'),
     create: escrituraDeModulo('patologias'),
     update: escrituraDeModulo('patologias'),
     delete: escrituraDeModulo('patologias'),

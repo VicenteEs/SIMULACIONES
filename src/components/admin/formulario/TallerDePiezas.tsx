@@ -155,13 +155,26 @@ export function TallerDePiezas({
    * mil veces pequeños y la consola mide contra ellos sin quejarse.
    */
   const capturarDesplazamiento = () => {
+    if (!hayFragmento(piezas)) {
+      setAviso('Marque antes una pieza como fragmento móvil: es la que se desplaza.')
+      return
+    }
     const estado = mando.current?.estadoDelFragmento()
     if (!estado) {
       setAviso('Espere a que el modelo termine de cargar.')
       return
     }
-    if (!hayFragmento(piezas)) {
-      setAviso('Marque antes una pieza como fragmento móvil: es la que se desplaza.')
+    // Capturar seis ceros diciendo «capturado» es peor que no capturar: el caso
+    // queda ya reducido y su paso de reducción se aprueba sin tocar nada.
+    const quieto =
+      estado.posicion.x === 0 &&
+      estado.posicion.y === 0 &&
+      estado.posicion.z === 0 &&
+      estado.giros.x === 0 &&
+      estado.giros.y === 0 &&
+      estado.giros.z === 0
+    if (quieto) {
+      setAviso('El fragmento está en su sitio: arrástrelo antes de capturar.')
       return
     }
     alCambiarDesplazamiento({

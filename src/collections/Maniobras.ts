@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { avisarAlPublicar } from './hooks/avisarAlPublicar'
-import { lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
+import { lecturaDeBorradores, lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { editorClinico, pilaDeBloques } from '@/blocks'
 
 /** Módulo 02 · Repositorio de examen físico. */
@@ -16,6 +16,10 @@ export const Maniobras: CollectionConfig = {
   access: {
     // Permisos por modulo: un editor puede tener asignados solo algunos.
     read: lecturaDeModulo('maniobras'),
+    // Sin esto, Payload deja leer los borradores a CUALQUIER sesión: cuando
+    // una colección no la declara, no hereda `read`, recibe `undefined` y
+    // aprueba. Un borrador lo lee quien lo puede editar y nadie más.
+    readVersions: lecturaDeBorradores('maniobras'),
     create: escrituraDeModulo('maniobras'),
     update: escrituraDeModulo('maniobras'),
     delete: escrituraDeModulo('maniobras'),

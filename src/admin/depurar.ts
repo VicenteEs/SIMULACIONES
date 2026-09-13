@@ -87,6 +87,17 @@ function depurarCampo(campo: Campo, valor: unknown): unknown {
       return valor === true
 
     case 'relacion':
+      // Una relación múltiple es una lista de identificadores, no uno.
+      // `comoIdentificador` de un arreglo devuelve null, así que sin esta rama
+      // la bandeja declarada de un caso se guardaba **siempre vacía**: el panel
+      // respondía «Borrador guardado» y lo que el traumatólogo había marcado
+      // desaparecía sin un solo aviso.
+      if (campo.multiple) {
+        const lista = Array.isArray(valor) ? valor : []
+        return lista.map(comoIdentificador).filter((v) => v !== null)
+      }
+      return comoIdentificador(valor)
+
     case 'archivo':
       return comoIdentificador(valor)
 

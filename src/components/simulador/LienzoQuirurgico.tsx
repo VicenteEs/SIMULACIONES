@@ -488,7 +488,26 @@ export function LienzoQuirurgico({
   // ----------------------------------------------------- cambios de estado
   useEffect(() => {
     if (!taller.current.raiz) return
-    taller.current.fragmento = buscarFragmento(taller.current.raiz, piezas)
+    const anterior = taller.current.fragmento
+    const fragmento = buscarFragmento(taller.current.raiz, piezas)
+    taller.current.fragmento = fragmento
+
+    // El sitio de reposo se vuelve a leer **aquí**, y no solo al cargar el
+    // archivo. En un caso ya escrito daba igual, porque las piezas llegan con
+    // el modelo. En el taller no: el traumatólogo abre el modelo y señala las
+    // piezas después, así que al cargar todavía no había ningún fragmento y el
+    // origen se quedaba sin fijar. Con el origen sin fijar, `estadoDelFragmento`
+    // devuelve ceros y «Capturar desplazamiento» guardaba seis ceros diciendo
+    // «Desplazamiento capturado»: el caso salía ya reducido y el paso de
+    // reducción se aprobaba sin tocar nada.
+    if (fragmento && fragmento !== anterior) {
+      taller.current.origenDelFragmento = {
+        posicion: fragmento.position.clone(),
+        rotacion: fragmento.rotation.clone(),
+      }
+    }
+    if (!fragmento) taller.current.origenDelFragmento = undefined
+
     aplicarPiezas(taller.current, piezas)
     taller.current.pedirDibujo?.()
   }, [piezas])

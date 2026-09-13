@@ -72,6 +72,24 @@ export const escrituraDeModulo =
     puedeEditarModulo(usuarioDe(args), modulo)
 
 /**
+ * Lectura de las **versiones** de un módulo: los borradores.
+ *
+ * Hay que declararla. Payload, cuando una colección no la declara, no hereda su
+ * regla de lectura: `executeAccess` recibe `undefined` y devuelve `true` para
+ * **cualquier sesión iniciada**. Es decir, `/api/cirugias/versions` entregaba el
+ * texto íntegro de todo lo no publicado a un residente con solo abrir la
+ * consola del navegador, saltándose a la vez el filtro de «solo publicado» y el
+ * de permisos por módulo.
+ *
+ * Un borrador es trabajo a medio escribir. Lo puede leer quien lo puede editar,
+ * y nadie más.
+ */
+export const lecturaDeBorradores =
+  (modulo: string): Access =>
+  (args) =>
+    puedeEditarModulo(usuarioDe(args), modulo)
+
+/**
  * Lectura de una colección **sin versiones** (segmentos, medios, modelos).
  *
  * Exige lo mismo —sesión con cuenta activa— pero responde con un booleano, sin
