@@ -16,8 +16,19 @@
  * tolerancia y aplicar la fuerza correcta. Todos exigen además el instrumento
  * en la mano: sin instrumento no hay gesto.
  *
- * La lógica vive aquí, aislada de la interfaz, para poder probarla entera.
+ * La lógica vive aquí, aislada de la interfaz, para poder probarla entera. Eso
+ * incluye, al final del archivo, las reglas puras que la consola necesita para
+ * decidir qué se ve y con qué se mide: estaban dentro del componente, donde
+ * ninguna prueba llegaba.
  */
+
+import {
+  desplazamientoCompleto,
+  medirReduccion,
+  type Desplazamiento,
+  type EjeLargo,
+  type Medidas,
+} from '@/lib/reduccion'
 
 export const RESULTADOS = {
   SIN_INSTRUMENTO: 'sin-instrumento',
@@ -477,4 +488,165 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
     default:
       return 'Elija el instrumento correcto de la bandeja y aplique el paso.'
   }
+}
+
+// ---------------------------------------------------------------------------
+// Lo que la consola decide antes de pintar
+//
+// Las cinco de abajo vivían dentro de `ConsolaQuirurgica.tsx`. Ninguna toca
+// React ni three.js, pero ahí ninguna prueba las alcanzaba: un lienzo en negro,
+// un deslizador imposible de acertar o una medida inicial mal convertida pasan
+// la suite entera en verde y solo se ven recorriendo el caso en el navegador.
+//
+// Están en este módulo y no en `piezasDelCaso.ts`, que es donde las mandaba el
+// encargo de la ola anterior: aquel describe la lista de piezas **mientras se
+// edita en el panel** (`PiezaEnEdicion`, con sus campos todavía sin depurar), y
+// estas hablan del caso ya listo para jugarse, que es de lo que trata este
+// archivo. La pieza se pide por su forma —`nodo` y `rol`— y no por el tipo de
+// `LienzoQuirurgico`, para que el motor no dependa del componente al que sirve:
+// un `import` de ahí arrastraría three.js a un módulo que se prueba en Node.
+// ---------------------------------------------------------------------------
+
+/** Lo único que estas reglas necesitan saber de una pieza del modelo. */
+export interface PiezaConRol {
+  nodo: string
+  rol: string
+}
+
+/** Lo único que necesitan saber de un paso: qué declara ver. */
+export interface PasoConMuestra {
+  muestra?: string[]
+}
+
+/**
+ * Lo que un paso declara ver, heredando del último que dijera algo.
+ *
+ * Es la promesa que el panel le hace al traumatólogo: «Deje la lista vacía para
+ * que se vea lo mismo que en el paso anterior» (`Cirugias.ts`).
+ */
+export function declaracionDelPaso(
+  pasos: PasoConMuestra[],
+  indicePaso: number,
+): string[] | null {
+  for (let i = indicePaso; i >= 0; i--) {
+    const muestra = pasos[i]?.muestra
+    if (muestra && muestra.length > 0) return muestra
+  }
+  return null
+}
+
+/**
+ * Qué nodos se encienden ahora, y qué capas hubo que devolver a la vista.
+ *
+ * El cruce con las capas apagadas tiene un suelo, y el suelo es lo que arregla
+ * el fallo: sin él, un paso que declara ver solo la piel —una incisión se traza
+ * sobre la piel, es exactamente lo que el traumatólogo va a escribir— salía de
+ * aquí como lista vacía, y `mostrar([])` apaga TODAS las mallas del modelo. El
+ * lienzo se quedaba gris sin un mensaje, «Encuadrar» no respondía porque no hay
+ * caja que encuadrar, y la única salida era una casilla del panel izquierdo que
+ * nadie relaciona con lo que acaba de pasar. Antes que no enseñar nada, se
+ * enciende lo que haga falta y se dice por qué.
+ */
+export function visibilidadDelPaso(
+  pasos: PasoConMuestra[],
+  piezas: PiezaConRol[],
+  indicePaso: number,
+  capasApagadas: Set<string>,
+): { nodos: string[] | null; encender: string[] } {
+  const declarados = declaracionDelPaso(pasos, indicePaso)
+  const base = declarados ?? piezas.filter((p) => p.rol !== 'implante').map((p) => p.nodo)
+  // Un caso sin piezas escritas no es un caso sin nada que ver: es uno cuya
+  // lista todavía no se ha rellenado. `null` enseña el modelo entero, que es lo
+  // único útil que se puede hacer con él; `[]` lo apagaría del todo.
+  if (base.length === 0) return { nodos: null, encender: [] }
+
+  const rolDe = new Map(piezas.map((p) => [p.nodo, p.rol]))
+  const visibles = base.filter((nodo) => {
+    const rol = rolDe.get(nodo)
+    return !rol || !capasApagadas.has(rol)
+  })
+  if (visibles.length > 0) return { nodos: visibles, encender: [] }
+
+  const encender: string[] = []
+  for (const nodo of base) {
+    const rol = rolDe.get(nodo)
+    if (rol && capasApagadas.has(rol) && !encender.includes(rol)) encender.push(rol)
+  }
+  return { nodos: base, encender }
+}
+
+/**
+ * Las capas apagadas que el paso declara ver: al entrar en él se encienden.
+ *
+ * El paso manda sobre el interruptor, que es para lo que existe `muestra`. Al
+ * revés —restando las capas a lo que el paso declara— una incisión escrita
+ * sobre la piel acababa trazada sobre el hueso desnudo, y lo único que lo
+ * indicaba era una casilla desmarcada en la otra punta de la pantalla.
+ */
+export function capasQueEnciendeElPaso(
+  pasos: PasoConMuestra[],
+  piezas: PiezaConRol[],
+  indicePaso: number,
+  capasApagadas: Set<string>,
+): string[] {
+  const declarados = declaracionDelPaso(pasos, indicePaso)
+  if (!declarados) return []
+  const rolDe = new Map(piezas.map((p) => [p.nodo, p.rol]))
+  const roles: string[] = []
+  for (const nodo of declarados) {
+    const rol = rolDe.get(nodo)
+    if (rol && capasApagadas.has(rol) && !roles.includes(rol)) roles.push(rol)
+  }
+  return roles
+}
+
+/**
+ * Los topes del deslizador de fuerza.
+ *
+ * El 0-120 fijo que había aquí era un número inventado, y con un paso de
+ * `fuerzaMinima: 200` el rótulo se quedaba en «Fuerza · 200 N» con el pulgar
+ * clavado en el tope: el residente no podía acertar nunca. Se acota al rango
+ * del paso, pero **con margen a los dos lados**, y el margen es la parte que no
+ * se puede quitar: un deslizador que empieza y acaba dentro de la ventana buena
+ * aprueba cualquier posición, y un paso en el que no se puede fallar no enseña
+ * nada, que es justo lo contrario de D-059.
+ */
+export function rangoDelDeslizadorDeFuerza(paso: PasoQuirurgico): { min: number; max: number } {
+  const { fuerzaMinima: minima, fuerzaMaxima: maxima } = paso
+  if (typeof minima === 'number' && typeof maxima === 'number') {
+    const margen = Math.max(5, Math.round((maxima - minima) / 2))
+    return { min: Math.max(0, Math.round(minima - margen)), max: Math.round(maxima + margen) }
+  }
+  // Con un solo extremo declarado, el otro lado no existe; el declarado hay que
+  // poder cruzarlo igual, por arriba o por abajo.
+  if (typeof minima === 'number') {
+    return { min: Math.max(0, Math.round(minima / 2)), max: Math.round(minima * 2) + 5 }
+  }
+  if (typeof maxima === 'number') return { min: 0, max: Math.round(maxima * 1.5) + 5 }
+  // Sin ningún tope cualquier fuerza vale. `Cirugias.ts` no deja publicar un
+  // paso de fuerza así, pero la API puede devolver uno antiguo.
+  return { min: 0, max: 120 }
+}
+
+/**
+ * Las medidas del caso recién abierto, antes de tocar nada.
+ *
+ * El caso guarda **cuánto está desplazado el fragmento al empezar**, no dónde
+ * está, y lo guarda en milímetros; de ahí salen las tres cifras del panel antes
+ * del primer arrastre. Se pasa por `desplazamientoCompleto` y no se leen los
+ * seis campos a pelo porque un caso a medio escribir los trae a medias, y un
+ * `undefined` colándose en la aritmética deja las tres medidas en `NaN`: el
+ * panel enseña «NaN mm» y `evaluarGesto` no aprueba nunca, porque toda
+ * comparación contra `NaN` es falsa.
+ */
+export function medidaInicial(caso: {
+  desplazamientoInicial?: Desplazamiento | null
+  ejeLargo?: EjeLargo
+}): Medidas {
+  const d = desplazamientoCompleto(caso.desplazamientoInicial)
+  return medirReduccion(
+    { x: d.x, y: d.y, z: d.z },
+    { x: d.giroX, y: d.giroY, z: d.giroZ },
+    caso.ejeLargo,
+  )
 }

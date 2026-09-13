@@ -6,11 +6,46 @@ import sharp from 'sharp'
 import { es } from '@payloadcms/translations/languages/es'
 import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { COLECCIONES } from '@/collections'
+import { Medios as esquemaDeMedios } from '@/admin/esquema'
 import { origenDe } from '@/lib/rutas'
 import { migrations } from './migrations'
 import { editorClinico } from '@/blocks'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
+
+/**
+ * El techo de subida sale del panel, que es donde estaba decidido.
+ *
+ * Aquí había un `7 * 1024 * 1024` escrito a mano y un comentario pidiendo que
+ * los números se movieran juntos; pedirlo no es atarlo. La cifra ya vive en
+ * `src/admin/esquema.ts`, junto a la frase que el traumatólogo lee antes de
+ * elegir el archivo, y esas dos sí están atadas por `tests/unit/esquema.test.ts`
+ * —la última vez que se separaron, el panel prometió 50 MB mientras el marco
+ * cortaba en 8 sin decir nada—. Tomándola de allá, esta configuración entra en
+ * esa misma cuerda en lugar de ser un tercer número que nadie compara.
+ *
+ * La dirección del `import` importa y no es reversible: el esquema del panel lo
+ * carga también el formulario, o sea el navegador, y por eso no puede importar
+ * nada de servidor. Al revés —servidor pidiéndole una constante a un módulo que
+ * ya es seguro en el navegador— no arrastra nada a ningún paquete.
+ *
+ * Se toma el de `medios` y no el de `modelos-3d` porque `upload.limits` es uno
+ * solo para todas las colecciones: tiene que ser el mayor de los techos, o la
+ * colección más generosa quedaría cortada por el límite de la otra. Los 5 MB de
+ * los modelos los hace cumplir `src/uploads/validarModelo3D.ts`, por firma del
+ * archivo y por colección.
+ */
+const subidaDeMedios = esquemaDeMedios.subida
+if (!subidaDeMedios) {
+  // No puede pasar —`tests/unit/esquema.test.ts` exige que toda colección con
+  // `upload` en Payload declare su `subida` en el panel—, y si pasara, callarlo
+  // con un número de reserva devolvería el problema que este cambio quita.
+  throw new Error(
+    'El esquema del panel para «medios» perdió su bloque `subida`, que es de donde sale el ' +
+      'techo de subida de esta configuración. Ver src/admin/esquema.ts.',
+  )
+}
+const TECHO_DE_SUBIDA_BYTES = subidaDeMedios.maximoBytes
 
 /**
  * Configuración de la plataforma docente de traumatología.
@@ -51,6 +86,37 @@ export default buildConfig({
   // de modo que el doblez aparecía a los dos lados de la comparación y se
   // cancelaba. Solo fallaba lo que resuelve el navegador de verdad.
   routes: { api: '/api' },
+
+  // La cookie de sesión se llama `traumahub-token`, y no el `payload-token`
+  // que Payload pone por omisión.
+  //
+  // No es cosmético: es la única salida al choque de cookies que describe
+  // `acciones/sesion.ts`. En el servidor la plataforma comparte esquema,
+  // dominio y puerto con otras páginas detrás del mismo proxy, así que el
+  // testigo se acota a `/traumahub`; pero las sesiones anteriores a 66bdc2d
+  // dejaron uno con `path: '/'` que sigue vivo hasta caducar, y es **ese** el
+  // que manda —el navegador manda primero la del path más específico (RFC 6265
+  // §5.4) y `parseCookies` de Payload arma un Map quedándose con la última—.
+  // Mientras las dos se llamen igual, la del prefijo no se lee nunca y pasan
+  // dos cosas que no se ven:
+  //
+  //  - quien entra con OTRA cuenta queda autenticado como el usuario anterior,
+  //    que en una estación compartida de hospital es una anotación firmada por
+  //    quien no la hizo;
+  //  - si el testigo viejo deja de verificar sin morirse su cookie —rotar
+  //    `PAYLOAD_SECRET`—, entrar responde «éxito» sobre una plataforma cerrada.
+  //
+  // Con otro nombre, la vieja se vuelve invisible para Payload y se muere sola
+  // sin estorbar a nadie. El precio se paga una vez: al desplegar esto, las
+  // sesiones abiertas dejan de valer y hay que volver a entrar.
+  //
+  // Nadie escribe este nombre a mano: `nombreDeLaCookieDeSesion()` se lo
+  // pregunta a esta configuración y `tests/unit/cookieDeSesion.test.ts` vigila
+  // que siga siendo así. Y nada vuelve a crear el choque después, porque
+  // `POST /api/usuarios/login` —que escribe siempre con `path: '/'`, sin mirar
+  // esto— está cerrado en `(payload)/api/[...slug]/route.ts`.
+  cookiePrefix: 'traumahub',
+
   secret: process.env.PAYLOAD_SECRET || '',
   admin: {
     user: 'usuarios',
@@ -148,13 +214,20 @@ export default buildConfig({
     // no se ejerce jamás.
     //
     // Decía 50 MB y el panel anunciaba 50 MB, mientras Next cortaba en 8 y sin
-    // mensaje. Ahora dice 7 MB, que es lo que el panel promete
-    // (`src/admin/esquema.ts`) y lo que de verdad cabe en un cuerpo de 8 MB con
-    // su sobre multiparte. Los tres números se mueven juntos.
+    // mensaje. Ahora la cifra es la del panel porque es literalmente la misma
+    // constante: ver `TECHO_DE_SUBIDA_BYTES` arriba.
+    //
+    // Y desde que `(payload)/api/[...slug]/route.ts` cerró las escrituras de la
+    // API REST, este límite no llega a ejercerse por ningún camino: el `POST`
+    // contesta 403 antes de que el analizador multiparte vea un byte. Se
+    // conserva puesto, y no vacío, para el día que se reabra un extremo
+    // concreto de esa API —que es lo que aquel archivo deja previsto—: un techo
+    // ausente vale por «sin límite», y reabrir sin él sería el agujero de
+    // verdad.
     //
     // Los modelos 3D tienen además su propio límite de 5 MB, comprobado por
     // firma del archivo (observación O-008).
-    limits: { fileSize: 7 * 1024 * 1024 },
+    limits: { fileSize: TECHO_DE_SUBIDA_BYTES },
     // Sin esto el analizador NO rechaza: su valor por omisión es
     // `abortOnLimit: false`, que deja de acumular bytes, marca el archivo como
     // `truncated` —bandera que Payload escribe y nadie lee— y responde 201. El
@@ -162,7 +235,12 @@ export default buildConfig({
     // reproduce hasta la mitad, sin un error en ninguna parte. Truncar en
     // silencio es peor que no tener límite.
     abortOnLimit: true,
-    responseOnLimit: 'El archivo supera el máximo permitido (7 MB).',
+    // Compuesto con la misma cifra: un mensaje que anuncia un techo distinto
+    // del que se aplica manda a redimensionar el archivo a un tamaño que
+    // tampoco va a entrar.
+    responseOnLimit: `El archivo supera el máximo permitido (${Math.round(
+      TECHO_DE_SUBIDA_BYTES / (1024 * 1024),
+    )} MB).`,
   },
   telemetry: false,
 })

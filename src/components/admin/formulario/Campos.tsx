@@ -458,17 +458,37 @@ export function ControlDeCampo({
       return (
         <fieldset className="campo-grupo">
           <legend>{campo.etiqueta}</legend>
-          {ayuda}
           {campo.editor === 'encuadre3d' ? (
-            <EditorDeEncuadre
-              url={modelo?.url ?? null}
-              nombre={modelo?.etiqueta}
-              valor={(valor ?? {}) as Encuadre}
-              alCambiar={(nuevo) =>
-                alCambiar({ ...((valor ?? {}) as Record<string, unknown>), ...nuevo })
-              }
-            />
-          ) : null}
+            <>
+              {/*
+                La ayuda del grupo entra dentro del envoltorio que se esconde, y
+                no arriba con las demás, porque es la ayuda DEL VISOR: dice «use
+                el visor de aquí abajo; los números se rellenan solos»
+                (`src/admin/bloques.ts`). Por debajo de 640 px el visor no está
+                —encuadrar con el dedo no sale—, y la frase sola mandaba a
+                buscar un botón inexistente. Se van los dos juntos y en su sitio
+                queda el aviso de al lado; los cinco números siguen editables a
+                mano, que es lo que ese aviso tiene que decir.
+              */}
+              <div className="solo-ancho">
+                {ayuda}
+                <EditorDeEncuadre
+                  url={modelo?.url ?? null}
+                  nombre={modelo?.etiqueta}
+                  valor={(valor ?? {}) as Encuadre}
+                  alCambiar={(nuevo) =>
+                    alCambiar({ ...((valor ?? {}) as Record<string, unknown>), ...nuevo })
+                  }
+                />
+              </div>
+              <p className="solo-estrecho aviso-solo-escritorio">
+                Encuadrar con el dedo no sale: abra esta ficha desde un computador. Los cinco
+                números de aquí abajo siguen siendo editables a mano.
+              </p>
+            </>
+          ) : (
+            ayuda
+          )}
           <FilaDeCampos
             campos={campo.campos}
             valores={(valor ?? {}) as Record<string, unknown>}

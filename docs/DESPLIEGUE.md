@@ -233,6 +233,23 @@ Con la imagen real de producción, no con el modo desarrollo:
 | Arranque completo | 10 segundos |
 | Tamaño de la imagen | 334 MB |
 
+Ese 403 sigue llegando, pero conviene saber que ya no lo da quien lo daba. En el
+ensayo lo devolvía el `access.read` de la colección, o sea la sesión que
+faltaba; desde que se cerró la API REST de Payload lo devuelve antes el comodín
+`src/app/(payload)/api/[...slug]/route.ts`, que no mira la sesión: contesta lo
+mismo **con** sesión y con cualquier método. Retirar la interfaz de Payload
+(D-038) había dejado su API en pie, y con ella una segunda administración de los
+mismos datos —escrituras que no pasaban por las comprobaciones del panel,
+`GET /api/medios?limit=500` con el inventario de archivos para cualquier cuenta
+activa, y `POST /api/usuarios/login` dejando la cookie de sesión en `/`—.
+
+De esa API queda abierta **una sola ruta**, y hay que contarla al comprobar un
+despliegue porque es la que no puede romperse:
+`GET /api/<colección>/file/<nombre>`, con la que Payload entrega cada imagen,
+vídeo y modelo 3D. Sigue exigiendo sesión activa, esta vez sí por el
+`access.read` de la colección. Si tras desplegar las fichas salen sin
+ilustraciones, esa ruta es el primer sitio donde mirar.
+
 ---
 
 ## Después del despliegue
@@ -353,6 +370,17 @@ versión nueva no responde, `deploy.sh` vuelve solo a la imagen anterior y
 árbol de trabajo y el contenedor no queden contando historias distintas. Se
 niega a actuar si hay cambios sin confirmar: un servidor no es sitio para editar
 código.
+
+**La primera actualización que lleve el cambio de nombre de la cookie cierra la
+sesión de todo el mundo.** La cookie pasó a llamarse `traumahub-token` en vez de
+`payload-token` (`cookiePrefix` en `src/payload.config.ts`), y con otro nombre
+la que cada navegador tiene guardada se vuelve invisible: hay que volver a
+entrar, una vez. Es a propósito y no se puede evitar a medias. Las sesiones
+anteriores habían dejado una cookie en `/` —compartida, por tanto, con las
+demás páginas del mismo proxy— que ganaba sobre la del prefijo, y mientras las
+dos se llamaran igual, entrar con otra cuenta dejaba al usuario autenticado como
+el anterior. Conviene avisar antes de actualizar, porque desde fuera se ve como
+«me echó la plataforma».
 
 ### Ver el registro
 

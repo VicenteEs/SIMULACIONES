@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { coleccionesRelacionadasDe, type EsquemaDeColeccion } from '@/admin/esquema'
+import { coleccionesRelacionadasDe, estadoEnPalabras, type EsquemaDeColeccion } from '@/admin/esquema'
 import { faltantes } from '@/admin/depurar'
 import { estaVacio } from '@/lib/textoRico'
 import {
@@ -271,6 +271,32 @@ export function FormularioDocumento({
 
   const titulo = String(valores[esquema.titulo] ?? '').trim()
 
+  /**
+   * La salida suave que ofrece el `confirm` de eliminar, y solo cuando existe.
+   *
+   * Se ofrecía siempre y decía «retírela de publicación», con dos problemas que
+   * se notan justo en el último momento antes de algo que no se deshace.
+   *
+   * El primero es que esa salida no siempre está. El botón «Retirar de
+   * publicación» vive unas líneas más abajo y aparece con la misma condición
+   * que se pregunta aquí; en medios, en modelos 3D y en los catálogos —que no
+   * se versionan—, y en una ficha que todavía es borrador, la frase mandaba a
+   * buscar en la pantalla un botón que no está. Peor consejo que ninguno:
+   * quien no lo encuentra vuelve al «Eliminar», que sí está.
+   *
+   * El segundo es la concordancia. «Retírela» es femenino fijo y aquí desfilan
+   * las once colecciones: sobre «Modelo 3D», «Hueso» o «Caso AO» quedaba mal.
+   * El esquema ya declara el género y `avisoDeRetirada` sabe conjugar esa
+   * frase, pero aquí se prefiere nombrar el botón: concuerda igual y además
+   * dice cuál de los dos de abajo hay que pulsar, que es lo que hace falta a un
+   * paso de un borrado que no se deshace. Es lo mismo que las acciones del
+   * listado resolvieron hablando en impersonal (`TablaDocumentos.tsx`).
+   */
+  const salidaSuave =
+    esquema.versionada && publicado
+      ? '\n\nSi solo quiere que deje de verse, use «Retirar de publicación».'
+      : ''
+
   return (
     <div className="editor">
       <div className="admin-toolbar">
@@ -290,10 +316,16 @@ export function FormularioDocumento({
               'Sin guardar todavía'
             ) : esquema.versionada ? (
               <>
+                {/* La insignia la compone `estadoEnPalabras` y no un literal:
+                    escrita aquí a mano decía «✓ Publicada» encima de «Modelo
+                    3D» y de «Hueso», y la del listado la escribía por su cuenta
+                    —el mismo estado, dos frases que podían torcerse por
+                    separado—. Ahora las dos salen de la misma función, que
+                    concuerda con `esquema.genero`. */}
                 <span
                   className={`admin-badge ${publicado ? 'admin-badge-publicado' : 'admin-badge-borrador'}`}
                 >
-                  {publicado ? '✓ Publicada' : '● Borrador'}
+                  {estadoEnPalabras(esquema, publicado)}
                 </span>
                 {sucio ? <span className="editor-sucio"> · cambios sin guardar</span> : null}
               </>
@@ -344,28 +376,63 @@ export function FormularioDocumento({
             </button>
           ) : null}
 
+          {/* Los botones de guardar llevan `aria-disabled` y no `disabled`, por
+              el mismo motivo que las acciones de fila, la paginación y el
+              subidor de `TablaDocumentos.tsx`: el botón que se pulsa es
+              justamente el que tiene el foco, y `disabled` puesto por el
+              arranque de la transición hace que el navegador lo desenfoque y
+              suelte el foco en el `<body>`. Estos tres siguen montados después
+              del guardado, así que nada lo recoge —el efecto del aviso solo
+              entra cuando el guardado es rechazado, que es el camino raro—, y
+              quien guarda con teclado vuelve al principio de la página en cada
+              guardado que sale bien. Quien impide la doble pulsación es el
+              `if (enCurso) return` de cada `onClick`, y visualmente no se
+              pierde nada: `.admin-btn` no define estilo de `:disabled`. Quien
+              avisa de que está ocupado es el rótulo.
+
+              «Duplicar» y «Eliminar» se quedan con `disabled` a propósito: las
+              dos salen de la pantalla con `router.push` y no hay foco que
+              recoger. «Retirar de publicación» también lo conserva, pero por
+              otro motivo: al volver la acción deja de cumplirse su condición y
+              el botón se desmonta solo, de modo que soltarle el `disabled` no
+              le devolvería el foco a nadie. Ese pide un traspaso explícito,
+              como el `focoTrasBorrar` del listado. */}
           {esquema.versionada ? (
             <>
               <button
                 className="admin-btn admin-btn-secondary"
-                disabled={enCurso}
-                onClick={() => guardar(false)}
+                aria-disabled={enCurso}
+                onClick={() => {
+                  if (enCurso) return
+                  guardar(false)
+                }}
               >
                 {enCurso ? 'Guardando…' : 'Guardar borrador'}
               </button>
               <button
                 className="admin-btn admin-btn-primary"
-                disabled={enCurso}
-                onClick={() => guardar(true)}
+                aria-disabled={enCurso}
+                onClick={() => {
+                  if (enCurso) return
+                  guardar(true)
+                }}
               >
-                {publicado ? 'Guardar y publicar' : 'Publicar'}
+                {/* Este rótulo también cambia mientras dura la transición: es
+                    el único aviso de «ocupado» que queda al soltar `disabled`,
+                    y era el que le faltaba —los otros dos botones ya lo
+                    tenían—, así que la acción principal de la pantalla era la
+                    única que no daba señal ninguna de estar guardando. */}
+                {enCurso ? 'Guardando…' : publicado ? 'Guardar y publicar' : 'Publicar'}
               </button>
             </>
           ) : (
             <button
               className="admin-btn admin-btn-primary"
-              disabled={enCurso}
-              onClick={() => guardar(true)}
+              aria-disabled={enCurso}
+              onClick={() => {
+                if (enCurso) return
+                guardar(true)
+              }}
             >
               {enCurso ? 'Guardando…' : 'Guardar'}
             </button>
@@ -474,7 +541,7 @@ export function FormularioDocumento({
             onClick={() => {
               if (
                 confirm(
-                  `¿Eliminar «${titulo || esquema.singular}»?\n\nNo se puede deshacer. Si solo quiere que deje de verse, retírela de publicación.`,
+                  `¿Eliminar «${titulo || esquema.singular}»?\n\nNo se puede deshacer.${salidaSuave}`,
                 )
               ) {
                 iniciar(async () => {

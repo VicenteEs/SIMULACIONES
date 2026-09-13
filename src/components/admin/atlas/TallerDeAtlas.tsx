@@ -33,12 +33,18 @@ import {
  * de donde estaban. Por eso ese módulo se pide ahora con `import()` desde el
  * efecto del catálogo, y por eso **este archivo no puede volver a importar nada
  * de `@/atlas/cargador` de forma estática**: la primera línea que lo haga
- * deshace las dos mitades a la vez, sin que nada falle ni se note en desarrollo.
+ * deshace las dos mitades a la vez sin que se note en desarrollo y sin perder
+ * un píxel de pantalla. Lo único que lo canta hoy es
+ * `tests/unit/tallerDeAtlas.test.ts`, que lee esta fuente y exige las dos
+ * mitades —el `dynamic()` de abajo y el `import()` del efecto—; antes de esa
+ * prueba la única defensa era este párrafo, y ya se rompió una vez.
  *
  * Lo limpio sería que `cargarCatalogo` —que es un `fetch` y nada más— viviera
  * en un módulo sin three, y que lo importaran de ahí sus dos usuarios, este
  * taller y `VisorInstancia`. Mientras siga donde está, el `import()` es lo que
- * mantiene la promesa.
+ * mantiene la promesa. Quien haga la mudanza tiene que llevarse en el mismo
+ * commit las dos afirmaciones de esa prueba que fijan el `import()` literal, o
+ * la suite se queda en rojo señalando el arreglo.
  *
  * `ssr: false` porque un lienzo WebGL en el servidor es un hueco vacío, lo
  * mismo que en `VisoresPerezosos`.

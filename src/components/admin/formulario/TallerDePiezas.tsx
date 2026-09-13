@@ -188,64 +188,81 @@ export function TallerDePiezas({
 
   return (
     <div className="taller-piezas">
-      <div className="taller-piezas-lienzo">
-        <LienzoQuirurgico
-          // Al cambiar de modelo hay que rehacer el lienzo entero.
-          key={url}
-          url={url}
-          piezas={piezasParaElLienzo}
-          modo={modo}
-          fluoroscopia={false}
-          alCargar={alCargar}
-          alSenalar={agregar}
-          alFallar={setAviso}
-          mando={mando}
-        />
-      </div>
+      {/*
+        Por debajo de 640 px el visor y su botonera no están —señalar un trozo
+        y arrastrar un fragmento con el dedo no sale—, así que todo lo que los
+        explica se va con ellos dentro de `.solo-ancho` y aquí queda lo que se
+        puede hacer de verdad desde un teléfono. Antes se escondían las tres
+        piezas por su nombre en `admin.css` y la instrucción de abajo se
+        quedaba puesta: el autor leía «pinche cada trozo… pulse Capturar
+        desplazamiento» debajo de un hueco.
+      */}
+      <p className="solo-estrecho aviso-solo-escritorio">
+        Señalar las piezas y colocar el fragmento con el dedo no sale: abra esta ficha desde un
+        computador. La tabla de aquí abajo y los seis números del desplazamiento inicial siguen
+        siendo editables a mano.
+      </p>
 
-      <div className="taller-piezas-mandos">
-        <div className="taller-piezas-modos">
-          <button
-            type="button"
-            className={`admin-btn ${modo === 'senalar' ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
-            onClick={() => setModo('senalar')}
-          >
-            Señalar piezas
-          </button>
-          <button
-            type="button"
-            className={`admin-btn ${modo === 'mover' ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
-            onClick={() => setModo('mover')}
-          >
-            Colocar el fragmento
-          </button>
-          <button type="button" className="admin-btn admin-btn-secondary" onClick={() => setModo('orbitar')}>
-            Solo girar la vista
-          </button>
-          {aislado ? (
-            <button type="button" className="admin-btn admin-btn-secondary" onClick={mostrarTodo}>
-              Ver todo otra vez
+      <div className="solo-ancho">
+        <div className="taller-piezas-lienzo">
+          <LienzoQuirurgico
+            // Al cambiar de modelo hay que rehacer el lienzo entero.
+            key={url}
+            url={url}
+            piezas={piezasParaElLienzo}
+            modo={modo}
+            fluoroscopia={false}
+            alCargar={alCargar}
+            alSenalar={agregar}
+            alFallar={setAviso}
+            mando={mando}
+          />
+        </div>
+
+        <div className="taller-piezas-mandos">
+          <div className="taller-piezas-modos">
+            <button
+              type="button"
+              className={`admin-btn ${modo === 'senalar' ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
+              onClick={() => setModo('senalar')}
+            >
+              Señalar piezas
+            </button>
+            <button
+              type="button"
+              className={`admin-btn ${modo === 'mover' ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
+              onClick={() => setModo('mover')}
+            >
+              Colocar el fragmento
+            </button>
+            <button type="button" className="admin-btn admin-btn-secondary" onClick={() => setModo('orbitar')}>
+              Solo girar la vista
+            </button>
+            {aislado ? (
+              <button type="button" className="admin-btn admin-btn-secondary" onClick={mostrarTodo}>
+                Ver todo otra vez
+              </button>
+            ) : null}
+          </div>
+
+          {modo === 'mover' ? (
+            <button type="button" className="admin-btn admin-btn-primary" onClick={capturarDesplazamiento}>
+              Capturar desplazamiento
             </button>
           ) : null}
         </div>
 
-        {modo === 'mover' ? (
-          <button type="button" className="admin-btn admin-btn-primary" onClick={capturarDesplazamiento}>
-            Capturar desplazamiento
-          </button>
+        {sinDeclarar.length > 0 ? (
+          <div className="taller-piezas-sueltas">
+            <span className="taller-piezas-titulo">En el archivo y sin usar:</span>
+            {sinDeclarar.map((n) => (
+              <button key={n} type="button" className="taller-piezas-suelta" onClick={() => agregar(n)}>
+                {n}
+              </button>
+            ))}
+          </div>
         ) : null}
       </div>
-
-      {sinDeclarar.length > 0 ? (
-        <div className="taller-piezas-sueltas">
-          <span className="taller-piezas-titulo">En el archivo y sin usar:</span>
-          {sinDeclarar.map((n) => (
-            <button key={n} type="button" className="taller-piezas-suelta" onClick={() => agregar(n)}>
-              {n}
-            </button>
-          ))}
-        </div>
-      ) : null}
 
       {declaradas.length > 0 ? (
         <table className="taller-piezas-tabla">
@@ -305,14 +322,22 @@ export function TallerDePiezas({
                     </select>
                   </td>
                   <td className="taller-piezas-acciones">
-                    <button
-                      type="button"
-                      className="admin-btn admin-btn-secondary"
-                      aria-label={`Ver solo «${nodo || 'sin nombre'}»`}
-                      onClick={() => aislar(nodo)}
-                    >
-                      Solo esto
-                    </button>
+                    {/*
+                      «Solo esto» aísla la pieza DENTRO del visor, así que se va
+                      con él en pantalla estrecha: allí el botón contestaba
+                      «Viendo solo «X»» sobre un visor que no está. «Quitar» no,
+                      que sigue haciendo lo mismo con la tabla delante.
+                    */}
+                    <span className="solo-ancho">
+                      <button
+                        type="button"
+                        className="admin-btn admin-btn-secondary"
+                        aria-label={`Ver solo «${nodo || 'sin nombre'}»`}
+                        onClick={() => aislar(nodo)}
+                      >
+                        Solo esto
+                      </button>
+                    </span>
                     <button
                       type="button"
                       className="admin-btn admin-btn-secondary"
@@ -329,12 +354,26 @@ export function TallerDePiezas({
         </table>
       ) : null}
 
-      <p className="campo-ayuda">
+      <p className="campo-ayuda solo-ancho">
         En <strong>Señalar piezas</strong>, pinche cada trozo del modelo y se añade con su nombre
         exacto. Marque uno como <strong>fragmento móvil</strong>: es el que el residente reduce.
         Después pase a <strong>Colocar el fragmento</strong>, arrástrelo hasta que la fractura se
         vea como quiere enseñarla y pulse <strong>Capturar desplazamiento</strong>.
-        {aviso ? <span className="encuadre-aviso"> {aviso}</span> : null}
+      </p>
+
+      {/*
+        El aviso sale de ese párrafo y se queda fuera del envoltorio que se
+        esconde: es la única respuesta que recibe quien añade, quita o captura,
+        y en pantalla estrecha «Quitar» sigue funcionando desde la tabla. Antes
+        iba dentro, así que allí la fila desaparecía sin que nada lo dijera.
+
+        Se pinta siempre, aunque no haya nada que decir: `role="status"` anuncia
+        lo que cambia dentro de una región que ya estaba en la página, y una que
+        se monta con el texto dentro no se anuncia. Vacío ocupa su margen y
+        nada más.
+      */}
+      <p className="campo-ayuda encuadre-aviso" role="status">
+        {aviso}
       </p>
     </div>
   )

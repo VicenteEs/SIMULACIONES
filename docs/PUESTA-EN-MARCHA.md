@@ -114,7 +114,7 @@ src/
   migrations/   migraciones de esquema; en producción se aplican al arrancar
   uploads/      validación de archivos por su contenido real
   app/
-    (payload)/  solo la API de Payload, en api/[...slug]/route.ts
+    (payload)/  lo que queda de la API de Payload: solo el archivo subido
     (frontend)/ el sitio del residente y el panel propio, en admin-panel/
 tests/
   unit/         pruebas sin base de datos
@@ -126,14 +126,28 @@ archivo/        el prototipo original, como referencia
 BITACORA.md     decisiones, observaciones y preguntas abiertas
 ```
 
-Dos cosas sorprenden al llegar:
+Tres cosas sorprenden al llegar:
 
 **El panel no es el de Payload.** La interfaz de administración de Payload se
 retiró (decisión D-038) y el panel es propio: vive en
 `src/app/(frontend)/admin-panel`, con su guardia única en `acceso.ts`. La ruta
-`/admin` solo redirige. De `(payload)/` queda únicamente la API.
+`/admin` solo redirige.
+
+**Y la API REST de Payload tampoco sigue abierta.** Retirar la interfaz dejó su
+API en pie, o sea una segunda administración de los mismos datos por la que no
+miraba nadie: `PATCH /api/<colección>/<id>` escribía sin pasar por las
+comprobaciones del panel, `GET /api/medios?limit=500` devolvía el inventario de
+archivos —borradores incluidos— a cualquier cuenta activa, y
+`POST /api/usuarios/login` dejaba la cookie de sesión en `/`. De todo
+`(payload)/` queda **una sola ruta**, la del archivo subido; el resto contesta
+403 con el motivo escrito. El comodín que lo hace cumplir es
+`src/app/(payload)/api/[...slug]/route.ts`, y la frontera la fija
+`tests/unit/apiDePayload.test.ts`.
 
 **Los archivos subidos no están en `public/`.** Están en `medios/` y
 `medios/modelos/`, porque dentro de `public/` Next los servía como estáticos
 sin comprobar la sesión. Payload los entrega por
-`/api/<colección>/file/<nombre>`, que sí comprueba el acceso.
+`/api/<colección>/file/<nombre>`, que sí comprueba el acceso. Esa es la ruta que
+quedó abierta y la que no se puede cerrar: la llevan los `<img>`, los `<video>`
+y el cargador de glTF de toda la plataforma, así que cerrarla dejaría toda ficha
+sin ilustraciones.

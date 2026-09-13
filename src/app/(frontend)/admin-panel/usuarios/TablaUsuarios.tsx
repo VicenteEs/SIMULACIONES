@@ -401,7 +401,7 @@ export function TablaUsuarios({
                     </td>
                     <td>
                       <span
-                        className={`admin-badge ${u.activo ? 'admin-badge-active' : 'admin-badge-inactive'}`}
+                        className={`admin-badge ${u.activo ? 'admin-badge-activo' : 'admin-badge-inactivo'}`}
                       >
                         {u.activo ? '● Con acceso' : '○ Sin activar'}
                       </span>

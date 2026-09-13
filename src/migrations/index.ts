@@ -6,6 +6,7 @@ import * as migration_20260910_132203_tolerancia_diastasis from './20260910_1322
 import * as migration_20260912_212708_bandeja_y_modelo_de_instrumento from './20260912_212708_bandeja_y_modelo_de_instrumento';
 import * as migration_20260913_033442_actividad_una_fila_por_ficha from './20260913_033442_actividad_una_fila_por_ficha';
 import * as migration_20260913_041920_objetivo_de_los_pasos_antiguos from './20260913_041920_objetivo_de_los_pasos_antiguos';
+import * as migration_20260913_043401_ultimo_administrador_activo from './20260913_043401_ultimo_administrador_activo';
 
 export const migrations = [
   {
@@ -41,11 +42,16 @@ export const migrations = [
   {
     up: migration_20260913_033442_actividad_una_fila_por_ficha.up,
     down: migration_20260913_033442_actividad_una_fila_por_ficha.down,
-    name: '20260913_033442_actividad_una_fila_por_ficha'
+    name: '20260913_033442_actividad_una_fila_por_ficha',
   },
   {
     up: migration_20260913_041920_objetivo_de_los_pasos_antiguos.up,
     down: migration_20260913_041920_objetivo_de_los_pasos_antiguos.down,
-    name: '20260913_041920_objetivo_de_los_pasos_antiguos'
+    name: '20260913_041920_objetivo_de_los_pasos_antiguos',
+  },
+  {
+    up: migration_20260913_043401_ultimo_administrador_activo.up,
+    down: migration_20260913_043401_ultimo_administrador_activo.down,
+    name: '20260913_043401_ultimo_administrador_activo'
   },
 ];

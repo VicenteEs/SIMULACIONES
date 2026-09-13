@@ -20,6 +20,12 @@ import type { Rol } from '@/access/reglas'
  * dos tienen que decir lo mismo: lo que se escribe aquí lo borra `salir()`, y
  * un `delete` con otro path no caduca nada —la simulación sobreviviría a cerrar
  * la sesión y la siguiente empezaría viendo la plataforma como otro rol—.
+ *
+ * Mientras sigan siendo dos, los ata `tests/unit/cookieDeVistaPrevia.test.ts`,
+ * que los compara **con prefijo**: sin él los dos valen `/` y coinciden aunque
+ * uno esté mal, así que en desarrollo separarlos no rompe nada visible. Donde
+ * dejarían de ser dos es `src/lib/vistaPrevia.ts`, junto a
+ * `COOKIE_VISTA_PREVIA`, que es el módulo que los dos ya importan.
  */
 const PATH_COOKIE = PREFIJO || '/'
 

@@ -136,8 +136,23 @@ main { max-width: 1060px; margin: 0 auto; padding: 44px 24px 96px; }
 .hero-codigo { font-family: var(--mono); color: #7fd0f5; letter-spacing: 0.05em; }
 
 /* ---------- botones ---------- */
-.boton { display: inline-block; background: var(--marca); color: #fff; text-decoration: none; padding: 11px 20px; border-radius: var(--r); font-weight: 600; font-size: 14px; border: 1px solid var(--marca); transition: background 0.15s ease; }
+/* `.boton` se escribió para un `<a>` —de ahí `display: inline-block` y
+   `text-decoration: none`— y hoy la llevan además seis `<button>`: «Volver a
+   intentarlo» de `error.tsx`, «Quitar filtros» de `BibliotecaFiltrable`, los
+   tres del formulario de comentarios y «Guardar PDF». Sobre un `<button>` el
+   navegador no hereda ni la fuente de la página ni el puntero de mano: los
+   mismos 14 px salían en la familia de formulario del sistema y con la flecha,
+   al lado de un `<a>` con la misma clase que sí la tenía. Las dos declaraciones
+   son inocuas para el `<a>`, que ya traía las dos por omisión.
+
+   El `:disabled` va con ellas y no aparte: «Cancelar» y «Enviar comentario» se
+   apagan mientras el comentario viaja, y sin esta regla la mano recién puesta
+   invitaría a pulsar un botón que ya no responde. Se apaga además a la mitad,
+   como hace `.acceso-boton:disabled` con los cuatro botones de acceso, porque
+   el azul lleno del estado normal no decía nada de estar desactivado. */
+.boton { display: inline-block; background: var(--marca); color: #fff; text-decoration: none; font-family: inherit; padding: 11px 20px; border-radius: var(--r); font-weight: 600; font-size: 14px; border: 1px solid var(--marca); cursor: pointer; transition: background 0.15s ease; }
 .boton:hover { background: var(--marca-honda); border-color: var(--marca-honda); }
+.boton:disabled { cursor: not-allowed; opacity: 0.5; }
 .boton.grande { padding: 13px 26px; font-size: 15px; margin-top: 8px; }
 .boton.secundario { background: transparent; color: var(--marca); border-color: var(--linea); }
 .boton.secundario:hover { background: var(--marca-tenue); border-color: var(--marca); }
@@ -549,6 +564,24 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 }
 .consola-medidas dd { margin: 2px 0 0; font-family: var(--mono); font-size: 14px; color: var(--marca); }
 .consola-medidas dd.consola-desglose { margin-top: 1px; font-size: 11px; color: var(--mudo); letter-spacing: 0.04em; }
+/* La medida que se sale de su tope, o la incisión que se sale de su rango.
+   Estaba escrita a mano en `ConsolaQuirurgica.tsx` —`style={{ color:
+   'var(--ambar)' }}`—, donde ni se encuentra desde aquí ni se le puede mirar el
+   contraste.
+
+   Dos cosas que no se pueden tocar sin devolver el defecto:
+
+   El selector repite `.consola-medidas dd`. La regla de arriba pinta ese mismo
+   `<dd>` en `--mudo` con especificidad (0,2,1); una `.consola-desglose-fuera`
+   suelta se queda en (0,1,0) y pierde, así que el renglón seguiría gris y nada
+   lo delataría, porque el texto —«se pasa», «corta», «larga»— dice lo mismo con
+   color y sin él. Justo por eso el color aquí es refuerzo y no el mensaje.
+
+   Y el ámbar es el de texto, #7a5a1c, no `var(--ambar)`: el de la paleta sobre
+   el blanco de `--superficie` da 4,18:1 y esto son 11 px, por debajo del 4,5:1
+   de AA. Es el mismo criterio de `.borrador` y `.advertencia.perla`, explicado
+   junto a la etiqueta «borrador». */
+.consola-medidas dd.consola-desglose-fuera { color: #7a5a1c; }
 
 /* El instrumento que el residente tiene en la mano: su modelo y para qué sirve.
 
@@ -702,6 +735,13 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   border-left: 3px solid var(--linea);
   background: #fbfcfe;
 }
+/* La copia de lo último que pasó, la que se pinta junto a «Aplicar paso». El
+   registro entero vive en el pie pegado a su rótulo, así que el hueco es de
+   este sitio y no de la clase: por eso un modificador y no un cambio en
+   `.consola-registro`. Va justo detrás de ella a propósito —misma
+   especificidad, gana la última— y estaba escrito en línea en el marcado,
+   donde ninguna consulta de medio de esta hoja podía alcanzarlo. */
+.consola-registro-ultimo { margin-top: 12px; }
 .consola-registro .bien { border-left-color: #1c7a4b; }
 .consola-registro .aviso { border-left-color: var(--ambar); }
 .consola-registro .grave { border-left-color: #b03a2e; }

@@ -186,6 +186,18 @@ export async function resumenDeActividad(payload: Payload): Promise<ResumenDeAct
     ultimos7dias = recientes.totalDocs
     // Se cuentan personas distintas, no visitas: diez fichas abiertas por una
     // sola persona no son diez residentes usando la plataforma.
+    //
+    // Y cada ficha cuenta una vez: `src/collections/Actividad.ts` declara el
+    // índice único sobre (usuario, coleccion, documentoId) y la migración
+    // `20260913_033442_actividad_una_fila_por_ficha` lo crea, así que las dos
+    // filas gemelas que antes dejaba `anotar` al abrir y marcar a la vez —y
+    // que inflaban esta cifra— ya no pueden existir.
+    //
+    // Ojo con el tope: esto sale de los documentos traídos y no de un
+    // `COUNT(DISTINCT …)`, que Payload no ofrece. Pasadas las 1000 filas en
+    // una semana, `ultimos7dias` sigue exacto —es `totalDocs`— pero el número
+    // de personas se queda en un suelo. Subir el tope sin más es traerse la
+    // tabla a la memoria del servidor para contarla.
     lectoresActivos7dias = new Set(
       recientes.docs.map((d) => String((d as { usuario?: unknown }).usuario)),
     ).size

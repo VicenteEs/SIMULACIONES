@@ -5,6 +5,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { SinAcceso, Miga } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { FormularioComentario } from '@/components/FormularioComentario'
+import { RastreadorActividad } from '@/components/RastreadorActividad'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,56 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
     ? (estudio.opciones as Record<string, unknown>[])
     : []
 
+  const usuarioId = (usuarioEfectivo as { id?: string | number } | null)?.id
+
+  // La casilla de «leída» tiene que nacer sabiendo si ya lo está, y
+  // `RastreadorActividad` es de cliente: no puede consultarlo él. Sin esto la
+  // casilla aparece en blanco en cada carga y el residente vuelve a marcar lo
+  // que ya había marcado.
+  //
+  // Hasta aquí, Lectura de imágenes no registraba una sola lectura: ni la visita
+  // ni la marca. La cifra «por leer» de la portada es `totalFichas - leidas`
+  // sobre los cinco módulos, así que cada estudio contaba como pendiente para
+  // siempre y ese número no podía llegar a cero por mucho que se leyera.
+  //
+  // Es la cuarta copia literal de esta consulta —`biblioteca/[id]`,
+  // `simulador/[id]` y `tecnica-ao/[id]` llevan la misma—. Su sitio es una
+  // función de `src/lib`, que no entra en este lote y queda anotado como
+  // pendiente: lo que no podía seguir es que tres módulos de cinco no tuvieran
+  // forma de marcarse.
+  //
+  // Quedan cuatro de los cinco. El examen físico sigue fuera y no por olvido:
+  // no tiene página por documento —`admin-panel/modulos.ts` lo deja escrito y
+  // por eso `rutaPublica` compone `/examen-fisico#maniobra-<id>`—, las
+  // maniobras se pintan todas juntas en el listado. Mientras siga así, sus
+  // fichas cuentan en `totalFichas` (`page.tsx`, `MODULOS`) y nunca en
+  // `leidas`, de modo que «por leer» tiene un suelo igual al número de
+  // maniobras publicadas y no llega a cero. Cerrarlo pide una de dos cosas, y
+  // ninguna es de este lote: una ficha por maniobra, o un rastreador por
+  // `<article id="maniobra-…">` en el listado.
+  //
+  // El `.catch` está porque la actividad es una comodidad y el estudio es el
+  // contenido: una avería en esa tabla no puede llevarse por delante la página
+  // entera, que es lo que pasaría sin él.
+  const registroDeLectura = usuarioId
+    ? await payload
+        .find({
+          collection: 'actividad',
+          where: {
+            and: [
+              { usuario: { equals: usuarioId } },
+              { coleccion: { equals: 'estudios-ia' } },
+              { documentoId: { equals: id } },
+            ],
+          },
+          user: usuarioEfectivo as never,
+          limit: 1,
+          depth: 0,
+        })
+        .then((r) => r.docs[0] ?? null)
+        .catch(() => null)
+    : null
+
   return (
     <main>
       <Miga href="/imagenes" texto="Lectura de imágenes" />
@@ -54,6 +105,16 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
             <span className="etiqueta">Confianza declarada: {estudio.confianza}%</span>
           ) : null}
         </div>
+        {/*
+          En la cabecera y no al pie, como en la biblioteca: al final de la
+          página está el aviso de que la decisión es del cirujano tratante, y no
+          conviene poner un control de progreso justo debajo de esa frase.
+        */}
+        <RastreadorActividad
+          coleccion="estudios-ia"
+          documentoId={id}
+          completadoInicial={registroDeLectura?.completado === true}
+        />
       </header>
 
       {hallazgos.length > 0 ? (

@@ -137,6 +137,18 @@ export class CuentaDesactivada extends Error {
  * El `req` se pasa para que la cuenta se haga dentro de la transacción que ya
  * está abierta. Sin él, Payload abre otra contra la misma tabla que el gancho
  * está a punto de escribir.
+ *
+ * Esta cuenta y la escritura que viene después son dos operaciones distintas, y
+ * ninguna comprobación escrita en JavaScript puede juntarlas: dos
+ * administradores que se desactivan a la vez ven cada uno al otro todavía
+ * activo y los dos pasan. Esa carrera la cierra la base desde la migración
+ * `20260913_043401_ultimo_administrador_activo`, con un disparador diferido que
+ * vuelve a contar al confirmar la transacción. Los dos guardias de aquí siguen
+ * haciendo falta y son los que se ven casi siempre: dan el mensaje en español y
+ * distinguen «a sí mismo» de «al último», cosas que el disparador no sabe. El
+ * disparador solo existe en el servidor —en desarrollo manda el `push` de
+ * Drizzle, que no aplica migraciones—, así que a estos ganchos no se les puede
+ * quitar nada por tenerlo.
  */
 async function contarOtrosAdminsActivos(req: PayloadRequest, exceptoId: string): Promise<number> {
   const { totalDocs } = await req.payload.count({

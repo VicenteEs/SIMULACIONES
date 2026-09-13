@@ -38,6 +38,20 @@ export interface Opcion {
   etiqueta: string
 }
 
+/**
+ * Condición entre la opción elegida en una selección y sus campos hermanos.
+ *
+ * `campos` se cumple con **uno**: son parejas de mínimo y máximo, y declarar
+ * solo un extremo es legítimo. `mensaje` es el texto que lee el traumatólogo, y
+ * es exactamente el mismo que devuelve la colección al cortar, porque las dos
+ * lo sacan de la misma lista.
+ */
+export interface ReglaDeSeleccion {
+  opcion: string
+  campos: string[]
+  mensaje: string
+}
+
 interface CampoBase {
   nombre: string
   etiqueta: string
@@ -68,40 +82,27 @@ export type Campo =
       /**
        * Qué más hay que llenar según la opción que se elija.
        *
-       * Copia en el idioma del panel una validación que la colección ya hace
-       * al publicar. No es redundancia: la de la colección es la que manda —es
-       * el único punto por el que pasan todas las escrituras—, pero Payload la
-       * envuelve en un `ValidationError` cuyo `message` dice «The following
-       * field is invalid: Qué se evalúa», y el texto en español se queda
-       * dentro de `error.data`, que es justo lo que `accion()` no enseña. Así
-       * que el traumatólogo veía media frase en inglés con el nombre del campo
-       * y ninguna pista de qué rellenar.
+       * Adelanta en el panel una validación que la colección hace al publicar.
+       * No es una copia suya: es la misma lista, que la colección importa de
+       * aquí (`REGLAS_DEL_OBJETIVO_DEL_PASO`). Adelantarla hace falta porque la
+       * de la colección es la que manda —es el único punto por el que pasan
+       * todas las escrituras— pero Payload la envuelve en un `ValidationError`
+       * cuyo `message` dice «The following field is invalid: Qué se evalúa» y
+       * deja el texto en español dentro de `error.data`, que es justo lo que
+       * `accion()` no enseña: el traumatólogo veía media frase en inglés con el
+       * nombre del campo y ninguna pista de qué rellenar.
        *
-       * Basta con que llegue **uno** de `campos` con un número: son parejas de
-       * mínimo y máximo, y declarar solo un extremo es legítimo.
+       * La atiende `faltantes` en `src/admin/depurar.ts`, y solo al publicar.
        */
-      exigeAlguno?: { opcion: string; campos: string[]; mensaje: string }[]
+      exigeAlguno?: ReglaDeSeleccion[]
       /**
        * Qué **no** puede venir lleno según la opción que se elija.
        *
        * El reverso de `exigeAlguno`, y tampoco está por simetría: lo pide el
-       * motor. `objetivoDelPaso` (src/lib/simulador.ts) no se fía del valor
-       * `instrumento` —es lo que el `DEFAULT` de la columna escribió en TODA
-       * fila anterior—, así que ante él deduce el modo del rango que el paso
-       * traiga; un número de fuerza olvidado convierte en silencio «elija el
-       * punzón» en «aplique entre 8 y 20 N».
-       *
-       * Hace falta aquí por la misma razón que `exigeAlguno`, y más que él: el
-       * editor del panel pinta los siete números uno debajo de otro sin
-       * esconder los que no tocan, de modo que cambiar el objetivo a
-       * «instrumento» dejando un número tecleado es el gesto natural, y lo que
-       * se recibía era el «The following field is invalid: Qué se evalúa» de
-       * Payload con el español encerrado en `error.data`.
-       *
-       * Sobra con que **uno** de `campos` traiga un número: cualquiera de los
-       * cuatro basta para que el motor deduzca otro modo.
+       * motor. El porqué entero va junto a la regla, en
+       * `REGLAS_DEL_OBJETIVO_DEL_PASO`, que es de donde salen las dos.
        */
-      prohibeAlguno?: { opcion: string; campos: string[]; mensaje: string }[]
+      prohibeAlguno?: ReglaDeSeleccion[]
     })
   | (CampoBase & { tipo: 'casilla' })
   | (CampoBase & {
@@ -164,6 +165,29 @@ export interface EsquemaDeColeccion {
   slug: string
   singular: string
   plural: string
+  /**
+   * Género del singular, para concordar las frases que lo llevan al lado.
+   *
+   * El femenino estaba escrito fijo en las pantallas, porque los cinco módulos
+   * que se escribieron primero son todos femeninos: el editor decía «✓
+   * Publicada» encima de «Modelo 3D» y el listado lo repetía por su cuenta, con
+   * su propio literal. Es dato de la colección y no de cada pantalla por lo
+   * mismo que el resto del esquema: las dos que enseñan el mismo estado —la
+   * insignia del editor y la del listado— no pueden concordarlo distinto si lo
+   * componen con la misma función. Quien lo compone es `estadoEnPalabras`, aquí
+   * abajo, y de ahí salen hoy las dos: `FormularioDocumento.tsx` y
+   * `TablaDocumentos.tsx` ya no llevan ningún literal de estado.
+   *
+   * La otra frase que iba en femenino fijo —la salida que ofrece el `confirm`
+   * de eliminar— no se arregló con el género sino nombrando el botón, porque su
+   * problema mayor era otro: ver `salidaSuave` en `FormularioDocumento.tsx`. De
+   * modo que este campo tiene un solo lector, y basta: es el que se veía.
+   *
+   * Va sin `?` a propósito: así una colección nueva no puede olvidarlo sin que
+   * el compilador lo diga. Con respaldo, lo olvidado se leería como femenino y
+   * el defecto volvería en silencio, que es como llegó hasta aquí.
+   */
+  genero: 'm' | 'f'
   /** Campo que da nombre a cada registro en listados y migas de pan. */
   titulo: string
   descripcion?: string
@@ -210,6 +234,7 @@ export const Patologias: EsquemaDeColeccion = {
   slug: 'patologias',
   singular: 'Patología',
   plural: 'Patologías',
+  genero: 'f',
   titulo: 'nombre',
   descripcion: 'Fichas por segmento. Cada una termina en manejo y rehabilitación.',
   versionada: true,
@@ -282,6 +307,7 @@ export const Maniobras: EsquemaDeColeccion = {
   slug: 'maniobras',
   singular: 'Maniobra',
   plural: 'Maniobras',
+  genero: 'f',
   titulo: 'nombre',
   descripcion: 'Maniobras de exploración física, agrupadas por segmento.',
   versionada: true,
@@ -326,6 +352,7 @@ export const CasosAO: EsquemaDeColeccion = {
   slug: 'casos-ao',
   singular: 'Caso AO',
   plural: 'Casos AO',
+  genero: 'm',
   titulo: 'titulo',
   descripcion: 'Casos paso a paso con el principio AO de cada gesto.',
   versionada: true,
@@ -379,10 +406,79 @@ export const CasosAO: EsquemaDeColeccion = {
   ],
 }
 
+/**
+ * Qué tiene que traer, y qué no puede traer, un paso según lo que evalúa.
+ *
+ * Las aplican dos archivos. `src/collections/Cirugias.ts` las hace cumplir al
+ * publicar, que es donde se corta de verdad: la colección es el único punto por
+ * el que pasan todas las escrituras. `src/admin/depurar.ts` las adelanta en el
+ * panel para que el motivo llegue en español y señalando la fila.
+ *
+ * Estuvieron escritas dos veces, con los mismos textos copiados a mano, y se
+ * separaron: la tercera —la que prohíbe— llegó a la colección y no al panel, de
+ * modo que durante ese tiempo el caso se rechazaba con el «The following field
+ * is invalid: Qué se evalúa» de Payload, en inglés y con el español encerrado
+ * en `error.data`, que `accion()` no enseña. Un defecto que solo se nota por lo
+ * que deja de pasar no lo encuentra nadie mirando, así que ahora hay una lista
+ * y las dos la importan.
+ *
+ * Vive aquí, y no en la colección que las hace cumplir, porque el camino
+ * contrario no se puede recorrer: este archivo lo importa el formulario del
+ * navegador, y `Cirugias.ts` arrastra el adaptador de Payload, el control de
+ * acceso y los ganchos. Es la excepción a lo que dice la cabecera —esquema y
+ * colección son paralelos, no derivados— y sale barata, porque lo que la
+ * colección importa de aquí son datos sin código.
+ *
+ * `reduccion` no tiene regla a propósito: sus tres tolerancias tienen
+ * `defaultValue: 5` y `DEFAULT 5` en la migración, de modo que siempre hay
+ * rango contra el que medir.
+ */
+export const REGLAS_DEL_OBJETIVO_DEL_PASO: {
+  exige: ReglaDeSeleccion[]
+  prohibe: ReglaDeSeleccion[]
+} = {
+  exige: [
+    {
+      opcion: 'trazo',
+      campos: ['trazoMinimo', 'trazoMaximo'],
+      mensaje:
+        'Un paso que evalúa el trazo necesita al menos una de las dos longitudes: sin rango, cualquier incisión se da por buena.',
+    },
+    {
+      opcion: 'fuerza',
+      campos: ['fuerzaMinima', 'fuerzaMaxima'],
+      mensaje:
+        'Un paso que evalúa la fuerza necesita al menos uno de los dos topes: sin rango, cualquier fuerza se da por buena.',
+    },
+  ],
+  prohibe: [
+    {
+      // La única que prohíbe, la que más se dispara y la que no está por
+      // simetría: la pide el motor. `objetivoDelPaso` (src/lib/simulador.ts) no
+      // se fía del valor `instrumento` —es lo que el `DEFAULT` de la columna
+      // escribió en TODA fila anterior al 10 de septiembre—, así que ante él
+      // deduce el modo del rango que el paso traiga, y un número de fuerza
+      // olvidado convierte en silencio «elija el punzón» en «aplique entre 8 y
+      // 20 N». Olvidarlo es además el gesto natural: el editor pinta los siete
+      // números uno debajo de otro, sin esconder los que no tocan.
+      //
+      // Las tres tolerancias quedan fuera: las lleva puestas toda fila por su
+      // `defaultValue`, así que no prueban intención de nadie. Los cuatro de
+      // fuerza y trazo se crearon sin `DEFAULT`, y ahí un número lo tecleó una
+      // persona.
+      opcion: 'instrumento',
+      campos: ['fuerzaMinima', 'fuerzaMaxima', 'trazoMinimo', 'trazoMaximo'],
+      mensaje:
+        'Un paso que solo pide elegir el instrumento no puede llevar además un rango de fuerza o de incisión: borre esos números, o cambie el objetivo al que de verdad se mide.',
+    },
+  ],
+}
+
 export const Cirugias: EsquemaDeColeccion = {
   slug: 'cirugias',
   singular: 'Cirugía simulada',
   plural: 'Cirugías simuladas',
+  genero: 'f',
   titulo: 'nombre',
   descripcion: 'Caso quirúrgico con su modelo 3D, su guion de pasos y su puntaje.',
   versionada: true,
@@ -488,12 +584,13 @@ export const Cirugias: EsquemaDeColeccion = {
               // hueso recién declarado era invisible hasta que alguien marcaba
               // a mano la casilla «Piel».
               //
-              // Arregla lo que se guarda, no lo que se enseña: debajo del
-              // taller, la misma fila se repinta con el desplegable genérico de
-              // `formulario/Campos.tsx`, que usa `value={texto(valor)}` y, por
-              // ser obligatorio el campo, no ofrece opción vacía; el navegador
-              // enseña entonces la primera, «Piel». Esa contradicción en
-              // pantalla se cierra allí, no aquí.
+              // Lo que se enseña lo cierra `seleccionVisible` en
+              // `formulario/Campos.tsx`, que calca este mismo respaldo cuando el
+              // valor llega vacío; los dos se mueven juntos. Antes no era así, y
+              // se veía: el desplegable genérico usaba `value={texto(valor)}` y,
+              // por ser obligatorio el campo, no ofrecía opción vacía, de modo
+              // que el navegador enseñaba la primera —«Piel»— sobre una fila que
+              // se estaba guardando como hueso.
               porOmision: 'hueso',
               opciones: [
                 { valor: 'piel', etiqueta: 'Piel' },
@@ -553,45 +650,13 @@ export const Cirugias: EsquemaDeColeccion = {
                 { valor: 'reduccion', etiqueta: 'Reducir dentro de la tolerancia' },
                 { valor: 'fuerza', etiqueta: 'Aplicar la fuerza correcta' },
               ],
-              // Las mismas tres reglas —y los mismos tres textos— que
-              // `exigeElRangoDeSuObjetivo` en `src/collections/Cirugias.ts`.
-              // Allá es donde se corta de verdad; aquí es donde el mensaje
-              // llega en español y señalando la fila. Las tres se mueven
-              // juntas: quien añada una regla allá tiene que copiarla aquí, o
-              // el traumatólogo vuelve a recibir el mensaje en inglés de
-              // Payload. `reduccion` no está a propósito: sus tres tolerancias
-              // tienen `defaultValue: 5`, de modo que siempre hay rango contra
-              // el que medir.
-              exigeAlguno: [
-                {
-                  opcion: 'trazo',
-                  campos: ['trazoMinimo', 'trazoMaximo'],
-                  mensaje:
-                    'Un paso que evalúa el trazo necesita al menos una de las dos longitudes: sin rango, cualquier incisión se da por buena.',
-                },
-                {
-                  opcion: 'fuerza',
-                  campos: ['fuerzaMinima', 'fuerzaMaxima'],
-                  mensaje:
-                    'Un paso que evalúa la fuerza necesita al menos uno de los dos topes: sin rango, cualquier fuerza se da por buena.',
-                },
-              ],
-              // La tercera, que es la contraria y la que más se dispara: los
-              // siete números se pintan siempre, así que cambiar el objetivo a
-              // «instrumento» y dejar un tope de fuerza tecleado no cuesta
-              // nada. Las tres tolerancias quedan fuera a propósito —tienen
-              // `defaultValue: 5` y `DEFAULT 5` en la migración, de modo que
-              // las lleva toda fila y no prueban intención de nadie—; los
-              // cuatro números de fuerza y trazo se crearon sin `DEFAULT`, así
-              // que ahí un número lo tecleó una persona.
-              prohibeAlguno: [
-                {
-                  opcion: 'instrumento',
-                  campos: ['fuerzaMinima', 'fuerzaMaxima', 'trazoMinimo', 'trazoMaximo'],
-                  mensaje:
-                    'Un paso que solo pide elegir el instrumento no puede llevar además un rango de fuerza o de incisión: borre esos números, o cambie el objetivo al que de verdad se mide.',
-                },
-              ],
+              // Las tres reglas no se escriben aquí: son las mismas que hace
+              // cumplir `exigeElRangoDeSuObjetivo` en
+              // `src/collections/Cirugias.ts`, que las importa de la misma
+              // lista. Escribirlas otra vez aquí es lo que hizo que se
+              // separaran; ver `REGLAS_DEL_OBJETIVO_DEL_PASO`.
+              exigeAlguno: REGLAS_DEL_OBJETIVO_DEL_PASO.exige,
+              prohibeAlguno: REGLAS_DEL_OBJETIVO_DEL_PASO.prohibe,
             },
             {
               tipo: 'relacion',
@@ -660,6 +725,7 @@ export const EstudiosIA: EsquemaDeColeccion = {
   slug: 'estudios-ia',
   singular: 'Estudio de demostración',
   plural: 'Estudios de demostración',
+  genero: 'm',
   titulo: 'nombre',
   descripcion: 'Casos de lectura de imágenes con la clasificación propuesta y sus opciones.',
   versionada: true,
@@ -739,6 +805,7 @@ export const Segmentos: EsquemaDeColeccion = {
   slug: 'segmentos',
   singular: 'Segmento',
   plural: 'Segmentos anatómicos',
+  genero: 'm',
   titulo: 'nombre',
   // Decía «y el mapa corporal del examen físico». No hay tal mapa: `zonaMapa`
   // se guarda desde la primera migración y no lo lee ninguna página, y
@@ -795,6 +862,7 @@ export const Medios: EsquemaDeColeccion = {
   slug: 'medios',
   singular: 'Archivo',
   plural: 'Medios',
+  genero: 'm',
   titulo: 'alt',
   descripcion: 'Imágenes y videos que se insertan en los bloques de contenido.',
   versionada: false,
@@ -839,6 +907,7 @@ export const Modelos3D: EsquemaDeColeccion = {
   slug: 'modelos-3d',
   singular: 'Modelo 3D',
   plural: 'Modelos 3D',
+  genero: 'm',
   titulo: 'nombre',
   descripcion: 'Mallas obtenidas de TC y RM segmentadas.',
   versionada: false,
@@ -919,6 +988,7 @@ export const HuesosAO: EsquemaDeColeccion = {
   slug: 'huesos-ao',
   singular: 'Hueso',
   plural: 'Huesos y segmentos',
+  genero: 'm',
   titulo: 'nombre',
   descripcion: 'Hueso y tercio, con el número que le da la AO.',
   versionada: false,
@@ -951,6 +1021,7 @@ export const ClasificacionesAO: EsquemaDeColeccion = {
   slug: 'clasificaciones-ao',
   singular: 'Clasificación AO',
   plural: 'Clasificaciones AO',
+  genero: 'f',
   titulo: 'nombre',
   descripcion: 'Tipo y grupo del trazo de fractura, sin el hueso.',
   versionada: false,
@@ -999,6 +1070,7 @@ export const TecnicasQuirurgicas: EsquemaDeColeccion = {
   slug: 'tecnicas-quirurgicas',
   singular: 'Técnica',
   plural: 'Técnicas quirúrgicas',
+  genero: 'f',
   titulo: 'nombre',
   descripcion: 'Clavo endomedular, placa, tornillos, fijador externo.',
   versionada: false,
@@ -1024,6 +1096,7 @@ export const FasesQuirurgicas: EsquemaDeColeccion = {
   slug: 'fases-quirurgicas',
   singular: 'Fase',
   plural: 'Fases quirúrgicas',
+  genero: 'f',
   titulo: 'nombre',
   descripcion: 'Abordaje, reducción, fijación, cierre. Agrupan los pasos del guion.',
   versionada: false,
@@ -1048,6 +1121,7 @@ export const Instrumental: EsquemaDeColeccion = {
   slug: 'instrumental',
   singular: 'Instrumento',
   plural: 'Instrumental',
+  genero: 'm',
   titulo: 'nombre',
   descripcion: 'La bandeja de la consola. Cada paso declara cuál es el correcto.',
   versionada: false,
@@ -1146,6 +1220,30 @@ export function esquemaDe(slug: string): EsquemaDeColeccion {
   if (!esquema) throw new Error(`No hay esquema para la colección «${slug}».`)
   return esquema
 }
+
+/**
+ * La insignia de estado, concordada con el singular de la colección.
+ *
+ * La componen dos pantallas —la del editor y la del listado— y estaba escrita
+ * a mano en las dos, en femenino fijo: «✓ Publicada» encima de «Modelo 3D».
+ * Vive aquí para que arreglar una no deje a la otra diciéndolo distinto, que es
+ * el modo en que este tipo de frase se vuelve a torcer.
+ *
+ * «Borrador» no concuerda con nada: es el nombre del estado, no un adjetivo.
+ *
+ * Aquí vivió un rato un `avisoDeRetirada` que conjugaba «retírela/retírelo de
+ * publicación» para el `confirm` de eliminar. Se quitó, y no conviene reponerlo:
+ * esa frase ya se había desechado a propósito en `FormularioDocumento.tsx` —ver
+ * `salidaSuave`— por un motivo que el género no arregla. La salida que ofrecía
+ * no siempre existe: el botón «Retirar de publicación» solo aparece con
+ * `versionada && publicado`, así que en medios, en modelos 3D, en los catálogos
+ * y en cualquier borrador mandaba a buscar en la pantalla un botón que no está,
+ * y quien no lo encuentra vuelve al «Eliminar», que sí está. El aviso pasó a
+ * nombrar el botón, que concuerda igual y además dice cuál pulsar. Traerlo aquí
+ * sin esa condición reponía el defecto, con una prueba encima defendiéndolo.
+ */
+export const estadoEnPalabras = (esquema: EsquemaDeColeccion, publicado: boolean): string =>
+  publicado ? (esquema.genero === 'm' ? '✓ Publicado' : '✓ Publicada') : '● Borrador'
 
 /** Todos los campos de un esquema en una sola lista, sin las secciones. */
 export const camposDe = (esquema: EsquemaDeColeccion): Campo[] =>

@@ -15,19 +15,26 @@ export function RastreadorActividad({
   const [completado, setCompletado] = useState(completadoInicial)
   const [cargando, setCargando] = useState(false)
 
-  // Registrar visita al montar
+  // Sin `await` y sin `catch` a propósito: `registrarVisita` no propaga nada
+  // —lo explica su cabecera en `acciones/actividad.ts`— porque la visita es una
+  // comodidad y su fallo no puede estropear la lectura de la ficha.
   useEffect(() => {
     registrarVisita(coleccion, documentoId)
   }, [coleccion, documentoId])
 
-  async function toggleLeida() {
+  async function alternarLeida() {
     setCargando(true)
     const nuevoEstado = !completado
-    setCompletado(nuevoEstado) // optimistic update
+    // La casilla se mueve antes de que conteste el servidor porque el gesto
+    // tiene que responder al instante, y se devuelve a su sitio si la escritura
+    // falla: dejarla marcada sobre una escritura que no ocurrió es lo único
+    // peor que no marcarla, y es la razón de que `marcarComoLeida` lance en vez
+    // de tragarse el fallo.
+    setCompletado(nuevoEstado)
     try {
       await marcarComoLeida(coleccion, documentoId, nuevoEstado)
     } catch {
-      setCompletado(!nuevoEstado) // revert on error
+      setCompletado(!nuevoEstado)
     }
     setCargando(false)
   }
@@ -35,10 +42,10 @@ export function RastreadorActividad({
   return (
     <div className="rastreador-actividad">
       <label className="checkbox-leida">
-        <input 
-          type="checkbox" 
-          checked={completado} 
-          onChange={toggleLeida}
+        <input
+          type="checkbox"
+          checked={completado}
+          onChange={alternarLeida}
           disabled={cargando}
         />
         <span>{completado ? 'Marcada como leída' : 'Marcar como leída'}</span>

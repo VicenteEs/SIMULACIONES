@@ -29,14 +29,15 @@ import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
  * Nombre con el que Payload firma y lee la sesión: `<cookiePrefix>-token`.
  *
  * Se le pregunta a la configuración en lugar de escribirlo aquí porque el
- * nombre es la única salida al choque que describe `PATH_COOKIE`, y ese día
- * tiene que moverse solo. En cuanto `payload.config.ts` declare
- * `cookiePrefix: 'traumahub'`, Payload firmará `traumahub-token`
- * (`auth/cookies.js` arma el nombre así) y lo buscará con ese mismo nombre
- * (`auth/extractJWT.js`). Si aquí quedara escrito a mano el anterior, esta
- * acción escribiría una cookie que nadie lee: entrar respondería «exito» y la
- * plataforma seguiría cerrada, sin un error en ninguna parte, que es
- * exactamente el fallo mudo que ese cambio pretende quitar.
+ * nombre es la única salida al choque que describe `PATH_COOKIE`, y tenía que
+ * poder moverse solo. Ya se movió: `payload.config.ts` declara
+ * `cookiePrefix: 'traumahub'`, de modo que Payload firma `traumahub-token`
+ * (`auth/cookies.js` arma el nombre así) y lo busca con ese mismo nombre
+ * (`auth/extractJWT.js`). Si aquí hubiera quedado escrito a mano el anterior,
+ * esta acción escribiría una cookie que nadie lee: entrar respondería «exito» y
+ * la plataforma seguiría cerrada, sin un error en ninguna parte. Y por eso
+ * tampoco conviene escribir ahora el nuevo a mano: el siguiente cambio de
+ * prefijo volvería a abrir ese mismo fallo mudo.
  *
  * El `?? 'payload'` es el mismo valor por omisión que pone `buildConfig`
  * cuando nadie declara el prefijo (`config/defaults.js`), y hace falta porque
@@ -96,17 +97,23 @@ async function nombreDeLaCookieDeSesion(): Promise<string> {
  * primero. Y borrar en `/` en lugar de en el prefijo solo cambia a quién le
  * toca el fallo, porque entonces las sesiones nuevas son las que no se cierran.
  *
- * La salida es el NOMBRE, no el path: con `cookiePrefix: 'traumahub'` en
- * `payload.config.ts`, Payload firma y lee `traumahub-token`, la cookie vieja
- * se vuelve invisible para todos y se muere sola sin estorbar a nadie.
- * `nombreDeLaCookieDeSesion()` ya lo sigue, así que ese día no hay que tocar
- * nada aquí; **mientras esa línea no esté puesta, los dos puntos de arriba
- * siguen vivos en el servidor**.
+ * La salida es el NOMBRE, no el path, y **ya está puesta**:
+ * `payload.config.ts` declara `cookiePrefix: 'traumahub'`, así que Payload
+ * firma y lee `traumahub-token`, la cookie vieja se vuelve invisible para todos
+ * y se muere sola sin estorbar a nadie. `nombreDeLaCookieDeSesion()` lo sigue,
+ * de modo que aquí no hubo que tocar nada. Los dos puntos de arriba quedan
+ * cerrados en el servidor en cuanto se despliegue ese cambio; quedan escritos
+ * porque son el motivo de que la cookie se llame así y de que volver al nombre
+ * de omisión los reabra a los dos. El precio se paga una vez: al desplegar ese
+ * cambio, las sesiones abiertas dejan de valer y hay que volver a entrar.
  *
- * Un último detalle que hay que respetar aunque el prefijo se ponga: quien se
- * autentique por la API REST de Payload vuelve a crear el choque, porque
- * `generatePayloadCookie` escribe siempre con `path: '/'`, sin mirar esto. La
- * plataforma entra por estas acciones y solo por ellas.
+ * Un último detalle que había que respetar aunque el prefijo se pusiera: quien
+ * se autentique por la API REST de Payload vuelve a crear el choque, porque
+ * `generatePayloadCookie` escribe siempre con `path: '/'`, sin mirar esto. Esa
+ * puerta también está cerrada —`POST /api/usuarios/login` contesta 403 en
+ * `(payload)/api/[...slug]/route.ts`—, así que la plataforma entra por estas
+ * acciones y solo por ellas. Reabrir ese extremo sin cambiar antes lo que
+ * escribe `generatePayloadCookie` devuelve el choque entero.
  */
 const PATH_COOKIE = PREFIJO || '/'
 
@@ -124,6 +131,13 @@ const PATH_COOKIE = PREFIJO || '/'
  * `entrar()` y `salir()` de aquí abajo. Si un lado se muda y el otro no, el
  * borrado apunta a un path donde no hay nada, la cookie sobrevive y la sesión
  * siguiente empieza simulando el rol de la anterior.
+ *
+ * El valor está escrito dos veces porque este archivo lleva `'use server'` y no
+ * puede exportar una constante. Mientras sea así, los ata
+ * `tests/unit/cookieDeVistaPrevia.test.ts`, que los compara con prefijo puesto
+ * —sin él los dos valen `/` y coinciden aunque uno esté mal—. El sitio donde
+ * dejarían de ser dos es `src/lib/vistaPrevia.ts`, junto a
+ * `COOKIE_VISTA_PREVIA`, que es el módulo que los dos ya importan.
  *
  * Queda el mismo cabo que con el testigo: la que dejaron en `/` las sesiones
  * anteriores a este cambio sigue ganando mientras viva, porque el navegador

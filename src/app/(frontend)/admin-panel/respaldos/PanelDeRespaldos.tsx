@@ -22,6 +22,29 @@ const antiguedad = (valor: string) => {
   return `hace ${dias} días`
 }
 
+/**
+ * Qué decir cuando la acción de servidor no llega a contestar.
+ *
+ * `accion()` (`src/lib/guardias.ts`) envuelve en una `Respuesta` todo lo que
+ * ella ve fallar, pero lo que se cae antes de llegar a ella —la red cortada, la
+ * sesión caducada, un despliegue a mitad de petición— sale como excepción
+ * dentro de la transición. Aquí eso importaba más que en otras pantallas: un
+ * volcado de la base tarda minutos, así que es justo la acción con más tiempo
+ * para que se caiga la red por el medio, y sin este `catch` lo que se veía era
+ * el aviso anterior —o ninguno— con los botones ya desbloqueados, que se lee
+ * como «no pasó nada». Peor todavía en «Eliminar»: la fila seguía en la tabla y
+ * no había forma de saber si el archivo se borró o no.
+ *
+ * Tercera copia literal de la misma función, tras `FormularioDocumento.tsx` y
+ * `TablaDocumentos.tsx`. No se importa de ninguna de las dos porque arrastraría
+ * el árbol del editor a esta pantalla; su sitio es el gancho común de acciones
+ * del panel, que sigue sin existir.
+ */
+const motivoDeLaCaida = (fallo: unknown, porOmision: string): string =>
+  fallo instanceof Error && fallo.message
+    ? `${porOmision} ${fallo.message}`
+    : `${porOmision} Compruebe la conexión e inténtelo otra vez.`
+
 export function PanelDeRespaldos({
   respaldos,
   directorio,
@@ -41,15 +64,19 @@ export function PanelDeRespaldos({
   const crear = () => {
     setAviso(null)
     iniciar(async () => {
-      const resultado = await respaldarAhora()
-      if (resultado.exito && resultado.datos) {
-        setAviso({
-          tipo: 'ok',
-          texto: `Respaldo creado: ${resultado.datos.nombre} (${tamanoLegible(resultado.datos.bytes)}).`,
-        })
-        router.refresh()
-      } else {
-        setAviso({ tipo: 'error', texto: resultado.mensaje ?? 'No se pudo crear el respaldo.' })
+      try {
+        const resultado = await respaldarAhora()
+        if (resultado.exito && resultado.datos) {
+          setAviso({
+            tipo: 'ok',
+            texto: `Respaldo creado: ${resultado.datos.nombre} (${tamanoLegible(resultado.datos.bytes)}).`,
+          })
+          router.refresh()
+        } else {
+          setAviso({ tipo: 'error', texto: resultado.mensaje ?? 'No se pudo crear el respaldo.' })
+        }
+      } catch (fallo) {
+        setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo crear el respaldo.') })
       }
     })
   }
@@ -156,14 +183,21 @@ export function PanelDeRespaldos({
                           ) {
                             setAviso(null)
                             iniciar(async () => {
-                              const resultado = await borrarRespaldo(r.nombre)
-                              if (resultado.exito) {
-                                setAviso({ tipo: 'ok', texto: `Se eliminó ${r.nombre}.` })
-                                router.refresh()
-                              } else {
+                              try {
+                                const resultado = await borrarRespaldo(r.nombre)
+                                if (resultado.exito) {
+                                  setAviso({ tipo: 'ok', texto: `Se eliminó ${r.nombre}.` })
+                                  router.refresh()
+                                } else {
+                                  setAviso({
+                                    tipo: 'error',
+                                    texto: resultado.mensaje ?? 'No se pudo eliminar.',
+                                  })
+                                }
+                              } catch (fallo) {
                                 setAviso({
                                   tipo: 'error',
-                                  texto: resultado.mensaje ?? 'No se pudo eliminar.',
+                                  texto: motivoDeLaCaida(fallo, 'No se pudo eliminar.'),
                                 })
                               }
                             })

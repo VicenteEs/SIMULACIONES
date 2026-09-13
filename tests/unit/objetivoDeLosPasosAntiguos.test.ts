@@ -123,10 +123,17 @@ describe('la migración escribe lo que el motor ya deducía', () => {
 })
 
 describe('la migración está puesta donde se aplica', () => {
-  it('el índice la registra la última', () => {
+  it('va después de la que crea el índice único de actividad', () => {
     // Tiene que ir después de la que crea el índice único de actividad y de
     // cualquier cambio de esquema: reescribe datos de columnas que ya existen.
-    expect(migrations[migrations.length - 1]?.name).toBe(NOMBRE)
+    // No se exige que sea la última —lo estuvo, y la primera migración que se
+    // añadió detrás (`20260913_043401_ultimo_administrador_activo`) puso esto
+    // en rojo sin que nada se hubiera roto—: una migración posterior que no
+    // toque `cirugias_pasos` no le afecta.
+    const nombres = migrations.map((m) => m.name)
+    expect(nombres.indexOf(NOMBRE)).toBeGreaterThan(
+      nombres.indexOf('20260913_033442_actividad_una_fila_por_ficha'),
+    )
   })
 
   it('toca también la tabla de versiones', () => {

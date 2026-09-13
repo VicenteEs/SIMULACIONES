@@ -104,10 +104,24 @@ mismo enlace desde la consola del servidor y no necesita sesión ninguna:
 npx tsx scripts/restablecer-clave.ts correo@ejemplo.cl
 ```
 
-El panel lo dice en *Sistema*, en la comprobación «Correo saliente». Sin SMTP
-queda marcada «Revisar»; con SMTP muestra el servidor y el puerto que está
-usando, que es la forma rápida de ver si el contenedor tomó las variables
-nuevas.
+El panel lo dice en *Sistema*, en la comprobación «Correo saliente». Ya no se
+limita a mirar si la variable está puesta: abre la conexión al servidor, espera
+su saludo y enseña las dos cosas, el destino y lo que contestó
+(`smtp.resend.com:587 · 220 smtp.resend.com ESMTP`). Sin SMTP queda marcada
+«Revisar» y lo dice; con SMTP configurado **también puede quedar «Revisar»**, y
+eso no es un fallo del panel: es el caso que la comprobación existe para
+encontrar. Significa que el nombre no resuelve, que el puerto está cerrado o que
+al otro lado no hay un SMTP vivo, que son los tres fallos habituales después de
+mover el servidor o de cerrar un cortafuegos. Antes el panel contestaba «ok» en
+los tres, y el administrador se enteraba cuando un residente le decía que el
+correo no le llegó.
+
+Qué prueba y qué no, para no darlo por más de lo que es: prueba que hay un
+servidor SMTP escuchando donde dicen las variables. No prueba las credenciales
+ni que el destinatario acepte el mensaje —eso solo lo sabe un envío de verdad, y
+esta página no manda correo—. Si contesta algo que no empieza por `220` (un
+`421 too many connections`, por ejemplo), también queda «Revisar» con esa línea
+a la vista, porque es un servidor que está ahí y no va a aceptar el mensaje.
 
 ---
 

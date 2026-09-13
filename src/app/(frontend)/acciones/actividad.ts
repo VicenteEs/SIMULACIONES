@@ -27,23 +27,19 @@ import { exigirIdentificador, exigirSlugDeModulo } from '@/lib/validacion'
  * Cuántas filas de la misma ficha se corrigen de una vez.
  *
  * Debería haber siempre una sola, que es el invariante que promete
- * `src/collections/Actividad.ts`, pero la tabla todavía no tiene índice único
- * sobre (usuario, colección, documento) y dos pestañas abiertas a la vez
- * pudieron crear dos. Se escriben todas las que haya y no solo la primera:
- * tocando solo `docs[0]`, la fila gemela se quedaba con `completado: false`
- * para siempre y la portada seguía ofreciendo en «Continúa leyendo» una ficha
- * que el residente marcaba como leída una vez y otra sin entender por qué.
+ * `src/collections/Actividad.ts`. Cuando la tabla no lo sostenía, dos pestañas
+ * abiertas a la vez podían crear dos, y tocando solo `docs[0]` la fila gemela se
+ * quedaba con `completado: false` para siempre: la portada seguía ofreciendo en
+ * «Continúa leyendo» una ficha que el residente marcaba como leída una vez y
+ * otra sin entender por qué.
  *
- * Esto cura el síntoma y deja viva la causa, y conviene no confundirlos. La
- * causa es que la base admite la fila gemela: la migración inicial crea índices
- * sueltos sobre `usuario_id`, `documento_id` y `ultima_visita`, pero ninguno
- * compuesto ni único, así que nada impide el par. El arreglo de verdad es
- * declarar en `src/collections/Actividad.ts` un índice único sobre (usuario,
- * coleccion, documentoId) y generar su migración con `npx payload
- * migrate:create`; hasta entonces, este bucle es lo único que mantiene
- * coherentes las dos filas. Queda fuera de este lote porque es cambio de
- * esquema, y un cambio de esquema sin su migración arranca en producción y deja
- * de guardar en silencio.
+ * La causa ya está cerrada: `src/collections/Actividad.ts` declara el índice
+ * único sobre (usuario, coleccion, documentoId) y la migración
+ * `20260913_033442_actividad_una_fila_por_ficha` lo crea, después de borrar los
+ * duplicados que hubiera. Este bucle se queda porque las filas gemelas de antes
+ * del índice pudieron sobrevivir en una base que aún no haya pasado esa
+ * migración —en desarrollo manda el `push` de Drizzle y nadie aplica nada—, y
+ * porque escribir todas las que haya no cuesta nada.
  */
 const FILAS_A_CORREGIR = 10
 
@@ -119,10 +115,10 @@ async function anotar(
     // de acciones del navegador. Se recupera escribiendo sobre lo que ya
     // existe en vez de devolver un error que el residente no puede resolver.
     //
-    // Mientras la tabla no tenga su índice único el choque no llega hasta
-    // aquí —se queda en dos filas, que es el defecto de arriba—; el día que lo
-    // tenga, esto es la diferencia entre una casilla que se guarda y un error
-    // en pantalla.
+    // Desde `20260913_033442_actividad_una_fila_por_ficha` la tabla tiene su
+    // índice único, así que el choque (23505) llega hasta aquí de verdad: esto
+    // dejó de ser código de reserva y es la diferencia entre una casilla que se
+    // guarda y un error en pantalla.
     const otras = await filasDeLaFicha()
     if (otras.length === 0) throw choque
     await actualizar(otras)

@@ -2,6 +2,14 @@
 
 import { useEffect, useImperativeHandle, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
+// De `three/examples/jsm` y no de `three-stdlib`, que trae los mismos controles.
+// En el árbol conviven las dos procedencias, y lo que de verdad pesa no es esta
+// línea: son los dos `GLTFLoader` enteros que quedan en el paquete —uno en el
+// trozo de `@react-three/drei`, que carga con `useGLTF` en `Visor3D`, y otro en
+// el de `simulador/LienzoQuirurgico.tsx`, que lo trae de jsm—. Aquí no se abre
+// ningún GLTF, así que cambiar solo este import no quita un byte duplicado:
+// deja mezcladas las dos procedencias dentro de three puro y la consola sigue
+// con su copia. Unificar es un cambio de los tres archivos en el mismo commit.
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { VISTA_INICIAL, type CatalogoDelAtlas, type VistaDeInstancia } from '@/atlas/formato'
 import {

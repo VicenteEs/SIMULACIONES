@@ -2,20 +2,27 @@ import { describe, it, expect } from 'vitest'
 import {
   capasQueEnciendeElPaso,
   declaracionDelPaso,
+  medidaInicial,
   rangoDelDeslizadorDeFuerza,
   visibilidadDelPaso,
-} from '@/components/simulador/ConsolaQuirurgica'
+} from '@/lib/simulador'
 import type { PiezaDelCaso } from '@/components/simulador/LienzoQuirurgico'
 
 /**
- * Qué se ve en cada paso de la consola, y con qué se gradúa la fuerza.
+ * Qué se ve en cada paso de la consola, con qué se gradúa la fuerza y de dónde
+ * parten las medidas al abrir el caso.
  *
- * Las dos son reglas de dominio que hasta ahora vivían dentro del componente,
- * donde ninguna prueba llegaba: el lienzo en negro que arreglan estas líneas
- * pasaba la suite entera en verde y solo se veía recorriendo el caso en el
- * navegador. Viven todavía en `ConsolaQuirurgica.tsx` porque mover la función a
- * `src/lib/piezasDelCaso.ts` —que es su sitio— toca un archivo de otro lote;
- * cuando se mueva, esta prueba se va con ella.
+ * Las tres son reglas de dominio que vivían dentro del componente, donde
+ * ninguna prueba llegaba: el lienzo en negro que arreglan estas líneas pasaba
+ * la suite entera en verde y solo se veía recorriendo el caso en el navegador.
+ * Ya están en `src/lib/simulador.ts`, que es donde se prueban sin abrir el
+ * navegador; ahí está escrito por qué acabaron en ese módulo y no en
+ * `piezasDelCaso.ts`.
+ *
+ * El tipo de las piezas se sigue pidiendo a `LienzoQuirurgico` a propósito
+ * —`import type`, que se borra al compilar y no arrastra three.js—: las
+ * funciones aceptan cualquier cosa con `nodo` y `rol`, y comprobar con el tipo
+ * del llamador de verdad es lo que garantiza que ese hueco sigue encajando.
  */
 
 const piezas: PiezaDelCaso[] = [
@@ -133,5 +140,48 @@ describe('el deslizador de la fuerza', () => {
 
   it('sin ningún rango se queda en el mando genérico', () => {
     expect(rangoDelDeslizadorDeFuerza({})).toEqual({ min: 0, max: 120 })
+  })
+})
+
+describe('las medidas del caso recién abierto', () => {
+  it('parte del desplazamiento que el caso declara, sin tocar nada', () => {
+    // Es lo que ve el residente antes del primer arrastre, y es también lo que
+    // devuelve «Volver al desplazamiento inicial».
+    const m = medidaInicial({
+      desplazamientoInicial: { x: 3, y: 12, z: 4, giroX: 0, giroY: 0, giroZ: 9.8 },
+      ejeLargo: 'y',
+    })
+    // A lo largo del eje del hueso es hueco; de lado, desalineación.
+    expect(m.diastasis).toBe(12)
+    expect(m.desplazamiento).toBe(5)
+    expect(m.angulacion).toBeCloseTo(9.8, 1)
+  })
+
+  it('respeta el eje largo que declare el caso', () => {
+    const m = medidaInicial({ desplazamientoInicial: { x: 10 }, ejeLargo: 'x' })
+    expect(m.diastasis).toBe(10)
+    expect(m.desplazamiento).toBe(0)
+  })
+
+  it('un caso a medio escribir da ceros y no NaN', () => {
+    // El traumatólogo guarda borradores incompletos todo el tiempo. Un
+    // `undefined` colándose en la aritmética deja las tres medidas en NaN: el
+    // panel enseña «NaN mm» y el paso de reducción no se puede superar nunca,
+    // porque toda comparación contra NaN es falsa.
+    for (const caso of [{}, { desplazamientoInicial: null }, { desplazamientoInicial: { x: 4 } }]) {
+      const m = medidaInicial(caso)
+      expect(Number.isNaN(m.desplazamiento), JSON.stringify(caso)).toBe(false)
+      expect(Number.isNaN(m.diastasis), JSON.stringify(caso)).toBe(false)
+      expect(Number.isNaN(m.angulacion), JSON.stringify(caso)).toBe(false)
+    }
+    expect(medidaInicial({})).toEqual({
+      desplazamiento: 0,
+      lateral: [
+        { eje: 'x', mm: 0 },
+        { eje: 'z', mm: 0 },
+      ],
+      diastasis: 0,
+      angulacion: 0,
+    })
   })
 })

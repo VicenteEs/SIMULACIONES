@@ -4,14 +4,17 @@ import { COLECCIONES } from '@/collections'
 import { BLOQUES as BLOQUES_PAYLOAD } from '@/blocks'
 import {
   coleccionesRelacionadasDe,
+  estadoEnPalabras,
   ESQUEMAS,
   camposDe,
   esColeccionEditable,
   esquemaDe,
   recorrerCampos,
+  REGLAS_DEL_OBJETIVO_DEL_PASO,
   type Campo,
 } from '@/admin/esquema'
 import { BLOQUES as BLOQUES_PANEL } from '@/admin/bloques'
+import { faltantes } from '@/admin/depurar'
 import { LIMITE_BYTES_MODELO_3D } from '@/uploads/validarModelo3D'
 
 /**
@@ -434,6 +437,33 @@ describe('coherencia interna del esquema', () => {
     }
   })
 
+  it('cada colección declara el género de su singular', () => {
+    // El tipo ya lo exige, pero el esquema también lo lee código que no pasa
+    // por el compilador de aquí —una prueba, un `JSON.parse`—, y un género
+    // ausente se leería como femenino en `estadoEnPalabras` sin decir nada.
+    for (const esquema of ESQUEMAS) {
+      expect(['m', 'f'], `${esquema.slug} (${esquema.singular})`).toContain(esquema.genero)
+    }
+  })
+
+  it('la insignia de estado concuerda con el singular', () => {
+    // El caso que se veía: «✓ Publicada» encima de «Modelo 3D». Se nombran las
+    // colecciones concretas a propósito, porque una prueba que recorriera
+    // `ESQUEMAS` comparando contra el mismo `genero` pasaría con los trece
+    // puestos al revés.
+    //
+    // Aquí se comprobaba también un `avisoDeRetirada` que conjugaba «retírela
+    // de publicación». Se fueron los dos, y el orden importa: esa frase ya
+    // estaba desechada en `FormularioDocumento.tsx` —ver `salidaSuave`, manda a
+    // pulsar un botón que solo existe con `versionada && publicado`—, así que
+    // esta prueba defendía en verde el texto que aquella decisión había
+    // quitado. Una prueba así es peor que ninguna: convierte en regresión el
+    // arreglo.
+    expect(estadoEnPalabras(esquemaDe('modelos-3d'), true)).toBe('✓ Publicado')
+    expect(estadoEnPalabras(esquemaDe('patologias'), true)).toBe('✓ Publicada')
+    expect(estadoEnPalabras(esquemaDe('modelos-3d'), false)).toBe('● Borrador')
+  })
+
   it('toda relación apunta a una colección que existe', () => {
     const registradas = COLECCIONES.map((c) => c.slug)
     const campos = [
@@ -445,5 +475,115 @@ describe('coherencia interna del esquema', () => {
         expect(registradas, `${campo.nombre} -> ${campo.coleccion}`).toContain(campo.coleccion)
       }
     }
+  })
+})
+
+/**
+ * Las tres reglas del objetivo de un paso, que ahora son una sola lista.
+ *
+ * `src/collections/Cirugias.ts` las hace cumplir al publicar y
+ * `src/admin/depurar.ts` las adelanta en el panel para que el motivo llegue en
+ * español. Estuvieron escritas dos veces, con los textos copiados a mano, y se
+ * separaron: la que prohíbe llegó a la colección y no al panel, así que durante
+ * ese tiempo el rechazo salía por el `ValidationError` de Payload, en inglés y
+ * con el español encerrado en `error.data`. Es un defecto que solo se nota por
+ * lo que deja de pasar —el caso igual no se publica—, de modo que mirarlo no
+ * sirve: tiene que fallar algo.
+ *
+ * Se recorre `REGLAS_DEL_OBJETIVO_DEL_PASO` en vez de nombrar las tres para que
+ * una cuarta entre vigilada sola. Eso es lo que aporta este bloque frente a
+ * `tests/unit/reglasDelObjetivo.test.ts`, que nació cuando las reglas estaban
+ * escritas dos veces y compara tres casos nombrados a mano: aquel archivo
+ * conserva su valor en lo que prueba del comportamiento —el 0 que es número
+ * tecleado, las tres tolerancias que no estorban, el borrador de D-011 y el
+ * texto que de verdad lee el traumatólogo—, pero sus tres comparaciones «dice
+ * lo mismo en los dos sitios» ya no comparan dos textos: los dos lados leen
+ * esta constante. Si se va a tocar uno de los dos archivos, que sea aquel.
+ */
+describe('la colección y el panel aplican las mismas reglas del objetivo', () => {
+  interface CampoDePayload {
+    name?: string
+    fields?: CampoDePayload[]
+    options?: { value: string }[]
+    validate?: unknown
+  }
+
+  const buscar = (campos: CampoDePayload[] | undefined, nombre: string): CampoDePayload | undefined => {
+    for (const campo of campos ?? []) {
+      if (campo.name === nombre) return campo
+      const dentro = buscar(campo.fields, nombre)
+      if (dentro) return dentro
+    }
+    return undefined
+  }
+
+  const coleccion = COLECCIONES.find((c) => c.slug === 'cirugias')!
+  const campoDeLaColeccion = buscar(coleccion.fields as unknown as CampoDePayload[], 'objetivo')!
+  const validar = (valor: string, paso: Record<string, unknown>) =>
+    (
+      campoDeLaColeccion.validate as (
+        v: string,
+        o: { siblingData?: unknown },
+      ) => string | true
+    )(valor, { siblingData: paso })
+
+  const campoDelPanel = [...recorrerCampos(camposDe(esquemaDe('cirugias')))].find(
+    (c) => c.nombre === 'objetivo',
+  )!
+
+  /** Un caso mínimo publicable, con un solo paso, para que `faltantes` no traiga ruido. */
+  const casoConUnPaso = (paso: Record<string, unknown>): Record<string, unknown> => ({
+    nombre: 'Caso de prueba',
+    pasos: [{ titulo: 'Paso', ...paso }],
+  })
+
+  it('la colección corta con el texto exacto que declara la regla', () => {
+    for (const regla of REGLAS_DEL_OBJETIVO_DEL_PASO.exige) {
+      expect(validar(regla.opcion, {}), `exige ${regla.opcion}`).toBe(regla.mensaje)
+    }
+    for (const regla of REGLAS_DEL_OBJETIVO_DEL_PASO.prohibe) {
+      for (const nombre of regla.campos) {
+        expect(validar(regla.opcion, { [nombre]: 12 }), `prohíbe ${regla.opcion}+${nombre}`).toBe(
+          regla.mensaje,
+        )
+      }
+    }
+  })
+
+  it('el panel enseña ese mismo texto antes de intentar guardar', () => {
+    for (const regla of REGLAS_DEL_OBJETIVO_DEL_PASO.exige) {
+      const problemas = faltantes(esquemaDe('cirugias'), casoConUnPaso({ objetivo: regla.opcion }))
+      expect(problemas, `exige ${regla.opcion}`).toContain(`En paso 1: ${regla.mensaje}`)
+    }
+    for (const regla of REGLAS_DEL_OBJETIVO_DEL_PASO.prohibe) {
+      const problemas = faltantes(
+        esquemaDe('cirugias'),
+        casoConUnPaso({ objetivo: regla.opcion, [regla.campos[0]]: 12 }),
+      )
+      expect(problemas, `prohíbe ${regla.opcion}`).toContain(`En paso 1: ${regla.mensaje}`)
+    }
+  })
+
+  it('el aviso del panel no salta al guardar un borrador', () => {
+    // D-011: Payload salta sus validaciones con `draft: true`, así que
+    // adelantarlas siempre dejaría el borrador sin poder guardarse y se
+    // perdería lo escrito esa tarde.
+    for (const regla of REGLAS_DEL_OBJETIVO_DEL_PASO.exige) {
+      const problemas = faltantes(esquemaDe('cirugias'), casoConUnPaso({ objetivo: regla.opcion }), {
+        profundo: false,
+      })
+      expect(problemas.join(' '), regla.opcion).not.toContain(regla.mensaje)
+    }
+  })
+
+  it('las dos pantallas ofrecen las mismas cuatro opciones', () => {
+    // Las reglas se identifican por el valor de la opción: una que exista en un
+    // lado y no en el otro deja la regla sin disparar justamente donde falta.
+    expect(campoDelPanel.tipo).toBe('seleccion')
+    const enElPanel = (campoDelPanel as Extract<Campo, { tipo: 'seleccion' }>).opciones
+      .map((o) => o.valor)
+      .sort()
+    const enLaColeccion = (campoDeLaColeccion.options ?? []).map((o) => o.value).sort()
+    expect(enElPanel).toEqual(enLaColeccion)
   })
 })

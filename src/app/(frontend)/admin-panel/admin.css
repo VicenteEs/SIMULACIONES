@@ -404,12 +404,20 @@
   color: var(--verde, #1f7a4d);
 }
 
-.admin-badge-active {
+/* En español, como el resto del proyecto y como sus hermanas de más abajo
+   —`.admin-badge-borrador`, `.admin-badge-publicado`, `.admin-badge-neutro`—.
+   Se renombraron estas dos y no `pending`/`resolved` porque el par entero de
+   las cuentas lo pinta un solo ternario de `usuarios/TablaUsuarios.tsx`, y el
+   de los comentarios vive en archivos de otro lote: cambiar media pareja deja
+   un ternario en dos idiomas, que es peor que dejarlo. Lo mismo con
+   `.admin-form-*` y `.admin-modal-*`, que además están fijadas por su nombre
+   en `tests/unit/modalesDelPanel.test.ts`. */
+.admin-badge-activo {
   background-color: var(--marca-tenue);
   color: var(--marca);
 }
 
-.admin-badge-inactive {
+.admin-badge-inactivo {
   background-color: var(--papel);
   color: var(--mudo);
 }
@@ -995,6 +1003,34 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
   color: var(--pizarra);
 }
 
+/* ---------- lo que no se puede hacer con el dedo ---------- */
+/* El par que esconde un editor de ratón en pantalla estrecha y pone un aviso
+   en su sitio. Es el patrón de D-055, el mismo de `.atlas-solo-escritorio`,
+   pero con el interruptor suelto porque aquí lo comparten dos editores: el
+   visor de encuadre y el taller de piezas.
+
+   Van siempre emparejados. Antes se escondían `.encuadre-editor` y las tres
+   piezas del taller por su nombre, y la ayuda de cada uno se quedaba puesta:
+   en un teléfono se leía «use el visor de aquí abajo» y «pinche cada trozo…
+   pulse Capturar desplazamiento» debajo de un hueco. Explicar cómo se usa algo
+   que no está en pantalla es peor que no explicar nada, porque el autor se
+   pone a buscar el botón y acaba concluyendo que la ficha está rota.
+
+   Quien envuelva algo en `.solo-ancho` tiene que dejar su `.solo-estrecho` al
+   lado, y al revés. */
+.solo-estrecho { display: none; }
+
+.aviso-solo-escritorio {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--linea);
+  border-left: 3px solid var(--ambar);
+  border-radius: var(--r);
+  background: var(--ambar-tenue);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 /* ---------- editor de encuadre 3D ---------- */
 /* El visor es el mismo componente que ve el residente, así que hereda sus
    estilos de estilos.css; aquí solo va la botonera que el panel le añade
@@ -1035,10 +1071,9 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
    `<label>` por su sitio —dentro de `.campo-casillas`— y no por una clase, que
    es lo que permitió la colisión.
 
-   El `<label>` sigue llevando `class="campo-casilla"` en `Campos.tsx`, y da
-   igual: esta regla tiene más especificidad (0,1,1 contra 0,1,0), así que su
-   `padding` gana. Quitar esa clase del marcado es lo que falta para que el
-   nombre no vuelva a significar dos cosas. */
+   El `<label>` ya no lleva clase: se le quitó `campo-casilla` del marcado para
+   que ese nombre no vuelva a tener dos dueños, y esta regla lo viste por su
+   sitio. */
 .campo-casillas label {
   display: flex;
   align-items: center;
@@ -1101,11 +1136,11 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 /* Acotada a `thead` a propósito. La celda que nombra la fila es el objeto de
    Blender y tiene que coincidir letra por letra con el del archivo `.glb`:
    heredar de aquí el `text-transform: uppercase` la sacaría en mayúsculas, que
-   es justo lo que esa celda existe para no hacer. Mientras el taller siga
-   pintándola con `<td>` esto no cambia nada; el día que pase a
-   `<th scope="row">` —que es lo correcto y lo que falta en
-   `TallerDePiezas.tsx`— la regla de abajo la recibe con el mismo aspecto que
-   tenía como `<td>`. */
+   es justo lo que esa celda existe para no hacer. `TallerDePiezas.tsx` ya la
+   pinta con `<th scope="row">` —es lo que identifica la fila, no un dato
+   más—, así que quien amplíe esta regla a todos los `th` de la tabla sacará
+   los quince nombres de objeto en mayúsculas sin que falle nada; el aspecto lo
+   da la regla de abajo, que trata al `tbody th` igual que al `<td>`. */
 .taller-piezas-tabla thead th {
   text-align: left;
   font-size: 10px;
@@ -1132,13 +1167,15 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 
 @media (max-width: 640px) {
   /* El visor de la ficha sí funciona en el móvil, pero encuadrar con el dedo
-     mientras se escribe una ficha no. Los cinco números siguen ahí debajo. */
-  .encuadre-editor { display: none; }
-  /* Lo mismo con el taller: señalar piezas y colocar un fragmento con el dedo
-     no sale. La tabla y las filas de siempre siguen debajo. */
-  .taller-piezas-lienzo,
-  .taller-piezas-mandos,
-  .taller-piezas-sueltas { display: none; }
+     mientras se escribe una ficha no, y señalar piezas o arrastrar un
+     fragmento, menos. Lo que se va está envuelto en `.solo-ancho` —el visor,
+     su botonera y la ayuda que los explica—, y lo que aparece en su lugar es
+     el `.solo-estrecho` de al lado, que dice por qué y qué sí se puede hacer a
+     mano: los cinco números del encuadre y la tabla de piezas siguen debajo.
+     Se esconde el envoltorio y no cada pieza por su nombre justamente para que
+     no vuelva a quedarse fuera una ayuda. */
+  .solo-ancho { display: none; }
+  .solo-estrecho { display: block; }
 }
 
 /* ---------- listas repetibles ---------- */

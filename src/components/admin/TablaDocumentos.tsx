@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { EsquemaDeColeccion } from '@/admin/esquema'
+import { estadoEnPalabras, type EsquemaDeColeccion } from '@/admin/esquema'
 import {
   cambiarPublicacion,
   duplicarDocumento,
@@ -30,7 +30,17 @@ const fecha = (valor: unknown) =>
       })
     : '—'
 
-function celda(valor: unknown, formato?: string) {
+/**
+ * Una celda del listado.
+ *
+ * Recibe el esquema entero, y no solo el formato, porque la insignia de estado
+ * tiene que concordar con el singular de la colección: escrita a mano decía
+ * «✓ Publicada» sobre «Modelo 3D» y sobre «Hueso». La compone
+ * `estadoEnPalabras` —la misma función que la insignia del editor— para que
+ * arreglar una no deje a la otra diciéndolo distinto, que es exactamente el
+ * modo en que este defecto llegó hasta aquí.
+ */
+function celda(valor: unknown, formato: string | undefined, esquema: EsquemaDeColeccion) {
   if (formato === 'fecha') return fecha(valor)
   if (formato === 'booleano') {
     return (
@@ -43,7 +53,7 @@ function celda(valor: unknown, formato?: string) {
     const publicado = valor === 'published'
     return (
       <span className={`admin-badge ${publicado ? 'admin-badge-publicado' : 'admin-badge-borrador'}`}>
-        {publicado ? '✓ Publicada' : '● Borrador'}
+        {estadoEnPalabras(esquema, publicado)}
       </span>
     )
   }
@@ -330,12 +340,12 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
                         // de la fila a la ficha que nombra esta celda.
                         <th key={columna.nombre} scope="row" className="admin-table-user-name">
                           <Link href={`/admin-panel/contenido/${esquema.slug}/${fila.id}`}>
-                            {celda(fila.valores[columna.nombre], columna.formato)}
+                            {celda(fila.valores[columna.nombre], columna.formato, esquema)}
                           </Link>
                         </th>
                       ) : (
                         <td key={columna.nombre}>
-                          {celda(fila.valores[columna.nombre], columna.formato)}
+                          {celda(fila.valores[columna.nombre], columna.formato, esquema)}
                         </td>
                       ),
                     )}
@@ -444,18 +454,35 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
             <span>
               Página {pagina} de {paginas}
             </span>
+            {/* `aria-disabled` y no `disabled`, por el mismo motivo que las
+                acciones de fila y que el subidor del final de este archivo, y
+                aquí el que lo apaga es el propio clic: pulsar «← Anterior»
+                hasta la página 1, o «Siguiente →» hasta la última, desactiva
+                bajo el dedo el botón que acaba de recibir el foco. El navegador
+                lo desenfoca, el foco cae al `<body>` y la persona que estaba
+                recorriendo la lista con teclado vuelve al principio de la
+                página justo al llegar al tope. Quien impide pasarse de los
+                extremos es la guarda del `onClick`. Visualmente no cambia nada:
+                `.admin-btn` no define estilo de `:disabled`, así que el botón
+                del tope ya se veía igual que uno vivo. */}
             <div className="admin-acciones">
               <button
                 className="admin-btn admin-btn-sm admin-btn-secondary"
-                disabled={pagina <= 1}
-                onClick={() => setPagina(pagina - 1)}
+                aria-disabled={pagina <= 1}
+                onClick={() => {
+                  if (pagina <= 1) return
+                  setPagina(pagina - 1)
+                }}
               >
                 ← Anterior
               </button>
               <button
                 className="admin-btn admin-btn-sm admin-btn-secondary"
-                disabled={pagina >= paginas}
-                onClick={() => setPagina(pagina + 1)}
+                aria-disabled={pagina >= paginas}
+                onClick={() => {
+                  if (pagina >= paginas) return
+                  setPagina(pagina + 1)
+                }}
               >
                 Siguiente →
               </button>

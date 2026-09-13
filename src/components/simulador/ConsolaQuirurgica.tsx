@@ -4,20 +4,24 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
+  capasQueEnciendeElPaso,
   evaluarGesto,
   fuerzaInicial,
   instruccionDelPaso,
+  medidaInicial,
   objetivoDelPaso,
   puntajeMaximo,
   puntosDelPaso,
   rangoDeFuerzaEnTexto,
+  rangoDelDeslizadorDeFuerza,
   rangoDeTrazoEnTexto,
   RESULTADOS,
   topesDeReduccion,
+  visibilidadDelPaso,
   type Objetivo,
   type PasoQuirurgico,
 } from '@/lib/simulador'
-import { desplazamientoCompleto, largoDelTrazo, medirReduccion, type EjeLargo } from '@/lib/reduccion'
+import { largoDelTrazo, medirReduccion, type EjeLargo } from '@/lib/reduccion'
 import { Rico, tieneContenido } from '@/components/Rico'
 import { IconoInstrumento } from './IconoInstrumento'
 // El visor del instrumento reutiliza el de las fichas, ya partido en su propio
@@ -38,9 +42,13 @@ import type { MandoDelLienzo, Modo, PiezaDelCaso } from './LienzoQuirurgico'
  * consola no corta huesos ni adivina anatomía; enciende, apaga y mueve nodos
  * que alguien nombró.
  *
- * La aritmética no está aquí. La evaluación vive en `@/lib/simulador` y las
- * medidas de la reducción en `@/lib/reduccion`, las dos probadas sin navegador,
- * porque son la parte que puede estar mal sin que se note.
+ * La aritmética no está aquí, y las decisiones tampoco. La evaluación, lo que
+ * cada paso deja ver y los topes del deslizador viven en `@/lib/simulador`; las
+ * medidas de la reducción, en `@/lib/reduccion`. Los dos se prueban sin
+ * navegador, porque son la parte que puede estar mal sin que se note: un lienzo
+ * en negro o un deslizador imposible de acertar pasaban la suite entera en
+ * verde mientras esas reglas vivían aquí dentro. Lo que queda en este archivo
+ * es estado de React y marcado.
  */
 
 // El motor 3D no viaja con la página: se carga cuando el residente abre un caso
@@ -156,124 +164,11 @@ const MODO_DEL_OBJETIVO: Record<Objetivo, Modo> = {
   fuerza: 'orbitar',
 }
 
-/**
- * Lo que un paso declara ver, heredando del último que dijera algo.
- *
- * Es la promesa que el panel le hace al traumatólogo: «Deje la lista vacía para
- * que se vea lo mismo que en el paso anterior» (`Cirugias.ts`). Está fuera del
- * componente y exportada porque es regla de dominio y no de pintado, y porque
- * así se puede probar sin navegador; su sitio definitivo es
- * `src/lib/piezasDelCaso.ts`, junto a sus hermanas.
- */
-export function declaracionDelPaso(
-  pasos: Array<{ muestra?: string[] }>,
-  indicePaso: number,
-): string[] | null {
-  for (let i = indicePaso; i >= 0; i--) {
-    const muestra = pasos[i]?.muestra
-    if (muestra && muestra.length > 0) return muestra
-  }
-  return null
-}
-
-/**
- * Qué nodos se encienden ahora, y qué capas hubo que devolver a la vista.
- *
- * El cruce con las capas apagadas tiene un suelo, y el suelo es lo que arregla
- * el fallo: sin él, un paso que declara ver solo la piel —una incisión se traza
- * sobre la piel, es exactamente lo que el traumatólogo va a escribir— salía de
- * aquí como lista vacía, y `mostrar([])` apaga TODAS las mallas del modelo. El
- * lienzo se quedaba gris sin un mensaje, «Encuadrar» no respondía porque no hay
- * caja que encuadrar, y la única salida era una casilla del panel izquierdo que
- * nadie relaciona con lo que acaba de pasar. Antes que no enseñar nada, se
- * enciende lo que haga falta y se dice por qué.
- */
-export function visibilidadDelPaso(
-  pasos: Array<{ muestra?: string[] }>,
-  piezas: PiezaDelCaso[],
-  indicePaso: number,
-  capasApagadas: Set<string>,
-): { nodos: string[] | null; encender: string[] } {
-  const declarados = declaracionDelPaso(pasos, indicePaso)
-  const base = declarados ?? piezas.filter((p) => p.rol !== 'implante').map((p) => p.nodo)
-  // Un caso sin piezas escritas no es un caso sin nada que ver: es uno cuya
-  // lista todavía no se ha rellenado. `null` enseña el modelo entero, que es lo
-  // único útil que se puede hacer con él; `[]` lo apagaría del todo.
-  if (base.length === 0) return { nodos: null, encender: [] }
-
-  const rolDe = new Map(piezas.map((p) => [p.nodo, p.rol]))
-  const visibles = base.filter((nodo) => {
-    const rol = rolDe.get(nodo)
-    return !rol || !capasApagadas.has(rol)
-  })
-  if (visibles.length > 0) return { nodos: visibles, encender: [] }
-
-  const encender: string[] = []
-  for (const nodo of base) {
-    const rol = rolDe.get(nodo)
-    if (rol && capasApagadas.has(rol) && !encender.includes(rol)) encender.push(rol)
-  }
-  return { nodos: base, encender }
-}
-
-/**
- * Las capas apagadas que el paso declara ver: al entrar en él se encienden.
- *
- * El paso manda sobre el interruptor, que es para lo que existe `muestra`. Al
- * revés —restando las capas a lo que el paso declara— una incisión escrita
- * sobre la piel acababa trazada sobre el hueso desnudo, y lo único que lo
- * indicaba era una casilla desmarcada en la otra punta de la pantalla.
- */
-export function capasQueEnciendeElPaso(
-  pasos: Array<{ muestra?: string[] }>,
-  piezas: PiezaDelCaso[],
-  indicePaso: number,
-  capasApagadas: Set<string>,
-): string[] {
-  const declarados = declaracionDelPaso(pasos, indicePaso)
-  if (!declarados) return []
-  const rolDe = new Map(piezas.map((p) => [p.nodo, p.rol]))
-  const roles: string[] = []
-  for (const nodo of declarados) {
-    const rol = rolDe.get(nodo)
-    if (rol && capasApagadas.has(rol) && !roles.includes(rol)) roles.push(rol)
-  }
-  return roles
-}
-
 /** «la piel», «la piel y el músculo»: para escribirlo dentro de una frase. */
 function capasEnProsa(roles: string[]): string {
   const nombres = roles.map((rol) => CAPAS.find((c) => c.rol === rol)?.enProsa ?? rol)
   if (nombres.length <= 1) return nombres[0] ?? ''
   return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`
-}
-
-/**
- * Los topes del deslizador de fuerza.
- *
- * El 0-120 fijo que había aquí era un número inventado, y con un paso de
- * `fuerzaMinima: 200` el rótulo se quedaba en «Fuerza · 200 N» con el pulgar
- * clavado en el tope: el residente no podía acertar nunca. Se acota al rango
- * del paso, pero **con margen a los dos lados**, y el margen es la parte que no
- * se puede quitar: un deslizador que empieza y acaba dentro de la ventana buena
- * aprueba cualquier posición, y un paso en el que no se puede fallar no enseña
- * nada, que es justo lo contrario de D-059.
- */
-export function rangoDelDeslizadorDeFuerza(paso: PasoQuirurgico): { min: number; max: number } {
-  const { fuerzaMinima: minima, fuerzaMaxima: maxima } = paso
-  if (typeof minima === 'number' && typeof maxima === 'number') {
-    const margen = Math.max(5, Math.round((maxima - minima) / 2))
-    return { min: Math.max(0, Math.round(minima - margen)), max: Math.round(maxima + margen) }
-  }
-  // Con un solo extremo declarado, el otro lado no existe; el declarado hay que
-  // poder cruzarlo igual, por arriba o por abajo.
-  if (typeof minima === 'number') {
-    return { min: Math.max(0, Math.round(minima / 2)), max: Math.round(minima * 2) + 5 }
-  }
-  if (typeof maxima === 'number') return { min: 0, max: Math.round(maxima * 1.5) + 5 }
-  // Sin ningún tope cualquier fuerza vale. `Cirugias.ts` no deja publicar un
-  // paso de fuerza así, pero la API puede devolver uno antiguo.
-  return { min: 0, max: 120 }
 }
 
 export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
@@ -570,11 +465,19 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
    * y medir contra otro— y un paso antiguo sin tolerancias se quedaba sin
    * ninguna referencia en pantalla mientras el motor lo juzgaba igual, con sus
    * respaldos. Con la regla en un solo sitio ese riesgo desaparece.
+   *
+   * Lo de «se pasa» va por clase y no por un `style` en línea con el ámbar
+   * dentro: el color de la consola lo decide la hoja, y escrito aquí no había
+   * forma de encontrarlo desde ella —ni de comprobar su contraste, que era el
+   * problema: `var(--ambar)` sobre el blanco del panel se queda en 4,18:1 y
+   * este renglón mide 11 px—. La regla es `.consola-desglose-fuera`, en
+   * `estilos.css`, y el sentido no depende del color: la propia línea dice «se
+   * pasa» o «dentro».
    */
   const lineaDeTope = (valor: number, tope: number, unidad: 'mm' | '°') => {
     const fuera = valor > tope
     return (
-      <dd className="consola-desglose" style={fuera ? { color: 'var(--ambar)' } : undefined}>
+      <dd className={`consola-desglose${fuera ? ' consola-desglose-fuera' : ''}`}>
         tope {unidad === '°' ? `${tope}°` : `${tope} mm`} · {fuera ? 'se pasa' : 'dentro'}
       </dd>
     )
@@ -593,10 +496,7 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
     const corta = typeof minimo === 'number' && largoDelTrazoMm < minimo
     const larga = typeof maximo === 'number' && largoDelTrazoMm > maximo
     return (
-      <dd
-        className="consola-desglose"
-        style={corta || larga ? { color: 'var(--ambar)' } : undefined}
-      >
+      <dd className={`consola-desglose${corta || larga ? ' consola-desglose-fuera' : ''}`}>
         {pedido} · {corta ? 'corta' : larga ? 'larga' : 'dentro'}
       </dd>
     )
@@ -990,7 +890,7 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
                   por debajo del pliegue. */}
               <div role="status" aria-live="polite">
                 {resultado ? (
-                  <ul className="consola-registro" style={{ marginTop: 12 }}>
+                  <ul className="consola-registro consola-registro-ultimo">
                     <li className={resultado.clase}>{resultado.texto}</li>
                   </ul>
                 ) : null}
@@ -1059,12 +959,3 @@ export function ConsolaQuirurgica({ caso }: { caso: CasoDeConsola }) {
   )
 }
 
-/** Las medidas del caso recién abierto, antes de tocar nada. */
-function medidaInicial(caso: CasoDeConsola) {
-  const d = desplazamientoCompleto(caso.desplazamientoInicial)
-  return medirReduccion(
-    { x: d.x, y: d.y, z: d.z },
-    { x: d.giroX, y: d.giroY, z: d.giroZ },
-    caso.ejeLargo,
-  )
-}
