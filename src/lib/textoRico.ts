@@ -103,6 +103,13 @@ export function enlaceSeguro(valor: unknown): string | undefined {
   if (typeof valor !== 'string') return undefined
   const limpio = valor.trim()
   if (limpio.length === 0 || limpio.length > 2000) return undefined
+  // Un carácter de control en medio no es un enlace raro: es una dirección
+  // disfrazada. El navegador borra tabulador, salto de línea y retorno de carro
+  // al analizar una dirección, así que `/\t/evil.example.com` pasaba la
+  // comprobación de ruta interna —el segundo carácter no es `/`— y terminaba
+  // resolviéndose como `//evil.example.com`, o sea fuera de la plataforma.
+  // `trim()` no basta: solo limpia los extremos.
+  if (/[\u0000-\u001f\u007f]/.test(limpio)) return undefined
   if (/^(https?:|mailto:|tel:)/i.test(limpio)) return limpio
   // Una ruta interna también vale; lo que no vale es un esquema raro.
   if (/^\/[^/\\]/.test(limpio)) return limpio
@@ -140,10 +147,51 @@ function fragmentosDeLexical(nodos: NodoLexical[] | undefined, enlace?: string):
       const url = enlaceSeguro(nodo.fields?.url)
       fragmentos.push(...fragmentosDeLexical(nodo.children, url ?? enlace))
     } else if (nodo.children) {
-      fragmentos.push(...fragmentosDeLexical(nodo.children, enlace))
+      // Un bloque dentro de otro —el segundo párrafo de una cita, o el párrafo
+      // que envuelve el contenido de un punto de lista— se aplana, porque el
+      // modelo de en medio no anida. Lo que no puede pasar es que el texto de
+      // uno quede pegado al del siguiente: `compactar` une fragmentos contiguos
+      // del mismo formato, y sin este salto «Reducir» seguido de «con tracción»
+      // se guardaba como «Reducircon tracción». Perder el nivel es perder
+      // forma; pegar las palabras es perder texto, y eso no se recupera.
+      const dentro = fragmentosDeLexical(nodo.children, enlace)
+      if (dentro.length === 0) continue
+      if (fragmentos.length > 0) fragmentos.push({ texto: '\n' })
+      fragmentos.push(...dentro)
     }
   }
   return compactar(fragmentos)
+}
+
+/**
+ * Los puntos de una lista, con las sublistas convertidas en puntos propios.
+ *
+ * En Lexical una sublista cuelga de un `listitem`, y antes se aplanaba encima
+ * del texto de ese punto padre. El modelo de en medio no anida a propósito
+ * (`Parrafo` de tipo lista es `Fragmento[][]`, sin más niveles), así que la
+ * sublista se despliega a la altura del resto en vez de fundirse con nadie. Si
+ * algún día el modelo anida, este es el sitio por donde hay que empezar.
+ */
+function puntosDeListaLexical(items: NodoLexical[] | undefined): Fragmento[][] {
+  const puntos: Fragmento[][] = []
+  for (const item of items ?? []) {
+    // Hay árboles con la sublista colgando de la lista y no del punto.
+    if (item.type === 'list') {
+      puntos.push(...puntosDeListaLexical(item.children))
+      continue
+    }
+    const hijos = item.children ?? []
+    const sublistas = hijos.filter((h) => h.type === 'list')
+    if (sublistas.length === 0) {
+      puntos.push(fragmentosDeLexical(hijos))
+      continue
+    }
+    // El punto que solo existe para colgar la sublista no deja un punto vacío.
+    const propios = fragmentosDeLexical(hijos.filter((h) => h.type !== 'list'))
+    if (propios.length > 0) puntos.push(propios)
+    for (const sublista of sublistas) puntos.push(...puntosDeListaLexical(sublista.children))
+  }
+  return puntos
 }
 
 const alineacionDe = (nodo: NodoLexical): Alineacion | undefined =>
@@ -170,7 +218,7 @@ export function desdeLexical(valor: unknown): Parrafo[] {
     } else if (nodo.type === 'list') {
       parrafos.push({
         tipo: nodo.listType === 'number' ? 'numerada' : 'vinetas',
-        puntos: (nodo.children ?? []).map((item) => fragmentosDeLexical(item.children)),
+        puntos: puntosDeListaLexical(nodo.children),
       })
     } else {
       parrafos.push({ tipo: 'parrafo', fragmentos: fragmentosDeLexical(nodo.children), ...(alineacion ? { alineacion } : {}) })
@@ -197,6 +245,24 @@ const nodoTextoLexical = (f: Fragmento) => ({
 
 const comunes = { format: '', indent: 0, version: 1, direction: 'ltr' as const }
 
+/**
+ * Los nodos de Lexical de un fragmento, con los saltos simples aparte.
+ *
+ * Un salto va como nodo `linebreak` y no como `\n` dentro del texto. El
+ * renderizador público pinta `linebreak` como `<br>`, pero un `\n` dentro de un
+ * nodo `text` sale al HTML tal cual y el HTML lo colapsa a un espacio: las
+ * cuatro fases de una maniobra escritas con Mayús+Intro se leían fundidas en un
+ * párrafo corrido. No se veía desde el panel porque el editor reconstruye el
+ * salto en los dos casos —`hijosTipTap` parte por `\n`—, así que el autor daba
+ * el trabajo por terminado. `fragmentosDeLexical` ya sabe leer `linebreak`, de
+ * modo que el viaje de ida y vuelta no cambia.
+ */
+const nodosDeFragmento = (f: Fragmento): unknown[] =>
+  f.texto.split('\n').flatMap((linea, i) => [
+    ...(i > 0 ? [{ type: 'linebreak', version: 1 }] : []),
+    ...(linea.length > 0 ? [nodoTextoLexical({ ...f, texto: linea })] : []),
+  ])
+
 /** Envuelve en nodos de enlace los fragmentos que lo llevan. */
 function hijosLexical(fragmentos: Fragmento[]): unknown[] {
   const hijos: unknown[] = []
@@ -204,7 +270,7 @@ function hijosLexical(fragmentos: Fragmento[]): unknown[] {
   while (i < fragmentos.length) {
     const enlace = fragmentos[i].enlace
     if (!enlace) {
-      hijos.push(nodoTextoLexical(fragmentos[i]))
+      hijos.push(...nodosDeFragmento(fragmentos[i]))
       i += 1
       continue
     }
@@ -217,8 +283,11 @@ function hijosLexical(fragmentos: Fragmento[]): unknown[] {
     hijos.push({
       type: 'link',
       ...comunes,
-      fields: { linkType: 'custom', newTab: true, url: enlace },
-      children: grupo.map(nodoTextoLexical),
+      // Una ficha de la propia plataforma no abre pestaña nueva: quien la sigue
+      // pierde el «atrás» y se queda con dos ventanas de lo mismo. Fuera de
+      // aquí sí, que es a donde se va y no se vuelve.
+      fields: { linkType: 'custom', newTab: !enlace.startsWith('/'), url: enlace },
+      children: grupo.flatMap(nodosDeFragmento),
     })
   }
   return hijos
@@ -288,10 +357,53 @@ function fragmentosDeTipTap(nodos: NodoTipTap[] | undefined): Fragmento[] {
       })
       continue
     }
-    // Un párrafo dentro de un punto de lista o de una cita: se aplana.
-    if (nodo.content) fragmentos.push(...fragmentosDeTipTap(nodo.content))
+    // Un párrafo dentro de un punto de lista o de una cita: se aplana, porque
+    // el modelo de en medio no anida. Entre dos bloques hermanos va un salto:
+    // sin él, `compactar` los unía y dos párrafos de una cita salían con la
+    // última palabra de uno pegada a la primera del otro.
+    if (nodo.content) {
+      const dentro = fragmentosDeTipTap(nodo.content)
+      if (dentro.length === 0) continue
+      if (fragmentos.length > 0) fragmentos.push({ texto: '\n' })
+      fragmentos.push(...dentro)
+    }
   }
   return compactar(fragmentos)
+}
+
+const esListaTipTap = (tipo?: string): boolean => tipo === 'bulletList' || tipo === 'orderedList'
+
+/**
+ * Los puntos de una lista de TipTap, con las sublistas desplegadas.
+ *
+ * `ListItem` de TipTap admite `paragraph block*`, así que el tabulador mete una
+ * sublista dentro del punto. El modelo no anida, y aplanarla dentro del padre
+ * pegaba las palabras: «Reducir» con los subpuntos «con tracción» y «bajo
+ * anestesia» se guardaba como un único «Reducircon traccionbajo anestesia», y
+ * el autor no tenía cómo recuperar lo escrito porque nunca vio romperse nada.
+ * El editor ya no deja crear la sublista (`SinSublistas`, en
+ * `EditorTextoRico.tsx`), pero esto sigue haciendo falta: lo que se pega desde
+ * Word trae listas anidadas, y en la base ya hay contenido con ellas.
+ */
+function puntosDeListaTipTap(items: NodoTipTap[] | undefined): Fragmento[][] {
+  const puntos: Fragmento[][] = []
+  for (const item of items ?? []) {
+    if (esListaTipTap(item.type)) {
+      puntos.push(...puntosDeListaTipTap(item.content))
+      continue
+    }
+    const hijos = item.content ?? []
+    const sublistas = hijos.filter((h) => esListaTipTap(h.type))
+    if (sublistas.length === 0) {
+      puntos.push(fragmentosDeTipTap(hijos))
+      continue
+    }
+    // El punto que solo existe para colgar la sublista no deja un punto vacío.
+    const propios = fragmentosDeTipTap(hijos.filter((h) => !esListaTipTap(h.type)))
+    if (propios.length > 0) puntos.push(propios)
+    for (const sublista of sublistas) puntos.push(...puntosDeListaTipTap(sublista.content))
+  }
+  return puntos
 }
 
 export function desdeTipTap(documento: unknown): Parrafo[] {
@@ -310,11 +422,24 @@ export function desdeTipTap(documento: unknown): Parrafo[] {
       const tag = nivel <= 2 ? 'h2' : nivel === 3 ? 'h3' : 'h4'
       parrafos.push({ tipo: tag, fragmentos: fragmentosDeTipTap(nodo.content), ...conAlineacion })
     } else if (nodo.type === 'blockquote') {
-      parrafos.push({ tipo: 'cita', fragmentos: fragmentosDeTipTap(nodo.content), ...conAlineacion })
-    } else if (nodo.type === 'bulletList' || nodo.type === 'orderedList') {
+      // La alineación de una cita vive en su párrafo interior, no en ella:
+      // `TextAlign` está configurado para `heading` y `paragraph` (ver
+      // `EditorTextoRico.tsx`), así que un `blockquote` nunca lleva `textAlign`
+      // y `haciaTipTap` la deja dentro. Buscarla solo en el nodo de primer
+      // nivel enderezaba toda cita centrada en el siguiente guardado, aunque
+      // nadie la hubiese tocado: el editor serializa el documento entero a cada
+      // tecla.
+      const interna = nodo.content?.[0]?.attrs?.textAlign
+      const deLaCita = alineacion ?? (interna ? DESDE_TIPTAP[interna] : undefined)
+      parrafos.push({
+        tipo: 'cita',
+        fragmentos: fragmentosDeTipTap(nodo.content),
+        ...(deLaCita ? { alineacion: deLaCita } : {}),
+      })
+    } else if (esListaTipTap(nodo.type)) {
       parrafos.push({
         tipo: nodo.type === 'orderedList' ? 'numerada' : 'vinetas',
-        puntos: (nodo.content ?? []).map((item) => fragmentosDeTipTap(item.content)),
+        puntos: puntosDeListaTipTap(nodo.content),
       })
     } else if (nodo.type === 'horizontalRule') {
       continue
@@ -389,8 +514,47 @@ export function textoPlano(valor: unknown): string {
     .trim()
 }
 
-/** ¿El contenido rico está realmente vacío? Un párrafo en blanco lo está. */
-export const estaVacio = (valor: unknown): boolean => textoPlano(valor).length === 0
+/**
+ * Tipos de Lexical que por sí solos no pintan nada: lo que valen es su texto.
+ *
+ * Cualquier otro —`upload`, `horizontalrule`, `relationship`, un bloque— sí
+ * pinta algo aunque no aporte una sola letra, y el renderizador de Payload sabe
+ * hacerlo con sus convertidores por omisión.
+ */
+const SIN_TEXTO_NO_PINTAN = new Set([
+  'paragraph',
+  'heading',
+  'quote',
+  'list',
+  'listitem',
+  'link',
+  'autolink',
+  'text',
+  'linebreak',
+  'tab',
+])
+
+const algoQuePintar = (nodo: NodoLexical): boolean => {
+  if (nodo.type === 'text') return typeof nodo.text === 'string' && nodo.text.trim().length > 0
+  if (!SIN_TEXTO_NO_PINTAN.has(nodo.type ?? '')) return true
+  return (nodo.children ?? []).some(algoQuePintar)
+}
+
+/**
+ * ¿El contenido rico está realmente vacío? Un párrafo en blanco lo está.
+ *
+ * Mira el árbol y no su texto llano. Medirlo con `textoPlano` daba «vacío» a un
+ * campo cuyo contenido fuese una radiografía insertada o una línea divisoria
+ * —`desdeLexical` no los sabe leer y los deja fuera del texto—, así que `Rico`
+ * devolvía `null` y la nota entera desaparecía de la ficha pública sin aviso.
+ * `textoPlano` se queda como está: para un resumen, un nodo sin letras no
+ * aporta nada.
+ */
+export const estaVacio = (valor: unknown): boolean => {
+  const raiz = (valor as { root?: NodoLexical } | null)?.root
+  if (!raiz?.children?.length) return true
+  return !raiz.children.some(algoQuePintar)
+}
 
 /** Contenido rico recién creado, listo para escribir encima. */
 export const contenidoNuevo = (): unknown => haciaLexical([])

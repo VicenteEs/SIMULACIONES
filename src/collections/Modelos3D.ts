@@ -27,13 +27,38 @@ export const Modelos3D: CollectionConfig = {
     staticDir: 'medios/modelos',
     // Privada y con `Vary: Cookie`: ver el comentario de la función.
     modifyResponseHeaders: cacheDeArchivoPrivado,
-    mimeTypes: ['model/gltf-binary', 'model/gltf+json', 'application/octet-stream'],
+    // Solo glTF binario. `model/gltf+json` estuvo aquí anunciando un formato
+    // que no se podía subir: un `.gltf` es JSON, no lleva la firma «glTF» que
+    // exige `validarModelo3D`, y antes de llegar siquiera a esa comprobación
+    // `checkFileRestrictions` lo rechaza porque `file-type` no reconoce JSON y
+    // lo da por `text/plain`. Aparte del formato, el glTF de texto arrastra un
+    // `.bin` y las texturas sueltas, y esta colección guarda un archivo por
+    // documento: no habría dónde ponerlos.
+    mimeTypes: ['model/gltf-binary', 'application/octet-stream'],
   },
   hooks: {
-    beforeValidate: [
-      ({ req, data }) => {
+    // `beforeOperation` y no `beforeValidate`, y la diferencia no es de estilo.
+    //
+    // Payload prepara el archivo en `generateFileData`, que corre **antes** del
+    // `beforeValidate` de la colección (`collections/operations/create.js`: la
+    // llamada está por encima del bucle de ganchos). De ahí salían dos cosas:
+    //
+    // 1. El nombre del archivo ya estaba decidido cuando el gancho corría, así
+    //    que `nombreSeguro` se calculaba, se probaba y no se aplicaba en
+    //    ninguna subida real. Payload sanea por su cuenta el nombre base con
+    //    `sanitize-filename`, pero no la extensión, que sale de un
+    //    `split('.').pop()` sin tocar.
+    // 2. `checkFileRestrictions`, dentro de `generateFileData`, rechazaba antes
+    //    que nosotros y con su mensaje en inglés («The following field is
+    //    invalid: file»); el motivo en español no llegaba nunca a la pantalla.
+    //
+    // `beforeOperation` es el único gancho anterior a todo eso. Cubre además la
+    // otra vía de subida, `exportarComoModelo` del atlas, que llama a
+    // `payload.create` con su propio `file`.
+    beforeOperation: [
+      ({ req }) => {
         const archivo = req?.file
-        if (!archivo) return data
+        if (!archivo) return
         const resultado = validarModelo3D({
           nombre: archivo.name,
           contenido: archivo.data,
@@ -42,7 +67,7 @@ export const Modelos3D: CollectionConfig = {
         if (!resultado.valido) {
           throw new Error(resultado.motivo ?? 'El archivo no es un modelo 3D válido.')
         }
-        return data
+        if (resultado.nombreSeguro) archivo.name = resultado.nombreSeguro
       },
     ],
   },

@@ -1,10 +1,10 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
+import { lecturaSimple, escrituraDeModulo } from '@/access/payload'
 
 /**
  * Los catálogos del simulador quirúrgico.
  *
- * Cuatro listas cortas que describen el vocabulario de una cirugía: el hueso,
+ * Cinco listas cortas que describen el vocabulario de una cirugía: el hueso,
  * la clasificación de la fractura, la técnica de osteosíntesis, las fases del
  * acto quirúrgico y el instrumental.
  *
@@ -18,15 +18,34 @@ import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
  *
  * Todas se leen con `lecturaSimple` —cualquier cuenta activa las ve, porque el
  * residente necesita ver el nombre del instrumento que elige— y se escriben con
- * `escrituraDeContenido`, igual que los segmentos anatómicos.
+ * los permisos del módulo 04, que es el único que las usa.
  */
 
-/** Cabecera común: se leen con sesión, las edita quien redacta contenido. */
+/**
+ * Cabecera común: se leen con sesión, las escribe quien edita el simulador.
+ *
+ * La escritura era `escrituraDeContenido`, que solo mira el rol y no pregunta
+ * por ningún módulo, mientras D-057 y el README prometían «los mismos permisos
+ * por módulo» que el resto del contenido. Un editor apartado del simulador a
+ * propósito entraba igual y renombraba o borraba un instrumento, y borrar uno
+ * deja a nulo el campo `instrumento` de cada paso que lo pedía: ese paso ya no
+ * se puede superar y el caso se queda sin salida, sin un mensaje que lo
+ * explique.
+ *
+ * Son vocabulario del módulo 04 y de nadie más —solo `Cirugias.ts` los
+ * referencia, `CasosAO.ts` no usa ninguno—, así que el módulo es `cirugias`.
+ *
+ * Ojo con lo que esto cubre y lo que no: el panel propio escribe por la API
+ * local, cuyo `overrideAccess` vale `true` por omisión, de modo que estas
+ * funciones gobiernan la API REST y no la ruta del panel. La del panel la
+ * decide `puedeEditar` en `src/lib/guardias.ts`, que solo restringe los slugs
+ * de `SLUGS_DE_MODULOS` y por tanto todavía deja pasar estos cinco.
+ */
 const acceso = {
   read: lecturaSimple,
-  create: escrituraDeContenido,
-  update: escrituraDeContenido,
-  delete: escrituraDeContenido,
+  create: escrituraDeModulo('cirugias'),
+  update: escrituraDeModulo('cirugias'),
+  delete: escrituraDeModulo('cirugias'),
 } as const
 
 /**

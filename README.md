@@ -51,11 +51,21 @@ levanta la base y arranca el servidor con doble clic.
 |---|---|
 | `npm run dev` | Servidor de desarrollo |
 | `npm test` | Pruebas unitarias y de integración |
+| `npm run test:coverage` | Lo mismo, midiendo cobertura contra el umbral de `vitest.config.ts` |
 | `npm run test:e2e` | Recorridos completos con Playwright |
 | `npm run typecheck` | Comprobación de tipos |
 | `npm run lint` | ESLint sobre todo el repositorio |
 | `npm run generate:types` | Regenera `src/payload-types.ts` desde las colecciones |
 | `npm run build` | Compilación de producción |
+
+Las pruebas de integración hablan con PostgreSQL, y la base tiene que existir
+**y tener el esquema**. `npm run db:up` solo levanta el contenedor: las
+migraciones no se aplican solas fuera de producción —bajo Vitest `NODE_ENV`
+vale `test`, así que no corre ni el `push` de desarrollo ni las migraciones de
+producción—, y quien las está poniendo hoy, sin que se note, es el `npm run dev`
+de ayer. Sobre una base recién creada hay que ejecutar `npm run db:migrate`
+antes de la suite; sin eso el fallo es `relation "segmentos" does not exist`, un
+error que no menciona ni el esquema ni las migraciones.
 
 `npm run test:e2e` necesita antes `npx playwright install chromium`: la
 instalación de dependencias no baja los navegadores, porque `package.json` no
@@ -91,7 +101,7 @@ para preparar el atlas; lo que viaja en el repositorio es el resultado.
 | `admin/` | Esquema del panel propio: qué campos tiene cada colección y cómo se editan |
 | `atlas/` | Catálogo, carga y selección de piezas del atlas anatómico |
 | `blocks/` | Los bloques de contenido que el autor apila y reordena |
-| `collections/` | Las doce colecciones de Payload, con sus ganchos en `hooks/` |
+| `collections/` | Las diecisiete colecciones de Payload —doce archivos más los cinco catálogos del simulador, que viven juntos en `catalogos.ts`—, con sus ganchos en `hooks/` |
 | `components/` | Componentes de React: el sitio, el panel en `admin/` y los visores en `atlas/` |
 | `lib/` | Lógica compartida: sesión, rutas, búsqueda, respaldos, encuadre, simulador |
 | `migrations/` | Migraciones de esquema; en producción se aplican al arrancar |

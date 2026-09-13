@@ -23,11 +23,24 @@ export const NOMBRE_DE_MODULO: Record<string, string> = Object.fromEntries(
 /**
  * Ruta pública de una ficha, para saltar desde el panel a lo que se comenta.
  *
- * La biblioteca es la excepción: su módulo se llama «patologias» pero vive en
- * `/biblioteca`, porque para el residente es la biblioteca y no la colección.
+ * Dos excepciones, y las dos vienen de que el panel habla de colecciones y el
+ * residente de módulos:
+ *
+ * - La biblioteca: su colección se llama «patologias» pero vive en
+ *   `/biblioteca`, porque para el residente es la biblioteca.
+ * - El examen físico: es el único de los cinco sin página por documento. Las
+ *   maniobras se pintan todas juntas en el listado, agrupadas por segmento.
  */
 export const rutaPublica = (coleccion: string, id: string | number): string => {
   const modulo = MODULOS.find((m) => m.slug === coleccion)
   if (!modulo) return '/'
+  // Componer `/examen-fisico/<id>` como en los otros cuatro módulos daba un
+  // 404 de Next —no existe `examen-fisico/[id]/`— justo en los dos sitios en
+  // los que se pulsa: «Ver publicado ↗» después de publicar una maniobra, y
+  // «abrir ficha →» sobre un comentario. Como el contenido sí se había
+  // publicado, lo razonable era concluir que la publicación había fallado.
+  // El ancla lleva al listado aunque el `<article>` todavía no la declare; si
+  // algún día hay ficha por maniobra, esta línea es la que se quita.
+  if (modulo.slug === 'maniobras') return `${modulo.ruta}#maniobra-${id}`
   return `${modulo.ruta}/${id}`
 }

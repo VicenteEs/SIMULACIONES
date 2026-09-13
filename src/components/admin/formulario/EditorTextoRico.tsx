@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useReducer, useRef } from 'react'
-import { useEditor, EditorContent, type Content, type Editor } from '@tiptap/react'
+import { useEditor, EditorContent, Extension, type Content, type Editor } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { Underline } from '@tiptap/extension-underline'
 import { Link } from '@tiptap/extension-link'
@@ -24,6 +24,33 @@ import { lexicalATipTap, tipTapALexical } from '@/lib/textoRico'
  * presentan bastante mejor dentro de una ficha que un archivo suelto metido en
  * mitad de un párrafo.
  */
+
+/**
+ * El tabulador dentro de una lista no hace nada.
+ *
+ * `ListItem` de TipTap trae `Tab: () => sinkListItem(...)`, así que basta pulsar
+ * el tabulador en un punto para crear una sublista. El modelo de `textoRico.ts`
+ * no anida: la conversión la despliega en puntos sueltos y el autor ve
+ * deshacerse al recargar la jerarquía que acababa de escribir —y antes de
+ * arreglar la conversión, directamente perdía el texto—. Mientras el modelo sea
+ * plano, es preferible que la tecla no prometa lo que no se puede guardar.
+ *
+ * Solo se traga la pulsación dentro de una lista. Fuera devuelve `false` para
+ * que el tabulador siga sacando el foco del editor, que es como se sale de él
+ * sin ratón.
+ *
+ * La prioridad tiene que estar por encima de la de `ListItem` y `ListKeymap`
+ * (100, la de siempre): TipTap ordena los atajos por prioridad y atiende la
+ * tecla el primero que la reclame.
+ */
+const SinSublistas = Extension.create({
+  name: 'sinSublistas',
+  priority: 1000,
+  addKeyboardShortcuts() {
+    const dentroDeLista = () => this.editor.isActive('listItem')
+    return { Tab: dentroDeLista, 'Shift-Tab': dentroDeLista }
+  },
+})
 
 export function EditorTextoRico({
   valor,
@@ -54,7 +81,15 @@ export function EditorTextoRico({
         heading: { levels: [2, 3, 4] },
         horizontalRule: false,
         codeBlock: false,
+        // `code` es una extensión aparte de `codeBlock`, y viene encendida con
+        // su propio atajo (Ctrl+E) y su regla de entrada por acentos graves: se
+        // activaba sin ningún botón en la barra. La conversión no sabe guardar
+        // esa marca, así que el autor escribía `AO 31-A2` entre acentos, los
+        // veía desaparecer al aplicarse el monoespaciado y al recargar se
+        // encontraba el texto corrido, sin el destaque y sin los acentos.
+        code: false,
       }),
+      SinSublistas,
       Underline,
       Link.configure({
         openOnClick: false,

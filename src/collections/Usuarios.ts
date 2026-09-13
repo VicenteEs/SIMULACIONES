@@ -1,7 +1,7 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, PayloadRequest } from 'payload'
 import { administracionDeUsuarios, accesoAlPanel } from '@/access/payload'
 import { ajustarPrimerUsuario } from './hooks/primerUsuario'
-import { impedirAutobloqueo } from './hooks/autobloqueo'
+import { impedirAutobloqueo, impedirBorradoDelUltimoAdmin } from './hooks/autobloqueo'
 import { limpiarRastroDeUsuario } from './hooks/bajaDeUsuario'
 
 /**
@@ -50,6 +50,35 @@ export function correoDeClaveNueva(testigo: string): string {
     <p>Si no fue usted, no hace falta hacer nada: la contraseña actual sigue
     siendo válida.</p>
   `
+}
+
+/**
+ * Cuántos administradores activos quedan además del indicado.
+ *
+ * La comparten los dos guardias —el de la modificación y el del borrado—
+ * a propósito: cuando la consulta estaba escrita dos veces, era cuestión de
+ * tiempo que una de las copias se dejara el filtro de `activo` y contara como
+ * administrador a una cuenta desactivada, que es justamente la que no puede
+ * rescatar a nadie.
+ *
+ * El `req` se pasa para que la cuenta se haga dentro de la transacción que ya
+ * está abierta. Sin él, Payload abre otra contra la misma tabla que el gancho
+ * está a punto de escribir.
+ */
+async function contarOtrosAdminsActivos(req: PayloadRequest, exceptoId: string): Promise<number> {
+  const { totalDocs } = await req.payload.count({
+    collection: 'usuarios',
+    where: {
+      and: [
+        { rol: { equals: 'admin' } },
+        { activo: { equals: true } },
+        { id: { not_equals: exceptoId } },
+      ],
+    },
+    req,
+    overrideAccess: true,
+  })
+  return totalDocs
 }
 
 /**
@@ -105,25 +134,41 @@ export const Usuarios: CollectionConfig = {
           operacion: operation,
           documentoOriginal: originalDoc as Record<string, unknown> | undefined,
           idDeQuienEdita: req.user?.id === undefined ? undefined : String(req.user.id),
-          contarOtrosAdmins: async (exceptoId) => {
-            const { totalDocs } = await req.payload.count({
-              collection: 'usuarios',
-              where: {
-                and: [
-                  { rol: { equals: 'admin' } },
-                  { activo: { equals: true } },
-                  { id: { not_equals: exceptoId } },
-                ],
-              },
-            })
-            return totalDocs
-          },
+          contarOtrosAdmins: (exceptoId) => contarOtrosAdminsActivos(req, exceptoId),
         }),
     ],
-    // Antes de borrar la cuenta hay que decidir qué pasa con lo que deja: sin
-    // esto, la base rechaza el borrado de cualquiera que haya leído una ficha.
+    // Dos cosas, y el orden importa.
+    //
+    // Primero se comprueba que el borrado no deje la plataforma sin
+    // administrador: `limpiarRastroDeUsuario` borra la actividad y anonimiza
+    // los comentarios, y eso no tiene vuelta atrás. Si la comprobación fuera
+    // después, un borrado rechazado ya habría dejado a la cuenta sin su
+    // historial de lectura.
+    //
+    // Después se decide qué pasa con lo que deja: sin eso, la base rechaza el
+    // borrado de cualquiera que haya leído una ficha.
     beforeDelete: [
       async ({ req, id }) => {
+        // La cuenta se lee aquí porque `beforeDelete` no la trae: Payload
+        // entrega este gancho solo con `id` y `req` (`BeforeDeleteHook`).
+        // `disableErrors` evita convertir en excepción una cuenta que ya no
+        // está —un borrado a la vez, o un `where` que no casó con nada—, que no
+        // es un caso que haya que impedir.
+        const cuenta = await req.payload.findByID({
+          collection: 'usuarios',
+          id,
+          req,
+          overrideAccess: true,
+          depth: 0,
+          disableErrors: true,
+        })
+
+        await impedirBorradoDelUltimoAdmin({
+          documentoOriginal: (cuenta ?? undefined) as Record<string, unknown> | undefined,
+          idDeQuienEdita: req.user?.id === undefined ? undefined : String(req.user.id),
+          contarOtrosAdmins: (exceptoId) => contarOtrosAdminsActivos(req, exceptoId),
+        })
+
         await limpiarRastroDeUsuario({
           usuarioId: String(id),
           borrarActividad: async (usuarioId) => {
@@ -227,21 +272,61 @@ export const Usuarios: CollectionConfig = {
       },
     },
     {
+      // Lo escribe `afterLogin` y nadie más. Sin acceso de campo, el
+      // `admin: { readOnly: true }` de abajo no protegía nada: es una
+      // indicación para la interfaz de Payload —retirada en D-038— y el
+      // servidor nunca la miró. Lo único que filtra campos en escritura es
+      // `field.access[operación]` (`fields/hooks/beforeValidate/promise.js`:
+      // `if (field.access && field.access[operation])`), y sin la declaración
+      // se salta la comprobación entera y guarda lo que mandó el cliente.
+      //
+      // Así que un `PATCH /api/usuarios/<id>` con
+      // `{"ultimoAcceso": "2026-09-01T00:00:00.000Z"}` desde cualquier
+      // administrador con sesión reescribía esta fecha, y es la que mira la
+      // pantalla de cuentas y el recuento de activos de estadísticas para saber
+      // si una cuenta sigue en uso antes de darla de baja: se acaba dando de
+      // baja a quien sí entraba, o rescatando a una cuenta abandonada.
+      //
+      // Se cierran las dos operaciones, no solo la modificación. Payload se
+      // salta el acceso de un campo cuando la operación en curso no está
+      // declarada, y un `POST /api/usuarios` con la fecha puesta hacía nacer
+      // «en uso» una cuenta que no ha entrado nunca.
+      //
+      // El caso de `ultimaVisita` en Actividad, que no lleva esto, no es el
+      // mismo: allí un `beforeChange` reescribe el campo en la creación y en la
+      // modificación, así que lo que mande el cliente se pierde igual. Aquí no
+      // hay tal gancho; la fecha se escribe desde `afterLogin`, en una
+      // operación aparte.
+      //
+      // El gancho no se ve afectado: escribe por la API local, donde
+      // `overrideAccess` vale cierto por omisión y el acceso de campo ni se
+      // evalúa.
       name: 'ultimoAcceso',
       type: 'date',
       label: 'Último acceso',
+      access: { create: () => false, update: () => false },
       admin: {
         readOnly: true,
         description: 'Lo anota la plataforma en cada inicio de sesión.',
       },
     },
     {
+      // Hoy no lo lee ni lo escribe nadie, y conviene decirlo aquí antes de que
+      // alguien cuente con él. La columna existe desde la migración inicial,
+      // pero `usuarios` no está entre los slugs de `src/admin/esquema.ts`, así
+      // que el editor genérico del panel no llega; la pantalla propia de
+      // cuentas no lo pinta; `crearUsuario` no lo pone y `actualizarUsuario`
+      // trabaja con una lista cerrada de campos que no lo incluye. La interfaz
+      // de Payload, que sí lo habría mostrado, se retiró en D-038.
+      //
+      // Su `admin.description` prometía «visible solo para administradores», que
+      // era visible para nadie: se quita para no seguir describiendo una función
+      // que la plataforma no tiene. O se conecta al panel de cuentas, o se
+      // retira con su migración; mientras tanto, nadie debería guardar aquí algo
+      // que espere volver a ver.
       name: 'notas',
       type: 'textarea',
       label: 'Notas internas',
-      admin: {
-        description: 'Visible solo para administradores. Por ejemplo, quién pidió esta cuenta.',
-      },
     },
   ],
 }

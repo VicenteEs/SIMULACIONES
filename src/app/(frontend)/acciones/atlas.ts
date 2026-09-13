@@ -80,6 +80,17 @@ async function leerCatalogo(): Promise<CatalogoDelAtlas> {
 /** Versión del atlas instalado, para la página de sistema. */
 export async function versionDelAtlas(): Promise<Respuesta<{ version: string; piezas: number }>> {
   return accion(async () => {
+    // Leer el catálogo no necesita permisos, pero un `export` de un archivo
+    // 'use server' es un extremo HTTP: hoy solo la importa un componente de
+    // servidor y el identificador de la acción no llega a ningún navegador; el
+    // día que el taller enseñe la versión del atlas desde un componente de
+    // cliente —cosa natural, porque ya compara versiones para avisar de
+    // preparaciones desfasadas—, ese import lo mete en el paquete y la versión
+    // y el número de piezas quedan contestándole a cualquiera sin sesión, en
+    // contra de D-020. Quien lo escriba no va a sospecharlo: sus seis hermanas
+    // de este archivo sí comprueban. La página que la usa pasa por
+    // `exigirPanel('admin')`, así que esto no cambia nada visible.
+    await exigirEditor()
     const catalogo = await leerCatalogo()
     return { version: catalogo.version, piezas: catalogo.piezas.length }
   })

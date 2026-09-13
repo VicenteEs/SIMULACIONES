@@ -1,6 +1,53 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, FieldAccess } from 'payload'
 import { accesoDePropiedad, administracionDeUsuarios } from '@/access/payload'
 import { escaparHtml } from '@/lib/validacion'
+
+/**
+ * Campos que fija la plataforma al crear el comentario y que nadie reescribe
+ * después.
+ *
+ * `admin: { readOnly: true }` no protege nada: es una indicación para la
+ * interfaz de Payload —retirada en D-038— y el servidor nunca la miró. Lo único
+ * que filtra campos en escritura es el acceso de campo, y solo sobre los campos
+ * que lo declaran: `fields/hooks/beforeValidate/promise.js` hace
+ * `if (field.access && field.access[operation])` y, sin esa declaración, se
+ * salta la comprobación entera y conserva el valor que mandó el cliente.
+ *
+ * Sin esto, `update: accesoDePropiedad` deja que el autor de un comentario haga
+ * `PATCH /api/comentarios/<id>` —la API REST sigue montada— con
+ * `{"usuario": <otra cuenta>}` y el panel atribuya su observación a otro médico
+ * con nombre y correo, o que lo mueva a otra ficha con `coleccion` y
+ * `documentoId`.
+ *
+ * Solo cierra la modificación, a propósito: en la creación el gancho pone el
+ * autor y la acción de servidor valida módulo y ficha. Y solo actúa por REST,
+ * porque el acceso de campo se salta cuando `overrideAccess` es cierto, que es
+ * el valor por omisión de la API local con la que escriben el panel y la baja
+ * de cuentas.
+ */
+const FIJADO_AL_CREAR: { update: FieldAccess } = { update: () => false }
+
+/**
+ * Quién mantiene el contenido: administrador y editor con la cuenta activa.
+ *
+ * Mira `activo` como el resto de la plataforma (`habilitada()` en
+ * `src/access/reglas.ts`). Hoy el acceso de colección ya lo exige, pero una
+ * regla de campo que no lo comprueba es una divergencia esperando a que alguien
+ * afloje la de arriba.
+ */
+const mantenimientoDeContenido: FieldAccess = ({ req: { user } }) =>
+  Boolean(user?.activo && (user.rol === 'admin' || user.rol === 'editor'))
+
+/**
+ * Cuántos administradores como mucho reciben el aviso de un comentario nuevo.
+ *
+ * Aquí hubo un `limit: 10` suelto: el día que hubiera once administradores
+ * activos, uno dejaría de recibir avisos y nada lo delataría. El número alto es
+ * un tope de cortesía contra una consulta desbocada, no una política: esta
+ * plataforma tiene un puñado de administradores y en la práctica los alcanza a
+ * todos.
+ */
+const MAXIMO_DE_ADMINISTRADORES_AVISADOS = 200
 
 export const Comentarios: CollectionConfig = {
   slug: 'comentarios',
@@ -34,7 +81,7 @@ export const Comentarios: CollectionConfig = {
               where: {
                 and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }],
               },
-              limit: 10,
+              limit: MAXIMO_DE_ADMINISTRADORES_AVISADOS,
             })
 
             const adminEmails = adminQuery.docs.map((a: any) => a.email).filter(Boolean)
@@ -43,13 +90,39 @@ export const Comentarios: CollectionConfig = {
               // El texto lo escribe un usuario y aquí entra en un cuerpo HTML:
               // sin escapar, un comentario con etiquetas llegaria convertido en
               // marcado dentro del correo del administrador.
-              await req.payload.sendEmail({
-                to: adminEmails,
-                subject: `Nuevo comentario en ${doc.coleccion}`,
-                html: `<p>Se ha publicado un nuevo comentario.</p>
+              //
+              // El envío no se espera, y no es un descuido. Los ganchos
+              // `afterChange` de colección corren **dentro** de la transacción
+              // de la escritura: en `collections/operations/create.js` el bucle
+              // de ganchos está en la línea 291 y `commitTransaction` en la
+              // 324. Esperar aquí al diálogo SMTP deja abierta la transacción
+              // que acaba de insertar el comentario todo lo que tarde el
+              // servidor de correo —hasta los dos minutos de espera de
+              // nodemailer el día que deje de responder—, con el botón girando:
+              // el residente cree que no se guardó y vuelve a pulsar, y el
+              // comentario sale duplicado. La condición de entrada es solo que
+              // `SMTP_HOST` esté puesta, no que el servidor conteste.
+              //
+              // El aviso puede llegar tarde o no llegar; el comentario no puede
+              // tardar en guardarse. Si se vuelve a poner el `await`, vuelve el
+              // fallo.
+              void req.payload
+                .sendEmail({
+                  to: adminEmails,
+                  subject: `Nuevo comentario en ${doc.coleccion}`,
+                  html: `<p>Se ha publicado un nuevo comentario.</p>
                        <p><strong>Usuario:</strong> ${escaparHtml(req.user?.email || 'Desconocido')}</p>
                        <p><strong>Comentario:</strong> ${escaparHtml(String(doc.texto ?? ''))}</p>`,
-              })
+                })
+                .catch((error) =>
+                  // El `.catch` es obligatorio, no cortesía: una promesa suelta
+                  // que se rompe después de responder la petición tumba el
+                  // proceso de Node por rechazo no atendido.
+                  req.payload.logger.error({
+                    msg: 'No se pudo avisar por correo de un comentario nuevo',
+                    err: error,
+                  }),
+                )
             }
           } catch (error) {
             req.payload.logger.error({ msg: 'Error al enviar email de comentario', err: error })
@@ -68,6 +141,10 @@ export const Comentarios: CollectionConfig = {
       // comentarios se conservan sin autor. Valen por lo que dicen del
       // contenido, no por quien los escribio. El gancho de creacion siempre
       // pone el autor, de modo que un comentario nuevo nunca nace anonimo.
+      // Y el acceso de campo impide que deje de serlo después: sin él, el autor
+      // se regalaba el comentario a otra cuenta, o se lo quitaba a sí mismo
+      // mandando `null`, que es el estado reservado a las cuentas eliminadas.
+      access: FIJADO_AL_CREAR,
       admin: {
         readOnly: true,
       },
@@ -83,6 +160,7 @@ export const Comentarios: CollectionConfig = {
         { label: 'cirugias', value: 'cirugias' },
         { label: 'estudios-ia', value: 'estudios-ia' },
       ],
+      access: FIJADO_AL_CREAR,
       admin: {
         readOnly: true,
       },
@@ -94,6 +172,7 @@ export const Comentarios: CollectionConfig = {
       // Se consulta por ficha al abrirla: sin indice, cada apertura recorre la
       // tabla entera de comentarios.
       index: true,
+      access: FIJADO_AL_CREAR,
       admin: {
         readOnly: true,
       },
@@ -112,8 +191,22 @@ export const Comentarios: CollectionConfig = {
         { label: 'Pendiente', value: 'pendiente' },
         { label: 'Resuelto', value: 'resuelto' },
       ],
+      // Las dos operaciones, no solo `update`: Payload se salta el acceso de un
+      // campo cuando la operación en curso no está declarada, de modo que un
+      // `estado` sin `create` lo elegía quien mandaba la petición. Un
+      // `POST /api/comentarios` con `{"estado": "resuelto"}` desde una cuenta de
+      // lector nacía archivado: fuera del contador de pendientes de la barra
+      // lateral y fuera de la vista por omisión de la tabla, que arranca
+      // filtrada en «solo pendientes». El comentario no le llegaba a nadie y
+      // tampoco quedaba rastro de que se hubiera archivado solo.
+      //
+      // El `defaultValue` de arriba se encarga del resto: cuando la regla
+      // rechaza el valor, Payload lo borra de los datos entrantes y cae en el
+      // valor por omisión, así que el comentario de un lector nace pendiente
+      // aunque él mande otra cosa.
       access: {
-        update: ({ req: { user } }) => Boolean(user && (user.rol === 'admin' || user.rol === 'editor')),
+        create: mantenimientoDeContenido,
+        update: mantenimientoDeContenido,
       },
     },
   ],

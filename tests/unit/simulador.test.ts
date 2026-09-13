@@ -83,6 +83,29 @@ describe('evaluarGesto', () => {
     expect(objetivoDelPaso({ objetivo: 'trazo', fuerzaMinima: 8 })).toBe('trazo')
   })
 
+  it('las tolerancias no deducen sobre un paso que ya dice «instrumento»', () => {
+    // Las tres llevan `DEFAULT 5` en la migración y `defaultValue: 5` en el
+    // campo, así que toda fila las trae: deducir de ellas convertía cada paso
+    // de instrumento en uno de reducción que el residente no podía superar,
+    // porque la consola no le pinta los mandos de girar. Solo hablan cuando el
+    // paso llega sin objetivo ninguno, que es la línea de arriba.
+    const comoLoDevuelveLaBase = {
+      objetivo: 'instrumento',
+      instrumento: 'punzon',
+      toleranciaDesplazamiento: 5,
+      toleranciaDiastasis: 5,
+      toleranciaAngulacion: 5,
+    } as const
+    expect(objetivoDelPaso(comoLoDevuelveLaBase)).toBe('instrumento')
+    expect(
+      evaluarGesto(comoLoDevuelveLaBase, {
+        instrumento: 'punzon',
+        desplazamiento: 12.5,
+        angulacion: 9.8,
+      }).avanza,
+    ).toBe(true)
+  })
+
   it('un paso sin rango declarado no puede producir una complicación', () => {
     const sinRango = { ...paso, fuerzaMinima: undefined, fuerzaMaxima: undefined }
     const r = evaluarGesto(sinRango, { instrumento: paso.instrumento, fuerza: 999 })

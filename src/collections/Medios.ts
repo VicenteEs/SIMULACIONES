@@ -28,6 +28,18 @@ export const Medios: CollectionConfig = {
     //
     // Al moverla, las fichas ya escritas siguen funcionando sin tocar la base:
     // el campo `url` de Payload es virtual y se recalcula en cada lectura.
+    //
+    // Hasta aquí llega esta colección, y conviene no darlo por más de lo que
+    // es. `lecturaSimple` devuelve el booleano `true` para cualquier cuenta
+    // activa, y con un `true` a secas Payload no consulta la base en
+    // `uploads/checkFileAccess.js` —la comprobación solo corre cuando el
+    // resultado es un objeto de condiciones—, así que el archivo de una ficha
+    // en borrador se sirve igual que el de una publicada. Apretar el `read` de
+    // aquí NO es la salida: las páginas leen con `overrideAccess: false` y
+    // Payload propaga ese valor al poblar relaciones, de modo que negarle la
+    // lectura al lector le dejaría sin imágenes también las fichas publicadas.
+    // Lo que hay que cerrar es el listado de la API REST, que el navegador no
+    // usa; vive en `src/app/(payload)/api/[...slug]/route.ts`.
     staticDir: 'medios',
     // Privada y con `Vary: Cookie`: ver el comentario de la función.
     modifyResponseHeaders: cacheDeArchivoPrivado,

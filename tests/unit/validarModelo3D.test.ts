@@ -58,8 +58,13 @@ describe('validarModelo3D', () => {
     expect(r.nombreSeguro).toBe('etc-passwd.glb')
   })
 
-  it('acepta también la extensión .gltf', () => {
-    expect(validarModelo3D({ nombre: 'femur.gltf', contenido: glbValido() }).valido).toBe(true)
+  it('rechaza un glTF de texto: arrastra .bin y texturas que no se guardan', () => {
+    // La prueba anterior decía «acepta también la extensión .gltf» y le pasaba
+    // un búfer BINARIO con nombre `femur.gltf`, de modo que comprobaba lo
+    // contrario de lo que anunciaba: que la firma manda sobre la extensión.
+    // Un `.gltf` de verdad es JSON y nunca se pudo subir.
+    const json = Buffer.from('{"asset":{"version":"2.0"}}', 'utf8')
+    expect(validarModelo3D({ nombre: 'femur.gltf', contenido: json }).valido).toBe(false)
   })
   it('tambien neutraliza una ruta al estilo de Windows', () => {
     const bs = String.fromCharCode(92) // barra invertida de Windows

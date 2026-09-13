@@ -71,7 +71,19 @@ export function piezaBajoElRayo(
     }
 
     if (rayo.ray.intersectBox(cajaAuxiliar, puntoAuxiliar)) {
-      candidatas.push({ indice, distancia: rayo.ray.origin.distanceTo(puntoAuxiliar) })
+      // Con el origen del rayo dentro de la caja, `intersectBox` no devuelve la
+      // entrada sino la SALIDA —three hace `this.at(tmin >= 0 ? tmin : tmax)`, y
+      // con la cámara dentro `tmin` es negativo—, y esa distancia no acota por
+      // abajo el impacto real: es mayor, a veces por decenas de centímetros. La
+      // candidata se ordenaba entonces la última y el corte de la etapa 2 la
+      // descartaba sin mirarle un triángulo. Pasa de verdad: `minDistance` son
+      // 0,1 m y la caja del fémur mide 0,118 × 0,466 × 0,063, así que mirar la
+      // diáfisis de cerca mete el ojo dentro del hueso y se señalaba el músculo
+      // de al lado. Dentro de la caja la cota inferior correcta es 0.
+      const distancia = cajaAuxiliar.containsPoint(rayo.ray.origin)
+        ? 0
+        : rayo.ray.origin.distanceTo(puntoAuxiliar)
+      candidatas.push({ indice, distancia })
     }
   }
 

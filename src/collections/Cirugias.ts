@@ -4,6 +4,82 @@ import { lecturaDeBorradores, lecturaDeModulo, escrituraDeModulo } from '@/acces
 import { editorClinico, pilaDeBloques } from '@/blocks'
 
 /**
+ * Los cuatro modos de evaluación, en un solo sitio.
+ *
+ * Están aquí arriba y no escritos dentro del campo porque los necesitan dos
+ * cosas: las `options` que se ofrecen y la validación que las comprueba a mano
+ * (ver `exigeElRangoDeSuObjetivo`). Con dos copias, añadir un modo a la lista
+ * de abajo y olvidarlo en la de arriba deja un objetivo que se puede elegir en
+ * el panel y que la validación rechaza, sin que nada lo avise hasta que el
+ * traumatólogo no consigue guardar.
+ */
+const OBJETIVOS = [
+  { value: 'instrumento', label: 'Elegir el instrumento correcto' },
+  { value: 'trazo', label: 'Trazar una incisión de la longitud correcta' },
+  { value: 'reduccion', label: 'Reducir la fractura dentro de la tolerancia' },
+  { value: 'fuerza', label: 'Aplicar la fuerza correcta' },
+]
+
+/**
+ * Un modo de evaluación sin su rango aprueba cualquier cosa.
+ *
+ * `evaluarGesto` (src/lib/simulador.ts) solo compara contra los topes que
+ * existen: con `objetivo: 'trazo'` y las dos longitudes vacías se salta los dos
+ * `if` y devuelve `bien(paso.exito)` para una incisión de 1 mm; con
+ * `objetivo: 'fuerza'` y los dos topes vacíos hace lo mismo con 0 N. El paso se
+ * ve evaluado y no evalúa nada, que es peor que no evaluar: enseña que la
+ * medida da igual.
+ *
+ * Se corta al guardar y no al ejecutarlo porque cuando el residente lo nota el
+ * caso ya está publicado, y se corta aquí porque la colección es el único punto
+ * por el que pasan todas las escrituras —el panel propio y la API REST—. El
+ * `admin.condition` de los campos no sirve para esto: es interfaz de Payload, y
+ * esa interfaz se retiró (D-038).
+ *
+ * No estorba a medio escribir: Payload salta las validaciones al guardar un
+ * borrador (`skipValidation: isSavingDraft && …` en
+ * `collections/operations/create.js`), así que el aviso aparece al publicar.
+ *
+ * `reduccion` queda fuera a propósito: sus tres tolerancias tienen
+ * `defaultValue: 5`, de modo que siempre hay rango contra el que medir.
+ *
+ * Empieza repitiendo lo que comprobaba Payload —obligatorio y dentro de la
+ * lista—, y no es redundancia: ver el comentario de dentro.
+ */
+const exigeElRangoDeSuObjetivo = (
+  valor: string | null | undefined,
+  { siblingData }: { siblingData?: unknown },
+): string | true => {
+  // Payload instala su validación de `select` solo si el campo no trae la suya
+  // (`fields/config/sanitize.js`: `if (typeof field.validate === 'undefined')`),
+  // y al guardar llama únicamente a `field.validate`. Declarar una aquí la
+  // SUSTITUYE, no la acompaña: sin estas dos comprobaciones, el `required: true`
+  // del campo y su lista de opciones dejan de valer.
+  //
+  // Y el agujero no sale por donde se ve: un objetivo inventado llegaría al
+  // enum de PostgreSQL (`enum_cirugias_pasos_objetivo`), reventaría la
+  // transacción y volvería al panel como un 500 «Something went wrong», porque
+  // lo que no es un `APIError` no se considera público (`isErrorPublic.js`).
+  if (valor === null || valor === undefined || valor === '') {
+    return 'Cada paso tiene que declarar qué se evalúa.'
+  }
+  if (!OBJETIVOS.some((opcion) => opcion.value === valor)) {
+    return 'Ese objetivo no está en la lista: instrumento, trazo, reducción o fuerza.'
+  }
+
+  const paso = (siblingData ?? {}) as Record<string, unknown>
+  const declara = (...campos: string[]) => campos.some((c) => typeof paso[c] === 'number')
+
+  if (valor === 'trazo' && !declara('trazoMinimo', 'trazoMaximo')) {
+    return 'Un paso que evalúa el trazo necesita al menos una de las dos longitudes: sin rango, cualquier incisión se da por buena.'
+  }
+  if (valor === 'fuerza' && !declara('fuerzaMinima', 'fuerzaMaxima')) {
+    return 'Un paso que evalúa la fuerza necesita al menos uno de los dos topes: sin rango, cualquier fuerza se da por buena.'
+  }
+  return true
+}
+
+/**
  * Módulo 04 · Simulador quirúrgico.
  *
  * Un caso es una fractura concreta —hueso, clasificación AO y técnica— con su
@@ -239,12 +315,11 @@ export const Cirugias: CollectionConfig = {
           required: true,
           defaultValue: 'instrumento',
           label: 'Qué se evalúa en este paso',
-          options: [
-            { label: 'Elegir el instrumento correcto', value: 'instrumento' },
-            { label: 'Trazar una incisión de la longitud correcta', value: 'trazo' },
-            { label: 'Reducir la fractura dentro de la tolerancia', value: 'reduccion' },
-            { label: 'Aplicar la fuerza correcta', value: 'fuerza' },
-          ],
+          // Sin su rango, el modo no evalúa nada: ver `exigeElRangoDeSuObjetivo`.
+          // Ojo: esa función reemplaza a la que pondría Payload, así que también
+          // es la que hace valer el `required` y la lista de aquí abajo.
+          validate: exigeElRangoDeSuObjetivo,
+          options: OBJETIVOS,
         },
         {
           name: 'instrumento',

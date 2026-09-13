@@ -74,7 +74,17 @@ export interface Evaluacion {
   avanza: boolean
   /** Hubo daño: cuenta como complicación en el registro, no como reintento. */
   complicacion: boolean
-  /** Puntos ganados. Solo se ganan al primer intento correcto; eso lo lleva quien llama. */
+  /**
+   * Lo que vale el paso hecho bien **a la primera**.
+   *
+   * El motor no tiene memoria: evalúa un gesto suelto y no sabe si es el primer
+   * intento o el séptimo, así que entrega siempre el valor entero y quien llama
+   * decide si lo cobra. Para eso hay que llevar la cuenta de los **fallos** de
+   * cada paso, no la de los aciertos: un paso se acierta una sola vez y después
+   * se avanza, de modo que preguntar «¿ya estaba resuelto?» antes de sumar es
+   * una guarda que nunca se cumple en falso, y deja el mismo puntaje para quien
+   * acierta a la primera y para quien reintenta veinte veces (D-059).
+   */
   puntos: number
 }
 
@@ -93,23 +103,56 @@ const redondear1 = (n: number) => Math.round(n * 10) / 10
 /**
  * Qué se le mide a este paso.
  *
- * Lo normal es que el paso lo diga: el campo tiene valor por omisión en la
- * colección y el médico lo elige de una lista. Cuando falta —un caso escrito
- * antes de que existieran los cuatro objetivos, o una fila importada— se deduce
- * de lo que el paso sí declara, en vez de dar por hecho que basta con elegir el
- * instrumento. Suponerlo sería peor que quedarse corto: un paso con su rango de
- * fuerza guardado se aprobaría sin mirar la fuerza, y nadie vería el fallo,
- * porque no hay error que enseñar. Un rango escrito y no evaluado es una regla
- * que el residente cree estar cumpliendo.
+ * Lo normal es que el paso lo diga: el médico lo elige de una lista. Pero
+ * `'instrumento'` no prueba que lo eligiera nadie, y por eso no se toma como
+ * una declaración:
+ *
+ * - es el valor con el que `casoParaLaConsola` rellena el campo ausente
+ *   (`casoQuirurgico.ts`, `texto(p.objetivo) ?? 'instrumento'`), de modo que a
+ *   la consola nunca llega un paso sin objetivo y la deducción de más abajo
+ *   quedaba como código muerto —ese mismo sitio resuelve ahora el objetivo con
+ *   esta función antes de mandarlo al navegador, porque la consola pinta sus
+ *   mandos por el campo y tiene que ver lo mismo que se mide aquí—;
+ * - y es lo que la migración de D-059 escribió, como `DEFAULT` de la columna
+ *   nueva, en **toda** fila que ya existía: los pasos anteriores al 10 de
+ *   septiembre con su rango de fuerza escrito quedaron marcados así.
+ *
+ * Ante ese valor se sigue deduciendo del **rango** que el paso declara, pero
+ * solo del que nadie pudo escribir por él. Suponer lo contrario sería peor que
+ * quedarse corto: un paso con su rango de fuerza guardado se aprobaría sin
+ * mirar la fuerza, y nadie vería el fallo, porque no hay error que enseñar. Un
+ * rango escrito y no evaluado es una regla que el residente cree estar
+ * cumpliendo.
+ *
+ * Los cuatro números de la fuerza y del trazo sí prueban una intención: sus
+ * columnas se crearon sin `DEFAULT` (`20260906_150718_inicial.ts`, fuerza; y
+ * `20260910_125801_caso_quirurgico.ts`, trazo) y los campos no tienen
+ * `defaultValue`, así que un número ahí lo tecleó alguien.
+ *
+ * El precio es el inverso, y se acepta a sabiendas: quien elija «elegir el
+ * instrumento» y deje escrito el rango de la fuerza o del trazo —el panel
+ * pinta los siete números siempre, uno debajo de otro— obtiene ese otro. Ese
+ * descuido se ve en la instrucción de pantalla, que sale de aquí mismo; el
+ * silencio del caso contrario no se ve en ninguna parte.
  */
 export function objetivoDelPaso(paso: PasoQuirurgico): Objetivo {
-  if (paso.objetivo) return paso.objetivo
+  if (paso.objetivo && paso.objetivo !== 'instrumento') return paso.objetivo
   const declara = (...valores: Array<number | null | undefined>) =>
     valores.some((v) => typeof v === 'number')
 
   if (declara(paso.fuerzaMinima, paso.fuerzaMaxima)) return 'fuerza'
   if (declara(paso.trazoMinimo, paso.trazoMaximo)) return 'trazo'
+  // Las tres tolerancias no deducen nada cuando el paso ya trae 'instrumento'
+  // escrito: tienen `defaultValue: 5` en `Cirugias.ts` y `DEFAULT 5` en la
+  // migración, de modo que **toda** fila las lleva puestas. Deducir de ellas
+  // convertía cada paso de instrumento en uno de reducción imposible: el caso
+  // de prueba arranca con 9.8° de angulación, la consola solo pinta los mandos
+  // de girar cuando el paso dice 'reduccion', y el segundo paso —que solo pedía
+  // coger el punzón— no se podía superar. Solo hablan cuando el paso llega sin
+  // objetivo ninguno, que es la forma que ya no produce la consola pero sí
+  // puede llegar de la API.
   if (
+    !paso.objetivo &&
     declara(
       paso.toleranciaDesplazamiento,
       paso.toleranciaDiastasis,
@@ -168,8 +211,19 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
         )
       }
       if (typeof trazoMaximo === 'number' && largo > trazoMaximo) {
-        // Una incisión de más no impide seguir, pero deja cicatriz y expone
-        // tejido sin necesidad: es complicación, no reintento.
+        // Una incisión de más deja cicatriz y expone tejido sin necesidad: se
+        // marca como complicación, y **no** se avanza.
+        //
+        // Aquí decía lo contrario —«no impide seguir»— y el código nunca lo
+        // hizo: `nada()` devuelve siempre `avanza: false`. Se corrige el
+        // comentario y no el código porque la complicación todavía no
+        // sobrevive al paso: solo llega al registro en pantalla, diez líneas
+        // que se pierden al recargar. D-059 se lee al revés —«quedarse corto
+        // es reintento, pasarse es complicación y queda registrada»— y
+        // apartarse de ella aquí es deliberado: dejar avanzar sin cobrar
+        // puntos exige antes que la complicación sobreviva al paso, y mientras
+        // no lo haga, avanzar convertiría el exceso en gratis y sin rastro,
+        // que enseña menos que obligar a repetir.
         return nada(
           `${paso.excesivo || 'La incisión es mayor de lo necesario.'} (${redondear1(largo)} mm · se esperan ${trazoMinimo ?? '?'}–${trazoMaximo} mm)`,
           RESULTADOS.TRAZO_LARGO,
@@ -235,7 +289,15 @@ export function fuerzaInicial(paso: PasoQuirurgico): number {
   if (typeof fuerzaMinima === 'number' && typeof fuerzaMaxima === 'number') {
     return Math.round((fuerzaMinima + fuerzaMaxima) / 2)
   }
-  return fuerzaMinima ?? 10
+  // Con un solo extremo declarado el mando también tiene que arrancar dentro.
+  // Los dos campos son independientes y opcionales, así que «no más de 8 N» es
+  // un paso perfectamente válido, y devolver el 10 de siempre dejaba el control
+  // por encima del techo: el residente aplicaba el paso sin haber tocado nada y
+  // se le anotaba una complicación que había puesto el código al colocar el
+  // mando, no él al decidir.
+  if (typeof fuerzaMinima === 'number') return fuerzaMinima
+  if (typeof fuerzaMaxima === 'number') return Math.min(10, fuerzaMaxima)
+  return 10
 }
 
 /** Lo que vale el caso entero: la suma de sus pasos. */

@@ -11,7 +11,16 @@
 /** Techo de 5 MB: por encima, la plataforma deja de abrirse en equipos modestos. */
 export const LIMITE_BYTES_MODELO_3D = 5 * 1024 * 1024
 
-const EXTENSIONES = ['.glb', '.gltf']
+/**
+ * Solo `.glb`. Aquí estuvo también `.gltf`, y era una promesa que no se podía
+ * cumplir: un `.gltf` es JSON plano, empieza por `{` y nunca lleva la firma
+ * binaria que se comprueba más abajo, de modo que se anunciaba un formato que
+ * se rechazaba siempre. Aparte del formato, el glTF de texto viene acompañado
+ * de un `.bin` y de las texturas sueltas, y la colección guarda un archivo por
+ * documento. De las tres opciones del cuadro de exportación de Blender, la que
+ * sirve es «glTF Binary (.glb)».
+ */
+const EXTENSIONES = ['.glb']
 
 /** "glTF" en ASCII, la firma de un glTF binario. */
 const FIRMA_GLTF = 0x676c5446
@@ -33,6 +42,18 @@ export interface ResultadoValidacion {
 /**
  * Reduce un nombre de archivo a algo que no pueda escapar del directorio de
  * subidas ni interpretarse como ruta.
+ *
+ * Lo aplica el gancho `beforeOperation` de `src/collections/Modelos3D.ts`, que
+ * reescribe `req.file.name` antes de que Payload decida dónde guardar. Estuvo
+ * escrita y probada sin que nadie la llamara, que es la peor de las dos
+ * situaciones: el test en verde hacía creer que la defensa corría. Payload
+ * sanea el nombre base por su cuenta (`sanitize-filename` en
+ * `uploads/generateFileData.js`), pero no la extensión, que toma de un
+ * `split('.').pop()` sin mirar.
+ *
+ * Deja fuera todo lo que no sea ASCII básico, así que «fémur.glb» se guarda
+ * como «f-mur.glb». El nombre visible del modelo es el campo `nombre`, no el
+ * del archivo, así que el cambio no se ve en el panel.
  */
 export function nombreSeguroDeArchivo(nombre: string): string {
   const partes = nombre

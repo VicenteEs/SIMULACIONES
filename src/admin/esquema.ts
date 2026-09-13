@@ -51,7 +51,21 @@ export type Campo =
   | (CampoBase & { tipo: 'texto' })
   | (CampoBase & { tipo: 'area'; filas?: number })
   | (CampoBase & { tipo: 'numero'; min?: number; max?: number; paso?: number })
-  | (CampoBase & { tipo: 'seleccion'; opciones: Opcion[] })
+  | (CampoBase & {
+      tipo: 'seleccion'
+      opciones: Opcion[]
+      /**
+       * Con qué opción se queda un valor obligatorio que no llega.
+       *
+       * Sin esto el respaldo era `opciones[0]`, y el orden de la lista es de
+       * presentación: en `rol` está «piel» primera porque es la capa más
+       * externa, no porque una pieza sin clasificar sea piel. Tiene que
+       * coincidir con el `defaultValue` del mismo campo en `src/collections`,
+       * porque el de Payload no llega a actuar nunca: `depurarCampos` escribe
+       * siempre la clave y un `defaultValue` solo se aplica ante `undefined`.
+       */
+      porOmision?: string
+    })
   | (CampoBase & { tipo: 'casilla' })
   | (CampoBase & {
       tipo: 'relacion'
@@ -422,6 +436,21 @@ export const Cirugias: EsquemaDeColeccion = {
               nombre: 'rol',
               etiqueta: 'Qué es',
               requerido: true,
+              // El mismo valor que `defaultValue` en `src/collections/Cirugias.ts`
+              // y que el DEFAULT de la columna. Una fila añadida con «+ Agregar
+              // pieza» nace vacía, y con el respaldo por orden de lista se
+              // guardaba como «piel» mientras el taller la enseñaba como «Hueso
+              // fijo»: la consola abre con piel y músculo apagados, así que el
+              // hueso recién declarado era invisible hasta que alguien marcaba
+              // a mano la casilla «Piel».
+              //
+              // Arregla lo que se guarda, no lo que se enseña: debajo del
+              // taller, la misma fila se repinta con el desplegable genérico de
+              // `formulario/Campos.tsx`, que usa `value={texto(valor)}` y, por
+              // ser obligatorio el campo, no ofrece opción vacía; el navegador
+              // enseña entonces la primera, «Piel». Esa contradicción en
+              // pantalla se cierra allí, no aquí.
+              porOmision: 'hueso',
               opciones: [
                 { valor: 'piel', etiqueta: 'Piel' },
                 { valor: 'musculo', etiqueta: 'Músculo' },
@@ -682,7 +711,15 @@ export const Medios: EsquemaDeColeccion = {
   ],
   subida: {
     acepta: 'image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm',
-    ayuda: 'Imagen (PNG, JPG, WEBP, SVG) o video (MP4, WEBM). Máximo 50 MB.',
+    // Decía 50 MB, que es el techo de `upload.limits` en `payload.config.ts`, y
+    // ese nunca se llega a ejercer: la subida va por acción de servidor y Next
+    // corta el cuerpo en los 8 MB de `serverActions.bodySizeLimit`
+    // (`next.config.mjs`). Un vídeo de 14 MB —el caso corriente del módulo 02—
+    // se rechazaba en el marco, sin mensaje, seis veces por debajo del número
+    // que el panel prometía. Se anuncian 7 MB y no 8 porque el cuerpo lleva
+    // además el formulario y su codificación. Los dos números se deciden
+    // juntos: cambiar uno sin el otro los vuelve a separar.
+    ayuda: 'Imagen (PNG, JPG, WEBP, SVG) o video (MP4, WEBM). Máximo 7 MB.',
   },
   secciones: [
     {
@@ -936,14 +973,28 @@ export const Instrumental: EsquemaDeColeccion = {
         },
         { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden en la bandeja', medio: true },
         { tipo: 'area', nombre: 'descripcion', etiqueta: 'Para qué sirve' },
-          {
-            tipo: 'relacion',
-            nombre: 'modelo',
-            etiqueta: 'Modelo 3D del instrumento',
-            coleccion: 'modelos-3d',
-            ayuda:
-              'Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez.',
-          },
+        {
+          tipo: 'relacion',
+          nombre: 'modelo',
+          etiqueta: 'Modelo 3D del instrumento',
+          coleccion: 'modelos-3d',
+          ayuda: 'Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez.',
+        },
+        {
+          // Existe en la colección desde siempre y era el único campo del
+          // repositorio que el esquema del panel no describía. Como la
+          // interfaz de Payload se retiró (D-038), no quedaba ninguna pantalla
+          // desde la que llenarlo, y duplicar un instrumento lo perdía:
+          // `duplicarDocumento` reconstruye la copia con `depurarDocumento` y
+          // ahí solo sobrevive lo descrito aquí.
+          tipo: 'relacion',
+          nombre: 'tecnicas',
+          etiqueta: 'Técnicas en las que se usa',
+          coleccion: 'tecnicas-quirurgicas',
+          multiple: true,
+          ayuda:
+            'Solo ordena el catálogo. La bandeja de un caso la forman los instrumentos que sus pasos declaran, no esta lista.',
+        },
       ],
     },
   ],

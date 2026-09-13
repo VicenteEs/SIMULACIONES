@@ -121,7 +121,26 @@ export async function cargarPaquetes(
       if (!respuesta.ok) {
         throw new Error(`No se pudo descargar ${paquete.archivo} (${respuesta.status}).`)
       }
-      buferes.set(indice, await respuesta.arrayBuffer())
+
+      const datos = await respuesta.arrayBuffer()
+      // El catálogo declara el tamaño ya descomprimido de cada paquete, y
+      // `montarEscena` construye vistas tipadas sobre estos bytes con los
+      // desplazamientos del catálogo tal cual. Eso depende de algo que no es
+      // del guion de empaquetado sino del transporte: que el
+      // `Content-Encoding: gzip` de `next.config.mjs` llegue intacto. La
+      // plataforma va detrás de un proxy compartido; si ese proxy recomprime o
+      // quita la cabecera, la respuesta llega con 200 y con el gzip crudo, y el
+      // fallo salía treinta líneas más allá como un «Invalid typed array
+      // length» en inglés, sin decir qué paquete ni que hubiera que mirar el
+      // proxy. Y como los paquetes se sirven «immutable» un año, recargar no lo
+      // arreglaba.
+      if (datos.byteLength !== paquete.bytes) {
+        throw new Error(
+          `${paquete.archivo} llegó con ${datos.byteLength} bytes y el catálogo declara ` +
+            `${paquete.bytes}. Suele ser el proxy alterando Content-Encoding: gzip.`,
+        )
+      }
+      buferes.set(indice, datos)
       alProgresar?.(++hechos, pendientes.length)
     }
   }
@@ -173,13 +192,21 @@ export function montarEscena(
 
   // --- agrupar por sistema lo que se puede dibujar -------------------------
   const porSistema = new Map<string, { pieza: PiezaDelAtlas; indice: number }[]>()
-  catalogo.piezas.forEach((pieza, indice) => {
-    if (!buferes.has(pieza.paquete)) return
-    if (soloEstas && !soloEstas.has(pieza.id)) return
+  // Bucle llano y no `forEach`: este es el único sitio donde una función
+  // interna miraría `buferes`, y con eso V8 lo mete en el contexto que
+  // comparten todos los cierres de este ámbito —entre ellos el `liberar` que
+  // se devuelve y que el visor guarda mientras está montado—. La escena pasaba
+  // entonces a retener los 57 MB de paquetes descomprimidos toda la sesión, y
+  // `liberar()` no los recuperaba porque el cierre que lo llama ES lo que los
+  // retenía. Montada la geometría no hace falta ni un byte más de `buferes`.
+  for (let indice = 0; indice < catalogo.piezas.length; indice += 1) {
+    const pieza = catalogo.piezas[indice]
+    if (!buferes.has(pieza.paquete)) continue
+    if (soloEstas && !soloEstas.has(pieza.id)) continue
     const lista = porSistema.get(pieza.sistema) ?? []
     lista.push({ pieza, indice })
     porSistema.set(pieza.sistema, lista)
-  })
+  }
 
   const colores = new Map(catalogo.sistemas.map((s) => [s.id, s.color]))
   const mallas: THREE.Mesh[] = []
@@ -268,10 +295,23 @@ function materialDelSistema(
     side: THREE.DoubleSide,
   })
 
+  // La separación pedida vive en el material, no en el uniforme.
+  //
+  // `onBeforeCompile` no corre al construir el material: three lo llama dentro
+  // de `getProgram`, en el primer dibujado de esa malla. `VisorAtlas` añade las
+  // mallas a la escena y llama a `aplicarSeparacion` acto seguido, sin un
+  // fotograma por medio, así que en ese momento todavía no hay sombreador al
+  // que escribirle nada. Con un 0 fijo aquí, una ficha guardada con el cuerpo
+  // separado se abría cerrada y sin arreglo posible: el visor de instancia es
+  // de solo lectura y el valor no vuelve a cambiar nunca. Y el picking sí usaba
+  // la separación guardada, de modo que el nombre flotante se calculaba contra
+  // una anatomía que no estaba dibujada.
+  material.userData.separacion = 0
+
   material.onBeforeCompile = (sombreador) => {
     sombreador.uniforms.estados = { value: estados }
     sombreador.uniforms.ladoEstados = { value: lado }
-    sombreador.uniforms.separacion = { value: 0 }
+    sombreador.uniforms.separacion = { value: material.userData.separacion }
 
     sombreador.vertexShader = `
       attribute float dePieza;
@@ -320,7 +360,13 @@ function materialDelSistema(
 /** Cambia la separación de todas las mallas de una escena. */
 export function aplicarSeparacion(escena: EscenaDelAtlas, separacion: number) {
   for (const malla of escena.mallas) {
-    const sombreador = (malla.material as THREE.Material).userData?.sombreador
+    const material = malla.material as THREE.Material
+    // Se anota en el material pase lo que pase, y solo después se intenta
+    // tocar el uniforme. Antes del primer dibujado no hay sombreador —ver
+    // `materialDelSistema`— y sin esta línea la llamada era un no-op callado
+    // que dejaba el cuerpo cerrado para siempre.
+    material.userData.separacion = separacion
+    const sombreador = material.userData.sombreador
     if (sombreador?.uniforms?.separacion) sombreador.uniforms.separacion.value = separacion
   }
 }

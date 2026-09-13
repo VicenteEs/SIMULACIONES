@@ -37,9 +37,29 @@ requeridas="POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB PAYLOAD_SECRET NEXT_PUBL
 [ "$TUNEL" = "cloudflare" ] && requeridas="$requeridas CLOUDFLARE_TUNNEL_TOKEN"
 # shellcheck disable=SC2086
 exigir_variables $requeridas
+# Esto para el despliegue, y no es exceso de celo: sin HTTPS la plataforma
+# arranca, responde y no deja entrar a nadie, nunca. La cookie de sesion sale
+# con Secure en cuanto NODE_ENV vale production (lo fijan los tres composes y
+# el Dockerfile), y el navegador DESCARTA una cookie Secure llegada por http.
+# Quien despliega crea la primera cuenta en /instalar, el cliente salta al
+# panel, no hay sesion, vuelve al formulario y no aparece ningun error: la
+# accion de servidor devolvio exito. Desde fuera, la plataforma acepta la
+# contrasena correcta y no abre.
+#
+# Antes era un aviso ambar entre veinte lineas verdes, y ademas apuntaba a otra
+# cosa ("la cookie viajara sin cifrar"), de modo que quien lo leia buscaba un
+# problema de confidencialidad y no relacionaba las dos cosas: se acababa
+# buscando el fallo en la base, en el proxy o en la cuenta.
+#
+# localhost y 127.0.0.1 se exceptuan porque el navegador los trata como origen
+# seguro y ahi la cookie si se guarda.
 case "$NEXT_PUBLIC_SERVER_URL" in
-  https://*) ;;
-  *) ambar "    NEXT_PUBLIC_SERVER_URL no usa HTTPS: la cookie de sesion viajara sin cifrar." ;;
+  https://*|http://localhost*|http://127.0.0.1*) ;;
+  *) morir "NEXT_PUBLIC_SERVER_URL no usa HTTPS ($NEXT_PUBLIC_SERVER_URL).
+    La cookie de sesion se emite con Secure en produccion, asi que el navegador
+    la descarta sobre http: nadie podra entrar y el formulario no dara ningun
+    error. Publique con HTTPS (tailscale serve/funnel, o el tunel de
+    Cloudflare) y vuelva a ejecutar este guion." ;;
 esac
 verde "    configuracion completa"
 

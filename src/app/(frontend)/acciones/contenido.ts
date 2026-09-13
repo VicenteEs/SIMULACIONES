@@ -55,7 +55,17 @@ export async function listarDocumentos(
 ): Promise<Respuesta<Pagina>> {
   return accion(async () => {
     const esquema = esquemaValidado(slug)
-    const { payload } = await exigirEditor()
+    // `exigirEdicionDe` y no `exigirEditor`: la consulta de abajo va con
+    // `overrideAccess: true` —el panel tiene que enseñar borradores—, así que
+    // ni `lecturaDeModulo` ni `escrituraDeModulo` intervienen y esta guardia es
+    // lo único que mira el módulo. Con `exigirEditor` a secas, un editor
+    // limitado a «patologías» llamaba a la acción desde la consola con otro
+    // slug —su identificador ya viaja en el paquete de `TablaDocumentos`— y
+    // recibía el listado ajeno entero, borradores incluidos. La página que la
+    // ofrece ya para en la puerta con `exigirPanelPara`, que pregunta lo mismo;
+    // una acción de servidor es otro extremo HTTP y se alcanza sin pasar por
+    // ella.
+    const { payload } = await exigirEdicionDe(esquema.slug)
 
     const pagina = Math.max(1, Math.floor(Number(opciones.pagina) || 1))
     const condiciones: Record<string, unknown>[] = []
@@ -133,7 +143,13 @@ export async function opcionesDeRelacion(
     const slug = aparte ? (coleccion as string) : esquemaValidado(coleccion).slug
     const titulo = aparte ?? esquemaDe(slug).titulo
 
-    const { payload } = await exigirEditor()
+    // Misma razón que en `listarDocumentos`: lee con `overrideAccess: true`, de
+    // modo que el permiso por módulo solo se comprueba aquí. No estrecha ningún
+    // desplegable real: `puedeEditar` solo restringe los cinco módulos
+    // (`SLUGS_DE_MODULOS`), y ninguna relación del esquema apunta a uno —van a
+    // medios, modelos, segmentos, catálogos y preparaciones del atlas—, así que
+    // cualquier editor las sigue listando igual.
+    const { payload } = await exigirEdicionDe(slug)
     const { docs } = await payload.find({
       collection: slug as never,
       limit: 500,

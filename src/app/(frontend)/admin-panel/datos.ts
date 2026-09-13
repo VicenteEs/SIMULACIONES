@@ -11,18 +11,39 @@ import { MODULOS, NOMBRE_DE_MODULO, rutaPublica } from './modulos'
  * administrador del layout y de cada página, y el panel necesita ver también lo
  * que un lector no vería —borradores, cuentas desactivadas, comentarios ajenos.
  *
- * Todos los conteos toleran el fallo: si una colección no responde se devuelve
- * cero en lugar de tumbar la página entera. Un panel que no abre es justo lo
- * contrario de lo que hace falta cuando algo va mal.
+ * Todos los conteos toleran el fallo: si una colección no responde se sigue
+ * adelante en lugar de tumbar la página entera. Un panel que no abre es justo
+ * lo contrario de lo que hace falta cuando algo va mal. Lo que no se hace es
+ * callarlo hacia dentro: el fallo queda en el registro del servidor y viaja en
+ * `ilegible`, al lado de los ceros de relleno.
+ *
+ * Cuidado: hoy `ilegible` no lo consume nadie. La única pantalla que pinta
+ * estos datos —`page.tsx` de este mismo directorio— sigue resolviendo el texto
+ * de la tarjeta con `total === 0 ? 'sin contenido aún' : …` y sigue dibujando
+ * la barra de progreso al 0 %, de modo que para el administrador una tabla que
+ * falta se ve igual que un módulo recién instalado. El dato está listo y le
+ * falta el consumidor; mientras no lo tenga, este archivo avisa al registro y a
+ * nadie más.
  */
 
 export const clientePayload = (): Promise<Payload> => getPayload({ config })
 
+/**
+ * Cuántos hay, o `null` si la base no supo responder.
+ *
+ * Devolver cero ante una excepción hacía que un módulo cuya tabla falta —el
+ * caso que AGENTS.md advierte: desplegar un cambio de esquema sin su
+ * migración— se viera exactamente igual que una instalación recién hecha, que
+ * nace vacía por decisión (D-016): tarjeta a cero, barra al 0 % y «sin
+ * contenido aún». Ninguna otra pantalla lo contradecía, así que lo razonable
+ * era concluir que el contenido se había perdido y ponerse a restaurar un
+ * respaldo sobre una base entera. Cero y «no se pudo leer» no son lo mismo.
+ */
 async function contar(
   payload: Payload,
   coleccion: string,
   where?: Record<string, unknown>,
-): Promise<number> {
+): Promise<number | null> {
   try {
     const { totalDocs } = await payload.count({
       collection: coleccion as never,
@@ -30,10 +51,21 @@ async function contar(
       overrideAccess: true,
     })
     return totalDocs
-  } catch {
-    return 0
+  } catch (error) {
+    console.error(`[panel] no se pudo contar «${coleccion}»:`, error)
+    return null
   }
 }
+
+/**
+ * Resta dos conteos solo si los dos son números.
+ *
+ * Cada conteo de un `Promise.all` falla por su cuenta: si caía el total y no
+ * el parcial, «inactivos» y «resueltos» salían negativos, que es un número que
+ * nadie sabe interpretar y que no se parece a un error.
+ */
+const diferencia = (total: number | null, parte: number | null): number =>
+  total === null || parte === null ? 0 : Math.max(0, total - parte)
 
 export interface ConteoDeModulo {
   slug: string
@@ -43,6 +75,14 @@ export interface ConteoDeModulo {
   publicados: number
   borradores: number
   total: number
+  /**
+   * La base no supo responder por este módulo.
+   *
+   * Los números que acompañan a esto son ceros de relleno y no se pueden
+   * enseñar como un recuento: quien pinte la tarjeta tiene que decir «no se
+   * pudo leer» y no «sin contenido aún».
+   */
+  ilegible: boolean
 }
 
 export async function conteosPorModulo(payload: Payload): Promise<ConteoDeModulo[]> {
@@ -52,7 +92,13 @@ export async function conteosPorModulo(payload: Payload): Promise<ConteoDeModulo
         contar(payload, m.slug, { _status: { equals: 'published' } }),
         contar(payload, m.slug, { _status: { equals: 'draft' } }),
       ])
-      return { ...m, publicados, borradores, total: publicados + borradores }
+      return {
+        ...m,
+        publicados: publicados ?? 0,
+        borradores: borradores ?? 0,
+        total: (publicados ?? 0) + (borradores ?? 0),
+        ilegible: publicados === null || borradores === null,
+      }
     }),
   )
 }
@@ -64,23 +110,36 @@ export interface ResumenDeUsuarios {
   admins: number
   editores: number
   lectores: number
+  /** Alguno de los conteos falló: los números son de relleno. */
+  ilegible: boolean
 }
 
 export async function resumenDeUsuarios(payload: Payload): Promise<ResumenDeUsuarios> {
-  const [total, activos, admins, editores, lectores] = await Promise.all([
+  const conteos = await Promise.all([
     contar(payload, 'usuarios'),
     contar(payload, 'usuarios', { activo: { equals: true } }),
     contar(payload, 'usuarios', { rol: { equals: 'admin' } }),
     contar(payload, 'usuarios', { rol: { equals: 'editor' } }),
     contar(payload, 'usuarios', { rol: { equals: 'lector' } }),
   ])
-  return { total, activos, inactivos: total - activos, admins, editores, lectores }
+  const [total, activos, admins, editores, lectores] = conteos
+  return {
+    total: total ?? 0,
+    activos: activos ?? 0,
+    inactivos: diferencia(total, activos),
+    admins: admins ?? 0,
+    editores: editores ?? 0,
+    lectores: lectores ?? 0,
+    ilegible: conteos.some((n) => n === null),
+  }
 }
 
 export interface ResumenDeComentarios {
   total: number
   pendientes: number
   resueltos: number
+  /** Alguno de los conteos falló: los números son de relleno. */
+  ilegible: boolean
 }
 
 export async function resumenDeComentarios(payload: Payload): Promise<ResumenDeComentarios> {
@@ -88,7 +147,12 @@ export async function resumenDeComentarios(payload: Payload): Promise<ResumenDeC
     contar(payload, 'comentarios'),
     contar(payload, 'comentarios', { estado: { equals: 'pendiente' } }),
   ])
-  return { total, pendientes, resueltos: total - pendientes }
+  return {
+    total: total ?? 0,
+    pendientes: pendientes ?? 0,
+    resueltos: diferencia(total, pendientes),
+    ilegible: total === null || pendientes === null,
+  }
 }
 
 export interface ResumenDeActividad {
@@ -96,6 +160,8 @@ export interface ResumenDeActividad {
   completados: number
   ultimos7dias: number
   lectoresActivos7dias: number
+  /** Alguno de los conteos falló: los números son de relleno. */
+  ilegible: boolean
 }
 
 export async function resumenDeActividad(payload: Payload): Promise<ResumenDeActividad> {
@@ -108,6 +174,7 @@ export async function resumenDeActividad(payload: Payload): Promise<ResumenDeAct
 
   let ultimos7dias = 0
   let lectoresActivos7dias = 0
+  let fallo = false
   try {
     const recientes = await payload.find({
       collection: 'actividad',
@@ -122,11 +189,21 @@ export async function resumenDeActividad(payload: Payload): Promise<ResumenDeAct
     lectoresActivos7dias = new Set(
       recientes.docs.map((d) => String((d as { usuario?: unknown }).usuario)),
     ).size
-  } catch {
-    /* la actividad es accesoria: si falla, el resto del panel sigue en pie */
+  } catch (error) {
+    // La actividad es accesoria: si falla, el resto del panel sigue en pie.
+    // Pero un cero silencioso aquí se lee como «nadie entró esta semana», que
+    // es una conclusión sobre los residentes y no sobre la base.
+    console.error('[panel] no se pudo leer la actividad reciente:', error)
+    fallo = true
   }
 
-  return { registros, completados, ultimos7dias, lectoresActivos7dias }
+  return {
+    registros: registros ?? 0,
+    completados: completados ?? 0,
+    ultimos7dias,
+    lectoresActivos7dias,
+    ilegible: fallo || registros === null || completados === null,
+  }
 }
 
 export { SLUGS_DE_MODULOS, MODULOS, NOMBRE_DE_MODULO, rutaPublica }

@@ -17,17 +17,100 @@ import { getPayload, LockedAuth } from 'payload'
 import config from '@payload-config'
 import { MINUTOS_DE_BLOQUEO } from '@/collections/Usuarios'
 import { accion, type Respuesta } from '@/lib/guardias'
+import { PREFIJO } from '@/lib/rutas'
 import { exigirContrasena, exigirCorreo, exigirTexto } from '@/lib/validacion'
 import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
 
-/** Nombre con el que Payload firma y lee la sesión. */
-const COOKIE_SESION = 'payload-token'
+/**
+ * Nombre con el que Payload firma y lee la sesión: `<cookiePrefix>-token`.
+ *
+ * Se le pregunta a la configuración en lugar de escribirlo aquí porque el
+ * nombre es la única salida al choque que describe `PATH_COOKIE`, y ese día
+ * tiene que moverse solo. En cuanto `payload.config.ts` declare
+ * `cookiePrefix: 'traumahub'`, Payload firmará `traumahub-token`
+ * (`auth/cookies.js` arma el nombre así) y lo buscará con ese mismo nombre
+ * (`auth/extractJWT.js`). Si aquí quedara escrito a mano el anterior, esta
+ * acción escribiría una cookie que nadie lee: entrar respondería «exito» y la
+ * plataforma seguiría cerrada, sin un error en ninguna parte, que es
+ * exactamente el fallo mudo que ese cambio pretende quitar.
+ *
+ * El `?? 'payload'` es el mismo valor por omisión que pone `buildConfig`
+ * cuando nadie declara el prefijo (`config/defaults.js`), y hace falta porque
+ * las pruebas sustituyen el módulo de configuración por un objeto vacío.
+ */
+async function nombreDeLaCookieDeSesion(): Promise<string> {
+  const { cookiePrefix } = await config
+  return `${cookiePrefix ?? 'payload'}-token`
+}
+
+/**
+ * El testigo se acota al prefijo de la plataforma, no a la raíz.
+ *
+ * En el servidor TraumaHub no tiene un origen propio: comparte esquema, dominio
+ * y puerto con las otras páginas que cuelgan del mismo proxy —`/` y `/api` son
+ * de otra, y también `/equipo` y `/senales`; está descrito en
+ * `despliegue/paginas/LEEME.md`—. Con `path: '/'` el navegador adjuntaba
+ * `payload-token` en **cada** petición a cualquiera de ellas, y ese testigo
+ * abre la plataforma entera durante ocho horas sin pedir contraseña: vale por
+ * sí solo, como quedó comprobado al aislar el fallo de 66bdc2d. Basta con que
+ * una de esas páginas —proyectos distintos, con su propio despliegue— anote
+ * cabeceras en un registro de acceso para que la sesión del administrador
+ * quede escrita fuera de aquí.
+ *
+ * Lo que esto **no** cierra: un guion inyectado en cualquiera de esas páginas
+ * sigue pudiendo llamar a `/traumahub/api/…` con `credentials: 'include'` —el
+ * path casa, y el `Origin` coincide con `serverURL`, así que la comprobación
+ * CSRF de Payload también pasa—. Eso solo lo cierra un nombre de servidor
+ * propio para la plataforma.
+ *
+ * Y el cabo del despliegue, que es más grave de lo que parece. La cookie que
+ * las sesiones anteriores a este cambio dejaron en `/` sigue viva hasta que
+ * caduque, y es **ella** la que manda: el navegador manda primero la del path
+ * más específico (RFC 6265 §5.4) y `parseCookies` de Payload arma un Map con
+ * un `set(nombre, valor)` por cada par, de modo que gana el último, o sea el
+ * viejo de `/`. Mientras esa cookie exista, la del prefijo no se lee nunca, y
+ * eso no es solo que «salir» no cierre:
+ *
+ *  - `entrar()` tampoco cambia de sesión. Escribe el testigo nuevo en el
+ *    prefijo, el viejo de `/` lo sigue pisando, y quien entra con OTRA cuenta
+ *    queda autenticado como el usuario anterior. En una estación compartida de
+ *    hospital eso no es una molestia: es una anotación firmada por quien no la
+ *    hizo.
+ *  - Si el testigo viejo deja de verificar sin que su cookie muera con él
+ *    —el caso real es rotar `PAYLOAD_SECRET`—, `entrar()` responde «exito» y
+ *    la plataforma sigue cerrada, sin un mensaje, hasta que esa cookie alcance
+ *    su propio `maxAge`. Por eso rotar el secreto NO sirve como limpieza: deja
+ *    a todo el mundo fuera durante esas ocho horas, y por este mismo motivo.
+ *    (Cuando el testigo caduca por su cuenta no ocurre: `tokenExpiration` en
+ *    `Usuarios.ts` y el `maxAge` de aquí abajo son los mismos ocho horas y se
+ *    apagan juntos.)
+ *
+ * Desde aquí no se puede borrar: `cookies()` guarda **una sola escritura por
+ * nombre** (`ResponseCookies._parsed` es un Map indexado por nombre, y `set`
+ * vuelve a escribir la cabecera entera desde él), así que un `delete` en `/` y
+ * un `set` en el prefijo no caben en la misma respuesta: el segundo pisa al
+ * primero. Y borrar en `/` en lugar de en el prefijo solo cambia a quién le
+ * toca el fallo, porque entonces las sesiones nuevas son las que no se cierran.
+ *
+ * La salida es el NOMBRE, no el path: con `cookiePrefix: 'traumahub'` en
+ * `payload.config.ts`, Payload firma y lee `traumahub-token`, la cookie vieja
+ * se vuelve invisible para todos y se muere sola sin estorbar a nadie.
+ * `nombreDeLaCookieDeSesion()` ya lo sigue, así que ese día no hay que tocar
+ * nada aquí; **mientras esa línea no esté puesta, los dos puntos de arriba
+ * siguen vivos en el servidor**.
+ *
+ * Un último detalle que hay que respetar aunque el prefijo se ponga: quien se
+ * autentique por la API REST de Payload vuelve a crear el choque, porque
+ * `generatePayloadCookie` escribe siempre con `path: '/'`, sin mirar esto. La
+ * plataforma entra por estas acciones y solo por ellas.
+ */
+const PATH_COOKIE = PREFIJO || '/'
 
 const OPCIONES_COOKIE = {
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: process.env.NODE_ENV === 'production',
-  path: '/',
+  path: PATH_COOKIE,
 }
 
 export async function entrar(
@@ -82,7 +165,7 @@ export async function entrar(
     }
 
     const almacen = await cookies()
-    almacen.set(COOKIE_SESION, resultado.token, {
+    almacen.set(await nombreDeLaCookieDeSesion(), resultado.token, {
       ...OPCIONES_COOKIE,
       maxAge: 8 * 60 * 60,
     })
@@ -96,7 +179,13 @@ export async function entrar(
 export async function salir(): Promise<Respuesta> {
   return accion(async () => {
     const almacen = await cookies()
-    almacen.delete(COOKIE_SESION)
+    // El borrado lleva el mismo path con el que se escribió. Sin él, `delete`
+    // caduca una cookie de path `/` —el que Next pone por omisión— que ya no es
+    // la nuestra, y la sesión seguiría abierta después de pulsar «salir».
+    almacen.delete({ name: await nombreDeLaCookieDeSesion(), path: PATH_COOKIE })
+    // La de vista previa se borra en la raíz a propósito: la escribe
+    // `api/vista-previa/route.ts` con `path: '/'`, y borrarla en otro path la
+    // dejaría viva. Las dos tienen que mudarse al prefijo a la vez.
     almacen.delete(COOKIE_VISTA_PREVIA)
     return null
   })
@@ -118,8 +207,18 @@ export async function pedirEnlaceDeClave(correo: unknown): Promise<Respuesta> {
         data: { email: exigirCorreo(correo) },
         disableEmail: !process.env.SMTP_HOST,
       })
-    } catch {
-      /* se ignora a propósito: la respuesta no debe delatar si existe */
+    } catch (fallo) {
+      // La respuesta sigue siendo la misma exista o no la cuenta —eso es lo que
+      // hay que conservar—, pero el fallo no puede quedar sin rastro en ninguna
+      // parte. Este `catch` se traga por igual «ese correo no está registrado» y
+      // el error del transporte: con `SMTP_HOST` puesto, `disableEmail` es
+      // falso y aquí dentro hay un envío real. Sin esta línea, un SMTP roto
+      // —clave caducada, 587 cerrado por el cortafuegos del hospital— es
+      // indistinguible de una dirección que no existe: el residente lee «si esa
+      // dirección corresponde a una cuenta, le llegará un enlace», no le llega
+      // nada, y `/admin-panel/sistema` sigue diciendo «Correo saliente: ok»
+      // porque solo mira si la variable de entorno está puesta.
+      payload.logger.error({ msg: 'No se pudo emitir el enlace de clave nueva', err: fallo })
     }
     return null
   })
@@ -151,7 +250,8 @@ export async function fijarClaveNueva(
     }
 
     const almacen = await cookies()
-    almacen.set(COOKIE_SESION, resultado.token, { ...OPCIONES_COOKIE, maxAge: 8 * 60 * 60 })
+    const cookieDeSesion = await nombreDeLaCookieDeSesion()
+    almacen.set(cookieDeSesion, resultado.token, { ...OPCIONES_COOKIE, maxAge: 8 * 60 * 60 })
     return { destino: '/' }
   })
 }
@@ -203,7 +303,8 @@ export async function crearPrimeraCuenta(
     })
     if (entrada.token) {
       const almacen = await cookies()
-      almacen.set(COOKIE_SESION, entrada.token, { ...OPCIONES_COOKIE, maxAge: 8 * 60 * 60 })
+      const cookieDeSesion = await nombreDeLaCookieDeSesion()
+      almacen.set(cookieDeSesion, entrada.token, { ...OPCIONES_COOKIE, maxAge: 8 * 60 * 60 })
     }
 
     return { destino: '/admin-panel' }

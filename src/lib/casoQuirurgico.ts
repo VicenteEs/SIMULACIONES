@@ -1,6 +1,7 @@
 import type { CasoDeConsola, InstrumentoDeBandeja, PasoDeConsola } from '@/components/simulador/ConsolaQuirurgica'
 import type { PiezaDelCaso } from '@/components/simulador/LienzoQuirurgico'
 import type { EjeLargo } from '@/lib/reduccion'
+import { objetivoDelPaso, type Objetivo } from '@/lib/simulador'
 
 /**
  * Traduce un documento de Payload en lo que la consola necesita.
@@ -21,6 +22,25 @@ const texto = (v: unknown): string | null =>
 
 const numero = (v: unknown, porOmision: number): number =>
   typeof v === 'number' && Number.isFinite(v) ? v : porOmision
+
+/**
+ * Una escala, que además de número tiene que ser positiva.
+ *
+ * El cero y el negativo pasan enteros por `numero` —`Number.isFinite(0)` es
+ * cierto— y no son una escala: el cero multiplica el largo del trazo hasta
+ * hacerlo desaparecer, de modo que un paso de incisión mide siempre 0 mm y
+ * responde «todavía no hay ninguna incisión trazada» por larga que sea, y al
+ * colocar el fragmento divide. Se tratan como ausencia de dato.
+ *
+ * Se ataja aquí, que es por donde el documento entra a la consola, y no con un
+ * `|| 1000` en cada uso: el campo se teclea a mano en el panel y un
+ * `<input type="number">` sin mínimo acepta el 0 y el negativo, así que el
+ * valor malo existe y lo que hay que decidir es una sola vez qué significa.
+ */
+const escalaPositiva = (v: unknown, porOmision: number): number => {
+  const n = numero(v, porOmision)
+  return n > 0 ? n : porOmision
+}
 
 /** Nombre legible de una relación, venga poblada o no. */
 const nombreDeRelacion = (v: unknown, campo = 'nombre'): string | null => {
@@ -76,17 +96,9 @@ function pasosDelCaso(documento: Documento): PasoDeConsola[] {
       ? (p.muestra as Documento[]).map((m) => texto(m?.nodo)).filter((n): n is string => Boolean(n))
       : []
 
-    return {
-      // El identificador de fila lo pone Payload; si falta —un caso recién
-      // escrito y no guardado— sirve la posición, que es estable dentro de una
-      // misma lectura.
-      id: texto(p.id) ?? `paso-${i}`,
-      titulo: texto(p.titulo) ?? `Paso ${i + 1}`,
-      objetivo: (texto(p.objetivo) ?? 'instrumento') as PasoDeConsola['objetivo'],
-      instrumento: idDeRelacion(p.instrumento),
-      instrumentoNombre: nombreDeRelacion(p.instrumento),
-      faseNombre: nombreDeRelacion(p.fase),
-      puntos: numero(p.puntos, 10),
+    // Los rangos van aparte porque hay que enseñárselos al motor antes de armar
+    // el paso: de ellos sale el objetivo de más abajo.
+    const rangos = {
       trazoMinimo: typeof p.trazoMinimo === 'number' ? p.trazoMinimo : null,
       trazoMaximo: typeof p.trazoMaximo === 'number' ? p.trazoMaximo : null,
       toleranciaDesplazamiento:
@@ -97,6 +109,43 @@ function pasosDelCaso(documento: Documento): PasoDeConsola[] {
         typeof p.toleranciaAngulacion === 'number' ? p.toleranciaAngulacion : null,
       fuerzaMinima: typeof p.fuerzaMinima === 'number' ? p.fuerzaMinima : null,
       fuerzaMaxima: typeof p.fuerzaMaxima === 'number' ? p.fuerzaMaxima : null,
+    }
+    // El relleno va **antes** de la deducción, y no al revés: la columna tiene
+    // `DEFAULT 'instrumento'`, así que una fila sin objetivo no es una fila que
+    // calle, es una fila a la que no le llegó el valor por otro camino. Tratar
+    // ese hueco como silencio dejaría que las tolerancias hablaran —y las lleva
+    // puestas toda fila, a 5— convirtiéndola en una reducción imposible.
+    const guardado = (texto(p.objetivo) ?? 'instrumento') as Objetivo
+
+    return {
+      // El identificador de fila lo pone Payload; si falta —un caso recién
+      // escrito y no guardado— sirve la posición, que es estable dentro de una
+      // misma lectura.
+      id: texto(p.id) ?? `paso-${i}`,
+      titulo: texto(p.titulo) ?? `Paso ${i + 1}`,
+      // Lo que cruza al navegador es el objetivo **deducido**, no el guardado.
+      //
+      // El motor mide por `objetivoDelPaso`, pero la consola pinta sus mandos
+      // —el botón de borrar el trazo, los giros de la angulación, el deslizador
+      // de la fuerza— comparando `paso.objetivo` a pelo. Mientras la deducción
+      // no cambiaba nada los dos coincidían. Cruzando el valor guardado no
+      // coincidirían: un paso antiguo con su rango de fuerza escrito y el
+      // objetivo en 'instrumento' —que es lo que la migración de D-059 dejó en
+      // toda fila anterior— se mediría por la fuerza sin enseñar el mando con
+      // que graduarla, y como `fuerzaInicial` cae dentro del rango por
+      // construcción, se aprobaría solo mientras el residente lee una
+      // instrucción que habla de un control que no está.
+      //
+      // Se resuelve aquí, que es el único paso entre la base y el navegador, y
+      // no repitiendo la deducción en cada `if` de la consola: dos sitios que
+      // deciden lo mismo por separado acaban decidiendo distinto, que es
+      // exactamente lo que pasó.
+      objetivo: objetivoDelPaso({ ...rangos, objetivo: guardado }),
+      instrumento: idDeRelacion(p.instrumento),
+      instrumentoNombre: nombreDeRelacion(p.instrumento),
+      faseNombre: nombreDeRelacion(p.fase),
+      puntos: numero(p.puntos, 10),
+      ...rangos,
       exito: texto(p.exito),
       insuficiente: texto(p.insuficiente),
       excesivo: texto(p.excesivo),
@@ -173,7 +222,7 @@ export function casoParaLaConsola(documento: Documento): CasoDeConsola {
     clasificacion: nombreDeRelacion(documento.clasificacion),
     tecnica: nombreDeRelacion(documento.tecnica),
     modeloUrl: modelo && typeof modelo === 'object' ? texto((modelo as Documento).url) : null,
-    milimetrosPorUnidad: numero(documento.milimetrosPorUnidad, 1000),
+    milimetrosPorUnidad: escalaPositiva(documento.milimetrosPorUnidad, 1000),
     ejeLargo: (texto(documento.ejeLargo) ?? 'y') as EjeLargo,
     piezas: piezasDelCaso(documento),
     desplazamientoInicial: {

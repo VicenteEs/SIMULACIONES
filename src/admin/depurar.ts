@@ -14,7 +14,7 @@
 
 import { camposDe, type Campo, type EsquemaDeColeccion } from './esquema'
 import { bloqueDe, esBloqueConocido } from './bloques'
-import { desdeLexical, haciaLexical } from '@/lib/textoRico'
+import { desdeLexical, estaVacio, haciaLexical } from '@/lib/textoRico'
 
 /** Techos de tamaño. Ningún contenido real se acerca; un ataque, sí. */
 const MAXIMO_FILAS = 500
@@ -77,10 +77,16 @@ function depurarCampo(campo: Campo, valor: unknown): unknown {
     case 'seleccion': {
       const texto = typeof valor === 'string' ? valor : ''
       const valida = campo.opciones.some((o) => o.valor === texto)
-      // Un valor fuera de la lista se cambia por el primero, no se conserva:
+      // El respaldo lo dice el campo, no el orden de la lista: `opciones[0]`
+      // es la primera opción de un desplegable, que se ordena para leerlo y no
+      // para decidir. Aquí ese respaldo es lo único que actúa, porque
+      // `depurarCampos` escribe siempre la clave y Payload solo aplica su
+      // `defaultValue` cuando el valor llega `undefined`.
+      const respaldo = campo.porOmision ?? campo.opciones[0]?.valor ?? null
+      // Un valor fuera de la lista se cambia por el respaldo, no se conserva:
       // guardar un «tono» inventado deja un bloque que el renderizador público
       // no sabe pintar.
-      return valida ? texto : (campo.requerido ? campo.opciones[0]?.valor ?? null : null)
+      return valida ? texto : (campo.requerido ? respaldo : null)
     }
 
     case 'casilla':
@@ -205,27 +211,105 @@ export function sinIdentificadoresDeFila(documento: Record<string, unknown>): Re
 }
 
 /**
+ * ¿Este campo está sin llenar?
+ *
+ * Un texto rico vacío no es `null` ni `''`: `haciaLexical` siempre devuelve un
+ * árbol con un párrafo en blanco dentro, de modo que la prueba de forma no
+ * podía ser cierta **nunca** para un campo `rico`. «Técnica» sin escribir
+ * pasaba de largo y moría después en el validador de Payload, que contesta con
+ * el nombre interno del campo. Por eso a un texto rico se le pregunta por su
+ * texto y no por su forma.
+ */
+const sinLlenar = (campo: Campo, valor: unknown): boolean => {
+  if (campo.tipo === 'rico') return estaVacio(valor)
+  return (
+    valor === null ||
+    valor === undefined ||
+    valor === '' ||
+    (Array.isArray(valor) && valor.length === 0)
+  )
+}
+
+/**
  * Comprueba lo obligatorio y devuelve los problemas en español.
  *
  * Payload también valida, pero su mensaje llega en forma de excepción con el
  * nombre técnico del campo. Esto permite señalar «Falta el nombre de la
  * patología» antes de intentar guardar.
+ *
+ * Desciende a listas, grupos y bloques: los obligatorios de dentro de una fila
+ * —`pasos[].titulo`, `piezas[].nodo`, `fases[].cuando`— o de dentro de un
+ * bloque —el `texto` de una advertencia— son los que más cuesta encontrar en
+ * pantalla, y eran justo los que esta función no miraba, porque recorría solo
+ * el primer nivel. La fila se nombra por su posición, que es como se ve en el
+ * editor: «Falta «objetivo» en paso 3», y no `pasos.2.objetivo`.
+ *
+ * `profundo` es lo que separa publicar de guardar (D-011). Payload se salta lo
+ * obligatorio cuando escribe con `draft: true`, y eso está puesto a propósito:
+ * el traumatólogo escribe la ficha a lo largo de varios días y «Guardar
+ * borrador» tiene que aceptar una maniobra con la técnica todavía en blanco o
+ * una cirugía con una fila de pasos a medias. Si la revisión profunda corriera
+ * también ahí, el botón devolvería «Falta «técnica».» y no guardaría nada: lo
+ * escrito esa tarde se perdería al cerrar la pestaña. Con `profundo: false`
+ * solo se avisa de lo que se ve de un vistazo en el primer nivel; el descenso a
+ * filas, a bloques y al interior de un texto rico queda para el momento de
+ * publicar, que es cuando Payload sí va a exigirlos.
  */
 export function faltantes(
   esquema: EsquemaDeColeccion,
   documento: Record<string, unknown>,
+  opciones: { profundo?: boolean } = {},
 ): string[] {
+  const { profundo = true } = opciones
   const problemas: string[] = []
-  for (const campo of camposDe(esquema)) {
-    if (!campo.requerido) continue
-    const valor = documento[campo.nombre]
-    const vacio =
-      valor === null ||
-      valor === undefined ||
-      valor === '' ||
-      (Array.isArray(valor) && valor.length === 0)
-    if (vacio) problemas.push(`Falta «${campo.etiqueta.toLowerCase()}».`)
+
+  const revisar = (campos: Campo[], origen: Record<string, unknown>, donde = '') => {
+    for (const campo of campos) {
+      const valor = origen[campo.nombre]
+      // A un texto rico se le pregunta por su texto, y eso es mirar dentro del
+      // árbol: cuenta como descenso y por tanto solo se juzga al publicar. Un
+      // borrador tiene cuerpos sin escribir por definición.
+      const juzgable = profundo || campo.tipo !== 'rico'
+      if (campo.requerido && juzgable && sinLlenar(campo, valor)) {
+        problemas.push(`Falta «${campo.etiqueta.toLowerCase()}»${donde}.`)
+      }
+      if (!profundo) continue
+      if (campo.tipo === 'grupo') {
+        revisar(campo.campos, (valor ?? {}) as Record<string, unknown>, donde)
+      }
+      if (campo.tipo === 'lista' && Array.isArray(valor)) {
+        valor.forEach((fila, indice) =>
+          revisar(
+            campo.campos,
+            (fila ?? {}) as Record<string, unknown>,
+            // `donde` se arrastra porque una lista puede venir dentro de un
+            // bloque: sin él, «Falta «desarrollo» en punto 1» no dice en cuál
+            // de las cuatro listas clínicas de la ficha hay que mirar. En el
+            // primer nivel `donde` es vacío y el mensaje no cambia.
+            ` en ${campo.singular.toLowerCase()} ${indice + 1}${donde}`,
+          ),
+        )
+      }
+      // Los bloques son donde vive la mayor parte de la ficha (D-011: pila de
+      // bloques ilimitada y reordenable), así que sin esta rama quedaba abierto
+      // el mismo agujero que las otras dos cerraron: una advertencia sin texto
+      // pasaba de largo y moría en el validador de Payload con «El siguiente
+      // campo es inválido: definicion.0.texto», el nombre interno y el índice
+      // crudo, que es justo el mensaje que esta función existe para evitar.
+      if (campo.tipo === 'bloques' && Array.isArray(valor)) {
+        valor.forEach((bruto, indice) => {
+          const fila = (bruto ?? {}) as Record<string, unknown>
+          const tipo = fila.blockType
+          if (!esBloqueConocido(tipo)) return
+          const bloque = bloqueDe(tipo)
+          if (!bloque) return
+          revisar(bloque.campos, fila, ` en ${bloque.nombre.toLowerCase()} ${indice + 1}${donde}`)
+        })
+      }
+    }
   }
+
+  revisar(camposDe(esquema), documento)
   return problemas
 }
 

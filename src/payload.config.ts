@@ -109,6 +109,19 @@ export default buildConfig({
     // nadie va a dar no falla: se cuelga, en el portátil y en integración
     // continua. Además, las pruebas no tienen por qué reescribir el esquema de
     // la base con la que uno está desarrollando.
+    //
+    // Lo que este párrafo no decía es quién pone entonces el esquema en su
+    // sitio para las pruebas de integración, y la respuesta incómoda es que
+    // hoy no lo pone nadie: bajo Vitest `NODE_ENV` vale `test`, así que no
+    // corre ni el `push` ni `prodMigrations`, y no hay `pretest` en
+    // `package.json`. Sobre una base recién creada —`npm run db:up` sin un
+    // `npm run dev` detrás, que es el caso de quien clona el repositorio—
+    // `npx vitest run` revienta con `relation "segmentos" does not exist`, un
+    // error que no menciona ni migraciones ni `push` y manda a buscar muy
+    // lejos. El esquema lo está poniendo, por accidente, el `npm run dev` de
+    // ayer. Mientras no haya un `pretest`, el paso que falta es
+    // `npm run db:migrate` antes de la suite.
+    //
     // **Solo en desarrollo.** Estaba escrito como «distinto de test», que en el
     // servidor es verdadero, así que producción sincronizaba el esquema al
     // vuelo —lo contrario de lo que dice el párrafo de arriba— y dejaba escrita
@@ -126,9 +139,30 @@ export default buildConfig({
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
   graphQL: { disable: true },
   upload: {
-    // Techo general de subida. Los modelos 3D tienen además su propio limite
-    // de 5 MB, comprobado por firma del archivo (observación O-008).
-    limits: { fileSize: 50 * 1024 * 1024 },
+    // Techo de subida de la API REST, y solo de ella. Esto no es el techo de la
+    // plataforma, por mucho que lo parezca: `limits` lo consume únicamente el
+    // analizador multiparte de Payload (`addDataAndFileToRequest`), y el panel
+    // no sube por ahí, sube con la acción de servidor `subirArchivo`, que
+    // entrega el archivo ya leído a `payload.create({ file })`. Por esa vía
+    // manda el `serverActions.bodySizeLimit` de `next.config.mjs` y este número
+    // no se ejerce jamás.
+    //
+    // Decía 50 MB y el panel anunciaba 50 MB, mientras Next cortaba en 8 y sin
+    // mensaje. Ahora dice 7 MB, que es lo que el panel promete
+    // (`src/admin/esquema.ts`) y lo que de verdad cabe en un cuerpo de 8 MB con
+    // su sobre multiparte. Los tres números se mueven juntos.
+    //
+    // Los modelos 3D tienen además su propio límite de 5 MB, comprobado por
+    // firma del archivo (observación O-008).
+    limits: { fileSize: 7 * 1024 * 1024 },
+    // Sin esto el analizador NO rechaza: su valor por omisión es
+    // `abortOnLimit: false`, que deja de acumular bytes, marca el archivo como
+    // `truncated` —bandera que Payload escribe y nadie lee— y responde 201. El
+    // registro queda creado y el archivo, cortado en seco: un vídeo que se
+    // reproduce hasta la mitad, sin un error en ninguna parte. Truncar en
+    // silencio es peor que no tener límite.
+    abortOnLimit: true,
+    responseOnLimit: 'El archivo supera el máximo permitido (7 MB).',
   },
   telemetry: false,
 })
