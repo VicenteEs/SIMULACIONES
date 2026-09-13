@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
+import { puedeEditar } from '@/lib/guardias'
 import { SinAcceso, Vacio } from '@/components/Estados'
 import { BibliotecaFiltrable } from '@/components/BibliotecaFiltrable'
 
@@ -16,11 +17,32 @@ export const dynamic = 'force-dynamic'
  * sobre esa lista ya autorizada.
  */
 export default async function Biblioteca() {
-  const { activo, usuarioEfectivo } = await obtenerSesion()
+  const { activo, usuario, rolReal, usuarioEfectivo } = await obtenerSesion()
   if (!activo) return <SinAcceso titulo="Biblioteca de patologías" />
 
   const payload = await getPayload({ config })
   const user = usuarioEfectivo as never
+
+  // El botón del estado vacío lleva al panel, y el panel echa a la portada sin
+  // una palabra a quien no es admin ni editor (`admin-panel/acceso.ts`). Como
+  // la plataforma nace vacía a propósito (D-016), esa pantalla es la primera
+  // que ve un residente el primer día, y su único botón lo expulsaba del
+  // módulo: sin error y sin mensaje, no tenía forma de distinguir un permiso
+  // que le falta de una plataforma rota. Es el mismo fallo que `acceso.ts`
+  // describe como su razón de existir, resuelto para el editor y no para el
+  // lector.
+  //
+  // Se mira `rolReal` y no el rol efectivo, igual que hace la portada con el
+  // botón «Escribir contenido»: la vista previa baja los privilegios de
+  // lectura, pero quien la tiene puesta sigue pudiendo entrar al panel, y
+  // ofrecerle un enlace que sí funciona no engaña a nadie.
+  //
+  // `puedeEditar` añade encima el permiso por módulo: un editor restringido a
+  // «maniobras» tampoco debe ver aquí un enlace que la acción de guardado le
+  // va a rechazar.
+  const esEditor = rolReal === 'admin' || rolReal === 'editor'
+  const puedeCrearFichas = esEditor && puedeEditar(usuario ?? {}, 'patologias')
+  const puedeCrearSegmentos = esEditor && puedeEditar(usuario ?? {}, 'segmentos')
 
   const [fichas, segmentos] = await Promise.all([
     payload.find({
@@ -64,15 +86,27 @@ export default async function Biblioteca() {
 
       {segmentos.totalDocs === 0 ? (
         <Vacio
-          texto="Aún no hay segmentos anatómicos. Son la estructura sobre la que se ordenan las fichas y se crean primero."
-          enlace="/admin-panel/contenido/segmentos/nuevo"
-          accion="Crear el primer segmento"
+          texto={
+            puedeCrearSegmentos
+              ? 'Aún no hay segmentos anatómicos. Son la estructura sobre la que se ordenan las fichas y se crean primero.'
+              : // Al lector no se le cuenta la diferencia entre «faltan
+                // segmentos» y «faltan fichas»: es un detalle interno del panel,
+                // y lo que necesita es un texto que cierre en vez de un botón
+                // que abre en falso.
+                'El equipo docente todavía no ha publicado fichas en este módulo. Las está preparando.'
+          }
+          enlace={puedeCrearSegmentos ? '/admin-panel/contenido/segmentos/nuevo' : undefined}
+          accion={puedeCrearSegmentos ? 'Crear el primer segmento' : undefined}
         />
       ) : fichas.totalDocs === 0 ? (
         <Vacio
-          texto="Todavía no hay fichas escritas."
-          enlace="/admin-panel/contenido/patologias/nuevo"
-          accion="Crear la primera ficha"
+          texto={
+            puedeCrearFichas
+              ? 'Todavía no hay fichas escritas.'
+              : 'El equipo docente todavía no ha publicado fichas en este módulo. Las está preparando.'
+          }
+          enlace={puedeCrearFichas ? '/admin-panel/contenido/patologias/nuevo' : undefined}
+          accion={puedeCrearFichas ? 'Crear la primera ficha' : undefined}
         />
       ) : (
         <BibliotecaFiltrable fichas={lista} segmentos={listaSegmentos} />

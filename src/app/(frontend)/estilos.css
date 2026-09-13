@@ -16,7 +16,14 @@
 
   --tinta: #0c1a38;
   --pizarra: #46587a;
-  --mudo: #6b7a96;
+  /* El gris apagado se oscureció desde #6b7a96, que daba 3,83:1 sobre --papel y
+     no llegaba al 4,5:1 que pide WCAG AA para texto normal. Y no es un gris de
+     adorno: es el color de .visor-3d-nota, el texto que explica por qué falta
+     el modelo 3D, y el de .recuento, las fichas que quedan tras filtrar. Ambos
+     se leen en el tablet de pabellón con luz de techo. Este valor da 4,98:1
+     sobre --papel, 5,64:1 sobre --superficie y 5,20:1 sobre el lienzo del
+     visor (#f3f6fb). Aclararlo vuelve a romper el contraste. */
+  --mudo: #5a6880;
   --papel: #eef1f7;
   --superficie: #ffffff;
   --linea: #d7dfec;
@@ -42,6 +49,17 @@
   --r: 4px;
   --r-lg: 10px;
   --sombra: 0 1px 2px rgba(12, 26, 56, 0.05), 0 4px 14px rgba(12, 26, 56, 0.06);
+
+  /* La plataforma es clara y no tiene tema oscuro: los catorce colores de
+     arriba están calculados sobre fondo blanco. Sin esta declaración, Chrome de
+     Android aplica su tema oscuro automático justamente a las páginas que no
+     dicen nada, y reescribe la paleta por su cuenta: las tarjetas se oscurecen
+     y los avisos pierden el contraste con el que se diseñaron, mientras que el
+     degradado marino de .portada-publica se queda como está, porque ya es
+     oscuro. Declararlo también fija las barras de desplazamiento y los
+     controles nativos. Si algún día hay tema oscuro, esto pasa a `light dark`
+     y los tokens de arriba se duplican bajo `prefers-color-scheme: dark`. */
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -95,7 +113,6 @@ main { max-width: 1060px; margin: 0 auto; padding: 44px 24px 96px; }
 .hero-figura:hover .femur-distal { transform: translate(6px, 10px) rotate(2deg); }
 .hero-pie { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 12px; font-size: 11px; color: #8ba6d8; }
 .hero-codigo { font-family: var(--mono); color: #7fd0f5; letter-spacing: 0.05em; }
-.pie-acceso { font-size: 13px; color: var(--mudo); margin-top: 14px; }
 
 /* ---------- botones ---------- */
 .boton { display: inline-block; background: var(--marca); color: #fff; text-decoration: none; padding: 11px 20px; border-radius: var(--r); font-weight: 600; font-size: 14px; border: 1px solid var(--marca); transition: background 0.15s ease; }
@@ -134,11 +151,95 @@ main { max-width: 1060px; margin: 0 auto; padding: 44px 24px 96px; }
 .grupo-segmento { margin-bottom: 40px; }
 .grupo-segmento h2 { font-size: 19px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--linea-suave); }
 .vacio { color: var(--mudo); font-size: 14px; font-style: italic; }
-.rejilla-fichas { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-.tarjeta-ficha { display: block; background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg); padding: 18px 20px; text-decoration: none; color: inherit; height: 100%; transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
-.tarjeta-ficha:hover { border-color: var(--marca); box-shadow: var(--sombra); transform: translateY(-2px); }
-.tarjeta-ficha h3 { font-size: 16px; margin: 10px 0 4px; }
-.tarjeta-ficha p { font-size: 13.5px; color: var(--pizarra); margin: 0; }
+
+/* Aquí había una segunda definición de `.rejilla-fichas` y `.tarjeta-ficha`,
+   más estrecha y más apretada, que no pintaba nada: un bloque titulado
+   «Mejoras de Diseño», 460 líneas más abajo, redeclaraba una por una todas sus
+   propiedades. Quien venía a cambiar el tamaño del título de una tarjeta lo
+   tocaba aquí, recargaba y no veía ningún cambio. Las dos versiones están ya
+   fundidas en esta, que es la que se veía. Si se añade una regla de tarjeta,
+   va aquí y solo aquí. */
+
+.rejilla-fichas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 0;
+  margin: 1.5rem 0 3rem;
+  list-style: none;
+}
+
+.tarjeta-ficha {
+  display: flex;
+  flex-direction: column;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.tarjeta-ficha:hover, .tarjeta-ficha:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
+  border-color: var(--marca);
+}
+
+.tarjeta-ficha h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: var(--tinta);
+  line-height: 1.3;
+}
+
+.tarjeta-ficha p {
+  margin: 0;
+  color: var(--pizarra);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tarjeta-ficha .etiquetas {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.tarjeta-ficha .codigo, .tarjeta-ficha .borrador {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tarjeta-ficha .codigo {
+  background: var(--marca-tenue);
+  color: var(--marca-honda);
+}
+
+/* La etiqueta «borrador» de una tarjeta no repinta sus colores: hereda el
+   ámbar de `.borrador`, en la cabecera de ficha. Antes traía tres hexadecimales
+   de Bootstrap (#fff3cd / #856404 / #ffeeba), y el motivo de quitarlos no fue
+   el contraste —ese par daba 4,96:1 y cumplía AA— sino que en la biblioteca
+   convivían dos ámbares distintos para exactamente lo mismo, uno al lado del
+   otro: la etiqueta de la tarjeta y la de la cabecera de la ficha a la que
+   lleva. El heredado da 5,69:1 (#7a5a1c sobre `--ambar-tenue`).
+
+   Y no se usó `var(--ambar)` como color de texto, que es lo que pide el cuerpo:
+   sobre `--ambar-tenue` se queda en 3,74:1, por debajo del 4,5:1 de AA. El
+   ámbar de la paleta es para bordes y etiquetas de sección, no para texto
+   pequeño sobre su propio fondo tenue. */
 
 /* ---------- pestañas de contenido ---------- */
 .pestana { margin-bottom: 44px; }
@@ -171,7 +272,13 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 
 /* ---------- visor 3D ---------- */
 .visor-3d-lienzo { border: 1px solid var(--linea); border-radius: var(--r-lg); overflow: hidden; background: #f3f6fb; }
-.visor-3d-lienzo canvas { display: block; width: 100% !important; height: 380px !important; touch-action: none; }
+/* El `!important` es de three.js, no nuestro: fiber escribe el tamaño del
+   lienzo en el atributo `style` del propio canvas, y sin `!important` no hay
+   forma de mandarle desde la hoja. Por eso la altura sale de una variable:
+   quien necesite otra altura redefine `--alto-visor` en su contenedor
+   (lo hace `.consola-instrumento`) en vez de pelear con un segundo
+   `!important` de mayor especificidad. */
+.visor-3d-lienzo canvas { display: block; width: 100% !important; height: var(--alto-visor, 380px) !important; touch-action: none; }
 .visor-3d-controles { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px; border-top: 1px solid var(--linea); background: var(--superficie); }
 .visor-3d-titulo { font-weight: 600; font-size: 14px; }
 .visor-3d-boton { background: var(--marca); color: #fff; border: none; padding: 6px 15px; border-radius: var(--r); cursor: pointer; font-size: 13px; }
@@ -188,7 +295,16 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .fases li:last-child { padding-bottom: 0; }
 .fases li::before { content: ''; position: absolute; left: -6px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--marca); border: 2px solid var(--papel); }
 .fase-cuando { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--marca); font-weight: 600; }
-.fases h4 { font-size: 15px; margin: 5px 0 6px; }
+/* `h3` y no `h4`: el título de la fase subió de nivel en
+   `biblioteca/[id]/page.tsx`, porque con «Rehabilitación» compuesta solo de
+   fases <Bloques> no pinta ningún <h3> y la secuencia real era h1 → h2 → h4.
+   El tamaño no sigue al nivel a propósito: 15 px, por debajo de los 17 px del
+   <h3> global, porque una fase es un punto de una lista y no un apartado de la
+   ficha. Y el `margin` hay que repetirlo aquí: el reajuste de encabezados deja
+   a los cuatro en `margin: 0`, así que sin esta línea el título se pega al
+   `.fase-cuando` de encima y al <p> de debajo. Si allí se vuelve a `<h4>`,
+   este selector vuelve con él o la fase pierde tamaño y separación de golpe. */
+.fases h3 { font-size: 15px; margin: 5px 0 6px; }
 .fases p { font-size: 14px; margin: 0 0 6px; max-width: 66ch; }
 .fase-criterio { color: var(--pizarra); font-size: 13px; }
 
@@ -206,29 +322,22 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .pasos-ao h2 { font-size: 18px; margin: 6px 0 10px; }
 .nota-tecnica { font-size: 14px; color: var(--pizarra); border-left: 2px solid var(--linea); padding-left: 14px; max-width: 66ch; }
 
-/* ---------- simulador ---------- */
-.simulador { display: grid; grid-template-columns: 1fr 290px; gap: 20px; align-items: start; }
-.simulador-principal { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg); padding: 24px 26px; }
-.simulador-principal h2 { margin: 6px 0 14px; }
-.simulador-registro { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg); padding: 20px 22px; position: sticky; top: 80px; }
-.simulador-registro h3 { font-size: 14px; margin-bottom: 14px; }
-.campo { border: none; padding: 0; margin: 0 0 22px; }
-.campo legend { font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; color: var(--marca); margin-bottom: 10px; }
-.campo input[type='range'] { width: 100%; accent-color: var(--marca); }
-.instrumentos { display: flex; flex-wrap: wrap; gap: 8px; }
-.instrumento { border: 1px solid var(--linea); background: var(--papel); padding: 8px 14px; border-radius: 100px; font-size: 13px; cursor: pointer; transition: all 0.15s ease; }
-.instrumento:hover { border-color: var(--marca); }
-.instrumento.elegido { background: var(--marca); color: #fff; border-color: var(--marca); }
-.pista { font-size: 12.5px; color: var(--mudo); margin: 10px 0 0; }
-.marcadores { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-.marcador { font-size: 12px; padding: 5px 11px; border-radius: var(--r); }
-.marcador.grave { background: var(--alerta-tenue); color: var(--alerta); }
-.marcador.aviso { background: var(--ambar-tenue); color: #7a5a1c; }
-.registro { list-style: none; padding: 0; margin: 0; font-size: 13px; }
-.registro li { padding: 9px 11px; border-radius: var(--r); margin-bottom: 6px; line-height: 1.45; }
-.registro li.bien { background: var(--marca-tenue); color: var(--marca-honda); }
-.registro li.aviso { background: var(--ambar-tenue); color: #7a5a1c; }
-.registro li.grave { background: var(--alerta-tenue); color: var(--alerta); }
+/* Aquí vivía el simulador anterior: `.simulador`, `.simulador-principal`,
+   `.simulador-registro`, `.instrumentos`, `.marcadores`, `.marcador`,
+   `.instrumento.elegido`, `.pista` y `.registro`. Hoy el simulador es
+   `ConsolaQuirurgica` y usa `.consola-*`, así que ni una sola de esas clases
+   quedaba en el marcado. Se fueron enteras, y no por limpieza: dos de ellas
+   estaban tocando pantallas vivas.
+
+   La que hacía daño era `.campo { margin: 0 0 22px }`, escrita para un
+   `<fieldset>` de aquel simulador. `.campo` es hoy la envoltura de **todo**
+   campo del panel de administración (`Campos.tsx`), y `admin.css` no declara
+   margen, así que ese margen sobrevivía: 22 px encima del `gap: 1.1rem` de
+   `.campos`, casi el doble de separación entre filas de la diseñada, y un
+   documento de doce campos ganaba una pantalla entera de desplazamiento. Quien
+   fuese a arreglarlo abriría `admin.css`, donde vive `.campo`, y no
+   encontraría nada. La otra era `.instrumento`, cuya única declaración
+   superviviente, `transition: all`, se colaba en la bandeja de la consola. */
 
 /* ---------- opciones de manejo ---------- */
 .opcion { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg); padding: 20px 22px; margin-bottom: 12px; }
@@ -400,15 +509,27 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .consola-medidas dd { margin: 2px 0 0; font-family: var(--mono); font-size: 14px; color: var(--marca); }
 .consola-medidas dd.consola-desglose { margin-top: 1px; font-size: 11px; color: var(--mudo); letter-spacing: 0.04em; }
 
-/* El instrumento que el residente tiene en la mano: su modelo y para qué sirve. */
+/* El instrumento que el residente tiene en la mano: su modelo y para qué sirve.
+
+   Vive en `.consola-panel-der`, una columna de 250 px con 620 px de alto y
+   scroll propio, y debajo de él están la instrucción del paso y el botón
+   «Aplicar». Si esta vista previa crece, esos dos se van fuera de lo que se ve
+   y el residente tiene que descubrir que el panel se desplaza por su cuenta.
+   Por eso 170 px, y por eso los 170 px hay que decirlos dos veces: una para el
+   marco de carga y otra para el lienzo ya cargado. */
 .consola-instrumento {
   margin: 10px 0 0;
   border: 1px solid var(--linea);
   border-radius: var(--r);
   background: var(--superficie);
   overflow: hidden;
+  /* Los 380 px con que el visor se dibuja dentro de una ficha no caben aquí. */
+  --alto-visor: 170px;
 }
-.consola-instrumento .visor-3d-marco { height: 170px; border: 0; border-radius: 0; }
+/* `min-height: 0` no es adorno: `.visor-3d-marco` trae `min-height: 240px`, y
+   un mínimo gana siempre a una altura, así que el marco de «Cargando visor…»
+   medía 242 px en vez de los 170 que pide la línea de abajo. */
+.consola-instrumento .visor-3d-marco { min-height: 0; height: 170px; border: 0; border-radius: 0; }
 .consola-instrumento-texto {
   margin: 0;
   padding: 9px 11px;
@@ -433,6 +554,10 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   background: var(--superficie);
   color: var(--pizarra);
   cursor: pointer;
+  /* Las dos propiedades que de verdad cambian al pasar por encima y al
+     elegirlo, nombradas una a una. Antes esto lo daba, sin querer, un
+     `transition: all` heredado de la pastilla del simulador viejo. */
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 .instrumento:hover { border-color: var(--marca); color: var(--marca); }
 .instrumento.activo { border-color: var(--marca); background: var(--marca-tenue); color: var(--marca); font-weight: 600; }
@@ -552,8 +677,7 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   .entrada-hero { grid-template-columns: 1fr; gap: 28px; }
   .hero-figura { order: -1; }
   .femur { height: 220px; }
-  .simulador, .pros-contras { grid-template-columns: 1fr; }
-  .simulador-registro { position: static; }
+  .pros-contras { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   main { padding: 30px 18px 70px; }
@@ -574,7 +698,18 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .recuento { font-size: 13px; color: var(--mudo); margin: 0 0 22px; }
 
 /* ---------- índice lateral de la ficha ---------- */
-.ficha-cuerpo { display: grid; grid-template-columns: 190px 1fr; gap: 40px; align-items: start; }
+
+/* La pista de 190 px solo existe si existe el índice que va en ella.
+   `IndiceFicha` devuelve `null` cuando la ficha tiene menos de dos secciones
+   publicadas —el caso normal de una ficha en construcción, que a propósito no
+   exhibe cuatro pestañas vacías— y entonces `.ficha-contenido` se quedaba solo
+   en la rejilla. La colocación automática de grid mete al hijo único en la
+   PRIMERA pista, así que todo el texto clínico salía en una cinta de 190 px
+   con 830 px de página en blanco al lado. Por debajo de 900 px no se veía,
+   porque ahí la rejilla ya es de una columna: se veía bien en el móvil de
+   quien revisaba y roto en el portátil del residente. */
+.ficha-cuerpo { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: start; }
+.ficha-cuerpo:has(> .indice-ficha) { grid-template-columns: 190px 1fr; }
 .indice-ficha { position: sticky; top: 80px; }
 .indice-titulo { display: block; font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.13em; color: var(--mudo); font-weight: 600; margin-bottom: 12px; }
 .indice-ficha ul { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--linea); }
@@ -586,7 +721,13 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .pestana { scroll-margin-top: 78px; }
 
 @media (max-width: 900px) {
-  .ficha-cuerpo { grid-template-columns: 1fr; gap: 20px; }
+  /* Repite el `:has()` a propósito: una consulta de medios no añade
+     especificidad, así que `.ficha-cuerpo` a secas (0,1,0) perdía contra la
+     regla de arriba, que con el `:has()` vale 0,2,0, y la ficha con índice
+     seguía a dos columnas en el móvil. Si allí se cambia el selector, aquí
+     también. */
+  .ficha-cuerpo,
+  .ficha-cuerpo:has(> .indice-ficha) { grid-template-columns: 1fr; gap: 20px; }
   .indice-ficha { position: static; border-bottom: 1px solid var(--linea); padding-bottom: 14px; }
   .indice-ficha ul { display: flex; flex-wrap: wrap; gap: 4px; border-left: none; }
   .indice-ficha li a { padding: 6px 12px; border: 1px solid var(--linea); border-radius: 100px; margin-left: 0; }
@@ -594,84 +735,11 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 }
 
 /* ==========================================================================
-   Mejoras de Diseño (Grillas, Tarjetas y UI de Comentarios)
+   Interfaz de comentarios y rastreador de lectura.
+
+   La rejilla de fichas y la tarjeta que vivían aquí se subieron al bloque
+   «rejilla de fichas», que es donde se las busca.
    ========================================================================== */
-
-/* Rejilla de fichas (Biblioteca) */
-.rejilla-fichas {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-  padding: 0;
-  margin: 1.5rem 0 3rem;
-  list-style: none;
-}
-
-/* Diseño de tarjeta individual */
-.tarjeta-ficha {
-  display: flex;
-  flex-direction: column;
-  background: var(--superficie);
-  border: 1px solid var(--linea);
-  border-radius: 8px;
-  padding: 1.5rem;
-  text-decoration: none;
-  color: inherit;
-  height: 100%;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-}
-
-.tarjeta-ficha:hover, .tarjeta-ficha:focus {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.06);
-  border-color: var(--marca);
-}
-
-.tarjeta-ficha h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.25rem;
-  color: var(--tinta);
-  line-height: 1.3;
-}
-
-.tarjeta-ficha p {
-  margin: 0;
-  color: var(--pizarra);
-  font-size: 0.95rem;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.tarjeta-ficha .etiquetas {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-.tarjeta-ficha .codigo, .tarjeta-ficha .borrador {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.tarjeta-ficha .codigo {
-  background: var(--marca-tenue);
-  color: var(--marca-honda);
-}
-
-.tarjeta-ficha .borrador {
-  background: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeeba;
-}
 
 /* Formulario de Comentarios */
 .contenedor-comentario-toggle {
@@ -735,6 +803,13 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   resize: vertical;
   margin-bottom: 1rem;
   transition: border-color 0.2s ease;
+  /* Era el único campo de escritura de la plataforma que no fijaba sus dos
+     colores, así que se los ponía el navegador: en un móvil con tema oscuro el
+     residente escribía la corrección de una ficha en un recuadro que no se
+     parecía a ninguno de los otros ocho campos. Los demás (.campo-busqueda
+     input, .acceso-campo input, .campo-control…) sí los declaran. */
+  background: var(--superficie);
+  color: var(--tinta);
 }
 
 .formulario-comentario textarea:focus {
@@ -768,7 +843,9 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 }
 
 .texto-error {
-  color: #d32f2f;
+  /* El rojo de la paleta, no el de Material: la alerta de la plataforma es una
+     sola y tiene que ser la misma aquí que en .advertencia.error-frecuente. */
+  color: var(--alerta);
   font-size: 0.9rem;
   margin-bottom: 1rem;
 }
@@ -831,6 +908,16 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
     background: transparent;
   }
 
+  /* En papel no hay rejilla que valga. `.indice-ficha` es un `<nav>`, así que
+     la regla de arriba lo oculta y la rejilla se quedaba con un solo hijo, que
+     grid coloca en la primera pista: la ficha entera salía en una columna de
+     190 px por hoja A4. Se deshace la rejilla en vez de recolocar las pistas
+     porque en papel el índice no sirve para nada: no se puede pulsar. */
+  .ficha-cuerpo,
+  .ficha-cuerpo:has(> .indice-ficha) {
+    display: block;
+  }
+
   /* Evitar cortes feos a mitad de página */
   .bloque, h2, h3, h4, figure, table, li {
     page-break-inside: avoid;
@@ -880,6 +967,14 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   max-width: 70%;
   height: auto;
   object-fit: contain;
+  /* Las dimensiones reales de `public/logo.png`. Los `<img>` de las cinco
+     páginas de acceso no llevan atributos `width`/`height`, así que hasta que
+     el archivo se descargaba y descodificaba el navegador no conocía la
+     proporción y la caja medía 0 px: al aterrizar, el título, los dos campos y
+     el botón bajaban 104 px de golpe. `height: auto` sigue mandando en el
+     tamaño pintado; esto solo dice cuánto hueco guardar mientras tanto. Si el
+     logotipo cambia de forma, este número cambia con él. */
+  aspect-ratio: 220 / 120;
 }
 
 .acceso-titulo {
@@ -1012,15 +1107,18 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 
 /* ---------- áreas de toque en pantallas táctiles ----------
    Los botones de mover y quitar miden 26px, cómodo con ratón e imposible con
-   el dedo. En un dispositivo táctil crecen a 40px. */
+   el dedo. En un dispositivo táctil crecen a 40px.
+
+   Acompañaban a `.lista-fila-acciones` dos reglas `.rico-*`, del editor de
+   texto que se fue con la interfaz de Payload. `admin.css` ya las había
+   retirado —y lo dice en un comentario: «no queda nada que las use»—, pero en
+   esta hoja seguían. */
 @media (pointer: coarse) {
-  .lista-fila-acciones button,
-  .rico-acciones button {
+  .lista-fila-acciones button {
     width: 40px;
     height: 40px;
     font-size: 15px;
   }
-  .rico-acciones { opacity: 1; }
   .admin-btn { padding: 0.6rem 0.9rem; }
 }
 
@@ -1192,10 +1290,16 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 }
 
 /* ---------- el cambio de una navegación a la otra ---------- */
+/* Este bloque llevaba cuatro declaraciones que repetían el valor que ya estaba
+   puesto, y una de ellas con un comentario que aseguraba que algo entre medias
+   lo había cambiado: `height: 58px` y `flex-wrap: nowrap` en `.barra-interior`
+   (lo primero ya está arriba, lo segundo es el valor inicial y nadie lo tocaba),
+   `.pestana { scroll-margin-top: 78px }` y `.indice-ficha { top: 80px }`, los
+   dos idénticos a su declaración original. Quien tocase el original creyendo
+   que aquí se compensaba rompería el desplazamiento por debajo de 1000 px sin
+   enterarse, porque los dos decían lo mismo. */
 @media (max-width: 1000px) {
   .barra-interior {
-    height: 58px;
-    flex-wrap: nowrap;
     padding: 0 18px;
     gap: 12px;
   }
@@ -1209,10 +1313,6 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
     gap: 8px;
     margin-left: auto;
   }
-
-  /* Con la barra en una sola fila vuelve a valer el desplazamiento original. */
-  .pestana { scroll-margin-top: 78px; }
-  .indice-ficha { top: 80px; }
 }
 
 @media (max-width: 520px) {
@@ -1293,6 +1393,12 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   width: 260px;
   max-width: 72%;
   height: auto;
+  /* Proporción de `public/logo.png`, por lo mismo que en `.acceso-logo`, y aquí
+     con más motivo: la portada es una columna centrada, así que al aparecer los
+     142 px del logotipo más su margen se recolocaba la columna entera y el
+     botón «Entrar» se movía unos 88 px. Quien lo tocara en ese instante
+     —conexión lenta, móvil, primera visita— pulsaba lo que quedase debajo. */
+  aspect-ratio: 220 / 120;
   margin: 0 auto 34px;
   display: block;
   /* El logotipo es azul sobre blanco; sobre el marino se aclara para no
@@ -1502,16 +1608,27 @@ dd > div blockquote p:last-child,
   font-style: normal !important;
 }
 
-@media (max-width: 1200px) {
-  .atlas-marco { grid-template-columns: 260px minmax(0, 1fr); height: auto; }
-  .atlas-panel-derecho { grid-column: 1 / -1; max-height: none; }
-}
+/* Aquí había cuatro reglas del taller anatómico —`.atlas-marco`,
+   `.atlas-centro`, `.atlas-panel` y `.atlas-panel-derecho`, con su `@media` de
+   1200 px entero— copiadas de `admin.css`. El taller solo se pinta en
+   `TallerDeAtlas.tsx`, dentro del panel, que carga `admin.css` y ya las trae
+   idénticas; y por debajo de 899 px `admin.css` esconde `.atlas-taller` entero,
+   así que las de 820 px no podían llegar a nada ni allí. Lo que queda abajo es
+   lo que la ficha pública necesita de verdad: el visor de una preparación ya
+   hecha, que sí se lee en el móvil.
+
+   El reparto es: el visor de la preparación (`.atlas-instancia`,
+   `.atlas-lienzo`, `.atlas-cargando`, `.atlas-barra`, `.atlas-error`,
+   `.atlas-flotante`, `.atlas-credito`) vive aquí; el taller
+   (`.atlas-marco`, `.atlas-taller`, `.atlas-panel*`, `.atlas-centro`,
+   `.atlas-arbol*`, `.atlas-solo-escritorio`) vive solo en `admin.css`. Estaban
+   en los dos sitios y ya habían divergido sin que nadie lo decidiera. */
 
 @media (max-width: 820px) {
-  .atlas-marco { grid-template-columns: 1fr; }
-  .atlas-centro { order: -1; }
-  .atlas-lienzo { height: 52vh; }
-  .atlas-panel { max-height: 380px; }
+  /* Aquí había también un `.atlas-lienzo { height: 52vh }` que no se aplicaba
+     nunca: `.atlas-lienzo { height: 100% }`, siete líneas más abajo, tiene la
+     misma especificidad y va después, y una consulta de medios no añade
+     especificidad. */
   .atlas-instancia { height: 60vh; }
 }
 

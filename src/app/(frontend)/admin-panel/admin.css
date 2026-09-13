@@ -22,7 +22,14 @@
   flex-shrink: 0;
 }
 
+/* La fila `flex` viene de cuando se le puso el logotipo al lado del título y
+   se escribió otra `.admin-sidebar-header` ochocientas líneas más abajo. Una
+   clase repartida en dos zonas del archivo se pisa en cuanto alguien toque una
+   de las dos sin ver la otra, que es justo lo que le pasó a `.campo-casilla`. */
 .admin-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
   padding: 0 0.75rem 1.25rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 0.75rem;
@@ -160,6 +167,18 @@
   box-shadow: 0 2px 6px rgba(14, 21, 25, 0.06), 0 8px 20px rgba(14, 21, 25, 0.04);
 }
 
+/* Tarjeta cuyos números no se pudieron leer.
+ *
+ * Los conteos del panel devuelven ceros de relleno cuando la base no responde
+ * (`datos.ts`), y un cero se lee como «no hay nada»: un módulo cuya tabla falta
+ * —desplegar un esquema sin su migración— se veía igual que uno recién
+ * instalado. La franja ámbar es la misma que usan los avisos de atención, para
+ * que la tarjeta se distinga del resto de la cuadrícula sin leer su texto. */
+.admin-card-ilegible {
+  border-left: 3px solid var(--ambar);
+  background-color: var(--ambar-tenue);
+}
+
 .admin-card-title {
   font-size: 0.875rem;
   font-weight: 600;
@@ -241,6 +260,26 @@
   background-color: rgba(24, 107, 120, 0.03);
 }
 
+/* La celda que da nombre a la fila es un `th scope="row"`: es lo que ata cada
+   «Editar» y cada «Eliminar» a la ficha que borran, y sin eso un lector de
+   pantalla lista veinte botones «Eliminar» indistinguibles. Dentro del cuerpo
+   tiene que parecer una celda normal: sin esto heredaba el aspecto de la
+   cabecera —versalitas monoespaciadas sobre fondo papel— en cada fila. */
+.admin-table tbody th {
+  font-weight: 500;
+  color: inherit;
+  background-color: transparent;
+  text-transform: none;
+  font-size: inherit;
+  letter-spacing: normal;
+  font-family: inherit;
+  white-space: normal;
+}
+
+.admin-table tbody tr:last-child th {
+  border-bottom: none;
+}
+
 .admin-table-user-name {
   font-weight: 500;
 }
@@ -314,14 +353,28 @@
   color: #fff;
 }
 
+/* El verde de «esto ya está publicado / resuelto».
+ *
+ * Había cuatro repartidos entre este archivo: #1e8e3e sobre #e6f4ea en el botón
+ * y en `.admin-badge-resolved`, y #1f7a4d sobre #e9f5ef en `.admin-aviso-ok` y
+ * en `.admin-badge-publicado`. La misma idea con dos verdes según qué
+ * componente pintara la fila, que es la clase de descuido que se ve sin poder
+ * señalarlo. Se queda el oscuro: #1e8e3e sobre su fondo no llega a 4,5:1 y
+ * #1f7a4d sí.
+ *
+ * Se escribe `var(--verde, …)` y no el color a secas porque la paleta vive en
+ * `estilos.css` y este es un archivo que la extiende: el día que `--verde` y
+ * `--verde-tenue` entren en ese `:root`, los cinco sitios los toman solos. Sin
+ * definirlos aquí a propósito —dos `:root` con el mismo nombre y distinto valor
+ * se resuelven por orden de carga, que no controlamos. */
 .admin-btn-success {
-  background-color: #e6f4ea;
-  color: #1e8e3e;
-  border: 1px solid rgba(30, 142, 62, 0.15);
+  background-color: var(--verde-tenue, #e9f5ef);
+  color: var(--verde, #1f7a4d);
+  border: 1px solid rgba(31, 122, 77, 0.15);
 }
 
 .admin-btn-success:hover {
-  background-color: #1e8e3e;
+  background-color: var(--verde, #1f7a4d);
   color: #fff;
 }
 
@@ -347,8 +400,8 @@
 }
 
 .admin-badge-resolved {
-  background-color: #e6f4ea;
-  color: #1e8e3e;
+  background-color: var(--verde-tenue, #e9f5ef);
+  color: var(--verde, #1f7a4d);
 }
 
 .admin-badge-active {
@@ -502,13 +555,16 @@
   text-align: center;
   padding: 3rem 2rem;
   color: var(--mudo);
+  border: 1px dashed var(--linea);
+  border-radius: var(--r);
+  margin: 0.25rem;
 }
 
-.admin-empty-icon {
-  font-size: 2.5rem;
-  margin-bottom: 0.75rem;
-  opacity: 0.5;
-}
+/* Sin emoji: el resto del panel dibuja sus iconos con trazos, y una carita
+   suelta en medio de una tabla clínica desentona más de lo que ayuda. El
+   `<div class="admin-empty-icon">` sigue en el marcado de media docena de
+   pantallas, así que la regla tiene que quedarse aunque no pinte nada. */
+.admin-empty-icon { display: none; }
 
 .admin-empty-text {
   font-size: 0.9375rem;
@@ -587,12 +643,6 @@
    ========================================================================== */
 
 /* ---------- barra lateral ---------- */
-.admin-sidebar-header {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-}
-
 .admin-sidebar-logo {
   height: 32px;
   width: 32px;
@@ -641,6 +691,13 @@
 
 .admin-acciones { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
+/* Formatos y tamaño máximo, debajo del botón «+ Subir archivo».
+ *
+ * Va dentro de la barra de acciones, que es flex y alinea a la derecha: sin un
+ * ancho máximo la frase entera se pone en una línea, ensancha la cabecera y
+ * empuja el título contra el borde. */
+.admin-subida-ayuda { max-width: 280px; text-align: right; }
+
 /* ---------- avisos en línea ---------- */
 .admin-aviso {
   border: 1px solid var(--linea);
@@ -654,7 +711,7 @@
 }
 
 .admin-aviso-info { border-left-color: var(--marca); background: var(--marca-tenue); }
-.admin-aviso-ok { border-left-color: #1f7a4d; background: #e9f5ef; }
+.admin-aviso-ok { border-left-color: var(--verde, #1f7a4d); background: var(--verde-tenue, #e9f5ef); }
 .admin-aviso-atencion { border-left-color: var(--ambar); background: var(--ambar-tenue); }
 .admin-aviso-error { border-left-color: var(--alerta); background: var(--alerta-tenue); }
 .admin-aviso strong { display: block; margin-bottom: 0.15rem; }
@@ -707,7 +764,7 @@
 
 /* ---------- etiquetas de estado ---------- */
 .admin-badge-borrador { background: var(--ambar-tenue); color: var(--ambar); }
-.admin-badge-publicado { background: #e9f5ef; color: #1f7a4d; }
+.admin-badge-publicado { background: var(--verde-tenue, #e9f5ef); color: var(--verde, #1f7a4d); }
 .admin-badge-neutro { background: var(--linea-suave); color: var(--pizarra); }
 
 /* ---------- bloque copiable (enlaces de un solo uso) ---------- */
@@ -930,7 +987,9 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
   padding: 0.75rem 0 0.25rem;
 }
 
-.encuadre-aviso { color: var(--verde, #16794a); font-weight: 600; }
+/* El reserva decía #16794a, un quinto verde que no estaba en ninguna otra
+   regla: se alinea con el de los demás avisos de «hecho». */
+.encuadre-aviso { color: var(--verde, #1f7a4d); font-weight: 600; }
 
 /* ---------- relación múltiple, con casillas ---------- */
 .campo-casillas {
@@ -945,7 +1004,21 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
   max-height: 220px;
   overflow-y: auto;
 }
-.campo-casilla {
+/* Esto se llamaba `.campo-casilla`, igual que la envoltura de un campo
+   booleano de la línea 892, y al llegar después ganaba por orden: aquel
+   `<div class="campo campo-casilla">` se volvía una fila flex y su `{ayuda}`
+   dejaba de caer debajo de la casilla para comprimirse a su derecha. Donde más
+   se notaba era en el editor de imágenes, en el aviso que explica que los
+   metadatos DICOM llevan el nombre del paciente dentro: el texto que impide
+   subir un estudio sin anonimizar quedaba donde nadie lo lee. Se apunta al
+   `<label>` por su sitio —dentro de `.campo-casillas`— y no por una clase, que
+   es lo que permitió la colisión.
+
+   El `<label>` sigue llevando `class="campo-casilla"` en `Campos.tsx`, y da
+   igual: esta regla tiene más especificidad (0,1,1 contra 0,1,0), así que su
+   `padding` gana. Quitar esa clase del marcado es lo que falta para que el
+   nombre no vuelva a significar dos cosas. */
+.campo-casillas label {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -953,7 +1026,7 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
   font-size: 13px;
   cursor: pointer;
 }
-.campo-casilla input { margin: 0; }
+.campo-casillas label input { margin: 0; }
 
 /* ---------- taller de piezas ---------- */
 .taller-piezas { margin: 0 0 1rem; }
@@ -1422,17 +1495,6 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .admin-salir:hover:not(:disabled) { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
 .admin-salir:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ---------- estados vacíos ----------
-   Sin emoji: el resto del panel dibuja sus iconos con trazos, y una carita
-   suelta en medio de una tabla clínica desentona más de lo que ayuda. */
-.admin-empty-icon { display: none; }
-
-.admin-empty {
-  border: 1px dashed var(--linea);
-  border-radius: var(--r);
-  margin: 0.25rem;
-}
-
 /* ---------- la tabla se desplaza sola en pantalla estrecha ---------- */
 @media (max-width: 900px) {
   .admin-table-container { overflow-x: auto; }
@@ -1836,6 +1898,25 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 
 .atlas-lista { flex: 1; overflow-y: auto; padding: 6px; min-height: 0; }
 
+/* La misma lista, prestada al panel «Exportar esta preparación como modelo 3D».
+ *
+ * Allí no vive en la columna flex del taller sino suelta dentro de un
+ * `.admin-aviso`, donde `flex: 1` no significa nada y no hay altura que la
+ * recorte: sin esto crece hasta donde llegue el atlas encendido —cientos de
+ * filas— y se derrama sobre el fondo del aviso sin nada que la delimite, de
+ * modo que no se ve dónde acaba la lista y empieza el texto que la explica. */
+.admin-aviso .atlas-lista {
+  flex: none;
+  max-height: 220px;
+  margin-top: 8px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+}
+
+.admin-aviso .atlas-casilla { padding: 3px 4px; border-radius: var(--r); }
+.admin-aviso .atlas-casilla:hover { background: var(--papel); }
+
 .atlas-grupo { margin-bottom: 2px; }
 
 .atlas-grupo-fila,
@@ -2052,9 +2133,14 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
     display: block;
     margin: 24px 0;
     padding: 20px;
-    border: 1px solid var(--borde);
+    /* Decía `var(--borde)`, que no está definida en ninguna hoja. Un `var()`
+       sin valor y sin reserva invalida la declaración entera, así que el atajo
+       `border` volvía a `medium none` y el aviso —lo único que queda en
+       pantalla cuando el taller se esconde— se pintaba como una mancha ámbar
+       sin caja. La variable de la casa es `--linea`. */
+    border: 1px solid var(--linea);
     border-left: 3px solid var(--ambar);
-    border-radius: 10px;
+    border-radius: var(--r-lg);
     background: var(--ambar-tenue);
   }
   .atlas-solo-escritorio h2 { margin: 0 0 8px; font-size: 1.05rem; }

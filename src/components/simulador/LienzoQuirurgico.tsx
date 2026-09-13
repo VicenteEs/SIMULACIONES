@@ -86,7 +86,16 @@ export function LienzoQuirurgico({
   fluoroscopia: boolean
   /** Se llama con el trazo completo cada vez que cambia. */
   alTrazar?: (puntos: Punto3[]) => void
-  /** Se llama al soltar el fragmento, con su estado. */
+  /**
+   * Se llama al soltar el fragmento, con su desplazamiento **respecto del
+   * reposo**, en unidades del archivo y en grados.
+   *
+   * Son las mismas unidades que devuelve `estadoDelFragmento` y que acepta
+   * `colocarFragmento`; decirlo en la firma importa porque antes aquí salía la
+   * posición absoluta del nodo, que solo coincide con el desplazamiento cuando
+   * la pieza sale de Blender centrada en el origen. Con una pierna entera, un
+   * arrastre de 2 mm se anunciaría como 1.200 mm sin que nada lo delatara.
+   */
   alMoverFragmento?: (posicion: Punto3, giros: Punto3) => void
   /** Se llama una vez, cuando el archivo termina de cargar. */
   alCargar?: () => void
@@ -125,8 +134,17 @@ export function LienzoQuirurgico({
     trazo?: THREE.Line
     puntosDelTrazo: Punto3[]
     materialesOriginales: Map<THREE.Mesh, THREE.Material | THREE.Material[]>
+    /**
+     * Con qué rol se pintó cada nodo la última vez.
+     *
+     * `aplicarPiezas` necesita saber qué ha cambiado, no solo qué hay: en el
+     * taller la lista de piezas se recalcula en cada repintado y llega como
+     * array nuevo, así que reasignar la visibilidad entera cada vez borraría el
+     * «Solo esto» del autor en cuanto pulsara cualquier otra cosa.
+     */
+    rolesAplicados: Map<string, PiezaDelCaso['rol']>
     pedirDibujo?: () => void
-  }>({ puntosDelTrazo: [], materialesOriginales: new Map() })
+  }>({ puntosDelTrazo: [], materialesOriginales: new Map(), rolesAplicados: new Map() })
 
   // Lo que leen los manejadores sin volver a montar la escena.
   const ultimas = useRef({ modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar, alSenalar, alFallar })
@@ -252,6 +270,7 @@ export function LienzoQuirurgico({
       pedirDibujo,
       puntosDelTrazo: [],
       materialesOriginales: new Map(),
+      rolesAplicados: new Map(),
     }
 
     // --- carga del modelo ---------------------------------------------------
@@ -376,6 +395,12 @@ export function LienzoQuirurgico({
           { x: golpe.point.x, y: golpe.point.y, z: golpe.point.z },
         ]
         dibujarTrazo(taller.current)
+        // Empezar un trazo borra el anterior del modelo, así que hay que
+        // decirlo aquí mismo, igual que hace `borrarTrazo`. Si no, un clic
+        // suelto en modo Trazar quita la línea roja y deja al panel midiendo
+        // una incisión que ya no está dibujada: «Aplicar paso» la juzga y el
+        // residente no tiene manera de ver contra qué.
+        ultimas.current.alTrazar?.([])
         pedirDibujo()
         return
       }
@@ -435,12 +460,19 @@ export function LienzoQuirurgico({
       planoDeArrastre = null
       controles.enabled = true
 
-      if (ultimas.current.modo === 'mover' && taller.current.fragmento) {
-        const f = taller.current.fragmento
-        ultimas.current.alMoverFragmento?.(
-          { x: f.position.x, y: f.position.y, z: f.position.z },
-          { x: grados(f.rotation.x), y: grados(f.rotation.y), z: grados(f.rotation.z) },
-        )
+      const f = taller.current.fragmento
+      const origen = taller.current.origenDelFragmento
+      // Se avisa del desplazamiento, no de la posición: es lo que devuelve
+      // `estadoDelFragmento` y lo que espera `colocarFragmento`, y así el dato
+      // del fragmento sale por un solo camino. Sin origen no hay contra qué
+      // medir y no se avisa: inventar un cero aquí es lo que hacía que un caso
+      // saliera ya reducido.
+      if (ultimas.current.modo === 'mover' && f && origen) {
+        ultimas.current.alMoverFragmento?.(desplazamientoDesde(origen.posicion, f.position), {
+          x: grados(f.rotation.x - origen.rotacion.x),
+          y: grados(f.rotation.y - origen.rotacion.y),
+          z: grados(f.rotation.z - origen.rotacion.z),
+        })
       }
     }
 
@@ -475,12 +507,34 @@ export function LienzoQuirurgico({
       render.domElement.removeEventListener('pointerup', alSubir)
       render.domElement.removeEventListener('pointerleave', alSubir)
       controles.dispose()
+      // El decodificador Draco es lo único que se crea aquí y no cuelga de la
+      // escena, así que `liberar` no lo alcanza: cada instancia levanta su
+      // propio hilo con el WASM dentro, y solo `dispose()` lo termina y revoca
+      // el `blob:` de su fuente. Sin esta línea, un residente que recorre ocho
+      // casos deja ocho hilos vivos hasta que cierre la pestaña.
+      draco.dispose()
+      // Apagar la fluoroscopia antes de liberar, para que cada malla vuelva a
+      // tener puesto su material de verdad. `liberar` solo mira
+      // `malla.material`, y lo que la fluoroscopia aparta en el mapa quedaría
+      // fuera de su alcance: terminar un caso con la fluoroscopia encendida
+      // dejaba sin soltar justo los materiales y las texturas del modelo.
+      aplicarFluoroscopia(taller.current, false)
       // Liberar a mano: aquí hay decenas de megabytes en la tarjeta y pasear
       // por la plataforma acabaría tirando la pestaña.
       liberar(escena)
+      // El contexto de WebGL sobrevive a `dispose()` —que solo suelta las
+      // estructuras internas del render— y a quitar el lienzo del documento.
+      // Se pierde a propósito para que la tarjeta recupere la memoria al
+      // cambiar de caso y no cuando el navegador se decida. Va después de
+      // `liberar`, porque el borrado de texturas necesita el contexto vivo.
+      render.forceContextLoss()
       render.dispose()
       render.domElement.remove()
-      taller.current = { puntosDelTrazo: [], materialesOriginales: new Map() }
+      taller.current = {
+        puntosDelTrazo: [],
+        materialesOriginales: new Map(),
+        rolesAplicados: new Map(),
+      }
     }
     // Se monta una vez por modelo. Lo demás se aplica sin rehacer la escena.
   }, [url])
@@ -534,8 +588,14 @@ export function LienzoQuirurgico({
 }
 
 // ------------------------------------------------------------------ auxiliares
+//
+// `aplicarPiezas` y `liberarMaterial` salen del módulo a propósito, aunque solo
+// se usen aquí dentro: son las dos piezas de este archivo que pueden estar mal
+// sin que nada lo diga —una deja una malla invisible para siempre, la otra deja
+// la memoria de vídeo ocupada— y son las dos que no necesitan navegador para
+// probarse. Las ejercita `tests/unit/lienzoQuirurgico.test.ts`.
 
-type Taller = {
+export type Taller = {
   escena?: THREE.Scene
   camara?: THREE.PerspectiveCamera
   controles?: OrbitControls
@@ -544,6 +604,7 @@ type Taller = {
   trazo?: THREE.Line
   puntosDelTrazo: Punto3[]
   materialesOriginales: Map<THREE.Mesh, THREE.Material | THREE.Material[]>
+  rolesAplicados: Map<string, PiezaDelCaso['rol']>
   pedirDibujo?: () => void
 }
 
@@ -565,15 +626,36 @@ function buscarFragmento(raiz: THREE.Object3D, piezas: PiezaDelCaso[]): THREE.Ob
   return raiz.getObjectByName(nombre) ?? undefined
 }
 
-/** Enciende y apaga según el rol declarado. Los implantes empiezan ocultos. */
-function aplicarPiezas(taller: Taller, piezas: PiezaDelCaso[]) {
+/**
+ * Enciende y apaga según el rol declarado. Los implantes empiezan ocultos.
+ *
+ * Se aplican los **cambios** de rol y no el estado entero, que sería más corto
+ * de escribir. Dos razones, y las dos se pagaron caras.
+ *
+ * Antes esto solo apagaba y nunca encendía: el autor que marcaba una pieza como
+ * «implante» y se arrepentía la dejaba invisible para siempre. La fila seguía
+ * bien puesta en la tabla, el nodo seguía en el archivo y no había ningún
+ * aviso; la única salida era recargar y perder el formulario a medio llenar.
+ *
+ * Y asignar `visible` a todo en cada llamada tampoco vale, porque quien manda
+ * sobre la visibilidad es `mostrar()` —las capas de la consola, el «Solo esto»
+ * del taller— y aquí se entra en cada repintado: en el taller la lista de
+ * piezas se recalcula en el cuerpo del componente y llega siempre como array
+ * nuevo, así que aislar una pieza se desharía solo al pulsar lo siguiente.
+ */
+export function aplicarPiezas(taller: Taller, piezas: PiezaDelCaso[]) {
   const raiz = taller.raiz
   if (!raiz) return
   const porNombre = new Map(piezas.map((p) => [p.nodo, p]))
   raiz.traverse((objeto) => {
     if (!(objeto as THREE.Mesh).isMesh) return
-    const pieza = porNombre.get(objeto.name)
-    if (pieza?.rol === 'implante') objeto.visible = false
+    const rol = porNombre.get(objeto.name)?.rol
+    const anterior = taller.rolesAplicados.get(objeto.name)
+    if (rol === anterior) return
+    if (rol) taller.rolesAplicados.set(objeto.name, rol)
+    else taller.rolesAplicados.delete(objeto.name)
+    if (rol === 'implante') objeto.visible = false
+    else if (anterior === 'implante') objeto.visible = true
   })
 }
 
@@ -668,14 +750,38 @@ function encuadrarVisible(taller: Taller) {
   taller.pedirDibujo?.()
 }
 
+/**
+ * Suelta el material y, antes, sus texturas.
+ *
+ * Las texturas hay que recorrerlas a mano porque `Material.dispose()` de three
+ * no las toca: su cuerpo entero es un `dispatchEvent({ type: 'dispose' })`, que
+ * sirve para soltar el programa compilado y nada más. `renderer.dispose()`
+ * tampoco llama a `deleteTexture`. Sin esto, la memoria de vídeo de cada modelo
+ * se queda ocupada hasta que el navegador recoja el contexto, y un modelo con
+ * piel y músculo texturizados son decenas de megabytes por caso: el residente
+ * que recorre seis acaba con la consola en negro a media práctica.
+ *
+ * Se miran todas las propiedades y no una lista de mapas conocidos (`map`,
+ * `normalMap`, `roughnessMap`…) porque la lista depende del tipo de material y
+ * de la versión de three, y la que se quede fuera no dará ningún error: se
+ * notará como lentitud sin causa visible varios casos después.
+ */
+export function liberarMaterial(material: THREE.Material) {
+  for (const valor of Object.values(material) as unknown[]) {
+    const textura = valor as THREE.Texture | null
+    if (textura?.isTexture) textura.dispose()
+  }
+  material.dispose()
+}
+
 function liberar(escena: THREE.Scene) {
   escena.traverse((objeto) => {
     const malla = objeto as THREE.Mesh
     if (!malla.isMesh) return
     malla.geometry?.dispose()
     const material = malla.material
-    if (Array.isArray(material)) material.forEach((m) => m.dispose())
-    else material?.dispose()
+    if (Array.isArray(material)) material.forEach(liberarMaterial)
+    else if (material) liberarMaterial(material)
   })
   void EJES
 }

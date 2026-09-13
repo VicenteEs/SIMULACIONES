@@ -2,9 +2,13 @@ import Link from 'next/link'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
+import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { Femur } from '@/components/Femur'
 import { MallaDeNodos } from '@/components/MallaDeNodos'
 import { ruta } from '@/lib/rutas'
+// `modulos.ts` no importa Payload a propósito (lo explica su cabecera), así que
+// la portada puede tomar el mapa de nombres sin arrastrar el servidor.
+import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +42,14 @@ const MODULOS = [
     numero: '04',
     ruta: '/simulador',
     coleccion: 'cirugias' as const,
-    titulo: 'Simula tu cirugía',
+    // «Simulador quirúrgico» y no «Simula tu cirugía»: era el único de los cinco
+    // cuyo título aquí no coincidía con el de la tabla única
+    // (`admin-panel/modulos.ts`), y por tanto el único módulo con dos nombres
+    // repartidos por la plataforma —esta tarjeta decía uno; el <h1> de
+    // `/simulador`, la barra y la insignia de «Continúa leyendo» decían el
+    // otro—. Si se vuelve a cambiar aquí, hay que cambiarlo allí: quien pulsa un
+    // nombre espera aterrizar en una página que se llame igual.
+    titulo: 'Simulador quirúrgico',
     descripcion: 'Instrumental, fuerza aplicada en newtons y registro de complicaciones.',
     publico: ['Residentes', 'Traumatología'],
   },
@@ -62,7 +73,7 @@ function saludo(): string {
 }
 
 export default async function Inicio() {
-  const { usuario, activo, rolReal } = await obtenerSesion()
+  const { usuario, usuarioEfectivo, activo, rolReal } = await obtenerSesion()
 
   // ----------------------------------------------------------- sin sesión
   if (!usuario) {
@@ -123,10 +134,48 @@ export default async function Inicio() {
   // ----------------------------------------------------------- con sesión
   const payload = await getPayload({ config })
 
+  // La rejilla se recorta con el mismo `puedeVerModulo` que recorta la barra
+  // superior (`Navegacion.tsx`), y por el mismo motivo: `lecturaDeModulo`
+  // devuelve `false` para un módulo que la cuenta no tiene, y ante un `false`
+  // Payload no contesta con una lista vacía sino que lanza `Forbidden`.
+  //
+  // Sin este filtro el módulo vetado costaba dos mentiras seguidas. El
+  // `.catch(() => 0)` de abajo convertía ese `Forbidden` en un cero, así que la
+  // tarjeta rotulaba «Sin contenido» sobre un módulo que puede estar lleno
+  // —y el conteo es la única señal que da la portada sobre dónde hay material,
+  // de modo que la daba justo al revés—; y la tarjeta seguía siendo un enlace
+  // que al pulsarlo acababa en la pantalla genérica de Next, en inglés y sin
+  // barra para volver, porque los listados consultan sin `catch`
+  // (`simulador/page.tsx`). Recortada la lista, el `.catch` vuelve a cubrir
+  // solo lo que decía cubrir: la tabla que todavía no existe.
+  //
+  // Se filtra una vez y la misma lista sirve para los conteos y para la
+  // rejilla, que es lo que mantiene a `conteos[i]` casando con su tarjeta.
+  const modulosVisibles = MODULOS.filter((m) =>
+    puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, m.coleccion),
+  )
+
+  // Se cuenta con el control de acceso puesto y con el usuario efectivo, que es
+  // exactamente como consulta el listado al que lleva cada tarjeta
+  // (`biblioteca/page.tsx`, `simulador/page.tsx`, …). Con `overrideAccess: true`
+  // el conteo incluía los borradores —la tabla principal de una colección
+  // versionada los guarda, como demuestra `admin-panel/datos.ts` separando
+  // `published` de `draft`— y se saltaba los módulos permitidos a la cuenta: la
+  // portada prometía «6 entradas» y el módulo contestaba «todavía no hay fichas
+  // escritas», dos pantallas contradiciéndose en dos clics. La cifra «por leer»
+  // arrastraba el mismo error y no bajaba nunca a cero.
+  //
+  // No se fuerza `where: SOLO_PUBLICADO`: para un editor la regla de acceso
+  // devuelve `true` y el conteo incluye sus borradores, que es justo lo que su
+  // listado le enseña con la etiqueta «Borrador». Filtrarlos aquí volvería a
+  // separar la portada del módulo, solo que al revés.
+  //
+  // El `.catch(() => 0)` cubre la colección cuya tabla todavía no existe: en una
+  // base recién levantada `count` falla y la portada entera se caía con ella.
   const conteos = await Promise.all(
-    MODULOS.map((m) =>
+    modulosVisibles.map((m) =>
       payload
-        .count({ collection: m.coleccion, overrideAccess: true })
+        .count({ collection: m.coleccion, overrideAccess: false, user: usuarioEfectivo as never })
         .then((r) => r.totalDocs)
         .catch(() => 0),
     ),
@@ -164,7 +213,19 @@ export default async function Inicio() {
       const doc = (await payload.findByID({
         collection: registro.coleccion as never,
         id: registro.documentoId as string,
-        user: usuario as never,
+        // Sin `overrideAccess: false` aquí no se comprobaba nada: en la API
+        // local vale `true` por omisión, así que pasar `user` a secas no
+        // activaba `lecturaDeModulo` ni el filtro de publicación, y el `catch`
+        // de abajo prometía omitir lo no publicado mientras imprimía su título.
+        //
+        // Importa más de lo que parece porque la fila que se resuelve la elige
+        // quien la crea: `POST /api/actividad` solo exige sesión activa y
+        // acepta cualquier `coleccion` y `documentoId`. Era un listador de
+        // títulos de borradores —y de módulos vetados— a base de probar
+        // identificadores 1, 2, 3…, justo lo que D-020 se toma el trabajo de
+        // ocultar.
+        overrideAccess: false,
+        user: usuarioEfectivo as never,
       })) as Record<string, unknown>
       const nombre = (doc?.nombre ?? doc?.titulo) as string | undefined
       if (nombre) {
@@ -243,7 +304,11 @@ export default async function Inicio() {
             {continuarLeyendo.map((item) => (
               <Link key={`${item.coleccion}-${item.id}`} href={`${item.ruta}/${item.id}`} className="tarjeta-ficha">
                 <div className="etiquetas">
-                  <span className="codigo">{item.coleccion.replace('-', ' ')}</span>
+                  {/* El slug crudo solo como último recurso: `replace('-', ' ')`
+                      sacaba a la portada el nombre de la tabla de PostgreSQL
+                      —«patologias» sin tilde, «casos ao», «estudios ia»—, que
+                      ni siquiera son palabras. */}
+                  <span className="codigo">{NOMBRE_DE_MODULO[item.coleccion] ?? item.coleccion}</span>
                 </div>
                 <h3>{item.nombre}</h3>
                 <span className="tarjeta-ficha-accion">Retomar lectura →</span>
@@ -253,31 +318,54 @@ export default async function Inicio() {
         </section>
       ) : null}
 
-      <span className="eyebrow">Los cinco módulos</span>
-      <h2 className="titulo-seccion">Qué incluye la plataforma</h2>
-      <div className="rejilla-modulos">
-        {MODULOS.map((m, i) => (
-          <Link key={m.ruta} href={m.ruta} className="tarjeta-modulo">
-            <span className="modulo-numero">{m.numero}</span>
-            <h3>{m.titulo}</h3>
-            <p>{m.descripcion}</p>
-            <div className="modulo-pie">
-              <div className="etiquetas">
-                {m.publico.map((p) => (
-                  <span key={p} className="etiqueta">
-                    {p}
+      {modulosVisibles.length > 0 ? (
+        <>
+          {/* Los rótulos cuentan lo que hay debajo y no lo que tiene la
+              plataforma: a una cuenta restringida a dos módulos, «Los cinco
+              módulos» le encabezaba una rejilla de dos tarjetas, y de paso le
+              decía cuántos se le están ocultando. */}
+          <span className="eyebrow">
+            {modulosVisibles.length === MODULOS.length ? 'Los cinco módulos' : 'Sus módulos'}
+          </span>
+          <h2 className="titulo-seccion">
+            {modulosVisibles.length === MODULOS.length
+              ? 'Qué incluye la plataforma'
+              : 'Qué tiene disponible'}
+          </h2>
+          <div className="rejilla-modulos">
+            {modulosVisibles.map((m, i) => (
+              <Link key={m.ruta} href={m.ruta} className="tarjeta-modulo">
+                <span className="modulo-numero">{m.numero}</span>
+                <h3>{m.titulo}</h3>
+                <p>{m.descripcion}</p>
+                <div className="modulo-pie">
+                  <div className="etiquetas">
+                    {m.publico.map((p) => (
+                      <span key={p} className="etiqueta">
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                  <span className={`conteo ${conteos[i] === 0 ? 'vacio' : ''}`}>
+                    {conteos[i] === 0
+                      ? 'Sin contenido'
+                      : `${conteos[i]} ${conteos[i] === 1 ? 'entrada' : 'entradas'}`}
                   </span>
-                ))}
-              </div>
-              <span className={`conteo ${conteos[i] === 0 ? 'vacio' : ''}`}>
-                {conteos[i] === 0
-                  ? 'Sin contenido'
-                  : `${conteos[i]} ${conteos[i] === 1 ? 'entrada' : 'entradas'}`}
-              </span>
-            </div>
-          </Link>
-        ))}
-      </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </>
+      ) : (
+        // Cuenta cuyo `modulosVisibles` —el campo del usuario, no la lista de
+        // arriba— está puesto y no contiene ninguno de los cinco. La barra
+        // superior sale igual de vacía (`Navegacion.tsx` recorta con la misma
+        // regla), así que sin esta línea la portada se lee como una avería del
+        // servidor y no como un permiso que nadie le ha dado todavía.
+        <p className="aviso">
+          Su cuenta todavía no tiene módulos asignados. Solicítelos al equipo docente.
+        </p>
+      )}
     </main>
   )
 }

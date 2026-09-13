@@ -47,6 +47,18 @@ export interface MandoDelVisor {
   irA: (vista: VistaDeInstancia) => void
 }
 
+/**
+ * Aviso de contexto WebGL perdido.
+ *
+ * Es una constante y no un literal suelto porque al recuperar el contexto hay
+ * que distinguir este aviso de un fallo de carga: los dos viven en el mismo
+ * `error`, y retirar el de la tarjeta gráfica no puede llevarse por delante el
+ * de una ficha que de verdad no cargó.
+ */
+const AVISO_SIN_ACELERACION =
+  'Se perdió la aceleración gráfica de esta página, normalmente por tener abiertos ' +
+  'demasiados modelos a la vez. Recargue la página para volver a ver la anatomía.'
+
 export function VisorAtlas({
   catalogo,
   visibles,
@@ -111,7 +123,13 @@ export function VisorAtlas({
         separacion: ultimas.current.separacion,
       }
     },
-    encuadrar: () => encuadrarVisible(taller.current, catalogo, ultimas.current.visibles),
+    encuadrar: () =>
+      encuadrarVisible(
+        taller.current,
+        catalogo,
+        ultimas.current.visibles,
+        ultimas.current.separacion,
+      ),
     irA: (vista) => {
       const { camara, controles } = taller.current
       if (!camara || !controles) return
@@ -178,8 +196,24 @@ export function VisorAtlas({
     // --- carga -------------------------------------------------------------
     ;(async () => {
       try {
-        const necesarias = ultimas.current.visibles
-          ? catalogo.piezas.filter((p) => ultimas.current.visibles!.has(p.id))
+        // La selección se congela **antes** del `await`, y con la congelada se
+        // monta después.
+        //
+        // El tercer argumento de `montarEscena` no es visibilidad sino
+        // construcción: lo que no entra ahí no se funde en la malla de su
+        // sistema ni recibe rango, y la escena solo se monta al cambiar el
+        // catálogo, que no cambia nunca. Volviendo a leer el ref después del
+        // `await` se montaba con lo que hubiera encendido al TERMINAR la
+        // descarga, y el árbol anatómico está vivo durante esos 31 MB: pulsar
+        // «Solo esto» sobre la tibia mientras carga dejaba el resto del cuerpo
+        // fuera de la malla, y volver a marcarlo en el árbol ya no enseñaba un
+        // triángulo ni se podía señalar con el ratón, sin ningún error; con
+        // «Ninguna», el lienzo quedaba en blanco al 100 % de progreso. Apagar
+        // una pieza es un píxel de textura y se deshace; no haberla metido en
+        // la malla, no.
+        const seleccionDescargada = ultimas.current.visibles
+        const necesarias = seleccionDescargada
+          ? catalogo.piezas.filter((p) => seleccionDescargada.has(p.id))
           : catalogo.piezas
 
         const buferes = await cargarPaquetes(
@@ -190,11 +224,7 @@ export function VisorAtlas({
         )
         if (!vivo) return
 
-        const escena = montarEscena(
-          catalogo,
-          buferes,
-          ultimas.current.visibles ?? undefined,
-        )
+        const escena = montarEscena(catalogo, buferes, seleccionDescargada ?? undefined)
         taller.current.escena = escena
         for (const malla of escena.mallas) tresD.add(malla)
 
@@ -224,15 +254,31 @@ export function VisorAtlas({
     }
 
     const alBajar = (evento: PointerEvent) => {
-      bajado = { x: evento.clientX, y: evento.clientY }
       render.domElement.style.cursor = 'grabbing'
+      // Solo el botón izquierdo, y solo con un puntero, arma un posible clic
+      // sobre una pieza. El derecho es el encuadre de OrbitControls y el
+      // central el zoom, y dos dedos son su pellizco: son gestos de cámara, no
+      // del taller. Sin este filtro, un encuadre con el derecho que se
+      // desplazara menos de cinco píxeles caía por la rama del clic y apagaba
+      // la pieza de debajo; y como OrbitControls suprime el menú contextual, en
+      // pantalla no quedaba ni rastro que conectara el gesto con la pieza que
+      // había desaparecido entre las 2.234 filas del árbol.
+      if (evento.button !== 0 || !evento.isPrimary) {
+        bajado = null
+        return
+      }
+      bajado = { x: evento.clientX, y: evento.clientY }
     }
 
     const alMover = (evento: PointerEvent) => {
-      render.domElement.style.cursor = bajado ? 'grabbing' : 'grab'
+      // `buttons` y no `bajado`: desde que `bajado` sigue solo al izquierdo,
+      // preguntarle a él dejaría el cruce de rayos corriendo durante un
+      // encuadre con el derecho, que es justo cuando no sirve para nada.
+      const arrastrando = evento.buttons !== 0
+      render.domElement.style.cursor = arrastrando ? 'grabbing' : 'grab'
       const escena = taller.current.escena
       // Mientras se arrastra no se busca nada: sería trabajo tirado.
-      if (bajado || !escena || evento.pointerType === 'touch') {
+      if (arrastrando || !escena || evento.pointerType === 'touch') {
         setNombreFlotante(null)
         return
       }
@@ -248,15 +294,22 @@ export function VisorAtlas({
     }
 
     const alSubir = (evento: PointerEvent) => {
-      const arrastro =
-        bajado &&
-        Math.hypot(evento.clientX - bajado.x, evento.clientY - bajado.y) >
-          (evento.pointerType === 'touch' ? 12 : 5)
-      bajado = null
       render.domElement.style.cursor = 'grab'
+      // Soltar el derecho o el central no cancela nada: el izquierdo puede
+      // seguir pulsado y su gesto sigue vivo, así que se sale sin tocar
+      // `bajado`.
+      if (evento.button !== 0 || !evento.isPrimary) return
+
+      const inicio = bajado
+      bajado = null
 
       const escena = taller.current.escena
-      if (arrastro || !escena || ultimas.current.soloLectura) return
+      // Sin `pointerdown` propio no hay clic: un arrastre que empezó fuera del
+      // lienzo y termina encima no es una pulsación sobre la pieza.
+      if (!inicio || !escena || ultimas.current.soloLectura) return
+
+      const umbral = evento.pointerType === 'touch' ? 12 : 5
+      if (Math.hypot(evento.clientX - inicio.x, evento.clientY - inicio.y) > umbral) return
 
       aCoordenadas(evento)
       rayo.setFromCamera(puntero, camara)
@@ -265,6 +318,44 @@ export function VisorAtlas({
     }
 
     const alSalir = () => setNombreFlotante(null)
+
+    // Un contexto WebGL se puede perder sin que esta página haga nada: el
+    // navegador limita cuántos hay vivos a la vez —del orden de dieciséis en
+    // Chrome— y al pasarse descarta el más antiguo, que es justo lo que le
+    // ocurre al residente que recorre varias fichas con anatomía. El manejador
+    // interno de three se limita entonces a marcar el contexto como perdido y
+    // dejar de pintar, en silencio: queda un rectángulo blanco, con `progreso`
+    // a 100 y sin error, idéntico a una ficha rota. Este aviso es lo único que
+    // distingue las dos cosas y lo único que dice qué hacer.
+    const alPerderContexto = () => {
+      setError(AVISO_SIN_ACELERACION)
+    }
+    render.domElement.addEventListener('webglcontextlost', alPerderContexto)
+
+    // Y su reverso, que es la otra mitad del mismo contrato. El `onContextLost`
+    // interno de three llama a `preventDefault()` (three 0.185.1), que es justo
+    // lo que le pide al navegador que DEVUELVA el contexto, y three trae su
+    // `onContextRestore` —escucha puesta al construir el render y retirada solo
+    // en `dispose()`— para reinicializarlo y volver a subirlo todo a la tarjeta.
+    // Sin este reverso, el caso que el aviso dice cubrir acababa peor que sin
+    // aviso: la anatomía volvía sana y quedaba debajo de un cartel opaco
+    // —`.atlas-error` es `inset: 16px`, con fondo y sin `pointer-events: none`,
+    // así que tapa el lienzo entero y se come el ratón— que seguía mandando
+    // recargar una página que ya funcionaba.
+    //
+    // Solo se retira el aviso propio: un fallo de carga es otra cosa y sigue
+    // siendo cierto aunque la tarjeta vuelva.
+    //
+    // Y se ensucia el fotograma a mano porque aquí se dibuja solo cuando algo
+    // cambia: con el modelo quieto `controles.update()` devuelve false, el bucle
+    // sale sin renderizar y un contexto recuperado no pinta nada por su cuenta;
+    // el lienzo se quedaría en blanco igual, ahora sin ningún aviso que lo
+    // explicara.
+    const alRecuperarContexto = () => {
+      setError((anterior) => (anterior === AVISO_SIN_ACELERACION ? null : anterior))
+      sucio = true
+    }
+    render.domElement.addEventListener('webglcontextrestored', alRecuperarContexto)
 
     render.domElement.addEventListener('pointerdown', alBajar)
     render.domElement.addEventListener('pointermove', alMover)
@@ -298,11 +389,23 @@ export function VisorAtlas({
       render.domElement.removeEventListener('pointermove', alMover)
       render.domElement.removeEventListener('pointerup', alSubir)
       render.domElement.removeEventListener('pointerleave', alSalir)
+      // Antes de forzar la pérdida, para no avisar de un contexto que se tira
+      // a propósito sobre un componente que ya no está montado.
+      render.domElement.removeEventListener('webglcontextlost', alPerderContexto)
+      render.domElement.removeEventListener('webglcontextrestored', alRecuperarContexto)
       controles.dispose()
       // Liberar a mano: el proyecto no llama a `useGLTF.clear` en ninguna parte
       // y aquí hay decenas de megabytes en la tarjeta. Sin esto, pasear por la
       // plataforma acaba tirando la pestaña.
       taller.current.escena?.liberar()
+      // `dispose()` no cierra el contexto: en esta versión de three (0.185.1)
+      // solo quita tres escuchas y vacía cachés internas. El contexto sobrevive
+      // hasta que el recolector se lleve el lienzo, en un momento que la
+      // aplicación no decide, y cada ficha con anatomía monta uno —dos o tres
+      // si trae varias preparaciones—. Al llegar al tope del navegador, este
+      // descarta el contexto más antiguo y ese lienzo se queda en blanco para
+      // siempre. Perderlo a mano es un método aparte, y este es su único sitio.
+      render.forceContextLoss()
       render.dispose()
       render.domElement.remove()
       taller.current = {}
@@ -399,28 +502,58 @@ function aplicarVisibilidad(
   escena.estados.needsUpdate = true
 }
 
-/** Encuadra la cámara sobre lo que esté encendido. */
+/**
+ * Encuadra la cámara sobre lo que esté encendido.
+ *
+ * `separacion` no es un adorno: la caja que trae el catálogo es la de la pieza
+ * en su sitio, pero al separar el cuerpo la geometría se desplaza en el
+ * sombreador (`cargador.ts`: `transformed += estado.xyz * separacion`) y la
+ * caja se queda atrás. Sin trasladarla, «Encuadrar» situaba la cámara sobre el
+ * volumen cerrado justo cuando más falta hace recolocar la vista —con el cuerpo
+ * abierto— y dejaba fuera de pantalla las piezas más desplazadas: el botón que
+ * existe para volver a ver el modelo enseñaba menos modelo que antes.
+ *
+ * Es la misma traslación que hace `picking.ts` para saber qué hay bajo el
+ * cursor, y son dos copias de la misma regla: si una cambia, la otra también, o
+ * los dos módulos volverán a colocar la misma pieza en sitios distintos.
+ */
 function encuadrarVisible(
   taller: {
     camara?: THREE.PerspectiveCamera
     controles?: OrbitControls
     pedirDibujo?: () => void
+    escena?: EscenaDelAtlas
   },
   catalogo: CatalogoDelAtlas,
   visibles: Set<string> | null,
+  separacion: number,
 ) {
-  const { camara, controles } = taller
+  const { camara, controles, escena } = taller
   if (!camara || !controles) return
 
   const caja = new THREE.Box3()
+  const extremo = new THREE.Vector3()
+  const desplazamiento = new THREE.Vector3()
+  // Las direcciones de separación viven en los tres primeros canales de
+  // `escena.datos`, indexados por el orden de la pieza en el catálogo: de ahí
+  // el índice del recorrido. Con el cuerpo cerrado, o antes de que la escena
+  // esté montada, no hay nada que trasladar.
+  const datos = separacion > 0 ? escena?.datos : undefined
   let hay = false
-  for (const pieza of catalogo.piezas) {
-    if (visibles && !visibles.has(pieza.id)) continue
+  catalogo.piezas.forEach((pieza, i) => {
+    if (visibles && !visibles.has(pieza.id)) return
     const [min, max] = pieza.caja
-    caja.expandByPoint(new THREE.Vector3(min[0], min[1], min[2]))
-    caja.expandByPoint(new THREE.Vector3(max[0], max[1], max[2]))
+    if (datos) {
+      desplazamiento
+        .set(datos[i * 4], datos[i * 4 + 1], datos[i * 4 + 2])
+        .multiplyScalar(separacion)
+    } else {
+      desplazamiento.set(0, 0, 0)
+    }
+    caja.expandByPoint(extremo.set(min[0], min[1], min[2]).add(desplazamiento))
+    caja.expandByPoint(extremo.set(max[0], max[1], max[2]).add(desplazamiento))
     hay = true
-  }
+  })
   if (!hay) return
 
   const centro = caja.getCenter(new THREE.Vector3())

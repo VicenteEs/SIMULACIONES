@@ -19,6 +19,16 @@ export interface ComentarioDelPanel {
   creado: string
   autorNombre: string | null
   autorCorreo: string | null
+  /**
+   * Título de la ficha comentada, si el servidor pudo resolverlo.
+   *
+   * `documentoId` es un campo de texto suelto en `Comentarios`, no una
+   * relación, así que la profundidad con la que se lee el comentario trae al
+   * autor pero nunca el documento: hay que ir a buscarlo aparte. Es opcional
+   * porque la ficha pudo borrarse y el comentario seguir ahí; sin él la fila
+   * cae al nombre del módulo, que es lo único seguro.
+   */
+  fichaTitulo?: string | null
 }
 
 const fechaHora = (valor: string) =>
@@ -51,7 +61,16 @@ export function TablaComentarios({
       if (estado !== 'todos' && c.estado !== estado) return false
       if (modulo !== 'todos' && c.coleccion !== modulo) return false
       if (!texto) return true
-      return [c.texto, c.autorNombre, c.autorCorreo].join(' ').toLowerCase().includes(texto)
+      // El título de la ficha se busca igual que el texto y el autor. El filtro
+      // de módulo reduce once colecciones a una, pero dentro de «Biblioteca de
+      // patologías» siguen cayendo veinte comentarios y lo que se quiere buscar
+      // es la ficha: «qué se dijo de la fractura de Colles». `join` convierte
+      // nulo y `undefined` en cadena vacía, así que un comentario cuyo título no
+      // se pudo resolver no aporta nada al texto contra el que se compara.
+      return [c.texto, c.autorNombre, c.autorCorreo, c.fichaTitulo]
+        .join(' ')
+        .toLowerCase()
+        .includes(texto)
     })
   }, [comentarios, estado, modulo, busqueda])
 
@@ -189,15 +208,40 @@ export function TablaComentarios({
                     </div>
                   </td>
                   <td>
+                    {c.fichaTitulo ? (
+                      <div className="admin-table-user-name">{c.fichaTitulo}</div>
+                    ) : null}
                     <div className="admin-table-modulo">
                       {NOMBRE_DE_MODULO[c.coleccion] ?? c.coleccion}
                     </div>
-                    <Link
-                      href={rutaPublica(c.coleccion, c.documentoId)}
-                      className="admin-table-user-email"
-                    >
-                      abrir ficha →
-                    </Link>
+                    {/* «Editar» primero, y al editor del panel, porque es lo
+                        que se va a hacer con un comentario que dice que falta
+                        algo. El único enlace que había llevaba a la ficha
+                        pública: desde ahí, corregirla costaba volver a Panel,
+                        Contenido, el módulo, buscar la ficha por nombre y
+                        Editar, con el identificador en pantalla todo el rato. */}
+                    <div className="admin-acciones">
+                      <Link
+                        href={`/admin-panel/contenido/${c.coleccion}/${c.documentoId}`}
+                        className="admin-table-user-email"
+                        aria-label={
+                          c.fichaTitulo ? `Editar «${c.fichaTitulo}»` : 'Editar la ficha comentada'
+                        }
+                      >
+                        editar →
+                      </Link>
+                      <Link
+                        href={rutaPublica(c.coleccion, c.documentoId)}
+                        className="admin-table-user-email"
+                        aria-label={
+                          c.fichaTitulo
+                            ? `Ver «${c.fichaTitulo}» en el sitio público`
+                            : 'Ver la ficha comentada en el sitio público'
+                        }
+                      >
+                        ver ficha →
+                      </Link>
+                    </div>
                   </td>
                   <td style={{ whiteSpace: 'nowrap', fontSize: '0.8125rem' }}>
                     {fechaHora(c.creado)}

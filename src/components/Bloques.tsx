@@ -1,5 +1,6 @@
 import React from 'react'
 import { RichText } from '@payloadcms/richtext-lexical/react'
+import { conversoresRicos } from '@/components/Rico'
 import { Visor3D, VisorInstancia } from './VisoresPerezosos'
 
 /**
@@ -23,7 +24,13 @@ function BloqueTexto({ bloque }: { bloque: Bloque }) {
   return (
     <section className="bloque">
       {typeof bloque.titulo === 'string' && bloque.titulo ? <h3>{bloque.titulo}</h3> : null}
-      {bloque.cuerpo ? <RichText data={bloque.cuerpo as never} /> : null}
+      {/* Con los convertidores de la casa, no con los de Payload: los suyos
+          emiten `<a href={url}>` tal cual, y eso deja el enlace del autor sin
+          `ruta()` —404 bajo el prefijo—, sin pasar por `enlaceSeguro` y
+          abriéndose en otra pestaña aunque apunte a esta misma plataforma. */}
+      {bloque.cuerpo ? (
+        <RichText data={bloque.cuerpo as never} converters={conversoresRicos} />
+      ) : null}
     </section>
   )
 }
@@ -91,11 +98,17 @@ function BloqueImagen({ bloque }: { bloque: Bloque }) {
 }
 
 function BloqueVideo({ bloque }: { bloque: Bloque }) {
-  const video = bloque.video as { url?: string; mimeType?: string } | undefined
+  const video = bloque.video as { url?: string; alt?: string; mimeType?: string } | undefined
   if (!video?.url) return null
   return (
     <figure className="figura completo">
-      <video controls preload="metadata" src={video.url} />
+      {/* El `alt` de `medios` es obligatorio y se le pide al autor con el
+          rótulo «Descripción para lectores de pantalla»: aquí es donde tiene
+          que llegar. Sin él el reproductor se anuncia como «video, botón
+          reproducir» y nada más, y el residente no tiene con qué decidir si
+          vale la pena reproducirlo. El `<figcaption>` no sirve: nombra a la
+          `<figure>`, no al reproductor. */}
+      <video controls preload="metadata" src={video.url} aria-label={video.alt} />
       {typeof bloque.pie === 'string' && bloque.pie ? <figcaption>{bloque.pie}</figcaption> : null}
     </figure>
   )
@@ -105,12 +118,19 @@ function BloqueModelo3D({ bloque }: { bloque: Bloque }) {
   const modelo = bloque.modelo as { nombre?: string; url?: string } | undefined
   const encuadre = (bloque.encuadre ?? {}) as Record<string, number>
 
+  // Aquí no ha fallado ninguna descarga: el visor ni se monta. O el autor no
+  // eligió modelo en el desplegable, o la relación quedó en nulo porque alguien
+  // borró el archivo del catálogo. El texto anterior hablaba de una carga
+  // fallida y mandaba al traumatólogo a buscar la avería en el servidor, con el
+  // campo vacío a dos clics en su propio editor.
   if (!modelo?.url) {
     return (
       <figure className="figura completo">
         <div className="visor-3d-marco">
-          <span className="visor-3d-nombre">Modelo no disponible</span>
-          <span className="visor-3d-nota">El archivo del modelo no se pudo cargar.</span>
+          <span className="visor-3d-nombre">Este bloque no tiene modelo</span>
+          <span className="visor-3d-nota">
+            No se eligió ningún archivo 3D, o el modelo que tenía se eliminó del catálogo.
+          </span>
         </div>
       </figure>
     )

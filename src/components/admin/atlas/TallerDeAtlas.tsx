@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import dynamic from 'next/dynamic'
 import type { CatalogoDelAtlas, PiezaDelAtlas, VistaDeInstancia } from '@/atlas/formato'
 import { VISTA_INICIAL } from '@/atlas/formato'
 import { cargarCatalogo } from '@/atlas/cargador'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
-import { VisorAtlas, type MandoDelVisor } from '@/components/atlas/VisorAtlas'
+import type { MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import {
   duplicarInstancia,
   eliminarInstancia,
@@ -15,6 +16,56 @@ import {
   obtenerInstancia,
   type ResumenDeInstancia,
 } from '@/app/(frontend)/acciones/atlas'
+
+/**
+ * El visor se trae aparte, pero el motor 3D **todavía viaja** en el trozo de
+ * entrada de esta página.
+ *
+ * three.js son 725 KB sin comprimir y es, con diferencia, el trozo más pesado
+ * de la plataforma. Lo primero que el taller tiene que enseñar es texto —«Leyendo
+ * el catálogo del atlas…», y en un servidor sin atlas el aviso de que no se pudo
+ * abrir—, así que arrastrarlo de forma normal dejaba la pantalla en blanco
+ * varios segundos en una tableta para no enseñar nada tridimensional.
+ *
+ * El título dice «todavía» porque hay una segunda puerta y sigue abierta:
+ * `cargarCatalogo` se importa aquí arriba de forma estática y vive en
+ * `@/atlas/cargador`, que hace `import * as THREE from 'three'`, de modo que
+ * pedir un JSON de cuarenta líneas mete el motor entero igual. Lo que este
+ * `dynamic()` deja fuera por ahora es OrbitControls, `@/atlas/picking` y el
+ * propio `VisorAtlas`; los 725 KB siguen exactamente donde estaban. El patrón
+ * copiado de `VisoresPerezosos` sí adelgaza allí porque aquel módulo no importa
+ * three de forma estática, y este sí.
+ *
+ * Para cerrarla hay que sacar `cargarCatalogo` a un módulo sin three y hacer
+ * que lo importen de ahí sus dos usuarios —este taller y `VisorInstancia`—,
+ * dejando `@/atlas/cargador` para lo que de verdad necesita el motor. Mientras
+ * eso no ocurra, no se puede afirmar que el trozo de entrada esté limpio.
+ *
+ * `ssr: false` porque un lienzo WebGL en el servidor es un hueco vacío, lo
+ * mismo que en `VisoresPerezosos`.
+ */
+const VisorAtlas = dynamic(
+  () => import('@/components/atlas/VisorAtlas').then((m) => m.VisorAtlas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="atlas-lienzo">
+        <div className="atlas-cargando">
+          <p>Cargando el visor…</p>
+        </div>
+      </div>
+    ),
+  },
+)
+
+/**
+ * Cuánto puede moverse la cámara sin que cuente como cambio, en metros.
+ *
+ * Dos milímetros: por debajo solo hay deriva de coma flotante de OrbitControls
+ * y del redondeo de `vistaActual()`; por encima no hay gesto humano que mueva
+ * menos.
+ */
+const HOLGURA_ENCUADRE = 0.002
 
 /**
  * Taller del atlas anatómico.
@@ -44,8 +95,16 @@ export function TallerDeAtlas() {
   const [vistaInicial, setVistaInicial] = useState<VistaDeInstancia>(VISTA_INICIAL)
 
   const [guardadas, setGuardadas] = useState<ResumenDeInstancia[]>([])
+  // Separado de `guardadas` porque «no hay ninguna» y «no se pudo preguntar»
+  // son dos cosas distintas y se veían igual: un array vacío.
+  const [listaFallo, setListaFallo] = useState<string | null>(null)
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [enCurso, iniciar] = useTransition()
+  // Qué se está haciendo, porque `enCurso` es de toda la transición y aquí hay
+  // dos trabajos largos: mientras se exportaba —que son decenas de megabytes
+  // leídos del disco— el botón principal ponía «Guardando…» sin estar
+  // guardando nada.
+  const [trabajo, setTrabajo] = useState<'guardar' | 'exportar' | null>(null)
 
   // --- exportar la preparación como modelo de un caso -----------------------
   //
@@ -70,6 +129,35 @@ export function TallerDeAtlas() {
     perdidas: string[]
   } | null>(null)
 
+  /**
+   * Las protagonistas que siguen encendidas.
+   *
+   * Marcar una pieza y apagarla después dejaba la marca puesta y fuera de la
+   * vista, porque el panel solo lista las encendidas: la cuenta prometía «3
+   * piezas sueltas» y el archivo salía con cero, ya que el servidor exporta lo
+   * que hay en la preparación guardada y allí esa pieza no está.
+   */
+  const protagonistasVivas = useMemo(
+    () => [...protagonistas].filter((id) => visibles.has(id)),
+    [protagonistas, visibles],
+  )
+
+  /**
+   * Deja el panel de exportación como recién abierto.
+   *
+   * Se llama al cambiar de preparación: las marcas y el resultado son de la
+   * anterior, y el recuadro con los nombres de los nodos —«esto es lo que el
+   * caso tiene que escribir en sus piezas»— apuntando a otro archivo es peor
+   * que no enseñar nada. El panel se queda abierto si lo estaba: exportar
+   * varias preparaciones seguidas es el uso normal y cerrarlo obligaría a
+   * volver a abrirlo cada vez.
+   */
+  const limpiarExportacion = useCallback(() => {
+    setProtagonistas(new Set())
+    setFiltroProtagonista('')
+    setExportado(null)
+  }, [])
+
   const mando = useRef<MandoDelVisor | null>(null)
 
   // --- trabajo sin guardar --------------------------------------------------
@@ -81,8 +169,18 @@ export function TallerDeAtlas() {
   // que lo hacía peor: el traumatólogo se enteraba al volver a mirar.
   //
   // Para saber si hay algo que perder se compara el estado de ahora con el de
-  // la última vez que se guardó o se abrió algo.
-  const [referencia, setReferencia] = useState({ nombre: '', descripcion: '', piezas: '' })
+  // la última vez que se guardó o se abrió algo. La referencia guarda también
+  // el encuadre, porque el encuadre **se guarda**: `guardar()` escribe la
+  // cámara y la separación, y son exactamente lo que el residente ve al abrir
+  // la ficha. Vigilar solo las piezas y los textos dejaba fuera media hora de
+  // buscar el ángulo que enseña la fractura, y se perdía igual de callado que
+  // lo demás antes de este bloque.
+  const [referencia, setReferencia] = useState<{
+    nombre: string
+    descripcion: string
+    piezas: string
+    vista: VistaDeInstancia
+  }>({ nombre: '', descripcion: '', piezas: '', vista: VISTA_INICIAL })
 
   const clavePiezas = useMemo(() => [...visibles].sort().join(','), [visibles])
 
@@ -90,32 +188,134 @@ export function TallerDeAtlas() {
     catalogo !== null &&
     (clavePiezas !== referencia.piezas ||
       nombre.trim() !== referencia.nombre ||
-      descripcion.trim() !== referencia.descripcion)
+      descripcion.trim() !== referencia.descripcion ||
+      separacion !== referencia.vista.separacion)
+
+  /**
+   * Si la cámara se ha movido desde la referencia, anotado para poder pintarlo.
+   *
+   * Va **fuera** de `sucio` a propósito, aunque el encuadre se guarde: `sucio`
+   * es además la guardia de `exportar()`, y lo que se exporta es geometría, que
+   * no cambia por mirarla desde otro lado. Metido dentro, girar el modelo para
+   * comprobar la preparación antes de exportarla bastaba para que dejara de
+   * poder exportarse, con un mensaje que mandaba guardar lo que ya estaba
+   * guardado.
+   */
+  const [camaraMovida, setCamaraMovida] = useState(false)
+
+  /**
+   * Lo que se le enseña a quien está delante: hay trabajo que se puede perder.
+   *
+   * Junta las dos mitades porque para el traumatólogo son la misma cosa. Las
+   * guardias de dentro siguen separadas y son más estrictas: `exportar()` mira
+   * solo `sucio`, y `confirmarDescarte` pregunta por la cámara de verdad en vez
+   * de fiarse de esta copia.
+   */
+  const hayQueAvisar = sucio || camaraMovida
 
   /** Toma el estado de ahora como «lo guardado»: nada que perder. */
-  const fijarReferencia = useCallback((piezas: Set<string>, titulo: string, texto: string) => {
-    setReferencia({
-      nombre: titulo.trim(),
-      descripcion: texto.trim(),
-      piezas: [...piezas].sort().join(','),
+  const fijarReferencia = useCallback(
+    (piezas: Set<string>, titulo: string, texto: string, vista: VistaDeInstancia) => {
+      setReferencia({
+        nombre: titulo.trim(),
+        descripcion: texto.trim(),
+        piezas: [...piezas].sort().join(','),
+        vista,
+      })
+      // El encuadre entra en la referencia, así que lo que hubiera de movido
+      // deja de contar aquí mismo. Sin esta línea el cartel ámbar seguía
+      // encendido después de guardar, hasta que alguien volviera a tocar la
+      // cámara.
+      setCamaraMovida(false)
+    },
+    [],
+  )
+
+  /**
+   * Si la cámara ya no está donde la dejó lo último que se guardó o se abrió.
+   *
+   * Se le pregunta al mando y no al estado de React porque la cámara vive
+   * dentro de three.js, cambia en cada fotograma de órbita y no pasa nunca por
+   * aquí: al pintar no hay nada que comparar. Esta es la respuesta buena, la
+   * que se consulta antes de tirar el trabajo; `camaraMovida` es solo su copia
+   * para poder pintar un cartel.
+   *
+   * Con holgura y no con igualdad: `irA` deja la cámara a millonésimas del
+   * punto pedido, OrbitControls la recalcula en cada fotograma y `vistaActual()`
+   * redondea a milímetros. Comparando exacto, abrir una preparación y pulsar
+   * «Cuerpo completo» a continuación sacaba el «¿continuar y perderlos?» sin
+   * que nadie hubiera tocado nada, y una confirmación que salta sola enseña a
+   * pulsar «aceptar» sin leer, que es justo lo que aquí no conviene.
+   */
+  const encuadreMovido = () => {
+    const ahora = mando.current?.vistaActual()
+    if (!ahora) return false
+    const antes = referencia.vista
+    return (
+      ahora.camara.some((n, i) => Math.abs(n - antes.camara[i]) > HOLGURA_ENCUADRE) ||
+      ahora.objetivo.some((n, i) => Math.abs(n - antes.objetivo[i]) > HOLGURA_ENCUADRE)
+    )
+  }
+
+  /**
+   * Apunta en el estado si el gesto que acaba de terminar movió la cámara.
+   *
+   * Existe porque el cartel de «cambios sin guardar» se pinta, y hasta ahora
+   * media hora buscando el ángulo que enseña la fractura no encendía nada: la
+   * cabecera seguía diciendo que no había nada pendiente y, al pulsar «Cuerpo
+   * completo», saltaba de golpe un `confirm` que afirmaba lo contrario.
+   *
+   * Se mira al terminar el gesto y no se le pide al visor que avise desde su
+   * oyente `change` de OrbitControls: allí el aviso llega decenas de veces por
+   * segundo mientras se orbita, y lo único que hay que decidir es cómo quedó la
+   * cámara al soltar.
+   *
+   * Y dentro de `requestAnimationFrame` porque OrbitControls no aplica el gesto
+   * en el evento sino en su propio bucle: preguntado dentro del `wheel`, un
+   * único golpe de rueda devolvía todavía la cámara de antes y el cartel no se
+   * encendía hasta el siguiente.
+   */
+  const revisarEncuadre = () => {
+    requestAnimationFrame(() => {
+      if (encuadreMovido()) setCamaraMovida(true)
     })
-  }, [])
+  }
 
   /** Pregunta antes de tirar el trabajo. Devuelve si se puede continuar. */
   const confirmarDescarte = (queVaAPasar: string) =>
-    !sucio ||
+    (!sucio && !encuadreMovido()) ||
     confirm(
       `Hay cambios sin guardar en esta preparación.\n\n${queVaAPasar}\n\n` +
         '¿Continuar y perderlos?',
     )
 
   // Y el mismo aviso al cerrar la pestaña que usa el editor de fichas.
+  //
+  // El oyente se registra siempre y decide dentro, en vez de colgarse de
+  // `sucio` o de `camaraMovida`: girar el modelo también es trabajo que se
+  // pierde, y de la cámara no llega ningún pintado que lo cuente —`camaraMovida`
+  // se enciende una vez y se queda quieta—, de modo que un efecto que mirara
+  // esos valores al montarse se quedaba con un «no hay nada que perder» de otro
+  // momento. Se refresca en su propio efecto y no durante el pintado porque
+  // escribir en un ref mientras se pinta rompe con el pintado concurrente.
+  //
+  // El tipo del ref se escribe a mano y no se deja inferir: del valor inicial
+  // `() => false` TypeScript saca `() => false` —el literal, que en posición de
+  // retorno no ensancha a `boolean`—, y la asignación de abajo, que sí devuelve
+  // un `boolean`, no compilaba. ESLint no lo ve —no es una regla de lint—, así
+  // que lo único que lo canta es `npm run typecheck`, y tumba la construcción.
+  const hayAlgoQuePerder = useRef<() => boolean>(() => false)
   useEffect(() => {
-    if (!sucio) return
-    const alSalir = (e: BeforeUnloadEvent) => e.preventDefault()
+    hayAlgoQuePerder.current = () => sucio || encuadreMovido()
+  })
+
+  useEffect(() => {
+    const alSalir = (e: BeforeUnloadEvent) => {
+      if (hayAlgoQuePerder.current()) e.preventDefault()
+    }
     window.addEventListener('beforeunload', alSalir)
     return () => window.removeEventListener('beforeunload', alSalir)
-  }, [sucio])
+  }, [])
 
   // --- catálogo -------------------------------------------------------------
   useEffect(() => {
@@ -126,8 +326,9 @@ export function TallerDeAtlas() {
         setCatalogo(c)
         setVisibles(todas)
         // El cuerpo entero y sin nombre es el punto de partida: todavía no hay
-        // nada que perder.
-        fijarReferencia(todas, '', '')
+        // nada que perder. El encuadre de referencia es el mismo con el que se
+        // monta el visor, así que la cámara nace igualada.
+        fijarReferencia(todas, '', '', VISTA_INICIAL)
       })
       .catch((e: unknown) => {
         if (aborto.signal.aborted) return
@@ -136,10 +337,27 @@ export function TallerDeAtlas() {
     return () => aborto.abort()
   }, [fijarReferencia])
 
+  /**
+   * Trae la lista de preparaciones guardadas.
+   *
+   * Los dos modos de fallo tienen salida a propósito. `listarInstancias`
+   * devuelve `{ exito: false }` cuando la sesión ha caducado o cuando el
+   * servidor no encuentra su copia del catálogo, y la promesa puede además
+   * rechazarse por red. Antes los dos acababan igual: `guardadas` se quedaba
+   * vacío y el panel afirmaba «Todavía no hay ninguna», que es indistinguible
+   * de haberlas perdido todas y lo razonable desde esa silla es rehacerlas.
+   */
   const refrescarLista = useCallback(() => {
-    void listarInstancias().then((r) => {
-      if (r.exito && r.datos) setGuardadas(r.datos)
-    })
+    listarInstancias()
+      .then((r) => {
+        if (r.exito && r.datos) {
+          setGuardadas(r.datos)
+          setListaFallo(null)
+          return
+        }
+        setListaFallo(r.mensaje ?? 'No se pudo leer la lista de preparaciones.')
+      })
+      .catch(() => setListaFallo('No se pudo leer la lista de preparaciones.'))
   }, [])
 
   useEffect(refrescarLista, [refrescarLista])
@@ -163,7 +381,8 @@ export function TallerDeAtlas() {
     setSeparacion(0)
     setVistaInicial(VISTA_INICIAL)
     mando.current?.irA(VISTA_INICIAL)
-    fijarReferencia(todas, '', '')
+    fijarReferencia(todas, '', '', VISTA_INICIAL)
+    limpiarExportacion()
     setAviso(null)
   }
 
@@ -182,10 +401,12 @@ export function TallerDeAtlas() {
       setVisibles(new Set(r.datos.contenido.piezas.map((p) => p.id)))
       setSeparacion(r.datos.contenido.vista.separacion)
       setVistaInicial(r.datos.contenido.vista)
+      limpiarExportacion()
       fijarReferencia(
         new Set(r.datos.contenido.piezas.map((p) => p.id)),
         r.datos.nombre,
         r.datos.descripcion ?? '',
+        r.datos.contenido.vista,
       )
       // Y además se le ordena al visor que vaya: la escena ya está montada y no
       // se vuelve a montar, así que sin esto la cámara se quedaba donde
@@ -213,13 +434,18 @@ export function TallerDeAtlas() {
       return
     }
     setAviso(null)
+    setTrabajo('guardar')
 
     iniciar(async () => {
+      // La misma vista se manda y se congela como referencia. Leerla dos veces
+      // devolvía dos encuadres distintos si el traumatólogo seguía girando
+      // mientras se guardaba, y entonces lo recién guardado nacía «sucio».
+      const vista = mando.current?.vistaActual() ?? { ...VISTA_INICIAL, separacion }
       const r = await guardarInstancia(instancia, {
         nombre,
         descripcion,
         piezas: [...visibles],
-        vista: mando.current?.vistaActual() ?? { ...VISTA_INICIAL, separacion },
+        vista,
       })
       if (!r.exito || !r.datos) {
         setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo guardar.' })
@@ -227,7 +453,7 @@ export function TallerDeAtlas() {
       }
       setInstancia(r.datos.id)
       // Lo recién guardado pasa a ser la referencia: ya no hay nada que perder.
-      fijarReferencia(visibles, nombre, descripcion)
+      fijarReferencia(visibles, nombre, descripcion, vista)
       setAviso({
         tipo: 'ok',
         texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
@@ -262,9 +488,10 @@ export function TallerDeAtlas() {
     }
     setAviso(null)
     setExportado(null)
+    setTrabajo('exportar')
 
     iniciar(async () => {
-      const r = await exportarComoModelo(instancia, { protagonistas: [...protagonistas] })
+      const r = await exportarComoModelo(instancia, { protagonistas: protagonistasVivas })
       if (!r.exito || !r.datos) {
         setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo exportar.' })
         return
@@ -280,10 +507,10 @@ export function TallerDeAtlas() {
   /**
    * Las piezas encendidas, para elegir cuáles salen sueltas.
    *
-   * Se enseñan las cien primeras y se dice cuántas quedan fuera: el cuerpo
-   * completo son ciento treinta y nueve y pintarlas todas convierte el panel en
-   * una lista imposible de recorrer. Callar el recorte sería peor: parecería
-   * que la pieza que se busca no está encendida.
+   * Se enseñan las cien primeras y se dice cuántas quedan fuera: con el cuerpo
+   * completo encendido son las 2.234 del atlas y pintarlas todas convierte el
+   * panel en una lista imposible de recorrer. Callar el recorte sería peor:
+   * parecería que la pieza que se busca no está encendida.
    */
   const candidatas = useMemo<{ lista: PiezaDelAtlas[]; total: number }>(() => {
     if (!catalogo) return { lista: [], total: 0 }
@@ -297,11 +524,17 @@ export function TallerDeAtlas() {
   const conAviso = (
     tarea: () => Promise<{ exito: boolean; mensaje?: string }>,
     exitoso: string,
+    alLograrlo?: () => void,
   ) => {
     setAviso(null)
+    setTrabajo(null)
     iniciar(async () => {
       const r = await tarea()
       if (r.exito) {
+        // Antes del aviso y no después: `empezarDeCero` termina limpiando
+        // `aviso`, y puesto detrás se llevaba por delante el «Preparación
+        // eliminada.» que acababa de escribirse.
+        alLograrlo?.()
         setAviso({ tipo: 'ok', texto: exitoso })
         refrescarLista()
       } else {
@@ -326,12 +559,24 @@ export function TallerDeAtlas() {
   }, [catalogo, visibles])
 
   // --- pintado --------------------------------------------------------------
+  //
+  // El titular no acusa al despliegue, porque en `fallo` cae cualquier error de
+  // la petición: un wifi que parpadea deja ahí un «Failed to fetch» —en inglés,
+  // y encima— bajo un titular que afirmaba otra cosa, y el traumatólogo avisaba
+  // de que el servidor había perdido el atlas cuando bastaba con recargar.
+  //
+  // Y se le habla a quien está delante. Esta página pasa por `exigirPanel()`,
+  // que es nivel editor: quien prepara el contenido no tiene consola en el
+  // servidor ni puede desplegar nada, así que la instrucción de ejecutar
+  // `scripts/atlas/preparar.mjs` no es suya sino de la página de Sistema, que
+  // sí exige administrador.
   if (fallo) {
     return (
       <div className="admin-aviso admin-aviso-error">
-        <strong>El atlas no está instalado en este servidor.</strong> {fallo}
+        <strong>No se pudo abrir el atlas anatómico.</strong> {fallo}
         <br />
-        Ejecute <code>node scripts/atlas/preparar.mjs</code> y vuelva a desplegar.
+        Recargue la página. Si vuelve a fallar, avise a quien administra la plataforma: puede que
+        el atlas no esté instalado en este servidor.
       </div>
     )
   }
@@ -363,7 +608,7 @@ export function TallerDeAtlas() {
           <p className="admin-subtitle">
             {catalogo.piezas.length} piezas · {catalogo.sujeto}
             {instancia ? ' · editando una preparación guardada' : ' · preparación nueva'}
-            {sucio ? <span className="editor-sucio"> · cambios sin guardar</span> : null}
+            {hayQueAvisar ? <span className="editor-sucio"> · cambios sin guardar</span> : null}
           </p>
         </div>
         <div className="admin-acciones">
@@ -372,25 +617,36 @@ export function TallerDeAtlas() {
           </button>
           <button
             className="admin-btn admin-btn-secondary"
-            onClick={() => mando.current?.encuadrar()}
+            // Encuadrar también mueve la cámara, y el gesto no pasa por el
+            // lienzo: sin este aviso, recolocar la vista y cerrar la pestaña se
+            // llevaba el encuadre sin que la pantalla hubiera dicho nada.
+            onClick={() => {
+              mando.current?.encuadrar()
+              revisarEncuadre()
+            }}
           >
             Encuadrar
           </button>
           <button
             className="admin-btn admin-btn-secondary"
             aria-expanded={panelExportar}
+            aria-controls="atlas-panel-exportar"
             onClick={() => setPanelExportar((abierto) => !abierto)}
           >
             {panelExportar ? 'Cerrar exportación' : 'Exportar como modelo'}
           </button>
           <button className="admin-btn admin-btn-primary" disabled={enCurso} onClick={guardar}>
-            {enCurso ? 'Guardando…' : instancia ? 'Guardar cambios' : 'Guardar preparación'}
+            {enCurso && trabajo === 'guardar'
+              ? 'Guardando…'
+              : instancia
+                ? 'Guardar cambios'
+                : 'Guardar preparación'}
           </button>
         </div>
       </div>
 
       {panelExportar ? (
-        <div className="admin-aviso admin-aviso-info">
+        <div className="admin-aviso admin-aviso-info" id="atlas-panel-exportar">
           <strong>Exportar esta preparación como modelo 3D</strong>
           <p>
             Se escribe un archivo .glb en la biblioteca de modelos, igual que si lo hubiera subido
@@ -444,14 +700,14 @@ export function TallerDeAtlas() {
 
           <div className="admin-acciones" style={{ marginTop: 10 }}>
             <button className="admin-btn admin-btn-primary" disabled={enCurso} onClick={exportar}>
-              {enCurso ? 'Exportando…' : 'Crear el modelo'}
+              {enCurso && trabajo === 'exportar' ? 'Exportando…' : 'Crear el modelo'}
             </button>
             <span className="atlas-conteo">
-              {protagonistas.size === 0
+              {protagonistasVivas.length === 0
                 ? 'Ninguna pieza suelta'
-                : `${protagonistas.size} pieza${protagonistas.size === 1 ? '' : 's'} suelta${
-                    protagonistas.size === 1 ? '' : 's'
-                  }`}
+                : `${protagonistasVivas.length} pieza${
+                    protagonistasVivas.length === 1 ? '' : 's'
+                  } suelta${protagonistasVivas.length === 1 ? '' : 's'}`}
               {' · '}
               {visibles.size} encendida{visibles.size === 1 ? '' : 's'}
             </span>
@@ -490,10 +746,10 @@ export function TallerDeAtlas() {
 
       {aviso ? <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>{aviso.texto}</div> : null}
 
-      {sucio ? (
+      {hayQueAvisar ? (
         <div className="admin-aviso admin-aviso-atencion" role="status">
-          <strong>Hay cambios sin guardar.</strong> Lo que apague o encienda aquí no queda en
-          ninguna parte hasta que pulse{' '}
+          <strong>Hay cambios sin guardar.</strong> Lo que apague o encienda aquí, y el encuadre
+          que le busque al modelo, no quedan en ninguna parte hasta que pulse{' '}
           <em>{instancia ? 'Guardar cambios' : 'Guardar preparación'}</em>. Cerrar la pestaña,
           volver al cuerpo completo o abrir otra preparación se lo llevará.
         </div>
@@ -510,7 +766,18 @@ export function TallerDeAtlas() {
           />
         </aside>
 
-        <div className="atlas-centro">
+        {/* Los gestos de cámara se escuchan aquí, en el contenedor, y no en el
+            lienzo: OrbitControls captura el puntero sobre su propio lienzo, de
+            modo que un arrastre que empieza dentro y termina fuera de la
+            ventana sigue soltándose aquí. Solo interesa el final del gesto
+            —soltar, cancelar, o una vuelta de rueda—, que es cuando
+            `revisarEncuadre` mira si la cámara quedó en otro sitio. */}
+        <div
+          className="atlas-centro"
+          onPointerUp={revisarEncuadre}
+          onPointerCancel={revisarEncuadre}
+          onWheel={revisarEncuadre}
+        >
           <VisorAtlas
             catalogo={catalogo}
             visibles={visibles}
@@ -568,15 +835,37 @@ export function TallerDeAtlas() {
             />
 
             <p className="campo-ayuda">
-              Se guardan las piezas encendidas y el encuadre de la cámara. El atlas original no se
-              toca: lo que apague aquí se puede volver a encender siempre.
+              Se guardan las piezas encendidas, el encuadre de la cámara y la separación. El atlas
+              original no se toca: lo que apague aquí se puede volver a encender siempre.
             </p>
           </div>
 
           <h3 className="atlas-subtitulo">Preparaciones guardadas</h3>
-          {guardadas.length === 0 ? (
+
+          {/* Si no se pudo preguntar, se dice; y «no hay ninguna» solo se
+              afirma cuando la respuesta llegó de verdad. Lo que ya estuviera
+              listado se conserva: un refresco fallido no es motivo para
+              esconder lo que se sabe. */}
+          {listaFallo ? (
+            <div className="admin-aviso admin-aviso-error">
+              {listaFallo}
+              <div className="admin-acciones" style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-secondary"
+                  onClick={refrescarLista}
+                >
+                  Reintentar
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {guardadas.length === 0 && !listaFallo ? (
             <p className="atlas-vacio">Todavía no hay ninguna.</p>
-          ) : (
+          ) : null}
+
+          {guardadas.length > 0 ? (
             <ul className="atlas-guardadas">
               {guardadas.map((g) => (
                 <li key={g.id} className={g.id === instancia ? 'atlas-guardada-activa' : ''}>
@@ -602,10 +891,24 @@ export function TallerDeAtlas() {
                       className="lista-quitar"
                       disabled={enCurso}
                       onClick={() => {
-                        if (confirm(`¿Eliminar «${g.nombre}»? No se puede deshacer.`)) {
-                          conAviso(() => eliminarInstancia(g.id), 'Preparación eliminada.')
-                          if (g.id === instancia) empezarDeCero(false)
+                        if (
+                          !confirm(
+                            `¿Eliminar «${g.nombre}»? No se puede deshacer.\n\n` +
+                              'Si alguna ficha publicada la usa, su visor se quedará vacío.',
+                          )
+                        ) {
+                          return
                         }
+                        conAviso(
+                          () => eliminarInstancia(g.id),
+                          'Preparación eliminada.',
+                          // Vaciar el taller solo si de verdad se borró. Cuando
+                          // la acción falla —sesión caducada— la preparación
+                          // sigue en la base, y limpiarla de la pantalla se
+                          // llevaba además lo que hubiera sin guardar, sin
+                          // preguntar y sin que se hubiera borrado nada.
+                          g.id === instancia ? () => empezarDeCero(false) : undefined,
+                        )
                       }}
                     >
                       Eliminar
@@ -614,7 +917,7 @@ export function TallerDeAtlas() {
                 </li>
               ))}
             </ul>
-          )}
+          ) : null}
         </aside>
       </div>
       </div>

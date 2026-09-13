@@ -51,6 +51,19 @@ function celda(valor: unknown, formato?: string) {
   return String(valor)
 }
 
+/**
+ * Cómo se llama esta fila, para nombrarla en los botones y en el `confirm`.
+ *
+ * Se pregunta por `esquema.titulo`, que es el campo declarado como nombre del
+ * registro, y solo si ese no viene entre los valores se cae a la primera
+ * columna. El respaldo es el identificador: preferimos «#41» a una cadena vacía
+ * en la frase que confirma un borrado.
+ */
+const nombreDeFila = (esquema: EsquemaDeColeccion, fila: FilaDeLista) => {
+  const valor = fila.valores[esquema.titulo] ?? fila.valores[esquema.columnas[0]?.nombre ?? '']
+  return typeof valor === 'string' && valor.trim() !== '' ? valor : `#${fila.id}`
+}
+
 export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
@@ -114,11 +127,18 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
           {esquema.subida ? (
             <SubidorDeArchivos esquema={esquema} alTerminar={() => void cargar()} />
           ) : (
+            /* Decía «+ Nueva {singular en minúsculas}», con el femenino fijo y
+               las siglas arrasadas: «+ Nueva hueso», «+ Nueva caso ao»,
+               «+ Nueva instrumento». Seis de los once botones salían mal, y son
+               el botón principal de la pantalla. «Agregar» es el verbo que las
+               listas repetibles ya usan (`formulario/Campos.tsx`) y no tiene
+               que concordar con nada, así que el singular entra tal como está
+               escrito en el esquema y «Caso AO» conserva su sigla. */
             <Link
               href={`/admin-panel/contenido/${esquema.slug}/nuevo`}
               className="admin-btn admin-btn-primary"
             >
-              + Nueva {esquema.singular.toLowerCase()}
+              + Agregar {esquema.singular}
             </Link>
           )}
         </div>
@@ -134,7 +154,9 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
           <input
             id="buscar-doc"
             className="admin-input"
-            placeholder={`Buscar en ${esquema.plural.toLowerCase()}`}
+            /* Sin `toLowerCase()`, aquí y en el vacío de más abajo: convertía
+               «Modelos 3D» en «modelos 3d» y «Casos AO» en «casos ao». */
+            placeholder={`Buscar en ${esquema.plural}`}
             value={busqueda}
             onChange={(e) => {
               setPagina(1)
@@ -174,7 +196,7 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
             <p className="admin-empty-text">
               {busqueda || estado !== 'todos'
                 ? 'Nada coincide con el filtro.'
-                : `Todavía no hay ${esquema.plural.toLowerCase()}.`}
+                : `Todavía no hay nada en ${esquema.plural}.`}
             </p>
           </div>
         ) : (
@@ -188,70 +210,98 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
               </tr>
             </thead>
             <tbody>
-              {filas.map((fila) => (
-                <tr key={fila.id}>
-                  {esquema.columnas.map((columna, i) => (
-                    <td key={columna.nombre} className={i === 0 ? 'admin-table-user-name' : undefined}>
-                      {i === 0 ? (
-                        <Link href={`/admin-panel/contenido/${esquema.slug}/${fila.id}`}>
-                          {celda(fila.valores[columna.nombre], columna.formato)}
-                        </Link>
+              {filas.map((fila) => {
+                // Las cuatro acciones se llaman igual en las veinte filas. Sin
+                // el nombre de la ficha dentro, un lector de pantalla que pida
+                // la lista de botones dicta «Eliminar» veinte veces, y el
+                // `confirm` —el último asidero antes de algo que no se
+                // deshace— tampoco decía cuál se llevaba por delante.
+                const nombre = nombreDeFila(esquema, fila)
+                return (
+                  <tr key={fila.id}>
+                    {esquema.columnas.map((columna, i) =>
+                      i === 0 ? (
+                        // `th scope="row"` y no `td`: es lo que ata cada botón
+                        // de la fila a la ficha que nombra esta celda.
+                        <th key={columna.nombre} scope="row" className="admin-table-user-name">
+                          <Link href={`/admin-panel/contenido/${esquema.slug}/${fila.id}`}>
+                            {celda(fila.valores[columna.nombre], columna.formato)}
+                          </Link>
+                        </th>
                       ) : (
-                        celda(fila.valores[columna.nombre], columna.formato)
-                      )}
-                    </td>
-                  ))}
-                  <td>
-                    <div className="admin-acciones">
-                      <Link
-                        href={`/admin-panel/contenido/${esquema.slug}/${fila.id}`}
-                        className="admin-btn admin-btn-sm admin-btn-secondary"
-                      >
-                        Editar
-                      </Link>
-                      {esquema.versionada ? (
-                        <button
-                          className={`admin-btn admin-btn-sm ${fila.publicado ? 'admin-btn-secondary' : 'admin-btn-success'}`}
-                          disabled={enCurso}
-                          onClick={() =>
-                            conAviso(
-                              () => cambiarPublicacion(esquema.slug, fila.id, !fila.publicado),
-                              fila.publicado ? 'Retirada de publicación.' : 'Publicada.',
-                            )
-                          }
-                        >
-                          {fila.publicado ? 'Retirar' : 'Publicar'}
-                        </button>
-                      ) : null}
-                      {!esquema.subida ? (
-                        <button
+                        <td key={columna.nombre}>
+                          {celda(fila.valores[columna.nombre], columna.formato)}
+                        </td>
+                      ),
+                    )}
+                    <td>
+                      <div className="admin-acciones">
+                        <Link
+                          href={`/admin-panel/contenido/${esquema.slug}/${fila.id}`}
                           className="admin-btn admin-btn-sm admin-btn-secondary"
-                          disabled={enCurso}
-                          onClick={() =>
-                            conAviso(
-                              () => duplicarDocumento(esquema.slug, fila.id),
-                              'Copia creada como borrador.',
-                            )
-                          }
+                          aria-label={`Editar «${nombre}»`}
                         >
-                          Duplicar
+                          Editar
+                        </Link>
+                        {esquema.versionada ? (
+                          <button
+                            className={`admin-btn admin-btn-sm ${fila.publicado ? 'admin-btn-secondary' : 'admin-btn-success'}`}
+                            disabled={enCurso}
+                            aria-label={
+                              fila.publicado
+                                ? `Retirar de publicación «${nombre}»`
+                                : `Publicar «${nombre}»`
+                            }
+                            onClick={() =>
+                              conAviso(
+                                () => cambiarPublicacion(esquema.slug, fila.id, !fila.publicado),
+                                // En impersonal, que es lo único que concuerda
+                                // con las once colecciones: «Retirada» era
+                                // femenino fijo sobre «Hueso» y «Caso AO».
+                                fila.publicado
+                                  ? `Se retiró de publicación «${nombre}».`
+                                  : `Se publicó «${nombre}».`,
+                              )
+                            }
+                          >
+                            {fila.publicado ? 'Retirar' : 'Publicar'}
+                          </button>
+                        ) : null}
+                        {!esquema.subida ? (
+                          <button
+                            className="admin-btn admin-btn-sm admin-btn-secondary"
+                            disabled={enCurso}
+                            aria-label={`Duplicar «${nombre}»`}
+                            onClick={() =>
+                              conAviso(
+                                () => duplicarDocumento(esquema.slug, fila.id),
+                                `Copia de «${nombre}» creada como borrador.`,
+                              )
+                            }
+                          >
+                            Duplicar
+                          </button>
+                        ) : null}
+                        <button
+                          className="admin-btn admin-btn-sm admin-btn-danger"
+                          disabled={enCurso}
+                          aria-label={`Eliminar «${nombre}»`}
+                          onClick={() => {
+                            if (confirm(`¿Eliminar «${nombre}»? No se puede deshacer.`)) {
+                              conAviso(
+                                () => eliminarDocumento(esquema.slug, fila.id),
+                                `Se eliminó «${nombre}».`,
+                              )
+                            }
+                          }}
+                        >
+                          Eliminar
                         </button>
-                      ) : null}
-                      <button
-                        className="admin-btn admin-btn-sm admin-btn-danger"
-                        disabled={enCurso}
-                        onClick={() => {
-                          if (confirm('¿Eliminar este registro? No se puede deshacer.')) {
-                            conAviso(() => eliminarDocumento(esquema.slug, fila.id), 'Eliminado.')
-                          }
-                        }}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
@@ -330,6 +380,14 @@ function SubidorDeArchivos({
           }}
         />
       </label>
+      {/* El techo de tamaño y los formatos aceptados están escritos en
+          `esquema.subida.ayuda` desde que se descubrió que el límite real no es
+          el de Payload sino el del cuerpo de la acción de servidor, pero no se
+          pintaban en ninguna pantalla: el que sube un video de quirófano se
+          enteraba de los 7 MB cuando la subida fallaba a medias. */}
+      {esquema.subida?.ayuda ? (
+        <p className="campo-ayuda admin-subida-ayuda">{esquema.subida.ayuda}</p>
+      ) : null}
       {error ? <p className="campo-error">{error}</p> : null}
     </div>
   )

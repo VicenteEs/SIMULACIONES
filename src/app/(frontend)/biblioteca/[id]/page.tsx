@@ -92,7 +92,25 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
                 {(ficha.fases as Record<string, string>[]).map((f, i) => (
                   <li key={i}>
                     <span className="fase-cuando">{f.cuando}</span>
-                    <h4>{f.titulo}</h4>
+                    {/* h3 y no h4: el encabezado de este apartado es el <h2> de
+                        arriba y las fases cuelgan directamente de él, no de los
+                        bloques. Con «Rehabilitación» compuesta solo de fases
+                        —caso que `pestanasConContenido` admite a propósito,
+                        `src/lib/fichas.ts`— <Bloques> no pinta ningún <h3> y la
+                        secuencia real era h1 → h2 → h4: quien recorre la ficha
+                        saltando por encabezados oía un nivel intermedio que no
+                        existe y las fases aparecían colgando de nada.
+                        El tamaño visual no sigue al nivel: en `estilos.css`
+                        vive `.fases h3 { font-size: 15px; margin: 5px 0 6px }`,
+                        con sus dos declaraciones y no solo el `font-size`. El
+                        margen hay que repetirlo porque la regla general
+                        `h1, h2, h3, h4` deja los cuatro en `margin: 0`, y sin
+                        él el título se pega por arriba al `.fase-cuando` y por
+                        abajo al párrafo, dentro de una lista cuyo ritmo
+                        vertical lo daba justo ese margen. Si esto vuelve a
+                        `<h4>`, aquel selector vuelve con él o la fase pierde
+                        tamaño y separación de golpe. */}
+                    <h3>{f.titulo}</h3>
                     <p>{f.contenido}</p>
                     {f.criterio ? (
                       <p className="fase-criterio">

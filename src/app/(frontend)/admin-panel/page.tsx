@@ -49,8 +49,20 @@ export default async function ResumenAdmin() {
   // fichas que no puede tocar no le sirve para saber qué le queda por hacer.
   const modulos = todosLosModulos.filter((m) => puedeEditar(sesion.usuario, m.slug))
 
-  const publicados = modulos.reduce((total, m) => total + m.publicados, 0)
-  const borradores = modulos.reduce((total, m) => total + m.borradores, 0)
+  // Los conteos que la base no supo responder vienen a cero y con `ilegible`
+  // en alto (`datos.ts`). Sumarlos como ceros da un total que parece un
+  // recuento y no lo es: si falla la tabla de patologías, «Contenido
+  // publicado» baja sola y lo razonable es concluir que se perdió contenido.
+  // Se suma solo lo que se pudo leer y se dice cuántos módulos faltan.
+  const legibles = modulos.filter((m) => !m.ilegible)
+  const modulosIlegibles = modulos.filter((m) => m.ilegible)
+  const publicados = legibles.reduce((total, m) => total + m.publicados, 0)
+  const borradores = legibles.reduce((total, m) => total + m.borradores, 0)
+  const hayIlegibles =
+    modulosIlegibles.length > 0 ||
+    comentarios.ilegible ||
+    usuarios?.ilegible === true ||
+    actividad?.ilegible === true
   const ultimoRespaldo = respaldos.find((r) => r.tipo === 'base')
   const diasSinRespaldo = ultimoRespaldo
     ? Math.floor((Date.now() - new Date(ultimoRespaldo.creado).getTime()) / 86_400_000)
@@ -66,6 +78,34 @@ export default async function ResumenAdmin() {
       overrideAccess: true,
     })
     .catch(() => ({ docs: [] as Record<string, unknown>[] }))
+
+  // Las cinco filas de abajo decían el módulo —«Biblioteca de patologías» en
+  // todas— y nunca de qué ficha hablaban: eso vive en `documentoId`, que en
+  // `Comentarios` es un texto suelto y no una relación, así que la profundidad
+  // con la que se leen trae al autor pero nunca el documento. Son cinco
+  // consultas de profundidad 0 en una página que ya es `force-dynamic`, cada
+  // una por su cuenta: la ficha pudo borrarse y el comentario sigue aquí.
+  const titulosDeFichas = new Map<string, string>()
+  await Promise.all(
+    pendientes.docs.map(async (documento) => {
+      const c = documento as { coleccion?: string; documentoId?: string }
+      if (!c.coleccion || !c.documentoId) return
+      try {
+        const doc = (await payload.findByID({
+          collection: c.coleccion as never,
+          id: c.documentoId,
+          depth: 0,
+          overrideAccess: true,
+        })) as Record<string, unknown> | null
+        const nombre = doc?.nombre ?? doc?.titulo
+        if (typeof nombre === 'string' && nombre.trim() !== '') {
+          titulosDeFichas.set(`${c.coleccion}/${c.documentoId}`, nombre)
+        }
+      } catch {
+        // La ficha ya no está: la fila se queda con el nombre del módulo.
+      }
+    }),
+  )
 
   return (
     <div>
@@ -95,19 +135,49 @@ export default async function ResumenAdmin() {
         </div>
       ) : null}
 
+      {/* Una tabla que no responde se veía exactamente igual que un módulo
+          recién instalado: tarjeta a cero, barra al 0 % y «sin contenido aún».
+          El dato para distinguirlos existe desde que `datos.ts` dejó de
+          confundir «cero» con «no se pudo leer», y hasta aquí no lo miraba
+          nadie. El aviso va arriba del todo porque cambia cómo se leen todos
+          los números de esta pantalla. */}
+      {hayIlegibles ? (
+        <div className="admin-aviso admin-aviso-atencion" role="status">
+          <strong>La base no respondió a parte de este resumen.</strong>
+          Donde aparece «—» no hay un cero: es un recuento que no se pudo hacer
+          {modulosIlegibles.length > 0
+            ? ` (${modulosIlegibles.map((m) => m.nombre).join(', ')})`
+            : ''}
+          . Lo corriente es que falte una tabla —un cambio de esquema desplegado sin su
+          migración—; el detalle queda en el registro del servidor.
+        </div>
+      ) : null}
+
       <div className="admin-grid">
         {usuarios ? (
-          <div className="admin-card">
+          <div className={`admin-card${usuarios.ilegible ? ' admin-card-ilegible' : ''}`}>
             <div className="admin-card-title">Cuentas con acceso</div>
             <div className="admin-card-value">
-              {usuarios.activos}
-              <span className="admin-numero-tenue"> / {usuarios.total}</span>
+              {usuarios.ilegible ? (
+                '—'
+              ) : (
+                <>
+                  {usuarios.activos}
+                  <span className="admin-numero-tenue"> / {usuarios.total}</span>
+                </>
+              )}
             </div>
             <p className="admin-card-note">
-              {usuarios.admins} administrador{usuarios.admins === 1 ? '' : 'es'} ·{' '}
-              {usuarios.editores} editor{usuarios.editores === 1 ? '' : 'es'} · {usuarios.lectores}{' '}
-              lector{usuarios.lectores === 1 ? '' : 'es'}
-              {usuarios.inactivos > 0 ? ` · ${usuarios.inactivos} sin activar` : ''}
+              {usuarios.ilegible ? (
+                'no se pudo leer la tabla de cuentas'
+              ) : (
+                <>
+                  {usuarios.admins} administrador{usuarios.admins === 1 ? '' : 'es'} ·{' '}
+                  {usuarios.editores} editor{usuarios.editores === 1 ? '' : 'es'} ·{' '}
+                  {usuarios.lectores} lector{usuarios.lectores === 1 ? '' : 'es'}
+                  {usuarios.inactivos > 0 ? ` · ${usuarios.inactivos} sin activar` : ''}
+                </>
+              )}
             </p>
             <div className="admin-card-actions">
               <Link href="/admin-panel/usuarios" className="admin-btn admin-btn-secondary">
@@ -124,6 +194,11 @@ export default async function ResumenAdmin() {
             {borradores > 0
               ? `${borradores} borrador${borradores === 1 ? '' : 'es'} sin publicar`
               : 'sin borradores pendientes'}
+            {modulosIlegibles.length > 0
+              ? ` · sin contar ${modulosIlegibles.length} módulo${
+                  modulosIlegibles.length === 1 ? '' : 's'
+                } que no se ${modulosIlegibles.length === 1 ? 'pudo' : 'pudieron'} leer`
+              : ''}
           </p>
           <div className="admin-card-actions">
             <Link href="/admin-panel/contenido" className="admin-btn admin-btn-secondary">
@@ -132,16 +207,29 @@ export default async function ResumenAdmin() {
           </div>
         </div>
 
-        <div className="admin-card">
+        <div className={`admin-card${comentarios.ilegible ? ' admin-card-ilegible' : ''}`}>
           <div className="admin-card-title">Comentarios pendientes</div>
           <div
             className="admin-card-value"
-            style={{ color: comentarios.pendientes > 0 ? 'var(--ambar)' : undefined }}
+            style={{
+              color:
+                !comentarios.ilegible && comentarios.pendientes > 0 ? 'var(--ambar)' : undefined,
+            }}
           >
-            {comentarios.pendientes}
-            <span className="admin-numero-tenue"> / {comentarios.total}</span>
+            {comentarios.ilegible ? (
+              '—'
+            ) : (
+              <>
+                {comentarios.pendientes}
+                <span className="admin-numero-tenue"> / {comentarios.total}</span>
+              </>
+            )}
           </div>
-          <p className="admin-card-note">retroalimentación recibida en las fichas</p>
+          <p className="admin-card-note">
+            {comentarios.ilegible
+              ? 'no se pudo leer la tabla de comentarios'
+              : 'retroalimentación recibida en las fichas'}
+          </p>
           <div className="admin-card-actions">
             <Link href="/admin-panel/comentarios" className="admin-btn admin-btn-secondary">
               Revisar
@@ -150,13 +238,23 @@ export default async function ResumenAdmin() {
         </div>
 
         {actividad ? (
-          <div className="admin-card">
+          <div className={`admin-card${actividad.ilegible ? ' admin-card-ilegible' : ''}`}>
             <div className="admin-card-title">Lectura de los últimos 7 días</div>
-            <div className="admin-card-value">{actividad.ultimos7dias}</div>
+            <div className="admin-card-value">
+              {actividad.ilegible ? '—' : actividad.ultimos7dias}
+            </div>
             <p className="admin-card-note">
-              fichas abiertas por {actividad.lectoresActivos7dias} persona
-              {actividad.lectoresActivos7dias === 1 ? '' : 's'} · {actividad.completados} marcadas
-              como leídas
+              {actividad.ilegible ? (
+                // Un cero aquí se lee como «nadie entró esta semana», que es
+                // una conclusión sobre los residentes y no sobre la base.
+                'no se pudo leer el registro de lectura'
+              ) : (
+                <>
+                  fichas abiertas por {actividad.lectoresActivos7dias} persona
+                  {actividad.lectoresActivos7dias === 1 ? '' : 's'} · {actividad.completados}{' '}
+                  marcadas como leídas
+                </>
+              )}
             </p>
             <div className="admin-card-actions">
               <Link href="/admin-panel/actividad" className="admin-btn admin-btn-secondary">
@@ -193,20 +291,34 @@ export default async function ResumenAdmin() {
         {modulos.map((m) => {
           const porcentaje = m.total === 0 ? 0 : Math.round((m.publicados / m.total) * 100)
           return (
-            <div key={m.slug} className="admin-card">
+            <div key={m.slug} className={`admin-card${m.ilegible ? ' admin-card-ilegible' : ''}`}>
               <div className="admin-card-numero">{m.numero}</div>
               <div className="admin-card-title">{m.nombre}</div>
               <div className="admin-card-value" style={{ fontSize: '2rem' }}>
-                {m.publicados}
-                {m.borradores > 0 ? (
-                  <span className="admin-numero-tenue"> +{m.borradores} borr.</span>
-                ) : null}
+                {m.ilegible ? (
+                  '—'
+                ) : (
+                  <>
+                    {m.publicados}
+                    {m.borradores > 0 ? (
+                      <span className="admin-numero-tenue"> +{m.borradores} borr.</span>
+                    ) : null}
+                  </>
+                )}
               </div>
-              <div className="admin-progreso" aria-hidden="true">
-                <div className="admin-progreso-relleno" style={{ width: `${porcentaje}%` }} />
-              </div>
+              {/* La barra al 0 % sobre un módulo ilegible es la mitad del
+                  engaño: dibuja un dato que no se tiene. */}
+              {m.ilegible ? null : (
+                <div className="admin-progreso" aria-hidden="true">
+                  <div className="admin-progreso-relleno" style={{ width: `${porcentaje}%` }} />
+                </div>
+              )}
               <p className="admin-card-note">
-                {m.total === 0 ? 'sin contenido aún' : `${porcentaje}% publicado`}
+                {m.ilegible
+                  ? 'no se pudo leer este módulo'
+                  : m.total === 0
+                    ? 'sin contenido aún'
+                    : `${porcentaje}% publicado`}
               </p>
               <div className="admin-card-actions">
                 {/* Apuntaba a `/admin/collections/…`, que es la interfaz de
@@ -252,6 +364,9 @@ export default async function ResumenAdmin() {
                     createdAt?: string
                     usuario?: { nombre?: string; email?: string }
                   }
+                  const tituloDeFicha = titulosDeFichas.get(
+                    `${comentario.coleccion}/${comentario.documentoId}`,
+                  )
                   return (
                     <tr key={String(comentario.id)}>
                       <td>
@@ -267,18 +382,34 @@ export default async function ResumenAdmin() {
                         <span className="admin-badge admin-badge-neutro">
                           {NOMBRE_DE_MODULO[comentario.coleccion ?? ''] ?? comentario.coleccion}
                         </span>
+                        {tituloDeFicha ? (
+                          <div className="admin-table-user-email">{tituloDeFicha}</div>
+                        ) : null}
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         {comentario.createdAt ? fecha(comentario.createdAt) : '—'}
                       </td>
                       <td>
+                        {/* «Editar» y al editor del panel: un comentario
+                            pendiente se atiende corrigiendo la ficha, y desde
+                            la ruta pública eso costaba volver a Panel,
+                            Contenido, el módulo y buscarla por nombre. El
+                            editor además abre esté publicada o retirada. */}
                         {comentario.coleccion && comentario.documentoId ? (
-                          <Link
-                            href={rutaPublica(comentario.coleccion, comentario.documentoId)}
-                            className="admin-btn admin-btn-sm admin-btn-secondary"
-                          >
-                            Ver ficha
-                          </Link>
+                          <div className="admin-acciones">
+                            <Link
+                              href={`/admin-panel/contenido/${comentario.coleccion}/${comentario.documentoId}`}
+                              className="admin-btn admin-btn-sm admin-btn-secondary"
+                            >
+                              Editar
+                            </Link>
+                            <Link
+                              href={rutaPublica(comentario.coleccion, comentario.documentoId)}
+                              className="admin-btn admin-btn-sm admin-btn-secondary"
+                            >
+                              Ver ficha
+                            </Link>
+                          </div>
                         ) : null}
                       </td>
                     </tr>

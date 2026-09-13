@@ -39,12 +39,21 @@ export function BibliotecaFiltrable({
     [fichas, texto, tipo, segmentoId],
   )
 
+  const buscador = React.useRef<HTMLInputElement>(null)
+
   const hayFiltros = texto.trim() !== '' || tipo !== '' || segmentoId !== ''
 
   function limpiar() {
     setTexto('')
     setTipo('')
     setSegmentoId('')
+    // Los dos botones que llaman aquí —«Limpiar» y «Ver todas»— se desmontan en
+    // el mismo clic que los activa: uno depende de `hayFiltros` y el otro de que
+    // el resultado esté vacío. React no reubica el foco de un elemento que
+    // desaparece, así que caía en `<body>` y el siguiente Tab volvía a empezar
+    // por la barra de módulos. Se devuelve al buscador, que es donde el
+    // residente va a seguir trabajando.
+    buscador.current?.focus()
   }
 
   // Agrupadas por segmento, respetando el orden que definió el autor.
@@ -61,6 +70,7 @@ export function BibliotecaFiltrable({
             <path d="M12.5 12.5 L17 17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
           <input
+            ref={buscador}
             type="search"
             value={texto}
             onChange={(e) => setTexto(e.target.value)}

@@ -110,6 +110,51 @@ export default async function PaginaActividad() {
     porFicha.set(clave, actual)
   }
   const fichas = [...porFicha.values()].sort((a, b) => b.lectores - a.lectores).slice(0, 20)
+  const ultimas = registros.slice(0, 30)
+
+  // Las dos tablas de fichas nombraban cada una con el identificador de fila de
+  // la base —«#3», «#17», «#41»—, en la página cuyo único propósito es
+  // responder qué se está leyendo: para saber cuál era la ficha más leída del
+  // semestre había que abrirlas de una en una. Se resuelve el título como en la
+  // portada y por la misma razón que allí se explica, que un número no le dice
+  // nada a nadie.
+  //
+  // Son cincuenta como mucho y sin repetir —las veinte más leídas y las treinta
+  // últimas visitas se solapan—, a profundidad 0 y en una página que ya es
+  // `force-dynamic`. Cada consulta falla por su cuenta a propósito: el registro
+  // de lectura sobrevive a la ficha que lo produjo, así que encontrar una
+  // borrada es lo corriente aquí y no puede tumbar la página entera.
+  const claveDeFicha = (coleccion: string, documentoId: string) => `${coleccion}/${documentoId}`
+
+  const porResolver = new Map<string, { coleccion: string; documentoId: string }>()
+  for (const f of [...fichas, ...ultimas]) {
+    porResolver.set(claveDeFicha(f.coleccion, f.documentoId), {
+      coleccion: f.coleccion,
+      documentoId: f.documentoId,
+    })
+  }
+
+  const titulos = new Map<string, string>()
+  await Promise.all(
+    [...porResolver.values()].map(async ({ coleccion, documentoId }) => {
+      try {
+        // `titulo` en los casos AO y `nombre` en los otros cuatro módulos: son
+        // los dos campos que `src/admin/esquema.ts` declara como nombre.
+        const doc = (await payload.findByID({
+          collection: coleccion as never,
+          id: documentoId,
+          depth: 0,
+          overrideAccess: true,
+        })) as Record<string, unknown> | null
+        const nombre = doc?.nombre ?? doc?.titulo
+        if (typeof nombre === 'string' && nombre.trim() !== '') {
+          titulos.set(claveDeFicha(coleccion, documentoId), nombre)
+        }
+      } catch {
+        // Borrada, o de una colección que ya no existe: la fila lo dirá.
+      }
+    }),
+  )
 
   return (
     <div>
@@ -184,26 +229,54 @@ export default async function PaginaActividad() {
                 </tr>
               </thead>
               <tbody>
-                {fichas.map((f) => (
-                  <tr key={`${f.coleccion}/${f.documentoId}`}>
-                    <td className="admin-table-user-name">#{f.documentoId}</td>
-                    <td>
-                      <span className="admin-badge admin-badge-neutro">
-                        {NOMBRE_DE_MODULO[f.coleccion] ?? f.coleccion}
-                      </span>
-                    </td>
-                    <td>{f.lectores}</td>
-                    <td>{f.completadas}</td>
-                    <td>
-                      <Link
-                        href={rutaPublica(f.coleccion, f.documentoId)}
-                        className="admin-btn admin-btn-sm admin-btn-secondary"
-                      >
-                        Abrir
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {fichas.map((f) => {
+                  const clave = claveDeFicha(f.coleccion, f.documentoId)
+                  const titulo = titulos.get(clave)
+                  return (
+                    <tr key={clave}>
+                      <th scope="row" className="admin-table-user-name">
+                        {titulo ?? `Ficha eliminada · #${f.documentoId}`}
+                        {titulo ? (
+                          <div className="admin-table-user-email">#{f.documentoId}</div>
+                        ) : null}
+                      </th>
+                      <td>
+                        <span className="admin-badge admin-badge-neutro">
+                          {NOMBRE_DE_MODULO[f.coleccion] ?? f.coleccion}
+                        </span>
+                      </td>
+                      <td>{f.lectores}</td>
+                      <td>{f.completadas}</td>
+                      <td>
+                        {/* Sin título resuelto no hay nada que abrir: la ficha
+                            ya no está y los dos enlaces acababan en un 404, el
+                            del panel y el público. Y «Editar» va primero y al
+                            editor porque es donde se actúa sobre lo que se
+                            acaba de leer, y ese funciona esté publicada o
+                            retirada; el botón de antes solo servía si seguía
+                            publicada. */}
+                        {titulo ? (
+                          <div className="admin-acciones">
+                            <Link
+                              href={`/admin-panel/contenido/${f.coleccion}/${f.documentoId}`}
+                              className="admin-btn admin-btn-sm admin-btn-secondary"
+                              aria-label={`Editar «${titulo}»`}
+                            >
+                              Editar
+                            </Link>
+                            <Link
+                              href={rutaPublica(f.coleccion, f.documentoId)}
+                              className="admin-btn admin-btn-sm admin-btn-secondary"
+                              aria-label={`Ver «${titulo}» en el sitio público`}
+                            >
+                              Ver
+                            </Link>
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -221,30 +294,41 @@ export default async function PaginaActividad() {
                 </tr>
               </thead>
               <tbody>
-                {registros.slice(0, 30).map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <div className="admin-table-user-name">{r.usuarioNombre}</div>
-                      <div className="admin-table-user-email">{r.usuarioCorreo}</div>
-                    </td>
-                    <td>
-                      <Link href={rutaPublica(r.coleccion, r.documentoId)}>#{r.documentoId}</Link>
-                    </td>
-                    <td>
-                      <span className="admin-badge admin-badge-neutro">
-                        {NOMBRE_DE_MODULO[r.coleccion] ?? r.coleccion}
-                      </span>
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{fechaHora(r.ultimaVisita)}</td>
-                    <td>
-                      <span
-                        className={`admin-badge ${r.completado ? 'admin-badge-publicado' : 'admin-badge-neutro'}`}
-                      >
-                        {r.completado ? '✓ Leída' : 'En curso'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {ultimas.map((r) => {
+                  const titulo = titulos.get(claveDeFicha(r.coleccion, r.documentoId))
+                  return (
+                    <tr key={r.id}>
+                      <td>
+                        <div className="admin-table-user-name">{r.usuarioNombre}</div>
+                        <div className="admin-table-user-email">{r.usuarioCorreo}</div>
+                      </td>
+                      <td>
+                        {titulo ? (
+                          <Link href={`/admin-panel/contenido/${r.coleccion}/${r.documentoId}`}>
+                            {titulo}
+                          </Link>
+                        ) : (
+                          <span className="admin-table-user-email">
+                            Ficha eliminada · #{r.documentoId}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="admin-badge admin-badge-neutro">
+                          {NOMBRE_DE_MODULO[r.coleccion] ?? r.coleccion}
+                        </span>
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{fechaHora(r.ultimaVisita)}</td>
+                      <td>
+                        <span
+                          className={`admin-badge ${r.completado ? 'admin-badge-publicado' : 'admin-badge-neutro'}`}
+                        >
+                          {r.completado ? '✓ Leída' : 'En curso'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

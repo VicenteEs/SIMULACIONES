@@ -2,13 +2,23 @@ import Link from 'next/link'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
+import { puedeEditar } from '@/lib/guardias'
 import { SinAcceso, Vacio } from '@/components/Estados'
 
 export const dynamic = 'force-dynamic'
 
 export default async function Listado() {
-  const { activo, usuarioEfectivo } = await obtenerSesion()
+  const { activo, usuario, rolReal, usuarioEfectivo } = await obtenerSesion()
   if (!activo) return <SinAcceso titulo="Simulador quirúrgico" />
+
+  // El enlace del estado vacío lleva al panel, que devuelve a la portada sin
+  // mensaje a quien no es admin ni editor (`admin-panel/acceso.ts`). Para el
+  // residente que entra el primer día —la plataforma nace vacía por decisión
+  // (D-016)— ese era el único botón de la pantalla, y pulsarlo lo sacaba del
+  // módulo sin explicación: se lee como una avería, no como contenido que
+  // todavía no está. Se usa `rolReal`, no el efectivo, igual que la portada.
+  const puedeCrear =
+    (rolReal === 'admin' || rolReal === 'editor') && puedeEditar(usuario ?? {}, 'cirugias')
 
   const payload = await getPayload({ config })
   const resultado = await payload.find({
@@ -26,9 +36,13 @@ export default async function Listado() {
 
       {resultado.totalDocs === 0 ? (
         <Vacio
-          texto="Todavía no hay contenido en este módulo."
-          enlace="/admin-panel/contenido/cirugias/nuevo"
-          accion="Crear el primero"
+          texto={
+            puedeCrear
+              ? 'Todavía no hay contenido en este módulo.'
+              : 'Todavía no hay cirugías publicadas en este módulo. El equipo docente las está preparando.'
+          }
+          enlace={puedeCrear ? '/admin-panel/contenido/cirugias/nuevo' : undefined}
+          accion={puedeCrear ? 'Crear el primero' : undefined}
         />
       ) : (
         <ul className="rejilla-fichas">

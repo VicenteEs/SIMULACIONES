@@ -10,16 +10,25 @@ export const dynamic = 'force-dynamic'
  * Documento en blanco.
  *
  * Los valores iniciales salen del esquema y no de un objeto vacío: un campo de
- * selección debe abrir con su primera opción marcada y una pila de bloques con
- * un arreglo, no con `undefined`, o el primer cambio del formulario tendría que
+ * selección debe abrir con una opción marcada y una pila de bloques con un
+ * arreglo, no con `undefined`, o el primer cambio del formulario tendría que
  * adivinar la forma.
+ *
+ * Cuál opción la dice el campo, no el orden de la lista. El orden es de
+ * presentación —en `piezas[].rol` está «piel» primera porque es la capa más
+ * externa, no porque una pieza sin clasificar sea piel— y tomando `opciones[0]`
+ * el formulario enseñaba una cosa mientras `depurarCampo` guardaba
+ * `porOmision`, que es otra. Los tres sitios que deciden esto —aquí, el botón
+ * de agregar fila de `formulario/Campos.tsx` y el respaldo de
+ * `src/admin/depurar.ts`— tienen que decir lo mismo; separarlos no da ningún
+ * error, solo deja otra vez una pantalla que enseña una cosa y guarda otra.
  */
 function documentoEnBlanco(campos: Campo[]): Record<string, unknown> {
   const valores: Record<string, unknown> = {}
   for (const campo of campos) {
     switch (campo.tipo) {
       case 'seleccion':
-        valores[campo.nombre] = campo.opciones[0]?.valor ?? ''
+        valores[campo.nombre] = campo.porOmision ?? campo.opciones[0]?.valor ?? ''
         break
       case 'casilla':
         valores[campo.nombre] = false

@@ -251,9 +251,9 @@ export function TallerDePiezas({
         <table className="taller-piezas-tabla">
           <thead>
             <tr>
-              <th>Objeto</th>
-              <th>Qué es</th>
-              <th aria-label="Acciones" />
+              <th scope="col">Objeto</th>
+              <th scope="col">Qué es</th>
+              <th scope="col" aria-label="Acciones" />
             </tr>
           </thead>
           <tbody>
@@ -269,8 +269,19 @@ export function TallerDePiezas({
                     ) : null}
                   </td>
                   <td>
+                    {/*
+                      Cada control lleva el nombre del objeto en su etiqueta, y
+                      no es adorno. Un caso trae diez o quince filas, y el
+                      nombre del objeto vive en la celda de al lado: quien
+                      recorre la tabla con el lector oía «cuadro combinado,
+                      Hueso fijo» quince veces seguidas, sin nada que dijera a
+                      qué trozo del .glb correspondía cada una. Marcar el rol en
+                      la fila equivocada es exactamente el fallo que este taller
+                      existe para impedir.
+                    */}
                     <select
                       className="campo-control"
+                      aria-label={`Qué es «${nodo || 'sin nombre'}»`}
                       value={typeof p.rol === 'string' ? p.rol : 'hueso'}
                       onChange={(e) => cambiarRol(nodo, e.target.value)}
                     >
@@ -282,10 +293,20 @@ export function TallerDePiezas({
                     </select>
                   </td>
                   <td className="taller-piezas-acciones">
-                    <button type="button" className="admin-btn admin-btn-secondary" onClick={() => aislar(nodo)}>
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-secondary"
+                      aria-label={`Ver solo «${nodo || 'sin nombre'}»`}
+                      onClick={() => aislar(nodo)}
+                    >
                       Solo esto
                     </button>
-                    <button type="button" className="admin-btn admin-btn-secondary" onClick={() => quitar(nodo)}>
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-secondary"
+                      aria-label={`Quitar «${nodo || 'sin nombre'}» de la lista`}
+                      onClick={() => quitar(nodo)}
+                    >
                       Quitar
                     </button>
                   </td>
