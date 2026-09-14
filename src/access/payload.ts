@@ -8,12 +8,13 @@
  */
 import type { Access, FieldAccess } from 'payload'
 import {
-  filtroDeLectura,
   filtroDeLecturaDeModulo,
   filtroDePropiedad,
+  filtroDeSeguimiento,
   puedeLeerContenido,
   puedeEditarContenido,
   puedeEditarModulo,
+  puedeVerModulo,
   puedeAdministrarUsuarios,
   type Rol,
   type UsuarioSesion,
@@ -28,8 +29,15 @@ const comoLista = (valor: unknown): string[] | undefined =>
 /**
  * Convierte lo que venga en la sesión a un usuario reconocible, o a `null`.
  * Un usuario con forma inesperada nunca obtiene permisos.
+ *
+ * Exportada porque las acciones de servidor también tienen que preguntar a
+ * `reglas.ts` —`anotar` y `crearComentario`, por el módulo visible—, y lo que
+ * les llega de `obtenerSesion` es el documento de Payload (`id` numérico,
+ * `activo` que puede ser `null`), no un `UsuarioSesion`. Cada copia de esta
+ * conversión escrita a mano era una ocasión de dar `activo: true` a quien no lo
+ * tiene; la de `Actividad.ts` ya se había quedado sin mirar el rol.
  */
-function normalizar(usuario: unknown): UsuarioSesion | null {
+export function usuarioDeSesion(usuario: unknown): UsuarioSesion | null {
   if (!usuario || typeof usuario !== 'object') return null
   const registro = usuario as Record<string, unknown>
   const { id, rol, activo } = registro
@@ -44,7 +52,7 @@ function normalizar(usuario: unknown): UsuarioSesion | null {
 }
 
 const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
-  normalizar(args?.req?.user)
+  usuarioDeSesion(args?.req?.user)
 
 // Aquí vivió `lecturaDeContenido`, lectura de una colección versionada sin
 // permisos por módulo. No la usaba ninguna colección —los cinco módulos usan
@@ -52,7 +60,9 @@ const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
 // equivocada que más se parece a la correcta: quien fuera a declarar una
 // colección nueva se habría encontrado con un nombre que suena a «lectura de
 // contenido» y habría dejado el módulo sin sus permisos, sin que nada fallara.
-// Su lógica no se perdió: `lecturaDeModulo` delega en el mismo `filtroDeLectura`.
+// Su lógica no se perdió, y la de ahora es más estrecha: `lecturaDeModulo`
+// delega en `filtroDeLecturaDeModulo`, que además de mirar el rol pregunta si la
+// cuenta puede editar ese módulo antes de enseñarle un borrador.
 
 /**
  * Lectura de un módulo concreto, con permisos por módulo.
@@ -131,6 +141,66 @@ export const administracionDeUsuarios: Access = (args) =>
  * Permite a admin/editor ver y modificar todo, y a los lectores solo lo suyo.
  */
 export const accesoDePropiedad: Access = (args) => filtroDePropiedad(usuarioDe(args))
+
+/**
+ * Acceso a las filas de seguimiento (`actividad`): el administrador, todas;
+ * cualquier otra cuenta, las suyas. El porqué, en `filtroDeSeguimiento`.
+ */
+export const accesoDeSeguimiento: Access = (args) => filtroDeSeguimiento(usuarioDe(args))
+
+/**
+ * Crear una fila que cuelga de un módulo exige poder ver ese módulo.
+ *
+ * La comparten `actividad` y `comentarios`, y viene de `Actividad.ts`, donde
+ * vivía como `CREACION_DEL_MODULO_PROPIO` con un aviso de que se mudaría aquí en
+ * cuanto este archivo se pudiera tocar. Se muda ahora porque hacía falta en una
+ * segunda colección: `comentarios` solo pedía una cuenta activa, así que la
+ * kinesióloga con el simulador vetado comentaba igual una cirugía que no puede
+ * abrir, y el comentario le llegaba al traumatólogo desde un módulo que para
+ * ella no existe. Copiarla habría dejado dos reglas iguales esperando a
+ * separarse.
+ *
+ * Por qué se niega a la cuenta sin activar, a la sesión ausente y a la fila sin
+ * módulo, y por qué el administrador pasa aunque tenga módulos marcados: lo dice
+ * `puedeVerModulo`, que es a quien se le pregunta. Sin `coleccion` no hay nada
+ * que autorizar: el campo es obligatorio en las dos colecciones.
+ *
+ * Solo actúa cuando alguien escribe con `overrideAccess: false`. El panel y las
+ * acciones de servidor escriben por la API local, donde vale `true` por
+ * omisión: por eso `anotar` y `crearComentario` hacen la misma pregunta antes de
+ * tocar la base, a esta misma regla y no a una suya.
+ */
+export const creacionEnModuloVisible: Access = ({ req, data }) => {
+  const modulo = (data as { coleccion?: unknown } | undefined)?.coleccion
+  if (typeof modulo !== 'string') return false
+  return puedeVerModulo(usuarioDe({ req }), modulo)
+}
+
+/**
+ * Un campo que solo reescribe quien escribió la fila: el texto de un comentario.
+ *
+ * Es de campo y no de colección porque la colección tiene que seguir dejando al
+ * editor tocar la fila —marca el comentario como resuelto—, y lo que no puede
+ * es cambiar lo que dice. `usuario` está cerrado para todos
+ * (`FIJADO_AL_CREAR`), así que el comentario se seguía enseñando en el panel
+ * con el nombre y el correo del residente y con las palabras que hubiera
+ * querido poner otro: una observación clínica firmada por quien no la hizo.
+ * Tampoco el administrador: si un comentario sobra, se borra, y el borrado sí
+ * es suyo.
+ *
+ * `doc` es el documento tal como estaba antes de la escritura, y su `usuario`
+ * llega como identificador o poblado según la profundidad; se comparan como
+ * texto porque PostgreSQL entrega números y la sesión puede traerlos igual. Un
+ * comentario anonimizado por la baja de su autor (`usuario: null`) ya no lo
+ * reescribe nadie.
+ */
+export const soloSuAutor: FieldAccess = ({ req, doc }) => {
+  const sesion = usuarioDe({ req })
+  if (!sesion || !sesion.activo) return false
+  const autor = (doc as { usuario?: unknown } | undefined)?.usuario
+  const idDelAutor = autor && typeof autor === 'object' ? (autor as { id?: unknown }).id : autor
+  return idDelAutor !== null && idDelAutor !== undefined && String(idDelAutor) === sesion.id
+}
 
 /**
  * Acceso al panel de administración.

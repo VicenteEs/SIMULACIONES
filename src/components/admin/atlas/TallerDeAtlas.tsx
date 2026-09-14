@@ -10,6 +10,21 @@ import type { MandoDelVisor } from '@/components/atlas/VisorAtlas'
 // sin three. Lo que no puede entrar así es `@/atlas/cargador` (ver abajo).
 import { casaConLaBusqueda, nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
 import type { RolDePieza } from '@/lib/piezasDelCaso'
+// Los dos, sin three: `clasificacion.ts` es una tabla y `planoDeCorte.ts` es
+// aritmética que se prohíbe a sí mismo importar three. La mitad del corte que sí
+// lo necesita, `osteotomia.ts`, no se importa desde aquí; y `CorteExportado` es
+// solo un tipo, que se borra al compilar.
+import { rolDeSistema } from '@/atlas/clasificacion'
+import {
+  CORTE_POR_OMISION,
+  INCLINACION_MAXIMA,
+  POSICION_MAXIMA,
+  POSICION_MINIMA,
+  caraDelGiro,
+  describirCorte,
+  type CorteDeHueso,
+} from '@/lib/planoDeCorte'
+import type { CorteExportado } from '@/lib/exportarAtlas'
 import { ETIQUETA_DE_ROL } from '@/admin/etiquetaDeRol'
 import { apuntarCambiosSinGuardar } from '@/admin/salidaDelEditor'
 import {
@@ -129,6 +144,8 @@ interface ResultadoDeExportar {
   nodos: string[]
   perdidas: string[]
   piezas?: { nodo: string; etiqueta: string; rol: RolDePieza }[]
+  /** El hueso partido y sus dos nodos, si se pidió corte. */
+  corte?: CorteExportado | null
 }
 
 /**
@@ -189,6 +206,18 @@ export function TallerDeAtlas() {
   const [exportado, setExportado] = useState<ResultadoDeExportar | null>(null)
 
   /**
+   * El hueso que se exporta partido, y cómo.
+   *
+   * Lo pidió el dueño —«quiero poder por ejemplo quebrar el hueso»— y eligió
+   * «un corte limpio sirve». Hasta aquí, un caso con fragmento que reducir
+   * necesitaba traer el hueso ya partido de Blender.
+   *
+   * Uno solo: el caso mueve un único fragmento, y marcar el corte en otra pieza
+   * lo quita de la anterior en vez de sumar un segundo.
+   */
+  const [corte, setCorte] = useState<CorteDeHueso | null>(null)
+
+  /**
    * Las protagonistas que siguen encendidas.
    *
    * Marcar una pieza y apagarla después dejaba la marca puesta y fuera de la
@@ -199,6 +228,19 @@ export function TallerDeAtlas() {
   const protagonistasVivas = useMemo(
     () => [...protagonistas].filter((id) => visibles.has(id)),
     [protagonistas, visibles],
+  )
+
+  /**
+   * El corte, solo si su pieza sigue siendo una protagonista encendida.
+   *
+   * Por lo mismo que `protagonistasVivas`: apagar la tibia en el árbol dejaba
+   * la marca puesta y fuera de la vista, y el servidor rechazaría el corte de
+   * una pieza que ya no está en la preparación. Lo que se dibuja en el visor y
+   * lo que se envía es esto, no el estado crudo.
+   */
+  const corteVivo = useMemo(
+    () => (corte && protagonistasVivas.includes(corte.pieza) ? corte : null),
+    [corte, protagonistasVivas],
   )
 
   /**
@@ -215,6 +257,7 @@ export function TallerDeAtlas() {
     setProtagonistas(new Set())
     setFiltroProtagonista('')
     setExportado(null)
+    setCorte(null)
   }, [])
 
   const mando = useRef<MandoDelVisor | null>(null)
@@ -652,7 +695,10 @@ export function TallerDeAtlas() {
 
     iniciar(async () => {
       try {
-        const r = await exportarComoModelo(instancia, { protagonistas: protagonistasVivas })
+        const r = await exportarComoModelo(instancia, {
+          protagonistas: protagonistasVivas,
+          corte: corteVivo,
+        })
         if (!r.exito || !r.datos) {
           setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo exportar.' })
           return
@@ -843,6 +889,12 @@ export function TallerDeAtlas() {
             por sistema, que es lo que hace que el archivo pese poco. Sin ninguna marcada no habrá
             nada que mover en la consola.
           </p>
+          <p>
+            Si la que se fractura es un hueso, puede <strong>partirla con un corte</strong> aquí
+            mismo, sin pasar por Blender: sale en dos trozos cerrados, y el que elija es el
+            fragmento que el residente reduce. El plano se ve en el modelo mientras mueve los
+            mandos.
+          </p>
 
           <input
             className="atlas-busqueda"
@@ -855,28 +907,56 @@ export function TallerDeAtlas() {
 
           <div className="atlas-lista" style={{ maxHeight: 220, marginTop: 8 }}>
             {candidatas.lista.map((pieza) => (
-              <label className="atlas-casilla" key={pieza.id}>
-                <input
-                  type="checkbox"
-                  checked={protagonistas.has(pieza.id)}
-                  onChange={(e) => {
-                    setProtagonistas((antes) => {
-                      const ahora = new Set(antes)
-                      if (e.target.checked) ahora.add(pieza.id)
-                      else ahora.delete(pieza.id)
-                      return ahora
-                    })
-                  }}
-                />
-                {/* El original, al pasar el ratón: es lo que se busca en la
-                    bibliografía y en la Foundational Model of Anatomy, y quien
-                    quiera comprobar la pieza tiene que poder encontrarla (ver
-                    `src/atlas/nombres.ts`). Solo cuando hay traducción, porque
-                    sin ella repetiría lo que ya se lee. */}
-                <span title={tieneTraduccion(pieza.nombre) ? pieza.nombre : undefined}>
-                  {nombreEnEspanol(pieza.nombre)}
-                </span>
-              </label>
+              <div key={pieza.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label className="atlas-casilla">
+                  <input
+                    type="checkbox"
+                    checked={protagonistas.has(pieza.id)}
+                    onChange={(e) => {
+                      const marcada = e.target.checked
+                      setProtagonistas((antes) => {
+                        const ahora = new Set(antes)
+                        if (marcada) ahora.add(pieza.id)
+                        else ahora.delete(pieza.id)
+                        return ahora
+                      })
+                      // Desmarcarla quita también su corte: una pieza fundida
+                      // con su sistema no se puede partir, y la marca quedaría
+                      // escondida esperando a que se vuelva a marcar.
+                      if (!marcada) setCorte((c) => (c?.pieza === pieza.id ? null : c))
+                    }}
+                  />
+                  {/* El original, al pasar el ratón: es lo que se busca en la
+                      bibliografía y en la Foundational Model of Anatomy, y quien
+                      quiera comprobar la pieza tiene que poder encontrarla (ver
+                      `src/atlas/nombres.ts`). Solo cuando hay traducción, porque
+                      sin ella repetiría lo que ya se lee. */}
+                  <span title={tieneTraduccion(pieza.nombre) ? pieza.nombre : undefined}>
+                    {nombreEnEspanol(pieza.nombre)}
+                  </span>
+                </label>
+                {/* Solo para una protagonista que sea hueso: el servidor se niega
+                    a partir otra cosa, y ofrecerlo sería prometer un botón que
+                    siempre falla. Se pregunta con `rolDeSistema`, que es lo que
+                    decide el rol dentro del archivo, y no con el sistema a mano:
+                    el peroneo corto viene del esqueleto y es un músculo. */}
+                {protagonistas.has(pieza.id) && rolDeSistema(pieza.sistema) === 'hueso' ? (
+                  <label className="atlas-casilla" style={{ flex: 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={corte?.pieza === pieza.id}
+                      onChange={(e) =>
+                        setCorte(
+                          e.target.checked
+                            ? { ...CORTE_POR_OMISION, ...(corte ?? {}), pieza: pieza.id }
+                            : null,
+                        )
+                      }
+                    />
+                    <span>Partir con un corte</span>
+                  </label>
+                ) : null}
+              </div>
             ))}
             {candidatas.total === 0 ? (
               <p className="atlas-conteo">Ninguna pieza encendida coincide con esa búsqueda.</p>
@@ -888,6 +968,16 @@ export function TallerDeAtlas() {
               </p>
             ) : null}
           </div>
+
+          {corteVivo ? (
+            <MandosDelCorte
+              corte={corteVivo}
+              nombre={nombreEnEspanol(
+                catalogo.piezas.find((p) => p.id === corteVivo.pieza)?.nombre ?? corteVivo.pieza,
+              )}
+              alCambiar={setCorte}
+            />
+          ) : null}
 
           <div className="admin-acciones" style={{ marginTop: 10 }}>
             <button className="admin-btn admin-btn-primary" disabled={enCurso} onClick={exportar}>
@@ -950,6 +1040,23 @@ export function TallerDeAtlas() {
                   ))}
                 </ul>
               )}
+              {/* El corte, con sus dos nodos. Los dos trozos se ven pegados al
+                  abrir el archivo, como un hueso entero, y sin esta línea no se
+                  sabría que está partido ni cuál de los dos va a moverse. */}
+              {exportado.corte ? (
+                <p>
+                  <strong>{exportado.corte.etiqueta}</strong> sale partida en dos:{' '}
+                  <code>{exportado.corte.proximal}</code> y <code>{exportado.corte.distal}</code>. El
+                  que se mueve en la reducción es <code>{exportado.corte.fragmento}</code>, y ya va
+                  marcado como fragmento dentro del archivo.
+                  {exportado.corte.avisos.map((aviso) => (
+                    <span key={aviso}>
+                      <br />
+                      <strong>Atención:</strong> {aviso}
+                    </span>
+                  ))}
+                </p>
+              ) : null}
               {exportado.perdidas.length ? (
                 <p>
                   <strong>Atención:</strong> {exportado.perdidas.length} pieza
@@ -1017,6 +1124,9 @@ export function TallerDeAtlas() {
             vistaInicial={vistaInicial}
             mando={mando}
             alAsentarVista={asentarReferencia}
+            // Solo con el panel de exportar abierto: cerrado, un plano magenta
+            // cruzando la tibia sin ningún mando a la vista no se explica.
+            corte={panelExportar ? corteVivo : null}
             // Pulsar una pieza en el visor la apaga: es el gesto directo de
             // «esto me estorba, fuera».
             alPulsarPieza={(id) => {
@@ -1165,5 +1275,103 @@ export function TallerDeAtlas() {
       </div>
       </div>
     </>
+  )
+}
+
+/**
+ * Los mandos de un corte: dónde, cuánto se inclina, hacia qué cara y qué trozo
+ * se mueve.
+ *
+ * Los límites salen de `planoDeCorte.ts`, los mismos con los que el servidor
+ * valida: escritos aquí a mano, el día que cambiaran allí el deslizador dejaría
+ * elegir un corte que después se rechaza al exportar.
+ *
+ * La dirección se desactiva con el corte transversal, porque no significa nada:
+ * girar un plano perpendicular al eje alrededor del eje lo deja donde estaba, y
+ * un mando que se mueve sin mover nada hace creer que el visor no responde.
+ */
+function MandosDelCorte({
+  corte,
+  nombre,
+  alCambiar,
+}: {
+  corte: CorteDeHueso
+  nombre: string
+  alCambiar: (corte: CorteDeHueso) => void
+}) {
+  const cambiar = (parte: Partial<CorteDeHueso>) => alCambiar({ ...corte, ...parte })
+  const descripcion = describirCorte(corte)
+  return (
+    <fieldset
+      style={{ marginTop: 10, border: '1px solid currentColor', borderRadius: 6, padding: '8px 10px' }}
+    >
+      <legend style={{ padding: '0 4px' }}>
+        <strong>Corte de {nombre}</strong>
+      </legend>
+
+      <label className="atlas-separador-mando">
+        <span style={{ minWidth: 150 }}>Posición, de proximal a distal</span>
+        <input
+          type="range"
+          min={POSICION_MINIMA}
+          max={POSICION_MAXIMA}
+          step={1}
+          value={corte.posicion}
+          onChange={(e) => cambiar({ posicion: Number(e.target.value) })}
+        />
+        <span className="atlas-separador-valor">{corte.posicion} %</span>
+      </label>
+
+      <label className="atlas-separador-mando">
+        <span style={{ minWidth: 150 }}>Inclinación</span>
+        <input
+          type="range"
+          min={0}
+          max={INCLINACION_MAXIMA}
+          step={1}
+          value={corte.inclinacion}
+          onChange={(e) => cambiar({ inclinacion: Number(e.target.value) })}
+        />
+        <span className="atlas-separador-valor">
+          {corte.inclinacion === 0 ? 'transversal' : `${corte.inclinacion}°`}
+        </span>
+      </label>
+
+      <label className="atlas-separador-mando">
+        <span style={{ minWidth: 150 }}>Más proximal por la cara</span>
+        <input
+          type="range"
+          min={0}
+          max={345}
+          step={15}
+          value={corte.giro}
+          disabled={corte.inclinacion === 0}
+          onChange={(e) => cambiar({ giro: Number(e.target.value) })}
+        />
+        <span className="atlas-separador-valor">
+          {caraDelGiro(corte.giro)} ({corte.giro}°)
+        </span>
+      </label>
+
+      <div className="atlas-separador-mando" role="radiogroup" aria-label="Fragmento que se mueve">
+        <span style={{ minWidth: 150 }}>Fragmento que se mueve</span>
+        {(['distal', 'proximal'] as const).map((lado) => (
+          <label key={lado} className="atlas-casilla" style={{ flex: 'none' }}>
+            <input
+              type="radio"
+              name="atlas-fragmento"
+              checked={corte.fragmento === lado}
+              onChange={() => cambiar({ fragmento: lado })}
+            />
+            <span>{lado}</span>
+          </label>
+        ))}
+      </div>
+
+      <p className="atlas-conteo" style={{ marginTop: 6 }}>
+        {descripcion.charAt(0).toUpperCase() + descripcion.slice(1)}. Las caras se cuentan con el
+        cuerpo en posición anatómica: lateral es hacia fuera del cuerpo en los dos lados.
+      </p>
+    </fieldset>
   )
 }

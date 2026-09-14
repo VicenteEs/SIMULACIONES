@@ -454,6 +454,7 @@ describe('la atribución declara lo que se cambió', () => {
   const NOMBRE_DEL_SISTEMA: Record<string, string> = {
     muscular: 'músculos',
     connective: 'tejido conectivo',
+    digestive: 'aparato digestivo',
   }
 
   it('ya no dice que los nombres se conservan en su forma original', () => {

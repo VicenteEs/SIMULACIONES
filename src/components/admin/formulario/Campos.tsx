@@ -1,9 +1,18 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { ESQUEMAS, type Campo } from '@/admin/esquema'
 import { BLOQUES, bloqueDe } from '@/admin/bloques'
+import {
+  CLAVE_DE_FILA,
+  claveDe,
+  claveEstable,
+  clavesQueRecibieronId,
+  escritorPorClave,
+  nuevaClave,
+  type BloquesVigentes,
+} from '@/admin/identidadDeBloques'
 import { formularioDeArchivo, subidorQueAvisa } from '@/admin/subidas'
 import { EditorDeEncuadre } from './EditorDeEncuadre'
 import { TallerDePiezas, type DesplazamientoInicial } from './TallerDePiezas'
@@ -67,6 +76,16 @@ interface Props {
    * entre sí, y el botón de capturar quedaría lejos del modelo.
    */
   alCambiarHermano?: (nombre: string, valor: unknown) => void
+  /**
+   * Escribe este campo en su bloque aunque el control ya no esté montado.
+   *
+   * Solo lo recibe un campo que cuelga directamente de un bloque, y solo lo usa
+   * hoy el selector de archivo: una subida dura minutos, y si entretanto se
+   * pliega el bloque el selector se desmonta con la subida en marcha. Ver
+   * `escritorPorClave` en `src/admin/identidadDeBloques.ts`. Devuelve si
+   * escribió: `false` es que el bloque ya no existe o el editor se fue.
+   */
+  apuntarEnSuBloque?: (valor: unknown) => boolean
 }
 
 const texto = (valor: unknown): string =>
@@ -129,49 +148,8 @@ function modeloParaEncuadrar(
   return { url: null }
 }
 
-// ------------------------------------------------- identidad de filas y bloques
-
-/**
- * Clave de reconciliación propia del cliente.
- *
- * El `id` de una fila o de un bloque lo pone Payload al guardar, así que todo
- * lo que nace en la sesión no tiene ninguno y React reconciliaba por posición.
- * Para los `<input>` y los `<select>` eso no se notaba —son controlados y su
- * valor viene del arreglo—, pero `EditorTextoRico` siembra TipTap una sola vez
- * al construirse: al subir un paso con la flecha, el título y la fase se
- * intercambiaban y los dos textos ricos se quedaban quietos, de modo que el
- * paso ahora titulado «Reducción» enseñaba la descripción del abordaje. Y en
- * cuanto se tocaba ese editor, `onUpdate` escribía el texto viejo encima de la
- * fila que había pasado a ocupar el sitio.
- *
- * **No puede llamarse `id`**: `depurarCampo` conserva esa clave tal cual para
- * filas y bloques (`src/admin/depurar.ts`) y acabaría en la clave primaria de
- * PostgreSQL. Con cualquier otro nombre no viaja: `depurarCampos` reconstruye
- * la salida recorriendo los campos del esquema, y lo que no está descrito no
- * existe.
- */
-const CLAVE_DE_FILA = '_clave'
-
-let contadorDeClaves = 0
-/**
- * Solo tiene que distinguir hermanos dentro de una página viva, así que un
- * contador basta y evita depender de `crypto.randomUUID()`, que exige contexto
- * seguro y no lo hay al abrir el panel por http en una máquina de la red.
- */
-const nuevaClave = (): string => `c${++contadorDeClaves}`
-
-/** Con qué se identifica una fila o un bloque en el `key` de React. */
-function claveDe(fila: Record<string, unknown>, indice: number): string {
-  const id = fila.id
-  if (typeof id === 'string' || typeof id === 'number') return `id-${id}`
-  const propia = fila[CLAVE_DE_FILA]
-  if (typeof propia === 'string') return propia
-  // Último recurso, y con el mismo problema de siempre: una fila que llega del
-  // servidor sin `id` y sin haber pasado por «+ Agregar» vuelve a reconciliarse
-  // por posición. Payload numera todas las suyas, así que en la práctica no
-  // ocurre; si alguna vez ocurre, el síntoma es el del comentario de arriba.
-  return `pos-${indice}`
-}
+// La identidad de filas y bloques —`CLAVE_DE_FILA`, `claveDe`— vive en
+// `src/admin/identidadDeBloques.ts`, con el porqué de cada decisión.
 
 /**
  * Los valores con los que abre algo recién creado.
@@ -232,6 +210,7 @@ export function ControlDeCampo({
   alRecargarRelacion,
   hermanos,
   alCambiarHermano,
+  apuntarEnSuBloque,
 }: Props) {
   const id = useId()
   const idEtiqueta = `${id}-etiqueta`
@@ -497,6 +476,7 @@ export function ControlDeCampo({
           alCambiar={alCambiar}
           opciones={relaciones[campo.coleccion] ?? []}
           alRecargar={() => alRecargarRelacion?.(campo.coleccion)}
+          apuntarEnSuBloque={apuntarEnSuBloque}
         />
       )
 
@@ -620,12 +600,19 @@ export function FilaDeCampos({
   alCambiar,
   relaciones,
   alRecargarRelacion,
+  apuntarEnElBloque,
 }: {
   campos: Campo[]
   valores: Record<string, unknown>
   alCambiar: (nombre: string, valor: unknown) => void
   relaciones: Relaciones
   alRecargarRelacion?: (coleccion: string) => void
+  /**
+   * Solo cuando esta fila de campos es el cuerpo de un bloque. Los grupos y las
+   * listas de dentro no lo reenvían a sus propias filas: el escritor apunta en
+   * la raíz del bloque, y un campo anidado acabaría escrito un nivel más arriba.
+   */
+  apuntarEnElBloque?: (nombre: string, valor: unknown) => boolean
 }) {
   return (
     <div className="campos">
@@ -639,6 +626,9 @@ export function FilaDeCampos({
           alRecargarRelacion={alRecargarRelacion}
           hermanos={valores}
           alCambiarHermano={alCambiar}
+          apuntarEnSuBloque={
+            apuntarEnElBloque ? (nuevo) => apuntarEnElBloque(campo.nombre, nuevo) : undefined
+          }
         />
       ))}
     </div>
@@ -900,6 +890,8 @@ function EditorDeLista({
 
 // ------------------------------------------------------------------ bloques
 
+const SIN_BLOQUES: Record<string, unknown>[] = []
+
 function EditorDeBloques({
   campo,
   valor,
@@ -907,7 +899,11 @@ function EditorDeBloques({
   relaciones,
   alRecargarRelacion,
 }: Props & { campo: Extract<Campo, { tipo: 'bloques' }> }) {
-  const bloques = Array.isArray(valor) ? (valor as Record<string, unknown>[]) : []
+  // `SIN_BLOQUES` y no un `[]` escrito aquí: `comparadoCon`, más abajo, compara
+  // por identidad, y un arreglo vacío nuevo en cada pintado sería «cambió» en
+  // cada pintado, un ajuste de estado tras otro hasta que React corta con
+  // «Too many re-renders» en una ficha que abre sin bloques.
+  const bloques = Array.isArray(valor) ? (valor as Record<string, unknown>[]) : SIN_BLOQUES
   /**
    * Plegado por identidad del bloque y no por su posición.
    *
@@ -954,6 +950,76 @@ function EditorDeBloques({
 
   const cambiar = (nuevos: Record<string, unknown>[]) => alCambiar(nuevos)
 
+  /**
+   * Las claves de cliente que un guardado convirtió en `id`, y el arreglo
+   * contra el que se comparó la última vez.
+   *
+   * Un bloque nuevo se llama `c7` hasta que se guarda, y al volver del servidor
+   * se llama `id-…` y ya no trae `c7` (`clavesQueRecibieronId`, en
+   * `src/admin/identidadDeBloques.ts`, cuenta el caso). Con eso pasaban dos
+   * cosas a la vez si había una subida en marcha. La primera, que la subida no
+   * encontraba su bloque al terminar. La segunda, que el `key` de React
+   * cambiaba y desmontaba el bloque entero aunque estuviera desplegado: la
+   * barra de «Subiendo…» desaparecía a mitad de viaje, que se lee como una
+   * subida cancelada y se contesta subiendo otra vez; y un bloque plegado se
+   * desplegaba solo, porque `plegados` iba por la clave vieja.
+   *
+   * Se calcula mientras se pinta, con el patrón de «ajustar el estado cuando
+   * cambia una prop», y no en un efecto: el `key` de este mismo pintado ya
+   * tiene que salir con el nombre de antes, o React desmonta antes de que
+   * ningún efecto llegue a corregirlo.
+   */
+  const [comparadoCon, setComparadoCon] = useState(bloques)
+  const [renombradas, setRenombradas] = useState<ReadonlyMap<string, string>>(() => new Map())
+  if (comparadoCon !== bloques) {
+    setComparadoCon(bloques)
+    const pares = clavesQueRecibieronId(comparadoCon, bloques)
+    if (pares.length > 0) setRenombradas((previas) => new Map([...previas, ...pares]))
+  }
+  /** Del nombre nuevo al viejo, para que el `key` y el plegado no cambien. */
+  const nombreDePila = useMemo(
+    () => new Map([...renombradas].map(([cliente, servidor]) => [servidor, cliente])),
+    [renombradas],
+  )
+
+  /**
+   * Lo último que se pintó, para quien escriba cuando ya no está pintado.
+   *
+   * Es de lo que tira `apuntarEnElBloque`: una subida que termina con su bloque
+   * plegado —el cuerpo no se pinta y el selector se ha desmontado— o movido de
+   * sitio. Se pone al día en `useLayoutEffect` y no en `useEffect` porque aquel
+   * corre dentro del mismo commit: entre un commit y sus efectos pasivos puede
+   * colarse la tarea que cierra la subida, y leería el arreglo de antes de la
+   * última tecla.
+   *
+   * `montado` separa «el editor se fue» de «el bloque se fue». Si se cambia de
+   * pestaña en la ficha, este editor se desmonta entero y lo último que pintó
+   * ya no es lo vigente: escribir con ello pisaría la pestaña. En ese caso el
+   * archivo queda subido y sin elegir, como antes de existir esto.
+   *
+   * Lleva también `renombradas`, porque la subida resuelve su clave al
+   * terminar y no al empezar: el guardado que la cambia puede llegar en
+   * cualquier momento del viaje.
+   */
+  const vigentes = useRef<NonNullable<BloquesVigentes>>({ bloques, alCambiar, renombradas })
+  useLayoutEffect(() => {
+    vigentes.current = { bloques, alCambiar, renombradas }
+  })
+  const montado = useRef(true)
+  useEffect(() => {
+    montado.current = true
+    return () => {
+      montado.current = false
+    }
+  }, [])
+  // Una sola función para toda la vida del editor: la guarda cada selector en
+  // su `ultimos` y la llama cuando ya nadie lo pinta. Lee los refs al llamarse.
+  const apuntarEnElBloqueDeClave = useCallback(
+    (clave: string, nombre: string, valor: unknown) =>
+      escritorPorClave(() => (montado.current ? vigentes.current : null))(clave, nombre, valor),
+    [],
+  )
+
   const mover = (indice: number, direccion: -1 | 1) => {
     const destino = indice + direccion
     if (destino < 0 || destino >= bloques.length) return
@@ -981,7 +1047,11 @@ function EditorDeBloques({
       {bloques.map((bloque, i) => {
         const esquema = bloqueDe(String(bloque.blockType ?? ''))
         if (!esquema) return null
-        const clave = claveDe(bloque, i)
+        // Sin clave estable no se ofrece escritor: «el bloque de la posición 3»
+        // deja de ser este en cuanto se mueve uno, y apuntar el archivo en el
+        // bloque equivocado es peor que dejarlo para elegir a mano.
+        const estable = claveEstable(bloque)
+        const clave = (estable !== null ? nombreDePila.get(estable) : undefined) ?? claveDe(bloque, i)
         const plegado = plegados[clave] === true
         const nombreDelBloque = esquema.nombre.toLowerCase()
         return (
@@ -1035,6 +1105,10 @@ function EditorDeBloques({
                 </button>
               </div>
             </div>
+            {/* El cuerpo plegado no se pinta, a propósito: una ficha de doce
+                bloques de texto rico serían doce TipTap montados. Lo que eso
+                desmonta y todavía tiene trabajo en marcha —una subida— escribe
+                por `apuntarEnElBloque`. */}
             {!plegado ? (
               <div className="bloque-cuerpo">
                 <FilaDeCampos
@@ -1045,6 +1119,11 @@ function EditorDeBloques({
                   }
                   relaciones={relaciones}
                   alRecargarRelacion={alRecargarRelacion}
+                  apuntarEnElBloque={
+                    estable === null
+                      ? undefined
+                      : (nombre, nuevo) => apuntarEnElBloqueDeClave(estable, nombre, nuevo)
+                  }
                 />
               </div>
             ) : null}
@@ -1139,12 +1218,14 @@ function SelectorDeArchivo({
   alCambiar,
   opciones,
   alRecargar,
+  apuntarEnSuBloque,
 }: {
   campo: Extract<Campo, { tipo: 'archivo' }>
   valor: unknown
   alCambiar: (nuevo: unknown) => void
   opciones: OpcionRelacion[]
   alRecargar: () => void
+  apuntarEnSuBloque?: (nuevo: unknown) => boolean
 }) {
   const id = useId()
   const [error, setError] = useState<string | null>(null)
@@ -1176,23 +1257,27 @@ function SelectorDeArchivo({
    * subida, en cualquier otro bloque, desaparecido sin aviso. Leyendo el último
    * se escribe sobre la ficha tal como está.
    *
-   * Si este selector se desmonta a mitad de subida no se escribe nada, porque
-   * el último `alCambiar` que vio ya no es el último de la ficha. Pasa en dos
-   * casos y el primero es el que obliga: quitar el bloque, donde ese
-   * `alCambiar` lleva el arreglo de antes de quitarlo y llamarlo lo resucitaría.
-   * El segundo es el caro: **plegar** el bloque también lo desmonta
-   * (`EditorDeBloques` no pinta el cuerpo plegado), y ahí escribir con aquel
-   * arreglo borraría lo tecleado después en otros bloques. Así que tampoco se
-   * escribe, y lo que se hace es recargar las opciones: el archivo queda subido
-   * y al desplegar aparece en el desplegable para elegirlo, en vez de no estar
-   * en ninguna parte hasta recargar la página. Lo que lo arreglaría del todo es
-   * que cada nivel del formulario escriba sobre el valor vigente y no sobre el
-   * de su render, y eso ya no es de este selector.
+   * Si este selector se desmonta a mitad de subida, su `alCambiar` ya no sirve:
+   * el último que vio no es el último de la ficha. Pasa en dos casos. Quitar el
+   * bloque, donde ese `alCambiar` lleva el arreglo de antes de quitarlo y
+   * llamarlo lo resucitaría. Y **plegar** el bloque, que también lo desmonta
+   * (`EditorDeBloques` no pinta el cuerpo plegado): ahí escribir con aquel
+   * arreglo borraría lo tecleado después en otros bloques y, si entretanto se
+   * reordenaron, apuntaría el archivo en el bloque que ocupa ahora su sitio.
+   *
+   * Durante un tiempo, desmontado no se escribía nada y solo se recargaban las
+   * opciones: el archivo quedaba subido y sin elegir, y había que desplegar,
+   * buscarlo en la lista y elegirlo a mano, sabiendo que había que hacerlo.
+   * Ahora quien escribe entonces es `apuntarEnSuBloque`, que presta el editor
+   * de bloques —ese sigue montado— y que busca el bloque por su clave en el
+   * arreglo vigente (`escritorPorClave`, `src/admin/identidadDeBloques.ts`). Si
+   * el bloque se quitó, no lo encuentra y no escribe; si no se ofrece —un campo
+   * fuera de un bloque, o un bloque sin clave estable—, queda lo de antes.
    */
-  const ultimos = useRef({ alCambiar, alRecargar })
+  const ultimos = useRef({ alCambiar, alRecargar, apuntarEnSuBloque })
   useEffect(() => {
-    ultimos.current = { alCambiar, alRecargar }
-  }, [alCambiar, alRecargar])
+    ultimos.current = { alCambiar, alRecargar, apuntarEnSuBloque }
+  }, [alCambiar, alRecargar, apuntarEnSuBloque])
   // No es el centinela de «primera vuelta» que el Modo Estricto derrota (ver
   // `EditorDeBloques`): no recuerda si ya se montó, dice si está montado ahora,
   // y el efecto lo vuelve a poner en cada montaje, también en la segunda vuelta
@@ -1248,11 +1333,19 @@ function SelectorDeArchivo({
           formularioDeArchivo(campo.coleccion, archivo),
         )
         if (!montado.current) {
+          // Plegado o quitado: lo apunta el bloque por su clave, si sigue ahí.
+          if (resultado.exito && resultado.datos) ultimos.current.apuntarEnSuBloque?.(resultado.datos.id)
           if (resultado.exito) ultimos.current.alRecargar()
           return
         }
         if (resultado.exito && resultado.datos) {
-          ultimos.current.alCambiar(resultado.datos.id)
+          // Montado también va primero por la clave del bloque, si la hay: el
+          // `alCambiar` de `ultimos` se pone al día en un efecto pasivo y puede
+          // ir un pintado por detrás; el arreglo del editor, no. Fuera de un
+          // bloque no hay clave, y escribe el de siempre.
+          if (!ultimos.current.apuntarEnSuBloque?.(resultado.datos.id)) {
+            ultimos.current.alCambiar(resultado.datos.id)
+          }
           ultimos.current.alRecargar()
         } else {
           setError(resultado.mensaje ?? 'No se pudo subir el archivo.')

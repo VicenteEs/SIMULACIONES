@@ -64,10 +64,13 @@ export function rolDeSistema(sistema: string): RolDePieza {
 /**
  * Estructuras que el atlas de origen clasifica en el sistema equivocado.
  *
- * BodyParts3D mete en el esqueleto los tres peroneos —que son músculos— y la
- * cintilla iliotibial —que es fascia—. Para el atlas era un color raro; para la
- * simulación es un error clínico: con la capa de músculo apagada, el peroneo
- * corto seguiría encendido pegado al peroné, como si fuera hueso.
+ * BodyParts3D mete en el esqueleto los tres peroneos y los tibiales anterior y
+ * posterior —que son músculos— y la cintilla iliotibial —que es fascia—. Para
+ * el atlas era un color raro; para la simulación es un error clínico: con la
+ * capa de músculo apagada, el peroneo corto seguiría encendido pegado al peroné,
+ * como si fuera hueso. Los dos tibiales se corrigieron después que el resto,
+ * cuando la pierna derecha partida del caso de prueba los enseñaba fundidos con
+ * el esqueleto durante la reducción.
  *
  * Se corrige aquí, al leer el catálogo, y no en `public/atlas/catalogo.json`:
  * ese archivo lo reescribe `scripts/atlas/preparar.mjs` cada vez que se

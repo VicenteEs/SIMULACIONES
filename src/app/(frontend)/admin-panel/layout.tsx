@@ -8,6 +8,7 @@ import {
   NavegacionAdmin,
   type SeccionDeMenu,
 } from '@/components/admin/NavegacionAdmin'
+import { GuardiaDeAtras } from '@/components/admin/GuardiaDeAtras'
 import { BotonSalir } from '@/components/BotonSalir'
 import './admin.css'
 import { ruta } from '@/lib/rutas'
@@ -89,6 +90,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="admin-layout">
+      {/* Atrás y Adelante del navegador, que no pasan ni por la barra ni por
+          `beforeunload`. Aquí y solo aquí: el contorno dura lo que dura el
+          panel, y dos guardias preguntarían dos veces por el mismo viaje. */}
+      <GuardiaDeAtras />
       <aside className="admin-sidebar">
         <div className="admin-sidebar-header">
           <img src={ruta('/icon.png')} alt="" className="admin-sidebar-logo" />

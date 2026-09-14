@@ -38,14 +38,14 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
   lado, porque es el que se puede buscar en la bibliografía y en la Foundational
   Model of Anatomy. Una estructura que todavía no tiene traducción se enseña con
   su nombre original, sin traducirla a ciegas;
-- corregido el sistema anatómico de ocho estructuras que el material original
+- corregido el sistema anatómico de 14 estructuras que el material original
   clasifica mal. La geometría no cambia: cambia el grupo en el que se pintan, se
   encienden y se apagan.
 
 La preparación intermedia procede de https://github.com/ashemag/human-atlas
 (código bajo licencia MIT), que documenta las cuatro primeras adaptaciones.
 
-Las ocho correcciones de sistema son estas:
+Las 14 correcciones de sistema son estas:
 
 - Right fibularis brevis (peroneo corto derecho): de esqueleto a músculos;
 - Left fibularis brevis (peroneo corto izquierdo): de esqueleto a músculos;
@@ -53,23 +53,34 @@ Las ocho correcciones de sistema son estas:
 - Left fibularis longus (peroneo largo izquierdo): de esqueleto a músculos;
 - Right fibularis tertius (peroneo tercero derecho): de esqueleto a músculos;
 - Left fibularis tertius (peroneo tercero izquierdo): de esqueleto a músculos;
+- Right tibialis anterior (tibial anterior derecho): de esqueleto a músculos;
+- Left tibialis anterior (tibial anterior izquierdo): de esqueleto a músculos;
+- Right tibialis posterior (tibial posterior derecho): de esqueleto a músculos;
+- Left tibialis posterior (tibial posterior izquierdo): de esqueleto a músculos;
 - Right iliotibial tract (cintilla iliotibial derecha): de esqueleto a tejido
   conectivo;
 - Left iliotibial tract (cintilla iliotibial izquierda): de esqueleto a tejido
-  conectivo.
+  conectivo;
+- Gingiva of upper jaw (encía del maxilar superior): de esqueleto a aparato
+  digestivo;
+- Gingiva of lower jaw (encía de la mandíbula): de esqueleto a aparato
+  digestivo.
 
-El porqué: los tres peroneos son músculos de la pierna y la cintilla
-iliotibial es un engrosamiento de la fascia lata; ninguno es hueso. En el atlas
-de origen era solo un color equivocado, pero en esta plataforma el sistema
-decide la capa de la simulación quirúrgica, y con el error el peroneo corto
-seguía encendido pegado al peroné al apagar la capa de músculo, como si fuera
-hueso. La corrección se aplica al leer el catálogo, sobre el nombre original de
-cada estructura.
+El porqué: los tres peroneos, el tibial anterior y el tibial posterior son
+músculos de la pierna, y la cintilla iliotibial es un engrosamiento de la fascia
+lata; ninguno es hueso. En el atlas de origen era solo un color equivocado, pero
+en esta plataforma el sistema decide la capa de la simulación quirúrgica, y con
+el error el peroneo corto seguía encendido pegado al peroné al apagar la capa de
+músculo, como si fuera hueso; en la reducción de una tibia partida, los dos
+tibiales salían fundidos con el esqueleto y se veían pegados al hueso. Las
+encías son mucosa de la boca y no hueso: el atlas las agrupa con los dientes,
+y en la simulación entrarían en la capa de hueso. La corrección se aplica al leer el catálogo, sobre el nombre original de cada
+estructura.
 
 La mayoría de las piezas tiene la región deducida: solo 875 (el 39 %) tienen un
 concepto FMA que las sitúa; las otras 1.359 (el 61 %) no. No es la excepción de
 vasos y nervios: arterias, venas y nervios son 774 de esas 1.359, el 57 %; el
-resto es sobre todo músculos (351 de 408) y aparato digestivo (94 de 97). Sirve
+resto es sobre todo músculos (355 de 412) y aparato digestivo (94 de 99). Sirve
 igual porque la estimación no se disfraza de dato: cada pieza deducida queda
 marcada en el catálogo y el árbol anatómico la señala con un distintivo.
 

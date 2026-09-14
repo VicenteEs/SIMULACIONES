@@ -2,7 +2,16 @@ import type { CatalogoDelAtlas, PiezaDelAtlas } from '@/atlas/formato'
 import { rolDeSistema } from '@/atlas/clasificacion'
 import { nombreEnEspanol, sinTildes, tieneTraduccion } from '@/atlas/nombres'
 import { nombreDeNodo, type ObjetoParaGlb } from '@/lib/glb'
+import { partirMalla } from '@/lib/osteotomia'
 import { propuestaDelNodo, type RolDePieza } from '@/lib/piezasDelCaso'
+import {
+  describirCorte,
+  ejeDelHueso,
+  planoDelCorte,
+  type CorteDeHueso,
+  type TrozoDelHueso,
+  type Vector3,
+} from '@/lib/planoDeCorte'
 
 /**
  * De una preparación del atlas a un modelo que la consola pueda abrir.
@@ -17,10 +26,10 @@ import { propuestaDelNodo, type RolDePieza } from '@/lib/piezasDelCaso'
  * mismo formato que sale de Blender, y la consola no se entera de que existe un
  * atlas. Para ella es un modelo más.
  *
- * Aquí vive la parte que se puede probar sin archivos ni base de datos: agrupar,
- * reindexar, recortar la piel, nombrar y centrar. Leer los paquetes y escribir
- * el documento es trabajo del servidor y vive en la acción, que entra por
- * `prepararExportacion` y por nada más.
+ * Aquí vive la parte que se puede probar sin archivos ni base de datos: partir
+ * el hueso, agrupar, reindexar, recortar la piel, nombrar y centrar. Leer los
+ * paquetes y escribir el documento vive en `exportarPreparacion.ts`, que entra
+ * por `prepararExportacion` y por nada más.
  */
 
 /** Cuántos bytes ocupa el modelo antes de que nadie lo quiera abrir. */
@@ -42,6 +51,14 @@ export interface PiezaLeida {
   posiciones: Float32Array
   normales: Int16Array
   indices: Uint32Array
+  /**
+   * Solo en los dos trozos de un hueso partido (ver `partirLaPieza`): de qué
+   * lado del corte es y si es el fragmento que se mueve. Los dos trozos
+   * conservan el `id` de la pieza entera, y es a propósito: así los dos siguen
+   * siendo la protagonista que se marcó y `agruparParaGlb` los deja sueltos sin
+   * saber nada de cortes.
+   */
+  trozo?: { lado: TrozoDelHueso; fragmento: boolean }
 }
 
 export interface OpcionesDeExportacion {
@@ -63,6 +80,36 @@ export interface OpcionesDeExportacion {
    * inglés, que es justo lo que ningún filtro de la consola entendía.
    */
   nombresDeSistema?: Record<string, string>
+  /**
+   * El hueso que sale partido en dos, si se pidió (ver `partirLaPieza`).
+   *
+   * Uno solo, y no una lista: un caso tiene un único fragmento que se mueve
+   * (`src/lib/piezasDelCaso.ts`), y dos huesos partidos dejarían un trozo suelto
+   * que nadie puede reducir, con el aspecto exacto de uno que sí.
+   */
+  corte?: CorteDeHueso | null
+}
+
+/** Lo que se exportó del corte, con los nombres de nodo que salieron. */
+export interface CorteExportado {
+  /** El hueso entero, en español: «Tibia derecha». */
+  etiqueta: string
+  /** El corte dicho con palabras (`describirCorte`). */
+  descripcion: string
+  /** Nodo del trozo proximal y del distal. */
+  proximal: string
+  distal: string
+  /** El nodo que se mueve en la reducción: uno de los dos de arriba. */
+  fragmento: string
+  /**
+   * Dónde quedó el origen del nodo del fragmento, en metros y en las
+   * coordenadas del archivo (ya centrado): el punto del eje del hueso por el
+   * que pasa el corte. Es el `translation` de ese nodo y aquello sobre lo que
+   * gira en la consola (ver `pivoteEnElFoco`).
+   */
+  pivote: [number, number, number]
+  /** Lo que no salió limpio: contornos que no cerraron y no se taparon. */
+  avisos: string[]
 }
 
 /**
@@ -110,12 +157,17 @@ export function colorDeGltf(hex: string | undefined): [number, number, number, n
  *  - `rol`: el papel en la consola, de `rolDeSistema`. Vale igual para las
  *    protagonistas, que casi siempre son hueso porque casi siempre son del
  *    esqueleto; una protagonista muscular se queda en músculo, porque eso es.
+ *    La excepción es el trozo de un hueso partido que se marcó como el que se
+ *    mueve, que sale como `fragmento`.
  *  - `etiqueta`: el nombre en español CON tildes, el que se enseña.
  *  - `sistema`: el identificador del sistema, que es la clave de
  *    `ROL_DE_SISTEMA` y permite rehacer el rol si la tabla cambia.
  *  - `nombreOriginal` y `fma`, solo en las protagonistas: la licencia del atlas
  *    obliga a poder rastrear lo traducido, y un sistema fundido no tiene un
  *    único original que citar.
+ *  - `trozo`, solo en los dos trozos de un hueso partido: `proximal` o
+ *    `distal`. Es lo que `prepararExportacion` busca para saber qué nodo salió
+ *    de cada lado, sin tener que adivinarlo por el nombre.
  */
 export function agruparParaGlb(
   piezas: PiezaLeida[],
@@ -143,6 +195,12 @@ export function agruparParaGlb(
   // Las protagonistas primero: son las que el médico va a tocar en el caso, y
   // conviene que salgan arriba en la lista.
   for (const pieza of sueltas) {
+    // Un trozo de hueso partido lleva el nombre del hueso y de qué lado es, y el
+    // fragmento que se mueve lleva ese rol en vez del de su sistema: es lo que el
+    // taller de piezas del caso lee para marcarlo solo (`propuestaDelNodo`).
+    const etiqueta = pieza.trozo
+      ? `${nombreEnEspanol(pieza.nombre)}, fragmento ${pieza.trozo.lado}`
+      : nombreEnEspanol(pieza.nombre)
     salida.push({
       nombre: pieza.nombre,
       posiciones: pieza.posiciones,
@@ -150,11 +208,12 @@ export function agruparParaGlb(
       indices: pieza.indices,
       color: colorDeGltf(colores[pieza.sistema]),
       extras: {
-        rol: rolDeSistema(pieza.sistema),
-        etiqueta: nombreEnEspanol(pieza.nombre),
+        rol: pieza.trozo?.fragmento ? 'fragmento' : rolDeSistema(pieza.sistema),
+        etiqueta,
         sistema: pieza.sistema,
         nombreOriginal: pieza.nombre,
         ...(pieza.fma ? { fma: pieza.fma } : {}),
+        ...(pieza.trozo ? { trozo: pieza.trozo.lado } : {}),
       },
     })
   }
@@ -210,6 +269,12 @@ function fusionar(grupo: PiezaLeida[]): {
  * pantalla sean idénticos (ver `sinTildes`). Saneado con la regla de three, por
  * lo que explica `nombreDeNodo`.
  *
+ * Y sin comas, que three sí deja pasar. La única etiqueta que las lleva es la de
+ * un trozo de hueso partido («Tibia derecha, fragmento distal»), y un nodo
+ * «Tibia_derecha,_fragmento_distal» es justo el que el médico escribe mal a mano.
+ * Quitarlas no renombra nada que ya existiera: ningún nombre del atlas ni de su
+ * traducción lleva una coma.
+ *
  * ## Por qué hace falta desambiguar
  *
  * Dos objetos pueden acabar con el mismo nombre, y no es un caso de laboratorio.
@@ -245,7 +310,7 @@ export function nombrarNodos(objetos: ObjetoParaGlb[]): ObjetoParaGlb[] {
     const etiqueta = typeof objeto.extras?.etiqueta === 'string' ? objeto.extras.etiqueta : ''
     // Un nombre que el saneado deja vacío —solo signos— no puede ser un nodo:
     // three lo cargaría sin nombre y la consola no podría buscarlo.
-    const base = nombreDeNodo(sinTildes(etiqueta || objeto.nombre)) || 'objeto'
+    const base = nombreDeNodo(sinTildes(etiqueta || objeto.nombre).replace(/,/g, '')) || 'objeto'
     let nombre = base
     for (let n = 2; usados.has(nombre); n += 1) nombre = `${base}_${n}`
     usados.add(nombre)
@@ -653,16 +718,172 @@ export function nombresSinTraducir(objetos: ObjetoParaGlb[]): string[] {
 }
 
 /**
+ * Parte en dos, con un corte limpio y tapado, el hueso que pide `opciones.corte`.
+ *
+ * Es el primer paso de `prepararExportacion` y va antes que todo lo demás por
+ * dos razones. El eje se mide sobre la geometría en las coordenadas del
+ * cuerpo, que son las de la vista previa del taller, y `ejeDelHueso` decide con
+ * ellas qué es proximal —el extremo de arriba— y qué es «fuera» —el signo de x
+ * de la pieza—. Centrada, la tibia derecha queda con su centro en x = 0 y el
+ * giro de 90° que en pantalla subía por la cara lateral saldría por la medial,
+ * sin un error. Y los dos trozos tienen que existir
+ * antes de recortar la piel, nombrar y centrar, para que esos pasos los traten
+ * como a cualquier otra protagonista: la caja de lo exportado es la misma con la
+ * tibia entera que partida, así que el centro y la piel que se queda no cambian
+ * por cortar.
+ *
+ * La pieza entera se sustituye, en su sitio de la lista, por sus dos trozos: el
+ * proximal primero. Cada uno lleva `trozo` (ver `PiezaLeida`), y el que se mueve
+ * sale con rol `fragmento`.
+ *
+ * Se niega, con palabras, en vez de exportar algo distinto de lo pedido:
+ *
+ *  - si la pieza no está en la preparación: se exporta lo guardado, y la marca
+ *    de corte pudo quedarse de una pieza que ya no está;
+ *  - si no es una protagonista: fundida con su sistema, el «fragmento» sería el
+ *    esqueleto entero;
+ *  - si no es hueso: partir un músculo no es una fractura, y su trozo saldría
+ *    con rol de músculo, que la consola no mueve;
+ *  - si el plano no la corta (`partirMalla`).
+ *
+ * Los avisos de `partirMalla` —contornos que no cerraron— se devuelven con el
+ * nombre del hueso delante, para las notas del modelo.
+ *
+ * Devuelve también `punto`, el del plano sobre el eje, en las coordenadas del
+ * cuerpo: es el foco de la fractura, y `prepararExportacion` pone ahí el origen
+ * del fragmento cuando ya sabe cuánto se centró.
+ */
+export function partirLaPieza(
+  piezas: PiezaLeida[],
+  opciones: OpcionesDeExportacion = {},
+): {
+  piezas: PiezaLeida[]
+  corte: (Pick<CorteExportado, 'etiqueta' | 'descripcion' | 'avisos'> & { punto: Vector3 }) | null
+} {
+  const corte = opciones.corte
+  if (!corte) return { piezas, corte: null }
+
+  const posicion = piezas.findIndex((p) => p.id === corte.pieza)
+  if (posicion < 0) {
+    throw new Error(
+      'La pieza que se iba a partir no está en la preparación guardada. ' +
+        'Guárdela con esa pieza encendida, o quite el corte.',
+    )
+  }
+  const pieza = piezas[posicion]
+  const etiqueta = nombreEnEspanol(pieza.nombre)
+  if (!(opciones.protagonistas ?? []).includes(pieza.id)) {
+    throw new Error(
+      `Para partir «${etiqueta}» hay que marcarla como pieza suelta: ` +
+        'fundida con su sistema no puede ser un fragmento.',
+    )
+  }
+  const rol = rolDeSistema(pieza.sistema)
+  if (rol !== 'hueso') {
+    throw new Error(`Solo se puede partir un hueso, y «${etiqueta}» entra en el caso como ${rol}.`)
+  }
+
+  const eje = ejeDelHueso(pieza.posiciones, pieza.indices)
+  if (!eje) throw new Error(`«${etiqueta}» no tiene geometría que partir.`)
+
+  const plano = planoDelCorte(eje, corte)
+  let partida: ReturnType<typeof partirMalla>
+  try {
+    partida = partirMalla(pieza, plano)
+  } catch (error) {
+    const motivo = error instanceof Error ? error.message : 'no se pudo partir.'
+    throw new Error(`No se pudo partir «${etiqueta}»: ${motivo}`)
+  }
+
+  // La normal del plano apunta al lado distal (`planoDelCorte`).
+  const trozo = (lado: TrozoDelHueso): PiezaLeida => {
+    const malla = lado === 'distal' ? partida.haciaLaNormal : partida.contraLaNormal
+    return {
+      ...pieza,
+      posiciones: malla.posiciones,
+      // Salen en Int16 porque entraron en Int16: `partirMalla` devuelve las
+      // normales en el tipo en que las recibe.
+      normales: malla.normales as Int16Array,
+      indices: malla.indices,
+      trozo: { lado, fragmento: corte.fragmento === lado },
+    }
+  }
+
+  return {
+    piezas: [
+      ...piezas.slice(0, posicion),
+      trozo('proximal'),
+      trozo('distal'),
+      ...piezas.slice(posicion + 1),
+    ],
+    corte: {
+      etiqueta,
+      descripcion: describirCorte(corte),
+      avisos: partida.avisos.map((aviso) => `Al partir «${etiqueta}»: ${aviso}`),
+      punto: plano.punto,
+    },
+  }
+}
+
+/**
+ * Pone el origen del nodo del fragmento en el foco de la fractura.
+ *
+ * La consola mueve el fragmento con `position` y lo gira con `rotation`, y three
+ * gira un objeto alrededor del origen de su nodo. `escribirGlb` escribía todos
+ * los nodos sin traslación, así que ese origen era el centro del archivo, que
+ * con un corte fuera de la mitad del hueso cae lejos del foco: con la tibia y
+ * el peroné derechos del atlas y el corte al 30 %, a 8,6 cm. Corregir 15° de
+ * angulación desplazaba entonces el trozo más de 2 cm en arco, y el residente
+ * veía el fragmento irse de lado al enderezarlo. Un fragmento hecho en Blender
+ * trae el origen donde lo dejó su
+ * autor, así que el modelo armado en la plataforma se manejaba peor que uno
+ * traído de fuera, que es lo contrario de lo que se buscaba.
+ *
+ * Solo el fragmento, y a propósito: es lo único que la consola hace girar, y
+ * el resto sigue con el origen en el centro, que es lo que `centrarEnSuCaja`
+ * promete y lo que cualquier otro lector del archivo espera.
+ *
+ * Las posiciones del fragmento se restan del pivote en una copia nueva, de modo
+ * que cada vértice sigue en el mismo sitio del mundo: el archivo se ve igual,
+ * cierra igual y ocupa lo mismo. Va DESPUÉS de centrar porque centrar resta a
+ * las posiciones y no sabe de traslaciones; hecho antes, el fragmento quedaría
+ * descentrado dos veces.
+ *
+ * `pivote` va en las coordenadas del archivo: el punto del cuerpo menos el
+ * centro que se restó.
+ */
+export function pivoteEnElFoco(
+  objetos: ObjetoParaGlb[],
+  lado: TrozoDelHueso,
+  pivote: Vector3,
+): ObjetoParaGlb[] {
+  return objetos.map((objeto) => {
+    if (objeto.extras?.trozo !== lado || objeto.extras?.rol !== 'fragmento') return objeto
+    const origen = objeto.posiciones
+    const posiciones = new Float32Array(origen.length)
+    for (let i = 0; i < origen.length; i += 3) {
+      posiciones[i] = origen[i] - pivote[0]
+      posiciones[i + 1] = origen[i + 1] - pivote[1]
+      posiciones[i + 2] = origen[i + 2] - pivote[2]
+    }
+    return { ...objeto, posiciones, traslacion: [pivote[0], pivote[1], pivote[2]] }
+  })
+}
+
+/**
  * El camino entero, de las piezas leídas al contenido del archivo.
  *
  * Es lo único que la acción llama, y el orden importa:
  *
+ *  0. Partir el hueso, si se pidió (ver `partirLaPieza` por qué primero).
  *  1. Agrupar, que es lo que escribe el rol de cada objeto.
  *  2. Recortar la piel, que necesita ese rol para saber qué es piel, y las
  *     coordenadas del cuerpo en las que se midió el margen.
  *  3. Nombrar, cuando ya se sabe qué objetos quedan y cuáles chocan: un objeto
  *     de piel que el recorte deja vacío no reserva un nombre.
- *  4. Centrar al final, porque trasladar no cambia ni nombres ni extras.
+ *  4. Centrar, porque trasladar no cambia ni nombres ni extras.
+ *  5. Con un hueso partido, poner el origen del fragmento en el foco
+ *     (`pivoteEnElFoco`), que necesita saber cuánto se centró.
  *
  * Devuelve también lo que hay que avisar: `sinTraducir`, `pielRecortada` y
  * `pielFuera`. Salen de aquí y no se calculan en la acción porque la acción no
@@ -671,7 +892,7 @@ export function nombresSinTraducir(objetos: ObjetoParaGlb[]): string[] {
  * (ver `centrarEnSuCaja`).
  */
 export function prepararExportacion(
-  piezas: PiezaLeida[],
+  leidas: PiezaLeida[],
   opciones: OpcionesDeExportacion = {},
 ): {
   objetos: ObjetoParaGlb[]
@@ -681,17 +902,55 @@ export function prepararExportacion(
   pielRecortada: boolean
   pielFuera: string[]
   sinTraducir: string[]
+  corte: CorteExportado | null
 } {
+  // `piezas` son ya las de después del corte: la tibia partida son dos.
+  const { piezas, corte: partido } = partirLaPieza(leidas, opciones)
   const recorte = recortarLaPiel(agruparParaGlb(piezas, opciones))
-  const { objetos, centro, sinLaPiel } = centrarEnSuCaja(nombrarNodos(recorte.objetos))
+  const centrado = centrarEnSuCaja(nombrarNodos(recorte.objetos))
+  const { centro, sinLaPiel } = centrado
+  const pivote: Vector3 | null = partido
+    ? [partido.punto[0] - centro[0], partido.punto[1] - centro[1], partido.punto[2] - centro[2]]
+    : null
+  const objetos =
+    partido && pivote && opciones.corte
+      ? pivoteEnElFoco(centrado.objetos, opciones.corte.fragmento, pivote)
+      : centrado.objetos
+  const archivo = piezasDelArchivo(objetos)
+
+  // La regla de un solo fragmento, comprobada sobre lo que va a salir y no sobre
+  // lo que se pidió: hoy solo cabe un corte, y esta es la línea que se pone roja
+  // el día que alguien convierta `corte` en una lista.
+  if (archivo.filter((p) => p.rol === 'fragmento').length > 1) {
+    throw new Error('El archivo saldría con más de un fragmento, y un caso solo puede mover uno.')
+  }
+
+  let corte: CorteExportado | null = null
+  if (partido && pivote) {
+    const nodoDelTrozo = (lado: TrozoDelHueso) =>
+      nombreDeNodo(objetos.find((o) => o.extras?.trozo === lado)?.nombre ?? '')
+    const proximal = nodoDelTrozo('proximal')
+    const distal = nodoDelTrozo('distal')
+    corte = {
+      etiqueta: partido.etiqueta,
+      descripcion: partido.descripcion,
+      avisos: partido.avisos,
+      proximal,
+      distal,
+      fragmento: opciones.corte?.fragmento === 'proximal' ? proximal : distal,
+      pivote,
+    }
+  }
+
   return {
     objetos,
-    piezas: piezasDelArchivo(objetos),
+    piezas: archivo,
     centro,
     sinLaPiel,
     pielRecortada: recorte.recortada,
     pielFuera: recorte.fuera,
     sinTraducir: nombresSinTraducir(objetos),
+    corte,
   }
 }
 
@@ -710,13 +969,18 @@ export function prepararExportacion(
  *
  * El margen se escribe desde `MARGEN_DE_LA_PIEL` y no a mano, para que la nota
  * no siga diciendo cinco centímetros el día que se cambie.
+ *
+ * Los del corte van primero: un hueso que salió partido y hueco por dentro es lo
+ * primero que se va a notar en la consola. La descripción del corte no es un
+ * aviso —es lo que se pidió— y la escribe en las notas `exportarPreparacion`.
  */
 export function avisosDeLaExportacion(aviso: {
   pielRecortada: boolean
   pielFuera: string[]
   sinTraducir: string[]
+  corte?: Pick<CorteExportado, 'avisos'> | null
 }): string[] {
-  const avisos: string[] = []
+  const avisos: string[] = [...(aviso.corte?.avisos ?? [])]
   if (aviso.sinTraducir.length > 0) {
     avisos.push(
       `Sin traducción, se quedan con su nombre original: ${aviso.sinTraducir.join(', ')}.`,

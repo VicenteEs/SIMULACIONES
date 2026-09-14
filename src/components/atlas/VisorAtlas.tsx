@@ -35,6 +35,12 @@ import {
   type TraslacionDelPivote,
 } from '@/atlas/pivote'
 import { objetivoFueraDeLoVisible } from '@/atlas/vistaGuardada'
+import {
+  ejeDelHueso,
+  planoDelCorte,
+  type CorteDeHueso,
+  type EjeDelHueso,
+} from '@/lib/planoDeCorte'
 
 /**
  * Visor del atlas anatómico.
@@ -126,6 +132,7 @@ export function VisorAtlas({
   soloLectura = false,
   alPulsarPieza,
   alAsentarVista,
+  corte = null,
   mando,
 }: {
   catalogo: CatalogoDelAtlas
@@ -160,6 +167,19 @@ export function VisorAtlas({
    * cuando el pivote lo sigue con la escena ya montada, y eso no se avisa.
    */
   alAsentarVista?: (antes: VistaDeInstancia, despues: VistaDeInstancia) => void
+  /**
+   * El corte que se va a exportar, para dibujar su plano encima del hueso.
+   *
+   * Existe para que el traumatólogo vea DÓNDE corta antes de exportar: un
+   * porcentaje y dos ángulos no se imaginan sobre una tibia, y lo que sale mal
+   * solo se descubre abriendo el caso en la consola, varios pasos después. El
+   * plano se calcula con `planoDelCorte` sobre el eje que `ejeDelHueso` mide en
+   * la geometría cargada, que son las mismas funciones y los mismos vértices
+   * con los que el servidor parte la malla: lo que se ve aquí es lo que sale.
+   *
+   * `null` no dibuja nada. Solo lo pasa el taller; las fichas no.
+   */
+  corte?: CorteDeHueso | null
   mando?: RefObject<MandoDelVisor | null>
 }) {
   const lienzo = useRef<HTMLDivElement>(null)
@@ -552,6 +572,7 @@ export function VisorAtlas({
       // y aquí hay decenas de megabytes en la tarjeta. Sin esto, pasear por la
       // plataforma acaba tirando la pestaña.
       taller.current.escena?.liberar()
+      quitarElCorte(taller.current)
       // `dispose()` no cierra el contexto: en esta versión de three (0.185.1)
       // solo quita tres escuchas y vacía cachés internas. El contexto sobrevive
       // hasta que el recolector se lleve el lienzo, en un momento que la
@@ -612,6 +633,25 @@ export function VisorAtlas({
     aplicarSeparacion(escena, separacion)
     taller.current.pedirDibujo?.()
   }, [separacion])
+
+  // ------------------------------------------------------- la vista del corte
+  //
+  // Se redibuja entero con cada cambio de los mandos: son un disco, un aro y
+  // una bola, y rehacerlos cuesta menos que llevar la cuenta de qué cambió. El
+  // eje, que es lo caro, se recuerda por pieza (`ejes` en el taller del visor).
+  //
+  // `progreso` está en las dependencias por el primer dibujo: el corte puede
+  // llegar antes que la geometría —el panel de exportar se abre mientras bajan
+  // los paquetes—, y sin escena no hay eje que medir. Cuando la carga termina,
+  // `progreso` pasa a 100 y el efecto vuelve a correr con la escena ya puesta.
+  //
+  // La separación entra porque el sombreador mueve cada pieza al separar el
+  // cuerpo, y el plano tiene que irse con su hueso o cortaría el aire.
+  useEffect(() => {
+    const t = taller.current
+    pintarElCorte(t, corte, separacion)
+    t.pedirDibujo?.()
+  }, [catalogo, corte, separacion, progreso])
 
   // ------------------------------------------------- el pivote sigue a lo visible
   //
@@ -815,6 +855,13 @@ interface TallerDelVisor {
   traslacion?: TraslacionDelPivote
   esperaDelPivote?: ReturnType<typeof setTimeout>
   seleccionDelPivote?: { visibles: Set<string> | null; separacion: number }
+  /** Lo que dibuja el plano del corte, si lo hay (ver `pintarElCorte`). */
+  vistaDelCorte?: THREE.Group
+  /**
+   * El eje de cada pieza que ya se midió, o `null` si no se pudo medir. Vale lo
+   * que vale la escena: al montar otra, el taller entero se vacía y esto con él.
+   */
+  ejes?: Map<string, EjeDelHueso | null>
 }
 
 /**
@@ -1049,4 +1096,133 @@ function mismaVista(a: VistaDeInstancia, b: VistaDeInstancia): boolean {
   return (
     a.camara.every((n, i) => n === b.camara[i]) && a.objetivo.every((n, i) => n === b.objetivo[i])
   )
+}
+
+// ------------------------------------------------------------- la vista del corte
+
+/**
+ * El color del plano: un magenta saturado.
+ *
+ * No rojo, que era lo obvio para «corte»: el músculo del atlas es #b6544c y las
+ * arterias #c2392f, y un plano rojo sobre una pierna con su musculatura no se
+ * distingue. Tampoco azul, que es el del resaltado al pasar por el árbol.
+ * Ningún sistema del catálogo usa nada parecido a este.
+ */
+const COLOR_DEL_CORTE = 0xe8198b
+
+/** Quita y libera lo que dibujaba el corte. */
+function quitarElCorte(taller: TallerDelVisor) {
+  const vista = taller.vistaDelCorte
+  if (!vista) return
+  vista.removeFromParent()
+  vista.traverse((objeto) => {
+    const conGeometria = objeto as THREE.Mesh
+    conGeometria.geometry?.dispose()
+    const material = conGeometria.material as THREE.Material | undefined
+    material?.dispose()
+  })
+  taller.vistaDelCorte = undefined
+}
+
+/**
+ * El eje de una pieza medido sobre la malla fundida de su sistema, con su rango.
+ *
+ * Son los mismos vértices, en el mismo orden, que el servidor lee del paquete
+ * para esa pieza sola: `montarEscena` copia sus posiciones tal cual y corre los
+ * índices, así que el eje sale igual hasta el último decimal. `null` si la pieza
+ * no se llegó a montar —estaba apagada al cargar— y no hay geometría que medir.
+ */
+function medirEje(escena: EscenaDelAtlas, indice: number): EjeDelHueso | null {
+  const rango = escena.rangos.get(indice)
+  if (!rango) return null
+  const geometria = escena.mallas[rango.malla]?.geometry
+  const posiciones = geometria?.getAttribute('position')?.array
+  const indices = geometria?.getIndex()?.array
+  if (!posiciones || !indices) return null
+  return ejeDelHueso(posiciones, indices, rango.inicio, rango.cuenta)
+}
+
+/**
+ * Dibuja el plano de un corte sobre su hueso: un disco translúcido, su aro y
+ * una bola en el extremo del fragmento que se mueve.
+ *
+ * El disco respeta la profundidad, así que dentro del hueso lo tapa el propio
+ * hueso y lo que se ve es justo la línea por donde sale: la línea de fractura.
+ * El aro no la respeta y se ve siempre, también por detrás del hueso, para que
+ * la inclinación se lea desde cualquier lado sin tener que girar. La bola dice
+ * qué trozo es el fragmento, que es lo que más fácil se confunde al leer
+ * «proximal» sobre un modelo que está girado.
+ *
+ * El disco mide algo más que el ancho del hueso y crece con la inclinación, que
+ * es lo que alarga la sección: con el mismo radio, una oblicua de 60° quedaría
+ * más corta que el hueso y parecería no atravesarlo.
+ */
+function pintarElCorte(taller: TallerDelVisor, corte: CorteDeHueso | null, separacion: number) {
+  quitarElCorte(taller)
+  const { escena, tresD } = taller
+  if (!corte || !escena || !tresD) return
+  const indice = escena.indices.get(corte.pieza)
+  if (indice === undefined) return
+
+  const ejes = (taller.ejes ??= new Map())
+  if (!ejes.has(corte.pieza)) ejes.set(corte.pieza, medirEje(escena, indice))
+  const eje = ejes.get(corte.pieza)
+  if (!eje) return
+
+  const plano = planoDelCorte(eje, corte)
+  const coseno = Math.cos((corte.inclinacion * Math.PI) / 180)
+  const radio = (eje.radio * 1.35) / Math.max(coseno, 0.3)
+
+  const vista = new THREE.Group()
+  // Lo mismo que suma el sombreador a cada vértice de la pieza al separar.
+  vista.position.set(
+    escena.datos[indice * 4] * separacion,
+    escena.datos[indice * 4 + 1] * separacion,
+    escena.datos[indice * 4 + 2] * separacion,
+  )
+
+  const enElPlano = new THREE.Group()
+  enElPlano.position.set(...plano.punto)
+  enElPlano.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1),
+    new THREE.Vector3(...plano.normal),
+  )
+  const disco = new THREE.Mesh(
+    new THREE.CircleGeometry(radio, 64),
+    new THREE.MeshBasicMaterial({
+      color: COLOR_DEL_CORTE,
+      transparent: true,
+      opacity: 0.35,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  )
+  const aro = new THREE.Mesh(
+    new THREE.RingGeometry(radio * 0.94, radio, 64),
+    new THREE.MeshBasicMaterial({
+      color: COLOR_DEL_CORTE,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      depthTest: false,
+    }),
+  )
+  aro.renderOrder = 10
+  enElPlano.add(disco, aro)
+
+  const extremo = corte.fragmento === 'distal' ? eje.distal : eje.proximal
+  const bola = new THREE.Mesh(
+    new THREE.SphereGeometry(Math.max(eje.radio * 0.3, 0.003), 16, 12),
+    new THREE.MeshBasicMaterial({ color: COLOR_DEL_CORTE, depthTest: false }),
+  )
+  bola.position.set(
+    eje.centro[0] + eje.direccion[0] * extremo,
+    eje.centro[1] + eje.direccion[1] * extremo,
+    eje.centro[2] + eje.direccion[2] * extremo,
+  )
+  bola.renderOrder = 10
+
+  vista.add(enElPlano, bola)
+  tresD.add(vista)
+  taller.vistaDelCorte = vista
 }

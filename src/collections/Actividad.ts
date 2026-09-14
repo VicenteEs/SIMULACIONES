@@ -1,6 +1,9 @@
-import type { Access, CollectionConfig, FieldAccess } from 'payload'
-import { accesoDePropiedad, administracionDeUsuarios } from '@/access/payload'
-import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import type { CollectionConfig, FieldAccess } from 'payload'
+import {
+  accesoDeSeguimiento,
+  administracionDeUsuarios,
+  creacionEnModuloVisible,
+} from '@/access/payload'
 // El motor del simulador es TypeScript puro: `src/lib/simulador.ts` solo
 // importa `src/lib/reduccion.ts`, que no importa nada. Traerlo aquí no arrastra
 // React ni three.js a la configuración de Payload.
@@ -16,7 +19,7 @@ import { RESULTADOS } from '@/lib/simulador'
  * declaran (`fields/hooks/beforeValidate/promise.js`:
  * `if (field.access && field.access[operation])`).
  *
- * El acceso de colección tampoco tapaba el hueco: `accesoDePropiedad` devuelve
+ * El acceso de colección tampoco tapaba el hueco: `accesoDeSeguimiento` devuelve
  * `{ usuario: { equals: <id> } }`, y ese filtro decide **qué fila** se puede
  * tocar, no qué se escribe dentro. Así que un residente hacía
  * `PATCH /api/actividad/<fila-propia>` con `{"usuario": <otra cuenta>}` y movía
@@ -30,55 +33,6 @@ import { RESULTADOS } from '@/lib/simulador'
  * escriben el panel y las acciones de servidor.
  */
 const FIJADO_AL_CREAR: { update: FieldAccess } = { update: () => false }
-
-/**
- * Crear una fila exige tener ese módulo entre los suyos.
- *
- * Antes bastaba con una cuenta activa, y eso deja a una kinesióloga con el
- * simulador vetado haciendo `POST /api/actividad` con
- * `{"coleccion":"cirugias","documentoId":"7","completado":true}`: las
- * estadísticas del panel —de donde el administrador saca quién va al día—
- * pasan a contarle como leída una ficha de un módulo que ni siquiera puede
- * abrir. La regla es la misma que gobierna la lectura de ese módulo, y por eso
- * se pregunta a `puedeVerModulo` y no se inventa otra.
- *
- * Sin `coleccion` no hay nada que autorizar, así que se niega: el campo es
- * obligatorio y un `create` sin él no llegaría a guardarse de todos modos.
- *
- * Solo actúa por REST. El panel y `anotar` escriben por la API local, cuyo
- * `overrideAccess` vale `true` por omisión, así que ni pasan por aquí ni se
- * ven afectados —y `anotar` ya valida el módulo con `exigirSlugDeModulo`.
- *
- * Vive aquí y no en `src/access/payload.ts`, que es donde este proyecto
- * promete tener junta toda la política, porque necesita `data` y ese archivo
- * no es de este lote. Queda declarado como pendiente, igual que estuvo
- * `mantenimientoDeContenido` en `Comentarios.ts` antes de mudarse.
- */
-const CREACION_DEL_MODULO_PROPIO: Access = ({ req: { user }, data }) => {
-  const modulo = (data as { coleccion?: unknown } | undefined)?.coleccion
-  if (typeof modulo !== 'string' || !user) return false
-  // Se rearma el usuario en lugar de convertirlo de golpe: el documento de
-  // Payload trae `id: number` y `activo?: boolean | null`, y `UsuarioSesion`
-  // pide `id: string` y `activo: boolean`, así que la conversión directa ni
-  // compila ni diría la verdad. Es la misma normalización que hace
-  // `src/access/payload.ts` para sus vecinas, y por eso esto se muda allí en
-  // cuanto ese archivo se pueda tocar.
-  const cuenta = user as {
-    id?: unknown
-    rol?: unknown
-    activo?: unknown
-    modulosVisibles?: unknown
-  }
-  const sesion: UsuarioSesion = {
-    id: String(cuenta.id ?? ''),
-    rol: cuenta.rol as UsuarioSesion['rol'],
-    activo: cuenta.activo === true,
-    modulosVisibles: Array.isArray(cuenta.modulosVisibles)
-      ? (cuenta.modulosVisibles as string[])
-      : undefined,
-  }
-  return puedeVerModulo(sesion, modulo)
-}
 
 /**
  * Los desenlaces que el motor sabe producir, menos el que sale bien.
@@ -161,9 +115,18 @@ export const Actividad: CollectionConfig = {
     description: 'Qué ha visitado y marcado como leído cada residente.',
   },
   access: {
-    read: accesoDePropiedad,
-    create: CREACION_DEL_MODULO_PROPIO,
-    update: accesoDePropiedad,
+    // El seguimiento es del administrador: el editor lleva el contenido, no el
+    // progreso de los residentes, y con `accesoDePropiedad` leía y reescribía
+    // las filas de todos. Ver `filtroDeSeguimiento`.
+    read: accesoDeSeguimiento,
+    // Crear una fila exige poder ver su módulo: sin eso, una cuenta con el
+    // simulador vetado hacía `POST /api/actividad` con
+    // `{"coleccion":"cirugias","completado":true}` y las estadísticas le
+    // contaban como leída una ficha que no puede abrir. La regla vivía aquí
+    // como `CREACION_DEL_MODULO_PROPIO`; se mudó a `src/access/payload.ts`
+    // cuando `comentarios` necesitó la misma.
+    create: creacionEnModuloVisible,
+    update: accesoDeSeguimiento,
     delete: administracionDeUsuarios,
   },
   /**

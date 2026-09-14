@@ -55,8 +55,9 @@ export interface PiezaDelAtlas {
   fma: string
   /**
    * En `catalogo.json` viene tal como lo clasificó el atlas de origen, que se
-   * equivoca en ocho piezas. Quien lea el catálogo tiene que pasarlo por
-   * `corregirCatalogo` (`src/atlas/clasificacion.ts`) antes de mirar este campo.
+   * equivoca en algunas piezas (las de `correcciones-de-sistema.json`). Quien
+   * lea el catálogo tiene que pasarlo por `corregirCatalogo`
+   * (`src/atlas/clasificacion.ts`) antes de mirar este campo.
    */
   sistema: string
   region: string

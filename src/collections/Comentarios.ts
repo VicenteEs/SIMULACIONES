@@ -2,7 +2,9 @@ import type { CollectionConfig, FieldAccess } from 'payload'
 import {
   accesoDePropiedad,
   administracionDeUsuarios,
+  creacionEnModuloVisible,
   mantenimientoDeContenido,
+  soloSuAutor,
 } from '@/access/payload'
 import { escaparHtml } from '@/lib/validacion'
 
@@ -57,7 +59,10 @@ export const Comentarios: CollectionConfig = {
   },
   access: {
     read: accesoDePropiedad,
-    create: ({ req: { user } }) => Boolean(user && user.activo),
+    // Bastaba una cuenta activa, y eso dejaba comentar un módulo vetado: la
+    // misma regla que decide si se puede abrir la ficha decide si se puede
+    // comentar. Ver `creacionEnModuloVisible`.
+    create: creacionEnModuloVisible,
     update: accesoDePropiedad,
     delete: administracionDeUsuarios,
   },
@@ -179,6 +184,11 @@ export const Comentarios: CollectionConfig = {
       name: 'texto',
       type: 'textarea',
       required: true,
+      // Lo reescribe su autor y nadie más. `update: accesoDePropiedad` deja al
+      // editor tocar cualquier fila —tiene que poder resolverla—, y sin esto
+      // también cambiaba lo que el residente escribió mientras el panel lo
+      // seguía firmando con su nombre. Ver `soloSuAutor`.
+      access: { update: soloSuAutor },
     },
     {
       name: 'estado',

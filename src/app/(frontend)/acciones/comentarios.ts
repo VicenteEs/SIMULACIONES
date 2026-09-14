@@ -2,6 +2,8 @@
 
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { usuarioDeSesion } from '@/access/payload'
+import { puedeVerModulo } from '@/access/reglas'
 import { obtenerSesion } from '@/lib/sesion'
 import {
   exigirIdentificador,
@@ -28,8 +30,20 @@ export async function crearComentario(
     throw new Error('Debe iniciar sesión para comentar.')
   }
 
+  const modulo = exigirSlugDeModulo(coleccion)
+  // Que el módulo exista no dice que esta cuenta lo vea. La escritura de abajo
+  // va por la API local, con `overrideAccess: true`, así que la regla de
+  // creación de la colección (`creacionEnModuloVisible`) no se consulta: sin
+  // esta pregunta, quien tiene el simulador vetado comentaba igual una cirugía
+  // llamando a la acción desde la consola, y el comentario le llegaba al
+  // traumatólogo desde un módulo que para esa cuenta no existe. Se pregunta a la
+  // misma regla que la colección, antes de abrir la base.
+  if (!puedeVerModulo(usuarioDeSesion(usuarioEfectivo), modulo)) {
+    throw new Error('Su cuenta no tiene acceso a ese módulo.')
+  }
+
   const datos = {
-    coleccion: exigirSlugDeModulo(coleccion),
+    coleccion: modulo,
     documentoId: exigirIdentificador(documentoId, 'La ficha'),
     texto: exigirTexto(texto, 'El comentario', LARGO_MAXIMO_COMENTARIO),
     estado: 'pendiente' as const,

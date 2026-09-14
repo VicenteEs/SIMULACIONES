@@ -101,3 +101,200 @@ export function puedeSalirSinPerderCambios(
 ): boolean {
   return !hayCambiosSinGuardar() || preguntar(PREGUNTA_DE_SALIDA)
 }
+
+// ------------------------------------------------ Atrás y Adelante del navegador
+
+/**
+ * Lo que la guardia necesita del navegador, con la forma justa para poder
+ * sustituirlo en una prueba sin DOM.
+ *
+ * `navegacion` es la Navigation API (`window.navigation`). Es opcional porque
+ * no la tienen los navegadores anteriores a 2026 —Firefox antes del 147, Safari
+ * antes del 26.2—, y sin ella esta guardia no hace nada con Atrás: ver
+ * `vigilarSalidasDelNavegador`.
+ *
+ * `eventoPopstate` es la clase `PopStateEvent`, cuyo `state` se tapa mientras
+ * dura un viaje que el router de Next no debe ver. Por qué, allí abajo.
+ */
+export interface NavegadorVigilado {
+  ventana: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>
+  historial: { go(distancia: number): void }
+  navegacion?: EventTarget & { readonly currentEntry: EntradaDelHistorial | null }
+  eventoPopstate?: { prototype: object }
+  preguntar: (texto: string) => boolean
+  /** Para programar tareas; `setTimeout` en la pantalla. */
+  despues: (tarea: () => void) => void
+}
+
+interface EntradaDelHistorial {
+  readonly key: string
+  readonly index: number
+  readonly url: string | null
+}
+
+/** Lo que trae `currententrychange`, que el DOM de TypeScript llama `NavigationCurrentEntryChangeEvent`. */
+interface CambioDeEntrada extends Event {
+  readonly navigationType: string | null
+  readonly from: EntradaDelHistorial
+}
+
+const sinAncla = (url: string | null): string => (url ?? '').replace(/#.*$/, '')
+
+/**
+ * Pregunta antes de que Atrás o Adelante saquen de una pantalla con cambios
+ * sin guardar, y devuelve con qué dejar de vigilar. Se monta una sola vez, en
+ * el `layout.tsx` del panel, a través de `GuardiaDeAtras`.
+ *
+ * Los dos botones del navegador no pasaban por ninguna de las otras dos
+ * guardias: dentro del App Router son un `popstate`, no una descarga, así que
+ * `beforeunload` no se entera, y no son un `<Link>`, así que no tienen
+ * `onNavigate`. Y un `popstate` no se puede cancelar: cuando llega, la URL ya
+ * cambió.
+ *
+ * ## Cómo se cancela lo que no se puede cancelar
+ *
+ * Se deja pasar el viaje, se pregunta, y si la respuesta es quedarse se hace el
+ * viaje contrario. Para eso hay que saber cuántas entradas se saltó —Atrás
+ * mantenido abre un menú y salta varias de golpe—, y eso lo dice la Navigation
+ * API: `currententrychange` trae la entrada de la que se sale y
+ * `currentEntry` aquella a la que se llegó, las dos con su `index`. Sin esa API
+ * no hay manera honrada de saber la distancia, y la guardia no hace nada con
+ * Atrás; un `beforeunload` sí queda puesto (abajo).
+ *
+ * Adelante es exactamente el mismo viaje con la distancia al revés, y no
+ * necesita nada propio.
+ *
+ * ## Por qué el router de Next no debe ver ni la ida ni la vuelta
+ *
+ * Next escucha `popstate` por su cuenta (`onPopState` en
+ * `next/dist/client/components/app-router.js`), y casi siempre se registra
+ * antes que esta guardia, porque vive en la raíz y el panel se monta después;
+ * al revés solo cuando se entra al panel cargando la página, porque el efecto
+ * de un hijo corre antes que el de la raíz. Las dos órdenes se probaron en la
+ * aplicación. Si Next viera la ida, pintaría la otra pantalla y desmontaría el
+ * editor mientras la pregunta está abierta. Y cualquier viaje que vea
+ * **descarta la acción del router que esté pendiente** (`dispatchAction` en
+ * `app-router-instance.js`: una restauración marca `discarded` lo que hubiera
+ * en cola): el `router.refresh()` que lanza guardar, o el `router.replace()`
+ * que lleva una ficha nueva a su dirección definitiva, se perderían sin aviso.
+ *
+ * No hay forma de pasar antes que su oyente —los de `window` corren en orden de
+ * registro, también los de captura: se midió en Chrome 152— ni de cambiar lo
+ * que el evento lleva: `replaceState` dentro de `currententrychange` no altera
+ * el `state` de un `popstate` que ya está creado. Lo que sí hace Next es
+ * ignorar el evento cuyo `state` es nulo (`if (!event.state) return`), y
+ * `currententrychange` llega **antes** que `popstate`. Así que, decidido que se
+ * vuelve, se tapa el `state` de `PopStateEvent` hasta la tarea siguiente, que
+ * es cuando ya han corrido todos los oyentes. `tests/unit/atrasDelNavegador.test.ts`
+ * lee esas dos líneas de Next para que una actualización que las cambie no
+ * pase sin avisar.
+ *
+ * ## Por qué no una entrada de historial de más
+ *
+ * Es la técnica habitual —apilar una entrada falsa mientras haya cambios y
+ * preguntar al volver sobre ella— y se descartó por lo que cuesta retirarla.
+ * Al guardar hay que quitarla, y quitar una entrada es un `history.back()` que
+ * Next vería justo con el `refresh` o el `replace` del guardado en cola:
+ * precisamente la acción que descarta. Leído el código de la cola, una ficha
+ * nueva se quedaría en `/nuevo` ya creada en la base, y el guardado siguiente
+ * crearía otra. Dejarla puesta tampoco sale gratis: al salir por la barra
+ * lateral queda enterrada, y el Atrás de después no hace nada visible. Volver
+ * del viaje, en cambio, no deja rastro en el historial.
+ *
+ * ## Lo que se ve y lo que no
+ *
+ * Mientras la pregunta está abierta la barra de direcciones ya enseña la
+ * dirección de destino: el viaje ocurrió. Al cancelar, la posición de
+ * desplazamiento vuelve a la de antes (medido), pero entre la ida y la vuelta
+ * el navegador restaura la de la pantalla de destino, y puede verse un salto de
+ * un fotograma. No se corrige a mano porque corregirlo sobrescribiría la
+ * posición guardada de aquella pantalla.
+ *
+ * Una salida entre documentos —Atrás hasta una página que no es de esta
+ * aplicación— no da `popstate`: ahí pregunta el navegador con su propio aviso
+ * de `beforeunload`, el que también pone esta guardia.
+ */
+export function vigilarSalidasDelNavegador(navegador: NavegadorVigilado): () => void {
+  const { ventana, historial, navegacion, eventoPopstate, preguntar, despues } = navegador
+
+  // Cerrar la pestaña o salir a otro documento. El editor y el taller tenían
+  // ya el suyo; este cubre a quien se apunte después sin acordarse, y a una
+  // salida hacia atrás que abandona el documento, donde no hay `popstate`.
+  const alDescargar = (evento: Event) => {
+    if (hayCambiosSinGuardar()) evento.preventDefault()
+  }
+  ventana.addEventListener('beforeunload', alDescargar)
+  const dejarDeVigilarDescarga = () => ventana.removeEventListener('beforeunload', alDescargar)
+
+  if (!navegacion || !eventoPopstate) return dejarDeVigilarDescarga
+
+  const descriptor = Object.getOwnPropertyDescriptor(eventoPopstate.prototype, 'state')
+  const leerEstado = descriptor?.get
+  if (!descriptor || !leerEstado) return dejarDeVigilarDescarga
+
+  /** Mientras es verdadero, cualquier `popstate` enseña `state: null` a quien lo lea. */
+  let tapando = false
+  /** La entrada a la que se está volviendo tras un «no», si se está volviendo. */
+  let volviendoA: string | null = null
+
+  Object.defineProperty(eventoPopstate.prototype, 'state', {
+    ...descriptor,
+    get(this: object) {
+      return tapando ? null : leerEstado.call(this)
+    },
+  })
+
+  const tapar = () => {
+    tapando = true
+  }
+
+  const alCambiarDeEntrada = (evento: Event) => {
+    const cambio = evento as CambioDeEntrada
+    // Los `push` y `replace` son del router o de un enlace que ya preguntó —la
+    // barra lateral, las migas, «Salir»—; preguntar aquí sería la segunda vez.
+    if (cambio.navigationType !== 'traverse') return
+    const destino = navegacion.currentEntry
+    const origen = cambio.from
+    if (!destino || !origen || destino.index < 0 || origen.index < 0) return
+
+    if (volviendoA !== null) {
+      const esLaVuelta = destino.key === volviendoA
+      volviendoA = null
+      if (esLaVuelta) {
+        tapar()
+        return
+      }
+      // No se llegó adonde se volvía —otro viaje se cruzó—: este se trata
+      // como cualquiera, porque puede ser el que saca de la pantalla.
+    }
+
+    // Misma dirección salvo el ancla: no se desmonta nada y no hay qué perder.
+    if (sinAncla(origen.url) === sinAncla(destino.url)) return
+    if (puedeSalirSinPerderCambios(preguntar)) return
+
+    tapar()
+    volviendoA = origen.key
+    historial.go(origen.index - destino.index)
+  }
+
+  // Se destapa desde aquí y en la tarea siguiente. No vale destapar al final
+  // de este oyente: si corre antes que el de Next —pasa cuando se entra al
+  // panel cargando la página, y el efecto de un hijo se registra antes que el
+  // de la raíz—, le enseñaría el `state` justo a él. Y no vale una microtarea:
+  // entre un oyente y el siguiente el navegador vacía la cola de microtareas.
+  const alViajar = () => {
+    if (tapando) despues(() => {
+      tapando = false
+    })
+  }
+
+  navegacion.addEventListener('currententrychange', alCambiarDeEntrada)
+  ventana.addEventListener('popstate', alViajar)
+
+  return () => {
+    dejarDeVigilarDescarga()
+    navegacion.removeEventListener('currententrychange', alCambiarDeEntrada)
+    ventana.removeEventListener('popstate', alViajar)
+    Object.defineProperty(eventoPopstate.prototype, 'state', descriptor)
+  }
+}

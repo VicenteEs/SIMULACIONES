@@ -118,7 +118,16 @@ export function puedeEditar(usuario: Record<string, unknown>, coleccion: string)
   // nota.
   const modulo = MODULO_DEL_VOCABULARIO[coleccion] ?? coleccion
   const esModulo = (SLUGS_DE_MODULOS as readonly string[]).includes(modulo)
-  return !(esModulo && restringido && !(permitidos as string[]).includes(modulo))
+  // Y un módulo que la cuenta no ve tampoco lo edita, aunque su lista de
+  // editables esté vacía («todos»). Sin esto, el editor al que solo se le
+  // restringió la lectura no podía abrir una cirugía en la plataforma pero sí
+  // listarla, reescribirla y borrarla desde el panel, que escribe con
+  // `overrideAccess: true` y solo pregunta aquí. Es la misma regla que
+  // `puedeEditarModulo` en `src/access/reglas.ts`, que gobierna la base.
+  const visibles = usuario.modulosVisibles
+  const oculto =
+    esModulo && Array.isArray(visibles) && visibles.length > 0 && !(visibles as string[]).includes(modulo)
+  return !(oculto || (esModulo && restringido && !(permitidos as string[]).includes(modulo)))
 }
 
 /** Forma uniforme de respuesta de las acciones del panel. */

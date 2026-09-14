@@ -70,11 +70,26 @@ export const puedeVerModulo = (u: UsuarioSesion | null | undefined, modulo: stri
   return permite(u.modulosVisibles, modulo)
 }
 
-/** ¿Puede escribir en el módulo indicado? */
+/**
+ * ¿Puede escribir en el módulo indicado?
+ *
+ * Editar un módulo exige verlo. Miraba solo `modulosEditables`, y como una
+ * lista vacía ahí es «todos», el editor al que un administrador dejó ver
+ * únicamente «patologías» —sin tocarle la edición, que es lo que el modal de
+ * permisos de la ficha de la cuenta deja guardar— recibía 403 al listar
+ * cirugías y, a la vez, leía sus borradores por `findVersions`, las reescribía,
+ * las publicaba y las borraba. Todo lo que cuelga de esta función —la escritura
+ * y `readVersions` de los cinco módulos, la de los catálogos del simulador y el
+ * filtro de lectura de borradores— heredaba la puerta abierta. Lo demostró
+ * `tests/integration/roles.test.ts` con el actor `editorSinVer`.
+ *
+ * Así la capa de módulos cumple lo que promete la cabecera: restringir una de
+ * las dos listas nunca amplía lo que permite la otra.
+ */
 export const puedeEditarModulo = (u: UsuarioSesion | null | undefined, modulo: string): boolean => {
   if (!puedeEditarContenido(u)) return false
   if (u!.rol === 'admin') return true
-  return permite(u!.modulosEditables, modulo)
+  return permite(u!.modulosVisibles, modulo) && permite(u!.modulosEditables, modulo)
 }
 
 /**
@@ -95,26 +110,64 @@ export const filtroDeLectura = (
 /**
  * Filtro de lectura de un módulo concreto.
  *
- * Igual que el anterior, pero además comprueba que la cuenta tenga ese módulo
- * entre los suyos. Sin permisos por módulo configurados se comporta
- * exactamente como `filtroDeLectura`, que es el caso normal.
+ * Comprueba que la cuenta tenga ese módulo entre los visibles y, dentro, le
+ * deja los borradores solo a quien puede **editar** ese módulo. Sin permisos
+ * por módulo configurados se comporta exactamente como `filtroDeLectura`, que
+ * es el caso normal.
+ *
+ * Delegaba en `filtroDeLectura`, que mira el rol y nada más: todo editor
+ * recibía `true`. Con eso, el editor al que un administrador dejó solo en
+ * «patologías» leía el borrador entero de cualquier cirugía —por un `find`
+ * corriente, por `draft: true` y por `findByID`—, mientras `readVersions` de la
+ * misma colección se lo negaba (`lecturaDeBorradores`). Dos puertas al mismo
+ * texto con dos respuestas distintas, y la abierta era la que usan las páginas:
+ * el simulador le pintaba la lista con la etiqueta «Borrador». Lo demostró
+ * `tests/integration/roles.test.ts` contra la base.
+ *
+ * La regla que se sostiene es la de `lecturaDeBorradores`: un borrador lo lee
+ * quien lo puede editar. Lo publicado lo sigue leyendo entero, porque
+ * restringir la edición no restringe la lectura (esa es `modulosVisibles`).
  */
 export const filtroDeLecturaDeModulo = (
   u: UsuarioSesion | null | undefined,
   modulo: string,
 ): boolean | typeof SOLO_PUBLICADO => {
   if (!puedeVerModulo(u, modulo)) return false
-  return filtroDeLectura(u)
+  return puedeEditarModulo(u, modulo) ? true : SOLO_PUBLICADO
 }
 
 /**
- * Filtro para registros que pertenecen a un usuario (ej. comentarios, actividad).
- * Admin/editor acceden a todos; el lector solo a los suyos.
+ * Filtro para registros que pertenecen a un usuario y que atiende quien cuida
+ * el contenido: hoy, los comentarios. Admin/editor acceden a todos; el lector
+ * solo a los suyos. La actividad no va por aquí: ver `filtroDeSeguimiento`.
  */
 export const filtroDePropiedad = (
   u: UsuarioSesion | null | undefined,
 ): boolean | { usuario: { equals: string } } => {
   if (!habilitada(u)) return false
   if (u.rol === 'admin' || u.rol === 'editor') return true
+  return { usuario: { equals: u.id } }
+}
+
+/**
+ * Filtro del seguimiento de lectura (`actividad`): el administrador alcanza las
+ * filas de todos; cualquier otra cuenta, solo las suyas.
+ *
+ * Es distinto de `filtroDePropiedad` a propósito. Los comentarios los atiende
+ * quien cuida el contenido —la bandeja del panel es de editor—, pero el
+ * progreso de cada residente es seguimiento, y las dos pantallas que lo enseñan
+ * (actividad y estadísticas) exigen `exigirPanel('admin')` (D-051). Con
+ * `filtroDePropiedad`, un editor leía el historial de lectura y el puntaje del
+ * simulador de todos los residentes, y además podía **reescribirlos**: marcar
+ * como leída la ficha de otro o cambiarle el puntaje de un caso. Nada de eso es
+ * editar contenido. Lo demostró `tests/integration/roles.test.ts`.
+ *
+ * El editor conserva sus propias filas: también lee fichas y juega casos.
+ */
+export const filtroDeSeguimiento = (
+  u: UsuarioSesion | null | undefined,
+): boolean | { usuario: { equals: string } } => {
+  if (!habilitada(u)) return false
+  if (u.rol === 'admin') return true
   return { usuario: { equals: u.id } }
 }

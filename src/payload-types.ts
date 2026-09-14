@@ -213,7 +213,7 @@ export interface Segmento {
 export interface Medio {
   id: number;
   /**
-   * Qué se ve en la imagen. Sin esto la plataforma no es accesible.
+   * Qué se ve en la imagen, o qué gesto se hace en el video. Sin esto la plataforma no es accesible.
    */
   alt: string;
   updatedAt: string;
@@ -519,7 +519,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;
@@ -622,7 +622,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;
@@ -725,7 +725,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;
@@ -828,7 +828,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;
@@ -931,7 +931,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;
@@ -1034,7 +1034,7 @@ export interface Patologia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;
@@ -1206,7 +1206,7 @@ export interface Maniobra {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;
@@ -1376,7 +1376,7 @@ export interface CasosAo {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;
@@ -1617,7 +1617,7 @@ export interface Cirugia {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;
@@ -1760,7 +1760,7 @@ export interface EstudiosIa {
             modelo: number | Modelos3D;
             pie?: string | null;
             /**
-             * Con qué ángulo y a qué distancia abre el modelo el residente.
+             * Con qué ángulo y a qué distancia abre el modelo el residente. Vacío: la del catálogo.
              */
             encuadre?: {
               escala?: number | null;

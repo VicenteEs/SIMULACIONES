@@ -496,7 +496,7 @@ el renderizador público, que pinta el árbol con componentes propios y sin
 marcado— se mantiene intacta, y el editor la respeta: escribe en el DOM con
 `createTextNode`, y lo que se pega entra como texto llano.
 
-### D-040 · 2026-09-06 · vigente
+### D-040 · 2026-09-06 · vigente · precisada por D-107: editar un módulo exige verlo
 **Los permisos tienen dos capas: el rol dice qué, los módulos dicen sobre qué.**
 Sobre los tres roles se añadió una lista opcional de módulos visibles y otra de
 módulos editables por cuenta. La capa de módulos solo restringe, nunca amplía.
@@ -834,7 +834,7 @@ probado entero sin navegador. Y cuando un paso antiguo no declara objetivo, se
 una regla que el residente cree estar cumpliendo.
 
 
-### D-060 · 2026-09-12 · vigente
+### D-060 · 2026-09-12 · vigente · su deuda de respaldo, cerrada por D-113
 **La plataforma corre también en un Windows de casa, sin Docker y tras Tailscale
 Funnel.**
 El servidor de referencia sigue siendo el Ubuntu con Docker de `docs/SERVIDOR.md`.
@@ -2074,7 +2074,7 @@ encargo, y se corrigieron antes de subir. Lo que la termina de validar es que el
 traumatólogo la use y diga dónde no le suena.
 
 
-### D-093 · 2026-09-13 · vigente · amplía D-050
+### D-093 · 2026-09-13 · vigente · amplía D-050 · las ocho correcciones son catorce desde D-117
 **Cada sistema del atlas cae en una capa de la simulación, y todo lo que no es
 piel ni hueso es «músculo». Ocho estructuras se cambian de sistema al leer el
 catálogo.**
@@ -2142,7 +2142,7 @@ renombre una de las ocho la dejaría sin aplicar; la prueba que lo caza solo
 corre donde el atlas está preparado.
 
 
-### D-094 · 2026-09-13 · vigente · amplía D-080 y D-061
+### D-094 · 2026-09-13 · vigente · amplía D-080 y D-061 · matizada por D-109: con un corte, el atlas sí marca el fragmento
 **El modelo exportado del atlas trae dentro el nombre en español y el papel de
 cada objeto, y el taller de piezas rellena el caso con eso.**
 D-080 tendió el puente y dejó al médico el último tramo: el taller le enseñaba
@@ -2371,7 +2371,7 @@ siga devolviendo la misma marca al escribir que al leer: si una actualización l
 rompe, el síntoma será que cada segundo guardado del mismo editor pide recargar.
 
 
-### D-098 · 2026-09-13 · vigente · amplía D-055
+### D-098 · 2026-09-13 · vigente · amplía D-055 · el Atrás del navegador, cubierto por D-115
 **La barra lateral del panel pregunta antes de sacar de una pantalla con cambios
 sin guardar.**
 El editor de fichas ya preguntaba en sus migas y en «Duplicar», y el taller del
@@ -2408,7 +2408,7 @@ pantalla con trabajo sin guardar tiene que apuntarse ella: si no lo hace, nada
 lo avisa.
 
 
-### D-099 · 2026-09-13 · vigente · supera en la vía a D-088 y cierra su primer cabo
+### D-099 · 2026-09-13 · vigente · supera en la vía a D-088 y cierra su primer cabo · el archivo sin elegir al plegar, cerrado por D-116
 **Todas las subidas van por la ruta: `subirArchivo` se retira y el cuerpo de las
 acciones de servidor baja de 52 MB a 4 MB.**
 D-088 dejó escrito el precio de no terminar la mudanza: mientras el selector de
@@ -2737,6 +2737,591 @@ el formulario nativo, pero un lector de pantalla lo anunciaría como erróneo
 mientras la plataforma lo usa; por eso la casilla declara `aria-invalid`
 siempre, según la plataforma y no según el navegador. Son dos criterios de
 validez sobre el mismo campo, a sabiendas.
+
+
+### D-107 · 2026-09-14 · vigente · amplía D-020, D-040 y D-051
+**Qué puede cada rol, dicho en filas: el administrador, todo; el editor, todo el
+contenido; el lector, nada del contenido pero sí lo suyo.**
+El dueño lo pidió así: «que el editor pueda editar todo el contenido de la
+página, el admin tenga acceso a todo y que el lector no pueda modificar nada».
+`src/access/reglas.ts` ya decía algo parecido, pero lo decía función a función,
+y al preguntarle a la base qué contestaba de verdad salieron seis sitios donde no
+coincidía (O-046). Esta entrada es la política que los ordena; D-108, cómo se
+demuestra.
+
+*«El lector no modifica nada» quiere decir nada del contenido.* Fichas,
+catálogos del simulador, medios, modelos, preparaciones del atlas y cuentas: ni
+crear, ni editar, ni publicar, ni borrar. Lo que sí escribe es lo suyo —marcar
+una ficha como leída, el recorrido de un caso (D-084), un comentario— y solo en
+sus propias filas. Al pie de la letra, «nada» apagaba la casilla de leída, el
+marcador del simulador y los comentarios, que son la mitad de lo que la
+plataforma le ofrece al residente, y no es lo que se pidió.
+
+*Editar un módulo exige verlo.* Las dos listas de D-040 se miraban por separado,
+y como una lista vacía es «todos», el editor al que un administrador solo le
+restringió la lectura seguía editando lo que no podía abrir. `puedeEditarModulo`
+pide ahora las dos, y `puedeEditar` (`src/lib/guardias.ts`), que es a quien
+pregunta el panel, también. Así se cumple lo que D-040 prometía: la capa de
+módulos solo restringe, y restringir una lista nunca amplía la otra. Los
+catálogos del simulador siguen colgando de cirugías (D-073), y el material de
+apoyo —segmentos, medios, modelos y preparaciones— no se reparte por módulos.
+
+*Un borrador lo lee quien puede editarlo; lo publicado, quien ve el módulo.* Era
+la regla de `readVersions`, y la lectura corriente de la misma colección no la
+seguía.
+
+*El seguimiento es del administrador.* `actividad` —la lectura y el puntaje de
+cada residente— solo se enseñaba en dos pantallas de administrador (D-051), pero
+la colección usaba la regla de los comentarios y el editor alcanzaba las filas
+de todos. Ahora va por `filtroDeSeguimiento`: el administrador, todas; cualquier
+otra cuenta, las suyas, editor incluido, que también lee fichas y juega casos.
+
+*Los comentarios los atiende el editor, pero lo escrito es de quien lo firmó.*
+El editor lee y resuelve todos, porque la bandeja es suya. El texto lo reescribe
+su autor y nadie más, tampoco el administrador (`soloSuAutor`, un acceso de
+campo): el panel sigue enseñando cada comentario con el nombre y el correo de
+quien lo escribió, y cambiarle las palabras es firmar por él. Un comentario que
+sobra se borra, y borrar es del administrador.
+
+*Escribir una fila de un módulo exige ver el módulo, y la regla es una sola.*
+`creacionEnModuloVisible` (`src/access/payload.ts`) la usan `actividad` y
+`comentarios`, y `anotar` y `crearComentario` le hacen la misma pregunta antes de
+abrir la base, porque escriben por la API local, cuyo `overrideAccess` vale
+`true` y se salta la regla de la colección. Con el usuario efectivo, como las
+páginas: es el que decide qué módulos se le enseñaron.
+
+*Y una sesión que no es de ningún rol conocido no obtiene nada.* Toda regla pasa
+por `usuarioDeSesion`, que devuelve `null` ante un rol que no sea uno de los
+tres. La conversión copiada a mano en `Actividad.ts`, que no lo miraba, se retira.
+
+*Consecuencias malas.* **El editor ya no ve la actividad de los residentes: solo
+el administrador.** Hoy no pierde ninguna pantalla —ya eran de administrador—,
+pero ahora también se lo cierra la base, y si el traumatólogo que sigue a sus
+residentes tiene cuenta de editor, que es la que `reglas.ts` le reserva, no
+tiene por dónde saber quién leyó qué ni cómo le fue a cada uno en un caso.
+Abrírselo pide decidir quién sigue a quién, no deshacer esta línea. **Nadie
+corrige un comentario ajeno**, tampoco una errata o un dato de un paciente que se
+escapó al escribirlo: la única salida es borrarlo entero, y eso solo el
+administrador. Restringir la lectura de un editor le quita también la edición de
+ese módulo y, si es el simulador, la del instrumental y los demás catálogos:
+«corrige cirugías pero no las ve en la plataforma» ya no se puede configurar, a
+propósito. «Solo lo suyo» no es «solo lo cierto»: el lector sigue escribiendo en
+su propia fila el puntaje que quiera (D-084). Y lo que dejó escrito D-105 sigue
+igual: un editor restringido lee títulos de otros módulos en el rechazo de borrar
+una preparación.
+
+
+### D-108 · 2026-09-14 · vigente · amplía D-069 y D-073
+**Los permisos se demuestran llamando, y el inventario de lo que se demuestra
+sale del código: una colección, una acción o una pantalla nueva sin política
+declarada pone la suite en rojo.**
+Los seis huecos de O-046 pasaban todas sus pruebas. Las de `reglas.ts` dicen lo
+que devuelve una función, no lo que devuelve la base cuando Payload la combina
+con los borradores, el acceso de campo y los ganchos, ni lo que hace una acción
+que escribe con `overrideAccess: true`. Se escriben tres pruebas, una por puerta.
+
+*`tests/integration/roles.test.ts`, contra PostgreSQL.* Ocho actores
+—administrador, editor, editor restringido en la edición, editor restringido en
+la lectura, lector, lector restringido, una cuenta dada de baja y nadie— por cada
+colección de `COLECCIONES` y cada operación de su clase: módulo, catálogo del
+simulador, material de apoyo, cuentas o filas propias. Cuatro reglas la hacen
+creíble:
+
+- **Lo esperado se escribe a mano, en términos de actores**, y no llamando a
+  `reglas.ts`: calculado con la regla, un error en ella saldría en verde por los
+  dos lados.
+- **Se mira el efecto y no la excepción.** Una escritura rechazada es una base
+  que sigue como estaba: el acceso de campo descarta el valor sin lanzar, y un
+  filtro contesta cero filas en vez de un 403.
+- **Las sesiones son sesiones**: cuentas creadas en la base, `payload.login` y
+  `payload.auth` desde la cookie, el camino de `obtenerSesion`. La cuenta dada de
+  baja es una administradora que tenía la sesión abierta cuando la desactivaron.
+- **La clase de cada colección se ata a lo que la colección declara**
+  —borradores, `auth`, catálogos—, para que marcar un módulo como «apoyo» no le
+  quite en silencio la restricción por módulo.
+
+Las colecciones se toman **antes** de arrancar Payload: `buildConfig` añade sus
+tablas internas al mismo arreglo, y leído después la matriz pedía política para
+`payload-preferences`. El último bloque repite D-073 con el manejador de verdad y
+cookies de verdad: ni el administrador lista, escribe ni entra por la API REST.
+
+*`tests/unit/accionesConGuardia.test.ts`.* Importa todo lo que exportan los
+archivos de `acciones/` —cada exportación de un archivo `'use server'` es un
+extremo HTTP— y lo llama con siete sesiones, vista previa incluida en los dos
+sentidos, contra un doble de Payload que apunta cada método que se le pide. Una
+sesión que no debe pasar tiene que salir sin haber tocado nada. Cada acción está
+clasificada por guardia, y las de `contenido.ts` y `atlas.ts` no pueden
+clasificarse «de sesión»: sería la forma más corta de poner verde una acción sin
+guardia.
+
+*`tests/unit/panelPorRol.test.ts`.* Las pantallas del panel se descubren del
+disco y se llaman con cada sesión: la que no deja entrar tiene que echar sin
+haber consultado nada. Buscar `exigirPanel('admin')` en el texto aprobaría una
+página que la llama después de leer las cuentas. Va también la descarga de un
+respaldo, que es la base entera y no pasa por `exigirPanel`.
+
+*Un detalle que roza D-071.* La matriz crea su propio administrador y lo borra
+al terminar. Sobre una base recién migrada ese es el último, y el disparador lo
+impide, como tiene que hacer; dejarlo vivo apagaría `/instalar` con una cuenta
+cuya clave nadie conoce. Así que, **solo si antes de la prueba no había ningún
+administrador activo**, se borra con el disparador apagado dentro de una única
+transacción: `ALTER TABLE … DISABLE TRIGGER` es transaccional, y ninguna otra
+sesión llega a verlo apagado.
+
+*Consecuencias malas.* **La política está escrita dos veces a propósito**, en
+`reglas.ts` y en la matriz, y cambiarla es cambiar las dos: quien toque solo una
+verá un rojo que parece un fallo y es el aviso. La matriz escribe en la base
+donde corre —cuentas, fichas y archivos en `medios/`— y lo retira al terminar;
+si el proceso muere a medias se queda todo, con `roles-` en el nombre, así que
+conviene una base desechable. Es lenta: cada operación por ocho actores, cada
+una con su propio documento. Las dos pruebas unitarias usan un doble de Payload:
+demuestran que la guardia corre antes de tocar, no que la base obedezca, y eso
+solo lo dice la matriz, que necesita PostgreSQL. El camino del disparador apagado
+es código de prueba tocando la única garantía de D-071, y hay que leerlo con ese
+respeto. Y `AGENTS.md` sigue diciendo que `npm run test:integration` son «las
+seis pruebas de acceso»: la carpeta trae ya la matriz entera.
+
+
+### D-109 · 2026-09-14 · vigente · amplía D-080 y matiza D-094
+**El taller del atlas exporta un hueso partido por un plano, con un corte limpio
+y tapado, y enseña el plano sobre el hueso antes de exportar.**
+El traumatólogo lo pidió —«quiero poder por ejemplo quebrar el hueso o la malla
+que tengo»— y, al preguntarle, eligió «un corte limpio sirve». Hasta hoy el
+fragmento que reduce el residente tenía que llegar ya partido de Blender: era la
+única pieza de un caso que no se podía armar desde la plataforma.
+
+*Cómo se pide.* En el panel de exportar, junto a una pieza suelta que sea hueso,
+«Partir con un corte», con cuatro mandos: la altura, del 5 al 95 % de proximal a
+distal; la inclinación, de 0 a 60°; la cara por la que el trazo sube más
+proximal, y el trozo que se mueve. Nace transversal, a media diáfisis y moviendo
+el distal, que es el que se tracciona en quirófano. Los límites dejan fuera el
+casquete articular de milímetros y la lámina casi longitudinal. Uno por archivo:
+el caso mueve un único fragmento, y la regla se comprueba sobre lo que va a
+salir, para que se ponga roja el día que alguien convierta el corte en una lista.
+El servidor se niega, con palabras, si la pieza no está en la preparación
+guardada, si no es suelta —el «fragmento» sería el esqueleto entero—, si no es
+hueso o si el plano no la corta.
+
+*Lo que sale.* Dos objetos, `Tibia_derecha_fragmento_proximal` y `…_distal`,
+cerrados por la cara del corte y encajados: el hueso se sigue exportando
+reducido, y el desplazamiento lo pone el caso. El elegido lleva ya el papel de
+`fragmento`, así que «Rellenar desde el modelo» lo marca solo. **Matiza D-094**,
+que dejó escrito que el atlas no marca fragmento porque qué trozo se reduce es
+una decisión clínica: sigue sin marcarlo por su cuenta, y lo marca cuando el
+traumatólogo ya la tomó en los mandos.
+
+*Tres decisiones del corte, las que se ven al separar el fragmento*
+(`src/lib/osteotomia.ts`). Los triángulos que cruzan el plano se parten por él:
+quedarse con los enteros deja un borde en dientes de sierra que no encaja. Se
+tapa en los dos trozos, porque el hueso del atlas es una cáscara y se vería hueco
+justo donde mira el residente; la tapa se triangula con el Earcut de three,
+decidiendo qué contorno es agujero de cuál, y se reabre en abanico donde Earcut
+quita puntos alineados, que si no dejan una grieta de anchura cero. Y cada trozo
+sale cerrado: los vértices se sueldan por posición, a una décima de micra, porque
+el atlas repite vértices en las costuras y por índice la tibia parece abierta; y
+el plano se aparta una micra de todo vértice que caiga encima, para que cada
+vértice sea de un lado. `osteotomia.test.ts` lo mide con volúmenes: los dos
+trozos suman el hueso, y una malla que no cierra no tiene volumen que cuadre.
+
+*El eje se mide en la forma, no en la caja.* La caja va alineada con el cuerpo, y
+el fémur lleva su eje a unos siete grados de la vertical: un «transversal» de
+caja saldría oblicuo. `ejeDelHueso` toma la dirección principal de la
+superficie, ponderada por área para que las epífisis, con más vértices, no tiren
+de él. Proximal es el extremo de arriba si el eje va más vertical que
+horizontal, y el más cercano al eje del cuerpo si no; la cara lateral se orienta
+por el lado de la pieza, así que 90° es lateral en las dos piernas. Por eso se
+parte **antes** de centrar: centrada, la tibia derecha queda en x = 0 y lo
+lateral saldría medial sin un error.
+
+*Lo que se ve es lo que sale.* La vista previa dibuja un disco magenta —no rojo,
+que es el color del músculo y de las arterias del atlas; no azul, que es el
+resaltado—, con un aro que se ve a través del hueso y una bola en el trozo que se
+mueve, calculados con las mismas funciones y los mismos vértices que el
+servidor. Esas funciones viven en `src/lib/planoDeCorte.ts`, que se prohíbe
+importar three para que el taller las use sin deshacer el `dynamic()` de su
+visor; la parte que parte la malla sí lo necesita, y el taller no la importa.
+
+*Consecuencias malas.* **Es un plano.** No hace una fractura conminuta, ni una
+en cuña, ni una compleja —las B y C de AO dejan tres fragmentos o más—, ni una
+espiroidea, que se aproxima con una oblicua y se ve recta; y **no parte dos
+huesos a la vez**, así que la tibia y el peroné de una fractura de pierna no
+salen rotos juntos. La cara del corte es plana como la de una sierra, no un trazo
+de fractura. Un hueso redondo —la rótula, el carpo— no tiene eje largo, y el que
+sale es el que sea; la regla de proximal no significa gran cosa en una costilla o
+en la pelvis. Si la malla del atlas trae algún agujero, el contorno que no cierra
+se queda sin tapa, y lo dice la primera línea de las notas del modelo. Y la vista
+previa solo mide piezas que estaban encendidas al cargar la escena: sin
+geometría, no hay plano que dibujar.
+
+
+### D-110 · 2026-09-14 · vigente · amplía D-096 y D-109
+**El fragmento sale con el origen de su nodo en el foco de la fractura, no en el
+centro del modelo.**
+La consola mueve el fragmento con `position` y lo gira con `rotation`, y three
+gira un objeto alrededor del origen de su nodo. `escribirGlb` escribía todos los
+nodos sin traslación, así que ese origen era el centro del archivo (D-096): con
+la tibia y el peroné derechos y el corte al 30 %, a 8,6 cm del foco. Corregir 15°
+de angulación desplazaba entonces el trozo más de 2 cm en arco, y el residente lo
+veía irse de lado al enderezarlo. Un fragmento hecho en Blender trae el origen
+donde lo dejó su autor, así que el modelo armado en la plataforma se manejaba
+peor que uno traído de fuera, que es lo contrario de lo que se buscaba.
+
+*Cómo.* `pivoteEnElFoco` resta a las posiciones del fragmento el punto del eje
+por el que pasa el plano y lo escribe como `translation` del nodo: cada vértice
+sigue en el mismo sitio del mundo, el archivo se ve igual y pesa lo mismo. Va
+**después** de centrar, porque centrar resta a las posiciones y no sabe de
+traslaciones: hecho antes, el fragmento quedaría descentrado dos veces. Solo el
+fragmento, que es lo único que la consola gira; el resto conserva el origen en
+el centro, que es lo que D-096 promete. Sin traslación `escribirGlb` no escribe
+la clave, y un archivo sin corte sale igual byte a byte. La consola ya medía el
+desplazamiento contra la posición con la que carga el nodo
+(`origenDelFragmento`, en `LienzoQuirurgico.tsx`), así que no hubo que tocarla.
+
+*Consecuencias malas.* El pivote es el centro de la sección sobre el eje: en una
+oblicua larga, las puntas del trazo quedan lejos de él. Un lector del archivo que
+ignore la traslación del nodo vería el fragmento desplazado; three y Blender la
+respetan, pero si en Blender alguien aplica las transformaciones del objeto antes
+de reexportar, el origen vuelve al centro y el fragmento vuelve a girar lejos del
+foco, sin aviso. Y un caso que cambie a un modelo con el origen en otro sitio
+conserva sus giros y su desplazamiento como números, pero ahora giran sobre otro
+punto: la pose de partida se parece a la de antes y no es la misma, y hay que
+mirarla una vez en la consola.
+
+
+### D-111 · 2026-09-14 · vigente · amplía D-080
+**Exportar una preparación se puede llamar sin sesión: la acción se queda en la
+guardia y una llamada, y el trabajo vive en `src/lib/exportarPreparacion.ts`.**
+Todo estaba dentro de la acción `exportarComoModelo`, y una acción de servidor
+lee la cookie antes de hacer nada: un guion lanzado con `npx tsx` no tiene
+cookie que leer. Para armar un caso entero sin salir de la plataforma (D-112), el
+guion necesita llamar a lo mismo que el botón, no a una copia que se desvíe con
+el tiempo. La acción conserva `exigirEditor`, la llamada y `revalidatePath`, que
+fuera de Next no existe.
+
+*Sin guardia a propósito, y sin `'use server'` nunca.* Quien la importa desde una
+acción ya pasó por `exigirEditor`; quien la importa desde un guion ya tiene la
+base en la mano. Con esa línea arriba, cada exportación del archivo sería un
+extremo HTTP abierto. Lee y crea con `overrideAccess: true` escrito, que era lo
+que la acción hacía por omisión; con `usuario`, en su nombre, y sin él, sin nadie
+detrás. El catálogo se recuerda ya corregido y por directorio, porque un guion
+puede apuntar a otro atlas en el mismo proceso.
+
+*Tres pruebas se quitaron en vez de mudarse.* Leían el texto de la acción —que
+llamaba a `prepararExportacion`, que escribía los avisos, que leía el catálogo
+corregido— y se pusieron rojas con la conducta intacta: vigilaban dónde estaba
+escrita una línea. La conducta ya se prueba llamando, y `exportarConCorte.test.ts`
+añade la puerta sin sesión con la tibia de verdad, abriendo el archivo con el
+cargador del navegador.
+
+*Consecuencias malas.* Hay en `src/lib` una función que crea documentos
+saltándose los permisos, y lo único que la separa de un extremo abierto es que
+nadie la importe mal: una ruta de `api/` o una acción nueva que la llame sin
+guardia la abre, y `accionesConGuardia.test.ts` solo mira la carpeta `acciones/`.
+Un modelo creado por un guion no lleva autor. Y la guardia ya no está junto al
+trabajo que protege: quien lea `exportarPreparacion` tiene que fiarse de su
+cabecera.
+
+
+### D-112 · 2026-09-14 · vigente · amplía D-109 y D-111 · el corte lo eligió el equipo, no el traumatólogo
+**La «pierna derecha» del traumatólogo entra en el caso de prueba con un guion
+que simula por omisión y que se puede lanzar las veces que haga falta.**
+Lo pidió así: «actualmente tengo uno llamado pierna derecha, quiero que ese esté
+en el caso de prueba». La preparación existe solo en la base del servidor, así
+que no se puede hacer desde el portátil de desarrollo:
+`scripts/pierna-derecha-en-el-caso.ts` se ejecuta allí, desde la carpeta del
+proyecto. Busca la preparación, comprueba que trae la tibia derecha, la exporta
+partida con `exportarPreparacion` —la misma función que el botón— y pone el
+modelo en el caso: rellena las piezas como «Rellenar desde el modelo» y traduce
+lo que ve cada paso.
+
+*Simular no es un `if` delante de cada escritura.* Sin `--aplicar`, el guion
+recibe una base envuelta que no deja escribir: `create` devuelve un documento de
+mentira y cualquier otra escritura es un error. Así, la escritura que alguien
+añada mañana y se olvide de condicionar falla al simular en vez de escribir, y lo
+que se imprime —nodos, papeles, peso— sale de la exportación de verdad y no de
+una estimación.
+
+*Idempotente comparando el archivo.* Cada pasada exporta en memoria y reutiliza
+un modelo ya creado solo si su archivo en el disco es, byte a byte, el que acaba
+de salir. La primera versión decidía por las notas y por la fecha de guardado de
+la preparación, y ninguna de las dos mira dentro: una corrección del atlas
+(D-117) o un arreglo del exportador cambian el archivo sin cambiar ni la versión
+del atlas ni la preparación, y el guion contestaba «el caso ya está así» con el
+modelo viejo. La exportación es determinista, así que el archivo responde
+exactamente a la pregunta: ¿es este el modelo que saldría hoy?
+
+*El corte sale de la clasificación del caso* (`corteParaLaFractura`). 42-A3,
+transversa: 0°. 42-A2, oblicua —la del caso de prueba—: 45°, lejos del borde de
+los 30° de AO y del tope de 60° de los mandos. 42-A1, espiroidea: la misma
+oblicua, con un aviso de que el trazo sale recto. B y C: se para. A media
+diáfisis; más proximal por la cara lateral, porque la consola abre mirando la
+pierna de frente y así el trazo se ve oblicuo sin girar la cámara; y moviendo el
+distal, que es el que el caso ya movía.
+
+*Lo que no toca, y dónde se para.* Primero quita las piezas que nombran objetos
+que el modelo nuevo no trae y después rellena: con `tibia_distal` todavía de
+fragmento, la regla de uno solo metería el trozo nuevo como hueso fijo. Cada paso
+cambia sus objetos por los del modelo nuevo con el mismo papel, y lo que se queda
+sin equivalente se dice, porque un paso sin lo que enseñaba hereda lo del
+anterior sin ningún error. El desplazamiento inicial y las tolerancias no se
+tocan: van en milímetros, y la escala del modelo es otro número. Se para sin
+escribir si hay cero o varias preparaciones con ese nombre —no elige cuál de dos
+«pierna derecha» va al caso—, si la fractura no se hace con un corte o si el caso
+tiene cambios en borrador, que guardarlo publicaría. Y todo lo que imprime pasa
+por `sinSecretos`: un error de conexión de PostgreSQL puede traer la clave dentro.
+
+*Consecuencias malas.* **La inclinación de 45°, la cara lateral y la media
+diáfisis las eligió el equipo leyendo AO**, no el traumatólogo, y conviene que
+conste, como en D-101: es la fractura que va a ver el residente. Cada vez que
+cambie lo que sale del exportador, el guion crea otro modelo y el caso pasa a él:
+el encuadre capturado sobre el anterior (D-082) se queda allí, y los modelos
+viejos se acumulan en el catálogo sin que nadie los retire. El desplazamiento
+conservado gira ahora sobre el foco (D-110), así que la pose de partida hay que
+mirarla una vez. Sirve para la diáfisis tibial y nada más. Y el nombre del caso
+está copiado de `scripts/caso-de-prueba.ts`, porque aquel se ejecuta al
+importarlo; si allí cambia, aquí no se encuentra el caso, y lo dice.
+
+
+### D-113 · 2026-09-14 · vigente · amplía D-036 · cierra la deuda de respaldo de D-060
+**El servidor Windows se respalda solo cada noche con el gemelo en PowerShell de
+`respaldar.sh`, y lo dice en cada línea del registro mientras la copia viva en el
+mismo disco que la base.**
+D-060 dejó escrito el precio de montar la plataforma sin Docker: los guiones
+`.sh` no corren allí y **ese despliegue no tenía respaldo automático**. El dueño
+lo describió como «si el disco falla o alguien borra algo, no hay copia». Se
+escriben `scripts/respaldar.ps1`, `restaurar.ps1` e
+`instalar-respaldo-programado.ps1`, y lo que comparten, en `respaldo-comun.ps1`.
+
+*Gemelo, no primo.* Los mismos dos archivos —`base-AAAAMMDD-HHMMSS.sql.gz`, en
+texto plano con `--clean --if-exists`, y `medios-….tar.gz`—, en el mismo
+`RESPALDOS_DIR`, con la misma retención de 30 días contada como `find -mtime
++30`. El panel los lista sin saber de dónde vienen, y un volcado de aquí se
+restaura allí y al revés. `respaldoEnWindows.test.ts` compara el nombre con el
+patrón del panel: si se separan, se respalda cada noche y la pantalla dice que no
+hay ninguno.
+
+*Un respaldo no es bueno hasta que se ha leído entero.* Se escribe como
+`….parcial` y solo se renombra comprobado, para que un corte de luz no deje un
+volcado cortado con nombre de respaldo bueno. Y comprobado quiere decir tres
+cosas, porque cada una se vio fallar sola: el tamaño que declara el pie del
+gzip, ya que el `GZipStream` de .NET lee un archivo cortado hasta donde llega sin
+protestar; la cabecera y el pie de `pg_dump`; y que el `\restrict` del principio
+se cierre con su `\unrestrict`, que desde PostgreSQL 17.6 va **detrás** del pie,
+de modo que cortar veinte bytes dejaba el pie intacto y el archivo fallaba en la
+última línea de `psql`. Se probó cortando 4, 8, 12, 20 y 200 bytes de un volcado
+real. La retención solo corre tras un respaldo bueno: si llevara un mes fallando,
+no se lleva el último que sirve.
+
+*La clave no se escribe en ningún sitio.* `DATABASE_URI` se lee del `.env` al
+ejecutarse, y solo de ahí, para que una variable olvidada en la consola de quien
+lo lanza no desvíe el respaldo a otra base. Viaja a `pg_dump` en `PGPASSWORD`,
+con `--no-password` —sin él, a un `pg_dump` sin clave le da por preguntarla y la
+tarea se queda «En ejecución» para siempre, la forma de D-061 y O-041—, y todo lo
+que llega al registro pasa por un filtro que la tapa aunque `pg_dump` la repita
+en su error.
+
+*Tarea como SYSTEM, a las 03:00.* SYSTEM porque es la cuenta de `postgresql-17` y
+de `traumahub`: lee el `.env` sin tocar permisos, crea archivos que el panel
+puede borrar, y no pide contraseña, que con una cuenta de usuario habría que
+guardar y dejaría de funcionar en silencio el día que se cambiara. Con
+`-StartWhenAvailable` para el equipo apagado a esa hora, sin instancias dobles y
+con un límite de tiempo. El instalador se puede repetir, y ejecuta la tarea una
+vez esperando a que acabe, que es lo único que demuestra que SYSTEM puede con
+todo antes de la noche en que haga falta.
+
+*Restaurar es todo o nada.* `restaurar.ps1` comprueba antes de tocar, pide
+escribir `RESTAURAR`, respalda lo actual, para el servicio, carga en una sola
+transacción con `ON_ERROR_STOP` entregando los bytes a `psql` sin pasar por la
+tubería de PowerShell —que cambia cada tilde por `?`—, extrae los medios de la
+misma marca y vuelve a levantar el servicio pase lo que pase. Se probó con
+PowerShell 5.1 contra PostgreSQL 17.11 en una base desechable: se estropeó, se
+restauró, y volvieron las filas con sus tildes y el mismo md5.
+
+*Los `.ps1` van sin tildes ni eñes.* PowerShell 5.1 lee un archivo sin BOM como
+ANSI, y basta un clon de git para perder el BOM. Es una excepción al «todo en
+español» que impone el intérprete, como en los `.sh`.
+
+*Consecuencias malas.* **Sin más, los respaldos viven en el mismo disco que la
+base**: protegen de un borrado o de una migración que sale mal, no de que el
+disco muera, que es la mitad de lo que se pidió. Hace falta una segunda
+ubicación, `RESPALDOS_COPIA_DIR` en otro disco físico, y **eso lo decide el
+dueño**: un USB que se quede enchufado vale; una letra de red no, porque SYSTEM
+no la ve, y una carpeta compartida de otro equipo de casa casi nunca le da
+permiso. Mientras no esté, cada línea del registro dice `AVISO sin copia fuera
+del disco`, comparando el disco físico y no la letra, porque un `D:` del mismo
+disco muere con él. Esa copia, además, saca del equipo la base entera, con
+correos y contraseñas cifradas. **No hay ningún respaldo hasta que alguien
+ejecuta el instalador** desde una consola de administrador. Quien pueda escribir
+en `scripts\` ejecuta código como SYSTEM esa noche; no abre nada que el servicio
+no abriera ya, pero es la razón para no dar escritura sobre esa carpeta a nadie
+más. `C:\PostgreSQL\17\bin` cambia con la versión mayor, y el día que se
+actualice la tarea falla con su línea en el registro hasta reinstalarla con
+`-BinPostgres`. Restaurar extrae los medios encima: no borra lo subido después,
+pero tampoco lo que sobraba. Y la ejecución real de los guiones solo se prueba en
+Windows; en cualquier otra máquina esa parte de la suite se omite.
+
+
+### D-114 · 2026-09-14 · vigente · amplía D-113
+**«Respaldar ahora» deja la clave de la base fuera de la línea de órdenes y
+encuentra `pg_dump` en el servidor Windows.**
+Dos arreglos del botón del panel que salieron al escribir D-113. `crearRespaldo`
+llamaba a `pg_dump --dbname <uri>` con la URI entera, y la línea de órdenes de un
+proceso se lee desde fuera de él mientras dura —en Linux, cualquier usuario de la
+máquina la ve en `/proc`—. `separarClave` la parte en dos: la URI sin clave va en
+los argumentos y la clave en `PGPASSWORD`, en el entorno del proceso hijo, que es
+lo que recomienda PostgreSQL y lo que ya hace el guion nocturno.
+`claveFueraDeLosArgumentos.test.ts` mira lo que recibe `spawn` de verdad, no el
+texto de la fuente.
+
+*Y el botón salía apagado justo donde hacía falta.* Buscaba `pg_dump` en el
+`PATH`, y el PostgreSQL del servidor se instaló desde el ZIP en
+`C:\PostgreSQL\17\bin` sin añadir esa carpeta al `PATH` del servicio.
+`rutaDePgDump` mira primero `PG_DUMP`, después esa carpeta en Windows y por
+último el `PATH`.
+
+*Consecuencias malas.* La carpeta lleva la versión escrita: al pasar a
+PostgreSQL 18 el botón vuelve a salir apagado sin decir por qué, hasta poner
+`PG_DUMP`, que es una variable más que solo conoce este archivo. Una clave
+pasada como parámetro de la URI (`?password=`) y no en sus credenciales seguiría
+viajando en los argumentos. Y el botón sigue respaldando **solo la base**: los
+medios, que son lo irreemplazable, los lleva el guion nocturno, y un respaldo
+«de antes de una maniobra» hecho desde el panel no los incluye.
+
+
+### D-115 · 2026-09-14 · vigente · amplía D-098
+**Atrás y Adelante del navegador preguntan antes de sacar de una pantalla del
+panel con cambios sin guardar.**
+D-098 lo dejó escrito como consecuencia mala: la guardia cubría los enlaces del
+panel, y los dos botones del navegador no pasan por ningún `onNavigate`. Tampoco
+por `beforeunload`, porque dentro del App Router son un `popstate`. Y un
+`popstate` no se puede cancelar: cuando llega, la dirección ya cambió.
+
+*Se deja pasar el viaje, se pregunta y, si la respuesta es quedarse, se hace el
+viaje contrario* (`vigilarSalidasDelNavegador`, `src/admin/salidaDelEditor.ts`).
+Para volver hay que saber cuántas entradas se saltó —Atrás mantenido abre un menú
+y salta varias de golpe—, y eso lo da la Navigation API: `currententrychange`
+trae la entrada de la que se sale y `currentEntry` la de llegada, las dos con su
+índice. Solo los viajes por el historial: los `push` y `replace` son de un
+enlace que ya preguntó, y un cambio de solo ancla no desmonta nada.
+
+*El router de Next no puede ver ni la ida ni la vuelta.* Si ve la ida, pinta la
+otra pantalla y desmonta el editor con la pregunta abierta; y cualquier viaje que
+ve **descarta la acción del router que haya en cola**, que puede ser el
+`router.refresh()` de guardar o el `router.replace()` que lleva una ficha nueva a
+su dirección definitiva. No se puede pasar antes que su oyente —en `window`
+corren por orden de registro, medido en Chrome 152— ni cambiar un evento ya
+creado. Lo que sí hace Next es ignorar un `popstate` sin `state`, y
+`currententrychange` llega antes: así que, decidido volver, se tapa el `state`
+del prototipo de `PopStateEvent` hasta la tarea siguiente, cuando ya han corrido
+todos los oyentes. Ni al final del propio oyente, que a veces corre antes que el
+de Next, ni en una microtarea, que el navegador vacía entre oyente y oyente.
+
+*Por qué no una entrada de historial de más*, que es la técnica habitual. Hay
+que quitarla al guardar, y quitarla es un `history.back()` que Next vería justo
+con el `refresh` del guardado en cola: una ficha nueva se quedaría en `/nuevo` ya
+creada en la base, y el siguiente guardado crearía otra.
+
+*Una sola guardia, en el `layout.tsx` del panel* (`GuardiaDeAtras`), y no una
+por pantalla: dos preguntarían dos veces por el mismo viaje, y la pantalla nueva
+con trabajo sin guardar no tiene que acordarse de nada más que de apuntarse al
+registro de D-098. Pone además un `beforeunload` para quien no tuviera el suyo.
+
+*Cómo se prueba.* `atrasDelNavegador.test.ts`, con un navegador de juguete que
+reproduce lo medido y que lee de `app-router.js` las dos líneas de Next de las
+que todo depende, para que una actualización que las cambie falle aquí y no en la
+pantalla. Y `tests/e2e/atrasDelNavegador.spec.ts`, en un Chromium de verdad, con
+un último grupo contra el panel y el editor de fichas. Ese grupo pide una cuenta
+(`E2E_CORREO` y `E2E_CLAVE`): sin ella se omite, y con `EXIGIR_E2E_PANEL=1` falla,
+que es la trampa de D-069 con el mismo remedio.
+
+*Consecuencias malas.* **Sin Navigation API no hace nada con Atrás**: Firefox
+antes del 147 y Safari antes del 26.2 siguen saliendo sin preguntar. Se parchea
+un prototipo global del navegador mientras el panel está montado, y todo se
+apoya en un detalle interno de Next —`if (!event.state) return`— que puede
+cambiar en cualquier versión; lo vigila una prueba que lee su código, no el
+compilador. Mientras la pregunta está abierta la barra de direcciones ya enseña
+el destino, porque el viaje ocurrió, y al cancelar puede verse un salto de
+desplazamiento de un fotograma. La pregunta sigue siendo un `window.confirm`.
+Solo cubre el panel: un comentario a medio escribir en una ficha de la
+plataforma se sigue perdiendo con Atrás. Y las pruebas de extremo a extremo con
+cuenta no están en «Antes de subir»: nada las corre si nadie se acuerda.
+
+
+### D-116 · 2026-09-14 · vigente · cierra el cabo del plegado de D-099
+**Plegar, mover o guardar un bloque mientras sube su archivo ya no deja el
+archivo sin elegir: lo apunta el editor de bloques, que busca el bloque por su
+clave en el momento de escribir.**
+D-099 lo dejó como consecuencia mala. El editor no pinta el cuerpo de un bloque
+plegado —con doce bloques de texto rico serían doce TipTap montados—, así que
+plegar desmontaba el selector con la subida en marcha, y al terminar no quedaba
+nadie que pudiera escribir sin estropear algo: el `alCambiar` que se llevó
+cerraba sobre el arreglo de antes, y llamarlo borraba lo tecleado después o, con
+los bloques reordenados, apuntaba el archivo en el que ocupaba ahora aquel
+sitio. El archivo quedaba subido, y había que buscarlo en el desplegable sabiendo
+que había que hacerlo.
+
+*Escribe quien sigue montado.* `EditorDeBloques` presta a cada campo directo de
+un bloque un escritor (`escritorPorClave`, `src/admin/identidadDeBloques.ts`) que
+lee el arreglo **al escribir**: busca el bloque por su clave estable y, si ya no
+está —porque se quitó—, no escribe, para no resucitarlo. Lo último pintado se
+guarda en `useLayoutEffect`, que corre dentro del mismo commit, porque entre un
+commit y sus efectos pasivos cabe la tarea que cierra la subida. Montado, el
+selector también escribe primero por ahí: su propio `alCambiar` puede ir un
+pintado por detrás.
+
+*Guardar durante la subida le cambiaba el nombre al bloque.* Un bloque nuevo se
+llama `c7` hasta que se guarda, y vuelve del servidor con `id` y sin `_clave`,
+que no viaja por diseño. La subida no lo encontraba, y además el `key` de React
+cambiaba: el bloque se desmontaba, la barra de «Subiendo…» desaparecía —que se
+lee como una subida cancelada y se contesta subiendo otra vez— y un bloque
+plegado se desplegaba solo. `clavesQueRecibieronId` empareja lo enviado con lo
+recibido por posición y conserva el nombre de pila, y lo hace todo o nada: si una
+sola posición no cuadra, no empareja ninguna, porque apuntar el archivo en otro
+bloque es peor que no apuntarlo. No estaba en la primera versión: lo encontró un
+revisor leyendo, y la prueba de entonces, que imitaba `Campos.tsx` con una ficha
+de mentira y vigilaba el cable con expresiones regulares, no lo habría visto
+nunca. Por eso `plegarDuranteLaSubida.test.ts` monta el componente de verdad, en
+`happy-dom` y en `StrictMode`, y `tests/e2e/plegarDuranteLaSubida.spec.ts` lo
+repite contra la aplicación con la subida retenida hasta terminar de plegar y
+mover.
+
+*Consecuencias malas.* **Cambiar de pestaña en la ficha desmonta el editor de
+bloques entero**, y entonces la subida no tiene a quién pedirle el arreglo
+vigente: el archivo queda subido y sin elegir, como antes, y así seguirá
+mientras cada pestaña monte su propio editor. Tampoco llega a un campo metido en
+un grupo o una lista dentro del bloque, ni a un bloque sin clave estable: en los
+dos casos, lo de antes. Si el guardado devuelve los bloques con otro largo u
+otro orden, el emparejamiento se rinde y el archivo queda sin elegir. Y
+`happy-dom` no está en `devDependencies`: llega con el editor de Payload, y el
+día que desaparezca la prueba fallará al arrancar.
+
+
+### D-117 · 2026-09-14 · vigente · amplía D-093
+**Seis estructuras más cambian de sistema al leer el catálogo: los tibiales
+anterior y posterior pasan a músculos, y las encías, a aparato digestivo.**
+D-093 lo anunció en sus consecuencias malas: las ocho correcciones eran las que
+se vieron preparando una pierna, y habría más. Salieron partiendo esa misma
+pierna. BodyParts3D guarda en el esqueleto el tibial anterior y el posterior de
+cada lado, y en la reducción de la tibia derecha (D-112) salían fundidos con el
+hueso y se veían pegados a él con la capa de músculo apagada. Las encías de los
+dos maxilares vienen con los dientes, y en la simulación entraban en la capa de
+hueso.
+
+*El mismo camino, sin tocar nada más.* Una línea por estructura en
+`src/atlas/correcciones-de-sistema.json`, por nombre original, y su porqué en la
+plantilla de `scripts/atlas/atribucion.mjs`, que regenera la declaración de
+cambios que exige CC BY 4.0: pasa de ocho correcciones a catorce, y las cifras de
+piezas sin región se recuentan sobre el catálogo corregido.
+
+*Consecuencias malas.* **Los modelos ya exportados siguen con los tibiales
+dentro del esqueleto**, y un caso escrito contra uno de ellos los enseña pegados
+a la tibia hasta que se vuelva a exportar; el guion de D-112 lo recoge solo,
+porque compara el archivo. Siguen yendo por nombre, así que un atlas regenerado
+que renombre una la deja sin aplicar. Siguen siendo las que se han visto, no el
+resultado de revisar los quince sistemas. Y el párrafo nuevo del porqué salió
+con una línea mucho más larga que las ochenta columnas del resto, en la plantilla
+y en `ATRIBUCION.md`: no rompe nada, pero es la clase de desigualdad que la
+siguiente edición a mano copia.
 
 ---
 
@@ -3544,6 +4129,66 @@ pasarlo—, con la advertencia de que ahí la relación tiene que llegar poblada
 Lo segundo es más: hay que subir el campo por `casoParaLaConsola`, y conviene
 decidir antes si un instrumento debe tener pose propia o si el visor de la
 bandeja está mejor abarcando la pieza, que es lo que hace hoy.
+
+---
+
+### O-046 · 2026-09-14 · alta · resuelta
+**Seis huecos de permisos que pasaban todas sus pruebas, y los seis por lo mismo:
+la regla estaba escrita en un sitio y la puerta la abría otro.**
+Aparecieron al pasar la política del dueño (D-107) a una matriz contra la base y
+al llamar a cada acción con cada sesión (D-108). Tres se alcanzaban hoy; los
+otros tres eran reglas abiertas a las que todavía no llegaba ningún pasillo.
+
+*Alcanzables.*
+
+1. **Un editor restringido a unos módulos leía los borradores de los demás.**
+   `filtroDeLecturaDeModulo` delegaba en `filtroDeLectura`, que mira el rol y
+   nada más, así que `find`, `draft: true` y `findByID` le daban el borrador
+   entero mientras `readVersions` de la misma colección se lo negaba. Las
+   páginas leen por la puerta abierta: el simulador le pintaba la lista con la
+   etiqueta «Borrador». Con la restricción puesta en la lectura y no en la
+   edición era peor: `puedeEditarModulo` y `puedeEditar` solo miraban los
+   editables, y el panel le dejaba listar, reescribir, publicar y borrar las
+   cirugías que la plataforma no le dejaba abrir.
+2. **Un lector comentaba en un módulo que no tiene visible.** La colección solo
+   pedía una cuenta activa y `crearComentario` no preguntaba por el módulo:
+   llamada la acción desde la consola del navegador, el comentario le llegaba al
+   traumatólogo desde un módulo que para esa cuenta no existe.
+3. **`anotar` decía validar el módulo y no lo hacía.** Lo afirmaba un comentario
+   de `Actividad.ts`, y `exigirSlugDeModulo` dice que el módulo existe, no que la
+   cuenta lo vea. `marcarComoLeida('cirugias', …)` con el simulador vetado hacía
+   que el panel le contara casos que no puede abrir.
+
+*Latentes.*
+
+4. **El editor leía y podía reescribir la lectura y el puntaje de todos los
+   residentes**: `actividad` usaba `accesoDePropiedad`, la regla de los
+   comentarios. Ninguna pantalla se lo ofrecía y la API REST está cerrada
+   (D-073), pero era la regla con la que habría contestado la primera consulta
+   hecha con sus permisos.
+5. **Administrador y editor podían reescribir el texto de un comentario ajeno**,
+   que el panel seguía firmando con el nombre del autor. El acceso de colección
+   decide qué fila se toca, no qué se escribe dentro, y `texto` no tenía acceso
+   propio. El panel solo manda `estado`, y por eso no había pasado.
+6. **Una sesión con un rol desconocido obtenía permiso de creación.** La regla de
+   `comentarios` era `Boolean(user && user.activo)`, y la de `actividad`
+   rearmaba el usuario a mano sin mirar el rol. Hoy el `select` de la base no
+   admite otro valor; el día que exista un cuarto rol, habría nacido pudiendo
+   escribir.
+
+*El porqué común.* Las funciones de `reglas.ts` estaban bien probadas, y ninguna
+prueba miraba lo que llega a la consulta. Debajo hay cinco formas de lo mismo: la
+API local escribe con `overrideAccess: true`, así que una acción no consulta la
+regla de su colección por buena que sea (2, 3); una lista vacía es «todos»
+(D-040), y una función que mira una sola de las dos listas amplía con la otra
+(1); una regla elegida por parecido —la de propiedad para el seguimiento— hereda
+una política que no era la suya (4); un acceso de colección no protege un campo
+(5); y una copia hecha a mano de algo que ya existía se queda atrás de la
+original (6).
+
+*Arreglo:* D-107, y D-108 para que no vuelva. *Lo que conviene no olvidar:* un
+comentario que dice «eso ya se valida allí» no es una guardia. El tercero vivió
+detrás de uno.
 
 ---
 

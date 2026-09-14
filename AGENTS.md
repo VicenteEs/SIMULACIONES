@@ -66,13 +66,16 @@ más. El umbral es el suelo real medido y no una aspiración: mientras pidió un
 Una puerta que falla siempre es una puerta por la que nadie pasa, y no guarda
 nada.
 
-`npm run test:integration` repite las seis pruebas de acceso que la orden
-anterior ya corrió, pero declarándose obligatoria ella misma
-(`EXIGIR_INTEGRACION=1`). Son las únicas que comprueban que los permisos llegan
-hasta la consulta y no se quedan en la interfaz: sin esa insistencia, un
-`OMITIR_INTEGRACION=1` olvidado en la shell las omite, las dos órdenes salen
-verdes y quien va a desplegar cree haber comprobado el control de acceso sin
-haber comprobado nada. Las dos variables están explicadas en `README.md`.
+`npm run test:integration` repite las pruebas de integración que la orden
+anterior ya corrió —las de acceso y la matriz de roles de
+`tests/integration/roles.test.ts`, que cruza cada cuenta con cada colección y
+cada operación contra una base de verdad (D-107, D-108)—, pero declarándose
+obligatoria ella misma (`EXIGIR_INTEGRACION=1`). Son las únicas que comprueban
+que los permisos llegan hasta la consulta y no se quedan en la interfaz: sin
+esa insistencia, un `OMITIR_INTEGRACION=1` olvidado en la shell las omite, las
+dos órdenes salen verdes y quien va a desplegar cree haber comprobado el
+control de acceso sin haber comprobado nada. Las dos variables están explicadas
+en `README.md`.
 
 Las de integración hablan con PostgreSQL, así que hace falta `npm run db:up`. Y
 sobre una base recién creada, además `npm run db:migrate`: las migraciones no se

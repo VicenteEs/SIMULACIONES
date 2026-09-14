@@ -99,6 +99,96 @@ habrá que ponerlo a mano.
 Los modelos exportados del atlas **antes del 13 de septiembre de 2026** llevan
 los nombres en inglés y ninguna capa dentro: vuelva a exportarlos.
 
+### Partir el hueso al exportar
+
+Tampoco hace falta Blender para romper el hueso. En el mismo panel de
+**Exportar como modelo**:
+
+1. Marque el hueso como pieza **suelta**. Solo una pieza suelta se puede partir:
+   fundida con el resto del esqueleto, el «fragmento» sería el esqueleto entero.
+2. Al lado aparece **Partir con un corte**. Márquela. Sale solo en los huesos: un
+   músculo partido no es una fractura, y el peroneo corto, que el atlas de origen
+   guarda con los huesos, no la ofrece. Cabe un corte por archivo, porque un caso
+   mueve un fragmento y nada más.
+3. Ajuste los cuatro mandos mirando el disco magenta que aparece sobre el hueso:
+
+| Mando | Qué decide |
+|---|---|
+| Posición, de proximal a distal | A qué altura corta, del 5 al 95 % de la longitud del hueso. El 50 % es media diáfisis |
+| Inclinación | Los grados entre el trazo y la perpendicular al eje. 0 es **transversal**; hasta 60° |
+| Más proximal por la cara | Por qué cara sube el trazo cuando es oblicuo: anterior, lateral, posterior, medial… Lateral es hacia fuera del cuerpo en las dos piernas |
+| Fragmento que se mueve | El trozo que el residente reduce. Distal por omisión, que es el que se tracciona en quirófano |
+
+Debajo se lee el corte con palabras, y esa misma frase queda en las notas del
+modelo.
+
+El eje del hueso lo mide la plataforma sobre la forma del hueso, no sobre su
+caja, así que un corte «transversal» de fémur es transversal al fémur y no al
+suelo. Los mandos de la vista previa y el archivo usan la misma cuenta: lo que ve
+en el disco es lo que sale.
+
+**Qué corte pide cada fractura.** Es la manera de que el modelo diga lo mismo que
+la clasificación del caso:
+
+| Clasificación AO (diáfisis) | Corte |
+|---|---|
+| A3 · simple transversa (trazo a menos de 30°) | Inclinación 0: transversal |
+| A2 · simple oblicua (30° o más) | Inclinación de unos 45°: lejos del borde de los 30° y del tope de 60° |
+| A1 · simple espiroidea | No se puede: un corte es un plano. Una oblicua de 45° es lo más parecido, y el trazo que se ve es recto |
+| B y C · en cuña y complejas | No se puede: dejan tres fragmentos o más, y un corte da dos |
+
+**Qué sale.** El hueso partido son dos objetos, los dos cerrados por la cara del
+corte, que encajan exactamente: el hueso sigue exportándose **reducido**, como
+pide el primer convenio. Se llaman como el hueso y su lado, sin tildes ni comas:
+`Tibia_derecha_fragmento_proximal` y `Tibia_derecha_fragmento_distal`. El que
+eligió como fragmento lleva ya dentro el papel de **fragmento móvil**, así que
+**Rellenar desde el modelo** lo marca solo, y el otro entra como hueso fijo.
+
+El fragmento trae además su origen en el foco de la fractura, no en el centro
+del modelo. Es sobre ese punto donde gira en la consola: al corregir una
+angulación, el trozo gira sobre el foco en vez de irse de lado.
+
+Si el hueso del atlas tiene algún agujero en la malla, el corte sale igual pero
+alguna tapa puede quedar sin cerrar; lo dicen las notas del modelo, en primer
+lugar.
+
+### Poner una preparación en el caso de prueba
+
+Para el caso de prueba hay un guion que hace todo lo anterior de una vez con la
+preparación **pierna derecha**: la exporta con la tibia derecha partida según la
+clasificación del caso —42-A2, así que oblicua de 45°, más proximal por la cara
+lateral, a media diáfisis y moviendo el distal—, pone ese modelo en el caso,
+rellena las piezas como el botón y cambia lo que ve cada paso por su papel: el
+paso que enseñaba la piel sigue enseñando la piel, el que enseñaba el hueso fijo,
+el trozo proximal y el resto del esqueleto, y el del fragmento, el fragmento. El
+desplazamiento inicial y las tolerancias se quedan como estaban: van en
+milímetros y no dependen del archivo.
+
+Se ejecuta en el servidor, desde la carpeta del proyecto:
+
+```bash
+npx tsx scripts/pierna-derecha-en-el-caso.ts             # solo dice qué cambiaría
+npx tsx scripts/pierna-derecha-en-el-caso.ts --aplicar   # lo escribe
+```
+
+Sin `--aplicar` no escribe nada: enseña el modelo que crearía, las piezas que
+quitaría y pondría, y cómo queda cada paso. Léalo antes de aplicar. Se puede
+lanzar las veces que haga falta: cada vez exporta primero sin guardar nada y
+compara ese archivo con el del modelo que ya exportó. Si es idéntico, lo
+reutiliza y dice que no hay nada que cambiar; guardar otra vez la preparación sin
+tocar sus piezas no crea otro. Si ha cambiado lo que sale —otras piezas en la
+preparación, o una corrección del atlas o del exportador, aunque la versión del
+atlas sea la misma—, crea el modelo nuevo y lo pone en el caso. Por eso, cuando se
+corrija algo del atlas, basta con volver a lanzarlo. Lo mismo pasa si alguien
+volvió a subir a mano el archivo de ese modelo: el guion no lo reconoce como
+suyo, y al simular lo dice antes de que usted decida aplicar.
+
+Para sin tocar nada, y dice por qué, si no encuentra la preparación o encuentra
+varias con ese nombre (no distingue mayúsculas ni tildes), si no incluye la tibia
+derecha, si la clasificación del caso no se puede hacer con un corte o si el caso
+tiene cambios en borrador sin publicar. Con `--preparacion "<nombre>"` y
+`--caso "<nombre>"` sirve para otra preparación u otro caso de diáfisis tibial.
+
 Si quiere ver cómo debe quedar, `ejemplos/tibia-de-prueba.glb` es un
 ejemplo mínimo con esos cuatro objetos.
 

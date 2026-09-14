@@ -3,6 +3,8 @@
 import { getPayload, type Where } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
+import { usuarioDeSesion } from '@/access/payload'
+import { puedeVerModulo } from '@/access/reglas'
 import {
   ErrorDeValidacion,
   exigirIdentificador,
@@ -75,6 +77,19 @@ async function anotar(
   if (!usuarioId) return false
 
   const modulo = exigirSlugDeModulo(coleccion)
+  // `exigirSlugDeModulo` dice que el módulo existe, no que esta cuenta lo vea,
+  // y `Actividad.ts` daba por hecho lo segundo al escribir que «`anotar` ya
+  // valida el módulo». No lo hacía: todo lo de abajo escribe con la API local,
+  // cuyo `overrideAccess` vale `true`, así que la regla de creación de la
+  // colección no se consultaba. Un lector con el simulador vetado llamaba a
+  // `marcarComoLeida('cirugias', …)` o a `registrarResultadoDeCirugia` desde la
+  // consola del navegador y el panel le contaba casos que no puede abrir. Se le
+  // pregunta a `puedeVerModulo`, la misma que usa la colección, antes de tocar
+  // la base. Con el usuario efectivo, como las páginas: es el que decide qué
+  // módulos se le enseñaron.
+  if (!puedeVerModulo(usuarioDeSesion(usuarioEfectivo), modulo)) {
+    throw new Error('Su cuenta no tiene acceso a ese módulo.')
+  }
   const documento = exigirIdentificador(documentoId, 'La ficha')
   const payload = await getPayload({ config })
 

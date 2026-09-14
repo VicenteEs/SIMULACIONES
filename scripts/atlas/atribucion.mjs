@@ -188,13 +188,16 @@ function correccionesDeclaradas(catalogo, aplicadas, traducciones) {
 
 ${lista.join('\n')}
 
-El porqué: los tres peroneos son músculos de la pierna y la cintilla
-iliotibial es un engrosamiento de la fascia lata; ninguno es hueso. En el atlas
-de origen era solo un color equivocado, pero en esta plataforma el sistema
-decide la capa de la simulación quirúrgica, y con el error el peroneo corto
-seguía encendido pegado al peroné al apagar la capa de músculo, como si fuera
-hueso. La corrección se aplica al leer el catálogo, sobre el nombre original de
-cada estructura.`
+El porqué: los tres peroneos, el tibial anterior y el tibial posterior son
+músculos de la pierna, y la cintilla iliotibial es un engrosamiento de la fascia
+lata; ninguno es hueso. En el atlas de origen era solo un color equivocado, pero
+en esta plataforma el sistema decide la capa de la simulación quirúrgica, y con
+el error el peroneo corto seguía encendido pegado al peroné al apagar la capa de
+músculo, como si fuera hueso; en la reducción de una tibia partida, los dos
+tibiales salían fundidos con el esqueleto y se veían pegados al hueso. Las
+encías son mucosa de la boca y no hueso: el atlas las agrupa con los dientes,
+y en la simulación entrarían en la capa de hueso. La corrección se aplica al leer el catálogo, sobre el nombre original de cada
+estructura.`
 
   return { vinetas, seccion }
 }

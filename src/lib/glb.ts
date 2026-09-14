@@ -37,6 +37,22 @@ export interface ObjetoParaGlb {
    * nodo antes de copiar los extras, y una `name` propia lo pisaría.
    */
   extras?: Record<string, string | number | boolean>
+  /**
+   * Dónde queda el origen del NODO, en las coordenadas del archivo. Las
+   * posiciones van relativas a él.
+   *
+   * Existe por el fragmento de un hueso partido en el atlas. La consola lo gira
+   * con `fragmento.rotation`, que en three gira alrededor del origen del nodo;
+   * sin traslación ese origen es el centro del modelo, y con la tibia derecha
+   * del atlas cortada al 30 % el foco queda a 8,6 cm de él: girar 15° el trozo
+   * lo desplazaba además más de 2 cm en arco. Un fragmento hecho en Blender
+   * trae su origen donde lo dejó el autor y no hace eso. Con el origen en el
+   * foco, girar es girar sobre la fractura.
+   *
+   * Sin ella no se escribe la clave, y el archivo sale igual que antes byte a
+   * byte, como con `extras`.
+   */
+  traslacion?: [number, number, number]
 }
 
 /**
@@ -184,6 +200,7 @@ export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8A
     nodes.push({
       name: nombre,
       mesh: iMesh,
+      ...(objeto.traslacion ? { translation: objeto.traslacion } : {}),
       ...(extras && Object.keys(extras).length > 0 ? { extras } : {}),
     })
   }

@@ -176,7 +176,7 @@ describe('el ATRIBUCION.md de esta copia es el que genera la plantilla', () => {
     const generado = atribucion(real!)
     expect(sinTraduccion(escrito)).toBe(sinTraduccion(generado))
 
-    // Y la tolerancia no se come nada más: las ocho correcciones siguen ahí.
+    // Y la tolerancia no se come nada más: todas las correcciones siguen ahí.
     for (const nombre of Object.keys(CORRECCIONES_DE_SISTEMA)) {
       expect(sinTraduccion(escrito)).toContain(`- ${nombre}: de esqueleto a `)
     }

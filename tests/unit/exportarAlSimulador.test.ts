@@ -798,36 +798,21 @@ describe('lo que sale en inglés se dice', () => {
 
 describe('quien tenía que llamar, llama', () => {
   const leer = (...partes: string[]) => readFileSync(join(process.cwd(), ...partes), 'utf8')
-  const ACCION = leer('src', 'app', '(frontend)', 'acciones', 'atlas.ts')
   const TALLER = leer('src', 'components', 'admin', 'formulario', 'TallerDePiezas.tsx')
   const LIENZO = leer('src', 'components', 'simulador', 'LienzoQuirurgico.tsx')
 
-  it('la acción exporta por el camino entero y no por el agrupado a secas', () => {
-    // `agruparParaGlb` solo devuelve los nombres en inglés y la pierna a medio
-    // metro del centro. Llamarla directamente es volver al archivo de antes.
-    expect(ACCION).toContain('prepararExportacion(leidas')
-    expect(ACCION).not.toMatch(/agruparParaGlb\(/)
-  })
-
-  it('la acción escribe los avisos en las notas y los devuelve', () => {
-    // Calcularlos y no usarlos es el fallo de siempre: el médico seguiría
-    // encontrando nodos en inglés y una piel abierta por arriba sin que nada
-    // dijera que es un recorte y no una malla rota.
-    const destructurado = ACCION.match(/const \{([^}]*)\}\s*=\s*prepararExportacion\(leidas/)
-    expect(destructurado).not.toBeNull()
-    for (const campo of ['objetos', 'piezas', 'centro', 'pielRecortada', 'pielFuera', 'sinTraducir']) {
-      expect(destructurado![1]).toMatch(new RegExp(`\\b${campo}\\b`))
-    }
-    expect(ACCION).toContain('avisosDeLaExportacion({ pielRecortada, pielFuera, sinTraducir })')
-    // Las notas se escriben con ese resultado, no se calculan y se tiran.
-    const notas = ACCION.slice(ACCION.indexOf('notas:'), ACCION.indexOf('file: {'))
-    expect(notas).toContain('avisosDeLaExportacion(')
-    const devuelto = ACCION.slice(ACCION.lastIndexOf('return {'))
-    expect(devuelto).toMatch(/\bsinTraducir,/)
-    expect(devuelto).toMatch(/\bsinLaPiel,/)
-    expect(devuelto).toMatch(/\bpielRecortada,/)
-    expect(devuelto).toMatch(/\bpielFuera,/)
-  })
+  // Aquí había tres pruebas que leían el texto de la acción `exportarComoModelo`:
+  // que llamaba a `prepararExportacion`, que escribía los avisos en las notas y
+  // los devolvía, y que leía el catálogo corregido. La lógica salió de la acción
+  // a `src/lib/exportarPreparacion.ts` para que un guion la llame sin sesión, y
+  // las tres se pusieron rojas sin que la conducta cambiara: vigilaban dónde
+  // estaba escrita una línea, no lo que hace. Se quitaron en vez de apuntarlas
+  // al archivo nuevo porque la conducta ya se prueba llamando de verdad:
+  //  - nombres en español, centrado y catálogo corregido (el peroneo corto en
+  //    los músculos): `accionesDelAtlas.test.ts`;
+  //  - avisos en la respuesta y en las notas: `avisosDeLaExportacion.test.ts`, y
+  //    `exportarConCorte.test.ts` para la piel recortada por la puerta sin
+  //    sesión.
 
   it('el camino entero recorta la piel antes de nombrar y de centrar', () => {
     // Recortar después de nombrar dejaría un «Piel_2» apuntando a un hueco si
@@ -838,10 +823,6 @@ describe('quien tenía que llamar, llama', () => {
     expect(camino).toMatch(
       /recortarLaPiel\(agruparParaGlb\(piezas, opciones\)\)[\s\S]*centrarEnSuCaja\(nombrarNodos\(recorte\.objetos\)\)/,
     )
-  })
-
-  it('la acción lee el catálogo corregido', () => {
-    expect(ACCION).toMatch(/catalogoEnMemoria = corregirCatalogo\(JSON\.parse\(/)
   })
 
   it('el lienzo expone el userData y el taller lo usa para rellenar', () => {

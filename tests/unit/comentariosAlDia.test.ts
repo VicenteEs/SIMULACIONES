@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import type { Field } from 'payload'
 import { Modelos3D } from '@/collections/Modelos3D'
 import { Actividad } from '@/collections/Actividad'
+import { Comentarios } from '@/collections/Comentarios'
+import { creacionEnModuloVisible } from '@/access/payload'
 import { BLOQUES as BLOQUES_PAYLOAD } from '@/blocks'
 import { camposDe, esquemaDe, recorrerCampos, type Campo } from '@/admin/esquema'
 import { MAXIMO_DE_COMPLICACIONES } from '@/lib/progresoDelSimulador'
@@ -84,7 +86,6 @@ const CAMPOS = fuente('src', 'components', 'admin', 'formulario', 'Campos.tsx')
 const VISOR = fuente('src', 'components', 'Visor3D.tsx')
 const ACCION_DE_ACTIVIDAD = fuente('src', 'app', '(frontend)', 'acciones', 'actividad.ts')
 const CONSOLA = fuente('src', 'components', 'simulador', 'ConsolaQuirurgica.tsx')
-const ACCESO_DE_PAYLOAD = fuente('src', 'access', 'payload.ts')
 
 /**
  * Y dos archivos de pruebas, que aquí se leen como prosa y no como pruebas.
@@ -286,13 +287,15 @@ describe('las tres columnas del simulador en `actividad`', () => {
     expect(texto).toContain('ConsolaQuirurgica.tsx')
   })
 
-  it('el pendiente que sí sigue vivo se queda escrito, y solo mientras lo sea', () => {
-    // `CREACION_DEL_MODULO_PROPIO` dice de sí misma que se muda a
-    // `src/access/payload.ts` en cuanto ese archivo se pueda tocar. Hoy es
-    // verdad y por eso no se tocó; el día que se mude, esta prueba falla y lo
-    // que hay que arreglar es el comentario, no el código.
-    expect(ACTIVIDAD).toContain('const CREACION_DEL_MODULO_PROPIO')
-    expect(ACCESO_DE_PAYLOAD).not.toContain('CREACION_DEL_MODULO_PROPIO')
+  it('la regla de creación vive una sola vez y la usan las dos colecciones', () => {
+    // Vivió en Actividad.ts como CREACION_DEL_MODULO_PROPIO, con un aviso de
+    // que se mudaría; se mudó a src/access/payload.ts cuando comentarios
+    // necesitó la misma. Se comprueba por identidad y no buscando el nombre en
+    // el texto: si alguien la vuelve a copiar en una colección, deja de ser la
+    // misma función aunque se llame igual, y un comentario que la cite no hace
+    // pasar nada.
+    expect(Actividad.access?.create).toBe(creacionEnModuloVisible)
+    expect(Comentarios.access?.create).toBe(creacionEnModuloVisible)
   })
 
   it('el tope de complicaciones es el mismo número en la columna y en el recorte', () => {

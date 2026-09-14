@@ -5,6 +5,12 @@
   "Left fibularis longus": "muscular",
   "Right fibularis tertius": "muscular",
   "Left fibularis tertius": "muscular",
+  "Right tibialis anterior": "muscular",
+  "Left tibialis anterior": "muscular",
+  "Right tibialis posterior": "muscular",
+  "Left tibialis posterior": "muscular",
   "Right iliotibial tract": "connective",
-  "Left iliotibial tract": "connective"
+  "Left iliotibial tract": "connective",
+  "Gingiva of upper jaw": "digestive",
+  "Gingiva of lower jaw": "digestive"
 }
