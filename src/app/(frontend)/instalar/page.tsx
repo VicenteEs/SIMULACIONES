@@ -26,7 +26,7 @@ export default async function PaginaInstalar() {
     <main className="acceso">
       <div className="acceso-caja">
         <div className="acceso-marca">
-          <img src={ruta('/logo.png')} alt="TraumaHub" className="acceso-logo" />
+          <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="acceso-logo" />
         </div>
         <h1 className="acceso-titulo">Primera cuenta</h1>
 

@@ -12,6 +12,7 @@ import { GuardiaDeAtras } from '@/components/admin/GuardiaDeAtras'
 import { BotonSalir } from '@/components/BotonSalir'
 import './admin.css'
 import { ruta } from '@/lib/rutas'
+import { AUTORIA } from '@/lib/autoria'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,19 +39,37 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   // Un aviso en la barra evita que los comentarios queden meses sin leer por no
   // haber entrado a esa sección.
+  //
+  // Lo mismo con las solicitudes de cuenta, y con más motivo: quien pidió
+  // entrar no puede hacer nada hasta que alguien la active, y no hay otro sitio
+  // del panel que lo diga. Solo se cuentan para el administrador, que es el
+  // único que puede resolverlas; al editor no se le enseña un número que no le
+  // toca atender.
   let pendientes = 0
+  let solicitudes = 0
   try {
     const payload = await getPayload({ config })
-    const conteo = await payload.count({
-      collection: 'comentarios',
-      where: { estado: { equals: 'pendiente' } },
-      overrideAccess: true,
-    })
+    const [conteo, conteoDeSolicitudes] = await Promise.all([
+      payload.count({
+        collection: 'comentarios',
+        where: { estado: { equals: 'pendiente' } },
+        overrideAccess: true,
+      }),
+      esAdmin
+        ? payload.count({
+            collection: 'usuarios',
+            where: { pendiente: { equals: true } },
+            overrideAccess: true,
+          })
+        : Promise.resolve({ totalDocs: 0 }),
+    ])
     pendientes = conteo.totalDocs
+    solicitudes = conteoDeSolicitudes.totalDocs
   } catch {
     // Si la base no responde, el panel debe abrirse igual para poder
     // diagnosticarlo desde la sección de sistema.
     pendientes = 0
+    solicitudes = 0
   }
 
   const secciones: SeccionDeMenu[] = [
@@ -81,7 +100,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     secciones.push({
       titulo: 'Administración',
       entradas: [
-        { ruta: '/admin-panel/usuarios', etiqueta: 'Usuarios y permisos', icono: 'usuarios' },
+        {
+          ruta: '/admin-panel/usuarios',
+          etiqueta: 'Usuarios y permisos',
+          icono: 'usuarios',
+          aviso: solicitudes || undefined,
+        },
+        { ruta: '/admin-panel/difusion', etiqueta: 'Difusión', icono: 'difusion' },
         { ruta: '/admin-panel/respaldos', etiqueta: 'Respaldos', icono: 'respaldos' },
         { ruta: '/admin-panel/sistema', etiqueta: 'Sistema', icono: 'sistema' },
       ],
@@ -136,6 +161,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <BotonSalir clase="admin-salir" />
             </GuardiaDeSalida>
           </div>
+          <p className="admin-sidebar-credito">
+            Desarrollado por {AUTORIA.nombre} ·{' '}
+            <a href={`mailto:${AUTORIA.correo}`}>{AUTORIA.correo}</a>
+          </p>
         </div>
       </aside>
       <main className="admin-content">{children}</main>

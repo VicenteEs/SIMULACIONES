@@ -1,0 +1,165 @@
+/* Pantalla «Difusión» del panel.
+ *
+ * Solo lo que esta pantalla tiene y las demás no: la rejilla de redacción con
+ * vista previa, el marco del correo y la lista de fallos del historial. Todo lo
+ * demás —tarjetas, botones, avisos, tabla, barra de progreso— sale de
+ * `admin.css`, para que la pantalla se lea como el resto del panel. Va en su
+ * propia hoja y no allí porque `admin.css` la carga todo el panel y esto solo lo
+ * usa una página. */
+
+/* Redacción a la izquierda y el correo a la derecha, a la vista mientras se
+ * escribe: la vista previa que obliga a bajar para mirarla no se mira. Por
+ * debajo de 1100 px las dos columnas dejan el correo más estrecho que un
+ * teléfono y se apilan. */
+.difusion-rejilla {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 1100px) {
+  .difusion-rejilla { grid-template-columns: minmax(0, 1fr); }
+  .difusion-vista { position: static; }
+}
+
+.difusion-subtitulo {
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--tinta);
+  margin: 0 0 1rem;
+}
+
+.difusion-redaccion:hover {
+  /* La tarjeta es un formulario, no un enlace: el realce de `.admin-card` al
+     pasar el ratón sugiere que toda ella se puede pulsar. */
+  border-color: var(--linea-suave);
+  box-shadow: var(--sombra);
+}
+
+.difusion-mensaje {
+  min-height: 14rem;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.difusion-contador {
+  display: block;
+  margin-top: 0.25rem;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+}
+
+/* El `fieldset` agrupa texto y enlace del botón para el lector de pantalla; sin
+   quitarle el borde y el relleno del navegador se dibuja una caja dentro de la
+   tarjeta. */
+.difusion-boton {
+  border: 0;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  min-width: 0;
+}
+
+.difusion-etiqueta-menor {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--pizarra);
+}
+
+.difusion-sugerencia { margin-top: 0.5rem; }
+
+.difusion-problema {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ambar);
+}
+
+.difusion-envio { justify-content: flex-end; }
+
+.difusion-confirmacion { margin: 0.5rem 0 0; }
+
+.difusion-confirmacion-botones { margin-top: 0.75rem; }
+
+/* La vista previa acompaña al desplazarse mientras el formulario es más alto
+   que ella. */
+.difusion-vista {
+  position: sticky;
+  top: 1rem;
+}
+
+.difusion-vista-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.difusion-vista-cabecera .difusion-subtitulo { margin: 0; }
+
+/* El fondo es el `papel` de la plantilla del correo y no el del panel, para
+   que el marco no parpadee en otro color mientras carga. El alto cabe un
+   correo con botón y nota sin barra de desplazamiento en un portátil. */
+.difusion-vista-marco {
+  display: block;
+  width: 100%;
+  height: 680px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r-lg);
+  background: var(--papel);
+}
+
+/* ---------- historial ---------- */
+.difusion-fecha { white-space: nowrap; }
+
+.difusion-asunto { min-width: 12rem; }
+
+.difusion-avance {
+  min-width: 8rem;
+  white-space: nowrap;
+}
+
+.difusion-sin-fallos { color: var(--mudo); }
+
+.difusion-etiqueta-fallos {
+  background: var(--alerta-tenue);
+  color: var(--alerta);
+}
+
+.difusion-fallos summary {
+  cursor: pointer;
+  color: var(--alerta);
+  font-weight: 600;
+}
+
+.difusion-fallos ul {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  max-height: 14rem;
+  overflow-y: auto;
+  min-width: 16rem;
+}
+
+.difusion-fallos li {
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--linea-suave);
+  font-size: 0.8125rem;
+}
+
+.difusion-fallo-correo {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--tinta);
+  word-break: break-all;
+}
+
+.difusion-fallo-motivo {
+  display: block;
+  color: var(--mudo);
+}

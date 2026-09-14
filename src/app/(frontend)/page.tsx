@@ -85,7 +85,7 @@ export default async function Inicio() {
         </div>
 
         <section className="portada-hero">
-          <img src={ruta('/logo.png')} alt="TraumaHub" className="portada-logo" />
+          <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="portada-logo" />
 
           <h1 className="portada-titular">
             Estudiar, examinar y <em>operar mejor</em>.
@@ -100,8 +100,28 @@ export default async function Inicio() {
             Entrar a la plataforma
           </Link>
 
+          {/* El estilo va en línea porque la hoja de la portada es de otro lote
+              y no conoce esta clase: sin él, el enlace hereda el azul de marca
+              de `a {}` y sobre el fondo marino no se lee. */}
+          <Link
+            className="portada-enlace-secundario"
+            href="/registro"
+            style={{
+              display: 'inline-block',
+              marginLeft: 18,
+              padding: '14px 6px',
+              color: '#bfe6f7',
+              fontWeight: 600,
+              fontSize: 15,
+              textDecoration: 'none',
+            }}
+          >
+            Solicitar acceso
+          </Link>
+
           <p className="portada-nota">
-            El acceso es cerrado. Si necesita una cuenta, solicítela al equipo docente.
+            El acceso es cerrado: cada solicitud la revisa un administrador antes de activar la
+            cuenta.
           </p>
         </section>
 

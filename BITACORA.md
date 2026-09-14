@@ -20,8 +20,9 @@ se reescribe nunca son las decisiones y las observaciones de más abajo.*
 
 Plataforma docente de traumatología en español, cerrada, para residentes,
 traumatólogos y kinesiólogos. Next.js 16 con Payload CMS 3 sobre PostgreSQL,
-en contenedores. **Nada es visible sin sesión** y las cuentas las crea y las
-activa un administrador (D-020).
+en contenedores. **Nada es visible sin sesión** y ninguna cuenta entra sin que
+la active un administrador (D-020); desde el 2026-09-14 la cuenta también se
+puede pedir en `/registro` y queda pendiente de revisión (D-119).
 
 Nació como un prototipo navegable en un solo archivo HTML autocontenido, con el
 contenido clínico escrito dentro y los gráficos generados por JavaScript. De
@@ -268,7 +269,7 @@ dependencias, contenedores, migraciones, primer administrador y túnel. *Por qu�
 un despliegue que sólo existe en la memoria de una persona no se puede repetir
 ni recuperar después de un incidente.
 
-### D-020 · 2026-08-28 · vigente · corregida el 2026-09-10 (ver D-053)
+### D-020 · 2026-08-28 · vigente · corregida el 2026-09-10 (ver D-053) · ampliada por D-119
 **Nada es visible sin sesión, y las cuentas las activa el administrador.**
 No hay registro abierto ni contenido público: toda lectura exige usuario
 autenticado y con la cuenta marcada como activa. Consecuencia grata: la
@@ -3323,6 +3324,149 @@ con una línea mucho más larga que las ochenta columnas del resto, en la planti
 y en `ATRIBUCION.md`: no rompe nada, pero es la clase de desigualdad que la
 siguiente edición a mano copia.
 
+### D-118 · 2026-09-14 · vigente · amplía O-022
+**Todos los correos salen por un solo sitio, con una plantilla, desde la cuenta
+del hosting.**
+El dueño quiere que la plataforma escriba desde `contacto@chesscore.cl`, una
+cuenta de su hosting con cPanel, y que los correos se vean profesionales. Hasta
+hoy cada remitente armaba su HTML a mano —el de comentarios eran tres párrafos
+sueltos— y decidía por su cuenta si había servidor.
+
+*Qué se hizo.* `src/correo/plantilla.ts` convierte la descripción de un correo
+(`Correo`: título, bloques, botón, nota) en HTML de tablas con estilos en línea,
+que es lo único que Gmail y el Outlook de escritorio pintan igual, más su versión
+en texto plano. `src/correo/mensajes.ts` tiene el texto de cada uno.
+`src/correo/enviar.ts` es la única salida: `enviarCorreo` espera y lanza,
+`enviarSinEsperar` no retiene a nadie y anota el fallo, y los dos adjuntan el
+logotipo dentro del mensaje (`cid:`), porque Outlook bloquea las imágenes remotas
+y la plataforma vive detrás de un túnel. La plantilla no importa nada de servidor:
+la vista previa de la difusión (D-120) es la misma función. El remitente sale de
+`SMTP_NOMBRE` y `SMTP_DESDE`, que cae en `SMTP_USUARIO`, porque Exim rechaza un
+remitente distinto de la cuenta autenticada. La recuperación de contraseña, el
+enlace del panel y el aviso de comentarios pasaron a esta salida: piden el
+testigo con `disableEmail` y mandan ellos.
+
+*Lo que se encontró al revisarlo.* Los datos que escribe otra persona —el nombre
+y la institución de una solicitud, el nombre de quien comenta— salían enlazados
+si traían una dirección: un anónimo podía mandar desde el dominio de la
+plataforma un «su clave vence hoy, renuévela en https://…». Las filas de datos y
+el saludo se escapan sin enlazar, y `solicitarCuenta` rechaza esos textos al
+pedir la cuenta (D-119). `explicarFalloDeCorreo` traduce los fallos de nodemailer
+a qué variable tocar; al principio tachaba la clave con asteriscos dentro de la
+frase, y una clave que fuera parte del nombre del servidor quedaba deducible
+(«mail.********.cl»): ahora, si la respuesta del servidor contiene la clave, se
+omite ese detalle entero.
+
+*Consecuencias buenas.* Un solo tono y una sola marca en todo lo que llega al
+buzón; cambiar una frase no toca marcado ni transporte; *Sistema* tiene
+«Enviarme un correo de prueba», que prueba credenciales y remitente, lo que el
+saludo SMTP no puede. *Malas.* Los colores de `estilos.css` están repetidos en la
+plantilla, porque un correo no lee variables CSS: cambiar la paleta exige tocar
+los dos sitios. Y la vista en clientes reales no la ha mirado nadie todavía; lo
+comprobado es un navegador.
+
+### D-119 · 2026-09-14 · vigente · amplía D-020
+**Una persona puede pedir su cuenta, y la activación sigue siendo del
+administrador.**
+El dueño no quiere crear a mano la cuenta de cada residente, pero sí decidir
+quién entra, y conservar la creación manual.
+
+*Qué se hizo.* `/registro` (enlazado desde `/entrar` y la portada) llama a
+`solicitarCuenta`, que crea la cuenta **lectora, desactivada y con `pendiente`**
+—campos nuevos `origen`, `pendiente`, `motivoDeSolicitud` y `solicitadaEn`—, sin
+aceptar de la llamada ni rol ni estado. Avisa a quien la pidió y a los
+administradores. En *Usuarios y permisos* las solicitudes salen aparte, con lo
+que escribió la persona, un selector de rol y **Activar** o **Rechazar** (que
+borra la cuenta); las dos avisan por correo. La barra del panel y el Resumen
+cuentan las pendientes. La creación manual sigue igual, con una opción más:
+mandarle a la persona un correo de bienvenida para que elija su contraseña, con
+un enlace de 72 horas, en vez de ponerle una.
+
+*Las decisiones de la acción pública, que es la primera que escribe sin sesión.*
+- **Se niega sin ninguna cuenta en la base**: `ajustarPrimerUsuario` haría
+  administradora a la primera, y el registro sería una puerta para fabricar el
+  primer administrador de una instalación recién desplegada.
+- **Contesta lo mismo y tarda lo mismo** se cree la cuenta, exista ya o la
+  rellene un robot: un suelo de 1,5 s desde que llega. Sin él, el `pbkdf2` de la
+  cuenta nueva delataba por tiempo quién tiene acceso. La verdad se le dice al
+  titular en su buzón («ya tiene una cuenta»), y a quien repite una solicitud
+  pendiente se le repite el acuse.
+- **Freno de ritmo en memoria**: cinco por dirección y treinta en total por hora
+  (`src/lib/ritmo.ts`). La cuota de envío del hosting es la misma de la
+  recuperación de contraseña, y un bucle contra esta acción la vaciaría. El
+  global existe porque el primero se burla cambiando `X-Forwarded-For`.
+- **Campo trampa** para robots, que contesta éxito sin tocar nada y antes del
+  freno, para no gastar el cupo de las personas.
+- **Nombre e institución sin direcciones, correos ni saltos de línea**, para que
+  el acuse no sirva para mandar enlaces falsos a direcciones ajenas. Un dominio
+  suelto solo se rechaza en minúsculas, porque en mayúsculas choca con
+  abreviaturas reales («Dra.Soto», «U.Chile»); «EVIL.COM» en mayúsculas pasa, y
+  un texto engañoso sin enlace dentro de 120 caracteres también.
+- `pedirEnlaceDeClave` **ya no pide el testigo sin SMTP**: cada `forgotPassword`
+  anula el anterior, y sin correo el anterior es el enlace que el administrador
+  entregó a mano.
+
+Con esto `/registro` se suma a las páginas que D-020 sirve sin sesión.
+
+*Consecuencias buenas.* El administrador revisa en vez de teclear, y la persona
+elige su contraseña desde el principio. *Malas.* **La plataforma no verifica la
+identidad** de quien pide la cuenta ni que el correo sea suyo hasta que alguien
+lo activa: cualquiera puede escribir un nombre y un hospital. El aviso a los
+administradores lo recuerda, pero la decisión es humana. El freno vive en
+memoria y un reinicio lo vacía. Una solicitud basura queda en la base hasta que
+alguien la rechace.
+
+### D-120 · 2026-09-14 · vigente
+**«Difusión»: un correo a todas las cuentas, despacio y con la cola guardada.**
+El dueño quiere avisar a todos los usuarios de una novedad desde el panel.
+
+*Qué se hizo.* Pestaña nueva del administrador, `/admin-panel/difusion`: asunto,
+mensaje (línea en blanco separa párrafos, «- » hace lista, las direcciones se
+enlazan), botón opcional, grupo (todas las cuentas activas o un rol), vista
+previa con la plantilla real en un `<iframe sandbox="">`, «Enviarme una prueba» y
+envío con confirmación que dice cuántas personas y cuánto tardará. Colección
+nueva `difusiones` con la cola (`pendientes`) y los fallos. El trabajador
+(`src/correo/difusion.ts`) manda **un correo por persona**, con su nombre y sin
+la lista de direcciones a la vista.
+
+*Por qué despacio.* El hosting limita los correos por hora y la cuota es la de la
+recuperación de contraseña. `DIFUSION_CORREOS_POR_HORA` (200 si no se pone: uno
+cada 18 s) espacia los envíos. Cinco fallos seguidos la detienen, porque son el
+servidor caído o la cuota agotada y seguir marcaría como fallida a toda la lista.
+Una a la vez: dos trabajadores duplicarían el ritmo, y dos «Enviar» cruzados se
+cierran con una reserva que se toma sin ceder el hilo. La prueba lleva el mismo
+freno que la de *Sistema*, cinco en diez minutos.
+
+*Por qué no se reanuda sola.* Un servicio reiniciado deja la difusión en
+«enviando» sin trabajador, y el panel la enseña «Interrumpida» para que el
+administrador pulse **Reanudar**. Un servicio que se reinicia en bucle no debe
+decidir volver a escribirle a cien personas.
+
+*Consecuencias buenas.* Un aviso llega a todos sin copiar direcciones a mano, y
+un corte no obliga a repetirlo entero. *Malas.* Envía y después anota: si el
+proceso cae entre las dos cosas, **esa última persona lo recibe dos veces** al
+reanudar (anotar antes cambiaría el duplicado por alguien que se queda sin aviso
+y sin constar). No hay baja voluntaria de las difusiones: son avisos de servicio a
+cuentas de la plataforma, no publicidad, pero si algún día se usan para otra
+cosa hará falta. El límite real del hosting no se conoce: 200 es una suposición.
+
+### D-121 · 2026-09-14 · vigente
+**La autoría queda escrita en la plataforma, y el logotipo, algo más grande.**
+«Desarrollado por Vicente Andrés Escudero Durana · vescudero@chesscore.cl» sale
+en un pie de página en toda la plataforma, en la barra del panel, en la página de
+créditos y en el pie de cada correo. El nombre y el correo viven solo en
+`src/lib/autoria.ts`; `tests/unit/autoria.test.ts` falla si alguien los escribe a
+mano en otro archivo o si el pie deja de pintarse. Dentro del panel el pie se
+oculta con CSS (`body:has(.admin-layout)`), porque el contorno es de servidor y
+no conoce la ruta.
+
+El logotipo crece: la marca de la barra de 30 a 40 px (quedaba en dos reglas que
+se pisaban, y queda en una), la del panel de 32 a 42, el de las pantallas de
+acceso de 190 a 240 y el de la portada de 260 a 320. Esas dos últimas pasan a
+`logo-hd.png`, porque `logo.png` mide 220 px y agrandado se ve borroso.
+*Mala:* `:has()` no existe en navegadores anteriores a 2022-2023; en uno de esos
+el pie se vería también dentro del panel, que es feo pero no rompe nada.
+
 ---
 
 ## 3. Observaciones
@@ -4189,6 +4333,20 @@ original (6).
 *Arreglo:* D-107, y D-108 para que no vuelva. *Lo que conviene no olvidar:* un
 comentario que dice «eso ya se valida allí» no es una guardia. El tercero vivió
 detrás de uno.
+
+### O-047 · 2026-09-14 · media · abierta · la arregla el dueño en cPanel
+**El dominio `chesscore.cl` tiene dos registros DMARC, y con dos es como no
+tener ninguno.**
+Visto al preparar D-118, consultando el DNS: `_dmarc.chesscore.cl` devuelve
+`v=DMARC1; p=none; rua=mailto:contacto@chesscore.cl` y, además,
+`v=DMARC1; p=none;`. RFC 7489 (§6.6.3) manda descartar la política cuando hay más
+de un registro, así que Gmail y Outlook tratan los correos de la plataforma como
+de un dominio sin DMARC, y eso pesa para caer en «no deseado». SPF
+(`v=spf1 +a +mx +ip4:201.148.104.29 ~all`) y DKIM (`default._domainkey`) están
+bien. El DNS lo sirve el hosting (`dns1.freehost.cl`), así que se arregla en
+cPanel → Editor de zona, borrando el registro sin `rua`. El paso a paso está en
+`docs/CORREO.md`. Desde `blanco`, `mail.chesscore.cl` contesta en 465 y 587, con
+un certificado válido para `*.chesscore.cl`.
 
 ---
 

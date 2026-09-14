@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import React from 'react'
 import { Navegacion } from '@/components/Navegacion'
 import { AvisoActualizacion } from '@/components/AvisoActualizacion'
+import { PieDePagina } from '@/components/PieDePagina'
 import { obtenerSesion } from '@/lib/sesion'
 import './estilos.css'
 import { ruta } from '@/lib/rutas'
@@ -35,6 +36,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
         ) : null}
         {sesion.activo ? <AvisoActualizacion /> : null}
         {children}
+        {/* Fuera de la condición de la sesión a propósito: lo necesita sobre
+            todo quien no puede entrar. En el panel lo esconde la hoja. */}
+        <PieDePagina />
       </body>
     </html>
   )

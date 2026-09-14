@@ -116,7 +116,13 @@ describe('nadie más arma /clave/ a mano', () => {
     const codigo = sinComentarios(join('src', 'app', '(frontend)', 'acciones', 'admin.ts'))
     const cuerpo = codigo.slice(codigo.indexOf('export async function generarEnlaceDeClave'))
 
-    expect(cuerpo).toContain('enlace: enlaceDeClave(testigo)')
+    // El enlace se arma una vez y es el mismo el que va al correo y el que se
+    // devuelve a la pantalla: desde que el panel envía por su cuenta
+    // (`enviarCorreo`), dos armados serían otra vez dos copias esperando a
+    // divergir.
+    expect(cuerpo).toContain('const enlace = enlaceDeClave(testigo)')
+    expect(cuerpo).toContain('mensajeDeClaveNueva(enlace)')
+    expect(cuerpo).toContain('return { enlace, enviadoPorCorreo }')
     expect(cuerpo.indexOf('if (!direccionPublica())')).toBeGreaterThan(-1)
     expect(cuerpo.indexOf('if (!direccionPublica())')).toBeLessThan(
       cuerpo.indexOf('payload.forgotPassword('),

@@ -84,6 +84,7 @@ export interface Config {
     'estudios-ia': EstudiosIa;
     comentarios: Comentario;
     actividad: Actividad;
+    difusiones: Difusione;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -108,6 +109,7 @@ export interface Config {
     'estudios-ia': EstudiosIaSelect<false> | EstudiosIaSelect<true>;
     comentarios: ComentariosSelect<false> | ComentariosSelect<true>;
     actividad: ActividadSelect<false> | ActividadSelect<true>;
+    difusiones: DifusionesSelect<false> | DifusionesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -163,6 +165,10 @@ export interface Usuario {
    */
   activo?: boolean | null;
   institucion?: string | null;
+  origen?: ('panel' | 'solicitud') | null;
+  pendiente?: boolean | null;
+  motivoDeSolicitud?: string | null;
+  solicitadaEn?: string | null;
   /**
    * Sin marcar ninguno, ve los cinco. Marque solo para restringir.
    */
@@ -1833,6 +1839,44 @@ export interface Actividad {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "difusiones".
+ */
+export interface Difusione {
+  id: number;
+  asunto: string;
+  mensaje: string;
+  botonTexto?: string | null;
+  botonEnlace?: string | null;
+  audiencia: 'todas' | 'lector' | 'editor' | 'admin';
+  autor?: (number | null) | Usuario;
+  estado: 'enviando' | 'enviada' | 'con-fallos' | 'detenida';
+  total: number;
+  enviados: number;
+  fallidos: number;
+  pendientes?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  fallos?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  terminadaEn?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -1922,6 +1966,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'actividad';
         value: number | Actividad;
+      } | null)
+    | ({
+        relationTo: 'difusiones';
+        value: number | Difusione;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1974,6 +2022,10 @@ export interface UsuariosSelect<T extends boolean = true> {
   rol?: T;
   activo?: T;
   institucion?: T;
+  origen?: T;
+  pendiente?: T;
+  motivoDeSolicitud?: T;
+  solicitadaEn?: T;
   modulosVisibles?: T;
   modulosEditables?: T;
   ultimoAcceso?: T;
@@ -3248,6 +3300,27 @@ export interface ActividadSelect<T extends boolean = true> {
         detalle?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "difusiones_select".
+ */
+export interface DifusionesSelect<T extends boolean = true> {
+  asunto?: T;
+  mensaje?: T;
+  botonTexto?: T;
+  botonEnlace?: T;
+  audiencia?: T;
+  autor?: T;
+  estado?: T;
+  total?: T;
+  enviados?: T;
+  fallidos?: T;
+  pendientes?: T;
+  fallos?: T;
+  terminadaEn?: T;
   updatedAt?: T;
   createdAt?: T;
 }

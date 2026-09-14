@@ -1,8 +1,10 @@
 # TraumaHub
 
 Plataforma docente de traumatología en español, para residentes, traumatólogos
-y kinesiólogos. Es cerrada: nada se ve sin sesión, y las cuentas las crea y las
-activa un administrador (decisión D-020).
+y kinesiólogos. Es cerrada: nada se ve sin sesión, y ninguna cuenta entra sin que
+la active un administrador (decisión D-020). La cuenta la crea el administrador o
+la pide la propia persona en `/registro`, y queda pendiente hasta que la revisen
+(D-119). El correo que manda la plataforma está en `docs/CORREO.md`.
 
 La llevan dos personas con papeles distintos (D-008). El traumatólogo redacta y
 publica desde la propia aplicación, sin depender de nadie; el desarrollador

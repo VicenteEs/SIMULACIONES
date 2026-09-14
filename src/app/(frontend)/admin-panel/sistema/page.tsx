@@ -1,5 +1,6 @@
 import { connect as abrirSocket, type Socket } from 'node:net'
 import { connect as abrirSocketCifrado } from 'node:tls'
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { tamanoLegible } from '@/lib/respaldos'
@@ -8,6 +9,8 @@ import { directorioDeRespaldos, hayPgDump, listarRespaldos } from '@/lib/respald
 import { clientePayload } from '../datos'
 import { versionDelAtlas } from '@/app/(frontend)/acciones/atlas'
 import { ruta } from '@/lib/rutas'
+import { puertoDeCorreo } from '@/correo/enviar'
+import { BotonCorreoDePrueba } from './BotonCorreoDePrueba'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,7 +88,9 @@ const TOPE_DE_SALUDO_MS = 4000
  * nombre resuelve, que el puerto está abierto y que al otro lado hay un SMTP
  * vivo —los tres fallos habituales tras mover el servidor o cerrar un
  * cortafuegos—. No prueba las credenciales ni que el destinatario acepte el
- * mensaje; eso solo lo sabe un envío de verdad, y esta página no manda correo.
+ * mensaje; eso solo lo sabe un envío de verdad, y por eso el envío va aparte,
+ * en el botón de la misma fila (`BotonCorreoDePrueba`): la página no manda
+ * correo al cargarse, lo manda quien lo pide.
  */
 async function correoResponde(host: string, puerto: number): Promise<Diagnostico> {
   const direccion = `${host}:${puerto}`
@@ -160,8 +165,21 @@ export default async function PaginaSistema() {
   // El mismo número con el que `src/payload.config.ts` arma el transporte. Si
   // aquí se calculara de otra manera, la página comprobaría un puerto y el
   // correo saldría por otro, que es la peor clase de diagnóstico: el que
-  // tranquiliza sobre algo que no ha mirado.
-  const puertoSmtp = Number(process.env.SMTP_PUERTO || 587)
+  // tranquiliza sobre algo que no ha mirado. Por eso se pregunta a
+  // `puertoDeCorreo`, que es también el que nombran los errores del envío.
+  const puertoSmtp = puertoDeCorreo()
+
+  // El remitente con el que sale de verdad, con los mismos respaldos que
+  // `payload.config.ts`. Se enseña porque es el fallo que el saludo no ve y que
+  // cPanel castiga: si no es la cuenta con la que se autentica, el servidor lo
+  // rechaza o lo firma como suplantación. Solo nombre y dirección; ni la clave
+  // ni si está puesta, que para eso está el botón de prueba.
+  const direccionRemitente =
+    process.env.SMTP_DESDE || process.env.SMTP_USUARIO || 'no-responder@localhost'
+  const remitente = `${process.env.SMTP_NOMBRE || 'TraumaHub'} <${direccionRemitente}>`
+  const desde = process.env.SMTP_DESDE?.trim().toLowerCase()
+  const usuarioSmtp = process.env.SMTP_USUARIO?.trim().toLowerCase()
+  const remitenteAjeno = Boolean(desde && usuarioSmtp && desde !== usuarioSmtp)
 
   const [respaldos, pgDump, atlas, disco, correo] = await Promise.all([
     listarRespaldos().catch(() => []),
@@ -186,7 +204,7 @@ export default async function PaginaSistema() {
   const enOrigenLocal = /^http:\/\/(localhost|127\.0\.0\.1)([:/]|$)/.test(urlPublica)
   const laCookieLlega = enHttps || enOrigenLocal
 
-  const comprobaciones: Array<{ titulo: string; estado: Diagnostico }> = [
+  const comprobaciones: Array<{ titulo: string; estado: Diagnostico; complemento?: ReactNode }> = [
     { titulo: 'Base de datos', estado: base },
     {
       titulo: 'Respaldo reciente',
@@ -225,7 +243,29 @@ export default async function PaginaSistema() {
     },
     // El saludo del servidor de correo, no la presencia de la variable: ver
     // `correoResponde`.
-    { titulo: 'Correo saliente', estado: correo },
+    //
+    // Y debajo, las dos cosas que el saludo no puede probar. El saludo prueba
+    // que hay servidor; la prueba de envío prueba que acepta la clave y el
+    // remitente, que es donde falla una cuenta de cPanel recién configurada.
+    // Una fila en verde con la clave mal copiada era exactamente el «todo en
+    // orden» que esta página existe para no decir. El botón solo aparece con
+    // `SMTP_HOST`: sin servidor no hay transporte que probar, y la acción
+    // contestaría lo mismo que ya dice el detalle.
+    {
+      titulo: 'Correo saliente',
+      estado: correo,
+      complemento: servidorSmtp ? (
+        <>
+          <div style={{ marginTop: '0.25rem', color: 'var(--mudo)' }}>
+            Sale como {remitente}
+            {remitenteAjeno
+              ? ' — distinto de SMTP_USUARIO: cPanel lo rechaza o lo marca como suplantación si no es la misma cuenta'
+              : ''}
+          </div>
+          <BotonCorreoDePrueba />
+        </>
+      ) : undefined,
+    },
     {
       // Aquí ponía «sin HTTPS la cookie de sesión viaja sin cifrar», y es
       // falso: la cookie sale con `Secure` en cuanto `NODE_ENV` vale
@@ -316,7 +356,10 @@ export default async function PaginaSistema() {
                     {c.estado.ok ? '✓ Correcto' : '● Revisar'}
                   </span>
                 </td>
-                <td style={{ fontSize: '0.8125rem' }}>{c.estado.detalle}</td>
+                <td style={{ fontSize: '0.8125rem' }}>
+                  {c.estado.detalle}
+                  {c.complemento}
+                </td>
               </tr>
             ))}
           </tbody>

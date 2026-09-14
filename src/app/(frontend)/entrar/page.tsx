@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { obtenerSesion } from '@/lib/sesion'
 import { faltaLaPrimeraCuenta } from '@/app/(frontend)/acciones/sesion'
 import { FormularioEntrar } from './FormularioEntrar'
@@ -29,7 +30,7 @@ export default async function PaginaEntrar() {
     <main className="acceso">
       <div className="acceso-caja">
         <div className="acceso-marca">
-          <img src={ruta('/logo.png')} alt="TraumaHub" className="acceso-logo" />
+          <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="acceso-logo" />
         </div>
         <h1 className="acceso-titulo">Entrar</h1>
 
@@ -38,8 +39,8 @@ export default async function PaginaEntrar() {
         />
 
         <p className="acceso-nota">
-          El acceso es cerrado: las cuentas las crea y activa un administrador. Si necesita una,
-          pídala a quien administra la plataforma.
+          ¿No tiene cuenta? <Link href="/registro">Solicite acceso</Link>. Un administrador revisa
+          cada solicitud antes de activarla.
         </p>
       </div>
     </main>

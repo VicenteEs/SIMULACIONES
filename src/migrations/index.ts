@@ -9,6 +9,7 @@ import * as migration_20260913_041920_objetivo_de_los_pasos_antiguos from './202
 import * as migration_20260913_043401_ultimo_administrador_activo from './20260913_043401_ultimo_administrador_activo';
 import * as migration_20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_mapa from './20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_mapa';
 import * as migration_20260913_134259_pose_del_bloque_hereda_del_catalogo from './20260913_134259_pose_del_bloque_hereda_del_catalogo';
+import * as migration_20260914_201156_solicitudes_de_cuenta_y_difusiones from './20260914_201156_solicitudes_de_cuenta_y_difusiones';
 
 export const migrations = [
   {
@@ -64,6 +65,11 @@ export const migrations = [
   {
     up: migration_20260913_134259_pose_del_bloque_hereda_del_catalogo.up,
     down: migration_20260913_134259_pose_del_bloque_hereda_del_catalogo.down,
-    name: '20260913_134259_pose_del_bloque_hereda_del_catalogo'
+    name: '20260913_134259_pose_del_bloque_hereda_del_catalogo',
+  },
+  {
+    up: migration_20260914_201156_solicitudes_de_cuenta_y_difusiones.up,
+    down: migration_20260914_201156_solicitudes_de_cuenta_y_difusiones.down,
+    name: '20260914_201156_solicitudes_de_cuenta_y_difusiones'
   },
 ];

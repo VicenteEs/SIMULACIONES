@@ -332,12 +332,73 @@ describe('los logotipos reservan su hueco', () => {
    *
    * Con `aspect-ratio` la reserva la hace la hoja. El día que los cinco
    * marcados declaren sus dimensiones, esto sobra y se puede quitar.
+   *
+   * La proporción se compara con la cabecera del propio PNG y no con un número
+   * copiado aquí: cuando las dos clases pasaron de `logo.png` (220 × 120) a
+   * `logo-hd.png` (1200 × 655), un número escrito en la prueba solo habría
+   * comprobado que la hoja y la prueba se copiaron la una a la otra. Lo que
+   * importa es que la hoja diga la forma del archivo que se pinta.
    */
-  it('la proporción de logo.png está declarada en las dos clases', () => {
+  it('la proporción de logo-hd.png está declarada en las dos clases', () => {
+    // Anchura y altura van en los bytes 16 a 23 de todo PNG, dentro de IHDR,
+    // que la especificación obliga a que sea el primer bloque.
+    const png = readFileSync(join(process.cwd(), 'public', 'logo-hd.png'))
+    const anchura = png.readUInt32BE(16)
+    const altura = png.readUInt32BE(20)
+
     for (const clase of ['.acceso-logo', '.portada-logo']) {
       const regla = reglas.find((r) => r.selector === clase)!
-      expect(regla.declaraciones['aspect-ratio']).toBe('220 / 120')
+      expect(regla.declaraciones['aspect-ratio'], clase).toBe(`${anchura} / ${altura}`)
       expect(regla.declaraciones.height).toBe('auto')
+    }
+  })
+
+  /**
+   * La marca de la barra superior estuvo declarada dos veces —38 px de alto con
+   * anchura libre, y más abajo 30 × 30—, y la segunda pisaba a la primera sin
+   * que nada lo dijera: agrandar la de arriba no cambiaba nada en pantalla.
+   */
+  it('la marca de la barra se declara una sola vez y cabe en la barra', () => {
+    const marcas = reglas.filter((r) => r.selector === '.marca-logo')
+    expect(marcas.length).toBe(1)
+
+    const alto = parseFloat(marcas[0].declaraciones.height)
+    expect(marcas[0].declaraciones.width).toBe(marcas[0].declaraciones.height)
+
+    const barra = reglas.find((r) => r.selector === '.barra-interior' && r.contexto.length === 0)!
+    expect(alto).toBeLessThanOrEqual(parseFloat(barra.declaraciones.height))
+  })
+})
+
+describe('el pie de página', () => {
+  /**
+   * El layout que lo pinta es de servidor y no conoce la ruta, así que es la
+   * hoja la que lo quita del panel, que ya lleva el crédito en su barra. Si esta
+   * regla se pierde, el pie aparece debajo de cada formulario del panel y
+   * nada falla.
+   */
+  it('no se ve dentro del panel ni en papel', () => {
+    const enElPanel = reglas.find(
+      (r) => r.selector === 'body:has(.admin-layout) .pie-de-pagina' && r.contexto.length === 0,
+    )
+    expect(enElPanel?.declaraciones.display).toBe('none')
+
+    const impresas = porClase('pie-de-pagina').filter(enImpresion)
+    expect(impresas.some((r) => r.declaraciones.display?.startsWith('none'))).toBe(true)
+  })
+
+  /**
+   * En una columna `flex`, el `margin: 0 auto` que `main` trae de serie encoge
+   * la pantalla al ancho de su contenido: el fondo del acceso se quedaría en
+   * una franja del ancho de la caja, con el resto de la página liso a los
+   * lados.
+   */
+  it('las pantallas de una sola vista anulan el margen de main al pasar a columna', () => {
+    for (const clase of ['acceso', 'portada-publica']) {
+      const hija = reglas.find((r) => r.selector.includes(`body:has(> .${clase}) > .${clase}`))
+      expect(hija, `falta la regla de .${clase} dentro de la columna`).toBeDefined()
+      expect(hija!.declaraciones.margin).toBe('0')
+      expect(hija!.declaraciones['min-height']).toBe('0')
     }
   })
 })

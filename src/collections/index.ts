@@ -11,6 +11,7 @@ import { Cirugias } from './Cirugias'
 import { EstudiosIA } from './EstudiosIA'
 import { Comentarios } from './Comentarios'
 import { Actividad } from './Actividad'
+import { Difusiones } from './Difusiones'
 import {
   CATALOGOS_DEL_SIMULADOR,
   ClasificacionesAO,
@@ -48,6 +49,7 @@ export const COLECCIONES: CollectionConfig[] = [
   EstudiosIA,
   Comentarios,
   Actividad,
+  Difusiones,
 ]
 
 export {
@@ -68,4 +70,5 @@ export {
   EstudiosIA,
   Comentarios,
   Actividad,
+  Difusiones,
 }

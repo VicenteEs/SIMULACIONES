@@ -6,7 +6,13 @@ import {
   mantenimientoDeContenido,
   soloSuAutor,
 } from '@/access/payload'
-import { escaparHtml } from '@/lib/validacion'
+import { enviarSinEsperar, hayCorreo } from '@/correo/enviar'
+import { mensajeDeComentarioNuevo } from '@/correo/mensajes'
+// De `modulos.ts` y no de `datos.ts`: aquel son constantes sin un solo import, y
+// este importa `@/collections`, que importa este archivo. El ciclo no falla al
+// compilar; falla al arrancar, con la tabla todavía sin definir.
+import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
+import { direccionPublica } from './Usuarios'
 
 /**
  * Campos que fija la plataforma al crear el comentario y que nadie reescribe
@@ -77,7 +83,10 @@ export const Comentarios: CollectionConfig = {
     ],
     afterChange: [
       async ({ doc, operation, req }) => {
-        if (operation === 'create' && process.env.SMTP_HOST) {
+        // `hayCorreo()` mira `SMTP_HOST`, la misma variable que miraba aquí la
+        // condición escrita a mano: se pregunta a la regla común para que el
+        // gancho y el transporte no puedan discrepar sobre si hay servidor.
+        if (operation === 'create' && hayCorreo()) {
           try {
             const adminQuery = await req.payload.find({
               collection: 'usuarios',
@@ -90,10 +99,6 @@ export const Comentarios: CollectionConfig = {
             const adminEmails = adminQuery.docs.map((a: any) => a.email).filter(Boolean)
 
             if (adminEmails.length > 0) {
-              // El texto lo escribe un usuario y aquí entra en un cuerpo HTML:
-              // sin escapar, un comentario con etiquetas llegaria convertido en
-              // marcado dentro del correo del administrador.
-              //
               // El envío no se espera, y no es un descuido. Los ganchos
               // `afterChange` de colección corren **dentro** de la transacción
               // de la escritura: en `collections/operations/create.js` el bucle
@@ -106,26 +111,32 @@ export const Comentarios: CollectionConfig = {
               // comentario sale duplicado. La condición de entrada es solo que
               // `SMTP_HOST` esté puesta, no que el servidor conteste.
               //
-              // El aviso puede llegar tarde o no llegar; el comentario no puede
-              // tardar en guardarse. Si se vuelve a poner el `await`, vuelve el
-              // fallo.
-              void req.payload
-                .sendEmail({
-                  to: adminEmails,
-                  subject: `Nuevo comentario en ${doc.coleccion}`,
-                  html: `<p>Se ha publicado un nuevo comentario.</p>
-                       <p><strong>Usuario:</strong> ${escaparHtml(req.user?.email || 'Desconocido')}</p>
-                       <p><strong>Comentario:</strong> ${escaparHtml(String(doc.texto ?? ''))}</p>`,
-                })
-                .catch((error) =>
-                  // El `.catch` es obligatorio, no cortesía: una promesa suelta
-                  // que se rompe después de responder la petición tumba el
-                  // proceso de Node por rechazo no atendido.
-                  req.payload.logger.error({
-                    msg: 'No se pudo avisar por correo de un comentario nuevo',
-                    err: error,
+              // Lo garantiza `enviarSinEsperar`, que no devuelve promesa que
+              // esperar y ataja él mismo el fallo —sin ese `.catch`, una promesa
+              // suelta que se rompe después de responder tumba el proceso por
+              // rechazo no atendido—. Si alguien cambia esta llamada por
+              // `await enviarCorreo(…)`, vuelven los dos fallos a la vez.
+              //
+              // El texto del comentario ya no se escapa aquí: lo hace la
+              // plantilla con todo lo que recibe (`src/correo/plantilla.ts`).
+              // Escaparlo también aquí lo escaparía dos veces, y el
+              // administrador leería `&lt;` donde el residente escribió `<`.
+              enviarSinEsperar(
+                req.payload,
+                {
+                  para: adminEmails,
+                  correo: mensajeDeComentarioNuevo({
+                    autor: req.user?.nombre?.trim() || req.user?.email || 'Cuenta desconocida',
+                    // El nombre del módulo y no su slug: el asunto se lee en la
+                    // bandeja, y «casos-ao» ahí no dice nada a quien no ha visto
+                    // nunca la base.
+                    modulo: NOMBRE_DE_MODULO[String(doc.coleccion)] ?? String(doc.coleccion),
+                    texto: String(doc.texto ?? ''),
+                    enlacePanel: `${direccionPublica()}/admin-panel/comentarios`,
                   }),
-                )
+                },
+                'aviso de comentario nuevo',
+              )
             }
           } catch (error) {
             req.payload.logger.error({ msg: 'Error al enviar email de comentario', err: error })

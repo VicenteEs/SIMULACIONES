@@ -147,6 +147,7 @@ const NIVEL_DE_PAGINA: Record<string, Nivel> = {
   'atlas/page.tsx': 'editor',
   'comentarios/page.tsx': 'editor',
   'usuarios/page.tsx': 'admin',
+  'difusion/page.tsx': 'admin',
   'respaldos/page.tsx': 'admin',
   'sistema/page.tsx': 'admin',
   'estadisticas/page.tsx': 'admin',

@@ -169,9 +169,12 @@ const escribeModulo = (a: Actor, modulo: string) =>
  *    los cinco módulos a la vez, así que no admiten restricción por módulo: un
  *    editor restringido los sigue escribiendo (ver `puedeEditar`).
  *  - `cuentas`: solo el administrador.
+ *  - `administracion`: lo que no es una cuenta pero se gobierna igual, solo el
+ *    administrador —las difusiones (D-120)—. Va aparte de `cuentas` porque esa
+ *    clase se ata a la colección de auth, y juntarlas quitaría esa atadura.
  *  - `propias`: filas que pertenecen a una cuenta —comentarios y actividad—.
  */
-type Clase = 'modulo' | 'vocabulario' | 'apoyo' | 'cuentas' | 'propias'
+type Clase = 'modulo' | 'vocabulario' | 'apoyo' | 'cuentas' | 'administracion' | 'propias'
 
 const CLASE_DE: Record<string, Clase> = {
   usuarios: 'cuentas',
@@ -191,6 +194,7 @@ const CLASE_DE: Record<string, Clase> = {
   'estudios-ia': 'modulo',
   comentarios: 'propias',
   actividad: 'propias',
+  difusiones: 'administracion',
 }
 
 type Esperado = (a: Actor) => boolean
@@ -220,6 +224,7 @@ function politica(slug: string, clase: Clase): Record<string, Esperado> {
     case 'apoyo':
       return { leer: esActivo, crear: escribeContenido, editar: escribeContenido, borrar: escribeContenido }
     case 'cuentas':
+    case 'administracion':
       return { leer: esAdmin, crear: esAdmin, editar: esAdmin, borrar: esAdmin }
     case 'propias': {
       const comun: Record<string, Esperado> = {
@@ -376,6 +381,14 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
   actividad: {
     titulo: 'documentoId',
     fabricar: (documentoId) => ({ data: { coleccion: 'patologias', documentoId } }),
+  },
+  // Terminada y sin cola: la matriz mira quién la lee y la escribe, y una
+  // difusión «enviando» sin trabajador no mandaría nada de todos modos.
+  difusiones: {
+    titulo: 'asunto',
+    fabricar: (asunto) => ({
+      data: { asunto, mensaje: 'Aviso de prueba.', audiencia: 'todas', estado: 'enviada', total: 0, enviados: 0, fallidos: 0 },
+    }),
   },
 }
 

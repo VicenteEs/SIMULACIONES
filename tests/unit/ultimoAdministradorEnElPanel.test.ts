@@ -245,12 +245,26 @@ describe('la base deshace el cambio y la llamada dice que fue bien', () => {
   })
 
   it('lo que no puede tocar el disparador no paga la relectura', async () => {
-    // Activar una cuenta o cambiarle el nombre no deja a nadie sin
-    // administradores: releer ahí sería una consulta por clic para nada.
-    await cambiarActivoUsuario('9', true)
+    // Cambiarle el nombre a una cuenta o hacerla administradora no deja a
+    // nadie sin administradores: releer ahí sería una consulta por clic para
+    // nada.
     await actualizarUsuario('9', { nombre: 'Otro nombre' })
     await actualizarUsuario('9', { rol: 'admin' })
     expect(buscarPorId).not.toHaveBeenCalled()
+  })
+
+  it('activar lee una vez antes de escribir, y no relee después', async () => {
+    // Activar tampoco puede toparse con el disparador. La única lectura es la
+    // de antes, para saber si la activación responde a una solicitud —hay que
+    // quitarle la marca de pendiente y avisar a la persona—; la relectura de
+    // después, la que descubre un `COMMIT` tragado, sigue sin pagarse.
+    buscarPorId.mockResolvedValue({ id: 9, email: 'otra@hospital.cl', activo: false })
+    await cambiarActivoUsuario('9', true)
+
+    expect(buscarPorId).toHaveBeenCalledTimes(1)
+    expect(buscarPorId.mock.invocationCallOrder[0]).toBeLessThan(
+      actualizar.mock.invocationCallOrder[0],
+    )
   })
 })
 

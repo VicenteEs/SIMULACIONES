@@ -3,6 +3,8 @@ import { administracionDeUsuarios, accesoAlPanel } from '@/access/payload'
 import { ajustarPrimerUsuario } from './hooks/primerUsuario'
 import { impedirAutobloqueo, impedirBorradoDelUltimoAdmin } from './hooks/autobloqueo'
 import { limpiarRastroDeUsuario } from './hooks/bajaDeUsuario'
+import { armarCorreo } from '@/correo/plantilla'
+import { mensajeDeClaveNueva } from '@/correo/mensajes'
 
 /**
  * Cuántos intentos fallidos bloquean una cuenta, y por cuánto tiempo.
@@ -73,7 +75,7 @@ export function enlaceDeClave(testigo: string): string {
 }
 
 /**
- * Correo para elegir contraseña nueva.
+ * Correo para elegir contraseña nueva, ya armado en HTML.
  *
  * El de Payload apunta a `/admin/reset/<testigo>`, y esa ruta es el redirector
  * de enlaces viejos que quedó al retirar su interfaz (D-038). Funcionaba, y
@@ -86,17 +88,21 @@ export function enlaceDeClave(testigo: string): string {
  * Así que se arma aquí, en español y apuntando directo a la pantalla propia,
  * con la misma `enlaceDeClave` que llama `generarEnlaceDeClave` en el panel.
  *
+ * Desde que los correos tienen plantilla (D-118) este HTML ya no es el que
+ * recibe casi nadie: la pantalla `/clave` y el panel piden el testigo con
+ * `disableEmail` y envían por `enviarCorreo`, que adjunta el logotipo dentro
+ * del mensaje. Esta función queda enganchada en `generateEmailHTML` para el
+ * único camino que sigue mandando Payload por su cuenta —su `forgotPassword`
+ * sin `disableEmail`—, con el mismo texto y la misma plantilla, y con el
+ * logotipo por dirección pública porque ese envío no admite adjuntos.
+ *
  * Ver O-022 en BITACORA.md.
  */
 export function correoDeClaveNueva(testigo: string): string {
-  const enlace = enlaceDeClave(testigo)
-  return `
-    <p>Alguien pidió una contraseña nueva para su cuenta de TraumaHub.</p>
-    <p><a href="${enlace}">Elegir una contraseña nueva</a></p>
-    <p>O copie esta dirección en el navegador:<br>${enlace}</p>
-    <p>Si no fue usted, no hace falta hacer nada: la contraseña actual sigue
-    siendo válida.</p>
-  `
+  const base = direccionPublica()
+  return armarCorreo(mensajeDeClaveNueva(enlaceDeClave(testigo)), {
+    logo: base ? `${base}/logo-correo.png` : null,
+  }).html
 }
 
 /**
@@ -192,11 +198,14 @@ async function contarOtrosAdminsActivos(req: PayloadRequest, exceptoId: string):
 }
 
 /**
- * Cuentas de la plataforma (decisión D-020).
+ * Cuentas de la plataforma (decisión D-020, ampliada en D-119).
  *
- * No hay registro abierto: el administrador crea cada cuenta y la activa. Una
- * cuenta desactivada conserva su contraseña pero no ve absolutamente nada, lo
- * que permite dar de baja a alguien sin borrar su historial.
+ * Una cuenta nace de dos maneras: la crea un administrador desde el panel, o la
+ * pide la propia persona en `/registro`. La pedida nace **desactivada** y con
+ * `pendiente` marcado, y no entra hasta que un administrador la revisa: pedir
+ * no es entrar. Una cuenta desactivada conserva su contraseña pero no ve
+ * absolutamente nada, lo que permite dar de baja a alguien sin borrar su
+ * historial.
  */
 export const Usuarios: CollectionConfig = {
   slug: 'usuarios',
@@ -370,6 +379,45 @@ export const Usuarios: CollectionConfig = {
       },
     },
     { name: 'institucion', type: 'text', label: 'Institución o servicio' },
+    {
+      // De dónde salió la cuenta. No decide ningún permiso: sirve para que el
+      // panel distinga, entre las desactivadas, a quien pidió entrar de quien
+      // fue dada de baja, que se atienden al revés.
+      //
+      // Sin `required` a propósito: con él, el tipo que genera Payload exige
+      // `origen` en cada `create` de cuentas, incluidos los que no tienen nada
+      // que ver con esto —la primera cuenta, las pruebas—. El valor por
+      // omisión basta para que ninguna fila quede sin él.
+      name: 'origen',
+      type: 'select',
+      defaultValue: 'panel',
+      label: 'Origen de la cuenta',
+      options: [
+        { label: 'Creada desde el panel', value: 'panel' },
+        { label: 'Pedida por la persona', value: 'solicitud' },
+      ],
+    },
+    {
+      // Una solicitud que nadie ha revisado todavía. Se marca al pedir la
+      // cuenta en `/registro` y se apaga al activarla o rechazarla. Es lo que
+      // cuenta el aviso de la barra del panel: mirar solo `activo` mezclaría
+      // las solicitudes con las bajas, y el número no significaría nada.
+      name: 'pendiente',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Solicitud por revisar',
+      index: true,
+    },
+    {
+      // Lo que la persona escribió al pedir la cuenta —«residente de segundo
+      // año del Hospital X»—. Es lo único con lo que el administrador decide
+      // si la activa, así que se guarda tal cual y no se mezcla con `notas`,
+      // que son del administrador.
+      name: 'motivoDeSolicitud',
+      type: 'textarea',
+      label: 'Lo que escribió al pedir la cuenta',
+    },
+    { name: 'solicitadaEn', type: 'date', label: 'Pedida el' },
     {
       // Permisos por módulo. La lista vacía significa «todos», no «ninguno»:
       // es lo que evita que una cuenta recién creada no vea nada sin que se

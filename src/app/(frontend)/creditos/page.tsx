@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Miga } from '@/components/Estados'
+import { AUTORIA } from '@/lib/autoria'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,11 @@ export const metadata: Metadata = {
 }
 
 /**
- * Créditos del material de terceros.
+ * Créditos: quién desarrolló la plataforma y el material de terceros que usa.
+ *
+ * La autoría sale de `AUTORIA` (`src/lib/autoria.ts`), como en el pie de página,
+ * en la barra del panel y en los correos; escrita a mano aquí, sería la cuarta
+ * copia que se queda atrás el día que cambie la dirección.
  *
  * No es cortesía: la licencia del atlas anatómico —CC BY 4.0— **obliga** a
  * atribuir y a indicar los cambios allí donde el material se muestre. Esta
@@ -37,8 +42,23 @@ export default async function PaginaCreditos() {
       <Miga href="/" texto="Inicio" />
       <h1>Créditos y licencias</h1>
       <p className="entrada">
-        Qué material de terceros usa esta plataforma, con qué licencia y qué se cambió.
+        Quién desarrolló esta plataforma, qué material de terceros usa, con qué licencia y qué se
+        cambió.
       </p>
+
+      {/* Primero, y no al final con el aviso: el pie de cada página enlaza aquí
+          con el nombre de quien la desarrolló, y quien llega pulsándolo busca
+          eso antes que la licencia del atlas. */}
+      <section className="tarjeta">
+        <h2>Desarrollo</h2>
+        <p>
+          TraumaHub fue desarrollado por <strong>{AUTORIA.nombre}</strong>.
+        </p>
+        <p>
+          Para consultas, sugerencias o problemas con la plataforma, escriba a{' '}
+          <a href={`mailto:${AUTORIA.correo}`}>{AUTORIA.correo}</a>.
+        </p>
+      </section>
 
       <section className="tarjeta">
         <h2>Atlas anatómico</h2>

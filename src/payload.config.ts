@@ -136,8 +136,14 @@ export default buildConfig({
   // que la aplicación arranque igual en desarrollo.
   email: process.env.SMTP_HOST
     ? nodemailerAdapter({
-        defaultFromAddress: process.env.SMTP_DESDE || 'no-responder@localhost',
-        defaultFromName: 'Plataforma de traumatología',
+        // Con cPanel el remitente tiene que ser la misma cuenta con la que se
+        // autentica (`SMTP_USUARIO`): otro distinto lo rechaza el servidor o
+        // lo firma como suplantación. Por eso cae en el usuario antes que en
+        // una dirección inventada. Ver docs/CORREO.md.
+        defaultFromAddress:
+          process.env.SMTP_DESDE || process.env.SMTP_USUARIO || 'no-responder@localhost',
+        // El nombre que se lee en la bandeja de entrada antes que el asunto.
+        defaultFromName: process.env.SMTP_NOMBRE || 'TraumaHub',
         transportOptions: {
           host: process.env.SMTP_HOST,
           port: Number(process.env.SMTP_PUERTO || 587),

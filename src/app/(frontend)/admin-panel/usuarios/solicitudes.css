@@ -1,0 +1,141 @@
+/* Tarjetas de «Solicitudes por revisar», encima de la tabla de cuentas.
+ *
+ * Es una hoja aparte y no un bloque más de `admin.css` porque solo la usa esta
+ * pantalla, y la importa su componente: así viaja con él y no engorda la hoja
+ * que carga cada página del panel. Los colores salen todos de las variables de
+ * `estilos.css`; un color escrito a mano aquí sería el quinto verde que
+ * `tests/unit/estilosDelPanel.test.ts` ya tuvo que perseguir en la otra hoja. */
+
+.solicitudes {
+  margin-bottom: 2rem;
+}
+
+/* El título de sección del panel trae 2.5rem de margen arriba, pensado para
+ * separar secciones de una misma página. Aquí va justo debajo de los avisos y
+ * ese hueco empujaba las solicitudes fuera de la primera pantalla, que es
+ * justamente donde tienen que verse. */
+.solicitudes .admin-section-title {
+  margin-top: 0.5rem;
+}
+
+.solicitudes-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.solicitud {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background-color: var(--superficie);
+  border: 1px solid var(--linea-suave);
+  border-left: 3px solid var(--ambar);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sombra);
+  padding: 1rem 1.25rem;
+}
+
+.solicitud-cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.solicitud-fecha {
+  color: var(--mudo);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Lo que escribió la persona, tal cual. `pre-wrap` conserva los saltos de línea
+ * con los que lo separó en párrafos, y `anywhere` parte una dirección o un
+ * enlace largo que sin él ensanchaba la tarjeta fuera de su columna. El alto se
+ * acota para que una solicitud con media página de motivo no empuje las demás
+ * hasta el fondo; se lee entera desplazando dentro. */
+.solicitud-motivo {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 2px solid var(--linea);
+  background-color: var(--papel);
+  color: var(--pizarra);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.solicitud-sin-motivo {
+  margin: 0;
+  color: var(--mudo);
+  font-size: 0.8125rem;
+  font-style: italic;
+}
+
+.solicitud-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.solicitud-acciones label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--pizarra);
+  font-size: 0.8125rem;
+}
+
+/* Las dos maneras de dar de alta una cuenta, en el modal de «Nueva cuenta». */
+.alta-opciones {
+  border: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.alta-opciones legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.alta-opcion {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.alta-opcion:has(input:checked) {
+  border-color: var(--marca);
+  background-color: var(--marca-tenue);
+}
+
+.alta-opcion:has(input:disabled) {
+  cursor: not-allowed;
+  color: var(--mudo);
+}
+
+.alta-opcion input {
+  margin-top: 0.2rem;
+}
+
+.alta-opcion small {
+  display: block;
+  color: var(--mudo);
+  font-size: 0.75rem;
+  margin-top: 0.125rem;
+}

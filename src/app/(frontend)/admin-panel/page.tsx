@@ -37,13 +37,29 @@ export default async function ResumenAdmin() {
 
   const payload = await clientePayload()
 
-  const [usuarios, comentarios, todosLosModulos, actividad, respaldos] = await Promise.all([
-    esAdmin ? resumenDeUsuarios(payload) : null,
-    resumenDeComentarios(payload),
-    conteosPorModulo(payload),
-    esAdmin ? resumenDeActividad(payload) : null,
-    esAdmin ? listarRespaldos().catch(() => []) : [],
-  ])
+  const [usuarios, comentarios, todosLosModulos, actividad, respaldos, solicitudes] =
+    await Promise.all([
+      esAdmin ? resumenDeUsuarios(payload) : null,
+      resumenDeComentarios(payload),
+      conteosPorModulo(payload),
+      esAdmin ? resumenDeActividad(payload) : null,
+      esAdmin ? listarRespaldos().catch(() => []) : [],
+      // Solo para el administrador, que es quien puede resolverlas: al editor
+      // no se le enseña un número que no le toca atender, igual que en la
+      // barra. Si la base no contesta se queda en cero, sin aviso propio: la
+      // tarjeta de cuentas, que lee la misma tabla, ya sale ilegible y levanta
+      // el aviso general de arriba.
+      esAdmin
+        ? payload
+            .count({
+              collection: 'usuarios',
+              where: { pendiente: { equals: true } },
+              overrideAccess: true,
+            })
+            .then((conteo) => conteo.totalDocs)
+            .catch(() => 0)
+        : 0,
+    ])
 
   // Un editor con módulos asignados cuenta y ve los suyos: un resumen que suma
   // fichas que no puede tocar no le sirve para saber qué le queda por hacer.
@@ -121,6 +137,24 @@ export default async function ResumenAdmin() {
         </p>
       </header>
 
+      {/* Lo primero de la página, por encima del respaldo: quien pidió la
+          cuenta está esperando ahora, sin poder hacer nada ni saber a quién
+          preguntar, y la barra lateral solo enseña un número pequeño junto a
+          una entrada que no se abre si no se va a hacer algo con las cuentas. */}
+      {esAdmin && solicitudes > 0 ? (
+        <div className="admin-aviso admin-aviso-atencion" role="status">
+          <strong>
+            {solicitudes === 1
+              ? '1 solicitud de cuenta espera revisión.'
+              : `${solicitudes} solicitudes de cuenta esperan revisión.`}
+          </strong>
+          {solicitudes === 1
+            ? ' Quien la pidió no puede entrar hasta que un administrador la active o la rechace en '
+            : ' Quienes las pidieron no pueden entrar hasta que un administrador las active o las rechace en '}
+          <Link href="/admin-panel/usuarios">Usuarios y permisos</Link>.
+        </div>
+      ) : null}
+
       {!esAdmin ? null : diasSinRespaldo === null ? (
         <div className="admin-aviso admin-aviso-atencion">
           <strong>No hay ningún respaldo de la base de datos.</strong>
@@ -175,7 +209,17 @@ export default async function ResumenAdmin() {
                   {usuarios.admins} administrador{usuarios.admins === 1 ? '' : 'es'} ·{' '}
                   {usuarios.editores} editor{usuarios.editores === 1 ? '' : 'es'} ·{' '}
                   {usuarios.lectores} lector{usuarios.lectores === 1 ? '' : 'es'}
-                  {usuarios.inactivos > 0 ? ` · ${usuarios.inactivos} sin activar` : ''}
+                  {/* Las solicitudes también están sin activar, pero no son
+                      bajas, y ya tienen su aviso arriba: contadas aquí dos
+                      veces, «3 sin activar» hacía buscar tres bajas donde
+                      había una. `Math.max` porque los dos conteos son
+                      consultas distintas, y entre ambas pudo llegar otra. */}
+                  {Math.max(usuarios.inactivos - solicitudes, 0) > 0
+                    ? ` · ${Math.max(usuarios.inactivos - solicitudes, 0)} sin activar`
+                    : ''}
+                  {solicitudes > 0
+                    ? ` · ${solicitudes} solicitud${solicitudes === 1 ? '' : 'es'}`
+                    : ''}
                 </>
               )}
             </p>

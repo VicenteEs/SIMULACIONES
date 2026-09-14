@@ -672,9 +672,13 @@
    ========================================================================== */
 
 /* ---------- barra lateral ---------- */
+/* 42 px y no los 32 de antes: al lado de dos líneas de texto —«TraumaHub» y
+   «Panel de control»— la marca se quedaba más baja que el bloque que presenta.
+   En la fila de pantalla estrecha (bloque de 1000 px) la marca va sola y los
+   enlaces miden unos 38 px, así que la fila crece apenas cuatro. */
 .admin-sidebar-logo {
-  height: 32px;
-  width: 32px;
+  height: 42px;
+  width: 42px;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -1567,6 +1571,32 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .admin-salir:hover:not(:disabled) { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
 .admin-salir:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* El crédito de autoría, al pie de la barra lateral. Dentro del panel hace las
+   veces del pie de página de la plataforma, que aquí se esconde
+   (`estilos.css`, `.pie-de-pagina`).
+
+   Los colores salen de la propia barra y están medidos sobre `--tinta`: el
+   texto en #8ba6d8, el de «Panel de control», da 7:1; el enlace en `--cian`,
+   5,8:1. No se usó el #5d7099 de `.admin-sidebar-quien`, que parece el
+   candidato natural por ser la línea de encima: se queda en 3,5:1, y ahí vale
+   porque es un rótulo en mayúsculas, no una frase con una dirección que
+   copiar.
+
+   Envuelve en vez de cortarse con puntos suspensivos, al revés que
+   `.admin-sidebar-quien`: un nombre de usuario recortado se sigue
+   reconociendo, una dirección de correo recortada ya no sirve para escribirle. */
+.admin-sidebar-credito {
+  margin: 0.9rem 0 0;
+  padding: 0 0.75rem;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: #8ba6d8;
+  overflow-wrap: anywhere;
+}
+
+.admin-sidebar-credito a { color: var(--cian); text-decoration: none; }
+.admin-sidebar-credito a:hover { text-decoration: underline; }
+
 /* ---------- la tabla se desplaza sola en pantalla estrecha ---------- */
 @media (max-width: 900px) {
   .admin-table-container { overflow-x: auto; }
@@ -1616,6 +1646,11 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   .admin-nav-back .admin-nav-texto { display: none; }
   .admin-sidebar-pie { padding: 0; }
   .admin-sidebar-quien { display: none; }
+  /* La barra es aquí una sola fila desplazable y `.admin-nav-back` otra fila
+     dentro de ella: un párrafo de dos líneas la haría crecer en alto o se
+     partiría letra a letra por el `overflow-wrap`. Se va con el nombre de
+     quien usa el panel, por la misma falta de sitio. */
+  .admin-sidebar-credito { display: none; }
   .admin-content { padding: 1.5rem 1.25rem; }
 }
 

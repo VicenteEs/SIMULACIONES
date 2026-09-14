@@ -94,7 +94,16 @@ main { max-width: 1060px; margin: 0 auto; padding: 44px 24px 96px; }
 .barra { background: var(--tinta); color: #e9eefb; position: sticky; top: 0; z-index: 40; border-bottom: 1px solid #000; }
 .barra-interior { max-width: 1060px; margin: 0 auto; padding: 0 24px; height: 58px; display: flex; align-items: center; gap: 26px; }
 .marca { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
-.marca-logo { height: 38px; width: auto; object-fit: contain; display: block; }
+/* La marca es cuadrada (`public/icon.png`, 192 × 192), así que se fijan los dos
+   lados. Hubo dos reglas: esta con `height: 38px; width: auto` y otra en el
+   bloque de correcciones con 30 × 30, que ganaba por ir después; quien venía a
+   agrandar el logotipo tocaba esta, recargaba y no veía nada. Queda una sola.
+
+   40 px caben en los 58 de `.barra-interior` con nueve de aire por lado, igual
+   que `.menu-boton`, que mide lo mismo. Pasar de ahí obliga a subir la barra, y
+   de esa altura cuelgan `.pestana { scroll-margin-top }`, `.indice-ficha
+   { top }` y el `calc(100vh - 58px)` de `.admin-layout`. */
+.marca-logo { height: 40px; width: 40px; object-fit: contain; display: block; flex-shrink: 0; }
 .marca-sub { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.15em; text-transform: uppercase; color: #8ba6d8; font-weight: 500; margin-top: 1px; }
 .modulos { display: flex; gap: 20px; flex: 1; flex-wrap: wrap; }
 .modulos a { color: #b0c4e6; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s ease, border-color 0.15s ease; }
@@ -990,8 +999,11 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
     font-size: 11pt;
   }
 
-  /* Ocultar elementos interactivos y de navegación */
-  nav, .miga, .boton, .boton-imprimir, .rastreador-actividad, .formulario-comentario, .contenedor-comentario-toggle {
+  /* Ocultar elementos interactivos y de navegación. El pie de página va con
+     ellos: en papel sus dos enlaces no se pueden pulsar, y al final de una
+     ficha impresa para pabellón puede ser justo lo que manda las últimas
+     líneas a una hoja más. */
+  nav, .miga, .boton, .boton-imprimir, .rastreador-actividad, .formulario-comentario, .contenedor-comentario-toggle, .pie-de-pagina {
     display: none !important;
   }
 
@@ -1054,20 +1066,29 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 }
 
 /* El logotipo completo lleva el nombre escrito: por debajo de unos 150px de
-   ancho deja de leerse y se convierte en una mancha azul. */
+   ancho deja de leerse y se convierte en una mancha azul.
+
+   Pasó de 190 a 240 px porque a 190 el nombre se leía justo, y sale ahora de
+   `public/logo-hd.png` (1200 × 655) y no de `logo.png` (220 × 120): estirado a
+   240 px, aquel se veía borroso en cualquier pantalla de densidad doble, que es
+   la de casi todos los teléfonos. El 78 % es lo que lo protege del mínimo de
+   arriba en el teléfono más estrecho: en 320 px la caja deja 206 de interior
+   (272 menos 32 de relleno y 1 de borde por lado) y el logotipo se queda en
+   160. Con el 70 % de antes bajaba a 144. */
 .acceso-logo {
-  width: 190px;
-  max-width: 70%;
+  width: 240px;
+  max-width: 78%;
   height: auto;
   object-fit: contain;
-  /* Las dimensiones reales de `public/logo.png`. Los `<img>` de las cinco
-     páginas de acceso no llevan atributos `width`/`height`, así que hasta que
-     el archivo se descargaba y descodificaba el navegador no conocía la
-     proporción y la caja medía 0 px: al aterrizar, el título, los dos campos y
-     el botón bajaban 104 px de golpe. `height: auto` sigue mandando en el
-     tamaño pintado; esto solo dice cuánto hueco guardar mientras tanto. Si el
-     logotipo cambia de forma, este número cambia con él. */
-  aspect-ratio: 220 / 120;
+  /* Las dimensiones reales de `public/logo-hd.png`. Los `<img>` de las páginas
+     de acceso no llevan atributos `width`/`height`, así que hasta que el
+     archivo se descargaba y descodificaba el navegador no conocía la
+     proporción y la caja medía 0 px: al aterrizar, el título, los campos y el
+     botón bajaban de golpe todo el alto del logotipo. `height: auto` sigue
+     mandando en el tamaño pintado; esto solo dice cuánto hueco guardar
+     mientras tanto. Si el logotipo cambia de forma, este número cambia con él,
+     y `tests/unit/estilosPublicos.test.ts` lo compara con el archivo. */
+  aspect-ratio: 1200 / 655;
 }
 
 .acceso-titulo {
@@ -1181,9 +1202,6 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 
 .modulos::-webkit-scrollbar { display: none; }
 .modulos a { white-space: nowrap; }
-
-/* La marca del logotipo es cuadrada: se le da su proporción y algo más de aire. */
-.marca-logo { height: 30px; width: 30px; }
 
 
 /* ---------- foco visible también sobre fondo oscuro ----------
@@ -1482,16 +1500,21 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   max-width: 660px;
 }
 
+/* 320 px y no los 260 de antes, con el mismo cambio de archivo que
+   `.acceso-logo`: el logotipo sale de `logo-hd.png`, que aguanta el tamaño sin
+   emborronarse. El 72 % se queda como estaba porque ya bastaba: en un teléfono
+   de 375 px la columna deja 331 de ancho y el logotipo pinta 238. */
 .portada-logo {
-  width: 260px;
+  width: 320px;
   max-width: 72%;
   height: auto;
-  /* Proporción de `public/logo.png`, por lo mismo que en `.acceso-logo`, y aquí
-     con más motivo: la portada es una columna centrada, así que al aparecer los
-     142 px del logotipo más su margen se recolocaba la columna entera y el
-     botón «Entrar» se movía unos 88 px. Quien lo tocara en ese instante
-     —conexión lenta, móvil, primera visita— pulsaba lo que quedase debajo. */
-  aspect-ratio: 220 / 120;
+  /* Proporción de `public/logo-hd.png`, por lo mismo que en `.acceso-logo`, y
+     aquí con más motivo: la portada es una columna centrada, así que al
+     aparecer los 175 px del logotipo más su margen se recolocaba la columna
+     entera y el botón «Entrar» se movía de sitio. Quien lo tocara en ese
+     instante —conexión lenta, móvil, primera visita— pulsaba lo que quedase
+     debajo. */
+  aspect-ratio: 1200 / 655;
   margin: 0 auto 34px;
   display: block;
   /* El logotipo es azul sobre blanco; sobre el marino se aclara para no
@@ -1550,6 +1573,12 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 }
 
 /* ---------- tira de módulos ---------- */
+/* El relleno de abajo bajó de 56 a 34 px (y de 40 a 26 en el teléfono) cuando
+   llegó el pie de página. Antes la tira era el final de la pantalla y ese hueco
+   la separaba del borde; ahora debajo viene el pie, con su propio filete, y los
+   56 px dejaban dos rayas flotando lejos una de otra. Es también lo que
+   compensa en parte el logotipo más grande: en un portátil de 800 px de alto la
+   portada con el pie ya no cabía sin desplazarse. */
 .portada-tira {
   position: relative;
   z-index: 1;
@@ -1559,7 +1588,7 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   gap: 8px 0;
   width: 100%;
   max-width: 1000px;
-  padding: 26px 24px 56px;
+  padding: 26px 24px 34px;
   border-top: 1px solid rgba(255, 255, 255, 0.09);
   margin-top: 20px;
 }
@@ -1591,7 +1620,7 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 @media (max-width: 640px) {
   .portada-hero { padding: 44px 22px 30px; }
   .portada-logo { margin-bottom: 26px; }
-  .portada-tira { padding: 20px 18px 40px; gap: 14px 0; }
+  .portada-tira { padding: 20px 18px 26px; gap: 14px 0; }
   .portada-tira-item { flex-basis: 45%; }
 }
 
@@ -1824,3 +1853,89 @@ dd > div blockquote p:last-child,
   color: var(--tinta);
   border-radius: 0 var(--r) var(--r) 0;
 }
+
+/* ==========================================================================
+   Pie de página (`PieDePagina.tsx`).
+
+   Discreto a propósito: es la firma de la plataforma y la dirección a la que
+   se escribe cuando algo falla, no contenido. Va en `--mudo`, que es el gris
+   de las notas y da 4,98:1 sobre `--papel`; más claro dejaría de leerse justo
+   el correo que se busca cuando algo no funciona.
+   ========================================================================== */
+.pie-de-pagina {
+  border-top: 1px solid var(--linea-suave);
+  padding: 18px 24px 22px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--mudo);
+}
+
+.pie-de-pagina p { margin: 0; }
+.pie-de-pagina a { color: var(--marca); text-decoration: none; }
+.pie-de-pagina a:hover { text-decoration: underline; }
+/* La dirección de correo no tiene espacios donde partirse, y en un teléfono de
+   320 px no cabe entera en la línea con el nombre: sin esto empujaba la página
+   hacia un lado. */
+.pie-de-pagina-correo { overflow-wrap: anywhere; }
+
+/* Los mismos 18 px de lado que `main` en el teléfono, para que el texto del pie
+   no quede más metido ni más fuera que el de la página que cierra. */
+@media (max-width: 640px) {
+  .pie-de-pagina { padding: 16px 18px 20px; }
+}
+
+/* Dentro del panel no se ve: la barra lateral ya lleva el crédito
+   (`.admin-sidebar-credito`), y dos firmas en la misma pantalla sobran.
+
+   Se decide aquí y no en `layout.tsx` porque el layout es de servidor y no
+   conoce la ruta: Next le pasa la dirección a la página, no al layout. Y
+   aunque la sacara de las cabeceras, no bastaría: un layout no se vuelve a
+   pintar al navegar entre páginas que lo comparten, así que al pasar de la
+   plataforma al panel con un `<Link>` el pie seguiría como lo decidió la
+   primera carga. Es el mismo recurso con el que `admin.css` esconde la barra
+   superior dentro del panel; la regla vive aquí, junto al pie, porque esta
+   hoja se carga en todas las páginas y `admin.css` solo en el panel. */
+body:has(.admin-layout) .pie-de-pagina { display: none; }
+
+/* Las dos pantallas de una sola vista —el acceso y la portada sin sesión—
+   miden `min-height: 100vh` para centrar su contenido. Con el pie detrás, esa
+   vista entera más el pie no caben: el pie quedaba debajo del borde, y con la
+   barra superior encima (una sesión abierta que visita `/clave`) la página ya
+   medía 58 px más que la ventana antes de que hubiera pie.
+
+   El `body` pasa a columna solo en esas dos pantallas, y la pantalla ocupa lo
+   que dejan la barra y el pie en vez de una vista entera. Sin `:has()` —o si
+   algún día el `<main>` deja de ser hijo directo del `body`— nada de esto
+   aplica y todo vuelve a como estaba: la caja centrada en la vista y el pie
+   debajo, a un desplazamiento. No se hizo para todas las páginas: en una
+   columna `flex`, el `margin: 0 auto` de `main` encoge el ancho al contenido, y
+   una ficha corta se quedaría en una cinta estrecha en el centro. Por eso aquí
+   el margen se anula. */
+body:has(> .acceso),
+body:has(> .portada-publica) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+body:has(> .acceso) > .acceso,
+body:has(> .portada-publica) > .portada-publica {
+  flex: 1 0 auto;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+}
+
+/* Sobre la portada marina, un pie claro sería una franja blanca pegada al
+   degradado. Toma el color con el que el degradado termina, y los mismos tonos
+   de `.portada-tira`, que ya están medidos sobre ese fondo: #a9bcdd da 6,7:1
+   sobre #143063 y #7fd0f5 algo más. El cian de la paleta se queda en 4,35:1,
+   por debajo de AA para esta letra, y por eso el enlace no lo usa. */
+.portada-publica ~ .pie-de-pagina {
+  background: #143063;
+  border-top-color: rgba(255, 255, 255, 0.09);
+  color: #a9bcdd;
+}
+
+.portada-publica ~ .pie-de-pagina a { color: #7fd0f5; }

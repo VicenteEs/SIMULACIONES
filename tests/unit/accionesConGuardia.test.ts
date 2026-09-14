@@ -234,6 +234,7 @@ interface Clasificacion {
 
 const USUARIO_NUEVO = ['nueva@prueba.invalid', 'Cuenta nueva', 'una-clave-larga-de-prueba', 'lector']
 const RESULTADO = { puntaje: 1, puntajeMaximo: 2, complicaciones: [] }
+const DIFUSION = { asunto: 'Aviso', mensaje: 'Un aviso para todas las cuentas.', audiencia: 'todas' }
 
 const GUARDIAS: Record<string, Clasificacion> = {
   'admin.ts:crearUsuario': { guardia: 'admin', argumentos: () => USUARIO_NUEVO },
@@ -241,6 +242,7 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'admin.ts:cambiarActivoUsuario': { guardia: 'admin', argumentos: () => ['5', true] },
   'admin.ts:eliminarUsuario': { guardia: 'admin', argumentos: () => ['5'] },
   'admin.ts:generarEnlaceDeClave': { guardia: 'admin', argumentos: () => ['5'] },
+  'admin.ts:resolverSolicitud': { guardia: 'admin', argumentos: () => ['5', 'activar', 'lector'] },
   'admin.ts:eliminarComentario': { guardia: 'admin', argumentos: () => ['5'] },
   // El editor resuelve comentarios —es quien arregla lo señalado— pero no los borra.
   'admin.ts:actualizarComentario': { guardia: 'editor', argumentos: () => ['5', 'resuelto'] },
@@ -265,6 +267,14 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'atlas.ts:eliminarInstancia': { guardia: 'editor', argumentos: () => ['5'] },
   'atlas.ts:exportarComoModelo': { guardia: 'editor', argumentos: () => ['5'] },
 
+  // Un correo a todas las cuentas es de administrador, y la prueba de ese correo
+  // también: gasta la misma cuota del hosting.
+  'difusion.ts:enviarPruebaDeDifusion': { guardia: 'admin', argumentos: () => [DIFUSION] },
+  'difusion.ts:iniciarDifusion': { guardia: 'admin', argumentos: () => [DIFUSION] },
+  'difusion.ts:reanudarDifusion': { guardia: 'admin', argumentos: () => ['5'] },
+  'difusion.ts:detenerDifusion': { guardia: 'admin', argumentos: () => ['5'] },
+  'correo.ts:enviarCorreoDePrueba': { guardia: 'admin', argumentos: () => [] },
+
   'respaldos.ts:respaldarAhora': { guardia: 'admin', argumentos: () => [] },
   'respaldos.ts:borrarRespaldo': { guardia: 'admin', argumentos: () => ['base-20260101-000000.sql.gz'] },
 
@@ -283,7 +293,30 @@ const GUARDIAS: Record<string, Clasificacion> = {
 
   'sesion.ts:entrar': { guardia: 'publica', permitidos: ['login'], argumentos: () => ['a@prueba.invalid', 'clave'] },
   'sesion.ts:salir': { guardia: 'publica', permitidos: [], argumentos: () => [] },
-  'sesion.ts:pedirEnlaceDeClave': { guardia: 'publica', permitidos: ['forgotPassword'], argumentos: () => ['a@prueba.invalid'] },
+  // El correo sale por `enviarSinEsperar`, que sin SMTP no llama a nada; con él,
+  // `sendEmail` es lo único más que puede tocar.
+  'sesion.ts:pedirEnlaceDeClave': {
+    guardia: 'publica',
+    permitidos: ['forgotPassword', 'sendEmail'],
+    argumentos: () => ['a@prueba.invalid'],
+  },
+  // La primera acción pública que escribe: cuenta las cuentas (para no fabricar
+  // la primera, que nacería administradora), busca el correo, crea la cuenta
+  // desactivada y busca a quién avisar. Nada de `update`, `delete` ni `login`.
+  'sesion.ts:solicitarCuenta': {
+    guardia: 'publica',
+    permitidos: ['count', 'find', 'create', 'sendEmail'],
+    argumentos: () => [
+      {
+        nombre: 'Persona Nueva',
+        correo: 'nueva@prueba.invalid',
+        institucion: 'Hospital de prueba',
+        motivo: 'Residente de segundo año.',
+        contrasena: 'una-clave-larga-de-prueba',
+        sitioWeb: '',
+      },
+    ],
+  },
   'sesion.ts:fijarClaveNueva': {
     guardia: 'publica',
     permitidos: ['resetPassword'],

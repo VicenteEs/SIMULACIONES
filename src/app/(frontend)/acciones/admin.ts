@@ -13,9 +13,17 @@
  *     fácil de cometer y el más caro de reparar: exige entrar a la base a mano.
  */
 
+import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import type { Payload } from 'payload'
 import { direccionPublica, enlaceDeClave } from '@/collections/Usuarios'
+import { enviarCorreo, enviarSinEsperar, hayCorreo } from '@/correo/enviar'
+import {
+  mensajeDeBienvenida,
+  mensajeDeClaveNueva,
+  mensajeDeCuentaActivada,
+  mensajeDeSolicitudRechazada,
+} from '@/correo/mensajes'
 import { exigirAdmin, exigirEditor, accion, type Respuesta } from '@/lib/guardias'
 import {
   exigirContrasena,
@@ -29,6 +37,29 @@ import {
 
 const RUTA_USUARIOS = '/admin-panel/usuarios'
 const RUTA_COMENTARIOS = '/admin-panel/comentarios'
+
+/**
+ * Cuánto dura el enlace de una invitación.
+ *
+ * La hora del enlace de «Clave» no sirve aquí: quien pide una contraseña nueva
+ * está delante de la pantalla, y quien recibe una invitación la lee cuando abre
+ * el correo del hospital, que puede ser al día siguiente de guardia. Tres días
+ * cubren un fin de semana. Más no: el enlace da entrada a una cuenta, y un
+ * buzón compartido o reenviado lo guarda para quien lo encuentre.
+ *
+ * `forgotPassword` solo respeta este número porque `Usuarios` no declara
+ * `auth.forgotPassword.expiration`: la de la colección manda sobre la de la
+ * llamada (`auth/operations/forgotPassword.js`), y el día que se declare, la
+ * invitación durará lo que diga ella y el correo seguirá prometiendo 72 horas.
+ *
+ * El mismo número está repetido en `TablaUsuarios.tsx`, que lo dice en el aviso
+ * cuando el correo no sale, por la misma razón que `LARGO_MAXIMO_NOTA`; y
+ * `tests/unit/solicitudesEnElPanel.test.ts` falla si se separan.
+ */
+const HORAS_DE_INVITACION = 72
+
+/** Lo que se contesta cuando la solicitud ya no está por revisar. */
+const SOLICITUD_YA_RESUELTA = 'Esa solicitud ya se resolvió. Recargue la lista.'
 
 /**
  * Techo del texto de una nota interna.
@@ -404,6 +435,39 @@ function notaParaGuardar(valor: unknown): string | undefined {
   return textoOpcional(recortado, 'El texto de la nota', LARGO_MAXIMO_NOTA)
 }
 
+/**
+ * Una contraseña que no conoce nadie.
+ *
+ * Payload no crea una cuenta con autenticación sin contraseña, y la invitación
+ * no quiere ninguna: la elige la persona con el enlace. Se genera aquí, en el
+ * servidor, y no se usa la que manda el formulario, porque esa pasó por el
+ * navegador del administrador —el campo de la pantalla la sugiere siempre— y
+ * una clave que alguien más ha visto no es de quien la recibe. No se devuelve
+ * ni se anota en ningún sitio: 32 bytes aleatorios no se adivinan, y la única
+ * puerta a la cuenta es el enlace.
+ */
+const contrasenaQueNadieConoce = (): string => randomBytes(32).toString('base64url')
+
+/**
+ * Crea una cuenta desde el panel, de una de dos maneras.
+ *
+ * Sin `invitar`, como siempre: el administrador pone la contraseña y se la
+ * entrega. Es el camino que sirve sin servidor de correo, y no se quita.
+ *
+ * Con `invitar === true` —el literal, no cualquier valor verdadero: esto llega
+ * del navegador—, la persona recibe un correo de bienvenida con un enlace para
+ * elegir su contraseña. Las dos cosas que ese correo necesita se comprueban
+ * **antes** de crear. Después ya no hay vuelta limpia: la cuenta existe, y
+ * repetir el formulario con otra opción choca con «ese correo ya está
+ * registrado».
+ *
+ * Que el envío falle no deshace la creación, y es a propósito. El correo de
+ * cPanel tiene cuota por hora, y un tope alcanzado o un servidor que no contesta
+ * no dicen nada de la cuenta, que está bien hecha. Borrarla para «dejarlo como
+ * estaba» pasaría por el gancho de baja y sus comprobaciones por un fallo que no
+ * es suyo. Se devuelve el enlace y la pantalla lo enseña para entregarlo a mano,
+ * que es exactamente lo que ya hace «Clave» cuando no hay correo.
+ */
 export async function crearUsuario(
   email: unknown,
   nombre: unknown,
@@ -412,15 +476,39 @@ export async function crearUsuario(
   institucion?: unknown,
   activo: unknown = true,
   notas?: unknown,
-): Promise<Respuesta<{ id: string }>> {
+  invitar?: unknown,
+): Promise<Respuesta<{ id: string; invitacion?: { enviada: boolean; enlace: string } }>> {
   return accion(async () => {
     const { payload, usuario } = await exigirAdmin()
+    const conInvitacion = invitar === true
+
+    if (conInvitacion) {
+      if (!hayCorreo()) {
+        throw new Error(
+          'No hay servidor de correo configurado (SMTP_HOST), así que la invitación no puede ' +
+            'salir. Elija ponerle usted una contraseña y entregársela.',
+        )
+      }
+      // La misma pregunta que `generarEnlaceDeClave`, y por lo mismo: sin
+      // dirección pública el botón del correo sería `/clave/<testigo>`, una
+      // ruta sin origen que la plantilla descarta por no ser http(s). Saldría
+      // un correo de bienvenida sin manera de entrar.
+      if (!direccionPublica()) {
+        throw new Error(
+          'Falta configurar la dirección pública de la plataforma (NEXT_PUBLIC_SERVER_URL): ' +
+            'sin ella el correo de invitación no llevaría un enlace que funcione.',
+        )
+      }
+    }
+
+    const correo = exigirCorreo(email)
+    const nombreLimpio = exigirTexto(nombre, 'El nombre', 120)
     const creado = await payload.create({
       collection: 'usuarios',
       data: {
-        email: exigirCorreo(email),
-        nombre: exigirTexto(nombre, 'El nombre', 120),
-        password: exigirContrasena(contrasena),
+        email: correo,
+        nombre: nombreLimpio,
+        password: conInvitacion ? contrasenaQueNadieConoce() : exigirContrasena(contrasena),
         rol: exigirRol(rol),
         institucion: textoOpcional(institucion, 'La institución', 160),
         activo: activo !== false,
@@ -433,7 +521,44 @@ export async function crearUsuario(
       user: usuario as never,
     })
     revalidatePath(RUTA_USUARIOS)
-    return { id: String(creado.id) }
+    const id = String(creado.id)
+    if (!conInvitacion) return { id }
+
+    // `disableEmail` siempre: el correo de Payload es el de «contraseña nueva»
+    // y dura una hora, y a quien acaban de dar de alta hay que darle la
+    // bienvenida, no decirle que alguien pidió cambiar una clave que no tiene.
+    let testigo: string | null
+    try {
+      testigo = await payload.forgotPassword({
+        collection: 'usuarios',
+        data: { email: correo },
+        disableEmail: true,
+        expiration: HORAS_DE_INVITACION * 60 * 60 * 1000,
+      })
+    } catch (error) {
+      testigo = null
+      console.error('[panel] no se pudo emitir el testigo de la invitación:', error)
+    }
+    if (!testigo) {
+      // Sin esto, el fallo salía como «no se pudo crear» y quien lo leía volvía
+      // a pulsar «Crear cuenta», que contesta que el correo ya existe.
+      throw new Error(
+        `La cuenta de ${correo} se creó, pero no se pudo emitir el enlace para elegir contraseña. ` +
+          'No la cree otra vez: recargue la lista y use «Clave» en su fila para generar uno.',
+      )
+    }
+
+    const enlace = enlaceDeClave(testigo)
+    try {
+      await enviarCorreo(payload, {
+        para: correo,
+        correo: mensajeDeBienvenida({ nombre: nombreLimpio, enlace, horas: HORAS_DE_INVITACION }),
+      })
+      return { id, invitacion: { enviada: true, enlace } }
+    } catch (error) {
+      console.error('[panel] no se pudo enviar la invitación:', error)
+      return { id, invitacion: { enviada: false, enlace } }
+    }
   })
 }
 
@@ -542,6 +667,35 @@ export async function actualizarUsuario(
   })
 }
 
+/**
+ * Le avisa a una persona de que ya puede entrar.
+ *
+ * Sin esperar: la activación ya está hecha, y el administrador que acaba de
+ * pulsar no tiene por qué quedarse mirando lo que tarde el servidor de correo.
+ * Si falla, queda en el registro (`enviarSinEsperar`) y la cuenta sigue activa,
+ * que es lo que importa; la persona se enterará al intentar entrar.
+ *
+ * Sin dirección pública, el enlace sale relativo y la plantilla quita el botón
+ * (`esEnlaceSeguro`). Se manda igual: «su cuenta ya está activa» es verdad y
+ * útil sin botón, y callarlo por una variable dejaría a la persona esperando un
+ * aviso que no llega.
+ */
+function avisarDeCuentaActivada(payload: Payload, cuenta: Record<string, unknown>): void {
+  const correo = typeof cuenta.email === 'string' ? cuenta.email : ''
+  if (!correo) return
+  enviarSinEsperar(
+    payload,
+    {
+      para: correo,
+      correo: mensajeDeCuentaActivada({
+        nombre: typeof cuenta.nombre === 'string' ? cuenta.nombre : '',
+        enlaceEntrar: `${direccionPublica()}/entrar`,
+      }),
+    },
+    `aviso de cuenta activada a ${correo}`,
+  )
+}
+
 export async function cambiarActivoUsuario(id: unknown, activo: unknown): Promise<Respuesta> {
   return accion(async () => {
     const { payload, usuario, usuarioId } = await exigirAdmin()
@@ -553,17 +707,31 @@ export async function cambiarActivoUsuario(id: unknown, activo: unknown): Promis
       await exigirQueQuedeUnAdmin(payload, objetivo, usuarioId, 'desactivar esta cuenta')
     }
 
+    // Una solicitud también se puede activar desde su fila, con el botón de
+    // siempre, y tiene que acabar igual que desde su tarjeta: sin la marca de
+    // pendiente y con la persona avisada. Sin esto, la cuenta entraba pero
+    // seguía contando en el aviso de la barra y en «Solicitudes», y nadie le
+    // decía que ya podía entrar. Por eso activar lee la cuenta antes de
+    // escribir; desactivar no, porque una solicitud no se «desactiva»: se
+    // rechaza, y eso es `resolverSolicitud`.
+    const antes = nuevoEstado ? await leerCuenta(payload, objetivo) : null
+    const respondeAUnaSolicitud = antes?.pendiente === true
+
     const escribir = () =>
       payload.update({
         collection: 'usuarios',
         id: objetivo,
-        data: { activo: nuevoEstado },
+        // En la misma escritura, no en dos: con dos, un fallo entre ambas deja
+        // una cuenta activa y todavía «por revisar», y quien la revise después
+        // puede rechazarla —borrarla— creyendo que nunca entró.
+        data: respondeAUnaSolicitud ? { activo: true, pendiente: false } : { activo: nuevoEstado },
         user: usuario as never,
       })
     // Activar no puede dejar a nadie sin administradores: solo se vigila el
     // sentido que el disparador rechaza.
     if (nuevoEstado) {
       await escribir()
+      if (respondeAUnaSolicitud && antes) avisarDeCuentaActivada(payload, antes)
     } else {
       await escribirSinDejarSinAdministradores(
         payload,
@@ -575,6 +743,9 @@ export async function cambiarActivoUsuario(id: unknown, activo: unknown): Promis
       )
     }
     revalidatePath(RUTA_USUARIOS)
+    // El número de solicitudes de la barra lo pinta el layout del panel, que
+    // no se vuelve a pintar al revalidar solo la página.
+    if (respondeAUnaSolicitud) revalidatePath('/admin-panel', 'layout')
 
     if (!nuevoEstado) {
       await devolverElAdminSiNoQuedaNinguno(
@@ -592,37 +763,138 @@ export async function cambiarActivoUsuario(id: unknown, activo: unknown): Promis
 export async function eliminarUsuario(id: unknown): Promise<Respuesta> {
   return accion(async () => {
     const { payload, usuario, usuarioId } = await exigirAdmin()
-    const objetivo = exigirIdentificador(id, 'El usuario')
-
-    if (objetivo === usuarioId) throw new Error('No puede eliminar su propia cuenta.')
-    await exigirQueQuedeUnAdmin(payload, objetivo, usuarioId, 'eliminar esta cuenta')
-
-    await escribirSinDejarSinAdministradores(
-      payload,
-      objetivo,
-      usuarioId,
-      'eliminar esta cuenta',
-      () =>
-        payload.delete({
-          collection: 'usuarios',
-          id: objetivo,
-          user: usuario as never,
-        }),
-      // Borrada es no encontrarla. Y si la base deshizo el borrado, deshizo con
-      // él lo que `limpiarRastroDeUsuario` hizo dentro de la misma transacción:
-      // la cuenta sigue con su historial de lectura y sus comentarios firmados,
-      // que es lo que permite decir «no se cambió nada» sin mentir.
-      (cuenta) => cuenta === null,
-    )
-    revalidatePath(RUTA_USUARIOS)
-
-    await devolverElAdminSiNoQuedaNinguno(
-      payload,
-      usuarioId,
-      'La cuenta se eliminó, pero otra sesión desactivó la suya al mismo tiempo y la ' +
-        'plataforma habría quedado sin ningún administrador: se reactivó la suya.',
-    )
+    await borrarCuentaVigilada(payload, usuario, usuarioId, exigirIdentificador(id, 'El usuario'))
     return null
+  })
+}
+
+/**
+ * El borrado de una cuenta con todas sus protecciones, para las dos acciones que
+ * borran: eliminar una cuenta y rechazar una solicitud.
+ *
+ * Está sacado de `eliminarUsuario` para que rechazar no escriba su propio
+ * `payload.delete`. Una cuenta por revisar nunca debería ser administradora
+ * activa —nace desactivada—, pero un rechazo que borrara por su cuenta sería la
+ * única escritura de cuentas del panel sin el conteo previo, sin la relectura
+ * que descubre el `COMMIT` tragado y sin la reparación de después: bastaría
+ * con que alguien marcara `pendiente` a mano en la base sobre la cuenta
+ * equivocada. `tests/unit/ultimoAdministradorEnElPanel.test.ts` cuenta que el
+ * borrado de cuentas siga escrito una sola vez.
+ */
+async function borrarCuentaVigilada(
+  payload: Payload,
+  usuario: Record<string, unknown>,
+  usuarioId: string,
+  objetivo: string,
+): Promise<void> {
+  if (objetivo === usuarioId) throw new Error('No puede eliminar su propia cuenta.')
+  await exigirQueQuedeUnAdmin(payload, objetivo, usuarioId, 'eliminar esta cuenta')
+
+  await escribirSinDejarSinAdministradores(
+    payload,
+    objetivo,
+    usuarioId,
+    'eliminar esta cuenta',
+    () =>
+      payload.delete({
+        collection: 'usuarios',
+        id: objetivo,
+        user: usuario as never,
+      }),
+    // Borrada es no encontrarla. Y si la base deshizo el borrado, deshizo con
+    // él lo que `limpiarRastroDeUsuario` hizo dentro de la misma transacción:
+    // la cuenta sigue con su historial de lectura y sus comentarios firmados,
+    // que es lo que permite decir «no se cambió nada» sin mentir.
+    (cuenta) => cuenta === null,
+  )
+  revalidatePath(RUTA_USUARIOS)
+
+  await devolverElAdminSiNoQuedaNinguno(
+    payload,
+    usuarioId,
+    'La cuenta se eliminó, pero otra sesión desactivó la suya al mismo tiempo y la ' +
+      'plataforma habría quedado sin ningún administrador: se reactivó la suya.',
+  )
+}
+
+/**
+ * Resuelve una solicitud de cuenta: la activa con el rol elegido, o la rechaza.
+ *
+ * Es una acción aparte de `cambiarActivoUsuario` y `eliminarUsuario`, aunque por
+ * debajo haga lo mismo que ellas, porque lo que se decide aquí es otra cosa. Una
+ * solicitud se activa **eligiendo el rol** en el mismo gesto —la cuenta nació
+ * lector porque nadie la ha mirado, no porque alguien lo decidiera—, y se
+ * rechaza sabiendo que se borra: no hay «desactivar» una cuenta que nunca tuvo
+ * acceso, y dejarla desactivada la mezclaría con las bajas, que es justo lo que
+ * `pendiente` existe para separar.
+ *
+ * Se comprueba que siga pendiente **leyéndola**, no fiándose de la pantalla. Dos
+ * administradores pueden tener la lista abierta a la vez, y la tarjeta que uno
+ * ve puede ser de una solicitud que el otro resolvió hace un minuto: sin esta
+ * lectura, «Rechazar» sobre una tarjeta vieja borraría una cuenta que el otro
+ * acaba de activar y que quizá ya entró. Queda la ventana de milisegundos entre
+ * esta lectura y la escritura; para un servicio con uno o dos administradores
+ * es un precio razonable, y cerrarla exigiría una condición en el propio borrado
+ * que el borrado vigilado no admite.
+ *
+ * `avisoPorCorreo` le dice a la pantalla si decir «se le avisó por correo». Es
+ * `hayCorreo()` y no el resultado del envío, porque el aviso sale sin esperar:
+ * la decisión ya está tomada y no depende del buzón de nadie.
+ */
+export async function resolverSolicitud(
+  id: unknown,
+  decision: unknown,
+  rol?: unknown,
+): Promise<Respuesta<{ avisoPorCorreo: boolean }>> {
+  return accion(async () => {
+    const { payload, usuario, usuarioId } = await exigirAdmin()
+    const objetivo = exigirIdentificador(id, 'La solicitud')
+    if (decision !== 'activar' && decision !== 'rechazar') {
+      throw new Error('La decisión sobre la solicitud no es válida.')
+    }
+    // El rol se valida antes de leer nada: un rol que no existe no es motivo
+    // para tocar la base, ni siquiera para leerla.
+    const rolElegido = decision === 'activar' ? exigirRol(rol ?? 'lector') : null
+
+    const cuenta = await leerCuenta(payload, objetivo)
+    if (cuenta?.pendiente !== true) throw new Error(SOLICITUD_YA_RESUELTA)
+
+    if (rolElegido !== null) {
+      // Sin la vigilancia del último administrador: activar a alguien, con el
+      // rol que sea, no deja a nadie sin acceso.
+      await payload.update({
+        collection: 'usuarios',
+        id: objetivo,
+        data: { activo: true, pendiente: false, rol: rolElegido },
+        user: usuario as never,
+      })
+      avisarDeCuentaActivada(payload, cuenta)
+    } else {
+      // El correo y el nombre se sacan de la lectura de arriba, que es de antes
+      // del borrado: después ya no hay a quién preguntárselos.
+      const correo = typeof cuenta.email === 'string' ? cuenta.email : ''
+      await borrarCuentaVigilada(payload, usuario, usuarioId, objetivo)
+      if (correo) {
+        enviarSinEsperar(
+          payload,
+          {
+            para: correo,
+            correo: mensajeDeSolicitudRechazada({
+              nombre: typeof cuenta.nombre === 'string' ? cuenta.nombre : '',
+            }),
+          },
+          `aviso de solicitud rechazada a ${correo}`,
+        )
+      }
+    }
+
+    revalidatePath(RUTA_USUARIOS)
+    // El aviso con el número de solicitudes vive en la barra, que la pinta el
+    // layout del panel y no esta página: sin revalidar el layout, la barra seguía
+    // anunciando una solicitud que ya no existe hasta la siguiente navegación
+    // completa.
+    revalidatePath('/admin-panel', 'layout')
+    return { avisoPorCorreo: hayCorreo() }
   })
 }
 
@@ -631,8 +903,8 @@ export async function eliminarUsuario(id: unknown): Promise<Respuesta> {
  *
  * El administrador no fija la clave de nadie: entrega un enlace de un solo uso
  * y quien lo recibe elige su contraseña. Si hay servidor de correo configurado
- * llega además por correo; si no, el panel muestra el enlace para entregarlo
- * por el canal que corresponda.
+ * llega además por correo; si no, o si el envío falla, el panel muestra el
+ * enlace para entregarlo por el canal que corresponda.
  */
 export async function generarEnlaceDeClave(
   id: unknown,
@@ -649,12 +921,27 @@ export async function generarEnlaceDeClave(
     const correo = (cuenta as { email?: string }).email
     if (!correo) throw new Error('La cuenta no tiene correo asociado.')
 
+    // Una solicitud sin revisar no recibe enlace, y se corta antes del testigo.
+    // El enlace no le serviría —`fijarClaveNueva` pasa por el mismo
+    // `beforeLogin` que la entrada, y la cuenta está desactivada—, pero con
+    // correo configurado le llegaba igual «alguien pidió una contraseña nueva
+    // para su cuenta» a una persona que nadie ha revisado, y el panel decía
+    // «se envió un enlace» como si sirviera. La tabla apaga el botón en esas
+    // filas; esto es para quien llame a la acción sin pasar por ella.
+    if ((cuenta as { pendiente?: unknown }).pendiente === true) {
+      throw new Error(
+        'Esa cuenta es una solicitud sin revisar: actívela o recházela antes de generarle un ' +
+          'enlace de contraseña.',
+      )
+    }
+
     // Se comprueba **antes** de pedir el testigo: cada `forgotPassword` invalida
     // el anterior, así que fallar después dejaría sin efecto un enlace que a lo
     // mejor ya estaba entregado. Y sin dirección pública el enlace saldría como
     // `/clave/<testigo>`: una ruta relativa, sin origen y sin prefijo, que no
-    // sirve para pegar en ningún mensaje. Una variable que falta se arregla; un
-    // enlace mudo que nadie sabe por qué no funciona, no.
+    // sirve para pegar en ningún mensaje ni en el botón de un correo. Una
+    // variable que falta se arregla; un enlace mudo que nadie sabe por qué no
+    // funciona, no.
     //
     // Se le pregunta a `direccionPublica()` y no a la variable a secas porque es
     // la misma regla con la que `enlaceDeClave` arma el enlace de abajo: si la
@@ -667,11 +954,19 @@ export async function generarEnlaceDeClave(
       )
     }
 
-    const hayCorreo = Boolean(process.env.SMTP_HOST)
+    // `disableEmail` siempre, haya correo o no. Antes valía `!hayCorreo` y el
+    // envío lo hacía Payload por dentro de `forgotPassword`: si el servidor de
+    // correo fallaba, la llamada entera lanzaba, su `killTransaction` deshacía
+    // el testigo recién escrito (`auth/operations/forgotPassword.js`) y el panel
+    // contestaba un error sin enlace que entregar, justo el día en que el
+    // enlace a mano era la única salida. Pedido el testigo por un lado y
+    // enviado por otro, un correo que no sale deja al administrador con el
+    // enlace en la mano. Y el correo sale con la plantilla y el logotipo
+    // adjunto, que el envío de Payload no admite.
     const testigo = await payload.forgotPassword({
       collection: 'usuarios',
       data: { email: correo },
-      disableEmail: !hayCorreo,
+      disableEmail: true,
     })
 
     // `enlaceDeClave` y no una plantilla aquí: es la misma que pega el correo de
@@ -680,7 +975,23 @@ export async function generarEnlaceDeClave(
     // `…/traumahub//clave/<testigo>`, que contesta con el 404 de otra página del
     // servidor compartido—. Sin SMTP, este enlace es el único camino para que
     // alguien elija clave, y caduca en una hora.
-    return { enlace: enlaceDeClave(testigo), enviadoPorCorreo: hayCorreo }
+    const enlace = enlaceDeClave(testigo)
+
+    // `enviadoPorCorreo` dice lo que pasó, no lo que se intentó: con `true`, la
+    // pantalla le cuenta al administrador que el enlace ya está en el buzón, y
+    // no se lo enseña con la insistencia de «entréguelo usted». Decirlo por
+    // haber visto `SMTP_HOST` puesto, como antes, era afirmarlo también cuando
+    // la cuota por hora de cPanel acababa de rechazar el mensaje.
+    let enviadoPorCorreo = false
+    if (hayCorreo()) {
+      try {
+        await enviarCorreo(payload, { para: correo, correo: mensajeDeClaveNueva(enlace) })
+        enviadoPorCorreo = true
+      } catch (error) {
+        console.error('[panel] no se pudo enviar por correo el enlace de contraseña:', error)
+      }
+    }
+    return { enlace, enviadoPorCorreo }
   })
 }
 
