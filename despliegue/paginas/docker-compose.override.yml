@@ -58,6 +58,11 @@ services:
       SMTP_USUARIO: ${SMTP_USUARIO:-}
       SMTP_CLAVE: ${SMTP_CLAVE:-}
       SMTP_DESDE: ${SMTP_DESDE:-}
+      # Estas dos faltaban: el contenedor solo ve lo que se le pasa aquí, así
+      # que ponerlas en el .env no servía de nada. No se notó porque el nombre
+      # por omisión de `payload.config.ts` coincide con el que se quería.
+      SMTP_NOMBRE: ${SMTP_NOMBRE:-TraumaHub}
+      DIFUSION_CORREOS_POR_HORA: ${DIFUSION_CORREOS_POR_HORA:-}
     volumes:
       # Los archivos subidos sobreviven a cada despliegue.
       - medios:/app/medios
