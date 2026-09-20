@@ -4472,6 +4472,18 @@ sigue sin ponerse y todos los respaldos viven en el disco que protegen (D-113).
 `docs/MANUAL-DE-USO.md` lo suple pidiendo una descarga mensual a mano, que es un
 parche y no la solución.
 
+### O-052 · 2026-09-21 · alta · resuelta
+**Los guiones de `scripts/` estaban en git sin permiso de ejecución.**
+Visto al actualizar el Ubuntu: `./scripts/actualizar.sh` respondió `Permiso
+denegado`. Los ocho `.sh` figuraban como `100644`. Se escribieron y se
+confirmaron desde Windows, donde el bit no existe y git no lo inventa; en la
+máquina donde se probaron alguien hizo `chmod +x` a mano, y eso no viaja.
+Llamarlos con `bash scripts/x.sh` no bastaba, porque se llaman entre ellos con
+`./scripts/deploy.sh` y `exec ./scripts/salud.sh`. Y un `chmod +x` en el servidor
+deja el árbol con cambios, que es justo lo que `actualizar.sh` se niega a pisar.
+*Arreglo:* `git update-index --chmod=+x` sobre los ocho. Un `.sh` nuevo creado
+desde Windows nacerá otra vez sin el bit: hay que repetirlo al añadirlo.
+
 ---
 
 ## 4. Preguntas abiertas
