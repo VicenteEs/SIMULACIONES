@@ -213,6 +213,8 @@ Guía completa: [docs/SERVIDOR.md](docs/SERVIDOR.md).
 | [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md) | Los tres modos de publicación según la variable `TUNEL`, lo que hace falta antes de desplegar y qué quedó verificado en el ensayo |
 | [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) | Exponer el servicio con un túnel de Cloudflare, sin abrir puertos del router |
 | [docs/CORREO.md](docs/CORREO.md) | Correo saliente. Sin él, quien olvide su clave depende de un administrador |
+| [docs/MANUAL-DE-USO.md](docs/MANUAL-DE-USO.md) | Manual del panel para editores y administradores: qué hace cada pantalla, cuentas y permisos, y las trampas que hacen perder trabajo |
+| [docs/GUION-DE-RECORRIDO.md](docs/GUION-DE-RECORRIDO.md) | Guion para presentar la plataforma a quienes la van a llenar: una ficha de cero a publicada, en 45 minutos, más 15 solo para administradores |
 | [docs/COMO-ESCRIBIR-UNA-FICHA.md](docs/COMO-ESCRIBIR-UNA-FICHA.md) | Guía para el traumatólogo: segmentos, bloques, borrador y publicación |
 | [docs/COMO-SUBIR-UN-MODELO.md](docs/COMO-SUBIR-UN-MODELO.md) | Guía para el traumatólogo: preparar el hueso en Blender y armar un caso quirúrgico paso a paso |
 | [docs/testing/fase-1-acceso.tdd.md](docs/testing/fase-1-acceso.tdd.md) | Evidencia del ciclo de pruebas de la fase 1, control de acceso y subidas |

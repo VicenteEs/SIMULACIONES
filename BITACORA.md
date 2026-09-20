@@ -3467,6 +3467,60 @@ acceso de 190 a 240 y el de la portada de 260 a 320. Esas dos últimas pasan a
 *Mala:* `:has()` no existe en navegadores anteriores a 2022-2023; en uno de esos
 el pie se vería también dentro del panel, que es feo pero no rompe nada.
 
+### D-122 · 2026-09-20 · vigente
+**Un manual del panel y un guion de recorrido, para quienes van a llenar la
+plataforma.**
+Van a entrar editores y administradores que no son ni el traumatólogo ni el
+desarrollador. Las dos guías que había cuentan cómo se redacta una ficha y cómo
+se arma un caso, pero ninguna cuenta el panel entero —cuentas, permisos,
+comentarios, difusión, respaldos— ni qué hacer cuando dos guardados chocan
+(D-097), que es lo primero que le pasa a un equipo.
+
+*Qué se hizo.* `docs/MANUAL-DE-USO.md`, que nombra cada botón con el texto de la
+interfaz y abre con las seis cosas que hacen perder trabajo; remite a las dos
+guías en vez de repetirlas. Y `docs/GUION-DE-RECORRIDO.md`, 45 minutos más 15
+solo para administradores, ordenado alrededor de escribir una ficha de verdad
+hasta verla publicada en la ventana de un lector, en lugar de enseñar pantallas
+una por una. Todo lo que la sesión crea se titula «DEMO» para poder borrarlo.
+
+*Consecuencias buenas.* Quien llega tiene un solo sitio donde mirar. *Malas.* Son
+dos documentos más que citan textos de la interfaz, y ninguna prueba los ata al
+código como `esquema.test.ts` ata el esquema: un botón que cambie de nombre los
+deja mintiendo en silencio. De paso quedó a la vista que las guías anteriores ya
+lo hacen: COMO-SUBIR-UN-MODELO.md manda a «Modelos 3D → + Nuevo», que no existe
+—es «Gestionar» y después «+ Subir archivo»—, y las dos dicen «+ Nueva» donde el
+listado dice «+ Agregar …». El manual no afirma qué ve el lector de una ficha
+publicada mientras tiene un borrador más nuevo encima, porque no se pudo
+comprobar sin escribir en producción (O-048).
+
+### D-123 · 2026-09-21 · vigente
+**El paso de Windows a Ubuntu se hace con un respaldo restaurado, y queda
+escrito.**
+La plataforma se muda al Ubuntu del dueño y lo que ya hay en `faraday` —las
+fichas de ejemplo que sirven de plantilla, los catálogos, las preparaciones del
+atlas, la cuenta y los archivos subidos— tiene que llegar. Nada de eso está en
+git, a propósito: un `git clone` deja la plataforma vacía.
+
+*Qué se hizo.* Sección nueva en `docs/SERVIDOR.md`, «Traer los datos desde el
+servidor de Windows»: respaldo final con el servicio parado, instalar en Ubuntu
+**sin crear la primera cuenta**, copiar `base-` y `medios-` de la misma marca y
+`restaurar.sh`. No hizo falta código: `respaldar.ps1` nació gemelo de
+`respaldar.sh` (D-113) y deja lo que `restaurar.sh` sabe cargar.
+
+*Qué se comprobó, mirando dentro de un volcado real de producción.* PostgreSQL
+17 en los dos lados; las 305 tablas con dueño `trauma`, que es el usuario que
+crea el instalador; las 12 migraciones del código, sin la fila `batch = -1`; el
+`.tar` con rutas relativas `medios/…`, que es lo que espera el `tar xzf -C /app`;
+y que el `/simulaciones` guardado en la columna `url` no estorba, porque Payload
+recalcula esa dirección al leer (`uploads/getBaseFields.js`, gancho `afterRead`).
+
+*Consecuencias buenas.* El traslado es el mismo gesto que una restauración, que
+ya estaba probado. *Malas.* **No se ensayó de punta a punta**: desde `faraday` no
+hay un Ubuntu donde restaurar, así que la primera restauración de verdad es la
+mudanza. Por eso el paso 5 manda comprobar antes de retirar el Windows. El
+volcado exige `psql` 17.6 o posterior por el `\restrict`, y una imagen
+`17-alpine` vieja en caché lo rechaza.
+
 ---
 
 ## 3. Observaciones
@@ -4347,6 +4401,76 @@ bien. El DNS lo sirve el hosting (`dns1.freehost.cl`), así que se arregla en
 cPanel → Editor de zona, borrando el registro sin `rua`. El paso a paso está en
 `docs/CORREO.md`. Desde `blanco`, `mail.chesscore.cl` contesta en 465 y 587, con
 un certificado válido para `*.chesscore.cl`.
+
+### O-048 · 2026-09-20 · media · abierta
+**La carpeta de producción no admite la lista de «Antes de subir», y nada lo
+dice.**
+Visto al revisar el estado de `faraday`. `C:\Users\vicen\simulaciones` es a la
+vez el repositorio y lo que sirve el servicio `traumahub`, y su `.env` es el de
+producción. `tests/setup.ts` carga ese `.env`, así que `npm run test:coverage` y
+`npm run test:integration` lanzados ahí hablan con la base real —las de
+integración crean y borran cuentas y documentos—, y `npm run build` reescribe el
+`.next` del que está sirviendo el servicio. No se ejecutó ninguna de las tres.
+Las unitarias se corrieron con `OMITIR_INTEGRACION=1` y una `DATABASE_URI` que
+no apunta a nada: 2162 pasan y 6 fallan, las seis por el entorno y ninguna por el
+producto:
+- `rutas.test.ts` y `subidaDeVideo.test.ts` (una cada una) esperan `ruta()` sin
+  prefijo, y el `.env` trae `NEXT_PUBLIC_BASE_PATH=/simulaciones`. Las pruebas no
+  son herméticas respecto de esa variable.
+- `subidaDeVideo.test.ts`, «el panel pinta el avance»: busca en la fuente un
+  texto con `\n`, y aquí git tiene `core.autocrlf=true` y el archivo está en CRLF.
+- `respaldoEnWindows.test.ts` (tres): ver O-049 y O-050.
+
+*Impacto:* quien siga AGENTS.md al pie de la letra en esta máquina escribe en la
+base de producción. *Salida posible:* que `tests/setup.ts` se niegue a arrancar
+si `NEXT_PUBLIC_SERVER_URL` no es `localhost`, y un `.gitattributes` con
+`* text=auto eol=lf`.
+
+### O-049 · 2026-09-20 · media · abierta
+**`restaurar.ps1` le manda a `psql` un BOM delante del volcado si la consola está
+en UTF-8.**
+`Invocar-Proceso` (`scripts/respaldo-comun.ps1`) escribe en
+`$proceso.StandardInput.BaseStream`. En .NET Framework, el `StreamWriter` de
+`StandardInput` se crea con `Console.InputEncoding`, y con la página 65001 esa
+codificación trae preámbulo: al activarse `AutoFlush` escribe `EF BB BF` antes
+del primer byte del volcado, aunque después se escriba por debajo, en el
+`BaseStream`. Comprobado: con la consola en 65001 fallan «entrega a psql el
+volcado byte a byte» y «rechaza un volcado cortado»; con `chcp 850`, el mismo
+código y la misma máquina, pasan. La tarea nocturna no restaura, y respaldar no
+usa la entrada, así que **los respaldos de cada noche no están afectados**. El
+riesgo es una restauración a mano desde una consola en UTF-8 —Windows Terminal
+con `chcp 65001`—. `psql` salta un BOM en la primera línea cuando la codificación
+del cliente es UTF-8, así que lo probable es que restaure bien igual; no se
+probó contra un `psql` de verdad, y una restauración no es el momento de
+averiguarlo. *Salida posible:* fijar `[Console]::InputEncoding` a un
+`UTF8Encoding($false)` alrededor de `Process.Start` y devolverlo después.
+
+### O-050 · 2026-09-20 · baja · abierta
+**La aplicación vive en hora de Santiago y la máquina en hora de Madrid, y los
+respaldos llevan las dos.**
+`.env` dice `TZ=America/Santiago`; Windows está en «Romance Standard Time». La
+tarea nocturna nombra sus archivos con el reloj de Windows
+(`base-20260920-043001`), y el panel lee esa marca como hora local de *su*
+proceso, que es Santiago: cinco horas de diferencia en septiembre. Es lo que
+hace fallar «deja base y medios con nombres que el panel lista», que exige que
+la fecha leída esté a menos de cinco minutos de ahora. Consecuencias: un
+respaldo de la tarea y uno del botón del panel hechos a la misma hora llevan
+marcas separadas cinco horas, y el respaldo «de las 04:30» corre a las 22:30 o
+23:30 de Chile, que es hora de trabajo de quien redacta, no la madrugada que se
+quería. No se pierde nada. *Salida:* poner Windows en la zona de Chile, o mover
+la tarea con `-Hora`.
+
+### O-051 · 2026-09-20 · baja · abierta
+**La pantalla «Respaldos» describe el servidor de Linux, y el que corre es el de
+Windows.**
+`PanelDeRespaldos.tsx` dice «un respaldo diario programado a las 03:00» y manda a
+restaurar con `./scripts/restaurar.sh`. En `faraday` la tarea corre a las 04:30
+(`registros\respaldos.log`) y el guion que existe es `restaurar.ps1`. El texto lo
+lee un administrador justo cuando algo ha ido mal. Además, las seis últimas
+líneas del registro traen `AVISO sin copia fuera del disco`: `RESPALDOS_COPIA_DIR`
+sigue sin ponerse y todos los respaldos viven en el disco que protegen (D-113).
+`docs/MANUAL-DE-USO.md` lo suple pidiendo una descarga mensual a mano, que es un
+parche y no la solución.
 
 ---
 

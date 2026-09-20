@@ -218,6 +218,80 @@ misma fecha.
 > restauración ahora, con la plataforma todavía vacía, y no el día que haga
 > falta de verdad.
 
+### Traer los datos desde el servidor de Windows
+
+El contenido no viaja por git: `medios/`, `backups/` y `ejemplos/` están
+ignorados a propósito, y la base nunca estuvo en el repositorio. Un `git clone`
+en el Ubuntu deja la plataforma **vacía**. Lo que ya hay —las fichas de ejemplo,
+los catálogos del simulador, las preparaciones del atlas, las cuentas y los
+archivos subidos— se trae con un respaldo de allí restaurado aquí.
+
+**1. En el Windows, el respaldo final.** Con el servicio parado, para que nadie
+escriba entre el respaldo y el cambio de servidor:
+
+```powershell
+Set-Location C:\Users\vicen\simulaciones
+Stop-Service traumahub
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\respaldar.ps1
+```
+
+Deja en `backups\` un `base-MARCA.sql.gz` y un `medios-MARCA.tar.gz` con **la
+misma marca**. Hacen falta los dos.
+
+**2. En el Ubuntu, instalar primero.** `./scripts/instalar-servidor.sh` como en
+la sección 2, hasta que `./scripts/salud.sh` salga bien. **No cree la primera
+cuenta en `/instalar`**: las cuentas vienen en el respaldo, y la que se creara
+ahí se borraría al restaurar.
+
+**3. Copiar los dos archivos** a la carpeta `backups/` del repositorio en el
+Ubuntu —`RUTA` es donde se clonó—, desde el Windows:
+
+```powershell
+scp backups\base-MARCA.sql.gz backups\medios-MARCA.tar.gz usuario@servidor:RUTA/backups/
+```
+
+**4. Restaurar:**
+
+```bash
+./scripts/restaurar.sh backups/base-MARCA.sql.gz
+```
+
+Repone la base y, al ver el `medios-` de la misma marca, los archivos.
+
+**5. Comprobar antes de apagar nada.** Entrar con la cuenta de siempre —la
+contraseña es la misma—, abrir una ficha con imagen y el caso del simulador, y
+ver que el modelo 3D carga. Solo entonces se retira el Windows; hasta ese
+momento es la copia buena. No se le vuelve a arrancar `traumahub` para escribir:
+lo que se escriba allí después del paso 1 no está en el Ubuntu.
+
+Lo que se comprobó para que esto funcione, y lo que lo rompería:
+
+- **La versión de PostgreSQL.** Allí 17.11, aquí `postgres:17-alpine`: la misma
+  mayor. El volcado trae `\restrict`, que exige un `psql` 17.6 o posterior; una
+  imagen `17-alpine` bajada hace meses no lo entiende. `docker compose pull db`
+  antes de restaurar.
+- **El usuario de la base.** El volcado dice `OWNER TO trauma` en cada tabla. El
+  instalador crea ese mismo usuario; si en el `.env` del Ubuntu se cambió
+  `POSTGRES_USER`, la restauración falla en la primera tabla —sin dañar nada,
+  porque va en una transacción—.
+- **El prefijo no importa.** La base guarda direcciones con el `/simulaciones`
+  del Windows, pero Payload recalcula la de cada archivo al leerla, con el
+  nombre del archivo y la configuración del servidor que la sirve. El Ubuntu
+  puede salir con otro prefijo o sin ninguno.
+- **Las migraciones.** El volcado trae su tabla `payload_migrations`, sin la
+  marca de modo desarrollo. Si el código del Ubuntu es más nuevo que el
+  respaldo, las pendientes se aplican solas al levantar la aplicación.
+- **`PAYLOAD_SECRET` es otro**, porque el instalador genera el suyo. Las
+  contraseñas no dependen de él y siguen valiendo; las sesiones abiertas y los
+  enlaces de contraseña ya enviados, no.
+- **El `.env` no se copia del Windows.** Trae su dirección pública, su prefijo y
+  rutas de Windows. Del de allí solo se pasan a mano los `SMTP_*`, si se quiere
+  el mismo correo saliente.
+
+`ejemplos/tibia-de-prueba.glb` está ignorado por git, pero no se pierde: es el
+origen de un modelo ya subido, que viaja dentro del `medios-`. Si se quiere
+conservar también el archivo suelto, se copia con `scp` como los otros.
+
 ---
 
 ## 5. Cómo está montado
