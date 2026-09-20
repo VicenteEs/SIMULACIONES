@@ -114,20 +114,26 @@ elif [ ! -f "$archivo_medios" ]; then
   ambar "    no hay respaldo de medios de esa misma fecha ($archivo_medios)"
   echo "     La base quedo restaurada. Si hacen falta los archivos subidos,"
   echo "     restaurelos a mano dentro del contenedor:"
-  echo "       gzip -dc backups/medios-FECHA.tar.gz | $(orden_compose) exec -T app tar xzf - -C /app"
+  echo "       gzip -dc backups/medios-FECHA.tar.gz | $(orden_compose) exec -T app tar xf - -C /app"
 else
   paso "Restaurando los archivos subidos"
   # La aplicacion esta detenida en este punto —se detuvo antes de tocar la
   # base—, asi que se escribe en el volumen desde un contenedor desechable con
   # los mismos montajes, igual que hace respaldar.sh para leerlos.
   # `--no-deps` evita levantar la base solo para copiar archivos.
+  #
+  # `tar xf`, sin la z: lo que llega por el conducto ya lo descomprimio el
+  # `gzip -dc` de esta misma linea. Con `xzf` el tar de la imagen intentaba
+  # descomprimirlo otra vez, salia con «invalid magic» y el `2>/dev/null` se
+  # lo callaba: la base se restauraba y los archivos no, en todas las
+  # restauraciones desde que existe este bloque (O-053).
   if gzip -dc "$archivo_medios" |
-      dc run --rm --no-deps --entrypoint sh -T app -c 'tar xzf - -C /app' 2>/dev/null; then
+      dc run --rm --no-deps --entrypoint sh -T app -c 'tar xf - -C /app' 2>/dev/null; then
     verde "    $archivo_medios"
   else
     ambar "    no se pudieron restaurar los medios; la base SI quedo restaurada"
     echo "     Reintente a mano, con la plataforma ya en pie:"
-    echo "       gzip -dc $archivo_medios | $(orden_compose) exec -T app tar xzf - -C /app"
+    echo "       gzip -dc $archivo_medios | $(orden_compose) exec -T app tar xf - -C /app"
   fi
 fi
 

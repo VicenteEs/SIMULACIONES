@@ -3521,6 +3521,19 @@ mudanza. Por eso el paso 5 manda comprobar antes de retirar el Windows. El
 volcado exige `psql` 17.6 o posterior por el `\restrict`, y una imagen
 `17-alpine` vieja en caché lo rechaza.
 
+*Hecho el mismo día, en `ved`.* No fue una instalación nueva: TraumaHub ya
+corría allí desde el 6 de septiembre bajo `/traumahub`, con el montaje de
+`despliegue/paginas/`, sin contenido y con cuatro cuentas. El dueño decidió que
+mandaba la de Windows entera; de la base vieja queda copia en
+`backups/base-20260920-202235.sql.gz`, por si hubiera que recuperar las tres
+cuentas que no estaban en Windows. Llegaron 1 cuenta, 1 patología, 3 maniobras,
+2 casos AO, 2 cirugías, 2 estudios, 8 segmentos, 2 preparaciones del atlas, 1
+imagen y 3 modelos, y cada archivo que la base nombra se comprobó en el volumen.
+El ensayo que faltaba encontró tres cosas que no eran de la mudanza: O-053,
+O-054 y O-055. Desde fuera, las redirecciones salen relativas (`Location:
+/traumahub/admin-panel`) y `/entrar` no trae ni una dirección absoluta, así que
+el `:10000` no se puede perder.
+
 ---
 
 ## 3. Observaciones
@@ -4483,6 +4496,58 @@ Llamarlos con `bash scripts/x.sh` no bastaba, porque se llaman entre ellos con
 deja el árbol con cambios, que es justo lo que `actualizar.sh` se niega a pisar.
 *Arreglo:* `git update-index --chmod=+x` sobre los ocho. Un `.sh` nuevo creado
 desde Windows nacerá otra vez sin el bit: hay que repetirlo al añadirlo.
+*Lo que tapaba:* el `crontab` de `ved` llama a `./scripts/respaldar.sh` cada
+noche, y `backups/respaldo.log` solo tenía líneas de `Permission denied`. **El
+Ubuntu no tuvo un solo respaldo nocturno desde que se instaló el 6 de
+septiembre.** Tras el arreglo se lanzó a mano tal como lo lanza cron
+(`TUNEL=local … --verificar`) y dejó base y medios, verificados.
+
+### O-053 · 2026-09-21 · alta · resuelta
+**`restaurar.sh` restauraba la base y nunca los archivos subidos.**
+Visto en la mudanza a `ved` (D-123): «no se pudieron restaurar los medios». La
+línea hacía `gzip -dc medios.tar.gz | … tar xzf -`: descomprimía dos veces. El
+`tar` de la imagen recibía un tar ya descomprimido, salía con `invalid magic`, y
+el `2>/dev/null` de la misma línea se lo callaba. Reproducido en el servidor
+listando sin escribir: con `tzf` falla, con `tf` lista. Las dos órdenes «a mano»
+que el guion sugiere, y la de `docs/DESPLIEGUE.md`, tenían el mismo error, así
+que el plan B tampoco funcionaba. *Arreglo:* `tar xf` en los cuatro sitios. D-113
+cuenta que la restauración se probó con archivos subidos, pero por el camino de
+PowerShell; el de bash con medios no se había ejecutado nunca con éxito.
+*Pendiente:* ninguna prueba lo cubre, porque hace falta Docker.
+
+### O-054 · 2026-09-21 · alta · resuelta en `ved`
+**En `ved`, los archivos subidos vivían dentro del contenedor y se borraban en
+cada despliegue.**
+El `docker-compose.override.yml` del servidor era la copia del 6 de septiembre y
+montaba el volumen en `/app/public/media`. Cuando los medios salieron de
+`public/` a `/app/medios`, la plantilla de `despliegue/paginas/` se corrigió,
+pero el archivo del servidor **no se versiona** —es lo que permite el `git pull`
+sin choques— y nadie lo volvió a copiar. `auto-update.sh` reconstruye el
+contenedor con cada commit: cualquier imagen o modelo subido habría durado hasta
+el siguiente. No se perdió nada porque el Ubuntu estaba sin contenido.
+*Arreglo:* se copió la plantilla vigente y se comprobó el montaje con `docker
+inspect` y escribiendo en `/app/medios` como el uid 1001. *Lo que sigue
+abierto:* el mecanismo. La próxima vez que cambie la plantilla volverá a pasar,
+en silencio. Haría falta que `deploy.sh` o `salud.sh` compararan el override con
+su plantilla y avisaran.
+
+### O-055 · 2026-09-21 · alta · resuelta, con la causa sin cerrar
+**El proxy de `ved` llevaba tres días caído, y con él todas las páginas.**
+Al comprobar la mudanza desde fuera, 502 en todo, también en la raíz de APCE.
+`ved` se reinició el 2026-09-17 a las 16:20 y el contenedor
+`nginx-proxy-manager` arrancó **sin ninguna red conectada** (`docker inspect`
+daba la lista vacía). Sin red no resuelve `apce-backend`, y nginx se niega a
+arrancar con `host not found in upstream`: en bucle desde las 16:21 de ese día.
+`start-all.log` dice «levantado OK», porque el contenedor sí arrancó. Es el
+fallo que `despliegue/paginas/LEEME.md` describe para justificar el `set
+$traumahub`, solo que por la puerta de otro proyecto: el `proxy_pass` literal es
+el de APCE, en `proxy_host/1.conf`, que genera el panel de NPM.
+*Arreglo:* `docker compose up -d --force-recreate` en `nginx-proxy-manager/`;
+volvió con sus dos redes y las cuatro páginas responden. *Causa probable, no
+demostrada:* el compose publica el panel en `100.76.92.40:8181`, la IP de
+Tailscale, que al arrancar la máquina todavía no existe. *Pendiente:* que
+`start-all.sh` espere a Tailscale o compruebe el proxy después de levantarlo, y
+algo que avise: tres días caído sin que nadie lo supiera es el dato.
 
 ---
 

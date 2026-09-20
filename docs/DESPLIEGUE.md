@@ -411,7 +411,7 @@ fecha, avisa, deja la base restaurada e indica la orden para hacerlo a mano, ya
 con la plataforma en pie:
 
 ```bash
-gzip -dc backups/medios-FECHA.tar.gz | docker compose -f docker-compose.tailscale.yml exec -T app tar xzf - -C /app
+gzip -dc backups/medios-FECHA.tar.gz | docker compose -f docker-compose.tailscale.yml exec -T app tar xf - -C /app
 ```
 
 Con `-f docker-compose.prod.yml` en el modo Cloudflare. Los archivos subidos
