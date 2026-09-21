@@ -4886,6 +4886,23 @@ enlaces viejos que ya están repartidos; no se hizo porque ese archivo no está
 en este repositorio y lo comparten las demás páginas del servidor. Q-008 cita
 la dirección vieja y se deja como está: era cierta cuando se escribió.
 
+### O-065 · 2026-09-21 · alta · abierta
+**`auto-update.sh` no despliega lo que se sube desde el propio servidor.**
+*Dónde se ve:* `paginas/auto-update.sh` compara el `HEAD` de la copia de trabajo
+de `ved` con `origin/main`, y solo reconstruye si el remoto va por delante. Un
+commit hecho en esa misma copia y subido deja las dos puntas iguales: el guion
+no ve nada nuevo, no escribe nada en `auto-update.log`, y el contenedor sigue
+con la imagen anterior. Pasó el 2026-09-21: la revisión de seguridad de O-063 se
+subió por la mañana creyendo que se desplegaba sola —O-063 lo dice así— y a
+mediodía el contenedor seguía siendo el del 20 a las 20:00. Se desplegó a mano,
+junto con D-125 a D-128, con la misma orden del guion
+(`docker compose up -d --build`), y se comprobó desde fuera por las cabeceras
+nuevas. *Regla mientras tanto:* lo que se suba desde `ved` se despliega a mano;
+lo que llegue de otra máquina, solo. *Arreglo pendiente:* que el guion compare
+contra la revisión con la que se construyó la imagen (una etiqueta en la imagen
+o un archivo junto al compose), no contra la copia de trabajo. El guion no está
+en este repositorio: vive en `paginas/` y lo comparten todas las páginas.
+
 ---
 
 ## 4. Preguntas abiertas
