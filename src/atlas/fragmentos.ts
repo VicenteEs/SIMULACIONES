@@ -18,11 +18,12 @@
 import * as THREE from 'three'
 import { partirMalla, type MallaIndexada } from '@/lib/osteotomia'
 import type { AspectoDePieza, EscenaDelAtlas, TransformacionDePieza } from './cargador'
-import { idDeFragmento, type CorteDePieza, type LadoDelCorte } from './formato'
+import { idDeFragmento, piezaDe, type CorteDePieza, type LadoDelCorte } from './formato'
 
 export interface FragmentoDelAtlas {
-  /** `FJ1234#a` o `FJ1234#b`. */
+  /** `FJ1234#a`, o `FJ1234#a#b` si salió de partir un fragmento (D-137). */
   id: string
+  /** La pieza del catálogo de la que viene, sea cual sea su nivel: de ella hereda lo encendido y el aspecto. */
   pieza: string
   lado: LadoDelCorte
   malla: THREE.Mesh
@@ -30,6 +31,11 @@ export interface FragmentoDelAtlas {
   centro: THREE.Vector3
   /** Color del sistema, para volver a él al deseleccionar. */
   colorBase: THREE.Color
+  /**
+   * Su geometría en el sitio anatómico, sin centrar: es de donde se parte si se
+   * vuelve a cortar. La de la malla está centrada en el origen y no sirve.
+   */
+  enReposo: MallaIndexada
 }
 
 /**
@@ -103,8 +109,10 @@ export function crearFragmentos(
   escena: EscenaDelAtlas,
   indice: number,
   corte: Pick<CorteDePieza, 'pieza' | 'punto' | 'normal'>,
+  /** La geometría de lo que se parte, si es un fragmento; sin ella se toma la pieza entera. */
+  origen?: MallaIndexada,
 ): { fragmentos: [FragmentoDelAtlas, FragmentoDelAtlas] } | { motivo: string } {
-  const entera = mallaDeLaPieza(escena, indice)
+  const entera = origen ?? mallaDeLaPieza(escena, indice)
   if (!entera) return { motivo: 'Esa pieza no está cargada en el visor.' }
 
   let partida
@@ -124,15 +132,22 @@ export function crearFragmentos(
     ['b', partida.contraLaNormal],
   ]
   const fragmentos = lados.map(([lado, trozo]) => {
+    // Copia ANTES de `aMalla`, que centra la geometría en sitio.
+    const enReposo: MallaIndexada = {
+      posiciones: trozo.posiciones.slice(),
+      normales: trozo.normales.slice() as MallaIndexada['normales'],
+      indices: trozo.indices.slice(),
+    }
     const { malla, centro } = aMalla(trozo, material.color)
     malla.name = idDeFragmento(corte.pieza, lado)
     return {
       id: malla.name,
-      pieza: corte.pieza,
+      pieza: piezaDe(corte.pieza),
       lado,
       malla,
       centro,
       colorBase: material.color.clone(),
+      enReposo,
     }
   }) as [FragmentoDelAtlas, FragmentoDelAtlas]
   return { fragmentos }
@@ -197,4 +212,83 @@ export function planoDeLaLinea(
   normal.normalize()
   const medio = desde.clone().add(hasta).multiplyScalar(0.5)
   return { punto: [medio.x, medio.y, medio.z], normal: [normal.x, normal.y, normal.z] }
+}
+
+/**
+ * Todos los trozos que existen tras una lista de cortes: las hojas del árbol.
+ *
+ * Los cortes se aplican en su orden, que es el del árbol —primero la pieza y
+ * después sus fragmentos—; el de un fragmento parte la geometría que dejó el
+ * corte anterior. Un fragmento que se vuelve a partir se libera aquí mismo: ya
+ * no se dibuja. Un corte que no se puede rehacer se salta, con todo lo que
+ * colgara de él, y su padre se queda como estaba.
+ */
+export function crearTodosLosFragmentos(
+  escena: EscenaDelAtlas,
+  cortes: readonly Pick<CorteDePieza, 'pieza' | 'punto' | 'normal'>[],
+): Map<string, FragmentoDelAtlas> {
+  const hojas = new Map<string, FragmentoDelAtlas>()
+  for (const corte of cortes) {
+    const indice = escena.indices.get(piezaDe(corte.pieza))
+    if (indice === undefined) continue
+    const esFragmento = corte.pieza.includes('#')
+    const padre = hojas.get(corte.pieza)
+    if (esFragmento && !padre) continue
+    const resultado = crearFragmentos(escena, indice, corte, padre?.enReposo)
+    if ('motivo' in resultado) continue
+    if (padre) {
+      liberarFragmento(padre)
+      hojas.delete(corte.pieza)
+    }
+    for (const trozo of resultado.fragmentos) hojas.set(trozo.id, trozo)
+  }
+  return hojas
+}
+
+/**
+ * Lleva un plano del espacio en que se ve —donde está AHORA lo que se corta— a
+ * su sitio anatómico, que es donde se guarda y donde se parte la geometría.
+ *
+ * Lo que se corta está en `centro + mover + giro·(p − centro)`; se deshace esa
+ * cuenta para el punto, y para la normal solo el giro. Es lo que permite cortar
+ * un fragmento ya desplazado sin tener que devolverlo antes a su sitio.
+ */
+export function planoEnReposo(
+  plano: { punto: [number, number, number]; normal: [number, number, number] },
+  centro: THREE.Vector3,
+  transformacion: TransformacionDePieza | null | undefined,
+): { punto: [number, number, number]; normal: [number, number, number] } {
+  if (!transformacion) return plano
+  const inverso = new THREE.Quaternion(...transformacion.girar).invert()
+  const punto = new THREE.Vector3(...plano.punto)
+    .sub(centro)
+    .sub(new THREE.Vector3(...transformacion.mover))
+    .applyQuaternion(inverso)
+    .add(centro)
+  const normal = new THREE.Vector3(...plano.normal).applyQuaternion(inverso)
+  return { punto: [punto.x, punto.y, punto.z], normal: [normal.x, normal.y, normal.z] }
+}
+
+/**
+ * La transformación con la que un trozo recién cortado se queda exactamente
+ * donde estaba como parte de su padre.
+ *
+ * Cada cosa gira sobre SU centro, y el del trozo no es el del padre: con solo
+ * copiarle la transformación, el trozo daría un salto al cortar. Se iguala
+ * `centroPadre + mover + giro·(p − centroPadre)` con
+ * `centroHijo + moverHijo + giro·(p − centroHijo)` y se despeja `moverHijo`.
+ */
+export function transformacionHeredada(
+  centroDelPadre: THREE.Vector3,
+  delPadre: TransformacionDePieza | null | undefined,
+  centroDelHijo: THREE.Vector3,
+): TransformacionDePieza | null {
+  if (!delPadre) return null
+  const giro = new THREE.Quaternion(...delPadre.girar)
+  const mover = centroDelPadre
+    .clone()
+    .add(new THREE.Vector3(...delPadre.mover))
+    .add(centroDelHijo.clone().sub(centroDelPadre).applyQuaternion(giro))
+    .sub(centroDelHijo)
+  return { mover: [mover.x, mover.y, mover.z], girar: delPadre.girar }
 }

@@ -13,8 +13,10 @@ import {
   MAXIMO_DE_TRASLADO,
   MAXIMO_PIEZAS,
   OPACIDAD_MINIMA,
+  PROFUNDIDAD_MAXIMA_DE_CORTE,
   VISTA_INICIAL,
   partesDeFragmento,
+  profundidadDe,
   type CatalogoDelAtlas,
   type ContenidoDeInstancia,
   type CorteDePieza,
@@ -309,9 +311,11 @@ function gruposValidos(
     const miembros: string[] = []
     for (const id of bruto) {
       if (typeof id !== 'string' || yaAgrupados.has(id) || miembros.includes(id)) continue
+      // Vale lo que existe: una pieza entera, o una hoja del árbol de cortes
+      // —un fragmento cuyo padre se partió y que no se volvió a partir—.
       const fragmento = partesDeFragmento(id)
       const vale = fragmento
-        ? partidas.has(fragmento.pieza) && enLaPreparacion.has(fragmento.pieza)
+        ? partidas.has(fragmento.padre) && !partidas.has(id)
         : enLaPreparacion.has(id) && !partidas.has(id)
       if (vale) miembros.push(id)
     }
@@ -326,7 +330,8 @@ function gruposValidos(
 /**
  * Los cortes que se dejan guardar (D-130).
  *
- * Solo sobre piezas que están en la preparación, uno por pieza, con números
+ * Solo sobre piezas que están en la preparación —o sobre fragmentos de un corte
+ * anterior (D-137)—, uno por cada cosa que se parte, con números
  * finitos y una normal que apunte a algún sitio. Llega del navegador: un plano
  * con un `NaN` haría fallar `partirMalla` al abrir la ficha, y el residente
  * vería una anatomía que no carga por algo que se guardó semanas antes.
@@ -345,7 +350,14 @@ function cortesValidos(brutos: unknown, enLaPreparacion: ReadonlySet<string>): C
   for (const bruto of brutos) {
     if (!bruto || typeof bruto !== 'object') continue
     const { pieza, punto, normal, a, b } = bruto as Record<string, unknown>
-    if (typeof pieza !== 'string' || !enLaPreparacion.has(pieza) || yaCortadas.has(pieza)) continue
+    if (typeof pieza !== 'string' || yaCortadas.has(pieza)) continue
+    // Se parte una pieza de la preparación, o un fragmento que salió de un
+    // corte ANTERIOR de esta misma lista: el orden es el del árbol, de la pieza
+    // hacia los trozos, y un corte cuyo padre no existe se descarta con todo lo
+    // que colgara de él.
+    const fragmento = partesDeFragmento(pieza)
+    if (fragmento ? !yaCortadas.has(fragmento.padre) : !enLaPreparacion.has(pieza)) continue
+    if (profundidadDe(pieza) >= PROFUNDIDAD_MAXIMA_DE_CORTE) continue
     const p = trio(punto)
     const n = trio(normal)
     if (!p || !n) continue

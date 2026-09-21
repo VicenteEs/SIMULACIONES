@@ -3822,6 +3822,110 @@ se abriría con la anatomía original del atlas, no con el retoque: el taller no
 mira su geometría. Y si el archivo no está en disco —base restaurada sin los
 medios— el modelo sale como «no es del atlas», que no es exacto.
 
+### D-132 · 2026-09-21 · vigente
+**El taller se acerca a Blender, en seis tandas (D-132 a D-137). Primera: lo que
+estorbaba.**
+El dueño pidió hacer todo lo propuesto para que el editor se pareciera más a
+Blender. Se hizo por tandas, cada una probada en un navegador con el atlas
+entero y con su commit.
+- *Avisos flotantes.* Los dos avisos del taller iban en el flujo de la página y
+  empujaban el lienzo al aparecer: tras cortar un hueso, el clic siguiente caía
+  en otra pieza (D-130). Ahora flotan arriba a la derecha, con su aspa.
+- *Vista ortográfica (5).* Sin cambiar de cámara: una `PerspectiveCamera` con 2°
+  de campo y veintidós veces más lejos proyecta casi en paralelo, y así ni
+  OrbitControls ni el picado ni el gesto saben que algo cambió. Lo que se guarda
+  es siempre la cámara de perspectiva (`vistaDe` la convierte).
+- *«Encuadrar» cuenta lo movido.* `cajaDeLoVisible` acepta lo que cada pieza se
+  desplazó. Solo para «Encuadrar» y «Centrar»: el pivote automático sigue
+  midiendo en reposo, porque una cámara que se desliza sola detrás de cada pieza
+  que se mueve marea.
+- *El árbol selecciona.* El nombre de cada pieza es un botón; la casilla sigue
+  encendiendo. Lo seleccionado se marca en los dos sitios.
+- El naranja de la selección se oscureció: sobre hueso, casi blanco y con luz
+  por encima de 1, el de antes salía lavado.
+
+### D-133 · 2026-09-21 · vigente
+**Asas, panel de números y valores tecleados.**
+G y R son invisibles para quien no viene de Blender. Un manipulador de tres
+flechas y tres aros (`src/atlas/gizmo.ts`) sobre lo seleccionado dice que se
+puede mover sin leer nada: se dibuja sin prueba de profundidad y con tamaño
+constante en pantalla, y sus asas de agarre son invisibles y el triple de
+gordas. Agarrar una es empezar el mismo gesto modal ya atado a su eje, que se
+confirma al soltar. Si el rayo cruza una flecha y un aro gana la flecha: de
+frente, el aro de Y se ve de canto justo encima de la flecha de X.
+El panel «Posición y giro» lee y deja teclear milímetros y grados; los ángulos
+salen de `src/atlas/angulos.ts`, sin three —el taller no puede importarlo—, y
+una prueba comprueba que dan lo mismo que `THREE.Euler` en orden XYZ. Durante un
+gesto, teclear un número lo hace exacto (`G X 8 Intro`).
+*Malas.* Cerca de ±90° en Y los tres ángulos se degeneran (bloqueo de cardán):
+lo guardado es el cuaternión, que no lo sufre, pero el panel lo lee raro.
+
+### D-134 · 2026-09-21 · vigente
+**Color y transparencia propios de cada pieza.**
+`PiezaDeInstancia.color` existía desde el principio y nadie lo pintaba. Una
+cuarta textura lleva el color y la opacidad de cada pieza. La opacidad es una
+trama de píxeles descartados (secuencia R2), no transparencia de verdad: esa
+pide ordenar 2,3 millones de triángulos por fotograma. Los fragmentos de hueso,
+que son pocas mallas sueltas, sí usan la de verdad. `opacidad` se guarda entre
+0,1 y 1; maciza no se guarda. Arrastrar el deslizador cuenta como un solo paso
+de deshacer.
+
+### D-135 · 2026-09-21 · vigente
+**Rótulos, medidas y vistas con nombre.**
+`ContenidoDeInstancia` gana `marcas` (rótulo, distancia, ángulo) y `vistas`
+(`src/atlas/marcas.ts`, sin three, que valida el servidor). Se marca sobre la
+anatomía: el punto sale de la distancia del impacto del picado. Las líneas van
+en la escena sin prueba de profundidad; los textos son HTML proyectado tras cada
+dibujado, sin pasar por React. En la ficha las vistas salen como botones.
+*Malas.* Los puntos se guardan en el espacio del atlas, no atados a la pieza: si
+después se mueve el fragmento, la marca se queda. No entran en deshacer.
+
+### D-136 · 2026-09-21 · vigente
+**Agrupar, espejo, y las herramientas sobre el lienzo.**
+- *Grupos* (`grupos` en el contenido): pulsar un miembro selecciona el grupo.
+  No es el emparentado de Blender —no hay jerarquía ni transformaciones
+  relativas—, es selección conjunta, que es lo que hacía falta para mover el
+  fragmento con lo que cuelga de él. Cortar y soldar los mantienen coherentes.
+- *Espejo* (`src/atlas/espejo.ts`): cada pieza por su contralateral, y lo
+  movido, cortado, pintado y apuntado, reflejado en X. La pareja se busca por
+  nombre («Right» ↔ «Left») y, como 243 nombres se repiten, por la caja
+  reflejada más parecida, con dos centímetros de holgura. Medido: las
+  extremidades son espejos exactos (décimas de milímetro) y 1.311 de las 1.744
+  piezas con lado tienen pareja; los ojos y el tronco, no. No entra en deshacer:
+  es su propia inversa.
+- *Barra.* Tres grupos de botones flotan sobre el lienzo —herramientas a la
+  izquierda, vistas arriba—; la barra de abajo pasó de cinco renglones a dos.
+
+### D-137 · 2026-09-21 · vigente
+**Varios cortes por hueso, cortar lo ya movido, y el corte del taller hacia el
+simulador.**
+- *Cortes encadenados.* `CorteDePieza.pieza` puede ser un fragmento
+  (`FJ3387#b`), y sus trozos son `FJ3387#b#a` y `#b#b`: el nombre es el camino
+  de cortes. Existen las hojas del árbol (`hojasDe`). Hasta tres cortes
+  encadenados y ocho por preparación. El visor rehace todos los trozos cuando
+  cambia cualquier corte: llevar la cuenta de qué sale de qué era más código que
+  lo que ahorra. `partesDeFragmento` devuelve ahora `padre`, no `pieza`.
+- *Cortar lo movido.* El plano se traza sobre lo que se ve y se guarda en el
+  sitio anatómico de lo que se corta (`planoEnReposo`); los dos trozos heredan
+  la transformación del padre corregida a su propio centro
+  (`transformacionHeredada`), para que no den un salto. Se fue la regla de
+  «devuélvala antes a su sitio».
+- *Soldar* deshace el último corte del fragmento; lo que se movieron sus trozos
+  se pierde y el padre vuelve a su sitio.
+- *Hacia el simulador.* **No se exporta lo desplazado, a propósito**: la consola
+  quirúrgica espera el hueso en su sitio, porque el desplazamiento lo pone el
+  caso y el residente lo reduce midiendo desde la posición anatómica. Lo que sí
+  se unificó es el corte: `corteDesdeElPlano`, la inversa de `planoDelCorte`,
+  lleva el plano del taller a posición, inclinación y giro, y el panel de
+  exportar ofrece «Usar el corte del taller». Lo que la exportación no admite
+  —más de 60° de inclinación, fuera del 5–95 % del hueso— se acota y se avisa.
+  Solo cortes de un hueso entero: un fragmento de un fragmento no tiene nombre
+  en el simulador.
+*Malas de toda la serie.* `ContenidoDeInstancia` creció mucho en un día y todo
+es opcional: una preparación antigua se lee igual, pero el formato ya merece su
+propia versión 2 el día que algo deje de ser compatible. La cobertura bajó de
+91,9 % a 89 %: lo nuevo del visor y del taller solo se prueba en navegador.
+
 ---
 
 ## 3. Observaciones

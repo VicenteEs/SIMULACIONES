@@ -12,8 +12,9 @@ import * as THREE from 'three'
 // con su copia. Unificar es un cambio de los tres archivos en el mismo commit.
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import {
+  MAXIMO_DE_CORTES,
+  PROFUNDIDAD_MAXIMA_DE_CORTE,
   VISTA_INICIAL,
-  partesDeFragmento,
   piezaDe,
   type CatalogoDelAtlas,
   type CorteDePieza,
@@ -45,9 +46,12 @@ import {
 import {
   colocarFragmento,
   crearFragmentos,
+  crearTodosLosFragmentos,
   liberarFragmento,
   pintarFragmento,
   planoDeLaLinea,
+  planoEnReposo,
+  transformacionHeredada,
   type FragmentoDelAtlas,
 } from '@/atlas/fragmentos'
 import {
@@ -79,6 +83,7 @@ import {
 } from '@/atlas/pivote'
 import { objetivoFueraDeLoVisible } from '@/atlas/vistaGuardada'
 import {
+  corteDesdeElPlano,
   ejeDelHueso,
   planoDelCorte,
   type CorteDeHueso,
@@ -177,6 +182,16 @@ export interface MandoDelVisor {
    * para otra cosa —la X apaga piezas cuando no hay gesto—.
    */
   teclaDeTransformacion: (tecla: string) => boolean
+  /**
+   * Un plano trazado en el taller, dicho como lo dice la exportación: posición
+   * en % del hueso, inclinación y giro (`corteDesdeElPlano`). Lo contesta el
+   * visor porque es quien tiene la geometría con la que se mide el eje del
+   * hueso. `null` si la pieza no está cargada.
+   */
+  corteParaExportar: (
+    pieza: string,
+    plano: { punto: [number, number, number]; normal: [number, number, number] },
+  ) => ReturnType<typeof corteDesdeElPlano> | null
 }
 
 export type ModoDeTransformacion = 'mover' | 'girar'
@@ -259,8 +274,12 @@ export function VisorAtlas({
   transformaciones?: ReadonlyMap<string, TransformacionDePieza> | null
   /** Los huesos partidos (D-130). Las fichas pasan los guardados; el taller, los que se editan. */
   cortes?: readonly CorteDePieza[] | null
-  /** Se trazó una línea de corte válida sobre la pieza seleccionada. */
-  alCortar?: (corte: CorteDePieza) => void
+  /**
+   * Se trazó una línea de corte válida sobre lo seleccionado. `heredadas` trae
+   * la transformación con la que cada trozo nuevo se queda donde estaba, si lo
+   * que se cortó ya se había movido (D-137).
+   */
+  alCortar?: (corte: CorteDePieza, heredadas: Map<string, TransformacionDePieza>) => void
   /** Algo que decirle a quien trabaja: por qué no se pudo cortar, por ejemplo. */
   alAvisar?: (texto: string) => void
   /** Rótulos, distancias y ángulos apuntados sobre el modelo (D-135). Las fichas los enseñan; el taller, además, los pone. */
@@ -351,6 +370,7 @@ export function VisorAtlas({
     alAvisar,
     gizmo,
     alMarcar,
+    cortes,
     alAsentarVista,
     soloLectura,
     vistaInicial,
@@ -370,6 +390,7 @@ export function VisorAtlas({
       alAvisar,
       gizmo,
       alMarcar,
+      cortes,
       alAsentarVista,
       soloLectura,
       vistaInicial,
@@ -448,6 +469,15 @@ export function VisorAtlas({
       // visible lo devolvería al centro de todo en el siguiente cambio que no
       // cambia nada.
       t.seleccionDelPivote = { visibles: v, separacion: s }
+    },
+    corteParaExportar: (pieza, plano) => {
+      const t = taller.current
+      const indice = t.escena?.indices.get(pieza)
+      if (!t.escena || indice === undefined) return null
+      const ejes = (t.ejes ??= new Map())
+      if (!ejes.has(pieza)) ejes.set(pieza, medirEje(t.escena, indice))
+      const eje = ejes.get(pieza)
+      return eje ? corteDesdeElPlano(eje, plano) : null
     },
     empezarTransformacion: (modo) => taller.current.gesto?.empezar(modo) ?? false,
     teclaDeTransformacion: (tecla) => taller.current.gesto?.tecla(tecla) ?? false,
@@ -637,23 +667,32 @@ export function VisorAtlas({
         return
       }
       const [id] = ids
-      if (partesDeFragmento(id)) {
-        decir?.('Ese hueso ya está partido. Suéldelo antes si quiere cortarlo por otro sitio.')
+      const raiz = piezaDe(id)
+      const indice = escena.indices.get(raiz)
+      if (indice === undefined || !escena.rangos.has(indice)) return
+      const trozo = taller.current.fragmentos?.get(id)
+      if (id !== raiz && !trozo) return
+      if (id.split('#').length - 1 >= PROFUNDIDAD_MAXIMA_DE_CORTE) {
+        decir?.('Ese fragmento ya viene de tres cortes seguidos, que es el tope. Corte otro, o suelde alguno.')
         return
       }
-      const indice = escena.indices.get(id)
-      if (indice === undefined || !escena.rangos.has(indice)) return
-      if (ultimas.current.transformaciones?.has(id)) {
-        decir?.('Devuelva la pieza a su sitio antes de cortarla (Alt + G y Alt + R); después podrá mover cada fragmento.')
+      if ((ultimas.current.cortes?.length ?? 0) >= MAXIMO_DE_CORTES) {
+        decir?.(`Una preparación admite ${MAXIMO_DE_CORTES} cortes. Suelde alguno antes de hacer otro.`)
         return
       }
 
+      // Dónde está AHORA lo que se corta: su centro en reposo y lo que se movió.
+      const centroEnReposo =
+        trozo?.centro.clone() ??
+        new THREE.Vector3(
+          escena.centros[indice * 3],
+          escena.centros[indice * 3 + 1],
+          escena.centros[indice * 3 + 2],
+        )
+      const suTransformacion = ultimas.current.transformaciones?.get(id) ?? null
+      const centroDeLaPieza = centroActual(centroEnReposo, suTransformacion ?? undefined)
+
       // Los dos extremos de la línea, llevados a la profundidad de la pieza.
-      const centroDeLaPieza = new THREE.Vector3(
-        escena.centros[indice * 3],
-        escena.centros[indice * 3 + 1],
-        escena.centros[indice * 3 + 2],
-      )
       const haciaDelante = camara.getWorldDirection(new THREE.Vector3())
       const profundidad = centroDeLaPieza.clone().sub(camara.position).dot(haciaDelante)
       const aLaProfundidad = (punto: { x: number; y: number }) => {
@@ -670,19 +709,29 @@ export function VisorAtlas({
           .clone()
           .addScaledVector(direccion, profundidad / Math.max(1e-6, direccion.dot(haciaDelante)))
       }
-      const plano = planoDeLaLinea(aLaProfundidad(desde), aLaProfundidad(hasta), haciaDelante)
-      if (!plano) return
+      const enElMundo = planoDeLaLinea(aLaProfundidad(desde), aLaProfundidad(hasta), haciaDelante)
+      if (!enElMundo) return
+      // El plano se traza sobre lo que se ve y se guarda en el sitio anatómico
+      // de lo que se corta (D-137): ya no hace falta devolverlo antes a su sitio.
+      const plano = planoEnReposo(enElMundo, centroEnReposo, suTransformacion)
 
       const corte: CorteDePieza = { pieza: id, ...plano }
-      const ensayo = crearFragmentos(escena, indice, corte)
+      const ensayo = crearFragmentos(escena, indice, corte, trozo?.enReposo)
       if ('motivo' in ensayo) {
         decir?.(ensayo.motivo)
         return
       }
+      // Cada trozo nuevo hereda lo que se había movido su padre, corregido a
+      // su propio centro para que no dé un salto al cortarlo.
+      const heredadas = new Map<string, TransformacionDePieza>()
+      for (const nuevo of ensayo.fragmentos) {
+        const suya = transformacionHeredada(centroEnReposo, suTransformacion, nuevo.centro)
+        if (suya) heredadas.set(nuevo.id, suya)
+      }
       // Era solo para saber si se puede: los de verdad los crea el efecto que
       // sigue a la prop `cortes`, que es la única fuente de lo que hay partido.
       ensayo.fragmentos.forEach(liberarFragmento)
-      cortar(corte)
+      cortar(corte, heredadas)
     }
 
     /** A qué distancia tocó el rayo lo último que señaló: con ella se saca el punto exacto para marcar. */
@@ -1393,38 +1442,24 @@ export function VisorAtlas({
     const t = taller.current
     const { escena, tresD } = t
     if (!escena || !tresD) return
-    const trozos = (t.fragmentos ??= new Map())
-    const firmas = (t.firmasDeCorte ??= new Map())
-    const vigentes = new Map<string, string>()
-    for (const corte of cortes ?? []) {
-      vigentes.set(corte.pieza, `${corte.punto.join(',')}|${corte.normal.join(',')}`)
+    // Se rehace todo cuando cambia CUALQUIER corte, y nada si no cambió ninguno.
+    // Llevar la cuenta de qué trozo sale de cuál, con cortes encadenados (D-137),
+    // era más código que lo que ahorra: son ocho cortes como mucho, y cambian
+    // una vez por gesto, no por fotograma.
+    const firma = (cortes ?? [])
+      .map((c) => `${c.pieza}|${c.punto.join(',')}|${c.normal.join(',')}`)
+      .join(';')
+    if (t.firmaDeCortes !== firma || t.escenaDeLosCortes !== escena) {
+      t.fragmentos?.forEach(liberarFragmento)
+      t.fragmentos = crearTodosLosFragmentos(escena, cortes ?? [])
+      for (const trozo of t.fragmentos.values()) tresD.add(trozo.malla)
+      t.firmaDeCortes = firma
+      t.escenaDeLosCortes = escena
     }
-
-    for (const [pieza, firma] of firmas) {
-      if (vigentes.get(pieza) === firma) continue
-      for (const lado of ['a', 'b'] as const) {
-        const trozo = trozos.get(`${pieza}#${lado}`)
-        if (trozo) liberarFragmento(trozo)
-        trozos.delete(`${pieza}#${lado}`)
-      }
-      firmas.delete(pieza)
-    }
-    for (const corte of cortes ?? []) {
-      if (firmas.has(corte.pieza)) continue
-      const indice = escena.indices.get(corte.pieza)
-      if (indice === undefined) continue
-      const resultado = crearFragmentos(escena, indice, corte)
-      // Un corte guardado que ya no se puede rehacer —el atlas se regeneró y
-      // el plano cae fuera— deja la pieza ENTERA, que es lo menos malo: la
-      // ficha enseña el hueso sin romper en vez de no enseñarlo.
-      if ('motivo' in resultado) continue
-      for (const trozo of resultado.fragmentos) {
-        trozos.set(trozo.id, trozo)
-        tresD.add(trozo.malla)
-      }
-      firmas.set(corte.pieza, vigentes.get(corte.pieza)!)
-    }
-    t.cortadas = new Set(firmas.keys())
+    // Apagadas en su malla, las piezas de las que de verdad salió algún trozo: un
+    // corte guardado que ya no se puede rehacer deja la pieza ENTERA, que es lo
+    // menos malo: la ficha enseña el hueso sin romper en vez de no enseñarlo.
+    t.cortadas = new Set([...(t.fragmentos?.values() ?? [])].map((trozo) => trozo.pieza))
   }, [catalogo, cortes, progreso])
 
   // Los trozos siguen a su pieza en lo encendido, y a la selección y a las
@@ -1982,8 +2017,9 @@ interface TallerDelVisor {
   ortografica?: boolean
   /** Los trozos de los huesos partidos, por su identificador (`FJ1234#a`). */
   fragmentos?: Map<string, FragmentoDelAtlas>
-  /** De qué corte salió cada pareja de trozos, para no volver a partir lo que no cambió. */
-  firmasDeCorte?: Map<string, string>
+  /** La lista de cortes con la que se hicieron los trozos, y sobre qué escena, para no rehacerlos sin motivo. */
+  firmaDeCortes?: string
+  escenaDeLosCortes?: EscenaDelAtlas
   /** Piezas partidas: se apagan en su malla fusionada, porque las dibujan sus trozos. */
   cortadas?: Set<string>
   /** Piezas a las que se les escribió un aspecto propio, para devolverlas al de su sistema. */

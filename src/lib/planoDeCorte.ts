@@ -382,6 +382,58 @@ export function planoDelCorte(
   return { punto: puntoDelCorte, normal }
 }
 
+/**
+ * Lo contrario de `planoDelCorte`: de un plano cualquiera —el que se trazó con
+ * una línea en el taller (D-130)— a la posición, la inclinación y el giro con
+ * los que la exportación nombra un corte (D-137).
+ *
+ * Existe para que el corte sea UNO: el que se ve en la ficha y el que se opera
+ * en el simulador. Antes había que trazarlo en el taller y, para exportarlo,
+ * volver a buscarlo a ojo con tres deslizadores.
+ *
+ * No todo plano tiene nombre aquí. Uno casi paralelo al eje del hueso —una
+ * fractura longitudinal— pasa de los 60° de inclinación que admite la
+ * exportación, y uno que cruza el eje fuera del 5–95 % cae en una epífisis.
+ * Los dos se acotan al límite y se dice en `acotado`, para que quien exporta
+ * sepa que lo que sale no es exactamente lo que trazó.
+ */
+export function corteDesdeElPlano(
+  eje: EjeDelHueso,
+  plano: PlanoDeCorte,
+): { posicion: number; inclinacion: number; giro: number; acotado: boolean } {
+  const punto = (a: Vector3, b: Vector3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+  let normal = unitario(plano.normal)
+  // Hacia distal, como la de `planoDelCorte`: un plano no tiene cara, y la
+  // normal que llegue puede mirar a cualquiera de los dos lados.
+  if (punto(normal, eje.direccion) < 0) normal = [-normal[0], -normal[1], -normal[2]]
+
+  const coseno = Math.min(1, punto(normal, eje.direccion))
+  const inclinacionExacta = (Math.acos(coseno) * 180) / Math.PI
+  // Dónde cruza el plano al eje: el `s` de `centro + direccion·s` que cae en él.
+  const desdeElCentro: Vector3 = [
+    plano.punto[0] - eje.centro[0],
+    plano.punto[1] - eje.centro[1],
+    plano.punto[2] - eje.centro[2],
+  ]
+  const s = coseno > 1e-6 ? punto(desdeElCentro, normal) / coseno : 0
+  const posicionExacta = ((s - eje.proximal) / (eje.distal - eje.proximal)) * 100
+  // El giro es hacia qué cara se tumba la normal. Con el corte transversal no
+  // se tumba hacia ninguna y el ángulo no significa nada: se deja en 0.
+  const giroExacto =
+    inclinacionExacta < 0.05
+      ? 0
+      : (Math.atan2(punto(normal, eje.fuera), punto(normal, eje.delante)) * 180) / Math.PI
+
+  const posicion = Math.min(POSICION_MAXIMA, Math.max(POSICION_MINIMA, posicionExacta))
+  const inclinacion = Math.min(INCLINACION_MAXIMA, inclinacionExacta)
+  return {
+    posicion: Math.round(posicion * 10) / 10,
+    inclinacion: Math.round(inclinacion * 10) / 10,
+    giro: Math.round(((giroExacto % 360) + 360) % 360),
+    acotado: posicion !== posicionExacta || inclinacion !== inclinacionExacta,
+  }
+}
+
 /** Las ocho caras con nombre, cada 45° desde delante y hacia fuera. */
 const CARAS = [
   'anterior',

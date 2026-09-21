@@ -8,7 +8,7 @@ import type {
   PiezaDelAtlas,
   VistaDeInstancia,
 } from '@/atlas/formato'
-import { VISTA_INICIAL, idDeFragmento, partesDeFragmento, piezaDe } from '@/atlas/formato'
+import { VISTA_INICIAL, hojasDe, idDeFragmento, partesDeFragmento, piezaDe } from '@/atlas/formato'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
@@ -911,9 +911,9 @@ export function TallerDeAtlas() {
     if (!catalogo) return
     const parejas = parejasContralaterales(catalogo)
     const otra = (id: string) => {
-      const fragmento = partesDeFragmento(id)
-      if (!fragmento) return parejas.get(id) ?? id
-      return idDeFragmento(parejas.get(fragmento.pieza) ?? fragmento.pieza, fragmento.lado)
+      // La pieza cambia de lado y el camino de cortes (`#a#b`) se conserva.
+      const raiz = piezaDe(id)
+      return (parejas.get(raiz) ?? raiz) + id.slice(raiz.length)
     }
     const sinPareja = [...visibles].filter((id) => !parejas.has(id)).length
     const nuevasVisibles = new Set([...visibles].map(otra))
@@ -978,55 +978,63 @@ export function TallerDeAtlas() {
 
   /** Lo que se puede seleccionar de lo encendido: las piezas, y de las partidas, sus dos fragmentos. */
   const idsSeleccionables = (piezas: Iterable<string>): string[] => {
-    const partidas = new Set(cortes.map((c) => c.pieza))
-    return [...piezas].flatMap((id) =>
-      partidas.has(id) ? [idDeFragmento(id, 'a'), idDeFragmento(id, 'b')] : [id],
-    )
+    return [...piezas].flatMap((id) => hojasDe(cortes, id))
   }
 
-  const alCortar = (corte: CorteDePieza) => {
+  const alCortar = (corte: CorteDePieza, heredadas: Map<string, TransformacionDePieza>) => {
     apuntarPaso()
-    setCortes([...cortes.filter((c) => c.pieza !== corte.pieza), corte])
-    // En su grupo, el hueso entero deja sitio a sus dos fragmentos.
-    setGrupos(
-      grupos.map((g) =>
-        g.flatMap((id) =>
-          id === corte.pieza ? [idDeFragmento(id, 'a'), idDeFragmento(id, 'b')] : [id],
-        ),
-      ),
-    )
-    // La pieza entera deja de existir como tal: quedan seleccionados sus dos
-    // fragmentos, y la herramienta vuelve a girar para poder mirarlos.
-    setSeleccion(new Set([idDeFragmento(corte.pieza, 'a'), idDeFragmento(corte.pieza, 'b')]))
+    // Al final de la lista: el orden de los cortes es el del árbol, y el de un
+    // fragmento tiene que ir detrás del que lo creó.
+    setCortes([...cortes, corte])
+    // Lo que se cortó deja de existir como tal: su transformación pasa a sus
+    // dos trozos, ya corregida por el visor para que no den un salto.
+    const nuevas = new Map(transformaciones)
+    nuevas.delete(corte.pieza)
+    for (const [id, heredada] of heredadas) nuevas.set(id, heredada)
+    setTransformaciones(nuevas)
+    const hijos = [idDeFragmento(corte.pieza, 'a'), idDeFragmento(corte.pieza, 'b')]
+    // En su grupo, lo cortado deja sitio a sus dos trozos.
+    setGrupos(grupos.map((g) => g.flatMap((id) => (id === corte.pieza ? hijos : [id]))))
+    setSeleccion(new Set(hijos))
     setHerramienta('orbita')
-    // Sin aviso de «hecho»: los avisos van encima del lienzo y lo empujan hacia
-    // abajo, y el gesto siguiente es justo un clic sobre el fragmento, que ya
-    // no estaría donde se apuntaba. Que se partió se ve: los dos trozos quedan
-    // en naranja y la barra dice «2 piezas seleccionadas».
+    // Sin aviso de «hecho»: que se partió se ve, los dos trozos quedan en
+    // naranja y la barra dice «2 piezas seleccionadas».
     setAviso(null)
   }
 
   /** Deshace el corte de los fragmentos seleccionados: el hueso vuelve entero y a su sitio. */
   const soldarSeleccion = () => {
-    const piezas = new Set(
-      [...seleccion].filter((id) => partesDeFragmento(id) !== null).map(piezaDe),
+    // Se suelda el ÚLTIMO corte de cada fragmento seleccionado: su padre vuelve
+    // a existir, entero, y con él se va todo lo que colgara de ese corte. Para
+    // deshacer una conminuta entera se suelda varias veces, de fuera adentro.
+    const padres = new Set(
+      [...seleccion].flatMap((id) => {
+        const partes = partesDeFragmento(id)
+        return partes ? [partes.padre] : []
+      }),
     )
-    if (piezas.size === 0) return
+    if (padres.size === 0) return
     apuntarPaso()
-    setCortes(cortes.filter((c) => !piezas.has(c.pieza)))
-    // Y al revés: los dos fragmentos dejan sitio al hueso, una sola vez.
+    const cuelgaDeUnPadre = (id: string) =>
+      [...padres].some((padre) => id === padre || id.startsWith(`${padre}#`))
+    // Un corte se va si es el de un padre o el de algo que cuelga de él.
+    setCortes(cortes.filter((c) => !cuelgaDeUnPadre(c.pieza)))
+    // Lo que se movieron los trozos que desaparecen se pierde: el padre vuelve
+    // a su sitio anatómico. Recomponer «dónde estaría el padre» a partir de dos
+    // hijos que pueden haberse movido cada uno por su lado no tiene respuesta.
+    setTransformaciones(
+      new Map([...transformaciones].filter(([id]) => !cuelgaDeUnPadre(id))),
+    )
     setGrupos(
       grupos
-        .map((g) => [...new Set(g.map((id) => (piezas.has(piezaDe(id)) ? piezaDe(id) : id)))])
+        .map((g) => [
+          ...new Set(
+            g.map((id) => [...padres].find((padre) => id.startsWith(`${padre}#`)) ?? id),
+          ),
+        ])
         .filter((g) => g.length >= 2),
     )
-    const sinSusFragmentos = new Map(transformaciones)
-    for (const pieza of piezas) {
-      sinSusFragmentos.delete(idDeFragmento(pieza, 'a'))
-      sinSusFragmentos.delete(idDeFragmento(pieza, 'b'))
-    }
-    setTransformaciones(sinSusFragmentos)
-    setSeleccion(new Set(piezas))
+    setSeleccion(new Set(padres))
   }
   const encenderTodo = () => {
     if (!catalogo) return
@@ -1253,7 +1261,7 @@ export function TallerDeAtlas() {
           })),
           // Cada corte con lo que se movió cada uno de sus dos fragmentos.
           cortes: cortes
-            .filter((c) => visibles.has(c.pieza))
+            .filter((c) => visibles.has(piezaDe(c.pieza)))
             .map((c) => ({
               ...c,
               a: transformaciones.get(idDeFragmento(c.pieza, 'a')),
@@ -1406,10 +1414,9 @@ export function TallerDeAtlas() {
   // el árbol solo conoce el hueso. Y la selección desde el árbol, estable entre
   // pintados porque es prop de filas memorizadas.
   const piezasSeleccionadas = useMemo(() => new Set([...seleccion].map(piezaDe)), [seleccion])
-  const partidas = useMemo(() => new Set(cortes.map((c) => c.pieza)), [cortes])
   const seleccionarDesdeElArbol = useCallback(
     (id: string, sumar: boolean) => {
-      const propios = partidas.has(id) ? [idDeFragmento(id, 'a'), idDeFragmento(id, 'b')] : [id]
+      const propios = hojasDe(cortes, id)
       // Con su grupo, igual que al pulsar en el lienzo (`conSuGrupo`).
       const ids = new Set(propios)
       for (const propio of propios) {
@@ -1425,7 +1432,7 @@ export function TallerDeAtlas() {
         ),
       )
     },
-    [partidas, grupos, visibles],
+    [cortes, grupos, visibles],
   )
 
   const unicaSeleccionada = seleccion.size === 1 ? [...seleccion][0] : null
@@ -1714,6 +1721,45 @@ export function TallerDeAtlas() {
             ) : null}
           </div>
 
+          {/* El corte trazado en el taller (D-130), llevado a los tres valores con
+              los que lo nombra la exportación (D-137): así el corte de la ficha
+              y el del simulador son el mismo, sin buscarlo a ojo dos veces. Solo
+              los de un hueso entero: el simulador parte un hueso en dos, y un
+              fragmento de un fragmento no tiene nombre allí. */}
+          {cortes
+            .filter((c) => !c.pieza.includes('#') && visibles.has(c.pieza))
+            .map((c) => (
+              <button
+                key={c.pieza}
+                type="button"
+                className="admin-btn admin-btn-secondary"
+                style={{ marginBottom: 8 }}
+                onClick={() => {
+                  const valores = mando.current?.corteParaExportar(c.pieza, c)
+                  if (!valores) return
+                  setProtagonistas((actuales) => new Set([...actuales, c.pieza]))
+                  setCorte({
+                    ...CORTE_POR_OMISION,
+                    ...(corte?.pieza === c.pieza ? corte : {}),
+                    pieza: c.pieza,
+                    posicion: valores.posicion,
+                    inclinacion: valores.inclinacion,
+                    giro: valores.giro,
+                  })
+                  if (valores.acotado) {
+                    setAviso({
+                      tipo: 'error',
+                      texto:
+                        'El corte del taller se sale de lo que admite la exportación (entre el 5 y el 95 % del hueso, y hasta 60° de inclinación): se ha llevado al límite. Compruebe el plano antes de exportar.',
+                    })
+                  }
+                }}
+              >
+                Usar el corte del taller ·{' '}
+                {nombreEnEspanol(catalogo.piezas.find((p) => p.id === c.pieza)?.nombre ?? c.pieza)}
+              </button>
+            ))}
+
           {corteVivo ? (
             <MandosDelCorte
               corte={corteVivo}
@@ -1948,7 +1994,7 @@ export function TallerDeAtlas() {
                 type="button"
                 className="atlas-herramienta"
                 aria-pressed={herramienta === 'corte'}
-                title="Partir el hueso seleccionado: trace una línea de lado a lado (K)"
+                title="Partir lo seleccionado, un hueso o un fragmento: trace una línea de lado a lado (K)"
                 onClick={() => setHerramienta('corte')}
               >
                 Cortar
@@ -2100,7 +2146,7 @@ export function TallerDeAtlas() {
                 type="button"
                 className="atlas-herramienta"
                 disabled={![...seleccion].some((id) => partesDeFragmento(id) !== null)}
-                title="Soldar: deshacer el corte del fragmento seleccionado; el hueso vuelve entero"
+                title="Soldar: deshacer el último corte del fragmento seleccionado; lo que se partió vuelve entero y a su sitio"
                 onClick={soldarSeleccion}
               >
                 Soldar

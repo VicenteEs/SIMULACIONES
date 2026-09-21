@@ -368,7 +368,7 @@ describe('el taller usa lo que el visor decide', () => {
     // una preparación con un fragmento desplazado
     // la daría por cambiada nada más abrirla.
     expect(abrir).toMatch(
-      /fijarReferencia\(\s*piezasAbiertas,[\s\S]*vistaAbierta,\s*movidasAbiertas,\s*cortesAbiertos,\s*\)/,
+      /fijarReferencia\(\s*piezasAbiertas,[\s\S]*vistaAbierta,\s*movidasAbiertas,\s*cortesAbiertos,\s*aspectosAbiertos,\s*\[marcasAbiertas, vistasAbiertas, gruposAbiertos\],\s*\)/,
     )
     expect(abrir.indexOf('irA(')).toBeLessThan(abrir.indexOf('fijarReferencia('))
 

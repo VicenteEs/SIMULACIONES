@@ -175,6 +175,11 @@ export type TransformacionGuardada = Pick<PiezaDeInstancia, 'mover' | 'girar'>
  * se rehace sobre la geometría nueva.
  */
 export interface CorteDePieza {
+  /**
+   * Lo que se parte: una pieza del catálogo (`FJ3387`) o un fragmento de un
+   * corte anterior (`FJ3387#a`), que es como se arma una conminuta (D-137). El
+   * plano va en el espacio anatómico, en reposo, de esa pieza.
+   */
   pieza: string
   punto: [number, number, number]
   /** Unitaria. El fragmento `a` es el que queda hacia donde apunta. */
@@ -183,32 +188,63 @@ export interface CorteDePieza {
   b?: TransformacionGuardada
 }
 
-/** Un corte por pieza, y pocos por preparación: cada uno se parte en el navegador al abrir la ficha. */
+/** Pocos cortes por preparación: cada uno se parte en el navegador al abrir la ficha. */
 export const MAXIMO_DE_CORTES = 8
+
+/** Hasta dónde se puede partir un fragmento de un fragmento: tres cortes encadenados, ocho trozos de un hueso. */
+export const PROFUNDIDAD_MAXIMA_DE_CORTE = 3
 
 export const MAXIMO_DE_GRUPOS = 16
 
 export type LadoDelCorte = 'a' | 'b'
 
 /**
- * Los fragmentos se nombran con el identificador de su pieza y el lado. La
- * almohadilla no aparece en ningún identificador del atlas (`FJ1234`), así que
- * separa sin ambigüedad.
+ * Los fragmentos se nombran con el identificador de lo que se partió y el lado:
+ * `FJ1234#a`, y si ese se parte otra vez, `FJ1234#a#b`. El nombre es el camino
+ * de cortes desde la pieza. La almohadilla no aparece en ningún identificador
+ * del atlas, así que separa sin ambigüedad.
  */
-export function idDeFragmento(pieza: string, lado: LadoDelCorte): string {
-  return `${pieza}#${lado}`
+export function idDeFragmento(padre: string, lado: LadoDelCorte): string {
+  return `${padre}#${lado}`
 }
 
-export function partesDeFragmento(id: string): { pieza: string; lado: LadoDelCorte } | null {
+/** De un fragmento, lo que se partió para obtenerlo —pieza u otro fragmento— y de qué lado quedó. */
+export function partesDeFragmento(id: string): { padre: string; lado: LadoDelCorte } | null {
   const corte = id.lastIndexOf('#')
   if (corte < 0) return null
   const lado = id.slice(corte + 1)
-  return lado === 'a' || lado === 'b' ? { pieza: id.slice(0, corte), lado } : null
+  return lado === 'a' || lado === 'b' ? { padre: id.slice(0, corte), lado } : null
 }
 
-/** La pieza del atlas a la que pertenece un identificador, sea pieza o fragmento. */
+/** La pieza del atlas a la que pertenece un identificador, sea pieza o fragmento de cualquier nivel. */
 export function piezaDe(id: string): string {
-  return partesDeFragmento(id)?.pieza ?? id
+  const almohadilla = id.indexOf('#')
+  return almohadilla < 0 ? id : id.slice(0, almohadilla)
+}
+
+/** Cuántos cortes hay entre la pieza y este identificador: 0 para la pieza entera. */
+export function profundidadDe(id: string): number {
+  return id.split('#').length - 1
+}
+
+/**
+ * Los trozos que de verdad existen de una pieza partida: las hojas del árbol de
+ * cortes. Un fragmento que se volvió a partir deja de existir como tal, igual
+ * que la pieza entera al primer corte.
+ */
+export function hojasDe(cortes: readonly Pick<CorteDePieza, 'pieza'>[], raiz: string): string[] {
+  const partidos = new Set(cortes.map((c) => c.pieza))
+  if (!partidos.has(raiz)) return [raiz]
+  const hojas: string[] = []
+  const bajar = (id: string) => {
+    if (!partidos.has(id)) hojas.push(id)
+    else {
+      bajar(idDeFragmento(id, 'a'))
+      bajar(idDeFragmento(id, 'b'))
+    }
+  }
+  bajar(raiz)
+  return hojas
 }
 
 /** Cámara por omisión: el cuerpo entero de frente. */

@@ -248,9 +248,8 @@ desplazado, una fractura.
   línea de lado a lado** del hueso, por donde quiera la fractura. Queda partido
   en dos fragmentos, cada uno con su tapa, que se seleccionan, se mueven y se
   rotan por separado. El corte entra «hacia dentro» de la pantalla, así que
-  conviene mirar el hueso de frente o de lado antes de trazarlo. **«Soldar»**
-  deshace el corte. Un hueso movido hay que devolverlo a su sitio antes de
-  cortarlo, y cada hueso admite un solo corte.
+  conviene mirar el hueso de frente o de lado antes de trazarlo —mejor con
+  «Orto»—. **«Soldar»** deshace el corte.
 - **«Rayos X»** (Alt + Z) deja ver a través de todo lo que no esté seleccionado,
   para encontrar un hueso bajo el músculo. Es solo una forma de mirar: no se
   guarda.
@@ -258,10 +257,54 @@ desplazado, una fractura.
   seleccionado —todos los músculos, todos los vasos—, que es la forma rápida de
   quitar una capa entera: Mayús + G y después Supr.
 
+### Asas, números y más herramientas
+
+- **Asas** (encendidas de entrada): sobre lo seleccionado aparecen tres flechas
+  y tres aros de colores. Arrastrar una **flecha** mueve por ese eje; un **aro**,
+  gira sobre él. X es rojo (hacia la izquierda del paciente), Y verde (hacia
+  arriba) y Z azul (hacia delante).
+- **Valores exactos.** Durante un gesto se puede teclear el número: `G`, `X`,
+  `8`, Intro mueve 8 mm en X; `R`, `Z`, `15`, Intro gira 15°. Y el panel
+  **«Posición y giro»**, a la derecha, enseña cuánto se ha movido la pieza
+  seleccionada, en milímetros y en grados, y deja escribirlo.
+- **Varios cortes.** Un fragmento se puede volver a cortar, hasta tres cortes
+  encadenados, y ya no hace falta devolverlo a su sitio antes: se corta donde
+  esté. «Soldar» deshace el último corte del fragmento seleccionado.
+- **Agrupar** (Ctrl + G): lo agrupado se selecciona y se mueve junto —el
+  fragmento distal con su pie—. «Desagrupar», Ctrl + Mayús + G.
+- **Espejo:** pasa la preparación entera al otro lado del cuerpo, con lo movido y
+  lo cortado reflejado. Pulsarlo otra vez vuelve. Las extremidades son simétricas
+  al milímetro; lo que no tiene pareja se queda donde está, y el aviso dice
+  cuánto fue.
+- **Color y transparencia:** con algo seleccionado, en el panel derecho se le da
+  un color propio o se deja ver a través. Un músculo al 30 % sobre su hueso es la
+  lámina de atlas de siempre.
+- **Rótulo, Medir (M) y Ángulo:** se pulsa sobre la anatomía —un punto, dos o
+  tres— y queda apuntado: un texto, una distancia en milímetros o un ángulo. El
+  texto del rótulo se escribe en el panel derecho. Conviene marcar al final: las
+  marcas se quedan donde se pusieron aunque después se mueva la pieza.
+- **Vistas con nombre:** busque un encuadre, escríbale un nombre —«Lateral»,
+  «El foco»— y pulse «Guardar vista». En la ficha salen como botones bajo el
+  modelo.
+- **Orto** (tecla 5): vista sin fuga, para trazar cortes rectos y comparar
+  tamaños. Solo cambia cómo se mira; la ficha abre siempre en perspectiva.
+- El árbol también selecciona: pulsar el **nombre** de una pieza la selecciona
+  (la casilla sigue encendiendo y apagando), y lo seleccionado se marca en
+  naranja en los dos sitios.
+
+Las herramientas están a la izquierda del modelo y las vistas arriba, sobre el
+propio lienzo; abajo quedan las acciones sobre lo seleccionado.
+
+**Para el simulador:** en «Exportar como modelo», si la preparación tiene un
+hueso cortado aparece **«Usar el corte del taller»**, que lleva ese mismo corte
+a la exportación. El modelo exportado sale con el hueso partido y **en su
+sitio**: en el simulador el desplazamiento lo pone el caso y lo reduce el
+residente.
+
 Lo movido, lo rotado y lo cortado **se guarda con la preparación** y es lo que el
 residente ve en la ficha. «Deshacer» y «Rehacer» (Ctrl + Z, Ctrl + Mayús + Z)
-cubren también estos cambios. «Exportar como modelo», en cambio, sigue sacando
-la anatomía en su sitio: el corte para el simulador se hace en su propio panel.
+cubren también estos cambios; los rótulos, las medidas y las vistas se quitan
+con su botón.
 
 > **Un clic ya no apaga la pieza.** Hasta septiembre de 2026 pulsar una pieza la
 > apagaba; ahora la selecciona, como en Blender, y se apaga con Supr. El botón
