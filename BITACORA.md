@@ -3570,6 +3570,142 @@ marcha, porque en `faraday` un `npm run dev` ajustaría el esquema de la base de
 producción (O-048): dentro de la portada real se ve por primera vez en `ved`. Sin
 WebGL la tarjeta se queda con su fondo y su pie, sin mensaje.
 
+### D-125 · 2026-09-21 · vigente
+**El taller anatómico pierde el mando «Separar».**
+El dueño pidió quitarlo. Era un deslizador que alejaba cada pieza de su sitio, y
+lo que dejaba guardado viajaba con la preparación hasta la ficha.
+
+*Qué se hizo.* Se retiró solo el mando de `TallerDeAtlas.tsx`, y la mención a la
+separación en la ayuda del panel derecho. Todo lo de debajo sigue: el campo
+`vista.separacion` del formato, el uniforme del sombreador, el cálculo del pivote
+y del picado con el cuerpo separado, y sus pruebas. El estado `separacion` del
+taller también se queda, ya sin mando: así una preparación que la traiga se abre
+y se vuelve a guardar igual, en vez de cerrarse en silencio al primer guardado.
+
+*Por qué no se arrancó entero.* El formato guardado es un contrato con lo que ya
+está en la base y en los respaldos, y quitar el campo pedía una migración para
+borrar algo que hoy vale cero en todas partes. En `ved`, el día del cambio, había
+dos preparaciones y las dos con separación 0: no se pierde nada.
+
+*Consecuencias buenas.* Un mando menos en una pantalla que ya tiene muchos.
+*Malas.* Queda código vivo que ninguna pantalla puede ejercitar, solo sus
+pruebas. Y una preparación con separación que llegase de un respaldo antiguo no
+se podría cerrar desde el taller: habría que rehacerla desde «Cuerpo completo».
+
+### D-126 · 2026-09-21 · vigente
+**El taller anatómico se maneja como Blender: seleccionar primero, actuar
+después. Primera fase de tres.**
+El dueño pidió «los comandos básicos» de Blender —arrastre para seleccionar,
+rotar, quitar— y poder «quebrar un hueso» desde el visor, todo ligero.
+
+*Qué se hizo (fase 1: selección).* Un clic sobre una pieza la **selecciona** y
+ya no la apaga; Mayús + clic suma o quita. La herramienta «Marco» (tecla B)
+dibuja un recuadro y se lleva las piezas cuyo **centro** cae dentro
+(`src/atlas/seleccionPorCaja.ts`): con «lo que toque el marco», la piel y la
+fascia —cuyas cajas abarcan medio cuerpo— entraban en toda selección. Sobre lo
+seleccionado: apagar (Supr, X, H), dejar solo eso (Mayús + H), encender todo
+(Alt + H), invertir (Ctrl + I), todo y nada (A, Alt + A). Vistas de frente,
+lateral y superior (1, 3, 7; con Ctrl la contraria) y centrar en la selección
+(punto). Ctrl + Z deshace encendidos y apagados, cincuenta pasos. Cada atajo
+tiene su botón bajo el visor, y «Atajos» enseña la lista. La selección es un
+cuarto estado de la textura que ya lee el sombreador (`ESTADO.SELECCIONADA`),
+pintado del naranja de Blender: no cuesta ni una llamada de dibujo más.
+
+*Lo que NO es como Blender, a propósito.* Con «Girar» el botón izquierdo sigue
+girando la cámara: quien escribe fichas es traumatólogo, no modelador, muchos
+trabajan con el panel táctil de un portátil y no tienen botón central. Solo con
+«Marco» el giro pasa al central. Las vistas valen con los números de arriba,
+porque un portátil no trae teclado numérico. Y «derecha» es la del paciente,
+como en toda imagen clínica, no la de la pantalla.
+
+*Consecuencias buenas.* Dejar sola una rodilla pasa de cuarenta clics a un
+marco y una tecla; se comprobó en un navegador con el atlas entero: un marco
+sobre las piernas se lleva 253 piezas y deja fuera la piel. *Malas.* Cambia un
+gesto que el manual enseñaba —el clic apagaba—, y quien lo tuviera aprendido
+verá la pieza ponerse naranja en vez de desaparecer; el manual lo avisa. El
+marco no mira profundidad: se lleva también lo que queda detrás.
+
+*Lo que falta, y por qué no entró.* **Fase 2, mover y rotar piezas (G y R).**
+Hoy cada pieza es un rango dentro de una malla fusionada por sistema y el
+sombreador solo sabe desplazarla por la dirección de separación; moverla pide
+una segunda textura con una transformación por pieza, que el picado y el marco
+la apliquen también, y un campo nuevo en `ContenidoDeInstancia` que el visor de
+las fichas sepa leer. **Fase 3, quebrar un hueso en el visor.** El corte ya
+existe —`src/lib/osteotomia.ts` parte la malla por un plano y tapa los dos
+trozos—, pero solo al exportar hacia el simulador. Traerlo al taller es guardar
+el plano en la preparación y partir la pieza al cargarla; depende de la fase 2,
+porque un fragmento que no se puede mover no se distingue del hueso entero.
+Las dos cambian el formato guardado, que es lo que ven los residentes, y por eso
+van aparte y con sus pruebas.
+
+### D-127 · 2026-09-21 · vigente
+**Una página abierta se entera de que hay versión nueva, y se recarga sola si no
+se lleva nada por delante.**
+`main` se despliega solo (`auto-update.sh`), y quien tenía la plataforma abierta
+seguía con el JavaScript de la construcción anterior hasta recargar por su
+cuenta. El dueño pidió que se les recargue.
+
+*Qué se hizo.* El flujo `/api/cambios` manda, además de la cuenta de
+publicaciones, la construcción que sirve (`.next/BUILD_ID`) y el instante en que
+arrancó el proceso (`src/lib/despliegue.ts`). `AvisoActualizacion` decide con
+`src/lib/avisoDeVersion.ts`: proceso distinto y construcción distinta es versión
+nueva. Entonces: pestaña oculta y sin cambios sin guardar, recarga en el acto;
+pestaña a la vista, cuenta atrás de 30 s con «Recargar ahora» y «Más tarde»;
+con cambios sin guardar (`hayCambiosSinGuardar`: fichas, taller, difusión), solo
+el aviso, sin cuenta atrás, y se vuelve a preguntar cada segundo por si alguien
+empieza a escribir durante la cuenta. El aviso de contenido nuevo sigue sin
+recargar nunca por su cuenta.
+
+*El problema del huevo y la gallina.* Las pestañas abiertas el día de este
+cambio corren un código que no sabe leer `despliegue`. Para ellas, la cuenta de
+publicaciones sale ahora sumada a los segundos del arranque: el código viejo la
+ve subir y saca su aviso de siempre, con su botón «Recargar». Dice «contenido
+actualizado» y no «versión nueva», que es lo más que se le puede pedir a un
+código ya descargado. De paso, el cliente nuevo deja de necesitar el remiendo
+de «la cuenta bajó, fue un reinicio»: sabe cuándo cambia el proceso.
+
+*Consecuencias buenas.* Un arreglo desplegado llega a quien ya estaba dentro en
+menos de un minuto. *Malas.* Una cirugía simulada a medias no declara cambios
+sin guardar: a ese residente le sale la cuenta atrás y tiene 30 s para pulsar
+«Más tarde». Y sin `BUILD_ID` —en desarrollo— cada reinicio cuenta como versión
+nueva.
+
+### D-128 · 2026-09-21 · vigente
+**Pasada de rendimiento: que por el túnel viaje solo lo que se pinta.**
+El dueño pidió revisar qué se podía optimizar. Se midió antes de tocar: los
+paquetes del atlas ya viajan comprimidos e inmutables, three ya se carga en
+diferido y `force-dynamic` es inevitable porque todo depende de la sesión. Lo
+que sobraba estaba en las consultas de los listados.
+
+*Qué se hizo.*
+- Biblioteca, simulador, técnica AO e imágenes pedían hasta 500 documentos
+  **enteros** —en patologías, seis pilas de bloques de texto rico cada uno, con
+  las relaciones pobladas— para pintar un código y un nombre. Ahora llevan
+  `select` con los campos de la tarjeta y `depth: 0`. Se comprobó contra una
+  base de verdad que el control de acceso sigue filtrando: el lector no recibe
+  el borrador, el administrador sí.
+- «Continuar leyendo», en la portada, resolvía cada título con un `findByID` sin
+  `depth`, que traía la ficha con sus medios poblados. Ahora `depth: 0`.
+- El resumen del panel esperaba a su `Promise.all` y después lanzaba, suelta, la
+  consulta de comentarios pendientes. Va dentro.
+- El descodificador de Draco (`/draco/*`) se servía con `max-age=0`: tres
+  peticiones condicionales por cada ficha con modelo 3D. Ahora se guarda una
+  semana.
+
+*Lo que se miró y NO se hizo.* `obtenerSesion` se llama tres o cuatro veces por
+página y se podría envolver en `cache()` de React. No se tocó: «Ver como
+residente» y la entrada cambian la sesión dentro de una acción y pintan después
+en la misma petición, y una sesión memorizada de antes del cambio enseñaría
+contenido de editor a quien acaba de bajarse a residente. El ahorro son dos
+consultas por clave primaria contra una base en la misma máquina —milisegundos—
+y el riesgo es de control de acceso. Tampoco se pusieron en paralelo la ficha y
+sus lecturas en las páginas de detalle: ahorra una consulta local y cambia el
+orden respecto de `notFound()`.
+
+*Consecuencias buenas.* El listado de la biblioteca deja de crecer con lo largo
+que sea cada ficha. *Malas.* Un campo nuevo en una tarjeta de listado hay que
+añadirlo también al `select`, o llega `undefined` sin ningún error.
+
 ---
 
 ## 3. Observaciones
@@ -4732,6 +4868,23 @@ los editores; el arreglo es 0.35.4, salto mayor); `payload` y `@payloadcms/*`
 3.88.0 → 3.90.1 (GHSA-jg8r-5jh2-v2xj, ya neutralizada aquí por partida doble,
 más `esbuild`/`drizzle-kit` que solo cuentan en desarrollo); `dompurify` vía
 `monaco-editor`. Cada subida, con la suite entera y `migraciones.test.ts` detrás.
+
+### O-064 · 2026-09-21 · media · corregida en la documentación; la redirección, pendiente
+**Un enlace con la dirección del Windows llevaba a APCE.**
+Un profesor recibió el enlace y «le redirigía a APCE»; otra persona en la misma
+red entraba bien. *Dónde se ve:* el registro de Nginx Proxy Manager, con visitas
+a `ved.tailc2094f.ts.net:10000/simulaciones` contestadas con 404 por `apce-web`.
+`/simulaciones` era el prefijo del despliegue en Windows; en `ved` la plataforma
+vive en `/traumahub`, y todo lo que no empieza por ahí lo atiende APCE, que es
+la página por omisión del dominio. No era la red ni el equipo: era la ruta.
+`MANUAL-DE-USO.md`, `GUION-DE-RECORRIDO.md` y `CORREO.md` seguían dando
+`traumahub.tailc2094f.ts.net/simulaciones`, que ya no responde; corregidos, y
+`SERVIDOR-WINDOWS.md` lo avisa arriba. La dirección buena es
+`https://ved.tailc2094f.ts.net:10000/traumahub`. *Pendiente:* una redirección de
+`/simulaciones` a `/traumahub` en `server_proxy.conf` del proxy, para los
+enlaces viejos que ya están repartidos; no se hizo porque ese archivo no está
+en este repositorio y lo comparten las demás páginas del servidor. Q-008 cita
+la dirección vieja y se deja como está: era cierta cuando se escribió.
 
 ---
 

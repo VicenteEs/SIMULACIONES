@@ -96,10 +96,12 @@ SMTP_NOMBRE=TraumaHub
   interpretando `$ALGO` como otra variable, y una contraseña con `$` llega
   cortada sin ningún aviso: el síntoma es un «usuario o contraseña rechazados»
   con la contraseña correcta.
-- `NEXT_PUBLIC_SERVER_URL` ya está puesta en `blanco`
-  (`https://traumahub.tailc2094f.ts.net/simulaciones`). Es la dirección con la
-  que se arman los enlaces de los correos: si está mal, el correo llega y el
-  botón lleva a otro sitio.
+- `NEXT_PUBLIC_SERVER_URL` tiene que ser la dirección pública del servidor que
+  manda el correo. En `ved`, que es donde corre hoy la plataforma, es
+  `https://ved.tailc2094f.ts.net:10000/traumahub`; en `blanco` era
+  `https://traumahub.tailc2094f.ts.net/simulaciones`, que ya no responde. Es la
+  dirección con la que se arman los enlaces de los correos: si está mal, el
+  correo llega y el botón lleva a otro sitio.
 
 ### 4. Reiniciar y probar
 

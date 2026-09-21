@@ -9,7 +9,7 @@ Dos guías hermanas entran en más detalle y este manual no las repite:
 una patología, y [COMO-SUBIR-UN-MODELO.md](COMO-SUBIR-UN-MODELO.md), sobre los
 modelos 3D y los casos del simulador.
 
-**Dirección de la plataforma:** https://traumahub.tailc2094f.ts.net/simulaciones
+**Dirección de la plataforma:** https://ved.tailc2094f.ts.net:10000/traumahub
 
 ---
 
@@ -204,10 +204,26 @@ que guarda, sin aviso.
 Sirve para preparar una vista del atlas (2.234 piezas) y ponerla en una ficha con
 el bloque «Preparación anatómica».
 
-1. Apague lo que sobra: con la casilla, pulsando la pieza, o con **solo** para
-   quedarse únicamente con ella.
-2. «Encuadrar» para centrar lo que quedó.
-3. **«Guardar preparación».** Sin esto no queda nada: volver a «Cuerpo
+1. **Seleccione** lo que le interesa. Un clic sobre una pieza la selecciona y
+   la pinta de naranja; **Mayús + clic** suma otra. Para muchas de una vez,
+   pulse «Marco» (o la tecla **B**) y arrastre un recuadro sobre la zona: entran
+   las piezas cuyo centro queda dentro. Con Mayús el marco suma a lo que ya
+   había; con Ctrl, quita.
+2. Decida qué hacer con lo seleccionado: **«Solo esto»** (Mayús + H) apaga todo
+   lo demás; **«Apagar»** (Supr, X o H) apaga lo seleccionado. «Encender todo»
+   (Alt + H) devuelve el cuerpo completo. Las casillas del árbol y su «solo»
+   siguen funcionando igual.
+3. Si se equivocó, **«Deshacer»** (Ctrl + Z) devuelve lo encendido a como
+   estaba, hasta cincuenta pasos atrás.
+4. «Frente», «Lateral», «Superior» (teclas 1, 3 y 7) y «Centrar» (el punto)
+   colocan la cámara. «Encuadrar» centra todo lo que quedó.
+
+> **Un clic ya no apaga la pieza.** Hasta septiembre de 2026 pulsar una pieza la
+> apagaba; ahora la selecciona, como en Blender, y se apaga con Supr. El botón
+> «Atajos», bajo el visor, enseña la lista completa de teclas. La selección es
+> solo una ayuda para trabajar: no se guarda con la preparación.
+
+5. **«Guardar preparación».** Sin esto no queda nada: volver a «Cuerpo
    completo», abrir otra preparación o cerrar la pestaña se lleva media hora de
    trabajo. El aviso «Hay cambios sin guardar» lo recuerda.
 

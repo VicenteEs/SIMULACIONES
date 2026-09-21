@@ -8,7 +8,15 @@ camino de Ubuntu con Docker, que es el recomendado; este describe el otro, el
 que hubo que abrir porque la máquina no tenía Docker ni WSL y no había por qué
 instalarlos solo para esto.
 
-La dirección pública es **https://traumahub.tailc2094f.ts.net/simulaciones**.
+La dirección pública de este despliegue era
+**https://traumahub.tailc2094f.ts.net/simulaciones**.
+
+> **Esa dirección ya no responde.** La plataforma se trasladó al Ubuntu `ved` y
+> hoy se entra por **https://ved.tailc2094f.ts.net:10000/traumahub**. Allí, lo
+> que no empieza por `/traumahub` lo atiende otra página del mismo dominio: un
+> enlace viejo con `/simulaciones` no da un error de TraumaHub, sino el 404 de
+> APCE, que no explica nada (pasó el 2026-09-21 con un enlace ya repartido).
+> Esta guía se conserva por si hay que volver a levantar el Windows.
 
 ---
 

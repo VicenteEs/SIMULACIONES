@@ -12,7 +12,7 @@ reparte al terminar.
 |---|---|
 | **Duración** | 45 minutos con todos; 15 más solo con administradores |
 | **Formato** | Pantalla compartida o proyector. Que cada persona tenga su computador, ya con su cuenta activa |
-| **Dirección** | https://traumahub.tailc2094f.ts.net/simulaciones |
+| **Dirección** | https://ved.tailc2094f.ts.net:10000/traumahub |
 
 La idea que ordena todo el recorrido: **no se enseñan pantallas, se escribe una
 ficha de verdad delante de ellos**, desde cero hasta verla publicada. Las
