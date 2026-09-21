@@ -12,6 +12,7 @@ import { VISTA_INICIAL, idDeFragmento, partesDeFragmento, piezaDe } from '@/atla
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
+import { cuaternionDeGrados, gradosDeCuaternion } from '@/atlas/angulos'
 import type { TransformacionDePieza } from '@/atlas/cargador'
 // Estático sin miedo: `nombres.ts` es una tabla JSON y tres funciones de texto,
 // sin three. Lo que no puede entrar así es `@/atlas/cargador` (ver abajo).
@@ -165,6 +166,8 @@ const ATAJOS_DEL_TALLER: [string, string][] = [
   ['Mayús + H', 'Dejar encendido solo lo seleccionado.'],
   ['Alt + H', 'Encender todo el cuerpo.'],
   ['G · R', 'Mover · rotar lo seleccionado. X, Y o Z atan a un eje; clic o Intro confirman, Esc cancela.'],
+  ['G X 8 Intro', 'Teclear un número durante el gesto lo hace exacto: milímetros al mover, grados al rotar.'],
+  ['Asas', 'Arrastrar una flecha de color mueve por ese eje; un aro, gira sobre él. X rojo, Y verde, Z azul.'],
   ['K', 'Cortar: con un hueso seleccionado, trazar una línea de lado a lado lo parte en dos fragmentos.'],
   ['Alt + G · Alt + R', 'Devolver lo seleccionado a su posición · a su orientación anatómica.'],
   ['Mayús + G', 'Seleccionar todo lo encendido del mismo sistema (hueso, músculo, vaso…).'],
@@ -266,6 +269,8 @@ export function TallerDeAtlas() {
   const [rayosX, setRayosX] = useState(false)
   /** Vista ortográfica: también es solo una forma de mirar. La ficha abre siempre en perspectiva. */
   const [ortografica, setOrtografica] = useState(false)
+  /** Las flechas y los aros sobre lo seleccionado. Encendidos de entrada: son lo que enseña que se puede mover. */
+  const [gizmo, setGizmo] = useState(true)
   /**
    * Las piezas encendidas de antes de cada cambio, para Ctrl + Z.
    *
@@ -1183,6 +1188,8 @@ export function TallerDeAtlas() {
     [partidas],
   )
 
+  const unicaSeleccionada = seleccion.size === 1 ? [...seleccion][0] : null
+
   const nombreDeLaSeleccionada = useMemo(() => {
     if (!catalogo || seleccion.size !== 1) return ''
     const [id] = seleccion
@@ -1646,6 +1653,7 @@ export function TallerDeAtlas() {
             transformaciones={transformaciones}
             alTransformar={alTransformar}
             rayosX={rayosX}
+            gizmo={gizmo}
             ortografica={ortografica}
             cortes={cortes}
             alCortar={alCortar}
@@ -1746,6 +1754,15 @@ export function TallerDeAtlas() {
                 onClick={() => empezarGesto('girar')}
               >
                 Rotar
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={gizmo}
+                title="Asas: las flechas y los aros de colores sobre lo seleccionado, para moverlo y girarlo arrastrando"
+                onClick={() => setGizmo((puesto) => !puesto)}
+              >
+                Asas
               </button>
               <button
                 type="button"
@@ -1875,6 +1892,30 @@ export function TallerDeAtlas() {
               original no se toca: lo que apague aquí se puede volver a encender siempre.
             </p>
           </div>
+
+          <h3 className="atlas-subtitulo">Posición y giro</h3>
+          {unicaSeleccionada ? (
+            <PanelDeNumeros
+              // La clave rehace los campos al cambiar de pieza o al moverla con
+              // el ratón: son campos sin controlar —para poder teclear «-» o
+              // «1.» sin que React los corrija a medias— y solo leen su valor
+              // inicial.
+              key={`${unicaSeleccionada}:${claveTransformaciones}`}
+              transformacion={transformaciones.get(unicaSeleccionada) ?? null}
+              alCambiar={(nueva) => {
+                const nuevas = new Map(transformaciones)
+                if (nueva) nuevas.set(unicaSeleccionada, nueva)
+                else nuevas.delete(unicaSeleccionada)
+                alTransformar(nuevas)
+              }}
+            />
+          ) : (
+            <p className="campo-ayuda">
+              {seleccion.size === 0
+                ? 'Seleccione una pieza para ver y teclear cuánto se ha movido.'
+                : 'Con varias piezas seleccionadas se mueven juntas con G, R o las asas; los números son de una sola.'}
+            </p>
+          )}
 
           <h3 className="atlas-subtitulo">Modelos 3D</h3>
           {modelos === null ? (
@@ -2022,6 +2063,70 @@ export function TallerDeAtlas() {
  * girar un plano perpendicular al eje alrededor del eje lo deja donde estaba, y
  * un mando que se mueve sin mover nada hace creer que el visor no responde.
  */
+/**
+ * El panel de números (la N de Blender): lo que una pieza se ha movido, en
+ * milímetros, y lo que se ha girado, en grados, para leerlo y para teclearlo.
+ *
+ * «Desplazar 8 mm y angular 15° en varo» es como habla quien escribe la ficha,
+ * y a ojo con el ratón no sale. Los ejes son los del atlas, con el paciente de
+ * pie y mirando al frente: X hacia su izquierda, Y hacia arriba, Z hacia
+ * delante.
+ */
+function PanelDeNumeros({
+  transformacion,
+  alCambiar,
+}: {
+  transformacion: TransformacionDePieza | null
+  alCambiar: (nueva: TransformacionDePieza | null) => void
+}) {
+  const milimetros = (transformacion?.mover ?? [0, 0, 0]).map((m) => Math.round(m * 10000) / 10)
+  const grados = gradosDeCuaternion(transformacion?.girar ?? [0, 0, 0, 1])
+
+  const aplicar = (cual: 'mover' | 'girar', eje: number, texto: string) => {
+    const valor = Number(texto.replace(',', '.'))
+    if (!Number.isFinite(valor)) return
+    const mover = [...milimetros] as [number, number, number]
+    const girar = [...grados] as [number, number, number]
+    if (cual === 'mover') mover[eje] = valor
+    else girar[eje] = valor
+    const nueva: TransformacionDePieza = {
+      mover: [mover[0] / 1000, mover[1] / 1000, mover[2] / 1000],
+      girar: cuaternionDeGrados(girar),
+    }
+    const quieta = nueva.mover.every((n) => n === 0) && girar.every((n) => n === 0)
+    alCambiar(quieta ? null : nueva)
+  }
+
+  const fila = (titulo: string, cual: 'mover' | 'girar', valores: number[], unidad: string) => (
+    <div className="atlas-numeros-fila">
+      <span className="atlas-numeros-titulo">{titulo}</span>
+      {(['X', 'Y', 'Z'] as const).map((letra, eje) => (
+        <label key={letra} className={`atlas-numero atlas-numero-${letra.toLowerCase()}`}>
+          <span>{letra}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            defaultValue={String(valores[eje])}
+            aria-label={`${titulo} en ${letra}, en ${unidad}`}
+            onBlur={(e) => aplicar(cual, eje, e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur()
+            }}
+          />
+        </label>
+      ))}
+      <span className="atlas-numeros-unidad">{unidad}</span>
+    </div>
+  )
+
+  return (
+    <div className="atlas-numeros">
+      {fila('Posición', 'mover', milimetros, 'mm')}
+      {fila('Giro', 'girar', grados, '°')}
+    </div>
+  )
+}
+
 function MandosDelCorte({
   corte,
   nombre,

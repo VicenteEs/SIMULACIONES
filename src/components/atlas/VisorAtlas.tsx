@@ -32,6 +32,7 @@ import {
   type EscenaDelAtlas,
 } from '@/atlas/cargador'
 import { impactoBajoElRayo } from '@/atlas/picking'
+import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import {
   colocarFragmento,
   crearFragmentos,
@@ -43,10 +44,14 @@ import {
 import {
   centroActual,
   desplazamientoDelArrastre,
+  desplazamientoTecleado,
   esReposo,
   giroDelArrastre,
+  giroTecleado,
   girarPiezas,
   moverPiezas,
+  numeroTecleado,
+  teclearNumero,
   type EjeDelGesto,
 } from '@/atlas/transformar'
 import { piezasEnElRectangulo, rectanguloNormalizado } from '@/atlas/seleccionPorCaja'
@@ -205,6 +210,7 @@ export function VisorAtlas({
   transformaciones = null,
   alTransformar,
   rayosX = false,
+  gizmo = false,
   ortografica = false,
   cortes = null,
   alCortar,
@@ -245,6 +251,8 @@ export function VisorAtlas({
   alCortar?: (corte: CorteDePieza) => void
   /** Algo que decirle a quien trabaja: por qué no se pudo cortar, por ejemplo. */
   alAvisar?: (texto: string) => void
+  /** Dibuja sobre lo seleccionado las flechas y los aros para moverlo y girarlo (D-133). Solo el taller. */
+  gizmo?: boolean
   /** Vista ortográfica, sin fuga: para trazar cortes rectos y comparar tamaños. Solo el taller. */
   ortografica?: boolean
   /** Pinta en damero lo no seleccionado, para ver a través (Alt + Z en Blender). Solo el taller. */
@@ -323,6 +331,7 @@ export function VisorAtlas({
     alTransformar,
     alCortar,
     alAvisar,
+    gizmo,
     alAsentarVista,
     soloLectura,
     vistaInicial,
@@ -340,6 +349,7 @@ export function VisorAtlas({
       alTransformar,
       alCortar,
       alAvisar,
+      gizmo,
       alAsentarVista,
       soloLectura,
       vistaInicial,
@@ -704,7 +714,12 @@ export function VisorAtlas({
       inicio: { x: number; y: number } | null
       eje: EjeDelGesto | null
       ahora: Map<string, TransformacionDePieza>
+      /** Lo tecleado: si es un número, manda él y no el ratón (`G X 8 Intro`). */
+      tecleado: string
+      /** Empezado arrastrando un asa del gizmo: se confirma al soltar, no con otro clic. */
+      arrastre: boolean
     } | null = null
+    const gestoVivo = () => enCurso
     /** El clic que confirma no debe, además, seleccionar lo que haya debajo. */
     let tragarElSiguienteClic = false
 
@@ -726,7 +741,34 @@ export function VisorAtlas({
     }
 
     const recalcularElGesto = () => {
-      if (!enCurso || !ultimoPuntero) return
+      if (!enCurso) return
+      const exacto = numeroTecleado(enCurso.tecleado)
+      if (exacto !== null) {
+        // Un valor tecleado no depende de dónde esté el ratón: vale aunque el
+        // gesto se empezara desde un botón y el puntero no haya entrado aún.
+        const ejeEscrito = ` · eje ${(enCurso.eje ?? (enCurso.modo === 'mover' ? 'x' : 'vista')).toUpperCase()}`
+        if (enCurso.modo === 'mover') {
+          enCurso.ahora = moverPiezas(
+            enCurso.alEmpezar,
+            enCurso.ids,
+            desplazamientoTecleado(exacto, enCurso.eje),
+          )
+          setGesto(`Mover${ejeEscrito} · ${enCurso.tecleado} mm (tecleado)`)
+        } else {
+          enCurso.ahora = girarPiezas(
+            enCurso.alEmpezar,
+            enCurso.ids,
+            enCurso.centros,
+            enCurso.pivote,
+            giroTecleado(camara, enCurso.pivote, exacto, enCurso.eje),
+          )
+          setGesto(`Girar${ejeEscrito} · ${enCurso.tecleado}° (tecleado)`)
+        }
+        escribirEnLaEscena(enCurso.ahora)
+        taller.current.gizmoAlDia?.()
+        return
+      }
+      if (!ultimoPuntero) return
       // Empezado desde el botón «Mover», el ratón está sobre la barra y no
       // sobre el lienzo: el gesto arranca donde el ratón ENTRE, no donde estuvo
       // la última vez, o la pieza daría un salto del tamaño de ese viaje.
@@ -765,6 +807,7 @@ export function VisorAtlas({
         setGesto(`Girar${ejeEscrito} · ${grados.toFixed(0)}°`)
       }
       escribirEnLaEscena(enCurso.ahora)
+      taller.current.gizmoAlDia?.()
     }
 
     const terminarElGesto = (confirmar: boolean) => {
@@ -773,6 +816,9 @@ export function VisorAtlas({
       enCurso = null
       controles.enabled = true
       setGesto(null)
+      // Tras soltar el gesto, el manipulador vuelve a donde diga la prop: si se
+      // canceló, a donde estaba; si se confirmó, lo recolocará el efecto.
+      queueMicrotask(() => taller.current.gizmoAlDia?.())
       if (!confirmar) {
         // Cada pieza vuelve a lo que tenía al empezar, no a su sitio anatómico:
         // cancelar el segundo movimiento no deshace el primero.
@@ -839,6 +885,8 @@ export function VisorAtlas({
           inicio: ultimoPuntero,
           eje: null,
           ahora: new Map(),
+          tecleado: '',
+          arrastre: false,
         }
         setGesto(modo === 'mover' ? 'Mover · lleve el ratón al modelo' : 'Girar · lleve el ratón al modelo')
         controles.enabled = false
@@ -853,13 +901,110 @@ export function VisorAtlas({
           recalcularElGesto()
         } else if (tecla === 'enter') terminarElGesto(true)
         else if (tecla === 'escape') terminarElGesto(false)
+        else {
+          const tecleado = teclearNumero(enCurso.tecleado, tecla)
+          if (tecleado !== null) {
+            enCurso.tecleado = tecleado
+            recalcularElGesto()
+          }
+        }
         // Cualquier otra tecla también es del gesto: a mitad de un movimiento,
         // una H no debe apagar lo que se está moviendo.
         return true
       },
     }
 
+    // --- el manipulador (D-133) ------------------------------------------------
+    const manipulador = crearGizmo()
+    tresD.add(manipulador.grupo)
+
+    /** El centro de lo seleccionado, donde está AHORA: a mitad de un gesto, donde lo lleva el gesto. */
+    const pivoteDeLaSeleccion = (): THREE.Vector3 | null => {
+      const escena = taller.current.escena
+      const { seleccion: elegidas, visibles: encendidas, transformaciones: movidas } = ultimas.current
+      if (!escena || !elegidas || elegidas.size === 0) return null
+      const suma = new THREE.Vector3()
+      let cuantas = 0
+      for (const id of elegidas) {
+        const transformacion = enCurso?.ahora.get(id) ?? movidas?.get(id)
+        const trozo = taller.current.fragmentos?.get(id)
+        if (trozo) {
+          if (encendidas && !encendidas.has(trozo.pieza)) continue
+          suma.add(centroActual(trozo.centro, transformacion))
+          cuantas += 1
+          continue
+        }
+        const i = escena.indices.get(id)
+        if (i === undefined || !escena.rangos.has(i)) continue
+        if (encendidas && !encendidas.has(id)) continue
+        suma.add(
+          centroActual(
+            new THREE.Vector3(
+              escena.centros[i * 3],
+              escena.centros[i * 3 + 1],
+              escena.centros[i * 3 + 2],
+            ),
+            transformacion,
+          ),
+        )
+        cuantas += 1
+      }
+      return cuantas > 0 ? suma.divideScalar(cuantas) : null
+    }
+
+    const gizmoAlDia = () => {
+      const donde =
+        ultimas.current.gizmo && !ultimas.current.soloLectura ? pivoteDeLaSeleccion() : null
+      manipulador.grupo.visible = donde !== null
+      if (donde) {
+        manipulador.grupo.position.copy(donde)
+        manipulador.grupo.scale.setScalar(escalaDelGizmo(camara, donde))
+      }
+      sucio = true
+    }
+    taller.current.gizmoAlDia = gizmoAlDia
+    // Al acercar o alejar la cámara el manipulador tiene que reescalarse, o deja
+    // de medir lo mismo en pantalla.
+    controles.addEventListener('change', gizmoAlDia)
+
+    /** El asa del manipulador bajo el puntero, si la hay. `rayo` tiene que venir ya apuntado. */
+    const asaBajoElRayo = (): AsaDelGizmo | null => {
+      if (!manipulador.grupo.visible) return null
+      manipulador.grupo.updateMatrixWorld(true)
+      const toques = rayo
+        .intersectObjects(manipulador.asas, false)
+        .map((toque) => toque.object.userData.asa as AsaDelGizmo)
+      // Si el rayo cruza una flecha y un aro, gana la flecha. Mirando de frente,
+      // el aro de Y se ve de canto —una línea horizontal— justo encima de la
+      // flecha de X, y su asa, que es gorda, la tapaba entera: se iba a mover
+      // en X y se giraba en Y. La flecha es la más fina de las dos y la que
+      // tiene un solo sitio donde agarrarla; el aro se agarra por cualquier otro.
+      return toques.find((asa) => asa.modo === 'mover') ?? toques[0] ?? null
+    }
+
     const alBajar = (evento: PointerEvent) => {
+      if (!enCurso && evento.button === 0 && evento.isPrimary && manipulador.grupo.visible) {
+        aCoordenadas(evento)
+        rayo.setFromCamera(puntero, camara)
+        const asa = asaBajoElRayo()
+        if (asa) {
+          // Agarrar un asa es empezar el mismo gesto que G o R, ya atado a su
+          // eje, y con otra forma de terminar: aquí se arrastra con el botón
+          // pulsado y se confirma al soltar, que es lo que se espera de un asa.
+          ultimoPuntero = enElLienzo(evento)
+          // Por una función: TypeScript dio `enCurso` por nulo unas líneas
+          // arriba y no sabe que `empezar` acaba de asignarlo.
+          const gestoDelAsa = taller.current.gesto?.empezar(asa.modo) ? gestoVivo() : null
+          if (gestoDelAsa) {
+            gestoDelAsa.eje = asa.eje
+            gestoDelAsa.arrastre = true
+            render.domElement.setPointerCapture(evento.pointerId)
+            recalcularElGesto()
+          }
+          bajado = null
+          return
+        }
+      }
       if (enCurso) {
         // Izquierdo confirma; cualquier otro cancela, que en Blender es el
         // derecho. El clic se traga para que no seleccione lo de debajo.
@@ -948,6 +1093,14 @@ export function VisorAtlas({
       // Soltar el derecho o el central no cancela nada: el izquierdo puede
       // seguir pulsado y su gesto sigue vivo, así que se sale sin tocar
       // `bajado`.
+      if (enCurso?.arrastre) {
+        terminarElGesto(true)
+        if (render.domElement.hasPointerCapture(evento.pointerId)) {
+          render.domElement.releasePointerCapture(evento.pointerId)
+        }
+        bajado = null
+        return
+      }
       if (tragarElSiguienteClic) {
         tragarElSiguienteClic = false
         return
@@ -1118,6 +1271,8 @@ export function VisorAtlas({
       render.setAnimationLoop(null)
       observador.disconnect()
       controles.removeEventListener('change', pedirDibujo)
+      controles.removeEventListener('change', gizmoAlDia)
+      manipulador.liberar()
       render.domElement.removeEventListener('pointerdown', alBajar)
       render.domElement.removeEventListener('pointermove', alMover)
       render.domElement.removeEventListener('pointerup', alSubir)
@@ -1302,6 +1457,13 @@ export function VisorAtlas({
   useEffect(() => {
     ponerProyeccion(taller.current, ortografica)
   }, [catalogo, ortografica])
+
+  // El manipulador sigue a la selección. Declarado DESPUÉS de los efectos que
+  // colocan las piezas y los fragmentos, y del de la proyección, que cambia el
+  // tamaño que le toca.
+  useEffect(() => {
+    taller.current.gizmoAlDia?.()
+  }, [catalogo, gizmo, seleccion, visibles, transformaciones, cortes, ortografica, progreso])
 
   // La herramienta cambia qué botón gira la cámara. Con el marco, el izquierdo
   // deja de ser de OrbitControls —un valor que no reconoce lo deja sin acción— y
@@ -1649,6 +1811,8 @@ interface TallerDelVisor {
     empezar: (modo: ModoDeTransformacion) => boolean
     tecla: (tecla: string) => boolean
   }
+  /** Recoloca y reescala el manipulador; lo monta el efecto de montaje. */
+  gizmoAlDia?: () => void
   /** Si la cámara está en vista ortográfica (ver `ponerProyeccion`). */
   ortografica?: boolean
   /** Los trozos de los huesos partidos, por su identificador (`FJ1234#a`). */

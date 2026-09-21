@@ -158,3 +158,50 @@ export function girarPiezas(
   }
   return salida
 }
+
+/**
+ * El desplazamiento tecleado: tantos milímetros a lo largo de un eje.
+ *
+ * Es el `G X 8 Intro` de Blender. Sin eje elegido se toma el X, como allí: un
+ * número suelto tiene que ir hacia algún sitio, y que sea siempre el mismo se
+ * aprende a la primera.
+ */
+export function desplazamientoTecleado(milimetros: number, eje: EjeDelGesto | null): THREE.Vector3 {
+  return EJES[eje ?? 'x'].clone().multiplyScalar(milimetros / 1000)
+}
+
+/**
+ * El giro tecleado, en grados. Con eje, sobre ese eje del atlas y con la regla
+ * de la mano derecha, que es la convención de Blender y la de la bibliografía;
+ * sin eje, sobre la línea de visión, positivo en contra de las agujas del reloj.
+ */
+export function giroTecleado(
+  camara: THREE.PerspectiveCamera,
+  pivote: THREE.Vector3,
+  grados: number,
+  eje: EjeDelGesto | null,
+): THREE.Quaternion {
+  const radianes = (grados * Math.PI) / 180
+  if (eje) return new THREE.Quaternion().setFromAxisAngle(EJES[eje], radianes)
+  const haciaLaCamara = camara.position.clone().sub(pivote).normalize()
+  return new THREE.Quaternion().setFromAxisAngle(haciaLaCamara, radianes)
+}
+
+/**
+ * Lo tecleado durante un gesto, como número. `null` mientras no sea uno:
+ * «-», «.» o vacío son un número a medio escribir, no un cero.
+ */
+export function numeroTecleado(texto: string): number | null {
+  if (!/^-?\d*\.?\d+$|^-?\d+\.?$/.test(texto)) return null
+  const n = Number(texto)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Lo tecleado tras una tecla más: cifras, un solo punto, el signo alterna y Retroceso borra. */
+export function teclearNumero(texto: string, tecla: string): string | null {
+  if (/^[0-9]$/.test(tecla)) return texto.length < 9 ? texto + tecla : texto
+  if (tecla === '.' || tecla === ',') return texto.includes('.') ? texto : `${texto}.`
+  if (tecla === '-') return texto.startsWith('-') ? texto.slice(1) : `-${texto}`
+  if (tecla === 'backspace') return texto.slice(0, -1)
+  return null
+}

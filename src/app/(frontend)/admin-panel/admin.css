@@ -1901,6 +1901,28 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   z-index: 3;
 }
 
+/* El panel de números (D-133). La letra de cada eje lleva el color de su asa. */
+.atlas-numeros { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.atlas-numeros-fila { display: grid; grid-template-columns: 56px repeat(3, 1fr) 22px; gap: 5px; align-items: center; }
+.atlas-numeros-titulo { font-size: 11.5px; color: var(--mudo); }
+.atlas-numeros-unidad { font-size: 11px; color: var(--mudo); }
+.atlas-numero { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.atlas-numero span { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+.atlas-numero-x span { color: #e5484d; }
+.atlas-numero-y span { color: #46a758; }
+.atlas-numero-z span { color: #3e7bdc; }
+.atlas-numero input {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 5px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--superficie);
+  color: var(--tinta);
+}
+
 /* El nombre de la pieza en el árbol es un botón que la selecciona (D-132). Se
    viste como el texto que era, y seleccionada lleva el naranja del visor. */
 .atlas-pieza-nombre {
