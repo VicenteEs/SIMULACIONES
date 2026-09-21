@@ -13,7 +13,7 @@ import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
 import { cuaternionDeGrados, gradosDeCuaternion } from '@/atlas/angulos'
-import type { TransformacionDePieza } from '@/atlas/cargador'
+import type { AspectoDePieza, TransformacionDePieza } from '@/atlas/cargador'
 // Estático sin miedo: `nombres.ts` es una tabla JSON y tres funciones de texto,
 // sin three. Lo que no puede entrar así es `@/atlas/cargador` (ver abajo).
 import { casaConLaBusqueda, nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
@@ -109,6 +109,15 @@ interface PasoDelTaller {
   visibles: Set<string>
   transformaciones: Map<string, TransformacionDePieza>
   cortes: CorteDePieza[]
+  aspectos: Map<string, AspectoDePieza>
+}
+
+/** Los aspectos en una cadena, para «cambios sin guardar». */
+function firmaDeAspectos(mapa: ReadonlyMap<string, AspectoDePieza>): string {
+  return [...mapa.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([id, a]) => `${id}:${a.color ?? ''}:${a.opacidad ?? 1}`)
+    .join(';')
 }
 
 /**
@@ -297,6 +306,9 @@ export function TallerDeAtlas() {
    * fragmento (`FJ1234#a`), y se junta con su corte al guardar.
    */
   const [cortes, setCortes] = useState<CorteDePieza[]>([])
+  /** Color y opacidad propios de cada pieza (D-134). Parte de la preparación: se guarda y se ve en la ficha. */
+  const [aspectos, setAspectos] = useState<Map<string, AspectoDePieza>>(new Map())
+  const ultimoCambioDeAspecto = useRef(0)
 
   const [instancia, setInstancia] = useState<string | null>(null)
   const [nombre, setNombre] = useState('')
@@ -414,6 +426,7 @@ export function TallerDeAtlas() {
     piezas: string
     transformaciones: string
     cortes: string
+    aspectos: string
     vista: VistaDeInstancia
   }>({
     nombre: '',
@@ -421,11 +434,13 @@ export function TallerDeAtlas() {
     piezas: '',
     transformaciones: '',
     cortes: '',
+    aspectos: '',
     vista: VISTA_INICIAL,
   })
 
   const clavePiezas = useMemo(() => [...visibles].sort().join(','), [visibles])
   const claveCortes = useMemo(() => firmaDeCortes(cortes), [cortes])
+  const claveAspectos = useMemo(() => firmaDeAspectos(aspectos), [aspectos])
   const claveTransformaciones = useMemo(
     () => firmaDeTransformaciones(transformaciones),
     [transformaciones],
@@ -436,6 +451,7 @@ export function TallerDeAtlas() {
     (clavePiezas !== referencia.piezas ||
       claveTransformaciones !== referencia.transformaciones ||
       claveCortes !== referencia.cortes ||
+      claveAspectos !== referencia.aspectos ||
       nombre.trim() !== referencia.nombre ||
       descripcion.trim() !== referencia.descripcion ||
       separacion !== referencia.vista.separacion)
@@ -471,6 +487,7 @@ export function TallerDeAtlas() {
       vista: VistaDeInstancia,
       movidas: ReadonlyMap<string, TransformacionDePieza> = new Map(),
       partidos: readonly CorteDePieza[] = [],
+      pintadas: ReadonlyMap<string, AspectoDePieza> = new Map(),
     ) => {
       setReferencia({
         nombre: titulo.trim(),
@@ -478,6 +495,7 @@ export function TallerDeAtlas() {
         piezas: [...piezas].sort().join(','),
         transformaciones: firmaDeTransformaciones(movidas),
         cortes: firmaDeCortes(partidos),
+        aspectos: firmaDeAspectos(pintadas),
         vista,
       })
       // El encuadre entra en la referencia, así que lo que hubiera de movido
@@ -694,7 +712,7 @@ export function TallerDeAtlas() {
   /** Deja en el historial lo que hay AHORA, antes de cambiarlo. */
   const apuntarPaso = () => {
     setHistorial((pasos) =>
-      [...pasos, { visibles, transformaciones, cortes }].slice(-MAXIMO_DE_DESHACER),
+      [...pasos, { visibles, transformaciones, cortes, aspectos }].slice(-MAXIMO_DE_DESHACER),
     )
     setRehacer([])
   }
@@ -715,10 +733,11 @@ export function TallerDeAtlas() {
     const anterior = historial.at(-1)
     if (!anterior) return
     setHistorial(historial.slice(0, -1))
-    setRehacer([...rehacer, { visibles, transformaciones, cortes }])
+    setRehacer([...rehacer, { visibles, transformaciones, cortes, aspectos }])
     setVisibles(anterior.visibles)
     setTransformaciones(anterior.transformaciones)
     setCortes(anterior.cortes)
+    setAspectos(anterior.aspectos)
     // Un fragmento seleccionado puede dejar de existir al deshacer su corte.
     setSeleccion(new Set())
   }
@@ -727,11 +746,36 @@ export function TallerDeAtlas() {
     const siguiente = rehacer.at(-1)
     if (!siguiente) return
     setRehacer(rehacer.slice(0, -1))
-    setHistorial([...historial, { visibles, transformaciones, cortes }])
+    setHistorial([...historial, { visibles, transformaciones, cortes, aspectos }])
     setVisibles(siguiente.visibles)
     setTransformaciones(siguiente.transformaciones)
     setCortes(siguiente.cortes)
+    setAspectos(siguiente.aspectos)
     setSeleccion(new Set())
+  }
+
+  /** Cambia el color o la opacidad de todo lo seleccionado. `undefined` en un campo lo deja como está. */
+  const cambiarAspecto = (cambio: { color?: string | null; opacidad?: number }) => {
+    if (seleccion.size === 0) return
+    // Arrastrar el deslizador o el selector de color manda decenas de cambios
+    // por segundo: con un paso de deshacer por cada uno, un solo gesto vaciaba
+    // los cincuenta del historial. Los que llegan seguidos cuentan como uno.
+    const ahora = Date.now()
+    if (ahora - ultimoCambioDeAspecto.current > 1000) apuntarPaso()
+    ultimoCambioDeAspecto.current = ahora
+    const nuevos = new Map(aspectos)
+    for (const id of new Set([...seleccion].map(piezaDe))) {
+      const actual = { ...nuevos.get(id) }
+      if (cambio.color === null) delete actual.color
+      else if (cambio.color) actual.color = cambio.color
+      if (cambio.opacidad !== undefined) {
+        if (cambio.opacidad >= 1) delete actual.opacidad
+        else actual.opacidad = cambio.opacidad
+      }
+      if (actual.color || actual.opacidad !== undefined) nuevos.set(id, actual)
+      else nuevos.delete(id)
+    }
+    setAspectos(nuevos)
   }
 
   const alTransformar = (nuevas: Map<string, TransformacionDePieza>) => {
@@ -856,6 +900,7 @@ export function TallerDeAtlas() {
     setRehacer([])
     setTransformaciones(new Map())
     setCortes([])
+    setAspectos(new Map())
     setSeleccion(new Set())
     setInstancia(null)
     setModeloAbierto(null)
@@ -897,6 +942,7 @@ export function TallerDeAtlas() {
     setRehacer([])
     setTransformaciones(new Map())
     setCortes([])
+    setAspectos(new Map())
     setSeleccion(new Set())
     setVisibles(piezas)
     setSeparacion(0)
@@ -937,6 +983,12 @@ export function TallerDeAtlas() {
         ])
         setTransformaciones(movidasAbiertas)
         setCortes(cortesAbiertos)
+        const aspectosAbiertos = new Map(
+          r.datos.contenido.piezas
+            .filter((pieza) => pieza.color || pieza.opacidad !== undefined)
+            .map((pieza) => [pieza.id, { color: pieza.color, opacidad: pieza.opacidad }] as const),
+        )
+        setAspectos(aspectosAbiertos)
         setHistorial([])
         setRehacer([])
         setSeleccion(new Set())
@@ -978,6 +1030,7 @@ export function TallerDeAtlas() {
           vistaAbierta,
           movidasAbiertas,
           cortesAbiertos,
+          aspectosAbiertos,
         )
         if (r.datos.perdidas.length > 0) {
           setAviso({
@@ -1030,7 +1083,11 @@ export function TallerDeAtlas() {
           descripcion,
           // Cada pieza con lo que se haya movido, si se movió (D-129). Lo de
           // una pieza apagada no viaja: no está en la preparación.
-          piezas: [...visibles].map((id) => ({ id, ...transformaciones.get(id) })),
+          piezas: [...visibles].map((id) => ({
+            id,
+            ...transformaciones.get(id),
+            ...aspectos.get(id),
+          })),
           // Cada corte con lo que se movió cada uno de sus dos fragmentos.
           cortes: cortes
             .filter((c) => visibles.has(c.pieza))
@@ -1048,7 +1105,7 @@ export function TallerDeAtlas() {
         setInstancia(r.datos.id)
         // Lo recién guardado pasa a ser la referencia: ya no hay nada que
         // perder.
-        fijarReferencia(visibles, nombre, descripcion, vista, transformaciones, cortes)
+        fijarReferencia(visibles, nombre, descripcion, vista, transformaciones, cortes, aspectos)
         setAviso({
           tipo: 'ok',
           texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
@@ -1189,6 +1246,10 @@ export function TallerDeAtlas() {
   )
 
   const unicaSeleccionada = seleccion.size === 1 ? [...seleccion][0] : null
+  // Lo que enseñan los mandos de aspecto: lo de la primera pieza seleccionada.
+  const primeraSeleccionada = seleccion.size > 0 ? piezaDe([...seleccion][0]) : null
+  const aspectoDeLaSeleccion: AspectoDePieza =
+    (primeraSeleccionada ? aspectos.get(primeraSeleccionada) : undefined) ?? {}
 
   const nombreDeLaSeleccionada = useMemo(() => {
     if (!catalogo || seleccion.size !== 1) return ''
@@ -1653,6 +1714,7 @@ export function TallerDeAtlas() {
             transformaciones={transformaciones}
             alTransformar={alTransformar}
             rayosX={rayosX}
+            aspectos={aspectos}
             gizmo={gizmo}
             ortografica={ortografica}
             cortes={cortes}
@@ -1915,6 +1977,46 @@ export function TallerDeAtlas() {
                 ? 'Seleccione una pieza para ver y teclear cuánto se ha movido.'
                 : 'Con varias piezas seleccionadas se mueven juntas con G, R o las asas; los números son de una sola.'}
             </p>
+          )}
+
+          <h3 className="atlas-subtitulo">Color y transparencia</h3>
+          {seleccion.size === 0 ? (
+            <p className="campo-ayuda">Seleccione piezas para darles un color propio o dejar ver a través.</p>
+          ) : (
+            <div className="atlas-aspecto">
+              <label className="atlas-aspecto-fila">
+                <span>Color</span>
+                <input
+                  type="color"
+                  value={aspectoDeLaSeleccion.color ?? '#d9c7a3'}
+                  aria-label="Color propio de lo seleccionado"
+                  onChange={(e) => cambiarAspecto({ color: e.target.value })}
+                />
+                <button
+                  type="button"
+                  className="atlas-herramienta"
+                  disabled={!aspectoDeLaSeleccion.color}
+                  onClick={() => cambiarAspecto({ color: null })}
+                >
+                  El de su sistema
+                </button>
+              </label>
+              <label className="atlas-aspecto-fila">
+                <span>Opacidad</span>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  step={5}
+                  value={Math.round((aspectoDeLaSeleccion.opacidad ?? 1) * 100)}
+                  aria-label="Opacidad de lo seleccionado, en tanto por ciento"
+                  onChange={(e) => cambiarAspecto({ opacidad: Number(e.target.value) / 100 })}
+                />
+                <span className="atlas-separador-valor">
+                  {Math.round((aspectoDeLaSeleccion.opacidad ?? 1) * 100)} %
+                </span>
+              </label>
+            </div>
           )}
 
           <h3 className="atlas-subtitulo">Modelos 3D</h3>

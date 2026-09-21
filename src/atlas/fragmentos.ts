@@ -17,7 +17,7 @@
 
 import * as THREE from 'three'
 import { partirMalla, type MallaIndexada } from '@/lib/osteotomia'
-import type { EscenaDelAtlas, TransformacionDePieza } from './cargador'
+import type { AspectoDePieza, EscenaDelAtlas, TransformacionDePieza } from './cargador'
 import { idDeFragmento, type CorteDePieza, type LadoDelCorte } from './formato'
 
 export interface FragmentoDelAtlas {
@@ -151,11 +151,25 @@ export function colocarFragmento(
 
 const NARANJA_DE_SELECCION = new THREE.Color(0.95, 0.38, 0.0)
 
-/** El mismo naranja, y en la misma proporción, que el sombreador da a una pieza seleccionada. */
-export function pintarFragmento(fragmento: FragmentoDelAtlas, seleccionado: boolean) {
+/**
+ * El mismo naranja, y en la misma proporción, que el sombreador da a una pieza
+ * seleccionada; y el aspecto propio de su hueso (D-134), que los trozos heredan.
+ * Son pocas mallas sueltas, así que aquí la opacidad es transparencia de verdad
+ * y no la trama de píxeles del sombreador.
+ */
+export function pintarFragmento(
+  fragmento: FragmentoDelAtlas,
+  seleccionado: boolean,
+  aspecto: AspectoDePieza | null | undefined = null,
+) {
   const material = fragmento.malla.material as THREE.MeshStandardMaterial
-  material.color.copy(fragmento.colorBase)
+  if (aspecto?.color) material.color.set(aspecto.color)
+  else material.color.copy(fragmento.colorBase)
   if (seleccionado) material.color.lerp(NARANJA_DE_SELECCION, 0.88)
+  const opacidad = aspecto?.opacidad ?? 1
+  material.transparent = opacidad < 1
+  material.opacity = opacidad
+  material.depthWrite = opacidad >= 1
 }
 
 export function liberarFragmento(fragmento: FragmentoDelAtlas) {

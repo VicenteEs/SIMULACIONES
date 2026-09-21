@@ -16,9 +16,8 @@ describe('ángulos sin three', () => {
   it('da el mismo cuaternión que THREE.Euler en orden XYZ', () => {
     for (const grados of [[15, 0, 0], [0, -40, 0], [0, 0, 90], [20, 35, -50]] as const) {
       const nuestro = cuaternionDeGrados([...grados])
-      const deThree = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(...grados.map((g) => (g * Math.PI) / 180), 'XYZ'),
-      )
+      const [rx, ry, rz] = grados.map((g) => (g * Math.PI) / 180)
+      const deThree = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'XYZ'))
       expect(nuestro[0]).toBeCloseTo(deThree.x, 9)
       expect(nuestro[1]).toBeCloseTo(deThree.y, 9)
       expect(nuestro[2]).toBeCloseTo(deThree.z, 9)

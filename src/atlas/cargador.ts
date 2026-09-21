@@ -82,6 +82,13 @@ export interface EscenaDelAtlas {
   datosDeGiros: Float32Array
   traslados: THREE.DataTexture
   datosDeTraslados: Float32Array
+  /**
+   * El aspecto propio de cada pieza (D-134): su color en los tres primeros
+   * canales —con el rojo en −1 si no tiene uno suyo y manda el del sistema— y su
+   * opacidad en el cuarto. Se escribe con `ponerAspecto`.
+   */
+  aspectos: THREE.DataTexture
+  datosDeAspectos: Float32Array
   liberar: () => void
 }
 
@@ -236,6 +243,21 @@ export function montarEscena(
   )
   traslados.needsUpdate = true
 
+  // Y el aspecto: sin color propio (rojo a −1) y maciza (opacidad 1).
+  const datosDeAspectos = new Float32Array(lado * lado * CANALES)
+  for (let i = 0; i < datosDeAspectos.length; i += CANALES) {
+    datosDeAspectos[i] = -1
+    datosDeAspectos[i + 3] = 1
+  }
+  const aspectos = new THREE.DataTexture(
+    datosDeAspectos,
+    lado,
+    lado,
+    THREE.RGBAFormat,
+    THREE.FloatType,
+  )
+  aspectos.needsUpdate = true
+
   // --- agrupar por sistema lo que se puede dibujar -------------------------
   // `pieza.sistema` se lee tal cual llega, sin volver a corregirlo: el catálogo
   // que recibe esta función es el de `cargarCatalogo`, que ya pasó por
@@ -305,7 +327,7 @@ export function montarEscena(
     geometria.setIndex(new THREE.BufferAttribute(orden, 1))
     geometria.computeBoundingSphere()
 
-    const material = materialDelSistema(colores.get(sistema) ?? '#cccccc', estados, lado, giros, traslados)
+    const material = materialDelSistema(colores.get(sistema) ?? '#cccccc', estados, lado, giros, traslados, aspectos)
     const malla = new THREE.Mesh(geometria, material)
     malla.name = sistema
     // El cuerpo no se mueve nunca: recortar por volumen de cámara solo gasta.
@@ -325,11 +347,14 @@ export function montarEscena(
     datosDeGiros,
     traslados,
     datosDeTraslados,
+    aspectos,
+    datosDeAspectos,
     liberar: () => {
       for (const cosa of aLiberar) cosa.dispose()
       estados.dispose()
       giros.dispose()
       traslados.dispose()
+      aspectos.dispose()
     },
   }
 }
@@ -347,6 +372,7 @@ function materialDelSistema(
   lado: number,
   giros: THREE.DataTexture,
   traslados: THREE.DataTexture,
+  aspectos: THREE.DataTexture,
 ): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({
     color: new THREE.Color(color),
@@ -373,6 +399,7 @@ function materialDelSistema(
     sombreador.uniforms.estados = { value: estados }
     sombreador.uniforms.ladoEstados = { value: lado }
     sombreador.uniforms.rayosX = { value: material.userData.rayosX }
+    sombreador.uniforms.aspectos = { value: aspectos }
     sombreador.uniforms.giros = { value: giros }
     sombreador.uniforms.traslados = { value: traslados }
     sombreador.uniforms.separacion = { value: material.userData.separacion }
@@ -384,9 +411,11 @@ function materialDelSistema(
       uniform float separacion;
       uniform sampler2D giros;
       uniform sampler2D traslados;
+      uniform sampler2D aspectos;
       varying float vVisible;
       varying float vResaltada;
       varying float vSeleccionada;
+      varying vec4 vAspecto;
       // Girar un vector con un cuaternión unitario, sin montar la matriz.
       vec3 girarCon(vec4 q, vec3 v) {
         return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
@@ -410,6 +439,7 @@ function materialDelSistema(
                              (fila + 0.5) / ladoEstados);
         vec4 estado = texture2D(estados, uvEstado);
         vVisible = step(0.5, estado.a);
+        vAspecto = texture2D(aspectos, uvEstado);
         vSeleccionada = step(2.5, estado.a);
         vResaltada = step(1.5, estado.a) - vSeleccionada;
         // Primero la transformación propia de la pieza (D-129) y después la
@@ -424,6 +454,7 @@ function materialDelSistema(
       varying float vVisible;
       varying float vResaltada;
       varying float vSeleccionada;
+      varying vec4 vAspecto;
       uniform float rayosX;
     ${sombreador.fragmentShader}`
       .replace(
@@ -438,11 +469,20 @@ function materialDelSistema(
         // a cerca en cada fotograma, y esto no cuesta nada. Lo seleccionado se
         // queda macizo para que se distinga a través de todo lo demás.
         if (rayosX > 0.5 && vSeleccionada < 0.5 &&
-            mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 0.5) discard;`,
+            mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 0.5) discard;
+        // La opacidad propia de la pieza (D-134), con el mismo truco: se tiran
+        // píxeles en proporción, repartidos por una trama sin dibujo visible
+        // (la secuencia R2), y por los huecos se ve lo de detrás. Un músculo al
+        // 30 % sobre su hueso es la lámina clásica de un atlas, y así sale sin
+        // ordenar triángulos y sin una pasada más.
+        if (vAspecto.a < 0.995 &&
+            fract(dot(floor(gl_FragCoord.xy), vec2(0.7548776662, 0.5698402910))) > vAspecto.a) discard;`,
       )
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
+        // El color propio sustituye al del sistema; el rojo en −1 dice que no hay.
+        if (vAspecto.r >= 0.0) diffuseColor.rgb = vAspecto.rgb;
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.62, 0.88), vResaltada * 0.65);
         // El naranja de la selección de Blender, a propósito: quien viene de
         // allí lo lee sin que nadie se lo explique, y no se confunde con el
@@ -593,4 +633,35 @@ export function estaEnSuSitio(
     escena.datosDeTraslados[base + 1] === 0 &&
     escena.datosDeTraslados[base + 2] === 0
   )
+}
+
+/** El aspecto propio de una pieza: el color que sustituye al de su sistema y cuánto deja ver a través. */
+export interface AspectoDePieza {
+  /** `#rrggbb`. Ausente: el color de su sistema. */
+  color?: string
+  /** De 0 a 1. Ausente: maciza. */
+  opacidad?: number
+}
+
+const colorAuxiliar = new THREE.Color()
+
+/** Escribe el aspecto de una pieza, o la devuelve al de su sistema con `null`. */
+export function ponerAspecto(
+  escena: Pick<EscenaDelAtlas, 'aspectos' | 'datosDeAspectos'>,
+  indice: number,
+  aspecto: AspectoDePieza | null,
+) {
+  const base = indice * CANALES
+  if (aspecto?.color) {
+    // Convertido a lineal, que es el espacio en el que el sombreador mezcla: el
+    // color del sistema también llega así, por `THREE.Color`.
+    colorAuxiliar.set(aspecto.color)
+    escena.datosDeAspectos[base] = colorAuxiliar.r
+    escena.datosDeAspectos[base + 1] = colorAuxiliar.g
+    escena.datosDeAspectos[base + 2] = colorAuxiliar.b
+  } else {
+    escena.datosDeAspectos[base] = -1
+  }
+  escena.datosDeAspectos[base + 3] = aspecto?.opacidad ?? 1
+  escena.aspectos.needsUpdate = true
 }

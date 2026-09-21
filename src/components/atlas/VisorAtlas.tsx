@@ -26,7 +26,9 @@ import {
   cargarPaquetes,
   marcarPieza,
   montarEscena,
+  ponerAspecto,
   ponerTransformacion,
+  type AspectoDePieza,
   type TransformacionDePieza,
   paquetesNecesarios,
   type EscenaDelAtlas,
@@ -210,6 +212,7 @@ export function VisorAtlas({
   transformaciones = null,
   alTransformar,
   rayosX = false,
+  aspectos = null,
   gizmo = false,
   ortografica = false,
   cortes = null,
@@ -251,6 +254,8 @@ export function VisorAtlas({
   alCortar?: (corte: CorteDePieza) => void
   /** Algo que decirle a quien trabaja: por qué no se pudo cortar, por ejemplo. */
   alAvisar?: (texto: string) => void
+  /** Color y opacidad propios de cada pieza (D-134), por su identificador del catálogo. */
+  aspectos?: ReadonlyMap<string, AspectoDePieza> | null
   /** Dibuja sobre lo seleccionado las flechas y los aros para moverlo y girarlo (D-133). Solo el taller. */
   gizmo?: boolean
   /** Vista ortográfica, sin fuga: para trazar cortes rectos y comparar tamaños. Solo el taller. */
@@ -1373,11 +1378,34 @@ export function VisorAtlas({
     const t = taller.current
     for (const trozo of t.fragmentos?.values() ?? []) {
       trozo.malla.visible = !visibles || visibles.has(trozo.pieza)
-      pintarFragmento(trozo, !!seleccion?.has(trozo.id))
+      pintarFragmento(trozo, !!seleccion?.has(trozo.id), aspectos?.get(trozo.pieza))
       colocarFragmento(trozo, transformaciones?.get(trozo.id))
     }
     t.pedirDibujo?.()
-  }, [catalogo, cortes, visibles, seleccion, transformaciones, progreso])
+  }, [catalogo, cortes, visibles, seleccion, transformaciones, aspectos, progreso])
+
+  // El aspecto propio de cada pieza, con el mismo arreglo que las
+  // transformaciones: lo que tenía uno y ya no viene vuelve al de su sistema.
+  useEffect(() => {
+    const t = taller.current
+    const escena = t.escena
+    if (!escena) return
+    const antes = t.conAspecto ?? new Set<string>()
+    const ahora = new Set<string>()
+    for (const [id, aspecto] of aspectos ?? []) {
+      const i = escena.indices.get(id)
+      if (i === undefined) continue
+      ponerAspecto(escena, i, aspecto)
+      ahora.add(id)
+    }
+    for (const id of antes) {
+      if (ahora.has(id)) continue
+      const i = escena.indices.get(id)
+      if (i !== undefined) ponerAspecto(escena, i, null)
+    }
+    t.conAspecto = ahora
+    t.pedirDibujo?.()
+  }, [catalogo, aspectos, progreso])
 
   useEffect(() => {
     const escena = taller.current.escena
@@ -1821,6 +1849,8 @@ interface TallerDelVisor {
   firmasDeCorte?: Map<string, string>
   /** Piezas partidas: se apagan en su malla fusionada, porque las dibujan sus trozos. */
   cortadas?: Set<string>
+  /** Piezas a las que se les escribió un aspecto propio, para devolverlas al de su sistema. */
+  conAspecto?: Set<string>
   /** Piezas a las que se les escribió una transformación, para devolverlas a su sitio. */
   transformadas?: Set<string>
   render?: THREE.WebGLRenderer

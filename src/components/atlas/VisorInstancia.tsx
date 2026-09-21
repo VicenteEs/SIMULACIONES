@@ -66,7 +66,13 @@ export function VisorInstancia({
         })
       }
     }
-    return { limpio, visibles: new Set(limpio.piezas.map((p) => p.id)), movidas }
+    // Y el color y la opacidad propios (D-134).
+    const aspectos = new Map(
+      limpio.piezas
+        .filter((p) => p.color || p.opacidad !== undefined)
+        .map((p) => [p.id, { color: p.color, opacidad: p.opacidad }] as const),
+    )
+    return { limpio, visibles: new Set(limpio.piezas.map((p) => p.id)), movidas, aspectos }
   }, [catalogo, contenido])
 
   if (fallo) {
@@ -100,6 +106,7 @@ export function VisorInstancia({
           separacion={preparado.limpio.vista.separacion}
           vistaInicial={preparado.limpio.vista}
           transformaciones={preparado.movidas}
+          aspectos={preparado.aspectos}
           cortes={preparado.limpio.cortes ?? null}
           soloLectura
         />

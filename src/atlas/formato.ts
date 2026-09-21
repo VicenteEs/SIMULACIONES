@@ -109,6 +109,11 @@ export interface PiezaDeInstancia {
   /** Color propio, si se quiere destacar la pieza sobre el resto. */
   color?: string
   /**
+   * Cuánto deja ver a través, de `OPACIDAD_MINIMA` a 1 (D-134). Ausente si es
+   * maciza. Tiene suelo: una pieza al 0 % está apagada, y para eso ya hay casilla.
+   */
+  opacidad?: number
+  /**
    * Cuánto se ha sacado la pieza de su sitio anatómico, en metros (D-129). Es
    * lo que permite enseñar una luxación o un fragmento desplazado. Ausente si
    * no se movió: la inmensa mayoría de las piezas de cualquier preparación.
@@ -124,6 +129,8 @@ export interface PiezaDeInstancia {
  * fuera de cámara que nadie va a volver a encontrar.
  */
 export const MAXIMO_DE_TRASLADO = 2
+
+export const OPACIDAD_MINIMA = 0.1
 
 /** Cámara guardada: dónde estaba el ojo y a dónde miraba. */
 export interface VistaDeInstancia {

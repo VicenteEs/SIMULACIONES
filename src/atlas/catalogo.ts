@@ -11,6 +11,7 @@ import {
   MAXIMO_DE_CORTES,
   MAXIMO_DE_TRASLADO,
   MAXIMO_PIEZAS,
+  OPACIDAD_MINIMA,
   VISTA_INICIAL,
   type CatalogoDelAtlas,
   type ContenidoDeInstancia,
@@ -263,6 +264,7 @@ export function normalizarSeleccion(
       salida.push({
         id,
         ...(typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color) ? { color } : {}),
+        ...opacidadLimpia(bruta),
         ...transformacionLimpia(bruta),
       })
       if (salida.length >= MAXIMO_PIEZAS) break
@@ -322,6 +324,14 @@ function cortesValidos(brutos: unknown, enLaPreparacion: ReadonlySet<string>): C
     if (salida.length >= MAXIMO_DE_CORTES) break
   }
   return salida
+}
+
+/** La opacidad de una pieza: un número entre el suelo y 1, a centésimas; maciza no se guarda. */
+function opacidadLimpia(bruta: unknown): { opacidad?: number } {
+  const valor = bruta && typeof bruta === 'object' ? (bruta as { opacidad?: unknown }).opacidad : null
+  if (typeof valor !== 'number' || !Number.isFinite(valor)) return {}
+  const acotada = Math.round(Math.min(1, Math.max(OPACIDAD_MINIMA, valor)) * 100) / 100
+  return acotada >= 1 ? {} : { opacidad: acotada }
 }
 
 /**
