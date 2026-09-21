@@ -36,6 +36,13 @@ import {
 import { impactoBajoElRayo } from '@/atlas/picking'
 import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import {
+  PUNTOS_POR_MARCA,
+  anclaDeLaMarca,
+  textoDeLaMarca,
+  type MarcaDeInstancia,
+  type Punto,
+} from '@/atlas/marcas'
+import {
   colocarFragmento,
   crearFragmentos,
   liberarFragmento,
@@ -184,7 +191,7 @@ export type LadoDeLaVista = 'frente' | 'atras' | 'derecha' | 'izquierda' | 'arri
  * central, que es donde lo tiene Blender; en `corte` traza la línea por la que
  * se parte el hueso seleccionado (D-130).
  */
-export type HerramientaDelVisor = 'orbita' | 'caja' | 'corte'
+export type HerramientaDelVisor = 'orbita' | 'caja' | 'corte' | 'rotulo' | 'distancia' | 'angulo'
 
 /**
  * Aviso de contexto WebGL perdido.
@@ -212,6 +219,8 @@ export function VisorAtlas({
   transformaciones = null,
   alTransformar,
   rayosX = false,
+  marcas = null,
+  alMarcar,
   aspectos = null,
   gizmo = false,
   ortografica = false,
@@ -254,6 +263,10 @@ export function VisorAtlas({
   alCortar?: (corte: CorteDePieza) => void
   /** Algo que decirle a quien trabaja: por qué no se pudo cortar, por ejemplo. */
   alAvisar?: (texto: string) => void
+  /** Rótulos, distancias y ángulos apuntados sobre el modelo (D-135). Las fichas los enseñan; el taller, además, los pone. */
+  marcas?: readonly MarcaDeInstancia[] | null
+  /** Con las herramientas `rotulo`, `distancia` y `angulo`: se marcaron los puntos que pedía. */
+  alMarcar?: (marca: MarcaDeInstancia) => void
   /** Color y opacidad propios de cada pieza (D-134), por su identificador del catálogo. */
   aspectos?: ReadonlyMap<string, AspectoDePieza> | null
   /** Dibuja sobre lo seleccionado las flechas y los aros para moverlo y girarlo (D-133). Solo el taller. */
@@ -337,6 +350,7 @@ export function VisorAtlas({
     alCortar,
     alAvisar,
     gizmo,
+    alMarcar,
     alAsentarVista,
     soloLectura,
     vistaInicial,
@@ -355,6 +369,7 @@ export function VisorAtlas({
       alCortar,
       alAvisar,
       gizmo,
+      alMarcar,
       alAsentarVista,
       soloLectura,
       vistaInicial,
@@ -670,6 +685,11 @@ export function VisorAtlas({
       cortar(corte)
     }
 
+    /** A qué distancia tocó el rayo lo último que señaló: con ella se saca el punto exacto para marcar. */
+    let distanciaDelUltimoImpacto = Infinity
+    /** Los puntos ya marcados de una medida a medias. */
+    let puntosPendientes: Punto[] = []
+
     /**
      * Lo que hay bajo el rayo ya preparado: una pieza entera o un trozo de hueso
      * partido, lo que esté más cerca. Los trozos son pocos y pequeños, así que
@@ -677,6 +697,7 @@ export function VisorAtlas({
      */
     const loQueSeSenala = (escena: EscenaDelAtlas): { id: string; nombre: string } | null => {
       const entera = impactoBajoElRayo(rayo, catalogo, escena, ultimas.current.separacion)
+      distanciaDelUltimoImpacto = entera.distancia
       let mejor: { id: string; nombre: string } | null =
         entera.indice >= 0
           ? {
@@ -690,6 +711,7 @@ export function VisorAtlas({
         const toque = rayo.intersectObject(trozo.malla, false)[0]
         if (!toque || toque.distance >= distancia) continue
         distancia = toque.distance
+        distanciaDelUltimoImpacto = distancia
         const i = escena.indices.get(trozo.pieza)
         const nombre = i === undefined ? trozo.pieza : nombreEnEspanol(catalogo.piezas[i].nombre)
         mejor = { id: trozo.id, nombre: `${nombre} · fragmento` }
@@ -968,6 +990,11 @@ export function VisorAtlas({
       sucio = true
     }
     taller.current.gizmoAlDia = gizmoAlDia
+    // Cambiar de herramienta tira la medida a medias: dos puntos de un ángulo
+    // no son los dos de una distancia.
+    taller.current.olvidarPuntos = () => {
+      puntosPendientes = []
+    }
     // Al acercar o alejar la cámara el manipulador tiene que reescalarse, o deja
     // de medir lo mismo en pantalla.
     controles.addEventListener('change', gizmoAlDia)
@@ -1184,6 +1211,34 @@ export function VisorAtlas({
       aCoordenadas(evento)
       rayo.setFromCamera(puntero, camara)
       const senalada = loQueSeSenala(escena)
+      const queMarcar = ultimas.current.herramienta
+      if (
+        (queMarcar === 'rotulo' || queMarcar === 'distancia' || queMarcar === 'angulo') &&
+        ultimas.current.alMarcar
+      ) {
+        // Se marca SOBRE la anatomía: un punto en el aire no tiene profundidad
+        // que guardar, y un clic en el vacío se ignora sin más.
+        if (!senalada || !Number.isFinite(distanciaDelUltimoImpacto)) return
+        const donde = rayo.ray.at(distanciaDelUltimoImpacto, new THREE.Vector3())
+        puntosPendientes.push([donde.x, donde.y, donde.z])
+        const faltan = PUNTOS_POR_MARCA[queMarcar] - puntosPendientes.length
+        if (faltan > 0) {
+          setGesto(
+            queMarcar === 'distancia'
+              ? 'Medir · marque el segundo punto'
+              : `Ángulo · ${faltan === 2 ? 'marque el vértice' : 'marque el tercer punto'}`,
+          )
+          return
+        }
+        const puntos = puntosPendientes
+        puntosPendientes = []
+        setGesto(null)
+        if (queMarcar === 'rotulo') ultimas.current.alMarcar({ tipo: 'rotulo', punto: puntos[0], texto: 'Rótulo' })
+        else if (queMarcar === 'distancia') {
+          ultimas.current.alMarcar({ tipo: 'distancia', puntos: [puntos[0], puntos[1]] })
+        } else ultimas.current.alMarcar({ tipo: 'angulo', puntos: [puntos[0], puntos[1], puntos[2]] })
+        return
+      }
       if (avisar) {
         if (senalada) {
           avisar([senalada.id], evento.shiftKey ? 'alternar' : 'reemplazar')
@@ -1266,6 +1321,7 @@ export function VisorAtlas({
       if (!sucio && !movio && !deslizando) return
       sucio = false
       render.render(tresD, camara)
+      colocarTextosDeMarcas(taller.current, camara, contenedor)
     })
 
     return () => {
@@ -1486,6 +1542,40 @@ export function VisorAtlas({
     ponerProyeccion(taller.current, ortografica)
   }, [catalogo, ortografica])
 
+  // Las marcas: sus líneas entran en la escena y sus textos son HTML, que se
+  // proyecta en cada dibujado (`colocarTextosDeMarcas`). HTML y no texto en 3D
+  // porque tiene que leerse igual de cerca que de lejos, y un lector de
+  // pantalla puede leerlo.
+  useEffect(() => {
+    const t = taller.current
+    if (!t.tresD) return
+    t.lineasDeMarcas?.removeFromParent()
+    t.lineasDeMarcas?.traverse((objeto) => {
+      const linea = objeto as THREE.Line
+      linea.geometry?.dispose()
+      ;(linea.material as THREE.Material | undefined)?.dispose()
+    })
+    const grupo = new THREE.Group()
+    const anclas: THREE.Vector3[] = []
+    for (const marca of marcas ?? []) {
+      anclas.push(new THREE.Vector3(...anclaDeLaMarca(marca)))
+      if (marca.tipo === 'rotulo') continue
+      const geometria = new THREE.BufferGeometry().setFromPoints(
+        marca.puntos.map((p) => new THREE.Vector3(...p)),
+      )
+      const linea = new THREE.Line(
+        geometria,
+        new THREE.LineBasicMaterial({ color: 0xd81b60, depthTest: false, transparent: true }),
+      )
+      linea.renderOrder = 998
+      grupo.add(linea)
+    }
+    t.tresD.add(grupo)
+    t.lineasDeMarcas = grupo
+    t.anclasDeMarcas = anclas
+    t.pedirDibujo?.()
+  }, [catalogo, marcas, progreso])
+
   // El manipulador sigue a la selección. Declarado DESPUÉS de los efectos que
   // colocan las piezas y los fragmentos, y del de la proyección, que cambia el
   // tamaño que le toca.
@@ -1512,6 +1602,8 @@ export function VisorAtlas({
       ONE: conMarco ? (-1 as THREE.TOUCH) : THREE.TOUCH.ROTATE,
       TWO: THREE.TOUCH.DOLLY_PAN,
     }
+    // Al cambiar de herramienta se olvida la medida a medias y su rótulo.
+    taller.current.olvidarPuntos?.()
   }, [catalogo, herramienta])
 
   useEffect(() => {
@@ -1607,6 +1699,14 @@ export function VisorAtlas({
 
       {gesto ? <span className="atlas-gesto">{gesto}</span> : null}
 
+      <div className="atlas-marcas">
+        {(marcas ?? []).map((marca, i) => (
+          <span key={i} className={`atlas-marca atlas-marca-${marca.tipo}`} data-marca={i}>
+            {textoDeLaMarca(marca)}
+          </span>
+        ))}
+      </div>
+
       {linea ? (
         <svg className="atlas-linea-de-corte" aria-hidden="true">
           <line x1={linea.x1} y1={linea.y1} x2={linea.x2} y2={linea.y2} />
@@ -1690,6 +1790,39 @@ function estadoDe(encendida: boolean, resaltada: boolean, seleccionada: boolean)
   if (!encendida) return ESTADO.OCULTA
   if (resaltada) return ESTADO.RESALTADA
   return seleccionada ? ESTADO.SELECCIONADA : ESTADO.VISIBLE
+}
+
+const enPantalla = new THREE.Vector3()
+
+/**
+ * Pone cada texto de marca sobre su punto, tras cada dibujado.
+ *
+ * Escribe en el estilo de los elementos y no pasa por React: son hasta
+ * veinticuatro posiciones que cambian en cada fotograma de órbita. Lo que queda
+ * detrás de la cámara se esconde; lo que queda detrás de la anatomía no, a
+ * propósito: un rótulo que desaparece al girar parece un fallo, y la línea de
+ * una medida tampoco se esconde.
+ */
+function colocarTextosDeMarcas(
+  taller: TallerDelVisor,
+  camara: THREE.PerspectiveCamera,
+  contenedor: HTMLElement,
+) {
+  const anclas = taller.anclasDeMarcas
+  if (!anclas || anclas.length === 0) return
+  const ancho = contenedor.clientWidth
+  const alto = contenedor.clientHeight
+  contenedor.querySelectorAll<HTMLElement>('[data-marca]').forEach((elemento) => {
+    const ancla = anclas[Number(elemento.dataset.marca)]
+    if (!ancla) return
+    enPantalla.copy(ancla).project(camara)
+    const visible = enPantalla.z > -1 && enPantalla.z < 1
+    elemento.style.display = visible ? '' : 'none'
+    if (!visible) return
+    elemento.style.transform = `translate(${((enPantalla.x + 1) / 2) * ancho}px, ${
+      ((1 - enPantalla.y) / 2) * alto
+    }px) translate(-50%, -130%)`
+  })
 }
 
 /**
@@ -1839,8 +1972,12 @@ interface TallerDelVisor {
     empezar: (modo: ModoDeTransformacion) => boolean
     tecla: (tecla: string) => boolean
   }
+  /** Las líneas de las medidas, en la escena; y dónde va cada texto, para proyectarlo en cada dibujado. */
+  lineasDeMarcas?: THREE.Group
+  anclasDeMarcas?: THREE.Vector3[]
   /** Recoloca y reescala el manipulador; lo monta el efecto de montaje. */
   gizmoAlDia?: () => void
+  olvidarPuntos?: () => void
   /** Si la cámara está en vista ortográfica (ver `ponerProyeccion`). */
   ortografica?: boolean
   /** Los trozos de los huesos partidos, por su identificador (`FJ1234#a`). */

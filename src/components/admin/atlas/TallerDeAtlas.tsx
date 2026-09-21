@@ -13,6 +13,13 @@ import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
 import { cuaternionDeGrados, gradosDeCuaternion } from '@/atlas/angulos'
+import {
+  MAXIMO_DE_MARCAS,
+  MAXIMO_DE_VISTAS,
+  textoDeLaMarca,
+  type MarcaDeInstancia,
+  type VistaConNombre,
+} from '@/atlas/marcas'
 import type { AspectoDePieza, TransformacionDePieza } from '@/atlas/cargador'
 // Estático sin miedo: `nombres.ts` es una tabla JSON y tres funciones de texto,
 // sin three. Lo que no puede entrar así es `@/atlas/cargador` (ver abajo).
@@ -181,6 +188,7 @@ const ATAJOS_DEL_TALLER: [string, string][] = [
   ['Alt + G · Alt + R', 'Devolver lo seleccionado a su posición · a su orientación anatómica.'],
   ['Mayús + G', 'Seleccionar todo lo encendido del mismo sistema (hueso, músculo, vaso…).'],
   ['Ctrl + Z · Ctrl + Mayús + Z', 'Deshacer · rehacer, hasta cincuenta pasos.'],
+  ['M', 'Medir la distancia entre dos puntos de la anatomía. «Ángulo» pide tres; «Rótulo», uno.'],
   ['5', 'Vista ortográfica, sin fuga. Otra vez, vuelve la perspectiva.'],
   ['Alt + Z', 'Rayos X: ver a través de lo que no está seleccionado.'],
   ['1 · 3 · 7', 'Vista de frente, lateral y superior. Con Ctrl, la contraria.'],
@@ -309,6 +317,14 @@ export function TallerDeAtlas() {
   /** Color y opacidad propios de cada pieza (D-134). Parte de la preparación: se guarda y se ve en la ficha. */
   const [aspectos, setAspectos] = useState<Map<string, AspectoDePieza>>(new Map())
   const ultimoCambioDeAspecto = useRef(0)
+  /**
+   * Rótulos y medidas sobre el modelo, y las vistas con nombre (D-135). Parte de
+   * la preparación. No entran en deshacer: se quitan con su botón, que está al
+   * lado, y meterlas ahí mezclaba «deshacer el corte» con «deshacer el rótulo».
+   */
+  const [marcas, setMarcas] = useState<MarcaDeInstancia[]>([])
+  const [vistas, setVistas] = useState<VistaConNombre[]>([])
+  const [nombreDeVista, setNombreDeVista] = useState('')
 
   const [instancia, setInstancia] = useState<string | null>(null)
   const [nombre, setNombre] = useState('')
@@ -427,6 +443,7 @@ export function TallerDeAtlas() {
     transformaciones: string
     cortes: string
     aspectos: string
+    apuntes: string
     vista: VistaDeInstancia
   }>({
     nombre: '',
@@ -435,12 +452,14 @@ export function TallerDeAtlas() {
     transformaciones: '',
     cortes: '',
     aspectos: '',
+    apuntes: '[[],[]]',
     vista: VISTA_INICIAL,
   })
 
   const clavePiezas = useMemo(() => [...visibles].sort().join(','), [visibles])
   const claveCortes = useMemo(() => firmaDeCortes(cortes), [cortes])
   const claveAspectos = useMemo(() => firmaDeAspectos(aspectos), [aspectos])
+  const claveApuntes = useMemo(() => JSON.stringify([marcas, vistas]), [marcas, vistas])
   const claveTransformaciones = useMemo(
     () => firmaDeTransformaciones(transformaciones),
     [transformaciones],
@@ -452,6 +471,7 @@ export function TallerDeAtlas() {
       claveTransformaciones !== referencia.transformaciones ||
       claveCortes !== referencia.cortes ||
       claveAspectos !== referencia.aspectos ||
+      claveApuntes !== referencia.apuntes ||
       nombre.trim() !== referencia.nombre ||
       descripcion.trim() !== referencia.descripcion ||
       separacion !== referencia.vista.separacion)
@@ -488,6 +508,7 @@ export function TallerDeAtlas() {
       movidas: ReadonlyMap<string, TransformacionDePieza> = new Map(),
       partidos: readonly CorteDePieza[] = [],
       pintadas: ReadonlyMap<string, AspectoDePieza> = new Map(),
+      apuntes: [readonly MarcaDeInstancia[], readonly VistaConNombre[]] = [[], []],
     ) => {
       setReferencia({
         nombre: titulo.trim(),
@@ -496,6 +517,7 @@ export function TallerDeAtlas() {
         transformaciones: firmaDeTransformaciones(movidas),
         cortes: firmaDeCortes(partidos),
         aspectos: firmaDeAspectos(pintadas),
+        apuntes: JSON.stringify(apuntes),
         vista,
       })
       // El encuadre entra en la referencia, así que lo que hubiera de movido
@@ -901,6 +923,8 @@ export function TallerDeAtlas() {
     setTransformaciones(new Map())
     setCortes([])
     setAspectos(new Map())
+    setMarcas([])
+    setVistas([])
     setSeleccion(new Set())
     setInstancia(null)
     setModeloAbierto(null)
@@ -943,6 +967,8 @@ export function TallerDeAtlas() {
     setTransformaciones(new Map())
     setCortes([])
     setAspectos(new Map())
+    setMarcas([])
+    setVistas([])
     setSeleccion(new Set())
     setVisibles(piezas)
     setSeparacion(0)
@@ -989,6 +1015,10 @@ export function TallerDeAtlas() {
             .map((pieza) => [pieza.id, { color: pieza.color, opacidad: pieza.opacidad }] as const),
         )
         setAspectos(aspectosAbiertos)
+        const marcasAbiertas = r.datos.contenido.marcas ?? []
+        const vistasAbiertas = r.datos.contenido.vistas ?? []
+        setMarcas(marcasAbiertas)
+        setVistas(vistasAbiertas)
         setHistorial([])
         setRehacer([])
         setSeleccion(new Set())
@@ -1031,6 +1061,7 @@ export function TallerDeAtlas() {
           movidasAbiertas,
           cortesAbiertos,
           aspectosAbiertos,
+          [marcasAbiertas, vistasAbiertas],
         )
         if (r.datos.perdidas.length > 0) {
           setAviso({
@@ -1096,6 +1127,8 @@ export function TallerDeAtlas() {
               a: transformaciones.get(idDeFragmento(c.pieza, 'a')),
               b: transformaciones.get(idDeFragmento(c.pieza, 'b')),
             })),
+          marcas,
+          vistas,
           vista,
         })
         if (!r.exito || !r.datos) {
@@ -1105,7 +1138,10 @@ export function TallerDeAtlas() {
         setInstancia(r.datos.id)
         // Lo recién guardado pasa a ser la referencia: ya no hay nada que
         // perder.
-        fijarReferencia(visibles, nombre, descripcion, vista, transformaciones, cortes, aspectos)
+        fijarReferencia(visibles, nombre, descripcion, vista, transformaciones, cortes, aspectos, [
+          marcas,
+          vistas,
+        ])
         setAviso({
           tipo: 'ok',
           texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
@@ -1305,6 +1341,7 @@ export function TallerDeAtlas() {
       else if (tecla === 'h' || tecla === 'x' || tecla === 'delete') apagarSeleccion()
       else if (tecla === 'a') setSeleccion(new Set(idsSeleccionables(visibles)))
       else if (tecla === 'b') setHerramienta((actual) => (actual === 'caja' ? 'orbita' : 'caja'))
+      else if (tecla === 'm') setHerramienta((actual) => (actual === 'distancia' ? 'orbita' : 'distancia'))
       else if (tecla === 'k') setHerramienta((actual) => (actual === 'corte' ? 'orbita' : 'corte'))
       else if (tecla === 'escape') {
         // Primero suelta la herramienta y solo después la selección: un Esc de
@@ -1715,6 +1752,17 @@ export function TallerDeAtlas() {
             alTransformar={alTransformar}
             rayosX={rayosX}
             aspectos={aspectos}
+            marcas={marcas}
+            alMarcar={(marca) => {
+              if (marcas.length >= MAXIMO_DE_MARCAS) {
+                setAviso({
+                  tipo: 'error',
+                  texto: `Una preparación admite ${MAXIMO_DE_MARCAS} rótulos y medidas. Quite alguno antes de añadir otro.`,
+                })
+                return
+              }
+              setMarcas([...marcas, marca])
+            }}
             gizmo={gizmo}
             ortografica={ortografica}
             cortes={cortes}
@@ -1750,6 +1798,35 @@ export function TallerDeAtlas() {
                 onClick={() => setHerramienta('corte')}
               >
                 Cortar
+              </button>
+            </div>
+            <div className="atlas-herramientas-grupo">
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={herramienta === 'rotulo'}
+                title="Rótulo: pulse un punto de la anatomía y escriba su texto en el panel derecho"
+                onClick={() => setHerramienta('rotulo')}
+              >
+                Rótulo
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={herramienta === 'distancia'}
+                title="Medir: pulse dos puntos de la anatomía (M)"
+                onClick={() => setHerramienta('distancia')}
+              >
+                Medir
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={herramienta === 'angulo'}
+                title="Ángulo: pulse tres puntos; el del medio es el vértice"
+                onClick={() => setHerramienta('angulo')}
+              >
+                Ángulo
               </button>
             </div>
             <div className="atlas-herramientas-grupo">
@@ -2018,6 +2095,103 @@ export function TallerDeAtlas() {
               </label>
             </div>
           )}
+
+          <h3 className="atlas-subtitulo">Rótulos y medidas</h3>
+          {marcas.length === 0 ? (
+            <p className="campo-ayuda">
+              Con «Rótulo», «Medir» o «Ángulo», pulse sobre la anatomía. Lo que apunte se ve en la
+              ficha.
+            </p>
+          ) : (
+            <ul className="atlas-apuntes">
+              {marcas.map((marca, i) => (
+                <li key={i}>
+                  {marca.tipo === 'rotulo' ? (
+                    <input
+                      className="campo-control"
+                      value={marca.texto}
+                      maxLength={80}
+                      aria-label={`Texto del rótulo ${i + 1}`}
+                      onChange={(e) =>
+                        setMarcas(
+                          marcas.map((otra, j) =>
+                            j === i && otra.tipo === 'rotulo' ? { ...otra, texto: e.target.value } : otra,
+                          ),
+                        )
+                      }
+                    />
+                  ) : (
+                    <span>
+                      {marca.tipo === 'distancia' ? 'Distancia' : 'Ángulo'} · {textoDeLaMarca(marca)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="atlas-herramienta"
+                    aria-label={`Quitar ${marca.tipo === 'rotulo' ? 'el rótulo' : 'la medida'} ${i + 1}`}
+                    onClick={() => setMarcas(marcas.filter((_, j) => j !== i))}
+                  >
+                    Quitar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h3 className="atlas-subtitulo">Vistas con nombre</h3>
+          <div className="atlas-apuntes-nueva">
+            <input
+              className="campo-control"
+              placeholder="Lateral, AP, el foco…"
+              value={nombreDeVista}
+              maxLength={40}
+              aria-label="Nombre de la vista que se va a guardar"
+              onChange={(e) => setNombreDeVista(e.target.value)}
+            />
+            <button
+              type="button"
+              className="atlas-herramienta"
+              disabled={!nombreDeVista.trim() || vistas.length >= MAXIMO_DE_VISTAS}
+              title="Guarda el encuadre de ahora con ese nombre; en la ficha sale como un botón"
+              onClick={() => {
+                const ahora = mando.current?.vistaActual()
+                if (!ahora) return
+                setVistas([
+                  ...vistas.filter((v) => v.nombre !== nombreDeVista.trim()),
+                  { nombre: nombreDeVista.trim(), camara: ahora.camara, objetivo: ahora.objetivo },
+                ])
+                setNombreDeVista('')
+              }}
+            >
+              Guardar vista
+            </button>
+          </div>
+          {vistas.length > 0 ? (
+            <ul className="atlas-apuntes">
+              {vistas.map((v) => (
+                <li key={v.nombre}>
+                  <button
+                    type="button"
+                    className="atlas-herramienta"
+                    onClick={() => {
+                      mando.current?.irA({ camara: v.camara, objetivo: v.objetivo, separacion })
+                      revisarEncuadre()
+                    }}
+                  >
+                    {v.nombre}
+                  </button>
+                  <button
+                    type="button"
+                    className="atlas-herramienta"
+                    aria-label={`Quitar la vista ${v.nombre}`}
+                    onClick={() => setVistas(vistas.filter((otra) => otra.nombre !== v.nombre))}
+                  >
+                    Quitar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
           <h3 className="atlas-subtitulo">Modelos 3D</h3>
           {modelos === null ? (

@@ -19,6 +19,7 @@ import {
   type PiezaDelAtlas,
   type VistaDeInstancia,
 } from './formato'
+import { marcasValidas, vistasValidas } from './marcas'
 
 // ------------------------------------------------------------------ búsqueda
 
@@ -243,6 +244,8 @@ export function normalizarSeleccion(
   piezas: unknown,
   vista: unknown,
   cortes?: unknown,
+  /** Lo apuntado sobre el modelo y las vistas con nombre (D-135). */
+  apuntes?: { marcas?: unknown; vistas?: unknown },
 ): ContenidoDeInstancia {
   const conocidas = new Set(catalogo.piezas.map((p) => p.id))
   const vistas = new Set<string>()
@@ -272,12 +275,16 @@ export function normalizarSeleccion(
   }
 
   const cortesLimpios = cortesValidos(cortes, vistas)
+  const marcas = marcasValidas(apuntes?.marcas)
+  const vistasConNombre = vistasValidas(apuntes?.vistas)
   return {
     version: 1,
     atlas: catalogo.version,
     piezas: salida,
     vista: normalizarVista(vista),
     ...(cortesLimpios.length > 0 ? { cortes: cortesLimpios } : {}),
+    ...(marcas.length > 0 ? { marcas } : {}),
+    ...(vistasConNombre.length > 0 ? { vistas: vistasConNombre } : {}),
   }
 }
 

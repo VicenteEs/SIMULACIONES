@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { idDeFragmento, type CatalogoDelAtlas, type ContenidoDeInstancia } from '@/atlas/formato'
 import { cargarCatalogo } from '@/atlas/cargador'
 import { normalizarSeleccion } from '@/atlas/catalogo'
-import { VisorAtlas } from './VisorAtlas'
+import { VisorAtlas, type MandoDelVisor } from './VisorAtlas'
 
 /**
  * Una preparación anatómica dentro de una ficha, para el residente.
@@ -26,6 +26,7 @@ export function VisorInstancia({
 }) {
   const [catalogo, setCatalogo] = useState<CatalogoDelAtlas | null>(null)
   const [fallo, setFallo] = useState(false)
+  const mando = useRef<MandoDelVisor | null>(null)
 
   useEffect(() => {
     const aborto = new AbortController()
@@ -46,7 +47,10 @@ export function VisorInstancia({
   // visor, que reescribe la textura de estado entera.
   const preparado = useMemo(() => {
     if (!catalogo) return null
-    const limpio = normalizarSeleccion(catalogo, contenido.piezas, contenido.vista, contenido.cortes)
+    const limpio = normalizarSeleccion(catalogo, contenido.piezas, contenido.vista, contenido.cortes, {
+      marcas: contenido.marcas,
+      vistas: contenido.vistas,
+    })
     // Las piezas que su autor sacó de su sitio (D-129): una luxación, un
     // fragmento desplazado. Memorizado con lo demás y por lo mismo: un mapa
     // nuevo en cada pintado volvería a escribir las texturas cada vez.
@@ -107,10 +111,32 @@ export function VisorInstancia({
           vistaInicial={preparado.limpio.vista}
           transformaciones={preparado.movidas}
           aspectos={preparado.aspectos}
+          marcas={preparado.limpio.marcas ?? null}
+          mando={mando}
           cortes={preparado.limpio.cortes ?? null}
           soloLectura
         />
       </div>
+      {/* Las vistas con nombre que dejó quien preparó la pieza (D-135): «AP»,
+          «lateral», «el foco». La primera es siempre la de apertura. */}
+      {preparado.limpio.vistas && preparado.limpio.vistas.length > 0 ? (
+        <div className="atlas-vistas" role="group" aria-label="Vistas de esta preparación">
+          <button type="button" onClick={() => mando.current?.irA(preparado.limpio.vista)}>
+            Vista inicial
+          </button>
+          {preparado.limpio.vistas.map((v) => (
+            <button
+              type="button"
+              key={v.nombre}
+              onClick={() =>
+                mando.current?.irA({ camara: v.camara, objetivo: v.objetivo, separacion: 0 })
+              }
+            >
+              {v.nombre}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {pie ? <figcaption>{pie}</figcaption> : null}
       <figcaption className="atlas-credito">
         Anatomía: BodyParts3D, © The Database Center for Life Science, CC BY 4.0

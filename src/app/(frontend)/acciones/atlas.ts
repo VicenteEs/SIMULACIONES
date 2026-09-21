@@ -165,7 +165,10 @@ export async function obtenerInstancia(
     })) as unknown as Record<string, unknown>
 
     const bruto = doc.contenido as Record<string, unknown> | null
-    const contenido = normalizarSeleccion(catalogo, bruto?.piezas, bruto?.vista, bruto?.cortes)
+    const contenido = normalizarSeleccion(catalogo, bruto?.piezas, bruto?.vista, bruto?.cortes, {
+      marcas: bruto?.marcas,
+      vistas: bruto?.vistas,
+    })
 
     return {
       id: String(doc.id),
@@ -198,7 +201,10 @@ export async function guardarInstancia(
     if (!datos || typeof datos !== 'object') throw new Error('No llegó nada que guardar.')
     const entrada = datos as Record<string, unknown>
 
-    const contenido = normalizarSeleccion(catalogo, entrada.piezas, entrada.vista, entrada.cortes)
+    const contenido = normalizarSeleccion(catalogo, entrada.piezas, entrada.vista, entrada.cortes, {
+      marcas: entrada.marcas,
+      vistas: entrada.vistas,
+    })
     if (contenido.piezas.length === 0) {
       throw new Error('Encienda al menos una pieza antes de guardar la preparación.')
     }

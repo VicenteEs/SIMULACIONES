@@ -10,6 +10,8 @@
  * interfaz— por la que trabajar sobre una copia no puede estropear el original.
  */
 
+import type { MarcaDeInstancia, VistaConNombre } from './marcas'
+
 /** Sistema anatómico: esqueleto, músculos, arterias… */
 export interface SistemaDelAtlas {
   id: string
@@ -149,6 +151,10 @@ export interface ContenidoDeInstancia {
   vista: VistaDeInstancia
   /** Huesos partidos en dos (D-130). Ausente si no hay ninguno. */
   cortes?: CorteDePieza[]
+  /** Rótulos, distancias y ángulos apuntados sobre el modelo (D-135). */
+  marcas?: MarcaDeInstancia[]
+  /** Encuadres con nombre, además del de `vista`, para saltar entre ellos en la ficha (D-135). */
+  vistas?: VistaConNombre[]
 }
 
 /** Lo que un fragmento se ha movido; los mismos dos campos que en una pieza. */
