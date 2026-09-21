@@ -43,6 +43,22 @@ function esquemaValidado(slug: unknown): EsquemaDeColeccion {
 
 // ------------------------------------------------------------------ listar
 
+/**
+ * El orden del listado, o el de siempre si lo pedido no es una columna suya.
+ *
+ * Se le pasaba a Payload tal cual llegaba del navegador, y `sort` no es un
+ * nombre de columna sino un **camino de campo**: admite cruzar relaciones, de
+ * modo que el texto de esta llamada decidía qué tablas entraban en la consulta.
+ * La pantalla solo ordena por las columnas que pinta, así que esas —y las dos
+ * fechas— son todo lo que se acepta.
+ */
+function ordenValido(esquema: EsquemaDeColeccion, pedido: unknown): string {
+  if (typeof pedido !== 'string') return '-updatedAt'
+  const campo = pedido.startsWith('-') ? pedido.slice(1) : pedido
+  const admitidos = [...esquema.columnas.map((columna) => columna.nombre), 'updatedAt', 'createdAt']
+  return admitidos.includes(campo) ? pedido : '-updatedAt'
+}
+
 export interface FilaDeLista {
   id: string
   valores: Record<string, unknown>
@@ -79,6 +95,9 @@ export async function listarDocumentos(
     // ella.
     const { payload } = await exigirEdicionDe(esquema.slug)
 
+    // Llega del navegador: puede venir `null` o cualquier otra cosa.
+    if (!opciones || typeof opciones !== 'object') opciones = {}
+
     const pagina = Math.max(1, Math.floor(Number(opciones.pagina) || 1))
     const condiciones: Record<string, unknown>[] = []
 
@@ -97,7 +116,7 @@ export async function listarDocumentos(
     const resultado = await payload.find({
       collection: esquema.slug as never,
       where: (condiciones.length > 0 ? { and: condiciones } : undefined) as never,
-      sort: typeof opciones.orden === 'string' && opciones.orden ? opciones.orden : '-updatedAt',
+      sort: ordenValido(esquema, opciones.orden),
       limit: 25,
       page: pagina,
       depth: 1,

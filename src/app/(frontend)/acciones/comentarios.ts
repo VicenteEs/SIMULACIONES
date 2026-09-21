@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { usuarioDeSesion } from '@/access/payload'
 import { puedeVerModulo } from '@/access/reglas'
+import { crearLimitador } from '@/lib/ritmo'
 import { obtenerSesion } from '@/lib/sesion'
 import {
   exigirIdentificador,
@@ -11,6 +12,22 @@ import {
   exigirTexto,
   LARGO_MAXIMO_COMENTARIO,
 } from '@/lib/validacion'
+
+/**
+ * Cuántos comentarios deja una cuenta en diez minutos.
+ *
+ * El techo de longitud acota cada comentario, no cuántos. Y cada uno manda un
+ * correo a los administradores (`Comentarios.ts`, `afterChange`), por la misma
+ * cuenta de cPanel y con la misma cuota por hora que la recuperación de
+ * contraseña: una sola cuenta de residente llamando a esta acción en bucle
+ * llenaba la bandeja del panel, los buzones de los administradores, y dejaba a
+ * quien olvidó su clave sin el correo para recuperarla. Diez en diez minutos es
+ * más de lo que nadie escribe leyendo una ficha.
+ */
+const LIMITE_DE_COMENTARIOS = crearLimitador('comentarios:cuenta', {
+  maximo: 10,
+  ventanaMs: 10 * 60 * 1000,
+})
 
 /**
  * Deja un comentario sobre una ficha.
@@ -40,6 +57,12 @@ export async function crearComentario(
   // misma regla que la colección, antes de abrir la base.
   if (!puedeVerModulo(usuarioDeSesion(usuarioEfectivo), modulo)) {
     throw new Error('Su cuenta no tiene acceso a ese módulo.')
+  }
+
+  if (!LIMITE_DE_COMENTARIOS.permitir(String((usuarioEfectivo as { id?: unknown }).id))) {
+    throw new Error(
+      'Dejó varios comentarios en pocos minutos. Espere un poco antes de escribir el siguiente.',
+    )
   }
 
   const datos = {

@@ -43,6 +43,15 @@ services:
     image: traumahub:local
     container_name: traumahub-app
     restart: unless-stopped
+    # La aplicación ya corre sin root (`USER nextjs`) y en el puerto 3000, así
+    # que no usa ninguna capacidad del núcleo ni necesita ganar privilegios.
+    # Quitárselo todo no le cambia nada a ella; le cambia a quien consiga
+    # ejecutar algo dentro —`sharp` abre imágenes que suben los editores—, que
+    # se encuentra sin binarios setuid que valgan y sin capacidades que heredar.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     depends_on:
       db:
         condition: service_healthy

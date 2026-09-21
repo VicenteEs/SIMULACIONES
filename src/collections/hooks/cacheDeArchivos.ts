@@ -19,9 +19,29 @@
  * `Vary: Cookie` es la otra mitad: le dice a cualquier caché que la respuesta
  * depende de quién la pidió, de modo que la copia de una persona no se le
  * entrega a otra.
+ *
+ * Y una cuarta que no es de caché, pero va aquí porque esta función es el único
+ * sitio por el que pasan las cabeceras de todo archivo subido: un archivo subido
+ * **no ejecuta nada**. `medios` admite SVG, y un SVG es un documento: puede
+ * llevar `<script>`. Dentro de un `<img>` el navegador no lo ejecuta, pero la
+ * dirección del archivo se puede abrir sola en una pestaña —basta con que un
+ * editor se la pase al administrador en un comentario o en un enlace de una
+ * ficha—, y ahí el guion corría en el origen de la plataforma, con la sesión de
+ * quien lo abriera: un editor conseguía así lo que hace un administrador. Con
+ * `sandbox` el documento se abre en un origen opaco, sin guiones y sin cookies
+ * que leer; `script-src 'none'` dice lo mismo para el navegador que no entienda
+ * lo primero. Nada de esto afecta a cómo se ve el archivo dentro de una ficha:
+ * la CSP de una respuesta solo gobierna a esa respuesta cuando es ella el
+ * documento. `frame-ancestors` se repite porque esta cabecera sustituye a la de
+ * `next.config.mjs` en estas respuestas, y no debe perderse por el camino.
+ *
+ * `nosniff` cierra la otra mitad: que el navegador no decida por su cuenta que
+ * un archivo con tipo de imagen «parece» HTML.
  */
 export function cacheDeArchivoPrivado({ headers }: { headers: Headers }): Headers {
   headers.set('Cache-Control', 'private, max-age=3600, must-revalidate')
   headers.set('Vary', 'Cookie')
+  headers.set('Content-Security-Policy', "script-src 'none'; sandbox; frame-ancestors 'none'")
+  headers.set('X-Content-Type-Options', 'nosniff')
   return headers
 }

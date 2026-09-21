@@ -292,7 +292,10 @@ const GUARDIAS: Record<string, Clasificacion> = {
   },
 
   'sesion.ts:entrar': { guardia: 'publica', permitidos: ['login'], argumentos: () => ['a@prueba.invalid', 'clave'] },
-  'sesion.ts:salir': { guardia: 'publica', permitidos: [], argumentos: () => [] },
+  // Salir ya no es solo borrar la cookie (O-059): da de baja su propia sesión en
+  // la fila de la cuenta, y para eso lee quién llama y reescribe esa fila. Ni
+  // una llamada más: es una acción pública y actúa con `overrideAccess`.
+  'sesion.ts:salir': { guardia: 'publica', permitidos: ['auth', 'findByID', 'update'], argumentos: () => [] },
   // El correo sale por `enviarSinEsperar`, que sin SMTP no llama a nada; con él,
   // `sendEmail` es lo único más que puede tocar.
   'sesion.ts:pedirEnlaceDeClave': {

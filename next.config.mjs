@@ -174,7 +174,23 @@ const nextConfig = {
           // CSP mínima y a propósito: una completa, con `script-src`, obliga a
           // manejar los nonces que Next incrusta en cada página del App Router,
           // y eso es una tarea aparte. `frame-ancestors` no los necesita.
-          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          //
+          // Las otras tres tampoco los necesitan, y cada una cierra un camino
+          // que una inyección de HTML —sin llegar a guion— dejaba abierto:
+          // `base-uri` impide un `<base href>` que mande cada enlace y cada
+          // `fetch` relativo a otro servidor; `form-action`, un `<form>` que se
+          // lleve la contraseña escrita en `/entrar`; `object-src`, los
+          // `<object>` y `<embed>`, que ejecutan sin ser `<script>`. La
+          // plataforma no usa ninguna de las tres cosas. Es `'self'` y no
+          // `'none'` en `form-action` porque las acciones de servidor sin
+          // JavaScript son formularios contra este mismo origen.
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+          },
+          // Una ventana abierta desde otra página no conserva referencia a esta,
+          // ni al revés. Nada aquí abre ventanas con las que después hable.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           // La plataforma no debe aparecer en buscadores mientras el acceso sea cerrado (D-020).

@@ -39,10 +39,32 @@ export interface Limitador {
   permitir(clave: string, ahora?: number): boolean
 }
 
+/**
+ * Los dos topes del propio almacén.
+ *
+ * La clave casi siempre sale de `X-Forwarded-For`, que escribe quien llama: una
+ * cabecera de varios kilobytes distinta en cada petición convertía el freno en
+ * la avería, porque cada una dejaba su clave entera en memoria durante una
+ * ventana. Recortada, dos cabeceras largas con el mismo principio comparten
+ * cupo, y eso solo perjudica a quien las manda así.
+ *
+ * Y con el almacén lleno de claves todavía vigentes no se abre ninguna nueva:
+ * se rechaza. Es fallar cerrando —quien llega en mitad de una inundación espera
+ * una ventana— a cambio de que la memoria del proceso tenga techo. Las claves
+ * ya conocidas siguen con su cuenta de siempre.
+ */
+const LARGO_MAXIMO_DE_CLAVE = 64
+const MAXIMO_DE_CLAVES = 20_000
+
 export function crearLimitador(nombre: string, { maximo, ventanaMs }: { maximo: number; ventanaMs: number }): Limitador {
   return {
-    permitir(clave, ahora = Date.now()) {
+    permitir(claveCruda, ahora = Date.now()) {
+      const clave = claveCruda.slice(0, LARGO_MAXIMO_DE_CLAVE)
       const intentos = almacen(nombre)
+      if (!intentos.has(clave) && intentos.size >= MAXIMO_DE_CLAVES) {
+        for (const [k, v] of intentos) if (v.every((t) => ahora - t >= ventanaMs)) intentos.delete(k)
+        if (intentos.size >= MAXIMO_DE_CLAVES) return false
+      }
       const recientes = (intentos.get(clave) ?? []).filter((t) => ahora - t < ventanaMs)
       if (recientes.length >= maximo) {
         intentos.set(clave, recientes)

@@ -68,6 +68,26 @@ describe('crearLimitador', () => {
     ]
     expect([...almacenes.get(nombre)!.keys()]).toEqual(['la-ultima'])
   })
+
+  // La clave sale de una cabecera que escribe quien llama: sin recorte, cada
+  // petición podía dejar varios kilobytes en memoria durante una ventana.
+  it('recorta la clave: dos cabeceras enormes con el mismo principio comparten cupo', () => {
+    const limitador = crearLimitador(nombreNuevo(), { maximo: 1, ventanaMs: 1000 })
+    const principio = 'x'.repeat(64)
+    expect(limitador.permitir(`${principio}-una`, 0)).toBe(true)
+    expect(limitador.permitir(`${principio}-otra`, 0)).toBe(false)
+  })
+
+  // Con margen de tiempo: llenar el almacén pasa veinte mil veces por el barrido.
+  it('con el almacén lleno de claves vigentes, rechaza las nuevas en vez de crecer', { timeout: 30_000 }, () => {
+    const nombre = nombreNuevo()
+    const limitador = crearLimitador(nombre, { maximo: 1, ventanaMs: 1000 })
+    for (let i = 0; i < 20_000; i++) limitador.permitir(`clave-${i}`, 0)
+    expect(limitador.permitir('una-mas', 1)).toBe(false)
+    // Las conocidas siguen con su cuenta, y pasada la ventana vuelve a haber sitio.
+    expect(limitador.permitir('clave-0', 1)).toBe(false)
+    expect(limitador.permitir('una-mas', 2000)).toBe(true)
+  })
 })
 
 describe('direccionDeQuienLlama', () => {

@@ -165,7 +165,13 @@ export async function crearRespaldo(): Promise<Respaldo> {
 
   try {
     await Promise.all([
-      pipeline(volcado.stdout, createGzip({ level: 9 }), createWriteStream(destino)),
+      // 640 y no el 644 por omisión: un volcado lleva los correos y los hashes
+      // de todas las cuentas. El directorio ya cierra el paso a terceros (770,
+      // `scripts/instalar-servidor.sh`), pero un respaldo copiado a otra carpeta
+      // se lleva sus permisos y no los del directorio. La lectura de grupo se
+      // conserva porque es por donde lo lee `scripts/restaurar.sh` desde el
+      // anfitrión, que no es el usuario del contenedor.
+      pipeline(volcado.stdout, createGzip({ level: 9 }), createWriteStream(destino, { mode: 0o640 })),
       terminado,
     ])
 

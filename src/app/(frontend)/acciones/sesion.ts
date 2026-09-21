@@ -124,6 +124,27 @@ const OPCIONES_COOKIE = {
   path: PATH_DE_LAS_COOKIES,
 }
 
+const DIEZ_MINUTOS = 10 * 60 * 1000
+
+/**
+ * El freno de la entrada por dirección, que es el que le faltaba al bloqueo de
+ * Payload.
+ *
+ * `maxLoginAttempts` cuenta por **cuenta**: para cinco fallos contra un correo,
+ * y no ve a quien prueba una sola contraseña corriente contra cien correos, que
+ * nunca llega a cinco en ninguno. Este cuenta por quien llama. Treinta en diez
+ * minutos no los gasta un servicio entero entrando a primera hora desde la
+ * misma salida a internet del hospital, y a un guion lo deja en tres intentos
+ * por minuto. Cuenta también las entradas buenas a propósito: distinguirlas
+ * obligaría a anotar después de comprobar la contraseña, y el intento que hay
+ * que frenar es justo el que todavía no se sabe si es bueno.
+ *
+ * `X-Forwarded-For` se puede falsear llegando directo al puerto
+ * (`src/lib/ritmo.ts`); detrás del proxy, que es como está desplegada, no. Y el
+ * bloqueo por cuenta sigue debajo, que no depende de quién dice ser nadie.
+ */
+const LIMITE_DE_ENTRADAS = crearLimitador('entrar:direccion', { maximo: 30, ventanaMs: DIEZ_MINUTOS })
+
 export async function entrar(
   correo: unknown,
   contrasena: unknown,
@@ -131,6 +152,16 @@ export async function entrar(
   return accion(async () => {
     if (typeof contrasena !== 'string' || contrasena.length === 0) {
       throw new Error('Escriba su contraseña.')
+    }
+    // El mismo techo que `exigirContrasena`: ninguna contraseña válida lo pasa,
+    // y sin él cada intento puede traer hasta el límite de cuerpo de las
+    // acciones para que el servidor lo resuma.
+    if (contrasena.length > 200) throw new Error('Correo o contraseña incorrectos.')
+
+    if (!LIMITE_DE_ENTRADAS.permitir(direccionDeQuienLlama(await headers()))) {
+      throw new Error(
+        'Demasiados intentos de entrada desde esta conexión. Espere unos minutos y vuelva a intentarlo.',
+      )
     }
 
     const payload = await getPayload({ config })
@@ -205,8 +236,55 @@ export async function entrar(
   })
 }
 
+/**
+ * Da de baja en la base la sesión con la que llega esta petición.
+ *
+ * Borrar la cookie cierra la sesión **en ese navegador** y en ningún otro
+ * sitio: el testigo seguía verificando ocho horas para quien lo hubiera copiado
+ * antes —de una estación compartida del hospital, de un registro de proxy—, y
+ * «salir» no le quitaba nada. Payload guarda cada sesión en la fila de la
+ * cuenta (`usuarios_sessions`) y su estrategia JWT rechaza el testigo cuyo
+ * `sid` ya no esté ahí; es lo que hace su propio `logout`
+ * (`auth/operations/logout.js`), que aquí no se puede llamar porque solo existe
+ * como extremo REST, cerrado en `(payload)/api/[...slug]/route.ts`. Se quita
+ * solo esta sesión y no todas: salir en el computador del pabellón no tiene por
+ * qué cerrar la del teléfono.
+ *
+ * Nunca lanza. Si la base no contesta, la cookie se borra igual, que es lo que
+ * la persona ve y lo que había antes; el fallo queda en el registro.
+ */
+async function revocarLaSesionActual(): Promise<void> {
+  try {
+    const payload = await getPayload({ config })
+    const { user } = await payload.auth({ headers: await headers() })
+    const sid = (user as { _sid?: unknown } | null)?._sid
+    if (!user || typeof sid !== 'string') return
+
+    const cuenta = await payload.findByID({
+      collection: 'usuarios',
+      id: user.id,
+      depth: 0,
+      overrideAccess: true,
+      showHiddenFields: true,
+    })
+    const ahora = Date.now()
+    const vigentes = (cuenta.sessions ?? []).filter(
+      (sesion) => sesion.id !== sid && new Date(sesion.expiresAt).getTime() > ahora,
+    )
+    await payload.update({
+      collection: 'usuarios',
+      id: user.id,
+      data: { sessions: vigentes },
+      overrideAccess: true,
+    })
+  } catch (fallo) {
+    console.error('[sesion] no se pudo dar de baja la sesión al salir:', fallo)
+  }
+}
+
 export async function salir(): Promise<Respuesta> {
   return accion(async () => {
+    await revocarLaSesionActual()
     const almacen = await cookies()
     // El borrado lleva el mismo path con el que se escribió. Sin él, `delete`
     // caduca una cookie de path `/` —el que Next pone por omisión— que ya no es
@@ -264,6 +342,20 @@ export async function pedirEnlaceDeClave(correo: unknown): Promise<Respuesta> {
       // Dentro del `try`, como estaba: una dirección mal escrita recibe la
       // misma respuesta que todas, y el formulario no distingue casos.
       const email = exigirCorreo(correo)
+      // Los tres frenos, y callados: ver `LIMITE_DE_CLAVE_POR_CORREO`. Por
+      // dirección primero, para que quien abusa desde una sola gaste su cupo y
+      // no el de todos.
+      const direccion = direccionDeQuienLlama(await headers())
+      if (
+        !LIMITE_DE_CLAVE_POR_DIRECCION.permitir(direccion) ||
+        !LIMITE_DE_CLAVE_POR_CORREO.permitir(email) ||
+        !LIMITE_DE_CLAVE_GLOBAL.permitir('todas')
+      ) {
+        payload.logger.warn({
+          msg: 'Se descartó una petición de enlace de clave nueva por exceso de ritmo',
+        })
+        return null
+      }
       const testigo = await payload.forgotPassword({
         collection: 'usuarios',
         data: { email },
@@ -295,6 +387,33 @@ export async function pedirEnlaceDeClave(correo: unknown): Promise<Respuesta> {
 }
 
 const UNA_HORA = 60 * 60 * 1000
+
+/**
+ * Los tres frenos de `pedirEnlaceDeClave`, que no tenía ninguno.
+ *
+ * Es una acción sin sesión que manda correo y que, además, **invalida** algo:
+ * cada `forgotPassword` mata el testigo anterior. Sin freno, un guion con la
+ * dirección de un residente le llenaba el buzón de «elija una contraseña
+ * nueva», le dejaba muerto cada enlace antes de que llegara a pulsarlo —no
+ * podía recuperar la cuenta mientras durase— y quemaba la cuota por hora de
+ * cPanel, que comparten todos los avisos de la plataforma.
+ *
+ * Tres por correo y hora sobran para quien no encuentra el mensaje y vuelve a
+ * pedirlo. Cinco por dirección y treinta en total son los mismos números de la
+ * solicitud de cuenta de aquí abajo, y por los mismos motivos.
+ *
+ * El rechazo es **mudo**: la acción contesta lo mismo que siempre. Un mensaje
+ * de «demasiadas peticiones para ese correo» solo aparecería con correos que
+ * tienen cuenta si se contara después de mirar la base, y por eso se cuenta
+ * antes; pero incluso contado antes, callar es lo que mantiene una sola
+ * respuesta posible para esta pantalla. Queda en el registro del servidor.
+ */
+const LIMITE_DE_CLAVE_POR_DIRECCION = crearLimitador('clave-nueva:direccion', {
+  maximo: 5,
+  ventanaMs: UNA_HORA,
+})
+const LIMITE_DE_CLAVE_POR_CORREO = crearLimitador('clave-nueva:correo', { maximo: 3, ventanaMs: UNA_HORA })
+const LIMITE_DE_CLAVE_GLOBAL = crearLimitador('clave-nueva:global', { maximo: 30, ventanaMs: UNA_HORA })
 
 /**
  * Los dos frenos de la solicitud de cuenta. El porqué de tenerlos está en
@@ -619,18 +738,18 @@ export async function fijarClaveNueva(
   contrasena: unknown,
 ): Promise<Respuesta<{ destino: string }>> {
   return accion(async () => {
-    if (typeof testigo !== 'string' || testigo.length < 10) {
+    if (typeof testigo !== 'string' || testigo.length < 10 || testigo.length > 200) {
       throw new Error('El enlace no es válido. Pida uno nuevo.')
     }
-    if (typeof contrasena !== 'string' || contrasena.length < 12) {
-      throw new Error('La contraseña debe tener al menos 12 caracteres.')
-    }
+    // La misma regla que al crear la cuenta, techo incluido: aquí estaba
+    // escrito solo el mínimo, y una regla copiada a medias es una regla distinta.
+    const claveNueva = exigirContrasena(contrasena)
 
     const payload = await getPayload({ config })
     const resultado = await payload
       .resetPassword({
         collection: 'usuarios',
-        data: { token: testigo, password: contrasena },
+        data: { token: testigo, password: claveNueva },
         overrideAccess: true,
       })
       .catch((fallo: unknown) => {

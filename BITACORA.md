@@ -4585,6 +4585,154 @@ Tailscale, que al arrancar la máquina todavía no existe. *Pendiente:* que
 `start-all.sh` espere a Tailscale o compruebe el proxy después de levantarlo, y
 algo que avise: tres días caído sin que nadie lo supiera es el dato.
 
+### O-056 · 2026-09-20 · alta · resuelta
+**Un SVG subido a `medios` ejecutaba guiones con la sesión de quien lo abriera.**
+Revisión de seguridad de todo el repositorio. `medios` admite `image/svg+xml`, y
+un SVG es un documento: dentro de un `<img>` no ejecuta nada, pero su dirección
+(`/api/medios/file/x.svg`) abierta sola en una pestaña es una página del origen
+de la plataforma. Un editor subía un SVG con `<script>`, le pasaba la dirección
+a un administrador —en un enlace de una ficha basta— y el guion llamaba a las
+acciones del panel como administrador: crear cuentas, descargar respaldos.
+*Arreglo:* `cacheDeArchivoPrivado`, por donde pasan las cabeceras de todo archivo
+subido, añade `Content-Security-Policy: script-src 'none'; sandbox;
+frame-ancestors 'none'` y `nosniff`. Lo vigila
+`tests/unit/cabecerasDeArchivos.test.ts`. No se quitó el SVG de la lista: los
+esquemas anatómicos son el caso de uso, y con `sandbox` dejan de ser un riesgo.
+*Sin comprobar:* esta sesión no pudo instalar dependencias ni ejecutar
+`typecheck`, `lint` ni las pruebas; hay que correr la lista de `AGENTS.md` antes
+de subir. Vale para O-057 a O-060 también.
+*Comprobado después, el mismo día:* la lista entera de `AGENTS.md` pasa con los
+cambios de O-056 a O-060 (cómo y contra qué base, en O-062).
+
+### O-057 · 2026-09-20 · media · resuelta
+**`pedirEnlaceDeClave`, `entrar` y `crearComentario` no tenían freno de ritmo.**
+La primera es pública, manda correo e invalida el testigo anterior: un guion con
+la dirección de un residente le llenaba el buzón, le mataba cada enlace antes de
+usarlo y quemaba la cuota por hora de cPanel. `entrar` solo tenía el bloqueo por
+cuenta de Payload, que no ve a quien prueba una contraseña corriente contra cien
+correos. Y cada comentario manda un correo a los administradores, así que una
+cuenta de lector en bucle hacía lo mismo desde dentro. *Arreglo:* limitadores de
+`src/lib/ritmo.ts` en las tres (por dirección, por correo y global; por dirección;
+por cuenta). El de la clave rechaza **mudo**, para que la pantalla siga teniendo
+una sola respuesta. De paso, `entrar` y `fijarClaveNueva` acotan el largo de la
+contraseña como ya hacía `exigirContrasena`.
+*Consecuencia mala:* los contadores viven en memoria y por dirección, y detrás de
+Funnel la dirección es `X-Forwarded-For`; un hospital entero sale por una sola.
+Los números están puestos con eso en mente, pero si un servicio completo se
+queda fuera a las ocho de la mañana, es aquí.
+
+### O-058 · 2026-09-20 · media · resuelta
+**El limitador de ritmo podía usarse para agotar la memoria del proceso.**
+Su clave es `X-Forwarded-For`, que escribe quien llama: una cabecera larga y
+distinta por petición dejaba cada una en memoria una ventana entera, y el barrido
+recorría el almacén completo en cada llamada pasado cierto tamaño. *Arreglo:*
+la clave se recorta a 64 caracteres y el almacén tiene techo (20.000 claves);
+lleno de claves vigentes, rechaza las nuevas en vez de crecer.
+
+### O-059 · 2026-09-20 · media · resuelta
+**«Salir» borraba la cookie y dejaba el testigo válido ocho horas.**
+Quien hubiera copiado el testigo antes —estación compartida, registro de un
+proxy— seguía dentro después de que su dueño saliera. Payload guarda las
+sesiones en `usuarios_sessions` y rechaza el testigo cuyo `sid` no esté; su
+`logout` solo existe como extremo REST, que está cerrado. *Arreglo:*
+`revocarLaSesionActual()` en `acciones/sesion.ts` quita esa sesión de la fila.
+*Sin verificar:* el nombre del campo con el que la estrategia JWT expone el `sid`
+(`user._sid`) se escribió de memoria, sin `node_modules` delante. Si no es ese,
+la función no hace nada —no rompe la salida— y hay que corregir el nombre
+mirando `auth/operations/logout.js`. Comprobación: entrar, copiar la cookie,
+salir, y pedir una página con la cookie copiada: tiene que redirigir a `/entrar`.
+*Verificado:* el campo es ese (`auth/strategies/jwt.js` lo asigna y
+`auth/operations/logout.js` filtra por él). La comprobación manual quedó escrita
+como `tests/integration/salir.test.ts`: entra dos veces, llama a `salir()` con
+una de las cookies y exige que ese testigo deje de abrir sesión y el otro no.
+`accionesConGuardia.test.ts` declaraba que `salir` no tocaba Payload y falló al
+correr la suite; ahora le permite `auth`, `findByID` y `update`, y nada más.
+
+### O-060 · 2026-09-20 · baja · resuelta
+**Tres ajustes menores de la misma revisión.** El `sort` de `listarDocumentos`
+se pasaba a Payload tal cual llegaba del navegador, y es un camino de campo que
+cruza relaciones: ahora solo valen las columnas del listado. Los volcados que
+crea el panel nacen con modo 640 en vez de 644. Y el token del túnel de
+Cloudflare viaja en `TUNNEL_TOKEN` y no en `--token`, que se lee con `ps`
+(`docker-compose.prod.yml`, sin probar: ese modo no es el desplegado).
+
+### O-061 · 2026-09-20 · media · abierta · no se arregla desde el código
+**La plataforma comparte origen con las otras páginas del servidor.**
+`/traumahub`, APCE, `/equipo` y `/senales` son el mismo esquema, anfitrión y
+puerto. El `path` de la cookie no es una frontera de seguridad: un guion que
+corra en cualquiera de las otras tres puede hacer `fetch('/traumahub/…')` con la
+sesión del administrador, y la comprobación de `Origin` de Next lo da por bueno
+porque el origen es el mismo. Es decir, un XSS en cualquier vecino es un XSS
+aquí, y `auto-update.sh` despliega a los vecinos cada 30 minutos sin revisión.
+`X-Frame-Options: DENY` (ya puesto) cierra el enmarcado, no esto. La única salida
+real es un origen propio —subdominio o puerto—, que enlaza con Q-008.
+También quedan sin CSP de `script-src` las páginas propias (exige manejar los
+nonces del App Router; ver `next.config.mjs`), y `/api/cambios` no vuelve a
+comprobar la sesión mientras el flujo sigue abierto: a una cuenta desactivada se
+le siguen contando versiones de publicación hasta que cierre la pestaña.
+
+### O-062 · 2026-09-20 · media · abierta
+**Correr la suite en el servidor apunta, por omisión, a la base y al correo de verdad.**
+En `ved` el `.env` es el de producción: `DATABASE_URI` es la base que sirve
+`traumahub-app` y `SMTP_*` son las credenciales de cPanel. `tests/setup.ts` lo
+carga entero, así que las pruebas de integración crean cuentas en la base real
+(si el anfitrión `db` resolviera) y mandan correo real. Pasó al cerrar O-056 a
+O-060: la primera pasada hizo 60 intentos de «aviso de comentario nuevo» contra
+el servidor de correo. Los rechazó todos con 550 —los destinatarios eran
+`@prueba.invalid`—, pero cada uno cuenta para la cuota por hora.
+*Cómo se corrió al final:* un PostgreSQL desechable
+(`docker run --rm --tmpfs … -p 127.0.0.1:55432:5432 postgres:17-alpine`),
+`npm run db:migrate` sobre él, y la lista con `DATABASE_URI` apuntando ahí y
+`SMTP_HOST=` vacío; `process.loadEnvFile` no pisa lo que ya está definido.
+*Pendiente:* que `tests/setup.ts` vacíe `SMTP_HOST` siempre, y decidir si se
+niega a correr contra una base que no sea de pruebas.
+De la misma pasada: `npm ci` falla porque `package-lock.json` no lleva
+`esbuild@0.28.2` ni `yaml@2.9.1`; `npm install`, que es lo que usa el
+`Dockerfile`, lo reescribe (unas 850 líneas). Ese cambio quedó en el árbol sin
+subir, para que vaya en su propio commit y no mezclado con la revisión.
+
+### O-063 · 2026-09-20 · media · aplicada, verificada y subida el 2026-09-21
+**Segunda pasada de seguridad: lo que quedaba a mano después de O-056 a O-062.**
+Se releyeron las seis rutas de API, `payload.config.ts`, `Usuarios.ts`, las
+guardias, las cabeceras, el `Dockerfile` y los compose. Lo gordo ya estaba
+cerrado: la REST de Payload solo sirve archivos, no hay `dangerouslySetInnerHTML`
+ni enlace sin `enlaceSeguro`, GraphQL apagado, `unlock` declarado, contenedor sin
+root, sin puertos publicados, ningún secreto ni volcado versionado. Lo aplicado:
+- `/api/cambios` vuelve a leer la sesión de la base cada minuto y cierra el
+  flujo si la cuenta se desactivó o salió (era el pendiente de O-061).
+  `EventSource` reintenta, recibe 401 y deja de insistir.
+- CSP: a `frame-ancestors` se suman `base-uri 'self'`, `form-action 'self'` y
+  `object-src 'none'`, que no necesitan nonces; y `Cross-Origin-Opener-Policy`.
+  `script-src` sigue pendiente, por lo mismo que dice `next.config.mjs`. No se
+  puso `Cross-Origin-Resource-Policy`: el logotipo de los correos se carga desde
+  el correo web de otro origen y dejaría de verse.
+- `tests/setup.ts` vacía `SMTP_HOST` siempre (el pendiente de O-062).
+- `despliegue/paginas/docker-compose.override.yml`: `no-new-privileges` y
+  `cap_drop: ALL` en `app`. La copia que corre en `ved` no se tocó —no está
+  versionada y cambia el contenedor en el siguiente `up`—: hay que copiarla a
+  mano cuando se pueda mirar el arranque. Falta lo mismo en
+  `docker-compose.tailscale.yml` y `docker-compose.prod.yml`.
+*Sin comprobar:* la sesión perdió la línea de órdenes a mitad de camino; nada de
+esto pasó por `typecheck`, `lint`, pruebas ni `build`, y por eso no se subió:
+`auto-update.sh` despliega `main` solo. Correr la lista de `AGENTS.md` (con la
+base desechable de O-062) antes del commit.
+*Comprobado el 2026-09-21:* la lista entera de `AGENTS.md`, sobre un PostgreSQL
+desechable en el 55432 con las migraciones aplicadas y `SMTP_HOST` vacío, sin
+tocar `trauma-db`. `typecheck` limpio; `lint` sin errores (10 avisos de `<img>`,
+los de siempre); `test:coverage` 147 archivos y 2309 pruebas, 12 omitidas,
+cobertura 91,97 % de sentencias; `test:integration` 139 de 139; `build` sin
+fallos. No hizo falta cambiar nada de lo aplicado. `npm ci --dry-run` ya pasa
+con el `package-lock.json` reescrito, que sube en su propio commit (O-062).
+Sigue sin hacerse lo que esta entrada deja a mano: copiar `no-new-privileges` y
+`cap_drop` a la copia del override que corre en `ved`, y mirar ese arranque.
+*Pendiente, dependencias* (`npm audit --omit=dev`: 2 altas, 13 medias, 1 baja):
+`nodemailer` ≤9.1.0 (alta; se arregla con `npm audit fix`, sin salto mayor);
+`sharp` 0.34 (alta, CVE de libvips y libheif al abrir imágenes, que aquí suben
+los editores; el arreglo es 0.35.4, salto mayor); `payload` y `@payloadcms/*`
+3.88.0 → 3.90.1 (GHSA-jg8r-5jh2-v2xj, ya neutralizada aquí por partida doble,
+más `esbuild`/`drizzle-kit` que solo cuentan en desarrollo); `dompurify` vía
+`monaco-editor`. Cada subida, con la suite entera y `migraciones.test.ts` detrás.
+
 ---
 
 ## 4. Preguntas abiertas

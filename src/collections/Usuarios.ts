@@ -234,6 +234,15 @@ export const Usuarios: CollectionConfig = {
     create: administracionDeUsuarios,
     update: administracionDeUsuarios,
     delete: administracionDeUsuarios,
+    // Declarada a propósito. Sin ella, Payload (hasta 3.88.0, GHSA-jg8r-5jh2-v2xj)
+    // deja que **cualquier sesión** desbloquee la cuenta de otro, y el bloqueo
+    // tras cinco intentos deja de frenar nada: un lector reinicia el contador
+    // de la cuenta que está atacando. Hoy no se alcanza —el extremo es
+    // `POST /api/usuarios/unlock` y los `POST` de esa API contestan 403
+    // (`(payload)/api/[...slug]/route.ts`)—, pero es la misma lección que
+    // `readVersions`: lo que Payload concede por omisión hay que cerrarlo donde
+    // se declara, no confiar en que la puerta de delante siga cerrada.
+    unlock: administracionDeUsuarios,
     admin: accesoAlPanel,
   },
   hooks: {

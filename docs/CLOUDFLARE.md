@@ -89,9 +89,15 @@ Es lo que hace `docker-compose.prod.yml` de esta plataforma:
 tunel:
   image: cloudflare/cloudflared:latest
   restart: unless-stopped
-  command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+  command: tunnel --no-autoupdate run
+  environment:
+    TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
   networks: [interna]
 ```
+
+El token entra por el entorno (`TUNNEL_TOKEN`, que `cloudflared` lee solo) y no
+por `--token`: la línea de órdenes de un proceso la ve cualquier usuario de la
+máquina con `ps`.
 
 El token va en el `.env`, como `CLOUDFLARE_TUNNEL_TOKEN`, y hay que **pedir**
 esta variante: `scripts/comun.sh` hace `TUNEL="${TUNEL:-tailscale}"`, así que

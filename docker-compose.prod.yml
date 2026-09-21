@@ -71,7 +71,12 @@ services:
     container_name: trauma-tunel
     restart: unless-stopped
     depends_on: [app]
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?falta}
+    # El token viaja en el entorno y no en `--token`: la línea de órdenes de un
+    # proceso la lee cualquier usuario de la máquina (`ps`, `docker top`), y ese
+    # token es la llave del túnel. `cloudflared` lee `TUNNEL_TOKEN` por su cuenta.
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?falta}
     extra_hosts:
       - "anfitrion:host-gateway"
     networks: [interna]
