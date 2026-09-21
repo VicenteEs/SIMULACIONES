@@ -2,6 +2,7 @@ import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { versionActual } from '@/lib/publicaciones'
+import { despliegueActual } from '@/lib/despliegue'
 import { puedeVerModulo } from '@/access/reglas'
 
 export const dynamic = 'force-dynamic'
@@ -50,8 +51,28 @@ export async function GET() {
   const flujo = new ReadableStream({
     start(controlador) {
       let envios = 0
+      // Con cada envío viajan también la construcción y el arranque de este
+      // proceso (D-127): es como una página abierta se entera de que el servidor
+      // que le contesta ya no es el que le dio su JavaScript.
+      //
+      // Y la cuenta de publicaciones sale sumada a los segundos del arranque.
+      // Al cliente de ahora le da igual —cuando cambia el proceso adopta la
+      // cuenta nueva sin compararla—; es para el cliente de ANTES de D-127, que
+      // sigue abierto en alguna pestaña y no sabe leer `despliegue`. Ese solo
+      // entiende «la cuenta subió», y con el contador a cero tras el reinicio
+      // la veía bajar y callaba: se quedaba con el código viejo sin que nada se
+      // lo dijera. Así la ve subir y saca su aviso con el botón «Recargar», que
+      // es todo lo que se le puede pedir a un código que ya está descargado.
+      const { despliegue, arranque } = despliegueActual()
+      const base = Math.floor(arranque / 1000)
       const enviar = () => {
-        const datos = JSON.stringify(versionActual(puedeVer))
+        const actual = versionActual(puedeVer)
+        const datos = JSON.stringify({
+          ...actual,
+          version: base + actual.version,
+          despliegue,
+          arranque,
+        })
         controlador.enqueue(codificador.encode(`data: ${datos}
 
 `))

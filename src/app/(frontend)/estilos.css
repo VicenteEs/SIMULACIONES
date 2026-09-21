@@ -400,6 +400,7 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .aviso-vista button { background: #7a5a1c; color: #fff; border: none; padding: 5px 12px; border-radius: 100px; font-size: 12px; cursor: pointer; }
 .aviso-actualizacion { position: fixed; bottom: 24px; right: 24px; z-index: 50; display: flex; align-items: center; gap: 14px; background: var(--tinta); color: #fff; padding: 13px 18px; border-radius: var(--r-lg); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22); font-size: 14px; animation: surgir 0.3s cubic-bezier(0.2, 0.7, 0.3, 1); }
 .aviso-actualizacion button { background: var(--marca); color: #fff; border: none; padding: 7px 14px; border-radius: var(--r); cursor: pointer; font-size: 13px; }
+.aviso-actualizacion .aviso-aplazar { background: transparent; border: 1px solid rgba(255, 255, 255, 0.45); }
 @keyframes surgir { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* Aquí vivían seis clases del antiguo editor de encuadre, el que se montaba
