@@ -218,6 +218,19 @@ el bloque «Preparación anatómica».
 4. «Frente», «Lateral», «Superior» (teclas 1, 3 y 7) y «Centrar» (el punto)
    colocan la cámara. «Encuadrar» centra todo lo que quedó.
 
+### Abrir un modelo 3D en el taller
+
+En el panel derecho, bajo el nombre, está la lista **«Modelos 3D»** con todos los
+modelos del catálogo. Al pulsar uno se encienden en el atlas las piezas de las
+que salió —el muslo derecho, sus 59— y quedan al alcance de todas las
+herramientas: seleccionar, apagar, mover, cortar. **El modelo no se modifica**:
+lo que haga se guarda como una preparación nueva, que nace con el nombre del
+modelo.
+
+Los modelos que no salieron pieza a pieza del atlas —los de prueba, o los
+agrupados por sistema— aparecen en gris con «no es del atlas»: no traen
+apuntadas sus piezas y no se pueden abrir aquí.
+
 ### Mover, rotar y quebrar
 
 Sirve para enseñar lo que no está en su sitio: una luxación, un fragmento

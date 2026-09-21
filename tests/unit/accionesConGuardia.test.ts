@@ -261,6 +261,7 @@ const GUARDIAS: Record<string, Clasificacion> = {
 
   'atlas.ts:versionDelAtlas': { guardia: 'editor', argumentos: () => [] },
   'atlas.ts:listarInstancias': { guardia: 'editor', argumentos: () => [] },
+  'atlas.ts:listarModelosDelAtlas': { guardia: 'editor', argumentos: () => [] },
   'atlas.ts:obtenerInstancia': { guardia: 'editor', argumentos: () => ['5'] },
   'atlas.ts:guardarInstancia': { guardia: 'editor', argumentos: () => [null, { nombre: 'Preparación' }] },
   'atlas.ts:duplicarInstancia': { guardia: 'editor', argumentos: () => ['5'] },

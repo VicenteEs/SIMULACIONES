@@ -2277,6 +2277,11 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .atlas-guardada-abrir strong { font-size: 12.5px; font-weight: 600; }
 .atlas-guardada-abrir span { font-size: 11px; color: var(--mudo); }
 
+/* La lista de modelos 3D (D-131) puede ser larga: con su propio desplazamiento
+   no empuja las preparaciones guardadas fuera de la pantalla. */
+.atlas-modelos { max-height: 260px; overflow-y: auto; }
+.atlas-guardada-abrir:disabled { opacity: 0.55; cursor: default; }
+
 .atlas-guardada-acciones { display: flex; gap: 6px; margin-top: 5px; }
 
 .atlas-guardada-acciones button {

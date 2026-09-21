@@ -3788,6 +3788,40 @@ hueso entero. Los rayos X no atraviesan los fragmentos. Y se quitó el aviso de
 clic siguiente —sobre el fragmento— caía en otra pieza; esa forma de avisar le
 pasa lo mismo a cualquier otro mensaje que salga a mitad de un gesto.
 
+### D-131 · 2026-09-21 · vigente
+**Los modelos 3D del catálogo se abren en el taller anatómico.**
+El dueño pidió que los 23 modelos que hay «también aparezcan en el taller».
+
+*Lo que se encontró.* No hizo falta cargar ningún `.glb`. Veinte de los 23 son
+exportaciones del propio atlas —antebrazo, mano, muslo, pierna, pie, de cada
+lado— y cada malla viaja con `extras.part_id`, el identificador de la pieza de
+la que salió, en las mismas coordenadas. Un modelo es, en la práctica, una lista
+de piezas del atlas con otro envoltorio. Por nombre también casaban todas, pero
+el nombre no basta: 243 nombres del catálogo se repiten entre el lado derecho y
+el izquierdo («Distal perforating artery»), y Blender los distingue con un
+`.001` que no dice cuál es cuál.
+
+*Qué se hizo.* `listarModelosDelAtlas` lee de cada archivo solo la cabecera y el
+bloque JSON (`src/lib/piezasDeUnModelo.ts`) —unos kilobytes de un archivo de
+tres megas— y devuelve los `part_id` que existen en el catálogo vigente. El
+taller los lista en «Modelos 3D»; abrir uno enciende esas piezas, encuadra, y
+deja una preparación nueva con el nombre del modelo, sin marcarla como cambiada.
+A partir de ahí es el taller de siempre, con D-126, D-129 y D-130.
+
+*Los tres que no.* «Tibia de prueba (partida)» es sintética, y las dos «pierna
+derecha · del atlas» son exportaciones agrupadas por sistema («Musculos»,
+«Arterias»), que funden muchas piezas en una malla y no guardan de cuáles.
+Salen en gris, con el motivo.
+
+*Consecuencias buenas.* Los modelos quedan al alcance de todas las herramientas
+sin duplicar geometría ni escribir un segundo editor. *Malas.* El camino es de
+ida: lo que se haga en el taller se guarda como preparación, no vuelve al
+`.glb`; para eso está «Exportar como modelo», que sigue ignorando lo movido y lo
+cortado (D-129). Un modelo retocado en Blender —piezas movidas o remalladas—
+se abriría con la anatomía original del atlas, no con el retoque: el taller no
+mira su geometría. Y si el archivo no está en disco —base restaurada sin los
+medios— el modelo sale como «no es del atlas», que no es exacto.
+
 ---
 
 ## 3. Observaciones

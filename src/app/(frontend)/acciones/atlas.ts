@@ -13,7 +13,9 @@
  * evapora al compilar y lo que llega es lo que el navegador quiso enviar.
  */
 
+import { basename, resolve } from 'node:path'
 import { revalidatePath } from 'next/cache'
+import { piezasDelArchivo } from '@/lib/piezasDeUnModelo'
 import { accion, exigirEditor, type Respuesta } from '@/lib/guardias'
 import { puedeEditarModulo, type UsuarioSesion } from '@/access/reglas'
 import { exigirIdentificador, exigirTexto, textoOpcional } from '@/lib/validacion'
@@ -90,6 +92,52 @@ export async function listarInstancias(): Promise<Respuesta<ResumenDeInstancia[]
       // media pierna sin decir nada es peor que un aviso.
       desfasada: Boolean(doc.atlasVersion) && doc.atlasVersion !== catalogo.version,
     }))
+  })
+}
+
+export interface ModeloParaElTaller {
+  id: string
+  nombre: string
+  /** Piezas del atlas que lleva dentro y que existen en el catálogo vigente. Vacía si no salió del atlas. */
+  piezas: string[]
+}
+
+/**
+ * Los modelos 3D del catálogo, con las piezas del atlas que lleva cada uno, para
+ * poder abrirlos en el taller (D-131).
+ *
+ * El nombre del archivo sale de la base y no del navegador, y aun así se le
+ * quita cualquier directorio antes de unirlo a la carpeta: es la costumbre de
+ * todo lo que aquí toca el disco.
+ */
+export async function listarModelosDelAtlas(): Promise<Respuesta<ModeloParaElTaller[]>> {
+  return accion(async () => {
+    const { payload } = await exigirEditor()
+    const catalogo = await leerCatalogo()
+    const conocidas = new Set(catalogo.piezas.map((p) => p.id))
+
+    const { docs } = await payload.find({
+      collection: 'modelos-3d',
+      limit: 200,
+      sort: 'nombre',
+      depth: 0,
+      overrideAccess: true,
+      select: { nombre: true, filename: true },
+    })
+
+    return Promise.all(
+      (docs as unknown as Record<string, unknown>[]).map(async (doc) => {
+        const archivo = typeof doc.filename === 'string' ? basename(doc.filename) : ''
+        const piezas = archivo
+          ? await piezasDelArchivo(resolve(process.cwd(), 'medios', 'modelos', archivo))
+          : []
+        return {
+          id: String(doc.id),
+          nombre: String(doc.nombre ?? archivo),
+          piezas: piezas.filter((id) => conocidas.has(id)),
+        }
+      }),
+    )
   })
 }
 

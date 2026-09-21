@@ -40,6 +40,8 @@ import {
   exportarComoModelo,
   guardarInstancia,
   listarInstancias,
+  listarModelosDelAtlas,
+  type ModeloParaElTaller,
   obtenerInstancia,
   type ResumenDeInstancia,
 } from '@/app/(frontend)/acciones/atlas'
@@ -294,6 +296,9 @@ export function TallerDeAtlas() {
   const [vistaInicial, setVistaInicial] = useState<VistaDeInstancia>(VISTA_INICIAL)
 
   const [guardadas, setGuardadas] = useState<ResumenDeInstancia[]>([])
+  /** Los modelos 3D del catálogo, con las piezas del atlas de cada uno (D-131). `null`: aún no se sabe. */
+  const [modelos, setModelos] = useState<ModeloParaElTaller[] | null>(null)
+  const [modeloAbierto, setModeloAbierto] = useState<string | null>(null)
   // Separado de `guardadas` porque «no hay ninguna» y «no se pudo preguntar»
   // son dos cosas distintas y se veían igual: un array vacío.
   const [listaFallo, setListaFallo] = useState<string | null>(null)
@@ -654,6 +659,16 @@ export function TallerDeAtlas() {
 
   useEffect(refrescarLista, [refrescarLista])
 
+  // Los modelos se piden una vez: desde el taller no se crean ni se borran, y
+  // «Exportar como modelo» refresca la lista por su cuenta. Si falla se queda en
+  // lista vacía, sin aviso: es una comodidad del panel, no el trabajo en curso.
+  const refrescarModelos = useCallback(() => {
+    listarModelosDelAtlas()
+      .then((r) => setModelos(r.exito && r.datos ? r.datos : []))
+      .catch(() => setModelos([]))
+  }, [])
+  useEffect(refrescarModelos, [refrescarModelos])
+
   // --- acciones -------------------------------------------------------------
   /**
    * Vuelve al cuerpo completo.
@@ -835,6 +850,7 @@ export function TallerDeAtlas() {
     setCortes([])
     setSeleccion(new Set())
     setInstancia(null)
+    setModeloAbierto(null)
     setNombre('')
     setDescripcion('')
     setVisibles(todas)
@@ -851,6 +867,41 @@ export function TallerDeAtlas() {
     fijarReferencia(todas, '', '', vista)
     limpiarExportacion()
     setAviso(null)
+  }
+
+  /**
+   * Abre un modelo 3D del catálogo como preparación nueva (D-131).
+   *
+   * No carga su `.glb`: enciende las piezas del atlas de las que salió, que el
+   * archivo trae apuntadas, de modo que sirven todas las herramientas del
+   * taller —seleccionar, mover, cortar— y lo que salga se guarda como una
+   * preparación cualquiera. El modelo no se toca.
+   */
+  const abrirModelo = (modelo: ModeloParaElTaller) => {
+    if (modelo.piezas.length === 0) return
+    if (!confirmarDescarte(`Se abrirá «${modelo.nombre}» en su lugar.`)) return
+    const piezas = new Set(modelo.piezas)
+    setInstancia(null)
+    setModeloAbierto(modelo.id)
+    setNombre(modelo.nombre)
+    setDescripcion('')
+    setHistorial([])
+    setRehacer([])
+    setTransformaciones(new Map())
+    setCortes([])
+    setSeleccion(new Set())
+    setVisibles(piezas)
+    setSeparacion(0)
+    limpiarExportacion()
+    setAviso(null)
+    // Encuadrar sobre las piezas que VAN a estar encendidas: la prop todavía
+    // trae las de antes, y «Encuadrar» a secas mediría el cuerpo anterior.
+    mando.current?.encuadrarPiezas(piezas)
+    const vista = mando.current?.vistaActual() ?? VISTA_INICIAL
+    // El nombre entra en la referencia: abrir un modelo no es todavía un
+    // cambio, y sin esto saltaba «cambios sin guardar» —y su cartel, que empuja
+    // el lienzo— antes de haber tocado nada.
+    fijarReferencia(piezas, modelo.nombre, '', vista)
   }
 
   const abrir = (id: string) => {
@@ -882,6 +933,7 @@ export function TallerDeAtlas() {
         setRehacer([])
         setSeleccion(new Set())
         setInstancia(r.datos.id)
+        setModeloAbierto(null)
         setNombre(r.datos.nombre)
         setDescripcion(r.datos.descripcion ?? '')
         setVisibles(piezasAbiertas)
@@ -1044,6 +1096,8 @@ export function TallerDeAtlas() {
           return
         }
         setExportado(r.datos)
+        // El modelo recién exportado también es del atlas: que aparezca en la lista.
+        refrescarModelos()
         setAviso({
           tipo: 'ok',
           texto: `«${r.datos.nombre}» ya está en la biblioteca de modelos 3D.`,
@@ -1776,6 +1830,44 @@ export function TallerDeAtlas() {
               original no se toca: lo que apague aquí se puede volver a encender siempre.
             </p>
           </div>
+
+          <h3 className="atlas-subtitulo">Modelos 3D</h3>
+          {modelos === null ? (
+            <p className="campo-ayuda">Leyendo los modelos…</p>
+          ) : modelos.length === 0 ? (
+            <p className="campo-ayuda">Todavía no hay modelos 3D en el catálogo.</p>
+          ) : (
+            <>
+              <p className="campo-ayuda">
+                Abrir uno enciende sus piezas del atlas para trabajarlas aquí. El modelo no se
+                modifica: lo que haga se guarda como una preparación.
+              </p>
+              <ul className="atlas-guardadas atlas-modelos">
+                {modelos.map((m) => (
+                  <li key={m.id} className={m.id === modeloAbierto ? 'atlas-guardada-activa' : ''}>
+                    <button
+                      type="button"
+                      className="atlas-guardada-abrir"
+                      disabled={m.piezas.length === 0}
+                      title={
+                        m.piezas.length === 0
+                          ? 'Este modelo no salió del atlas: no trae apuntadas sus piezas y no se puede abrir aquí.'
+                          : undefined
+                      }
+                      onClick={() => abrirModelo(m)}
+                    >
+                      <strong>{m.nombre}</strong>
+                      <span>
+                        {m.piezas.length === 0
+                          ? 'no es del atlas'
+                          : `${m.piezas.length} pieza${m.piezas.length === 1 ? '' : 's'}`}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
           <h3 className="atlas-subtitulo">Preparaciones guardadas</h3>
 
