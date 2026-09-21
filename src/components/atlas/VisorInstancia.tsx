@@ -47,7 +47,15 @@ export function VisorInstancia({
   const preparado = useMemo(() => {
     if (!catalogo) return null
     const limpio = normalizarSeleccion(catalogo, contenido.piezas, contenido.vista)
-    return { limpio, visibles: new Set(limpio.piezas.map((p) => p.id)) }
+    // Las piezas que su autor sacó de su sitio (D-129): una luxación, un
+    // fragmento desplazado. Memorizado con lo demás y por lo mismo: un mapa
+    // nuevo en cada pintado volvería a escribir las texturas cada vez.
+    const movidas = new Map(
+      limpio.piezas
+        .filter((p) => p.mover || p.girar)
+        .map((p) => [p.id, { mover: p.mover ?? [0, 0, 0], girar: p.girar ?? [0, 0, 0, 1] }] as const),
+    )
+    return { limpio, visibles: new Set(limpio.piezas.map((p) => p.id)), movidas }
   }, [catalogo, contenido])
 
   if (fallo) {
@@ -80,6 +88,7 @@ export function VisorInstancia({
           resaltada={null}
           separacion={preparado.limpio.vista.separacion}
           vistaInicial={preparado.limpio.vista}
+          transformaciones={preparado.movidas}
           soloLectura
         />
       </div>

@@ -14,14 +14,26 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { VISTA_INICIAL, type CatalogoDelAtlas, type VistaDeInstancia } from '@/atlas/formato'
 import {
   ESTADO,
+  aplicarRayosX,
   aplicarSeparacion,
   cargarPaquetes,
   marcarPieza,
   montarEscena,
+  ponerTransformacion,
+  type TransformacionDePieza,
   paquetesNecesarios,
   type EscenaDelAtlas,
 } from '@/atlas/cargador'
 import { piezaBajoElRayo } from '@/atlas/picking'
+import {
+  centroActual,
+  desplazamientoDelArrastre,
+  esReposo,
+  giroDelArrastre,
+  girarPiezas,
+  moverPiezas,
+  type EjeDelGesto,
+} from '@/atlas/transformar'
 import { piezasEnElRectangulo, rectanguloNormalizado } from '@/atlas/seleccionPorCaja'
 import type { ModoDeSeleccion } from '@/atlas/seleccion'
 import { nombreEnEspanol } from '@/atlas/nombres'
@@ -122,7 +134,23 @@ export interface MandoDelVisor {
    * ya estaba la cámara. Son las vistas 1, 3 y 7 de Blender y sus contrarias.
    */
   mirarDesde: (lado: LadoDeLaVista) => void
+  /**
+   * Empieza a mover o a girar lo seleccionado, como la G y la R de Blender: a
+   * partir de aquí las piezas siguen al ratón sin pulsar nada, un clic confirma
+   * y Esc o el botón derecho cancelan. Devuelve `false` si no había nada que
+   * mover.
+   */
+  empezarTransformacion: (modo: ModoDeTransformacion) => boolean
+  /**
+   * Una tecla durante el gesto: X, Y o Z lo atan a ese eje (otra vez la misma
+   * lo suelta), Intro confirma y Esc cancela. Devuelve `true` si había un gesto
+   * en marcha y la tecla era suya, para que quien escucha el teclado no la use
+   * para otra cosa —la X apaga piezas cuando no hay gesto—.
+   */
+  teclaDeTransformacion: (tecla: string) => boolean
 }
+
+export type ModoDeTransformacion = 'mover' | 'girar'
 
 /** Desde dónde se mira. El atlas está de pie, con la Y hacia arriba y de cara a +Z. */
 export type LadoDeLaVista = 'frente' | 'atras' | 'derecha' | 'izquierda' | 'arriba' | 'abajo'
@@ -158,6 +186,9 @@ export function VisorAtlas({
   seleccion = null,
   alSeleccionar,
   herramienta = 'orbita',
+  transformaciones = null,
+  alTransformar,
+  rayosX = false,
   alAsentarVista,
   corte = null,
   mando,
@@ -183,6 +214,15 @@ export function VisorAtlas({
    */
   alSeleccionar?: (ids: string[], modo: ModoDeSeleccion) => void
   herramienta?: HerramientaDelVisor
+  /**
+   * Las piezas que no están en su sitio anatómico (D-129). Las fichas la pasan
+   * con lo guardado; el taller, con lo que se está editando.
+   */
+  transformaciones?: ReadonlyMap<string, TransformacionDePieza> | null
+  /** Pinta en damero lo no seleccionado, para ver a través (Alt + Z en Blender). Solo el taller. */
+  rayosX?: boolean
+  /** Un gesto de mover o girar se confirmó: el mapa completo, ya con lo nuevo. */
+  alTransformar?: (nuevas: Map<string, TransformacionDePieza>) => void
   /**
    * Avisa de que, al terminar la descarga, la vista guardada se recolocó sobre
    * lo visible: `antes` es la cámara con la que se esperaba la carga y
@@ -224,6 +264,8 @@ export function VisorAtlas({
   const [nombreFlotante, setNombreFlotante] = useState<{ texto: string; x: number; y: number } | null>(
     null,
   )
+  /** Lo que se lee sobre el lienzo mientras dura un gesto de mover o girar. */
+  const [gesto, setGesto] = useState<string | null>(null)
   /** El marco de selección mientras se arrastra, en píxeles del lienzo. */
   const [marco, setMarco] = useState<{ x: number; y: number; ancho: number; alto: number } | null>(
     null,
@@ -247,6 +289,8 @@ export function VisorAtlas({
     seleccion,
     alSeleccionar,
     herramienta,
+    transformaciones,
+    alTransformar,
     alAsentarVista,
     soloLectura,
     vistaInicial,
@@ -260,6 +304,8 @@ export function VisorAtlas({
       seleccion,
       alSeleccionar,
       herramienta,
+      transformaciones,
+      alTransformar,
       alAsentarVista,
       soloLectura,
       vistaInicial,
@@ -330,6 +376,8 @@ export function VisorAtlas({
       // cambia nada.
       t.seleccionDelPivote = { visibles: v, separacion: s }
     },
+    empezarTransformacion: (modo) => taller.current.gesto?.empezar(modo) ?? false,
+    teclaDeTransformacion: (tecla) => taller.current.gesto?.tecla(tecla) ?? false,
     mirarDesde: (lado) => {
       const t = taller.current
       const { camara, controles } = t
@@ -494,7 +542,177 @@ export function VisorAtlas({
       return { x: evento.clientX - caja.left, y: evento.clientY - caja.top }
     }
 
+    // --- mover y girar piezas (D-129) ---------------------------------------
+    //
+    // Un gesto MODAL, como el de Blender: se empieza con una tecla o un botón,
+    // las piezas siguen al ratón sin tener nada pulsado, y se sale confirmando
+    // o cancelando. Mientras dura, la cámara no se mueve y el lienzo no
+    // selecciona: todo lo que llega del ratón es del gesto.
+    //
+    // Durante el gesto se escribe directamente en las texturas, sin pasar por
+    // React: son sesenta escrituras por segundo de algo que todavía no es un
+    // dato. Al confirmar se entrega el mapa completo por `alTransformar`, y es
+    // la prop que vuelve la que lo deja en firme.
+    let ultimoPuntero: { x: number; y: number } | null = null
+    let enCurso: {
+      modo: ModoDeTransformacion
+      ids: string[]
+      alEmpezar: ReadonlyMap<string, TransformacionDePieza>
+      centros: Map<string, THREE.Vector3>
+      pivote: THREE.Vector3
+      /** `null` hasta el primer movimiento, si el gesto empezó con el ratón fuera del lienzo. */
+      inicio: { x: number; y: number } | null
+      eje: EjeDelGesto | null
+      ahora: Map<string, TransformacionDePieza>
+    } | null = null
+    /** El clic que confirma no debe, además, seleccionar lo que haya debajo. */
+    let tragarElSiguienteClic = false
+
+    const escribirEnLaEscena = (piezas: ReadonlyMap<string, TransformacionDePieza>) => {
+      const escena = taller.current.escena
+      if (!escena) return
+      for (const [id, transformacion] of piezas) {
+        const i = escena.indices.get(id)
+        if (i !== undefined) ponerTransformacion(escena, i, transformacion)
+      }
+      sucio = true
+    }
+
+    const recalcularElGesto = () => {
+      if (!enCurso || !ultimoPuntero) return
+      // Empezado desde el botón «Mover», el ratón está sobre la barra y no
+      // sobre el lienzo: el gesto arranca donde el ratón ENTRE, no donde estuvo
+      // la última vez, o la pieza daría un salto del tamaño de ese viaje.
+      enCurso.inicio ??= ultimoPuntero
+      const dx = ultimoPuntero.x - enCurso.inicio.x
+      const dy = ultimoPuntero.y - enCurso.inicio.y
+      const ejeEscrito = enCurso.eje ? ` · eje ${enCurso.eje.toUpperCase()}` : ''
+      if (enCurso.modo === 'mover') {
+        const d = desplazamientoDelArrastre(
+          camara,
+          enCurso.pivote,
+          dx,
+          dy,
+          render.domElement.clientHeight,
+          enCurso.eje,
+        )
+        enCurso.ahora = moverPiezas(enCurso.alEmpezar, enCurso.ids, d)
+        setGesto(`Mover${ejeEscrito} · ${(d.length() * 1000).toFixed(1)} mm`)
+      } else {
+        const enPantalla = enCurso.pivote.clone().project(camara)
+        const cx = ((enPantalla.x + 1) / 2) * render.domElement.clientWidth
+        const cy = ((1 - enPantalla.y) / 2) * render.domElement.clientHeight
+        const angulo =
+          Math.atan2(ultimoPuntero.y - cy, ultimoPuntero.x - cx) -
+          Math.atan2(enCurso.inicio.y - cy, enCurso.inicio.x - cx)
+        const giro = giroDelArrastre(camara, enCurso.pivote, angulo, enCurso.eje)
+        enCurso.ahora = girarPiezas(
+          enCurso.alEmpezar,
+          enCurso.ids,
+          enCurso.centros,
+          enCurso.pivote,
+          giro,
+        )
+        // Entre −180° y 180°, que es como se lee un giro.
+        const grados = ((((angulo * 180) / Math.PI) % 360) + 540) % 360 - 180
+        setGesto(`Girar${ejeEscrito} · ${grados.toFixed(0)}°`)
+      }
+      escribirEnLaEscena(enCurso.ahora)
+    }
+
+    const terminarElGesto = (confirmar: boolean) => {
+      if (!enCurso) return
+      const gestoTerminado = enCurso
+      enCurso = null
+      controles.enabled = true
+      setGesto(null)
+      if (!confirmar) {
+        // Cada pieza vuelve a lo que tenía al empezar, no a su sitio anatómico:
+        // cancelar el segundo movimiento no deshace el primero.
+        const deVuelta = new Map<string, TransformacionDePieza>()
+        for (const id of gestoTerminado.ids) {
+          deVuelta.set(id, gestoTerminado.alEmpezar.get(id) ?? { mover: [0, 0, 0], girar: [0, 0, 0, 1] })
+        }
+        escribirEnLaEscena(deVuelta)
+        return
+      }
+      const completas = new Map(gestoTerminado.alEmpezar)
+      for (const [id, transformacion] of gestoTerminado.ahora) {
+        if (esReposo(transformacion)) completas.delete(id)
+        else completas.set(id, transformacion)
+      }
+      ultimas.current.alTransformar?.(completas)
+    }
+
+    taller.current.gesto = {
+      empezar: (modo) => {
+        const escena = taller.current.escena
+        const { seleccion: elegidas, visibles: encendidas, soloLectura: lectura } = ultimas.current
+        if (!escena || lectura || !elegidas || elegidas.size === 0) return false
+        // Un gesto encima de otro: el primero se confirma, como en Blender al
+        // pulsar R a mitad de una G.
+        terminarElGesto(true)
+
+        const alEmpezar = ultimas.current.transformaciones ?? new Map()
+        const ids: string[] = []
+        const centros = new Map<string, THREE.Vector3>()
+        const pivote = new THREE.Vector3()
+        for (const id of elegidas) {
+          const i = escena.indices.get(id)
+          // Solo lo que se ve y está en la malla: mover a ciegas una pieza
+          // apagada es un cambio que nadie descubre hasta abrir la ficha.
+          if (i === undefined || !escena.rangos.has(i)) continue
+          if (encendidas && !encendidas.has(id)) continue
+          const reposo = new THREE.Vector3(
+            escena.centros[i * 3],
+            escena.centros[i * 3 + 1],
+            escena.centros[i * 3 + 2],
+          )
+          ids.push(id)
+          centros.set(id, reposo)
+          pivote.add(centroActual(reposo, alEmpezar.get(id)))
+        }
+        if (ids.length === 0) return false
+        pivote.divideScalar(ids.length)
+
+        enCurso = {
+          modo,
+          ids,
+          alEmpezar,
+          centros,
+          pivote,
+          inicio: ultimoPuntero,
+          eje: null,
+          ahora: new Map(),
+        }
+        setGesto(modo === 'mover' ? 'Mover · lleve el ratón al modelo' : 'Girar · lleve el ratón al modelo')
+        controles.enabled = false
+        setNombreFlotante(null)
+        recalcularElGesto()
+        return true
+      },
+      tecla: (tecla) => {
+        if (!enCurso) return false
+        if (tecla === 'x' || tecla === 'y' || tecla === 'z') {
+          enCurso.eje = enCurso.eje === tecla ? null : tecla
+          recalcularElGesto()
+        } else if (tecla === 'enter') terminarElGesto(true)
+        else if (tecla === 'escape') terminarElGesto(false)
+        // Cualquier otra tecla también es del gesto: a mitad de un movimiento,
+        // una H no debe apagar lo que se está moviendo.
+        return true
+      },
+    }
+
     const alBajar = (evento: PointerEvent) => {
+      if (enCurso) {
+        // Izquierdo confirma; cualquier otro cancela, que en Blender es el
+        // derecho. El clic se traga para que no seleccione lo de debajo.
+        terminarElGesto(evento.button === 0)
+        tragarElSiguienteClic = true
+        bajado = null
+        return
+      }
       render.domElement.style.cursor =
         ultimas.current.herramienta === 'caja' && evento.button === 0 ? 'crosshair' : 'grabbing'
       // Solo el botón izquierdo, y solo con un puntero, arma un posible clic
@@ -525,6 +743,11 @@ export function VisorAtlas({
       // preguntarle a él dejaría el cruce de rayos corriendo durante un
       // encuadre con el derecho, que es justo cuando no sirve para nada.
       const arrastrando = evento.buttons !== 0
+      ultimoPuntero = enElLienzo(evento)
+      if (enCurso) {
+        recalcularElGesto()
+        return
+      }
       if (inicioDelMarco) {
         const ahora = enElLienzo(evento)
         setMarco({
@@ -566,6 +789,10 @@ export function VisorAtlas({
       // Soltar el derecho o el central no cancela nada: el izquierdo puede
       // seguir pulsado y su gesto sigue vivo, así que se sale sin tocar
       // `bajado`.
+      if (tragarElSiguienteClic) {
+        tragarElSiguienteClic = false
+        return
+      }
       if (evento.button !== 0 || !evento.isPrimary) return
 
       const inicio = bajado
@@ -623,7 +850,12 @@ export function VisorAtlas({
       if (indice >= 0) ultimas.current.alPulsarPieza?.(catalogo.piezas[indice].id)
     }
 
-    const alSalir = () => setNombreFlotante(null)
+    const alSalir = () => {
+      setNombreFlotante(null)
+      // Fuera del lienzo ya no se sabe dónde está el ratón; con un gesto en
+      // marcha se conserva, que el gesto sigue vivo y volverá a entrar.
+      if (!enCurso) ultimoPuntero = null
+    }
 
     // Un contexto WebGL se puede perder sin que esta página haga nada: el
     // navegador limita cuántos hay vivos a la vez —del orden de dieciséis en
@@ -777,6 +1009,40 @@ export function VisorAtlas({
     taller.current.pedirDibujo?.()
   }, [catalogo, visibles, resaltada, seleccion])
 
+  // Las transformaciones que llegan por la prop se escriben en las texturas. Lo
+  // que estaba transformado y ya no viene vuelve a su sitio: es lo que hace que
+  // Alt + G, deshacer y «Cuerpo completo» funcionen sin que nadie tenga que
+  // acordarse de limpiar. `progreso` entra por lo mismo que en el corte: la
+  // prop puede llegar antes que la escena —siempre, en una ficha—, y al
+  // terminar la carga el efecto corre otra vez con la escena ya montada.
+  useEffect(() => {
+    const t = taller.current
+    const escena = t.escena
+    if (!escena) return
+    const antes = t.transformadas ?? new Set<string>()
+    const ahora = new Set<string>()
+    for (const [id, transformacion] of transformaciones ?? []) {
+      const i = escena.indices.get(id)
+      if (i === undefined) continue
+      ponerTransformacion(escena, i, transformacion)
+      ahora.add(id)
+    }
+    for (const id of antes) {
+      if (ahora.has(id)) continue
+      const i = escena.indices.get(id)
+      if (i !== undefined) ponerTransformacion(escena, i, null)
+    }
+    t.transformadas = ahora
+    t.pedirDibujo?.()
+  }, [catalogo, transformaciones, progreso])
+
+  useEffect(() => {
+    const escena = taller.current.escena
+    if (!escena) return
+    aplicarRayosX(escena, rayosX)
+    taller.current.pedirDibujo?.()
+  }, [catalogo, rayosX, progreso])
+
   // La herramienta cambia qué botón gira la cámara. Con el marco, el izquierdo
   // deja de ser de OrbitControls —un valor que no reconoce lo deja sin acción— y
   // el giro pasa al central, donde lo tiene Blender; el derecho sigue
@@ -885,6 +1151,8 @@ export function VisorAtlas({
       ) : null}
 
       {error ? <div className="atlas-error">{error}</div> : null}
+
+      {gesto ? <span className="atlas-gesto">{gesto}</span> : null}
 
       {marco ? (
         <div
@@ -1050,6 +1318,13 @@ function encuadrarVisible(
  */
 interface TallerDelVisor {
   escena?: EscenaDelAtlas
+  /** El gesto de mover o girar; lo monta el efecto de montaje, que es quien ve el ratón. */
+  gesto?: {
+    empezar: (modo: ModoDeTransformacion) => boolean
+    tecla: (tecla: string) => boolean
+  }
+  /** Piezas a las que se les escribió una transformación, para devolverlas a su sitio. */
+  transformadas?: Set<string>
   render?: THREE.WebGLRenderer
   tresD?: THREE.Scene
   camara?: THREE.PerspectiveCamera

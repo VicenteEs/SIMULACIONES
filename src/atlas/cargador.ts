@@ -73,6 +73,15 @@ export interface EscenaDelAtlas {
   indices: Map<string, number>
   /** Centro de cada pieza, para separarla desde su sitio. */
   centros: Float32Array
+  /**
+   * La transformación de cada pieza (D-129), en dos texturas con la misma
+   * rejilla que `estados`: el giro como cuaternión y el traslado ya compuesto
+   * (ver `ponerTransformacion`). Se escriben con esa función y no a mano.
+   */
+  giros: THREE.DataTexture
+  datosDeGiros: Float32Array
+  traslados: THREE.DataTexture
+  datosDeTraslados: Float32Array
   liberar: () => void
 }
 
@@ -210,6 +219,23 @@ export function montarEscena(
   const estados = new THREE.DataTexture(relleno, lado, lado, THREE.RGBAFormat, THREE.FloatType)
   estados.needsUpdate = true
 
+  // Las dos texturas de transformación nacen en reposo: giro identidad —el
+  // cuaternión (0, 0, 0, 1), no ceros, que girarían cada vértice a la nada— y
+  // traslado nulo.
+  const datosDeGiros = new Float32Array(lado * lado * CANALES)
+  for (let i = 3; i < datosDeGiros.length; i += CANALES) datosDeGiros[i] = 1
+  const giros = new THREE.DataTexture(datosDeGiros, lado, lado, THREE.RGBAFormat, THREE.FloatType)
+  giros.needsUpdate = true
+  const datosDeTraslados = new Float32Array(lado * lado * CANALES)
+  const traslados = new THREE.DataTexture(
+    datosDeTraslados,
+    lado,
+    lado,
+    THREE.RGBAFormat,
+    THREE.FloatType,
+  )
+  traslados.needsUpdate = true
+
   // --- agrupar por sistema lo que se puede dibujar -------------------------
   // `pieza.sistema` se lee tal cual llega, sin volver a corregirlo: el catálogo
   // que recibe esta función es el de `cargarCatalogo`, que ya pasó por
@@ -279,7 +305,7 @@ export function montarEscena(
     geometria.setIndex(new THREE.BufferAttribute(orden, 1))
     geometria.computeBoundingSphere()
 
-    const material = materialDelSistema(colores.get(sistema) ?? '#cccccc', estados, lado)
+    const material = materialDelSistema(colores.get(sistema) ?? '#cccccc', estados, lado, giros, traslados)
     const malla = new THREE.Mesh(geometria, material)
     malla.name = sistema
     // El cuerpo no se mueve nunca: recortar por volumen de cámara solo gasta.
@@ -295,9 +321,15 @@ export function montarEscena(
     datos: relleno,
     indices,
     centros,
+    giros,
+    datosDeGiros,
+    traslados,
+    datosDeTraslados,
     liberar: () => {
       for (const cosa of aLiberar) cosa.dispose()
       estados.dispose()
+      giros.dispose()
+      traslados.dispose()
     },
   }
 }
@@ -313,6 +345,8 @@ function materialDelSistema(
   color: string,
   estados: THREE.DataTexture,
   lado: number,
+  giros: THREE.DataTexture,
+  traslados: THREE.DataTexture,
 ): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({
     color: new THREE.Color(color),
@@ -333,10 +367,14 @@ function materialDelSistema(
   // la separación guardada, de modo que el nombre flotante se calculaba contra
   // una anatomía que no estaba dibujada.
   material.userData.separacion = 0
+  material.userData.rayosX = 0
 
   material.onBeforeCompile = (sombreador) => {
     sombreador.uniforms.estados = { value: estados }
     sombreador.uniforms.ladoEstados = { value: lado }
+    sombreador.uniforms.rayosX = { value: material.userData.rayosX }
+    sombreador.uniforms.giros = { value: giros }
+    sombreador.uniforms.traslados = { value: traslados }
     sombreador.uniforms.separacion = { value: material.userData.separacion }
 
     sombreador.vertexShader = `
@@ -344,10 +382,26 @@ function materialDelSistema(
       uniform sampler2D estados;
       uniform float ladoEstados;
       uniform float separacion;
+      uniform sampler2D giros;
+      uniform sampler2D traslados;
       varying float vVisible;
       varying float vResaltada;
       varying float vSeleccionada;
+      // Girar un vector con un cuaternión unitario, sin montar la matriz.
+      vec3 girarCon(vec4 q, vec3 v) {
+        return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+      }
+      vec2 uvDeLaPieza(float pieza, float lado) {
+        return vec2((mod(pieza, lado) + 0.5) / lado, (floor(pieza / lado) + 0.5) / lado);
+      }
     ${sombreador.vertexShader}`
+      // La normal gira con la pieza: sin esto, un fragmento rotado noventa
+      // grados seguía iluminado como si no se hubiera movido, y se leía plano.
+      .replace(
+        '#include <beginnormal_vertex>',
+        `#include <beginnormal_vertex>
+        objectNormal = girarCon(texture2D(giros, uvDeLaPieza(dePieza, ladoEstados)), objectNormal);`,
+      )
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
@@ -358,6 +412,11 @@ function materialDelSistema(
         vVisible = step(0.5, estado.a);
         vSeleccionada = step(2.5, estado.a);
         vResaltada = step(1.5, estado.a) - vSeleccionada;
+        // Primero la transformación propia de la pieza (D-129) y después la
+        // separación, que es un desplazamiento de todo el cuerpo y no debe
+        // girar con nadie.
+        transformed = girarCon(texture2D(giros, uvEstado), transformed)
+          + texture2D(traslados, uvEstado).xyz;
         transformed += estado.xyz * separacion;`,
       )
 
@@ -365,13 +424,21 @@ function materialDelSistema(
       varying float vVisible;
       varying float vResaltada;
       varying float vSeleccionada;
+      uniform float rayosX;
     ${sombreador.fragmentShader}`
       .replace(
         '#include <clipping_planes_fragment>',
         `#include <clipping_planes_fragment>
         // Descartar es lo que hace que apagar una pieza sea gratis: no se toca
         // la geometría, simplemente sus píxeles no se pintan.
-        if (vVisible < 0.5) discard;`,
+        if (vVisible < 0.5) discard;
+        // Rayos X (D-129): lo no seleccionado se pinta en damero, un píxel sí y
+        // otro no, y por los huecos se ve lo de detrás. Es transparencia sin
+        // serlo: la de verdad pide ordenar 2,3 millones de triángulos de lejos
+        // a cerca en cada fotograma, y esto no cuesta nada. Lo seleccionado se
+        // queda macizo para que se distinga a través de todo lo demás.
+        if (rayosX > 0.5 && vSeleccionada < 0.5 &&
+            mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 0.5) discard;`,
       )
       .replace(
         '#include <color_fragment>',
@@ -405,6 +472,16 @@ export function aplicarSeparacion(escena: EscenaDelAtlas, separacion: number) {
   }
 }
 
+/** Enciende o apaga la vista de rayos X. Mismo arreglo que `aplicarSeparacion`, y por lo mismo. */
+export function aplicarRayosX(escena: EscenaDelAtlas, encendidos: boolean) {
+  for (const malla of escena.mallas) {
+    const material = malla.material as THREE.Material
+    material.userData.rayosX = encendidos ? 1 : 0
+    const sombreador = material.userData.sombreador
+    if (sombreador?.uniforms?.rayosX) sombreador.uniforms.rayosX.value = material.userData.rayosX
+  }
+}
+
 /**
  * Escribe el estado de una pieza.
  *
@@ -425,4 +502,91 @@ export function marcarPieza(
   }
   escena.datos[base + 3] = estado
   escena.estados.needsUpdate = true
+}
+
+/** Lo que una pieza se ha movido de su sitio anatómico. */
+export interface TransformacionDePieza {
+  /** Metros, en los ejes del atlas. */
+  mover: [number, number, number]
+  /** Cuaternión [x, y, z, w], sobre el centro de la propia pieza. */
+  girar: [number, number, number, number]
+}
+
+const cuaternion = new THREE.Quaternion()
+const centroGirado = new THREE.Vector3()
+
+/**
+ * Escribe la transformación de una pieza, o la devuelve a su sitio con `null`.
+ *
+ * La pieza gira **sobre su propio centro**, que es lo que quien la mueve espera
+ * ver, pero el sombreador gira cada vértice sobre el origen del atlas, que está
+ * en el suelo entre los pies. La diferencia se compone aquí, una vez por pieza,
+ * en vez de en la tarjeta, una vez por vértice:
+ *
+ *     q·(p − c) + c + t  =  q·p + (c − q·c + t)
+ *
+ * de modo que a la textura de traslados va el paréntesis entero y el sombreador
+ * no necesita conocer el centro.
+ */
+export function ponerTransformacion(
+  escena: Pick<EscenaDelAtlas, 'centros' | 'giros' | 'datosDeGiros' | 'traslados' | 'datosDeTraslados'>,
+  indice: number,
+  transformacion: TransformacionDePieza | null,
+) {
+  const base = indice * CANALES
+  const [qx, qy, qz, qw] = transformacion?.girar ?? [0, 0, 0, 1]
+  const [tx, ty, tz] = transformacion?.mover ?? [0, 0, 0]
+  const cx = escena.centros[indice * 3]
+  const cy = escena.centros[indice * 3 + 1]
+  const cz = escena.centros[indice * 3 + 2]
+
+  cuaternion.set(qx, qy, qz, qw)
+  centroGirado.set(cx, cy, cz).applyQuaternion(cuaternion)
+
+  escena.datosDeGiros[base] = qx
+  escena.datosDeGiros[base + 1] = qy
+  escena.datosDeGiros[base + 2] = qz
+  escena.datosDeGiros[base + 3] = qw
+  escena.datosDeTraslados[base] = cx - centroGirado.x + tx
+  escena.datosDeTraslados[base + 1] = cy - centroGirado.y + ty
+  escena.datosDeTraslados[base + 2] = cz - centroGirado.z + tz
+  escena.giros.needsUpdate = true
+  escena.traslados.needsUpdate = true
+}
+
+/**
+ * Lleva un punto del atlas a donde lo dibuja el sombreador, sin la separación.
+ * Lo usan el picado y el marco, que tienen que buscar la pieza donde se ve.
+ */
+export function aplicarTransformacion(
+  escena: Pick<EscenaDelAtlas, 'datosDeGiros' | 'datosDeTraslados'>,
+  indice: number,
+  punto: THREE.Vector3,
+): THREE.Vector3 {
+  const base = indice * CANALES
+  cuaternion.set(
+    escena.datosDeGiros[base],
+    escena.datosDeGiros[base + 1],
+    escena.datosDeGiros[base + 2],
+    escena.datosDeGiros[base + 3],
+  )
+  punto.applyQuaternion(cuaternion)
+  punto.x += escena.datosDeTraslados[base]
+  punto.y += escena.datosDeTraslados[base + 1]
+  punto.z += escena.datosDeTraslados[base + 2]
+  return punto
+}
+
+/** Si la pieza está en su sitio: giro identidad y traslado nulo. */
+export function estaEnSuSitio(
+  escena: Pick<EscenaDelAtlas, 'datosDeGiros' | 'datosDeTraslados'>,
+  indice: number,
+): boolean {
+  const base = indice * CANALES
+  return (
+    escena.datosDeGiros[base + 3] === 1 &&
+    escena.datosDeTraslados[base] === 0 &&
+    escena.datosDeTraslados[base + 1] === 0 &&
+    escena.datosDeTraslados[base + 2] === 0
+  )
 }

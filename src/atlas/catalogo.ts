@@ -8,6 +8,7 @@
  */
 
 import {
+  MAXIMO_DE_TRASLADO,
   MAXIMO_PIEZAS,
   VISTA_INICIAL,
   type CatalogoDelAtlas,
@@ -259,6 +260,7 @@ export function normalizarSeleccion(
       salida.push({
         id,
         ...(typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color) ? { color } : {}),
+        ...transformacionLimpia(bruta),
       })
       if (salida.length >= MAXIMO_PIEZAS) break
     }
@@ -270,6 +272,62 @@ export function normalizarSeleccion(
     piezas: salida,
     vista: normalizarVista(vista),
   }
+}
+
+/**
+ * El movimiento y el giro de una pieza, solo si llegan bien formados y dicen
+ * algo.
+ *
+ * Llega del navegador, como todo lo demás de esta función. Un traslado con un
+ * `NaN` dejaba la pieza sin dibujar —el sombreador suma el `NaN` a cada
+ * vértice— y uno de kilómetros la sacaba de toda cámara posible; un cuaternión
+ * sin normalizar no gira: deforma. Lo que no mueve nada no se guarda, para que
+ * una preparación de dos mil piezas quietas pese lo que pesaba.
+ */
+function transformacionLimpia(bruta: unknown): Pick<ContenidoDeInstancia['piezas'][number], 'mover' | 'girar'> {
+  if (!bruta || typeof bruta !== 'object') return {}
+  const { mover, girar } = bruta as { mover?: unknown; girar?: unknown }
+  const numeros = (valor: unknown, cuantos: number): number[] | null =>
+    Array.isArray(valor) &&
+    valor.length === cuantos &&
+    valor.every((n) => typeof n === 'number' && Number.isFinite(n))
+      ? (valor as number[])
+      : null
+  const redondo = (n: number, cifras: number) => {
+    const escala = 10 ** cifras
+    // El `|| 0` convierte el −0 en 0: en JSON se escribe «-0» y no se compara
+    // igual que lo que se guardó.
+    return Math.round(n * escala) / escala || 0
+  }
+
+  const salida: Pick<ContenidoDeInstancia['piezas'][number], 'mover' | 'girar'> = {}
+
+  const t = numeros(mover, 3)
+  if (t) {
+    // A décimas de milímetro, que es más de lo que se distingue en pantalla.
+    const acotado = t.map((n) =>
+      redondo(Math.min(MAXIMO_DE_TRASLADO, Math.max(-MAXIMO_DE_TRASLADO, n)), 4),
+    ) as [number, number, number]
+    if (acotado.some((n) => n !== 0)) salida.mover = acotado
+  }
+
+  const q = numeros(girar, 4)
+  if (q) {
+    const largo = Math.hypot(q[0], q[1], q[2], q[3])
+    if (largo > 1e-6) {
+      // Con la W positiva: q y −q son el mismo giro, y así dos guardados del
+      // mismo giro se escriben igual.
+      const signo = q[3] < 0 ? -1 : 1
+      const unitario = q.map((n) => redondo((n / largo) * signo, 6)) as [
+        number,
+        number,
+        number,
+        number,
+      ]
+      if (unitario[0] !== 0 || unitario[1] !== 0 || unitario[2] !== 0) salida.girar = unitario
+    }
+  }
+  return salida
 }
 
 /** Una cámara con números finitos, o la de por omisión. */

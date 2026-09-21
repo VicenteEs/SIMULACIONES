@@ -108,7 +108,22 @@ export interface PiezaDeInstancia {
   id: string
   /** Color propio, si se quiere destacar la pieza sobre el resto. */
   color?: string
+  /**
+   * Cuánto se ha sacado la pieza de su sitio anatómico, en metros (D-129). Es
+   * lo que permite enseñar una luxación o un fragmento desplazado. Ausente si
+   * no se movió: la inmensa mayoría de las piezas de cualquier preparación.
+   */
+  mover?: [number, number, number]
+  /** Giro sobre su propio centro, como cuaternión unitario [x, y, z, w]. */
+  girar?: [number, number, number, number]
 }
+
+/**
+ * Lo más que se deja alejar una pieza de su sitio, por eje. El cuerpo mide
+ * menos de dos metros: más que eso no es una luxación, es una pieza perdida
+ * fuera de cámara que nadie va a volver a encontrar.
+ */
+export const MAXIMO_DE_TRASLADO = 2
 
 /** Cámara guardada: dónde estaba el ojo y a dónde miraba. */
 export interface VistaDeInstancia {

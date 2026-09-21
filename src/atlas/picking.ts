@@ -23,7 +23,7 @@
 
 import * as THREE from 'three'
 import type { CatalogoDelAtlas } from './formato'
-import { ESTADO, type EscenaDelAtlas } from './cargador'
+import { ESTADO, estaEnSuSitio, type EscenaDelAtlas } from './cargador'
 
 const cajaAuxiliar = new THREE.Box3()
 const puntoAuxiliar = new THREE.Vector3()
@@ -31,6 +31,52 @@ const a = new THREE.Vector3()
 const b = new THREE.Vector3()
 const c = new THREE.Vector3()
 const desplazamiento = new THREE.Vector3()
+const rayoLocal = new THREE.Ray()
+const giroInverso = new THREE.Quaternion()
+
+/**
+ * El rayo visto desde el sitio anatómico de la pieza.
+ *
+ * Una pieza movida o girada (D-129) no está donde dicen su caja ni sus
+ * vértices: la mueve el sombreador. En vez de transformar la caja y cada
+ * triángulo, se le aplica al rayo la transformación INVERSA y se cruza contra
+ * la geometría en reposo, que es la que hay en memoria. Como la transformación
+ * es rígida, las distancias a lo largo del rayo son las mismas en los dos
+ * espacios y se pueden comparar entre piezas sin corregir nada.
+ *
+ * Con el cuerpo separado Y la pieza girada a la vez, esto se equivoca por poco:
+ * el sombreador separa después de girar, y aquí la separación se suma a la
+ * geometría en reposo, antes. Se deja así a sabiendas: el mando de separación
+ * se retiró (D-125) y las dos cosas ya no coinciden en ninguna preparación.
+ *
+ * Para la pieza que está en su sitio —casi todas, casi siempre— devuelve el
+ * mismo rayo y no cuesta más que cuatro comparaciones.
+ */
+function rayoParaLaPieza(rayo: THREE.Ray, escena: EscenaDelAtlas, indice: number): THREE.Ray {
+  // Las escenas de algunas pruebas son anteriores a las transformaciones.
+  if (!escena.datosDeGiros || estaEnSuSitio(escena, indice)) return rayo
+  const base = indice * 4
+  giroInverso
+    .set(
+      escena.datosDeGiros[base],
+      escena.datosDeGiros[base + 1],
+      escena.datosDeGiros[base + 2],
+      escena.datosDeGiros[base + 3],
+    )
+    .invert()
+  rayoLocal.origin
+    .copy(rayo.origin)
+    .sub(
+      desplazamiento.set(
+        escena.datosDeTraslados[base],
+        escena.datosDeTraslados[base + 1],
+        escena.datosDeTraslados[base + 2],
+      ),
+    )
+    .applyQuaternion(giroInverso)
+  rayoLocal.direction.copy(rayo.direction).applyQuaternion(giroInverso)
+  return rayoLocal
+}
 
 interface Candidata {
   indice: number
@@ -70,7 +116,10 @@ export function piezaBajoElRayo(
       cajaAuxiliar.translate(desplazamiento.multiplyScalar(separacion))
     }
 
-    if (rayo.ray.intersectBox(cajaAuxiliar, puntoAuxiliar)) {
+    // Después de la separación, que usa `desplazamiento` como auxiliar igual
+    // que esta función.
+    const suRayo = rayoParaLaPieza(rayo.ray, escena, indice)
+    if (suRayo.intersectBox(cajaAuxiliar, puntoAuxiliar)) {
       // Con el origen del rayo dentro de la caja, `intersectBox` no devuelve la
       // entrada sino la SALIDA —three hace `this.at(tmin >= 0 ? tmin : tmax)`, y
       // con la cámara dentro `tmin` es negativo—, y esa distancia no acota por
@@ -80,9 +129,9 @@ export function piezaBajoElRayo(
       // 0,1 m y la caja del fémur mide 0,118 × 0,466 × 0,063, así que mirar la
       // diáfisis de cerca mete el ojo dentro del hueso y se señalaba el músculo
       // de al lado. Dentro de la caja la cota inferior correcta es 0.
-      const distancia = cajaAuxiliar.containsPoint(rayo.ray.origin)
+      const distancia = cajaAuxiliar.containsPoint(suRayo.origin)
         ? 0
-        : rayo.ray.origin.distanceTo(puntoAuxiliar)
+        : suRayo.origin.distanceTo(puntoAuxiliar)
       candidatas.push({ indice, distancia })
     }
   }
@@ -137,13 +186,18 @@ function distanciaAPieza(
       .multiplyScalar(separacion)
   }
 
+  // Se copia: `rayoParaLaPieza` y el bloque de arriba comparten auxiliar, y el
+  // rayo local tiene que sobrevivir al bucle.
+  const separada = desplazamiento.clone()
+  const suRayo = rayoParaLaPieza(rayo.ray, escena, indice)
+
   let masCerca: number | null = null
   const fin = rango.inicio + rango.cuenta
 
   for (let i = rango.inicio; i < fin; i += 3) {
-    a.fromBufferAttribute(posiciones, orden.getX(i)).add(desplazamiento)
-    b.fromBufferAttribute(posiciones, orden.getX(i + 1)).add(desplazamiento)
-    c.fromBufferAttribute(posiciones, orden.getX(i + 2)).add(desplazamiento)
+    a.fromBufferAttribute(posiciones, orden.getX(i)).add(separada)
+    b.fromBufferAttribute(posiciones, orden.getX(i + 1)).add(separada)
+    c.fromBufferAttribute(posiciones, orden.getX(i + 2)).add(separada)
 
     // Las dos caras, con una sola llamada.
     //
@@ -157,9 +211,9 @@ function distanciaAPieza(
     // de dentro-del-triángulo son simétricas. Era aritmética tirada en cada
     // triángulo que no acierta, que son casi todos, dentro del bucle más
     // caliente del visor.
-    if (!rayo.ray.intersectTriangle(a, b, c, false, puntoAuxiliar)) continue
+    if (!suRayo.intersectTriangle(a, b, c, false, puntoAuxiliar)) continue
 
-    const distancia = rayo.ray.origin.distanceTo(puntoAuxiliar)
+    const distancia = suRayo.origin.distanceTo(puntoAuxiliar)
     if (masCerca === null || distancia < masCerca) masCerca = distancia
   }
 

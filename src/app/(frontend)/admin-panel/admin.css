@@ -1915,6 +1915,21 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   z-index: 2;
 }
 
+/* Lo que se lee durante un gesto de mover o girar: qué, sobre qué eje y cuánto. */
+.atlas-gesto {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  pointer-events: none;
+  background: var(--tinta);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: var(--r);
+  z-index: 3;
+}
+
 .atlas-herramientas {
   display: flex;
   align-items: center;

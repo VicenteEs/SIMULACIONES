@@ -24,7 +24,7 @@
  */
 
 import * as THREE from 'three'
-import { ESTADO, type EscenaDelAtlas } from './cargador'
+import { ESTADO, aplicarTransformacion, type EscenaDelAtlas } from './cargador'
 
 /**
  * Un rectángulo en coordenadas normalizadas del dispositivo: de −1 a 1 en los
@@ -79,7 +79,8 @@ const centro = new THREE.Vector3()
  * se dibuja en cada cambio; una prueba tiene que llamar a `updateMatrixWorld`.
  */
 export function piezasEnElRectangulo(
-  escena: Pick<EscenaDelAtlas, 'rangos' | 'datos' | 'centros'>,
+  escena: Pick<EscenaDelAtlas, 'rangos' | 'datos' | 'centros'> &
+    Partial<Pick<EscenaDelAtlas, 'datosDeGiros' | 'datosDeTraslados'>>,
   camara: THREE.Camera,
   rectangulo: RectanguloNormalizado,
   separacion = 0,
@@ -89,10 +90,22 @@ export function piezasEnElRectangulo(
     if (escena.datos[indice * 4 + 3] < ESTADO.VISIBLE) continue
 
     centro.set(
-      escena.centros[indice * 3] + escena.datos[indice * 4] * separacion,
-      escena.centros[indice * 3 + 1] + escena.datos[indice * 4 + 1] * separacion,
-      escena.centros[indice * 3 + 2] + escena.datos[indice * 4 + 2] * separacion,
+      escena.centros[indice * 3],
+      escena.centros[indice * 3 + 1],
+      escena.centros[indice * 3 + 2],
     )
+    // Una pieza movida (D-129) se busca donde está, en el mismo orden que el
+    // sombreador: primero su transformación y después la separación.
+    if (escena.datosDeGiros && escena.datosDeTraslados) {
+      aplicarTransformacion(
+        { datosDeGiros: escena.datosDeGiros, datosDeTraslados: escena.datosDeTraslados },
+        indice,
+        centro,
+      )
+    }
+    centro.x += escena.datos[indice * 4] * separacion
+    centro.y += escena.datos[indice * 4 + 1] * separacion
+    centro.z += escena.datos[indice * 4 + 2] * separacion
     centro.project(camara)
 
     // Fuera de −1..1 en Z está detrás de la cámara o más allá del plano lejano.

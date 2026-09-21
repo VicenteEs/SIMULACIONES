@@ -7,6 +7,7 @@ import { VISTA_INICIAL } from '@/atlas/formato'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
+import type { TransformacionDePieza } from '@/atlas/cargador'
 // Estático sin miedo: `nombres.ts` es una tabla JSON y tres funciones de texto,
 // sin three. Lo que no puede entrar así es `@/atlas/cargador` (ver abajo).
 import { casaConLaBusqueda, nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
@@ -92,8 +93,43 @@ const VisorAtlas = dynamic(
  * y del redondeo de `vistaActual()`; por encima no hay gesto humano que mueva
  * menos.
  */
-/** Cuántos encendidos y apagados se pueden deshacer. */
+/** Cuántos pasos se pueden deshacer. */
 const MAXIMO_DE_DESHACER = 50
+
+/** Lo que Ctrl + Z devuelve: qué había encendido y qué estaba fuera de su sitio. */
+interface PasoDelTaller {
+  visibles: Set<string>
+  transformaciones: Map<string, TransformacionDePieza>
+}
+
+/**
+ * Las transformaciones en una sola cadena, para saber si cambiaron respecto de
+ * lo guardado. Ordenada por pieza y redondeada como redondea el servidor
+ * (`transformacionLimpia`): sin el redondeo, guardar dejaba el cartel de
+ * «cambios sin guardar» encendido, porque lo guardado ya no era idéntico a lo
+ * que había en pantalla.
+ */
+/** Las transformaciones que trae guardadas una preparación, por pieza. */
+function transformacionesDe(
+  piezas: { id: string; mover?: [number, number, number]; girar?: [number, number, number, number] }[],
+): Map<string, TransformacionDePieza> {
+  const mapa = new Map<string, TransformacionDePieza>()
+  for (const pieza of piezas) {
+    if (!pieza.mover && !pieza.girar) continue
+    mapa.set(pieza.id, { mover: pieza.mover ?? [0, 0, 0], girar: pieza.girar ?? [0, 0, 0, 1] })
+  }
+  return mapa
+}
+
+function firmaDeTransformaciones(mapa: ReadonlyMap<string, TransformacionDePieza>): string {
+  return [...mapa.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(
+      ([id, t]) =>
+        `${id}:${t.mover.map((n) => n.toFixed(4)).join(',')}:${t.girar.map((n) => n.toFixed(5)).join(',')}`,
+    )
+    .join(';')
+}
 
 /**
  * Los atajos, tal como se enseñan en el panel «Atajos». Son los de Blender
@@ -109,7 +145,11 @@ const ATAJOS_DEL_TALLER: [string, string][] = [
   ['Supr · X · H', 'Apagar lo seleccionado.'],
   ['Mayús + H', 'Dejar encendido solo lo seleccionado.'],
   ['Alt + H', 'Encender todo el cuerpo.'],
-  ['Ctrl + Z', 'Deshacer el último encendido o apagado.'],
+  ['G · R', 'Mover · rotar lo seleccionado. X, Y o Z atan a un eje; clic o Intro confirman, Esc cancela.'],
+  ['Alt + G · Alt + R', 'Devolver lo seleccionado a su posición · a su orientación anatómica.'],
+  ['Mayús + G', 'Seleccionar todo lo encendido del mismo sistema (hueso, músculo, vaso…).'],
+  ['Ctrl + Z · Ctrl + Mayús + Z', 'Deshacer · rehacer, hasta cincuenta pasos.'],
+  ['Alt + Z', 'Rayos X: ver a través de lo que no está seleccionado.'],
   ['1 · 3 · 7', 'Vista de frente, lateral y superior. Con Ctrl, la contraria.'],
   ['Punto', 'Centrar la vista en lo seleccionado.'],
   ['Inicio', 'Encuadrar todo lo encendido.'],
@@ -201,6 +241,8 @@ export function TallerDeAtlas() {
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [herramienta, setHerramienta] = useState<HerramientaDelVisor>('orbita')
   const [atajosAbiertos, setAtajosAbiertos] = useState(false)
+  /** Rayos X: una forma de mirar, no parte de la preparación. No se guarda. */
+  const [rayosX, setRayosX] = useState(false)
   /**
    * Las piezas encendidas de antes de cada cambio, para Ctrl + Z.
    *
@@ -210,7 +252,17 @@ export function TallerDeAtlas() {
    * porque cada entrada es un conjunto de hasta 2.234 identificadores. Es
    * estado y no un ref porque el botón «Deshacer» se apaga cuando está vacío.
    */
-  const [historial, setHistorial] = useState<Set<string>[]>([])
+  const [historial, setHistorial] = useState<PasoDelTaller[]>([])
+  /** Lo deshecho, para Ctrl + Mayús + Z. Se vacía con cualquier cambio nuevo. */
+  const [rehacer, setRehacer] = useState<PasoDelTaller[]>([])
+  /**
+   * Las piezas sacadas de su sitio (D-129). A diferencia de la selección, esto
+   * SÍ es parte de la preparación: se guarda, entra en «cambios sin guardar» y
+   * es lo que el residente ve en la ficha.
+   */
+  const [transformaciones, setTransformaciones] = useState<Map<string, TransformacionDePieza>>(
+    new Map(),
+  )
 
   const [instancia, setInstancia] = useState<string | null>(null)
   const [nombre, setNombre] = useState('')
@@ -323,14 +375,20 @@ export function TallerDeAtlas() {
     nombre: string
     descripcion: string
     piezas: string
+    transformaciones: string
     vista: VistaDeInstancia
-  }>({ nombre: '', descripcion: '', piezas: '', vista: VISTA_INICIAL })
+  }>({ nombre: '', descripcion: '', piezas: '', transformaciones: '', vista: VISTA_INICIAL })
 
   const clavePiezas = useMemo(() => [...visibles].sort().join(','), [visibles])
+  const claveTransformaciones = useMemo(
+    () => firmaDeTransformaciones(transformaciones),
+    [transformaciones],
+  )
 
   const sucio =
     catalogo !== null &&
     (clavePiezas !== referencia.piezas ||
+      claveTransformaciones !== referencia.transformaciones ||
       nombre.trim() !== referencia.nombre ||
       descripcion.trim() !== referencia.descripcion ||
       separacion !== referencia.vista.separacion)
@@ -359,11 +417,18 @@ export function TallerDeAtlas() {
 
   /** Toma el estado de ahora como «lo guardado»: nada que perder. */
   const fijarReferencia = useCallback(
-    (piezas: Set<string>, titulo: string, texto: string, vista: VistaDeInstancia) => {
+    (
+      piezas: Set<string>,
+      titulo: string,
+      texto: string,
+      vista: VistaDeInstancia,
+      movidas: ReadonlyMap<string, TransformacionDePieza> = new Map(),
+    ) => {
       setReferencia({
         nombre: titulo.trim(),
         descripcion: texto.trim(),
         piezas: [...piezas].sort().join(','),
+        transformaciones: firmaDeTransformaciones(movidas),
         vista,
       })
       // El encuadre entra en la referencia, así que lo que hubiera de movido
@@ -567,8 +632,14 @@ export function TallerDeAtlas() {
    * una preparación o volver al cuerpo completo no pasan por aquí, vacían el
    * historial: deshacer hasta la preparación anterior mezclaría dos trabajos.
    */
+  /** Deja en el historial lo que hay AHORA, antes de cambiarlo. */
+  const apuntarPaso = () => {
+    setHistorial((pasos) => [...pasos, { visibles, transformaciones }].slice(-MAXIMO_DE_DESHACER))
+    setRehacer([])
+  }
+
   const cambiarVisibles = (nuevas: Set<string>) => {
-    setHistorial((pasos) => [...pasos, visibles].slice(-MAXIMO_DE_DESHACER))
+    apuntarPaso()
     setVisibles(nuevas)
     // Lo que se apaga deja de estar seleccionado: una selección que no se ve
     // es una pieza que el siguiente Supr o «Solo esto» toca a ciegas.
@@ -583,7 +654,62 @@ export function TallerDeAtlas() {
     const anterior = historial.at(-1)
     if (!anterior) return
     setHistorial(historial.slice(0, -1))
-    setVisibles(anterior)
+    setRehacer([...rehacer, { visibles, transformaciones }])
+    setVisibles(anterior.visibles)
+    setTransformaciones(anterior.transformaciones)
+  }
+
+  const rehacerPaso = () => {
+    const siguiente = rehacer.at(-1)
+    if (!siguiente) return
+    setRehacer(rehacer.slice(0, -1))
+    setHistorial([...historial, { visibles, transformaciones }])
+    setVisibles(siguiente.visibles)
+    setTransformaciones(siguiente.transformaciones)
+  }
+
+  const alTransformar = (nuevas: Map<string, TransformacionDePieza>) => {
+    apuntarPaso()
+    setTransformaciones(nuevas)
+  }
+
+  /**
+   * Alt + G y Alt + R: lo seleccionado vuelve a su posición, o a su
+   * orientación, anatómica. Por separado, como en Blender: un fragmento bien
+   * desplazado pero mal girado se arregla sin perder el desplazamiento.
+   */
+  const devolverASuSitio = (que: 'mover' | 'girar') => {
+    const nuevas = new Map(transformaciones)
+    let cambio = false
+    for (const id of seleccion) {
+      const t = nuevas.get(id)
+      if (!t) continue
+      cambio = true
+      const resto: TransformacionDePieza =
+        que === 'mover' ? { mover: [0, 0, 0], girar: t.girar } : { mover: t.mover, girar: [0, 0, 0, 1] }
+      const quieta = resto.mover.every((n) => n === 0) && resto.girar[3] === 1
+      if (quieta) nuevas.delete(id)
+      else nuevas.set(id, resto)
+    }
+    if (cambio) alTransformar(nuevas)
+  }
+
+  const empezarGesto = (modo: 'mover' | 'girar') => {
+    if (mando.current?.empezarTransformacion(modo)) return
+    setAviso({ tipo: 'error', texto: 'Seleccione primero las piezas que quiere mover.' })
+  }
+
+  /** Mayús + G de Blender: todo lo encendido del mismo sistema que lo seleccionado. */
+  const seleccionarDelMismoSistema = () => {
+    if (!catalogo || seleccion.size === 0) return
+    const sistemas = new Set(
+      catalogo.piezas.filter((p) => seleccion.has(p.id)).map((p) => p.sistema),
+    )
+    setSeleccion(
+      new Set(
+        catalogo.piezas.filter((p) => sistemas.has(p.sistema) && visibles.has(p.id)).map((p) => p.id),
+      ),
+    )
   }
 
   const alSeleccionar = (ids: string[], modo: ModoDeSeleccion) =>
@@ -616,6 +742,8 @@ export function TallerDeAtlas() {
     if (preguntar && !confirmarDescarte('Se volverá al cuerpo completo, sin nombre.')) return
     const todas = new Set(catalogo.piezas.map((p) => p.id))
     setHistorial([])
+    setRehacer([])
+    setTransformaciones(new Map())
     setSeleccion(new Set())
     setInstancia(null)
     setNombre('')
@@ -647,7 +775,10 @@ export function TallerDeAtlas() {
           return
         }
         const piezasAbiertas = new Set(r.datos.contenido.piezas.map((p) => p.id))
+        const movidasAbiertas = transformacionesDe(r.datos.contenido.piezas)
+        setTransformaciones(movidasAbiertas)
         setHistorial([])
+        setRehacer([])
         setSeleccion(new Set())
         setInstancia(r.datos.id)
         setNombre(r.datos.nombre)
@@ -684,6 +815,7 @@ export function TallerDeAtlas() {
           r.datos.nombre,
           r.datos.descripcion ?? '',
           vistaAbierta,
+          movidasAbiertas,
         )
         if (r.datos.perdidas.length > 0) {
           setAviso({
@@ -734,7 +866,9 @@ export function TallerDeAtlas() {
         const r = await guardarInstancia(instancia, {
           nombre,
           descripcion,
-          piezas: [...visibles],
+          // Cada pieza con lo que se haya movido, si se movió (D-129). Lo de
+          // una pieza apagada no viaja: no está en la preparación.
+          piezas: [...visibles].map((id) => ({ id, ...transformaciones.get(id) })),
           vista,
         })
         if (!r.exito || !r.datos) {
@@ -744,7 +878,7 @@ export function TallerDeAtlas() {
         setInstancia(r.datos.id)
         // Lo recién guardado pasa a ser la referencia: ya no hay nada que
         // perder.
-        fijarReferencia(visibles, nombre, descripcion, vista)
+        fijarReferencia(visibles, nombre, descripcion, vista, transformaciones)
         setAviso({
           tipo: 'ok',
           texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
@@ -890,18 +1024,33 @@ export function TallerDeAtlas() {
 
       const tecla = evento.key.toLowerCase()
       const control = evento.ctrlKey || evento.metaKey
+
+      // A mitad de un movimiento o un giro, el teclado es del gesto: la X ata
+      // al eje X en vez de apagar lo que se está moviendo.
+      if (!control && !evento.altKey && mando.current?.teclaDeTransformacion(tecla)) {
+        evento.preventDefault()
+        return
+      }
+
       let atendida = true
 
-      if (control && tecla === 'z') deshacer()
+      if (control && tecla === 'z' && evento.shiftKey) rehacerPaso()
+      else if (control && tecla === 'z') deshacer()
       else if (control && tecla === 'i') {
         setSeleccion(new Set([...visibles].filter((id) => !seleccion.has(id))))
       } else if (control && ['1', '3', '7'].includes(tecla)) {
         mirarDesde(tecla === '1' ? 'atras' : tecla === '3' ? 'izquierda' : 'abajo')
       } else if (control) atendida = false
       else if (evento.altKey && tecla === 'h') encenderTodo()
+      else if (evento.altKey && tecla === 'z') setRayosX((encendidos) => !encendidos)
+      else if (evento.altKey && tecla === 'g') devolverASuSitio('mover')
+      else if (evento.altKey && tecla === 'r') devolverASuSitio('girar')
       else if (evento.altKey && tecla === 'a') setSeleccion(new Set())
       else if (evento.altKey) atendida = false
       else if (tecla === 'h' && evento.shiftKey) dejarSoloLaSeleccion()
+      else if (tecla === 'g' && evento.shiftKey) seleccionarDelMismoSistema()
+      else if (tecla === 'g') empezarGesto('mover')
+      else if (tecla === 'r') empezarGesto('girar')
       else if (tecla === 'h' || tecla === 'x' || tecla === 'delete') apagarSeleccion()
       else if (tecla === 'a') setSeleccion(new Set(visibles))
       else if (tecla === 'b') setHerramienta((actual) => (actual === 'caja' ? 'orbita' : 'caja'))
@@ -1291,6 +1440,9 @@ export function TallerDeAtlas() {
             seleccion={seleccion}
             alSeleccionar={alSeleccionar}
             herramienta={herramienta}
+            transformaciones={transformaciones}
+            alTransformar={alTransformar}
+            rayosX={rayosX}
           />
 
           <div className="atlas-herramientas" role="toolbar" aria-label="Herramientas del visor">
@@ -1345,10 +1497,52 @@ export function TallerDeAtlas() {
                 type="button"
                 className="atlas-herramienta"
                 disabled={historial.length === 0}
-                title="Deshacer el último encendido o apagado (Ctrl + Z)"
+                title="Deshacer el último cambio: encendidos, apagados, movimientos y giros (Ctrl + Z)"
                 onClick={deshacer}
               >
                 Deshacer
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                disabled={rehacer.length === 0}
+                title="Rehacer lo deshecho (Ctrl + Mayús + Z)"
+                onClick={rehacerPaso}
+              >
+                Rehacer
+              </button>
+            </div>
+            <div className="atlas-herramientas-grupo">
+              <button
+                type="button"
+                className="atlas-herramienta"
+                disabled={seleccion.size === 0}
+                title="Mover lo seleccionado (G). X, Y o Z lo atan a un eje; un clic confirma y Esc cancela."
+                onClick={() => empezarGesto('mover')}
+              >
+                Mover
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                disabled={seleccion.size === 0}
+                title="Girar lo seleccionado (R). X, Y o Z eligen el eje; un clic confirma y Esc cancela."
+                onClick={() => empezarGesto('girar')}
+              >
+                Rotar
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                disabled={![...seleccion].some((id) => transformaciones.has(id))}
+                title="Devolver lo seleccionado a su sitio anatómico (Alt + G la posición, Alt + R el giro)"
+                onClick={() => {
+                  const nuevas = new Map(transformaciones)
+                  for (const id of seleccion) nuevas.delete(id)
+                  alTransformar(nuevas)
+                }}
+              >
+                A su sitio
               </button>
             </div>
             <div className="atlas-herramientas-grupo">
@@ -1360,6 +1554,15 @@ export function TallerDeAtlas() {
               </button>
               <button type="button" className="atlas-herramienta" title="Desde arriba (7)" onClick={() => mirarDesde('arriba')}>
                 Superior
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={rayosX}
+                title="Rayos X: ver a través de lo no seleccionado (Alt + Z)"
+                onClick={() => setRayosX((encendidos) => !encendidos)}
+              >
+                Rayos X
               </button>
               <button
                 type="button"
@@ -1433,7 +1636,8 @@ export function TallerDeAtlas() {
             />
 
             <p className="campo-ayuda">
-              Se guardan las piezas encendidas y el encuadre de la cámara. El atlas
+              Se guardan las piezas encendidas, lo que se hayan movido o girado y el encuadre de la
+              cámara. El atlas
               original no se toca: lo que apague aquí se puede volver a encender siempre.
             </p>
           </div>
