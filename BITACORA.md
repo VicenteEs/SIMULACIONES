@@ -3534,6 +3534,42 @@ O-054 y O-055. Desde fuera, las redirecciones salen relativas (`Location:
 /traumahub/admin-panel`) y `/entrar` no trae ni una dirección absoluta, así que
 el `:10000` no se puede perder.
 
+### D-124 · 2026-09-21 · vigente
+**La figura de la portada pasa del fémur dibujado al cuerpo completo del atlas,
+como nube de puntos.**
+El dueño pidió cambiar el fémur esquemático de la portada por «el modelo del
+cuerpo completo», sin tanta animación: algo sutil.
+
+*Por qué no el atlas de verdad.* Son 33 MB y 2,3 millones de triángulos. Y no se
+puede pedir una parte: los paquetes no están ordenados por sistema, así que solo
+el esqueleto obliga a bajar 9 de los 15, 19 MB. La portada es lo primero que abre
+cada persona, a veces desde el teléfono y por un túnel doméstico.
+
+*Qué se hizo.* `scripts/atlas/portada.mjs` muestrea, a razón del área, 60.000
+puntos sobre los huesos y 25.000 sobre la piel del atlas real y los guarda en
+`public/atlas/portada.bin.gz` (275 KB), con su descripción en
+`src/atlas/portada.json`. Se ejecuta una vez y el resultado se versiona, como el
+atlas. `CuerpoDePortada.tsx` lo pinta con `three`, que se importa dentro del
+efecto para que no entre en el paquete de la portada. El movimiento es un vaivén
+de unos veinte grados con un periodo de 32 s; con «reducir movimiento» se queda
+quieto, y fuera de pantalla o con la pestaña oculta no se pinta. No responde al
+ratón. `Femur.tsx` y su CSS se retiraron. El pie de la tarjeta lleva ahora el
+crédito de BodyParts3D, que la licencia exige donde se muestre el material.
+
+*Dos cosas que salieron mal antes de salir bien.* Guardado como «xyz» en 16 bits
+el archivo no comprimía nada (497 KB de 498): puntos al azar son ruido. Ordenados
+por altura, con la altura como diferencias, en 12 bits y por planos, baja a 275.
+Y con opacidad 0,85 el esqueleto salía quemado en blanco, porque con mezcla
+aditiva los puntos se suman; a 0,16 es la densidad la que dibuja.
+
+*Consecuencias buenas.* La figura es el atlas —sus proporciones y sus huesos— y
+cuesta menos que una fotografía. *Malas.* Son dos archivos generados que solo
+sirven juntos; `tests/unit/cuerpoDePortada.test.ts` los ata, y vigila también el
+peso. Se comprobó en un banco de pruebas estático y no con la aplicación en
+marcha, porque en `faraday` un `npm run dev` ajustaría el esquema de la base de
+producción (O-048): dentro de la portada real se ve por primera vez en `ved`. Sin
+WebGL la tarjeta se queda con su fondo y su pie, sin mensaje.
+
 ---
 
 ## 3. Observaciones

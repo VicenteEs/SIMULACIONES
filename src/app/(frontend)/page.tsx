@@ -3,7 +3,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
-import { Femur } from '@/components/Femur'
+import { CuerpoDePortada } from '@/components/CuerpoDePortada'
 import { MallaDeNodos } from '@/components/MallaDeNodos'
 import { ruta } from '@/lib/rutas'
 import { recorridoGuardado, type RecorridoGuardado } from '@/lib/progresoDelSimulador'
@@ -438,10 +438,10 @@ export default async function Inicio() {
         </div>
 
         <div className="hero-figura">
-          <Femur />
+          <CuerpoDePortada />
           <div className="hero-pie">
-            <span>Fémur · reconstrucción esquemática</span>
-            <span className="hero-codigo">AO/OTA 32-A1</span>
+            <span>Cuerpo completo · atlas anatómico</span>
+            <span className="hero-codigo">BodyParts3D · CC BY 4.0</span>
           </div>
         </div>
       </section>
