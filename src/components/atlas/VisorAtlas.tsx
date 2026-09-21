@@ -11,7 +11,14 @@ import * as THREE from 'three'
 // deja mezcladas las dos procedencias dentro de three puro y la consola sigue
 // con su copia. Unificar es un cambio de los tres archivos en el mismo commit.
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { VISTA_INICIAL, type CatalogoDelAtlas, type VistaDeInstancia } from '@/atlas/formato'
+import {
+  VISTA_INICIAL,
+  partesDeFragmento,
+  piezaDe,
+  type CatalogoDelAtlas,
+  type CorteDePieza,
+  type VistaDeInstancia,
+} from '@/atlas/formato'
 import {
   ESTADO,
   aplicarRayosX,
@@ -24,7 +31,15 @@ import {
   paquetesNecesarios,
   type EscenaDelAtlas,
 } from '@/atlas/cargador'
-import { piezaBajoElRayo } from '@/atlas/picking'
+import { impactoBajoElRayo } from '@/atlas/picking'
+import {
+  colocarFragmento,
+  crearFragmentos,
+  liberarFragmento,
+  pintarFragmento,
+  planoDeLaLinea,
+  type FragmentoDelAtlas,
+} from '@/atlas/fragmentos'
 import {
   centroActual,
   desplazamientoDelArrastre,
@@ -159,9 +174,10 @@ export type LadoDeLaVista = 'frente' | 'atras' | 'derecha' | 'izquierda' | 'arri
 /**
  * Qué hace el botón izquierdo al arrastrar. En `orbita` gira la cámara, como
  * siempre; en `caja` dibuja un marco de selección y el giro pasa al botón
- * central, que es donde lo tiene Blender.
+ * central, que es donde lo tiene Blender; en `corte` traza la línea por la que
+ * se parte el hueso seleccionado (D-130).
  */
-export type HerramientaDelVisor = 'orbita' | 'caja'
+export type HerramientaDelVisor = 'orbita' | 'caja' | 'corte'
 
 /**
  * Aviso de contexto WebGL perdido.
@@ -189,6 +205,9 @@ export function VisorAtlas({
   transformaciones = null,
   alTransformar,
   rayosX = false,
+  cortes = null,
+  alCortar,
+  alAvisar,
   alAsentarVista,
   corte = null,
   mando,
@@ -219,6 +238,12 @@ export function VisorAtlas({
    * con lo guardado; el taller, con lo que se está editando.
    */
   transformaciones?: ReadonlyMap<string, TransformacionDePieza> | null
+  /** Los huesos partidos (D-130). Las fichas pasan los guardados; el taller, los que se editan. */
+  cortes?: readonly CorteDePieza[] | null
+  /** Se trazó una línea de corte válida sobre la pieza seleccionada. */
+  alCortar?: (corte: CorteDePieza) => void
+  /** Algo que decirle a quien trabaja: por qué no se pudo cortar, por ejemplo. */
+  alAvisar?: (texto: string) => void
   /** Pinta en damero lo no seleccionado, para ver a través (Alt + Z en Blender). Solo el taller. */
   rayosX?: boolean
   /** Un gesto de mover o girar se confirmó: el mapa completo, ya con lo nuevo. */
@@ -266,6 +291,8 @@ export function VisorAtlas({
   )
   /** Lo que se lee sobre el lienzo mientras dura un gesto de mover o girar. */
   const [gesto, setGesto] = useState<string | null>(null)
+  /** La línea de corte mientras se traza, en píxeles del lienzo. */
+  const [linea, setLinea] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   /** El marco de selección mientras se arrastra, en píxeles del lienzo. */
   const [marco, setMarco] = useState<{ x: number; y: number; ancho: number; alto: number } | null>(
     null,
@@ -291,6 +318,8 @@ export function VisorAtlas({
     herramienta,
     transformaciones,
     alTransformar,
+    alCortar,
+    alAvisar,
     alAsentarVista,
     soloLectura,
     vistaInicial,
@@ -306,6 +335,8 @@ export function VisorAtlas({
       herramienta,
       transformaciones,
       alTransformar,
+      alCortar,
+      alAvisar,
       alAsentarVista,
       soloLectura,
       vistaInicial,
@@ -499,6 +530,7 @@ export function VisorAtlas({
           ultimas.current.visibles,
           ultimas.current.resaltada,
           ultimas.current.seleccion,
+          taller.current.cortadas,
         )
         aplicarSeparacion(escena, ultimas.current.separacion)
         // Aquí y no al montar: con el cuerpo separado la caja de lo visible
@@ -531,7 +563,7 @@ export function VisorAtlas({
       const caja = render.domElement.getBoundingClientRect()
       return { x: evento.clientX - caja.left, y: evento.clientY - caja.top }
     }
-    const cursorDeReposo = () => (ultimas.current.herramienta === 'caja' ? 'crosshair' : 'grab')
+    const cursorDeReposo = () => (ultimas.current.herramienta === 'orbita' ? 'grab' : 'crosshair')
 
     const aCoordenadas = (evento: PointerEvent) => {
       const caja = render.domElement.getBoundingClientRect()
@@ -540,6 +572,102 @@ export function VisorAtlas({
         -((evento.clientY - caja.top) / caja.height) * 2 + 1,
       )
       return { x: evento.clientX - caja.left, y: evento.clientY - caja.top }
+    }
+
+    /**
+     * Parte la pieza seleccionada por la línea trazada (D-130), como el
+     * «Bisect» de Blender: actúa sobre lo seleccionado, y el plano contiene la
+     * línea y la dirección en la que se mira.
+     *
+     * Todo lo que puede salir mal se dice aquí, antes de entregar el corte: un
+     * corte guardado que luego no se puede partir sería una ficha que no carga.
+     */
+    const cortarPorLaLinea = (
+      escena: EscenaDelAtlas,
+      desde: { x: number; y: number },
+      hasta: { x: number; y: number },
+    ) => {
+      const { seleccion: elegidas, alCortar: cortar, alAvisar: decir } = ultimas.current
+      if (!cortar) return
+      const ids = [...(elegidas ?? [])]
+      if (ids.length !== 1) {
+        decir?.('Para cortar, seleccione antes una sola pieza: la línea parte lo seleccionado.')
+        return
+      }
+      const [id] = ids
+      if (partesDeFragmento(id)) {
+        decir?.('Ese hueso ya está partido. Suéldelo antes si quiere cortarlo por otro sitio.')
+        return
+      }
+      const indice = escena.indices.get(id)
+      if (indice === undefined || !escena.rangos.has(indice)) return
+      if (ultimas.current.transformaciones?.has(id)) {
+        decir?.('Devuelva la pieza a su sitio antes de cortarla (Alt + G y Alt + R); después podrá mover cada fragmento.')
+        return
+      }
+
+      // Los dos extremos de la línea, llevados a la profundidad de la pieza.
+      const centroDeLaPieza = new THREE.Vector3(
+        escena.centros[indice * 3],
+        escena.centros[indice * 3 + 1],
+        escena.centros[indice * 3 + 2],
+      )
+      const haciaDelante = camara.getWorldDirection(new THREE.Vector3())
+      const profundidad = centroDeLaPieza.clone().sub(camara.position).dot(haciaDelante)
+      const aLaProfundidad = (punto: { x: number; y: number }) => {
+        const lienzoDom = render.domElement
+        const direccion = new THREE.Vector3(
+          (punto.x / lienzoDom.clientWidth) * 2 - 1,
+          -(punto.y / lienzoDom.clientHeight) * 2 + 1,
+          0.5,
+        )
+          .unproject(camara)
+          .sub(camara.position)
+          .normalize()
+        return camara.position
+          .clone()
+          .addScaledVector(direccion, profundidad / Math.max(1e-6, direccion.dot(haciaDelante)))
+      }
+      const plano = planoDeLaLinea(aLaProfundidad(desde), aLaProfundidad(hasta), haciaDelante)
+      if (!plano) return
+
+      const corte: CorteDePieza = { pieza: id, ...plano }
+      const ensayo = crearFragmentos(escena, indice, corte)
+      if ('motivo' in ensayo) {
+        decir?.(ensayo.motivo)
+        return
+      }
+      // Era solo para saber si se puede: los de verdad los crea el efecto que
+      // sigue a la prop `cortes`, que es la única fuente de lo que hay partido.
+      ensayo.fragmentos.forEach(liberarFragmento)
+      cortar(corte)
+    }
+
+    /**
+     * Lo que hay bajo el rayo ya preparado: una pieza entera o un trozo de hueso
+     * partido, lo que esté más cerca. Los trozos son pocos y pequeños, así que
+     * para ellos sirve el cruce de rayos de three sin más.
+     */
+    const loQueSeSenala = (escena: EscenaDelAtlas): { id: string; nombre: string } | null => {
+      const entera = impactoBajoElRayo(rayo, catalogo, escena, ultimas.current.separacion)
+      let mejor: { id: string; nombre: string } | null =
+        entera.indice >= 0
+          ? {
+              id: catalogo.piezas[entera.indice].id,
+              nombre: nombreEnEspanol(catalogo.piezas[entera.indice].nombre),
+            }
+          : null
+      let distancia = entera.distancia
+      for (const trozo of taller.current.fragmentos?.values() ?? []) {
+        if (!trozo.malla.visible) continue
+        const toque = rayo.intersectObject(trozo.malla, false)[0]
+        if (!toque || toque.distance >= distancia) continue
+        distancia = toque.distance
+        const i = escena.indices.get(trozo.pieza)
+        const nombre = i === undefined ? trozo.pieza : nombreEnEspanol(catalogo.piezas[i].nombre)
+        mejor = { id: trozo.id, nombre: `${nombre} · fragmento` }
+      }
+      return mejor
     }
 
     // --- mover y girar piezas (D-129) ---------------------------------------
@@ -572,6 +700,13 @@ export function VisorAtlas({
       const escena = taller.current.escena
       if (!escena) return
       for (const [id, transformacion] of piezas) {
+        // Un trozo de hueso partido es una malla suelta y se coloca como tal;
+        // una pieza entera, por su píxel en las texturas.
+        const trozo = taller.current.fragmentos?.get(id)
+        if (trozo) {
+          colocarFragmento(trozo, transformacion)
+          continue
+        }
         const i = escena.indices.get(id)
         if (i !== undefined) ponerTransformacion(escena, i, transformacion)
       }
@@ -658,6 +793,14 @@ export function VisorAtlas({
         const centros = new Map<string, THREE.Vector3>()
         const pivote = new THREE.Vector3()
         for (const id of elegidas) {
+          const trozo = taller.current.fragmentos?.get(id)
+          if (trozo) {
+            if (encendidas && !encendidas.has(trozo.pieza)) continue
+            ids.push(id)
+            centros.set(id, trozo.centro.clone())
+            pivote.add(centroActual(trozo.centro, alEmpezar.get(id)))
+            continue
+          }
           const i = escena.indices.get(id)
           // Solo lo que se ve y está en la malla: mover a ciegas una pieza
           // apagada es un cambio que nadie descubre hasta abrir la ficha.
@@ -729,7 +872,9 @@ export function VisorAtlas({
       }
       bajado = { x: evento.clientX, y: evento.clientY }
       const { herramienta: h, alSeleccionar: avisar, soloLectura: lectura } = ultimas.current
-      if (h === 'caja' && avisar && !lectura) {
+      // El marco y la línea de corte empiezan igual: un arrastre con el
+      // izquierdo que no es de la cámara. Se distinguen al pintar y al soltar.
+      if ((h === 'caja' || h === 'corte') && avisar && !lectura) {
         inicioDelMarco = enElLienzo(evento)
         // Con la captura, soltar fuera del lienzo sigue llegando aquí: sin
         // ella, un marco que se saliera por el borde se quedaba pintado para
@@ -746,6 +891,12 @@ export function VisorAtlas({
       ultimoPuntero = enElLienzo(evento)
       if (enCurso) {
         recalcularElGesto()
+        return
+      }
+      if (inicioDelMarco && ultimas.current.herramienta === 'corte') {
+        const ahora = enElLienzo(evento)
+        setLinea({ x1: inicioDelMarco.x, y1: inicioDelMarco.y, x2: ahora.x, y2: ahora.y })
+        setNombreFlotante(null)
         return
       }
       if (inicioDelMarco) {
@@ -768,8 +919,8 @@ export function VisorAtlas({
       }
       const local = aCoordenadas(evento)
       rayo.setFromCamera(puntero, camara)
-      const indice = piezaBajoElRayo(rayo, catalogo, escena, ultimas.current.separacion)
-      if (indice < 0) {
+      const senalada = loQueSeSenala(escena)
+      if (!senalada) {
         setNombreFlotante(null)
         return
       }
@@ -777,11 +928,7 @@ export function VisorAtlas({
       // En español: es el único sitio del visor donde se lee un nombre, y quien
       // pasa el ratón por la pierna es un residente que estudia en español.
       // Lo que no tiene traducción sale con el original, sin inventar nada.
-      setNombreFlotante({
-        texto: nombreEnEspanol(catalogo.piezas[indice].nombre),
-        x: local.x,
-        y: local.y,
-      })
+      setNombreFlotante({ texto: senalada.nombre, x: local.x, y: local.y })
     }
 
     const alSubir = (evento: PointerEvent) => {
@@ -800,6 +947,7 @@ export function VisorAtlas({
       const esquina = inicioDelMarco
       inicioDelMarco = null
       setMarco(null)
+      setLinea(null)
       if (render.domElement.hasPointerCapture(evento.pointerId)) {
         render.domElement.releasePointerCapture(evento.pointerId)
       }
@@ -816,6 +964,10 @@ export function VisorAtlas({
         // que hacer, o fue un marco.
         if (!esquina || !avisar) return
         const lienzoDom = render.domElement
+        if (ultimas.current.herramienta === 'corte') {
+          cortarPorLaLinea(escena, esquina, enElLienzo(evento))
+          return
+        }
         const dentro = piezasEnElRectangulo(
           escena,
           camara,
@@ -829,8 +981,31 @@ export function VisorAtlas({
         )
         // Mayús suma y Ctrl quita, como en Blender. Un marco vacío sin teclas
         // vacía la selección, igual que un clic en el vacío.
+        // Los trozos de un hueso partido entran con el mismo criterio que las
+        // piezas: por dónde cae su centro, que aquí es donde está la malla.
+        const rectangulo = rectanguloNormalizado(
+          esquina,
+          enElLienzo(evento),
+          lienzoDom.clientWidth,
+          lienzoDom.clientHeight,
+        )
+        const trozosDentro: string[] = []
+        for (const trozo of taller.current.fragmentos?.values() ?? []) {
+          if (!trozo.malla.visible) continue
+          const enPantalla = trozo.malla.position.clone().project(camara)
+          if (
+            enPantalla.z >= -1 &&
+            enPantalla.z <= 1 &&
+            enPantalla.x >= rectangulo.minX &&
+            enPantalla.x <= rectangulo.maxX &&
+            enPantalla.y >= rectangulo.minY &&
+            enPantalla.y <= rectangulo.maxY
+          ) {
+            trozosDentro.push(trozo.id)
+          }
+        }
         avisar(
-          dentro.map((i) => catalogo.piezas[i].id),
+          [...dentro.map((i) => catalogo.piezas[i].id), ...trozosDentro],
           evento.shiftKey ? 'sumar' : evento.ctrlKey || evento.metaKey ? 'quitar' : 'reemplazar',
         )
         return
@@ -838,16 +1013,16 @@ export function VisorAtlas({
 
       aCoordenadas(evento)
       rayo.setFromCamera(puntero, camara)
-      const indice = piezaBajoElRayo(rayo, catalogo, escena, ultimas.current.separacion)
+      const senalada = loQueSeSenala(escena)
       if (avisar) {
-        if (indice >= 0) {
-          avisar([catalogo.piezas[indice].id], evento.shiftKey ? 'alternar' : 'reemplazar')
+        if (senalada) {
+          avisar([senalada.id], evento.shiftKey ? 'alternar' : 'reemplazar')
         } else if (!evento.shiftKey) {
           avisar([], 'reemplazar')
         }
         return
       }
-      if (indice >= 0) ultimas.current.alPulsarPieza?.(catalogo.piezas[indice].id)
+      if (senalada) ultimas.current.alPulsarPieza?.(piezaDe(senalada.id))
     }
 
     const alSalir = () => {
@@ -944,6 +1119,7 @@ export function VisorAtlas({
       // y aquí hay decenas de megabytes en la tarjeta. Sin esto, pasear por la
       // plataforma acaba tirando la pestaña.
       taller.current.escena?.liberar()
+      taller.current.fragmentos?.forEach(liberarFragmento)
       quitarElCorte(taller.current)
       // `dispose()` no cierra el contexto: en esta versión de three (0.185.1)
       // solo quita tres escuchas y vacía cachés internas. El contexto sobrevive
@@ -974,7 +1150,67 @@ export function VisorAtlas({
     visibles: Set<string> | null
     resaltada: string | null
     seleccion: Set<string> | null
+    cortes: readonly CorteDePieza[] | null
   } | null>(null)
+
+  // Los huesos partidos (D-130). Va ANTES del efecto de pintado a propósito:
+  // aquel apaga en su malla las piezas que este deja anotadas en `cortadas`, y
+  // los efectos de un mismo pintado corren en el orden en que se declaran.
+  //
+  // Solo se parte lo que cambió: `partirMalla` sobre un fémur son decenas de
+  // miles de triángulos, y este efecto corre también cuando se corta OTRO
+  // hueso. `progreso` entra por lo de siempre: los cortes de una ficha llegan
+  // antes que la geometría.
+  useEffect(() => {
+    const t = taller.current
+    const { escena, tresD } = t
+    if (!escena || !tresD) return
+    const trozos = (t.fragmentos ??= new Map())
+    const firmas = (t.firmasDeCorte ??= new Map())
+    const vigentes = new Map<string, string>()
+    for (const corte of cortes ?? []) {
+      vigentes.set(corte.pieza, `${corte.punto.join(',')}|${corte.normal.join(',')}`)
+    }
+
+    for (const [pieza, firma] of firmas) {
+      if (vigentes.get(pieza) === firma) continue
+      for (const lado of ['a', 'b'] as const) {
+        const trozo = trozos.get(`${pieza}#${lado}`)
+        if (trozo) liberarFragmento(trozo)
+        trozos.delete(`${pieza}#${lado}`)
+      }
+      firmas.delete(pieza)
+    }
+    for (const corte of cortes ?? []) {
+      if (firmas.has(corte.pieza)) continue
+      const indice = escena.indices.get(corte.pieza)
+      if (indice === undefined) continue
+      const resultado = crearFragmentos(escena, indice, corte)
+      // Un corte guardado que ya no se puede rehacer —el atlas se regeneró y
+      // el plano cae fuera— deja la pieza ENTERA, que es lo menos malo: la
+      // ficha enseña el hueso sin romper en vez de no enseñarlo.
+      if ('motivo' in resultado) continue
+      for (const trozo of resultado.fragmentos) {
+        trozos.set(trozo.id, trozo)
+        tresD.add(trozo.malla)
+      }
+      firmas.set(corte.pieza, vigentes.get(corte.pieza)!)
+    }
+    t.cortadas = new Set(firmas.keys())
+  }, [catalogo, cortes, progreso])
+
+  // Los trozos siguen a su pieza en lo encendido, y a la selección y a las
+  // transformaciones por su propio identificador. Son como mucho dieciséis
+  // mallas: se repasan todas en cada cambio y no hay nada que optimizar.
+  useEffect(() => {
+    const t = taller.current
+    for (const trozo of t.fragmentos?.values() ?? []) {
+      trozo.malla.visible = !visibles || visibles.has(trozo.pieza)
+      pintarFragmento(trozo, !!seleccion?.has(trozo.id))
+      colocarFragmento(trozo, transformaciones?.get(trozo.id))
+    }
+    t.pedirDibujo?.()
+  }, [catalogo, cortes, visibles, seleccion, transformaciones, progreso])
 
   useEffect(() => {
     const escena = taller.current.escena
@@ -999,15 +1235,23 @@ export function VisorAtlas({
       anterior &&
       anterior.escena === escena &&
       anterior.visibles === visibles &&
-      anterior.seleccion === seleccion
+      anterior.seleccion === seleccion &&
+      anterior.cortes === cortes
     ) {
-      cambiarResaltado(escena, visibles, seleccion, anterior.resaltada, resaltada)
+      cambiarResaltado(
+        escena,
+        visibles,
+        seleccion,
+        anterior.resaltada,
+        resaltada,
+        taller.current.cortadas,
+      )
     } else {
-      aplicarVisibilidad(escena, catalogo, visibles, resaltada, seleccion)
+      aplicarVisibilidad(escena, catalogo, visibles, resaltada, seleccion, taller.current.cortadas)
     }
-    pintado.current = { escena, visibles, resaltada, seleccion }
+    pintado.current = { escena, visibles, resaltada, seleccion, cortes }
     taller.current.pedirDibujo?.()
-  }, [catalogo, visibles, resaltada, seleccion])
+  }, [catalogo, visibles, resaltada, seleccion, cortes])
 
   // Las transformaciones que llegan por la prop se escriben en las texturas. Lo
   // que estaba transformado y ya no viene vuelve a su sitio: es lo que hace que
@@ -1052,7 +1296,7 @@ export function VisorAtlas({
   useEffect(() => {
     const controles = taller.current.controles
     if (!controles) return
-    const conMarco = herramienta === 'caja'
+    const conMarco = herramienta === 'caja' || herramienta === 'corte'
     controles.mouseButtons = {
       LEFT: conMarco ? (-1 as THREE.MOUSE) : THREE.MOUSE.ROTATE,
       MIDDLE: conMarco ? THREE.MOUSE.ROTATE : THREE.MOUSE.DOLLY,
@@ -1140,7 +1384,10 @@ export function VisorAtlas({
     // La cruz del marco se pone por clase y no escribiendo el cursor del lienzo:
     // los manejadores del ratón ya lo escriben en cada gesto, y la clase manda
     // sobre todos ellos mientras dure la herramienta.
-    <div className={herramienta === 'caja' ? 'atlas-lienzo atlas-lienzo-marco' : 'atlas-lienzo'} ref={lienzo}>
+    <div
+      className={herramienta === 'orbita' ? 'atlas-lienzo' : 'atlas-lienzo atlas-lienzo-marco'}
+      ref={lienzo}
+    >
       {progreso < 100 && !error ? (
         <div className="atlas-cargando">
           <div className="atlas-barra">
@@ -1153,6 +1400,12 @@ export function VisorAtlas({
       {error ? <div className="atlas-error">{error}</div> : null}
 
       {gesto ? <span className="atlas-gesto">{gesto}</span> : null}
+
+      {linea ? (
+        <svg className="atlas-linea-de-corte" aria-hidden="true">
+          <line x1={linea.x1} y1={linea.y1} x2={linea.x2} y2={linea.y2} />
+        </svg>
+      ) : null}
 
       {marco ? (
         <div
@@ -1207,9 +1460,12 @@ function aplicarVisibilidad(
   visibles: Set<string> | null,
   resaltada: string | null,
   seleccion: Set<string> | null = null,
+  cortadas: ReadonlySet<string> | null = null,
 ) {
   catalogo.piezas.forEach((pieza, i) => {
-    const encendida = !visibles || visibles.has(pieza.id)
+    // Una pieza partida (D-130) se apaga aquí aunque esté encendida: la dibujan
+    // sus dos trozos, y pintada además entera taparía el corte.
+    const encendida = (!visibles || visibles.has(pieza.id)) && !cortadas?.has(pieza.id)
     escena.datos[i * 4 + 3] = estadoDe(encendida, pieza.id === resaltada, !!seleccion?.has(pieza.id))
   })
   escena.estados.needsUpdate = true
@@ -1258,6 +1514,7 @@ function cambiarResaltado(
   seleccion: Set<string> | null,
   antes: string | null,
   ahora: string | null,
+  cortadas: ReadonlySet<string> | null = null,
 ) {
   if (antes === ahora) return
   const escribir = (id: string | null, resaltar: boolean) => {
@@ -1267,7 +1524,7 @@ function cambiarResaltado(
     // textura y hay que poder devolverle el suyo.
     const i = escena.indices.get(id)
     if (i === undefined) return
-    const encendida = !visibles || visibles.has(id)
+    const encendida = (!visibles || visibles.has(id)) && !cortadas?.has(id)
     marcarPieza(escena, i, estadoDe(encendida, resaltar, !!seleccion?.has(id)))
   }
   escribir(antes, false)
@@ -1323,6 +1580,12 @@ interface TallerDelVisor {
     empezar: (modo: ModoDeTransformacion) => boolean
     tecla: (tecla: string) => boolean
   }
+  /** Los trozos de los huesos partidos, por su identificador (`FJ1234#a`). */
+  fragmentos?: Map<string, FragmentoDelAtlas>
+  /** De qué corte salió cada pareja de trozos, para no volver a partir lo que no cambió. */
+  firmasDeCorte?: Map<string, string>
+  /** Piezas partidas: se apagan en su malla fusionada, porque las dibujan sus trozos. */
+  cortadas?: Set<string>
   /** Piezas a las que se les escribió una transformación, para devolverlas a su sitio. */
   transformadas?: Set<string>
   render?: THREE.WebGLRenderer

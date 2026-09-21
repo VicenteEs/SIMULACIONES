@@ -96,6 +96,20 @@ export function piezaBajoElRayo(
   escena: EscenaDelAtlas,
   separacion = 0,
 ): number {
+  return impactoBajoElRayo(rayo, catalogo, escena, separacion).indice
+}
+
+/**
+ * Lo mismo, con la distancia del impacto. La necesita quien tiene que comparar
+ * con algo que no está en las mallas fusionadas: los fragmentos de un hueso
+ * partido (D-130) son mallas sueltas, y gana lo que el rayo toque antes.
+ */
+export function impactoBajoElRayo(
+  rayo: THREE.Raycaster,
+  catalogo: CatalogoDelAtlas,
+  escena: EscenaDelAtlas,
+  separacion = 0,
+): { indice: number; distancia: number } {
   // --- etapa 1: cajas ------------------------------------------------------
   const candidatas: Candidata[] = []
 
@@ -136,7 +150,7 @@ export function piezaBajoElRayo(
     }
   }
 
-  if (candidatas.length === 0) return -1
+  if (candidatas.length === 0) return { indice: -1, distancia: Infinity }
   // De cerca a lejos: casi siempre acierta la primera y se puede parar.
   candidatas.sort((x, y) => x.distancia - y.distancia)
 
@@ -156,7 +170,7 @@ export function piezaBajoElRayo(
     }
   }
 
-  return mejor
+  return { indice: mejor, distancia: masCerca }
 }
 
 /** Distancia al triángulo más cercano de una pieza, o null si el rayo no la toca. */

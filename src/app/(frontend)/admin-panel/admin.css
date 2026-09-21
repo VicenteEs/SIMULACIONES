@@ -1915,6 +1915,17 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   z-index: 2;
 }
 
+/* La línea por la que se va a partir el hueso, mientras se traza. */
+.atlas-linea-de-corte {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+.atlas-linea-de-corte line { stroke: #d81b60; stroke-width: 2; stroke-dasharray: 6 4; }
+
 /* Lo que se lee durante un gesto de mover o girar: qué, sobre qué eje y cuánto. */
 .atlas-gesto {
   position: absolute;

@@ -218,6 +218,38 @@ el bloque «Preparación anatómica».
 4. «Frente», «Lateral», «Superior» (teclas 1, 3 y 7) y «Centrar» (el punto)
    colocan la cámara. «Encuadrar» centra todo lo que quedó.
 
+### Mover, rotar y quebrar
+
+Sirve para enseñar lo que no está en su sitio: una luxación, un fragmento
+desplazado, una fractura.
+
+- **Mover** (tecla **G**) y **Rotar** (tecla **R**): con algo seleccionado, pulse
+  la tecla o el botón y mueva el ratón, **sin mantener pulsado nada**: la pieza
+  lo sigue. Un **clic** o Intro lo dejan ahí; **Esc** o el botón derecho lo
+  cancelan. Durante el gesto, **X**, **Y** o **Z** lo atan a ese eje (la misma
+  tecla otra vez lo suelta). Abajo a la izquierda se lee cuánto lleva, en
+  milímetros o en grados.
+- **«A su sitio»** devuelve lo seleccionado a su lugar anatómico (Alt + G solo la
+  posición, Alt + R solo el giro).
+- **Cortar** (tecla **K**): seleccione **un** hueso, pulse «Cortar» y **trace una
+  línea de lado a lado** del hueso, por donde quiera la fractura. Queda partido
+  en dos fragmentos, cada uno con su tapa, que se seleccionan, se mueven y se
+  rotan por separado. El corte entra «hacia dentro» de la pantalla, así que
+  conviene mirar el hueso de frente o de lado antes de trazarlo. **«Soldar»**
+  deshace el corte. Un hueso movido hay que devolverlo a su sitio antes de
+  cortarlo, y cada hueso admite un solo corte.
+- **«Rayos X»** (Alt + Z) deja ver a través de todo lo que no esté seleccionado,
+  para encontrar un hueso bajo el músculo. Es solo una forma de mirar: no se
+  guarda.
+- **Mayús + G** selecciona todo lo encendido del mismo sistema que lo
+  seleccionado —todos los músculos, todos los vasos—, que es la forma rápida de
+  quitar una capa entera: Mayús + G y después Supr.
+
+Lo movido, lo rotado y lo cortado **se guarda con la preparación** y es lo que el
+residente ve en la ficha. «Deshacer» y «Rehacer» (Ctrl + Z, Ctrl + Mayús + Z)
+cubren también estos cambios. «Exportar como modelo», en cambio, sigue sacando
+la anatomía en su sitio: el corte para el simulador se hace en su propio panel.
+
 > **Un clic ya no apaga la pieza.** Hasta septiembre de 2026 pulsar una pieza la
 > apagaba; ahora la selecciona, como en Blender, y se apaga con Supr. El botón
 > «Atajos», bajo el visor, enseña la lista completa de teclas. La selección es

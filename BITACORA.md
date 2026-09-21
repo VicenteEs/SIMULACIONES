@@ -3637,6 +3637,7 @@ el plano en la preparación y partir la pieza al cargarla; depende de la fase 2,
 porque un fragmento que no se puede mover no se distingue del hueso entero.
 Las dos cambian el formato guardado, que es lo que ven los residentes, y por eso
 van aparte y con sus pruebas.
+*Después:* las dos fases se hicieron el mismo día: D-129 y D-130.
 
 ### D-127 · 2026-09-21 · vigente
 **Una página abierta se entera de que hay versión nueva, y se recarga sola si no
@@ -3705,6 +3706,87 @@ orden respecto de `notFound()`.
 *Consecuencias buenas.* El listado de la biblioteca deja de crecer con lo largo
 que sea cada ficha. *Malas.* Un campo nuevo en una tarjeta de listado hay que
 añadirlo también al `select`, o llega `undefined` sin ningún error.
+
+### D-129 · 2026-09-21 · vigente
+**Mover y rotar piezas en el taller (G y R), y lo que se mueve se guarda y se ve
+en las fichas. Segunda fase de D-126.**
+El dueño pidió «más funcionalidades de Blender». De su modo objeto se trajo lo
+que sirve para enseñar traumatología: sacar una pieza de su sitio.
+
+*Cómo.* Cada pieza sigue siendo un rango dentro de la malla fusionada de su
+sistema. Su transformación vive en dos texturas nuevas con la misma rejilla que
+la de estado —un cuaternión y un traslado— que lee el sombreador de vértices; la
+normal gira con la pieza. El giro es sobre el centro de la propia pieza, pero el
+sombreador gira sobre el origen del atlas, así que la diferencia se compone en
+la CPU, una vez por pieza (`ponerTransformacion`): q·(p − c) + c + t = q·p +
+(c − q·c + t). El picado no transforma geometría: le aplica al rayo la inversa y
+cruza contra la pieza en reposo (`rayoParaLaPieza`); el marco busca el centro
+donde se dibuja.
+
+*El gesto* es modal, como en Blender: G o R, las piezas siguen al ratón sin
+pulsar nada, X/Y/Z atan a un eje, clic o Intro confirman, Esc o el botón derecho
+cancelan; mientras dura, la cámara no se mueve y el teclado es suyo. Se calcula
+siempre desde la transformación de partida y no sumando incrementos, para que un
+giro de ida y vuelta devuelva la pieza a su sitio. Durante el gesto se escribe
+directo en las texturas; React solo se entera al confirmar. La cuenta está en
+`src/atlas/transformar.ts`, sin lienzo, con sus pruebas.
+
+*Formato.* `PiezaDeInstancia` gana `mover` y `girar`, opcionales. El servidor
+los limpia (`transformacionLimpia`): finitos, traslado acotado a 2 m, cuaternión
+normalizado y con la W positiva, y lo que no mueve nada no se guarda. Una
+preparación anterior se lee igual que antes. No hay migración: `contenido` es
+JSON.
+
+*De paso:* rehacer (Ctrl + Mayús + Z), deshacer cubre también lo movido, Mayús +
+G selecciona el mismo sistema, y «Rayos X» (Alt + Z) pinta en damero lo no
+seleccionado —transparencia sin ordenar 2,3 millones de triángulos—.
+
+*Consecuencias buenas.* Una luxación o un desplazamiento se arman en el taller y
+se ven en la ficha. *Malas.* Dos lecturas de textura más por vértice. El pivote
+de la cámara y «Encuadrar» siguen midiendo la caja en reposo: una pieza llevada
+lejos queda fuera del encuadre automático. «Exportar como modelo» ignora lo
+movido. Con el cuerpo separado y la pieza girada a la vez el picado se equivoca
+por poco; el mando de separación ya no existe (D-125).
+
+### D-130 · 2026-09-21 · vigente
+**Quebrar un hueso en el taller: se traza una línea y queda partido en dos
+fragmentos que se mueven por separado. Tercera fase de D-126.**
+Es lo que el dueño pidió desde el principio, con esas palabras.
+
+*Cómo.* Herramienta «Cortar» (K), copiada del «Bisect» de Blender: actúa sobre
+lo seleccionado —un solo hueso—, y el plano contiene la línea trazada y la
+dirección en la que se mira (`planoDeLaLinea`). Parte `partirMalla`, el mismo
+corte con tapa que usa la exportación al simulador (`src/lib/osteotomia.ts`).
+Un hueso partido no cabe en la malla fusionada —tiene triángulos nuevos y dos
+tapas—: se apaga allí y entra en la escena como dos `Mesh` sueltos
+(`src/atlas/fragmentos.ts`), con el material de su sistema. Se señalan con el
+cruce de rayos de three, que para dieciséis mallas pequeñas sobra, y gana lo que
+el rayo toque antes, pieza o trozo. Los fragmentos se llaman `FJ3387#a` y `#b`,
+se seleccionan, entran en el marco y se mueven con G y R como cualquier pieza.
+«Soldar» deshace el corte.
+
+*Formato.* `ContenidoDeInstancia.cortes`: la pieza, el punto y la normal del
+plano, y lo movido de cada fragmento. **No se guarda geometría**: la ficha parte
+el hueso al cargar. Una tibia partida pesa seis números. El servidor valida
+(`cortesValidos`): pieza presente en la preparación, un corte por pieza, ocho
+por preparación, números finitos, normal no nula.
+
+*Lo que se decidió no hacer.* Cortar una pieza ya movida: habría que llevar el
+plano a su espacio en reposo y heredar la transformación en los dos trozos; se
+pide devolverla a su sitio antes. Más de un corte por hueso —una conminuta—:
+pediría fragmentos de fragmentos. Un trazo libre o en zigzag: el corte es un
+plano, «un corte limpio sirve» (O de `osteotomia.ts`).
+
+*Consecuencias buenas.* Una fractura desplazada se arma en dos minutos y sin
+Blender, y se ve en la ficha. Se comprobó en un navegador con el atlas entero:
+tibia partida, fragmento movido y girado, guardado, reabierto sin «cambios sin
+guardar». *Malas.* Cada ficha con un corte parte el hueso en el navegador del
+residente al abrirla. Si el atlas se regenera y el plano deja de tocar la pieza,
+la ficha la enseña entera, sin aviso al lector. Apagar un fragmento apaga el
+hueso entero. Los rayos X no atraviesan los fragmentos. Y se quitó el aviso de
+«hueso partido»: los avisos van encima del lienzo y lo empujan, de modo que el
+clic siguiente —sobre el fragmento— caía en otra pieza; esa forma de avisar le
+pasa lo mismo a cualquier otro mensaje que salga a mitad de un gesto.
 
 ---
 

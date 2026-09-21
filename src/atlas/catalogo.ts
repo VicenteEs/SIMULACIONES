@@ -8,11 +8,13 @@
  */
 
 import {
+  MAXIMO_DE_CORTES,
   MAXIMO_DE_TRASLADO,
   MAXIMO_PIEZAS,
   VISTA_INICIAL,
   type CatalogoDelAtlas,
   type ContenidoDeInstancia,
+  type CorteDePieza,
   type PiezaDelAtlas,
   type VistaDeInstancia,
 } from './formato'
@@ -239,6 +241,7 @@ export function normalizarSeleccion(
   catalogo: CatalogoDelAtlas,
   piezas: unknown,
   vista: unknown,
+  cortes?: unknown,
 ): ContenidoDeInstancia {
   const conocidas = new Set(catalogo.piezas.map((p) => p.id))
   const vistas = new Set<string>()
@@ -266,12 +269,59 @@ export function normalizarSeleccion(
     }
   }
 
+  const cortesLimpios = cortesValidos(cortes, vistas)
   return {
     version: 1,
     atlas: catalogo.version,
     piezas: salida,
     vista: normalizarVista(vista),
+    ...(cortesLimpios.length > 0 ? { cortes: cortesLimpios } : {}),
   }
+}
+
+/**
+ * Los cortes que se dejan guardar (D-130).
+ *
+ * Solo sobre piezas que están en la preparación, uno por pieza, con números
+ * finitos y una normal que apunte a algún sitio. Llega del navegador: un plano
+ * con un `NaN` haría fallar `partirMalla` al abrir la ficha, y el residente
+ * vería una anatomía que no carga por algo que se guardó semanas antes.
+ */
+function cortesValidos(brutos: unknown, enLaPreparacion: ReadonlySet<string>): CorteDePieza[] {
+  if (!Array.isArray(brutos)) return []
+  const salida: CorteDePieza[] = []
+  const yaCortadas = new Set<string>()
+  const trio = (valor: unknown): [number, number, number] | null =>
+    Array.isArray(valor) &&
+    valor.length === 3 &&
+    valor.every((n) => typeof n === 'number' && Number.isFinite(n))
+      ? (valor as [number, number, number])
+      : null
+
+  for (const bruto of brutos) {
+    if (!bruto || typeof bruto !== 'object') continue
+    const { pieza, punto, normal, a, b } = bruto as Record<string, unknown>
+    if (typeof pieza !== 'string' || !enLaPreparacion.has(pieza) || yaCortadas.has(pieza)) continue
+    const p = trio(punto)
+    const n = trio(normal)
+    if (!p || !n) continue
+    const largo = Math.hypot(n[0], n[1], n[2])
+    if (largo < 1e-6) continue
+    const seis = (x: number) => Math.round(x * 1e6) / 1e6 || 0
+
+    const ladoA = transformacionLimpia(a)
+    const ladoB = transformacionLimpia(b)
+    yaCortadas.add(pieza)
+    salida.push({
+      pieza,
+      punto: [seis(p[0]), seis(p[1]), seis(p[2])],
+      normal: [seis(n[0] / largo), seis(n[1] / largo), seis(n[2] / largo)],
+      ...(ladoA.mover || ladoA.girar ? { a: ladoA } : {}),
+      ...(ladoB.mover || ladoB.girar ? { b: ladoB } : {}),
+    })
+    if (salida.length >= MAXIMO_DE_CORTES) break
+  }
+  return salida
 }
 
 /**

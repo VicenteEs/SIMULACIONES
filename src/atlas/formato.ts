@@ -140,6 +140,54 @@ export interface ContenidoDeInstancia {
   atlas: string
   piezas: PiezaDeInstancia[]
   vista: VistaDeInstancia
+  /** Huesos partidos en dos (D-130). Ausente si no hay ninguno. */
+  cortes?: CorteDePieza[]
+}
+
+/** Lo que un fragmento se ha movido; los mismos dos campos que en una pieza. */
+export type TransformacionGuardada = Pick<PiezaDeInstancia, 'mover' | 'girar'>
+
+/**
+ * Una pieza partida por un plano.
+ *
+ * No se guarda geometría: se guarda el plano, en el espacio anatómico de la
+ * pieza, y el visor la parte al cargarla con `partirMalla`. Una tibia partida
+ * pesa en la base lo que pesan seis números, y si el atlas se regenera el corte
+ * se rehace sobre la geometría nueva.
+ */
+export interface CorteDePieza {
+  pieza: string
+  punto: [number, number, number]
+  /** Unitaria. El fragmento `a` es el que queda hacia donde apunta. */
+  normal: [number, number, number]
+  a?: TransformacionGuardada
+  b?: TransformacionGuardada
+}
+
+/** Un corte por pieza, y pocos por preparación: cada uno se parte en el navegador al abrir la ficha. */
+export const MAXIMO_DE_CORTES = 8
+
+export type LadoDelCorte = 'a' | 'b'
+
+/**
+ * Los fragmentos se nombran con el identificador de su pieza y el lado. La
+ * almohadilla no aparece en ningún identificador del atlas (`FJ1234`), así que
+ * separa sin ambigüedad.
+ */
+export function idDeFragmento(pieza: string, lado: LadoDelCorte): string {
+  return `${pieza}#${lado}`
+}
+
+export function partesDeFragmento(id: string): { pieza: string; lado: LadoDelCorte } | null {
+  const corte = id.lastIndexOf('#')
+  if (corte < 0) return null
+  const lado = id.slice(corte + 1)
+  return lado === 'a' || lado === 'b' ? { pieza: id.slice(0, corte), lado } : null
+}
+
+/** La pieza del atlas a la que pertenece un identificador, sea pieza o fragmento. */
+export function piezaDe(id: string): string {
+  return partesDeFragmento(id)?.pieza ?? id
 }
 
 /** Cámara por omisión: el cuerpo entero de frente. */

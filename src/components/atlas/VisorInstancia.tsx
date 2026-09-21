@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import type { CatalogoDelAtlas, ContenidoDeInstancia } from '@/atlas/formato'
+import { idDeFragmento, type CatalogoDelAtlas, type ContenidoDeInstancia } from '@/atlas/formato'
 import { cargarCatalogo } from '@/atlas/cargador'
 import { normalizarSeleccion } from '@/atlas/catalogo'
 import { VisorAtlas } from './VisorAtlas'
@@ -46,7 +46,7 @@ export function VisorInstancia({
   // visor, que reescribe la textura de estado entera.
   const preparado = useMemo(() => {
     if (!catalogo) return null
-    const limpio = normalizarSeleccion(catalogo, contenido.piezas, contenido.vista)
+    const limpio = normalizarSeleccion(catalogo, contenido.piezas, contenido.vista, contenido.cortes)
     // Las piezas que su autor sacó de su sitio (D-129): una luxación, un
     // fragmento desplazado. Memorizado con lo demás y por lo mismo: un mapa
     // nuevo en cada pintado volvería a escribir las texturas cada vez.
@@ -55,6 +55,17 @@ export function VisorInstancia({
         .filter((p) => p.mover || p.girar)
         .map((p) => [p.id, { mover: p.mover ?? [0, 0, 0], girar: p.girar ?? [0, 0, 0, 1] }] as const),
     )
+    // Y lo de cada fragmento de un hueso partido (D-130), bajo su identificador.
+    for (const corte of limpio.cortes ?? []) {
+      for (const lado of ['a', 'b'] as const) {
+        const t = corte[lado]
+        if (!t) continue
+        movidas.set(idDeFragmento(corte.pieza, lado), {
+          mover: t.mover ?? [0, 0, 0],
+          girar: t.girar ?? [0, 0, 0, 1],
+        })
+      }
+    }
     return { limpio, visibles: new Set(limpio.piezas.map((p) => p.id)), movidas }
   }, [catalogo, contenido])
 
@@ -89,6 +100,7 @@ export function VisorInstancia({
           separacion={preparado.limpio.vista.separacion}
           vistaInicial={preparado.limpio.vista}
           transformaciones={preparado.movidas}
+          cortes={preparado.limpio.cortes ?? null}
           soloLectura
         />
       </div>

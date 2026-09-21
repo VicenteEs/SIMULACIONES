@@ -346,8 +346,13 @@ describe('el visor usa la regla del pivote', () => {
   })
 
   it('enseña en español el nombre de la pieza bajo el ratón', () => {
-    expect(visor).toMatch(/texto: nombreEnEspanol\(catalogo\.piezas\[indice\]\.nombre\)/)
-    expect(visor).not.toMatch(/texto: catalogo\.piezas\[indice\]\.nombre/)
+    // El nombre lo prepara `loQueSeSenala`, que contesta por igual de una pieza
+    // entera y de un fragmento de hueso partido (D-130), y siempre traducido.
+    const senalar = entre(visor, 'const loQueSeSenala = ', '// --- mover y girar piezas')
+    expect(senalar).toMatch(/nombre: nombreEnEspanol\(catalogo\.piezas\[entera\.indice\]\.nombre\)/)
+    expect(senalar).toMatch(/nombreEnEspanol\(catalogo\.piezas\[i\]\.nombre\)/)
+    expect(visor).toContain('setNombreFlotante({ texto: senalada.nombre, x: local.x, y: local.y })')
+    expect(visor).not.toMatch(/nombre: catalogo\.piezas\[[a-z.]+\]\.nombre/)
   })
 })
 
@@ -358,7 +363,13 @@ describe('el taller usa lo que el visor decide', () => {
     const abrir = entre(taller, 'const abrir = ', 'const guardar = ')
     expect(abrir).toContain('setVisibles(piezasAbiertas)')
     expect(abrir).toMatch(/const vistaAbierta =\s*mando\.current\?\.irA\(r\.datos\.contenido\.vista, piezasAbiertas\)/)
-    expect(abrir).toMatch(/fijarReferencia\(\s*piezasAbiertas,[\s\S]*vistaAbierta,\s*\)/)
+    // El último argumento son las piezas movidas que trae la preparación
+    // (D-129) y sus huesos partidos (D-130): sin ellos en la referencia, abrir
+    // una preparación con un fragmento desplazado
+    // la daría por cambiada nada más abrirla.
+    expect(abrir).toMatch(
+      /fijarReferencia\(\s*piezasAbiertas,[\s\S]*vistaAbierta,\s*movidasAbiertas,\s*cortesAbiertos,\s*\)/,
+    )
     expect(abrir.indexOf('irA(')).toBeLessThan(abrir.indexOf('fijarReferencia('))
 
     const deCero = entre(taller, 'const empezarDeCero = ', 'const abrir = ')
