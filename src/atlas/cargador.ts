@@ -35,9 +35,14 @@ const CANALES = 4
  *
  * Los tres primeros canales son el desplazamiento de la pieza al separar el
  * cuerpo; el cuarto codifica visibilidad y selección a la vez para no gastar
- * una segunda textura: 0 oculta, 1 visible, 2 visible y resaltada.
+ * una segunda textura: 0 oculta, 1 visible, 2 visible y resaltada, 3 visible y
+ * seleccionada.
+ *
+ * El orden importa: todo lo que sea `>= VISIBLE` se dibuja y se puede señalar,
+ * y así lo preguntan el picado y la selección por caja. Un estado nuevo que
+ * deba verse va por encima de 1, nunca por debajo.
  */
-export const ESTADO = { OCULTA: 0, VISIBLE: 1, RESALTADA: 2 } as const
+export const ESTADO = { OCULTA: 0, VISIBLE: 1, RESALTADA: 2, SELECCIONADA: 3 } as const
 
 /**
  * Dónde vive una pieza dentro de la malla fusionada de su sistema.
@@ -341,6 +346,7 @@ function materialDelSistema(
       uniform float separacion;
       varying float vVisible;
       varying float vResaltada;
+      varying float vSeleccionada;
     ${sombreador.vertexShader}`
       .replace(
         '#include <begin_vertex>',
@@ -350,13 +356,15 @@ function materialDelSistema(
                              (fila + 0.5) / ladoEstados);
         vec4 estado = texture2D(estados, uvEstado);
         vVisible = step(0.5, estado.a);
-        vResaltada = step(1.5, estado.a);
+        vSeleccionada = step(2.5, estado.a);
+        vResaltada = step(1.5, estado.a) - vSeleccionada;
         transformed += estado.xyz * separacion;`,
       )
 
     sombreador.fragmentShader = `
       varying float vVisible;
       varying float vResaltada;
+      varying float vSeleccionada;
     ${sombreador.fragmentShader}`
       .replace(
         '#include <clipping_planes_fragment>',
@@ -368,7 +376,12 @@ function materialDelSistema(
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.62, 0.88), vResaltada * 0.65);`,
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.62, 0.88), vResaltada * 0.65);
+        // El naranja de la selección de Blender, a propósito: quien viene de
+        // allí lo lee sin que nadie se lo explique, y no se confunde con el
+        // azul del resaltado, que es «por aquí pasa el ratón» y no «esto está
+        // elegido».
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.55, 0.1), vSeleccionada * 0.7);`,
       )
 
     // Se guarda para poder mover el mando de separación sin recompilar.

@@ -1901,6 +1901,74 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   z-index: 3;
 }
 
+/* ---------- trabajo al estilo de Blender (D-126) ---------- */
+.atlas-lienzo-marco canvas { cursor: crosshair !important; }
+
+/* El marco de selección. Sin eventos: va encima del lienzo y se comería el
+   `pointerup` que lo cierra. El nombre es largo porque `.atlas-marco` ya es la
+   rejilla de la pantalla entera. */
+.atlas-marco-de-seleccion {
+  position: absolute;
+  pointer-events: none;
+  border: 1px dashed #ff8c1a;
+  background: rgba(255, 140, 26, 0.12);
+  z-index: 2;
+}
+
+.atlas-herramientas {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+}
+
+.atlas-herramientas-grupo { display: flex; gap: 2px; }
+
+.atlas-herramienta {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 9px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--tinta);
+  cursor: pointer;
+}
+.atlas-herramienta:hover:not(:disabled) { background: var(--linea-suave); }
+.atlas-herramienta:disabled { color: var(--mudo); cursor: default; opacity: 0.6; }
+.atlas-herramienta[aria-pressed='true'] {
+  background: var(--marca);
+  border-color: var(--marca);
+  color: #fff;
+}
+
+.atlas-atajos {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 4px 20px;
+  font-size: 12px;
+}
+.atlas-atajos > div { display: flex; gap: 10px; }
+.atlas-atajos dt { font-family: var(--mono); font-size: 11.5px; min-width: 12ch; color: var(--tinta); }
+.atlas-atajos dd { margin: 0; color: var(--mudo); }
+
+.atlas-seleccionadas {
+  font-size: 12px;
+  color: var(--tinta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- mandos bajo el lienzo ---------- */
 .atlas-mandos {
   display: flex;

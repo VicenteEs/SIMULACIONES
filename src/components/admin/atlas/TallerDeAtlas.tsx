@@ -5,7 +5,8 @@ import dynamic from 'next/dynamic'
 import type { CatalogoDelAtlas, PiezaDelAtlas, VistaDeInstancia } from '@/atlas/formato'
 import { VISTA_INICIAL } from '@/atlas/formato'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
-import type { MandoDelVisor } from '@/components/atlas/VisorAtlas'
+import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
+import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
 // Estático sin miedo: `nombres.ts` es una tabla JSON y tres funciones de texto,
 // sin three. Lo que no puede entrar así es `@/atlas/cargador` (ver abajo).
 import { casaConLaBusqueda, nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
@@ -91,6 +92,29 @@ const VisorAtlas = dynamic(
  * y del redondeo de `vistaActual()`; por encima no hay gesto humano que mueva
  * menos.
  */
+/** Cuántos encendidos y apagados se pueden deshacer. */
+const MAXIMO_DE_DESHACER = 50
+
+/**
+ * Los atajos, tal como se enseñan en el panel «Atajos». Son los de Blender
+ * donde Blender tiene uno, porque es de donde viene quien los pidió; las vistas
+ * valen también con los números de arriba, porque un portátil no tiene teclado
+ * numérico. La lista y `alPulsarTecla` se cambian juntas.
+ */
+const ATAJOS_DEL_TALLER: [string, string][] = [
+  ['Clic', 'Seleccionar una pieza. Mayús + clic la suma o la quita.'],
+  ['B', 'Marco: arrastrar para seleccionar. Mayús suma, Ctrl quita. Esc vuelve a girar.'],
+  ['A · Alt + A', 'Seleccionar todo lo encendido · no seleccionar nada.'],
+  ['Ctrl + I', 'Invertir la selección.'],
+  ['Supr · X · H', 'Apagar lo seleccionado.'],
+  ['Mayús + H', 'Dejar encendido solo lo seleccionado.'],
+  ['Alt + H', 'Encender todo el cuerpo.'],
+  ['Ctrl + Z', 'Deshacer el último encendido o apagado.'],
+  ['1 · 3 · 7', 'Vista de frente, lateral y superior. Con Ctrl, la contraria.'],
+  ['Punto', 'Centrar la vista en lo seleccionado.'],
+  ['Inicio', 'Encuadrar todo lo encendido.'],
+]
+
 const HOLGURA_ENCUADRE = 0.002
 
 /**
@@ -169,6 +193,24 @@ export function TallerDeAtlas() {
   const [visibles, setVisibles] = useState<Set<string>>(new Set())
   const [resaltada, setResaltada] = useState<string | null>(null)
   const [separacion, setSeparacion] = useState(0)
+
+  // --- el trabajo al estilo de Blender (D-126) ------------------------------
+  //
+  // La selección no se guarda: es con qué se está trabajando ahora, no parte de
+  // la preparación. Por eso no entra en la referencia de «cambios sin guardar».
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
+  const [herramienta, setHerramienta] = useState<HerramientaDelVisor>('orbita')
+  const [atajosAbiertos, setAtajosAbiertos] = useState(false)
+  /**
+   * Las piezas encendidas de antes de cada cambio, para Ctrl + Z.
+   *
+   * Solo deshace lo encendido y lo apagado, que es lo que se pierde con un
+   * gesto de más: un marco mal soltado seguido de Supr apagaba cuarenta piezas
+   * y volver a encontrarlas en el árbol era rehacer el trabajo. Tiene techo
+   * porque cada entrada es un conjunto de hasta 2.234 identificadores. Es
+   * estado y no un ref porque el botón «Deshacer» se apaga cuando está vacío.
+   */
+  const [historial, setHistorial] = useState<Set<string>[]>([])
 
   const [instancia, setInstancia] = useState<string | null>(null)
   const [nombre, setNombre] = useState('')
@@ -519,10 +561,62 @@ export function TallerDeAtlas() {
    * eliminar la preparación abierta: encadenar dos confirmaciones seguidas por
    * el mismo gesto enseña a pulsar «aceptar» sin leer.
    */
+  /**
+   * Cambia las piezas encendidas dejando la anterior en el historial. Es la
+   * puerta de todo cambio que haga la persona —árbol, teclado, barra—; abrir
+   * una preparación o volver al cuerpo completo no pasan por aquí, vacían el
+   * historial: deshacer hasta la preparación anterior mezclaría dos trabajos.
+   */
+  const cambiarVisibles = (nuevas: Set<string>) => {
+    setHistorial((pasos) => [...pasos, visibles].slice(-MAXIMO_DE_DESHACER))
+    setVisibles(nuevas)
+    // Lo que se apaga deja de estar seleccionado: una selección que no se ve
+    // es una pieza que el siguiente Supr o «Solo esto» toca a ciegas.
+    setSeleccion((actual) => {
+      if (actual.size === 0) return actual
+      const quedan = new Set([...actual].filter((id) => nuevas.has(id)))
+      return quedan.size === actual.size ? actual : quedan
+    })
+  }
+
+  const deshacer = () => {
+    const anterior = historial.at(-1)
+    if (!anterior) return
+    setHistorial(historial.slice(0, -1))
+    setVisibles(anterior)
+  }
+
+  const alSeleccionar = (ids: string[], modo: ModoDeSeleccion) =>
+    setSeleccion((actual) => seleccionTras(actual, ids, modo))
+
+  const apagarSeleccion = () => {
+    if (seleccion.size === 0) return
+    cambiarVisibles(new Set([...visibles].filter((id) => !seleccion.has(id))))
+  }
+  const dejarSoloLaSeleccion = () => {
+    if (seleccion.size === 0) return
+    cambiarVisibles(new Set(seleccion))
+  }
+  const encenderTodo = () => {
+    if (!catalogo) return
+    cambiarVisibles(new Set(catalogo.piezas.map((p) => p.id)))
+  }
+  const encuadrarLoElegido = () => {
+    if (seleccion.size > 0) mando.current?.encuadrarPiezas(seleccion)
+    else mando.current?.encuadrar()
+    revisarEncuadre()
+  }
+  const mirarDesde = (lado: LadoDeLaVista) => {
+    mando.current?.mirarDesde(lado)
+    revisarEncuadre()
+  }
+
   const empezarDeCero = (preguntar = true) => {
     if (!catalogo) return
     if (preguntar && !confirmarDescarte('Se volverá al cuerpo completo, sin nombre.')) return
     const todas = new Set(catalogo.piezas.map((p) => p.id))
+    setHistorial([])
+    setSeleccion(new Set())
     setInstancia(null)
     setNombre('')
     setDescripcion('')
@@ -553,6 +647,8 @@ export function TallerDeAtlas() {
           return
         }
         const piezasAbiertas = new Set(r.datos.contenido.piezas.map((p) => p.id))
+        setHistorial([])
+        setSeleccion(new Set())
         setInstancia(r.datos.id)
         setNombre(r.datos.nombre)
         setDescripcion(r.datos.descripcion ?? '')
@@ -772,6 +868,67 @@ export function TallerDeAtlas() {
       }
     })
   }
+
+  const nombreDeLaSeleccionada = useMemo(() => {
+    if (!catalogo || seleccion.size !== 1) return ''
+    const [id] = seleccion
+    const pieza = catalogo.piezas.find((p) => p.id === id)
+    return pieza ? nombreEnEspanol(pieza.nombre) : ''
+  }, [catalogo, seleccion])
+
+  // Los atajos escuchan en la ventana, una sola vez, y leen de un ref lo que
+  // hay que hacer: es el mismo arreglo que `hayAlgoQuePerder`, y por lo mismo.
+  // Una escucha que capturase las funciones de su pintado apagaría la selección
+  // de hace tres clics.
+  const alPulsarTecla = useRef<(evento: KeyboardEvent) => void>(() => {})
+  useEffect(() => {
+    alPulsarTecla.current = (evento) => {
+      // Escribiendo el nombre de la preparación, una «h» es una hache.
+      const donde = evento.target as HTMLElement | null
+      if (donde?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (!catalogo) return
+
+      const tecla = evento.key.toLowerCase()
+      const control = evento.ctrlKey || evento.metaKey
+      let atendida = true
+
+      if (control && tecla === 'z') deshacer()
+      else if (control && tecla === 'i') {
+        setSeleccion(new Set([...visibles].filter((id) => !seleccion.has(id))))
+      } else if (control && ['1', '3', '7'].includes(tecla)) {
+        mirarDesde(tecla === '1' ? 'atras' : tecla === '3' ? 'izquierda' : 'abajo')
+      } else if (control) atendida = false
+      else if (evento.altKey && tecla === 'h') encenderTodo()
+      else if (evento.altKey && tecla === 'a') setSeleccion(new Set())
+      else if (evento.altKey) atendida = false
+      else if (tecla === 'h' && evento.shiftKey) dejarSoloLaSeleccion()
+      else if (tecla === 'h' || tecla === 'x' || tecla === 'delete') apagarSeleccion()
+      else if (tecla === 'a') setSeleccion(new Set(visibles))
+      else if (tecla === 'b') setHerramienta((actual) => (actual === 'caja' ? 'orbita' : 'caja'))
+      else if (tecla === 'escape') {
+        // Primero suelta la herramienta y solo después la selección: un Esc de
+        // más no debe llevarse un marco que costó encuadrar.
+        if (herramienta === 'caja') setHerramienta('orbita')
+        else setSeleccion(new Set())
+      } else if (tecla === '1') mirarDesde('frente')
+      else if (tecla === '3') mirarDesde('derecha')
+      else if (tecla === '7') mirarDesde('arriba')
+      else if (tecla === '.' || evento.code === 'NumpadDecimal') encuadrarLoElegido()
+      else if (tecla === 'home') {
+        mando.current?.encuadrar()
+        revisarEncuadre()
+      } else atendida = false
+
+      // Solo lo atendido: Ctrl + I abre la información de la página en algunos
+      // navegadores y Alt + H un menú; lo demás sigue siendo del navegador.
+      if (atendida) evento.preventDefault()
+    }
+  })
+  useEffect(() => {
+    const escuchar = (evento: KeyboardEvent) => alPulsarTecla.current(evento)
+    window.addEventListener('keydown', escuchar)
+    return () => window.removeEventListener('keydown', escuchar)
+  }, [])
 
   const resumen = useMemo(() => {
     if (!catalogo) return null
@@ -1098,7 +1255,7 @@ export function TallerDeAtlas() {
           <ArbolAnatomico
             catalogo={catalogo}
             visibles={visibles}
-            alCambiarVisibles={setVisibles}
+            alCambiarVisibles={cambiarVisibles}
             resaltada={resaltada}
             alResaltar={setResaltada}
           />
@@ -1127,27 +1284,126 @@ export function TallerDeAtlas() {
             // Solo con el panel de exportar abierto: cerrado, un plano magenta
             // cruzando la tibia sin ningún mando a la vista no se explica.
             corte={panelExportar ? corteVivo : null}
-            // Pulsar una pieza en el visor la apaga: es el gesto directo de
-            // «esto me estorba, fuera».
-            alPulsarPieza={(id) => {
-              const nuevas = new Set(visibles)
-              nuevas.delete(id)
-              setVisibles(nuevas)
-            }}
+            // Pulsar una pieza la selecciona, como en Blender, y ya no la
+            // apaga (D-126): apagar es Supr, X o H sobre lo seleccionado. Un
+            // clic que borra no deja elegir nada, y sin elegir no hay marco,
+            // ni «solo esto», ni nada que venga después.
+            seleccion={seleccion}
+            alSeleccionar={alSeleccionar}
+            herramienta={herramienta}
           />
 
+          <div className="atlas-herramientas" role="toolbar" aria-label="Herramientas del visor">
+            <div className="atlas-herramientas-grupo">
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={herramienta === 'orbita'}
+                title="Girar la vista arrastrando (Esc)"
+                onClick={() => setHerramienta('orbita')}
+              >
+                Girar
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={herramienta === 'caja'}
+                title="Seleccionar arrastrando un marco (B). Mayús suma, Ctrl quita."
+                onClick={() => setHerramienta('caja')}
+              >
+                Marco
+              </button>
+            </div>
+            <div className="atlas-herramientas-grupo">
+              <button
+                type="button"
+                className="atlas-herramienta"
+                disabled={seleccion.size === 0}
+                title="Apagar lo seleccionado (Supr, X o H)"
+                onClick={apagarSeleccion}
+              >
+                Apagar
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                disabled={seleccion.size === 0}
+                title="Dejar solo lo seleccionado (Mayús + H)"
+                onClick={dejarSoloLaSeleccion}
+              >
+                Solo esto
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                title="Encender todo el cuerpo (Alt + H)"
+                onClick={encenderTodo}
+              >
+                Encender todo
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                disabled={historial.length === 0}
+                title="Deshacer el último encendido o apagado (Ctrl + Z)"
+                onClick={deshacer}
+              >
+                Deshacer
+              </button>
+            </div>
+            <div className="atlas-herramientas-grupo">
+              <button type="button" className="atlas-herramienta" title="De frente (1)" onClick={() => mirarDesde('frente')}>
+                Frente
+              </button>
+              <button type="button" className="atlas-herramienta" title="Desde la derecha del paciente (3)" onClick={() => mirarDesde('derecha')}>
+                Lateral
+              </button>
+              <button type="button" className="atlas-herramienta" title="Desde arriba (7)" onClick={() => mirarDesde('arriba')}>
+                Superior
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                title="Encuadrar lo seleccionado, o todo lo encendido si no hay selección (punto)"
+                onClick={encuadrarLoElegido}
+              >
+                Centrar
+              </button>
+            </div>
+            <button
+              type="button"
+              className="atlas-herramienta"
+              aria-expanded={atajosAbiertos}
+              aria-controls="atlas-atajos"
+              onClick={() => setAtajosAbiertos((abierto) => !abierto)}
+            >
+              Atajos
+            </button>
+          </div>
+
+          {atajosAbiertos ? (
+            <dl className="atlas-atajos" id="atlas-atajos">
+              {ATAJOS_DEL_TALLER.map(([tecla, efecto]) => (
+                <div key={tecla}>
+                  <dt>{tecla}</dt>
+                  <dd>{efecto}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+
+          {/* Aquí estuvo el mando «Separar» (D-125). El estado `separacion` se
+              conserva sin mando a propósito: una preparación que la traiga
+              guardada se abre y se vuelve a guardar tal como estaba, en vez de
+              cerrarse en silencio al primer guardado. */}
           <div className="atlas-mandos">
-            <label className="atlas-separador-mando">
-              <span>Separar</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={Math.round(separacion * 100)}
-                onChange={(e) => setSeparacion(Number(e.target.value) / 100)}
-              />
-              <span className="atlas-separador-valor">{Math.round(separacion * 100)}%</span>
-            </label>
+            <span className="atlas-seleccionadas">
+              {seleccion.size === 0
+                ? 'Nada seleccionado'
+                : seleccion.size === 1
+                  ? nombreDeLaSeleccionada
+                  : `${seleccion.size} piezas seleccionadas`}
+            </span>
             <span className="atlas-resumen">{resumen || 'Nada encendido'}</span>
           </div>
         </div>
@@ -1177,7 +1433,7 @@ export function TallerDeAtlas() {
             />
 
             <p className="campo-ayuda">
-              Se guardan las piezas encendidas, el encuadre de la cámara y la separación. El atlas
+              Se guardan las piezas encendidas y el encuadre de la cámara. El atlas
               original no se toca: lo que apague aquí se puede volver a encender siempre.
             </p>
           </div>

@@ -22,6 +22,8 @@ import {
   type EscenaDelAtlas,
 } from '@/atlas/cargador'
 import { piezaBajoElRayo } from '@/atlas/picking'
+import { piezasEnElRectangulo, rectanguloNormalizado } from '@/atlas/seleccionPorCaja'
+import type { ModoDeSeleccion } from '@/atlas/seleccion'
 import { nombreEnEspanol } from '@/atlas/nombres'
 import {
   DURACION_DEL_PIVOTE_MS,
@@ -109,7 +111,29 @@ export interface MandoDelVisor {
    * No toca la separación: esa tiene su propio estado y su propio efecto.
    */
   irA: (vista: VistaDeInstancia, visibles?: Set<string> | null) => VistaDeInstancia
+  /**
+   * Encuadra solo las piezas dadas, estén o no todas encendidas. Es el punto
+   * del teclado numérico de Blender: «llévame a lo que tengo seleccionado».
+   * Con un conjunto vacío no hace nada.
+   */
+  encuadrarPiezas: (piezas: Set<string>) => void
+  /**
+   * Mira el pivote actual desde uno de los seis lados, a la distancia a la que
+   * ya estaba la cámara. Son las vistas 1, 3 y 7 de Blender y sus contrarias.
+   */
+  mirarDesde: (lado: LadoDeLaVista) => void
 }
+
+/** Desde dónde se mira. El atlas está de pie, con la Y hacia arriba y de cara a +Z. */
+export type LadoDeLaVista = 'frente' | 'atras' | 'derecha' | 'izquierda' | 'arriba' | 'abajo'
+
+
+/**
+ * Qué hace el botón izquierdo al arrastrar. En `orbita` gira la cámara, como
+ * siempre; en `caja` dibuja un marco de selección y el giro pasa al botón
+ * central, que es donde lo tiene Blender.
+ */
+export type HerramientaDelVisor = 'orbita' | 'caja'
 
 /**
  * Aviso de contexto WebGL perdido.
@@ -131,6 +155,9 @@ export function VisorAtlas({
   vistaInicial,
   soloLectura = false,
   alPulsarPieza,
+  seleccion = null,
+  alSeleccionar,
+  herramienta = 'orbita',
   alAsentarVista,
   corte = null,
   mando,
@@ -147,6 +174,15 @@ export function VisorAtlas({
   vistaInicial?: VistaDeInstancia
   soloLectura?: boolean
   alPulsarPieza?: (id: string) => void
+  /** Piezas seleccionadas, que se pintan en naranja. Solo las usa el taller. */
+  seleccion?: Set<string> | null
+  /**
+   * Si llega, un clic sobre una pieza la **selecciona** en vez de llamar a
+   * `alPulsarPieza`, y un clic en el vacío vacía la selección. Un marco
+   * arrastrado con la herramienta `caja` llega aquí con todas sus piezas.
+   */
+  alSeleccionar?: (ids: string[], modo: ModoDeSeleccion) => void
+  herramienta?: HerramientaDelVisor
   /**
    * Avisa de que, al terminar la descarga, la vista guardada se recolocó sobre
    * lo visible: `antes` es la cámara con la que se esperaba la carga y
@@ -188,6 +224,10 @@ export function VisorAtlas({
   const [nombreFlotante, setNombreFlotante] = useState<{ texto: string; x: number; y: number } | null>(
     null,
   )
+  /** El marco de selección mientras se arrastra, en píxeles del lienzo. */
+  const [marco, setMarco] = useState<{ x: number; y: number; ancho: number; alto: number } | null>(
+    null,
+  )
 
   // Todo lo de three vive aquí: React no debe re-crear la escena al re-pintar.
   const taller = useRef<TallerDelVisor>({})
@@ -204,6 +244,9 @@ export function VisorAtlas({
     resaltada,
     separacion,
     alPulsarPieza,
+    seleccion,
+    alSeleccionar,
+    herramienta,
     alAsentarVista,
     soloLectura,
     vistaInicial,
@@ -214,6 +257,9 @@ export function VisorAtlas({
       resaltada,
       separacion,
       alPulsarPieza,
+      seleccion,
+      alSeleccionar,
+      herramienta,
       alAsentarVista,
       soloLectura,
       vistaInicial,
@@ -271,6 +317,28 @@ export function VisorAtlas({
       controles.update()
       t.pedirDibujo?.()
       return vistaDe(t, vista.separacion)
+    },
+    encuadrarPiezas: (piezas) => {
+      if (piezas.size === 0) return
+      const t = taller.current
+      cancelarPivote(t)
+      const { visibles: v, separacion: s } = ultimas.current
+      encuadrarVisible(t, catalogo, piezas, s)
+      // El pivote queda sobre la selección a propósito, y se anota como
+      // atendido para lo que hay encendido: sin eso, el efecto que sigue a lo
+      // visible lo devolvería al centro de todo en el siguiente cambio que no
+      // cambia nada.
+      t.seleccionDelPivote = { visibles: v, separacion: s }
+    },
+    mirarDesde: (lado) => {
+      const t = taller.current
+      const { camara, controles } = t
+      if (!camara || !controles) return
+      cancelarPivote(t)
+      const distancia = camara.position.distanceTo(controles.target)
+      camara.position.copy(controles.target).addScaledVector(DIRECCION_DE_CADA_LADO[lado], distancia)
+      controles.update()
+      t.pedirDibujo?.()
     },
   }))
 
@@ -377,7 +445,13 @@ export function VisorAtlas({
         for (const malla of escena.mallas) tresD.add(malla)
 
         prepararDirecciones(escena, catalogo)
-        aplicarVisibilidad(escena, catalogo, ultimas.current.visibles, ultimas.current.resaltada)
+        aplicarVisibilidad(
+          escena,
+          catalogo,
+          ultimas.current.visibles,
+          ultimas.current.resaltada,
+          ultimas.current.seleccion,
+        )
         aplicarSeparacion(escena, ultimas.current.separacion)
         // Aquí y no al montar: con el cuerpo separado la caja de lo visible
         // necesita las direcciones que acaba de escribir `prepararDirecciones`.
@@ -402,6 +476,14 @@ export function VisorAtlas({
     const rayo = new THREE.Raycaster()
     const puntero = new THREE.Vector2()
     let bajado: { x: number; y: number } | null = null
+    /** Esquina donde empezó el marco, en píxeles del lienzo; `null` si no hay marco. */
+    let inicioDelMarco: { x: number; y: number } | null = null
+
+    const enElLienzo = (evento: PointerEvent) => {
+      const caja = render.domElement.getBoundingClientRect()
+      return { x: evento.clientX - caja.left, y: evento.clientY - caja.top }
+    }
+    const cursorDeReposo = () => (ultimas.current.herramienta === 'caja' ? 'crosshair' : 'grab')
 
     const aCoordenadas = (evento: PointerEvent) => {
       const caja = render.domElement.getBoundingClientRect()
@@ -413,7 +495,8 @@ export function VisorAtlas({
     }
 
     const alBajar = (evento: PointerEvent) => {
-      render.domElement.style.cursor = 'grabbing'
+      render.domElement.style.cursor =
+        ultimas.current.herramienta === 'caja' && evento.button === 0 ? 'crosshair' : 'grabbing'
       // Solo el botón izquierdo, y solo con un puntero, arma un posible clic
       // sobre una pieza. El derecho es el encuadre de OrbitControls y el
       // central el zoom, y dos dedos son su pellizco: son gestos de cámara, no
@@ -427,6 +510,14 @@ export function VisorAtlas({
         return
       }
       bajado = { x: evento.clientX, y: evento.clientY }
+      const { herramienta: h, alSeleccionar: avisar, soloLectura: lectura } = ultimas.current
+      if (h === 'caja' && avisar && !lectura) {
+        inicioDelMarco = enElLienzo(evento)
+        // Con la captura, soltar fuera del lienzo sigue llegando aquí: sin
+        // ella, un marco que se saliera por el borde se quedaba pintado para
+        // siempre, esperando un `pointerup` que recibió otro elemento.
+        render.domElement.setPointerCapture(evento.pointerId)
+      }
     }
 
     const alMover = (evento: PointerEvent) => {
@@ -434,7 +525,18 @@ export function VisorAtlas({
       // preguntarle a él dejaría el cruce de rayos corriendo durante un
       // encuadre con el derecho, que es justo cuando no sirve para nada.
       const arrastrando = evento.buttons !== 0
-      render.domElement.style.cursor = arrastrando ? 'grabbing' : 'grab'
+      if (inicioDelMarco) {
+        const ahora = enElLienzo(evento)
+        setMarco({
+          x: Math.min(inicioDelMarco.x, ahora.x),
+          y: Math.min(inicioDelMarco.y, ahora.y),
+          ancho: Math.abs(ahora.x - inicioDelMarco.x),
+          alto: Math.abs(ahora.y - inicioDelMarco.y),
+        })
+        setNombreFlotante(null)
+        return
+      }
+      render.domElement.style.cursor = arrastrando ? 'grabbing' : cursorDeReposo()
       const escena = taller.current.escena
       // Mientras se arrastra no se busca nada: sería trabajo tirado.
       if (arrastrando || !escena || evento.pointerType === 'touch') {
@@ -460,7 +562,7 @@ export function VisorAtlas({
     }
 
     const alSubir = (evento: PointerEvent) => {
-      render.domElement.style.cursor = 'grab'
+      render.domElement.style.cursor = cursorDeReposo()
       // Soltar el derecho o el central no cancela nada: el izquierdo puede
       // seguir pulsado y su gesto sigue vivo, así que se sale sin tocar
       // `bajado`.
@@ -468,6 +570,12 @@ export function VisorAtlas({
 
       const inicio = bajado
       bajado = null
+      const esquina = inicioDelMarco
+      inicioDelMarco = null
+      setMarco(null)
+      if (render.domElement.hasPointerCapture(evento.pointerId)) {
+        render.domElement.releasePointerCapture(evento.pointerId)
+      }
 
       const escena = taller.current.escena
       // Sin `pointerdown` propio no hay clic: un arrastre que empezó fuera del
@@ -475,11 +583,43 @@ export function VisorAtlas({
       if (!inicio || !escena || ultimas.current.soloLectura) return
 
       const umbral = evento.pointerType === 'touch' ? 12 : 5
-      if (Math.hypot(evento.clientX - inicio.x, evento.clientY - inicio.y) > umbral) return
+      const avisar = ultimas.current.alSeleccionar
+      if (Math.hypot(evento.clientX - inicio.x, evento.clientY - inicio.y) > umbral) {
+        // Un arrastre de verdad: o fue un giro de cámara, y aquí no hay nada
+        // que hacer, o fue un marco.
+        if (!esquina || !avisar) return
+        const lienzoDom = render.domElement
+        const dentro = piezasEnElRectangulo(
+          escena,
+          camara,
+          rectanguloNormalizado(
+            esquina,
+            enElLienzo(evento),
+            lienzoDom.clientWidth,
+            lienzoDom.clientHeight,
+          ),
+          ultimas.current.separacion,
+        )
+        // Mayús suma y Ctrl quita, como en Blender. Un marco vacío sin teclas
+        // vacía la selección, igual que un clic en el vacío.
+        avisar(
+          dentro.map((i) => catalogo.piezas[i].id),
+          evento.shiftKey ? 'sumar' : evento.ctrlKey || evento.metaKey ? 'quitar' : 'reemplazar',
+        )
+        return
+      }
 
       aCoordenadas(evento)
       rayo.setFromCamera(puntero, camara)
       const indice = piezaBajoElRayo(rayo, catalogo, escena, ultimas.current.separacion)
+      if (avisar) {
+        if (indice >= 0) {
+          avisar([catalogo.piezas[indice].id], evento.shiftKey ? 'alternar' : 'reemplazar')
+        } else if (!evento.shiftKey) {
+          avisar([], 'reemplazar')
+        }
+        return
+      }
       if (indice >= 0) ultimas.current.alPulsarPieza?.(catalogo.piezas[indice].id)
     }
 
@@ -601,6 +741,7 @@ export function VisorAtlas({
     escena: EscenaDelAtlas
     visibles: Set<string> | null
     resaltada: string | null
+    seleccion: Set<string> | null
   } | null>(null)
 
   useEffect(() => {
@@ -618,14 +759,44 @@ export function VisorAtlas({
     // modificar el suyo en sitio, esta comparación dejaría piezas encendidas
     // que ya no lo están, y el repaso completo de abajo es lo único que lo
     // corregiría.
-    if (anterior && anterior.escena === escena && anterior.visibles === visibles) {
-      cambiarResaltado(escena, visibles, anterior.resaltada, resaltada)
+    //
+    // La selección se compara igual, por identidad: quien la cambia entrega un
+    // `Set` nuevo. Cambia con un clic o con un marco, no al pasar el ratón, así
+    // que el repaso completo que provoca no cae en el gesto frecuente.
+    if (
+      anterior &&
+      anterior.escena === escena &&
+      anterior.visibles === visibles &&
+      anterior.seleccion === seleccion
+    ) {
+      cambiarResaltado(escena, visibles, seleccion, anterior.resaltada, resaltada)
     } else {
-      aplicarVisibilidad(escena, catalogo, visibles, resaltada)
+      aplicarVisibilidad(escena, catalogo, visibles, resaltada, seleccion)
     }
-    pintado.current = { escena, visibles, resaltada }
+    pintado.current = { escena, visibles, resaltada, seleccion }
     taller.current.pedirDibujo?.()
-  }, [catalogo, visibles, resaltada])
+  }, [catalogo, visibles, resaltada, seleccion])
+
+  // La herramienta cambia qué botón gira la cámara. Con el marco, el izquierdo
+  // deja de ser de OrbitControls —un valor que no reconoce lo deja sin acción— y
+  // el giro pasa al central, donde lo tiene Blender; el derecho sigue
+  // desplazando en las dos. En pantalla táctil, un dedo dibuja el marco y dos
+  // siguen acercando y desplazando. `catalogo` entra porque al cambiar se monta
+  // otro `OrbitControls`, que nace con el reparto de siempre.
+  useEffect(() => {
+    const controles = taller.current.controles
+    if (!controles) return
+    const conMarco = herramienta === 'caja'
+    controles.mouseButtons = {
+      LEFT: conMarco ? (-1 as THREE.MOUSE) : THREE.MOUSE.ROTATE,
+      MIDDLE: conMarco ? THREE.MOUSE.ROTATE : THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN,
+    }
+    controles.touches = {
+      ONE: conMarco ? (-1 as THREE.TOUCH) : THREE.TOUCH.ROTATE,
+      TWO: THREE.TOUCH.DOLLY_PAN,
+    }
+  }, [catalogo, herramienta])
 
   useEffect(() => {
     const escena = taller.current.escena
@@ -700,7 +871,10 @@ export function VisorAtlas({
 
 
   return (
-    <div className="atlas-lienzo" ref={lienzo}>
+    // La cruz del marco se pone por clase y no escribiendo el cursor del lienzo:
+    // los manejadores del ratón ya lo escriben en cada gesto, y la clase manda
+    // sobre todos ellos mientras dure la herramienta.
+    <div className={herramienta === 'caja' ? 'atlas-lienzo atlas-lienzo-marco' : 'atlas-lienzo'} ref={lienzo}>
       {progreso < 100 && !error ? (
         <div className="atlas-cargando">
           <div className="atlas-barra">
@@ -711,6 +885,13 @@ export function VisorAtlas({
       ) : null}
 
       {error ? <div className="atlas-error">{error}</div> : null}
+
+      {marco ? (
+        <div
+          className="atlas-marco-de-seleccion"
+          style={{ left: marco.x, top: marco.y, width: marco.ancho, height: marco.alto }}
+        />
+      ) : null}
 
       {nombreFlotante ? (
         <span
@@ -757,30 +938,56 @@ function aplicarVisibilidad(
   catalogo: CatalogoDelAtlas,
   visibles: Set<string> | null,
   resaltada: string | null,
+  seleccion: Set<string> | null = null,
 ) {
   catalogo.piezas.forEach((pieza, i) => {
     const encendida = !visibles || visibles.has(pieza.id)
-    const estado = !encendida
-      ? ESTADO.OCULTA
-      : pieza.id === resaltada
-        ? ESTADO.RESALTADA
-        : ESTADO.VISIBLE
-    escena.datos[i * 4 + 3] = estado
+    escena.datos[i * 4 + 3] = estadoDe(encendida, pieza.id === resaltada, !!seleccion?.has(pieza.id))
   })
   escena.estados.needsUpdate = true
 }
 
 /**
+ * El estado que le toca a una pieza. Está en un solo sitio porque lo escriben
+ * dos funciones —el repaso completo y el cambio de resaltado— y cuando cada una
+ * tenía su fórmula bastaba con tocar una para que el resaltado dejara encendida
+ * una pieza apagada.
+ *
+ * El resaltado gana a la selección: es lo que dice «el ratón está aquí», dura
+ * lo que dura el ratón encima, y al irse la pieza vuelve a su naranja.
+ */
+function estadoDe(encendida: boolean, resaltada: boolean, seleccionada: boolean): number {
+  if (!encendida) return ESTADO.OCULTA
+  if (resaltada) return ESTADO.RESALTADA
+  return seleccionada ? ESTADO.SELECCIONADA : ESTADO.VISIBLE
+}
+
+/** Hacia dónde se aparta la cámara del pivote para mirar desde cada lado. */
+const DIRECCION_DE_CADA_LADO: Record<LadoDeLaVista, THREE.Vector3> = {
+  frente: new THREE.Vector3(0, 0, 1),
+  atras: new THREE.Vector3(0, 0, -1),
+  // La derecha es la del PACIENTE, que mira hacia +Z: su derecha es −X. Es la
+  // convención de toda imagen clínica, y la contraria a la de Blender.
+  derecha: new THREE.Vector3(-1, 0, 0),
+  izquierda: new THREE.Vector3(1, 0, 0),
+  // No exactamente vertical: OrbitControls no deja la cámara sobre el polo, y
+  // con (0, 1, 0) justo el primer `update()` la recoloca con un giro que nadie
+  // pidió.
+  arriba: new THREE.Vector3(0, 1, 0.001).normalize(),
+  abajo: new THREE.Vector3(0, -1, 0.001).normalize(),
+}
+
+/**
  * Mueve el resaltado de una pieza a otra sin repasar el catálogo.
  *
- * Escribe exactamente el mismo estado que `aplicarVisibilidad` —de ahí que la
- * fórmula esté repetida: si una cambia, la otra también, o el resaltado dejará
- * encendida una pieza apagada—, pero tocando solo las dos que cambian. Son las
- * únicas que pueden cambiar: el resaltado es uno y solo uno.
+ * Escribe exactamente el mismo estado que `aplicarVisibilidad` —las dos lo
+ * sacan de `estadoDe`—, pero tocando solo las dos que cambian. Son las únicas
+ * que pueden cambiar: el resaltado es uno y solo uno.
  */
 function cambiarResaltado(
   escena: EscenaDelAtlas,
   visibles: Set<string> | null,
+  seleccion: Set<string> | null,
   antes: string | null,
   ahora: string | null,
 ) {
@@ -793,11 +1000,7 @@ function cambiarResaltado(
     const i = escena.indices.get(id)
     if (i === undefined) return
     const encendida = !visibles || visibles.has(id)
-    marcarPieza(
-      escena,
-      i,
-      !encendida ? ESTADO.OCULTA : resaltar ? ESTADO.RESALTADA : ESTADO.VISIBLE,
-    )
+    marcarPieza(escena, i, estadoDe(encendida, resaltar, !!seleccion?.has(id)))
   }
   escribir(antes, false)
   escribir(ahora, true)
