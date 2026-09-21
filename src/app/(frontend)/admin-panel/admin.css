@@ -2061,6 +2061,24 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 
 .atlas-herramientas-grupo { display: flex; gap: 2px; }
 
+/* Los grupos que flotan sobre el lienzo (D-136). `.atlas-centro` es su marco:
+   su esquina de arriba a la izquierda es la del lienzo, que es su primer hijo. */
+.atlas-centro { position: relative; }
+.atlas-flota {
+  position: absolute;
+  z-index: 4;
+  padding: 3px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 10px rgba(10, 20, 50, 0.1);
+}
+.atlas-flota .atlas-herramienta { border-color: transparent; text-align: left; }
+.atlas-flota-utiles { top: 10px; left: 10px; flex-direction: column; }
+/* Debajo del anterior: tres botones de 26 px, sus huecos y el relleno. */
+.atlas-flota-apuntar { top: 112px; left: 10px; flex-direction: column; }
+.atlas-flota-vistas { top: 10px; right: 10px; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 120px); }
+
 .atlas-herramienta {
   font: inherit;
   font-size: 12px;

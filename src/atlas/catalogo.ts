@@ -9,10 +9,12 @@
 
 import {
   MAXIMO_DE_CORTES,
+  MAXIMO_DE_GRUPOS,
   MAXIMO_DE_TRASLADO,
   MAXIMO_PIEZAS,
   OPACIDAD_MINIMA,
   VISTA_INICIAL,
+  partesDeFragmento,
   type CatalogoDelAtlas,
   type ContenidoDeInstancia,
   type CorteDePieza,
@@ -245,7 +247,7 @@ export function normalizarSeleccion(
   vista: unknown,
   cortes?: unknown,
   /** Lo apuntado sobre el modelo y las vistas con nombre (D-135). */
-  apuntes?: { marcas?: unknown; vistas?: unknown },
+  apuntes?: { marcas?: unknown; vistas?: unknown; grupos?: unknown },
 ): ContenidoDeInstancia {
   const conocidas = new Set(catalogo.piezas.map((p) => p.id))
   const vistas = new Set<string>()
@@ -277,6 +279,7 @@ export function normalizarSeleccion(
   const cortesLimpios = cortesValidos(cortes, vistas)
   const marcas = marcasValidas(apuntes?.marcas)
   const vistasConNombre = vistasValidas(apuntes?.vistas)
+  const grupos = gruposValidos(apuntes?.grupos, vistas, new Set(cortesLimpios.map((c) => c.pieza)))
   return {
     version: 1,
     atlas: catalogo.version,
@@ -285,7 +288,39 @@ export function normalizarSeleccion(
     ...(cortesLimpios.length > 0 ? { cortes: cortesLimpios } : {}),
     ...(marcas.length > 0 ? { marcas } : {}),
     ...(vistasConNombre.length > 0 ? { vistas: vistasConNombre } : {}),
+    ...(grupos.length > 0 ? { grupos } : {}),
   }
+}
+
+/**
+ * Los grupos que se dejan guardar (D-136): de piezas presentes, o de fragmentos
+ * de piezas partidas; de dos miembros al menos; y cada miembro en uno solo.
+ */
+function gruposValidos(
+  brutos: unknown,
+  enLaPreparacion: ReadonlySet<string>,
+  partidas: ReadonlySet<string>,
+): string[][] {
+  if (!Array.isArray(brutos)) return []
+  const yaAgrupados = new Set<string>()
+  const salida: string[][] = []
+  for (const bruto of brutos) {
+    if (!Array.isArray(bruto)) continue
+    const miembros: string[] = []
+    for (const id of bruto) {
+      if (typeof id !== 'string' || yaAgrupados.has(id) || miembros.includes(id)) continue
+      const fragmento = partesDeFragmento(id)
+      const vale = fragmento
+        ? partidas.has(fragmento.pieza) && enLaPreparacion.has(fragmento.pieza)
+        : enLaPreparacion.has(id) && !partidas.has(id)
+      if (vale) miembros.push(id)
+    }
+    if (miembros.length < 2) continue
+    miembros.forEach((id) => yaAgrupados.add(id))
+    salida.push(miembros)
+    if (salida.length >= MAXIMO_DE_GRUPOS) break
+  }
+  return salida
 }
 
 /**

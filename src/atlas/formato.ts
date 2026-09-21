@@ -153,6 +153,12 @@ export interface ContenidoDeInstancia {
   cortes?: CorteDePieza[]
   /** Rótulos, distancias y ángulos apuntados sobre el modelo (D-135). */
   marcas?: MarcaDeInstancia[]
+  /**
+   * Piezas que se seleccionan y se mueven juntas (D-136): el fragmento distal
+   * con su pie. Cada identificador, de pieza o de fragmento, está en un grupo
+   * como mucho.
+   */
+  grupos?: string[][]
   /** Encuadres con nombre, además del de `vista`, para saltar entre ellos en la ficha (D-135). */
   vistas?: VistaConNombre[]
 }
@@ -179,6 +185,8 @@ export interface CorteDePieza {
 
 /** Un corte por pieza, y pocos por preparación: cada uno se parte en el navegador al abrir la ficha. */
 export const MAXIMO_DE_CORTES = 8
+
+export const MAXIMO_DE_GRUPOS = 16
 
 export type LadoDelCorte = 'a' | 'b'
 

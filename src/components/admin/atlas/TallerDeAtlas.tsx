@@ -13,6 +13,7 @@ import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
 import { cuaternionDeGrados, gradosDeCuaternion } from '@/atlas/angulos'
+import { parejasContralaterales, reflejarGiro, reflejarVector } from '@/atlas/espejo'
 import {
   MAXIMO_DE_MARCAS,
   MAXIMO_DE_VISTAS,
@@ -186,6 +187,7 @@ const ATAJOS_DEL_TALLER: [string, string][] = [
   ['Asas', 'Arrastrar una flecha de color mueve por ese eje; un aro, gira sobre él. X rojo, Y verde, Z azul.'],
   ['K', 'Cortar: con un hueso seleccionado, trazar una línea de lado a lado lo parte en dos fragmentos.'],
   ['Alt + G · Alt + R', 'Devolver lo seleccionado a su posición · a su orientación anatómica.'],
+  ['Ctrl + G · Ctrl + Mayús + G', 'Agrupar lo seleccionado, para seleccionarlo y moverlo junto · desagruparlo.'],
   ['Mayús + G', 'Seleccionar todo lo encendido del mismo sistema (hueso, músculo, vaso…).'],
   ['Ctrl + Z · Ctrl + Mayús + Z', 'Deshacer · rehacer, hasta cincuenta pasos.'],
   ['M', 'Medir la distancia entre dos puntos de la anatomía. «Ángulo» pide tres; «Rótulo», uno.'],
@@ -325,6 +327,12 @@ export function TallerDeAtlas() {
   const [marcas, setMarcas] = useState<MarcaDeInstancia[]>([])
   const [vistas, setVistas] = useState<VistaConNombre[]>([])
   const [nombreDeVista, setNombreDeVista] = useState('')
+  /**
+   * Piezas que se seleccionan juntas (D-136): pulsar una selecciona su grupo
+   * entero, y así G y R se lo llevan todo —el fragmento distal con su pie y sus
+   * músculos— sin tener que volver a marcarlo cada vez.
+   */
+  const [grupos, setGrupos] = useState<string[][]>([])
 
   const [instancia, setInstancia] = useState<string | null>(null)
   const [nombre, setNombre] = useState('')
@@ -452,14 +460,17 @@ export function TallerDeAtlas() {
     transformaciones: '',
     cortes: '',
     aspectos: '',
-    apuntes: '[[],[]]',
+    apuntes: '[[],[],[]]',
     vista: VISTA_INICIAL,
   })
 
   const clavePiezas = useMemo(() => [...visibles].sort().join(','), [visibles])
   const claveCortes = useMemo(() => firmaDeCortes(cortes), [cortes])
   const claveAspectos = useMemo(() => firmaDeAspectos(aspectos), [aspectos])
-  const claveApuntes = useMemo(() => JSON.stringify([marcas, vistas]), [marcas, vistas])
+  const claveApuntes = useMemo(
+    () => JSON.stringify([marcas, vistas, grupos]),
+    [marcas, vistas, grupos],
+  )
   const claveTransformaciones = useMemo(
     () => firmaDeTransformaciones(transformaciones),
     [transformaciones],
@@ -508,7 +519,11 @@ export function TallerDeAtlas() {
       movidas: ReadonlyMap<string, TransformacionDePieza> = new Map(),
       partidos: readonly CorteDePieza[] = [],
       pintadas: ReadonlyMap<string, AspectoDePieza> = new Map(),
-      apuntes: [readonly MarcaDeInstancia[], readonly VistaConNombre[]] = [[], []],
+      apuntes: [readonly MarcaDeInstancia[], readonly VistaConNombre[], readonly string[][]] = [
+        [],
+        [],
+        [],
+      ],
     ) => {
       setReferencia({
         nombre: titulo.trim(),
@@ -847,8 +862,107 @@ export function TallerDeAtlas() {
     )
   }
 
-  const alSeleccionar = (ids: string[], modo: ModoDeSeleccion) =>
-    setSeleccion((actual) => seleccionTras(actual, ids, modo))
+  /** Los identificadores dados, cada uno con todo su grupo si lo tiene. */
+  const conSuGrupo = (ids: readonly string[]): string[] => {
+    if (grupos.length === 0) return [...ids]
+    const salida = new Set<string>()
+    for (const id of ids) {
+      const grupo = grupos.find((g) => g.includes(id))
+      // Solo lo encendido: un miembro apagado no se selecciona a ciegas.
+      for (const miembro of grupo ?? [id]) if (visibles.has(piezaDe(miembro))) salida.add(miembro)
+    }
+    return [...salida]
+  }
+
+  const alSeleccionar = (ids: string[], modo: ModoDeSeleccion) => {
+    const completos = conSuGrupo(ids)
+    setSeleccion((actual) => {
+      // Alternar un grupo es ponerlo o quitarlo entero según esté el que se
+      // pulsó: miembro a miembro, un grupo a medias se quedaría a medias.
+      if (modo === 'alternar' && ids.length === 1) {
+        return seleccionTras(actual, completos, actual.has(ids[0]) ? 'quitar' : 'sumar')
+      }
+      return seleccionTras(actual, completos, modo)
+    })
+  }
+
+  const agruparSeleccion = () => {
+    if (seleccion.size < 2) return
+    const miembros = [...seleccion]
+    setGrupos([
+      ...grupos
+        .map((g) => g.filter((id) => !seleccion.has(id)))
+        .filter((g) => g.length >= 2),
+      miembros,
+    ])
+  }
+  const desagruparSeleccion = () =>
+    setGrupos(grupos.filter((g) => !g.some((id) => seleccion.has(id))))
+
+  /**
+   * Pasa la preparación entera al otro lado del cuerpo (D-136): cada pieza por
+   * su contralateral, y lo movido, lo cortado, lo pintado y lo apuntado,
+   * reflejado. Lo que no tiene pareja —la línea media, o lo poco del atlas que
+   * no es simétrico— se queda donde está y se dice cuánto fue.
+   *
+   * No entra en deshacer: es su propia inversa, y pulsarlo otra vez vuelve.
+   */
+  const espejar = () => {
+    if (!catalogo) return
+    const parejas = parejasContralaterales(catalogo)
+    const otra = (id: string) => {
+      const fragmento = partesDeFragmento(id)
+      if (!fragmento) return parejas.get(id) ?? id
+      return idDeFragmento(parejas.get(fragmento.pieza) ?? fragmento.pieza, fragmento.lado)
+    }
+    const sinPareja = [...visibles].filter((id) => !parejas.has(id)).length
+    const nuevasVisibles = new Set([...visibles].map(otra))
+    setVisibles(nuevasVisibles)
+    setTransformaciones(
+      new Map(
+        [...transformaciones].map(([id, t]) => [
+          otra(id),
+          { mover: reflejarVector(t.mover), girar: reflejarGiro(t.girar) },
+        ]),
+      ),
+    )
+    setCortes(
+      cortes.map((c) => ({
+        pieza: otra(c.pieza),
+        punto: reflejarVector(c.punto),
+        normal: reflejarVector(c.normal),
+      })),
+    )
+    setAspectos(new Map([...aspectos].map(([id, a]) => [otra(id), a])))
+    setGrupos(grupos.map((g) => g.map(otra)))
+    setMarcas(
+      marcas.map((m) =>
+        m.tipo === 'rotulo'
+          ? { ...m, punto: reflejarVector(m.punto) }
+          : ({ ...m, puntos: m.puntos.map(reflejarVector) } as MarcaDeInstancia),
+      ),
+    )
+    setVistas(
+      vistas.map((v) => ({ ...v, camara: reflejarVector(v.camara), objetivo: reflejarVector(v.objetivo) })),
+    )
+    setSeleccion(new Set())
+    setHistorial([])
+    setRehacer([])
+    const ahora = mando.current?.vistaActual()
+    if (ahora) {
+      mando.current?.irA(
+        { ...ahora, camara: reflejarVector(ahora.camara), objetivo: reflejarVector(ahora.objetivo) },
+        nuevasVisibles,
+      )
+    }
+    setAviso({
+      tipo: 'ok',
+      texto:
+        sinPareja === 0
+          ? 'Preparación pasada al otro lado. Pulse «Espejo» otra vez para volver.'
+          : `Preparación pasada al otro lado. ${sinPareja} pieza${sinPareja === 1 ? '' : 's'} sin pareja contralateral se quedaron donde estaban.`,
+    })
+  }
 
   const apagarSeleccion = () => {
     if (seleccion.size === 0) return
@@ -873,6 +987,14 @@ export function TallerDeAtlas() {
   const alCortar = (corte: CorteDePieza) => {
     apuntarPaso()
     setCortes([...cortes.filter((c) => c.pieza !== corte.pieza), corte])
+    // En su grupo, el hueso entero deja sitio a sus dos fragmentos.
+    setGrupos(
+      grupos.map((g) =>
+        g.flatMap((id) =>
+          id === corte.pieza ? [idDeFragmento(id, 'a'), idDeFragmento(id, 'b')] : [id],
+        ),
+      ),
+    )
     // La pieza entera deja de existir como tal: quedan seleccionados sus dos
     // fragmentos, y la herramienta vuelve a girar para poder mirarlos.
     setSeleccion(new Set([idDeFragmento(corte.pieza, 'a'), idDeFragmento(corte.pieza, 'b')]))
@@ -892,6 +1014,12 @@ export function TallerDeAtlas() {
     if (piezas.size === 0) return
     apuntarPaso()
     setCortes(cortes.filter((c) => !piezas.has(c.pieza)))
+    // Y al revés: los dos fragmentos dejan sitio al hueso, una sola vez.
+    setGrupos(
+      grupos
+        .map((g) => [...new Set(g.map((id) => (piezas.has(piezaDe(id)) ? piezaDe(id) : id)))])
+        .filter((g) => g.length >= 2),
+    )
     const sinSusFragmentos = new Map(transformaciones)
     for (const pieza of piezas) {
       sinSusFragmentos.delete(idDeFragmento(pieza, 'a'))
@@ -925,6 +1053,7 @@ export function TallerDeAtlas() {
     setAspectos(new Map())
     setMarcas([])
     setVistas([])
+    setGrupos([])
     setSeleccion(new Set())
     setInstancia(null)
     setModeloAbierto(null)
@@ -969,6 +1098,7 @@ export function TallerDeAtlas() {
     setAspectos(new Map())
     setMarcas([])
     setVistas([])
+    setGrupos([])
     setSeleccion(new Set())
     setVisibles(piezas)
     setSeparacion(0)
@@ -1017,8 +1147,10 @@ export function TallerDeAtlas() {
         setAspectos(aspectosAbiertos)
         const marcasAbiertas = r.datos.contenido.marcas ?? []
         const vistasAbiertas = r.datos.contenido.vistas ?? []
+        const gruposAbiertos = r.datos.contenido.grupos ?? []
         setMarcas(marcasAbiertas)
         setVistas(vistasAbiertas)
+        setGrupos(gruposAbiertos)
         setHistorial([])
         setRehacer([])
         setSeleccion(new Set())
@@ -1061,7 +1193,7 @@ export function TallerDeAtlas() {
           movidasAbiertas,
           cortesAbiertos,
           aspectosAbiertos,
-          [marcasAbiertas, vistasAbiertas],
+          [marcasAbiertas, vistasAbiertas, gruposAbiertos],
         )
         if (r.datos.perdidas.length > 0) {
           setAviso({
@@ -1129,6 +1261,7 @@ export function TallerDeAtlas() {
             })),
           marcas,
           vistas,
+          grupos,
           vista,
         })
         if (!r.exito || !r.datos) {
@@ -1141,6 +1274,7 @@ export function TallerDeAtlas() {
         fijarReferencia(visibles, nombre, descripcion, vista, transformaciones, cortes, aspectos, [
           marcas,
           vistas,
+          grupos,
         ])
         setAviso({
           tipo: 'ok',
@@ -1275,10 +1409,23 @@ export function TallerDeAtlas() {
   const partidas = useMemo(() => new Set(cortes.map((c) => c.pieza)), [cortes])
   const seleccionarDesdeElArbol = useCallback(
     (id: string, sumar: boolean) => {
-      const ids = partidas.has(id) ? [idDeFragmento(id, 'a'), idDeFragmento(id, 'b')] : [id]
-      setSeleccion((actual) => seleccionTras(actual, ids, sumar ? 'alternar' : 'reemplazar'))
+      const propios = partidas.has(id) ? [idDeFragmento(id, 'a'), idDeFragmento(id, 'b')] : [id]
+      // Con su grupo, igual que al pulsar en el lienzo (`conSuGrupo`).
+      const ids = new Set(propios)
+      for (const propio of propios) {
+        for (const miembro of grupos.find((g) => g.includes(propio)) ?? []) {
+          if (visibles.has(piezaDe(miembro))) ids.add(miembro)
+        }
+      }
+      setSeleccion((actual) =>
+        seleccionTras(
+          actual,
+          [...ids],
+          !sumar ? 'reemplazar' : propios.every((propio) => actual.has(propio)) ? 'quitar' : 'sumar',
+        ),
+      )
     },
-    [partidas],
+    [partidas, grupos, visibles],
   )
 
   const unicaSeleccionada = seleccion.size === 1 ? [...seleccion][0] : null
@@ -1321,7 +1468,9 @@ export function TallerDeAtlas() {
 
       let atendida = true
 
-      if (control && tecla === 'z' && evento.shiftKey) rehacerPaso()
+      if (control && tecla === 'g' && evento.shiftKey) desagruparSeleccion()
+      else if (control && tecla === 'g') agruparSeleccion()
+      else if (control && tecla === 'z' && evento.shiftKey) rehacerPaso()
       else if (control && tecla === 'z') deshacer()
       else if (control && tecla === 'i') {
         setSeleccion(new Set(idsSeleccionables(visibles).filter((id) => !seleccion.has(id))))
@@ -1770,8 +1919,13 @@ export function TallerDeAtlas() {
             alAvisar={(texto) => setAviso({ tipo: 'error', texto })}
           />
 
+          {/* Tres de los grupos de la barra FLOTAN sobre el lienzo (D-136), como la
+              columna de herramientas y la cabecera de la vista de Blender: con
+              todo en fila bajo el visor la barra ocupaba cinco renglones y se
+              comía el alto del modelo. Se colocan por CSS (`.atlas-flota`);
+              siguen dentro de la misma barra, y en el mismo orden de tabulación. */}
           <div className="atlas-herramientas" role="toolbar" aria-label="Herramientas del visor">
-            <div className="atlas-herramientas-grupo">
+            <div className="atlas-herramientas-grupo atlas-flota atlas-flota-utiles">
               <button
                 type="button"
                 className="atlas-herramienta"
@@ -1800,7 +1954,7 @@ export function TallerDeAtlas() {
                 Cortar
               </button>
             </div>
-            <div className="atlas-herramientas-grupo">
+            <div className="atlas-herramientas-grupo atlas-flota atlas-flota-apuntar">
               <button
                 type="button"
                 className="atlas-herramienta"
@@ -1919,6 +2073,32 @@ export function TallerDeAtlas() {
               <button
                 type="button"
                 className="atlas-herramienta"
+                disabled={seleccion.size < 2}
+                title="Agrupar lo seleccionado: desde ahora se selecciona y se mueve junto (Ctrl + G)"
+                onClick={agruparSeleccion}
+              >
+                Agrupar
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                disabled={!grupos.some((g) => g.some((id) => seleccion.has(id)))}
+                title="Deshacer el grupo de lo seleccionado (Ctrl + Mayús + G)"
+                onClick={desagruparSeleccion}
+              >
+                Desagrupar
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                title="Espejo: pasa la preparación entera al otro lado del cuerpo. Otra vez, vuelve."
+                onClick={espejar}
+              >
+                Espejo
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
                 disabled={![...seleccion].some((id) => partesDeFragmento(id) !== null)}
                 title="Soldar: deshacer el corte del fragmento seleccionado; el hueso vuelve entero"
                 onClick={soldarSeleccion}
@@ -1926,7 +2106,7 @@ export function TallerDeAtlas() {
                 Soldar
               </button>
             </div>
-            <div className="atlas-herramientas-grupo">
+            <div className="atlas-herramientas-grupo atlas-flota atlas-flota-vistas">
               <button type="button" className="atlas-herramienta" title="De frente (1)" onClick={() => mirarDesde('frente')}>
                 Frente
               </button>

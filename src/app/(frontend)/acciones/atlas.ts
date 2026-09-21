@@ -168,6 +168,7 @@ export async function obtenerInstancia(
     const contenido = normalizarSeleccion(catalogo, bruto?.piezas, bruto?.vista, bruto?.cortes, {
       marcas: bruto?.marcas,
       vistas: bruto?.vistas,
+      grupos: bruto?.grupos,
     })
 
     return {
@@ -204,6 +205,7 @@ export async function guardarInstancia(
     const contenido = normalizarSeleccion(catalogo, entrada.piezas, entrada.vista, entrada.cortes, {
       marcas: entrada.marcas,
       vistas: entrada.vistas,
+      grupos: entrada.grupos,
     })
     if (contenido.piezas.length === 0) {
       throw new Error('Encienda al menos una pieza antes de guardar la preparación.')
