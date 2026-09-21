@@ -65,7 +65,20 @@ export default async function Biblioteca() {
       overrideAccess: false,
       user,
       limit: 500,
-      depth: 1,
+      // Solo lo que usa el listado, y el segmento como identificador suelto
+      // (D-128). Cada patología trae seis pilas de bloques de texto rico —las
+      // seis pestañas— y con `depth: 1` y sin `select` viajaban las quinientas
+      // enteras para pintar un nombre, un subtítulo y un código. `idDe`, abajo,
+      // ya sabe leer la relación sin poblar.
+      depth: 0,
+      select: {
+        nombre: true,
+        subtitulo: true,
+        codigo: true,
+        tipo: true,
+        segmento: true,
+        _status: true,
+      },
       sort: 'nombre',
     }),
     payload.find({ collection: 'segmentos', overrideAccess: false, user, limit: 100, sort: 'orden' }),

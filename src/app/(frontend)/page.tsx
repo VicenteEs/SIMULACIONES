@@ -298,6 +298,9 @@ export default async function Inicio() {
         // ocultar.
         overrideAccess: false,
         user: usuarioEfectivo as never,
+        // Solo se lee el título: sin esto cada ficha llegaba con sus medios y
+        // sus relaciones pobladas a dos niveles (D-128).
+        depth: 0,
       })) as Record<string, unknown>
       const nombre = (doc?.nombre ?? doc?.titulo) as string | undefined
       if (nombre) {

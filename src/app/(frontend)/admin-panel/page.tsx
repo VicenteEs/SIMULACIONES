@@ -37,7 +37,7 @@ export default async function ResumenAdmin() {
 
   const payload = await clientePayload()
 
-  const [usuarios, comentarios, todosLosModulos, actividad, respaldos, solicitudes] =
+  const [usuarios, comentarios, todosLosModulos, actividad, respaldos, solicitudes, pendientes] =
     await Promise.all([
       esAdmin ? resumenDeUsuarios(payload) : null,
       resumenDeComentarios(payload),
@@ -59,6 +59,19 @@ export default async function ResumenAdmin() {
             .then((conteo) => conteo.totalDocs)
             .catch(() => 0)
         : 0,
+      // Los cinco comentarios pendientes más recientes. Iban en un `await`
+      // suelto después de este bloque sin depender de nada de él: era una ida
+      // y vuelta a la base de más en la pantalla que abre el panel (D-128).
+      payload
+        .find({
+          collection: 'comentarios',
+          where: { estado: { equals: 'pendiente' } },
+          sort: '-createdAt',
+          limit: 5,
+          depth: 1,
+          overrideAccess: true,
+        })
+        .catch(() => ({ docs: [] as Record<string, unknown>[] })),
     ])
 
   // Un editor con módulos asignados cuenta y ve los suyos: un resumen que suma
@@ -83,17 +96,6 @@ export default async function ResumenAdmin() {
   const diasSinRespaldo = ultimoRespaldo
     ? Math.floor((Date.now() - new Date(ultimoRespaldo.creado).getTime()) / 86_400_000)
     : null
-
-  const pendientes = await payload
-    .find({
-      collection: 'comentarios',
-      where: { estado: { equals: 'pendiente' } },
-      sort: '-createdAt',
-      limit: 5,
-      depth: 1,
-      overrideAccess: true,
-    })
-    .catch(() => ({ docs: [] as Record<string, unknown>[] }))
 
   // Las cinco filas de abajo decían el módulo —«Biblioteca de patologías» en
   // todas— y nunca de qué ficha hablaban: eso vive en `documentoId`, que en

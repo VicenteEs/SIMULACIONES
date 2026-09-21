@@ -35,6 +35,11 @@ export default async function Listado() {
     overrideAccess: false,
     user: usuarioEfectivo as never,
     limit: 200,
+    // Solo lo que pinta la tarjeta, y sin poblar relaciones (D-128). Sin esto
+    // viajaba cada documento entero, con sus relaciones a dos niveles, para
+    // enseñar un código y un nombre.
+    depth: 0,
+    select: { nombre: true, codigo: true, _status: true },
     sort: 'nombre',
   })
 

@@ -154,6 +154,18 @@ const nextConfig = {
         headers: [{ key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' }],
       },
       {
+        // El descodificador de Draco: tres archivos que solo cambian cuando se
+        // actualiza three, y que cada ficha con un modelo 3D volvía a pedir.
+        // Next sirve `public/` con `max-age=0`, así que eran tres peticiones
+        // condicionales por ficha —por un túnel doméstico, tres idas y vueltas
+        // antes de poder abrir el modelo—. Una semana y no un año porque el
+        // nombre no lleva versión: tras actualizar three, una semana es lo más
+        // que un navegador tarda en enterarse, y el descodificador viejo sigue
+        // leyendo los `.glb` de siempre.
+        source: '/draco/:archivo*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=604800' }],
+      },
+      {
         source: '/:path*',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
