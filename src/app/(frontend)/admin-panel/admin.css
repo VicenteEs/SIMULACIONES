@@ -1901,6 +1901,58 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   z-index: 3;
 }
 
+/* El nombre de la pieza en el árbol es un botón que la selecciona (D-132). Se
+   viste como el texto que era, y seleccionada lleva el naranja del visor. */
+.atlas-pieza-nombre {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.atlas-pieza-nombre:disabled { cursor: default; color: var(--mudo); }
+.atlas-pieza-seleccionada { background: rgba(255, 140, 26, 0.16); box-shadow: inset 3px 0 0 #ff8c1a; }
+
+/* Los avisos del taller flotan (D-132): en el flujo de la página empujaban el
+   lienzo a mitad de un gesto. Sin eventos en el contenedor, para que el hueco
+   entre avisos no se coma los clics de lo que queda debajo. */
+.atlas-avisos-flotantes {
+  position: fixed;
+  top: 14px;
+  right: 22px;
+  z-index: 40;
+  width: min(440px, calc(100vw - 44px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.atlas-avisos-flotantes .admin-aviso {
+  margin: 0;
+  pointer-events: auto;
+  font-size: 12.5px;
+  box-shadow: 0 6px 22px rgba(10, 20, 50, 0.18);
+  position: relative;
+  padding-right: 30px;
+}
+.atlas-aviso-cerrar {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}
+
 /* ---------- trabajo al estilo de Blender (D-126) ---------- */
 .atlas-lienzo-marco canvas { cursor: crosshair !important; }
 

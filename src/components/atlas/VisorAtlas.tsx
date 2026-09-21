@@ -205,6 +205,7 @@ export function VisorAtlas({
   transformaciones = null,
   alTransformar,
   rayosX = false,
+  ortografica = false,
   cortes = null,
   alCortar,
   alAvisar,
@@ -244,6 +245,8 @@ export function VisorAtlas({
   alCortar?: (corte: CorteDePieza) => void
   /** Algo que decirle a quien trabaja: por qué no se pudo cortar, por ejemplo. */
   alAvisar?: (texto: string) => void
+  /** Vista ortográfica, sin fuga: para trazar cortes rectos y comparar tamaños. Solo el taller. */
+  ortografica?: boolean
   /** Pinta en damero lo no seleccionado, para ver a través (Alt + Z en Blender). Solo el taller. */
   rayosX?: boolean
   /** Un gesto de mover o girar se confirmó: el mapa completo, ya con lo nuevo. */
@@ -362,8 +365,8 @@ export function VisorAtlas({
       // centro exacto de lo visible, y un deslizamiento a medias que siguiera
       // sumando después lo sacaría de ahí.
       cancelarPivote(t)
-      const { visibles: v, separacion: s } = ultimas.current
-      encuadrarVisible(t, catalogo, v, s)
+      const { visibles: v, separacion: s, transformaciones: movidas } = ultimas.current
+      encuadrarVisible(t, catalogo, v, s, porPieza(movidas))
       t.seleccionDelPivote = { visibles: v, separacion: s }
     },
     irA: (vista, visibles) => {
@@ -373,6 +376,13 @@ export function VisorAtlas({
       cancelarPivote(t)
       camara.position.set(...vista.camara)
       controles.target.set(...vista.objetivo)
+      // La vista guardada es de perspectiva; en ortográfica se aleja lo suyo.
+      if (t.ortografica) {
+        camara.position
+          .sub(controles.target)
+          .multiplyScalar(ALEJAMIENTO_ORTOGRAFICO)
+          .add(controles.target)
+      }
       const seleccion = visibles === undefined ? ultimas.current.visibles : visibles
       if (!t.escena && vista.separacion > 0) {
         // Sin escena y con el cuerpo separado no se decide: se anota la
@@ -399,8 +409,10 @@ export function VisorAtlas({
       if (piezas.size === 0) return
       const t = taller.current
       cancelarPivote(t)
-      const { visibles: v, separacion: s } = ultimas.current
-      encuadrarVisible(t, catalogo, piezas, s)
+      const { visibles: v, separacion: s, transformaciones: movidas } = ultimas.current
+      // Un fragmento seleccionado encuadra su hueso, desplazado lo que se haya
+      // movido ese fragmento: la caja se mide por pieza del catálogo.
+      encuadrarVisible(t, catalogo, new Set([...piezas].map(piezaDe)), s, porPieza(movidas, piezas))
       // El pivote queda sobre la selección a propósito, y se anota como
       // atendido para lo que hay encendido: sin eso, el efecto que sigue a lo
       // visible lo devolvería al centro de todo en el siguiente cambio que no
@@ -1287,6 +1299,10 @@ export function VisorAtlas({
     taller.current.pedirDibujo?.()
   }, [catalogo, rayosX, progreso])
 
+  useEffect(() => {
+    ponerProyeccion(taller.current, ortografica)
+  }, [catalogo, ortografica])
+
   // La herramienta cambia qué botón gira la cámara. Con el marco, el izquierdo
   // deja de ser de OrbitControls —un valor que no reconoce lo deja sin acción— y
   // el giro pasa al central, donde lo tiene Blender; el derecho sigue
@@ -1486,6 +1502,58 @@ function estadoDe(encendida: boolean, resaltada: boolean, seleccionada: boolean)
   return seleccionada ? ESTADO.SELECCIONADA : ESTADO.VISIBLE
 }
 
+/**
+ * La vista ortográfica (la tecla 5 de Blender), sin cambiar de cámara (D-132).
+ *
+ * Una cámara de perspectiva con el campo muy cerrado y muy lejos proyecta casi
+ * en paralelo: a 2° el error es imperceptible, y así todo lo demás —
+ * OrbitControls, el picado, el encuadre, el gesto de mover— sigue tratando con
+ * la misma `PerspectiveCamera` y no hay que duplicar nada para una
+ * `OrthographicCamera`. Para que el encuadre no cambie al pasar de una a otra,
+ * la cámara se aleja lo que se cierra el campo.
+ */
+const CAMPO_DE_PERSPECTIVA = 42
+const CAMPO_ORTOGRAFICO = 2
+const ALEJAMIENTO_ORTOGRAFICO =
+  Math.tan((CAMPO_DE_PERSPECTIVA * Math.PI) / 360) / Math.tan((CAMPO_ORTOGRAFICO * Math.PI) / 360)
+
+function ponerProyeccion(taller: TallerDelVisor, ortografica: boolean) {
+  const { camara, controles } = taller
+  if (!camara || !controles || !!taller.ortografica === ortografica) return
+  const factor = ortografica ? ALEJAMIENTO_ORTOGRAFICO : 1 / ALEJAMIENTO_ORTOGRAFICO
+  camara.position.sub(controles.target).multiplyScalar(factor).add(controles.target)
+  camara.fov = ortografica ? CAMPO_ORTOGRAFICO : CAMPO_DE_PERSPECTIVA
+  // Los planos de recorte van con la distancia: con los de perspectiva, a
+  // sesenta metros el cuerpo entero caería detrás del plano lejano.
+  camara.near = ortografica ? 1 : 0.02
+  camara.far = ortografica ? 1200 : 60
+  camara.updateProjectionMatrix()
+  controles.minDistance = 0.1 * (ortografica ? ALEJAMIENTO_ORTOGRAFICO : 1)
+  controles.maxDistance = 12 * (ortografica ? ALEJAMIENTO_ORTOGRAFICO : 1)
+  taller.ortografica = ortografica
+  controles.update()
+  taller.pedirDibujo?.()
+}
+
+/**
+ * Lo movido, con la clave de la pieza del catálogo. Lo de un fragmento
+ * (`FJ1#a`) pasa a su pieza; si se dan `preferidas`, de un hueso partido cuenta
+ * el fragmento que esté entre ellas, que es el que se quiere ver.
+ */
+function porPieza(
+  movidas: ReadonlyMap<string, TransformacionDePieza> | null | undefined,
+  preferidas?: ReadonlySet<string>,
+): Map<string, TransformacionDePieza> | null {
+  if (!movidas || movidas.size === 0) return null
+  const salida = new Map<string, TransformacionDePieza>()
+  for (const [id, transformacion] of movidas) {
+    const pieza = piezaDe(id)
+    if (pieza !== id && preferidas && !preferidas.has(id)) continue
+    salida.set(pieza, transformacion)
+  }
+  return salida
+}
+
 /** Hacia dónde se aparta la cámara del pivote para mirar desde cada lado. */
 const DIRECCION_DE_CADA_LADO: Record<LadoDeLaVista, THREE.Vector3> = {
   frente: new THREE.Vector3(0, 0, 1),
@@ -1544,11 +1612,12 @@ function encuadrarVisible(
   catalogo: CatalogoDelAtlas,
   visibles: Set<string> | null,
   separacion: number,
+  movidas: ReadonlyMap<string, TransformacionDePieza> | null = null,
 ) {
   const { camara, controles, escena } = taller
   if (!camara || !controles) return
 
-  const caja = cajaDeLoVisible(catalogo, visibles, separacion, escena?.datos)
+  const caja = cajaDeLoVisible(catalogo, visibles, separacion, escena?.datos, movidas)
   if (!caja) return
 
   const centro = caja.getCenter(new THREE.Vector3())
@@ -1580,6 +1649,8 @@ interface TallerDelVisor {
     empezar: (modo: ModoDeTransformacion) => boolean
     tecla: (tecla: string) => boolean
   }
+  /** Si la cámara está en vista ortográfica (ver `ponerProyeccion`). */
+  ortografica?: boolean
   /** Los trozos de los huesos partidos, por su identificador (`FJ1234#a`). */
   fragmentos?: Map<string, FragmentoDelAtlas>
   /** De qué corte salió cada pareja de trozos, para no volver a partir lo que no cambió. */
@@ -1628,6 +1699,10 @@ function vistaDe(
   if (salto) resto.add(salto)
   const ojo = camara.position.clone().add(resto)
   const objetivo = controles.target.clone().add(resto)
+  // En vista ortográfica la cámara está `ALEJAMIENTO_ORTOGRAFICO` veces más
+  // lejos de lo que estaría en perspectiva con el mismo encuadre. Lo que se
+  // guarda es siempre la de perspectiva, que es con la que abre la ficha.
+  if (taller.ortografica) ojo.sub(objetivo).divideScalar(ALEJAMIENTO_ORTOGRAFICO).add(objetivo)
   return {
     camara: [redondear(ojo.x), redondear(ojo.y), redondear(ojo.z)],
     objetivo: [redondear(objetivo.x), redondear(objetivo.y), redondear(objetivo.z)],

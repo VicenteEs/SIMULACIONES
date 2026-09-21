@@ -169,6 +169,7 @@ const ATAJOS_DEL_TALLER: [string, string][] = [
   ['Alt + G · Alt + R', 'Devolver lo seleccionado a su posición · a su orientación anatómica.'],
   ['Mayús + G', 'Seleccionar todo lo encendido del mismo sistema (hueso, músculo, vaso…).'],
   ['Ctrl + Z · Ctrl + Mayús + Z', 'Deshacer · rehacer, hasta cincuenta pasos.'],
+  ['5', 'Vista ortográfica, sin fuga. Otra vez, vuelve la perspectiva.'],
   ['Alt + Z', 'Rayos X: ver a través de lo que no está seleccionado.'],
   ['1 · 3 · 7', 'Vista de frente, lateral y superior. Con Ctrl, la contraria.'],
   ['Punto', 'Centrar la vista en lo seleccionado.'],
@@ -263,6 +264,8 @@ export function TallerDeAtlas() {
   const [atajosAbiertos, setAtajosAbiertos] = useState(false)
   /** Rayos X: una forma de mirar, no parte de la preparación. No se guarda. */
   const [rayosX, setRayosX] = useState(false)
+  /** Vista ortográfica: también es solo una forma de mirar. La ficha abre siempre en perspectiva. */
+  const [ortografica, setOrtografica] = useState(false)
   /**
    * Las piezas encendidas de antes de cada cambio, para Ctrl + Z.
    *
@@ -1167,6 +1170,19 @@ export function TallerDeAtlas() {
     })
   }
 
+  // Lo seleccionado, por pieza del catálogo, para el árbol: de un hueso partido
+  // el árbol solo conoce el hueso. Y la selección desde el árbol, estable entre
+  // pintados porque es prop de filas memorizadas.
+  const piezasSeleccionadas = useMemo(() => new Set([...seleccion].map(piezaDe)), [seleccion])
+  const partidas = useMemo(() => new Set(cortes.map((c) => c.pieza)), [cortes])
+  const seleccionarDesdeElArbol = useCallback(
+    (id: string, sumar: boolean) => {
+      const ids = partidas.has(id) ? [idDeFragmento(id, 'a'), idDeFragmento(id, 'b')] : [id]
+      setSeleccion((actual) => seleccionTras(actual, ids, sumar ? 'alternar' : 'reemplazar'))
+    },
+    [partidas],
+  )
+
   const nombreDeLaSeleccionada = useMemo(() => {
     if (!catalogo || seleccion.size !== 1) return ''
     const [id] = seleccion
@@ -1230,6 +1246,7 @@ export function TallerDeAtlas() {
       } else if (tecla === '1') mirarDesde('frente')
       else if (tecla === '3') mirarDesde('derecha')
       else if (tecla === '7') mirarDesde('arriba')
+      else if (tecla === '5') setOrtografica((puesta) => !puesta)
       else if (tecla === '.' || evento.code === 'NumpadDecimal') encuadrarLoElegido()
       else if (tecla === 'home') {
         mando.current?.encuadrar()
@@ -1552,9 +1569,24 @@ export function TallerDeAtlas() {
           esta zona de la pantalla. Vacía no ocupa sitio: el borde y el margen
           los pone `.admin-aviso`, que sí es condicional. Es el mismo reparto
           que en `TablaUsuarios`. */}
+      {/* Los dos avisos FLOTAN sobre la página (D-132) en vez de ir en su flujo.
+          En el flujo empujaban el lienzo hacia abajo al aparecer, a mitad de un
+          gesto: se cortaba un hueso, salía el aviso, y el clic siguiente —sobre
+          el fragmento— caía en otra pieza, sesenta píxeles más arriba. */}
+      <div className="atlas-avisos-flotantes">
       <div role="status">
         {aviso ? (
-          <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>{aviso.texto}</div>
+          <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>
+            {aviso.texto}
+            <button
+              type="button"
+              className="atlas-aviso-cerrar"
+              aria-label="Cerrar el aviso"
+              onClick={() => setAviso(null)}
+            >
+              ×
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -1566,6 +1598,7 @@ export function TallerDeAtlas() {
           volver al cuerpo completo o abrir otra preparación se lo llevará.
         </div>
       ) : null}
+      </div>
 
       <div className="atlas-marco">
         <aside className="atlas-panel">
@@ -1575,6 +1608,8 @@ export function TallerDeAtlas() {
             alCambiarVisibles={cambiarVisibles}
             resaltada={resaltada}
             alResaltar={setResaltada}
+            seleccion={piezasSeleccionadas}
+            alSeleccionar={seleccionarDesdeElArbol}
           />
         </aside>
 
@@ -1611,6 +1646,7 @@ export function TallerDeAtlas() {
             transformaciones={transformaciones}
             alTransformar={alTransformar}
             rayosX={rayosX}
+            ortografica={ortografica}
             cortes={cortes}
             alCortar={alCortar}
             alAvisar={(texto) => setAviso({ tipo: 'error', texto })}
@@ -1743,6 +1779,15 @@ export function TallerDeAtlas() {
               </button>
               <button type="button" className="atlas-herramienta" title="Desde arriba (7)" onClick={() => mirarDesde('arriba')}>
                 Superior
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={ortografica}
+                title="Vista ortográfica, sin fuga: para trazar cortes rectos y medir (5)"
+                onClick={() => setOrtografica((puesta) => !puesta)}
+              >
+                Orto
               </button>
               <button
                 type="button"

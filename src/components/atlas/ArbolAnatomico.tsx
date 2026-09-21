@@ -35,12 +35,25 @@ export function ArbolAnatomico({
   alCambiarVisibles,
   resaltada,
   alResaltar,
+  seleccion = null,
+  alSeleccionar,
 }: {
   catalogo: CatalogoDelAtlas
   visibles: Set<string>
   alCambiarVisibles: (nuevas: Set<string>) => void
   resaltada: string | null
   alResaltar: (id: string | null) => void
+  /**
+   * Piezas seleccionadas en el visor, para marcarlas aquí también (D-132): el
+   * árbol y el lienzo enseñan la misma selección, como el Outliner de Blender.
+   */
+  seleccion?: ReadonlySet<string> | null
+  /**
+   * Si llega, pulsar el NOMBRE de una pieza la selecciona (con Mayús, la suma o
+   * la quita) y la casilla sigue encendiendo y apagando. Tiene que llegar
+   * estable entre pintados, como las demás: es prop de una fila memorizada.
+   */
+  alSeleccionar?: (id: string, sumar: boolean) => void
 }) {
   const [eje, setEje] = useState<'region' | 'sistema'>('region')
   const [consulta, setConsulta] = useState('')
@@ -187,6 +200,8 @@ export function ArbolAnatomico({
             alResaltar={alResaltar}
             alAlternar={alternarPieza}
             alSoloEsto={soloEstaPieza}
+            seleccion={seleccion}
+            alSeleccionar={alSeleccionar}
           />
         ) : (
           arbol.map((grupo, posicionGrupo) => {
@@ -273,9 +288,11 @@ export function ArbolAnatomico({
                                 pieza={pieza}
                                 encendida={visibles.has(pieza.id)}
                                 resaltada={resaltada === pieza.id}
+                                seleccionada={seleccion?.has(pieza.id) ?? false}
                                 alResaltar={alResaltar}
                                 alAlternar={alternarPieza}
                                 alSoloEsto={soloEstaPieza}
+                                alSeleccionar={alSeleccionar}
                               />
                             ))}
                           </ul>
@@ -311,16 +328,20 @@ const FilaDePieza = memo(function FilaDePieza({
   pieza,
   encendida,
   resaltada,
+  seleccionada = false,
   alResaltar,
   alAlternar,
   alSoloEsto,
+  alSeleccionar,
 }: {
   pieza: PiezaDelAtlas
   encendida: boolean
   resaltada: boolean
+  seleccionada?: boolean
   alResaltar: (id: string | null) => void
   alAlternar: (id: string) => void
   alSoloEsto: (id: string) => void
+  alSeleccionar?: (id: string, sumar: boolean) => void
 }) {
   // El original va en el título y no en una segunda línea: la fila es de una
   // sola línea con puntos suspensivos, y en el ancho de la columna del taller
@@ -335,16 +356,45 @@ const FilaDePieza = memo(function FilaDePieza({
   const traducida = tieneTraduccion(pieza.nombre)
   return (
     <li
-      className={`atlas-pieza${resaltada ? ' atlas-pieza-resaltada' : ''}`}
+      className={`atlas-pieza${resaltada ? ' atlas-pieza-resaltada' : ''}${
+        seleccionada ? ' atlas-pieza-seleccionada' : ''
+      }`}
       onMouseEnter={() => alResaltar(pieza.id)}
       onMouseLeave={() => alResaltar(null)}
     >
-      <label className="atlas-casilla">
-        <input type="checkbox" checked={encendida} onChange={() => alAlternar(pieza.id)} />
-        <span lang={traducida ? undefined : 'en'} title={`${pieza.nombre} · ${pieza.fma}`}>
-          {nombreEnEspanol(pieza.nombre)}
+      {alSeleccionar ? (
+        // Con selección, la casilla y el nombre hacen cosas distintas y ya no
+        // pueden compartir un `<label>`: pulsar el nombre encendería la pieza
+        // además de seleccionarla. La casilla se nombra entonces por su cuenta.
+        <span className="atlas-casilla">
+          <input
+            type="checkbox"
+            checked={encendida}
+            aria-label={`Encender ${nombreEnEspanol(pieza.nombre)}`}
+            onChange={() => alAlternar(pieza.id)}
+          />
+          <button
+            type="button"
+            className="atlas-pieza-nombre"
+            aria-pressed={seleccionada}
+            // Una pieza apagada no se selecciona: no se ve, y lo que se hiciera
+            // con ella sería a ciegas.
+            disabled={!encendida}
+            lang={traducida ? undefined : 'en'}
+            title={`${pieza.nombre} · ${pieza.fma}`}
+            onClick={(evento) => alSeleccionar(pieza.id, evento.shiftKey || evento.ctrlKey)}
+          >
+            {nombreEnEspanol(pieza.nombre)}
+          </button>
         </span>
-      </label>
+      ) : (
+        <label className="atlas-casilla">
+          <input type="checkbox" checked={encendida} onChange={() => alAlternar(pieza.id)} />
+          <span lang={traducida ? undefined : 'en'} title={`${pieza.nombre} · ${pieza.fma}`}>
+            {nombreEnEspanol(pieza.nombre)}
+          </span>
+        </label>
+      )}
       {/* La región deducida de la posición se marca: es una estimación y no un
           dato del atlas, y quien prepara una ficha merece saberlo. */}
       {pieza.origenRegion === 'caja' ? (
@@ -366,6 +416,8 @@ function ResultadosDeBusqueda({
   alResaltar,
   alAlternar,
   alSoloEsto,
+  seleccion,
+  alSeleccionar,
 }: {
   busqueda: BusquedaEnEspanol
   visibles: Set<string>
@@ -373,6 +425,8 @@ function ResultadosDeBusqueda({
   alResaltar: (id: string | null) => void
   alAlternar: (id: string) => void
   alSoloEsto: (id: string) => void
+  seleccion?: ReadonlySet<string> | null
+  alSeleccionar?: (id: string, sumar: boolean) => void
 }) {
   const { piezas, total } = busqueda
   if (total === 0) {
@@ -395,9 +449,11 @@ function ResultadosDeBusqueda({
             pieza={pieza}
             encendida={visibles.has(pieza.id)}
             resaltada={resaltada === pieza.id}
+            seleccionada={seleccion?.has(pieza.id) ?? false}
             alResaltar={alResaltar}
             alAlternar={alAlternar}
             alSoloEsto={alSoloEsto}
+            alSeleccionar={alSeleccionar}
           />
         ))}
       </ul>

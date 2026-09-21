@@ -103,6 +103,15 @@ export function cajaDeLoVisible(
   visibles: Set<string> | null,
   separacion: number,
   datos?: Float32Array,
+  /**
+   * Lo que cada pieza se ha movido de su sitio (D-129), por su identificador.
+   * Solo lo pasa «Encuadrar»: sin ello, un fragmento llevado a un palmo del
+   * hueso quedaba fuera del encuadre que se acababa de pedir. El giro no se
+   * cuenta —una caja girada sobre su centro apenas cambia de tamaño—, y el
+   * pivote automático sigue midiendo en reposo a propósito: que la cámara se
+   * deslice sola detrás de cada pieza que se mueve marea más que ayuda.
+   */
+  movidas?: ReadonlyMap<string, { mover: readonly [number, number, number] }> | null,
 ): THREE.Box3 | null {
   const caja = new THREE.Box3()
   const extremo = new THREE.Vector3()
@@ -118,6 +127,12 @@ export function cajaDeLoVisible(
         .multiplyScalar(separacion)
     } else {
       desplazamiento.set(0, 0, 0)
+    }
+    const movida = movidas?.get(pieza.id)
+    if (movida) {
+      desplazamiento.x += movida.mover[0]
+      desplazamiento.y += movida.mover[1]
+      desplazamiento.z += movida.mover[2]
     }
     caja.expandByPoint(extremo.set(min[0], min[1], min[2]).add(desplazamiento))
     caja.expandByPoint(extremo.set(max[0], max[1], max[2]).add(desplazamiento))

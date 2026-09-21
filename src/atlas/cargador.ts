@@ -448,7 +448,11 @@ function materialDelSistema(
         // allí lo lee sin que nadie se lo explique, y no se confunde con el
         // azul del resaltado, que es «por aquí pasa el ratón» y no «esto está
         // elegido».
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.55, 0.1), vSeleccionada * 0.7);`,
+        // Más oscuro y más cargado de lo que parece necesario: el hueso es casi
+        // blanco y la luz del visor pasa de 1, así que un naranja claro al 70 %
+        // salía lavado y un hueso seleccionado no se distinguía de uno sin
+        // seleccionar. Sobre músculo ya se veía; sobre hueso, no.
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95, 0.38, 0.0), vSeleccionada * 0.88);`,
       )
 
     // Se guarda para poder mover el mando de separación sin recompilar.

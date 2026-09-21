@@ -149,13 +149,13 @@ export function colocarFragmento(
   fragmento.malla.quaternion.set(qx, qy, qz, qw)
 }
 
-const NARANJA_DE_SELECCION = new THREE.Color(1.0, 0.55, 0.1)
+const NARANJA_DE_SELECCION = new THREE.Color(0.95, 0.38, 0.0)
 
 /** El mismo naranja, y en la misma proporción, que el sombreador da a una pieza seleccionada. */
 export function pintarFragmento(fragmento: FragmentoDelAtlas, seleccionado: boolean) {
   const material = fragmento.malla.material as THREE.MeshStandardMaterial
   material.color.copy(fragmento.colorBase)
-  if (seleccionado) material.color.lerp(NARANJA_DE_SELECCION, 0.7)
+  if (seleccionado) material.color.lerp(NARANJA_DE_SELECCION, 0.88)
 }
 
 export function liberarFragmento(fragmento: FragmentoDelAtlas) {
