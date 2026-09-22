@@ -5186,6 +5186,21 @@ contra la revisión con la que se construyó la imagen (una etiqueta en la image
 o un archivo junto al compose), no contra la copia de trabajo. El guion no está
 en este repositorio: vive en `paginas/` y lo comparten todas las páginas.
 
+### O-066 · 2026-09-22 · alta · corregida
+**En la ficha pública, un hueso partido se dibujaba entero debajo de sus
+trozos; y «Recortar» giraba la cámara en vez de dibujar el marco.**
+*Dónde se ve:* una patología publicada con una preparación recortada (D-140),
+abierta como lector: recorriendo el modelo con el ratón salían «Tibia derecha»
+y «Tibia derecha · fragmento» a la vez. El repaso de visibilidad de la carga
+corría antes de que existieran los trozos, y en la ficha nada vuelve a
+repintar; en el taller no se notaba porque cualquier clic repinta. El efecto
+de pintado compara ahora también el conjunto de piezas partidas y corre al
+terminar la carga. Lo segundo era un descuido de D-140: la herramienta no
+estaba en la lista que le quita el giro al botón izquierdo. Las dos cosas
+salieron de probar la ficha pública, que D-137 y D-140 dejaron sin probar; a
+partir de ahora la prueba de navegador de cada cambio del visor incluye la
+ficha como lector, no solo el taller.
+
 ---
 
 ## 4. Preguntas abiertas

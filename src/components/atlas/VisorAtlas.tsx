@@ -1503,6 +1503,8 @@ export function VisorAtlas({
     resaltada: string | null
     seleccion: Set<string> | null
     cortes: readonly CorteDePieza[] | null
+    /** Con qué conjunto de piezas partidas se pintó: lo rehace el efecto de los cortes. */
+    cortadas: ReadonlySet<string> | undefined
   } | null>(null)
 
   // Los huesos partidos (D-130). Va ANTES del efecto de pintado a propósito:
@@ -1592,12 +1594,19 @@ export function VisorAtlas({
     // La selección se compara igual, por identidad: quien la cambia entrega un
     // `Set` nuevo. Cambia con un clic o con un marco, no al pasar el ratón, así
     // que el repaso completo que provoca no cae en el gesto frecuente.
+    //
+    // Y `cortadas`, que la escribe el efecto de los cortes de arriba al terminar
+    // la carga: en una ficha no cambia nada más después de cargar, y sin esta
+    // comparación el hueso partido se pintaba ENTERO debajo de sus trozos —el
+    // repaso de la carga corrió antes de que existieran—. Por eso `progreso`
+    // está en las dependencias.
     if (
       anterior &&
       anterior.escena === escena &&
       anterior.visibles === visibles &&
       anterior.seleccion === seleccion &&
-      anterior.cortes === cortes
+      anterior.cortes === cortes &&
+      anterior.cortadas === taller.current.cortadas
     ) {
       cambiarResaltado(
         escena,
@@ -1610,9 +1619,9 @@ export function VisorAtlas({
     } else {
       aplicarVisibilidad(escena, catalogo, visibles, resaltada, seleccion, taller.current.cortadas)
     }
-    pintado.current = { escena, visibles, resaltada, seleccion, cortes }
+    pintado.current = { escena, visibles, resaltada, seleccion, cortes, cortadas: taller.current.cortadas }
     taller.current.pedirDibujo?.()
-  }, [catalogo, visibles, resaltada, seleccion, cortes])
+  }, [catalogo, visibles, resaltada, seleccion, cortes, progreso])
 
   // Las transformaciones que llegan por la prop se escriben en las texturas. Lo
   // que estaba transformado y ya no viene vuelve a su sitio: es lo que hace que
@@ -1702,7 +1711,10 @@ export function VisorAtlas({
   useEffect(() => {
     const controles = taller.current.controles
     if (!controles) return
-    const conMarco = herramienta === 'caja' || herramienta === 'corte'
+    // Toda herramienta que arrastra con el izquierdo le quita el giro a la
+    // cámara; las de marcar son de clic y pueden convivir con él. «Recortar»
+    // faltaba aquí y el marco que corta giraba la vista en vez de dibujarse.
+    const conMarco = herramienta === 'caja' || herramienta === 'corte' || herramienta === 'recorte'
     controles.mouseButtons = {
       LEFT: conMarco ? (-1 as THREE.MOUSE) : THREE.MOUSE.ROTATE,
       MIDDLE: conMarco ? THREE.MOUSE.ROTATE : THREE.MOUSE.DOLLY,
