@@ -17,7 +17,7 @@
 
 import * as THREE from 'three'
 import { partirMalla, type MallaIndexada } from '@/lib/osteotomia'
-import type { AspectoDePieza, EscenaDelAtlas, TransformacionDePieza } from './cargador'
+import { OPACIDAD_DE_RAYOS_X, type AspectoDePieza, type EscenaDelAtlas, type TransformacionDePieza } from './cargador'
 import { idDeFragmento, piezaDe, type CorteDePieza, type LadoDelCorte } from './formato'
 
 export interface FragmentoDelAtlas {
@@ -176,12 +176,14 @@ export function pintarFragmento(
   fragmento: FragmentoDelAtlas,
   seleccionado: boolean,
   aspecto: AspectoDePieza | null | undefined = null,
+  rayosX = false,
 ) {
   const material = fragmento.malla.material as THREE.MeshStandardMaterial
   if (aspecto?.color) material.color.set(aspecto.color)
   else material.color.copy(fragmento.colorBase)
   if (seleccionado) material.color.lerp(NARANJA_DE_SELECCION, 0.88)
-  const opacidad = aspecto?.opacidad ?? 1
+  // Con los rayos X, los trozos van al mismo 50 % que todo lo demás (D-139).
+  const opacidad = rayosX ? OPACIDAD_DE_RAYOS_X : (aspecto?.opacidad ?? 1)
   material.transparent = opacidad < 1
   material.opacity = opacidad
   material.depthWrite = opacidad >= 1

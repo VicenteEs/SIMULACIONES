@@ -37,6 +37,13 @@ import {
 import { impactoBajoElRayo } from '@/atlas/picking'
 import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import {
+  candidataDeUnTrozo,
+  planosDelRectangulo,
+  recortarPorElMarco,
+  type CandidataDelRecorte,
+  type ResultadoDelRecorte,
+} from '@/atlas/recorte'
+import {
   PUNTOS_POR_MARCA,
   anclaDeLaMarca,
   textoDeLaMarca,
@@ -204,9 +211,17 @@ export type LadoDeLaVista = 'frente' | 'atras' | 'derecha' | 'izquierda' | 'arri
  * Qué hace el botón izquierdo al arrastrar. En `orbita` gira la cámara, como
  * siempre; en `caja` dibuja un marco de selección y el giro pasa al botón
  * central, que es donde lo tiene Blender; en `corte` traza la línea por la que
- * se parte el hueso seleccionado (D-130).
+ * se parte el hueso seleccionado (D-130); en `recorte` dibuja un marco que
+ * selecciona lo de dentro y parte lo que cruza el borde (D-140).
  */
-export type HerramientaDelVisor = 'orbita' | 'caja' | 'corte' | 'rotulo' | 'distancia' | 'angulo'
+export type HerramientaDelVisor =
+  | 'orbita'
+  | 'caja'
+  | 'recorte'
+  | 'corte'
+  | 'rotulo'
+  | 'distancia'
+  | 'angulo'
 
 /**
  * Aviso de contexto WebGL perdido.
@@ -241,6 +256,7 @@ export function VisorAtlas({
   ortografica = false,
   cortes = null,
   alCortar,
+  alRecortar,
   alAvisar,
   alAsentarVista,
   corte = null,
@@ -280,6 +296,8 @@ export function VisorAtlas({
    * que se cortó ya se había movido (D-137).
    */
   alCortar?: (corte: CorteDePieza, heredadas: Map<string, TransformacionDePieza>) => void
+  /** Se arrastró un marco con la herramienta `recorte`: lo que se partió y lo que quedó dentro. */
+  alRecortar?: (resultado: ResultadoDelRecorte) => void
   /** Algo que decirle a quien trabaja: por qué no se pudo cortar, por ejemplo. */
   alAvisar?: (texto: string) => void
   /** Rótulos, distancias y ángulos apuntados sobre el modelo (D-135). Las fichas los enseñan; el taller, además, los pone. */
@@ -367,6 +385,7 @@ export function VisorAtlas({
     transformaciones,
     alTransformar,
     alCortar,
+    alRecortar,
     alAvisar,
     gizmo,
     alMarcar,
@@ -387,6 +406,7 @@ export function VisorAtlas({
       transformaciones,
       alTransformar,
       alCortar,
+      alRecortar,
       alAvisar,
       gizmo,
       alMarcar,
@@ -738,6 +758,54 @@ export function VisorAtlas({
     let distanciaDelUltimoImpacto = Infinity
     /** Los puntos ya marcados de una medida a medias. */
     let puntosPendientes: Punto[] = []
+
+    /**
+     * El marco que corta (D-140). Candidatas: todo lo encendido que se ve, sea
+     * pieza entera o trozo; la cuenta está en `src/atlas/recorte.ts`. Aquí solo
+     * se juntan las candidatas y se entrega el resultado.
+     */
+    const recortarPorElRectangulo = (escena: EscenaDelAtlas, rectangulo: ReturnType<typeof rectanguloNormalizado>) => {
+      const { alRecortar: recortar, alAvisar: decir, visibles: encendidas, transformaciones: movidas } = ultimas.current
+      if (!recortar) return
+      const candidatas: CandidataDelRecorte[] = []
+      const partidas = taller.current.cortadas ?? new Set<string>()
+      for (const indice of escena.rangos.keys()) {
+        const pieza = catalogo.piezas[indice]
+        if (encendidas && !encendidas.has(pieza.id)) continue
+        if (partidas.has(pieza.id)) continue
+        candidatas.push({
+          id: pieza.id,
+          indice,
+          centro: new THREE.Vector3(
+            escena.centros[indice * 3],
+            escena.centros[indice * 3 + 1],
+            escena.centros[indice * 3 + 2],
+          ),
+          transformacion: movidas?.get(pieza.id) ?? null,
+          caja: pieza.caja,
+        })
+      }
+      for (const trozo of taller.current.fragmentos?.values() ?? []) {
+        if (!trozo.malla.visible) continue
+        const indice = escena.indices.get(trozo.pieza)
+        if (indice === undefined) continue
+        candidatas.push(candidataDeUnTrozo(trozo, indice, movidas?.get(trozo.id) ?? null))
+      }
+      const resultado = recortarPorElMarco(escena, candidatas, planosDelRectangulo(camara, rectangulo))
+      const total = (ultimas.current.cortes?.length ?? 0) + resultado.cortes.length
+      if (total > MAXIMO_DE_CORTES) {
+        decir?.(
+          `Ese marco pide ${resultado.cortes.length} cortes y una preparación admite ${MAXIMO_DE_CORTES} en total. Recorte menos piezas de una vez, o suelde antes.`,
+        )
+        return
+      }
+      if (resultado.sinPartir > 0) {
+        decir?.(
+          `${resultado.sinPartir} pieza${resultado.sinPartir === 1 ? '' : 's'} ya venía${resultado.sinPartir === 1 ? '' : 'n'} de demasiados cortes seguidos y no se partió; el resto sí.`,
+        )
+      }
+      recortar(resultado)
+    }
 
     /**
      * Lo que hay bajo el rayo ya preparado: una pieza entera o un trozo de hueso
@@ -1112,7 +1180,7 @@ export function VisorAtlas({
       const { herramienta: h, alSeleccionar: avisar, soloLectura: lectura } = ultimas.current
       // El marco y la línea de corte empiezan igual: un arrastre con el
       // izquierdo que no es de la cámara. Se distinguen al pintar y al soltar.
-      if ((h === 'caja' || h === 'corte') && avisar && !lectura) {
+      if ((h === 'caja' || h === 'corte' || h === 'recorte') && avisar && !lectura) {
         inicioDelMarco = enElLienzo(evento)
         // Con la captura, soltar fuera del lienzo sigue llegando aquí: sin
         // ella, un marco que se saliera por el borde se quedaba pintado para
@@ -1212,6 +1280,13 @@ export function VisorAtlas({
         const lienzoDom = render.domElement
         if (ultimas.current.herramienta === 'corte') {
           cortarPorLaLinea(escena, esquina, enElLienzo(evento))
+          return
+        }
+        if (ultimas.current.herramienta === 'recorte') {
+          recortarPorElRectangulo(
+            escena,
+            rectanguloNormalizado(esquina, enElLienzo(evento), lienzoDom.clientWidth, lienzoDom.clientHeight),
+          )
           return
         }
         const dentro = piezasEnElRectangulo(
@@ -1469,11 +1544,11 @@ export function VisorAtlas({
     const t = taller.current
     for (const trozo of t.fragmentos?.values() ?? []) {
       trozo.malla.visible = !visibles || visibles.has(trozo.pieza)
-      pintarFragmento(trozo, !!seleccion?.has(trozo.id), aspectos?.get(trozo.pieza))
+      pintarFragmento(trozo, !!seleccion?.has(trozo.id), aspectos?.get(trozo.pieza), rayosX)
       colocarFragmento(trozo, transformaciones?.get(trozo.id))
     }
     t.pedirDibujo?.()
-  }, [catalogo, cortes, visibles, seleccion, transformaciones, aspectos, progreso])
+  }, [catalogo, cortes, visibles, seleccion, transformaciones, aspectos, rayosX, progreso])
 
   // El aspecto propio de cada pieza, con el mismo arreglo que las
   // transformaciones: lo que tenía uno y ya no viene vuelve al de su sistema.

@@ -201,7 +201,8 @@ que guarda, sin aviso.
 
 ## 6. El taller anatómico
 
-Sirve para preparar una vista del atlas (2.234 piezas) y ponerla en una ficha con
+Sirve para preparar una vista del atlas (2.230 piezas; la piel, el pelo, las
+cejas y el vello se quitaron del atlas y no existen) y ponerla en una ficha con
 el bloque «Preparación anatómica».
 
 1. **Seleccione** lo que le interesa. Un clic sobre una pieza la selecciona y
@@ -250,9 +251,8 @@ desplazado, una fractura.
   rotan por separado. El corte entra «hacia dentro» de la pantalla, así que
   conviene mirar el hueso de frente o de lado antes de trazarlo —mejor con
   «Orto»—. **«Soldar»** deshace el corte.
-- **«Rayos X»** (Alt + Z) deja ver a través de todo lo que no esté seleccionado,
-  para encontrar un hueso bajo el músculo. Es solo una forma de mirar: no se
-  guarda.
+- **«Rayos X»** (Alt + Z) vuelve todo translúcido, como en Blender, para
+  encontrar un hueso bajo el músculo. Es solo una forma de mirar: no se guarda.
 - **Mayús + G** selecciona todo lo encendido del mismo sistema que lo
   seleccionado —todos los músculos, todos los vasos—, que es la forma rápida de
   quitar una capa entera: Mayús + G y después Supr.
@@ -267,6 +267,11 @@ desplazado, una fractura.
   `8`, Intro mueve 8 mm en X; `R`, `Z`, `15`, Intro gira 15°. Y el panel
   **«Posición y giro»**, a la derecha, enseña cuánto se ha movido la pieza
   seleccionada, en milímetros y en grados, y deja escribirlo.
+- **Recortar** (tecla **J**): un marco que además corta. Arrastre un rectángulo:
+  lo que queda entero dentro se selecciona, y lo que cruza el borde **se parte
+  limpio por el borde**, como con un cuchillo, con su tapa. Lo de dentro queda
+  seleccionado para moverlo; lo de fuera queda como fragmentos. Cada pieza que
+  cruza gasta un corte por borde que cruce, y una preparación admite doscientos.
 - **Varios cortes.** Un fragmento se puede volver a cortar, hasta tres cortes
   encadenados, y ya no hace falta devolverlo a su sitio antes: se corta donde
   esté. «Soldar» deshace el último corte del fragmento seleccionado.

@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { planoDeLaLinea, planoEnReposo, transformacionHeredada } from '@/atlas/fragmentos'
 import { normalizarSeleccion } from '@/atlas/catalogo'
 import {
+  PROFUNDIDAD_MAXIMA_DE_CORTE,
   hojasDe,
   idDeFragmento,
   partesDeFragmento,
@@ -166,12 +167,14 @@ describe('los cortes que se dejan guardar', () => {
     expect(cortes?.map((c) => c.pieza)).toEqual(['tibia'])
   })
 
-  it('tres cortes encadenados como mucho', () => {
+  // Nueve desde D-140: el marco que corta gasta hasta cuatro por pieza.
+  it('los cortes encadenados tienen tope', () => {
     const plano = { punto: [0, 0.4, 0], normal: [0, 1, 0] }
-    const cortes = guardar(
-      ['tibia', 'tibia#a', 'tibia#a#a', 'tibia#a#a#a'].map((pieza) => ({ pieza, ...plano })),
-    )
-    expect(cortes?.map((c) => c.pieza)).toEqual(['tibia', 'tibia#a', 'tibia#a#a'])
+    const cadena: string[] = ['tibia']
+    for (let k = 0; k < PROFUNDIDAD_MAXIMA_DE_CORTE; k += 1) cadena.push(`${cadena[k]}#a`)
+    const cortes = guardar(cadena.map((pieza) => ({ pieza, ...plano })))
+    expect(cortes).toHaveLength(PROFUNDIDAD_MAXIMA_DE_CORTE)
+    expect(cortes?.at(-1)?.pieza).toBe(cadena[PROFUNDIDAD_MAXIMA_DE_CORTE - 1])
   })
 
   it('un solo corte por pieza: el segundo se ignora', () => {

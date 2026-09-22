@@ -115,6 +115,10 @@
   overflow-y: auto;
   max-width: 1200px;
 }
+/* El taller anatómico ocupa todo el ancho que haya (D-139): son tres columnas
+   —árbol, lienzo y panel— y en 1200 px el lienzo se quedaba en un tercio de una
+   pantalla ancha. La clase la pone su página. */
+.admin-content:has(.atlas-taller) { max-width: none; }
 
 /* ---------- encabezados ---------- */
 .admin-header {
@@ -1980,7 +1984,9 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
    entre avisos no se coma los clics de lo que queda debajo. */
 .atlas-avisos-flotantes {
   position: fixed;
-  top: 14px;
+  /* Abajo y no arriba: arriba a la derecha está «Guardar preparación», y el
+     aviso de «cambios sin guardar» tapaba justo el botón que pedía pulsar. */
+  bottom: 18px;
   right: 22px;
   z-index: 40;
   width: min(440px, calc(100vw - 44px));

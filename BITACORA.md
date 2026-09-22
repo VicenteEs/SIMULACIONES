@@ -3926,6 +3926,69 @@ es opcional: una preparación antigua se lee igual, pero el formato ya merece su
 propia versión 2 el día que algo deje de ser compatible. La cobertura bajó de
 91,9 % a 89 %: lo nuevo del visor y del taller solo se prueba en navegador.
 
+### D-138 · 2026-09-22 · vigente
+**El atlas se queda sin piel, cejas, pelo ni vello, de raíz.**
+El dueño pidió que desaparecieran «para siempre». La piel (`FJ2810`) era una
+cáscara de 23.000 vértices que envuelve el cuerpo entero, con la caja más
+grande del atlas: entraba en cualquier marco, tapaba cualquier corte y era lo
+primero que había que apagar en cada preparación. Con ella se van `Eyebrow`,
+`Hair of head` y `Pubic hair`; pestañas no hay en el atlas.
+
+*Cómo.* El material de origen no está en el servidor, así que
+`scripts/atlas/quitar-piel.mjs` trabaja sobre lo ya preparado: reescribe los
+dos paquetes que las traían copiando los bloques de las demás piezas uno tras
+otro, con sus desplazamientos nuevos, y el catálogo con versión nueva. Se
+comprobó byte a byte que las 2.230 piezas que quedan son idénticas. Los paquetes
+10 y 11 pierden 1,3 MB comprimidos. El guion es idempotente y hay que volver a
+pasarlo si algún día se regenera el atlas desde el origen.
+
+*Consecuencias.* Las preparaciones guardadas que incluían la piel —«cuerpo», en
+producción— la pierden y el taller las marca como desfasadas; una que aún la
+nombre se exporta sin ella y sin avisos de piel. El recorte de piel de la
+exportación sigue en el código, probado con pieles sintéticas, por si vuelve.
+Los 23 modelos `.glb` que la traían siguen intactos: son archivos aparte.
+
+### D-139 · 2026-09-22 · vigente
+**Rayos X como en Blender, y el taller a todo el ancho.**
+El damero de D-129 no se leía como los rayos X de Blender: lo de detrás se veía
+a trozos y lo de delante seguía tapando. Ahora es mezcla de verdad al 50 %, sin
+escribir profundidad, en todas las piezas y en los trozos; la opacidad propia
+(D-134) se deja de aplicar mientras están puestos. Los triángulos de cada malla
+no se ordenan de lejos a cerca —son 2,3 millones—; a opacidad fija apenas se
+nota, y Blender tampoco los ordena.
+El panel limita el contenido a 1200 px; la página del taller lleva la clase
+`atlas-taller` y `admin.css` le suelta el tope. Y los avisos flotantes (D-132)
+bajan a la esquina inferior derecha: arriba tapaban «Guardar preparación», que
+es justo el botón que el aviso de «cambios sin guardar» pide pulsar.
+
+### D-140 · 2026-09-22 · vigente
+**El marco que corta: seleccionar con un rectángulo y partir limpio lo que
+cruza su borde.**
+El dueño lo pidió con estas palabras: «si mi selectbox corta un músculo por la
+mitad, de verdad lo haga, un corte limpio, como si se cortara con cuchillo».
+
+*Cómo.* Un rectángulo en pantalla es una pirámide con el vértice en la cámara:
+cuatro planos (`planosDelRectangulo`). Cada pieza —o trozo— que cruza alguno se
+parte por él con el corte con tapa de siempre, plano a plano, siguiendo con lo
+de dentro (`recortarPorElMarco`, en `src/atlas/recorte.ts`). Al final lo de
+dentro queda seleccionado y lo de fuera, un trozo por plano cruzado, queda
+suelto. La caja envolvente decide por adelantado qué cruza y la geometría decide
+de verdad. Es el árbol de cortes de D-137 sin nada nuevo en el formato: solo
+cortes encadenados. Por eso los topes subieron: 200 cortes por preparación y 9
+encadenados (cuatro por marco, y sitio para un segundo marco o un corte a mano).
+Herramienta «Recortar», tecla J. El «Marco» de D-126 sigue igual, por el centro
+y sin cortar.
+
+*Consecuencias buenas.* Aislar una franja de una pierna con todo lo que la
+cruza es un solo gesto, y lo que sale son piezas de verdad, con tapa. Se
+comprobó en un navegador: un marco por la mitad de la pierna hizo 8 cortes, la
+franja quedó seleccionada, se movió, se guardó y se reabrió igual. *Malas.* Cada
+corte se rehace en el navegador del residente al abrir la ficha: doscientos son
+unos segundos. Un marco sobre el cuerpo entero puede gastar decenas de cortes
+de una vez; si pasa del tope, se rechaza entero y se dice. Los trozos de fuera
+quedan sueltos y sin seleccionar: soldar deshace el corte más reciente de cada
+uno, así que deshacer un marco entero son varias soldaduras, o Ctrl + Z.
+
 ---
 
 ## 3. Observaciones

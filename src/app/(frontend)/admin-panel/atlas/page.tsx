@@ -14,5 +14,11 @@ export const dynamic = 'force-dynamic'
 export default async function PaginaAtlas() {
   await exigirPanel()
 
-  return <TallerDeAtlas />
+  // La clase la mira `admin.css` para soltar el ancho máximo del panel (D-139):
+  // el taller son tres columnas y quiere toda la pantalla.
+  return (
+    <div className="atlas-taller">
+      <TallerDeAtlas />
+    </div>
+  )
 }

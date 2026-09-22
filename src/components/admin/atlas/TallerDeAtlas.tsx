@@ -11,6 +11,7 @@ import type {
 import { VISTA_INICIAL, hojasDe, idDeFragmento, partesDeFragmento, piezaDe } from '@/atlas/formato'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
+import type { ResultadoDelRecorte } from '@/atlas/recorte'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
 import { cuaternionDeGrados, gradosDeCuaternion } from '@/atlas/angulos'
 import { parejasContralaterales, reflejarGiro, reflejarVector } from '@/atlas/espejo'
@@ -185,6 +186,7 @@ const ATAJOS_DEL_TALLER: [string, string][] = [
   ['G · R', 'Mover · rotar lo seleccionado. X, Y o Z atan a un eje; clic o Intro confirman, Esc cancela.'],
   ['G X 8 Intro', 'Teclear un número durante el gesto lo hace exacto: milímetros al mover, grados al rotar.'],
   ['Asas', 'Arrastrar una flecha de color mueve por ese eje; un aro, gira sobre él. X rojo, Y verde, Z azul.'],
+  ['J', 'Recortar: un marco que selecciona lo de dentro y parte limpio, por el borde, lo que lo cruza.'],
   ['K', 'Cortar: con un hueso seleccionado, trazar una línea de lado a lado lo parte en dos fragmentos.'],
   ['Alt + G · Alt + R', 'Devolver lo seleccionado a su posición · a su orientación anatómica.'],
   ['Ctrl + G · Ctrl + Mayús + G', 'Agrupar lo seleccionado, para seleccionarlo y moverlo junto · desagruparlo.'],
@@ -1002,6 +1004,30 @@ export function TallerDeAtlas() {
     setAviso(null)
   }
 
+  /**
+   * El marco que corta (D-140): sus cortes van detrás de los que había, en su
+   * orden de árbol; lo que se partió cede su transformación a sus trozos; y
+   * queda seleccionado lo de dentro.
+   */
+  const alRecortar = (resultado: ResultadoDelRecorte) => {
+    if (resultado.cortes.length === 0 && resultado.dentro.length === 0) {
+      setSeleccion(new Set())
+      return
+    }
+    apuntarPaso()
+    const partidas = new Set(resultado.cortes.map((c) => c.pieza))
+    setCortes([...cortes, ...resultado.cortes])
+    const nuevas = new Map(transformaciones)
+    for (const id of partidas) nuevas.delete(id)
+    for (const [id, heredada] of resultado.heredadas) nuevas.set(id, heredada)
+    setTransformaciones(nuevas)
+    // En los grupos, lo partido deja sitio a sus hojas.
+    const todos = [...cortes, ...resultado.cortes]
+    setGrupos(grupos.map((g) => g.flatMap((id) => (partidas.has(id) ? hojasDe(todos, id) : [id]))))
+    setSeleccion(new Set(resultado.dentro))
+    setAviso(null)
+  }
+
   /** Deshace el corte de los fragmentos seleccionados: el hueso vuelve entero y a su sitio. */
   const soldarSeleccion = () => {
     // Se suelda el ÚLTIMO corte de cada fragmento seleccionado: su padre vuelve
@@ -1498,6 +1524,7 @@ export function TallerDeAtlas() {
       else if (tecla === 'a') setSeleccion(new Set(idsSeleccionables(visibles)))
       else if (tecla === 'b') setHerramienta((actual) => (actual === 'caja' ? 'orbita' : 'caja'))
       else if (tecla === 'm') setHerramienta((actual) => (actual === 'distancia' ? 'orbita' : 'distancia'))
+      else if (tecla === 'j') setHerramienta((actual) => (actual === 'recorte' ? 'orbita' : 'recorte'))
       else if (tecla === 'k') setHerramienta((actual) => (actual === 'corte' ? 'orbita' : 'corte'))
       else if (tecla === 'escape') {
         // Primero suelta la herramienta y solo después la selección: un Esc de
@@ -1962,6 +1989,7 @@ export function TallerDeAtlas() {
             ortografica={ortografica}
             cortes={cortes}
             alCortar={alCortar}
+            alRecortar={alRecortar}
             alAvisar={(texto) => setAviso({ tipo: 'error', texto })}
           />
 
@@ -1989,6 +2017,15 @@ export function TallerDeAtlas() {
                 onClick={() => setHerramienta('caja')}
               >
                 Marco
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={herramienta === 'recorte'}
+                title="Recortar: arrastre un marco; lo de dentro queda seleccionado y lo que cruza el borde se parte limpio por él (J)"
+                onClick={() => setHerramienta('recorte')}
+              >
+                Recortar
               </button>
               <button
                 type="button"

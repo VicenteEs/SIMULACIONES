@@ -463,19 +463,13 @@ function materialDelSistema(
         // Descartar es lo que hace que apagar una pieza sea gratis: no se toca
         // la geometría, simplemente sus píxeles no se pintan.
         if (vVisible < 0.5) discard;
-        // Rayos X (D-129): lo no seleccionado se pinta en damero, un píxel sí y
-        // otro no, y por los huecos se ve lo de detrás. Es transparencia sin
-        // serlo: la de verdad pide ordenar 2,3 millones de triángulos de lejos
-        // a cerca en cada fotograma, y esto no cuesta nada. Lo seleccionado se
-        // queda macizo para que se distinga a través de todo lo demás.
-        if (rayosX > 0.5 && vSeleccionada < 0.5 &&
-            mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 0.5) discard;
-        // La opacidad propia de la pieza (D-134), con el mismo truco: se tiran
-        // píxeles en proporción, repartidos por una trama sin dibujo visible
-        // (la secuencia R2), y por los huecos se ve lo de detrás. Un músculo al
+        // La opacidad propia de la pieza (D-134): se tiran píxeles en
+        // proporción, repartidos por una trama sin dibujo visible (la
+        // secuencia R2), y por los huecos se ve lo de detrás. Un músculo al
         // 30 % sobre su hueso es la lámina clásica de un atlas, y así sale sin
-        // ordenar triángulos y sin una pasada más.
-        if (vAspecto.a < 0.995 &&
+        // ordenar triángulos y sin una pasada más. Con los rayos X puestos no
+        // se aplica: allí todo es ya translúcido de verdad (ver aplicarRayosX).
+        if (rayosX < 0.5 && vAspecto.a < 0.995 &&
             fract(dot(floor(gl_FragCoord.xy), vec2(0.7548776662, 0.5698402910))) > vAspecto.a) discard;`,
       )
       .replace(
@@ -516,11 +510,31 @@ export function aplicarSeparacion(escena: EscenaDelAtlas, separacion: number) {
   }
 }
 
-/** Enciende o apaga la vista de rayos X. Mismo arreglo que `aplicarSeparacion`, y por lo mismo. */
+/** La opacidad de todo con los rayos X puestos: la de Blender por omisión. */
+export const OPACIDAD_DE_RAYOS_X = 0.5
+
+/**
+ * Enciende o apaga la vista de rayos X (D-139): todo translúcido, como en
+ * Blender, y no en damero como estaba (D-129).
+ *
+ * El damero era transparencia sin serlo, y no se leía como en Blender: lo de
+ * detrás se veía a trozos y lo de delante seguía tapando. Ahora es mezcla de
+ * verdad, al 50 % y sin escribir profundidad, que es lo que hace Blender. Lo
+ * que no se hace es ordenar los 2,3 millones de triángulos de lejos a cerca:
+ * three ordena las quince mallas entre sí, y dentro de cada una los triángulos
+ * se mezclan en el orden en que están. Con mezcla conmutativa a opacidad fija
+ * eso apenas se nota, y Blender tampoco los ordena.
+ *
+ * Mismo arreglo que `aplicarSeparacion` para el uniforme, y por lo mismo.
+ */
 export function aplicarRayosX(escena: EscenaDelAtlas, encendidos: boolean) {
   for (const malla of escena.mallas) {
-    const material = malla.material as THREE.Material
+    const material = malla.material as THREE.MeshStandardMaterial
     material.userData.rayosX = encendidos ? 1 : 0
+    material.transparent = encendidos
+    material.opacity = encendidos ? OPACIDAD_DE_RAYOS_X : 1
+    material.depthWrite = !encendidos
+    material.needsUpdate = true
     const sombreador = material.userData.sombreador
     if (sombreador?.uniforms?.rayosX) sombreador.uniforms.rayosX.value = material.userData.rayosX
   }

@@ -188,11 +188,20 @@ export interface CorteDePieza {
   b?: TransformacionGuardada
 }
 
-/** Pocos cortes por preparación: cada uno se parte en el navegador al abrir la ficha. */
-export const MAXIMO_DE_CORTES = 8
+/**
+ * Cortes por preparación. Cada uno se parte en el navegador al abrir la
+ * ficha, y un músculo grande tarda unas decenas de milisegundos: doscientos son
+ * unos segundos de carga, que es el límite de lo razonable. Subió de ocho con
+ * el marco que corta (D-140), que parte cada pieza que cruza el borde.
+ */
+export const MAXIMO_DE_CORTES = 200
 
-/** Hasta dónde se puede partir un fragmento de un fragmento: tres cortes encadenados, ocho trozos de un hueso. */
-export const PROFUNDIDAD_MAXIMA_DE_CORTE = 3
+/**
+ * Hasta dónde se puede partir un fragmento de un fragmento. El marco que corta
+ * gasta hasta cuatro por pieza —un plano por lado—, y encima tiene que caber
+ * un segundo marco o un corte a mano.
+ */
+export const PROFUNDIDAD_MAXIMA_DE_CORTE = 9
 
 export const MAXIMO_DE_GRUPOS = 16
 
