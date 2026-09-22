@@ -226,8 +226,12 @@ describe('el atlas preparado en esta copia del proyecto', () => {
   const catalogo = catalogoReal()
   const siHay = catalogo ? it : it.skip
 
-  siHay('trae las 2.234 piezas de BodyParts3D', () => {
-    expect(catalogo!.piezas.length).toBe(2234)
+  // 2.234 en BodyParts3D, menos la piel, las cejas, el pelo y el vello, que se
+  // quitaron de raíz (D-138, `scripts/atlas/quitar-piel.mjs`).
+  siHay('trae las 2.230 piezas de BodyParts3D que quedan sin la piel ni el pelo', () => {
+    expect(catalogo!.piezas.length).toBe(2230)
+    expect(catalogo!.piezas.some((p) => p.nombre === 'Skin')).toBe(false)
+    expect(catalogo!.piezas.some((p) => /hair|eyebrow/i.test(p.nombre))).toBe(false)
     expect(catalogo!.paquetes.length).toBe(15)
   })
 

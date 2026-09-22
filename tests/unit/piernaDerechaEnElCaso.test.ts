@@ -517,7 +517,10 @@ describe('ejecutar, con la exportación de verdad', () => {
       ...deRol('hueso'),
       ...deRol('fragmento'),
     ])
-    expect(deRol('piel')).toEqual(['Piel'])
+    // Sin piel desde D-138: la preparación de la pierna la nombra (`FJ2810`) y
+    // el atlas ya no la tiene, así que la capa de piel del caso queda vacía. El
+    // paso de la incisión sigue enseñando las tres capas que quedan.
+    expect(deRol('piel')).toEqual([])
     expect(deRol('musculo')).toContain('Musculos')
     // La reducción enseñaba el hueso fijo y el fragmento, y conserva sus medidas.
     expect(muestraDe(caso, 1)).toEqual([...deRol('hueso'), ...deRol('fragmento')])

@@ -555,10 +555,12 @@ describe('exportarPreparacion, desde un guion y sin sesión', () => {
     fragmento.rotation.set(0, 0, 0)
   }, 60_000)
 
-  it('devuelve y escribe en las notas los avisos de la piel, que un guion también lee', async () => {
-    // Estas eran pruebas que leían el texto de la acción. Ahora la lógica vive
-    // aquí, y lo que importa es la conducta: con la piel del cuerpo entero en
-    // la preparación, la respuesta dice que se recortó y las notas lo cuentan.
+  it('una preparación que aún nombra la piel de antes la pierde sin avisar de nada', async () => {
+    // Hasta D-138 esta prueba exportaba con la piel del cuerpo entero (`FJ2810`)
+    // y comprobaba que se recortaba y que las notas lo contaban. La piel ya no
+    // está en el atlas; el recorte sigue en el código, con pieles sintéticas
+    // más arriba. Lo que se comprueba ahora es que una preparación guardada con
+    // ella no falla ni avisa de una piel que no existe.
     payloadFalso.findByID.mockResolvedValue({
       id: 9,
       nombre: 'Pierna con piel',
@@ -567,12 +569,11 @@ describe('exportarPreparacion, desde un guion y sin sesión', () => {
     const modelo = await exportarPreparacion(payloadFalso as unknown as Payload, 9, {
       protagonistas: PIERNA,
     })
-    expect(modelo.pielRecortada).toBe(true)
-    expect(modelo.sinLaPiel).toBe(true)
-    expect(Array.isArray(modelo.pielFuera)).toBe(true)
+    expect(modelo.pielRecortada).toBe(false)
+    expect(modelo.sinLaPiel).toBe(false)
     expect(modelo.corte).toBeNull()
     const { data } = payloadFalso.create.mock.calls[0][0] as { data: { notas: string } }
-    expect(data.notas).toContain('La piel del atlas es de cuerpo entero: se recortó a la zona')
+    expect(data.notas).not.toContain('La piel del atlas')
   }, 60_000)
 
   it('un corte imposible se rechaza antes de leer el atlas, y no escribe nada', async () => {

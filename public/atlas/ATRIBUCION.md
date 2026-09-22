@@ -25,7 +25,7 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
 
 - ejes y unidades convertidos de milímetros y Z arriba a metros y Y arriba;
 - geometría simplificada con meshoptimizer, con un límite de error relativo del
-  0,2 % por estructura; las 2.234 mallas de origen se conservan todas;
+  0,2 % por estructura; las 2.230 mallas de origen se conservan todas;
 - normales cuantizadas a entero de 16 bits con signo;
 - geometría empaquetada en 15 archivos binarios comprimidos;
 - añadida una clasificación por **región anatómica** que el material original no
@@ -77,9 +77,9 @@ encías son mucosa de la boca y no hueso: el atlas las agrupa con los dientes,
 y en la simulación entrarían en la capa de hueso. La corrección se aplica al leer el catálogo, sobre el nombre original de cada
 estructura.
 
-La mayoría de las piezas tiene la región deducida: solo 875 (el 39 %) tienen un
-concepto FMA que las sitúa; las otras 1.359 (el 61 %) no. No es la excepción de
-vasos y nervios: arterias, venas y nervios son 774 de esas 1.359, el 57 %; el
+La mayoría de las piezas tiene la región deducida: solo 874 (el 39 %) tienen un
+concepto FMA que las sitúa; las otras 1.356 (el 61 %) no. No es la excepción de
+vasos y nervios: arterias, venas y nervios son 774 de esas 1.356, el 57 %; el
 resto es sobre todo músculos (355 de 412) y aparato digestivo (94 de 99). Sirve
 igual porque la estimación no se disfraza de dato: cada pieza deducida queda
 marcada en el catálogo y el árbol anatómico la señala con un distintivo.
@@ -92,4 +92,4 @@ marcada en el catálogo y el árbol anatómico la señala con un distintivo.
   quirúrgica sobre un paciente concreto.
 
 ---
-Preparación `bp3d-4.0-84768b56` · 2.288.268 triángulos
+Preparación `bp3d-4.0-23906b75` · 2.229.040 triángulos
