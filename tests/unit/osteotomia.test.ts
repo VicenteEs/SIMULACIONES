@@ -3,7 +3,13 @@ import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { join } from 'node:path'
 import * as THREE from 'three'
-import { partirMalla, type MallaIndexada } from '@/lib/osteotomia'
+import {
+  juntarMallas,
+  ladoDeLaMalla,
+  partirMalla,
+  partirPorVariosPlanos,
+  type MallaIndexada,
+} from '@/lib/osteotomia'
 import {
   caraDelGiro,
   describirCorte,
@@ -410,5 +416,78 @@ describe('la tibia derecha del atlas', () => {
     }
     expect(alturaMedia(r.haciaLaNormal)).toBeLessThan(alturaMedia(r.contraLaNormal))
     expect(r.haciaLaNormal.normales).toBeInstanceOf(Int16Array)
+  })
+})
+
+// ------------------------------------------------------ varios planos (D-141)
+
+describe('partir por varios planos, como el borde de un marco', () => {
+  // Un cubo de 20 cm centrado en el origen, y el marco con la esquina un poco
+  // desplazada del centro: lo de dentro es la esquina de 8,7 × 8,3 cm y lo de
+  // fuera, todo lo demás. Desplazada a propósito: con los planos justo sobre
+  // una fila de vértices, `partirMalla` los aparta un par de micras
+  // (`HOLGURA`) y deja astillas que la cuenta de aristas a la micra no sabe
+  // leer; eso ya lo prueban los cortes de un plano de más arriba.
+  const cubo = () => deThree(new THREE.BoxGeometry(0.2, 0.2, 0.2, 2, 2, 2), true)
+  const derecha = { punto: [0.013, 0, 0], normal: [1, 0, 0] } as const
+  const arriba = { punto: [0, 0.017, 0], normal: [0, 1, 0] } as const
+
+  it('deja dos piezas: lo de dentro de todos los planos y todo lo demás junto', () => {
+    const original = cubo()
+    const r = partirPorVariosPlanos(original, [derecha, arriba])
+    expect(r.planosQueCortan).toEqual([0, 1])
+    expect(r.dentro).not.toBeNull()
+    expect(r.fuera).not.toBeNull()
+    const total = volumen(original)
+    const esquina = (0.087 * 0.083 * 0.2) / 0.008
+    expect(volumen(r.dentro!) / total).toBeCloseTo(esquina, 6)
+    // Lo de fuera es UNA malla, no dos: la unión de los trozos que fueron
+    // saliendo. Sus tapas interiores se anulan en el volumen, que es el de
+    // todo lo que queda.
+    expect(volumen(r.fuera!) / total).toBeCloseTo(1 - esquina, 6)
+    expect(cerrada(r.dentro!).cerrada).toBe(true)
+    expect(indicesValidos(r.fuera!)).toBe(true)
+    // Nada de lo de dentro queda fuera del marco.
+    for (let i = 0; i < r.dentro!.posiciones.length; i += 3) {
+      expect(r.dentro!.posiciones[i]).toBeGreaterThanOrEqual(0.013 - 1e-6)
+      expect(r.dentro!.posiciones[i + 1]).toBeGreaterThanOrEqual(0.017 - 1e-6)
+    }
+    expect(r.fuera!.normales).toBeInstanceOf(Int16Array)
+  })
+
+  it('un plano que no corta no cambia nada, y no se cuenta', () => {
+    // El primero deja el cubo entero de su lado bueno: no parte nada.
+    const holgado = { punto: [-0.5, 0, 0], normal: [1, 0, 0] } as const
+    const r = partirPorVariosPlanos(cubo(), [holgado, derecha])
+    expect(r.planosQueCortan).toEqual([1])
+    // Y volver a partir solo con los que cortan da exactamente lo mismo, que
+    // es lo que permite guardar solo esos.
+    const otra = partirPorVariosPlanos(cubo(), [derecha])
+    expect(volumen(r.dentro!)).toBeCloseTo(volumen(otra.dentro!), 12)
+    expect(Array.from(r.fuera!.posiciones)).toEqual(Array.from(otra.fuera!.posiciones))
+  })
+
+  it('entera fuera, o entera dentro, no parte nada', () => {
+    const fuera = partirPorVariosPlanos(cubo(), [{ punto: [0.5, 0, 0], normal: [1, 0, 0] }])
+    expect(fuera.dentro).toBeNull()
+    expect(fuera.fuera).not.toBeNull()
+    const dentro = partirPorVariosPlanos(cubo(), [{ punto: [-0.5, 0, 0], normal: [1, 0, 0] }])
+    expect(dentro.fuera).toBeNull()
+    expect(dentro.planosQueCortan).toEqual([])
+  })
+
+  it('ladoDeLaMalla no cuenta lo que se apoya en el plano', () => {
+    expect(ladoDeLaMalla(cubo(), { punto: [0.1, 0, 0], normal: [-1, 0, 0] })).toBe('hacia')
+    expect(ladoDeLaMalla(cubo(), { punto: [0.1, 0, 0], normal: [1, 0, 0] })).toBe('contra')
+    expect(ladoDeLaMalla(cubo(), derecha)).toBe('cruza')
+  })
+
+  it('juntarMallas no mezcla normales de tipos distintos', () => {
+    const enteras = cubo()
+    const flotantes = deThree(new THREE.BoxGeometry(0.2, 0.2, 0.2))
+    expect(() => juntarMallas([enteras, flotantes])).toThrow(/tipos distintos/)
+    const junta = juntarMallas([enteras, cubo()])
+    expect(junta.indices.length).toBe(enteras.indices.length * 2)
+    expect(indicesValidos(junta)).toBe(true)
   })
 })

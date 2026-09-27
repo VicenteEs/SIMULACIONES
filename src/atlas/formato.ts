@@ -161,6 +161,15 @@ export interface ContenidoDeInstancia {
   grupos?: string[][]
   /** Encuadres con nombre, además del de `vista`, para saltar entre ellos en la ficha (D-135). */
   vistas?: VistaConNombre[]
+  /**
+   * Trozos apagados de piezas partidas que siguen encendidas (D-141): `FJ3387#b`
+   * es «Tibia derecha_2». Cada trozo se enciende y se apaga por su cuenta, que
+   * es lo que pidió el dueño —«si apago el resto no se apaguen las partes
+   * independientes»—; hasta D-140 lo encendido iba solo por pieza del atlas y
+   * apagar un trozo apagaba el hueso entero. Ausente si no hay ninguno; solo
+   * vale para hojas del árbol de cortes (`hojasDe`).
+   */
+  apagados?: string[]
 }
 
 /** Lo que un fragmento se ha movido; los mismos dos campos que en una pieza. */
@@ -184,8 +193,35 @@ export interface CorteDePieza {
   punto: [number, number, number]
   /** Unitaria. El fragmento `a` es el que queda hacia donde apunta. */
   normal: [number, number, number]
+  /**
+   * Los demás lados del marco que la recortó (D-141). Con ellos el corte deja
+   * de ser un plano: `a` es lo que queda del lado de la normal de TODOS —lo de
+   * dentro del marco— y `b` todo lo demás, en una sola pieza. Ausente en un
+   * corte de un solo plano, como el de la línea (K).
+   */
+  otrosPlanos?: PlanoGuardado[]
   a?: TransformacionGuardada
   b?: TransformacionGuardada
+}
+
+/** Un plano en el espacio anatómico de lo que corta. */
+export interface PlanoGuardado {
+  punto: [number, number, number]
+  normal: [number, number, number]
+}
+
+/**
+ * Cuántos planos puede tener un corte: los cuatro lados de un marco (D-141).
+ * `otrosPlanos` lleva como mucho tres, porque el primero va en `punto` y
+ * `normal`.
+ */
+export const MAXIMO_DE_PLANOS_POR_CORTE = 4
+
+/** Todos los planos de un corte, el suyo primero, en el orden en que se aplican. */
+export function planosDeUnCorte(
+  corte: Pick<CorteDePieza, 'punto' | 'normal' | 'otrosPlanos'>,
+): PlanoGuardado[] {
+  return [{ punto: corte.punto, normal: corte.normal }, ...(corte.otrosPlanos ?? [])]
 }
 
 /**
@@ -204,6 +240,12 @@ export const MAXIMO_DE_CORTES = 200
 export const PROFUNDIDAD_MAXIMA_DE_CORTE = 9
 
 export const MAXIMO_DE_GRUPOS = 16
+
+/**
+ * Trozos apagados por preparación (D-141): cada corte deja una hoja más que su
+ * pieza, así que no puede haber más de dos por corte.
+ */
+export const MAXIMO_DE_APAGADOS = 2 * MAXIMO_DE_CORTES
 
 export type LadoDelCorte = 'a' | 'b'
 
@@ -234,6 +276,32 @@ export function piezaDe(id: string): string {
 /** Cuántos cortes hay entre la pieza y este identificador: 0 para la pieza entera. */
 export function profundidadDe(id: string): number {
   return id.split('#').length - 1
+}
+
+/**
+ * Cómo se llama un trozo en pantalla: el camino de cortes con números, `_1`
+ * por cada `a` y `_2` por cada `b` (D-141). `FJ3387#a` es «_1» y `FJ3387#b#a`,
+ * «_2_1»; una pieza entera no lleva nada.
+ *
+ * Lo pidió el dueño así, «renombrarlas como _1 y _2», y con razón: «· fragmento»
+ * —lo de antes— se repetía igual en los dos trozos, y no había forma de saber
+ * cuál de los dos se estaba apagando. Sale del identificador y no de un
+ * contador para que el nombre no cambie al cortar otra cosa: el `_2` de hoy es
+ * el `_2` de mañana.
+ */
+export function sufijoDeTrozo(id: string): string {
+  const almohadilla = id.indexOf('#')
+  if (almohadilla < 0) return ''
+  return id
+    .slice(almohadilla + 1)
+    .split('#')
+    .map((lado) => (lado === 'a' ? '_1' : lado === 'b' ? '_2' : ''))
+    .join('')
+}
+
+/** El nombre de una pieza o de un trozo suyo: «Tibia derecha», «Tibia derecha_2». */
+export function nombreDeTrozo(nombreDeLaPieza: string, id: string): string {
+  return `${nombreDeLaPieza}${sufijoDeTrozo(id)}`
 }
 
 /**

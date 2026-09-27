@@ -15,7 +15,9 @@ import {
   MAXIMO_DE_CORTES,
   PROFUNDIDAD_MAXIMA_DE_CORTE,
   VISTA_INICIAL,
+  nombreDeTrozo,
   piezaDe,
+  planosDeUnCorte,
   type CatalogoDelAtlas,
   type CorteDePieza,
   type VistaDeInstancia,
@@ -82,6 +84,7 @@ import {
   ESPERA_DEL_PIVOTE_MS,
   avanzarTraslacion,
   cajaDeLoVisible,
+  cajaDeLoVisibleConTrozos,
   crearTraslacion,
   esElObjetivoPorOmision,
   pivoteEnSitio,
@@ -255,6 +258,7 @@ export function VisorAtlas({
   gizmo = false,
   ortografica = false,
   cortes = null,
+  apagados = null,
   alCortar,
   alRecortar,
   alAvisar,
@@ -290,6 +294,12 @@ export function VisorAtlas({
   transformaciones?: ReadonlyMap<string, TransformacionDePieza> | null
   /** Los huesos partidos (D-130). Las fichas pasan los guardados; el taller, los que se editan. */
   cortes?: readonly CorteDePieza[] | null
+  /**
+   * Trozos de piezas partidas que no se ven aunque su pieza esté encendida
+   * (D-141): cada trozo se enciende y se apaga por su cuenta. `null` o vacío,
+   * todos los trozos de lo encendido se ven.
+   */
+  apagados?: ReadonlySet<string> | null
   /**
    * Se trazó una línea de corte válida sobre lo seleccionado. `heredadas` trae
    * la transformación con la que cada trozo nuevo se queda donde estaba, si lo
@@ -437,7 +447,7 @@ export function VisorAtlas({
       // sumando después lo sacaría de ahí.
       cancelarPivote(t)
       const { visibles: v, separacion: s, transformaciones: movidas } = ultimas.current
-      encuadrarVisible(t, catalogo, v, s, porPieza(movidas))
+      encuadrarVisible(t, catalogo, v, s, porPieza(movidas), cajaConTrozos(t, catalogo, v, s, movidas, null))
       t.seleccionDelPivote = { visibles: v, separacion: s }
     },
     irA: (vista, visibles) => {
@@ -481,9 +491,18 @@ export function VisorAtlas({
       const t = taller.current
       cancelarPivote(t)
       const { visibles: v, separacion: s, transformaciones: movidas } = ultimas.current
-      // Un fragmento seleccionado encuadra su hueso, desplazado lo que se haya
-      // movido ese fragmento: la caja se mide por pieza del catálogo.
-      encuadrarVisible(t, catalogo, new Set([...piezas].map(piezaDe)), s, porPieza(movidas, piezas))
+      // Un trozo seleccionado se encuadra por lo que mide él, no su hueso
+      // entero (D-141): tras recortar las rodillas y quedarse con ellas,
+      // «Centrar» encuadraba las dos piernas enteras y las rodillas salían
+      // pequeñas y abajo, en el taller y en la ficha.
+      encuadrarVisible(
+        t,
+        catalogo,
+        new Set([...piezas].map(piezaDe)),
+        s,
+        porPieza(movidas, piezas),
+        cajaConTrozos(t, catalogo, v, s, movidas, piezas),
+      )
       // El pivote queda sobre la selección a propósito, y se anota como
       // atendido para lo que hay encendido: sin eso, el efecto que sigue a lo
       // visible lo devolvería al centro de todo en el siguiente cambio que no
@@ -831,7 +850,9 @@ export function VisorAtlas({
         distanciaDelUltimoImpacto = distancia
         const i = escena.indices.get(trozo.pieza)
         const nombre = i === undefined ? trozo.pieza : nombreEnEspanol(catalogo.piezas[i].nombre)
-        mejor = { id: trozo.id, nombre: `${nombre} · fragmento` }
+        // «Tibia derecha_2» y no «· fragmento», que era igual en los dos trozos
+        // y no decía cuál se tenía debajo del ratón (D-141).
+        mejor = { id: trozo.id, nombre: nombreDeTrozo(nombre, trozo.id) }
       }
       return mejor
     }
@@ -997,7 +1018,9 @@ export function VisorAtlas({
         for (const id of elegidas) {
           const trozo = taller.current.fragmentos?.get(id)
           if (trozo) {
-            if (encendidas && !encendidas.has(trozo.pieza)) continue
+            // Por lo que se ve y no por su pieza: un trozo apagado (D-141) no
+            // se mueve a ciegas aunque su hueso siga encendido.
+            if (!trozo.malla.visible) continue
             ids.push(id)
             centros.set(id, trozo.centro.clone())
             pivote.add(centroActual(trozo.centro, alEmpezar.get(id)))
@@ -1073,7 +1096,7 @@ export function VisorAtlas({
         const transformacion = enCurso?.ahora.get(id) ?? movidas?.get(id)
         const trozo = taller.current.fragmentos?.get(id)
         if (trozo) {
-          if (encendidas && !encendidas.has(trozo.pieza)) continue
+          if (!trozo.malla.visible) continue
           suma.add(centroActual(trozo.centro, transformacion))
           cuantas += 1
           continue
@@ -1523,8 +1546,11 @@ export function VisorAtlas({
     // Llevar la cuenta de qué trozo sale de cuál, con cortes encadenados (D-137),
     // era más código que lo que ahorra: son ocho cortes como mucho, y cambian
     // una vez por gesto, no por fotograma.
+    // Con todos los planos: un recorte (D-141) guarda los lados del marco en
+    // `otrosPlanos`, y firmar solo el primero dejaría sin rehacer un corte cuyo
+    // segundo plano cambió.
     const firma = (cortes ?? [])
-      .map((c) => `${c.pieza}|${c.punto.join(',')}|${c.normal.join(',')}`)
+      .map((c) => `${c.pieza}|${planosDeUnCorte(c).map((p) => `${p.punto.join(',')}/${p.normal.join(',')}`).join('|')}`)
       .join(';')
     if (t.firmaDeCortes !== firma || t.escenaDeLosCortes !== escena) {
       t.fragmentos?.forEach(liberarFragmento)
@@ -1539,18 +1565,19 @@ export function VisorAtlas({
     t.cortadas = new Set([...(t.fragmentos?.values() ?? [])].map((trozo) => trozo.pieza))
   }, [catalogo, cortes, progreso])
 
-  // Los trozos siguen a su pieza en lo encendido, y a la selección y a las
-  // transformaciones por su propio identificador. Son como mucho dieciséis
+  // Los trozos siguen a su pieza en lo encendido —y además a `apagados`, que
+  // apaga un trozo sin apagar su hueso (D-141)—, y a la selección y a las
+  // transformaciones por su propio identificador. Son unas pocas decenas de
   // mallas: se repasan todas en cada cambio y no hay nada que optimizar.
   useEffect(() => {
     const t = taller.current
     for (const trozo of t.fragmentos?.values() ?? []) {
-      trozo.malla.visible = !visibles || visibles.has(trozo.pieza)
+      trozo.malla.visible = (!visibles || visibles.has(trozo.pieza)) && !apagados?.has(trozo.id)
       pintarFragmento(trozo, !!seleccion?.has(trozo.id), aspectos?.get(trozo.pieza), rayosX)
       colocarFragmento(trozo, transformaciones?.get(trozo.id))
     }
     t.pedirDibujo?.()
-  }, [catalogo, cortes, visibles, seleccion, transformaciones, aspectos, rayosX, progreso])
+  }, [catalogo, cortes, visibles, apagados, seleccion, transformaciones, aspectos, rayosX, progreso])
 
   // El aspecto propio de cada pieza, con el mismo arreglo que las
   // transformaciones: lo que tenía uno y ya no viene vuelve al de su sistema.
@@ -1698,9 +1725,11 @@ export function VisorAtlas({
   // El manipulador sigue a la selección. Declarado DESPUÉS de los efectos que
   // colocan las piezas y los fragmentos, y del de la proyección, que cambia el
   // tamaño que le toca.
+  // `apagados` también: el manipulador se coloca sobre lo que se ve, y un trozo
+  // que se acaba de apagar (D-141) deja de contar para su centro.
   useEffect(() => {
     taller.current.gizmoAlDia?.()
-  }, [catalogo, gizmo, seleccion, visibles, transformaciones, cortes, ortografica, progreso])
+  }, [catalogo, gizmo, seleccion, visibles, apagados, transformaciones, cortes, ortografica, progreso])
 
   // La herramienta cambia qué botón gira la cámara. Con el marco, el izquierdo
   // deja de ser de OrbitControls —un valor que no reconoce lo deja sin acción— y
@@ -2052,17 +2081,51 @@ function cambiarResaltado(
  * el botón que existe para volver a ver el modelo enseñaba menos modelo que
  * antes justo con el cuerpo abierto.
  */
+/**
+ * La caja con la que se encuadra lo que se ve, contando cada trozo de una pieza
+ * partida por lo que mide él (D-141) —la cuenta está en
+ * `cajaDeLoVisibleConTrozos`—; aquí solo se elige qué entra.
+ *
+ * Con `elegidos`, solo eso: las piezas enteras que estén entre ellos y los
+ * trozos que estén entre ellos o cuya pieza lo esté. Sin él, todo lo encendido.
+ * `null` si no hay trozos que contar: quien llama se queda con la caja de
+ * siempre, que es la misma cuenta.
+ */
+function cajaConTrozos(
+  taller: TallerDelVisor,
+  catalogo: CatalogoDelAtlas,
+  visibles: Set<string> | null,
+  separacion: number,
+  movidas: ReadonlyMap<string, TransformacionDePieza> | null | undefined,
+  elegidos: ReadonlySet<string> | null,
+) {
+  const cortadas = taller.cortadas
+  if (!cortadas || cortadas.size === 0 || !taller.fragmentos) return null
+  const enteras = new Set<string>()
+  for (const id of elegidos ?? visibles ?? catalogo.piezas.map((p) => p.id)) {
+    if (id.includes('#') || cortadas.has(id)) continue
+    if (visibles && !visibles.has(id)) continue
+    enteras.add(id)
+  }
+  const trozos = [...taller.fragmentos.values()]
+    .filter((t) => t.malla.visible && (!elegidos || elegidos.has(t.id) || elegidos.has(t.pieza)))
+    .map((t) => t.malla)
+  return cajaDeLoVisibleConTrozos(catalogo, enteras, separacion, taller.escena?.datos, porPieza(movidas), trozos)
+}
+
 function encuadrarVisible(
   taller: TallerDelVisor,
   catalogo: CatalogoDelAtlas,
   visibles: Set<string> | null,
   separacion: number,
   movidas: ReadonlyMap<string, TransformacionDePieza> | null = null,
+  /** Una caja ya medida —la de `cajaConTrozos`—; sin ella, la de las piezas del catálogo. */
+  cajaMedida: THREE.Box3 | null = null,
 ) {
   const { camara, controles, escena } = taller
   if (!camara || !controles) return
 
-  const caja = cajaDeLoVisible(catalogo, visibles, separacion, escena?.datos, movidas)
+  const caja = cajaMedida ?? cajaDeLoVisible(catalogo, visibles, separacion, escena?.datos, movidas)
   if (!caja) return
 
   const centro = caja.getCenter(new THREE.Vector3())

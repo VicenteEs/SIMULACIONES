@@ -6,9 +6,11 @@ import {
   PROFUNDIDAD_MAXIMA_DE_CORTE,
   hojasDe,
   idDeFragmento,
+  nombreDeTrozo,
   partesDeFragmento,
   piezaDe,
   profundidadDe,
+  sufijoDeTrozo,
   type CatalogoDelAtlas,
 } from '@/atlas/formato'
 
@@ -49,6 +51,17 @@ describe('los nombres de los fragmentos', () => {
     expect(partesDeFragmento('FJ3387')).toBeNull()
     expect(partesDeFragmento('FJ3387#c')).toBeNull()
     expect(piezaDe('FJ3387')).toBe('FJ3387')
+  })
+
+  // D-141: «Tibia derecha_1» y «_2», como los pidió el dueño, y sacados del
+  // camino de cortes para que no cambien al cortar otra cosa.
+  it('en pantalla se llaman _1 y _2, siguiendo el camino de cortes', () => {
+    expect(sufijoDeTrozo('FJ3387')).toBe('')
+    expect(sufijoDeTrozo('FJ3387#a')).toBe('_1')
+    expect(sufijoDeTrozo('FJ3387#b')).toBe('_2')
+    expect(sufijoDeTrozo('FJ3387#b#a')).toBe('_2_1')
+    expect(nombreDeTrozo('Tibia derecha', 'FJ3387#b')).toBe('Tibia derecha_2')
+    expect(nombreDeTrozo('Tibia derecha', 'FJ3387')).toBe('Tibia derecha')
   })
 })
 
@@ -177,6 +190,23 @@ describe('los cortes que se dejan guardar', () => {
     expect(cortes?.at(-1)?.pieza).toBe(cadena[PROFUNDIDAD_MAXIMA_DE_CORTE - 1])
   })
 
+  // D-141: los lados de un recorte viajan en `otrosPlanos`, y uno malo tumba
+  // el corte entero: con un lado de menos se partiría otra cosa.
+  it('guarda los demás lados de un recorte, y descarta el corte si alguno está mal', () => {
+    const lado = { punto: [0.1, 0, 0], normal: [2, 0, 0] }
+    const bien = guardar([{ pieza: 'tibia', punto: [0, 0.4, 0], normal: [0, 1, 0], otrosPlanos: [lado] }])
+    expect(bien?.[0].otrosPlanos).toEqual([{ punto: [0.1, 0, 0], normal: [1, 0, 0] }])
+    expect(
+      guardar([
+        { pieza: 'tibia', punto: [0, 0.4, 0], normal: [0, 1, 0], otrosPlanos: [lado, { punto: [0, 0, 0], normal: [0, 0, 0] }] },
+      ]),
+    ).toBeUndefined()
+    expect(
+      guardar([{ pieza: 'tibia', punto: [0, 0.4, 0], normal: [0, 1, 0], otrosPlanos: [lado, lado, lado, lado] }]),
+    ).toBeUndefined()
+    expect(guardar([{ pieza: 'tibia', punto: [0, 0.4, 0], normal: [0, 1, 0], otrosPlanos: 'no' }])).toBeUndefined()
+  })
+
   it('un solo corte por pieza: el segundo se ignora', () => {
     const cortes = guardar([
       { pieza: 'tibia', punto: [0, 0.4, 0], normal: [0, 1, 0] },
@@ -184,5 +214,37 @@ describe('los cortes que se dejan guardar', () => {
     ])
     expect(cortes).toHaveLength(1)
     expect(cortes![0].punto).toEqual([0, 0.4, 0])
+  })
+})
+
+describe('los trozos apagados que se dejan guardar (D-141)', () => {
+  const catalogo = {
+    version: 'prueba',
+    piezas: [{ id: 'tibia' }, { id: 'femur' }],
+  } as unknown as CatalogoDelAtlas
+  const cortes = [
+    { pieza: 'tibia', punto: [0, 0.4, 0], normal: [0, 1, 0] },
+    { pieza: 'tibia#b', punto: [0, 0.2, 0], normal: [0, 1, 0] },
+  ]
+  const guardar = (apagados: unknown, piezas: unknown = ['tibia', 'femur']) =>
+    normalizarSeleccion(catalogo, piezas, null, cortes, { apagados }).apagados
+
+  it('guarda solo hojas del árbol de cortes, sin repetir y en orden', () => {
+    expect(guardar(['tibia#b#b', 'tibia#a', 'tibia#a'])).toEqual(['tibia#a', 'tibia#b#b'])
+  })
+
+  it('descarta lo que no es un trozo que exista', () => {
+    // `tibia#b` se volvió a partir: ya no existe como tal. `femur#a` no se
+    // partió nunca, y `tibia` es la pieza, que se apaga en `piezas`.
+    expect(guardar(['tibia#b', 'femur#a', 'tibia', 42, null])).toBeUndefined()
+  })
+
+  it('sin la pieza en la preparación no hay trozos que apagar', () => {
+    expect(guardar(['tibia#a'], ['femur'])).toBeUndefined()
+  })
+
+  it('una preparación de antes de D-141 se lee igual: el campo no existe', () => {
+    expect(guardar(undefined)).toBeUndefined()
+    expect(normalizarSeleccion(catalogo, ['tibia'], null, undefined, { apagados: ['tibia#a'] }).apagados).toBeUndefined()
   })
 })

@@ -6,6 +6,7 @@ import {
   DURACION_DEL_PIVOTE_MS,
   avanzarTraslacion,
   cajaDeLoVisible,
+  cajaDeLoVisibleConTrozos,
   crearTraslacion,
   esElObjetivoPorOmision,
   pivoteEnSitio,
@@ -86,6 +87,21 @@ describe('la caja de lo visible', () => {
   it('con `null` son todas las piezas', () => {
     const caja = cajaDeLoVisible(CATALOGO, null, 0)!
     expect(caja.max.y).toBeCloseTo(1.73)
+  })
+
+  // D-141: tras recortar, un trozo se encuadra por lo que mide él, no por su
+  // hueso entero; las piezas enteras siguen con su caja del catálogo.
+  it('con trozos, cada trozo cuenta por su malla y la pieza partida no cuenta entera', () => {
+    const trozo = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.02))
+    trozo.position.set(0.5, 0.5, 0.5)
+    const caja = cajaDeLoVisibleConTrozos(CATALOGO, new Set(['femur']), 0, undefined, null, [trozo])!
+    const femur = cajaDeLoVisible(CATALOGO, new Set(['femur']), 0)!
+    expect(caja.min.toArray()).toEqual(femur.min.toArray())
+    expect(caja.max.x).toBeCloseTo(0.51)
+    // Solo trozos: la caja es la suya, sin ninguna pieza entera.
+    const soloElTrozo = cajaDeLoVisibleConTrozos(CATALOGO, new Set(), 0, undefined, null, [trozo])!
+    expect(soloElTrozo.min.x).toBeCloseTo(0.49)
+    expect(cajaDeLoVisibleConTrozos(CATALOGO, new Set(), 0, undefined, null, [])).toBeNull()
   })
 
   it('sin nada encendido no hay caja, y el pivote se queda quieto', () => {
@@ -363,12 +379,12 @@ describe('el taller usa lo que el visor decide', () => {
     const abrir = entre(taller, 'const abrir = ', 'const guardar = ')
     expect(abrir).toContain('setVisibles(piezasAbiertas)')
     expect(abrir).toMatch(/const vistaAbierta =\s*mando\.current\?\.irA\(r\.datos\.contenido\.vista, piezasAbiertas\)/)
-    // El último argumento son las piezas movidas que trae la preparación
-    // (D-129) y sus huesos partidos (D-130): sin ellos en la referencia, abrir
-    // una preparación con un fragmento desplazado
-    // la daría por cambiada nada más abrirla.
+    // Los últimos argumentos son las piezas movidas que trae la preparación
+    // (D-129), sus huesos partidos (D-130) y los trozos apagados (D-141): sin
+    // ellos en la referencia, abrir una preparación con un fragmento desplazado
+    // o un trozo apagado la daría por cambiada nada más abrirla.
     expect(abrir).toMatch(
-      /fijarReferencia\(\s*piezasAbiertas,[\s\S]*vistaAbierta,\s*movidasAbiertas,\s*cortesAbiertos,\s*aspectosAbiertos,\s*\[marcasAbiertas, vistasAbiertas, gruposAbiertos\],\s*\)/,
+      /fijarReferencia\(\s*piezasAbiertas,[\s\S]*vistaAbierta,\s*movidasAbiertas,\s*cortesAbiertos,\s*aspectosAbiertos,\s*\[marcasAbiertas, vistasAbiertas, gruposAbiertos\],\s*apagadosAbiertos,\s*\)/,
     )
     expect(abrir.indexOf('irA(')).toBeLessThan(abrir.indexOf('fijarReferencia('))
 

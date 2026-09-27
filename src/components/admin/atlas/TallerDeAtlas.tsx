@@ -8,7 +8,15 @@ import type {
   PiezaDelAtlas,
   VistaDeInstancia,
 } from '@/atlas/formato'
-import { VISTA_INICIAL, hojasDe, idDeFragmento, partesDeFragmento, piezaDe } from '@/atlas/formato'
+import {
+  VISTA_INICIAL,
+  hojasDe,
+  idDeFragmento,
+  nombreDeTrozo,
+  partesDeFragmento,
+  piezaDe,
+  planosDeUnCorte,
+} from '@/atlas/formato'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import type { ResultadoDelRecorte } from '@/atlas/recorte'
@@ -116,6 +124,8 @@ const MAXIMO_DE_DESHACER = 50
 /** Lo que Ctrl + Z devuelve: qué había encendido y qué estaba fuera de su sitio. */
 interface PasoDelTaller {
   visibles: Set<string>
+  /** Los trozos apagados de piezas encendidas (D-141). */
+  apagados: Set<string>
   transformaciones: Map<string, TransformacionDePieza>
   cortes: CorteDePieza[]
   aspectos: Map<string, AspectoDePieza>
@@ -148,13 +158,19 @@ function transformacionesDe(
   return mapa
 }
 
-/** Los cortes en una cadena, redondeados como los redondea el servidor (`cortesValidos`). */
+/**
+ * Los cortes en una cadena, redondeados como los redondea el servidor
+ * (`cortesValidos`). Con todos sus planos: un recorte (D-141) guarda los lados
+ * del marco en `otrosPlanos`.
+ */
 function firmaDeCortes(cortes: readonly CorteDePieza[]): string {
   return [...cortes]
     .sort((a, b) => (a.pieza < b.pieza ? -1 : 1))
     .map(
       (c) =>
-        `${c.pieza}:${c.punto.map((n) => n.toFixed(5)).join(',')}:${c.normal.map((n) => n.toFixed(5)).join(',')}`,
+        `${c.pieza}:${planosDeUnCorte(c)
+          .map((plano) => `${plano.punto.map((n) => n.toFixed(5)).join(',')}/${plano.normal.map((n) => n.toFixed(5)).join(',')}`)
+          .join(':')}`,
     )
     .join(';')
 }
@@ -180,13 +196,16 @@ const ATAJOS_DEL_TALLER: [string, string][] = [
   ['B', 'Marco: arrastrar para seleccionar. Mayús suma, Ctrl quita. Esc vuelve a girar.'],
   ['A · Alt + A', 'Seleccionar todo lo encendido · no seleccionar nada.'],
   ['Ctrl + I', 'Invertir la selección.'],
-  ['Supr · X · H', 'Apagar lo seleccionado.'],
-  ['Mayús + H', 'Dejar encendido solo lo seleccionado.'],
+  ['Supr · X · H', 'Apagar lo seleccionado. Un trozo «_1» o «_2» se apaga solo, sin su pieza.'],
+  ['Mayús + H', 'Dejar encendido solo lo seleccionado: tras recortar, deja solo lo de dentro.'],
   ['Alt + H', 'Encender todo el cuerpo.'],
   ['G · R', 'Mover · rotar lo seleccionado. X, Y o Z atan a un eje; clic o Intro confirman, Esc cancela.'],
   ['G X 8 Intro', 'Teclear un número durante el gesto lo hace exacto: milímetros al mover, grados al rotar.'],
   ['Asas', 'Arrastrar una flecha de color mueve por ese eje; un aro, gira sobre él. X rojo, Y verde, Z azul.'],
-  ['J', 'Recortar: un marco que selecciona lo de dentro y parte limpio, por el borde, lo que lo cruza.'],
+  [
+    'J',
+    'Recortar: un marco que parte limpio, como un cuchillo, cada pieza que cruza su borde. Quedan dos: «_1», lo de dentro, seleccionado; y «_2», lo de fuera. Cada una se enciende y se apaga por su cuenta.',
+  ],
   ['K', 'Cortar: con un hueso seleccionado, trazar una línea de lado a lado lo parte en dos fragmentos.'],
   ['Alt + G · Alt + R', 'Devolver lo seleccionado a su posición · a su orientación anatómica.'],
   ['Ctrl + G · Ctrl + Mayús + G', 'Agrupar lo seleccionado, para seleccionarlo y moverlo junto · desagruparlo.'],
@@ -276,6 +295,13 @@ export function TallerDeAtlas() {
   const [fallo, setFallo] = useState<string | null>(null)
 
   const [visibles, setVisibles] = useState<Set<string>>(new Set())
+  /**
+   * Trozos apagados de piezas encendidas (D-141). Lo encendido va por pieza del
+   * atlas (`visibles`), y un trozo de una pieza partida —«Tibia derecha_2»— se
+   * apaga aquí sin apagar su pieza: es lo que deja «Solo esto» con lo recortado
+   * y nada más. Se guarda con la preparación.
+   */
+  const [apagados, setApagados] = useState<Set<string>>(new Set())
   const [resaltada, setResaltada] = useState<string | null>(null)
   const [separacion, setSeparacion] = useState(0)
 
@@ -450,6 +476,7 @@ export function TallerDeAtlas() {
     nombre: string
     descripcion: string
     piezas: string
+    apagados: string
     transformaciones: string
     cortes: string
     aspectos: string
@@ -459,6 +486,7 @@ export function TallerDeAtlas() {
     nombre: '',
     descripcion: '',
     piezas: '',
+    apagados: '',
     transformaciones: '',
     cortes: '',
     aspectos: '',
@@ -467,6 +495,7 @@ export function TallerDeAtlas() {
   })
 
   const clavePiezas = useMemo(() => [...visibles].sort().join(','), [visibles])
+  const claveApagados = useMemo(() => [...apagados].sort().join(','), [apagados])
   const claveCortes = useMemo(() => firmaDeCortes(cortes), [cortes])
   const claveAspectos = useMemo(() => firmaDeAspectos(aspectos), [aspectos])
   const claveApuntes = useMemo(
@@ -481,6 +510,7 @@ export function TallerDeAtlas() {
   const sucio =
     catalogo !== null &&
     (clavePiezas !== referencia.piezas ||
+      claveApagados !== referencia.apagados ||
       claveTransformaciones !== referencia.transformaciones ||
       claveCortes !== referencia.cortes ||
       claveAspectos !== referencia.aspectos ||
@@ -526,11 +556,13 @@ export function TallerDeAtlas() {
         [],
         [],
       ],
+      trozosApagados: ReadonlySet<string> = new Set(),
     ) => {
       setReferencia({
         nombre: titulo.trim(),
         descripcion: texto.trim(),
         piezas: [...piezas].sort().join(','),
+        apagados: [...trozosApagados].sort().join(','),
         transformaciones: firmaDeTransformaciones(movidas),
         cortes: firmaDeCortes(partidos),
         aspectos: firmaDeAspectos(pintadas),
@@ -751,19 +783,60 @@ export function TallerDeAtlas() {
   /** Deja en el historial lo que hay AHORA, antes de cambiarlo. */
   const apuntarPaso = () => {
     setHistorial((pasos) =>
-      [...pasos, { visibles, transformaciones, cortes, aspectos }].slice(-MAXIMO_DE_DESHACER),
+      [...pasos, { visibles, apagados, transformaciones, cortes, aspectos }].slice(-MAXIMO_DE_DESHACER),
     )
     setRehacer([])
   }
 
-  const cambiarVisibles = (nuevas: Set<string>) => {
+  /** Si una pieza o un trozo se ve: su pieza encendida y él sin apagar (D-141). */
+  const seVe = (id: string) => visibles.has(piezaDe(id)) && !apagados.has(id)
+
+  /**
+   * Los trozos apagados en su forma buena (D-141): solo trozos que existen, de
+   * piezas encendidas, y ninguna pieza con TODOS sus trozos apagados —esa se
+   * apaga entera, para que encenderla en el árbol la devuelva completa en vez
+   * de encender un hueso que no enseña nada—.
+   */
+  const ordenarLoEncendido = (
+    piezas: Set<string>,
+    trozos: ReadonlySet<string>,
+    conCortes: readonly CorteDePieza[] = cortes,
+  ): { piezas: Set<string>; trozos: Set<string> } => {
+    if (trozos.size === 0) return { piezas, trozos: new Set() }
+    const quedan = new Set<string>()
+    const apagadasDelTodo = new Set<string>()
+    for (const pieza of new Set([...trozos].map(piezaDe))) {
+      if (!piezas.has(pieza)) continue
+      const hojas = hojasDe(conCortes, pieza)
+      const suyas = hojas.filter((hoja) => trozos.has(hoja) && hoja !== pieza)
+      if (suyas.length === 0) continue
+      if (suyas.length === hojas.length) apagadasDelTodo.add(pieza)
+      else for (const hoja of suyas) quedan.add(hoja)
+    }
+    return {
+      piezas:
+        apagadasDelTodo.size > 0 ? new Set([...piezas].filter((id) => !apagadasDelTodo.has(id))) : piezas,
+      trozos: quedan,
+    }
+  }
+
+  /**
+   * Cambia lo encendido —piezas y, si se dan, trozos apagados— dejando lo
+   * anterior en el historial. Es la puerta de todo cambio que haga la persona:
+   * árbol, teclado, barra.
+   */
+  const cambiarVisibles = (nuevas: Set<string>, nuevosApagados: ReadonlySet<string> = apagados) => {
     apuntarPaso()
-    setVisibles(nuevas)
+    const orden = ordenarLoEncendido(nuevas, nuevosApagados)
+    setVisibles(orden.piezas)
+    setApagados(orden.trozos)
     // Lo que se apaga deja de estar seleccionado: una selección que no se ve
     // es una pieza que el siguiente Supr o «Solo esto» toca a ciegas.
     setSeleccion((actual) => {
       if (actual.size === 0) return actual
-      const quedan = new Set([...actual].filter((id) => nuevas.has(piezaDe(id))))
+      const quedan = new Set(
+        [...actual].filter((id) => orden.piezas.has(piezaDe(id)) && !orden.trozos.has(id)),
+      )
       return quedan.size === actual.size ? actual : quedan
     })
   }
@@ -772,8 +845,9 @@ export function TallerDeAtlas() {
     const anterior = historial.at(-1)
     if (!anterior) return
     setHistorial(historial.slice(0, -1))
-    setRehacer([...rehacer, { visibles, transformaciones, cortes, aspectos }])
+    setRehacer([...rehacer, { visibles, apagados, transformaciones, cortes, aspectos }])
     setVisibles(anterior.visibles)
+    setApagados(anterior.apagados)
     setTransformaciones(anterior.transformaciones)
     setCortes(anterior.cortes)
     setAspectos(anterior.aspectos)
@@ -785,8 +859,9 @@ export function TallerDeAtlas() {
     const siguiente = rehacer.at(-1)
     if (!siguiente) return
     setRehacer(rehacer.slice(0, -1))
-    setHistorial([...historial, { visibles, transformaciones, cortes, aspectos }])
+    setHistorial([...historial, { visibles, apagados, transformaciones, cortes, aspectos }])
     setVisibles(siguiente.visibles)
+    setApagados(siguiente.apagados)
     setTransformaciones(siguiente.transformaciones)
     setCortes(siguiente.cortes)
     setAspectos(siguiente.aspectos)
@@ -871,7 +946,7 @@ export function TallerDeAtlas() {
     for (const id of ids) {
       const grupo = grupos.find((g) => g.includes(id))
       // Solo lo encendido: un miembro apagado no se selecciona a ciegas.
-      for (const miembro of grupo ?? [id]) if (visibles.has(piezaDe(miembro))) salida.add(miembro)
+      for (const miembro of grupo ?? [id]) if (seVe(miembro)) salida.add(miembro)
     }
     return [...salida]
   }
@@ -920,6 +995,7 @@ export function TallerDeAtlas() {
     const sinPareja = [...visibles].filter((id) => !parejas.has(id)).length
     const nuevasVisibles = new Set([...visibles].map(otra))
     setVisibles(nuevasVisibles)
+    setApagados(new Set([...apagados].map(otra)))
     setTransformaciones(
       new Map(
         [...transformaciones].map(([id, t]) => [
@@ -933,6 +1009,15 @@ export function TallerDeAtlas() {
         pieza: otra(c.pieza),
         punto: reflejarVector(c.punto),
         normal: reflejarVector(c.normal),
+        // Los demás lados de un recorte (D-141) se reflejan igual que el primero.
+        ...(c.otrosPlanos
+          ? {
+              otrosPlanos: c.otrosPlanos.map((plano) => ({
+                punto: reflejarVector(plano.punto),
+                normal: reflejarVector(plano.normal),
+              })),
+            }
+          : {}),
       })),
     )
     setAspectos(new Map([...aspectos].map(([id, a]) => [otra(id), a])))
@@ -966,21 +1051,46 @@ export function TallerDeAtlas() {
     })
   }
 
+  /**
+   * Apaga lo seleccionado. Un trozo se apaga solo, sin su pieza (D-141).
+   *
+   * Hasta D-140 apagar un fragmento apagaba su hueso entero —lo encendido iba
+   * por pieza—, y tras recortar, «apagar lo de fuera» se llevaba también lo de
+   * dentro, que era justo lo que se quería conservar. Si con esto una pieza se
+   * queda sin ningún trozo encendido, se apaga ella (`ordenarLoEncendido`).
+   */
   const apagarSeleccion = () => {
     if (seleccion.size === 0) return
-    // Apagar un fragmento apaga su hueso entero: lo encendido se lleva por
-    // pieza, y medio hueso a la vista no es algo que una ficha necesite.
-    const fuera = new Set([...seleccion].map(piezaDe))
-    cambiarVisibles(new Set([...visibles].filter((id) => !fuera.has(id))))
-  }
-  const dejarSoloLaSeleccion = () => {
-    if (seleccion.size === 0) return
-    cambiarVisibles(new Set([...seleccion].map(piezaDe)))
+    const piezasFuera = new Set<string>()
+    const trozosFuera = new Set(apagados)
+    for (const id of seleccion) {
+      if (partesDeFragmento(id)) trozosFuera.add(id)
+      else piezasFuera.add(id)
+    }
+    cambiarVisibles(new Set([...visibles].filter((id) => !piezasFuera.has(id))), trozosFuera)
   }
 
-  /** Lo que se puede seleccionar de lo encendido: las piezas, y de las partidas, sus dos fragmentos. */
+  /**
+   * Deja encendido solo lo seleccionado: sus piezas y, de las partidas, solo
+   * los trozos seleccionados. Tras un recorte es «quedarse con lo de dentro».
+   */
+  const dejarSoloLaSeleccion = () => {
+    if (seleccion.size === 0) return
+    const piezas = new Set([...seleccion].map(piezaDe))
+    const trozosFuera = new Set<string>()
+    for (const pieza of piezas) {
+      // Si la pieza entera está seleccionada no hay trozo que apagar: `hojasDe`
+      // la devuelve a ella sola cuando no está partida.
+      for (const hoja of hojasDe(cortes, pieza)) {
+        if (hoja !== pieza && !seleccion.has(hoja)) trozosFuera.add(hoja)
+      }
+    }
+    cambiarVisibles(piezas, trozosFuera)
+  }
+
+  /** Lo que se puede seleccionar de lo encendido: las piezas, y de las partidas, sus trozos encendidos. */
   const idsSeleccionables = (piezas: Iterable<string>): string[] => {
-    return [...piezas].flatMap((id) => hojasDe(cortes, id))
+    return [...piezas].flatMap((id) => hojasDe(cortes, id)).filter((id) => !apagados.has(id))
   }
 
   const alCortar = (corte: CorteDePieza, heredadas: Map<string, TransformacionDePieza>) => {
@@ -1025,7 +1135,25 @@ export function TallerDeAtlas() {
     const todos = [...cortes, ...resultado.cortes]
     setGrupos(grupos.map((g) => g.flatMap((id) => (partidas.has(id) ? hojasDe(todos, id) : [id]))))
     setSeleccion(new Set(resultado.dentro))
-    setAviso(null)
+    // Aquí sí se dice qué pasó (D-141): un recorte cambia muchas piezas de una
+    // vez y no todas se ven, y hace falta saber que lo de fuera sigue ahí,
+    // encendido, y cómo quedarse con lo de dentro. El aviso flota (D-132) y no
+    // empuja el lienzo.
+    const partes = resultado.cortes.length
+    const enteras = resultado.dentro.length - partes
+    setAviso(
+      partes === 0
+        ? null
+        : {
+            tipo: 'ok',
+            texto:
+              `${partes === 1 ? 'Una pieza partida' : `${partes} piezas partidas`} en dos: «_1», lo de dentro, queda seleccionado; «_2», lo de fuera, sigue encendido.` +
+              (enteras > 0
+                ? ` ${enteras === 1 ? 'Otra pieza quedaba entera dentro y también está seleccionada.' : `Otras ${enteras} quedaban enteras dentro y también están seleccionadas.`}`
+                : '') +
+              ' «Solo esto» (Mayús + H) deja solo lo de dentro; Mover (G) lo desprende del cuerpo.',
+          },
+    )
   }
 
   /** Deshace el corte de los fragmentos seleccionados: el hueso vuelve entero y a su sitio. */
@@ -1051,6 +1179,9 @@ export function TallerDeAtlas() {
     setTransformaciones(
       new Map([...transformaciones].filter(([id]) => !cuelgaDeUnPadre(id))),
     )
+    // Los trozos que desaparecen no pueden seguir apagados: el padre vuelve
+    // entero y encendido.
+    setApagados(new Set([...apagados].filter((id) => !cuelgaDeUnPadre(id))))
     setGrupos(
       grupos
         .map((g) => [
@@ -1062,9 +1193,10 @@ export function TallerDeAtlas() {
     )
     setSeleccion(new Set(padres))
   }
+  /** Todo el cuerpo encendido, también los trozos que se hubieran apagado (D-141). */
   const encenderTodo = () => {
     if (!catalogo) return
-    cambiarVisibles(new Set(catalogo.piezas.map((p) => p.id)))
+    cambiarVisibles(new Set(catalogo.piezas.map((p) => p.id)), new Set())
   }
   const encuadrarLoElegido = () => {
     if (seleccion.size > 0) mando.current?.encuadrarPiezas(seleccion)
@@ -1094,6 +1226,7 @@ export function TallerDeAtlas() {
     setNombre('')
     setDescripcion('')
     setVisibles(todas)
+    setApagados(new Set())
     setSeparacion(0)
     setVistaInicial(VISTA_INICIAL)
     // El MISMO conjunto que se le da a React, y no otro igual: el visor anota
@@ -1135,6 +1268,7 @@ export function TallerDeAtlas() {
     setGrupos([])
     setSeleccion(new Set())
     setVisibles(piezas)
+    setApagados(new Set())
     setSeparacion(0)
     limpiarExportacion()
     setAviso(null)
@@ -1160,8 +1294,14 @@ export function TallerDeAtlas() {
         }
         const piezasAbiertas = new Set(r.datos.contenido.piezas.map((p) => p.id))
         const cortesAbiertos = (r.datos.contenido.cortes ?? []).map(
-          ({ pieza, punto, normal }): CorteDePieza => ({ pieza, punto, normal }),
+          ({ pieza, punto, normal, otrosPlanos }): CorteDePieza => ({
+            pieza,
+            punto,
+            normal,
+            ...(otrosPlanos ? { otrosPlanos } : {}),
+          }),
         )
+        const apagadosAbiertos = new Set(r.datos.contenido.apagados ?? [])
         // Lo movido de cada fragmento viaja dentro de su corte; aquí se junta
         // con lo de las piezas enteras, cada uno bajo su identificador.
         const movidasAbiertas = transformacionesDe([
@@ -1193,6 +1333,7 @@ export function TallerDeAtlas() {
         setNombre(r.datos.nombre)
         setDescripcion(r.datos.descripcion ?? '')
         setVisibles(piezasAbiertas)
+        setApagados(apagadosAbiertos)
         setSeparacion(r.datos.contenido.vista.separacion)
         setVistaInicial(r.datos.contenido.vista)
         limpiarExportacion()
@@ -1228,6 +1369,7 @@ export function TallerDeAtlas() {
           cortesAbiertos,
           aspectosAbiertos,
           [marcasAbiertas, vistasAbiertas, gruposAbiertos],
+          apagadosAbiertos,
         )
         if (r.datos.perdidas.length > 0) {
           setAviso({
@@ -1296,6 +1438,9 @@ export function TallerDeAtlas() {
           marcas,
           vistas,
           grupos,
+          // Solo los trozos de piezas que se guardan: de una pieza apagada no
+          // viaja nada, igual que su transformación.
+          apagados: [...apagados].filter((id) => visibles.has(piezaDe(id))),
           vista,
         })
         if (!r.exito || !r.datos) {
@@ -1305,11 +1450,17 @@ export function TallerDeAtlas() {
         setInstancia(r.datos.id)
         // Lo recién guardado pasa a ser la referencia: ya no hay nada que
         // perder.
-        fijarReferencia(visibles, nombre, descripcion, vista, transformaciones, cortes, aspectos, [
-          marcas,
-          vistas,
-          grupos,
-        ])
+        fijarReferencia(
+          visibles,
+          nombre,
+          descripcion,
+          vista,
+          transformaciones,
+          cortes,
+          aspectos,
+          [marcas, vistas, grupos],
+          apagados,
+        )
         setAviso({
           tipo: 'ok',
           texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
@@ -1442,12 +1593,16 @@ export function TallerDeAtlas() {
   const piezasSeleccionadas = useMemo(() => new Set([...seleccion].map(piezaDe)), [seleccion])
   const seleccionarDesdeElArbol = useCallback(
     (id: string, sumar: boolean) => {
-      const propios = hojasDe(cortes, id)
+      // Una pieza se lleva sus trozos encendidos; un trozo (D-141), solo a él.
+      const propios = (partesDeFragmento(id) ? [id] : hojasDe(cortes, id)).filter(
+        (propio) => !apagados.has(propio),
+      )
+      if (propios.length === 0) return
       // Con su grupo, igual que al pulsar en el lienzo (`conSuGrupo`).
       const ids = new Set(propios)
       for (const propio of propios) {
         for (const miembro of grupos.find((g) => g.includes(propio)) ?? []) {
-          if (visibles.has(piezaDe(miembro))) ids.add(miembro)
+          if (visibles.has(piezaDe(miembro)) && !apagados.has(miembro)) ids.add(miembro)
         }
       }
       setSeleccion((actual) =>
@@ -1458,8 +1613,54 @@ export function TallerDeAtlas() {
         ),
       )
     },
-    [cortes, grupos, visibles],
+    [cortes, grupos, visibles, apagados],
   )
+
+  /**
+   * Los trozos de cada pieza partida, para que el árbol los enseñe debajo de
+   * ella con su propia casilla (D-141). Memorizado sobre los cortes: el árbol
+   * compara por identidad lo que recibe cada fila.
+   */
+  const trozosPorPieza = useMemo(() => {
+    const mapa = new Map<string, string[]>()
+    for (const raiz of new Set(cortes.map((c) => piezaDe(c.pieza)))) {
+      const hojas = hojasDe(cortes, raiz)
+      if (hojas.length > 1) mapa.set(raiz, hojas)
+    }
+    return mapa
+  }, [cortes])
+
+  // Lo que el árbol hace con los trozos, estable entre pintados: son props de
+  // filas memorizadas, y una función nueva en cada pintado las repintaría
+  // todas (ver `FilaDePieza`). Se leen de un ref que se pone al día en cada
+  // pintado, el mismo arreglo que `alPulsarTecla`.
+  const accionesDeTrozos = useRef<{ alternar: (id: string) => void; solo: (id: string) => void }>({
+    alternar: () => {},
+    solo: () => {},
+  })
+  useEffect(() => {
+    accionesDeTrozos.current = {
+      alternar: (id) => {
+        const pieza = piezaDe(id)
+        if (!visibles.has(pieza)) {
+          // Encender un trozo de una pieza apagada enciende ese trozo y nada más.
+          const otros = hojasDe(cortes, pieza).filter((hoja) => hoja !== id)
+          cambiarVisibles(new Set([...visibles, pieza]), new Set([...apagados, ...otros]))
+          return
+        }
+        const nuevos = new Set(apagados)
+        if (nuevos.has(id)) nuevos.delete(id)
+        else nuevos.add(id)
+        cambiarVisibles(visibles, nuevos)
+      },
+      solo: (id) => {
+        const pieza = piezaDe(id)
+        cambiarVisibles(new Set([pieza]), new Set(hojasDe(cortes, pieza).filter((hoja) => hoja !== id)))
+      },
+    }
+  })
+  const alternarTrozo = useCallback((id: string) => accionesDeTrozos.current.alternar(id), [])
+  const soloElTrozo = useCallback((id: string) => accionesDeTrozos.current.solo(id), [])
 
   const unicaSeleccionada = seleccion.size === 1 ? [...seleccion][0] : null
   // Lo que enseñan los mandos de aspecto: lo de la primera pieza seleccionada.
@@ -1472,9 +1673,8 @@ export function TallerDeAtlas() {
     const [id] = seleccion
     const pieza = catalogo.piezas.find((p) => p.id === piezaDe(id))
     if (!pieza) return ''
-    return partesDeFragmento(id)
-      ? `${nombreEnEspanol(pieza.nombre)} · fragmento`
-      : nombreEnEspanol(pieza.nombre)
+    // «Tibia derecha_1», el mismo nombre que en el árbol y al pasar el ratón.
+    return nombreDeTrozo(nombreEnEspanol(pieza.nombre), id)
   }, [catalogo, seleccion])
 
   // Los atajos escuchan en la ventana, una sola vez, y leen de un ref lo que
@@ -1753,8 +1953,10 @@ export function TallerDeAtlas() {
               y el del simulador son el mismo, sin buscarlo a ojo dos veces. Solo
               los de un hueso entero: el simulador parte un hueso en dos, y un
               fragmento de un fragmento no tiene nombre allí. */}
+          {/* Solo los de un plano: un recorte (D-141) es la pirámide de un
+              marco, y el simulador parte por un plano. */}
           {cortes
-            .filter((c) => !c.pieza.includes('#') && visibles.has(c.pieza))
+            .filter((c) => !c.pieza.includes('#') && !c.otrosPlanos && visibles.has(c.pieza))
             .map((c) => (
               <button
                 key={c.pieza}
@@ -1933,10 +2135,16 @@ export function TallerDeAtlas() {
             catalogo={catalogo}
             visibles={visibles}
             alCambiarVisibles={cambiarVisibles}
+            alEncenderTodo={encenderTodo}
             resaltada={resaltada}
             alResaltar={setResaltada}
             seleccion={piezasSeleccionadas}
             alSeleccionar={seleccionarDesdeElArbol}
+            trozos={trozosPorPieza}
+            trozosApagados={apagados}
+            trozosSeleccionados={seleccion}
+            alAlternarTrozo={alternarTrozo}
+            alSoloTrozo={soloElTrozo}
           />
         </aside>
 
@@ -1988,6 +2196,7 @@ export function TallerDeAtlas() {
             gizmo={gizmo}
             ortografica={ortografica}
             cortes={cortes}
+            apagados={apagados}
             alCortar={alCortar}
             alRecortar={alRecortar}
             alAvisar={(texto) => setAviso({ tipo: 'error', texto })}
@@ -1999,6 +2208,12 @@ export function TallerDeAtlas() {
               comía el alto del modelo. Se colocan por CSS (`.atlas-flota`);
               siguen dentro de la misma barra, y en el mismo orden de tabulación. */}
           <div className="atlas-herramientas" role="toolbar" aria-label="Herramientas del visor">
+            {/* Las dos columnas de la izquierda van dentro de una sola caja que
+                las apila (`.atlas-flota-columna`). Cada una tenía su `top`
+                escrito a mano, el de la segunda calculado para tres botones en
+                la primera; «Recortar» (D-140) le puso el cuarto y la segunda
+                quedó montada sobre él: «Cortar» debajo de «Rótulo» (D-141). */}
+            <div className="atlas-flota-columna">
             <div className="atlas-herramientas-grupo atlas-flota atlas-flota-utiles">
               <button
                 type="button"
@@ -2022,7 +2237,7 @@ export function TallerDeAtlas() {
                 type="button"
                 className="atlas-herramienta"
                 aria-pressed={herramienta === 'recorte'}
-                title="Recortar: arrastre un marco; lo de dentro queda seleccionado y lo que cruza el borde se parte limpio por él (J)"
+                title="Recortar: arrastre un marco; cada pieza que cruza el borde se parte en dos, «_1» dentro (queda seleccionado) y «_2» fuera, cada una con su propio encendido (J)"
                 onClick={() => setHerramienta('recorte')}
               >
                 Recortar
@@ -2065,6 +2280,7 @@ export function TallerDeAtlas() {
               >
                 Ángulo
               </button>
+            </div>
             </div>
             <div className="atlas-herramientas-grupo">
               <button

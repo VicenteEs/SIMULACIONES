@@ -9,6 +9,23 @@ import {
   type BusquedaEnEspanol,
 } from '@/atlas/arbolEnEspanol'
 import { nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
+import { nombreDeTrozo } from '@/atlas/formato'
+
+/**
+ * Lo que una fila necesita saber de los trozos de su pieza (D-141), en forma de
+ * props que se comparan barato: la lista es la misma entre pintados mientras no
+ * cambien los cortes, y lo apagado y lo seleccionado van como texto.
+ */
+interface TrozosDeLaFila {
+  hojas?: readonly string[]
+  apagadas?: string
+  seleccionadas?: string
+  alAlternarTrozo?: (id: string) => void
+  alSoloTrozo?: (id: string) => void
+}
+
+const claveDe = (hojas: readonly string[] | undefined, conjunto: ReadonlySet<string> | null | undefined) =>
+  hojas && conjunto ? hojas.filter((hoja) => conjunto.has(hoja)).join(',') : ''
 
 /**
  * Navegación de las 2.234 piezas del atlas.
@@ -37,10 +54,34 @@ export function ArbolAnatomico({
   alResaltar,
   seleccion = null,
   alSeleccionar,
+  alEncenderTodo,
+  trozos = null,
+  trozosApagados = null,
+  trozosSeleccionados = null,
+  alAlternarTrozo,
+  alSoloTrozo,
 }: {
   catalogo: CatalogoDelAtlas
   visibles: Set<string>
   alCambiarVisibles: (nuevas: Set<string>) => void
+  /**
+   * «Encender todo» de la cabecera. El taller lo da para encender también los
+   * trozos apagados (D-141); sin él, enciende todas las piezas y deja los
+   * trozos como estaban.
+   */
+  alEncenderTodo?: () => void
+  /**
+   * Los trozos de cada pieza partida (D-141), que se enseñan debajo de ella
+   * con su propia casilla: «Tibia derecha_1», «Tibia derecha_2». Solo las
+   * piezas partidas tienen entrada.
+   */
+  trozos?: ReadonlyMap<string, readonly string[]> | null
+  /** Trozos apagados de piezas encendidas. */
+  trozosApagados?: ReadonlySet<string> | null
+  /** La selección con los trozos dentro: `seleccion` trae solo piezas. */
+  trozosSeleccionados?: ReadonlySet<string> | null
+  alAlternarTrozo?: (id: string) => void
+  alSoloTrozo?: (id: string) => void
   resaltada: string | null
   alResaltar: (id: string | null) => void
   /**
@@ -146,6 +187,19 @@ export function ArbolAnatomico({
     [alCambiarVisibles],
   )
 
+  /** Las props de trozos de la fila de una pieza, vacías si no está partida. */
+  const trozosDe = (id: string): TrozosDeLaFila => {
+    const hojas = trozos?.get(id)
+    if (!hojas) return {}
+    return {
+      hojas,
+      apagadas: claveDe(hojas, trozosApagados),
+      seleccionadas: claveDe(hojas, trozosSeleccionados),
+      alAlternarTrozo,
+      alSoloTrozo,
+    }
+  }
+
   const alternarGrupo = (id: string) => {
     const nuevos = new Set(abiertos)
     if (nuevos.has(id)) nuevos.delete(id)
@@ -179,7 +233,10 @@ export function ArbolAnatomico({
           </button>
         </div>
         <div className="atlas-globales">
-          <button type="button" onClick={() => alCambiarVisibles(new Set(todas))}>
+          <button
+            type="button"
+            onClick={() => (alEncenderTodo ? alEncenderTodo() : alCambiarVisibles(new Set(todas)))}
+          >
             Encender todo
           </button>
           <button type="button" onClick={() => alCambiarVisibles(new Set())}>
@@ -202,6 +259,7 @@ export function ArbolAnatomico({
             alSoloEsto={soloEstaPieza}
             seleccion={seleccion}
             alSeleccionar={alSeleccionar}
+            trozosDe={trozosDe}
           />
         ) : (
           arbol.map((grupo, posicionGrupo) => {
@@ -293,6 +351,7 @@ export function ArbolAnatomico({
                                 alAlternar={alternarPieza}
                                 alSoloEsto={soloEstaPieza}
                                 alSeleccionar={alSeleccionar}
+                                {...trozosDe(pieza.id)}
                               />
                             ))}
                           </ul>
@@ -333,6 +392,11 @@ const FilaDePieza = memo(function FilaDePieza({
   alAlternar,
   alSoloEsto,
   alSeleccionar,
+  hojas,
+  apagadas = '',
+  seleccionadas = '',
+  alAlternarTrozo,
+  alSoloTrozo,
 }: {
   pieza: PiezaDelAtlas
   encendida: boolean
@@ -342,7 +406,7 @@ const FilaDePieza = memo(function FilaDePieza({
   alAlternar: (id: string) => void
   alSoloEsto: (id: string) => void
   alSeleccionar?: (id: string, sumar: boolean) => void
-}) {
+} & TrozosDeLaFila) {
   // El original va en el título y no en una segunda línea: la fila es de una
   // sola línea con puntos suspensivos, y en el ancho de la columna del taller
   // un segundo nombre al lado se comería el primero (ver `.atlas-casilla span`
@@ -354,7 +418,11 @@ const FilaDePieza = memo(function FilaDePieza({
   // tabla se llena conviven las dos lenguas en la misma lista, y eso es
   // deliberado: mejor el original que una traducción inventada.
   const traducida = tieneTraduccion(pieza.nombre)
+  const nombre = nombreEnEspanol(pieza.nombre)
+  const apagadasDeLaPieza = new Set(apagadas ? apagadas.split(',') : [])
+  const seleccionadasDeLaPieza = new Set(seleccionadas ? seleccionadas.split(',') : [])
   return (
+    <>
     <li
       className={`atlas-pieza${resaltada ? ' atlas-pieza-resaltada' : ''}${
         seleccionada ? ' atlas-pieza-seleccionada' : ''
@@ -370,7 +438,12 @@ const FilaDePieza = memo(function FilaDePieza({
           <input
             type="checkbox"
             checked={encendida}
-            aria-label={`Encender ${nombreEnEspanol(pieza.nombre)}`}
+            // A medias si la pieza está partida y algún trozo suyo apagado
+            // (D-141): encendida, pero no entera a la vista.
+            ref={(el) => {
+              if (el) el.indeterminate = encendida && apagadasDeLaPieza.size > 0
+            }}
+            aria-label={`Encender ${nombre}`}
             onChange={() => alAlternar(pieza.id)}
           />
           <button
@@ -406,6 +479,46 @@ const FilaDePieza = memo(function FilaDePieza({
         solo
       </button>
     </li>
+    {/* Los trozos de la pieza partida, cada uno con su casilla (D-141). Como
+        filas hermanas y no anidadas: la fila de la pieza es una línea flexible
+        y una lista dentro la rompería. */}
+    {hojas?.map((hoja) => {
+      const seVe = encendida && !apagadasDeLaPieza.has(hoja)
+      const suNombre = nombreDeTrozo(nombre, hoja)
+      return (
+        <li
+          key={hoja}
+          className={`atlas-pieza atlas-trozo${seleccionadasDeLaPieza.has(hoja) ? ' atlas-pieza-seleccionada' : ''}`}
+        >
+          <span className="atlas-casilla">
+            <input
+              type="checkbox"
+              checked={seVe}
+              aria-label={`Encender ${suNombre}`}
+              onChange={() => alAlternarTrozo?.(hoja)}
+            />
+            {alSeleccionar ? (
+              <button
+                type="button"
+                className="atlas-pieza-nombre"
+                aria-pressed={seleccionadasDeLaPieza.has(hoja)}
+                disabled={!seVe}
+                title={`${pieza.nombre}${suNombre.slice(nombre.length)} · trozo de ${nombre}`}
+                onClick={(evento) => alSeleccionar(hoja, evento.shiftKey || evento.ctrlKey)}
+              >
+                {suNombre}
+              </button>
+            ) : (
+              <span>{suNombre}</span>
+            )}
+          </span>
+          <button type="button" className="atlas-solo" onClick={() => alSoloTrozo?.(hoja)}>
+            solo
+          </button>
+        </li>
+      )
+    })}
+    </>
   )
 })
 
@@ -418,6 +531,7 @@ function ResultadosDeBusqueda({
   alSoloEsto,
   seleccion,
   alSeleccionar,
+  trozosDe,
 }: {
   busqueda: BusquedaEnEspanol
   visibles: Set<string>
@@ -427,6 +541,7 @@ function ResultadosDeBusqueda({
   alSoloEsto: (id: string) => void
   seleccion?: ReadonlySet<string> | null
   alSeleccionar?: (id: string, sumar: boolean) => void
+  trozosDe: (id: string) => TrozosDeLaFila
 }) {
   const { piezas, total } = busqueda
   if (total === 0) {
@@ -454,6 +569,7 @@ function ResultadosDeBusqueda({
             alAlternar={alAlternar}
             alSoloEsto={alSoloEsto}
             alSeleccionar={alSeleccionar}
+            {...trozosDe(pieza.id)}
           />
         ))}
       </ul>

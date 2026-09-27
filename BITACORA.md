@@ -3961,7 +3961,7 @@ El panel limita el contenido a 1200 px; la página del taller lleva la clase
 bajan a la esquina inferior derecha: arriba tapaban «Guardar preparación», que
 es justo el botón que el aviso de «cambios sin guardar» pide pulsar.
 
-### D-140 · 2026-09-22 · vigente
+### D-140 · 2026-09-22 · vigente, con el corte rehecho en D-141
 **El marco que corta: seleccionar con un rectángulo y partir limpio lo que
 cruza su borde.**
 El dueño lo pidió con estas palabras: «si mi selectbox corta un músculo por la
@@ -3988,6 +3988,63 @@ unos segundos. Un marco sobre el cuerpo entero puede gastar decenas de cortes
 de una vez; si pasa del tope, se rechaza entero y se dice. Los trozos de fuera
 quedan sueltos y sin seleccionar: soldar deshace el corte más reciente de cada
 uno, así que deshacer un marco entero son varias soldaduras, o Ctrl + Z.
+*Después:* D-141 cambia cómo parte —un corte por pieza, dos trozos— y hace que
+cada trozo se encienda y se apague por su cuenta.
+
+### D-141 · 2026-09-26 · vigente
+**«Recortar» corta como un cuchillo: cada malla que cruza el marco queda en dos
+piezas, «_1» y «_2», y cada una se enciende y se apaga por su cuenta.**
+El dueño, sobre D-140: «la selecciona bien y todo pero debería cortar como si
+fuera un cuchillo; si hay una malla y lo corto deberían quedar dos mallas (y
+renombrarlas como _1 y _2 para que si apago el resto no se apaguen las partes
+independientes)… la idea es que quede seleccionado y luego poder desprenderla
+del cuerpo». Eran dos problemas. El primero, que lo encendido iba por pieza del
+atlas: tras recortar las rodillas, «Solo esto» o apagar lo de fuera apagaba la
+pieza entera, con su trozo de dentro. El segundo, que el marco partía plano a
+plano y dejaba suelto cada trozo de fuera: un músculo que cruzaba una esquina
+salía en tres.
+
+*Cómo.* Un corte puede tener varios planos: `CorteDePieza.otrosPlanos` guarda
+los demás lados del marco, y `partirPorVariosPlanos` (`src/lib/osteotomia.ts`)
+aplica uno detrás de otro sobre lo que va quedando dentro y junta lo de fuera
+en una sola malla. `a` es lo de dentro de todos y `b` todo lo demás. Solo se
+guardan los planos que de verdad cortan: la caja decide por adelantado y la
+geometría de verdad. `recortarPorElMarco` pasa a un corte por pieza. Y
+`ContenidoDeInstancia.apagados` lleva los trozos apagados de piezas
+encendidas: apagar un trozo ya no apaga su pieza, «Solo esto» deja solo los
+trozos elegidos, y una pieza con todos sus trozos apagados se apaga entera
+(`ordenarLoEncendido`) para que encenderla en el árbol la devuelva completa. En
+pantalla los trozos se llaman como su camino de cortes —`#a` es «_1», `#b` es
+«_2», `#b#a` es «_2_1»—, en el árbol cuelgan de su pieza con su propia casilla,
+y al pasar el ratón se leen así. Tras recortar, un aviso dice cuántas piezas se
+partieron y cómo quedarse con lo de dentro o desprenderlo (G). «Encuadrar» y
+«Centrar» miden los trozos por lo que miden ellos y no por su hueso entero: con
+las rodillas aisladas, encuadraban las dos piernas y las rodillas salían
+pequeñas, en el taller y en la ficha.
+
+*De paso:* las dos columnas de herramientas que flotan a la izquierda del lienzo
+se montaban: la segunda tenía un `top` escrito a mano para tres botones en la
+primera, y «Recortar» le puso el cuarto. Ahora van dentro de una caja que las
+apila (`.atlas-flota-columna`).
+
+*Compatibilidad.* Todo es opcional en el formato: una preparación anterior se
+lee igual —sin `otrosPlanos` un corte es de un plano, sin `apagados` se ve todo
+lo de sus piezas— y las ya recortadas con D-140 conservan sus cortes
+encadenados. El servidor valida los planos nuevos como el primero, y uno malo
+tumba el corte entero: con un lado de menos se partiría otra cosa.
+«Exportar como modelo» solo ofrece «Usar el corte del taller» para cortes de un
+plano: el simulador parte por uno.
+
+*Consecuencias buenas.* Comprobado en un navegador con el atlas entero: un marco
+sobre las dos rodillas partió 78 mallas en un segundo, «Solo esto» dejó las
+rodillas cortadas a cuchillo, el árbol enseñó «Fémur derecho_1» encendido y
+«_2» apagado, G las desprendió del cuerpo, y la preparación se guardó, se
+reabrió igual y la ficha, vista como residente, enseñó solo las rodillas. Un
+recorte gasta ahora un corte por pieza en vez de hasta cuatro. *Malas.* Lo de
+fuera de una esquina es la unión de dos trozos cerrados, con sus dos tapas
+enfrentadas dentro: no se ven, salvo con los rayos X. El pivote automático
+sigue midiendo por pieza del catálogo (D-129): solo «Encuadrar» y «Centrar»
+cuentan los trozos.
 
 ---
 

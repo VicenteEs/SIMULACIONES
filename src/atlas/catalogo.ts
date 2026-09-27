@@ -8,19 +8,23 @@
  */
 
 import {
+  MAXIMO_DE_APAGADOS,
   MAXIMO_DE_CORTES,
   MAXIMO_DE_GRUPOS,
+  MAXIMO_DE_PLANOS_POR_CORTE,
   MAXIMO_DE_TRASLADO,
   MAXIMO_PIEZAS,
   OPACIDAD_MINIMA,
   PROFUNDIDAD_MAXIMA_DE_CORTE,
   VISTA_INICIAL,
+  hojasDe,
   partesDeFragmento,
   profundidadDe,
   type CatalogoDelAtlas,
   type ContenidoDeInstancia,
   type CorteDePieza,
   type PiezaDelAtlas,
+  type PlanoGuardado,
   type VistaDeInstancia,
 } from './formato'
 import { marcasValidas, vistasValidas } from './marcas'
@@ -248,8 +252,11 @@ export function normalizarSeleccion(
   piezas: unknown,
   vista: unknown,
   cortes?: unknown,
-  /** Lo apuntado sobre el modelo y las vistas con nombre (D-135). */
-  apuntes?: { marcas?: unknown; vistas?: unknown; grupos?: unknown },
+  /**
+   * Lo apuntado sobre el modelo y las vistas con nombre (D-135), los grupos
+   * (D-136) y los trozos apagados (D-141).
+   */
+  apuntes?: { marcas?: unknown; vistas?: unknown; grupos?: unknown; apagados?: unknown },
 ): ContenidoDeInstancia {
   const conocidas = new Set(catalogo.piezas.map((p) => p.id))
   const vistas = new Set<string>()
@@ -282,6 +289,7 @@ export function normalizarSeleccion(
   const marcas = marcasValidas(apuntes?.marcas)
   const vistasConNombre = vistasValidas(apuntes?.vistas)
   const grupos = gruposValidos(apuntes?.grupos, vistas, new Set(cortesLimpios.map((c) => c.pieza)))
+  const apagados = apagadosValidos(apuntes?.apagados, cortesLimpios, vistas)
   return {
     version: 1,
     atlas: catalogo.version,
@@ -291,7 +299,39 @@ export function normalizarSeleccion(
     ...(marcas.length > 0 ? { marcas } : {}),
     ...(vistasConNombre.length > 0 ? { vistas: vistasConNombre } : {}),
     ...(grupos.length > 0 ? { grupos } : {}),
+    ...(apagados.length > 0 ? { apagados } : {}),
   }
+}
+
+/**
+ * Los trozos apagados que se dejan guardar (D-141): solo hojas del árbol de
+ * cortes —un trozo que existe de verdad, no uno que se volvió a partir— de
+ * piezas que están en la preparación. Sin duplicados y con techo.
+ *
+ * Una pieza con TODOS sus trozos apagados se deja tal cual: se ve igual que
+ * apagada, y quitarla de `piezas` aquí sería decidir por el taller qué quiere
+ * decir «encender» la próxima vez.
+ */
+function apagadosValidos(
+  brutos: unknown,
+  cortes: readonly CorteDePieza[],
+  enLaPreparacion: ReadonlySet<string>,
+): string[] {
+  if (!Array.isArray(brutos) || cortes.length === 0) return []
+  const hojas = new Set<string>()
+  for (const raiz of new Set(cortes.map((c) => c.pieza).filter((id) => !id.includes('#')))) {
+    if (!enLaPreparacion.has(raiz)) continue
+    for (const hoja of hojasDe(cortes, raiz)) hojas.add(hoja)
+  }
+  const salida: string[] = []
+  const vistos = new Set<string>()
+  for (const id of brutos) {
+    if (typeof id !== 'string' || vistos.has(id) || !hojas.has(id) || !id.includes('#')) continue
+    vistos.add(id)
+    salida.push(id)
+    if (salida.length >= MAXIMO_DE_APAGADOS) break
+  }
+  return salida.sort()
 }
 
 /**
@@ -347,9 +387,23 @@ function cortesValidos(brutos: unknown, enLaPreparacion: ReadonlySet<string>): C
       ? (valor as [number, number, number])
       : null
 
+  /** Un plano con números finitos y normal no nula, redondeado y con la normal unitaria; `null` si no. */
+  const planoLimpio = (punto: unknown, normal: unknown): PlanoGuardado | null => {
+    const p = trio(punto)
+    const n = trio(normal)
+    if (!p || !n) return null
+    const largo = Math.hypot(n[0], n[1], n[2])
+    if (largo < 1e-6) return null
+    const seis = (x: number) => Math.round(x * 1e6) / 1e6 || 0
+    return {
+      punto: [seis(p[0]), seis(p[1]), seis(p[2])],
+      normal: [seis(n[0] / largo), seis(n[1] / largo), seis(n[2] / largo)],
+    }
+  }
+
   for (const bruto of brutos) {
     if (!bruto || typeof bruto !== 'object') continue
-    const { pieza, punto, normal, a, b } = bruto as Record<string, unknown>
+    const { pieza, punto, normal, otrosPlanos, a, b } = bruto as Record<string, unknown>
     if (typeof pieza !== 'string' || yaCortadas.has(pieza)) continue
     // Se parte una pieza de la preparación, o un fragmento que salió de un
     // corte ANTERIOR de esta misma lista: el orden es el del árbol, de la pieza
@@ -358,20 +412,30 @@ function cortesValidos(brutos: unknown, enLaPreparacion: ReadonlySet<string>): C
     const fragmento = partesDeFragmento(pieza)
     if (fragmento ? !yaCortadas.has(fragmento.padre) : !enLaPreparacion.has(pieza)) continue
     if (profundidadDe(pieza) >= PROFUNDIDAD_MAXIMA_DE_CORTE) continue
-    const p = trio(punto)
-    const n = trio(normal)
-    if (!p || !n) continue
-    const largo = Math.hypot(n[0], n[1], n[2])
-    if (largo < 1e-6) continue
-    const seis = (x: number) => Math.round(x * 1e6) / 1e6 || 0
+    const primero = planoLimpio(punto, normal)
+    if (!primero) continue
+    // Los demás lados de un recorte (D-141). Uno malo tumba el corte entero, no
+    // solo ese plano: un corte con un lado de menos parte otra cosa distinta de
+    // la que se guardó, y la ficha enseñaría un trozo que nadie recortó así.
+    let otros: PlanoGuardado[] = []
+    if (otrosPlanos !== undefined) {
+      if (!Array.isArray(otrosPlanos) || otrosPlanos.length > MAXIMO_DE_PLANOS_POR_CORTE - 1) continue
+      const limpios = otrosPlanos.map((plano) =>
+        plano && typeof plano === 'object'
+          ? planoLimpio((plano as { punto?: unknown }).punto, (plano as { normal?: unknown }).normal)
+          : null,
+      )
+      if (limpios.some((plano) => plano === null)) continue
+      otros = limpios as PlanoGuardado[]
+    }
 
     const ladoA = transformacionLimpia(a)
     const ladoB = transformacionLimpia(b)
     yaCortadas.add(pieza)
     salida.push({
       pieza,
-      punto: [seis(p[0]), seis(p[1]), seis(p[2])],
-      normal: [seis(n[0] / largo), seis(n[1] / largo), seis(n[2] / largo)],
+      ...primero,
+      ...(otros.length > 0 ? { otrosPlanos: otros } : {}),
       ...(ladoA.mover || ladoA.girar ? { a: ladoA } : {}),
       ...(ladoB.mover || ladoB.girar ? { b: ladoB } : {}),
     })

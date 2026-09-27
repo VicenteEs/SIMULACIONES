@@ -16,9 +16,15 @@
  */
 
 import * as THREE from 'three'
-import { partirMalla, type MallaIndexada } from '@/lib/osteotomia'
+import { partirMalla, partirPorVariosPlanos, type MallaIndexada } from '@/lib/osteotomia'
 import { OPACIDAD_DE_RAYOS_X, type AspectoDePieza, type EscenaDelAtlas, type TransformacionDePieza } from './cargador'
-import { idDeFragmento, piezaDe, type CorteDePieza, type LadoDelCorte } from './formato'
+import {
+  idDeFragmento,
+  piezaDe,
+  planosDeUnCorte,
+  type CorteDePieza,
+  type LadoDelCorte,
+} from './formato'
 
 export interface FragmentoDelAtlas {
   /** `FJ1234#a`, o `FJ1234#a#b` si salió de partir un fragmento (D-137). */
@@ -104,34 +110,62 @@ function aMalla(trozo: MallaIndexada, color: THREE.Color): { malla: THREE.Mesh; 
  *
  * Un plano que no toca la pieza deja un lado vacío: no es un corte y se dice,
  * en vez de entregar un «fragmento» sin triángulos que no se puede señalar.
+ *
+ * Con `otrosPlanos` es el corte del marco (D-141): `a` es lo de dentro de todos
+ * los planos y `b`, todo lo demás en una sola pieza (`partirPorVariosPlanos`).
  */
 export function crearFragmentos(
   escena: EscenaDelAtlas,
   indice: number,
-  corte: Pick<CorteDePieza, 'pieza' | 'punto' | 'normal'>,
+  corte: Pick<CorteDePieza, 'pieza' | 'punto' | 'normal' | 'otrosPlanos'>,
   /** La geometría de lo que se parte, si es un fragmento; sin ella se toma la pieza entera. */
   origen?: MallaIndexada,
 ): { fragmentos: [FragmentoDelAtlas, FragmentoDelAtlas] } | { motivo: string } {
   const entera = origen ?? mallaDeLaPieza(escena, indice)
   if (!entera) return { motivo: 'Esa pieza no está cargada en el visor.' }
 
-  let partida
+  let mitades: [MallaIndexada, MallaIndexada]
   try {
-    partida = partirMalla(entera, { punto: corte.punto, normal: corte.normal })
+    if (corte.otrosPlanos && corte.otrosPlanos.length > 0) {
+      const particion = partirPorVariosPlanos(entera, planosDeUnCorte(corte))
+      if (!particion.dentro || !particion.fuera) {
+        return { motivo: 'El marco no atraviesa la pieza: queda entera dentro o entera fuera.' }
+      }
+      mitades = [particion.dentro, particion.fuera]
+    } else {
+      const partida = partirMalla(entera, { punto: corte.punto, normal: corte.normal })
+      mitades = [partida.haciaLaNormal, partida.contraLaNormal]
+    }
   } catch (fallo) {
     return { motivo: fallo instanceof Error ? fallo.message : 'No se pudo partir la pieza.' }
   }
-  if (partida.haciaLaNormal.indices.length === 0 || partida.contraLaNormal.indices.length === 0) {
+  if (mitades[0].indices.length === 0 || mitades[1].indices.length === 0) {
     return { motivo: 'La línea de corte no atraviesa la pieza. Trácela de lado a lado del hueso.' }
   }
+  return { fragmentos: fragmentosDeLasMitades(escena, indice, corte.pieza, mitades) }
+}
 
+/**
+ * Los dos trozos ya partidos, como mallas de la escena: `a` la primera mitad y
+ * `b` la segunda.
+ *
+ * Aparte de `crearFragmentos` para que el marco que corta (`recorte.ts`) no
+ * tenga que partir dos veces lo mismo: allí se parte primero para saber qué
+ * planos cortan de verdad, y con esas mismas mitades se hacen los trozos.
+ */
+export function fragmentosDeLasMitades(
+  escena: EscenaDelAtlas,
+  indice: number,
+  pieza: string,
+  mitades: readonly [MallaIndexada, MallaIndexada],
+): [FragmentoDelAtlas, FragmentoDelAtlas] {
   const rango = escena.rangos.get(indice)!
   const material = escena.mallas[rango.malla].material as THREE.MeshStandardMaterial
   const lados: [LadoDelCorte, MallaIndexada][] = [
-    ['a', partida.haciaLaNormal],
-    ['b', partida.contraLaNormal],
+    ['a', mitades[0]],
+    ['b', mitades[1]],
   ]
-  const fragmentos = lados.map(([lado, trozo]) => {
+  return lados.map(([lado, trozo]) => {
     // Copia ANTES de `aMalla`, que centra la geometría en sitio.
     const enReposo: MallaIndexada = {
       posiciones: trozo.posiciones.slice(),
@@ -139,10 +173,10 @@ export function crearFragmentos(
       indices: trozo.indices.slice(),
     }
     const { malla, centro } = aMalla(trozo, material.color)
-    malla.name = idDeFragmento(corte.pieza, lado)
+    malla.name = idDeFragmento(pieza, lado)
     return {
       id: malla.name,
-      pieza: piezaDe(corte.pieza),
+      pieza: piezaDe(pieza),
       lado,
       malla,
       centro,
@@ -150,7 +184,6 @@ export function crearFragmentos(
       enReposo,
     }
   }) as [FragmentoDelAtlas, FragmentoDelAtlas]
-  return { fragmentos }
 }
 
 /** Coloca un trozo: su sitio anatómico más lo que se haya movido y girado. */
@@ -227,7 +260,7 @@ export function planoDeLaLinea(
  */
 export function crearTodosLosFragmentos(
   escena: EscenaDelAtlas,
-  cortes: readonly Pick<CorteDePieza, 'pieza' | 'punto' | 'normal'>[],
+  cortes: readonly Pick<CorteDePieza, 'pieza' | 'punto' | 'normal' | 'otrosPlanos'>[],
 ): Map<string, FragmentoDelAtlas> {
   const hojas = new Map<string, FragmentoDelAtlas>()
   for (const corte of cortes) {

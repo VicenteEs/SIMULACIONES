@@ -50,6 +50,7 @@ export function VisorInstancia({
     const limpio = normalizarSeleccion(catalogo, contenido.piezas, contenido.vista, contenido.cortes, {
       marcas: contenido.marcas,
       vistas: contenido.vistas,
+      apagados: contenido.apagados,
     })
     // Las piezas que su autor sacó de su sitio (D-129): una luxación, un
     // fragmento desplazado. Memorizado con lo demás y por lo mismo: un mapa
@@ -76,7 +77,10 @@ export function VisorInstancia({
         .filter((p) => p.color || p.opacidad !== undefined)
         .map((p) => [p.id, { color: p.color, opacidad: p.opacidad }] as const),
     )
-    return { limpio, visibles: new Set(limpio.piezas.map((p) => p.id)), movidas, aspectos }
+    // Y los trozos que su autor dejó apagados (D-141): tras un recorte, lo de
+    // fuera; sin esto la ficha enseñaría la pieza entera otra vez.
+    const apagados = new Set(limpio.apagados ?? [])
+    return { limpio, visibles: new Set(limpio.piezas.map((p) => p.id)), movidas, aspectos, apagados }
   }, [catalogo, contenido])
 
   if (fallo) {
@@ -114,6 +118,7 @@ export function VisorInstancia({
           marcas={preparado.limpio.marcas ?? null}
           mando={mando}
           cortes={preparado.limpio.cortes ?? null}
+          apagados={preparado.apagados}
           soloLectura
         />
       </div>

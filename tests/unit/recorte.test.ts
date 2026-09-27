@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { montarEscena } from '@/atlas/cargador'
 import { planosDelRectangulo, recortarPorElMarco, type CandidataDelRecorte } from '@/atlas/recorte'
+import { crearTodosLosFragmentos } from '@/atlas/fragmentos'
 import type { CatalogoDelAtlas } from '@/atlas/formato'
 
 /** El marco que corta (D-140): sus cuatro planos y lo que hace con lo que cruza. */
@@ -114,12 +115,43 @@ describe('recortarPorElMarco', () => {
     expect(r.sinPartir).toBe(0)
   })
 
-  it('un cubo que cruza dos bordes se parte dos veces, encadenadas', () => {
+  // D-141: un solo corte con los dos planos, y dos piezas. Antes eran dos cortes
+  // encadenados y tres piezas —lo de dentro y un trozo de fuera por borde—,
+  // y apagar «el resto» se llevaba también lo de dentro.
+  it('un cubo que cruza dos bordes se parte una sola vez, por los dos, en dos piezas', () => {
     const camara = camaraDeFrente()
     const { escena, candidata } = escenaConUnCubo([0, 0, 0])
     const marco = { minX: 0, maxX: 0.9, minY: 0, maxY: 0.9 }
     const r = recortarPorElMarco(escena, [candidata], planosDelRectangulo(camara, marco))
-    expect(r.cortes.map((c) => c.pieza)).toEqual(['cubo', 'cubo#a'])
-    expect(r.dentro).toEqual(['cubo#a#a'])
+    expect(r.cortes).toHaveLength(1)
+    expect(r.cortes[0].pieza).toBe('cubo')
+    expect(r.cortes[0].otrosPlanos).toHaveLength(1)
+    expect(r.dentro).toEqual(['cubo#a'])
+
+    // Y rehecho desde lo guardado, que es como lo ve la ficha: dos trozos, el
+    // de dentro con un cuarto del cubo y el de fuera con el resto.
+    const trozos = crearTodosLosFragmentos(escena, r.cortes)
+    expect([...trozos.keys()].sort()).toEqual(['cubo#a', 'cubo#b'])
+    const tamano = (id: string) =>
+      trozos.get(id)!.malla.geometry.boundingBox!.getSize(new THREE.Vector3())
+    expect(tamano('cubo#a').x).toBeCloseTo(0.1, 3)
+    expect(tamano('cubo#a').y).toBeCloseTo(0.1, 3)
+    expect(tamano('cubo#b').x).toBeCloseTo(0.2, 3)
+    expect(tamano('cubo#b').y).toBeCloseTo(0.2, 3)
+  })
+
+  it('un borde que cruza la caja pero no corta la malla no se guarda', () => {
+    const camara = camaraDeFrente()
+    const { escena, candidata } = escenaConUnCubo([0, 0, 0])
+    // La caja declarada es más grande que el cubo: el borde de arriba la cruza
+    // y al cubo no lo toca. Solo el de la izquierda corta de verdad. El marco
+    // va en coordenadas de pantalla: con 42° de campo y la cámara a cinco
+    // metros, 0,104 cae a unos 20 cm de altura, entre el cubo (10) y su caja (30).
+    const holgada: CandidataDelRecorte = { ...candidata, caja: [[-0.1, -0.1, -0.1], [0.1, 0.3, 0.1]] }
+    const marco = { minX: 0, maxX: 0.9, minY: -0.9, maxY: 0.104 }
+    const r = recortarPorElMarco(escena, [holgada], planosDelRectangulo(camara, marco))
+    expect(r.cortes).toHaveLength(1)
+    expect(r.cortes[0].otrosPlanos).toBeUndefined()
+    expect(r.cortes[0].normal[0]).toBeGreaterThan(0.9)
   })
 })

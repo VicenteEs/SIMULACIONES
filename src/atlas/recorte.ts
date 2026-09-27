@@ -1,18 +1,23 @@
 'use client'
 
 /**
- * El marco que corta (D-140): se arrastra un rectángulo, lo que queda dentro se
+ * El marco que corta: se arrastra un rectángulo, lo que queda dentro se
  * selecciona, y lo que cruza el borde se parte limpio por el borde, como con
  * un cuchillo.
  *
  * Un rectángulo en pantalla es, en el espacio, una pirámide con el vértice en
  * la cámara: cuatro planos, uno por lado, que pasan por el ojo. Cada pieza que
- * cruza alguno se parte por él con el mismo corte con tapa de siempre
- * (`crearFragmentos`), plano a plano, quedándose con lo de dentro para el
- * siguiente. Al final, el trozo de dentro queda seleccionado y los de fuera —uno
- * por plano que cruzó— quedan como fragmentos sueltos. Es el árbol de cortes
- * de D-137 sin nada nuevo en el formato: solo cortes encadenados, hasta cuatro
- * por pieza y marco.
+ * cruza alguno se parte **una sola vez** por todos los que cruza
+ * (`partirPorVariosPlanos`), y quedan exactamente dos piezas: `a`, lo de
+ * dentro, que queda seleccionado —«_1» en pantalla—, y `b`, todo lo de fuera
+ * en una sola malla —«_2»— (D-141).
+ *
+ * La primera versión (D-140) partía plano a plano y dejaba suelto cada trozo de
+ * fuera: un músculo que cruzaba la esquina del marco salía en tres piezas, y
+ * gastaba hasta cuatro cortes encadenados por pieza. Ahora un recorte es un
+ * corte por pieza, con los planos que de verdad la cortan guardados juntos
+ * (`CorteDePieza.otrosPlanos`), y un segundo marco sobre lo recortado es un
+ * nivel más del árbol de D-137, no cuatro.
  *
  * Aquí está la cuenta; el ratón y la selección están en `VisorAtlas.tsx`.
  */
@@ -20,16 +25,21 @@
 import * as THREE from 'three'
 import type { EscenaDelAtlas, TransformacionDePieza } from './cargador'
 import {
-  crearFragmentos,
+  fragmentosDeLasMitades,
   liberarFragmento,
+  mallaDeLaPieza,
   planoEnReposo,
   transformacionHeredada,
   type FragmentoDelAtlas,
 } from './fragmentos'
-import { PROFUNDIDAD_MAXIMA_DE_CORTE, type CorteDePieza } from './formato'
-import type { MallaIndexada } from '@/lib/osteotomia'
+import {
+  PROFUNDIDAD_MAXIMA_DE_CORTE,
+  idDeFragmento,
+  profundidadDe,
+  type CorteDePieza,
+} from './formato'
+import { partirPorVariosPlanos, type MallaIndexada, type ParticionPorPlanos } from '@/lib/osteotomia'
 import type { RectanguloNormalizado } from './seleccionPorCaja'
-import { centroActual } from './transformar'
 
 export interface PlanoDelMarco {
   punto: [number, number, number]
@@ -129,11 +139,11 @@ export interface CandidataDelRecorte {
 }
 
 export interface ResultadoDelRecorte {
-  /** En orden de árbol: cada uno detrás del que creó lo que parte. */
+  /** Uno por pieza partida, en el orden de las candidatas: cada uno parte algo que ya existía. */
   cortes: CorteDePieza[]
   /** Con qué se queda cada trozo nuevo donde estaba su padre. */
   heredadas: Map<string, TransformacionDePieza>
-  /** Lo que queda dentro del marco: piezas enteras y trozos de dentro. */
+  /** Lo que queda dentro del marco: piezas enteras y trozos de dentro (`#a`). */
   dentro: string[]
   /** Cuántas cosas se quisieron partir y no se pudo, por el tope de cortes encadenados. */
   sinPartir: number
@@ -159,10 +169,11 @@ export function candidataDeUnTrozo(
  * Recorta las candidatas por los planos del marco.
  *
  * Por cada una: si su caja cae entera dentro, se selecciona; entera fuera de
- * algún plano, se deja; si cruza, se parte por cada plano que cruce, en orden,
- * siguiendo siempre con el trozo de dentro. La caja decide por adelantado y la
- * geometría decide de verdad: un plano que la caja cruza y la malla no, no
- * corta y se salta.
+ * algún plano, se deja; si cruza, se parte de una vez por los planos que su
+ * caja cruza. La caja decide por adelantado y la geometría decide de verdad:
+ * un plano que la caja cruza y la malla no, no corta y no se guarda; y una
+ * malla que, mirada de cerca, queda entera dentro o entera fuera, se selecciona
+ * o se deja sin cortar.
  */
 export function recortarPorElMarco(
   escena: EscenaDelAtlas,
@@ -187,48 +198,57 @@ export function recortarPorElMarco(
       dentro.push(candidata.id)
       continue
     }
-
-    let actual = candidata
-    let seQuedaFuera = false
-    for (const [k, plano] of planos.entries()) {
-      if (lados[k] === 'dentro') continue
-      if (actual.id.split('#').length - 1 >= PROFUNDIDAD_MAXIMA_DE_CORTE) {
-        sinPartir += 1
-        break
-      }
-      const enReposo = planoEnReposo(plano, actual.centro, actual.transformacion)
-      const corte: CorteDePieza = { pieza: actual.id, ...enReposo }
-      const ensayo = crearFragmentos(escena, actual.indice, corte, actual.enReposo)
-      if ('motivo' in ensayo) {
-        // La caja cruzaba y la malla no: está entera de un lado. De cuál lo
-        // dice su centro, que en una malla cerrada cae dentro de ella.
-        const centroAhora = centroActual(actual.centro, actual.transformacion ?? undefined)
-        const lado = centroAhora.sub(new THREE.Vector3(...plano.punto)).dot(new THREE.Vector3(...plano.normal))
-        if (lado < 0) {
-          seQuedaFuera = true
-          break
-        }
-        continue
-      }
-      cortes.push(corte)
-      const [a, b] = ensayo.fragmentos
-      for (const trozo of [a, b]) {
-        const suya = transformacionHeredada(actual.centro, actual.transformacion, trozo.centro)
-        if (suya) heredadas.set(trozo.id, suya)
-      }
-      liberarFragmento(b)
-      const siguiente: CandidataDelRecorte = {
-        id: a.id,
-        indice: actual.indice,
-        centro: a.centro.clone(),
-        transformacion: heredadas.get(a.id) ?? null,
-        enReposo: a.enReposo,
-        caja: cajaDeLaMalla(a.enReposo),
-      }
-      liberarFragmento(a)
-      actual = siguiente
+    if (profundidadDe(candidata.id) >= PROFUNDIDAD_MAXIMA_DE_CORTE) {
+      // Se queda entera y seleccionada, como estaba: el marco la tocaba, y
+      // dejarla fuera de la selección sin decir nada sería peor que avisar.
+      sinPartir += 1
+      dentro.push(candidata.id)
+      continue
     }
-    if (!seQuedaFuera) dentro.push(actual.id)
+
+    // Los planos que cruza, llevados al sitio anatómico de lo que se corta
+    // (D-137): así vale también para lo que ya se había movido.
+    const cruzados = planos
+      .filter((_, k) => lados[k] === 'cruza')
+      .map((plano) => planoEnReposo(plano, candidata.centro, candidata.transformacion))
+    const geometria = candidata.enReposo ?? mallaDeLaPieza(escena, candidata.indice)
+    if (!geometria) continue
+    let particion: ParticionPorPlanos
+    try {
+      particion = partirPorVariosPlanos(geometria, cruzados)
+    } catch {
+      // Una malla que no se deja partir —un plano que la roza sin cortarla en
+      // ningún intento— se queda como está. No se selecciona: no se sabe de
+      // qué lado cae, y seleccionar de más es peor que de menos.
+      continue
+    }
+    if (!particion.dentro) continue
+    if (!particion.fuera) {
+      dentro.push(candidata.id)
+      continue
+    }
+
+    const efectivos = particion.planosQueCortan.map((k) => cruzados[k])
+    const [primero, ...resto] = efectivos
+    const corte: CorteDePieza = {
+      pieza: candidata.id,
+      punto: primero.punto,
+      normal: primero.normal,
+      ...(resto.length > 0 ? { otrosPlanos: resto } : {}),
+    }
+    const trozos = fragmentosDeLasMitades(escena, candidata.indice, candidata.id, [
+      particion.dentro,
+      particion.fuera,
+    ])
+    for (const trozo of trozos) {
+      const suya = transformacionHeredada(candidata.centro, candidata.transformacion, trozo.centro)
+      if (suya) heredadas.set(trozo.id, suya)
+    }
+    // Eran para medir los centros: los de verdad los crea el visor a partir de
+    // la prop `cortes`, que es la única fuente de lo que hay partido.
+    trozos.forEach(liberarFragmento)
+    cortes.push(corte)
+    dentro.push(idDeFragmento(candidata.id, 'a'))
   }
 
   return { cortes, heredadas, dentro, sinPartir }

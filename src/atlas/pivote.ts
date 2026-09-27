@@ -142,6 +142,33 @@ export function cajaDeLoVisible(
 }
 
 /**
+ * La caja de lo que se ve contando los trozos de las piezas partidas por lo que
+ * mide cada uno, y no por su pieza del catálogo (D-141).
+ *
+ * `enteras` son las piezas que se dibujan enteras —las partidas no van aquí: su
+ * caja del catálogo es la del hueso entero—, y `trozos`, las mallas de los
+ * trozos que se ven, ya colocadas en su sitio de ahora, lo movido incluido. La
+ * usan «Encuadrar» y «Centrar»: tras recortar las rodillas y quedarse con ellas,
+ * con la caja del catálogo se encuadraban las dos piernas enteras. Vive aquí, y
+ * no en el visor, para que la caja de encuadrar siga siendo una sola cuenta
+ * (`tests/unit/pivoteDelAtlas.test.ts`).
+ */
+export function cajaDeLoVisibleConTrozos(
+  catalogo: CatalogoDelAtlas,
+  enteras: Set<string>,
+  separacion: number,
+  datos: Float32Array | undefined,
+  movidas: ReadonlyMap<string, { mover: readonly [number, number, number] }> | null,
+  trozos: readonly THREE.Object3D[],
+): THREE.Box3 | null {
+  const caja =
+    (enteras.size > 0 ? cajaDeLoVisible(catalogo, enteras, separacion, datos, movidas) : null) ??
+    new THREE.Box3()
+  for (const trozo of trozos) caja.expandByObject(trozo)
+  return caja.isEmpty() ? null : caja
+}
+
+/**
  * Si el pivote ya está lo bastante cerca del centro de lo visible.
  *
  * Sin caja —nada encendido— se da por bueno: no hay a dónde llevarlo y dejarlo

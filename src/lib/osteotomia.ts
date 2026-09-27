@@ -336,6 +336,126 @@ export function partirMalla(malla: MallaIndexada, plano: PlanoDeLaMalla): Result
 }
 
 /**
+ * Dónde queda una malla respecto de un plano, sin partirla: entera del lado
+ * hacia el que apunta la normal, entera del otro, o cruzándolo.
+ *
+ * Los vértices a menos de `HOLGURA` del plano no cuentan para ningún lado, por
+ * lo mismo que en `partirMalla`: una malla apoyada en el plano no lo cruza, y
+ * mandarla a partir acabaría en el «El plano no corta la malla» de allí.
+ */
+export function ladoDeLaMalla(
+  malla: MallaIndexada,
+  plano: PlanoDeLaMalla,
+): 'hacia' | 'contra' | 'cruza' {
+  const largo = Math.hypot(plano.normal[0], plano.normal[1], plano.normal[2])
+  if (!(largo > 0)) throw new Error('El plano de corte no tiene dirección.')
+  const n: V3 = [plano.normal[0] / largo, plano.normal[1] / largo, plano.normal[2] / largo]
+  const base = n[0] * plano.punto[0] + n[1] * plano.punto[1] + n[2] * plano.punto[2]
+  const { posiciones } = malla
+  let hacia = false
+  let contra = false
+  for (let v = 0; v < posiciones.length; v += 3) {
+    const d = n[0] * posiciones[v] + n[1] * posiciones[v + 1] + n[2] * posiciones[v + 2] - base
+    if (d > HOLGURA) hacia = true
+    else if (d < -HOLGURA) contra = true
+    if (hacia && contra) return 'cruza'
+  }
+  return contra ? 'contra' : 'hacia'
+}
+
+/**
+ * Junta varias mallas en una sola, tal cual: sin soldar vértices ni quitar
+ * nada. Todas tienen que traer las normales del mismo tipo, que es lo que
+ * garantizan los trozos de un mismo `partirMalla`.
+ */
+export function juntarMallas(mallas: readonly MallaIndexada[]): MallaIndexada {
+  if (mallas.length === 1) return mallas[0]
+  const vertices = mallas.reduce((total, m) => total + m.posiciones.length, 0)
+  const indices = mallas.reduce((total, m) => total + m.indices.length, 0)
+  const enteras = mallas.some((m) => m.normales instanceof Int16Array)
+  const posiciones = new Float32Array(vertices)
+  const normales = enteras ? new Int16Array(vertices) : new Float32Array(vertices)
+  const orden = new Uint32Array(indices)
+  let v = 0
+  let i = 0
+  for (const malla of mallas) {
+    if (enteras !== malla.normales instanceof Int16Array) {
+      throw new Error('No se pueden juntar trozos con normales de tipos distintos.')
+    }
+    posiciones.set(malla.posiciones, v)
+    normales.set(malla.normales, v)
+    const desplazamiento = v / 3
+    for (let k = 0; k < malla.indices.length; k += 1) orden[i + k] = malla.indices[k] + desplazamiento
+    v += malla.posiciones.length
+    i += malla.indices.length
+  }
+  return { posiciones, normales, indices: orden }
+}
+
+export interface ParticionPorPlanos {
+  /** Lo que queda del lado de la normal de TODOS los planos; `null` si no queda nada. */
+  dentro: MallaIndexada | null
+  /** Todo lo demás, en una sola malla; `null` si todo quedaba dentro. */
+  fuera: MallaIndexada | null
+  /**
+   * Qué planos partieron algo, por su posición en la lista. Los demás no
+   * cambian el resultado —la malla ya estaba entera de su lado bueno— y se
+   * pueden olvidar: volver a partir solo con estos da exactamente lo mismo.
+   */
+  planosQueCortan: number[]
+  avisos: string[]
+}
+
+/**
+ * Parte `malla` por varios planos a la vez, como un cuchillo que sigue el
+ * borde de un marco (D-141): lo de dentro de todos, y lo de fuera **en una
+ * sola pieza**.
+ *
+ * Es lo que pidió el dueño al ver el primer «Recortar» (D-140): «si hay una
+ * malla y lo corto deberían quedar dos mallas». Aquel partía plano a plano y
+ * dejaba como pieza suelta cada trozo de fuera —un músculo que cruzaba la
+ * esquina del marco salía en tres—, y como el encendido iba por pieza del atlas,
+ * apagar «el resto» se llevaba también lo de dentro. Aquí cada plano se sigue
+ * aplicando uno detrás de otro sobre lo que va quedando dentro, con el mismo
+ * corte con tapa de siempre, y lo que va saliendo se junta al final.
+ *
+ * Lo de fuera queda como la unión de trozos cerrados que es: si dos se tocan
+ * —los dos lados de la esquina del marco—, las tapas que comparten quedan una
+ * contra otra dentro de la pieza, donde no se ven. Con los rayos X (D-139) sí
+ * se transparentan; es el precio de no tener que coser dos mallas.
+ */
+export function partirPorVariosPlanos(
+  malla: MallaIndexada,
+  planos: readonly PlanoDeLaMalla[],
+): ParticionPorPlanos {
+  let resto: MallaIndexada | null = malla
+  const fuera: MallaIndexada[] = []
+  const planosQueCortan: number[] = []
+  const avisos: string[] = []
+  for (const [k, plano] of planos.entries()) {
+    if (!resto) break
+    const lado = ladoDeLaMalla(resto, plano)
+    if (lado === 'hacia') continue
+    if (lado === 'contra') {
+      fuera.push(resto)
+      resto = null
+      break
+    }
+    const partida = partirMalla(resto, plano)
+    planosQueCortan.push(k)
+    avisos.push(...partida.avisos)
+    if (partida.contraLaNormal.indices.length > 0) fuera.push(partida.contraLaNormal)
+    resto = partida.haciaLaNormal.indices.length > 0 ? partida.haciaLaNormal : null
+  }
+  return {
+    dentro: resto,
+    fuera: fuera.length > 0 ? juntarMallas(fuera) : null,
+    planosQueCortan,
+    avisos: [...new Set(avisos)],
+  }
+}
+
+/**
  * Los vértices y triángulos de uno de los dos trozos, mientras se construye.
  *
  * Cada trozo guarda tres clases de vértice por separado, y la separación es lo

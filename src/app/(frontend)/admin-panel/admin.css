@@ -2081,9 +2081,26 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   box-shadow: 0 2px 10px rgba(10, 20, 50, 0.1);
 }
 .atlas-flota .atlas-herramienta { border-color: transparent; text-align: left; }
-.atlas-flota-utiles { top: 10px; left: 10px; flex-direction: column; }
-/* Debajo del anterior: tres botones de 26 px, sus huecos y el relleno. */
-.atlas-flota-apuntar { top: 112px; left: 10px; flex-direction: column; }
+/* Las dos columnas de la izquierda se apilan solas dentro de esta caja, que es
+   la que flota. Tenían cada una su `top`, y el de la segunda era una suma
+   escrita a mano —«tres botones de 26 px, sus huecos y el relleno»— que dejó de
+   valer en cuanto la primera ganó un cuarto botón: «Recortar» (D-140) la
+   alargó y las dos se montaron (D-141). Con la caja, un botón más empuja al de
+   abajo en vez de taparlo. Sin eventos en la caja, para que el hueco entre las
+   dos columnas no se coma el clic del lienzo que queda debajo. */
+.atlas-flota-columna {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+.atlas-flota-columna > .atlas-flota { position: static; pointer-events: auto; }
+.atlas-flota-utiles, .atlas-flota-apuntar { flex-direction: column; }
 .atlas-flota-vistas { top: 10px; right: 10px; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 120px); }
 
 .atlas-herramienta {
@@ -2350,6 +2367,11 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 
 .atlas-pieza:hover { background: var(--papel); }
 .atlas-pieza-resaltada { background: var(--marca-tenue); color: var(--marca); }
+
+/* Los trozos de una pieza partida, debajo de ella y un poco adentro (D-141):
+   «Tibia derecha_1», «Tibia derecha_2», cada uno con su casilla. La raya de la
+   izquierda los ata a la fila de su pieza sin anidar listas. */
+.atlas-trozo { margin-left: 14px; padding-left: 8px; border-left: 1px dashed var(--linea); border-radius: 0 var(--r) var(--r) 0; }
 
 /* Marca de que la región es una estimación y no un dato del atlas. */
 .atlas-estimada {

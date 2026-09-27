@@ -267,14 +267,22 @@ desplazado, una fractura.
   `8`, Intro mueve 8 mm en X; `R`, `Z`, `15`, Intro gira 15°. Y el panel
   **«Posición y giro»**, a la derecha, enseña cuánto se ha movido la pieza
   seleccionada, en milímetros y en grados, y deja escribirlo.
-- **Recortar** (tecla **J**): un marco que además corta. Arrastre un rectángulo:
-  lo que queda entero dentro se selecciona, y lo que cruza el borde **se parte
-  limpio por el borde**, como con un cuchillo, con su tapa. Lo de dentro queda
-  seleccionado para moverlo; lo de fuera queda como fragmentos. Cada pieza que
-  cruza gasta un corte por borde que cruce, y una preparación admite doscientos.
-- **Varios cortes.** Un fragmento se puede volver a cortar, hasta tres cortes
-  encadenados, y ya no hace falta devolverlo a su sitio antes: se corta donde
-  esté. «Soldar» deshace el último corte del fragmento seleccionado.
+- **Recortar** (tecla **J**): un marco que corta **como un cuchillo**. Arrastre
+  un rectángulo: cada pieza que cruza el borde queda partida en **dos**, con su
+  tapa: **«_1»**, lo de dentro, y **«_2»**, lo de fuera («Fémur derecho_1»,
+  «Fémur derecho_2»). Lo de dentro —trozos y piezas enteras— queda
+  seleccionado, y un aviso dice cuántas se partieron. Cada pieza que cruza
+  gasta un corte, y una preparación admite doscientos.
+  - Cada trozo **se enciende y se apaga por su cuenta**: en el árbol cuelgan de
+    su pieza con su propia casilla, y al pasar el ratón por el modelo se lee su
+    nombre.
+  - **«Solo esto»** (Mayús + H) justo después deja solo lo de dentro.
+  - **Mover** (G) lo desprende del cuerpo, con lo de fuera en su sitio.
+  - **«Centrar»** encuadra lo seleccionado por lo que mide, no por su hueso
+    entero.
+- **Varios cortes.** Un trozo se puede volver a cortar (sus hijos se llaman
+  «_1_1», «_1_2»…), y ya no hace falta devolverlo a su sitio antes: se corta
+  donde esté. «Soldar» deshace el último corte del trozo seleccionado.
 - **Agrupar** (Ctrl + G): lo agrupado se selecciona y se mueve junto —el
   fragmento distal con su pie—. «Desagrupar», Ctrl + Mayús + G.
 - **Espejo:** pasa la preparación entera al otro lado del cuerpo, con lo movido y
