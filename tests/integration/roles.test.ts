@@ -195,6 +195,10 @@ const CLASE_DE: Record<string, Clase> = {
   comentarios: 'propias',
   actividad: 'propias',
   difusiones: 'administracion',
+  // La revisión del contenido (D-142): solo el administrador por REST; el
+  // panel escribe con la API local detrás de sus propias guardias.
+  revisiones: 'administracion',
+  'sesiones-de-revision': 'administracion',
 }
 
 type Esperado = (a: Actor) => boolean
@@ -389,6 +393,17 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
     fabricar: (asunto) => ({
       data: { asunto, mensaje: 'Aviso de prueba.', audiencia: 'todas', estado: 'enviada', total: 0, enviados: 0, fallidos: 0 },
     }),
+  },
+  revisiones: {
+    titulo: 'titulo',
+    fabricar: (titulo) => ({
+      data: { titulo, coleccion: 'patologias', documentoId: unico('ficha'), origen: 'ia', estado: 'pendiente' },
+    }),
+  },
+  // Sin `usuario`: lo pone el gancho de la colección con quien la crea.
+  'sesiones-de-revision': {
+    titulo: 'sesion',
+    fabricar: (sesion) => ({ data: { sesion, coleccion: 'patologias', documentoId: unico('ficha') } }),
   },
 }
 

@@ -13,6 +13,8 @@ import { BotonSalir } from '@/components/BotonSalir'
 import './admin.css'
 import { ruta } from '@/lib/rutas'
 import { AUTORIA } from '@/lib/autoria'
+import { puedeEditar } from '@/lib/guardias'
+import { MODULOS } from './modulos'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,9 +49,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // toca atender.
   let pendientes = 0
   let solicitudes = 0
+  // La revisión del contenido (D-142): cuántas fichas esperan a quien entra
+  // —asignadas a él, o sin asignar si es editor—, y para el administrador,
+  // cuántas están validadas esperando que las publique.
+  let porRevisar = 0
+  let listas = 0
+  // En una constante: la guardia de arriba estrecha `sesion.usuario`, pero ese
+  // estrechamiento no llega dentro de la función que se le pasa a `filter`.
+  const cuenta = sesion.usuario
+  const usuarioId = String(cuenta.id)
+  const misModulos = MODULOS.filter((m) => puedeEditar(cuenta, m.slug)).map((m) => m.slug)
   try {
     const payload = await getPayload({ config })
-    const [conteo, conteoDeSolicitudes] = await Promise.all([
+    const [conteo, conteoDeSolicitudes, conteoPorRevisar, conteoDeListas] = await Promise.all([
       payload.count({
         collection: 'comentarios',
         where: { estado: { equals: 'pendiente' } },
@@ -62,9 +74,34 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             overrideAccess: true,
           })
         : Promise.resolve({ totalDocs: 0 }),
+      misModulos.length === 0
+        ? Promise.resolve({ totalDocs: 0 })
+        : payload
+        .count({
+          collection: 'revisiones',
+          where: {
+            and: [
+              { estado: { in: ['pendiente', 'en-revision', 'devuelta'] } },
+              { coleccion: { in: misModulos } },
+              esAdmin
+                ? { asignadaA: { equals: usuarioId } }
+                : { or: [{ asignadaA: { equals: usuarioId } }, { asignadaA: { exists: false } }] },
+            ],
+          } as never,
+          overrideAccess: true,
+        })
+        // Si la tabla de revisiones no responde, la barra se pinta igual.
+        .catch(() => ({ totalDocs: 0 })),
+      esAdmin
+        ? payload
+            .count({ collection: 'revisiones', where: { estado: { equals: 'lista' } }, overrideAccess: true })
+            .catch(() => ({ totalDocs: 0 }))
+        : Promise.resolve({ totalDocs: 0 }),
     ])
     pendientes = conteo.totalDocs
     solicitudes = conteoDeSolicitudes.totalDocs
+    porRevisar = conteoPorRevisar.totalDocs
+    listas = conteoDeListas.totalDocs
   } catch {
     // Si la base no responde, el panel debe abrirse igual para poder
     // diagnosticarlo desde la sección de sistema.
@@ -77,6 +114,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       titulo: 'Trabajo',
       entradas: [
         { ruta: '/admin-panel', etiqueta: 'Resumen', icono: 'panel' },
+        {
+          ruta: '/admin-panel/revision',
+          etiqueta: 'Por revisar',
+          icono: 'revision',
+          aviso: porRevisar || undefined,
+        },
         { ruta: '/admin-panel/contenido', etiqueta: 'Contenido', icono: 'contenido' },
         { ruta: '/admin-panel/atlas', etiqueta: 'Taller anatómico', icono: 'atlas' },
         {
@@ -95,6 +138,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       entradas: [
         { ruta: '/admin-panel/estadisticas', etiqueta: 'Estadísticas', icono: 'estadisticas' },
         { ruta: '/admin-panel/actividad', etiqueta: 'Actividad', icono: 'actividad' },
+        {
+          ruta: '/admin-panel/auditoria',
+          etiqueta: 'Auditoría',
+          icono: 'auditoria',
+          aviso: listas || undefined,
+        },
       ],
     })
     secciones.push({

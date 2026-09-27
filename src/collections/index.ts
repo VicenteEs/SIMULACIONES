@@ -12,6 +12,8 @@ import { EstudiosIA } from './EstudiosIA'
 import { Comentarios } from './Comentarios'
 import { Actividad } from './Actividad'
 import { Difusiones } from './Difusiones'
+import { Revisiones } from './Revisiones'
+import { SesionesDeRevision } from './SesionesDeRevision'
 import {
   CATALOGOS_DEL_SIMULADOR,
   ClasificacionesAO,
@@ -50,6 +52,8 @@ export const COLECCIONES: CollectionConfig[] = [
   Comentarios,
   Actividad,
   Difusiones,
+  Revisiones,
+  SesionesDeRevision,
 ]
 
 export {
@@ -71,4 +75,6 @@ export {
   Comentarios,
   Actividad,
   Difusiones,
+  Revisiones,
+  SesionesDeRevision,
 }

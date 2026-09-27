@@ -20,8 +20,8 @@ export default async function PaginaDeColeccion({
   // redirección distinguibles le dirían a un curioso sin sesión qué colecciones
   // existen.
   const { coleccion } = await params
-  await exigirPanelPara(coleccion)
+  const { esAdmin } = await exigirPanelPara(coleccion)
   if (!esColeccionEditable(coleccion)) notFound()
 
-  return <TablaDocumentos esquema={esquemaDe(coleccion)} />
+  return <TablaDocumentos esquema={esquemaDe(coleccion)} esAdmin={esAdmin} />
 }

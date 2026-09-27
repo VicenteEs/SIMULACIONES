@@ -77,13 +77,14 @@ Barra lateral, grupo **«Trabajo»** (editores y administradores):
 | Pantalla | Para qué |
 |---|---|
 | «Resumen» | El estado de todo de un vistazo: fichas por módulo, comentarios pendientes y avisos. |
+| «Por revisar» | Las fichas en revisión de sus módulos: lo devuelto primero, después lo asignado a usted. Sección 5, «Fichas en revisión». |
 | «Contenido» | Donde se escribe. Arriba los cinco **«Módulos»**, abajo el **«Material de apoyo»**. |
 | «Taller anatómico» | Armar preparaciones del atlas 3D para ponerlas en las fichas. |
 | «Comentarios» | Lo que los lectores escriben en las fichas: errores, sugerencias, correcciones. |
 
 Grupos **«Seguimiento»** y **«Administración»** (solo administradores):
-«Estadísticas», «Actividad», «Usuarios y permisos», «Difusión», «Respaldos» y
-«Sistema». Van en las secciones 9 a 12.
+«Estadísticas», «Actividad», «Auditoría», «Usuarios y permisos», «Difusión»,
+«Respaldos» y «Sistema». Van en las secciones 9 a 13.
 
 > **Un guion «—» no es un cero.** En «Resumen», «Estadísticas» y «Actividad»,
 > un guion significa que ese dato no se pudo consultar en ese momento. Recargue
@@ -129,6 +130,38 @@ en diez (10, 20, 30) para poder intercalar después.
   borrar nada.
 - **Para corregir una ficha ya publicada**, haga el cambio y pulse «Publicar» de
   nuevo. Mientras solo pulse «Guardar borrador», el lector no ve la corrección.
+
+### Fichas en revisión (el contenido que llega hecho)
+
+Parte del contenido llega ya redactado —por ejemplo, generado con inteligencia
+artificial a partir de un libro— y tiene que revisarlo un traumatólogo antes de
+publicarse. Esas fichas llevan arriba un **recuadro de revisión** con su origen,
+el libro, el capítulo y las páginas de donde salieron, su estado y a quién están
+asignadas. Se encuentran todas juntas en **«Por revisar»**.
+
+1. Abra la ficha y **cotéjela con el libro**, pestaña por pestaña. Corrija lo que
+   haga falta y guarde el borrador cuantas veces quiera.
+2. Cada pestaña revisada lleva una **✓**: la cuenta cuando ha estado delante,
+   con actividad, al menos cinco segundos.
+3. Si quiere, deje una **nota** para quien publica: qué comprobó, qué corrigió,
+   qué dudas quedan.
+4. Pulse **«Listo para publicar»**. Guarda lo pendiente y la entrega al
+   administrador, que es quien la publica. En una ficha en revisión el editor no
+   ve «Publicar».
+
+**Qué se registra**, y el recuadro lo dice: el tiempo con la ficha abierta, el
+tiempo de revisión **activa** —con alguien delante: sin tocar nada durante 90
+segundos deja de contar—, qué pestañas se revisaron y, al guardar, cuánto
+cambió el texto respecto de como llegó. Si al pulsar «Listo para publicar» la
+revisión parece hecha sin leer —menos de 30 segundos activos, más de 250
+palabras por minuto, o alguna pestaña con contenido sin abrir—, el panel lo
+dice y pregunta. Se puede marcar igual (quizá se cotejó en papel), pero queda
+**señalada** para el administrador.
+
+- Si **la cambia después de validarla**, vuelve a «En revisión» y hay que volver
+  a validarla: lo validado era otro texto.
+- Si el administrador **la devuelve**, el motivo aparece en el recuadro y la
+  ficha vuelve primera a «Por revisar».
 
 ### Los bloques
 
@@ -450,7 +483,39 @@ servicio, no para correo frecuente: no hay forma de darse de baja.
 
 ---
 
-## 12. Estadísticas y actividad
+## 12. Auditoría de la revisión
+
+**«Auditoría»** (Seguimiento) es para saber si las fichas en revisión se revisan
+de verdad. Arriba, filtros por módulo, lote, revisor y estado, que valen para
+todo lo de abajo.
+
+- **Indicadores:** cuántas fichas esperan revisión, cuántas están listas para
+  publicar, cuántas se publicaron (y si alguna sin validar), la edición media,
+  los minutos de revisión por ficha y las **validaciones señaladas** (⚑).
+- **Gráficos:** el estado por módulo, las validaciones por semana, cuánto se
+  edita (muchas fichas en «0 %» con poco tiempo es la señal de que se valida sin
+  leer), los minutos de revisión activa y el ritmo de cada revisor, en palabras
+  por minuto: por encima de 250 (⚑) no es una lectura atenta.
+- **Revisores:** lo asignado, lo que falta, lo validado, lo señalado, lo que se
+  le devolvió, su tiempo y su ritmo. El nombre filtra la página por esa persona.
+- **Fichas:** cada una con su porcentaje editado, los minutos y el ritmo de quien
+  la validó y las secciones que revisó; las señaladas van primero y en rojo, con
+  el porqué. Se ordena pulsando el título de una columna. Elija varias para
+  **asignarlas** a un revisor o **publicar las validadas** de una vez.
+- **«Descargar planilla (Excel)»**: todo, sin el filtro de la pantalla, en cinco
+  hojas —fichas, revisores, sesiones de tiempo, edición por sección e
+  historial—, cada una como tabla con filtros en la cabecera.
+
+Una ficha se mete en revisión con **«Enviar a revisión…»**, abajo del recuadro
+de su editor: lo que tiene en ese momento queda como su versión original, y
+contra ella se mide lo que se edite. En ese mismo recuadro, en una ficha que ya
+está en revisión, se **asigna**, se **devuelve** con un motivo o se **saca de
+revisión**. Trate estos datos como lo que son: información sobre el trabajo de
+personas.
+
+---
+
+## 13. Estadísticas y actividad
 
 «Estadísticas» muestra cuánto contenido hay, qué se lee más y dónde se comenta.
 «Actividad», quién abrió qué y su paso por el simulador.
@@ -462,7 +527,7 @@ lo que es, información sobre personas.
 
 ---
 
-## 13. Cuando algo no sale
+## 14. Cuando algo no sale
 
 | Qué pasa | Qué hacer |
 |---|---|
@@ -471,6 +536,8 @@ lo que es, información sobre personas.
 | El enlace de contraseña dice que no sirve | Caducó (una hora), ya se usó, o alguien pulsó «Clave» otra vez. Pida uno nuevo. |
 | «No se guardó: esta ficha se guardó desde otro sitio» | Sección 5, «Cuando dos guardados chocan». Lo escrito no se perdió. |
 | «Publicar» no deja y hay una pestaña con «!» | Falta un campo obligatorio en esa pestaña. |
+| «Esta ficha está en revisión: márquela como Lista para publicar…» | Las fichas en revisión las publica un administrador. Sección 5, «Fichas en revisión». |
+| «Según lo registrado, la revisión de esta ficha parece rápida» | El aviso dice por qué. Si la revisó de verdad, puede marcarla igual; quedará señalada. |
 | «Respaldar ahora» falla, o «Sistema» marca la herramienta de respaldo | El aviso dice qué permiso falta en la carpeta de respaldos. Avise al desarrollador. |
 | El archivo se rechaza al subir | Formato o peso: 50 MB imagen y video, 5 MB modelos, video solo MP4 o WEBM. |
 | El video se corta al subir | Pruebe uno más liviano; si ese sube, comprima el grande. |

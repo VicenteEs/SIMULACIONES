@@ -89,6 +89,38 @@ export default async function ResumenAdmin() {
   // fichas que no puede tocar no le sirve para saber qué le queda por hacer.
   const modulos = todosLosModulos.filter((m) => puedeEditar(sesion.usuario, m.slug))
 
+  // La revisión del contenido (D-142), de los módulos de quien mira. `null` si
+  // la tabla no respondió: la tarjeta lo dice en vez de enseñar ceros.
+  const usuarioId = String(sesion.usuario.id)
+  const suyos = modulos.map((m) => m.slug)
+  // Sin módulos que editar no hay nada que contar, y un `in` vacío no se deja
+  // a la interpretación de cada versión de Payload.
+  const contarRevisiones = async (where?: Record<string, unknown>) =>
+    suyos.length === 0
+      ? 0
+      : (
+          await payload.count({
+            collection: 'revisiones',
+            where: (where
+              ? { and: [{ coleccion: { in: suyos } }, where] }
+              : { coleccion: { in: suyos } }) as never,
+            overrideAccess: true,
+          })
+        ).totalDocs
+  const revision = await Promise.all([
+    contarRevisiones(),
+    contarRevisiones({ estado: { in: ['pendiente', 'en-revision', 'devuelta'] } }),
+    contarRevisiones({
+      and: [{ estado: { in: ['pendiente', 'en-revision', 'devuelta'] } }, { asignadaA: { equals: usuarioId } }],
+    }),
+    contarRevisiones({ estado: { equals: 'lista' } }),
+    contarRevisiones({ and: [{ estado: { equals: 'lista' } }, { validacionRapida: { equals: true } }] }),
+  ])
+    .then(([total, porRevisar, mias, listas, senaladas]) => ({ total, porRevisar, mias, listas, senaladas }))
+    .catch((error: unknown) => {
+      console.error('[panel] no se pudo contar la revisión:', error)
+      return null
+    })
 
   // Los conteos que la base no supo responder vienen a cero y con `ilegible`
   // en alto (`datos.ts`). Sumarlos como ceros da un total que parece un
@@ -270,6 +302,38 @@ export default async function ResumenAdmin() {
             </Link>
           </div>
         </div>
+
+        {revision === null || revision.total > 0 ? (
+          <div className={`admin-card${revision === null ? ' admin-card-ilegible' : ''}`}>
+            <div className="admin-card-title">Revisión del contenido</div>
+            <div className="admin-card-value">{revision === null ? '—' : revision.porRevisar}</div>
+            <p className="admin-card-note">
+              {revision === null
+                ? 'no se pudo leer la tabla de revisiones'
+                : esAdmin
+                  ? `por revisar · ${revision.listas} lista${revision.listas === 1 ? '' : 's'} para publicar${
+                      revision.senaladas > 0
+                        ? ` · ⚑ ${revision.senaladas} con la validación señalada`
+                        : ''
+                    }`
+                  : `por revisar en sus módulos${
+                      revision.mias > 0
+                        ? ` · ${revision.mias} asignada${revision.mias === 1 ? '' : 's'} a usted`
+                        : ''
+                    }`}
+            </p>
+            <div className="admin-card-actions">
+              <Link href="/admin-panel/revision" className="admin-btn admin-btn-secondary">
+                Por revisar
+              </Link>
+              {esAdmin ? (
+                <Link href="/admin-panel/auditoria" className="admin-btn admin-btn-secondary">
+                  Auditoría
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className={`admin-card${comentarios.ilegible ? ' admin-card-ilegible' : ''}`}>
           <div className="admin-card-title">Comentarios pendientes</div>

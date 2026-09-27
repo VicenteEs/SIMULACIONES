@@ -15,7 +15,12 @@ import {
   guardarDocumento,
   opcionesDeRelacion,
 } from '@/app/(frontend)/acciones/contenido'
+import { marcarListaParaPublicar } from '@/app/(frontend)/acciones/revision'
+import { palabrasPorSeccion } from '@/lib/revision'
+import type { RevisionParaElEditor } from '@/lib/revisionServidor'
 import { FilaDeCampos, type Relaciones } from './formulario/Campos'
+import { RevisionEnElEditor } from './RevisionEnElEditor'
+import { useSeguimientoDeRevision } from './useSeguimientoDeRevision'
 
 /**
  * Editor de un documento, sea de la colección que sea.
@@ -52,11 +57,21 @@ export function FormularioDocumento({
   documento,
   id,
   rutaPublica,
+  revision = null,
+  esAdmin = false,
 }: {
   esquema: EsquemaDeColeccion
   documento: Record<string, unknown>
   id: string | null
   rutaPublica: string | null
+  /**
+   * La revisión de la ficha, si está en revisión (D-142). Con ella, el editor
+   * no ofrece «Publicar» sino «Listo para publicar», mide el tiempo de revisión
+   * y enseña de dónde salió el texto.
+   */
+  revision?: RevisionParaElEditor | null
+  /** Rol real de quien edita: el administrador publica lo validado y gobierna la revisión. */
+  esAdmin?: boolean
 }) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
@@ -117,6 +132,21 @@ export function FormularioDocumento({
   const botonGuardarRef = useRef<HTMLButtonElement>(null)
 
   const publicado = documento._status === 'published' || !esquema.versionada
+
+  // --- revisión (D-142) ------------------------------------------------------
+  const enRevision = revision !== null && id !== null
+  const [nota, setNota] = useState('')
+  const seguimiento = useSeguimientoDeRevision({
+    activo: enRevision,
+    coleccion: esquema.slug,
+    id,
+    seccion: esquema.secciones[seccion]?.titulo ?? '',
+  })
+  /** Las pestañas que quien edita ya revisó: las de sesiones anteriores y las de esta. */
+  const vistas = useMemo(
+    () => new Set([...(revision?.mio.vistas ?? []), ...seguimiento.vistasAqui]),
+    [revision, seguimiento.vistasAqui],
+  )
 
   /**
    * Colecciones a las que apunta algún campo del esquema o de los bloques.
@@ -306,6 +336,7 @@ export function FormularioDocumento({
 
   const cambiar = (nombre: string, valor: unknown) => {
     ediciones.current += 1
+    if (enRevision) seguimiento.contarEdicion()
     setValores((previos) => ({ ...previos, [nombre]: valor }))
     setSucio(true)
     setAviso(null)
@@ -330,6 +361,19 @@ export function FormularioDocumento({
 
   const guardar = (publicar: boolean) => {
     setAviso(null)
+    // Publicar lo que ningún revisor validó se deja al administrador (D-142),
+    // pero no sin decírselo: queda anotado como «publicada sin validar».
+    if (
+      publicar &&
+      enRevision &&
+      revision?.estado !== 'lista' &&
+      revision?.estado !== 'publicada' &&
+      !confirm(
+        'Nadie ha validado todavía esta ficha.\n\nSi la publica ahora, quedará anotada en la auditoría como publicada sin validar. ¿Publicarla igualmente?',
+      )
+    ) {
+      return
+    }
     const incompleta = seccionIncompleta(publicar)
     if (incompleta >= 0) setSeccion(incompleta)
     // Contra qué se compara al volver. Los campos no se deshabilitan mientras
@@ -347,6 +391,7 @@ export function FormularioDocumento({
           valores,
           publicar,
           marca.current,
+          enRevision ? seguimiento.sesion : undefined,
         )
         if (resultado.conflicto) {
           // No es un campo que falte: no se cambia de pestaña, que dejaría a
@@ -391,6 +436,85 @@ export function FormularioDocumento({
       }
     })
   }
+
+  /**
+   * «Listo para publicar» (D-142): guarda lo pendiente, manda el tiempo medido
+   * y pide la validación. Si el servidor la ve rápida, se enseña por qué y se
+   * pregunta; confirmada, se marca igual y queda señalada para el
+   * administrador. No se prohíbe: el revisor puede haberla cotejado en papel.
+   */
+  const marcarLista = () => {
+    if (enCurso || id === null) return
+    setAviso(null)
+    const incompleta = seccionIncompleta(true)
+    if (incompleta >= 0) {
+      setSeccion(incompleta)
+      setAviso({
+        tipo: 'error',
+        texto: 'Antes de darla por lista hay que completar lo obligatorio: la pestaña marcada con «!».',
+      })
+      return
+    }
+    const edicionesAlEnviar = ediciones.current
+    iniciar(async () => {
+      try {
+        if (sucio) {
+          const guardado = await guardarDocumento(esquema.slug, id, valores, false, marca.current, seguimiento.sesion)
+          if (guardado.conflicto) {
+            setConflicto({ marcaActual: guardado.conflicto.marcaActual, texto: guardado.mensaje ?? MENSAJE_DE_CONFLICTO })
+            return
+          }
+          if (!guardado.exito || !guardado.datos) {
+            setAviso({ tipo: 'error', texto: guardado.mensaje ?? 'No se pudo guardar antes de validar.' })
+            return
+          }
+          marca.current = guardado.datos.marca
+          if (ediciones.current === edicionesAlEnviar) setSucio(false)
+        }
+        // El tiempo de estos últimos segundos cuenta: se manda antes de juzgar.
+        await seguimiento.enviarAhora()
+        let r = await marcarListaParaPublicar(esquema.slug, id, marca.current, nota, false)
+        if (r.exito && r.datos?.necesitaConfirmacion) {
+          const motivos = r.datos.juicio.motivos.map((m) => `• ${m}`).join('\n')
+          const seguir = confirm(
+            `Según lo registrado, la revisión de esta ficha parece rápida:\n\n${motivos}\n\nSi la marca igualmente como lista, quedará señalada para el administrador. ¿Marcarla?`,
+          )
+          if (!seguir) {
+            setAviso({ tipo: 'ok', texto: 'No se marcó. Siga revisando: el tiempo y las pestañas vistas se siguen contando.' })
+            return
+          }
+          r = await marcarListaParaPublicar(esquema.slug, id, marca.current, nota, true)
+        }
+        if (r.conflicto) {
+          setConflicto({ marcaActual: marca.current, texto: r.mensaje ?? MENSAJE_DE_CONFLICTO })
+          return
+        }
+        if (!r.exito) {
+          setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo marcar como lista.' })
+          return
+        }
+        setNota('')
+        setAviso({
+          tipo: 'ok',
+          texto: 'Marcada como lista para publicar. La publica un administrador; si cambia algo más, tendrá que volver a validarla.',
+        })
+        router.refresh()
+      } catch (fallo) {
+        setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo marcar como lista.') })
+      }
+    })
+  }
+
+  /** Las secciones con algo escrito, para contar cuántas se revisaron. */
+  const seccionesConContenido = useMemo(
+    () =>
+      enRevision
+        ? palabrasPorSeccion(esquema, valores)
+            .filter((s) => s.palabras.length > 0)
+            .map((s) => s.seccion)
+        : [],
+    [enRevision, esquema, valores],
+  )
 
   const titulo = String(valores[esquema.titulo] ?? '').trim()
 
@@ -533,6 +657,19 @@ export function FormularioDocumento({
               >
                 {enCurso ? 'Guardando…' : 'Guardar borrador'}
               </button>
+              {/* En revisión (D-142), el revisor no publica: da la ficha por
+                  lista y la publica el administrador. Al administrador se le
+                  ofrecen los dos, porque también puede revisar. */}
+              {enRevision && revision?.estado !== 'lista' && revision?.estado !== 'publicada' ? (
+                <button
+                  className={`admin-btn ${esAdmin ? 'admin-btn-secondary' : 'admin-btn-primary'}`}
+                  aria-disabled={enCurso}
+                  onClick={marcarLista}
+                >
+                  {enCurso ? 'Guardando…' : 'Listo para publicar'}
+                </button>
+              ) : null}
+              {!enRevision || esAdmin ? (
               <button
                 className="admin-btn admin-btn-primary"
                 aria-disabled={enCurso}
@@ -548,6 +685,7 @@ export function FormularioDocumento({
                     única que no daba señal ninguna de estar guardando. */}
                 {enCurso ? 'Guardando…' : publicado ? 'Guardar y publicar' : 'Publicar'}
               </button>
+              ) : null}
             </>
           ) : (
             <button
@@ -638,6 +776,19 @@ export function FormularioDocumento({
         </div>
       ) : null}
 
+      {esquema.familia === 'modulos' ? (
+        <RevisionEnElEditor
+          revision={revision}
+          esAdmin={esAdmin}
+          coleccion={esquema.slug}
+          id={id}
+          secciones={seccionesConContenido}
+          vistas={vistas}
+          nota={nota}
+          alCambiarNota={setNota}
+        />
+      ) : null}
+
       {esquema.secciones.length > 1 ? (
         <nav className="editor-pestanas" aria-label="Secciones del documento">
           {esquema.secciones.map((s, i) => (
@@ -649,6 +800,12 @@ export function FormularioDocumento({
               aria-current={i === seccion ? 'true' : undefined}
             >
               {s.titulo}
+              {/* Revisada por quien edita (D-142): la tuvo delante lo bastante. */}
+              {enRevision && vistas.has(s.titulo) ? (
+                <span className="editor-pestana-revisada" title="Ya revisó esta sección">
+                  ✓
+                </span>
+              ) : null}
               {faltantesDeSeccion(esquema, valores, i, true).length > 0 ? (
                 <span className="editor-pestana-falta" title="Falta algo obligatorio">
                   !

@@ -4046,6 +4046,94 @@ enfrentadas dentro: no se ven, salvo con los rayos X. El pivote automático
 sigue midiendo por pieza del catálogo (D-129): solo «Encuadrar» y «Centrar»
 cuentan los trozos.
 
+### D-142 · 2026-09-26 · vigente
+**Revisión del contenido que llega hecho: versión original, tiempo de revisión
+activa, «Listo para publicar» y la pantalla «Auditoría».**
+El contenido va a llegar en bloque, redactado por un modelo de lenguaje a partir
+de los libros del dueño, y lo van a revisar traumatólogos con cuenta de editor.
+El dueño pidió poder saber qué porcentaje de cada ficha se editó, cuánto tiempo
+pasa cada revisor antes de pulsar «Listo para publicar» —«no quiero que validen
+por validar»—, y una pestaña en «Seguimiento» con gráficos y una planilla de
+Excel para filtrar. En resumen, «controlar a los traumatólogos y que revisen de
+verdad el contenido».
+
+*El modelo.* Dos colecciones nuevas, solo de administrador por REST:
+`revisiones`, una fila por ficha en revisión —origen, libro, capítulo, páginas,
+lote, modelo, estado, asignada a, la **versión original** depurada con el
+esquema del panel, la medida de edición y la foto de la validación— con su
+historial; y `sesiones-de-revision`, el tiempo de cada revisor con cada ficha.
+Una ficha entra en revisión por la ingesta —`registrarParaRevision`, que usará el
+guion de carga de los libros— o porque un administrador la envía desde el
+editor. Lo escrito a mano antes no tiene fila y se publica como siempre.
+
+*Lo que se mide.* Cuánto se editó (`src/lib/revision.ts`): palabras por sección,
+lo que no es texto —una opción, una relación, un número— cuenta como una
+palabra, y la diferencia es la subsecuencia común más larga (Myers, con el
+principio y el final comunes apartados). El porcentaje es lo quitado o lo
+nuevo, el mayor de los dos, sobre el largo mayor: reescribir una de cada diez
+palabras es un 10 %, borrar una décima parte también. El tiempo: el editor
+cuenta cada segundo con la pestaña a la vista (abierto) y, de esos, los que
+tuvieron una tecla, un clic, la rueda o el ratón en los últimos noventa segundos
+(activo), repartidos por la pestaña que se tenía delante; lo manda cada quince
+segundos y al ocultarse, y el servidor lo recorta al tiempo que de verdad pasó
+desde el latido anterior. Una sección cuenta como revisada con cinco segundos
+activos delante, y lleva ✓ en su pestaña.
+
+*El flujo.* En una ficha en revisión el editor no ve «Publicar» sino «Listo para
+publicar»: guarda lo pendiente, manda el tiempo y pide la validación. Si
+parece hecha sin leer —menos de treinta segundos activos, más de 250 palabras
+por minuto, o alguna sección con contenido sin abrir (`evaluarValidacion`)—, no
+se escribe nada hasta que confirme; confirmada, se marca igual y queda
+señalada. No se prohíbe: se puede haber cotejado en papel. La publica el
+administrador, desde la ficha o en bloque desde «Auditoría»; si publica lo que
+nadie validó, queda anotado. Guardar después de validar la devuelve a «en
+revisión». El administrador puede devolverla con un motivo, asignarla y
+sacarla de revisión. Un editor que intenta publicar una ficha en revisión por
+el listado o a mano recibe un rechazo en palabras.
+
+*Las pantallas.* «Por revisar» (Trabajo): la cola de quien entra, lo devuelto
+primero, con cuánto lleva dedicado a cada ficha. «Auditoría» (Seguimiento, solo
+administrador): filtros por módulo, lote, revisor y estado; seis indicadores;
+estado por módulo, validaciones por semana, cuánto se edita, minutos y ritmo
+por revisor; la tabla de revisores y la de fichas, ordenable, con asignar y
+publicar en bloque; y la planilla (D-143). En el listado de cada módulo, una
+columna y un filtro de revisión. En el resumen, una tarjeta.
+
+*Consecuencias buenas.* Una validación de 3.000 palabras en un minuto sale en
+rojo con su porqué, y el revisor lo sabe antes de marcarla; el tiempo de una
+pestaña olvidada no cuenta. Se probó con el ciclo entero contra una base de
+verdad y en un navegador: la revisora recorrió las siete pestañas, editó una,
+la validó sin aviso, y la auditoría la contó. *Malas.* El tiempo activo mide
+presencia, no lectura: alguien que mueve el ratón sin leer suma tiempo, y por
+eso el ritmo y las secciones sin abrir van al lado. Lo medido de los últimos
+segundos antes de cerrar la pestaña puede perderse. Los umbrales —250 palabras
+por minuto, treinta segundos, noventa de inactividad, cinco por sección— son un
+criterio razonable y no un estándar; están juntos en `src/lib/revision.ts` para
+ajustarlos cuando haya datos. Y el revisor ve que se le mide, a propósito: lo
+dice el recuadro de revisión de cada ficha.
+
+### D-143 · 2026-09-26 · vigente
+**La planilla de Excel se escribe a mano, sin dependencias: un `.xlsx` con cada
+hoja como tabla filtrable.**
+Pedida «tipo tabla para poder filtrar». Un CSV no lo es: Excel lo abre sin
+filtros, con las tildes según la configuración regional y las fechas como
+texto. `src/lib/planilla.ts` escribe Office Open XML —el ZIP de
+`src/lib/zip.ts`, con `deflateRawSync` y un CRC-32 propio— con una tabla de
+Excel por hoja (`TableStyleMedium2`, filtros en la cabecera, filas alternas),
+la primera fila fija, las fechas como fechas en hora de Santiago, los números
+como números y los textos en la tabla de cadenas compartidas, que es lo que
+escribe el propio Excel. Cinco hojas: contenidos, revisores, sesiones,
+secciones e historial (`src/lib/planillaDeAuditoria.ts`), de la misma cuenta
+que la pantalla. Se descarga de `/api/auditoria/planilla`, solo administrador.
+
+*Por qué no una biblioteca.* La más conocida pesa megas, trae lectura, fórmulas y
+gráficos que aquí no se usan, y su versión de npm lleva años sin parches; las
+demás, parecido. Lo necesario cabe en doscientas líneas probadas. *Malas.* Si
+algún día hace falta algo más —colores por celda, fórmulas, varias tablas por
+hoja—, hay que escribirlo. Se comprobó con openpyxl, igual de estricto con las
+tablas, y no con un Excel de verdad: si Excel se queja de algo al abrirla, es
+aquí.
+
 ---
 
 ## 3. Observaciones

@@ -916,6 +916,45 @@
   vertical-align: middle;
 }
 
+/* La pestaña que quien revisa ya tuvo delante (D-142). */
+.editor-pestana-revisada { margin-left: 6px; color: var(--verde, #1f7a4d); font-weight: 700; }
+
+/* ---------- revisión del contenido (D-142) ---------- */
+.revision-caja {
+  border: 1px solid var(--linea);
+  border-left: 3px solid var(--marca);
+  border-radius: var(--r);
+  background: var(--superficie);
+  padding: 0.75rem 1rem;
+  margin: 0 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+.revision-caja-fuera { border-left-color: var(--linea); background: none; padding: 0.5rem 0; border: none; }
+.revision-caja .admin-aviso { margin: 0; }
+.revision-cabecera { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; }
+.revision-derecha { margin-left: auto; color: var(--pizarra); }
+.revision-tenue { color: var(--mudo); font-size: 0.8125rem; }
+.revision-linea { margin: 0; color: var(--tinta); }
+.revision-nota { margin: 0; color: var(--mudo); font-size: 0.8125rem; max-width: 80ch; }
+.revision-nota-campo { display: flex; flex-direction: column; gap: 0.25rem; max-width: 70ch; }
+.revision-administrar { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--linea); }
+.revision-formulario { display: flex; flex-direction: column; gap: 0.5rem; max-width: 70ch; }
+.revision-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem 0.75rem; }
+.revision-rejilla label { display: flex; flex-direction: column; gap: 0.25rem; }
+
+/* Los estados de la revisión, con los colores que ya dicen lo mismo en el
+   panel: ámbar lo que espera a alguien, azul lo que está en manos de alguien,
+   verde lo que está listo o publicado, rojo lo que volvió. */
+.revision-estado-pendiente { background: var(--ambar-tenue); color: var(--ambar); }
+.revision-estado-en-revision { background: var(--marca-tenue); color: var(--marca); }
+.revision-estado-lista { background: var(--verde-tenue, #e9f5ef); color: var(--verde, #1f7a4d); }
+.revision-estado-devuelta { background: var(--alerta-tenue); color: var(--alerta); }
+.revision-estado-publicada { background: var(--linea-suave); color: var(--pizarra); }
+.revision-senal { color: var(--alerta); font-weight: 700; margin-left: 4px; }
+
 .editor-seccion-nota {
   color: var(--pizarra);
   font-size: 0.875rem;
@@ -1479,6 +1518,16 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
   min-width: 2px;
 }
 
+.grafico-fila-relleno-alerta { background: var(--alerta); }
+
+/* Una fila de la barra apilada por módulo (D-142): el hueco de la pista queda
+   a la vista y los segmentos van separados por dos píxeles de fondo. */
+.grafico-fila-apilada { background: none; border-radius: 0; height: 10px; overflow: visible; }
+.grafico-fila-apilada > span { display: flex; gap: 2px; height: 100%; min-width: 2px; }
+.grafico-fila-apilada .grafico-apilada-parte { border-radius: 2px; min-width: 2px; }
+.grafico-leyenda-en-fila { flex-direction: row; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+.grafico-leyenda-en-fila strong { margin-left: 0.35rem; }
+
 .grafico-fila-valor {
   font-family: var(--mono);
   font-size: 0.75rem;
@@ -1490,12 +1539,15 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 
 .grafico-apilada-caja { margin-top: 0.75rem; }
 
+/* Dos píxeles de fondo entre segmento y segmento, en vez de un borde: se ve
+   dónde acaba cada parte sin dibujar una línea que compita con ellas. */
 .grafico-apilada {
   display: flex;
+  gap: 2px;
   height: 10px;
   border-radius: 100px;
   overflow: hidden;
-  background: var(--linea-suave);
+  background: var(--superficie);
 }
 
 .grafico-apilada-parte { display: block; height: 100%; }
@@ -2506,3 +2558,76 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   .atlas-solo-escritorio p { margin: 0 0 8px; line-height: 1.5; }
   .atlas-solo-escritorio p:last-child { margin-bottom: 0; }
 }
+
+/* ==========================================================================
+   Revisión del contenido y su auditoría (D-142).
+   ========================================================================== */
+
+/* Los estados de la revisión en los gráficos. Cinco tonos de la casa o muy
+   cerca, en este orden —pendiente, en revisión, lista, publicada, devuelta— y
+   comprobados con el validador de paletas para las tres formas de daltonismo:
+   el rojo de «devuelta» va al final a propósito, porque junto al verde de
+   «lista» los confundía un deuteranope (ΔE 5,5). Si se cambia uno, se vuelve
+   a comprobar el conjunto en ese orden. */
+:root {
+  --estado-pendiente: #9e7526;
+  --estado-en-revision: #12509e;
+  --estado-lista: #1f7a4d;
+  --estado-publicada: #6b5bd2;
+  --estado-devuelta: #d0463f;
+}
+
+.auditoria-filtros { align-items: flex-end; }
+.auditoria-indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.auditoria-indicadores .admin-card { padding: 1rem 1.1rem; }
+.auditoria-indicadores .admin-card-value { font-size: 1.75rem; }
+.auditoria-card-alerta { box-shadow: inset 3px 0 0 var(--alerta), var(--sombra); }
+.auditoria-card-alerta .admin-card-value { color: var(--alerta); }
+
+.auditoria-revisores { margin-bottom: 1.5rem; }
+.auditoria-numero { font-family: var(--mono); font-size: 0.8125rem; text-align: right; white-space: nowrap; }
+.auditoria-alerta { color: var(--alerta); font-weight: 700; }
+.auditoria-motivos { color: var(--alerta); font-size: 0.75rem; margin-top: 2px; max-width: 48ch; }
+.auditoria-fila-senalada { background: var(--alerta-tenue); }
+.auditoria-tabla th:first-child, .auditoria-tabla td:first-child { width: 1%; }
+
+/* Los títulos de columna que ordenan: se ven como el texto que eran. */
+.auditoria-orden {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.auditoria-orden:hover { color: var(--marca); }
+
+/* La barra de acciones en bloque, encima de la tabla de fichas. */
+.auditoria-bloque {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--pizarra);
+}
+.auditoria-bloque > span:first-child { margin-right: auto; }
+
+/* Las dos tablas de la auditoría llevan once columnas: se aprietan los rellenos
+   y el título de la ficha tiene un ancho mínimo, para que no se parta en ocho
+   renglones mientras las columnas de números sobran. El contenedor ya se
+   desplaza en horizontal si aun así no caben. */
+.auditoria-tabla th,
+.auditoria-tabla td,
+.auditoria-revisores th,
+.auditoria-revisores td { padding: 0.6rem 0.65rem; }
+.auditoria-tabla th[scope='row'] { min-width: 260px; }
+.auditoria-revisores th[scope='row'] { min-width: 170px; }
+.auditoria-tabla .revision-tenue { font-size: 0.75rem; }

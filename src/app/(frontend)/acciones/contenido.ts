@@ -30,6 +30,56 @@ import {
   MENSAJE_DE_FICHA_ELIMINADA,
   type Marca,
 } from '@/admin/concurrencia'
+import {
+  MENSAJE_DE_PUBLICAR_EN_REVISION,
+  anotarGuardado,
+  anotarGuardadoEnLaSesion,
+  anotarPublicacion,
+  esModuloEnRevision,
+  quitarDeRevision,
+  revisionDe,
+} from '@/lib/revisionServidor'
+
+/**
+ * La revisión de una ficha, si está en revisión (D-142), sin que un fallo de su
+ * tabla deje sin guardar la ficha.
+ *
+ * Solo importa de verdad cuando un editor intenta publicar —una ficha en
+ * revisión la publica el administrador—, y ahí se falla cerrado: si no se puede
+ * saber, no se publica. En cualquier otro caso —un borrador, el administrador—
+ * se sigue sin ella y queda en el registro: un despliegue con la tabla de
+ * revisiones rota no puede dejar a los traumatólogos sin poder guardar.
+ */
+async function revisionSiSePuede(
+  payload: Awaited<ReturnType<typeof exigirEdicionDe>>['payload'],
+  coleccion: string,
+  id: string,
+  quiereDecidirPublicar: boolean,
+): Promise<Record<string, unknown> | null> {
+  try {
+    return await revisionDe(payload, coleccion, id)
+  } catch (error) {
+    if (quiereDecidirPublicar) {
+      throw new Error('No se pudo comprobar si la ficha está en revisión. Inténtelo de nuevo en un momento.')
+    }
+    console.error('[revision] no se pudo leer la revisión de la ficha:', error)
+    return null
+  }
+}
+
+/**
+ * Lo que la revisión anota después de escribir la ficha (D-142) no puede tumbar
+ * la respuesta: la ficha ya está guardada, y decirle al traumatólogo que no se
+ * guardó por un fallo en la medida sería mentirle sobre su trabajo. El fallo
+ * queda en el registro del servidor.
+ */
+async function sinTumbarLaRespuesta(que: string, tarea: () => Promise<unknown>) {
+  try {
+    await tarea()
+  } catch (error) {
+    console.error(`[revision] no se pudo anotar ${que}:`, error)
+  }
+}
 
 const rutaDeLista = (slug: string) => `/admin-panel/contenido/${slug}`
 
@@ -63,6 +113,29 @@ export interface FilaDeLista {
   id: string
   valores: Record<string, unknown>
   publicado: boolean
+  /** Si la ficha está en revisión (D-142): en qué estado y a quién le toca. */
+  revision?: { estado: string; asignada: string | null; rapida: boolean } | null
+}
+
+/**
+ * Los filtros de revisión del listado (D-142). `mias` son las asignadas a quien
+ * mira; `por-revisar`, las que esperan a un revisor: pendientes, en revisión o
+ * devueltas.
+ */
+export type FiltroDeRevision =
+  | 'todas'
+  | 'por-revisar'
+  | 'listas'
+  | 'devueltas'
+  | 'publicadas'
+  | 'sin-revision'
+  | 'mias'
+
+const ESTADOS_DEL_FILTRO: Partial<Record<FiltroDeRevision, string[]>> = {
+  'por-revisar': ['pendiente', 'en-revision', 'devuelta'],
+  listas: ['lista'],
+  devueltas: ['devuelta'],
+  publicadas: ['publicada'],
 }
 
 export interface Pagina {
@@ -79,6 +152,7 @@ export async function listarDocumentos(
     busqueda?: string
     estado?: 'todos' | 'publicado' | 'borrador'
     orden?: string
+    revision?: FiltroDeRevision
   } = {},
 ): Promise<Respuesta<Pagina>> {
   return accion(async () => {
@@ -93,7 +167,7 @@ export async function listarDocumentos(
     // ofrece ya para en la puerta con `exigirPanelPara`, que pregunta lo mismo;
     // una acción de servidor es otro extremo HTTP y se alcanza sin pasar por
     // ella.
-    const { payload } = await exigirEdicionDe(esquema.slug)
+    const { payload, usuarioId } = await exigirEdicionDe(esquema.slug)
 
     // Llega del navegador: puede venir `null` o cualquier otra cosa.
     if (!opciones || typeof opciones !== 'object') opciones = {}
@@ -113,6 +187,40 @@ export async function listarDocumentos(
       })
     }
 
+    // El filtro de revisión se resuelve en dos pasos: qué fichas de este módulo
+    // tienen una revisión como la pedida, y después esas fichas. Las revisiones
+    // viven en su propia colección y Payload no cruza por un campo de texto.
+    const enRevision = esModuloEnRevision(esquema.slug)
+    const filtro = typeof opciones.revision === 'string' ? opciones.revision : 'todas'
+    if (enRevision && filtro !== 'todas') {
+      const estados = ESTADOS_DEL_FILTRO[filtro]
+      const { docs: revisiones } = await payload.find({
+        collection: 'revisiones',
+        where: {
+          and: [
+            { coleccion: { equals: esquema.slug } },
+            ...(estados ? [{ estado: { in: estados } }] : []),
+            ...(filtro === 'mias' ? [{ asignadaA: { equals: usuarioId } }] : []),
+          ],
+        } as never,
+        limit: 10_000,
+        depth: 0,
+        overrideAccess: true,
+        pagination: false,
+        select: { documentoId: true },
+      })
+      const ids = (revisiones as unknown as { documentoId: string }[])
+        .map((r) => Number(r.documentoId))
+        .filter(Number.isFinite)
+      if (filtro === 'sin-revision') {
+        if (ids.length > 0) condiciones.push({ id: { not_in: ids } })
+      } else {
+        // Sin ninguna, un `in` vacío: Payload lo lee como «sin filtro» en
+        // algunas versiones, y el listado enseñaría todo en vez de nada.
+        condiciones.push({ id: { in: ids.length > 0 ? ids : [-1] } })
+      }
+    }
+
     const resultado = await payload.find({
       collection: esquema.slug as never,
       where: (condiciones.length > 0 ? { and: condiciones } : undefined) as never,
@@ -124,6 +232,39 @@ export async function listarDocumentos(
       draft: esquema.versionada,
       overrideAccess: true,
     })
+
+    // La revisión de cada fila de esta página, en una sola consulta.
+    const revisionPorFicha = new Map<string, FilaDeLista['revision']>()
+    if (enRevision && resultado.docs.length > 0) {
+      const { docs: revisiones } = await payload.find({
+        collection: 'revisiones',
+        where: {
+          and: [
+            { coleccion: { equals: esquema.slug } },
+            {
+              documentoId: {
+                in: resultado.docs.map((d) => String((d as unknown as { id: unknown }).id)),
+              },
+            },
+          ],
+        } as never,
+        limit: resultado.docs.length,
+        depth: 1,
+        overrideAccess: true,
+        select: { documentoId: true, estado: true, asignadaA: true, validacionRapida: true },
+      })
+      for (const bruta of revisiones as unknown as Record<string, unknown>[]) {
+        const asignada = bruta.asignadaA as Record<string, unknown> | null
+        revisionPorFicha.set(String(bruta.documentoId), {
+          estado: String(bruta.estado),
+          asignada:
+            asignada && typeof asignada === 'object'
+              ? String(asignada.nombre || asignada.email || `#${String(asignada.id)}`)
+              : null,
+          rapida: bruta.validacionRapida === true,
+        })
+      }
+    }
 
     return {
       filas: resultado.docs.map((documento) => {
@@ -142,6 +283,7 @@ export async function listarDocumentos(
           id: String(doc.id),
           valores,
           publicado: doc._status === 'published' || !esquema.versionada,
+          ...(enRevision ? { revision: revisionPorFicha.get(String(doc.id)) ?? null } : {}),
         }
       }),
       total: resultado.totalDocs,
@@ -317,10 +459,12 @@ export async function guardarDocumento(
   datos: unknown,
   publicar: unknown,
   marcaAlAbrir?: unknown,
+  /** La sesión de revisión del editor que guarda, si la ficha está en revisión (D-142). */
+  sesionDeRevision?: unknown,
 ): Promise<RespuestaSobreFichaAbierta<{ id: string; publicado: boolean; marca: Marca }>> {
   return conChoqueReconocido(async () => {
     const esquema = esquemaValidado(slug)
-    const { payload, usuario } = await exigirEdicionDe(esquema.slug)
+    const { payload, usuario, usuarioId } = await exigirEdicionDe(esquema.slug)
 
     if (!datos || typeof datos !== 'object') throw new Error('No llegó ningún dato que guardar.')
 
@@ -360,9 +504,31 @@ export async function guardarDocumento(
       guardado = await payload.create(comun)
     } else {
       const idValido = exigirIdentificador(id, 'El documento')
+      // Una ficha en revisión la publica el administrador (D-142): el editor
+      // la da por lista y ahí se queda. Se comprueba antes de escribir, porque
+      // después ya estaría publicada. El formulario no le ofrece el botón; esto
+      // es para el listado y para quien llame a la acción a mano.
+      const esAdmin = usuario.rol === 'admin'
+      const revision = await revisionSiSePuede(payload, esquema.slug, idValido, publicar === true && !esAdmin)
+      if (revision && publicar === true && !esAdmin) throw new Error(MENSAJE_DE_PUBLICAR_EN_REVISION)
       // Lo último antes de escribir: ver la ventana en `exigirQueNoCambio`.
       await exigirQueNoCambio(payload, esquema, idValido, marcaAlAbrir)
       guardado = await payload.update({ ...comun, id: idValido })
+      if (revision) {
+        await sinTumbarLaRespuesta('el guardado', async () => {
+          await anotarGuardado(payload, {
+            esquema,
+            documentoId: idValido,
+            documento,
+            usuarioId,
+            esAdmin,
+            publicada: publicar === true,
+          })
+          await anotarGuardadoEnLaSesion(payload, sesionDeRevision, usuarioId)
+        })
+        revalidatePath('/admin-panel/revision')
+        revalidatePath('/admin-panel/auditoria')
+      }
     }
 
     revalidatePath(rutaDeLista(esquema.slug))
@@ -397,8 +563,20 @@ export async function cambiarPublicacion(
   return conChoqueReconocido(async () => {
     const esquema = esquemaValidado(slug)
     if (!esquema.versionada) throw new Error('Esta colección no distingue borrador de publicado.')
-    const { payload, usuario } = await exigirEdicionDe(esquema.slug)
+    const { payload, usuario, usuarioId } = await exigirEdicionDe(esquema.slug)
     const idValido = exigirIdentificador(id, 'El documento')
+
+    // Como en `guardarDocumento`: una ficha en revisión solo la publica el
+    // administrador (D-142). Retirarla sí puede el editor, igual que antes.
+    const revision = await revisionSiSePuede(
+      payload,
+      esquema.slug,
+      idValido,
+      publicar === true && usuario.rol !== 'admin',
+    )
+    if (revision && publicar === true && usuario.rol !== 'admin') {
+      throw new Error(MENSAJE_DE_PUBLICAR_EN_REVISION)
+    }
 
     await exigirQueNoCambio(payload, esquema, idValido, marcaAlAbrir)
 
@@ -418,6 +596,18 @@ export async function cambiarPublicacion(
       draft: false,
       user: usuario as never,
     })
+    if (revision) {
+      await sinTumbarLaRespuesta('la publicación', () =>
+        anotarPublicacion(payload, {
+          coleccion: esquema.slug,
+          documentoId: idValido,
+          usuarioId,
+          publicar: publicar === true,
+        }),
+      )
+      revalidatePath('/admin-panel/revision')
+      revalidatePath('/admin-panel/auditoria')
+    }
     revalidatePath(rutaDeLista(esquema.slug))
     return { marca: marcaDe(cambiado) }
   })
@@ -427,11 +617,15 @@ export async function eliminarDocumento(slug: unknown, id: unknown): Promise<Res
   return accion(async () => {
     const esquema = esquemaValidado(slug)
     const { payload, usuario } = await exigirEdicionDe(esquema.slug)
+    const idValido = exigirIdentificador(id, 'El documento')
     await payload.delete({
       collection: esquema.slug as never,
-      id: exigirIdentificador(id, 'El documento'),
+      id: idValido,
       user: usuario as never,
     })
+    // Su revisión y su tiempo se van con ella: una fila de auditoría de una
+    // ficha que ya no existe no se puede abrir ni revisar.
+    await sinTumbarLaRespuesta('el borrado', () => quitarDeRevision(payload, esquema.slug, idValido))
     revalidatePath(rutaDeLista(esquema.slug))
     return null
   })

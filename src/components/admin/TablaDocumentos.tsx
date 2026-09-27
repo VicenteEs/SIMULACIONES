@@ -11,7 +11,23 @@ import {
   eliminarDocumento,
   listarDocumentos,
   type FilaDeLista,
+  type FiltroDeRevision,
 } from '@/app/(frontend)/acciones/contenido'
+import { estadoEnPalabras as estadoDeRevision } from '@/lib/revision'
+
+/**
+ * Los filtros de revisión del listado de un módulo (D-142), en el orden en que
+ * se buscan: lo que espera a un revisor primero.
+ */
+const FILTROS_DE_REVISION: { valor: FiltroDeRevision; etiqueta: string }[] = [
+  { valor: 'todas', etiqueta: 'Todas' },
+  { valor: 'por-revisar', etiqueta: 'Por revisar' },
+  { valor: 'mias', etiqueta: 'Asignadas a mí' },
+  { valor: 'devueltas', etiqueta: 'Devueltas' },
+  { valor: 'listas', etiqueta: 'Listas para publicar' },
+  { valor: 'publicadas', etiqueta: 'Publicadas tras revisión' },
+  { valor: 'sin-revision', etiqueta: 'Fuera de revisión' },
+]
 
 /**
  * Listado de una colección.
@@ -94,7 +110,15 @@ const motivoDeLaCaida = (fallo: unknown, porOmision: string): string =>
     ? `${porOmision} ${fallo.message}`
     : `${porOmision} Compruebe la conexión e inténtelo otra vez.`
 
-export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
+export function TablaDocumentos({
+  esquema,
+  esAdmin = false,
+}: {
+  esquema: EsquemaDeColeccion
+  /** Rol real: el editor no publica una ficha en revisión (D-142). */
+  esAdmin?: boolean
+}) {
+  const conRevision = esquema.familia === 'modulos'
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
 
@@ -104,13 +128,19 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
   const [pagina, setPagina] = useState(1)
   const [busqueda, setBusqueda] = useState('')
   const [estado, setEstado] = useState<'todos' | 'publicado' | 'borrador'>('todos')
+  const [filtroRevision, setFiltroRevision] = useState<FiltroDeRevision>('todas')
   const [cargando, setCargando] = useState(true)
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
 
   const cargar = useCallback(async () => {
     setCargando(true)
     try {
-      const resultado = await listarDocumentos(esquema.slug, { pagina, busqueda, estado })
+      const resultado = await listarDocumentos(esquema.slug, {
+        pagina,
+        busqueda,
+        estado,
+        ...(conRevision ? { revision: filtroRevision } : {}),
+      })
       if (resultado.exito && resultado.datos) {
         setFilas(resultado.datos.filas)
         setTotal(resultado.datos.total)
@@ -127,7 +157,7 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
       // una tabla vacía, que es la forma más callada de decir que algo falló.
       setCargando(false)
     }
-  }, [esquema.slug, pagina, busqueda, estado])
+  }, [esquema.slug, pagina, busqueda, estado, conRevision, filtroRevision])
 
   // La búsqueda espera a que se deje de teclear: sin esto, escribir «fractura»
   // dispara ocho consultas y la última en llegar no tiene por qué ser la buena.
@@ -299,6 +329,28 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
             </select>
           </div>
         ) : null}
+        {conRevision ? (
+          <div className="admin-filter-group">
+            <label className="admin-filter-label" htmlFor="filtro-doc-revision">
+              Revisión
+            </label>
+            <select
+              id="filtro-doc-revision"
+              className="admin-select"
+              value={filtroRevision}
+              onChange={(e) => {
+                setPagina(1)
+                setFiltroRevision(e.target.value as FiltroDeRevision)
+              }}
+            >
+              {FILTROS_DE_REVISION.map((f) => (
+                <option key={f.valor} value={f.valor}>
+                  {f.etiqueta}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <span className="admin-filter-count">
           {cargando ? 'cargando…' : `${filas.length} en pantalla`}
         </span>
@@ -309,7 +361,7 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
           <div className="admin-empty">
             <div className="admin-empty-icon">📄</div>
             <p className="admin-empty-text">
-              {busqueda || estado !== 'todos'
+              {busqueda || estado !== 'todos' || filtroRevision !== 'todas'
                 ? 'Nada coincide con el filtro.'
                 : `Todavía no hay nada en ${esquema.plural}.`}
             </p>
@@ -321,6 +373,7 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
                 {esquema.columnas.map((c) => (
                   <th key={c.nombre}>{c.etiqueta}</th>
                 ))}
+                {conRevision ? <th>Revisión</th> : null}
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -349,6 +402,30 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
                         </td>
                       ),
                     )}
+                    {conRevision ? (
+                      <td>
+                        {fila.revision ? (
+                          <>
+                            <span className={`admin-badge revision-estado-${fila.revision.estado}`}>
+                              {estadoDeRevision(fila.revision.estado)}
+                            </span>
+                            {/* La señal de validación rápida es del
+                                administrador: al revisor no se le enseña la
+                                suya en cada fila de su propio trabajo. */}
+                            {esAdmin && fila.revision.rapida ? (
+                              <span className="revision-senal" title="Validación señalada como rápida">
+                                ⚑
+                              </span>
+                            ) : null}
+                            <div className="revision-tenue">
+                              {fila.revision.asignada ? fila.revision.asignada : 'sin asignar'}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="revision-tenue">—</span>
+                        )}
+                      </td>
+                    ) : null}
                     <td>
                       <div className="admin-acciones">
                         <Link
@@ -379,7 +456,9 @@ export function TablaDocumentos({ esquema }: { esquema: EsquemaDeColeccion }) {
                             transición corre es el `if (enCurso) return` de cada
                             `onClick`, y visualmente no se pierde nada:
                             `.admin-btn` no define estilo de `:disabled`. */}
-                        {esquema.versionada ? (
+                        {/* Una ficha en revisión no la publica el editor
+                            (D-142): el botón no se le ofrece. Retirarla sí. */}
+                        {esquema.versionada && !(fila.revision && !esAdmin && !fila.publicado) ? (
                           <button
                             className={`admin-btn admin-btn-sm ${fila.publicado ? 'admin-btn-secondary' : 'admin-btn-success'}`}
                             aria-disabled={enCurso}

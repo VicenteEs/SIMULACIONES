@@ -257,9 +257,12 @@ describe('el formulario usa lo de arriba', () => {
   })
 
   it('manda la marca al guardar y al retirar', () => {
+    // El sexto argumento es la sesión de revisión (D-142), que no toca la marca.
     expect(EDITOR).toMatch(
-      /guardarDocumento\( esquema\.slug, id, valores, publicar, marca\.current, \)/,
+      /guardarDocumento\( esquema\.slug, id, valores, publicar, marca\.current, enRevision \? seguimiento\.sesion : undefined, \)/,
     )
+    // Y «Listo para publicar», que guarda antes lo que haya pendiente, también.
+    expect(EDITOR).toContain('guardarDocumento(esquema.slug, id, valores, false, marca.current, seguimiento.sesion)')
     expect(EDITOR).toContain('cambiarPublicacion(esquema.slug, id, false, marca.current)')
   })
 

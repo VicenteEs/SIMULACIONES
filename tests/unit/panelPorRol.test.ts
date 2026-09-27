@@ -156,6 +156,10 @@ const NIVEL_DE_PAGINA: Record<string, Nivel> = {
   'sistema/page.tsx': 'admin',
   'estadisticas/page.tsx': 'admin',
   'actividad/page.tsx': 'admin',
+  // La revisión del contenido (D-142): la cola es de quien revisa; la
+  // auditoría, que dice cuánto tardó cada revisor, del administrador.
+  'revision/page.tsx': 'editor',
+  'auditoria/page.tsx': 'admin',
 }
 
 // ------------------------------------------------------------ descubrimiento
@@ -217,7 +221,7 @@ describe('las pantallas del panel', () => {
   it('las pantallas de cuentas, respaldos y sistema son de administrador, no de editor', () => {
     // Fijado aparte de la tabla: bajar una de estas a `editor` en la tabla
     // pondría la matriz de abajo en verde con la pantalla abierta.
-    for (const pagina of ['usuarios/page.tsx', 'respaldos/page.tsx', 'sistema/page.tsx', 'estadisticas/page.tsx', 'actividad/page.tsx']) {
+    for (const pagina of ['usuarios/page.tsx', 'respaldos/page.tsx', 'sistema/page.tsx', 'estadisticas/page.tsx', 'actividad/page.tsx', 'auditoria/page.tsx']) {
       expect(NIVEL_DE_PAGINA[pagina], pagina).toBe('admin')
     }
   })

@@ -104,6 +104,9 @@ const ICONOS: Record<string, string> = {
   difusion: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z M15.5 8.5a5 5 0 0 1 0 7 M18.5 5.5a9 9 0 0 1 0 13',
   externo: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6 M15 3h6v6 M10 14 21 3',
   volver: 'M19 12H5 M12 19l-7-7 7-7',
+  // La revisión del contenido (D-142): una lista con su marca, y una lupa.
+  revision: 'M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+  auditoria: 'M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z M21 21l-4.35-4.35 M8 11h6',
 }
 
 function Icono({ nombre }: { nombre: string }) {

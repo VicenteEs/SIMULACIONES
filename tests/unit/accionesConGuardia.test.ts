@@ -276,6 +276,27 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'difusion.ts:detenerDifusion': { guardia: 'admin', argumentos: () => ['5'] },
   'correo.ts:enviarCorreoDePrueba': { guardia: 'admin', argumentos: () => [] },
 
+  // La revisión del contenido (D-142). Lo del revisor —medir su tiempo y dar la
+  // ficha por lista— pide poder editar el módulo, igual que guardarla; lo que
+  // gobierna a los revisores —devolver, asignar, meter o sacar de revisión,
+  // publicar en bloque y la lista de cuentas— es del administrador.
+  'revision.ts:latidoDeRevision': {
+    guardia: 'edicionDeModulo',
+    modulo: 'argumento',
+    argumentos: (m) => [m, '5', 'sesion-de-prueba-1234', { abiertos: 10, activos: 5 }],
+  },
+  'revision.ts:marcarListaParaPublicar': {
+    guardia: 'edicionDeModulo',
+    modulo: 'argumento',
+    argumentos: (m) => [m, '5', undefined, '', true],
+  },
+  'revision.ts:devolverAlRevisor': { guardia: 'admin', argumentos: () => ['patologias', '5', 'Falta la clasificación.'] },
+  'revision.ts:asignarRevisor': { guardia: 'admin', argumentos: () => [[{ coleccion: 'patologias', id: '5' }], null] },
+  'revision.ts:enviarARevision': { guardia: 'admin', argumentos: () => ['patologias', '5', {}] },
+  'revision.ts:sacarDeRevision': { guardia: 'admin', argumentos: () => ['patologias', '5'] },
+  'revision.ts:publicarValidadas': { guardia: 'admin', argumentos: () => [[{ coleccion: 'patologias', id: '5' }]] },
+  'revision.ts:revisoresPosibles': { guardia: 'admin', argumentos: () => [] },
+
   'respaldos.ts:respaldarAhora': { guardia: 'admin', argumentos: () => [] },
   'respaldos.ts:borrarRespaldo': { guardia: 'admin', argumentos: () => ['base-20260101-000000.sql.gz'] },
 

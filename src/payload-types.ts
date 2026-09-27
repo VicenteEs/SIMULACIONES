@@ -85,6 +85,8 @@ export interface Config {
     comentarios: Comentario;
     actividad: Actividad;
     difusiones: Difusione;
+    revisiones: Revisione;
+    'sesiones-de-revision': SesionesDeRevision;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -110,6 +112,8 @@ export interface Config {
     comentarios: ComentariosSelect<false> | ComentariosSelect<true>;
     actividad: ActividadSelect<false> | ActividadSelect<true>;
     difusiones: DifusionesSelect<false> | DifusionesSelect<true>;
+    revisiones: RevisionesSelect<false> | RevisionesSelect<true>;
+    'sesiones-de-revision': SesionesDeRevisionSelect<false> | SesionesDeRevisionSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -1877,6 +1881,106 @@ export interface Difusione {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "revisiones".
+ */
+export interface Revisione {
+  id: number;
+  coleccion: 'patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia';
+  documentoId: string;
+  titulo?: string | null;
+  origen: 'ia' | 'manual';
+  libro?: string | null;
+  capitulo?: string | null;
+  paginas?: string | null;
+  lote?: string | null;
+  modelo?: string | null;
+  estado: 'pendiente' | 'en-revision' | 'lista' | 'devuelta' | 'publicada';
+  asignadaA?: (number | null) | Usuario;
+  original?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  palabrasOriginales?: number | null;
+  palabrasActuales?: number | null;
+  palabrasQuitadas?: number | null;
+  palabrasNuevas?: number | null;
+  porcentajeEditado?: number | null;
+  porSeccion?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  ultimaEdicion?: string | null;
+  ultimoEditor?: (number | null) | Usuario;
+  listaPor?: (number | null) | Usuario;
+  listaEn?: string | null;
+  segundosActivosAlValidar?: number | null;
+  segundosAbiertosAlValidar?: number | null;
+  porcentajeAlValidar?: number | null;
+  ritmoAlValidar?: number | null;
+  seccionesVistasAlValidar?: number | null;
+  seccionesConContenido?: number | null;
+  validacionRapida?: boolean | null;
+  motivosDeAlerta?: string | null;
+  notaDeRevision?: string | null;
+  motivoDeDevolucion?: string | null;
+  devoluciones?: number | null;
+  publicadaEn?: string | null;
+  publicadaPor?: (number | null) | Usuario;
+  publicadaSinValidar?: boolean | null;
+  historial?:
+    | {
+        accion: 'registrada' | 'asignada' | 'lista' | 'reabierta' | 'devuelta' | 'publicada' | 'retirada';
+        usuario?: (number | null) | Usuario;
+        fecha: string;
+        detalle?: string | null;
+        porcentaje?: number | null;
+        segundosActivos?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sesiones-de-revision".
+ */
+export interface SesionesDeRevision {
+  id: number;
+  usuario?: (number | null) | Usuario;
+  coleccion: 'patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia';
+  documentoId: string;
+  sesion: string;
+  inicio?: string | null;
+  ultimoLatido?: string | null;
+  segundosAbiertos?: number | null;
+  segundosActivos?: number | null;
+  porSeccion?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  ediciones?: number | null;
+  guardados?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -1970,6 +2074,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'difusiones';
         value: number | Difusione;
+      } | null)
+    | ({
+        relationTo: 'revisiones';
+        value: number | Revisione;
+      } | null)
+    | ({
+        relationTo: 'sesiones-de-revision';
+        value: number | SesionesDeRevision;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -3321,6 +3433,80 @@ export interface DifusionesSelect<T extends boolean = true> {
   pendientes?: T;
   fallos?: T;
   terminadaEn?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "revisiones_select".
+ */
+export interface RevisionesSelect<T extends boolean = true> {
+  coleccion?: T;
+  documentoId?: T;
+  titulo?: T;
+  origen?: T;
+  libro?: T;
+  capitulo?: T;
+  paginas?: T;
+  lote?: T;
+  modelo?: T;
+  estado?: T;
+  asignadaA?: T;
+  original?: T;
+  palabrasOriginales?: T;
+  palabrasActuales?: T;
+  palabrasQuitadas?: T;
+  palabrasNuevas?: T;
+  porcentajeEditado?: T;
+  porSeccion?: T;
+  ultimaEdicion?: T;
+  ultimoEditor?: T;
+  listaPor?: T;
+  listaEn?: T;
+  segundosActivosAlValidar?: T;
+  segundosAbiertosAlValidar?: T;
+  porcentajeAlValidar?: T;
+  ritmoAlValidar?: T;
+  seccionesVistasAlValidar?: T;
+  seccionesConContenido?: T;
+  validacionRapida?: T;
+  motivosDeAlerta?: T;
+  notaDeRevision?: T;
+  motivoDeDevolucion?: T;
+  devoluciones?: T;
+  publicadaEn?: T;
+  publicadaPor?: T;
+  publicadaSinValidar?: T;
+  historial?:
+    | T
+    | {
+        accion?: T;
+        usuario?: T;
+        fecha?: T;
+        detalle?: T;
+        porcentaje?: T;
+        segundosActivos?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sesiones-de-revision_select".
+ */
+export interface SesionesDeRevisionSelect<T extends boolean = true> {
+  usuario?: T;
+  coleccion?: T;
+  documentoId?: T;
+  sesion?: T;
+  inicio?: T;
+  ultimoLatido?: T;
+  segundosAbiertos?: T;
+  segundosActivos?: T;
+  porSeccion?: T;
+  ediciones?: T;
+  guardados?: T;
   updatedAt?: T;
   createdAt?: T;
 }

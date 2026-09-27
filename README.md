@@ -125,7 +125,7 @@ para preparar el atlas; lo que viaja en el repositorio es el resultado.
 | `admin/` | Esquema del panel propio: qué campos tiene cada colección y cómo se editan |
 | `atlas/` | Catálogo, carga y selección de piezas del atlas anatómico |
 | `blocks/` | Los bloques de contenido que el autor apila y reordena |
-| `collections/` | Las diecisiete colecciones de Payload —doce archivos más los cinco catálogos del simulador, que viven juntos en `catalogos.ts`—, con sus ganchos en `hooks/` |
+| `collections/` | Las veinte colecciones de Payload —quince archivos más los cinco catálogos del simulador, que viven juntos en `catalogos.ts`—, con sus ganchos en `hooks/` |
 | `components/` | Componentes de React: el sitio, el panel en `admin/` y los visores en `atlas/` |
 | `lib/` | Lógica compartida: sesión, rutas, búsqueda, respaldos, encuadre, simulador |
 | `migrations/` | Migraciones de esquema; en producción se aplican al arrancar |
@@ -162,6 +162,27 @@ declara `SLUGS_DE_MODULOS` con estos cinco.
 
 Cómo se escribe una ficha, paso a paso, está en
 [docs/COMO-ESCRIBIR-UNA-FICHA.md](docs/COMO-ESCRIBIR-UNA-FICHA.md).
+
+## La revisión del contenido
+
+El contenido que llega hecho —redactado con inteligencia artificial a partir de
+libros— entra **en revisión** (D-142): se guarda su versión original y, desde
+ese momento, se mide cuánto se edita cada ficha y cuánto tiempo de revisión
+activa le dedica cada revisor. El revisor no publica: pulsa «Listo para
+publicar» y publica un administrador. Lo que llega escrito a mano no pasa por
+aquí.
+
+| Archivo | Qué hace |
+|---|---|
+| `src/lib/revision.ts` | Lo puro: palabras por sección, cuánto se editó, cuándo una validación es sospechosa y los umbrales |
+| `src/lib/revisionServidor.ts` | Registrar una ficha en revisión, medir cada guardado, sumar el tiempo, validar, devolver, asignar |
+| `src/components/admin/useSeguimientoDeRevision.ts` | El medidor del editor: tiempo abierto y activo, y por qué pestaña |
+| `src/app/(frontend)/admin-panel/revision/` | «Por revisar», la cola de quien revisa |
+| `src/app/(frontend)/admin-panel/auditoria/` | «Auditoría», solo administrador: gráficos, tablas y la planilla |
+| `src/lib/planilla.ts` | La planilla de Excel, escrita a mano (D-143) |
+
+La ingesta de contenido entra por `registrarParaRevision`, con el libro, el
+capítulo, las páginas y el lote de cada ficha.
 
 ## La consola quirúrgica
 
