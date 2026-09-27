@@ -17,9 +17,9 @@
  * del servidor es peor que no tener respaldo.
  */
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { constants, existsSync } from 'node:fs'
 import { createWriteStream } from 'node:fs'
-import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
+import { access, mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import { createGzip } from 'node:zlib'
 import { pipeline } from 'node:stream/promises'
 import path from 'node:path'
@@ -39,15 +39,86 @@ export function directorioDeRespaldos(): string {
   return process.env.RESPALDOS_DIR || path.resolve(process.cwd(), 'backups')
 }
 
+const codigoDe = (error: unknown): string | undefined =>
+  error && typeof error === 'object' && typeof (error as { code?: unknown }).code === 'string'
+    ? (error as { code: string }).code
+    : undefined
+
+/**
+ * Por qué este proceso no puede usar el directorio de respaldos, dicho para
+ * quien administra el servidor.
+ *
+ * Existe por lo que se vio en `ved` el 2026-09-26 (O-067): el botón «Respaldar
+ * ahora» respondía `EACCES: permission denied, open '/backups/base-…'` y la
+ * página de sistema, a la vez, decía «no hay ningún respaldo» con once volcados
+ * en la carpeta. Las dos cosas eran el mismo problema —la carpeta era del
+ * usuario del anfitrión, con permisos 770, y la aplicación corre como el 1001
+ * de la imagen—, pero ninguna de las dos pantallas lo nombraba: una hablaba en
+ * inglés de un archivo y la otra negaba que hubiera respaldos, que es lo peor
+ * que puede decir una pantalla de respaldos. Aquí se dice quién es el proceso,
+ * de quién es la carpeta y dónde se arregla.
+ *
+ * Los números de usuario salen del propio proceso y del `stat` de la carpeta,
+ * que se puede pedir aunque no se pueda leer su contenido. En Windows no hay
+ * `getuid` y el mensaje se queda en lo que dice el sistema.
+ */
+async function motivoDelDirectorio(dir: string, error: unknown): Promise<string> {
+  const codigo = codigoDe(error)
+  if (codigo !== 'EACCES' && codigo !== 'EPERM') {
+    const detalle = error instanceof Error ? error.message : String(error)
+    return `No se puede usar el directorio de respaldos ${dir}: ${detalle}`
+  }
+  const quien =
+    typeof process.getuid === 'function' && typeof process.getgid === 'function'
+      ? `la aplicación corre como el usuario ${process.getuid()} (grupo ${process.getgid()})`
+      : 'la aplicación no tiene permiso'
+  const carpeta = await stat(dir).catch(() => null)
+  const deQuien = carpeta
+    ? ` y la carpeta es del usuario ${carpeta.uid} (grupo ${carpeta.gid}) con permisos ${(carpeta.mode & 0o777).toString(8)}`
+    : ''
+  const arreglo = carpeta
+    ? ` En el servidor de páginas se arregla dándole al contenedor el grupo de la carpeta: «user: "1001:${carpeta.gid}"» en docker-compose.override.yml (la plantilla de despliegue/paginas ya lo trae) y «docker compose up -d app».`
+    : ''
+  return `Sin permiso sobre el directorio de respaldos ${dir}: ${quien}${deQuien}.${arreglo}`
+}
+
+/**
+ * Si este proceso puede leer y escribir en el directorio de respaldos.
+ *
+ * `null` si puede, o si el directorio todavía no existe —se crea con el primer
+ * respaldo—; si no, el motivo en palabras (`motivoDelDirectorio`). La usa la
+ * página de sistema para no dar por buena una carpeta que el botón de respaldar
+ * no puede tocar.
+ */
+export async function problemaDelDirectorio(): Promise<string | null> {
+  const dir = directorioDeRespaldos()
+  try {
+    await access(dir, constants.R_OK | constants.W_OK | constants.X_OK)
+    return null
+  } catch (error) {
+    if (codigoDe(error) === 'ENOENT') return null
+    return motivoDelDirectorio(dir, error)
+  }
+}
+
+/**
+ * Los respaldos que hay, del más reciente al más antiguo.
+ *
+ * Solo la ausencia del directorio se lee como «ninguno». Cualquier otro fallo
+ * se lanza con su motivo: tragárselo todo, que es lo que se hacía, convertía
+ * una carpeta sin permisos en una lista vacía, y la página de sistema acababa
+ * afirmando que no había ningún respaldo con once en el disco (O-067).
+ */
 export async function listarRespaldos(): Promise<Respaldo[]> {
   const dir = directorioDeRespaldos()
   let entradas: string[]
   try {
     entradas = await readdir(dir)
-  } catch {
+  } catch (error) {
     // Que no exista el directorio no es un error: significa que aún no se ha
     // respaldado nunca, y la página debe decirlo en lugar de romperse.
-    return []
+    if (codigoDe(error) === 'ENOENT') return []
+    throw new Error(await motivoDelDirectorio(dir, error))
   }
 
   const respaldos = await Promise.all(
@@ -138,7 +209,15 @@ export async function crearRespaldo(): Promise<Respaldo> {
   }
 
   const dir = directorioDeRespaldos()
-  await mkdir(dir, { recursive: true })
+  // Antes de lanzar `pg_dump`, y con el motivo en palabras: el `EACCES` de
+  // Node al abrir el archivo llegaba tal cual al panel, en inglés y sin decir
+  // de quién era la carpeta ni dónde se arregla (O-067).
+  try {
+    await mkdir(dir, { recursive: true })
+    await access(dir, constants.W_OK | constants.X_OK)
+  } catch (error) {
+    throw new Error(await motivoDelDirectorio(dir, error))
+  }
 
   const nombre = `base-${marcaDeTiempo()}.sql.gz`
   const destino = path.join(dir, nombre)

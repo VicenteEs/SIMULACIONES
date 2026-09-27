@@ -51,11 +51,18 @@ cp despliegue/paginas/env.ejemplo .env
 chmod 600 .env
 nano .env            # completar POSTGRES_PASSWORD y PAYLOAD_SECRET
 
-mkdir -p backups
-sudo chown -R 1001:"$(id -g)" backups && chmod 770 backups
+mkdir -p backups && chmod 770 backups
 
 docker compose up -d --build
 ```
+
+La carpeta `backups` se queda del usuario que lanza los guiones, sin `sudo`. El
+contenedor la usa con el grupo de ese usuario: el override lo arranca como
+`user: "1001:${RESPALDOS_GID:-1000}"`, y `RESPALDOS_GID` tiene que ser el
+`id -g` de quien lanza los guiones (en `ved`, 1000, que es el valor por
+omisión). Aquí antes había un `sudo chown 1001` que en `ved` no se hizo nunca: la
+aplicación no podía ni listar la carpeta, «Respaldar ahora» fallaba con
+`EACCES` y la página de sistema decía «no hay ningún respaldo» (O-067).
 
 El `docker-compose.override.yml` **no se versiona** (lo ignora `.gitignore`),
 así que `auto-update.sh` puede hacer `git pull --ff-only` sin chocar nunca con
@@ -223,35 +230,25 @@ es el que aquí corresponde. El volcado se verifica antes de darlo por bueno y
 se conservan treinta días.
 
 El panel (`/traumahub/admin-panel/respaldos`) crea y descarga volcados a mano.
-Lo que le permite escribir no es el bit de «otros», sino el `chown` de más
-arriba: el directorio `backups/` es del uid 1001, que es el del contenedor, y
-su grupo es el del usuario que despliega. Con `chmod 770` escriben esos dos y
-nadie más entra.
+Lo que le permite escribir no es el bit de «otros», sino el **grupo**: el
+directorio `backups/` es del usuario que despliega, con `chmod 770`, y el
+contenedor corre como `1001:${RESPALDOS_GID}`, es decir, como el uid de la
+imagen pero con el grupo de ese usuario. Escriben los dos y nadie más entra; lo
+que escribe la aplicación sale con ese grupo y permisos 640, y por ahí lo lee
+`scripts/restaurar.sh` desde el anfitrión.
 
-Los tres scripts que tocan el directorio (`scripts/instalar-servidor.sh`,
-`scripts/deploy.sh` y `scripts/respaldar.sh`) repiten ese `chmod 770`, pero
-solo surte efecto mientras el directorio siga siendo de quien los ejecuta: en
-cuanto pasa a ser del uid 1001, `chmod` únicamente lo puede correr su dueño o
-root. `instalar-servidor.sh` lo tiene previsto y cae en `sudo chmod 770`; los
-otros dos acaban en `|| true` y fallan en silencio a propósito, para no tumbar
-un despliegue ni un respaldo por un permiso que casi siempre ya estaba bien. Si
-alguna vez se pierde, se repone a mano con `sudo chmod 770 backups`.
+Así estaba escrito antes, y no funcionó: el directorio tenía que ser del uid
+1001 por un `sudo chown` de la instalación que en `ved` no se llegó a hacer. Los
+guiones del anfitrión (`scripts/deploy.sh`, `scripts/respaldar.sh`) crean la
+carpeta como su usuario si no existe, y nada comprobaba después el dueño. El
+resultado, visto el 2026-09-26 (O-067): «Respaldar ahora» fallaba con `EACCES`
+y la página de sistema decía «no hay ningún respaldo» con once volcados en la
+carpeta, porque el contenedor no podía ni listarla. Con el grupo no hay dueño
+que mantener: cualquier carpeta que cree ese usuario vale, y el `chmod 770` que
+repiten los guiones siempre surte efecto, porque quien los lanza es el dueño.
 
-Si algún día se instala `acl` en el servidor, lo correcto es sustituirlo por
-esto, y en este orden:
-
-```bash
-sudo apt install acl
-sudo chown -R "$(id -u)":"$(id -g)" backups
-chmod 700 backups
-setfacl -m u:1001:rwx backups && setfacl -d -m u:1001:rwx backups
-```
-
-El orden no es capricho. Sobre un directorio que ya tiene ACL extendida,
-`chmod` no toca los permisos del grupo: reescribe la **máscara**, que es el
-techo de todo lo que la ACL conceda. Con el `chmod 700` al final, `u:1001:rwx`
-queda limitado por una máscara vacía y el contenedor pierde la escritura sin
-que nada avise; `getfacl` lo delata con un `#effective:---`. Puesto antes,
-`setfacl` recalcula la máscara solo. El `chown` inicial hace falta porque, tras
-el `chown` a 1001 de la instalación, quien despliega ya no puede ejecutar
-`chmod` sobre ese directorio.
+Si la página de sistema vuelve a marcar la herramienta de respaldo en ámbar,
+dice por qué: quién es el proceso, de quién es la carpeta y con qué permisos.
+Lo corriente será un `RESPALDOS_GID` que no coincide con el `id -g` del usuario
+que lanza los guiones, o un override copiado de una plantilla anterior a este
+cambio.

@@ -463,6 +463,7 @@ lo que es, información sobre personas.
 | El enlace de contraseña dice que no sirve | Caducó (una hora), ya se usó, o alguien pulsó «Clave» otra vez. Pida uno nuevo. |
 | «No se guardó: esta ficha se guardó desde otro sitio» | Sección 5, «Cuando dos guardados chocan». Lo escrito no se perdió. |
 | «Publicar» no deja y hay una pestaña con «!» | Falta un campo obligatorio en esa pestaña. |
+| «Respaldar ahora» falla, o «Sistema» marca la herramienta de respaldo | El aviso dice qué permiso falta en la carpeta de respaldos. Avise al desarrollador. |
 | El archivo se rechaza al subir | Formato o peso: 50 MB imagen y video, 5 MB modelos, video solo MP4 o WEBM. |
 | El video se corta al subir | Pruebe uno más liviano; si ese sube, comprima el grande. |
 | No aparece un módulo en «Contenido» | Sus permisos no lo incluyen. Lo cambia un administrador. |

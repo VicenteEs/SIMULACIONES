@@ -52,6 +52,20 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # El usuario de la imagen (1001) con el GRUPO de la carpeta de respaldos del
+    # anfitrión. `./backups` la crean los guiones del anfitrión —respaldar.sh,
+    # deploy.sh— como el usuario que los lanza y con permisos 770: el 1001 de la
+    # imagen quedaba fuera y «Respaldar ahora» fallaba con `EACCES` mientras la
+    # página de sistema decía «no hay ningún respaldo» (O-067). La receta de
+    # antes era un `sudo chown 1001` a mano que nadie comprueba y que se pierde
+    # en cuanto algo vuelve a crear la carpeta; con el grupo, cualquier carpeta
+    # que cree ese usuario sirve. Y lo que escribe la aplicación sale con ese
+    # grupo, que es por donde `restaurar.sh` lo lee desde fuera.
+    #
+    # `RESPALDOS_GID` es el `id -g` de quien lanza los guiones; en `ved`, 1000.
+    # El volumen de medios y lo que trae la imagen siguen siendo del 1001, que
+    # sigue siendo el dueño: no cambia nada más.
+    user: "1001:${RESPALDOS_GID:-1000}"
     depends_on:
       db:
         condition: service_healthy

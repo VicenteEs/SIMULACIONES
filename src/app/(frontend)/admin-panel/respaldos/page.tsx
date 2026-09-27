@@ -1,5 +1,11 @@
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
-import { directorioDeRespaldos, hayPgDump, listarRespaldos } from '@/lib/respaldosServidor'
+import type { Respaldo } from '@/lib/respaldos'
+import {
+  directorioDeRespaldos,
+  hayPgDump,
+  listarRespaldos,
+  problemaDelDirectorio,
+} from '@/lib/respaldosServidor'
 import { PanelDeRespaldos } from './PanelDeRespaldos'
 
 export const dynamic = 'force-dynamic'
@@ -16,16 +22,29 @@ export const dynamic = 'force-dynamic'
 export default async function PaginaRespaldos() {
   await exigirPanel('admin')
 
-  const [respaldos, disponible] = await Promise.all([
-    listarRespaldos().catch(() => []),
+  // El fallo de lectura se enseña, no se convierte en una tabla vacía: una
+  // carpeta sin permisos se veía como «0 volcados», que invita a pensar que
+  // los respaldos se perdieron (O-067). `problemaDelDirectorio` cubre además el
+  // caso en que se puede listar pero no escribir, que es el que hace fallar el
+  // botón.
+  const [lectura, problema, disponible] = await Promise.all([
+    listarRespaldos().then(
+      (lista) => ({ lista, fallo: null as string | null }),
+      (error: unknown) => ({
+        lista: [] as Respaldo[],
+        fallo: error instanceof Error ? error.message : String(error),
+      }),
+    ),
+    problemaDelDirectorio(),
     hayPgDump(),
   ])
 
   return (
     <PanelDeRespaldos
-      respaldos={respaldos}
+      respaldos={lectura.lista}
       directorio={directorioDeRespaldos()}
       hayHerramienta={disponible}
+      problemaDelDirectorio={lectura.fallo ?? problema}
     />
   )
 }

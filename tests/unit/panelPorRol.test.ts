@@ -84,6 +84,10 @@ vi.mock('@/lib/respaldosServidor', () => ({
     llamadas.push('listarRespaldos')
     return []
   },
+  problemaDelDirectorio: async () => {
+    llamadas.push('problemaDelDirectorio')
+    return null
+  },
   rutaDeRespaldo: (nombre: string) => {
     llamadas.push('rutaDeRespaldo')
     return `/respaldos/${nombre}`

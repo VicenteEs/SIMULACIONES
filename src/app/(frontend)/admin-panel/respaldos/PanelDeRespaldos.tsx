@@ -49,10 +49,13 @@ export function PanelDeRespaldos({
   respaldos,
   directorio,
   hayHerramienta,
+  problemaDelDirectorio = null,
 }: {
   respaldos: Respaldo[]
   directorio: string
   hayHerramienta: boolean
+  /** Por qué no se puede leer o escribir en `directorio`, si pasa (O-067). */
+  problemaDelDirectorio?: string | null
 }) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
@@ -103,6 +106,16 @@ export function PanelDeRespaldos({
       </div>
 
       {aviso ? <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>{aviso.texto}</div> : null}
+
+      {problemaDelDirectorio ? (
+        // Antes que el aviso de la herramienta: con la carpeta sin permisos el
+        // listado sale vacío y el botón falla, y las dos cosas se explican aquí.
+        <div className="admin-aviso admin-aviso-error" role="alert">
+          <strong>El directorio de respaldos no está disponible para la aplicación.</strong>{' '}
+          {problemaDelDirectorio} Mientras tanto la tabla de abajo puede salir vacía aunque haya
+          respaldos en el disco, y «Respaldar ahora» no podrá escribir el archivo.
+        </div>
+      ) : null}
 
       {!hayHerramienta ? (
         <div className="admin-aviso admin-aviso-atencion">

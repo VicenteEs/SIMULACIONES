@@ -3,9 +3,14 @@ import { connect as abrirSocketCifrado } from 'node:tls'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
-import { tamanoLegible } from '@/lib/respaldos'
+import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
 import { espacioEnDisco, UMBRAL_DE_USO } from '@/lib/espacioEnDisco'
-import { directorioDeRespaldos, hayPgDump, listarRespaldos } from '@/lib/respaldosServidor'
+import {
+  directorioDeRespaldos,
+  hayPgDump,
+  listarRespaldos,
+  problemaDelDirectorio,
+} from '@/lib/respaldosServidor'
 import { clientePayload } from '../datos'
 import { versionDelAtlas } from '@/app/(frontend)/acciones/atlas'
 import { ruta } from '@/lib/rutas'
@@ -181,8 +186,26 @@ export default async function PaginaSistema() {
   const usuarioSmtp = process.env.SMTP_USUARIO?.trim().toLowerCase()
   const remitenteAjeno = Boolean(desde && usuarioSmtp && desde !== usuarioSmtp)
 
-  const [respaldos, pgDump, atlas, disco, correo] = await Promise.all([
-    listarRespaldos().catch(() => []),
+  // Lo que no se pudo leer del directorio de respaldos viaja aparte, con su
+  // motivo, en vez de convertirse en una lista vacía: con la carpeta sin
+  // permisos esta página decía «no hay ningún respaldo» mientras había once en
+  // el disco (O-067).
+  const [
+    { lista: respaldos, fallo: respaldosIlegibles },
+    problemaDeRespaldos,
+    pgDump,
+    atlas,
+    disco,
+    correo,
+  ] = await Promise.all([
+    listarRespaldos().then(
+      (lista) => ({ lista, fallo: null as string | null }),
+      (error: unknown) => ({
+        lista: [] as Respaldo[],
+        fallo: error instanceof Error ? error.message : String(error),
+      }),
+    ),
+    problemaDelDirectorio(),
     hayPgDump(),
     versionDelAtlas(),
     espacioEnDisco(),
@@ -208,18 +231,25 @@ export default async function PaginaSistema() {
     { titulo: 'Base de datos', estado: base },
     {
       titulo: 'Respaldo reciente',
-      estado: ultimo
-        ? {
-            ok: Date.now() - new Date(ultimo.creado).getTime() < 3 * 86_400_000,
-            detalle: `${ultimo.nombre} · ${tamanoLegible(ultimo.bytes)}`,
-          }
-        : { ok: false, detalle: 'no hay ningún respaldo' },
+      estado: respaldosIlegibles
+        ? { ok: false, detalle: `no se puede saber: ${respaldosIlegibles}` }
+        : ultimo
+          ? {
+              ok: Date.now() - new Date(ultimo.creado).getTime() < 3 * 86_400_000,
+              detalle: `${ultimo.nombre} · ${tamanoLegible(ultimo.bytes)}`,
+            }
+          : { ok: false, detalle: 'no hay ningún respaldo' },
     },
     {
+      // `pg_dump` presente no basta para respaldar desde el panel: también
+      // hace falta poder escribir donde deja el archivo. Con la carpeta sin
+      // permisos esta fila salía en verde y el botón fallaba igual (O-067).
       titulo: 'Herramienta de respaldo',
-      estado: pgDump
-        ? { ok: true, detalle: 'pg_dump disponible' }
-        : { ok: false, detalle: 'pg_dump no está en este entorno' },
+      estado: !pgDump
+        ? { ok: false, detalle: 'pg_dump no está en este entorno' }
+        : problemaDeRespaldos
+          ? { ok: false, detalle: `pg_dump disponible, pero ${problemaDeRespaldos}` }
+          : { ok: true, detalle: 'pg_dump disponible y el directorio de respaldos admite escritura' },
     },
     {
       // El atlas es un archivo estático que viaja aparte del código: si un
@@ -386,7 +416,9 @@ export default async function PaginaSistema() {
         <dd>{directorioDeRespaldos()}</dd>
         <dt>Respaldos conservados</dt>
         <dd>
-          {respaldos.length} · {tamanoLegible(respaldos.reduce((t, r) => t + r.bytes, 0))}
+          {respaldosIlegibles
+            ? '— · no se pudo leer el directorio'
+            : `${respaldos.length} · ${tamanoLegible(respaldos.reduce((t, r) => t + r.bytes, 0))}`}
         </dd>
         <dt>Zona horaria del servidor</dt>
         <dd>{Intl.DateTimeFormat().resolvedOptions().timeZone}</dd>

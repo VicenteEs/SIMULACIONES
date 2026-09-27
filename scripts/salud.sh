@@ -35,6 +35,21 @@ done
 if [ "$TUNEL" = "cloudflare" ]; then
   servicio_en_marcha tunel && bien "tunel en marcha" || fallo "el tunel de Cloudflare no esta en marcha"
 fi
+# En el servidor de paginas, el override no se versiona: se copia a mano de su
+# plantilla. Cuando la plantilla cambia y nadie lo vuelve a copiar, el servidor
+# sigue con lo de antes y nada lo dice. Paso dos veces: los medios dentro del
+# contenedor (O-054) y el endurecimiento de ee5f463, que no llego nunca al
+# contenedor de `ved` y se descubrio al arreglar los permisos de los respaldos
+# (O-067). Solo se compara si estan los dos archivos: fuera de ese servidor no
+# hay override.
+if [ -f docker-compose.override.yml ] && [ -f despliegue/paginas/docker-compose.override.yml ]; then
+  if cmp -s docker-compose.override.yml despliegue/paginas/docker-compose.override.yml; then
+    bien "docker-compose.override.yml es copia de su plantilla"
+  else
+    fallo "docker-compose.override.yml no es la plantilla de despliegue/paginas; copiela y recree la app:"
+    echo "      cp despliegue/paginas/docker-compose.override.yml . && docker compose up -d app"
+  fi
+fi
 echo
 
 echo "Base de datos"

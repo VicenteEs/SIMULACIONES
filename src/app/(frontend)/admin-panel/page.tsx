@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { puedeEditar } from '@/lib/guardias'
-import { tamanoLegible } from '@/lib/respaldos'
+import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
 import { listarRespaldos } from '@/lib/respaldosServidor'
 import {
   clientePayload,
@@ -37,13 +37,24 @@ export default async function ResumenAdmin() {
 
   const payload = await clientePayload()
 
-  const [usuarios, comentarios, todosLosModulos, actividad, respaldos, solicitudes, pendientes] =
+  const [usuarios, comentarios, todosLosModulos, actividad, lecturaDeRespaldos, solicitudes, pendientes] =
     await Promise.all([
       esAdmin ? resumenDeUsuarios(payload) : null,
       resumenDeComentarios(payload),
       conteosPorModulo(payload),
       esAdmin ? resumenDeActividad(payload) : null,
-      esAdmin ? listarRespaldos().catch(() => []) : [],
+      // El fallo viaja con su motivo: con la carpeta de respaldos sin permisos
+      // esta página afirmaba «no hay ningún respaldo» y mandaba a crear el
+      // primero, que fallaba igual por la misma causa (O-067).
+      esAdmin
+        ? listarRespaldos().then(
+            (lista) => ({ lista, fallo: null as string | null }),
+            (error: unknown) => ({
+              lista: [] as Respaldo[],
+              fallo: error instanceof Error ? error.message : String(error),
+            }),
+          )
+        : { lista: [] as Respaldo[], fallo: null as string | null },
       // Solo para el administrador, que es quien puede resolverlas: al editor
       // no se le enseña un número que no le toca atender, igual que en la
       // barra. Si la base no contesta se queda en cero, sin aviso propio: la
@@ -78,6 +89,7 @@ export default async function ResumenAdmin() {
   // fichas que no puede tocar no le sirve para saber qué le queda por hacer.
   const modulos = todosLosModulos.filter((m) => puedeEditar(sesion.usuario, m.slug))
 
+
   // Los conteos que la base no supo responder vienen a cero y con `ilegible`
   // en alto (`datos.ts`). Sumarlos como ceros da un total que parece un
   // recuento y no lo es: si falla la tabla de patologías, «Contenido
@@ -92,6 +104,8 @@ export default async function ResumenAdmin() {
     comentarios.ilegible ||
     usuarios?.ilegible === true ||
     actividad?.ilegible === true
+  const respaldos = lecturaDeRespaldos.lista
+  const respaldosIlegibles = lecturaDeRespaldos.fallo
   const ultimoRespaldo = respaldos.find((r) => r.tipo === 'base')
   const diasSinRespaldo = ultimoRespaldo
     ? Math.floor((Date.now() - new Date(ultimoRespaldo.creado).getTime()) / 86_400_000)
@@ -157,7 +171,11 @@ export default async function ResumenAdmin() {
         </div>
       ) : null}
 
-      {!esAdmin ? null : diasSinRespaldo === null ? (
+      {!esAdmin ? null : respaldosIlegibles ? (
+        <div className="admin-aviso admin-aviso-error">
+          <strong>No se pueden leer los respaldos.</strong> {respaldosIlegibles}
+        </div>
+      ) : diasSinRespaldo === null ? (
         <div className="admin-aviso admin-aviso-atencion">
           <strong>No hay ningún respaldo de la base de datos.</strong>
           Cree el primero desde <Link href="/admin-panel/respaldos">Respaldos</Link>; en el
@@ -314,10 +332,12 @@ export default async function ResumenAdmin() {
           <div className="admin-card">
             <div className="admin-card-title">Último respaldo</div>
             <div className="admin-card-value" style={{ fontSize: '1.5rem' }}>
-              {ultimoRespaldo ? fecha(ultimoRespaldo.creado) : 'ninguno'}
+              {respaldosIlegibles ? '—' : ultimoRespaldo ? fecha(ultimoRespaldo.creado) : 'ninguno'}
             </div>
             <p className="admin-card-note">
-              {ultimoRespaldo
+              {respaldosIlegibles
+                ? 'no se pudo leer el directorio de respaldos'
+                : ultimoRespaldo
                 ? `${tamanoLegible(ultimoRespaldo.bytes)} · ${respaldos.length} archivo${
                     respaldos.length === 1 ? '' : 's'
                   } conservado${respaldos.length === 1 ? '' : 's'}`

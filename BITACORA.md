@@ -4985,6 +4985,8 @@ inspect` y escribiendo en `/app/medios` como el uid 1001. *Lo que sigue
 abierto:* el mecanismo. La próxima vez que cambie la plantilla volverá a pasar,
 en silencio. Haría falta que `deploy.sh` o `salud.sh` compararan el override con
 su plantilla y avisaran.
+*Después:* volvió a pasar (O-067), y desde entonces `scripts/salud.sh` compara
+los dos y falla si difieren.
 
 ### O-055 · 2026-09-21 · alta · resuelta, con la causa sin cerrar
 **El proxy de `ved` llevaba tres días caído, y con él todas las páginas.**
@@ -5200,6 +5202,40 @@ estaba en la lista que le quita el giro al botón izquierdo. Las dos cosas
 salieron de probar la ficha pública, que D-137 y D-140 dejaron sin probar; a
 partir de ahora la prueba de navegador de cada cambio del visor incluye la
 ficha como lector, no solo el taller.
+
+### O-067 · 2026-09-26 · alta · resuelta
+**«Respaldar ahora» fallaba con `EACCES`, la página de sistema decía «no hay
+ningún respaldo» con once en la carpeta, y el endurecimiento de ee5f463 nunca
+llegó al contenedor.**
+*Dónde se ve:* el dueño pegó `EACCES: permission denied, open
+'/backups/base-20260926-194535.sql.gz'` y la página de sistema con «Respaldo
+reciente: no hay ningún respaldo» y «Respaldos conservados: 0». La carpeta
+`backups/` era de `ved` (1000:1000) con permisos 770; el contenedor corre como
+el 1001 de la imagen y no podía ni listarla. La receta de instalación pedía un
+`sudo chown 1001` que en `ved` no se hizo nunca: la carpeta la creó
+`deploy.sh` como `ved` y nada comprobó después el dueño. Los respaldos nocturnos
+sí se hacían —cron corre como `ved`—, así que nada se perdió. Y
+`listarRespaldos` se tragaba cualquier error como «todavía no existe», de modo
+que la pantalla de respaldos negaba tenerlos, que es lo peor que puede decir.
+
+Al copiar la plantilla corregida salió lo segundo: el
+`docker-compose.override.yml` de `ved` era anterior a la plantilla, y el
+`cap_drop: ALL` y el `no-new-privileges` de la revisión de seguridad (ee5f463)
+no habían llegado nunca al contenedor. Es el mecanismo de O-054, otra vez.
+
+*Arreglo.* El override arranca la aplicación como `1001:${RESPALDOS_GID:-1000}`:
+el usuario de la imagen con el grupo de la carpeta. Con el grupo no hay dueño
+que mantener, y lo que escribe la aplicación sale con ese grupo, que es por
+donde `restaurar.sh` lo lee desde fuera. `listarRespaldos` solo lee como vacío
+un directorio que no existe; cualquier otro fallo se lanza con su motivo
+(`motivoDelDirectorio`: quién es el proceso, de quién es la carpeta, con qué
+permisos y dónde se arregla), y sistema, respaldos y resumen lo enseñan. La
+fila «Herramienta de respaldo» de sistema comprueba además que se pueda
+escribir. `scripts/salud.sh` compara el override con su plantilla y falla si
+difieren. Aplicado en `ved` el mismo día, con respaldo previo: el contenedor
+lista los doce volcados y un `pg_dump` de prueba se escribió en `/backups`.
+*Pendiente:* nada en `ved`. Otra máquina con otro `id -g` tiene que poner su
+`RESPALDOS_GID` en el `.env`.
 
 ---
 
