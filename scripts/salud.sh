@@ -116,7 +116,12 @@ else
     fallo "el ultimo respaldo de archivos subidos tiene $edad_medios dias"
   fi
 fi
-if command -v systemctl >/dev/null 2>&1 && systemctl list-timers plataforma-respaldo.timer >/dev/null 2>&1; then
+# Se pregunta si el temporizador existe con "systemctl cat", que sale con 1 si
+# no hay tal unidad. Antes era "systemctl list-timers", que sale con 0 aunque no
+# encuentre ninguno ("0 timers listed"): en una maquina que respalda por cron,
+# como ved, el cron no se llegaba a mirar y el estado decia "el temporizador de
+# respaldo esta detenido" cada dia, con el respaldo de las 03:00 hecho (O-068).
+if command -v systemctl >/dev/null 2>&1 && systemctl cat plataforma-respaldo.timer >/dev/null 2>&1; then
   if systemctl is-active --quiet plataforma-respaldo.timer; then
     bien "temporizador diario activo"
   else

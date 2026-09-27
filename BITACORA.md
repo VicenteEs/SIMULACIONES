@@ -5382,6 +5382,20 @@ lista los doce volcados y un `pg_dump` de prueba se escribió en `/backups`.
 *Pendiente:* nada en `ved`. Otra máquina con otro `id -g` tiene que poner su
 `RESPALDOS_GID` en el `.env`.
 
+### O-068 · 2026-09-26 · baja · resuelta
+**`salud.sh` decía cada día «el temporizador de respaldo está detenido» en una
+máquina sin temporizador, con el respaldo de las 03:00 hecho.**
+*Dónde se ve:* al pasar `salud.sh` tras desplegar D-141 a D-143, el único fallo
+era ese. En `ved` no hay `plataforma-respaldo.timer`: el respaldo diario va por
+cron (`0 3 * * *`, `respaldar.sh --verificar`) y esa noche había terminado
+bien. La comprobación preguntaba si el temporizador existía con `systemctl
+list-timers`, que sale con 0 aunque no encuentre ninguno («0 timers listed»),
+así que la rama del cron no se miraba nunca y el estado salía en rojo desde
+53bb6f6 (2026-09-06). Una alarma que suena todos los días enseña a no mirarla,
+y el día que el respaldo falle de verdad dirá lo mismo.
+*Arreglo.* Se pregunta con `systemctl cat`, que sale con 1 si la unidad no
+existe; con temporizador se sigue mirando si está activo, y sin él, el cron.
+
 ---
 
 ## 4. Preguntas abiertas
