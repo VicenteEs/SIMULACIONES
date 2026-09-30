@@ -9,6 +9,7 @@ import {
   type SeccionDeMenu,
 } from '@/components/admin/NavegacionAdmin'
 import { GuardiaDeAtras } from '@/components/admin/GuardiaDeAtras'
+import { NotasDelRevisorEnLaBarra } from '@/components/admin/NotasDelRevisorEnLaBarra'
 import { BotonSalir } from '@/components/BotonSalir'
 import './admin.css'
 import { ruta } from '@/lib/rutas'
@@ -177,6 +178,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="admin-sidebar-sub">Panel de control</span>
           </div>
         </div>
+
+        {/* Las notas del modelo para el revisor, arriba del todo y siempre a la
+            vista con una ficha abierta (D-144): abajo quedaban bajo el pliegue.
+            Se lee la ruta en el cliente. */}
+        <NotasDelRevisorEnLaBarra />
 
         <NavegacionAdmin secciones={secciones} />
 

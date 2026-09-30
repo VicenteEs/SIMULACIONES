@@ -290,6 +290,11 @@ const GUARDIAS: Record<string, Clasificacion> = {
     modulo: 'argumento',
     argumentos: (m) => [m, '5', undefined, '', true],
   },
+  'revision.ts:notasDeLaFicha': {
+    guardia: 'edicionDeModulo',
+    modulo: 'argumento',
+    argumentos: (m) => [m, '5'],
+  },
   'revision.ts:devolverAlRevisor': { guardia: 'admin', argumentos: () => ['patologias', '5', 'Falta la clasificación.'] },
   'revision.ts:asignarRevisor': { guardia: 'admin', argumentos: () => [[{ coleccion: 'patologias', id: '5' }], null] },
   'revision.ts:enviarARevision': { guardia: 'admin', argumentos: () => ['patologias', '5', {}] },

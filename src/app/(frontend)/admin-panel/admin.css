@@ -20,6 +20,12 @@
   flex-direction: column;
   gap: 0.25rem;
   flex-shrink: 0;
+  /* Fija y con su propio desplazamiento: con una ficha abierta la barra lleva
+     las notas del revisor, y tienen que verse sin bajar la página (D-144). */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 /* La fila `flex` viene de cuando se le puso el logotipo al lado del título y
@@ -106,6 +112,68 @@
   margin-top: auto;
   padding-top: 0.75rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ---------- notas del modelo para el revisor (D-144) ----------
+   Dentro de la barra, con su propio desplazamiento: veinte notas de quinientos
+   caracteres no pueden empujar el menú ni el pie fuera de la pantalla. */
+.admin-notas-revisor {
+  margin: 0.75rem 0.25rem 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.admin-notas-titulo {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: 0;
+  color: #fff;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-notas-cuenta {
+  min-width: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: #d9a441;
+  color: #1c1400;
+  font-size: 11px;
+  text-align: center;
+}
+
+.admin-notas-cuerpo {
+  max-height: 38vh;
+  overflow-y: auto;
+  padding: 0 0.75rem 0.75rem;
+  color: #d6e0f5;
+}
+
+.admin-notas-lista {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.admin-notas-lista li {
+  margin-bottom: 0.5rem;
+}
+
+.admin-notas-fuente,
+.admin-notas-vacio {
+  margin: 0 0 0.5rem;
+  color: #8ba6d8;
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- contenido principal ---------- */
@@ -614,6 +682,9 @@
   }
 
   .admin-sidebar {
+    position: static;
+    height: auto;
+    overflow-y: visible;
     width: 100%;
     flex-direction: row;
     flex-wrap: wrap;
@@ -1666,6 +1737,10 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   .admin-layout { flex-direction: column; }
 
   .admin-sidebar {
+    /* La fila superior no se fija ni se desplaza en vertical. */
+    position: static;
+    height: auto;
+    overflow-y: visible;
     width: 100%;
     flex-direction: row;
     align-items: center;
@@ -2631,3 +2706,10 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .auditoria-tabla th[scope='row'] { min-width: 260px; }
 .auditoria-revisores th[scope='row'] { min-width: 170px; }
 .auditoria-tabla .revision-tenue { font-size: 0.75rem; }
+
+/* Las notas del revisor en la fila superior estrecha: a todo el ancho y plegadas
+   a una línea de alto razonable (D-144). */
+@media (max-width: 1000px) {
+  .admin-notas-revisor { flex: 1 1 100%; margin: 0; }
+  .admin-notas-cuerpo { max-height: 30vh; }
+}

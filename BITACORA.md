@@ -4157,8 +4157,17 @@ describe. Nada más del JSON se toca.
 *Segmentos:* crea solo los que se nombran en `--crear-segmentos`; cualquier otro
 que falte en un catálogo detiene todo antes de escribir.
 *Esquema:* `revisiones` gana `archivo_fuente` y `notas_para_el_revisor`
-(migración `20260930_211204`). **Las notas ya se guardan pero ninguna pantalla las
-enseña todavía** (abierto).
+(migración `20260930_211204`). Las notas se enseñan en la barra lateral del panel
+cada vez que se abre una ficha en revisión (`NotasDelRevisorEnLaBarra`, con la
+acción `notasDeLaFicha`): arriba del todo, con el libro, las páginas y el archivo
+fuente. La barra pasó a ser fija y con su propio desplazamiento para que se vean
+sin bajar la página; en pantallas estrechas sigue siendo la fila superior.
+*Despliegue:* 2026-09-30, 2.672 fichas y 3.298 imágenes en producción. Las
+imágenes se escriben en `medios/` del servidor, pero la aplicación las sirve del
+volumen `traumahub_medios`: hubo que copiarlas con `docker cp` al contenedor y
+borrar las del host. **Una importación futura tiene que repetir esa copia.**
+*GitHub:* viajan las fichas, el control y los guiones de `_trabajo`; no los libros,
+los PDF ni las figuras (`data_traumahub/.gitignore`).
 *Consecuencias:* (+) 2.672 fichas y 3.298 imágenes entran en ~1 minuto, y cada
 ficha queda con su original para medir cuánto la edita quien revisa. (−) Los
 bloques `imagen` entran contados en la versión original; corregir el pie de

@@ -25,7 +25,9 @@ import {
   asignarRevisiones,
   devolverRevision,
   esModuloEnRevision,
+  notasDeLaFicha as leerNotasDeLaFicha,
   quitarDeRevision,
+  type NotasDeLaFicha,
   registrarParaRevision,
   revisionDe,
   validarRevision,
@@ -128,6 +130,24 @@ export async function marcarListaParaPublicar(
     return resultado
   })
   return choque ? { ...respuesta, conflicto: true } : respuesta
+}
+
+/**
+ * Las notas que dejó el modelo para quien revisa esta ficha (D-144).
+ *
+ * Las lee la barra lateral del panel cada vez que se abre una ficha. Pide poder
+ * editar el módulo, como el resto de lo que hace el revisor. Devuelve `null` si
+ * la ficha no está en revisión, y entonces la barra no pinta nada.
+ */
+export async function notasDeLaFicha(
+  coleccion: unknown,
+  id: unknown,
+): Promise<Respuesta<NotasDeLaFicha | null>> {
+  return accion(async () => {
+    const slug = moduloValidado(coleccion)
+    const { payload } = await exigirEdicionDe(slug)
+    return leerNotasDeLaFicha(payload, slug, exigirIdentificador(id, 'La ficha'))
+  })
 }
 
 /** El administrador devuelve una ficha al revisor. El motivo es obligatorio: sin él no hay nada que corregir. */

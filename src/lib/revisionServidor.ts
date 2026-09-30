@@ -759,3 +759,39 @@ export async function revisionParaElEditor(
       : null,
   }
 }
+
+/**
+ * Lo que el modelo dejó dicho para quien revise una ficha, o `null` si no está
+ * en revisión (D-144).
+ *
+ * Va aparte de `revisionParaElEditor` porque lo lee la barra lateral del panel,
+ * que no tiene el resto de la revisión ni la necesita: pide solo esto, y solo
+ * cruza al navegador lo que se va a pintar.
+ */
+export interface NotasDeLaFicha {
+  notas: string[]
+  libro: string | null
+  capitulo: string | null
+  paginas: string | null
+  archivoFuente: string | null
+}
+
+export async function notasDeLaFicha(
+  payload: Payload,
+  coleccion: string,
+  documentoId: string,
+): Promise<NotasDeLaFicha | null> {
+  const revision = await revisionDe(payload, coleccion, documentoId)
+  if (!revision) return null
+  const texto = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v : null)
+  const notas = Array.isArray(revision.notasParaElRevisor)
+    ? (revision.notasParaElRevisor as unknown[]).filter((n): n is string => typeof n === 'string' && n.trim() !== '')
+    : []
+  return {
+    notas,
+    libro: texto(revision.libro),
+    capitulo: texto(revision.capitulo),
+    paginas: texto(revision.paginas),
+    archivoFuente: texto(revision.archivoFuente),
+  }
+}
