@@ -30,6 +30,7 @@ import {
   mensajeDeSolicitudRecibida,
 } from '@/correo/mensajes'
 import { accion, type Respuesta } from '@/lib/guardias'
+import { registrarAccion } from '@/lib/registroServidor'
 import { PATH_DE_LAS_COOKIES } from '@/lib/pathDeLasCookies'
 import { crearLimitador, direccionDeQuienLlama } from '@/lib/ritmo'
 import { exigirContrasena, exigirCorreo, exigirTexto } from '@/lib/validacion'
@@ -259,6 +260,9 @@ async function revocarLaSesionActual(): Promise<void> {
     const { user } = await payload.auth({ headers: await headers() })
     const sid = (user as { _sid?: unknown } | null)?._sid
     if (!user || typeof sid !== 'string') return
+
+    // Antes de quitar la sesión: después ya no se sabría quién era.
+    await registrarAccion(payload, { accion: 'sesion-cerrada', usuario: user })
 
     const cuenta = await payload.findByID({
       collection: 'usuarios',

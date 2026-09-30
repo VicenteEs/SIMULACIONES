@@ -11,6 +11,8 @@ import * as migration_20260913_111605_pose_del_modelo_complicaciones_y_fuera_el_
 import * as migration_20260913_134259_pose_del_bloque_hereda_del_catalogo from './20260913_134259_pose_del_bloque_hereda_del_catalogo';
 import * as migration_20260914_201156_solicitudes_de_cuenta_y_difusiones from './20260914_201156_solicitudes_de_cuenta_y_difusiones';
 import * as migration_20260927_004316_revision_de_contenido from './20260927_004316_revision_de_contenido';
+import * as migration_20260930_211204_ingesta_procedencia_y_notas from './20260930_211204_ingesta_procedencia_y_notas';
+import * as migration_20260930_211905_registro_de_acciones_y_tiempo_activo from './20260930_211905_registro_de_acciones_y_tiempo_activo';
 
 export const migrations = [
   {
@@ -76,6 +78,16 @@ export const migrations = [
   {
     up: migration_20260927_004316_revision_de_contenido.up,
     down: migration_20260927_004316_revision_de_contenido.down,
-    name: '20260927_004316_revision_de_contenido'
+    name: '20260927_004316_revision_de_contenido',
+  },
+  {
+    up: migration_20260930_211204_ingesta_procedencia_y_notas.up,
+    down: migration_20260930_211204_ingesta_procedencia_y_notas.down,
+    name: '20260930_211204_ingesta_procedencia_y_notas',
+  },
+  {
+    up: migration_20260930_211905_registro_de_acciones_y_tiempo_activo.up,
+    down: migration_20260930_211905_registro_de_acciones_y_tiempo_activo.down,
+    name: '20260930_211905_registro_de_acciones_y_tiempo_activo'
   },
 ];

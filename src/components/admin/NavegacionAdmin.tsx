@@ -106,6 +106,8 @@ const ICONOS: Record<string, string> = {
   volver: 'M19 12H5 M12 19l-7-7 7-7',
   // La revisión del contenido (D-142): una lista con su marca, y una lupa.
   revision: 'M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+  // El registro de acciones (D-145): una hoja con renglones.
+  registro: 'M4 4h16v16H4z M8 9h8 M8 13h8 M8 17h5',
   auditoria: 'M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z M21 21l-4.35-4.35 M8 11h6',
 }
 

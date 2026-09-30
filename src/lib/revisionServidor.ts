@@ -111,6 +111,10 @@ export interface DatosDeOrigen {
   paginas?: string
   lote?: string
   modelo?: string
+  /** La ruta del documento original (D-144). */
+  archivoFuente?: string
+  /** Lo que el modelo quiere que sepa quien revise (D-144). */
+  notasParaElRevisor?: string[]
   /** A quién se le asigna, si se sabe ya. */
   asignadaA?: string | null
 }
@@ -172,6 +176,8 @@ export async function registrarParaRevision(
       paginas: entrada.paginas ?? null,
       lote: entrada.lote ?? null,
       modelo: entrada.modelo ?? null,
+      archivoFuente: entrada.archivoFuente ?? null,
+      notasParaElRevisor: entrada.notasParaElRevisor?.length ? entrada.notasParaElRevisor : null,
       estado: 'pendiente',
       asignadaA: entrada.asignadaA ? Number(entrada.asignadaA) : null,
       original,

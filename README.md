@@ -60,6 +60,7 @@ levanta la base y arranca el servidor con doble clic.
 | `npm run lint` | ESLint sobre todo el repositorio |
 | `npm run generate:types` | Regenera `src/payload-types.ts` desde las colecciones |
 | `npm run build` | Compilación de producción |
+| `npx tsx scripts/importar-ingesta.ts` | Importa las fichas de `data_traumahub/listos` como borradores en revisión. Sin `--ejecutar` solo comprueba (D-144) |
 
 Las pruebas de integración hablan con PostgreSQL, y la base tiene que existir
 **y tener el esquema**. `npm run db:up` solo levanta el contenedor: las

@@ -14,6 +14,9 @@ import { Actividad } from './Actividad'
 import { Difusiones } from './Difusiones'
 import { Revisiones } from './Revisiones'
 import { SesionesDeRevision } from './SesionesDeRevision'
+import { RegistroDeAcciones } from './RegistroDeAcciones'
+import { TiempoActivo } from './TiempoActivo'
+import { conRegistro } from './hooks/registrarAccion'
 import {
   CATALOGOS_DEL_SIMULADOR,
   ClasificacionesAO,
@@ -37,7 +40,7 @@ export const SLUGS_DE_MODULOS = [
  * invariante de `tests/unit/colecciones.test.ts`: debe declarar sus cuatro
  * operaciones de acceso y ninguna puede permitir lectura ni escritura anónima.
  */
-export const COLECCIONES: CollectionConfig[] = [
+const DECLARADAS: CollectionConfig[] = [
   Usuarios,
   Segmentos,
   Medios,
@@ -54,7 +57,16 @@ export const COLECCIONES: CollectionConfig[] = [
   Difusiones,
   Revisiones,
   SesionesDeRevision,
+  RegistroDeAcciones,
+  TiempoActivo,
 ]
+
+/**
+ * Las mismas colecciones con los ganchos del registro de acciones puestos
+ * (D-145): ninguna escritura queda sin anotar por olvido de quien declara la
+ * colección.
+ */
+export const COLECCIONES: CollectionConfig[] = DECLARADAS.map(conRegistro)
 
 export {
   Usuarios,
@@ -77,4 +89,6 @@ export {
   Difusiones,
   Revisiones,
   SesionesDeRevision,
+  RegistroDeAcciones,
+  TiempoActivo,
 }

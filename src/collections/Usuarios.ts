@@ -5,6 +5,7 @@ import { impedirAutobloqueo, impedirBorradoDelUltimoAdmin } from './hooks/autobl
 import { limpiarRastroDeUsuario } from './hooks/bajaDeUsuario'
 import { armarCorreo } from '@/correo/plantilla'
 import { mensajeDeClaveNueva } from '@/correo/mensajes'
+import { registrarAccion } from '@/lib/registroServidor'
 
 /**
  * Cuántos intentos fallidos bloquean una cuenta, y por cuánto tiempo.
@@ -355,6 +356,8 @@ export const Usuarios: CollectionConfig = {
         } catch (error) {
           req.payload.logger.error({ msg: 'No se pudo anotar el último acceso', err: error })
         }
+        // Con el mismo `req`, por la misma razón que arriba. No lanza nunca.
+        await registrarAccion(req.payload, { accion: 'sesion-iniciada', usuario: user }, req)
         return user
       },
     ],

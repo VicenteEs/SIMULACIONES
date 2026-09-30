@@ -87,6 +87,8 @@ export interface Config {
     difusiones: Difusione;
     revisiones: Revisione;
     'sesiones-de-revision': SesionesDeRevision;
+    'registro-de-acciones': RegistroDeAccione;
+    'tiempo-activo': TiempoActivo;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -114,6 +116,8 @@ export interface Config {
     difusiones: DifusionesSelect<false> | DifusionesSelect<true>;
     revisiones: RevisionesSelect<false> | RevisionesSelect<true>;
     'sesiones-de-revision': SesionesDeRevisionSelect<false> | SesionesDeRevisionSelect<true>;
+    'registro-de-acciones': RegistroDeAccionesSelect<false> | RegistroDeAccionesSelect<true>;
+    'tiempo-activo': TiempoActivoSelect<false> | TiempoActivoSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -1894,6 +1898,16 @@ export interface Revisione {
   paginas?: string | null;
   lote?: string | null;
   modelo?: string | null;
+  archivoFuente?: string | null;
+  notasParaElRevisor?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   estado: 'pendiente' | 'en-revision' | 'lista' | 'devuelta' | 'publicada';
   asignadaA?: (number | null) | Usuario;
   original?:
@@ -1976,6 +1990,68 @@ export interface SesionesDeRevision {
     | null;
   ediciones?: number | null;
   guardados?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "registro-de-acciones".
+ */
+export interface RegistroDeAccione {
+  id: number;
+  fecha: string;
+  usuario?: (number | null) | Usuario;
+  usuarioNombre?: string | null;
+  usuarioCorreo?: string | null;
+  rol?: string | null;
+  permisos?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  accion: string;
+  coleccion?: string | null;
+  documentoId?: string | null;
+  titulo?: string | null;
+  detalle?: string | null;
+  cambios?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  origen?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tiempo-activo".
+ */
+export interface TiempoActivo {
+  id: number;
+  usuario?: (number | null) | Usuario;
+  dia: string;
+  segundos?: number | null;
+  latidos?: number | null;
+  porHora?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  ultimoLatido?: string | null;
+  ultimaRuta?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2082,6 +2158,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'sesiones-de-revision';
         value: number | SesionesDeRevision;
+      } | null)
+    | ({
+        relationTo: 'registro-de-acciones';
+        value: number | RegistroDeAccione;
+      } | null)
+    | ({
+        relationTo: 'tiempo-activo';
+        value: number | TiempoActivo;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -3450,6 +3534,8 @@ export interface RevisionesSelect<T extends boolean = true> {
   paginas?: T;
   lote?: T;
   modelo?: T;
+  archivoFuente?: T;
+  notasParaElRevisor?: T;
   estado?: T;
   asignadaA?: T;
   original?: T;
@@ -3507,6 +3593,42 @@ export interface SesionesDeRevisionSelect<T extends boolean = true> {
   porSeccion?: T;
   ediciones?: T;
   guardados?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "registro-de-acciones_select".
+ */
+export interface RegistroDeAccionesSelect<T extends boolean = true> {
+  fecha?: T;
+  usuario?: T;
+  usuarioNombre?: T;
+  usuarioCorreo?: T;
+  rol?: T;
+  permisos?: T;
+  accion?: T;
+  coleccion?: T;
+  documentoId?: T;
+  titulo?: T;
+  detalle?: T;
+  cambios?: T;
+  origen?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tiempo-activo_select".
+ */
+export interface TiempoActivoSelect<T extends boolean = true> {
+  usuario?: T;
+  dia?: T;
+  segundos?: T;
+  latidos?: T;
+  porHora?: T;
+  ultimoLatido?: T;
+  ultimaRuta?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -138,6 +138,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       entradas: [
         { ruta: '/admin-panel/estadisticas', etiqueta: 'Estadísticas', icono: 'estadisticas' },
         { ruta: '/admin-panel/actividad', etiqueta: 'Actividad', icono: 'actividad' },
+        { ruta: '/admin-panel/registro', etiqueta: 'Registro', icono: 'registro' },
         {
           ruta: '/admin-panel/auditoria',
           etiqueta: 'Auditoría',

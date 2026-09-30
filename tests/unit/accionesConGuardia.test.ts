@@ -300,6 +300,8 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'respaldos.ts:respaldarAhora': { guardia: 'admin', argumentos: () => [] },
   'respaldos.ts:borrarRespaldo': { guardia: 'admin', argumentos: () => ['base-20260101-000000.sql.gz'] },
 
+  // El latido de actividad (D-145): cualquier cuenta con sesión activa.
+  'registro.ts:registrarLatidoDeActividad': { guardia: 'sesion', argumentos: () => ['/biblioteca'] },
   'actividad.ts:registrarVisita': { guardia: 'sesion', modulo: 'argumento', argumentos: (m) => [m, '12'] },
   'actividad.ts:marcarComoLeida': { guardia: 'sesion', modulo: 'argumento', argumentos: (m) => [m, '12', true] },
   'actividad.ts:registrarResultadoDeCirugia': {
@@ -317,7 +319,7 @@ const GUARDIAS: Record<string, Clasificacion> = {
   // Salir ya no es solo borrar la cookie (O-059): da de baja su propia sesión en
   // la fila de la cuenta, y para eso lee quién llama y reescribe esa fila. Ni
   // una llamada más: es una acción pública y actúa con `overrideAccess`.
-  'sesion.ts:salir': { guardia: 'publica', permitidos: ['auth', 'findByID', 'update'], argumentos: () => [] },
+  'sesion.ts:salir': { guardia: 'publica', permitidos: ['auth', 'findByID', 'update', 'create'], argumentos: () => [] },
   // El correo sale por `enviarSinEsperar`, que sin SMTP no llama a nada; con él,
   // `sendEmail` es lo único más que puede tocar.
   'sesion.ts:pedirEnlaceDeClave': {

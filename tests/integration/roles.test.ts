@@ -199,6 +199,9 @@ const CLASE_DE: Record<string, Clase> = {
   // panel escribe con la API local detrás de sus propias guardias.
   revisiones: 'administracion',
   'sesiones-de-revision': 'administracion',
+  // El registro de acciones y el tiempo activo (D-145): solo el administrador.
+  'registro-de-acciones': 'administracion',
+  'tiempo-activo': 'administracion',
 }
 
 type Esperado = (a: Actor) => boolean
@@ -399,6 +402,14 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
     fabricar: (titulo) => ({
       data: { titulo, coleccion: 'patologias', documentoId: unico('ficha'), origen: 'ia', estado: 'pendiente' },
     }),
+  },
+  'registro-de-acciones': {
+    titulo: 'titulo',
+    fabricar: (titulo) => ({ data: { titulo, fecha: new Date().toISOString(), accion: 'creo' } }),
+  },
+  'tiempo-activo': {
+    titulo: 'dia',
+    fabricar: (dia) => ({ data: { dia, segundos: 0 } }),
   },
   // Sin `usuario`: lo pone el gancho de la colección con quien la crea.
   'sesiones-de-revision': {

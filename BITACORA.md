@@ -4136,6 +4136,65 @@ aquí.
 
 ---
 
+### D-144 · 2026-09-30 · vigente
+**Las fichas de los libros entran por un importador, como borradores en revisión, con sus figuras.**
+`scripts/importar-ingesta.ts` lee `data_traumahub/listos/fichas/<módulo>/<clave>.json`
+(formato `traumahub/ingesta-1`, `src/ingesta/formato.ts`) y por cada una: la
+convierte con `src/ingesta/convertir.ts` (recorre el esquema del panel; Markdown
+→ Lexical, `{ bloque }` → `blockType`, segmento por nombre → identificador),
+sube sus imágenes, la crea como **borrador** y la mete en revisión con su libro,
+capítulo, páginas, lote, modelo, archivo fuente y las notas del modelo
+(`registrarParaRevision`). Sin `--ejecutar` solo comprueba. Es reanudable
+(`listos/control/importadas.jsonl`), y si una ficha falla a medias deshace lo que
+creó.
+*Las imágenes:* las extrajo `_trabajo/extraer_imagenes.py` a
+`listos/imagenes-por-tema/<módulo>/<clave>/` sin saber a qué párrafo pertenecen.
+Cada una se valida (existe, PNG o JPEG legible, menos de 50 MB), se sube a
+`medios` con un `alt` provisional y entra como bloque `imagen` **al final de una
+pestaña** (`definicion` en patologías, `contenido` en los otros tres) con el pie
+«AÑADIR MANUALMENTE», que es lo que pidió el dueño: el revisor las coloca y las
+describe. Nada más del JSON se toca.
+*Segmentos:* crea solo los que se nombran en `--crear-segmentos`; cualquier otro
+que falte en un catálogo detiene todo antes de escribir.
+*Esquema:* `revisiones` gana `archivo_fuente` y `notas_para_el_revisor`
+(migración `20260930_211204`). **Las notas ya se guardan pero ninguna pantalla las
+enseña todavía** (abierto).
+*Consecuencias:* (+) 2.672 fichas y 3.298 imágenes entran en ~1 minuto, y cada
+ficha queda con su original para medir cuánto la edita quien revisa. (−) Los
+bloques `imagen` entran contados en la versión original; corregir el pie de
+«AÑADIR MANUALMENTE» cuenta como edición. (−) Las cirugías no se importan: no hay
+ninguna y dependen del modelo 3D.
+*Ensayo:* contra un PostgreSQL desechable (55432) con las 2.672 fichas y las
+3.298 imágenes: 0 fallos, segunda pasada sin cambios. El ensayo escribe los
+archivos en `medios/`, así que hay que vaciarla después.
+
+### D-145 · 2026-09-30 · vigente
+**Registro de lo que hace cada cuenta, con sus permisos de entonces y su tiempo de actividad.**
+Dos colecciones, una migración (`20260930_211905`): `registro-de-acciones` (una
+fila por acto, con foto de nombre, correo, rol y módulos de ese momento, y el
+antes y el después en los cambios de permisos) y `tiempo-activo` (una fila por
+cuenta y día). Los ganchos se añaden a **todas** las colecciones en
+`src/collections/index.ts` (`conRegistro`), salvo las de `COLECCIONES_SIN_REGISTRO`
+con su porqué; así una colección nueva queda anotada sin que nadie se acuerde.
+Quién actuó sale de `req.user` o, si falta, de la cookie de la petición en curso
+(la cuenta **real**, no la del «ver como residente»); fuera de Next, «sistema».
+El inicio y el cierre de sesión se anotan en `afterLogin` y en `salir`.
+*Tiempo de actividad:* `LatidoDeActividad` manda un latido por minuto mientras la
+pestaña se ve y hubo un gesto en los últimos 90 s; el servidor abona lo que de
+verdad pasó desde el anterior, con techo de 75 s, y un hueco de más de dos
+minutos no abona nada. Medirlo con las acciones no servía: leer una hora no crea
+nada.
+*Dónde se ve:* `/admin-panel/registro` (solo administrador): totales del día,
+cuentas con permisos y tiempo de hoy, 7 y 30 días, tabla de qué puede hacer cada
+rol (sale de `reglas.ts`, `src/lib/permisos.ts`), registro filtrable y planilla
+de Excel con cuatro hojas.
+*Consecuencias:* (+) todo cambio de rol o de módulos queda con fecha y autor.
+(−) Las filas del registro no se purgan. (−) `accion` es texto validado en código,
+no un `select`, para no exigir migración por cada acción nueva. (−) Las
+escrituras de `revisiones` y `sesiones-de-revision` no se anotan aquí: su historial
+y su tiempo están en Auditoría. (−) La integridad del registro depende de que la
+REST de Payload siga cerrada (D-073).
+
 ## 3. Observaciones
 
 Formato: `O-nnn · fecha · severidad · estado`. Severidad: **alta**, **media**, **baja**.

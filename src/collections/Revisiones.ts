@@ -87,6 +87,20 @@ export const Revisiones: CollectionConfig = {
     // encuentra entero por aquí.
     { name: 'lote', type: 'text', index: true, label: 'Lote de ingesta' },
     { name: 'modelo', type: 'text', label: 'Modelo que lo redactó' },
+    // El documento original, para abrirlo y cotejar: lo trae la ingesta en
+    // `procedencia.archivoFuente` (D-144). Texto libre porque son rutas de la
+    // biblioteca del dueño, que no es un catálogo.
+    { name: 'archivoFuente', type: 'text', label: 'Archivo fuente' },
+    {
+      // Lo que el modelo quiso que supiera quien revisa: lo que la fuente no
+      // cubre, una cifra dudosa con su página, la figura que convendría
+      // sustituir. Lista de frases; no es contenido y no se publica. JSON y no
+      // un arreglo de Payload porque se escribe y se lee entera, y un arreglo
+      // pediría una tabla aparte para veinte frases.
+      name: 'notasParaElRevisor',
+      type: 'json',
+      label: 'Notas para el revisor',
+    },
     {
       name: 'estado',
       type: 'select',
