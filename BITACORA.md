@@ -4204,6 +4204,29 @@ escrituras de `revisiones` y `sesiones-de-revision` no se anotan aquí: su histo
 y su tiempo están en Auditoría. (−) La integridad del registro depende de que la
 REST de Payload siga cerrada (D-073).
 
+### D-146 · 2026-10-02 · vigente
+**El instrumento que falta se propone desde el paso y llega como comentario.**
+Cada paso de una cirugía tiene un campo nuevo, `instrumentoPropuesto` (migración
+`20261002_144044`), con la etiqueta «¿No está en la lista? Escriba su nombre».
+Al guardar, `avisarDeInstrumentosPropuestos` (`src/collections/hooks/instrumentosPropuestos.ts`)
+crea un comentario pendiente sobre la cirugía con el nombre, el número y el
+título del paso, y a nombre de quien guardó. Si el nombre ya está en el
+catálogo, ignorando mayúsculas y espacios, el comentario lo dice para que el
+editor lo elija.
+*Por qué así:* el catálogo de instrumental lo sigue llevando la administración
+(icono, modelo, sin duplicados escritos de tres maneras), y el editor que no
+encontraba su instrumento dejaba el paso vacío o elegía el más parecido sin que
+nadie se enterara. Va por comentario y no por un aviso propio porque los
+comentarios ya tienen bandeja, contador de pendientes, correo a los
+administradores y «resuelto».
+*Consecuencias:* (+) cada propuesta avisa una sola vez: se compara con el mismo
+paso de la versión anterior y, además, con los comentarios pendientes de la
+ficha, así que guardar borradores no repite el aviso. (−) Al crear el
+instrumento, el administrador tiene que elegirlo en el paso y borrar la
+propuesta a mano; no se limpia sola. (−) Nada impide publicar un paso que solo
+tiene la propuesta: en la consola quedaría sin instrumento correcto. Hasta que
+se resuelva, el caso debería quedarse en borrador.
+
 ## 3. Observaciones
 
 Formato: `O-nnn · fecha · severidad · estado`. Severidad: **alta**, **media**, **baja**.

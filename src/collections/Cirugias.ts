@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { avisarAlPublicar } from './hooks/avisarAlPublicar'
+import { avisarDeInstrumentosPropuestos } from './hooks/instrumentosPropuestos'
 import { lecturaDeBorradores, lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { editorClinico, pilaDeBloques } from '@/blocks'
 // La única vez que una colección importa del esquema del panel, y va contra la
@@ -152,7 +153,9 @@ export const Cirugias: CollectionConfig = {
   versions: { drafts: true, maxPerDoc: 50 },
   // Avisa a los navegadores conectados al publicar; el mismo gancho en los
   // cinco modulos.
-  hooks: { afterChange: [avisarAlPublicar] },
+  // `avisarDeInstrumentosPropuestos` es solo de las cirugías: son las únicas
+  // fichas con pasos que piden instrumento.
+  hooks: { afterChange: [avisarAlPublicar, avisarDeInstrumentosPropuestos] },
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre del caso' },
 
@@ -359,6 +362,13 @@ export const Cirugias: CollectionConfig = {
           admin: {
             description: 'Se exige en todos los objetivos: sin el instrumento en la mano no hay gesto.',
           },
+        },
+        {
+          // El editor no crea instrumentos: los propone, y la propuesta llega a
+          // la administración como comentario. Ver `avisarDeInstrumentosPropuestos`.
+          name: 'instrumentoPropuesto',
+          type: 'text',
+          label: 'Instrumento que falta en la lista',
         },
         {
           name: 'puntos',

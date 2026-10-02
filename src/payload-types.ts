@@ -1515,6 +1515,7 @@ export interface Cirugia {
          * Se exige en todos los objetivos: sin el instrumento en la mano no hay gesto.
          */
         instrumento?: (number | null) | Instrumental;
+        instrumentoPropuesto?: string | null;
         puntos?: number | null;
         trazoMinimo?: number | null;
         trazoMaximo?: number | null;
@@ -3220,6 +3221,7 @@ export interface CirugiasSelect<T extends boolean = true> {
         descripcion?: T;
         objetivo?: T;
         instrumento?: T;
+        instrumentoPropuesto?: T;
         puntos?: T;
         trazoMinimo?: T;
         trazoMaximo?: T;

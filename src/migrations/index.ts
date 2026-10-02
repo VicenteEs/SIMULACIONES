@@ -13,6 +13,7 @@ import * as migration_20260914_201156_solicitudes_de_cuenta_y_difusiones from '.
 import * as migration_20260927_004316_revision_de_contenido from './20260927_004316_revision_de_contenido';
 import * as migration_20260930_211204_ingesta_procedencia_y_notas from './20260930_211204_ingesta_procedencia_y_notas';
 import * as migration_20260930_211905_registro_de_acciones_y_tiempo_activo from './20260930_211905_registro_de_acciones_y_tiempo_activo';
+import * as migration_20261002_144044_instrumento_propuesto from './20261002_144044_instrumento_propuesto';
 
 export const migrations = [
   {
@@ -88,6 +89,11 @@ export const migrations = [
   {
     up: migration_20260930_211905_registro_de_acciones_y_tiempo_activo.up,
     down: migration_20260930_211905_registro_de_acciones_y_tiempo_activo.down,
-    name: '20260930_211905_registro_de_acciones_y_tiempo_activo'
+    name: '20260930_211905_registro_de_acciones_y_tiempo_activo',
+  },
+  {
+    up: migration_20261002_144044_instrumento_propuesto.up,
+    down: migration_20261002_144044_instrumento_propuesto.down,
+    name: '20261002_144044_instrumento_propuesto'
   },
 ];

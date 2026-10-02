@@ -694,6 +694,16 @@ export const Cirugias: EsquemaDeColeccion = {
               medio: true,
             },
             { tipo: 'numero', nombre: 'puntos', etiqueta: 'Puntos que vale', medio: true },
+            // A lo ancho y detrás de «puntos», no al lado del instrumento: con
+            // `medio` ocupaba esa media fila y corría una casilla todas las
+            // parejas de números de abajo, que quedaban con su vecino ajeno.
+            {
+              tipo: 'texto',
+              nombre: 'instrumentoPropuesto',
+              etiqueta: '¿No está en la lista? Escriba su nombre',
+              ayuda:
+                'Al guardar, la administración recibe un comentario para crearlo. Cuando aparezca en la lista, elíjalo arriba y borre este nombre.',
+            },
             {
               tipo: 'numero',
               nombre: 'trazoMinimo',
