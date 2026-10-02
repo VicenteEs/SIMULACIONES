@@ -35,6 +35,12 @@ build/
 !/medios/modelos/.gitkeep
 /src/app/(payload)/admin/importMap.js
 
+# Los libros, las fichas de la ingesta y sus figuras (D-144): varios GB de
+# material con derechos de autor, que el repositorio —en GitHub— no puede
+# llevar. Ya estaba fuera de la imagen (`.dockerignore`) y no de aquí, así que
+# un `git add -A` lo subía entero.
+/data_traumahub/
+
 # base de datos y respaldos
 *.sql
 *.dump

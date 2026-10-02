@@ -18,11 +18,12 @@ import type { Payload } from 'payload'
 
 // `salir` lee la petición con `next/headers`, que fuera de Next no existe. Se
 // sustituye solo eso: Payload, la base y la acción son los de verdad.
-const peticion = { cabeceras: new Headers(), borradas: [] as string[] }
+const peticion = { cabeceras: new Headers(), borradas: [] as string[], puestas: {} as Record<string, string> }
 vi.mock('next/headers', () => ({
   headers: async () => peticion.cabeceras,
   cookies: async () => ({
     delete: (cookie: { name: string }) => void peticion.borradas.push(cookie.name),
+    set: (nombre: string, valor: string) => void (peticion.puestas[nombre] = valor),
   }),
 }))
 
@@ -82,5 +83,46 @@ describe.skipIf(payload === null)('salir da de baja la sesión en la base', () =
     expect((await base.auth({ headers: cabecerasCon(pabellon) })).user).toBeNull()
     // Salir en el computador del pabellón no cierra la sesión del teléfono.
     expect((await base.auth({ headers: cabecerasCon(telefono) })).user).not.toBeNull()
+  })
+})
+
+describe.skipIf(payload === null)('cambiar la clave cierra las demás sesiones', () => {
+  // O-073: `resetPassword` añadía una sesión y dejaba vivas las anteriores, así
+  // que un testigo copiado seguía entrando después de cambiar la contraseña.
+  const base = payload as Payload
+  const email = `clave-${randomBytes(6).toString('hex')}@prueba.invalid`
+  const password = randomBytes(18).toString('base64url')
+  let cuentaId: number | string
+
+  const cabecerasCon = (testigo: string) =>
+    new Headers({ cookie: `${base.config.cookiePrefix}-token=${testigo}`, 'sec-fetch-site': 'same-origin' })
+
+  beforeAll(async () => {
+    const cuenta = await base.create({
+      collection: 'usuarios',
+      data: { nombre: 'Prueba de clave', email, password, rol: 'lector', activo: true } as never,
+      overrideAccess: true,
+    })
+    cuentaId = cuenta.id
+  })
+
+  afterAll(async () => {
+    if (cuentaId) await base.delete({ collection: 'usuarios', id: cuentaId, overrideAccess: true }).catch(() => {})
+  })
+
+  it('el testigo de antes deja de abrir sesión, y el nuevo sí', async () => {
+    const copiado = (await base.login({ collection: 'usuarios', data: { email, password } })).token as string
+    const otro = (await base.login({ collection: 'usuarios', data: { email, password } })).token as string
+    const enlace = await base.forgotPassword({ collection: 'usuarios', data: { email }, disableEmail: true })
+
+    const { fijarClaveNueva } = await import('@/app/(frontend)/acciones/sesion')
+    const respuesta = await fijarClaveNueva(enlace, randomBytes(18).toString('base64url'))
+    expect(respuesta.exito).toBe(true)
+
+    expect((await base.auth({ headers: cabecerasCon(copiado) })).user).toBeNull()
+    expect((await base.auth({ headers: cabecerasCon(otro) })).user).toBeNull()
+    const nuevo = peticion.puestas[`${base.config.cookiePrefix}-token`]
+    expect(nuevo).toBeTruthy()
+    expect((await base.auth({ headers: cabecerasCon(nuevo) })).user).not.toBeNull()
   })
 })

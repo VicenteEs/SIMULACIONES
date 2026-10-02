@@ -91,8 +91,11 @@ describe('crearLimitador', () => {
 })
 
 describe('direccionDeQuienLlama', () => {
-  it('toma el primer valor de X-Forwarded-For', () => {
-    expect(direccionDeQuienLlama(new Headers({ 'x-forwarded-for': ' 200.1.2.3 , 10.0.0.1' }))).toBe('200.1.2.3')
+  it('toma el último valor de X-Forwarded-For, que es el que pone el túnel', () => {
+    // El primero lo escribe el visitante: con él, cada intento de entrada podía
+    // decir venir de una dirección nueva (O-072).
+    expect(direccionDeQuienLlama(new Headers({ 'x-forwarded-for': ' 1.2.3.4 , 200.1.2.3 ' }))).toBe('200.1.2.3')
+    expect(direccionDeQuienLlama(new Headers({ 'x-forwarded-for': '200.1.2.3' }))).toBe('200.1.2.3')
   })
 
   it('sin él, X-Real-IP; sin ninguno, «desconocida»', () => {

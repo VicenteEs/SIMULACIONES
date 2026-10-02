@@ -86,11 +86,20 @@ export function crearLimitador(nombre: string, { maximo, ventanaMs }: { maximo: 
  * La dirección de quien llama, tal como la dejan las cabeceras del proxy.
  *
  * Detrás de Tailscale Funnel la conexión llega desde el propio túnel, así que
- * la única pista es `X-Forwarded-For`. Se toma el primer valor. Un cliente puede
- * falsearlo si llega directo al puerto, y por eso este límite va acompañado de
- * uno global que no depende de quién dice ser nadie.
+ * la única pista es `X-Forwarded-For`. Se toma el **último** valor, que es el
+ * que añade el último salto de confianza —Funnel o cloudflared— con la
+ * dirección que vio de verdad. Los de delante los escribe el visitante.
+ *
+ * Se tomaba el primero, y eso era la cabecera entera en manos de quien llama:
+ * con un `X-Forwarded-For: 1.2.3.4` distinto en cada intento, el freno de
+ * `entrar()`, que es solo por dirección, no frenaba nada (O-072). Con el último
+ * hace falta que el proxy de delante reenvíe la cabecera del túnel tal cual; en
+ * `ved` lo hace el fragmento de `/traumahub` de Nginx Proxy Manager
+ * (`despliegue/paginas/LEEME.md`). Si un proxy la pisara con su `$remote_addr`,
+ * el último valor sería la puerta de enlace de Docker y todo el mundo
+ * compartiría cupo: falla cerrando, no abriendo.
  */
 export function direccionDeQuienLlama(cabeceras: Headers): string {
-  const reenviada = cabeceras.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const reenviada = cabeceras.get('x-forwarded-for')?.split(',').at(-1)?.trim()
   return reenviada || cabeceras.get('x-real-ip') || 'desconocida'
 }

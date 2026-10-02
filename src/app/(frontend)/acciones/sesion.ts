@@ -140,9 +140,11 @@ const DIEZ_MINUTOS = 10 * 60 * 1000
  * obligaría a anotar después de comprobar la contraseña, y el intento que hay
  * que frenar es justo el que todavía no se sabe si es bueno.
  *
- * `X-Forwarded-For` se puede falsear llegando directo al puerto
- * (`src/lib/ritmo.ts`); detrás del proxy, que es como está desplegada, no. Y el
- * bloqueo por cuenta sigue debajo, que no depende de quién dice ser nadie.
+ * La dirección es el último valor de `X-Forwarded-For`, el que pone el túnel
+ * (`src/lib/ritmo.ts`): esta línea decía que detrás del proxy no se podía
+ * falsear, y se podía, porque se leía el primero, que escribe el visitante
+ * (O-072). Llegando directo al puerto sigue siendo falseable. Y el bloqueo por
+ * cuenta sigue debajo, que no depende de quién dice ser nadie.
  */
 const LIMITE_DE_ENTRADAS = crearLimitador('entrar:direccion', { maximo: 30, ventanaMs: DIEZ_MINUTOS })
 
@@ -737,6 +739,54 @@ async function registrarSolicitud(
   return null
 }
 
+/**
+ * Deja a la cuenta solo con la sesión que acaba de abrir el cambio de clave.
+ *
+ * `resetPassword` de Payload añade una sesión y no toca las demás
+ * (`auth/operations/resetPassword.js`), así que cambiar la contraseña no echaba
+ * a nadie: quien tuviera un testigo copiado —de una estación compartida del
+ * pabellón, de un registro de proxy— seguía dentro sus ocho horas, y cambiar la
+ * clave es justo lo que hace quien sospecha que alguien entró con la suya. Se
+ * quitan como las quita `revocarLaSesionActual`, de la fila de la cuenta, y la
+ * estrategia JWT rechaza después cualquier testigo cuyo `sid` ya no esté.
+ *
+ * El `sid` que se conserva se lee del testigo recién firmado, sin verificar la
+ * firma: lo acaba de firmar este mismo proceso. Sin `sid` —sesiones apagadas en
+ * la colección— no hay nada que quitar.
+ *
+ * Nunca lanza: la contraseña ya cambió, y decirle a la persona que no es
+ * mentirle. El fallo queda en el registro.
+ */
+async function cerrarLasDemasSesiones(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  usuarioId: string | number,
+  testigo: string,
+): Promise<void> {
+  try {
+    const cuerpo = testigo.split('.')[1] ?? ''
+    const sid = (JSON.parse(Buffer.from(cuerpo, 'base64url').toString('utf8')) as { sid?: unknown }).sid
+    if (typeof sid !== 'string') return
+    const cuenta = await payload.findByID({
+      collection: 'usuarios',
+      id: usuarioId,
+      depth: 0,
+      overrideAccess: true,
+      showHiddenFields: true,
+    })
+    const sesiones = cuenta.sessions ?? []
+    const conservadas = sesiones.filter((sesion) => sesion.id === sid)
+    if (conservadas.length === sesiones.length) return
+    await payload.update({
+      collection: 'usuarios',
+      id: usuarioId,
+      data: { sessions: conservadas },
+      overrideAccess: true,
+    })
+  } catch (fallo) {
+    console.error('[sesion] no se pudieron cerrar las demás sesiones tras cambiar la clave:', fallo)
+  }
+}
+
 export async function fijarClaveNueva(
   testigo: unknown,
   contrasena: unknown,
@@ -784,6 +834,9 @@ export async function fijarClaveNueva(
     if (!resultado?.token) {
       throw new Error('El enlace caducó o ya se usó. Pida uno nuevo.')
     }
+
+    const usuarioId = (resultado.user as { id?: string | number } | null | undefined)?.id
+    if (usuarioId !== undefined) await cerrarLasDemasSesiones(payload, usuarioId, resultado.token)
 
     const almacen = await cookies()
     const cookieDeSesion = await nombreDeLaCookieDeSesion()

@@ -146,7 +146,24 @@ export async function leerResumenDeCuentas(payload: Payload, ahora: Date = new D
   const inicioHoy = new Date(`${hoy}T00:00:00`).toISOString()
 
   const usuarios = (
-    await payload.find({ collection: 'usuarios', limit: 0, pagination: false, depth: 0, overrideAccess: true, sort: 'nombre' })
+    await payload.find({
+      collection: 'usuarios',
+      limit: 0,
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+      sort: 'nombre',
+      select: {
+        nombre: true,
+        email: true,
+        rol: true,
+        activo: true,
+        pendiente: true,
+        modulosVisibles: true,
+        modulosEditables: true,
+        ultimoAcceso: true,
+      },
+    })
   ).docs as unknown as Registro[]
 
   const tiempos = (
@@ -169,19 +186,49 @@ export async function leerResumenDeCuentas(payload: Payload, ahora: Date = new D
     ultimaRuta: texto(t.ultimaRuta),
   }))
 
-  const contar = async (id: unknown, extra: Where): Promise<number> =>
-    (
-      await payload.count({
-        collection: 'registro-de-acciones',
-        where: { and: [{ usuario: { equals: id } }, { fecha: { greater_than_equal: inicio30 } }, extra] },
-        overrideAccess: true,
-      })
-    ).totalDocs
+  // Los inicios de sesión y las acciones de los últimos 30 días, de una vez y
+  // contados aquí. Eran dos `count` por cuenta y en serie: con quinientas
+  // cuentas, mil consultas una detrás de otra en cada visita a la pantalla y en
+  // cada planilla. Se piden solo las dos columnas que hacen falta.
+  const actos = (
+    await payload.find({
+      collection: 'registro-de-acciones',
+      where: { and: [{ fecha: { greater_than_equal: inicio30 } }, { usuario: { exists: true } }] },
+      limit: 0,
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+      select: { usuario: true, accion: true },
+    })
+  ).docs as unknown as Registro[]
+  const sesionesPorCuenta = new Map<string, number>()
+  const accionesPorCuenta = new Map<string, number>()
+  for (const acto of actos) {
+    const usuario = acto.usuario
+    if (usuario === null || usuario === undefined) continue
+    const id = String(typeof usuario === 'object' ? (usuario as Registro).id : usuario)
+    const cuenta =
+      acto.accion === 'sesion-iniciada'
+        ? sesionesPorCuenta
+        : acto.accion === 'sesion-cerrada'
+          ? null
+          : accionesPorCuenta
+    if (cuenta) cuenta.set(id, (cuenta.get(id) ?? 0) + 1)
+  }
+
+  // Y el tiempo, repartido por cuenta una sola vez en lugar de filtrar la
+  // lista entera para cada una.
+  const tiempoDeCada = new Map<string, TiempoPorDia[]>()
+  for (const t of tiempoPorDia) {
+    const lista = tiempoDeCada.get(t.usuarioId)
+    if (lista) lista.push(t)
+    else tiempoDeCada.set(t.usuarioId, [t])
+  }
 
   const cuentas: CuentaConActividad[] = []
   for (const u of usuarios) {
     const id = String(u.id)
-    const suyos = tiempoPorDia.filter((t) => t.usuarioId === id)
+    const suyos = tiempoDeCada.get(id) ?? []
     const suma = (desde: string) => suyos.filter((t) => t.dia >= desde).reduce((n, t) => n + t.segundos, 0)
     cuentas.push({
       id,
@@ -197,8 +244,8 @@ export async function leerResumenDeCuentas(payload: Payload, ahora: Date = new D
       segundos7d: suma(hace7),
       segundos30d: suma(hace30),
       diasActivos30d: suyos.filter((t) => t.segundos > 0).length,
-      sesiones30d: await contar(u.id, { accion: { equals: 'sesion-iniciada' } }),
-      acciones30d: await contar(u.id, { accion: { not_in: ['sesion-iniciada', 'sesion-cerrada'] } }),
+      sesiones30d: sesionesPorCuenta.get(id) ?? 0,
+      acciones30d: accionesPorCuenta.get(id) ?? 0,
     })
   }
 

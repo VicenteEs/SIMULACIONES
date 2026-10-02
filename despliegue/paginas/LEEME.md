@@ -108,6 +108,14 @@ El fragmento incluye además:
 - `proxy_buffering off` y `proxy_read_timeout 3600s`, sin los cuales el flujo
   de eventos de «hay contenido nuevo» se queda en el búfer de nginx y el aviso
   no llega nunca;
+- `proxy_set_header X-Forwarded-For $http_x_forwarded_for` (y lo mismo en
+  `X-Real-IP`), es decir, la cabecera **tal como llega del túnel**, y no
+  `$remote_addr`. Ese `$remote_addr` no es el visitante: el tráfico del Funnel
+  llega a NPM desde la red de Docker, y NPM aplica en `http{}` un `real_ip` que
+  se fía de `X-Real-IP` desde esa red, así que valía la puerta de enlace —todos
+  los visitantes compartían el cupo de intentos de entrada— o lo que el
+  visitante escribiera en `X-Real-IP`. La aplicación se queda con el último
+  valor de `X-Forwarded-For`, que es el que añade el túnel (O-072);
 - `client_max_body_size 64m`, porque el techo por omisión de nginx (1 MB) queda
   por debajo de lo que la plataforma acepta: sin esta línea, un vídeo se rechaza
   con un 413 antes de llegar siquiera a la aplicación. **Esta línea no cambia**

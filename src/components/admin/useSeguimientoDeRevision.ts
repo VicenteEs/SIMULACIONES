@@ -23,7 +23,7 @@ import {
  * al ocultarse la pestaña, que es lo último que se oye de ella antes de
  * cerrarla. Si el envío falla, lo medido se devuelve a la cuenta y viaja en el
  * siguiente: el servidor lo recorta al tiempo que de verdad pasó
- * (`segundosAdmisibles`), así que reintentar no infla nada.
+ * (`techoDelLatido`), así que reintentar no infla nada.
  *
  * No mide nada fuera de una ficha en revisión, ni en una ficha nueva: `activo`
  * lo decide quien la usa.
@@ -55,6 +55,14 @@ export function useSeguimientoDeRevision({
   const seccionActual = useRef(seccion)
   const enviando = useRef(false)
   /**
+   * El servidor dijo que la ficha ya no está en revisión: un administrador la
+   * sacó con el editor abierto. Desde ahí no se mide ni se manda nada. Antes la
+   * respuesta se descartaba y el editor seguía latiendo cada quince segundos
+   * hasta cerrarse, cada latido con su consulta, para que el servidor
+   * contestara siempre lo mismo.
+   */
+  const fueraDeRevision = useRef(false)
+  /**
    * Lo que se ha visto en esta sesión, para marcar las pestañas sin esperar al
    * servidor. Los segundos van en un `ref` y el estado solo cambia cuando una
    * sección llega al umbral: repintar el editor entero —con sus textos ricos—
@@ -68,7 +76,7 @@ export function useSeguimientoDeRevision({
   }, [seccion])
 
   const enviar = useCallback(async () => {
-    if (!activo || !id || enviando.current) return
+    if (!activo || !id || enviando.current || fueraDeRevision.current) return
     const { abiertos, activos, porSeccion, ediciones } = acumulado.current
     if (abiertos === 0 && ediciones === 0) return
     acumulado.current = { abiertos: 0, activos: 0, porSeccion: {}, ediciones: 0 }
@@ -76,6 +84,7 @@ export function useSeguimientoDeRevision({
     try {
       const respuesta = await latidoDeRevision(coleccion, id, sesion, { abiertos, activos, porSeccion, ediciones })
       if (!respuesta.exito) throw new Error(respuesta.mensaje)
+      if (respuesta.datos?.enRevision === false) fueraDeRevision.current = true
     } catch {
       // Se devuelve a la cuenta: viajará en el siguiente latido.
       const ahora = acumulado.current
@@ -127,7 +136,7 @@ export function useSeguimientoDeRevision({
   useEffect(() => {
     if (!activo) return
     const reloj = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return
+      if (document.visibilityState !== 'visible' || fueraDeRevision.current) return
       const cuenta = acumulado.current
       cuenta.abiertos += 1
       if (Date.now() - ultimaInteraccion.current <= INACTIVIDAD_QUE_NO_CUENTA_MS) {

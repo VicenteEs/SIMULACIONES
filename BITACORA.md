@@ -5464,6 +5464,106 @@ y el día que el respaldo falle de verdad dirá lo mismo.
 *Arreglo.* Se pregunta con `systemctl cat`, que sale con 1 si la unidad no
 existe; con temporizador se sigue mirando si está activo, y sin él, el cron.
 
+### O-069 · 2026-10-02 · media · resuelta
+**El tiempo de revisión se podía inflar desde la consola del navegador, y dos
+pestañas contaban doble.**
+*Dónde se ve:* auditoría de seguridad del 2026-10-02. `anotarLatido` recortaba
+lo que manda el navegador al tiempo pasado desde el latido anterior **de la
+sesión**, y la sesión la inventa el propio navegador: con un identificador nuevo
+en cada llamada, cada una traía el minuto que se le admite a una primera fila.
+Un editor que llamara a `latidoDeRevision` en bucle se abonaba horas en
+segundos, y la alarma de «validación rápida» de D-142 —lo único que distingue
+una revisión leída de una firmada a ciegas— no saltaba nunca. Sin trampa, dos
+pestañas de la misma ficha sumaban cada una su tiempo.
+*Arreglo.* `techoDelLatido`: además del techo de la sesión, nada pasa del tiempo
+real desde el último latido **de la cuenta**, en cualquier ficha; ese segundo
+techo va sin holgura, porque los cinco segundos por llamada repetidos a ráfagas
+volvían a ser la puerta. Los latidos de una cuenta van en fila en memoria
+(`enFilaDeLaCuenta`), o cien llamadas en paralelo leerían el mismo «último» y
+se abonarían cada una el hueco entero; de paso ya no choca el primer latido
+doble de una sesión contra el índice único de `sesion`. (−) La fila vive en el
+proceso, como `src/lib/ritmo.ts`: con dos procesos habría que llevarla a la
+base. (−) Un latido que llega antes de tiempo pierde esa fracción de segundo.
+Lo fijan `tests/unit/revisionSinAtajos.test.ts` y una ráfaga en
+`tests/integration/revision.test.ts`.
+
+### O-070 · 2026-10-02 · media · resuelta
+**Duplicar o borrar sacaba una ficha de la revisión.**
+*Dónde se ve:* misma auditoría. `duplicarDocumento` creaba la copia sin
+revisión, así que un editor podía copiar el texto que llegó del modelo, publicar
+la copia —sin revisión, nada se lo impedía— y borrar la original con
+`eliminarDocumento`, que se llevaba también su revisión y su tiempo. Contenido
+de IA publicado sin revisar y sin rastro en Auditoría: la salida entera del
+flujo de D-142.
+*Arreglo.* La copia de una ficha en revisión entra en revisión con la
+procedencia, las notas, la asignación y la versión **original** de la otra
+(`registrarParaRevision` acepta ahora `original` y `copiaDe`), para que lo
+editado se siga midiendo contra lo que escribió el modelo; si no puede entrar,
+la copia se borra y se dice. Borrar una ficha en revisión queda para el
+administrador. Las dos comprobaciones fallan cerradas si la tabla de revisiones
+no contesta, como la de publicar.
+
+### O-071 · 2026-10-02 · media · resuelta
+**«Publicar las validadas» dejaba el lote a medias sin decir cuáles salieron.**
+*Dónde se ve:* auditoría de errores del 2026-10-02. El bucle no se recuperaba
+de un fallo: si caía la ficha 40 de 200, las 39 anteriores quedaban publicadas,
+la acción contestaba un error a secas y no se refrescaba ninguna pantalla. El
+administrador no sabía qué estaban leyendo ya los residentes.
+*Arreglo.* Lo mal formado se rechaza entero antes de escribir nada; después
+cada ficha falla por su cuenta y se devuelve en `fallidas` con su motivo, y las
+pantallas se refrescan siempre. Una ficha publicada cuya anotación en la
+revisión falla se cuenta como publicada, con el aviso: decir que falló mandaría
+a publicarla otra vez. La tabla de Auditoría pinta el resultado en rojo si algo
+falló y nombra cada ficha.
+
+### O-072 · 2026-10-02 · media · resuelta
+**El freno de intentos de entrada no sabía quién llamaba: o todos eran la
+misma dirección, o cada uno la que quisiera.**
+*Dónde se ve:* auditoría de seguridad del 2026-10-02, comprobado leyendo la
+configuración de Nginx Proxy Manager en `ved`. El fragmento de `/traumahub`
+pisaba `X-Forwarded-For` con `$remote_addr`, y ese `$remote_addr` no es el
+visitante: el Funnel llega a NPM desde la red de Docker y NPM aplica en `http{}`
+un `real_ip_header X-Real-IP` que se fía de `172.16.0.0/12`. Sin cabecera, todos
+los visitantes eran la puerta de enlace y compartían los 30 intentos de diez
+minutos de `entrar()` —uno solo podía dejar fuera a todo el hospital—; con un
+`X-Real-IP` inventado en cada intento, el freno no frenaba. La aplicación,
+además, leía el **primer** valor de `X-Forwarded-For`, que es el que escribe el
+visitante. La página de diagnóstico del mismo servidor ya había dado con esto y
+lo había comprobado (su fragmento, `trauma-nginx-trauma.conf`).
+*Arreglo.* `direccionDeQuienLlama` toma el **último** valor, el que añade el
+túnel, y el fragmento de `/traumahub` reenvía la cabecera del túnel tal cual
+(`$http_x_forwarded_for`); lo describe `despliegue/paginas/LEEME.md`. (−) El
+fragmento vive en el volumen de NPM y no en el repositorio: una reinstalación de
+NPM que lo rehaga a mano tiene que volver a ponerlo, o el freno vuelve a
+compartirse entre todos.
+
+### O-073 · 2026-10-02 · baja · resuelta
+**Cambiar la contraseña no echaba a nadie.**
+*Dónde se ve:* misma auditoría. `resetPassword` de Payload añade una sesión a la
+cuenta y no toca las demás, así que un testigo copiado seguía entrando sus ocho
+horas después de que su dueño cambiara la clave, que es justo lo que hace quien
+sospecha que alguien entró con la suya.
+*Arreglo.* `fijarClaveNueva` deja la cuenta solo con la sesión que abre el
+propio cambio (`cerrarLasDemasSesiones`), igual que «salir» quita la suya
+(O-059). No lanza si falla: la clave ya cambió, y el fallo queda en el registro.
+Lo fija `tests/integration/salir.test.ts`.
+
+### O-074 · 2026-10-02 · baja · resuelta
+**Tres restos de la auditoría del 2026-10-02.**
+- El editor seguía mandando latidos cada quince segundos a una ficha que un
+  administrador había sacado de revisión: la acción contestaba
+  `enRevision: false` y `useSeguimientoDeRevision` no lo leía. Ahora deja de
+  medir y de enviar.
+- `data_traumahub/` —los libros de la ingesta, varios GB con derechos de autor—
+  estaba fuera de la imagen y no fuera del repositorio. Va al `.gitignore`.
+- Rendimiento: el resumen de cuentas de `/admin-panel/registro` y de su planilla
+  hacía dos `count` por cuenta y en serie (mil consultas con quinientas
+  cuentas); ahora es una lectura de dos columnas que se cuenta en memoria. Y
+  `obtenerSesion` va con `cache` de React: la plantilla, la página y la guardia
+  resolvían la sesión cada una por su lado en el mismo pintado. Se miró también
+  quitar el historial de la lectura de Auditoría y no se hizo: `armarAuditoria`
+  lo usa para contar las devoluciones de cada revisor.
+
 ---
 
 ## 4. Preguntas abiertas
