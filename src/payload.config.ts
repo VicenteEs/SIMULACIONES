@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url'
 import { buildConfig } from 'payload'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import sharp from 'sharp'
+import type SMTPTransport from 'nodemailer/lib/smtp-transport'
 import { es } from '@payloadcms/translations/languages/es'
 import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { COLECCIONES } from '@/collections'
@@ -38,6 +39,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
  * 5 MB de los modelos los sigue haciendo cumplir
  * `src/uploads/validarModelo3D.ts`, por firma del archivo y por colección.
  */
+type OpcionesDelAdaptador = NonNullable<Parameters<typeof nodemailerAdapter>[0]>['transportOptions']
+
 const TECHO_DE_SUBIDA_BYTES = Math.max(TECHO_DE_MEDIOS_BYTES, TECHO_DE_MODELOS_3D_BYTES)
 
 /**
@@ -153,7 +156,14 @@ export default buildConfig({
             user: process.env.SMTP_USUARIO,
             pass: process.env.SMTP_CLAVE,
           },
-        },
+          // Se comprueba contra las opciones del *transporte* y se entrega con
+          // el tipo que declara el adaptador. Desde nodemailer 10 (O-076) ese
+          // tipo es el de la conexión SMTP, que no lleva `auth`: las
+          // credenciales se le pasan a `login()`, no al conectar. Pero el
+          // adaptador no abre una conexión, llama a `createTransport` con este
+          // objeto, y el transporte sí lee `auth`. Quitarlo para que compile
+          // dejaría el correo sin autenticar y el servidor rechazándolo todo.
+        } satisfies SMTPTransport.Options as OpcionesDelAdaptador,
       })
     : undefined,
   db: postgresAdapter({

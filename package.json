@@ -32,12 +32,12 @@
     "clave:restablecer": "tsx scripts/restablecer-clave.ts"
   },
   "dependencies": {
-    "@payloadcms/db-postgres": "3.88.0",
-    "@payloadcms/email-nodemailer": "^3.88.0",
-    "@payloadcms/next": "3.88.0",
-    "@payloadcms/richtext-lexical": "3.88.0",
-    "@payloadcms/translations": "3.88.0",
-    "@payloadcms/ui": "3.88.0",
+    "@payloadcms/db-postgres": "3.90.2",
+    "@payloadcms/email-nodemailer": "^3.90.2",
+    "@payloadcms/next": "3.90.2",
+    "@payloadcms/richtext-lexical": "3.90.2",
+    "@payloadcms/translations": "3.90.2",
+    "@payloadcms/ui": "3.90.2",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "@tiptap/extension-link": "^3.31.3",
@@ -47,11 +47,12 @@
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "graphql": "^16.11.0",
-    "next": "16.3.3",
-    "payload": "3.88.0",
+    "next": "16.3.8",
+    "nodemailer": "^10.0.13",
+    "payload": "3.90.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "sharp": "^0.34.2",
+    "sharp": "^0.35.5",
     "three": "^0.185.1",
     "three-stdlib": "^2.36.1"
   },
@@ -76,5 +77,10 @@
     "esbuild@0.18.20": true,
     "esbuild@0.28.2": true,
     "esbuild@0.25.12": true
+  },
+  "overrides": {
+    "undici": "7.30.0",
+    "nodemailer": "$nodemailer",
+    "dompurify": "3.4.16"
   }
 }

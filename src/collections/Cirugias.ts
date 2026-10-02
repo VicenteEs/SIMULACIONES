@@ -368,6 +368,10 @@ export const Cirugias: CollectionConfig = {
           // la administración como comentario. Ver `avisarDeInstrumentosPropuestos`.
           name: 'instrumentoPropuesto',
           type: 'text',
+          // El mismo techo que recorta el aviso: un nombre de instrumento no
+          // necesita más, y sin él un paso podía mandar 20.000 caracteres por
+          // correo a cada administrador (O-076).
+          maxLength: 120,
           label: 'Instrumento que falta en la lista',
         },
         {

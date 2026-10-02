@@ -14,6 +14,7 @@ import * as migration_20260927_004316_revision_de_contenido from './20260927_004
 import * as migration_20260930_211204_ingesta_procedencia_y_notas from './20260930_211204_ingesta_procedencia_y_notas';
 import * as migration_20260930_211905_registro_de_acciones_y_tiempo_activo from './20260930_211905_registro_de_acciones_y_tiempo_activo';
 import * as migration_20261002_144044_instrumento_propuesto from './20261002_144044_instrumento_propuesto';
+import * as migration_20261002_151329_reinicio_de_clave_payload_3_90 from './20261002_151329_reinicio_de_clave_payload_3_90';
 
 export const migrations = [
   {
@@ -94,6 +95,11 @@ export const migrations = [
   {
     up: migration_20261002_144044_instrumento_propuesto.up,
     down: migration_20261002_144044_instrumento_propuesto.down,
-    name: '20261002_144044_instrumento_propuesto'
+    name: '20261002_144044_instrumento_propuesto',
+  },
+  {
+    up: migration_20261002_151329_reinicio_de_clave_payload_3_90.up,
+    down: migration_20261002_151329_reinicio_de_clave_payload_3_90.down,
+    name: '20261002_151329_reinicio_de_clave_payload_3_90'
   },
 ];

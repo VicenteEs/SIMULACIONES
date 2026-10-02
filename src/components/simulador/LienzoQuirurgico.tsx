@@ -682,6 +682,13 @@ function buscarFragmento(raiz: THREE.Object3D, piezas: PiezaDelCaso[]): THREE.Ob
  * sigue midiendo contra el sitio de verdad.
  */
 function pivoteEnSuCentro(fragmento: THREE.Object3D) {
+  // Una vez por nodo, marcado, y no «si el centro ya está cerca de cero»: el
+  // efecto de las piezas vuelve a pasar por aquí en cada repintado del taller,
+  // y en un modelo en milímetros lo que deja `translate` en float32 pasa de
+  // cualquier margen absoluto. Cada pasada clonaba otra vez la geometría sin
+  // soltar la anterior —memoria de la tarjeta que no vuelve— y corría el hueso
+  // unas micras (O-076).
+  if (fragmento.userData.pivoteCentrado) return
   fragmento.updateMatrixWorld(true)
   const inversa = fragmento.matrixWorld.clone().invert()
   const caja = new THREE.Box3()
@@ -696,9 +703,8 @@ function pivoteEnSuCentro(fragmento: THREE.Object3D) {
   })
   if (caja.isEmpty()) return
   const centro = caja.getCenter(new THREE.Vector3())
-  // Ya centrado: el efecto de las piezas vuelve a pasar por aquí en cada
-  // cambio, y sin este margen iría corriendo el hueso una milésima cada vez.
-  if (centro.lengthSq() < 1e-12) return
+  fragmento.userData.pivoteCentrado = true
+  if (centro.lengthSq() === 0) return
 
   // Lo de dentro retrocede lo mismo que avanza el nodo: el hueso no se mueve.
   const malla = fragmento as THREE.Mesh

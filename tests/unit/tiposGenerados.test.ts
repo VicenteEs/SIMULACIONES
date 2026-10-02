@@ -158,6 +158,9 @@ const LO_QUE_AÑADE_PAYLOAD = {
     'password',
     'resetPasswordToken',
     'resetPasswordExpiration',
+    // Desde Payload 3.90: cuándo se pidió el último reinicio, para frenar las
+    // peticiones seguidas sobre la misma cuenta (O-076).
+    'resetPasswordRequestedAt',
     'salt',
     'hash',
     'loginAttempts',

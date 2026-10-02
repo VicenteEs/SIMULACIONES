@@ -5608,6 +5608,67 @@ ningún sitio. (−) Un caso cuyo desplazamiento inicial se capturó con el pivo
 viejo se verá algo distinto con giros grandes: las cifras guardadas no cambian,
 pero ahora el giro es alrededor del hueso. En producción no quedaba ninguno.
 
+### O-076 · 2026-10-02 · alta · resuelta
+**Dependencias al día, y la propuesta de instrumento con techo.**
+*Dónde se ve:* `npm audit --omit=dev` daba 19 avisos, uno crítico, cuando el
+pendiente de la segunda pasada de seguridad (más arriba) contaba 16. Y la
+auditoría de D-146 y O-075, hecha después de la de la mañana.
+*Dependencias.*
+- `next` 16.3.3 → 16.3.8 (crítica: ejecución remota en `next/og`. Aquí no se
+  usa `ImageResponse`, pero no se deja a que alguien lo importe).
+- `payload` y `@payloadcms/*` 3.88.0 → 3.90.2 (GHSA-jg8r-5jh2-v2xj, ya
+  neutralizada aquí). **Trae migración**: Payload 3.90 añade
+  `usuarios.reset_password_requested_at`, con la que frena los «olvidé mi clave»
+  seguidos sobre la misma cuenta. Sin ella, cada consulta de usuarios —el
+  inicio de sesión incluido— falla con `column … does not exist`.
+- `sharp` 0.34 → 0.35.5 (alta; libvips y libheif al abrir las imágenes que suben
+  los editores). Salto mayor sin cambios de uso.
+- Por `overrides`, porque los fija exactos un paquete de arriba: `undici` 7.30.0
+  (alta, dentro de `payload`), `nodemailer` 10 (alta; `@payloadcms/email-
+  nodemailer` pide `^9.1.1` y toda la 9 está afectada) y `dompurify` 3.4.16
+  (baja, dentro de `monaco-editor`). `nodemailer` pasa a dependencia directa:
+  `payload.config.ts` importa ahora su tipo, y el override apunta a ella
+  (`$nodemailer`) para que no puedan separarse.
+- Quedan 5 moderadas, todas el `esbuild` viejo que arrastra `drizzle-kit`: solo
+  muerden con un servidor de desarrollo de `esbuild` abierto, y aquí no hay
+  ninguno. Sin arreglo sin bajar de versión `@payloadcms/db-postgres`.
+- Para subir Payload, `npm install` con las versiones nuevas en `package.json`
+  falla (`ERESOLVE`): cada paquete fija `payload` exacto como *peer*, y npm no
+  sabe mover el grupo entero a la vez. Hay que desinstalar el grupo e
+  instalarlo de nuevo con las versiones explícitas; luego volver a fijarlas sin
+  `^`, que `npm install` las deja con él.
+*`nodemailer` 10 y los tipos.* Ahora trae sus propios tipos, y
+`SMTPConnection.Options` —el que declara el adaptador para `transportOptions`—
+ya no lleva `auth`. El adaptador no abre una conexión con ese objeto: llama a
+`createTransport`, que sí lo lee. Se valida contra `SMTPTransport.Options` y se
+entrega con el tipo del adaptador; quitar `auth` para que compilase habría
+dejado el correo sin autenticar.
+*La propuesta de instrumento (D-146).* El gancho crea comentarios sin pasar por
+`crearComentario`, es decir, sin su freno ni su largo máximo, y cada comentario
+es un correo a cada administrador. Una cirugía de 500 pasos (`MAXIMO_FILAS`) con
+nombres de 20.000 caracteres eran 500 correos por administrador en un guardado.
+Ahora: nombre y título recortados a 120 (y `maxLength: 120` en el campo); un
+comentario por instrumento, con todos los pasos que lo piden, y no uno por paso;
+diez instrumentos por guardado como mucho, y el resto en un único comentario de
+resumen. El catálogo se lee una vez y se compara exacto: el `like` de antes
+parte el nombre en palabras en PostgreSQL y, con `limit: 20`, podía no devolver
+el que coincidía y decir «no está» de uno que estaba. Y se corrige el
+comentario del gancho que prometía que no quedaba aviso si la cirugía no se
+guardaba: el comentario sí se deshace, pero el correo sale antes del commit.
+*Pivote (O-075).* `pivoteEnSuCentro` se repetía en cada repintado del taller y
+paraba solo si el centro quedaba a menos de 1e-6. En un modelo en milímetros,
+lo que deja `translate` en float32 supera ese margen: cada pasada clonaba otra
+vez la geometría sin soltar la anterior. Ahora marca el nodo y no repite.
+(−) Duplicar una cirugía con propuestas vuelve a avisar en la copia. Se deja:
+la copia también necesita el instrumento, y con el techo son once avisos como
+mucho.
+*Comprobado:* la lista de `AGENTS.md` en un worktree aparte (esta carpeta es
+producción), sobre un PostgreSQL desechable en el 55432 con las migraciones y
+`SMTP_HOST` vacío. `typecheck` limpio; `lint` sin errores (los 10 avisos de
+`<img>`); `test:coverage` 168 archivos, 2643 pruebas, 12 omitidas;
+`test:integration` 169 de 169; `build` sin fallos (los 8 avisos de trazado de
+Turbopack ya salían en `main`).
+
 ---
 
 
