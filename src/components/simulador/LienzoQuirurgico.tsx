@@ -660,7 +660,55 @@ export function datosDeLosNodos(raiz: THREE.Object3D): DatosDeNodo[] {
 function buscarFragmento(raiz: THREE.Object3D, piezas: PiezaDelCaso[]): THREE.Object3D | undefined {
   const nombre = piezas.find((p) => p.rol === 'fragmento')?.nodo
   if (!nombre) return undefined
-  return raiz.getObjectByName(nombre) ?? undefined
+  const fragmento = raiz.getObjectByName(nombre) ?? undefined
+  if (fragmento) pivoteEnSuCentro(fragmento)
+  return fragmento
+}
+
+/**
+ * Lleva el origen del fragmento al centro de su propia geometría, sin moverlo.
+ *
+ * El giro de la reducción se aplica sobre el origen del nodo. Si el archivo
+ * trae cada pieza con el origen en el del cuerpo —lo normal en lo exportado
+ * del atlas sin centrar—, ese origen queda a decenas de centímetros del hueso,
+ * y los 12° de angulación del caso de la mano lanzaban el metacarpiano a
+ * 17 cm, fuera de la mano: se veía un hueso suelto lejos y el residente no
+ * tenía nada que reducir. Además el giro arrastraba el hueso y el panel de
+ * medidas, que mide la posición del nodo, no se enteraba.
+ *
+ * Se hace aquí, al cargar, y no pidiendo modelos bien preparados: un archivo
+ * mal centrado no da error en ningún sitio, solo un caso que no se puede jugar.
+ * La posición y el giro de partida se leen después, así que `estadoDelFragmento`
+ * sigue midiendo contra el sitio de verdad.
+ */
+function pivoteEnSuCentro(fragmento: THREE.Object3D) {
+  fragmento.updateMatrixWorld(true)
+  const inversa = fragmento.matrixWorld.clone().invert()
+  const caja = new THREE.Box3()
+  fragmento.traverse((objeto) => {
+    const malla = objeto as THREE.Mesh
+    if (!malla.isMesh) return
+    malla.geometry.computeBoundingBox()
+    if (!malla.geometry.boundingBox) return
+    // Caja de cada malla en el espacio propio del fragmento.
+    const relativa = malla.matrixWorld.clone().premultiply(inversa)
+    caja.union(malla.geometry.boundingBox.clone().applyMatrix4(relativa))
+  })
+  if (caja.isEmpty()) return
+  const centro = caja.getCenter(new THREE.Vector3())
+  // Ya centrado: el efecto de las piezas vuelve a pasar por aquí en cada
+  // cambio, y sin este margen iría corriendo el hueso una milésima cada vez.
+  if (centro.lengthSq() < 1e-12) return
+
+  // Lo de dentro retrocede lo mismo que avanza el nodo: el hueso no se mueve.
+  const malla = fragmento as THREE.Mesh
+  if (malla.isMesh) {
+    malla.geometry = malla.geometry.clone()
+    malla.geometry.translate(-centro.x, -centro.y, -centro.z)
+  }
+  for (const hijo of fragmento.children) hijo.position.sub(centro)
+  fragmento.position.add(centro.clone().multiply(fragmento.scale).applyQuaternion(fragmento.quaternion))
+  fragmento.updateMatrixWorld(true)
 }
 
 /**
@@ -768,6 +816,15 @@ function encuadrarVisible(taller: Taller) {
   const { raiz, camara, controles } = taller
   if (!raiz || !camara || !controles) return
 
+  // Las matrices del mundo se ponen al día antes de medir. `expandByObject` solo
+  // actualiza la del propio objeto, no la de sus padres, y justo al cargar la
+  // raíz se acaba de mover para centrar el modelo sin que se haya dibujado
+  // nada: la caja salía en las coordenadas del archivo y la cámara apuntaba al
+  // vacío. Con un modelo ya centrado en su archivo no se nota, porque ese
+  // movimiento es cero; con uno exportado en su sitio del cuerpo —la mano del
+  // atlas, a 85 cm del origen— el lienzo nacía en blanco hasta pulsar
+  // «Encuadrar».
+  raiz.updateMatrixWorld(true)
   const caja = new THREE.Box3()
   raiz.traverse((objeto) => {
     if ((objeto as THREE.Mesh).isMesh && objeto.visible) caja.expandByObject(objeto)

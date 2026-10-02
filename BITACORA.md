@@ -5587,7 +5587,29 @@ Lo fija `tests/integration/salir.test.ts`.
   quitar el historial de la lectura de Auditoría y no se hizo: `armarAuditoria`
   lo usa para contar las devoluciones de cada revisor.
 
+### O-075 · 2026-10-02 · media · resuelta
+**Un modelo sin centrar en su archivo no se veía en el simulador.**
+*Dónde se ve:* la cirugía «Prueba 2», sobre «mano-derecha» (modelo n.º 12),
+exportada del atlas en su sitio del cuerpo, a unos 85 cm del origen. El lienzo
+nacía en blanco, sin ningún mensaje, hasta pulsar «Encuadrar»; y entonces el
+5.º metacarpiano aparecía suelto a unos 17 cm de la mano.
+*Causas, dos.* (1) Al cargar, la raíz se mueve para centrar el modelo y acto
+seguido se encuadra, pero `Box3.expandByObject` solo pone al día la matriz del
+propio objeto, no la de su padre: la caja salía en las coordenadas del archivo y
+la cámara apuntaba al vacío. Con un modelo ya centrado ese movimiento es cero, y
+por eso no se había visto. (2) El giro de la reducción se aplica sobre el origen
+del nodo del fragmento, que en estos archivos es el del cuerpo: 12° a 85 cm son
+17 cm de vuelo.
+*Arreglo.* `encuadrarVisible` llama a `updateMatrixWorld(true)` antes de medir, y
+`pivoteEnSuCentro` (`LienzoQuirurgico.tsx`) lleva el origen del fragmento al
+centro de su geometría al cargarlo, sin moverlo. Se arregla en el lienzo y no
+pidiendo modelos bien preparados, porque un archivo mal centrado no da error en
+ningún sitio. (−) Un caso cuyo desplazamiento inicial se capturó con el pivote
+viejo se verá algo distinto con giros grandes: las cifras guardadas no cambian,
+pero ahora el giro es alrededor del hueso. En producción no quedaba ninguno.
+
 ---
+
 
 ## 4. Preguntas abiertas
 
