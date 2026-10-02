@@ -117,6 +117,15 @@ export interface DatosDeOrigen {
   notasParaElRevisor?: string[]
   /** A quién se le asigna, si se sabe ya. */
   asignadaA?: string | null
+  /**
+   * La versión con la que se mide lo editado, si no es la que la ficha tiene
+   * ahora. La lleva la copia de una ficha en revisión (`duplicarDocumento`):
+   * medida contra sí misma, lo que el revisor ya hubiera tocado en la original
+   * dejaría de contar como editado.
+   */
+  original?: Registro
+  /** La ficha de la que esta es copia, para dejarlo dicho en el historial. */
+  copiaDe?: string
 }
 
 /**
@@ -151,15 +160,21 @@ export async function registrarParaRevision(
     draft: true,
     overrideAccess: true,
   })) as unknown as Registro
-  const original = depurarDocumento(esquema, documento)
-  const medida = medirEdicion(palabrasPorSeccion(esquema, original), palabrasPorSeccion(esquema, original))
+  const actual = depurarDocumento(esquema, documento)
+  const original = entrada.original ?? actual
+  const medida = medirEdicion(palabrasPorSeccion(esquema, original), palabrasPorSeccion(esquema, actual))
 
   const historial = [
     entradaDeHistorial('registrada', entrada.usuarioId, {
-      detalle: [entrada.libro, entrada.capitulo && `cap. ${entrada.capitulo}`, entrada.paginas && `págs. ${entrada.paginas}`]
+      detalle: [
+        entrada.copiaDe && `copia de la ficha #${entrada.copiaDe}`,
+        entrada.libro,
+        entrada.capitulo && `cap. ${entrada.capitulo}`,
+        entrada.paginas && `págs. ${entrada.paginas}`,
+      ]
         .filter(Boolean)
         .join(' · '),
-      porcentaje: 0,
+      porcentaje: medida.porcentaje,
     }),
     ...(entrada.asignadaA ? [entradaDeHistorial('asignada', entrada.usuarioId)] : []),
   ]
@@ -183,9 +198,9 @@ export async function registrarParaRevision(
       original,
       palabrasOriginales: medida.palabrasOriginales,
       palabrasActuales: medida.palabrasActuales,
-      palabrasQuitadas: 0,
-      palabrasNuevas: 0,
-      porcentajeEditado: 0,
+      palabrasQuitadas: medida.palabrasQuitadas,
+      palabrasNuevas: medida.palabrasNuevas,
+      porcentajeEditado: medida.porcentaje,
       porSeccion: medida.porSeccion,
       historial,
     } as never,
@@ -365,6 +380,65 @@ export function segundosAdmisibles(ultimoLatido: unknown, ahora: number): number
   return Math.max(0, (ahora - antes) / 1000) + 5
 }
 
+/**
+ * El techo de un latido, mirando también a la cuenta y no solo a su sesión.
+ *
+ * `segundosAdmisibles` recorta por sesión, y la sesión la inventa el navegador:
+ * un identificador nuevo en cada llamada traía su minuto de primera fila cada
+ * vez, y una consola que llamara a `latidoDeRevision` en bucle se abonaba horas
+ * de revisión en segundos —justo lo que la alarma de «validación rápida»
+ * existe para notar, y por la puerta que su cabecera da por cerrada—. Sin
+ * trampa pasaba lo mismo a menor escala: dos pestañas abiertas contaban doble.
+ *
+ * Así que además nada puede pasar del tiempo real transcurrido desde el último
+ * latido **de la cuenta**, en cualquier ficha y cualquier sesión: una persona
+ * revisa una cosa a la vez. Este segundo techo va sin holgura a propósito. Los
+ * cinco segundos de `segundosAdmisibles` se pagan una vez por llamada, y
+ * repetidos a ráfagas volvían a ser la puerta abierta; lo que cuesta quitarlos
+ * es que un latido que llega antes de tiempo pierde esa fracción.
+ *
+ * Sin latido anterior de la cuenta, solo manda el de la sesión.
+ */
+export function techoDelLatido(
+  ultimoDeLaSesion: unknown,
+  ultimoDeLaCuenta: unknown,
+  ahora: number,
+): number {
+  const porSesion = segundosAdmisibles(ultimoDeLaSesion, ahora)
+  const antes = typeof ultimoDeLaCuenta === 'string' ? Date.parse(ultimoDeLaCuenta) : Number.NaN
+  if (Number.isNaN(antes)) return porSesion
+  return Math.min(porSesion, Math.max(0, (ahora - antes) / 1000))
+}
+
+/**
+ * Pone en fila los latidos de una misma cuenta.
+ *
+ * El techo de `techoDelLatido` lee el último latido y después escribe el suyo:
+ * dos llamadas a la vez leerían el mismo y se abonarían cada una el hueco
+ * entero, así que cien en paralelo valían cien veces el tiempo. En fila, cada
+ * una ve lo que escribió la anterior. De paso deja de chocar el primer latido
+ * doble de una sesión nueva contra el índice único de `sesion`.
+ *
+ * Vive en la memoria del proceso, como el freno de `src/lib/ritmo.ts` y por la
+ * misma razón: la plataforma corre en un solo proceso. Cuelga de `globalThis`
+ * para que dos copias del módulo no sean dos filas.
+ */
+const FILAS_DE_LATIDOS = Symbol.for('traumahub.latidosDeRevision')
+
+function enFilaDeLaCuenta<T>(usuarioId: string, tarea: () => Promise<T>): Promise<T> {
+  const global = globalThis as unknown as { [FILAS_DE_LATIDOS]?: Map<string, Promise<unknown>> }
+  const filas = (global[FILAS_DE_LATIDOS] ??= new Map())
+  const esta = (filas.get(usuarioId) ?? Promise.resolve()).then(tarea)
+  const cola = esta.catch(() => undefined)
+  filas.set(usuarioId, cola)
+  // La fila se borra al vaciarse, o el mapa guardaría una entrada por cuenta
+  // para siempre.
+  void cola.then(() => {
+    if (filas.get(usuarioId) === cola) filas.delete(usuarioId)
+  })
+  return esta
+}
+
 const acotar = (valor: unknown, techo: number): number =>
   typeof valor === 'number' && Number.isFinite(valor) ? Math.min(Math.max(0, Math.round(valor)), Math.floor(techo)) : 0
 
@@ -374,9 +448,17 @@ const acotar = (valor: unknown, techo: number): number =>
  * Devuelve `false` si la ficha no está en revisión: el editor lo manda igual y
  * no pasa nada. Una sesión que ya existe tiene que ser del mismo revisor y de
  * la misma ficha: si no, el identificador se está reutilizando para sumar
- * tiempo en otra parte, y se rechaza.
+ * tiempo en otra parte, y se rechaza. Lo que se abona sale de `techoDelLatido`,
+ * y los de una misma cuenta van en fila (`enFilaDeLaCuenta`).
  */
-export async function anotarLatido(
+export function anotarLatido(
+  payload: Payload,
+  entrada: Parameters<typeof anotarLatidoEnFila>[1],
+): Promise<boolean> {
+  return enFilaDeLaCuenta(entrada.usuarioId, () => anotarLatidoEnFila(payload, entrada))
+}
+
+async function anotarLatidoEnFila(
   payload: Payload,
   entrada: {
     esquema: EsquemaDeColeccion
@@ -409,8 +491,19 @@ export async function anotarLatido(
     throw new Error('Esa sesión de revisión es de otra ficha o de otra cuenta.')
   }
 
+  const { docs: ultimos } = await payload.find({
+    collection: 'sesiones-de-revision',
+    where: { usuario: { equals: entrada.usuarioId } },
+    sort: '-ultimoLatido',
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+    select: { ultimoLatido: true },
+  })
+  const ultimoDeLaCuenta = (ultimos[0] as unknown as Registro | undefined)?.ultimoLatido
+
   const ahora = Date.now()
-  const techo = segundosAdmisibles(existente?.ultimoLatido, ahora)
+  const techo = techoDelLatido(existente?.ultimoLatido, ultimoDeLaCuenta, ahora)
   const abiertos = acotar(entrada.abiertos, techo)
   const activos = acotar(entrada.activos, abiertos)
   // Solo secciones que existen en la ficha, y nunca más de lo activo en total.

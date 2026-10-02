@@ -13,12 +13,13 @@ import { MODULOS_EN_REVISION } from '@/lib/revision'
  * la segunda pregunta del dueño: el tiempo con la ficha abierta no basta, porque
  * una pestaña olvidada también está abierta.
  *
- * Sesión y no fila por revisor y ficha: dos pestañas de la misma ficha suman
- * cada una lo suyo sin pisarse, y la tabla guarda cuándo empezó cada vez, que
- * es lo que deja ver si alguien revisó cuarenta fichas en una tarde.
+ * Sesión y no fila por revisor y ficha: la tabla guarda cuándo empezó cada vez,
+ * que es lo que deja ver si alguien revisó cuarenta fichas en una tarde.
  *
  * El servidor no se fía de lo que manda el navegador: cada suma se recorta al
- * tiempo que de verdad pasó desde la anterior (`anotarLatido`). Se escribe solo
+ * tiempo que de verdad pasó desde el latido anterior de la sesión **y** de la
+ * cuenta (`techoDelLatido`), así que ni dos pestañas ni un identificador
+ * inventado por llamada suman más que el reloj. Se escribe solo
  * desde las acciones del panel; por REST, como `revisiones`, solo entra el
  * administrador.
  */

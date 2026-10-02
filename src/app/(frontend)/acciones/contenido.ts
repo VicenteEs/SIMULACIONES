@@ -37,8 +37,10 @@ import {
   anotarPublicacion,
   esModuloEnRevision,
   quitarDeRevision,
+  registrarParaRevision,
   revisionDe,
 } from '@/lib/revisionServidor'
+import type { OrigenDeContenido } from '@/lib/revision'
 
 /**
  * La revisión de una ficha, si está en revisión (D-142), sin que un fallo de su
@@ -613,11 +615,29 @@ export async function cambiarPublicacion(
   })
 }
 
+/**
+ * Lo que se le dice al editor que intenta borrar una ficha en revisión.
+ *
+ * Borrarla se lleva su revisión y su tiempo (`quitarDeRevision`), y con eso la
+ * única constancia de que llegó redactada por un modelo y de quién la tocó.
+ * Junto con `duplicarDocumento` era la salida del flujo de D-142: copiar la
+ * ficha, publicar la copia —que nacía sin revisión— y borrar la original.
+ */
+const MENSAJE_DE_BORRAR_EN_REVISION =
+  'Esta ficha está en revisión: solo un administrador puede eliminarla, porque con ella se borra su registro de revisión.'
+
 export async function eliminarDocumento(slug: unknown, id: unknown): Promise<Respuesta> {
   return accion(async () => {
     const esquema = esquemaValidado(slug)
     const { payload, usuario } = await exigirEdicionDe(esquema.slug)
     const idValido = exigirIdentificador(id, 'El documento')
+    // Cerrado si no se puede saber: un fallo de la tabla de revisiones no puede
+    // ser la puerta para borrar lo que está en ella. Al administrador no se le
+    // pregunta, como al publicar.
+    if (usuario.rol !== 'admin') {
+      const revision = await revisionSiSePuede(payload, esquema.slug, idValido, true)
+      if (revision) throw new Error(MENSAJE_DE_BORRAR_EN_REVISION)
+    }
     await payload.delete({
       collection: esquema.slug as never,
       id: idValido,
@@ -637,6 +657,13 @@ export async function eliminarDocumento(slug: unknown, id: unknown): Promise<Res
  * Escribir la segunda ficha de una serie —otro tipo de la misma clasificación,
  * otra maniobra del mismo segmento— es sobre todo cambiar detalles de la
  * primera. Sin esto, se hace copiando y pegando campo por campo.
+ *
+ * La copia de una ficha en revisión entra en revisión (D-142). Nacía sin ella,
+ * y eso era la salida del flujo entero: un editor duplicaba el texto que llegó
+ * del modelo, publicaba la copia —sin revisión no hay nada que se lo impida— y
+ * borraba la original. Hereda la procedencia, las notas, la asignación y la
+ * versión original de la otra, para que lo editado se siga midiendo contra lo
+ * que escribió el modelo y no contra la copia.
  */
 export async function duplicarDocumento(
   slug: unknown,
@@ -645,11 +672,18 @@ export async function duplicarDocumento(
   return accion(async () => {
     const esquema = esquemaValidado(slug)
     if (esquema.subida) throw new Error('Un archivo subido no se duplica; súbalo otra vez.')
-    const { payload, usuario } = await exigirEdicionDe(esquema.slug)
+    const { payload, usuario, usuarioId } = await exigirEdicionDe(esquema.slug)
+    const idOriginal = exigirIdentificador(id, 'El documento')
+
+    // Cerrado si no se puede saber, como al publicar: una copia que tendría
+    // que estar en revisión y no lo está es la misma puerta abierta.
+    const revision = esModuloEnRevision(esquema.slug)
+      ? await revisionSiSePuede(payload, esquema.slug, idOriginal, true)
+      : null
 
     const original = (await payload.findByID({
       collection: esquema.slug as never,
-      id: exigirIdentificador(id, 'El documento'),
+      id: idOriginal,
       depth: 0,
       draft: true,
       overrideAccess: true,
@@ -667,9 +701,50 @@ export async function duplicarDocumento(
       user: usuario as never,
       ...(esquema.versionada ? { draft: true } : {}),
     })
+    const idCopia = String((creado as { id: unknown }).id)
+
+    if (revision) {
+      try {
+        const conOriginal = await revisionDe(payload, esquema.slug, idOriginal, { conOriginal: true })
+        const texto = (valor: unknown) => (typeof valor === 'string' && valor !== '' ? valor : undefined)
+        const asignada = revision.asignadaA
+        await registrarParaRevision(payload, {
+          coleccion: esquema.slug,
+          documentoId: idCopia,
+          usuarioId,
+          origen: revision.origen as OrigenDeContenido | undefined,
+          libro: texto(revision.libro),
+          capitulo: texto(revision.capitulo),
+          paginas: texto(revision.paginas),
+          lote: texto(revision.lote),
+          modelo: texto(revision.modelo),
+          archivoFuente: texto(revision.archivoFuente),
+          notasParaElRevisor: Array.isArray(revision.notasParaElRevisor)
+            ? (revision.notasParaElRevisor as unknown[]).filter((n): n is string => typeof n === 'string')
+            : undefined,
+          asignadaA:
+            asignada === null || asignada === undefined
+              ? null
+              : String(typeof asignada === 'object' ? (asignada as { id: unknown }).id : asignada),
+          original: (conOriginal?.original as Record<string, unknown> | undefined) ?? undefined,
+          copiaDe: idOriginal,
+        })
+      } catch (error) {
+        // Sin su revisión la copia es la puerta que esto cierra: se borra, y el
+        // fallo sube. Con `overrideAccess` porque quien la acaba de crear es
+        // quien llama, y el borrado no puede depender de nada más.
+        await payload
+          .delete({ collection: esquema.slug as never, id: idCopia, overrideAccess: true })
+          .catch((fallo: unknown) => console.error('[revision] no se pudo borrar la copia sin revisión:', fallo))
+        console.error('[revision] no se pudo meter en revisión la copia:', error)
+        throw new Error('No se pudo duplicar: la copia de una ficha en revisión tiene que entrar en revisión, y eso falló.')
+      }
+      revalidatePath('/admin-panel/revision')
+      revalidatePath('/admin-panel/auditoria')
+    }
 
     revalidatePath(rutaDeLista(esquema.slug))
-    return { id: String((creado as { id: unknown }).id) }
+    return { id: idCopia }
   })
 }
 

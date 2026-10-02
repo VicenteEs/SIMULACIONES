@@ -264,40 +264,74 @@ export async function sacarDeRevision(coleccion: unknown, id: unknown): Promise<
  * gesto que se hace de una en una, desde la ficha, y con la pregunta delante.
  * Se escribe como el «Publicar» del listado (`cambiarPublicacion`): `_status`
  * con `draft: false`, que publica el último borrador.
+ *
+ * Una ficha que falla no para a las demás, y se cuenta. Antes el primer fallo
+ * salía por `accion()` como un error a secas: las publicadas hasta ahí quedaban
+ * publicadas, la pantalla decía que no se había podido y no se refrescaba nada,
+ * así que el administrador no sabía cuáles ya leían los residentes. Lo que
+ * llega mal formado sí se rechaza entero, y antes de escribir nada.
  */
 export async function publicarValidadas(
   fichas: unknown,
-): Promise<Respuesta<{ publicadas: number; saltadas: number }>> {
+): Promise<
+  Respuesta<{
+    publicadas: number
+    saltadas: number
+    fallidas: { coleccion: string; id: string; motivo: string }[]
+  }>
+> {
   return accion(async () => {
     const { payload, usuario, usuarioId } = await exigirAdmin()
     if (!Array.isArray(fichas) || fichas.length === 0) throw new Error('No se eligió ninguna ficha.')
     if (fichas.length > 500) throw new Error('Demasiadas fichas de una vez: publique de quinientas en quinientas.')
+    const limpias = fichas.map((ficha) => {
+      const registro = (ficha ?? {}) as Record<string, unknown>
+      return {
+        slug: moduloValidado(registro.coleccion),
+        documentoId: exigirIdentificador(registro.id, 'La ficha'),
+      }
+    })
     let publicadas = 0
     let saltadas = 0
+    const fallidas: { coleccion: string; id: string; motivo: string }[] = []
     const tocadas = new Set<string>()
-    for (const ficha of fichas) {
-      const registro = (ficha ?? {}) as Record<string, unknown>
-      const slug = moduloValidado(registro.coleccion)
-      const documentoId = exigirIdentificador(registro.id, 'La ficha')
-      const revision = await revisionDe(payload, slug, documentoId)
-      if (!revision || revision.estado !== 'lista') {
-        saltadas += 1
-        continue
+    try {
+      for (const { slug, documentoId } of limpias) {
+        // Publicada pero sin anotar no es lo mismo que sin publicar: los
+        // residentes ya la leen, y decir que falló mandaría a publicarla otra vez.
+        let publicada = false
+        try {
+          const revision = await revisionDe(payload, slug, documentoId)
+          if (!revision || revision.estado !== 'lista') {
+            saltadas += 1
+            continue
+          }
+          await payload.update({
+            collection: slug as never,
+            id: documentoId,
+            data: { _status: 'published' } as never,
+            draft: false,
+            user: usuario as never,
+          })
+          publicada = true
+          publicadas += 1
+          tocadas.add(slug)
+          await anotarPublicacion(payload, { coleccion: slug, documentoId, usuarioId, publicar: true })
+        } catch (error) {
+          console.error(`[revision] no se pudo publicar ${slug} #${documentoId}:`, error)
+          const detalle = error instanceof Error && error.message ? error.message : 'Error inesperado.'
+          fallidas.push({
+            coleccion: slug,
+            id: documentoId,
+            motivo: publicada ? `Se publicó, pero la revisión no lo anotó: ${detalle}` : detalle,
+          })
+        }
       }
-      await payload.update({
-        collection: slug as never,
-        id: documentoId,
-        data: { _status: 'published' } as never,
-        draft: false,
-        user: usuario as never,
-      })
-      await anotarPublicacion(payload, { coleccion: slug, documentoId, usuarioId, publicar: true })
-      publicadas += 1
-      tocadas.add(slug)
+    } finally {
+      for (const slug of tocadas) revalidar(slug)
+      if (tocadas.size === 0) revalidar()
     }
-    for (const slug of tocadas) revalidar(slug)
-    if (tocadas.size === 0) revalidar()
-    return { publicadas, saltadas }
+    return { publicadas, saltadas, fallidas }
   })
 }
 

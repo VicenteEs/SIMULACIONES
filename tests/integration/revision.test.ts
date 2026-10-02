@@ -161,6 +161,31 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
     ).rejects.toThrow(/otra ficha o de otra cuenta/)
   })
 
+  it('ni sesiones inventadas ni latidos en paralelo suman más que el reloj', async () => {
+    // O-069: cada identificador nuevo traía su minuto de primera fila, y una
+    // consola en bucle se abonaba horas. Ahora manda el último latido de la
+    // cuenta, y los de una misma cuenta van en fila.
+    const antes = (await servidor.tiempoDe(payload, 'patologias', fichaId, editorId)).segundosActivos
+    const inicio = Date.now()
+    const latir = (n: number) =>
+      servidor.anotarLatido(payload, {
+        esquema: Patologias,
+        documentoId: fichaId,
+        usuarioId: editorId,
+        sesion: `${marca}-rafaga-${n}`,
+        abiertos: 60,
+        activos: 60,
+        porSeccion: {},
+        ediciones: 0,
+      })
+    for (let n = 0; n < 10; n++) await latir(n)
+    await Promise.all(Array.from({ length: 10 }, (_, n) => latir(10 + n)))
+    const ganado = (await servidor.tiempoDe(payload, 'patologias', fichaId, editorId)).segundosActivos - antes
+    // Lo que pasó desde el latido anterior de la prueba de arriba, más lo que
+    // tardó esta: unos pocos segundos, nunca los veinte minutos pedidos.
+    expect(ganado).toBeLessThanOrEqual(Math.ceil((Date.now() - inicio) / 1000) + 5)
+  })
+
   it('cada guardado mide cuánto se editó contra el original', async () => {
     const editado = depurarDocumento(Patologias, documentoCon('Reducción abierta y placa bloqueada de compresión.'))
     await payload.update({

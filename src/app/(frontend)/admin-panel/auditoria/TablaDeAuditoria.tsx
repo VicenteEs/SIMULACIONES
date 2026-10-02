@@ -129,7 +129,9 @@ export function TablaDeAuditoria({
 
   const enBloque = (
     tarea: () => Promise<{ exito: boolean; mensaje?: string; datos?: unknown }>,
-    hecho: (datos: unknown) => string,
+    // Un texto es un éxito entero; con `tipo`, quien llama decide, porque un
+    // lote puede salir a medias y eso no se pinta en verde.
+    hecho: (datos: unknown) => string | { tipo: 'ok' | 'error'; texto: string },
   ) => {
     setAviso(null)
     iniciar(async () => {
@@ -139,7 +141,8 @@ export function TablaDeAuditoria({
           setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo completar.' })
           return
         }
-        setAviso({ tipo: 'ok', texto: hecho(r.datos) })
+        const resultado = hecho(r.datos)
+        setAviso(typeof resultado === 'string' ? { tipo: 'ok', texto: resultado } : resultado)
         setElegidas(new Set())
         router.refresh()
       } catch (fallo) {
@@ -216,8 +219,22 @@ export function TablaDeAuditoria({
             enBloque(
               () => publicarValidadas(seleccion.map((f) => ({ coleccion: f.coleccion, id: f.documentoId }))),
               (datos) => {
-                const d = (datos ?? {}) as { publicadas?: number; saltadas?: number }
-                return `${d.publicadas ?? 0} publicada${d.publicadas === 1 ? '' : 's'}${d.saltadas ? `; ${d.saltadas} saltada${d.saltadas === 1 ? '' : 's'} por no estar validada${d.saltadas === 1 ? '' : 's'}` : ''}.`
+                const d = (datos ?? {}) as {
+                  publicadas?: number
+                  saltadas?: number
+                  fallidas?: { coleccion: string; id: string; motivo: string }[]
+                }
+                const texto = `${d.publicadas ?? 0} publicada${d.publicadas === 1 ? '' : 's'}${d.saltadas ? `; ${d.saltadas} saltada${d.saltadas === 1 ? '' : 's'} por no estar validada${d.saltadas === 1 ? '' : 's'}` : ''}.`
+                const fallidas = d.fallidas ?? []
+                if (fallidas.length === 0) return texto
+                const titulo = (f: { coleccion: string; id: string }) =>
+                  filas.find((x) => x.coleccion === f.coleccion && x.documentoId === f.id)?.titulo ?? `#${f.id}`
+                return {
+                  tipo: 'error',
+                  texto:
+                    `${texto} ${fallidas.length} no se ${fallidas.length === 1 ? 'pudo' : 'pudieron'} publicar: ` +
+                    fallidas.map((f) => `«${titulo(f)}» (${f.motivo})`).join('; '),
+                }
               },
             )
           }}
