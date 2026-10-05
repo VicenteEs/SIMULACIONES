@@ -19,6 +19,13 @@ import {
 } from '@/atlas/formato'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import { useConfirmar } from '@/components/ui/Confirmar'
+import {
+  INTERVALO_DE_AUTOGUARDADO_MS,
+  debeAvisarDelFallo,
+  debeRefrescarLaLista,
+  motivoParaNoAutoguardar,
+} from '@/lib/autoguardadoDelTaller'
+import { horaDe } from '@/lib/guardadoAutomatico'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import type { ResultadoDelRecorte } from '@/atlas/recorte'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
@@ -382,7 +389,7 @@ export function TallerDeAtlas() {
   // dos trabajos largos: mientras se exportaba —que son decenas de megabytes
   // leídos del disco— el botón principal ponía «Guardando…» sin estar
   // guardando nada.
-  const [trabajo, setTrabajo] = useState<'guardar' | 'exportar' | null>(null)
+  const [trabajo, setTrabajo] = useState<'guardar' | 'exportar' | 'auto' | null>(null)
 
   // --- exportar la preparación como modelo de un caso -----------------------
   //
@@ -509,7 +516,14 @@ export function TallerDeAtlas() {
     [transformaciones],
   )
 
-  const sucio =
+  /**
+   * Lo que cambió del trabajo en sí, sin contar el nombre ni la descripción.
+   *
+   * Aparte de `sucio` porque el «Cuerpo» base se guarda como copia solo cuando
+   * se le hizo algo: teclear un nombre sobre el cuerpo intacto no es un motivo
+   * para crear una preparación igual que el original.
+   */
+  const contenidoCambiado =
     catalogo !== null &&
     (clavePiezas !== referencia.piezas ||
       claveApagados !== referencia.apagados ||
@@ -517,9 +531,12 @@ export function TallerDeAtlas() {
       claveCortes !== referencia.cortes ||
       claveAspectos !== referencia.aspectos ||
       claveApuntes !== referencia.apuntes ||
-      nombre.trim() !== referencia.nombre ||
-      descripcion.trim() !== referencia.descripcion ||
       separacion !== referencia.vista.separacion)
+
+  const sucio =
+    contenidoCambiado ||
+    (catalogo !== null &&
+      (nombre.trim() !== referencia.nombre || descripcion.trim() !== referencia.descripcion))
 
   /**
    * Si la cámara se ha movido desde la referencia, anotado para poder pintarlo.
@@ -542,6 +559,52 @@ export function TallerDeAtlas() {
    * de fiarse de esta copia.
    */
   const hayQueAvisar = sucio || camaraMovida
+
+  // --- «Cuerpo» base y guardado automático ----------------------------------
+  //
+  // «Cuerpo» es el punto de partida de toda preparación y **no se guarda nunca**:
+  // no es una fila de la base, es el atlas entero encendido. Lo que se le haga
+  // solo puede terminar como una copia con nombre, que es lo que pedía quien
+  // trabaja aquí —«que cuerpo me sirva para la próxima»—. No hay manera de
+  // pisarlo, porque guardar sin `instancia` crea una preparación nueva.
+  //
+  // Se está sobre la base mientras no haya preparación abierta, ni modelo
+  // abierto, ni nombre puesto. En cuanto se nombra, ya es una copia.
+  const esBase = instancia === null && modeloAbierto === null && nombre.trim() === ''
+
+  /**
+   * Si el trabajo de ahora es de los que se guardan solos.
+   *
+   * Una preparación ya guardada se guarda con cualquier cambio, también del
+   * encuadre. Una copia que aún no existe, solo cuando se le hizo algo al
+   * cuerpo: ver `contenidoCambiado`.
+   */
+  const pendienteDeGuardar = hayQueAvisar && (instancia !== null || contenidoCambiado)
+
+  const motivoSinGuardar = motivoParaNoAutoguardar({
+    listo: catalogo !== null,
+    hayCambios: pendienteDeGuardar,
+    nombre,
+    piezas: visibles.size,
+    ocupado: enCurso,
+  })
+  /** El recuadro que le pide un nombre a quien modificó el «Cuerpo». */
+  const pideNombre = motivoSinGuardar === 'sin-nombre'
+
+  const [ultimoAutoguardado, setUltimoAutoguardado] = useState<Date | null>(null)
+  /** Si ya se avisó del fallo en curso: con un aviso por intento, cada cinco segundos, llenaba la pantalla. */
+  const falloDeAutoguardadoAvisado = useRef(false)
+  /**
+   * Borra lo que el autoguardado recuerda de la preparación anterior.
+   *
+   * Al abrir otra cosa, «guardado solo a las 19:04» seguía en la cabecera
+   * hablando de lo que ya no está en pantalla, y un fallo avisado de antes
+   * callaba el primer fallo de la preparación nueva.
+   */
+  const reiniciarElAutoguardado = () => {
+    setUltimoAutoguardado(null)
+    falloDeAutoguardadoAvisado.current = false
+  }
 
   /** Toma el estado de ahora como «lo guardado»: nada que perder. */
   const fijarReferencia = useCallback(
@@ -1255,6 +1318,7 @@ export function TallerDeAtlas() {
     fijarReferencia(todas, '', '', vista)
     limpiarExportacion()
     setAviso(null)
+    reiniciarElAutoguardado()
   }
 
   /**
@@ -1295,6 +1359,7 @@ export function TallerDeAtlas() {
     // cambio, y sin esto saltaba «cambios sin guardar» —y su cartel, que empuja
     // el lienzo— antes de haber tocado nada.
     fijarReferencia(piezas, modelo.nombre, '', vista)
+    reiniciarElAutoguardado()
   }
 
   const abrir = async (id: string) => {
@@ -1386,6 +1451,7 @@ export function TallerDeAtlas() {
           [marcasAbiertas, vistasAbiertas, gruposAbiertos],
           apagadosAbiertos,
         )
+        reiniciarElAutoguardado()
         if (r.datos.perdidas.length > 0) {
           setAviso({
             tipo: 'error',
@@ -1402,17 +1468,44 @@ export function TallerDeAtlas() {
     })
   }
 
-  const guardar = () => {
+  /**
+   * Guarda la preparación. Con `automatico` es el guardado de cada cinco
+   * segundos (ver `src/lib/autoguardadoDelTaller.ts`) y se calla lo que el
+   * botón dice a voces:
+   *
+   *   - Sin nombre o sin piezas no avisa de nada: el intervalo ya decidió que
+   *     tocaba, y quien no quiere nombre es el «Cuerpo» base, al que el recuadro
+   *     de arriba ya le pide uno.
+   *   - No pinta «Guardada con N piezas»: cada cinco segundos sería ruido, y la
+   *     hora del último guardado ya está en la cabecera.
+   *   - Un fallo se avisa una vez y no en cada reintento.
+   *   - No refresca la lista en cada vuelta, solo cuando cambia lo que enseña.
+   *
+   * Lo demás —lo que se manda, la referencia que se fija, que lo guardado deja
+   * de ser «sucio»— es lo mismo que con el botón, a propósito: un guardado
+   * automático que guardara otra cosa dejaría dos caminos que divergen.
+   */
+  const guardar = (opciones: { automatico?: boolean } = {}) => {
+    const automatico = opciones.automatico === true
     if (!nombre.trim()) {
-      setAviso({ tipo: 'error', texto: 'Póngale un nombre a la preparación.' })
+      if (!automatico) {
+        setAviso({
+          tipo: 'error',
+          texto: esBase
+            ? 'Póngale un nombre a la copia: «Cuerpo» no se modifica, lo que guarde será una preparación nueva.'
+            : 'Póngale un nombre a la preparación.',
+        })
+      }
       return
     }
     if (visibles.size === 0) {
-      setAviso({ tipo: 'error', texto: 'No queda ninguna pieza encendida.' })
+      if (!automatico) setAviso({ tipo: 'error', texto: 'No queda ninguna pieza encendida.' })
       return
     }
-    setAviso(null)
-    setTrabajo('guardar')
+    if (!automatico) setAviso(null)
+    setTrabajo(automatico ? 'auto' : 'guardar')
+    const eraNueva = instancia === null
+    const nombreGuardado = referencia.nombre
 
     iniciar(async () => {
       // La misma vista se manda y se congela como referencia. Leerla dos veces
@@ -1459,9 +1552,13 @@ export function TallerDeAtlas() {
           vista,
         })
         if (!r.exito || !r.datos) {
-          setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo guardar.' })
+          if (!automatico || debeAvisarDelFallo(falloDeAutoguardadoAvisado.current)) {
+            setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo guardar.' })
+          }
+          if (automatico) falloDeAutoguardadoAvisado.current = true
           return
         }
+        falloDeAutoguardadoAvisado.current = false
         setInstancia(r.datos.id)
         // Lo recién guardado pasa a ser la referencia: ya no hay nada que
         // perder.
@@ -1476,21 +1573,56 @@ export function TallerDeAtlas() {
           [marcas, vistas, grupos],
           apagados,
         )
-        setAviso({
-          tipo: 'ok',
-          texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
-        })
-        refrescarLista()
+        if (automatico) {
+          setUltimoAutoguardado(new Date())
+          if (debeRefrescarLaLista(eraNueva, nombreGuardado, nombre)) refrescarLista()
+        } else {
+          setAviso({
+            tipo: 'ok',
+            texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
+          })
+          refrescarLista()
+        }
       } catch {
         // Es el peor sitio donde callar: sin aviso, el botón vuelve a decir
         // «Guardar preparación», la insignia de cambios sin guardar sigue
         // puesta y las dos cosas juntas se leen como que ya está hecho. La
         // referencia no se toca, así que el aviso de cerrar la pestaña sigue en
         // pie y lo de pantalla se puede volver a guardar tal cual.
-        setAviso({ tipo: 'error', texto: FALLO_DE_TRANSPORTE })
+        if (!automatico || debeAvisarDelFallo(falloDeAutoguardadoAvisado.current)) {
+          setAviso({ tipo: 'error', texto: FALLO_DE_TRANSPORTE })
+        }
+        if (automatico) falloDeAutoguardadoAvisado.current = true
       }
     })
   }
+
+  // El guardado automático. Cada cinco segundos se mira si toca y, si toca, se
+  // guarda por el mismo camino que el botón.
+  //
+  // El intervalo se monta una vez y lee del ref el estado y el `guardar` de
+  // este pintado: con ellos en las dependencias se desmontaba y volvía a
+  // montarse con cada gesto, y el reloj de los cinco segundos no llegaba nunca
+  // a cumplirse mientras se seguía apagando piezas. Es el mismo arreglo que
+  // `hayAlgoQuePerder`, y por la misma razón se refresca en un efecto y no al
+  // pintar: escribir en un ref durante el pintado rompe con el pintado
+  // concurrente.
+  const autoguardado = useRef<{ toca: boolean; guardar: () => void }>({
+    toca: false,
+    guardar: () => {},
+  })
+  useEffect(() => {
+    autoguardado.current = {
+      toca: motivoSinGuardar === null,
+      guardar: () => guardar({ automatico: true }),
+    }
+  })
+  useEffect(() => {
+    const reloj = setInterval(() => {
+      if (autoguardado.current.toca) autoguardado.current.guardar()
+    }, INTERVALO_DE_AUTOGUARDADO_MS)
+    return () => clearInterval(reloj)
+  }, [])
 
   /**
    * Escribe la preparación como un modelo 3D de la biblioteca.
@@ -1831,13 +1963,31 @@ export function TallerDeAtlas() {
           <h1 className="admin-title">Taller anatómico</h1>
           <p className="admin-subtitle">
             {catalogo.piezas.length} piezas · {catalogo.sujeto}
-            {instancia ? ' · editando una preparación guardada' : ' · preparación nueva'}
-            {hayQueAvisar ? <span className="editor-sucio"> · cambios sin guardar</span> : null}
+            {instancia
+              ? ` · editando «${nombre.trim() || 'sin nombre'}»`
+              : modeloAbierto
+                ? ' · copia nueva desde un modelo'
+                : esBase
+                  ? ' · «Cuerpo» (base)'
+                  : ' · copia nueva de «Cuerpo»'}
+            {hayQueAvisar ? (
+              <span className="editor-sucio">
+                {' · '}
+                {motivoSinGuardar === null || motivoSinGuardar === 'ocupado'
+                  ? 'guardando…'
+                  : 'cambios sin guardar'}
+              </span>
+            ) : ultimoAutoguardado ? (
+              <span className="atlas-autoguardado">
+                {' · guardado a las '}
+                {horaDe(ultimoAutoguardado.getTime())}
+              </span>
+            ) : null}
           </p>
         </div>
         <div className="admin-acciones">
           <button className="admin-btn admin-btn-secondary" onClick={() => empezarDeCero()}>
-            Cuerpo completo
+            Volver a «Cuerpo»
           </button>
           <button
             className="admin-btn admin-btn-secondary"
@@ -1859,7 +2009,7 @@ export function TallerDeAtlas() {
           >
             {panelExportar ? 'Cerrar exportación' : 'Exportar como modelo'}
           </button>
-          <button className="admin-btn admin-btn-primary" disabled={enCurso} onClick={guardar}>
+          <button className="admin-btn admin-btn-primary" disabled={enCurso} onClick={() => guardar()}>
             {enCurso && trabajo === 'guardar'
               ? 'Guardando…'
               : instancia
@@ -2134,13 +2284,35 @@ export function TallerDeAtlas() {
         ) : null}
       </div>
 
-      {hayQueAvisar ? (
-        <div className="admin-aviso admin-aviso-atencion" role="status">
-          <strong>Hay cambios sin guardar.</strong> Lo que apague o encienda aquí, y el encuadre
-          que le busque al modelo, no quedan en ninguna parte hasta que pulse{' '}
-          <em>{instancia ? 'Guardar cambios' : 'Guardar preparación'}</em>. Cerrar la pestaña,
-          volver al cuerpo completo o abrir otra preparación se lo llevará.
-        </div>
+      {/* Tres casos, y en dos de ellos el aviso ya no hace falta:
+          - Con nombre, el trabajo se guarda solo cada cinco segundos: la
+            cabecera dice «guardando…» y el recuadro sobra.
+          - Sin nombre —el «Cuerpo» recién modificado— no hay nada que guardar
+            todavía, y es el único momento en que sí se le pide algo a quien
+            trabaja: un nombre, para que lo que haga sea una copia.
+          - Sin ninguna pieza encendida tampoco se guarda, y se dice por qué.
+          Lo de que `hayQueAvisar` mande aquí y en la cabecera lo vigila
+          `tests/unit/tallerDeAtlas.test.ts`: la cámara también cuenta. */}
+      {hayQueAvisar && (pideNombre || motivoSinGuardar === 'sin-piezas') ? (
+        pideNombre ? (
+          <div className="admin-aviso admin-aviso-atencion atlas-aviso-nombre" role="status">
+            <strong>Está modificando «Cuerpo», la base del taller.</strong> «Cuerpo» no se guarda
+            sobre sí mismo: póngale un nombre y lo que haga se guardará como una copia, cada
+            cinco segundos, y «Cuerpo» seguirá intacto para la próxima.
+            <input
+              className="campo-control"
+              placeholder="Nombre de la copia: «Mano derecha»"
+              aria-label="Nombre de la copia"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+            />
+          </div>
+        ) : (
+          <div className="admin-aviso admin-aviso-atencion" role="status">
+            <strong>No queda ninguna pieza encendida.</strong> Una preparación vacía no se guarda:
+            encienda alguna pieza, o deshaga con Ctrl + Z.
+          </div>
+        )
       ) : null}
       </div>
 
@@ -2498,7 +2670,7 @@ export function TallerDeAtlas() {
         <aside className="atlas-panel atlas-panel-derecho">
           <div className="atlas-ficha">
             <label className="campo-etiqueta" htmlFor="atlas-nombre">
-              Nombre de la preparación *
+              {esBase || !instancia ? 'Nombre de la copia *' : 'Nombre de la preparación *'}
             </label>
             <input
               id="atlas-nombre"
@@ -2521,8 +2693,8 @@ export function TallerDeAtlas() {
 
             <p className="campo-ayuda">
               Se guardan las piezas encendidas, lo que se hayan movido o girado y el encuadre de la
-              cámara. El atlas
-              original no se toca: lo que apague aquí se puede volver a encender siempre.
+              cámara. Con nombre, se guarda sola cada cinco segundos. «Cuerpo» y el atlas original
+              no se tocan nunca: lo que apague aquí se puede volver a encender siempre.
             </p>
           </div>
 
@@ -2746,8 +2918,22 @@ export function TallerDeAtlas() {
             </div>
           ) : null}
 
+          {/* «Cuerpo», siempre el primero y siempre el mismo: la base de la que
+              sale toda preparación. No es una fila de la base de datos, así
+              que no se duplica ni se elimina; abrirlo es volver al cuerpo
+              entero y sin nombre, y lo que se haga a partir de ahí se guarda
+              como una copia. */}
+          <ul className="atlas-guardadas atlas-base">
+            <li className={esBase ? 'atlas-guardada-activa' : ''}>
+              <button type="button" className="atlas-guardada-abrir" onClick={() => empezarDeCero()}>
+                <strong>Cuerpo</strong>
+                <span>Base · {catalogo.piezas.length} piezas · no se modifica</span>
+              </button>
+            </li>
+          </ul>
+
           {guardadas.length === 0 && !listaFallo ? (
-            <p className="atlas-vacio">Todavía no hay ninguna.</p>
+            <p className="atlas-vacio">Todavía no hay ninguna copia guardada.</p>
           ) : null}
 
           {guardadas.length > 0 ? (

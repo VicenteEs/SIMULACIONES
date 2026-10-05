@@ -1215,6 +1215,23 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 }
 
 .atlas-ejes { display: flex; gap: var(--e-1); }
+/* El selector «En pantalla / Todo el atlas» del árbol: usa los mismos botones
+   que «Por región / Por sistema», con un poco de aire entre las dos filas. */
+.atlas-modo { margin-top: var(--e-1); }
+.atlas-modo-ayuda {
+  margin: var(--e-1) 0 0;
+  font-size: var(--t-xs);
+  line-height: 1.4;
+  color: var(--mudo);
+}
+/* El recuadro que pide el nombre de la copia flota con los demás avisos, y lleva
+   su campo dentro: tiene que poder recibir el ratón, que el contenedor de los
+   avisos deja pasar al lienzo. */
+.atlas-aviso-nombre { display: flex; flex-direction: column; gap: var(--e-2); }
+.atlas-aviso-nombre .campo-control { margin-top: var(--e-1); }
+.atlas-autoguardado { color: var(--verde); font-weight: 600; }
+.atlas-base { margin-bottom: var(--e-2); }
+
 
 .atlas-ejes button {
   flex: 1;

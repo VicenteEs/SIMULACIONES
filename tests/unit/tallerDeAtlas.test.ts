@@ -82,8 +82,12 @@ describe('el taller del atlas y el trabajo sin guardar', () => {
     // El encuadre **se guarda** —`guardar()` escribe la cámara— y es
     // exactamente lo que el residente ve al abrir la ficha.
     expect(expresionDe('hayQueAvisar')).toContain('camaraMovida')
-    expect(fuente).toContain('{hayQueAvisar ? <span className="editor-sucio">')
-    expect(fuente).toContain('{hayQueAvisar ? (')
+    // La insignia de la cabecera y el recuadro cuelgan de `hayQueAvisar`. Con el
+    // guardado automático la insignia dice «guardando…» cuando se guarda sola y
+    // el recuadro solo sale cuando hay que pedir algo (un nombre, una pieza):
+    // por eso ya no son una sola línea, pero siguen colgando de lo mismo.
+    expect(fuente).toMatch(/\{hayQueAvisar \? \(\s*<span className="editor-sucio">/)
+    expect(fuente).toMatch(/\{hayQueAvisar && \(/)
     // Y ninguno de los dos vuelve a colgar solo de `sucio`.
     expect(fuente).not.toContain('{sucio ?')
   })

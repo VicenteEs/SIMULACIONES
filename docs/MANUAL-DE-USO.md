@@ -275,6 +275,19 @@ el bloque «Preparación anatómica».
 4. «Frente», «Lateral», «Superior» (teclas 1, 3 y 7) y «Centrar» (el punto)
    colocan la cámara. «Encuadrar» centra todo lo que quedó.
 
+**«Cuerpo» y las copias.** El taller abre en «Cuerpo», el cuerpo entero, que es
+la base de todo y no se modifica nunca. En cuanto le haga algo, un recuadro le
+pide un nombre: lo que haga se guarda como una copia con ese nombre, y «Cuerpo»
+queda intacto para la próxima. Con nombre, la preparación **se guarda sola cada
+cinco segundos** y la cabecera lo dice («guardado a las…»). «Volver a “Cuerpo”»
+y la entrada «Cuerpo» de «Preparaciones guardadas» vuelven a empezar.
+
+**La lista de piezas.** Por omisión muestra **«En pantalla»**: solo lo que está
+encendido. Si se queda con la mano, el grupo «Músculos» son los músculos de la
+mano, y su casilla no enciende los del resto del cuerpo. Lo que apague sale de la
+lista (Ctrl + Z lo devuelve). Para traer algo que ya no está, mire **«Todo el
+atlas»**.
+
 ### Abrir un modelo 3D en el taller
 
 En el panel derecho, bajo el nombre, está la lista **«Modelos 3D»** con todos los

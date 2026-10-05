@@ -4369,6 +4369,46 @@ hay varias instancias detrás del proxy**, cada una verá solo a quien le cayó 
 la banda dirá la mitad: hará falta un almacén compartido. Un reinicio la borra y
 se rehace en el siguiente latido. No cambia el esquema ni hay migración.
 
+### D-152 · 2026-10-05 · vigente
+**El taller anatómico abre en «Cuerpo», guarda solo y lista lo que está en pantalla.**
+Tres pedidos del dueño sobre el taller: que abra con «Cuerpo» como base de la que
+salen las demás preparaciones y que editarlo pida un nombre y guarde una *copia*
+(«para que cuerpo me sirva para la próxima»); que se guarde cada cinco segundos
+para que el aviso de «cambios sin guardar» desaparezca; y que el árbol deje de
+encender los músculos de todo el cuerpo cuando, quedándose con la mano, se apaga
+un músculo y se pulsa el grupo.
+*La causa del árbol.* Cada casilla de grupo («Músculos») actuaba sobre todas las
+piezas del atlas de ese grupo, no sobre las encendidas: con la mano sola, el grupo
+estaba «a medias» respecto del catálogo entero y pulsarlo lo completaba. Ahora la
+lista es el catálogo reducido a lo encendido (`src/atlas/enPantalla.ts`), y un
+grupo no tiene nada fuera de pantalla que encender; su casilla solo puede apagar.
+Comprobado en el navegador con la pierna sola (124 piezas): apagar un músculo deja
+123, pulsar «Músculos» apaga los 47 restantes (76 en pantalla) y nunca sube a 2.230.
+*Qué es «Cuerpo».* No es una fila de la base de datos: es el atlas entero
+encendido y sin nombre, y por eso no se puede pisar —guardar sin preparación
+abierta crea una nueva—. Se está «sobre la base» mientras no haya preparación,
+modelo ni nombre. Al modificarlo sale un recuadro con un campo de nombre; sin
+nombre no se guarda nada. «Cuerpo» es además la primera entrada fija de
+«Preparaciones guardadas», sin «Duplicar» ni «Eliminar».
+*El guardado automático.* Cada 5 s se mira si toca (`src/lib/autoguardadoDelTaller.ts`,
+con pruebas) y se guarda por el mismo camino que el botón, sin su aviso de éxito;
+un fallo se avisa una sola vez, y la lista de preparaciones solo se refresca
+cuando nace la copia o cambia el nombre. Una copia nueva se crea solo cuando se le
+hizo algo al cuerpo, no por teclear un nombre sobre el cuerpo intacto. El
+recuadro de «cambios sin guardar» ya no sale con nombre (la cabecera dice
+«guardando…» y luego «guardado a las HH:MM»): solo se queda para lo que hay que
+pedir, el nombre o una pieza encendida.
+*Consecuencias buenas.* «Cuerpo» sirve siempre de punto de partida; el trabajo con
+nombre no se pierde con una pestaña cerrada o un corte de red; y el árbol ya no
+sorprende. *Malas, y la primera es importante.* Una preparación que ya está
+insertada en una ficha **publicada** se actualiza en esa ficha cada vez que se
+guarda, también solo y a mitad de una edición: el residente puede ver la
+preparación a medio hacer. Si hace falta trabajar sin tocar lo publicado, se
+duplica primero («Duplicar») y se edita la copia. Lo que se apaga sale de la
+lista y se recupera con Ctrl + Z o con «Todo el atlas» (selector nuevo,
+«En pantalla» de entrada). El trabajo sin nombre sigue sin guardarse solo: una
+pestaña cerrada se lo lleva, con el aviso de siempre.
+
 ## 3. Observaciones
 
 Formato: `O-nnn · fecha · severidad · estado`. Severidad: **alta**, **media**, **baja**.

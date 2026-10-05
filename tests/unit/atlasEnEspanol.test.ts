@@ -384,8 +384,11 @@ describe('quien tenía que llamar a todo esto lo llama', () => {
   const arbol = leer('src', 'components', 'atlas', 'ArbolAnatomico.tsx')
 
   it('el árbol ordena y busca en español', () => {
-    expect(arbol).toContain('ordenarArbolEnEspanol(armarArbol(catalogo, eje))')
-    expect(arbol).toContain('buscarEnEspanol(catalogo, consulta)')
+    // Sobre `catalogoVisto`: el catálogo reducido a lo que está en pantalla, o
+    // el entero si se mira «Todo el atlas». El orden y la búsqueda en español
+    // son los mismos de siempre; solo cambia de qué piezas se arma la lista.
+    expect(arbol).toContain('ordenarArbolEnEspanol(armarArbol(catalogoVisto, eje))')
+    expect(arbol).toContain('buscarEnEspanol(catalogoVisto, consulta)')
     // La búsqueda de antes, solo por el original, no vuelve por la puerta de atrás.
     expect(arbol).not.toMatch(/\bbuscarPiezas\(/)
   })

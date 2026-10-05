@@ -87,9 +87,12 @@ mismo: se escribe el texto, se sube la imagen. Este solo elige, de una lista,
 algo que ya estaba hecho.
 
 Lo que elige se prepara en el **Taller anatómico**, en el menú del panel. Ahí se
-abre el cuerpo completo: 2.234 piezas —esqueleto, músculos, arterias, nervios,
-vísceras—, todas encendidas. El trabajo consiste en apagar lo que estorbe hasta
-dejar a la vista lo que se quiere enseñar.
+abre **«Cuerpo»**: el cuerpo completo, 2.234 piezas —esqueleto, músculos,
+arterias, nervios, vísceras—, todas encendidas. «Cuerpo» es la base de todas las
+preparaciones y **no se modifica nunca**: en cuanto se le apaga o se le mueve
+algo, el taller pide un nombre y lo que se haga se guarda como una **copia**.
+«Cuerpo» queda intacto para la próxima. El trabajo consiste en apagar lo que
+estorbe hasta dejar a la vista lo que se quiere enseñar.
 
 Hay tres formas de apagar, y conviene empezar por la última:
 
@@ -102,6 +105,13 @@ Hay tres formas de apagar, y conviene empezar por la última:
 El árbol de la izquierda se puede mirar por **región** —cómo se opera— o por
 **sistema** —cómo se estudia—. Son las dos maneras de buscar y ninguna sustituye
 a la otra.
+
+Y se puede listar **«En pantalla»** o **«Todo el atlas»**. «En pantalla» es lo que
+trae al abrir: la lista muestra solo lo que está encendido, así que, cuando uno
+se queda con la mano, las casillas de grupo («Músculos») actúan solo sobre los
+músculos de la mano y no encienden los de todo el cuerpo. Lo que se apaga sale
+de la lista; **Ctrl + Z** lo devuelve, y «Todo el atlas» sirve para traer una
+pieza que ya no está.
 
 Cuando quede lo que se quiere, se gira el modelo hasta el ángulo con que debe
 abrirse en la ficha, se le pone nombre —«Tibia derecha con peroné»—, se anota
@@ -117,10 +127,14 @@ Cuatro cosas que conviene saber antes de empezar:
 es la lista de las que quedan, no una copia del cuerpo. Por eso el original
 sigue intacto y una pieza que se quitó siempre se puede devolver.
 
-**Guardar es un acto explícito.** Lo que se apague o encienda no queda en
-ninguna parte hasta pulsar el botón. Volver al cuerpo completo, abrir otra
-preparación o cerrar la pestaña avisan antes, pero se llevan el trabajo si se
-acepta. Apagar piezas hasta dejar una tibia sola es media hora.
+**Con nombre, se guarda sola cada cinco segundos.** Mientras la preparación no
+tenga nombre —recién modificado «Cuerpo»— no se guarda nada, y un recuadro pide
+el nombre. Con nombre, la cabecera dice «guardando…» y después «guardado a las
+HH:MM»; ya no hace falta pulsar nada, aunque «Guardar cambios» sigue ahí. Sin
+nombre, volver a «Cuerpo», abrir otra preparación o cerrar la pestaña avisan
+antes, pero se llevan el trabajo si se acepta. Apagar piezas hasta dejar una tibia
+sola es media hora. Ojo: una preparación que ya está dentro de una ficha
+publicada **se actualiza en la ficha** cada vez que se guarda, también solo.
 
 **Una preparación sirve para muchas fichas.** Ese es el motivo de armarlas
 aparte y no dentro de cada ficha: la «rodilla izquierda con ligamentos» se
