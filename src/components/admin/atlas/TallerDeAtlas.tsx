@@ -26,6 +26,7 @@ import {
   motivoParaNoAutoguardar,
 } from '@/lib/autoguardadoDelTaller'
 import { horaDe } from '@/lib/guardadoAutomatico'
+import { ampliarConjunto, conjuntoConLoEncendido } from '@/atlas/loQueQuedo'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import type { ResultadoDelRecorte } from '@/atlas/recorte'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
@@ -137,6 +138,12 @@ interface PasoDelTaller {
   transformaciones: Map<string, TransformacionDePieza>
   cortes: CorteDePieza[]
   aspectos: Map<string, AspectoDePieza>
+  /**
+   * Con qué piezas se trabajaba (ver `src/atlas/loQueQuedo.ts`). Va en el paso
+   * para que Ctrl + Z, tras un «solo», devuelva también la lista de antes: sin
+   * esto, deshacer volvía a encender las piezas pero la lista seguía acotada.
+   */
+  universo: ReadonlySet<string> | null
 }
 
 /** Los aspectos en una cadena, para «cambios sin guardar». */
@@ -304,6 +311,17 @@ export function TallerDeAtlas() {
   const [fallo, setFallo] = useState<string | null>(null)
 
   const [visibles, setVisibles] = useState<Set<string>>(new Set())
+  /**
+   * Las piezas con las que se trabaja: lo que quedó tras recortar o quedarse con
+   * «solo», apagadas o no. La lista de la izquierda se arma con ellas (ver
+   * `src/atlas/loQueQuedo.ts`), de modo que lo que se apaga sigue ahí para
+   * volver a encenderlo y una casilla de grupo solo mueve lo que hay dentro.
+   * `null`: el atlas entero, que es como se abre «Cuerpo».
+   *
+   * No se guarda con la preparación: es una ayuda para trabajar, no parte de lo
+   * que ve el residente. Por eso tampoco cuenta para «cambios sin guardar».
+   */
+  const [universo, setUniverso] = useState<ReadonlySet<string> | null>(null)
   /**
    * Trozos apagados de piezas encendidas (D-141). Lo encendido va por pieza del
    * atlas (`visibles`), y un trozo de una pieza partida —«Tibia derecha_2»— se
@@ -592,7 +610,7 @@ export function TallerDeAtlas() {
   const pideNombre = motivoSinGuardar === 'sin-nombre'
 
   const [ultimoAutoguardado, setUltimoAutoguardado] = useState<Date | null>(null)
-  /** Si ya se avisó del fallo en curso: con un aviso por intento, cada cinco segundos, llenaba la pantalla. */
+  /** Si ya se avisó del fallo en curso: con un aviso por intento, uno cada vuelta, llenaba la pantalla. */
   const falloDeAutoguardadoAvisado = useRef(false)
   /**
    * Borra lo que el autoguardado recuerda de la preparación anterior.
@@ -861,7 +879,9 @@ export function TallerDeAtlas() {
   /** Deja en el historial lo que hay AHORA, antes de cambiarlo. */
   const apuntarPaso = () => {
     setHistorial((pasos) =>
-      [...pasos, { visibles, apagados, transformaciones, cortes, aspectos }].slice(-MAXIMO_DE_DESHACER),
+      [...pasos, { visibles, apagados, transformaciones, cortes, aspectos, universo }].slice(
+        -MAXIMO_DE_DESHACER,
+      ),
     )
     setRehacer([])
   }
@@ -903,11 +923,20 @@ export function TallerDeAtlas() {
    * anterior en el historial. Es la puerta de todo cambio que haga la persona:
    * árbol, teclado, barra.
    */
-  const cambiarVisibles = (nuevas: Set<string>, nuevosApagados: ReadonlySet<string> = apagados) => {
+  const cambiarVisibles = (
+    nuevas: Set<string>,
+    nuevosApagados: ReadonlySet<string> = apagados,
+    quedarseCon = false,
+  ) => {
     apuntarPaso()
     const orden = ordenarLoEncendido(nuevas, nuevosApagados)
     setVisibles(orden.piezas)
     setApagados(orden.trozos)
+    // «Quedarse con» —«solo», Mayús + H tras un recorte— estrecha la lista a lo
+    // que queda. Cualquier otro cambio la deja como está: apagar no la achica,
+    // y encender algo de fuera lo suma para que no desaparezca al apagarlo.
+    if (quedarseCon) setUniverso(new Set(orden.piezas))
+    else setUniverso((actual) => ampliarConjunto(actual, orden.piezas))
     // Lo que se apaga deja de estar seleccionado: una selección que no se ve
     // es una pieza que el siguiente Supr o «Solo esto» toca a ciegas.
     setSeleccion((actual) => {
@@ -923,12 +952,13 @@ export function TallerDeAtlas() {
     const anterior = historial.at(-1)
     if (!anterior) return
     setHistorial(historial.slice(0, -1))
-    setRehacer([...rehacer, { visibles, apagados, transformaciones, cortes, aspectos }])
+    setRehacer([...rehacer, { visibles, apagados, transformaciones, cortes, aspectos, universo }])
     setVisibles(anterior.visibles)
     setApagados(anterior.apagados)
     setTransformaciones(anterior.transformaciones)
     setCortes(anterior.cortes)
     setAspectos(anterior.aspectos)
+    setUniverso(anterior.universo)
     // Un fragmento seleccionado puede dejar de existir al deshacer su corte.
     setSeleccion(new Set())
   }
@@ -937,12 +967,16 @@ export function TallerDeAtlas() {
     const siguiente = rehacer.at(-1)
     if (!siguiente) return
     setRehacer(rehacer.slice(0, -1))
-    setHistorial([...historial, { visibles, apagados, transformaciones, cortes, aspectos }])
+    setHistorial([
+      ...historial,
+      { visibles, apagados, transformaciones, cortes, aspectos, universo },
+    ])
     setVisibles(siguiente.visibles)
     setApagados(siguiente.apagados)
     setTransformaciones(siguiente.transformaciones)
     setCortes(siguiente.cortes)
     setAspectos(siguiente.aspectos)
+    setUniverso(siguiente.universo)
     setSeleccion(new Set())
   }
 
@@ -1163,7 +1197,9 @@ export function TallerDeAtlas() {
         if (hoja !== pieza && !seleccion.has(hoja)) trozosFuera.add(hoja)
       }
     }
-    cambiarVisibles(piezas, trozosFuera)
+    // Quedarse con lo seleccionado es decidir con qué se sigue: tras recortar,
+    // la lista pasa a ser la mano y sus músculos, no el cuerpo entero.
+    cambiarVisibles(piezas, trozosFuera, true)
   }
 
   /** Lo que se puede seleccionar de lo encendido: las piezas, y de las partidas, sus trozos encendidos. */
@@ -1275,6 +1311,8 @@ export function TallerDeAtlas() {
   const encenderTodo = () => {
     if (!catalogo) return
     cambiarVisibles(new Set(catalogo.piezas.map((p) => p.id)), new Set())
+    // Todo el cuerpo encendido es el atlas entero: la lista deja de estar acotada.
+    setUniverso(null)
   }
   const encuadrarLoElegido = () => {
     if (seleccion.size > 0) mando.current?.encuadrarPiezas(seleccion)
@@ -1304,6 +1342,7 @@ export function TallerDeAtlas() {
     setNombre('')
     setDescripcion('')
     setVisibles(todas)
+    setUniverso(null)
     setApagados(new Set())
     setSeparacion(0)
     setVistaInicial(VISTA_INICIAL)
@@ -1347,6 +1386,9 @@ export function TallerDeAtlas() {
     setGrupos([])
     setSeleccion(new Set())
     setVisibles(piezas)
+    // La lista de un modelo abierto son sus piezas: con el atlas entero, la
+    // casilla de «Músculos» encendería los de todo el cuerpo.
+    setUniverso(new Set(piezas))
     setApagados(new Set())
     setSeparacion(0)
     limpiarExportacion()
@@ -1413,6 +1455,7 @@ export function TallerDeAtlas() {
         setNombre(r.datos.nombre)
         setDescripcion(r.datos.descripcion ?? '')
         setVisibles(piezasAbiertas)
+        setUniverso(new Set(piezasAbiertas))
         setApagados(apagadosAbiertos)
         setSeparacion(r.datos.contenido.vista.separacion)
         setVistaInicial(r.datos.contenido.vista)
@@ -1476,7 +1519,7 @@ export function TallerDeAtlas() {
    *   - Sin nombre o sin piezas no avisa de nada: el intervalo ya decidió que
    *     tocaba, y quien no quiere nombre es el «Cuerpo» base, al que el recuadro
    *     de arriba ya le pide uno.
-   *   - No pinta «Guardada con N piezas»: cada cinco segundos sería ruido, y la
+   *   - No pinta «Guardada con N piezas»: cada veinte segundos sería ruido, y la
    *     hora del último guardado ya está en la cabecera.
    *   - Un fallo se avisa una vez y no en cada reintento.
    *   - No refresca la lista en cada vuelta, solo cuando cambia lo que enseña.
@@ -1597,12 +1640,12 @@ export function TallerDeAtlas() {
     })
   }
 
-  // El guardado automático. Cada cinco segundos se mira si toca y, si toca, se
+  // El guardado automático. Cada veinte segundos se mira si toca y, si toca, se
   // guarda por el mismo camino que el botón.
   //
   // El intervalo se monta una vez y lee del ref el estado y el `guardar` de
   // este pintado: con ellos en las dependencias se desmontaba y volvía a
-  // montarse con cada gesto, y el reloj de los cinco segundos no llegaba nunca
+  // montarse con cada gesto, y el reloj de los veinte segundos no llegaba nunca
   // a cumplirse mientras se seguía apagando piezas. Es el mismo arreglo que
   // `hayAlgoQuePerder`, y por la misma razón se refresca en un efecto y no al
   // pintar: escribir en un ref durante el pintado rompe con el pintado
@@ -1802,12 +1845,35 @@ export function TallerDeAtlas() {
       },
       solo: (id) => {
         const pieza = piezaDe(id)
-        cambiarVisibles(new Set([pieza]), new Set(hojasDe(cortes, pieza).filter((hoja) => hoja !== id)))
+        cambiarVisibles(
+          new Set([pieza]),
+          new Set(hojasDe(cortes, pieza).filter((hoja) => hoja !== id)),
+          true,
+        )
       },
     }
   })
   const alternarTrozo = useCallback((id: string) => accionesDeTrozos.current.alternar(id), [])
   const soloElTrozo = useCallback((id: string) => accionesDeTrozos.current.solo(id), [])
+
+  // Los botones «solo» del árbol, que además de apagar el resto estrechan la
+  // lista a lo que queda. Estable entre pintados por lo mismo que las de arriba:
+  // es prop de filas memorizadas.
+  const accionQuedarseCon = useRef<(ids: Set<string>) => void>(() => {})
+  useEffect(() => {
+    accionQuedarseCon.current = (ids) => cambiarVisibles(ids, apagados, true)
+  })
+  const quedarseCon = useCallback((ids: Set<string>) => accionQuedarseCon.current(ids), [])
+
+  /**
+   * Lo que enseña la lista: el conjunto de trabajo y, por si acaso, todo lo
+   * encendido (ver `conjuntoConLoEncendido`). Casi siempre es el propio
+   * `universo`, con la misma identidad, y entonces el árbol no rehace nada.
+   */
+  const universoDeLaLista = useMemo(
+    () => conjuntoConLoEncendido(universo, visibles),
+    [universo, visibles],
+  )
 
   const unicaSeleccionada = seleccion.size === 1 ? [...seleccion][0] : null
   // Lo que enseñan los mandos de aspecto: lo de la primera pieza seleccionada.
@@ -1973,9 +2039,11 @@ export function TallerDeAtlas() {
             {hayQueAvisar ? (
               <span className="editor-sucio">
                 {' · '}
-                {motivoSinGuardar === null || motivoSinGuardar === 'ocupado'
+                {motivoSinGuardar === 'ocupado'
                   ? 'guardando…'
-                  : 'cambios sin guardar'}
+                  : motivoSinGuardar === null
+                    ? 'cambios pendientes: se guardan solos'
+                    : 'cambios sin guardar'}
               </span>
             ) : ultimoAutoguardado ? (
               <span className="atlas-autoguardado">
@@ -2285,8 +2353,9 @@ export function TallerDeAtlas() {
       </div>
 
       {/* Tres casos, y en dos de ellos el aviso ya no hace falta:
-          - Con nombre, el trabajo se guarda solo cada cinco segundos: la
-            cabecera dice «guardando…» y el recuadro sobra.
+          - Con nombre, el trabajo se guarda solo cada veinte segundos: la
+            cabecera dice «cambios pendientes» y luego «guardando…», y el
+            recuadro sobra.
           - Sin nombre —el «Cuerpo» recién modificado— no hay nada que guardar
             todavía, y es el único momento en que sí se le pide algo a quien
             trabaja: un nombre, para que lo que haga sea una copia.
@@ -2298,7 +2367,7 @@ export function TallerDeAtlas() {
           <div className="admin-aviso admin-aviso-atencion atlas-aviso-nombre" role="status">
             <strong>Está modificando «Cuerpo», la base del taller.</strong> «Cuerpo» no se guarda
             sobre sí mismo: póngale un nombre y lo que haga se guardará como una copia, cada
-            cinco segundos, y «Cuerpo» seguirá intacto para la próxima.
+            veinte segundos, y «Cuerpo» seguirá intacto para la próxima.
             <input
               className="campo-control"
               placeholder="Nombre de la copia: «Mano derecha»"
@@ -2323,6 +2392,8 @@ export function TallerDeAtlas() {
             visibles={visibles}
             alCambiarVisibles={cambiarVisibles}
             alEncenderTodo={encenderTodo}
+            universo={universoDeLaLista}
+            alQuedarseCon={quedarseCon}
             resaltada={resaltada}
             alResaltar={setResaltada}
             seleccion={piezasSeleccionadas}
@@ -2693,7 +2764,7 @@ export function TallerDeAtlas() {
 
             <p className="campo-ayuda">
               Se guardan las piezas encendidas, lo que se hayan movido o girado y el encuadre de la
-              cámara. Con nombre, se guarda sola cada cinco segundos. «Cuerpo» y el atlas original
+              cámara. Con nombre, se guarda sola cada veinte segundos. «Cuerpo» y el atlas original
               no se tocan nunca: lo que apague aquí se puede volver a encender siempre.
             </p>
           </div>

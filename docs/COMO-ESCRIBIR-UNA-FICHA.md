@@ -106,12 +106,15 @@ El árbol de la izquierda se puede mirar por **región** —cómo se opera— o 
 **sistema** —cómo se estudia—. Son las dos maneras de buscar y ninguna sustituye
 a la otra.
 
-Y se puede listar **«En pantalla»** o **«Todo el atlas»**. «En pantalla» es lo que
-trae al abrir: la lista muestra solo lo que está encendido, así que, cuando uno
-se queda con la mano, las casillas de grupo («Músculos») actúan solo sobre los
-músculos de la mano y no encienden los de todo el cuerpo. Lo que se apaga sale
-de la lista; **Ctrl + Z** lo devuelve, y «Todo el atlas» sirve para traer una
-pieza que ya no está.
+Y, una vez que se ha dejado solo una parte, se puede listar **«Lo que quedó»** o
+**«Todo el atlas»**. Quedarse con algo es pulsar **solo** en el árbol o
+**Mayús + H** (por ejemplo, tras recortar con el marco): desde ahí la lista son
+esas piezas, **encendidas o apagadas**. Así, un músculo de la mano que se apaga
+sigue en la lista, desmarcado, y se vuelve a encender con su casilla; y las
+casillas de grupo («Músculos») actúan solo sobre los músculos de la mano, no
+sobre los de todo el cuerpo. Apagar piezas no acorta la lista; «Encender todo»,
+«Volver a “Cuerpo”» o **Ctrl + Z** tras un «solo» sí la devuelven a como estaba.
+«Todo el atlas» sirve para traer una pieza que no estaba.
 
 Cuando quede lo que se quiere, se gira el modelo hasta el ángulo con que debe
 abrirse en la ficha, se le pone nombre —«Tibia derecha con peroné»—, se anota
@@ -127,10 +130,10 @@ Cuatro cosas que conviene saber antes de empezar:
 es la lista de las que quedan, no una copia del cuerpo. Por eso el original
 sigue intacto y una pieza que se quitó siempre se puede devolver.
 
-**Con nombre, se guarda sola cada cinco segundos.** Mientras la preparación no
+**Con nombre, se guarda sola cada veinte segundos.** Mientras la preparación no
 tenga nombre —recién modificado «Cuerpo»— no se guarda nada, y un recuadro pide
-el nombre. Con nombre, la cabecera dice «guardando…» y después «guardado a las
-HH:MM»; ya no hace falta pulsar nada, aunque «Guardar cambios» sigue ahí. Sin
+el nombre. Con nombre, la cabecera dice «cambios pendientes: se guardan solos»,
+luego «guardando…» y «guardado a las HH:MM»; ya no hace falta pulsar nada, aunque «Guardar cambios» sigue ahí. Sin
 nombre, volver a «Cuerpo», abrir otra preparación o cerrar la pestaña avisan
 antes, pero se llevan el trabajo si se acepta. Apagar piezas hasta dejar una tibia
 sola es media hora. Ojo: una preparación que ya está dentro de una ficha

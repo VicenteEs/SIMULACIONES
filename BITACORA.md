@@ -4369,7 +4369,7 @@ hay varias instancias detrás del proxy**, cada una verá solo a quien le cayó 
 la banda dirá la mitad: hará falta un almacén compartido. Un reinicio la borra y
 se rehace en el siguiente latido. No cambia el esquema ni hay migración.
 
-### D-152 · 2026-10-05 · vigente
+### D-152 · 2026-10-05 · parcialmente superada por D-153
 **El taller anatómico abre en «Cuerpo», guarda solo y lista lo que está en pantalla.**
 Tres pedidos del dueño sobre el taller: que abra con «Cuerpo» como base de la que
 salen las demás preparaciones y que editarlo pida un nombre y guarde una *copia*
@@ -4408,6 +4408,46 @@ duplica primero («Duplicar») y se edita la copia. Lo que se apaga sale de la
 lista y se recupera con Ctrl + Z o con «Todo el atlas» (selector nuevo,
 «En pantalla» de entrada). El trabajo sin nombre sigue sin guardarse solo: una
 pestaña cerrada se lo lleva, con el aviso de siempre.
+
+### D-153 · 2026-10-05 · vigente
+**La lista del taller se queda con lo que quedó tras recortar, y se guarda cada veinte segundos.**
+Corrige dos cosas de D-152 tras usarlo el dueño. *El intervalo:* cada cinco
+segundos era demasiado seguido —cada guardado escribe en la base y, si la
+preparación está en una ficha publicada, cambia lo que ve el residente—; pidió
+«cada 20 o 30», y se eligió **veinte** (`INTERVALO_DE_AUTOGUARDADO_MS`, en
+`src/lib/autoguardadoDelTaller.ts`, un solo sitio). El reloj corre desde que se
+abre el taller: un cambio se guarda en la siguiente vuelta, como mucho veinte
+segundos después, y con cambios constantes salen como mucho un guardado por
+vuelta (medido: dos en 76 s con un cambio cada 3 s). La cabecera dice «cambios
+pendientes: se guardan solos» hasta que se guarda; con 5 s el «guardando…» era
+cierto y con 20 mentiría.
+*La lista.* D-152 la reducía a lo encendido, y eso arreglaba las casillas de grupo
+pero sacaba de la lista cada pieza apagada: el músculo de la mano que se apagaba
+por error no se podía volver a encender desde el árbol. Lo que se pidió es que la
+lista **se quede con lo que queda tras recortar**. Ahora hay un *conjunto de
+trabajo* (`src/atlas/loQueQuedo.ts`, estado `universo` en el taller):
+  - empieza siendo el atlas entero (`null`) y entonces el selector no se enseña;
+  - se **estrecha** al quedarse con algo —el botón «solo» del árbol, Mayús + H
+    («Solo esto», que es lo que el aviso de un recorte manda pulsar), «solo» de un
+    trozo— y pasa a ser exactamente lo que queda;
+  - **apagar no lo toca**: por casilla, por grupo o con Supr/X/H, la pieza sigue
+    en la lista, desmarcada, y se reenciende; y una casilla de grupo solo mueve lo
+    que hay dentro, así que no enciende el resto del cuerpo (comprobado: con la
+    pierna sola, 124 piezas, apagar un músculo y pulsar el grupo vuelve a 124, no
+    sube a 2.230);
+  - se **ensancha** con lo que se encienda desde «Todo el atlas», y vuelve a ser el
+    atlas entero con «Encender todo» y con «Cuerpo»; al abrir una preparación o un
+    modelo es sus piezas;
+  - viaja en el historial: Ctrl + Z tras un «solo» devuelve la lista de antes.
+No se guarda con la preparación ni cuenta para «cambios sin guardar»: es una ayuda
+para trabajar. El selector se llama «Lo que quedó / Todo el atlas».
+*Consecuencias buenas.* El árbol ya no esconde lo que se apaga y sigue sin
+encender lo que no es del trabajo. *Malas.* Quedarse con la mano **borrando lo de
+fuera con Supr** en vez de con «solo» o Mayús + H no estrecha la lista: lo de
+fuera sigue en ella, apagado, y la casilla de un grupo puede encenderlo (el fallo
+de D-152, solo por ese camino). Es lo que menos sorprende —Supr es «apagar»— y el
+aviso del recorte ya manda pulsar «Solo esto». Si se quiere, Supr sobre una
+selección grande podría estrechar también.
 
 ## 3. Observaciones
 

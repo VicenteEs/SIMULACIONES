@@ -24,8 +24,9 @@ const LISTO: EstadoParaAutoguardar = {
 }
 
 describe('cuándo el taller se guarda solo', () => {
-  it('cada cinco segundos', () => {
-    expect(INTERVALO_DE_AUTOGUARDADO_MS).toBe(5000)
+  it('cada veinte segundos', () => {
+    // El dueño pidió «cada 20 o 30»; cinco era demasiado seguido.
+    expect(INTERVALO_DE_AUTOGUARDADO_MS).toBe(20_000)
   })
 
   it('guarda cuando hay cambios, nombre y piezas', () => {

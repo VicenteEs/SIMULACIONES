@@ -197,3 +197,59 @@ describe('el taller del atlas y los 725 KB de three', () => {
     expect(entre('const VisorAtlas = dynamic(', 'const HOLGURA_ENCUADRE')).toContain('ssr: false')
   })
 })
+
+describe('la lista del taller se queda con lo que quedó tras recortar', () => {
+  // Pedido del dueño: tras recortar y quedarse con la mano, apagar un músculo de
+  // la mano no debe sacarlo de la lista, para poder volver a encenderlo; y la
+  // casilla del grupo «Músculos» no debe encender los del resto del cuerpo. Son
+  // las dos mitades de un mismo conjunto de trabajo (`src/atlas/loQueQuedo.ts`),
+  // y se rompen en silencio: nada falla, la lista simplemente miente.
+
+  it('quedarse con algo estrecha el conjunto, y apagar no lo toca', () => {
+    // «Solo esto» (Mayús + H) tras un recorte, y «solo» de un trozo.
+    expect(entre('const dejarSoloLaSeleccion = () => {', '/** Lo que se puede seleccionar')).toContain(
+      'cambiarVisibles(piezas, trozosFuera, true)',
+    )
+    // Apagar la selección (Supr, X, H) NO estrecha: lo apagado sigue listado.
+    expect(entre('const apagarSeleccion = () => {', 'const dejarSoloLaSeleccion')).not.toMatch(
+      /cambiarVisibles\([^)]*true\)/,
+    )
+    // Y el único sitio que lo estrecha es `cambiarVisibles`, con su parámetro.
+    expect(entre('const cambiarVisibles = (', 'const deshacer')).toContain('if (quedarseCon) setUniverso(')
+  })
+
+  it('encender algo de fuera lo suma, para que no desaparezca al apagarlo', () => {
+    expect(entre('const cambiarVisibles = (', 'const deshacer')).toContain(
+      'ampliarConjunto(actual, orden.piezas)',
+    )
+  })
+
+  it('«Encender todo» y «Cuerpo» devuelven el atlas entero', () => {
+    expect(entre('const encenderTodo = () => {', 'const encuadrarLoElegido')).toContain('setUniverso(null)')
+    expect(entre('const empezarDeCero = async', 'const abrirModelo')).toContain('setUniverso(null)')
+  })
+
+  it('abrir una preparación o un modelo deja la lista en sus piezas', () => {
+    // Con el atlas entero, la casilla de «Músculos» de una preparación de la mano
+    // encendería los músculos de todo el cuerpo.
+    expect(entre('const abrirModelo = async', 'const abrir = async')).toContain(
+      'setUniverso(new Set(piezas))',
+    )
+    expect(entre('const abrir = async', 'const guardar = (')).toContain(
+      'setUniverso(new Set(piezasAbiertas))',
+    )
+  })
+
+  it('el conjunto viaja en el historial: Ctrl + Z, tras un «solo», devuelve la lista de antes', () => {
+    expect(entre('interface PasoDelTaller {', '/** Los aspectos en una cadena')).toContain('universo:')
+    expect(entre('const deshacer = () => {', 'const rehacerPaso')).toContain('setUniverso(anterior.universo)')
+    expect(entre('const rehacerPaso = () => {', '/** Cambia el color o la opacidad')).toContain(
+      'setUniverso(siguiente.universo)',
+    )
+  })
+
+  it('el conjunto no cuenta para «cambios sin guardar»: es una ayuda, no parte de la preparación', () => {
+    expect(expresionDe('sucio')).not.toContain('universo')
+    expect(expresionDe('contenidoCambiado')).not.toContain('universo')
+  })
+})

@@ -3,7 +3,7 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import type { CatalogoDelAtlas, PiezaDelAtlas } from '@/atlas/formato'
 import { armarArbol } from '@/atlas/catalogo'
-import { catalogoEnPantalla } from '@/atlas/enPantalla'
+import { catalogoDeLoQueQuedo } from '@/atlas/loQueQuedo'
 import {
   buscarEnEspanol,
   ordenarArbolEnEspanol,
@@ -56,6 +56,8 @@ export function ArbolAnatomico({
   seleccion = null,
   alSeleccionar,
   alEncenderTodo,
+  universo = null,
+  alQuedarseCon,
   trozos = null,
   trozosApagados = null,
   trozosSeleccionados = null,
@@ -71,6 +73,19 @@ export function ArbolAnatomico({
    * trozos como estaban.
    */
   alEncenderTodo?: () => void
+  /**
+   * Las piezas con las que se está trabajando —lo que quedó tras recortar o
+   * quedarse con «solo»—, **apagadas o no**. Con ellas se arma la lista: lo que
+   * se apague sigue ahí para volver a encenderlo, y una casilla de grupo solo
+   * mueve lo que hay dentro. `null`: el atlas entero (ver `src/atlas/loQueQuedo.ts`).
+   */
+  universo?: ReadonlySet<string> | null
+  /**
+   * Los botones «solo» no son un apagado más: son decidir con qué piezas se
+   * trabaja. Si el taller lo da, los avisa por aquí para estrechar el
+   * conjunto; sin él, hacen lo de siempre.
+   */
+  alQuedarseCon?: (ids: Set<string>) => void
   /**
    * Los trozos de cada pieza partida (D-141), que se enseñan debajo de ella
    * con su propia casilla: «Tibia derecha_1», «Tibia derecha_2». Solo las
@@ -101,27 +116,31 @@ export function ArbolAnatomico({
   const [consulta, setConsulta] = useState('')
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
   /**
-   * Qué lista se enseña: lo que está en pantalla o el atlas entero.
+   * Qué lista se enseña: lo que quedó o el atlas entero.
    *
-   * «En pantalla» es lo de entrada, y es lo que arregla el fallo de las casillas
+   * «Lo que quedó» es lo de entrada, y es lo que arregla el fallo de las casillas
    * de grupo: cada grupo actuaba sobre todas sus piezas del atlas, así que con
-   * la mano sola en pantalla, apagar un músculo y pulsar «Músculos» encendía los
-   * de todo el cuerpo. Con la lista reducida a lo encendido, un grupo no tiene
-   * nada fuera de pantalla que encender (ver `src/atlas/enPantalla.ts`).
+   * la mano sola, apagar un músculo y pulsar «Músculos» encendía los de todo el
+   * cuerpo. Con la lista acotada al conjunto de trabajo, un grupo no tiene nada
+   * fuera de él que encender (ver `src/atlas/loQueQuedo.ts`).
    *
    * «Todo el atlas» sigue ahí para lo contrario: traer una pieza que no está.
+   * Solo tiene sentido cuando hay conjunto; sin él las dos listas son la misma
+   * y el selector no se enseña.
    */
-  const [modo, setModo] = useState<'pantalla' | 'todo'>('pantalla')
+  const [modo, setModo] = useState<'quedo' | 'todo'>('quedo')
 
   // Reordenado en español encima de `armarArbol`, que ordena por el nombre
   // original: sin esto el árbol enseña «Tibia derecha» colocada entre las «R»
   // de «Right…», que es donde estaría si se leyera en inglés.
   //
-  // El catálogo que se recorre es el reducido a lo encendido cuando se mira «En
-  // pantalla»; con todo encendido es el mismo objeto, y no se rehace nada.
+  // El catálogo que se recorre es el reducido al conjunto de trabajo cuando se
+  // mira «Lo que quedó»; sin conjunto es el mismo objeto, y no se rehace nada.
+  // Depende de `universo` y no de `visibles`: apagar una pieza no cambia lo que
+  // se lista, y recorrer 2.234 piezas por cada casilla sería un gasto sin motivo.
   const catalogoVisto = useMemo(
-    () => (modo === 'pantalla' ? catalogoEnPantalla(catalogo, visibles) : catalogo),
-    [modo, catalogo, visibles],
+    () => (modo === 'quedo' ? catalogoDeLoQueQuedo(catalogo, universo) : catalogo),
+    [modo, catalogo, universo],
   )
   const arbol = useMemo(
     () => ordenarArbolEnEspanol(armarArbol(catalogoVisto, eje)),
@@ -180,8 +199,12 @@ export function ArbolAnatomico({
     alCambiarVisibles(nuevas)
   }
 
-  /** Deja encendido únicamente esto. Es el gesto central del taller. */
-  const soloEsto = (ids: string[]) => alCambiarVisibles(new Set(ids))
+  /**
+   * Deja encendido únicamente esto. Es el gesto central del taller, y además
+   * acota el conjunto de trabajo: quedarse con algo es decidir con qué se sigue.
+   */
+  const soloEsto = (ids: string[]) =>
+    alQuedarseCon ? alQuedarseCon(new Set(ids)) : alCambiarVisibles(new Set(ids))
 
   /**
    * Las dos operaciones de una sola pieza, estables entre pintados.
@@ -206,8 +229,9 @@ export function ArbolAnatomico({
   )
 
   const soloEstaPieza = useCallback(
-    (id: string) => alCambiarVisibles(new Set([id])),
-    [alCambiarVisibles],
+    (id: string) =>
+      alQuedarseCon ? alQuedarseCon(new Set([id])) : alCambiarVisibles(new Set([id])),
+    [alCambiarVisibles, alQuedarseCon],
   )
 
   /** Las props de trozos de la fila de una pieza, vacías si no está partida. */
@@ -255,24 +279,26 @@ export function ArbolAnatomico({
             Por sistema
           </button>
         </div>
-        <div className="atlas-ejes atlas-modo" role="group" aria-label="Qué piezas se listan">
-          <button
-            type="button"
-            className={modo === 'pantalla' ? 'activo' : ''}
-            aria-pressed={modo === 'pantalla'}
-            onClick={() => setModo('pantalla')}
-          >
-            En pantalla
-          </button>
-          <button
-            type="button"
-            className={modo === 'todo' ? 'activo' : ''}
-            aria-pressed={modo === 'todo'}
-            onClick={() => setModo('todo')}
-          >
-            Todo el atlas
-          </button>
-        </div>
+        {universo ? (
+          <div className="atlas-ejes atlas-modo" role="group" aria-label="Qué piezas se listan">
+            <button
+              type="button"
+              className={modo === 'quedo' ? 'activo' : ''}
+              aria-pressed={modo === 'quedo'}
+              onClick={() => setModo('quedo')}
+            >
+              Lo que quedó
+            </button>
+            <button
+              type="button"
+              className={modo === 'todo' ? 'activo' : ''}
+              aria-pressed={modo === 'todo'}
+              onClick={() => setModo('todo')}
+            >
+              Todo el atlas
+            </button>
+          </div>
+        ) : null}
         <div className="atlas-globales">
           <button
             type="button"
@@ -284,15 +310,15 @@ export function ArbolAnatomico({
             Apagar todo
           </button>
           <span className="atlas-conteo">
-            {modo === 'pantalla'
-              ? `${visibles.size} en pantalla`
+            {universo && modo === 'quedo'
+              ? `${visibles.size} encendidas de ${universo.size}`
               : `${visibles.size} de ${todas.length}`}
           </span>
         </div>
-        {modo === 'pantalla' ? (
+        {universo && modo === 'quedo' ? (
           <p className="atlas-modo-ayuda">
-            Lo que apague sale de la lista. Ctrl + Z lo devuelve; «Todo el atlas» muestra también
-            lo que no está.
+            La lista conserva lo que quedó tras recortar o dejar «solo»: lo que apague sigue aquí
+            para volver a encenderlo. «Todo el atlas» muestra también lo que no está.
           </p>
         ) : null}
       </div>
@@ -309,12 +335,12 @@ export function ArbolAnatomico({
             seleccion={seleccion}
             alSeleccionar={alSeleccionar}
             trozosDe={trozosDe}
-            enPantalla={modo === 'pantalla'}
+            acotada={universo !== null && modo === 'quedo'}
           />
-        ) : modo === 'pantalla' && visibles.size === 0 ? (
+        ) : catalogoVisto.piezas.length === 0 ? (
           <p className="atlas-vacio">
-            No hay nada en pantalla. Pulse «Encender todo» o mire «Todo el atlas» para elegir qué
-            traer.
+            No queda ninguna pieza en la lista. Pulse «Encender todo» o mire «Todo el atlas» para
+            elegir qué traer.
           </p>
         ) : (
           arbol.map((grupo, posicionGrupo) => {
@@ -352,7 +378,7 @@ export function ArbolAnatomico({
                   </label>
 
                   <span className="atlas-grupo-conteo">
-                    {modo === 'pantalla' ? grupo.total : `${encendidas}/${grupo.total}`}
+                    {encendidas}/{grupo.total}
                   </span>
                   <button
                     type="button"
@@ -383,7 +409,7 @@ export function ArbolAnatomico({
                               <span>{rama.nombre}</span>
                             </label>
                             <span className="atlas-rama-conteo">
-                              {modo === 'pantalla' ? ids.length : `${vivas}/${ids.length}`}
+                              {vivas}/{ids.length}
                             </span>
                             <button
                               type="button"
@@ -587,7 +613,7 @@ function ResultadosDeBusqueda({
   seleccion,
   alSeleccionar,
   trozosDe,
-  enPantalla = false,
+  acotada = false,
 }: {
   busqueda: BusquedaEnEspanol
   visibles: Set<string>
@@ -598,15 +624,15 @@ function ResultadosDeBusqueda({
   seleccion?: ReadonlySet<string> | null
   alSeleccionar?: (id: string, sumar: boolean) => void
   trozosDe: (id: string) => TrozosDeLaFila
-  /** Se busca solo entre lo que está en pantalla: lo dice el mensaje de «sin resultados». */
-  enPantalla?: boolean
+  /** Se busca solo entre lo que quedó: lo dice el mensaje de «sin resultados». */
+  acotada?: boolean
 }) {
   const { piezas, total } = busqueda
   if (total === 0) {
     return (
       <p className="atlas-vacio">
-        {enPantalla
-          ? 'Ninguna estructura en pantalla coincide. Mire «Todo el atlas» para buscar fuera.'
+        {acotada
+          ? 'Ninguna estructura de lo que quedó coincide. Mire «Todo el atlas» para buscar fuera.'
           : 'Ninguna estructura coincide.'}
       </p>
     )

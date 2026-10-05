@@ -279,14 +279,17 @@ el bloque «Preparación anatómica».
 la base de todo y no se modifica nunca. En cuanto le haga algo, un recuadro le
 pide un nombre: lo que haga se guarda como una copia con ese nombre, y «Cuerpo»
 queda intacto para la próxima. Con nombre, la preparación **se guarda sola cada
-cinco segundos** y la cabecera lo dice («guardado a las…»). «Volver a “Cuerpo”»
+veinte segundos** y la cabecera lo dice («guardado a las…»). «Volver a “Cuerpo”»
 y la entrada «Cuerpo» de «Preparaciones guardadas» vuelven a empezar.
 
-**La lista de piezas.** Por omisión muestra **«En pantalla»**: solo lo que está
-encendido. Si se queda con la mano, el grupo «Músculos» son los músculos de la
-mano, y su casilla no enciende los del resto del cuerpo. Lo que apague sale de la
-lista (Ctrl + Z lo devuelve). Para traer algo que ya no está, mire **«Todo el
-atlas»**.
+**La lista de piezas.** Cuando se queda con una parte —con el botón **solo** del
+árbol, o con **Mayús + H** tras recortar con el marco—, la lista pasa a ser
+**«Lo que quedó»**: esas piezas, encendidas o apagadas. Si se queda con la mano,
+el grupo «Músculos» son los músculos de la mano: apagar uno no lo saca de la
+lista (queda desmarcado, y se vuelve a encender con su casilla) y la casilla del
+grupo no enciende los del resto del cuerpo. «Encender todo» y «Volver a
+“Cuerpo”» devuelven el atlas entero; **Ctrl + Z** tras un «solo» devuelve la
+lista de antes. Para traer algo que no está, mire **«Todo el atlas»**.
 
 ### Abrir un modelo 3D en el taller
 
