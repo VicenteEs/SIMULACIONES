@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ConmutadorVista } from './ConmutadorVista'
 import { BotonSalir } from './BotonSalir'
+import { LayoutDashboard, X } from 'lucide-react'
+import { IDENTIDAD_DE_MODULO } from './ui/modulos'
 
 /**
  * Las dos navegaciones de módulos de la barra superior.
@@ -19,6 +21,14 @@ import { BotonSalir } from './BotonSalir'
 export interface EntradaDeMenu {
   ruta: string
   etiqueta: string
+  /** El slug del módulo: de él salen su icono y su color (`IDENTIDAD_DE_MODULO`). */
+  coleccion: string
+}
+
+/** El icono del módulo, si lo tiene; un módulo nuevo sin identidad sale sin él. */
+function IconoDeModulo({ coleccion, tamano }: { coleccion: string; tamano: number }) {
+  const Icono = IDENTIDAD_DE_MODULO[coleccion]?.icono
+  return Icono ? <Icono size={tamano} aria-hidden="true" /> : null
 }
 
 /**
@@ -51,6 +61,7 @@ export function BarraDeModulos({ modulos }: { modulos: EntradaDeMenu[] }) {
           href={m.ruta}
           aria-current={esModuloActivo(rutaActual, m.ruta) ? 'page' : undefined}
         >
+          <IconoDeModulo coleccion={m.coleccion} tamano={16} />
           {m.etiqueta}
         </Link>
       ))}
@@ -224,9 +235,9 @@ export function MenuMovil({
         aria-label="Navegación"
       >
         <div className="menu-cabecera">
-          <span className="menu-titulo">Ir a</span>
+          <span className="rotulo">Ir a</span>
           <button type="button" className="menu-cerrar" onClick={cerrar} aria-label="Cerrar">
-            ✕
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
@@ -237,10 +248,15 @@ export function MenuMovil({
               <Link
                 key={m.ruta}
                 href={m.ruta}
-                className={`menu-enlace${activo ? ' menu-enlace-activo' : ''}`}
+                // La clase del módulo le da su color al enlace activo: aquí el
+                // fondo es blanco y los cinco colores sí se leen.
+                className={`menu-enlace ${IDENTIDAD_DE_MODULO[m.coleccion]?.clase ?? ''}${activo ? ' menu-enlace-activo' : ''}`}
                 // El dato ya estaba calculado, pero viajaba solo como color.
                 aria-current={activo ? 'page' : undefined}
               >
+                <span className="icono-modulo icono-modulo-sm">
+                  <IconoDeModulo coleccion={m.coleccion} tamano={16} />
+                </span>
                 {m.etiqueta}
               </Link>
             )
@@ -252,6 +268,9 @@ export function MenuMovil({
             <div className="menu-separador" />
             <nav className="menu-enlaces">
               <Link href="/admin-panel" className="menu-enlace">
+                <span className="icono-modulo icono-modulo-sm">
+                  <LayoutDashboard size={16} aria-hidden="true" />
+                </span>
                 Panel de control
               </Link>
             </nav>
@@ -269,7 +288,7 @@ export function MenuMovil({
 
           <div className="menu-quien">
             {nombre ? <span className="menu-quien-nombre">{nombre}</span> : null}
-            <span className="menu-quien-rol">
+            <span className="rotulo">
               {rolReal === 'admin'
                 ? 'Administrador'
                 : rolReal === 'editor'

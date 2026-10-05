@@ -153,7 +153,9 @@ describe('la paleta se lee', () => {
    * tarjeta y el lienzo del visor.
    */
   it('el gris apagado llega al contraste de texto normal sobre sus tres fondos', () => {
-    const lienzo = reglas.find((r) => r.selector === '.visor-3d-lienzo')!.declaraciones.background
+    // El fondo del visor es ahora el token `--lienzo-3d`, y el contraste se mide
+    // contra su valor.
+    const lienzo = paleta['--lienzo-3d']
 
     expect(contraste(paleta['--mudo'], paleta['--papel'])).toBeGreaterThanOrEqual(4.5)
     expect(contraste(paleta['--mudo'], paleta['--superficie'])).toBeGreaterThanOrEqual(4.5)
@@ -221,7 +223,7 @@ describe('la rejilla de la ficha no da por hecho que hay índice', () => {
 
     expect(estrechas.length).toBe(1)
     expect(estrechas[0].selector).toContain(':has(> .indice-ficha)')
-    expect(estrechas[0].declaraciones['grid-template-columns']).toBe('1fr')
+    expect(estrechas[0].declaraciones['grid-template-columns']).toBe('minmax(0, 1fr)')
   })
 })
 
@@ -229,15 +231,25 @@ describe('la rejilla de la ficha no da por hecho que hay índice', () => {
 // El visor del instrumento dentro de la consola
 // ---------------------------------------------------------------------------
 
+/**
+ * La consola se fue a su propia hoja (`simulador/consola.css`) cuando pasó a
+ * tema oscuro; el visor del instrumento sigue tomando su altura de la regla
+ * de esta hoja (`.visor-3d-lienzo canvas`), así que se miran las dos.
+ */
+const reglasDeLaConsola = analizar(
+  readFileSync(join(process.cwd(), 'src', 'app', '(frontend)', 'simulador', 'consola.css'), 'utf8'),
+)
+
 describe('la vista previa del instrumento no empuja el botón fuera del panel', () => {
   /**
-   * Vive en una columna con 620 px de alto y scroll propio, y debajo están la
-   * instrucción del paso y «Aplicar». Con `min-height: 240px` heredado y el
-   * lienzo en 380 px, coger un instrumento mandaba el botón 325 px más abajo
-   * de lo que se ve.
+   * Vivía en una columna con 620 px de alto y scroll propio, con la
+   * instrucción del paso y «Aplicar» debajo. Con `min-height: 240px` heredado y
+   * el lienzo en 380 px, coger un instrumento mandaba el botón 325 px más
+   * abajo de lo que se ve. Hoy comparte columna con la bandeja, y si crece la
+   * empuja entera fuera de la vista: el tope sigue siendo el mismo.
    */
   it('el marco de carga neutraliza el mínimo que hereda del visor', () => {
-    const marco = reglas.find((r) => r.selector === '.consola-instrumento .visor-3d-marco')!
+    const marco = reglasDeLaConsola.find((r) => r.selector === '.consola-instrumento .visor-3d-marco')!
 
     expect(marco.declaraciones['min-height']).toBe('0')
     expect(marco.declaraciones.height).toBe('170px')
@@ -245,7 +257,7 @@ describe('la vista previa del instrumento no empuja el botón fuera del panel', 
 
   it('el lienzo ya cargado toma su altura de la variable, no del 380px fijo', () => {
     const lienzo = reglas.find((r) => r.selector === '.visor-3d-lienzo canvas')!
-    const consola = reglas.find((r) => r.selector === '.consola-instrumento')!
+    const consola = reglasDeLaConsola.find((r) => r.selector === '.consola-instrumento')!
 
     expect(lienzo.declaraciones.height).toContain('var(--alto-visor')
     expect(consola.declaraciones['--alto-visor']).toBe('170px')
@@ -418,7 +430,9 @@ describe('todo campo de escritura pone sus dos colores', () => {
     ]
 
     for (const selector of campos) {
-      const regla = reglas.find((r) => r.selector === selector)
+      // Los campos de acceso comparten regla con su `textarea`: se busca el
+      // selector dentro de la lista, no la cabecera entera.
+      const regla = reglas.find((r) => r.selector.split(',').map((s) => s.trim()).includes(selector))
       expect(regla, `falta la regla ${selector}`).toBeDefined()
       expect(regla!.declaraciones.color, `${selector} sin color`).toBeTruthy()
       expect(regla!.declaraciones.background, `${selector} sin fondo`).toBeTruthy()
@@ -457,8 +471,9 @@ describe('el título de la fase de rehabilitación lo viste la hoja', () => {
 
     const regla = reglas.find((r) => r.selector === `.fases h${nivel}`)
     expect(regla, `la ficha pinta <h${nivel}> y la hoja no lo viste`).toBeDefined()
-    expect(regla!.declaraciones['font-size']).toBe('15px')
-    expect(regla!.declaraciones.margin).toBe('5px 0 6px')
+    // Con tokens: `--t-base` (15 px) y `--e-1`/`--e-2` (4 y 8 px).
+    expect(regla!.declaraciones['font-size']).toBe('var(--t-base)')
+    expect(regla!.declaraciones.margin).toBe('var(--e-1) 0 var(--e-2)')
   })
 
   it('solo un nivel está vestido dentro de .fases', () => {

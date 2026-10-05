@@ -595,7 +595,10 @@ describe('la pantalla de cuentas', () => {
   })
 
   it('«Clave» está apagado en la fila de una solicitud', () => {
-    expect(tabla).toContain('disabled={u.pendiente}')
+    // «Clave» vive ahora en el menú «⋯» de la fila, donde apagar una opción se
+    // dice `desactivada`; sigue siendo un apagado de verdad y no un
+    // `aria-disabled`, porque una solicitud no tiene clave que enlazar.
+    expect(tabla).toContain('desactivada: u.pendiente')
   })
 
   it('las solicitudes no se cuentan como bajas en el filtro de estado', () => {

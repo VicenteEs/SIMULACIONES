@@ -2,6 +2,28 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  Bone,
+  Box,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  GripVertical,
+  Image as IconoImagen,
+  ListChecks,
+  Plus,
+  Square,
+  Table,
+  Trash2,
+  Type,
+  Video,
+  type LucideIcon,
+} from 'lucide-react'
+import { useConfirmar } from '@/components/ui/Confirmar'
 import { ESQUEMAS, type Campo } from '@/admin/esquema'
 import { BLOQUES, bloqueDe } from '@/admin/bloques'
 import {
@@ -744,6 +766,142 @@ const CAMPO_DE_ESCALA = 'milimetrosPorUnidad'
  */
 const SUELO_DE_LAS_FLECHAS = 1
 
+/**
+ * Mueve un elemento de `desde` a `hasta` (la posición que ocupará al final).
+ *
+ * Las flechas intercambiaban con el vecino; arrastrar puede llevar el bloque
+ * seis puestos de una vez, y hacerlo a base de intercambios lo dejaría bien
+ * pero pasaría por cinco estados intermedios que nadie pidió.
+ */
+function reordenar<T>(lista: T[], desde: number, hasta: number): T[] {
+  if (desde === hasta || desde < 0 || hasta < 0 || desde >= lista.length || hasta >= lista.length) return lista
+  const copia = [...lista]
+  const [movido] = copia.splice(desde, 1)
+  copia.splice(hasta, 0, movido)
+  return copia
+}
+
+/**
+ * El tipo de dato del arrastre.
+ *
+ * Uno propio y no `text/plain`: soltar un `text/plain` sobre una casilla de
+ * texto o sobre el área de TipTap lo pega dentro —el «3» de la fila que se
+ * arrastraba aparecía escrito en mitad de un párrafo—, porque los dos aceptan
+ * texto por su cuenta antes de que el evento llegue a la fila. Un tipo que
+ * nadie más entiende no lo pega nadie. Firefox exige que haya algún dato para
+ * empezar a arrastrar, y este cuenta.
+ */
+const TIPO_DE_ARRASTRE = 'application/x-traumahub-fila'
+
+/**
+ * Arrastrar y soltar para reordenar filas o bloques, con HTML5 y sin
+ * dependencias.
+ *
+ * Se arrastra desde el asa (⠿) y no desde la fila entera: la fila está llena
+ * de casillas, y con toda ella arrastrable seleccionar texto con el ratón
+ * movía la fila. Las flechas se quedan: arrastrar no se puede con teclado ni,
+ * en la mayoría de navegadores móviles, con el dedo.
+ *
+ * Cada lista atiende solo sus propios arrastres (`desde !== null`) y corta la
+ * propagación de los que atiende: una lista clínica vive dentro de un bloque,
+ * y sin eso soltar un punto sobre otro punto movía también el bloque entero.
+ */
+function useArrastre(alSoltar: (desde: number, hasta: number) => void) {
+  const [desde, setDesde] = useState<number | null>(null)
+  const [sobre, setSobre] = useState<number | null>(null)
+  const terminar = () => {
+    setDesde(null)
+    setSobre(null)
+  }
+  const asa = (indice: number) => ({
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => {
+      e.stopPropagation()
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData(TIPO_DE_ARRASTRE, String(indice))
+      // La fila se busca desde el asa y no con un `ref` por fila: leer un `ref`
+      // al pintar para pasárselo al asa rompe la regla de React de no tocarlos
+      // durante el pintado, y este es solo un gesto del ratón.
+      const elemento = (e.currentTarget as HTMLElement).closest<HTMLElement>('.lista-fila, .bloque-editor')
+      if (elemento) e.dataTransfer.setDragImage(elemento, 24, 20)
+      setDesde(indice)
+    },
+    onDragEnd: terminar,
+  })
+  const destino = (indice: number) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (desde === null) return
+      e.preventDefault()
+      e.stopPropagation()
+      e.dataTransfer.dropEffect = 'move'
+      if (sobre !== indice) setSobre(indice)
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (desde === null) return
+      e.preventDefault()
+      e.stopPropagation()
+      alSoltar(desde, indice)
+      terminar()
+    },
+  })
+  const claseDe = (indice: number) =>
+    desde === indice ? ' arrastrando' : sobre === indice && desde !== null ? (desde < indice ? ' soltar-debajo' : ' soltar-encima') : ''
+  return { asa, destino, claseDe }
+}
+
+/** «Plegar todo» y «Desplegar todo», en la cabecera de una lista de filas o de bloques. */
+function PlegarTodo({
+  total,
+  plegados,
+  alPlegarTodo,
+  alDesplegarTodo,
+  que,
+}: {
+  total: number
+  plegados: number
+  alPlegarTodo: () => void
+  alDesplegarTodo: () => void
+  /** «bloques», «pasos»…: para el nombre accesible, que se repite en cada lista de la pestaña. */
+  que: string
+}) {
+  // Con una sola fila no hay nada que ordenar de un vistazo.
+  if (total < 2) return null
+  return (
+    <span className="lista-plegar-todo">
+      <button
+        type="button"
+        className="lista-boton-texto"
+        onClick={alPlegarTodo}
+        disabled={plegados === total}
+        aria-label={`Plegar todos los ${que}`}
+      >
+        <ChevronsDownUp aria-hidden size={14} /> Plegar todo
+      </button>
+      <button
+        type="button"
+        className="lista-boton-texto"
+        onClick={alDesplegarTodo}
+        disabled={plegados === 0}
+        aria-label={`Desplegar todos los ${que}`}
+      >
+        <ChevronsUpDown aria-hidden size={14} /> Desplegar todo
+      </button>
+    </span>
+  )
+}
+
+/** Lo primero que tenga escrito una fila, para reconocerla plegada. */
+function resumenDeFila(campos: Campo[], fila: Record<string, unknown>): string {
+  for (const campo of campos) {
+    if (campo.tipo !== 'texto' && campo.tipo !== 'area' && campo.tipo !== 'seleccion') continue
+    const valor = fila[campo.nombre]
+    if (typeof valor !== 'string' || !valor.trim()) continue
+    const etiqueta = campo.tipo === 'seleccion' ? (campo.opciones.find((o) => o.valor === valor)?.etiqueta ?? valor) : valor.trim()
+    return etiqueta.length > 70 ? `${etiqueta.slice(0, 70)}…` : etiqueta
+  }
+  return 'sin contenido'
+}
+
 function EditorDeLista({
   campo,
   valor,
@@ -754,10 +912,23 @@ function EditorDeLista({
   alCambiarHermano,
 }: Props & { campo: Extract<Campo, { tipo: 'lista' }> }) {
   const filas = Array.isArray(valor) ? (valor as Record<string, unknown>[]) : []
+  const confirmar = useConfirmar()
 
   const cambiar = (nuevas: Record<string, unknown>[]) => alCambiar(nuevas)
 
   const singular = campo.singular.toLowerCase()
+
+  /**
+   * Filas plegadas, por su clave (como los bloques: ver `plegados` en
+   * `EditorDeBloques`). A diferencia de los bloques, el cuerpo de una fila
+   * plegada no se desmonta: se esconde con `hidden`. Una fila no tiene el
+   * escritor por clave que tienen los bloques (`apuntarEnElBloque`), así que
+   * desmontar su selector de archivo a media subida dejaría el archivo subido
+   * y sin elegir. Una fila son tres o cuatro casillas: tenerlas montadas no
+   * cuesta lo que doce TipTap.
+   */
+  const [plegadas, setPlegadas] = useState<Record<string, boolean>>({})
+  const arrastre = useArrastre((desde, hasta) => cambiar(reordenar(filas, desde, hasta)))
 
   const modelo =
     campo.editor === 'piezas3d'
@@ -767,18 +938,25 @@ function EditorDeLista({
   const mover = (indice: number, direccion: -1 | 1) => {
     const destino = indice + direccion
     if (destino < 0 || destino >= filas.length) return
-    const copia = [...filas]
-    ;[copia[indice], copia[destino]] = [copia[destino], copia[indice]]
-    cambiar(copia)
+    cambiar(reordenar(filas, indice, destino))
   }
 
-  const quitar = (indice: number) => {
+  const quitar = async (indice: number) => {
     // La misma pregunta que ya hace el editor de bloques, y por la misma razón:
     // una fila de «Pasos del guion» lleva descripción, principio y nota, y con
     // el foco sin recoger no queda ni rastro en pantalla de lo que se perdió.
-    if (!confirm(`¿Quitar ${singular} ${indice + 1}? Se pierde lo que tenga escrito.`)) return
+    const si = await confirmar({
+      titulo: `¿Quitar ${singular} ${indice + 1}?`,
+      mensaje: 'Se pierde lo que tenga escrito.',
+      confirmar: `Quitar ${singular}`,
+      peligro: true,
+    })
+    if (!si) return
     cambiar(filas.filter((_, j) => j !== indice))
   }
+
+  const claves = filas.map((fila, i) => claveDe(fila, i))
+  const cuantasPlegadas = claves.filter((c) => plegadas[c]).length
 
   return (
     <div className="campo lista">
@@ -787,6 +965,13 @@ function EditorDeLista({
         <span className="lista-conteo">
           {filas.length} {filas.length === 1 ? singular : 'en total'}
         </span>
+        <PlegarTodo
+          total={filas.length}
+          plegados={cuantasPlegadas}
+          que={`${singular} de «${campo.etiqueta}»`}
+          alPlegarTodo={() => setPlegadas(Object.fromEntries(claves.map((c) => [c, true])))}
+          alDesplegarTodo={() => setPlegadas({})}
+        />
       </div>
       {campo.ayuda ? <p className="campo-ayuda">{campo.ayuda}</p> : null}
 
@@ -819,62 +1004,92 @@ function EditorDeLista({
         </>
       ) : null}
 
-      {filas.map((fila, i) => (
-        <div className="lista-fila" key={claveDe(fila, i)}>
-          <div className="lista-fila-barra">
-            <span className="lista-fila-numero">
-              {campo.singular} {i + 1}
-            </span>
-            <div className="lista-fila-acciones">
+      {filas.map((fila, i) => {
+        const clave = claves[i]
+        const plegada = plegadas[clave] === true
+        return (
+          <div
+            className={`lista-fila${plegada ? ' lista-fila-plegada' : ''}${arrastre.claseDe(i)}`}
+            key={clave}
+            {...arrastre.destino(i)}
+          >
+            <div className="lista-fila-barra">
+              <span
+                className="lista-asa"
+                title={`Arrastrar para mover ${singular} ${i + 1}`}
+                aria-hidden
+                {...arrastre.asa(i)}
+              >
+                <GripVertical size={16} />
+              </span>
               {/* El nombre accesible de un botón lo da su contenido y solo cae
-                  al `title` si ese contenido queda vacío: con «↑» dentro, el
-                  título era texto muerto y el lector anunciaba el glifo. Con
-                  seis pasos son dieciocho botones llamados por un símbolo, así
-                  que el número de fila va también en el nombre. */}
+                  al `title` si ese contenido queda vacío: con un glifo dentro,
+                  el título era texto muerto y el lector anunciaba el glifo.
+                  Con seis pasos son dieciocho botones, así que el número de
+                  fila va también en el nombre. Ahora el contenido es un icono
+                  con `aria-hidden` y el nombre lo da `aria-label`. */}
               <button
                 type="button"
-                onClick={() => mover(i, -1)}
-                disabled={i === 0}
-                title={`Subir ${singular} ${i + 1}`}
-                aria-label={`Subir ${singular} ${i + 1}`}
+                className="lista-plegar"
+                onClick={() => setPlegadas((previas) => ({ ...previas, [clave]: !plegada }))}
+                aria-expanded={!plegada}
+                aria-label={`${plegada ? 'Desplegar' : 'Plegar'} ${singular} ${i + 1}`}
+                title={`${plegada ? 'Desplegar' : 'Plegar'} ${singular} ${i + 1}`}
               >
-                ↑
+                {plegada ? <ChevronRight aria-hidden size={16} /> : <ChevronDown aria-hidden size={16} />}
               </button>
-              <button
-                type="button"
-                onClick={() => mover(i, 1)}
-                disabled={i === filas.length - 1}
-                title={`Bajar ${singular} ${i + 1}`}
-                aria-label={`Bajar ${singular} ${i + 1}`}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                className="lista-quitar"
-                onClick={() => quitar(i)}
-                title={`Quitar ${singular} ${i + 1}`}
-                aria-label={`Quitar ${singular} ${i + 1}`}
-              >
-                ✕
-              </button>
+              <span className="lista-fila-numero">
+                {campo.singular} {i + 1}
+              </span>
+              {plegada ? <span className="lista-fila-resumen">{resumenDeFila(campo.campos, fila)}</span> : null}
+              <div className="lista-fila-acciones">
+                <button
+                  type="button"
+                  onClick={() => mover(i, -1)}
+                  disabled={i === 0}
+                  title={`Subir ${singular} ${i + 1}`}
+                  aria-label={`Subir ${singular} ${i + 1}`}
+                >
+                  <ArrowUp aria-hidden size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => mover(i, 1)}
+                  disabled={i === filas.length - 1}
+                  title={`Bajar ${singular} ${i + 1}`}
+                  aria-label={`Bajar ${singular} ${i + 1}`}
+                >
+                  <ArrowDown aria-hidden size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="lista-quitar"
+                  onClick={() => void quitar(i)}
+                  title={`Quitar ${singular} ${i + 1}`}
+                  aria-label={`Quitar ${singular} ${i + 1}`}
+                >
+                  <Trash2 aria-hidden size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="lista-fila-cuerpo" hidden={plegada}>
+              <FilaDeCampos
+                campos={campo.campos}
+                valores={fila}
+                alCambiar={(nombre, nuevo) =>
+                  cambiar(filas.map((f, j) => (j === i ? { ...f, [nombre]: nuevo } : f)))
+                }
+                relaciones={relaciones}
+                alRecargarRelacion={alRecargarRelacion}
+              />
             </div>
           </div>
-          <FilaDeCampos
-            campos={campo.campos}
-            valores={fila}
-            alCambiar={(nombre, nuevo) =>
-              cambiar(filas.map((f, j) => (j === i ? { ...f, [nombre]: nuevo } : f)))
-            }
-            relaciones={relaciones}
-            alRecargarRelacion={alRecargarRelacion}
-          />
-        </div>
-      ))}
+        )
+      })}
 
       <button
         type="button"
-        className="admin-btn admin-btn-secondary"
+        className="admin-btn admin-btn-secondary lista-agregar"
         onClick={() =>
           cambiar([
             ...filas,
@@ -882,7 +1097,7 @@ function EditorDeLista({
           ])
         }
       >
-        + Agregar {singular}
+        <Plus aria-hidden size={16} /> Agregar {singular}
       </button>
     </div>
   )
@@ -891,6 +1106,28 @@ function EditorDeLista({
 // ------------------------------------------------------------------ bloques
 
 const SIN_BLOQUES: Record<string, unknown>[] = []
+
+/**
+ * Cómo se presenta cada tipo de bloque en el menú de agregar: un icono y una
+ * línea que dice para qué sirve.
+ *
+ * Es presentación y por eso vive aquí y no en `src/admin/bloques.ts`, que
+ * describe cómo se edita y se guarda cada bloque. El menú era una fila de
+ * ocho botones con el nombre a secas, y «Lista clínica» frente a «Tabla de
+ * clasificación» no dice cuál conviene a quien escribe su primera ficha. Un
+ * bloque nuevo sin entrada aquí sale con el icono genérico y sin ayuda: se
+ * nota, pero no rompe nada.
+ */
+const PRESENTACION_DE_BLOQUE: Record<string, { icono: LucideIcon; ayuda: string }> = {
+  texto: { icono: Type, ayuda: 'Párrafos con formato: el cuerpo de la ficha.' },
+  'lista-clinica': { icono: ListChecks, ayuda: 'Puntos con una idea destacada y su desarrollo.' },
+  'tabla-clasificacion': { icono: Table, ayuda: 'Códigos o tipos con su descripción.' },
+  advertencia: { icono: AlertTriangle, ayuda: 'Un recuadro de aviso o de perla clínica.' },
+  imagen: { icono: IconoImagen, ayuda: 'Una imagen de la biblioteca de medios, con su pie.' },
+  video: { icono: Video, ayuda: 'Un video de la biblioteca de medios.' },
+  'instancia-atlas': { icono: Bone, ayuda: 'Una preparación armada en el taller anatómico.' },
+  'modelo-3d': { icono: Box, ayuda: 'Un modelo 3D con el encuadre con que se abre.' },
+}
 
 function EditorDeBloques({
   campo,
@@ -904,6 +1141,7 @@ function EditorDeBloques({
   // cada pintado, un ajuste de estado tras otro hasta que React corta con
   // «Too many re-renders» en una ficha que abre sin bloques.
   const bloques = Array.isArray(valor) ? (valor as Record<string, unknown>[]) : SIN_BLOQUES
+  const confirmar = useConfirmar()
   /**
    * Plegado por identidad del bloque y no por su posición.
    *
@@ -949,6 +1187,7 @@ function EditorDeBloques({
   }, [agregando])
 
   const cambiar = (nuevos: Record<string, unknown>[]) => alCambiar(nuevos)
+  const arrastre = useArrastre((desde, hasta) => cambiar(reordenar(bloques, desde, hasta)))
 
   /**
    * Las claves de cliente que un guardado convirtió en `id`, y el arreglo
@@ -1023,10 +1262,26 @@ function EditorDeBloques({
   const mover = (indice: number, direccion: -1 | 1) => {
     const destino = indice + direccion
     if (destino < 0 || destino >= bloques.length) return
-    const copia = [...bloques]
-    ;[copia[indice], copia[destino]] = [copia[destino], copia[indice]]
-    cambiar(copia)
+    cambiar(reordenar(bloques, indice, destino))
   }
+
+  const quitar = async (indice: number, nombreDelBloque: string) => {
+    const si = await confirmar({
+      titulo: `¿Quitar ${nombreDelBloque} ${indice + 1}?`,
+      mensaje: 'Se pierde lo que tenga escrito.',
+      confirmar: 'Quitar bloque',
+      peligro: true,
+    })
+    if (si) cambiar(bloques.filter((_, j) => j !== indice))
+  }
+
+  /** La clave de cada bloque: la estable si la tiene, con el nombre de antes del guardado. */
+  const claveDelBloque = (bloque: Record<string, unknown>, i: number) => {
+    const estable = claveEstable(bloque)
+    return (estable !== null ? nombreDePila.get(estable) : undefined) ?? claveDe(bloque, i)
+  }
+  const claves = bloques.map(claveDelBloque)
+  const cuantosPlegados = claves.filter((c) => plegados[c]).length
 
   return (
     <div className="campo bloques">
@@ -1035,6 +1290,17 @@ function EditorDeBloques({
         <span className="lista-conteo">
           {bloques.length} bloque{bloques.length === 1 ? '' : 's'}
         </span>
+        <PlegarTodo
+          total={bloques.length}
+          plegados={cuantosPlegados}
+          que={`bloques de «${campo.etiqueta}»`}
+          // Plegar desmonta el cuerpo de cada bloque —ver abajo—, y una subida
+          // en marcha escribe igual por `apuntarEnElBloque`: es lo que
+          // `tests/unit/plegarDuranteLaSubida.test.ts` comprueba bloque a
+          // bloque, y plegarlos todos de golpe es la misma operación repetida.
+          alPlegarTodo={() => setPlegados(Object.fromEntries(claves.map((c) => [c, true])))}
+          alDesplegarTodo={() => setPlegados({})}
+        />
       </div>
       {campo.ayuda ? <p className="campo-ayuda">{campo.ayuda}</p> : null}
 
@@ -1051,12 +1317,25 @@ function EditorDeBloques({
         // deja de ser este en cuanto se mueve uno, y apuntar el archivo en el
         // bloque equivocado es peor que dejarlo para elegir a mano.
         const estable = claveEstable(bloque)
-        const clave = (estable !== null ? nombreDePila.get(estable) : undefined) ?? claveDe(bloque, i)
+        const clave = claves[i]
         const plegado = plegados[clave] === true
         const nombreDelBloque = esquema.nombre.toLowerCase()
+        const Icono = PRESENTACION_DE_BLOQUE[esquema.slug]?.icono ?? Square
         return (
-          <div className={`bloque-editor${plegado ? ' bloque-plegado' : ''}`} key={clave}>
+          <div
+            className={`bloque-editor${plegado ? ' bloque-plegado' : ''}${arrastre.claseDe(i)}`}
+            key={clave}
+            {...arrastre.destino(i)}
+          >
             <div className="bloque-barra">
+              <span
+                className="lista-asa"
+                title={`Arrastrar para mover ${nombreDelBloque} ${i + 1}`}
+                aria-hidden
+                {...arrastre.asa(i)}
+              >
+                <GripVertical size={16} />
+              </span>
               <button
                 type="button"
                 className="bloque-plegar"
@@ -1067,9 +1346,12 @@ function EditorDeBloques({
                 aria-label={`${plegado ? 'Desplegar' : 'Plegar'} ${nombreDelBloque} ${i + 1}`}
                 aria-expanded={!plegado}
               >
-                {plegado ? '▸' : '▾'}
+                {plegado ? <ChevronRight aria-hidden size={16} /> : <ChevronDown aria-hidden size={16} />}
               </button>
-              <span className="bloque-tipo">{esquema.nombre}</span>
+              <span className="bloque-tipo">
+                <Icono aria-hidden size={14} />
+                {esquema.nombre}
+              </span>
               <span className="bloque-resumen">{esquema.resumen(bloque)}</span>
               <div className="lista-fila-acciones">
                 <button
@@ -1079,7 +1361,7 @@ function EditorDeBloques({
                   title={`Subir ${nombreDelBloque} ${i + 1}`}
                   aria-label={`Subir ${nombreDelBloque} ${i + 1}`}
                 >
-                  ↑
+                  <ArrowUp aria-hidden size={16} />
                 </button>
                 <button
                   type="button"
@@ -1088,20 +1370,16 @@ function EditorDeBloques({
                   title={`Bajar ${nombreDelBloque} ${i + 1}`}
                   aria-label={`Bajar ${nombreDelBloque} ${i + 1}`}
                 >
-                  ↓
+                  <ArrowDown aria-hidden size={16} />
                 </button>
                 <button
                   type="button"
                   className="lista-quitar"
-                  onClick={() => {
-                    if (confirm('¿Quitar este bloque? Se pierde lo que tenga escrito.')) {
-                      cambiar(bloques.filter((_, j) => j !== i))
-                    }
-                  }}
+                  onClick={() => void quitar(i, nombreDelBloque)}
                   title={`Quitar ${nombreDelBloque} ${i + 1}`}
                   aria-label={`Quitar ${nombreDelBloque} ${i + 1}`}
                 >
-                  ✕
+                  <Trash2 aria-hidden size={16} />
                 </button>
               </div>
             </div>
@@ -1132,30 +1410,51 @@ function EditorDeBloques({
       })}
 
       {agregando ? (
-        <div className="bloques-menu" ref={menu}>
-          {BLOQUES.map((b) => (
-            <button
-              key={b.slug}
-              type="button"
-              className="bloques-menu-opcion"
-              onClick={() => {
-                cambiar([
-                  ...bloques,
-                  {
-                    blockType: b.slug,
-                    ...valoresPorOmision(b.campos),
-                    [CLAVE_DE_FILA]: nuevaClave(),
-                  },
-                ])
-                setAgregando(false)
-              }}
-            >
-              {b.nombre}
-            </button>
-          ))}
+        // Una rejilla con icono y una línea de ayuda por tipo, en vez de la
+        // fila de ocho nombres a secas. Escape cierra, como en cualquier menú.
+        <div
+          className="bloques-menu"
+          ref={menu}
+          role="group"
+          aria-label="Tipo de bloque que agregar"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation()
+              setAgregando(false)
+            }
+          }}
+        >
+          {BLOQUES.map((b) => {
+            const presentacion = PRESENTACION_DE_BLOQUE[b.slug]
+            const Icono = presentacion?.icono ?? Square
+            return (
+              <button
+                key={b.slug}
+                type="button"
+                className="bloques-menu-opcion"
+                onClick={() => {
+                  cambiar([
+                    ...bloques,
+                    {
+                      blockType: b.slug,
+                      ...valoresPorOmision(b.campos),
+                      [CLAVE_DE_FILA]: nuevaClave(),
+                    },
+                  ])
+                  setAgregando(false)
+                }}
+              >
+                <span className="bloques-menu-icono" aria-hidden>
+                  <Icono size={18} />
+                </span>
+                <span className="bloques-menu-nombre">{b.nombre}</span>
+                {presentacion ? <span className="bloques-menu-ayuda">{presentacion.ayuda}</span> : null}
+              </button>
+            )
+          })}
           <button
             type="button"
-            className="bloques-menu-opcion bloques-menu-cancelar"
+            className="admin-btn admin-btn-secondary bloques-menu-cancelar"
             onClick={() => setAgregando(false)}
           >
             Cancelar
@@ -1164,11 +1463,11 @@ function EditorDeBloques({
       ) : (
         <button
           type="button"
-          className="admin-btn admin-btn-secondary"
+          className="admin-btn admin-btn-secondary lista-agregar"
           ref={disparador}
           onClick={() => setAgregando(true)}
         >
-          + Agregar bloque
+          <Plus aria-hidden size={16} /> Agregar bloque
         </button>
       )}
     </div>

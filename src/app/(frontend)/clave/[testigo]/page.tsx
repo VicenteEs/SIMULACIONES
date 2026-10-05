@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { FormularioClaveNueva } from './FormularioClaveNueva'
 import { ruta } from '@/lib/rutas'
+import { MallaDeNodos } from '@/components/MallaDeNodos'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,9 @@ export default async function PaginaClaveNueva({
 
   return (
     <main className="acceso">
+      <div className="acceso-fondo" aria-hidden="true">
+        <MallaDeNodos className="portada-malla" />
+      </div>
       <div className="acceso-caja">
         <div className="acceso-marca">
           <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="acceso-logo" />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { RastreadorActividad } from '@/components/RastreadorActividad'
 import { ConsolaQuirurgica, type CasoDeConsola } from './ConsolaQuirurgica'
 import type { RecorridoGuardado } from '@/lib/progresoDelSimulador'
@@ -41,11 +41,14 @@ export function CasoConSuLectura({
   documentoId,
   recorridoGuardado,
   completadoInicial,
+  children,
 }: {
   caso: CasoDeConsola
   documentoId: string
   recorridoGuardado: RecorridoGuardado | null
   completadoInicial: boolean
+  /** El título y el resumen del caso, que la página pinta en el servidor. */
+  children?: ReactNode
 }) {
   const [marcasDeLaConsola, setMarcasDeLaConsola] = useState(0)
   const alMarcarComoLeido = useCallback(() => setMarcasDeLaConsola((n) => n + 1), [])
@@ -53,18 +56,27 @@ export function CasoConSuLectura({
   return (
     <>
       {/*
+        La casilla, en la cabecera del caso y junto a su título. Iba suelta
+        entre el resumen y la consola, a la derecha y sin nada al lado, y se
+        leía como un botón de la consola. El título y el resumen llegan como
+        `children` porque los pinta la página en el servidor —el resumen es
+        texto rico— y este envoltorio es de cliente.
+
         Arriba y no al final: quien termina la consola se queda dentro de ella
         —no hay nada que empuje a seguir bajando—. En la biblioteca la casilla
         vive en la cabecera por lo mismo. Terminar el caso la marca sola; la
         casilla sigue aquí para quien quiera marcarlo sin recorrerlo, o
         desmarcarlo para volver a encontrarlo en «Continúa leyendo».
       */}
-      <RastreadorActividad
-        key={marcasDeLaConsola}
-        coleccion="cirugias"
-        documentoId={documentoId}
-        completadoInicial={marcasDeLaConsola > 0 || completadoInicial}
-      />
+      <header className="caso-cabecera">
+        <div className="caso-cabecera-texto">{children}</div>
+        <RastreadorActividad
+          key={marcasDeLaConsola}
+          coleccion="cirugias"
+          documentoId={documentoId}
+          completadoInicial={marcasDeLaConsola > 0 || completadoInicial}
+        />
+      </header>
 
       <ConsolaQuirurgica
         caso={caso}

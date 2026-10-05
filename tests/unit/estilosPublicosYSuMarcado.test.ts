@@ -110,24 +110,27 @@ describe('el módulo actual se ve en la barra ancha', () => {
 
 describe('la insignia de «Continúa leyendo»', () => {
   /**
-   * Es la razón de ser de la regla de abajo: esa insignia dejó de llevar el slug
-   * de la tabla y pasa a llevar el nombre propio del módulo. Si vuelve a pintar
-   * un slug, `capitalize` vuelve a ser lo correcto y el `none` sobra.
+   * Es la razón de ser de la prueba: esa insignia dejó de llevar el slug de la
+   * tabla y pasa a llevar el nombre propio del módulo. Si vuelve a pintar un
+   * slug, «patologias» sin tilde sale a la portada.
    */
   it('lleva el nombre del módulo y no el slug de la tabla', () => {
-    expect(portada).toMatch(/className="codigo">\{NOMBRE_DE_MODULO\[/)
+    expect(portada).toMatch(/\{NOMBRE_DE_MODULO\[/)
+    expect(portada).toContain('insignia insignia-acento')
   })
 
-  it('la hoja no le pone mayúscula a la preposición', () => {
-    // El `capitalize` general se queda: es el de los códigos que escribe el
-    // autor en las demás rejillas, y borrarlo devolvería el mando al
-    // `uppercase` del bloque de `.tarjeta-ficha .codigo, .tarjeta-ficha
-    // .borrador`, con lo que la insignia pasaría a «BIBLIOTECA DE PATOLOGÍAS».
-    const general = reglasDe('.tarjeta-ficha .codigo')
-    expect(general.some((cuerpo) => cuerpo.includes('capitalize'))).toBe(true)
-
-    const enLaPortada = reglasDe('.continuar-leyendo .tarjeta-ficha .codigo')
-    expect(enLaPortada.length, '«Biblioteca De Patologías» vuelve a la portada').toBeGreaterThan(0)
-    expect(enLaPortada.some((cuerpo) => /text-transform\s*:\s*none/.test(cuerpo))).toBe(true)
+  /**
+   * Antes lo protegía una regla `text-transform: none` contra el `capitalize`
+   * de `.tarjeta-ficha .codigo`, que le ponía mayúscula a la preposición
+   * («Biblioteca De Patologías»). Hoy ni el código ni la insignia transforman
+   * el texto —los códigos los escribe el autor y se respetan tal cual—, así que
+   * lo que hay que vigilar es que nadie lo vuelva a poner.
+   */
+  it('la hoja no le cambia las mayúsculas al nombre del módulo', () => {
+    for (const selector of ['.codigo', '.insignia', '.tarjeta-ficha .codigo']) {
+      for (const cuerpo of reglasDe(selector)) {
+        expect(cuerpo, selector).not.toMatch(/text-transform\s*:\s*(capitalize|uppercase)/)
+      }
+    }
   })
 })

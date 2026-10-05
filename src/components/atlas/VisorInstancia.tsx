@@ -5,6 +5,8 @@ import { idDeFragmento, type CatalogoDelAtlas, type ContenidoDeInstancia } from 
 import { cargarCatalogo } from '@/atlas/cargador'
 import { normalizarSeleccion } from '@/atlas/catalogo'
 import { VisorAtlas, type MandoDelVisor } from './VisorAtlas'
+import { Eye, House } from 'lucide-react'
+import { BloqueoTactil } from '../BloqueoTactil'
 
 /**
  * Una preparación anatómica dentro de una ficha, para el residente.
@@ -107,6 +109,10 @@ export function VisorInstancia({
   return (
     <figure className="figura completo">
       <div className="atlas-instancia">
+        {/* Dormido en pantalla táctil hasta que se toca: en el teléfono la
+            preparación mide el 60 % de la pantalla y se quedaba con el dedo
+            que bajaba por la ficha (`BloqueoTactil`). */}
+        <BloqueoTactil>
         <VisorAtlas
           catalogo={catalogo}
           visibles={preparado.visibles}
@@ -121,12 +127,14 @@ export function VisorInstancia({
           apagados={preparado.apagados}
           soloLectura
         />
+        </BloqueoTactil>
       </div>
       {/* Las vistas con nombre que dejó quien preparó la pieza (D-135): «AP»,
           «lateral», «el foco». La primera es siempre la de apertura. */}
       {preparado.limpio.vistas && preparado.limpio.vistas.length > 0 ? (
         <div className="atlas-vistas" role="group" aria-label="Vistas de esta preparación">
           <button type="button" onClick={() => mando.current?.irA(preparado.limpio.vista)}>
+            <House size={14} aria-hidden="true" />
             Vista inicial
           </button>
           {preparado.limpio.vistas.map((v) => (
@@ -137,6 +145,7 @@ export function VisorInstancia({
                 mando.current?.irA({ camara: v.camara, objetivo: v.objetivo, separacion: 0 })
               }
             >
+              <Eye size={14} aria-hidden="true" />
               {v.nombre}
             </button>
           ))}

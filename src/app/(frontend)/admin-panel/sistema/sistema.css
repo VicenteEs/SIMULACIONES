@@ -1,0 +1,7 @@
+/* La pantalla de Sistema. Lo que antes iba en `style={{}}`: el detalle de
+   cada comprobación en letra pequeña, la línea del remitente y el sitio del
+   botón de prueba con su resultado. */
+.sistema-detalle { font-size: var(--t-sm); }
+.sistema-remitente { margin-top: var(--e-1); color: var(--mudo); }
+.sistema-prueba { margin-top: var(--e-2); }
+.sistema-prueba-aviso { margin: var(--e-2) 0 0; }

@@ -34,6 +34,8 @@ import {
   type Encuadre,
 } from '@/lib/encuadre'
 import { ruta } from '@/lib/rutas'
+import { RotateCw, Pause, RefreshCw } from 'lucide-react'
+import { BloqueoTactil, useEsTactil } from './BloqueoTactil'
 
 export type { Encuadre }
 
@@ -328,6 +330,7 @@ class LimiteDelModelo extends React.Component<
         <span className="visor-3d-nombre">{this.props.nombre ?? 'Modelo no disponible'}</span>
         <span className="visor-3d-nota">El archivo del modelo no se pudo cargar.</span>
         <button type="button" className="visor-3d-boton" onClick={this.props.alReintentar}>
+          <RefreshCw size={15} aria-hidden="true" />
           Reintentar
         </button>
       </div>
@@ -341,6 +344,7 @@ export function Visor3D({
   nombre,
   mando,
   alterno,
+  bloqueoTactil,
 }: {
   url: string
   encuadre?: Encuadre
@@ -349,6 +353,13 @@ export function Visor3D({
   mando?: React.RefObject<MandoDelVisor3D | null>
   /** Contenido extra bajo el lienzo, que pone el editor. */
   alterno?: React.ReactNode
+  /**
+   * Si el lienzo nace dormido en pantalla táctil (`BloqueoTactil`). Por omisión
+   * sí, salvo en el editor de encuadre del panel —el que pasa `mando`—, donde
+   * mover el modelo es justo lo que se va a hacer y no hay página que
+   * desplazar por debajo.
+   */
+  bloqueoTactil?: boolean
 }) {
   const [girando, setGirando] = React.useState(false)
   const [intento, setIntento] = React.useState(0)
@@ -356,6 +367,7 @@ export function Visor3D({
   const grupo = useRef<Group>(null)
   const camara = useRef<MandoDeCamara | null>(null)
   const idAyuda = React.useId()
+  const tactil = useEsTactil()
 
   // Volver a montar el lienzo no basta para reintentar: `useGLTF` guarda en
   // caché también la promesa rechazada, así que el segundo intento fallaba con
@@ -424,6 +436,7 @@ export function Visor3D({
     // sano y vuelve a montar el lienzo con el archivo ya fuera de la caché.
     <LimiteDelModelo key={`${url}#${intento}`} nombre={nombre} alReintentar={reintentar}>
       <div className="visor-3d-lienzo">
+        <BloqueoTactil activo={bloqueoTactil ?? !mando}>
         <Canvas
           // El lienzo es un destino de foco y tiene nombre. Sin `tabIndex` el
           // residente que navega con teclado pasa de largo del bloque —fiber no
@@ -456,6 +469,8 @@ export function Visor3D({
           // se quiere exportar una imagen del encuadre.
           gl={{ preserveDrawingBuffer: true, antialias: true }}
         >
+          {/* El `--lienzo-3d` de la hoja, escrito aquí porque three no lee
+              variables de CSS: si el token cambia, este cambia con él. */}
           <color attach="background" args={['#f3f6fb']} />
           <ambientLight intensity={0.7} />
           <directionalLight position={[4, 6, 5]} intensity={1.1} />
@@ -467,6 +482,7 @@ export function Visor3D({
           <CamaraPorTeclado mando={camara} />
           {mando ? <Puente mando={mando} grupo={grupo} encuadre={encuadre} /> : null}
         </Canvas>
+        </BloqueoTactil>
 
         <div className="visor-3d-controles">
           {nombre ? <span className="visor-3d-titulo">{nombre}</span> : <span />}
@@ -476,13 +492,17 @@ export function Visor3D({
             onClick={() => setGirando((v) => !v)}
             aria-pressed={girando}
           >
+            {girando ? <Pause size={15} aria-hidden="true" /> : <RotateCw size={15} aria-hidden="true" />}
             {girando ? 'Detener giro' : 'Girar'}
           </button>
         </div>
         {alterno ?? (
           <p className="visor-3d-ayuda" id={idAyuda}>
-            Arrastre para rotar, rueda para acercar, botón derecho para desplazar. Con el modelo
-            enfocado, las flechas lo giran y las teclas + y − acercan y alejan.
+            {/* En una pantalla táctil no hay rueda ni botón derecho: la ayuda
+                de ratón le describía al residente unos gestos que no tiene. */}
+            {tactil
+              ? 'Toque el modelo para activarlo; luego arrastre con un dedo para girarlo y pellizque para acercar.'
+              : 'Arrastre para rotar, rueda para acercar, botón derecho para desplazar. Con el modelo enfocado, las flechas lo giran y las teclas + y − acercan y alejan.'}
           </p>
         )}
       </div>

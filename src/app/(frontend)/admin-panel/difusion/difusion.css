@@ -3,53 +3,47 @@
  * Solo lo que esta pantalla tiene y las demás no: la rejilla de redacción con
  * vista previa, el marco del correo y la lista de fallos del historial. Todo lo
  * demás —tarjetas, botones, avisos, tabla, barra de progreso— sale de
- * `admin.css`, para que la pantalla se lea como el resto del panel. Va en su
- * propia hoja y no allí porque `admin.css` la carga todo el panel y esto solo lo
+ * `panel.css`, para que la pantalla se lea como el resto del panel. Va en su
+ * propia hoja y no allí porque `panel.css` la carga todo el panel y esto solo lo
  * usa una página. */
 
 /* Redacción a la izquierda y el correo a la derecha, a la vista mientras se
  * escribe: la vista previa que obliga a bajar para mirarla no se mira. Por
- * debajo de 1100 px las dos columnas dejan el correo más estrecho que un
- * teléfono y se apilan. */
+ * debajo de 1200 px (el punto de corte de la casa más cercano a los 1.100 de
+ * antes) las dos columnas dejan el correo más estrecho que un teléfono y se
+ * apilan. */
 .difusion-rejilla {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1.5rem;
+  gap: var(--e-6);
   align-items: start;
-  margin-bottom: 1rem;
+  margin-bottom: var(--e-4);
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .difusion-rejilla { grid-template-columns: minmax(0, 1fr); }
   .difusion-vista { position: static; }
 }
 
 .difusion-subtitulo {
-  font-size: 1rem;
+  font-size: var(--t-base);
   font-weight: 650;
   color: var(--tinta);
-  margin: 0 0 1rem;
-}
-
-.difusion-redaccion:hover {
-  /* La tarjeta es un formulario, no un enlace: el realce de `.admin-card` al
-     pasar el ratón sugiere que toda ella se puede pulsar. */
-  border-color: var(--linea-suave);
-  box-shadow: var(--sombra);
+  margin: 0 0 var(--e-4);
 }
 
 .difusion-mensaje {
-  min-height: 14rem;
+  min-height: 224px;
   resize: vertical;
   line-height: 1.55;
 }
 
 .difusion-contador {
   display: block;
-  margin-top: 0.25rem;
+  margin-top: var(--e-1);
   text-align: right;
-  font-family: var(--mono);
-  font-size: 0.75rem;
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 /* El `fieldset` agrupa texto y enlace del botón para el lector de pantalla; sin
@@ -57,46 +51,47 @@
    tarjeta. */
 .difusion-boton {
   border: 0;
-  margin: 0 0 1.25rem;
+  margin: 0 0 var(--e-5);
   padding: 0;
   min-width: 0;
 }
 
 .difusion-etiqueta-menor {
   display: block;
-  margin-bottom: 0.25rem;
-  font-size: 0.8125rem;
+  margin-bottom: var(--e-1);
+  font-size: var(--t-sm);
   color: var(--pizarra);
 }
 
-.difusion-sugerencia { margin-top: 0.5rem; }
+.difusion-sugerencia { margin-top: var(--e-2); }
 
 .difusion-problema {
-  margin: 0 0 0.75rem;
-  font-size: 0.8125rem;
-  color: var(--ambar);
+  margin: 0 0 var(--e-3);
+  font-size: var(--t-sm);
+  /* `--ambar` daba 3,7:1 para texto; este es el ámbar de leer. */
+  color: var(--ambar-texto);
 }
 
 .difusion-envio { justify-content: flex-end; }
 
-.difusion-confirmacion { margin: 0.5rem 0 0; }
+.difusion-confirmacion { margin: var(--e-2) 0 0; }
 
-.difusion-confirmacion-botones { margin-top: 0.75rem; }
+.difusion-confirmacion-botones { margin-top: var(--e-3); }
 
 /* La vista previa acompaña al desplazarse mientras el formulario es más alto
    que ella. */
 .difusion-vista {
   position: sticky;
-  top: 1rem;
+  top: var(--e-4);
 }
 
 .difusion-vista-cabecera {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--e-3);
   flex-wrap: wrap;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--e-2);
 }
 
 .difusion-vista-cabecera .difusion-subtitulo { margin: 0; }
@@ -116,19 +111,14 @@
 /* ---------- historial ---------- */
 .difusion-fecha { white-space: nowrap; }
 
-.difusion-asunto { min-width: 12rem; }
+.difusion-asunto { min-width: 192px; }
 
 .difusion-avance {
-  min-width: 8rem;
+  min-width: 128px;
   white-space: nowrap;
 }
 
 .difusion-sin-fallos { color: var(--mudo); }
-
-.difusion-etiqueta-fallos {
-  background: var(--alerta-tenue);
-  color: var(--alerta);
-}
 
 .difusion-fallos summary {
   cursor: pointer;
@@ -138,23 +128,23 @@
 
 .difusion-fallos ul {
   list-style: none;
-  margin: 0.4rem 0 0;
+  margin: var(--e-2) 0 0;
   padding: 0;
-  max-height: 14rem;
+  max-height: 224px;
   overflow-y: auto;
-  min-width: 16rem;
+  min-width: 256px;
 }
 
 .difusion-fallos li {
-  padding: 0.3rem 0;
+  padding: var(--e-1) 0;
   border-top: 1px solid var(--linea-suave);
-  font-size: 0.8125rem;
+  font-size: var(--t-sm);
 }
 
 .difusion-fallo-correo {
   display: block;
   font-family: var(--mono);
-  font-size: 0.75rem;
+  font-size: var(--t-xs);
   color: var(--tinta);
   word-break: break-all;
 }
@@ -162,4 +152,10 @@
 .difusion-fallo-motivo {
   display: block;
   color: var(--mudo);
+}
+
+/* En el teléfono el marco del correo no necesita 680 px: con 480 se ve el
+   saludo, el texto y el botón sin que la vista previa ocupe tres pantallas. */
+@media (max-width: 640px) {
+  .difusion-vista-marco { height: 480px; }
 }

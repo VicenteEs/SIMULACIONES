@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { CSSProperties } from 'react'
 import { ruta } from '@/lib/rutas'
+import { House, MapPinOff } from 'lucide-react'
 
 /**
  * La otra mitad del «no encontrado»: la dirección que no casa con ninguna ruta.
@@ -78,17 +79,22 @@ export const metadata: Metadata = {
 */
 const TINTA = '#0c1a38' // --tinta
 const PIZARRA = '#46587a' // --pizarra
+const MUDO = '#5a6880' // --mudo
 const PAPEL = '#eef1f7' // --papel
 const SUPERFICIE = '#ffffff' // --superficie
 const LINEA = '#d7dfec' // --linea
 const MARCA = '#12509e' // --marca
+const MARCA_TENUE = '#e7f0fb' // --marca-tenue
 
 const SANS =
-  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+  "'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+const MONO = "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace"
 
 const estiloCuerpo: CSSProperties = {
   margin: 0,
-  padding: '64px 20px',
+  minHeight: '100vh',
+  display: 'flex',
+  flexDirection: 'column',
   fontFamily: SANS,
   fontSize: 15,
   lineHeight: 1.6,
@@ -97,48 +103,87 @@ const estiloCuerpo: CSSProperties = {
 }
 
 const estiloCaja: CSSProperties = {
-  maxWidth: 620,
+  flex: '1 0 auto',
+  width: '100%',
+  maxWidth: 560,
   margin: '0 auto',
+  padding: '56px 20px 48px',
+  textAlign: 'center',
+}
+
+const estiloLogo: CSSProperties = {
+  width: 180,
+  maxWidth: '60%',
+  height: 'auto',
+  aspectRatio: '1200 / 655',
+  display: 'block',
+  margin: '0 auto 40px',
+}
+
+const estiloIcono: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 72,
+  height: 72,
+  borderRadius: 16,
+  background: MARCA_TENUE,
+  color: MARCA,
+  marginBottom: 20,
+}
+
+const estiloCodigo: CSSProperties = {
+  display: 'block',
+  fontFamily: MONO,
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: MUDO,
+  marginBottom: 8,
 }
 
 const estiloTitulo: CSSProperties = {
-  margin: '0 0 18px',
+  margin: '0 0 12px',
   fontSize: 28,
   lineHeight: 1.15,
   fontWeight: 650,
   letterSpacing: '-0.022em',
 }
 
-const estiloTarjeta: CSSProperties = {
-  background: SUPERFICIE,
-  border: `1px solid ${LINEA}`,
-  borderRadius: 10,
-  padding: '24px 26px',
-}
-
 const estiloParrafo: CSSProperties = {
-  margin: 0,
+  margin: '0 auto',
+  maxWidth: '52ch',
   color: PIZARRA,
 }
 
-const estiloFilaBotones: CSSProperties = {
-  display: 'flex',
-  gap: 10,
-  flexWrap: 'wrap',
+const estiloEnlace: CSSProperties = {
+  display: 'inline-flex',
   alignItems: 'center',
-  marginTop: 22,
+  gap: 8,
+  minHeight: 44,
+  marginTop: 28,
+  padding: '0 22px',
+  background: MARCA,
+  color: SUPERFICIE,
+  border: `1px solid ${MARCA}`,
+  borderRadius: 8,
+  fontFamily: SANS,
+  fontSize: 15,
+  fontWeight: 600,
+  textDecoration: 'none',
 }
 
-const estiloEnlace: CSSProperties = {
-  display: 'inline-block',
-  background: 'transparent',
+const estiloPie: CSSProperties = {
+  borderTop: `1px solid ${LINEA}`,
+  padding: '20px 24px 24px',
+  textAlign: 'center',
+  fontSize: 13,
+  color: MUDO,
+}
+
+const estiloPieEnlace: CSSProperties = {
   color: MARCA,
-  border: `1px solid ${LINEA}`,
-  borderRadius: 4,
-  padding: '11px 20px',
-  fontFamily: SANS,
-  fontSize: 14,
-  fontWeight: 600,
   textDecoration: 'none',
 }
 
@@ -152,34 +197,49 @@ export default function NoEncontradoGlobal() {
     <html lang="es" style={{ colorScheme: 'light' }}>
       <body style={estiloCuerpo}>
         <main style={estiloCaja}>
+          {/* El logotipo, porque esta página sale sin barra: sin él no hay nada
+              en la pantalla que diga que se sigue en TraumaHub y no en otra
+              página del mismo dominio. Pasa por `ruta()` como todo `<img>`
+              escrito a mano. */}
+          <img src={ruta('/logo-hd.png')} alt="TraumaHub" style={estiloLogo} />
+          <span style={estiloIcono} aria-hidden="true">
+            <MapPinOff size={34} strokeWidth={1.6} />
+          </span>
+          <span style={estiloCodigo}>Error 404 · Dirección desconocida</span>
           <h1 style={estiloTitulo}>Esta dirección no existe</h1>
-          <div style={estiloTarjeta}>
-            <p style={estiloParrafo}>
-              No hay ninguna página en esa dirección. Lo corriente es que el enlace llegara mal
-              copiado o que apunte a una parte de la plataforma que cambió de sitio. No es un fallo
-              del servidor y su sesión sigue abierta: desde la portada están todos los módulos.
-            </p>
-            <div style={estiloFilaBotones}>
-              {/*
-                Una sola salida, y a la portada: esta pantalla se pinta sin
-                sesión —el enrutador no llegó a montar nada, así que aquí no se
-                sabe si quien mira es un residente dentro o alguien de fuera— y
-                la portada es la única dirección que sirve en los dos casos.
-                Ofrecer «Ir a la biblioteca», como hace el `not-found.tsx`
-                público, mandaría a media plataforma a la pantalla de entrar.
+          <p style={estiloParrafo}>
+            No hay ninguna página en esa dirección. Lo corriente es que el enlace llegara mal
+            copiado o que apunte a una parte de la plataforma que cambió de sitio. No es un fallo
+            del servidor y su sesión sigue abierta: desde la portada están todos los módulos.
+          </p>
+          {/*
+            Una sola salida, y a la portada: esta pantalla se pinta sin
+            sesión —el enrutador no llegó a montar nada, así que aquí no se
+            sabe si quien mira es un residente dentro o alguien de fuera— y
+            la portada es la única dirección que sirve en los dos casos.
+            Ofrecer «Ir a la biblioteca», como hace el `not-found.tsx`
+            público, mandaría a media plataforma a la pantalla de entrar.
 
-                `<a>` y no `<Link>` a propósito: esta página se sirve fuera del
-                árbol del router y `<Link>` navegaría por un router que aquí no
-                existe. Y al ser una URL escrita a mano necesita `ruta()`: sin
-                ella, bajo el prefijo `/traumahub` el enlace saldría a la raíz
-                del dominio, que es otra página distinta detrás del mismo proxy.
-              */}
-              <a style={estiloEnlace} href={ruta('/')}>
-                Ir a la portada
-              </a>
-            </div>
-          </div>
+            `<a>` y no `<Link>` a propósito: esta página se sirve fuera del
+            árbol del router y `<Link>` navegaría por un router que aquí no
+            existe. Y al ser una URL escrita a mano necesita `ruta()`: sin
+            ella, bajo el prefijo `/traumahub` el enlace saldría a la raíz
+            del dominio, que es otra página distinta detrás del mismo proxy.
+          */}
+          <a style={estiloEnlace} href={ruta('/')}>
+            <House size={18} aria-hidden="true" />
+            Ir a la portada
+          </a>
         </main>
+        {/* El pie de las demás páginas no llega aquí (es del layout), así que
+            se repite su primera línea. */}
+        <footer style={estiloPie}>
+          <strong style={{ color: PIZARRA }}>TraumaHub</strong> · Plataforma docente de
+          traumatología ·{' '}
+          <a style={estiloPieEnlace} href={ruta('/creditos')}>
+            Créditos y licencias
+          </a>
+        </footer>
       </body>
     </html>
   )

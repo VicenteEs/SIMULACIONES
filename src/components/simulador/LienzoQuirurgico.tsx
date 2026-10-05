@@ -8,6 +8,10 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { ruta } from '@/lib/rutas'
 import { desplazamientoDesde, posicionAbsoluta } from '@/lib/reduccion'
+// La regla base de `.consola-lienzo` vive en la hoja de la consola, y este
+// lienzo lo monta también el taller de piezas del panel: sin importarla aquí,
+// allí el contenedor mediría cero de alto. El porqué, en la cabecera de la hoja.
+import '@/app/(frontend)/simulador/consola.css'
 
 /**
  * El lienzo de la consola quirúrgica.
@@ -246,7 +250,6 @@ export function LienzoQuirurgico({
     render.setPixelRatio(Math.min(devicePixelRatio, 2))
     render.setSize(contenedor.clientWidth, contenedor.clientHeight)
     contenedor.appendChild(render.domElement)
-    render.domElement.style.touchAction = 'none'
 
     const escena = new THREE.Scene()
     const camara = new THREE.PerspectiveCamera(
@@ -262,6 +265,9 @@ export function LienzoQuirurgico({
     controles.dampingFactor = 0.08
     controles.target.set(0, 0, 0)
     controles.update()
+    // Después de crear los controles y no antes: `OrbitControls` escribe su
+    // propio `touch-action: none` al conectarse y pisaría el de aquí.
+    render.domElement.style.touchAction = gestoTactil(ultimas.current.modo)
 
     escena.add(new THREE.HemisphereLight(0xffffff, 0x62708a, 2.0))
     const principal = new THREE.DirectionalLight(0xffffff, 1.4)
@@ -594,6 +600,9 @@ export function LienzoQuirurgico({
     // En modo Trazar y Mover, la órbita estorba: cada arrastre giraría la
     // escena en vez de dibujar. Se apaga el giro y se deja el zoom.
     controles.enableRotate = modo === 'orbitar'
+    // `OrbitControls` pone `touch-action: none` al conectarse; esto lo
+    // corrige después, en cada cambio de modo (ver `gestoTactil`).
+    if (taller.current.render) taller.current.render.domElement.style.touchAction = gestoTactil(modo)
     if (taller.current.render) {
       taller.current.render.domElement.style.cursor =
         modo === 'orbitar' ? 'grab' : modo === 'trazar' ? 'crosshair' : 'move'
@@ -604,6 +613,22 @@ export function LienzoQuirurgico({
 }
 
 // ------------------------------------------------------------------ auxiliares
+
+/**
+ * Qué gestos del dedo se queda el lienzo y cuáles devuelve a la página.
+ *
+ * Era `none` siempre: en el móvil la consola ocupa el ancho entero y el lienzo
+ * casi media pantalla, así que el pulgar que bajaba por la página caía tarde o
+ * temprano sobre el modelo y la página dejaba de desplazarse —el arrastre
+ * giraba el hueso—. Al orbitar, el desplazamiento vertical vuelve a ser de la
+ * página (`pan-y`): se gira arrastrando de lado y se acerca pellizcando, que
+ * siguen llegando al lienzo. Al trazar, mover y señalar el lienzo necesita el
+ * arrastre entero, en cualquier dirección, y se lo queda (`none`); ahí el modo
+ * lo ha pedido quien lo eligió, y la página se mueve fuera del modelo.
+ */
+export function gestoTactil(modo: Modo): 'pan-y' | 'none' {
+  return modo === 'orbitar' ? 'pan-y' : 'none'
+}
 //
 // `aplicarPiezas` y `liberarMaterial` salen del módulo a propósito, aunque solo
 // se usen aquí dentro: son las dos piezas de este archivo que pueden estar mal

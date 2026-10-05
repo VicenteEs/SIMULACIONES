@@ -15,11 +15,14 @@ modelos 3D y los casos del simulador.
 
 ## 1. Lo que hay que saber antes de tocar nada
 
-Si solo va a leer una sección, que sea esta. Son las seis cosas que más trabajo
+Si solo va a leer una sección, que sea esta. Son las nueve cosas que más trabajo
 hacen perder.
 
-1. **Nada se guarda solo.** Ni en las fichas ni en el taller anatómico. Lo que
-   no se guardó con un botón, no existe. Guarde seguido.
+1. **Guarde con el botón, y guarde seguido.** Las fichas en borrador se guardan
+   solas cada minuto y hay una copia en su navegador (punto 7), pero eso es una
+   red de seguridad, no un guardado: lo que no se guardó con un botón no está
+   en la plataforma, y una ficha publicada nunca se guarda sola. El taller
+   anatómico no guarda nada solo.
 2. **Un borrador no lo ve ningún lector**, ni siquiera con el enlace directo.
    Para que algo se vea hay que pulsar «Publicar». Y al revés: puede guardar
    borradores a medias con toda tranquilidad.
@@ -33,6 +36,26 @@ hacen perder.
 6. **El taller anatómico y el armado de casos del simulador necesitan un
    computador.** En el teléfono no abren. Leer, corregir texto y revisar
    comentarios sí se puede desde el teléfono.
+7. **Lo que escribe no se pierde si se corta internet.** Mientras hay cambios
+   sin guardar, el editor guarda una copia en su navegador cada pocos
+   segundos. Si la ficha se cierra o se recarga sin guardar, al volver a
+   abrirla aparece «Hay cambios de esta ficha que no llegaron a guardarse»:
+   «Recuperarlos» los vuelve a poner en pantalla (todavía sin guardar; hay que
+   pulsar «Guardar borrador») y «Descartar» los borra. Además, una ficha en
+   borrador se guarda sola en el servidor cada minuto; **una ficha publicada o
+   marcada «Lista para publicar» no**, para no cambiar lo que ya está
+   entregado: esas solo tienen la copia del navegador, y la barra de arriba lo
+   dice. La copia está en el computador de quien escribe: no viaja a otro
+   equipo.
+8. **Si otra persona tiene abierta la misma ficha, se le avisa.** Aparece una
+   banda azul con su nombre («Elena Editora también tiene abierta esta ficha»)
+   y sus iniciales en la barra de arriba. No impide editar: sirve para ponerse
+   de acuerdo antes de escribir, porque si las dos guardan, la segunda verá el
+   aviso de choque de la sección 5.
+9. **Las listas largas se pliegan.** En el panel, cada sección con una lista
+   (Auditoría, Actividad, Registro, Usuarios…) tiene una flecha a la izquierda
+   del título: un clic la pliega o la despliega, y el panel recuerda cómo la
+   dejó. Arriba hay «Plegar todo» y «Desplegar todo».
 
 ---
 

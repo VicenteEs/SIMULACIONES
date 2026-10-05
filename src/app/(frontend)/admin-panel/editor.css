@@ -1,0 +1,343 @@
+/* ==========================================================================
+   El editor de fichas: barra fija, bandas, pestañas, listas y bloques.
+
+   Va aparte de `admin.css` y se carga después (la importa
+   `FormularioDocumento.tsx`), así que a igual especificidad manda sobre las
+   reglas del editor que siguen allí. Todo con los tokens de `estilos.css`.
+   Puntos de corte: 640 / 900 / 1200.
+   ========================================================================== */
+
+.editor {
+  /* La altura de la barra fija la escribe el propio editor al medirla
+     (`--alto-barra-editor`); la barra de formato del texto se pega justo
+     debajo. 56 es el valor de reserva antes de la primera medida. */
+  --alto-barra-editor: 56px;
+  position: relative;
+}
+
+.editor .admin-btn-sm { min-height: 32px; padding: 0 var(--e-3); }
+
+/* ---------- cabecera ---------- */
+.editor-cabecera { margin-bottom: var(--e-4); }
+.editor-migas {
+  margin-bottom: var(--e-1);
+  font-size: var(--t-xs);
+}
+.editor-titulo { margin: 0; overflow-wrap: anywhere; }
+
+/* ---------- la barra fija ---------- */
+.editor-barra {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-barra);
+  margin: 0 calc(var(--e-3) * -1) var(--e-5);
+  padding: var(--e-2) var(--e-3);
+  background: color-mix(in srgb, var(--papel) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--linea);
+}
+.editor-barra-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+  flex-wrap: wrap;
+}
+.editor-barra-estado { display: flex; align-items: center; gap: var(--e-3); min-width: 0; flex-wrap: wrap; }
+.editor-barra-acciones { display: flex; align-items: center; gap: var(--e-2); flex-wrap: wrap; }
+.editor-menu { display: inline-flex; }
+
+.editor-estado { display: inline-flex; align-items: center; gap: var(--e-2); font-size: var(--t-sm); color: var(--pizarra); min-width: 0; flex-wrap: wrap; }
+.editor-estado-principal { font-weight: 600; display: inline-flex; align-items: center; gap: var(--e-1); }
+.editor-estado-detalle { font-size: var(--t-xs); color: var(--mudo); }
+.editor-estado-atencion .editor-estado-principal { color: var(--ambar-texto); }
+.editor-estado-ok .editor-estado-principal { color: var(--verde); }
+.editor-estado-peligro .editor-estado-principal { color: var(--alerta); }
+
+.editor-girando { animation: editor-girar 0.9s linear infinite; }
+@keyframes editor-girar { to { transform: rotate(360deg); } }
+
+/* El choque dentro de la barra: no se va mientras no se resuelva. */
+.editor-choque {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-3);
+  flex-wrap: wrap;
+  margin-top: var(--e-2);
+  padding: var(--e-3);
+  border: 1px solid var(--alerta);
+  border-left-width: 4px;
+  border-radius: var(--r);
+  background: var(--alerta-tenue);
+  font-size: var(--t-sm);
+  line-height: 1.45;
+}
+.editor-choque:focus-visible { outline: 2px solid var(--alerta); outline-offset: 2px; }
+.editor-choque-icono { flex: none; color: var(--alerta); margin-top: 2px; }
+.editor-choque-texto { flex: 1 1 320px; margin: 0; max-height: 7.5em; overflow-y: auto; }
+.editor-choque-acciones { display: flex; gap: var(--e-2); flex-wrap: wrap; }
+
+/* ---------- bandas ---------- */
+.editor-banda {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  flex-wrap: wrap;
+  margin: 0 0 var(--e-4);
+  padding: var(--e-3) var(--e-4);
+  border: 1px solid var(--linea);
+  border-left-width: 4px;
+  border-radius: var(--r);
+  background: var(--superficie);
+  font-size: var(--t-sm);
+  line-height: 1.45;
+}
+.editor-banda-texto { display: flex; flex-direction: column; gap: 2px; flex: 1 1 280px; min-width: 0; }
+.editor-banda-texto span { color: var(--pizarra); }
+.editor-banda-icono { flex: none; }
+.editor-banda-acciones { display: flex; gap: var(--e-2); flex-wrap: wrap; }
+.editor-banda-info { border-left-color: var(--marca); background: var(--marca-tenue); }
+.editor-banda-info .editor-banda-icono { color: var(--marca); }
+.editor-banda-atencion { border-left-color: var(--ambar); background: var(--ambar-tenue); }
+.editor-banda-atencion .editor-banda-icono { color: var(--ambar-texto); }
+.editor-banda-presencia { border-left-color: var(--cian); background: var(--cian-tenue); }
+.editor-banda-propia svg { vertical-align: -2px; }
+
+/* Avatares con iniciales: la banda y el indicador de la barra. */
+.editor-avatares { display: inline-flex; }
+.editor-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; margin-left: -8px;
+  border-radius: var(--r-full); border: 2px solid var(--superficie);
+  background: var(--marca); color: #fff; font-size: var(--t-xs); font-weight: 700;
+}
+.editor-avatar:first-child { margin-left: 0; }
+.editor-avatar-sm { width: 26px; height: 26px; }
+.editor-presencia {
+  display: inline-flex; align-items: center; padding: 2px var(--e-2) 2px var(--e-3);
+  border-radius: var(--r-full); background: var(--cian-tenue); color: var(--marca); cursor: help;
+}
+
+.editor-confirmar-texto { white-space: pre-line; }
+
+/* ---------- pestañas ---------- */
+.editor-pestanas {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--e-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  margin-bottom: var(--e-5);
+}
+.editor-pestana {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  min-height: 40px; padding: 0 var(--e-3);
+  font-size: var(--t-sm); white-space: nowrap;
+  border-radius: var(--r) var(--r) 0 0;
+}
+.editor-pestana:focus-visible { outline: 2px solid var(--marca); outline-offset: -2px; }
+.editor-pestana-activa, .editor-pestana-activa:hover { color: var(--acento, var(--marca)); border-bottom-color: var(--acento, var(--marca)); }
+
+/* Una sola familia de marcas: icono de 14 px en el mismo hueco. */
+.editor-pestana-falta,
+.editor-pestana-revisada,
+.editor-pestana-marca {
+  display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+  width: auto; height: 14px; min-width: 14px; margin: 0;
+  background: none; border-radius: 0; font-size: var(--t-xs); font-weight: 700; line-height: 1;
+}
+.editor-pestana-falta { color: var(--alerta); }
+.editor-pestana-revisada { color: var(--verde); }
+.editor-pestana-marca::before {
+  content: ''; width: 8px; height: 8px; border-radius: var(--r-full); background: var(--acento, var(--marca)); opacity: 0.75;
+}
+.editor-seccion[role='tabpanel']:focus-visible { outline: none; }
+
+/* ---------- recuadro de revisión ---------- */
+.revision-caja {
+  border-left-color: var(--acento, var(--marca));
+  border-radius: var(--r-lg);
+  padding: var(--e-4) var(--e-5);
+  box-shadow: var(--sombra-1);
+  gap: var(--e-3);
+}
+.revision-caja-fuera { box-shadow: none; padding: var(--e-2) 0; }
+.revision-nota-campo textarea { min-height: 72px; }
+.revision-tenue { font-size: var(--t-sm); }
+.revision-nota { font-size: var(--t-sm); }
+
+/* ---------- campos ---------- */
+.campo-control {
+  border-color: var(--linea-fuerte);
+  border-radius: var(--r);
+  min-height: 40px;
+  transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease;
+}
+.campo-control:hover { border-color: var(--pizarra); }
+.campo-control:focus,
+.campo-control:focus-visible { border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-tenue); outline: 2px solid transparent; }
+.campo-etiqueta { font-size: var(--t-sm); }
+.campo-ayuda { font-size: var(--t-xs); }
+.campo-error { font-size: var(--t-sm); }
+.campo-grupo { background: var(--superficie-2); border-radius: var(--r-lg); border-color: var(--linea); }
+.campo-casillas { border-color: var(--linea-fuerte); }
+.editor-seccion-nota { font-size: var(--t-sm); }
+
+/* ---------- listas y bloques ---------- */
+.lista-cabecera { align-items: center; gap: var(--e-3); flex-wrap: wrap; justify-content: flex-start; }
+.lista-cabecera .campo-etiqueta { margin: 0; }
+.lista-conteo { font-size: var(--t-xs); margin-right: auto; }
+.lista-plegar-todo { display: inline-flex; gap: var(--e-1); }
+.lista-boton-texto {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 var(--e-2);
+  border: 1px solid transparent; border-radius: var(--r-sm); background: none;
+  font: inherit; font-size: var(--t-xs); font-weight: 600; color: var(--pizarra); cursor: pointer;
+}
+.lista-boton-texto:hover:not(:disabled) { background: var(--superficie); border-color: var(--linea); color: var(--marca); }
+.lista-boton-texto:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.lista-fila, .bloque-editor {
+  border-radius: var(--r-lg);
+  box-shadow: var(--sombra-1);
+  transition: box-shadow var(--dur-rapida) ease, opacity var(--dur-rapida) ease;
+}
+.lista-fila-barra { gap: var(--e-2); }
+.lista-fila-numero { font-size: var(--t-xs); }
+.lista-fila-resumen { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-sm); color: var(--mudo); }
+.lista-fila-numero { margin-right: auto; }
+.lista-fila-plegada .lista-fila-numero { margin-right: 0; }
+.lista-fila-plegada .lista-fila-barra { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.lista-fila-cuerpo[hidden] { display: none; }
+
+.lista-fila-acciones { gap: var(--e-1); flex: none; }
+.lista-fila-acciones button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--r-sm); font-size: var(--t-sm);
+  transition: border-color var(--dur-rapida) ease, color var(--dur-rapida) ease, background-color var(--dur-rapida) ease;
+}
+.lista-fila-acciones button:focus-visible,
+.lista-plegar:focus-visible,
+.bloque-plegar:focus-visible { outline: 2px solid var(--marca); outline-offset: 1px; }
+.lista-fila-acciones .lista-quitar:hover:not(:disabled) { background: var(--alerta-tenue); }
+
+.lista-plegar, .bloque-plegar {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-sm);
+  background: none; color: var(--pizarra); cursor: pointer;
+}
+.lista-plegar:hover, .bloque-plegar:hover { background: var(--linea-suave); color: var(--tinta); }
+
+.lista-asa {
+  display: inline-flex; align-items: center; flex: none; padding: var(--e-1) 0;
+  color: var(--mudo); cursor: grab; touch-action: none;
+}
+.lista-asa:active { cursor: grabbing; }
+.lista-asa:hover { color: var(--marca); }
+.arrastrando { opacity: 0.45; }
+.soltar-encima { box-shadow: 0 -3px 0 0 var(--marca), var(--sombra-1); }
+.soltar-debajo { box-shadow: 0 3px 0 0 var(--marca), var(--sombra-1); }
+
+.bloque-barra { gap: var(--e-2); background: var(--superficie-2); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.bloque-tipo { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-xs); color: var(--acento, var(--marca)); }
+.bloque-resumen { font-size: var(--t-sm); }
+.bloque-cuerpo { padding: var(--e-4); }
+
+.lista-agregar { margin-top: var(--e-1); }
+
+/* El menú de agregar bloque: una rejilla de tarjetas con icono y ayuda. */
+.bloques-menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--e-2);
+  padding: var(--e-3);
+  border-radius: var(--r-lg);
+  background: var(--superficie-2);
+}
+.bloques-menu-opcion {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  grid-template-areas: 'icono nombre' 'icono ayuda';
+  column-gap: var(--e-3);
+  align-items: center;
+  padding: var(--e-3);
+  text-align: left;
+  border-radius: var(--r);
+  font-size: var(--t-sm);
+}
+.bloques-menu-opcion:hover { border-color: var(--acento, var(--marca)); box-shadow: var(--sombra-1); }
+.bloques-menu-opcion:focus-visible { outline: 2px solid var(--marca); outline-offset: 1px; }
+.bloques-menu-icono {
+  grid-area: icono; display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  background: var(--acento-tenue, var(--marca-tenue)); color: var(--acento, var(--marca));
+}
+.bloques-menu-nombre { grid-area: nombre; font-weight: 650; }
+.bloques-menu-ayuda { grid-area: ayuda; font-size: var(--t-xs); color: var(--mudo); line-height: 1.35; }
+.bloques-menu-cancelar { grid-column: 1 / -1; justify-self: start; }
+
+/* ---------- texto rico ---------- */
+.rte { border-color: var(--linea-fuerte); border-radius: var(--r); }
+.rte-barra-contenedor {
+  position: sticky;
+  /* Justo debajo de la barra fija del editor. */
+  top: var(--alto-barra-editor);
+  z-index: 3;
+  background: var(--superficie-2);
+  border-radius: var(--r) var(--r) 0 0;
+}
+/* La barra de formato ya no es la fija: lo es su contenedor. */
+.rte-barra { position: static; background: none; border-bottom: 1px solid var(--linea-suave); gap: 2px; }
+.rte-boton { min-width: 32px; height: 32px; border-radius: var(--r-sm); }
+.rte-boton:focus-visible { outline: 2px solid var(--marca); outline-offset: 1px; }
+.rte-rotulo { font-size: var(--t-xs); font-weight: 700; letter-spacing: 0.02em; }
+.rte-enlace {
+  display: flex; align-items: center; gap: var(--e-2); flex-wrap: wrap;
+  padding: var(--e-2) var(--e-3); border-bottom: 1px solid var(--linea-suave); background: var(--marca-tenue);
+}
+.rte-enlace-etiqueta { font-size: var(--t-xs); font-weight: 600; color: var(--pizarra); }
+.rte-enlace-casilla { flex: 1 1 220px; min-height: 32px; width: auto; }
+
+/* ---------- esqueleto de carga ---------- */
+.editor-esqueleto { display: flex; flex-direction: column; gap: var(--e-4); }
+.editor-esqueleto-barra { display: flex; align-items: center; gap: var(--e-3); padding: var(--e-2) 0; border-bottom: 1px solid var(--linea); }
+.editor-esqueleto-hueco { flex: 1; }
+.editor-esqueleto-pestanas { display: flex; gap: var(--e-4); padding-bottom: var(--e-2); border-bottom: 1px solid var(--linea); overflow: hidden; }
+.editor-esqueleto-campo { display: flex; flex-direction: column; gap: var(--e-2); }
+
+/* ---------- pantalla estrecha ---------- */
+@media (max-width: 900px) {
+  /* La barra lateral pasa a fila superior y no es fija: la barra del editor
+     se pega al borde de la pantalla. */
+  .editor-barra { margin-inline: calc(var(--e-4) * -1); padding-inline: var(--e-4); }
+}
+@media (max-width: 640px) {
+  /* Abajo, al alcance del pulgar; el menú «⋯» se abre hacia arriba. */
+  .editor-barra {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0; margin: 0;
+    padding: var(--e-2) var(--e-3) calc(var(--e-2) + env(safe-area-inset-bottom));
+    border-bottom: 0; border-top: 1px solid var(--linea); box-shadow: 0 -4px 16px rgba(12, 26, 56, 0.08);
+    background: var(--superficie);
+  }
+  .editor { padding-bottom: calc(var(--alto-barra-editor) + var(--e-6)); }
+  .editor-barra-fila { gap: var(--e-2); }
+  .editor-barra-estado { width: 100%; }
+  .editor-barra-acciones { width: 100%; flex-wrap: wrap; }
+  .editor-barra-acciones .admin-btn { min-height: 44px; padding: 0 var(--e-3); flex: 1 1 auto; }
+  .editor-estado-detalle { display: none; }
+  .editor-barra-acciones .editor-ver-publicado { flex: none; }
+  .editor-barra .menu-acciones-lista { top: auto; bottom: calc(100% + 4px); }
+  .editor-menu .menu-acciones-boton { min-height: 44px; min-width: 44px; }
+  .editor-solo-ancho { display: none; }
+  .editor-choque { max-height: 40vh; overflow-y: auto; }
+  .rte-barra-contenedor { top: 0; }
+  .lista-fila-acciones button, .lista-plegar, .bloque-plegar { width: 40px; height: 40px; }
+  .rte-boton { min-width: 36px; height: 36px; }
+  .bloques-menu { grid-template-columns: 1fr; }
+  .lista-asa { display: none; }
+}
+
+/* `.admin-content` declara `overflow-y: auto` y, sin altura fija, nunca llega a
+   desplazarse: quien se desplaza es la página. Pero un ancestro con `overflow`
+   se vuelve el contenedor del `position: sticky`, y la barra fija se quedaba
+   quieta arriba del todo. Con un editor dentro, se suelta. */
+.admin-content:has(.editor) { overflow: visible; }

@@ -1,0 +1,902 @@
+/* ==========================================================================
+   Consola quirúrgica (módulo 04)
+
+   Hoja propia, fuera de `estilos.css`, por dos motivos. El primero, que es la
+   única pantalla de la plataforma con tema oscuro, y sus cuatrocientas líneas
+   no pintan nada en ninguna otra. El segundo, que la importan dos sitios:
+   `ConsolaQuirurgica.tsx` y `LienzoQuirurgico.tsx`. El lienzo lo monta también
+   el taller de piezas del panel (`TallerDePiezas.tsx`), y sin la regla base de
+   `.consola-lienzo` su `<div>` mide cero de alto y three dibuja en un lienzo
+   de 0 px. Todo lo demás cuelga de `.consola`, así que cargar la hoja en el
+   panel no le cambia nada.
+
+   Por qué oscura: la auditoría la describió como «un formulario», y lo era —
+   blanco sobre blanco, casillas, botones de lista—. Un monitor de pabellón es
+   oscuro porque el campo iluminado es lo que hay que mirar, y aquí lo mismo:
+   el modelo 3D se destaca solo sobre el fondo marino y los mandos se retiran.
+   El pie (descripción del paso y retroalimentación) se queda claro a
+   propósito; es texto clínico escrito con el editor rico, cuyas reglas
+   (enlaces en `--marca`, recuadros de advertencia) están hechas para el papel.
+
+   Los colores son tokens locales de `.consola` (`--c-*`), y cada uno lleva
+   medido su contraste contra el panel más claro, `--c-panel-2`, que es el
+   peor caso. Si se aclara un fondo o se oscurece un texto, hay que volver a
+   medir: lo que aquí va por debajo de 4,5:1 son bordes, nunca texto.
+   ========================================================================== */
+
+/* La base del lienzo, sin `.consola` delante: la usa también el taller del
+   panel (ver cabecera). 420 px y el fondo de todo visor 3D, como antes. */
+.consola-lienzo { height: 420px; background: var(--lienzo-3d); }
+/* El `!important` es de three.js, no nuestro: el render escribe el tamaño en
+   el atributo `style` del propio canvas, y sin él no se le puede mandar desde
+   la hoja. */
+.consola-lienzo canvas { display: block; width: 100% !important; height: 100% !important; }
+.consola-lienzo-cargando {
+  display: grid;
+  place-items: center;
+  font-size: var(--t-sm);
+  color: var(--mudo);
+}
+
+.consola {
+  /* Fondos, de más hondo a más claro. */
+  --c-fondo: #0f1729;
+  --c-panel: #16213a;
+  --c-panel-2: #1d2a47;
+  /* Separadores: solo dividen, no son componentes. */
+  --c-linea: #2a3a5c;
+  /* El contorno de lo que se toca —interruptor apagado, ficha de la bandeja,
+     pista del deslizador—: 3,3:1 sobre `--c-panel-2`, lo que pide WCAG 1.4.11. */
+  --c-linea-fuerte: #6a7fa8;
+  /* Textos: los tres de la barra marina del sitio. Sobre `--c-panel-2` dan
+     12,3:1, 8,1:1 y 5,8:1. */
+  --c-texto: var(--sobre-tinta-1);
+  --c-texto-2: var(--sobre-tinta-2);
+  --c-rotulo: var(--sobre-tinta-3);
+  /* El naranja del módulo 04. `--mod-4` sobre este fondo da 2,6:1: vale para
+     rellenar un botón con letra blanca encima (5,5:1), no para escribir. Para
+     texto y bordes, su versión clara (6,9:1). */
+  --c-acento: #f5a073;
+  --c-acento-solido: var(--mod-4);
+  --c-acento-tenue: rgba(245, 160, 115, 0.14);
+  /* Los tres tonos del registro en oscuro (≥ 7:1 sobre `--c-panel-2`). */
+  --c-bien: #5fd39b;
+  --c-atencion: #f2c46d;
+  --c-grave: #ff9a8f;
+  --tono-bien: var(--c-bien);
+  --tono-atencion: var(--c-atencion);
+  --tono-grave: var(--c-grave);
+  --tono-fondo: rgba(255, 255, 255, 0.04);
+
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
+  grid-template-areas:
+    'barra barra barra'
+    'pasos pasos pasos'
+    'izq centro der'
+    'pie pie pie';
+  margin: var(--e-6) 0 var(--e-8);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r-xl);
+  background: var(--c-fondo);
+  color: var(--c-texto);
+  box-shadow: var(--sombra-2);
+  /* `clip` y no `hidden`: recorta igual las esquinas redondeadas, pero no
+     convierte la consola en contenedor de desplazamiento. Con `hidden`, la
+     barra de acción del móvil (`position: sticky`) se pegaba al borde de la
+     consola en vez de al de la pantalla, o sea, no se pegaba. */
+  overflow: clip;
+}
+
+.consola-rotulo {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-rotulo);
+}
+
+.consola-subtitulo {
+  margin: 0 0 var(--e-3);
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-rotulo);
+}
+
+.consola :focus-visible { outline: 2px solid var(--c-acento); outline-offset: 2px; }
+
+/* ---------- barra ---------- */
+.consola-barra {
+  grid-area: barra;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-4) var(--e-8);
+  padding: var(--e-4) var(--e-6);
+  background: var(--c-panel);
+  border-bottom: 1px solid var(--c-linea);
+}
+.consola-identidad { display: flex; align-items: center; gap: var(--e-3); min-width: 0; }
+.consola-insignia {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r);
+  background: var(--c-acento-solido);
+  color: #fff;
+}
+.consola-titulo { margin: 2px 0 0; font-size: var(--t-md); font-weight: 650; color: var(--c-texto); }
+
+.consola-datos { display: flex; flex-wrap: wrap; gap: var(--e-2) var(--e-6); margin: 0; flex: 1; }
+.consola-datos dt {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-rotulo);
+}
+.consola-datos dd {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin: 2px 0 0;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--c-texto);
+}
+.consola-codigo {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  padding: 1px var(--e-2);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-sm);
+  color: var(--c-texto-2);
+}
+
+/* El marcador: la cifra que el residente busca primero, así que grande, con
+   cifras tabulares (`.u-num`) para que no baile al sumar, y una barra que dice
+   cuánto del caso lleva sin tener que dividir. */
+.consola-marcador { display: grid; gap: var(--e-1); min-width: 140px; }
+.consola-puntaje { display: flex; align-items: baseline; gap: var(--e-1); line-height: 1; }
+.consola-puntaje-numero { font-size: 40px; font-weight: 750; color: var(--c-texto); letter-spacing: -0.02em; }
+.consola-puntaje-total { font-size: var(--t-base); font-weight: 600; color: var(--c-texto-2); }
+.consola-puntaje-medidor {
+  display: block;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--c-linea);
+  overflow: hidden;
+}
+.consola-puntaje-medidor > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--c-acento);
+  transition: width var(--dur) var(--curva);
+}
+.consola-puntaje-anterior { font-size: var(--t-xs); color: var(--c-rotulo); }
+
+/* «Reiniciar» sin relleno, apartado del marcador y rojo solo al pasar por
+   encima: es el único botón de la consola cuyo clic accidental se pierde el
+   recorrido (por eso además pregunta antes). */
+.consola-reiniciar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 40px;
+  padding: 0 var(--e-3);
+  font: inherit;
+  font-size: var(--t-sm);
+  color: var(--c-texto-2);
+  background: transparent;
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: color var(--dur-rapida) var(--curva), border-color var(--dur-rapida) var(--curva);
+}
+.consola-reiniciar:hover { color: var(--c-grave); border-color: var(--c-grave); }
+
+/* ---------- pasos: la barra de progreso del caso ---------- */
+.consola-pasos {
+  grid-area: pasos;
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: var(--e-3) var(--e-6);
+  overflow-x: auto;
+  background: var(--c-fondo);
+  border-bottom: 1px solid var(--c-linea);
+  scrollbar-width: thin;
+}
+.consola-paso {
+  position: relative;
+  flex: 1 0 150px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+  padding: var(--e-2) var(--e-3) var(--e-2) 0;
+}
+/* El hilo entre paso y paso, pintado desde la marca hasta el borde. Verde
+   detrás de lo resuelto: la parte recorrida del caso se lee de un vistazo. */
+.consola-paso::after {
+  content: '';
+  position: absolute;
+  top: calc(var(--e-2) + 13px);
+  left: 34px;
+  right: var(--e-2);
+  height: 2px;
+  background: var(--c-linea);
+  z-index: 0;
+}
+.consola-paso:last-child::after { display: none; }
+.consola-paso.resuelto::after { background: var(--c-bien); }
+.consola-paso-marca {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-full);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-texto-2);
+  background: var(--c-fondo);
+  border: 2px solid var(--c-linea-fuerte);
+}
+.consola-paso-texto {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 var(--e-2) 0 0;
+  background: var(--c-fondo);
+}
+.consola-paso-titulo {
+  font-size: var(--t-sm);
+  line-height: 1.3;
+  color: var(--c-texto-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.consola-paso-fase {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-rotulo);
+}
+/* Ningún estado se apaga con opacidad: el `opacity: .62` de antes dejaba el
+   texto de lo ya resuelto por debajo de 4,5:1. Cada estado cambia la marca
+   (color e icono) y el texto se queda legible. */
+.consola-paso.actual .consola-paso-marca { background: var(--c-acento-solido); border-color: var(--c-acento); color: #fff; }
+.consola-paso.actual .consola-paso-titulo { color: var(--c-texto); font-weight: 650; }
+.consola-paso.resuelto .consola-paso-marca { background: var(--c-bien); border-color: var(--c-bien); color: var(--c-fondo); }
+.consola-paso.complicado .consola-paso-marca { background: var(--c-grave); border-color: var(--c-grave); color: var(--c-fondo); }
+.consola-paso.actual.complicado .consola-paso-marca { box-shadow: 0 0 0 3px var(--c-acento); }
+
+/* ---------- columnas ---------- */
+.consola-izq {
+  grid-area: izq;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-6);
+  padding: var(--e-5) var(--e-4);
+  background: var(--c-panel);
+  border-right: 1px solid var(--c-linea);
+}
+.consola-der {
+  grid-area: der;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-5);
+  padding: var(--e-5) var(--e-4);
+  background: var(--c-panel);
+  border-left: 1px solid var(--c-linea);
+  min-width: 0;
+}
+.consola-centro { grid-area: centro; display: flex; flex-direction: column; min-width: 0; }
+
+/* ---------- modo: control segmentado ---------- */
+.consola-segmentado {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--e-1);
+  padding: var(--e-1);
+  border-radius: var(--r-lg);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea);
+}
+.consola-modo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-1);
+  min-height: 56px;
+  padding: var(--e-2) var(--e-1);
+  font: inherit;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--c-texto-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background var(--dur-rapida) var(--curva), color var(--dur-rapida) var(--curva);
+}
+.consola-modo:hover { color: var(--c-texto); background: var(--c-panel-2); }
+.consola-modo.activo { color: #fff; background: var(--c-acento-solido); }
+/* El modo que pide el paso, cuando no es el que está puesto: un contorno
+   discontinuo en el acento, que se ve sin leer, y la palabra «paso» encima. */
+.consola-modo.pedido:not(.activo) { border: 1px dashed var(--c-acento); color: var(--c-texto); }
+.consola-modo-pedido {
+  position: absolute;
+  top: -7px;
+  right: -2px;
+  padding: 0 5px;
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-fondo);
+  background: var(--c-acento);
+  border-radius: var(--r-full);
+}
+.consola-ayuda { margin: var(--e-3) 0 0; font-size: var(--t-sm); line-height: 1.5; color: var(--c-texto-2); }
+.consola-ayuda-pedido { color: var(--c-acento); }
+
+/* ---------- capas: interruptores ---------- */
+.consola-capas { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-1); }
+.consola-interruptor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+  min-height: 40px;
+  font-size: var(--t-sm);
+  color: var(--c-texto);
+  cursor: pointer;
+}
+/* La casilla de verdad sigue ahí, encima de la pista e invisible: es la que
+   recibe el clic, el foco y el estado para el lector de pantalla. */
+.consola-interruptor input {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 40px;
+  height: 24px;
+  margin: -12px 0 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.consola-interruptor-pista {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border-radius: var(--r-full);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea-fuerte);
+  transition: background var(--dur-rapida) var(--curva), border-color var(--dur-rapida) var(--curva);
+  pointer-events: none;
+}
+.consola-interruptor-pista::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-full);
+  background: var(--c-texto-2);
+  transition: transform var(--dur-rapida) var(--curva), background var(--dur-rapida) var(--curva);
+}
+.consola-interruptor input:checked + .consola-interruptor-pista { background: var(--c-acento-solido); border-color: var(--c-acento); }
+.consola-interruptor input:checked + .consola-interruptor-pista::after { transform: translateX(16px); background: #fff; }
+.consola-interruptor input:focus-visible + .consola-interruptor-pista { outline: 2px solid var(--c-acento); outline-offset: 2px; }
+/* La capa que el modelo no trae: apagada y sin cursor de mano, pero con el
+   rótulo legible (texto secundario, 8:1), no a media opacidad. */
+.consola-capa-vacia { cursor: not-allowed; color: var(--c-rotulo); }
+.consola-capa-vacia .consola-interruptor-pista { border-style: dashed; }
+
+/* ---------- botones genéricos de la consola ---------- */
+.consola-boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-2);
+  min-height: 40px;
+  padding: 0 var(--e-3);
+  font: inherit;
+  font-size: var(--t-sm);
+  color: var(--c-texto);
+  text-decoration: none;
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: border-color var(--dur-rapida) var(--curva), color var(--dur-rapida) var(--curva);
+}
+.consola-boton:hover { border-color: var(--c-acento); color: var(--c-acento); }
+.consola-boton-ancho { width: 100%; margin-top: var(--e-3); }
+
+/* ---------- lienzo ---------- */
+.consola-lienzo-marco { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 460px; }
+.consola .consola-lienzo {
+  flex: 1;
+  height: auto;
+  min-height: 460px;
+  /* Un foco de luz en el centro del campo, como bajo la lámpara: el hueso gris
+     se despega del fondo sin necesidad de un fondo claro. */
+  background: radial-gradient(ellipse at 50% 42%, #2b3b5e 0%, #16213a 55%, #0b1120 100%);
+}
+.consola .consola-lienzo-cargando { color: var(--c-texto-2); }
+.consola-lienzo-herramientas {
+  position: absolute;
+  top: var(--e-3);
+  right: var(--e-3);
+  display: flex;
+  gap: var(--e-2);
+}
+.consola-lienzo-boton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 36px;
+  padding: 0 var(--e-3);
+  font: inherit;
+  font-size: var(--t-sm);
+  color: var(--c-texto);
+  background: rgba(15, 23, 41, 0.78);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-full);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+.consola-lienzo-boton:hover { border-color: var(--c-acento); }
+.consola-fluoro.activo { background: var(--c-texto); color: var(--c-fondo); border-color: var(--c-texto); }
+
+/* ---------- medidas: tarjetas de instrumento ---------- */
+.consola-medidas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--e-2);
+  margin: 0;
+  padding: var(--e-3);
+  background: var(--c-fondo);
+  border-top: 1px solid var(--c-linea);
+}
+.consola-medida {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: var(--e-2) var(--e-3);
+  border: 1px solid var(--c-linea);
+  border-left: 3px solid var(--c-linea-fuerte);
+  border-radius: var(--r);
+  background: var(--c-panel);
+}
+.consola-medida dt {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+  color: var(--c-rotulo);
+}
+.consola-medida dd { margin: 0; }
+.consola-medida-valor { font-size: var(--t-lg); font-weight: 650; color: var(--c-texto); line-height: 1.2; }
+.consola-desglose { font-family: var(--mono); font-size: var(--t-xs); color: var(--c-texto-2); }
+.consola-medida-tope { font-size: var(--t-xs); color: var(--c-texto-2); }
+/* El estado va en el borde y en la palabra, y la palabra lo dice sola
+   («dentro», «se pasa», «corta», «larga»): el color es refuerzo, no el
+   mensaje. */
+.consola-medida[data-estado='dentro'] { border-left-color: var(--c-bien); }
+.consola-medida[data-estado='dentro'] strong { color: var(--c-bien); }
+.consola-medida[data-estado='fuera'] { border-left-color: var(--c-atencion); }
+.consola-medida[data-estado='fuera'] strong { color: var(--c-atencion); }
+
+/* ---------- el paso actual ---------- */
+.consola-objetivo-titulo { margin: var(--e-1) 0 var(--e-2); font-size: var(--t-base); font-weight: 650; color: var(--c-texto); line-height: 1.35; }
+/* La frase que dice qué hacer es lo que el residente busca primero: texto
+   principal y a 14 px, no el gris de nota al pie que tuvo al principio. */
+.consola-instruccion { margin: 0; font-size: 14px; line-height: 1.5; color: var(--c-texto); }
+.consola-angulacion { margin-top: var(--e-3); }
+
+.consola-accion { display: grid; gap: var(--e-3); }
+/* El resumen del paso solo hace falta en la barra del móvil: en el escritorio
+   la instrucción está justo encima. */
+.consola-accion-resumen { display: none; }
+
+/* ---------- deslizadores ---------- */
+.consola-deslizador { display: grid; gap: var(--e-1); margin: var(--e-3) 0 0; font-size: var(--t-sm); color: var(--c-texto-2); }
+.consola-deslizador-cabeza { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e-2); }
+.consola-deslizador output { font-weight: 700; font-size: var(--t-base); color: var(--c-texto); }
+.consola-rango { color: var(--c-rotulo); }
+.consola-fuerza.dentro output { color: var(--c-bien); }
+
+/* La pista se pinta entera aquí para poder dibujar encima el rango útil
+   (`--util-desde`/`--util-hasta`, que pone el componente con los mismos
+   extremos que juzga `evaluarGesto`). Sin franja, las variables no existen y
+   el degradado se queda en la pista lisa. */
+.consola-deslizador input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  --pista: linear-gradient(
+    to right,
+    var(--c-linea) 0 var(--util-desde, 0%),
+    var(--c-bien) var(--util-desde, 0%) var(--util-hasta, 0%),
+    var(--c-linea) var(--util-hasta, 0%) 100%
+  );
+}
+.consola-deslizador input[type='range']::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--pista);
+  border: 1px solid var(--c-linea-fuerte);
+}
+.consola-deslizador input[type='range']::-moz-range-track {
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--pista);
+  border: 1px solid var(--c-linea-fuerte);
+}
+.consola-deslizador input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -8px;
+  border-radius: var(--r-full);
+  background: #fff;
+  border: 3px solid var(--c-acento-solido);
+  box-shadow: var(--sombra-1);
+}
+.consola-deslizador input[type='range']::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-full);
+  background: #fff;
+  border: 3px solid var(--c-acento-solido);
+}
+.consola-deslizador input[type='range']:focus-visible { outline: 2px solid var(--c-acento); outline-offset: 2px; border-radius: var(--r-sm); }
+
+/* ---------- aplicar ---------- */
+.consola-aplicar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-2);
+  width: 100%;
+  min-height: 48px;
+  font: inherit;
+  font-size: var(--t-base);
+  font-weight: 650;
+  color: #fff;
+  background: var(--c-acento-solido);
+  border: 1px solid var(--c-acento);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: filter var(--dur-rapida) var(--curva), transform var(--dur-rapida) var(--curva);
+}
+.consola-aplicar:hover { filter: brightness(1.12); }
+.consola-aplicar:active { transform: translateY(1px); }
+
+/* ---------- bandeja de instrumental ---------- */
+.consola-bandeja {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--e-2);
+}
+.instrumento {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--e-1);
+  padding: var(--e-2);
+  font: inherit;
+  font-size: var(--t-xs);
+  line-height: 1.3;
+  text-align: left;
+  color: var(--c-texto-2);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+  cursor: pointer;
+  /* Las propiedades que cambian al pasar por encima y al elegirlo, nombradas
+     una a una: un `transition: all` heredado del simulador viejo animaba
+     también el tamaño. */
+  transition: border-color var(--dur-rapida) var(--curva), color var(--dur-rapida) var(--curva),
+    background var(--dur-rapida) var(--curva);
+}
+.instrumento:hover { border-color: var(--c-linea-fuerte); color: var(--c-texto); }
+/* El que está en la mano tiene que verse desde lejos: borde de 2 px en el
+   acento, fondo teñido y una marca. Antes era un borde azul de 1 px. */
+.instrumento.activo {
+  color: var(--c-texto);
+  font-weight: 650;
+  background: var(--c-acento-tenue);
+  border-color: var(--c-acento);
+  box-shadow: inset 0 0 0 1px var(--c-acento);
+}
+.instrumento-icono { width: 22px; height: 22px; flex: none; color: var(--c-texto); }
+.instrumento.activo .instrumento-icono { color: var(--c-acento); }
+.instrumento-marca {
+  position: absolute;
+  top: var(--e-1);
+  right: var(--e-1);
+  padding: 2px;
+  border-radius: var(--r-full);
+  background: var(--c-acento);
+  color: var(--c-fondo);
+  box-sizing: content-box;
+}
+
+/* El instrumento que el residente tiene en la mano: su modelo y para qué
+   sirve. 170 px de alto, dicho dos veces —una para el marco de carga y otra
+   para el lienzo ya cargado—: la vista previa comparte columna con la bandeja,
+   y si crece, empuja la bandeja entera por debajo del pliegue. */
+.consola-instrumento {
+  margin: var(--e-3) 0 0;
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+  background: var(--c-panel-2);
+  overflow: hidden;
+  /* Los 380 px con que el visor se dibuja dentro de una ficha no caben aquí. */
+  --alto-visor: 170px;
+}
+/* `min-height: 0` no es adorno: `.visor-3d-marco` trae `min-height: 240px`, y
+   un mínimo gana siempre a una altura, así que el marco de «Cargando visor…»
+   medía 242 px en vez de los 170 que pide la línea de abajo. */
+.consola-instrumento .visor-3d-marco { min-height: 0; height: 170px; border: 0; border-radius: 0; }
+.consola-instrumento-texto {
+  margin: 0;
+  padding: var(--e-2) var(--e-3);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--c-texto-2);
+  border-top: 1px solid var(--c-linea);
+}
+
+/* ---------- caso terminado ---------- */
+.consola-fin {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-5) var(--e-4);
+  border: 1px solid var(--c-acento);
+  border-radius: var(--r-lg);
+  background: linear-gradient(160deg, var(--c-acento-tenue), transparent 70%), var(--c-panel-2);
+}
+.consola-fin p { margin: 0; font-size: var(--t-sm); line-height: 1.5; color: var(--c-texto-2); }
+.consola-fin-icono {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-full);
+  background: var(--c-acento-solido);
+  color: #fff;
+}
+.consola-fin .consola-fin-puntaje { font-size: 48px; font-weight: 750; line-height: 1; color: var(--c-texto); letter-spacing: -0.02em; }
+.consola-fin-total { font-size: var(--t-base); font-weight: 600; letter-spacing: 0; color: var(--c-texto-2); }
+.consola-fin .consola-fin-leido { display: flex; align-items: center; gap: var(--e-2); color: var(--c-bien); }
+.consola-fin .consola-fin-fallo { color: var(--c-atencion); }
+.consola-fin-acciones { display: grid; gap: var(--e-2); margin-top: var(--e-2); }
+
+/* ---------- registro (en la consola oscura y en el pie claro) ---------- */
+.consola-registro { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-2); }
+.registro-linea {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+  padding: var(--e-2) var(--e-3);
+  font-size: var(--t-sm);
+  line-height: 1.45;
+  border-left: 3px solid var(--tono);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--tono-fondo);
+}
+.registro-icono { flex: none; margin-top: 2px; color: var(--tono); }
+.registro-bien { --tono: var(--tono-bien); }
+.registro-atencion { --tono: var(--tono-atencion); }
+.registro-grave { --tono: var(--tono-grave); }
+
+/* ---------- pie: la hoja clínica, en claro ---------- */
+.consola-pie {
+  grid-area: pie;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--e-6);
+  padding: var(--e-6);
+  background: var(--superficie);
+  color: var(--tinta);
+  border-top: 1px solid var(--c-linea);
+  /* Los tonos del registro, en su versión para fondo claro. */
+  --tono-bien: var(--verde);
+  --tono-atencion: var(--ambar);
+  --tono-grave: var(--alerta);
+  --tono-fondo: var(--superficie-2);
+}
+.consola-pie .consola-subtitulo { color: var(--mudo); }
+.consola-pie .consola-instruccion { color: var(--pizarra); }
+.consola-pie .registro-linea { color: var(--tinta); }
+.consola-riesgo { margin-top: var(--e-4); padding-top: var(--e-3); border-top: 1px dashed var(--linea); }
+.consola-riesgo h4 { display: flex; align-items: center; gap: var(--e-2); margin: 0 0 var(--e-2); font-size: var(--t-sm); color: var(--pizarra); }
+.consola-vacio { margin: 0; font-size: var(--t-sm); color: var(--mudo); font-style: italic; }
+
+/* ---------- caso que no se puede recorrer ---------- */
+.consola-sin-caso { margin: var(--e-6) 0 var(--e-8); border: 1px solid var(--linea); border-radius: var(--r-xl); background: var(--superficie); }
+
+/* ---------- cabecera del caso (`CasoConSuLectura`) ---------- */
+/* La casilla de «leída» iba suelta entre el resumen y la consola, alineada a
+   la derecha y sin nada a su lado. Ahora es parte de la cabecera del caso,
+   junto al título al que se refiere. */
+.caso-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--e-4) var(--e-8);
+}
+.caso-cabecera-texto { flex: 1 1 520px; min-width: 0; }
+.caso-cabecera-texto > :last-child { margin-bottom: 0; }
+.caso-cabecera .rastreador-actividad { margin: 0; flex: none; }
+
+/* ---------- esqueleto (`simulador/[id]/loading.tsx`) ---------- */
+.consola-esqueleto { min-height: 640px; grid-template-rows: auto auto 1fr; }
+.consola-esqueleto .esqueleto { background: var(--c-panel-2); }
+.consola-esqueleto-lienzo { grid-area: centro; min-height: 460px; background: var(--c-panel); }
+
+/* ---------- pantallas medianas ---------- */
+@media (max-width: 1200px) {
+  .consola { grid-template-columns: 200px minmax(0, 1fr) 270px; }
+  .consola-medidas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------- móvil y tableta vertical ---------- */
+/* La rejilla se deshace en una columna y las dos columnas laterales se
+   disuelven (`display: contents`) para que cada bloque se pueda colocar por su
+   cuenta con `order`: el modo encima del lienzo, el lienzo lo primero que se
+   ve, la bandeja en una fila que se desplaza de lado, y la acción del paso en
+   una barra pegada abajo. */
+@media (max-width: 900px) {
+  .consola {
+    display: flex;
+    flex-direction: column;
+    margin-inline: calc(var(--e-2) * -1);
+    border-radius: var(--r-lg);
+  }
+  .consola-izq,
+  .consola-der { display: contents; }
+
+  /* La barra se aprieta en dos filas: en el móvil todo lo que mide de alto es
+     lienzo que queda por debajo del pliegue. El rótulo del módulo se va (la
+     insignia ya lo dice) y los datos del caso pasan a una línea pequeña. */
+  .consola-barra {
+    order: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'identidad marcador' 'datos reiniciar';
+    align-items: center;
+    padding: var(--e-3) var(--e-4);
+    gap: var(--e-3);
+  }
+  .consola-identidad { grid-area: identidad; }
+  .consola-identidad .consola-rotulo { display: none; }
+  .consola-insignia { width: 32px; height: 32px; }
+  .consola-titulo { margin: 0; font-size: var(--t-base); line-height: 1.25; }
+  .consola-marcador { grid-area: marcador; min-width: 84px; }
+  .consola-puntaje-numero { font-size: var(--t-xl); }
+  .consola-datos { grid-area: datos; gap: var(--e-1) var(--e-3); }
+  /* Escondidos a la vista y no al lector de pantalla: «Tibia (diáfisis)» se
+     entiende sin rótulo, pero «Simple oblicua» leído suelto no. */
+  .consola-datos dt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .consola-datos dd { margin: 0; font-size: var(--t-xs); font-weight: 600; color: var(--c-texto-2); }
+  .consola-reiniciar { grid-area: reiniciar; font-size: var(--t-xs); }
+
+  .consola-pasos { order: 1; padding: var(--e-2) var(--e-4); }
+  .consola-paso { flex: 0 0 132px; }
+
+  .consola-fin { order: 2; margin: var(--e-4); }
+  .consola-modos-bloque { order: 3; padding: var(--e-3) var(--e-4) 0; }
+  .consola-modos-bloque .consola-subtitulo { display: none; }
+  .consola-modos-bloque .consola-ayuda { font-size: var(--t-xs); margin-top: var(--e-2); }
+  .consola-modo { flex-direction: row; min-height: 44px; font-size: var(--t-sm); }
+  .consola-centro { order: 4; margin-top: var(--e-3); }
+  .consola-lienzo-marco,
+  .consola .consola-lienzo { min-height: clamp(300px, 52vh, 440px); }
+  .consola-medidas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .consola-objetivo { order: 5; padding: var(--e-4); background: var(--c-panel); border-top: 1px solid var(--c-linea); }
+  /* La instrucción ya va en la barra de abajo; aquí solo quedan los mandos
+     propios del paso (borrar el trazo, la angulación). Sin ellos, el bloque
+     entero sobra. */
+  .consola-objetivo .consola-instruccion { display: none; }
+  .consola-objetivo:not(.consola-objetivo-con-mandos) { display: none; }
+
+  .consola-bandeja-bloque { order: 6; padding: var(--e-4) 0 var(--e-4) var(--e-4); background: var(--c-panel); border-top: 1px solid var(--c-linea); }
+  .consola-bandeja {
+    display: flex;
+    overflow-x: auto;
+    gap: var(--e-2);
+    padding: 0 var(--e-4) var(--e-2) 0;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+  .consola-bandeja li { flex: 0 0 136px; scroll-snap-align: start; }
+  .consola-instrumento { margin-right: var(--e-4); }
+
+  .consola-capas-bloque { order: 7; padding: var(--e-4); background: var(--c-panel); border-top: 1px solid var(--c-linea); }
+  .consola-capas { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--e-3); }
+  .consola-interruptor { flex-direction: column-reverse; align-items: flex-start; gap: var(--e-1); }
+  .consola-interruptor input { top: 0; margin: 0; }
+
+  /* La barra de acción: pegada al borde de abajo mientras la consola esté a la
+     vista, y en su sitio cuando se termina de bajar. `sticky` y no `fixed`:
+     una barra fija taparía también el pie y el formulario de comentarios, que
+     no tienen nada que ver con aplicar un paso. */
+  .consola-accion {
+    order: 8;
+    position: sticky;
+    bottom: 0;
+    z-index: var(--z-barra);
+    gap: var(--e-2);
+    padding: var(--e-3) var(--e-4) calc(var(--e-3) + env(safe-area-inset-bottom, 0px));
+    background: var(--c-panel-2);
+    border-top: 1px solid var(--c-linea-fuerte);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+  }
+  .consola-accion-resumen { display: grid; gap: 2px; margin: 0; }
+  .consola-accion-instruccion {
+    font-size: var(--t-sm);
+    line-height: 1.4;
+    color: var(--c-texto);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .consola-accion .consola-deslizador { margin: 0; }
+  .consola-accion .registro-linea { font-size: var(--t-xs); padding: var(--e-1) var(--e-2); }
+  .consola-accion .registro-linea span {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .consola-pie { order: 9; padding: var(--e-5) var(--e-4); gap: var(--e-5); }
+}
+
+@media (max-width: 640px) {
+  .consola-lienzo-boton { min-height: 40px; }
+}

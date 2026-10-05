@@ -11,7 +11,11 @@ import {
 import { GuardiaDeAtras } from '@/components/admin/GuardiaDeAtras'
 import { NotasDelRevisorEnLaBarra } from '@/components/admin/NotasDelRevisorEnLaBarra'
 import { BotonSalir } from '@/components/BotonSalir'
+import { CajonDelPanel } from '@/components/admin/CajonDelPanel'
+import { IconoDeMenu } from '@/components/admin/NavegacionAdmin'
 import './admin.css'
+// Después de `admin.css`, para que el contorno mande sobre lo que allí quede.
+import './panel.css'
 import { ruta } from '@/lib/rutas'
 import { AUTORIA } from '@/lib/autoria'
 import { puedeEditar } from '@/lib/guardias'
@@ -171,57 +175,50 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           panel, y dos guardias preguntarían dos veces por el mismo viaje. */}
       <GuardiaDeAtras />
       <aside className="admin-sidebar">
-        <div className="admin-sidebar-header">
-          <img src={ruta('/icon.png')} alt="" className="admin-sidebar-logo" />
-          <div>
-            <div className="admin-sidebar-title">TraumaHub</div>
-            <span className="admin-sidebar-sub">Panel de control</span>
+        <CajonDelPanel
+          cabecera={
+            <>
+              <img src={ruta('/icon.png')} alt="" className="admin-sidebar-logo" />
+              <div>
+                <div className="admin-sidebar-title">TraumaHub</div>
+                <span className="admin-sidebar-sub">Panel de control</span>
+              </div>
+            </>
+          }
+          // Las notas del modelo para el revisor, arriba del todo y siempre a
+          // la vista con una ficha abierta (D-144): abajo quedaban bajo el
+          // pliegue. Fuera del cajón, para que en el teléfono no se escondan
+          // detrás del botón «Menú». Se lee la ruta en el cliente.
+          antes={<NotasDelRevisorEnLaBarra />}
+        >
+          <NavegacionAdmin secciones={secciones} />
+
+          {/* Todo lo que saca del panel desde esta barra pregunta antes si hay
+              una ficha a medio escribir. Aquí no hay `<Link>` a secas: este
+              archivo es de servidor y no puede darle a `<Link>` la función que
+              pregunta, así que la ponen `EnlaceConGuardia` y `GuardiaDeSalida`
+              desde el cliente. `tests/unit/salidaDelEditor.test.ts` lo vigila. */}
+          <div className="admin-nav-back">
+            <EnlaceConGuardia href="/" className="admin-nav-link">
+              <IconoDeMenu nombre="volver" />
+              <span className="admin-nav-texto">Volver a la plataforma</span>
+            </EnlaceConGuardia>
+            <div className="admin-sidebar-pie">
+              <span className="admin-sidebar-quien">
+                {(sesion.usuario.nombre as string) || (sesion.usuario.email as string)}
+                {' · '}
+                {esAdmin ? 'administrador' : 'editor'}
+              </span>
+              <GuardiaDeSalida>
+                <BotonSalir clase="admin-salir" />
+              </GuardiaDeSalida>
+            </div>
+            <p className="admin-sidebar-credito">
+              Desarrollado por {AUTORIA.nombre} ·{' '}
+              <a href={`mailto:${AUTORIA.correo}`}>{AUTORIA.correo}</a>
+            </p>
           </div>
-        </div>
-
-        {/* Las notas del modelo para el revisor, arriba del todo y siempre a la
-            vista con una ficha abierta (D-144): abajo quedaban bajo el pliegue.
-            Se lee la ruta en el cliente. */}
-        <NotasDelRevisorEnLaBarra />
-
-        <NavegacionAdmin secciones={secciones} />
-
-        {/* Todo lo que saca del panel desde esta barra pregunta antes si hay
-            una ficha a medio escribir. Aquí no hay `<Link>` a secas: este
-            archivo es de servidor y no puede darle a `<Link>` la función que
-            pregunta, así que la ponen `EnlaceConGuardia` y `GuardiaDeSalida`
-            desde el cliente. `tests/unit/salidaDelEditor.test.ts` lo vigila. */}
-        <div className="admin-nav-back">
-          <EnlaceConGuardia href="/" className="admin-nav-link">
-            <svg
-              className="admin-nav-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M19 12H5 M12 19l-7-7 7-7" />
-            </svg>
-            <span className="admin-nav-texto">Volver a la plataforma</span>
-          </EnlaceConGuardia>
-          <div className="admin-sidebar-pie">
-            <span className="admin-sidebar-quien">
-              {(sesion.usuario.nombre as string) || (sesion.usuario.email as string)}
-              {' · '}
-              {esAdmin ? 'administrador' : 'editor'}
-            </span>
-            <GuardiaDeSalida>
-              <BotonSalir clase="admin-salir" />
-            </GuardiaDeSalida>
-          </div>
-          <p className="admin-sidebar-credito">
-            Desarrollado por {AUTORIA.nombre} ·{' '}
-            <a href={`mailto:${AUTORIA.correo}`}>{AUTORIA.correo}</a>
-          </p>
-        </div>
+        </CajonDelPanel>
       </aside>
       <main className="admin-content">{children}</main>
     </div>

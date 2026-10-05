@@ -4227,6 +4227,148 @@ propuesta a mano; no se limpia sola. (−) Nada impide publicar un paso que solo
 tiene la propuesta: en la consola quedaría sin instrumento correcto. Hasta que
 se resuelva, el caso debería quedarse en borrador.
 
+### D-147 · 2026-10-05 · vigente
+**Un sistema de diseño detrás de la paleta: tokens, Inter, iconos y color por módulo.**
+La auditoría visual del 2026-10-05 midió lo que se veía a ojo: la paleta era buena
+y estaba documentada, pero no había nada detrás. Treinta tamaños de letra y
+cuarenta y cinco espaciados distintos en cada hoja, catorce radios, cinco
+sombras, unas veinte variantes de botón en el sitio y doce en el panel, quince
+clases de insignia para cinco significados, y un `--verde` que no existía
+(`var(--verde, #1f7a4d)` escrito once veces con su reserva).
+*Qué se hizo.* El `:root` de `estilos.css` gana las escalas (`--e-*` de 4 en 4 px,
+`--t-*` sin bajar de 11 px, radios 6/8/12/16, `--sombra-1/2/3`, duraciones, capas,
+tres puntos de corte 640/900/1200), los colores que faltaban (`--verde`,
+`--ambar-texto`, `--superficie-2`, `--sobre-tinta-1/2/3`, `--lienzo-3d`,
+`--linea-fuerte`) y un color por módulo (`--mod-1…5`). La fuente pasa de la pila
+del sistema a **Inter variable servida por la propia plataforma**
+(`@fontsource-variable/inter`), con cifras tabulares. Los iconos, de los
+caracteres sueltos (✓ ⚑ → ▾ ✕) y de SVG dibujados a mano a **`lucide-react`**.
+`src/app/(frontend)/ui.css` es la hoja de lo común al sitio y al panel, y
+`src/components/ui/` los componentes: `Modal`, `useConfirmar`, `useAvisos`,
+`Vacio`, `Esqueleto`, `SeccionPlegable`, `MenuAcciones` y `modulos.ts`.
+*Color por módulo.* Cada módulo tiene su color e icono (biblioteca azul, examen
+físico verde azulado, técnica AO violeta, simulador naranja tostado, imágenes
+azul petróleo) y la pieza que pertenece a uno lleva `mod-N` y hereda `--acento`:
+tarjetas, migas, insignias, «Continúa leyendo». Sobre el marino de la barra los
+colores no llegan a contraste, así que ahí solo se usa el icono.
+*Consecuencias buenas.* Un cambio de aspecto se hace en un sitio. Los bordes de
+campo pasan a 3:1 (antes 1,34:1), el foco de la portada pública se ve, y el
+texto de lectura sube de 15 a 17 px. *Malas.* Se reescribieron las hojas
+enteras y 60 archivos, así que el diff es enorme y varias pruebas que leen el
+CSS tuvieron que reescribirse (conservando lo que vigilan). `.acceso-boton`,
+`.boton.secundario/.sutil/.grande` dejaron de existir: lo que los use fuera de
+este repositorio sale sin estilo. Inter son unos 100 KB más en la primera
+carga. «Publicada» pasa de violeta a gris en las insignias del panel para que
+coincida con el gráfico, un neutro que el validador de paletas marcó por poco
+croma; lleva siempre etiqueta de texto.
+
+### D-148 · 2026-10-05 · vigente
+**Piezas comunes en lugar de `confirm()`, avisos en la página y listas largas fijas.**
+El panel preguntaba con el `confirm()` del navegador en veintiún sitios —incluido
+restaurar un respaldo, la acción más peligrosa de la plataforma—, avisaba del
+resultado en un recuadro arriba del todo que no se veía al bajar, no tenía
+ninguna pantalla de carga (ningún `loading.tsx`) y apilaba listas de más de cien
+filas una debajo de otra.
+*Qué se hizo.* `useConfirmar()` se espera igual que se esperaba `confirm()`,
+pero el botón dice lo que hace («Eliminar ficha») y va en rojo si destruye;
+para restaurar un respaldo hay que escribir `RESTAURAR`. `useAvisos()` da
+avisos flotantes (los de error se quedan hasta cerrarlos). `SeccionPlegable`
+—un `<details>` que recuerda en `localStorage` cómo se dejó— envuelve las listas
+largas de Auditoría, Actividad, Registro, Estadísticas, Usuarios, Resumen,
+Contenido, Difusión, Respaldos y Sistema, con «Plegar todo / Desplegar todo».
+`MenuAcciones` («⋯») recoge las acciones secundarias de cada fila de Documentos
+y Usuarios. Hay `loading.tsx` con esqueletos en todas las rutas del panel y del
+sitio, y `Vacio` con icono y acción en vez de los emoji ocultos. La barra
+lateral del panel pasa a cajón con botón «Menú» por debajo de 900 px, y cada
+enlace lleva `aria-label` (doce se quedaban sin nombre con solo los iconos).
+Un mapa único estado→tono (`src/lib/tonosDeEstado.ts`) hace que «Publicada» y
+«Devuelta» tengan el mismo color en la insignia y en el gráfico.
+*Consecuencias buenas.* Nada destructivo se confirma con una caja gris. La
+tabla de fichas de Auditoría pasó de 32.000 px de alto a una página que se pliega.
+*Malas.* `GuardiaDeAtras` se queda con el `confirm()` nativo: necesita un
+booleano síncrono dentro de `currententrychange`, y con una promesa el router de
+Next ya habría procesado el `popstate`. La navegación hacia atrás pregunta como
+antes. En móvil el menú del panel cuesta un clic más. El taller anatómico solo
+recibió los tokens y sus dos confirmaciones, no un rediseño.
+
+### D-149 · 2026-10-05 · vigente
+**La consola quirúrgica pasa a tema oscuro, con su propia hoja.**
+La consola parecía un formulario: una caja blanca con franjas azules, sin
+jerarquía entre el puntaje, los pasos y las medidas. Además tenía dos defectos
+visibles: los avisos de «caso sin modelo» y «sin pasos» usaban clases
+`admin-aviso` que solo existen en el panel (salían como texto suelto), y las
+líneas del registro llevaban la clase `aviso`, que choca con la nota al pie
+global (40 px de margen y un filete por línea).
+*Qué se hizo.* Hoja propia `src/app/(frontend)/simulador/consola.css`, oscura,
+con puntaje de 40 px, pasos como stepper con estados (actual, resuelto,
+complicación; sin `opacity`, que dejaba los resueltos a 2,9:1), medidas como
+tarjetas con tope y estado, capas como interruptores, modos como control
+segmentado con el que pide el paso señalado, el rango útil de fuerza pintado en
+la pista, y una tarjeta de caso terminado. En móvil el lienzo va primero y una
+barra inferior pegada lleva la instrucción, la fuerza y «Aplicar paso». El
+motor (`src/lib/simulador.ts`) y sus mensajes no cambian.
+*Táctil.* El lienzo fijaba `touch-action: none` y atrapaba el dedo: no se podía
+bajar la página tocando el modelo. Ahora `gestoTactil(modo)` deja `pan-y` al
+orbitar y `none` al trazar, mover o señalar.
+*Consecuencias buenas.* El modelo destaca y el progreso se ve sin bajar.
+*Malas.* La consola mezcla dos temas (el pie con la descripción y la
+retroalimentación se queda claro). Orbitar arrastrando en vertical desplaza la
+página en vez de girar en ese eje. `.consola { overflow: clip }` para que el
+`sticky` funcione: la consola no admite hijos con desplazamiento propio. El
+gesto táctil real no se probó en un dispositivo, solo por código y medición.
+
+### D-150 · 2026-10-05 · vigente
+**Guardado automático: copia local siempre, y en el servidor solo cuando es seguro.**
+Pedido: «que se vayan guardando cada x tiempo por si a alguien se le va el
+internet no tenga que empezar desde cero». Guardar solo en el servidor no
+resuelve el caso que se quiere resolver —si se corta internet, el guardado
+también falla—, y además cada guardado en el servidor mide cuánto se editó la
+ficha (D-142), así que no es gratis.
+*Copia local.* Mientras haya cambios sin guardar, el formulario se copia en el
+navegador (`localStorage`, con `try`) cada 5 s y al ocultar la pestaña. La clave
+lleva persona, colección e id, y la copia la marca del servidor sobre la que se
+editó. Al volver a abrir la ficha, una banda ofrece «Recuperarlos» o
+«Descartar»; recuperar no guarda nada solo, y si otra persona guardó después se
+dice, y el guardado siguiente pasa por la detección de choque de siempre. Sin
+conexión (`offline` o un fallo de red al guardar) la barra lo dice y avisa al
+volver. Caduca a los 14 días.
+*En el servidor.* Cada 60 s con cambios, solo si es **borrador**, hay conexión,
+no hay choque ni guardado en curso, y la revisión no está en «lista» ni en
+«publicada». Nunca sobre una ficha publicada: guardar un borrador sobre una
+publicada cambia lo que habría que publicar, y guardar una «lista» la devuelve a
+«en revisión». Esas solo tienen copia local, y la barra lo dice.
+*Consecuencia que hay que conocer.* Un autoguardado de borrador es un guardado
+real: manda `seguimiento.sesion`, recalcula el porcentaje editado y pasa una
+ficha «pendiente» o «devuelta» a «en revisión», igual que «Guardar borrador».
+La lógica pura vive en `src/lib/guardadoAutomatico.ts`, con pruebas.
+*Malas.* En ventana privada o con el almacén bloqueado no hay copia local (la
+barra lo dice). La copia local está en el navegador de quien escribe: si cambia
+de equipo, no la tiene.
+
+### D-151 · 2026-10-05 · vigente
+**Aviso de «hay otro editor en esta ficha», en memoria del proceso.**
+Pedido: que cuando alguien está modificando una ficha aparezca para los demás
+que la tienen abierta, solo como aviso. No bloquea: dos personas pueden seguir
+editando, y el segundo guardado sigue topándose con el aviso de choque de
+siempre; esto avisa antes de que ocurra.
+*Cómo.* `POST /api/presencia` es el latido (cada 15 s con la pestaña visible, 60
+s si está oculta) y la salida (`fetch` con `keepalive` en `pagehide`); responde
+con las **otras** personas presentes. La banda sale en el editor con el nombre
+(«Elena Editora también tiene abierta esta ficha, desde hace 19 s») y sus
+iniciales en la barra fija. Guardia: origen propio, sesión activa, rol *real*
+editor o administrador (no el de «ver como residente») y permiso sobre ese
+módulo. La misma persona con dos pestañas no se ve como «otro»: se le dice que
+tiene la ficha abierta en otra pestaña, que también provoca choques; la id de
+pestaña es un UUID por montaje, porque `sessionStorage` lo copia «Duplicar
+pestaña». La hora la pone el servidor. `GET /api/presencia?coleccion=x` queda
+listo para mostrar quién está en qué ficha desde el listado, y no se usa aún.
+*Consecuencia a vigilar.* El almacén es un `Map` en memoria del proceso, con
+caducidad de 45 s (150 s con la pestaña oculta) y techo de 5.000 entradas.
+Mientras la aplicación corra en un solo contenedor, es exacto; **si algún día
+hay varias instancias detrás del proxy**, cada una verá solo a quien le cayó y
+la banda dirá la mitad: hará falta un almacén compartido. Un reinicio la borra y
+se rehace en el siguiente latido. No cambia el esquema ni hay migración.
+
 ## 3. Observaciones
 
 Formato: `O-nnn · fecha · severidad · estado`. Severidad: **alta**, **media**, **baja**.

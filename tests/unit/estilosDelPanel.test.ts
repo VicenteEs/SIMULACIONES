@@ -31,10 +31,15 @@ import { join } from 'node:path'
 
 const RAIZ = process.cwd()
 const HOJA_PANEL = join(RAIZ, 'src', 'app', '(frontend)', 'admin-panel', 'admin.css')
+// El contorno del panel se mudó a `panel.css` (se carga después de
+// `admin.css`): las dos hojas son «la del panel» para estas comprobaciones, y
+// un selector repetido entre ellas es el mismo accidente que dentro de una.
+const HOJA_CONTORNO = join(RAIZ, 'src', 'app', '(frontend)', 'admin-panel', 'panel.css')
 const HOJA_PUBLICA = join(RAIZ, 'src', 'app', '(frontend)', 'estilos.css')
+const HOJA_UI = join(RAIZ, 'src', 'app', '(frontend)', 'ui.css')
 
-const panel = readFileSync(HOJA_PANEL, 'utf8')
-const publica = readFileSync(HOJA_PUBLICA, 'utf8')
+const panel = readFileSync(HOJA_PANEL, 'utf8') + '\n' + readFileSync(HOJA_CONTORNO, 'utf8')
+const publica = readFileSync(HOJA_PUBLICA, 'utf8') + '\n' + readFileSync(HOJA_UI, 'utf8')
 
 type Regla = {
   /** Los `@media` que la envuelven, de fuera hacia dentro. */
@@ -176,7 +181,12 @@ describe('el verde de «publicado / resuelto»', () => {
     expect(limpio).not.toContain('#16794a')
   })
 
-  it('todas las reservas de `--verde` y `--verde-tenue` valen lo mismo', () => {
+  it('`--verde` y `--verde-tenue` ya no llevan reserva, porque existen', () => {
+    // Mientras la paleta no tenía verde, el panel escribía `var(--verde,
+    // #1f7a4d)` y esta prueba vigilaba que todas las reservas fueran la misma.
+    // Desde que `--verde` y `--verde-tenue` están en el `:root` de
+    // `estilos.css`, una reserva es un segundo sitio donde vive el color,
+    // esperando a divergir del primero.
     const reserva = (nombre: string) =>
       new Set(
         [...sinComentarios(panel).matchAll(new RegExp(`var\\(\\s*${nombre}\\s*,\\s*([^)]+)\\)`, 'g'))].map(
@@ -184,7 +194,7 @@ describe('el verde de «publicado / resuelto»', () => {
         ),
       )
 
-    expect([...reserva('--verde')]).toEqual(['#1f7a4d'])
-    expect([...reserva('--verde-tenue')]).toEqual(['#e9f5ef'])
+    expect([...reserva('--verde')]).toEqual([])
+    expect([...reserva('--verde-tenue')]).toEqual([])
   })
 })

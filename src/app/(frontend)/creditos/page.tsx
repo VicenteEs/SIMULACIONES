@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Miga } from '@/components/Estados'
 import { AUTORIA } from '@/lib/autoria'
+import { Code2, Globe2, ShieldAlert, Mail } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,36 +51,54 @@ export default async function PaginaCreditos() {
       {/* Primero, y no al final con el aviso: el pie de cada página enlaza aquí
           con el nombre de quien la desarrolló, y quien llega pulsándolo busca
           eso antes que la licencia del atlas. */}
-      <section className="tarjeta">
-        <h2>Desarrollo</h2>
-        <p>
-          TraumaHub fue desarrollado por <strong>{AUTORIA.nombre}</strong>.
-        </p>
-        <p>
-          Para consultas, sugerencias o problemas con la plataforma, escriba a{' '}
-          <a href={`mailto:${AUTORIA.correo}`}>{AUTORIA.correo}</a>.
-        </p>
-      </section>
-
-      <section className="tarjeta">
-        <h2>Atlas anatómico</h2>
-        {atribucion ? (
-          <div className="creditos-texto">{formatear(atribucion)}</div>
-        ) : (
+      <section className="tarjeta creditos-seccion">
+        <span className="icono-modulo" aria-hidden="true">
+          <Code2 size={20} />
+        </span>
+        <div>
+          <h2>Desarrollo</h2>
           <p>
-            El atlas anatómico no está instalado en este servidor, así que no hay nada que
-            atribuir todavía.
+            TraumaHub fue desarrollado por <strong>{AUTORIA.nombre}</strong>.
           </p>
-        )}
+          <p>
+            Para consultas, sugerencias o problemas con la plataforma, escriba a{' '}
+            <a href={`mailto:${AUTORIA.correo}`}>
+              <Mail size={14} aria-hidden="true" /> {AUTORIA.correo}
+            </a>
+            .
+          </p>
+        </div>
       </section>
 
-      <section className="tarjeta">
-        <h2>Aviso</h2>
-        <p>
-          Todo el material tridimensional de esta plataforma es <strong>docente</strong>. Representa
-          anatomía de referencia y no la de ningún paciente: no sirve para diagnosticar ni para
-          planificar una intervención concreta.
-        </p>
+      <section className="tarjeta creditos-seccion">
+        <span className="icono-modulo mod-2" aria-hidden="true">
+          <Globe2 size={20} />
+        </span>
+        <div>
+          <h2>Atlas anatómico</h2>
+          {atribucion ? (
+            <div className="creditos-texto">{formatear(atribucion)}</div>
+          ) : (
+            <p>
+              El atlas anatómico no está instalado en este servidor, así que no hay nada que
+              atribuir todavía.
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className="tarjeta creditos-seccion">
+        <span className="icono-modulo mod-4" aria-hidden="true">
+          <ShieldAlert size={20} />
+        </span>
+        <div>
+          <h2>Aviso</h2>
+          <p>
+            Todo el material tridimensional de esta plataforma es <strong>docente</strong>.
+            Representa anatomía de referencia y no la de ningún paciente: no sirve para
+            diagnosticar ni para planificar una intervención concreta.
+          </p>
+        </div>
       </section>
     </main>
   )
@@ -100,19 +120,19 @@ function formatear(markdown: string) {
       case 'cita':
         return (
           <blockquote key={clave} className="creditos-cita">
-            {sinMarcas(bloque.texto)}
+            {conEnlaces(sinMarcas(bloque.texto))}
           </blockquote>
         )
       case 'lista':
         return (
           <ul key={clave}>
             {bloque.elementos.map((elemento, j) => (
-              <li key={`${clave}-${j}`}>{sinMarcas(elemento)}</li>
+              <li key={`${clave}-${j}`}>{conEnlaces(sinMarcas(elemento))}</li>
             ))}
           </ul>
         )
       case 'parrafo':
-        return <p key={clave}>{sinMarcas(bloque.texto)}</p>
+        return <p key={clave}>{conEnlaces(sinMarcas(bloque.texto))}</p>
     }
   })
 }
@@ -173,6 +193,23 @@ function bloquesDe(markdown: string): Bloque[] {
   }
 
   return bloques
+}
+
+/**
+ * Las direcciones del texto, como enlaces. `sinMarcas` deja `texto (https://…)`
+ * y una URL que no se puede pulsar obliga a copiarla a mano; se abren fuera
+ * porque son de terceros (la licencia, el atlas).
+ */
+function conEnlaces(texto: string): ReactNode[] {
+  return texto.split(/(https?:\/\/[^\s)]+)/g).map((trozo, i) =>
+    /^https?:\/\//.test(trozo) ? (
+      <a key={i} href={trozo} target="_blank" rel="noopener noreferrer">
+        {trozo}
+      </a>
+    ) : (
+      trozo
+    ),
+  )
 }
 
 /** Quita el énfasis y los enlaces del markdown, dejando el texto legible. */

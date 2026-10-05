@@ -1,0 +1,54 @@
+/* ==========================================================================
+   Las cuatro pantallas de seguimiento: Estadísticas, Actividad, Registro y
+   Auditoría.
+
+   Las cuatro apilan bloques largos —tablas de doscientas filas, rejillas de
+   gráficos— y desde el rediseño cada bloque es una `SeccionPlegable` (pedido
+   del dueño: había que desplazar por encima de una tabla entera para llegar a
+   la siguiente). Esta hoja ajusta lo que va dentro de una sección plegable,
+   que ya es una caja blanca con borde y sombra: sin esto las tarjetas de
+   dentro dibujaban una segunda sombra —una caja dentro de otra— y las tablas,
+   un segundo borde a un dedo del primero.
+
+   Se importa desde la página de cada una. Todo con tokens.
+   ========================================================================== */
+
+/* Las tarjetas dentro de una sección: planas, sobre el gris de la casa. */
+.plegable .admin-card { box-shadow: none; border-color: var(--linea-suave); background: var(--superficie-2); }
+.plegable .admin-card-ilegible { background: var(--ambar-tenue); }
+.plegable .admin-grid { margin-bottom: 0; }
+.plegable .admin-grid + .admin-grid,
+.plegable .admin-grid + .admin-table-container,
+.plegable .admin-aviso + .admin-table-container { margin-top: var(--e-4); }
+
+/* Una tabla sola dentro de la sección va a sangre: el borde de la sección es
+   el suyo. */
+.plegable-cuerpo:has(> .admin-table-container:only-child) { padding: 0; }
+.plegable-cuerpo > .admin-table-container:only-child {
+  border: 0;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  box-shadow: none;
+}
+
+/* El texto de una sección cuando no hay tabla que enseñar. */
+.seguimiento-nota { margin: 0 0 var(--e-4); max-width: 72ch; font-size: var(--t-sm); color: var(--pizarra); }
+.seguimiento-nota:last-child { margin-bottom: 0; }
+
+/* La celda con la barra de «marcadas como leídas». */
+.seguimiento-celda-progreso { min-width: 160px; }
+
+/* La bandera de una cifra señalada (ritmo de lectura, validaciones rápidas):
+   el icono va con la cifra, nunca el color solo. */
+.seguimiento-senal { display: inline-flex; align-items: center; gap: var(--e-1); }
+.seguimiento-senal svg { flex: none; }
+
+/* Cada «Fichas más leídas» y «Últimas visitas» llevan la insignia del módulo
+   con su color: se reconoce de un vistazo de qué módulo es cada fila. */
+.seguimiento-modulo { gap: var(--e-1); }
+
+/* El registro acto por acto: la línea de filtros dentro de su sección. */
+.plegable .admin-filters { margin-bottom: var(--e-4); }
+
+@media (max-width: 640px) {
+  .plegable-cuerpo { padding: var(--e-4); }
+}

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect } from 'react'
+import { House, RotateCw, TriangleAlert } from 'lucide-react'
 
 /**
  * Red de seguridad de toda la parte pública y del panel.
@@ -58,28 +59,34 @@ export default function ErrorDeLaAplicacion({
 
   return (
     <main>
-      <h1>Algo se rompió al cargar esta página</h1>
-      <div className="tarjeta">
+      <div className="estado estado-error">
+        <span className="estado-icono" aria-hidden="true">
+          <TriangleAlert size={34} strokeWidth={1.6} />
+        </span>
+        <span className="rotulo estado-codigo">Fallo al cargar</span>
+        <h1>Algo se rompió al cargar esta página</h1>
         <p>
           No es por nada que usted haya hecho. Vuelva a intentarlo: si fue algo pasajero —la base
           de datos ocupada, la red del hospital— la página se rehace sola y la sesión sigue
           abierta.
         </p>
-        <div className="row-botones">
+        <div className="fila-botones">
           {/*
             El botón va antes que el enlace porque es la salida que conserva el
             trabajo: «Ir a la portada» abandona la página y en el panel eso
             puede ser un formulario a medio escribir.
           */}
           <button type="button" className="boton" onClick={() => retry()}>
+            <RotateCw size={18} aria-hidden="true" />
             Volver a intentarlo
           </button>
-          <Link className="boton secundario" href="/">
+          <Link className="boton boton-secundario" href="/">
+            <House size={18} aria-hidden="true" />
             Ir a la portada
           </Link>
         </div>
         {error.digest ? (
-          <p className="aviso">
+          <p className="nota-al-pie">
             Si vuelve a ocurrir, dé este código al equipo docente: <code>{error.digest}</code>. Con
             él se encuentra el fallo exacto en el registro del servidor.
           </p>

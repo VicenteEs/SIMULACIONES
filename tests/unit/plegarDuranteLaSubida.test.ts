@@ -276,9 +276,14 @@ describe('una subida que termina con su bloque plegado', () => {
     const ficha = fichaDePrueba(tresBloques())
     pintar(ficha)
     elegirArchivoEn(bloquesEnPantalla()[1], 'rx-ap.png')
-    // `Campos.tsx` pregunta con el `confirm` global antes de quitar.
+    // `Campos.tsx` pregunta con `useConfirmar()` antes de quitar. Sin
+    // proveedor en esta prueba cae al `confirm` global, y la respuesta llega
+    // una microtarea después: por eso se espera dentro del `act`.
     vi.stubGlobal('confirm', () => true)
-    pulsar('Quitar imagen 2')
+    await act(async () => {
+      boton('Quitar imagen 2').click()
+      await Promise.resolve()
+    })
     vi.unstubAllGlobals()
 
     await terminarSubida(ficha, 'rx-ap.png', '503')

@@ -37,7 +37,7 @@ export function FormularioEntrar({ cuentaInactiva }: { cuentaInactiva: boolean }
       }}
     >
       {error ? (
-        <div className="acceso-error" role="alert">
+        <div className="advertencia error" role="alert">
           {error}
         </div>
       ) : null}
@@ -65,7 +65,7 @@ export function FormularioEntrar({ cuentaInactiva }: { cuentaInactiva: boolean }
         />
       </label>
 
-      <button type="submit" className="acceso-boton" disabled={enCurso}>
+      <button type="submit" className="boton boton-lg boton-bloque" disabled={enCurso}>
         {enCurso ? 'Entrando…' : 'Entrar'}
       </button>
 

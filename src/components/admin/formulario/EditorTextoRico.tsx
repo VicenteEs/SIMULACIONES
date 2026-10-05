@@ -1,6 +1,23 @@
 'use client'
 
-import { useEffect, useReducer, useRef } from 'react'
+import { useEffect, useId, useReducer, useRef, useState } from 'react'
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  Italic,
+  Link2,
+  List,
+  ListOrdered,
+  Quote,
+  Redo2,
+  RemoveFormatting,
+  Strikethrough,
+  Underline as IconoSubrayado,
+  Undo2,
+} from 'lucide-react'
 import { useEditor, EditorContent, Extension, type Content, type Editor } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { Underline } from '@tiptap/extension-underline'
@@ -200,155 +217,215 @@ function Boton({
 
 const Separador = () => <span className="rte-separador" aria-hidden="true" />
 
+/** Los iconos de la barra: 16 px, como el resto del panel. */
+const T = 16
+
 function Barra({ editor }: { editor: Editor }) {
   const c = () => editor.chain().focus()
 
-  const ponerEnlace = () => {
+  /**
+   * El enlace se escribe en una casilla bajo la barra y no en `window.prompt`.
+   *
+   * El `prompt` del navegador era una caja gris con el dominio por título,
+   * sin forma de quitar el enlace salvo vaciarla —cosa que solo decía el texto
+   * de la pregunta— y que en Safari de iPad salía detrás del teclado. La
+   * casilla vive dentro de la barra fija, así que no se pierde de vista al
+   * escribir abajo en un texto largo.
+   *
+   * Pasar el foco a la casilla no pierde la selección del texto: ProseMirror la
+   * guarda en su estado aunque el área deje de tener el foco, y `focus()` en la
+   * cadena la devuelve antes de aplicar el enlace.
+   */
+  const [enlace, setEnlace] = useState<string | null>(null)
+  const idEnlace = useId()
+  const casilla = useRef<HTMLInputElement>(null)
+  // Solo al abrir, y por eso depende de `abierta` y no de `enlace`: con el
+  // texto en las dependencias, cada tecla volvería a enfocar la casilla.
+  const abierta = enlace !== null
+  useEffect(() => {
+    if (abierta) casilla.current?.focus()
+  }, [abierta])
+
+  const abrirEnlace = () => {
     const actual = editor.getAttributes('link').href as string | undefined
-    const url = window.prompt('Dirección del enlace (vacío para quitarlo):', actual ?? 'https://')
-    if (url === null) return
-    if (url.trim() === '') {
-      c().extendMarkRange('link').unsetLink().run()
-      return
-    }
-    c().extendMarkRange('link').setLink({ href: url.trim() }).run()
+    setEnlace(actual ?? 'https://')
+  }
+  const cerrarEnlace = () => {
+    setEnlace(null)
+    editor.commands.focus()
+  }
+  const aplicarEnlace = () => {
+    const url = (enlace ?? '').trim()
+    if (url === '' || url === 'https://') c().extendMarkRange('link').unsetLink().run()
+    else c().extendMarkRange('link').setLink({ href: url }).run()
+    setEnlace(null)
+  }
+  const quitarEnlace = () => {
+    c().extendMarkRange('link').unsetLink().run()
+    setEnlace(null)
   }
 
   return (
-    <div className="rte-barra" role="toolbar" aria-label="Formato del texto">
-      <Boton titulo="Deshacer" alPulsar={() => c().undo().run()} deshabilitado={!editor.can().undo()}>
-        ↶
-      </Boton>
-      <Boton titulo="Rehacer" alPulsar={() => c().redo().run()} deshabilitado={!editor.can().redo()}>
-        ↷
-      </Boton>
-      <Separador />
+    <div className="rte-barra-contenedor">
+      <div className="rte-barra" role="toolbar" aria-label="Formato del texto">
+        <Boton titulo="Deshacer" alPulsar={() => c().undo().run()} deshabilitado={!editor.can().undo()}>
+          <Undo2 aria-hidden size={T} />
+        </Boton>
+        <Boton titulo="Rehacer" alPulsar={() => c().redo().run()} deshabilitado={!editor.can().redo()}>
+          <Redo2 aria-hidden size={T} />
+        </Boton>
+        <Separador />
 
-      <Boton titulo="Negrita" activo={editor.isActive('bold')} alPulsar={() => c().toggleBold().run()}>
-        <b>B</b>
-      </Boton>
-      <Boton titulo="Cursiva" activo={editor.isActive('italic')} alPulsar={() => c().toggleItalic().run()}>
-        <i>I</i>
-      </Boton>
-      <Boton
-        titulo="Subrayado"
-        activo={editor.isActive('underline')}
-        alPulsar={() => c().toggleUnderline().run()}
-      >
-        <u>U</u>
-      </Boton>
-      <Boton titulo="Tachado" activo={editor.isActive('strike')} alPulsar={() => c().toggleStrike().run()}>
-        <s>S</s>
-      </Boton>
-      <Separador />
+        <Boton titulo="Negrita" activo={editor.isActive('bold')} alPulsar={() => c().toggleBold().run()}>
+          <Bold aria-hidden size={T} />
+        </Boton>
+        <Boton titulo="Cursiva" activo={editor.isActive('italic')} alPulsar={() => c().toggleItalic().run()}>
+          <Italic aria-hidden size={T} />
+        </Boton>
+        <Boton
+          titulo="Subrayado"
+          activo={editor.isActive('underline')}
+          alPulsar={() => c().toggleUnderline().run()}
+        >
+          <IconoSubrayado aria-hidden size={T} />
+        </Boton>
+        <Boton titulo="Tachado" activo={editor.isActive('strike')} alPulsar={() => c().toggleStrike().run()}>
+          <Strikethrough aria-hidden size={T} />
+        </Boton>
+        <Separador />
 
-      <Boton
-        titulo="Título"
-        activo={editor.isActive('heading', { level: 2 })}
-        alPulsar={() => c().toggleHeading({ level: 2 }).run()}
-      >
-        H1
-      </Boton>
-      <Boton
-        titulo="Subtítulo"
-        activo={editor.isActive('heading', { level: 3 })}
-        alPulsar={() => c().toggleHeading({ level: 3 }).run()}
-      >
-        H2
-      </Boton>
-      <Boton
-        titulo="Encabezado menor"
-        activo={editor.isActive('heading', { level: 4 })}
-        alPulsar={() => c().toggleHeading({ level: 4 }).run()}
-      >
-        H3
-      </Boton>
-      <Separador />
+        {/* Los rótulos dicen H1, H2 y H3 aunque guarden h2, h3 y h4: el h1 es el
+            título de la página (D-011) y para quien escribe esto es el primer
+            nivel de su texto. Los iconos de lucide llevan el número del
+            elemento, así que se pinta el rótulo y no el icono. */}
+        <Boton
+          titulo="Título"
+          activo={editor.isActive('heading', { level: 2 })}
+          alPulsar={() => c().toggleHeading({ level: 2 }).run()}
+        >
+          <span className="rte-rotulo">H1</span>
+        </Boton>
+        <Boton
+          titulo="Subtítulo"
+          activo={editor.isActive('heading', { level: 3 })}
+          alPulsar={() => c().toggleHeading({ level: 3 }).run()}
+        >
+          <span className="rte-rotulo">H2</span>
+        </Boton>
+        <Boton
+          titulo="Encabezado menor"
+          activo={editor.isActive('heading', { level: 4 })}
+          alPulsar={() => c().toggleHeading({ level: 4 }).run()}
+        >
+          <span className="rte-rotulo">H3</span>
+        </Boton>
+        <Separador />
 
-      <Boton
-        titulo="Viñetas"
-        activo={editor.isActive('bulletList')}
-        alPulsar={() => c().toggleBulletList().run()}
-      >
-        • Lista
-      </Boton>
-      <Boton
-        titulo="Lista numerada"
-        activo={editor.isActive('orderedList')}
-        alPulsar={() => c().toggleOrderedList().run()}
-      >
-        1. Lista
-      </Boton>
-      <Boton
-        titulo="Cita"
-        activo={editor.isActive('blockquote')}
-        alPulsar={() => c().toggleBlockquote().run()}
-      >
-        ❝
-      </Boton>
-      <Separador />
+        <Boton
+          titulo="Viñetas"
+          activo={editor.isActive('bulletList')}
+          alPulsar={() => c().toggleBulletList().run()}
+        >
+          <List aria-hidden size={T} />
+        </Boton>
+        <Boton
+          titulo="Lista numerada"
+          activo={editor.isActive('orderedList')}
+          alPulsar={() => c().toggleOrderedList().run()}
+        >
+          <ListOrdered aria-hidden size={T} />
+        </Boton>
+        <Boton
+          titulo="Cita"
+          activo={editor.isActive('blockquote')}
+          alPulsar={() => c().toggleBlockquote().run()}
+        >
+          <Quote aria-hidden size={T} />
+        </Boton>
+        <Separador />
 
-      <Boton
-        titulo="Alinear a la izquierda"
-        activo={editor.isActive({ textAlign: 'left' })}
-        alPulsar={() => c().setTextAlign('left').run()}
-      >
-        <IconoAlinear variante="left" />
-      </Boton>
-      <Boton
-        titulo="Centrar"
-        activo={editor.isActive({ textAlign: 'center' })}
-        alPulsar={() => c().setTextAlign('center').run()}
-      >
-        <IconoAlinear variante="center" />
-      </Boton>
-      <Boton
-        titulo="Alinear a la derecha"
-        activo={editor.isActive({ textAlign: 'right' })}
-        alPulsar={() => c().setTextAlign('right').run()}
-      >
-        <IconoAlinear variante="right" />
-      </Boton>
-      <Boton
-        titulo="Justificar"
-        activo={editor.isActive({ textAlign: 'justify' })}
-        alPulsar={() => c().setTextAlign('justify').run()}
-      >
-        <IconoAlinear variante="justify" />
-      </Boton>
-      <Separador />
+        <Boton
+          titulo="Alinear a la izquierda"
+          activo={editor.isActive({ textAlign: 'left' })}
+          alPulsar={() => c().setTextAlign('left').run()}
+        >
+          <AlignLeft aria-hidden size={T} />
+        </Boton>
+        <Boton
+          titulo="Centrar"
+          activo={editor.isActive({ textAlign: 'center' })}
+          alPulsar={() => c().setTextAlign('center').run()}
+        >
+          <AlignCenter aria-hidden size={T} />
+        </Boton>
+        <Boton
+          titulo="Alinear a la derecha"
+          activo={editor.isActive({ textAlign: 'right' })}
+          alPulsar={() => c().setTextAlign('right').run()}
+        >
+          <AlignRight aria-hidden size={T} />
+        </Boton>
+        <Boton
+          titulo="Justificar"
+          activo={editor.isActive({ textAlign: 'justify' })}
+          alPulsar={() => c().setTextAlign('justify').run()}
+        >
+          <AlignJustify aria-hidden size={T} />
+        </Boton>
+        <Separador />
 
-      <Boton titulo="Insertar enlace" activo={editor.isActive('link')} alPulsar={ponerEnlace}>
-        🔗
-      </Boton>
-      <Boton titulo="Quitar formato" alPulsar={() => c().unsetAllMarks().clearNodes().run()}>
-        T✕
-      </Boton>
+        <Boton titulo="Insertar enlace" activo={editor.isActive('link') || enlace !== null} alPulsar={abrirEnlace}>
+          <Link2 aria-hidden size={T} />
+        </Boton>
+        <Boton titulo="Quitar formato" alPulsar={() => c().unsetAllMarks().clearNodes().run()}>
+          <RemoveFormatting aria-hidden size={T} />
+        </Boton>
+      </div>
+
+      {enlace !== null ? (
+        <div
+          className="rte-enlace"
+          role="group"
+          aria-label="Enlace"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              cerrarEnlace()
+            }
+          }}
+        >
+          <label htmlFor={idEnlace} className="rte-enlace-etiqueta">
+            Dirección del enlace
+          </label>
+          <input
+            ref={casilla}
+            id={idEnlace}
+            type="url"
+            inputMode="url"
+            className="campo-control rte-enlace-casilla"
+            value={enlace}
+            placeholder="https://"
+            onChange={(e) => setEnlace(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                aplicarEnlace()
+              }
+            }}
+          />
+          <button type="button" className="admin-btn admin-btn-primary admin-btn-sm" onClick={aplicarEnlace}>
+            Aplicar
+          </button>
+          {editor.isActive('link') ? (
+            <button type="button" className="admin-btn admin-btn-secondary admin-btn-sm" onClick={quitarEnlace}>
+              Quitar enlace
+            </button>
+          ) : null}
+          <button type="button" className="admin-btn admin-btn-secondary admin-btn-sm" onClick={cerrarEnlace}>
+            Cancelar
+          </button>
+        </div>
+      ) : null}
     </div>
-  )
-}
-
-function IconoAlinear({ variante }: { variante: 'left' | 'center' | 'right' | 'justify' }) {
-  const trazos: Record<typeof variante, string[]> = {
-    left: ['M2 4h14', 'M2 8h9', 'M2 12h12', 'M2 16h7'],
-    center: ['M3 4h12', 'M5 8h8', 'M4 12h10', 'M6 16h6'],
-    right: ['M4 4h14', 'M7 8h11', 'M5 12h13', 'M9 16h9'],
-    justify: ['M2 4h16', 'M2 8h16', 'M2 12h16', 'M2 16h16'],
-  }
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      {trazos[variante].map((d, i) => (
-        <path key={i} d={d} />
-      ))}
-    </svg>
   )
 }

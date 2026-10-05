@@ -1,8 +1,10 @@
 'use client'
 
 import React from 'react'
-import Link from 'next/link'
+import { Search, SearchX, X } from 'lucide-react'
 import { filtrarFichas, type FichaBuscable } from '@/lib/busqueda'
+import { Vacio } from '@/components/ui/Vacio'
+import { TarjetaFicha } from '@/components/TarjetaFicha'
 
 /**
  * Biblioteca con buscador y filtros.
@@ -16,6 +18,8 @@ import { filtrarFichas, type FichaBuscable } from '@/lib/busqueda'
 interface Ficha extends FichaBuscable {
   segmentoNombre?: string
   borrador?: boolean
+  /** Si este residente ya la marcó como leída: lo pregunta el servidor. */
+  leida?: boolean
 }
 
 interface Segmento {
@@ -65,10 +69,7 @@ export function BibliotecaFiltrable({
     <>
       <div className="barra-filtros">
         <div className="campo-busqueda">
-          <svg viewBox="0 0 20 20" aria-hidden="true" className="icono-lupa">
-            <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            <path d="M12.5 12.5 L17 17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
+          <Search size={18} aria-hidden="true" className="icono-lupa" />
           <input
             ref={buscador}
             type="search"
@@ -95,7 +96,8 @@ export function BibliotecaFiltrable({
         </select>
 
         {hayFiltros ? (
-          <button type="button" className="limpiar" onClick={limpiar}>
+          <button type="button" className="boton boton-fantasma boton-sm" onClick={limpiar}>
+            <X size={16} aria-hidden="true" />
             Limpiar
           </button>
         ) : null}
@@ -108,27 +110,39 @@ export function BibliotecaFiltrable({
       </p>
 
       {resultado.length === 0 ? (
-        <div className="tarjeta">
-          <p>Ninguna ficha coincide con la búsqueda.</p>
-          <button type="button" className="boton secundario" onClick={limpiar}>
-            Ver todas
-          </button>
-        </div>
+        <Vacio
+          icono={SearchX}
+          titulo="Ninguna ficha coincide con la búsqueda"
+          compacto
+          accion={
+            <button type="button" className="boton boton-secundario" onClick={limpiar}>
+              Ver todas
+            </button>
+          }
+        >
+          <p>Pruebe con otra palabra, o quite el filtro de segmento o de tipo.</p>
+        </Vacio>
       ) : (
         grupos.map(({ segmento, fichas: lista }) => (
           <section key={segmento.id} className="grupo-segmento">
-            <h2>{segmento.nombre}</h2>
+            <h2>
+              {segmento.nombre}
+              <span className="grupo-segmento-cuenta">
+                {lista.length} {lista.length === 1 ? 'ficha' : 'fichas'}
+              </span>
+            </h2>
             <ul className="rejilla-fichas">
               {lista.map((f) => (
                 <li key={f.id}>
-                  <Link href={`/biblioteca/${f.id}`} className="tarjeta-ficha">
-                    <div className="etiquetas">
-                      {f.codigo ? <span className="codigo">{f.codigo}</span> : null}
-                      {f.borrador ? <span className="borrador">Borrador</span> : null}
-                    </div>
-                    <h3>{f.nombre}</h3>
-                    {f.subtitulo ? <p>{f.subtitulo}</p> : null}
-                  </Link>
+                  <TarjetaFicha
+                    href={`/biblioteca/${f.id}`}
+                    titulo={f.nombre ?? ""}
+                    codigo={f.codigo}
+                    resumen={f.subtitulo}
+                    borrador={f.borrador}
+                    leida={f.leida}
+                    accion="Leer ficha"
+                  />
                 </li>
               ))}
             </ul>

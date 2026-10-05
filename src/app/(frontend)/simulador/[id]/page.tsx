@@ -65,9 +65,6 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
   return (
     <main>
       <Miga href="/simulador" texto="Simulador" />
-      <h1>{caso.nombre}</h1>
-      <Rico valor={cirugia.resumen} className="entrada" />
-
       {/* La casilla y la consola van juntas en `CasoConSuLectura` porque desde
           que terminar el caso lo marca como leído las dos escriben la misma
           marca, y la casilla tiene que enterarse sin recargar: su cabecera
@@ -82,7 +79,12 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
         documentoId={id}
         completadoInicial={lecturas.leida(id)}
         recorridoGuardado={recorridoGuardado(registroDeLectura)}
-      />
+      >
+        {/* El título y el resumen van dentro para que la casilla de «leída»
+            se siente a su lado, en la cabecera del caso. */}
+        <h1>{caso.nombre}</h1>
+        <Rico valor={cirugia.resumen} className="entrada" />
+      </CasoConSuLectura>
 
       <FormularioComentario
         coleccion="cirugias"

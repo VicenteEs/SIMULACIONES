@@ -3,6 +3,12 @@
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Check, CheckCheck, CircleDot, ExternalLink, MessageSquare, Pencil, RotateCcw, SearchX, Trash2 } from 'lucide-react'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { useAvisos } from '@/components/ui/Avisos'
+import { useConfirmar } from '@/components/ui/Confirmar'
+import { Vacio } from '@/components/ui/Vacio'
+import { claseDeInsignia } from '@/lib/tonosDeEstado'
 import {
   actualizarComentario,
   eliminarComentario,
@@ -90,7 +96,14 @@ export function TablaComentarios({
 }) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
-  const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const avisar = useAvisos()
+  const confirmar = useConfirmar()
+  // Solo el error se queda además en la página: el resultado bueno sale como
+  // aviso flotante, que se ve aunque se haya bajado hasta la fila doscientos
+  // —el recuadro de antes estaba arriba del todo, fuera de la vista—, pero un
+  // error con su motivo tiene que poder releerse después de que el aviso se
+  // cierre.
+  const [error, setError] = useState<string | null>(null)
 
   const [estado, setEstado] = useState<'todos' | 'pendiente' | 'resuelto'>('pendiente')
   const [modulo, setModulo] = useState('todos')
@@ -125,47 +138,56 @@ export function TablaComentarios({
     tarea: () => Promise<{ exito: boolean; mensaje?: string }>,
     exitoso: string,
   ) => {
-    setAviso(null)
+    setError(null)
     iniciar(async () => {
       const resultado = await tarea()
       if (resultado.exito) {
-        setAviso({ tipo: 'ok', texto: exitoso })
+        avisar('ok', exitoso)
         router.refresh()
       } else {
-        setAviso({ tipo: 'error', texto: resultado.mensaje ?? 'No se pudo completar la acción.' })
+        const texto = resultado.mensaje ?? 'No se pudo completar la acción.'
+        setError(texto)
+        avisar('error', texto)
       }
     })
   }
 
   return (
     <div>
-      <div className="admin-toolbar">
-        <div>
-          <h1 className="admin-title">Comentarios y sugerencias</h1>
-          <p className="admin-subtitle">
-            {pendientes === 0
-              ? 'No queda nada pendiente por revisar.'
-              : `${pendientes} sin resolver de ${comentarios.length} en total.`}
-          </p>
-        </div>
-        {pendientes > 0 ? (
-          <div className="admin-acciones">
+      <CabeceraDePagina
+        titulo="Comentarios y sugerencias"
+        subtitulo={
+          pendientes === 0
+            ? 'No queda nada pendiente por revisar.'
+            : `${pendientes} sin resolver de ${comentarios.length} en total.`
+        }
+        acciones={
+          pendientes > 0 ? (
             <button
-              className="admin-btn admin-btn-secondary"
+              type="button"
+              className="admin-btn admin-btn-primary"
               disabled={enCurso}
-              onClick={() => {
-                if (confirm(`¿Marcar como resueltos los ${pendientes} comentarios pendientes?`)) {
-                  ejecutar(resolverTodosLosComentarios, 'Se resolvieron todos los pendientes.')
-                }
+              onClick={async () => {
+                const si = await confirmar({
+                  titulo: `¿Resolver los ${pendientes} comentarios pendientes?`,
+                  mensaje: 'Pasan todos a «Resuelto». Se pueden reabrir uno a uno después.',
+                  confirmar: `Resolver ${pendientes}`,
+                })
+                if (si) ejecutar(resolverTodosLosComentarios, 'Se resolvieron todos los pendientes.')
               }}
             >
+              <CheckCheck aria-hidden size={16} />
               Resolver todos
             </button>
-          </div>
-        ) : null}
-      </div>
+          ) : null
+        }
+      />
 
-      {aviso ? <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>{aviso.texto}</div> : null}
+      {error ? (
+        <div className="admin-aviso admin-aviso-error" role="status">
+          {error}
+        </div>
+      ) : null}
 
       <div className="admin-filters">
         <div className="admin-filter-group">
@@ -218,18 +240,33 @@ export function TablaComentarios({
         </span>
       </div>
 
-      <div className="admin-table-container">
-        {visibles.length === 0 ? (
-          <div className="admin-empty">
-            <div className="admin-empty-icon">💬</div>
-            <p className="admin-empty-text">
-              {comentarios.length === 0
-                ? 'Todavía nadie ha dejado comentarios en las fichas.'
-                : 'Ningún comentario coincide con el filtro.'}
-            </p>
-          </div>
+      {visibles.length === 0 ? (
+        comentarios.length === 0 ? (
+          <Vacio icono={MessageSquare} titulo="Todavía nadie ha dejado comentarios en las fichas.">
+            Cuando alguien comente una ficha desde la plataforma, aparecerá aquí.
+          </Vacio>
         ) : (
-          <table className="admin-table">
+          <Vacio
+            icono={SearchX}
+            titulo="Ningún comentario coincide con el filtro."
+            accion={
+              <button
+                type="button"
+                className="admin-btn admin-btn-secondary"
+                onClick={() => {
+                  setEstado('todos')
+                  setModulo('todos')
+                  setBusqueda('')
+                }}
+              >
+                Ver todos
+              </button>
+            }
+          />
+        )
+      ) : (
+      <div className="admin-table-container">
+          <table className="admin-table tabla-apilable">
             <thead>
               <tr>
                 <th>Autor</th>
@@ -237,22 +274,22 @@ export function TablaComentarios({
                 <th>Ficha</th>
                 <th>Fecha</th>
                 <th>Estado</th>
-                <th>Acciones</th>
+                <th>
+                  <span className="sr-only">Acciones</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {visibles.map((c) => (
                 <tr key={c.id}>
-                  <td>
+                  <th scope="row">
                     <div className="admin-table-user-name">{c.autorNombre ?? 'Usuario'}</div>
                     <div className="admin-table-user-email">{c.autorCorreo ?? 'sin correo'}</div>
+                  </th>
+                  <td className="comentario-celda">
+                    <div className="comentario-texto">{c.texto}</div>
                   </td>
-                  <td style={{ maxWidth: 420 }}>
-                    <div style={{ lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {c.texto}
-                    </div>
-                  </td>
-                  <td>
+                  <td data-etiqueta="Ficha">
                     {c.fichaEstado === 'titulo' && c.fichaTitulo ? (
                       <div className="admin-table-user-name">{c.fichaTitulo}</div>
                     ) : c.fichaEstado !== null ? (
@@ -278,40 +315,48 @@ export function TablaComentarios({
                       <div className="admin-acciones">
                         <Link
                           href={`/admin-panel/contenido/${c.coleccion}/${c.documentoId}`}
-                          className="admin-table-user-email"
+                          className="comentario-enlace"
                           aria-label={
                             c.fichaTitulo ? `Editar «${c.fichaTitulo}»` : 'Editar la ficha comentada'
                           }
                         >
-                          editar →
+                          <Pencil aria-hidden size={13} />
+                          Editar
                         </Link>
                         <Link
                           href={rutaPublica(c.coleccion, c.documentoId)}
-                          className="admin-table-user-email"
+                          className="comentario-enlace"
                           aria-label={
                             c.fichaTitulo
                               ? `Ver «${c.fichaTitulo}» en el sitio público`
                               : 'Ver la ficha comentada en el sitio público'
                           }
                         >
-                          ver ficha →
+                          <ExternalLink aria-hidden size={13} />
+                          Ver ficha
                         </Link>
                       </div>
                     )}
                   </td>
-                  <td style={{ whiteSpace: 'nowrap', fontSize: '0.8125rem' }}>
+                  <td data-etiqueta="Fecha" className="u-nowrap admin-celda-tenue">
                     {fechaHora(c.creado)}
                   </td>
-                  <td>
-                    <span
-                      className={`admin-badge ${c.estado === 'pendiente' ? 'admin-badge-pending' : 'admin-badge-resolved'}`}
-                    >
-                      {c.estado === 'pendiente' ? '● Pendiente' : '✓ Resuelto'}
+                  <td data-etiqueta="Estado">
+                    {/* El icono va con la palabra, no en su lugar: el estado no
+                        se dice solo con color. */}
+                    <span className={claseDeInsignia(c.estado === 'pendiente' ? 'atencion' : 'ok')}>
+                      {c.estado === 'pendiente' ? (
+                        <CircleDot aria-hidden size={12} />
+                      ) : (
+                        <Check aria-hidden size={12} />
+                      )}
+                      {c.estado === 'pendiente' ? 'Pendiente' : 'Resuelto'}
                     </span>
                   </td>
-                  <td>
-                    <div className="admin-acciones">
+                  <td className="admin-table-acciones">
+                    <div className="admin-table-acciones-fila">
                       <button
+                        type="button"
                         className={`admin-btn admin-btn-sm ${c.estado === 'pendiente' ? 'admin-btn-success' : 'admin-btn-secondary'}`}
                         disabled={enCurso}
                         onClick={() =>
@@ -327,19 +372,31 @@ export function TablaComentarios({
                           )
                         }
                       >
+                        {c.estado === 'pendiente' ? (
+                          <Check aria-hidden size={14} />
+                        ) : (
+                          <RotateCcw aria-hidden size={14} />
+                        )}
                         {c.estado === 'pendiente' ? 'Resolver' : 'Reabrir'}
                       </button>
                       {puedeEliminar ? (
                         <button
-                          className="admin-btn admin-btn-sm admin-btn-danger"
+                          type="button"
+                          className="admin-btn admin-btn-sm admin-btn-ghost admin-btn-icon"
                           disabled={enCurso}
-                          onClick={() => {
-                            if (confirm('¿Eliminar este comentario? No se puede deshacer.')) {
-                              ejecutar(() => eliminarComentario(c.id), 'Comentario eliminado.')
-                            }
+                          aria-label={`Eliminar el comentario de ${c.autorNombre ?? 'Usuario'}`}
+                          title="Eliminar"
+                          onClick={async () => {
+                            const si = await confirmar({
+                              titulo: '¿Eliminar este comentario?',
+                              mensaje: 'Se borra la observación de otra persona y no se puede deshacer.',
+                              confirmar: 'Eliminar comentario',
+                              peligro: true,
+                            })
+                            if (si) ejecutar(() => eliminarComentario(c.id), 'Comentario eliminado.')
                           }}
                         >
-                          Eliminar
+                          <Trash2 aria-hidden size={16} />
                         </button>
                       ) : null}
                     </div>
@@ -348,8 +405,8 @@ export function TablaComentarios({
               ))}
             </tbody>
           </table>
-        )}
       </div>
+      )}
     </div>
   )
 }

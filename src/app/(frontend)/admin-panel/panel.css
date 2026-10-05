@@ -1,0 +1,1030 @@
+/* ==========================================================================
+   El contorno del panel y sus piezas de listado.
+
+   Salió de `admin.css` cuando el panel se rehízo con el sistema de diseño de
+   `estilos.css` y `ui.css`. Aquella hoja mezclaba en 2.700 líneas el contorno,
+   las tablas, el editor de fichas y el taller anatómico, y se editaba desde
+   dos frentes a la vez: una regla del contorno repetida ochocientas líneas más
+   abajo —`.admin-sidebar-header`, el bloque de 900 px que pisaba al de 1000—
+   era la forma habitual de romperla. Aquí vive lo que ve quien recorre el
+   panel: barra lateral, cabecera de página, tarjetas, tablas, filtros,
+   insignias, gráficos y la auditoría. En `admin.css` queda lo del editor, los
+   formularios y el taller.
+
+   Se carga después de `admin.css` (`layout.tsx`), así que aquí manda.
+   Todo con tokens: ni colores ni tamaños sueltos. Puntos de corte, los tres de
+   la casa: 640 / 900 / 1200.
+   ========================================================================== */
+
+:root {
+  /* Los tonos de estado, que comparten insignias y gráficos
+     (`src/lib/tonosDeEstado.ts`). En el gráfico el tono neutro es el gris de
+     los bordes fuertes y no el del texto: un segmento gris oscuro al lado del
+     marino se confundía con él. */
+  --tono-ok: var(--verde);
+  --tono-atencion: var(--ambar);
+  --tono-peligro: var(--alerta);
+  --tono-info: var(--marca);
+  --tono-neutra: var(--linea-fuerte);
+
+  /* Los nombres de antes, que siguen usando quienes pintan la revisión
+     (D-142). Antes eran cinco hexadecimales propios —el violeta de
+     «publicada» y un rojo claro para «devuelta»— que no coincidían con las
+     insignias de la misma pantalla. */
+  --estado-pendiente: var(--tono-atencion);
+  --estado-en-revision: var(--tono-info);
+  --estado-lista: var(--tono-ok);
+  --estado-publicada: var(--tono-neutra);
+  --estado-devuelta: var(--tono-peligro);
+
+  /* Lo translúcido sobre la barra marina: el velo del enlace al pasar y los
+     filetes. Eran cinco `rgba(255, 255, 255, …)` distintos. */
+  --sobre-tinta-velo: rgba(233, 238, 251, 0.08);
+  --sobre-tinta-filete: rgba(233, 238, 251, 0.12);
+  /* La sombra que avisa de que una tabla sigue a la derecha. */
+  --sombra-lateral: rgba(12, 26, 56, 0.16);
+
+  --barra-ancho: 248px;
+  --contenido-ancho: 1240px;
+}
+
+/* ---------- contorno ---------- */
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--papel);
+}
+
+/* Dentro del panel no se muestra la barra de la plataforma: el panel tiene su
+   propia navegación y las dos juntas se estorban, sobre todo en pantallas
+   estrechas. Se sale con el enlace del pie de la barra lateral. */
+body:has(.admin-layout) .barra { display: none; }
+
+/* El contenido, centrado. Antes solo tenía `max-width`, sin márgenes
+   automáticos: en un monitor de 2.560 px todo quedaba pegado a la barra y la
+   mitad derecha de la pantalla, vacía. */
+.admin-content {
+  flex: 1;
+  min-width: 0;
+  max-width: var(--contenido-ancho);
+  margin-inline: auto;
+  padding: var(--e-8) var(--e-10) var(--e-16);
+}
+/* El taller anatómico ocupa todo el ancho que haya (D-139): son tres columnas
+   —árbol, lienzo y panel— y centrado en 1.240 px el lienzo se quedaba en un
+   tercio de una pantalla ancha. */
+.admin-content:has(.atlas-taller) { max-width: none; margin-inline: 0; }
+
+/* ---------- barra lateral ---------- */
+.admin-sidebar {
+  width: var(--barra-ancho);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-1);
+  padding: var(--e-5) var(--e-3);
+  background: var(--tinta);
+  color: var(--sobre-tinta-1);
+  /* Fija y con su propio desplazamiento: con una ficha abierta la barra lleva
+     las notas del revisor, y tienen que verse sin bajar la página (D-144). */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* Logo y nombre a la izquierda; en pantalla estrecha, el botón del cajón a la
+   derecha. Una sola regla: una clase repartida en dos zonas del archivo se
+   pisa en cuanto alguien toca una de las dos sin ver la otra. */
+.admin-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  padding: 0 var(--e-3) var(--e-5);
+  margin-bottom: var(--e-2);
+  border-bottom: 1px solid var(--sobre-tinta-filete);
+}
+.admin-sidebar-logo { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
+.admin-sidebar-title { font-size: var(--t-base); font-weight: 650; color: var(--sobre-tinta-1); letter-spacing: -0.02em; }
+.admin-sidebar-sub {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sobre-tinta-3);
+}
+
+/* El botón del cajón solo existe en pantalla estrecha (≤900). */
+.admin-cajon-boton { display: none; }
+.admin-cajon { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.admin-cajon-velo { display: none; }
+
+.admin-nav { display: flex; flex-direction: column; }
+
+/* Los rótulos de grupo subieron de #5d7099 (3,5:1 sobre la barra) a
+   `--sobre-tinta-3` (6,9:1): eran de los pocos textos del panel que no
+   llegaban a AA. */
+.admin-nav-section {
+  padding: var(--e-4) var(--e-3) var(--e-2);
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sobre-tinta-3);
+}
+
+.admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  min-height: 40px;
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r);
+  color: var(--sobre-tinta-2);
+  text-decoration: none;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease;
+}
+.admin-nav-link:hover { background: var(--sobre-tinta-velo); color: var(--sobre-tinta-1); }
+.admin-nav-link.active,
+.admin-nav-link[aria-current="page"] { background: var(--marca); color: var(--superficie); }
+
+.admin-nav-icon { flex-shrink: 0; opacity: 0.8; }
+.admin-nav-link:hover .admin-nav-icon,
+.admin-nav-link[aria-current="page"] .admin-nav-icon { opacity: 1; }
+.admin-nav-texto { flex: 1; }
+
+/* El contador de pendientes. Era blanco sobre `--ambar` (4,2:1, por debajo de
+   AA con 10 px); ahora es la pareja de la insignia de atención, 5,9:1. */
+.admin-nav-aviso {
+  min-width: 22px;
+  padding: 2px var(--e-2);
+  border-radius: var(--r-full);
+  background: var(--ambar-tenue);
+  color: var(--ambar-texto);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+.admin-nav-link[aria-current="page"] .admin-nav-aviso { background: var(--superficie); color: var(--marca); }
+
+.admin-nav-back {
+  margin-top: auto;
+  padding-top: var(--e-3);
+  border-top: 1px solid var(--sobre-tinta-filete);
+}
+
+.admin-sidebar-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+  padding: var(--e-2) var(--e-3) 0;
+}
+.admin-sidebar-quien {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sobre-tinta-3);
+}
+
+.admin-salir {
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 0 var(--e-3);
+  border: 1px solid var(--sobre-tinta-filete);
+  border-radius: var(--r-full);
+  background: none;
+  color: var(--sobre-tinta-2);
+  font: inherit;
+  font-size: var(--t-xs);
+  cursor: pointer;
+}
+.admin-salir:hover:not(:disabled) { color: var(--sobre-tinta-1); border-color: var(--sobre-tinta-3); }
+.admin-salir:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* El crédito de autoría, al pie de la barra. Dentro del panel hace las veces
+   del pie de página de la plataforma, que aquí se esconde. Envuelve en vez de
+   cortarse con puntos suspensivos: una dirección de correo recortada ya no
+   sirve para escribirle. Texto en `--sobre-tinta-3` (6,9:1) y enlace en
+   `--cian` (5,8:1), medidos sobre `--tinta`. */
+.admin-sidebar-credito {
+  margin: var(--e-3) 0 0;
+  padding: 0 var(--e-3);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--sobre-tinta-3);
+  overflow-wrap: anywhere;
+}
+.admin-sidebar-credito a { color: var(--cian); text-decoration: none; }
+.admin-sidebar-credito a:hover { text-decoration: underline; }
+
+/* La guardia de «Salir» no puede romper el `flex` del pie. */
+.guardia-de-salida { display: contents; }
+
+/* ---------- cabecera de página ---------- */
+.admin-header,
+.cabecera-pagina {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--e-4);
+  margin-bottom: var(--e-8);
+}
+.cabecera-pagina-texto { min-width: 0; flex: 1 1 420px; }
+.cabecera-pagina-acciones { display: flex; flex-wrap: wrap; gap: var(--e-2); align-items: center; }
+
+.migas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-1);
+  margin: 0 0 var(--e-2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-sm);
+  color: var(--mudo);
+}
+.migas li { display: inline-flex; align-items: center; gap: var(--e-1); }
+.migas a { color: var(--mudo); text-decoration: none; }
+.migas a:hover { color: var(--marca); text-decoration: underline; }
+.migas svg { color: var(--linea-fuerte); }
+
+.admin-title {
+  margin: 0 0 var(--e-1);
+  font-size: var(--t-xl);
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.022em;
+  color: var(--tinta);
+}
+.admin-subtitle { margin: 0; max-width: 72ch; font-size: var(--t-base); color: var(--mudo); }
+
+.admin-section-title {
+  margin: var(--e-10) 0 var(--e-4);
+  padding-bottom: var(--e-2);
+  border-bottom: 1px solid var(--linea-suave);
+  font-size: var(--t-md);
+  font-weight: 650;
+  color: var(--tinta);
+}
+
+/* Barra de acciones de una página (la antigua; lo nuevo va en la cabecera). */
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--e-4);
+  margin-bottom: var(--e-8);
+}
+.admin-acciones { display: flex; flex-wrap: wrap; gap: var(--e-2); }
+/* Formatos y tamaño máximo, debajo del botón de subir: sin ancho máximo la
+   frase entera se pone en una línea y empuja el título contra el borde. */
+.admin-subida-ayuda { max-width: 280px; text-align: right; }
+
+/* «Plegar todo / Desplegar todo», encima de varias secciones plegables. */
+.plegables-barra { display: flex; justify-content: flex-end; gap: var(--e-2); margin: calc(-1 * var(--e-4)) 0 var(--e-4); }
+
+/* ---------- rejilla y tarjetas ---------- */
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--e-4);
+  margin-bottom: var(--e-6);
+}
+
+/* Sin `:hover` que eleve: una tarjeta que se mueve al pasar promete un clic.
+   Antes lo hacían todas, también las que no llevan a ningún sitio. La que sí
+   lleva es `.admin-card-enlace`. */
+.admin-card {
+  background: var(--superficie);
+  border: 1px solid var(--linea-suave);
+  border-radius: var(--r-lg);
+  padding: var(--e-6);
+  box-shadow: var(--sombra-1);
+}
+.admin-card-ancha { grid-column: 1 / -1; }
+
+/* La tarjeta entera es el enlace: antes cada una llevaba su botón «Ver…» y el
+   resto de la tarjeta, que parecía pulsable, no hacía nada. */
+.admin-card-enlace {
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease, transform var(--dur-rapida) ease;
+}
+.admin-card-enlace:hover { border-color: var(--linea); box-shadow: var(--sombra-2); transform: translateY(-1px); }
+.admin-card-enlace:active { transform: none; }
+
+/* Tarjeta cuyos números no se pudieron leer: los conteos devuelven ceros de
+   relleno cuando la base no responde (`datos.ts`), y un cero se lee como «no
+   hay nada». La franja ámbar es la de los avisos de atención. */
+.admin-card-ilegible { border-left: 3px solid var(--ambar); background: var(--ambar-tenue); }
+
+.admin-card-title {
+  margin-bottom: var(--e-3);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--pizarra);
+}
+.admin-card-value {
+  font-size: var(--t-xl);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+}
+/* Los tamaños de la cifra, en vez del `fontSize` en línea de antes. */
+.admin-card-value-sm { font-size: var(--t-lg); }
+.admin-card-value-xs { font-size: var(--t-md); }
+.admin-card-value-atencion { color: var(--ambar-texto); }
+.admin-card-value-peligro { color: var(--alerta); }
+.admin-card-note { margin: var(--e-2) 0 0; font-size: var(--t-sm); color: var(--mudo); }
+/* El «01» de la tarjeta de módulo. Era `--linea` sobre blanco (1,3:1): no se
+   leía. Ahora toma el color del módulo. */
+.admin-card-numero {
+  margin-bottom: var(--e-1);
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--acento, var(--mudo));
+}
+.admin-card-actions { display: flex; flex-wrap: wrap; gap: var(--e-2); margin-top: var(--e-4); }
+
+/* La tarjeta de indicador: icono, rótulo, cifra y nota; la flecha de la
+   esquina solo cuando lleva a algún sitio. */
+.kpi { position: relative; display: flex; flex-direction: column; gap: var(--e-1); min-height: 152px; }
+.kpi-cabeza { display: flex; align-items: center; gap: var(--e-3); margin-bottom: var(--e-3); }
+.kpi-cabeza .admin-card-title { margin: 0; }
+.kpi-flecha { margin-left: auto; color: var(--linea-fuerte); transition: color var(--dur-rapida) ease, transform var(--dur-rapida) ease; }
+.admin-card-enlace:hover .kpi-flecha { color: var(--marca); transform: translateX(2px); }
+.kpi .admin-card-note { margin-top: auto; padding-top: var(--e-2); }
+
+/* Tarjeta de módulo: una franja con su color arriba. */
+.tarjeta-modulo { border-top: 3px solid var(--acento, var(--marca)); }
+.tarjeta-modulo-cabeza { display: flex; align-items: center; gap: var(--e-3); margin-bottom: var(--e-4); }
+.tarjeta-modulo-nombre { margin: 0; font-size: var(--t-base); font-weight: 650; color: var(--tinta); }
+
+/* ---------- avisos en línea ---------- */
+.admin-aviso {
+  margin-bottom: var(--e-5);
+  padding: var(--e-3) var(--e-4);
+  border: 1px solid var(--linea);
+  border-left-width: 3px;
+  border-radius: var(--r);
+  background: var(--superficie);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+.admin-aviso-info { border-left-color: var(--marca); background: var(--marca-tenue); }
+.admin-aviso-ok { border-left-color: var(--verde); background: var(--verde-tenue); }
+.admin-aviso-atencion { border-left-color: var(--ambar); background: var(--ambar-tenue); }
+.admin-aviso-error { border-left-color: var(--alerta); background: var(--alerta-tenue); }
+.admin-aviso strong { display: block; margin-bottom: 2px; }
+
+/* ---------- botones ---------- */
+/* La base es la de `ui.css`. Aquí solo lo que el panel añade: el tamaño
+   pequeño de las tablas, el verde de «publicar», la variante fantasma y la de
+   solo icono. Antes `admin.css` volvía a escribir la base entera con otros
+   rellenos, `border: none` y `transition: all`, y ganaba por orden de carga. */
+.admin-btn-sm { min-height: 30px; padding: 0 var(--e-3); gap: var(--e-1); }
+.admin-btn-success { background: var(--verde-tenue); color: var(--verde); border-color: var(--verde-tenue); }
+.admin-btn-success:hover:not(:disabled) { background: var(--verde); color: var(--superficie); }
+.admin-btn-ghost { background: transparent; color: var(--pizarra); }
+.admin-btn-ghost:hover:not(:disabled) { background: var(--papel); color: var(--tinta); }
+.admin-btn-icon { width: 36px; padding: 0; }
+.admin-btn-icon.admin-btn-sm { width: 30px; }
+
+/* ---------- insignias ---------- */
+/* Las `admin-badge-*` son ahora la insignia semántica de `ui.css` con otro
+   nombre: había quince clases para cinco ideas, en versalitas de 11 px y con
+   el ámbar a 3,7:1. Lo nuevo escribe `insignia insignia-<tono>` con el tono
+   de `src/lib/tonosDeEstado.ts`; estas se quedan para lo que aún no migró. */
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  padding: 2px var(--e-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-full);
+  font-size: var(--t-xs);
+  font-weight: 650;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.admin-badge-pending,
+.admin-badge-borrador { background: var(--ambar-tenue); color: var(--ambar-texto); }
+.admin-badge-resolved,
+.admin-badge-publicado { background: var(--verde-tenue); color: var(--verde); }
+.admin-badge-activo { background: var(--marca-tenue); color: var(--marca); }
+.admin-badge-inactivo,
+.admin-badge-neutro { background: var(--papel); color: var(--pizarra); border-color: var(--linea-suave); }
+
+/* ---------- filtros y campos de búsqueda ---------- */
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--e-4);
+  margin-bottom: var(--e-6);
+}
+.admin-filter-group { display: flex; flex-direction: column; gap: var(--e-1); }
+.admin-filter-label {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mudo);
+}
+/* El contorno de un campo es un componente y pide 3:1 (WCAG 1.4.11):
+   `--linea` daba 1,3:1 y en una pantalla de pabellón el filtro no se veía. */
+.admin-select,
+.admin-input {
+  min-width: 160px;
+  min-height: 36px;
+  padding: 0 var(--e-3);
+  border: 1px solid var(--linea-fuerte);
+  border-radius: var(--r);
+  background: var(--superficie);
+  color: var(--tinta);
+  font: inherit;
+  font-size: var(--t-sm);
+  transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease;
+}
+.admin-select:hover,
+.admin-input:hover { border-color: var(--pizarra); }
+.admin-select:focus,
+.admin-input:focus { outline: none; border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-tenue); }
+.admin-filter-count { margin-left: auto; padding: var(--e-2) 0; font-size: var(--t-sm); color: var(--mudo); }
+
+/* ---------- control segmentado (las vistas de «Por revisar») ---------- */
+.segmentado {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: var(--e-6);
+  background: var(--linea-suave);
+  border-radius: var(--r);
+}
+.segmentado-opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 34px;
+  padding: 0 var(--e-3);
+  border-radius: var(--r-sm);
+  color: var(--pizarra);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.segmentado-opcion:hover { color: var(--tinta); background: var(--superficie-2); }
+.segmentado-opcion[aria-current="page"] { background: var(--superficie); color: var(--marca); box-shadow: var(--sombra-1); }
+.segmentado-cuenta {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-full);
+  background: var(--papel);
+  color: var(--pizarra);
+  font-size: var(--t-xs);
+  text-align: center;
+}
+.segmentado-opcion[aria-current="page"] .segmentado-cuenta { background: var(--marca-tenue); color: var(--marca); }
+
+/* ---------- tablas ---------- */
+/* Cuando la tabla no cabe se desplaza de lado, y las dos sombras de los
+   bordes lo dicen: fondos `local` que tapan la sombra mientras se está en el
+   extremo. Sin ellas, en el móvil la mitad de las columnas no existía para
+   quien no probara a deslizar. */
+.admin-table-container {
+  overflow-x: auto;
+  border: 1px solid var(--linea-suave);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sombra-1);
+  background:
+    linear-gradient(to right, var(--superficie) 30%, transparent) left center / 40px 100% no-repeat local,
+    linear-gradient(to left, var(--superficie) 30%, transparent) right center / 40px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--sombra-lateral), transparent) left center / 14px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--sombra-lateral), transparent) right center / 14px 100% no-repeat scroll,
+    var(--superficie);
+}
+.admin-table { width: 100%; border-collapse: collapse; }
+.admin-table th,
+.admin-table td {
+  padding: var(--e-3) var(--e-4);
+  border-bottom: 1px solid var(--linea-suave);
+  text-align: left;
+  vertical-align: middle;
+}
+.admin-table thead th {
+  background: var(--superficie-2);
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pizarra);
+  white-space: nowrap;
+}
+.admin-table tbody tr { transition: background-color var(--dur-rapida) ease; }
+.admin-table tbody tr:hover { background: var(--superficie-2); }
+.admin-table tbody tr:last-child > * { border-bottom: none; }
+/* La celda que da nombre a la fila es un `th scope="row"`: ata cada «Editar» y
+   cada «Eliminar» a la ficha que tocan, y sin eso un lector de pantalla lista
+   veinte botones «Eliminar» indistinguibles. Dentro del cuerpo se ve como una
+   celda normal. */
+.admin-table tbody th { font-weight: 500; color: inherit; background: transparent; }
+/* Los vínculos del título de la fila se subrayan al pasar y no siempre: una
+   columna entera de títulos subrayados es ruido que tapa lo que se lee. El
+   color y el cursor ya dicen que son enlaces. */
+.admin-table tbody th a { text-decoration: none; }
+.admin-table tbody th a:hover { text-decoration: underline; }
+.admin-table tbody td { font-size: var(--t-sm); }
+.admin-table-user-name { font-weight: 500; }
+.admin-table-user-email { margin-top: 1px; font-size: var(--t-sm); color: var(--mudo); }
+.admin-table-text { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-table-modulo { text-transform: capitalize; font-size: var(--t-sm); }
+.admin-table-mono { font-family: var(--mono); font-size: var(--t-sm); }
+.admin-table-acciones { white-space: nowrap; text-align: right; }
+.admin-table-acciones-fila { display: inline-flex; align-items: center; gap: var(--e-1); justify-content: flex-end; }
+.admin-celda-tenue { color: var(--mudo); font-size: var(--t-sm); }
+
+/* ---------- pie de tabla y paginación ---------- */
+.admin-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+  padding: var(--e-3) var(--e-4);
+  border-top: 1px solid var(--linea-suave);
+  font-size: var(--t-sm);
+  color: var(--pizarra);
+}
+.admin-paginas { display: inline-flex; align-items: center; gap: var(--e-2); }
+.admin-numero-tenue { font-size: var(--t-base); font-weight: 400; color: var(--mudo); }
+
+/* ---------- estados vacíos de antes ---------- */
+/* Lo nuevo usa `<Vacio>` (`ui.css`). Este se queda para el marcado de tablas
+   que aún pinta un párrafo dentro de la celda. */
+.admin-empty {
+  margin: var(--e-1);
+  padding: var(--e-12) var(--e-8);
+  border: 1px dashed var(--linea);
+  border-radius: var(--r);
+  text-align: center;
+  color: var(--mudo);
+}
+.admin-empty-text { font-size: var(--t-base); }
+
+/* ---------- lista de datos (clave / valor) ---------- */
+.admin-datos {
+  display: grid;
+  grid-template-columns: minmax(160px, auto) 1fr;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--superficie);
+}
+.admin-datos dt,
+.admin-datos dd {
+  margin: 0;
+  padding: var(--e-2) var(--e-4);
+  border-bottom: 1px solid var(--linea-suave);
+  font-size: var(--t-sm);
+}
+.admin-datos dt { background: var(--superficie-2); color: var(--pizarra); font-weight: 500; }
+.admin-datos dd { font-family: var(--mono); word-break: break-all; }
+.admin-datos dt:nth-last-of-type(1),
+.admin-datos dd:nth-last-of-type(1) { border-bottom: 0; }
+
+/* ---------- barra de progreso ---------- */
+.admin-progreso {
+  height: 6px;
+  margin-top: var(--e-2);
+  overflow: hidden;
+  border-radius: var(--r-full);
+  background: var(--linea-suave);
+}
+.admin-progreso-relleno {
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--acento, var(--marca));
+  transition: width var(--dur) ease;
+}
+/* El `<progress>` de las subidas, que salía con el gris del sistema. */
+.admin-progreso-nativo {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  border: 0;
+  border-radius: var(--r-full);
+  overflow: hidden;
+  background: var(--linea-suave);
+  color: var(--marca);
+}
+.admin-progreso-nativo::-webkit-progress-bar { background: var(--linea-suave); }
+.admin-progreso-nativo::-webkit-progress-value { background: var(--marca); border-radius: var(--r-full); }
+.admin-progreso-nativo::-moz-progress-bar { background: var(--marca); border-radius: var(--r-full); }
+
+/* ---------- bloque copiable (enlaces de un solo uso) ---------- */
+.admin-copiable {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin-top: var(--e-2);
+  padding: var(--e-2) var(--e-3);
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  background: var(--papel);
+}
+.admin-copiable input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--tinta);
+}
+
+.admin-form-fila { display: grid; grid-template-columns: 1fr 1fr; gap: var(--e-4); }
+
+/* ---------- permisos ---------- */
+.permisos-grupo {
+  margin: 0 0 var(--e-4);
+  padding: var(--e-3) var(--e-4);
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+}
+.permisos-grupo legend { padding: 0 var(--e-2); font-size: var(--t-sm); font-weight: 600; color: var(--tinta); }
+.permisos-grupo:disabled { opacity: 0.55; }
+.permisos-casilla { display: flex; align-items: center; gap: var(--e-2); min-height: 32px; font-size: var(--t-sm); cursor: pointer; }
+.permisos-grupo:disabled .permisos-casilla { cursor: not-allowed; }
+
+/* ---------- índice de contenido ---------- */
+.contenido-recientes { margin: var(--e-3) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--linea-suave); }
+.contenido-recientes li {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  padding: var(--e-2) 0;
+  border-bottom: 1px solid var(--linea-suave);
+  font-size: var(--t-sm);
+}
+.contenido-recientes a { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tinta); text-decoration: none; }
+.contenido-recientes a:hover { color: var(--marca); }
+.contenido-fecha { white-space: nowrap; font-size: var(--t-xs); color: var(--mudo); }
+
+/* La rejilla del material de apoyo: icono, nombre y cifra. */
+.apoyo-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--e-3); }
+.apoyo-tarjeta { display: flex; align-items: center; gap: var(--e-3); padding: var(--e-4); }
+.apoyo-tarjeta .admin-card-title { margin: 0; }
+.apoyo-cifra { margin-left: auto; font-size: var(--t-md); font-weight: 650; color: var(--tinta); }
+
+/* ---------- gráficos ---------- */
+.grafico { margin: var(--e-3) 0 0; }
+.grafico-vacio { margin: var(--e-3) 0 0; font-size: var(--t-sm); color: var(--mudo); }
+
+/* Las barras verticales son HTML y no un SVG estirado: con
+   `preserveAspectRatio="none"` las esquinas redondeadas salían ovaladas y el
+   grosor de la línea base cambiaba con el ancho de la tarjeta. */
+.grafico-columnas {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e-1);
+  padding-top: var(--e-2);
+  border-bottom: 1px solid var(--linea-fuerte);
+  background-image: linear-gradient(to top, var(--linea-suave) 1px, transparent 1px);
+  background-size: 100% 25%;
+}
+.grafico-columna {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  min-width: 0;
+}
+.grafico-columna-barra {
+  width: 64%;
+  max-width: 40px;
+  min-height: 2px;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  background: var(--marca);
+  transition: background-color var(--dur-rapida) ease;
+}
+.grafico-columna-barra-cero { background: var(--linea); }
+.grafico-columna:hover .grafico-columna-barra { background: var(--marca-honda); }
+
+/* El dato al pasar el ratón o el foco: lo que antes era un `<title>` del SVG,
+   que tarda un segundo en salir y no se ve con el teclado. */
+.grafico-globo {
+  position: absolute;
+  bottom: calc(100% + var(--e-1));
+  left: 50%;
+  z-index: var(--z-flotante);
+  transform: translate(-50%, 4px);
+  padding: var(--e-1) var(--e-2);
+  border-radius: var(--r-sm);
+  background: var(--tinta);
+  color: var(--sobre-tinta-1);
+  font-size: var(--t-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-rapida) ease, transform var(--dur-rapida) ease;
+}
+.grafico-columna:hover .grafico-globo { opacity: 1; transform: translate(-50%, 0); }
+
+.grafico-ejes { display: flex; gap: var(--e-1); margin-top: var(--e-1); }
+.grafico-eje { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.grafico-eje-valor { font-size: var(--t-xs); font-weight: 600; color: var(--tinta); font-variant-numeric: tabular-nums; }
+.grafico-eje-etiqueta { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-xs); color: var(--mudo); }
+
+.grafico-lista { display: flex; flex-direction: column; gap: var(--e-2); margin-top: var(--e-3); }
+.grafico-fila {
+  display: grid;
+  grid-template-columns: minmax(90px, 38%) 1fr auto;
+  align-items: center;
+  gap: var(--e-3);
+  font-size: var(--t-sm);
+}
+.grafico-fila-etiqueta { display: inline-flex; align-items: center; gap: var(--e-1); min-width: 0; overflow: hidden; color: var(--pizarra); }
+.grafico-fila-etiqueta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grafico-fila-etiqueta svg { flex: none; color: var(--alerta); }
+.grafico-fila-barra { height: 8px; overflow: hidden; border-radius: var(--r-full); background: var(--linea-suave); }
+.grafico-fila-relleno { display: block; height: 100%; min-width: 2px; border-radius: var(--r-full); background: var(--marca); }
+.grafico-fila-relleno-alerta { background: var(--alerta); }
+.grafico-fila-valor { min-width: 2ch; text-align: right; font-size: var(--t-sm); font-weight: 600; color: var(--tinta); font-variant-numeric: tabular-nums; }
+
+/* La barra apilada por módulo (D-142): el hueco de la pista queda a la vista
+   y los segmentos van separados por dos píxeles de fondo, que dicen dónde
+   acaba cada parte sin dibujar una línea que compita con ellas. */
+.grafico-fila-apilada { height: 10px; overflow: visible; border-radius: 0; background: none; }
+.grafico-fila-apilada > span { display: flex; gap: 2px; height: 100%; min-width: 2px; }
+.grafico-apilada-caja { margin-top: var(--e-3); }
+.grafico-apilada { display: flex; gap: 2px; height: 10px; overflow: hidden; border-radius: var(--r-full); background: var(--superficie); }
+.grafico-apilada-parte { display: block; height: 100%; min-width: 2px; border-radius: 2px; }
+.grafico-apilada .grafico-apilada-parte { border-radius: 0; }
+
+.grafico-leyenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-1);
+  margin: var(--e-3) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-sm);
+  color: var(--pizarra);
+}
+.grafico-leyenda li { display: flex; align-items: center; gap: var(--e-2); }
+.grafico-leyenda strong { margin-left: auto; font-weight: 650; color: var(--tinta); font-variant-numeric: tabular-nums; }
+.grafico-leyenda-en-fila { flex-direction: row; flex-wrap: wrap; gap: var(--e-1) var(--e-5); }
+.grafico-leyenda-en-fila strong { margin-left: var(--e-1); }
+.grafico-punto { flex-shrink: 0; width: 10px; height: 10px; border-radius: 3px; }
+
+/* ---------- auditoría (D-142) ---------- */
+.auditoria-filtros { align-items: flex-end; }
+.auditoria-indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--e-4);
+  margin-bottom: var(--e-6);
+}
+.auditoria-indicadores .admin-card { padding: var(--e-4) var(--e-5); }
+.auditoria-card-alerta { box-shadow: inset 3px 0 0 var(--alerta), var(--sombra-1); }
+.auditoria-card-alerta .admin-card-value { color: var(--alerta); }
+.auditoria-revisores { margin-bottom: var(--e-6); }
+.auditoria-numero { font-size: var(--t-sm); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.auditoria-alerta { color: var(--alerta); font-weight: 700; }
+.auditoria-motivos { display: flex; align-items: center; gap: var(--e-1); max-width: 48ch; margin-top: 2px; font-size: var(--t-xs); color: var(--alerta); }
+.auditoria-fila-senalada { background: var(--alerta-tenue); }
+.auditoria-tabla th:first-child,
+.auditoria-tabla td:first-child { width: 1%; }
+
+/* Los títulos de columna que ordenan: se ven como el texto que eran, con el
+   icono que dice hacia dónde, y `aria-sort` en el `th` para quien no lo ve. */
+.auditoria-orden {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.auditoria-orden:hover { color: var(--marca); }
+.auditoria-orden svg { opacity: 0.5; }
+[aria-sort] .auditoria-orden svg { opacity: 1; color: var(--marca); }
+th[aria-sort='ascending'],
+th[aria-sort='descending'] { color: var(--marca); }
+
+.auditoria-bloque {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-3);
+  margin-bottom: var(--e-3);
+  font-size: var(--t-sm);
+  color: var(--pizarra);
+}
+.auditoria-bloque > span:first-child { margin-right: auto; }
+
+/* Once columnas: rellenos más apretados y el título con ancho mínimo, para
+   que no se parta en ocho renglones mientras las columnas de números sobran. */
+.auditoria-tabla th,
+.auditoria-tabla td,
+.auditoria-revisores th,
+.auditoria-revisores td { padding: var(--e-2) var(--e-3); }
+/* La columna del título es la única que manda en el ancho: con 260 px el título
+   se partía en cinco renglones y la línea de la fuente (libro, capítulo) en
+   otros cinco, y cada una de las 150 filas medía 200 px —la página entera,
+   32.000—. Más ancha, y la fuente en una sola línea con puntos suspensivos; el
+   texto completo se lee al pasar el ratón (`title`). */
+.auditoria-tabla th[scope='row'] { min-width: 360px; max-width: 460px; }
+.auditoria-tabla .auditoria-fuente {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Un ancho propio: `max-width` sobre una celda de tabla no lo respeta
+     ningún navegador de forma fiable, pero sí sobre el bloque de dentro. */
+  max-width: 420px;
+}
+.auditoria-revisores th[scope='row'] { min-width: 170px; }
+.auditoria-tabla .revision-tenue { font-size: var(--t-xs); }
+/* El título de la ficha se queda quieto al desplazar la tabla de lado: sin él,
+   a partir de la cuarta columna no se sabía de qué ficha eran los números. Va
+   con su propio fondo, que si no las celdas pasan por debajo a la vista. */
+.auditoria-tabla th[scope='row'],
+.auditoria-tabla thead th:nth-child(2) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--superficie);
+  box-shadow: inset -1px 0 0 var(--linea-suave);
+}
+.auditoria-tabla thead th:nth-child(2) { background: var(--superficie-2); z-index: 2; }
+.auditoria-tabla tbody tr:hover th[scope='row'] { background: var(--superficie-2); }
+.auditoria-tabla .auditoria-fila-senalada th[scope='row'] { background: var(--alerta-tenue); }
+
+/* ==========================================================================
+   Pantallas.
+   ========================================================================== */
+
+@media (max-width: 1200px) {
+  .admin-content { padding: var(--e-8) var(--e-6) var(--e-12); }
+}
+
+/* Por debajo de 900 px la barra lateral se vuelve una cabecera con un botón
+   que abre un cajón. Antes, por debajo de 1000, era una fila de iconos sin
+   nombre —doce enlaces que un lector de pantalla leía como «enlace»— que
+   además se partía en dos renglones; y había un segundo bloque de 900 px,
+   escrito antes, que la pisaba a medias. */
+@media (max-width: 900px) {
+  .admin-layout { flex-direction: column; }
+
+  .admin-sidebar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-barra);
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    padding: var(--e-2) var(--e-4);
+    gap: var(--e-2);
+  }
+  .admin-sidebar-header { padding: 0; margin: 0; border: 0; min-height: 44px; }
+  .admin-sidebar-logo { width: 32px; height: 32px; }
+  .admin-cajon-boton {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--e-2);
+    min-height: 40px;
+    margin-left: auto;
+    padding: 0 var(--e-3);
+    border: 1px solid var(--sobre-tinta-filete);
+    border-radius: var(--r);
+    background: none;
+    color: var(--sobre-tinta-1);
+    font: inherit;
+    font-size: var(--t-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .admin-cajon-boton:hover { background: var(--sobre-tinta-velo); }
+
+  .admin-cajon {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: var(--z-modal);
+    width: min(300px, 86vw);
+    padding: var(--e-5) var(--e-3);
+    overflow-y: auto;
+    background: var(--tinta);
+    box-shadow: var(--sombra-3);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform var(--dur) var(--curva), visibility 0s linear var(--dur);
+  }
+  .admin-cajon-abierto { transform: none; visibility: visible; transition: transform var(--dur) var(--curva); }
+  .admin-cajon-velo {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-modal) - 1);
+    background: var(--velo);
+    animation: ui-aparecer var(--dur-rapida) ease;
+  }
+
+  /* En columna, los márgenes automáticos anulan el estirado: sin el ancho
+     explícito el contenido medía lo que su hijo más ancho —una tabla— y la
+     página entera se desplazaba de lado. */
+  .admin-content { width: 100%; padding: var(--e-6) var(--e-5) var(--e-12); }
+}
+
+@media (max-width: 640px) {
+  .admin-content { padding: var(--e-5) var(--e-4) var(--e-12); }
+  .admin-header,
+  .cabecera-pagina { margin-bottom: var(--e-6); }
+  .cabecera-pagina-acciones { width: 100%; }
+  .admin-title { font-size: var(--t-lg); }
+  .admin-grid { grid-template-columns: 1fr; }
+  .admin-card { padding: var(--e-5); }
+  .kpi { min-height: 0; }
+  .admin-filters { flex-direction: column; align-items: stretch; }
+  .admin-filter-count { margin-left: 0; }
+  .admin-select,
+  .admin-input { min-height: 40px; }
+  /* Área táctil de 40 px: los botones de 30 de las tablas no se aciertan con
+     el dedo. */
+  .admin-btn { min-height: 40px; }
+  .admin-btn-icon,
+  .admin-btn-icon.admin-btn-sm { width: 40px; }
+  .admin-datos { grid-template-columns: 1fr; }
+  .admin-datos dt { padding-bottom: 0; border-bottom: 0; }
+  .admin-form-fila { grid-template-columns: 1fr; }
+  .segmentado { display: flex; }
+  .segmentado-opcion { flex: 1 1 auto; justify-content: center; min-height: 40px; }
+  .plegables-barra { margin-top: 0; }
+
+  /* Las tablas que lo piden (`.tabla-apilable`) se vuelven tarjetas: cada
+     fila un bloque y cada celda con su rótulo delante, sacado de
+     `data-etiqueta`. Las demás se desplazan de lado con la sombra que avisa. */
+  .tabla-apilable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .tabla-apilable,
+  .tabla-apilable tbody { display: block; }
+  .tabla-apilable tbody tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--e-1) var(--e-3);
+    padding: var(--e-3) var(--e-4);
+    border-bottom: 1px solid var(--linea-suave);
+  }
+  .tabla-apilable tbody tr > * { display: block; padding: 0; border: 0; }
+  .tabla-apilable tbody tr > th { grid-column: 1 / -1; font-weight: 600; }
+  .tabla-apilable tbody tr > td[data-etiqueta] { grid-column: 1 / -1; display: flex; gap: var(--e-2); align-items: baseline; font-size: var(--t-sm); }
+  .tabla-apilable tbody tr > td[data-etiqueta]::before {
+    content: attr(data-etiqueta);
+    flex: 0 0 96px;
+    font-size: var(--t-xs);
+    font-weight: 600;
+    color: var(--mudo);
+  }
+  .tabla-apilable tbody tr > td:empty { display: none; }
+  .tabla-apilable tbody tr > .admin-table-acciones { grid-column: 1 / -1; text-align: left; padding-top: var(--e-2); }
+  .tabla-apilable .admin-table-acciones-fila { justify-content: flex-start; flex-wrap: wrap; }
+  .admin-table-container:has(.tabla-apilable) { background: var(--superficie); }
+}
+
+/* ---------- marcas de sí / no en las matrices de permisos ---------- */
+/* El ✓ y el guion eran caracteres de texto: sin nombre para el lector de
+   pantalla y de distinto grosor según la fuente. Ahora son iconos con su
+   `aria-label` («Sí» / «No»). El «no» es tenue a propósito: lo que se busca en
+   la matriz son los síes. */
+.icono-si { color: var(--verde); }
+.icono-no { color: var(--linea-fuerte); }

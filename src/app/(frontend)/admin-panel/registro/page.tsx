@@ -1,4 +1,9 @@
 import Link from 'next/link'
+import { ArrowLeft, ArrowRight, Check, Download, Minus, ScrollText } from 'lucide-react'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
+import { Vacio } from '@/components/ui/Vacio'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { capacidadesPorRol, etiquetaDeRolEnRegistro, ROLES } from '@/lib/permisos'
 import { ACCIONES_DEL_REGISTRO, accionDelRegistroEnPalabras, duracionCorta } from '@/lib/registro'
@@ -84,9 +89,7 @@ export default async function PaginaDelRegistro({
   if (!resumen || !registro) {
     return (
       <div>
-        <header className="admin-header">
-          <h1 className="admin-title">Registro de acciones</h1>
-        </header>
+        <CabeceraDePagina titulo="Registro de acciones" />
         <div className="admin-aviso admin-aviso-error">
           <strong>La base no respondió al registro.</strong>
           Lo corriente es un despliegue sin su migración (las tablas «registro_de_acciones» y
@@ -105,20 +108,16 @@ export default async function PaginaDelRegistro({
 
   return (
     <div>
-      <div className="admin-toolbar">
-        <div>
-          <h1 className="admin-title">Registro de acciones</h1>
-          <p className="admin-subtitle">
-            Qué hace cada cuenta, cuándo y con qué permisos. El tiempo de actividad cuenta solo mientras
-            la plataforma está a la vista y alguien la toca: sin tocar nada durante 90 s, deja de contar.
-          </p>
-        </div>
-        <div className="admin-acciones">
+      <CabeceraDePagina
+        titulo="Registro de acciones"
+        subtitulo="Qué hace cada cuenta, cuándo y con qué permisos. El tiempo de actividad cuenta solo mientras la plataforma está a la vista y alguien la toca: sin tocar nada durante 90 s, deja de contar."
+        acciones={
           <a className="admin-btn admin-btn-primary" href={ruta('/api/registro/planilla')} download>
+            <Download aria-hidden size={16} />
             Descargar planilla (Excel)
           </a>
-        </div>
-      </div>
+        }
+      />
 
       <div className="auditoria-indicadores">
         <div className="admin-card">
@@ -138,7 +137,13 @@ export default async function PaginaDelRegistro({
         </div>
       </div>
 
-      <h2 className="admin-section-title">Cuentas, permisos y tiempo de actividad</h2>
+      <PlegarTodo />
+
+      <SeccionPlegable
+        clave="registro.cuentas"
+        titulo="Cuentas, permisos y tiempo de actividad"
+        resumen={`${resumen.cuentas.length} cuentas`}
+      >
       <div className="admin-table-container">
         <table className="admin-table">
           <thead>
@@ -190,8 +195,9 @@ export default async function PaginaDelRegistro({
       <p className="admin-card-note">
         Sesiones y acciones son de los últimos 30 días. «Ve» y «Edita» vacíos significan todos los módulos.
       </p>
+      </SeccionPlegable>
 
-      <h2 className="admin-section-title">Qué puede hacer cada rol</h2>
+      <SeccionPlegable clave="registro.roles" titulo="Qué puede hacer cada rol" resumen={`${capacidadesPorRol().length} permisos`}>
       <div className="admin-table-container">
         <table className="admin-table">
           <thead>
@@ -206,16 +212,28 @@ export default async function PaginaDelRegistro({
             {capacidadesPorRol().map((c) => (
               <tr key={c.clave}>
                 <td>{c.etiqueta}</td>
-                <td>{c.admin ? '✓' : '—'}</td>
-                <td>{c.editor ? '✓' : '—'}</td>
-                <td>{c.lector ? '✓' : '—'}</td>
+                <td>
+                  {c.admin ? <Check aria-label="Sí" size={16} className="icono-si" /> : <Minus aria-label="No" size={16} className="icono-no" />}
+                </td>
+                <td>
+                  {c.editor ? <Check aria-label="Sí" size={16} className="icono-si" /> : <Minus aria-label="No" size={16} className="icono-no" />}
+                </td>
+                <td>
+                  {c.lector ? <Check aria-label="Sí" size={16} className="icono-si" /> : <Minus aria-label="No" size={16} className="icono-no" />}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <h2 className="admin-section-title">Registro, acto por acto</h2>
+      </SeccionPlegable>
+
+      <SeccionPlegable
+        clave="registro.actos"
+        titulo="Registro, acto por acto"
+        resumen={`${registro.total} acto${registro.total === 1 ? '' : 's'}`}
+      >
       <form className="admin-filters" method="get">
         <div className="admin-filter-group">
           <label className="admin-filter-label" htmlFor="registro-usuario">Cuenta</label>
@@ -264,10 +282,21 @@ export default async function PaginaDelRegistro({
       </form>
 
       {registro.filas.length === 0 ? (
-        <div className="admin-aviso admin-aviso-info">
-          <strong>{hayFiltro ? 'Nada coincide con el filtro.' : 'Todavía no hay nada registrado.'}</strong>
-          {hayFiltro ? 'Quite algún filtro para ver más.' : 'Desde el despliegue de esta versión, cada inicio de sesión y cada cambio queda aquí.'}
-        </div>
+        <Vacio
+          icono={ScrollText}
+          titulo={hayFiltro ? 'Nada coincide con el filtro.' : 'Todavía no hay nada registrado.'}
+          accion={
+            hayFiltro ? (
+              <Link href="/admin-panel/registro" className="admin-btn admin-btn-secondary">
+                Quitar filtros
+              </Link>
+            ) : undefined
+          }
+        >
+          {hayFiltro
+            ? 'Quite algún filtro para ver más.'
+            : 'Desde el despliegue de esta versión, cada inicio de sesión y cada cambio queda aquí.'}
+        </Vacio>
       ) : (
         <div className="admin-table-container">
           <table className="admin-table">
@@ -313,21 +342,24 @@ export default async function PaginaDelRegistro({
         </div>
       )}
 
-      <div className="admin-acciones">
+      <div className="admin-pie">
         <span className="admin-card-note">
           {registro.total} acto{registro.total === 1 ? '' : 's'} · página {Math.min(pagina, Math.max(1, registro.paginas))} de {Math.max(1, registro.paginas)}
         </span>
         {pagina > 1 ? (
           <Link className="admin-btn admin-btn-secondary admin-btn-sm" href={consulta({ pagina: pagina - 1 })}>
-            ← Más recientes
+            <ArrowLeft aria-hidden size={14} />
+            Más recientes
           </Link>
         ) : null}
         {pagina < registro.paginas ? (
           <Link className="admin-btn admin-btn-secondary admin-btn-sm" href={consulta({ pagina: pagina + 1 })}>
-            Más antiguos →
+            Más antiguos
+            <ArrowRight aria-hidden size={14} />
           </Link>
         ) : null}
       </div>
+      </SeccionPlegable>
     </div>
   )
 }

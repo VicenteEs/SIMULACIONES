@@ -3,7 +3,11 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
-import { SinAcceso, SinAccesoAlModulo, Miga, Vacio } from '@/components/Estados'
+import { SinAcceso, SinAccesoAlModulo, Vacio } from '@/components/Estados'
+import { EyebrowDeModulo, MigaDePan, claseDeModulo } from '@/components/Cabeceras'
+import { BotonImprimir } from '@/components/BotonImprimir'
+import { BotonComentar } from '@/components/BotonComentar'
+import { Landmark } from 'lucide-react'
 import { Bloques } from '@/components/Bloques'
 import { Visor3D } from '@/components/VisoresPerezosos'
 import { encuadreVigente, type Encuadre } from '@/lib/encuadre'
@@ -57,9 +61,18 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
   const lecturas = await lecturasDelResidente(payload, usuarioEfectivo, 'casos-ao', [id])
 
   return (
-    <main>
-      <Miga href="/tecnica-ao" texto="Técnica AO" />
+    <main className={claseDeModulo('casos-ao')}>
+      <MigaDePan
+        pasos={[
+          { href: '/', texto: 'Inicio' },
+          { href: '/tecnica-ao', texto: 'Técnica AO' },
+          { texto: caso.titulo as string },
+        ]}
+      />
       <header className="cabecera-ficha">
+        <EyebrowDeModulo slug="casos-ao">
+          {pasos.length > 0 ? `Técnica AO · ${pasos.length} ${pasos.length === 1 ? 'paso' : 'pasos'}` : 'Técnica AO'}
+        </EyebrowDeModulo>
         <h1>{caso.titulo as string}</h1>
         <Rico valor={caso.procedimiento} className="entrada" />
         {caso.codigo ? (
@@ -72,11 +85,15 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
           puede ser larga y quien termina de leerla se queda en el último paso,
           no baja hasta el final de la página buscando una casilla.
         */}
-        <RastreadorActividad
-          coleccion="casos-ao"
-          documentoId={id}
-          completadoInicial={lecturas.leida(id)}
-        />
+        <div className="barra-acciones">
+          <RastreadorActividad
+            coleccion="casos-ao"
+            documentoId={id}
+            completadoInicial={lecturas.leida(id)}
+          />
+          <BotonImprimir />
+          <BotonComentar coleccion="casos-ao" documentoId={id} />
+        </div>
       </header>
 
       {pasos.length === 0 ? (
@@ -110,20 +127,35 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
             // `encuadreVigente` (`src/lib/encuadre.ts`).
             const encuadre = encuadreVigente(undefined, modelo?.encuadre)
             return (
+              // Una línea de tiempo: el número en su círculo sobre el hilo que
+              // une los pasos, el mismo gesto que las fases de rehabilitación.
               <li key={i}>
-                <span className="paso-numero">Paso {i + 1}</span>
-                <h2>{p.titulo as string}</h2>
-                <Rico valor={p.descripcion} />
-                {p.principio ? (
-                  <aside className="advertencia perla">
-                    <span className="advertencia-etiqueta">Principio AO</span>
-                    <p>{p.principio as string}</p>
-                  </aside>
-                ) : null}
-                <Rico valor={p.nota} className="nota-tecnica" />
-                {modelo?.url ? (
-                  <Visor3D url={modelo.url} encuadre={encuadre} nombre={modelo.nombre} />
-                ) : null}
+                <span className="paso-circulo" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <div className="paso-cuerpo">
+                  <span className="paso-numero">
+                    Paso {i + 1} de {pasos.length}
+                  </span>
+                  <h2>{p.titulo as string}</h2>
+                  <Rico valor={p.descripcion} />
+                  {/* El principio AO en el violeta del módulo, no en el ámbar
+                      de «Perla clínica»: no es un truco ni una advertencia,
+                      es la razón biomecánica del gesto. */}
+                  {p.principio ? (
+                    <aside className="advertencia principio">
+                      <span className="advertencia-etiqueta">
+                        <Landmark size={15} aria-hidden="true" />
+                        Principio AO
+                      </span>
+                      <p>{p.principio as string}</p>
+                    </aside>
+                  ) : null}
+                  <Rico valor={p.nota} className="nota-tecnica" />
+                  {modelo?.url ? (
+                    <Visor3D url={modelo.url} encuadre={encuadre} nombre={modelo.nombre} />
+                  ) : null}
+                </div>
               </li>
             )
           })}
@@ -132,10 +164,10 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
 
       <Bloques bloques={caso.contenido} />
 
-      <FormularioComentario 
-        coleccion="casos-ao" 
-        documentoId={id} 
-        label="¿Sugerencia o corrección sobre esta técnica AO? Comentar" 
+      <FormularioComentario
+        coleccion="casos-ao"
+        documentoId={id}
+        label="¿Sugerencia o corrección sobre esta técnica AO? Comentar"
       />
     </main>
   )

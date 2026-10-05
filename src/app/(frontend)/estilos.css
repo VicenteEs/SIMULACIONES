@@ -43,12 +43,138 @@
   --alerta: #9e2e27;
   --alerta-tenue: #f9ecea;
 
-  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* El éxito tenía dos verdes escritos a mano (#1c7a4b en la consola y
+     `var(--verde, #1f7a4d)` con reserva en el panel, porque el token no
+     existía). Este es el del panel: 5,37:1 sobre blanco y 4,86:1 sobre su
+     tenue. */
+  --verde: #1f7a4d;
+  --verde-tenue: #e9f5ef;
+  /* El ámbar de --ambar da 3,7:1 sobre --ambar-tenue: vale para un borde o un
+     icono, no para el texto de 11 px de una insignia. Este es el que llevaba
+     escrito a mano siete veces la hoja, ya como token: 5,9:1 sobre el tenue. */
+  --ambar-texto: #7a5a1c;
+  /* El «fondo de cabecera suave» de tablas y bloques, que estaba como #fafcff
+     en cinco sitios del panel. */
+  --superficie-2: #f7f9fd;
+  /* Los textos sobre la barra marina (la del sitio y la lateral del panel)
+     tenían cinco grises azulados sin nombre. Tres bastan: principal,
+     secundario y rótulo. El rótulo sube de #5d7099 (3,5:1 sobre --tinta) a
+     este, que da 6,9:1. */
+  --sobre-tinta-1: #e9eefb;
+  --sobre-tinta-2: #b0c4e6;
+  --sobre-tinta-3: #8ba6d8;
+  /* El fondo de todo lienzo 3D: había tres distintos. */
+  --lienzo-3d: #f3f6fb;
+  /* Un borde que se ve. --linea da 1,34:1 sobre blanco y es solo para separar;
+     el contorno de un campo es un componente y WCAG 1.4.11 le pide 3:1. */
+  --linea-fuerte: #8794ad;
+
+  /* ---------------------------------------------------------------------
+     Un color por módulo. Sirve para reconocer de un vistazo dónde se está
+     —la tarjeta, la miga, la insignia de «Continúa leyendo»—, no para
+     decorar: por eso cada uno lleva su tenue para fondos y todos dan al
+     menos 4,5:1 sobre blanco, así que valen también para texto. El azul de
+     la biblioteca es el de la marca a propósito: es el módulo base. El
+     orden es el de la plataforma (01…05).
+     --------------------------------------------------------------------- */
+  --mod-1: #12509e;
+  --mod-1-tenue: #e7f0fb;
+  --mod-2: #0d7468;
+  --mod-2-tenue: #e2f4f1;
+  --mod-3: #5b45b0;
+  --mod-3-tenue: #efebfa;
+  --mod-4: #b04a1f;
+  --mod-4-tenue: #fbede6;
+  --mod-5: #0f6f9c;
+  --mod-5-tenue: #e2f2fa;
+
+  /* Inter servida desde la propia plataforma (@fontsource-variable/inter, se
+     importa en el layout): con la pila del sistema la plataforma se veía en
+     Segoe en Windows y en Roboto en Linux, y sin cifras tabulares los números
+     de la portada y de la consola bailaban al cambiar. La pila de después es
+     la de antes, por si el archivo no llega. */
+  --sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
-  --r: 4px;
-  --r-lg: 10px;
-  --sombra: 0 1px 2px rgba(12, 26, 56, 0.05), 0 4px 14px rgba(12, 26, 56, 0.06);
+  /* ---------------------------------------------------------------------
+     Escalas. Había unos treinta tamaños de letra y cuarenta y cinco
+     espaciados distintos en cada hoja; lo nuevo se escribe con estos.
+     El espaciado va de 4 en 4 px. La letra no baja de 11 px.
+     --------------------------------------------------------------------- */
+  --e-1: 4px;
+  --e-2: 8px;
+  --e-3: 12px;
+  --e-4: 16px;
+  --e-5: 20px;
+  --e-6: 24px;
+  --e-8: 32px;
+  --e-10: 40px;
+  --e-12: 48px;
+  --e-16: 64px;
+
+  --t-xs: 11px;
+  --t-sm: 13px;
+  --t-base: 15px;
+  --t-lectura: 17px;
+  --t-md: 18px;
+  --t-lg: 22px;
+  --t-xl: 28px;
+  --t-2xl: clamp(30px, 4vw, 40px);
+
+  /* Radios: el de 4 px se veía anticuado en botones y campos. */
+  --r-sm: 6px;
+  --r: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-full: 999px;
+
+  /* Tres alturas. --sombra se queda como alias de la primera porque la usan
+     decenas de reglas. */
+  --sombra-1: 0 1px 2px rgba(12, 26, 56, 0.05), 0 4px 14px rgba(12, 26, 56, 0.06);
+  --sombra-2: 0 2px 4px rgba(12, 26, 56, 0.06), 0 10px 28px rgba(12, 26, 56, 0.10);
+  --sombra-3: 0 12px 48px rgba(12, 26, 56, 0.24);
+  --sombra: var(--sombra-1);
+  --velo: rgba(12, 26, 56, 0.55);
+
+  --dur-rapida: 0.15s;
+  --dur: 0.22s;
+  --curva: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  /* Capas. Los modales y los avisos flotantes por encima de todo lo demás. */
+  --z-barra: 50;
+  --z-flotante: 900;
+  --z-modal: 1000;
+  --z-aviso: 1100;
+
+  /* Puntos de corte (las variables no valen dentro de @media; se dejan
+     escritos para que todo lo nuevo use estos tres y no otros):
+     sm 640px · md 900px · lg 1200px. */
+
+  /* ---------------------------------------------------------------------
+     Lo que se pinta sobre el marino (la barra, la portada pública, el
+     panel de acceso). Eran catorce rgba y hexadecimales sueltos repartidos
+     por la hoja, cada uno calculado a ojo; con nombre se ve que son cuatro
+     ideas: un velo para el estado activo, el filete, el borde de un control
+     y el degradado de fondo.
+     --------------------------------------------------------------------- */
+  --sobre-tinta-velo: rgba(255, 255, 255, 0.07);
+  --sobre-tinta-velo-2: rgba(255, 255, 255, 0.13);
+  --sobre-tinta-filete: rgba(255, 255, 255, 0.09);
+  --sobre-tinta-borde: #2c4270;
+  --sobre-tinta-borde-fuerte: #6284c4;
+  /* El cian aclarado de los enlaces y del foco sobre el marino: el de la
+     paleta se queda en 4,35:1 sobre #143063 y este pasa de 7:1. */
+  --cian-claro: #7fd0f5;
+  --marino-1: #0a1633;
+  --marino-2: #10254f;
+  --marino-3: #143063;
+  --degradado-marino: linear-gradient(165deg, var(--marino-1) 0%, var(--marino-2) 55%, var(--marino-3) 100%);
+  --anillo-foco: 0 0 0 3px var(--marca-tenue);
+  /* El rojo honda del botón de peligro al pasar por encima. */
+  --alerta-honda: #7f241e;
+  /* El magenta de las medidas del atlas, el mismo del taller: se ve sobre
+     cualquier hueso y no se confunde con ningún color de la paleta. */
+  --magenta-medida: #d81b60;
 
   /* La plataforma es clara y no tiene tema oscuro: los catorce colores de
      arriba están calculados sobre fondo blanco. Sin esta declaración, Chrome de
@@ -69,31 +195,59 @@ body {
   font-family: var(--sans);
   background: var(--papel);
   color: var(--tinta);
-  font-size: 15px;
+  font-size: var(--t-base);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  /* Las cifras con el mismo ancho: los contadores no saltan al cambiar. */
+  font-variant-numeric: tabular-nums;
+  /* El pie al fondo de la ventana aunque la página sea corta: antes flotaba a
+     media pantalla en «Necesita una cuenta activa» y en los estados vacíos. */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
+body > main, body > .contenido-principal { flex: 1 0 auto; width: 100%; }
 
+/* La escala de encabezados sale de los tokens. El <h2> de sección era antes un
+   rótulo mono de 11,5 px pintado encima de bloques con <h3> de 17 px: la
+   jerarquía visual iba al revés que la del documento, y quien hojeaba la ficha
+   leía los títulos de bloque como los importantes. */
 h1, h2, h3, h4 { margin: 0; letter-spacing: -0.022em; font-weight: 650; }
-h1 { font-size: 38px; line-height: 1.1; }
-h2 { font-size: 24px; line-height: 1.22; }
-h3 { font-size: 17px; line-height: 1.3; }
-h4 { font-size: 14px; line-height: 1.35; }
-p { margin: 0 0 14px; }
+h1 { font-size: var(--t-2xl); line-height: 1.12; }
+h2 { font-size: var(--t-lg); line-height: 1.25; }
+h3 { font-size: var(--t-md); line-height: 1.3; }
+h4 { font-size: var(--t-base); line-height: 1.35; }
+p { margin: 0 0 var(--e-3); }
 a { color: var(--marca); }
 
-.eyebrow { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mudo); font-weight: 600; }
-.lead { font-size: 17px; color: var(--pizarra); line-height: 1.6; }
-.entrada { font-size: 16px; color: var(--pizarra); margin: 0 0 28px; max-width: 62ch; }
-.titulo-seccion { margin: 8px 0 20px; }
-.aviso { font-size: 13px; color: var(--pizarra); border-top: 1px solid var(--linea); padding-top: 16px; margin-top: 40px; }
+/* `.eyebrow` es el mismo rótulo que `.rotulo` de `ui.css`: había diecisiete
+   reglas casi iguales, de 9,5 a 12,5 px y con cinco espaciados de letra. Se
+   conserva el nombre porque lo llevan media docena de páginas, pero con los
+   valores de `.rotulo`, que no baja de 11 px. */
+.eyebrow {
+  font-family: var(--mono); font-size: var(--t-xs); font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--mudo);
+}
+.lead { font-size: var(--t-lectura); color: var(--pizarra); line-height: 1.6; }
+.entrada { font-size: var(--t-lectura); color: var(--pizarra); margin: 0 0 var(--e-6); max-width: 62ch; }
+.titulo-seccion { margin: var(--e-2) 0 var(--e-5); }
+/* La nota al pie de una sección («no es una calificación», «la decisión es
+   del cirujano»). Se llamaba `.aviso`, y la consola pintaba con ese mismo
+   nombre las filas ámbar de su registro: dos reglas para dos cosas que no se
+   parecen, y la de aquí se colaba en la consola con su filete y sus 40 px de
+   margen. */
+.nota-al-pie {
+  font-size: var(--t-sm); color: var(--pizarra);
+  border-top: 1px solid var(--linea); padding-top: var(--e-4); margin-top: var(--e-10);
+  max-width: 72ch;
+}
 
-main { max-width: 1060px; margin: 0 auto; padding: 44px 24px 96px; }
+main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--e-16); }
 
 /* ---------- barra de navegación ---------- */
-.barra { background: var(--tinta); color: #e9eefb; position: sticky; top: 0; z-index: 40; border-bottom: 1px solid #000; }
-.barra-interior { max-width: 1060px; margin: 0 auto; padding: 0 24px; height: 58px; display: flex; align-items: center; gap: 26px; }
-.marca { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
+.barra { background: var(--tinta); color: var(--sobre-tinta-1); position: sticky; top: 0; z-index: var(--z-barra); border-bottom: 1px solid var(--marino-1); }
+.barra-interior { max-width: 1120px; margin: 0 auto; padding: 0 var(--e-6); height: 58px; display: flex; align-items: center; gap: var(--e-6); }
+.marca { display: flex; align-items: center; gap: var(--e-3); color: var(--superficie); text-decoration: none; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
 /* La marca es cuadrada (`public/icon.png`, 192 × 192), así que se fijan los dos
    lados. Hubo dos reglas: esta con `height: 38px; width: auto` y otra en el
    bloque de correcciones con 30 × 30, que ganaba por ir después; quien venía a
@@ -104,223 +258,316 @@ main { max-width: 1060px; margin: 0 auto; padding: 44px 24px 96px; }
    de esa altura cuelgan `.pestana { scroll-margin-top }`, `.indice-ficha
    { top }` y el `calc(100vh - 58px)` de `.admin-layout`. */
 .marca-logo { height: 40px; width: 40px; object-fit: contain; display: block; flex-shrink: 0; }
-.marca-sub { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.15em; text-transform: uppercase; color: #8ba6d8; font-weight: 500; margin-top: 1px; }
-.modulos { display: flex; gap: 20px; flex: 1; flex-wrap: wrap; }
-.modulos a { color: #b0c4e6; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s ease, border-color 0.15s ease; }
-.modulos a:hover { color: #fff; border-bottom-color: var(--marca); }
+.marca-sub { display: block; font-family: var(--mono); font-size: var(--t-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--sobre-tinta-3); font-weight: 500; margin-top: 1px; }
+
+/* La fila de módulos no se parte en dos líneas: `.barra-interior` fija 58 px de
+   alto, y un `flex-wrap` desbordaba la barra y empujaba el contenido. Si no
+   caben, se desplazan en horizontal, como cualquier barra de pestañas. Antes
+   esto vivía en un bloque de «correcciones» al final de la hoja que reescribía
+   la regla de aquí; ahora la regla es una. */
+.modulos {
+  display: flex; gap: var(--e-1); flex: 1; min-width: 0;
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+}
+.modulos::-webkit-scrollbar { display: none; }
+.modulos a {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  min-height: 36px; padding: 0 var(--e-3);
+  color: var(--sobre-tinta-2); text-decoration: none; font-size: var(--t-sm); font-weight: 500;
+  white-space: nowrap; border-radius: var(--r);
+  border: 1px solid transparent; border-bottom-width: 2px;
+  transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease;
+}
+.modulos a svg { flex: none; opacity: 0.85; }
+.modulos a:hover { color: var(--superficie); background: var(--sobre-tinta-velo); }
 /* El módulo actual, para quien mira la pantalla.
 
-   `BarraDeModulos` ya pone `aria-current="page"` (MenuMovil.tsx), pero sin esta
-   regla el dato existía solo para el lector de pantalla: en escritorio los cinco
-   enlaces seguían siendo idénticos, y de las tres navegaciones con estado activo
-   esta era la única a medias —`.menu-enlace-activo` pinta el panel del teléfono
-   y `.admin-nav-link[aria-current="page"]` la barra del panel—.
+   `BarraDeModulos` ya pone `aria-current="page"` (MenuMovil.tsx), y la hoja
+   tiene que vestirlo: sin esta regla el dato existía solo para el lector de
+   pantalla. Se cuelga del atributo y no de una clase a propósito: el
+   componente dejó de llevar clase para no tener dos fuentes del mismo dato.
 
-   Se cuelga del atributo y no de una clase a propósito: el componente dejó de
-   llevar clase para no tener dos fuentes del mismo dato, y devolvérsela sería
-   reabrir esa grieta.
+   Antes era un subrayado de 2 px que se confundía con el `:hover`. Ahora es una
+   píldora de fondo tenue —se ve de lejos y no depende solo del color del
+   texto— con el borde inferior en el cian de la marca como acento. El color
+   propio del módulo no sirve aquí: los cinco están calculados sobre blanco y
+   sobre el marino se quedan por debajo de 3:1. Su color sale en el icono del
+   enlace activo, aclarado, donde es adorno y no señal. No se toca
+   `font-weight`: la fila es `nowrap` con desplazamiento y engordar el activo
+   movería a los demás en cada navegación. */
+.modulos a[aria-current="page"] {
+  color: var(--superficie);
+  background: var(--sobre-tinta-velo-2);
+  border-bottom-color: var(--cian);
+}
+.modulos a[aria-current="page"] svg { opacity: 1; color: var(--cian-claro); }
+.barra-derecha { display: flex; align-items: center; gap: var(--e-2); margin-left: auto; }
+/* 40 px de alto: es lo mínimo que se pulsa con el dedo en una tableta, y en la
+   barra conviven «Panel», «Ver como residente» y «Salir». */
+.enlace-nav {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  min-height: 40px; padding: 0 var(--e-3);
+  color: var(--sobre-tinta-2); font: inherit; font-size: var(--t-sm);
+  background: none; border: 1px solid var(--sobre-tinta-borde); border-radius: var(--r-full);
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease;
+}
+.enlace-nav:hover:not(:disabled) { color: var(--superficie); border-color: var(--sobre-tinta-borde-fuerte); background: var(--sobre-tinta-velo); }
+.enlace-nav:disabled { color: var(--sobre-tinta-3); cursor: not-allowed; }
+.quien { display: inline-flex; align-items: center; gap: var(--e-2); font-size: var(--t-sm); color: var(--sobre-tinta-3); white-space: nowrap; padding: 0 var(--e-1); }
 
-   El subrayado va en `--cian` y no en `--marca` porque el bloque de correcciones
-   del final de esta hoja reescribe `.modulos a:hover` a cian; con `--marca` aquí,
-   pasar el ratón por encima del módulo en el que ya se está le cambiaba el color
-   sin que hubiera cambiado nada. Las dos reglas tienen la misma especificidad
-   (0,2,1), así que el `:hover` de más abajo sigue mandando por ser posterior, que
-   es justo lo que se quiere: el puntero da su respuesta y al salir vuelve el
-   estado. Y no se toca `font-weight`: la fila es `nowrap` con scroll horizontal
-   entre 640 y 1250 px, y engordar el activo mueve los demás en cada navegación. */
-.modulos a[aria-current="page"] { color: #fff; border-bottom-color: var(--cian); }
-.barra-derecha { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-.enlace-nav { color: #b0c4e6; font-size: 13px; background: none; border: 1px solid #2c4270; padding: 5px 12px; border-radius: 100px; cursor: pointer; text-decoration: none; white-space: nowrap; transition: all 0.15s ease; }
-.enlace-nav:hover { color: #fff; border-color: #6284c4; background: rgba(255, 255, 255, 0.05); }
-.quien { font-size: 13px; color: #8ba6d8; white-space: nowrap; }
+/* ---------- botones ----------
+   Una sola familia. Antes había cinco botones que no se parecían entre sí:
+   `.boton` (azul, radio de 4 px), `.acceso-boton` (azul, sin borde),
+   `.portada-boton` (píldora cian), `.boton-comentar` (píldora blanca de 16 px)
+   y la casilla «Marcar como leída» vestida de píldora gris. Ahora todo es
+   `.boton` más una variante —primario, secundario, fantasma, peligro— y un
+   tamaño; lo que cambia de una pantalla a otra es la variante, no la familia.
 
-/* ---------- portada ---------- */
-.entrada-hero { display: grid; grid-template-columns: 1fr 300px; gap: 48px; align-items: center; padding-bottom: 44px; margin-bottom: 40px; border-bottom: 1px solid var(--linea); }
-.entrada-hero h1 { margin: 10px 0 16px; }
-.hero-figura { position: relative; background: linear-gradient(160deg, #12244f, #0a1633); border-radius: var(--r-lg); padding: 20px; overflow: hidden; }
-/* El lienzo lo pone `CuerpoDePortada` cuando ya tiene qué pintar. Hasta entonces
-   la tarjeta guarda el hueco, para que el pie no salte, y el cuerpo entra
-   fundiéndose en vez de aparecer de golpe. */
-.cuerpo-portada { position: relative; width: 100%; height: 340px; opacity: 0; transition: opacity 1.2s ease; }
-.cuerpo-portada-listo { opacity: 1; }
-.cuerpo-portada canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-@media (prefers-reduced-motion: reduce) { .cuerpo-portada { transition: none; } }
-.hero-pie { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 12px; font-size: 11px; color: #8ba6d8; }
-.hero-codigo { font-family: var(--mono); color: #7fd0f5; letter-spacing: 0.05em; }
+   `.boton` a secas es el primario, porque así lo llevaban ya los enlaces de
+   las páginas y no hay que tocarlas todas. `font: inherit` y el puntero van en
+   la base porque la clase la llevan `<a>` y `<button>`, y el navegador no le
+   hereda ni la fuente ni la mano a un `<button>`.
 
-/* ---------- botones ---------- */
-/* `.boton` se escribió para un `<a>` —de ahí `display: inline-block` y
-   `text-decoration: none`— y hoy la llevan además seis `<button>`: «Volver a
-   intentarlo» de `error.tsx`, «Quitar filtros» de `BibliotecaFiltrable`, los
-   tres del formulario de comentarios y «Guardar PDF». Sobre un `<button>` el
-   navegador no hereda ni la fuente de la página ni el puntero de mano: los
-   mismos 14 px salían en la familia de formulario del sistema y con la flecha,
-   al lado de un `<a>` con la misma clase que sí la tenía. Las dos declaraciones
-   son inocuas para el `<a>`, que ya traía las dos por omisión.
+   El desactivado no baja la opacidad: a la mitad, el azul lleno daba 2,4:1
+   contra el papel y el texto blanco sobre él dejaba de leerse. Pasa a un gris
+   apagado que dice «no disponible» y sigue por encima de 3:1. */
+.boton {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--e-2);
+  min-height: 40px; padding: 0 var(--e-5);
+  font: inherit; font-size: var(--t-base); font-weight: 600; line-height: 1.2;
+  text-decoration: none; white-space: nowrap; cursor: pointer;
+  border-radius: var(--r); border: 1px solid var(--marca);
+  background: var(--marca); color: var(--superficie);
+  transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease,
+    color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease, transform var(--dur-rapida) ease;
+}
+.boton svg { flex: none; }
+.boton:hover:not(:disabled) { background: var(--marca-honda); border-color: var(--marca-honda); }
+.boton:active:not(:disabled) { transform: translateY(1px); }
+.boton:disabled, .boton[aria-disabled='true'] {
+  cursor: not-allowed; background: var(--linea); border-color: var(--linea); color: var(--mudo);
+}
+.boton-secundario { background: var(--superficie); color: var(--marca); border-color: var(--linea-fuerte); }
+.boton-secundario:hover:not(:disabled) { background: var(--marca-tenue); border-color: var(--marca); }
+.boton-fantasma { background: transparent; color: var(--pizarra); border-color: transparent; }
+.boton-fantasma:hover:not(:disabled) { background: var(--superficie); border-color: var(--linea); color: var(--tinta); }
+.boton-peligro { background: var(--alerta); border-color: var(--alerta); }
+.boton-peligro:hover:not(:disabled) { background: var(--alerta-honda); border-color: var(--alerta-honda); }
+.boton-secundario:disabled, .boton-fantasma:disabled { background: transparent; border-color: var(--linea); }
+.boton-sm { min-height: 34px; padding: 0 var(--e-3); font-size: var(--t-sm); border-radius: var(--r-sm); }
+.boton-lg { min-height: 48px; padding: 0 var(--e-6); font-size: var(--t-base); }
+.boton-bloque { width: 100%; }
+.fila-botones { display: flex; gap: var(--e-3); flex-wrap: wrap; align-items: center; margin-top: var(--e-6); }
+@media (pointer: coarse) {
+  .boton-sm { min-height: 40px; }
+}
 
-   El `:disabled` va con ellas y no aparte: «Cancelar» y «Enviar comentario» se
-   apagan mientras el comentario viaja, y sin esta regla la mano recién puesta
-   invitaría a pulsar un botón que ya no responde. Se apaga además a la mitad,
-   como hace `.acceso-boton:disabled` con los cuatro botones de acceso, porque
-   el azul lleno del estado normal no decía nada de estar desactivado. */
-.boton { display: inline-block; background: var(--marca); color: #fff; text-decoration: none; font-family: inherit; padding: 11px 20px; border-radius: var(--r); font-weight: 600; font-size: 14px; border: 1px solid var(--marca); cursor: pointer; transition: background 0.15s ease; }
-.boton:hover { background: var(--marca-honda); border-color: var(--marca-honda); }
-.boton:disabled { cursor: not-allowed; opacity: 0.5; }
-.boton.grande { padding: 13px 26px; font-size: 15px; margin-top: 8px; }
-.boton.secundario { background: transparent; color: var(--marca); border-color: var(--linea); }
-.boton.secundario:hover { background: var(--marca-tenue); border-color: var(--marca); }
-.row-botones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+/* ---------- tarjetas ----------
+   Un solo patrón: superficie blanca, filete suave, radio grande y la sombra
+   más baja. El realce al pasar por encima solo en las que son un enlace
+   (`.tarjeta-ficha`, `.tarjeta-modulo`): una tarjeta que se levanta y no lleva
+   a ninguna parte promete un clic que no existe. */
+.tarjeta {
+  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
+  box-shadow: var(--sombra-1); padding: var(--e-6); margin-bottom: var(--e-4);
+}
+.tarjeta > :last-child { margin-bottom: 0; }
+.tarjeta h2 { font-size: var(--t-md); margin-bottom: var(--e-3); }
 
-/* ---------- tarjetas de módulo ---------- */
-.rejilla-modulos { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-.tarjeta-modulo { display: flex; flex-direction: column; background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg); padding: 22px 24px; text-decoration: none; color: inherit; transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
-.tarjeta-modulo:hover { border-color: var(--marca); box-shadow: var(--sombra); transform: translateY(-2px); }
-.modulo-numero { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--linea); letter-spacing: -0.02em; }
-.tarjeta-modulo h3 { margin: 6px 0 8px; }
-.tarjeta-modulo p { font-size: 14px; color: var(--pizarra); flex: 1; margin-bottom: 16px; }
-.modulo-pie { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-.conteo { font-size: 12px; color: var(--marca); font-weight: 600; white-space: nowrap; }
-.conteo.vacio { color: var(--mudo); font-weight: 500; }
-
-.tarjeta { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg); padding: 24px 26px; margin-bottom: 14px; }
-.tarjeta h1 { font-size: 24px; margin-bottom: 10px; }
-
-.miga { font-size: 13px; color: var(--mudo); margin-bottom: 18px; }
-.miga a { color: var(--marca); text-decoration: none; }
+/* ---------- miga y cabeceras de módulo ---------- */
+.miga {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-1);
+  font-size: var(--t-sm); color: var(--mudo); margin-bottom: var(--e-4);
+}
+.miga a { color: var(--acento, var(--marca)); text-decoration: none; font-weight: 500; }
 .miga a:hover { text-decoration: underline; }
+.miga-separador { color: var(--linea-fuerte); flex: none; }
+.miga-actual { color: var(--pizarra); }
+
+/* La cabecera común de los cinco listados: miga, el módulo en su color, el
+   título y la entradilla. Cada listado tenía la suya, y tres no tenían miga. */
+.cabecera-modulo { margin-bottom: var(--e-8); }
+.cabecera-modulo h1 { margin: var(--e-2) 0 var(--e-3); }
+.cabecera-modulo .entrada { margin-bottom: 0; }
+.cabecera-modulo-fila { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--e-4); flex-wrap: wrap; }
+.eyebrow-modulo {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  font-family: var(--mono); font-size: var(--t-xs); font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--acento, var(--marca));
+}
+.eyebrow-modulo .icono-modulo-sm { width: 26px; height: 26px; }
 
 /* ---------- cabecera de ficha ---------- */
-.cabecera-ficha { border-bottom: 1px solid var(--linea); padding-bottom: 22px; margin-bottom: 32px; }
-.etiquetas { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
-.codigo { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; background: var(--marca); color: #fff; padding: 3px 9px; border-radius: 3px; }
-.etiqueta, .borrador { font-size: 11.5px; padding: 3px 9px; border-radius: 3px; border: 1px solid var(--linea); color: var(--pizarra); background: var(--papel); }
-.borrador { border-color: #d9c79b; color: #7a5a1c; background: var(--ambar-tenue); }
+.cabecera-ficha { border-bottom: 1px solid var(--linea); padding-bottom: var(--e-5); margin-bottom: var(--e-8); }
+.cabecera-ficha h1 { margin: var(--e-2) 0 var(--e-2); max-width: 30ch; }
+.cabecera-ficha .entrada { margin: 0 0 var(--e-3); }
+.etiquetas { display: flex; gap: var(--e-2); flex-wrap: wrap; align-items: center; margin-top: var(--e-3); }
+/* El código de la ficha: el mismo en el listado y en la ficha. Antes eran dos
+   (azul lleno aquí, azul tenue y en mayúsculas en la tarjeta) y el residente
+   no reconocía en la ficha la insignia que acababa de pulsar. Sin
+   `text-transform`: los códigos los escribe el autor —«31-A1», «S82.3»— y la
+   hoja no tiene por qué corregirle las mayúsculas. */
+.codigo {
+  display: inline-flex; align-items: center;
+  font-family: var(--mono); font-size: var(--t-xs); font-weight: 600; letter-spacing: 0.04em;
+  background: var(--acento-tenue, var(--marca-tenue)); color: var(--acento, var(--marca));
+  padding: 2px var(--e-2); border-radius: var(--r-sm); line-height: 1.5;
+}
+.etiqueta, .borrador {
+  display: inline-flex; align-items: center; gap: var(--e-1);
+  font-size: var(--t-xs); font-weight: 600; line-height: 1.5;
+  padding: 2px var(--e-2); border-radius: var(--r-sm);
+  border: 1px solid var(--linea); color: var(--pizarra); background: var(--papel);
+}
+.borrador { border-color: var(--ambar-tenue); color: var(--ambar-texto); background: var(--ambar-tenue); }
+
+/* La barra de acciones de la ficha: guardar, marcar como leída y comentar en
+   una fila de botones fantasma pequeños. Antes «Guardar PDF» era un botón
+   grande metido en la miga, la casilla una píldora gris suelta a la derecha y
+   «Comentar» una píldora centrada al final, con cinco rem de aire encima. */
+.barra-acciones {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2);
+  margin-top: var(--e-4);
+}
 
 /* ---------- rejilla de fichas ---------- */
-.grupo-segmento { margin-bottom: 40px; }
-.grupo-segmento h2 { font-size: 19px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--linea-suave); }
-.vacio { color: var(--mudo); font-size: 14px; font-style: italic; }
+.grupo-segmento { margin-bottom: var(--e-10); scroll-margin-top: 140px; }
+.grupo-segmento > h2 {
+  display: flex; align-items: baseline; gap: var(--e-3);
+  font-size: var(--t-md); margin-bottom: var(--e-4); padding-bottom: var(--e-2);
+  border-bottom: 1px solid var(--linea-suave);
+}
+.grupo-segmento-cuenta { font-size: var(--t-sm); font-weight: 500; color: var(--mudo); letter-spacing: 0; }
 
-/* Aquí había una segunda definición de `.rejilla-fichas` y `.tarjeta-ficha`,
-   más estrecha y más apretada, que no pintaba nada: un bloque titulado
-   «Mejoras de Diseño», 460 líneas más abajo, redeclaraba una por una todas sus
-   propiedades. Quien venía a cambiar el tamaño del título de una tarjeta lo
-   tocaba aquí, recargaba y no veía ningún cambio. Las dos versiones están ya
-   fundidas en esta, que es la que se veía. Si se añade una regla de tarjeta,
-   va aquí y solo aquí. */
-
+/* Una sola declaración de la rejilla y de la tarjeta. Hubo dos —una más
+   estrecha que no pintaba nada porque un bloque «Mejoras de Diseño», 460
+   líneas más abajo, la redeclaraba entera—, y quien cambiaba la de arriba no
+   veía ningún cambio. Si se añade una regla de tarjeta, va aquí. */
 .rejilla-fichas {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--e-4);
   padding: 0;
-  margin: 1.5rem 0 3rem;
+  margin: 0 0 var(--e-8);
   list-style: none;
 }
 
 .tarjeta-ficha {
+  position: relative;
   display: flex;
   flex-direction: column;
+  gap: var(--e-2);
   background: var(--superficie);
-  border: 1px solid var(--linea);
-  border-radius: 8px;
-  padding: 1.5rem;
+  border: 1px solid var(--linea-suave);
+  border-top: 3px solid var(--acento, var(--marca));
+  border-radius: var(--r-lg);
+  padding: var(--e-5);
   text-decoration: none;
   color: inherit;
   height: 100%;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--sombra-1);
+  transition: transform var(--dur) var(--curva), box-shadow var(--dur) var(--curva), border-color var(--dur-rapida) ease;
 }
-
-.tarjeta-ficha:hover, .tarjeta-ficha:focus {
+.tarjeta-ficha:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
-  border-color: var(--marca);
+  box-shadow: var(--sombra-2);
+  border-color: var(--linea);
+  border-top-color: var(--acento, var(--marca));
 }
-
-.tarjeta-ficha h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.25rem;
-  color: var(--tinta);
-  line-height: 1.3;
-}
-
+.tarjeta-ficha h3 { margin: 0; font-size: var(--t-md); color: var(--tinta); line-height: 1.3; }
+.tarjeta-ficha:hover h3 { color: var(--acento, var(--marca)); }
 .tarjeta-ficha p {
   margin: 0;
   color: var(--pizarra);
-  font-size: 0.95rem;
-  line-height: 1.4;
+  font-size: var(--t-sm);
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
-.tarjeta-ficha .etiquetas {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
+.tarjeta-ficha .etiquetas { margin: 0; }
+.tarjeta-ficha-pie {
+  margin-top: auto; padding-top: var(--e-3);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--e-2); flex-wrap: wrap;
+  font-size: var(--t-sm); color: var(--mudo);
 }
-
-.tarjeta-ficha .codigo, .tarjeta-ficha .borrador {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.tarjeta-ficha-accion {
+  display: inline-flex; align-items: center; gap: var(--e-1);
+  color: var(--acento, var(--marca)); font-size: var(--t-sm); font-weight: 600;
 }
+.tarjeta-ficha-accion svg { transition: transform var(--dur-rapida) ease; }
+.tarjeta-ficha:hover .tarjeta-ficha-accion svg { transform: translateX(3px); }
 
-.tarjeta-ficha .codigo {
-  background: var(--marca-tenue);
-  color: var(--marca-honda);
+/* ---------- secciones de la ficha ---------- */
+/* Cada sección lleva un <h2> de verdad, de 22 px, y encima el rótulo pequeño
+   del módulo como antetítulo. Antes el <h2> era ese rótulo de 11,5 px, y el
+   <h3> de los bloques, a 17 px, se leía como el título importante. */
+.pestana { margin-bottom: var(--e-12); scroll-margin-top: 78px; }
+.pestana > h2 {
+  font-size: var(--t-lg); margin-bottom: var(--e-5); padding-bottom: var(--e-3);
+  border-bottom: 1px solid var(--linea);
 }
-
-/* La etiqueta «borrador» de una tarjeta no repinta sus colores: hereda el
-   ámbar de `.borrador`, en la cabecera de ficha. Antes traía tres hexadecimales
-   de Bootstrap (#fff3cd / #856404 / #ffeeba), y el motivo de quitarlos no fue
-   el contraste —ese par daba 4,96:1 y cumplía AA— sino que en la biblioteca
-   convivían dos ámbares distintos para exactamente lo mismo, uno al lado del
-   otro: la etiqueta de la tarjeta y la de la cabecera de la ficha a la que
-   lleva. El heredado da 5,69:1 (#7a5a1c sobre `--ambar-tenue`).
-
-   Y no se usó `var(--ambar)` como color de texto, que es lo que pide el cuerpo:
-   sobre `--ambar-tenue` se queda en 3,74:1, por debajo del 4,5:1 de AA. El
-   ámbar de la paleta es para bordes y etiquetas de sección, no para texto
-   pequeño sobre su propio fondo tenue. */
-
-/* ---------- pestañas de contenido ---------- */
-.pestana { margin-bottom: 44px; }
-.pestana > h2 { font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.13em; color: var(--marca); border-bottom: 1px solid var(--linea); padding-bottom: 9px; margin-bottom: 20px; font-weight: 600; }
-.bloque { margin-bottom: 24px; }
-.bloque h3 { font-size: 17px; margin-bottom: 8px; }
+.pestana-eyebrow { display: block; margin-bottom: var(--e-1); color: var(--acento, var(--marca)); }
+.bloque { margin-bottom: var(--e-8); }
+.bloque h3 { font-size: var(--t-md); margin-bottom: var(--e-3); }
+/* El cuerpo de lectura a 17 px y a unos 68 caracteres por línea: la ficha se
+   lee de corrido, a veces en una tableta a un metro de distancia. */
+.ficha-contenido { min-width: 0; font-size: var(--t-lectura); line-height: 1.65; }
+.ficha-contenido .bloque p, .ficha-contenido .lista-clinica { max-width: 68ch; }
 .bloque p { max-width: 68ch; }
-.lista-clinica { padding-left: 20px; max-width: 68ch; }
-.lista-clinica li { margin-bottom: 9px; }
+.lista-clinica { padding-left: var(--e-5); max-width: 68ch; }
+.lista-clinica li { margin-bottom: var(--e-2); }
+.lista-clinica li::marker { color: var(--acento, var(--marca)); }
 
 .tabla-desplazable { overflow-x: auto; border: 1px solid var(--linea); border-radius: var(--r-lg); background: var(--superficie); }
-.clasificacion { border-collapse: collapse; width: 100%; font-size: 14px; }
-.clasificacion th, .clasificacion td { text-align: left; vertical-align: top; padding: 11px 14px; border-bottom: 1px solid var(--linea-suave); }
+.clasificacion { border-collapse: collapse; width: 100%; font-size: var(--t-sm); line-height: 1.5; }
+.clasificacion th, .clasificacion td { text-align: left; vertical-align: top; padding: var(--e-3) var(--e-4); border-bottom: 1px solid var(--linea-suave); }
 .clasificacion tr:last-child th, .clasificacion tr:last-child td { border-bottom: none; }
-.clasificacion th { white-space: nowrap; font-family: var(--mono); font-size: 12.5px; color: var(--marca-honda); background: var(--papel); }
+.clasificacion th { white-space: nowrap; font-family: var(--mono); font-size: var(--t-sm); color: var(--marca-honda); background: var(--superficie-2); }
 
-.advertencia { border-left: 3px solid var(--marca); background: var(--marca-tenue); padding: 15px 18px; border-radius: 0 var(--r-lg) var(--r-lg) 0; margin-bottom: 24px; max-width: 68ch; }
-.advertencia p { margin: 5px 0 0; }
-.advertencia-etiqueta { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.11em; font-weight: 600; color: var(--marca-honda); }
-.advertencia.error-frecuente { border-left-color: var(--alerta); background: var(--alerta-tenue); }
-.advertencia.error-frecuente .advertencia-etiqueta { color: var(--alerta); }
-.advertencia.perla { border-left-color: var(--ambar); background: var(--ambar-tenue); }
-.advertencia.perla .advertencia-etiqueta { color: #7a5a1c; }
+/* ---------- avisos en línea ----------
+   Una sola familia para todo lo que avisa dentro de una página: los bloques de
+   advertencia del autor, el error de un formulario, la confirmación de un
+   envío, el aviso de demostración. Antes eran seis clases con seis formas
+   (`.advertencia`, `.acceso-error`, `.acceso-aviso`, `.alerta.exito` en azul,
+   `.texto-error` como texto rojo suelto…). El tono dice lo que significa:
+   azul informa, ámbar pide cuidado, rojo es un error, verde salió bien, y el
+   violeta del módulo 03 es el principio AO, que no es una advertencia. */
+.advertencia {
+  --tono: var(--marca); --tono-fondo: var(--marca-tenue); --tono-texto: var(--marca-honda);
+  border-left: 3px solid var(--tono); background: var(--tono-fondo);
+  padding: var(--e-3) var(--e-4); border-radius: 0 var(--r) var(--r) 0;
+  margin-bottom: var(--e-6); max-width: 68ch;
+  font-size: var(--t-base); line-height: 1.55; color: var(--tinta);
+}
+.advertencia p { margin: var(--e-1) 0 0; }
+.advertencia > :first-child { margin-top: 0; }
+.advertencia-etiqueta {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  font-family: var(--mono); font-size: var(--t-xs); text-transform: uppercase;
+  letter-spacing: 0.1em; font-weight: 600; color: var(--tono-texto);
+}
+.advertencia-etiqueta svg { flex: none; }
+.advertencia.error-frecuente, .advertencia.error { --tono: var(--alerta); --tono-fondo: var(--alerta-tenue); --tono-texto: var(--alerta); }
+/* El ámbar de --ambar da 3,7:1 sobre su tenue: vale para el filete, no para
+   el rótulo de 11 px, que va en --ambar-texto. */
+.advertencia.perla, .advertencia.demostracion { --tono: var(--ambar); --tono-fondo: var(--ambar-tenue); --tono-texto: var(--ambar-texto); }
+.advertencia.exito { --tono: var(--verde); --tono-fondo: var(--verde-tenue); --tono-texto: var(--verde); }
+.advertencia.principio { --tono: var(--mod-3); --tono-fondo: var(--mod-3-tenue); --tono-texto: var(--mod-3); }
+.advertencia-compacta { padding: var(--e-2) var(--e-3); margin-bottom: 0; font-size: var(--t-sm); max-width: none; }
+.advertencia-compacta > svg { vertical-align: -3px; margin-right: var(--e-2); color: var(--tono-texto); }
 
-.figura { margin: 0 0 26px; }
+.figura { margin: 0 0 var(--e-6); }
 .figura img, .figura video { max-width: 100%; height: auto; border-radius: var(--r-lg); display: block; border: 1px solid var(--linea); }
 .figura.media { max-width: 52%; }
-.figura.pequena { max-width: 34%; float: right; margin: 0 0 18px 22px; }
-figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
+.figura.pequena { max-width: 34%; float: right; margin: 0 0 var(--e-4) var(--e-5); }
+figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-2); }
 
 /* ---------- visor 3D ---------- */
-.visor-3d-lienzo { border: 1px solid var(--linea); border-radius: var(--r-lg); overflow: hidden; background: #f3f6fb; }
+.visor-3d-lienzo { position: relative; border: 1px solid var(--linea); border-radius: var(--r-lg); overflow: hidden; background: var(--lienzo-3d); }
 /* El `!important` es de three.js, no nuestro: fiber escribe el tamaño del
    lienzo en el atributo `style` del propio canvas, y sin `!important` no hay
    forma de mandarle desde la hoja. Por eso la altura sale de una variable:
@@ -328,48 +575,144 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
    (lo hace `.consola-instrumento`) en vez de pelear con un segundo
    `!important` de mayor especificidad. */
 .visor-3d-lienzo canvas { display: block; width: 100% !important; height: var(--alto-visor, 380px) !important; touch-action: none; }
-.visor-3d-controles { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px; border-top: 1px solid var(--linea); background: var(--superficie); }
-.visor-3d-titulo { font-weight: 600; font-size: 14px; }
-.visor-3d-boton { background: var(--marca); color: #fff; border: none; padding: 6px 15px; border-radius: var(--r); cursor: pointer; font-size: 13px; }
-.visor-3d-boton:hover { background: var(--marca-honda); }
-.visor-3d-cargando { font-size: 13px; color: var(--pizarra); }
-.visor-3d-ayuda { font-size: 12px; color: var(--mudo); margin: 7px 0 0; }
-.visor-3d-marco { border: 1px dashed var(--linea); border-radius: var(--r-lg); background: var(--superficie); min-height: 240px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.visor-3d-controles { display: flex; align-items: center; justify-content: space-between; gap: var(--e-3); padding: var(--e-2) var(--e-3) var(--e-2) var(--e-4); border-top: 1px solid var(--linea); background: var(--superficie); }
+.visor-3d-titulo { font-weight: 600; font-size: var(--t-sm); }
+.visor-3d-acciones { display: inline-flex; gap: var(--e-2); }
+.visor-3d-boton {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  min-height: 34px; padding: 0 var(--e-3);
+  background: var(--superficie); color: var(--marca); border: 1px solid var(--linea-fuerte);
+  border-radius: var(--r-sm); cursor: pointer; font: inherit; font-size: var(--t-sm); font-weight: 600;
+}
+.visor-3d-boton:hover { background: var(--marca-tenue); border-color: var(--marca); }
+.visor-3d-boton[aria-pressed='true'] { background: var(--marca); border-color: var(--marca); color: var(--superficie); }
+.visor-3d-cargando { font-size: var(--t-sm); color: var(--pizarra); }
+.visor-3d-ayuda { font-size: var(--t-sm); color: var(--mudo); margin: var(--e-2) 0 0; }
+.visor-3d-marco { border: 1px dashed var(--linea-fuerte); border-radius: var(--r-lg); background: var(--superficie); min-height: 240px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--e-2); padding: var(--e-4); text-align: center; }
 .visor-3d-nombre { font-weight: 600; }
-.visor-3d-nota { font-size: 13px; color: var(--mudo); }
+.visor-3d-nota { font-size: var(--t-sm); color: var(--mudo); }
+
+/* El pulgar sobre el lienzo. En un teléfono el visor ocupa casi toda la
+   pantalla, y con `touch-action: none` el gesto de bajar por la ficha se lo
+   comía el modelo: el residente giraba el hueso sin querer y no podía pasar.
+   Hasta que se toca la capa, el lienzo no recibe el dedo y la página se
+   desplaza por encima; tocarla lo despierta, y «Soltar» lo devuelve. En un
+   equipo con ratón la capa no existe (`BloqueoTactil.tsx`). */
+.bloqueo-tactil { position: relative; }
+.bloqueo-tactil-dormido canvas { pointer-events: none; touch-action: pan-y; }
+.bloqueo-tactil-capa {
+  position: absolute; inset: 0; z-index: 4;
+  display: flex; align-items: flex-end; justify-content: center; padding: var(--e-4);
+  background: transparent; border: 0; cursor: pointer; touch-action: pan-y;
+  font: inherit; color: inherit;
+}
+.bloqueo-tactil-pista {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  min-height: 40px; padding: 0 var(--e-4); border-radius: var(--r-full);
+  background: var(--tinta); color: var(--sobre-tinta-1);
+  font-size: var(--t-sm); font-weight: 600; box-shadow: var(--sombra-2);
+}
+.bloqueo-tactil-soltar {
+  position: absolute; top: var(--e-2); right: var(--e-2); z-index: 4;
+  display: inline-flex; align-items: center; gap: var(--e-1);
+  min-height: 40px; padding: 0 var(--e-3); border-radius: var(--r-full);
+  background: var(--superficie); color: var(--tinta); border: 1px solid var(--linea-fuerte);
+  font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer; box-shadow: var(--sombra-1);
+}
 
 /* ---------- fases de rehabilitación ---------- */
-.fases { list-style: none; padding: 0; margin: 6px 0 0; border-left: 2px solid var(--linea); }
-.fases li { padding: 0 0 26px 22px; position: relative; }
+.fases { list-style: none; padding: 0; margin: var(--e-2) 0 0; border-left: 2px solid var(--linea); }
+.fases li { padding: 0 0 var(--e-6) var(--e-6); position: relative; }
 .fases li:last-child { padding-bottom: 0; }
-.fases li::before { content: ''; position: absolute; left: -6px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--marca); border: 2px solid var(--papel); }
-.fase-cuando { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--marca); font-weight: 600; }
+.fases li::before { content: ''; position: absolute; left: -7px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--acento, var(--marca)); border: 2px solid var(--papel); }
+.fase-cuando { font-family: var(--mono); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--acento, var(--marca)); font-weight: 600; }
 /* `h3` y no `h4`: el título de la fase subió de nivel en
    `biblioteca/[id]/page.tsx`, porque con «Rehabilitación» compuesta solo de
    fases <Bloques> no pinta ningún <h3> y la secuencia real era h1 → h2 → h4.
-   El tamaño no sigue al nivel a propósito: 15 px, por debajo de los 17 px del
-   <h3> global, porque una fase es un punto de una lista y no un apartado de la
+   El tamaño no sigue al nivel a propósito: el del cuerpo, por debajo del <h3>
+   global, porque una fase es un punto de una lista y no un apartado de la
    ficha. Y el `margin` hay que repetirlo aquí: el reajuste de encabezados deja
    a los cuatro en `margin: 0`, así que sin esta línea el título se pega al
    `.fase-cuando` de encima y al <p> de debajo. Si allí se vuelve a `<h4>`,
    este selector vuelve con él o la fase pierde tamaño y separación de golpe. */
-.fases h3 { font-size: 15px; margin: 5px 0 6px; }
-.fases p { font-size: 14px; margin: 0 0 6px; max-width: 66ch; }
-.fase-criterio { color: var(--pizarra); font-size: 13px; }
+.fases h3 { font-size: var(--t-base); margin: var(--e-1) 0 var(--e-2); }
+.fases p { font-size: var(--t-base); margin: 0 0 var(--e-2); max-width: 66ch; }
+.fase-criterio { color: var(--pizarra); font-size: var(--t-sm); }
 
 /* ---------- examen físico ---------- */
-.maniobra { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg); padding: 20px 22px; margin-bottom: 12px; }
-.maniobra h3 { font-size: 16px; margin-bottom: 12px; }
-.ficha-datos { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0; font-size: 14px; }
-.ficha-datos dt { font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--marca); padding-top: 3px; }
+/* Hasta trescientas maniobras en una sola página: un buscador, el índice de
+   segmentos y cada maniobra plegable. Sin esto, llegar al hombro era bajar
+   por toda la columna cervical. */
+.herramientas-maniobras {
+  position: sticky; top: 58px; z-index: 5;
+  display: flex; flex-direction: column; gap: var(--e-3);
+  margin: 0 calc(-1 * var(--e-2)) var(--e-6); padding: var(--e-3) var(--e-2);
+  background: var(--papel); border-bottom: 1px solid var(--linea-suave);
+}
+.indice-segmentos { display: flex; gap: var(--e-2); overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.indice-segmentos a {
+  flex: none; display: inline-flex; align-items: center; gap: var(--e-2);
+  min-height: 34px; padding: 0 var(--e-3); border-radius: var(--r-full);
+  border: 1px solid var(--linea); background: var(--superficie);
+  color: var(--pizarra); font-size: var(--t-sm); text-decoration: none; white-space: nowrap;
+}
+.indice-segmentos a:hover { border-color: var(--acento, var(--marca)); color: var(--acento, var(--marca)); }
+.indice-segmentos-cuenta { font-size: var(--t-xs); color: var(--mudo); }
+.herramientas-maniobras .recuento { display: flex; align-items: center; gap: var(--e-2); margin: 0; }
+
+.maniobra {
+  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
+  box-shadow: var(--sombra-1); margin-bottom: var(--e-3); scroll-margin-top: 150px;
+}
+.maniobra[hidden] { display: none; }
+.maniobra-cabecera {
+  display: flex; align-items: center; gap: var(--e-3);
+  padding: var(--e-4) var(--e-5); cursor: pointer; list-style: none; border-radius: var(--r-lg);
+}
+.maniobra-cabecera::-webkit-details-marker { display: none; }
+.maniobra-cabecera:hover { background: var(--superficie-2); }
+.maniobra-cabecera h3 { font-size: var(--t-md); flex: 1; }
+.maniobra-flecha { flex: none; color: var(--mudo); transform: rotate(-90deg); transition: transform var(--dur) var(--curva); }
+.maniobra[open] > .maniobra-cabecera .maniobra-flecha { transform: none; }
+.maniobra[open] > .maniobra-cabecera { border-bottom: 1px solid var(--linea-suave); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.maniobra-cuerpo { padding: var(--e-5); }
+.maniobra-pie {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2);
+  padding: var(--e-3) var(--e-5); border-top: 1px solid var(--linea-suave); background: var(--superficie-2);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+.maniobra-pie .comentar { flex-basis: 100%; }
+.maniobra-pie .comentar:has(> .boton-comentar) { flex-basis: auto; }
+.ficha-datos { display: grid; grid-template-columns: max-content 1fr; gap: var(--e-2) var(--e-5); margin: 0 0 var(--e-4); font-size: var(--t-base); }
+.ficha-datos dt { font-family: var(--mono); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: var(--acento, var(--marca)); padding-top: 3px; }
 .ficha-datos dd { margin: 0; }
 
 /* ---------- pasos AO ---------- */
-.pasos-ao { list-style: none; padding: 0; margin: 0; }
-.pasos-ao > li { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg); padding: 22px 24px; margin-bottom: 14px; }
-.paso-numero { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.13em; color: var(--marca); font-weight: 600; }
-.pasos-ao h2 { font-size: 18px; margin: 6px 0 10px; }
-.nota-tecnica { font-size: 14px; color: var(--pizarra); border-left: 2px solid var(--linea); padding-left: 14px; max-width: 66ch; }
+/* La secuencia quirúrgica como línea de tiempo numerada, el mismo gesto de
+   `.fases`: el número en un círculo sobre el hilo que une los pasos. Antes
+   era una pila de tarjetas idénticas y el «Paso 3» se leía como un rótulo
+   más. */
+.pasos-ao { list-style: none; padding: 0; margin: 0 0 var(--e-8); counter-reset: paso; }
+.pasos-ao > li { position: relative; padding: 0 0 var(--e-8) var(--e-12); }
+.pasos-ao > li::before {
+  content: ''; position: absolute; left: 15px; top: 34px; bottom: 0; width: 2px; background: var(--linea);
+}
+.pasos-ao > li:last-child::before { display: none; }
+.paso-circulo {
+  position: absolute; left: 0; top: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--acento, var(--marca)); color: var(--superficie);
+  font-weight: 700; font-size: var(--t-sm);
+}
+.paso-cuerpo {
+  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
+  box-shadow: var(--sombra-1); padding: var(--e-5) var(--e-6);
+}
+.paso-numero { font-family: var(--mono); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--acento, var(--marca)); font-weight: 600; }
+.pasos-ao h2 { font-size: var(--t-lg); margin: var(--e-1) 0 var(--e-3); }
+.paso-cuerpo .advertencia { margin: var(--e-4) 0; }
+.nota-tecnica { font-size: var(--t-base); color: var(--pizarra); border-left: 2px solid var(--linea); padding-left: var(--e-4); max-width: 66ch; margin-bottom: var(--e-4); }
 
 /* Aquí vivía el simulador anterior: `.simulador`, `.simulador-principal`,
    `.simulador-registro`, `.instrumentos`, `.marcadores`, `.marcador`,
@@ -382,25 +725,53 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
    `<fieldset>` de aquel simulador. `.campo` es hoy la envoltura de **todo**
    campo del panel de administración (`Campos.tsx`), y `admin.css` no declara
    margen, así que ese margen sobrevivía: 22 px encima del `gap: 1.1rem` de
-   `.campos`, casi el doble de separación entre filas de la diseñada, y un
-   documento de doce campos ganaba una pantalla entera de desplazamiento. Quien
-   fuese a arreglarlo abriría `admin.css`, donde vive `.campo`, y no
-   encontraría nada. La otra era `.instrumento`, cuya única declaración
-   superviviente, `transition: all`, se colaba en la bandeja de la consola. */
+   `.campos`, casi el doble de separación entre filas de la diseñada. La otra
+   era `.instrumento`, cuya única declaración superviviente, `transition: all`,
+   se colaba en la bandeja de la consola. */
 
 /* ---------- opciones de manejo ---------- */
-.opcion { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg); padding: 20px 22px; margin-bottom: 12px; }
-.pros-contras { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 12px; }
-.pros-contras h4 { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--marca); margin-bottom: 8px; }
-.pros-contras ul { padding-left: 18px; margin: 0; font-size: 14px; }
-.pros-contras li { margin-bottom: 6px; }
+.opcion { background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-lg); box-shadow: var(--sombra-1); padding: var(--e-5) var(--e-6); margin-bottom: var(--e-4); }
+.opcion h3 { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2); }
+.pros-contras { display: grid; grid-template-columns: 1fr 1fr; gap: var(--e-4); margin-top: var(--e-4); }
+.pros-contras > div { border-radius: var(--r); padding: var(--e-3) var(--e-4); }
+.pros-contras .a-favor { background: var(--verde-tenue); }
+.pros-contras .en-contra { background: var(--alerta-tenue); }
+.pros-contras h4 {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  font-family: var(--mono); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--e-2);
+}
+.pros-contras .a-favor h4 { color: var(--verde); }
+.pros-contras .en-contra h4 { color: var(--alerta); }
+.pros-contras ul { padding-left: var(--e-5); margin: 0; font-size: var(--t-base); }
+.pros-contras li { margin-bottom: var(--e-1); }
 
-/* ---------- avisos flotantes ---------- */
-.aviso-vista { display: flex; align-items: center; gap: 10px; font-size: 12.5px; background: var(--ambar-tenue); color: #7a5a1c; padding: 5px 6px 5px 14px; border-radius: 100px; white-space: nowrap; }
-.aviso-vista button { background: #7a5a1c; color: #fff; border: none; padding: 5px 12px; border-radius: 100px; font-size: 12px; cursor: pointer; }
-.aviso-actualizacion { position: fixed; bottom: 24px; right: 24px; z-index: 50; display: flex; align-items: center; gap: 14px; background: var(--tinta); color: #fff; padding: 13px 18px; border-radius: var(--r-lg); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22); font-size: 14px; animation: surgir 0.3s cubic-bezier(0.2, 0.7, 0.3, 1); }
-.aviso-actualizacion button { background: var(--marca); color: #fff; border: none; padding: 7px 14px; border-radius: var(--r); cursor: pointer; font-size: 13px; }
-.aviso-actualizacion .aviso-aplazar { background: transparent; border: 1px solid rgba(255, 255, 255, 0.45); }
+/* ---------- avisos de la barra ---------- */
+.aviso-vista {
+  display: flex; align-items: center; gap: var(--e-2);
+  font-size: var(--t-sm); background: var(--ambar-tenue); color: var(--ambar-texto);
+  padding: var(--e-1) var(--e-1) var(--e-1) var(--e-3); border-radius: var(--r-full); white-space: nowrap;
+}
+.aviso-vista button {
+  min-height: 32px; padding: 0 var(--e-3);
+  background: var(--ambar-texto); color: var(--superficie); border: none; border-radius: var(--r-full);
+  font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer;
+}
+@media (pointer: coarse) {
+  .aviso-vista button { min-height: 40px; }
+}
+.aviso-actualizacion {
+  position: fixed; bottom: var(--e-6); right: var(--e-6); z-index: var(--z-aviso);
+  display: flex; align-items: center; gap: var(--e-3);
+  background: var(--tinta); color: var(--sobre-tinta-1);
+  padding: var(--e-3) var(--e-4); border-radius: var(--r-lg); box-shadow: var(--sombra-3);
+  font-size: var(--t-sm); animation: surgir var(--dur) var(--curva);
+}
+.aviso-actualizacion button {
+  min-height: 36px; padding: 0 var(--e-3);
+  background: var(--marca); color: var(--superficie); border: 1px solid var(--marca);
+  border-radius: var(--r); cursor: pointer; font: inherit; font-size: var(--t-sm); font-weight: 600;
+}
+.aviso-actualizacion .aviso-aplazar { background: transparent; border-color: var(--sobre-tinta-borde-fuerte); }
 @keyframes surgir { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* Aquí vivían seis clases del antiguo editor de encuadre, el que se montaba
@@ -408,401 +779,57 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
    editor de ahora está en el panel propio y reutiliza los estilos del visor
    (.visor-3d-*), que es el mismo componente que ve el residente. */
 
-/* ---------- consola quirúrgica (módulo 04) ---------- */
-/* Tres columnas y dos franjas, como una mesa de pabellón: los mandos a los
-   lados y el campo en el centro. En pantalla estrecha se apila, pero el lienzo
-   nunca baja de 300 px: por debajo de eso no se distingue un fragmento de
-   otro y la consola deja de enseñar nada. */
-
-.consola {
-  border: 1px solid var(--linea);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  background: var(--superficie);
-  margin: 24px 0 32px;
-}
-
-.consola-barra {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--linea);
-  background: var(--marca-tenue);
-}
-
-.consola-rotulo {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--mudo);
-  font-weight: 600;
-  margin: 0 0 2px;
-}
-
-.consola-titulo { margin: 0; font-size: 18px; }
-
-.consola-datos { display: flex; flex-wrap: wrap; gap: 18px; margin: 0; }
-.consola-datos dt {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--mudo);
-}
-.consola-datos dd { margin: 2px 0 0; font-size: 13px; color: var(--pizarra); font-weight: 600; }
-
-.consola-puntaje { display: flex; align-items: baseline; gap: 8px; }
-.consola-puntaje-numero { font-size: 26px; font-weight: 700; color: var(--marca); }
-.consola-puntaje-total { font-size: 13px; color: var(--mudo); }
-
-/* «Reiniciar caso» tira a la basura todo el avance del caso y estaba a los mismos
-   8 px del «/ 12» que separan el número de su total: leído de corrido parecía una
-   tercera pieza del marcador. Se separa y se desmarca del resto de `.consola-boton`,
-   que comparte con los modos y con «Capturar»: ahí el `:hover` en `--marca` invita
-   a pulsar, y este es el único botón de la consola cuyo clic accidental no se puede
-   deshacer. El aviso es el rojo de la paleta, reservado para alertar y por eso
-   fuera de la familia azul de la marca.
-
-   Se cuelga de `.consola-puntaje .consola-boton` y no de una clase propia porque
-   el marcado vive en `ConsolaQuirurgica.tsx`, de otro lote; es el único
-   `.consola-boton` dentro del marcador, así que el selector no puede alcanzar a
-   ningún otro. Si algún día entra un segundo botón ahí, esto necesita su clase. */
-.consola-puntaje .consola-boton {
-  margin-left: 20px;
-  font-size: 12px;
-  padding: 5px 10px;
-  color: var(--mudo);
-}
-.consola-puntaje .consola-boton:hover { border-color: var(--alerta); color: var(--alerta); }
-
-.consola-cuerpo {
-  display: grid;
-  grid-template-columns: 190px minmax(0, 1fr) 250px;
-  gap: 0;
-}
-
-.consola-panel { padding: 14px; border-right: 1px solid var(--linea); }
-.consola-panel-der { border-right: none; border-left: 1px solid var(--linea); overflow-y: auto; max-height: 620px; }
-
-.consola-subtitulo {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--mudo);
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-.consola-panel .consola-subtitulo:not(:first-child) { margin-top: 20px; }
-
-.consola-capas { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
-.consola-capas label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
-.consola-capa-vacia { opacity: 0.45; cursor: not-allowed; }
-
-.consola-modos { display: grid; gap: 6px; }
-.consola-modo,
-.consola-boton {
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  padding: 7px 10px;
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  background: var(--superficie);
-  color: var(--pizarra);
-  cursor: pointer;
-}
-.consola-modo:hover,
-.consola-boton:hover { border-color: var(--marca); color: var(--marca); }
-.consola-modo.activo { background: var(--marca); border-color: var(--marca); color: #fff; }
-.consola-boton-ancho { width: 100%; text-align: center; margin-top: 12px; }
-
-.consola-centro { display: flex; flex-direction: column; min-width: 0; }
-.consola-lienzo-marco { position: relative; }
-.consola-lienzo { height: 420px; background: #f3f6fb; }
-.consola-lienzo canvas { display: block; width: 100% !important; height: 100% !important; }
-.consola-lienzo-cargando {
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  color: var(--mudo);
-}
-
-.consola-fluoro {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  font: inherit;
-  font-size: 12px;
-  padding: 6px 12px;
-  border: 1px solid var(--linea);
-  border-radius: 999px;
-  background: var(--superficie);
-  color: var(--pizarra);
-  cursor: pointer;
-}
-.consola-fluoro.activo { background: #0d1117; border-color: #0d1117; color: #cfe0f2; }
-
-.consola-codigo {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  font-family: var(--mono);
-  font-size: 12px;
-  padding: 4px 9px;
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  background: var(--superficie);
-  color: var(--pizarra);
-}
-
-.consola-medidas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 22px;
-  margin: 0;
-  padding: 11px 16px;
-  border-top: 1px solid var(--linea);
-  background: var(--superficie);
-}
-.consola-medidas dt {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--mudo);
-}
-.consola-medidas dd { margin: 2px 0 0; font-family: var(--mono); font-size: 14px; color: var(--marca); }
-.consola-medidas dd.consola-desglose { margin-top: 1px; font-size: 11px; color: var(--mudo); letter-spacing: 0.04em; }
-/* La medida que se sale de su tope, o la incisión que se sale de su rango.
-   Estaba escrita a mano en `ConsolaQuirurgica.tsx` —`style={{ color:
-   'var(--ambar)' }}`—, donde ni se encuentra desde aquí ni se le puede mirar el
-   contraste.
-
-   Dos cosas que no se pueden tocar sin devolver el defecto:
-
-   El selector repite `.consola-medidas dd`. La regla de arriba pinta ese mismo
-   `<dd>` en `--mudo` con especificidad (0,2,1); una `.consola-desglose-fuera`
-   suelta se queda en (0,1,0) y pierde, así que el renglón seguiría gris y nada
-   lo delataría, porque el texto —«se pasa», «corta», «larga»— dice lo mismo con
-   color y sin él. Justo por eso el color aquí es refuerzo y no el mensaje.
-
-   Y el ámbar es el de texto, #7a5a1c, no `var(--ambar)`: el de la paleta sobre
-   el blanco de `--superficie` da 4,18:1 y esto son 11 px, por debajo del 4,5:1
-   de AA. Es el mismo criterio de `.borrador` y `.advertencia.perla`, explicado
-   junto a la etiqueta «borrador». */
-.consola-medidas dd.consola-desglose-fuera { color: #7a5a1c; }
-
-/* El instrumento que el residente tiene en la mano: su modelo y para qué sirve.
-
-   Vive en `.consola-panel-der`, una columna de 250 px con 620 px de alto y
-   scroll propio, y debajo de él están la instrucción del paso y el botón
-   «Aplicar». Si esta vista previa crece, esos dos se van fuera de lo que se ve
-   y el residente tiene que descubrir que el panel se desplaza por su cuenta.
-   Por eso 170 px, y por eso los 170 px hay que decirlos dos veces: una para el
-   marco de carga y otra para el lienzo ya cargado. */
-.consola-instrumento {
-  margin: 10px 0 0;
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  background: var(--superficie);
-  overflow: hidden;
-  /* Los 380 px con que el visor se dibuja dentro de una ficha no caben aquí. */
-  --alto-visor: 170px;
-}
-/* `min-height: 0` no es adorno: `.visor-3d-marco` trae `min-height: 240px`, y
-   un mínimo gana siempre a una altura, así que el marco de «Cargando visor…»
-   medía 242 px en vez de los 170 que pide la línea de abajo. */
-.consola-instrumento .visor-3d-marco { min-height: 0; height: 170px; border: 0; border-radius: 0; }
-.consola-instrumento-texto {
-  margin: 0;
-  padding: 9px 11px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--pizarra);
-  border-top: 1px solid var(--linea-suave);
-}
-
-.consola-bandeja { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
-.instrumento {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font: inherit;
-  font-size: 12.5px;
-  text-align: left;
-  padding: 7px 9px;
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  background: var(--superficie);
-  color: var(--pizarra);
-  cursor: pointer;
-  /* Las dos propiedades que de verdad cambian al pasar por encima y al
-     elegirlo, nombradas una a una. Antes esto lo daba, sin querer, un
-     `transition: all` heredado de la pastilla del simulador viejo. */
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-.instrumento:hover { border-color: var(--marca); color: var(--marca); }
-.instrumento.activo { border-color: var(--marca); background: var(--marca-tenue); color: var(--marca); font-weight: 600; }
-.instrumento-icono { width: 20px; height: 20px; flex: none; }
-
-.consola-objetivo { margin-top: 20px; }
-/* La frase que dice qué hay que hacer en este paso era lo más apagado de toda la
-   consola: 12,5 px en `--mudo`, el gris que esta hoja reserva para las notas al
-   pie, mientras el rótulo de la sección de al lado y las medidas se leían antes
-   que ella. Es el texto que el residente busca primero, así que sube a `--pizarra`
-   —el color del cuerpo de la consola— y a 14 px.
-
-   14 y no los 15 px del `body`: estas frases se pintan también en
-   `.consola-panel-der`, una columna de 250 px con `max-height: 620px` y scroll
-   propio, y debajo de ellas está «Aplicar paso». Cada línea de más empuja ese
-   botón fuera de lo que se ve y obliga a descubrir que el panel se desplaza solo,
-   que es el mismo motivo por el que la vista previa del instrumento está clavada
-   a 170 px unas líneas más abajo. */
-.consola-instruccion { font-size: 14px; color: var(--pizarra); line-height: 1.5; margin: 0 0 10px; }
-
-.consola-fuerza,
-.consola-giro { display: block; font-size: 12.5px; color: var(--pizarra); margin: 10px 0; }
-.consola-fuerza input,
-.consola-giro input { width: 100%; margin-top: 4px; }
-.consola-angulacion { margin-top: 4px; }
-
-.consola-aplicar {
-  width: 100%;
-  margin-top: 12px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 10px;
-  border: none;
-  border-radius: var(--r);
-  background: var(--marca);
-  color: #fff;
-  cursor: pointer;
-}
-.consola-aplicar:hover { background: var(--marca-honda); }
-.consola-aplicar:disabled { background: var(--linea); color: var(--mudo); cursor: not-allowed; }
-
-.consola-fin { margin-top: 20px; padding: 14px; border: 1px solid var(--linea); border-radius: var(--r); }
-.consola-fin p { margin: 6px 0 0; font-size: 13px; color: var(--pizarra); }
-
-/* La franja de pasos: se desplaza en horizontal como el guion de pabellón. */
-.consola-pasos {
-  display: flex;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 12px 14px;
-  overflow-x: auto;
-  border-top: 1px solid var(--linea);
-  background: var(--marca-tenue);
-}
-.consola-paso {
-  flex: none;
-  width: 175px;
-  padding: 9px 11px;
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  background: var(--superficie);
-}
-.consola-paso.actual { border-color: var(--marca); box-shadow: inset 3px 0 0 var(--marca); }
-.consola-paso.resuelto { opacity: 0.62; }
-.consola-paso-numero {
-  display: block;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--mudo);
-}
-.consola-paso-titulo { display: block; font-size: 12.5px; color: var(--pizarra); margin: 3px 0; line-height: 1.35; }
-.consola-paso-fase {
-  display: inline-block;
-  font-family: var(--mono);
-  font-size: 9.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--marca);
-}
-
-.consola-pie {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 24px;
-  padding: 16px 18px;
-  border-top: 1px solid var(--linea);
-}
-.consola-riesgo { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--linea); }
-.consola-riesgo h4 { font-size: 12.5px; margin: 0 0 6px; color: var(--pizarra); }
-.consola-vacio { font-size: 13px; color: var(--mudo); font-style: italic; margin: 0; }
-
-.consola-registro { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
-.consola-registro li {
-  font-size: 12.5px;
-  line-height: 1.45;
-  padding: 7px 10px;
-  border-left: 3px solid var(--linea);
-  background: #fbfcfe;
-}
-/* La copia de lo último que pasó, la que se pinta junto a «Aplicar paso». El
-   registro entero vive en el pie pegado a su rótulo, así que el hueco es de
-   este sitio y no de la clase: por eso un modificador y no un cambio en
-   `.consola-registro`. Va justo detrás de ella a propósito —misma
-   especificidad, gana la última— y estaba escrito en línea en el marcado,
-   donde ninguna consulta de medio de esta hoja podía alcanzarlo. */
-.consola-registro-ultimo { margin-top: 12px; }
-.consola-registro .bien { border-left-color: #1c7a4b; }
-.consola-registro .aviso { border-left-color: var(--ambar); }
-.consola-registro .grave { border-left-color: #b03a2e; }
-
-@media (max-width: 1000px) {
-  .consola-cuerpo { grid-template-columns: 1fr; }
-  .consola-panel { border-right: none; border-bottom: 1px solid var(--linea); }
-  .consola-panel-der { border-left: none; border-top: 1px solid var(--linea); max-height: none; }
-  .consola-bandeja { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-  .consola-pie { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 640px) {
-  .consola-lienzo { height: 320px; }
-  .consola-medidas { gap: 14px; }
-}
+/* La consola quirúrgica (módulo 04) vive en su propia hoja,
+   `simulador/consola.css`, que importan la consola y su lienzo. Se fue de aquí
+   cuando pasó a tema oscuro: son unas cuatrocientas líneas que solo pinta una
+   pantalla, y con ellas aquí cada cambio de la consola tocaba la hoja de todo
+   el sitio. */
 
 /* ---------- accesibilidad ---------- */
 :focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; border-radius: 2px; }
+/* El contorno azul de la marca se pierde sobre el marino: en la barra, en la
+   lateral del panel y en la portada pública el foco va en cian. Antes la
+   portada pública no estaba en la lista, y tabular por «Entrar» y «Solicitar
+   acceso» no dejaba ver dónde estaba el foco. */
+.barra :focus-visible,
+.admin-sidebar :focus-visible,
+.portada-publica :focus-visible,
+.acceso-fondo :focus-visible {
+  outline: 2px solid var(--cian);
+  outline-offset: 2px;
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* ---------- pantallas estrechas ---------- */
-@media (max-width: 900px) {
-  .entrada-hero { grid-template-columns: 1fr; gap: 28px; }
-  .hero-figura { order: -1; }
-  .cuerpo-portada { height: 260px; }
-  .pros-contras { grid-template-columns: 1fr; }
-}
-@media (max-width: 640px) {
-  main { padding: 30px 18px 70px; }
-  h1 { font-size: 30px; }
-  .figura.pequena, .figura.media { max-width: 100%; float: none; margin: 0 0 22px; }
-  .aviso-actualizacion { left: 18px; right: 18px; bottom: 18px; }
-}
-
 /* ---------- buscador y filtros ---------- */
-.barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+/* Los campos llevan el borde de --linea-fuerte: con --linea (1,34:1 sobre
+   blanco) el contorno de un campo no se veía, y WCAG 1.4.11 le pide 3:1 a un
+   componente. Y el foco deja un anillo además del cambio de color. */
+.barra-filtros {
+  display: flex; gap: var(--e-2); flex-wrap: wrap; align-items: center;
+  margin-bottom: var(--e-3); padding: var(--e-3);
+  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
+  box-shadow: var(--sombra-1);
+}
 .campo-busqueda { position: relative; flex: 1; min-width: 240px; }
-.icono-lupa { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 17px; height: 17px; color: var(--mudo); pointer-events: none; }
-.campo-busqueda input { width: 100%; padding: 10px 14px 10px 36px; border: 1px solid var(--linea); border-radius: var(--r); font-size: 14px; font-family: inherit; background: var(--superficie); color: var(--tinta); }
-.campo-busqueda input:focus { outline: none; border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-tenue); }
-.barra-filtros select { padding: 10px 12px; border: 1px solid var(--linea); border-radius: var(--r); font-size: 14px; font-family: inherit; background: var(--superficie); color: var(--tinta); cursor: pointer; }
-.barra-filtros select:focus { outline: none; border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-tenue); }
-.limpiar { background: none; border: none; color: var(--marca); font-size: 13px; cursor: pointer; padding: 8px 4px; font-family: inherit; text-decoration: underline; }
-.recuento { font-size: 13px; color: var(--mudo); margin: 0 0 22px; }
+.icono-lupa { position: absolute; left: var(--e-3); top: 50%; transform: translateY(-50%); color: var(--mudo); pointer-events: none; }
+.campo-busqueda input {
+  width: 100%; min-height: 40px; padding: 0 var(--e-3) 0 var(--e-10);
+  border: 1px solid var(--linea-fuerte); border-radius: var(--r);
+  font: inherit; font-size: var(--t-base);
+  background: var(--superficie); color: var(--tinta);
+}
+.campo-busqueda input:focus, .barra-filtros select:focus {
+  outline: none; border-color: var(--marca); box-shadow: var(--anillo-foco);
+}
+.barra-filtros select {
+  min-height: 40px; padding: 0 var(--e-3);
+  border: 1px solid var(--linea-fuerte); border-radius: var(--r);
+  font: inherit; font-size: var(--t-sm);
+  background: var(--superficie); color: var(--tinta); cursor: pointer;
+}
+.recuento { font-size: var(--t-sm); color: var(--mudo); margin: 0 0 var(--e-6); }
 
 /* ---------- índice lateral de la ficha ---------- */
 
@@ -815,17 +842,18 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
    con 830 px de página en blanco al lado. Por debajo de 900 px no se veía,
    porque ahí la rejilla ya es de una columna: se veía bien en el móvil de
    quien revisaba y roto en el portátil del residente. */
-.ficha-cuerpo { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: start; }
+.ficha-cuerpo { display: grid; grid-template-columns: 1fr; gap: var(--e-10); align-items: start; }
 .ficha-cuerpo:has(> .indice-ficha) { grid-template-columns: 190px 1fr; }
 .indice-ficha { position: sticky; top: 80px; }
-.indice-titulo { display: block; font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.13em; color: var(--mudo); font-weight: 600; margin-bottom: 12px; }
+.indice-titulo { display: block; margin-bottom: var(--e-3); }
 .indice-ficha ul { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--linea); }
-.indice-ficha li a { display: block; padding: 7px 0 7px 14px; margin-left: -2px; border-left: 2px solid transparent; font-size: 13.5px; color: var(--pizarra); text-decoration: none; transition: color 0.15s ease, border-color 0.15s ease; }
+.indice-ficha li a {
+  display: block; padding: var(--e-2) 0 var(--e-2) var(--e-4); margin-left: -2px;
+  border-left: 2px solid transparent; font-size: var(--t-sm); color: var(--pizarra); text-decoration: none;
+  transition: color var(--dur-rapida) ease, border-color var(--dur-rapida) ease;
+}
 .indice-ficha li a:hover { color: var(--tinta); }
-.indice-ficha li a.activa { color: var(--marca); font-weight: 600; border-left-color: var(--marca); }
-.ficha-contenido { min-width: 0; }
-/* El desplazamiento al pulsar un enlace del índice descuenta la barra fija. */
-.pestana { scroll-margin-top: 78px; }
+.indice-ficha li a.activa { color: var(--acento, var(--marca)); font-weight: 600; border-left-color: var(--acento, var(--marca)); }
 
 @media (max-width: 900px) {
   /* Repite el `:has()` a propósito: una consulta de medios no añade
@@ -833,162 +861,97 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
      regla de arriba, que con el `:has()` vale 0,2,0, y la ficha con índice
      seguía a dos columnas en el móvil. Si allí se cambia el selector, aquí
      también. */
+  /* `minmax(0, 1fr)` y no `1fr`: la tira del índice es desplazable y su ancho
+     natural es el de todos los enlaces juntos; con `1fr` (mínimo `auto`) la
+     columna crecía hasta él y la ficha entera salía 250 px más ancha que la
+     pantalla. */
   .ficha-cuerpo,
-  .ficha-cuerpo:has(> .indice-ficha) { grid-template-columns: 1fr; gap: 20px; }
-  .indice-ficha { position: static; border-bottom: 1px solid var(--linea); padding-bottom: 14px; }
-  .indice-ficha ul { display: flex; flex-wrap: wrap; gap: 4px; border-left: none; }
-  .indice-ficha li a { padding: 6px 12px; border: 1px solid var(--linea); border-radius: 100px; margin-left: 0; }
-  .indice-ficha li a.activa { background: var(--marca-tenue); border-color: var(--marca); }
+  .ficha-cuerpo:has(> .indice-ficha) { grid-template-columns: minmax(0, 1fr); gap: var(--e-4); }
+  /* En el teléfono el índice es una tira fija bajo la barra, desplazable en
+     horizontal. Antes se apilaba como una nube de píldoras encima del texto y
+     desaparecía al empezar a leer, que es justo cuando hace falta saltar. */
+  .indice-ficha {
+    top: 58px; z-index: 5;
+    margin: 0 calc(-1 * var(--e-4)); padding: var(--e-2) var(--e-4);
+    background: var(--papel); border-bottom: 1px solid var(--linea);
+  }
+  .indice-titulo { display: none; }
+  .indice-ficha ul { display: flex; gap: var(--e-2); border-left: none; overflow-x: auto; scrollbar-width: none; }
+  .indice-ficha ul::-webkit-scrollbar { display: none; }
+  .indice-ficha li { flex: none; }
+  .indice-ficha li a {
+    display: inline-flex; align-items: center; min-height: 36px;
+    padding: 0 var(--e-3); margin-left: 0; white-space: nowrap;
+    border: 1px solid var(--linea); border-radius: var(--r-full); background: var(--superficie);
+  }
+  .indice-ficha li a.activa { background: var(--acento-tenue, var(--marca-tenue)); border-color: var(--acento, var(--marca)); }
+  .pestana { scroll-margin-top: 120px; }
 }
 
 /* ==========================================================================
-   Interfaz de comentarios y rastreador de lectura.
-
-   La rejilla de fichas y la tarjeta que vivían aquí se subieron al bloque
-   «rejilla de fichas», que es donde se las busca.
+   Comentarios y marca de lectura.
    ========================================================================== */
 
-/* Formulario de Comentarios */
-.contenedor-comentario-toggle {
-  margin-top: 3rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--linea-suave);
-  text-align: center;
-}
-
-.boton-comentar {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  border-radius: 20px;
-  background: var(--superficie);
-  border: 1px solid var(--linea);
-  color: var(--pizarra);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 500;
-}
-
-.boton-comentar:hover {
-  background: var(--marca-tenue);
-  color: var(--marca-honda);
-  border-color: var(--marca);
-}
+/* El botón de abrir es un botón fantasma pequeño, alineado con el texto. Era
+   una píldora centrada de 16 px con tres rem de aire encima y un filete: el
+   final de cada ficha parecía una sección más. */
+.comentar { margin-top: var(--e-8); }
+.ficha-contenido + .comentar, main > .comentar { padding-top: var(--e-5); border-top: 1px solid var(--linea-suave); }
+.maniobra-pie .comentar { margin-top: 0; padding-top: 0; border-top: 0; }
+.comentar-pregunta { font-size: var(--t-sm); color: var(--mudo); margin: 0 0 var(--e-2); }
 
 .formulario-comentario {
-  margin-top: 3rem;
-  padding: 2rem;
   background: var(--superficie);
-  border: 1px solid var(--linea);
-  border-left: 4px solid var(--marca);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border: 1px solid var(--linea-suave);
+  border-left: 3px solid var(--acento, var(--marca));
+  border-radius: var(--r-lg);
+  box-shadow: var(--sombra-1);
+  padding: var(--e-5);
 }
-
-.formulario-comentario h3 {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-  color: var(--marca-honda);
-}
-
-.formulario-comentario .descripcion {
-  margin-top: 0;
-  margin-bottom: 1.5rem;
-  color: var(--mudo);
-  font-size: 0.9rem;
-}
-
+.formulario-comentario h3 { margin: 0 0 var(--e-1); font-size: var(--t-md); }
+.formulario-comentario .descripcion { margin: 0 0 var(--e-3); color: var(--mudo); font-size: var(--t-sm); }
+.formulario-comentario label { font-weight: 600; color: var(--tinta); }
 .formulario-comentario textarea {
-  width: 100%;
-  padding: 1rem;
-  border: 1px solid var(--linea);
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: 1rem;
-  resize: vertical;
-  margin-bottom: 1rem;
-  transition: border-color 0.2s ease;
+  display: block; width: 100%; padding: var(--e-3);
+  border: 1px solid var(--linea-fuerte); border-radius: var(--r);
+  font: inherit; font-size: var(--t-base); line-height: 1.5;
+  resize: vertical; margin-bottom: var(--e-3);
+  transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease;
   /* Era el único campo de escritura de la plataforma que no fijaba sus dos
      colores, así que se los ponía el navegador: en un móvil con tema oscuro el
      residente escribía la corrección de una ficha en un recuadro que no se
-     parecía a ninguno de los otros ocho campos. Los demás (.campo-busqueda
-     input, .acceso-campo input, .campo-control…) sí los declaran. */
+     parecía a ninguno de los otros ocho campos. */
   background: var(--superficie);
   color: var(--tinta);
 }
+.formulario-comentario textarea:focus { outline: none; border-color: var(--marca); box-shadow: var(--anillo-foco); }
+.acciones-formulario { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--e-2); }
 
-.formulario-comentario textarea:focus {
-  outline: none;
-  border-color: var(--marca);
-  box-shadow: 0 0 0 3px var(--marca-tenue);
-}
-
-.acciones-formulario {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-}
-
-.boton.sutil {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--pizarra);
-}
-
-.boton.sutil:hover {
-  background: var(--papel);
-}
-
-.alerta.exito {
-  padding: 1rem;
-  background: var(--marca-tenue);
-  color: var(--marca-honda);
-  border-radius: 6px;
-  font-weight: 500;
-}
-
-.texto-error {
-  /* El rojo de la paleta, no el de Material: la alerta de la plataforma es una
-     sola y tiene que ser la misma aquí que en .advertencia.error-frecuente. */
-  color: var(--alerta);
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-}
-
-
-/* Rastreador de Actividad */
-.rastreador-actividad {
-  margin-top: 1rem;
-  display: flex;
-  justify-content: flex-end;
-}
-
+/* La casilla de «leída» con la forma de un botón fantasma pequeño: la misma
+   familia que «Guardar PDF» y «Comentar», a su lado en la barra de acciones.
+   El `<input>` se queda —es lo que anuncia el lector de pantalla— con el azul
+   de la marca. Marcada, el botón pasa a verde: es la única marca de la ficha
+   que dice «hecho». */
+.rastreador-actividad { display: inline-flex; }
 .checkbox-leida {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 500;
-  color: var(--pizarra);
-  cursor: pointer;
-  padding: 0.5rem 1rem;
-  background: var(--papel);
-  border-radius: 20px;
-  border: 1px solid var(--linea);
-  transition: all 0.2s ease;
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  min-height: 34px; padding: 0 var(--e-3);
+  font-size: var(--t-sm); font-weight: 600; color: var(--pizarra);
+  background: transparent; border: 1px solid var(--linea); border-radius: var(--r-sm);
+  cursor: pointer; user-select: none;
+  transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, color var(--dur-rapida) ease;
+}
+.checkbox-leida:hover { background: var(--superficie); border-color: var(--linea-fuerte); color: var(--tinta); }
+.checkbox-leida:has(input:checked) { background: var(--verde-tenue); border-color: var(--verde); color: var(--verde); }
+.checkbox-leida:has(input:focus-visible) { outline: 2px solid var(--marca); outline-offset: 2px; }
+.checkbox-leida input { accent-color: var(--verde); width: 16px; height: 16px; margin: 0; cursor: pointer; }
+@media (pointer: coarse) {
+  .checkbox-leida { min-height: 40px; }
 }
 
-.checkbox-leida:hover {
-  background: var(--marca-tenue);
-}
-
-.checkbox-leida input {
-  accent-color: var(--marca);
-  width: 1.2rem;
-  height: 1.2rem;
-  cursor: pointer;
-}
+/* Casillas y deslizadores del sitio con el azul de la marca y no el del
+   sistema, que en cada navegador era uno. */
+input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color: var(--marca); }
 
 /* ==========================================================================
    Modo Quirófano (Impresión / PDF)
@@ -997,7 +960,7 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   @page {
     margin: 1.5cm;
   }
-  
+
   body {
     background: white;
     color: black;
@@ -1008,11 +971,11 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
      ellos: en papel sus dos enlaces no se pueden pulsar, y al final de una
      ficha impresa para pabellón puede ser justo lo que manda las últimas
      líneas a una hoja más. */
-  nav, .miga, .boton, .boton-imprimir, .rastreador-actividad, .formulario-comentario, .contenedor-comentario-toggle, .pie-de-pagina {
+  nav, .miga, .boton, .boton-imprimir, .barra-acciones, .rastreador-actividad, .formulario-comentario, .comentar, .pie-de-pagina {
     display: none !important;
   }
 
-  .tarjeta, .ficha-cuerpo {
+  .tarjeta, .ficha-cuerpo, .paso-cuerpo, .opcion {
     border: none;
     box-shadow: none;
     background: transparent;
@@ -1040,46 +1003,60 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   }
 }
 
-/* ---------- pantallas de acceso (entrar, recuperar clave) ---------- */
+/* ==========================================================================
+   Pantallas de acceso (entrar, solicitar cuenta, recuperar clave, instalar).
+
+   La caja blanca de siempre, pero sobre una franja marina con la malla de la
+   portada: quien llega desde la portada pública no salta de golpe a una
+   pantalla gris sin marca. La franja no pasa por detrás del formulario, así
+   que no le quita nada de contraste.
+   ========================================================================== */
 .acceso {
+  position: relative;
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 40px 24px;
+  padding: var(--e-16) var(--e-6) var(--e-12);
   max-width: none;
-  background:
-    radial-gradient(1200px 600px at 50% -10%, #ffffff 0%, var(--papel) 60%);
+  background: var(--papel);
+  overflow: hidden;
 }
 
+.acceso-fondo {
+  position: absolute; inset: 0 0 auto 0; height: 300px;
+  background: var(--degradado-marino);
+  color: var(--cian);
+  pointer-events: none;
+}
+.acceso-fondo .portada-malla { opacity: 0.18; }
+
 .acceso-caja {
+  position: relative; z-index: 1;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   background: var(--superficie);
-  border: 1px solid var(--linea);
-  border-radius: var(--r-lg);
-  box-shadow: var(--sombra);
-  padding: 32px;
+  border: 1px solid var(--linea-suave);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sombra-2);
+  padding: var(--e-8);
 }
 
 .acceso-marca {
   display: flex;
   justify-content: center;
-  padding-bottom: 18px;
-  margin-bottom: 20px;
+  padding-bottom: var(--e-5);
+  margin-bottom: var(--e-5);
   border-bottom: 1px solid var(--linea-suave);
 }
 
 /* El logotipo completo lleva el nombre escrito: por debajo de unos 150px de
    ancho deja de leerse y se convierte en una mancha azul.
 
-   Pasó de 190 a 240 px porque a 190 el nombre se leía justo, y sale ahora de
-   `public/logo-hd.png` (1200 × 655) y no de `logo.png` (220 × 120): estirado a
-   240 px, aquel se veía borroso en cualquier pantalla de densidad doble, que es
-   la de casi todos los teléfonos. El 78 % es lo que lo protege del mínimo de
-   arriba en el teléfono más estrecho: en 320 px la caja deja 206 de interior
-   (272 menos 32 de relleno y 1 de borde por lado) y el logotipo se queda en
-   160. Con el 70 % de antes bajaba a 144. */
+   Sale de `public/logo-hd.png` (1200 × 655) y no de `logo.png` (220 × 120):
+   estirado a 240 px, aquel se veía borroso en cualquier pantalla de densidad
+   doble. El 78 % es lo que lo protege del mínimo de arriba en el teléfono más
+   estrecho. */
 .acceso-logo {
   width: 240px;
   max-width: 78%;
@@ -1087,153 +1064,89 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   object-fit: contain;
   /* Las dimensiones reales de `public/logo-hd.png`. Los `<img>` de las páginas
      de acceso no llevan atributos `width`/`height`, así que hasta que el
-     archivo se descargaba y descodificaba el navegador no conocía la
-     proporción y la caja medía 0 px: al aterrizar, el título, los campos y el
-     botón bajaban de golpe todo el alto del logotipo. `height: auto` sigue
-     mandando en el tamaño pintado; esto solo dice cuánto hueco guardar
-     mientras tanto. Si el logotipo cambia de forma, este número cambia con él,
-     y `tests/unit/estilosPublicos.test.ts` lo compara con el archivo. */
+     archivo se descargaba el navegador no conocía la proporción y la caja
+     medía 0 px: al aterrizar, el título, los campos y el botón bajaban de
+     golpe todo el alto del logotipo. `height: auto` sigue mandando en el
+     tamaño pintado; esto solo dice cuánto hueco guardar mientras tanto. Si el
+     logotipo cambia de forma, este número cambia con él, y
+     `tests/unit/estilosPublicos.test.ts` lo compara con el archivo. */
   aspect-ratio: 1200 / 655;
 }
 
 .acceso-titulo {
-  font-size: 21px;
+  font-size: var(--t-lg);
   line-height: 1.2;
-  margin: 0 0 20px;
-  letter-spacing: -0.02em;
+  margin: 0 0 var(--e-5);
   text-align: center;
 }
 
-.acceso-formulario { display: flex; flex-direction: column; gap: 16px; }
+.acceso-formulario { display: flex; flex-direction: column; gap: var(--e-4); }
+.acceso-formulario .advertencia, .acceso-caja > .advertencia { margin: 0; max-width: none; font-size: var(--t-sm); }
+.acceso-caja > .advertencia { margin-bottom: var(--e-5); }
 
-.acceso-campo { display: flex; flex-direction: column; gap: 6px; }
+.acceso-campo { display: flex; flex-direction: column; gap: var(--e-1); }
 
 .acceso-campo span {
-  font-size: 13px;
+  font-size: var(--t-sm);
   font-weight: 600;
   color: var(--tinta);
 }
 
-.acceso-campo input {
-  padding: 10px 12px;
-  border: 1px solid var(--linea);
+.acceso-campo input,
+.acceso-campo textarea {
+  min-height: 44px;
+  padding: var(--e-2) var(--e-3);
+  border: 1px solid var(--linea-fuerte);
   border-radius: var(--r);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--t-base);
   color: var(--tinta);
   background: var(--superficie);
 }
+.acceso-campo textarea { resize: vertical; line-height: 1.5; }
 
-.acceso-campo input:focus {
+.acceso-campo input:focus,
+.acceso-campo textarea:focus {
   outline: none;
   border-color: var(--marca);
-  box-shadow: 0 0 0 3px var(--marca-tenue);
+  box-shadow: var(--anillo-foco);
 }
 
-.acceso-pista { font-size: 12px; color: var(--mudo); }
-
-.acceso-boton {
-  background: var(--marca);
-  color: #fff;
-  border: 0;
-  border-radius: var(--r);
-  padding: 11px 16px;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.acceso-boton:hover:not(:disabled) { background: var(--marca-honda); }
-.acceso-boton:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.acceso-error {
-  background: var(--alerta-tenue);
-  border-left: 3px solid var(--alerta);
-  border-radius: var(--r);
-  padding: 10px 12px;
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--tinta);
-}
-
-.acceso-aviso {
-  background: var(--marca-tenue);
-  border-left: 3px solid var(--marca);
-  border-radius: var(--r);
-  padding: 12px 14px;
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: var(--tinta);
-}
+.acceso-pista { font-size: var(--t-xs); color: var(--mudo); }
 
 .acceso-enlace {
-  font-size: 13px;
+  font-size: var(--t-sm);
   color: var(--marca);
   text-align: center;
   text-decoration: none;
   display: block;
-  margin-top: 2px;
+  margin-top: var(--e-1);
 }
 
 .acceso-enlace:hover { text-decoration: underline; }
 
 .acceso-nota {
-  font-size: 12.5px;
+  font-size: var(--t-sm);
   color: var(--mudo);
   line-height: 1.55;
-  margin: 22px 0 0;
-  padding-top: 16px;
+  margin: var(--e-5) 0 0;
+  padding-top: var(--e-4);
   border-top: 1px solid var(--linea-suave);
 }
 
-
-/* ==========================================================================
-   Correcciones de uso, revisadas sobre la aplicación funcionando.
-   ========================================================================== */
-
-/* ---------- la barra no se parte en dos líneas ----------
-   `.barra-interior` fija 58px de alto, así que un `flex-wrap` en los módulos
-   desbordaba la barra y empujaba el contenido: entre 640 y 1250 px, «Imágenes»
-   caía a una segunda fila que se salía. Los módulos pasan a desplazarse en
-   horizontal, que es lo que hace cualquier barra de pestañas cuando no caben. */
-.modulos {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.modulos::-webkit-scrollbar { display: none; }
-.modulos a { white-space: nowrap; }
-
-
-/* ---------- foco visible también sobre fondo oscuro ----------
-   El contorno azul de la marca se pierde sobre el marino de la barra. */
-.barra :focus-visible,
-.admin-sidebar :focus-visible {
-  outline: 2px solid var(--cian);
-  outline-offset: 2px;
-}
-
-/* ---------- el cian del logotipo, donde aporta ---------- */
-.hero-codigo { color: var(--cian); }
-.modulos a:hover { border-bottom-color: var(--cian); }
+/* El campo trampa del registro, fuera de la pantalla y no con `display: none`:
+   los robots se saltan lo que está oculto de la forma obvia. Estaba en línea
+   en el formulario; el porqué completo sigue allí. */
+.campo-trampa { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 
 /* ---------- áreas de toque en pantallas táctiles ----------
    Los botones de mover y quitar miden 26px, cómodo con ratón e imposible con
-   el dedo. En un dispositivo táctil crecen a 40px.
-
-   Acompañaban a `.lista-fila-acciones` dos reglas `.rico-*`, del editor de
-   texto que se fue con la interfaz de Payload. `admin.css` ya las había
-   retirado —y lo dice en un comentario: «no queda nada que las use»—, pero en
-   esta hoja seguían. */
+   el dedo. En un dispositivo táctil crecen a 40px. */
 @media (pointer: coarse) {
   .lista-fila-acciones button {
     width: 40px;
     height: 40px;
-    font-size: 15px;
+    font-size: var(--t-base);
   }
   .admin-btn { padding: 0.6rem 0.9rem; }
 }
@@ -1254,16 +1167,16 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   justify-content: center;
   width: 40px;
   height: 40px;
-  border: 1px solid #2c4270;
+  border: 1px solid var(--sobre-tinta-borde);
   border-radius: var(--r);
   background: none;
-  color: #e9eefb;
+  color: var(--sobre-tinta-1);
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
 }
 
-.menu-boton:hover { border-color: #6284c4; }
+.menu-boton:hover { border-color: var(--sobre-tinta-borde-fuerte); }
 
 .menu-icono {
   display: flex;
@@ -1281,8 +1194,8 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   background: currentColor;
   border-radius: 2px;
   transition:
-    transform 0.18s ease,
-    opacity 0.14s ease;
+    transform var(--dur) ease,
+    opacity var(--dur-rapida) ease;
 }
 
 /* Las tres barras se convierten en una cruz: el mismo botón abre y cierra, y
@@ -1294,9 +1207,9 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .menu-fondo {
   position: fixed;
   inset: 0;
-  background: rgba(12, 26, 56, 0.5);
-  z-index: 60;
-  animation: menu-aparecer 0.15s ease;
+  background: var(--velo);
+  z-index: calc(var(--z-barra) + 10);
+  animation: menu-aparecer var(--dur-rapida) ease;
 }
 
 .menu-panel {
@@ -1304,17 +1217,17 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(310px, 84vw);
+  width: min(320px, 86vw);
   background: var(--superficie);
-  z-index: 61;
+  z-index: calc(var(--z-barra) + 11);
   display: flex;
   flex-direction: column;
-  padding: 18px;
-  box-shadow: -8px 0 30px rgba(12, 26, 56, 0.18);
+  padding: var(--e-4);
+  box-shadow: var(--sombra-3);
   overflow-y: auto;
   outline: none;
   transform: translateX(100%);
-  transition: transform 0.2s cubic-bezier(0.3, 0.8, 0.4, 1);
+  transition: transform var(--dur) var(--curva);
 }
 
 .menu-panel-abierto { transform: translateX(0); }
@@ -1332,92 +1245,78 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 12px;
-  margin-bottom: 8px;
+  padding-bottom: var(--e-3);
+  margin-bottom: var(--e-2);
   border-bottom: 1px solid var(--linea-suave);
 }
 
-.menu-titulo {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--mudo);
-  font-weight: 600;
-}
-
 .menu-cerrar {
-  width: 34px;
-  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   border: 0;
   background: none;
   color: var(--pizarra);
-  font-size: 17px;
   cursor: pointer;
   border-radius: var(--r);
-  line-height: 1;
 }
 
 .menu-cerrar:hover { background: var(--linea-suave); color: var(--tinta); }
 
-.menu-enlaces { display: flex; flex-direction: column; }
+.menu-enlaces { display: flex; flex-direction: column; gap: 2px; }
 
 .menu-enlace {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
   /* 48px de alto: un enlace de navegación se pulsa con el pulgar y en marcha. */
-  padding: 13px 12px;
+  min-height: 48px;
+  padding: 0 var(--e-3);
   border-radius: var(--r);
   color: var(--tinta);
   text-decoration: none;
-  font-size: 16px;
-  border-left: 3px solid transparent;
+  font-size: var(--t-base);
+  font-weight: 500;
 }
 
 .menu-enlace:hover { background: var(--papel); }
 
 .menu-enlace-activo {
-  color: var(--marca);
-  font-weight: 600;
-  border-left-color: var(--marca);
-  background: var(--marca-tenue);
+  color: var(--acento, var(--marca));
+  font-weight: 650;
+  background: var(--acento-tenue, var(--marca-tenue));
 }
 
 .menu-separador {
   height: 1px;
   background: var(--linea-suave);
-  margin: 10px 0;
+  margin: var(--e-2) 0;
 }
 
 .menu-pie {
   margin-top: auto;
-  padding-top: 14px;
+  padding-top: var(--e-4);
   border-top: 1px solid var(--linea-suave);
 }
 
-.menu-quien { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
-.menu-quien-nombre { font-size: 14px; font-weight: 600; color: var(--tinta); }
+.menu-quien { display: flex; flex-direction: column; gap: 2px; padding: 0 var(--e-3); }
+.menu-quien-nombre { font-size: var(--t-base); font-weight: 600; color: var(--tinta); }
 
-.menu-quien-rol {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--mudo);
+/* ---------- el cambio de una navegación a la otra ----------
+   Por debajo de 900 px la fila de módulos deja sitio al menú. Antes el corte
+   estaba en 1000 px, uno de los siete puntos de corte distintos de la hoja;
+   ahora son tres (640 / 900 / 1200). Entre 900 y 1200 el nombre de quien
+   entra se esconde, que es lo que menos falta hace en la barra. */
+@media (max-width: 1200px) {
+  .quien { display: none; }
 }
 
-/* ---------- el cambio de una navegación a la otra ---------- */
-/* Este bloque llevaba cuatro declaraciones que repetían el valor que ya estaba
-   puesto, y una de ellas con un comentario que aseguraba que algo entre medias
-   lo había cambiado: `height: 58px` y `flex-wrap: nowrap` en `.barra-interior`
-   (lo primero ya está arriba, lo segundo es el valor inicial y nadie lo tocaba),
-   `.pestana { scroll-margin-top: 78px }` y `.indice-ficha { top: 80px }`, los
-   dos idénticos a su declaración original. Quien tocase el original creyendo
-   que aquí se compensaba rompería el desplazamiento por debajo de 1000 px sin
-   enterarse, porque los dos decían lo mismo. */
-@media (max-width: 1000px) {
+@media (max-width: 900px) {
   .barra-interior {
-    padding: 0 18px;
-    gap: 12px;
+    padding: 0 var(--e-4);
+    gap: var(--e-3);
   }
 
   .modulos,
@@ -1426,42 +1325,45 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   .barra-movil {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--e-2);
     margin-left: auto;
   }
 }
 
-@media (max-width: 520px) {
-  .barra-interior { padding: 0 14px; gap: 8px; }
+@media (max-width: 640px) {
+  .barra-interior { padding: 0 var(--e-3); gap: var(--e-2); }
   .marca-sub { display: none; }
 }
 
-.menu-conmutador { padding: 0 12px 12px; }
+.menu-conmutador { padding: 0 var(--e-3) var(--e-3); }
 
 .menu-salir {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-2);
   width: 100%;
-  margin-top: 12px;
-  padding: 11px 12px;
-  border: 1px solid var(--linea);
+  min-height: 44px;
+  margin-top: var(--e-3);
+  padding: 0 var(--e-3);
+  border: 1px solid var(--linea-fuerte);
   border-radius: var(--r);
   background: none;
   color: var(--pizarra);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--t-base);
   cursor: pointer;
 }
 
 .menu-salir:hover:not(:disabled) { border-color: var(--alerta); color: var(--alerta); }
-.menu-salir:disabled { opacity: 0.5; cursor: not-allowed; }
+.menu-salir:disabled { color: var(--mudo); background: var(--papel); cursor: not-allowed; }
 
 /* ==========================================================================
    Portada sin sesión.
 
-   Es lo primero que ve alguien que llega, y hasta ahora era medio formulario y
-   medio folleto. Ahora es una sola pantalla: marca, qué es esto, y la puerta.
-   El fondo recoge la malla de nodos del logotipo, muy tenue, para que la marca
-   se reconozca antes de leer nada.
+   Una sola pantalla: marca, qué es esto, y la puerta. El fondo recoge la
+   malla de nodos del logotipo, muy tenue, para que la marca se reconozca
+   antes de leer nada.
    ========================================================================== */
 
 .portada-publica {
@@ -1474,8 +1376,8 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(165deg, #0a1633 0%, #10254f 55%, #143063 100%);
-  color: #e9eefb;
+  background: var(--degradado-marino);
+  color: var(--sobre-tinta-1);
   overflow: hidden;
 }
 
@@ -1494,21 +1396,20 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(70% 62% at 50% 45%, rgba(10, 22, 51, 0.95) 0%, rgba(10, 22, 51, 0.35) 60%, rgba(10, 22, 51, 0) 100%);
+  background: radial-gradient(70% 62% at 50% 45%, color-mix(in srgb, var(--marino-1) 95%, transparent) 0%, color-mix(in srgb, var(--marino-1) 35%, transparent) 60%, transparent 100%);
 }
 
 .portada-hero {
   position: relative;
   z-index: 1;
   text-align: center;
-  padding: 64px 24px 40px;
-  max-width: 660px;
+  padding: var(--e-16) var(--e-6) var(--e-10);
+  max-width: 680px;
 }
 
-/* 320 px y no los 260 de antes, con el mismo cambio de archivo que
-   `.acceso-logo`: el logotipo sale de `logo-hd.png`, que aguanta el tamaño sin
-   emborronarse. El 72 % se queda como estaba porque ya bastaba: en un teléfono
-   de 375 px la columna deja 331 de ancho y el logotipo pinta 238. */
+/* 320 px con el logotipo de `logo-hd.png`, que aguanta el tamaño sin
+   emborronarse. En un teléfono de 375 px la columna deja 331 de ancho y el
+   logotipo pinta 238. */
 .portada-logo {
   width: 320px;
   max-width: 72%;
@@ -1516,11 +1417,9 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   /* Proporción de `public/logo-hd.png`, por lo mismo que en `.acceso-logo`, y
      aquí con más motivo: la portada es una columna centrada, así que al
      aparecer los 175 px del logotipo más su margen se recolocaba la columna
-     entera y el botón «Entrar» se movía de sitio. Quien lo tocara en ese
-     instante —conexión lenta, móvil, primera visita— pulsaba lo que quedase
-     debajo. */
+     entera y el botón «Entrar» se movía de sitio. */
   aspect-ratio: 1200 / 655;
-  margin: 0 auto 34px;
+  margin: 0 auto var(--e-8);
   display: block;
   /* El logotipo es azul sobre blanco; sobre el marino se aclara para no
      quedar como un recuadro pegado encima del degradado. */
@@ -1532,8 +1431,8 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
   font-size: clamp(30px, 5.2vw, 50px);
   line-height: 1.08;
   letter-spacing: -0.03em;
-  margin: 0 0 20px;
-  color: #fff;
+  margin: 0 0 var(--e-5);
+  color: var(--superficie);
 }
 
 .portada-titular em {
@@ -1544,147 +1443,198 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .portada-bajada {
   font-size: clamp(15px, 1.7vw, 18px);
   line-height: 1.6;
-  color: #b6c7e6;
-  margin: 0 auto 34px;
+  color: var(--sobre-tinta-2);
+  margin: 0 auto var(--e-8);
   max-width: 52ch;
 }
 
-.portada-boton {
-  display: inline-block;
-  background: var(--cian);
-  color: #06122b;
-  font-weight: 650;
-  font-size: 16px;
-  padding: 14px 34px;
-  border-radius: 100px;
-  text-decoration: none;
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    background 0.15s ease;
-  box-shadow: 0 8px 28px rgba(30, 159, 224, 0.28);
-}
+.portada-acciones { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--e-3); }
 
-.portada-boton:hover {
-  background: #4fb8ea;
-  transform: translateY(-1px);
-  box-shadow: 0 12px 34px rgba(30, 159, 224, 0.36);
+/* El botón de la portada es el `.boton` de toda la plataforma en su tamaño
+   grande y con el cian de la marca: sobre el marino el azul de `.boton` no se
+   distingue del fondo, y el cian sí (8,1:1 con el texto marino). Antes era
+   una píldora de otra familia —radio completo, sombra de color— que no se
+   parecía al «Entrar» de la pantalla siguiente. */
+.portada-boton {
+  background: var(--cian);
+  border-color: var(--cian);
+  color: var(--marino-1);
+  box-shadow: var(--sombra-2);
 }
+.portada-boton:hover:not(:disabled) { background: var(--cian-claro); border-color: var(--cian-claro); }
+
+/* «Solicitar acceso», la segunda puerta: el mismo tamaño en versión contorno.
+   Su estilo iba en línea en la portada porque la hoja «no conocía la clase»,
+   con un `marginLeft` que en el teléfono la dejaba descolgada. */
+.portada-enlace-secundario {
+  background: transparent;
+  color: var(--cian-claro);
+  border-color: var(--sobre-tinta-borde-fuerte);
+}
+.portada-enlace-secundario:hover:not(:disabled) { background: var(--sobre-tinta-velo); border-color: var(--cian-claro); color: var(--superficie); }
 
 .portada-nota {
-  font-size: 13px;
-  color: #7f95bd;
-  margin: 22px 0 0;
+  font-size: var(--t-sm);
+  color: var(--sobre-tinta-3);
+  margin: var(--e-6) 0 0;
 }
 
-/* ---------- tira de módulos ---------- */
-/* El relleno de abajo bajó de 56 a 34 px (y de 40 a 26 en el teléfono) cuando
-   llegó el pie de página. Antes la tira era el final de la pantalla y ese hueco
-   la separaba del borde; ahora debajo viene el pie, con su propio filete, y los
-   56 px dejaban dos rayas flotando lejos una de otra. Es también lo que
-   compensa en parte el logotipo más grande: en un portátil de 800 px de alto la
-   portada con el pie ya no cabía sin desplazarse. */
+/* ---------- tira de módulos ----------
+   Cinco tarjetas pequeñas con el icono de cada módulo: lo que se va a
+   encontrar dentro, dicho antes de entrar. El color propio de cada módulo no
+   se usa aquí —calculado sobre blanco, sobre el marino no llega—; el icono va
+   en el cian de la marca. */
 .portada-tira {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--e-3);
   width: 100%;
-  max-width: 1000px;
-  padding: 26px 24px 34px;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
-  margin-top: 20px;
+  max-width: 1040px;
+  padding: var(--e-6) var(--e-6) var(--e-8);
+  margin-top: var(--e-5);
 }
 
 .portada-tira-item {
-  flex: 1 1 150px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 0 10px;
-  text-align: center;
+  align-items: flex-start;
+  gap: var(--e-2);
+  padding: var(--e-4);
+  border-radius: var(--r-lg);
+  background: var(--sobre-tinta-velo);
+  border: 1px solid var(--sobre-tinta-filete);
+}
+
+.portada-tira-icono {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: var(--r);
+  background: var(--sobre-tinta-velo-2); color: var(--cian-claro);
 }
 
 .portada-tira-numero {
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  color: var(--cian);
-  opacity: 0.75;
+  font-size: var(--t-xs);
+  letter-spacing: 0.1em;
+  color: var(--cian-claro);
 }
 
 .portada-tira-nombre {
-  font-size: 13px;
-  color: #a9bcdd;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--sobre-tinta-1);
   line-height: 1.35;
 }
 
+@media (max-width: 900px) {
+  .portada-tira { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 640px) {
-  .portada-hero { padding: 44px 22px 30px; }
-  .portada-logo { margin-bottom: 26px; }
-  .portada-tira { padding: 20px 18px 26px; gap: 14px 0; }
-  .portada-tira-item { flex-basis: 45%; }
+  .portada-hero { padding: var(--e-12) var(--e-5) var(--e-8); }
+  .portada-logo { margin-bottom: var(--e-6); }
+  .portada-acciones .boton { width: 100%; }
+  .portada-tira { padding: var(--e-4) var(--e-4) var(--e-6); gap: var(--e-2); }
+  .portada-tira-item { flex-direction: row; align-items: center; padding: var(--e-3); }
 }
 
 /* ==========================================================================
-   Portada con sesión: cifras y remate de las tarjetas.
+   Portada con sesión: el progreso primero.
+
+   El eslogan de la portada pública ya lo leyó al entrar; aquí lo que se
+   busca es por dónde va. Saludo, tres cifras con su barra, lo que dejó a
+   medias y, debajo, los módulos con su color y su avance.
    ========================================================================== */
 
-.portada-cifras {
-  display: flex;
-  gap: 30px;
-  flex-wrap: wrap;
-  margin: 0 0 26px;
-  padding: 18px 0;
-  border-top: 1px solid var(--linea);
-  border-bottom: 1px solid var(--linea);
+.portada-saludo {
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--e-10); align-items: center;
+  padding-bottom: var(--e-10); margin-bottom: var(--e-10); border-bottom: 1px solid var(--linea);
 }
+.portada-saludo h1 { margin: var(--e-2) 0 var(--e-2); }
+.portada-saludo .lead { margin-bottom: var(--e-6); }
+.hero-figura { position: relative; background: var(--degradado-marino); border-radius: var(--r-xl); padding: var(--e-5); overflow: hidden; box-shadow: var(--sombra-2); }
+/* El lienzo lo pone `CuerpoDePortada` cuando ya tiene qué pintar. Hasta entonces
+   la tarjeta guarda el hueco, para que el pie no salte, y el cuerpo entra
+   fundiéndose en vez de aparecer de golpe. */
+.cuerpo-portada { position: relative; width: 100%; height: 320px; opacity: 0; transition: opacity 1.2s ease; }
+.cuerpo-portada-listo { opacity: 1; }
+.cuerpo-portada canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+@media (prefers-reduced-motion: reduce) { .cuerpo-portada { transition: none; } }
+.hero-pie { display: flex; justify-content: space-between; align-items: baseline; gap: var(--e-2); margin-top: var(--e-3); font-size: var(--t-xs); color: var(--sobre-tinta-3); }
+.hero-codigo { font-family: var(--mono); color: var(--cian-claro); letter-spacing: 0.05em; }
 
-.portada-cifra { display: flex; flex-direction: column; gap: 2px; }
-
-.portada-cifra strong {
-  font-size: 26px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  color: var(--tinta);
-  line-height: 1;
+/* Las cifras como tarjetas. Eran tres números sueltos entre dos filetes, y
+   «0 marcadas como leídas» al lado de «75 por leer» no decía cuánto faltaba. */
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--e-3); }
+.kpi {
+  display: flex; flex-direction: column; gap: var(--e-1);
+  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
+  box-shadow: var(--sombra-1); padding: var(--e-4);
 }
-
-.portada-cifra span {
-  font-size: 12.5px;
-  color: var(--mudo);
+.kpi-valor { font-size: var(--t-xl); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--tinta); }
+.kpi-total { font-size: var(--t-base); font-weight: 500; color: var(--mudo); }
+.kpi-texto { font-size: var(--t-sm); color: var(--mudo); }
+.progreso {
+  display: block; height: 6px; border-radius: var(--r-full); overflow: hidden;
+  background: var(--linea-suave); margin-top: var(--e-2);
 }
+.progreso > span { display: block; height: 100%; border-radius: inherit; background: var(--acento, var(--marca)); }
+.kpi-leidas .progreso > span { background: var(--verde); }
 
-.continuar-leyendo { margin-bottom: 56px; }
+.seccion-portada { margin-bottom: var(--e-12); }
+.seccion-portada .rejilla-fichas { margin-bottom: 0; }
 
-.tarjeta-ficha-accion {
-  margin-top: auto;
-  padding-top: 14px;
-  color: var(--marca);
-  font-size: 14px;
-  font-weight: 500;
+/* ---------- tarjetas de módulo ---------- */
+.rejilla-modulos { display: grid; gap: var(--e-4); grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.tarjeta-modulo {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: var(--e-2);
+  background: var(--superficie);
+  border: 1px solid var(--linea-suave); border-top: 3px solid var(--acento, var(--marca));
+  border-radius: var(--r-lg); box-shadow: var(--sombra-1);
+  padding: var(--e-5) var(--e-6) var(--e-6);
+  text-decoration: none; color: inherit;
+  transition: box-shadow var(--dur) var(--curva), transform var(--dur) var(--curva), border-color var(--dur-rapida) ease;
 }
+.tarjeta-modulo:hover { box-shadow: var(--sombra-2); transform: translateY(-2px); border-color: var(--linea); border-top-color: var(--acento, var(--marca)); }
+/* El número del módulo como marca de agua en su color tenue. Es adorno
+   —`aria-hidden`, el orden ya lo dice la rejilla— y por eso puede ir con un
+   contraste que no se le pediría a un texto; antes iba en `--linea` sobre
+   blanco, que era un texto de 22 px casi invisible. */
+.modulo-numero {
+  position: absolute; top: var(--e-2); right: var(--e-4);
+  font-family: var(--mono); font-size: 56px; font-weight: 700; line-height: 1;
+  color: var(--acento-tenue, var(--marca-tenue)); letter-spacing: -0.04em; pointer-events: none;
+}
+.tarjeta-modulo .icono-modulo { position: relative; margin-bottom: var(--e-2); }
+.tarjeta-modulo h3 { position: relative; margin: 0; }
+.tarjeta-modulo:hover h3 { color: var(--acento, var(--marca)); }
+.tarjeta-modulo p { font-size: var(--t-sm); color: var(--pizarra); flex: 1; margin: 0 0 var(--e-2); }
+.modulo-avance { display: flex; flex-direction: column; gap: 0; font-size: var(--t-xs); color: var(--mudo); }
+.modulo-avance .progreso { margin-top: var(--e-1); }
+.modulo-pie { display: flex; justify-content: space-between; align-items: center; gap: var(--e-2); flex-wrap: wrap; margin-top: var(--e-2); }
+.modulo-pie .etiquetas { margin: 0; }
+.conteo { font-size: var(--t-sm); color: var(--acento, var(--marca)); font-weight: 600; white-space: nowrap; }
+.conteo-vacio { color: var(--mudo); font-weight: 500; }
 
-/* Ablanda el `text-transform: uppercase` que la insignia recibe del bloque
-   `.tarjeta-ficha .codigo, .tarjeta-ficha .borrador`. Es para los códigos que
-   escribe el autor en las demás rejillas —«31-a1», «s82.3»—. */
-.tarjeta-ficha .codigo { text-transform: capitalize; }
-
-/* Menos en «Continúa leyendo», que es la única insignia que no lleva un código
-   sino el nombre del módulo. La regla de arriba nació cuando ahí se pintaba el
-   slug crudo y servía para que «patologias» no saliera en mayúsculas; desde que
-   esa insignia usa `NOMBRE_DE_MODULO` (page.tsx), `capitalize` le pone mayúscula
-   a la preposición: «Biblioteca De Patologías», «Lectura De Imágenes», en la
-   primera pantalla del residente.
-
-   `none` y no borrar la regla de arriba: sin ella volvería a mandar el
-   `uppercase` de aquel bloque y la insignia pasaría a «BIBLIOTECA DE
-   PATOLOGÍAS». Va por descendencia —especificidad (0,3,0)— para que gane sin
-   depender de dónde caiga en el archivo. */
-.continuar-leyendo .tarjeta-ficha .codigo { text-transform: none; }
+/* ---------- estados: error, no encontrado, sin acceso ---------- */
+.estado {
+  max-width: 640px; margin: var(--e-8) auto 0;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+}
+.estado-icono {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 72px; height: 72px; border-radius: var(--r-xl);
+  background: var(--marca-tenue); color: var(--marca); margin-bottom: var(--e-5);
+}
+.estado-error .estado-icono { background: var(--alerta-tenue); color: var(--alerta); }
+.estado-candado .estado-icono { background: var(--ambar-tenue); color: var(--ambar-texto); }
+.estado-codigo { margin-bottom: var(--e-2); }
+.estado h1 { font-size: var(--t-xl); margin: 0 0 var(--e-3); }
+.estado p { color: var(--pizarra); max-width: 56ch; }
+.estado .fila-botones { justify-content: center; margin-top: var(--e-5); }
+.estado .nota-al-pie { text-align: center; }
 
 /* ==========================================================================
    Campos con formato fuera de los bloques.
@@ -1700,7 +1650,7 @@ figcaption { font-size: 13px; color: var(--pizarra); margin-top: 8px; }
 .nota-tecnica > p:last-child,
 dd > div > p:last-child { margin-bottom: 0; }
 
-.nota-tecnica > p { margin-bottom: 8px; }
+.nota-tecnica > p { margin-bottom: var(--e-2); }
 
 dd > div > h2,
 dd > div > h3,
@@ -1708,25 +1658,25 @@ dd > div > h4,
 .nota-tecnica h2,
 .nota-tecnica h3,
 .nota-tecnica h4 {
-  font-size: 14px;
-  margin: 14px 0 6px;
+  font-size: var(--t-base);
+  margin: var(--e-3) 0 var(--e-1);
   color: var(--tinta);
 }
 
 dd > div ul,
 dd > div ol,
 .entrada ul,
-.entrada ol { padding-left: 1.3em; margin: 8px 0; }
+.entrada ol { padding-left: 1.3em; margin: var(--e-2) 0; }
 
 dd > div li,
-.entrada li { margin-bottom: 4px; }
+.entrada li { margin-bottom: var(--e-1); }
 
 dd > div blockquote,
 .entrada blockquote {
   border-left: 3px solid var(--marca);
   background: var(--marca-tenue);
-  padding: 10px 14px;
-  margin: 12px 0;
+  padding: var(--e-2) var(--e-4);
+  margin: var(--e-3) 0;
   border-radius: 0 var(--r) var(--r) 0;
 }
 
@@ -1734,11 +1684,11 @@ dd > div blockquote p:last-child,
 .entrada blockquote p:last-child { margin-bottom: 0; }
 
 
-/* ---------- preparaciones anatómicas dentro de una ficha ---------- */
-/* ---------- la preparación dentro de una ficha pública ---------- */
+/* ---------- la preparación anatómica dentro de una ficha pública ---------- */
 .atlas-instancia {
+  position: relative;
   height: 460px;
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
   overflow: hidden;
   border: 1px solid var(--linea);
 }
@@ -1746,32 +1696,19 @@ dd > div blockquote p:last-child,
 .atlas-instancia .atlas-lienzo { border: 0; border-radius: 0; height: 100%; }
 
 .atlas-credito {
-  font-size: 10.5px !important;
+  font-size: var(--t-xs) !important;
   color: var(--mudo);
   font-style: normal !important;
 }
 
-/* Aquí había cuatro reglas del taller anatómico —`.atlas-marco`,
-   `.atlas-centro`, `.atlas-panel` y `.atlas-panel-derecho`, con su `@media` de
-   1200 px entero— copiadas de `admin.css`. El taller solo se pinta en
-   `TallerDeAtlas.tsx`, dentro del panel, que carga `admin.css` y ya las trae
-   idénticas; y por debajo de 899 px `admin.css` esconde `.atlas-taller` entero,
-   así que las de 820 px no podían llegar a nada ni allí. Lo que queda abajo es
-   lo que la ficha pública necesita de verdad: el visor de una preparación ya
-   hecha, que sí se lee en el móvil.
-
-   El reparto es: el visor de la preparación (`.atlas-instancia`,
+/* El reparto es: el visor de la preparación (`.atlas-instancia`,
    `.atlas-lienzo`, `.atlas-cargando`, `.atlas-barra`, `.atlas-error`,
    `.atlas-flotante`, `.atlas-credito`) vive aquí; el taller
    (`.atlas-marco`, `.atlas-taller`, `.atlas-panel*`, `.atlas-centro`,
    `.atlas-arbol*`, `.atlas-solo-escritorio`) vive solo en `admin.css`. Estaban
    en los dos sitios y ya habían divergido sin que nadie lo decidiera. */
 
-@media (max-width: 820px) {
-  /* Aquí había también un `.atlas-lienzo { height: 52vh }` que no se aplicaba
-     nunca: `.atlas-lienzo { height: 100% }`, siete líneas más abajo, tiene la
-     misma especificidad y va después, y una consulta de medios no añade
-     especificidad. */
+@media (max-width: 900px) {
   .atlas-instancia { height: 60vh; }
 }
 
@@ -1780,7 +1717,7 @@ dd > div blockquote p:last-child,
 .atlas-lienzo {
   position: relative;
   height: 100%;
-  background: linear-gradient(180deg, #f7f9fc 0%, #e9eef6 100%);
+  background: var(--lienzo-3d);
   overflow: hidden;
 }
 
@@ -1793,16 +1730,16 @@ dd > div blockquote p:last-child,
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  background: rgba(247, 249, 252, 0.9);
+  gap: var(--e-2);
+  background: var(--lienzo-3d);
   color: var(--pizarra);
-  font-size: 13px;
+  font-size: var(--t-sm);
 }
 
 .atlas-barra {
   width: 200px;
   height: 4px;
-  border-radius: 100px;
+  border-radius: var(--r-full);
   background: var(--linea);
   overflow: hidden;
 }
@@ -1811,12 +1748,12 @@ dd > div blockquote p:last-child,
   display: block;
   height: 100%;
   background: var(--marca);
-  transition: width 0.25s ease;
+  transition: width var(--dur) ease;
 }
 
 .atlas-error {
   position: absolute;
-  inset: 16px;
+  inset: var(--e-4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1825,23 +1762,24 @@ dd > div blockquote p:last-child,
   border: 1px solid var(--alerta);
   border-radius: var(--r);
   color: var(--tinta);
-  font-size: 13.5px;
-  padding: 16px;
+  font-size: var(--t-sm);
+  padding: var(--e-4);
 }
 
-/* Las vistas con nombre de una preparación, bajo su visor (D-135). */
-.atlas-vistas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+/* Las vistas con nombre de una preparación, bajo su visor (D-135). Píldoras
+   de 36 px (40 en pantalla táctil): eran de 26 y se pulsaban con la uña. */
+.atlas-vistas { display: flex; flex-wrap: wrap; gap: var(--e-2); margin-top: var(--e-2); }
 .atlas-vistas button {
-  font: inherit;
-  font-size: 12.5px;
-  padding: 4px 11px;
-  border: 1px solid var(--linea);
-  border-radius: 14px;
-  background: var(--superficie);
-  color: var(--tinta);
-  cursor: pointer;
+  display: inline-flex; align-items: center; gap: var(--e-1);
+  min-height: 36px; padding: 0 var(--e-3);
+  font: inherit; font-size: var(--t-sm);
+  border: 1px solid var(--linea-fuerte); border-radius: var(--r-full);
+  background: var(--superficie); color: var(--tinta); cursor: pointer;
 }
-.atlas-vistas button:hover { border-color: var(--marca); color: var(--marca); }
+.atlas-vistas button:hover { border-color: var(--marca); color: var(--marca); background: var(--marca-tenue); }
+@media (pointer: coarse) {
+  .atlas-vistas button { min-height: 40px; }
+}
 
 /* Lo apuntado sobre el modelo (D-135): textos HTML que el visor coloca en cada
    dibujado. Sin eventos, para no comerse los clics del lienzo. */
@@ -1851,23 +1789,23 @@ dd > div blockquote p:last-child,
   top: 0;
   left: 0;
   white-space: nowrap;
-  font-size: 11.5px;
+  font-size: var(--t-xs);
   line-height: 1.2;
-  padding: 2px 7px;
-  border-radius: 10px;
-  background: rgba(20, 28, 48, 0.86);
-  color: #fff;
+  padding: 2px var(--e-2);
+  border-radius: var(--r-full);
+  background: var(--tinta);
+  color: var(--superficie);
   will-change: transform;
 }
-.atlas-marca-distancia, .atlas-marca-angulo { background: #d81b60; font-variant-numeric: tabular-nums; }
+.atlas-marca-distancia, .atlas-marca-angulo { background: var(--magenta-medida); font-variant-numeric: tabular-nums; }
 
 .atlas-flotante {
   position: absolute;
   pointer-events: none;
   background: var(--tinta);
-  color: #fff;
-  font-size: 12px;
-  padding: 4px 9px;
+  color: var(--superficie);
+  font-size: var(--t-xs);
+  padding: var(--e-1) var(--e-2);
   border-radius: var(--r);
   max-width: 260px;
   white-space: nowrap;
@@ -1877,16 +1815,22 @@ dd > div blockquote p:last-child,
 }
 
 /* ---------- página de créditos ---------- */
-.creditos-texto { font-size: 14.5px; line-height: 1.6; color: var(--pizarra); }
-.creditos-texto h3 { font-size: 15px; margin: 20px 0 8px; color: var(--tinta); }
-.creditos-texto li { margin-bottom: 5px; }
+.creditos-seccion { display: flex; gap: var(--e-4); align-items: flex-start; }
+.creditos-seccion > .icono-modulo { margin-top: 2px; }
+.creditos-seccion > div { flex: 1; min-width: 0; }
+.creditos-texto { font-size: var(--t-base); line-height: 1.65; color: var(--pizarra); }
+.creditos-texto h3 { font-size: var(--t-base); margin: var(--e-6) 0 var(--e-2); color: var(--tinta); }
+.creditos-texto h3:first-child { margin-top: 0; }
+.creditos-texto ul { padding-left: var(--e-5); }
+.creditos-texto li { margin-bottom: var(--e-2); }
+.creditos-texto a { overflow-wrap: anywhere; }
 
 .creditos-cita {
   border-left: 3px solid var(--marca);
   background: var(--marca-tenue);
-  padding: 10px 14px;
-  margin: 12px 0;
-  font-size: 14px;
+  padding: var(--e-3) var(--e-4);
+  margin: var(--e-3) 0;
+  font-size: var(--t-base);
   color: var(--tinta);
   border-radius: 0 var(--r) var(--r) 0;
 }
@@ -1901,9 +1845,9 @@ dd > div blockquote p:last-child,
    ========================================================================== */
 .pie-de-pagina {
   border-top: 1px solid var(--linea-suave);
-  padding: 18px 24px 22px;
+  padding: var(--e-5) var(--e-6) var(--e-6);
   text-align: center;
-  font-size: 12.5px;
+  font-size: var(--t-sm);
   line-height: 1.6;
   color: var(--mudo);
 }
@@ -1916,39 +1860,23 @@ dd > div blockquote p:last-child,
    hacia un lado. */
 .pie-de-pagina-correo { overflow-wrap: anywhere; }
 
-/* Los mismos 18 px de lado que `main` en el teléfono, para que el texto del pie
-   no quede más metido ni más fuera que el de la página que cierra. */
-@media (max-width: 640px) {
-  .pie-de-pagina { padding: 16px 18px 20px; }
-}
-
 /* Dentro del panel no se ve: la barra lateral ya lleva el crédito
    (`.admin-sidebar-credito`), y dos firmas en la misma pantalla sobran.
 
    Se decide aquí y no en `layout.tsx` porque el layout es de servidor y no
-   conoce la ruta: Next le pasa la dirección a la página, no al layout. Y
-   aunque la sacara de las cabeceras, no bastaría: un layout no se vuelve a
-   pintar al navegar entre páginas que lo comparten, así que al pasar de la
-   plataforma al panel con un `<Link>` el pie seguiría como lo decidió la
-   primera carga. Es el mismo recurso con el que `admin.css` esconde la barra
-   superior dentro del panel; la regla vive aquí, junto al pie, porque esta
-   hoja se carga en todas las páginas y `admin.css` solo en el panel. */
+   conoce la ruta, y un layout no se vuelve a pintar al navegar entre páginas
+   que lo comparten. La regla vive aquí, junto al pie, porque esta hoja se
+   carga en todas las páginas y `admin.css` solo en el panel. */
 body:has(.admin-layout) .pie-de-pagina { display: none; }
 
 /* Las dos pantallas de una sola vista —el acceso y la portada sin sesión—
    miden `min-height: 100vh` para centrar su contenido. Con el pie detrás, esa
-   vista entera más el pie no caben: el pie quedaba debajo del borde, y con la
-   barra superior encima (una sesión abierta que visita `/clave`) la página ya
-   medía 58 px más que la ventana antes de que hubiera pie.
+   vista entera más el pie no caben: el pie quedaba debajo del borde.
 
    El `body` pasa a columna solo en esas dos pantallas, y la pantalla ocupa lo
-   que dejan la barra y el pie en vez de una vista entera. Sin `:has()` —o si
-   algún día el `<main>` deja de ser hijo directo del `body`— nada de esto
-   aplica y todo vuelve a como estaba: la caja centrada en la vista y el pie
-   debajo, a un desplazamiento. No se hizo para todas las páginas: en una
-   columna `flex`, el `margin: 0 auto` de `main` encoge el ancho al contenido, y
-   una ficha corta se quedaría en una cinta estrecha en el centro. Por eso aquí
-   el margen se anula. */
+   que dejan la barra y el pie en vez de una vista entera. En una columna
+   `flex`, el `margin: 0 auto` de `main` encoge el ancho al contenido, y por eso
+   aquí el margen se anula. */
 body:has(> .acceso),
 body:has(> .portada-publica) {
   display: flex;
@@ -1965,14 +1893,56 @@ body:has(> .portada-publica) > .portada-publica {
 }
 
 /* Sobre la portada marina, un pie claro sería una franja blanca pegada al
-   degradado. Toma el color con el que el degradado termina, y los mismos tonos
-   de `.portada-tira`, que ya están medidos sobre ese fondo: #a9bcdd da 6,7:1
-   sobre #143063 y #7fd0f5 algo más. El cian de la paleta se queda en 4,35:1,
-   por debajo de AA para esta letra, y por eso el enlace no lo usa. */
+   degradado. Toma el color con el que el degradado termina, y el enlace va en
+   el cian aclarado: el de la paleta se queda en 4,35:1 sobre ese fondo. */
 .portada-publica ~ .pie-de-pagina {
-  background: #143063;
-  border-top-color: rgba(255, 255, 255, 0.09);
-  color: #a9bcdd;
+  background: var(--marino-3);
+  border-top-color: var(--sobre-tinta-filete);
+  color: var(--sobre-tinta-2);
 }
 
-.portada-publica ~ .pie-de-pagina a { color: #7fd0f5; }
+.portada-publica ~ .pie-de-pagina a { color: var(--cian-claro); }
+
+/* ---------- pantallas estrechas ---------- */
+@media (max-width: 900px) {
+  .portada-saludo { grid-template-columns: 1fr; gap: var(--e-6); }
+  .hero-figura { display: none; }
+  .pros-contras { grid-template-columns: 1fr; }
+  .acceso { padding-top: var(--e-10); }
+}
+@media (max-width: 640px) {
+  main { padding: var(--e-6) var(--e-4) var(--e-12); }
+  h1 { font-size: var(--t-xl); }
+  .figura.pequena, .figura.media { max-width: 100%; float: none; margin: 0 0 var(--e-5); }
+  .aviso-actualizacion { left: var(--e-4); right: var(--e-4); bottom: var(--e-4); flex-wrap: wrap; }
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .kpi:first-child { grid-column: 1 / -1; }
+  .kpi-valor { font-size: var(--t-lg); }
+  .rejilla-modulos, .rejilla-fichas { grid-template-columns: 1fr; }
+  /* La definición en dos columnas no cabe en 360 px: el rótulo arriba y el
+     valor debajo. */
+  .ficha-datos { grid-template-columns: 1fr; gap: 0; }
+  .ficha-datos dd { margin-bottom: var(--e-3); }
+  .maniobra-cabecera, .maniobra-cuerpo { padding: var(--e-4); }
+  .maniobra-pie { padding: var(--e-3) var(--e-4); }
+  .pasos-ao > li { padding-left: var(--e-10); }
+  .paso-cuerpo { padding: var(--e-4); }
+  .acceso { padding: var(--e-8) var(--e-3) var(--e-8); }
+  .acceso-caja { padding: var(--e-6) var(--e-5); }
+  .acceso-fondo { height: 200px; }
+  .barra-filtros { padding: var(--e-2); }
+  .campo-busqueda { min-width: 100%; }
+  .barra-filtros select { flex: 1; }
+  .creditos-seccion { flex-direction: column; gap: var(--e-3); }
+  .herramientas-maniobras { margin: 0 calc(-1 * var(--e-4)) var(--e-5); padding: var(--e-2) var(--e-4); }
+}
+
+/* Dentro del visor de la preparación la envoltura del bloqueo táctil tiene
+   que ocupar el alto entero: el lienzo del atlas mide `height: 100%` de su
+   padre, y sin esto se quedaba en cero. */
+.atlas-instancia > .bloqueo-tactil { height: 100%; }
+
+/* El texto del botón de comentar es una pregunta entera («¿Encontró un error…?»)
+   y con `nowrap` heredado de `.boton` empujaba la ficha 70 px fuera de la
+   pantalla en el teléfono. Aquí sí puede partirse. */
+.boton-comentar { white-space: normal; text-align: left; height: auto; padding-top: var(--e-2); padding-bottom: var(--e-2); }

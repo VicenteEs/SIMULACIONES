@@ -38,7 +38,7 @@ export function FormularioInstalar() {
       }}
     >
       {error ? (
-        <div className="acceso-error" role="alert">
+        <div className="advertencia error" role="alert">
           {error}
         </div>
       ) : null}
@@ -88,7 +88,7 @@ export function FormularioInstalar() {
 
       <button
         type="submit"
-        className="acceso-boton"
+        className="boton boton-lg boton-bloque"
         disabled={enCurso || clave.length < 12 || clave !== repetida}
       >
         {enCurso ? 'Creando…' : 'Crear cuenta y entrar'}

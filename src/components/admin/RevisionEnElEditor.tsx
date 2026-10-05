@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
+import { useConfirmar } from '@/components/ui/Confirmar'
+import { useAvisos } from '@/components/ui/Avisos'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -52,11 +54,11 @@ const fecha = (valor: string | null) =>
 const conPunto = (frase: string) => (frase.endsWith('.') ? frase : `${frase}.`)
 
 const CLASE_DE_ESTADO: Record<EstadoDeRevision, string> = {
-  pendiente: 'revision-estado-pendiente',
-  'en-revision': 'revision-estado-en-revision',
-  lista: 'revision-estado-lista',
-  devuelta: 'revision-estado-devuelta',
-  publicada: 'revision-estado-publicada',
+  pendiente: 'insignia-atencion',
+  'en-revision': 'insignia-info',
+  lista: 'insignia-ok',
+  devuelta: 'insignia-peligro',
+  publicada: 'insignia-neutra',
 }
 
 /** Qué se pinta cuando la acción de servidor no llega a responder (ver `FormularioDocumento`). */
@@ -87,6 +89,8 @@ export function RevisionEnElEditor({
   alCambiarNota: (texto: string) => void
 }) {
   const router = useRouter()
+  const confirmar = useConfirmar()
+  const avisarFlotante = useAvisos()
   const [enCurso, iniciar] = useTransition()
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [revisores, setRevisores] = useState<{ id: string; nombre: string; rol: string }[] | null>(null)
@@ -124,6 +128,7 @@ export function RevisionEnElEditor({
         }
         despues?.()
         setAviso({ tipo: 'ok', texto: hecho })
+        avisarFlotante('ok', hecho)
         router.refresh()
       } catch (fallo) {
         setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo completar.') })
@@ -229,7 +234,7 @@ export function RevisionEnElEditor({
   return (
     <section className="revision-caja" aria-label="Revisión de la ficha">
       <div className="revision-cabecera">
-        <span className={`admin-badge ${CLASE_DE_ESTADO[revision.estado] ?? 'admin-badge-neutro'}`}>
+        <span className={`insignia ${CLASE_DE_ESTADO[revision.estado] ?? 'insignia-neutra'}`}>
           {estadoEnPalabras(revision.estado)}
         </span>
         <strong>{origenEnPalabras(revision.origen)}</strong>
@@ -270,8 +275,8 @@ export function RevisionEnElEditor({
         <>
           <p className="revision-linea">
             Su revisión: {duracionEnPalabras(revision.mio.segundosActivos)} de revisión activa ·{' '}
-            {revisadas} de {secciones.length} secciones con contenido revisadas. Las revisadas llevan ✓
-            en su pestaña.
+            {revisadas} de {secciones.length} secciones con contenido revisadas. Las revisadas llevan una marca
+            verde en su pestaña.
           </p>
           <label className="revision-nota-campo">
             <span className="campo-etiqueta">Nota para quien publique (opcional)</span>
@@ -347,13 +352,15 @@ export function RevisionEnElEditor({
               type="button"
               className="admin-btn admin-btn-danger admin-btn-sm"
               disabled={enCurso}
-              onClick={() => {
-                if (
-                  !confirm(
-                    '¿Sacar esta ficha de revisión?\n\nSe borran su versión original, su historial y el tiempo que los revisores le dedicaron. La ficha no se toca, y desde ese momento se publica como cualquier otra.',
-                  )
-                )
-                  return
+              onClick={async () => {
+                const si = await confirmar({
+                  titulo: '¿Sacar esta ficha de revisión?',
+                  mensaje:
+                    'Se borran su versión original, su historial y el tiempo que los revisores le dedicaron. La ficha no se toca, y desde ese momento se publica como cualquier otra.',
+                  confirmar: 'Sacar de revisión',
+                  peligro: true,
+                })
+                if (!si) return
                 hacer(() => sacarDeRevision(coleccion, id), 'La ficha salió de revisión.')
               }}
             >

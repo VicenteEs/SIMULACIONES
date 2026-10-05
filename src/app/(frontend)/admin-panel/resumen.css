@@ -1,0 +1,48 @@
+/* ==========================================================================
+   El Resumen del panel (`admin-panel/page.tsx`).
+
+   Hoja propia porque estas piezas solo existen aquí: el enlace estirado de
+   las tarjetas de indicador y el tono de su icono. Lo común —`.kpi`,
+   `.tarjeta-modulo`, `.admin-card-enlace`— está en `panel.css`.
+   ========================================================================== */
+
+/* El título es el enlace, y su `::after` cubre la tarjeta entera: toda ella
+   se pulsa, pero el nombre accesible del enlace es solo el del indicador. */
+.kpi-enlace {
+  color: var(--pizarra);
+  text-decoration: none;
+}
+.kpi-enlace::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-lg);
+}
+/* El foco se dibuja en la tarjeta y no en el título: es la tarjeta lo que se
+   ve como pulsable. */
+.kpi-enlace:focus-visible { outline: none; }
+.kpi:has(.kpi-enlace:focus-visible) { outline: 2px solid var(--marca); outline-offset: 2px; }
+
+/* El segundo destino de una tarjeta (la auditoría en la de revisión), por
+   encima del enlace que la cubre. */
+.kpi-secundario {
+  position: relative;
+  z-index: 1;
+  align-self: flex-start;
+  margin-top: var(--e-2);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--marca);
+}
+.kpi-secundario:hover { color: var(--marca-honda); }
+
+/* El tono del icono dice cómo está el indicador sin leer la cifra: verde lo
+   que está bien, ámbar lo que espera a alguien, azul lo informativo. */
+.kpi-icono-ok { --acento: var(--verde); --acento-tenue: var(--verde-tenue); }
+.kpi-icono-atencion { --acento: var(--ambar-texto); --acento-tenue: var(--ambar-tenue); }
+.kpi-icono-info { --acento: var(--marca); --acento-tenue: var(--marca-tenue); }
+
+.resumen-bandera { vertical-align: -2px; color: var(--alerta); }
+
+/* Dentro de la sección plegable la rejilla no necesita su margen inferior. */
+.resumen-modulos { margin-bottom: 0; }

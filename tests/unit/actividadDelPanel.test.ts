@@ -68,6 +68,8 @@ describe('el listado que no se puede leer', () => {
   it('tampoco da un recuento de cero registros', () => {
     // El subtítulo con «0 registros» sería la misma respuesta falsa que el
     // aviso existe para no dar: solo se pinta si hubo listado.
-    expect(pagina).toMatch(/\{listado \? \( <p className="admin-subtitle"> \{totalDocs\}/)
+    // Desde que la pantalla usa `CabeceraDePagina`, el subtítulo es una prop:
+    // el recuento sigue colgando de `listado ? (...) : undefined`.
+    expect(pagina).toMatch(/subtitulo=\{ listado \? \( <> \{totalDocs\}/)
   })
 })

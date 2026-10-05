@@ -5,26 +5,8 @@ import Link from 'next/link'
 import { solicitarCuenta } from '@/app/(frontend)/acciones/sesion'
 
 /**
- * El `textarea` con el mismo aspecto que los `input` de `.acceso-campo`.
- *
- * La hoja pública solo declara los `input` de esa clase, y un `textarea` sin
- * estilos toma el color y el fondo del navegador: en un móvil con tema oscuro
- * sale un recuadro negro en mitad de una caja blanca. Va en línea porque la
- * hoja es de otro lote; el día que declare `.acceso-campo textarea`, esto sobra.
- */
-const ESTILO_DEL_TEXTAREA = {
-  padding: '10px 12px',
-  border: '1px solid var(--linea)',
-  borderRadius: 'var(--r)',
-  font: 'inherit',
-  fontSize: 15,
-  color: 'var(--tinta)',
-  background: 'var(--superficie)',
-  resize: 'vertical' as const,
-}
-
-/**
- * El campo trampa, fuera de la pantalla y no con `display: none`.
+ * El campo trampa (`.campo-trampa` en `estilos.css`), fuera de la pantalla y no
+ * con `display: none`.
  *
  * Los robots que rellenan formularios se saltan lo que está oculto de la forma
  * obvia, y precisamente por eso se saca de la vista moviéndolo: sigue en el
@@ -33,14 +15,6 @@ const ESTILO_DEL_TEXTAREA = {
  * el `autoComplete="off"` evita que el navegador lo rellene solo con la web de
  * su perfil, que convertiría a esa persona en robot sin que lo supiera.
  */
-const ESTILO_DE_LA_TRAMPA = {
-  position: 'absolute' as const,
-  left: '-10000px',
-  top: 'auto',
-  width: 1,
-  height: 1,
-  overflow: 'hidden',
-}
 
 export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
   const [enCurso, iniciar] = useTransition()
@@ -63,7 +37,7 @@ export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
         {/* El mismo texto exista o no una cuenta con ese correo: la acción
             contesta igual en los dos casos, y la verdad le llega al titular
             por correo. */}
-        <div className="acceso-aviso" role="status">
+        <div className="advertencia exito" role="status">
           <strong>Solicitud enviada.</strong>{' '}
           {conCorreo
             ? `Le llegará un correo a ${correo} confirmando que la recibimos. Un administrador la revisará y, cuando active su cuenta, le avisaremos por correo para que pueda entrar.`
@@ -108,7 +82,7 @@ export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
       }}
     >
       {error ? (
-        <div className="acceso-error" role="alert">
+        <div className="advertencia error" role="alert">
           {error}
         </div>
       ) : null}
@@ -153,7 +127,6 @@ export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
         <textarea
           rows={3}
           maxLength={1000}
-          style={ESTILO_DEL_TEXTAREA}
           value={motivo}
           onChange={(e) => setMotivo(e.target.value)}
         />
@@ -190,7 +163,7 @@ export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
         {distintas ? <small className="acceso-pista">Todavía no coinciden.</small> : null}
       </label>
 
-      <div aria-hidden="true" style={ESTILO_DE_LA_TRAMPA}>
+      <div aria-hidden="true" className="campo-trampa">
         <label>
           Sitio web
           <input
@@ -206,7 +179,7 @@ export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
 
       <button
         type="submit"
-        className="acceso-boton"
+        className="boton boton-lg boton-bloque"
         disabled={enCurso || clave.length < 12 || clave !== repetida}
       >
         {enCurso ? 'Enviando…' : 'Enviar solicitud'}

@@ -5,6 +5,13 @@ import { useRouter } from 'next/navigation'
 import { borrarRespaldo, respaldarAhora } from '@/app/(frontend)/acciones/respaldos'
 import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
 import { ruta } from '@/lib/rutas'
+import { Archive, Database, DatabaseBackup, Download, FolderOpen, Trash2 } from 'lucide-react'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { useAvisos } from '@/components/ui/Avisos'
+import { useConfirmar } from '@/components/ui/Confirmar'
+import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
+import { Vacio } from '@/components/ui/Vacio'
+import { claseDeInsignia } from '@/lib/tonosDeEstado'
 
 const fechaHora = (valor: string) =>
   new Date(valor).toLocaleString('es-CL', {
@@ -59,7 +66,43 @@ export function PanelDeRespaldos({
 }) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
-  const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const avisar = useAvisos()
+  const confirmar = useConfirmar()
+  /**
+   * El resultado, como aviso flotante: un volcado tarda minutos y quien lo
+   * pidió suele haber bajado a la tabla mientras tanto. El error se queda
+   * además en la página, porque trae el motivo (`pg_dump`, permisos de la
+   * carpeta) y hay que poder releerlo.
+   */
+  const setAviso = (a: { tipo: 'ok' | 'error'; texto: string } | null) => {
+    setError(a?.tipo === 'error' ? a.texto : null)
+    if (a) avisar(a.tipo, a.texto)
+  }
+
+  const eliminar = async (nombre: string) => {
+    const si = await confirmar({
+      titulo: `¿Eliminar ${nombre}?`,
+      mensaje: 'Si es el respaldo más reciente, quedará sin cubrir el trabajo hecho desde el anterior. No se puede deshacer.',
+      confirmar: 'Eliminar respaldo',
+      peligro: true,
+    })
+    if (!si) return
+    setAviso(null)
+    iniciar(async () => {
+      try {
+        const resultado = await borrarRespaldo(nombre)
+        if (resultado.exito) {
+          setAviso({ tipo: 'ok', texto: `Se eliminó ${nombre}.` })
+          router.refresh()
+        } else {
+          setAviso({ tipo: 'error', texto: resultado.mensaje ?? 'No se pudo eliminar.' })
+        }
+      } catch (fallo) {
+        setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo eliminar.') })
+      }
+    })
+  }
 
   const bases = respaldos.filter((r) => r.tipo === 'base')
   const total = respaldos.reduce((t, r) => t + r.bytes, 0)
@@ -86,26 +129,27 @@ export function PanelDeRespaldos({
 
   return (
     <div>
-      <div className="admin-toolbar">
-        <div>
-          <h1 className="admin-title">Respaldos</h1>
-          <p className="admin-subtitle">
-            {bases.length} volcado{bases.length === 1 ? '' : 's'} de la base ·{' '}
-            {tamanoLegible(total)} ocupados en disco
-          </p>
-        </div>
-        <div className="admin-acciones">
+      <CabeceraDePagina
+        titulo="Respaldos"
+        subtitulo={`${bases.length} volcado${bases.length === 1 ? '' : 's'} de la base · ${tamanoLegible(total)} ocupados en disco`}
+        acciones={
           <button
+            type="button"
             className="admin-btn admin-btn-primary"
             onClick={crear}
             disabled={enCurso || !hayHerramienta}
           >
+            <DatabaseBackup aria-hidden size={16} />
             {enCurso ? 'Respaldando…' : 'Respaldar ahora'}
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {aviso ? <div className={`admin-aviso admin-aviso-${aviso.tipo}`}>{aviso.texto}</div> : null}
+      {error ? (
+        <div className="admin-aviso admin-aviso-error" role="status">
+          {error}
+        </div>
+      ) : null}
 
       {problemaDelDirectorio ? (
         // Antes que el aviso de la herramienta: con la carpeta sin permisos el
@@ -140,84 +184,81 @@ export function PanelDeRespaldos({
         misma máquina que la base protege del error, no del incendio.
       </div>
 
-      <div className="admin-table-container">
+      <SeccionPlegable
+        clave="respaldos.lista"
+        titulo="Archivos"
+        resumen={respaldos.length === 1 ? '1 archivo' : `${respaldos.length} archivos`}
+      >
         {respaldos.length === 0 ? (
-          <div className="admin-empty">
-            <div className="admin-empty-icon">🗄️</div>
-            <p className="admin-empty-text">
-              No hay ningún respaldo todavía. Cree el primero con «Respaldar ahora».
-            </p>
-          </div>
+          <Vacio
+            icono={Archive}
+            titulo="No hay ningún respaldo todavía."
+            accion={
+              hayHerramienta ? (
+                <button type="button" className="admin-btn admin-btn-primary" onClick={crear} disabled={enCurso}>
+                  <DatabaseBackup aria-hidden size={16} />
+                  Respaldar ahora
+                </button>
+              ) : undefined
+            }
+          >
+            El primero se crea con «Respaldar ahora»; en el servidor, además, se programa uno diario.
+          </Vacio>
         ) : (
-          <table className="admin-table">
+          <div className="admin-table-container">
+          <table className="admin-table tabla-apilable">
             <thead>
               <tr>
                 <th>Archivo</th>
                 <th>Contenido</th>
                 <th>Fecha</th>
                 <th>Tamaño</th>
-                <th>Acciones</th>
+                <th>
+                  <span className="sr-only">Acciones</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {respaldos.map((r) => (
                 <tr key={r.nombre}>
-                  <td className="admin-table-user-name" style={{ fontFamily: 'var(--mono)', fontSize: '0.8125rem' }}>
+                  <th scope="row" className="admin-table-mono">
                     {r.nombre}
-                  </td>
-                  <td>
-                    <span
-                      className={`admin-badge ${r.tipo === 'base' ? 'admin-badge-publicado' : 'admin-badge-neutro'}`}
-                    >
+                  </th>
+                  <td data-etiqueta="Contenido">
+                    <span className={claseDeInsignia(r.tipo === 'base' ? 'info' : 'neutra')}>
+                      {r.tipo === 'base' ? (
+                        <Database aria-hidden size={12} />
+                      ) : (
+                        <FolderOpen aria-hidden size={12} />
+                      )}
                       {r.tipo === 'base' ? 'Base de datos' : 'Archivos subidos'}
                     </span>
                   </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
+                  <td data-etiqueta="Fecha" className="u-nowrap">
                     {fechaHora(r.creado)}
                     <div className="admin-table-user-email">{antiguedad(r.creado)}</div>
                   </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{tamanoLegible(r.bytes)}</td>
-                  <td>
-                    <div className="admin-acciones">
+                  <td data-etiqueta="Tamaño" className="u-nowrap u-num">
+                    {tamanoLegible(r.bytes)}
+                  </td>
+                  <td className="admin-table-acciones">
+                    <div className="admin-table-acciones-fila">
                       <a
                         className="admin-btn admin-btn-sm admin-btn-secondary"
                         href={ruta(`/api/respaldos/${r.nombre}`)}
                       >
+                        <Download aria-hidden size={14} />
                         Descargar
                       </a>
                       <button
-                        className="admin-btn admin-btn-sm admin-btn-danger"
+                        type="button"
+                        className="admin-btn admin-btn-sm admin-btn-ghost admin-btn-icon"
                         disabled={enCurso}
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `¿Eliminar ${r.nombre}?\n\nSi es el respaldo más reciente, quedará sin cubrir el trabajo hecho desde el anterior.`,
-                            )
-                          ) {
-                            setAviso(null)
-                            iniciar(async () => {
-                              try {
-                                const resultado = await borrarRespaldo(r.nombre)
-                                if (resultado.exito) {
-                                  setAviso({ tipo: 'ok', texto: `Se eliminó ${r.nombre}.` })
-                                  router.refresh()
-                                } else {
-                                  setAviso({
-                                    tipo: 'error',
-                                    texto: resultado.mensaje ?? 'No se pudo eliminar.',
-                                  })
-                                }
-                              } catch (fallo) {
-                                setAviso({
-                                  tipo: 'error',
-                                  texto: motivoDeLaCaida(fallo, 'No se pudo eliminar.'),
-                                })
-                              }
-                            })
-                          }
-                        }}
+                        aria-label={`Eliminar ${r.nombre}`}
+                        title="Eliminar"
+                        onClick={() => eliminar(r.nombre)}
                       >
-                        Eliminar
+                        <Trash2 aria-hidden size={16} />
                       </button>
                     </div>
                   </td>
@@ -225,8 +266,9 @@ export function PanelDeRespaldos({
               ))}
             </tbody>
           </table>
+          </div>
         )}
-      </div>
+      </SeccionPlegable>
     </div>
   )
 }

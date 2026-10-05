@@ -1,4 +1,8 @@
 import Link from 'next/link'
+import { CheckCircle2, CornerUpLeft, Inbox, UserRound, Users } from 'lucide-react'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { Vacio } from '@/components/ui/Vacio'
+import { claseDeInsignia, tonoDeRevision } from '@/lib/tonosDeEstado'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { puedeEditar } from '@/lib/guardias'
 import { duracionEnPalabras, estadoEnPalabras, type EstadoDeRevision } from '@/lib/revision'
@@ -56,6 +60,10 @@ export default async function PaginaPorRevisar({
   let filas: Record<string, unknown>[] = []
   let ilegible = false
   const tiempoMio = new Map<string, number>()
+  // Cuántas hay en cada vista, para el contador de cada pestaña: sin él había
+  // que entrar en «Validadas, sin publicar» para saber si había alguna.
+  // `null` si no se pudo contar: la pestaña se pinta sin número.
+  let cuentas: (number | null)[] = VISTAS.map(() => null)
   try {
     const { docs } = await payload.find({
       collection: 'revisiones',
@@ -87,6 +95,26 @@ export default async function PaginaPorRevisar({
       },
     })
     filas = docs as unknown as Record<string, unknown>[]
+    cuentas = await Promise.all(
+      VISTAS.map((v) =>
+        v.valor === vista.valor
+          ? Promise.resolve(filas.length)
+          : payload
+              .count({
+                collection: 'revisiones',
+                where: {
+                  and: [
+                    { coleccion: { in: modulos } },
+                    { estado: { in: [...v.estados] } },
+                    ...(soloMias ? [{ asignadaA: { equals: usuarioId } }] : []),
+                  ],
+                } as never,
+                overrideAccess: true,
+              })
+              .then((c) => c.totalDocs)
+              .catch(() => null),
+      ),
+    )
     if (filas.length > 0) {
       const { docs: sesiones } = await payload.find({
         collection: 'sesiones-de-revision',
@@ -131,13 +159,15 @@ export default async function PaginaPorRevisar({
 
   return (
     <div>
-      <header className="admin-header">
-        <h1 className="admin-title">Por revisar</h1>
-        <p className="admin-subtitle">
-          Fichas en revisión de sus módulos · {filas.length} en esta vista
-          {mias > 0 ? ` · ${mias} asignada${mias === 1 ? '' : 's'} a usted` : ''}
-        </p>
-      </header>
+      <CabeceraDePagina
+        titulo="Por revisar"
+        subtitulo={
+          <>
+            Fichas en revisión de sus módulos · {filas.length} en esta vista
+            {mias > 0 ? ` · ${mias} asignada${mias === 1 ? '' : 's'} a usted` : ''}
+          </>
+        }
+      />
 
       <div className="admin-aviso admin-aviso-info">
         <strong>Cómo se revisa una ficha.</strong>
@@ -147,23 +177,36 @@ export default async function PaginaPorRevisar({
         administrador.
       </div>
 
-      <nav className="auditoria-bloque" aria-label="Qué fichas ver">
-        {VISTAS.map((v) =>
-          v.valor === vista.valor ? (
-            <strong key={v.valor}>{v.etiqueta}</strong>
-          ) : (
-            <Link key={v.valor} href={enlace({ ver: v.valor })}>
+      {/* Las vistas eran tres enlaces sueltos separados por puntos, con la
+          activa en negrita: no se veía que eran pestañas de lo mismo ni
+          cuántas fichas había detrás de cada una. Ahora es un control
+          segmentado con su contador, y `aria-current` dice cuál está puesta. */}
+      <div className="revision-vistas">
+        <nav className="segmentado" aria-label="Qué fichas ver">
+          {VISTAS.map((v, i) => (
+            <Link
+              key={v.valor}
+              href={enlace({ ver: v.valor })}
+              className="segmentado-opcion"
+              aria-current={v.valor === vista.valor ? 'page' : undefined}
+            >
               {v.etiqueta}
+              {cuentas[i] !== null ? <span className="segmentado-cuenta">{cuentas[i]}</span> : null}
             </Link>
-          ),
-        )}
-        <span aria-hidden="true">·</span>
+          ))}
+        </nav>
         {soloMias ? (
-          <Link href={enlace({ quien: null })}>Ver las de todos</Link>
+          <Link href={enlace({ quien: null })} className="admin-btn admin-btn-ghost admin-btn-sm">
+            <Users aria-hidden size={15} />
+            Ver las de todos
+          </Link>
         ) : (
-          <Link href={enlace({ quien: 'mias' })}>Solo las asignadas a mí</Link>
+          <Link href={enlace({ quien: 'mias' })} className="admin-btn admin-btn-ghost admin-btn-sm">
+            <UserRound aria-hidden size={15} />
+            Solo las asignadas a mí
+          </Link>
         )}
-      </nav>
+      </div>
 
       {ilegible ? (
         <div className="admin-aviso admin-aviso-error">
@@ -172,15 +215,22 @@ export default async function PaginaPorRevisar({
           desde «Contenido».
         </div>
       ) : ordenadas.length === 0 ? (
-        <div className="admin-empty">
-          <div className="admin-empty-icon">✓</div>
-          <p className="admin-empty-text">
-            {vista.valor === 'por-revisar' ? 'No hay nada esperando revisión.' : 'Nada en esta vista.'}
-          </p>
-        </div>
+        <Vacio
+          icono={vista.valor === 'por-revisar' ? CheckCircle2 : Inbox}
+          titulo={vista.valor === 'por-revisar' ? 'No hay nada esperando revisión.' : 'Nada en esta vista.'}
+          accion={
+            soloMias ? (
+              <Link href={enlace({ quien: null })} className="admin-btn admin-btn-secondary">
+                Ver las de todos
+              </Link>
+            ) : null
+          }
+        >
+          {soloMias ? 'Solo se muestran las fichas asignadas a usted.' : null}
+        </Vacio>
       ) : (
         <div className="admin-table-container">
-          <table className="admin-table">
+          <table className="admin-table tabla-apilable">
             <thead>
               <tr>
                 <th>Ficha</th>
@@ -205,28 +255,35 @@ export default async function PaginaPorRevisar({
                       </Link>
                       <div className="revision-tenue">{NOMBRE_DE_MODULO[coleccion] ?? coleccion}</div>
                       {f.estado === 'devuelta' && f.motivoDeDevolucion ? (
-                        <div className="auditoria-motivos">Devuelta: {String(f.motivoDeDevolucion)}</div>
+                        <div className="auditoria-motivos">
+                          <CornerUpLeft aria-hidden size={13} />
+                          Devuelta: {String(f.motivoDeDevolucion)}
+                        </div>
                       ) : null}
                     </th>
-                    <td>
-                      <span className={`admin-badge revision-estado-${String(f.estado)}`}>
+                    <td data-etiqueta="Estado">
+                      <span className={claseDeInsignia(tonoDeRevision(String(f.estado)))}>
                         {estadoEnPalabras(f.estado)}
                       </span>
                     </td>
-                    <td>
+                    <td data-etiqueta="Asignada a">
                       {asignada && typeof asignada === 'object'
                         ? String(asignada.id) === usuarioId
                           ? 'Usted'
                           : String(asignada.nombre || asignada.email || '')
                         : <span className="revision-tenue">sin asignar</span>}
                     </td>
-                    <td>
+                    <td data-etiqueta="Fuente">
                       {[f.libro, f.capitulo && `cap. ${String(f.capitulo)}`, f.paginas && `págs. ${String(f.paginas)}`]
                         .filter(Boolean)
                         .join(' · ') || <span className="revision-tenue">—</span>}
                     </td>
-                    <td className="auditoria-numero">{segundos > 0 ? duracionEnPalabras(segundos) : '—'}</td>
-                    <td>{fecha(f.createdAt)}</td>
+                    <td className="auditoria-numero" data-etiqueta="Su revisión">
+                      {segundos > 0 ? duracionEnPalabras(segundos) : '—'}
+                    </td>
+                    <td className="u-nowrap" data-etiqueta="Desde">
+                      {fecha(f.createdAt)}
+                    </td>
                   </tr>
                 )
               })}

@@ -1,14 +1,14 @@
 import type { Payload } from 'payload'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { BarraApilada, BarrasHorizontales, BarrasVerticales, type Punto } from '@/components/admin/Graficos'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import { clientePayload } from '../datos'
 import { MODULOS } from '../modulos'
 import { leerTitulosDeFichas } from '../titulosDeFichas'
-import {
-  fichasConMasLecturas,
-  modulosConTitulosIlegibles,
-  rotularFichasLeidas,
-} from './fichasMasLeidas'
+import { fichasConMasLecturas, modulosConTitulosIlegibles, rotularFichasLeidas } from './fichasMasLeidas'
+import '../seguimiento.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +34,11 @@ export const dynamic = 'force-dynamic'
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
 /** Las últimas doce claves de mes, de la más antigua a la más reciente. */
-function ultimosDoceMeses(): { clave: string; etiqueta: string; detalle: string }[] {
+function ultimosDoceMeses(): {
+  clave: string
+  etiqueta: string
+  detalle: string
+}[] {
   const hoy = new Date()
   return Array.from({ length: 12 }, (_, i) => {
     const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - (11 - i), 1)
@@ -123,7 +127,10 @@ export default async function PaginaEstadisticas() {
         fechas: await fechasDeCreacion(payload, m.slug),
       })),
     ),
-    leerColeccion(payload, 'actividad', { limite: 2000, orden: '-ultimaVisita' }),
+    leerColeccion(payload, 'actividad', {
+      limite: 2000,
+      orden: '-ultimaVisita',
+    }),
     leerColeccion(payload, 'comentarios', { limite: 1000 }),
     leerColeccion(payload, 'usuarios', { limite: 500 }),
   ])
@@ -210,184 +217,212 @@ export default async function PaginaEstadisticas() {
 
   return (
     <div>
-      <header className="admin-header">
-        <h1 className="admin-title">Estadísticas</h1>
-        <p className="admin-subtitle">
-          {conteo(totalFichas, contenidoIlegible, 'ficha escrita', 'fichas escritas')} ·{' '}
-          {conteo(totalVisitas, actividad === null, 'lectura registrada', 'lecturas registradas')}{' '}
-          · {conteo(activos, usuarios === null, 'cuenta con acceso', 'cuentas con acceso')}
-        </p>
-      </header>
+      <CabeceraDePagina
+        titulo="Estadísticas"
+        subtitulo={
+          <>
+            {conteo(totalFichas, contenidoIlegible, 'ficha escrita', 'fichas escritas')} ·{' '}
+            {conteo(totalVisitas, actividad === null, 'lectura registrada', 'lecturas registradas')} ·{' '}
+            {conteo(activos, usuarios === null, 'cuenta con acceso', 'cuentas con acceso')}
+          </>
+        }
+      />
 
       {noSePudoLeer.length > 0 ? (
         <div className="admin-aviso admin-aviso-atencion" role="status">
           <strong>La base no respondió a parte de estos recuentos.</strong>
-          No se pudo leer: {noSePudoLeer.join(', ')}. Donde aparece «—» o falta un gráfico no hay
-          un cero: es un recuento que no se pudo hacer, y lo que sí se dibuja está calculado solo
-          sobre lo que sí se leyó. Lo corriente es que falte una tabla —un cambio de esquema
-          desplegado sin su migración—; el detalle queda en el registro del servidor.
+          No se pudo leer: {noSePudoLeer.join(', ')}. Donde aparece «—» o falta un gráfico no hay un cero: es
+          un recuento que no se pudo hacer, y lo que sí se dibuja está calculado solo sobre lo que sí se leyó.
+          Lo corriente es que falte una tabla —un cambio de esquema desplegado sin su migración—; el detalle
+          queda en el registro del servidor.
         </div>
       ) : null}
 
-      <h2 className="admin-section-title">Cuánto contenido hay y cómo crece</h2>
-      <div className="admin-grid">
-        <div className={`admin-card admin-card-ancha${contenidoIlegible ? ' admin-card-ilegible' : ''}`}>
-          <div className="admin-card-title">Fichas creadas por mes</div>
-          {contenidoIlegible ? (
-            // Doce barras a cero sobre cero módulos leídos no es un gráfico
-            // vacío: es un gráfico que afirma que no se escribió nada en un año.
-            <p className="admin-card-note">
-              Ningún módulo respondió, así que no hay nada que dibujar aquí. No significa que no
-              haya contenido.
-            </p>
-          ) : (
-            <>
+      {/* Los cuatro bloques se pliegan y recuerdan cómo se dejaron (pedido del
+          dueño): quien viene a mirar solo lo que pide atención no tiene que
+          bajar por encima de tres rejillas de gráficos. */}
+      <PlegarTodo />
+
+      <SeccionPlegable
+        clave="estadisticas.contenido"
+        titulo="Cuánto contenido hay y cómo crece"
+        resumen={conteo(totalFichas, contenidoIlegible, 'ficha', 'fichas')}
+      >
+        <div className="admin-grid">
+          <div className={`admin-card admin-card-ancha${contenidoIlegible ? ' admin-card-ilegible' : ''}`}>
+            <div className="admin-card-title">Fichas creadas por mes</div>
+            {contenidoIlegible ? (
+              // Doce barras a cero sobre cero módulos leídos no es un gráfico
+              // vacío: es un gráfico que afirma que no se escribió nada en un año.
               <p className="admin-card-note">
-                Últimos doce meses
-                {modulosIlegibles.length > 0
-                  ? `, sin ${modulosIlegibles.map((m) => m.nombre).join(' ni ')}`
-                  : ', todos los módulos juntos'}
-                .
+                Ningún módulo respondió, así que no hay nada que dibujar aquí. No significa que no haya
+                contenido.
               </p>
-              <BarrasVerticales datos={creadoPorMes} titulo="Fichas creadas por mes" />
-            </>
-          )}
-        </div>
-
-        <div className={`admin-card${modulosIlegibles.length > 0 ? ' admin-card-ilegible' : ''}`}>
-          <div className="admin-card-title">Reparto por módulo</div>
-          <div className="admin-card-value" style={{ fontSize: '2rem' }}>
-            {contenidoIlegible ? '—' : totalFichas}
-          </div>
-          {/* Solo los módulos que respondieron: una barra a cero sobre un módulo
-              ilegible es indistinguible de un módulo sin escribir todavía. */}
-          <BarrasHorizontales
-            titulo="Fichas por módulo"
-            datos={modulosLegibles
-              .map((m) => ({ etiqueta: m.nombre, valor: m.fechas.length }))
-              .sort((a, b) => b.valor - a.valor)}
-          />
-          {modulosIlegibles.length > 0 ? (
-            <p className="admin-card-note">
-              Sin {modulosIlegibles.map((m) => m.nombre).join(' ni ')}: no se pudo leer.
-            </p>
-          ) : null}
-        </div>
-      </div>
-
-      <h2 className="admin-section-title">Quién lo está leyendo</h2>
-      <div className="admin-grid">
-        <div
-          className={`admin-card admin-card-ancha${actividad === null ? ' admin-card-ilegible' : ''}`}
-        >
-          <div className="admin-card-title">Lecturas por mes</div>
-          {actividad === null ? (
-            <p className="admin-card-note">
-              No se pudo leer el registro de actividad. Las barras están en blanco porque no hay
-              dato, no porque nadie haya entrado.
-            </p>
-          ) : (
-            <>
-              <p className="admin-card-note">
-                Cada barra cuenta las fichas visitadas en ese mes, no las visitas repetidas.
-              </p>
-              <BarrasVerticales datos={visitasPorMes} titulo="Lecturas por mes" />
-            </>
-          )}
-        </div>
-
-        <div className={`admin-card${actividad === null ? ' admin-card-ilegible' : ''}`}>
-          <div className="admin-card-title">Módulos más leídos</div>
-          {actividad === null ? (
-            <p className="admin-card-note">Sin dato: el registro de actividad no respondió.</p>
-          ) : (
-            <BarrasHorizontales titulo="Lecturas por módulo" datos={lecturaPorModulo} />
-          )}
-        </div>
-
-        <div className={`admin-card${usuarios === null ? ' admin-card-ilegible' : ''}`}>
-          <div className="admin-card-title">Cuentas</div>
-          <div className="admin-card-value" style={{ fontSize: '2rem' }}>
-            {usuarios === null ? (
-              '—'
             ) : (
               <>
-                {activos}
-                <span className="admin-numero-tenue"> de {listaUsuarios.length}</span>
+                <p className="admin-card-note">
+                  Últimos doce meses
+                  {modulosIlegibles.length > 0
+                    ? `, sin ${modulosIlegibles.map((m) => m.nombre).join(' ni ')}`
+                    : ', todos los módulos juntos'}
+                  .
+                </p>
+                <BarrasVerticales datos={creadoPorMes} titulo="Fichas creadas por mes" />
               </>
             )}
           </div>
-          {usuarios === null ? (
-            <p className="admin-card-note">
-              No se pudo leer la tabla de usuarios. Esto no dice que no haya cuentas.
-            </p>
-          ) : (
-            <>
-              <p className="admin-card-note">{entraronEsteMes} han entrado en los últimos 30 días</p>
-              <BarraApilada
-                titulo="Cuentas por rol"
-                partes={[
-                  {
-                    etiqueta: 'Administradores',
-                    valor: cuenta('admin'),
-                    color: 'var(--marca-honda)',
-                  },
-                  { etiqueta: 'Editores', valor: cuenta('editor'), color: 'var(--marca)' },
-                  { etiqueta: 'Lectores', valor: cuenta('lector'), color: '#8fb6e8' },
-                ]}
-              />
-            </>
-          )}
+
+          <div className={`admin-card${modulosIlegibles.length > 0 ? ' admin-card-ilegible' : ''}`}>
+            <div className="admin-card-title">Reparto por módulo</div>
+            <div className="admin-card-value admin-card-value-sm">
+              {contenidoIlegible ? '—' : totalFichas}
+            </div>
+            {/* Solo los módulos que respondieron: una barra a cero sobre un módulo
+              ilegible es indistinguible de un módulo sin escribir todavía. */}
+            <BarrasHorizontales
+              titulo="Fichas por módulo"
+              datos={modulosLegibles
+                .map((m) => ({ etiqueta: m.nombre, valor: m.fechas.length }))
+                .sort((a, b) => b.valor - a.valor)}
+            />
+            {modulosIlegibles.length > 0 ? (
+              <p className="admin-card-note">
+                Sin {modulosIlegibles.map((m) => m.nombre).join(' ni ')}: no se pudo leer.
+              </p>
+            ) : null}
+          </div>
         </div>
-      </div>
+      </SeccionPlegable>
+
+      <SeccionPlegable
+        clave="estadisticas.lectura"
+        titulo="Quién lo está leyendo"
+        resumen={conteo(totalVisitas, actividad === null, 'lectura', 'lecturas')}
+      >
+        <div className="admin-grid">
+          <div className={`admin-card admin-card-ancha${actividad === null ? ' admin-card-ilegible' : ''}`}>
+            <div className="admin-card-title">Lecturas por mes</div>
+            {actividad === null ? (
+              <p className="admin-card-note">
+                No se pudo leer el registro de actividad. Las barras están en blanco porque no hay dato, no
+                porque nadie haya entrado.
+              </p>
+            ) : (
+              <>
+                <p className="admin-card-note">
+                  Cada barra cuenta las fichas visitadas en ese mes, no las visitas repetidas.
+                </p>
+                <BarrasVerticales datos={visitasPorMes} titulo="Lecturas por mes" />
+              </>
+            )}
+          </div>
+
+          <div className={`admin-card${actividad === null ? ' admin-card-ilegible' : ''}`}>
+            <div className="admin-card-title">Módulos más leídos</div>
+            {actividad === null ? (
+              <p className="admin-card-note">Sin dato: el registro de actividad no respondió.</p>
+            ) : (
+              <BarrasHorizontales titulo="Lecturas por módulo" datos={lecturaPorModulo} />
+            )}
+          </div>
+
+          <div className={`admin-card${usuarios === null ? ' admin-card-ilegible' : ''}`}>
+            <div className="admin-card-title">Cuentas</div>
+            <div className="admin-card-value admin-card-value-sm">
+              {usuarios === null ? (
+                '—'
+              ) : (
+                <>
+                  {activos}
+                  <span className="admin-numero-tenue"> de {listaUsuarios.length}</span>
+                </>
+              )}
+            </div>
+            {usuarios === null ? (
+              <p className="admin-card-note">
+                No se pudo leer la tabla de usuarios. Esto no dice que no haya cuentas.
+              </p>
+            ) : (
+              <>
+                <p className="admin-card-note">{entraronEsteMes} han entrado en los últimos 30 días</p>
+                <BarraApilada
+                  titulo="Cuentas por rol"
+                  partes={[
+                    {
+                      etiqueta: 'Administradores',
+                      valor: cuenta('admin'),
+                      color: 'var(--marca-honda)',
+                    },
+                    {
+                      etiqueta: 'Editores',
+                      valor: cuenta('editor'),
+                      color: 'var(--marca)',
+                    },
+                    // Era `#8fb6e8`, un celeste suelto que no estaba en la paleta.
+                    // Tres pasos de la misma familia azul, del más hondo al más
+                    // claro, para tres rangos del mismo eje.
+                    {
+                      etiqueta: 'Lectores',
+                      valor: cuenta('lector'),
+                      color: 'var(--cian)',
+                    },
+                  ]}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      </SeccionPlegable>
 
       {actividad !== null && fichasMasLeidas.length > 0 ? (
-        <>
-          <h2 className="admin-section-title">Qué se lee más</h2>
-          <div className="admin-card admin-card-ancha">
-            <BarrasHorizontales titulo="Fichas más leídas" datos={fichasMasLeidas} />
-          </div>
-        </>
+        <SeccionPlegable
+          clave="estadisticas.mas-leidas"
+          titulo="Qué se lee más"
+          resumen={`${fichasMasLeidas.length} fichas`}
+        >
+          <BarrasHorizontales titulo="Fichas más leídas" datos={fichasMasLeidas} />
+        </SeccionPlegable>
       ) : null}
 
-      <h2 className="admin-section-title">Qué pide atención</h2>
-      <div className="admin-grid">
-        <div className={`admin-card${comentarios === null ? ' admin-card-ilegible' : ''}`}>
-          <div className="admin-card-title">Comentarios sin resolver</div>
-          <div
-            className="admin-card-value"
-            style={{
-              // El ámbar es la señal de «hay trabajo pendiente». Sobre un cero
-              // de relleno diría lo contrario de lo que pasa: que no hay nada
-              // que atender justo cuando no se sabe si lo hay.
-              color: comentarios !== null && pendientes > 0 ? 'var(--ambar)' : undefined,
-            }}
-          >
-            {comentarios === null ? '—' : pendientes}
+      <SeccionPlegable
+        clave="estadisticas.atencion"
+        titulo="Qué pide atención"
+        resumen={comentarios === null ? undefined : `${pendientes} sin resolver`}
+      >
+        <div className="admin-grid">
+          <div className={`admin-card${comentarios === null ? ' admin-card-ilegible' : ''}`}>
+            <div className="admin-card-title">Comentarios sin resolver</div>
+            {/* El ámbar es la señal de «hay trabajo pendiente». Sobre un cero de
+              relleno diría lo contrario de lo que pasa: que no hay nada que
+              atender justo cuando no se sabe si lo hay. Es `--ambar-texto` y no
+              `--ambar`, que como cifra sobre blanco no llegaba a 4,5:1. */}
+            <div
+              className={`admin-card-value${comentarios !== null && pendientes > 0 ? ' admin-card-value-atencion' : ''}`}
+            >
+              {comentarios === null ? '—' : pendientes}
+            </div>
+            <p className="admin-card-note">
+              {comentarios === null
+                ? 'No se pudo leer la tabla de comentarios.'
+                : `de ${listaComentarios.length} recibidos en total`}
+            </p>
           </div>
-          <p className="admin-card-note">
-            {comentarios === null
-              ? 'No se pudo leer la tabla de comentarios.'
-              : `de ${listaComentarios.length} recibidos en total`}
-          </p>
-        </div>
 
-        <div
-          className={`admin-card admin-card-ancha${comentarios === null ? ' admin-card-ilegible' : ''}`}
-        >
-          <div className="admin-card-title">Dónde se comenta</div>
-          {comentarios === null ? (
-            <p className="admin-card-note">Sin dato: la tabla de comentarios no respondió.</p>
-          ) : (
-            <>
-              <p className="admin-card-note">
-                El módulo con más comentarios suele ser el que más falta le hace crecer.
-              </p>
-              <BarrasHorizontales titulo="Comentarios por módulo" datos={comentariosPorModulo} />
-            </>
-          )}
+          <div className={`admin-card admin-card-ancha${comentarios === null ? ' admin-card-ilegible' : ''}`}>
+            <div className="admin-card-title">Dónde se comenta</div>
+            {comentarios === null ? (
+              <p className="admin-card-note">Sin dato: la tabla de comentarios no respondió.</p>
+            ) : (
+              <>
+                <p className="admin-card-note">
+                  El módulo con más comentarios suele ser el que más falta le hace crecer.
+                </p>
+                <BarrasHorizontales titulo="Comentarios por módulo" datos={comentariosPorModulo} />
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </SeccionPlegable>
     </div>
   )
 }

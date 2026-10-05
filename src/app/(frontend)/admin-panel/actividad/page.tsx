@@ -1,5 +1,11 @@
 import Link from 'next/link'
+import { BookOpen, Check, ExternalLink, Pencil } from 'lucide-react'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
+import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
+import { Vacio } from '@/components/ui/Vacio'
 import { NOMBRE_DEL_DESENLACE } from '@/lib/progresoDelSimulador'
 import { clientePayload, resumenDeActividad } from '../datos'
 import { NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
@@ -9,6 +15,7 @@ import {
   type EstadoDeFicha,
   type ReferenciaDeFicha,
 } from '../titulosDeFichas'
+import '../seguimiento.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +42,24 @@ function rotuloDeFicha(estado: EstadoDeFicha, documentoId: string, eliminada: st
     case 'ilegible':
       return `Título no disponible · #${documentoId}`
   }
+}
+
+/**
+ * La insignia del módulo, con su color: en «Fichas más leídas» y «Últimas
+ * visitas» se reconoce de un vistazo de qué módulo es cada fila, como en el
+ * resto de la plataforma. Un módulo que ya no existe sale neutro.
+ */
+function InsigniaDeModulo({ coleccion }: { coleccion: string }) {
+  const identidad = IDENTIDAD_DE_MODULO[coleccion]
+  const nombre = NOMBRE_DE_MODULO[coleccion] ?? coleccion
+  if (!identidad) return <span className="insignia insignia-neutra">{nombre}</span>
+  const Icono = identidad.icono
+  return (
+    <span className={`insignia insignia-acento seguimiento-modulo ${identidad.clase}`}>
+      <Icono aria-hidden size={12} />
+      {nombre}
+    </span>
+  )
 }
 
 const fechaHora = (valor?: string | null) =>
@@ -216,18 +241,20 @@ export default async function PaginaActividad() {
 
   return (
     <div>
-      <header className="admin-header">
-        <h1 className="admin-title">Actividad</h1>
-        {/* Sin listado no hay recuento que dar: «0 registros» sería la misma
-            respuesta falsa que el aviso de abajo existe para no dar. */}
-        {listado ? (
-          <p className="admin-subtitle">
-            {totalDocs} registro{totalDocs === 1 ? '' : 's'} de lectura · {personas.length}{' '}
-            persona
-            {personas.length === 1 ? '' : 's'} han abierto alguna ficha
-          </p>
-        ) : null}
-      </header>
+      <CabeceraDePagina
+        titulo="Actividad"
+        // Sin listado no hay recuento que dar: «0 registros» sería la misma
+        // respuesta falsa que el aviso de abajo existe para no dar.
+        subtitulo={
+          listado ? (
+            <>
+              {totalDocs} registro{totalDocs === 1 ? '' : 's'} de lectura · {personas.length}{' '}
+              persona
+              {personas.length === 1 ? '' : 's'} han abierto alguna ficha
+            </>
+          ) : undefined
+        }
+      />
 
       {modulosIlegibles.length > 0 ? (
         <div className="admin-aviso admin-aviso-atencion" role="status">
@@ -244,282 +271,301 @@ export default async function PaginaActividad() {
           esquema desplegado sin su migración—; el detalle queda en el registro del servidor.
         </div>
       ) : registros.length === 0 ? (
-        <div className="admin-empty">
-          <div className="admin-empty-icon">📖</div>
-          <p className="admin-empty-text">
-            Todavía nadie ha abierto una ficha. El registro empieza en cuanto una cuenta activa
-            visita contenido publicado.
-          </p>
-        </div>
+        <Vacio icono={BookOpen} titulo="Todavía nadie ha abierto una ficha.">
+          El registro empieza en cuanto una cuenta activa visita contenido publicado.
+        </Vacio>
       ) : (
         <>
-          <h2 className="admin-section-title">Por persona</h2>
-          <div className="admin-table-container">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Persona</th>
-                  <th>Fichas abiertas</th>
-                  <th>Marcadas como leídas</th>
-                  <th>Última visita</th>
-                </tr>
-              </thead>
-              <tbody>
-                {personas.map((p) => {
-                  const porcentaje =
-                    p.visitadas === 0 ? 0 : Math.round((p.completadas / p.visitadas) * 100)
-                  return (
-                    <tr key={p.usuarioId}>
-                      <td>
-                        <div className="admin-table-user-name">{p.nombre}</div>
-                        <div className="admin-table-user-email">{p.correo}</div>
-                      </td>
-                      <td>{p.visitadas}</td>
-                      <td style={{ minWidth: 160 }}>
-                        {p.completadas}
-                        <span className="admin-numero-tenue"> · {porcentaje}%</span>
-                        <div className="admin-progreso" aria-hidden="true">
-                          <div
-                            className="admin-progreso-relleno"
-                            style={{ width: `${porcentaje}%` }}
-                          />
-                        </div>
-                      </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{fechaHora(p.ultima)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          {/* Cuatro tablas apiladas, plegables y con memoria (pedido del
+              dueño): quien solo mira el simulador no baja por encima de una
+              fila por residente. */}
+          <PlegarTodo />
+
+          <SeccionPlegable
+            clave="actividad.personas"
+            titulo="Por persona"
+            resumen={`${personas.length} persona${personas.length === 1 ? '' : 's'}`}
+          >
+            <div className="admin-table-container">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Persona</th>
+                    <th>Fichas abiertas</th>
+                    <th>Marcadas como leídas</th>
+                    <th>Última visita</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {personas.map((p) => {
+                    const porcentaje =
+                      p.visitadas === 0 ? 0 : Math.round((p.completadas / p.visitadas) * 100)
+                    return (
+                      <tr key={p.usuarioId}>
+                        <td>
+                          <div className="admin-table-user-name">{p.nombre}</div>
+                          <div className="admin-table-user-email">{p.correo}</div>
+                        </td>
+                        <td className="u-num">{p.visitadas}</td>
+                        <td className="seguimiento-celda-progreso u-num">
+                          {p.completadas}
+                          <span className="admin-numero-tenue"> · {porcentaje}%</span>
+                          <div className="admin-progreso" aria-hidden="true">
+                            <div
+                              className="admin-progreso-relleno"
+                              style={{ width: `${porcentaje}%` }}
+                            />
+                          </div>
+                        </td>
+                        <td className="u-nowrap">{fechaHora(p.ultima)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </SeccionPlegable>
 
           {/* ------------------------------------------------- simulador --
               La mitad visible de lo que la consola guarda. Sin ella, el puntaje
               y las complicaciones vuelven a ser tres columnas que se escriben y
               no lee nadie, que es de donde vienen. */}
-          <h2 className="admin-section-title">Simulador quirúrgico</h2>
+          <SeccionPlegable
+            clave="actividad.simulador"
+            titulo="Simulador quirúrgico"
+            resumen={
+              simulador.ilegible
+                ? undefined
+                : `${simulador.casos} caso${simulador.casos === 1 ? '' : 's'} recorrido${simulador.casos === 1 ? '' : 's'}`
+            }
+          >
 
-          {simulador.ilegible ? (
-            <div className="admin-aviso admin-aviso-error">
-              <strong>No se pudieron leer los recorridos.</strong>
-              Aquí no hay un recuento, hay una consulta que falló: el fallo queda
-              en el registro del servidor.
-            </div>
-          ) : simulador.casos === 0 ? (
-            <p className="admin-subtitle">
-              Todavía nadie ha recorrido un caso del simulador. El registro
-              empieza en cuanto un residente supera el primer paso.
-            </p>
-          ) : (
-            <>
-              {/* Antes de la primera cifra, no debajo: quien mira una tabla de
-                  números la interpreta mientras la lee, y el puntaje se parece
-                  demasiado a una nota. La advertencia detrás llegaría tarde. */}
-              <div className="admin-aviso admin-aviso-atencion">
-                <strong>El puntaje no es una calificación.</strong>
-                Lo calcula la consola en el navegador del residente y el servidor
-                no puede recalcularlo sin repetir la simulación, así que un
-                residente podría escribir el suyo. Sirve para ver quién ha
-                recorrido qué y qué gesto se le atraviesa a la gente, no para
-                evaluar a nadie.
+            {simulador.ilegible ? (
+              <div className="admin-aviso admin-aviso-error">
+                <strong>No se pudieron leer los recorridos.</strong>
+                Aquí no hay un recuento, hay una consulta que falló: el fallo queda
+                en el registro del servidor.
               </div>
-
-              <p className="admin-subtitle">
-                {simulador.casos} caso{simulador.casos === 1 ? '' : 's'} recorrido
-                {simulador.casos === 1 ? '' : 's'} ·{' '}
-                {simulador.casosConComplicacion} con alguna complicación ·{' '}
-                {simulador.complicaciones} gesto
-                {simulador.complicaciones === 1 ? '' : 's'} que dañaron
+            ) : simulador.casos === 0 ? (
+              <p className="seguimiento-nota">
+                Todavía nadie ha recorrido un caso del simulador. El registro
+                empieza en cuanto un residente supera el primer paso.
               </p>
-
-              {atascos.length === 0 ? (
-                <p className="admin-subtitle">
-                  Ningún paso ha dado complicaciones todavía.
-                </p>
-              ) : (
-                <div className="admin-table-container">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Caso</th>
-                        <th>Paso</th>
-                        <th>Qué pasó</th>
-                        <th>Veces</th>
-                        <th>Residentes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {atascos.map((atasco) => {
-                        const clave = claveDeFicha('cirugias', atasco.documentoId)
-                        const estado = estadoDe('cirugias', atasco.documentoId)
-                        const rotulo = rotuloDeFicha(estado, atasco.documentoId, 'Caso eliminado')
-                        return (
-                          <tr key={`${clave}#${atasco.paso}`}>
-                            <th scope="row" className="admin-table-user-name">
-                              {estado.tipo === 'eliminada' ? (
-                                rotulo
-                              ) : (
-                                <Link
-                                  href={`/admin-panel/contenido/cirugias/${atasco.documentoId}`}
-                                >
-                                  {rotulo}
-                                </Link>
-                              )}
-                            </th>
-                            <td>
-                              {/* El número y el título son la copia de cómo vio
-                                  el paso quien lo jugó: el identificador deja de
-                                  encontrar nada en cuanto el guion se reordena,
-                                  y entonces esto es lo único que lo nombra. */}
-                              {atasco.numero ? `${atasco.numero}. ` : ''}
-                              {atasco.titulo ?? 'Paso sin título guardado'}
-                            </td>
-                            <td>
-                              <div className="admin-acciones">
-                                {atasco.desenlaces.length === 0 ? (
-                                  <span className="admin-numero-tenue">Sin desenlace</span>
-                                ) : (
-                                  atasco.desenlaces.map((desenlace) => (
-                                    <span
-                                      key={desenlace}
-                                      className="admin-badge admin-badge-borrador"
-                                    >
-                                      {NOMBRE_DEL_DESENLACE[desenlace]}
-                                    </span>
-                                  ))
-                                )}
-                              </div>
-                            </td>
-                            <td>{atasco.veces}</td>
-                            <td>{atasco.residentes}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+            ) : (
+              <>
+                {/* Antes de la primera cifra, no debajo: quien mira una tabla de
+                    números la interpreta mientras la lee, y el puntaje se parece
+                    demasiado a una nota. La advertencia detrás llegaría tarde. */}
+                <div className="admin-aviso admin-aviso-atencion">
+                  <strong>El puntaje no es una calificación.</strong>
+                  Lo calcula la consola en el navegador del residente y el servidor
+                  no puede recalcularlo sin repetir la simulación, así que un
+                  residente podría escribir el suyo. Sirve para ver quién ha
+                  recorrido qué y qué gesto se le atraviesa a la gente, no para
+                  evaluar a nadie.
                 </div>
-              )}
-            </>
-          )}
 
-          <h2 className="admin-section-title">Fichas más leídas</h2>
-          <div className="admin-table-container">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Ficha</th>
-                  <th>Módulo</th>
-                  <th>Lectores</th>
-                  <th>La dieron por leída</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {fichas.map((f) => {
-                  const clave = claveDeFicha(f.coleccion, f.documentoId)
-                  const estado = estadoDe(f.coleccion, f.documentoId)
-                  const rotulo = rotuloDeFicha(estado, f.documentoId, 'Ficha eliminada')
-                  return (
-                    <tr key={clave}>
-                      <th scope="row" className="admin-table-user-name">
-                        {rotulo}
-                        {estado.tipo === 'titulo' ? (
-                          <div className="admin-table-user-email">#{f.documentoId}</div>
-                        ) : null}
-                      </th>
-                      <td>
-                        <span className="admin-badge admin-badge-neutro">
-                          {NOMBRE_DE_MODULO[f.coleccion] ?? f.coleccion}
-                        </span>
-                      </td>
-                      <td>{f.lectores}</td>
-                      <td>{f.completadas}</td>
-                      <td>
-                        {/* Solo se quita lo que se sabe que no lleva a nada: a
-                            una ficha borrada los dos enlaces acababan en un
-                            404, el del panel y el público. La que no se pudo
-                            leer los conserva, porque lo probable es que siga
-                            ahí y abrirla es la forma de comprobarlo. Y
-                            «Editar» va primero y al editor porque es donde se
-                            actúa sobre lo que se acaba de leer, y ese funciona
-                            esté publicada o retirada; el botón de antes solo
-                            servía si seguía publicada. */}
-                        {estado.tipo !== 'eliminada' ? (
-                          <div className="admin-acciones">
-                            <Link
-                              href={`/admin-panel/contenido/${f.coleccion}/${f.documentoId}`}
-                              className="admin-btn admin-btn-sm admin-btn-secondary"
-                              aria-label={`Editar «${rotulo}»`}
-                            >
-                              Editar
-                            </Link>
-                            <Link
-                              href={rutaPublica(f.coleccion, f.documentoId)}
-                              className="admin-btn admin-btn-sm admin-btn-secondary"
-                              aria-label={`Ver «${rotulo}» en el sitio público`}
-                            >
-                              Ver
-                            </Link>
-                          </div>
-                        ) : null}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                <p className="seguimiento-nota">
+                  {simulador.casos} caso{simulador.casos === 1 ? '' : 's'} recorrido
+                  {simulador.casos === 1 ? '' : 's'} ·{' '}
+                  {simulador.casosConComplicacion} con alguna complicación ·{' '}
+                  {simulador.complicaciones} gesto
+                  {simulador.complicaciones === 1 ? '' : 's'} que dañaron
+                </p>
 
-          <h2 className="admin-section-title">Últimas visitas</h2>
-          <div className="admin-table-container">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Persona</th>
-                  <th>Ficha</th>
-                  <th>Módulo</th>
-                  <th>Cuándo</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ultimas.map((r) => {
-                  const estado = estadoDe(r.coleccion, r.documentoId)
-                  const rotulo = rotuloDeFicha(estado, r.documentoId, 'Ficha eliminada')
-                  return (
-                    <tr key={r.id}>
-                      <td>
-                        <div className="admin-table-user-name">{r.usuarioNombre}</div>
-                        <div className="admin-table-user-email">{r.usuarioCorreo}</div>
-                      </td>
-                      <td>
-                        {estado.tipo === 'eliminada' ? (
-                          <span className="admin-table-user-email">{rotulo}</span>
-                        ) : (
-                          <Link href={`/admin-panel/contenido/${r.coleccion}/${r.documentoId}`}>
-                            {rotulo}
-                          </Link>
-                        )}
-                      </td>
-                      <td>
-                        <span className="admin-badge admin-badge-neutro">
-                          {NOMBRE_DE_MODULO[r.coleccion] ?? r.coleccion}
-                        </span>
-                      </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{fechaHora(r.ultimaVisita)}</td>
-                      <td>
-                        <span
-                          className={`admin-badge ${r.completado ? 'admin-badge-publicado' : 'admin-badge-neutro'}`}
-                        >
-                          {r.completado ? '✓ Leída' : 'En curso'}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                {atascos.length === 0 ? (
+                  <p className="seguimiento-nota">
+                    Ningún paso ha dado complicaciones todavía.
+                  </p>
+                ) : (
+                  <div className="admin-table-container">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Caso</th>
+                          <th>Paso</th>
+                          <th>Qué pasó</th>
+                          <th>Veces</th>
+                          <th>Residentes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {atascos.map((atasco) => {
+                          const clave = claveDeFicha('cirugias', atasco.documentoId)
+                          const estado = estadoDe('cirugias', atasco.documentoId)
+                          const rotulo = rotuloDeFicha(estado, atasco.documentoId, 'Caso eliminado')
+                          return (
+                            <tr key={`${clave}#${atasco.paso}`}>
+                              <th scope="row" className="admin-table-user-name">
+                                {estado.tipo === 'eliminada' ? (
+                                  rotulo
+                                ) : (
+                                  <Link
+                                    href={`/admin-panel/contenido/cirugias/${atasco.documentoId}`}
+                                  >
+                                    {rotulo}
+                                  </Link>
+                                )}
+                              </th>
+                              <td>
+                                {/* El número y el título son la copia de cómo vio
+                                    el paso quien lo jugó: el identificador deja de
+                                    encontrar nada en cuanto el guion se reordena,
+                                    y entonces esto es lo único que lo nombra. */}
+                                {atasco.numero ? `${atasco.numero}. ` : ''}
+                                {atasco.titulo ?? 'Paso sin título guardado'}
+                              </td>
+                              <td>
+                                <div className="admin-acciones">
+                                  {atasco.desenlaces.length === 0 ? (
+                                    <span className="admin-numero-tenue">Sin desenlace</span>
+                                  ) : (
+                                    atasco.desenlaces.map((desenlace) => (
+                                      <span key={desenlace} className="insignia insignia-atencion">
+                                        {NOMBRE_DEL_DESENLACE[desenlace]}
+                                      </span>
+                                    ))
+                                  )}
+                                </div>
+                              </td>
+                              <td className="u-num">{atasco.veces}</td>
+                              <td className="u-num">{atasco.residentes}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </SeccionPlegable>
+
+          <SeccionPlegable
+            clave="actividad.mas-leidas"
+            titulo="Fichas más leídas"
+            resumen={`${fichas.length} ficha${fichas.length === 1 ? '' : 's'}`}
+          >
+            <div className="admin-table-container">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Ficha</th>
+                    <th>Módulo</th>
+                    <th>Lectores</th>
+                    <th>La dieron por leída</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {fichas.map((f) => {
+                    const clave = claveDeFicha(f.coleccion, f.documentoId)
+                    const estado = estadoDe(f.coleccion, f.documentoId)
+                    const rotulo = rotuloDeFicha(estado, f.documentoId, 'Ficha eliminada')
+                    return (
+                      <tr key={clave}>
+                        <th scope="row" className="admin-table-user-name">
+                          {rotulo}
+                          {estado.tipo === 'titulo' ? (
+                            <div className="admin-table-user-email">#{f.documentoId}</div>
+                          ) : null}
+                        </th>
+                        <td>
+                          <InsigniaDeModulo coleccion={f.coleccion} />
+                        </td>
+                        <td className="u-num">{f.lectores}</td>
+                        <td className="u-num">{f.completadas}</td>
+                        <td>
+                          {/* Solo se quita lo que se sabe que no lleva a nada: a
+                              una ficha borrada los dos enlaces acababan en un
+                              404, el del panel y el público. La que no se pudo
+                              leer los conserva, porque lo probable es que siga
+                              ahí y abrirla es la forma de comprobarlo. Y
+                              «Editar» va primero y al editor porque es donde se
+                              actúa sobre lo que se acaba de leer, y ese funciona
+                              esté publicada o retirada; el botón de antes solo
+                              servía si seguía publicada. */}
+                          {estado.tipo !== 'eliminada' ? (
+                            <div className="admin-acciones">
+                              <Link
+                                href={`/admin-panel/contenido/${f.coleccion}/${f.documentoId}`}
+                                className="admin-btn admin-btn-sm admin-btn-secondary"
+                                aria-label={`Editar «${rotulo}»`}
+                              >
+                                <Pencil aria-hidden size={14} />
+                                Editar
+                              </Link>
+                              <Link
+                                href={rutaPublica(f.coleccion, f.documentoId)}
+                                className="admin-btn admin-btn-sm admin-btn-secondary"
+                                aria-label={`Ver «${rotulo}» en el sitio público`}
+                              >
+                                <ExternalLink aria-hidden size={14} />
+                                Ver
+                              </Link>
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </SeccionPlegable>
+
+          <SeccionPlegable
+            clave="actividad.ultimas"
+            titulo="Últimas visitas"
+            resumen={`${ultimas.length} visita${ultimas.length === 1 ? '' : 's'}`}
+          >
+            <div className="admin-table-container">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Persona</th>
+                    <th>Ficha</th>
+                    <th>Módulo</th>
+                    <th>Cuándo</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ultimas.map((r) => {
+                    const estado = estadoDe(r.coleccion, r.documentoId)
+                    const rotulo = rotuloDeFicha(estado, r.documentoId, 'Ficha eliminada')
+                    return (
+                      <tr key={r.id}>
+                        <td>
+                          <div className="admin-table-user-name">{r.usuarioNombre}</div>
+                          <div className="admin-table-user-email">{r.usuarioCorreo}</div>
+                        </td>
+                        <td>
+                          {estado.tipo === 'eliminada' ? (
+                            <span className="admin-table-user-email">{rotulo}</span>
+                          ) : (
+                            <Link href={`/admin-panel/contenido/${r.coleccion}/${r.documentoId}`}>
+                              {rotulo}
+                            </Link>
+                          )}
+                        </td>
+                        <td>
+                          <InsigniaDeModulo coleccion={r.coleccion} />
+                        </td>
+                        <td className="u-nowrap">{fechaHora(r.ultimaVisita)}</td>
+                        <td>
+                          <span className={`insignia ${r.completado ? 'insignia-ok' : 'insignia-neutra'}`}>
+                            {r.completado ? <Check aria-hidden size={12} /> : null}
+                            {r.completado ? 'Leída' : 'En curso'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </SeccionPlegable>
         </>
       )}
     </div>

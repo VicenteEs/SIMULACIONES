@@ -2,7 +2,9 @@ import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { clientePayload, SLUGS_DE_MODULOS } from '../datos'
 import { NOMBRE_DE_MODULO } from '../modulos'
 import { claveDeFicha, leerTitulosDeFichas } from '../titulosDeFichas'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { TablaComentarios, type ComentarioDelPanel } from './TablaComentarios'
+import './comentarios.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,9 +56,7 @@ export default async function PaginaComentarios() {
   if (!listado) {
     return (
       <div>
-        <header className="admin-header">
-          <h1 className="admin-title">Comentarios y sugerencias</h1>
-        </header>
+        <CabeceraDePagina titulo="Comentarios y sugerencias" />
         <div className="admin-aviso admin-aviso-atencion" role="status">
           <strong>No se pudo leer la tabla de comentarios.</strong> Esto no significa que no haya
           ninguno: la consulta falló. Lo corriente es que falte una tabla —un cambio de esquema

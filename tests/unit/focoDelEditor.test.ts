@@ -78,11 +78,14 @@ describe('guardar no le quita el foco a quien está guardando', () => {
   })
 
   it('las acciones que se van de la pantalla sí pueden desactivarse', () => {
-    // «Duplicar» y «Eliminar» salen con `router.push` y no dejan foco que
-    // recoger; «Retirar de publicación» se desmonta sola al volver la acción,
-    // así que soltarle el `disabled` no se lo devolvería a nadie. Las tres
-    // conservan `disabled` a propósito y esto lo deja dicho, para que la
-    // próxima pasada no las arrastre con las de arriba.
-    expect(EDITOR.match(/(?<![-\w])disabled=\{enCurso\}/g) ?? []).toHaveLength(3)
+    // «Duplicar», «Retirar de publicación» y «Eliminar» viven en el menú «⋯» y
+    // se desactivan de verdad mientras dura un guardado: duplicar y eliminar
+    // salen con `router.push`, y retirar se desmonta sola al volver la acción,
+    // así que soltarles el `disabled` no le devolvería el foco a nadie. Ya no
+    // son botones de la barra —esos tres de arriba siguen con `aria-disabled`—
+    // sino opciones de `MenuAcciones`, que desactiva con `desactivada`. Esto lo
+    // deja dicho para que la próxima pasada no las arrastre con las de guardar.
+    expect(EDITOR.match(/desactivada: enCurso(?=[,\s}])/g) ?? []).toHaveLength(3)
+    expect(EDITOR.match(/(?<![-\w])disabled=\{enCurso\}/g) ?? []).toHaveLength(0)
   })
 })

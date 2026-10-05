@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 import config from '@payload-config'
@@ -13,6 +12,10 @@ import { IndiceFicha } from '@/components/IndiceFicha'
 import { FormularioComentario } from '@/components/FormularioComentario'
 
 import { BotonImprimir } from '@/components/BotonImprimir'
+import { BotonComentar } from '@/components/BotonComentar'
+import { EyebrowDeModulo, MigaDePan, claseDeModulo } from '@/components/Cabeceras'
+import { Vacio } from '@/components/ui/Vacio'
+import { FileText } from 'lucide-react'
 import { RastreadorActividad } from '@/components/RastreadorActividad'
 
 export const dynamic = 'force-dynamic'
@@ -57,39 +60,53 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
   const segmento = ficha.segmento as { nombre?: string } | undefined
 
   return (
-    <main>
-      <nav className="miga" style={{ display: 'flex', alignItems: 'center' }}>
-        <div>
-          <Link href="/biblioteca">Biblioteca</Link>
-          {segmento?.nombre ? <span> · {segmento.nombre}</span> : null}
-        </div>
-        <BotonImprimir />
-      </nav>
+    <main className={claseDeModulo('patologias')}>
+      <MigaDePan
+        pasos={[
+          { href: '/', texto: 'Inicio' },
+          { href: '/biblioteca', texto: 'Biblioteca' },
+          { texto: segmento?.nombre ?? (ficha.nombre as string) },
+        ]}
+      />
 
       <header className="cabecera-ficha">
+        <EyebrowDeModulo slug="patologias">
+          {segmento?.nombre ? `Biblioteca · ${segmento.nombre}` : 'Biblioteca de patologías'}
+        </EyebrowDeModulo>
         <h1>{ficha.nombre as string}</h1>
         {ficha.subtitulo ? <p className="entrada">{ficha.subtitulo as string}</p> : null}
-        <div className="etiquetas">
-          {ficha.codigo ? <span className="codigo">{ficha.codigo as string}</span> : null}
-          {segmento?.nombre ? <span className="etiqueta">{segmento.nombre}</span> : null}
+        {ficha.codigo ? (
+          <div className="etiquetas">
+            <span className="codigo">{ficha.codigo as string}</span>
+          </div>
+        ) : null}
+        {/* Las tres acciones de la ficha en una fila de botones pequeños, bajo
+            el título. «Guardar PDF» vivía en la miga, la casilla suelta a la
+            derecha y «Comentar» solo al final de la página. */}
+        <div className="barra-acciones">
+          <RastreadorActividad
+            coleccion="patologias"
+            documentoId={id}
+            completadoInicial={completadoInicial}
+          />
+          <BotonImprimir />
+          <BotonComentar coleccion="patologias" documentoId={id} />
         </div>
-        <RastreadorActividad
-          coleccion="patologias"
-          documentoId={id}
-          completadoInicial={completadoInicial}
-        />
       </header>
 
       <div className="ficha-cuerpo">
         <IndiceFicha pestanas={pestanas} />
         <div className="ficha-contenido">
       {pestanas.length === 0 ? (
-        <div className="tarjeta">
-          <p>Esta ficha aún no tiene contenido publicado.</p>
-        </div>
+        <Vacio icono={FileText} titulo="Esta ficha aún no tiene contenido publicado" compacto />
       ) : (
-        pestanas.map((p) => (
+        pestanas.map((p, i) => (
           <section key={p.campo} className="pestana" id={p.campo}>
+            {/* El rótulo pequeño es el antetítulo; el título de la sección es
+                el <h2>, a tamaño de título. Antes el <h2> era este rótulo. */}
+            <span className="eyebrow pestana-eyebrow">
+              Sección {i + 1} de {pestanas.length}
+            </span>
             <h2>{p.etiqueta}</h2>
             <Bloques bloques={ficha[p.campo as keyof typeof ficha]} />
             {p.campo === 'rehabilitacion' && Array.isArray(ficha.fases) ? (
@@ -106,7 +123,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
                         saltando por encabezados oía un nivel intermedio que no
                         existe y las fases aparecían colgando de nada.
                         El tamaño visual no sigue al nivel: en `estilos.css`
-                        vive `.fases h3 { font-size: 15px; margin: 5px 0 6px }`,
+                        vive `.fases h3`, con su tamaño y su margen,
                         con sus dos declaraciones y no solo el `font-size`. El
                         margen hay que repetirlo porque la regla general
                         `h1, h2, h3, h4` deja los cuatro en `margin: 0`, y sin

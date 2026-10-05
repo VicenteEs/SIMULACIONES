@@ -359,7 +359,10 @@ describe('el cableado', () => {
     // éxito, y la rama del rechazo termina en su `setAviso`.
     const cuerpo = tabla.slice(tabla.indexOf('const ejecutar ='), tabla.indexOf('const pedirEnlace ='))
     expect(cuerpo.match(/router\.refresh\(\)/g) ?? []).toHaveLength(1)
-    expect(cuerpo).toMatch(/setAviso\(\{ tipo: 'ok', texto: exitoso \}\) router\.refresh\(\)/)
+    // El éxito sale ahora por el aviso flotante (`avisar('ok', …)`), no por el
+    // recuadro de la página; lo que importa de esta línea es que el refresco
+    // siga pegado al éxito y a nada más.
+    expect(cuerpo).toMatch(/avisar\('ok', exitoso\) \} router\.refresh\(\)|avisar\('ok', exitoso\) router\.refresh\(\)/)
     expect(cuerpo).toMatch(
       /\} else \{ setAviso\(\{ tipo: 'error', texto: resultado\.mensaje \?\? '[^']*' \}\) \} \} catch/,
     )

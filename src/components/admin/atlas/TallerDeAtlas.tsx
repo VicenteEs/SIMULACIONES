@@ -18,6 +18,7 @@ import {
   planosDeUnCorte,
 } from '@/atlas/formato'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
+import { useConfirmar } from '@/components/ui/Confirmar'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import type { ResultadoDelRecorte } from '@/atlas/recorte'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
@@ -291,6 +292,7 @@ interface ResultadoDeExportar {
  */
 
 export function TallerDeAtlas() {
+  const confirmar = useConfirmar()
   const [catalogo, setCatalogo] = useState<CatalogoDelAtlas | null>(null)
   const [fallo, setFallo] = useState<string | null>(null)
 
@@ -649,13 +651,26 @@ export function TallerDeAtlas() {
     setReferencia((r) => (mismoEncuadre(r.vista, antes) ? { ...r, vista: despues } : r))
   }, [])
 
-  /** Pregunta antes de tirar el trabajo. Devuelve si se puede continuar. */
-  const confirmarDescarte = (queVaAPasar: string) =>
-    (!sucio && !encuadreMovido()) ||
-    confirm(
-      `Hay cambios sin guardar en esta preparación.\n\n${queVaAPasar}\n\n` +
-        '¿Continuar y perderlos?',
-    )
+  /**
+   * Pregunta antes de tirar el trabajo. Devuelve si se puede continuar.
+   *
+   * Era el `confirm()` del navegador, que bloquea la página entera y no dice
+   * qué hace el botón. Ahora es el diálogo de la casa, con el botón «Descartar
+   * y continuar» en rojo: lo que se pierde es trabajo, y ese es el color de
+   * eso. Es asíncrona, y quien la llama espera su respuesta; cuando no hay
+   * nada que perder devuelve sin abrir nada, así que `empezarDeCero(false)`
+   * sigue ejecutándose de corrido.
+   */
+  const confirmarDescarte = async (queVaAPasar: string): Promise<boolean> => {
+    if (!sucio && !encuadreMovido()) return true
+    return confirmar({
+      titulo: 'Hay cambios sin guardar',
+      mensaje: `${queVaAPasar} Los cambios de esta preparación se perderán.`,
+      confirmar: 'Descartar y continuar',
+      cancelar: 'Seguir editando',
+      peligro: true,
+    })
+  }
 
   // Y el mismo aviso al cerrar la pestaña que usa el editor de fichas.
   //
@@ -1208,9 +1223,9 @@ export function TallerDeAtlas() {
     revisarEncuadre()
   }
 
-  const empezarDeCero = (preguntar = true) => {
+  const empezarDeCero = async (preguntar = true) => {
     if (!catalogo) return
-    if (preguntar && !confirmarDescarte('Se volverá al cuerpo completo, sin nombre.')) return
+    if (preguntar && !(await confirmarDescarte('Se volverá al cuerpo completo, sin nombre.'))) return
     const todas = new Set(catalogo.piezas.map((p) => p.id))
     setHistorial([])
     setRehacer([])
@@ -1250,9 +1265,9 @@ export function TallerDeAtlas() {
    * taller —seleccionar, mover, cortar— y lo que salga se guarda como una
    * preparación cualquiera. El modelo no se toca.
    */
-  const abrirModelo = (modelo: ModeloParaElTaller) => {
+  const abrirModelo = async (modelo: ModeloParaElTaller) => {
     if (modelo.piezas.length === 0) return
-    if (!confirmarDescarte(`Se abrirá «${modelo.nombre}» en su lugar.`)) return
+    if (!(await confirmarDescarte(`Se abrirá «${modelo.nombre}» en su lugar.`))) return
     const piezas = new Set(modelo.piezas)
     setInstancia(null)
     setModeloAbierto(modelo.id)
@@ -1282,8 +1297,8 @@ export function TallerDeAtlas() {
     fijarReferencia(piezas, modelo.nombre, '', vista)
   }
 
-  const abrir = (id: string) => {
-    if (!confirmarDescarte('Se abrirá otra preparación en su lugar.')) return
+  const abrir = async (id: string) => {
+    if (!(await confirmarDescarte('Se abrirá otra preparación en su lugar.'))) return
     setAviso(null)
     iniciar(async () => {
       try {
@@ -2760,7 +2775,7 @@ export function TallerDeAtlas() {
                       type="button"
                       className="lista-quitar"
                       disabled={enCurso}
-                      onClick={() => {
+                      onClick={async () => {
                         // La confirmación ya no amenaza con un visor vacío,
                         // porque eso ya no puede pasar: `eliminarInstancia` se
                         // niega si alguna ficha la usa —en borrador o
@@ -2772,11 +2787,14 @@ export function TallerDeAtlas() {
                         // títulos de las fichas: es lo que hace falta para ir a
                         // quitar el bloque.
                         if (
-                          !confirm(
-                            `¿Eliminar «${g.nombre}»? No se puede deshacer.\n\n` +
-                              'Si alguna ficha la usa, no se eliminará: se le dirá cuáles, ' +
+                          !(await confirmar({
+                            titulo: `¿Eliminar «${g.nombre}»?`,
+                            mensaje:
+                              'No se puede deshacer. Si alguna ficha la usa, no se eliminará: se le dirá cuáles, ' +
                               'para que quite antes el bloque o lo cambie por otra preparación.',
-                          )
+                            confirmar: 'Eliminar preparación',
+                            peligro: true,
+                          }))
                         ) {
                           return
                         }

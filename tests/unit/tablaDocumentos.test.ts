@@ -116,13 +116,16 @@ describe('ninguna acción del listado se cae en silencio', () => {
 })
 
 describe('el resultado de la acción se anuncia', () => {
-  it('la región del aviso amable se queda montada aunque esté vacía', () => {
-    // Un `role="status"` que aparece a la vez que su texto no se anuncia: el
-    // lector de pantalla tiene que estar observando la región antes de que su
-    // contenido cambie. Es el mismo arreglo que en `FormularioDocumento.tsx`.
-    const region = TABLA.indexOf('<div role="status">')
-    expect(region).toBeGreaterThan(-1)
-    expect(TABLA.slice(region, region + 120)).toContain("{aviso?.tipo === 'ok' ? (")
+  it('el aviso amable es flotante, que trae su región viva ya montada', () => {
+    // Antes la tabla montaba su propio `<div role="status">` y esta prueba
+    // vigilaba que no apareciera junto con su texto, porque un `role="status"`
+    // recién insertado no se anuncia. Ahora el «se publicó» sale por
+    // `useAvisos`, cuyo contenedor vive en el layout raíz y está siempre
+    // montado; lo que se vigila es que siga habiendo aviso de éxito y que no
+    // vuelva a pintarse en la página, donde quedaba fuera de la vista.
+    const desde = TABLA.indexOf('const conAviso = (')
+    expect(TABLA.slice(desde, TABLA.indexOf('return (', desde))).toContain("avisar('ok', exitoso)")
+    expect(TABLA).not.toContain("{aviso?.tipo === 'ok' ? (")
   })
 
   it('el error interrumpe, porque `role="alert"` sí se lee al insertarse', () => {
@@ -146,12 +149,12 @@ describe('borrar una fila no deja el foco en el `<body>`', () => {
     const desde = TABLA.indexOf('() => eliminarDocumento(')
     expect(desde).toBeGreaterThan(-1)
     expect(TABLA.slice(desde, desde + 200)).toContain('posicion,')
-    // Una sola vez. Lo que libra a publicar y duplicar de tener que pedirlo no
-    // es que su fila siga en su sitio —también, pero no basta—: es que su botón
-    // no llega a perder el foco, porque lleva `aria-disabled`. Ver la prueba de
-    // aquí abajo; si alguno volviera a `disabled`, esta cuenta tendría que
-    // subir a tres.
-    expect(TABLA.match(/^\s*posicion,$/gm) ?? []).toHaveLength(1)
+    // Tres, una por opción del menú. Cuando eran botones de la fila, publicar y
+    // duplicar no necesitaban pedir el foco: su botón no se desmontaba. Ahora
+    // las tres viven en el menú «⋯», que se cierra —y se desmonta— al elegir,
+    // así que el foco cae al `<body>` igual que cuando se borraba una fila, y
+    // las tres lo mandan de vuelta al «Editar» de su fila.
+    expect(TABLA.match(/^\s*posicion,$/gm) ?? []).toHaveLength(3)
   })
 
   it('ninguna acción de fila se desactiva de verdad mientras la tabla trabaja', () => {
@@ -163,14 +166,18 @@ describe('borrar una fila no deja el foco en el `<body>`', () => {
     // `focoTrasBorrar`. Quien corta la doble pulsación es la guarda del
     // `onClick`, y no se pierde nada visual porque `.admin-btn` no define
     // estilo de `:disabled`.
-    const cuerpo = TABLA.slice(TABLA.indexOf('<tbody ref={cuerpo}>'), TABLA.indexOf('</tbody>'))
+    // Las acciones salen de `opcionesDeFila`: tres opciones de menú, cada una
+    // con su guarda. Ninguna usa `desactivada`, que pondría `disabled` en el
+    // botón del menú.
+    const desde = TABLA.indexOf('const opcionesDeFila = ')
+    const opciones = TABLA.slice(desde, TABLA.indexOf('return (', TABLA.indexOf('return opciones', desde)))
+    expect(desde).toBeGreaterThan(-1)
     // El guion del `aria-` se descarta a mano: `toContain('disabled={enCurso}')`
     // encuentra también el atributo bueno y la prueba pasaría siempre.
-    expect(cuerpo).not.toMatch(/(?<![-\w])disabled=\{enCurso\}/)
-    // Las tres: publicar/retirar, duplicar y eliminar.
-    expect(cuerpo.match(/aria-disabled=\{enCurso\}/g) ?? []).toHaveLength(3)
-    // Anclado a línea entera: suelto encontraba también la mención del
-    // comentario de ahí arriba y contaba cuatro.
-    expect(cuerpo.match(/^\s*if \(enCurso\) return$/gm) ?? []).toHaveLength(3)
+    expect(opciones).not.toMatch(/(?<![-\w])disabled=\{enCurso\}/)
+    expect(opciones).not.toContain('desactivada')
+    // Las tres: publicar/retirar, duplicar y eliminar. Anclado a línea entera:
+    // suelto encontraba también la mención del comentario y contaba cuatro.
+    expect(opciones.match(/^\s*if \(enCurso\) return$/gm) ?? []).toHaveLength(3)
   })
 })

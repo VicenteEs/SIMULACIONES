@@ -121,6 +121,9 @@ describe('el taller del atlas y el trabajo sin guardar', () => {
     const eliminar = entre('className="lista-quitar"', 'Eliminar\n')
     expect(eliminar).not.toContain('se quedará vacío')
     expect(eliminar).toContain('Si alguna ficha la usa, no se eliminará')
+    // Y pregunta con el diálogo de la casa, no con el `confirm()` del navegador.
+    expect(eliminar).toContain('await confirmar({')
+    expect(eliminar).not.toMatch(/(?<![\w.])confirm\(/)
     // Y la negativa llega a la pantalla: pasa por `conAviso`, que pinta el
     // `mensaje` de la acción —los títulos de las fichas— y no uno genérico.
     expect(eliminar).toContain('() => eliminarInstancia(g.id)')

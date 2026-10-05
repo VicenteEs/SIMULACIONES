@@ -3,6 +3,7 @@
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { salir } from '@/app/(frontend)/acciones/sesion'
+import { LogOut } from 'lucide-react'
 
 /**
  * Cierre de sesión.
@@ -28,6 +29,7 @@ export function BotonSalir({ clase = 'enlace-nav' }: { clase?: string } = {}) {
         })
       }
     >
+      <LogOut size={16} aria-hidden="true" />
       {enCurso ? 'Saliendo…' : 'Salir'}
     </button>
   )

@@ -3,9 +3,14 @@
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { ArrowDown, ArrowUp, ArrowUpDown, Flag, SearchX, Send, UserCheck } from 'lucide-react'
+import { useAvisos } from '@/components/ui/Avisos'
+import { useConfirmar } from '@/components/ui/Confirmar'
+import { Vacio } from '@/components/ui/Vacio'
 import { asignarRevisor, publicarValidadas } from '@/app/(frontend)/acciones/revision'
 import { estadoEnPalabras, type EstadoDeRevision } from '@/lib/revision'
 import type { FilaDeContenido } from '@/lib/auditoria'
+import { claseDeInsignia, tonoDeRevision } from '@/lib/tonosDeEstado'
 import { NOMBRE_DE_MODULO } from '../modulos'
 
 /**
@@ -72,7 +77,13 @@ export function TablaDeAuditoria({
   })
   const [elegidas, setElegidas] = useState<Set<string>>(new Set())
   const [asignarA, setAsignarA] = useState('')
+  // El éxito sale en un aviso flotante, que se ve aunque se haya bajado a la
+  // fila doscientos para elegir; el error se queda además escrito encima de
+  // la tabla, porque el de publicar en bloque nombra las fichas que fallaron
+  // y eso hay que poder leerlo con calma, no en cinco segundos.
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const avisar = useAvisos()
+  const confirmar = useConfirmar()
 
   const clave = (f: FilaDeContenido) => `${f.coleccion}/${f.documentoId}`
 
@@ -114,14 +125,21 @@ export function TablaDeAuditoria({
       ascendente: actual.columna === columna ? !actual.ascendente : columna === 'titulo' || columna === 'asignada',
     }))
 
-  const cabecera = (columna: Columna, texto: string) => (
-    <th aria-sort={orden.columna === columna ? (orden.ascendente ? 'ascending' : 'descending') : undefined}>
-      <button type="button" className="auditoria-orden" onClick={() => ordenarPor(columna)}>
-        {texto}
-        {orden.columna === columna ? (orden.ascendente ? ' ↑' : ' ↓') : ''}
-      </button>
-    </th>
-  )
+  // `aria-sort` en el `th` dice el orden a quien no ve la flecha; la flecha
+  // de dos puntas en las demás columnas dice que también se pueden ordenar,
+  // que antes solo se descubría pasando el ratón por encima.
+  const cabecera = (columna: Columna, texto: string) => {
+    const activa = orden.columna === columna
+    const Icono = !activa ? ArrowUpDown : orden.ascendente ? ArrowUp : ArrowDown
+    return (
+      <th aria-sort={activa ? (orden.ascendente ? 'ascending' : 'descending') : undefined}>
+        <button type="button" className="auditoria-orden" onClick={() => ordenarPor(columna)}>
+          {texto}
+          <Icono aria-hidden size={14} />
+        </button>
+      </th>
+    )
+  }
 
   const todasElegidas = ordenadas.length > 0 && ordenadas.every((f) => elegidas.has(clave(f)))
   const seleccion = ordenadas.filter((f) => elegidas.has(clave(f)))
@@ -139,20 +157,28 @@ export function TablaDeAuditoria({
         const r = await tarea()
         if (!r.exito) {
           setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo completar.' })
+          avisar('error', r.mensaje ?? 'No se pudo completar.')
           return
         }
         const resultado = hecho(r.datos)
-        setAviso(typeof resultado === 'string' ? { tipo: 'ok', texto: resultado } : resultado)
+        if (typeof resultado === 'string') avisar('ok', resultado)
+        else if (resultado.tipo === 'ok') avisar('ok', resultado.texto)
+        else {
+          setAviso(resultado)
+          avisar('error', 'El lote salió a medias: el detalle está encima de la tabla.')
+        }
         setElegidas(new Set())
         router.refresh()
       } catch (fallo) {
-        setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo completar.') })
+        const texto = motivoDeLaCaida(fallo, 'No se pudo completar.')
+        setAviso({ tipo: 'error', texto })
+        avisar('error', texto)
       }
     })
   }
 
   if (filas.length === 0) {
-    return <p className="grafico-vacio">Ninguna ficha en revisión coincide con el filtro.</p>
+    return <Vacio compacto icono={SearchX} titulo="Ninguna ficha en revisión coincide con el filtro." />
   }
 
   return (
@@ -197,6 +223,7 @@ export function TablaDeAuditoria({
             )
           }
         >
+          <UserCheck aria-hidden size={16} />
           Asignar
         </button>
         <button
@@ -204,16 +231,30 @@ export function TablaDeAuditoria({
           className="admin-btn admin-btn-success admin-btn-sm"
           disabled={enCurso || validadasElegidas === 0}
           title="Publica las elegidas que estén validadas; las demás se saltan"
-          onClick={() => {
+          onClick={async () => {
             const senaladas = seleccion.filter((f) => f.estado === 'lista' && f.senalada).length
+            const plural = validadasElegidas === 1 ? '' : 's'
+            // No es destructivo —publicar se deshace retirando—, así que no va
+            // en rojo; pero la advertencia de las señaladas va dentro, donde
+            // se lee antes de pulsar.
             if (
-              !confirm(
-                `¿Publicar ${validadasElegidas} ficha${validadasElegidas === 1 ? '' : 's'} validada${validadasElegidas === 1 ? '' : 's'}?` +
-                  (senaladas > 0
-                    ? `\n\n${senaladas} de ellas ${senaladas === 1 ? 'tiene' : 'tienen'} la validación señalada como rápida.`
-                    : '') +
-                  '\n\nLas elegidas que no estén validadas se saltan.',
-              )
+              !(await confirmar({
+                titulo: `¿Publicar ${validadasElegidas} ficha${plural} validada${plural}?`,
+                mensaje: (
+                  <>
+                    {senaladas > 0 ? (
+                      <p>
+                        <strong>
+                          {senaladas} de ellas {senaladas === 1 ? 'tiene' : 'tienen'} la validación señalada
+                          como rápida.
+                        </strong>
+                      </p>
+                    ) : null}
+                    <p>Las elegidas que no estén validadas se saltan.</p>
+                  </>
+                ),
+                confirmar: `Publicar ${validadasElegidas} ficha${plural}`,
+              }))
             )
               return
             enBloque(
@@ -239,6 +280,7 @@ export function TablaDeAuditoria({
             )
           }}
         >
+          <Send aria-hidden size={16} />
           Publicar las validadas
         </button>
       </div>
@@ -291,15 +333,20 @@ export function TablaDeAuditoria({
                 </td>
                 <th scope="row" className="admin-table-user-name">
                   <Link href={`/admin-panel/contenido/${f.coleccion}/${f.documentoId}`}>{f.titulo}</Link>
-                  <div className="revision-tenue">
+                  <div className="revision-tenue auditoria-fuente" title={[NOMBRE_DE_MODULO[f.coleccion] ?? f.coleccion, f.libro, f.capitulo ? `cap. ${f.capitulo}` : ''].filter(Boolean).join(' · ')}>
                     {NOMBRE_DE_MODULO[f.coleccion] ?? f.coleccion}
                     {f.libro ? ` · ${f.libro}` : ''}
                     {f.capitulo ? ` · cap. ${f.capitulo}` : ''}
                   </div>
-                  {f.senalada && f.motivos ? <div className="auditoria-motivos">⚑ {f.motivos}</div> : null}
+                  {f.senalada && f.motivos ? (
+                    <div className="auditoria-motivos">
+                      <Flag aria-label="Señalada:" size={12} />
+                      {f.motivos}
+                    </div>
+                  ) : null}
                 </th>
                 <td>
-                  <span className={`admin-badge revision-estado-${f.estado}`}>{estadoEnPalabras(f.estado)}</span>
+                  <span className={claseDeInsignia(tonoDeRevision(f.estado))}>{estadoEnPalabras(f.estado)}</span>
                   {f.publicadaSinValidar ? <div className="auditoria-motivos">publicada sin validar</div> : null}
                   {f.devoluciones > 0 ? (
                     <div className="revision-tenue">
@@ -309,7 +356,7 @@ export function TablaDeAuditoria({
                 </td>
                 <td>{f.asignada || <span className="revision-tenue">sin asignar</span>}</td>
                 <td>{f.validador || '—'}</td>
-                <td>{fecha(f.validadaEn)}</td>
+                <td className="u-nowrap">{fecha(f.validadaEn)}</td>
                 <td className="auditoria-numero">{numero(f.porcentaje)} %</td>
                 <td className="auditoria-numero">{numero(f.minutosActivosDelValidador)}</td>
                 <td className="auditoria-numero">{numero(f.ritmoDelValidador, 0)}</td>

@@ -1,118 +1,11 @@
 /* ==========================================================================
-   Panel de Administración
-   Extiende el sistema de diseño clínico de la plataforma.
+   Panel de Administración: el editor de fichas, los formularios y el taller
+   anatómico.
+
+   El contorno del panel —barra lateral, cabecera, tarjetas, tablas, filtros,
+   insignias, gráficos y auditoría— se mudó a `panel.css`, que se carga
+   después de esta. Aquí queda lo que se edita.
    ========================================================================== */
-
-/* ---------- layout principal ---------- */
-.admin-layout {
-  display: flex;
-  min-height: calc(100vh - 58px);
-  background-color: var(--papel);
-}
-
-/* ---------- sidebar ---------- */
-.admin-sidebar {
-  width: 260px;
-  background-color: var(--tinta);
-  color: #e9eefb;
-  padding: 1.5rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex-shrink: 0;
-  /* Fija y con su propio desplazamiento: con una ficha abierta la barra lleva
-     las notas del revisor, y tienen que verse sin bajar la página (D-144). */
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-/* La fila `flex` viene de cuando se le puso el logotipo al lado del título y
-   se escribió otra `.admin-sidebar-header` ochocientas líneas más abajo. Una
-   clase repartida en dos zonas del archivo se pisa en cuanto alguien toque una
-   de las dos sin ver la otra, que es justo lo que le pasó a `.campo-casilla`. */
-.admin-sidebar-header {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 0 0.75rem 1.25rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 0.75rem;
-}
-
-.admin-sidebar-title {
-  font-size: 1rem;
-  font-weight: 650;
-  color: #fff;
-  letter-spacing: -0.02em;
-}
-
-.admin-sidebar-sub {
-  display: block;
-  font-family: var(--mono);
-  font-size: 9.5px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: #8ba6d8;
-  font-weight: 500;
-  margin-top: 2px;
-}
-
-.admin-nav-section {
-  font-family: var(--mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #5d7099;
-  padding: 1rem 0.75rem 0.5rem;
-  font-weight: 600;
-}
-
-.admin-nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 0.625rem 0.75rem;
-  color: #b0c4e6;
-  text-decoration: none;
-  border-radius: var(--r);
-  transition: all 0.15s ease;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.admin-nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.07);
-  color: #fff;
-}
-
-.admin-nav-link.active,
-.admin-nav-link[aria-current="page"] {
-  background-color: var(--marca);
-  color: #fff;
-}
-
-.admin-nav-icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-
-.admin-nav-link:hover .admin-nav-icon { opacity: 1; }
-
-/* Aquí vivía `.admin-nav-divider`, con una segunda declaración dentro del
-   `@media` de la barra horizontal. Ningún `className` del repositorio la lleva:
-   la barra se dibuja desde `NavegacionAdmin.tsx`, que separa las secciones con
-   `.admin-nav-section` y no con un filete. Dos reglas que se mantenían en
-   paralelo sin que nada las pintara. */
-
-.admin-nav-back {
-  margin-top: auto;
-  padding-top: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
 
 /* ---------- notas del modelo para el revisor (D-144) ----------
    Dentro de la barra, con su propio desplazamiento: veinte notas de quinientos
@@ -176,396 +69,28 @@
   overflow-wrap: anywhere;
 }
 
-/* ---------- contenido principal ---------- */
-.admin-content {
-  flex: 1;
-  padding: 2rem 2.5rem;
-  overflow-y: auto;
-  max-width: 1200px;
-}
-/* El taller anatómico ocupa todo el ancho que haya (D-139): son tres columnas
-   —árbol, lienzo y panel— y en 1200 px el lienzo se quedaba en un tercio de una
-   pantalla ancha. La clase la pone su página. */
-.admin-content:has(.atlas-taller) { max-width: none; }
-
-/* ---------- encabezados ---------- */
-.admin-header {
-  margin-bottom: 2rem;
-}
-
-.admin-title {
-  font-size: 1.75rem;
-  font-weight: 650;
-  color: var(--tinta);
-  letter-spacing: -0.02em;
-  margin-bottom: 0.25rem;
-}
-
-.admin-subtitle {
-  color: var(--mudo);
-  font-size: 0.9375rem;
-  margin: 0;
-}
-
-.admin-section-title {
-  font-size: 1.1rem;
-  font-weight: 650;
-  color: var(--tinta);
-  margin: 2.5rem 0 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--linea-suave);
-}
-
-/* ---------- grilla de tarjetas ---------- */
-.admin-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-/* ---------- tarjetas ---------- */
-.admin-card {
-  background-color: var(--superficie);
-  border-radius: var(--r-lg);
-  padding: 1.5rem;
-  box-shadow: var(--sombra);
-  border: 1px solid var(--linea-suave);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.admin-card:hover {
-  border-color: var(--linea);
-  box-shadow: 0 2px 6px rgba(14, 21, 25, 0.06), 0 8px 20px rgba(14, 21, 25, 0.04);
-}
-
-/* Tarjeta cuyos números no se pudieron leer.
- *
- * Los conteos del panel devuelven ceros de relleno cuando la base no responde
- * (`datos.ts`), y un cero se lee como «no hay nada»: un módulo cuya tabla falta
- * —desplegar un esquema sin su migración— se veía igual que uno recién
- * instalado. La franja ámbar es la misma que usan los avisos de atención, para
- * que la tarjeta se distinga del resto de la cuadrícula sin leer su texto. */
-.admin-card-ilegible {
-  border-left: 3px solid var(--ambar);
-  background-color: var(--ambar-tenue);
-}
-
-.admin-card-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--pizarra);
-  margin-bottom: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.admin-card-value {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: var(--marca);
-  line-height: 1.1;
-}
-
-.admin-card-note {
-  color: var(--mudo);
-  font-size: 0.8125rem;
-  margin: 0.5rem 0 1rem;
-}
-
-.admin-card-numero {
-  font-family: var(--mono);
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--linea);
-  margin-bottom: 0.25rem;
-}
-
-.admin-card-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 1rem;
-}
-
-/* ---------- tablas ---------- */
-.admin-table-container {
-  background-color: var(--superficie);
-  border-radius: var(--r-lg);
-  box-shadow: var(--sombra);
-  border: 1px solid var(--linea-suave);
-  overflow-x: auto;
-}
-
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.admin-table th,
-.admin-table td {
-  padding: 0.875rem 1rem;
-  text-align: left;
-  border-bottom: 1px solid var(--linea-suave);
-}
-
-.admin-table th {
-  font-weight: 600;
-  color: var(--pizarra);
-  background-color: var(--papel);
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  font-family: var(--mono);
-  white-space: nowrap;
-}
-
-.admin-table tr:last-child td {
-  border-bottom: none;
-}
-
-.admin-table tbody tr {
-  transition: background-color 0.1s ease;
-}
-
-.admin-table tbody tr:hover {
-  background-color: rgba(24, 107, 120, 0.03);
-}
-
-/* La celda que da nombre a la fila es un `th scope="row"`: es lo que ata cada
-   «Editar» y cada «Eliminar» a la ficha que borran, y sin eso un lector de
-   pantalla lista veinte botones «Eliminar» indistinguibles. Dentro del cuerpo
-   tiene que parecer una celda normal: sin esto heredaba el aspecto de la
-   cabecera —versalitas monoespaciadas sobre fondo papel— en cada fila. */
-.admin-table tbody th {
-  font-weight: 500;
-  color: inherit;
-  background-color: transparent;
-  text-transform: none;
-  font-size: inherit;
-  letter-spacing: normal;
-  font-family: inherit;
-  white-space: normal;
-}
-
-.admin-table tbody tr:last-child th {
-  border-bottom: none;
-}
-
-.admin-table-user-name {
-  font-weight: 500;
-}
-
-.admin-table-user-email {
-  font-size: 0.8125rem;
-  color: var(--mudo);
-  margin-top: 1px;
-}
-
-.admin-table-text {
-  max-width: 360px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.admin-table-modulo {
-  text-transform: capitalize;
-  font-size: 0.875rem;
-}
-
-/* ---------- botones ---------- */
-.admin-btn {
-  padding: 0.5rem 1rem;
-  border-radius: var(--r);
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: all 0.15s ease;
-  font-size: 0.8125rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  text-decoration: none;
-  white-space: nowrap;
-  font-family: inherit;
-  line-height: 1.4;
-}
-
-.admin-btn-primary {
-  background-color: var(--marca);
-  color: #fff;
-}
-
-.admin-btn-primary:hover {
-  background-color: var(--marca-honda);
-}
-
-.admin-btn-secondary {
-  background-color: var(--superficie);
-  color: var(--pizarra);
-  border: 1px solid var(--linea);
-}
-
-.admin-btn-secondary:hover {
-  background-color: var(--papel);
-  color: var(--tinta);
-  border-color: var(--marca);
-}
-
-.admin-btn-danger {
-  background-color: var(--alerta-tenue);
-  color: var(--alerta);
-  border: 1px solid rgba(158, 46, 39, 0.15);
-}
-
-.admin-btn-danger:hover {
-  background-color: var(--alerta);
-  color: #fff;
-}
-
-/* El verde de «esto ya está publicado / resuelto».
- *
- * Había cuatro repartidos entre este archivo: #1e8e3e sobre #e6f4ea en el botón
- * y en `.admin-badge-resolved`, y #1f7a4d sobre #e9f5ef en `.admin-aviso-ok` y
- * en `.admin-badge-publicado`. La misma idea con dos verdes según qué
- * componente pintara la fila, que es la clase de descuido que se ve sin poder
- * señalarlo. Se queda el oscuro: #1e8e3e sobre su fondo no llega a 4,5:1 y
- * #1f7a4d sí.
- *
- * Se escribe `var(--verde, …)` y no el color a secas porque la paleta vive en
- * `estilos.css` y este es un archivo que la extiende: el día que `--verde` y
- * `--verde-tenue` entren en ese `:root`, los cinco sitios los toman solos. Sin
- * definirlos aquí a propósito —dos `:root` con el mismo nombre y distinto valor
- * se resuelven por orden de carga, que no controlamos. */
-.admin-btn-success {
-  background-color: var(--verde-tenue, #e9f5ef);
-  color: var(--verde, #1f7a4d);
-  border: 1px solid rgba(31, 122, 77, 0.15);
-}
-
-.admin-btn-success:hover {
-  background-color: var(--verde, #1f7a4d);
-  color: #fff;
-}
-
-.admin-btn-sm {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.75rem;
-}
-
-/* ---------- badges ---------- */
-.admin-badge {
-  padding: 0.1875rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  display: inline-block;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.admin-badge-pending {
-  background-color: var(--ambar-tenue);
-  color: var(--ambar);
-}
-
-.admin-badge-resolved {
-  background-color: var(--verde-tenue, #e9f5ef);
-  color: var(--verde, #1f7a4d);
-}
-
-/* En español, como el resto del proyecto y como sus hermanas de más abajo
-   —`.admin-badge-borrador`, `.admin-badge-publicado`, `.admin-badge-neutro`—.
-   Se renombraron estas dos y no `pending`/`resolved` porque el par entero de
-   las cuentas lo pinta un solo ternario de `usuarios/TablaUsuarios.tsx`, y el
-   de los comentarios vive en archivos de otro lote: cambiar media pareja deja
-   un ternario en dos idiomas, que es peor que dejarlo. Lo mismo con
-   `.admin-form-*` y `.admin-modal-*`, que además están fijadas por su nombre
-   en `tests/unit/modalesDelPanel.test.ts`. */
-.admin-badge-activo {
-  background-color: var(--marca-tenue);
-  color: var(--marca);
-}
-
-.admin-badge-inactivo {
-  background-color: var(--papel);
-  color: var(--mudo);
-}
-
-/* ---------- filtros ---------- */
-.admin-filters {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-
-.admin-filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-.admin-filter-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 600;
-  color: var(--mudo);
-}
-
-.admin-select, .admin-input {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  background-color: var(--superficie);
-  color: var(--tinta);
-  font-family: inherit;
-  font-size: 0.875rem;
-  min-width: 160px;
-  transition: border-color 0.15s ease;
-}
-
-.admin-select:focus, .admin-input:focus {
-  outline: none;
-  border-color: var(--marca);
-  box-shadow: 0 0 0 3px var(--marca-tenue);
-}
-
-.admin-filter-count {
-  font-size: 0.8125rem;
-  color: var(--mudo);
-  margin-left: auto;
-  padding: 0.5rem 0;
-}
-
 /* ---------- formularios ---------- */
-.admin-form-group {
-  margin-bottom: 1.25rem;
-}
+/* La familia de campos del panel: borde `--linea-fuerte` (3:1, WCAG 1.4.11)
+   como `.admin-select` y `.admin-input` de `panel.css`. Con `--linea` el
+   contorno daba 1,3:1 y el campo de la clave nueva no se distinguía del
+   fondo del diálogo. */
+.admin-form-group { margin-bottom: var(--e-5); }
 
 .admin-form-label {
   display: block;
-  margin-bottom: 0.375rem;
+  margin-bottom: var(--e-1);
+  font-size: var(--t-sm);
   font-weight: 600;
-  font-size: 0.875rem;
   color: var(--tinta);
 }
 
-.admin-form-hint {
-  font-size: 0.8125rem;
-  color: var(--mudo);
-  margin-top: 0.25rem;
-}
+.admin-form-hint { margin-top: var(--e-1); font-size: var(--t-sm); color: var(--mudo); }
 
 .admin-form-input {
   width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--linea);
+  min-height: 40px;
+  padding: var(--e-2) var(--e-3);
+  border: 1px solid var(--linea-fuerte);
   border-radius: var(--r);
   background-color: var(--superficie);
   /* Declarar el fondo y dejar el color del texto al navegador es medio par:
@@ -576,8 +101,8 @@
      justo el de los tres modales de cuentas. */
   color: var(--tinta);
   font-family: inherit;
-  font-size: 0.9375rem;
-  transition: border-color 0.15s ease;
+  font-size: var(--t-base);
+  transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease;
 }
 
 .admin-form-input:focus {
@@ -586,343 +111,10 @@
   box-shadow: 0 0 0 3px var(--marca-tenue);
 }
 
-/* ---------- modal ---------- */
-/* El alto máximo y el desplazamiento no son adorno.
- *
- * El velo es `position: fixed`, así que desplazar la página no lo mueve: un
- * modal más alto que la ventana dejaba sus botones fuera de la pantalla y sin
- * ninguna forma de alcanzarlos, y la única salida era cerrarlo y perder lo
- * escrito. No es hipotético: el modal de permisos de `usuarios` mide unos
- * 675 px —dos listas de cinco casillas— y una ventana de portátil 1080p con el
- * escalado de Windows al 125 % deja menos de 650 px útiles.
- *
- * Estaba resuelto en línea dentro de `EnvolturaModal` (usuarios), que era la
- * pantalla donde dolía; aquí cubre además los modales del resto del panel. El
- * relleno del velo es el que impide que la caja toque el borde cuando llega a
- * su alto máximo. Si se toca alguno de estos cuatro valores, hay que mirar ese
- * modal de permisos, que es el que manda. */
-.admin-modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(14, 21, 25, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow-y: auto;
-  padding: 1.5rem 1rem;
-  z-index: 1000;
-  animation: admin-fade-in 0.15s ease;
-}
-
-.admin-modal {
-  background-color: var(--superficie);
-  border-radius: var(--r-lg);
-  padding: 2rem;
-  width: 100%;
-  max-width: 480px;
-  max-height: calc(100vh - 3rem);
-  overflow-y: auto;
-  box-shadow: 0 12px 48px rgba(14, 21, 25, 0.25);
-  animation: admin-slide-up 0.2s cubic-bezier(0.2, 0.7, 0.3, 1);
-}
-
-.admin-modal-title {
-  font-size: 1.25rem;
-  font-weight: 650;
-  margin-bottom: 1.5rem;
-  color: var(--tinta);
-}
-
-.admin-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--linea-suave);
-}
-
-@keyframes admin-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes admin-slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
-
-/* ---------- estados vacíos ---------- */
-.admin-empty {
-  text-align: center;
-  padding: 3rem 2rem;
-  color: var(--mudo);
-  border: 1px dashed var(--linea);
-  border-radius: var(--r);
-  margin: 0.25rem;
-}
-
-/* Sin emoji: el resto del panel dibuja sus iconos con trazos, y una carita
-   suelta en medio de una tabla clínica desentona más de lo que ayuda. El
-   `<div class="admin-empty-icon">` sigue en el marcado de media docena de
-   pantallas, así que la regla tiene que quedarse aunque no pinte nada. */
-.admin-empty-icon { display: none; }
-
-.admin-empty-text {
-  font-size: 0.9375rem;
-}
-
-/* ---------- responsive ---------- */
-@media (max-width: 900px) {
-  .admin-layout {
-    flex-direction: column;
-  }
-
-  .admin-sidebar {
-    position: static;
-    height: auto;
-    overflow-y: visible;
-    width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    padding: 0.75rem;
-    gap: 0.25rem;
-    overflow-x: auto;
-  }
-
-  .admin-sidebar-header {
-    width: 100%;
-    padding: 0 0.25rem 0.75rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .admin-nav-section {
-    display: none;
-  }
-
-  .admin-nav-link {
-    padding: 0.5rem 0.75rem;
-    font-size: 13px;
-    white-space: nowrap;
-  }
-
-  .admin-nav-back {
-    margin-top: 0;
-    padding-top: 0;
-    border-top: none;
-    margin-left: auto;
-  }
-
-  .admin-content {
-    padding: 1.5rem;
-  }
-
-  .admin-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .admin-filter-count {
-    margin-left: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  .admin-title { font-size: 1.375rem; }
-  .admin-content { padding: 1rem; }
-  .admin-card { padding: 1.25rem; }
-  .admin-card-value { font-size: 2rem; }
-}
-
-/* ==========================================================================
-   Ampliación del panel: navegación con estado, avisos, listas de datos,
-   barras de progreso y bloques copiables.
-   ========================================================================== */
-
-/* ---------- barra lateral ---------- */
-/* 42 px y no los 32 de antes: al lado de dos líneas de texto —«TraumaHub» y
-   «Panel de control»— la marca se quedaba más baja que el bloque que presenta.
-   En la fila de pantalla estrecha (bloque de 1000 px) la marca va sola y los
-   enlaces miden unos 38 px, así que la fila crece apenas cuatro. */
-.admin-sidebar-logo {
-  height: 42px;
-  width: 42px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-
-.admin-nav { display: flex; flex-direction: column; }
-
-.admin-nav-texto { flex: 1; }
-
-.admin-nav-aviso {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 3px 6px;
-  border-radius: 100px;
-  background: var(--ambar);
-  color: #fff;
-}
-
-.admin-nav-link.active .admin-nav-aviso { background: rgba(255, 255, 255, 0.25); }
-
-.admin-sidebar-quien {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #5d7099;
-  padding: 0.75rem 0.75rem 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ---------- barra de acciones de una página ---------- */
-.admin-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-bottom: 2rem;
-}
-
-.admin-acciones { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-
-/* Formatos y tamaño máximo, debajo del botón «+ Subir archivo».
- *
- * Va dentro de la barra de acciones, que es flex y alinea a la derecha: sin un
- * ancho máximo la frase entera se pone en una línea, ensancha la cabecera y
- * empuja el título contra el borde. */
-.admin-subida-ayuda { max-width: 280px; text-align: right; }
-
-/* ---------- avisos en línea ---------- */
-.admin-aviso {
-  border: 1px solid var(--linea);
-  border-left-width: 3px;
-  border-radius: var(--r);
-  padding: 0.75rem 1rem;
-  margin-bottom: 1.25rem;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  background: var(--superficie);
-}
-
-.admin-aviso-info { border-left-color: var(--marca); background: var(--marca-tenue); }
-.admin-aviso-ok { border-left-color: var(--verde, #1f7a4d); background: var(--verde-tenue, #e9f5ef); }
-.admin-aviso-atencion { border-left-color: var(--ambar); background: var(--ambar-tenue); }
-.admin-aviso-error { border-left-color: var(--alerta); background: var(--alerta-tenue); }
-.admin-aviso strong { display: block; margin-bottom: 0.15rem; }
-
-/* ---------- lista de datos (clave / valor) ---------- */
-.admin-datos {
-  margin: 0;
-  display: grid;
-  grid-template-columns: minmax(160px, auto) 1fr;
-  gap: 0;
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  overflow: hidden;
-  background: var(--superficie);
-}
-
-.admin-datos dt,
-.admin-datos dd {
-  margin: 0;
-  padding: 0.6rem 1rem;
-  border-bottom: 1px solid var(--linea-suave);
-  font-size: 0.875rem;
-}
-
-.admin-datos dt {
-  color: var(--pizarra);
-  background: #fafcff;
-  font-weight: 500;
-}
-
-.admin-datos dd { font-family: var(--mono); font-size: 0.8125rem; word-break: break-all; }
-.admin-datos dt:nth-last-of-type(1),
-.admin-datos dd:nth-last-of-type(1) { border-bottom: 0; }
-
-/* ---------- barra de progreso ---------- */
-.admin-progreso {
-  height: 6px;
-  background: var(--linea-suave);
-  border-radius: 100px;
-  overflow: hidden;
-  margin-top: 0.5rem;
-}
-
-.admin-progreso-relleno {
-  height: 100%;
-  background: var(--marca);
-  border-radius: 100px;
-  transition: width 0.3s ease;
-}
-
-/* ---------- etiquetas de estado ---------- */
-.admin-badge-borrador { background: var(--ambar-tenue); color: var(--ambar); }
-.admin-badge-publicado { background: var(--verde-tenue, #e9f5ef); color: var(--verde, #1f7a4d); }
-.admin-badge-neutro { background: var(--linea-suave); color: var(--pizarra); }
-
-/* ---------- bloque copiable (enlaces de un solo uso) ---------- */
-.admin-copiable {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  background: var(--papel);
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  padding: 0.5rem 0.75rem;
-  margin-top: 0.5rem;
-}
-
-.admin-copiable input {
-  flex: 1;
-  border: 0;
-  background: transparent;
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  color: var(--tinta);
-  min-width: 0;
-}
-
-/* ---------- formularios de dos columnas ---------- */
-.admin-form-fila {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-/* ---------- pie de tabla / paginación ---------- */
-.admin-pie {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--linea-suave);
-  font-size: 0.8125rem;
-  color: var(--pizarra);
-}
-
-.admin-numero-tenue { color: var(--mudo); font-weight: 400; font-size: 1rem; }
-
-@media (max-width: 640px) {
-  .admin-datos { grid-template-columns: 1fr; }
-  .admin-datos dt { border-bottom: 0; padding-bottom: 0; }
-  .admin-form-fila { grid-template-columns: 1fr; }
-}
+/* El diálogo (`.admin-modal*`) vivía aquí y en `ui.css` a la vez desde que se
+   extrajo `Modal`: dos copias con distinto relleno y distinta sombra según
+   qué hoja cargara después. Se queda solo en `ui.css`, que llega también
+   fuera del panel; `tests/unit/modalesDelPanel.test.ts` lee esa. */
 
 /* ==========================================================================
    Editor de contenido propio: formularios, listas, bloques y texto rico.
@@ -988,7 +180,7 @@
 }
 
 /* La pestaña que quien revisa ya tuvo delante (D-142). */
-.editor-pestana-revisada { margin-left: 6px; color: var(--verde, #1f7a4d); font-weight: 700; }
+.editor-pestana-revisada { margin-left: 6px; color: var(--verde); font-weight: 700; }
 
 /* ---------- revisión del contenido (D-142) ---------- */
 .revision-caja {
@@ -1021,7 +213,7 @@
    verde lo que está listo o publicado, rojo lo que volvió. */
 .revision-estado-pendiente { background: var(--ambar-tenue); color: var(--ambar); }
 .revision-estado-en-revision { background: var(--marca-tenue); color: var(--marca); }
-.revision-estado-lista { background: var(--verde-tenue, #e9f5ef); color: var(--verde, #1f7a4d); }
+.revision-estado-lista { background: var(--verde-tenue); color: var(--verde); }
 .revision-estado-devuelta { background: var(--alerta-tenue); color: var(--alerta); }
 .revision-estado-publicada { background: var(--linea-suave); color: var(--pizarra); }
 .revision-senal { color: var(--alerta); font-weight: 700; margin-left: 4px; }
@@ -1164,7 +356,7 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 
 /* El reserva decía #16794a, un quinto verde que no estaba en ninguna otra
    regla: se alinea con el de los demás avisos de «hecho». */
-.encuadre-aviso { color: var(--verde, #1f7a4d); font-weight: 600; }
+.encuadre-aviso { color: var(--verde); font-weight: 600; }
 
 /* ---------- relación múltiple, con casillas ---------- */
 .campo-casillas {
@@ -1360,9 +552,9 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 
 .lista-fila-acciones button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.lista-quitar:hover:not(:disabled) {
-  border-color: var(--alerta) !important;
-  color: var(--alerta) !important;
+.lista-fila-acciones .lista-quitar:hover:not(:disabled) {
+  border-color: var(--alerta);
+  color: var(--alerta);
 }
 
 /* ---------- bloques ---------- */
@@ -1472,317 +664,9 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 .archivo-vista img,
 .archivo-vista video { max-width: 100%; max-height: 220px; display: block; margin: 0 auto; }
 
-/* ---------- índice de contenido ---------- */
-.contenido-recientes {
-  list-style: none;
-  margin: 0.75rem 0 0;
-  padding: 0;
-  border-top: 1px solid var(--linea-suave);
-}
-
-.contenido-recientes li {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--linea-suave);
-  font-size: 0.8125rem;
-}
-
-.contenido-recientes a {
-  flex: 1;
-  color: var(--tinta);
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.contenido-recientes a:hover { color: var(--marca); }
-
-.contenido-borrador {
-  font-family: var(--mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ambar);
-  background: var(--ambar-tenue);
-  padding: 2px 5px;
-  border-radius: 2px;
-}
-
-.contenido-fecha { color: var(--mudo); font-size: 0.6875rem; white-space: nowrap; }
-
 @media (max-width: 700px) {
   .campo-medio { flex: 1 1 100%; }
   .archivo-fila { flex-direction: column; }
-}
-
-/* ==========================================================================
-   Gráficos, permisos y tarjetas anchas.
-   ========================================================================== */
-
-.admin-card-ancha { grid-column: 1 / -1; }
-
-.grafico { margin: 0.75rem 0 0; }
-.grafico-svg { width: 100%; display: block; }
-.grafico-vacio { color: var(--mudo); font-size: 0.8125rem; margin: 0.75rem 0 0; }
-
-.grafico-ejes {
-  display: flex;
-  margin-top: 0.35rem;
-  gap: 2px;
-}
-
-.grafico-eje {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 0;
-}
-
-.grafico-eje-valor {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--tinta);
-  font-weight: 600;
-}
-
-.grafico-eje-etiqueta {
-  font-family: var(--mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--mudo);
-}
-
-.grafico-lista { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
-
-.grafico-fila {
-  display: grid;
-  grid-template-columns: minmax(90px, 40%) 1fr auto;
-  gap: 0.6rem;
-  align-items: center;
-  font-size: 0.8125rem;
-}
-
-.grafico-fila-etiqueta {
-  color: var(--pizarra);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.grafico-fila-barra {
-  background: var(--linea-suave);
-  border-radius: 100px;
-  height: 8px;
-  overflow: hidden;
-}
-
-.grafico-fila-relleno {
-  display: block;
-  height: 100%;
-  background: var(--marca);
-  border-radius: 100px;
-  min-width: 2px;
-}
-
-.grafico-fila-relleno-alerta { background: var(--alerta); }
-
-/* Una fila de la barra apilada por módulo (D-142): el hueco de la pista queda
-   a la vista y los segmentos van separados por dos píxeles de fondo. */
-.grafico-fila-apilada { background: none; border-radius: 0; height: 10px; overflow: visible; }
-.grafico-fila-apilada > span { display: flex; gap: 2px; height: 100%; min-width: 2px; }
-.grafico-fila-apilada .grafico-apilada-parte { border-radius: 2px; min-width: 2px; }
-.grafico-leyenda-en-fila { flex-direction: row; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
-.grafico-leyenda-en-fila strong { margin-left: 0.35rem; }
-
-.grafico-fila-valor {
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  color: var(--tinta);
-  font-weight: 600;
-  min-width: 2ch;
-  text-align: right;
-}
-
-.grafico-apilada-caja { margin-top: 0.75rem; }
-
-/* Dos píxeles de fondo entre segmento y segmento, en vez de un borde: se ve
-   dónde acaba cada parte sin dibujar una línea que compita con ellas. */
-.grafico-apilada {
-  display: flex;
-  gap: 2px;
-  height: 10px;
-  border-radius: 100px;
-  overflow: hidden;
-  background: var(--superficie);
-}
-
-.grafico-apilada-parte { display: block; height: 100%; }
-
-.grafico-leyenda {
-  list-style: none;
-  margin: 0.6rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.8125rem;
-  color: var(--pizarra);
-}
-
-.grafico-leyenda li { display: flex; align-items: center; gap: 0.45rem; }
-.grafico-leyenda strong { margin-left: auto; font-family: var(--mono); font-size: 0.75rem; color: var(--tinta); }
-
-.grafico-punto { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
-
-/* ---------- permisos ---------- */
-.permisos-grupo {
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  padding: 0.9rem 1rem;
-  margin: 0 0 1rem;
-}
-
-.permisos-grupo legend {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0 0.4rem;
-  color: var(--tinta);
-}
-
-.permisos-grupo:disabled { opacity: 0.55; }
-
-.permisos-casilla {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 0.3rem 0;
-  font-size: 0.875rem;
-  cursor: pointer;
-}
-
-.permisos-grupo:disabled .permisos-casilla { cursor: not-allowed; }
-
-/* ==========================================================================
-   Dentro del panel no se muestra la barra de la plataforma: el panel tiene su
-   propia navegacion y las dos juntas se estorban, sobre todo en pantallas
-   estrechas, donde la barra se parte en dos lineas y desplaza todo hacia
-   abajo. Se sale con el enlace del pie de la barra lateral.
-   ========================================================================== */
-body:has(.admin-layout) .barra { display: none; }
-body:has(.admin-layout) .admin-layout { min-height: 100vh; }
-
-.admin-sidebar-pie {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0.75rem 0;
-}
-
-.admin-salir {
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #b0c4e6;
-  border-radius: 100px;
-  padding: 3px 10px;
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.admin-salir:hover:not(:disabled) { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
-.admin-salir:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* El crédito de autoría, al pie de la barra lateral. Dentro del panel hace las
-   veces del pie de página de la plataforma, que aquí se esconde
-   (`estilos.css`, `.pie-de-pagina`).
-
-   Los colores salen de la propia barra y están medidos sobre `--tinta`: el
-   texto en #8ba6d8, el de «Panel de control», da 7:1; el enlace en `--cian`,
-   5,8:1. No se usó el #5d7099 de `.admin-sidebar-quien`, que parece el
-   candidato natural por ser la línea de encima: se queda en 3,5:1, y ahí vale
-   porque es un rótulo en mayúsculas, no una frase con una dirección que
-   copiar.
-
-   Envuelve en vez de cortarse con puntos suspensivos, al revés que
-   `.admin-sidebar-quien`: un nombre de usuario recortado se sigue
-   reconociendo, una dirección de correo recortada ya no sirve para escribirle. */
-.admin-sidebar-credito {
-  margin: 0.9rem 0 0;
-  padding: 0 0.75rem;
-  font-size: 10.5px;
-  line-height: 1.5;
-  color: #8ba6d8;
-  overflow-wrap: anywhere;
-}
-
-.admin-sidebar-credito a { color: var(--cian); text-decoration: none; }
-.admin-sidebar-credito a:hover { text-decoration: underline; }
-
-/* ---------- la tabla se desplaza sola en pantalla estrecha ---------- */
-@media (max-width: 900px) {
-  .admin-table-container { overflow-x: auto; }
-  .admin-table { min-width: 640px; }
-}
-
-/* ---------- el panel en pantallas estrechas ----------
-   La barra lateral de 260px deja el contenido en una franja inútil. Debajo de
-   1000px pasa a ser una fila superior desplazable. */
-@media (max-width: 1000px) {
-  .admin-layout { flex-direction: column; }
-
-  .admin-sidebar {
-    /* La fila superior no se fija ni se desplaza en vertical. */
-    position: static;
-    height: auto;
-    overflow-y: visible;
-    width: 100%;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    overflow-x: auto;
-  }
-
-  .admin-sidebar-header {
-    padding: 0;
-    margin: 0;
-    border: 0;
-    flex-shrink: 0;
-  }
-
-  .admin-sidebar-header > div { display: none; }
-  .admin-nav { flex-direction: row; gap: 0.25rem; }
-  .admin-nav > div { display: flex; align-items: center; gap: 0.25rem; }
-  .admin-nav-section { display: none; }
-  .admin-nav-link { white-space: nowrap; padding: 0.5rem 0.7rem; }
-  .admin-nav-texto { display: none; }
-  .admin-nav-link.active .admin-nav-texto { display: inline; }
-
-  .admin-nav-back {
-    margin: 0 0 0 auto;
-    padding: 0;
-    border: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-  }
-
-  .admin-nav-back .admin-nav-texto { display: none; }
-  .admin-sidebar-pie { padding: 0; }
-  .admin-sidebar-quien { display: none; }
-  /* La barra es aquí una sola fila desplazable y `.admin-nav-back` otra fila
-     dentro de ella: un párrafo de dos líneas la haría crecer en alto o se
-     partiría letra a letra por el `overflow-wrap`. Se va con el nombre de
-     quien usa el panel, por la misma falta de sitio. */
-  .admin-sidebar-credito { display: none; }
-  .admin-content { padding: 1.5rem 1.25rem; }
 }
 
 .editor-pestana-falta {
@@ -1968,7 +852,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   min-height: 0;
   border: 1px solid var(--linea);
   border-radius: var(--r);
-  background: linear-gradient(180deg, #f7f9fc 0%, #e9eef6 100%);
+  background: var(--lienzo-3d);
   overflow: hidden;
 }
 
@@ -1982,15 +866,15 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: rgba(247, 249, 252, 0.9);
+  background: color-mix(in srgb, var(--lienzo-3d) 90%, transparent);
   color: var(--pizarra);
-  font-size: 13px;
+  font-size: var(--t-sm);
 }
 
 .atlas-barra {
   width: 200px;
   height: 4px;
-  border-radius: 100px;
+  border-radius: var(--r-full);
   background: var(--linea);
   overflow: hidden;
 }
@@ -1999,12 +883,12 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   display: block;
   height: 100%;
   background: var(--marca);
-  transition: width 0.25s ease;
+  transition: width var(--dur) ease;
 }
 
 .atlas-error {
   position: absolute;
-  inset: 16px;
+  inset: var(--e-4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2013,8 +897,8 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   border: 1px solid var(--alerta);
   border-radius: var(--r);
   color: var(--tinta);
-  font-size: 13.5px;
-  padding: 16px;
+  font-size: var(--t-sm);
+  padding: var(--e-4);
 }
 
 /* Nombre de la estructura bajo el cursor. */
@@ -2026,12 +910,12 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   top: 0;
   left: 0;
   white-space: nowrap;
-  font-size: 11.5px;
+  font-size: var(--t-xs);
   line-height: 1.2;
   padding: 2px 7px;
   border-radius: 10px;
-  background: rgba(20, 28, 48, 0.86);
-  color: #fff;
+  background: color-mix(in srgb, var(--tinta) 88%, transparent);
+  color: var(--superficie);
   will-change: transform;
 }
 .atlas-marca-distancia, .atlas-marca-angulo { background: #d81b60; font-variant-numeric: tabular-nums; }
@@ -2040,8 +924,8 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   position: absolute;
   pointer-events: none;
   background: var(--tinta);
-  color: #fff;
-  font-size: 12px;
+  color: var(--superficie);
+  font-size: var(--t-sm);
   padding: 4px 9px;
   border-radius: var(--r);
   max-width: 260px;
@@ -2053,26 +937,26 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 
 /* Las listas de rótulos, medidas y vistas del panel derecho (D-135). */
 .atlas-apuntes { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-.atlas-apuntes li { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.atlas-apuntes li { display: flex; align-items: center; gap: 6px; font-size: var(--t-sm); }
 .atlas-apuntes li > :first-child { flex: 1; min-width: 0; }
-.atlas-apuntes .campo-control, .atlas-apuntes-nueva .campo-control { padding: 4px 7px; font-size: 12px; }
+.atlas-apuntes .campo-control, .atlas-apuntes-nueva .campo-control { padding: 4px 7px; font-size: var(--t-sm); }
 .atlas-apuntes-nueva { display: flex; gap: 6px; margin-bottom: 6px; }
 .atlas-apuntes-nueva .campo-control { flex: 1; min-width: 0; }
 
 /* Color y opacidad de lo seleccionado (D-134). */
 .atlas-aspecto { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
-.atlas-aspecto-fila { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.atlas-aspecto-fila > span:first-child { width: 56px; color: var(--mudo); font-size: 11.5px; }
+.atlas-aspecto-fila { display: flex; align-items: center; gap: var(--e-2); font-size: var(--t-sm); }
+.atlas-aspecto-fila > span:first-child { width: 56px; color: var(--mudo); font-size: var(--t-xs); }
 .atlas-aspecto-fila input[type='color'] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--linea); border-radius: var(--r); background: none; }
 .atlas-aspecto-fila input[type='range'] { flex: 1; min-width: 0; accent-color: var(--marca); }
 
 /* El panel de números (D-133). La letra de cada eje lleva el color de su asa. */
 .atlas-numeros { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
 .atlas-numeros-fila { display: grid; grid-template-columns: 56px repeat(3, 1fr) 22px; gap: 5px; align-items: center; }
-.atlas-numeros-titulo { font-size: 11.5px; color: var(--mudo); }
-.atlas-numeros-unidad { font-size: 11px; color: var(--mudo); }
+.atlas-numeros-titulo { font-size: var(--t-xs); color: var(--mudo); }
+.atlas-numeros-unidad { font-size: var(--t-xs); color: var(--mudo); }
 .atlas-numero { display: flex; align-items: center; gap: 3px; min-width: 0; }
-.atlas-numero span { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+.atlas-numero span { font-family: var(--mono); font-size: var(--t-xs); font-weight: 700; }
 .atlas-numero-x span { color: #e5484d; }
 .atlas-numero-y span { color: #46a758; }
 .atlas-numero-z span { color: #3e7bdc; }
@@ -2083,7 +967,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   border: 1px solid var(--linea);
   border-radius: var(--r);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--t-xs);
   background: var(--superficie);
   color: var(--tinta);
 }
@@ -2119,14 +1003,14 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   width: min(440px, calc(100vw - 44px));
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--e-2);
   pointer-events: none;
 }
 .atlas-avisos-flotantes .admin-aviso {
   margin: 0;
   pointer-events: auto;
-  font-size: 12.5px;
-  box-shadow: 0 6px 22px rgba(10, 20, 50, 0.18);
+  font-size: var(--t-sm);
+  box-shadow: var(--sombra-2);
   position: relative;
   padding-right: 30px;
 }
@@ -2174,9 +1058,9 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   bottom: 12px;
   pointer-events: none;
   background: var(--tinta);
-  color: #fff;
+  color: var(--superficie);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--t-sm);
   padding: 5px 10px;
   border-radius: var(--r);
   z-index: 3;
@@ -2185,7 +1069,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .atlas-herramientas {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--e-3);
   flex-wrap: wrap;
   padding: 6px 8px;
   border: 1px solid var(--linea);
@@ -2204,8 +1088,8 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   padding: 3px;
   border: 1px solid var(--linea);
   border-radius: var(--r);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 2px 10px rgba(10, 20, 50, 0.1);
+  background: color-mix(in srgb, var(--superficie) 92%, transparent);
+  box-shadow: var(--sombra-1);
 }
 .atlas-flota .atlas-herramienta { border-color: transparent; text-align: left; }
 /* Las dos columnas de la izquierda se apilan solas dentro de esta caja, que es
@@ -2223,7 +1107,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--e-2);
   pointer-events: none;
 }
 .atlas-flota-columna > .atlas-flota { position: static; pointer-events: auto; }
@@ -2232,7 +1116,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 
 .atlas-herramienta {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t-sm);
   padding: 4px 9px;
   border: 1px solid var(--linea);
   border-radius: var(--r);
@@ -2245,26 +1129,26 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .atlas-herramienta[aria-pressed='true'] {
   background: var(--marca);
   border-color: var(--marca);
-  color: #fff;
+  color: var(--superficie);
 }
 
 .atlas-atajos {
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--e-2) var(--e-3);
   border: 1px solid var(--linea);
   border-radius: var(--r);
   background: var(--superficie);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 4px 20px;
-  font-size: 12px;
+  font-size: var(--t-sm);
 }
 .atlas-atajos > div { display: flex; gap: 10px; }
-.atlas-atajos dt { font-family: var(--mono); font-size: 11.5px; min-width: 12ch; color: var(--tinta); }
+.atlas-atajos dt { font-family: var(--mono); font-size: var(--t-xs); min-width: 12ch; color: var(--tinta); }
 .atlas-atajos dd { margin: 0; color: var(--mudo); }
 
 .atlas-seleccionadas {
-  font-size: 12px;
+  font-size: var(--t-sm);
   color: var(--tinta);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2275,26 +1159,26 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .atlas-mandos {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 12px;
+  gap: var(--e-4);
+  padding: var(--e-2) var(--e-3);
   border: 1px solid var(--linea);
   border-radius: var(--r);
   background: var(--superficie);
   flex-wrap: wrap;
 }
 
-.atlas-separador-mando { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+.atlas-separador-mando { display: flex; align-items: center; gap: 10px; font-size: var(--t-sm); }
 .atlas-separador-mando input[type='range'] { width: 180px; accent-color: var(--marca); }
 
 .atlas-separador-valor {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--t-xs);
   color: var(--mudo);
   min-width: 4ch;
 }
 
 .atlas-resumen {
-  font-size: 12px;
+  font-size: var(--t-sm);
   color: var(--mudo);
   margin-left: auto;
   overflow: hidden;
@@ -2310,7 +1194,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   border-bottom: 1px solid var(--linea-suave);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--e-2);
 }
 
 .atlas-busqueda {
@@ -2319,7 +1203,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   border: 1px solid var(--linea);
   border-radius: var(--r);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--t-sm);
   color: var(--tinta);
   background: var(--superficie);
 }
@@ -2330,7 +1214,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   box-shadow: 0 0 0 3px var(--marca-tenue);
 }
 
-.atlas-ejes { display: flex; gap: 4px; }
+.atlas-ejes { display: flex; gap: var(--e-1); }
 
 .atlas-ejes button {
   flex: 1;
@@ -2339,7 +1223,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   border-radius: var(--r);
   background: none;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t-sm);
   color: var(--pizarra);
   cursor: pointer;
 }
@@ -2359,7 +1243,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   border-radius: var(--r);
   background: none;
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--t-xs);
   color: var(--pizarra);
   cursor: pointer;
 }
@@ -2369,7 +1253,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .atlas-conteo {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--t-xs);
   color: var(--mudo);
 }
 
@@ -2413,7 +1297,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   background: none;
   cursor: pointer;
   color: var(--pizarra);
-  font-size: 11px;
+  font-size: var(--t-xs);
   width: 16px;
   padding: 0;
 }
@@ -2425,7 +1309,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   flex: 1;
   min-width: 0;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: var(--t-sm);
 }
 
 .atlas-casilla span {
@@ -2447,7 +1331,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .atlas-grupo-conteo,
 .atlas-rama-conteo {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--t-xs);
   color: var(--mudo);
   flex-shrink: 0;
 }
@@ -2457,14 +1341,14 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   border: 1px solid transparent;
   background: none;
   font: inherit;
-  font-size: 10.5px;
+  font-size: var(--t-xs);
   color: var(--mudo);
   cursor: pointer;
   padding: 1px 6px;
-  border-radius: 100px;
+  border-radius: var(--r-full);
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.12s ease;
+  transition: opacity var(--dur-rapida) ease;
 }
 
 .atlas-grupo-fila:hover .atlas-solo,
@@ -2488,7 +1372,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   gap: 6px;
   padding: 2px 4px;
   border-radius: var(--r);
-  font-size: 12px;
+  font-size: var(--t-sm);
   color: var(--pizarra);
 }
 
@@ -2503,14 +1387,14 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 /* Marca de que la región es una estimación y no un dato del atlas. */
 .atlas-estimada {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--t-xs);
   color: var(--mudo);
   cursor: help;
   flex-shrink: 0;
 }
 
 .atlas-vacio {
-  font-size: 12px;
+  font-size: var(--t-sm);
   color: var(--mudo);
   padding: 8px 6px;
   margin: 0;
@@ -2521,7 +1405,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 .atlas-ficha .campo-etiqueta { margin-bottom: 0; }
 
 .atlas-subtitulo {
-  font-size: 12px;
+  font-size: var(--t-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-family: var(--mono);
@@ -2531,7 +1415,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   border-top: 1px solid var(--linea-suave);
 }
 
-.atlas-guardadas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.atlas-guardadas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e-1); }
 
 .atlas-guardadas li {
   border: 1px solid var(--linea);
@@ -2555,8 +1439,8 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   color: var(--tinta);
 }
 
-.atlas-guardada-abrir strong { font-size: 12.5px; font-weight: 600; }
-.atlas-guardada-abrir span { font-size: 11px; color: var(--mudo); }
+.atlas-guardada-abrir strong { font-size: var(--t-sm); font-weight: 600; }
+.atlas-guardada-abrir span { font-size: var(--t-xs); color: var(--mudo); }
 
 /* La lista de modelos 3D (D-131) puede ser larga: con su propio desplazamiento
    no empuja las preparaciones guardadas fuera de la pantalla. */
@@ -2570,7 +1454,7 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   border-radius: var(--r);
   background: none;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--t-xs);
   padding: 2px 8px;
   cursor: pointer;
   color: var(--pizarra);
@@ -2617,8 +1501,8 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
 
   .atlas-solo-escritorio {
     display: block;
-    margin: 24px 0;
-    padding: 20px;
+    margin: var(--e-6) 0;
+    padding: var(--e-5);
     /* Decía `var(--borde)`, que no está definida en ninguna hoja. Un `var()`
        sin valor y sin reserva invalida la declaración entera, así que el atajo
        `border` volvía a `medium none` y el aviso —lo único que queda en
@@ -2634,82 +1518,11 @@ body:has(.admin-layout) .admin-layout { min-height: 100vh; }
   .atlas-solo-escritorio p:last-child { margin-bottom: 0; }
 }
 
-/* ==========================================================================
-   Revisión del contenido y su auditoría (D-142).
-   ========================================================================== */
-
-/* Los estados de la revisión en los gráficos. Cinco tonos de la casa o muy
-   cerca, en este orden —pendiente, en revisión, lista, publicada, devuelta— y
-   comprobados con el validador de paletas para las tres formas de daltonismo:
-   el rojo de «devuelta» va al final a propósito, porque junto al verde de
-   «lista» los confundía un deuteranope (ΔE 5,5). Si se cambia uno, se vuelve
-   a comprobar el conjunto en ese orden. */
-:root {
-  --estado-pendiente: #9e7526;
-  --estado-en-revision: #12509e;
-  --estado-lista: #1f7a4d;
-  --estado-publicada: #6b5bd2;
-  --estado-devuelta: #d0463f;
-}
-
-.auditoria-filtros { align-items: flex-end; }
-.auditoria-indicadores {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.auditoria-indicadores .admin-card { padding: 1rem 1.1rem; }
-.auditoria-indicadores .admin-card-value { font-size: 1.75rem; }
-.auditoria-card-alerta { box-shadow: inset 3px 0 0 var(--alerta), var(--sombra); }
-.auditoria-card-alerta .admin-card-value { color: var(--alerta); }
-
-.auditoria-revisores { margin-bottom: 1.5rem; }
-.auditoria-numero { font-family: var(--mono); font-size: 0.8125rem; text-align: right; white-space: nowrap; }
-.auditoria-alerta { color: var(--alerta); font-weight: 700; }
-.auditoria-motivos { color: var(--alerta); font-size: 0.75rem; margin-top: 2px; max-width: 48ch; }
-.auditoria-fila-senalada { background: var(--alerta-tenue); }
-.auditoria-tabla th:first-child, .auditoria-tabla td:first-child { width: 1%; }
-
-/* Los títulos de columna que ordenan: se ven como el texto que eran. */
-.auditoria-orden {
-  border: none;
-  background: none;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-.auditoria-orden:hover { color: var(--marca); }
-
-/* La barra de acciones en bloque, encima de la tabla de fichas. */
-.auditoria-bloque {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.8125rem;
-  color: var(--pizarra);
-}
-.auditoria-bloque > span:first-child { margin-right: auto; }
-
-/* Las dos tablas de la auditoría llevan once columnas: se aprietan los rellenos
-   y el título de la ficha tiene un ancho mínimo, para que no se parta en ocho
-   renglones mientras las columnas de números sobran. El contenedor ya se
-   desplaza en horizontal si aun así no caben. */
-.auditoria-tabla th,
-.auditoria-tabla td,
-.auditoria-revisores th,
-.auditoria-revisores td { padding: 0.6rem 0.65rem; }
-.auditoria-tabla th[scope='row'] { min-width: 260px; }
-.auditoria-revisores th[scope='row'] { min-width: 170px; }
-.auditoria-tabla .revision-tenue { font-size: 0.75rem; }
-
-/* Las notas del revisor en la fila superior estrecha: a todo el ancho y plegadas
-   a una línea de alto razonable (D-144). */
-@media (max-width: 1000px) {
+/* Las notas del revisor en la cabecera de pantalla estrecha: a todo el ancho y
+   plegadas a una línea de alto razonable (D-144). Desde que la barra pasa a
+   cajón por debajo de 900 px (`panel.css`), las notas se quedan fuera del
+   cajón, a la vista, igual que antes en la fila de iconos. */
+@media (max-width: 900px) {
   .admin-notas-revisor { flex: 1 1 100%; margin: 0; }
   .admin-notas-cuerpo { max-height: 30vh; }
 }

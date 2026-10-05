@@ -31,6 +31,30 @@ import {
 import { marcarComoLeida, registrarResultadoDeCirugia } from '@/app/(frontend)/acciones/actividad'
 import { Rico, tieneContenido } from '@/components/Rico'
 import { IconoInstrumento } from './IconoInstrumento'
+import { useConfirmar } from '@/components/ui/Confirmar'
+import { Vacio } from '@/components/ui/Vacio'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Box,
+  Check,
+  CheckCircle2,
+  Eraser,
+  Focus,
+  Info,
+  Move,
+  OctagonAlert,
+  PenLine,
+  Rotate3d,
+  RotateCcw,
+  ScanLine,
+  Scissors,
+  Trophy,
+  Undo2,
+  type LucideIcon,
+} from 'lucide-react'
+// La hoja de la consola, aparte de `estilos.css`: el porqué está en su cabecera.
+import '@/app/(frontend)/simulador/consola.css'
 // El visor del instrumento reutiliza el de las fichas, ya partido en su propio
 // trozo de JavaScript: se descarga cuando el residente coge un instrumento que
 // tiene modelo, y no antes.
@@ -144,9 +168,20 @@ export interface CasoDeConsola {
   instrumental: InstrumentoDeBandeja[]
 }
 
+/**
+ * Una línea del registro y su tono.
+ *
+ * El tono era `bien | aviso | grave` y se pintaba como clase suelta del `<li>`:
+ * `aviso` chocaba con la `.aviso` global de `estilos.css` —la nota al pie, con
+ * 40 px de margen encima y un filete—, así que cada advertencia del registro
+ * salía separada del resto por un hueco y una raya que nadie había pedido. Hoy
+ * el tono es `atencion`, como en las insignias de `ui.css`, y la clase se
+ * compone con prefijo (`registro-atencion`), que no puede casar con nada de
+ * fuera de la consola.
+ */
 interface Anotacion {
   texto: string
-  clase: 'bien' | 'aviso' | 'grave'
+  clase: 'bien' | 'atencion' | 'grave'
 }
 
 const CAPAS = [
@@ -164,23 +199,26 @@ const CAPAS = [
  * pulsaba «Trazar», arrastraba para girar el modelo como hace en el atlas, y se
  * encontraba con una incisión que además se le medía.
  */
-const MODOS = [
+const MODOS: readonly { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon }[] = [
   {
     valor: 'orbitar',
     etiqueta: 'Orbitar',
+    icono: Rotate3d,
     ayuda: 'Orbitar: arrastre para girar el modelo y use la rueda para acercar.',
   },
   {
     valor: 'trazar',
     etiqueta: 'Trazar',
+    icono: PenLine,
     ayuda: 'Trazar: arrastre sobre el modelo para dibujar la incisión.',
   },
   {
     valor: 'mover',
     etiqueta: 'Mover',
+    icono: Move,
     ayuda: 'Mover: arrastre el fragmento para colocarlo; la órbita queda desactivada.',
   },
-] as const
+]
 
 /**
  * El modo de ratón que necesita cada objetivo.
@@ -218,6 +256,18 @@ function capasEnProsa(roles: string[]): string {
  */
 type LecturaAlTerminar = 'pendiente' | 'marcada' | 'fallida'
 
+/**
+ * Lo que una tarjeta de medida dice de su cifra: contra qué se mide y cómo va.
+ *
+ * Datos y no un `<dd>` ya pintado, como era antes: la tarjeta necesita el
+ * estado para colorear su borde y su indicador, no solo el renglón.
+ */
+type LecturaDeMedida = {
+  referencia: string
+  veredicto: string
+  estado: 'dentro' | 'fuera' | 'neutro'
+}
+
 export function ConsolaQuirurgica({
   caso,
   documentoId,
@@ -251,6 +301,7 @@ export function ConsolaQuirurgica({
   alMarcarComoLeido: () => void
 }) {
   const mando = useRef<MandoDelLienzo | null>(null)
+  const confirmar = useConfirmar()
 
   const [indice, setIndice] = useState(0)
   const [modo, setModo] = useState<Modo>(
@@ -420,7 +471,7 @@ export function ConsolaQuirurgica({
           // aquí es dejar al residente terminando un caso que no se guardó.
           anotar(
             'Su progreso no se pudo guardar en este momento. Siga con el caso: se reintenta en el paso siguiente.',
-            'aviso',
+            'atencion',
           )
         } finally {
           enVuelo.current = false
@@ -471,7 +522,7 @@ export function ConsolaQuirurgica({
         setLecturaAlTerminar('fallida')
         anotar(
           'El caso no se pudo marcar como leído. Márquelo con la casilla de arriba de la página.',
-          'aviso',
+          'atencion',
         )
       }
     })()
@@ -490,7 +541,7 @@ export function ConsolaQuirurgica({
         for (const rol of encender) siguientes.delete(rol)
         return siguientes
       })
-      anotar(`Se vuelve a mostrar ${capasEnProsa(encender)}: sin eso el lienzo se quedaba vacío.`, 'aviso')
+      anotar(`Se vuelve a mostrar ${capasEnProsa(encender)}: sin eso el lienzo se quedaba vacío.`, 'atencion')
     },
     [caso.pasos, caso.piezas, anotar],
   )
@@ -504,7 +555,7 @@ export function ConsolaQuirurgica({
         siguientes = new Set(apagadas)
         for (const rol of encender) siguientes.delete(rol)
         setCapasApagadas(siguientes)
-        anotar(`Este paso se trabaja sobre ${capasEnProsa(encender)}: se vuelve a mostrar.`, 'aviso')
+        anotar(`Este paso se trabaja sobre ${capasEnProsa(encender)}: se vuelve a mostrar.`, 'atencion')
       }
       refrescarVisibles(indicePaso, siguientes)
     },
@@ -538,7 +589,7 @@ export function ConsolaQuirurgica({
         ? 'bien'
         : evaluacion.complicacion
           ? 'grave'
-          : 'aviso'
+          : 'atencion'
     anotar(`${indice + 1}. ${evaluacion.mensaje}`, clase)
 
     if (!evaluacion.avanza) {
@@ -624,7 +675,7 @@ export function ConsolaQuirurgica({
     entrarEnPaso(siguiente, capasApagadas)
   }
 
-  function reiniciar() {
+  async function reiniciar() {
     // El único botón destructivo de la consola está a ocho píxeles del marcador
     // y tiene el mismo aspecto que «Encuadrar» y «Borrar trazo», que no borran
     // nada. Quien va a mirar los puntos y pulsa el de al lado pierde el caso
@@ -639,7 +690,20 @@ export function ConsolaQuirurgica({
     ]
       .filter(Boolean)
       .join(' y ')
-    if (sePierde && !confirm(`Se borrarán ${sePierde} de este caso. ¿Reiniciar?`)) return
+    // Con el diálogo propio y no con `confirm()`: el del navegador decía
+    // «Aceptar» sin decir qué se aceptaba, salía con el nombre del dominio por
+    // título y en el móvil tapaba la consola entera. El foco empieza en
+    // «Cancelar» (`peligro`), así que un Intro apresurado no borra nada.
+    if (
+      sePierde &&
+      !(await confirmar({
+        titulo: '¿Reiniciar el caso?',
+        mensaje: `Se borrarán ${sePierde} de este recorrido. Lo que quedó guardado de la vez anterior no se toca.`,
+        confirmar: 'Reiniciar el caso',
+        peligro: true,
+      }))
+    )
+      return
 
     setIndice(0)
     setModo(MODO_DEL_OBJETIVO[objetivoDelPaso(caso.pasos[0] ?? {})])
@@ -731,36 +795,34 @@ export function ConsolaQuirurgica({
    * dentro: el color de la consola lo decide la hoja, y escrito aquí no había
    * forma de encontrarlo desde ella —ni de comprobar su contraste, que era el
    * problema: `var(--ambar)` sobre el blanco del panel se queda en 4,18:1 y
-   * este renglón mide 11 px—. La regla es `.consola-desglose-fuera`, en
-   * `estilos.css`, y el sentido no depende del color: la propia línea dice «se
-   * pasa» o «dentro».
+   * este renglón mide 11 px—. Hoy la tarjeta de la medida lleva su estado en
+   * `data-estado` y lo pinta `simulador/consola.css`; el sentido sigue sin
+   * depender del color: la propia línea dice «se pasa» o «dentro».
    */
-  const lineaDeTope = (valor: number, tope: number, unidad: 'mm' | '°') => {
+  const lineaDeTope = (valor: number, tope: number, unidad: 'mm' | '°'): LecturaDeMedida => {
     const fuera = valor > tope
-    return (
-      <dd className={`consola-desglose${fuera ? ' consola-desglose-fuera' : ''}`}>
-        tope {unidad === '°' ? `${tope}°` : `${tope} mm`} · {fuera ? 'se pasa' : 'dentro'}
-      </dd>
-    )
+    return {
+      referencia: `tope ${unidad === '°' ? `${tope}°` : `${tope} mm`}`,
+      veredicto: fuera ? 'se pasa' : 'dentro',
+      estado: fuera ? 'fuera' : 'dentro',
+    }
   }
 
   /** La incisión trazada contra el rango que pide el paso. */
-  const lineaDelTrazo = () => {
+  const lineaDelTrazo = (): LecturaDeMedida | null => {
     if (objetivo !== 'trazo' || !paso) return null
     const rango = rangoDeTrazoEnTexto(paso)
     if (!rango) return null
     const { trazoMinimo: minimo, trazoMaximo: maximo } = paso
-    const pedido = `objetivo: ${rango}`
-    if (largoDelTrazoMm <= 0) {
-      return <dd className="consola-desglose">{pedido} · sin trazar</dd>
-    }
+    const referencia = `objetivo ${rango}`
+    if (largoDelTrazoMm <= 0) return { referencia, veredicto: 'sin trazar', estado: 'neutro' }
     const corta = typeof minimo === 'number' && largoDelTrazoMm < minimo
     const larga = typeof maximo === 'number' && largoDelTrazoMm > maximo
-    return (
-      <dd className={`consola-desglose${corta || larga ? ' consola-desglose-fuera' : ''}`}>
-        {pedido} · {corta ? 'corta' : larga ? 'larga' : 'dentro'}
-      </dd>
-    )
+    return {
+      referencia,
+      veredicto: corta ? 'corta' : larga ? 'larga' : 'dentro',
+      estado: corta || larga ? 'fuera' : 'dentro',
+    }
   }
 
   const ayudaDelModo = MODOS.find((m) => m.valor === modo)?.ayuda ?? ''
@@ -793,30 +855,164 @@ export function ConsolaQuirurgica({
         }; las correcciones están en la retroalimentación clínica, debajo.`
 
   // ------------------------------------------------------------- pintado
+  // Los dos casos que no se pueden recorrer. Llevaban `admin-aviso
+  // admin-aviso-atencion`, dos clases que solo declara `admin.css`: fuera del
+  // panel esa hoja no se carga, y el residente leía un párrafo suelto, sin
+  // marco ni color, donde esperaba una consola. `Vacio` es el estado vacío de
+  // toda la plataforma, y la acción de vuelta evita el callejón sin salida.
   if (!caso.modeloUrl) {
     return (
-      <div className="admin-aviso admin-aviso-atencion">
-        <strong>Este caso todavía no tiene modelo 3D.</strong> La consola necesita un archivo .glb
-        con el hueso ya partido. Súbalo en Modelos 3D y asígnelo al caso.
+      <div className="consola-sin-caso">
+        <Vacio
+          icono={Box}
+          titulo="Este caso todavía no tiene modelo 3D"
+          accion={
+            <Link href="/simulador" className="admin-btn admin-btn-secondary">
+              <ArrowLeft size={16} aria-hidden /> Volver a la lista de casos
+            </Link>
+          }
+        >
+          La consola necesita un archivo .glb con el hueso ya partido. Súbalo en Modelos 3D y
+          asígnelo al caso.
+        </Vacio>
       </div>
     )
   }
 
   if (caso.pasos.length === 0) {
     return (
-      <div className="admin-aviso admin-aviso-atencion">
-        <strong>Este caso todavía no tiene pasos escritos.</strong> Añádalos desde el panel.
+      <div className="consola-sin-caso">
+        <Vacio
+          icono={Scissors}
+          titulo="Este caso todavía no tiene pasos escritos"
+          accion={
+            <Link href="/simulador" className="admin-btn admin-btn-secondary">
+              <ArrowLeft size={16} aria-hidden /> Volver a la lista de casos
+            </Link>
+          }
+        >
+          Añádalos desde el panel.
+        </Vacio>
       </div>
     )
   }
 
+  /**
+   * En qué quedó cada paso, para la franja de arriba.
+   *
+   * Antes el resuelto se apagaba con `opacity: .62` y el texto bajaba de
+   * contraste justo en lo que el residente ya había hecho; y un paso con
+   * complicación se veía igual que uno limpio. Ahora cada estado tiene color e
+   * icono, y además su palabra para el lector de pantalla.
+   */
+  const estadoDelPaso = (p: PasoDeConsola, i: number) =>
+    complicados.has(p.id)
+      ? resueltos.has(p.id)
+        ? 'complicado'
+        : i === indice
+          ? 'actual complicado'
+          : 'complicado'
+      : resueltos.has(p.id)
+        ? 'resuelto'
+        : i === indice
+          ? 'actual'
+          : 'pendiente'
+  const PALABRA_DEL_ESTADO: Record<string, string> = {
+    resuelto: 'resuelto',
+    complicado: 'con complicación',
+    'actual complicado': 'paso actual, con complicación',
+    actual: 'paso actual',
+    pendiente: 'pendiente',
+  }
+
+  // La franja del rango útil pintada sobre la pista del deslizador de fuerza.
+  // Con el rango solo en texto, el residente tenía que traducir «20–60 N» a una
+  // posición del pulgar; pintado, se ve dónde hay que dejarlo. Los extremos son
+  // los mismos que juzga `evaluarGesto`, y el que el paso no declara se lleva
+  // hasta el borde de la pista, que es lo que significa «sin tope».
+  const anchoDelDeslizador = Math.max(1, topesDelDeslizador.max - topesDelDeslizador.min)
+  const aPorcentaje = (n: number) =>
+    `${Math.min(100, Math.max(0, ((n - topesDelDeslizador.min) / anchoDelDeslizador) * 100))}%`
+  const franjaUtil =
+    paso && objetivo === 'fuerza'
+      ? {
+          '--util-desde': aPorcentaje(paso.fuerzaMinima ?? topesDelDeslizador.min),
+          '--util-hasta': aPorcentaje(paso.fuerzaMaxima ?? topesDelDeslizador.max),
+        }
+      : undefined
+  const fuerzaDentro =
+    paso &&
+    (typeof paso.fuerzaMinima !== 'number' || fuerza >= paso.fuerzaMinima) &&
+    (typeof paso.fuerzaMaxima !== 'number' || fuerza <= paso.fuerzaMaxima)
+
+  const medidas: { nombre: string; valor: string; desglose?: string; lectura: LecturaDeMedida | null }[] = [
+    {
+      nombre: 'Desplazamiento',
+      valor: `${reduccion.desplazamiento} mm`,
+      // De qué eje viene: sin esto, lo que queda fuera del plano que se está
+      // mirando parece un número que no baja al arrastrar.
+      desglose:
+        reduccion.desplazamiento > 0
+          ? reduccion.lateral.map(({ eje, mm }) => `${eje.toUpperCase()} ${mm}`).join(' · ')
+          : undefined,
+      lectura:
+        objetivo === 'reduccion' && topes
+          ? lineaDeTope(reduccion.desplazamiento, topes.desplazamiento, 'mm')
+          : null,
+    },
+    {
+      nombre: 'Angulación',
+      valor: `${reduccion.angulacion}°`,
+      lectura:
+        objetivo === 'reduccion' && topes ? lineaDeTope(reduccion.angulacion, topes.angulacion, '°') : null,
+    },
+    {
+      nombre: 'Diástasis',
+      valor: `${reduccion.diastasis} mm`,
+      lectura:
+        objetivo === 'reduccion' && topes ? lineaDeTope(reduccion.diastasis, topes.diastasis, 'mm') : null,
+    },
+    { nombre: 'Incisión', valor: `${largoDelTrazoMm} mm`, lectura: lineaDelTrazo() },
+  ]
+
+  const ICONO_DEL_TONO: Record<Anotacion['clase'], LucideIcon> = {
+    bien: CheckCircle2,
+    atencion: AlertTriangle,
+    grave: OctagonAlert,
+  }
+  const lineaDeRegistro = (linea: Anotacion, clave: string | number) => {
+    const Icono = ICONO_DEL_TONO[linea.clase]
+    return (
+      <li key={clave} className={`registro-linea registro-${linea.clase}`}>
+        <Icono size={16} aria-hidden className="registro-icono" />
+        <span>{linea.texto}</span>
+      </li>
+    )
+  }
+
+  const tieneMandosPropios = objetivo === 'trazo' || largoDelTrazoMm > 0 || objetivo === 'reduccion'
+
   return (
-    <section className="consola">
+    <section
+      className={`consola mod-4${terminado ? ' consola-terminada' : ''}`}
+      aria-labelledby="consola-titulo"
+    >
       {/* --------------------------------------------------------- barra */}
+      {/* El nombre del caso ya es el <h1> de la página, y la barra lo repetía
+          en un <h2> idéntico a 200 px. Aquí se nombra la herramienta y se
+          dejan los datos del caso, que es lo que se consulta con el caso
+          abierto. */}
       <header className="consola-barra">
-        <div>
-          <p className="consola-rotulo">Consola de reducción y fijación de fracturas</p>
-          <h2 className="consola-titulo">{caso.nombre}</h2>
+        <div className="consola-identidad">
+          <span className="consola-insignia" aria-hidden>
+            <Scissors size={18} />
+          </span>
+          <div>
+            <p className="consola-rotulo">Módulo 04 · Simulador</p>
+            <h2 id="consola-titulo" className="consola-titulo">
+              Consola de reducción y fijación
+            </h2>
+          </div>
         </div>
         <dl className="consola-datos">
           {caso.hueso ? (
@@ -828,7 +1024,12 @@ export function ConsolaQuirurgica({
           {caso.clasificacion ? (
             <div>
               <dt>Clasificación AO</dt>
-              <dd>{caso.clasificacion}</dd>
+              <dd>
+                {caso.clasificacion}
+                {/* El código lo compone el servidor con el número del hueso y
+                    el de la clasificación; aquí solo se muestra si existe. */}
+                {codigo ? <span className="consola-codigo">{codigo}</span> : null}
+              </dd>
             </div>
           ) : null}
           {caso.tecnica ? (
@@ -844,168 +1045,407 @@ export function ConsolaQuirurgica({
             del caso, y en cuanto se falla un paso ya no se puede igualar. Está
             puesto así a propósito; lo que no se puede hacer es cambiar una de
             las dos cuentas sin la otra. */}
-        <div className="consola-puntaje">
-          <span className="consola-puntaje-numero">{puntaje}</span>
-          <span className="consola-puntaje-total">/ {maximo}</span>
+        <div className="consola-marcador">
+          <div className="consola-puntaje" aria-label={`Puntaje: ${puntaje} de ${maximo}`}>
+            <span className="consola-puntaje-numero u-num">{puntaje}</span>
+            <span className="consola-puntaje-total u-num">/ {maximo}</span>
+          </div>
+          <span className="consola-puntaje-medidor" aria-hidden>
+            <span style={{ width: `${maximo > 0 ? Math.round((puntaje / maximo) * 100) : 0}%` }} />
+          </span>
           {/* Lo que quedó de la vez anterior, en el sitio donde el residente
-              mira al llegar. El marcador grande cuenta el recorrido de ahora y
-              arranca en cero a propósito: lo guardado es un estado —el último
-              recorrido—, no un punto de guardado, así que no se sabe qué pasos
-              tenía resueltos. Sumarlo al marcador y dejarle repetir el caso le
-              cobraría los mismos pasos dos veces, y el número subiría solo con
-              recargar. El detalle está abajo, en «Su recorrido anterior». */}
+              mira al llegar, pero en pequeño: el marcador grande cuenta el
+              recorrido de ahora y arranca en cero a propósito. Lo guardado es
+              un estado —el último recorrido—, no un punto de guardado, así que
+              no se sabe qué pasos tenía resueltos. Sumarlo al marcador y
+              dejarle repetir el caso le cobraría los mismos pasos dos veces, y
+              el número subiría solo con recargar. El detalle está abajo, en
+              «Su recorrido anterior». */}
           {recorridoGuardado ? (
-            <span className="consola-puntaje-total">
-              · anterior {recorridoGuardado.puntaje}
-              {recorridoGuardado.puntajeMaximo !== null
-                ? ` de ${recorridoGuardado.puntajeMaximo}`
-                : ''}
+            <span className="consola-puntaje-anterior u-num">
+              anterior {recorridoGuardado.puntaje}
+              {recorridoGuardado.puntajeMaximo !== null ? ` de ${recorridoGuardado.puntajeMaximo}` : ''}
             </span>
           ) : null}
-          <button type="button" className="consola-boton" onClick={reiniciar}>
-            Reiniciar caso
-          </button>
         </div>
+        {/* «Reiniciar» tira todo el avance del caso y estaba a ocho píxeles del
+            «/ 12», leído de corrido como una tercera pieza del marcador. Ahora
+            va aparte, sin relleno y con su icono, y antes de borrar pregunta
+            con el diálogo propio (`reiniciar`). */}
+        <button type="button" className="consola-reiniciar" onClick={() => void reiniciar()}>
+          <RotateCcw size={16} aria-hidden /> Reiniciar caso
+        </button>
       </header>
 
-      <div className="consola-cuerpo">
-        {/* ------------------------------------------------ panel izquierdo */}
-        {/* Sin `consola-panel-izq`: ninguna hoja la declaraba. El aspecto de
-            esta columna lo da `.consola-panel` a secas —el borde derecho— y
-            `.consola-panel-der` es la que lo invierte para la otra. Una clase
-            que nadie define parece un enganche que existe y no existe. */}
-        <aside className="consola-panel">
+      {/* ---------------------------------------------------------- pasos */}
+      {/* Arriba y no debajo del lienzo: es la barra de progreso del caso, y
+          debajo quedaba entre las medidas y el pie, fuera de la vista en el
+          portátil de referencia. Se desplaza en horizontal como el guion de
+          pabellón cuando no cabe. */}
+      <ol className="consola-pasos" aria-label="Pasos del caso">
+        {caso.pasos.map((p, i) => {
+          const estado = estadoDelPaso(p, i)
+          return (
+            <li
+              key={p.id}
+              className={`consola-paso ${estado}`}
+              aria-current={i === indice ? 'step' : undefined}
+            >
+              <span className="consola-paso-marca" aria-hidden>
+                {estado === 'resuelto' ? (
+                  <Check size={14} strokeWidth={3} />
+                ) : estado.includes('complicado') ? (
+                  <AlertTriangle size={13} strokeWidth={2.5} />
+                ) : (
+                  i + 1
+                )}
+              </span>
+              <span className="consola-paso-texto">
+                <span className="consola-paso-titulo">{p.titulo}</span>
+                {p.faseNombre ? <span className="consola-paso-fase">{p.faseNombre}</span> : null}
+                <span className="sr-only">
+                  Paso {i + 1}: {PALABRA_DEL_ESTADO[estado]}
+                </span>
+              </span>
+            </li>
+          )
+        })}
+      </ol>
+
+      {/* ------------------------------------------------ columna izquierda */}
+      {/* Sin `consola-panel-izq` ni `<aside>`: en pantalla estrecha esta
+          columna se deshace (`display: contents`) para que el modo suba
+          encima del lienzo y las capas bajen debajo, y un `<aside>` con
+          `display: contents` pierde su papel en algunos lectores de pantalla. */}
+      <div className="consola-izq">
+        <div className="consola-modos-bloque">
+          <h3 className="consola-subtitulo" id="consola-modo">
+            Modo
+          </h3>
+          <div className="consola-segmentado" role="group" aria-labelledby="consola-modo">
+            {MODOS.map((m) => {
+              const Icono = m.icono
+              const pedido = modoDelPaso === m.valor
+              return (
+                <button
+                  key={m.valor}
+                  type="button"
+                  className={`consola-modo${modo === m.valor ? ' activo' : ''}${pedido ? ' pedido' : ''}`}
+                  aria-pressed={modo === m.valor}
+                  title={m.ayuda}
+                  onClick={() => setModo(m.valor)}
+                >
+                  <Icono size={18} aria-hidden />
+                  <span>{m.etiqueta}</span>
+                  {/* El modo que pide el paso se señalaba con « ·» pegado a la
+                      etiqueta, un punto de 3 px que nadie veía. Ahora es una
+                      marca con palabra, y sigue sin imponerse: cambiar de modo
+                      a mano es posible (`MODO_DEL_OBJETIVO`). */}
+                  {pedido ? <span className="consola-modo-pedido">paso</span> : null}
+                </button>
+              )
+            })}
+          </div>
+          <p className="consola-ayuda">
+            {ayudaDelModo}
+            {etiquetaDelModoDelPaso ? (
+              <span className="consola-ayuda-pedido">
+                {' '}
+                Este paso se hace en modo {etiquetaDelModoDelPaso}.
+              </span>
+            ) : null}
+          </p>
+        </div>
+
+        <div className="consola-capas-bloque">
           <h3 className="consola-subtitulo">Capas</h3>
           <ul className="consola-capas">
             {CAPAS.map((capa) => {
               const hay = caso.piezas.some((p) => p.rol === capa.rol)
               return (
                 <li key={capa.rol}>
-                  <label className={hay ? '' : 'consola-capa-vacia'}>
+                  {/* Un interruptor y no una casilla: lo que hace es encender y
+                      apagar algo que se ve, no marcar una opción de un
+                      formulario. Sigue siendo un `checkbox` por dentro, con
+                      `role="switch"`, así que el teclado y el lector de
+                      pantalla lo tratan como lo que es. */}
+                  <label className={`consola-interruptor${hay ? '' : ' consola-capa-vacia'}`}>
+                    <span>{capa.etiqueta}</span>
                     <input
                       type="checkbox"
+                      role="switch"
                       checked={!capasApagadas.has(capa.rol)}
                       disabled={!hay}
                       onChange={() => alternarCapa(capa.rol)}
                     />
-                    <span>{capa.etiqueta}</span>
+                    <span className="consola-interruptor-pista" aria-hidden />
                   </label>
                 </li>
               )
             })}
           </ul>
+        </div>
+      </div>
 
-          <h3 className="consola-subtitulo">Modo</h3>
-          <div className="consola-modos">
-            {MODOS.map((m) => (
-              <button
-                key={m.valor}
-                type="button"
-                className={`consola-modo${modo === m.valor ? ' activo' : ''}`}
-                aria-pressed={modo === m.valor}
-                title={m.ayuda}
-                onClick={() => setModo(m.valor)}
-              >
-                {m.etiqueta}
-                {modoDelPaso === m.valor ? ' ·' : ''}
-              </button>
-            ))}
-          </div>
-          <p className="consola-instruccion">
-            {ayudaDelModo}
-            {etiquetaDelModoDelPaso
-              ? ` El punto señala el modo que pide este paso: ${etiquetaDelModoDelPaso}.`
-              : ''}
-          </p>
-
-          <button
-            type="button"
-            className="consola-boton consola-boton-ancho"
-            onClick={() => mando.current?.encuadrar()}
-          >
-            Encuadrar
-          </button>
-        </aside>
-
-        {/* -------------------------------------------------------- lienzo */}
-        <div className="consola-centro">
-          <div className="consola-lienzo-marco">
-            <LienzoQuirurgico
-              url={caso.modeloUrl}
-              piezas={caso.piezas}
-              modo={modo}
-              fluoroscopia={fluoroscopia}
-              // Del trazo solo se guarda su longitud. Los puntos se quedan en
-              // el lienzo, que ya es su dueño; subirlos a React repintaba la
-              // consola entera —los dos campos ricos del pie incluidos— unas
-              // treinta veces por incisión, compitiendo con el bucle de dibujo.
-              alTrazar={(puntos) => setLargoDelTrazoMm(largoDelTrazo(puntos, escalaMm))}
-              alMoverFragmento={recalcularMedidas}
-              // El fragmento se coloca desplazado cuando el archivo termina de
-              // cargar, no antes: hasta ese momento no hay ningún nodo al que
-              // aplicarle nada, y hacerlo en el montaje del componente dejaba
-              // el hueso reducido y el caso resuelto de entrada.
-              alCargar={() => {
-                colocarEnDesplazamientoInicial()
-                entrarEnPaso(indice, capasApagadas)
-              }}
-              // Un modelo que no abre tiene que decirlo. Sin esto el residente
-              // se queda mirando un lienzo vacío creyendo que aún carga.
-              alFallar={(mensaje) => anotar(mensaje, 'grave')}
-              mando={mando}
-            />
+      {/* -------------------------------------------------------- lienzo */}
+      <div className="consola-centro">
+        <div className={`consola-lienzo-marco modo-${modo}`}>
+          <LienzoQuirurgico
+            url={caso.modeloUrl}
+            piezas={caso.piezas}
+            modo={modo}
+            fluoroscopia={fluoroscopia}
+            // Del trazo solo se guarda su longitud. Los puntos se quedan en
+            // el lienzo, que ya es su dueño; subirlos a React repintaba la
+            // consola entera —los dos campos ricos del pie incluidos— unas
+            // treinta veces por incisión, compitiendo con el bucle de dibujo.
+            alTrazar={(puntos) => setLargoDelTrazoMm(largoDelTrazo(puntos, escalaMm))}
+            alMoverFragmento={recalcularMedidas}
+            // El fragmento se coloca desplazado cuando el archivo termina de
+            // cargar, no antes: hasta ese momento no hay ningún nodo al que
+            // aplicarle nada, y hacerlo en el montaje del componente dejaba
+            // el hueso reducido y el caso resuelto de entrada.
+            alCargar={() => {
+              colocarEnDesplazamientoInicial()
+              entrarEnPaso(indice, capasApagadas)
+            }}
+            // Un modelo que no abre tiene que decirlo. Sin esto el residente
+            // se queda mirando un lienzo vacío creyendo que aún carga.
+            alFallar={(mensaje) => anotar(mensaje, 'grave')}
+            mando={mando}
+          />
+          {/* Encuadrar sobre el lienzo y no en la columna de mandos: es una
+              orden de la vista, y en el móvil la columna queda por debajo del
+              lienzo, lejos de lo que encuadra. */}
+          <div className="consola-lienzo-herramientas">
             <button
               type="button"
-              className={`consola-fluoro${fluoroscopia ? ' activo' : ''}`}
+              className="consola-lienzo-boton"
+              onClick={() => mando.current?.encuadrar()}
+            >
+              <Focus size={16} aria-hidden /> Encuadrar
+            </button>
+            <button
+              type="button"
+              className={`consola-lienzo-boton consola-fluoro${fluoroscopia ? ' activo' : ''}`}
               aria-pressed={fluoroscopia}
               onClick={() => setFluoroscopia((v) => !v)}
             >
-              Fluoroscopia
+              <ScanLine size={16} aria-hidden /> Fluoroscopia
             </button>
-            {codigo ? <span className="consola-codigo">{codigo}</span> : null}
           </div>
-
-          <dl className="consola-medidas">
-            <div>
-              <dt>Desplazamiento</dt>
-              <dd>{reduccion.desplazamiento} mm</dd>
-              {/* De qué eje viene: sin esto, lo que queda fuera del plano que
-                  se está mirando parece un número que no baja al arrastrar. */}
-              {reduccion.desplazamiento > 0 ? (
-                <dd className="consola-desglose">
-                  {reduccion.lateral
-                    .map(({ eje, mm }) => `${eje.toUpperCase()} ${mm}`)
-                    .join(' · ')}
-                </dd>
-              ) : null}
-              {objetivo === 'reduccion' && topes
-                ? lineaDeTope(reduccion.desplazamiento, topes.desplazamiento, 'mm')
-                : null}
-            </div>
-            <div>
-              <dt>Angulación</dt>
-              <dd>{reduccion.angulacion}°</dd>
-              {objetivo === 'reduccion' && topes
-                ? lineaDeTope(reduccion.angulacion, topes.angulacion, '°')
-                : null}
-            </div>
-            <div>
-              <dt>Diástasis</dt>
-              <dd>{reduccion.diastasis} mm</dd>
-              {objetivo === 'reduccion' && topes
-                ? lineaDeTope(reduccion.diastasis, topes.diastasis, 'mm')
-                : null}
-            </div>
-            <div>
-              <dt>Incisión</dt>
-              <dd>{largoDelTrazoMm} mm</dd>
-              {lineaDelTrazo()}
-            </div>
-          </dl>
         </div>
 
-        {/* ------------------------------------------------ panel derecho */}
-        <aside className="consola-panel consola-panel-der">
+        <dl className="consola-medidas">
+          {medidas.map((m) => (
+            <div
+              key={m.nombre}
+              className="consola-medida"
+              data-estado={m.lectura ? m.lectura.estado : undefined}
+            >
+              <dt>{m.nombre}</dt>
+              <dd className="consola-medida-valor u-num">{m.valor}</dd>
+              {m.desglose ? <dd className="consola-desglose u-num">{m.desglose}</dd> : null}
+              {m.lectura ? (
+                <dd className="consola-medida-tope">
+                  {m.lectura.referencia} · <strong>{m.lectura.veredicto}</strong>
+                </dd>
+              ) : null}
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      {/* ------------------------------------------------ columna derecha */}
+      <div className="consola-der">
+        {terminado ? (
+          <div className="consola-fin" role="status">
+            <span className="consola-fin-icono" aria-hidden>
+              <Trophy size={24} />
+            </span>
+            <p className="consola-rotulo">Caso terminado</p>
+            <p className="consola-fin-puntaje">
+              <span className="u-num">{puntaje}</span>
+              <span className="consola-fin-total u-num"> / {maximo} puntos</span>
+            </p>
+            {/* Es el único sitio en el que la complicación sobrevive al paso
+                en el que ocurrió: el registro de abajo se recorta a diez
+                líneas. Se nombra aparte del reintento porque cuesta aparte
+                (`puntosDelPaso`), y decir «hubo que repetir 3 pasos» sin
+                distinguirlas volvería a igualar lo que este cambio separa. */}
+            <p>{resumenDelCaso}</p>
+            {/* Que quede dicho, y aquí: es el único momento en el que el
+                residente decide si repetir el caso, y saber que lo que hizo
+                no se pierde es lo que separa «repetir para mejorar» de
+                «repetir porque si no, no queda nada». */}
+            <p>
+              Su puntaje y sus complicaciones quedan guardados: los encontrará al volver a este
+              caso y en su portada.
+            </p>
+            {/* Solo cuando la escritura volvió, y en las dos direcciones:
+                afirmar «cuenta como leído» mientras viaja sería adelantarse a
+                un fallo posible, y callar el fallo dejaría el caso «por leer»
+                en la portada sin que el residente sepa por qué. */}
+            {lecturaAlTerminar === 'marcada' ? (
+              <p className="consola-fin-leido">
+                <CheckCircle2 size={16} aria-hidden /> El caso cuenta ya como leído en su portada.
+              </p>
+            ) : lecturaAlTerminar === 'fallida' ? (
+              <p className="consola-fin-fallo">
+                No se pudo marcar el caso como leído. Márquelo con la casilla de arriba de la
+                página.
+              </p>
+            ) : null}
+            {/* Terminar no puede ser un callejón: hasta aquí lo único que
+                quedaba era la miga de arriba del todo, fuera de la vista
+                después de seiscientos píxeles de consola. */}
+            <div className="consola-fin-acciones">
+              <button type="button" className="consola-aplicar" onClick={() => void reiniciar()}>
+                <RotateCcw size={16} aria-hidden /> Repetir el caso
+              </button>
+              <Link href="/simulador" className="consola-boton">
+                <ArrowLeft size={16} aria-hidden /> Volver a la lista
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div
+              className={`consola-objetivo${tieneMandosPropios ? ' consola-objetivo-con-mandos' : ''}`}
+            >
+              <p className="consola-rotulo">
+                Paso {indice + 1} de {caso.pasos.length}
+              </p>
+              <h3 className="consola-objetivo-titulo">{paso.titulo}</h3>
+              <p className="consola-instruccion">{instruccionDelPaso(paso)}</p>
+
+              {/* También fuera de un paso de trazo: dibujar no depende del
+                  objetivo sino del modo, y la raya se pinta con `depthTest`
+                  apagado, así que atraviesa el hueso y no hay forma de
+                  esconderla girando la cámara. Sin este botón, un trazo hecho
+                  por error en un paso de reducción tapaba el fragmento justo
+                  donde hay que ver cómo encaja, y solo se quitaba reiniciando
+                  el caso entero. */}
+              {objetivo === 'trazo' || largoDelTrazoMm > 0 ? (
+                <button
+                  type="button"
+                  className="consola-boton consola-boton-ancho"
+                  onClick={() => mando.current?.borrarTrazo()}
+                >
+                  <Eraser size={16} aria-hidden /> Borrar trazo
+                </button>
+              ) : null}
+
+              {objetivo === 'reduccion' ? (
+                <div className="consola-angulacion">
+                  {/* El ratón traslada, que es un gesto de dos ejes; una
+                      rotación tiene tres. Sin estos mandos, un caso que empieza
+                      angulado no se podría reducir por mucho que se arrastrara,
+                      y el residente no entendería por qué. */}
+                  <p className="consola-ayuda">
+                    Arrastre el fragmento para alinearlo y corrija la angulación aquí.
+                  </p>
+                  {(
+                    [
+                      ['z', 'Varo / valgo'],
+                      ['x', 'Ante / recurvatum'],
+                      ['y', 'Rotación'],
+                    ] as const
+                  ).map(([eje, etiqueta]) => (
+                    <label key={eje} className="consola-deslizador">
+                      <span className="consola-deslizador-cabeza">
+                        <span>{etiqueta}</span>
+                        <output className="u-num">{Math.round(giros[eje])}°</output>
+                      </span>
+                      <input
+                        type="range"
+                        min={-45}
+                        max={45}
+                        step={0.5}
+                        value={giros[eje]}
+                        onChange={(e) => girar(eje, Number(e.target.value))}
+                      />
+                    </label>
+                  ))}
+                  <button
+                    type="button"
+                    className="consola-boton consola-boton-ancho"
+                    onClick={colocarEnDesplazamientoInicial}
+                  >
+                    <Undo2 size={16} aria-hidden /> Volver al desplazamiento inicial
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            {/* La acción del paso: en el escritorio, debajo de su instrucción;
+                en el móvil, una barra pegada al borde de abajo mientras la
+                consola esté a la vista, con el paso resumido. Allí la columna
+                de mandos queda dos pantallas por debajo del lienzo, y aplicar
+                el paso obligaba a bajar y volver a subir para ver qué había
+                pasado en el modelo. */}
+            <div className="consola-accion">
+              <p className="consola-accion-resumen">
+                <span className="consola-rotulo">
+                  Paso {indice + 1} de {caso.pasos.length} · {paso.titulo}
+                </span>
+                <span className="consola-accion-instruccion">{instruccionDelPaso(paso)}</span>
+              </p>
+
+              {objetivo === 'fuerza' ? (
+                <label
+                  className={`consola-deslizador consola-fuerza${fuerzaDentro ? ' dentro' : ''}`}
+                  style={franjaUtil as React.CSSProperties}
+                >
+                  {/* El rango se enseña antes de aplicar, como ya se hace con
+                      el trazo. Escondido, el residente exploraba el deslizador
+                      —que es lo que se hace con un deslizador—, se pasaba, y la
+                      consola le anotaba como complicación quirúrgica una
+                      adivinanza que ella misma le había obligado a hacer
+                      teniendo el rango guardado a mano. */}
+                  <span className="consola-deslizador-cabeza">
+                    <span>
+                      Fuerza{rangoUtil ? <span className="consola-rango"> · rango útil {rangoUtil}</span> : null}
+                    </span>
+                    <output className="u-num">{fuerza} N</output>
+                  </span>
+                  <input
+                    type="range"
+                    min={topesDelDeslizador.min}
+                    max={topesDelDeslizador.max}
+                    value={fuerza}
+                    onChange={(e) => setFuerza(Number(e.target.value))}
+                  />
+                </label>
+              ) : null}
+
+              {/* Sin `disabled`. Apagado y mudo, el botón principal nacía y
+                  renacía gris en cada paso, y nada en pantalla lo relacionaba
+                  con la bandeja: el residente cumplía la consigna al pie de la
+                  letra y se quedaba atascado. Dejándolo vivo, quien contesta es
+                  `evaluarGesto`, que tiene la frase escrita desde el principio
+                  —«Seleccione un instrumento antes de ejecutar el paso»— y que
+                  hasta ahora era un camino imposible de recorrer, porque el
+                  único sitio que lo llama colgaba de este botón. */}
+              <button type="button" className="consola-aplicar" onClick={aplicarPaso}>
+                <Check size={18} aria-hidden /> Aplicar paso
+              </button>
+
+              {/* Lo que acaba de pasar, donde el residente está mirando. El
+                  registro completo sigue en el pie, que en este portátil queda
+                  por debajo del pliegue. */}
+              <div role="status" aria-live="polite">
+                {resultado ? (
+                  <ul className="consola-registro consola-registro-ultimo">
+                    {lineaDeRegistro(resultado, 'ultimo')}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="consola-bandeja-bloque">
           <h3 className="consola-subtitulo">Instrumental</h3>
           <ul className="consola-bandeja">
             {caso.instrumental.map((it) => (
@@ -1017,7 +1457,10 @@ export function ConsolaQuirurgica({
                   onClick={() => setInstrumento(it.id)}
                 >
                   <IconoInstrumento nombre={it.icono} />
-                  <span>{it.nombre}</span>
+                  <span className="instrumento-nombre">{it.nombre}</span>
+                  {instrumento === it.id ? (
+                    <Check size={14} strokeWidth={3} aria-hidden className="instrumento-marca" />
+                  ) : null}
                 </button>
               </li>
             ))}
@@ -1059,182 +1502,13 @@ export function ConsolaQuirurgica({
               ) : null}
             </div>
           ) : null}
-
-          {terminado ? (
-            <div className="consola-fin">
-              <strong>Caso terminado.</strong>
-              <p>
-                {puntaje} de {maximo} puntos.
-              </p>
-              {/* Terminar no puede ser un callejón: hasta aquí lo único que
-                  quedaba era la miga de arriba del todo, fuera de la vista
-                  después de seiscientos píxeles de consola. */}
-              {/* Es el único sitio en el que la complicación sobrevive al paso
-                  en el que ocurrió: el registro de abajo se recorta a diez
-                  líneas. Se nombra aparte del reintento porque cuesta aparte
-                  (`puntosDelPaso`), y decir «hubo que repetir 3 pasos» sin
-                  distinguirlas volvería a igualar lo que este cambio separa. */}
-              <p>{resumenDelCaso}</p>
-              {/* Que quede dicho, y aquí: es el único momento en el que el
-                  residente decide si repetir el caso, y saber que lo que hizo
-                  no se pierde es lo que separa «repetir para mejorar» de
-                  «repetir porque si no, no queda nada». */}
-              <p>
-                Su puntaje y sus complicaciones quedan guardados: los encontrará
-                al volver a este caso y en su portada.
-              </p>
-              {/* Solo cuando la escritura volvió, y en las dos direcciones:
-                  afirmar «cuenta como leído» mientras viaja sería adelantarse a
-                  un fallo posible, y callar el fallo dejaría el caso «por leer»
-                  en la portada sin que el residente sepa por qué. */}
-              {lecturaAlTerminar === 'marcada' ? (
-                <p>El caso cuenta ya como leído en su portada.</p>
-              ) : lecturaAlTerminar === 'fallida' ? (
-                <p>
-                  No se pudo marcar el caso como leído. Márquelo con la casilla
-                  de arriba de la página.
-                </p>
-              ) : null}
-              <button
-                type="button"
-                className="consola-boton consola-boton-ancho"
-                onClick={reiniciar}
-              >
-                Repetir el caso
-              </button>
-              <p>
-                <Link href="/simulador">Volver a la lista de casos</Link>
-              </p>
-            </div>
-          ) : (
-            <div className="consola-objetivo">
-              <h3 className="consola-subtitulo">
-                Paso {indice + 1} · {paso.titulo}
-              </h3>
-              <p className="consola-instruccion">{instruccionDelPaso(paso)}</p>
-
-              {/* También fuera de un paso de trazo: dibujar no depende del
-                  objetivo sino del modo, y la raya se pinta con `depthTest`
-                  apagado, así que atraviesa el hueso y no hay forma de
-                  esconderla girando la cámara. Sin este botón, un trazo hecho
-                  por error en un paso de reducción tapaba el fragmento justo
-                  donde hay que ver cómo encaja, y solo se quitaba reiniciando
-                  el caso entero. */}
-              {objetivo === 'trazo' || largoDelTrazoMm > 0 ? (
-                <button
-                  type="button"
-                  className="consola-boton consola-boton-ancho"
-                  onClick={() => mando.current?.borrarTrazo()}
-                >
-                  Borrar trazo
-                </button>
-              ) : null}
-
-              {objetivo === 'reduccion' ? (
-                <div className="consola-angulacion">
-                  {/* El ratón traslada, que es un gesto de dos ejes; una
-                      rotación tiene tres. Sin estos mandos, un caso que empieza
-                      angulado no se podría reducir por mucho que se arrastrara,
-                      y el residente no entendería por qué. */}
-                  <p className="consola-instruccion">
-                    Arrastre el fragmento para alinearlo y corrija la angulación aquí.
-                  </p>
-                  {(
-                    [
-                      ['z', 'Varo / valgo'],
-                      ['x', 'Ante / recurvatum'],
-                      ['y', 'Rotación'],
-                    ] as const
-                  ).map(([eje, etiqueta]) => (
-                    <label key={eje} className="consola-giro">
-                      <span>
-                        {etiqueta} · {Math.round(giros[eje])}°
-                      </span>
-                      <input
-                        type="range"
-                        min={-45}
-                        max={45}
-                        step={0.5}
-                        value={giros[eje]}
-                        onChange={(e) => girar(eje, Number(e.target.value))}
-                      />
-                    </label>
-                  ))}
-                  <button
-                    type="button"
-                    className="consola-boton consola-boton-ancho"
-                    onClick={colocarEnDesplazamientoInicial}
-                  >
-                    Volver al desplazamiento inicial
-                  </button>
-                </div>
-              ) : null}
-
-              {objetivo === 'fuerza' ? (
-                <label className="consola-fuerza">
-                  {/* El rango se enseña antes de aplicar, como ya se hace con
-                      el trazo. Escondido, el residente exploraba el deslizador
-                      —que es lo que se hace con un deslizador—, se pasaba, y la
-                      consola le anotaba como complicación quirúrgica una
-                      adivinanza que ella misma le había obligado a hacer
-                      teniendo el rango guardado a mano. */}
-                  <span>
-                    Fuerza · {fuerza} N{rangoUtil ? ` · rango útil ${rangoUtil}` : ''}
-                  </span>
-                  <input
-                    type="range"
-                    min={topesDelDeslizador.min}
-                    max={topesDelDeslizador.max}
-                    value={fuerza}
-                    onChange={(e) => setFuerza(Number(e.target.value))}
-                  />
-                </label>
-              ) : null}
-
-              {/* Sin `disabled`. Apagado y mudo, el botón principal nacía y
-                  renacía gris en cada paso, y nada en pantalla lo relacionaba
-                  con la bandeja: el residente cumplía la consigna al pie de la
-                  letra y se quedaba atascado. Dejándolo vivo, quien contesta es
-                  `evaluarGesto`, que tiene la frase escrita desde el principio
-                  —«Seleccione un instrumento antes de ejecutar el paso»— y que
-                  hasta ahora era un camino imposible de recorrer, porque el
-                  único sitio que lo llama colgaba de este botón. */}
-              <button type="button" className="consola-aplicar" onClick={aplicarPaso}>
-                Aplicar paso
-              </button>
-
-              {/* Lo que acaba de pasar, donde el residente está mirando. El
-                  registro completo sigue en el pie, que en este portátil queda
-                  por debajo del pliegue. */}
-              <div role="status" aria-live="polite">
-                {resultado ? (
-                  <ul className="consola-registro consola-registro-ultimo">
-                    <li className={resultado.clase}>{resultado.texto}</li>
-                  </ul>
-                ) : null}
-              </div>
-            </div>
-          )}
-        </aside>
+        </div>
       </div>
 
-      {/* ---------------------------------------------------------- pasos */}
-      <ol className="consola-pasos">
-        {caso.pasos.map((p, i) => (
-          <li
-            key={p.id}
-            className={`consola-paso${i === indice ? ' actual' : ''}${
-              resueltos.has(p.id) ? ' resuelto' : ''
-            }`}
-          >
-            <span className="consola-paso-numero">Paso {i + 1}</span>
-            <span className="consola-paso-titulo">{p.titulo}</span>
-            {p.faseNombre ? <span className="consola-paso-fase">{p.faseNombre}</span> : null}
-          </li>
-        ))}
-      </ol>
-
       {/* ------------------------------------------------- retroalimentación */}
+      {/* El pie se queda claro, fuera del tema oscuro de la consola: es texto
+          clínico largo escrito con el editor rico, cuyas reglas (enlaces en
+          `--marca`, recuadros de advertencia) están pensadas para el papel. */}
       <div className="consola-pie">
         {/* Con el caso terminado no hay paso, y la sección entera se va. Antes
             solo fallaba el `paso &&` y se caía en la rama del else, que está
@@ -1251,7 +1525,9 @@ export function ConsolaQuirurgica({
             )}
             {tieneContenido(paso.riesgo) ? (
               <div className="consola-riesgo">
-                <h4>Estructura o principio en juego</h4>
+                <h4>
+                  <Info size={16} aria-hidden /> Estructura o principio en juego
+                </h4>
                 <Rico valor={paso.riesgo} />
               </div>
             ) : null}
@@ -1263,13 +1539,7 @@ export function ConsolaQuirurgica({
           {registro.length === 0 ? (
             <p className="consola-vacio">Todavía no ha aplicado ningún paso.</p>
           ) : (
-            <ul className="consola-registro">
-              {registro.map((linea, i) => (
-                <li key={i} className={linea.clase}>
-                  {linea.texto}
-                </li>
-              ))}
-            </ul>
+            <ul className="consola-registro">{registro.map((linea, i) => lineaDeRegistro(linea, i))}</ul>
           )}
         </section>
 
@@ -1283,30 +1553,29 @@ export function ConsolaQuirurgica({
             <h3 className="consola-subtitulo">Su recorrido anterior</h3>
             <p className="consola-instruccion">
               {recorridoGuardado.puntaje}
-              {recorridoGuardado.puntajeMaximo !== null
-                ? ` de ${recorridoGuardado.puntajeMaximo}`
-                : ''}{' '}
+              {recorridoGuardado.puntajeMaximo !== null ? ` de ${recorridoGuardado.puntajeMaximo}` : ''}{' '}
               {recorridoGuardado.puntaje === 1 ? 'punto' : 'puntos'} ·{' '}
               {recorridoGuardado.complicaciones.length === 0
                 ? 'ninguna complicación'
                 : `${recorridoGuardado.complicaciones.length} ${
-                    recorridoGuardado.complicaciones.length === 1
-                      ? 'complicación'
-                      : 'complicaciones'
+                    recorridoGuardado.complicaciones.length === 1 ? 'complicación' : 'complicaciones'
                   }`}
-              . Es lo último que quedó guardado de este caso; el marcador de
-              arriba cuenta el recorrido de ahora.
+              . Es lo último que quedó guardado de este caso; el marcador de arriba cuenta el
+              recorrido de ahora.
             </p>
             {recorridoGuardado.complicaciones.length > 0 ? (
               <ul className="consola-registro">
-                {recorridoGuardado.complicaciones.map((complicacion, i) => (
-                  <li key={`${complicacion.paso}-${i}`} className="grave">
-                    {complicacion.numero ? `${complicacion.numero}. ` : ''}
-                    {complicacion.detalle ??
-                      complicacion.titulo ??
-                      'Complicación sin detalle guardado.'}
-                  </li>
-                ))}
+                {recorridoGuardado.complicaciones.map((complicacion, i) =>
+                  lineaDeRegistro(
+                    {
+                      clase: 'grave',
+                      texto: `${complicacion.numero ? `${complicacion.numero}. ` : ''}${
+                        complicacion.detalle ?? complicacion.titulo ?? 'Complicación sin detalle guardado.'
+                      }`,
+                    },
+                    `${complicacion.paso}-${i}`,
+                  ),
+                )}
               </ul>
             ) : null}
           </section>
@@ -1315,4 +1584,3 @@ export function ConsolaQuirurgica({
     </section>
   )
 }
-

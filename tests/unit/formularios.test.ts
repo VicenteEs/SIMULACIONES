@@ -133,7 +133,7 @@ describe('el formulario de comentarios se puede usar sin ver la pantalla', () =>
     // este formulario se repite una vez por maniobra: sin etiqueta, el lector
     // anuncia N campos idénticos «en blanco».
     expect(COMENTARIO).toMatch(/<label htmlFor=\{idCampo\}/)
-    expect(COMENTARIO).toMatch(/<textarea\s+id=\{idCampo\}/)
+    expect(COMENTARIO).toMatch(/<textarea[^>]*\bid=\{idCampo\}/)
   })
 
   it('el resultado del envío se anuncia, salga bien o salga mal', () => {
@@ -179,11 +179,11 @@ describe('el editor del panel avisa de lo que pasa', () => {
     // «Duplicar» navega a la copia con `router.push`, que `beforeunload` no ve,
     // y la copia la saca el servidor del documento guardado: sin la pregunta lo
     // escrito se perdía dos veces.
-    const duplicar = EDITOR.slice(
-      EDITOR.indexOf('{id !== null && !esquema.subida ? ('),
-      EDITOR.indexOf('await duplicarDocumento('),
-    )
-    expect(duplicar).toContain('puedeSalir()')
+    const inicio = EDITOR.indexOf('const duplicar = async')
+    expect(inicio).toBeGreaterThan(-1)
+    const duplicar = EDITOR.slice(inicio, EDITOR.indexOf('await duplicarDocumento(', inicio))
+    // La pregunta es el diálogo propio y se espera: `puedeSalir` es asíncrona.
+    expect(duplicar).toContain('await puedeSalir()')
   })
 
   it('las migas consultan los cambios sin guardar antes de irse', () => {
@@ -194,7 +194,7 @@ describe('el editor del panel avisa de lo que pasa', () => {
       EDITOR.indexOf('</nav>'),
     )
     const enlaces = migas.match(/<Link/g) ?? []
-    const guardias = migas.match(/onNavigate=/g) ?? []
+    const guardias = migas.match(/onNavigate=\{confirmarSalida\(/g) ?? []
     expect(enlaces.length).toBeGreaterThan(0)
     expect(guardias).toHaveLength(enlaces.length)
   })

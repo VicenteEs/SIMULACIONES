@@ -32,6 +32,15 @@ export function GuardiaDeAtras() {
       eventoPopstate: typeof PopStateEvent === 'undefined' ? undefined : PopStateEvent,
       // El mismo `confirm` que la barra lateral, con la frase que pone el
       // registro: bloquea, y la vuelta tiene que esperar a la respuesta.
+      //
+      // Se queda nativo a propósito y no pasa a `useConfirmar()` (el diálogo
+      // propio del panel). `preguntar` tiene que devolver un booleano ya, dentro
+      // del mismo `currententrychange`: si la respuesta llegara después de una
+      // promesa, el router de Next ya habría visto el `popstate`, pintado la
+      // otra pantalla y descartado el `refresh` o el `replace` pendientes de un
+      // guardado (ver `vigilarSalidasDelNavegador`). `beforeunload`, además, solo
+      // admite el aviso del propio navegador. Hacerla asíncrona exigiría
+      // rehacer esa guardia entera y los tests de `atrasDelNavegador`.
       preguntar: (texto) => window.confirm(texto),
       despues: (tarea) => {
         window.setTimeout(tarea, 0)

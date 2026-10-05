@@ -36,7 +36,7 @@ export function FormularioClaveNueva({ testigo }: { testigo: string }) {
       }}
     >
       {error ? (
-        <div className="acceso-error" role="alert">
+        <div className="advertencia error" role="alert">
           {error}
         </div>
       ) : null}
@@ -69,7 +69,7 @@ export function FormularioClaveNueva({ testigo }: { testigo: string }) {
 
       <button
         type="submit"
-        className="acceso-boton"
+        className="boton boton-lg boton-bloque"
         disabled={enCurso || clave.length < 12 || clave !== repetida}
       >
         {enCurso ? 'Guardando…' : 'Guardar y entrar'}

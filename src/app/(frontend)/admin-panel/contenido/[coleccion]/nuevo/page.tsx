@@ -56,7 +56,7 @@ export default async function PaginaNuevoDocumento({
   params: Promise<{ coleccion: string }>
 }) {
   const { coleccion } = await params
-  await exigirPanelPara(coleccion)
+  const { sesion } = await exigirPanelPara(coleccion)
   if (!esColeccionEditable(coleccion)) notFound()
 
   const esquema = esquemaDe(coleccion)
@@ -69,6 +69,7 @@ export default async function PaginaNuevoDocumento({
       documento={documentoEnBlanco(camposDe(esquema))}
       id={null}
       rutaPublica={null}
+      usuarioId={String(sesion.usuario.id)}
     />
   )
 }

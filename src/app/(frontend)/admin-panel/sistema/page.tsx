@@ -16,6 +16,12 @@ import { versionDelAtlas } from '@/app/(frontend)/acciones/atlas'
 import { ruta } from '@/lib/rutas'
 import { puertoDeCorreo } from '@/correo/enviar'
 import { BotonCorreoDePrueba } from './BotonCorreoDePrueba'
+import './sistema.css'
+import { Activity, Archive, CircleCheck, ExternalLink, TriangleAlert } from 'lucide-react'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
+import { claseDeInsignia } from '@/lib/tonosDeEstado'
 
 export const dynamic = 'force-dynamic'
 
@@ -286,7 +292,7 @@ export default async function PaginaSistema() {
       estado: correo,
       complemento: servidorSmtp ? (
         <>
-          <div style={{ marginTop: '0.25rem', color: 'var(--mudo)' }}>
+          <div className="sistema-remitente">
             Sale como {remitente}
             {remitenteAjeno
               ? ' — distinto de SMTP_USUARIO: cPanel lo rechaza o lo marca como suplantación si no es la misma cuenta'
@@ -342,13 +348,22 @@ export default async function PaginaSistema() {
 
   return (
     <div>
-      <header className="admin-header">
-        <h1 className="admin-title">Sistema</h1>
-        <p className="admin-subtitle">
-          Estado de la instalación y sus dependencias · {usuarios} cuenta
-          {usuarios === 1 ? '' : 's'} registradas
-        </p>
-      </header>
+      <CabeceraDePagina
+        titulo="Sistema"
+        subtitulo={`Estado de la instalación y sus dependencias · ${usuarios} cuenta${usuarios === 1 ? '' : 's'} registradas`}
+        acciones={
+          <a
+            href={ruta('/api/salud')}
+            className="admin-btn admin-btn-secondary"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Activity aria-hidden size={16} />
+            Comprobación de salud
+            <ExternalLink aria-hidden size={14} />
+          </a>
+        }
+      />
 
       {problemas === 0 ? (
         <div className="admin-aviso admin-aviso-ok">
@@ -365,9 +380,15 @@ export default async function PaginaSistema() {
         </div>
       )}
 
-      <h2 className="admin-section-title">Comprobaciones</h2>
+      <PlegarTodo />
+
+      <SeccionPlegable
+        clave="sistema.comprobaciones"
+        titulo="Comprobaciones"
+        resumen={problemas === 0 ? `${comprobaciones.length} correctas` : `${problemas} por revisar`}
+      >
       <div className="admin-table-container">
-        <table className="admin-table">
+        <table className="admin-table tabla-apilable">
           <thead>
             <tr>
               <th>Comprobación</th>
@@ -378,15 +399,23 @@ export default async function PaginaSistema() {
           <tbody>
             {comprobaciones.map((c) => (
               <tr key={c.titulo}>
-                <td className="admin-table-user-name">{c.titulo}</td>
-                <td>
-                  <span
-                    className={`admin-badge ${c.estado.ok ? 'admin-badge-publicado' : 'admin-badge-pending'}`}
-                  >
-                    {c.estado.ok ? '✓ Correcto' : '● Revisar'}
+                <th scope="row" className="admin-table-user-name">
+                  {c.titulo}
+                </th>
+                <td data-etiqueta="Estado">
+                  {/* Atención y no peligro: la cabecera lo dice, ninguna de
+                      estas impide usar la plataforma. El rojo queda para lo
+                      que sí la rompe, y aquí no hay nada así. */}
+                  <span className={claseDeInsignia(c.estado.ok ? 'ok' : 'atencion')}>
+                    {c.estado.ok ? (
+                      <CircleCheck aria-hidden size={12} />
+                    ) : (
+                      <TriangleAlert aria-hidden size={12} />
+                    )}
+                    {c.estado.ok ? 'Correcto' : 'Revisar'}
                   </span>
                 </td>
-                <td style={{ fontSize: '0.8125rem' }}>
+                <td className="sistema-detalle">
                   {c.estado.detalle}
                   {c.complemento}
                 </td>
@@ -395,8 +424,9 @@ export default async function PaginaSistema() {
           </tbody>
         </table>
       </div>
+      </SeccionPlegable>
 
-      <h2 className="admin-section-title">Entorno</h2>
+      <SeccionPlegable clave="sistema.entorno" titulo="Entorno" resumen="9 datos">
       <dl className="admin-datos">
         <dt>PostgreSQL</dt>
         <dd>{versionBase}</dd>
@@ -423,6 +453,7 @@ export default async function PaginaSistema() {
         <dt>Zona horaria del servidor</dt>
         <dd>{Intl.DateTimeFormat().resolvedOptions().timeZone}</dd>
       </dl>
+      </SeccionPlegable>
 
       <h2 className="admin-section-title">Atajos</h2>
       <div className="admin-grid">
@@ -438,7 +469,8 @@ export default async function PaginaSistema() {
               target="_blank"
               rel="noopener noreferrer"
             >
-              /api/salud ↗
+              /api/salud
+              <ExternalLink aria-hidden size={14} />
             </a>
           </div>
         </div>
@@ -447,6 +479,7 @@ export default async function PaginaSistema() {
           <p className="admin-card-note">Crear, descargar o eliminar copias de la base.</p>
           <div className="admin-card-actions">
             <Link href="/admin-panel/respaldos" className="admin-btn admin-btn-secondary">
+              <Archive aria-hidden size={16} />
               Ir a respaldos
             </Link>
           </div>

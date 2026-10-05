@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { faltaLaPrimeraCuenta } from '@/app/(frontend)/acciones/sesion'
 import { FormularioInstalar } from './FormularioInstalar'
 import { ruta } from '@/lib/rutas'
+import { MallaDeNodos } from '@/components/MallaDeNodos'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,13 +25,16 @@ export default async function PaginaInstalar() {
 
   return (
     <main className="acceso">
+      <div className="acceso-fondo" aria-hidden="true">
+        <MallaDeNodos className="portada-malla" />
+      </div>
       <div className="acceso-caja">
         <div className="acceso-marca">
           <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="acceso-logo" />
         </div>
         <h1 className="acceso-titulo">Primera cuenta</h1>
 
-        <p className="acceso-aviso" style={{ marginBottom: 18 }}>
+        <p className="advertencia">
           La plataforma está recién instalada y no tiene ninguna cuenta. Esta primera queda como
           <strong> administradora y activa</strong>; las siguientes las crea usted desde el panel.
         </p>

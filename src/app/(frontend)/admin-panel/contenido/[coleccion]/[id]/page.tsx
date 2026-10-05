@@ -61,6 +61,7 @@ export default async function PaginaEditarDocumento({
       rutaPublica={esModulo ? rutaPublica(esquema.slug, id) : null}
       revision={revision}
       esAdmin={esAdmin}
+      usuarioId={String(sesion.usuario.id)}
     />
   )
 }

@@ -1,56 +1,52 @@
-/* Tarjetas de «Solicitudes por revisar», encima de la tabla de cuentas.
+/* La pantalla de cuentas: las tarjetas de «Solicitudes por revisar», la tabla
+ * y los tres modales.
  *
- * Es una hoja aparte y no un bloque más de `admin.css` porque solo la usa esta
+ * Es una hoja aparte y no un bloque más de `panel.css` porque solo la usa esta
  * pantalla, y la importa su componente: así viaja con él y no engorda la hoja
- * que carga cada página del panel. Los colores salen todos de las variables de
- * `estilos.css`; un color escrito a mano aquí sería el quinto verde que
- * `tests/unit/estilosDelPanel.test.ts` ya tuvo que perseguir en la otra hoja. */
+ * que carga cada página del panel. Todo con los tokens de `estilos.css`: un
+ * color escrito a mano aquí sería el quinto verde que
+ * `tests/unit/estilosDelPanel.test.ts` ya tuvo que perseguir en la otra hoja,
+ * y un `font-size` de 12 px, uno más de la treintena que hubo que reducir a la
+ * escala. */
 
-.solicitudes {
-  margin-bottom: 2rem;
-}
-
-/* El título de sección del panel trae 2.5rem de margen arriba, pensado para
- * separar secciones de una misma página. Aquí va justo debajo de los avisos y
- * ese hueco empujaba las solicitudes fuera de la primera pantalla, que es
- * justamente donde tienen que verse. */
-.solicitudes .admin-section-title {
-  margin-top: 0.5rem;
-}
+/* ---------- solicitudes ---------- */
+.solicitudes-aviso { margin: 0 0 var(--e-3); }
 
 .solicitudes-lista {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1rem;
+  gap: var(--e-4);
+  margin: var(--e-4) 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 .solicitud {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  background-color: var(--superficie);
+  gap: var(--e-3);
+  padding: var(--e-4) var(--e-5);
   border: 1px solid var(--linea-suave);
   border-left: 3px solid var(--ambar);
   border-radius: var(--r-lg);
-  box-shadow: var(--sombra);
-  padding: 1rem 1.25rem;
+  background: var(--superficie);
+  box-shadow: var(--sombra-1);
+  transition: opacity var(--dur-rapida) ease;
 }
+
+/* Mientras su acción viaja. Era un `style` en línea en la tarjeta y otro en la
+ * fila de la tabla: la misma idea escrita dos veces. */
+.solicitud-ocupada,
+.usuarios-fila-ocupada { opacity: 0.5; }
 
 .solicitud-cabecera {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  gap: 0.75rem;
+  justify-content: space-between;
+  gap: var(--e-3);
 }
 
-.solicitud-fecha {
-  color: var(--mudo);
-  font-size: 0.75rem;
-  white-space: nowrap;
-}
+.solicitud-fecha { white-space: nowrap; font-size: var(--t-xs); color: var(--mudo); }
 
 /* Lo que escribió la persona, tal cual. `pre-wrap` conserva los saltos de línea
  * con los que lo separó en párrafos, y `anywhere` parte una dirección o un
@@ -58,84 +54,105 @@
  * acota para que una solicitud con media página de motivo no empuje las demás
  * hasta el fondo; se lee entera desplazando dentro. */
 .solicitud-motivo {
+  max-height: 10rem;
   margin: 0;
-  padding: 0.5rem 0.75rem;
+  padding: var(--e-2) var(--e-3);
+  overflow-y: auto;
   border-left: 2px solid var(--linea);
-  background-color: var(--papel);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--papel);
   color: var(--pizarra);
-  font-size: 0.875rem;
+  font-size: var(--t-sm);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  max-height: 10rem;
-  overflow-y: auto;
 }
 
-.solicitud-sin-motivo {
-  margin: 0;
-  color: var(--mudo);
-  font-size: 0.8125rem;
-  font-style: italic;
-}
+.solicitud-sin-motivo { margin: 0; font-size: var(--t-sm); font-style: italic; color: var(--mudo); }
 
 .solicitud-acciones {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--e-2);
   margin-top: auto;
 }
 
 .solicitud-acciones label {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--e-2);
+  font-size: var(--t-sm);
   color: var(--pizarra);
-  font-size: 0.8125rem;
 }
 
-/* Las dos maneras de dar de alta una cuenta, en el modal de «Nueva cuenta». */
+.solicitud-acciones .admin-select { min-width: 140px; }
+
+/* ---------- tabla de cuentas ---------- */
+.usuarios-buscar { min-width: 280px; }
+
+/* El nombre y la insignia «usted» en una fila, con aire entre los dos. */
+.usuarios-nombre { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2); }
+
+/* El desplegable de rol de cada fila: más estrecho que el de los filtros. */
+.usuarios-rol { min-width: 140px; }
+
+/* ---------- modal de «Nueva cuenta» ---------- */
+/* Las dos maneras de dar de alta una cuenta. */
 .alta-opciones {
-  border: 0;
-  margin: 0 0 1rem;
-  padding: 0;
   display: grid;
-  gap: 0.5rem;
+  gap: var(--e-2);
+  margin: 0 0 var(--e-4);
+  padding: 0;
+  border: 0;
 }
 
-.alta-opciones legend {
-  padding: 0;
-  margin-bottom: 0.5rem;
-}
+.alta-opciones legend { margin-bottom: var(--e-2); padding: 0; }
 
 .alta-opcion {
   display: flex;
-  gap: 0.625rem;
   align-items: flex-start;
-  border: 1px solid var(--linea);
+  gap: var(--e-3);
+  padding: var(--e-3);
+  border: 1px solid var(--linea-fuerte);
   border-radius: var(--r);
-  padding: 0.625rem 0.75rem;
-  font-size: 0.875rem;
+  font-size: var(--t-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease;
+}
+
+.alta-opcion:hover { border-color: var(--pizarra); }
+
+.alta-opcion:has(input:checked) { border-color: var(--marca); background: var(--marca-tenue); }
+
+.alta-opcion:has(input:disabled) { color: var(--mudo); cursor: not-allowed; }
+
+.alta-opcion input { margin-top: 3px; }
+
+.alta-opcion small { display: block; margin-top: 2px; font-size: var(--t-xs); color: var(--mudo); }
+
+/* La contraseña sugerida con su botón «Generar» al lado. */
+.alta-clave { display: flex; gap: var(--e-2); }
+.alta-clave .admin-form-input { flex: 1; min-width: 0; font-family: var(--mono); }
+
+/* «Activar de inmediato», alineado con el campo de al lado. */
+.alta-casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 40px;
+  font-size: var(--t-sm);
   cursor: pointer;
 }
 
-.alta-opcion:has(input:checked) {
-  border-color: var(--marca);
-  background-color: var(--marca-tenue);
-}
+/* Las notas internas solo se estiran en vertical: `resize` vale `both` por
+ * omisión y, arrastrando a lo ancho, el textarea se sale de la caja del modal. */
+textarea[data-redimensionable='vertical'] { resize: vertical; }
 
-.alta-opcion:has(input:disabled) {
-  cursor: not-allowed;
-  color: var(--mudo);
-}
-
-.alta-opcion input {
-  margin-top: 0.2rem;
-}
-
-.alta-opcion small {
-  display: block;
-  color: var(--mudo);
-  font-size: 0.75rem;
-  margin-top: 0.125rem;
+@media (max-width: 640px) {
+  .solicitudes-lista { grid-template-columns: 1fr; }
+  .solicitud { padding: var(--e-4); }
+  .usuarios-buscar { min-width: 0; }
+  /* Dentro de la tarjeta de la fila, el desplegable de rol ocupa lo que haya. */
+  .usuarios-rol { flex: 1; min-width: 0; }
 }

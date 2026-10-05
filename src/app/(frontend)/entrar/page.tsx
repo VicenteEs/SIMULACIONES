@@ -5,6 +5,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { faltaLaPrimeraCuenta } from '@/app/(frontend)/acciones/sesion'
 import { FormularioEntrar } from './FormularioEntrar'
 import { ruta } from '@/lib/rutas'
+import { MallaDeNodos } from '@/components/MallaDeNodos'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,9 @@ export default async function PaginaEntrar() {
 
   return (
     <main className="acceso">
+      <div className="acceso-fondo" aria-hidden="true">
+        <MallaDeNodos className="portada-malla" />
+      </div>
       <div className="acceso-caja">
         <div className="acceso-marca">
           <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="acceso-logo" />

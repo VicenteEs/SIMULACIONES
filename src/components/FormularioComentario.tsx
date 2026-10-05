@@ -1,7 +1,17 @@
 'use client'
 
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { CircleCheck, MessageSquarePlus, Send } from 'lucide-react'
 import { crearComentario } from '@/app/(frontend)/acciones/comentarios'
+
+/**
+ * El nombre del evento con el que la barra de acciones de la ficha abre este
+ * formulario (`BotonComentar`). Un evento y no un estado compartido porque los
+ * dos componentes viven lejos en el árbol —uno en la cabecera, el otro al
+ * pie— y la página que los monta es de servidor: no hay padre de cliente
+ * común donde guardar el «abierto».
+ */
+export const EVENTO_COMENTAR = 'traumahub:comentar'
 
 /**
  * Techo del comentario, el mismo que exige el servidor
@@ -40,10 +50,18 @@ export function FormularioComentario({
   coleccion,
   documentoId,
   label = '¿Encontró un error o tiene una sugerencia? Deje un comentario',
+  textoBoton,
 }: {
   coleccion: string
   documentoId: string
   label?: string
+  /**
+   * Texto corto para el botón de abrir, cuando `label` es largo para una fila
+   * de acciones (el pie de cada maniobra). El nombre accesible sigue siendo
+   * `label`, que tiene que empezar por estas mismas palabras: quien maneja el
+   * equipo por voz dice lo que lee (WCAG 2.5.3).
+   */
+  textoBoton?: string
 }) {
   const [abierto, setAbierto] = useState(false)
   const [texto, setTexto] = useState('')
@@ -56,6 +74,8 @@ export function FormularioComentario({
   const idCampo = useId()
 
   const botonAbrir = useRef<HTMLButtonElement>(null)
+  const campo = useRef<HTMLTextAreaElement>(null)
+  const abiertoPorLaBarra = useRef(false)
   const bloque = useRef<HTMLDivElement>(null)
   const avisoExito = useRef<HTMLDivElement>(null)
   const devolverFoco = useRef(false)
@@ -78,6 +98,36 @@ export function FormularioComentario({
     setEstado('idle')
     setMotivo(null)
   }, [])
+
+  // La barra de acciones de la ficha pide abrir el formulario. Se comprueba la
+  // ficha porque en el examen físico hay uno por maniobra en la misma página.
+  useEffect(() => {
+    const alPedirlo = (evento: Event) => {
+      const detalle = (evento as CustomEvent<{ coleccion: string; documentoId: string }>).detail
+      if (detalle?.coleccion !== coleccion || detalle?.documentoId !== documentoId) return
+      abiertoPorLaBarra.current = true
+      setAbierto(true)
+      // Si ya estaba abierto el efecto de abajo no vuelve a correr: se lleva
+      // aquí la vista y el foco.
+      campo.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      campo.current?.focus({ preventScroll: true })
+    }
+    window.addEventListener(EVENTO_COMENTAR, alPedirlo)
+    return () => window.removeEventListener(EVENTO_COMENTAR, alPedirlo)
+  }, [coleccion, documentoId])
+
+  // Al abrir, el foco va al cuadro de texto. Antes se quedaba en el botón que
+  // acababa de desaparecer —es decir, en `<body>`— y el siguiente Tab volvía
+  // a empezar por la barra de módulos. Si lo abrió la barra de arriba, además
+  // se lleva la vista hasta él: está al final de la ficha.
+  useEffect(() => {
+    if (!abierto) return
+    if (abiertoPorLaBarra.current) {
+      abiertoPorLaBarra.current = false
+      campo.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    campo.current?.focus({ preventScroll: true })
+  }, [abierto])
 
   useEffect(() => {
     if (abierto || !devolverFoco.current) return
@@ -136,28 +186,34 @@ export function FormularioComentario({
 
   if (!abierto) {
     return (
-      <div className="contenedor-comentario-toggle">
+      // Un botón pequeño alineado con el texto, no la píldora centrada de antes
+      // con tres rem de aire encima: al final de cada ficha parecía una
+      // sección más.
+      <div className="comentar">
         <button
           ref={botonAbrir}
-          className="boton secundario boton-comentar"
+          type="button"
+          className="boton boton-secundario boton-sm boton-comentar"
           onClick={() => setAbierto(true)}
+          aria-label={textoBoton ? label : undefined}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-          {label}
+          <MessageSquarePlus size={16} aria-hidden="true" />
+          {textoBoton ?? label}
         </button>
       </div>
     )
   }
 
   return (
-    <div className="formulario-comentario tarjeta" ref={bloque}>
+    <div className="comentar formulario-comentario" ref={bloque}>
       <h3>Dejar un comentario o sugerencia</h3>
       <p className="descripcion">Los administradores y editores revisarán su aporte para mejorar el contenido.</p>
 
       {estado === 'exito' ? (
-        <div className="alerta exito" role="status" tabIndex={-1} ref={avisoExito}>
+        // En verde: salió bien. Antes iba en el azul de la marca, el mismo de
+        // cualquier nota informativa, y no se distinguía de «aquí hay algo».
+        <div className="advertencia exito advertencia-compacta" role="status" tabIndex={-1} ref={avisoExito}>
+          <CircleCheck size={16} aria-hidden="true" />
           Gracias. Su comentario quedó registrado y será revisado.
         </div>
       ) : (
@@ -181,6 +237,7 @@ export function FormularioComentario({
             <label htmlFor={idCampo}>{label}</label>
           </p>
           <textarea
+            ref={campo}
             id={idCampo}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
@@ -194,20 +251,21 @@ export function FormularioComentario({
             // `role="alert"` porque el envío no mueve nada más en la pantalla:
             // sin él, el fallo se pinta y nadie lo lee, y el residente se queda
             // creyendo que su corrección se envió.
-            <p className="texto-error" role="alert">
+            <p className="advertencia error advertencia-compacta" role="alert">
               {motivo}
             </p>
           ) : null}
           <div className="acciones-formulario">
             <button
               type="button"
-              className="boton sutil"
+              className="boton boton-fantasma"
               onClick={() => cerrar()}
               disabled={estado === 'enviando'}
             >
               Cancelar
             </button>
-            <button type="submit" className="boton principal" disabled={estado === 'enviando' || !texto.trim()}>
+            <button type="submit" className="boton" disabled={estado === 'enviando' || !texto.trim()}>
+              <Send size={16} aria-hidden="true" />
               {estado === 'enviando' ? 'Enviando…' : 'Enviar comentario'}
             </button>
           </div>

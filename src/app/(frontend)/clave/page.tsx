@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { FormularioPedirClave } from './FormularioPedirClave'
 import { ruta } from '@/lib/rutas'
+import { MallaDeNodos } from '@/components/MallaDeNodos'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,9 @@ export const metadata: Metadata = {
 export default function PaginaPedirClave() {
   return (
     <main className="acceso">
+      <div className="acceso-fondo" aria-hidden="true">
+        <MallaDeNodos className="portada-malla" />
+      </div>
       <div className="acceso-caja">
         <div className="acceso-marca">
           <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="acceso-logo" />

@@ -10,6 +10,9 @@ import { recorridoGuardado, type RecorridoGuardado } from '@/lib/progresoDelSimu
 // `modulos.ts` no importa Payload a propósito (lo explica su cabecera), así que
 // la portada puede tomar el mapa de nombres sin arrastrar el servidor.
 import { NOMBRE_DE_MODULO, rutaPublica } from '@/app/(frontend)/admin-panel/modulos'
+import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
+import { TarjetaFicha } from '@/components/TarjetaFicha'
+import { ArrowRight, BookOpen, Clock3, Library, PenLine, UserPlus, Hourglass } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,28 +99,21 @@ export default async function Inicio() {
             patología a la ejecución en pabellón.
           </p>
 
-          <Link className="portada-boton" href="/entrar">
-            Entrar a la plataforma
-          </Link>
-
-          {/* El estilo va en línea porque la hoja de la portada es de otro lote
-              y no conoce esta clase: sin él, el enlace hereda el azul de marca
-              de `a {}` y sobre el fondo marino no se lee. */}
-          <Link
-            className="portada-enlace-secundario"
-            href="/registro"
-            style={{
-              display: 'inline-block',
-              marginLeft: 18,
-              padding: '14px 6px',
-              color: '#bfe6f7',
-              fontWeight: 600,
-              fontSize: 15,
-              textDecoration: 'none',
-            }}
-          >
-            Solicitar acceso
-          </Link>
+          {/* Las dos puertas son el `.boton` de toda la plataforma: la
+              principal en el cian de la marca, que es lo que se distingue sobre
+              el marino, y la segunda en contorno. «Solicitar acceso» llevaba
+              su estilo en línea, con un margen a la izquierda que en el
+              teléfono la dejaba descolgada debajo de la otra. */}
+          <div className="portada-acciones">
+            <Link className="boton boton-lg portada-boton" href="/entrar">
+              Entrar a la plataforma
+              <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+            <Link className="boton boton-lg portada-enlace-secundario" href="/registro">
+              <UserPlus size={18} aria-hidden="true" />
+              Solicitar acceso
+            </Link>
+          </div>
 
           <p className="portada-nota">
             El acceso es cerrado: cada solicitud la revisa un administrador antes de activar la
@@ -126,12 +122,21 @@ export default async function Inicio() {
         </section>
 
         <section className="portada-tira" aria-label="Los cinco módulos">
-          {MODULOS.map((m) => (
-            <div key={m.ruta} className="portada-tira-item">
-              <span className="portada-tira-numero">{m.numero}</span>
-              <span className="portada-tira-nombre">{m.titulo}</span>
-            </div>
-          ))}
+          {MODULOS.map((m) => {
+            const Icono = IDENTIDAD_DE_MODULO[m.coleccion]?.icono ?? BookOpen
+            return (
+              <div key={m.ruta} className="portada-tira-item">
+                <span className="portada-tira-icono" aria-hidden="true">
+                  <Icono size={18} />
+                </span>
+                <span>
+                  <span className="portada-tira-numero">{m.numero}</span>
+                  <br />
+                  <span className="portada-tira-nombre">{m.titulo}</span>
+                </span>
+              </div>
+            )
+          })}
         </section>
       </main>
     )
@@ -140,8 +145,12 @@ export default async function Inicio() {
   // -------------------------------------------------- cuenta sin activar
   if (!activo) {
     return (
-      <main className="portada">
-        <div className="tarjeta">
+      <main>
+        <div className="estado estado-candado">
+          <span className="estado-icono" aria-hidden="true">
+            <Hourglass size={34} strokeWidth={1.6} />
+          </span>
+          <span className="rotulo estado-codigo">Solicitud en revisión</span>
           <h1>Cuenta pendiente de activación</h1>
           <p>
             Su cuenta existe pero un administrador todavía no la ha habilitado. En cuanto lo haga,
@@ -318,6 +327,34 @@ export default async function Inicio() {
 
   const totalFichas = conteos.reduce((a, b) => a + b, 0)
 
+  // Lo leído de cada módulo, para la barra de avance de su tarjeta. Una cuenta
+  // por módulo visible y no una lista de filas: un residente constante acumula
+  // cientos de lecturas y para pintar cinco barras basta con cinco números.
+  // Acotado al usuario, por eso `overrideAccess: true`, como el conteo de
+  // arriba. Va después de los conteos de fichas a propósito: la prueba de la
+  // portada localiza aquel por ser el primer `count` sobre la colección.
+  //
+  // Puede salir más alto que el total del módulo si se marcó como leída una
+  // ficha que luego se retiró: la barra se recorta al cien.
+  const leidasPorModulo = await Promise.all(
+    modulosVisibles.map((m) =>
+      payload
+        .count({
+          collection: 'actividad',
+          where: {
+            and: [
+              { usuario: { equals: usuario?.id } },
+              { completado: { equals: true } },
+              { coleccion: { equals: m.coleccion } },
+            ],
+          },
+          overrideAccess: true,
+        })
+        .then((r) => r.totalDocs)
+        .catch(() => 0),
+    ),
+  )
+
   // ------------------------------------------------ su paso por el simulador
   //
   // La tarjeta del módulo 04 promete «registro de complicaciones» desde el
@@ -397,43 +434,73 @@ export default async function Inicio() {
 
   const nombre = String(usuario?.nombre ?? '').split(' ')[0]
   const puedeEditar = rolReal === 'admin' || rolReal === 'editor'
+  const leidasAcotadas = Math.min(leidas, totalFichas)
+  const porcentaje = totalFichas > 0 ? Math.round((leidasAcotadas / totalFichas) * 100) : 0
 
   return (
-    <main className="portada">
-      <section className="entrada-hero">
+    <main>
+      {/* El saludo y el avance primero. El eslogan de la portada pública ya lo
+          leyó al entrar, y repetido aquí empujaba hacia abajo lo único que
+          cambia de una visita a otra: por dónde va. */}
+      <section className="portada-saludo">
         <div>
-          <span className="eyebrow">{saludo()}{nombre ? `, ${nombre}` : ''}</span>
-          <h1>Estudiar, examinar y operar mejor.</h1>
+          <span className="eyebrow">Su plataforma docente</span>
+          <h1>
+            {saludo()}
+            {nombre ? `, ${nombre}` : ''}
+          </h1>
           <p className="lead">
-            Cinco módulos que recorren la cadena completa de una decisión clínica: del estudio de la
-            patología a la ejecución en pabellón.
+            {continuarLeyendo.length > 0
+              ? 'Retome la lectura donde la dejó o elija un módulo.'
+              : 'Elija un módulo para empezar. Lo que vaya leyendo quedará aquí.'}
           </p>
 
-          <div className="portada-cifras">
-            <div className="portada-cifra">
-              <strong>{totalFichas}</strong>
-              <span>ficha{totalFichas === 1 ? '' : 's'} disponible{totalFichas === 1 ? '' : 's'}</span>
+          <div className="kpis">
+            <div className="kpi kpi-leidas">
+              <span className="rotulo">Su avance</span>
+              <span className="kpi-valor">
+                {leidasAcotadas} <span className="kpi-total">/ {totalFichas}</span>
+              </span>
+              <span
+                className="progreso"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={porcentaje}
+                aria-label="Fichas marcadas como leídas"
+              >
+                <span style={{ width: `${porcentaje}%` }} />
+              </span>
+              <span className="kpi-texto">
+                {porcentaje} % marcado como leído
+              </span>
             </div>
-            <div className="portada-cifra">
-              <strong>{leidas}</strong>
-              <span>marcada{leidas === 1 ? '' : 's'} como leída{leidas === 1 ? '' : 's'}</span>
+            <div className="kpi">
+              <span className="rotulo">Por leer</span>
+              <span className="kpi-valor">{Math.max(0, totalFichas - leidas)}</span>
+              <span className="kpi-texto">fichas pendientes</span>
             </div>
-            <div className="portada-cifra">
-              <strong>{Math.max(0, totalFichas - leidas)}</strong>
-              <span>por leer</span>
+            <div className="kpi">
+              <span className="rotulo">Disponibles</span>
+              <span className="kpi-valor">{totalFichas}</span>
+              <span className="kpi-texto">
+                en {modulosVisibles.length} {modulosVisibles.length === 1 ? 'módulo' : 'módulos'}
+              </span>
             </div>
           </div>
 
-          <div className="row-botones">
+          <div className="fila-botones">
             <Link className="boton" href="/biblioteca">
+              <Library size={18} aria-hidden="true" />
               Ir a la biblioteca
             </Link>
             {puedeEditar ? (
-              <Link className="boton secundario" href="/admin-panel/contenido">
+              <Link className="boton boton-secundario" href="/admin-panel/contenido">
+                <PenLine size={18} aria-hidden="true" />
                 Escribir contenido
               </Link>
             ) : (
-              <Link className="boton secundario" href="/tecnica-ao">
+              <Link className="boton boton-secundario" href="/tecnica-ao">
                 Ver técnica AO
               </Link>
             )}
@@ -450,30 +517,39 @@ export default async function Inicio() {
       </section>
 
       {continuarLeyendo.length > 0 ? (
-        <section className="continuar-leyendo">
+        <section className="seccion-portada continuar-leyendo">
           <span className="eyebrow">Donde lo dejó</span>
           <h2 className="titulo-seccion">Continúa leyendo</h2>
           <div className="rejilla-fichas">
             {continuarLeyendo.map((item) => (
-              <Link key={`${item.coleccion}-${item.id}`} href={item.destino} className="tarjeta-ficha">
-                <div className="etiquetas">
-                  {/* El slug crudo solo como último recurso: `replace('-', ' ')`
-                      sacaba a la portada el nombre de la tabla de PostgreSQL
-                      —«patologias» sin tilde, «casos ao», «estudios ia»—, que
-                      ni siquiera son palabras. */}
-                  <span className="codigo">{NOMBRE_DE_MODULO[item.coleccion] ?? item.coleccion}</span>
-                </div>
-                <h3>{item.nombre}</h3>
-                <span className="tarjeta-ficha-accion">Retomar lectura →</span>
-              </Link>
+              // Cada tarjeta en el color de su módulo, con su nombre como
+              // insignia: «Continúa leyendo» mezcla los cinco y sin eso no se
+              // sabía de dónde era cada ficha hasta abrirla.
+              <div key={`${item.coleccion}-${item.id}`} className={IDENTIDAD_DE_MODULO[item.coleccion]?.clase}>
+                <TarjetaFicha
+                  href={item.destino}
+                  titulo={item.nombre}
+                  accion="Retomar lectura"
+                  insignias={
+                    // El slug crudo solo como último recurso: sacaba a la
+                    // portada el nombre de la tabla de PostgreSQL
+                    // —«patologias» sin tilde, «casos ao»—, que ni siquiera
+                    // son palabras.
+                    <span className="insignia insignia-acento">
+                      <Clock3 size={13} aria-hidden="true" />
+                      {NOMBRE_DE_MODULO[item.coleccion] ?? item.coleccion}
+                    </span>
+                  }
+                />
+              </div>
             ))}
           </div>
         </section>
       ) : null}
 
       {recorridos.length > 0 ? (
-        <section className="continuar-leyendo">
-          <span className="eyebrow">Pabellón</span>
+        <section className="seccion-portada continuar-leyendo mod-4">
+          <EyebrowPabellon />
           <h2 className="titulo-seccion">Su paso por el simulador</h2>
           <div className="rejilla-fichas">
             {recorridos.map((item) => {
@@ -482,34 +558,38 @@ export default async function Inicio() {
               // —y la que se va a repasar—; el registro entero está en el caso.
               const ultima = item.recorrido.complicaciones[cuantas - 1]
               return (
-                <Link key={item.id} href={item.destino} className="tarjeta-ficha">
-                  <div className="etiquetas">
-                    {/* `.etiqueta` y no `.codigo`: la insignia azul de estas
-                        tarjetas es para el código de la ficha, y esto son dos
-                        cifras del recorrido. */}
-                    <span className="etiqueta">
-                      {item.recorrido.puntaje}
-                      {item.recorrido.puntajeMaximo !== null
-                        ? ` de ${item.recorrido.puntajeMaximo}`
-                        : ''}{' '}
-                      {item.recorrido.puntaje === 1 ? 'punto' : 'puntos'}
-                    </span>
-                    <span className="etiqueta">
-                      {cuantas === 0
-                        ? 'Sin complicaciones'
-                        : `${cuantas} ${cuantas === 1 ? 'complicación' : 'complicaciones'}`}
-                    </span>
-                  </div>
-                  <h3>{item.nombre}</h3>
-                  <p>
-                    {ultima
+                <TarjetaFicha
+                  key={item.id}
+                  href={item.destino}
+                  titulo={item.nombre}
+                  accion="Volver al caso"
+                  insignias={
+                    // Insignias y no `.codigo`: la del código es para el de la
+                    // ficha, y esto son dos cifras del recorrido. Las
+                    // complicaciones en ámbar, que es lo que hay que repasar.
+                    <>
+                      <span className="insignia insignia-acento">
+                        {item.recorrido.puntaje}
+                        {item.recorrido.puntajeMaximo !== null
+                          ? ` de ${item.recorrido.puntajeMaximo}`
+                          : ''}{' '}
+                        {item.recorrido.puntaje === 1 ? 'punto' : 'puntos'}
+                      </span>
+                      <span className={`insignia ${cuantas === 0 ? 'insignia-ok' : 'insignia-atencion'}`}>
+                        {cuantas === 0
+                          ? 'Sin complicaciones'
+                          : `${cuantas} ${cuantas === 1 ? 'complicación' : 'complicaciones'}`}
+                      </span>
+                    </>
+                  }
+                  resumen={
+                    ultima
                       ? `${ultima.numero ? `Paso ${ultima.numero}. ` : ''}${
                           ultima.detalle ?? ultima.titulo ?? 'Complicación sin detalle guardado.'
                         }`
-                      : 'Recorrió el caso sin complicaciones.'}
-                  </p>
-                  <span className="tarjeta-ficha-accion">Volver al caso →</span>
-                </Link>
+                      : 'Recorrió el caso sin complicaciones.'
+                  }
+                />
               )
             })}
           </div>
@@ -518,7 +598,7 @@ export default async function Inicio() {
               simulación (`src/collections/Actividad.ts`), así que es seguimiento
               del propio progreso y no una nota. Enseñarlo sin esta línea lo
               convierte, para quien lo lee, en lo segundo. */}
-          <p className="aviso">
+          <p className="nota-al-pie">
             Estas cifras las lleva la consola para que usted vea lo que le costó
             cada caso. No son una calificación.
           </p>
@@ -526,7 +606,7 @@ export default async function Inicio() {
       ) : null}
 
       {modulosVisibles.length > 0 ? (
-        <>
+        <section className="seccion-portada">
           {/* Los rótulos cuentan lo que hay debajo y no lo que tiene la
               plataforma: a una cuenta restringida a dos módulos, «Los cinco
               módulos» le encabezaba una rejilla de dos tarjetas, y de paso le
@@ -541,10 +621,29 @@ export default async function Inicio() {
           </h2>
           <div className="rejilla-modulos">
             {modulosVisibles.map((m, i) => (
-              <Link key={m.ruta} href={m.ruta} className="tarjeta-modulo">
-                <span className="modulo-numero">{m.numero}</span>
+              // La clase del módulo va en la envoltura y no en el enlace: así
+              // la tarjeta, su icono, su número y su barra toman `--acento`
+              // sin que cada pieza tenga que saber de qué módulo es.
+              <div key={m.ruta} className={IDENTIDAD_DE_MODULO[m.coleccion]?.clase}>
+              <Link href={m.ruta} className="tarjeta-modulo">
+                <span className="modulo-numero" aria-hidden="true">
+                  {m.numero}
+                </span>
+                <IconoDelModulo coleccion={m.coleccion} />
                 <h3>{m.titulo}</h3>
                 <p>{m.descripcion}</p>
+                {conteos[i] > 0 ? (
+                  <span className="modulo-avance">
+                    {Math.min(leidasPorModulo[i], conteos[i])} de {conteos[i]} leídas
+                    <span className="progreso" aria-hidden="true">
+                      <span
+                        style={{
+                          width: `${Math.round((Math.min(leidasPorModulo[i], conteos[i]) / conteos[i]) * 100)}%`,
+                        }}
+                      />
+                    </span>
+                  </span>
+                ) : null}
                 <div className="modulo-pie">
                   <div className="etiquetas">
                     {m.publico.map((p) => (
@@ -553,26 +652,50 @@ export default async function Inicio() {
                       </span>
                     ))}
                   </div>
-                  <span className={`conteo ${conteos[i] === 0 ? 'vacio' : ''}`}>
+                  <span className={`conteo${conteos[i] === 0 ? ' conteo-vacio' : ''}`}>
                     {conteos[i] === 0
                       ? 'Sin contenido'
                       : `${conteos[i]} ${conteos[i] === 1 ? 'entrada' : 'entradas'}`}
                   </span>
                 </div>
               </Link>
+              </div>
             ))}
           </div>
-        </>
+        </section>
       ) : (
         // Cuenta cuyo `modulosVisibles` —el campo del usuario, no la lista de
         // arriba— está puesto y no contiene ninguno de los cinco. La barra
         // superior sale igual de vacía (`Navegacion.tsx` recorta con la misma
         // regla), así que sin esta línea la portada se lee como una avería del
         // servidor y no como un permiso que nadie le ha dado todavía.
-        <p className="aviso">
+        <p className="nota-al-pie">
           Su cuenta todavía no tiene módulos asignados. Solicítelos al equipo docente.
         </p>
       )}
     </main>
+  )
+}
+
+/** El icono del módulo en su cuadro tenue, para la tarjeta de la rejilla. */
+function IconoDelModulo({ coleccion }: { coleccion: string }) {
+  const Icono = IDENTIDAD_DE_MODULO[coleccion]?.icono ?? BookOpen
+  return (
+    <span className="icono-modulo" aria-hidden="true">
+      <Icono size={20} />
+    </span>
+  )
+}
+
+/** El antetítulo de «Pabellón», en el color del simulador. */
+function EyebrowPabellon() {
+  const Icono = IDENTIDAD_DE_MODULO.cirugias?.icono ?? BookOpen
+  return (
+    <span className="eyebrow-modulo">
+      <span className="icono-modulo icono-modulo-sm" aria-hidden="true">
+        <Icono size={15} />
+      </span>
+      Pabellón
+    </span>
   )
 }

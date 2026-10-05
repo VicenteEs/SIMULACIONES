@@ -5,7 +5,11 @@ import { AvisoActualizacion } from '@/components/AvisoActualizacion'
 import { PieDePagina } from '@/components/PieDePagina'
 import { LatidoDeActividad } from '@/components/LatidoDeActividad'
 import { obtenerSesion } from '@/lib/sesion'
+import { ProveedoresDeUI } from '@/components/ui/Proveedores'
+// La fuente va antes que las hojas propias: `--sans` la nombra primero.
+import '@fontsource-variable/inter'
 import './estilos.css'
+import './ui.css'
 import { ruta } from '@/lib/rutas'
 
 export const metadata: Metadata = {
@@ -37,7 +41,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
         ) : null}
         {sesion.activo ? <AvisoActualizacion /> : null}
         {sesion.activo ? <LatidoDeActividad /> : null}
-        {children}
+        {/* Los diálogos de confirmación y los avisos flotantes, para el sitio y
+            el panel: los dos se montan dentro de este mismo layout. */}
+        <ProveedoresDeUI>{children}</ProveedoresDeUI>
         {/* Fuera de la condición de la sesión a propósito: lo necesita sobre
             todo quien no puede entrar. En el panel lo esconde la hoja. */}
         <PieDePagina />

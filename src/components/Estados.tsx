@@ -1,17 +1,55 @@
 import Link from 'next/link'
+import type { LucideIcon } from 'lucide-react'
+import { House, LockKeyhole, LogIn, NotebookPen, Plus } from 'lucide-react'
+import { Vacio as VacioComun } from '@/components/ui/Vacio'
+import { MigaDePan } from '@/components/Cabeceras'
+
+/**
+ * Las pantallas de estado del sitio comparten forma: un icono grande que dice
+ * de qué va antes de leer, un rótulo, el título y la salida. Antes eran el
+ * título pegado a una tarjeta con un párrafo, y «necesita una cuenta», «no
+ * tiene este módulo» y «todavía no hay fichas» se veían idénticas: tres
+ * situaciones distintas que el residente tenía que distinguir leyendo.
+ */
+function Estado({
+  icono: Icono,
+  rotulo,
+  titulo,
+  tono,
+  children,
+}: {
+  icono: LucideIcon
+  rotulo: string
+  titulo: string
+  tono?: 'candado'
+  children: React.ReactNode
+}) {
+  return (
+    <main>
+      <div className={`estado${tono ? ` estado-${tono}` : ''}`}>
+        <span className="estado-icono" aria-hidden="true">
+          <Icono size={34} strokeWidth={1.6} />
+        </span>
+        <span className="rotulo estado-codigo">{rotulo}</span>
+        <h1>{titulo}</h1>
+        {children}
+      </div>
+    </main>
+  )
+}
 
 /** Pantalla para quien no tiene sesión o su cuenta no está activa. */
 export function SinAcceso({ titulo }: { titulo: string }) {
   return (
-    <main>
-      <h1>{titulo}</h1>
-      <div className="tarjeta">
-        <p>Necesita una cuenta activa para ver el contenido.</p>
+    <Estado icono={LogIn} rotulo="Necesita una cuenta" titulo={titulo}>
+      <p>Necesita una cuenta activa para ver el contenido.</p>
+      <div className="fila-botones">
         <Link className="boton" href="/entrar">
+          <LogIn size={18} aria-hidden="true" />
           Iniciar sesión
         </Link>
       </div>
-    </main>
+    </Estado>
   )
 }
 
@@ -73,18 +111,18 @@ export function SinAcceso({ titulo }: { titulo: string }) {
  */
 export function SinAccesoAlModulo({ titulo }: { titulo: string }) {
   return (
-    <main>
-      <h1>{titulo}</h1>
-      <div className="tarjeta">
-        <p>
-          Su cuenta no tiene acceso a este módulo. Los módulos que ve cada cuenta los asigna un
-          administrador de la plataforma: si cree que este debería estar entre los suyos, pídaselo.
-        </p>
+    <Estado icono={LockKeyhole} rotulo="Módulo no asignado" titulo={titulo} tono="candado">
+      <p>
+        Su cuenta no tiene acceso a este módulo. Los módulos que ve cada cuenta los asigna un
+        administrador de la plataforma: si cree que este debería estar entre los suyos, pídaselo.
+      </p>
+      <div className="fila-botones">
         <Link className="boton" href="/">
+          <House size={18} aria-hidden="true" />
           Volver a la portada
         </Link>
       </div>
-    </main>
+    </Estado>
   )
 }
 
@@ -93,26 +131,34 @@ export function SinAccesoAlModulo({ titulo }: { titulo: string }) {
  *
  * Se muestra qué falta y cómo crearlo, en lugar de una pantalla en blanco: la
  * plataforma nace vacía a propósito (D-016) y conviene que eso se lea como una
- * etapa del trabajo y no como una avería.
+ * etapa del trabajo y no como una avería. Dos iconos para las dos lecturas: a
+ * quien puede escribir, la libreta y el botón de crear; a quien lee, un
+ * «en preparación» sin botón que lo saque del módulo.
  */
 export function Vacio({ texto, enlace, accion }: { texto: string; enlace?: string; accion?: string }) {
+  const puedeCrear = Boolean(enlace && accion)
   return (
-    <div className="tarjeta">
+    <VacioComun
+      icono={puedeCrear ? Plus : NotebookPen}
+      titulo={puedeCrear ? 'Todavía no hay nada aquí' : 'En preparación'}
+      accion={
+        puedeCrear ? (
+          <Link className="boton" href={enlace!}>
+            <Plus size={18} aria-hidden="true" />
+            {accion}
+          </Link>
+        ) : undefined
+      }
+    >
       <p>{texto}</p>
-      {enlace && accion ? (
-        <Link className="boton" href={enlace}>
-          {accion}
-        </Link>
-      ) : null}
-    </div>
+    </VacioComun>
   )
 }
 
-/** Enlace de vuelta al listado del módulo. */
+/**
+ * Enlace de vuelta al listado del módulo, con la portada delante: «Inicio ›
+ * Técnica AO». Lo usan las fichas que no pintan su propia miga.
+ */
 export function Miga({ href, texto }: { href: string; texto: string }) {
-  return (
-    <nav className="miga">
-      <Link href={href}>{texto}</Link>
-    </nav>
-  )
+  return <MigaDePan pasos={[{ href: '/', texto: 'Inicio' }, { href, texto }]} />
 }

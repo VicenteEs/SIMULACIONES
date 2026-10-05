@@ -3,6 +3,7 @@ import { AUDIENCIAS_DE_DIFUSION } from '@/collections/Difusiones'
 import { direccionPublica } from '@/collections/Usuarios'
 import { condicionDeDestinatarios, correosPorHora, enCurso, pausaEntreCorreosMs } from '@/correo/difusion'
 import { hayCorreo } from '@/correo/enviar'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { clientePayload } from '../datos'
 import { PanelDeDifusion, type DifusionDelHistorial, type GrupoDeDestinatarios } from './PanelDeDifusion'
 
@@ -54,9 +55,7 @@ export default async function PaginaDifusion() {
   if (!lectura) {
     return (
       <div>
-        <header className="admin-header">
-          <h1 className="admin-title">Difusión</h1>
-        </header>
+        <CabeceraDePagina titulo="Difusión" />
         <div className="admin-aviso admin-aviso-atencion" role="status">
           <strong>No se pudieron leer las difusiones ni las cuentas.</strong> La consulta falló; lo
           corriente es que falte la tabla de difusiones —un cambio de esquema desplegado sin su

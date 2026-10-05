@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { FileQuestion, House, Library } from 'lucide-react'
 
 /**
  * La ficha que ya no está: lo que se pinta cuando una página pública llama a
@@ -41,6 +42,11 @@ import Link from 'next/link'
  * una página pública → este archivo; dirección que no casa con ninguna ruta →
  * `src/app/global-not-found.tsx`.
  *
+ * El texto vale para una ficha y para cualquier otra página: este archivo no
+ * sabe quién llamó a `notFound()` —no recibe props— y decir «Esta ficha ya
+ * no está» en una página que no es una ficha era mentir en el titular. Se
+ * nombran las dos cosas.
+ *
  * Sin props a propósito: un `not-found.tsx` no recibe ninguna —lo dice el mismo
  * documento—, así que no hay ni error que registrar ni nada que reintentar. Por
  * eso aquí no hay botón «Volver a intentarlo»: la ficha no va a volver porque
@@ -49,14 +55,18 @@ import Link from 'next/link'
 export default function FichaNoEncontrada() {
   return (
     <main>
-      <h1>Esta ficha ya no está</h1>
-      <div className="tarjeta">
+      <div className="estado">
+        <span className="estado-icono" aria-hidden="true">
+          <FileQuestion size={34} strokeWidth={1.6} />
+        </span>
+        <span className="rotulo estado-codigo">Error 404 · No encontrado</span>
+        <h1>Esta ficha o página no está</h1>
         <p>
           O se retiró de publicación, o se eliminó, o la dirección llegó mal copiada. No es un
           fallo de la plataforma y su sesión sigue abierta: el resto del material está donde
           estaba.
         </p>
-        <div className="row-botones">
+        <div className="fila-botones">
           {/*
             La biblioteca va primero porque es el módulo del que salen la mayoría
             de los enlaces que se comparten, y porque una lista donde buscar es
@@ -64,9 +74,11 @@ export default function FichaNoEncontrada() {
             concreta.
           */}
           <Link className="boton" href="/biblioteca">
+            <Library size={18} aria-hidden="true" />
             Ir a la biblioteca
           </Link>
-          <Link className="boton secundario" href="/">
+          <Link className="boton boton-secundario" href="/">
+            <House size={18} aria-hidden="true" />
             Ir a la portada
           </Link>
         </div>

@@ -3,6 +3,7 @@
 import React from 'react'
 import { useRouter } from 'next/navigation'
 import { ruta } from '@/lib/rutas'
+import { Eye } from 'lucide-react'
 
 /**
  * Conmutador «ver como residente».
@@ -61,6 +62,7 @@ export function ConmutadorVista({ rolReal, simulando }: { rolReal: string; simul
           onClick={() => cambiar('lector')}
           disabled={ocupado}
         >
+          <Eye size={16} aria-hidden="true" />
           Ver como residente
         </button>
       )}

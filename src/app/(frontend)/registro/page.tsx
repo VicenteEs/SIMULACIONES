@@ -6,6 +6,7 @@ import { faltaLaPrimeraCuenta } from '@/app/(frontend)/acciones/sesion'
 import { hayCorreo } from '@/correo/enviar'
 import { FormularioRegistro } from './FormularioRegistro'
 import { ruta } from '@/lib/rutas'
+import { MallaDeNodos } from '@/components/MallaDeNodos'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,13 +34,16 @@ export default async function PaginaRegistro() {
 
   return (
     <main className="acceso">
+      <div className="acceso-fondo" aria-hidden="true">
+        <MallaDeNodos className="portada-malla" />
+      </div>
       <div className="acceso-caja">
         <div className="acceso-marca">
           <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="acceso-logo" />
         </div>
         <h1 className="acceso-titulo">Solicitar una cuenta</h1>
 
-        <p className="acceso-aviso" style={{ marginBottom: 18 }}>
+        <p className="advertencia">
           Complete sus datos. La cuenta queda <strong>pendiente</strong> hasta que un administrador
           revise la solicitud y la active; mientras tanto no podrá entrar.
         </p>

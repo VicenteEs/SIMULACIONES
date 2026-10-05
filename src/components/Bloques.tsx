@@ -3,6 +3,7 @@ import { RichText } from '@payloadcms/richtext-lexical/react'
 import { conversoresRicos } from '@/components/Rico'
 import { encuadreVigente, type Encuadre } from '@/lib/encuadre'
 import { Visor3D, VisorInstancia } from './VisoresPerezosos'
+import { Info, Lightbulb, OctagonAlert, type LucideIcon } from 'lucide-react'
 
 /**
  * Renderizado de los bloques de contenido.
@@ -74,11 +75,22 @@ function BloqueClasificacion({ bloque }: { bloque: Bloque }) {
   )
 }
 
+/** El icono de cada tono: se reconoce el tipo de aviso antes de leer el rótulo. */
+const ICONO_TONO: Record<string, LucideIcon> = {
+  atencion: Info,
+  'error-frecuente': OctagonAlert,
+  perla: Lightbulb,
+}
+
 function BloqueAdvertencia({ bloque }: { bloque: Bloque }) {
   const tono = typeof bloque.tono === 'string' ? bloque.tono : 'atencion'
+  const Icono = ICONO_TONO[tono] ?? Info
   return (
     <aside className={`advertencia ${tono}`}>
-      <span className="advertencia-etiqueta">{ETIQUETA_TONO[tono] ?? ETIQUETA_TONO.atencion}</span>
+      <span className="advertencia-etiqueta">
+        <Icono size={15} aria-hidden="true" />
+        {ETIQUETA_TONO[tono] ?? ETIQUETA_TONO.atencion}
+      </span>
       <p>{typeof bloque.texto === 'string' ? bloque.texto : null}</p>
     </aside>
   )

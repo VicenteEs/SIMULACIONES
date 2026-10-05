@@ -5,6 +5,10 @@ import { obtenerSesion } from '@/lib/sesion'
 import { puedeEditar } from '@/lib/guardias'
 import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { SinAcceso, SinAccesoAlModulo, Vacio } from '@/components/Estados'
+import { CabeceraDeModulo, claseDeModulo } from '@/components/Cabeceras'
+import { TarjetaFicha } from '@/components/TarjetaFicha'
+import { lecturasDelResidente } from '@/lib/lecturas'
+import { Plus } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,10 +47,31 @@ export default async function Listado() {
     sort: 'nombre',
   })
 
+  // Qué casos tiene ya leídos, en una sola consulta para todo el listado: la
+  // misma pregunta que hace cada ficha al abrirse (`src/lib/lecturas.ts`), que
+  // no lanza si la tabla falla —el listado sale igual, sin la marca—.
+  const lecturas = await lecturasDelResidente(
+    payload,
+    usuarioEfectivo,
+    'cirugias',
+    resultado.docs.map((d) => d.id),
+  )
+
   return (
-    <main>
-      <h1>Simulador quirúrgico</h1>
-      <p className="entrada">Paso a paso con instrumental y control de la fuerza aplicada.</p>
+    <main className={claseDeModulo('cirugias')}>
+      <CabeceraDeModulo
+        slug="cirugias"
+        titulo="Simulador quirúrgico"
+        entradilla="Paso a paso con instrumental y control de la fuerza aplicada."
+        acciones={
+          puedeCrear && resultado.totalDocs > 0 ? (
+            <Link className="boton boton-secundario boton-sm" href="/admin-panel/contenido/cirugias/nuevo">
+              <Plus size={16} aria-hidden="true" />
+              Nueva cirugía
+            </Link>
+          ) : null
+        }
+      />
 
       {resultado.totalDocs === 0 ? (
         <Vacio
@@ -62,13 +87,14 @@ export default async function Listado() {
         <ul className="rejilla-fichas">
           {resultado.docs.map((d) => (
             <li key={d.id}>
-              <Link href={`/simulador/${d.id}`} className="tarjeta-ficha">
-                <div className="etiquetas">
-                  {d.codigo ? <span className="codigo">{d.codigo as string}</span> : null}
-                  {d._status === 'draft' ? <span className="borrador">Borrador</span> : null}
-                </div>
-                <h3>{d.nombre as string}</h3>
-              </Link>
+              <TarjetaFicha
+                href={`/simulador/${d.id}`}
+                titulo={d.nombre as string}
+                codigo={(d.codigo as string) ?? null}
+                borrador={d._status === 'draft'}
+                leida={lecturas.leida(d.id)}
+                accion="Abrir caso"
+              />
             </li>
           ))}
         </ul>

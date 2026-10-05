@@ -13,6 +13,14 @@ import { apuntarCambiosSinGuardar } from '@/admin/salidaDelEditor'
 import { mensajeDeDifusion } from '@/correo/mensajes'
 import { armarCorreo, esEnlaceSeguro } from '@/correo/plantilla'
 import { ruta } from '@/lib/rutas'
+import { Ban, Check, History, Loader, Pause, Play, Send, TriangleAlert, X, Mail } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { useAvisos } from '@/components/ui/Avisos'
+import { useConfirmar } from '@/components/ui/Confirmar'
+import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
+import { Vacio } from '@/components/ui/Vacio'
+import { claseDeInsignia, type Tono } from '@/lib/tonosDeEstado'
 import './difusion.css'
 
 export interface GrupoDeDestinatarios {
@@ -119,18 +127,22 @@ const motivoDeLaCaida = (fallo: unknown, porOmision: string): string =>
  * sigue sola a propósito (ver `lanzarDifusion`), y si se pintara «Enviando» el
  * administrador esperaría un avance que no va a llegar.
  */
-function etiquetaDeEstado(d: DifusionDelHistorial): { texto: string; clase: string } {
+function etiquetaDeEstado(d: DifusionDelHistorial): { texto: string; tono: Tono; icono: LucideIcon } {
+  // El tono es el de la insignia semántica (`src/lib/tonosDeEstado.ts`), y el
+  // icono acompaña a la palabra para que el estado no se diga solo con color.
+  // «Con fallos» tenía una clase propia (`.difusion-etiqueta-fallos`) que era,
+  // letra por letra, el tono de peligro.
   switch (d.estado) {
     case 'enviando':
       return d.enCurso
-        ? { texto: 'Enviando', clase: 'admin-badge-activo' }
-        : { texto: 'Interrumpida', clase: 'admin-badge-pending' }
+        ? { texto: 'Enviando', tono: 'info', icono: Loader }
+        : { texto: 'Interrumpida', tono: 'atencion', icono: Pause }
     case 'enviada':
-      return { texto: 'Enviada', clase: 'admin-badge-publicado' }
+      return { texto: 'Enviada', tono: 'ok', icono: Check }
     case 'con-fallos':
-      return { texto: 'Con fallos', clase: 'difusion-etiqueta-fallos' }
+      return { texto: 'Con fallos', tono: 'peligro', icono: TriangleAlert }
     case 'detenida':
-      return { texto: 'Detenida', clase: 'admin-badge-neutro' }
+      return { texto: 'Detenida', tono: 'neutra', icono: Ban }
   }
 }
 
@@ -151,7 +163,21 @@ export function PanelDeDifusion({
 }) {
   const router = useRouter()
   const [ocupado, iniciar] = useTransition()
-  const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const [aviso, setAvisoEnPagina] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const avisar = useAvisos()
+  const confirmar = useConfirmar()
+  /**
+   * El resultado sale como aviso flotante, que se ve aunque se haya bajado al
+   * historial; el de error, además, se queda en la página, porque trae el
+   * motivo —la configuración del correo, el límite de pruebas— y hay que poder
+   * releerlo cuando el flotante ya se fue. El bueno de «Enviando…» también se
+   * queda: dice que el envío sigue aunque se salga, que es lo que se necesita
+   * saber durante la próxima hora.
+   */
+  const setAviso = (a: { tipo: 'ok' | 'error'; texto: string } | null) => {
+    setAvisoEnPagina(a && (a.tipo === 'error' || a.texto.startsWith('Enviando')) ? a : null)
+    if (a) avisar(a.tipo, a.texto)
+  }
 
   const [asunto, setAsunto] = useState('')
   const [mensaje, setMensaje] = useState('')
@@ -324,14 +350,24 @@ export function PanelDeDifusion({
     })
   }
 
-  const reanudar = (d: DifusionDelHistorial) => {
-    if (
-      !confirm(
-        `¿Reanudar «${d.asunto}»?\n\nQuedan ${personas(d.pendientes)} por recibirla. Al ritmo configurado tardará ${duracionAproximada(d.pendientes, pausaMs)}. Quienes ya la recibieron no la reciben otra vez; si el envío se cortó justo al mandar un correo, esa última persona puede recibirla dos veces.`,
-      )
-    ) {
-      return
-    }
+  const reanudar = async (d: DifusionDelHistorial) => {
+    const si = await confirmar({
+      titulo: `¿Reanudar «${d.asunto}»?`,
+      mensaje: (
+        <>
+          <p>
+            Quedan {personas(d.pendientes)} por recibirla. Al ritmo configurado tardará{' '}
+            {duracionAproximada(d.pendientes, pausaMs)}.
+          </p>
+          <p>
+            Quienes ya la recibieron no la reciben otra vez; si el envío se cortó justo al mandar un
+            correo, esa última persona puede recibirla dos veces.
+          </p>
+        </>
+      ),
+      confirmar: `Reanudar el envío a ${personas(d.pendientes)}`,
+    })
+    if (!si) return
     setAviso(null)
     iniciar(async () => {
       try {
@@ -350,16 +386,10 @@ export function PanelDeDifusion({
 
   return (
     <div>
-      <div className="admin-toolbar">
-        <div>
-          <h1 className="admin-title">Difusión</h1>
-          <p className="admin-subtitle">
-            Un correo a todas las cuentas activas o a un grupo: un aviso de clase, un caso nuevo, un
-            cambio de horario. Sale uno por persona, con su nombre, al ritmo que admite el servidor de
-            correo.
-          </p>
-        </div>
-      </div>
+      <CabeceraDePagina
+        titulo="Difusión"
+        subtitulo="Un correo a todas las cuentas activas o a un grupo: un aviso de clase, un caso nuevo, un cambio de horario. Sale uno por persona, con su nombre, al ritmo que admite el servidor de correo."
+      />
 
       {aviso ? (
         <div className={`admin-aviso admin-aviso-${aviso.tipo}`} role="status">
@@ -514,6 +544,7 @@ export function PanelDeDifusion({
                   onClick={enviar}
                   disabled={!puedeEnviar}
                 >
+                  <Send aria-hidden size={16} />
                   {ocupado ? 'Empezando…' : `Sí, enviar a ${personas(cuantos)}`}
                 </button>
                 <button
@@ -522,6 +553,7 @@ export function PanelDeDifusion({
                   onClick={() => setConfirmando(false)}
                   disabled={ocupado}
                 >
+                  <X aria-hidden size={16} />
                   Cancelar
                 </button>
               </div>
@@ -529,6 +561,7 @@ export function PanelDeDifusion({
           ) : (
             <div className="admin-acciones difusion-envio">
               <button type="button" className="admin-btn admin-btn-secondary" onClick={probar} disabled={!puedeProbar}>
+                <Mail aria-hidden size={16} />
                 {probando ? 'Enviando la prueba…' : 'Enviarme una prueba'}
               </button>
               <button
@@ -537,6 +570,7 @@ export function PanelDeDifusion({
                 onClick={() => setConfirmando(true)}
                 disabled={!puedeEnviar}
               >
+                <Send aria-hidden size={16} />
                 Enviar a {personas(cuantos)}
               </button>
             </div>
@@ -552,13 +586,17 @@ export function PanelDeDifusion({
         </section>
       </div>
 
-      <h2 className="admin-section-title">Historial</h2>
-      <div className="admin-table-container">
+      <SeccionPlegable
+        clave="difusion.historial"
+        titulo="Historial"
+        resumen={historial.length === 1 ? '1 difusión' : `${historial.length} difusiones`}
+      >
         {historial.length === 0 ? (
-          <div className="admin-empty">
-            <p className="admin-empty-text">Todavía no se ha enviado ninguna difusión.</p>
-          </div>
+          <Vacio icono={History} titulo="Todavía no se ha enviado ninguna difusión." compacto>
+            Las que se manden desde aquí aparecerán con su avance y sus fallos.
+          </Vacio>
         ) : (
+      <div className="admin-table-container">
           <table className="admin-table">
             <thead>
               <tr>
@@ -568,12 +606,15 @@ export function PanelDeDifusion({
                 <th>Enviados</th>
                 <th>Fallidos</th>
                 <th>Estado</th>
-                <th>Acciones</th>
+                <th>
+                  <span className="sr-only">Acciones</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {historial.map((d) => {
                 const estado = etiquetaDeEstado(d)
+                const IconoDeEstado = estado.icono
                 const interrumpida = d.estado === 'enviando' && !d.enCurso
                 const reanudable = (d.estado === 'detenida' || interrumpida) && d.pendientes > 0
                 const avance = d.total > 0 ? Math.round((d.enviados / d.total) * 100) : 100
@@ -587,7 +628,7 @@ export function PanelDeDifusion({
                       {d.asunto}
                       <div className="admin-table-user-email">{d.audiencia}</div>
                     </th>
-                    <td>{d.total}</td>
+                    <td className="u-num">{d.total}</td>
                     <td className="difusion-avance">
                       {d.enviados} de {d.total}
                       <div
@@ -619,7 +660,10 @@ export function PanelDeDifusion({
                       )}
                     </td>
                     <td>
-                      <span className={`admin-badge ${estado.clase}`}>{estado.texto}</span>
+                      <span className={claseDeInsignia(estado.tono)}>
+                        <IconoDeEstado aria-hidden size={12} />
+                        {estado.texto}
+                      </span>
                       {interrumpida ? (
                         <div className="admin-table-user-email">
                           El envío se cortó a la mitad (un reinicio del servicio o un error: ver el
@@ -630,7 +674,7 @@ export function PanelDeDifusion({
                       ) : null}
                     </td>
                     <td>
-                      <div className="admin-acciones">
+                      <div className="admin-table-acciones-fila">
                         {d.estado === 'enviando' && d.enCurso ? (
                           <button
                             type="button"
@@ -638,6 +682,7 @@ export function PanelDeDifusion({
                             onClick={() => detener(d)}
                             disabled={ocupado}
                           >
+                            <Pause aria-hidden size={14} />
                             Detener
                           </button>
                         ) : null}
@@ -655,6 +700,7 @@ export function PanelDeDifusion({
                                   : undefined
                             }
                           >
+                            <Play aria-hidden size={14} />
                             Reanudar
                           </button>
                         ) : null}
@@ -665,8 +711,9 @@ export function PanelDeDifusion({
               })}
             </tbody>
           </table>
-        )}
       </div>
+        )}
+      </SeccionPlegable>
     </div>
   )
 }

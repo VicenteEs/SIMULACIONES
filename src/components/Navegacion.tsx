@@ -3,6 +3,7 @@ import { ConmutadorVista } from './ConmutadorVista'
 import { BotonSalir } from './BotonSalir'
 import { BarraDeModulos, MenuMovil } from './MenuMovil'
 import { ruta } from '@/lib/rutas'
+import { LayoutDashboard, CircleUserRound } from 'lucide-react'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { MODULOS as MODULOS_DE_LA_PLATAFORMA } from '@/app/(frontend)/admin-panel/modulos'
@@ -99,10 +100,16 @@ export async function Navegacion({
           <ConmutadorVista rolReal={rolReal} simulando={simulando} />
           {hayPanel ? (
             <Link href="/admin-panel" className="enlace-nav">
+              <LayoutDashboard size={16} aria-hidden="true" />
               Panel
             </Link>
           ) : null}
-          {nombre ? <span className="quien">{nombre}</span> : null}
+          {nombre ? (
+            <span className="quien">
+              <CircleUserRound size={16} aria-hidden="true" />
+              {nombre}
+            </span>
+          ) : null}
           <BotonSalir />
         </div>
 

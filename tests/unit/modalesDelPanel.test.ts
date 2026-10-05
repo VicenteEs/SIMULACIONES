@@ -26,6 +26,10 @@ import { join } from 'node:path'
 
 const RAIZ = process.cwd()
 const HOJA = join(RAIZ, 'src', 'app', '(frontend)', 'admin-panel', 'admin.css')
+// La caja del diálogo vive solo en `ui.css` desde que se extrajo `Modal`
+// (`src/components/ui/Modal.tsx`): la usan también las confirmaciones fuera
+// del panel. Antes estaba en las dos hojas, con valores distintos.
+const HOJA_UI = join(RAIZ, 'src', 'app', '(frontend)', 'ui.css')
 const TABLA_USUARIOS = join(
   RAIZ,
   'src',
@@ -40,33 +44,39 @@ const TABLA_USUARIOS = join(
 const sinComentarios = (fuente: string) => fuente.replace(/\/\*[\s\S]*?\*\//g, ' ')
 
 const hoja = sinComentarios(readFileSync(HOJA, 'utf8'))
+const hojaUi = sinComentarios(readFileSync(HOJA_UI, 'utf8'))
 const tablaUsuarios = readFileSync(TABLA_USUARIOS, 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, ' ')
   .replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
 
 /** El cuerpo de la primera regla cuyo selector es exactamente `selector`. */
-function cuerpoDe(selector: string): string {
+function cuerpoDe(selector: string, fuente: string = hoja): string {
   const escapado = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const encontrado = hoja.match(new RegExp(`(?:^|\\})\\s*${escapado}\\s*\\{([^}]*)\\}`))
+  const encontrado = fuente.match(new RegExp(`(?:^|\\})\\s*${escapado}\\s*\\{([^}]*)\\}`))
   return encontrado?.[1] ?? ''
 }
 
 describe('la caja de un modal cabe en la pantalla', () => {
   it('`.admin-modal` acota su alto y se desplaza por dentro', () => {
-    const cuerpo = cuerpoDe('.admin-modal')
+    const cuerpo = cuerpoDe('.admin-modal', hojaUi)
     expect(cuerpo).toMatch(/max-height\s*:/)
     expect(cuerpo).toMatch(/overflow-y\s*:\s*auto/)
   })
 
   it('`.admin-modal-backdrop` deja aire y se desplaza si aun así no cabe', () => {
-    const cuerpo = cuerpoDe('.admin-modal-backdrop')
+    const cuerpo = cuerpoDe('.admin-modal-backdrop', hojaUi)
     expect(cuerpo).toMatch(/overflow-y\s*:\s*auto/)
     expect(cuerpo).toMatch(/padding\s*:/)
   })
 
-  it('la regla no se repite en línea dentro de `EnvolturaModal`', () => {
+  it('la regla no se repite en línea en la tabla de cuentas', () => {
     expect(tablaUsuarios).not.toContain('maxHeight')
     expect(tablaUsuarios).not.toContain('overflowY')
+  })
+
+  it('ni en la hoja del panel: la caja vive en una sola hoja', () => {
+    expect(cuerpoDe('.admin-modal')).toBe('')
+    expect(cuerpoDe('.admin-modal-backdrop')).toBe('')
   })
 })
 

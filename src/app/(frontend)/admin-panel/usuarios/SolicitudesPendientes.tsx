@@ -1,6 +1,9 @@
 'use client'
 
 import { useId, useState } from 'react'
+import { Check, X } from 'lucide-react'
+import { useConfirmar } from '@/components/ui/Confirmar'
+import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import type { UsuarioDelPanel } from './TablaUsuarios'
 
 /**
@@ -20,6 +23,10 @@ import type { UsuarioDelPanel } from './TablaUsuarios'
  * `filaEnCurso`. Con dos sistemas de avisos en la misma pantalla, el resultado
  * de una tarjeta aparecía en un sitio y el de una fila en otro, y el fallo de
  * transporte solo lo sabía contar uno de los dos.
+ *
+ * Va en una `SeccionPlegable` (pedido del dueño): cien tarjetas son varias
+ * pantallas, y quien viene a la tabla de cuentas tenía que bajar por encima de
+ * todas. Plegada, el recuento de la cabecera sigue diciendo cuántas esperan.
  */
 export function SolicitudesPendientes({
   solicitudes,
@@ -37,15 +44,16 @@ export function SolicitudesPendientes({
   onActivar: (solicitud: UsuarioDelPanel, rol: UsuarioDelPanel['rol']) => void
   onRechazar: (solicitud: UsuarioDelPanel) => void
 }) {
-  const idTitulo = useId()
   if (solicitudes.length === 0) return null
+  const total = solicitudes.length + sinMostrar
 
   return (
-    <section className="solicitudes" aria-labelledby={idTitulo}>
-      <h2 className="admin-section-title" id={idTitulo}>
-        Solicitudes por revisar ({solicitudes.length + sinMostrar})
-      </h2>
-      <p className="admin-form-hint">
+    <SeccionPlegable
+      clave="usuarios.solicitudes"
+      titulo="Solicitudes por revisar"
+      resumen={`${total} ${total === 1 ? 'solicitud' : 'solicitudes'}`}
+    >
+      <p className="admin-form-hint solicitudes-aviso">
         Nadie de esta lista puede entrar todavía. Antes de activar, compruebe que cada persona es
         quien dice ser: la plataforma no verifica la identidad de quien pide la cuenta.
       </p>
@@ -70,7 +78,7 @@ export function SolicitudesPendientes({
           />
         ))}
       </ul>
-    </section>
+    </SeccionPlegable>
   )
 }
 
@@ -94,6 +102,7 @@ function TarjetaDeSolicitud({
   // otro tiene que ser un gesto, no algo que se hereda de la tarjeta de al lado.
   const [rol, setRol] = useState<UsuarioDelPanel['rol']>('lector')
   const idRol = useId()
+  const confirmar = useConfirmar()
   const quien = solicitud.nombre || solicitud.email
   // `solicitadaEn` lo escribe `/registro`. Una cuenta marcada pendiente sin esa
   // fecha —puesta a mano en la base— cae en la de alta, que para una cuenta
@@ -107,7 +116,7 @@ function TarjetaDeSolicitud({
     // quien revisa diez solicitudes con el teclado volvía a tabular desde el
     // principio de la página tras cada una. El `if (ocupada) return` de cada
     // manejador es lo que de verdad impide la segunda pulsación.
-    <li className="solicitud" aria-busy={ocupada} style={ocupada ? { opacity: 0.5 } : undefined}>
+    <li className={`solicitud${ocupada ? ' solicitud-ocupada' : ''}`} aria-busy={ocupada}>
       <div className="solicitud-cabecera">
         <div>
           <div className="admin-table-user-name">{solicitud.nombre || '—'}</div>
@@ -149,42 +158,51 @@ function TarjetaDeSolicitud({
           className="admin-btn admin-btn-sm admin-btn-success"
           aria-disabled={ocupada}
           aria-label={`Activar la cuenta de ${solicitud.email}`}
-          onClick={() => {
+          onClick={async () => {
             if (ocupada) return
             // Solo el administrador pide confirmación. Lector y editor se
             // corrigen desde la tabla sin que nadie haya perdido nada; un
             // administrador puede, desde el primer clic, crear, desactivar y
-            // borrar cuentas, la de quien lo activó incluida.
+            // borrar cuentas, la de quien lo activó incluida. No va en rojo:
+            // no destruye nada, pero el botón dice exactamente qué concede.
             if (
               rol === 'admin' &&
-              !confirm(
-                `¿Activar a ${solicitud.email} como administrador?\n\nPodrá crear, desactivar y eliminar cuentas, además de editar todo el contenido.`,
-              )
+              !(await confirmar({
+                titulo: `¿Activar a ${solicitud.email} como administrador?`,
+                mensaje:
+                  'Podrá crear, desactivar y eliminar cuentas, además de editar todo el contenido.',
+                confirmar: 'Activar como administrador',
+              }))
             ) {
               return
             }
             onActivar(solicitud, rol)
           }}
         >
+          <Check aria-hidden size={14} />
           Activar
         </button>
         <button
           className="admin-btn admin-btn-sm admin-btn-danger"
           aria-disabled={ocupada}
           aria-label={`Rechazar la solicitud de ${solicitud.email}`}
-          onClick={() => {
+          onClick={async () => {
             if (ocupada) return
             if (
-              confirm(
-                `¿Rechazar la solicitud de ${solicitud.email}?\n\nSe borrará la solicitud con los datos que envió${
+              await confirmar({
+                titulo: `¿Rechazar la solicitud de ${solicitud.email}?`,
+                mensaje: `Se borrará la solicitud con los datos que envió${
                   hayCorreo ? ' y se le avisará por correo' : ''
                 }. No se puede deshacer: si más adelante debe entrar, tendrá que pedir la cuenta otra vez o crearla usted.`,
-              )
+                confirmar: 'Rechazar y borrar',
+                peligro: true,
+              })
             ) {
               onRechazar(solicitud)
             }
           }}
         >
+          <X aria-hidden size={14} />
           Rechazar
         </button>
       </div>

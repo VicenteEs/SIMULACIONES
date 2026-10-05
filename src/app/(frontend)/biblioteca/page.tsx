@@ -6,6 +6,9 @@ import { puedeEditar } from '@/lib/guardias'
 import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { SinAcceso, SinAccesoAlModulo, Vacio } from '@/components/Estados'
 import { BibliotecaFiltrable } from '@/components/BibliotecaFiltrable'
+import { CabeceraDeModulo, claseDeModulo } from '@/components/Cabeceras'
+import { lecturasDelResidente } from '@/lib/lecturas'
+import { Plus } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,6 +92,16 @@ export default async function Biblioteca() {
     return (relacion as number | string | null) ?? null
   }
 
+  // Qué fichas tiene ya leídas, en una sola consulta para todo el listado: la
+  // misma pregunta que hace cada ficha al abrirse (`src/lib/lecturas.ts`), que
+  // no lanza si la tabla falla —el listado sale igual, sin la marca—.
+  const lecturas = await lecturasDelResidente(
+    payload,
+    usuarioEfectivo,
+    'patologias',
+    fichas.docs.map((f) => f.id),
+  )
+
   const lista = fichas.docs.map((f) => ({
     id: f.id,
     nombre: f.nombre as string,
@@ -97,20 +110,28 @@ export default async function Biblioteca() {
     tipo: (f.tipo as string) ?? null,
     segmentoId: idDe(f.segmento),
     borrador: f._status === 'draft',
+    leida: lecturas.leida(f.id),
   }))
 
   const listaSegmentos = segmentos.docs.map((s) => ({ id: s.id, nombre: s.nombre as string }))
 
   return (
-    <main>
-      <nav className="miga">
-        <Link href="/">Inicio</Link>
-      </nav>
-      <h1>Biblioteca de patologías</h1>
-      <p className="entrada">
-        Fichas estructuradas por segmento. Cada una termina en recomendaciones de manejo y una
-        pestaña dedicada a rehabilitación.
-      </p>
+    <main className={claseDeModulo('patologias')}>
+      <CabeceraDeModulo
+        slug="patologias"
+        titulo="Biblioteca de patologías"
+        entradilla="Fichas estructuradas por segmento. Cada una termina en recomendaciones de manejo y una pestaña dedicada a rehabilitación."
+        acciones={
+          // Solo con fichas ya escritas: con el módulo vacío el botón de crear
+          // es el del propio estado vacío, y dos a la vista sobran.
+          puedeCrearFichas && fichas.totalDocs > 0 ? (
+            <Link className="boton boton-secundario boton-sm" href="/admin-panel/contenido/patologias/nuevo">
+              <Plus size={16} aria-hidden="true" />
+              Nueva ficha
+            </Link>
+          ) : null
+        }
+      />
 
       {segmentos.totalDocs === 0 ? (
         <Vacio

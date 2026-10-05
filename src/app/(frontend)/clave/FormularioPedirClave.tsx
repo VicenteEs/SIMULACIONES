@@ -10,7 +10,7 @@ export function FormularioPedirClave() {
 
   if (enviado) {
     return (
-      <div className="acceso-aviso" role="status">
+      <div className="advertencia exito" role="status">
         Si esa dirección corresponde a una cuenta, le llegará un enlace para elegir contraseña
         nueva. Caduca en una hora y sirve una sola vez.
       </div>
@@ -42,7 +42,7 @@ export function FormularioPedirClave() {
         />
       </label>
 
-      <button type="submit" className="acceso-boton" disabled={enCurso}>
+      <button type="submit" className="boton boton-lg boton-bloque" disabled={enCurso}>
         {enCurso ? 'Enviando…' : 'Enviar enlace'}
       </button>
     </form>

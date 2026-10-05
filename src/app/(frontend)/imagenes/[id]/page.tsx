@@ -4,7 +4,11 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { lecturasDelResidente } from '@/lib/lecturas'
 import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
-import { SinAcceso, SinAccesoAlModulo, Miga } from '@/components/Estados'
+import { SinAcceso, SinAccesoAlModulo } from '@/components/Estados'
+import { EyebrowDeModulo, MigaDePan, claseDeModulo } from '@/components/Cabeceras'
+import { BotonImprimir } from '@/components/BotonImprimir'
+import { BotonComentar } from '@/components/BotonComentar'
+import { FlaskConical, ThumbsDown, ThumbsUp, Star } from 'lucide-react'
 import { Bloques } from '@/components/Bloques'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import { RastreadorActividad } from '@/components/RastreadorActividad'
@@ -60,13 +64,24 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
   const lecturas = await lecturasDelResidente(payload, usuarioEfectivo, 'estudios-ia', [id])
 
   return (
-    <main>
-      <Miga href="/imagenes" texto="Lectura de imágenes" />
+    <main className={claseDeModulo('estudios-ia')}>
+      <MigaDePan
+        pasos={[
+          { href: '/', texto: 'Inicio' },
+          { href: '/imagenes', texto: 'Lectura de imágenes' },
+          { texto: estudio.nombre as string },
+        ]}
+      />
 
       {/* La advertencia va arriba y no al pie: quien lee un resultado debe
-          saber antes que no hay ningún modelo detrás. */}
-      <aside className="advertencia error-frecuente">
-        <span className="advertencia-etiqueta">Demostración</span>
+          saber antes que no hay ningún modelo detrás. En ámbar y con el icono
+          del matraz, no en el rojo de un error: no ha fallado nada, es la
+          naturaleza del caso. */}
+      <aside className="advertencia demostracion">
+        <span className="advertencia-etiqueta">
+          <FlaskConical size={15} aria-hidden="true" />
+          Demostración
+        </span>
         <p>
           No existe un modelo de inferencia: estos resultados están escritos a mano. No apto para
           uso clínico ni para decisiones sobre pacientes.
@@ -74,6 +89,7 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
       </aside>
 
       <header className="cabecera-ficha">
+        <EyebrowDeModulo slug="estudios-ia">Lectura de imágenes</EyebrowDeModulo>
         <h1>{estudio.nombre as string}</h1>
         <div className="etiquetas">
           {estudio.codigo ? <span className="codigo">{estudio.codigo as string}</span> : null}
@@ -86,15 +102,20 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
           página está el aviso de que la decisión es del cirujano tratante, y no
           conviene poner un control de progreso justo debajo de esa frase.
         */}
-        <RastreadorActividad
-          coleccion="estudios-ia"
-          documentoId={id}
-          completadoInicial={lecturas.leida(id)}
-        />
+        <div className="barra-acciones">
+          <RastreadorActividad
+            coleccion="estudios-ia"
+            documentoId={id}
+            completadoInicial={lecturas.leida(id)}
+          />
+          <BotonImprimir />
+          <BotonComentar coleccion="estudios-ia" documentoId={id} />
+        </div>
       </header>
 
       {hallazgos.length > 0 ? (
         <section className="pestana">
+          <span className="eyebrow pestana-eyebrow">Lo que se ve</span>
           <h2>Hallazgos</h2>
           <ul className="lista-clinica">
             {hallazgos.map((h, i) => (
@@ -106,6 +127,7 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
 
       {opciones.length > 0 ? (
         <section className="pestana">
+          <span className="eyebrow pestana-eyebrow">Lo que se puede hacer</span>
           <h2>Opciones de manejo</h2>
           {opciones.map((o, i) => {
             const aFavor = Array.isArray(o.aFavor) ? (o.aFavor as Record<string, string>[]) : []
@@ -114,19 +136,30 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
               <article key={i} className="opcion">
                 <h3>
                   {o.titulo as string}
-                  {o.frecuente ? <span className="etiqueta"> Indicación más frecuente</span> : null}
+                  {o.frecuente ? (
+                    <span className="insignia insignia-acento">
+                      <Star size={13} aria-hidden="true" />
+                      Indicación más frecuente
+                    </span>
+                  ) : null}
                 </h3>
                 <div className="pros-contras">
-                  <div>
-                    <h4>A favor</h4>
+                  <div className="a-favor">
+                    <h4>
+                      <ThumbsUp size={14} aria-hidden="true" />
+                      A favor
+                    </h4>
                     <ul>
                       {aFavor.map((a, j) => (
                         <li key={j}>{a.texto}</li>
                       ))}
                     </ul>
                   </div>
-                  <div>
-                    <h4>En contra</h4>
+                  <div className="en-contra">
+                    <h4>
+                      <ThumbsDown size={14} aria-hidden="true" />
+                      En contra
+                    </h4>
                     <ul>
                       {enContra.map((a, j) => (
                         <li key={j}>{a.texto}</li>
@@ -142,15 +175,15 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
 
       <Bloques bloques={estudio.contenido} />
 
-      <p className="aviso">
+      <p className="nota-al-pie">
         Las opciones se muestran como apoyo docente. La decisión es del cirujano tratante y depende
         del paciente, del entorno y del material disponible.
       </p>
 
-      <FormularioComentario 
-        coleccion="estudios-ia" 
-        documentoId={id} 
-        label="¿Sugerencia o corrección sobre este caso de imágenes? Comentar" 
+      <FormularioComentario
+        coleccion="estudios-ia"
+        documentoId={id}
+        label="¿Sugerencia o corrección sobre este caso de imágenes? Comentar"
       />
     </main>
   )

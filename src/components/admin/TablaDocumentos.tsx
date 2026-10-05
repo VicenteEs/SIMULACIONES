@@ -14,6 +14,24 @@ import {
   type FiltroDeRevision,
 } from '@/app/(frontend)/acciones/contenido'
 import { estadoEnPalabras as estadoDeRevision } from '@/lib/revision'
+import { claseDeInsignia, tonoDeRevision, tonoDePublicacion } from '@/lib/tonosDeEstado'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Eye,
+  EyeOff,
+  FileText,
+  Flag,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react'
+import { useAvisos } from '@/components/ui/Avisos'
+import { useConfirmar } from '@/components/ui/Confirmar'
+import { MenuAcciones, type OpcionDeMenu } from '@/components/ui/MenuAcciones'
+import { Vacio } from '@/components/ui/Vacio'
+import { CabeceraDePagina } from './CabeceraDePagina'
 
 /**
  * Los filtros de revisión del listado de un módulo (D-142), en el orden en que
@@ -60,7 +78,7 @@ function celda(valor: unknown, formato: string | undefined, esquema: EsquemaDeCo
   if (formato === 'fecha') return fecha(valor)
   if (formato === 'booleano') {
     return (
-      <span className={`admin-badge ${valor === true ? 'admin-badge-publicado' : 'admin-badge-neutro'}`}>
+      <span className={claseDeInsignia(valor === true ? 'ok' : 'neutra')}>
         {valor === true ? 'Sí' : 'No'}
       </span>
     )
@@ -68,7 +86,7 @@ function celda(valor: unknown, formato: string | undefined, esquema: EsquemaDeCo
   if (formato === 'estado') {
     const publicado = valor === 'published'
     return (
-      <span className={`admin-badge ${publicado ? 'admin-badge-publicado' : 'admin-badge-borrador'}`}>
+      <span className={claseDeInsignia(tonoDePublicacion(publicado))}>
         {estadoEnPalabras(esquema, publicado)}
       </span>
     )
@@ -130,7 +148,13 @@ export function TablaDocumentos({
   const [estado, setEstado] = useState<'todos' | 'publicado' | 'borrador'>('todos')
   const [filtroRevision, setFiltroRevision] = useState<FiltroDeRevision>('todas')
   const [cargando, setCargando] = useState(true)
-  const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  // Solo el error se queda en la página: el detalle de por qué falló tiene que
+  // seguir a la vista mientras se corrige. El «se publicó» ya no: era un
+  // recuadro arriba del todo que quien había bajado a la fila veinte no veía, y
+  // ahora sale como aviso flotante junto a donde se pulsó.
+  const [aviso, setAviso] = useState<{ tipo: 'error'; texto: string } | null>(null)
+  const avisar = useAvisos()
+  const confirmar = useConfirmar()
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -214,7 +238,7 @@ export function TablaDocumentos({
       try {
         const r = await tarea()
         if (r.exito) {
-          setAviso({ tipo: 'ok', texto: exitoso })
+          avisar('ok', exitoso)
           if (filaDelFoco !== undefined) focoTrasBorrar.current = filaDelFoco
           void cargar()
           router.refresh()
@@ -230,20 +254,81 @@ export function TablaDocumentos({
     })
   }
 
+  /**
+   * Las acciones secundarias de una fila, como opciones del menú «⋯».
+   *
+   * Es una función y no un JSX en línea para que el cuerpo de la tabla se
+   * lea de un golpe; los nombres de las opciones dicen la acción y el menú
+   * trae el nombre de la ficha en su etiqueta.
+   */
+  const opcionesDeFila = (fila: FilaDeLista, nombre: string, posicion: number): OpcionDeMenu[] => {
+    const opciones: OpcionDeMenu[] = []
+    // Una ficha en revisión no la publica el editor (D-142): la opción no se le
+    // ofrece. Retirarla sí.
+    if (esquema.versionada && !(fila.revision && !esAdmin && !fila.publicado)) {
+      opciones.push({
+        etiqueta: fila.publicado ? 'Retirar de publicación' : 'Publicar',
+        icono: fila.publicado ? EyeOff : Eye,
+        alElegir: () => {
+          if (enCurso) return
+          conAviso(
+            () => cambiarPublicacion(esquema.slug, fila.id, !fila.publicado),
+            // En impersonal, que es lo único que concuerda con las once
+            // colecciones: «Retirada» era femenino fijo sobre «Hueso» y
+            // «Caso AO».
+            fila.publicado ? `Se retiró de publicación «${nombre}».` : `Se publicó «${nombre}».`,
+            posicion,
+          )
+        },
+      })
+    }
+    if (!esquema.subida) {
+      opciones.push({
+        etiqueta: 'Duplicar',
+        icono: Copy,
+        alElegir: () => {
+          if (enCurso) return
+          conAviso(
+            () => duplicarDocumento(esquema.slug, fila.id),
+            `Copia de «${nombre}» creada como borrador.`,
+            posicion,
+          )
+        },
+      })
+    }
+    opciones.push({
+      etiqueta: 'Eliminar',
+      icono: Trash2,
+      peligro: true,
+      alElegir: async () => {
+        // La guarda va antes de la pregunta: preguntar por un borrado que
+        // después no se va a ejecutar es peor que no preguntar.
+        if (enCurso) return
+        const si = await confirmar({
+          titulo: `¿Eliminar «${nombre}»?`,
+          mensaje: 'No se puede deshacer.',
+          confirmar: 'Eliminar',
+          peligro: true,
+        })
+        if (!si) return
+        conAviso(
+          () => eliminarDocumento(esquema.slug, fila.id),
+          `Se eliminó «${nombre}».`,
+          posicion,
+        )
+      },
+    })
+    return opciones
+  }
+
   return (
     <div>
-      <div className="admin-toolbar">
-        <div>
-          <nav className="editor-migas">
-            <Link href="/admin-panel/contenido">Contenido</Link>
-          </nav>
-          <h1 className="admin-title">{esquema.plural}</h1>
-          <p className="admin-subtitle">
-            {esquema.descripcion} · {total} en total
-          </p>
-        </div>
-        <div className="admin-acciones">
-          {esquema.subida ? (
+      <CabeceraDePagina
+        migas={[{ etiqueta: 'Contenido', href: '/admin-panel/contenido' }, { etiqueta: esquema.plural }]}
+        titulo={esquema.plural}
+        subtitulo={`${esquema.descripcion} · ${total} en total`}
+        acciones={
+          esquema.subida ? (
             <SubidorDeArchivos esquema={esquema} alTerminar={() => void cargar()} />
           ) : (
             /* Decía «+ Nueva {singular en minúsculas}», con el femenino fijo y
@@ -253,38 +338,22 @@ export function TablaDocumentos({
                listas repetibles ya usan (`formulario/Campos.tsx`) y no tiene
                que concordar con nada, así que el singular entra tal como está
                escrito en el esquema y «Caso AO» conserva su sigla. */
-            <Link
-              href={`/admin-panel/contenido/${esquema.slug}/nuevo`}
-              className="admin-btn admin-btn-primary"
-            >
-              + Agregar {esquema.singular}
+            <Link href={`/admin-panel/contenido/${esquema.slug}/nuevo`} className="admin-btn admin-btn-primary">
+              <Plus aria-hidden size={16} />
+              Agregar {esquema.singular}
             </Link>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
-      {/*
-        La región viva se queda montada aunque no haya nada que decir: un
-        `role="status"` que aparece junto con su texto no lo anuncia, porque el
-        lector de pantalla tiene que estar observando la región antes de que su
-        contenido cambie. Vacía no ocupa sitio: el borde y el margen los pone
-        `.admin-aviso`, que sí es condicional. Montada con el mensaje dentro,
-        «Se publicó «…»» y «Se eliminó «…»» eran silencio, y quien no ve la
-        pantalla no tenía forma de saber si la acción había salido. Es el mismo
-        arreglo que en `FormularioDocumento.tsx` y en `TablaUsuarios.tsx`.
-      */}
-      <div role="status">
-        {aviso?.tipo === 'ok' ? (
-          <div className="admin-aviso admin-aviso-ok">{aviso.texto}</div>
-        ) : null}
-      </div>
-
+      {/* El error sí puede montarse con su texto: `role="alert"` interrumpe y
+          los lectores lo leen al insertarse. Aquí no se le lleva el foco, al
+          contrario que en el editor: allí el rechazo cambia de pestaña por
+          debajo, y aquí el botón que se pulsó sigue en su fila, así que
+          moverlo dejaría a la persona lejos de donde estaba trabajando. El
+          aviso de éxito ya no vive aquí: es flotante (`useAvisos`), que trae su
+          propia región viva. */}
       {aviso?.tipo === 'error' ? (
-        // El error sí puede montarse con su texto: `role="alert"` interrumpe y
-        // los lectores lo leen al insertarse. Aquí no se le lleva el foco, al
-        // contrario que en el editor: allí el rechazo cambia de pestaña por
-        // debajo, y aquí el botón que se pulsó sigue en su fila, así que
-        // moverlo dejaría a la persona lejos de donde estaba trabajando.
         <div role="alert" className="admin-aviso admin-aviso-error">
           {aviso.texto}
         </div>
@@ -358,16 +427,24 @@ export function TablaDocumentos({
 
       <div className="admin-table-container">
         {filas.length === 0 && !cargando ? (
-          <div className="admin-empty">
-            <div className="admin-empty-icon">📄</div>
-            <p className="admin-empty-text">
-              {busqueda || estado !== 'todos' || filtroRevision !== 'todas'
+          <Vacio
+            icono={FileText}
+            titulo={
+              busqueda || estado !== 'todos' || filtroRevision !== 'todas'
                 ? 'Nada coincide con el filtro.'
-                : `Todavía no hay nada en ${esquema.plural}.`}
-            </p>
-          </div>
+                : `Todavía no hay nada en ${esquema.plural}.`
+            }
+            accion={
+              !esquema.subida && !(busqueda || estado !== 'todos' || filtroRevision !== 'todas') ? (
+                <Link href={`/admin-panel/contenido/${esquema.slug}/nuevo`} className="admin-btn admin-btn-primary">
+                  <Plus aria-hidden size={16} />
+                  Agregar {esquema.singular}
+                </Link>
+              ) : undefined
+            }
+          />
         ) : (
-          <table className="admin-table">
+          <table className="admin-table tabla-apilable">
             <thead>
               <tr>
                 {esquema.columnas.map((c) => (
@@ -378,6 +455,11 @@ export function TablaDocumentos({
               </tr>
             </thead>
             <tbody ref={cuerpo}>
+              {/* El lint de refs ve que `opcionesDeFila` termina en `conAviso`,
+                  que anota la fila en `focoTrasBorrar.current`, y lo toma por
+                  un acceso durante el pintado. No lo es: esa escritura solo
+                  corre dentro de `alElegir`, al elegir una opción. */}
+              {/* eslint-disable-next-line react-hooks/refs */}
               {filas.map((fila, posicion) => {
                 // Las cuatro acciones se llaman igual en las veinte filas. Sin
                 // el nombre de la ficha dentro, un lector de pantalla que pida
@@ -397,16 +479,16 @@ export function TablaDocumentos({
                           </Link>
                         </th>
                       ) : (
-                        <td key={columna.nombre}>
+                        <td key={columna.nombre} data-etiqueta={columna.etiqueta}>
                           {celda(fila.valores[columna.nombre], columna.formato, esquema)}
                         </td>
                       ),
                     )}
                     {conRevision ? (
-                      <td>
+                      <td data-etiqueta="Revisión">
                         {fila.revision ? (
                           <>
-                            <span className={`admin-badge revision-estado-${fila.revision.estado}`}>
+                            <span className={claseDeInsignia(tonoDeRevision(fila.revision.estado))}>
                               {estadoDeRevision(fila.revision.estado)}
                             </span>
                             {/* La señal de validación rápida es del
@@ -414,7 +496,7 @@ export function TablaDocumentos({
                                 suya en cada fila de su propio trabajo. */}
                             {esAdmin && fila.revision.rapida ? (
                               <span className="revision-senal" title="Validación señalada como rápida">
-                                ⚑
+                                <Flag aria-label="Validación señalada como rápida" size={14} />
                               </span>
                             ) : null}
                             <div className="revision-tenue">
@@ -426,99 +508,32 @@ export function TablaDocumentos({
                         )}
                       </td>
                     ) : null}
-                    <td>
-                      <div className="admin-acciones">
+                    <td className="admin-table-acciones">
+                      <div className="admin-table-acciones-fila">
                         <Link
                           href={`/admin-panel/contenido/${esquema.slug}/${fila.id}`}
                           className="admin-btn admin-btn-sm admin-btn-secondary"
                           aria-label={`Editar «${nombre}»`}
-                          // Por dónde vuelve el foco cuando se borra una fila.
-                          // Se marca este y no el título porque ocupa la misma
-                          // columna que el botón que desapareció.
+                          // Por dónde vuelve el foco cuando una acción del menú
+                          // cambia la fila. Se marca este y no el título porque
+                          // ocupa la misma columna que el menú.
                           data-editar=""
                         >
+                          <Pencil aria-hidden size={14} />
                           Editar
                         </Link>
-                        {/* Las tres acciones de abajo llevan `aria-disabled` y
-                            no `disabled`, igual que el subidor del final de
-                            este archivo y que toda la fila de
-                            `TablaUsuarios.tsx`: el botón que se pulsa es
-                            precisamente el que tiene el foco, y `disabled`
-                            puesto por el arranque de la transición hace que el
-                            navegador lo desenfoque y suelte el foco en el
-                            `<body>` —antes incluso de que la fila se repinte—,
-                            de modo que publicar veinte fichas seguidas devolvía
-                            veinte veces al principio de la página. «Eliminar»
-                            se salvaba de rebote, porque el efecto de
-                            `focoTrasBorrar` lo recoge después.
+                        {/* Las acciones secundarias, en el menú «⋯»: cuatro
+                            botones por fila se comían media tabla en un
+                            portátil y obligaban a desplazar de lado en el
+                            móvil. Lo frecuente —editar— se queda fuera.
 
-                            Quien impide la doble pulsación mientras la
-                            transición corre es el `if (enCurso) return` de cada
-                            `onClick`, y visualmente no se pierde nada:
-                            `.admin-btn` no define estilo de `:disabled`. */}
-                        {/* Una ficha en revisión no la publica el editor
-                            (D-142): el botón no se le ofrece. Retirarla sí. */}
-                        {esquema.versionada && !(fila.revision && !esAdmin && !fila.publicado) ? (
-                          <button
-                            className={`admin-btn admin-btn-sm ${fila.publicado ? 'admin-btn-secondary' : 'admin-btn-success'}`}
-                            aria-disabled={enCurso}
-                            aria-label={
-                              fila.publicado
-                                ? `Retirar de publicación «${nombre}»`
-                                : `Publicar «${nombre}»`
-                            }
-                            onClick={() => {
-                              if (enCurso) return
-                              conAviso(
-                                () => cambiarPublicacion(esquema.slug, fila.id, !fila.publicado),
-                                // En impersonal, que es lo único que concuerda
-                                // con las once colecciones: «Retirada» era
-                                // femenino fijo sobre «Hueso» y «Caso AO».
-                                fila.publicado
-                                  ? `Se retiró de publicación «${nombre}».`
-                                  : `Se publicó «${nombre}».`,
-                              )
-                            }}
-                          >
-                            {fila.publicado ? 'Retirar' : 'Publicar'}
-                          </button>
-                        ) : null}
-                        {!esquema.subida ? (
-                          <button
-                            className="admin-btn admin-btn-sm admin-btn-secondary"
-                            aria-disabled={enCurso}
-                            aria-label={`Duplicar «${nombre}»`}
-                            onClick={() => {
-                              if (enCurso) return
-                              conAviso(
-                                () => duplicarDocumento(esquema.slug, fila.id),
-                                `Copia de «${nombre}» creada como borrador.`,
-                              )
-                            }}
-                          >
-                            Duplicar
-                          </button>
-                        ) : null}
-                        <button
-                          className="admin-btn admin-btn-sm admin-btn-danger"
-                          aria-disabled={enCurso}
-                          aria-label={`Eliminar «${nombre}»`}
-                          onClick={() => {
-                            // La guarda va antes del `confirm`: preguntar por un
-                            // borrado que después no se va a ejecutar es peor
-                            // que no preguntar.
-                            if (enCurso) return
-                            if (confirm(`¿Eliminar «${nombre}»? No se puede deshacer.`)) {
-                              conAviso(
-                                () => eliminarDocumento(esquema.slug, fila.id),
-                                `Se eliminó «${nombre}».`,
-                                posicion,
-                              )
-                            }
-                          }}
-                        >
-                          Eliminar
-                        </button>
+                            Ninguna opción lleva `disabled`: el menú se cierra
+                            al elegir y la guarda de cada `alElegir` —el
+                            `if (enCurso) return`— es quien corta la doble
+                            pulsación. El foco, que se perdía al cerrarse el
+                            menú, vuelve al «Editar» de la fila con
+                            `focoTrasBorrar`. */}
+                        <MenuAcciones etiqueta={`Más acciones de «${nombre}»`} opciones={opcionesDeFila(fila, nombre, posicion)} />
                       </div>
                     </td>
                   </tr>
@@ -544,26 +559,28 @@ export function TablaDocumentos({
                 extremos es la guarda del `onClick`. Visualmente no cambia nada:
                 `.admin-btn` no define estilo de `:disabled`, así que el botón
                 del tope ya se veía igual que uno vivo. */}
-            <div className="admin-acciones">
+            <div className="admin-paginas">
               <button
-                className="admin-btn admin-btn-sm admin-btn-secondary"
+                className="admin-btn admin-btn-sm admin-btn-secondary admin-btn-icon"
                 aria-disabled={pagina <= 1}
                 onClick={() => {
                   if (pagina <= 1) return
                   setPagina(pagina - 1)
                 }}
               >
-                ← Anterior
+                <ChevronLeft aria-hidden size={16} />
+                <span className="sr-only">Página anterior</span>
               </button>
               <button
-                className="admin-btn admin-btn-sm admin-btn-secondary"
+                className="admin-btn admin-btn-sm admin-btn-secondary admin-btn-icon"
                 aria-disabled={pagina >= paginas}
                 onClick={() => {
                   if (pagina >= paginas) return
                   setPagina(pagina + 1)
                 }}
               >
-                Siguiente →
+                <ChevronRight aria-hidden size={16} />
+                <span className="sr-only">Página siguiente</span>
               </button>
             </div>
           </div>
@@ -782,9 +799,11 @@ function SubidorDeArchivos({
         <p className="campo-ayuda admin-subida-ayuda">
           {/* `<progress>` del navegador y sin clase propia: la hoja del panel
               es de otro lote y una barra hecha con dos `<div>` y un ancho en
-              línea no la anuncia ningún lector de pantalla. */}
+              línea no la anuncia ningún lector de pantalla. Se viste con
+              `.admin-progreso-nativo`, que antes no existía: salía con el gris
+              y el azul del sistema, sin relación con la paleta. */}
           <progress
-            style={{ width: '100%' }}
+            className="admin-progreso-nativo"
             max={100}
             value={Math.round(progreso.fraccion * 100)}
             aria-label={`Avance de la subida de «${progreso.nombre}»`}

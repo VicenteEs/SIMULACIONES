@@ -1,17 +1,32 @@
 'use client'
 
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useOptimistic,
-  useRef,
-  useState,
-  useTransition,
-  type ReactNode,
-} from 'react'
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  CheckCircle2,
+  CircleSlash,
+  Copy,
+  Hourglass,
+  KeyRound,
+  Pencil,
+  RefreshCw,
+  SearchX,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  UserPlus,
+  UserX,
+} from 'lucide-react'
 import { MODULOS } from '../modulos'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { Modal } from '@/components/ui/Modal'
+import { useConfirmar } from '@/components/ui/Confirmar'
+import { useAvisos } from '@/components/ui/Avisos'
+import { MenuAcciones } from '@/components/ui/MenuAcciones'
+import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
+import { Vacio } from '@/components/ui/Vacio'
+import { claseDeInsignia } from '@/lib/tonosDeEstado'
 import { normalizar } from '@/lib/busqueda'
 import {
   actualizarUsuario,
@@ -201,6 +216,25 @@ export function TablaUsuarios({
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
   const [aviso, setAviso] = useState<Aviso>(null)
+  const avisar = useAvisos()
+  const confirmar = useConfirmar()
+
+  /**
+   * Dónde se cuenta un resultado: flotando o en la página.
+   *
+   * Un éxito sin nada que copiar sale en un aviso flotante, que se ve esté
+   * donde esté la fila —antes se pintaba encima de los filtros, fuera de la
+   * pantalla para quien activaba la cuenta treinta— y se va solo. Lo que trae
+   * un dato que hay que guardar se queda en la página hasta que se cierre la
+   * región: un enlace de un solo uso o una contraseña inicial que se enseña
+   * una vez desaparecerían a los cinco segundos con lo único que no se puede
+   * volver a pedir. Los errores también se quedan en la página, que es donde
+   * caben con su explicación y desde donde los lee el modal abierto.
+   */
+  const mostrar = (a: NonNullable<Aviso>) => {
+    if (a.tipo === 'ok' && !a.enlace) avisar('ok', a.texto)
+    else setAviso(a)
+  }
 
   /**
    * Qué fila está trabajando, no solo si hay algo trabajando.
@@ -305,8 +339,8 @@ export function TablaUsuarios({
         const resultado = await tarea()
         if (resultado.exito) {
           opciones.alLograrlo?.()
-          if (typeof exitoso === 'function') setAviso(exitoso(resultado.datos))
-          else setAviso({ tipo: 'ok', texto: exitoso })
+          if (typeof exitoso === 'function') mostrar(exitoso(resultado.datos))
+          else avisar('ok', exitoso)
           router.refresh()
         } else {
           // Sin `router.refresh()`, a propósito. Se probó a recargar también
@@ -436,12 +470,21 @@ export function TablaUsuarios({
     }. Si solo debe ver algunos módulos, ajústelos en «Permisos».`,
   })
 
+  /** Quita los tres filtros de una vez, desde el estado vacío de la tabla. */
+  const quitarFiltros = () => {
+    setBusqueda('')
+    setFiltroRol('todos')
+    setFiltroEstado('todos')
+  }
+
+  const hayFiltros = busqueda !== '' || filtroRol !== 'todos' || filtroEstado !== 'todos'
+
   return (
     <div>
-      <div className="admin-toolbar">
-        <div>
-          <h1 className="admin-title">Usuarios y roles</h1>
-          <p className="admin-subtitle">
+      <CabeceraDePagina
+        titulo="Usuarios y roles"
+        subtitulo={
+          <>
             {totalDeCuentas} cuenta{totalDeCuentas === 1 ? '' : 's'} ·{' '}
             {usuarios.filter((u) => u.activo).length} con acceso
             {sinMostrar.cuentas > 0 ? ' entre las mostradas' : ''}
@@ -449,14 +492,15 @@ export function TablaUsuarios({
               ? ` · ${totalDeSolicitudes} solicitud${totalDeSolicitudes === 1 ? '' : 'es'} por revisar`
               : ''}
             . Una cuenta sin activar no ve nada de la plataforma.
-          </p>
-        </div>
-        <div className="admin-acciones">
+          </>
+        }
+        acciones={
           <button className="admin-btn admin-btn-primary" onClick={() => setCreando(true)}>
-            + Nueva cuenta
+            <UserPlus aria-hidden size={16} />
+            Nueva cuenta
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/*
         La región viva se queda montada aunque no haya nada que decir. Un
@@ -465,7 +509,8 @@ export function TablaUsuarios({
         de que su contenido cambie. Vacía no ocupa sitio, porque el borde y el
         margen los pone `.admin-aviso`, que sí es condicional. Sin esto, pulsar
         «Clave» no anunciaba nada y se volvía a pulsar, invalidando el testigo
-        recién emitido.
+        recién emitido. Los éxitos sin nada que guardar ya no pasan por aquí,
+        sino por los avisos flotantes (`mostrar`).
       */}
       <div role="status" ref={regionDeAvisos}>
         {aviso ? (
@@ -481,8 +526,12 @@ export function TablaUsuarios({
                 />
                 <button
                   className="admin-btn admin-btn-sm admin-btn-secondary"
-                  onClick={() => navigator.clipboard?.writeText(aviso.enlace!)}
+                  onClick={() => {
+                    navigator.clipboard?.writeText(aviso.enlace!)
+                    avisar('info', 'Enlace copiado.')
+                  }}
                 >
+                  <Copy aria-hidden size={14} />
                   Copiar
                 </button>
               </div>
@@ -490,6 +539,10 @@ export function TablaUsuarios({
           </div>
         ) : null}
       </div>
+
+      {/* Con las dos secciones en pantalla, el atajo de plegarlas a la vez; con
+          una sola no tiene a qué aplicarse. */}
+      {solicitudes.length > 0 ? <PlegarTodo /> : null}
 
       <SolicitudesPendientes
         solicitudes={solicitudes}
@@ -517,323 +570,351 @@ export function TablaUsuarios({
         }
       />
 
-      <div className="admin-filters">
-        <div className="admin-filter-group">
-          <label className="admin-filter-label" htmlFor="buscar-usuario">
-            Buscar
-          </label>
-          <input
-            id="buscar-usuario"
-            className="admin-input"
-            placeholder="Nombre, correo, institución o nota"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
-        </div>
-        <div className="admin-filter-group">
-          <label className="admin-filter-label" htmlFor="filtro-rol">
-            Rol
-          </label>
-          <select
-            id="filtro-rol"
-            className="admin-select"
-            value={filtroRol}
-            onChange={(e) => setFiltroRol(e.target.value)}
-          >
-            <option value="todos">Todos los roles</option>
-            <option value="admin">Administradores</option>
-            <option value="editor">Editores</option>
-            <option value="lector">Lectores</option>
-          </select>
-        </div>
-        <div className="admin-filter-group">
-          <label className="admin-filter-label" htmlFor="filtro-estado">
-            Estado
-          </label>
-          <select
-            id="filtro-estado"
-            className="admin-select"
-            value={filtroEstado}
-            onChange={(e) => setFiltroEstado(e.target.value)}
-          >
-            <option value="todos">Todos</option>
-            <option value="activos">Con acceso</option>
-            <option value="inactivos">Sin activar</option>
-            <option value="solicitudes">Solicitudes</option>
-          </select>
-        </div>
-        <span className="admin-filter-count">
-          {visibles.length} de {usuarios.length}
-        </span>
-      </div>
-
-      {/*
-        Fuera de la región de avisos, que es para el resultado de lo que se
-        acaba de pulsar: esto es el estado de la lista y está desde que se abre
-        la página. La búsqueda de arriba filtra en el navegador, así que no
-        alcanza a lo que no se leyó, y hay que decirlo; si no, «Ninguna cuenta
-        coincide» se lee como que la cuenta no existe.
-      */}
-      {sinMostrar.cuentas > 0 ? (
-        <div className="admin-aviso admin-aviso-atencion">
-          La tabla enseña las primeras {usuarios.length - solicitudes.length} cuentas por orden de
-          correo; hay {sinMostrar.cuentas} más que no caben en esta pantalla y que la búsqueda no
-          encuentra.
-        </div>
-      ) : null}
-
-      <div className="admin-table-container">
-        {visibles.length === 0 ? (
-          <div className="admin-empty">
-            <div className="admin-empty-icon">👤</div>
-            <p className="admin-empty-text">Ninguna cuenta coincide con el filtro.</p>
+      <SeccionPlegable
+        clave="usuarios.cuentas"
+        titulo="Cuentas"
+        resumen={`${visibles.length} de ${usuarios.length}`}
+      >
+        <div className="admin-filters">
+          <div className="admin-filter-group">
+            <label className="admin-filter-label" htmlFor="buscar-usuario">
+              Buscar
+            </label>
+            <input
+              id="buscar-usuario"
+              className="admin-input usuarios-buscar"
+              type="search"
+              placeholder="Nombre, correo, institución o nota"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
           </div>
+          <div className="admin-filter-group">
+            <label className="admin-filter-label" htmlFor="filtro-rol">
+              Rol
+            </label>
+            <select
+              id="filtro-rol"
+              className="admin-select"
+              value={filtroRol}
+              onChange={(e) => setFiltroRol(e.target.value)}
+            >
+              <option value="todos">Todos los roles</option>
+              <option value="admin">Administradores</option>
+              <option value="editor">Editores</option>
+              <option value="lector">Lectores</option>
+            </select>
+          </div>
+          <div className="admin-filter-group">
+            <label className="admin-filter-label" htmlFor="filtro-estado">
+              Estado
+            </label>
+            <select
+              id="filtro-estado"
+              className="admin-select"
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+            >
+              <option value="todos">Todos</option>
+              <option value="activos">Con acceso</option>
+              <option value="inactivos">Sin activar</option>
+              <option value="solicitudes">Solicitudes</option>
+            </select>
+          </div>
+          <span className="admin-filter-count u-num">
+            {visibles.length} de {usuarios.length}
+          </span>
+        </div>
+
+        {/*
+          Fuera de la región de avisos, que es para el resultado de lo que se
+          acaba de pulsar: esto es el estado de la lista y está desde que se abre
+          la página. La búsqueda de arriba filtra en el navegador, así que no
+          alcanza a lo que no se leyó, y hay que decirlo; si no, «Ninguna cuenta
+          coincide» se lee como que la cuenta no existe.
+        */}
+        {sinMostrar.cuentas > 0 ? (
+          <div className="admin-aviso admin-aviso-atencion">
+            La tabla enseña las primeras {usuarios.length - solicitudes.length} cuentas por orden de
+            correo; hay {sinMostrar.cuentas} más que no caben en esta pantalla y que la búsqueda no
+            encuentra.
+          </div>
+        ) : null}
+
+        {visibles.length === 0 ? (
+          <Vacio
+            icono={SearchX}
+            titulo="Ninguna cuenta coincide con el filtro"
+            compacto
+            accion={
+              hayFiltros ? (
+                <button className="admin-btn admin-btn-secondary" onClick={quitarFiltros}>
+                  Quitar los filtros
+                </button>
+              ) : null
+            }
+          />
         ) : (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Cuenta</th>
-                <th>Rol</th>
-                <th>Estado</th>
-                <th>Último acceso</th>
-                <th>Alta</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibles.map((u) => {
-                const esUnoMismo = u.id === idPropio
-                const ocupada = filaEnCurso === u.id
-                return (
-                  <tr key={u.id}>
-                    <td>
-                      <div className="admin-table-user-name">
-                        {u.nombre || '—'}
-                        {esUnoMismo ? (
-                          <span className="admin-badge admin-badge-neutro" style={{ marginLeft: 8 }}>
-                            usted
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="admin-table-user-email">{u.email}</div>
-                      {u.institucion ? (
-                        <div className="admin-table-user-email">{u.institucion}</div>
-                      ) : null}
-                      {/*
-                        La nota se resume en la fila y se lee entera en el modal
-                        de editar. Aquí importa que se **vea que existe**: una
-                        nota que solo aparece al abrir un modal no se abre nunca,
-                        y el dato que guarda —por qué se desactivó esta cuenta—
-                        se consulta justo mirando la lista, antes de reactivar a
-                        nadie. `.admin-table-text` acota el ancho y pone los
-                        puntos suspensivos de CSS, que es lo que se ve; el
-                        recorte de `resumirNota` no ahorra peso —la nota entera
-                        viaja igual, en el `title` de aquí al lado y en las
-                        props que necesita el modal— sino lectura: sin él, el
-                        nodo de texto conserva los dos mil caracteres que CSS
-                        solo esconde, y un lector de pantalla los recita
-                        enteros en cada una de las quinientas filas.
-                      */}
-                      {u.notas ? (
-                        <div className="admin-table-user-email admin-table-text" title={u.notas}>
-                          Nota: {resumirNota(u.notas)}
+          <div className="admin-table-container">
+            {/* En el teléfono cada fila se vuelve tarjeta (`.tabla-apilable`):
+                seis columnas y un desplegable no caben en 390 px, y desplazar
+                de lado para llegar a las acciones escondía la mitad de la
+                cuenta que se estaba tocando. */}
+            <table className="admin-table tabla-apilable">
+              <thead>
+                <tr>
+                  <th scope="col">Cuenta</th>
+                  <th scope="col">Rol</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col">Último acceso</th>
+                  <th scope="col">Alta</th>
+                  <th scope="col">
+                    <span className="sr-only">Acciones</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibles.map((u) => {
+                  const esUnoMismo = u.id === idPropio
+                  const ocupada = filaEnCurso === u.id
+                  return (
+                    <tr key={u.id} className={ocupada ? 'usuarios-fila-ocupada' : undefined}>
+                      {/* La celda que nombra la fila es un `th`: ata el
+                          «Editar» y el menú de cada fila a la cuenta que tocan. */}
+                      <th scope="row">
+                        <div className="admin-table-user-name usuarios-nombre">
+                          {u.nombre || '—'}
+                          {esUnoMismo ? <span className={claseDeInsignia('neutra')}>usted</span> : null}
                         </div>
-                      ) : null}
-                    </td>
-                    <td>
-                      {/*
-                        Mientras la fila trabaja, este desplegable lleva
-                        `aria-disabled` y no `disabled`, por la misma razón que
-                        los botones de la última columna —ver el comentario de
-                        ahí— y con más motivo: es el único control de la fila
-                        que con seguridad tiene el foco en el instante en que su
-                        acción arranca, porque el `onChange` lo dispara él
-                        mismo. Desactivándolo de verdad, el navegador le quitaba
-                        el foco y lo soltaba en `<body>`, y la siguiente
-                        tabulación volvía a empezar por el principio del
-                        documento. Tampoco hace falta apagarlo para que se vea
-                        el rol recién elegido: de eso se encarga el valor
-                        optimista.
-                      */}
-                      <select
-                        className="admin-select"
-                        value={u.rol}
-                        disabled={esUnoMismo}
-                        aria-disabled={ocupada}
-                        aria-label={`Rol de ${u.email}`}
-                        title={
-                          esUnoMismo ? 'No puede cambiarse el rol a sí mismo.' : 'Cambiar el rol'
-                        }
-                        style={ocupada ? { opacity: 0.5 } : undefined}
-                        onChange={(e) => {
-                          if (ocupada) return
-                          const rol = e.target.value as UsuarioDelPanel['rol']
-                          ejecutar(
-                            () => actualizarUsuario(u.id, { rol }),
-                            `${u.email} ahora es ${ETIQUETA_ROL[rol].toLowerCase()}.`,
-                            { fila: u.id, alEnviar: () => ponerRolOptimista({ id: u.id, rol }) },
-                          )
-                        }}
-                      >
-                        <option value="admin">Administrador</option>
-                        <option value="editor">Editor</option>
-                        <option value="lector">Lector</option>
-                      </select>
-                    </td>
-                    <td>
-                      {/*
-                        Una solicitud lleva su propia etiqueta, ámbar como los
-                        demás «por atender» del panel, y no «Sin activar»: con
-                        la etiqueta de las bajas, quien buscaba a quién
-                        reactivar encontraba personas que no han entrado nunca,
-                        y quien buscaba solicitudes no las distinguía.
-                      */}
-                      {u.pendiente ? (
-                        <span className="admin-badge admin-badge-pending">◌ Solicitud</span>
-                      ) : (
-                        <span
-                          className={`admin-badge ${u.activo ? 'admin-badge-activo' : 'admin-badge-inactivo'}`}
-                        >
-                          {u.activo ? '● Con acceso' : '○ Sin activar'}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{fecha(u.ultimoAcceso)}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{fecha(u.creado)}</td>
-                    <td>
-                      {/*
-                        Mientras la fila trabaja, sus botones llevan
-                        `aria-disabled` y no `disabled`: un elemento que se
-                        desactiva teniendo el foco lo devuelve a `<body>`, y
-                        quien navega con teclado tenía que tabular otra vez
-                        desde los filtros y por todas las filas anteriores. El
-                        `disabled` de verdad se reserva para lo que no depende
-                        del momento —no puede uno desactivarse ni eliminarse a
-                        sí mismo—. Como `.admin-btn` no define estilo de
-                        `:disabled`, tampoco se pierde nada visual: el aviso de
-                        que la fila está ocupada lo da la opacidad de aquí.
-                      */}
-                      <div
-                        className="admin-acciones"
-                        aria-busy={ocupada}
-                        style={ocupada ? { opacity: 0.5 } : undefined}
-                      >
-                        <button
-                          className={`admin-btn admin-btn-sm ${u.activo ? 'admin-btn-secondary' : 'admin-btn-success'}`}
-                          disabled={esUnoMismo && u.activo}
+                        <div className="admin-table-user-email">{u.email}</div>
+                        {u.institucion ? (
+                          <div className="admin-table-user-email">{u.institucion}</div>
+                        ) : null}
+                        {/*
+                          La nota se resume en la fila y se lee entera en el modal
+                          de editar. Aquí importa que se **vea que existe**: una
+                          nota que solo aparece al abrir un modal no se abre nunca,
+                          y el dato que guarda —por qué se desactivó esta cuenta—
+                          se consulta justo mirando la lista, antes de reactivar a
+                          nadie. `.admin-table-text` acota el ancho y pone los
+                          puntos suspensivos de CSS, que es lo que se ve; el
+                          recorte de `resumirNota` no ahorra peso —la nota entera
+                          viaja igual, en el `title` de aquí al lado y en las
+                          props que necesita el modal— sino lectura: sin él, el
+                          nodo de texto conserva los dos mil caracteres que CSS
+                          solo esconde, y un lector de pantalla los recita
+                          enteros en cada una de las quinientas filas.
+                        */}
+                        {u.notas ? (
+                          <div className="admin-table-user-email admin-table-text" title={u.notas}>
+                            Nota: {resumirNota(u.notas)}
+                          </div>
+                        ) : null}
+                      </th>
+                      <td data-etiqueta="Rol">
+                        {/*
+                          Mientras la fila trabaja, este desplegable lleva
+                          `aria-disabled` y no `disabled`, por la misma razón que
+                          los botones de la última columna —ver el comentario de
+                          ahí— y con más motivo: es el único control de la fila
+                          que con seguridad tiene el foco en el instante en que su
+                          acción arranca, porque el `onChange` lo dispara él
+                          mismo. Desactivándolo de verdad, el navegador le quitaba
+                          el foco y lo soltaba en `<body>`, y la siguiente
+                          tabulación volvía a empezar por el principio del
+                          documento. Tampoco hace falta apagarlo para que se vea
+                          el rol recién elegido: de eso se encarga el valor
+                          optimista.
+                        */}
+                        <select
+                          className="admin-select usuarios-rol"
+                          value={u.rol}
+                          disabled={esUnoMismo}
                           aria-disabled={ocupada}
-                          aria-label={
-                            u.activo
-                              ? `Retirar el acceso a ${u.email}`
-                              : `Dar acceso a la cuenta de ${u.email}`
-                          }
+                          aria-label={`Rol de ${u.email}`}
                           title={
-                            esUnoMismo && u.activo ? 'No puede desactivar su propia cuenta.' : ''
+                            esUnoMismo ? 'No puede cambiarse el rol a sí mismo.' : 'Cambiar el rol'
                           }
-                          onClick={() => {
+                          onChange={(e) => {
                             if (ocupada) return
-                            // Activar una solicitud desde su fila la resuelve
-                            // igual que desde su tarjeta, con el rol que ya
-                            // tiene: `cambiarActivoUsuario` le quita la marca y
-                            // la avisa. Por eso el mensaje es el mismo.
+                            const rol = e.target.value as UsuarioDelPanel['rol']
                             ejecutar(
-                              () => cambiarActivoUsuario(u.id, !u.activo),
-                              u.activo
-                                ? `Se retiró el acceso a ${u.email}.`
-                                : u.pendiente
-                                  ? avisoDeActivacion(u.email, hayCorreo).texto
-                                  : `${u.email} ya puede entrar.`,
-                              { fila: u.id },
+                              () => actualizarUsuario(u.id, { rol }),
+                              `${u.email} ahora es ${ETIQUETA_ROL[rol].toLowerCase()}.`,
+                              { fila: u.id, alEnviar: () => ponerRolOptimista({ id: u.id, rol }) },
                             )
                           }}
                         >
-                          {u.activo ? 'Desactivar' : 'Activar'}
-                        </button>
-                        <button
-                          className="admin-btn admin-btn-sm admin-btn-secondary"
-                          aria-disabled={ocupada}
-                          aria-label={`Editar la cuenta de ${u.email}`}
-                          onClick={() => {
-                            if (ocupada) return
-                            setEditando(u)
-                          }}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          className="admin-btn admin-btn-sm admin-btn-secondary"
-                          aria-disabled={ocupada}
-                          aria-label={`Permisos por módulo de ${u.email}`}
-                          onClick={() => {
-                            if (ocupada) return
-                            setPermisos(u)
-                          }}
-                          title="Qué módulos puede ver y editar esta cuenta"
-                        >
-                          Permisos
-                        </button>
+                          <option value="admin">Administrador</option>
+                          <option value="editor">Editor</option>
+                          <option value="lector">Lector</option>
+                        </select>
+                      </td>
+                      <td data-etiqueta="Estado">
                         {/*
-                          Apagado de verdad en una solicitud, porque no depende
-                          del momento sino de lo que la cuenta es. Con él
-                          encendido, a alguien que nadie ha revisado le llegaba
-                          «alguien pidió una contraseña nueva para su cuenta», y
-                          aquí se leía «se envió un enlace», cuando el enlace
-                          contesta que la cuenta no está activada:
-                          `fijarClaveNueva` pasa por el mismo `beforeLogin` que
-                          la entrada. `generarEnlaceDeClave` lo rechaza también,
-                          para quien llame a la acción sin pasar por aquí.
+                          Una solicitud lleva su propia insignia, ámbar como los
+                          demás «por atender» del panel, y no «Sin activar»: con
+                          la etiqueta de las bajas, quien buscaba a quién
+                          reactivar encontraba personas que no han entrado nunca,
+                          y quien buscaba solicitudes no las distinguía. El icono
+                          va con el texto para que el estado no dependa del color.
                         */}
-                        <button
-                          className="admin-btn admin-btn-sm admin-btn-secondary"
-                          disabled={u.pendiente}
-                          aria-disabled={ocupada}
-                          aria-label={`Restablecer la contraseña de ${u.email}`}
-                          onClick={() => {
-                            if (ocupada) return
-                            pedirEnlace(u)
-                          }}
-                          title={
-                            u.pendiente
-                              ? 'Es una solicitud sin revisar: actívela o recházela antes de enviarle un enlace de contraseña.'
-                              : hayCorreo
-                                ? 'Envía un enlace de restablecimiento por correo'
-                                : 'Genera un enlace de restablecimiento para entregar a mano'
-                          }
-                        >
-                          Clave
-                        </button>
-                        <button
-                          className="admin-btn admin-btn-sm admin-btn-danger"
-                          disabled={esUnoMismo}
-                          aria-disabled={ocupada}
-                          aria-label={`Eliminar la cuenta de ${u.email}`}
-                          title={esUnoMismo ? 'No puede eliminar su propia cuenta.' : ''}
-                          onClick={() => {
-                            if (ocupada) return
-                            if (
-                              confirm(
-                                `¿Eliminar la cuenta de ${u.email}?\n\nSe pierde su historial de lectura y sus comentarios quedan sin autor. Si solo quiere retirarle el acceso, desactívela.`,
-                              )
-                            ) {
-                              ejecutar(
-                                () => eliminarUsuario(u.id),
-                                `Se eliminó la cuenta de ${u.email}.`,
-                                { fila: u.id },
-                              )
-                            }
-                          }}
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                        {u.pendiente ? (
+                          <span className={claseDeInsignia('atencion')}>
+                            <Hourglass aria-hidden size={12} />
+                            Solicitud
+                          </span>
+                        ) : u.activo ? (
+                          <span className={claseDeInsignia('ok')}>
+                            <CheckCircle2 aria-hidden size={12} />
+                            Con acceso
+                          </span>
+                        ) : (
+                          <span className={claseDeInsignia('neutra')}>
+                            <CircleSlash aria-hidden size={12} />
+                            Sin activar
+                          </span>
+                        )}
+                      </td>
+                      <td data-etiqueta="Último acceso" className="u-nowrap">
+                        {fecha(u.ultimoAcceso)}
+                      </td>
+                      <td data-etiqueta="Alta" className="u-nowrap">
+                        {fecha(u.creado)}
+                      </td>
+                      <td className="admin-table-acciones">
+                        {/*
+                          Mientras la fila trabaja, sus controles llevan
+                          `aria-disabled` y no `disabled`: un elemento que se
+                          desactiva teniendo el foco lo devuelve a `<body>`, y
+                          quien navega con teclado tenía que tabular otra vez
+                          desde los filtros y por todas las filas anteriores. El
+                          `disabled` de verdad se reserva para lo que no depende
+                          del momento —no puede uno desactivarse ni eliminarse a
+                          sí mismo—, que en el menú es `desactivada`. Lo que
+                          frena la segunda pulsación es el `if (ocupada) return`
+                          de cada manejador; el aviso visual, la opacidad de
+                          `.usuarios-fila-ocupada`.
+
+                          Fuera queda «Editar», lo que más se hace con una cuenta;
+                          lo demás va al menú «⋯». Eran cinco botones por fila, y
+                          en un portátil la columna de acciones se comía media
+                          tabla.
+                        */}
+                        <div className="admin-table-acciones-fila" aria-busy={ocupada}>
+                          <button
+                            className="admin-btn admin-btn-sm admin-btn-secondary"
+                            aria-disabled={ocupada}
+                            aria-label={`Editar la cuenta de ${u.email}`}
+                            onClick={() => {
+                              if (ocupada) return
+                              setEditando(u)
+                            }}
+                          >
+                            <Pencil aria-hidden size={14} />
+                            Editar
+                          </button>
+                          <MenuAcciones
+                            etiqueta={`Más acciones para ${u.email}`}
+                            opciones={[
+                              {
+                                etiqueta: 'Permisos por módulo',
+                                icono: ShieldCheck,
+                                alElegir: () => {
+                                  if (ocupada) return
+                                  setPermisos(u)
+                                },
+                              },
+                              {
+                                /*
+                                  Apagada de verdad en una solicitud, porque no
+                                  depende del momento sino de lo que la cuenta
+                                  es. Con ella encendida, a alguien que nadie ha
+                                  revisado le llegaba «alguien pidió una
+                                  contraseña nueva para su cuenta», y aquí se
+                                  leía «se envió un enlace», cuando el enlace
+                                  contesta que la cuenta no está activada:
+                                  `fijarClaveNueva` pasa por el mismo
+                                  `beforeLogin` que la entrada.
+                                  `generarEnlaceDeClave` lo rechaza también, para
+                                  quien llame a la acción sin pasar por aquí. El
+                                  motivo, que antes iba en el `title` del botón,
+                                  va ahora en el propio rótulo: una opción de
+                                  menú apagada no enseña su `title`.
+                                */
+                                etiqueta: u.pendiente
+                                  ? 'Enlace de contraseña (antes, actívela)'
+                                  : hayCorreo
+                                    ? 'Enviar enlace de contraseña'
+                                    : 'Generar enlace de contraseña',
+                                icono: KeyRound,
+                                desactivada: u.pendiente,
+                                alElegir: () => {
+                                  if (ocupada) return
+                                  pedirEnlace(u)
+                                },
+                              },
+                              {
+                                etiqueta:
+                                  esUnoMismo && u.activo
+                                    ? 'Desactivar (es su cuenta)'
+                                    : u.activo
+                                      ? 'Retirar el acceso'
+                                      : 'Dar acceso',
+                                icono: u.activo ? UserX : UserCheck,
+                                desactivada: esUnoMismo && u.activo,
+                                alElegir: () => {
+                                  if (ocupada) return
+                                  // Activar una solicitud desde su fila la
+                                  // resuelve igual que desde su tarjeta, con el
+                                  // rol que ya tiene: `cambiarActivoUsuario` le
+                                  // quita la marca y la avisa. Por eso el
+                                  // mensaje es el mismo.
+                                  ejecutar(
+                                    () => cambiarActivoUsuario(u.id, !u.activo),
+                                    u.activo
+                                      ? `Se retiró el acceso a ${u.email}.`
+                                      : u.pendiente
+                                        ? avisoDeActivacion(u.email, hayCorreo).texto
+                                        : `${u.email} ya puede entrar.`,
+                                    { fila: u.id },
+                                  )
+                                },
+                              },
+                              {
+                                etiqueta: esUnoMismo ? 'Eliminar (es su cuenta)' : 'Eliminar la cuenta',
+                                icono: Trash2,
+                                peligro: true,
+                                desactivada: esUnoMismo,
+                                alElegir: async () => {
+                                  if (ocupada) return
+                                  const seguro = await confirmar({
+                                    titulo: `¿Eliminar la cuenta de ${u.email}?`,
+                                    mensaje:
+                                      'Se pierde su historial de lectura y sus comentarios quedan sin autor. Si solo quiere retirarle el acceso, desactívela.',
+                                    confirmar: 'Eliminar la cuenta',
+                                    peligro: true,
+                                  })
+                                  if (!seguro) return
+                                  ejecutar(
+                                    () => eliminarUsuario(u.id),
+                                    `Se eliminó la cuenta de ${u.email}.`,
+                                    { fila: u.id },
+                                  )
+                                },
+                              },
+                            ]}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </SeccionPlegable>
 
       {creando ? (
         <ModalNuevaCuenta
@@ -859,7 +940,13 @@ export function TablaUsuarios({
                 ),
               datos.invitar
                 ? (resultado) => avisoDeInvitacion(datos.email, datos.activo, resultado?.invitacion)
-                : `Cuenta creada para ${datos.email}. Contraseña inicial: ${datos.contrasena} — entréguela y pida que la cambie.`,
+                : // `info` y no `ok`: la contraseña inicial se enseña una sola
+                  // vez, y un aviso flotante se la llevaría a los cinco
+                  // segundos. En la página se queda hasta la siguiente acción.
+                  () => ({
+                    tipo: 'info',
+                    texto: `Cuenta creada para ${datos.email}. Contraseña inicial: ${datos.contrasena} — entréguela y pida que la cambie.`,
+                  }),
               { alLograrlo: () => setCreando(false) },
             )
           }
@@ -899,158 +986,23 @@ export function TablaUsuarios({
 
 // ------------------------------------------------------------------ modales
 
-/**
- * Velo y caja de los modales de esta pantalla.
+/*
+ * Los tres modales de esta pantalla usan el `Modal` compartido
+ * (`src/components/ui/Modal.tsx`), que nació aquí como `EnvolturaModal`: el
+ * único diálogo de verdad del panel cuando el resto preguntaba con
+ * `confirm()`. Se subió entero —foco dentro al abrir y de vuelta al cerrar,
+ * Tab que no escapa de lo que `aria-modal` promete, `:disabled` para las
+ * casillas de un `fieldset` apagado— y la copia de aquí se borró: dos
+ * envolturas iguales acaban divergiendo, y la de aquí era la que tenía los
+ * arreglos. La caja vive en `ui.css`, con su alto máximo: el modal de permisos
+ * de esta pantalla es el que manda sobre esos valores —mide unos 675 px y no
+ * cabe en un portátil 1080p con el escalado de Windows al 125 %—, así que
+ * quien los cambie tiene que abrirlo.
  *
- * Los tres empezaban con dos `div` desnudos: sin `role="dialog"`, sin Escape,
- * sin llevar el foco dentro ni devolverlo al salir, y montados al final del
- * documento, detrás de la tabla. Abrir «Permisos» con teclado dejaba el foco en
- * el botón de la fila y la primera tabulación bajaba a la fila siguiente, por
- * detrás del velo. El patrón completo ya estaba resuelto en
- * `src/components/MenuMovil.tsx` y es el que se repite aquí.
- *
- * El alto máximo y el desplazamiento estuvieron un tiempo en línea aquí, y ya
- * no: viven en `.admin-modal-backdrop` y `.admin-modal` de `admin.css`, con su
- * porqué escrito al lado. El modal de permisos de esta misma pantalla es el que
- * manda sobre esos cuatro valores —mide unos 675 px y no cabe en un portátil
- * 1080p con el escalado de Windows al 125 %—, así que quien los cambie tiene
- * que abrirlo. Repetirlos aquí en línea dejaba dos copias de la misma regla y
- * los modales del resto del panel sin ninguna.
+ * El motivo de un rechazo se pinta dentro del modal (`error`) y no solo en
+ * el aviso de la página: el modal sobrevive al error, y el aviso de arriba
+ * queda detrás del velo, donde no se ve.
  */
-function EnvolturaModal({
-  titulo,
-  error,
-  onCerrar,
-  children,
-}: {
-  titulo: string
-  error?: string | null
-  onCerrar: () => void
-  children: ReactNode
-}) {
-  const caja = useRef<HTMLDivElement>(null)
-  const idTitulo = useId()
-
-  // El padre pasa una función nueva en cada pintado. Con `onCerrar` en las
-  // dependencias del efecto de abajo, este se desmontaba y volvía a montarse en
-  // cada tecla escrita, devolviendo el foco a la caja y sacándolo del campo que
-  // se estaba rellenando. Por eso el efecto no depende de nada y lee la última
-  // versión desde aquí.
-  const cerrar = useRef(onCerrar)
-  useEffect(() => {
-    cerrar.current = onCerrar
-  })
-
-  useEffect(() => {
-    const devolverA = document.activeElement as HTMLElement | null
-
-    const alTeclear = (evento: KeyboardEvent) => {
-      if (evento.key === 'Escape') {
-        cerrar.current()
-        return
-      }
-
-      if (evento.key !== 'Tab') return
-
-      // El diálogo se anuncia `aria-modal="true"`, y eso le promete al lector de
-      // pantalla que detrás no queda nada que alcanzar. Sin ciclar el foco la
-      // promesa es falsa: con el modal de permisos abierto, cuatro tabulaciones
-      // desde «Guardar permisos» dejaban el foco en la tabla de cuentas que el
-      // velo está tapando, que se seguía leyendo en voz alta y sin camino
-      // evidente de vuelta. Llevar el foco al abrir no basta; hay que
-      // mantenerlo dentro. Es el mismo bloque de `src/components/MenuMovil.tsx`.
-      const contenedor = caja.current
-      if (!contenedor) return
-
-      // `:disabled` donde `MenuMovil` usa `[disabled]`, y la diferencia importa
-      // aquí: el modal de permisos apaga `fieldset` enteros, y una casilla
-      // dentro de un `fieldset` desactivado no lleva el atributo pero tampoco
-      // acepta el foco. Con el selector por atributo, el ciclo acababa llamando
-      // a `focus()` sobre una casilla inerte —la cuenta de un administrador
-      // tiene los dos grupos apagados— y, con la tabulación ya frenada, el foco
-      // se quedaba clavado donde estaba.
-      const enfocables = Array.from(
-        contenedor.querySelectorAll<HTMLElement>(
-          'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
-        ),
-      )
-      if (enfocables.length === 0) return
-
-      const primero = enfocables[0]
-      const ultimo = enfocables[enfocables.length - 1]
-      const activo = document.activeElement
-
-      // El foco puede no estar en ninguno de los dos extremos y ni siquiera
-      // dentro del diálogo: el botón de guardar de estos tres modales lleva
-      // `disabled={enCurso}`, y un elemento que se desactiva teniendo el foco
-      // lo suelta en `<body>`. Sin esta rama, pulsar «Guardar permisos» y
-      // tabular mientras la acción viaja se iba a la tabla de detrás sin pasar
-      // por `primero` ni por `ultimo`, que es el agujero por el que se colaba
-      // justo lo que este bloque viene a cerrar.
-      if (!contenedor.contains(activo)) {
-        evento.preventDefault()
-        ;(evento.shiftKey ? ultimo : primero).focus()
-        return
-      }
-
-      // El propio diálogo cuenta como «principio»: al abrirse el foco entra en
-      // él —tiene `tabIndex -1` justo para eso— y desde ahí Shift+Tab se iría a
-      // la tabla de detrás.
-      if (evento.shiftKey && (activo === primero || activo === contenedor)) {
-        evento.preventDefault()
-        ultimo.focus()
-      } else if (!evento.shiftKey && activo === ultimo) {
-        evento.preventDefault()
-        primero.focus()
-      }
-    }
-    document.addEventListener('keydown', alTeclear)
-
-    // El fondo no se desplaza mientras el modal está abierto.
-    const desbordeOriginal = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    caja.current?.focus()
-
-    return () => {
-      document.removeEventListener('keydown', alTeclear)
-      document.body.style.overflow = desbordeOriginal
-      // Al cerrar, el foco vuelve al botón que abrió el modal. Si ese botón ya
-      // no está —la recarga del servidor rehízo la fila—, `focus()` sobre un
-      // nodo suelto no hace nada y no rompe.
-      devolverA?.focus()
-    }
-  }, [])
-
-  return (
-    <div className="admin-modal-backdrop" onClick={onCerrar}>
-      <div
-        className="admin-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={idTitulo}
-        ref={caja}
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="admin-modal-title" id={idTitulo}>
-          {titulo}
-        </h2>
-        {/*
-          El motivo del rechazo se lee aquí dentro y no solo en el aviso de la
-          página: ahora el modal sobrevive al error, y el aviso de arriba queda
-          detrás del velo, donde no se ve.
-        */}
-        {error ? (
-          <div className="admin-aviso admin-aviso-error" role="status">
-            {error}
-          </div>
-        ) : null}
-        {children}
-      </div>
-    </div>
-  )
-}
 
 /**
  * Alta de una cuenta, con las dos maneras de que la persona entre.
@@ -1098,7 +1050,7 @@ function ModalNuevaCuenta({
   const [invitar, setInvitar] = useState(puedeInvitar)
 
   return (
-    <EnvolturaModal titulo="Nueva cuenta" error={error} onCerrar={onCerrar}>
+    <Modal titulo="Nueva cuenta" error={error} onCerrar={onCerrar} ancho="ancho">
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -1127,6 +1079,7 @@ function ModalNuevaCuenta({
             <input
               id="nuevo-nombre"
               className="admin-form-input"
+              data-foco-inicial
               required
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
@@ -1203,7 +1156,7 @@ function ModalNuevaCuenta({
             <label className="admin-form-label" htmlFor="nueva-clave">
               Contraseña inicial
             </label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div className="alta-clave">
               <input
                 id="nueva-clave"
                 className="admin-form-input"
@@ -1217,6 +1170,7 @@ function ModalNuevaCuenta({
                 className="admin-btn admin-btn-secondary"
                 onClick={() => setContrasena(claveSugerida())}
               >
+                <RefreshCw aria-hidden size={14} />
                 Generar
               </button>
             </div>
@@ -1247,17 +1201,14 @@ function ModalNuevaCuenta({
             <label className="admin-form-label" htmlFor="nuevo-activo">
               Acceso
             </label>
-            <label
-              htmlFor="nuevo-activo"
-              style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', paddingTop: 8 }}
-            >
+            <label htmlFor="nuevo-activo" className="alta-casilla">
               <input
                 id="nuevo-activo"
                 type="checkbox"
                 checked={activo}
                 onChange={(e) => setActivo(e.target.checked)}
               />
-              <span style={{ fontSize: '0.875rem' }}>Activar de inmediato</span>
+              <span>Activar de inmediato</span>
             </label>
             {/* Se avisa antes de crear y no solo después: elegir contraseña
                 pasa por la misma cerradura que entrar, y la invitación a una
@@ -1286,7 +1237,7 @@ function ModalNuevaCuenta({
             className="admin-form-input"
             rows={3}
             maxLength={LARGO_MAXIMO_NOTA}
-            style={{ resize: 'vertical' }}
+            data-redimensionable="vertical"
             value={notas}
             onChange={(e) => setNotas(e.target.value)}
           />
@@ -1305,7 +1256,7 @@ function ModalNuevaCuenta({
           </button>
         </div>
       </form>
-    </EnvolturaModal>
+    </Modal>
   )
 }
 
@@ -1334,7 +1285,7 @@ function ModalEditar({
   const [notas, setNotas] = useState(notaOriginal)
 
   return (
-    <EnvolturaModal titulo="Editar cuenta" error={error} onCerrar={onCerrar}>
+    <Modal titulo="Editar cuenta" error={error} onCerrar={onCerrar}>
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -1357,6 +1308,7 @@ function ModalEditar({
           <input
             id="editar-nombre"
             className="admin-form-input"
+            data-foco-inicial
             required
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
@@ -1392,10 +1344,11 @@ function ModalEditar({
         {/*
           El cuadro solo se estira en vertical: `resize` vale `both` por omisión
           y, arrastrando a lo ancho, el textarea se sale de la caja del modal.
+          Lo dice `[data-redimensionable]` en `solicitudes.css`, y no un
+          `style` en línea, que eran dos copias de la misma regla.
           `.admin-form-input` sirve igual para un `textarea` —es la clase de los
           tres formularios de cuentas y declara color además de fondo, que es lo
-          que lo salva en modo oscuro—, así que no hace falta una regla nueva en
-          la hoja.
+          que lo salva en modo oscuro—.
         */}
         <div className="admin-form-group">
           <label className="admin-form-label" htmlFor="editar-notas">
@@ -1406,7 +1359,7 @@ function ModalEditar({
             className="admin-form-input"
             rows={4}
             maxLength={LARGO_MAXIMO_NOTA}
-            style={{ resize: 'vertical' }}
+            data-redimensionable="vertical"
             value={notas}
             onChange={(e) => setNotas(e.target.value)}
           />
@@ -1424,7 +1377,7 @@ function ModalEditar({
           </button>
         </div>
       </form>
-    </EnvolturaModal>
+    </Modal>
   )
 }
 
@@ -1460,7 +1413,7 @@ function ModalPermisos({
   const esLector = usuario.rol === 'lector'
 
   return (
-    <EnvolturaModal
+    <Modal
       titulo={`Permisos de ${usuario.nombre || usuario.email}`}
       error={error}
       onCerrar={onCerrar}
@@ -1530,6 +1483,6 @@ function ModalPermisos({
           </button>
         </div>
       </form>
-    </EnvolturaModal>
+    </Modal>
   )
 }

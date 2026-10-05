@@ -125,7 +125,10 @@ describe('el editor se apunta', () => {
   })
 
   it('y sus migas hacen la misma pregunta que la barra', () => {
-    expect(EDITOR).toContain('confirm(PREGUNTA_DE_SALIDA)')
+    // Con el diálogo propio (`useConfirmar`) y no `confirm()`: la frase es la
+    // misma `PREGUNTA_DE_SALIDA` que la de la barra, por el mismo motivo.
+    expect(EDITOR).toContain('useConfirmar()')
+    expect(EDITOR).toMatch(/confirmar\(\{ titulo: '¿Salir sin guardar\?', mensaje: <span[^>]*>\{PREGUNTA_DE_SALIDA\}/)
     expect(EDITOR).not.toContain('¿Salir igual?')
   })
 })

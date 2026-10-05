@@ -1,4 +1,22 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
+import {
+  Activity,
+  Archive,
+  ArrowRight,
+  ClipboardCheck,
+  Eye,
+  FileText,
+  Flag,
+  MessageSquare,
+  PenLine,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
+import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
+import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { puedeEditar } from '@/lib/guardias'
 import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
@@ -12,6 +30,7 @@ import {
   rutaPublica,
   NOMBRE_DE_MODULO,
 } from './datos'
+import './resumen.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -171,19 +190,20 @@ export default async function ResumenAdmin() {
     }),
   )
 
+  // Cuántas secciones plegables tiene la pantalla: con dos, «Plegar todo».
+  const hayComentarios = pendientes.docs.length > 0
+
   return (
     <div>
-      <header className="admin-header">
-        <h1 className="admin-title">Resumen</h1>
-        <p className="admin-subtitle">
-          Estado general de la plataforma · {new Date().toLocaleDateString('es-CL', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
-        </p>
-      </header>
+      <CabeceraDePagina
+        titulo="Resumen"
+        subtitulo={`Estado general de la plataforma · ${new Date().toLocaleDateString('es-CL', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })}`}
+      />
 
       {/* Lo primero de la página, por encima del respaldo: quien pidió la
           cuenta está esperando ahora, sin poder hacer nada ni saber a quién
@@ -241,20 +261,24 @@ export default async function ResumenAdmin() {
 
       <div className="admin-grid">
         {usuarios ? (
-          <div className={`admin-card${usuarios.ilegible ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Cuentas con acceso</div>
-            <div className="admin-card-value">
-              {usuarios.ilegible ? (
+          <Indicador
+            href="/admin-panel/usuarios"
+            titulo="Cuentas con acceso"
+            icono={Users}
+            tono="info"
+            ilegible={usuarios.ilegible}
+            valor={
+              usuarios.ilegible ? (
                 '—'
               ) : (
                 <>
                   {usuarios.activos}
                   <span className="admin-numero-tenue"> / {usuarios.total}</span>
                 </>
-              )}
-            </div>
-            <p className="admin-card-note">
-              {usuarios.ilegible ? (
+              )
+            }
+            nota={
+              usuarios.ilegible ? (
                 'no se pudo leer la tabla de cuentas'
               ) : (
                 <>
@@ -273,106 +297,113 @@ export default async function ResumenAdmin() {
                     ? ` · ${solicitudes} solicitud${solicitudes === 1 ? '' : 'es'}`
                     : ''}
                 </>
-              )}
-            </p>
-            <div className="admin-card-actions">
-              <Link href="/admin-panel/usuarios" className="admin-btn admin-btn-secondary">
-                Gestionar cuentas
-              </Link>
-            </div>
-          </div>
+              )
+            }
+          />
         ) : null}
 
-        <div className="admin-card">
-          <div className="admin-card-title">Contenido publicado</div>
-          <div className="admin-card-value">{publicados}</div>
-          <p className="admin-card-note">
-            {borradores > 0
-              ? `${borradores} borrador${borradores === 1 ? '' : 'es'} sin publicar`
-              : 'sin borradores pendientes'}
-            {modulosIlegibles.length > 0
-              ? ` · sin contar ${modulosIlegibles.length} módulo${
-                  modulosIlegibles.length === 1 ? '' : 's'
-                } que no se ${modulosIlegibles.length === 1 ? 'pudo' : 'pudieron'} leer`
-              : ''}
-          </p>
-          <div className="admin-card-actions">
-            <Link href="/admin-panel/contenido" className="admin-btn admin-btn-secondary">
-              Ver contenido
-            </Link>
-          </div>
-        </div>
+        <Indicador
+          href="/admin-panel/contenido"
+          titulo="Contenido publicado"
+          icono={FileText}
+          tono="ok"
+          valor={publicados}
+          nota={
+            <>
+              {borradores > 0
+                ? `${borradores} borrador${borradores === 1 ? '' : 'es'} sin publicar`
+                : 'sin borradores pendientes'}
+              {modulosIlegibles.length > 0
+                ? ` · sin contar ${modulosIlegibles.length} módulo${
+                    modulosIlegibles.length === 1 ? '' : 's'
+                  } que no se ${modulosIlegibles.length === 1 ? 'pudo' : 'pudieron'} leer`
+                : ''}
+            </>
+          }
+        />
 
         {revision === null || revision.total > 0 ? (
-          <div className={`admin-card${revision === null ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Revisión del contenido</div>
-            <div className="admin-card-value">{revision === null ? '—' : revision.porRevisar}</div>
-            <p className="admin-card-note">
-              {revision === null
-                ? 'no se pudo leer la tabla de revisiones'
-                : esAdmin
-                  ? `por revisar · ${revision.listas} lista${revision.listas === 1 ? '' : 's'} para publicar${
-                      revision.senaladas > 0
-                        ? ` · ⚑ ${revision.senaladas} con la validación señalada`
-                        : ''
-                    }`
-                  : `por revisar en sus módulos${
-                      revision.mias > 0
-                        ? ` · ${revision.mias} asignada${revision.mias === 1 ? '' : 's'} a usted`
-                        : ''
-                    }`}
-            </p>
-            <div className="admin-card-actions">
-              <Link href="/admin-panel/revision" className="admin-btn admin-btn-secondary">
-                Por revisar
-              </Link>
-              {esAdmin ? (
-                <Link href="/admin-panel/auditoria" className="admin-btn admin-btn-secondary">
-                  Auditoría
+          <Indicador
+            href="/admin-panel/revision"
+            titulo="Revisión del contenido"
+            icono={ClipboardCheck}
+            tono={revision !== null && revision.porRevisar > 0 ? 'atencion' : 'info'}
+            ilegible={revision === null}
+            valor={revision === null ? '—' : revision.porRevisar}
+            nota={
+              revision === null ? (
+                'no se pudo leer la tabla de revisiones'
+              ) : esAdmin ? (
+                <>
+                  por revisar · {revision.listas} lista{revision.listas === 1 ? '' : 's'} para publicar
+                  {revision.senaladas > 0 ? (
+                    <>
+                      {' · '}
+                      <Flag aria-hidden size={13} className="resumen-bandera" />
+                      {` ${revision.senaladas} con la validación señalada`}
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                `por revisar en sus módulos${
+                  revision.mias > 0
+                    ? ` · ${revision.mias} asignada${revision.mias === 1 ? '' : 's'} a usted`
+                    : ''
+                }`
+              )
+            }
+            // La tarjeta tenía dos destinos —la cola y la auditoría— y por eso
+            // dos botones. La tarjeta entera lleva a la cola, que es lo que se
+            // hace al verla; la auditoría queda como enlace secundario, por
+            // encima del enlace que cubre la tarjeta.
+            secundario={
+              esAdmin ? (
+                <Link href="/admin-panel/auditoria" className="kpi-secundario">
+                  Ver la auditoría
                 </Link>
-              ) : null}
-            </div>
-          </div>
+              ) : null
+            }
+          />
         ) : null}
 
-        <div className={`admin-card${comentarios.ilegible ? ' admin-card-ilegible' : ''}`}>
-          <div className="admin-card-title">Comentarios pendientes</div>
-          <div
-            className="admin-card-value"
-            style={{
-              color:
-                !comentarios.ilegible && comentarios.pendientes > 0 ? 'var(--ambar)' : undefined,
-            }}
-          >
-            {comentarios.ilegible ? (
+        <Indicador
+          href="/admin-panel/comentarios"
+          titulo="Comentarios pendientes"
+          icono={MessageSquare}
+          tono={!comentarios.ilegible && comentarios.pendientes > 0 ? 'atencion' : 'info'}
+          ilegible={comentarios.ilegible}
+          // El ámbar de la cifra iba en línea (`'var(--ambar)'`, 3,7:1 sobre
+          // blanco): ahora es una clase con el ámbar de texto, que llega a AA.
+          claseValor={
+            !comentarios.ilegible && comentarios.pendientes > 0 ? 'admin-card-value-atencion' : undefined
+          }
+          valor={
+            comentarios.ilegible ? (
               '—'
             ) : (
               <>
                 {comentarios.pendientes}
                 <span className="admin-numero-tenue"> / {comentarios.total}</span>
               </>
-            )}
-          </div>
-          <p className="admin-card-note">
-            {comentarios.ilegible
+            )
+          }
+          nota={
+            comentarios.ilegible
               ? 'no se pudo leer la tabla de comentarios'
-              : 'retroalimentación recibida en las fichas'}
-          </p>
-          <div className="admin-card-actions">
-            <Link href="/admin-panel/comentarios" className="admin-btn admin-btn-secondary">
-              Revisar
-            </Link>
-          </div>
-        </div>
+              : 'retroalimentación recibida en las fichas'
+          }
+        />
 
         {actividad ? (
-          <div className={`admin-card${actividad.ilegible ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Lectura de los últimos 7 días</div>
-            <div className="admin-card-value">
-              {actividad.ilegible ? '—' : actividad.ultimos7dias}
-            </div>
-            <p className="admin-card-note">
-              {actividad.ilegible ? (
+          <Indicador
+            href="/admin-panel/actividad"
+            titulo="Lectura de los últimos 7 días"
+            icono={Activity}
+            tono="info"
+            ilegible={actividad.ilegible}
+            valor={actividad.ilegible ? '—' : actividad.ultimos7dias}
+            nota={
+              actividad.ilegible ? (
                 // Un cero aquí se lee como «nadie entró esta semana», que es
                 // una conclusión sobre los residentes y no sobre la base.
                 'no se pudo leer el registro de lectura'
@@ -382,106 +413,136 @@ export default async function ResumenAdmin() {
                   {actividad.lectoresActivos7dias === 1 ? '' : 's'} · {actividad.completados}{' '}
                   marcadas como leídas
                 </>
-              )}
-            </p>
-            <div className="admin-card-actions">
-              <Link href="/admin-panel/actividad" className="admin-btn admin-btn-secondary">
-                Ver actividad
-              </Link>
-            </div>
-          </div>
+              )
+            }
+          />
         ) : null}
 
         {esAdmin ? (
-          <div className="admin-card">
-            <div className="admin-card-title">Último respaldo</div>
-            <div className="admin-card-value" style={{ fontSize: '1.5rem' }}>
-              {respaldosIlegibles ? '—' : ultimoRespaldo ? fecha(ultimoRespaldo.creado) : 'ninguno'}
-            </div>
-            <p className="admin-card-note">
-              {respaldosIlegibles
+          <Indicador
+            href="/admin-panel/respaldos"
+            titulo="Último respaldo"
+            icono={Archive}
+            tono={respaldosIlegibles || diasSinRespaldo === null || diasSinRespaldo > 2 ? 'atencion' : 'ok'}
+            // Una fecha no cabe al tamaño de una cifra: va un paso más pequeña.
+            claseValor="admin-card-value-sm"
+            valor={respaldosIlegibles ? '—' : ultimoRespaldo ? fecha(ultimoRespaldo.creado) : 'ninguno'}
+            nota={
+              respaldosIlegibles
                 ? 'no se pudo leer el directorio de respaldos'
                 : ultimoRespaldo
-                ? `${tamanoLegible(ultimoRespaldo.bytes)} · ${respaldos.length} archivo${
-                    respaldos.length === 1 ? '' : 's'
-                  } conservado${respaldos.length === 1 ? '' : 's'}`
-                : 'la base no se ha respaldado nunca'}
-            </p>
-            <div className="admin-card-actions">
-              <Link href="/admin-panel/respaldos" className="admin-btn admin-btn-secondary">
-                Respaldos
-              </Link>
-            </div>
-          </div>
+                  ? `${tamanoLegible(ultimoRespaldo.bytes)} · ${respaldos.length} archivo${
+                      respaldos.length === 1 ? '' : 's'
+                    } conservado${respaldos.length === 1 ? '' : 's'}`
+                  : 'la base no se ha respaldado nunca'
+            }
+          />
         ) : null}
       </div>
 
-      <h2 className="admin-section-title">Contenido por módulo</h2>
-      <div className="admin-grid">
-        {modulos.map((m) => {
-          const porcentaje = m.total === 0 ? 0 : Math.round((m.publicados / m.total) * 100)
-          return (
-            <div key={m.slug} className={`admin-card${m.ilegible ? ' admin-card-ilegible' : ''}`}>
-              <div className="admin-card-numero">{m.numero}</div>
-              <div className="admin-card-title">{m.nombre}</div>
-              <div className="admin-card-value" style={{ fontSize: '2rem' }}>
-                {m.ilegible ? (
-                  '—'
-                ) : (
-                  <>
-                    {m.publicados}
-                    {m.borradores > 0 ? (
-                      <span className="admin-numero-tenue"> +{m.borradores} borr.</span>
-                    ) : null}
-                  </>
-                )}
-              </div>
-              {/* La barra al 0 % sobre un módulo ilegible es la mitad del
-                  engaño: dibuja un dato que no se tiene. */}
-              {m.ilegible ? null : (
-                <div className="admin-progreso" aria-hidden="true">
-                  <div className="admin-progreso-relleno" style={{ width: `${porcentaje}%` }} />
-                </div>
-              )}
-              <p className="admin-card-note">
-                {m.ilegible
-                  ? 'no se pudo leer este módulo'
-                  : m.total === 0
-                    ? 'sin contenido aún'
-                    : `${porcentaje}% publicado`}
-              </p>
-              <div className="admin-card-actions">
-                {/* Apuntaba a `/admin/collections/…`, que es la interfaz de
-                    Payload: se retiró de esta plataforma y esa ruta hoy solo
-                    reenvía al panel. El botón abría una pestaña nueva, prometía
-                    el módulo y entregaba la portada del panel. */}
-                <Link
-                  href={`/admin-panel/contenido/${m.slug}`}
-                  className="admin-btn admin-btn-secondary"
-                >
-                  Editar
-                </Link>
-                <Link href={m.ruta} className="admin-btn admin-btn-primary">
-                  Ver público →
-                </Link>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      {hayComentarios ? <PlegarTodo /> : null}
 
-      {pendientes.docs.length > 0 ? (
-        <>
-          <h2 className="admin-section-title">Últimos comentarios sin resolver</h2>
+      <SeccionPlegable
+        clave="resumen.modulos"
+        titulo="Contenido por módulo"
+        resumen={`${modulos.length} módulo${modulos.length === 1 ? '' : 's'}`}
+      >
+        <div className="admin-grid resumen-modulos">
+          {modulos.map((m) => {
+            const porcentaje = m.total === 0 ? 0 : Math.round((m.publicados / m.total) * 100)
+            const identidad = IDENTIDAD_DE_MODULO[m.slug]
+            const IconoDelModulo = identidad?.icono ?? FileText
+            return (
+              <div
+                key={m.slug}
+                className={`admin-card tarjeta-modulo ${identidad?.clase ?? ''}${m.ilegible ? ' admin-card-ilegible' : ''}`}
+              >
+                <div className="tarjeta-modulo-cabeza">
+                  <span className="icono-modulo" aria-hidden>
+                    <IconoDelModulo size={20} />
+                  </span>
+                  <div>
+                    <div className="admin-card-numero">{m.numero}</div>
+                    <h3 className="tarjeta-modulo-nombre">{m.nombre}</h3>
+                  </div>
+                </div>
+                <div className="admin-card-value">
+                  {m.ilegible ? (
+                    '—'
+                  ) : (
+                    <>
+                      {m.publicados}
+                      {m.borradores > 0 ? (
+                        <span className="admin-numero-tenue"> +{m.borradores} en borrador</span>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+                {/* La barra al 0 % sobre un módulo ilegible es la mitad del
+                    engaño: dibuja un dato que no se tiene. Lleva el color del
+                    módulo (`--acento`, de `mod-N`). */}
+                {m.ilegible ? null : (
+                  <div className="admin-progreso" aria-hidden="true">
+                    <div className="admin-progreso-relleno" style={{ width: `${porcentaje}%` }} />
+                  </div>
+                )}
+                <p className="admin-card-note">
+                  {m.ilegible
+                    ? 'no se pudo leer este módulo'
+                    : m.total === 0
+                      ? 'sin contenido aún'
+                      : `${porcentaje}% publicado`}
+                </p>
+                <div className="admin-card-actions">
+                  {/* Apuntaba a `/admin/collections/…`, que es la interfaz de
+                      Payload: se retiró de esta plataforma y esa ruta hoy solo
+                      reenvía al panel. El botón abría una pestaña nueva,
+                      prometía el módulo y entregaba la portada del panel. */}
+                  <Link
+                    href={`/admin-panel/contenido/${m.slug}`}
+                    className="admin-btn admin-btn-secondary admin-btn-sm"
+                    aria-label={`Editar ${m.nombre}`}
+                  >
+                    <PenLine aria-hidden size={15} />
+                    Editar
+                  </Link>
+                  <Link
+                    href={m.ruta}
+                    className="admin-btn admin-btn-ghost admin-btn-sm"
+                    aria-label={`Ver ${m.nombre} en la plataforma`}
+                  >
+                    <Eye aria-hidden size={15} />
+                    Ver público
+                  </Link>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </SeccionPlegable>
+
+      {hayComentarios ? (
+        <SeccionPlegable
+          clave="resumen.comentarios"
+          titulo="Últimos comentarios sin resolver"
+          resumen={`${pendientes.docs.length} de ${comentarios.ilegible ? '—' : comentarios.pendientes}`}
+          acciones={
+            <Link href="/admin-panel/comentarios" className="admin-btn admin-btn-ghost admin-btn-sm">
+              Ver todos
+            </Link>
+          }
+        >
           <div className="admin-table-container">
-            <table className="admin-table">
+            <table className="admin-table tabla-apilable">
               <thead>
                 <tr>
                   <th>Usuario</th>
                   <th>Comentario</th>
                   <th>Módulo</th>
                   <th>Fecha</th>
-                  <th />
+                  <th>
+                    <span className="sr-only">Acciones</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -499,44 +560,50 @@ export default async function ResumenAdmin() {
                   )
                   return (
                     <tr key={String(comentario.id)}>
-                      <td>
+                      <th scope="row">
                         <div className="admin-table-user-name">
                           {comentario.usuario?.nombre ?? 'Usuario'}
                         </div>
                         <div className="admin-table-user-email">
                           {comentario.usuario?.email ?? '—'}
                         </div>
+                      </th>
+                      <td className="admin-table-text" data-etiqueta="Comentario">
+                        {comentario.texto}
                       </td>
-                      <td className="admin-table-text">{comentario.texto}</td>
-                      <td>
-                        <span className="admin-badge admin-badge-neutro">
-                          {NOMBRE_DE_MODULO[comentario.coleccion ?? ''] ?? comentario.coleccion}
-                        </span>
-                        {tituloDeFicha ? (
-                          <div className="admin-table-user-email">{tituloDeFicha}</div>
-                        ) : null}
+                      <td data-etiqueta="Módulo">
+                        <div>
+                          <span className="insignia insignia-neutra">
+                            {NOMBRE_DE_MODULO[comentario.coleccion ?? ''] ?? comentario.coleccion}
+                          </span>
+                          {tituloDeFicha ? (
+                            <div className="admin-table-user-email">{tituloDeFicha}</div>
+                          ) : null}
+                        </div>
                       </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
+                      <td className="u-nowrap" data-etiqueta="Fecha">
                         {comentario.createdAt ? fecha(comentario.createdAt) : '—'}
                       </td>
-                      <td>
+                      <td className="admin-table-acciones">
                         {/* «Editar» y al editor del panel: un comentario
                             pendiente se atiende corrigiendo la ficha, y desde
                             la ruta pública eso costaba volver a Panel,
                             Contenido, el módulo y buscarla por nombre. El
                             editor además abre esté publicada o retirada. */}
                         {comentario.coleccion && comentario.documentoId ? (
-                          <div className="admin-acciones">
+                          <div className="admin-table-acciones-fila">
                             <Link
                               href={`/admin-panel/contenido/${comentario.coleccion}/${comentario.documentoId}`}
                               className="admin-btn admin-btn-sm admin-btn-secondary"
                             >
+                              <PenLine aria-hidden size={15} />
                               Editar
                             </Link>
                             <Link
                               href={rutaPublica(comentario.coleccion, comentario.documentoId)}
-                              className="admin-btn admin-btn-sm admin-btn-secondary"
+                              className="admin-btn admin-btn-sm admin-btn-ghost"
                             >
+                              <Eye aria-hidden size={15} />
                               Ver ficha
                             </Link>
                           </div>
@@ -548,8 +615,61 @@ export default async function ResumenAdmin() {
               </tbody>
             </table>
           </div>
-        </>
+        </SeccionPlegable>
       ) : null}
+    </div>
+  )
+}
+
+type TonoDeIndicador = 'ok' | 'atencion' | 'info'
+
+/**
+ * Una tarjeta de indicador que lleva a su pantalla entera.
+ *
+ * Antes cada tarjeta acababa en un botón «Gestionar cuentas», «Ver contenido»,
+ * «Revisar»…: el resto de la tarjeta parecía pulsable y no hacía nada, y la
+ * rejilla eran seis botones del mismo peso compitiendo con las cifras. Ahora
+ * el título es el enlace y lo estira sobre toda la tarjeta (`.kpi-enlace`, el
+ * patrón de «enlace estirado»): así un segundo destino —la auditoría en la
+ * tarjeta de revisión— puede ir encima sin anidar un `<a>` dentro de otro, que
+ * HTML no permite. El lector de pantalla oye un enlace con el nombre del
+ * indicador, no la tarjeta entera dictada como nombre del enlace.
+ */
+function Indicador({
+  href,
+  titulo,
+  icono: Icono,
+  tono,
+  valor,
+  nota,
+  ilegible,
+  claseValor,
+  secundario,
+}: {
+  href: string
+  titulo: string
+  icono: LucideIcon
+  tono: TonoDeIndicador
+  valor: ReactNode
+  nota: ReactNode
+  ilegible?: boolean
+  claseValor?: string
+  secundario?: ReactNode
+}) {
+  return (
+    <div className={`admin-card admin-card-enlace kpi${ilegible ? ' admin-card-ilegible' : ''}`}>
+      <div className="kpi-cabeza">
+        <span className={`icono-modulo icono-modulo-sm kpi-icono-${tono}`} aria-hidden>
+          <Icono size={16} />
+        </span>
+        <Link href={href} className="admin-card-title kpi-enlace">
+          {titulo}
+        </Link>
+        <ArrowRight aria-hidden size={18} className="kpi-flecha" />
+      </div>
+      <div className={`admin-card-value${claseValor ? ` ${claseValor}` : ''}`}>{valor}</div>
+      <p className="admin-card-note">{nota}</p>
+      {secundario}
     </div>
   )
 }
