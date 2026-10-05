@@ -4449,6 +4449,33 @@ de D-152, solo por ese camino). Es lo que menos sorprende —Supr es «apagar»�
 aviso del recorte ya manda pulsar «Solo esto». Si se quiere, Supr sobre una
 selección grande podría estrechar también.
 
+### D-154 · 2026-10-05 · vigente
+**Un hueso recortado vuelve solo con lo recortado al apagarlo y volver a encenderlo.**
+Lo contó quien usa el taller: «cuando activo el hueso de nuevo se renueva completo
+y no solo lo que había recortado». Se recortaba un hueso, se dejaba un trozo, se
+apagaba el hueso por su casilla y, al encenderlo, reaparecía la malla original
+entera. No daba ningún error.
+*La causa.* `ordenarLoEncendido` (D-141) descarta los trozos apagados de toda
+pieza que no está encendida, con razón: no hay que arrastrar identificadores de
+piezas que no están. Pero con ellos se iba también el recuerdo de lo recortado, y
+al encenderla ya no había nada apagado. Reproducido con una tibia derecha partida
+por la mitad y su trozo `_2` apagado: tras apagar y encender, los dos trozos
+quedaban marcados y se veía la tibia entera.
+*El arreglo.* La función sale del taller a `src/atlas/trozosApagados.ts`, para
+poder probarla, y `ordenarConMemoria` le suma los trozos apagados de las piezas
+que quien llama pidió apagar (`trozosDeLoApagado`). No se retienen los de una pieza
+que la regla apaga por tener todos sus trozos apagados, porque esa tiene que volver
+completa, ni los de «Encender todo», que pasa un conjunto vacío a propósito. Con
+el arreglo, al reencender quedan marcados `[true, false]`; sin él, `[true, true]`.
+La preparación guardada no cambia: `guardar()` sigue filtrando los trozos por las
+piezas encendidas, así que la memoria vive solo en pantalla.
+*Consecuencias buenas.* Apagar y encender es reversible también para lo recortado,
+y «solo» sobre otra cosa no olvida lo que se había recortado de lo que sale.
+*Malas.* Para volver al hueso entero ya no basta apagarlo y encenderlo: hay que
+encender el trozo apagado desde su casilla (_2) o usar «Encender todo». Y el
+conjunto `apagados` puede llevar trozos de piezas apagadas mientras se trabaja
+(nunca se guardan).
+
 ## 3. Observaciones
 
 Formato: `O-nnn · fecha · severidad · estado`. Severidad: **alta**, **media**, **baja**.

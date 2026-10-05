@@ -116,6 +116,11 @@ sobre los de todo el cuerpo. Apagar piezas no acorta la lista; «Encender todo»
 «Volver a “Cuerpo”» o **Ctrl + Z** tras un «solo» sí la devuelven a como estaba.
 «Todo el atlas» sirve para traer una pieza que no estaba.
 
+Si recorta un hueso y deja solo un trozo, **apagar el hueso y volver a encenderlo
+devuelve solo ese trozo**, no el hueso entero. Para recuperar el trozo que quitó,
+enciéndalo desde su propia casilla («Tibia derecha_2»), debajo del hueso, o
+pulse «Encender todo».
+
 Cuando quede lo que se quiere, se gira el modelo hasta el ángulo con que debe
 abrirse en la ficha, se le pone nombre —«Tibia derecha con peroné»—, se anota
 para qué sirve y se pulsa **Guardar preparación**. Se guardan las piezas

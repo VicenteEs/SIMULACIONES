@@ -27,6 +27,7 @@ import {
 } from '@/lib/autoguardadoDelTaller'
 import { horaDe } from '@/lib/guardadoAutomatico'
 import { ampliarConjunto, conjuntoConLoEncendido } from '@/atlas/loQueQuedo'
+import { ordenarConMemoria } from '@/atlas/trozosApagados'
 import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/components/atlas/VisorAtlas'
 import type { ResultadoDelRecorte } from '@/atlas/recorte'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
@@ -890,35 +891,6 @@ export function TallerDeAtlas() {
   const seVe = (id: string) => visibles.has(piezaDe(id)) && !apagados.has(id)
 
   /**
-   * Los trozos apagados en su forma buena (D-141): solo trozos que existen, de
-   * piezas encendidas, y ninguna pieza con TODOS sus trozos apagados —esa se
-   * apaga entera, para que encenderla en el árbol la devuelva completa en vez
-   * de encender un hueso que no enseña nada—.
-   */
-  const ordenarLoEncendido = (
-    piezas: Set<string>,
-    trozos: ReadonlySet<string>,
-    conCortes: readonly CorteDePieza[] = cortes,
-  ): { piezas: Set<string>; trozos: Set<string> } => {
-    if (trozos.size === 0) return { piezas, trozos: new Set() }
-    const quedan = new Set<string>()
-    const apagadasDelTodo = new Set<string>()
-    for (const pieza of new Set([...trozos].map(piezaDe))) {
-      if (!piezas.has(pieza)) continue
-      const hojas = hojasDe(conCortes, pieza)
-      const suyas = hojas.filter((hoja) => trozos.has(hoja) && hoja !== pieza)
-      if (suyas.length === 0) continue
-      if (suyas.length === hojas.length) apagadasDelTodo.add(pieza)
-      else for (const hoja of suyas) quedan.add(hoja)
-    }
-    return {
-      piezas:
-        apagadasDelTodo.size > 0 ? new Set([...piezas].filter((id) => !apagadasDelTodo.has(id))) : piezas,
-      trozos: quedan,
-    }
-  }
-
-  /**
    * Cambia lo encendido —piezas y, si se dan, trozos apagados— dejando lo
    * anterior en el historial. Es la puerta de todo cambio que haga la persona:
    * árbol, teclado, barra.
@@ -929,7 +901,11 @@ export function TallerDeAtlas() {
     quedarseCon = false,
   ) => {
     apuntarPaso()
-    const orden = ordenarLoEncendido(nuevas, nuevosApagados)
+    // Con memoria de lo recortado: al apagar un hueso partido y volver a
+    // encenderlo tiene que volver el trozo que se había dejado, no la malla
+    // entera (ver `src/atlas/trozosApagados.ts`). Los trozos de una pieza que
+    // no se apaga los sigue ordenando la regla de siempre.
+    const orden = ordenarConMemoria(nuevas, nuevosApagados, cortes, apagados)
     setVisibles(orden.piezas)
     setApagados(orden.trozos)
     // «Quedarse con» —«solo», Mayús + H tras un recorte— estrecha la lista a lo
@@ -1169,7 +1145,8 @@ export function TallerDeAtlas() {
    * Hasta D-140 apagar un fragmento apagaba su hueso entero —lo encendido iba
    * por pieza—, y tras recortar, «apagar lo de fuera» se llevaba también lo de
    * dentro, que era justo lo que se quería conservar. Si con esto una pieza se
-   * queda sin ningún trozo encendido, se apaga ella (`ordenarLoEncendido`).
+   * queda sin ningún trozo encendido, se apaga ella (`ordenarLoEncendido`, en
+   * `src/atlas/trozosApagados.ts`).
    */
   const apagarSeleccion = () => {
     if (seleccion.size === 0) return

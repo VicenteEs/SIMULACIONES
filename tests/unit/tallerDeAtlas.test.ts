@@ -253,3 +253,27 @@ describe('la lista del taller se queda con lo que quedó tras recortar', () => {
     expect(expresionDe('contenidoCambiado')).not.toContain('universo')
   })
 })
+
+describe('un hueso recortado no vuelve entero al apagarlo y encenderlo', () => {
+  // Fallo contado por quien usa el taller: «cuando activo el hueso de nuevo se
+  // renueva completo y no solo lo que había recortado». La causa estaba en
+  // dejar caer los trozos apagados de toda pieza que se apaga, y no da ningún
+  // error: la malla simplemente vuelve entera. La regla se prueba aparte, en
+  // `trozosApagados.test.ts`; aquí, que el taller la use y le dé lo anterior.
+
+  it('todo cambio de lo encendido pasa por la versión con memoria, con los apagados de ahora', () => {
+    const cambiar = entre('const cambiarVisibles = (', 'const deshacer')
+    expect(cambiar).toContain('ordenarConMemoria(nuevas, nuevosApagados, cortes, apagados)')
+    // La versión sin memoria no vuelve a llamarse desde el taller: sería
+    // deshacer el arreglo sin que nada falle.
+    expect(fuente).not.toMatch(/\bordenarLoEncendido\(/)
+  })
+
+  it('lo que se guarda sigue sin llevar trozos de piezas apagadas', () => {
+    // La memoria vive solo en pantalla: la copia de la base no arrastra
+    // identificadores de piezas que no están.
+    expect(entre('const guardar = (', 'const autoguardado')).toContain(
+      'apagados: [...apagados].filter((id) => visibles.has(piezaDe(id)))',
+    )
+  })
+})
