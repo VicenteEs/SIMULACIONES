@@ -6014,6 +6014,19 @@ anonimizados con autorización del comité correspondiente; o estudios propios c
 consentimiento explícito. El primero permite empezar mañana sin ningún trámite y
 es lo que recomiendo para construir y probar toda la cadena.
 
+### Q-009 · ¿Se construye la planificación con DICOM, y como docente o como clínica?
+La propuso Cristóbal el 2026-10-06 y el módulo 06 la anuncia (P-001, E7). Cargar
+la tomografía de un paciente, reconstruir su fractura y planificar la cirugía del
+día siguiente cambia la naturaleza de la plataforma.
+
+Si es **docente**, con estudios anonimizados, es una herramienta de enseñanza
+más. Si es **clínica** —decidir la cirugía de un paciente concreto—, puede pasar a
+considerarse software de uso médico, con sus exigencias regulatorias. En los dos
+casos, los estudios son datos de salud y piden una revisión legal y de ética
+antes del primero (Q-005, Q-007).
+
+Mi lectura: docente primero, y decidirlo por escrito antes de empezar el P-002.
+
 ---
 
 ## 5. Plan de trabajo
@@ -6027,8 +6040,9 @@ commit al lado. Las decisiones que salen de cada etapa van a la sección 2 como
 commits del plan llevan `(P-001 E3.2)` al final del mensaje.
 
 ### P-001 · 2026-10-07 · en curso
-**Cinco etapas: módulos que se ocultan, comentarios en el taller, manipulación
-directa, fracturas AO guiadas, y piel e instrumental.**
+**Siete etapas: módulos en mantención, comentarios en el taller, manipulación
+directa, fracturas AO guiadas, piel e instrumental, el manejo AO paso a paso, y el
+anuncio del módulo 06 de planificación con DICOM.**
 
 #### De dónde sale
 
@@ -6051,10 +6065,33 @@ Pedidos del dueño y del traumatólogo, Cristóbal Cofré, del 5 y 6 de octubre:
    miembro superior, con énfasis en los signos cubitales»: «dejar separado por
    segmento anatómico».
 
-**Entrada sin procesar.** Cuatro notas de voz de WhatsApp del 2026-10-06
-(03:41, 03:42, 10:24 y 10:28) que no se pudieron escuchar: en la máquina no hay
-nada que transcriba audio. Hay que resumirlas aquí antes de empezar E4, porque
-probablemente amplían el constructor de fracturas.
+7. Un módulo nuevo, el 06, para planificar con los DICOM del paciente. Por ahora
+   solo se anuncia: dice «Próximamente», trae una descripción detallada de lo que
+   tiene que ser, y los editores van dejando requisitos y cómo les gustaría que
+   fuese. Pedido del dueño, 2026-10-07.
+
+**Las notas de voz de Cristóbal (2026-10-06).** Son las cuatro de WhatsApp de
+las 03:41, 03:42, 10:24 y 10:28. El dueño pegó su transcripción el 2026-10-07, y
+esto es lo que piden:
+
+- **Fidelidad a AO Surgery Reference.** Llevar al modelo cada patrón de fractura
+  que describe, para «ser fieles a las conductas, al paso a paso quirúrgico que
+  nos ofrecen, que es el gold standard». Da el horizonte de E4: v1 con los
+  huesos largos, y a la larga todos los patrones.
+- **De la clasificación al tratamiento.** Primero se separa por clasificación, y
+  para cada una se ven las alternativas de manejo, como en esa página. Al elegir
+  una, se despliega su menú: tutor externo, placa, clavo endomedular… Es la
+  etapa nueva **E6**.
+- **Hacerlo en el modelo y grabarlo.** El paso a paso de cada técnica se hace en
+  el modelo, y lo hecho se graba, para que quede como demostración de cómo se
+  opera. También **E6**.
+- **Planificar el material.** Hacerlo así ayuda a ver qué material sirve, qué
+  medidas hay que pedir y qué tornillos no traen las empresas. Él mismo añade:
+  «ahí nos pasaríamos». Queda como idea para una v2 de E6, fuera de la v1.
+- **DICOM, «ya de otro nivel».** Cargar los DICOM del paciente, que se reconstruya
+  su fractura exacta, y planificar y simular la cirugía del día siguiente.
+  Coincide con el pedido 7: es la etapa nueva **E7**, que de momento solo lo
+  anuncia.
 
 **Ya hecho, fuera del plan:** la piel vuelve al atlas (D-155).
 
@@ -6089,9 +6126,16 @@ Cierran las preguntas que el plan dejaba abiertas:
   si moverlos sigue siendo engorroso. Además, E4 reutiliza los ejes del hueso que
   calcula E3.
 - **E4** es la más grande y la de más riesgo geométrico.
-- **E5** va al final porque la piel ya está y el instrumental en escena necesita
-  la manipulación de E3. Su parte sin código, conseguir los modelos 3D, puede
+- **E5** va después porque la piel ya está y el instrumental en escena necesita
+  la manipulación de E3. Su parte sin código, modelar el instrumental, puede
   empezar hoy en paralelo.
+- **E6** necesita tres cosas de las etapas anteriores: el modelo fracturado (E4),
+  moverlo con comodidad (E3) y los implantes e instrumentos (E5). Es lo que
+  convierte todo lo anterior en clase.
+- **E7** no depende de nada más que de la insignia de E1, y es corta. Puede
+  adelantarse a cualquier momento después de E1 si se quiere empezar ya a
+  recoger requisitos. Lo que E7 anuncia —planificar con DICOM de verdad— es otro
+  plan, P-002, que se escribe cuando se decida empezarlo.
 
 #### Reglas para todas las etapas
 
@@ -6440,6 +6484,14 @@ fractura nada: ve el modelo ya fracturado.
 minuto cada uno, se guardan, se reabren idénticos y Cristóbal los da por
 correctos.
 
+**Horizonte.** Cristóbal pide, en sus notas de voz, llevar al modelo *cada*
+patrón que describe AO Surgery Reference. La v1 cubre los huesos largos. Para
+que se vea cuánto falta:
+
+- una tabla de cobertura, generada desde `clasificacionAO.ts`, dice qué
+  códigos ya tienen patrón y cuáles no;
+- se publica en el panel para editores y se resume aquí al cerrar cada versión.
+
 **Alcance de la v1**, recortado para que quepa:
 
 - **Huesos:** los largos. Húmero (1), radio (2R) y cúbito (2U), fémur (3), tibia
@@ -6684,6 +6736,288 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
 
 ---
 
+#### E6 · El manejo AO paso a paso, sobre el modelo · 3–4 sesiones · pendiente
+
+**De dónde sale:** las notas de voz de Cristóbal (ver «De dónde sale»).
+
+**Objetivo.** Que el módulo 03, Técnica AO, se recorra como AO Surgery
+Reference, en cinco pasos:
+
+1. **Esqueleto:** se pincha el hueso.
+2. **Segmento.**
+3. **Diagnóstico:** la clasificación, en tarjetas por tipo y grupo.
+4. **Indicaciones:** las alternativas de manejo de ese código, en tarjetas, cada
+   una con su nivel de destreza y de equipamiento (los puntos de la app de AO).
+5. **Tratamiento:** el paso a paso de la técnica elegida —preparación del
+   paciente, abordaje, reducción, fijación, comprobación y cuidados
+   postoperatorios—, **hecho sobre el modelo fracturado**. El residente avanza
+   paso a paso y ve moverse los fragmentos y aparecer los implantes y los
+   instrumentos.
+
+Además, el editor graba ese paso a paso en el taller, y queda como demostración
+que se puede reproducir y, si se quiere, exportar a vídeo.
+
+**Hecho cuando…** Un residente entra en Técnica AO y llega en cinco clics a un
+caso guía, por ejemplo 42-A2 → «Clavo endomedular». Ve sus pasos con el modelo
+cambiando en cada uno, y puede ir hacia atrás y hacia delante. El editor lo grabó
+en el taller en menos de media hora.
+
+**Lo que hay hoy, y que condiciona el diseño**
+
+- **La colección** `casos-ao` (`src/collections/CasosAO.ts`) tiene `titulo`,
+  `codigo` (texto libre), `procedimiento` y `pasos[]`. Cada paso lleva
+  `titulo`, `descripcion`, `principio`, `nota` y `modelo` (una relación con
+  un `.glb`).
+- **Las 711 fichas importadas (D-144)** salen de libros de técnica quirúrgica
+  (*Master Techniques*, *Operative Techniques*…):
+  - muchas no son de fracturas: oncología, reconstrucción, partes blandas;
+  - 97 tienen «fractura» en el título;
+  - **solo 19 traen código AO**, y cada una a su manera: «43-C2 / 43-C3», «AO A2,
+    A3, C1, C2», «42-A / 42-B / 42-C», o clasificaciones que no son AO, como
+    «Mason II-III» o «Salter-Harris».
+
+  Un navegador por clasificación necesita códigos normalizados: ver E6.3.
+- **El vocabulario** sale de `src/atlas/clasificacionAO.ts` (E4.2). Es una sola
+  tabla para fracturar en el taller y para navegar en Técnica AO.
+
+**Decisiones de diseño**
+
+- **El caso AO gana campos estructurados.** Piden migración: columnas y enums.
+  - `codigosAO`: uno o varios códigos validados contra `clasificacionAO.ts`,
+    al nivel que se sepa (`42`, `42-A` o `42-A2`).
+  - `tratamiento`: select con conservador, tornillos interfragmentarios, placa,
+    clavo endomedular, tutor externo, agujas de Kirschner, artroplastia y otro.
+  - `destreza` y `equipamiento`: de 1 a 3.
+  - `indicaciones`: texto rico.
+  - En cada paso: `fase` (preparación, abordaje, reducción, fijación,
+    comprobación o postoperatorio).
+  - Las fichas que no son de fracturas no llevan código y siguen accesibles por
+    «Ver todas» y por región.
+- **El modelo de cada caso.** El caso apunta a una preparación del taller (una
+  relación con `instancias-atlas`) que tiene el hueso fracturado (E4). Cada paso
+  del caso apunta a una **escena** de esa preparación.
+- **Escenas, no vídeo, como formato principal.** Una escena es una instantánea
+  del estado 3D:
+  - qué piezas y trozos se ven;
+  - dónde está cada fragmento;
+  - qué implantes e instrumentos hay y dónde (`objetos` de E5);
+  - los rótulos y la cámara.
+
+  Se guardan en la preparación, en `ContenidoDeInstancia.escenas?: [{ id,
+  titulo, estado }]`, que es json y no pide migración. Así ocupan poco, se
+  pueden corregir paso a paso y el residente puede girar la cámara en cualquier
+  paso.
+- **El reproductor.** `VisorInstancia` gana una barra «Paso 3 de 8», con
+  anterior y siguiente. De una escena a otra, los fragmentos se interpolan en
+  600 ms (posición lineal, giro por *slerp*) y lo que aparece o desaparece se
+  funde.
+- **El vídeo es opcional.** Se exporta con `MediaRecorder` sobre el lienzo, a
+  WebM, y se sube a «Medios», que admite hasta 50 MB. Sirve para mandarlo por
+  WhatsApp o proyectarlo. No reemplaza a las escenas.
+- **Los textos de AO no se copian** (regla general). Las indicaciones y los pasos
+  los escribe el equipo. Cada caso puede llevar un enlace a su página de AO
+  Surgery Reference como referencia.
+
+**Tareas**
+
+- [ ] **E6.1 · Esquema.**
+  - Campos nuevos en `CasosAO.ts` y en `src/admin/esquema.ts` (los ata
+    `esquema.test.ts`).
+  - Migración `casos_ao_estructurados` y tipos.
+  - Validación de `codigosAO` contra `clasificacionAO.ts`.
+- [ ] **E6.2 · Escenas en el taller.**
+  - Pestaña «Pasos», o sección dentro de «Preparación», con «Capturar escena»,
+    «Actualizar escena», reordenar, renombrar y eliminar.
+  - Validación `escenasValidas` en `src/atlas/catalogo.ts`.
+  - Tope: 40 escenas por preparación.
+- [ ] **E6.3 · Normalizar los códigos de las fichas existentes.**
+  - Un guion propone `codigosAO` a partir del texto: el código escrito, el
+    título y el procedimiento. **No escribe nada**: genera una planilla para
+    revisar.
+  - Lo aprobado se aplica con un segundo guion, y queda en el registro.
+  - Las clasificaciones que no son AO (Mason, Salter-Harris…) se anotan aparte,
+    sin forzarlas.
+- [ ] **E6.4 · El navegador de Técnica AO.**
+  - `/tecnica-ao` pasa a los cinco pasos, con una barra de pasos como la de la
+    app.
+  - **Esqueleto:** la figura de la portada (D-124) con zonas que se pinchan, o un
+    esqueleto en SVG propio.
+  - **Diagnóstico e Indicaciones:** tarjetas con pictogramas propios y el número
+    de casos que hay en cada una.
+  - El listado de siempre queda en «Ver todas».
+  - Las guardias D-102 y la mantención (E1) siguen valiendo.
+- [ ] **E6.5 · El reproductor**, en `VisorInstancia`, con las transiciones. Lo
+  usan la ficha del caso y el bloque «Preparación anatómica».
+- [ ] **E6.6 · La ficha del caso.** Cada paso del texto lleva al lado su escena,
+  y cambiar de paso cambia el modelo.
+- [ ] **E6.7 · Exportar a vídeo** (WebM), desde el taller.
+- [ ] **E6.8 · Un caso guía completo, hecho de punta a punta con Cristóbal**,
+  por ejemplo 42-A2 con clavo endomedular: fracturar (E4), reducir (E3), poner el
+  implante (E5) y capturar las escenas.
+- [ ] **E6.9 · Pruebas, manual y D-nnn.**
+  - Esquema, migraciones y validación de escenas.
+  - La interpolación, sin lienzo.
+  - El navegador: guardias y mantención.
+
+**Para una v2, fuera de esta etapa:** la lista de material. Saldría de las
+escenas, porque cada implante colocado tiene sus medidas:
+
+- el largo de cada tornillo, medido entre las corticales a lo largo de su
+  trayecto (la herramienta «Medir», D-135);
+- la placa y sus agujeros.
+
+Daría una lista para pedir a la casa comercial. Cristóbal: «ahí nos pasaríamos».
+
+**Preguntas**
+
+- **E6-Q1 · ¿El navegador por clasificación reemplaza al listado como entrada de
+  Técnica AO,** o convive con él? Se propone que lo reemplace y que el listado
+  quede en «Ver todas».
+- **E6-Q2 · ¿Quién graba las escenas** de cada caso: Cristóbal, los editores, o
+  el asistente bajo sus indicaciones?
+- **E6-Q3 · ¿Cuántos casos guía** antes de abrirlo a los residentes?
+
+---
+
+#### E7 · Módulo 06, planificación con DICOM: «Próximamente» y buzón de requisitos · 1–2 sesiones · pendiente
+
+**De dónde sale:** el pedido 7 del dueño y la última nota de voz de Cristóbal:
+«poder meterle los DICOM y que te reconstruya la fractura exacta que vas a
+trabajar, y te sirva para planificar».
+
+**Objetivo.** Un módulo 06, «Planificación con imágenes del paciente», que hoy
+solo se anuncia:
+
+- se ve como una sexta tarjeta con la insignia **«Próximamente»**;
+- tiene una página con la descripción detallada de lo que va a ser;
+- los editores dejan requisitos y propuestas de cómo les gustaría, que se votan,
+  se comentan y el administrador acepta o descarta.
+
+Cuando se decida construirlo de verdad, esos requisitos son la base del P-002.
+
+**Hecho cuando…**
+
+- La portada, con y sin sesión, enseña la sexta tarjeta con «Próximamente».
+- Pulsarla abre la descripción.
+- Un editor propone un requisito y otro lo vota.
+- El administrador lo marca «aceptado» con una respuesta, y el autor recibe
+  aviso.
+- Un residente ve la descripción, pero no el buzón.
+
+**Decisiones de diseño**
+
+- **Un módulo anunciado no es un módulo de verdad.** No entra en
+  `SLUGS_DE_MODULOS`. Esa lista manda en los permisos, los enums de la base y
+  cinco copias más (ver el informe de E1), y no hay contenido que proteger. Va
+  en una lista aparte, `MODULOS_ANUNCIADOS` (`src/lib/modulosAnunciados.ts`):
+  número, slug, nombre, ruta, resumen y estado `proximamente`.
+- **Dónde se ve.**
+  - Portada con sesión: sexta tarjeta, atenuada, con la insignia y sin
+    contadores de lectura.
+  - Portada sin sesión: en la tira de módulos, con la insignia.
+  - El texto «Cinco módulos» pasa a decir los que haya.
+  - En la barra superior, no: se reserva para lo que ya se puede usar.
+- **La página** `/planificacion`: la ven todos los que tienen sesión. El texto lo
+  revisa Cristóbal (ver «Lo que va a ser», más abajo).
+- **El buzón de requisitos.** Colección nueva `requisitos`; pide migración.
+  - Campos: `titulo` (hasta 120), `descripcion` (hasta 4.000), `modulo` (un
+    select, de momento solo `planificacion`, preparado para que otros módulos
+    tengan el suyo), `autor` (fijado al crear), `estado`, `respuesta` (texto
+    del administrador) y `votos` (relación múltiple con `usuarios`).
+  - Estados: propuesto, en estudio, aceptado, hecho y descartado.
+  - Acceso:
+    - leer y crear: editor y administrador;
+    - el autor edita título y descripción mientras esté «propuesto»;
+    - estado y respuesta, solo el administrador;
+    - borrar, solo el administrador;
+    - el lector, nada.
+- **Avisos.** Correo a los administradores por cada requisito nuevo, y al autor
+  cuando cambia el estado. Mismo gancho que los comentarios, y el mismo freno:
+  diez cada diez minutos.
+
+**Lo que va a ser** (el texto de la página; lo revisa Cristóbal):
+
+1. **Cargar el estudio.** Una tomografía en DICOM. La resonancia, no, en la v1.
+   - Se lee en el navegador.
+   - Se **anonimiza en el navegador antes de subir**: se borran nombre, RUT e
+     identificadores, fechas, institución y médico, siguiendo el perfil básico de
+     confidencialidad de DICOM (PS3.15).
+   - Nada que identifique al paciente sale del computador.
+2. **Reconstruir.**
+   - El hueso se segmenta en la tomografía: umbral en unidades Hounsfield con
+     crecimiento de regiones, o un modelo entrenado como TotalSegmentator, cuya
+     licencia hay que revisar antes (ver Q-007).
+   - Con *marching cubes* se obtiene una malla por hueso, suavizada y reducida a
+     5 MB.
+3. **Separar los fragmentos.** Cada pieza ósea suelta es un fragmento.
+   - El editor los nombra y confirma.
+   - Propone su código AO con el mismo asistente de E4.
+4. **Llevarlo al taller.** La fractura del paciente se abre en el taller como
+   cualquier preparación: se reduce con E3, se ponen implantes con E5 y se graba
+   el paso a paso con E6.
+5. **Planificar.**
+   - Reducción virtual.
+   - Implante elegido.
+   - Largo de cada tornillo y lista de material (la v2 de E6).
+   - Un resumen en PDF para el pabellón.
+6. **Conservar poco.** El estudio y su reconstrucción se borran solos a los N
+   días. Solo los ven su autor y los administradores.
+
+**Lo que no va a ser:** no diagnostica, no reemplaza el criterio del cirujano y
+no se usa con estudios sin anonimizar.
+
+**Antes del P-002 hay que decidir dos cosas**, y la página lo dice:
+
+- **Docente o clínico.** Si la plataforma se usa para decidir una cirugía real
+  de un paciente concreto, puede pasar a considerarse software de uso médico, con
+  exigencias regulatorias. La v1 propuesta es **docente**, con estudios
+  anonimizados.
+- **Los datos de salud son datos sensibles.** Hace falta una revisión legal antes
+  de aceptar un solo estudio real: consentimiento, y comité de ética si son del
+  hospital (Q-005, Q-007).
+
+**Capacidad: por confirmar.** La segmentación pide GPU. En `ved` hay rastros de
+CUDA (`paginas/16_cuda_gui_nsight.sh`) y del grupo `ollama`. Hay que comprobar
+qué tarjeta tiene y cuánta memoria.
+
+**Tareas**
+
+- [ ] **E7.1 · `MODULOS_ANUNCIADOS`,** la sexta tarjeta en las dos portadas y el
+  texto «Cinco módulos». La insignia es la de E1, con otro texto.
+- [ ] **E7.2 · La página `/planificacion`**, con «Lo que va a ser», «Lo que no va
+  a ser» y «Antes de construirlo». Con su guardia de sesión, y cualquier enlace
+  escrito a mano pasa por `ruta()`.
+- [ ] **E7.3 · La colección `requisitos`.**
+  - Acceso y migración.
+  - `CLASE_DE` y fábrica en `roles.test.ts`.
+  - Su esquema en el panel, si se edita desde ahí.
+- [ ] **E7.4 · El buzón en la página, solo para editores y administradores.**
+  - Lista ordenada por votos.
+  - «+1».
+  - «Proponer un requisito».
+  - Insignias de estado.
+  - El administrador cambia el estado y responde ahí mismo.
+- [ ] **E7.5 · Avisos por correo** y su freno.
+- [ ] **E7.6 · Panel.** Contador de requisitos nuevos en «Resumen», y una línea
+  en el registro (D-145).
+- [ ] **E7.7 · Pruebas.**
+  - `roles.test.ts`: el editor crea y vota; el lector no ve nada; el autor no
+    cambia el estado.
+  - `panelPorRol.test.ts` y migraciones.
+  - Que la portada enseña seis tarjetas y que la sexta no tiene contadores.
+- [ ] **E7.8 · Manual y D-nnn.** La pregunta de fondo ya está en la sección 4 como
+  Q-009 (2026-10-07); al cerrar la etapa, se anota ahí lo que se haya decidido.
+
+**Preguntas**
+
+- **E7-Q1 · El nombre del módulo.** «Planificación con imágenes del paciente» es
+  una propuesta. ¿O «Planificación quirúrgica», o «Del DICOM al pabellón»?
+- **E7-Q2 · ¿Los residentes ven la tarjeta «Próximamente»,** o solo los editores
+  hasta que haya fecha? Se propone que la vean: crea expectativa y no cuesta
+  nada.
+
+---
+
 #### Cómo retomarlo en otra sesión
 
 1. Leer este P-001 entero y las D-nnn que enlaza.
@@ -6703,6 +7037,8 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
 | E3 · Manipulación directa | pendiente | 2 | — |
 | E4 · Fracturas AO | pendiente | 3–4 | — |
 | E5 · Piel e instrumental | piel hecha (D-155); instrumental pendiente | 2–3 | D-155 |
+| E6 · Manejo AO paso a paso | pendiente | 3–4 | — |
+| E7 · Módulo 06 DICOM: anuncio y buzón | pendiente; puede adelantarse tras E1 | 1–2 | — |
 
 ---
 
