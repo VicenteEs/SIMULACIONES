@@ -7,6 +7,7 @@ import { LayoutDashboard, CircleUserRound } from 'lucide-react'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { MODULOS as MODULOS_DE_LA_PLATAFORMA } from '@/app/(frontend)/admin-panel/modulos'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 
 /**
  * Rótulo de cada módulo en la barra.
@@ -76,9 +77,14 @@ export async function Navegacion({
   const hayPanel = rolReal === 'admin' || rolReal === 'editor'
 
   const { usuarioEfectivo } = await obtenerSesion()
+  // Un módulo en mantención desaparece para el residente y, para quien conserva
+  // el acceso, se queda con su marca (D-156). Se pregunta con el usuario
+  // efectivo: el administrador que mira «como residente» lo ve desaparecer, que
+  // es justo para lo que sirve esa vista.
+  const enMantencion = await modulosEnMantencion()
   const modulos = MODULOS.filter((m) =>
-    puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, m.coleccion),
-  )
+    puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, m.coleccion, enMantencion),
+  ).map((m) => ({ ...m, enMantencion: enMantencion.includes(m.coleccion) }))
 
   return (
     <header className="barra">

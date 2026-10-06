@@ -70,7 +70,8 @@ describe('las cinco páginas preguntan en el mismo sitio', () => {
     // casillas: es la regresión que la función por listas existe para evitar.
     expect(veces(LISTADO, 'lecturasDelResidente(')).toBe(1)
     const llamada = LISTADO.indexOf('lecturasDelResidente(payload')
-    const primeraTarjeta = LISTADO.indexOf('grupos.map(')
+    // Las tarjetas salen ahora de dentro de las regiones (D-157).
+    const primeraTarjeta = LISTADO.indexOf('deLaRegion.map(')
     expect(primeraTarjeta).toBeGreaterThan(-1)
     expect(llamada).toBeLessThan(primeraTarjeta)
     expect(LISTADO).toContain('completadoInicial={lecturas.leida(m.id)}')

@@ -4695,6 +4695,118 @@ que envuelve todo. Al abrir el taller en «Cuerpo» se ve la piel y no el esquel
 hasta apagarla o poner rayos X (D-139); y un marco que tome el abdomen se la lleva,
 porque su centro está ahí (el marco elige por centros, D-126). Si estorba más de lo
 que sirve, `quitar-piel.mjs` la vuelve a quitar en un minuto.
+
+### D-156 · 2026-10-07 · vigente
+**Un módulo se puede poner «en mantención»: el residente deja de verlo, el editor no.**
+Pedido del dueño (P-001, E1): ocultar o mostrar un módulo desde el panel, sin
+tocar los permisos de nadie. Al precisarlo, la respuesta fue: el residente, y
+cualquier lector, no ve el módulo; el editor lo ve marcado «En mantención»; el
+interruptor es del administrador y hay uno por cada módulo.
+
+*Cómo.* Una colección nueva, `ajustes`, de una sola fila, con el campo
+`modulosEnMantencion` (un `select` múltiple de los cinco módulos). No un *global*
+de Payload: los globals no entran en la vigilancia de migraciones
+(`migraciones.test.ts`), en la matriz de roles ni en el registro de acciones
+(D-145), y un interruptor que decide qué ve cada residente es lo último que debe
+quedar sin vigilar. Migración `20261006_232958_modulos_en_mantencion` (la tabla,
+su enumerado y el `payload_locked_documents_rels`); no toca nada existente.
+
+- **Las reglas** (`src/access/reglas.ts`) siguen siendo puras: `puedeVerModulo` y
+  `filtroDeLecturaDeModulo` reciben la lista como tercer argumento, y solo cierra
+  al **lector**. `puedeEditarModulo` no la recibe y no cambia: el editor edita
+  dentro de la mantención (respuesta a E1-Q3, que era un supuesto; si no se
+  quisiera, es una línea en esa función). `cerradoPorMantencion` dice cuál de las
+  dos pantallas pintar.
+- **De dónde sale la lista.** Para las páginas, `modulosEnMantencion()`
+  (`src/lib/modulosEnMantencion.ts`), cacheada por petición con `cache` de React.
+  Para Payload, `lecturaDeModulo` y `creacionEnModuloVisible` la leen con
+  `leerMantencion` (`src/lib/mantencion.ts`), que no importa la configuración de
+  Payload —la configuración importa las colecciones, que importan estos
+  adaptadores— y la guardan en `req.context`: una sola consulta por petición. Solo
+  se consulta cuando quien pregunta es un lector; para el editor y el
+  administrador la regla sigue contestando síncrona. Si la consulta falla, la
+  lectura del lector falla con ella: no se abre.
+- **Qué ve cada quien.** Lector: sin el módulo en la barra, el menú del
+  teléfono, la portada (tira, tarjeta, conteos, «Continúa leyendo», recorridos del
+  simulador, los dos accesos fijos a `/biblioteca` y `/tecnica-ao`), ni en los
+  avisos de contenido nuevo (`/api/cambios`); una dirección a mano le da la
+  pantalla neutra `ModuloNoDisponible` («Este módulo no está disponible en este
+  momento»), y no puede comentar ni anotar lecturas en él. Editor y
+  administrador: lo ven como siempre, con la marca (`InsigniaMantencion`) en la
+  barra, la portada, el listado del módulo, «Contenido» y el Resumen del panel.
+  «Ver como residente» lo esconde sin hacer nada más, porque el usuario efectivo
+  ya es un lector.
+- **El progreso del residente no se borra.** La mantención solo filtra lo que se
+  le enseña; las filas de `actividad` siguen ahí, y al devolver el módulo el avance
+  reaparece.
+- **El interruptor** (`InterruptorDeMantencion`, en «Contenido») es un
+  `role="switch"`, solo del administrador, con la acción `cambiarMantencionDeModulo`
+  (`exigirAdmin`, con el rol real). Apagarlo pide confirmación; devolverlo, no.
+- **El registro de acciones** anota una fila por módulo que entra o sale
+  (`mantencion-de-modulo`), desde el gancho de la colección y no desde la acción:
+  cualquier otra vía que escriba la fila deja la misma huella.
+- **Cambia la matriz de roles.** `ajustes` entra como clase `administracion`: el
+  administrador la lee, crea, edita y borra; nadie más. (El plan decía «borrar,
+  nadie» y «crear solo si no existe»; se desistió de las dos porque la matriz crea
+  y borra filas de prueba de cada colección, y la lectura toma siempre la fila más
+  antigua, así que una segunda fila no manda.)
+
+*Pruebas.* `tests/unit/mantencionDeModulos.test.ts` (reglas, lectura de la lista,
+adaptadores, registro, colección), `listadosDeModulo` y `fichasDeModulo` exigen
+ahora el tercer argumento en cada una de las nueve páginas y las dos pantallas, y
+`roles.test.ts` prueba contra la base real que el lector no lee ni comenta el
+módulo apartado y que el editor sí lee, escribe y comenta. 180 de integración
+verdes contra una base desechable.
+
+*Consecuencias buenas.* Se arregla un módulo a media tanda sin despublicar ni
+tocar permisos, y el residente no ve nada a medias. *Malas, y conocidas:*
+- **Olvidar el tercer argumento no falla, deja abierto.** Es el defecto de que
+  sea opcional; lo cubren las dos pruebas de guardias, pero una página nueva de
+  módulo que se escriba sin copiar el patrón queda abierta. La prueba de
+  inventario de colecciones no lo ve.
+- **No hay aviso al residente** de que un módulo volvió; reaparece sin más.
+- **Dos sitios siguen enlazando a módulos apartados:** la pantalla 404 («Ir a la
+  biblioteca») y los enlaces que un autor escriba dentro de un texto rico. Los dos
+  llevan a «no disponible» y no a una avería, y no se tocaron.
+- **Estadísticas y Auditoría no marcan el módulo** (el plan lo pedía): las ve solo
+  el administrador, que ve todo, y no aportaban nada que no diga ya el Resumen.
+
+### D-157 · 2026-10-07 · vigente
+**El examen físico y la biblioteca se agrupan por región anatómica.**
+Pedido de Cristóbal: «dejar separado por segmento anatómico». El dueño pidió lo
+más fácil de implementar que deje la página ordenada e intuitiva. Los trece
+segmentos puestos en fila no decían dónde acaba el miembro superior.
+
+*Cómo.* Una tabla fija, `src/lib/regiones.ts`, traduce el nombre de cada segmento
+a su región —miembro superior (hombro, brazo, codo, antebrazo, muñeca y mano),
+miembro inferior (cadera, muslo, rodilla, pierna, tobillo y pie), esqueleto axial
+(columna, pelvis y acetábulo), generales (principios generales)— y los ordena de
+proximal a distal. Un segmento que no figure va a «Otros», al final: nunca se
+pierde una ficha por no estar en la tabla. Se compara sin tildes ni mayúsculas.
+`/examen-fisico` pone el nombre de la región como encabezado (h2) con sus
+segmentos (h3) y maniobras (h4) debajo, y su índice agrupa los segmentos por
+región; la biblioteca, igual. El buscador esconde la región cuando ninguno de sus
+segmentos tiene algo que enseñar.
+
+*Por qué una tabla en el código y no un campo.* Un campo en `segmentos` habría
+pedido migración, cambio de formulario y rellenar trece filas a mano en cada
+servidor, a cambio de nada que la tabla no dé: los segmentos son los que fija la
+ingesta y no crecen a diario. **No pide migración.** Si algún día hay que agrupar
+a mano, el campo se añade entonces y esta tabla pasa a ser su valor por omisión.
+
+*Lo que cambia, además.* El orden de los segmentos dentro de una región ya sale de
+la tabla y no del campo `orden`: **E1.8b** (fijar el `orden` desde el panel) queda
+sin objeto. `orden` sigue mandando entre los desconocidos y en el resto de
+pantallas. Es solo presentación: los anclajes `#maniobra-<id>` y `#segmento-<id>`
+no cambian. `tests/unit/regiones.test.ts` exige región para los trece nombres y
+avisa si la ingesta permite un segmento nuevo que la tabla no conoce.
+
+*E1.8c, la partición de las dos maniobras de miembro superior de «Principios
+generales»*, no es código: es contenido, y lo aprueba Cristóbal. La propuesta, con
+la tabla de qué va dónde y lo que hay que saber antes (D-142, comentarios,
+imágenes), está en
+`docs/propuestas/PARTICION-DEL-EXAMEN-DEL-MIEMBRO-SUPERIOR.md`. No se aplicó nada.
+
 ---
 
 ### O-014 · 2026-09-06 · alta · resuelta
@@ -6154,7 +6266,7 @@ Cierran las preguntas que el plan dejaba abiertas:
 
 ---
 
-#### E1 · Módulos en mantención · 1–2 sesiones · pendiente
+#### E1 · Módulos en mantención · 1–2 sesiones · hecha en código (2026-10-07) · falta la partición de contenido (E1.8c) y desplegar
 
 **Objetivo.** Desde el panel, el administrador pone en mantención cualquiera de
 los cinco módulos, o lo devuelve a visible.
@@ -6215,26 +6327,26 @@ los cinco módulos, o lo devuelve a visible.
 
 **Tareas**
 
-- [ ] **E1.1 · La colección.** `src/collections/Ajustes.ts`:
+- [x] **E1.1 · La colección.** `src/collections/Ajustes.ts`:
   - acceso: leer y modificar solo el administrador; crear solo si no existe
     (gancho); borrar, nadie;
   - registrarla en `COLECCIONES`, en `CLASE_DE` de `roles.test.ts` (clase
     `administracion`) y en su fábrica de documentos;
   - `npx payload migrate:create modulos_en_mantencion` y `npm run generate:types`.
-- [ ] **E1.2 · Leer y escribir.**
+- [x] **E1.2 · Leer y escribir.**
   - Leer devuelve `[]` si no hay fila.
   - La acción `cambiarMantencionDeModulo(slug, enMantencion)` va en
     `acciones/admin.ts`, protegida con `exigirAdmin`.
   - Anota en el registro una acción nueva, `mantencion-de-modulo`, en
     `ACCIONES_DEL_REGISTRO` (`src/lib/registro.ts` l.22; no pide migración).
   - Hace `revalidatePath` de la portada y del panel.
-- [ ] **E1.3 · Las reglas.**
+- [x] **E1.3 · Las reglas.**
   - `reglas.ts` y `payload.ts`.
   - Se rompen dos pruebas que buscan con una expresión regular la llamada de dos
     argumentos: `tests/unit/listadosDeModulo.test.ts` l.54 y
     `tests/unit/fichasDeModulo.test.ts` l.57. Hay que actualizarlas.
   - Pruebas unitarias: el lector no ve; el editor y el administrador, sí.
-- [ ] **E1.4 · Lo público.** En cada punto, el lector no ve el módulo y el editor
+- [x] **E1.4 · Lo público.** En cada punto, el lector no ve el módulo y el editor
   lo ve con la insignia:
   - `src/components/Navegacion.tsx`: la barra y el menú móvil.
   - Portada con sesión, `src/app/(frontend)/page.tsx`:
@@ -6250,7 +6362,7 @@ los cinco módulos, o lo devuelve a visible.
   - `src/app/(frontend)/api/cambios/route.ts` y `versionActual`
     (`src/lib/publicaciones.ts`).
   - Las acciones `crearComentario` y `anotar`, para el lector.
-- [ ] **E1.5 · El panel.**
+- [x] **E1.5 · El panel.**
   - En «Contenido», cada tarjeta de módulo lleva el interruptor «Visible / En
     mantención», solo para el administrador.
   - El interruptor confirma con `useConfirmar`: «Los residentes dejarán de ver
@@ -6258,15 +6370,15 @@ los cinco módulos, o lo devuelve a visible.
   - La insignia aparece en «Resumen» y en el listado del módulo.
   - Estadísticas y Auditoría marcan el módulo.
   - En `src/lib/permisos.ts`, la fila del lector en la tabla de capacidades.
-- [ ] **E1.6 · Pruebas.**
+- [x] **E1.6 · Pruebas.**
   - `roles.test.ts`, módulo en mantención: el lector no lee; el editor lee y
     escribe; el administrador, igual.
   - `panelPorRol.test.ts`.
   - Una prueba de que la portada sin sesión no lista el módulo en mantención.
-- [ ] **E1.7 · Documentación.** Sección en `docs/MANUAL-DE-USO.md`, y la D-nnn.
-- [ ] **E1.8 · El examen físico, ordenado.** Decidido: lo más fácil que deja la
+- [x] **E1.7 · Documentación.** Sección en `docs/MANUAL-DE-USO.md`, y la D-nnn.
+- [x] **E1.8 · El examen físico, ordenado.** Decidido: lo más fácil que deja la
   página ordenada e intuitiva. Son tres partes, y **ninguna pide migración**.
-  - [ ] **E1.8a · Regiones sin tocar la base.**
+  - [x] **E1.8a · Regiones sin tocar la base.**
     - Una tabla fija en `src/lib/regiones.ts` traduce el nombre de cada segmento a
       su región:
 
@@ -6285,10 +6397,10 @@ los cinco módulos, o lo devuelve a visible.
       encima, y los anclajes `#maniobra-<id>` no cambian.
     - Una prueba exige que los 13 nombres de segmento que usa la ingesta tengan
       región.
-  - [ ] **E1.8b · Orden anatómico de los segmentos.** Se fija el `orden` de cada
+  - [x] **E1.8b · Orden anatómico de los segmentos.** *Sin objeto (D-157): el orden de proximal a distal sale de la tabla de regiones, no del campo `orden`.* Se fija el `orden` de cada
     segmento en «Material de apoyo → Segmentos anatómicos». Es contenido, no
     código.
-  - [ ] **E1.8c · Partir la maniobra del miembro superior.**
+  - [ ] **E1.8c · Partir la maniobra del miembro superior.** *Propuesta escrita en `docs/propuestas/PARTICION-DEL-EXAMEN-DEL-MIEMBRO-SUPERIOR.md`; falta que la apruebe Cristóbal y que se aplique desde el panel.*
     - Hoy mezcla los troncos nerviosos con tres signos cubitales, y está en
       «Principios generales».
     - Se prepara una propuesta de partición a partir de la ficha original
@@ -6304,7 +6416,7 @@ los cinco módulos, o lo devuelve a visible.
 **Preguntas**
 
 - ~~E1-Q1~~ y ~~E1-Q2~~: respondidas el 2026-10-07 (ver «Respuestas del dueño»).
-- **E1-Q3 · ¿El editor edita dentro de la mantención?** Se supone que sí.
+- ~~E1-Q3~~: se implementó con el supuesto (el editor edita dentro de la mantención, D-156). Si no se quiere, es una línea en `puedeEditarModulo`.
 
 ---
 
@@ -7032,7 +7144,7 @@ qué tarjeta tiene y cuánta memoria.
 
 | Etapa | Estado | Sesiones | Decisiones |
 |---|---|---|---|
-| E1 · Módulos en mantención | pendiente | 1–2 | — |
+| E1 · Módulos en mantención | hecha en código; falta E1.8c (contenido) y desplegar | 1–2 | D-156, D-157 |
 | E2 · Comentarios en el taller | pendiente | 1–2 | — |
 | E3 · Manipulación directa | pendiente | 2 | — |
 | E4 · Fracturas AO | pendiente | 3–4 | — |

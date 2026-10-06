@@ -1028,3 +1028,27 @@ th[aria-sort='descending'] { color: var(--marca); }
    la matriz son los síes. */
 .icono-si { color: var(--verde); }
 .icono-no { color: var(--linea-fuerte); }
+
+/* El interruptor de mantención de un módulo (D-156), en la tarjeta de «Contenido».
+   Pista verde cuando el módulo está visible, que es lo normal, y ámbar cuando está
+   apartado: el color cuenta el estado de lejos, y el texto de al lado lo dice. */
+.interruptor-mantencion {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  padding: var(--e-1) var(--e-2) var(--e-1) var(--e-1);
+  border: 1px solid var(--linea); border-radius: var(--r-full);
+  background: var(--superficie); color: var(--pizarra);
+  font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer;
+}
+.interruptor-mantencion:disabled { opacity: 0.6; cursor: progress; }
+.interruptor-mantencion-pista {
+  position: relative; width: 34px; height: 20px; flex: none;
+  border-radius: var(--r-full); background: var(--verde); transition: background-color var(--dur-rapida) ease;
+}
+.interruptor-mantencion-bola {
+  position: absolute; top: 2px; left: 16px; width: 16px; height: 16px;
+  border-radius: var(--r-full); background: var(--superficie); transition: left var(--dur-rapida) ease;
+}
+.interruptor-mantencion-apagado .interruptor-mantencion-pista { background: var(--ambar); }
+.interruptor-mantencion-apagado .interruptor-mantencion-bola { left: 2px; }
+.interruptor-mantencion-apagado { color: var(--ambar-texto); border-color: var(--ambar); }
+.tarjeta-modulo-cabeza .insignia-mantencion { margin-left: auto; }

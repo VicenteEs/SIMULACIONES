@@ -202,6 +202,8 @@ const CLASE_DE: Record<string, Clase> = {
   // El registro de acciones y el tiempo activo (D-145): solo el administrador.
   'registro-de-acciones': 'administracion',
   'tiempo-activo': 'administracion',
+  // Los ajustes de la plataforma (D-156): hoy, los módulos en mantención.
+  ajustes: 'administracion',
 }
 
 type Esperado = (a: Actor) => boolean
@@ -406,6 +408,10 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
   'registro-de-acciones': {
     titulo: 'titulo',
     fabricar: (titulo) => ({ data: { titulo, fecha: new Date().toISOString(), accion: 'creo' } }),
+  },
+  ajustes: {
+    titulo: 'nombre',
+    fabricar: (nombre) => ({ data: { nombre, modulosEnMantencion: [] } }),
   },
   'tiempo-activo': {
     titulo: 'dia',
@@ -1000,6 +1006,162 @@ describe.skipIf(intento.payload === null)('cada rol contra la base', () => {
       expect(sesion.desactivado).not.toBeNull()
       expect(sesion.desactivado?.activo).toBe(false)
     })
+  })
+
+  /**
+   * D-156: un módulo en mantención se cierra al lector y a nadie más.
+   *
+   * Contra la base y con las reglas de verdad: lo que se comprueba es que la
+   * lista llegue hasta la consulta de Payload —`lecturaDeModulo` y
+   * `creacionEnModuloVisible`— y no se quede en lo que pinta la interfaz. Una
+   * página que esconde el módulo y una API que lo sigue entregando no cierran
+   * nada.
+   *
+   * La fila de `ajustes` la lee la plataforma por su cuenta y siempre la más
+   * antigua, así que si la base ya traía una se **reutiliza** y se restaura al
+   * terminar: crear una segunda no mandaría, y dejar la primera cambiada sería
+   * ensuciar la base de quien corrió la prueba.
+   */
+  describe('un módulo en mantención', () => {
+    const MODULO = 'casos-ao'
+    const OTRO = 'cirugias'
+
+    async function conMantencion<T>(lista: string[], tarea: () => Promise<T>): Promise<T> {
+      const { docs } = await payload.find({
+        collection: 'ajustes',
+        limit: 1,
+        sort: 'createdAt',
+        depth: 0,
+        pagination: false,
+        overrideAccess: true,
+      })
+      const previa = docs[0] as { id: number | string; modulosEnMantencion?: string[] } | undefined
+      let propia: number | string | null = null
+      if (previa) {
+        await payload.update({
+          collection: 'ajustes',
+          id: previa.id,
+          data: { modulosEnMantencion: lista } as never,
+          overrideAccess: true,
+        })
+      } else {
+        const creada = await payload.create({
+          collection: 'ajustes',
+          data: { modulosEnMantencion: lista } as never,
+          overrideAccess: true,
+        })
+        propia = creada.id
+      }
+      try {
+        return await tarea()
+      } finally {
+        if (previa) {
+          await payload.update({
+            collection: 'ajustes',
+            id: previa.id,
+            data: { modulosEnMantencion: previa.modulosEnMantencion ?? [] } as never,
+            overrideAccess: true,
+          })
+        } else if (propia !== null) {
+          await payload.delete({ collection: 'ajustes', id: propia, overrideAccess: true })
+        }
+      }
+    }
+
+    const publicada = async (slug: string) => {
+      const fixture = FABRICAS[slug].fabricar(unico('mantencion'))
+      return crearComo(slug, { ...fixture, data: { ...fixture.data, _status: 'published' } })
+    }
+
+    const lee = async (slug: string, id: number | string, user: Record<string, unknown> | null) =>
+      contiene(
+        await juzgada(
+          payload.find({
+            collection: slug as never,
+            where: { id: { equals: id } } as never,
+            overrideAccess: false,
+            user: user as never,
+          }),
+        ),
+        id,
+      )
+
+    it('el lector no lo lee; el editor y el administrador, sí', async () => {
+      const ficha = await publicada(MODULO)
+      const resultado = await conMantencion([MODULO], async () => ({
+        lector: await lee(MODULO, ficha.id, sesion.lector),
+        editor: await lee(MODULO, ficha.id, sesion.editor),
+        admin: await lee(MODULO, ficha.id, sesion.admin),
+      }))
+      expect(resultado).toEqual({ lector: false, editor: true, admin: true })
+    }, 120_000)
+
+    it('los demás módulos siguen igual para el lector', async () => {
+      const otra = await publicada(OTRO)
+      expect(await conMantencion([MODULO], () => lee(OTRO, otra.id, sesion.lector))).toBe(true)
+    }, 120_000)
+
+    it('sin mantención, el lector lo vuelve a leer', async () => {
+      const ficha = await publicada(MODULO)
+      expect(await conMantencion([], () => lee(MODULO, ficha.id, sesion.lector))).toBe(true)
+    }, 120_000)
+
+    it('el editor sigue escribiendo en el módulo en mantención', async () => {
+      const ficha = await publicada(MODULO)
+      const nuevo = unico('editada-en-mantencion')
+      await conMantencion([MODULO], () =>
+        juzgada(
+          payload.update({
+            collection: MODULO as never,
+            id: ficha.id,
+            data: { titulo: nuevo } as never,
+            overrideAccess: false,
+            user: sesion.editor as never,
+          }),
+        ),
+      )
+      expect((await leerSinReglas(MODULO, ficha.id))?.titulo).toBe(nuevo)
+    }, 120_000)
+
+    it('el lector no comenta ni anota lectura en él; el editor sí', async () => {
+      const ficha = await publicada(MODULO)
+      const comentar = async (user: Record<string, unknown> | null) => {
+        const texto = unico('comentario')
+        return crearYComprobar(
+          'comentarios',
+          { data: { texto, coleccion: MODULO, documentoId: String(ficha.id) } },
+          user,
+          { texto: { equals: texto } },
+        )
+      }
+      const resultado = await conMantencion([MODULO], async () => ({
+        lector: await comentar(sesion.lector),
+        editor: await comentar(sesion.editor),
+      }))
+      expect(resultado).toEqual({ lector: false, editor: true })
+    }, 120_000)
+
+    it('poner y quitar la mantención deja una anotación por módulo en el registro', async () => {
+      const antes = await payload.count({
+        collection: 'registro-de-acciones',
+        where: { accion: { equals: 'mantencion-de-modulo' } },
+        overrideAccess: true,
+      })
+      await conMantencion([MODULO], async () => null)
+      const despues = await payload.find({
+        collection: 'registro-de-acciones',
+        where: { accion: { equals: 'mantencion-de-modulo' } },
+        sort: '-createdAt',
+        limit: 4,
+        overrideAccess: true,
+      })
+      // Una al ponerlo y otra al restaurar: el gancho anota cada cambio de la
+      // lista, venga de la acción del panel o de cualquier otra escritura.
+      expect(despues.totalDocs - antes.totalDocs).toBeGreaterThanOrEqual(1)
+      const ultimas = despues.docs as unknown as { coleccion?: string }[]
+      expect(ultimas.some((f) => f.coleccion === MODULO)).toBe(true)
+      for (const fila of despues.docs) creados.push({ collection: 'registro-de-acciones', id: (fila as { id: number }).id })
+    }, 120_000)
   })
 
   /**

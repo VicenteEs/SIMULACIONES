@@ -89,6 +89,7 @@ export interface Config {
     'sesiones-de-revision': SesionesDeRevision;
     'registro-de-acciones': RegistroDeAccione;
     'tiempo-activo': TiempoActivo;
+    ajustes: Ajuste;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -118,6 +119,7 @@ export interface Config {
     'sesiones-de-revision': SesionesDeRevisionSelect<false> | SesionesDeRevisionSelect<true>;
     'registro-de-acciones': RegistroDeAccionesSelect<false> | RegistroDeAccionesSelect<true>;
     'tiempo-activo': TiempoActivoSelect<false> | TiempoActivoSelect<true>;
+    ajustes: AjustesSelect<false> | AjustesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -2059,6 +2061,20 @@ export interface TiempoActivo {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ajustes".
+ */
+export interface Ajuste {
+  id: number;
+  nombre?: string | null;
+  /**
+   * Los residentes no ven estos módulos. Los editores y administradores sí, con la insignia «En mantención».
+   */
+  modulosEnMantencion?: ('patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia')[] | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -2168,6 +2184,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'tiempo-activo';
         value: number | TiempoActivo;
+      } | null)
+    | ({
+        relationTo: 'ajustes';
+        value: number | Ajuste;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -3633,6 +3653,16 @@ export interface TiempoActivoSelect<T extends boolean = true> {
   porHora?: T;
   ultimoLatido?: T;
   ultimaRuta?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ajustes_select".
+ */
+export interface AjustesSelect<T extends boolean = true> {
+  nombre?: T;
+  modulosEnMantencion?: T;
   updatedAt?: T;
   createdAt?: T;
 }

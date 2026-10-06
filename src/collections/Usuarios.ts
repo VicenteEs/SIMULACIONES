@@ -6,6 +6,7 @@ import { limpiarRastroDeUsuario } from './hooks/bajaDeUsuario'
 import { armarCorreo } from '@/correo/plantilla'
 import { mensajeDeClaveNueva } from '@/correo/mensajes'
 import { registrarAccion } from '@/lib/registroServidor'
+import { OPCIONES_DE_MODULO } from './opcionesDeModulo'
 
 /**
  * Cuántos intentos fallidos bloquean una cuenta, y por cuánto tiempo.
@@ -16,15 +17,6 @@ import { registrarAccion } from '@/lib/registroServidor'
  */
 export const INTENTOS_ANTES_DE_BLOQUEAR = 5
 export const MINUTOS_DE_BLOQUEO = 10
-
-/** Los cinco módulos, tal como se ofrecen al asignar permisos. */
-const OPCIONES_DE_MODULO = [
-  { label: 'Biblioteca de patologías', value: 'patologias' },
-  { label: 'Examen físico', value: 'maniobras' },
-  { label: 'Técnica AO', value: 'casos-ao' },
-  { label: 'Simulador quirúrgico', value: 'cirugias' },
-  { label: 'Lectura de imágenes', value: 'estudios-ia' },
-]
 
 /**
  * La dirección pública de la plataforma, sin barra final, o `''` si no está

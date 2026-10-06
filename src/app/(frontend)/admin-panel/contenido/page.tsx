@@ -20,8 +20,11 @@ import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { ESQUEMAS, type EsquemaDeColeccion } from '@/admin/esquema'
 import { puedeEditar } from '@/lib/guardias'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
+import { InsigniaMantencion } from '@/components/ui/InsigniaMantencion'
+import { InterruptorDeMantencion } from '@/components/admin/InterruptorDeMantencion'
 import { clientePayload } from '../datos'
-import { rutaPublica } from '../modulos'
+import { NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,7 +111,8 @@ async function resumir(payload: Payload, esquema: EsquemaDeColeccion): Promise<R
  * de la plataforma.
  */
 export default async function PaginaContenido() {
-  const { sesion } = await exigirPanel()
+  const { sesion, esAdmin } = await exigirPanel()
+  const enMantencion = await modulosEnMantencion()
 
   // Un editor con módulos asignados solo ve los suyos. Antes se listaban todos
   // y los ajenos se abrían igual: el «no tiene permiso» llegaba al guardar, con
@@ -161,7 +165,17 @@ export default async function PaginaContenido() {
                     <Icono aria-hidden size={20} />
                   </span>
                   <div className="tarjeta-modulo-nombre">{esquema.plural}</div>
+                  {enMantencion.includes(esquema.slug) ? <InsigniaMantencion /> : null}
                 </div>
+                {/* El interruptor es solo del administrador: el editor ve la
+                    marca de arriba, pero no decide quién ve qué. */}
+                {esAdmin ? (
+                  <InterruptorDeMantencion
+                    modulo={esquema.slug}
+                    nombre={NOMBRE_DE_MODULO[esquema.slug] ?? esquema.plural}
+                    enMantencion={enMantencion.includes(esquema.slug)}
+                  />
+                ) : null}
                 <div className="admin-card-value admin-card-value-sm">
                   {publicados}
                   {enBorrador > 0 ? <span className="admin-numero-tenue"> +{enBorrador} borr.</span> : null}

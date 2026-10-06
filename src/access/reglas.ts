@@ -63,12 +63,46 @@ export const puedeEditarContenido = (u: UsuarioSesion | null | undefined): boole
 export const puedeAdministrarUsuarios = (u: UsuarioSesion | null | undefined): boolean =>
   habilitada(u) && u.rol === 'admin'
 
-/** ¿Puede esta cuenta ver el módulo indicado? El administrador siempre puede. */
-export const puedeVerModulo = (u: UsuarioSesion | null | undefined, modulo: string): boolean => {
+/**
+ * ¿Puede esta cuenta ver el módulo indicado? El administrador siempre puede.
+ *
+ * `enMantencion` es la lista de módulos que el administrador apartó de la vista
+ * de los residentes (D-156). Solo afecta al **lector**: el editor y el
+ * administrador siguen viendo y trabajando el módulo, porque la mantención es
+ * justo cuando hay que entrar a arreglarlo. Va como argumento y no se lee aquí
+ * para que esta función siga siendo pura; quien la llama la trae de
+ * `src/lib/modulosEnMantencion.ts` (las páginas) o de `req.context` (Payload).
+ *
+ * Por omisión es la lista vacía, y eso es una trampa conocida: olvidar pasarla
+ * no falla, deja el módulo abierto al residente. Lo vigilan `listadosDeModulo` y
+ * `fichasDeModulo`, que exigen el tercer argumento en cada página de módulo.
+ */
+export const puedeVerModulo = (
+  u: UsuarioSesion | null | undefined,
+  modulo: string,
+  enMantencion: readonly string[] = [],
+): boolean => {
   if (!habilitada(u)) return false
   if (u.rol === 'admin') return true
+  if (u.rol === 'lector' && enMantencion.includes(modulo)) return false
   return permite(u.modulosVisibles, modulo)
 }
+
+/**
+ * ¿Es la mantención, y no un permiso, lo que le cierra el módulo a esta cuenta?
+ *
+ * Solo el lector, y solo si de otro modo lo vería. Sirve para elegir la pantalla
+ * que se le pinta: a quien le falta el permiso se le dice a quién pedirlo
+ * (`SinAccesoAlModulo`), y a quien lo tiene pero el módulo está apartado, que
+ * no hay nada que pedir (`ModuloNoDisponible`). Mezclarlas manda al residente a
+ * pedirle a un administrador algo que el administrador mismo quitó.
+ */
+export const cerradoPorMantencion = (
+  u: UsuarioSesion | null | undefined,
+  modulo: string,
+  enMantencion: readonly string[],
+): boolean =>
+  habilitada(u) && u.rol === 'lector' && enMantencion.includes(modulo) && permite(u.modulosVisibles, modulo)
 
 /**
  * ¿Puede escribir en el módulo indicado?
@@ -131,8 +165,9 @@ export const filtroDeLectura = (
 export const filtroDeLecturaDeModulo = (
   u: UsuarioSesion | null | undefined,
   modulo: string,
+  enMantencion: readonly string[] = [],
 ): boolean | typeof SOLO_PUBLICADO => {
-  if (!puedeVerModulo(u, modulo)) return false
+  if (!puedeVerModulo(u, modulo, enMantencion)) return false
   return puedeEditarModulo(u, modulo) ? true : SOLO_PUBLICADO
 }
 

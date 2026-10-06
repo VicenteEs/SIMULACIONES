@@ -15,6 +15,7 @@ import * as migration_20260930_211204_ingesta_procedencia_y_notas from './202609
 import * as migration_20260930_211905_registro_de_acciones_y_tiempo_activo from './20260930_211905_registro_de_acciones_y_tiempo_activo';
 import * as migration_20261002_144044_instrumento_propuesto from './20261002_144044_instrumento_propuesto';
 import * as migration_20261002_151329_reinicio_de_clave_payload_3_90 from './20261002_151329_reinicio_de_clave_payload_3_90';
+import * as migration_20261006_232958_modulos_en_mantencion from './20261006_232958_modulos_en_mantencion';
 
 export const migrations = [
   {
@@ -100,6 +101,11 @@ export const migrations = [
   {
     up: migration_20261002_151329_reinicio_de_clave_payload_3_90.up,
     down: migration_20261002_151329_reinicio_de_clave_payload_3_90.down,
-    name: '20261002_151329_reinicio_de_clave_payload_3_90'
+    name: '20261002_151329_reinicio_de_clave_payload_3_90',
+  },
+  {
+    up: migration_20261006_232958_modulos_en_mantencion.up,
+    down: migration_20261006_232958_modulos_en_mantencion.down,
+    name: '20261006_232958_modulos_en_mantencion'
   },
 ];

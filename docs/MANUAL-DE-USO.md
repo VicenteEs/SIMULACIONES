@@ -72,6 +72,7 @@ hacen perder.
 | Estadísticas y actividad de lectura | — | — | sí |
 | Cuentas, solicitudes y permisos | — | — | sí |
 | Difusión por correo, respaldos, sistema | — | — | sí |
+| Poner un módulo en mantención (sección 14) | — | — | sí |
 
 El editor puede estar limitado a algunos módulos; el administrador ve y edita
 siempre los cinco.
@@ -566,7 +567,44 @@ lo que es, información sobre personas.
 
 ---
 
-## 14. Cuando algo no sale
+## 14. Poner un módulo en mantención
+
+Cuando un módulo está a medio arreglar —una tanda de fichas por corregir, una
+reestructuración— se puede **apartar de la vista de los residentes** sin
+despublicar nada ni tocar los permisos de nadie.
+
+En «Contenido», cada tarjeta de módulo lleva un interruptor, solo para los
+administradores:
+
+- **Visible para residentes** (verde): lo normal.
+- **En mantención** (ámbar): los residentes dejan de ver el módulo.
+
+Al apagarlo la plataforma pide confirmación y dice qué pasa. Devolverlo a
+visible no la pide.
+
+**Qué ve cada quien mientras dura:**
+
+| | Residente (lector) | Editor y administrador |
+|---|---|---|
+| Barra superior y menú del teléfono | No aparece | Aparece, con un icono de llave inglesa |
+| Portada | Sin tarjeta, sin conteo ni «Continúa leyendo» de ese módulo | Con la tarjeta, marcada «En mantención» |
+| Una dirección escrita a mano o un enlace guardado | «Este módulo no está disponible en este momento» | Abre como siempre, con la marca junto al título |
+| Comentar o marcar como leída | No puede | Puede |
+| Avisos de «contenido nuevo» | No los recibe | Los recibe |
+
+**Lo que no cambia:** el editor sigue entrando, editando, publicando y revisando
+las fichas del módulo como siempre; nada se despublica ni se borra; y el avance
+de lectura del residente **no se pierde**: solo deja de verse mientras dura la
+mantención y vuelve cuando se devuelve el módulo.
+
+Para comprobarlo antes de avisar a nadie, use «Ver como residente» (sección 8):
+el módulo desaparece de la barra y de la portada, igual que para un residente.
+
+Cada cambio queda en «Registro» (en el panel), con quién lo hizo y a qué hora.
+
+---
+
+## 15. Cuando algo no sale
 
 | Qué pasa | Qué hacer |
 |---|---|
@@ -581,6 +619,7 @@ lo que es, información sobre personas.
 | El archivo se rechaza al subir | Formato o peso: 50 MB imagen y video, 5 MB modelos, video solo MP4 o WEBM. |
 | El video se corta al subir | Pruebe uno más liviano; si ese sube, comprima el grande. |
 | No aparece un módulo en «Contenido» | Sus permisos no lo incluyen. Lo cambia un administrador. |
+| Un residente dice que no ve un módulo | Puede estar en mantención (sección 14) o no estar entre los que su cuenta tiene asignados (sección 9). «Contenido» y «Usuarios y permisos» lo dicen. |
 | «El taller anatómico necesita un computador» | Pantalla demasiado estrecha. Ábralo en un computador. |
 | Publiqué y un lector no lo ve | Confirme la insignia «✓ Publicada» y que la cuenta del lector tiene ese módulo visible. |
 | La plataforma no abre | Avise al desarrollador. No hay nada que hacer desde el navegador. |

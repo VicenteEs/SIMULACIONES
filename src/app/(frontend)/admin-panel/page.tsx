@@ -17,6 +17,8 @@ import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { PlegarTodo } from '@/components/admin/PlegarTodo'
 import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
+import { InsigniaMantencion } from '@/components/ui/InsigniaMantencion'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { puedeEditar } from '@/lib/guardias'
 import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
@@ -55,6 +57,8 @@ export default async function ResumenAdmin() {
   const { sesion, esAdmin } = await exigirPanel()
 
   const payload = await clientePayload()
+  // Los módulos en mantención (D-156), para marcarlos en su tarjeta.
+  const enMantencion = await modulosEnMantencion()
 
   const [usuarios, comentarios, todosLosModulos, actividad, lecturaDeRespaldos, solicitudes, pendientes] =
     await Promise.all([
@@ -465,6 +469,7 @@ export default async function ResumenAdmin() {
                     <div className="admin-card-numero">{m.numero}</div>
                     <h3 className="tarjeta-modulo-nombre">{m.nombre}</h3>
                   </div>
+                  {enMantencion.includes(m.slug) ? <InsigniaMantencion /> : null}
                 </div>
                 <div className="admin-card-value">
                   {m.ilegible ? (

@@ -4,8 +4,9 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { pestanasConContenido } from '@/lib/fichas'
 import { lecturasDelResidente } from '@/lib/lecturas'
-import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
-import { SinAcceso, SinAccesoAlModulo } from '@/components/Estados'
+import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
+import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { IndiceFicha } from '@/components/IndiceFicha'
 
@@ -35,8 +36,14 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
   // no está» sobre una patología publicada. Con el usuario real, un
   // administrador en vista previa pasaría la guardia y volvería a caer en lo
   // mismo. El porqué entero, en la cabecera de `SinAccesoAlModulo`.
-  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'patologias')) {
-    return <SinAccesoAlModulo titulo="Biblioteca de patologías" />
+  // Un módulo en mantención se le cierra al residente con su propia pantalla (D-156).
+  const enMantencion = await modulosEnMantencion()
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'patologias', enMantencion)) {
+    return cerradoPorMantencion(usuarioEfectivo as UsuarioSesion | null, 'patologias', enMantencion) ? (
+      <ModuloNoDisponible titulo="Biblioteca de patologías" />
+    ) : (
+      <SinAccesoAlModulo titulo="Biblioteca de patologías" />
+    )
   }
 
   const payload = await getPayload({ config })

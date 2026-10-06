@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
+import { InsigniaMantencion } from '@/components/ui/InsigniaMantencion'
 
 /**
  * Las cabeceras de los cinco módulos: la del listado y la de cada ficha.
@@ -68,11 +69,14 @@ export function CabeceraDeModulo({
   titulo,
   entradilla,
   acciones,
+  enMantencion = false,
 }: {
   slug: string
   titulo: string
   entradilla?: ReactNode
   acciones?: ReactNode
+  /** El módulo está en mantención y quien lo mira puede verlo: se le avisa (D-156). */
+  enMantencion?: boolean
 }) {
   return (
     <header className="cabecera-modulo">
@@ -81,6 +85,7 @@ export function CabeceraDeModulo({
         <div>
           <EyebrowDeModulo slug={slug} />
           <h1>{titulo}</h1>
+          {enMantencion ? <InsigniaMantencion /> : null}
           {entradilla ? <p className="entrada">{entradilla}</p> : null}
         </div>
         {acciones}

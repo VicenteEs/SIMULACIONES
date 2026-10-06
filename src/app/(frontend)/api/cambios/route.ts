@@ -4,6 +4,7 @@ import config from '@payload-config'
 import { versionActual } from '@/lib/publicaciones'
 import { despliegueActual } from '@/lib/despliegue'
 import { puedeVerModulo } from '@/access/reglas'
+import { leerMantencion } from '@/lib/mantencion'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,12 +39,17 @@ export async function GET() {
 
   let sesion = await sesionVigente()
   if (!sesion) return new Response('No autorizado', { status: 401 })
+  // Un módulo en mantención tampoco se anuncia a los residentes (D-156): el
+  // aviso nombra el módulo, y callarlo es lo que lo mantiene fuera de su vista.
+  // Se relee con la sesión, cada minuto, para que el interruptor se note sin
+  // esperar a que la pestaña se reabra.
+  let enMantencion = await leerMantencion(payload)
 
   // A cada quien lo suyo. Una cuenta con `modulosVisibles` restringido no debe
   // enterarse siquiera de que se publicó algo en un módulo que no ve: se lo
   // diría el aviso, recargaría, y no encontraría nada. Y como el aviso nombra
   // el módulo, callarlo no es cortesía sino la decisión D-020.
-  const puedeVer = (modulo: string) => sesion !== null && puedeVerModulo(sesion, modulo)
+  const puedeVer = (modulo: string) => sesion !== null && puedeVerModulo(sesion, modulo, enMantencion)
 
   const codificador = new TextEncoder()
   let intervalo: ReturnType<typeof setInterval>
@@ -87,6 +93,7 @@ export async function GET() {
         envios += 1
         if (envios % ENVIOS_ENTRE_COMPROBACIONES === 0) {
           sesion = await sesionVigente().catch(() => null)
+          if (sesion) enMantencion = await leerMantencion(payload)
         }
         if (!sesion) {
           clearInterval(intervalo)

@@ -7,6 +7,7 @@
  * cambia en `reglas.ts` y las colecciones no se tocan.
  */
 import type { Access, FieldAccess } from 'payload'
+import { leerMantencion, type ClienteDeLectura } from '@/lib/mantencion'
 import {
   filtroDeLecturaDeModulo,
   filtroDePropiedad,
@@ -65,6 +66,40 @@ const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
 // cuenta puede editar ese módulo antes de enseñarle un borrador.
 
 /**
+ * Los módulos en mantención, vistos desde una petición de Payload (D-156).
+ *
+ * Solo importa a quien lee como **lector**: para el editor y el administrador
+ * la lista no cambia nada (ver `puedeVerModulo`), así que no se consulta y la
+ * regla sigue contestando síncrona, como siempre. Al lector se le contesta tras
+ * una sola consulta por petición: la promesa se guarda en `req.context`, que
+ * Payload reutiliza entre las funciones de acceso de una misma petición, y una
+ * lista de ocho colecciones no son ocho lecturas de `ajustes`.
+ *
+ * Una petición sin cliente de Payload —las pruebas unitarias de los adaptadores
+ * lo imitan solo con `user`— no puede preguntar y se lee como «ninguno en
+ * mantención». No es un fallo que se pueda dar en servicio: toda petición real
+ * lleva `req.payload`.
+ */
+type PeticionConMantencion = {
+  user?: unknown
+  payload?: ClienteDeLectura
+  context?: Record<string, unknown>
+}
+
+const mantencionDe = (req: PeticionConMantencion | undefined): Promise<string[]> | string[] => {
+  if (!req?.payload || !req.context) return []
+  const guardada = req.context.modulosEnMantencion as Promise<string[]> | undefined
+  if (guardada) return guardada
+  const consulta = leerMantencion(req.payload)
+  req.context.modulosEnMantencion = consulta
+  return consulta
+}
+
+/** ¿Hay que consultar la lista? Solo si quien pregunta es un lector. */
+const dependeDeLaMantencion = (req: PeticionConMantencion | undefined): boolean =>
+  usuarioDeSesion(req?.user)?.rol === 'lector'
+
+/**
  * Lectura de un módulo concreto, con permisos por módulo.
  *
  * Es una fábrica y no una función suelta porque la función de acceso de Payload
@@ -72,8 +107,13 @@ const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
  */
 export const lecturaDeModulo =
   (modulo: string): Access =>
-  (args) =>
-    filtroDeLecturaDeModulo(usuarioDe(args), modulo)
+  (args) => {
+    const req = args?.req as PeticionConMantencion | undefined
+    if (!dependeDeLaMantencion(req)) return filtroDeLecturaDeModulo(usuarioDe(args), modulo)
+    const lista = mantencionDe(req)
+    if (Array.isArray(lista)) return filtroDeLecturaDeModulo(usuarioDe(args), modulo, lista)
+    return lista.then((enMantencion) => filtroDeLecturaDeModulo(usuarioDe(args), modulo, enMantencion))
+  }
 
 /** Escritura de un módulo concreto, con permisos por módulo. */
 export const escrituraDeModulo =
@@ -173,7 +213,14 @@ export const accesoDeSeguimiento: Access = (args) => filtroDeSeguimiento(usuario
 export const creacionEnModuloVisible: Access = ({ req, data }) => {
   const modulo = (data as { coleccion?: unknown } | undefined)?.coleccion
   if (typeof modulo !== 'string') return false
-  return puedeVerModulo(usuarioDe({ req }), modulo)
+  const peticion = req as PeticionConMantencion
+  // Un residente tampoco comenta ni deja huella de lectura en un módulo en
+  // mantención: no lo ve, y la fila le llegaría al editor desde una pantalla
+  // que para el residente no existe.
+  if (!dependeDeLaMantencion(peticion)) return puedeVerModulo(usuarioDe({ req }), modulo)
+  const lista = mantencionDe(peticion)
+  if (Array.isArray(lista)) return puedeVerModulo(usuarioDe({ req }), modulo, lista)
+  return lista.then((enMantencion) => puedeVerModulo(usuarioDe({ req }), modulo, enMantencion))
 }
 
 /**

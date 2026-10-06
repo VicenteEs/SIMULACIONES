@@ -100,6 +100,12 @@ export function capacidadesPorRol(): CapacidadDeRol[] {
       ...porRol(puedeAdministrarUsuarios),
     },
     {
+      clave: 'mantencion',
+      etiqueta: 'Poner un módulo en mantención: los residentes no lo ven, los editores sí',
+      fuente: 'cambiarMantencionDeModulo (exigirAdmin)',
+      ...soloAdmin,
+    },
+    {
       clave: 'seguimiento',
       etiqueta: 'Ver estadísticas, actividad, auditoría y este registro',
       fuente: "exigirPanel('admin')",

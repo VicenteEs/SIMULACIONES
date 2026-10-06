@@ -434,11 +434,22 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
 
 /* ---------- rejilla de fichas ---------- */
 .grupo-segmento { margin-bottom: var(--e-10); scroll-margin-top: 140px; }
-.grupo-segmento > h2 {
+.grupo-segmento > h3 {
   display: flex; align-items: baseline; gap: var(--e-3);
   font-size: var(--t-md); margin-bottom: var(--e-4); padding-bottom: var(--e-2);
   border-bottom: 1px solid var(--linea-suave);
 }
+/* La región anatómica (D-157): el nivel por encima de los segmentos en el examen
+   físico y en la biblioteca. Un rótulo con regla propia y más peso que el del
+   segmento, para que se lea de un vistazo dónde acaba el miembro superior y
+   empieza el inferior sin sumar una caja más a la página. */
+.region-anatomica { margin-bottom: var(--e-8); }
+.region-titulo {
+  display: flex; align-items: center; gap: var(--e-3);
+  margin: 0 0 var(--e-5); font-size: var(--t-lg);
+  color: var(--acento, var(--marca)); letter-spacing: 0;
+}
+.region-titulo::after { content: ""; flex: 1; height: 2px; background: var(--acento-tenue, var(--marca-tenue)); }
 .grupo-segmento-cuenta { font-size: var(--t-sm); font-weight: 500; color: var(--mudo); letter-spacing: 0; }
 
 /* Una sola declaración de la rejilla y de la tarjeta. Hubo dos —una más
@@ -658,6 +669,15 @@ figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-
 }
 .indice-segmentos a:hover { border-color: var(--acento, var(--marca)); color: var(--acento, var(--marca)); }
 .indice-segmentos-cuenta { font-size: var(--t-xs); color: var(--mudo); }
+/* El índice por regiones (D-157): el nombre de la región y, a continuación, sus
+   segmentos, todo en la misma fila que se desplaza. Una raya fina separa una
+   región de la siguiente. */
+.indice-region { flex: none; display: flex; align-items: center; gap: var(--e-2); }
+.indice-region + .indice-region { padding-left: var(--e-3); border-left: 1px solid var(--linea); }
+.indice-region-titulo {
+  font-size: var(--t-xs); font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--mudo); white-space: nowrap;
+}
 .herramientas-maniobras .recuento { display: flex; align-items: center; gap: var(--e-2); margin: 0; }
 
 .maniobra {
@@ -671,7 +691,7 @@ figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-
 }
 .maniobra-cabecera::-webkit-details-marker { display: none; }
 .maniobra-cabecera:hover { background: var(--superficie-2); }
-.maniobra-cabecera h3 { font-size: var(--t-md); flex: 1; }
+.maniobra-cabecera h4 { font-size: var(--t-md); flex: 1; }
 .maniobra-flecha { flex: none; color: var(--mudo); transform: rotate(-90deg); transition: transform var(--dur) var(--curva); }
 .maniobra[open] > .maniobra-cabecera .maniobra-flecha { transform: none; }
 .maniobra[open] > .maniobra-cabecera { border-bottom: 1px solid var(--linea-suave); border-radius: var(--r-lg) var(--r-lg) 0 0; }
@@ -1946,3 +1966,15 @@ body:has(> .portada-publica) > .portada-publica {
    y con `nowrap` heredado de `.boton` empujaba la ficha 70 px fuera de la
    pantalla en el teléfono. Aquí sí puede partirse. */
 .boton-comentar { white-space: normal; text-align: left; height: auto; padding-top: var(--e-2); padding-bottom: var(--e-2); }
+
+/* Módulo en mantención (D-156): lo ve quien conserva el acceso y no es residente.
+   En la barra ancha es una pastilla con el icono y nada más, en el mismo ámbar
+   tenue de las demás señales de «a medias»; el texto «En mantención» lo lleva
+   el menú de la pantalla estrecha, que sí tiene sitio. */
+.modulos a .modulo-en-mantencion {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: var(--r-full);
+  background: var(--ambar-tenue); color: var(--ambar-texto);
+}
+.modulos a .modulo-en-mantencion svg { opacity: 1; }
+.menu-enlace .insignia-mantencion { margin-left: auto; }

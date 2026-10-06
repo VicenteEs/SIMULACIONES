@@ -1,6 +1,12 @@
 import type { CollectionAfterChangeHook, CollectionAfterDeleteHook, CollectionConfig } from 'payload'
 import { actorDeLaPeticion, registrarAccion } from '@/lib/registroServidor'
-import { cambiosDePermisos, COLECCIONES_SIN_REGISTRO, cambioEnPalabras } from '@/lib/registro'
+import {
+  cambiosDeMantencion,
+  cambiosDePermisos,
+  COLECCIONES_SIN_REGISTRO,
+  cambioEnPalabras,
+} from '@/lib/registro'
+import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
 
 /**
  * Los ganchos que dejan constancia en el registro de acciones (D-145).
@@ -71,6 +77,28 @@ const despuesDeCambiar =
             titulo: titulo(nuevo),
             detalle: cambios.map(cambioEnPalabras).join(' · '),
             cambios,
+          },
+          req,
+        )
+      }
+      return doc
+    }
+
+    if (slug === 'ajustes') {
+      // Lo que se anota es qué módulo entró o salió de la mantención, no que
+      // «se modificó una fila de ajustes», que no le dice nada a nadie. Una
+      // escritura que no mueve ningún módulo no deja huella.
+      for (const cambio of cambiosDeMantencion(anterior, nuevo)) {
+        await registrarAccion(
+          req.payload,
+          {
+            accion: 'mantencion-de-modulo',
+            usuario,
+            coleccion: cambio.modulo,
+            titulo: NOMBRE_DE_MODULO[cambio.modulo] ?? cambio.modulo,
+            detalle: cambio.enMantencion
+              ? 'lo puso en mantención: los residentes dejan de verlo'
+              : 'lo devolvió a visible para los residentes',
           },
           req,
         )

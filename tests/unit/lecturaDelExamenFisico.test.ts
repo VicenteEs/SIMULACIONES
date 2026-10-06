@@ -133,7 +133,10 @@ describe('el listado marca la lectura maniobra a maniobra', () => {
     // Y lo que se pinta no espera nada: un `await` o un `payload.` dentro del
     // JSX es un viaje a PostgreSQL por cada tarjeta que lo recorre.
     const jsx = codigo.slice(codigo.indexOf('return ('))
-    expect(jsx).toContain('grupos.map(')
+    // Los grupos pasan por las regiones (D-157), pero siguen siendo los que arma
+    // `agruparManiobrasPorSegmento`: la región solo los junta.
+    expect(jsx).toContain('regiones.map(')
+    expect(jsx).toContain('deLaRegion.map(')
     expect(jsx).not.toMatch(/\bawait\b/)
     expect(jsx).not.toContain('payload.')
     expect(jsx).not.toContain('lecturasDelResidente(')
@@ -145,7 +148,8 @@ describe('el listado marca la lectura maniobra a maniobra', () => {
     // volvería a dejarse fuera —sin pintar, sin marcar y contando en el
     // total— a la maniobra cuyo segmento se borró o nunca se puso.
     expect(LISTADO).toContain('agruparManiobrasPorSegmento(maniobras.docs, segmentos.docs)')
-    expect(LISTADO).toContain('{grupos.map(')
+    expect(LISTADO).toContain('agruparEnRegiones(grupos)')
+    expect(LISTADO).toContain('{deLaRegion.map(')
     expect(LISTADO).not.toMatch(/segmentos\.docs\.map\(/)
   })
 

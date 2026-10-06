@@ -34,10 +34,18 @@ function normalizarBusqueda(texto: string): string {
 }
 
 export function BuscadorDeManiobras({
-  segmentos,
+  regiones,
   total,
 }: {
-  segmentos: { clave: string; titulo: string; cuantas: number }[]
+  /**
+   * Los segmentos agrupados por región anatómica (D-157). El índice los enseña
+   * bajo el nombre de su región, en el mismo orden en que la página los pinta.
+   */
+  regiones: {
+    clave: string
+    titulo: string
+    segmentos: { clave: string; titulo: string; cuantas: number }[]
+  }[]
   total: number
 }) {
   const [texto, setTexto] = useState('')
@@ -56,6 +64,12 @@ export function BuscadorDeManiobras({
       }
       grupo.hidden = enElGrupo === 0
       cuantas += enElGrupo
+    }
+    // Una región se esconde cuando ya no le queda ningún segmento a la vista:
+    // sin esto, buscar «Lachman» dejaba el encabezado «Miembro superior» solo,
+    // con nada debajo.
+    for (const region of document.querySelectorAll<HTMLElement>('[data-region-maniobras]')) {
+      region.hidden = region.querySelector('[data-grupo-maniobras]:not([hidden])') === null
     }
     // Es el resultado de mirar el documento, no un estado derivado de otro
     // estado: no hay forma de calcularlo durante el pintado.
@@ -95,11 +109,21 @@ export function BuscadorDeManiobras({
         </p>
       ) : (
         <nav className="indice-segmentos" aria-label="Segmentos">
-          {segmentos.map((s) => (
-            <a key={s.clave} href={`#${s.clave}`}>
-              {s.titulo}
-              <span className="indice-segmentos-cuenta">{s.cuantas}</span>
-            </a>
+          {regiones.map((r) => (
+            // Un grupo con nombre y no solo una etiqueta suelta: quien navega con
+            // lector de pantalla oye «Miembro superior, grupo» antes de los
+            // segmentos que lo componen.
+            <div key={r.clave} className="indice-region" role="group" aria-label={r.titulo}>
+              <span className="indice-region-titulo" aria-hidden="true">
+                {r.titulo}
+              </span>
+              {r.segmentos.map((s) => (
+                <a key={s.clave} href={`#${s.clave}`}>
+                  {s.titulo}
+                  <span className="indice-segmentos-cuenta">{s.cuantas}</span>
+                </a>
+              ))}
+            </div>
           ))}
         </nav>
       )}

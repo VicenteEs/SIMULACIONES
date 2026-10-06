@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
+import { InsigniaMantencion } from '@/components/ui/InsigniaMantencion'
 import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { CuerpoDePortada } from '@/components/CuerpoDePortada'
 import { MallaDeNodos } from '@/components/MallaDeNodos'
@@ -79,8 +81,13 @@ function saludo(): string {
 export default async function Inicio() {
   const { usuario, usuarioEfectivo, activo, rolReal } = await obtenerSesion()
 
+  // Los módulos en mantención (D-156). Quien no ha entrado se trata como un
+  // residente: no se le enseñan, ni en la tira ni en el texto que los cuenta.
+  const enMantencion = await modulosEnMantencion()
+
   // ----------------------------------------------------------- sin sesión
   if (!usuario) {
+    const publicos = MODULOS.filter((m) => !enMantencion.includes(m.coleccion))
     return (
       <main className="portada-publica">
         <div className="portada-fondo" aria-hidden="true">
@@ -95,8 +102,8 @@ export default async function Inicio() {
           </h1>
 
           <p className="portada-bajada">
-            Cinco módulos que recorren la cadena completa de una decisión clínica: del estudio de la
-            patología a la ejecución en pabellón.
+            {publicos.length === MODULOS.length ? 'Cinco módulos' : 'Módulos'} que recorren la cadena
+            completa de una decisión clínica: del estudio de la patología a la ejecución en pabellón.
           </p>
 
           {/* Las dos puertas son el `.boton` de toda la plataforma: la
@@ -121,8 +128,11 @@ export default async function Inicio() {
           </p>
         </section>
 
-        <section className="portada-tira" aria-label="Los cinco módulos">
-          {MODULOS.map((m) => {
+        <section
+          className="portada-tira"
+          aria-label={publicos.length === MODULOS.length ? 'Los cinco módulos' : 'Los módulos'}
+        >
+          {publicos.map((m) => {
             const Icono = IDENTIDAD_DE_MODULO[m.coleccion]?.icono ?? BookOpen
             return (
               <div key={m.ruta} className="portada-tira-item">
@@ -181,9 +191,16 @@ export default async function Inicio() {
   //
   // Se filtra una vez y la misma lista sirve para los conteos y para la
   // rejilla, que es lo que mantiene a `conteos[i]` casando con su tarjeta.
+  //
+  // También con la lista de mantención: al residente se le quita el módulo
+  // apartado y a quien puede editarlo se le deja, con su marca (D-156). Es el
+  // mismo recorte que hace la barra, y por lo mismo que los conteos de abajo:
+  // contar un módulo que el listado no enseña vuelve a separar las dos pantallas.
   const modulosVisibles = MODULOS.filter((m) =>
-    puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, m.coleccion),
+    puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, m.coleccion, enMantencion),
   )
+  const verBiblioteca = modulosVisibles.some((m) => m.coleccion === 'patologias')
+  const verTecnicaAO = modulosVisibles.some((m) => m.coleccion === 'casos-ao')
 
   // Se cuenta con el control de acceso puesto y con el usuario efectivo, que es
   // exactamente como consulta el listado al que lleva cada tarjeta
@@ -490,20 +507,26 @@ export default async function Inicio() {
           </div>
 
           <div className="fila-botones">
-            <Link className="boton" href="/biblioteca">
-              <Library size={18} aria-hidden="true" />
-              Ir a la biblioteca
-            </Link>
+            {/* Los dos accesos fijos solo se ofrecen si el módulo se ve: eran
+                enlaces escritos a mano que no pasaban por ningún filtro, y con
+                un módulo en mantención llevaban al residente a la pantalla de
+                «no disponible» desde la propia portada. */}
+            {verBiblioteca ? (
+              <Link className="boton" href="/biblioteca">
+                <Library size={18} aria-hidden="true" />
+                Ir a la biblioteca
+              </Link>
+            ) : null}
             {puedeEditar ? (
               <Link className="boton boton-secundario" href="/admin-panel/contenido">
                 <PenLine size={18} aria-hidden="true" />
                 Escribir contenido
               </Link>
-            ) : (
+            ) : verTecnicaAO ? (
               <Link className="boton boton-secundario" href="/tecnica-ao">
                 Ver técnica AO
               </Link>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -646,6 +669,7 @@ export default async function Inicio() {
                 ) : null}
                 <div className="modulo-pie">
                   <div className="etiquetas">
+                    {enMantencion.includes(m.coleccion) ? <InsigniaMantencion /> : null}
                     {m.publico.map((p) => (
                       <span key={p} className="etiqueta">
                         {p}

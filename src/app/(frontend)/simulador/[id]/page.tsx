@@ -2,8 +2,9 @@ import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
-import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
-import { SinAcceso, SinAccesoAlModulo, Miga } from '@/components/Estados'
+import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
+import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Miga } from '@/components/Estados'
 import { CasoConSuLectura } from '@/components/simulador/CasoConSuLectura'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import { casoParaLaConsola } from '@/lib/casoQuirurgico'
@@ -22,8 +23,14 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
   // convierte en `notFound()` también el `Forbidden` de la regla de lectura, y
   // quien no tiene el módulo leía «Esta ficha ya no está» sobre un caso
   // publicado. El porqué entero, en la cabecera de `SinAccesoAlModulo`.
-  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'cirugias')) {
-    return <SinAccesoAlModulo titulo="Simulador quirúrgico" />
+  // Un módulo en mantención se le cierra al residente con su propia pantalla (D-156).
+  const enMantencion = await modulosEnMantencion()
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'cirugias', enMantencion)) {
+    return cerradoPorMantencion(usuarioEfectivo as UsuarioSesion | null, 'cirugias', enMantencion) ? (
+      <ModuloNoDisponible titulo="Simulador quirúrgico" />
+    ) : (
+      <SinAccesoAlModulo titulo="Simulador quirúrgico" />
+    )
   }
 
   const payload = await getPayload({ config })

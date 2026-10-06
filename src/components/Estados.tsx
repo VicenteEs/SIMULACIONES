@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
-import { House, LockKeyhole, LogIn, NotebookPen, Plus } from 'lucide-react'
+import { House, LockKeyhole, LogIn, NotebookPen, Plus, Wrench } from 'lucide-react'
 import { Vacio as VacioComun } from '@/components/ui/Vacio'
 import { MigaDePan } from '@/components/Cabeceras'
 
@@ -161,4 +161,32 @@ export function Vacio({ texto, enlace, accion }: { texto: string; enlace?: strin
  */
 export function Miga({ href, texto }: { href: string; texto: string }) {
   return <MigaDePan pasos={[{ href: '/', texto: 'Inicio' }, { href, texto }]} />
+}
+
+/**
+ * Pantalla para quien llega a un módulo que el administrador puso en mantención
+ * (D-156).
+ *
+ * No es `SinAccesoAlModulo`, aunque se parezcan: aquella manda a pedir acceso a
+ * un administrador, y aquí no hay acceso que pedir ni nada que la cuenta pueda
+ * hacer. El texto es neutro a propósito: no dice por qué ni hasta cuándo, porque
+ * no lo sabe esta pantalla, y prometer una hora que no se cumple es peor que no
+ * dar ninguna.
+ *
+ * Llega por una dirección escrita a mano, por un marcador o por el enlace de un
+ * compañero: la barra y la portada ya no ofrecen el módulo a un residente. Se
+ * pinta con un 200, por la misma razón que `SinAccesoAlModulo`.
+ */
+export function ModuloNoDisponible({ titulo }: { titulo: string }) {
+  return (
+    <Estado icono={Wrench} rotulo="En mantención" titulo={titulo} tono="candado">
+      <p>Este módulo no está disponible en este momento. Vuelva a intentarlo más tarde.</p>
+      <div className="fila-botones">
+        <Link className="boton" href="/">
+          <House size={18} aria-hidden="true" />
+          Volver a la portada
+        </Link>
+      </div>
+    </Estado>
+  )
 }

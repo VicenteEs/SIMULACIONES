@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { usuarioDeSesion } from '@/access/payload'
 import { puedeVerModulo } from '@/access/reglas'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { crearLimitador } from '@/lib/ritmo'
 import { obtenerSesion } from '@/lib/sesion'
 import {
@@ -55,7 +56,8 @@ export async function crearComentario(
   // llamando a la acción desde la consola, y el comentario le llegaba al
   // traumatólogo desde un módulo que para esa cuenta no existe. Se pregunta a la
   // misma regla que la colección, antes de abrir la base.
-  if (!puedeVerModulo(usuarioDeSesion(usuarioEfectivo), modulo)) {
+  // Y un módulo en mantención tampoco, para el residente (D-156).
+  if (!puedeVerModulo(usuarioDeSesion(usuarioEfectivo), modulo, await modulosEnMantencion())) {
     throw new Error('Su cuenta no tiene acceso a ese módulo.')
   }
 

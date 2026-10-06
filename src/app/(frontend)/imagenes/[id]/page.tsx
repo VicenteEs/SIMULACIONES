@@ -3,8 +3,9 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { lecturasDelResidente } from '@/lib/lecturas'
-import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
-import { SinAcceso, SinAccesoAlModulo } from '@/components/Estados'
+import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
+import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo } from '@/components/Estados'
 import { EyebrowDeModulo, MigaDePan, claseDeModulo } from '@/components/Cabeceras'
 import { BotonImprimir } from '@/components/BotonImprimir'
 import { BotonComentar } from '@/components/BotonComentar'
@@ -24,8 +25,14 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
   // convierte en `notFound()` también el `Forbidden` de la regla de lectura, y
   // quien no tiene el módulo leía «Esta ficha ya no está» sobre un estudio
   // publicado. El porqué entero, en la cabecera de `SinAccesoAlModulo`.
-  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'estudios-ia')) {
-    return <SinAccesoAlModulo titulo="Lectura de imágenes" />
+  // Un módulo en mantención se le cierra al residente con su propia pantalla (D-156).
+  const enMantencion = await modulosEnMantencion()
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'estudios-ia', enMantencion)) {
+    return cerradoPorMantencion(usuarioEfectivo as UsuarioSesion | null, 'estudios-ia', enMantencion) ? (
+      <ModuloNoDisponible titulo="Lectura de imágenes" />
+    ) : (
+      <SinAccesoAlModulo titulo="Lectura de imágenes" />
+    )
   }
 
   const payload = await getPayload({ config })

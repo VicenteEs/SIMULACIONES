@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ConmutadorVista } from './ConmutadorVista'
 import { BotonSalir } from './BotonSalir'
-import { LayoutDashboard, X } from 'lucide-react'
+import { LayoutDashboard, Wrench, X } from 'lucide-react'
 import { IDENTIDAD_DE_MODULO } from './ui/modulos'
+import { InsigniaMantencion } from './ui/InsigniaMantencion'
 
 /**
  * Las dos navegaciones de módulos de la barra superior.
@@ -23,6 +24,11 @@ export interface EntradaDeMenu {
   etiqueta: string
   /** El slug del módulo: de él salen su icono y su color (`IDENTIDAD_DE_MODULO`). */
   coleccion: string
+  /**
+   * Está en mantención (D-156): lo ve quien no es residente, así que la entrada
+   * existe y se marca. Para un residente la entrada ni se genera.
+   */
+  enMantencion?: boolean
 }
 
 /** El icono del módulo, si lo tiene; un módulo nuevo sin identidad sale sin él. */
@@ -63,6 +69,14 @@ export function BarraDeModulos({ modulos }: { modulos: EntradaDeMenu[] }) {
         >
           <IconoDeModulo coleccion={m.coleccion} tamano={16} />
           {m.etiqueta}
+          {/* Solo un icono: en la fila ancha los cinco módulos compiten por el
+              ancho, y la insignia con texto de la pantalla estrecha no cabe. */}
+          {m.enMantencion ? (
+            <span className="modulo-en-mantencion" title="En mantención: los residentes no lo ven">
+              <Wrench size={13} aria-hidden="true" />
+              <span className="sr-only">(en mantención)</span>
+            </span>
+          ) : null}
         </Link>
       ))}
     </nav>
@@ -258,6 +272,7 @@ export function MenuMovil({
                   <IconoDeModulo coleccion={m.coleccion} tamano={16} />
                 </span>
                 {m.etiqueta}
+                {m.enMantencion ? <InsigniaMantencion /> : null}
               </Link>
             )
           })}

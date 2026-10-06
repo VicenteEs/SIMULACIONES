@@ -3,6 +3,7 @@
 import React from 'react'
 import { Search, SearchX, X } from 'lucide-react'
 import { filtrarFichas, type FichaBuscable } from '@/lib/busqueda'
+import { agruparEnRegiones } from '@/lib/regiones'
 import { Vacio } from '@/components/ui/Vacio'
 import { TarjetaFicha } from '@/components/TarjetaFicha'
 
@@ -64,6 +65,9 @@ export function BibliotecaFiltrable({
   const grupos = segmentos
     .map((s) => ({ segmento: s, fichas: resultado.filter((f) => String(f.segmentoId) === String(s.id)) }))
     .filter((g) => g.fichas.length > 0)
+  // Y por encima, las regiones (D-157), con los segmentos de proximal a distal.
+  // `titulo` es lo que `agruparEnRegiones` compara con su tabla.
+  const regiones = agruparEnRegiones(grupos.map((g) => ({ ...g, titulo: g.segmento.nombre })))
 
   return (
     <>
@@ -123,29 +127,36 @@ export function BibliotecaFiltrable({
           <p>Pruebe con otra palabra, o quite el filtro de segmento o de tipo.</p>
         </Vacio>
       ) : (
-        grupos.map(({ segmento, fichas: lista }) => (
-          <section key={segmento.id} className="grupo-segmento">
-            <h2>
-              {segmento.nombre}
-              <span className="grupo-segmento-cuenta">
-                {lista.length} {lista.length === 1 ? 'ficha' : 'fichas'}
-              </span>
+        regiones.map(({ region, grupos: deLaRegion }) => (
+          <section key={region.clave} className="region-anatomica" aria-labelledby={`titulo-region-${region.clave}`}>
+            <h2 id={`titulo-region-${region.clave}`} className="region-titulo">
+              {region.titulo}
             </h2>
-            <ul className="rejilla-fichas">
-              {lista.map((f) => (
-                <li key={f.id}>
-                  <TarjetaFicha
-                    href={`/biblioteca/${f.id}`}
-                    titulo={f.nombre ?? ""}
-                    codigo={f.codigo}
-                    resumen={f.subtitulo}
-                    borrador={f.borrador}
-                    leida={f.leida}
-                    accion="Leer ficha"
-                  />
-                </li>
-              ))}
-            </ul>
+            {deLaRegion.map(({ segmento, fichas: lista }) => (
+              <section key={segmento.id} className="grupo-segmento">
+                <h3>
+                  {segmento.nombre}
+                  <span className="grupo-segmento-cuenta">
+                    {lista.length} {lista.length === 1 ? 'ficha' : 'fichas'}
+                  </span>
+                </h3>
+                <ul className="rejilla-fichas">
+                  {lista.map((f) => (
+                    <li key={f.id}>
+                      <TarjetaFicha
+                        href={`/biblioteca/${f.id}`}
+                        titulo={f.nombre ?? ""}
+                        codigo={f.codigo}
+                        resumen={f.subtitulo}
+                        borrador={f.borrador}
+                        leida={f.leida}
+                        accion="Leer ficha"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
           </section>
         ))
       )}

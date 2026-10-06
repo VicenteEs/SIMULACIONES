@@ -5,6 +5,7 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { usuarioDeSesion } from '@/access/payload'
 import { puedeVerModulo } from '@/access/reglas'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import {
   ErrorDeValidacion,
   exigirIdentificador,
@@ -87,7 +88,8 @@ async function anotar(
   // pregunta a `puedeVerModulo`, la misma que usa la colección, antes de tocar
   // la base. Con el usuario efectivo, como las páginas: es el que decide qué
   // módulos se le enseñaron.
-  if (!puedeVerModulo(usuarioDeSesion(usuarioEfectivo), modulo)) {
+  // Y un módulo en mantención tampoco, para el residente (D-156).
+  if (!puedeVerModulo(usuarioDeSesion(usuarioEfectivo), modulo, await modulosEnMantencion())) {
     throw new Error('Su cuenta no tiene acceso a ese módulo.')
   }
   const documento = exigirIdentificador(documentoId, 'La ficha')

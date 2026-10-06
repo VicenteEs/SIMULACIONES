@@ -29,6 +29,7 @@ export const ACCIONES_DEL_REGISTRO = [
   { value: 'elimino', label: 'Eliminó' },
   { value: 'lectura', label: 'Leyó' },
   { value: 'cambio-de-permisos', label: 'Cambió permisos o rol' },
+  { value: 'mantencion-de-modulo', label: 'Cambió la mantención de un módulo' },
   { value: 'importacion', label: 'Importó contenido' },
 ] as const
 
@@ -139,6 +140,36 @@ const valorEnPalabras = (valor: unknown): string => {
 
 export const cambioEnPalabras = (c: CambioDePermiso): string =>
   `${NOMBRE_DEL_CAMPO[c.campo] ?? c.campo}: ${valorEnPalabras(c.antes)} → ${valorEnPalabras(c.despues)}`
+
+// ------------------------------------------------ módulos en mantención
+
+export interface CambioDeMantencion {
+  modulo: string
+  /** `true`: el módulo pasó a estar en mantención; `false`: volvió a estar visible. */
+  enMantencion: boolean
+}
+
+/**
+ * Qué módulos entraron o salieron de la mantención entre dos versiones de la
+ * fila de ajustes. Una fila por módulo y no una por escritura: el registro se
+ * lee preguntando «qué pasó con la Técnica AO», y marcar dos casillas a la vez
+ * son dos actos distintos para quien los busca. El orden de la lista no es un
+ * cambio.
+ */
+export function cambiosDeMantencion(
+  antes: Record<string, unknown> | null | undefined,
+  despues: Record<string, unknown> | null | undefined,
+): CambioDeMantencion[] {
+  if (!despues) return []
+  const lista = (valor: unknown): string[] =>
+    Array.isArray(valor) ? valor.filter((v): v is string => typeof v === 'string') : []
+  const eran = new Set(lista(antes?.modulosEnMantencion))
+  const son = new Set(lista(despues.modulosEnMantencion))
+  return [
+    ...[...son].filter((m) => !eran.has(m)).map((modulo) => ({ modulo, enMantencion: true })),
+    ...[...eran].filter((m) => !son.has(m)).map((modulo) => ({ modulo, enMantencion: false })),
+  ]
+}
 
 // ------------------------------------------------------ tiempo activo
 

@@ -53,14 +53,19 @@ describe('entrar por el enlace de una ficha a un módulo ajeno', () => {
     // Con el usuario efectivo, que es el que va al `findByID`: una guardia
     // hecha con el real dejaría pasar a un administrador en vista previa, y la
     // consulta con su rol simulado volvería a acabar en «ya no está».
+    // Con la lista de mantención como tercer argumento (D-156), y las dos
+    // pantallas: «no asignado» y «en mantención».
     const guardia = new RegExp(
-      `!puedeVerModulo\\(\\s*usuarioEfectivo[^,]*,\\s*'${literal(slug)}'\\s*\\)\\s*\\)\\s*\\{?\\s*return\\s*<SinAccesoAlModulo\\b`,
+      `!puedeVerModulo\\(\\s*usuarioEfectivo[^,]*,\\s*'${literal(slug)}'\\s*,\\s*enMantencion\\s*\\)\\s*\\)\\s*\\{`,
     )
     const encontrada = guardia.exec(codigo)
     expect(
       encontrada,
-      `la ficha de «${slug}» no pregunta a puedeVerModulo con el usuario efectivo, o no pinta SinAccesoAlModulo`,
+      `la ficha de «${slug}» no pregunta a puedeVerModulo con el usuario efectivo y la lista de mantención`,
     ).not.toBeNull()
+    const cuerpo = codigo.slice(encontrada!.index, encontrada!.index + 500)
+    expect(cuerpo).toMatch(/<SinAccesoAlModulo\b/)
+    expect(cuerpo).toMatch(/<ModuloNoDisponible\b/)
 
     // Después del `findByID` no guarda nada: su `.catch` ya ha convertido el
     // `Forbidden` en `notFound()` cuando la guardia llega.

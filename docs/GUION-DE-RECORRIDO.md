@@ -260,6 +260,14 @@ Mostrar el selector de rol y «Activar». Después **«Rechazar»** la solicitud
 marca solo para restringir. Si quieren que alguien edite únicamente "Examen
 físico", marcan únicamente ese.»*
 
+**2b. Un módulo en mantención (2 min).** «Contenido»: señalar el interruptor de
+cualquier tarjeta de módulo. Apagarlo y volver a encenderlo delante de ellos.
+
+*«Si un módulo está a medio arreglar, se pone en mantención: los residentes dejan
+de verlo, y ustedes lo siguen viendo con una marca ámbar para poder trabajar.
+Nada se despublica. Apáguenlo solo si hace falta, y acuérdense de devolverlo: el
+residente no recibe ningún aviso de que el módulo volvió.»*
+
 **3. Clave, desactivar, eliminar (3 min).**
 
 *«"Clave" manda un enlace que dura una hora. Si lo pulsan dos veces, el primero

@@ -2,10 +2,12 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeEditar } from '@/lib/guardias'
-import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { agruparManiobrasPorSegmento } from '@/lib/maniobras'
+import { agruparEnRegiones } from '@/lib/regiones'
 import { lecturasDelResidente } from '@/lib/lecturas'
-import { SinAcceso, SinAccesoAlModulo, Vacio } from '@/components/Estados'
+import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Vacio } from '@/components/Estados'
 import { Bloques } from '@/components/Bloques'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import { Rico, tieneContenido } from '@/components/Rico'
@@ -64,8 +66,14 @@ export default async function ExamenFisico() {
   // la consulta, que va con su rol simulado. Es la misma guardia que los otros
   // cuatro listados, con la misma pantalla: si aquí dijera otra cosa, se leería
   // como un problema distinto. El porqué entero, en `SinAccesoAlModulo`.
-  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'maniobras')) {
-    return <SinAccesoAlModulo titulo="Examen físico" />
+  // Un módulo en mantención se le cierra al residente con su propia pantalla (D-156).
+  const enMantencion = await modulosEnMantencion()
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'maniobras', enMantencion)) {
+    return cerradoPorMantencion(usuarioEfectivo as UsuarioSesion | null, 'maniobras', enMantencion) ? (
+      <ModuloNoDisponible titulo="Examen físico" />
+    ) : (
+      <SinAccesoAlModulo titulo="Examen físico" />
+    )
   }
 
   // El botón del estado vacío lleva al panel, y el panel devuelve a la portada
@@ -110,11 +118,16 @@ export default async function ExamenFisico() {
   // qué costaba: una maniobra sin grupo no se pintaba, y en este módulo no
   // pintarse es no poderse leer ni marcar nunca.
   const grupos = agruparManiobrasPorSegmento(maniobras.docs, segmentos.docs)
+  // Y encima, las regiones (D-157): miembro superior, inferior, axial y
+  // generales, con los segmentos de proximal a distal dentro de cada una. Es solo
+  // presentación; las anclas de los segmentos y de las maniobras no cambian.
+  const regiones = agruparEnRegiones(grupos)
 
   return (
     <main className={claseDeModulo('maniobras')}>
       <CabeceraDeModulo
         slug="maniobras"
+        enMantencion={enMantencion.includes('maniobras')}
         titulo="Examen físico"
         entradilla="Maniobras por segmento, con su técnica, qué se considera positivo y cómo interpretarlo."
         acciones={
@@ -146,105 +159,125 @@ export default async function ExamenFisico() {
 
           <BuscadorDeManiobras
             total={maniobras.docs.length}
-            segmentos={grupos.map((g) => ({ clave: g.clave, titulo: g.titulo, cuantas: g.lista.length }))}
+            regiones={regiones.map(({ region, grupos: deLaRegion }) => ({
+              clave: region.clave,
+              titulo: region.titulo,
+              segmentos: deLaRegion.map((g) => ({ clave: g.clave, titulo: g.titulo, cuantas: g.lista.length })),
+            }))}
           />
 
-          {grupos.map((g) => (
-            // El `id` es el destino de los atajos del índice de segmentos, y
-            // `data-grupo-maniobras` lo que el buscador esconde si se queda sin
-            // ninguna maniobra que case.
-            <section key={g.clave} id={g.clave} className="grupo-segmento" data-grupo-maniobras="">
-              <h2>
-                {g.titulo}
-                <span className="grupo-segmento-cuenta">
-                  {g.lista.length} {g.lista.length === 1 ? 'maniobra' : 'maniobras'}
-                </span>
+          {regiones.map(({ region, grupos: deLaRegion }) => (
+            // La región envuelve a sus segmentos. `data-region-maniobras` es lo
+            // que el buscador esconde cuando ninguno de sus segmentos tiene una
+            // maniobra que case.
+            <section
+              key={region.clave}
+              id={`region-${region.clave}`}
+              className="region-anatomica"
+              data-region-maniobras=""
+              aria-labelledby={`titulo-region-${region.clave}`}
+            >
+              <h2 id={`titulo-region-${region.clave}`} className="region-titulo">
+                {region.titulo}
               </h2>
-              {g.lista.map((m) => (
-                // El ancla que compone `rutaPublica('maniobras', id)`
-                // (`admin-panel/modulos.ts`). El examen físico es el único
-                // módulo sin página por documento, así que «Ver publicado ↗»
-                // tras publicar una maniobra y «abrir ficha →» sobre un
-                // comentario apuntan los dos a `/examen-fisico#maniobra-<id>`.
-                // Sin este `id` el enlace aterrizaba arriba del listado y el
-                // editor tenía que buscar su maniobra a ojo entre todas las de
-                // todos los segmentos. Si algún día hay ficha por maniobra,
-                // esto y la excepción de `rutaPublica` se quitan juntos.
-                //
-                // Un `<details>` abierto por omisión: se lee igual que antes,
-                // y quien repasa puede plegar las que ya sabe. Abierto y no
-                // cerrado porque el ancla de arriba tiene que aterrizar en el
-                // contenido, no en un título que hay que volver a pulsar.
-                <details
-                  key={m.id}
-                  id={`maniobra-${m.id}`}
-                  className="maniobra"
-                  open
-                  data-busqueda={textoBuscable(m)}
-                >
-                  <summary className="maniobra-cabecera">
-                    <h3>{m.nombre as string}</h3>
-                    {lecturas.leida(m.id) ? (
-                      <span className="insignia insignia-ok">
-                        <CircleCheck size={13} aria-hidden="true" />
-                        Leída
-                      </span>
-                    ) : null}
-                    <ChevronDown size={18} className="maniobra-flecha" aria-hidden="true" />
-                  </summary>
-                  <div className="maniobra-cuerpo">
-                    <dl className="ficha-datos">
-                      <dt>Evalúa</dt>
-                      <dd>{m.evalua as string}</dd>
-                      <dt>Técnica</dt>
-                      <dd><Rico valor={m.tecnica} /></dd>
-                      <dt>Positivo</dt>
-                      <dd><Rico valor={m.positivo} /></dd>
-                      {tieneContenido(m.nota) ? (
-                        <>
-                          <dt>Nota</dt>
-                          <dd><Rico valor={m.nota} /></dd>
-                        </>
-                      ) : null}
-                    </dl>
-                    <Bloques bloques={m.contenido} />
-                  </div>
-                  {/* Las dos acciones de la maniobra en una fila al pie: antes
-                      eran la píldora de «leída» a la derecha y un botón
-                      centrado debajo con tres rem de aire, y cada maniobra
-                      terminaba en un bloque más alto que su contenido.
+              {deLaRegion.map((g) => (
+                // El `id` es el destino de los atajos del índice de segmentos, y
+                // `data-grupo-maniobras` lo que el buscador esconde si se queda sin
+                // ninguna maniobra que case.
+                <section key={g.clave} id={g.clave} className="grupo-segmento" data-grupo-maniobras="">
+                  <h3>
+                    {g.titulo}
+                    <span className="grupo-segmento-cuenta">
+                      {g.lista.length} {g.lista.length === 1 ? 'maniobra' : 'maniobras'}
+                    </span>
+                  </h3>
+                  {g.lista.map((m) => (
+                    // El ancla que compone `rutaPublica('maniobras', id)`
+                    // (`admin-panel/modulos.ts`). El examen físico es el único
+                    // módulo sin página por documento, así que «Ver publicado ↗»
+                    // tras publicar una maniobra y «abrir ficha →» sobre un
+                    // comentario apuntan los dos a `/examen-fisico#maniobra-<id>`.
+                    // Sin este `id` el enlace aterrizaba arriba del listado y el
+                    // editor tenía que buscar su maniobra a ojo entre todas las de
+                    // todos los segmentos. Si algún día hay ficha por maniobra,
+                    // esto y la excepción de `rutaPublica` se quitan juntos.
+                    //
+                    // Un `<details>` abierto por omisión: se lee igual que antes,
+                    // y quien repasa puede plegar las que ya sabe. Abierto y no
+                    // cerrado porque el ancla de arriba tiene que aterrizar en el
+                    // contenido, no en un título que hay que volver a pulsar.
+                    <details
+                      key={m.id}
+                      id={`maniobra-${m.id}`}
+                      className="maniobra"
+                      open
+                      data-busqueda={textoBuscable(m)}
+                    >
+                      <summary className="maniobra-cabecera">
+                        <h4>{m.nombre as string}</h4>
+                        {lecturas.leida(m.id) ? (
+                          <span className="insignia insignia-ok">
+                            <CircleCheck size={13} aria-hidden="true" />
+                            Leída
+                          </span>
+                        ) : null}
+                        <ChevronDown size={18} className="maniobra-flecha" aria-hidden="true" />
+                      </summary>
+                      <div className="maniobra-cuerpo">
+                        <dl className="ficha-datos">
+                          <dt>Evalúa</dt>
+                          <dd>{m.evalua as string}</dd>
+                          <dt>Técnica</dt>
+                          <dd><Rico valor={m.tecnica} /></dd>
+                          <dt>Positivo</dt>
+                          <dd><Rico valor={m.positivo} /></dd>
+                          {tieneContenido(m.nota) ? (
+                            <>
+                              <dt>Nota</dt>
+                              <dd><Rico valor={m.nota} /></dd>
+                            </>
+                          ) : null}
+                        </dl>
+                        <Bloques bloques={m.contenido} />
+                      </div>
+                      {/* Las dos acciones de la maniobra en una fila al pie: antes
+                          eran la píldora de «leída» a la derecha y un botón
+                          centrado debajo con tres rem de aire, y cada maniobra
+                          terminaba en un bloque más alto que su contenido.
 
-                      La marca de lectura va por maniobra y no por listado, que
-                      es lo que hacía que de este módulo no se registrara ni una
-                      lectura: sus fichas contaban en el total de la portada y
-                      nunca en las leídas. Marcar el listado entero de una vez
-                      habría quitado el suelo mintiendo: son treinta maniobras,
-                      no un documento.
+                          La marca de lectura va por maniobra y no por listado, que
+                          es lo que hacía que de este módulo no se registrara ni una
+                          lectura: sus fichas contaban en el total de la portada y
+                          nunca en las leídas. Marcar el listado entero de una vez
+                          habría quitado el suelo mintiendo: son treinta maniobras,
+                          no un documento.
 
-                      `anotarVisita={false}` es obligatorio aquí: ver la
-                      cabecera de la propiedad en `RastreadorActividad`.
+                          `anotarVisita={false}` es obligatorio aquí: ver la
+                          cabecera de la propiedad en `RastreadorActividad`.
 
-                      `nombreDeLaFicha` también, y por lo mismo que el `label`
-                      del formulario de justo debajo: son N casillas seguidas en
-                      una página cuyo `<h1>` dice «Examen físico» y nada más, así
-                      que sin el nombre el lector de pantalla las anuncia todas
-                      igual. Las cuatro fichas por documento no la escriben. */}
-                  <div className="maniobra-pie">
-                    <RastreadorActividad
-                      coleccion="maniobras"
-                      documentoId={String(m.id)}
-                      completadoInicial={lecturas.leida(m.id)}
-                      anotarVisita={false}
-                      nombreDeLaFicha={String(m.nombre)}
-                    />
-                    <FormularioComentario
-                      coleccion="maniobras"
-                      documentoId={String(m.id)}
-                      label={`Comentar mejora sobre ${m.nombre}`}
-                      textoBoton="Comentar"
-                    />
-                  </div>
-                </details>
+                          `nombreDeLaFicha` también, y por lo mismo que el `label`
+                          del formulario de justo debajo: son N casillas seguidas en
+                          una página cuyo `<h1>` dice «Examen físico» y nada más, así
+                          que sin el nombre el lector de pantalla las anuncia todas
+                          igual. Las cuatro fichas por documento no la escriben. */}
+                      <div className="maniobra-pie">
+                        <RastreadorActividad
+                          coleccion="maniobras"
+                          documentoId={String(m.id)}
+                          completadoInicial={lecturas.leida(m.id)}
+                          anotarVisita={false}
+                          nombreDeLaFicha={String(m.nombre)}
+                        />
+                        <FormularioComentario
+                          coleccion="maniobras"
+                          documentoId={String(m.id)}
+                          label={`Comentar mejora sobre ${m.nombre}`}
+                          textoBoton="Comentar"
+                        />
+                      </div>
+                    </details>
+                  ))}
+                </section>
               ))}
             </section>
           ))}

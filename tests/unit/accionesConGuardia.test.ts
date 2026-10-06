@@ -79,7 +79,14 @@ vi.mock('payload', async (original) => {
         if (propiedad === 'logger') return { error() {}, warn() {}, info() {} }
         if (propiedad === 'config') return { collections: [] }
         return async (...argumentos: unknown[]) => {
-          llamadas.push(String(propiedad))
+          // Leer la lista de módulos en mantención (D-156) no es tocar datos de
+          // nadie: es una lectura de un ajuste de la plataforma que las acciones
+          // del residente hacen antes de preguntar si el módulo se le enseña. Si
+          // contara, ninguna de ellas podría pasar la prueba de «no toca nada
+          // antes de la guardia», que es justo lo que se quiere seguir vigilando.
+          const esLecturaDeAjustes =
+            propiedad === 'find' && (argumentos[0] as { collection?: string } | undefined)?.collection === 'ajustes'
+          if (!esLecturaDeAjustes) llamadas.push(String(propiedad))
           return (respuestas[String(propiedad)] ?? (() => ({ id: 5, docs: [], errors: [] })))(...argumentos)
         }
       },
@@ -247,6 +254,9 @@ const GUARDIAS: Record<string, Clasificacion> = {
   // El editor resuelve comentarios —es quien arregla lo señalado— pero no los borra.
   'admin.ts:actualizarComentario': { guardia: 'editor', argumentos: () => ['5', 'resuelto'] },
   'admin.ts:resolverTodosLosComentarios': { guardia: 'editor', argumentos: () => [] },
+  // El interruptor de mantención de un módulo (D-156): del administrador, con su
+  // rol real, porque decide qué ve cada residente.
+  'admin.ts:cambiarMantencionDeModulo': { guardia: 'admin', argumentos: () => ['patologias', true] },
 
   'contenido.ts:listarDocumentos': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m, {}] },
   'contenido.ts:opcionesDeRelacion': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m] },

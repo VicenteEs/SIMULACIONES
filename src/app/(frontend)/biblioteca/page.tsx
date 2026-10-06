@@ -3,8 +3,9 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeEditar } from '@/lib/guardias'
-import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
-import { SinAcceso, SinAccesoAlModulo, Vacio } from '@/components/Estados'
+import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
+import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Vacio } from '@/components/Estados'
 import { BibliotecaFiltrable } from '@/components/BibliotecaFiltrable'
 import { CabeceraDeModulo, claseDeModulo } from '@/components/Cabeceras'
 import { lecturasDelResidente } from '@/lib/lecturas'
@@ -34,8 +35,14 @@ export default async function Biblioteca() {
   // se leerían igual, y lo que decide si esta página es de la cuenta son las
   // fichas. La guardia va antes de las dos consultas para no pedir segmentos
   // que no se van a pintar.
-  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'patologias')) {
-    return <SinAccesoAlModulo titulo="Biblioteca de patologías" />
+  // Un módulo en mantención se le cierra al residente con su propia pantalla (D-156).
+  const enMantencion = await modulosEnMantencion()
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'patologias', enMantencion)) {
+    return cerradoPorMantencion(usuarioEfectivo as UsuarioSesion | null, 'patologias', enMantencion) ? (
+      <ModuloNoDisponible titulo="Biblioteca de patologías" />
+    ) : (
+      <SinAccesoAlModulo titulo="Biblioteca de patologías" />
+    )
   }
 
   const payload = await getPayload({ config })
@@ -119,6 +126,7 @@ export default async function Biblioteca() {
     <main className={claseDeModulo('patologias')}>
       <CabeceraDeModulo
         slug="patologias"
+        enMantencion={enMantencion.includes('patologias')}
         titulo="Biblioteca de patologías"
         entradilla="Fichas estructuradas por segmento. Cada una termina en recomendaciones de manejo y una pestaña dedicada a rehabilitación."
         acciones={

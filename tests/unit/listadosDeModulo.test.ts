@@ -50,11 +50,18 @@ describe('entrar por la dirección a un módulo ajeno', () => {
     // Con el usuario efectivo y no con `usuario`: la consulta va con el
     // efectivo, y un administrador en vista previa pasaría una guardia hecha
     // con el real para estrellarse en el `find` con el mismo `Forbidden`.
+    //
+    // Y con la lista de mantención como tercer argumento (D-156): olvidarla no
+    // falla, deja el módulo abierto al residente. La guardia, además, distingue
+    // las dos pantallas: «no asignado» y «en mantención».
     const guardia = new RegExp(
-      `!puedeVerModulo\\(\\s*usuarioEfectivo[^,]*,\\s*'${literal(slug)}'\\s*\\)\\s*\\)\\s*\\{?\\s*return\\s*<SinAccesoAlModulo\\b`,
+      `!puedeVerModulo\\(\\s*usuarioEfectivo[^,]*,\\s*'${literal(slug)}'\\s*,\\s*enMantencion\\s*\\)\\s*\\)\\s*\\{`,
     )
     const encontrada = guardia.exec(codigo)
-    expect(encontrada, `la guardia de «${slug}» falta o no pinta SinAccesoAlModulo`).not.toBeNull()
+    expect(encontrada, `la guardia de «${slug}» falta o no recibe la lista de mantención`).not.toBeNull()
+    const cuerpo = codigo.slice(encontrada!.index, encontrada!.index + 500)
+    expect(cuerpo, `la guardia de «${slug}» no pinta SinAccesoAlModulo`).toMatch(/<SinAccesoAlModulo\b/)
+    expect(cuerpo, `la guardia de «${slug}» no pinta ModuloNoDisponible`).toMatch(/<ModuloNoDisponible\b/)
 
     // Una guardia puesta después del `find` no guarda nada: el `Forbidden` ya
     // se ha lanzado cuando llega.

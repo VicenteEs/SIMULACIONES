@@ -25,11 +25,13 @@ import {
   mensajeDeSolicitudRechazada,
 } from '@/correo/mensajes'
 import { exigirAdmin, exigirEditor, accion, type Respuesta } from '@/lib/guardias'
+import { comoListaDeModulos } from '@/lib/mantencion'
 import {
   exigirContrasena,
   exigirCorreo,
   exigirIdentificador,
   exigirRol,
+  exigirSlugDeModulo,
   exigirTexto,
   modulosValidos,
   textoOpcional,
@@ -1057,5 +1059,65 @@ export async function resolverTodosLosComentarios(): Promise<Respuesta<{ resuelt
       )
     }
     return { resueltos }
+  })
+}
+
+// ------------------------------------------------------- módulos en mantención
+
+/**
+ * Pone un módulo en mantención o lo devuelve a visible (D-156).
+ *
+ * Solo el administrador, con su rol **real**: la vista previa «ver como
+ * residente» no le quita el interruptor, pero un editor no lo gana por mirar.
+ * Actualiza siempre la fila más antigua de `ajustes` —la misma que lee
+ * `leerMantencion`— y la crea si aún no existe. La anotación en el registro de
+ * acciones la hace el gancho de la colección, no esta acción, para que cualquier
+ * otra vía que escriba la fila deje la misma huella.
+ *
+ * Contesta con la lista resultante y no con un simple «hecho»: la interfaz
+ * pinta desde lo que quedó guardado y no desde lo que cree haber pedido.
+ */
+export async function cambiarMantencionDeModulo(
+  modulo: unknown,
+  enMantencion: unknown,
+): Promise<Respuesta<{ enMantencion: string[] }>> {
+  return accion(async () => {
+    const { payload, usuario } = await exigirAdmin()
+    const slug = exigirSlugDeModulo(modulo)
+    if (typeof enMantencion !== 'boolean') throw new Error('Indique si el módulo queda en mantención.')
+
+    const { docs } = await payload.find({
+      collection: 'ajustes',
+      limit: 1,
+      sort: 'createdAt',
+      depth: 0,
+      pagination: false,
+      overrideAccess: true,
+    })
+    const fila = docs[0] as { id: number | string; modulosEnMantencion?: unknown } | undefined
+    const actuales = new Set(comoListaDeModulos(fila?.modulosEnMantencion))
+    if (enMantencion) actuales.add(slug)
+    else actuales.delete(slug)
+    const lista = [...actuales]
+
+    if (fila) {
+      await payload.update({
+        collection: 'ajustes',
+        id: fila.id,
+        data: { modulosEnMantencion: lista } as never,
+        user: usuario as never,
+      })
+    } else {
+      await payload.create({
+        collection: 'ajustes',
+        data: { modulosEnMantencion: lista } as never,
+        user: usuario as never,
+      })
+    }
+
+    // El diseño entero, no solo la portada: la barra superior vive en la
+    // plantilla y es lo primero que cambia para cada residente.
+    revalidatePath('/', 'layout')
+    return { enMantencion: lista }
   })
 }

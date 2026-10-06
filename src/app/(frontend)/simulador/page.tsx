@@ -3,8 +3,9 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { puedeEditar } from '@/lib/guardias'
-import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
-import { SinAcceso, SinAccesoAlModulo, Vacio } from '@/components/Estados'
+import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
+import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Vacio } from '@/components/Estados'
 import { CabeceraDeModulo, claseDeModulo } from '@/components/Cabeceras'
 import { TarjetaFicha } from '@/components/TarjetaFicha'
 import { lecturasDelResidente } from '@/lib/lecturas'
@@ -20,8 +21,14 @@ export default async function Listado() {
   // un módulo que la cuenta no tiene, el `find` de abajo no devuelve una lista
   // vacía sino que lanza `Forbidden`, y eso acababa en la pantalla de avería.
   // El porqué entero está en la cabecera de `SinAccesoAlModulo`.
-  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'cirugias')) {
-    return <SinAccesoAlModulo titulo="Simulador quirúrgico" />
+  // Un módulo en mantención se le cierra al residente con su propia pantalla (D-156).
+  const enMantencion = await modulosEnMantencion()
+  if (!puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, 'cirugias', enMantencion)) {
+    return cerradoPorMantencion(usuarioEfectivo as UsuarioSesion | null, 'cirugias', enMantencion) ? (
+      <ModuloNoDisponible titulo="Simulador quirúrgico" />
+    ) : (
+      <SinAccesoAlModulo titulo="Simulador quirúrgico" />
+    )
   }
 
   // El enlace del estado vacío lleva al panel, que devuelve a la portada sin
@@ -61,6 +68,7 @@ export default async function Listado() {
     <main className={claseDeModulo('cirugias')}>
       <CabeceraDeModulo
         slug="cirugias"
+        enMantencion={enMantencion.includes('cirugias')}
         titulo="Simulador quirúrgico"
         entradilla="Paso a paso con instrumental y control de la fuerza aplicada."
         acciones={
