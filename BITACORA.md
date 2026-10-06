@@ -3926,7 +3926,7 @@ es opcional: una preparación antigua se lee igual, pero el formato ya merece su
 propia versión 2 el día que algo deje de ser compatible. La cobertura bajó de
 91,9 % a 89 %: lo nuevo del visor y del taller solo se prueba en navegador.
 
-### D-138 · 2026-09-22 · vigente
+### D-138 · 2026-09-22 · vigente para el pelo · superada para la piel por D-155
 **El atlas se queda sin piel, cejas, pelo ni vello, de raíz.**
 El dueño pidió que desaparecieran «para siempre». La piel (`FJ2810`) era una
 cáscara de 23.000 vértices que envuelve el cuerpo entero, con la caja más
@@ -4660,6 +4660,41 @@ aspecto de respaldo bueno en el listado. Ahora una trampa de salida lo descarta.
 *Lección:* un script de respaldo no probado es peor que ninguno, porque da
 tranquilidad sin darla.
 
+
+### D-155 · 2026-10-07 · vigente · supera D-138 en lo que toca a la piel
+**La piel vuelve al atlas; el pelo, las cejas y el vello, no.**
+El dueño pidió devolverle la piel a «cuerpo»: «hace un tiempo borré la malla de
+piel, quiero ponérsela». Hay dos cosas que se llaman así y las dos estaban sin
+piel, por motivos distintos:
+  - la preparación guardada **«cuerpo»** (id 1 en producción) tiene 2.233 piezas
+    y no nombra `FJ2810`: la piel se le apagó el 2026-09-12, diez días antes de
+    D-138;
+  - la base **«Cuerpo»** del taller (D-152) es el atlas entero, y el atlas no tiene
+    piel desde D-138.
+
+*Qué se hizo.* `scripts/atlas/devolver-piel.mjs`, el inverso de
+`quitar-piel.mjs`: lee `FJ2810` con `git show` del commit anterior a D-138
+(`48dfed0`) y la añade **al final** del paquete 10, sin intercalarla, para que
+las demás piezas no se muevan. El guion comprueba que los bytes que ya estaban
+siguen iguales, y aparte se verificó que posiciones, normales e índices de la piel
+son idénticos a los del historial. Catálogo con versión nueva
+(`bp3d-4.0-cbfc84b3`), 2.231 piezas; el paquete 10 pasa de 2,64 a 3,55 MB sin
+comprimir. Es idempotente. Las pruebas que D-138 había cambiado vuelven a como
+estaban —se revirtieron sus cambios, que nadie había tocado después—, salvo la del
+catálogo, que ahora exige la piel **y** la ausencia del pelo.
+
+*Lo que no se hizo, a propósito.* No se tocó la preparación «cuerpo» en la base:
+recuperar la piel en ella es encenderla desde el taller («Todo el atlas» → Piel) y
+dejar que se guarde, como cualquier cambio de una preparación. Escribirlo por SQL
+habría saltado el autoguardado, el historial y la revisión.
+
+*Consecuencias buenas.* La consola quirúrgica vuelve a tener capa de piel para la
+incisión, y el recorte de piel al exportar (D-096) vuelve a trabajar con la de
+verdad. *Malas, las mismas que llevaron a D-138:* la piel es una cáscara de 1,72 m
+que envuelve todo. Al abrir el taller en «Cuerpo» se ve la piel y no el esqueleto
+hasta apagarla o poner rayos X (D-139); y un marco que tome el abdomen se la lleva,
+porque su centro está ahí (el marco elige por centros, D-126). Si estorba más de lo
+que sirve, `quitar-piel.mjs` la vuelve a quitar en un minuto.
 ---
 
 ### O-014 · 2026-09-06 · alta · resuelta

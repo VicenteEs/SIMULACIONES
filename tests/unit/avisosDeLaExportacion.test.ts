@@ -86,16 +86,9 @@ async function abrirLoGuardado() {
   return { escena: gltf.scene, notas: data.notas }
 }
 
-describe('una pierna exportada con un músculo protagonista', () => {
-  // Tibia y peroné derechos y el peroneo corto derecho —protagonista y sin
-  // traducción en la semilla—. Hasta D-138 la lista traía también la piel del
-  // atlas (`FJ2810`), de cuerpo entero, y estas pruebas comprobaban que se
-  // recortaba a la pierna. La piel ya no está en el atlas; el recorte sigue en
-  // el código y lo prueban `exportarAlSimulador.test.ts` y
-  // `exportarConCorte.test.ts` con pieles sintéticas. Aquí se comprueba lo
-  // contrario: que una preparación guardada CON la piel de antes la pierde al
-  // exportar sin dar ningún aviso de piel, que sería un aviso de algo que no
-  // existe.
+describe('una pierna exportada con su piel y un músculo protagonista', () => {
+  // Tibia y peroné derechos, el peroneo corto derecho —protagonista y sin
+  // traducción en la semilla— y la piel del atlas, que es de cuerpo entero.
   const PIERNA = ['FJ3387', 'FJ3366', 'FJ1409', 'FJ2810']
 
   beforeEach(() => {
@@ -106,10 +99,10 @@ describe('una pierna exportada con un músculo protagonista', () => {
     })
   })
 
-  it('se centra en la pierna, y la piel que la preparación aún nombra ya no existe', async () => {
+  it('se centra en la pierna aunque la piel llegue a la cabeza', async () => {
     const r = await exportarComoModelo(7, { protagonistas: ['FJ3387', 'FJ1409'] })
     expect(r.exito, r.mensaje).toBe(true)
-    expect(r.datos?.sinLaPiel).toBe(false)
+    expect(r.datos?.sinLaPiel).toBe(true)
 
     const { escena } = await abrirLoGuardado()
     const sinPiel = new THREE.Box3()
@@ -119,16 +112,27 @@ describe('una pierna exportada con un músculo protagonista', () => {
       conPiel.expandByObject(objeto)
       if (objeto.userData.rol !== 'piel') sinPiel.expandByObject(objeto)
     })
-    // La pierna, en el origen: gira sobre la pierna.
+    // Lo que no es piel, en el origen: la pierna gira sobre la pierna.
     expect(sinPiel.getCenter(new THREE.Vector3()).length()).toBeLessThan(1e-4)
     expect(sinPiel.getSize(new THREE.Vector3()).y).toBeLessThan(0.5)
-    // Y no hay piel: el archivo es lo que no es piel, sin más.
-    expect(conPiel.min.distanceTo(sinPiel.min)).toBeLessThan(1e-9)
-    expect(conPiel.max.distanceTo(sinPiel.max)).toBeLessThan(1e-9)
-    void MARGEN_DE_LA_PIEL
+    // Y la piel ya no es la del cuerpo entero. Hasta hoy esta línea afirmaba lo
+    // contrario —que la piel completa seguía en el archivo, con su centro unos
+    // 60 cm por encima—, porque entonces solo se había arreglado el centro. Una
+    // pierna exportada con la piel del cuerpo entero llevaba al simulador una
+    // carcasa hueca con forma de persona alrededor de la tibia, y la capa que el
+    // residente tiene que incidir no era la de la pierna. Ahora la piel se
+    // recorta a la zona de lo que no es piel, ampliada `MARGEN_DE_LA_PIEL` por
+    // cada lado: con piel y todo, el modelo no puede sobresalir más que eso.
+    const holgura = 2 * MARGEN_DE_LA_PIEL + 1e-3
+    const tamanoSin = sinPiel.getSize(new THREE.Vector3())
+    const tamanoCon = conPiel.getSize(new THREE.Vector3())
+    expect(tamanoCon.x).toBeLessThanOrEqual(tamanoSin.x + holgura)
+    expect(tamanoCon.y).toBeLessThanOrEqual(tamanoSin.y + holgura)
+    expect(tamanoCon.z).toBeLessThanOrEqual(tamanoSin.z + holgura)
+    expect(conPiel.getCenter(new THREE.Vector3()).length()).toBeLessThan(MARGEN_DE_LA_PIEL + 1e-3)
   }, 60_000)
 
-  it('dice qué sale en inglés, y de la piel no dice nada', async () => {
+  it('dice qué sale en inglés y por qué la piel no cuenta, en la respuesta y en las notas', async () => {
     const r = await exportarComoModelo(7, { protagonistas: ['FJ3387', 'FJ1409'] })
     expect(r.exito, r.mensaje).toBe(true)
 
@@ -140,7 +144,7 @@ describe('una pierna exportada con un músculo protagonista', () => {
     expect(notas).toContain(
       'Sin traducción, se quedan con su nombre original: Right fibularis brevis.',
     )
-    expect(notas).not.toContain('La piel del atlas')
+    expect(notas).toContain('La piel del atlas es de cuerpo entero')
   }, 60_000)
 
   it('sin piel ni nombres en inglés, las notas no avisan de nada', async () => {
