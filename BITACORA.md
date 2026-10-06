@@ -6058,6 +6058,28 @@ probablemente amplían el constructor de fracturas.
 
 **Ya hecho, fuera del plan:** la piel vuelve al atlas (D-155).
 
+#### Respuestas del dueño · 2026-10-07
+
+Cierran las preguntas que el plan dejaba abiertas:
+
+1. **Módulos.** Lo que se pide es una mantención, no ocultarlo a todos:
+   - el residente, y cualquier lector, no ve el módulo;
+   - el editor lo ve marcado «En mantención»;
+   - el interruptor está en el panel del administrador, uno por cada módulo
+     (las cinco tarjetas de la portada: Biblioteca de patologías, Examen físico,
+     Técnica AO, Simulador quirúrgico y Lectura de imágenes).
+
+   Cambia E1.
+2. **Examen físico.** «Lo más fácil de implementar, pero que se vea ordenado e
+   intuitivo.» Fija E1.8.
+3. **Manipulación.** Lo engorroso era el taller anatómico. La consola quirúrgica
+   sale de E3.
+4. **Fracturas.** Solo en el taller. El residente no fractura: verá el modelo ya
+   fracturado. Fija E4-Q2. La propuesta de empezar por los huesos largos no se
+   discutió y se mantiene.
+5. **Instrumental.** «Quiero que lo modeles.» Lo modela el asistente, con Blender
+   y por guion. Cambia E5.4.
+
 #### Por qué en este orden
 
 - **E1** no depende de nada, es la más corta y resuelve un pedido ya.
@@ -6088,126 +6110,157 @@ probablemente amplían el constructor de fracturas.
 
 ---
 
-#### E1 · Módulos visibles y ocultos · 1–2 sesiones · pendiente
+#### E1 · Módulos en mantención · 1–2 sesiones · pendiente
 
-**Objetivo.** Desde el panel, el administrador oculta o muestra cada uno de los
-cinco módulos. Un módulo oculto no lo ve ni el editor ni el lector en ninguna
-parte: barra, portada, panel, enlaces directos, contadores, bandeja de
-comentarios y aviso de contenido nuevo. El administrador lo sigue viendo, con
-una franja «Oculto: solo lo ven los administradores», para poder prepararlo.
+**Objetivo.** Desde el panel, el administrador pone en mantención cualquiera de
+los cinco módulos, o lo devuelve a visible.
 
-**Hecho cuando…** Ocultar «Lectura de imágenes» lo hace desaparecer para un
-editor y para un lector en todos los puntos de contacto de E1.4 y E1.5, y una
-dirección escrita a mano da la pantalla «en preparación». Mostrarlo lo devuelve
-todo igual que estaba. El cambio queda en el registro de acciones (D-145) y
-`roles.test.ts` lo demuestra contra la base.
+- **Lectores y residentes:** un módulo en mantención desaparece para ellos en
+  todas partes: barra, portada con y sin sesión, contadores, «Continúa leyendo»,
+  aviso de contenido nuevo y enlaces directos.
+- **Editores:** lo siguen viendo y trabajando como siempre, con una insignia
+  «En mantención» en la barra, la portada y el panel.
+- **Administradores:** como los editores, más el interruptor.
 
-**Decisiones de diseño (tomadas y revisables).**
+**Hecho cuando…** Se pone «Lectura de imágenes» en mantención y:
 
+- Un lector no la ve en ningún punto de E1.4. Si escribe la dirección a mano,
+  recibe una pantalla neutra, «Este módulo no está disponible en este momento».
+- Un editor la ve en los mismos sitios con la insignia, y abre, edita y revisa
+  sus fichas como antes.
+- «Ver como residente» la esconde.
+- Quitar la mantención lo devuelve todo como estaba. El progreso de lectura del
+  residente no se borra: solo deja de verse mientras dura la mantención.
+- El cambio queda en el registro de acciones (D-145), y `roles.test.ts` lo
+  demuestra contra la base.
+
+**Decisiones de diseño**
+
+- **Dos estados por módulo: «Visible» y «En mantención».** Solo cambia lo que ve
+  el lector. El editor y el administrador quedan igual que hoy.
+  - *Supuesto a confirmar:* el editor también **edita** dentro de la mantención,
+    porque para eso sirve. Si no se quiere, es una línea más en `puedeEditar`.
 - **Dónde se guarda.** En una colección nueva, `ajustes`, de una sola fila, y no
   en un *global* de Payload. Los globals quedan fuera de
   `migraciones.test.ts`, de la matriz de `roles.test.ts` y del registro D-145,
-  que solo envuelve colecciones. Campo: `modulosOcultos`, `select` con
-  `hasMany` de los cinco slugs. Pide migración (tabla y enum).
-- **Cómo llega a las reglas.** Con un parámetro nuevo `ocultos` en
-  `puedeVerModulo`, `puedeEditarModulo`, `filtroDeLectura` y
-  `filtroDeLecturaDeModulo` (`src/access/reglas.ts`), que siguen siendo puras.
-  La lectura se hace en `src/lib/modulosOcultos.ts`:
+  que solo envuelve colecciones.
+  - Campo `modulosEnMantencion`: un `select` con `hasMany` de los cinco slugs.
+  - Pide migración (tabla y enum).
+- **Solo cambian las reglas de lectura del lector.**
+  - `puedeVerModulo`, `filtroDeLectura` y `filtroDeLecturaDeModulo`
+    (`src/access/reglas.ts`) reciben `enMantencion`. Si el rol es lector y el
+    módulo está en mantención, no hay acceso. Siguen siendo puras.
+  - `puedeEditarModulo` y `puedeEditar` (`src/lib/guardias.ts`) no cambian. Por
+    eso no hay que tocar las acciones del panel, la cola «Por revisar», la
+    presencia ni la bandeja de comentarios: el editor no pierde nada.
+- **Cómo llega la lista a las reglas.** Desde `src/lib/modulosEnMantencion.ts`:
   - para las páginas, cacheada por petición con `cache()` de React;
   - para los adaptadores de Payload (`src/access/payload.ts`), memorizada en
     `req.context`, porque `Access` admite promesas.
-- **Las dos capas de permisos.** El panel escribe con `overrideAccess: true` y
-  solo pregunta a `puedeEditar` (`src/lib/guardias.ts` l.104), que nunca llega a
-  `reglas.ts`. Por eso la ocultación entra en las dos capas.
-- **La pantalla para un módulo oculto.** Un estado nuevo, `ModuloEnPreparacion`,
-  en `src/components/Estados.tsx`. No se reutiliza `SinAccesoAlModulo`: su texto
-  manda a pedir acceso a un administrador, y aquí no hay acceso que pedir.
+- **«Ver como residente» funciona sin hacer nada.** `obtenerSesion` da un usuario
+  efectivo con rol lector, así que el administrador o el editor pueden comprobar
+  qué ve el residente.
+- **La pantalla para quien llega por dirección.** Un estado nuevo,
+  `ModuloNoDisponible`, en `src/components/Estados.tsx`, con un texto neutro.
+  No se reutiliza `SinAccesoAlModulo`: manda a pedir acceso a un administrador, y
+  aquí no hay acceso que pedir.
+- **La insignia «En mantención».** Un componente pequeño en `src/components/ui/`,
+  con el color de aviso de los tokens de D-147.
 - **La API REST no se toca.** Ya responde 403 a todo lo que no sea un archivo
   (D-073).
 
 **Tareas**
 
 - [ ] **E1.1 · La colección.** `src/collections/Ajustes.ts`:
-  - acceso: leer y modificar solo administrador; crear solo si no existe
+  - acceso: leer y modificar solo el administrador; crear solo si no existe
     (gancho); borrar, nadie;
   - registrarla en `COLECCIONES`, en `CLASE_DE` de `roles.test.ts` (clase
     `administracion`) y en su fábrica de documentos;
-  - `npx payload migrate:create modulos_ocultos` y `npm run generate:types`.
-- [ ] **E1.2 · Leer y escribir.** En `src/lib/modulosOcultos.ts`, leer devuelve
-  `[]` si no hay fila. La acción `cambiarVisibilidadDeModulo(slug, visible)` va
-  en `acciones/admin.ts`:
-  - protegida con `exigirAdmin`;
-  - anota en el registro una acción nueva, `visibilidad-de-modulo`, en
-    `ACCIONES_DEL_REGISTRO` (`src/lib/registro.ts` l.22; no pide migración);
-  - hace `revalidatePath` de la portada y del panel.
+  - `npx payload migrate:create modulos_en_mantencion` y `npm run generate:types`.
+- [ ] **E1.2 · Leer y escribir.**
+  - Leer devuelve `[]` si no hay fila.
+  - La acción `cambiarMantencionDeModulo(slug, enMantencion)` va en
+    `acciones/admin.ts`, protegida con `exigirAdmin`.
+  - Anota en el registro una acción nueva, `mantencion-de-modulo`, en
+    `ACCIONES_DEL_REGISTRO` (`src/lib/registro.ts` l.22; no pide migración).
+  - Hace `revalidatePath` de la portada y del panel.
 - [ ] **E1.3 · Las reglas.**
-  - En `reglas.ts`, `payload.ts` y `guardias.ts` (`puedeEditar`, `exigirEdicionDe`).
-  - Se rompen dos pruebas que buscan la llamada de dos argumentos con una
-    expresión regular, y hay que actualizarlas:
-    `tests/unit/listadosDeModulo.test.ts` l.54 y `tests/unit/fichasDeModulo.test.ts` l.57.
-  - Pruebas unitarias de las reglas con módulos ocultos, para los tres roles.
-- [ ] **E1.4 · Puntos de contacto públicos.**
-  - `src/components/Navegacion.tsx`: barra y menú móvil.
+  - `reglas.ts` y `payload.ts`.
+  - Se rompen dos pruebas que buscan con una expresión regular la llamada de dos
+    argumentos: `tests/unit/listadosDeModulo.test.ts` l.54 y
+    `tests/unit/fichasDeModulo.test.ts` l.57. Hay que actualizarlas.
+  - Pruebas unitarias: el lector no ve; el editor y el administrador, sí.
+- [ ] **E1.4 · Lo público.** En cada punto, el lector no ve el módulo y el editor
+  lo ve con la insignia:
+  - `src/components/Navegacion.tsx`: la barra y el menú móvil.
   - Portada con sesión, `src/app/(frontend)/page.tsx`:
-    - la rejilla, los conteos y «Continúa leyendo»;
+    - la rejilla (las cinco tarjetas de la imagen del dueño), los conteos y
+      «Continúa leyendo»;
     - el avance por módulo y los recorridos del simulador;
     - el rótulo «Los cinco módulos / Sus módulos» (l.615);
     - **los botones fijos `/biblioteca` y `/tecnica-ao`** (l.493–505), que hoy no
       filtran.
   - Portada sin sesión: la tira de módulos y el texto «Cinco módulos» (l.98 y
-    l.124–140). Hoy no filtra nada.
-  - Las nueve páginas con guardia D-102: biblioteca, examen físico, técnica AO,
-    simulador e imágenes, con sus páginas de ficha.
-  - `src/app/(frontend)/api/cambios/route.ts` y `versionActual` (`src/lib/publicaciones.ts`).
-  - Las acciones `crearComentario` y `anotar`.
-- [ ] **E1.5 · Panel.**
-  - `admin-panel/layout.tsx`: los contadores «Por revisar» y de comentarios
-    pendientes.
-  - «Resumen».
-  - «Contenido»: cada tarjeta de módulo lleva un interruptor «Visible / Oculto»,
-    solo para el administrador y con confirmación (`useConfirmar`).
-  - Listado, ficha y alta, con `exigirPanelPara`.
-  - Las acciones de `acciones/contenido.ts`, con `exigirEdicionDe`.
-  - «Por revisar».
-  - «Comentarios»: hoy lista todo, también al editor; debe filtrar los módulos
-    ocultos.
-  - `api/presencia`.
-  - Estadísticas, Auditoría y Registro marcan el módulo como «oculto» en vez de
-    quitarlo.
-  - Las casillas de módulos de `TablaUsuarios.tsx`.
-  - La fila «Ver los cinco módulos» de `src/lib/permisos.ts`.
+    l.124–140), que hoy no filtra nada.
+  - Las nueve páginas con guardia D-102. El lector recibe `ModuloNoDisponible`.
+  - `src/app/(frontend)/api/cambios/route.ts` y `versionActual`
+    (`src/lib/publicaciones.ts`).
+  - Las acciones `crearComentario` y `anotar`, para el lector.
+- [ ] **E1.5 · El panel.**
+  - En «Contenido», cada tarjeta de módulo lleva el interruptor «Visible / En
+    mantención», solo para el administrador.
+  - El interruptor confirma con `useConfirmar`: «Los residentes dejarán de ver
+    «X». Los editores la verán marcada En mantención».
+  - La insignia aparece en «Resumen» y en el listado del módulo.
+  - Estadísticas y Auditoría marcan el módulo.
+  - En `src/lib/permisos.ts`, la fila del lector en la tabla de capacidades.
 - [ ] **E1.6 · Pruebas.**
-  - `roles.test.ts`: caso «módulo oculto» (editor y lector sin lectura ni
-    escritura en la base; administrador con las dos).
+  - `roles.test.ts`, módulo en mantención: el lector no lee; el editor lee y
+    escribe; el administrador, igual.
   - `panelPorRol.test.ts`.
-  - Una prueba de que la portada sin sesión no lista el módulo oculto.
+  - Una prueba de que la portada sin sesión no lista el módulo en mantención.
 - [ ] **E1.7 · Documentación.** Sección en `docs/MANUAL-DE-USO.md`, y la D-nnn.
-- [ ] **E1.8 · La maniobra del miembro superior** (contenido, sin código).
-  Depende de E1-Q2.
+- [ ] **E1.8 · El examen físico, ordenado.** Decidido: lo más fácil que deja la
+  página ordenada e intuitiva. Son tres partes, y **ninguna pide migración**.
+  - [ ] **E1.8a · Regiones sin tocar la base.**
+    - Una tabla fija en `src/lib/regiones.ts` traduce el nombre de cada segmento a
+      su región:
+
+      | Región | Segmentos |
+      |---|---|
+      | Miembro superior | Hombro, Brazo, Codo, Antebrazo, Muñeca y mano |
+      | Miembro inferior | Cadera, Muslo, Rodilla, Pierna, Tobillo y pie |
+      | Esqueleto axial | Columna, Pelvis y acetábulo |
+      | Generales | Principios generales |
+
+    - Un segmento desconocido va a «Otros».
+    - `/examen-fisico` y el índice de `BuscadorDeManiobras` enseñan la región
+      como encabezado, con sus segmentos debajo, de proximal a distal. La
+      biblioteca, igual.
+    - Es solo presentación: `agruparManiobrasPorSegmento` gana un nivel por
+      encima, y los anclajes `#maniobra-<id>` no cambian.
+    - Una prueba exige que los 13 nombres de segmento que usa la ingesta tengan
+      región.
+  - [ ] **E1.8b · Orden anatómico de los segmentos.** Se fija el `orden` de cada
+    segmento en «Material de apoyo → Segmentos anatómicos». Es contenido, no
+    código.
+  - [ ] **E1.8c · Partir la maniobra del miembro superior.**
+    - Hoy mezcla los troncos nerviosos con tres signos cubitales, y está en
+      «Principios generales».
+    - Se prepara una propuesta de partición a partir de la ficha original
+      (`data_traumahub/listos/fichas/maniobras/examen-motor-sensitivo-miembro-superior-signos-cubitales.json`).
+      Por ejemplo, Froment y Wartenberg en «Muñeca y mano», cada uno en su ficha.
+    - La aprueba Cristóbal, y se aplica desde el panel con «Duplicar» y
+      recortando.
+    - Se revisa con el mismo criterio la otra maniobra de miembro superior que
+      hay en «Principios generales».
+    - Ojo con D-142: una ficha nueva creada a mano no tiene fila en
+      `revisiones`.
 
 **Preguntas**
 
-- **E1-Q1 · ¿También se le oculta al editor?** Es lo que se pidió, pero tiene un
-  coste: un editor no puede preparar el contenido de un módulo oculto, y las
-  fichas importadas (D-144) se revisan con cuentas de editor. La alternativa es
-  un segundo estado, «en preparación», visible para editores y administradores.
-  Se implementa lo pedido y se pregunta.
-- **E1-Q2 · Qué quiere decir «dejar separado por segmento anatómico».** La
-  maniobra está en «Principios generales», que no es un segmento anatómico,
-  junto con otra de miembro superior, y mezcla los cinco troncos nerviosos con
-  tres signos cubitales. Hay dos opciones:
-  - **(a) Partir la ficha en varias maniobras**, cada una en su segmento.
-    Wartenberg y Froment irían en «Muñeca y mano», y el gancho cubital en «Codo».
-    No pide código, y es lo que ya decía la regla de la ingesta: cada maniobra es
-    su ficha.
-  - **(b) Segmentos jerárquicos**, de región a segmento: «Miembro superior»
-    agruparía Hombro, Brazo, Codo, Antebrazo y Muñeca y mano. Pide migración y
-    cambios en `agruparManiobrasPorSegmento` (`src/lib/maniobras.ts`), la
-    biblioteca, `BuscadorDeManiobras` y la ingesta, que resuelve el segmento por
-    nombre.
-
-  Recomendación: (a) ahora, y (b) solo si el caso se repite. Ojo con D-142: una
-  ficha nueva creada a mano no tiene fila en `revisiones`.
+- ~~E1-Q1~~ y ~~E1-Q2~~: respondidas el 2026-10-07 (ver «Respuestas del dueño»).
+- **E1-Q3 · ¿El editor edita dentro de la mantención?** Se supone que sí.
 
 ---
 
@@ -6350,15 +6403,15 @@ pantalla dice «8 mm lateral · 10° varo». Ctrl + Z lo deshace en un solo paso
 - [ ] **E3.4 · El taller.** El botón y el atajo, la línea en `ATAJOS_DEL_TALLER`,
   y el panel de números (`PanelDeNumeros`) en ejes del hueso con nombres
   clínicos.
-- [ ] **E3.5 · La consola quirúrgica.** El asa de giro sobre el fragmento. Los
-  deslizadores se quedan para el ajuste fino. Depende de E3-Q1.
+- ~~E3.5 · La consola quirúrgica~~. **Fuera del alcance**: lo engorroso era el
+  taller (respuesta del dueño, 2026-10-07). Los deslizadores de la consola se
+  quedan como están.
 - [ ] **E3.6 · Comprobación y documentación.** Prueba en el navegador con el
   atlas real, manual y D-nnn.
 
 **Preguntas**
 
-- **E3-Q1 · ¿Dónde le resultó engorroso a Cristóbal:** en el taller o en el
-  simulador? El plan cubre los dos, empezando por el taller.
+- ~~E3-Q1~~: respondida el 2026-10-07. Era el taller anatómico.
 
 ---
 
@@ -6376,6 +6429,12 @@ pasos:
 
 El resultado es el hueso partido en los fragmentos de ese patrón, manipulables
 con E3, guardado en la preparación y con su código AO a la vista.
+
+**Quién lo usa:** solo editores y administradores, en el taller. El residente no
+fractura nada: ve el modelo ya fracturado.
+
+- en la ficha, con el bloque «Preparación anatómica»;
+- en el simulador, cuando el caso se exporta.
 
 **Hecho cuando…** Los tres casos guía de E4.1 se construyen en menos de un
 minuto cada uno, se guardan, se reabren idénticos y Cristóbal los da por
@@ -6501,6 +6560,11 @@ extremo. La diáfisis es lo que queda en medio.
 - [ ] **E4.7 · Formato.** `fracturas` en el contenido, validación en el servidor,
   guardar y abrir.
 - [ ] **E4.8 · La pestaña «Fractura»** y el filtro del clic.
+- [ ] **E4.10 · Lo que ve el residente.**
+  - `VisorInstancia`, en solo lectura, enseña los fragmentos, sus desplazamientos
+    y la etiqueta AO.
+  - El residente no puede moverlos.
+  - El bloque de la ficha encuadra la fractura y no el cuerpo entero.
 - [ ] **E4.9 · Comprobación y documentación.**
   - El manual.
   - La tabla de «qué se puede» en `docs/COMO-SUBIR-UN-MODELO.md` (l.133–138), que
@@ -6532,9 +6596,10 @@ extremo. La diáfisis es lo que queda en medio.
 **Preguntas**
 
 - **E4-Q1 · La tabla de grupos y la edición 2018**, para validarla.
-- **E4-Q2 · Quién lo usa.** En la v1, solo los editores en el taller. ¿También el
-  residente en el simulador, con un «elige tu fractura»?
-- **E4-Q3 · Qué huesos van primero.** ¿La mano, como en las capturas de la app?
+- ~~E4-Q2~~: respondida el 2026-10-07. Solo en el taller; el residente ve el
+  modelo ya fracturado.
+- **E4-Q3 · Qué huesos van primero.** Se mantiene la propuesta, que no se
+  discutió: huesos largos primero, y la mano (77, metacarpianos) en la v2.
 
 ---
 
@@ -6558,14 +6623,43 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
 
 **El instrumental en la escena**
 
-- [ ] **E5.4 · Conseguir los modelos 3D**: `.glb` de 5 MB como máximo.
-  - **El juego mínimo:** bisturí, separadores (Farabeuf y Hohmann), pinza de
-    reducción con puntas, pinza de Verbrugge, motor y broca, guía de broca,
-    medidor de profundidad, atornillador, tornillo cortical de 3,5 mm, placa
-    recta de 3,5 mm (LCP), aguja de Kirschner y martillo.
-  - **De dónde.** Modelarlos en Blender, con control total, o tomarlos de
-    bibliotecas con licencia clara (CC0 o CC BY), anotando autor y licencia en la
-    atribución. Nada se descarga sin revisar la licencia (E5-Q1).
+- [ ] **E5.4 · Modelar el instrumental.** Lo modela el asistente (respuesta del
+  dueño, 2026-10-07), con Blender. La 5.2 está instalada en `faraday`.
+  - [ ] **E5.4a · Un guion de Python por instrumento**, en
+    `scripts/instrumental/<nombre>.py`.
+    - Es paramétrico, con las medidas reales en milímetros.
+    - Se ejecuta con `blender --background --python` y exporta un `.glb`.
+    - Lleva un objeto por cada parte que se mueve, con nombres en español y sin
+      tildes, y materiales PBR de acero y de plástico.
+    - Cada `.glb` pesa como mucho 1 MB y tiene como mucho 20.000 triángulos.
+    - El origen va en el punto de agarre, o en la punta si es lo que se usa.
+    - Los guiones se versionan, para poder rehacer cualquier modelo. Los `.glb`
+      no: salen a `ejemplos/instrumental/`, que git ignora, y se suben a la
+      plataforma.
+    - Como son nuestros, no hay licencia de terceros que anotar.
+  - [ ] **E5.4b · Una vista previa en PNG** de cada uno, para que Cristóbal lo
+    valide antes de subirlo.
+  - [ ] **E5.4c · El juego mínimo.** Las medidas son de referencia y aproximadas:
+    las corrige Cristóbal al validar.
+
+    | Instrumento | Medidas de referencia | Partes |
+    |---|---|---|
+    | Bisturí (mango n.º 4, hoja n.º 22) | 160 mm | mango, hoja |
+    | Separador de Farabeuf | 120–150 mm, palas de 20 y 25 mm | una pieza |
+    | Separador de Hohmann | 240 mm, punta de 18 mm | una pieza |
+    | Pinza de reducción con puntas (Weber) | 180 mm | dos ramas, cremallera |
+    | Pinza de Verbrugge | 220 mm | dos ramas |
+    | Motor quirúrgico | unos 200 mm, cuerpo de pistola | cuerpo, gatillo, portabrocas |
+    | Broca | Ø 2,5 y 3,2 mm × 110 mm | una pieza |
+    | Guía de broca 3,5 / 2,5 | 120 mm | una pieza |
+    | Medidor de profundidad | 150 mm | cuerpo, varilla con gancho |
+    | Atornillador hexagonal 3,5 | 200 mm | mango, vástago |
+    | Tornillo cortical 3,5 | Ø 3,5 × 30 mm, cabeza de 6 mm | una pieza |
+    | Placa LCP 3,5 de 8 agujeros | unos 120 × 11 × 3,3 mm | una pieza |
+    | Aguja de Kirschner | Ø 1,6 × 150 mm | una pieza |
+    | Martillo | unos 250 mm | cabeza, mango |
+
+    En la v1 las piezas son rígidas. Que las pinzas abran y cierren es v2.
 - [ ] **E5.5 · Subirlos** a «Modelos 3D» y enlazarlos en el catálogo
   «Instrumental». El campo `modelo` ya existe (migración `20260912_212708`).
 - [ ] **E5.6 · En el taller.**
@@ -6585,8 +6679,7 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
 
 **Preguntas**
 
-- **E5-Q1 · ¿Quién consigue el instrumental?** ¿Se modela aquí, se compra o se
-  descarga?
+- ~~E5-Q1~~: respondida el 2026-10-07. Lo modela el asistente (E5.4).
 - **E5-Q2 · ¿El instrumental va también en las fichas** o solo en el simulador?
 
 ---
@@ -6605,7 +6698,7 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
 
 | Etapa | Estado | Sesiones | Decisiones |
 |---|---|---|---|
-| E1 · Módulos ocultos | pendiente | 1–2 | — |
+| E1 · Módulos en mantención | pendiente | 1–2 | — |
 | E2 · Comentarios en el taller | pendiente | 1–2 | — |
 | E3 · Manipulación directa | pendiente | 2 | — |
 | E4 · Fracturas AO | pendiente | 3–4 | — |
