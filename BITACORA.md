@@ -6016,11 +6016,610 @@ es lo que recomiendo para construir y probar toda la cadena.
 
 ---
 
-## 5. Convenciones de esta bitácora
+## 5. Plan de trabajo
+
+Formato: `P-nnn · fecha de inicio · estado`. Estados: **en curso**, **terminado**,
+**abandonado**. Un plan agrupa trabajo que no cabe en una sesión, para que
+cualquiera —persona o asistente— pueda retomarlo donde quedó. Cada tarea lleva
+un identificador (`E3.2`) y una casilla: `[ ]` pendiente, `[x]` hecha, con el
+commit al lado. Las decisiones que salen de cada etapa van a la sección 2 como
+`D-nnn` y se enlazan desde aquí; los fallos, a la sección 3 como `O-nnn`. Los
+commits del plan llevan `(P-001 E3.2)` al final del mensaje.
+
+### P-001 · 2026-10-07 · en curso
+**Cinco etapas: módulos que se ocultan, comentarios en el taller, manipulación
+directa, fracturas AO guiadas, y piel e instrumental.**
+
+#### De dónde sale
+
+Pedidos del dueño y del traumatólogo, Cristóbal Cofré, del 5 y 6 de octubre:
+
+1. Ocultar y mostrar módulos enteros desde el panel. «Si no quiero que se vea
+   Lectura de imágenes, poder ocultarla y que no la pueda ver ni el editor ni el
+   usuario.»
+2. Una pestaña para agregar comentarios en el taller anatómico.
+3. Pinchar un fragmento de la fractura y desplazarlo y angularlo sobre él mismo,
+   «como se manipulan las imágenes en PowerPoint o Word». «Ahora lo tiene, pero
+   es medio engorroso.»
+4. Un constructor de fracturas. Un panel a la derecha dice «Selecciona hueso», se
+   pincha el hueso, se elige el tipo de fractura y después la porción o extensión
+   dentro del hueso. La guía es AO Surgery Reference y la app *AO/OTA Fracture
+   Classification*. Cristóbal: «Le quita libertad, pero con fines docentes da lo
+   mismo, porque queda el concepto».
+5. Agregar piel e instrumental quirúrgico.
+6. Comentario de Cristóbal sobre la maniobra «Examen motor y sensitivo del
+   miembro superior, con énfasis en los signos cubitales»: «dejar separado por
+   segmento anatómico».
+
+**Entrada sin procesar.** Cuatro notas de voz de WhatsApp del 2026-10-06
+(03:41, 03:42, 10:24 y 10:28) que no se pudieron escuchar: en la máquina no hay
+nada que transcriba audio. Hay que resumirlas aquí antes de empezar E4, porque
+probablemente amplían el constructor de fracturas.
+
+**Ya hecho, fuera del plan:** la piel vuelve al atlas (D-155).
+
+#### Por qué en este orden
+
+- **E1** no depende de nada, es la más corta y resuelve un pedido ya.
+- **E2** crea el componente de pestañas del panel derecho del taller, que **E4**
+  necesita para el asistente de fracturas.
+- **E3** va antes que **E4**. Un constructor que genera fragmentos sirve de poco
+  si moverlos sigue siendo engorroso. Además, E4 reutiliza los ejes del hueso que
+  calcula E3.
+- **E4** es la más grande y la de más riesgo geométrico.
+- **E5** va al final porque la piel ya está y el instrumental en escena necesita
+  la manipulación de E3. Su parte sin código, conseguir los modelos 3D, puede
+  empezar hoy en paralelo.
+
+#### Reglas para todas las etapas
+
+- Cada etapa termina con `npm run typecheck`, `npm run lint`,
+  `npm run test:coverage`, `npm run build` y `npm run test:integration`. Las de
+  integración **nunca contra la base de producción** (O-048): no en `faraday`;
+  en `ved`, contra una base desechable.
+- Antes de desplegar una etapa con migración, «Respaldar ahora» en el panel.
+- Ni ilustraciones ni textos de AO Surgery Reference se copian: son © AO
+  Foundation. La clasificación —códigos y nombres de los grupos— es un estándar
+  publicado y se puede usar; los dibujos y las descripciones se hacen aquí.
+- Nada que se importe en el taller puede arrastrar `three` de forma estática
+  (`tests/unit/tallerDeAtlas.test.ts`).
+- Lo que se toque en el taller se prueba también en un navegador con el atlas
+  real, no solo con pruebas unitarias.
+
+---
+
+#### E1 · Módulos visibles y ocultos · 1–2 sesiones · pendiente
+
+**Objetivo.** Desde el panel, el administrador oculta o muestra cada uno de los
+cinco módulos. Un módulo oculto no lo ve ni el editor ni el lector en ninguna
+parte: barra, portada, panel, enlaces directos, contadores, bandeja de
+comentarios y aviso de contenido nuevo. El administrador lo sigue viendo, con
+una franja «Oculto: solo lo ven los administradores», para poder prepararlo.
+
+**Hecho cuando…** Ocultar «Lectura de imágenes» lo hace desaparecer para un
+editor y para un lector en todos los puntos de contacto de E1.4 y E1.5, y una
+dirección escrita a mano da la pantalla «en preparación». Mostrarlo lo devuelve
+todo igual que estaba. El cambio queda en el registro de acciones (D-145) y
+`roles.test.ts` lo demuestra contra la base.
+
+**Decisiones de diseño (tomadas y revisables).**
+
+- **Dónde se guarda.** En una colección nueva, `ajustes`, de una sola fila, y no
+  en un *global* de Payload. Los globals quedan fuera de
+  `migraciones.test.ts`, de la matriz de `roles.test.ts` y del registro D-145,
+  que solo envuelve colecciones. Campo: `modulosOcultos`, `select` con
+  `hasMany` de los cinco slugs. Pide migración (tabla y enum).
+- **Cómo llega a las reglas.** Con un parámetro nuevo `ocultos` en
+  `puedeVerModulo`, `puedeEditarModulo`, `filtroDeLectura` y
+  `filtroDeLecturaDeModulo` (`src/access/reglas.ts`), que siguen siendo puras.
+  La lectura se hace en `src/lib/modulosOcultos.ts`:
+  - para las páginas, cacheada por petición con `cache()` de React;
+  - para los adaptadores de Payload (`src/access/payload.ts`), memorizada en
+    `req.context`, porque `Access` admite promesas.
+- **Las dos capas de permisos.** El panel escribe con `overrideAccess: true` y
+  solo pregunta a `puedeEditar` (`src/lib/guardias.ts` l.104), que nunca llega a
+  `reglas.ts`. Por eso la ocultación entra en las dos capas.
+- **La pantalla para un módulo oculto.** Un estado nuevo, `ModuloEnPreparacion`,
+  en `src/components/Estados.tsx`. No se reutiliza `SinAccesoAlModulo`: su texto
+  manda a pedir acceso a un administrador, y aquí no hay acceso que pedir.
+- **La API REST no se toca.** Ya responde 403 a todo lo que no sea un archivo
+  (D-073).
+
+**Tareas**
+
+- [ ] **E1.1 · La colección.** `src/collections/Ajustes.ts`:
+  - acceso: leer y modificar solo administrador; crear solo si no existe
+    (gancho); borrar, nadie;
+  - registrarla en `COLECCIONES`, en `CLASE_DE` de `roles.test.ts` (clase
+    `administracion`) y en su fábrica de documentos;
+  - `npx payload migrate:create modulos_ocultos` y `npm run generate:types`.
+- [ ] **E1.2 · Leer y escribir.** En `src/lib/modulosOcultos.ts`, leer devuelve
+  `[]` si no hay fila. La acción `cambiarVisibilidadDeModulo(slug, visible)` va
+  en `acciones/admin.ts`:
+  - protegida con `exigirAdmin`;
+  - anota en el registro una acción nueva, `visibilidad-de-modulo`, en
+    `ACCIONES_DEL_REGISTRO` (`src/lib/registro.ts` l.22; no pide migración);
+  - hace `revalidatePath` de la portada y del panel.
+- [ ] **E1.3 · Las reglas.**
+  - En `reglas.ts`, `payload.ts` y `guardias.ts` (`puedeEditar`, `exigirEdicionDe`).
+  - Se rompen dos pruebas que buscan la llamada de dos argumentos con una
+    expresión regular, y hay que actualizarlas:
+    `tests/unit/listadosDeModulo.test.ts` l.54 y `tests/unit/fichasDeModulo.test.ts` l.57.
+  - Pruebas unitarias de las reglas con módulos ocultos, para los tres roles.
+- [ ] **E1.4 · Puntos de contacto públicos.**
+  - `src/components/Navegacion.tsx`: barra y menú móvil.
+  - Portada con sesión, `src/app/(frontend)/page.tsx`:
+    - la rejilla, los conteos y «Continúa leyendo»;
+    - el avance por módulo y los recorridos del simulador;
+    - el rótulo «Los cinco módulos / Sus módulos» (l.615);
+    - **los botones fijos `/biblioteca` y `/tecnica-ao`** (l.493–505), que hoy no
+      filtran.
+  - Portada sin sesión: la tira de módulos y el texto «Cinco módulos» (l.98 y
+    l.124–140). Hoy no filtra nada.
+  - Las nueve páginas con guardia D-102: biblioteca, examen físico, técnica AO,
+    simulador e imágenes, con sus páginas de ficha.
+  - `src/app/(frontend)/api/cambios/route.ts` y `versionActual` (`src/lib/publicaciones.ts`).
+  - Las acciones `crearComentario` y `anotar`.
+- [ ] **E1.5 · Panel.**
+  - `admin-panel/layout.tsx`: los contadores «Por revisar» y de comentarios
+    pendientes.
+  - «Resumen».
+  - «Contenido»: cada tarjeta de módulo lleva un interruptor «Visible / Oculto»,
+    solo para el administrador y con confirmación (`useConfirmar`).
+  - Listado, ficha y alta, con `exigirPanelPara`.
+  - Las acciones de `acciones/contenido.ts`, con `exigirEdicionDe`.
+  - «Por revisar».
+  - «Comentarios»: hoy lista todo, también al editor; debe filtrar los módulos
+    ocultos.
+  - `api/presencia`.
+  - Estadísticas, Auditoría y Registro marcan el módulo como «oculto» en vez de
+    quitarlo.
+  - Las casillas de módulos de `TablaUsuarios.tsx`.
+  - La fila «Ver los cinco módulos» de `src/lib/permisos.ts`.
+- [ ] **E1.6 · Pruebas.**
+  - `roles.test.ts`: caso «módulo oculto» (editor y lector sin lectura ni
+    escritura en la base; administrador con las dos).
+  - `panelPorRol.test.ts`.
+  - Una prueba de que la portada sin sesión no lista el módulo oculto.
+- [ ] **E1.7 · Documentación.** Sección en `docs/MANUAL-DE-USO.md`, y la D-nnn.
+- [ ] **E1.8 · La maniobra del miembro superior** (contenido, sin código).
+  Depende de E1-Q2.
+
+**Preguntas**
+
+- **E1-Q1 · ¿También se le oculta al editor?** Es lo que se pidió, pero tiene un
+  coste: un editor no puede preparar el contenido de un módulo oculto, y las
+  fichas importadas (D-144) se revisan con cuentas de editor. La alternativa es
+  un segundo estado, «en preparación», visible para editores y administradores.
+  Se implementa lo pedido y se pregunta.
+- **E1-Q2 · Qué quiere decir «dejar separado por segmento anatómico».** La
+  maniobra está en «Principios generales», que no es un segmento anatómico,
+  junto con otra de miembro superior, y mezcla los cinco troncos nerviosos con
+  tres signos cubitales. Hay dos opciones:
+  - **(a) Partir la ficha en varias maniobras**, cada una en su segmento.
+    Wartenberg y Froment irían en «Muñeca y mano», y el gancho cubital en «Codo».
+    No pide código, y es lo que ya decía la regla de la ingesta: cada maniobra es
+    su ficha.
+  - **(b) Segmentos jerárquicos**, de región a segmento: «Miembro superior»
+    agruparía Hombro, Brazo, Codo, Antebrazo y Muñeca y mano. Pide migración y
+    cambios en `agruparManiobrasPorSegmento` (`src/lib/maniobras.ts`), la
+    biblioteca, `BuscadorDeManiobras` y la ingesta, que resuelve el segmento por
+    nombre.
+
+  Recomendación: (a) ahora, y (b) solo si el caso se repite. Ojo con D-142: una
+  ficha nueva creada a mano no tiene fila en `revisiones`.
+
+---
+
+#### E2 · Comentarios dentro del taller anatómico · 1–2 sesiones · pendiente
+
+**Objetivo.** Comentar una preparación, o una pieza concreta de ella, sin salir
+del taller. Los comentarios aparecen también en la bandeja «Comentarios» del
+panel, con un enlace que abre esa preparación en el taller.
+
+**Hecho cuando…**
+- Un editor deja un comentario sobre la tibia de una preparación.
+- Otro lo ve en la pestaña «Comentarios» del taller y en la bandeja del panel.
+- Pulsarlo selecciona la tibia y lleva la cámara a la vista guardada.
+- Lo resuelve, y el contador baja.
+
+**Decisiones de diseño**
+
+- **Destino del comentario.** `comentarios.coleccion` gana el valor
+  `instancias-atlas`. La migración es `ALTER TYPE … ADD VALUE`, y
+  `migraciones.test.ts` no la detecta, así que se le añade la comprobación.
+- **Pieza concreta.** Campo opcional nuevo `ancla`, de tipo json:
+  `{ pieza, punto: [x, y, z], vista }`.
+- **Quién comenta.** Editor y administrador, porque el taller es del panel. Lleva
+  una regla propia, `creacionDeComentarioEnElTaller`.
+  `creacionEnModuloVisible` no sirve: devuelve `false` a toda cuenta con módulos
+  restringidos, porque el atlas no es un módulo.
+- **Pestañas.** Componente nuevo `src/components/ui/Pestanas.tsx`, con
+  `role="tablist"` y flechas del teclado. Divide el panel derecho del taller, que
+  hoy es una sola columna, en tres pestañas:
+  - «Pieza»: posición y giro, color, rótulos;
+  - «Preparación»: ficha, vistas, modelos, preparaciones guardadas;
+  - «Comentarios (n)».
+
+  E4 añadirá la cuarta, «Fractura».
+
+**Tareas**
+
+- [ ] **E2.1 · Pestañas.** `Pestanas.tsx`, y reorganizar el panel derecho
+  (`TallerDeAtlas.tsx` l.2718 en adelante) sin cambiar ningún comportamiento.
+  Sin importar `three` de forma estática.
+- [ ] **E2.2 · Datos y reglas.**
+  - Migración del enum y campo `ancla`.
+  - Validación: `exigirSlugDeModulo` (`src/lib/validacion.ts`) pasa a
+    `exigirDestinoDeComentario`.
+  - `crearComentario`, más una acción nueva `listarComentariosDe(coleccion, id)`.
+  - Se mantiene el freno de diez comentarios cada diez minutos.
+- [ ] **E2.3 · La pestaña.**
+  - Lista con autor, fecha, estado y texto, y formulario.
+  - «Resolver» y «Reabrir» para el editor; «Eliminar» solo para el administrador.
+  - «Comentar esta pieza» ancla el comentario a la selección.
+  - Pulsar un comentario anclado selecciona la pieza y lleva la cámara a su
+    vista.
+- [ ] **E2.4 · Marcadores en 3D** de los comentarios anclados, apagables.
+  Reutilizan el dibujo de los rótulos (D-135).
+- [ ] **E2.5 · Bandeja del panel.**
+  - Título de la preparación en `leerTitulosDeFichas` y filtro «Taller
+    anatómico».
+  - Enlace `/admin-panel/atlas?preparacion=<id>&comentario=<id>`. Pide algo
+    nuevo: que el taller lea esos parámetros y abra esa preparación; hoy
+    `admin-panel/atlas/page.tsx` no lee ninguno.
+  - El enlace se escribe a mano, así que pasa por `ruta()`.
+  - Nombre en el correo a los administradores, y `comentariosPorModulo` en
+    Estadísticas.
+- [ ] **E2.6 · «Cuerpo» no se comenta.** No es una fila de la base (D-152): el
+  taller pide guardarlo con nombre primero.
+- [ ] **E2.7 · Pruebas.**
+  - `comentariosDelPanel` y `comentariosYActividad`.
+  - `roles.test.ts`: en `instancias-atlas` crea el editor y no el lector.
+  - `migraciones.test.ts`: el valor nuevo del enum.
+- [ ] **E2.8 · Documentación.** Manual y D-nnn.
+
+**Preguntas**
+
+- **E2-Q1 · ¿El residente también comenta las preparaciones** que ve dentro de
+  las fichas? En v1, no.
+
+---
+
+#### E3 · Manipulación directa de piezas y fragmentos · 2 sesiones · pendiente
+
+**Por qué hoy es engorroso**, mirado en el código:
+
+- Pinchar y arrastrar sobre el objeto no lo mueve: el clic selecciona y el
+  arrastre gira la cámara. Mover pide G o R desde el teclado.
+- Las asas (`src/atlas/gizmo.ts`) van en los ejes del mundo, no en los del hueso.
+- No hay asa para mover en el plano de la pantalla, ni para girar libremente.
+- El pivote de giro es el centro de la caja del trozo, no el foco de la
+  fractura.
+- En la consola quirúrgica la angulación se gradúa con tres deslizadores
+  (`ConsolaQuirurgica.tsx` l.1339–1378).
+
+**Objetivo.** Que funcione como PowerPoint: se pincha la pieza, se arrastra para
+moverla, un asa redonda la gira, y los números aparecen al lado mientras se
+mueve.
+
+**Hecho cuando…** Con una tibia partida (K), mover el fragmento distal 8 mm y
+angularlo 10° de varo se hace con el ratón, sin teclado, y la lectura en
+pantalla dice «8 mm lateral · 10° varo». Ctrl + Z lo deshace en un solo paso.
+
+**Decisiones de diseño**
+
+- **Herramienta nueva «Manipular», tecla V.** Es la del puntero en Figma y
+  Photoshop, y está libre: el taller ya usa A, B, G, H, I, J, K, M, R, X y Z.
+- **El gesto.** Con «Manipular», pulsar sobre una pieza seleccionada y arrastrar
+  la mueve en el plano perpendicular a la cámara que pasa por el punto pinchado.
+  Es el patrón que ya funciona en `LienzoQuirurgico.tsx` (l.430–498). Pulsar en
+  el vacío sigue girando la cámara, y Mayús + arrastre ata el movimiento al eje
+  del hueso más próximo al gesto.
+- **Asas sobre el objeto.** Una caja orientada con los ejes del hueso y un asa
+  redonda para girar sobre el eje de la vista. Ctrl gira en saltos de 5°, y Alt +
+  arrastre sobre la pieza gira libremente, tipo trackball.
+- **Los ejes del hueso.** Salen de `ejeDelHueso` (`src/lib/planoDeCorte.ts`
+  l.223) aplicado a la pieza raíz del fragmento: largo, delante y fuera. El gizmo
+  gana un conmutador «Ejes del hueso / del mundo».
+- **Pivote en el foco.** Un trozo nacido de un corte gira por omisión sobre el
+  centro de la tapa del corte; una pieza entera, sobre su centro. Hoy se usa
+  `pivoteDeLaSeleccion` (`VisorAtlas.tsx` l.1089).
+- **Lectura clínica en vivo** junto al cursor:
+  - el desplazamiento en milímetros: lateral, anteroposterior y axial;
+  - la angulación con nombres clínicos: varo/valgo, ante/recurvatum y rotación,
+    medida contra el otro fragmento;
+  - se reutilizan `medirReduccion` y `anguloTotal` (`src/lib/reduccion.ts`) si
+    encajan;
+  - evita el bloqueo de cardán de los ángulos de Euler (D-133).
+- **Historial.** Un gesto es un paso del historial, como hoy con G y R.
+- **Táctil.** Un dedo mueve; dos dedos, la cámara (`gestoTactil`, D-149).
+
+**Tareas**
+
+- [ ] **E3.1 · La matemática, sin lienzo y con pruebas,** en `src/atlas/manipular.ts`:
+  el arrastre proyectado en el plano de la cámara, el giro con saltos, los ejes
+  del hueso para un fragmento y el pivote en el foco.
+- [ ] **E3.2 · El visor.** En `VisorAtlas.tsx`, el modo `'manipular'` en
+  `HerramientaDelVisor` (l.220), conectado a `alBajar`, `alMover` y `alSubir`.
+  Sin romper `orbita`, `caja`, `recorte`, `corte`, `rotulo`, `distancia` ni
+  `angulo`.
+- [ ] **E3.3 · Las asas.** En `gizmo.ts`, los ejes locales, el asa de giro y la
+  caja orientada. Son las primeras pruebas de `gizmo.ts`, que hoy no tiene
+  ninguna.
+- [ ] **E3.4 · El taller.** El botón y el atajo, la línea en `ATAJOS_DEL_TALLER`,
+  y el panel de números (`PanelDeNumeros`) en ejes del hueso con nombres
+  clínicos.
+- [ ] **E3.5 · La consola quirúrgica.** El asa de giro sobre el fragmento. Los
+  deslizadores se quedan para el ajuste fino. Depende de E3-Q1.
+- [ ] **E3.6 · Comprobación y documentación.** Prueba en el navegador con el
+  atlas real, manual y D-nnn.
+
+**Preguntas**
+
+- **E3-Q1 · ¿Dónde le resultó engorroso a Cristóbal:** en el taller o en el
+  simulador? El plan cubre los dos, empezando por el taller.
+
+---
+
+#### E4 · Constructor de fracturas AO guiado · 3–4 sesiones · pendiente
+
+**Objetivo.** En el taller, una pestaña «Fractura» con un asistente de seis
+pasos:
+
+1. «Selecciona un hueso».
+2. Segmento.
+3. Tipo.
+4. Grupo.
+5. Porción y extensión.
+6. Vista previa y «Fracturar».
+
+El resultado es el hueso partido en los fragmentos de ese patrón, manipulables
+con E3, guardado en la preparación y con su código AO a la vista.
+
+**Hecho cuando…** Los tres casos guía de E4.1 se construyen en menos de un
+minuto cada uno, se guardan, se reabren idénticos y Cristóbal los da por
+correctos.
+
+**Alcance de la v1**, recortado para que quepa:
+
+- **Huesos:** los largos. Húmero (1), radio (2R) y cúbito (2U), fémur (3), tibia
+  (4) y peroné (4F).
+- **Segmentos:** los tres, proximal (1), diáfisis (2) y distal (3).
+- **Patrones:** los de diáfisis, completos. En los extremos, solo el tipo A,
+  extraarticular. Los tipos B y C de extremo, que son articulares, quedan para la
+  v2: su geometría depende de cada articulación.
+- **Fuera de la v1:** clavícula (15), escápula (14), rótula (34), maléolos (44),
+  columna, pelvis, mano (7x; las capturas de la app eran de metacarpianos, 77) y
+  pie (8x).
+
+**Referencia: Compendio AO/OTA 2018** (Meinberg *et al.*, *J Orthop Trauma*
+2018;32 Supl. 1). Para la diáfisis:
+
+| Tipo | Grupos |
+|---|---|
+| A · simple | A1 espiroidea · A2 oblicua (≥ 30°) · A3 transversa (< 30°) |
+| B · en cuña | B2 cuña íntegra · B3 cuña fragmentada |
+| C · multifragmentaria | C2 segmentaria íntegra · C3 segmentaria fragmentada |
+
+En los extremos: A extraarticular, B articular parcial, C articular completa.
+
+**Ojo:** el catálogo sembrado (`scripts/caso-de-prueba.ts` l.49–55) sigue la
+edición de 2007: tiene B1 y C1, y le faltan B3 y C3. Hay que alinearlo, y lo
+valida Cristóbal (E4-Q1).
+
+**Los segmentos se calculan con la regla del cuadrado de Heim.** El segmento de
+extremo es un cuadrado cuyo lado es la anchura máxima de la epífisis. Se obtiene
+con `ejeDelHueso` y el perfil de anchura del hueso a lo largo de ese eje, en cada
+extremo. La diáfisis es lo que queda en medio.
+
+**Diseño de datos**
+
+- **`src/atlas/clasificacionAO.ts`.** Tabla pura de huesos, segmentos, tipos y
+  grupos. Cada entrada lleva el nombre en español, una descripción breve
+  escrita aquí y el patrón geométrico que le corresponde.
+- **`src/atlas/huesosAO.ts`.** Traduce cada pieza del atlas a su hueso AO y su
+  lado (derecho / izquierdo).
+  - **v1:** húmero `FJ3368` / `FJ3262`, radio `FJ3349` / `FJ3277`, cúbito
+    `FJ3391` / `FJ3286`, fémur `FJ3365` / `FJ3259`, tibia `FJ3387` / `FJ3282`,
+    peroné `FJ3366` / `FJ3260`.
+  - **Más adelante:** clavícula `FJ3362` / `FJ3237`, escápula `FJ3384` /
+    `FJ3279`, rótula `FJ3381` / `FJ3275`, metacarpianos `FJ3350`–`FJ3358` /
+    `FJ3240`–`FJ3252` (77.1 a 77.5), astrágalo `FJ3385` / `FJ3280` (81) y
+    calcáneo `FJ3360` / `FJ3256` (82).
+  - Una prueba comprueba que cada identificador existe en el catálogo real y es
+    un hueso.
+- **La receta en la preparación.** Campo nuevo
+  `ContenidoDeInstancia.fracturas?: [{ pieza, codigo: '42-A2', segmento, tipo,
+  grupo, porcion: { centro, extension }, inclinacion, giro, semilla }]`.
+  - Es json, así que no pide migración.
+  - Se guardan además los cortes que genera. La receta permite reeditar: pasar
+    a 42-B2 borra sus cortes y los regenera.
+  - Se valida en el servidor con `fracturasValidas`, en `src/atlas/catalogo.ts`.
+- **El generador, puro y probado:** `src/atlas/patronesDeFractura.ts` convierte
+  una receta en una lista de `CorteDePieza` encadenados (`#a`, `#b`…), sin
+  `three`:
+
+  | Grupo | Cómo se corta |
+  |---|---|
+  | A3 transversa | Un plano normal al eje, con 0–15° de inclinación |
+  | A2 oblicua | Un plano a 30–60°, en la cara elegida (giro) |
+  | A1 espiroidea | Una superficie helicoidal, que no es un plano: ver R1 |
+  | B2 cuña | Una región convexa de dos planos (`otrosPlanos`) que aísla un triángulo de cortical por un lado, y un plano que separa proximal y distal por el vértice de la cuña |
+  | B3 | B2 más uno o dos cortes dentro de la cuña |
+  | C2 segmentaria | Dos cortes, transversos u oblicuos, separados por la extensión elegida: tres fragmentos |
+  | C3 | C2 más cortes dentro del fragmento intermedio |
+  | Extremo tipo A | Como en la diáfisis, pero confinado al segmento de extremo y sin entrar en la superficie articular |
+
+  Los topes vigentes alcanzan: 4 planos por corte, 9 niveles y 200 cortes
+  (`src/atlas/formato.ts`).
+- **Refinar la malla antes de cortar.** Los huesos del atlas son mallas pobres:
+  el fémur tiene 480 vértices, la tibia 334 y el húmero 794. Una espiral o una
+  cuña sobre eso se ve facetada. Antes de cortar, `refinarZona`
+  (`src/lib/osteotomia.ts`) subdivide los triángulos de la zona de la fractura
+  hasta unos 2 mm de arista. Lo hace solo en memoria y de forma determinista,
+  para que el corte salga igual al reabrir.
+
+**La interfaz.** Es la pestaña «Fractura» y depende de E2.1.
+
+- **Tarjetas.** Una por opción, como en la app de AO, pero con pictogramas
+  propios: SVG sencillos dibujados aquí.
+- **Paso 1, elegir el hueso.**
+  - El clic solo selecciona huesos que estén en la tabla.
+  - La piel y el músculo dejan pasar el rayo.
+  - El hueso elegido se resalta, se encuadra, y se ofrece «Solo esto» para
+    apagar lo de alrededor.
+- **Paso 5, la porción.**
+  - Una banda translúcida sobre el hueso marca dónde cae la fractura.
+  - Dos tiradores, centro y extensión, se mueven solo dentro del segmento.
+  - Vista previa con los discos de corte (`pintarElCorte`).
+- **«Fracturar».**
+  - Crea los cortes en una sola entrada del historial.
+  - Deja una etiqueta flotante con el código, por ejemplo «42-A2 · tibia
+    derecha, diáfisis, oblicua».
+- **Exportar al simulador.**
+  - En la v1 sigue admitiendo un solo plano (A2 y A3); el resto avisa.
+  - Los casos con más de un fragmento son v2: hoy el simulador mueve solo uno.
+
+**Tareas**
+
+- [ ] **E4.1 · Validar con Cristóbal** la tabla (E4-Q1) y elegir tres casos guía,
+  por ejemplo 42-A2, 32-B2 y 12-C2.
+- [ ] **E4.2 · Las tablas.**
+  - `clasificacionAO.ts` y `huesosAO.ts`, con pruebas.
+  - Alinear el catálogo `clasificaciones-ao`: añadir B3 y C3, y marcar B1 y C1
+    como de 2007. Es un cambio de contenido, no de esquema.
+- [ ] **E4.3 · Segmentos por la regla de Heim.** Perfil de anchura, con pruebas
+  sobre la tibia y el fémur reales.
+- [ ] **E4.4 · `patronesDeFractura.ts`** (A2, A3, B2, B3, C2 y C3). Las pruebas
+  comprueban tres cosas:
+  - el número de fragmentos;
+  - que todos quedan cerrados, sin agujeros;
+  - que el volumen total se conserva con un ±1 %.
+- [ ] **E4.5 · `refinarZona`**, con pruebas.
+- [ ] **E4.6 · A1 espiroidea** (riesgo R1).
+- [ ] **E4.7 · Formato.** `fracturas` en el contenido, validación en el servidor,
+  guardar y abrir.
+- [ ] **E4.8 · La pestaña «Fractura»** y el filtro del clic.
+- [ ] **E4.9 · Comprobación y documentación.**
+  - El manual.
+  - La tabla de «qué se puede» en `docs/COMO-SUBIR-UN-MODELO.md` (l.133–138), que
+    hoy dice que A1, B y C no se pueden.
+  - La D-nnn.
+  - Una prueba en el navegador de los tres casos guía.
+
+**Riesgos**
+
+- **R1 · La espiroidea.** Su superficie no es un plano.
+  - **Opción A, la preferida: cortar por una superficie implícita**, un
+    helicoide, en `osteotomia.ts`.
+    1. Se clasifican los vértices por el signo de la función.
+    2. Se parten los triángulos que la cruzan.
+    3. Se tapa proyectando el contorno al dominio (θ, r) del helicoide. Como el
+       helicoide es una superficie reglada, se puede triangular en 2D con
+       `ShapeUtils` y devolver a 3D.
+    4. En el formato, `CorteDePieza` gana un campo opcional `superficie: { tipo:
+       'helicoide', … }`, con su validación.
+  - **Opción B, de reserva:** aproximarla con tres o cuatro planos encadenados,
+    en escalera.
+  - La exportación al simulador no la admite en la v1.
+- **R2 · Rendimiento.** Al abrir una preparación, cada corte rehace sus mallas, y
+  varias fracturas con refinado pueden tardar. Se mide con tres fracturas; si
+  pasa de un segundo, se cachea.
+- **R3 · Fidelidad clínica.** Los patrones son esquemáticos. Los valida Cristóbal
+  caso a caso.
+
+**Preguntas**
+
+- **E4-Q1 · La tabla de grupos y la edición 2018**, para validarla.
+- **E4-Q2 · Quién lo usa.** En la v1, solo los editores en el taller. ¿También el
+  residente en el simulador, con un «elige tu fractura»?
+- **E4-Q3 · Qué huesos van primero.** ¿La mano, como en las capturas de la app?
+
+---
+
+#### E5 · Piel e instrumental · 2–3 sesiones · piel hecha en parte
+
+La parte sin código, conseguir los modelos 3D, puede empezar ya.
+
+**Hecho:** la piel vuelve al atlas (D-155, 2026-10-07).
+
+**La piel: lo que falta**
+
+- [ ] **E5.1 · Interruptor rápido «Piel»** en la barra del taller: encender y
+  apagar, con transparencia del 30 % por omisión, para que no tape todo al abrir
+  «Cuerpo». Además, la piel se excluye del marco y del clic salvo que se la
+  quiera seleccionar. El marco elige por centros (D-126), y uno sobre el abdomen
+  se la lleva.
+- [ ] **E5.2 · La preparación «cuerpo»** (id 1): encenderle la piel desde el
+  taller. Lo hace el dueño (ver D-155).
+- [ ] **E5.3 · La consola quirúrgica.** Comprobar que un caso exportado de nuevo
+  trae su piel recortada (D-096) y que el paso de la incisión la usa.
+
+**El instrumental en la escena**
+
+- [ ] **E5.4 · Conseguir los modelos 3D**: `.glb` de 5 MB como máximo.
+  - **El juego mínimo:** bisturí, separadores (Farabeuf y Hohmann), pinza de
+    reducción con puntas, pinza de Verbrugge, motor y broca, guía de broca,
+    medidor de profundidad, atornillador, tornillo cortical de 3,5 mm, placa
+    recta de 3,5 mm (LCP), aguja de Kirschner y martillo.
+  - **De dónde.** Modelarlos en Blender, con control total, o tomarlos de
+    bibliotecas con licencia clara (CC0 o CC BY), anotando autor y licencia en la
+    atribución. Nada se descarga sin revisar la licencia (E5-Q1).
+- [ ] **E5.5 · Subirlos** a «Modelos 3D» y enlazarlos en el catálogo
+  «Instrumental». El campo `modelo` ya existe (migración `20260912_212708`).
+- [ ] **E5.6 · En el taller.**
+  - Campo nuevo `ContenidoDeInstancia.objetos?: [{ modelo, mover, girar,
+    escala }]`. Es json y no pide migración; se valida con `objetosValidos`.
+  - «Añadir instrumento» desde el catálogo.
+  - El instrumento se manipula con E3, se guarda con la preparación y se ve en
+    las fichas (`VisorInstancia`).
+- [ ] **E5.7 · En la consola quirúrgica.**
+  - El instrumento elegido en la bandeja aparece en la escena. Hoy solo se ve
+    en el visor pequeño de `ConsolaQuirurgica.tsx` (l.1475–1499).
+  - El bisturí sigue el trazo de la incisión.
+  - La pinza aparece sobre el foco al reducir.
+  - El implante (placa y tornillos) aparece en su paso; el papel `implante` ya
+    empieza oculto.
+- [ ] **E5.8 · Pruebas, manual y D-nnn.**
+
+**Preguntas**
+
+- **E5-Q1 · ¿Quién consigue el instrumental?** ¿Se modela aquí, se compra o se
+  descarga?
+- **E5-Q2 · ¿El instrumental va también en las fichas** o solo en el simulador?
+
+---
+
+#### Cómo retomarlo en otra sesión
+
+1. Leer este P-001 entero y las D-nnn que enlaza.
+2. `git log --oneline --grep "P-001"` dice qué tareas ya se hicieron.
+3. Seguir por la primera casilla sin marcar de la etapa en curso. Si una
+   pregunta de la etapa sigue abierta, hacer antes las tareas que no dependen de
+   ella.
+4. Al terminar una tarea, marcar su casilla con el commit. Al terminar una etapa,
+   cambiar su estado aquí y en la tabla de abajo, y escribir su D-nnn.
+
+#### Estado
+
+| Etapa | Estado | Sesiones | Decisiones |
+|---|---|---|---|
+| E1 · Módulos ocultos | pendiente | 1–2 | — |
+| E2 · Comentarios en el taller | pendiente | 1–2 | — |
+| E3 · Manipulación directa | pendiente | 2 | — |
+| E4 · Fracturas AO | pendiente | 3–4 | — |
+| E5 · Piel e instrumental | piel hecha (D-155); instrumental pendiente | 2–3 | D-155 |
+
+---
+
+## 6. Convenciones de esta bitácora
 
 - Cada decisión entra como `D-nnn` con contexto y consecuencia, no solo con el
   resultado. Dentro de tres meses la consecuencia es lo único que sirve.
 - Cada observación entra como `O-nnn` con dónde se ve, no solo qué pasa.
+- El trabajo de varias sesiones entra como `P-nnn` en la sección 5, con sus
+  tareas y casillas, para poder retomarlo sin la conversación que lo originó.
 - Las entradas no se borran. Si una decisión se revierte, se marca **superada**
   y se enlaza la nueva.
 - Las fechas van en formato absoluto (2026-08-28), nunca "la semana pasada".
