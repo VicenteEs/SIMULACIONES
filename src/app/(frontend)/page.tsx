@@ -14,7 +14,8 @@ import { recorridoGuardado, type RecorridoGuardado } from '@/lib/progresoDelSimu
 import { NOMBRE_DE_MODULO, rutaPublica } from '@/app/(frontend)/admin-panel/modulos'
 import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
 import { TarjetaFicha } from '@/components/TarjetaFicha'
-import { ArrowRight, BookOpen, Clock3, Library, PenLine, UserPlus, Hourglass } from 'lucide-react'
+import { MODULOS_ANUNCIADOS, ROTULO_PROXIMAMENTE } from '@/lib/modulosAnunciados'
+import { ArrowRight, BookOpen, Clock3, Library, PenLine, ScanLine, UserPlus, Hourglass } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -147,6 +148,22 @@ export default async function Inicio() {
               </div>
             )
           })}
+          {/* Los módulos anunciados (D-163): con su insignia y sin enlace, porque
+              su página es para quien tiene cuenta. No cuentan en el texto de
+              arriba ni en la lista de la mantención. */}
+          {MODULOS_ANUNCIADOS.map((m) => (
+            <div key={m.ruta} className="portada-tira-item portada-tira-anunciado">
+              <span className="portada-tira-icono" aria-hidden="true">
+                <ScanLine size={18} />
+              </span>
+              <span>
+                <span className="portada-tira-numero">{m.numero}</span>
+                <br />
+                <span className="portada-tira-nombre">{m.nombre}</span>{' '}
+                <span className="insignia-proximamente">{ROTULO_PROXIMAMENTE}</span>
+              </span>
+            </div>
+          ))}
         </section>
       </main>
     )
@@ -683,6 +700,28 @@ export default async function Inicio() {
                   </span>
                 </div>
               </Link>
+              </div>
+            ))}
+            {/* El módulo anunciado (D-163): una tarjeta más, atenuada, con su
+                insignia y sin conteos de lectura —no hay nada que leer—. Lleva a
+                su página, que cuenta lo que va a ser. */}
+            {MODULOS_ANUNCIADOS.map((m) => (
+              <div key={m.ruta} className="modulo-anunciado">
+                <Link href={m.ruta} className="tarjeta-modulo">
+                  <span className="modulo-numero" aria-hidden="true">
+                    {m.numero}
+                  </span>
+                  <span className="icono-modulo" aria-hidden="true">
+                    <ScanLine size={20} />
+                  </span>
+                  <h3>{m.nombre}</h3>
+                  <p>{m.resumen}</p>
+                  <div className="modulo-pie">
+                    <div className="etiquetas">
+                      <span className="insignia-proximamente">{ROTULO_PROXIMAMENTE}</span>
+                    </div>
+                  </div>
+                </Link>
               </div>
             ))}
           </div>

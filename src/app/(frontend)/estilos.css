@@ -1978,3 +1978,40 @@ body:has(> .portada-publica) > .portada-publica {
 }
 .modulos a .modulo-en-mantencion svg { opacity: 1; }
 .menu-enlace .insignia-mantencion { margin-left: auto; }
+
+/* El módulo anunciado (D-163, E7): una tarjeta atenuada con su insignia, y el
+   buzón de requisitos que hay en su página. */
+.insignia-proximamente {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ambar-tenue);
+  color: var(--ambar-texto);
+  border: 1px solid var(--ambar);
+  font-size: var(--t-xs);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.modulo-anunciado { opacity: 0.82; }
+.modulo-anunciado .tarjeta-modulo { border-style: dashed; }
+.modulo-anunciado:hover, .modulo-anunciado:focus-within { opacity: 1; }
+.portada-tira-anunciado { opacity: 0.85; }
+.planificacion-pasos { padding-left: 1.2em; display: grid; gap: var(--e-2, 8px); }
+.buzon { display: grid; gap: var(--e-3, 12px); margin-top: var(--e-4, 24px); }
+.buzon-formulario { display: grid; gap: 6px; }
+.buzon-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-3, 12px); }
+.buzon-requisito { display: grid; gap: 6px; scroll-margin-top: 80px; }
+.buzon-requisito:target { outline: 2px solid var(--marca); }
+.buzon-cabecera { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.buzon-cabecera h3 { margin: 0; }
+.buzon-autor { margin: 0; font-size: var(--t-xs); color: var(--mudo); }
+.buzon-descripcion { margin: 0; white-space: pre-wrap; }
+.buzon-respuesta { margin: 0; padding: 8px 12px; border-left: 3px solid var(--marca); background: var(--superficie-tenue, rgba(0, 0, 0, 0.03)); white-space: pre-wrap; }
+.buzon-estado { font-size: var(--t-xs); font-weight: 650; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.buzon-estado-aceptado, .buzon-estado-hecho { color: var(--ok-texto, #1f6b3a); }
+.buzon-estado-descartado { color: var(--mudo); }
+.buzon-estado-en-estudio { color: var(--ambar-texto); }
+.buzon-admin { display: grid; gap: 6px; border-top: 1px solid var(--borde, #d7dfec); padding-top: 8px; }

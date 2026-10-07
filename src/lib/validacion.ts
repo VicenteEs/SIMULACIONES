@@ -8,6 +8,13 @@
  * TypeScript, que no existe en tiempo de ejecución.
  */
 
+import {
+  LARGO_MAXIMO_DE_LA_DESCRIPCION,
+  LARGO_MAXIMO_DE_LA_RESPUESTA,
+  LARGO_MAXIMO_DEL_TITULO,
+  esEstadoDeRequisito,
+  type EstadoDeRequisito,
+} from './requisitos'
 import { SLUGS_DE_MODULOS } from '@/collections'
 import type { Rol } from '@/access/reglas'
 
@@ -188,4 +195,32 @@ export function anclaOpcional(valor: unknown): AnclaDeComentario | undefined {
     }
   }
   return ancla
+}
+
+// ----------------------------------------------------- requisitos del buzón (D-163)
+// Aquí y no en `requisitos.ts`: ese archivo lo importa el navegador y este arrastra
+// `@/collections`, que no se puede traer a un componente de cliente.
+
+export function exigirEstadoDeRequisito(valor: unknown): EstadoDeRequisito {
+  if (!esEstadoDeRequisito(valor)) return rechazar('Ese estado no existe.')
+  return valor
+}
+
+export interface DatosDeRequisito {
+  titulo: string
+  descripcion: string
+}
+
+/** Un requisito que llega del navegador: título y descripción, con sus techos. */
+export function exigirRequisito(titulo: unknown, descripcion: unknown): DatosDeRequisito {
+  return {
+    titulo: exigirTexto(titulo, 'El título', LARGO_MAXIMO_DEL_TITULO),
+    descripcion: exigirTexto(descripcion, 'La descripción', LARGO_MAXIMO_DE_LA_DESCRIPCION),
+  }
+}
+
+/** Una respuesta del administrador: puede ir vacía (solo cambia el estado). */
+export function respuestaOpcional(valor: unknown): string {
+  if (valor === undefined || valor === null || valor === '') return ''
+  return exigirTexto(valor, 'La respuesta', LARGO_MAXIMO_DE_LA_RESPUESTA)
 }

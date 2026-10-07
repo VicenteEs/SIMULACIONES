@@ -11,6 +11,7 @@ import { Cirugias } from './Cirugias'
 import { EstudiosIA } from './EstudiosIA'
 import { Comentarios } from './Comentarios'
 import { Ajustes } from './Ajustes'
+import { Requisitos } from './Requisitos'
 import { Actividad } from './Actividad'
 import { Difusiones } from './Difusiones'
 import { Revisiones } from './Revisiones'
@@ -61,6 +62,7 @@ const DECLARADAS: CollectionConfig[] = [
   RegistroDeAcciones,
   TiempoActivo,
   Ajustes,
+  Requisitos,
 ]
 
 /**

@@ -8,6 +8,7 @@ import {
   Eye,
   FileText,
   Flag,
+  Inbox,
   MessageSquare,
   PenLine,
   Users,
@@ -60,7 +61,7 @@ export default async function ResumenAdmin() {
   // Los módulos en mantención (D-156), para marcarlos en su tarjeta.
   const enMantencion = await modulosEnMantencion()
 
-  const [usuarios, comentarios, todosLosModulos, actividad, lecturaDeRespaldos, solicitudes, pendientes] =
+  const [usuarios, comentarios, todosLosModulos, actividad, lecturaDeRespaldos, solicitudes, pendientes, requisitos] =
     await Promise.all([
       esAdmin ? resumenDeUsuarios(payload) : null,
       resumenDeComentarios(payload),
@@ -106,6 +107,18 @@ export default async function ResumenAdmin() {
           overrideAccess: true,
         })
         .catch(() => ({ docs: [] as Record<string, unknown>[] })),
+      // Los requisitos que nadie ha atendido todavía (D-163): del administrador,
+      // que es quien responde. `null` si la tabla no contestó.
+      esAdmin
+        ? payload
+            .count({
+              collection: 'requisitos',
+              where: { estado: { equals: 'propuesto' } },
+              overrideAccess: true,
+            })
+            .then((conteo) => conteo.totalDocs)
+            .catch(() => null)
+        : null,
     ])
 
   // Un editor con módulos asignados cuenta y ve los suyos: un resumen que suma
@@ -397,6 +410,23 @@ export default async function ResumenAdmin() {
               : 'retroalimentación recibida en las fichas'
           }
         />
+
+        {requisitos !== null || esAdmin ? (
+          <Indicador
+            href="/planificacion"
+            titulo="Requisitos por atender"
+            icono={Inbox}
+            tono={requisitos !== null && requisitos > 0 ? 'atencion' : 'info'}
+            ilegible={requisitos === null}
+            claseValor={requisitos !== null && requisitos > 0 ? 'admin-card-value-atencion' : undefined}
+            valor={requisitos === null ? '—' : requisitos}
+            nota={
+              requisitos === null
+                ? 'no se pudo leer el buzón'
+                : 'propuestos para el módulo 06, sin respuesta'
+            }
+          />
+        ) : null}
 
         {actividad ? (
           <Indicador

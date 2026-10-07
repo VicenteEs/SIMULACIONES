@@ -90,6 +90,7 @@ export interface Config {
     'registro-de-acciones': RegistroDeAccione;
     'tiempo-activo': TiempoActivo;
     ajustes: Ajuste;
+    requisitos: Requisito;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -120,6 +121,7 @@ export interface Config {
     'registro-de-acciones': RegistroDeAccionesSelect<false> | RegistroDeAccionesSelect<true>;
     'tiempo-activo': TiempoActivoSelect<false> | TiempoActivoSelect<true>;
     ajustes: AjustesSelect<false> | AjustesSelect<true>;
+    requisitos: RequisitosSelect<false> | RequisitosSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -2084,6 +2086,22 @@ export interface Ajuste {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "requisitos".
+ */
+export interface Requisito {
+  id: number;
+  titulo: string;
+  descripcion: string;
+  modulo: 'planificacion';
+  autor?: (number | null) | Usuario;
+  estado: 'propuesto' | 'en-estudio' | 'aceptado' | 'hecho' | 'descartado';
+  respuesta?: string | null;
+  votos?: (number | Usuario)[] | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -2197,6 +2215,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'ajustes';
         value: number | Ajuste;
+      } | null)
+    | ({
+        relationTo: 'requisitos';
+        value: number | Requisito;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -3673,6 +3695,21 @@ export interface TiempoActivoSelect<T extends boolean = true> {
 export interface AjustesSelect<T extends boolean = true> {
   nombre?: T;
   modulosEnMantencion?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "requisitos_select".
+ */
+export interface RequisitosSelect<T extends boolean = true> {
+  titulo?: T;
+  descripcion?: T;
+  modulo?: T;
+  autor?: T;
+  estado?: T;
+  respuesta?: T;
+  votos?: T;
   updatedAt?: T;
   createdAt?: T;
 }

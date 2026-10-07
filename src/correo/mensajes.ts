@@ -260,3 +260,46 @@ export function mensajeDePrueba(datos: { quien: string; servidor: string }): Cor
     motivoDelEnvio: 'Recibe este correo porque lo pidió desde el panel de TraumaHub.',
   }
 }
+
+/** Un requisito nuevo en el buzón del módulo anunciado (D-163): el aviso a los administradores. */
+export function mensajeDeRequisitoNuevo(datos: {
+  autor: string
+  titulo: string
+  descripcion: string
+  enlace: string
+}): Correo {
+  return {
+    asunto: `TraumaHub · Nuevo requisito: ${datos.titulo}`.slice(0, 160),
+    resumen: `${datos.autor} propuso «${datos.titulo}» para el módulo de planificación.`,
+    titulo: 'Nuevo requisito para el módulo 06',
+    bloques: [
+      { tipo: 'datos', filas: [['Autor', datos.autor], ['Título', datos.titulo]] },
+      { tipo: 'cita', texto: datos.descripcion },
+    ],
+    boton: { texto: 'Abrir el buzón', enlace: datos.enlace },
+    motivoDelEnvio: 'Recibe este correo porque es administrador de TraumaHub.',
+  }
+}
+
+/** El administrador movió un requisito de estado (D-163): el aviso a quien lo propuso. */
+export function mensajeDeRequisitoRespondido(datos: {
+  nombre?: string
+  titulo: string
+  estado: string
+  respuesta: string
+  enlace: string
+}): Correo {
+  const respuesta = datos.respuesta.trim()
+  return {
+    asunto: `TraumaHub · Su requisito está «${datos.estado.toLowerCase()}»`,
+    resumen: `«${datos.titulo}» pasó a «${datos.estado.toLowerCase()}».`,
+    titulo: 'Su requisito cambió de estado',
+    bloques: [
+      saludo(datos.nombre),
+      { tipo: 'datos', filas: [['Requisito', datos.titulo], ['Estado', datos.estado]] },
+      ...(respuesta ? [{ tipo: 'cita' as const, texto: respuesta }] : []),
+    ],
+    boton: { texto: 'Abrir el buzón', enlace: datos.enlace },
+    motivoDelEnvio: MOTIVO_CUENTA,
+  }
+}

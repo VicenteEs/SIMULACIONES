@@ -5149,6 +5149,76 @@ consola con ella.
 clic. *Malas:* no hay forma de seleccionar la piel con el clic si hay algo detrás
 —se elige en la lista—; y el 30 % es una cifra mía.
 
+### D-163 · 2026-10-07 · vigente
+**El módulo 06 se anuncia, y se reúnen sus requisitos en un buzón.**
+Pedido del dueño (P-001, E7) a raíz de la nota de voz de Cristóbal: cargar una
+tomografía y que la plataforma reconstruya la fractura para planificar la cirugía.
+Antes de construirlo, se anuncia y se deja un lugar para decir cómo debería ser.
+
+*Qué se hizo.*
+- **Un módulo anunciado no es un módulo.** `MODULOS_ANUNCIADOS`
+  (`src/lib/modulosAnunciados.ts`) es una lista aparte de `SLUGS_DE_MODULOS`, que
+  manda en los permisos, los enumerados de la base y cinco copias más; un módulo
+  sin contenido no tiene nada que proteger. Tiene número 06, ruta y una insignia
+  «Próximamente» (ámbar, la de la mantención con otro texto).
+- **Dónde se ve.** La portada pública, en la tira de módulos y sin enlace (su página
+  es para quien tiene cuenta); la de quien entró, como una sexta tarjeta atenuada, de
+  borde discontinuo y **sin conteos ni avance**. En la barra superior, no: se reserva
+  para lo que ya se puede usar. Los residentes la ven (E7-Q2: se propuso que sí, y
+  nadie dijo lo contrario).
+- **La página** `/planificacion`, para toda cuenta activa: lo que va a ser, en seis
+  pasos, y lo que no va a ser. El texto lo escribí yo con la nota de voz y el plan: lo
+  revisa Cristóbal. El buzón se monta solo para quien edita, y se decide con el usuario
+  **efectivo**, de modo que mirar «como un residente» no lo enseña.
+- **La colección `requisitos`** (migración `requisitos_del_buzon`, aditiva): título,
+  descripción, módulo (de momento solo `planificacion`), autor, estado
+  (propuesto, en estudio, aceptado, hecho, descartado), respuesta y votos. La leen y la
+  crean editores y administradores; la modifica el administrador y, **mientras esté
+  «propuesto», su autor** (`edicionDeRequisito`, un filtro de consulta); la borra el
+  administrador. El estado y la respuesta son campos del administrador. El autor, el
+  módulo y los votos **no se escriben por la API**: los votos los gestiona la acción
+  `votarRequisito`, que los alterna por cuenta —votar dos veces no suma dos— y no
+  admite votos en lo cerrado (hecho o descartado).
+- **Avisos por correo.** A los administradores, por cada requisito nuevo; a su autor,
+  cuando el administrador cambia el estado, con la respuesta. Mismo gancho y mismo
+  `enviarSinEsperar` que los comentarios; proponer tiene el freno de diez cada diez
+  minutos.
+- **El panel:** una tarjeta «Requisitos por atender» en el Resumen del administrador, y
+  el registro de acciones (D-145) anota los requisitos como el resto de colecciones.
+
+*Verificado en el navegador:* la portada pública enseña la sexta entrada; un editor
+propone un requisito y lo vota (y quita el voto); el administrador lo acepta con una
+respuesta; el editor no ve los controles del administrador, y un requisito aceptado ya
+no se reescribe. 196 pruebas de integración contra la base desechable, entre ellas la
+matriz de roles con la clase nueva `buzon` y siete pruebas propias del buzón: se
+propone a su nombre y «propuesto» aunque mande otra cosa, el autor reescribe lo suyo y
+otro editor no, el autor no se acepta a sí mismo ni escribe la respuesta, después de
+responder ya no se reescribe, los votos no se escriben por la API, el lector no lo ve y
+**al dar de baja a su autor el requisito se conserva sin autor**.
+
+*Dos fallos que se encontraron probando, por si vuelven.*
+- **Un componente de cliente no puede importar `validacion.ts`**, que arrastra
+  `@/collections` y con él Payload: `fs` no se resuelve en el navegador y la página
+  entera se queda en «Cargando…». Los límites y los estados viven en `requisitos.ts`
+  (sin ningún import) y la validación, en `validacion.ts`. Una prueba lo vigila.
+- **Los votos viajan como números.** Con identificadores enteros, Payload rechaza
+  `"2"` como valor de una relación y contesta «El siguiente campo es inválido: Votos».
+
+*Lo que no se hizo.* Los **comentarios** de un requisito: el plan decía «se votan, se
+comentan»; comentar pide ampliar el enumerado de `comentarios.coleccion` y su bandeja,
+y la respuesta del administrador cubre lo esencial. La pregunta de fondo (**Q-009**,
+docente o clínica) sigue abierta.
+
+*Consecuencias buenas.* Cristóbal y los demás pueden dejar sus ideas desde ya, y el
+P-002 parte de una lista votada y no de una memoria. *Malas:*
+- **El texto de la página es mío.** Promete cosas (anonimizar en el navegador,
+  conservar poco) que nadie ha decidido construir así; la insignia y «Lo que no va a
+  ser» lo dicen, pero conviene que Cristóbal lo lea antes de que lo vea un residente.
+- **El buzón no tiene paginación**: lee los 300 más recientes. Un puñado de editores no
+  lo llena.
+- **El nombre del módulo** («Planificación con imágenes del paciente») es una propuesta
+  (E7-Q1).
+
 ---
 
 ### O-014 · 2026-09-06 · alta · resuelta
@@ -7348,7 +7418,7 @@ Daría una lista para pedir a la casa comercial. Cristóbal: «ahí nos pasaría
 
 ---
 
-#### E7 · Módulo 06, planificación con DICOM: «Próximamente» y buzón de requisitos · 1–2 sesiones · pendiente
+#### E7 · Módulo 06, planificación con DICOM: «Próximamente» y buzón de requisitos · 1–2 sesiones · hecha en código; falta desplegar
 
 **De dónde sale:** el pedido 7 del dueño y la última nota de voz de Cristóbal:
 «poder meterle los DICOM y que te reconstruya la fractura exacta que vas a
@@ -7451,30 +7521,30 @@ qué tarjeta tiene y cuánta memoria.
 
 **Tareas**
 
-- [ ] **E7.1 · `MODULOS_ANUNCIADOS`,** la sexta tarjeta en las dos portadas y el
+- [x] **E7.1 · `MODULOS_ANUNCIADOS`,** la sexta tarjeta en las dos portadas y el
   texto «Cinco módulos». La insignia es la de E1, con otro texto.
-- [ ] **E7.2 · La página `/planificacion`**, con «Lo que va a ser», «Lo que no va
+- [x] **E7.2 · La página `/planificacion`**, con «Lo que va a ser», «Lo que no va
   a ser» y «Antes de construirlo». Con su guardia de sesión, y cualquier enlace
   escrito a mano pasa por `ruta()`.
-- [ ] **E7.3 · La colección `requisitos`.**
+- [x] **E7.3 · La colección `requisitos`.** *(Sin esquema en el panel: se gestiona desde la propia página.)*
   - Acceso y migración.
   - `CLASE_DE` y fábrica en `roles.test.ts`.
   - Su esquema en el panel, si se edita desde ahí.
-- [ ] **E7.4 · El buzón en la página, solo para editores y administradores.**
+- [x] **E7.4 · El buzón en la página, solo para editores y administradores.**
   - Lista ordenada por votos.
   - «+1».
   - «Proponer un requisito».
   - Insignias de estado.
   - El administrador cambia el estado y responde ahí mismo.
-- [ ] **E7.5 · Avisos por correo** y su freno.
-- [ ] **E7.6 · Panel.** Contador de requisitos nuevos en «Resumen», y una línea
+- [x] **E7.5 · Avisos por correo** y su freno.
+- [x] **E7.6 · Panel.** Contador de requisitos nuevos en «Resumen», y una línea
   en el registro (D-145).
-- [ ] **E7.7 · Pruebas.**
+- [x] **E7.7 · Pruebas.**
   - `roles.test.ts`: el editor crea y vota; el lector no ve nada; el autor no
     cambia el estado.
   - `panelPorRol.test.ts` y migraciones.
   - Que la portada enseña seis tarjetas y que la sexta no tiene contadores.
-- [ ] **E7.8 · Manual y D-nnn.** La pregunta de fondo ya está en la sección 4 como
+- [x] **E7.8 · Manual y D-nnn** (D-163). La pregunta de fondo ya está en la sección 4 como
   Q-009 (2026-10-07); al cerrar la etapa, se anota ahí lo que se haya decidido.
 
 **Preguntas**
@@ -7507,7 +7577,7 @@ qué tarjeta tiene y cuánta memoria.
 | E4 · Fracturas AO | v1 hecha en código (sin A1 ni encuadre en la ficha); falta validar con Cristóbal | 3–4 | D-161 |
 | E5 · Piel e instrumental | piel hecha (D-155), ajustada (D-159) y con interruptor (D-162); instrumental pendiente | 2–3 | D-155, D-159, D-162 |
 | E6 · Manejo AO paso a paso | pendiente | 3–4 | — |
-| E7 · Módulo 06 DICOM: anuncio y buzón | pendiente; puede adelantarse tras E1 | 1–2 | — |
+| E7 · Módulo 06 DICOM: anuncio y buzón | hecha en código (sin comentarios en los requisitos); falta desplegar | 1–2 | D-163 |
 
 ---
 

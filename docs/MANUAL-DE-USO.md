@@ -738,6 +738,31 @@ Cada cambio queda en «Registro» (en el panel), con quién lo hizo y a qué hor
 
 ---
 
+## 14b. El módulo 06 y el buzón de requisitos
+
+La portada enseña una **sexta tarjeta, «Planificación con imágenes del paciente»**, con
+la insignia **«Próximamente»**. No es un módulo todavía: no tiene fichas, no cuenta en
+«Disponibles» y no sale en la barra superior. Pulsarla lleva a una página que cuenta lo
+que va a ser y lo que no.
+
+**Para editores y administradores**, esa misma página trae el **buzón de requisitos**:
+lo que querría que hiciera el módulo y cómo.
+
+- **Proponer:** un título y una descripción. Le llega un aviso por correo a los
+  administradores.
+- **Votar:** el botón con el pulgar suma su voto; otra vez, lo quita. No se puede votar
+  lo que ya está cerrado.
+- **Reescribir lo propio:** mientras siga «propuesto». Cuando el administrador lo mueve
+  de estado, ya no.
+- **Responder (administrador):** elija el estado —propuesto, en estudio, aceptado, hecho
+  o descartado— y, si quiere, escriba una respuesta. A quien lo propuso le llega por
+  correo. «Eliminar» borra el requisito y sus votos.
+
+El **Resumen** del administrador lleva una tarjeta «Requisitos por atender» con los que
+siguen propuestos.
+
+Un residente ve la descripción del módulo y no el buzón.
+
 ## 15. Cuando algo no sale
 
 | Qué pasa | Qué hacer |

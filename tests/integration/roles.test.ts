@@ -173,8 +173,12 @@ const escribeModulo = (a: Actor, modulo: string) =>
  *    administrador —las difusiones (D-120)—. Va aparte de `cuentas` porque esa
  *    clase se ata a la colección de auth, y juntarlas quitaría esa atadura.
  *  - `propias`: filas que pertenecen a una cuenta —comentarios y actividad—.
+ *  - `buzon`: el buzón de requisitos del módulo anunciado (D-163). Lo leen y lo
+ *    crean editor y administrador; lo modifica el administrador y, mientras estén
+ *    «propuestos», sus autores (eso lo prueba el bloque «el buzón de requisitos»);
+ *    lo borra el administrador.
  */
-type Clase = 'modulo' | 'vocabulario' | 'apoyo' | 'cuentas' | 'administracion' | 'propias'
+type Clase = 'modulo' | 'vocabulario' | 'apoyo' | 'cuentas' | 'administracion' | 'propias' | 'buzon'
 
 const CLASE_DE: Record<string, Clase> = {
   usuarios: 'cuentas',
@@ -204,6 +208,8 @@ const CLASE_DE: Record<string, Clase> = {
   'tiempo-activo': 'administracion',
   // Los ajustes de la plataforma (D-156): hoy, los módulos en mantención.
   ajustes: 'administracion',
+  // El buzón de requisitos del módulo 06 anunciado (D-163, E7).
+  requisitos: 'buzon',
 }
 
 type Esperado = (a: Actor) => boolean
@@ -235,6 +241,10 @@ function politica(slug: string, clase: Clase): Record<string, Esperado> {
     case 'cuentas':
     case 'administracion':
       return { leer: esAdmin, crear: esAdmin, editar: esAdmin, borrar: esAdmin }
+    case 'buzon':
+      // Las filas de la matriz no tienen autor, así que `editar` es del
+      // administrador: la excepción del autor se prueba aparte.
+      return { leer: escribeContenido, crear: escribeContenido, editar: esAdmin, borrar: esAdmin }
     case 'propias': {
       const comun: Record<string, Esperado> = {
         'leer las propias': esActivo,
@@ -412,6 +422,12 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
   ajustes: {
     titulo: 'nombre',
     fabricar: (nombre) => ({ data: { nombre, modulosEnMantencion: [] } }),
+  },
+  requisitos: {
+    titulo: 'titulo',
+    fabricar: (titulo) => ({
+      data: { titulo, descripcion: 'Algo que querríamos que hiciera el módulo.', modulo: 'planificacion' },
+    }),
   },
   'tiempo-activo': {
     titulo: 'dia',
@@ -987,6 +1003,178 @@ describe.skipIf(intento.payload === null)('cada rol contra la base', () => {
         await recorrer(slug, nombre, esperado[nombre], operacion)
       }, 120_000)
     }
+  })
+
+  /**
+   * D-163: el buzón de requisitos del módulo anunciado.
+   *
+   * Contra la base y por la API con las reglas puestas: el editor deja y reescribe
+   * lo suyo mientras esté «propuesto»; nadie le pone estado, respuesta ni votos
+   * por su cuenta; y al dar de baja a un autor, lo que propuso se queda.
+   */
+  describe('el buzón de requisitos', () => {
+    const comoEditor = (data: Record<string, unknown>) =>
+      payload.create({
+        collection: 'requisitos',
+        data: data as never,
+        user: sesion.editor as never,
+        overrideAccess: false,
+      }) as unknown as Promise<Record<string, unknown> & { id: number | string }>
+
+    const propia = async (extra: Record<string, unknown> = {}) => {
+      const fila = await comoEditor({
+        titulo: unico('requisito'),
+        descripcion: 'Una idea para el módulo.',
+        modulo: 'planificacion',
+        ...extra,
+      })
+      creados.push({ collection: 'requisitos', id: fila.id })
+      return fila
+    }
+
+    const idDe = (valor: unknown) =>
+      valor && typeof valor === 'object' ? String((valor as { id?: unknown }).id) : String(valor)
+
+    it('lo propone el editor, y queda a su nombre y propuesto aunque mande otra cosa', async () => {
+      const fila = await propia({ estado: 'aceptado', respuesta: 'Ya está aceptado.', autor: cuentaDe.admin })
+      const guardada = await leerSinReglas('requisitos', fila.id)
+      expect(idDe(guardada?.autor)).toBe(String(cuentaDe.editor))
+      expect(guardada?.estado).toBe('propuesto')
+      expect(guardada?.respuesta ?? null).toBeNull()
+    }, 120_000)
+
+    it('el autor lo reescribe mientras esté propuesto, y otro editor no', async () => {
+      const fila = await propia()
+      const nuevo = unico('reescrito')
+      await payload.update({
+        collection: 'requisitos',
+        id: fila.id,
+        data: { titulo: nuevo } as never,
+        user: sesion.editor as never,
+        overrideAccess: false,
+      })
+      expect((await leerSinReglas('requisitos', fila.id))?.titulo).toBe(nuevo)
+
+      const ajeno = await juzgada(
+        payload.update({
+          collection: 'requisitos',
+          id: fila.id,
+          data: { titulo: unico('del-otro') } as never,
+          user: sesion.editorRestringido as never,
+          overrideAccess: false,
+        }),
+      )
+      expect(ajeno, motivo).toBeNull()
+      expect((await leerSinReglas('requisitos', fila.id))?.titulo).toBe(nuevo)
+    }, 120_000)
+
+    it('el autor no lo acepta él mismo ni escribe la respuesta', async () => {
+      const fila = await propia()
+      await payload.update({
+        collection: 'requisitos',
+        id: fila.id,
+        data: { descripcion: 'Con más detalle.', estado: 'aceptado', respuesta: 'Me lo acepto.' } as never,
+        user: sesion.editor as never,
+        overrideAccess: false,
+      })
+      const guardada = await leerSinReglas('requisitos', fila.id)
+      expect(guardada?.descripcion).toBe('Con más detalle.')
+      expect(guardada?.estado).toBe('propuesto')
+      expect(guardada?.respuesta ?? null).toBeNull()
+    }, 120_000)
+
+    it('el administrador responde, y desde entonces el autor ya no lo reescribe', async () => {
+      const fila = await propia()
+      await payload.update({
+        collection: 'requisitos',
+        id: fila.id,
+        data: { estado: 'en-estudio', respuesta: 'Lo estudiamos.' } as never,
+        user: sesion.admin as never,
+        overrideAccess: false,
+      })
+      const guardada = await leerSinReglas('requisitos', fila.id)
+      expect(guardada?.estado).toBe('en-estudio')
+      expect(guardada?.respuesta).toBe('Lo estudiamos.')
+
+      const intento = await juzgada(
+        payload.update({
+          collection: 'requisitos',
+          id: fila.id,
+          data: { titulo: unico('a-escondidas') } as never,
+          user: sesion.editor as never,
+          overrideAccess: false,
+        }),
+      )
+      expect(intento, motivo).toBeNull()
+      expect((await leerSinReglas('requisitos', fila.id))?.titulo).toBe(fila.titulo)
+    }, 120_000)
+
+    it('los votos no se escriben por la API: ni el autor ni el administrador', async () => {
+      const fila = await propia()
+      for (const quien of [sesion.editor, sesion.admin]) {
+        await payload
+          .update({
+            collection: 'requisitos',
+            id: fila.id,
+            data: { votos: [cuentaDe.lector] } as never,
+            user: quien as never,
+            overrideAccess: false,
+          })
+          .catch(() => {})
+      }
+      const guardada = await leerSinReglas('requisitos', fila.id)
+      expect(Array.isArray(guardada?.votos) ? guardada?.votos : []).toEqual([])
+    }, 120_000)
+
+    it('el lector no lo ve ni lo propone', async () => {
+      const fila = await propia()
+      const lee = await juzgada(
+        payload.find({
+          collection: 'requisitos',
+          where: { id: { equals: fila.id } } as never,
+          user: sesion.lector as never,
+          overrideAccess: false,
+        }),
+      )
+      expect(lee, motivo).toBeNull()
+      const crea = await juzgada(
+        payload.create({
+          collection: 'requisitos',
+          data: { titulo: unico('del-lector'), descripcion: 'x', modulo: 'planificacion' } as never,
+          user: sesion.lector as never,
+          overrideAccess: false,
+        }),
+      )
+      expect(crea, motivo).toBeNull()
+    }, 120_000)
+
+    it('al dar de baja a su autor, el requisito se conserva sin autor y sin votos suyos', async () => {
+      const autor = await payload.create({
+        collection: 'usuarios',
+        data: FABRICAS.usuarios.fabricar(unico('autor-de-baja')).data as never,
+        overrideAccess: true,
+      })
+      const creada = (await payload.create({
+        collection: 'requisitos',
+        data: { titulo: unico('de-baja'), descripcion: 'Se queda.', modulo: 'planificacion' } as never,
+        user: { ...autor, rol: 'editor', activo: true } as never,
+        overrideAccess: true,
+      })) as unknown as { id: number | string }
+      creados.push({ collection: 'requisitos', id: creada.id })
+      await payload.update({
+        collection: 'requisitos',
+        id: creada.id,
+        data: { votos: [autor.id] } as never,
+        overrideAccess: true,
+      })
+      expect(idDe((await leerSinReglas('requisitos', creada.id))?.autor)).toBe(String(autor.id))
+
+      await payload.delete({ collection: 'usuarios', id: autor.id, overrideAccess: true })
+      const despues = await leerSinReglas('requisitos', creada.id)
+      expect(despues, 'el requisito se perdió con su autor').not.toBeNull()
+      expect(despues?.autor ?? null).toBeNull()
+      expect(Array.isArray(despues?.votos) ? despues?.votos : []).toEqual([])
+    }, 120_000)
   })
 
   describe('la sesión de una cuenta dada de baja', () => {

@@ -336,6 +336,15 @@ const GUARDIAS: Record<string, Clasificacion> = {
     argumentos: (m) => [m, '12', 'Un comentario sobre la ficha.'],
   },
 
+  // El buzón de requisitos del módulo anunciado (D-163): de editores y
+  // administradores, con su rol real. Responder y borrar son del administrador.
+  'requisitos.ts:listarRequisitos': { guardia: 'editor', argumentos: () => [] },
+  'requisitos.ts:proponerRequisito': { guardia: 'editor', argumentos: () => ['Un título', 'Una descripción'] },
+  'requisitos.ts:votarRequisito': { guardia: 'editor', argumentos: () => ['5'] },
+  'requisitos.ts:editarRequisito': { guardia: 'editor', argumentos: () => ['5', 'Otro título', 'Otra descripción'] },
+  'requisitos.ts:responderRequisito': { guardia: 'admin', argumentos: () => ['5', 'aceptado', 'Lo hacemos.'] },
+  'requisitos.ts:eliminarRequisito': { guardia: 'admin', argumentos: () => ['5'] },
+
   'sesion.ts:entrar': { guardia: 'publica', permitidos: ['login'], argumentos: () => ['a@prueba.invalid', 'clave'] },
   // Salir ya no es solo borrar la cookie (O-059): da de baja su propia sesión en
   // la fila de la cuenta, y para eso lee quién llama y reescribe esa fila. Ni

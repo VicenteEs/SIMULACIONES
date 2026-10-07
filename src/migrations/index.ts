@@ -17,6 +17,7 @@ import * as migration_20261002_144044_instrumento_propuesto from './20261002_144
 import * as migration_20261002_151329_reinicio_de_clave_payload_3_90 from './20261002_151329_reinicio_de_clave_payload_3_90';
 import * as migration_20261006_232958_modulos_en_mantencion from './20261006_232958_modulos_en_mantencion';
 import * as migration_20261007_060514_comentarios_del_taller from './20261007_060514_comentarios_del_taller';
+import * as migration_20261007_140233_requisitos_del_buzon from './20261007_140233_requisitos_del_buzon';
 
 export const migrations = [
   {
@@ -112,6 +113,11 @@ export const migrations = [
   {
     up: migration_20261007_060514_comentarios_del_taller.up,
     down: migration_20261007_060514_comentarios_del_taller.down,
-    name: '20261007_060514_comentarios_del_taller'
+    name: '20261007_060514_comentarios_del_taller',
+  },
+  {
+    up: migration_20261007_140233_requisitos_del_buzon.up,
+    down: migration_20261007_140233_requisitos_del_buzon.down,
+    name: '20261007_140233_requisitos_del_buzon'
   },
 ];

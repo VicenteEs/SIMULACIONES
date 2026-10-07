@@ -6,7 +6,7 @@
  * la política vive en un solo lugar: si mañana cambia quién puede qué, se
  * cambia en `reglas.ts` y las colecciones no se tocan.
  */
-import type { Access, FieldAccess } from 'payload'
+import type { Access, FieldAccess, Where } from 'payload'
 import { leerMantencion, type ClienteDeLectura } from '@/lib/mantencion'
 import {
   filtroDeLecturaDeModulo,
@@ -264,6 +264,31 @@ export const soloSuAutor: FieldAccess = ({ req, doc }) => {
   const autor = (doc as { usuario?: unknown } | undefined)?.usuario
   const idDelAutor = autor && typeof autor === 'object' ? (autor as { id?: unknown }).id : autor
   return idDelAutor !== null && idDelAutor !== undefined && String(idDelAutor) === sesion.id
+}
+
+/**
+ * Un campo que solo escribe el administrador: el estado y la respuesta de un
+ * requisito (D-163). Es de campo, y no solo de colección, porque el autor sí
+ * puede reescribir su requisito mientras esté propuesto, y lo que no puede es
+ * aceptarlo él mismo ni escribir la respuesta del administrador.
+ */
+export const soloAdministracion: FieldAccess = (args) => puedeAdministrarUsuarios(usuarioDe(args))
+
+/**
+ * Quién modifica un requisito del buzón (D-163): el administrador, cualquiera; un
+ * editor, solo los suyos y solo mientras estén «propuestos». Después de que el
+ * administrador los mueve de estado, lo escrito ya es lo que se estudió, y
+ * cambiarlo a escondidas deja la respuesta contestando a otra cosa.
+ *
+ * Devuelve un filtro de consulta y no un booleano, como `accesoDePropiedad`: así
+ * el editor no puede ni abrir la fila de otro para escribirla.
+ */
+export const edicionDeRequisito: Access = (args) => {
+  const sesion = usuarioDe(args)
+  if (!sesion || !puedeEditarContenido(sesion)) return false
+  if (puedeAdministrarUsuarios(sesion)) return true
+  const propios: Where = { and: [{ autor: { equals: sesion.id } } as Where, { estado: { equals: 'propuesto' } } as Where] }
+  return propios
 }
 
 /**
