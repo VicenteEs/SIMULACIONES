@@ -18,6 +18,7 @@
 import * as THREE from 'three'
 import { partirMalla, partirPorVariosPlanos, type MallaIndexada } from '@/lib/osteotomia'
 import { OPACIDAD_DE_RAYOS_X, type AspectoDePieza, type EscenaDelAtlas, type TransformacionDePieza } from './cargador'
+import { focoDeLaTapa } from './manipular'
 import {
   idDeFragmento,
   piezaDe,
@@ -35,6 +36,13 @@ export interface FragmentoDelAtlas {
   malla: THREE.Mesh
   /** Centro del trozo en su sitio anatómico: sobre él gira y desde él se mide lo movido. */
   centro: THREE.Vector3
+  /**
+   * El centro de la tapa del corte, en su sitio anatómico (D-160): el punto sobre
+   * el que gira por omisión al manipularlo, y con el que se mide cuánto se ha
+   * desplazado respecto de su hermano. `null` si el trozo no nació de un solo
+   * plano —el marco de `recorte.ts` corta con varios— y entonces gira sobre su centro.
+   */
+  foco: THREE.Vector3 | null
   /** Color del sistema, para volver a él al deseleccionar. */
   colorBase: THREE.Color
   /**
@@ -142,7 +150,13 @@ export function crearFragmentos(
   if (mitades[0].indices.length === 0 || mitades[1].indices.length === 0) {
     return { motivo: 'La línea de corte no atraviesa la pieza. Trácela de lado a lado del hueso.' }
   }
-  return { fragmentos: fragmentosDeLasMitades(escena, indice, corte.pieza, mitades) }
+  const fragmentos = fragmentosDeLasMitades(escena, indice, corte.pieza, mitades)
+  // Un corte de un solo plano deja en cada trozo una tapa sobre ese plano, y su
+  // centro es el foco. Con varios planos no hay una tapa sino varias.
+  if (!corte.otrosPlanos || corte.otrosPlanos.length === 0) {
+    for (const trozo of fragmentos) trozo.foco = focoDeLaTapa(trozo.enReposo.posiciones, corte.punto, corte.normal)
+  }
+  return { fragmentos }
 }
 
 /**
@@ -180,6 +194,7 @@ export function fragmentosDeLasMitades(
       lado,
       malla,
       centro,
+      foco: null,
       colorBase: material.color.clone(),
       enReposo,
     }

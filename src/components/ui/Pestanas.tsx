@@ -98,7 +98,7 @@ export function PanelDePestana({
   base: string
   id: string
   activa: string
-  children: ReactNode
+  children?: ReactNode
 }) {
   if (id !== activa) return null
   return (

@@ -4888,6 +4888,147 @@ bandeja sigue siendo el único sitio donde mirar lo pendiente. *Malas, y conocid
 - **La fecha de la bandeja se hidrata con un desajuste de zona horaria** entre el
   servidor y el navegador (visto en desarrollo, ya existía): no es de esta etapa.
 
+### D-159 · 2026-10-07 · vigente
+**La piel del atlas se ensanchó, hasta 12 mm, donde lo de dentro la atravesaba.**
+Pedido del dueño (P-001, E5): «la malla de piel está más chica que partes del
+cuerpo, como músculo o tendones; en esas partes, que se agrande un poco hacia
+afuera para que la piel quede por fuera».
+
+*Qué se midió, antes de tocar nada.* La piel de BodyParts3D (`FJ2810`) no es una
+lámina: son **dos cáscaras**, la exterior (11.401 vértices, volumen +0,0695 m³) y
+una interior, con las caras al revés, a unos 3 mm. Las dos juntas dan la mitad de
+los puntos «por fuera» —lo de dentro del cuerpo está por fuera de la cáscara
+interior—, y así se contó la primera vez: 1,6 millones de falsos positivos. Contra
+la exterior sola, de 1,73 millones de vértices de lo de dentro, 3.521 quedaban por
+fuera: las venas safenas, la cintilla iliotibial (el
+«tendón» del muslo), el platisma, la oreja, los cartílagos de la nariz, las venas
+de los dedos del pie y los vasos testiculares. Es lo que el dueño veía.
+
+*Qué se hizo.* `scripts/atlas/ajustar-piel.mjs` (con su geometría en
+`geometriaDePiel.mjs`, que es lo que se prueba): para cada vértice y cada centro de
+triángulo de lo de dentro, mide a qué distancia queda de la cáscara exterior y si
+está dentro o fuera; donde no le sobran **2 mm**, la piel sube lo que falte. Ese
+empuje se reparte entre los vértices vecinos (`relajarEmpuje`) para que quede un
+abultamiento y no un pico, y se aplica **a lo largo de la normal**. La cáscara
+interior acompaña a la exterior. Tres pasadas dentro de una ejecución, porque
+empujar a lo largo de la normal no es empujar hacia el punto. Tope por vértice:
+12 mm. Se reescriben **solo las posiciones y las normales de la piel** en su sitio
+del paquete 10 —ni un byte más: se comprobó contra el historial—, la caja de la
+pieza y la versión del catálogo (`bp3d-4.0-6d4cc0c0`), y la atribución dice que la
+piel se modificó (CC BY 4.0 lo exige).
+
+*Tres errores que se cometieron y se corrigieron, para que nadie los repita.*
+- **Un rayo para saber si algo está dentro no basta.** La piel es la unión de
+  cara, orejas, manos…, que se solapan: un rayo vertical desde el abdomen cruzaba la
+  cara cuatro veces y daba «fuera». Pedía empujes de 3 cm. Ahora votan tres rayos,
+  uno por eje.
+- **La cara más cercana puede mirar de espaldas.** Un punto dentro de un dedo tenía
+  más cerca la piel del dedo vecino, y empujar esa cara «para darle holgura» la
+  metía en el dedo; cada pasada empeoraba la anterior. Ahora cada punto cuenta solo
+  contra las caras que lo tienen por detrás.
+- **Los ojos, los labios y las uñas no son «músculo por fuera».** El globo ocular
+  asoma porque la piel del atlas no tiene párpados abiertos; subir la piel lo
+  taparía. Se apartaron por nombre, una a una: `rectus` suelto también cogía el
+  recto del abdomen y `oblique`, el oblicuo externo (se vio al medir).
+
+*Resultado, medido.* De los 7.136 vértices de la cáscara exterior que suben
+(de 11.245), 2.240 lo hacen al menos 1 mm, 618 al menos 3, 52 al menos 10, y el
+máximo es el tope. Las siete estructuras de arriba quedan con **cero** vértices
+por fuera, salvo la oreja: 30 de 894, porque pide 16 mm y el tope es 12.
+
+*Consecuencias buenas.* Con la piel encendida ya no asoma músculo ni vena. La
+geometría del resto del atlas no se tocó. `tests/unit/geometriaDePiel.test.ts`
+prueba la geometría con una esfera y el atlas real (que esas siete estructuras
+sigan dentro, que la caja de la piel sea la de sus vértices y que lleve la marca).
+
+*Malas, y conocidas.*
+- **337 puntos siguen sin los 2 mm**: arterias y venas digitales del índice, donde
+  la piel está apretada contra la del pulgar. Empujar más las metería en el dedo
+  vecino; el guion se detiene y lo dice.
+- **La oreja sigue asomando por un par de milímetros** en 30 vértices. Subir el
+  tope a 16 mm engordaría los dedos.
+- **No es idempotente entre ejecuciones** por lo anterior: la pieza queda marcada
+  (`ajustada` en el catálogo) y el guion se niega a repetir sin `--otra-vez`. Para
+  rehacerla desde cero, `git show 71192c0:public/atlas/cuerpo-10.bin.gz` es el
+  original.
+- **Los navegadores vuelven a bajar el paquete 10** (2,2 MB) por la versión nueva.
+- Las preparaciones guardadas no cambian: la piel se enciende desde el taller.
+
+### D-160 · 2026-10-07 · vigente
+**Se mueve y se angula con el ratón, sin teclado: herramienta «Manipular» (V).**
+Pedido del dueño (P-001, E3), con criterio de aceptación: con una tibia partida,
+desplazar el fragmento distal 8 mm y angularlo 10° de varo con el ratón, y que lo
+que se lea en pantalla sea «8 mm lateral · 10° varo». Antes, pinchar y arrastrar
+giraba la cámara; mover pedía G o R, las asas iban con los ejes del mundo y los
+fragmentos giraban sobre el centro de su caja.
+
+*Cómo.*
+- **La cuenta, sin lienzo** (`src/atlas/manipular.ts`, probada en
+  `manipular.test.ts`): el arrastre cruza el rayo del cursor con el plano que pasa
+  por el punto pinchado y mira a la cámara, así que **lo pinchado sigue bajo el
+  dedo** (con una escala por píxel se adelantaba o se quedaba atrás según la
+  profundidad); Mayús ata el movimiento al eje del hueso cuya imagen en pantalla más
+  se parece al gesto, sin elegir nunca uno que apunte a la cámara; Alt gira como una
+  bola; Ctrl salta de cinco en cinco grados.
+- **El visor** (`VisorAtlas.tsx`): la herramienta `manipular`. Pulsar una pieza
+  arma una espera de cuatro píxeles —si se suelta antes, es el clic de siempre—; pasado
+  el umbral, empieza el mismo gesto modal de G y R, ya con el botón pulsado. Por
+  eso un gesto es **un solo paso del historial** y Esc lo cancela. Pulsar una pieza
+  no seleccionada la selecciona y la mueve en el mismo gesto.
+- **El foco.** Un trozo que nació de un corte de un solo plano guarda el centro de
+  su tapa (`foco`, `focoDeLaTapa`) y gira sobre él: angular 10° no lo desplaza. Los
+  trozos de un marco (varios planos) siguen girando sobre su centro. El
+  manipulador se coloca en el foco.
+- **Los ejes del hueso.** El botón «Ejes del hueso» orienta el manipulador con los
+  ejes que `ejeDelHueso` mide en la geometría (X fuera, Y proximal, Z el que cierra
+  la mano derecha: `ejeDelHueso` orienta «fuera» según el lado y su terna sale de
+  mano izquierda en uno), dibuja una caja dorada con ellos y hace que la X, Y y Z
+  que se teclean vayan con ellos. **Apagado de entrada**: `G X 8` sigue siendo el
+  eje del cuerpo para quien ya lo usa.
+- **El aro de la vista**, un séptimo asa, blanco y más grande: gira sobre la línea
+  de visión. De frente es el giro de varo y valgo.
+- **La lectura clínica** (`lecturaClinica.ts`, sin `three`: el taller no puede traerlo
+  de forma estática): del distal respecto del proximal, en los ejes del hueso.
+  Desplazamiento entre los focos de los dos trozos; angulación desde adónde apunta
+  el eje largo del distal tras el giro relativo; rotación desde la torsión sobre ese
+  eje. **Sin ángulos de Euler** (D-133): con 80° de torsión el varo sigue diciendo
+  10°. Sale sobre el modelo mientras se mueve —también al teclear— y escrita en la
+  pestaña Pieza.
+- **Táctil.** Un dedo sobre un trozo seleccionado lo mueve; un segundo dedo lo
+  suelta y devuelve la cámara (D-149). *No se ha probado en un aparato real.*
+
+*Verificado en el navegador, con el atlas real:* cortar la tibia, seleccionar el
+distal con «Manipular» y arrastrarlo (se leyó «28 mm medial · 11 mm posterior ·
+5,8 mm de acortamiento» y «Posición» pasó de cero), Alt + arrastrar
+(«4,4° varo · 9,3° recurvatum · 22° de rotación interna» **sin desplazamiento nuevo**:
+gira sobre el foco), Mayús + arrastrar (la variación quedó sobre el eje axial),
+`G X 8 Intro` con los ejes del hueso («8 mm lateral») y `R` de frente («18° valgo»).
+Ctrl + Z deshace cada gesto en un paso. Las pruebas son `manipular`,
+`manipularEnElTaller` (manipulador, foco de un corte de verdad con `partirMalla`,
+ejes en las cuentas de siempre y el cableado) y las suites de siempre.
+
+*Lo que no se hizo, a propósito.* **La consola quirúrgica** (E3.5, fuera del
+alcance por respuesta del dueño). **Teclear números clínicos** («8 mm lateral»)
+en el panel: la lectura es de solo lectura; lo tecleado sigue siendo X, Y y Z, que con
+los ejes del hueso encendidos ya son laterales, largos y anteroposteriores.
+
+*Consecuencias buenas.* Mover un fragmento y decir cuánto se movió es el mismo
+gesto, y la cifra es la que va a la ficha. *Malas, y conocidas:*
+- **Los nombres son una decisión clínica que tomé yo** (Q-010): varo y valgo se leen
+  por el extremo del fragmento **distal** respecto del proximal; «recurvatum» es el
+  distal hacia delante (ápice posterior) y «antecurvatum», hacia atrás (ápice
+  anterior); la rotación externa es la de la cara anterior hacia fuera. Cristóbal
+  debe confirmarlo antes de que un residente aprenda de ellos.
+- **La lectura necesita un hermano.** Un trozo cuyo hueso se volvió a partir, o uno
+  de un marco con varios planos, no tiene lectura (se escribe lo de siempre).
+- **El eje del hueso es el del hueso entero**, no el de cada trozo: en una
+  oblicua larga, «largo» es una aproximación.
+- **Con «Manipular» las asas están siempre**, aunque se hayan apagado: sin ellas no
+  hay con qué girar.
+- **Pulsar una asa gana a pulsar la pieza.** Con el taller en pantalla pequeña el
+  manipulador cubre buena parte de un fragmento corto; acercar la cámara lo arregla,
+  porque las asas miden siempre lo mismo en pantalla.
+
 ---
 
 ### O-014 · 2026-09-06 · alta · resuelta
@@ -6207,6 +6348,21 @@ anonimizados con autorización del comité correspondiente; o estudios propios c
 consentimiento explícito. El primero permite empezar mañana sin ningún trámite y
 es lo que recomiendo para construir y probar toda la cadena.
 
+### Q-010 · ¿Son estos los nombres que quiere Cristóbal para leer una reducción?
+La lectura de E3 (D-160) escribe «8 mm lateral · 10° varo» y lo hace con unas
+convenciones que puso quien programó, no un traumatólogo:
+
+- **Varo y valgo** se leen por el extremo del fragmento **distal** respecto del
+  proximal: distal hacia dentro del cuerpo, varo; hacia fuera, valgo.
+- **Recurvatum:** el distal hacia delante (ápice posterior). **Antecurvatum:** el
+  distal hacia atrás (ápice anterior).
+- **Rotación externa:** la cara anterior del distal gira hacia fuera del cuerpo.
+- **Diástasis** y **acortamiento** a lo largo del eje del hueso entero.
+
+Hay que preguntarle: ¿es así como las nombra en una ficha?, ¿prefiere «ápice» a
+«extremo distal», que es lo que dice una radiografía?, ¿quiere «procurvatum» en
+lugar de «antecurvatum»? Cambiarlo es una tabla en `src/atlas/lecturaClinica.ts`.
+
 ### Q-009 · ¿Se construye la planificación con DICOM, y como docente o como clínica?
 La propuso Cristóbal el 2026-10-06 y el módulo 06 la anuncia (P-001, E7). Cargar
 la tomografía de un paciente, reconstruir su fractura y planificar la cirugía del
@@ -6576,7 +6732,7 @@ panel, con un enlace que abre esa preparación en el taller.
 
 ---
 
-#### E3 · Manipulación directa de piezas y fragmentos · 2 sesiones · pendiente
+#### E3 · Manipulación directa de piezas y fragmentos · 2 sesiones · hecha en código; falta desplegar
 
 **Por qué hoy es engorroso**, mirado en el código:
 
@@ -6627,23 +6783,23 @@ pantalla dice «8 mm lateral · 10° varo». Ctrl + Z lo deshace en un solo paso
 
 **Tareas**
 
-- [ ] **E3.1 · La matemática, sin lienzo y con pruebas,** en `src/atlas/manipular.ts`:
+- [x] **E3.1 · La matemática, sin lienzo y con pruebas,** en `src/atlas/manipular.ts`:
   el arrastre proyectado en el plano de la cámara, el giro con saltos, los ejes
   del hueso para un fragmento y el pivote en el foco.
-- [ ] **E3.2 · El visor.** En `VisorAtlas.tsx`, el modo `'manipular'` en
+- [x] **E3.2 · El visor.** En `VisorAtlas.tsx`, el modo `'manipular'` en
   `HerramientaDelVisor` (l.220), conectado a `alBajar`, `alMover` y `alSubir`.
   Sin romper `orbita`, `caja`, `recorte`, `corte`, `rotulo`, `distancia` ni
   `angulo`.
-- [ ] **E3.3 · Las asas.** En `gizmo.ts`, los ejes locales, el asa de giro y la
+- [x] **E3.3 · Las asas.** En `gizmo.ts`, los ejes locales, el asa de giro y la
   caja orientada. Son las primeras pruebas de `gizmo.ts`, que hoy no tiene
   ninguna.
-- [ ] **E3.4 · El taller.** El botón y el atajo, la línea en `ATAJOS_DEL_TALLER`,
+- [x] **E3.4 · El taller.** El botón y el atajo, la línea en `ATAJOS_DEL_TALLER`,
   y el panel de números (`PanelDeNumeros`) en ejes del hueso con nombres
   clínicos.
 - ~~E3.5 · La consola quirúrgica~~. **Fuera del alcance**: lo engorroso era el
   taller (respuesta del dueño, 2026-10-07). Los deslizadores de la consola se
   quedan como están.
-- [ ] **E3.6 · Comprobación y documentación.** Prueba en el navegador con el
+- [x] **E3.6 · Comprobación y documentación.** Prueba en el navegador con el
   atlas real, manual y D-nnn.
 
 **Preguntas**
@@ -7227,9 +7383,9 @@ qué tarjeta tiene y cuánta memoria.
 |---|---|---|---|
 | E1 · Módulos en mantención | hecha en código; falta E1.8c (contenido) y desplegar | 1–2 | D-156, D-157 |
 | E2 · Comentarios en el taller | hecha en código; falta desplegar | 1–2 | D-158 |
-| E3 · Manipulación directa | pendiente | 2 | — |
+| E3 · Manipulación directa | hecha en código; falta desplegar | 2 | D-160 |
 | E4 · Fracturas AO | pendiente | 3–4 | — |
-| E5 · Piel e instrumental | piel hecha (D-155); instrumental pendiente | 2–3 | D-155 |
+| E5 · Piel e instrumental | piel hecha (D-155) y ajustada (D-159); instrumental pendiente | 2–3 | D-155, D-159 |
 | E6 · Manejo AO paso a paso | pendiente | 3–4 | — |
 | E7 · Módulo 06 DICOM: anuncio y buzón | pendiente; puede adelantarse tras E1 | 1–2 | — |
 

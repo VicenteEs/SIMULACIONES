@@ -157,7 +157,7 @@ describe('las pestañas', () => {
   it('cada pestaña apunta a su panel, y el panel a su pestaña', () => {
     expect(html).toContain('aria-controls="taller-panel-comentarios"')
     const panel = renderToStaticMarkup(
-      createElement(PanelDePestana, { base: 'taller', id: 'comentarios', activa: 'comentarios', children: 'contenido' }),
+      createElement(PanelDePestana, { base: 'taller', id: 'comentarios', activa: 'comentarios' }, 'contenido'),
     )
     expect(panel).toContain('id="taller-panel-comentarios"')
     expect(panel).toContain('aria-labelledby="taller-pestana-comentarios"')
@@ -165,7 +165,7 @@ describe('las pestañas', () => {
   })
 
   it('solo se monta el panel activo', () => {
-    expect(renderToStaticMarkup(createElement(PanelDePestana, { base: 'taller', id: 'pieza', activa: 'comentarios', children: 'x' }))).toBe('')
+    expect(renderToStaticMarkup(createElement(PanelDePestana, { base: 'taller', id: 'pieza', activa: 'comentarios' }, 'x'))).toBe('')
   })
 })
 

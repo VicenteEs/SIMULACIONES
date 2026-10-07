@@ -38,6 +38,7 @@ import type { HerramientaDelVisor, LadoDeLaVista, MandoDelVisor } from '@/compon
 import type { ResultadoDelRecorte } from '@/atlas/recorte'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
 import { cuaternionDeGrados, gradosDeCuaternion } from '@/atlas/angulos'
+import { describirLectura } from '@/atlas/lecturaClinica'
 import { parejasContralaterales, reflejarGiro, reflejarVector } from '@/atlas/espejo'
 import {
   MAXIMO_DE_MARCAS,
@@ -221,6 +222,10 @@ const ATAJOS_DEL_TALLER: [string, string][] = [
   ['Supr · X · H', 'Apagar lo seleccionado. Un trozo «_1» o «_2» se apaga solo, sin su pieza.'],
   ['Mayús + H', 'Dejar encendido solo lo seleccionado: tras recortar, deja solo lo de dentro.'],
   ['Alt + H', 'Encender todo el cuerpo.'],
+  [
+    'V',
+    'Manipular: pulsar una pieza y arrastrarla la mueve, sin teclado. Mayús ata el movimiento al eje del hueso más cercano; Alt + arrastrar la gira libremente; Ctrl hace que los giros salten de cinco en cinco grados. El aro blanco de las asas gira sobre la línea de visión.',
+  ],
   ['G · R', 'Mover · rotar lo seleccionado. X, Y o Z atan a un eje; clic o Intro confirman, Esc cancela.'],
   ['G X 8 Intro', 'Teclear un número durante el gesto lo hace exacto: milímetros al mover, grados al rotar.'],
   ['Asas', 'Arrastrar una flecha de color mueve por ese eje; un aro, gira sobre él. X rojo, Y verde, Z azul.'],
@@ -363,6 +368,18 @@ export function TallerDeAtlas({
   const [ortografica, setOrtografica] = useState(false)
   /** Las flechas y los aros sobre lo seleccionado. Encendidos de entrada: son lo que enseña que se puede mover. */
   const [gizmo, setGizmo] = useState(true)
+  /**
+   * Con qué ejes se mueve y se gira (D-160): los del cuerpo, o los del hueso
+   * seleccionado. De entrada, los del cuerpo, que son los de siempre: la X que
+   * se teclea en «G X 8» no cambia de significado por abrir esta versión.
+   */
+  const [ejesDelHueso, setEjesDelHueso] = useState(false)
+  /**
+   * Lo que se lee de un fragmento respecto de su hermano, en palabras de ficha.
+   * Se pide al visor, que es quien tiene la geometría con la que se miden sus
+   * ejes, y se vuelve a pedir cuando algo se mueve o se corta.
+   */
+  const [lecturaClinica, setLecturaClinica] = useState<string | null>(null)
   /**
    * Las piezas encendidas de antes de cada cambio, para Ctrl + Z.
    *
@@ -562,6 +579,15 @@ export function TallerDeAtlas({
     () => firmaDeTransformaciones(transformaciones),
     [transformaciones],
   )
+
+  // La lectura clínica de un fragmento seleccionado. El visor es quien tiene la
+  // geometría con la que se miden los ejes del hueso, así que se le pregunta
+  // cada vez que algo cambia: lo seleccionado, lo movido o los cortes.
+  useEffect(() => {
+    const trozo = [...seleccion].find((id) => id.includes('#'))
+    const lectura = trozo ? (mando.current?.lecturaDelFragmento(trozo, transformaciones) ?? null) : null
+    setLecturaClinica(lectura ? (describirLectura(lectura) ?? 'En su sitio') : null)
+  }, [seleccion, transformaciones, cortes])
 
   /**
    * Lo que cambió del trabajo en sí, sin contar el nombre ni la descripción.
@@ -1994,6 +2020,7 @@ export function TallerDeAtlas({
       else if (tecla === 'r') empezarGesto('girar')
       else if (tecla === 'h' || tecla === 'x' || tecla === 'delete') apagarSeleccion()
       else if (tecla === 'a') setSeleccion(new Set(idsSeleccionables(visibles)))
+      else if (tecla === 'v') setHerramienta((actual) => (actual === 'manipular' ? 'orbita' : 'manipular'))
       else if (tecla === 'b') setHerramienta((actual) => (actual === 'caja' ? 'orbita' : 'caja'))
       else if (tecla === 'm') setHerramienta((actual) => (actual === 'distancia' ? 'orbita' : 'distancia'))
       else if (tecla === 'j') setHerramienta((actual) => (actual === 'recorte' ? 'orbita' : 'recorte'))
@@ -2510,7 +2537,9 @@ export function TallerDeAtlas({
               }
               setMarcas([...marcas, marca])
             }}
-            gizmo={gizmo}
+            // Con «Manipular» las asas se ven siempre: sin ellas no hay con qué girar.
+            gizmo={gizmo || herramienta === 'manipular'}
+            ejesDelGizmo={ejesDelHueso ? 'hueso' : 'mundo'}
             ortografica={ortografica}
             cortes={cortes}
             apagados={apagados}
@@ -2540,6 +2569,15 @@ export function TallerDeAtlas({
                 onClick={() => setHerramienta('orbita')}
               >
                 Girar
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={herramienta === 'manipular'}
+                title="Manipular: pulse una pieza y arrástrela. Mayús ata el movimiento al eje del hueso; Alt + arrastrar la gira libremente; Ctrl, giros de cinco en cinco grados (V)"
+                onClick={() => setHerramienta((actual) => (actual === 'manipular' ? 'orbita' : 'manipular'))}
+              >
+                Manipular
               </button>
               <button
                 type="button"
@@ -2672,6 +2710,15 @@ export function TallerDeAtlas({
                 onClick={() => setGizmo((puesto) => !puesto)}
               >
                 Asas
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={ejesDelHueso}
+                title="Ejes del hueso: las asas, y la X, Y y Z que se teclean, van con el largo, el delante y el fuera del hueso seleccionado y no con los del cuerpo"
+                onClick={() => setEjesDelHueso((puesto) => !puesto)}
+              >
+                Ejes del hueso
               </button>
               <button
                 type="button"
@@ -2872,6 +2919,20 @@ export function TallerDeAtlas({
                 : 'Con varias piezas seleccionadas se mueven juntas con G, R o las asas; los números son de una sola.'}
             </p>
           )}
+
+          {lecturaClinica !== null ? (
+            <>
+              <h3 className="atlas-subtitulo">Lectura clínica</h3>
+              <p className="atlas-lectura" aria-live="polite">
+                {lecturaClinica}
+              </p>
+              <p className="campo-ayuda">
+                Del fragmento distal respecto del proximal, en los ejes de su hueso: milímetros
+                laterales, anteroposteriores y a lo largo; grados de varo o valgo, de antecurvatum
+                o recurvatum, y de rotación. Es lo que se mide mientras se mueve con el ratón.
+              </p>
+            </>
+          ) : null}
 
           <h3 className="atlas-subtitulo">Color y transparencia</h3>
           {seleccion.size === 0 ? (

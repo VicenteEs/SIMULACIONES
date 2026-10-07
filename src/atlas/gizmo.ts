@@ -10,6 +10,12 @@
  * —X rojo, Y verde, Z azul—, que es la única convención que aquí conviene no
  * discutir.
  *
+ * Desde D-160 hay un séptimo asa: un aro más grande que mira siempre a la
+ * cámara, que gira sobre la línea de visión. Es el «asa redonda» de PowerPoint:
+ * el único giro que no necesita pensar en ejes. Y el conjunto puede orientarse
+ * con los ejes de un hueso (`orientar`), de modo que la flecha roja vaya a lo
+ * ancho de la tibia y no a lo ancho del cuerpo.
+ *
  * Se dibuja encima de todo (sin prueba de profundidad) y con tamaño constante
  * en pantalla: un manipulador tapado por el músculo de delante, o que encoge al
  * alejarse, no se puede agarrar.
@@ -20,13 +26,22 @@ import type { EjeDelGesto } from './transformar'
 
 export interface AsaDelGizmo {
   modo: 'mover' | 'girar'
-  eje: EjeDelGesto
+  /** `vista`: girar sobre la línea de visión, sin eje del atlas (D-160). */
+  eje: EjeDelGesto | 'vista'
 }
 
 export interface GizmoDelAtlas {
   grupo: THREE.Group
   /** Lo que se cruza con el rayo: más gordo que lo que se ve, para poder acertar. */
   asas: THREE.Mesh[]
+  /**
+   * Pone los ejes del manipulador en los de un marco (los de un hueso), o en los
+   * del mundo con `null`. Es girar el grupo entero: las asas, que cuelgan de él,
+   * van detrás.
+   */
+  orientar: (marco: THREE.Quaternion | null) => void
+  /** Vuelve a mirar el aro de la vista hacia la cámara. Hay que llamarla cuando la cámara se mueve. */
+  mirarA: (camara: THREE.Camera) => void
   liberar: () => void
 }
 
@@ -100,9 +115,33 @@ export function crearGizmo(): GizmoDelAtlas {
     grupo.add(aro)
   }
 
+  // --- aro de la vista: girar sobre la línea de visión ---
+  // Es un toro en el plano XY, que mira hacia +Z, que es hacia donde mira una
+  // cámara de three por su espalda: copiando su orientación el aro queda de cara.
+  const aroDeLaVista = new THREE.Group()
+  const anilloDeLaVista = new THREE.TorusGeometry(0.92, 0.009, 6, 80)
+  const asaDeLaVista = new THREE.TorusGeometry(0.92, 0.05, 6, 40)
+  aLiberar.push(anilloDeLaVista, asaDeLaVista)
+  const mallaDeLaVista = new THREE.Mesh(anilloDeLaVista, visible(0xe9e9e9))
+  mallaDeLaVista.renderOrder = 999
+  const agarreDeLaVista = new THREE.Mesh(asaDeLaVista, invisible)
+  agarreDeLaVista.userData.asa = { modo: 'girar', eje: 'vista' } satisfies AsaDelGizmo
+  aroDeLaVista.add(mallaDeLaVista, agarreDeLaVista)
+  asas.push(agarreDeLaVista)
+  grupo.add(aroDeLaVista)
+
   return {
     grupo,
     asas,
+    orientar: (marco) => {
+      if (marco) grupo.quaternion.copy(marco)
+      else grupo.quaternion.identity()
+    },
+    mirarA: (camara) => {
+      // El aro cuelga de un grupo que puede estar girado: se le quita ese giro
+      // para que, compuesto, quede igual que la cámara.
+      aroDeLaVista.quaternion.copy(grupo.quaternion).invert().multiply(camara.quaternion)
+    },
     liberar: () => {
       for (const cosa of aLiberar) cosa.dispose()
       grupo.removeFromParent()
@@ -122,4 +161,49 @@ export function escalaDelGizmo(camara: THREE.PerspectiveCamera, donde: THREE.Vec
   )
   const altoDelCampo = 2 * profundidad * Math.tan((camara.fov * Math.PI) / 360)
   return altoDelCampo / 6
+}
+
+/**
+ * La caja orientada de un fragmento (D-160): doce aristas finas, con los ejes de
+ * su hueso, que dicen hacia dónde es «a lo largo» y hacia dónde «a lo ancho»
+ * antes de tocar nada. Sin ella, el manipulador de ejes de un hueso es tres
+ * flechas que podrían estar en cualquier sitio.
+ *
+ * Vive en la escena y no dentro del grupo del manipulador: este se escala para
+ * medir siempre lo mismo en pantalla, y la caja mide lo que mide el hueso.
+ */
+export interface CajaOrientada {
+  lineas: THREE.LineSegments
+  /** Centro en el espacio del atlas, orientación del marco y medidas completas (X, Y, Z del marco) en metros. */
+  colocar: (centro: THREE.Vector3, marco: THREE.Quaternion, medidas: THREE.Vector3) => void
+  liberar: () => void
+}
+
+export function crearCajaOrientada(): CajaOrientada {
+  const geometria = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1))
+  const material = new THREE.LineBasicMaterial({
+    color: 0xf0b429,
+    depthTest: false,
+    transparent: true,
+    opacity: 0.55,
+  })
+  const lineas = new THREE.LineSegments(geometria, material)
+  lineas.renderOrder = 998
+  lineas.visible = false
+  // No se cruza con el rayo de selección: es un dibujo, no una pieza.
+  lineas.raycast = () => {}
+  return {
+    lineas,
+    colocar: (centro, marco, medidas) => {
+      lineas.position.copy(centro)
+      lineas.quaternion.copy(marco)
+      lineas.scale.copy(medidas)
+      lineas.visible = true
+    },
+    liberar: () => {
+      geometria.dispose()
+      material.dispose()
+      lineas.removeFromParent()
+    },
+  }
 }

@@ -15,7 +15,9 @@ import {
   MAXIMO_DE_CORTES,
   PROFUNDIDAD_MAXIMA_DE_CORTE,
   VISTA_INICIAL,
+  idDeFragmento,
   nombreDeTrozo,
+  partesDeFragmento,
   piezaDe,
   planosDeUnCorte,
   type CatalogoDelAtlas,
@@ -37,7 +39,24 @@ import {
   type EscenaDelAtlas,
 } from '@/atlas/cargador'
 import { impactoBajoElRayo } from '@/atlas/picking'
-import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
+import { crearCajaOrientada, crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
+import {
+  EJES_DEL_MUNDO,
+  atarAlEjeMasCercano,
+  cuaternionDelMarco,
+  describirLectura,
+  desplazamientoEnElPlano,
+  distalDeLosDos,
+  girarEnSaltos,
+  giroLibre,
+  leerReduccion,
+  marcoDelHueso,
+  puntoActual,
+  rayoDelPuntero,
+  saltoDeAngulo,
+  type EjesLocales,
+  type LecturaClinica,
+} from '@/atlas/manipular'
 import {
   candidataDeUnTrozo,
   planosDelRectangulo,
@@ -56,6 +75,7 @@ import {
   colocarFragmento,
   crearFragmentos,
   crearTodosLosFragmentos,
+  mallaDeLaPieza,
   liberarFragmento,
   pintarFragmento,
   planoDeLaLinea,
@@ -186,6 +206,16 @@ export interface MandoDelVisor {
    */
   empezarTransformacion: (modo: ModoDeTransformacion) => boolean
   /**
+   * Lo que un traumatólogo lee de un fragmento respecto de su hermano: cuánto
+   * está desplazado y cuánto angulado (D-160). `null` si el fragmento no tiene
+   * hermano en la escena, o su hueso no se pudo medir. `transformaciones` son
+   * las que valen ahora, las del taller.
+   */
+  lecturaDelFragmento: (
+    id: string,
+    transformaciones: ReadonlyMap<string, TransformacionDePieza> | null,
+  ) => LecturaClinica | null
+  /**
    * Una tecla durante el gesto: X, Y o Z lo atan a ese eje (otra vez la misma
    * lo suelta), Intro confirma y Esc cancela. Devuelve `true` si había un gesto
    * en marcha y la tecla era suya, para que quien escucha el teclado no la use
@@ -215,10 +245,13 @@ export type LadoDeLaVista = 'frente' | 'atras' | 'derecha' | 'izquierda' | 'arri
  * siempre; en `caja` dibuja un marco de selección y el giro pasa al botón
  * central, que es donde lo tiene Blender; en `corte` traza la línea por la que
  * se parte el hueso seleccionado (D-130); en `recorte` dibuja un marco que
- * selecciona lo de dentro y parte lo que cruza el borde (D-140).
+ * selecciona lo de dentro y parte lo que cruza el borde (D-140); en
+ * `manipular`, arrastrar sobre una pieza seleccionada la mueve, Alt la gira
+ * libremente y Mayús ata el movimiento al eje del hueso más cercano (D-160).
  */
 export type HerramientaDelVisor =
   | 'orbita'
+  | 'manipular'
   | 'caja'
   | 'recorte'
   | 'corte'
@@ -256,6 +289,7 @@ export function VisorAtlas({
   alMarcar,
   aspectos = null,
   gizmo = false,
+  ejesDelGizmo = 'mundo',
   ortografica = false,
   cortes = null,
   apagados = null,
@@ -318,6 +352,12 @@ export function VisorAtlas({
   aspectos?: ReadonlyMap<string, AspectoDePieza> | null
   /** Dibuja sobre lo seleccionado las flechas y los aros para moverlo y girarlo (D-133). Solo el taller. */
   gizmo?: boolean
+  /**
+   * Con qué ejes se mueve y se gira (D-160): `mundo`, los del cuerpo, o `hueso`,
+   * los del hueso seleccionado —su largo, su delante y su fuera— y con ellos las
+   * flechas del manipulador y la X, Y y Z que se teclean. Solo el taller.
+   */
+  ejesDelGizmo?: 'mundo' | 'hueso'
   /** Vista ortográfica, sin fuga: para trazar cortes rectos y comparar tamaños. Solo el taller. */
   ortografica?: boolean
   /** Pinta en damero lo no seleccionado, para ver a través (Alt + Z en Blender). Solo el taller. */
@@ -398,6 +438,7 @@ export function VisorAtlas({
     alRecortar,
     alAvisar,
     gizmo,
+    ejesDelGizmo,
     alMarcar,
     cortes,
     alAsentarVista,
@@ -419,6 +460,7 @@ export function VisorAtlas({
       alRecortar,
       alAvisar,
       gizmo,
+      ejesDelGizmo,
       alMarcar,
       cortes,
       alAsentarVista,
@@ -519,6 +561,7 @@ export function VisorAtlas({
       return eje ? corteDesdeElPlano(eje, plano) : null
     },
     empezarTransformacion: (modo) => taller.current.gesto?.empezar(modo) ?? false,
+    lecturaDelFragmento: (id, movidas) => taller.current.lecturaDelFragmento?.(id, movidas) ?? null,
     teclaDeTransformacion: (tecla) => taller.current.gesto?.tecla(tecla) ?? false,
     mirarDesde: (lado) => {
       const t = taller.current
@@ -674,7 +717,10 @@ export function VisorAtlas({
       const caja = render.domElement.getBoundingClientRect()
       return { x: evento.clientX - caja.left, y: evento.clientY - caja.top }
     }
-    const cursorDeReposo = () => (ultimas.current.herramienta === 'orbita' ? 'grab' : 'crosshair')
+    const cursorDeReposo = () => {
+      const h = ultimas.current.herramienta
+      return h === 'orbita' ? 'grab' : h === 'manipular' ? 'default' : 'crosshair'
+    }
 
     const aCoordenadas = (evento: PointerEvent) => {
       const caja = render.domElement.getBoundingClientRect()
@@ -857,6 +903,85 @@ export function VisorAtlas({
       return mejor
     }
 
+    // --- los ejes del hueso y lo que lee un traumatólogo (D-160) -------------
+    /** El eje de un hueso, medido una vez: es la misma geometría cada vez. */
+    const ejeDelHuesoDe = (id: string): EjeDelHueso | null => {
+      const escena = taller.current.escena
+      const pieza = piezaDe(id)
+      const indice = escena?.indices.get(pieza)
+      if (!escena || indice === undefined) return null
+      const medidos = (taller.current.ejes ??= new Map())
+      if (!medidos.has(pieza)) medidos.set(pieza, medirEje(escena, indice))
+      return medidos.get(pieza) ?? null
+    }
+
+    /**
+     * Los ejes con los que se mueve y se gira lo seleccionado: los del mundo o,
+     * si el taller lo pide, los del primer hueso de la selección, girados con el
+     * trozo que los lleva. Un hueso que no se pudo medir deja los del mundo.
+     */
+    const ejesDeTrabajo = (
+      ids: Iterable<string>,
+      movidas: ReadonlyMap<string, TransformacionDePieza> | null | undefined,
+    ): EjesLocales => {
+      if (ultimas.current.ejesDelGizmo !== 'hueso') return EJES_DEL_MUNDO
+      for (const id of ids) {
+        const eje = ejeDelHuesoDe(id)
+        if (!eje) continue
+        const marco = marcoDelHueso({ largo: eje.direccion, delante: eje.delante, fuera: eje.fuera })
+        const giro = new THREE.Quaternion(...(movidas?.get(id)?.girar ?? [0, 0, 0, 1]))
+        return { x: marco.x.applyQuaternion(giro), y: marco.y.applyQuaternion(giro), z: marco.z.applyQuaternion(giro) }
+      }
+      return EJES_DEL_MUNDO
+    }
+
+    /**
+     * Cuánto está desplazado y angulado un trozo respecto de su hermano, el que
+     * salió del mismo corte. El distal se decide por dónde cae su centro sobre el
+     * largo del hueso, no por su letra: una línea de corte no dice cuál es cuál.
+     */
+    const lecturaDelFragmento = (
+      id: string,
+      movidas: ReadonlyMap<string, TransformacionDePieza> | null,
+    ): LecturaClinica | null => {
+      const trozos = taller.current.fragmentos
+      const trozo = trozos?.get(id)
+      const partes = partesDeFragmento(id)
+      if (!trozos || !trozo || !partes) return null
+      const hermano = trozos.get(idDeFragmento(partes.padre, partes.lado === 'a' ? 'b' : 'a'))
+      const eje = ejeDelHuesoDe(id)
+      if (!hermano || !eje) return null
+      const ejes = { largo: eje.direccion, delante: eje.delante, fuera: eje.fuera }
+      const esDistal =
+        distalDeLosDos(ejes, new THREE.Vector3(...eje.centro), trozo.centro, hermano.centro) === 'a'
+      const [distal, proximal] = esDistal ? [trozo, hermano] : [hermano, trozo]
+      const focos = distal.foco && proximal.foco ? { distal: distal.foco, proximal: proximal.foco } : null
+      return leerReduccion(
+        ejes,
+        movidas?.get(distal.id),
+        movidas?.get(proximal.id),
+        { distal: distal.centro, proximal: proximal.centro },
+        focos,
+      )
+    }
+    taller.current.lecturaDelFragmento = lecturaDelFragmento
+
+    /**
+     * El centro de la tapa de un trozo, o su centro si no la tiene, donde está
+     * AHORA: es lo que gira sobre sí mismo y alrededor de lo que se mueve.
+     */
+    const puntoDeGiroActual = (trozo: FragmentoDelAtlas, transformacion: TransformacionDePieza | undefined) =>
+      trozo.foco
+        ? puntoActual(trozo.centro, trozo.foco, transformacion)
+        : centroActual(trozo.centro, transformacion)
+
+    /**
+     * Los modificadores con los que llegó el último evento del ratón: Mayús ata
+     * al eje del hueso y Ctrl salta de cinco en cinco grados. Se guardan aquí y
+     * no se leen del teclado porque el gesto se recalcula también sin eventos.
+     */
+    const modificadores = { mayus: false, ctrl: false }
+
     // --- mover y girar piezas (D-129) ---------------------------------------
     //
     // Un gesto MODAL, como el de Blender: se empieza con una tecla o un botón,
@@ -883,10 +1008,42 @@ export function VisorAtlas({
       tecleado: string
       /** Empezado arrastrando un asa del gizmo: se confirma al soltar, no con otro clic. */
       arrastre: boolean
+      /** Con qué ejes se ata (X, Y, Z) y se mueve: los del mundo o los del hueso seleccionado (D-160). */
+      ejes: EjesLocales
+      /** Agarrada por este punto de la pieza: sigue al cursor sobre el plano de la cámara. */
+      agarre: THREE.Vector3 | null
+      /** Giro libre, de trackball, en vez de sobre la línea de visión. */
+      libre: boolean
     } | null = null
     const gestoVivo = () => enCurso
     /** El clic que confirma no debe, además, seleccionar lo que haya debajo. */
     let tragarElSiguienteClic = false
+    /**
+     * Con la herramienta `manipular` (D-160): se pulsó una pieza y todavía no se
+     * ha arrastrado lo bastante para que sea un arrastre y no un clic. Mientras
+     * tanto la cámara se queda quieta; si se suelta sin arrastrar, es el clic de
+     * siempre y selecciona. `pedida`: ya se pidió seleccionar la pieza y se espera
+     * a que el taller la devuelva en `seleccion`, que llega con el pintado.
+     */
+    let arrastreEnEspera: {
+      id: string
+      agarre: THREE.Vector3
+      inicio: { x: number; y: number }
+      clientX: number
+      clientY: number
+      libre: boolean
+      pedida: boolean
+    } | null = null
+    /** Cuánto hay que arrastrar para que deje de ser un clic. Los mismos cinco píxeles de siempre, un poco menos: hay una pieza agarrada. */
+    const UMBRAL_DE_ARRASTRE = 4
+    const soltarElArrastreEnEspera = (evento?: PointerEvent) => {
+      if (!arrastreEnEspera) return
+      arrastreEnEspera = null
+      controles.enabled = true
+      if (evento && render.domElement.hasPointerCapture(evento.pointerId)) {
+        render.domElement.releasePointerCapture(evento.pointerId)
+      }
+    }
 
     const escribirEnLaEscena = (piezas: ReadonlyMap<string, TransformacionDePieza>) => {
       const escena = taller.current.escena
@@ -905,6 +1062,23 @@ export function VisorAtlas({
       sucio = true
     }
 
+    /**
+     * Lo que se lee de un trozo mientras se mueve: las palabras de la ficha,
+     * «8 mm lateral · 10° varo», y no los ejes X, Y y Z del atlas (D-160).
+     * `null` si lo que se mueve no es un trozo con hermano, y entonces se escribe
+     * lo de siempre. «En su sitio» cuando está reducido.
+     */
+    const leerLoQueSeMueve = (): string | null => {
+      if (!enCurso) return null
+      const todas = new Map(enCurso.alEmpezar)
+      for (const [id, transformacion] of enCurso.ahora) todas.set(id, transformacion)
+      for (const id of enCurso.ids) {
+        const lectura = lecturaDelFragmento(id, todas)
+        if (lectura) return describirLectura(lectura) ?? 'en su sitio'
+      }
+      return null
+    }
+
     const recalcularElGesto = () => {
       if (!enCurso) return
       const exacto = numeroTecleado(enCurso.tecleado)
@@ -916,7 +1090,7 @@ export function VisorAtlas({
           enCurso.ahora = moverPiezas(
             enCurso.alEmpezar,
             enCurso.ids,
-            desplazamientoTecleado(exacto, enCurso.eje),
+            desplazamientoTecleado(exacto, enCurso.eje, enCurso.ejes),
           )
           setGesto(`Mover${ejeEscrito} · ${enCurso.tecleado} mm (tecleado)`)
         } else {
@@ -925,10 +1099,14 @@ export function VisorAtlas({
             enCurso.ids,
             enCurso.centros,
             enCurso.pivote,
-            giroTecleado(camara, enCurso.pivote, exacto, enCurso.eje),
+            giroTecleado(camara, enCurso.pivote, exacto, enCurso.eje, enCurso.ejes),
           )
           setGesto(`Girar${ejeEscrito} · ${enCurso.tecleado}° (tecleado)`)
         }
+        // Con un trozo y sus ejes, lo tecleado también se lee en palabras de ficha:
+        // «G X 8» con los ejes del hueso son ocho milímetros laterales.
+        const leido = leerLoQueSeMueve()
+        if (leido) setGesto((anterior) => `${anterior ?? ''} · ${leido}`)
         escribirEnLaEscena(enCurso.ahora)
         taller.current.gizmoAlDia?.()
         return
@@ -940,26 +1118,53 @@ export function VisorAtlas({
       enCurso.inicio ??= ultimoPuntero
       const dx = ultimoPuntero.x - enCurso.inicio.x
       const dy = ultimoPuntero.y - enCurso.inicio.y
-      const ejeEscrito = enCurso.eje ? ` · eje ${enCurso.eje.toUpperCase()}` : ''
+      const ancho = render.domElement.clientWidth
+      const alto = render.domElement.clientHeight
+      let ejeEscrito = enCurso.eje ? ` · eje ${enCurso.eje.toUpperCase()}` : ''
       if (enCurso.modo === 'mover') {
-        const d = desplazamientoDelArrastre(
-          camara,
-          enCurso.pivote,
-          dx,
-          dy,
-          render.domElement.clientHeight,
-          enCurso.eje,
-        )
+        let d: THREE.Vector3
+        if (enCurso.agarre) {
+          // Agarrada por un punto: el rayo del cursor cruza el plano que pasa
+          // por él y mira a la cámara, y la pieza va a donde cae el cruce. Con
+          // perspectiva, lo que se pinchó se queda bajo el dedo.
+          d = desplazamientoEnElPlano(
+            camara,
+            enCurso.agarre,
+            rayoDelPuntero(camara, ultimoPuntero.x, ultimoPuntero.y, ancho, alto),
+          )
+          if (modificadores.mayus) {
+            const atado = atarAlEjeMasCercano(camara, d, enCurso.ejes)
+            d = atado.desplazamiento
+            ejeEscrito = atado.eje ? ` · eje ${atado.eje.toUpperCase()}` : ''
+          } else if (enCurso.eje) {
+            const eje = enCurso.ejes[enCurso.eje]
+            d = eje.clone().multiplyScalar(d.dot(eje))
+          }
+        } else {
+          d = desplazamientoDelArrastre(camara, enCurso.pivote, dx, dy, alto, enCurso.eje, enCurso.ejes)
+        }
         enCurso.ahora = moverPiezas(enCurso.alEmpezar, enCurso.ids, d)
-        setGesto(`Mover${ejeEscrito} · ${(d.length() * 1000).toFixed(1)} mm`)
+        const leido = leerLoQueSeMueve()
+        setGesto(`Mover${leido ? ` · ${leido}` : `${ejeEscrito} · ${(d.length() * 1000).toFixed(1)} mm`}`)
+      } else if (enCurso.libre) {
+        // Trackball: Alt + arrastrar sobre la pieza. Con Ctrl, en saltos de cinco grados.
+        let giro = giroLibre(camara, dx, dy)
+        if (modificadores.ctrl) giro = girarEnSaltos(giro)
+        enCurso.ahora = girarPiezas(enCurso.alEmpezar, enCurso.ids, enCurso.centros, enCurso.pivote, giro)
+        const leido = leerLoQueSeMueve()
+        const total = (2 * Math.acos(Math.min(1, Math.abs(giro.w))) * 180) / Math.PI
+        setGesto(`Girar${leido ? ` · ${leido}` : ` libre · ${total.toFixed(0)}°`}`)
       } else {
         const enPantalla = enCurso.pivote.clone().project(camara)
-        const cx = ((enPantalla.x + 1) / 2) * render.domElement.clientWidth
-        const cy = ((1 - enPantalla.y) / 2) * render.domElement.clientHeight
-        const angulo =
+        const cx = ((enPantalla.x + 1) / 2) * ancho
+        const cy = ((1 - enPantalla.y) / 2) * alto
+        let angulo =
           Math.atan2(ultimoPuntero.y - cy, ultimoPuntero.x - cx) -
           Math.atan2(enCurso.inicio.y - cy, enCurso.inicio.x - cx)
-        const giro = giroDelArrastre(camara, enCurso.pivote, angulo, enCurso.eje)
+        // Con Ctrl el ángulo salta de cinco en cinco grados, como el ajuste de
+        // giro de cualquier programa de dibujo.
+        if (modificadores.ctrl) angulo = saltoDeAngulo(angulo)
+        const giro = giroDelArrastre(camara, enCurso.pivote, angulo, enCurso.eje, enCurso.ejes)
         enCurso.ahora = girarPiezas(
           enCurso.alEmpezar,
           enCurso.ids,
@@ -969,7 +1174,8 @@ export function VisorAtlas({
         )
         // Entre −180° y 180°, que es como se lee un giro.
         const grados = ((((angulo * 180) / Math.PI) % 360) + 540) % 360 - 180
-        setGesto(`Girar${ejeEscrito} · ${grados.toFixed(0)}°`)
+        const leido = leerLoQueSeMueve()
+        setGesto(`Girar${leido ? ` · ${leido}` : `${ejeEscrito} · ${grados.toFixed(0)}°`}`)
       }
       escribirEnLaEscena(enCurso.ahora)
       taller.current.gizmoAlDia?.()
@@ -1003,7 +1209,7 @@ export function VisorAtlas({
     }
 
     taller.current.gesto = {
-      empezar: (modo) => {
+      empezar: (modo, opciones = {}) => {
         const escena = taller.current.escena
         const { seleccion: elegidas, visibles: encendidas, soloLectura: lectura } = ultimas.current
         if (!escena || lectura || !elegidas || elegidas.size === 0) return false
@@ -1023,7 +1229,9 @@ export function VisorAtlas({
             if (!trozo.malla.visible) continue
             ids.push(id)
             centros.set(id, trozo.centro.clone())
-            pivote.add(centroActual(trozo.centro, alEmpezar.get(id)))
+            // Sobre el centro de la tapa del corte, no sobre el de la caja del
+            // trozo: reducir una fractura es girar sobre el foco (D-160).
+            pivote.add(puntoDeGiroActual(trozo, alEmpezar.get(id)))
             continue
           }
           const i = escena.indices.get(id)
@@ -1049,11 +1257,14 @@ export function VisorAtlas({
           alEmpezar,
           centros,
           pivote,
-          inicio: ultimoPuntero,
+          inicio: opciones.inicio ?? ultimoPuntero,
           eje: null,
           ahora: new Map(),
           tecleado: '',
-          arrastre: false,
+          arrastre: opciones.arrastre ?? false,
+          ejes: ejesDeTrabajo(ids, alEmpezar),
+          agarre: opciones.agarre ?? null,
+          libre: opciones.libre ?? false,
         }
         setGesto(modo === 'mover' ? 'Mover · lleve el ratón al modelo' : 'Girar · lleve el ratón al modelo')
         controles.enabled = false
@@ -1084,6 +1295,48 @@ export function VisorAtlas({
     // --- el manipulador (D-133) ------------------------------------------------
     const manipulador = crearGizmo()
     tresD.add(manipulador.grupo)
+    const cajaDelHueso = crearCajaOrientada()
+    tresD.add(cajaDelHueso.lineas)
+
+    /**
+     * La caja de un trozo o de una pieza en los ejes de su hueso, en su sitio
+     * anatómico: centro y medidas. Se mide una vez por trozo: recorrer sus
+     * vértices en cada movimiento de la cámara sería trabajo tirado.
+     */
+    const cajasMedidas = new Map<string, { centro: THREE.Vector3; medidas: THREE.Vector3; marco: THREE.Quaternion }>()
+    const cajaMedidaDe = (id: string) => {
+      const guardada = cajasMedidas.get(id)
+      if (guardada) return guardada
+      const escena = taller.current.escena
+      const eje = ejeDelHuesoDe(id)
+      if (!escena || !eje) return null
+      const trozo = taller.current.fragmentos?.get(id)
+      const indice = escena.indices.get(piezaDe(id))
+      const posiciones = trozo
+        ? trozo.enReposo.posiciones
+        : indice !== undefined
+          ? mallaDeLaPieza(escena, indice)?.posiciones
+          : undefined
+      if (!posiciones || posiciones.length < 3) return null
+      const marco = marcoDelHueso({ largo: eje.direccion, delante: eje.delante, fuera: eje.fuera })
+      const minimo = new THREE.Vector3(Infinity, Infinity, Infinity)
+      const maximo = new THREE.Vector3(-Infinity, -Infinity, -Infinity)
+      const p = new THREE.Vector3()
+      for (let i = 0; i + 2 < posiciones.length; i += 3) {
+        p.set(posiciones[i], posiciones[i + 1], posiciones[i + 2])
+        const local = new THREE.Vector3(p.dot(marco.x), p.dot(marco.y), p.dot(marco.z))
+        minimo.min(local)
+        maximo.max(local)
+      }
+      const medio = minimo.clone().add(maximo).multiplyScalar(0.5)
+      const medida = {
+        centro: marco.x.clone().multiplyScalar(medio.x).addScaledVector(marco.y, medio.y).addScaledVector(marco.z, medio.z),
+        medidas: maximo.clone().sub(minimo),
+        marco: cuaternionDelMarco(marco),
+      }
+      cajasMedidas.set(id, medida)
+      return medida
+    }
 
     /** El centro de lo seleccionado, donde está AHORA: a mitad de un gesto, donde lo lleva el gesto. */
     const pivoteDeLaSeleccion = (): THREE.Vector3 | null => {
@@ -1097,7 +1350,7 @@ export function VisorAtlas({
         const trozo = taller.current.fragmentos?.get(id)
         if (trozo) {
           if (!trozo.malla.visible) continue
-          suma.add(centroActual(trozo.centro, transformacion))
+          suma.add(puntoDeGiroActual(trozo, transformacion))
           cuantas += 1
           continue
         }
@@ -1123,9 +1376,42 @@ export function VisorAtlas({
       const donde =
         ultimas.current.gizmo && !ultimas.current.soloLectura ? pivoteDeLaSeleccion() : null
       manipulador.grupo.visible = donde !== null
+      cajaDelHueso.lineas.visible = false
       if (donde) {
         manipulador.grupo.position.copy(donde)
         manipulador.grupo.scale.setScalar(escalaDelGizmo(camara, donde))
+        // Con los ejes del hueso, el manipulador se orienta con ellos y se dibuja
+        // la caja que los hace legibles. A mitad de un gesto los ejes son los del
+        // principio: que giren con lo que se está girando haría de cada
+        // movimiento una realimentación.
+        const elegidas = ultimas.current.seleccion ?? new Set<string>()
+        const ejes = enCurso ? enCurso.ejes : ejesDeTrabajo(elegidas, ultimas.current.transformaciones)
+        const delHueso = ejes !== EJES_DEL_MUNDO
+        manipulador.orientar(delHueso ? cuaternionDelMarco(ejes) : null)
+        if (delHueso) {
+          const primero = [...(enCurso ? enCurso.ids : elegidas)].find((id) => cajaMedidaDe(id) !== null)
+          const medida = primero ? cajaMedidaDe(primero) : null
+          if (primero && medida) {
+            const trozo = taller.current.fragmentos?.get(primero)
+            const escena = taller.current.escena
+            const i = escena?.indices.get(primero)
+            const centroDeLaPieza =
+              trozo?.centro ??
+              (escena && i !== undefined
+                ? new THREE.Vector3(escena.centros[i * 3], escena.centros[i * 3 + 1], escena.centros[i * 3 + 2])
+                : null)
+            const t = enCurso?.ahora.get(primero) ?? ultimas.current.transformaciones?.get(primero)
+            if (centroDeLaPieza) {
+              const giro = new THREE.Quaternion(...(t?.girar ?? [0, 0, 0, 1]))
+              cajaDelHueso.colocar(
+                puntoActual(centroDeLaPieza, medida.centro, t),
+                giro.multiply(medida.marco),
+                medida.medidas,
+              )
+            }
+          }
+        }
+        manipulador.mirarA(camara)
       }
       sucio = true
     }
@@ -1155,6 +1441,8 @@ export function VisorAtlas({
     }
 
     const alBajar = (evento: PointerEvent) => {
+      modificadores.mayus = evento.shiftKey
+      modificadores.ctrl = evento.ctrlKey || evento.metaKey
       if (!enCurso && evento.button === 0 && evento.isPrimary && manipulador.grupo.visible) {
         aCoordenadas(evento)
         rayo.setFromCamera(puntero, camara)
@@ -1168,12 +1456,50 @@ export function VisorAtlas({
           // arriba y no sabe que `empezar` acaba de asignarlo.
           const gestoDelAsa = taller.current.gesto?.empezar(asa.modo) ? gestoVivo() : null
           if (gestoDelAsa) {
-            gestoDelAsa.eje = asa.eje
+            // El aro grande no es de ningún eje: gira sobre la línea de visión.
+            gestoDelAsa.eje = asa.eje === 'vista' ? null : asa.eje
             gestoDelAsa.arrastre = true
             render.domElement.setPointerCapture(evento.pointerId)
             recalcularElGesto()
           }
           bajado = null
+          return
+        }
+      }
+      // Manipular (D-160): pulsar sobre una pieza y arrastrarla, sin teclado ni
+      // asas. Aquí solo se anota qué se agarró y por dónde; el gesto empieza en
+      // `alMover` cuando el ratón se ha ido de verdad. Pulsar el vacío no entra:
+      // sigue siendo la cámara, y un clic en el vacío sigue vaciando la selección.
+      if (
+        !enCurso &&
+        ultimas.current.herramienta === 'manipular' &&
+        evento.button === 0 &&
+        evento.isPrimary &&
+        !ultimas.current.soloLectura &&
+        ultimas.current.alSeleccionar &&
+        taller.current.escena
+      ) {
+        aCoordenadas(evento)
+        rayo.setFromCamera(puntero, camara)
+        const senalada = loQueSeSenala(taller.current.escena)
+        if (senalada && Number.isFinite(distanciaDelUltimoImpacto)) {
+          const donde = enElLienzo(evento)
+          ultimoPuntero = donde
+          arrastreEnEspera = {
+            id: senalada.id,
+            agarre: rayo.ray.at(distanciaDelUltimoImpacto, new THREE.Vector3()),
+            inicio: donde,
+            clientX: evento.clientX,
+            clientY: evento.clientY,
+            libre: evento.altKey,
+            pedida: false,
+          }
+          // Con el ratón la cámara se queda quieta desde ya. Con el dedo no: un
+          // segundo dedo es el pellizco de la cámara, y `OrbitControls` solo lo
+          // sigue si registró el primero. El gesto la desactiva al empezar.
+          if (evento.pointerType !== 'touch') controles.enabled = false
+          render.domElement.setPointerCapture(evento.pointerId)
+          bajado = { x: evento.clientX, y: evento.clientY }
           return
         }
       }
@@ -1218,6 +1544,40 @@ export function VisorAtlas({
       // encuadre con el derecho, que es justo cuando no sirve para nada.
       const arrastrando = evento.buttons !== 0
       ultimoPuntero = enElLienzo(evento)
+      modificadores.mayus = evento.shiftKey
+      modificadores.ctrl = evento.ctrlKey || evento.metaKey
+      if (arrastreEnEspera && !enCurso) {
+        const espera = arrastreEnEspera
+        if (Math.hypot(evento.clientX - espera.clientX, evento.clientY - espera.clientY) < UMBRAL_DE_ARRASTRE) return
+        // Una pieza que no estaba seleccionada se selecciona primero y se mueve
+        // en cuanto el taller la devuelve: el gesto se arma con la selección que
+        // trae la prop, y esa llega un pintado más tarde.
+        if (!ultimas.current.seleccion?.has(espera.id)) {
+          if (!espera.pedida) {
+            espera.pedida = true
+            ultimas.current.alSeleccionar?.([espera.id], 'reemplazar')
+          }
+          return
+        }
+        arrastreEnEspera = null
+        controles.enabled = true
+        const empezo = taller.current.gesto?.empezar(espera.libre ? 'girar' : 'mover', {
+          agarre: espera.libre ? undefined : espera.agarre,
+          libre: espera.libre,
+          arrastre: true,
+          inicio: espera.inicio,
+        })
+        if (empezo) {
+          recalcularElGesto()
+        } else {
+          // Nada que mover —la pieza está apagada o es de solo lectura—: era un arrastre en vacío.
+          if (render.domElement.hasPointerCapture(evento.pointerId)) {
+            render.domElement.releasePointerCapture(evento.pointerId)
+          }
+          bajado = null
+        }
+        return
+      }
       if (enCurso) {
         recalcularElGesto()
         return
@@ -1253,7 +1613,10 @@ export function VisorAtlas({
         setNombreFlotante(null)
         return
       }
-      render.domElement.style.cursor = 'pointer'
+      render.domElement.style.cursor =
+        ultimas.current.herramienta === 'manipular' && ultimas.current.seleccion?.has(senalada.id)
+          ? 'move'
+          : 'pointer'
       // En español: es el único sitio del visor donde se lee un nombre, y quien
       // pasa el ratón por la pierna es un residente que estudia en español.
       // Lo que no tiene traducción sale con el original, sin inventar nada.
@@ -1262,6 +1625,9 @@ export function VisorAtlas({
 
     const alSubir = (evento: PointerEvent) => {
       render.domElement.style.cursor = cursorDeReposo()
+      // Soltado antes de arrastrar lo bastante: no fue un arrastre sino un clic, y
+      // sigue su camino de siempre (seleccionar la pieza, o nada).
+      soltarElArrastreEnEspera(evento)
       // Soltar el derecho o el central no cancela nada: el izquierdo puede
       // seguir pulsado y su gesto sigue vivo, así que se sale sin tocar
       // `bajado`.
@@ -1442,6 +1808,18 @@ export function VisorAtlas({
     }
     render.domElement.addEventListener('webglcontextrestored', alRecuperarContexto)
 
+    const alCancelar = (evento: PointerEvent) => soltarElArrastreEnEspera(evento)
+    // Un segundo dedo con un arrastre en marcha es el gesto de la cámara (D-149:
+    // un dedo mueve, dos dedos mueven la cámara): se suelta lo que se agarró y se
+    // le devuelve la cámara. Va en la fase de captura para ejecutarse antes que
+    // `OrbitControls`, que ignora un dedo nuevo mientras está desactivado.
+    const alDedoDeMas = (evento: PointerEvent) => {
+      if (evento.isPrimary) return
+      if (enCurso?.arrastre) terminarElGesto(false)
+      soltarElArrastreEnEspera()
+    }
+    render.domElement.addEventListener('pointerdown', alDedoDeMas, true)
+    render.domElement.addEventListener('pointercancel', alCancelar)
     render.domElement.addEventListener('pointerdown', alBajar)
     render.domElement.addEventListener('pointermove', alMover)
     render.domElement.addEventListener('pointerup', alSubir)
@@ -1481,6 +1859,9 @@ export function VisorAtlas({
       controles.removeEventListener('change', pedirDibujo)
       controles.removeEventListener('change', gizmoAlDia)
       manipulador.liberar()
+      cajaDelHueso.liberar()
+      render.domElement.removeEventListener('pointercancel', alCancelar)
+      render.domElement.removeEventListener('pointerdown', alDedoDeMas, true)
       render.domElement.removeEventListener('pointerdown', alBajar)
       render.domElement.removeEventListener('pointermove', alMover)
       render.domElement.removeEventListener('pointerup', alSubir)
@@ -2150,13 +2531,33 @@ function encuadrarVisible(
  * traumatólogo —que hay que seguir— de uno que ya atendió `irA` o la carga
  * —que no—.
  */
+/**
+ * Cómo empieza un gesto que no viene de una tecla (D-160): agarrando la pieza
+ * por un punto de su superficie, o girándola libremente.
+ */
+interface OpcionesDelGesto {
+  /** Dónde estaba el cursor al agarrar: el gesto se mide desde ahí y no desde donde entre el ratón. */
+  inicio?: { x: number; y: number }
+  /** El punto de la pieza que se pinchó, en el espacio del atlas. La pieza sigue al cursor por ahí. */
+  agarre?: THREE.Vector3
+  /** Girar con el ratón sin atarse a ningún eje: trackball. */
+  libre?: boolean
+  /** El gesto ya se empezó con el botón pulsado: se confirma al soltarlo. */
+  arrastre?: boolean
+}
+
 interface TallerDelVisor {
   escena?: EscenaDelAtlas
   /** El gesto de mover o girar; lo monta el efecto de montaje, que es quien ve el ratón. */
   gesto?: {
-    empezar: (modo: ModoDeTransformacion) => boolean
+    empezar: (modo: ModoDeTransformacion, opciones?: OpcionesDelGesto) => boolean
     tecla: (tecla: string) => boolean
   }
+  /** Lo que dice el mando `lecturaDelFragmento`; lo monta el efecto de montaje, que ve la escena. */
+  lecturaDelFragmento?: (
+    id: string,
+    transformaciones: ReadonlyMap<string, TransformacionDePieza> | null,
+  ) => LecturaClinica | null
   /** Las líneas de las medidas, en la escena; y dónde va cada texto, para proyectarlo en cada dibujado. */
   lineasDeMarcas?: THREE.Group
   anclasDeMarcas?: THREE.Vector3[]

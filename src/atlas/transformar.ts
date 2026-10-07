@@ -17,7 +17,16 @@ import type { TransformacionDePieza } from './cargador'
 
 export type EjeDelGesto = 'x' | 'y' | 'z'
 
-const EJES: Record<EjeDelGesto, THREE.Vector3> = {
+/**
+ * Tres ejes ortonormales con nombre. Por omisión, los del mundo; con los de un
+ * hueso (D-160) la X de «G X 8» y la flecha roja van a lo ancho del hueso y no a
+ * lo ancho del cuerpo. Lo único que cambia entre unos y otros son estos tres
+ * vectores, así que todas las cuentas de abajo los reciben como un parámetro
+ * más y no saben de qué eje se trata.
+ */
+export type EjesDeTrabajo = Readonly<Record<EjeDelGesto, THREE.Vector3>>
+
+const EJES: EjesDeTrabajo = {
   x: new THREE.Vector3(1, 0, 0),
   y: new THREE.Vector3(0, 1, 0),
   z: new THREE.Vector3(0, 0, 1),
@@ -68,6 +77,7 @@ export function desplazamientoDelArrastre(
   dy: number,
   altoEnPixeles: number,
   eje: EjeDelGesto | null,
+  ejes: EjesDeTrabajo = EJES,
 ): THREE.Vector3 {
   const escala = metrosPorPixel(camara, pivote, altoEnPixeles)
   const derecha = new THREE.Vector3().setFromMatrixColumn(camara.matrixWorld, 0)
@@ -75,7 +85,7 @@ export function desplazamientoDelArrastre(
   // La Y de la pantalla crece hacia abajo.
   const libre = derecha.multiplyScalar(dx * escala).addScaledVector(arriba, -dy * escala)
   if (!eje) return libre
-  return EJES[eje].clone().multiplyScalar(libre.dot(EJES[eje]))
+  return ejes[eje].clone().multiplyScalar(libre.dot(ejes[eje]))
 }
 
 /**
@@ -92,11 +102,12 @@ export function giroDelArrastre(
   pivote: THREE.Vector3,
   anguloHorario: number,
   eje: EjeDelGesto | null,
+  ejes: EjesDeTrabajo = EJES,
 ): THREE.Quaternion {
   const haciaLaCamara = camara.position.clone().sub(pivote).normalize()
   if (!eje) return new THREE.Quaternion().setFromAxisAngle(haciaLaCamara, -anguloHorario)
-  const sentido = EJES[eje].dot(haciaLaCamara) < 0 ? -1 : 1
-  return new THREE.Quaternion().setFromAxisAngle(EJES[eje], -anguloHorario * sentido)
+  const sentido = ejes[eje].dot(haciaLaCamara) < 0 ? -1 : 1
+  return new THREE.Quaternion().setFromAxisAngle(ejes[eje], -anguloHorario * sentido)
 }
 
 /** Centro actual de una pieza: su centro anatómico más lo que se haya movido. */
@@ -166,8 +177,12 @@ export function girarPiezas(
  * número suelto tiene que ir hacia algún sitio, y que sea siempre el mismo se
  * aprende a la primera.
  */
-export function desplazamientoTecleado(milimetros: number, eje: EjeDelGesto | null): THREE.Vector3 {
-  return EJES[eje ?? 'x'].clone().multiplyScalar(milimetros / 1000)
+export function desplazamientoTecleado(
+  milimetros: number,
+  eje: EjeDelGesto | null,
+  ejes: EjesDeTrabajo = EJES,
+): THREE.Vector3 {
+  return ejes[eje ?? 'x'].clone().multiplyScalar(milimetros / 1000)
 }
 
 /**
@@ -180,9 +195,10 @@ export function giroTecleado(
   pivote: THREE.Vector3,
   grados: number,
   eje: EjeDelGesto | null,
+  ejes: EjesDeTrabajo = EJES,
 ): THREE.Quaternion {
   const radianes = (grados * Math.PI) / 180
-  if (eje) return new THREE.Quaternion().setFromAxisAngle(EJES[eje], radianes)
+  if (eje) return new THREE.Quaternion().setFromAxisAngle(ejes[eje], radianes)
   const haciaLaCamara = camara.position.clone().sub(pivote).normalize()
   return new THREE.Quaternion().setFromAxisAngle(haciaLaCamara, radianes)
 }

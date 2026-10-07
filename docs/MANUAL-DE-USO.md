@@ -258,8 +258,8 @@ que guarda, sin aviso.
 
 ## 6. El taller anatómico
 
-Sirve para preparar una vista del atlas (2.230 piezas; la piel, el pelo, las
-cejas y el vello se quitaron del atlas y no existen) y ponerla en una ficha con
+Sirve para preparar una vista del atlas (2.231 piezas, la piel incluida; el pelo,
+las cejas y el vello se quitaron del atlas y no existen) y ponerla en una ficha con
 el bloque «Preparación anatómica».
 
 1. **Seleccione** lo que le interesa. Un clic sobre una pieza la selecciona y
@@ -365,12 +365,73 @@ desplazado, una fractura.
   seleccionado —todos los músculos, todos los vasos—, que es la forma rápida de
   quitar una capa entera: Mayús + G y después Supr.
 
+### Manipular con el ratón (tecla V)
+
+Es la forma de mover y angular un fragmento **sin teclado**, como se mueve una
+imagen en una presentación. Se activa con el botón **«Manipular»** o con la tecla
+**V** (otra vez, o Esc, la suelta).
+
+1. **Seleccione** el trozo que va a mover (un clic sobre él).
+2. **Pulse sobre él y arrastre.** El trozo sigue al cursor: lo que usted pinchó se
+   queda bajo el dedo, también cuando está cerca o lejos de la cámara. Pulsar un
+   trozo que no estaba seleccionado lo selecciona y lo mueve en el mismo gesto.
+   Pulsar el vacío sigue girando la cámara, como siempre.
+3. **Con Mayús**, el movimiento se ata al eje del hueso más cercano a la
+   dirección en que arrastra (a lo largo, a lo ancho o hacia delante).
+4. **Con Alt**, arrastrar **gira** el trozo libremente, como una bola. **Con
+   Ctrl**, los giros saltan de cinco en cinco grados.
+5. **El aro blanco** de las asas, el más grande, gira el trozo sobre la línea de
+   visión: mirando el hueso **de frente**, es el giro de varo y valgo; mirándolo
+   **de lado**, el de ante y recurvatum.
+
+Un gesto es **un solo paso del historial**: Ctrl + Z lo deshace entero.
+
+**Qué se lee mientras se mueve.** Si lo que se mueve es uno de los dos trozos de
+un hueso partido, sobre el modelo se lee su posición **respecto del otro trozo**,
+con las palabras de la ficha: «8 mm lateral · 10° varo». En el panel derecho,
+pestaña **Pieza**, la misma lectura queda escrita bajo «Posición y giro» con el
+trozo seleccionado. Se lee siempre **el fragmento distal respecto del proximal**,
+muévase el que se mueva:
+
+| Se lee | Quiere decir |
+|---|---|
+| mm lateral · medial | el distal se fue hacia fuera · hacia dentro del cuerpo |
+| mm anterior · posterior | hacia delante · hacia atrás |
+| mm de diástasis · de acortamiento | se separan a lo largo del hueso · cabalgan |
+| ° valgo · varo | el extremo distal apunta hacia fuera · hacia dentro |
+| ° recurvatum · antecurvatum | el extremo distal apunta hacia delante · hacia atrás |
+| ° de rotación externa · interna | la cara anterior del distal gira hacia fuera · hacia dentro |
+
+Lo que no llega a medio milímetro o medio grado no se escribe, y un trozo en su
+sitio dice «En su sitio». Todo está medido en los ejes **del hueso**, no en los del
+cuerpo: la tibia derecha y la izquierda dicen «lateral» hacia lados opuestos del
+atlas.
+
+**Gira sobre el foco.** Un trozo que nació de un corte gira por omisión sobre el
+**centro de la tapa del corte**, no sobre el centro de su caja: así angular 10°
+no lo desplaza, que es lo que se espera al reducir una fractura. Las asas
+aparecen ahí.
+
+#### Ejes del hueso
+
+El botón **«Ejes del hueso»** (junto a «Asas») hace que las flechas, los aros y la
+**X, Y y Z** que se teclean vayan con el hueso seleccionado: X hacia fuera, Y
+hacia proximal y Z el que completa la terna. Se dibuja además una **caja
+dorada** alineada con el hueso. De entrada están apagados —las teclas valen lo
+mismo que siempre—; con ellos, `G`, `X`, `8`, Intro son **8 mm laterales** y la
+lectura lo confirma.
+
+**En el teléfono o la tableta:** un dedo sobre un trozo seleccionado lo mueve; un
+segundo dedo suelta el trozo y devuelve la cámara (pellizco para acercar). No se
+ha probado en un aparato real.
+
 ### Asas, números y más herramientas
 
 - **Asas** (encendidas de entrada): sobre lo seleccionado aparecen tres flechas
-  y tres aros de colores. Arrastrar una **flecha** mueve por ese eje; un **aro**,
-  gira sobre él. X es rojo (hacia la izquierda del paciente), Y verde (hacia
-  arriba) y Z azul (hacia delante).
+  y tres aros de colores, y un **aro blanco**, más grande, que gira sobre la línea
+  de visión. Arrastrar una **flecha** mueve por ese eje; un **aro**, gira sobre él.
+  X es rojo (hacia la izquierda del paciente), Y verde (hacia arriba) y Z azul
+  (hacia delante); con «Ejes del hueso», los del hueso seleccionado.
 - **Valores exactos.** Durante un gesto se puede teclear el número: `G`, `X`,
   `8`, Intro mueve 8 mm en X; `R`, `Z`, `15`, Intro gira 15°. Y el panel
   **«Posición y giro»**, a la derecha, enseña cuánto se ha movido la pieza

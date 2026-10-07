@@ -1267,6 +1267,17 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 
 .atlas-globales button:hover { border-color: var(--marca); color: var(--marca); }
 
+/* La lectura clínica de un fragmento (D-160): "8 mm lateral · 10° varo". Es la
+   cifra que se copia a la ficha, así que va grande y con números de ancho fijo
+   para que no baile mientras se arrastra. */
+.atlas-lectura {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto-fuerte, inherit);
+}
+
 .atlas-conteo {
   margin-left: auto;
   font-family: var(--mono);
