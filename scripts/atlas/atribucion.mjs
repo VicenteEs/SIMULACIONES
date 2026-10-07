@@ -246,6 +246,11 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
 - geometría simplificada con meshoptimizer, con un límite de error relativo del
   0,2 % por estructura; las ${n(catalogo.piezas.length)} mallas de origen se conservan todas;
 - normales cuantizadas a entero de 16 bits con signo;
+- la piel (Skin) ensanchada unos milímetros hacia afuera, y hasta un par de
+  centímetros en la oreja, allí donde las estructuras de debajo —venas, tracto
+  iliotibial, platisma, cartílagos de la nariz y de la oreja— la atravesaban.
+  Solo se mueven vértices de la piel, a lo largo de su normal; el resto de la
+  geometría no cambia;
 - geometría empaquetada en ${catalogo.paquetes.length} archivos binarios comprimidos;
 - añadida una clasificación por **región anatómica** que el material original no
   traía: se toma de los conceptos FMA de región del propio atlas (cabeza, tórax,

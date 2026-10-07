@@ -27,6 +27,11 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
 - geometría simplificada con meshoptimizer, con un límite de error relativo del
   0,2 % por estructura; las 2.231 mallas de origen se conservan todas;
 - normales cuantizadas a entero de 16 bits con signo;
+- la piel (Skin) ensanchada unos milímetros hacia afuera, y hasta un par de
+  centímetros en la oreja, allí donde las estructuras de debajo —venas, tracto
+  iliotibial, platisma, cartílagos de la nariz y de la oreja— la atravesaban.
+  Solo se mueven vértices de la piel, a lo largo de su normal; el resto de la
+  geometría no cambia;
 - geometría empaquetada en 15 archivos binarios comprimidos;
 - añadida una clasificación por **región anatómica** que el material original no
   traía: se toma de los conceptos FMA de región del propio atlas (cabeza, tórax,
@@ -92,4 +97,4 @@ marcada en el catálogo y el árbol anatómico la señala con un distintivo.
   quirúrgica sobre un paciente concreto.
 
 ---
-Preparación `bp3d-4.0-cbfc84b3` · 2.273.784 triángulos
+Preparación `bp3d-4.0-6d4cc0c0` · 2.273.784 triángulos

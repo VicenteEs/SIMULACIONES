@@ -69,6 +69,8 @@ export interface PiezaDelAtlas {
    * no presentar una estimación como un dato.
    */
   origenRegion: 'anatomia' | 'caja'
+  /** Solo la piel: lo que `scripts/atlas/ajustar-piel.mjs` le hizo (D-159). El visor no lo lee. */
+  ajustada?: string
   paquete: number
   pos: number
   nor: number
