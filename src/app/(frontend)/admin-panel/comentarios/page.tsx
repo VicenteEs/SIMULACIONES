@@ -1,6 +1,6 @@
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { clientePayload, SLUGS_DE_MODULOS } from '../datos'
-import { NOMBRE_DE_MODULO } from '../modulos'
+import { NOMBRE_DE_DESTINO, SLUG_DEL_TALLER } from '../modulos'
 import { claveDeFicha, leerTitulosDeFichas } from '../titulosDeFichas'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { TablaComentarios, type ComentarioDelPanel } from './TablaComentarios'
@@ -104,7 +104,8 @@ export default async function PaginaComentarios() {
   // PostgreSQL lo rechace falla la consulta entera y todas las fichas de ese
   // módulo salen ilegibles por culpa de una fila.
   const sePregunta = (c: { coleccion: string; documentoId: string }) =>
-    (SLUGS_DE_MODULOS as readonly string[]).includes(c.coleccion) && c.documentoId !== ''
+    ((SLUGS_DE_MODULOS as readonly string[]).includes(c.coleccion) || c.coleccion === SLUG_DEL_TALLER) &&
+    c.documentoId !== ''
   const referencias = basicos.filter(sePregunta)
   const estados = await leerTitulosDeFichas(payload, referencias)
 
@@ -139,7 +140,7 @@ export default async function PaginaComentarios() {
     new Set(
       comentarios
         .filter((c) => c.fichaEstado === 'ilegible')
-        .map((c) => NOMBRE_DE_MODULO[c.coleccion] ?? c.coleccion),
+        .map((c) => NOMBRE_DE_DESTINO[c.coleccion] ?? c.coleccion),
     ),
   )
 

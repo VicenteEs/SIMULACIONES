@@ -292,6 +292,41 @@ grupo no enciende los del resto del cuerpo. «Encender todo» y «Volver a
 “Cuerpo”» devuelven el atlas entero; **Ctrl + Z** tras un «solo» devuelve la
 lista de antes. Para traer algo que no está, mire **«Todo el atlas»**.
 
+### Las tres pestañas del panel derecho
+
+El panel de la derecha del taller está partido en tres pestañas. Se cambia con el
+ratón o con las flechas del teclado.
+
+- **Pieza:** posición y giro, color y transparencia, rótulos y medidas. Es lo que
+  se hace con lo seleccionado.
+- **Preparación:** el nombre, para qué sirve, las vistas con nombre, los modelos 3D
+  y las preparaciones guardadas. Es la pestaña con la que se abre el taller.
+- **Comentarios:** lo que el equipo ha dicho de esta preparación (ver abajo). Si
+  hay pendientes, la pestaña lleva su número: «Comentarios (2)».
+
+### Comentar una preparación o una pieza
+
+Para decir «a esta tibia le falta el peroné» sin salir del taller:
+
+1. Abra la preparación (tiene que estar guardada con nombre: **«Cuerpo» no se
+   comenta**, es la base de la que sale toda preparación).
+2. En la pestaña **Comentarios**, escriba. «Comentar» deja el comentario sobre la
+   preparación entera.
+3. Para señalar una pieza, **selecciónela primero** y pulse «Comentar» + su nombre.
+   El comentario queda anclado a esa pieza **y a la vista de la cámara de ese
+   momento**.
+4. Quien lo lea pulsa el comentario y el taller selecciona la pieza y lleva la
+   cámara a esa vista. Mientras esté pendiente, aparece también como una etiqueta
+   «💬» sobre el modelo; se apaga con «Marcar los pendientes sobre el modelo».
+
+«Resolver» cierra un comentario y «Reabrir» lo devuelve a pendiente; los resuelve
+cualquier editor. «Eliminar» es solo del administrador.
+
+Esos mismos comentarios salen en **«Comentarios»** del menú lateral, en la fila
+de la preparación, con el enlace **«Abrir en el taller»**: abre la preparación,
+lleva a la pestaña de comentarios y señala el comentario. Solo comentan el editor y
+el administrador: el residente no comenta preparaciones, comenta las fichas.
+
 ### Abrir un modelo 3D en el taller
 
 En el panel derecho, bajo el nombre, está la lista **«Modelos 3D»** con todos los
@@ -414,6 +449,8 @@ Cada ficha tiene «Dejar un comentario o sugerencia». Llegan a «Comentarios»,
 el número de pendientes en la barra lateral.
 
 - «editar →» abre la ficha comentada para corregirla; «ver ficha →», la pública.
+- Los comentarios sobre una **preparación del taller anatómico** salen aquí también,
+  con el filtro «Taller anatómico» y el enlace «Abrir en el taller» (sección 6).
 - Corregido o descartado, **«Resolver»**. Se puede «Reabrir».
 - «Resolver todos» cierra todos los pendientes de una vez. Pide confirmación.
 - Solo un administrador puede «Eliminar» un comentario. Lo normal es resolverlo,

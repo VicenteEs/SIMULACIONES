@@ -5,7 +5,7 @@ import type { Field } from 'payload'
 import { Modelos3D } from '@/collections/Modelos3D'
 import { Actividad } from '@/collections/Actividad'
 import { Comentarios } from '@/collections/Comentarios'
-import { creacionEnModuloVisible } from '@/access/payload'
+import { creacionDeComentario, creacionEnModuloVisible } from '@/access/payload'
 import { BLOQUES as BLOQUES_PAYLOAD } from '@/blocks'
 import { camposDe, esquemaDe, recorrerCampos, type Campo } from '@/admin/esquema'
 import { MAXIMO_DE_COMPLICACIONES } from '@/lib/progresoDelSimulador'
@@ -295,7 +295,10 @@ describe('las tres columnas del simulador en `actividad`', () => {
     // misma función aunque se llame igual, y un comentario que la cite no hace
     // pasar nada.
     expect(Actividad.access?.create).toBe(creacionEnModuloVisible)
-    expect(Comentarios.access?.create).toBe(creacionEnModuloVisible)
+    // Comentarios añade, encima, el destino del taller anatómico (D-158), y para
+    // todo lo demás delega en la misma regla: `creacionDeComentario` se prueba
+    // en `tests/unit/comentariosDelTaller.test.ts`.
+    expect(Comentarios.access?.create).toBe(creacionDeComentario)
   })
 
   it('el tope de complicaciones es el mismo número en la columna y en el recorte', () => {

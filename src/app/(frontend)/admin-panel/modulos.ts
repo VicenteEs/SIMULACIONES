@@ -44,3 +44,37 @@ export const rutaPublica = (coleccion: string, id: string | number): string => {
   if (modulo.slug === 'maniobras') return `${modulo.ruta}#maniobra-${id}`
   return `${modulo.ruta}/${id}`
 }
+
+// --------------------------------------------- comentarios del taller (D-158)
+
+/**
+ * La «colección» con la que se comenta una preparación del taller anatómico.
+ *
+ * No es un módulo: no está en `MODULOS`, ni en la barra, ni entre los permisos
+ * de una cuenta. Es un destino más de los comentarios, y por eso vive aparte y
+ * no dentro de `MODULOS`, que alimenta justo esas tres cosas.
+ */
+export const SLUG_DEL_TALLER = 'instancias-atlas'
+
+/** Nombre legible de todo lo que se puede comentar: los cinco módulos y el taller. */
+export const NOMBRE_DE_DESTINO: Record<string, string> = {
+  ...NOMBRE_DE_MODULO,
+  [SLUG_DEL_TALLER]: 'Taller anatómico',
+}
+
+/**
+ * Dónde se atiende un comentario, dentro del panel.
+ *
+ * Los de un módulo, en la bandeja; los del taller, en el propio taller, con la
+ * preparación abierta y el comentario señalado (`admin-panel/atlas/page.tsx` lee
+ * los dos parámetros). Sin prefijo de la plataforma: quien la usa en un `<Link>`
+ * lo recibe de Next, y quien la usa en un correo le antepone la dirección pública.
+ */
+export const rutaDelPanelParaComentario = (
+  coleccion: string,
+  documentoId: string | number,
+  comentarioId: string | number,
+): string =>
+  coleccion === SLUG_DEL_TALLER
+    ? `/admin-panel/atlas?preparacion=${encodeURIComponent(String(documentoId))}&comentario=${encodeURIComponent(String(comentarioId))}`
+    : '/admin-panel/comentarios'

@@ -1814,8 +1814,17 @@ export interface EstudiosIa {
 export interface Comentario {
   id: number;
   usuario?: (number | null) | Usuario;
-  coleccion: 'patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia';
+  coleccion: 'patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia' | 'instancias-atlas';
   documentoId: string;
+  ancla?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   texto: string;
   estado: 'pendiente' | 'resuelto';
   updatedAt: string;
@@ -3493,6 +3502,7 @@ export interface ComentariosSelect<T extends boolean = true> {
   usuario?: T;
   coleccion?: T;
   documentoId?: T;
+  ancla?: T;
   texto?: T;
   estado?: T;
   updatedAt?: T;

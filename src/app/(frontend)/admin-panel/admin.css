@@ -1543,3 +1543,27 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
   .admin-notas-revisor { flex: 1 1 100%; margin: 0; }
   .admin-notas-cuerpo { max-height: 30vh; }
 }
+
+/* Los comentarios del taller (E2, D-158), en la pestaña del panel derecho. */
+.atlas-comentarios { display: flex; flex-direction: column; gap: var(--e-3); }
+.atlas-comentarios-acciones { display: flex; flex-wrap: wrap; gap: var(--e-2); }
+.atlas-comentarios-lista { list-style: none; margin: var(--e-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--e-3); }
+.atlas-comentario {
+  display: flex; flex-direction: column; gap: var(--e-2);
+  padding: var(--e-3); border: 1px solid var(--linea); border-left: 3px solid var(--ambar);
+  border-radius: var(--r); background: var(--superficie);
+}
+.atlas-comentario-resuelto { border-left-color: var(--verde); opacity: 0.75; }
+.atlas-comentario-senalado { outline: 2px solid var(--marca); outline-offset: 1px; }
+.atlas-comentario-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2); font-size: var(--t-xs); color: var(--mudo); }
+.atlas-comentario-cabeza strong { color: var(--tinta); font-size: var(--t-sm); }
+.atlas-comentario-ancla {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: var(--e-1);
+  padding: 2px var(--e-2); border-radius: var(--r-full); border: 1px solid var(--linea);
+  background: var(--marca-tenue); color: var(--marca); font: inherit; font-size: var(--t-xs); font-weight: 650; cursor: pointer;
+}
+.atlas-comentario-texto { margin: 0; font-size: var(--t-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.atlas-comentario-pie { display: flex; gap: var(--e-2); }
+.atlas-comentarios-marcadores { display: flex; align-items: center; gap: var(--e-2); font-size: var(--t-sm); color: var(--pizarra); }
+/* El panel del taller mide 280 px y las tres pestañas, con el contador, no caben con el relleno y el cuerpo de letra normales. */
+.atlas-panel-derecho .pestana { padding: 0 var(--e-2); font-size: var(--t-xs); }

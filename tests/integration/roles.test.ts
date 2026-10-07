@@ -1165,6 +1165,100 @@ describe.skipIf(intento.payload === null)('cada rol contra la base', () => {
   })
 
   /**
+   * E2, D-158: se comenta una preparación del taller, y solo desde el taller.
+   *
+   * La matriz de arriba prueba los comentarios sobre un módulo; esto prueba el
+   * destino nuevo contra la base, con las reglas de verdad y el valor nuevo del
+   * enumerado, que es lo que una migración olvidada dejaría sin existir.
+   */
+  describe('los comentarios del taller anatómico', () => {
+    const preparacion = async () =>
+      crearComo('instancias-atlas', FABRICAS['instancias-atlas'].fabricar(unico('prep-comentada')))
+
+    const lee = async (slug: string, id: number | string, user: Record<string, unknown> | null) =>
+      contiene(
+        await juzgada(
+          payload.find({
+            collection: slug as never,
+            where: { id: { equals: id } } as never,
+            overrideAccess: false,
+            user: user as never,
+          }),
+        ),
+        id,
+      )
+
+    const comentar = async (user: Record<string, unknown> | null, ancla?: unknown) => {
+      const prep = await preparacion()
+      const texto = unico('comentario-taller')
+      return crearYComprobar(
+        'comentarios',
+        { data: { texto, coleccion: 'instancias-atlas', documentoId: String(prep.id), ...(ancla ? { ancla } : {}) } },
+        user,
+        { texto: { equals: texto } },
+      )
+    }
+
+    it('lo deja el editor y el administrador, también los de módulos restringidos', async () => {
+      expect(await comentar(sesion.editor)).toBe(true)
+      expect(await comentar(sesion.admin)).toBe(true)
+      expect(await comentar(sesion.editorRestringido)).toBe(true)
+      expect(await comentar(sesion.editorSinVer)).toBe(true)
+    }, 120_000)
+
+    it('no lo deja el residente, ni el restringido, ni quien está de baja, ni el anónimo', async () => {
+      expect(await comentar(sesion.lector)).toBe(false)
+      expect(await comentar(sesion.lectorRestringido)).toBe(false)
+      expect(await comentar(sesion.desactivado)).toBe(false)
+      expect(await comentar(null)).toBe(false)
+    }, 120_000)
+
+    it('el ancla se guarda y no la reescribe nadie después', async () => {
+      const prep = await preparacion()
+      const texto = unico('anclado')
+      const ancla = { pieza: 'FJ3387', punto: [1, 2, 3] }
+      const doc = await crearComo(
+        'comentarios',
+        { data: { texto, coleccion: 'instancias-atlas', documentoId: String(prep.id), ancla } },
+        { user: sesion.editor },
+      )
+      expect((await leerSinReglas('comentarios', doc.id))?.ancla).toEqual(ancla)
+      await juzgada(
+        payload.update({
+          collection: 'comentarios',
+          id: doc.id,
+          data: { ancla: { pieza: 'FJ0000' } } as never,
+          overrideAccess: false,
+          user: sesion.editor as never,
+        }),
+      )
+      expect((await leerSinReglas('comentarios', doc.id))?.ancla).toEqual(ancla)
+    }, 120_000)
+
+    it('el editor los lee y los resuelve; el residente no los ve', async () => {
+      const prep = await preparacion()
+      const texto = unico('visible')
+      const doc = await crearComo(
+        'comentarios',
+        { data: { texto, coleccion: 'instancias-atlas', documentoId: String(prep.id) } },
+        { user: sesion.admin },
+      )
+      expect(await lee('comentarios', doc.id, sesion.editor)).toBe(true)
+      expect(await lee('comentarios', doc.id, sesion.lector)).toBe(false)
+      await juzgada(
+        payload.update({
+          collection: 'comentarios',
+          id: doc.id,
+          data: { estado: 'resuelto' } as never,
+          overrideAccess: false,
+          user: sesion.editor as never,
+        }),
+      )
+      expect((await leerSinReglas('comentarios', doc.id))?.estado).toBe('resuelto')
+    }, 120_000)
+  })
+
+  /**
    * D-073: de la API REST de Payload solo queda servir archivos.
    *
    * `tests/unit/apiDePayload.test.ts` prueba el comodín con un doble de Payload.

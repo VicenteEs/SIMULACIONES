@@ -3,11 +3,15 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { usuarioDeSesion } from '@/access/payload'
-import { puedeVerModulo } from '@/access/reglas'
+import { puedeEditarContenido, puedeVerModulo } from '@/access/reglas'
+import { exigirEditor, accion, type Respuesta } from '@/lib/guardias'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { crearLimitador } from '@/lib/ritmo'
 import { obtenerSesion } from '@/lib/sesion'
 import {
+  anclaOpcional,
+  DESTINO_TALLER,
+  exigirDestinoDeComentario,
   exigirIdentificador,
   exigirSlugDeModulo,
   exigirTexto,
@@ -42,13 +46,51 @@ export async function crearComentario(
   coleccion: unknown,
   documentoId: unknown,
   texto: unknown,
+  ancla?: unknown,
 ): Promise<void> {
-  const { activo, usuarioEfectivo } = await obtenerSesion()
+  const { activo, usuarioEfectivo, usuario, rolReal } = await obtenerSesion()
   if (!activo || !usuarioEfectivo) {
     throw new Error('Debe iniciar sesión para comentar.')
   }
 
-  const modulo = exigirSlugDeModulo(coleccion)
+  const destino = exigirDestinoDeComentario(coleccion)
+  if (destino === DESTINO_TALLER) {
+    // El taller anatómico (E2, D-158). Con el rol **real** y no el efectivo: el
+    // taller es del panel, y quien lo usa lo usa como lo que es aunque tenga
+    // puesta la vista de residente para mirar una ficha.
+    if (!usuario || !puedeEditarContenido(usuarioDeSesion(usuario)) || (rolReal !== 'admin' && rolReal !== 'editor')) {
+      throw new Error('Solo quien trabaja en el taller anatómico puede comentar sus preparaciones.')
+    }
+    if (!LIMITE_DE_COMENTARIOS.permitir(String((usuario as { id?: unknown }).id))) {
+      throw new Error(
+        'Dejó varios comentarios en pocos minutos. Espere un poco antes de escribir el siguiente.',
+      )
+    }
+    const id = exigirIdentificador(documentoId, 'La preparación')
+    const payload = await getPayload({ config })
+    // Una preparación sin guardar no tiene fila a la que colgar el comentario.
+    const existe = await payload
+      .findByID({ collection: 'instancias-atlas', id, depth: 0, overrideAccess: true })
+      .then(() => true, () => false)
+    if (!existe) throw new Error('Esa preparación no existe. Guárdela con nombre antes de comentarla.')
+    await payload.create({
+      collection: 'comentarios',
+      data: {
+        coleccion: DESTINO_TALLER,
+        documentoId: id,
+        texto: exigirTexto(texto, 'El comentario', LARGO_MAXIMO_COMENTARIO),
+        estado: 'pendiente',
+        ancla: anclaOpcional(ancla),
+      } as never,
+      user: usuario as never,
+    })
+    return
+  }
+
+  if (ancla !== undefined && ancla !== null) {
+    throw new Error('Solo los comentarios del taller anatómico llevan ancla.')
+  }
+  const modulo = exigirSlugDeModulo(destino)
   // Que el módulo exista no dice que esta cuenta lo vea. La escritura de abajo
   // va por la API local, con `overrideAccess: true`, así que la regla de
   // creación de la colección (`creacionEnModuloVisible`) no se consulta: sin
@@ -79,5 +121,69 @@ export async function crearComentario(
     collection: 'comentarios',
     data: datos as never,
     user: usuarioEfectivo as never,
+  })
+}
+
+// ---------------------------------------------------- leer los de una ficha
+
+/** Un comentario tal como lo pinta la pestaña del taller. */
+export interface ComentarioDelTaller {
+  id: string
+  texto: string
+  estado: 'pendiente' | 'resuelto'
+  creado: string
+  autor: string | null
+  /** El identificador de quien lo escribió, para que la pestaña sepa cuáles son suyos. */
+  autorId: string | null
+  ancla: { pieza: string; punto?: [number, number, number]; vista?: { camara: [number, number, number]; objetivo: [number, number, number] } } | null
+}
+
+/**
+ * Los comentarios de una preparación, los más recientes arriba.
+ *
+ * Con `exigirEditor` y rol real: el taller es del panel, y la regla de lectura
+ * de la colección ya deja a todo editor ver todos los comentarios. Se pasa por
+ * aquí y no por `payload.find` desde el navegador porque la API REST de
+ * Payload está cerrada (D-073). El ancla se vuelve a pasar por
+ * `anclaOpcional`: lo guardado sobrevive a una validación más vieja, y la pestaña
+ * va a mandar la cámara a esos números.
+ */
+export async function listarComentariosDe(
+  coleccion: unknown,
+  documentoId: unknown,
+): Promise<Respuesta<ComentarioDelTaller[]>> {
+  return accion(async () => {
+    const { payload } = await exigirEditor()
+    if (exigirDestinoDeComentario(coleccion) !== DESTINO_TALLER) {
+      throw new Error('Esta lista es la del taller anatómico.')
+    }
+    const id = exigirIdentificador(documentoId, 'La preparación')
+    const { docs } = await payload.find({
+      collection: 'comentarios',
+      where: { and: [{ coleccion: { equals: DESTINO_TALLER } }, { documentoId: { equals: id } }] },
+      sort: '-createdAt',
+      limit: 200,
+      depth: 1,
+      overrideAccess: true,
+    })
+    return docs.map((d) => {
+      const c = d as unknown as Record<string, unknown>
+      const autor = c.usuario as { id?: unknown; nombre?: string; email?: string } | null
+      let ancla: ComentarioDelTaller['ancla'] = null
+      try {
+        ancla = anclaOpcional(c.ancla) ?? null
+      } catch {
+        ancla = null
+      }
+      return {
+        id: String(c.id),
+        texto: String(c.texto ?? ''),
+        estado: c.estado === 'resuelto' ? 'resuelto' : 'pendiente',
+        creado: String(c.createdAt ?? ''),
+        autor: autor?.nombre?.trim() || autor?.email || null,
+        autorId: autor?.id !== undefined && autor?.id !== null ? String(autor.id) : null,
+        ancla,
+      }
+    })
   })
 }

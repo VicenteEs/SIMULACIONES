@@ -258,3 +258,27 @@
 .insignia-info { background: var(--marca-tenue); color: var(--marca); }
 .insignia-neutra { background: var(--papel); color: var(--pizarra); border-color: var(--linea-suave); }
 .insignia-acento { background: var(--acento-tenue, var(--marca-tenue)); color: var(--acento, var(--marca)); }
+
+/* ---------- pestañas (E2, D-158) ---------- */
+/* Para partir un panel largo en secciones que se eligen, no en una columna que
+   hay que recorrer. La activa se marca con el borde inferior y con el peso del
+   texto, no solo con el color. */
+.pestanas {
+  /* `flex: none`: dentro de un panel en columna con desplazamiento, una fila con
+     `overflow-x` es la primera en encogerse, y las pestañas quedaban en trece
+     píxeles de alto, cortadas. */
+  flex: none;
+  display: flex; gap: var(--e-1); margin: 0 0 var(--e-4);
+  border-bottom: 1px solid var(--linea);
+  overflow-x: auto; scrollbar-width: none;
+}
+.pestanas::-webkit-scrollbar { display: none; }
+.pestana {
+  flex: 1 1 auto; min-height: 36px; padding: 0 var(--e-3);
+  background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  color: var(--pizarra); font: inherit; font-size: var(--t-sm); font-weight: 500;
+  white-space: nowrap; cursor: pointer;
+}
+.pestana:hover { color: var(--marca); }
+.pestana-activa { color: var(--marca); font-weight: 650; border-bottom-color: var(--marca); }
+.pestana-panel:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }

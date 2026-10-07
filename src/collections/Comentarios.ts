@@ -2,7 +2,7 @@ import type { CollectionConfig, FieldAccess } from 'payload'
 import {
   accesoDePropiedad,
   administracionDeUsuarios,
-  creacionEnModuloVisible,
+  creacionDeComentario,
   mantenimientoDeContenido,
   soloSuAutor,
 } from '@/access/payload'
@@ -11,7 +11,7 @@ import { mensajeDeComentarioNuevo } from '@/correo/mensajes'
 // De `modulos.ts` y no de `datos.ts`: aquel son constantes sin un solo import, y
 // este importa `@/collections`, que importa este archivo. El ciclo no falla al
 // compilar; falla al arrancar, con la tabla todavía sin definir.
-import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
+import { NOMBRE_DE_DESTINO, rutaDelPanelParaComentario } from '@/app/(frontend)/admin-panel/modulos'
 import { direccionPublica } from './Usuarios'
 
 /**
@@ -67,8 +67,9 @@ export const Comentarios: CollectionConfig = {
     read: accesoDePropiedad,
     // Bastaba una cuenta activa, y eso dejaba comentar un módulo vetado: la
     // misma regla que decide si se puede abrir la ficha decide si se puede
-    // comentar. Ver `creacionEnModuloVisible`.
-    create: creacionEnModuloVisible,
+    // comentar. Y los comentarios del taller anatómico (E2, D-158) los dejan
+    // solo quienes entran al taller. Ver `creacionDeComentario`.
+    create: creacionDeComentario,
     update: accesoDePropiedad,
     delete: administracionDeUsuarios,
   },
@@ -130,9 +131,9 @@ export const Comentarios: CollectionConfig = {
                     // El nombre del módulo y no su slug: el asunto se lee en la
                     // bandeja, y «casos-ao» ahí no dice nada a quien no ha visto
                     // nunca la base.
-                    modulo: NOMBRE_DE_MODULO[String(doc.coleccion)] ?? String(doc.coleccion),
+                    modulo: NOMBRE_DE_DESTINO[String(doc.coleccion)] ?? String(doc.coleccion),
                     texto: String(doc.texto ?? ''),
-                    enlacePanel: `${direccionPublica()}/admin-panel/comentarios`,
+                    enlacePanel: `${direccionPublica()}${rutaDelPanelParaComentario(String(doc.coleccion), doc.documentoId, doc.id)}`,
                   }),
                 },
                 'aviso de comentario nuevo',
@@ -173,6 +174,10 @@ export const Comentarios: CollectionConfig = {
         { label: 'casos-ao', value: 'casos-ao' },
         { label: 'cirugias', value: 'cirugias' },
         { label: 'estudios-ia', value: 'estudios-ia' },
+        // El taller anatómico (E2, D-158): se comenta una preparación, no una
+        // ficha de módulo. Es un valor más del enumerado, y por eso pide su
+        // migración (`ALTER TYPE … ADD VALUE`).
+        { label: 'instancias-atlas', value: 'instancias-atlas' },
       ],
       access: FIJADO_AL_CREAR,
       admin: {
@@ -190,6 +195,17 @@ export const Comentarios: CollectionConfig = {
       admin: {
         readOnly: true,
       },
+    },
+    {
+      // Dónde, dentro de la preparación, está lo que se comenta (D-158):
+      // `{ pieza, punto?: [x, y, z], vista?: { camara, objetivo } }`. Solo lo
+      // llevan los comentarios del taller, y es opcional hasta ahí: uno sin
+      // ancla comenta la preparación entera. Se fija al crear, como el resto de
+      // lo que dice de qué trata el comentario.
+      name: 'ancla',
+      type: 'json',
+      access: FIJADO_AL_CREAR,
+      admin: { readOnly: true },
     },
     {
       name: 'texto',

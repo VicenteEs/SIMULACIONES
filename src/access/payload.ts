@@ -224,6 +224,23 @@ export const creacionEnModuloVisible: Access = ({ req, data }) => {
 }
 
 /**
+ * Quién puede dejar un comentario, según sobre qué.
+ *
+ * Los de un módulo, quien puede abrir ese módulo (`creacionEnModuloVisible`). Los
+ * del taller anatómico (`instancias-atlas`, D-158), solo quien entra al taller:
+ * editor y administrador, con la cuenta activa. No sirve la regla de módulo
+ * porque el atlas no es un módulo: `puedeVerModulo` le contestaría `false` a toda
+ * cuenta con módulos restringidos, y esa restricción no tiene nada que ver con
+ * poder trabajar en el taller. El residente no comenta preparaciones: las ve
+ * dentro de las fichas, y lo que quiera decir lo dice sobre la ficha.
+ */
+export const creacionDeComentario: Access = (args) => {
+  const destino = (args.data as { coleccion?: unknown } | undefined)?.coleccion
+  if (destino === 'instancias-atlas') return puedeEditarContenido(usuarioDe(args))
+  return creacionEnModuloVisible(args)
+}
+
+/**
  * Un campo que solo reescribe quien escribió la fila: el texto de un comentario.
  *
  * Es de campo y no de colección porque la colección tiene que seguir dejando al

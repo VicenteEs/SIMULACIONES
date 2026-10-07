@@ -121,3 +121,71 @@ export function modulosValidos(valor: unknown): SlugDeModulo[] {
   }
   return [...vistos] as SlugDeModulo[]
 }
+
+// ------------------------------------------- destino y ancla de un comentario
+
+/**
+ * Sobre qué se puede comentar: los cinco módulos y, desde D-158, una
+ * preparación del taller anatómico.
+ *
+ * El taller no es un módulo, así que no entra en `SLUGS_DE_MODULOS` —eso lo
+ * convertiría en una entrada más de la barra, de la portada y de los permisos de
+ * cada cuenta—, y por eso las acciones de comentarios ya no pueden validar con
+ * `exigirSlugDeModulo` a secas.
+ */
+export const DESTINO_TALLER = 'instancias-atlas'
+export type DestinoDeComentario = SlugDeModulo | typeof DESTINO_TALLER
+
+export const esDestinoDeComentario = (valor: unknown): valor is DestinoDeComentario =>
+  valor === DESTINO_TALLER || esSlugDeModulo(valor)
+
+export function exigirDestinoDeComentario(valor: unknown): DestinoDeComentario {
+  if (!esDestinoDeComentario(valor)) rechazar('Eso no se puede comentar.')
+  return valor
+}
+
+/** Dónde está lo que se comenta, dentro de una preparación. Ver `Comentarios.ts`. */
+export interface AnclaDeComentario {
+  pieza: string
+  punto?: [number, number, number]
+  vista?: { camara: [number, number, number]; objetivo: [number, number, number] }
+}
+
+const esVector = (v: unknown): v is [number, number, number] =>
+  Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) < 1e6)
+
+/**
+ * El ancla de un comentario, comprobada y reconstruida campo a campo.
+ *
+ * Se reconstruye y no se pasa tal cual: lo que llega es lo que el navegador
+ * quiso mandar, y el campo es un `json` libre en la base. Copiar solo lo que se
+ * reconoce impide que alguien guarde ahí un documento arbitrario que luego se
+ * pinte o se reenvíe. Una pieza con forma de identificador del atlas
+ * (`FJ1234`, o `FJ1234#a` para un fragmento) y tres números finitos por vector.
+ *
+ * `undefined` y `null` valen como «sin ancla»; cualquier otra cosa mal formada
+ * se rechaza en vez de descartarse en silencio, porque descartarla dejaría un
+ * comentario que dice «sobre esta pieza» sin decir cuál.
+ */
+export function anclaOpcional(valor: unknown): AnclaDeComentario | undefined {
+  if (valor === undefined || valor === null) return undefined
+  if (typeof valor !== 'object' || Array.isArray(valor)) rechazar('El ancla del comentario no es válida.')
+  const { pieza, punto, vista } = valor as Record<string, unknown>
+  if (typeof pieza !== 'string' || !/^[A-Za-z0-9_.:#-]{1,60}$/.test(pieza)) {
+    rechazar('El ancla del comentario no nombra una pieza válida.')
+  }
+  const ancla: AnclaDeComentario = { pieza }
+  if (punto !== undefined && punto !== null) {
+    if (!esVector(punto)) rechazar('El punto del comentario no es válido.')
+    ancla.punto = [punto[0], punto[1], punto[2]]
+  }
+  if (vista !== undefined && vista !== null) {
+    const { camara, objetivo } = vista as Record<string, unknown>
+    if (!esVector(camara) || !esVector(objetivo)) rechazar('La vista del comentario no es válida.')
+    ancla.vista = {
+      camara: [camara[0], camara[1], camara[2]],
+      objetivo: [objetivo[0], objetivo[1], objetivo[2]],
+    }
+  }
+  return ancla
+}

@@ -324,6 +324,12 @@ const GUARDIAS: Record<string, Clasificacion> = {
     modulo: 'cirugias',
     argumentos: () => ['12', RESULTADO],
   },
+  // Los comentarios del taller (E2, D-158): la lista es del editor y del
+  // administrador, con su rol real.
+  'comentarios.ts:listarComentariosDe': {
+    guardia: 'editor',
+    argumentos: () => ['instancias-atlas', '5'],
+  },
   'comentarios.ts:crearComentario': {
     guardia: 'sesion',
     modulo: 'argumento',

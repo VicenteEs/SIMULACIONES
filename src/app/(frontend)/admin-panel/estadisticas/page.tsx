@@ -195,10 +195,17 @@ export default async function PaginaEstadisticas() {
 
   // --- comentarios --------------------------------------------------------
   const listaComentarios = comentarios ?? []
-  const comentariosPorModulo: Punto[] = MODULOS.map((m) => ({
-    etiqueta: m.nombre,
-    valor: listaComentarios.filter((c) => c.coleccion === m.slug).length,
-  })).sort((a, b) => b.valor - a.valor)
+  // Los cinco módulos y el taller anatómico (D-158): sin él, los comentarios de las
+  // preparaciones contaban en el total y en ninguna barra.
+  const comentariosPorModulo: Punto[] = [
+    ...MODULOS.map((m) => ({ etiqueta: m.nombre, slug: m.slug as string })),
+    { etiqueta: 'Taller anatómico', slug: 'instancias-atlas' },
+  ]
+    .map((m) => ({
+      etiqueta: m.etiqueta,
+      valor: listaComentarios.filter((c) => c.coleccion === m.slug).length,
+    }))
+    .sort((a, b) => b.valor - a.valor)
 
   const pendientes = listaComentarios.filter((c) => c.estado === 'pendiente').length
 

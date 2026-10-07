@@ -573,3 +573,68 @@ describe('las migraciones siguen a las colecciones', () => {
     }
   })
 })
+
+/**
+ * Los valores de los enumerados (D-158).
+ *
+ * Las comprobaciones de arriba miran nombres de tablas y de columnas, y un
+ * `select` es las dos cosas a la vez: una columna **y** un tipo enumerado de
+ * PostgreSQL con sus valores escritos. Añadir una opción a un `select` que ya
+ * existe no cambia ninguna columna, así que ninguna de aquellas pruebas lo ve, y
+ * la migración que lo recoge es un `ALTER TYPE … ADD VALUE` que el desarrollo
+ * en caliente (`push`) hace solo y producción no. Es exactamente lo que habría
+ * pasado con `instancias-atlas` como destino de un comentario: en el portátil
+ * funciona, y en el servidor la base rechaza la fila con «invalid input value
+ * for enum».
+ *
+ * Se mira en el texto de las migraciones: cada opción de un `select` de primer
+ * nivel (que no sea de varios valores, cuyo tipo sale con otro nombre) tiene que
+ * aparecer en su `CREATE TYPE … AS ENUM(…)` o en un `ALTER TYPE … ADD VALUE`. Solo
+ * lo de primer nivel: los selects dentro de arreglos y bloques llevan nombres
+ * compuestos que esta prueba no reconstruye, y fingir que los cubre sería peor
+ * que decir que no.
+ */
+describe('los valores de los enumerados llegan a las migraciones', () => {
+  const textoDeLasMigraciones = readdirSync(CARPETA)
+    .filter((n) => n.endsWith('.ts') && n !== 'index.ts')
+    .sort()
+    .map((n) => readFileSync(join(CARPETA, n), 'utf8'))
+    .join('\n')
+
+  const valoresDelEnumerado = (nombre: string): Set<string> => {
+    const valores = new Set<string>()
+    for (const m of textoDeLasMigraciones.matchAll(
+      new RegExp(`CREATE TYPE "public"\\."${nombre}" AS ENUM\\(([^)]*)\\)`, 'g'),
+    )) {
+      for (const v of m[1].matchAll(/'([^']*)'/g)) valores.add(v[1])
+    }
+    for (const m of textoDeLasMigraciones.matchAll(
+      new RegExp(`ALTER TYPE "public"\\."${nombre}" ADD VALUE (?:IF NOT EXISTS )?'([^']*)'`, 'g'),
+    )) {
+      valores.add(m[1])
+    }
+    return valores
+  }
+
+  it('cada opción de un select de primer nivel está en su tipo', () => {
+    const faltan: string[] = []
+    for (const coleccion of COLECCIONES) {
+      for (const campo of coleccion.fields as Field[]) {
+        if (!('name' in campo) || campo.type !== 'select' || campo.hasMany) continue
+        const enumerado = `enum_${aTabla(coleccion.slug)}_${aColumna(campo.name)}`
+        const valores = valoresDelEnumerado(enumerado)
+        for (const opcion of campo.options) {
+          const valor = typeof opcion === 'string' ? opcion : opcion.value
+          if (!valores.has(valor)) faltan.push(`${enumerado} no tiene '${valor}'`)
+        }
+      }
+    }
+    expect(faltan, `genere una migración (ALTER TYPE … ADD VALUE):\n${faltan.join('\n')}`).toEqual([])
+  })
+
+  it('el destino de los comentarios incluye el taller anatómico', () => {
+    // El caso que motivó la prueba, con nombre propio para que no dependa de que
+    // la comprobación general siga recorriendo bien los campos.
+    expect(valoresDelEnumerado('enum_comentarios_coleccion').has('instancias-atlas')).toBe(true)
+  })
+})

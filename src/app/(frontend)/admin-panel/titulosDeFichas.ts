@@ -74,7 +74,9 @@ export async function leerTitulosDeFichas(
 
   await Promise.all(
     Array.from(idsPorColeccion, async ([coleccion, ids]) => {
-      const campo = ESQUEMAS.find((e) => e.slug === coleccion)?.titulo
+      // Las preparaciones del taller (D-158) no son un módulo y no tienen esquema
+      // en el panel; su nombre es el campo `nombre`.
+      const campo = coleccion === 'instancias-atlas' ? 'nombre' : ESQUEMAS.find((e) => e.slug === coleccion)?.titulo
       if (!campo) {
         // Un `coleccion` guardado sobrevive a que se retire la opción del
         // `select`. Preguntarle a Payload por una colección que no existe

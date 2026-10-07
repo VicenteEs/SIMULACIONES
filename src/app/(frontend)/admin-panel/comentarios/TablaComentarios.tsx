@@ -14,7 +14,13 @@ import {
   eliminarComentario,
   resolverTodosLosComentarios,
 } from '@/app/(frontend)/acciones/admin'
-import { MODULOS, NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
+import {
+  MODULOS,
+  NOMBRE_DE_DESTINO,
+  SLUG_DEL_TALLER,
+  rutaDelPanelParaComentario,
+  rutaPublica,
+} from '../modulos'
 // Solo el tipo: `titulosDeFichas.ts` importa los esquemas del panel, y un
 // `import` de valor los metería enteros en el paquete del navegador.
 import type { EstadoDeFicha } from '../titulosDeFichas'
@@ -233,6 +239,7 @@ export function TablaComentarios({
                 {m.nombre}
               </option>
             ))}
+            <option value={SLUG_DEL_TALLER}>{NOMBRE_DE_DESTINO[SLUG_DEL_TALLER]}</option>
           </select>
         </div>
         <span className="admin-filter-count">
@@ -296,7 +303,7 @@ export function TablaComentarios({
                       <div className="admin-table-user-email">{rotuloSinTitulo(c)}</div>
                     ) : null}
                     <div className="admin-table-modulo">
-                      {NOMBRE_DE_MODULO[c.coleccion] ?? c.coleccion}
+                      {NOMBRE_DE_DESTINO[c.coleccion] ?? c.coleccion}
                     </div>
                     {/* «Editar» primero, y al editor del panel, porque es lo
                         que se va a hacer con un comentario que dice que falta
@@ -311,7 +318,26 @@ export function TablaComentarios({
                         guarda número. La `ilegible` los conserva, igual que en
                         actividad: lo probable es que siga ahí, y abrirla es la
                         forma de comprobarlo. */}
-                    {c.fichaEstado === 'eliminada' || c.fichaEstado === null ? null : (
+                    {c.coleccion === SLUG_DEL_TALLER ? (
+                      // Una preparación del taller se atiende en el taller: el
+                      // enlace la abre y señala este comentario (E2, D-158).
+                      c.fichaEstado === 'eliminada' ? null : (
+                        <div className="admin-acciones">
+                          <Link
+                            href={rutaDelPanelParaComentario(c.coleccion, c.documentoId, c.id)}
+                            className="comentario-enlace"
+                            aria-label={
+                              c.fichaTitulo
+                                ? `Abrir «${c.fichaTitulo}» en el taller anatómico`
+                                : 'Abrir la preparación comentada en el taller anatómico'
+                            }
+                          >
+                            <ExternalLink aria-hidden size={13} />
+                            Abrir en el taller
+                          </Link>
+                        </div>
+                      )
+                    ) : c.fichaEstado === 'eliminada' || c.fichaEstado === null ? null : (
                       <div className="admin-acciones">
                         <Link
                           href={`/admin-panel/contenido/${c.coleccion}/${c.documentoId}`}

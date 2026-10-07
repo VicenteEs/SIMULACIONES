@@ -4807,6 +4807,87 @@ la tabla de qué va dónde y lo que hay que saber antes (D-142, comentarios,
 imágenes), está en
 `docs/propuestas/PARTICION-DEL-EXAMEN-DEL-MIEMBRO-SUPERIOR.md`. No se aplicó nada.
 
+### D-158 · 2026-10-07 · vigente
+**Se comentan las preparaciones del taller, o una pieza concreta de ellas, sin salir del taller.**
+Pedido del dueño (P-001, E2): una pestaña de comentarios en el taller anatómico.
+Antes, lo que el editor veía en el visor había que contarlo en la bandeja del
+panel con palabras, sin poder señalar la pieza.
+
+*Cómo.*
+- **Datos.** `comentarios.coleccion` gana el valor `instancias-atlas` y la
+  colección un campo `ancla` (json, fijado al crear como el resto de lo que dice de
+  qué trata el comentario): `{ pieza, punto?, vista? }`. Migración
+  `20261007_060514_comentarios_del_taller`: un `ALTER TYPE … ADD VALUE` y una
+  columna. El taller **no** entra en `SLUGS_DE_MODULOS`: eso lo convertiría en una
+  entrada de la barra, de la portada y de los permisos de cada cuenta. Vive aparte,
+  en `modulos.ts` (`SLUG_DEL_TALLER`, `NOMBRE_DE_DESTINO`,
+  `rutaDelPanelParaComentario`).
+- **Quién.** Editor y administrador, con el **rol real** (el taller es del panel).
+  `creacionDeComentario` decide: para el taller, `puedeEditarContenido`; para un
+  módulo, la regla de siempre (`creacionEnModuloVisible`), que no sirve para el
+  atlas porque le diría que no a toda cuenta con módulos restringidos. El
+  residente no comenta preparaciones: las ve dentro de las fichas y comenta la
+  ficha (E2-Q1: en v1, no).
+- **Acciones.** `crearComentario` gana un cuarto argumento, el ancla, y una rama
+  para el taller; `listarComentariosDe(coleccion, id)` es nueva (`exigirEditor`).
+  El ancla se reconstruye campo a campo (`anclaOpcional`) y se rechaza si está mal
+  formada, en vez de descartarla en silencio. Una preparación que no existe no
+  recibe comentarios. Se mantiene el freno de diez cada diez minutos.
+- **Pestañas.** `src/components/ui/Pestanas.tsx`, con el patrón de WAI-ARIA
+  (`tablist`, una sola pestaña en el orden del Tab, flechas, Inicio y Fin). El
+  panel derecho del taller, que era una columna de once secciones, se parte en
+  **Pieza**, **Preparación** y **Comentarios (n)**; no cambia ningún
+  comportamiento. E4 añadirá «Fractura».
+- **La pestaña** (`PestanaDeComentarios.tsx`): lista con autor, fecha, estado y
+  texto; «Comentar» y «Comentar *pieza*»; «Resolver/Reabrir» para el editor,
+  «Eliminar» para el administrador. Pulsar uno anclado selecciona su pieza y lleva
+  la cámara a su vista.
+- **Marcadores en 3D.** Los pendientes con punto salen como rótulos «💬 …» sobre el
+  modelo, apagables. Reutilizan el dibujo de los rótulos (D-135) y viajan solo
+  hacia el visor: no entran en `marcas`, que es lo que se guarda y lo que ve el
+  residente en la ficha.
+- **La bandeja** del panel muestra el título de la preparación, el filtro «Taller
+  anatómico» y el enlace «Abrir en el taller»
+  (`/admin-panel/atlas?preparacion=<id>&comentario=<id>`), que el taller ahora lee:
+  abre la preparación, va a la pestaña y señala el comentario. Los identificadores
+  se validan como números antes de llegar al navegador. El correo a los
+  administradores nombra el destino y lleva el mismo enlace; Estadísticas cuenta
+  los del taller.
+- **«Cuerpo» no se comenta** (E2.6): no es una fila de la base (D-152). La pestaña
+  lo dice y pide guardarla con nombre.
+
+*Una prueba nueva que vigila un hueco viejo.* `migraciones.test.ts` solo miraba
+nombres de tablas y de columnas, y añadir una opción a un `select` que ya existe
+no cambia ninguna columna: el `push` de desarrollo la hace sola y producción no.
+Ahora comprueba que cada opción de un `select` de primer nivel esté en su
+`CREATE TYPE … AS ENUM` o en un `ALTER TYPE … ADD VALUE`. Se verificó rompiendo la
+migración a propósito: falla. Solo cubre lo de primer nivel; los `select` dentro de
+arreglos y bloques llevan nombres compuestos que no reconstruye.
+
+*Pruebas.* `comentariosDelTaller` (regla, destino, ancla, pestañas, el taller),
+`crearComentarioDelTaller` (la rama de la acción: quién puede, qué se guarda, qué
+se rechaza), `accionesConGuardia` (la lista), y en `roles.test.ts` contra la base
+real: comentan el editor y el administrador, también los de módulos restringidos;
+no el residente, ni el de baja, ni el anónimo; el ancla no se reescribe. 184 de
+integración verdes. Se vio en un navegador con el atlas real: se anotó un
+comentario sobre la tibia, salió el marcador y el contador, el enlace de la bandeja
+abrió la preparación con la pieza seleccionada y el comentario señalado, y
+«Resolver» bajó el contador.
+
+*Consecuencias buenas.* La observación llega con la pieza y la vista delante, y la
+bandeja sigue siendo el único sitio donde mirar lo pendiente. *Malas, y conocidas:*
+- **El «punto» es el objetivo de la cámara, no un punto del hueso.** Seleccionar
+  una pieza no es pinchar sobre ella; el marcador queda cerca de lo comentado, y la
+  pieza exacta la dice `pieza`. Si hace falta precisión, el comentario por clic
+  sobre la superficie queda para después.
+- **Si la pieza comentada se parte o se borra de la preparación**, el comentario
+  conserva su ancla y pulsarlo selecciona un identificador que ya no está. No falla,
+  pero tampoco señala nada.
+- **Las pestañas empujan «Preparación» a un clic de la pieza:** quien trabajaba
+  con posición y giro y el nombre a la vista tiene ahora que cambiar de una a otra.
+- **La fecha de la bandeja se hidrata con un desajuste de zona horaria** entre el
+  servidor y el navegador (visto en desarrollo, ya existía): no es de esta etapa.
+
 ---
 
 ### O-014 · 2026-09-06 · alta · resuelta
@@ -6420,7 +6501,7 @@ los cinco módulos, o lo devuelve a visible.
 
 ---
 
-#### E2 · Comentarios dentro del taller anatómico · 1–2 sesiones · pendiente
+#### E2 · Comentarios dentro del taller anatómico · 1–2 sesiones · hecha en código (2026-10-07) · falta desplegar
 
 **Objetivo.** Comentar una preparación, o una pieza concreta de ella, sin salir
 del taller. Los comentarios aparecen también en la bandeja «Comentarios» del
@@ -6454,24 +6535,24 @@ panel, con un enlace que abre esa preparación en el taller.
 
 **Tareas**
 
-- [ ] **E2.1 · Pestañas.** `Pestanas.tsx`, y reorganizar el panel derecho
+- [x] **E2.1 · Pestañas.** `Pestanas.tsx`, y reorganizar el panel derecho
   (`TallerDeAtlas.tsx` l.2718 en adelante) sin cambiar ningún comportamiento.
   Sin importar `three` de forma estática.
-- [ ] **E2.2 · Datos y reglas.**
+- [x] **E2.2 · Datos y reglas.**
   - Migración del enum y campo `ancla`.
   - Validación: `exigirSlugDeModulo` (`src/lib/validacion.ts`) pasa a
     `exigirDestinoDeComentario`.
   - `crearComentario`, más una acción nueva `listarComentariosDe(coleccion, id)`.
   - Se mantiene el freno de diez comentarios cada diez minutos.
-- [ ] **E2.3 · La pestaña.**
+- [x] **E2.3 · La pestaña.**
   - Lista con autor, fecha, estado y texto, y formulario.
   - «Resolver» y «Reabrir» para el editor; «Eliminar» solo para el administrador.
   - «Comentar esta pieza» ancla el comentario a la selección.
   - Pulsar un comentario anclado selecciona la pieza y lleva la cámara a su
     vista.
-- [ ] **E2.4 · Marcadores en 3D** de los comentarios anclados, apagables.
+- [x] **E2.4 · Marcadores en 3D** de los comentarios anclados, apagables.
   Reutilizan el dibujo de los rótulos (D-135).
-- [ ] **E2.5 · Bandeja del panel.**
+- [x] **E2.5 · Bandeja del panel.**
   - Título de la preparación en `leerTitulosDeFichas` y filtro «Taller
     anatómico».
   - Enlace `/admin-panel/atlas?preparacion=<id>&comentario=<id>`. Pide algo
@@ -6480,18 +6561,18 @@ panel, con un enlace que abre esa preparación en el taller.
   - El enlace se escribe a mano, así que pasa por `ruta()`.
   - Nombre en el correo a los administradores, y `comentariosPorModulo` en
     Estadísticas.
-- [ ] **E2.6 · «Cuerpo» no se comenta.** No es una fila de la base (D-152): el
+- [x] **E2.6 · «Cuerpo» no se comenta.** No es una fila de la base (D-152): el
   taller pide guardarlo con nombre primero.
-- [ ] **E2.7 · Pruebas.**
+- [x] **E2.7 · Pruebas.**
   - `comentariosDelPanel` y `comentariosYActividad`.
   - `roles.test.ts`: en `instancias-atlas` crea el editor y no el lector.
   - `migraciones.test.ts`: el valor nuevo del enum.
-- [ ] **E2.8 · Documentación.** Manual y D-nnn.
+- [x] **E2.8 · Documentación.** Manual y D-nnn.
 
 **Preguntas**
 
 - **E2-Q1 · ¿El residente también comenta las preparaciones** que ve dentro de
-  las fichas? En v1, no.
+  las fichas? En v1, no (D-158). Sigue abierta por si se quiere después.
 
 ---
 
@@ -7145,7 +7226,7 @@ qué tarjeta tiene y cuánta memoria.
 | Etapa | Estado | Sesiones | Decisiones |
 |---|---|---|---|
 | E1 · Módulos en mantención | hecha en código; falta E1.8c (contenido) y desplegar | 1–2 | D-156, D-157 |
-| E2 · Comentarios en el taller | pendiente | 1–2 | — |
+| E2 · Comentarios en el taller | hecha en código; falta desplegar | 1–2 | D-158 |
 | E3 · Manipulación directa | pendiente | 2 | — |
 | E4 · Fracturas AO | pendiente | 3–4 | — |
 | E5 · Piel e instrumental | piel hecha (D-155); instrumental pendiente | 2–3 | D-155 |

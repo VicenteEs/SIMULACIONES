@@ -19,6 +19,12 @@ import {
 } from '@/atlas/formato'
 import { ArbolAnatomico } from '@/components/atlas/ArbolAnatomico'
 import { useConfirmar } from '@/components/ui/Confirmar'
+import { PanelDePestana, Pestanas } from '@/components/ui/Pestanas'
+import {
+  PestanaDeComentarios,
+  useComentariosDelTaller,
+  type AnclaDelTaller,
+} from '@/components/admin/atlas/PestanaDeComentarios'
 import {
   INTERVALO_DE_AUTOGUARDADO_MS,
   debeAvisarDelFallo,
@@ -306,7 +312,18 @@ interface ResultadoDeExportar {
  * se puede devolver: nunca se perdió.
  */
 
-export function TallerDeAtlas() {
+export function TallerDeAtlas({
+  esAdmin = false,
+  preparacionInicial,
+  comentarioInicial,
+}: {
+  /** Eliminar un comentario es del administrador; el editor los resuelve. */
+  esAdmin?: boolean
+  /** La preparación a abrir al entrar, del enlace de la bandeja de comentarios. */
+  preparacionInicial?: string
+  /** El comentario que lleva ese enlace, para señalarlo y llevar la vista a su pieza. */
+  comentarioInicial?: string
+} = {}) {
   const confirmar = useConfirmar()
   const [catalogo, setCatalogo] = useState<CatalogoDelAtlas | null>(null)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -391,6 +408,17 @@ export function TallerDeAtlas() {
   const [grupos, setGrupos] = useState<string[][]>([])
 
   const [instancia, setInstancia] = useState<string | null>(null)
+  /**
+   * La pestaña abierta del panel derecho (E2, D-158). Arranca en «Preparación»,
+   * que es lo primero que había: el nombre y la descripción. Con un enlace de la
+   * bandeja de comentarios arranca en «Comentarios».
+   */
+  const [pestana, setPestana] = useState<'pieza' | 'preparacion' | 'comentarios'>(
+    comentarioInicial ? 'comentarios' : 'preparacion',
+  )
+  const comentarios = useComentariosDelTaller(instancia)
+  /** Los comentarios anclados, marcados sobre el modelo (E2.4). Apagables: tapan lo que se mira. */
+  const [marcadoresDeComentarios, setMarcadoresDeComentarios] = useState(true)
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [vistaInicial, setVistaInicial] = useState<VistaDeInstancia>(VISTA_INICIAL)
@@ -1867,6 +1895,60 @@ export function TallerDeAtlas() {
     return nombreDeTrozo(nombreEnEspanol(pieza.nombre), id)
   }, [catalogo, seleccion])
 
+  /**
+   * Los comentarios pendientes con un punto, como rótulos para el visor. No son
+   * parte de la preparación: viajan solo hacia el visor y nunca entran en
+   * `marcas`, que es lo que se guarda y lo que ve el residente en la ficha.
+   * Reutilizan el dibujo de los rótulos (D-135); el icono del texto es lo que los
+   * distingue de uno propio.
+   */
+  const marcasDeComentarios = useMemo<MarcaDeInstancia[]>(() => {
+    if (!marcadoresDeComentarios) return []
+    return (comentarios.lista ?? [])
+      .filter((c) => c.estado === 'pendiente' && c.ancla?.punto)
+      .map((c) => ({
+        tipo: 'rotulo' as const,
+        punto: c.ancla!.punto!,
+        texto: `💬 ${c.texto.length > 28 ? `${c.texto.slice(0, 27)}…` : c.texto}`,
+      }))
+  }, [comentarios.lista, marcadoresDeComentarios])
+
+  /** El nombre de una pieza, el mismo que en el árbol, para rotular los comentarios anclados. */
+  const nombreDePieza = useCallback(
+    (id: string) => {
+      const pieza = catalogo?.piezas.find((p) => p.id === piezaDe(id))
+      return pieza ? nombreDeTrozo(nombreEnEspanol(pieza.nombre), id) : id
+    },
+    [catalogo],
+  )
+
+  /**
+   * Pulsar un comentario anclado: selecciona su pieza y lleva la cámara a la
+   * vista que se guardó con él. Sin vista guardada, solo selecciona.
+   */
+  const irAlAncla = useCallback(
+    (ancla: AnclaDelTaller) => {
+      setSeleccion(new Set([ancla.pieza]))
+      if (ancla.vista) {
+        mando.current?.irA({ camara: ancla.vista.camara, objetivo: ancla.vista.objetivo, separacion })
+      }
+    },
+    [separacion],
+  )
+
+  // El enlace de la bandeja de comentarios abre una preparación al entrar. Una
+  // sola vez y cuando el atlas ya cargó: `abrir` le ordena a la cámara que vaya,
+  // y la escena no existe antes. No hay nada sin guardar que perder todavía, así
+  // que la pregunta de descarte no llega a hacerse.
+  const yaAbiertaDelEnlace = useRef(false)
+  useEffect(() => {
+    if (!catalogo || !preparacionInicial || yaAbiertaDelEnlace.current) return
+    yaAbiertaDelEnlace.current = true
+    void abrir(preparacionInicial)
+    // `abrir` cambia en cada pintado y solo se necesita su primera versión.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogo, preparacionInicial])
+
   // Los atajos escuchan en la ventana, una sola vez, y leen de un ref lo que
   // hay que hacer: es el mismo arreglo que `hayAlgoQuePerder`, y por lo mismo.
   // Una escucha que capturase las funciones de su pintado apagaría la selección
@@ -2417,7 +2499,7 @@ export function TallerDeAtlas() {
             alTransformar={alTransformar}
             rayosX={rayosX}
             aspectos={aspectos}
-            marcas={marcas}
+            marcas={marcasDeComentarios.length > 0 ? [...marcas, ...marcasDeComentarios] : marcas}
             alMarcar={(marca) => {
               if (marcas.length >= MAXIMO_DE_MARCAS) {
                 setAviso({
@@ -2716,6 +2798,24 @@ export function TallerDeAtlas() {
         </div>
 
         <aside className="atlas-panel atlas-panel-derecho">
+          {/* El panel, partido en tres (E2, D-158): lo de la pieza seleccionada,
+              lo de la preparación entera y los comentarios. Era una sola
+              columna de once secciones. */}
+          <Pestanas
+            base="taller"
+            etiqueta="Panel del taller"
+            activa={pestana}
+            alCambiar={(id) => setPestana(id as typeof pestana)}
+            pestanas={[
+              { id: 'pieza', etiqueta: 'Pieza' },
+              { id: 'preparacion', etiqueta: 'Preparación' },
+              {
+                id: 'comentarios',
+                etiqueta: comentarios.pendientes > 0 ? `Comentarios (${comentarios.pendientes})` : 'Comentarios',
+              },
+            ]}
+          />
+          <PanelDePestana base="taller" id="preparacion" activa={pestana}>
           <div className="atlas-ficha">
             <label className="campo-etiqueta" htmlFor="atlas-nombre">
               {esBase || !instancia ? 'Nombre de la copia *' : 'Nombre de la preparación *'}
@@ -2746,6 +2846,9 @@ export function TallerDeAtlas() {
             </p>
           </div>
 
+          </PanelDePestana>
+
+          <PanelDePestana base="taller" id="pieza" activa={pestana}>
           <h3 className="atlas-subtitulo">Posición y giro</h3>
           {unicaSeleccionada ? (
             <PanelDeNumeros
@@ -2852,6 +2955,27 @@ export function TallerDeAtlas() {
             </ul>
           )}
 
+          </PanelDePestana>
+
+          <PanelDePestana base="taller" id="comentarios" activa={pestana}>
+            <PestanaDeComentarios
+              preparacion={instancia}
+              estado={comentarios}
+              piezaSeleccionada={unicaSeleccionada}
+              nombreDePieza={nombreDePieza}
+              capturarVista={() => {
+                const v = mando.current?.vistaActual()
+                return v ? { camara: v.camara, objetivo: v.objetivo } : null
+              }}
+              alIrAlAncla={irAlAncla}
+              puedeEliminar={esAdmin}
+              comentarioInicial={comentarioInicial}
+              marcadores={marcadoresDeComentarios}
+              alCambiarMarcadores={setMarcadoresDeComentarios}
+            />
+          </PanelDePestana>
+
+          <PanelDePestana base="taller" id="preparacion" activa={pestana}>
           <h3 className="atlas-subtitulo">Vistas con nombre</h3>
           <div className="atlas-apuntes-nueva">
             <input
@@ -3051,6 +3175,7 @@ export function TallerDeAtlas() {
               ))}
             </ul>
           ) : null}
+          </PanelDePestana>
         </aside>
       </div>
       </div>
