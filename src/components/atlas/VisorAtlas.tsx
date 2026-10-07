@@ -39,6 +39,7 @@ import {
   type EscenaDelAtlas,
 } from '@/atlas/cargador'
 import { impactoBajoElRayo } from '@/atlas/picking'
+import { sinLaPielSiHayMas } from '@/atlas/piel'
 import { crearCajaOrientada, crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import { segmentosDeHeim, type SegmentosDelHueso } from '@/atlas/segmentosAO'
 import {
@@ -297,6 +298,7 @@ export function VisorAtlas({
   aspectos = null,
   gizmo = false,
   ejesDelGizmo = 'mundo',
+  pielQueDejaPasar = null,
   ortografica = false,
   cortes = null,
   apagados = null,
@@ -365,6 +367,13 @@ export function VisorAtlas({
    * flechas del manipulador y la X, Y y Z que se teclean. Solo el taller.
    */
   ejesDelGizmo?: 'mundo' | 'hueso'
+  /**
+   * La piel (D-162): el clic y el marco la dejan pasar si hay algo más debajo. Es
+   * la pieza más grande del atlas, con la caja del cuerpo entero, y con ella
+   * encendida el clic señalaba siempre la piel y el marco se la llevaba con su
+   * centro en el abdomen. Si es lo único que hay donde se pulsa, se señala. Solo el taller.
+   */
+  pielQueDejaPasar?: string | null
   /** Vista ortográfica, sin fuga: para trazar cortes rectos y comparar tamaños. Solo el taller. */
   ortografica?: boolean
   /** Pinta en damero lo no seleccionado, para ver a través (Alt + Z en Blender). Solo el taller. */
@@ -446,6 +455,7 @@ export function VisorAtlas({
     alAvisar,
     gizmo,
     ejesDelGizmo,
+    pielQueDejaPasar,
     alMarcar,
     cortes,
     alAsentarVista,
@@ -468,6 +478,7 @@ export function VisorAtlas({
       alAvisar,
       gizmo,
       ejesDelGizmo,
+      pielQueDejaPasar,
       alMarcar,
       cortes,
       alAsentarVista,
@@ -886,7 +897,20 @@ export function VisorAtlas({
      * para ellos sirve el cruce de rayos de three sin más.
      */
     const loQueSeSenala = (escena: EscenaDelAtlas): { id: string; nombre: string } | null => {
-      const entera = impactoBajoElRayo(rayo, catalogo, escena, ultimas.current.separacion)
+      let entera = impactoBajoElRayo(rayo, catalogo, escena, ultimas.current.separacion)
+      // La piel deja pasar el rayo: se vuelve a mirar sin ella, y solo si debajo
+      // hay algo se señala eso (D-162).
+      const piel = ultimas.current.pielQueDejaPasar
+      if (piel && entera.indice >= 0 && catalogo.piezas[entera.indice].id === piel) {
+        const debajo = impactoBajoElRayo(
+          rayo,
+          catalogo,
+          escena,
+          ultimas.current.separacion,
+          new Set([entera.indice]),
+        )
+        if (debajo.indice >= 0) entera = debajo
+      }
       distanciaDelUltimoImpacto = entera.distancia
       let mejor: { id: string; nombre: string } | null =
         entera.indice >= 0
@@ -1738,7 +1762,10 @@ export function VisorAtlas({
           }
         }
         avisar(
-          [...dentro.map((i) => catalogo.piezas[i].id), ...trozosDentro],
+          sinLaPielSiHayMas(
+            [...dentro.map((i) => catalogo.piezas[i].id), ...trozosDentro],
+            ultimas.current.pielQueDejaPasar ?? null,
+          ),
           evento.shiftKey ? 'sumar' : evento.ctrlKey || evento.metaKey ? 'quitar' : 'reemplazar',
         )
         return

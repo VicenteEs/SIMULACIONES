@@ -109,12 +109,15 @@ export function impactoBajoElRayo(
   catalogo: CatalogoDelAtlas,
   escena: EscenaDelAtlas,
   separacion = 0,
+  /** Índices de piezas que el rayo atraviesa sin verlas (D-162): la piel, que tapa todo lo demás. */
+  ignorar?: ReadonlySet<number>,
 ): { indice: number; distancia: number } {
   // --- etapa 1: cajas ------------------------------------------------------
   const candidatas: Candidata[] = []
 
   for (const indice of escena.rangos.keys()) {
     if (escena.datos[indice * 4 + 3] < ESTADO.VISIBLE) continue
+    if (ignorar?.has(indice)) continue
 
     const pieza = catalogo.piezas[indice]
     const [min, max] = pieza.caja

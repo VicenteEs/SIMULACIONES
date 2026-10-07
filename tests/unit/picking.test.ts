@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { montarEscena } from '@/atlas/cargador'
-import { piezaBajoElRayo } from '@/atlas/picking'
+import { impactoBajoElRayo, piezaBajoElRayo } from '@/atlas/picking'
 import type { CatalogoDelAtlas, PiezaDelAtlas } from '@/atlas/formato'
 
 /**
@@ -192,5 +192,57 @@ describe('señalar una pieza con el ratón', () => {
     const { catalogo, escena } = escenaDePrueba()
     const rayo = rayoDesde([2, 2, 2], [1, 0, 0])
     expect(piezaBajoElRayo(rayo, catalogo, escena)).toBe(-1)
+  })
+})
+
+describe('la piel deja pasar el rayo (D-162)', () => {
+  /** Una piel grande, por encima del fémur: el rayo que baja la toca antes. */
+  function escenaConPiel() {
+    const { catalogo, bufer } = empaquetar([
+      {
+        id: 'femur',
+        nombre: 'Right femur',
+        sistema: 'skeletal',
+        caja: CAJA_FEMUR,
+        triangulo: TRIANGULO_FEMUR,
+      },
+      {
+        id: 'piel',
+        nombre: 'Skin',
+        sistema: 'integumentary',
+        caja: [
+          [-0.4, 0, -0.2],
+          [0.4, 1.7, 0.2],
+        ],
+        triangulo: [
+          [-0.3, 0.9, -0.1],
+          [0.1, 0.9, -0.1],
+          [-0.1, 0.9, 0.1],
+        ],
+      },
+    ])
+    return { catalogo, escena: montarEscena(catalogo, new Map([[0, bufer]])) }
+  }
+
+  it('sin ignorar nada, la piel tapa el hueso: es lo que pasaba', () => {
+    const { catalogo, escena } = escenaConPiel()
+    const rayo = rayoDesde([-0.09, 1.2, -0.02], [0, -1, 0])
+    expect(catalogo.piezas[piezaBajoElRayo(rayo, catalogo, escena)].nombre).toBe('Skin')
+  })
+
+  it('ignorándola, se señala lo que hay debajo', () => {
+    const { catalogo, escena } = escenaConPiel()
+    const rayo = rayoDesde([-0.09, 1.2, -0.02], [0, -1, 0])
+    const sinPiel = impactoBajoElRayo(rayo, catalogo, escena, 0, new Set([escena.indices.get('piel')!]))
+    expect(catalogo.piezas[sinPiel.indice].nombre).toBe('Right femur')
+  })
+
+  it('si debajo no hay nada, ignorarla no deja nada que señalar (quien llama decide quedarse con ella)', () => {
+    const { catalogo, escena } = escenaConPiel()
+    // Un rayo que cruza la piel lejos del fémur.
+    const rayo = rayoDesde([-0.1, 1.2, 0.05], [0, -1, 0])
+    expect(catalogo.piezas[piezaBajoElRayo(rayo, catalogo, escena)].nombre).toBe('Skin')
+    const sinPiel = impactoBajoElRayo(rayo, catalogo, escena, 0, new Set([escena.indices.get('piel')!]))
+    expect(sinPiel.indice).toBe(-1)
   })
 })

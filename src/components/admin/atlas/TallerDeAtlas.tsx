@@ -50,6 +50,7 @@ import {
   type MedidaDelHueso,
 } from '@/atlas/borradorDeFractura'
 import { huesoDeLaPieza } from '@/atlas/huesosAO'
+import { OPACIDAD_DE_LA_PIEL, idDeLaPiel } from '@/atlas/piel'
 import { codigoDeLaReceta, cortesDeLaFractura, etiquetaDeLaFractura } from '@/atlas/patronesDeFractura'
 import { parejasContralaterales, reflejarGiro, reflejarVector } from '@/atlas/espejo'
 import {
@@ -253,6 +254,7 @@ const ATAJOS_DEL_TALLER: [string, string][] = [
   ['M', 'Medir la distancia entre dos puntos de la anatomía. «Ángulo» pide tres; «Rótulo», uno.'],
   ['5', 'Vista ortográfica, sin fuga. Otra vez, vuelve la perspectiva.'],
   ['Alt + Z', 'Rayos X: ver a través de lo que no está seleccionado.'],
+  ['Piel', 'Enciende o apaga la piel, al 30 % de opacidad la primera vez. El clic y el marco la dejan pasar si hay algo debajo.'],
   ['1 · 3 · 7', 'Vista de frente, lateral y superior. Con Ctrl, la contraria.'],
   ['Punto', 'Centrar la vista en lo seleccionado.'],
   ['Inicio', 'Encuadrar todo lo encendido.'],
@@ -1470,6 +1472,25 @@ export function TallerDeAtlas({
     setPestana('fractura')
   }
 
+  /**
+   * El interruptor «Piel» (D-162). Se enciende al 30 % de opacidad la primera vez,
+   * para que la anatomía de debajo siga viéndose; si ya tenía una opacidad propia,
+   * se respeta. Es un cambio de lo encendido como cualquier otro: va al historial.
+   */
+  const alternarLaPiel = () => {
+    const piel = idDeLaPiel(catalogo)
+    if (!piel) return
+    const encendida = visibles.has(piel)
+    const nuevas = new Set(visibles)
+    if (encendida) nuevas.delete(piel)
+    else {
+      nuevas.add(piel)
+      const propio = aspectos.get(piel)
+      if (propio?.opacidad === undefined) setAspectos(new Map(aspectos).set(piel, { ...propio, opacidad: OPACIDAD_DE_LA_PIEL }))
+    }
+    cambiarVisibles(nuevas)
+  }
+
   /** Todo el cuerpo encendido, también los trozos que se hubieran apagado (D-141). */
   const encenderTodo = () => {
     if (!catalogo) return
@@ -2679,6 +2700,7 @@ export function TallerDeAtlas({
             }}
             // Con «Manipular» las asas se ven siempre: sin ellas no hay con qué girar.
             gizmo={gizmo || herramienta === 'manipular'}
+            pielQueDejaPasar={idDeLaPiel(catalogo)}
             ejesDelGizmo={ejesDelHueso ? 'hueso' : 'mundo'}
             ortografica={ortografica}
             cortes={cortes}
@@ -2927,6 +2949,16 @@ export function TallerDeAtlas({
                 onClick={() => setOrtografica((puesta) => !puesta)}
               >
                 Orto
+              </button>
+              <button
+                type="button"
+                className="atlas-herramienta"
+                aria-pressed={visibles.has(idDeLaPiel(catalogo) ?? '')}
+                disabled={idDeLaPiel(catalogo) === null}
+                title="Piel: encenderla al 30 % de opacidad, o apagarla. El clic y el marco la dejan pasar si hay algo debajo"
+                onClick={alternarLaPiel}
+              >
+                Piel
               </button>
               <button
                 type="button"

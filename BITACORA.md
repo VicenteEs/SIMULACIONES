@@ -5117,6 +5117,38 @@ idéntica; el código AO queda escrito en el modelo. *Malas, y conocidas:*
   cortes salen cerrados y conservan el volumen en los seis huesos, pero nadie ha
   mirado si el resultado parece una fractura. Lo valida Cristóbal.
 
+### D-162 · 2026-10-07 · vigente
+**La piel tiene interruptor en el taller, y el clic y el marco la dejan pasar.**
+Pedido del dueño (P-001, E5.1): con la piel de vuelta (D-155) y ensanchada
+(D-159), abrir «Cuerpo» enseñaba la piel y nada más, y todo clic o marco la
+alcanzaba antes que a lo que había debajo.
+
+*Qué se hizo.*
+- **Botón «Piel»** en la barra del taller (`alternarLaPiel`): enciende o apaga la
+  pieza `Skin`. La primera vez la enciende **al 30 % de opacidad**, para que la
+  anatomía de debajo se siga viendo; si ya tenía una opacidad propia, se respeta.
+  Es un cambio de lo encendido como cualquier otro, así que va al historial. Está
+  desactivado si el atlas no trae piel (`src/atlas/piel.ts`).
+- **El clic.** `impactoBajoElRayo` admite `ignorar`: un conjunto de piezas que el
+  rayo atraviesa. Si lo primero que toca es la piel, el visor lo vuelve a lanzar
+  sin ella y señala lo de debajo; si debajo no hay nada, se queda con la piel
+  —quien pulsa solo la piel, la quiere—.
+- **El marco.** Elige por centros (D-126) y el de la piel está en el abdomen: cualquier
+  marco sobre el vientre se la llevaba, y el gesto siguiente actuaba sobre el cuerpo
+  entero. `sinLaPielSiHayMas` la saca del resultado si hay algo más.
+- Es solo del taller (`pielQueDejaPasar`): en la ficha el residente no selecciona.
+
+*Qué no se hizo.* **E5.2**, encenderle la piel a la preparación «cuerpo» (id 1),
+es del dueño y se hace desde el taller: «Todo el atlas» → «Piel». **E5.3**,
+comprobar en la consola quirúrgica que un caso exportado de nuevo trae su piel
+recortada (D-096) y que el paso de la incisión la usa, no se ha mirado: las
+pruebas del recorte siguen en verde con la piel ajustada, pero nadie ha abierto la
+consola con ella.
+
+*Consecuencias buenas.* El taller abre sin que la piel estorbe y se enciende con un
+clic. *Malas:* no hay forma de seleccionar la piel con el clic si hay algo detrás
+—se elige en la lista—; y el 30 % es una cifra mía.
+
 ---
 
 ### O-014 · 2026-09-06 · alta · resuelta
@@ -7100,7 +7132,7 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
 
 **La piel: lo que falta**
 
-- [ ] **E5.1 · Interruptor rápido «Piel»** en la barra del taller: encender y
+- [x] **E5.1 · Interruptor rápido «Piel»** *(hecho, D-162)* en la barra del taller: encender y
   apagar, con transparencia del 30 % por omisión, para que no tape todo al abrir
   «Cuerpo». Además, la piel se excluye del marco y del clic salvo que se la
   quiera seleccionar. El marco elige por centros (D-126), y uno sobre el abdomen
@@ -7473,7 +7505,7 @@ qué tarjeta tiene y cuánta memoria.
 | E2 · Comentarios en el taller | hecha en código; falta desplegar | 1–2 | D-158 |
 | E3 · Manipulación directa | hecha en código; falta desplegar | 2 | D-160 |
 | E4 · Fracturas AO | v1 hecha en código (sin A1 ni encuadre en la ficha); falta validar con Cristóbal | 3–4 | D-161 |
-| E5 · Piel e instrumental | piel hecha (D-155) y ajustada (D-159); instrumental pendiente | 2–3 | D-155, D-159 |
+| E5 · Piel e instrumental | piel hecha (D-155), ajustada (D-159) y con interruptor (D-162); instrumental pendiente | 2–3 | D-155, D-159, D-162 |
 | E6 · Manejo AO paso a paso | pendiente | 3–4 | — |
 | E7 · Módulo 06 DICOM: anuncio y buzón | pendiente; puede adelantarse tras E1 | 1–2 | — |
 

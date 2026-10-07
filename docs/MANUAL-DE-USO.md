@@ -359,6 +359,10 @@ desplazado, una fractura.
   rotan por separado. El corte entra «hacia dentro» de la pantalla, así que
   conviene mirar el hueso de frente o de lado antes de trazarlo —mejor con
   «Orto»—. **«Soldar»** deshace el corte.
+- **«Piel»** enciende o apaga la piel del cuerpo, al 30 % de opacidad la primera
+  vez para que se vea lo de debajo. Con la piel encendida, **el clic y el marco la
+  dejan pasar**: seleccionan lo que hay debajo, y la piel solo se elige desde la
+  lista o si es lo único que hay donde se pulsa.
 - **«Rayos X»** (Alt + Z) vuelve todo translúcido, como en Blender, para
   encontrar un hueso bajo el músculo. Es solo una forma de mirar: no se guarda.
 - **Mayús + G** selecciona todo lo encendido del mismo sistema que lo
