@@ -6693,7 +6693,7 @@ Cierran las preguntas que el plan dejaba abiertas:
 
 ---
 
-#### E1 · Módulos en mantención · 1–2 sesiones · hecha en código (2026-10-07) · falta la partición de contenido (E1.8c) y desplegar
+#### E1 · Módulos en mantención · 1–2 sesiones · hecha y desplegada (2026-10-07) · falta la partición de contenido (E1.8c)
 
 **Objetivo.** Desde el panel, el administrador pone en mantención cualquiera de
 los cinco módulos, o lo devuelve a visible.
@@ -6847,7 +6847,7 @@ los cinco módulos, o lo devuelve a visible.
 
 ---
 
-#### E2 · Comentarios dentro del taller anatómico · 1–2 sesiones · hecha en código (2026-10-07) · falta desplegar
+#### E2 · Comentarios dentro del taller anatómico · 1–2 sesiones · hecha y desplegada (2026-10-07)
 
 **Objetivo.** Comentar una preparación, o una pieza concreta de ella, sin salir
 del taller. Los comentarios aparecen también en la bandeja «Comentarios» del
@@ -6922,7 +6922,7 @@ panel, con un enlace que abre esa preparación en el taller.
 
 ---
 
-#### E3 · Manipulación directa de piezas y fragmentos · 2 sesiones · hecha en código; falta desplegar
+#### E3 · Manipulación directa de piezas y fragmentos · 2 sesiones · hecha y desplegada
 
 **Por qué hoy es engorroso**, mirado en el código:
 
@@ -7418,7 +7418,7 @@ Daría una lista para pedir a la casa comercial. Cristóbal: «ahí nos pasaría
 
 ---
 
-#### E7 · Módulo 06, planificación con DICOM: «Próximamente» y buzón de requisitos · 1–2 sesiones · hecha en código; falta desplegar
+#### E7 · Módulo 06, planificación con DICOM: «Próximamente» y buzón de requisitos · 1–2 sesiones · hecha y desplegada (2026-10-07)
 
 **De dónde sale:** el pedido 7 del dueño y la última nota de voz de Cristóbal:
 «poder meterle los DICOM y que te reconstruya la fractura exacta que vas a
@@ -7571,13 +7571,13 @@ qué tarjeta tiene y cuánta memoria.
 
 | Etapa | Estado | Sesiones | Decisiones |
 |---|---|---|---|
-| E1 · Módulos en mantención | hecha en código; falta E1.8c (contenido) y desplegar | 1–2 | D-156, D-157 |
-| E2 · Comentarios en el taller | hecha en código; falta desplegar | 1–2 | D-158 |
-| E3 · Manipulación directa | hecha en código; falta desplegar | 2 | D-160 |
-| E4 · Fracturas AO | v1 hecha en código (sin A1 ni encuadre en la ficha); falta validar con Cristóbal | 3–4 | D-161 |
+| E1 · Módulos en mantención | desplegada; falta E1.8c (contenido) | 1–2 | D-156, D-157 |
+| E2 · Comentarios en el taller | hecha y desplegada | 1–2 | D-158 |
+| E3 · Manipulación directa | hecha y desplegada | 2 | D-160 |
+| E4 · Fracturas AO | v1 desplegada (sin A1 ni encuadre en la ficha); falta validar con Cristóbal | 3–4 | D-161 |
 | E5 · Piel e instrumental | piel hecha (D-155), ajustada (D-159) y con interruptor (D-162); instrumental pendiente | 2–3 | D-155, D-159, D-162 |
 | E6 · Manejo AO paso a paso | pendiente | 3–4 | — |
-| E7 · Módulo 06 DICOM: anuncio y buzón | hecha en código (sin comentarios en los requisitos); falta desplegar | 1–2 | D-163 |
+| E7 · Módulo 06 DICOM: anuncio y buzón | desplegada (sin comentarios en los requisitos) | 1–2 | D-163 |
 
 ---
 
