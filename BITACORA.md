@@ -6477,6 +6477,23 @@ producción), sobre un PostgreSQL desechable en el 55432 con las migraciones y
 `test:integration` 169 de 169; `build` sin fallos (los 8 avisos de trazado de
 Turbopack ya salían en `main`).
 
+### O-077 · 2026-10-07 · alta · resuelta
+**Actualizar `ved` con `./scripts/actualizar.sh` a secas dejaba la plataforma en 502.**
+*Dónde se ve:* al desplegar E1 a E7 en `ved`. El script elige el compose por
+`TUNEL`, y su valor por omisión es `tailscale`: levantó la aplicación con
+`docker-compose.tailscale.yml` —sin el prefijo `/traumahub`, sin la red `proxy` y
+con el nombre `trauma-app`—, y Nginx Proxy Manager, que busca `traumahub:3000` en
+la red `proxy`, contestaba 502. La comprobación de salud del propio script pasó
+porque mira dentro del contenedor, no por el proxy.
+*Arreglo.* En `ved` se actualiza **siempre** con `TUNEL=local ./scripts/actualizar.sh`
+—es el mismo `TUNEL=local` del cron de respaldos—, que usa `docker-compose.yml` más
+el `docker-compose.override.yml` del servidor. Y después de desplegar se prueba la
+URL pública (`https://ved.tailc2094f.ts.net:10000/traumahub/api/salud`), no solo la
+salud interna. Los datos no se tocaron: la base es la misma y hubo respaldo antes.
+(−) El valor por omisión sigue siendo una trampa para el siguiente; lo sano sería
+que el script lo leyera de `.env` o se negara a correr en un servidor que ya tiene
+el override.
+
 ---
 
 
