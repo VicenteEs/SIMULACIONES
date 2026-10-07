@@ -10,6 +10,7 @@
  * interfaz— por la que trabajar sobre una copia no puede estropear el original.
  */
 
+import type { GrupoAO, HuesoAO, SegmentoAO } from './clasificacionAO'
 import type { MarcaDeInstancia, VistaConNombre } from './marcas'
 
 /** Sistema anatómico: esqueleto, músculos, arterias… */
@@ -100,6 +101,35 @@ export interface CatalogoDelAtlas {
 
 // ---------------------------------------------------------------- instancias
 
+/** Lo que el asistente «Fractura» guarda de una fractura: lo elegido, en las unidades de los mandos. */
+export interface RecetaDeFractura {
+  /** La pieza entera del atlas que se fractura (`FJ3387`). */
+  pieza: string
+  hueso: HuesoAO
+  segmento: SegmentoAO
+  grupo: GrupoAO
+  porcion: {
+    /** Dónde cae, en % del largo del hueso de proximal a distal. */
+    centro: number
+    /** Cuánto ocupa —la altura de la cuña o del segmento intermedio—, en % del largo. */
+    extension: number
+  }
+  /** Grados sobre la perpendicular al eje; solo lo usan A2 y A3. */
+  inclinacion: number
+  /** Hacia qué cara sube el corte, en grados alrededor del eje (0 delante, 90 fuera). */
+  giro: number
+  /** Un entero: decide los pequeños detalles de B3 y C3, de modo que reabrir dé lo mismo. */
+  semilla: number
+}
+
+/** Una receta con su código AO escrito (`42-A2`), para leerlo sin abrir la tabla. */
+export interface FracturaDeInstancia extends RecetaDeFractura {
+  codigo: string
+}
+
+/** Fracturas por preparación: una por hueso, y los huesos largos son doce. */
+export const MAXIMO_DE_FRACTURAS = 12
+
 /**
  * Una instancia: la «copia» sobre la que trabaja el traumatólogo.
  *
@@ -172,6 +202,14 @@ export interface ContenidoDeInstancia {
    * vale para hojas del árbol de cortes (`hojasDe`).
    */
   apagados?: string[]
+  /**
+   * Las fracturas AO que se construyeron con el asistente (D-161): la receta de
+   * cada una, para poder reabrirla y rehacerla. Los cortes que la dibujan van
+   * aparte, en `cortes`, donde los espera el visor; esto es solo lo que el
+   * asistente necesita para volver a ofrecerla y la etiqueta con el código AO.
+   * Ausente si no hay ninguna.
+   */
+  fracturas?: FracturaDeInstancia[]
 }
 
 /** Lo que un fragmento se ha movido; los mismos dos campos que en una pieza. */

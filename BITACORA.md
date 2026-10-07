@@ -5029,6 +5029,94 @@ gesto, y la cifra es la que va a la ficha. *Malas, y conocidas:*
   manipulador cubre buena parte de un fragmento corto; acercar la cámara lo arregla,
   porque las asas miden siempre lo mismo en pantalla.
 
+### D-161 · 2026-10-07 · vigente
+**Un hueso largo se fractura con un asistente, por el código AO: pestaña «Fractura».**
+Pedido del dueño (P-001, E4): construir una fractura eligiendo hueso, segmento,
+tipo y grupo, como en la aplicación de AO, y que el hueso quede partido en los
+fragmentos de ese patrón, manipulables con el ratón (D-160) y con su código a la
+vista. La primera versión cubre los huesos largos y la diáfisis completa; lo
+demás está dicho abajo.
+
+*Cómo.*
+- **La tabla** (`src/atlas/clasificacionAO.ts`, pura): huesos —húmero (1), radio
+  (2R), cúbito (2U), fémur (3), tibia (4) y peroné (4F)—, los tres segmentos, los
+  tipos A, B y C y los grupos A1 a C3, con una descripción escrita aquí (no copia
+  del Compendio). El código sale de ella: `42-A2` es tibia, diáfisis, simple,
+  oblicua. En los extremos solo se ofrece lo extraarticular simple (A2 y A3); los
+  tipos articulares dependen de cada articulación y son de la segunda versión.
+- **Qué pieza es qué hueso** (`huesosAO.ts`): doce identificadores a mano. Una
+  prueba comprueba contra el catálogo real que cada uno existe, es un hueso
+  (`skeletal`), se llama como dice la tabla y está en el lado que dice (el derecho
+  del paciente es x negativa).
+- **Los segmentos por la regla del cuadrado de Heim** (`segmentosAO.ts`): sobre el
+  eje que ya mide `ejeDelHueso`, el perfil de anchura en 40 tramos; el lado de cada
+  extremo es lo más ancho de su tercio, entre el 8 y el 33 % del hueso. Aproximado
+  y dicho: la anchura es la del vértice más lejano en cualquier dirección, y en la
+  tibia distal AO manda el ancho de los maléolos. Sirve para elegir dónde cae una
+  fractura esquemática, no para medir.
+- **Los patrones** (`patronesDeFractura.ts`, puro y determinista, sin `three`): una
+  receta —hueso, segmento, grupo, `porcion {centro, extension}` en % del hueso,
+  inclinación, cara y una semilla— se convierte en cortes encadenados que el visor
+  ya sabía partir. A3, un plano de 0–15°; A2, uno de 30–60° por la cara elegida;
+  B2, una cuña (dos planos en `otrosPlanos`, que aíslan un fragmento con la
+  forma de la mariposa de una radiografía) y un plano por su vértice que separa
+  proximal y distal; B3, B2 y un corte que parte la cuña; C2, dos planos
+  separados `extension`; C3, C2 y un corte oblicuo del segmento intermedio. La
+  semilla solo mueve los detalles de dentro (B3, C3): reabrir da lo mismo.
+- **La prueba que importa**: cada patrón, sobre los seis huesos largos reales del
+  atlas (y la tibia izquierda), deja el número de fragmentos que dice la tabla, **todos cerrados** y con
+  volumen positivo, y **el volumen total se conserva dentro de un 1 %**.
+- **Guardar** (`ContenidoDeInstancia.fracturas`, json, sin migración): la receta con
+  su código. `normalizarSeleccion` la deja pasar solo si es una receta que
+  `normalizarReceta` acepta, de una pieza que está en la preparación **y sigue
+  partida**: una receta sin su corte raíz es huérfana —alguien soldó el hueso— y se
+  descarta. Una por hueso, doce como mucho; el código se recalcula, lo que llega no
+  se cree. Los cortes siguen yendo en `cortes`, donde los espera el visor.
+- **El asistente** (`PestanaDeFractura.tsx`, `borradorDeFractura.ts`): seis pasos
+  con tarjetas y pictogramas propios. El borrador vive en el taller y no en la
+  pestaña —las pestañas solo montan la abierta, y pasar a «Pieza» a mover un
+  fragmento lo borraba—. La vista previa es el disco del plano del primer corte, el
+  mismo de la exportación (`pintarElCorte`). **«Fracturar» es una sola entrada
+  del historial**; deja un rótulo con el código sobre el hueso (que ve el residente)
+  y selecciona los fragmentos. «Cambiar la fractura» la quita y reabre el asistente
+  con lo que tenía; «Quitar» devuelve el hueso entero.
+- **La ficha:** `VisorInstancia` enseña los fragmentos (los cortes ya viajaban) y una
+  línea con el código y la descripción de cada fractura.
+
+*Verificado en el navegador, con el atlas real:* los tres casos guía —**42-A2**
+en la tibia derecha (2 fragmentos), **32-B2** en el fémur (3: la cuña, el proximal
+y el distal) y **12-C2** en el húmero (3)— se construyen desde la pestaña, se
+guardan en una preparación, y al recargar la página y abrirla vuelven los tres.
+
+*Lo que no se hizo, y por qué.*
+- **A1, la espiroidea:** su superficie no es un plano (riesgo R1). Está en la tabla,
+  marcada «Próximamente».
+- **`refinarZona`:** los planos cortan una malla pobre igual de limpio; solo hará
+  falta con una superficie curva (A1).
+- **El filtro del clic** que deja pasar piel y músculo: no está; se elige el hueso
+  en la lista o pulsándolo.
+- **Alinear el catálogo `clasificaciones-ao`** con la edición de 2018 (añadir B3 y
+  C3, marcar B1 y C1 como de 2007): es contenido, no código, y lo valida Cristóbal
+  (E4-Q1).
+- **Exportar al simulador** una fractura de varios fragmentos: sigue admitiendo un
+  solo plano (A2 y A3).
+- **El encuadre del bloque de la ficha** sobre la fractura y no sobre el cuerpo.
+
+*Consecuencias buenas.* Una fractura sale en menos de un minuto y se reabre
+idéntica; el código AO queda escrito en el modelo. *Malas, y conocidas:*
+- **Los patrones son esquemáticos** (R3): enseñan la forma del trazo, no sustituyen
+  al atlas de AO. Cristóbal debe validar cada uno antes de que un residente aprenda
+  de él (E4-Q1). La **cuña** en particular es una interpretación mía: su vértice
+  está a media distancia del eje y su base mide lo que dice «altura».
+- **El hueso tiene que estar entero y en su sitio** para fracturarlo: los cortes se
+  calculan en el espacio anatómico, y heredar el desplazamiento de un hueso ya
+  movido es trabajo que no se hizo. El asistente lo dice.
+- **La receta no sigue lo que se haga después con las manos:** si se corta uno de sus
+  fragmentos, la receta sigue ahí y reabrirla lo borra.
+- **Un fragmento puede salir diminuto** en un hueso delgado (peroné, cúbito): los
+  cortes salen cerrados y conservan el volumen en los seis huesos, pero nadie ha
+  mirado si el resultado parece una fractura. Lo valida Cristóbal.
+
 ---
 
 ### O-014 · 2026-09-06 · alta · resuelta
@@ -6808,7 +6896,7 @@ pantalla dice «8 mm lateral · 10° varo». Ctrl + Z lo deshace en un solo paso
 
 ---
 
-#### E4 · Constructor de fracturas AO guiado · 3–4 sesiones · pendiente
+#### E4 · Constructor de fracturas AO guiado · 3–4 sesiones · v1 hecha en código; falta A1 y validar con Cristóbal
 
 **Objetivo.** En el taller, una pestaña «Fractura» con un asistente de seis
 pasos:
@@ -6943,30 +7031,30 @@ extremo. La diáfisis es lo que queda en medio.
 
 **Tareas**
 
-- [ ] **E4.1 · Validar con Cristóbal** la tabla (E4-Q1) y elegir tres casos guía,
+- [ ] **E4.1 · Validar con Cristóbal** (pendiente: se construyó con la tabla propuesta) la tabla (E4-Q1) y elegir tres casos guía,
   por ejemplo 42-A2, 32-B2 y 12-C2.
-- [ ] **E4.2 · Las tablas.**
+- [x] **E4.2 · Las tablas.** *(Hecho: `clasificacionAO.ts` y `huesosAO.ts`. Falta alinear el catálogo `clasificaciones-ao`, que es contenido y lo valida Cristóbal.)*
   - `clasificacionAO.ts` y `huesosAO.ts`, con pruebas.
   - Alinear el catálogo `clasificaciones-ao`: añadir B3 y C3, y marcar B1 y C1
     como de 2007. Es un cambio de contenido, no de esquema.
-- [ ] **E4.3 · Segmentos por la regla de Heim.** Perfil de anchura, con pruebas
+- [x] **E4.3 · Segmentos por la regla de Heim.** Perfil de anchura, con pruebas
   sobre la tibia y el fémur reales.
-- [ ] **E4.4 · `patronesDeFractura.ts`** (A2, A3, B2, B3, C2 y C3). Las pruebas
+- [x] **E4.4 · `patronesDeFractura.ts`** (A2, A3, B2, B3, C2 y C3). Las pruebas
   comprueban tres cosas:
   - el número de fragmentos;
   - que todos quedan cerrados, sin agujeros;
   - que el volumen total se conserva con un ±1 %.
-- [ ] **E4.5 · `refinarZona`**, con pruebas.
-- [ ] **E4.6 · A1 espiroidea** (riesgo R1).
-- [ ] **E4.7 · Formato.** `fracturas` en el contenido, validación en el servidor,
+- [ ] **E4.5 · `refinarZona`**, con pruebas. *(No hace falta con planos; solo con la espiroidea.)*
+- [ ] **E4.6 · A1 espiroidea** (riesgo R1). *(Pendiente: figura en la tabla como «Próximamente».)*
+- [x] **E4.7 · Formato.** `fracturas` en el contenido, validación en el servidor,
   guardar y abrir.
-- [ ] **E4.8 · La pestaña «Fractura»** y el filtro del clic.
-- [ ] **E4.10 · Lo que ve el residente.**
+- [x] **E4.8 · La pestaña «Fractura»** *(sin el filtro del clic)*.
+- [x] **E4.10 · Lo que ve el residente** *(los fragmentos, el rótulo y la línea con el código; falta encuadrar el bloque sobre la fractura)*.
   - `VisorInstancia`, en solo lectura, enseña los fragmentos, sus desplazamientos
     y la etiqueta AO.
   - El residente no puede moverlos.
   - El bloque de la ficha encuadra la fractura y no el cuerpo entero.
-- [ ] **E4.9 · Comprobación y documentación.**
+- [x] **E4.9 · Comprobación y documentación.** *(Falta la tabla de «qué se puede» de `docs/COMO-SUBIR-UN-MODELO.md`.)*
   - El manual.
   - La tabla de «qué se puede» en `docs/COMO-SUBIR-UN-MODELO.md` (l.133–138), que
     hoy dice que A1, B y C no se pueden.
@@ -7384,7 +7472,7 @@ qué tarjeta tiene y cuánta memoria.
 | E1 · Módulos en mantención | hecha en código; falta E1.8c (contenido) y desplegar | 1–2 | D-156, D-157 |
 | E2 · Comentarios en el taller | hecha en código; falta desplegar | 1–2 | D-158 |
 | E3 · Manipulación directa | hecha en código; falta desplegar | 2 | D-160 |
-| E4 · Fracturas AO | pendiente | 3–4 | — |
+| E4 · Fracturas AO | v1 hecha en código (sin A1 ni encuadre en la ficha); falta validar con Cristóbal | 3–4 | D-161 |
 | E5 · Piel e instrumental | piel hecha (D-155) y ajustada (D-159); instrumental pendiente | 2–3 | D-155, D-159 |
 | E6 · Manejo AO paso a paso | pendiente | 3–4 | — |
 | E7 · Módulo 06 DICOM: anuncio y buzón | pendiente; puede adelantarse tras E1 | 1–2 | — |

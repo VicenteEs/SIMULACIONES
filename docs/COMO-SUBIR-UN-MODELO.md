@@ -137,6 +137,11 @@ la clasificación del caso:
 | A1 · simple espiroidea | No se puede: un corte es un plano. Una oblicua de 45° es lo más parecido, y el trazo que se ve es recto |
 | B y C · en cuña y complejas | No se puede: dejan tres fragmentos o más, y un corte da dos |
 
+Desde D-161 el taller **sí construye** B y C (y A2 y A3 con su código) en la
+pestaña «Fractura», y una preparación así se ve completa en la ficha. Lo que no hace
+todavía es **exportarla al simulador**: la consola mueve un solo fragmento, y esa
+exportación sigue admitiendo un solo plano (A2 y A3).
+
 **Qué sale.** El hueso partido son dos objetos, los dos cerrados por la cara del
 corte, que encajan exactamente: el hueso sigue exportándose **reducido**, como
 pide el primer convenio. Se llaman como el hueso y su lado, sin tildes ni comas:

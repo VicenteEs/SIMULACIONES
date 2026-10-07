@@ -170,6 +170,7 @@ export async function obtenerInstancia(
       vistas: bruto?.vistas,
       grupos: bruto?.grupos,
       apagados: bruto?.apagados,
+      fracturas: bruto?.fracturas,
     })
 
     return {
@@ -208,6 +209,7 @@ export async function guardarInstancia(
       vistas: entrada.vistas,
       grupos: entrada.grupos,
       apagados: entrada.apagados,
+      fracturas: entrada.fracturas,
     })
     if (contenido.piezas.length === 0) {
       throw new Error('Encienda al menos una pieza antes de guardar la preparación.')

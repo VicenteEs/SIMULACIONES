@@ -5,7 +5,9 @@ import dynamic from 'next/dynamic'
 import type {
   CatalogoDelAtlas,
   CorteDePieza,
+  FracturaDeInstancia,
   PiezaDelAtlas,
+  RecetaDeFractura,
   VistaDeInstancia,
 } from '@/atlas/formato'
 import {
@@ -39,6 +41,16 @@ import type { ResultadoDelRecorte } from '@/atlas/recorte'
 import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
 import { cuaternionDeGrados, gradosDeCuaternion } from '@/atlas/angulos'
 import { describirLectura } from '@/atlas/lecturaClinica'
+import { PestanaDeFractura, type EstadoDelHueso } from '@/components/admin/atlas/PestanaDeFractura'
+import {
+  BORRADOR_VACIO,
+  borradorDeLaReceta,
+  recetaDelBorrador,
+  type BorradorDeFractura,
+  type MedidaDelHueso,
+} from '@/atlas/borradorDeFractura'
+import { huesoDeLaPieza } from '@/atlas/huesosAO'
+import { codigoDeLaReceta, cortesDeLaFractura, etiquetaDeLaFractura } from '@/atlas/patronesDeFractura'
 import { parejasContralaterales, reflejarGiro, reflejarVector } from '@/atlas/espejo'
 import {
   MAXIMO_DE_MARCAS,
@@ -423,6 +435,13 @@ export function TallerDeAtlas({
    * músculos— sin tener que volver a marcarlo cada vez.
    */
   const [grupos, setGrupos] = useState<string[][]>([])
+  /**
+   * Las fracturas AO hechas con el asistente (D-161) y el borrador de la que se
+   * está armando. El borrador vive aquí y no en la pestaña: las pestañas solo
+   * montan la abierta, y pasar a «Pieza» a mover un fragmento lo borraba.
+   */
+  const [fracturas, setFracturas] = useState<FracturaDeInstancia[]>([])
+  const [borrador, setBorrador] = useState<BorradorDeFractura>(BORRADOR_VACIO)
 
   const [instancia, setInstancia] = useState<string | null>(null)
   /**
@@ -430,7 +449,7 @@ export function TallerDeAtlas({
    * que es lo primero que había: el nombre y la descripción. Con un enlace de la
    * bandeja de comentarios arranca en «Comentarios».
    */
-  const [pestana, setPestana] = useState<'pieza' | 'preparacion' | 'comentarios'>(
+  const [pestana, setPestana] = useState<'pieza' | 'preparacion' | 'fractura' | 'comentarios'>(
     comentarioInicial ? 'comentarios' : 'preparacion',
   )
   const comentarios = useComentariosDelTaller(instancia)
@@ -506,6 +525,37 @@ export function TallerDeAtlas({
    * una pieza que ya no está en la preparación. Lo que se dibuja en el visor y
    * lo que se envía es esto, no el estado crudo.
    */
+  /**
+   * La vista previa del asistente de fracturas: el plano del primer corte sobre el
+   * hueso, el mismo disco con el que se prepara la exportación. Se calcula en un
+   * efecto porque la medida del hueso la tiene el visor.
+   */
+  const [vistaPreviaDeFractura, setVistaPreviaDeFractura] = useState<CorteDeHueso | null>(null)
+  useEffect(() => {
+    let previa: CorteDeHueso | null = null
+    if (pestana === 'fractura') {
+      for (const id of seleccion) {
+        const hueso = huesoDeLaPieza(id)
+        const raiz = piezaDe(id)
+        if (!hueso || cortes.some((c) => c.pieza === raiz)) continue
+        const medida = mando.current?.medirHueso(raiz)
+        const receta = medida ? recetaDelBorrador(raiz, hueso.hueso, borrador, medida) : null
+        if (receta) {
+          const mitad = receta.grupo.startsWith('C') ? receta.porcion.extension / 2 : 0
+          previa = {
+            pieza: raiz,
+            posicion: receta.porcion.centro - mitad,
+            inclinacion: receta.grupo.startsWith('B') ? 0 : receta.inclinacion,
+            giro: receta.giro,
+            fragmento: 'distal',
+          }
+        }
+        break
+      }
+    }
+    setVistaPreviaDeFractura(previa)
+  }, [pestana, seleccion, borrador, cortes, catalogo])
+
   const corteVivo = useMemo(
     () => (corte && protagonistasVivas.includes(corte.pieza) ? corte : null),
     [corte, protagonistasVivas],
@@ -563,7 +613,7 @@ export function TallerDeAtlas({
     transformaciones: '',
     cortes: '',
     aspectos: '',
-    apuntes: '[[],[],[]]',
+    apuntes: '[[],[],[],[]]',
     vista: VISTA_INICIAL,
   })
 
@@ -571,9 +621,18 @@ export function TallerDeAtlas({
   const claveApagados = useMemo(() => [...apagados].sort().join(','), [apagados])
   const claveCortes = useMemo(() => firmaDeCortes(cortes), [cortes])
   const claveAspectos = useMemo(() => firmaDeAspectos(aspectos), [aspectos])
+  /**
+   * Las fracturas que de verdad existen: una receta cuyo hueso ya no está partido
+   * —se deshizo el paso, se soldó— deja de contar sin tener que borrarla. Al
+   * rehacer el paso, vuelve.
+   */
+  const fracturasVigentes = useMemo(
+    () => fracturas.filter((f) => visibles.has(f.pieza) && cortes.some((c) => c.pieza === f.pieza)),
+    [fracturas, visibles, cortes],
+  )
   const claveApuntes = useMemo(
-    () => JSON.stringify([marcas, vistas, grupos]),
-    [marcas, vistas, grupos],
+    () => JSON.stringify([marcas, vistas, grupos, fracturasVigentes]),
+    [marcas, vistas, grupos, fracturasVigentes],
   )
   const claveTransformaciones = useMemo(
     () => firmaDeTransformaciones(transformaciones),
@@ -689,11 +748,12 @@ export function TallerDeAtlas({
       movidas: ReadonlyMap<string, TransformacionDePieza> = new Map(),
       partidos: readonly CorteDePieza[] = [],
       pintadas: ReadonlyMap<string, AspectoDePieza> = new Map(),
-      apuntes: [readonly MarcaDeInstancia[], readonly VistaConNombre[], readonly string[][]] = [
-        [],
-        [],
-        [],
-      ],
+      apuntes: [
+        readonly MarcaDeInstancia[],
+        readonly VistaConNombre[],
+        readonly string[][],
+        readonly FracturaDeInstancia[],
+      ] = [[], [], [], []],
       trozosApagados: ReadonlySet<string> = new Set(),
     ) => {
       setReferencia({
@@ -1338,6 +1398,78 @@ export function TallerDeAtlas({
     )
     setSeleccion(new Set(padres))
   }
+  /** En qué estado está un hueso para el asistente de fracturas: solo uno entero y en su sitio se fractura. */
+  const estadoDelHueso = (pieza: string): EstadoDelHueso => {
+    if (!visibles.has(pieza)) return 'apagado'
+    if (cortes.some((c) => c.pieza === pieza || c.pieza.startsWith(`${pieza}#`))) return 'partido'
+    if (transformaciones.has(pieza)) return 'movido'
+    return 'entero'
+  }
+
+  /**
+   * Parte un hueso en los fragmentos de un patrón AO, en una sola entrada del
+   * historial (D-161). Los cortes los genera `cortesDeLaFractura` sobre el eje
+   * que el visor midió; la receta se guarda aparte para poder reabrirla, y se deja
+   * sobre el hueso un rótulo con el código, que también ve el residente.
+   */
+  const fracturar = (receta: RecetaDeFractura, medida: MedidaDelHueso) => {
+    const nuevos = cortesDeLaFractura(receta, medida.eje)
+    const codigo = codigoDeLaReceta(receta)
+    if (nuevos.length === 0 || !codigo) {
+      setAviso({ tipo: 'error', texto: 'Ese grupo todavía no se puede construir.' })
+      return
+    }
+    apuntarPaso()
+    setCortes([...cortes, ...nuevos])
+    setFracturas([...fracturas.filter((f) => f.pieza !== receta.pieza), { ...receta, codigo }])
+    // El rótulo, algo fuera del hueso por el lado de fuera, a la altura del trazo.
+    const texto = etiquetaDeLaFractura(receta)
+    const aparte = medida.eje.radio * 1.4
+    const origen = nuevos[0].punto
+    if (texto && marcas.length < MAXIMO_DE_MARCAS) {
+      setMarcas([
+        ...marcas.filter((m) => !(m.tipo === 'rotulo' && m.texto === texto)),
+        {
+          tipo: 'rotulo',
+          punto: [
+            origen[0] + medida.eje.fuera[0] * aparte,
+            origen[1] + medida.eje.fuera[1] * aparte,
+            origen[2] + medida.eje.fuera[2] * aparte,
+          ],
+          texto,
+        },
+      ])
+    }
+    setSeleccion(new Set(hojasDe([...cortes, ...nuevos], receta.pieza)))
+    setBorrador(BORRADOR_VACIO)
+    setAviso({
+      tipo: 'ok',
+      texto: `${codigo}: ${hojasDe([...cortes, ...nuevos], receta.pieza).length} fragmentos. Muévalos con «Manipular» (V); el rótulo con el código ya está sobre el hueso.`,
+    })
+  }
+
+  /** Quita una fractura del asistente: el hueso vuelve entero y a su sitio, y se va su rótulo. */
+  const quitarFractura = (pieza: string) => {
+    const hecha = fracturas.find((f) => f.pieza === pieza)
+    apuntarPaso()
+    const cuelga = (id: string) => id === pieza || id.startsWith(`${pieza}#`)
+    setCortes(cortes.filter((c) => !cuelga(c.pieza)))
+    setTransformaciones(new Map([...transformaciones].filter(([id]) => !cuelga(id))))
+    setApagados(new Set([...apagados].filter((id) => !cuelga(id))))
+    setGrupos(grupos.map((g) => g.filter((id) => !cuelga(id))).filter((g) => g.length >= 2))
+    setFracturas(fracturas.filter((f) => f.pieza !== pieza))
+    const etiqueta = hecha ? etiquetaDeLaFractura(hecha) : null
+    if (etiqueta) setMarcas(marcas.filter((m) => !(m.tipo === 'rotulo' && m.texto === etiqueta)))
+    setSeleccion(new Set([pieza]))
+  }
+
+  /** «Cambiar la fractura»: se quita y el asistente vuelve a ofrecerla con lo que tenía. */
+  const editarFractura = (hecha: FracturaDeInstancia) => {
+    quitarFractura(hecha.pieza)
+    setBorrador(borradorDeLaReceta(hecha))
+    setPestana('fractura')
+  }
+
   /** Todo el cuerpo encendido, también los trozos que se hubieran apagado (D-141). */
   const encenderTodo = () => {
     if (!catalogo) return
@@ -1367,6 +1499,8 @@ export function TallerDeAtlas({
     setMarcas([])
     setVistas([])
     setGrupos([])
+    setFracturas([])
+    setBorrador(BORRADOR_VACIO)
     setSeleccion(new Set())
     setInstancia(null)
     setModeloAbierto(null)
@@ -1415,6 +1549,8 @@ export function TallerDeAtlas({
     setMarcas([])
     setVistas([])
     setGrupos([])
+    setFracturas([])
+    setBorrador(BORRADOR_VACIO)
     setSeleccion(new Set())
     setVisibles(piezas)
     // La lista de un modelo abierto son sus piezas: con el atlas entero, la
@@ -1475,6 +1611,9 @@ export function TallerDeAtlas({
         const marcasAbiertas = r.datos.contenido.marcas ?? []
         const vistasAbiertas = r.datos.contenido.vistas ?? []
         const gruposAbiertos = r.datos.contenido.grupos ?? []
+        const fracturasAbiertas = r.datos.contenido.fracturas ?? []
+        setFracturas(fracturasAbiertas)
+        setBorrador(BORRADOR_VACIO)
         setMarcas(marcasAbiertas)
         setVistas(vistasAbiertas)
         setGrupos(gruposAbiertos)
@@ -1522,7 +1661,7 @@ export function TallerDeAtlas({
           movidasAbiertas,
           cortesAbiertos,
           aspectosAbiertos,
-          [marcasAbiertas, vistasAbiertas, gruposAbiertos],
+          [marcasAbiertas, vistasAbiertas, gruposAbiertos, fracturasAbiertas],
           apagadosAbiertos,
         )
         reiniciarElAutoguardado()
@@ -1620,6 +1759,7 @@ export function TallerDeAtlas({
           marcas,
           vistas,
           grupos,
+          fracturas: fracturasVigentes,
           // Solo los trozos de piezas que se guardan: de una pieza apagada no
           // viaja nada, igual que su transformación.
           apagados: [...apagados].filter((id) => visibles.has(piezaDe(id))),
@@ -1644,7 +1784,7 @@ export function TallerDeAtlas({
           transformaciones,
           cortes,
           aspectos,
-          [marcas, vistas, grupos],
+          [marcas, vistas, grupos, fracturasVigentes],
           apagados,
         )
         if (automatico) {
@@ -2514,7 +2654,7 @@ export function TallerDeAtlas({
             alAsentarVista={asentarReferencia}
             // Solo con el panel de exportar abierto: cerrado, un plano magenta
             // cruzando la tibia sin ningún mando a la vista no se explica.
-            corte={panelExportar ? corteVivo : null}
+            corte={panelExportar ? corteVivo : vistaPreviaDeFractura}
             // Pulsar una pieza la selecciona, como en Blender, y ya no la
             // apaga (D-126): apagar es Supr, X o H sobre lo seleccionado. Un
             // clic que borra no deja elegir nada, y sin elegir no hay marco,
@@ -2856,6 +2996,7 @@ export function TallerDeAtlas({
             pestanas={[
               { id: 'pieza', etiqueta: 'Pieza' },
               { id: 'preparacion', etiqueta: 'Preparación' },
+              { id: 'fractura', etiqueta: 'Fractura' },
               {
                 id: 'comentarios',
                 etiqueta: comentarios.pendientes > 0 ? `Comentarios (${comentarios.pendientes})` : 'Comentarios',
@@ -3016,6 +3157,21 @@ export function TallerDeAtlas({
             </ul>
           )}
 
+          </PanelDePestana>
+
+          <PanelDePestana base="taller" id="fractura" activa={pestana}>
+            <PestanaDeFractura
+              seleccion={seleccion}
+              fracturas={fracturasVigentes}
+              borrador={borrador}
+              alCambiarBorrador={setBorrador}
+              medir={(pieza) => mando.current?.medirHueso(pieza) ?? null}
+              nombreDePieza={nombreDePieza}
+              estadoDelHueso={estadoDelHueso}
+              alFracturar={fracturar}
+              alQuitar={quitarFractura}
+              alEditar={editarFractura}
+            />
           </PanelDePestana>
 
           <PanelDePestana base="taller" id="comentarios" activa={pestana}>

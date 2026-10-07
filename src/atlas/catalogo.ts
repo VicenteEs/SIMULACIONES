@@ -10,6 +10,7 @@
 import {
   MAXIMO_DE_APAGADOS,
   MAXIMO_DE_CORTES,
+  MAXIMO_DE_FRACTURAS,
   MAXIMO_DE_GRUPOS,
   MAXIMO_DE_PLANOS_POR_CORTE,
   MAXIMO_DE_TRASLADO,
@@ -23,11 +24,13 @@ import {
   type CatalogoDelAtlas,
   type ContenidoDeInstancia,
   type CorteDePieza,
+  type FracturaDeInstancia,
   type PiezaDelAtlas,
   type PlanoGuardado,
   type VistaDeInstancia,
 } from './formato'
 import { marcasValidas, vistasValidas } from './marcas'
+import { codigoDeLaReceta, normalizarReceta } from './patronesDeFractura'
 
 // ------------------------------------------------------------------ búsqueda
 
@@ -256,7 +259,14 @@ export function normalizarSeleccion(
    * Lo apuntado sobre el modelo y las vistas con nombre (D-135), los grupos
    * (D-136) y los trozos apagados (D-141).
    */
-  apuntes?: { marcas?: unknown; vistas?: unknown; grupos?: unknown; apagados?: unknown },
+  apuntes?: {
+    marcas?: unknown
+    vistas?: unknown
+    grupos?: unknown
+    apagados?: unknown
+    /** Las fracturas del asistente (D-161). */
+    fracturas?: unknown
+  },
 ): ContenidoDeInstancia {
   const conocidas = new Set(catalogo.piezas.map((p) => p.id))
   const vistas = new Set<string>()
@@ -290,6 +300,7 @@ export function normalizarSeleccion(
   const vistasConNombre = vistasValidas(apuntes?.vistas)
   const grupos = gruposValidos(apuntes?.grupos, vistas, new Set(cortesLimpios.map((c) => c.pieza)))
   const apagados = apagadosValidos(apuntes?.apagados, cortesLimpios, vistas)
+  const fracturas = fracturasValidas(apuntes?.fracturas, cortesLimpios, vistas)
   return {
     version: 1,
     atlas: catalogo.version,
@@ -300,7 +311,39 @@ export function normalizarSeleccion(
     ...(vistasConNombre.length > 0 ? { vistas: vistasConNombre } : {}),
     ...(grupos.length > 0 ? { grupos } : {}),
     ...(apagados.length > 0 ? { apagados } : {}),
+    ...(fracturas.length > 0 ? { fracturas } : {}),
   }
+}
+
+/**
+ * Las fracturas del asistente que se dejan guardar (D-161).
+ *
+ * Cada una tiene que ser una receta que `normalizarReceta` acepte, de una pieza
+ * que esté en la preparación y **partida**: una fractura sin su corte raíz es una
+ * receta huérfana —alguien soldó el hueso—, y reabrirla ofrecería deshacer algo
+ * que ya no existe. Una por pieza, y el código AO se vuelve a escribir aquí: lo que
+ * llega en `codigo` no se cree, se recalcula desde la receta.
+ */
+function fracturasValidas(
+  brutas: unknown,
+  cortes: readonly CorteDePieza[],
+  enLaPreparacion: ReadonlySet<string>,
+): FracturaDeInstancia[] {
+  if (!Array.isArray(brutas)) return []
+  const partidas = new Set(cortes.map((c) => c.pieza))
+  const salida: FracturaDeInstancia[] = []
+  const yaVistas = new Set<string>()
+  for (const bruta of brutas) {
+    const receta = normalizarReceta(bruta)
+    if (!receta || yaVistas.has(receta.pieza)) continue
+    if (!enLaPreparacion.has(receta.pieza) || !partidas.has(receta.pieza)) continue
+    const codigo = codigoDeLaReceta(receta)
+    if (!codigo) continue
+    yaVistas.add(receta.pieza)
+    salida.push({ ...receta, codigo })
+    if (salida.length >= MAXIMO_DE_FRACTURAS) break
+  }
+  return salida
 }
 
 /**

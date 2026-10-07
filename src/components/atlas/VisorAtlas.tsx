@@ -40,6 +40,7 @@ import {
 } from '@/atlas/cargador'
 import { impactoBajoElRayo } from '@/atlas/picking'
 import { crearCajaOrientada, crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
+import { segmentosDeHeim, type SegmentosDelHueso } from '@/atlas/segmentosAO'
 import {
   EJES_DEL_MUNDO,
   atarAlEjeMasCercano,
@@ -215,6 +216,12 @@ export interface MandoDelVisor {
     id: string,
     transformaciones: ReadonlyMap<string, TransformacionDePieza> | null,
   ) => LecturaClinica | null
+  /**
+   * El eje de un hueso y sus tres segmentos AO por la regla de Heim (D-161), con
+   * la geometría cargada en el visor: es lo que el asistente «Fractura» necesita
+   * para decir dónde cae cada cosa. `null` si la pieza no está montada.
+   */
+  medirHueso: (pieza: string) => { eje: EjeDelHueso; segmentos: SegmentosDelHueso } | null
   /**
    * Una tecla durante el gesto: X, Y o Z lo atan a ese eje (otra vez la misma
    * lo suelta), Intro confirma y Esc cancela. Devuelve `true` si había un gesto
@@ -562,6 +569,7 @@ export function VisorAtlas({
     },
     empezarTransformacion: (modo) => taller.current.gesto?.empezar(modo) ?? false,
     lecturaDelFragmento: (id, movidas) => taller.current.lecturaDelFragmento?.(id, movidas) ?? null,
+    medirHueso: (pieza) => taller.current.medirHueso?.(pieza) ?? null,
     teclaDeTransformacion: (tecla) => taller.current.gesto?.tecla(tecla) ?? false,
     mirarDesde: (lado) => {
       const t = taller.current
@@ -965,6 +973,21 @@ export function VisorAtlas({
       )
     }
     taller.current.lecturaDelFragmento = lecturaDelFragmento
+
+    /** Los segmentos de cada hueso que ya se midieron: la misma geometría da lo mismo cada vez. */
+    const segmentosMedidos = new Map<string, SegmentosDelHueso>()
+    taller.current.medirHueso = (pieza) => {
+      const escena = taller.current.escena
+      const indice = escena?.indices.get(pieza)
+      const eje = ejeDelHuesoDe(pieza)
+      if (!escena || indice === undefined || !eje) return null
+      if (!segmentosMedidos.has(pieza)) {
+        const malla = mallaDeLaPieza(escena, indice)
+        if (!malla) return null
+        segmentosMedidos.set(pieza, segmentosDeHeim(malla.posiciones, eje))
+      }
+      return { eje, segmentos: segmentosMedidos.get(pieza)! }
+    }
 
     /**
      * El centro de la tapa de un trozo, o su centro si no la tiene, donde está
@@ -2553,6 +2576,8 @@ interface TallerDelVisor {
     empezar: (modo: ModoDeTransformacion, opciones?: OpcionesDelGesto) => boolean
     tecla: (tecla: string) => boolean
   }
+  /** Lo que dice el mando `medirHueso`; lo monta el efecto de montaje. */
+  medirHueso?: (pieza: string) => { eje: EjeDelHueso; segmentos: SegmentosDelHueso } | null
   /** Lo que dice el mando `lecturaDelFragmento`; lo monta el efecto de montaje, que ve la escena. */
   lecturaDelFragmento?: (
     id: string,

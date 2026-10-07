@@ -365,6 +365,38 @@ desplazado, una fractura.
   seleccionado —todos los músculos, todos los vasos—, que es la forma rápida de
   quitar una capa entera: Mayús + G y después Supr.
 
+### Construir una fractura AO (pestaña «Fractura»)
+
+Para partir un hueso largo en los fragmentos de un patrón de la clasificación AO/OTA,
+sin trazar nada a mano. Sirve para el húmero, el radio, el cúbito, el fémur, la tibia y
+el peroné.
+
+1. **Seleccione el hueso** (un clic sobre él, o su casilla en la lista) y abra la
+   pestaña **Fractura**. El hueso tiene que estar **entero, encendido y en su sitio**;
+   si no, el asistente lo dice.
+2. **Segmento:** proximal, diáfisis o distal. Los extremos son un cuadrado cuyo lado es
+   lo más ancho de la epífisis (regla de Heim).
+3. **Tipo:** A simple, B en cuña, C multifragmentaria. En los extremos solo está el
+   simple.
+4. **Grupo:** transversa (A3), oblicua (A2), cuña íntegra (B2) o fragmentada (B3),
+   segmentaria íntegra (C2) o fragmentada (C3). La espiroidea (A1) sale como
+   «Próximamente».
+5. **Porción:** dónde cae, cuánto ocupa (la altura de la cuña o el largo del segmento),
+   cuánto se inclina y por qué cara. Sobre el hueso se ve el plano del primer corte.
+   «Otra variante» cambia los detalles del corte de dentro sin cambiar los fragmentos
+   principales.
+6. **«Fracturar»** crea los fragmentos de una vez (un solo paso de Ctrl + Z), deja un
+   **rótulo con el código** sobre el hueso —«42-A2 · Tibia, diáfisis, oblicua · derecho»— y
+   selecciona los fragmentos para moverlos con «Manipular» (V).
+
+«Cambiar la fractura» la quita y vuelve a ofrecer el asistente con lo que tenía;
+«Quitar la fractura» devuelve el hueso entero. En la ficha, el residente ve el hueso ya
+fracturado, el rótulo y una línea con el código.
+
+**Importante:** los patrones son **esquemáticos**. Enseñan la forma del trazo, no
+sustituyen al atlas de AO, y deben validarse con el traumatólogo antes de usarse para
+enseñar.
+
 ### Manipular con el ratón (tecla V)
 
 Es la forma de mover y angular un fragmento **sin teclado**, como se mueve una

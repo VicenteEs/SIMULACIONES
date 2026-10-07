@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { idDeFragmento, type CatalogoDelAtlas, type ContenidoDeInstancia } from '@/atlas/formato'
 import { cargarCatalogo } from '@/atlas/cargador'
 import { normalizarSeleccion } from '@/atlas/catalogo'
+import { describirFractura } from '@/atlas/clasificacionAO'
 import { VisorAtlas, type MandoDelVisor } from './VisorAtlas'
 import { Eye, House } from 'lucide-react'
 import { BloqueoTactil } from '../BloqueoTactil'
@@ -53,6 +54,7 @@ export function VisorInstancia({
       marcas: contenido.marcas,
       vistas: contenido.vistas,
       apagados: contenido.apagados,
+      fracturas: contenido.fracturas,
     })
     // Las piezas que su autor sacó de su sitio (D-129): una luxación, un
     // fragmento desplazado. Memorizado con lo demás y por lo mismo: un mapa
@@ -150,6 +152,16 @@ export function VisorInstancia({
             </button>
           ))}
         </div>
+      ) : null}
+      {/* Las fracturas que su autor construyó con el asistente (D-161): el código
+          AO también va como rótulo sobre el hueso, pero un rótulo se puede apagar
+          con la cámara y esto se lee sin abrir el visor. */}
+      {preparado.limpio.fracturas && preparado.limpio.fracturas.length > 0 ? (
+        <figcaption className="atlas-fracturas">
+          {preparado.limpio.fracturas
+            .map((f) => describirFractura(f.hueso, f.segmento, f.grupo) ?? f.codigo)
+            .join(' · ')}
+        </figcaption>
       ) : null}
       {pie ? <figcaption>{pie}</figcaption> : null}
       <figcaption className="atlas-credito">
