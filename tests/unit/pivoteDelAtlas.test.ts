@@ -384,7 +384,7 @@ describe('el taller usa lo que el visor decide', () => {
     // ellos en la referencia, abrir una preparación con un fragmento desplazado
     // o un trozo apagado la daría por cambiada nada más abrirla.
     expect(abrir).toMatch(
-      /fijarReferencia\(\s*piezasAbiertas,[\s\S]*vistaAbierta,\s*movidasAbiertas,\s*cortesAbiertos,\s*aspectosAbiertos,\s*\[marcasAbiertas, vistasAbiertas, gruposAbiertos, fracturasAbiertas\],\s*apagadosAbiertos,\s*\)/,
+      /fijarReferencia\(\s*piezasAbiertas,[\s\S]*vistaAbierta,\s*movidasAbiertas,\s*cortesAbiertos,\s*aspectosAbiertos,\s*\[marcasAbiertas, vistasAbiertas, gruposAbiertos, fracturasAbiertas, sueltasAbiertas\],\s*apagadosAbiertos,\s*\)/,
     )
     expect(abrir.indexOf('irA(')).toBeLessThan(abrir.indexOf('fijarReferencia('))
 
@@ -417,13 +417,16 @@ describe('el taller usa lo que el visor decide', () => {
     )
   })
 
-  it('busca y enseña las candidatas a exportar en español', () => {
-    const candidatas = entre(taller, 'const candidatas', 'const conAviso')
-    expect(candidatas).toContain('casaConLaBusqueda(p.nombre, filtroProtagonista)')
-    expect(candidatas).not.toContain('.includes(')
-    const lista = entre(taller, '{candidatas.lista.map(', '{candidatas.total === 0')
-    expect(lista).toContain('nombreEnEspanol(pieza.nombre)')
-    expect(lista).not.toMatch(/<span>\{pieza\.nombre\}<\/span>/)
+  it('exporta lo guardado sin preguntar nada antes: ni piezas sueltas ni cortes en un recuadro', () => {
+    // D-164: lo que sale suelto se marca en la barra lateral, pestaña «Pieza», y
+    // se guarda con la preparación. El recuadro que se abría antes de exportar
+    // listaba piezas que ya no estaban en el visor y olvidaba lo cortado.
+    for (const viejo of ['panelExportar', 'candidatas', 'filtroProtagonista', 'protagonistasVivas', 'MandosDelCorte']) {
+      expect(taller, viejo).not.toContain(viejo)
+    }
+    expect(taller).toContain('await exportarComoModelo(id)')
+    expect(taller).toContain('sueltas: sueltasVigentes,')
+    expect(taller).toContain('Sale suelto: el simulador lo puede mover')
   })
 
   it('pinta cada pieza exportada con su capa cuando llega, y los nodos si no', () => {

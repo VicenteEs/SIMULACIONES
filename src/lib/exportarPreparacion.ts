@@ -15,6 +15,7 @@ import {
   type PiezaExportada,
   type PiezaLeida,
 } from '@/lib/exportarAtlas'
+import { reproducirPreparacion } from '@/lib/reproducirPreparacion'
 import { normalizarCorte } from '@/lib/planoDeCorte'
 import { exigirIdentificador } from '@/lib/validacion'
 
@@ -149,6 +150,8 @@ export interface ModeloExportado {
   pielFuera: string[]
   /** El hueso partido y sus dos nodos, o `null` si no se pidió corte. */
   corte: CorteExportado | null
+  /** Lo que no se pudo rehacer de la preparación o no encaja con el simulador. Vacío si nada. */
+  avisos: string[]
 }
 
 /**
@@ -260,16 +263,23 @@ export async function exportarPreparacion(
 
   const colores = Object.fromEntries(catalogo.sistemas.map((s) => [s.id, s.color]))
   const nombresDeSistema = Object.fromEntries(catalogo.sistemas.map((s) => [s.id, s.nombre]))
-  const protagonistas = Array.isArray(opciones.protagonistas)
+  // Lo guardado, rehecho tal como el taller lo dibuja: los cortes hechos, lo
+  // movido en su sitio, los trozos apagados fuera. Sin esto el archivo salía
+  // con la geometría original de cada pieza y no se parecía a lo que se veía.
+  const rehecha = reproducirPreparacion(contenido, leidas)
+  const pedidas = Array.isArray(opciones.protagonistas)
     ? opciones.protagonistas.map((p) => String(p)).filter(Boolean)
     : []
+  const protagonistas = [...new Set([...rehecha.sueltas, ...pedidas])]
 
   const { objetos, piezas, centro, sinLaPiel, pielRecortada, pielFuera, sinTraducir, corte: cortado } =
-    prepararExportacion(leidas, {
+    prepararExportacion(rehecha.piezas, {
       protagonistas,
       colores,
       nombresDeSistema,
       corte,
+      // Un guion que pasa su propio corte manda: el de la preparación solo vale cuando nadie pidió otro.
+      partido: corte ? null : rehecha.partido,
     })
   const glb = escribirGlb(objetos, 'TraumaHub · exportado del atlas anatómico')
 
@@ -319,6 +329,7 @@ export async function exportarPreparacion(
         ` Centrado en su propia caja: para devolverlo a su sitio en el cuerpo, ` +
         `sumar ${milimetros} mm (x, y, z).` +
         avisosDeLaExportacion({ pielRecortada, pielFuera, sinTraducir, corte: cortado })
+          .concat(rehecha.avisos)
           .map((aviso) => ` ${aviso}`)
           .join(''),
     } as never,
@@ -334,6 +345,7 @@ export async function exportarPreparacion(
 
   return {
     id: String((creado as { id: unknown }).id),
+    avisos: rehecha.avisos,
     nombre,
     bytes: glb.byteLength,
     nodos: nombresDelArchivo(objetos),

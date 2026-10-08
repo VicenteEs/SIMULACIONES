@@ -419,6 +419,15 @@ export interface FasesQuirurgica {
 export interface Instrumental {
   id: number;
   nombre: string;
+  /**
+   * Sin tildes ni espacios. Es el nombre del archivo del modelo 3D: «tijera-mayo.glb» se enlaza solo con el instrumento «tijera-mayo». Si se deja vacío se saca del nombre.
+   */
+  slug?: string | null;
+  /**
+   * Agrupa el listado del taller. No cambia nada del simulador.
+   */
+  categoria?:
+    ('corte' | 'suturas' | 'exposicion' | 'periostio' | 'reduccion' | 'fijacion' | 'modelado' | 'enclavado') | null;
   icono?:
     | (
         | 'generico'
@@ -436,9 +445,25 @@ export interface Instrumental {
     | null;
   descripcion?: string | null;
   /**
+   * Largo, diámetros, sistemas en que se usa. Es lo que se le pasa a quien modela.
+   */
+  especificaciones?: string | null;
+  /**
    * Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez: trece modelos cargando a la vez en la bandeja dejarían la consola inservible en un portátil modesto.
    */
   modelo?: (number | null) | Modelos3D;
+  /**
+   * Lo que se corrigió en el taller anatómico (pestaña «Instrumental»): partes ocultas o recoloreadas, piezas movidas y el estado inicial de las articulaciones. Se escribe desde el taller, no a mano.
+   */
+  ajustes?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   /**
    * Solo para ordenar el catálogo. La bandeja de un caso la forman los instrumentos que sus pasos declaran, no esta lista.
    */
@@ -2445,9 +2470,13 @@ export interface FasesQuirurgicasSelect<T extends boolean = true> {
  */
 export interface InstrumentalSelect<T extends boolean = true> {
   nombre?: T;
+  slug?: T;
+  categoria?: T;
   icono?: T;
   descripcion?: T;
+  especificaciones?: T;
   modelo?: T;
+  ajustes?: T;
   tecnicas?: T;
   orden?: T;
   updatedAt?: T;

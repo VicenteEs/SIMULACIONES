@@ -576,6 +576,63 @@ export function visibilidadDelPaso(
 }
 
 /**
+ * Cruza lo que el caso quiere ver con lo que el archivo de verdad trae (O-078).
+ *
+ * `visibilidadDelPaso` sabe qué nodos declara el caso, pero no cuáles existen:
+ * eso solo lo sabe el lienzo, con el modelo abierto. Y el caso y el archivo se
+ * separan sin ruido —alguien vuelve a exportar el hueso fundido en un solo
+ * objeto («Esqueleto») y las noventa y nueve piezas que el caso declaraba, de la
+ * exportación anterior, ya no están en ninguna parte—. Con esos nombres,
+ * `mostrar` apagaba **todas** las mallas, porque ninguna estaba en la lista: el
+ * lienzo en negro, sin un mensaje, y el modelo perfectamente cargado detrás.
+ * Es el mismo fallo que corrigió D-078 para las capas apagadas, llegando por
+ * otra puerta.
+ *
+ * Regla: se enseña lo declarado **que exista**. Si no existe nada de lo
+ * declarado, se enseña el modelo entero (`nodos: null`) y `sinCoincidencias`
+ * lo dice para que la consola avise. Antes que no enseñar nada, se enseña algo y
+ * se explica.
+ *
+ * Los `ausentes` son los declarados que el archivo no tiene, en el orden en que
+ * llegaron y sin repetir: con ellos el taller de piezas y la consola dicen
+ * cuáles son, en vez de un «hay piezas que faltan» que nadie puede arreglar.
+ */
+export function reconciliarConElModelo(
+  nodos: string[] | null,
+  existentes: string[],
+): { nodos: string[] | null; ausentes: string[]; sinCoincidencias: boolean } {
+  if (nodos === null) return { nodos: null, ausentes: [], sinCoincidencias: false }
+  const hay = new Set(existentes)
+  const presentes: string[] = []
+  const ausentes: string[] = []
+  for (const nodo of nodos) {
+    if (hay.has(nodo)) presentes.push(nodo)
+    else if (!ausentes.includes(nodo)) ausentes.push(nodo)
+  }
+  // Un modelo sin mallas con nombre no permite decidir nada: no hay a qué
+  // aplicar la lista, y apagarlo tampoco serviría.
+  if (presentes.length === 0) return { nodos: null, ausentes, sinCoincidencias: nodos.length > 0 }
+  return { nodos: presentes, ausentes, sinCoincidencias: false }
+}
+
+/**
+ * Las piezas del caso que el archivo no tiene, y cuántas son del total.
+ *
+ * Para decirlo una vez al abrir el caso y para el aviso permanente del editor:
+ * es lo que separa «el modelo no carga» de «el modelo carga y el caso habla de
+ * otro archivo», dos fallos que en pantalla se ven igual.
+ */
+export function piezasQueFaltanEnElArchivo(
+  piezas: PiezaConRol[],
+  existentes: string[],
+): { ausentes: string[]; total: number } {
+  const hay = new Set(existentes)
+  const ausentes: string[] = []
+  for (const p of piezas) if (p.nodo && !hay.has(p.nodo) && !ausentes.includes(p.nodo)) ausentes.push(p.nodo)
+  return { ausentes, total: new Set(piezas.map((p) => p.nodo).filter(Boolean)).size }
+}
+
+/**
  * Las capas apagadas que el paso declara ver: al entrar en él se encienden.
  *
  * El paso manda sobre el interruptor, que es para lo que existe `muestra`. Al

@@ -105,6 +105,18 @@ const LOS_PONE_PAYLOAD = new Set([
 ])
 
 /**
+ * Campos que se escriben desde otra pantalla y a propósito no están en el editor
+ * genérico, porque son json y este no tiene control para editarlo a mano.
+ *
+ * `instrumental.ajustes` son los retoques del modelo (partes ocultas, colores,
+ * piezas corridas): los escribe el taller anatómico, pestaña «Instrumental»
+ * (D-165), con asas y una vista previa, que es la única forma sensata de
+ * hacerlo. Consecuencia conocida: duplicar un instrumento desde el panel de
+ * contenido no copia sus retoques.
+ */
+const LOS_ESCRIBE_OTRA_PANTALLA = new Set(['instrumental.ajustes'])
+
+/**
  * Campos obligatorios de primer nivel de una colección.
  *
  * «Primer nivel» es del dato, no de la pantalla: las pestañas, las filas y los
@@ -213,6 +225,7 @@ describe('el esquema del panel cubre las colecciones', () => {
       const enElEsquema = new Set([...recorrerCampos(camposDe(esquema))].map((c) => c.nombre))
       for (const nombre of nombresDeCamposHondo(coleccion.fields)) {
         if (LOS_PONE_PAYLOAD.has(nombre)) continue
+        if (LOS_ESCRIBE_OTRA_PANTALLA.has(`${esquema.slug}.${nombre}`)) continue
         expect(enElEsquema, `${esquema.slug}.${nombre} falta en el esquema del panel`).toContain(
           nombre,
         )

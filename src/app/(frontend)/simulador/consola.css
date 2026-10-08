@@ -678,6 +678,19 @@
    un mínimo gana siempre a una altura, así que el marco de «Cargando visor…»
    medía 242 px en vez de los 170 que pide la línea de abajo. */
 .consola-instrumento .visor-3d-marco { min-height: 0; height: 170px; border: 0; border-radius: 0; }
+/* El visor articulado dibuja su propio lienzo: se le da el alto que a los demás. */
+.consola-instrumento-visor { position: relative; height: 200px; }
+.consola-instrumento-articulaciones { display: grid; gap: var(--e-1); padding: var(--e-2) var(--e-3); border-top: 1px solid var(--c-linea); }
+.consola-instrumento-articulacion {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 4.5em;
+  align-items: center;
+  gap: var(--e-2);
+  font-size: var(--t-xs);
+  color: var(--c-texto-2);
+}
+.consola-instrumento-articulacion input { width: 100%; min-width: 0; }
+.consola-instrumento-articulacion output { text-align: right; font-variant-numeric: tabular-nums; }
 .consola-instrumento-texto {
   margin: 0;
   padding: var(--e-2) var(--e-3);
@@ -685,6 +698,215 @@
   line-height: 1.5;
   color: var(--c-texto-2);
   border-top: 1px solid var(--c-linea);
+}
+
+/* ==========================================================================
+   D-166: pasos que se pueden tocar, rayos X, instrumento en la escena y el
+   editor del caso, que es esta misma consola con un panel encima.
+   ========================================================================== */
+
+/* La franja de pasos y, a su lado, los botones de añadir / mover / quitar que
+   solo existen en el editor. La fila es la que ocupa el área de la rejilla. */
+.consola-pasos-fila {
+  grid-area: pasos;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  background: var(--c-fondo);
+  border-bottom: 1px solid var(--c-linea);
+}
+.consola-pasos-fila .consola-pasos {
+  grid-area: auto;
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+.consola-pasos-acciones {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  padding: 0 var(--e-4);
+  border-left: 1px solid var(--c-linea);
+}
+/* En el editor cada paso es un botón: se salta a cualquiera. Sin caja ni
+   relleno propios, para que la franja se vea igual que la del residente. */
+.consola-paso-boton {
+  /* Por encima del hilo que une los pasos (`.consola-paso::after`): sin esto el
+     hilo recibía el clic y el botón no respondía. */
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.consola-paso-boton:hover .consola-paso-titulo { color: var(--c-texto); }
+
+/* ---------- rayos X: el panel y sus ayudas ---------- */
+.consola-escopia {
+  position: absolute;
+  top: calc(var(--e-3) + 44px);
+  right: var(--e-3);
+  z-index: 2;
+  display: grid;
+  gap: var(--e-2);
+  width: 252px;
+  padding: var(--e-3);
+  font-size: var(--t-xs);
+  color: var(--c-texto-2);
+  background: rgba(15, 23, 41, 0.88);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(6px);
+}
+.consola-escopia-cabeza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-rotulo);
+}
+.consola-escopia-cabeza > span:first-child { display: inline-flex; align-items: center; gap: var(--e-1); }
+.consola-escopia-tiempo { font-size: var(--t-sm); color: var(--c-texto); }
+.consola-escopia-tiempo.alto { color: var(--c-atencion); }
+.consola-escopia-vistas {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--e-1);
+  padding: var(--e-1);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+}
+.consola-escopia-vista {
+  min-height: 32px;
+  font: inherit;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--c-texto-2);
+  background: none;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.consola-escopia-vista:hover { color: var(--c-texto); }
+.consola-escopia-vista.activo { color: var(--c-fondo); background: var(--c-texto); }
+.consola-escopia-opcion { display: flex; align-items: flex-start; gap: var(--e-2); cursor: pointer; }
+.consola-escopia-opcion input { margin-top: 2px; flex: none; }
+.consola-escopia-opcion small { display: block; margin-top: 1px; color: var(--c-rotulo); }
+.consola-escopia-lectura,
+.consola-escopia-aviso { margin: 0; line-height: 1.45; }
+.consola-escopia-lectura strong { color: var(--c-texto); }
+.consola-escopia-aviso { color: var(--c-atencion); }
+
+/* ---------- bandeja: grupos, búsqueda y marcas del editor ---------- */
+.consola-busqueda {
+  width: 100%;
+  margin: 0 0 var(--e-3);
+  padding: var(--e-2) var(--e-3);
+  font: inherit;
+  font-size: var(--t-sm);
+  color: var(--c-texto);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r);
+}
+.consola-bandeja-grupo + .consola-bandeja-grupo { margin-top: var(--e-4); }
+.consola-bandeja-categoria {
+  margin: 0 0 var(--e-2);
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-rotulo);
+}
+.instrumento.del-paso { border-color: var(--c-bien); }
+.instrumento-etiqueta {
+  align-self: flex-start;
+  padding: 1px var(--e-1);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--c-texto-2);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-sm);
+}
+.instrumento-etiqueta-paso { color: var(--c-bien); border-color: var(--c-bien); }
+.consola-instrumento-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  padding: var(--e-2) var(--e-3) var(--e-3);
+  border-top: 1px solid var(--c-linea);
+}
+
+/* ---------- el editor del caso: la consola, a todo el ancho ---------- */
+/* Más ancha en las dos columnas de los lados y con un lienzo alto: el autor
+   trabaja sobre el modelo, no lo mira de pasada. El mínimo de 460 px de arriba
+   es para un residente en un portátil; aquí manda la altura de la ventana. */
+.consola-editor {
+  grid-template-columns: 196px minmax(0, 1fr) minmax(360px, 420px);
+  margin: var(--e-3) 0 var(--e-6);
+}
+/* El alto del lienzo lo fija la ventana, no el contenido: con el panel de edición
+   largo en la columna de al lado, el lienzo se estiraba hasta los cuatro mil
+   píxeles. Las dos columnas se desplazan por dentro y la fila mide lo que el
+   lienzo con sus medidas. */
+.consola.consola-editor { --alto-editor: clamp(520px, 72vh, 920px); }
+.consola.consola-editor .consola-lienzo-marco,
+.consola.consola-editor .consola-lienzo { flex: none; height: var(--alto-editor); min-height: 0; }
+.consola-editor .consola-izq,
+.consola-editor .consola-der {
+  max-height: calc(var(--alto-editor) + 120px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.consola-editor .consola-segmentado { grid-template-columns: repeat(2, 1fr); }
+.consola-editor-panel {
+  display: grid;
+  gap: var(--e-3);
+  min-width: 0;
+  padding-bottom: var(--e-4);
+  border-bottom: 1px solid var(--c-linea);
+}
+@media (max-width: 1200px) {
+  .consola-editor { grid-template-columns: 180px minmax(0, 1fr) minmax(320px, 380px); }
+}
+
+/* La consola del residente, a todo el ancho de la pantalla (D-166). El `main`
+   de la plataforma mide 1120 px para leer texto, y una consola con un lienzo, dos
+   columnas y las medidas es justo lo contrario de un texto: el lienzo es lo que
+   se mira y cada píxel de ancho es hueso. `:has` limita el cambio a la página
+   que contiene la consola; el resto de la plataforma no se entera. */
+main:has(.consola:not(.consola-editor)) { max-width: min(1760px, 100%); }
+main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
+  grid-template-columns: 240px minmax(0, 1fr) 340px;
+}
+@media (max-width: 1200px) {
+  main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
+    grid-template-columns: 200px minmax(0, 1fr) 280px;
+  }
+}
+/* Y más alto, por la misma razón; en el móvil manda su propia regla de abajo. */
+@media (min-width: 901px) {
+  main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) .consola-lienzo-marco,
+  main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) .consola-lienzo {
+    min-height: clamp(460px, 64vh, 780px);
+  }
 }
 
 /* ---------- caso terminado ---------- */
@@ -823,7 +1045,9 @@
   .consola-datos dd { margin: 0; font-size: var(--t-xs); font-weight: 600; color: var(--c-texto-2); }
   .consola-reiniciar { grid-area: reiniciar; font-size: var(--t-xs); }
 
-  .consola-pasos { order: 1; padding: var(--e-2) var(--e-4); }
+  .consola-pasos-fila { order: 1; }
+  .consola-pasos { padding: var(--e-2) var(--e-4); }
+  .consola-editor-panel { order: 5; padding: var(--e-4); }
   .consola-paso { flex: 0 0 132px; }
 
   .consola-fin { order: 2; margin: var(--e-4); }

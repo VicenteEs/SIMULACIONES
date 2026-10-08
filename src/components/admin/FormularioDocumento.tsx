@@ -44,7 +44,15 @@ import { useConfirmar } from '@/components/ui/Confirmar'
 import { useAvisos } from '@/components/ui/Avisos'
 import { MenuAcciones, type OpcionDeMenu } from '@/components/ui/MenuAcciones'
 import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
+import dynamic from 'next/dynamic'
 import { FilaDeCampos, type Relaciones } from './formulario/Campos'
+
+// La consola quirúrgica entera no viaja con el formulario de las demás fichas:
+// se pide solo al abrir la sección que la usa (D-166).
+const EditorDelSimulador = dynamic(
+  () => import('./formulario/EditorDelSimulador').then((m) => m.EditorDelSimulador),
+  { ssr: false, loading: () => <p className="campo-ayuda">Abriendo la consola…</p> },
+)
 import { RevisionEnElEditor } from './RevisionEnElEditor'
 import { useSeguimientoDeRevision } from './useSeguimientoDeRevision'
 import { useCopiaLocal } from './useCopiaLocal'
@@ -1306,7 +1314,7 @@ export function FormularioDocumento({
       ) : null}
 
       <section
-        className="editor-seccion"
+        className={`editor-seccion${esquema.secciones[seccion]?.vista ? ' editor-seccion-ancha' : ''}`}
         role={esquema.secciones.length > 1 ? 'tabpanel' : undefined}
         id={`${idBase}-panel`}
         aria-labelledby={esquema.secciones.length > 1 ? `${idBase}-pestana-${seccion}` : undefined}
@@ -1314,13 +1322,26 @@ export function FormularioDocumento({
         {esquema.secciones[seccion]?.descripcion ? (
           <p className="editor-seccion-nota">{esquema.secciones[seccion].descripcion}</p>
         ) : null}
-        <FilaDeCampos
-          campos={esquema.secciones[seccion]?.campos ?? []}
-          valores={valores}
-          alCambiar={cambiar}
-          relaciones={relaciones}
-          alRecargarRelacion={(coleccion) => void cargarRelacion(coleccion, true)}
-        />
+        {esquema.secciones[seccion]?.vista === 'simulador' ? (
+          // La consola del residente con el editor encima (D-166). Escribe sobre
+          // los mismos `valores` que la fila de campos de abajo.
+          <EditorDelSimulador
+            campos={esquema.secciones[seccion].campos}
+            valores={valores}
+            alCambiar={cambiar}
+            relaciones={relaciones}
+            alRecargarRelacion={(coleccion) => void cargarRelacion(coleccion, true)}
+            documentoId={id}
+          />
+        ) : (
+          <FilaDeCampos
+            campos={esquema.secciones[seccion]?.campos ?? []}
+            valores={valores}
+            alCambiar={cambiar}
+            relaciones={relaciones}
+            alRecargarRelacion={(coleccion) => void cargarRelacion(coleccion, true)}
+          />
+        )}
       </section>
     </div>
   )

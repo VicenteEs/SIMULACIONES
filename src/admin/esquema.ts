@@ -19,6 +19,7 @@
 // `bloques.ts` solo importa de aquí un tipo, que se borra al compilar, así que
 // este par no forma un ciclo en tiempo de ejecución.
 import { BLOQUES } from './bloques'
+import { CATEGORIAS_DE_INSTRUMENTAL } from '@/lib/instrumental'
 
 export type TipoDeCampo =
   | 'texto'
@@ -176,6 +177,17 @@ export interface Seccion {
   titulo: string
   descripcion?: string
   campos: Campo[]
+  /**
+   * Una pantalla propia para esta sección, en lugar de la fila de campos.
+   *
+   * `simulador` es la consola quirúrgica del residente, con el editor del caso
+   * encima (D-166): el autor escribe los pasos mirando lo que verá quien los
+   * recorra. Los `campos` se declaran igual —de ellos salen la validación, el
+   * recuento de palabras y la revisión—, y la pantalla propia escribe sobre
+   * esos mismos valores: es otra forma de llenar el mismo formulario, no otro
+   * formulario.
+   */
+  vista?: 'simulador'
 }
 
 export interface Columna {
@@ -551,9 +563,10 @@ export const Cirugias: EsquemaDeColeccion = {
       ],
     },
     {
-      titulo: 'El modelo',
+      titulo: 'Simulador',
+      vista: 'simulador',
       descripcion:
-        'Exporte desde Blender el hueso ya partido y REDUCIDO, con cada trozo como un objeto con nombre. El desplazamiento de la fractura se describe aquí abajo, no en el archivo: así la reducción correcta es siempre volver al cero y la consola puede medir cuánto falta.',
+        'Es la consola del residente, con el editor encima: lo que se escribe a la derecha se ve cambiar en el lienzo y en el paso. El modelo se exporta desde Blender con el hueso ya partido y REDUCIDO, con cada trozo como un objeto con nombre. El desplazamiento de la fractura se describe en «El caso» del panel, no en el archivo: así la reducción correcta es siempre volver al cero y la consola puede medir cuánto falta.',
       campos: [
         {
           tipo: 'relacion',
@@ -644,13 +657,6 @@ export const Cirugias: EsquemaDeColeccion = {
             { tipo: 'numero', nombre: 'giroZ', etiqueta: 'Angulación Z (°)', medio: true },
           ],
         },
-      ],
-    },
-    {
-      titulo: 'Guion quirúrgico',
-      descripcion:
-        'Cada paso declara qué se le mide al residente. Solo el título y el objetivo son obligatorios: rellene lo demás cuando lo tenga claro, y publique cuando esté completo.',
-      campos: [
         {
           tipo: 'lista',
           nombre: 'pasos',
@@ -1303,6 +1309,21 @@ export const Instrumental: EsquemaDeColeccion = {
       campos: [
         { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre del instrumento', requerido: true },
         {
+          tipo: 'texto',
+          nombre: 'slug',
+          etiqueta: 'Identificador del modelo',
+          medio: true,
+          ayuda:
+            'Es el nombre con que se enlaza su archivo: «tijera-mayo» recibe a «tijera-mayo.glb». Se rellena solo desde el nombre.',
+        },
+        {
+          tipo: 'seleccion',
+          nombre: 'categoria',
+          etiqueta: 'Categoría',
+          medio: true,
+          opciones: CATEGORIAS_DE_INSTRUMENTAL.map((c) => ({ valor: c.value, etiqueta: c.label })),
+        },
+        {
           tipo: 'seleccion',
           nombre: 'icono',
           etiqueta: 'Icono',
@@ -1323,6 +1344,7 @@ export const Instrumental: EsquemaDeColeccion = {
         },
         { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden en la bandeja', medio: true },
         { tipo: 'area', nombre: 'descripcion', etiqueta: 'Para qué sirve' },
+        { tipo: 'area', nombre: 'especificaciones', etiqueta: 'Medidas y especificaciones' },
         {
           tipo: 'relacion',
           nombre: 'modelo',

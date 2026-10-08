@@ -188,7 +188,7 @@ function modeloParaEncuadrar(
  * decide nada. Los tres sitios se mueven juntos; separarlos no da ningún error,
  * solo deja otra vez una pantalla que enseña una cosa y guarda otra.
  */
-function valoresPorOmision(campos: Campo[]): Record<string, unknown> {
+export function valoresPorOmision(campos: Campo[]): Record<string, unknown> {
   const valores: Record<string, unknown> = {}
   for (const campo of campos) {
     if (campo.tipo === 'seleccion') {

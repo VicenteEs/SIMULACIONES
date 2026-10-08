@@ -1,13 +1,24 @@
 'use client'
 
-import { useEffect, useImperativeHandle, useRef, type RefObject } from 'react'
+import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { ruta } from '@/lib/rutas'
-import { desplazamientoDesde, posicionAbsoluta } from '@/lib/reduccion'
+import { desplazamientoDesde, posicionAbsoluta, type EjeLargo } from '@/lib/reduccion'
+import { reconciliarConElModelo } from '@/lib/simulador'
+import {
+  aplicarColores,
+  aplicarEntorno,
+  aplicarPose,
+  liberarHerramienta,
+  prepararHerramienta,
+  type HerramientaCargada,
+} from '@/instrumental/herramienta3d'
+import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 // La regla base de `.consola-lienzo` vive en la hoja de la consola, y este
 // lienzo lo monta también el taller de piezas del panel: sin importarla aquí,
 // allí el contenedor mediría cero de alto. El porqué, en la cabecera de la hoja.
@@ -38,9 +49,32 @@ export interface Punto3 {
   z: number
 }
 
+/** Lo que el lienzo pudo y no pudo mostrar de lo que se le pidió (O-078). */
+export interface ResultadoDeMostrar {
+  /** Los nodos pedidos que el archivo no tiene. */
+  ausentes: string[]
+  /** No se pudo mostrar **ninguno** de los pedidos: se enseñó el modelo entero. */
+  sinCoincidencias: boolean
+}
+
+/** Las dos proyecciones de un C-arm, y la vista libre del ratón. */
+export type VistaDeEscopia = 'libre' | 'ap' | 'lateral'
+
 export interface MandoDelLienzo {
-  /** Enciende o apaga los nodos indicados. */
-  mostrar: (nodos: string[] | null) => void
+  /**
+   * Enciende o apaga los nodos indicados.
+   *
+   * Lo que el archivo no tiene se ignora, y si no tiene **nada** de lo pedido se
+   * enseña el modelo entero y se dice (`sinCoincidencias`): antes eso apagaba
+   * todas las mallas y el lienzo quedaba en negro (O-078).
+   */
+  mostrar: (nodos: string[] | null) => ResultadoDeMostrar
+  /** ¿Trae el archivo el nodo declarado como fragmento móvil? */
+  hayFragmento: () => boolean
+  /** Los objetos que se ven ahora mismo: lo que el autor capturaría como «lo que se ve en este paso». */
+  nodosVisibles: () => string[]
+  /** Pone la cámara en una proyección de rayos X, o la devuelve a la libre. */
+  mirarDesde: (vista: VistaDeEscopia) => void
   /** Coloca el fragmento móvil en un desplazamiento dado, en unidades del archivo. */
   colocarFragmento: (posicion: Punto3, giros: Punto3) => void
   /**
@@ -71,6 +105,28 @@ export interface MandoDelLienzo {
   datosDeLosNodos: () => DatosDeNodo[]
 }
 
+/** El instrumento que el residente tiene en la mano, ya con lo que el administrador retocó. */
+export interface InstrumentoEnEscena {
+  url: string
+  ajustes: AjustesDeInstrumento | null
+  /** El valor de cada articulación, en su unidad (grados o milímetros). */
+  articulaciones: Record<string, number>
+}
+
+/**
+ * Lo que la vista de rayos X dibuja de más para enseñar (D-166).
+ *
+ * Son ayudas de aprendizaje, no del caso: en una radioscopia real no se ve dónde
+ * *debe* quedar el hueso ni el eje del fragmento. Se ofrecen aparte, apagables,
+ * para que quien aprende pueda quitárselas cuando ya sabe leer la imagen.
+ */
+export interface AyudasDeEscopia {
+  /** El fragmento en su sitio correcto, como silueta verde. */
+  objetivo: boolean
+  /** El eje del hueso fijo y el del fragmento: lo que separa a los dos es la angulación. */
+  ejes: boolean
+}
+
 export interface DatosDeNodo {
   nodo: string
   datos: Record<string, unknown>
@@ -91,6 +147,11 @@ export function LienzoQuirurgico({
   piezas,
   modo,
   fluoroscopia,
+  instrumento = null,
+  ayudas,
+  milimetrosPorUnidad = 1000,
+  ejeLargo = 'y',
+  alCargarInstrumento,
   alTrazar,
   alMoverFragmento,
   alCargar,
@@ -101,7 +162,28 @@ export function LienzoQuirurgico({
   url: string
   piezas: PiezaDelCaso[]
   modo: Modo
+  /**
+   * La vista de rayos X: la misma que el taller anatómico, todo translúcido al
+   * 50 % (`OPACIDAD_DE_RAYOS_X`). Se llamó fluoroscopia y el nombre se quedó.
+   */
   fluoroscopia: boolean
+  /**
+   * El instrumento que el residente eligió. Aparece en la escena, sigue al
+   * cursor sobre el modelo y se articula con los valores que le lleguen.
+   */
+  instrumento?: InstrumentoEnEscena | null
+  /** Las ayudas que se dibujan con los rayos X encendidos. */
+  ayudas?: AyudasDeEscopia
+  /**
+   * Cuántos milímetros mide una unidad del archivo. El instrumento viene en
+   * metros: sin esta cuenta, en un modelo exportado en milímetros saldría mil
+   * veces más pequeño que el hueso.
+   */
+  milimetrosPorUnidad?: number
+  /** Hacia dónde va el eje largo del hueso, para las proyecciones y la guía de eje. */
+  ejeLargo?: EjeLargo
+  /** El instrumento terminó de cargar: qué articulaciones declara, o por qué no abrió. */
+  alCargarInstrumento?: (articulaciones: ArticulacionDeclarada[] | null, error?: string) => void
   /** Se llama con el trazo completo cada vez que cambia. */
   alTrazar?: (puntos: Punto3[]) => void
   /**
@@ -127,7 +209,7 @@ export function LienzoQuirurgico({
    * letra de diferencia no da error: deja una pieza que no se enciende.
    */
   alSenalar?: (nodo: string) => void
-  mando?: RefObject<MandoDelLienzo | null>
+  mando?: Ref<MandoDelLienzo>
 }) {
   const lienzo = useRef<HTMLDivElement>(null)
 
@@ -161,25 +243,81 @@ export function LienzoQuirurgico({
      * «Solo esto» del autor en cuanto pulsara cualquier otra cosa.
      */
     rolesAplicados: Map<string, PiezaDelCaso['rol']>
+    herramienta?: HerramientaCargada
+    /** El entorno de estudio que reflejan los instrumentos (el acero sin él se ve negro). */
+    entorno?: THREE.Texture
+    fantasma?: THREE.Object3D
+    guias?: THREE.LineSegments
+    /** Pone el instrumento sobre lo que hay en el centro de la vista, sin esperar al cursor. */
+    herramientaAlCentro?: () => void
     pedirDibujo?: () => void
   }>({ puntosDelTrazo: [], materialesOriginales: new Map(), rolesAplicados: new Map() })
 
   // Lo que leen los manejadores sin volver a montar la escena.
-  const ultimas = useRef({ modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar, alSenalar, alFallar })
+  const ultimas = useRef({
+    modo,
+    piezas,
+    fluoroscopia,
+    instrumento,
+    ayudas,
+    milimetrosPorUnidad,
+    ejeLargo,
+    alTrazar,
+    alMoverFragmento,
+    alCargar,
+    alSenalar,
+    alFallar,
+    alCargarInstrumento,
+  })
   useEffect(() => {
-    ultimas.current = { modo, piezas, fluoroscopia, alTrazar, alMoverFragmento, alCargar, alSenalar, alFallar }
+    ultimas.current = {
+      modo,
+      piezas,
+      fluoroscopia,
+      instrumento,
+      ayudas,
+      milimetrosPorUnidad,
+      ejeLargo,
+      alTrazar,
+      alMoverFragmento,
+      alCargar,
+      alSenalar,
+      alFallar,
+      alCargarInstrumento,
+    }
   })
 
   useImperativeHandle(mando, () => ({
     mostrar: (nodos) => {
       const raiz = taller.current.raiz
-      if (!raiz) return
+      if (!raiz) return { ausentes: [], sinCoincidencias: false }
+      const existentes: string[] = []
+      raiz.traverse((objeto) => {
+        if ((objeto as THREE.Mesh).isMesh && objeto.name) existentes.push(objeto.name)
+      })
+      // Se enseña lo declarado **que exista**; si no existe nada de lo declarado,
+      // el modelo entero. Apagarlo todo por no encontrar los nombres era el
+      // lienzo en negro de O-078.
+      const { nodos: visibles, ausentes, sinCoincidencias } = reconciliarConElModelo(nodos, existentes)
       raiz.traverse((objeto) => {
         if (!(objeto as THREE.Mesh).isMesh) return
-        objeto.visible = nodos === null || nodos.includes(objeto.name)
+        objeto.visible = visibles === null || visibles.includes(objeto.name)
       })
       taller.current.pedirDibujo?.()
+      return { ausentes, sinCoincidencias }
     },
+
+    hayFragmento: () => !!taller.current.fragmento,
+
+    nodosVisibles: () => {
+      const nombres: string[] = []
+      taller.current.raiz?.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh && o.name && o.visible) nombres.push(o.name)
+      })
+      return nombres
+    },
+
+    mirarDesde: (vista) => mirarDesdeProyeccion(taller.current, vista, ultimas.current.ejeLargo),
 
     colocarFragmento: (posicion, giros) => {
       const { fragmento, origenDelFragmento: origen } = taller.current
@@ -283,8 +421,13 @@ export function LienzoQuirurgico({
     }
     controles.addEventListener('change', pedirDibujo)
 
+    // Un estudio que reflejar, solo para los instrumentos (ver `aplicarEntorno`).
+    const pmrem = new THREE.PMREMGenerator(render)
+    const entorno = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+
     taller.current = {
       ...taller.current,
+      entorno,
       render,
       escena,
       camara,
@@ -338,6 +481,7 @@ export function LienzoQuirurgico({
           : undefined
         aplicarPiezas(taller.current, ultimas.current.piezas)
         if (ultimas.current.fluoroscopia) aplicarFluoroscopia(taller.current, true)
+        sincronizarAyudas(taller.current, ultimas.current.fluoroscopia, ultimas.current.ayudas)
 
         // El encuadre va DESPUÉS de avisar, y el orden no es un detalle. Quien
         // escucha es la consola, que en ese momento apaga las capas que no
@@ -391,6 +535,74 @@ export function LienzoQuirurgico({
       // trazaría sobre la piel apagada creyendo trazar sobre el hueso.
       const golpes = rayo.intersectObject(raiz, true).filter((g) => g.object.visible)
       return golpes[0] ?? null
+    }
+
+    /**
+     * Pone el instrumento donde apunta el rayo: la punta en la superficie, el
+     * mango hacia fuera y algo inclinado hacia arriba de la pantalla, que es
+     * como se agarra. Sin golpe se esconde: un instrumento flotando sobre el
+     * fondo no dice nada, y tapar el modelo con él tampoco.
+     */
+    const posarHerramienta = (golpe: THREE.Intersection | null) => {
+      const herramienta = taller.current.herramienta
+      if (!herramienta) return
+      if (!golpe) {
+        if (herramienta.raiz.visible) {
+          herramienta.raiz.visible = false
+          pedirDibujo()
+        }
+        return
+      }
+      const normal = golpe.face
+        ? golpe.face.normal.clone().transformDirection(golpe.object.matrixWorld)
+        : new THREE.Vector3(0, 0, 1)
+      // La normal de una malla abierta puede apuntar al lado contrario: se
+      // toma la que mira hacia quien mira.
+      if (normal.dot(rayo.ray.direction) > 0) normal.negate()
+      const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(camara.quaternion)
+      const direccion = normal.clone().multiplyScalar(0.85).addScaledVector(arriba, 0.65).normalize()
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      herramienta.raiz.position.copy(golpe.point).addScaledVector(normal, unidadesPorMm * 0.4)
+      herramienta.raiz.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direccion)
+      herramienta.raiz.visible = true
+      pedirDibujo()
+    }
+    taller.current.herramientaAlCentro = () => {
+      // Del centro hacia fuera: en una fractura el centro de la vista cae
+      // justo en el hueco entre los fragmentos, y un solo rayo no encuentra
+      // nada. El instrumento tiene que aparecer al cogerlo, no cuando el
+      // cursor pase por casualidad sobre el hueso.
+      const sondas: [number, number][] = [
+        [0, 0], [0.08, 0.1], [-0.08, 0.1], [0.08, -0.1], [-0.08, -0.1],
+        [0, 0.3], [0, -0.3], [0.2, 0], [-0.2, 0], [0.15, 0.3], [-0.15, -0.3],
+      ]
+      for (const [x, y] of sondas) {
+        rayo.setFromCamera(new THREE.Vector2(x, y), camara)
+        const golpe = superficieBajoElCursor()
+        if (golpe) {
+          posarHerramienta(golpe)
+          return
+        }
+      }
+      posarHerramienta(null)
+    }
+    let ultimoSeguimiento = 0
+    const seguirConLaHerramienta = (evento: PointerEvent) => {
+      if (!taller.current.herramienta) return
+      // Unos treinta cuadros por segundo bastan, y cada cruce de rayos recorre
+      // el modelo entero: en un hueso con cientos de miles de triángulos, uno
+      // por cada evento del ratón es lo que calienta el portátil.
+      const ahora = performance.now()
+      if (ahora - ultimoSeguimiento < 33) return
+      ultimoSeguimiento = ahora
+      aCoordenadas(evento)
+      posarHerramienta(superficieBajoElCursor())
+    }
+    const esconderHerramienta = () => {
+      const herramienta = taller.current.herramienta
+      if (!herramienta?.raiz.visible) return
+      herramienta.raiz.visible = false
+      pedirDibujo()
     }
 
     const alBajar = (evento: PointerEvent) => {
@@ -448,7 +660,11 @@ export function LienzoQuirurgico({
     }
 
     const alMover = (evento: PointerEvent) => {
-      if (!arrastrando) return
+      if (!arrastrando) {
+        // Sin arrastre, el instrumento solo acompaña al cursor.
+        seguirConLaHerramienta(evento)
+        return
+      }
       const { modo: modoActual } = ultimas.current
       aCoordenadas(evento)
 
@@ -463,6 +679,8 @@ export function LienzoQuirurgico({
         puntos.push({ x: golpe.point.x, y: golpe.point.y, z: golpe.point.z })
         dibujarTrazo(taller.current)
         ultimas.current.alTrazar?.([...puntos])
+        // La punta del instrumento va dibujando la incisión.
+        posarHerramienta(golpe)
         pedirDibujo()
         return
       }
@@ -502,6 +720,7 @@ export function LienzoQuirurgico({
     render.domElement.addEventListener('pointermove', alMover)
     render.domElement.addEventListener('pointerup', alSubir)
     render.domElement.addEventListener('pointerleave', alSubir)
+    render.domElement.addEventListener('pointerleave', esconderHerramienta)
 
     const observador = new ResizeObserver(() => {
       if (!contenedor.clientWidth) return
@@ -516,6 +735,9 @@ export function LienzoQuirurgico({
       const movio = controles.update()
       if (!sucio && !movio) return
       sucio = false
+      // Los ejes de la guía se recolocan en cada dibujo: el fragmento se mueve
+      // con el ratón y la guía tiene que seguirlo.
+      if (taller.current.guias) actualizarGuias(taller.current, ultimas.current.ejeLargo, ultimas.current.piezas)
       render.render(escena, camara)
     })
 
@@ -528,6 +750,7 @@ export function LienzoQuirurgico({
       render.domElement.removeEventListener('pointermove', alMover)
       render.domElement.removeEventListener('pointerup', alSubir)
       render.domElement.removeEventListener('pointerleave', alSubir)
+      render.domElement.removeEventListener('pointerleave', esconderHerramienta)
       controles.dispose()
       // El decodificador Draco es lo único que se crea aquí y no cuelga de la
       // escena, así que `liberar` no lo alcanza: cada instancia levanta su
@@ -541,6 +764,7 @@ export function LienzoQuirurgico({
       // fuera de su alcance: terminar un caso con la fluoroscopia encendida
       // dejaba sin soltar justo los materiales y las texturas del modelo.
       aplicarFluoroscopia(taller.current, false)
+      sincronizarAyudas(taller.current, false, undefined)
       // Liberar a mano: aquí hay decenas de megabytes en la tarjeta y pasear
       // por la plataforma acabaría tirando la pestaña.
       liberar(escena)
@@ -549,6 +773,8 @@ export function LienzoQuirurgico({
       // Se pierde a propósito para que la tarjeta recupere la memoria al
       // cambiar de caso y no cuando el navegador se decida. Va después de
       // `liberar`, porque el borrado de texturas necesita el contexto vivo.
+      entorno.dispose()
+      pmrem.dispose()
       render.forceContextLoss()
       render.dispose()
       render.domElement.remove()
@@ -583,6 +809,9 @@ export function LienzoQuirurgico({
       }
     }
     if (!fragmento) taller.current.origenDelFragmento = undefined
+    // El objetivo de los rayos X es copia del fragmento de antes: si cambió, se
+    // rehace en el efecto de las ayudas, que va justo detrás de este.
+    if (fragmento !== anterior) sincronizarAyudas(taller.current, false, undefined)
 
     aplicarPiezas(taller.current, piezas)
     taller.current.pedirDibujo?.()
@@ -593,6 +822,89 @@ export function LienzoQuirurgico({
     aplicarFluoroscopia(taller.current, fluoroscopia)
     taller.current.pedirDibujo?.()
   }, [fluoroscopia])
+
+  // Las ayudas de aprendizaje de los rayos X: se ponen y se quitan con ellos.
+  // Va después del efecto de las piezas, que es el que fija el fragmento y su
+  // sitio de reposo, y de lo que dependen las dos.
+  const verObjetivo = !!ayudas?.objetivo
+  const verEjes = !!ayudas?.ejes
+  useEffect(() => {
+    if (!taller.current.raiz) return
+    sincronizarAyudas(taller.current, fluoroscopia, { objetivo: verObjetivo, ejes: verEjes })
+    taller.current.pedirDibujo?.()
+  }, [fluoroscopia, verObjetivo, verEjes, piezas])
+
+  // ------------------------------------------------- el instrumento elegido
+  /**
+   * Carga el instrumento y lo pone en la escena.
+   *
+   * Se rehace al cambiar de instrumento y **también al cambiar de modelo del
+   * caso**: el montaje de arriba tira la escena entera cuando cambia `url`, y
+   * con ella al instrumento, que habría que volver a poner.
+   *
+   * Un instrumento a la vez, y solo el elegido: trece modelos cargando a la vez
+   * dejarían la consola inservible en el equipo de referencia del residente.
+   */
+  const urlDelInstrumento = instrumento?.url ?? null
+  useEffect(() => {
+    const escena = taller.current.escena
+    if (!urlDelInstrumento || !escena) return
+    let vivo = true
+    let cargado: HerramientaCargada | undefined
+    new GLTFLoader().load(
+      urlDelInstrumento,
+      (gltf) => {
+        if (!vivo) return
+        const h = prepararHerramienta(gltf.scene)
+        // El instrumento viene en metros y el caso en las unidades de su
+        // archivo: una unidad mide `milimetrosPorUnidad` mm, y un metro son mil.
+        h.raiz.scale.setScalar(1000 / (ultimas.current.milimetrosPorUnidad || 1000))
+        h.raiz.visible = false
+        escena.add(h.raiz)
+        taller.current.herramienta = h
+        cargado = h
+        const v = ultimas.current.instrumento
+        aplicarPose(h, v?.ajustes ?? null, v?.articulaciones ?? {})
+        aplicarColores(h, v?.ajustes ?? null)
+        aplicarEntorno(h, taller.current.entorno ?? null)
+        ultimas.current.alCargarInstrumento?.(h.meta?.articulaciones ?? [])
+        // Aparece al elegirlo, sin esperar a que el cursor pase por encima.
+        taller.current.herramientaAlCentro?.()
+        taller.current.pedirDibujo?.()
+      },
+      undefined,
+      () => {
+        if (!vivo) return
+        ultimas.current.alCargarInstrumento?.(null, 'No se pudo abrir el modelo de este instrumento.')
+      },
+    )
+    return () => {
+      vivo = false
+      if (cargado) {
+        liberarHerramienta(cargado)
+        if (taller.current.herramienta === cargado) taller.current.herramienta = undefined
+      }
+      taller.current.pedirDibujo?.()
+    }
+  }, [urlDelInstrumento, url])
+
+  // Su pose cambia con lo que mande el administrador y con lo que mueva quien lo usa.
+  const ajustesDelInstrumento = instrumento?.ajustes ?? null
+  const articulacionesDelInstrumento = instrumento?.articulaciones
+  useEffect(() => {
+    const h = taller.current.herramienta
+    if (!h) return
+    aplicarPose(h, ajustesDelInstrumento, articulacionesDelInstrumento ?? {})
+    aplicarColores(h, ajustesDelInstrumento)
+    taller.current.pedirDibujo?.()
+  }, [ajustesDelInstrumento, articulacionesDelInstrumento])
+
+  useEffect(() => {
+    const h = taller.current.herramienta
+    if (!h) return
+    h.raiz.scale.setScalar(1000 / (milimetrosPorUnidad || 1000))
+    taller.current.pedirDibujo?.()
+  }, [milimetrosPorUnidad])
 
   useEffect(() => {
     const controles = taller.current.controles
@@ -642,10 +954,18 @@ export type Taller = {
   controles?: OrbitControls
   raiz?: THREE.Object3D
   fragmento?: THREE.Object3D
+  /** Dónde estaba el fragmento al cargar: contra eso se mide y ahí es donde debe quedar. */
+  origenDelFragmento?: { posicion: THREE.Vector3; rotacion: THREE.Euler }
   trazo?: THREE.Line
   puntosDelTrazo: Punto3[]
   materialesOriginales: Map<THREE.Mesh, THREE.Material | THREE.Material[]>
   rolesAplicados: Map<string, PiezaDelCaso['rol']>
+  /** El instrumento que está en escena, si hay uno elegido y ya cargó. */
+  herramienta?: HerramientaCargada
+  /** La silueta del fragmento en su sitio correcto (ayuda de los rayos X). */
+  fantasma?: THREE.Object3D
+  /** Los dos ejes de la guía de angulación (ayuda de los rayos X). */
+  guias?: THREE.LineSegments
   pedirDibujo?: () => void
 }
 
@@ -776,46 +1096,239 @@ export function aplicarPiezas(taller: Taller, piezas: PiezaDelCaso[]) {
 }
 
 /**
- * Vista de fluoroscopia.
+ * La opacidad de todo con los rayos X puestos.
  *
- * No es un cálculo de atenuación: es una lectura del hueso en escala de grises,
- * sumando la luz allí donde el rayo atraviesa más material. Se consigue pintando
- * de forma aditiva y sin escribir profundidad, de modo que las capas se suman en
- * vez de taparse, que es justo lo que hace que una radiografía enseñe el interior.
- * Se guarda el material original de cada malla para poder volver.
+ * La misma que usa el taller anatómico (`OPACIDAD_DE_RAYOS_X`, en
+ * `@/atlas/cargador`): el dueño pidió que la fluoroscopia fuera **ese** RX y no
+ * otra cosa, y la forma de que no se separen es que digan lo mismo. Está
+ * repetida aquí y no importada porque aquel módulo trae los sombreadores del
+ * atlas entero, y el residente no los necesita para abrir un caso;
+ * `tests/unit/lienzoQuirurgico.test.ts` compara las dos cifras.
+ */
+export const OPACIDAD_DE_RAYOS_X = 0.5
+
+/**
+ * Vista de rayos X (D-166): la del taller anatómico, todo translúcido.
+ *
+ * Antes era una lectura en grises sumando luz (mezcla aditiva con un material
+ * plano), que se parecía a una radiografía pero no a nada de lo que el
+ * traumatólogo usa para preparar el caso: en el taller ya tenía «Rayos X», con
+ * cada pieza de su color al 50 %, y eran dos vistas distintas con el mismo
+ * nombre. Ahora es una sola.
+ *
+ * Se trabaja sobre **copias** del material: el original se guarda en el mapa y
+ * vuelve al apagar, así que el color y las texturas del archivo no se tocan, y
+ * `liberar` no se entera de nada.
  */
 function aplicarFluoroscopia(taller: Taller, encendida: boolean) {
   const raiz = taller.raiz
   if (!raiz) return
+
+  const traslucido = (material: THREE.Material): THREE.Material => {
+    const copia = material.clone()
+    copia.transparent = true
+    copia.opacity = OPACIDAD_DE_RAYOS_X
+    // Sin escribir profundidad las capas se suman en vez de taparse, que es lo
+    // que deja ver el hueso a través de la piel.
+    copia.depthWrite = false
+    return copia
+  }
 
   raiz.traverse((objeto) => {
     const malla = objeto as THREE.Mesh
     if (!malla.isMesh) return
 
     if (encendida) {
-      if (!taller.materialesOriginales.has(malla)) {
-        taller.materialesOriginales.set(malla, malla.material)
-      }
-      malla.material = new THREE.MeshBasicMaterial({
-        color: 0x9fb4c9,
-        transparent: true,
-        opacity: 0.24,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      })
+      if (taller.materialesOriginales.has(malla)) return
+      taller.materialesOriginales.set(malla, malla.material)
+      malla.material = Array.isArray(malla.material)
+        ? malla.material.map(traslucido)
+        : traslucido(malla.material)
     } else {
       const original = taller.materialesOriginales.get(malla)
-      if (original) {
-        ;(malla.material as THREE.Material).dispose?.()
-        malla.material = original
-      }
+      if (!original) return
+      for (const m of Array.isArray(malla.material) ? malla.material : [malla.material]) m.dispose()
+      malla.material = original
+      taller.materialesOriginales.delete(malla)
     }
   })
+}
 
-  if (taller.escena) {
-    taller.escena.background = encendida ? new THREE.Color(0x0d1117) : null
+// ------------------------------------------------- ayudas de los rayos X
+/**
+ * El vector de cada eje, para las proyecciones y la guía de angulación.
+ *
+ * `AP` y `lateral` son las dos vistas de un C-arm, perpendiculares entre sí y al
+ * eje largo del hueso. Con el eje en Y —lo habitual— son mirar desde delante (+Z)
+ * y desde un lado (+X).
+ */
+const VECTOR_DEL_EJE: Record<EjeLargo, THREE.Vector3> = {
+  x: new THREE.Vector3(1, 0, 0),
+  y: new THREE.Vector3(0, 1, 0),
+  z: new THREE.Vector3(0, 0, 1),
+}
+
+function proyecciones(eje: EjeLargo): { ap: THREE.Vector3; lateral: THREE.Vector3 } {
+  if (eje === 'y') return { ap: new THREE.Vector3(0, 0, 1), lateral: new THREE.Vector3(1, 0, 0) }
+  if (eje === 'x') return { ap: new THREE.Vector3(0, 0, 1), lateral: new THREE.Vector3(0, 1, 0) }
+  return { ap: new THREE.Vector3(0, 1, 0), lateral: new THREE.Vector3(1, 0, 0) }
+}
+
+/** Pone la cámara en una de las dos proyecciones, o en la de siempre. */
+function mirarDesdeProyeccion(taller: Taller, vista: VistaDeEscopia, eje: EjeLargo) {
+  const p = proyecciones(eje)
+  encuadrarVisible(taller, vista === 'ap' ? p.ap : vista === 'lateral' ? p.lateral : undefined)
+}
+
+/** Las mallas visibles que no son del fragmento, y de ellas las que el caso llama hueso. */
+function huesoFijo(taller: Taller, piezas: PiezaDelCaso[]): THREE.Mesh[] {
+  const { raiz, fragmento } = taller
+  if (!raiz) return []
+  const rolDe = new Map(piezas.map((p) => [p.nodo, p.rol]))
+  const candidatas: THREE.Mesh[] = []
+  raiz.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh || !m.visible) return
+    if (fragmento && perteneceA(m, fragmento)) return
+    candidatas.push(m)
+  })
+  const conRol = candidatas.filter((m) => rolDe.get(m.name) === 'hueso')
+  return conRol.length > 0 ? conRol : candidatas
+}
+
+/**
+ * Pone o quita las dos ayudas de aprendizaje de los rayos X.
+ *
+ * Se llama cuando cambia cualquiera de sus condiciones, y es idempotente: lo
+ * que ya está bien puesto se deja y lo que sobra se quita.
+ *
+ * El objetivo es una **copia** del fragmento colocada en el sitio de reposo, o
+ * sea donde debe quedar la reducción correcta, pintada de verde y translúcida.
+ * Comparte la geometría con el fragmento real: por eso al quitarla solo se
+ * sueltan sus materiales, y nunca su geometría.
+ */
+export function sincronizarAyudas(
+  taller: Taller,
+  encendidas: boolean,
+  ayudas: AyudasDeEscopia | undefined,
+) {
+  const escena = taller.escena
+  if (!escena) return
+
+  const quererObjetivo =
+    encendidas && !!ayudas?.objetivo && !!taller.fragmento && !!taller.origenDelFragmento
+  if (!quererObjetivo && taller.fantasma) {
+    escena.remove(taller.fantasma)
+    taller.fantasma.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (m.isMesh) (m.material as THREE.Material).dispose()
+    })
+    taller.fantasma = undefined
   }
+  if (quererObjetivo && !taller.fantasma && taller.fragmento && taller.origenDelFragmento) {
+    const original = taller.fragmento
+    const origen = taller.origenDelFragmento
+    const copia = original.clone(true)
+    copia.position.copy(origen.posicion)
+    copia.rotation.copy(origen.rotacion)
+    copia.updateMatrix()
+    const verde = new THREE.MeshBasicMaterial({
+      color: 0x3ddc84,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+    copia.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (m.isMesh) {
+        m.material = verde.clone()
+        m.renderOrder = 5
+        m.visible = true
+      }
+    })
+    verde.dispose()
+    // La copia cuelga de la escena y no del padre del fragmento, para que
+    // `raiz.traverse` —que decide qué se ve, qué se señala y qué se mide— no la
+    // encuentre. Se le pasa el mundo del padre a mano.
+    original.parent?.updateMatrixWorld(true)
+    const mundoDelPadre = original.parent ? original.parent.matrixWorld : new THREE.Matrix4()
+    const grupo = new THREE.Group()
+    grupo.matrixAutoUpdate = false
+    grupo.matrix.copy(mundoDelPadre).multiply(copia.matrix)
+    copia.matrixAutoUpdate = false
+    copia.matrix.identity()
+    grupo.add(copia)
+    grupo.userData.auxiliar = true
+    escena.add(grupo)
+    taller.fantasma = grupo
+  }
+
+  const quererEjes = encendidas && !!ayudas?.ejes && !!taller.fragmento
+  if (!quererEjes && taller.guias) {
+    escena.remove(taller.guias)
+    taller.guias.geometry.dispose()
+    ;(taller.guias.material as THREE.Material).dispose()
+    taller.guias = undefined
+  }
+  if (quererEjes && !taller.guias) {
+    const geometria = new THREE.BufferGeometry()
+    geometria.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3))
+    // Verde el eje del hueso fijo, ámbar el del fragmento: la separación entre
+    // los dos es la angulación que la consola mide.
+    geometria.setAttribute(
+      'color',
+      new THREE.BufferAttribute(
+        new Float32Array([0.24, 0.86, 0.52, 0.24, 0.86, 0.52, 1, 0.76, 0.2, 1, 0.76, 0.2]),
+        3,
+      ),
+    )
+    const material = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      depthTest: false,
+      transparent: true,
+    })
+    const lineas = new THREE.LineSegments(geometria, material)
+    lineas.renderOrder = 998
+    lineas.frustumCulled = false
+    escena.add(lineas)
+    taller.guias = lineas
+  }
+}
+
+/**
+ * Recoloca los dos ejes sobre el modelo. Es barato, y se llama en cada dibujo
+ * mientras la guía esté encendida: el fragmento se mueve con el ratón.
+ */
+function actualizarGuias(taller: Taller, eje: EjeLargo, piezas: PiezaDelCaso[]) {
+  const { guias, fragmento, origenDelFragmento: origen, raiz } = taller
+  if (!guias || !fragmento || !origen || !raiz) return
+  raiz.updateMatrixWorld(true)
+
+  const caja = new THREE.Box3()
+  for (const m of huesoFijo(taller, piezas)) caja.expandByObject(m)
+  const cajaDelFragmento = new THREE.Box3().setFromObject(fragmento)
+  if (caja.isEmpty()) caja.copy(cajaDelFragmento)
+  if (caja.isEmpty()) return
+
+  const eje0 = VECTOR_DEL_EJE[eje].clone()
+  const centroFijo = caja.getCenter(new THREE.Vector3())
+  const mitad = Math.max(...caja.getSize(new THREE.Vector3()).toArray()) * 0.6 || 0.1
+
+  // La rotación del fragmento respecto de su sitio de reposo: es lo que se
+  // movió, y lo único que inclina su eje.
+  const reposo = new THREE.Quaternion().setFromEuler(origen.rotacion)
+  const delta = fragmento.quaternion.clone().multiply(reposo.invert())
+  const ejeDelFragmento = eje0.clone().applyQuaternion(delta).normalize()
+  const centroDelFragmento = cajaDelFragmento.getCenter(new THREE.Vector3())
+
+  const posiciones = guias.geometry.getAttribute('position') as THREE.BufferAttribute
+  const poner = (i: number, v: THREE.Vector3) => posiciones.setXYZ(i, v.x, v.y, v.z)
+  poner(0, centroFijo.clone().addScaledVector(eje0, -mitad))
+  poner(1, centroFijo.clone().addScaledVector(eje0, mitad))
+  poner(2, centroDelFragmento.clone().addScaledVector(ejeDelFragmento, -mitad * 0.55))
+  poner(3, centroDelFragmento.clone().addScaledVector(ejeDelFragmento, mitad * 0.55))
+  posiciones.needsUpdate = true
 }
 
 /** Redibuja la línea del trazo sobre la superficie. */
@@ -843,7 +1356,7 @@ function dibujarTrazo(taller: Taller) {
   taller.trazo = linea
 }
 
-function encuadrarVisible(taller: Taller) {
+function encuadrarVisible(taller: Taller, direccion?: THREE.Vector3) {
   const { raiz, camara, controles } = taller
   if (!raiz || !camara || !controles) return
 
@@ -870,7 +1383,7 @@ function encuadrarVisible(taller: Taller) {
   controles.target.copy(centro)
   camara.position
     .copy(centro)
-    .add(new THREE.Vector3(0.4, 0.15, 1).normalize().multiplyScalar(distanciaCamara))
+    .add((direccion ?? new THREE.Vector3(0.4, 0.15, 1)).clone().normalize().multiplyScalar(distanciaCamara))
   controles.update()
   taller.pedirDibujo?.()
 }

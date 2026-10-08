@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
-import { lecturaSimple, escrituraDeModulo } from '@/access/payload'
+import { lecturaSimple, escrituraDeModulo, soloAdministracion } from '@/access/payload'
+import { CATEGORIAS_DE_INSTRUMENTAL, slugDeInstrumento } from '@/lib/instrumental'
 
 /**
  * Los catálogos del simulador quirúrgico.
@@ -195,6 +196,32 @@ export const Instrumental: CollectionConfig = {
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre del instrumento', index: true },
     {
+      name: 'slug',
+      type: 'text',
+      label: 'Identificador del modelo',
+      index: true,
+      admin: {
+        description:
+          'Sin tildes ni espacios. Es el nombre del archivo del modelo 3D: «tijera-mayo.glb» se enlaza solo con el instrumento «tijera-mayo». Si se deja vacío se saca del nombre.',
+      },
+      hooks: {
+        beforeValidate: [
+          ({ value, siblingData }) => {
+            const texto = typeof value === 'string' && value.trim() ? value : String(siblingData?.nombre ?? '')
+            return slugDeInstrumento(texto) || undefined
+          },
+        ],
+      },
+    },
+    {
+      name: 'categoria',
+      type: 'select',
+      label: 'Categoría',
+      defaultValue: 'fijacion',
+      options: CATEGORIAS_DE_INSTRUMENTAL.map((c) => ({ label: c.label, value: c.value })),
+      admin: { description: 'Agrupa el listado del taller. No cambia nada del simulador.' },
+    },
+    {
       name: 'icono',
       type: 'select',
       defaultValue: 'generico',
@@ -215,13 +242,31 @@ export const Instrumental: CollectionConfig = {
     },
     { name: 'descripcion', type: 'textarea', label: 'Para qué sirve' },
     {
+      name: 'especificaciones',
+      type: 'textarea',
+      label: 'Medidas y especificaciones',
+      admin: { description: 'Largo, diámetros, sistemas en que se usa. Es lo que se le pasa a quien modela.' },
+    },
+    {
       name: 'modelo',
       type: 'relationship',
       relationTo: 'modelos-3d',
       label: 'Modelo 3D del instrumento',
+      access: { create: soloAdministracion, update: soloAdministracion },
       admin: {
         description:
           'Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez: trece modelos cargando a la vez en la bandeja dejarían la consola inservible en un portátil modesto.',
+      },
+    },
+    {
+      name: 'ajustes',
+      type: 'json',
+      label: 'Retoques del modelo',
+      access: { create: soloAdministracion, update: soloAdministracion },
+      admin: {
+        readOnly: true,
+        description:
+          'Lo que se corrigió en el taller anatómico (pestaña «Instrumental»): partes ocultas o recoloreadas, piezas movidas y el estado inicial de las articulaciones. Se escribe desde el taller, no a mano.',
       },
     },
     {

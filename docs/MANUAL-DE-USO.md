@@ -513,11 +513,15 @@ ha probado en un aparato real.
 Las herramientas están a la izquierda del modelo y las vistas arriba, sobre el
 propio lienzo; abajo quedan las acciones sobre lo seleccionado.
 
-**Para el simulador:** en «Exportar como modelo», si la preparación tiene un
-hueso cortado aparece **«Usar el corte del taller»**, que lleva ese mismo corte
-a la exportación. El modelo exportado sale con el hueso partido y **en su
-sitio**: en el simulador el desplazamiento lo pone el caso y lo reduce el
-residente.
+**Para el simulador:** «Exportar como modelo» no pregunta nada: escribe en la
+biblioteca de modelos **lo que está guardado**, tal como se ve —lo cortado, lo
+movido y lo apagado incluidos—. Si hay cambios sin guardar, los guarda primero. Lo
+que sale como objeto propio, y por tanto se puede mover en el simulador, se decide
+mientras se prepara: salen solos lo que se movió o giró y los trozos de un hueso
+con fractura, y se marca cualquier otra pieza en la pestaña **Pieza → «Al exportar
+al simulador»**. Lo demás sale fundido por sistema. Con un único hueso partido en
+dos, el trozo distal sale como el fragmento que se mueve; con más fragmentos, el
+caso elige cuál.
 
 Lo movido, lo rotado y lo cortado **se guarda con la preparación** y es lo que el
 residente ve en la ficha. «Deshacer» y «Rehacer» (Ctrl + Z, Ctrl + Mayús + Z)
@@ -537,6 +541,115 @@ El atlas original nunca se estropea, por mucho que se apague. Una preparación
 sirve para muchas fichas, y por eso no se deja eliminar mientras alguna la use:
 el panel dice cuáles. «Exportar como modelo» convierte la preparación en un
 `.glb` para el simulador; está en COMO-SUBIR-UN-MODELO.md.
+
+### 6b. La pestaña «Instrumental»
+
+Arriba del taller hay dos pestañas: **Anatomía** (todo lo de arriba) e
+**Instrumental**, donde se gestionan los instrumentos del simulador quirúrgico.
+Se llega también con `/admin-panel/atlas?pestana=instrumental`.
+
+**A la izquierda, el listado.** Agrupado por categoría (corte, suturas,
+exposición, periostio, reducción, fijación, modelado, enclavado). Los que ya
+tienen modelo llevan la etiqueta «3D»; el contador de arriba dice «N de M con
+modelo 3D», y el filtro «Sin modelo 3D» deja solo lo que falta.
+
+**Quién hace qué.**
+- *Editor:* crea instrumentos («+ Nuevo instrumento»: nombre, categoría, icono,
+  para qué sirve, medidas) y corrige la ficha. No puede cargar el modelo.
+- *Administrador:* además, carga el modelo, retoca el modelo, completa el
+  catálogo y elimina.
+
+**Cargar modelos (administrador).**
+1. «Completar el catálogo» crea de una vez los 47 instrumentos base que faltan,
+   ya con su ficha. Se puede repetir sin miedo: solo crea los que no existen.
+2. «Cargar varios modelos…» acepta muchos `.glb` a la vez. Cada archivo se
+   enlaza **por su nombre** con el instrumento del mismo nombre
+   (`tijera-mayo.glb` va a «Tijera de Mayo recta»). El resultado dice cuáles se
+   enlazaron y cuáles no.
+3. O, desde un instrumento, pestaña «Modelo» → cargar uno solo, o quitarlo.
+
+**El visor** es el mismo del atlas. «Girar» mueve la cámara y un clic elige una
+parte; las vistas, la ortográfica y los rayos X funcionan igual. Si el modelo
+tiene articulaciones (la tijera abre, el motor tiene gatillo), bajo el visor
+hay un deslizador por cada una: **«Abrir»** gira las ramas sobre el tornillo.
+
+**Retocar (administrador).** Pestaña «Partes»: el árbol de piezas del modelo.
+Al elegir una se puede ocultar, darle otro color, o con «Mover» y «Rotar»
+correrla con las asas. «Guardar retoques» lo escribe junto al instrumento y
+**es lo que carga el simulador**; «Descartar» vuelve a lo guardado. También se
+guarda con qué valor abren las articulaciones. Los retoques se anotan por el
+nombre de la pieza: si más tarde se vuelve a subir el modelo, siguen valiendo
+mientras la pieza se llame igual.
+
+**En el simulador.** El residente que elige un instrumento en la bandeja lo ve
+con esos retoques y con sus deslizadores, y **aparece en el lienzo**, sobre el
+hueso, siguiendo al cursor. Lo que mueva ahí no se guarda ni cuenta para el
+puntaje.
+
+Los modelos se hacen con Blender; para rehacerlos, ver
+`scripts/instrumental/generar-todo.sh`.
+
+### 6c. Editar un caso quirúrgico (la consola del residente)
+
+En **Contenido → Cirugías simuladas**, la pestaña **Simulador** de un caso es la
+misma consola que ve el residente, a todo el ancho, con un panel de edición arriba
+a la derecha. Lo que se escribe ahí se ve cambiar al instante: en la franja de
+pasos, en lo que dice el paso, en la bandeja y en el lienzo. Guardar, publicar y
+enviar a revisión son los botones de siempre, arriba.
+
+**La franja de pasos.** Cada paso es un botón: se salta a cualquiera. A la derecha
+están **+ Paso**, las flechas para moverlo y el bote de basura (pregunta antes de
+quitar).
+
+**El panel, con tres pestañas.**
+- **Paso N:** el título, la fase, qué se evalúa, el instrumento correcto, los puntos
+  y los textos. Solo salen los rangos que tocan al objetivo (incisión mínima y
+  máxima, tolerancias, fuerza). Debajo hay botones que **capturan lo que se acaba
+  de hacer en el lienzo** en vez de teclear cifras:
+  - *Usar la incisión trazada (± 20 %)*: trace una incisión en modo «Trazar» y
+    púlselo.
+  - *Fijar como límite lo que mide el fragmento ahora*: en modo «Mover», deje el
+    fragmento justo en el límite de lo aceptable y púlselo.
+  - *Usar la fuerza del deslizador (± 25 %)*.
+  - *Que este paso muestre lo que se ve ahora*: apague o encienda capas y piezas, y
+    guárdelo como lo que enseña el paso.
+- **Piezas:** la lista de objetos del modelo y qué es cada uno. Con el modo
+  **Señalar** (a la izquierda), pinche un trozo del modelo y se añade con su nombre
+  exacto. Marque un solo **fragmento móvil**. Con «Capturar el desplazamiento
+  actual como inicial» queda como arranca el caso.
+- **El caso:** modelo 3D, bandeja, milímetros por unidad, eje largo y
+  desplazamiento inicial.
+
+**Probar un paso.** «Probar este paso» hace lo que haría el residente al aplicarlo,
+con las tolerancias que acaba de escribir, y dice el resultado. No puntúa, no avanza
+y no guarda nada. Sirve para comprobar que el gesto que usted considera correcto
+pasa, y que uno torcido no.
+
+**La bandeja del editor** trae **todos** los instrumentos del catálogo, agrupados
+por categoría y con buscador. Al pulsar uno, aparece en el lienzo (si tiene modelo
+3D; si no, dice «sin 3D»). En su recuadro: *Es el correcto en este paso* y
+*Añadir a la bandeja* (o *Quitar de la bandeja*). El residente ve solo la bandeja
+del caso: los instrumentos que piden los pasos más los que usted añada como
+señuelos.
+
+**Si el modelo se ve entero y las piezas no coinciden.** Aparece un aviso rojo en la
+pestaña **Piezas** («N de M piezas no están en este modelo»). Suele pasar al volver a
+exportar el hueso con otros nombres. «Rellenar desde el modelo» pone las piezas del
+archivo nuevo; «Quitar las que no están» limpia las viejas. Mientras tanto el
+simulador muestra el modelo entero, no una pantalla vacía.
+
+**Rayos X.** El botón **Rayos X** del lienzo es la misma vista translúcida del taller
+anatómico. Con ellos encendidos aparece un panel con:
+- las proyecciones **AP** y **lateral**, perpendiculares al eje del hueso;
+- la **guía de ejes** (verde el hueso fijo, ámbar el fragmento) y cuántos grados hay
+  entre los dos, comparados con el tope del paso;
+- **Dónde debe quedar**: la silueta verde del fragmento reducido (una ayuda para
+  aprender, apagable);
+- el **tiempo de escopia**: al apagar los rayos, la consola dice si fue una toma
+  corta o demasiada exposición. No resta puntos.
+
+Bajo «Ver todos los campos como formulario», al pie de la pestaña, están los mismos
+campos como formulario de siempre, para quien prefiera escribir las cifras.
 
 ---
 

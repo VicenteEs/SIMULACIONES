@@ -7,6 +7,7 @@ import type { PiezaDelCaso } from '@/components/simulador/LienzoQuirurgico'
 // tipo daría igual: escribir la dirección buena aquí evita que el día que
 // alguien necesite además una función copie la dirección mala.
 import type { Encuadre } from '@/lib/aritmeticaDelEncuadre'
+import { ajustesValidos, type AjustesDeInstrumento } from '@/instrumental/modelo'
 import type { EjeLargo } from '@/lib/reduccion'
 import { objetivoDelPaso, type Objetivo } from '@/lib/simulador'
 
@@ -213,6 +214,11 @@ function instrumentoDeBandeja(bruto: unknown): InstrumentoDeBandeja | null {
       modelo && typeof modelo === 'object'
         ? (((modelo as Documento).encuadre as Encuadre | null | undefined) ?? null)
         : null,
+    // Lo que el administrador retocó en el taller (D-165): partes ocultas,
+    // colores, piezas corridas y con qué abre cada articulación. Pasa por
+    // `ajustesValidos` aunque salga de nuestra propia base: es un json libre
+    // y la consola lo entrega a un visor que se fía de su forma.
+    ajustes: doc.ajustes ? ajustesValidos(doc.ajustes) : null,
   }
 }
 
@@ -274,5 +280,116 @@ export function casoParaLaConsola(documento: Documento): CasoDeConsola {
       Array.isArray(documento.pasos) ? (documento.pasos as Documento[]) : [],
       documento.instrumental,
     ),
+  }
+}
+
+// ------------------------------------------------------- desde el formulario
+
+/**
+ * Un instrumento del catálogo tal como lo necesita el editor: con su modelo y
+ * sus retoques ya a mano. Sale de `listarInstrumental` (`acciones/instrumental`).
+ */
+export interface InstrumentoParaElEditor {
+  id: string
+  nombre: string
+  icono: string
+  descripcion: string
+  categoria: string
+  modeloUrl: string | null
+  ajustes: AjustesDeInstrumento | null
+}
+
+/** Una opción de relación del formulario: lo único que de ella se necesita. */
+export interface OpcionDeCatalogo {
+  id: string
+  etiqueta: string
+  url?: string
+}
+
+/**
+ * El caso tal como lo vería el residente, **a partir de lo que hay escrito en
+ * el formulario ahora mismo** (D-166).
+ *
+ * Es lo que permite que el editor del caso sea la consola y no una imitación:
+ * el formulario guarda las relaciones como identificadores sueltos —o como
+ * documentos enteros cuando llegan de la base—, y la consola quiere los
+ * documentos poblados. Aquí se vuelven a poblar con lo que el formulario ya
+ * descargó y se le entrega todo a `casoParaLaConsola`, la misma función que usa
+ * la página del residente: así no hay dos traducciones de un caso que puedan
+ * separarse.
+ *
+ * Con una diferencia deliberada: la bandeja. El residente ve la del caso (los
+ * instrumentos de sus pasos más los señuelos); el editor ve **el catálogo
+ * entero**, agrupable por categoría, con cada instrumento marcado si ya está en
+ * la bandeja del caso.
+ */
+export function casoDesdeElFormulario(
+  valores: Documento,
+  contexto: {
+    opciones: Record<string, OpcionDeCatalogo[] | undefined>
+    instrumentos: InstrumentoParaElEditor[]
+  },
+): CasoDeConsola {
+  const buscar = (coleccion: string, bruto: unknown): OpcionDeCatalogo | undefined => {
+    const id = idDeRelacion(bruto)
+    return id ? contexto.opciones[coleccion]?.find((o) => o.id === id) : undefined
+  }
+  const poblarNombre = (coleccion: string, bruto: unknown) => {
+    const opcion = buscar(coleccion, bruto)
+    if (opcion) return { id: opcion.id, nombre: opcion.etiqueta }
+    // Un documento que ya venía poblado de la base se respeta tal cual.
+    return typeof bruto === 'object' && bruto !== null ? bruto : null
+  }
+  const instrumentoPoblado = (bruto: unknown) => {
+    const id = idDeRelacion(bruto)
+    const dato = id ? contexto.instrumentos.find((i) => i.id === id) : undefined
+    return dato ? { id: dato.id, nombre: dato.nombre } : null
+  }
+
+  const modelo = buscar('modelos-3d', valores.modelo)
+  const enLaBandeja = new Set<string>()
+  for (const bruto of Array.isArray(valores.instrumental) ? valores.instrumental : []) {
+    const id = idDeRelacion(bruto)
+    if (id) enLaBandeja.add(id)
+  }
+
+  const pasos = (Array.isArray(valores.pasos) ? (valores.pasos as Documento[]) : []).map((paso) => {
+    const instrumento = instrumentoPoblado(paso.instrumento)
+    if (instrumento) enLaBandeja.add(instrumento.id)
+    return {
+      ...paso,
+      // Un paso recién añadido todavía no tiene el identificador de Payload:
+      // sirve su clave de fila, que no cambia al reordenarlo, a diferencia de la
+      // posición con que `pasosDelCaso` se las arregla.
+      id: paso.id ?? paso._clave,
+      instrumento,
+      fase: poblarNombre('fases-quirurgicas', paso.fase),
+    }
+  })
+
+  const base = casoParaLaConsola({
+    ...valores,
+    modelo: modelo ? { id: modelo.id, url: modelo.url ?? null } : null,
+    hueso: poblarNombre('huesos-ao', valores.hueso),
+    clasificacion: poblarNombre('clasificaciones-ao', valores.clasificacion),
+    tecnica: poblarNombre('tecnicas-quirurgicas', valores.tecnica),
+    pasos,
+    // El catálogo entero se pone abajo; aquí no se arma la bandeja del caso.
+    instrumental: [],
+  })
+
+  return {
+    ...base,
+    instrumental: contexto.instrumentos.map((i) => ({
+      id: i.id,
+      nombre: i.nombre,
+      icono: i.icono,
+      descripcion: i.descripcion || null,
+      modeloUrl: i.modeloUrl,
+      encuadreDelModelo: null,
+      ajustes: i.ajustes,
+      categoria: i.categoria,
+      enLaBandejaDelCaso: enLaBandeja.has(i.id),
+    })),
   }
 }

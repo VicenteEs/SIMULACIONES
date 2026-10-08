@@ -187,7 +187,7 @@ describe('cableado en el taller, el visor y la ficha', () => {
     expect(taller).toContain('setFracturas(fracturasAbiertas)')
     expect((taller.match(/setFracturas\(\[\]\)/g) ?? []).length).toBe(2)
     // Cuentan para «cambios sin guardar».
-    expect(taller).toContain('JSON.stringify([marcas, vistas, grupos, fracturasVigentes])')
+    expect(taller).toContain('JSON.stringify([marcas, vistas, grupos, fracturasVigentes, sueltasVigentes])')
   })
 
   it('el servidor y la ficha las pasan por la misma barrera', () => {
@@ -210,7 +210,8 @@ describe('cableado en el taller, el visor y la ficha', () => {
     expect(pestana).not.toMatch(/from 'three'/)
   })
 
-  it('la vista previa dibuja el mismo plano que la exportación', () => {
-    expect(taller).toContain('corte={panelExportar ? corteVivo : vistaPreviaDeFractura}')
+  it('la vista previa dibuja el plano del asistente, sin panel de exportación de por medio', () => {
+    expect(taller).toContain('corte={vistaPreviaDeFractura}')
+    expect(taller).not.toContain('panelExportar')
   })
 })

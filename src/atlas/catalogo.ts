@@ -266,6 +266,8 @@ export function normalizarSeleccion(
     apagados?: unknown
     /** Las fracturas del asistente (D-161). */
     fracturas?: unknown
+    /** Lo marcado como suelto para exportar (D-164). */
+    sueltas?: unknown
   },
 ): ContenidoDeInstancia {
   const conocidas = new Set(catalogo.piezas.map((p) => p.id))
@@ -301,6 +303,7 @@ export function normalizarSeleccion(
   const grupos = gruposValidos(apuntes?.grupos, vistas, new Set(cortesLimpios.map((c) => c.pieza)))
   const apagados = apagadosValidos(apuntes?.apagados, cortesLimpios, vistas)
   const fracturas = fracturasValidas(apuntes?.fracturas, cortesLimpios, vistas)
+  const sueltas = sueltasValidas(apuntes?.sueltas, cortesLimpios, vistas, new Set(apagados))
   return {
     version: 1,
     atlas: catalogo.version,
@@ -312,7 +315,36 @@ export function normalizarSeleccion(
     ...(grupos.length > 0 ? { grupos } : {}),
     ...(apagados.length > 0 ? { apagados } : {}),
     ...(fracturas.length > 0 ? { fracturas } : {}),
+    ...(sueltas.length > 0 ? { sueltas } : {}),
   }
+}
+
+/** Cuántas piezas se pueden marcar como sueltas: más es fundir mal el archivo (ver `agruparParaGlb`). */
+export const MAXIMO_DE_SUELTAS = 200
+
+/**
+ * Lo marcado como suelto para exportar (D-164): piezas encendidas o trozos que
+ * existen de verdad (las hojas del árbol de cortes) y que no están apagados.
+ * Marcar una pieza que luego se apaga no deja una marca huérfana esperando.
+ */
+function sueltasValidas(
+  brutas: unknown,
+  cortes: readonly CorteDePieza[],
+  enLaPreparacion: ReadonlySet<string>,
+  apagados: ReadonlySet<string>,
+): string[] {
+  if (!Array.isArray(brutas)) return []
+  const existentes = new Set<string>()
+  for (const id of enLaPreparacion) for (const hoja of hojasDe(cortes, id)) existentes.add(hoja)
+  const salida: string[] = []
+  const vistas = new Set<string>()
+  for (const id of brutas) {
+    if (typeof id !== 'string' || vistas.has(id) || !existentes.has(id) || apagados.has(id)) continue
+    vistas.add(id)
+    salida.push(id)
+    if (salida.length >= MAXIMO_DE_SUELTAS) break
+  }
+  return salida.sort()
 }
 
 /**

@@ -1,5 +1,5 @@
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
-import { TallerDeAtlas } from '@/components/admin/atlas/TallerDeAtlas'
+import { EspacioDelTaller } from '@/components/admin/atlas/EspacioDelTaller'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export default async function PaginaAtlas({
   searchParams,
 }: {
-  searchParams: Promise<{ preparacion?: string | string[]; comentario?: string | string[] }>
+  searchParams: Promise<{ preparacion?: string | string[]; comentario?: string | string[]; pestana?: string | string[] }>
 }) {
   const { esAdmin } = await exigirPanel()
 
@@ -29,15 +29,19 @@ export default async function PaginaAtlas({
   }
   const preparacionInicial = soloNumero(parametros.preparacion)
   const comentarioInicial = preparacionInicial ? soloNumero(parametros.comentario) : undefined
+  // `?pestana=instrumental` abre el taller en el listado de instrumentos.
+  const pestanaPedida = Array.isArray(parametros.pestana) ? parametros.pestana[0] : parametros.pestana
+  const pestanaInicial = pestanaPedida === 'instrumental' ? 'instrumental' : 'anatomia'
 
   // La clase la mira `admin.css` para soltar el ancho máximo del panel (D-139):
   // el taller son tres columnas y quiere toda la pantalla.
   return (
     <div className="atlas-taller">
-      <TallerDeAtlas
+      <EspacioDelTaller
         esAdmin={esAdmin}
         preparacionInicial={preparacionInicial}
         comentarioInicial={comentarioInicial}
+        pestanaInicial={pestanaInicial}
       />
     </div>
   )

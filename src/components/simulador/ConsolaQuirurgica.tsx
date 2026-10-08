@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
@@ -11,6 +11,7 @@ import {
   medidaInicial,
   objetivoDelPaso,
   puntajeMaximo,
+  piezasQueFaltanEnElArchivo,
   puntosDelPaso,
   rangoDeFuerzaEnTexto,
   rangoDelDeslizadorDeFuerza,
@@ -42,6 +43,7 @@ import {
   Eraser,
   Focus,
   Info,
+  Crosshair,
   Move,
   OctagonAlert,
   PenLine,
@@ -69,7 +71,18 @@ import { Visor3D } from '@/components/VisoresPerezosos'
 // motor 3D viaje aparte. El porqué completo está en la cabecera de los dos
 // módulos.
 import { encuadreVigente, type Encuadre } from '@/lib/aritmeticaDelEncuadre'
-import type { MandoDelLienzo, Modo, PiezaDelCaso } from './LienzoQuirurgico'
+import { ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
+import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
+import { InstrumentoArticulado } from './InstrumentoArticulado'
+import type {
+  AyudasDeEscopia,
+  DatosDeNodo,
+  InstrumentoEnEscena,
+  MandoDelLienzo,
+  Modo,
+  PiezaDelCaso,
+  VistaDeEscopia,
+} from './LienzoQuirurgico'
 
 /**
  * Consola de reducción y fijación de fracturas.
@@ -142,6 +155,12 @@ export interface InstrumentoDeBandeja {
    * significa «ábrelo como siempre, abarcándolo entero».
    */
   encuadreDelModelo?: Encuadre | null
+  /** Retoques y estado de las articulaciones que el administrador dejó en el taller (D-165). */
+  ajustes?: AjustesDeInstrumento | null
+  /** Cómo se agrupa en la bandeja del editor, que enseña el catálogo entero (D-166). */
+  categoria?: string | null
+  /** Solo en el editor: si el instrumento ya está en la bandeja que el caso declara. */
+  enLaBandejaDelCaso?: boolean
   /** Para qué sirve, tal como lo escribió el traumatólogo en el catálogo. */
   descripcion?: string | null
 }
@@ -166,6 +185,56 @@ export interface CasoDeConsola {
   }
   pasos: PasoDeConsola[]
   instrumental: InstrumentoDeBandeja[]
+}
+
+/**
+ * Lo que la consola recibe cuando la monta el **editor** del caso (D-166), y que
+ * el residente nunca trae.
+ *
+ * Es la misma consola, no una imitación: lo que cambia es quién manda sobre el
+ * paso que se mira, qué hay en la columna derecha y que nada de lo que pasa
+ * dentro se puntúa ni se guarda. El editor no tiene su propio lienzo, sus
+ * propias medidas ni su propia bandeja: usa los de la consola, y por eso lo que
+ * el autor ve al editar es lo que verá el residente.
+ */
+/**
+ * Lo que está pasando en la consola mientras el autor edita, para que su panel
+ * lo use: capturar la incisión que acaba de trazar como rango del paso, lo que
+ * se ve ahora como lo que el paso muestra, las medidas del fragmento como
+ * tolerancias. Es lectura; el panel escribe en el formulario, no en la consola.
+ */
+export interface VistaDelEnsayo {
+  /** La incisión trazada, en milímetros. */
+  trazoMm: number
+  reduccion: { desplazamiento: number; angulacion: number; diastasis: number }
+  fuerza: number
+  /** Los objetos que trae el archivo del modelo, y lo que cada uno dice de sí mismo. */
+  nodosDelArchivo: string[]
+  datosDeLosNodos: DatosDeNodo[]
+  /** Si el archivo ya terminó de cargar: antes, «no está en el archivo» sería mentira. */
+  modeloCargado: boolean
+  /** El instrumento que se tiene en la mano. */
+  instrumentoEnLaMano: string | null
+}
+
+export interface EdicionEnLaConsola {
+  /** El paso que se edita. La consola lo sigue; no lleva su propia cuenta. */
+  indice: number
+  alCambiarIndice: (indice: number) => void
+  /** El panel de edición con sus pestañas: ocupa lo alto de la columna derecha. */
+  panel: (vivo: VistaDelEnsayo) => ReactNode
+  /** Añadir, mover o quitar pasos: se pintan junto a la franja de pasos. */
+  barraDePasos: ReactNode
+  /** Una pieza pinchada en el modelo con el modo «Señalar». */
+  alSenalar: (nodo: string) => void
+  /** Añade o quita un instrumento de la bandeja que declara el caso. */
+  alAlternarEnLaBandeja: (id: string) => void
+  /** Pone el instrumento que se tiene en la mano como el correcto del paso que se edita. */
+  alUsarEnElPaso: (id: string) => void
+  /** El instrumento correcto del paso que se edita, para marcarlo en la bandeja. */
+  instrumentoDelPaso: string | null
+  /** El fragmento se movió con el ratón: dónde está respecto de su reposo. */
+  alMoverFragmento?: () => void
 }
 
 /**
@@ -221,6 +290,18 @@ const MODOS: readonly { valor: Modo; etiqueta: string; ayuda: string; icono: Luc
 ]
 
 /**
+ * El cuarto modo, solo del editor: pinchar un trozo del modelo lo añade a las
+ * piezas del caso con su nombre exacto. Es el que usaba el taller de piezas; el
+ * residente no lo tiene porque no tiene nada que declarar.
+ */
+const MODO_SENALAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'senalar',
+  etiqueta: 'Señalar',
+  icono: Crosshair,
+  ayuda: 'Señalar: pinche un trozo del modelo y se añade a las piezas del caso con su nombre exacto.',
+}
+
+/**
  * El modo de ratón que necesita cada objetivo.
  *
  * La consola lo pone sola al entrar en el paso, porque lo sabe. Antes solo lo
@@ -273,6 +354,8 @@ export function ConsolaQuirurgica({
   documentoId,
   recorridoGuardado = null,
   alMarcarComoLeido,
+  editor,
+  mandoRef,
 }: {
   caso: CasoDeConsola
   /**
@@ -299,16 +382,63 @@ export function ConsolaQuirurgica({
    * mueva la casilla tiene que fallar al compilar, no quedarse en silencio.
    */
   alMarcarComoLeido: () => void
+  /**
+   * Presente solo cuando la monta el editor del caso. Con él, la consola es un
+   * ensayo: se puede saltar a cualquier paso, «Aplicar paso» solo dice qué
+   * resultado tendría, y no se puntúa ni se escribe nada en la base.
+   */
+  editor?: EdicionEnLaConsola
+  /**
+   * El mando del lienzo, para quien edita: el panel de piezas necesita leer los
+   * objetos del archivo y la posición del fragmento. Sin esto tendría que abrir
+   * un segundo lienzo con el mismo modelo.
+   */
+  mandoRef?: React.MutableRefObject<MandoDelLienzo | null>
 }) {
   const mando = useRef<MandoDelLienzo | null>(null)
+  // El lienzo entrega su mando por esta función y no por la ref directa: así la
+  // consola conserva su propia ref —estable, que es lo que el compilador de
+  // React sabe seguir— y, si la monta el editor, le pasa también el mando a él.
+  const asignarMando = useCallback(
+    (m: MandoDelLienzo | null) => {
+      mando.current = m
+      if (mandoRef) mandoRef.current = m
+    },
+    [mandoRef],
+  )
   const confirmar = useConfirmar()
 
-  const [indice, setIndice] = useState(0)
+  const [indiceInterno, setIndiceInterno] = useState(0)
+  // En el editor manda quien edita; nunca se sale del rango aunque se quiten pasos.
+  const indice = editor
+    ? Math.min(Math.max(0, editor.indice), Math.max(0, caso.pasos.length - 1))
+    : indiceInterno
+  const setIndice = (nuevo: number) => (editor ? editor.alCambiarIndice(nuevo) : setIndiceInterno(nuevo))
   const [modo, setModo] = useState<Modo>(
     () => MODO_DEL_OBJETIVO[objetivoDelPaso(caso.pasos[0] ?? {})],
   )
   const [fluoroscopia, setFluoroscopia] = useState(false)
+  // Las ayudas de los rayos X (D-166). Los ejes salen puestos —son lo que
+  // enseña a leer la angulación— y el objetivo no: ver dónde debe quedar el
+  // hueso es una ayuda que conviene poder quitar, porque en una radioscopia
+  // real nadie lo dibuja.
+  const [ayudas, setAyudas] = useState<AyudasDeEscopia>({ objetivo: false, ejes: true })
+  const [vistaDeEscopia, setVistaDeEscopia] = useState<VistaDeEscopia>('libre')
+  // Segundos con los rayos encendidos en esta exposición. La dosis es lo que más
+  // se descuida al aprender: se cuenta y se dice al apagar.
+  const [segundosDeEscopia, setSegundosDeEscopia] = useState(0)
   const [instrumento, setInstrumento] = useState<string | null>(null)
+  // El instrumento en la mano: qué articulaciones declara su archivo y cuánto
+  // las ha movido quien lo usa. Vive aquí y no dentro del visor pequeño porque
+  // lo mueven dos cosas a la vez —los deslizadores y la escena— y las dos
+  // tienen que ver lo mismo.
+  const [articulacionesDeclaradas, setArticulacionesDeclaradas] = useState<ArticulacionDeclarada[]>([])
+  const [articulacionesMovidas, setArticulacionesMovidas] = useState<Record<string, number>>({})
+  const [errorDelInstrumento, setErrorDelInstrumento] = useState<string | null>(null)
+  const [busquedaDeInstrumento, setBusquedaDeInstrumento] = useState('')
+  // Lo que trae el archivo, anotado con el modelo de que salió: se lee una vez,
+  // al terminar de cargar, y no en cada pintado.
+  const [delArchivo, setDelArchivo] = useState<{ url: string; nodos: string[]; datos: DatosDeNodo[] } | null>(null)
   const [fuerza, setFuerza] = useState(() => fuerzaInicial(caso.pasos[0] ?? {}))
   // La geometría del trazo no sube a React: de ella solo se usa un número, y el
   // lienzo ya es dueño de sus puntos. Guardar la polilínea entera obligaba a
@@ -438,6 +568,8 @@ export function ConsolaQuirurgica({
    */
   const guardarRecorrido = useCallback(
     (puntajeActual: number, lista: ComplicacionDelCaso[]) => {
+      // El editor ensaya: lo que ocurre aquí no es el recorrido de nadie.
+      if (editor) return
       const datos: ResultadoDeCirugia = {
         puntaje: puntajeActual,
         puntajeMaximo: maximo,
@@ -478,7 +610,7 @@ export function ConsolaQuirurgica({
         }
       })()
     },
-    [documentoId, maximo, anotar],
+    [documentoId, maximo, anotar, editor],
   )
 
   // ------------------------------------------------- terminar es haberlo leído
@@ -511,6 +643,7 @@ export function ConsolaQuirurgica({
    * panel de «Caso terminado» afirmaría que el caso cuenta como leído.
    */
   const marcarCasoComoLeido = useCallback(() => {
+    if (editor) return
     setLecturaAlTerminar('pendiente')
     void (async () => {
       try {
@@ -526,12 +659,38 @@ export function ConsolaQuirurgica({
         )
       }
     })()
-  }, [documentoId, alMarcarComoLeido, anotar])
+  }, [documentoId, alMarcarComoLeido, anotar, editor])
+
+  // Los avisos de «el caso habla de otro archivo» se dan una vez por modelo: se
+  // repiten en cada paso y cada capa, y diez veces el mismo renglón tapan el
+  // registro. Se olvidan al cambiar de modelo.
+  const avisosDelModelo = useRef<{ url: string; dados: Set<string> }>({ url: '', dados: new Set() })
+  const avisarUnaVez = useCallback(
+    (clave: string, texto: string) => {
+      if (avisosDelModelo.current.url !== caso.modeloUrl) {
+        avisosDelModelo.current = { url: caso.modeloUrl ?? '', dados: new Set() }
+      }
+      if (avisosDelModelo.current.dados.has(clave)) return
+      avisosDelModelo.current.dados.add(clave)
+      anotar(texto, 'atencion')
+    },
+    [caso.modeloUrl, anotar],
+  )
 
   const refrescarVisibles = useCallback(
     (indicePaso: number, apagadas: Set<string>) => {
       const { nodos, encender } = visibilidadDelPaso(caso.pasos, caso.piezas, indicePaso, apagadas)
-      mando.current?.mostrar(nodos)
+      const mostrado = mando.current?.mostrar(nodos)
+      // El caso nombra piezas que el archivo no tiene. Se enseña el modelo
+      // entero —el lienzo ya lo decidió— y se dice, con la causa y la salida:
+      // antes esto era un lienzo en negro sin una palabra (O-078).
+      if (mostrado?.sinCoincidencias) {
+        avisarUnaVez(
+          'sin-coincidencias',
+          `Ninguna de las piezas que declara este caso está en el modelo cargado (faltan ${mostrado.ausentes.length}), así que se muestra el modelo entero. ` +
+            'Suele pasar al volver a exportar el hueso con otros nombres: en «Piezas del modelo» del editor, «Rellenar desde el modelo» lo arregla.',
+        )
+      }
       if (encender.length === 0) return
       // Hubo que aplicar el suelo. La casilla tiene que decir la verdad de lo
       // que se ve, y el residente tiene que saber por qué se le ha encendido
@@ -543,7 +702,7 @@ export function ConsolaQuirurgica({
       })
       anotar(`Se vuelve a mostrar ${capasEnProsa(encender)}: sin eso el lienzo se quedaba vacío.`, 'atencion')
     },
-    [caso.pasos, caso.piezas, anotar],
+    [caso.pasos, caso.piezas, anotar, avisarUnaVez],
   )
 
   /** Entra en un paso: pone las capas que ese paso necesita y refresca el lienzo. */
@@ -591,6 +750,14 @@ export function ConsolaQuirurgica({
           ? 'grave'
           : 'atencion'
     anotar(`${indice + 1}. ${evaluacion.mensaje}`, clase)
+
+    // En el editor «Aplicar paso» es un ensayo: dice qué resultado tendría el
+    // gesto —con las tolerancias que el autor acaba de escribir— y se queda
+    // ahí. No puntúa, no avanza y no guarda nada.
+    if (editor) {
+      if (evaluacion.avanza) anotar('Con este gesto el paso se daría por bueno.', 'bien')
+      return
+    }
 
     if (!evaluacion.avanza) {
       // La cuenta se lleva aquí, en el fallo, y no en el acierto: un paso se
@@ -663,7 +830,7 @@ export function ConsolaQuirurgica({
     // para que no haya un final que se enseñe y no se marque, ni al revés.
     if (siguiente >= caso.pasos.length) marcarCasoComoLeido()
     setIndice(siguiente)
-    setInstrumento(null)
+    elegirInstrumento(null)
     // `borrarTrazo` avisa por su cuenta con la lista vacía, y ese aviso es el
     // que pone la medida a cero: no hay que tocarla también desde aquí.
     mando.current?.borrarTrazo()
@@ -707,7 +874,7 @@ export function ConsolaQuirurgica({
 
     setIndice(0)
     setModo(MODO_DEL_OBJETIVO[objetivoDelPaso(caso.pasos[0] ?? {})])
-    setInstrumento(null)
+    elegirInstrumento(null)
     setFuerza(fuerzaInicial(caso.pasos[0] ?? {}))
     setPuntaje(0)
     setResueltos(new Set())
@@ -756,9 +923,44 @@ export function ConsolaQuirurgica({
       { x: aUnidades(d.x), y: aUnidades(d.y), z: aUnidades(d.z) },
       { x: d.giroX, y: d.giroY, z: d.giroZ },
     )
+    // Sin fragmento en el modelo no hay nada que desplazar, y las medidas no
+    // pueden fingir lo contrario: con piezas que el archivo no tiene, el panel
+    // enseñaba el desplazamiento del caso —3 mm, 12°— sobre un hueso que no se
+    // movía, y el paso de reducción se podía fallar sin poder acertar (O-078).
+    if (mando.current && !mando.current.hayFragmento()) {
+      setGiros({ x: 0, y: 0, z: 0 })
+      setReduccion(medirReduccion({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, caso.ejeLargo))
+      return
+    }
     setGiros({ x: d.giroX, y: d.giroY, z: d.giroZ })
     setReduccion(medidaInicial(caso))
   }, [caso, escalaMm])
+
+  /**
+   * Salta a un paso cualquiera, solo en el editor.
+   *
+   * Hace lo mismo que `aplicarPaso` al entrar en el paso siguiente —modo del
+   * ratón, fuerza, trazo, capas—, y no más: el editor mira un paso, no lo
+   * resuelve.
+   */
+  const irAlPaso = (destino: number) => {
+    const siguiente = caso.pasos[destino]
+    if (!siguiente || !editor) return
+    editor.alCambiarIndice(destino)
+    setFuerza(fuerzaInicial(siguiente))
+    setModo(MODO_DEL_OBJETIVO[objetivoDelPaso(siguiente)])
+    setResultado(null)
+    mando.current?.borrarTrazo()
+    entrarEnPaso(destino, capasApagadas)
+  }
+
+  /** Coge un instrumento: aparece en la escena y sus articulaciones vuelven a como las dejó el taller. */
+  const elegirInstrumento = (id: string | null) => {
+    setInstrumento(id)
+    setArticulacionesDeclaradas([])
+    setArticulacionesMovidas({})
+    setErrorDelInstrumento(null)
+  }
 
   const girar = (eje: 'x' | 'y' | 'z', valor: number) => {
     const nuevos = { ...giros, [eje]: valor }
@@ -773,6 +975,124 @@ export function ConsolaQuirurgica({
 
   /** El instrumento que el residente tiene en la mano, ya resuelto. */
   const instrumentoElegido = caso.instrumental.find((i) => i.id === instrumento) ?? null
+
+  /**
+   * Con qué valor está cada articulación del instrumento elegido: lo que movió
+   * quien lo usa, o si no lo guardado en el taller, o si no lo que declara el
+   * archivo.
+   */
+  const ajustesDelElegido = instrumentoElegido?.ajustes ?? null
+  const urlDelElegido = instrumentoElegido?.modeloUrl ?? null
+  const valoresDeArticulacion = useMemo(() => {
+    const valores: Record<string, number> = {}
+    for (const a of articulacionesDeclaradas) {
+      valores[a.nombre] =
+        articulacionesMovidas[a.nombre] ?? ajustesDelElegido?.articulaciones?.[a.nombre] ?? a.inicial
+    }
+    return valores
+  }, [articulacionesDeclaradas, articulacionesMovidas, ajustesDelElegido])
+
+  /** Lo que el lienzo necesita para poner el instrumento en la escena. */
+  const instrumentoEnEscena = useMemo<InstrumentoEnEscena | null>(
+    () =>
+      urlDelElegido
+        ? { url: urlDelElegido, ajustes: ajustesDelElegido, articulaciones: valoresDeArticulacion }
+        : null,
+    [urlDelElegido, ajustesDelElegido, valoresDeArticulacion],
+  )
+
+  /**
+   * La bandeja tal como se pinta: el residente la ve en una lista; el editor,
+   * el catálogo entero agrupado por categoría y filtrado por lo que escriba.
+   */
+  const gruposDeLaBandeja = useMemo(() => {
+    if (!editor) return [{ clave: 'todo', titulo: null as string | null, instrumentos: caso.instrumental }]
+    const filtro = busquedaDeInstrumento.trim().toLowerCase()
+    const visibles = caso.instrumental.filter(
+      (i) => !filtro || i.nombre.toLowerCase().includes(filtro),
+    )
+    const porCategoria = new Map<string, InstrumentoDeBandeja[]>()
+    for (const i of visibles) {
+      const clave = i.categoria ?? 'otros'
+      porCategoria.set(clave, [...(porCategoria.get(clave) ?? []), i])
+    }
+    return [...porCategoria.entries()].map(([clave, instrumentos]) => ({
+      clave,
+      titulo: ETIQUETA_DE_CATEGORIA[clave] ?? 'Otros',
+      instrumentos,
+    }))
+  }, [editor, caso.instrumental, busquedaDeInstrumento])
+
+  // Los bytes de los modelos de la bandeja se piden en segundo plano, de uno en
+  // uno y cuando el navegador está ocioso, para que al pulsar un instrumento
+  // aparezca al instante. Solo se piden: no se abren. Abrir treinta modelos a
+  // la vez sí dejaría la consola inservible en el equipo de referencia; bajar
+  // sus bytes al caché no cuesta eso.
+  // La dependencia es el texto de las direcciones y no el arreglo: en el editor
+  // el caso se rehace con cada letra que se escribe, y con el arreglo la
+  // precarga volvería a empezar en cada una.
+  const direccionesDeLaBandeja = caso.instrumental.map((i) => i.modeloUrl ?? '').join('|')
+  useEffect(() => {
+    const direcciones = [...new Set(direccionesDeLaBandeja.split('|').filter(Boolean))]
+    if (direcciones.length === 0) return
+    let cancelado = false
+    const precargar = async () => {
+      for (const direccion of direcciones) {
+        if (cancelado) return
+        try {
+          const respuesta = await fetch(direccion)
+          await respuesta.arrayBuffer()
+        } catch {
+          // Un modelo que no baja ahora se pedirá, y se dirá, al cogerlo.
+        }
+      }
+    }
+    const idle = (window as unknown as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback
+    const manija = idle ? idle(() => void precargar()) : window.setTimeout(() => void precargar(), 1500)
+    return () => {
+      cancelado = true
+      if (!idle) window.clearTimeout(manija)
+    }
+  }, [direccionesDeLaBandeja])
+
+  // El tiempo de escopia cuenta mientras los rayos están encendidos. Un
+  // intervalo y no el reloj de cada pintado: lo único que cambia es un número
+  // que se actualiza cada segundo.
+  useEffect(() => {
+    if (!fluoroscopia) return
+    const reloj = window.setInterval(() => setSegundosDeEscopia((s) => s + 1), 1000)
+    return () => window.clearInterval(reloj)
+  }, [fluoroscopia])
+
+  /**
+   * Enciende o apaga los rayos X.
+   *
+   * Al apagar, deja dicho cuánto se estuvo expuesto. Con una pantalla que da
+   * igual cuánto dure, el hábito que se aprende es dejarla encendida; en
+   * quirófano cada segundo es dosis para el paciente y para el equipo.
+   */
+  const alternarRayosX = () => {
+    if (fluoroscopia) {
+      if (segundosDeEscopia > 0) {
+        anotar(
+          segundosDeEscopia > 20
+            ? `Rayos X apagados tras ${segundosDeEscopia} s. Fue mucho: en pabellón se dispara en tomas cortas, mira la imagen y se apaga.`
+            : `Rayos X apagados tras ${segundosDeEscopia} s: una toma corta, como corresponde.`,
+          segundosDeEscopia > 20 ? 'atencion' : 'bien',
+        )
+      }
+      setVistaDeEscopia('libre')
+      mando.current?.mirarDesde('libre')
+    } else {
+      setSegundosDeEscopia(0)
+    }
+    setFluoroscopia(!fluoroscopia)
+  }
+
+  const cambiarVistaDeEscopia = (vista: VistaDeEscopia) => {
+    setVistaDeEscopia(vista)
+    mando.current?.mirarDesde(vista)
+  }
 
   /**
    * Una cifra del panel de medidas contra el tope que la evalúa.
@@ -825,7 +1145,8 @@ export function ConsolaQuirurgica({
     }
   }
 
-  const ayudaDelModo = MODOS.find((m) => m.valor === modo)?.ayuda ?? ''
+  const modosVisibles = editor ? [...MODOS, MODO_SENALAR] : MODOS
+  const ayudaDelModo = modosVisibles.find((m) => m.valor === modo)?.ayuda ?? ''
   const etiquetaDelModoDelPaso = MODOS.find((m) => m.valor === modoDelPaso)?.etiqueta ?? null
   const topesDelDeslizador = paso ? rangoDelDeslizadorDeFuerza(paso) : { min: 0, max: 120 }
   const rangoUtil = paso ? rangoDeFuerzaEnTexto(paso) : null
@@ -994,7 +1315,7 @@ export function ConsolaQuirurgica({
 
   return (
     <section
-      className={`consola mod-4${terminado ? ' consola-terminada' : ''}`}
+      className={`consola mod-4${terminado ? ' consola-terminada' : ''}${editor ? ' consola-editor' : ''}`}
       aria-labelledby="consola-titulo"
     >
       {/* --------------------------------------------------------- barra */}
@@ -1008,7 +1329,9 @@ export function ConsolaQuirurgica({
             <Scissors size={18} />
           </span>
           <div>
-            <p className="consola-rotulo">Módulo 04 · Simulador</p>
+            <p className="consola-rotulo">
+              Módulo 04 · Simulador{editor ? ' · editando: lo que ve el residente' : ''}
+            </p>
             <h2 id="consola-titulo" className="consola-titulo">
               Consola de reducción y fijación
             </h2>
@@ -1073,7 +1396,7 @@ export function ConsolaQuirurgica({
             va aparte, sin relleno y con su icono, y antes de borrar pregunta
             con el diálogo propio (`reiniciar`). */}
         <button type="button" className="consola-reiniciar" onClick={() => void reiniciar()}>
-          <RotateCcw size={16} aria-hidden /> Reiniciar caso
+          <RotateCcw size={16} aria-hidden /> {editor ? 'Reiniciar el ensayo' : 'Reiniciar caso'}
         </button>
       </header>
 
@@ -1082,15 +1405,12 @@ export function ConsolaQuirurgica({
           debajo quedaba entre las medidas y el pie, fuera de la vista en el
           portátil de referencia. Se desplaza en horizontal como el guion de
           pabellón cuando no cabe. */}
+      <div className="consola-pasos-fila">
       <ol className="consola-pasos" aria-label="Pasos del caso">
         {caso.pasos.map((p, i) => {
           const estado = estadoDelPaso(p, i)
-          return (
-            <li
-              key={p.id}
-              className={`consola-paso ${estado}`}
-              aria-current={i === indice ? 'step' : undefined}
-            >
+          const contenido = (
+            <>
               <span className="consola-paso-marca" aria-hidden>
                 {estado === 'resuelto' ? (
                   <Check size={14} strokeWidth={3} />
@@ -1107,10 +1427,30 @@ export function ConsolaQuirurgica({
                   Paso {i + 1}: {PALABRA_DEL_ESTADO[estado]}
                 </span>
               </span>
+            </>
+          )
+          return (
+            <li
+              key={p.id}
+              className={`consola-paso ${estado}`}
+              aria-current={i === indice ? 'step' : undefined}
+            >
+              {/* En el editor cada paso es un botón: se salta a cualquiera, en
+                  cualquier orden, que es lo que hace falta para escribirlos.
+                  El residente los recorre en orden y no se toca. */}
+              {editor ? (
+                <button type="button" className="consola-paso-boton" onClick={() => irAlPaso(i)}>
+                  {contenido}
+                </button>
+              ) : (
+                contenido
+              )}
             </li>
           )
         })}
       </ol>
+      {editor ? <div className="consola-pasos-acciones">{editor.barraDePasos}</div> : null}
+      </div>
 
       {/* ------------------------------------------------ columna izquierda */}
       {/* Sin `consola-panel-izq` ni `<aside>`: en pantalla estrecha esta
@@ -1123,7 +1463,7 @@ export function ConsolaQuirurgica({
             Modo
           </h3>
           <div className="consola-segmentado" role="group" aria-labelledby="consola-modo">
-            {MODOS.map((m) => {
+            {modosVisibles.map((m) => {
               const Icono = m.icono
               const pedido = modoDelPaso === m.valor
               return (
@@ -1195,24 +1535,65 @@ export function ConsolaQuirurgica({
             piezas={caso.piezas}
             modo={modo}
             fluoroscopia={fluoroscopia}
+            ayudas={ayudas}
+            instrumento={instrumentoEnEscena}
+            milimetrosPorUnidad={escalaMm}
+            ejeLargo={caso.ejeLargo}
+            alCargarInstrumento={(declaradas, error) => {
+              setArticulacionesDeclaradas(declaradas ?? [])
+              setErrorDelInstrumento(error ?? null)
+            }}
             // Del trazo solo se guarda su longitud. Los puntos se quedan en
             // el lienzo, que ya es su dueño; subirlos a React repintaba la
             // consola entera —los dos campos ricos del pie incluidos— unas
             // treinta veces por incisión, compitiendo con el bucle de dibujo.
             alTrazar={(puntos) => setLargoDelTrazoMm(largoDelTrazo(puntos, escalaMm))}
-            alMoverFragmento={recalcularMedidas}
+            alMoverFragmento={() => {
+              recalcularMedidas()
+              editor?.alMoverFragmento?.()
+            }}
+            alSenalar={editor?.alSenalar}
             // El fragmento se coloca desplazado cuando el archivo termina de
             // cargar, no antes: hasta ese momento no hay ningún nodo al que
             // aplicarle nada, y hacerlo en el montaje del componente dejaba
             // el hueso reducido y el caso resuelto de entrada.
             alCargar={() => {
+              setDelArchivo({
+                url: caso.modeloUrl ?? '',
+                nodos: mando.current?.nodosDelModelo() ?? [],
+                datos: mando.current?.datosDeLosNodos() ?? [],
+              })
               colocarEnDesplazamientoInicial()
               entrarEnPaso(indice, capasApagadas)
+              // Lo que el caso declara frente a lo que el archivo trae. Si no
+              // hay nada en común, `refrescarVisibles` ya lo dijo; aquí queda
+              // el caso a medias —unas piezas están y otras no— y el de un
+              // modelo sin fragmento, que dejaba los pasos de reducción sin
+              // nada que mover (O-078).
+              const faltan = piezasQueFaltanEnElArchivo(caso.piezas, mando.current?.nodosDelModelo() ?? [])
+              if (faltan.ausentes.length > 0 && faltan.ausentes.length < faltan.total) {
+                avisarUnaVez(
+                  'faltan-piezas',
+                  `El caso declara ${faltan.ausentes.length} de ${faltan.total} piezas que este modelo no tiene (${faltan.ausentes
+                    .slice(0, 3)
+                    .join(', ')}${faltan.ausentes.length > 3 ? '…' : ''}). Esas no se muestran.`,
+                )
+              }
+              if (
+                mando.current &&
+                !mando.current.hayFragmento() &&
+                caso.pasos.some((p) => p.objetivo === 'reduccion')
+              ) {
+                avisarUnaVez(
+                  'sin-fragmento',
+                  'El modelo no trae el fragmento móvil que declara el caso: los pasos de reducción no tienen nada que mover.',
+                )
+              }
             }}
             // Un modelo que no abre tiene que decirlo. Sin esto el residente
             // se queda mirando un lienzo vacío creyendo que aún carga.
             alFallar={(mensaje) => anotar(mensaje, 'grave')}
-            mando={mando}
+            mando={asignarMando}
           />
           {/* Encuadrar sobre el lienzo y no en la columna de mandos: es una
               orden de la vista, y en el móvil la columna queda por debajo del
@@ -1229,11 +1610,90 @@ export function ConsolaQuirurgica({
               type="button"
               className={`consola-lienzo-boton consola-fluoro${fluoroscopia ? ' activo' : ''}`}
               aria-pressed={fluoroscopia}
-              onClick={() => setFluoroscopia((v) => !v)}
+              title="Todo translúcido: la misma vista de rayos X del taller anatómico"
+              onClick={alternarRayosX}
             >
-              <ScanLine size={16} aria-hidden /> Fluoroscopia
+              <ScanLine size={16} aria-hidden /> Rayos X
             </button>
           </div>
+
+          {/* El panel de los rayos X. Solo existe con ellos encendidos: son las
+              dos proyecciones de un C-arm, dos ayudas para leer la imagen y el
+              contador de exposición. Todo lo que aquí se dibuja de más son
+              ayudas de aprendizaje —en una radioscopia real no se ve dónde
+              debe quedar el hueso—, y por eso se apagan. */}
+          {fluoroscopia ? (
+            <div className="consola-escopia" role="group" aria-label="Rayos X">
+              <p className="consola-escopia-cabeza">
+                <span>
+                  <ScanLine size={14} aria-hidden /> Rayos X
+                </span>
+                <span
+                  className={`consola-escopia-tiempo u-num${segundosDeEscopia > 20 ? ' alto' : ''}`}
+                  aria-label={`${segundosDeEscopia} segundos de escopia`}
+                >
+                  {segundosDeEscopia} s
+                </span>
+              </p>
+              <div className="consola-escopia-vistas" role="group" aria-label="Proyección">
+                {(
+                  [
+                    ['libre', 'Libre'],
+                    ['ap', 'AP'],
+                    ['lateral', 'Lateral'],
+                  ] as const
+                ).map(([valor, etiqueta]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    className={`consola-escopia-vista${vistaDeEscopia === valor ? ' activo' : ''}`}
+                    aria-pressed={vistaDeEscopia === valor}
+                    onClick={() => cambiarVistaDeEscopia(valor)}
+                  >
+                    {etiqueta}
+                  </button>
+                ))}
+              </div>
+              <label className="consola-escopia-opcion">
+                <input
+                  type="checkbox"
+                  checked={ayudas.ejes}
+                  onChange={(e) => setAyudas({ ...ayudas, ejes: e.target.checked })}
+                />
+                <span>
+                  Guía de ejes
+                  <small>verde, el hueso fijo · ámbar, el fragmento</small>
+                </span>
+              </label>
+              <label className="consola-escopia-opcion">
+                <input
+                  type="checkbox"
+                  checked={ayudas.objetivo}
+                  disabled={!caso.piezas.some((p) => p.rol === 'fragmento')}
+                  onChange={(e) => setAyudas({ ...ayudas, objetivo: e.target.checked })}
+                />
+                <span>
+                  Dónde debe quedar
+                  <small>silueta verde del fragmento reducido</small>
+                </span>
+              </label>
+              {ayudas.ejes ? (
+                <p className="consola-escopia-lectura">
+                  Entre los dos ejes hay <strong className="u-num">{reduccion.angulacion}°</strong>
+                  {objetivo === 'reduccion' && topes
+                    ? reduccion.angulacion > topes.angulacion
+                      ? `: se pasa del tope de ${topes.angulacion}°.`
+                      : `: dentro del tope de ${topes.angulacion}°.`
+                    : '.'}
+                </p>
+              ) : null}
+              {segundosDeEscopia > 20 ? (
+                <p className="consola-escopia-aviso">
+                  Mucha exposición. En pabellón se dispara, se mira y se apaga.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <dl className="consola-medidas">
@@ -1258,6 +1718,26 @@ export function ConsolaQuirurgica({
 
       {/* ------------------------------------------------ columna derecha */}
       <div className="consola-der">
+        {/* El editor del caso: sus pestañas van arriba de todo, y debajo sigue
+            el paso tal como lo ve el residente. Lo que se escribe arriba se ve
+            cambiar abajo. */}
+        {editor ? (
+          <div className="consola-editor-panel">
+            {editor.panel({
+              trazoMm: largoDelTrazoMm,
+              reduccion: {
+                desplazamiento: reduccion.desplazamiento,
+                angulacion: reduccion.angulacion,
+                diastasis: reduccion.diastasis,
+              },
+              fuerza,
+              nodosDelArchivo: delArchivo?.url === caso.modeloUrl ? delArchivo.nodos : [],
+              datosDeLosNodos: delArchivo?.url === caso.modeloUrl ? delArchivo.datos : [],
+              modeloCargado: delArchivo?.url === caso.modeloUrl,
+              instrumentoEnLaMano: instrumento,
+            })}
+          </div>
+        ) : null}
         {terminado ? (
           <div className="consola-fin" role="status">
             <span className="consola-fin-icono" aria-hidden>
@@ -1428,7 +1908,7 @@ export function ConsolaQuirurgica({
                   hasta ahora era un camino imposible de recorrer, porque el
                   único sitio que lo llama colgaba de este botón. */}
               <button type="button" className="consola-aplicar" onClick={aplicarPaso}>
-                <Check size={18} aria-hidden /> Aplicar paso
+                <Check size={18} aria-hidden /> {editor ? 'Probar este paso' : 'Aplicar paso'}
               </button>
 
               {/* Lo que acaba de pasar, donde el residente está mirando. El
@@ -1446,35 +1926,86 @@ export function ConsolaQuirurgica({
         )}
 
         <div className="consola-bandeja-bloque">
-          <h3 className="consola-subtitulo">Instrumental</h3>
-          <ul className="consola-bandeja">
-            {caso.instrumental.map((it) => (
-              <li key={it.id}>
-                <button
-                  type="button"
-                  className={`instrumento${instrumento === it.id ? ' activo' : ''}`}
-                  aria-pressed={instrumento === it.id}
-                  onClick={() => setInstrumento(it.id)}
-                >
-                  <IconoInstrumento nombre={it.icono} />
-                  <span className="instrumento-nombre">{it.nombre}</span>
-                  {instrumento === it.id ? (
-                    <Check size={14} strokeWidth={3} aria-hidden className="instrumento-marca" />
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <h3 className="consola-subtitulo">
+            Instrumental{editor ? ` · ${caso.instrumental.length}` : ''}
+          </h3>
+          {/* El editor ve el catálogo entero, ya cargado: son los instrumentos
+              que se modelaron, y el autor tiene que poder cogerlos todos para
+              decidir cuál va en cada paso. El residente ve la bandeja del caso
+              —los de los pasos más los señuelos—, porque una bandeja con los
+              cuarenta del hospital no enseña a elegir. */}
+          {editor ? (
+            <input
+              type="search"
+              className="consola-busqueda"
+              placeholder="Buscar un instrumento…"
+              aria-label="Buscar un instrumento"
+              value={busquedaDeInstrumento}
+              onChange={(e) => setBusquedaDeInstrumento(e.target.value)}
+            />
+          ) : null}
+          {gruposDeLaBandeja.map((grupo) => (
+            <div key={grupo.clave} className="consola-bandeja-grupo">
+              {grupo.titulo ? <h4 className="consola-bandeja-categoria">{grupo.titulo}</h4> : null}
+              <ul className="consola-bandeja">
+                {grupo.instrumentos.map((it) => (
+                  <li key={it.id}>
+                    <button
+                      type="button"
+                      className={`instrumento${instrumento === it.id ? ' activo' : ''}${
+                        editor?.instrumentoDelPaso === it.id ? ' del-paso' : ''
+                      }`}
+                      aria-pressed={instrumento === it.id}
+                      onClick={() => elegirInstrumento(it.id)}
+                    >
+                      <IconoInstrumento nombre={it.icono} />
+                      <span className="instrumento-nombre">{it.nombre}</span>
+                      {instrumento === it.id ? (
+                        <Check size={14} strokeWidth={3} aria-hidden className="instrumento-marca" />
+                      ) : null}
+                      {editor && !it.modeloUrl ? (
+                        <span className="instrumento-etiqueta">sin 3D</span>
+                      ) : null}
+                      {editor?.instrumentoDelPaso === it.id ? (
+                        <span className="instrumento-etiqueta instrumento-etiqueta-paso">este paso</span>
+                      ) : it.enLaBandejaDelCaso ? (
+                        <span className="instrumento-etiqueta">en la bandeja</span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {editor && gruposDeLaBandeja.length === 0 ? (
+            <p className="consola-vacio">Ningún instrumento coincide con la búsqueda.</p>
+          ) : null}
 
           {/*
             El modelo del instrumento que tiene en la mano, y solo ese.
             Trece modelos cargando a la vez en la bandeja dejarían la consola
             inservible en un portátil modesto, que es el equipo de referencia
-            del residente: se baja uno cada vez, cuando lo coge.
+            del residente: se baja uno cada vez, cuando lo coge. (Los bytes sí se
+            piden antes, en segundo plano, para que al pulsar aparezca al
+            instante: ver `useEffect` de la precarga.)
           */}
-          {instrumentoElegido && (instrumentoElegido.modeloUrl || instrumentoElegido.descripcion) ? (
+          {instrumentoElegido ? (
             <div className="consola-instrumento">
-              {instrumentoElegido.modeloUrl ? (
+              {instrumentoElegido.modeloUrl &&
+              encuadreVigente(undefined, instrumentoElegido.encuadreDelModelo) === undefined ? (
+                // Sin pose capturada a mano, el modelo se abre en el visor
+                // articulado del taller: con sus retoques, y con los
+                // deslizadores que el archivo declare (la tijera se abre). Con
+                // pose capturada se respeta la que el traumatólogo eligió: es
+                // el visor de siempre, abajo.
+                <InstrumentoArticulado
+                  key={instrumentoElegido.modeloUrl}
+                  url={instrumentoElegido.modeloUrl}
+                  ajustes={instrumentoElegido.ajustes ?? null}
+                  nombre={instrumentoElegido.nombre}
+                  articulaciones={valoresDeArticulacion}
+                />
+              ) : instrumentoElegido.modeloUrl ? (
                 <Visor3D
                   key={instrumentoElegido.modeloUrl}
                   url={instrumentoElegido.modeloUrl}
@@ -1496,10 +2027,72 @@ export function ConsolaQuirurgica({
                   encuadre={encuadreVigente(undefined, instrumentoElegido.encuadreDelModelo)}
                   nombre={instrumentoElegido.nombre}
                 />
+              ) : (
+                <p className="consola-instrumento-texto">
+                  {editor
+                    ? 'Este instrumento todavía no tiene modelo 3D: lo carga el administrador en el taller anatómico.'
+                    : 'Este instrumento no tiene modelo 3D.'}
+                </p>
+              )}
+              {errorDelInstrumento ? (
+                <p className="consola-instrumento-texto">{errorDelInstrumento}</p>
               ) : null}
+
+              {/* Las articulaciones que declara el archivo: abrir la tijera,
+                  pulsar el gatillo. Mueven el instrumento de la escena y el
+                  del recuadro a la vez, porque leen el mismo valor. */}
+              {articulacionesDeclaradas.length > 0 ? (
+                <div className="consola-instrumento-articulaciones">
+                  {articulacionesDeclaradas.map((a) => (
+                    <label key={a.nombre} className="consola-instrumento-articulacion">
+                      <span>{a.etiqueta}</span>
+                      <input
+                        type="range"
+                        min={a.min}
+                        max={a.max}
+                        step={a.unidad === 'mm' ? 0.5 : 1}
+                        value={valoresDeArticulacion[a.nombre] ?? a.inicial}
+                        onChange={(e) =>
+                          setArticulacionesMovidas((antes) => ({ ...antes, [a.nombre]: Number(e.target.value) }))
+                        }
+                        aria-label={`${a.etiqueta} de ${instrumentoElegido.nombre}`}
+                      />
+                      <output>
+                        {valoresDeArticulacion[a.nombre] ?? a.inicial} {a.unidad}
+                      </output>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+
               {instrumentoElegido.descripcion ? (
                 <p className="consola-instrumento-texto">{instrumentoElegido.descripcion}</p>
               ) : null}
+
+              <div className="consola-instrumento-acciones">
+                <button type="button" className="consola-boton" onClick={() => elegirInstrumento(null)}>
+                  Soltar
+                </button>
+                {editor ? (
+                  <>
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      onClick={() => editor.alUsarEnElPaso(instrumentoElegido.id)}
+                      disabled={editor.instrumentoDelPaso === instrumentoElegido.id}
+                    >
+                      Es el correcto en este paso
+                    </button>
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      onClick={() => editor.alAlternarEnLaBandeja(instrumentoElegido.id)}
+                    >
+                      {instrumentoElegido.enLaBandejaDelCaso ? 'Quitar de la bandeja' : 'Añadir a la bandeja'}
+                    </button>
+                  </>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>

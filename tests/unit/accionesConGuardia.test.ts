@@ -278,6 +278,18 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'atlas.ts:eliminarInstancia': { guardia: 'editor', argumentos: () => ['5'] },
   'atlas.ts:exportarComoModelo': { guardia: 'editor', argumentos: () => ['5'] },
 
+  // El instrumental del taller (D-165): el editor describe, el administrador carga y retoca el modelo.
+  'instrumental.ts:listarInstrumental': { guardia: 'editor', argumentos: () => [] },
+  'instrumental.ts:crearInstrumento': { guardia: 'editor', argumentos: () => [{ nombre: 'Un instrumento de prueba' }] },
+  'instrumental.ts:editarInstrumento': { guardia: 'editor', argumentos: () => ['5', { nombre: 'Otro nombre' }] },
+  'instrumental.ts:completarElCatalogo': { guardia: 'admin', argumentos: () => [] },
+  // El archivo sube por la ruta de subidas; estas dos solo enlazan el id que devolvió.
+  'instrumental.ts:enlazarModeloDeInstrumento': { guardia: 'admin', argumentos: () => ['5', '7'] },
+  'instrumental.ts:enlazarModeloPorNombre': { guardia: 'admin', argumentos: () => ['tijera-mayo.glb', '7'] },
+  'instrumental.ts:quitarModeloDeInstrumento': { guardia: 'admin', argumentos: () => ['5'] },
+  'instrumental.ts:guardarRetoquesDeInstrumento': { guardia: 'admin', argumentos: () => ['5', {}] },
+  'instrumental.ts:eliminarInstrumento': { guardia: 'admin', argumentos: () => ['5'] },
+
   // Un correo a todas las cuentas es de administrador, y la prueba de ese correo
   // también: gasta la misma cuota del hosting.
   'difusion.ts:enviarPruebaDeDifusion': { guardia: 'admin', argumentos: () => [DIFUSION] },

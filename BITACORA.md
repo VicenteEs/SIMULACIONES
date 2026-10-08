@@ -5219,6 +5219,193 @@ P-002 parte de una lista votada y no de una memoria. *Malas:*
 - **El nombre del módulo** («Planificación con imágenes del paciente») es una propuesta
   (E7-Q1).
 
+### D-164 · 2026-10-08 · vigente
+**«Exportar como modelo» escribe lo que está guardado, sin preguntar nada antes.**
+Pedido del dueño: al guardar y exportar, el modelo tiene que salir tal cual está
+guardado; el recuadro de arriba, donde se elegían las piezas sueltas y se asignaba
+la fractura, sobra, porque eso se decide en la barra lateral de la preparación; y
+la exportación guardaba piezas que no estaban en el visor.
+
+*Por qué salían piezas de más.* La exportación leía de la preparación solo la lista
+de piezas encendidas y escribía la geometría **original** de cada una. No rehacía
+lo cortado, ni lo movido, ni lo apagado: una tibia partida con un trozo apagado
+salía **entera**, con el trozo que se veía y el que no; y lo desplazado salía donde
+nació. El taller sabía dibujar lo guardado (`crearTodosLosFragmentos`,
+`colocarFragmento`) y el exportador no.
+
+*Qué se hizo.*
+- `src/lib/reproducirPreparacion.ts` rehace en el servidor la preparación como la
+  dibuja el taller: los cortes, en su orden, con las mismas funciones de partir
+  (`partirMalla`, `partirPorVariosPlanos`); cada trozo o pieza colocado con
+  `centro + mover + giro·(p − centro)`; los trozos apagados fuera. Es puro, sin
+  base de datos ni escena, y lo prueba `tests/unit/reproducirPreparacion.test.ts`.
+- **Qué sale suelto** lo decide la preparación, no un recuadro: lo que se movió o
+  giró, los trozos de un hueso con fractura, y lo que se marque en la pestaña
+  «Pieza» → «Al exportar al simulador» (`contenido.sueltas`, json, se valida con
+  `sueltasValidas` y se guarda con la preparación; no pide migración). Lo demás se
+  funde por sistema como siempre.
+- **El fragmento que mueve la consola.** Si hay exactamente un hueso partido en
+  dos, su trozo distal sale marcado como `fragmento` y con el origen en el foco de
+  la fractura, igual que antes. Con tres fragmentos o más, o con dos huesos
+  partidos, ninguno sale marcado y las notas del modelo lo dicen: la consola mueve
+  uno solo y elegirlo es del caso. Antes eso era un error que impedía exportar.
+- **El botón** «Exportar como modelo» ya no abre un panel: guarda si hay cambios
+  sueltos y exporta con el identificador que devuelve el guardado. Tras exportar
+  queda el recuadro de resultado con los nodos y sus capas. Se quitaron las
+  casillas de piezas sueltas, el buscador, los mandos de «partir con un corte» y
+  «Usar el corte del taller».
+- `exportarComoModelo(id, { protagonistas, corte })` sigue aceptando opciones para
+  los guiones (`scripts/pierna-derecha-en-el-caso.ts`); lo guardado manda salvo lo
+  que el guion pida expresamente.
+
+*Consecuencias buenas.* Lo que se ve es lo que sale, y con una sola vía: se
+prepara, se marca, se exporta. *Malas:* el archivo sale con lo desplazado donde se
+dejó, así que un caso que sume su propio desplazamiento lo sumará sobre el del
+taller (para el modelo «en su sitio» hay que reducir antes de exportar); y una
+fractura con muchos fragmentos se exporta, pero no se puede mover en la consola
+hasta que esta aprenda a mover más de uno.
+
+### D-165 · 2026-10-08 · vigente
+**El instrumental tiene taller propio —una pestaña dentro del taller anatómico—,
+modelos articulados hechos con Blender, y la consola los abre.**
+Pedido del dueño: modelos 3D de los instrumentos de «respuestas traumahub.pdf»,
+muy detallados, con colores reales y que se muevan (una tijera que abre sobre su
+tornillo); cargarlos desde el taller anatómico, con un listado que diga cuáles
+tienen modelo y cuáles faltan; verlos en el mismo visor y retocarlos; que los
+editores creen el instrumento y el administrador cargue el modelo; y que el editor
+los use luego en el simulador. Responde E5-Q2: el instrumental va **solo en el
+simulador**, no en las fichas.
+
+*Los modelos.* 47 instrumentos, un guion de Blender por cada uno
+(`scripts/instrumental/*.py`, con las primitivas comunes en `lib.py`). Se
+modelan en milímetros y salen a `ejemplos/instrumental/<slug>.glb` en metros, con
+su vista previa PNG; los `.glb` no se versionan. Cada uno tiene como mucho 20.000
+triángulos (los 47 suman unos 4,4 MB). Las medidas salen del PDF y, donde no
+bastaban, de catálogos de fabricantes (Teleflex, Gervet, KLS Martin, Instrumentarium,
+Cruz Roja, MSF): son de referencia y las corrige Cristóbal al validar. **No se
+pudo comprobar el color de código oficial de AO ni la convención amarillo=corte y
+azul=coagulación del electrobisturí**: se usó la habitual, y la ficha lo dice.
+- *Convenio de ejes:* el instrumento «de pie», punta en el origen, mango hacia +Y de
+  glTF. Cada parte que se mueve cuelga de un pivote con el origen en su eje de giro.
+- *Qué lleva escrito dentro:* en `extras.th` de cada nodo, una **cadena** JSON y no
+  un objeto, porque el exportador de glTF trata distinto los diccionarios anidados
+  según la versión de Blender. La raíz declara las articulaciones (nombre, etiqueta,
+  mínimo, máximo, unidad, inicial); cada pivote, a cuál obedece, con qué eje y qué
+  factor, y si gira o desliza. Se lee en `src/instrumental/modelo.ts`, sin three.
+- *Qué se mueve:* apertura (tijeras, pinzas, separadores), separar, trocar y
+  medición (deslizadores), gatillo y mandril del motor, giro (destornilladores y
+  limitador de torque), corte y coagulación (botones del electrobisturí), perno del
+  arco de inserción.
+- *Fidelidad:* media-alta en general; el motor quirúrgico y el arco de inserción
+  quedaron más toscos. Se dejan así hasta que Cristóbal diga qué corregir.
+
+*La plataforma.*
+- `instrumental` gana `slug`, `categoria`, `especificaciones` y `ajustes` (json, solo
+  administración, se escribe desde el taller). **Migración aditiva**
+  `20261008_210126_instrumental_con_categoria`. `src/lib/instrumental.ts` trae las 8
+  categorías y las 47 entradas base; el slug de cada una es el nombre de su `.glb`.
+- **Reparto de permisos** (`acciones/instrumental.ts`): el editor lista, crea y
+  edita la ficha; el administrador completa el catálogo, carga o quita el modelo,
+  guarda los retoques y elimina. El campo `modelo` solo lo puede escribir la
+  administración, también por la API.
+- **Carga por lote:** «Cargar varios modelos…» enlaza cada archivo por el slug de su
+  nombre. Si el enlace falla, se borra el modelo recién creado para no dejar
+  huérfanos. El id de la relación se manda como número: Payload con ids enteros
+  rechaza el de texto, con el mensaje «El siguiente campo es inválido».
+- **El taller** (`EspacioDelTaller`): pestañas «Anatomía» e «Instrumental», ambas
+  montadas y la otra oculta para no perder el estado. La de instrumental trae el
+  listado con «N de M con modelo 3D», filtros, y el visor propio
+  (`VisorDeInstrumento`, three imperativo cargado con `next/dynamic`): girar, mover,
+  rotar con asas, vistas, ortográfica, rayos X, clic para elegir, deslizadores de
+  articulación y las pestañas Ficha, Partes y Modelo. Los retoques (ocultar, color,
+  mover, rotar) se guardan **por nombre de nodo**, para que sobrevivan a una nueva
+  subida del archivo.
+- **La consola** (`InstrumentoArticulado`): el instrumento que el residente tiene en
+  la mano se abre en ese mismo visor, con los retoques guardados y los deslizadores
+  que el archivo declare. Si el modelo tiene una **pose capturada a mano** en su
+  ficha de «Modelos 3D», se respeta y se usa el visor de siempre
+  (`poseEnLasTresPantallas.test.ts` lo vigila).
+
+*Consecuencias buenas.* Un instrumento nuevo cuesta una ficha y un archivo; lo que
+falta se ve en el listado; la tijera abre de verdad. *Malas:* el visor articulado
+trae three entero a la consola cuando el residente coge un instrumento con modelo
+(se carga entonces y no al abrir); los modelos son de referencia y no están
+validados por un traumatólogo; lo que el residente mueve en el deslizador no se
+guarda ni cuenta para el puntaje; los implantes (placas, tornillos, clavos) no se
+modelaron, porque no son instrumental.
+
+### D-166 · 2026-10-09 · vigente
+**El editor de un caso quirúrgico es la propia consola del residente, a todo el
+ancho, con el instrumental en la escena y los rayos X del taller.**
+Pedido del dueño, en cuatro partes: (1) que el editor sea lo mismo que ve el
+residente y que ahí se escriban los pasos; (2) que ocupe todo el ancho de la
+pantalla; (3) que las piezas creadas estén ya cargadas y, al pulsar un botón, el
+instrumento aparezca para interactuar con el modelo; (4) que la fluoroscopia sea el
+«RX» del taller anatómico, con mejoras que enseñen. Y el modelo que no aparecía
+(O-078).
+
+*El editor.* La sección «Simulador» del caso (antes «El modelo» y «Guion
+quirúrgico») monta `ConsolaQuirurgica` con una prop `editor` y un panel encima de la
+columna derecha: **Paso** (todos los campos del paso, y solo los rangos que tocan al
+objetivo), **Piezas** (la tabla del taller de piezas, sobre el lienzo de la consola) y
+**El caso** (modelo, bandeja, escala, eje, desplazamiento inicial).
+- *Una sola traducción.* El caso que ve el autor sale de `casoDesdeElFormulario`, que
+  vuelve a poblar lo escrito en el formulario y se lo entrega a `casoParaLaConsola`,
+  la misma función de la página del residente. `tests/unit/simuladorEnElEditor.test.ts`
+  comprueba que, con el mismo documento, las piezas y los pasos salen iguales.
+- *Un ensayo, no un recorrido.* «Aplicar paso» pasa a «Probar este paso»: evalúa el
+  gesto con las tolerancias que se acaban de escribir y lo dice; no puntúa, no avanza
+  y no guarda nada (`guardarRecorrido` y `marcarCasoComoLeido` salen al principio).
+- *Capturar en vez de teclear.* Trazar una incisión y «usarla» fija el rango (±20 %);
+  dejar el fragmento en el límite aceptable y «fijarlo» escribe las tres tolerancias;
+  el modo «Señalar» añade la pieza pinchada; «Que este paso muestre lo que se ve
+  ahora» y «Capturar el desplazamiento actual como inicial» hacen lo que su nombre.
+- *Guardar es lo de siempre.* El panel escribe en los mismos `valores` del
+  formulario: borrador, publicación, revisión, copia local y choques no cambian. Se
+  comprobó guardando un paso nuevo (queda en la versión borrador).
+- *El formulario clásico sigue ahí*, en «Ver todos los campos como formulario», para
+  quien prefiera cifras o use un lector de pantalla; solo se monta al abrirlo porque
+  trae su propio visor.
+- La consola entera se carga con `next/dynamic` al abrir esa sección: las demás
+  fichas no pagan su peso.
+
+*Todo el ancho.* `.admin-content:has(.editor-simulador)` quita el tope de 1240 px del
+panel, y la consola del residente pasa de 1120 px a 1760 con un lienzo más alto
+(`main:has(.consola)`), solo en esa página. El lienzo del editor mide lo que la
+ventana (`clamp(520px, 72vh, 920px)`) y las columnas de los lados se desplazan por
+dentro: con el panel largo, el lienzo se estiraba a 4.800 px.
+
+*El instrumental en la escena.* Al pulsar un instrumento aparece en el lienzo (el
+mismo modelo, con sus retoques y articulaciones de D-165), con la punta sobre el
+hueso, y sigue al cursor; al trazar, su punta va dibujando la incisión. Los
+deslizadores de la bandeja (abrir la tijera) mueven a la vez la escena y el
+recuadro: el valor vive en la consola. Tiene un entorno de estudio **solo para el
+instrumento** (sin él el acero se ve negro) para no cambiar la apariencia del hueso.
+Los bytes de los modelos de la bandeja se piden en segundo plano y de uno en uno;
+abrir, solo el elegido. El editor ve el catálogo entero, agrupado por categoría y con
+búsqueda, con cada instrumento marcado si ya está en la bandeja o es el correcto del
+paso; el residente sigue viendo la bandeja del caso, porque una con los cuarenta del
+hospital no enseña a elegir.
+- Estructura: `src/instrumental/herramienta3d.ts` calcula la pose (archivo + retoque
+  + articulación) y la comparten el visor del taller y la escena.
+
+*Los rayos X.* Son los del taller anatómico —todo translúcido al 50 %
+(`OPACIDAD_DE_RAYOS_X`, vigilada por una prueba que compara las dos cifras)—, no la
+lectura en grises que había. Y con ellos, mejoras para aprender, todas apagables
+porque en una radioscopia real no se ven:
+- **Proyecciones AP y lateral**, perpendiculares al eje largo del hueso.
+- **Guía de ejes**: verde el del hueso fijo, ámbar el del fragmento; la lectura dice
+  cuántos grados hay entre los dos y si se pasa del tope del paso.
+- **Dónde debe quedar**: la silueta verde del fragmento en su sitio de reposo.
+- **Tiempo de escopia**: cuenta mientras están encendidos y, al apagar, dice si fue
+  una toma corta o mucha exposición. No puntúa.
+
+*Consecuencias buenas.* Lo que se escribe se ve cambiar; un caso con las piezas
+equivocadas se nota al abrirlo (O-078). *Malas:* el panel del editor es denso en una
+pantalla pequeña y no está pensado para el móvil (el formulario clásico sí); el visor
+articulado trae three a la consola cuando alguien coge un instrumento; los rayos X
+nuevos son una vista y no una simulación de atenuación (los de antes tampoco).
+
 ---
 
 ### O-014 · 2026-09-06 · alta · resuelta
@@ -6494,6 +6681,39 @@ salud interna. Los datos no se tocaron: la base es la misma y hubo respaldo ante
 que el script lo leyera de `.env` o se negara a correr en un servidor que ya tiene
 el override.
 
+### O-078 · 2026-10-09 · alta · resuelta
+**El simulador abría en negro cuando el caso declaraba piezas que el archivo ya no tenía.**
+*Dónde se ve:* el caso «Prueba 2» de `ved`. El lienzo nacía vacío, sin un mensaje,
+con el modelo cargado detrás. *Descartado antes de buscar:* no era O-075 (modelo
+sin centrar: el archivo de ese caso está centrado y mide 0,9 m), ni O-036 (modelo
+comprimido sin decodificador: abre sin error), ni D-078 (capas apagadas: con las
+tres capas encendidas pasaba igual).
+*Causa.* El modelo del caso es ahora **un solo objeto**, «Esqueleto», porque la
+exportación funde por sistema, y el caso seguía declarando noventa y nueve piezas
+(«Right_capitate», «Humeral_head_of_right_flexor_carpi_ulnaris»…) de la
+exportación anterior, la de la mano con cada hueso aparte. `mostrar(nodos)` encendía
+solo los nombres de la lista y apagaba el resto, y ninguno existía: se apagaban
+**todas** las mallas. Es el mismo fallo que D-078 corrigió para las capas, llegando
+por otra puerta. Y además el panel de medidas enseñaba el desplazamiento del caso
+(3 mm, 12°) sobre un hueso que no se movía, porque el fragmento que declaraba
+tampoco estaba en el archivo.
+*Qué se probó.* Se reprodujo con un caso sintético sobre el modelo de la tibia (tres
+piezas que el archivo no tiene): lienzo en negro, 3 mm y 12° de la nada.
+*Arreglo.*
+- `reconciliarConElModelo` (`src/lib/simulador.ts`): se enseña lo declarado **que
+  exista**; si no existe nada de lo declarado, el modelo entero. Antes que no
+  enseñar nada, se enseña algo y se dice.
+- La consola avisa, una sola vez por modelo y con la salida («Rellenar desde el
+  modelo» en el editor): «Ninguna de las piezas que declara este caso está en el
+  modelo…», o «El caso declara N de M piezas que este modelo no tiene».
+- Sin fragmento móvil en el archivo, las medidas se quedan en cero y se dice que
+  los pasos de reducción no tienen nada que mover.
+- El editor (D-166) lo muestra en la pestaña «Piezas», con «Quitar las que no
+  están» y «Rellenar desde el modelo».
+(−) El caso sigue necesitando que alguien reponga las piezas: el simulador ya no
+se ve en negro, pero un caso con las piezas equivocadas enseña el hueso entero y no
+lo que el autor quería. Es lo correcto —y se avisa—, no una solución.
+
 ---
 
 
@@ -7231,7 +7451,9 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
 
 **El instrumental en la escena**
 
-- [ ] **E5.4 · Modelar el instrumental.** Lo modela el asistente (respuesta del
+- [x] **E5.4 · Modelar el instrumental** (hecho, 2026-10-08, sin desplegar: 47
+  modelos articulados, ver D-165; la tabla de abajo es el plan original, superado
+  por el catálogo de `src/lib/instrumental.ts`). Lo modela el asistente (respuesta del
   dueño, 2026-10-07), con Blender. La 5.2 está instalada en `faraday`.
   - [ ] **E5.4a · Un guion de Python por instrumento**, en
     `scripts/instrumental/<nombre>.py`.
@@ -7267,19 +7489,26 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
     | Aguja de Kirschner | Ø 1,6 × 150 mm | una pieza |
     | Martillo | unos 250 mm | cabeza, mango |
 
-    En la v1 las piezas son rígidas. Que las pinzas abran y cierren es v2.
-- [ ] **E5.5 · Subirlos** a «Modelos 3D» y enlazarlos en el catálogo
-  «Instrumental». El campo `modelo` ya existe (migración `20260912_212708`).
-- [ ] **E5.6 · En el taller.**
+    ~~En la v1 las piezas son rígidas.~~ Superado en D-165: los modelos salen
+    articulados (las pinzas abren y cierran).
+- [x] **E5.5 · Subirlos** a «Modelos 3D» y enlazarlos en el catálogo
+  «Instrumental» (hecho: la pestaña «Instrumental» del taller, con carga por lote,
+  D-165). El campo `modelo` existía (migración `20260912_212708`).
+- [ ] **E5.6 · En el taller.** *Parcial:* el instrumental se gestiona y se retoca
+  en su pestaña (D-165); falta poner un instrumento dentro de una preparación.
   - Campo nuevo `ContenidoDeInstancia.objetos?: [{ modelo, mover, girar,
     escala }]`. Es json y no pide migración; se valida con `objetosValidos`.
   - «Añadir instrumento» desde el catálogo.
   - El instrumento se manipula con E3, se guarda con la preparación y se ve en
     las fichas (`VisorInstancia`).
-- [ ] **E5.7 · En la consola quirúrgica.**
-  - El instrumento elegido en la bandeja aparece en la escena. Hoy solo se ve
-    en el visor pequeño de `ConsolaQuirurgica.tsx` (l.1475–1499).
-  - El bisturí sigue el trazo de la incisión.
+- [ ] **E5.7 · En la consola quirúrgica.** *Parcial:* el visor pequeño de la
+  bandeja abre el instrumento articulado con sus retoques (D-165), y **el
+  instrumento elegido aparece en la escena**, sigue al cursor y se articula con los
+  deslizadores (D-166).
+  - ~~El instrumento elegido en la bandeja aparece en la escena.~~ Hecho (D-166).
+  - El bisturí sigue el trazo de la incisión: **hecho a medias** (la punta de
+    cualquier instrumento acompaña al trazo; falta que el bisturí se incline y se
+    hunda como un corte).
   - La pinza aparece sobre el foco al reducir.
   - El implante (placa y tornillos) aparece en su paso; el papel `implante` ya
     empieza oculto.
@@ -7288,7 +7517,7 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
 **Preguntas**
 
 - ~~E5-Q1~~: respondida el 2026-10-07. Lo modela el asistente (E5.4).
-- **E5-Q2 · ¿El instrumental va también en las fichas** o solo en el simulador?
+- ~~E5-Q2~~: respondida el 2026-10-08. El instrumental va **solo en el simulador**.
 
 ---
 

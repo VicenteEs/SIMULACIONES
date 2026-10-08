@@ -74,6 +74,8 @@ body:has(.admin-layout) .barra { display: none; }
    —árbol, lienzo y panel— y centrado en 1.240 px el lienzo se quedaba en un
    tercio de una pantalla ancha. */
 .admin-content:has(.atlas-taller) { max-width: none; margin-inline: 0; }
+/* El editor del simulador es la consola, y la consola quiere todo el ancho (D-166). */
+.admin-content:has(.editor-simulador) { max-width: none; margin-inline: 0; }
 
 /* ---------- barra lateral ---------- */
 .admin-sidebar {

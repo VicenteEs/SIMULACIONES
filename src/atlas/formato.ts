@@ -210,6 +210,14 @@ export interface ContenidoDeInstancia {
    * Ausente si no hay ninguna.
    */
   fracturas?: FracturaDeInstancia[]
+  /**
+   * Piezas o trozos que salen como objeto propio al exportar la preparación como
+   * modelo para el simulador, además de los que ya salen solos: lo que se movió o
+   * giró y los trozos de un hueso fracturado. Se marcan en la barra lateral,
+   * pestaña «Pieza», y no en un recuadro antes de exportar: lo que sale es lo que
+   * está guardado. Ausente si no hay ninguno.
+   */
+  sueltas?: string[]
 }
 
 /** Lo que un fragmento se ha movido; los mismos dos campos que en una pieza. */

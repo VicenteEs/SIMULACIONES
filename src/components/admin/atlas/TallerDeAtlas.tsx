@@ -63,15 +63,13 @@ import {
 import type { AspectoDePieza, TransformacionDePieza } from '@/atlas/cargador'
 // Estático sin miedo: `nombres.ts` es una tabla JSON y tres funciones de texto,
 // sin three. Lo que no puede entrar así es `@/atlas/cargador` (ver abajo).
-import { casaConLaBusqueda, nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
+import { nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
 import type { RolDePieza } from '@/lib/piezasDelCaso'
 // Los dos, sin three: `clasificacion.ts` es una tabla y `planoDeCorte.ts` es
 // aritmética que se prohíbe a sí mismo importar three. La mitad del corte que sí
 // lo necesita, `osteotomia.ts`, no se importa desde aquí; y `CorteExportado` es
 // solo un tipo, que se borra al compilar.
-import { rolDeSistema } from '@/atlas/clasificacion'
 import {
-  CORTE_POR_OMISION,
   INCLINACION_MAXIMA,
   POSICION_MAXIMA,
   POSICION_MINIMA,
@@ -485,48 +483,19 @@ export function TallerDeAtlas({
   // se prepara aquí se **escribe** como un .glb igual que el que sale de
   // Blender, y para la consola es un modelo más.
   //
-  // Las protagonistas son las piezas que salen como objeto suelto en vez de
-  // fundirse con su sistema: la tibia que se va a romper, el fragmento que hay
-  // que reducir. Sin marcar ninguna, el archivo sale con un objeto por sistema
-  // y no habría nada que mover en el simulador.
-  const [panelExportar, setPanelExportar] = useState(false)
-  const [protagonistas, setProtagonistas] = useState<Set<string>>(new Set())
-  const [filtroProtagonista, setFiltroProtagonista] = useState('')
+  // «Exportar como modelo» no pregunta nada antes de exportar (D-164): escribe
+  // lo que está guardado en la preparación, tal cual. Lo que va suelto en el
+  // archivo —lo movido, los trozos de una fractura y lo que se marque en la
+  // pestaña «Pieza»— se decide aquí, en la barra lateral, mientras se prepara; no
+  // en un recuadro que se abría justo antes de exportar y que olvidaba piezas o
+  // listaba otras que ya no estaban en el visor.
   const [exportado, setExportado] = useState<ResultadoDeExportar | null>(null)
-
   /**
-   * El hueso que se exporta partido, y cómo.
-   *
-   * Lo pidió el dueño —«quiero poder por ejemplo quebrar el hueso»— y eligió
-   * «un corte limpio sirve». Hasta aquí, un caso con fragmento que reducir
-   * necesitaba traer el hueso ya partido de Blender.
-   *
-   * Uno solo: el caso mueve un único fragmento, y marcar el corte en otra pieza
-   * lo quita de la anterior en vez de sumar un segundo.
+   * Piezas o trozos marcados para salir como objeto propio del archivo, además
+   * de los que salen solos (ver `reproducirPreparacion`). Es parte de lo que se
+   * guarda: se marca en «Pieza» y se queda con la preparación.
    */
-  const [corte, setCorte] = useState<CorteDeHueso | null>(null)
-
-  /**
-   * Las protagonistas que siguen encendidas.
-   *
-   * Marcar una pieza y apagarla después dejaba la marca puesta y fuera de la
-   * vista, porque el panel solo lista las encendidas: la cuenta prometía «3
-   * piezas sueltas» y el archivo salía con cero, ya que el servidor exporta lo
-   * que hay en la preparación guardada y allí esa pieza no está.
-   */
-  const protagonistasVivas = useMemo(
-    () => [...protagonistas].filter((id) => visibles.has(id)),
-    [protagonistas, visibles],
-  )
-
-  /**
-   * El corte, solo si su pieza sigue siendo una protagonista encendida.
-   *
-   * Por lo mismo que `protagonistasVivas`: apagar la tibia en el árbol dejaba
-   * la marca puesta y fuera de la vista, y el servidor rechazaría el corte de
-   * una pieza que ya no está en la preparación. Lo que se dibuja en el visor y
-   * lo que se envía es esto, no el estado crudo.
-   */
+  const [sueltas, setSueltas] = useState<Set<string>>(new Set())
   /**
    * La vista previa del asistente de fracturas: el plano del primer corte sobre el
    * hueso, el mismo disco con el que se prepara la exportación. Se calcula en un
@@ -558,26 +527,15 @@ export function TallerDeAtlas({
     setVistaPreviaDeFractura(previa)
   }, [pestana, seleccion, borrador, cortes, catalogo])
 
-  const corteVivo = useMemo(
-    () => (corte && protagonistasVivas.includes(corte.pieza) ? corte : null),
-    [corte, protagonistasVivas],
-  )
-
   /**
-   * Deja el panel de exportación como recién abierto.
+   * Deja el resultado de la última exportación como recién abierto.
    *
-   * Se llama al cambiar de preparación: las marcas y el resultado son de la
-   * anterior, y el recuadro con los nombres de los nodos —«esto es lo que el
-   * caso tiene que escribir en sus piezas»— apuntando a otro archivo es peor
-   * que no enseñar nada. El panel se queda abierto si lo estaba: exportar
-   * varias preparaciones seguidas es el uso normal y cerrarlo obligaría a
-   * volver a abrirlo cada vez.
+   * Se llama al cambiar de preparación: el recuadro con los nombres de los
+   * nodos —«esto es lo que el caso tiene que escribir en sus piezas»—
+   * apuntando a otro archivo es peor que no enseñar nada.
    */
   const limpiarExportacion = useCallback(() => {
-    setProtagonistas(new Set())
-    setFiltroProtagonista('')
     setExportado(null)
-    setCorte(null)
   }, [])
 
   const mando = useRef<MandoDelVisor | null>(null)
@@ -632,9 +590,18 @@ export function TallerDeAtlas({
     () => fracturas.filter((f) => visibles.has(f.pieza) && cortes.some((c) => c.pieza === f.pieza)),
     [fracturas, visibles, cortes],
   )
+  /**
+   * Lo marcado como suelto que sigue existiendo: la pieza o el trozo tiene que
+   * estar encendido. Apagarlo no borra la marca de la lista, pero tampoco la
+   * guarda ni la cuenta como cambio.
+   */
+  const sueltasVigentes = useMemo(
+    () => [...sueltas].filter((id) => visibles.has(piezaDe(id)) && !apagados.has(id)).sort(),
+    [sueltas, visibles, apagados],
+  )
   const claveApuntes = useMemo(
-    () => JSON.stringify([marcas, vistas, grupos, fracturasVigentes]),
-    [marcas, vistas, grupos, fracturasVigentes],
+    () => JSON.stringify([marcas, vistas, grupos, fracturasVigentes, sueltasVigentes]),
+    [marcas, vistas, grupos, fracturasVigentes, sueltasVigentes],
   )
   const claveTransformaciones = useMemo(
     () => firmaDeTransformaciones(transformaciones),
@@ -755,7 +722,8 @@ export function TallerDeAtlas({
         readonly VistaConNombre[],
         readonly string[][],
         readonly FracturaDeInstancia[],
-      ] = [[], [], [], []],
+        readonly string[],
+      ] = [[], [], [], [], []],
       trozosApagados: ReadonlySet<string> = new Set(),
     ) => {
       setReferencia({
@@ -1521,6 +1489,7 @@ export function TallerDeAtlas({
     setVistas([])
     setGrupos([])
     setFracturas([])
+    setSueltas(new Set())
     setBorrador(BORRADOR_VACIO)
     setSeleccion(new Set())
     setInstancia(null)
@@ -1571,6 +1540,7 @@ export function TallerDeAtlas({
     setVistas([])
     setGrupos([])
     setFracturas([])
+    setSueltas(new Set())
     setBorrador(BORRADOR_VACIO)
     setSeleccion(new Set())
     setVisibles(piezas)
@@ -1633,7 +1603,9 @@ export function TallerDeAtlas({
         const vistasAbiertas = r.datos.contenido.vistas ?? []
         const gruposAbiertos = r.datos.contenido.grupos ?? []
         const fracturasAbiertas = r.datos.contenido.fracturas ?? []
+        const sueltasAbiertas = r.datos.contenido.sueltas ?? []
         setFracturas(fracturasAbiertas)
+        setSueltas(new Set(sueltasAbiertas))
         setBorrador(BORRADOR_VACIO)
         setMarcas(marcasAbiertas)
         setVistas(vistasAbiertas)
@@ -1682,7 +1654,7 @@ export function TallerDeAtlas({
           movidasAbiertas,
           cortesAbiertos,
           aspectosAbiertos,
-          [marcasAbiertas, vistasAbiertas, gruposAbiertos, fracturasAbiertas],
+          [marcasAbiertas, vistasAbiertas, gruposAbiertos, fracturasAbiertas, sueltasAbiertas],
           apagadosAbiertos,
         )
         reiniciarElAutoguardado()
@@ -1719,7 +1691,7 @@ export function TallerDeAtlas({
    * de ser «sucio»— es lo mismo que con el botón, a propósito: un guardado
    * automático que guardara otra cosa dejaría dos caminos que divergen.
    */
-  const guardar = (opciones: { automatico?: boolean } = {}) => {
+  const guardar = (opciones: { automatico?: boolean; alTerminar?: (id: string) => Promise<void> } = {}) => {
     const automatico = opciones.automatico === true
     if (!nombre.trim()) {
       if (!automatico) {
@@ -1781,6 +1753,7 @@ export function TallerDeAtlas({
           vistas,
           grupos,
           fracturas: fracturasVigentes,
+          sueltas: sueltasVigentes,
           // Solo los trozos de piezas que se guardan: de una pieza apagada no
           // viaja nada, igual que su transformación.
           apagados: [...apagados].filter((id) => visibles.has(piezaDe(id))),
@@ -1805,7 +1778,7 @@ export function TallerDeAtlas({
           transformaciones,
           cortes,
           aspectos,
-          [marcas, vistas, grupos, fracturasVigentes],
+          [marcas, vistas, grupos, fracturasVigentes, sueltasVigentes],
           apagados,
         )
         if (automatico) {
@@ -1817,6 +1790,8 @@ export function TallerDeAtlas({
             texto: `Guardada con ${r.datos.piezas} pieza${r.datos.piezas === 1 ? '' : 's'}. Ya se puede insertar en una ficha.`,
           })
           refrescarLista()
+          // Lo que se pidió hacer en cuanto estuviera guardada (exportarla).
+          if (opciones.alTerminar) await opciones.alTerminar(r.datos.id)
         }
       } catch {
         // Es el peor sitio donde callar: sin aviso, el botón vuelve a decir
@@ -1860,83 +1835,62 @@ export function TallerDeAtlas({
   }, [])
 
   /**
-   * Escribe la preparación como un modelo 3D de la biblioteca.
+   * Escribe como modelo 3D la preparación ya guardada, la de ese identificador.
    *
-   * Exige tenerla guardada y sin cambios sueltos porque el servidor exporta lo
-   * que hay en la base, no lo que se ve en pantalla: exportar con la pantalla
-   * por delante entregaría un archivo que no se parece a lo que el
-   * traumatólogo está mirando, y nada lo avisaría.
+   * No pregunta nada: el servidor rehace lo que está guardado —lo cortado, lo
+   * movido, lo apagado— y lo escribe tal cual (ver `reproducirPreparacion`).
+   */
+  const exportarGuardada = async (id: string) => {
+    setExportado(null)
+    setTrabajo('exportar')
+    try {
+      const r = await exportarComoModelo(id)
+      if (!r.exito || !r.datos) {
+        setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo exportar.' })
+        return
+      }
+      setExportado(r.datos)
+      // El modelo recién exportado también es del atlas: que aparezca en la lista.
+      refrescarModelos()
+      setAviso({
+        tipo: 'ok',
+        texto: `«${r.datos.nombre}» ya está en la biblioteca de modelos 3D.`,
+      })
+    } catch {
+      // Aquí el rechazo es lo normal cuando algo va mal: son decenas de
+      // megabytes escribiéndose en el servidor y la espera es larga. Sin
+      // aviso, el botón volvía a decir «Exportar» y el recuadro de nombres se
+      // quedaba vacío, que es indistinguible de no haber pulsado.
+      setAviso({ tipo: 'error', texto: FALLO_DE_TRANSPORTE })
+    }
+  }
+
+  /**
+   * El botón «Exportar como modelo».
+   *
+   * Se exporta lo guardado y no lo que se ve, así que, si hay cambios sueltos o
+   * la preparación aún no existe, se guarda primero —el mismo guardado de
+   * siempre— y se exporta con el identificador que ese guardado devuelve. Sin
+   * esto había que acordarse de guardar antes, y el archivo salía con lo de la
+   * última vez sin que nada lo avisara.
    */
   const exportar = () => {
-    if (!instancia) {
+    if (!instancia && !nombre.trim()) {
       setAviso({
         tipo: 'error',
-        texto: 'Guarde la preparación antes de exportarla: se exporta lo guardado.',
-      })
-      return
-    }
-    if (sucio) {
-      setAviso({
-        tipo: 'error',
-        texto:
-          'Hay cambios sin guardar. Guárdelos primero: se exporta lo que hay en la base, no lo que se ve.',
+        texto: 'Póngale un nombre a la preparación: se exporta lo guardado.',
       })
       return
     }
     setAviso(null)
-    setExportado(null)
-    setTrabajo('exportar')
-
+    if (!instancia || sucio) {
+      guardar({ alTerminar: exportarGuardada })
+      return
+    }
     iniciar(async () => {
-      try {
-        const r = await exportarComoModelo(instancia, {
-          protagonistas: protagonistasVivas,
-          corte: corteVivo,
-        })
-        if (!r.exito || !r.datos) {
-          setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo exportar.' })
-          return
-        }
-        setExportado(r.datos)
-        // El modelo recién exportado también es del atlas: que aparezca en la lista.
-        refrescarModelos()
-        setAviso({
-          tipo: 'ok',
-          texto: `«${r.datos.nombre}» ya está en la biblioteca de modelos 3D.`,
-        })
-      } catch {
-        // Aquí el rechazo es lo normal cuando algo va mal: son decenas de
-        // megabytes escribiéndose en el servidor y la espera es larga. Sin
-        // aviso, el botón volvía a decir «Crear el modelo» y el recuadro de
-        // nombres se quedaba vacío, que es indistinguible de no haber pulsado.
-        setAviso({ tipo: 'error', texto: FALLO_DE_TRANSPORTE })
-      }
+      await exportarGuardada(instancia)
     })
   }
-
-  /**
-   * Las piezas encendidas, para elegir cuáles salen sueltas.
-   *
-   * Se enseñan las cien primeras y se dice cuántas quedan fuera: con el cuerpo
-   * completo encendido son las 2.234 del atlas y pintarlas todas convierte el
-   * panel en una lista imposible de recorrer. Callar el recorte sería peor:
-   * parecería que la pieza que se busca no está encendida.
-   *
-   * La búsqueda pasa por `casaConLaBusqueda` (`src/atlas/nombres.ts`), que casa
-   * en español y en el original, sin tildes y sin mayúsculas. El `includes`
-   * sobre el nombre original que había antes no basta ahora que la lista
-   * enseña «Peroné derecho»: escribir «perone» buscaría en «Right fibula» y no
-   * lo encontraría, y el panel parecería decir que la pieza no está encendida.
-   * No se escribe aquí otra comparación: una función para todos los buscadores
-   * del atlas es lo que impide que uno encuentre lo que otro no.
-   */
-  const candidatas = useMemo<{ lista: PiezaDelAtlas[]; total: number }>(() => {
-    if (!catalogo) return { lista: [], total: 0 }
-    const encendidas = catalogo.piezas
-      .filter((p) => visibles.has(p.id))
-      .filter((p) => casaConLaBusqueda(p.nombre, filtroProtagonista))
-    return { lista: encendidas.slice(0, 100), total: encendidas.length }
-  }, [catalogo, visibles, filtroProtagonista])
 
   const conAviso = (
     tarea: () => Promise<{ exito: boolean; mensaje?: string }>,
@@ -2318,11 +2272,12 @@ export function TallerDeAtlas({
           </button>
           <button
             className="admin-btn admin-btn-secondary"
-            aria-expanded={panelExportar}
-            aria-controls="atlas-panel-exportar"
-            onClick={() => setPanelExportar((abierto) => !abierto)}
+            disabled={enCurso}
+            // Escribe lo guardado tal cual, sin preguntar nada antes: lo que sale
+            // suelto se marca en la barra lateral mientras se prepara.
+            onClick={exportar}
           >
-            {panelExportar ? 'Cerrar exportación' : 'Exportar como modelo'}
+            {enCurso && trabajo === 'exportar' ? 'Exportando…' : 'Exportar como modelo'}
           </button>
           <button className="admin-btn admin-btn-primary" disabled={enCurso} onClick={() => guardar()}>
             {enCurso && trabajo === 'guardar'
@@ -2334,241 +2289,87 @@ export function TallerDeAtlas({
         </div>
       </div>
 
-      {panelExportar ? (
-        <div className="admin-aviso admin-aviso-info" id="atlas-panel-exportar">
-          <strong>Exportar esta preparación como modelo 3D</strong>
-          <p>
-            Se escribe un archivo .glb en la biblioteca de modelos, igual que si lo hubiera subido
-            desde Blender, y desde ahí se elige en cualquier caso del simulador. El atlas no se
-            toca: esto no quita ni mueve nada de aquí.
-          </p>
-          <p>
-            Marque las piezas que tengan que salir <strong>sueltas</strong>: la que se va a
-            fracturar y el fragmento que hay que reducir. Todo lo demás sale fundido en un objeto
-            por sistema, que es lo que hace que el archivo pese poco. Sin ninguna marcada no habrá
-            nada que mover en la consola.
-          </p>
-          <p>
-            Si la que se fractura es un hueso, puede <strong>partirla con un corte</strong> aquí
-            mismo, sin pasar por Blender: sale en dos trozos cerrados, y el que elija es el
-            fragmento que el residente reduce. El plano se ve en el modelo mientras mueve los
-            mandos.
-          </p>
+      {exportado ? (
+          <div className="admin-aviso admin-aviso-ok" id="atlas-resultado-exportar">
+          <button
+            type="button"
+            className="atlas-aviso-cerrar"
+            aria-label="Cerrar el resultado de la exportación"
+            onClick={() => setExportado(null)}
+          >
+            ×
+          </button>
+            <strong>
+              {exportado.nombre} · {(exportado.bytes / 1024 / 1024).toFixed(2)} MB
+            </strong>
+            <p>
+              Estos son los nombres que el caso tiene que escribir en sus piezas. Son los que la
+              consola ve dentro del archivo, no los del atlas: three.js cambia los espacios por
+              guiones bajos al cargar, y escribir el otro deja una pieza que no se enciende nunca
+              y ningún error que lo explique.
+            </p>
+            {/* Con `piezas`, cada nodo con su nombre y su capa: así se ve de
+                un vistazo que la tibia entra como hueso y los músculos como
+                músculo, que es lo que decide qué se apaga en la consola con
+                cada capa. Sin verlo aquí, un peroneo metido en el hueso solo
+                se notaría dentro del simulador, con la capa de músculo
+                apagada y el peroneo todavía encendido. Sin `piezas` —la
+                acción de antes— quedan los nodos solos, como siempre.
 
-          <input
-            className="atlas-busqueda"
-            type="search"
-            value={filtroProtagonista}
-            placeholder="Buscar entre las piezas encendidas…"
-            aria-label="Buscar entre las piezas encendidas"
-            onChange={(e) => setFiltroProtagonista(e.target.value)}
-          />
-
-          <div className="atlas-lista" style={{ maxHeight: 220, marginTop: 8 }}>
-            {candidatas.lista.map((pieza) => (
-              <div key={pieza.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label className="atlas-casilla">
-                  <input
-                    type="checkbox"
-                    checked={protagonistas.has(pieza.id)}
-                    onChange={(e) => {
-                      const marcada = e.target.checked
-                      setProtagonistas((antes) => {
-                        const ahora = new Set(antes)
-                        if (marcada) ahora.add(pieza.id)
-                        else ahora.delete(pieza.id)
-                        return ahora
-                      })
-                      // Desmarcarla quita también su corte: una pieza fundida
-                      // con su sistema no se puede partir, y la marca quedaría
-                      // escondida esperando a que se vuelva a marcar.
-                      if (!marcada) setCorte((c) => (c?.pieza === pieza.id ? null : c))
-                    }}
-                  />
-                  {/* El original, al pasar el ratón: es lo que se busca en la
-                      bibliografía y en la Foundational Model of Anatomy, y quien
-                      quiera comprobar la pieza tiene que poder encontrarla (ver
-                      `src/atlas/nombres.ts`). Solo cuando hay traducción, porque
-                      sin ella repetiría lo que ya se lee. */}
-                  <span title={tieneTraduccion(pieza.nombre) ? pieza.nombre : undefined}>
-                    {nombreEnEspanol(pieza.nombre)}
-                  </span>
-                </label>
-                {/* Solo para una protagonista que sea hueso: el servidor se niega
-                    a partir otra cosa, y ofrecerlo sería prometer un botón que
-                    siempre falla. Se pregunta con `rolDeSistema`, que es lo que
-                    decide el rol dentro del archivo, y no con el sistema a mano:
-                    el peroneo corto viene del esqueleto y es un músculo. */}
-                {protagonistas.has(pieza.id) && rolDeSistema(pieza.sistema) === 'hueso' ? (
-                  <label className="atlas-casilla" style={{ flex: 'none' }}>
-                    <input
-                      type="checkbox"
-                      checked={corte?.pieza === pieza.id}
-                      onChange={(e) =>
-                        setCorte(
-                          e.target.checked
-                            ? { ...CORTE_POR_OMISION, ...(corte ?? {}), pieza: pieza.id }
-                            : null,
-                        )
-                      }
-                    />
-                    <span>Partir con un corte</span>
-                  </label>
-                ) : null}
-              </div>
-            ))}
-            {candidatas.total === 0 ? (
-              <p className="atlas-conteo">Ninguna pieza encendida coincide con esa búsqueda.</p>
-            ) : null}
-            {candidatas.total > candidatas.lista.length ? (
-              <p className="atlas-conteo">
-                Se enseñan {candidatas.lista.length} de {candidatas.total}. Escriba en el buscador
-                para encontrar el resto.
-              </p>
-            ) : null}
-          </div>
-
-          {/* El corte trazado en el taller (D-130), llevado a los tres valores con
-              los que lo nombra la exportación (D-137): así el corte de la ficha
-              y el del simulador son el mismo, sin buscarlo a ojo dos veces. Solo
-              los de un hueso entero: el simulador parte un hueso en dos, y un
-              fragmento de un fragmento no tiene nombre allí. */}
-          {/* Solo los de un plano: un recorte (D-141) es la pirámide de un
-              marco, y el simulador parte por un plano. */}
-          {cortes
-            .filter((c) => !c.pieza.includes('#') && !c.otrosPlanos && visibles.has(c.pieza))
-            .map((c) => (
-              <button
-                key={c.pieza}
-                type="button"
-                className="admin-btn admin-btn-secondary"
-                style={{ marginBottom: 8 }}
-                onClick={() => {
-                  const valores = mando.current?.corteParaExportar(c.pieza, c)
-                  if (!valores) return
-                  setProtagonistas((actuales) => new Set([...actuales, c.pieza]))
-                  setCorte({
-                    ...CORTE_POR_OMISION,
-                    ...(corte?.pieza === c.pieza ? corte : {}),
-                    pieza: c.pieza,
-                    posicion: valores.posicion,
-                    inclinacion: valores.inclinacion,
-                    giro: valores.giro,
-                  })
-                  if (valores.acotado) {
-                    setAviso({
-                      tipo: 'error',
-                      texto:
-                        'El corte del taller se sale de lo que admite la exportación (entre el 5 y el 95 % del hueso, y hasta 60° de inclinación): se ha llevado al límite. Compruebe el plano antes de exportar.',
-                    })
-                  }
-                }}
-              >
-                Usar el corte del taller ·{' '}
-                {nombreEnEspanol(catalogo.piezas.find((p) => p.id === c.pieza)?.nombre ?? c.pieza)}
-              </button>
-            ))}
-
-          {corteVivo ? (
-            <MandosDelCorte
-              corte={corteVivo}
-              nombre={nombreEnEspanol(
-                catalogo.piezas.find((p) => p.id === corteVivo.pieza)?.nombre ?? corteVivo.pieza,
-              )}
-              alCambiar={setCorte}
-            />
-          ) : null}
-
-          <div className="admin-acciones" style={{ marginTop: 10 }}>
-            <button className="admin-btn admin-btn-primary" disabled={enCurso} onClick={exportar}>
-              {enCurso && trabajo === 'exportar' ? 'Exportando…' : 'Crear el modelo'}
-            </button>
-            <span className="atlas-conteo">
-              {protagonistasVivas.length === 0
-                ? 'Ninguna pieza suelta'
-                : `${protagonistasVivas.length} pieza${
-                    protagonistasVivas.length === 1 ? '' : 's'
-                  } suelta${protagonistasVivas.length === 1 ? '' : 's'}`}
-              {' · '}
-              {visibles.size} encendida{visibles.size === 1 ? '' : 's'}
-            </span>
-          </div>
-
-          {exportado ? (
-            <div className="admin-aviso admin-aviso-ok" style={{ marginTop: 10 }}>
-              <strong>
-                {exportado.nombre} · {(exportado.bytes / 1024 / 1024).toFixed(2)} MB
-              </strong>
+                El nombre de la capa es el del formulario del caso, leído de
+                su esquema (`src/admin/etiquetaDeRol.ts`) y no de una tabla
+                propia: aquí se le dice al traumatólogo en qué capa entra cada
+                pieza para que la busque después en ese formulario, y dos
+                tablas escritas a mano ya han llegado a llamarla distinto. El
+                `?? p.rol` es el respaldo de un papel sin opción en el esquema
+                o que llegue del servidor sin que este panel lo conozca: en
+                crudo se lee, un hueco no. */}
+            {exportado.piezas?.length ? (
+              <ul>
+                {exportado.piezas.map((p) => (
+                  <li key={p.nodo}>
+                    <code>{p.nodo}</code>
+                    {p.etiqueta ? ` · ${p.etiqueta}` : null} ·{' '}
+                    <strong>{ETIQUETA_DE_ROL[p.rol] ?? p.rol}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <ul>
+                {exportado.nodos.map((n) => (
+                  <li key={n}>
+                    <code>{n}</code>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* El corte, con sus dos nodos. Los dos trozos se ven pegados al
+                abrir el archivo, como un hueso entero, y sin esta línea no se
+                sabría que está partido ni cuál de los dos va a moverse. */}
+            {exportado.corte ? (
               <p>
-                Estos son los nombres que el caso tiene que escribir en sus piezas. Son los que la
-                consola ve dentro del archivo, no los del atlas: three.js cambia los espacios por
-                guiones bajos al cargar, y escribir el otro deja una pieza que no se enciende nunca
-                y ningún error que lo explique.
+                <strong>{exportado.corte.etiqueta}</strong> sale partida en dos:{' '}
+                <code>{exportado.corte.proximal}</code> y <code>{exportado.corte.distal}</code>. El
+                que se mueve en la reducción es <code>{exportado.corte.fragmento}</code>, y ya va
+                marcado como fragmento dentro del archivo.
+                {exportado.corte.avisos.map((aviso) => (
+                  <span key={aviso}>
+                    <br />
+                    <strong>Atención:</strong> {aviso}
+                  </span>
+                ))}
               </p>
-              {/* Con `piezas`, cada nodo con su nombre y su capa: así se ve de
-                  un vistazo que la tibia entra como hueso y los músculos como
-                  músculo, que es lo que decide qué se apaga en la consola con
-                  cada capa. Sin verlo aquí, un peroneo metido en el hueso solo
-                  se notaría dentro del simulador, con la capa de músculo
-                  apagada y el peroneo todavía encendido. Sin `piezas` —la
-                  acción de antes— quedan los nodos solos, como siempre.
-
-                  El nombre de la capa es el del formulario del caso, leído de
-                  su esquema (`src/admin/etiquetaDeRol.ts`) y no de una tabla
-                  propia: aquí se le dice al traumatólogo en qué capa entra cada
-                  pieza para que la busque después en ese formulario, y dos
-                  tablas escritas a mano ya han llegado a llamarla distinto. El
-                  `?? p.rol` es el respaldo de un papel sin opción en el esquema
-                  o que llegue del servidor sin que este panel lo conozca: en
-                  crudo se lee, un hueco no. */}
-              {exportado.piezas?.length ? (
-                <ul>
-                  {exportado.piezas.map((p) => (
-                    <li key={p.nodo}>
-                      <code>{p.nodo}</code>
-                      {p.etiqueta ? ` · ${p.etiqueta}` : null} ·{' '}
-                      <strong>{ETIQUETA_DE_ROL[p.rol] ?? p.rol}</strong>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <ul>
-                  {exportado.nodos.map((n) => (
-                    <li key={n}>
-                      <code>{n}</code>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {/* El corte, con sus dos nodos. Los dos trozos se ven pegados al
-                  abrir el archivo, como un hueso entero, y sin esta línea no se
-                  sabría que está partido ni cuál de los dos va a moverse. */}
-              {exportado.corte ? (
-                <p>
-                  <strong>{exportado.corte.etiqueta}</strong> sale partida en dos:{' '}
-                  <code>{exportado.corte.proximal}</code> y <code>{exportado.corte.distal}</code>. El
-                  que se mueve en la reducción es <code>{exportado.corte.fragmento}</code>, y ya va
-                  marcado como fragmento dentro del archivo.
-                  {exportado.corte.avisos.map((aviso) => (
-                    <span key={aviso}>
-                      <br />
-                      <strong>Atención:</strong> {aviso}
-                    </span>
-                  ))}
-                </p>
-              ) : null}
-              {exportado.perdidas.length ? (
-                <p>
-                  <strong>Atención:</strong> {exportado.perdidas.length} pieza
-                  {exportado.perdidas.length === 1 ? '' : 's'} de la preparación ya no
-                  {exportado.perdidas.length === 1 ? ' existe' : ' existen'} en el atlas instalado y
-                  no {exportado.perdidas.length === 1 ? 'salió' : 'salieron'} en el archivo.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+            ) : null}
+            {exportado.perdidas.length ? (
+              <p>
+                <strong>Atención:</strong> {exportado.perdidas.length} pieza
+                {exportado.perdidas.length === 1 ? '' : 's'} de la preparación ya no
+                {exportado.perdidas.length === 1 ? ' existe' : ' existen'} en el atlas instalado y
+                no {exportado.perdidas.length === 1 ? 'salió' : 'salieron'} en el archivo.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
       {/* La región viva se queda montada aunque no haya nada que decir. Un
           `role="status"` que aparece junto con su texto no se anuncia: el lector
@@ -2675,7 +2476,7 @@ export function TallerDeAtlas({
             alAsentarVista={asentarReferencia}
             // Solo con el panel de exportar abierto: cerrado, un plano magenta
             // cruzando la tibia sin ningún mando a la vista no se explica.
-            corte={panelExportar ? corteVivo : vistaPreviaDeFractura}
+            corte={vistaPreviaDeFractura}
             // Pulsar una pieza la selecciona, como en Blender, y ya no la
             // apaga (D-126): apagar es Supr, X o H sobre lo seleccionado. Un
             // clic que borra no deja elegir nada, y sin elegir no hay marco,
@@ -3147,6 +2948,40 @@ export function TallerDeAtlas({
             </div>
           )}
 
+          <h3 className="atlas-subtitulo">Al exportar al simulador</h3>
+          {seleccion.size === 0 ? (
+            <p className="campo-ayuda">
+              Seleccione piezas para marcar cuáles salen sueltas en el archivo del simulador.
+              Salen solas lo que se mueve o gira y los trozos de un hueso fracturado.
+            </p>
+          ) : (
+            <label className="atlas-aspecto-fila">
+              <input
+                type="checkbox"
+                checked={[...seleccion].every((id) => sueltas.has(id))}
+                aria-label="Lo seleccionado sale suelto al exportar como modelo"
+                onChange={(e) => {
+                  const marcada = e.target.checked
+                  setSueltas((antes) => {
+                    const ahora = new Set(antes)
+                    for (const id of seleccion) {
+                      if (marcada) ahora.add(id)
+                      else ahora.delete(id)
+                    }
+                    return ahora
+                  })
+                }}
+              />
+              <span>Sale suelto: el simulador lo puede mover</span>
+            </label>
+          )}
+          <p className="campo-ayuda">
+            {sueltasVigentes.length === 0
+              ? 'Ninguna pieza marcada. '
+              : `${sueltasVigentes.length} pieza${sueltasVigentes.length === 1 ? '' : 's'} marcada${sueltasVigentes.length === 1 ? '' : 's'}. `}
+            Lo demás sale fundido por sistema, y «Exportar como modelo» escribe lo que está guardado.
+          </p>
+
           <h3 className="atlas-subtitulo">Rótulos y medidas</h3>
           {marcas.length === 0 ? (
             <p className="campo-ayuda">
@@ -3444,6 +3279,7 @@ export function TallerDeAtlas({
  * girar un plano perpendicular al eje alrededor del eje lo deja donde estaba, y
  * un mando que se mueve sin mover nada hace creer que el visor no responde.
  */
+
 /**
  * El panel de números (la N de Blender): lo que una pieza se ha movido, en
  * milímetros, y lo que se ha girado, en grados, para leerlo y para teclearlo.
@@ -3505,91 +3341,5 @@ function PanelDeNumeros({
       {fila('Posición', 'mover', milimetros, 'mm')}
       {fila('Giro', 'girar', grados, '°')}
     </div>
-  )
-}
-
-function MandosDelCorte({
-  corte,
-  nombre,
-  alCambiar,
-}: {
-  corte: CorteDeHueso
-  nombre: string
-  alCambiar: (corte: CorteDeHueso) => void
-}) {
-  const cambiar = (parte: Partial<CorteDeHueso>) => alCambiar({ ...corte, ...parte })
-  const descripcion = describirCorte(corte)
-  return (
-    <fieldset
-      style={{ marginTop: 10, border: '1px solid currentColor', borderRadius: 6, padding: '8px 10px' }}
-    >
-      <legend style={{ padding: '0 4px' }}>
-        <strong>Corte de {nombre}</strong>
-      </legend>
-
-      <label className="atlas-separador-mando">
-        <span style={{ minWidth: 150 }}>Posición, de proximal a distal</span>
-        <input
-          type="range"
-          min={POSICION_MINIMA}
-          max={POSICION_MAXIMA}
-          step={1}
-          value={corte.posicion}
-          onChange={(e) => cambiar({ posicion: Number(e.target.value) })}
-        />
-        <span className="atlas-separador-valor">{corte.posicion} %</span>
-      </label>
-
-      <label className="atlas-separador-mando">
-        <span style={{ minWidth: 150 }}>Inclinación</span>
-        <input
-          type="range"
-          min={0}
-          max={INCLINACION_MAXIMA}
-          step={1}
-          value={corte.inclinacion}
-          onChange={(e) => cambiar({ inclinacion: Number(e.target.value) })}
-        />
-        <span className="atlas-separador-valor">
-          {corte.inclinacion === 0 ? 'transversal' : `${corte.inclinacion}°`}
-        </span>
-      </label>
-
-      <label className="atlas-separador-mando">
-        <span style={{ minWidth: 150 }}>Más proximal por la cara</span>
-        <input
-          type="range"
-          min={0}
-          max={345}
-          step={15}
-          value={corte.giro}
-          disabled={corte.inclinacion === 0}
-          onChange={(e) => cambiar({ giro: Number(e.target.value) })}
-        />
-        <span className="atlas-separador-valor">
-          {caraDelGiro(corte.giro)} ({corte.giro}°)
-        </span>
-      </label>
-
-      <div className="atlas-separador-mando" role="radiogroup" aria-label="Fragmento que se mueve">
-        <span style={{ minWidth: 150 }}>Fragmento que se mueve</span>
-        {(['distal', 'proximal'] as const).map((lado) => (
-          <label key={lado} className="atlas-casilla" style={{ flex: 'none' }}>
-            <input
-              type="radio"
-              name="atlas-fragmento"
-              checked={corte.fragmento === lado}
-              onChange={() => cambiar({ fragmento: lado })}
-            />
-            <span>{lado}</span>
-          </label>
-        ))}
-      </div>
-
-      <p className="atlas-conteo" style={{ marginTop: 6 }}>
-        {descripcion.charAt(0).toUpperCase() + descripcion.slice(1)}. Las caras se cuentan con el
-        cuerpo en posición anatómica: lateral es hacia fuera del cuerpo en los dos lados.
-      </p>
-    </fieldset>
   )
 }

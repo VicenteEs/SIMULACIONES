@@ -341,3 +341,110 @@
    se vuelve el contenedor del `position: sticky`, y la barra fija se quedaba
    quieta arriba del todo. Con un editor dentro, se suelta. */
 .admin-content:has(.editor) { overflow: visible; }
+
+/* ==========================================================================
+   El editor del simulador (D-166): la consola del residente con el editor
+   encima. La consola es oscura y el panel claro, así que lo de dentro de
+   `.consola-editor-panel` se pinta con los colores de la consola.
+   ========================================================================== */
+.editor-seccion-ancha { padding-inline: 0; }
+.editor-simulador { display: grid; gap: var(--e-4, 1rem); min-width: 0; }
+.editor-simulador-vacio {
+  max-width: 920px;
+}
+.editor-simulador-aviso {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  padding: 1rem 1.25rem;
+  border: 1px dashed var(--linea-fuerte, #b8c4d8);
+  border-radius: var(--r-lg, 12px);
+  background: var(--superficie, #fff);
+}
+.editor-simulador-aviso p { margin: 0; color: var(--mudo, #5b6b86); }
+.editor-simulador-clasico { margin-top: 0.5rem; }
+.editor-simulador-clasico > summary { cursor: pointer; font-weight: 600; padding: 0.5rem 0; }
+.editor-simulador-clasico[open] > summary { margin-bottom: 0.75rem; }
+
+.editor-simulador-pestanas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r-lg);
+}
+.editor-simulador-pestana {
+  min-height: 38px;
+  padding: 0 var(--e-2);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--c-texto-2);
+  background: none;
+  border: 0;
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.editor-simulador-pestana:hover { color: var(--c-texto); }
+.editor-simulador-pestana.activa { color: #fff; background: var(--c-acento-solido); }
+
+.editor-simulador-cuerpo { display: grid; gap: var(--e-4); min-width: 0; }
+/* Los controles de formulario heredan el tema claro del panel; dentro de la
+   consola se pintan con sus colores. Solo color y fondo: el tamaño, el foco y
+   la disposición siguen siendo los del formulario de siempre. */
+.consola-editor-panel .campo-etiqueta,
+.consola-editor-panel label,
+.consola-editor-panel .lista-conteo { color: var(--c-texto); }
+.consola-editor-panel .campo-ayuda,
+.consola-editor-panel .campo-error + *,
+.consola-editor-panel .lista-cabecera { color: var(--c-texto-2); }
+.consola-editor-panel .campo-error { color: var(--c-grave); }
+.consola-editor-panel .campo-control,
+.consola-editor-panel input[type='text'],
+.consola-editor-panel input[type='number'],
+.consola-editor-panel textarea,
+.consola-editor-panel select {
+  color: var(--c-texto);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r);
+}
+.consola-editor-panel .lista-fila,
+.consola-editor-panel .campo-grupo,
+.consola-editor-panel fieldset {
+  background: var(--c-panel-2);
+  border-color: var(--c-linea);
+  color: var(--c-texto);
+}
+.consola-editor-panel .admin-btn { color: var(--c-texto); background: var(--c-panel-2); border-color: var(--c-linea-fuerte); }
+.consola-editor-panel .admin-btn-primary { color: #fff; background: var(--c-acento-solido); border-color: var(--c-acento-solido); }
+
+.editor-simulador-capturas { display: grid; gap: var(--e-2); padding-top: var(--e-3); border-top: 1px solid var(--c-linea); }
+.editor-simulador-capturas-botones { display: flex; flex-wrap: wrap; gap: var(--e-2); }
+.editor-simulador-alerta {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  color: var(--c-texto);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-atencion);
+  border-left-width: 4px;
+  border-radius: var(--r);
+}
+.editor-simulador-alerta p { margin: 0; font-size: var(--t-sm); color: var(--c-texto-2); }
+.editor-simulador-piezas { display: grid; gap: var(--e-3); }
+.editor-simulador-tabla { width: 100%; border-collapse: collapse; font-size: var(--t-xs); }
+.editor-simulador-tabla th,
+.editor-simulador-tabla td { padding: var(--e-1) var(--e-2); text-align: left; border-bottom: 1px solid var(--c-linea); color: var(--c-texto); vertical-align: middle; }
+.editor-simulador-tabla thead th { font-family: var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--c-rotulo); }
+.editor-simulador-tabla tbody th { font-weight: 400; word-break: break-all; width: 46%; }
+.editor-simulador-tabla select { width: 100%; min-width: 128px; }
+.editor-simulador-tabla tr.huerfana th code { color: var(--c-atencion); }
+.editor-simulador-falta { color: var(--c-atencion); }
+.editor-simulador-acciones { display: flex; gap: var(--e-1); flex-wrap: wrap; justify-content: flex-end; }
+.editor-simulador-sinusar > summary { cursor: pointer; font-size: var(--t-sm); color: var(--c-texto-2); }
+
+/* El botón pequeño de la consola, que el editor también usa. */
+.consola .consola-boton { display: inline-flex; align-items: center; gap: var(--e-1); }

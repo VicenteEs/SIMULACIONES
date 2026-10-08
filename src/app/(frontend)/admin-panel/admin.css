@@ -1612,3 +1612,51 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 .fractura-trazo { stroke: #c0392b; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .fractura-acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .atlas-lectura-pequena { margin: 0 0 6px; font-weight: 600; }
+
+/* ==========================================================================
+   Taller, pestaña «Instrumental» (D-165).
+
+   Reutiliza las tres columnas del taller de anatomía (`.atlas-marco`); con la
+   barra de pestañas encima, la altura se reduce lo que ella ocupa.
+   ========================================================================== */
+.atlas-con-pestanas .atlas-marco { height: calc(100vh - 262px); }
+
+.instr-cabecera { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-bottom: 1px solid var(--linea); }
+.instr-avance { height: 6px; border-radius: 3px; background: var(--linea-suave); overflow: hidden; }
+.instr-avance > span { display: block; height: 100%; background: var(--marca); transition: width 0.3s; }
+.instr-botones { display: flex; flex-wrap: wrap; gap: 6px; }
+.instr-botones .admin-btn { padding: 4px 10px; font-size: var(--t-sm); }
+.instr-subir { cursor: pointer; }
+.instr-filtros { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.instr-filtros .campo-control { padding: 4px 6px; font-size: var(--t-sm); }
+.instr-lista { padding: 4px 0; overflow-y: auto; flex: 1; min-height: 0; }
+.instr-grupo-titulo {
+  display: flex; justify-content: space-between;
+  padding: 8px 12px 4px; font-size: var(--t-sm); font-weight: 600; color: var(--pizarra);
+  position: sticky; top: 0; background: var(--superficie);
+}
+.instr-grupo-titulo span { font-weight: 400; color: var(--mudo); }
+.instr-fila {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  padding: 6px 12px; border: 0; background: transparent; text-align: left; font: inherit; font-size: var(--t-sm);
+  color: var(--tinta); cursor: pointer;
+}
+.instr-fila:hover { background: var(--linea-suave); }
+.instr-fila[aria-pressed='true'] { background: color-mix(in srgb, var(--marca) 12%, transparent); box-shadow: inset 3px 0 0 var(--marca); }
+.instr-fila-nombre { flex: 1; min-width: 0; }
+.instr-etiqueta { flex: none; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid transparent; }
+.instr-etiqueta-ok { background: #e2f3ea; color: #0f6a3d; border-color: #b9e0cb; }
+.instr-etiqueta-retocado { background: #e6eefb; color: #1b4f9c; border-color: #c2d4f2; }
+.instr-etiqueta-falta { background: #fdf0d9; color: #8a5300; border-color: #f1d9a4; }
+.instr-partes { list-style: none; margin: 0; padding: 0; }
+.instr-parte {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 3px 6px; border: 0; border-radius: var(--r);
+  background: transparent; font: inherit; font-size: var(--t-sm); text-align: left; color: var(--tinta); cursor: pointer;
+}
+.instr-parte:hover { background: var(--linea-suave); }
+.instr-parte[aria-pressed='true'] { background: color-mix(in srgb, #e8742a 20%, transparent); }
+.instr-parte em { color: var(--mudo); font-style: normal; font-size: 11px; }
+.instr-muestra { width: 10px; height: 10px; border: 1px solid var(--linea); border-radius: 2px; flex: none; }
+.instr-datos { margin: 0 0 8px; padding-left: 18px; font-size: var(--t-sm); }
+.instr-articulaciones { display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 1100px) { .atlas-con-pestanas .atlas-marco { height: auto; } }

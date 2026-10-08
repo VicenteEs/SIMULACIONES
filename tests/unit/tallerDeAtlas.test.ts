@@ -72,8 +72,10 @@ describe('el taller del atlas y el trabajo sin guardar', () => {
     // desde otro lado.
     expect(expresionDe('sucio')).not.toContain('camaraMovida')
 
-    const exportar = entre('const exportar = () => {', 'const candidatas')
-    expect(exportar).toContain('if (sucio)')
+    const exportar = entre('const exportar = () => {', 'const conAviso')
+    // Con cambios sin guardar se guarda primero y se exporta con el id que devuelve el guardado.
+    expect(exportar).toContain('if (!instancia || sucio)')
+    expect(exportar).toContain('guardar({ alTerminar: exportarGuardada })')
     expect(exportar).not.toContain('camaraMovida')
     expect(exportar).not.toContain('hayQueAvisar')
   })

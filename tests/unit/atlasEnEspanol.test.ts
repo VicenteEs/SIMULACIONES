@@ -393,14 +393,15 @@ describe('quien tenía que llamar a todo esto lo llama', () => {
     expect(arbol).not.toMatch(/\bbuscarPiezas\(/)
   })
 
-  it('el árbol y el panel de exportar buscan con la misma función', () => {
-    // Una comparación propia en cualquiera de los dos es lo que haría que uno
-    // encontrara lo que el otro no. El árbol llega a ella por `buscarEnEspanol`.
+  it('el árbol busca con la comparación única, y el taller ya no tiene otra', () => {
+    // Una comparación propia es lo que haría que un buscador encontrara lo que
+    // otro no. El árbol llega a ella por `buscarEnEspanol`. El panel de exportar,
+    // que tenía su propio buscador, ya no existe (D-164).
     const buscar = leer('src', 'atlas', 'arbolEnEspanol.ts')
     expect(buscar).toContain("import { casaConLaBusqueda, nombreEnEspanol } from './nombres'")
     expect(buscar).toContain('casaConLaBusqueda(pieza.nombre, consulta)')
     const taller = leer('src', 'components', 'admin', 'atlas', 'TallerDeAtlas.tsx')
-    expect(taller).toContain('casaConLaBusqueda(p.nombre, filtroProtagonista)')
+    expect(taller).not.toContain('filtroProtagonista')
   })
 
   it('cada fila enseña el nombre en español con el original en el título', () => {

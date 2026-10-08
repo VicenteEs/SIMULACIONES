@@ -99,33 +99,26 @@ habrá que ponerlo a mano.
 Los modelos exportados del atlas **antes del 13 de septiembre de 2026** llevan
 los nombres en inglés y ninguna capa dentro: vuelva a exportarlos.
 
-### Partir el hueso al exportar
+### Partir el hueso para exportar
 
-Tampoco hace falta Blender para romper el hueso. En el mismo panel de
-**Exportar como modelo**:
+Tampoco hace falta Blender para romper el hueso, y desde D-164 **no se pide en el
+momento de exportar**: el hueso sale partido porque en la preparación está partido.
 
-1. Marque el hueso como pieza **suelta**. Solo una pieza suelta se puede partir:
-   fundida con el resto del esqueleto, el «fragmento» sería el esqueleto entero.
-2. Al lado aparece **Partir con un corte**. Márquela. Sale solo en los huesos: un
-   músculo partido no es una fractura, y el peroneo corto, que el atlas de origen
-   guarda con los huesos, no la ofrece. Cabe un corte por archivo, porque un caso
-   mueve un fragmento y nada más.
-3. Ajuste los cuatro mandos mirando el disco magenta que aparece sobre el hueso:
+1. En el taller, parta el hueso con el asistente de la pestaña **«Fractura»** (A2 o
+   A3 con su código AO) o con **«Cortar»** (`K`), y deje los trozos como quiera
+   verlos.
+2. Guarde la preparación. El botón **«Exportar como modelo»** escribe lo guardado.
 
-| Mando | Qué decide |
-|---|---|
-| Posición, de proximal a distal | A qué altura corta, del 5 al 95 % de la longitud del hueso. El 50 % es media diáfisis |
-| Inclinación | Los grados entre el trazo y la perpendicular al eje. 0 es **transversal**; hasta 60° |
-| Más proximal por la cara | Por qué cara sube el trazo cuando es oblicuo: anterior, lateral, posterior, medial… Lateral es hacia fuera del cuerpo en las dos piernas |
-| Fragmento que se mueve | El trozo que el residente reduce. Distal por omisión, que es el que se tracciona en quirófano |
+El hueso sale en dos objetos, cada uno cerrado por su cara de corte. Si la
+preparación tiene **un único hueso partido en dos**, el trozo **distal** sale como
+el fragmento que el residente reduce, con el origen del nodo en el foco de la
+fractura, y **«Rellenar desde el modelo»** lo marca solo. Con más de dos fragmentos
+o con dos huesos partidos todos salen sueltos pero ninguno marcado: la consola mueve
+uno solo y lo elige quien arma el caso. Lo desplazado en el taller sale desplazado:
+para un modelo «en su sitio», con la reducción hecha, reduzca antes de exportar.
 
-Debajo se lee el corte con palabras, y esa misma frase queda en las notas del
-modelo.
-
-El eje del hueso lo mide la plataforma sobre la forma del hueso, no sobre su
-caja, así que un corte «transversal» de fémur es transversal al fémur y no al
-suelo. Los mandos de la vista previa y el archivo usan la misma cuenta: lo que ve
-en el disco es lo que sale.
+El eje del hueso lo mide la plataforma sobre la forma del hueso, no sobre su caja,
+así que un corte «transversal» de fémur es transversal al fémur y no al suelo.
 
 **Qué corte pide cada fractura.** Es la manera de que el modelo diga lo mismo que
 la clasificación del caso:
@@ -135,12 +128,7 @@ la clasificación del caso:
 | A3 · simple transversa (trazo a menos de 30°) | Inclinación 0: transversal |
 | A2 · simple oblicua (30° o más) | Inclinación de unos 45°: lejos del borde de los 30° y del tope de 60° |
 | A1 · simple espiroidea | No se puede: un corte es un plano. Una oblicua de 45° es lo más parecido, y el trazo que se ve es recto |
-| B y C · en cuña y complejas | No se puede: dejan tres fragmentos o más, y un corte da dos |
-
-Desde D-161 el taller **sí construye** B y C (y A2 y A3 con su código) en la
-pestaña «Fractura», y una preparación así se ve completa en la ficha. Lo que no hace
-todavía es **exportarla al simulador**: la consola mueve un solo fragmento, y esa
-exportación sigue admitiendo un solo plano (A2 y A3).
+| B y C · en cuña y complejas | Se construyen en la pestaña «Fractura» y se exportan completas; la consola solo mueve un fragmento |
 
 **Qué sale.** El hueso partido son dos objetos, los dos cerrados por la cara del
 corte, que encajan exactamente: el hueso sigue exportándose **reducido**, como

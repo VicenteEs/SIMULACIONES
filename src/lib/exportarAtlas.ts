@@ -59,6 +59,13 @@ export interface PiezaLeida {
    * saber nada de cortes.
    */
   trozo?: { lado: TrozoDelHueso; fragmento: boolean }
+  /**
+   * Solo en un trozo que salió de reproducir la preparación guardada (ver
+   * `reproducirPreparacion`): `_1`, `_2`, `_2_1`… Se pega al nombre **ya
+   * traducido**, igual que el taller lo escribe en el árbol: «Tibia derecha_2».
+   * Pegado al original en inglés no habría traducción que encontrar.
+   */
+  sufijo?: string
 }
 
 export interface OpcionesDeExportacion {
@@ -88,6 +95,26 @@ export interface OpcionesDeExportacion {
    * que nadie puede reducir, con el aspecto exacto de uno que sí.
    */
   corte?: CorteDeHueso | null
+  /**
+   * El hueso partido **tal como estaba guardado en la preparación** (una
+   * fractura del asistente, dos trozos), ya hecho: las piezas con sus dos
+   * trozos y los datos del corte. Es la vía nueva, la que no pregunta nada
+   * antes de exportar; `corte` sigue valiendo para los guiones que parten el
+   * hueso por la exportación y los pasan a mano.
+   */
+  partido?: HuesoPartidoDeAntes | null
+}
+
+/**
+ * Lo que `reproducirPreparacion` entrega cuando la preparación trae un hueso
+ * con exactamente un corte: lo mismo que `partirLaPieza`, más cuál de los dos
+ * trozos es el que se mueve (el distal, que es el que se tracciona en
+ * quirófano).
+ */
+export interface HuesoPartidoDeAntes {
+  piezas: PiezaLeida[]
+  corte: Pick<CorteExportado, 'etiqueta' | 'descripcion' | 'avisos'> & { punto: Vector3 }
+  fragmento: TrozoDelHueso
 }
 
 /** Lo que se exportó del corte, con los nombres de nodo que salieron. */
@@ -199,8 +226,8 @@ export function agruparParaGlb(
     // fragmento que se mueve lleva ese rol en vez del de su sistema: es lo que el
     // taller de piezas del caso lee para marcarlo solo (`propuestaDelNodo`).
     const etiqueta = pieza.trozo
-      ? `${nombreEnEspanol(pieza.nombre)}, fragmento ${pieza.trozo.lado}`
-      : nombreEnEspanol(pieza.nombre)
+      ? `${nombreEnEspanol(pieza.nombre)}${pieza.sufijo ?? ''}, fragmento ${pieza.trozo.lado}`
+      : `${nombreEnEspanol(pieza.nombre)}${pieza.sufijo ?? ''}`
     salida.push({
       nombre: pieza.nombre,
       posiciones: pieza.posiciones,
@@ -905,7 +932,9 @@ export function prepararExportacion(
   corte: CorteExportado | null
 } {
   // `piezas` son ya las de después del corte: la tibia partida son dos.
-  const { piezas, corte: partido } = partirLaPieza(leidas, opciones)
+  const previo = opciones.partido ?? null
+  const { piezas, corte: partido } = previo ? { piezas: previo.piezas, corte: previo.corte } : partirLaPieza(leidas, opciones)
+  const fragmentoQueSeMueve: TrozoDelHueso | null = previo ? previo.fragmento : (opciones.corte?.fragmento ?? null)
   const recorte = recortarLaPiel(agruparParaGlb(piezas, opciones))
   const centrado = centrarEnSuCaja(nombrarNodos(recorte.objetos))
   const { centro, sinLaPiel } = centrado
@@ -913,8 +942,8 @@ export function prepararExportacion(
     ? [partido.punto[0] - centro[0], partido.punto[1] - centro[1], partido.punto[2] - centro[2]]
     : null
   const objetos =
-    partido && pivote && opciones.corte
-      ? pivoteEnElFoco(centrado.objetos, opciones.corte.fragmento, pivote)
+    partido && pivote && fragmentoQueSeMueve
+      ? pivoteEnElFoco(centrado.objetos, fragmentoQueSeMueve, pivote)
       : centrado.objetos
   const archivo = piezasDelArchivo(objetos)
 
@@ -937,7 +966,7 @@ export function prepararExportacion(
       avisos: partido.avisos,
       proximal,
       distal,
-      fragmento: opciones.corte?.fragmento === 'proximal' ? proximal : distal,
+      fragmento: fragmentoQueSeMueve === 'proximal' ? proximal : distal,
       pivote,
     }
   }
