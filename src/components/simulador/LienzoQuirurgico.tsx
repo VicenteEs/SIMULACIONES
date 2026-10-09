@@ -111,6 +111,12 @@ export interface InstrumentoEnEscena {
   ajustes: AjustesDeInstrumento | null
   /** El valor de cada articulación, en su unidad (grados o milímetros). */
   articulaciones: Record<string, number>
+  /**
+   * Un instrumento de corte (el bisturí) no se posa como un separador: al trazar
+   * se inclina hacia atrás, contra el avance, y la punta se hunde un poco. Es lo
+   * que hace que la incisión se vea cortada y no pintada.
+   */
+  corta?: boolean
 }
 
 /**
@@ -543,7 +549,7 @@ export function LienzoQuirurgico({
      * como se agarra. Sin golpe se esconde: un instrumento flotando sobre el
      * fondo no dice nada, y tapar el modelo con él tampoco.
      */
-    const posarHerramienta = (golpe: THREE.Intersection | null) => {
+    const posarHerramienta = (golpe: THREE.Intersection | null, avance?: THREE.Vector3) => {
       const herramienta = taller.current.herramienta
       if (!herramienta) return
       if (!golpe) {
@@ -560,9 +566,16 @@ export function LienzoQuirurgico({
       // toma la que mira hacia quien mira.
       if (normal.dot(rayo.ray.direction) > 0) normal.negate()
       const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(camara.quaternion)
-      const direccion = normal.clone().multiplyScalar(0.85).addScaledVector(arriba, 0.65).normalize()
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
-      herramienta.raiz.position.copy(golpe.point).addScaledVector(normal, unidadesPorMm * 0.4)
+      const cortando = !!ultimas.current.instrumento?.corta && !!avance && avance.lengthSq() > 0
+      // Cortando, el mango se echa hacia atrás (contra el avance) y la hoja se
+      // hunde 1,5 mm; sin avance, se posa como cualquier otro.
+      const direccion = cortando
+        ? normal.clone().multiplyScalar(0.55).addScaledVector(avance!.clone().normalize(), -0.85).normalize()
+        : normal.clone().multiplyScalar(0.85).addScaledVector(arriba, 0.65).normalize()
+      herramienta.raiz.position
+        .copy(golpe.point)
+        .addScaledVector(normal, unidadesPorMm * (cortando ? -1.5 : 0.4))
       herramienta.raiz.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direccion)
       herramienta.raiz.visible = true
       pedirDibujo()
@@ -680,7 +693,7 @@ export function LienzoQuirurgico({
         dibujarTrazo(taller.current)
         ultimas.current.alTrazar?.([...puntos])
         // La punta del instrumento va dibujando la incisión.
-        posarHerramienta(golpe)
+        posarHerramienta(golpe, ultimo ? new THREE.Vector3(golpe.point.x - ultimo.x, golpe.point.y - ultimo.y, golpe.point.z - ultimo.z) : undefined)
         pedirDibujo()
         return
       }

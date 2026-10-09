@@ -983,6 +983,7 @@ export function ConsolaQuirurgica({
    */
   const ajustesDelElegido = instrumentoElegido?.ajustes ?? null
   const urlDelElegido = instrumentoElegido?.modeloUrl ?? null
+  const iconoDelElegido = instrumentoElegido?.icono ?? null
   const valoresDeArticulacion = useMemo(() => {
     const valores: Record<string, number> = {}
     for (const a of articulacionesDeclaradas) {
@@ -996,9 +997,14 @@ export function ConsolaQuirurgica({
   const instrumentoEnEscena = useMemo<InstrumentoEnEscena | null>(
     () =>
       urlDelElegido
-        ? { url: urlDelElegido, ajustes: ajustesDelElegido, articulaciones: valoresDeArticulacion }
+        ? {
+            url: urlDelElegido,
+            ajustes: ajustesDelElegido,
+            articulaciones: valoresDeArticulacion,
+            corta: iconoDelElegido === 'bisturi',
+          }
         : null,
-    [urlDelElegido, ajustesDelElegido, valoresDeArticulacion],
+    [urlDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido],
   )
 
   /**
