@@ -26,11 +26,19 @@
 
 /* La base del lienzo, sin `.consola` delante: la usa también el taller del
    panel (ver cabecera). 420 px y el fondo de todo visor 3D, como antes. */
-.consola-lienzo { height: 420px; background: var(--lienzo-3d); }
+.consola-lienzo { position: relative; height: 420px; background: var(--lienzo-3d); }
 /* El `!important` es de three.js, no nuestro: el render escribe el tamaño en
    el atributo `style` del propio canvas, y sin él no se le puede mandar desde
-   la hoja. */
-.consola-lienzo canvas { display: block; width: 100% !important; height: 100% !important; }
+   la hoja.
+
+   El canvas va **absoluto**, fuera del flujo, y no por estética: un canvas en
+   flujo aporta a su contenedor su tamaño intrínseco —el de su atributo, que three
+   escribe multiplicado por el factor de pantalla (1,25 en un portátil con la
+   escala de Windows al 125 %)—. En un contenedor de alto automático eso lo
+   estira un 25 % en cada medida, el observador de tamaño vuelve a medirlo y el
+   lienzo crece sin parar: se vieron 2.200 px donde debían ser 780. Fuera del flujo
+   ya no cuenta para el alto de nadie, y el lienzo mide solo lo que su caja diga. */
+.consola-lienzo canvas { position: absolute; inset: 0; display: block; width: 100% !important; height: 100% !important; }
 .consola-lienzo-cargando {
   display: grid;
   place-items: center;
@@ -824,16 +832,54 @@
   border: 1px solid var(--c-linea-fuerte);
   border-radius: var(--r);
 }
-.consola-bandeja-grupo + .consola-bandeja-grupo { margin-top: var(--e-4); }
-.consola-bandeja-categoria {
-  margin: 0 0 var(--e-2);
+.consola-bandeja-grupo + .consola-bandeja-grupo { margin-top: var(--e-2); }
+/* La familia de instrumentos (corte, suturas, exposición…): un botón de ancho
+   completo que despliega sus cuadros. Se lee como la mesa de instrumentación,
+   de arriba abajo, y no como una lista de cuarenta cuadros iguales (D-167). */
+.consola-bandeja-cabecera {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  padding: var(--e-2) var(--e-3);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-align: left;
+  color: var(--c-texto);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: border-color var(--dur-rapida) var(--curva), background var(--dur-rapida) var(--curva);
+}
+.consola-bandeja-cabecera:hover { border-color: var(--c-linea-fuerte); }
+.consola-bandeja-grupo.abierto > .consola-bandeja-cabecera {
+  border-color: var(--c-acento);
+  background: var(--c-acento-tenue);
+}
+.consola-bandeja-flecha { flex: none; transition: transform var(--dur-rapida) var(--curva); }
+.consola-bandeja-grupo.abierto .consola-bandeja-flecha { transform: rotate(90deg); }
+.consola-bandeja-titulo { flex: 1; min-width: 0; }
+.consola-bandeja-cuenta {
+  flex: none;
+  min-width: 22px;
+  padding: 0 var(--e-1);
+  text-align: center;
   font-family: var(--mono);
   font-size: var(--t-xs);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--c-rotulo);
+  color: var(--c-texto-2);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-full);
 }
+.consola-bandeja-en-mano {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--c-acento);
+}
+.consola-bandeja-grupo > .consola-bandeja { margin-top: var(--e-2); }
 .instrumento.del-paso { border-color: var(--c-bien); }
 .instrumento-etiqueta {
   align-self: flex-start;
@@ -1124,3 +1170,27 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
 @media (max-width: 640px) {
   .consola-lienzo-boton { min-height: 40px; }
 }
+
+
+/* ---------- herida y etiqueta del lienzo (D-167) ---------- */
+/* La etiqueta que flota sobre el lienzo con el ángulo de la broca o cuánto está
+   abierta la herida. Cambia en cada movimiento del puntero, así que se escribe
+   directamente en el elemento y no pasa por el estado de React. */
+.consola-lienzo-lectura {
+  position: absolute;
+  left: var(--e-3);
+  bottom: var(--e-3);
+  max-width: calc(100% - 2 * var(--e-3));
+  padding: var(--e-1) var(--e-3);
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--c-texto);
+  background: color-mix(in srgb, var(--c-fondo) 82%, transparent);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r);
+  pointer-events: none;
+}
+.consola-lienzo-lectura[hidden] { display: none; }
+.consola-herida-bloque { display: grid; gap: var(--e-2); }
+.consola-herida-datos { margin: 0; font-size: var(--t-xs); color: var(--c-texto-2); }
+.consola-herida-aviso { margin: 0; font-size: var(--t-xs); color: var(--c-atencion, var(--c-texto-2)); }

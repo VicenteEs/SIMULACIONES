@@ -103,6 +103,7 @@ export function EditorDelSimulador({
         r.datos.map((i) => ({
           id: i.id,
           nombre: i.nombre,
+          slug: i.slug,
           icono: i.icono,
           descripcion: i.descripcion,
           categoria: i.categoria,

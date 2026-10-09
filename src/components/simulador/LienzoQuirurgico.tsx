@@ -19,6 +19,8 @@ import {
   type HerramientaCargada,
 } from '@/instrumental/herramienta3d'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
+import type { PlanoDeCorte } from '@/lib/comportamientoDelInstrumento'
+import { abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, type HeridaEnCapa } from './heridas'
 // La regla base de `.consola-lienzo` vive en la hoja de la consola, y este
 // lienzo lo monta también el taller de piezas del panel: sin importarla aquí,
 // allí el contenedor mediría cero de alto. El porqué, en la cabecera de la hoja.
@@ -41,7 +43,7 @@ import '@/app/(frontend)/simulador/consola.css'
  * quien está mirando una pantalla quieta.
  */
 
-export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar'
+export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'perforar'
 
 export interface Punto3 {
   x: number
@@ -88,8 +90,20 @@ export interface MandoDelLienzo {
   girarFragmento: (giros: Punto3) => void
   /** Dónde está el fragmento ahora, en unidades del archivo y en grados. */
   estadoDelFragmento: () => { posicion: Punto3; giros: Punto3 }
-  /** Borra el trazo dibujado. */
-  borrarTrazo: () => void
+  /**
+   * Borra el trazo dibujado. La herida que ese trazo abrió **se queda**: el
+   * residente pasa de un paso a otro y la piel cortada sigue cortada. Con
+   * `deshacerCorte`, además, la cierra (el botón «Borrar trazo»).
+   */
+  borrarTrazo: (deshacerCorte?: boolean) => void
+  /** Cierra todas las heridas: la piel y el músculo vuelven a como estaban. */
+  cerrarHeridas: () => void
+  /** Abre (o cierra) las heridas hasta `mm` de apertura, sin arrastrar. */
+  abrirHeridas: (mm: number) => void
+  /** Lo que hay abierto ahora mismo, o `null` si no se ha cortado nada. */
+  estadoDeLasHeridas: () => EstadoDeLasHeridas | null
+  /** Quita los agujeros hechos con la broca. */
+  borrarAgujeros: () => void
   /** Encuadra lo que esté visible. */
   encuadrar: () => void
   /** Los nombres de los objetos que trae el archivo. */
@@ -117,6 +131,39 @@ export interface InstrumentoEnEscena {
    * que hace que la incisión se vea cortada y no pintada.
    */
   corta?: boolean
+  /** Qué capa parte al trazar: la piel o los planos de abajo (D-167). Sin esto solo dibuja. */
+  planoDeCorte?: PlanoDeCorte | null
+  /** Separa los bordes de una herida: cuánto abre como máximo y si se queda abierto solo. */
+  separa?: { maximoMm: number; autoestatico: boolean } | null
+  /** Perfora el hueso: gira, avanza mientras se mantiene pulsado y deja un túnel. */
+  perfora?: { diametroMm: number; avanceMmPorSegundo: number } | null
+}
+
+/** Cómo apunta la broca respecto de la cortical, en grados: a lo largo del hueso y a lo ancho. */
+export interface InclinacionDeBroca {
+  longitudinal: number
+  transversal: number
+}
+
+/** Lo que se sabe de las heridas abiertas en la escena. */
+export interface EstadoDeLasHeridas {
+  capas: PlanoDeCorte[]
+  largoMm: number
+  aperturaMm: number
+  /** Por qué no se cortó nada, si se intentó y no hubo dónde. */
+  aviso?: string
+}
+
+/** Un agujero que acaba de hacerse con la broca. */
+export interface PerforacionHecha {
+  diametroMm: number
+  profundidadMm: number
+  /** Entre el eje de la broca y el eje largo del hueso: 90° es perpendicular. */
+  anguloConElEje: number
+  /** Atravesó la cortical opuesta (bicortical) o se quedó en la cercana. */
+  bicortical: boolean
+  /** Cuánto pasó de largo la cortical opuesta, en mm: más de unos pocos es riesgo para las partes blandas. */
+  sePasoMm: number
 }
 
 /**
@@ -155,9 +202,12 @@ export function LienzoQuirurgico({
   fluoroscopia,
   instrumento = null,
   ayudas,
+  inclinacionDeBroca = { longitudinal: 0, transversal: 0 },
   milimetrosPorUnidad = 1000,
   ejeLargo = 'y',
   alCargarInstrumento,
+  alHerir,
+  alPerforar,
   alTrazar,
   alMoverFragmento,
   alCargar,
@@ -180,6 +230,8 @@ export function LienzoQuirurgico({
   instrumento?: InstrumentoEnEscena | null
   /** Las ayudas que se dibujan con los rayos X encendidos. */
   ayudas?: AyudasDeEscopia
+  /** Hacia dónde apunta la broca respecto de la cortical, mientras el modo es «perforar». */
+  inclinacionDeBroca?: InclinacionDeBroca
   /**
    * Cuántos milímetros mide una unidad del archivo. El instrumento viene en
    * metros: sin esta cuenta, en un modelo exportado en milímetros saldría mil
@@ -190,6 +242,15 @@ export function LienzoQuirurgico({
   ejeLargo?: EjeLargo
   /** El instrumento terminó de cargar: qué articulaciones declara, o por qué no abrió. */
   alCargarInstrumento?: (articulaciones: ArticulacionDeclarada[] | null, error?: string) => void
+  /**
+   * Cambió lo que hay cortado o abierto: al cortar, al soltar el separador y al
+   * cerrar. No se llama en cada muestra del arrastre —repintar la consola entera
+   * treinta veces por segundo es justo lo que `alTrazar` evita—; mientras se
+   * arrastra, la apertura se lee en la etiqueta del propio lienzo.
+   */
+  alHerir?: (estado: EstadoDeLasHeridas | null) => void
+  /** Se terminó un agujero (se soltó el botón con la broca). */
+  alPerforar?: (hecha: PerforacionHecha) => void
   /** Se llama con el trazo completo cada vez que cambia. */
   alTrazar?: (puntos: Punto3[]) => void
   /**
@@ -257,7 +318,25 @@ export function LienzoQuirurgico({
     /** Pone el instrumento sobre lo que hay en el centro de la vista, sin esperar al cursor. */
     herramientaAlCentro?: () => void
     pedirDibujo?: () => void
-  }>({ puntosDelTrazo: [], materialesOriginales: new Map(), rolesAplicados: new Map() })
+    /** La normal de la superficie en cada punto del trazo: sin ella no hay hacia dónde cortar. */
+    normalesDelTrazo: Punto3[]
+    /** Las heridas abiertas, una por capa de partes blandas (D-167). */
+    heridas: Map<PlanoDeCorte, HeridaEnCapa[]>
+    /** La capa que cortó el último trazo, para que «Borrar trazo» sepa qué herida deshacer. */
+    ultimaHerida?: PlanoDeCorte
+    agujeros: THREE.Mesh[]
+    /** Cuánto lleva girando la broca, en radianes. */
+    giroDeLaBroca?: number
+    /** Escribe en la etiqueta que flota sobre el lienzo (ángulo, apertura, profundidad). */
+    decir?: (texto: string) => void
+  }>({
+    puntosDelTrazo: [],
+    materialesOriginales: new Map(),
+    rolesAplicados: new Map(),
+    normalesDelTrazo: [],
+    heridas: new Map(),
+    agujeros: [],
+  })
 
   // Lo que leen los manejadores sin volver a montar la escena.
   const ultimas = useRef({
@@ -266,6 +345,7 @@ export function LienzoQuirurgico({
     fluoroscopia,
     instrumento,
     ayudas,
+    inclinacionDeBroca,
     milimetrosPorUnidad,
     ejeLargo,
     alTrazar,
@@ -274,6 +354,8 @@ export function LienzoQuirurgico({
     alSenalar,
     alFallar,
     alCargarInstrumento,
+    alHerir,
+    alPerforar,
   })
   useEffect(() => {
     ultimas.current = {
@@ -282,6 +364,7 @@ export function LienzoQuirurgico({
       fluoroscopia,
       instrumento,
       ayudas,
+      inclinacionDeBroca,
       milimetrosPorUnidad,
       ejeLargo,
       alTrazar,
@@ -290,6 +373,8 @@ export function LienzoQuirurgico({
       alSenalar,
       alFallar,
       alCargarInstrumento,
+      alHerir,
+      alPerforar,
     }
   })
 
@@ -364,10 +449,44 @@ export function LienzoQuirurgico({
       }
     },
 
-    borrarTrazo: () => {
+    borrarTrazo: (deshacerCorte = false) => {
       taller.current.puntosDelTrazo = []
+      taller.current.normalesDelTrazo = []
       dibujarTrazo(taller.current)
+      // La herida abierta por ese trazo se queda, a menos que se pida deshacerla:
+      // al pasar de paso la consola borra el trazo (la medida vuelve a cero) y la
+      // piel cortada tiene que seguir cortada en el paso siguiente.
+      if (deshacerCorte) {
+        const capa = taller.current.ultimaHerida
+        const heridas = capa ? taller.current.heridas.get(capa) : undefined
+        if (capa && heridas) {
+          heridas.forEach(cerrarCapa)
+          taller.current.heridas.delete(capa)
+          taller.current.ultimaHerida = undefined
+          ultimas.current.alHerir?.(estadoDeLasHeridas(taller.current, ultimas.current.milimetrosPorUnidad))
+        }
+      }
       ultimas.current.alTrazar?.([])
+      taller.current.pedirDibujo?.()
+    },
+
+    cerrarHeridas: () => {
+      cerrarTodasLasHeridas(taller.current)
+      ultimas.current.alHerir?.(null)
+      taller.current.pedirDibujo?.()
+    },
+
+    abrirHeridas: (mm) => {
+      const unidades = Math.max(0, mm) / (ultimas.current.milimetrosPorUnidad || 1000)
+      for (const h of todasLasHeridas(taller.current)) abrirCapa(h, unidades / 2, unidades / 2)
+      ultimas.current.alHerir?.(estadoDeLasHeridas(taller.current, ultimas.current.milimetrosPorUnidad))
+      taller.current.pedirDibujo?.()
+    },
+
+    estadoDeLasHeridas: () => estadoDeLasHeridas(taller.current, ultimas.current.milimetrosPorUnidad),
+
+    borrarAgujeros: () => {
+      quitarAgujeros(taller.current)
       taller.current.pedirDibujo?.()
     },
 
@@ -442,6 +561,22 @@ export function LienzoQuirurgico({
       puntosDelTrazo: [],
       materialesOriginales: new Map(),
       rolesAplicados: new Map(),
+      normalesDelTrazo: [],
+      heridas: new Map(),
+      agujeros: [],
+    }
+
+    // La etiqueta que flota sobre el lienzo: ángulo de la broca, apertura de la
+    // herida, profundidad. Es un elemento propio y se escribe directamente, sin
+    // pasar por el estado de React: cambia en cada movimiento del puntero y
+    // repintar la consola entera por eso es lo que ya se evitó con el trazo.
+    const lectura = document.createElement('div')
+    lectura.className = 'consola-lienzo-lectura'
+    lectura.hidden = true
+    contenedor.appendChild(lectura)
+    taller.current.decir = (texto) => {
+      lectura.textContent = texto
+      lectura.hidden = texto === ''
     }
 
     // --- carga del modelo ---------------------------------------------------
@@ -543,6 +678,271 @@ export function LienzoQuirurgico({
       return golpes[0] ?? null
     }
 
+    /** La normal de la superficie en un golpe, vuelta hacia quien mira. */
+    const normalDelGolpe = (golpe: THREE.Intersection): THREE.Vector3 => {
+      const normal = golpe.face
+        ? golpe.face.normal.clone().transformDirection(golpe.object.matrixWorld)
+        : new THREE.Vector3(0, 0, 1)
+      // La normal de una malla abierta puede apuntar al lado contrario: se
+      // toma la que mira hacia quien mira.
+      if (normal.dot(rayo.ray.direction) > 0) normal.negate()
+      return normal
+    }
+
+    /**
+     * Las mallas que la broca puede perforar: el hueso y el fragmento, y solo los
+     * visibles. La piel y el músculo se atraviesan —la broca va con su camisa de
+     * protección— y no se perforan.
+     */
+    const mallasDeHueso = (): THREE.Mesh[] => {
+      const raiz = taller.current.raiz
+      if (!raiz) return []
+      const rolDe = new Map(ultimas.current.piezas.map((p) => [p.nodo, p.rol]))
+      const todas: THREE.Mesh[] = []
+      raiz.traverse((o) => {
+        const m = o as THREE.Mesh
+        if (m.isMesh && m.visible) todas.push(m)
+      })
+      const conRol = todas.filter((m) => {
+        const rol = rolDe.get(m.name)
+        return rol === 'hueso' || rol === 'fragmento'
+      })
+      // Sin roles declarados no se sabe cuál es hueso: vale cualquier cosa que no
+      // sea piel, músculo o implante.
+      return conRol.length > 0
+        ? conRol
+        : todas.filter((m) => {
+            const rol = rolDe.get(m.name)
+            return rol !== 'piel' && rol !== 'musculo' && rol !== 'implante'
+          })
+    }
+    const huesoBajoElCursor = (): THREE.Intersection | null =>
+      rayo.intersectObjects(mallasDeHueso(), false).find((g) => g.object.visible) ?? null
+
+    // --- la broca: gira, avanza y deja un túnel --------------------------------
+    interface Perforacion {
+      entrada: THREE.Vector3
+      /** Hacia dónde entra la broca, unitario. */
+      dirEntra: THREE.Vector3
+      /** Hacia dónde sale el mango (lo contrario). */
+      salida: THREE.Vector3
+      anguloConElEje: number
+      /** Lo que lleva avanzado, en unidades del mundo. */
+      profundidad: number
+      /** Hasta dónde puede avanzar: la cortical opuesta más lo que se podría pasar. */
+      maxima: number
+      /** A qué profundidad sale por la cortical opuesta. */
+      salidaPorLaOpuesta: number
+    }
+    let perforando: Perforacion | null = null
+    let ultimoCuadro = performance.now()
+    /** El labio que el separador tiene agarrado mientras se arrastra, y cómo estaban los dos al empezar. */
+    let sostenido: { lado: 1 | -1; direccion: THREE.Vector3; mas0: number; menos0: number } | null = null
+
+    /**
+     * Parte con el trazo la capa que corta el instrumento (D-167).
+     *
+     * Se hace al soltar, con el trazo entero: cortar mientras se arrastra
+     * rehacería la geometría en cada muestra. Reemplaza la herida anterior de la
+     * misma capa; las de otras capas se quedan (la piel sigue cortada cuando se
+     * corta el plano de abajo).
+     */
+    const cortarConElTrazo = () => {
+      const instrumentoActual = ultimas.current.instrumento
+      const plano = instrumentoActual?.planoDeCorte
+      if (!plano) return
+      const t = taller.current
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const trazo = t.puntosDelTrazo
+      if (trazo.length < 3) return
+      let largo = 0
+      for (let i = 1; i < trazo.length; i++) {
+        largo += Math.hypot(trazo[i].x - trazo[i - 1].x, trazo[i].y - trazo[i - 1].y, trazo[i].z - trazo[i - 1].z)
+      }
+      const aviso = (texto: string) =>
+        ultimas.current.alHerir?.({ ...(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad) ?? { capas: [], largoMm: 0, aperturaMm: 0 }), aviso: texto })
+      if (largo < 5 * unidadesPorMm) {
+        aviso('La incisión es demasiado corta para abrir la herida: trace al menos 5 mm.')
+        return
+      }
+      const nombres = new Set(ultimas.current.piezas.filter((p) => p.rol === plano).map((p) => p.nodo))
+      const mallas: THREE.Mesh[] = []
+      t.raiz?.traverse((o) => {
+        const m = o as THREE.Mesh
+        if (m.isMesh && m.visible && nombres.has(m.name)) mallas.push(m)
+      })
+      if (mallas.length === 0) {
+        aviso(
+          plano === 'piel'
+            ? 'No hay piel visible que cortar: encienda la capa «Piel».'
+            : 'No hay músculo visible que cortar: encienda la capa «Músculo».',
+        )
+        return
+      }
+      // La herida de antes de esta capa se cierra: un trazo nuevo es una incisión nueva.
+      t.heridas.get(plano)?.forEach(cerrarCapa)
+      t.heridas.delete(plano)
+
+      const puntos = trazo.map((p) => new THREE.Vector3(p.x, p.y, p.z))
+      const normales = t.normalesDelTrazo.map((n) => new THREE.Vector3(n.x, n.y, n.z))
+      const parametros = {
+        // La piel es fina; los planos profundos empiezan bajo ella y bajo la grasa.
+        profundidad: (plano === 'piel' ? 14 : 50) * unidadesPorMm,
+        alcance: 30 * unidadesPorMm,
+      }
+      const hechas: HeridaEnCapa[] = []
+      for (const malla of mallas) {
+        const herida = cortarCapa(malla, puntos, normales, parametros)
+        if (herida) hechas.push(herida)
+      }
+      if (hechas.length === 0) {
+        aviso('El trazo no atraviesa ninguna malla de esa capa.')
+        return
+      }
+      // Si ya había otras heridas abiertas, la nueva se abre lo mismo.
+      const otras = todasLasHeridas(t)
+      if (otras.length > 0) for (const h of hechas) abrirCapa(h, otras[0].mas, otras[0].menos)
+      t.heridas.set(plano, hechas)
+      t.ultimaHerida = plano
+      // La línea roja era la guía; con la herida abierta flotaría en el aire.
+      if (t.trazo) t.trazo.visible = false
+      ultimas.current.alHerir?.(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad))
+      pedirDibujo()
+    }
+
+    /** Cómo entraría la broca por este golpe, con la inclinación que eligió quien la usa. */
+    const trayectoriaDeBroca = (golpe: THREE.Intersection) => {
+      const normal = normalDelGolpe(golpe)
+      const eje = VECTOR_DEL_EJE[ultimas.current.ejeLargo]
+      // El eje del hueso proyectado sobre la cortical: el sentido «a lo largo» de
+      // la inclinación. Y el «a lo ancho», perpendicular a los dos.
+      let a = eje.clone().sub(normal.clone().multiplyScalar(eje.dot(normal)))
+      if (a.lengthSq() < 1e-8) a = new THREE.Vector3(1, 0, 0).sub(normal.clone().multiplyScalar(normal.x))
+      a.normalize()
+      const b = new THREE.Vector3().crossVectors(normal, a).normalize()
+      const { longitudinal, transversal } = ultimas.current.inclinacionDeBroca ?? { longitudinal: 0, transversal: 0 }
+      const salida = normal
+        .clone()
+        .addScaledVector(a, Math.tan(radianes(longitudinal)))
+        .addScaledVector(b, Math.tan(radianes(transversal)))
+        .normalize()
+      const dirEntra = salida.clone().negate()
+      return {
+        entrada: golpe.point.clone(),
+        dirEntra,
+        salida,
+        anguloConElEje: grados(Math.acos(Math.min(1, Math.abs(dirEntra.dot(eje))))),
+      }
+    }
+
+    /** Pone la broca sobre el hueso (o la esconde) y escribe qué ángulo lleva. */
+    const posarBroca = (golpe: THREE.Intersection | null) => {
+      const herramienta = taller.current.herramienta
+      const config = ultimas.current.instrumento?.perfora
+      if (!herramienta || !config) return
+      if (!golpe && !perforando) {
+        if (herramienta.raiz.visible) {
+          herramienta.raiz.visible = false
+          pedirDibujo()
+        }
+        taller.current.decir?.('')
+        return
+      }
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const t = perforando ?? trayectoriaDeBroca(golpe!)
+      const profundidad = perforando?.profundidad ?? 0
+      const giro = taller.current.giroDeLaBroca ?? 0
+      herramienta.raiz.quaternion
+        .setFromUnitVectors(new THREE.Vector3(0, 1, 0), t.salida)
+        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), giro))
+      // La punta en la entrada; al avanzar, se hunde por su propio eje.
+      herramienta.raiz.position.copy(t.entrada).addScaledVector(t.dirEntra, profundidad)
+      herramienta.raiz.visible = true
+      const mm = (u: number) => (u / unidadesPorMm).toFixed(1).replace('.', ',')
+      // Pasar de largo la cortical opuesta es el error clásico de quien aprende:
+      // la broca sigue y lo que hay detrás son partes blandas. Se dice mientras ocurre.
+      const pasado = perforando ? profundidad - perforando.salidaPorLaOpuesta : 0
+      taller.current.decir?.(
+        `Broca Ø ${String(config.diametroMm).replace('.', ',')} mm · ${Math.round(t.anguloConElEje)}° con el eje del hueso${
+          perforando ? ` · ${mm(profundidad)} mm` : ' · mantenga pulsado para perforar'
+        }${pasado > 1 * unidadesPorMm ? ` · ¡se pasó ${mm(pasado)} mm de la cortical opuesta!` : ''}`,
+      )
+      pedirDibujo()
+    }
+
+    const empezarPerforacion = (golpe: THREE.Intersection) => {
+      const t = trayectoriaDeBroca(golpe)
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      // Hasta dónde se puede ir: se lanza un rayo desde dentro del hueso en la
+      // dirección de la broca y la última superficie que cruza es la salida por
+      // la cortical opuesta. Una pierna entera son tres capas de tejido; solo
+      // cuenta el hueso.
+      const origen = t.entrada.clone().addScaledVector(t.dirEntra, 0.4 * unidadesPorMm)
+      const alcance = new THREE.Raycaster(origen, t.dirEntra, 0, 150 * unidadesPorMm)
+      const cruces = alcance.intersectObjects(mallasDeHueso(), false)
+      const ultimo = cruces[cruces.length - 1]
+      const salidaPorLaOpuesta = ultimo ? ultimo.distance + 0.4 * unidadesPorMm : 8 * unidadesPorMm
+      perforando = {
+        ...t,
+        profundidad: 0,
+        // Se puede pasar de largo: es un error que un residente comete y que
+        // conviene que vea y que se le diga.
+        maxima: salidaPorLaOpuesta + 12 * unidadesPorMm,
+        salidaPorLaOpuesta,
+      }
+      taller.current.giroDeLaBroca = taller.current.giroDeLaBroca ?? 0
+      ultimoCuadro = performance.now()
+      pedirDibujo()
+    }
+
+    const terminarPerforacion = () => {
+      const p = perforando
+      perforando = null
+      const config = ultimas.current.instrumento?.perfora
+      const escenaActual = taller.current.escena
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      if (!p || !config || !escenaActual || p.profundidad < 0.3 * unidadesPorMm) {
+        posarBroca(null)
+        return
+      }
+      const radio = (config.diametroMm / 2) * unidadesPorMm
+      const agujero = new THREE.Mesh(
+        new THREE.CylinderGeometry(radio, radio, p.profundidad, 16, 1, false),
+        new THREE.MeshBasicMaterial({ color: 0x120909 }),
+      )
+      // Va en la escena y no dentro del modelo: `mostrar()` apaga las mallas que
+      // no están en la lista, y un agujero sin nombre desaparecería con cada
+      // cambio de capa.
+      agujero.position.copy(p.entrada).addScaledVector(p.dirEntra, p.profundidad / 2)
+      agujero.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.dirEntra)
+      agujero.raycast = () => {}
+      escenaActual.add(agujero)
+      taller.current.agujeros.push(agujero)
+      // Un tope: cien agujeros no enseñan nada y cuestan geometría.
+      if (taller.current.agujeros.length > 40) {
+        const viejo = taller.current.agujeros.shift()!
+        viejo.removeFromParent()
+        viejo.geometry.dispose()
+        ;(viejo.material as THREE.Material).dispose()
+      }
+      const sePaso = Math.max(0, p.profundidad - p.salidaPorLaOpuesta)
+      ultimas.current.alPerforar?.({
+        diametroMm: config.diametroMm,
+        profundidadMm: p.profundidad / unidadesPorMm,
+        anguloConElEje: p.anguloConElEje,
+        bicortical: p.profundidad >= p.salidaPorLaOpuesta - 0.5 * unidadesPorMm,
+        sePasoMm: sePaso / unidadesPorMm,
+      })
+      taller.current.decir?.('')
+      pedirDibujo()
+    }
+
+    /** Qué golpe usa el instrumento para posarse: el hueso si perfora, cualquier superficie si no. */
+    const golpeParaLaHerramienta = () =>
+      ultimas.current.modo === 'perforar' && ultimas.current.instrumento?.perfora
+        ? huesoBajoElCursor()
+        : superficieBajoElCursor()
+
     /**
      * Pone el instrumento donde apunta el rayo: la punta en la superficie, el
      * mango hacia fuera y algo inclinado hacia arriba de la pantalla, que es
@@ -552,6 +952,10 @@ export function LienzoQuirurgico({
     const posarHerramienta = (golpe: THREE.Intersection | null, avance?: THREE.Vector3) => {
       const herramienta = taller.current.herramienta
       if (!herramienta) return
+      if (ultimas.current.modo === 'perforar' && ultimas.current.instrumento?.perfora) {
+        posarBroca(golpe)
+        return
+      }
       if (!golpe) {
         if (herramienta.raiz.visible) {
           herramienta.raiz.visible = false
@@ -559,12 +963,7 @@ export function LienzoQuirurgico({
         }
         return
       }
-      const normal = golpe.face
-        ? golpe.face.normal.clone().transformDirection(golpe.object.matrixWorld)
-        : new THREE.Vector3(0, 0, 1)
-      // La normal de una malla abierta puede apuntar al lado contrario: se
-      // toma la que mira hacia quien mira.
-      if (normal.dot(rayo.ray.direction) > 0) normal.negate()
+      const normal = normalDelGolpe(golpe)
       const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(camara.quaternion)
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       const cortando = !!ultimas.current.instrumento?.corta && !!avance && avance.lengthSq() > 0
@@ -591,7 +990,7 @@ export function LienzoQuirurgico({
       ]
       for (const [x, y] of sondas) {
         rayo.setFromCamera(new THREE.Vector2(x, y), camara)
-        const golpe = superficieBajoElCursor()
+        const golpe = golpeParaLaHerramienta()
         if (golpe) {
           posarHerramienta(golpe)
           return
@@ -609,7 +1008,7 @@ export function LienzoQuirurgico({
       if (ahora - ultimoSeguimiento < 33) return
       ultimoSeguimiento = ahora
       aCoordenadas(evento)
-      posarHerramienta(superficieBajoElCursor())
+      posarHerramienta(golpeParaLaHerramienta())
     }
     const esconderHerramienta = () => {
       const herramienta = taller.current.herramienta
@@ -641,6 +1040,8 @@ export function LienzoQuirurgico({
         taller.current.puntosDelTrazo = [
           { x: golpe.point.x, y: golpe.point.y, z: golpe.point.z },
         ]
+        const n0 = normalDelGolpe(golpe)
+        taller.current.normalesDelTrazo = [{ x: n0.x, y: n0.y, z: n0.z }]
         dibujarTrazo(taller.current)
         // Empezar un trazo borra el anterior del modelo, así que hay que
         // decirlo aquí mismo, igual que hace `borrarTrazo`. Si no, un clic
@@ -649,6 +1050,54 @@ export function LienzoQuirurgico({
         // residente no tiene manera de ver contra qué.
         ultimas.current.alTrazar?.([])
         pedirDibujo()
+        return
+      }
+
+      if (modoActual === 'separar') {
+        const separa = ultimas.current.instrumento?.separa
+        const heridas = todasLasHeridas(taller.current)
+        if (!separa) return
+        if (heridas.length === 0) {
+          taller.current.decir?.('No hay herida que separar: corte primero con un bisturí, en modo Trazar.')
+          return
+        }
+        const golpe = superficieBajoElCursor()
+        if (!golpe) return
+        const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+        // El borde más cercano de todas las heridas es el que se agarra.
+        let elegido: { info: NonNullable<ReturnType<typeof ladoDeLaHerida>> } | null = null
+        for (const h of heridas) {
+          const info = ladoDeLaHerida(h, golpe.point)
+          if (info && (!elegido || info.cerca < elegido.info.cerca)) elegido = { info }
+        }
+        if (!elegido || elegido.info.cerca > 30 * unidadesPorMm) {
+          taller.current.decir?.('Acerque el separador al borde de la herida.')
+          return
+        }
+        controles.enabled = false
+        arrastrando = true
+        const normal = camara.getWorldDirection(new THREE.Vector3()).negate()
+        planoDeArrastre = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, golpe.point)
+        rayo.ray.intersectPlane(planoDeArrastre, inicioDeArrastre)
+        sostenido = {
+          lado: elegido.info.lado,
+          direccion: elegido.info.direccion,
+          mas0: heridas[0].mas,
+          menos0: heridas[0].menos,
+        }
+        return
+      }
+
+      if (modoActual === 'perforar') {
+        if (!ultimas.current.instrumento?.perfora || !taller.current.herramienta) return
+        const golpe = huesoBajoElCursor()
+        if (!golpe) {
+          taller.current.decir?.('Apunte al hueso: la broca solo perfora el hueso visible.')
+          return
+        }
+        controles.enabled = false
+        arrastrando = true
+        empezarPerforacion(golpe)
         return
       }
 
@@ -690,6 +1139,8 @@ export function LienzoQuirurgico({
         // añade cien puntos por centímetro y la longitud medida se infla.
         if (ultimo && distancia(ultimo, golpe.point) < 0.002) return
         puntos.push({ x: golpe.point.x, y: golpe.point.y, z: golpe.point.z })
+        const n = normalDelGolpe(golpe)
+        taller.current.normalesDelTrazo.push({ x: n.x, y: n.y, z: n.z })
         dibujarTrazo(taller.current)
         ultimas.current.alTrazar?.([...puntos])
         // La punta del instrumento va dibujando la incisión.
@@ -697,6 +1148,37 @@ export function LienzoQuirurgico({
         pedirDibujo()
         return
       }
+
+      if (modoActual === 'separar' && sostenido && planoDeArrastre) {
+        const separa = ultimas.current.instrumento?.separa
+        if (!separa || !rayo.ray.intersectPlane(planoDeArrastre, puntoAuxiliar)) return
+        const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+        // Hacia fuera de la herida es «abrir»: la dirección del labio por su lado.
+        const delta = puntoAuxiliar.clone().sub(inicioDeArrastre).dot(sostenido.direccion) * sostenido.lado
+        const tope = separa.maximoMm * unidadesPorMm
+        const base = separa.autoestatico
+          ? Math.max(sostenido.mas0, sostenido.menos0)
+          : sostenido.lado > 0
+            ? sostenido.mas0
+            : sostenido.menos0
+        const nuevo = Math.min(tope, Math.max(0, base + delta))
+        // Un autoestático se abre por los dos lados a la vez, con su trinquete; uno
+        // de mano solo mueve el labio que sostiene, y el otro lo sostiene otro.
+        const mas = separa.autoestatico ? nuevo : sostenido.lado > 0 ? nuevo : sostenido.mas0
+        const menos = separa.autoestatico ? nuevo : sostenido.lado < 0 ? nuevo : sostenido.menos0
+        for (const h of todasLasHeridas(taller.current)) abrirCapa(h, mas, menos)
+        const abierta = (mas + menos) / unidadesPorMm
+        taller.current.decir?.(
+          `Herida abierta ${abierta.toFixed(0)} mm${nuevo >= tope - 1e-9 ? ' · tope del separador' : ''}`,
+        )
+        posarHerramienta(superficieBajoElCursor())
+        pedirDibujo()
+        return
+      }
+
+      // La broca no sigue al cursor mientras perfora: va por la trayectoria que
+      // tenía al empezar, y mover el ratón con el botón pulsado no la desvía.
+      if (modoActual === 'perforar') return
 
       if (modoActual === 'mover' && planoDeArrastre && taller.current.fragmento) {
         if (!rayo.ray.intersectPlane(planoDeArrastre, puntoAuxiliar)) return
@@ -712,6 +1194,15 @@ export function LienzoQuirurgico({
       arrastrando = false
       planoDeArrastre = null
       controles.enabled = true
+
+      const modoAlSoltar = ultimas.current.modo
+      if (modoAlSoltar === 'trazar') cortarConElTrazo()
+      if (modoAlSoltar === 'separar' && sostenido) {
+        sostenido = null
+        taller.current.decir?.('')
+        ultimas.current.alHerir?.(estadoDeLasHeridas(taller.current, ultimas.current.milimetrosPorUnidad))
+      }
+      if (perforando) terminarPerforacion()
 
       const f = taller.current.fragmento
       const origen = taller.current.origenDelFragmento
@@ -745,6 +1236,22 @@ export function LienzoQuirurgico({
     observador.observe(contenedor)
 
     render.setAnimationLoop(() => {
+      const ahora = performance.now()
+      if (perforando) {
+        const config = ultimas.current.instrumento?.perfora
+        const dt = Math.min(0.05, (ahora - ultimoCuadro) / 1000)
+        if (config) {
+          const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+          taller.current.giroDeLaBroca = (taller.current.giroDeLaBroca ?? 0) + dt * 32
+          perforando.profundidad = Math.min(
+            perforando.maxima,
+            perforando.profundidad + config.avanceMmPorSegundo * unidadesPorMm * dt,
+          )
+          posarBroca(null)
+          sucio = true
+        }
+      }
+      ultimoCuadro = ahora
       const movio = controles.update()
       if (!sucio && !movio) return
       sucio = false
@@ -778,6 +1285,11 @@ export function LienzoQuirurgico({
       // dejaba sin soltar justo los materiales y las texturas del modelo.
       aplicarFluoroscopia(taller.current, false)
       sincronizarAyudas(taller.current, false, undefined)
+      // Las heridas devuelven su geometría original a la malla antes de soltar:
+      // `liberar` suelta la que la malla tenga puesta, y la otra quedaría colgando.
+      cerrarTodasLasHeridas(taller.current)
+      quitarAgujeros(taller.current)
+      lectura.remove()
       // Liberar a mano: aquí hay decenas de megabytes en la tarjeta y pasear
       // por la plataforma acabaría tirando la pestaña.
       liberar(escena)
@@ -795,6 +1307,9 @@ export function LienzoQuirurgico({
         puntosDelTrazo: [],
         materialesOriginales: new Map(),
         rolesAplicados: new Map(),
+        normalesDelTrazo: [],
+        heridas: new Map(),
+        agujeros: [],
       }
     }
     // Se monta una vez por modelo. Lo demás se aplica sin rehacer la escena.
@@ -930,7 +1445,13 @@ export function LienzoQuirurgico({
     if (taller.current.render) taller.current.render.domElement.style.touchAction = gestoTactil(modo)
     if (taller.current.render) {
       taller.current.render.domElement.style.cursor =
-        modo === 'orbitar' ? 'grab' : modo === 'trazar' ? 'crosshair' : 'move'
+        modo === 'orbitar'
+          ? 'grab'
+          : modo === 'trazar' || modo === 'perforar'
+            ? 'crosshair'
+            : modo === 'separar'
+              ? 'ew-resize'
+              : 'move'
     }
   }, [modo])
 
@@ -980,6 +1501,10 @@ export type Taller = {
   /** Los dos ejes de la guía de angulación (ayuda de los rayos X). */
   guias?: THREE.LineSegments
   pedirDibujo?: () => void
+  normalesDelTrazo?: Punto3[]
+  heridas?: Map<PlanoDeCorte, HeridaEnCapa[]>
+  ultimaHerida?: PlanoDeCorte
+  agujeros?: THREE.Mesh[]
 }
 
 const distancia = (a: Punto3, b: THREE.Vector3) => Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z)
@@ -1342,6 +1867,42 @@ function actualizarGuias(taller: Taller, eje: EjeLargo, piezas: PiezaDelCaso[]) 
   poner(2, centroDelFragmento.clone().addScaledVector(ejeDelFragmento, -mitad * 0.55))
   poner(3, centroDelFragmento.clone().addScaledVector(ejeDelFragmento, mitad * 0.55))
   posiciones.needsUpdate = true
+}
+
+// ------------------------------------------------------------------ heridas
+
+/** Todas las mallas cortadas, de todas las capas. */
+function todasLasHeridas(taller: Taller): HeridaEnCapa[] {
+  return [...(taller.heridas?.values() ?? [])].flat()
+}
+
+/** Lo que hay cortado y abierto, o `null` si no se ha cortado nada. */
+export function estadoDeLasHeridas(taller: Taller, milimetrosPorUnidad: number): EstadoDeLasHeridas | null {
+  const todas = todasLasHeridas(taller)
+  if (todas.length === 0) return null
+  const unidadesPorMm = 1 / (milimetrosPorUnidad || 1000)
+  return {
+    capas: [...(taller.heridas?.keys() ?? [])],
+    largoMm: Math.max(...todas.map((h) => h.largo)) / unidadesPorMm,
+    aperturaMm: Math.max(...todas.map((h) => h.mas + h.menos)) / unidadesPorMm,
+  }
+}
+
+/** Cierra todas las heridas: cada malla recupera la geometría de antes del corte. */
+function cerrarTodasLasHeridas(taller: Taller) {
+  for (const h of todasLasHeridas(taller)) cerrarCapa(h)
+  taller.heridas?.clear()
+  taller.ultimaHerida = undefined
+  if (taller.trazo) taller.trazo.visible = true
+}
+
+function quitarAgujeros(taller: Taller) {
+  for (const a of taller.agujeros ?? []) {
+    a.removeFromParent()
+    a.geometry.dispose()
+    ;(a.material as THREE.Material).dispose()
+  }
+  if (taller.agujeros) taller.agujeros.length = 0
 }
 
 /** Redibuja la línea del trazo sobre la superficie. */

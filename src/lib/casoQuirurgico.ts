@@ -180,6 +180,13 @@ function instrumentoDeBandeja(bruto: unknown): InstrumentoDeBandeja | null {
     // llegaba a ninguna pantalla: el residente elegía instrumento sin poder
     // leer para qué era ninguno.
     descripcion: texto(doc.descripcion),
+    // La categoría del catálogo («Corte y disección», «Suturas y cierre»…): la
+    // bandeja se recorre por ella, como el instrumentador ordena la mesa, y no
+    // como una lista plana de cuarenta cuadros (D-167).
+    categoria: texto(doc.categoria),
+    // El identificador con que se reconoce qué hace en la escena (corta,
+    // separa, perfora): ver `comportamientoDelInstrumento`.
+    slug: texto(doc.slug),
     // El modelo del instrumento viaja como dirección, no como documento: la
     // consola solo necesita saber de dónde bajarlo, y solo baja el del que el
     // residente tiene en la mano.
@@ -292,6 +299,7 @@ export function casoParaLaConsola(documento: Documento): CasoDeConsola {
 export interface InstrumentoParaElEditor {
   id: string
   nombre: string
+  slug?: string
   icono: string
   descripcion: string
   categoria: string
@@ -389,6 +397,7 @@ export function casoDesdeElFormulario(
       encuadreDelModelo: null,
       ajustes: i.ajustes,
       categoria: i.categoria,
+      slug: i.slug ?? null,
       enLaBandejaDelCaso: enLaBandeja.has(i.id),
     })),
   }

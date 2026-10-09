@@ -5408,6 +5408,83 @@ nuevos son una vista y no una simulación de atenuación (los de antes tampoco).
 
 ---
 
+### D-167 · 2026-10-10 · vigente
+**Los instrumentos actúan sobre el paciente: el bisturí parte las mallas de piel y
+músculo, el separador las abre y la broca gira, avanza y deja un túnel. La bandeja se
+recorre por familias.**
+Pedido del dueño: que las herramientas «tengan interacción con las partes» («si paso el
+bisturí con la piel y luego abro con alguna herramienta la piel, que sea lo más realista
+posible… la separación de los tejidos, en este caso las mallas»); que las brocas giren y
+se pueda elegir el ángulo de perforación; y que la selección de herramientas se busque
+«en orden jerárquico» (Corte y disección, Suturas y cierre… y al pinchar uno se
+desplieguen los cuadros).
+
+*La bandeja.* Los instrumentos se agrupan por su categoría del catálogo, en el orden de
+la mesa de instrumentación (`CATEGORIAS_DE_INSTRUMENTAL`), y cada familia es un botón que
+despliega sus cuadros (una a la vez; con algo en el buscador se abren las que
+coinciden). Vale para el residente y para el editor; la categoría viaja ya en
+`casoParaLaConsola`. Marca «en la mano» la familia que contiene el instrumento elegido.
+
+*Qué hace cada instrumento* vive en `src/lib/comportamientoDelInstrumento.ts`: una tabla
+por `slug` (con el nombre de respaldo para lo creado a mano) que dice si corta (`piel` o
+planos profundos), si separa (cuánto abre y si es autoestático) o si perfora (calibre y
+velocidad de avance). No es un campo del catálogo a propósito: son reglas del simulador,
+no datos que el traumatólogo deba teclear, y un instrumento sin identificar no hace nada,
+que es lo seguro. Una prueba cruza la tabla con el catálogo base.
+
+*El corte.* `src/lib/corteDeMalla.ts` (sin three; arreglos tipados) parte una malla a lo
+largo de la incisión: define un campo escalar —la distancia con signo al «telón» que
+cuelga de la polilínea— y parte las aristas donde cambia de signo, igual que se parte una
+malla con un plano pero con una superficie curva. Un triángulo con dos aristas partidas
+se rehace en tres, con una en dos; los vértices del medio de la herida se duplican (uno
+por labio) y los de la punta se quedan sencillos, así la herida acaba cerrada. El cruce
+no se acerca a un vértice más del 5 % de la arista (sin esto, el corte dejaba triángulos
+de área casi cero justo en el borde). El corte se limita en profundidad: una pierna es un
+tubo, y sin tope la incisión de arriba abriría también la piel de abajo.
+- *Abrir* es separar los labios: cada vértice cercano guarda un peso (1 en el borde, 0 a
+  `alcance` de la herida, y 0 en las puntas con forma de lente) y la dirección lateral en
+  que se aparta. Dos números —labio «más» y labio «menos»— porque un Farabeuf sostiene un
+  borde y lo demás lo sostiene un ayudante; un Weitlaner abre los dos por igual. El taper
+  es de media herida: con uno corto, los triángulos delgados pegados a la grieta se daban
+  la vuelta al abrir (lo vio una prueba).
+- *Qué se corta.* Al soltar el trazo con un bisturí (modo «Trazar»), `heridas.ts` corta las
+  mallas visibles de la capa que ese instrumento parte: la piel con el bisturí de piel, los
+  planos profundos (cada músculo es una malla, se cortan todos) con el profundo, el
+  electrobisturí y las tijeras. Una herida por capa; un trazo nuevo la sustituye, la piel
+  sigue cortada cuando se corta debajo. El trazo rojo se oculta al abrir (flotaría en el
+  aire) y los labios llevan su borde rojo. «Borrar trazo» deshace el corte; pasar de paso
+  no (la piel cortada sigue cortada en el paso siguiente). Reiniciar el caso, o «Cerrar la
+  herida», devuelven la geometría original, que se conserva aparte.
+- *Separar.* Modo propio, que se pone solo al coger un separador: se arrastra desde el
+  borde de la herida hacia fuera; el de mano abre el borde que agarra, el autoestático abre
+  los dos y se queda abierto. También hay un deslizador de apertura. Mientras se arrastra,
+  la apertura se lee en una etiqueta sobre el lienzo y no en el estado de React.
+
+*La broca.* Modo «Perforar», que se pone solo al coger una broca. Apunta al hueso (la piel
+y el músculo se atraviesan: la broca va con su camisa), con la inclinación elegida en dos
+deslizadores —a lo largo del hueso y a lo ancho, ±45° sobre la cortical— y con el ángulo
+con el eje del hueso leído en la etiqueta (90° es perpendicular). Con el botón pulsado
+gira y avanza; la profundidad máxima se calcula con un rayo que busca la cortical opuesta.
+Se puede pasar de largo —es el error clásico— y se dice mientras ocurre y al terminar. El
+túnel queda como un cilindro oscuro (tope de 40 agujeros). No puntúa todavía: se anota en
+el registro con calibre, profundidad, si fue bicortical y el ángulo.
+
+*Un fallo que esto destapó.* El `<canvas>` iba en el flujo del lienzo y su tamaño
+intrínseco —el de su atributo, que three escribe multiplicado por el factor de pantalla—
+estiraba el contenedor un 25 % en cada medida con la escala de Windows al 125 %: el
+lienzo de la consola crecía sin parar (2.200 px donde debían ser 780). Ahora va absoluto,
+fuera del flujo. Es la misma enfermedad que D-166 atribuyó al panel largo del editor.
+
+*Consecuencias buenas.* La herida se ve como una incisión en forma de lente que deja ver
+el plano de abajo; lo cortado y lo abierto sigue a lo largo de los pasos; el corte es una
+función pura con pruebas (área conservada, grieta abierta, sin triángulos degenerados ni
+invertidos al abrir, un tubo cerrado no se abre por abajo). *Malas:* una herida por capa y
+una sola incisión por capa; sin sangrado, sin sutura (cerrar es deshacer) y sin que el
+tejido ofrezca resistencia; el músculo se corta con las mallas del modelo, que si vienen
+de una sola pieza se parten juntas; el corte rehace la geometría de la malla al soltar, lo
+que en una malla de cientos de miles de triángulos tarda (hay que medirlo con un modelo
+real); la broca no cuenta en el puntaje ni toca el fragmento.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

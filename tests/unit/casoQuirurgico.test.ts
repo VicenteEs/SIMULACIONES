@@ -197,3 +197,20 @@ describe('dónde arranca el mando de la fuerza', () => {
     expect(fuerzaInicial({})).toBe(10)
   })
 })
+
+describe('la bandeja que ve el residente (D-167)', () => {
+  it('cada instrumento llega con su categoría, para poder agruparlos', () => {
+    const caso = casoCon({
+      instrumental: [
+        { id: 1, nombre: 'Bisturí de piel', categoria: 'corte' },
+        { id: 2, nombre: 'Separador de Hohmann', categoria: 'exposicion' },
+        { id: 3, nombre: 'Sin categoría' },
+      ],
+    })
+    const porNombre = Object.fromEntries(caso.instrumental.map((i) => [i.nombre, i.categoria]))
+    expect(porNombre['Bisturí de piel']).toBe('corte')
+    expect(porNombre['Separador de Hohmann']).toBe('exposicion')
+    // Un instrumento sin categoría no desaparece: la consola lo mete en «Otros».
+    expect(porNombre['Sin categoría']).toBeNull()
+  })
+})

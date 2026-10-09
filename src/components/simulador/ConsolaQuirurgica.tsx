@@ -40,6 +40,8 @@ import {
   Box,
   Check,
   CheckCircle2,
+  ChevronRight,
+  Drill,
   Eraser,
   Focus,
   Info,
@@ -53,6 +55,7 @@ import {
   Scissors,
   Trophy,
   Undo2,
+  UnfoldHorizontal,
   type LucideIcon,
 } from 'lucide-react'
 // La hoja de la consola, aparte de `estilos.css`: el porqué está en su cabecera.
@@ -71,12 +74,15 @@ import { Visor3D } from '@/components/VisoresPerezosos'
 // motor 3D viaje aparte. El porqué completo está en la cabecera de los dos
 // módulos.
 import { encuadreVigente, type Encuadre } from '@/lib/aritmeticaDelEncuadre'
-import { ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
+import { CATEGORIAS_DE_INSTRUMENTAL, ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
+import { comportamientoDelInstrumento } from '@/lib/comportamientoDelInstrumento'
 import { InstrumentoArticulado } from './InstrumentoArticulado'
 import type {
   AyudasDeEscopia,
   DatosDeNodo,
+  EstadoDeLasHeridas,
+  InclinacionDeBroca,
   InstrumentoEnEscena,
   MandoDelLienzo,
   Modo,
@@ -159,6 +165,8 @@ export interface InstrumentoDeBandeja {
   ajustes?: AjustesDeInstrumento | null
   /** Cómo se agrupa en la bandeja del editor, que enseña el catálogo entero (D-166). */
   categoria?: string | null
+  /** Con qué identificador se reconoce qué hace en la escena (corta, separa, perfora). */
+  slug?: string | null
   /** Solo en el editor: si el instrumento ya está en la bandeja que el caso declara. */
   enLaBandejaDelCaso?: boolean
   /** Para qué sirve, tal como lo escribió el traumatólogo en el catálogo. */
@@ -302,6 +310,27 @@ const MODO_SENALAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
 }
 
 /**
+ * Los modos de los instrumentos que actúan sobre el paciente (D-167). Solo
+ * aparecen cuando el instrumento en la mano los usa: un separador no sirve de
+ * nada sin una herida, ni una broca con el modo de mover el fragmento.
+ */
+const MODO_SEPARAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'separar',
+  etiqueta: 'Separar',
+  icono: UnfoldHorizontal,
+  ayuda:
+    'Separar: arrastre desde el borde de la herida hacia fuera para abrirla. Uno de mano abre el borde que sostiene; uno autoestático abre los dos.',
+}
+
+const MODO_PERFORAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'perforar',
+  etiqueta: 'Perforar',
+  icono: Drill,
+  ayuda:
+    'Perforar: apunte al hueso y mantenga pulsado; la broca gira y avanza. Elija antes la inclinación; la etiqueta dice el ángulo con el eje del hueso.',
+}
+
+/**
  * El modo de ratón que necesita cada objetivo.
  *
  * La consola lo pone sola al entrar en el paso, porque lo sabe. Antes solo lo
@@ -436,6 +465,19 @@ export function ConsolaQuirurgica({
   const [articulacionesMovidas, setArticulacionesMovidas] = useState<Record<string, number>>({})
   const [errorDelInstrumento, setErrorDelInstrumento] = useState<string | null>(null)
   const [busquedaDeInstrumento, setBusquedaDeInstrumento] = useState('')
+  // La categoría de la bandeja que está desplegada. Una sola a la vez: la
+  // bandeja se lee como una mesa de instrumentación, de arriba abajo por
+  // familias, y con varias abiertas volvía a ser la lista larga de antes.
+  const [categoriaAbierta, setCategoriaAbierta] = useState<string | null>(null)
+  // Cómo apunta la broca respecto de la cortical (D-167): a lo largo del hueso y
+  // a lo ancho, en grados. Cero y cero es perpendicular a la cortical.
+  const [inclinacionDeBroca, setInclinacionDeBroca] = useState<InclinacionDeBroca>({
+    longitudinal: 0,
+    transversal: 0,
+  })
+  // Lo que hay cortado y abierto. Lo avisa el lienzo al cortar, al soltar un
+  // separador y al cerrar; durante el arrastre se lee en su etiqueta.
+  const [herida, setHerida] = useState<EstadoDeLasHeridas | null>(null)
   // Lo que trae el archivo, anotado con el modelo de que salió: se lee una vez,
   // al terminar de cargar, y no en cada pintado.
   const [delArchivo, setDelArchivo] = useState<{ url: string; nodos: string[]; datos: DatosDeNodo[] } | null>(null)
@@ -890,6 +932,9 @@ export function ConsolaQuirurgica({
     setRegistro([])
     setResultado(null)
     mando.current?.borrarTrazo()
+    // Reiniciar el caso también cierra lo cortado y quita los agujeros.
+    mando.current?.cerrarHeridas()
+    mando.current?.borrarAgujeros()
     colocarEnDesplazamientoInicial()
     entrarEnPaso(0, capasApagadas)
   }
@@ -956,6 +1001,13 @@ export function ConsolaQuirurgica({
 
   /** Coge un instrumento: aparece en la escena y sus articulaciones vuelven a como las dejó el taller. */
   const elegirInstrumento = (id: string | null) => {
+    // Un separador o una broca llevan su modo; al soltarlos se vuelve al de
+    // siempre. El modo de un paso (trazar, mover) no se toca: lo pide el paso.
+    const destino = id ? caso.instrumental.find((i) => i.id === id) : null
+    const que = destino ? comportamientoDelInstrumento(destino) : null
+    if (que?.separa) setModo('separar')
+    else if (que?.perfora) setModo('perforar')
+    else if (modo === 'separar' || modo === 'perforar') setModo('orbitar')
     setInstrumento(id)
     setArticulacionesDeclaradas([])
     setArticulacionesMovidas({})
@@ -984,6 +1036,14 @@ export function ConsolaQuirurgica({
   const ajustesDelElegido = instrumentoElegido?.ajustes ?? null
   const urlDelElegido = instrumentoElegido?.modeloUrl ?? null
   const iconoDelElegido = instrumentoElegido?.icono ?? null
+  const slugDelElegido = instrumentoElegido?.slug ?? null
+  const nombreDelElegido = instrumentoElegido?.nombre ?? ''
+  /** Qué le hace al paciente el instrumento en la mano: corta, separa, perfora. */
+  const queHace = useMemo(
+    () =>
+      comportamientoDelInstrumento({ slug: slugDelElegido, nombre: nombreDelElegido, icono: iconoDelElegido }),
+    [slugDelElegido, nombreDelElegido, iconoDelElegido],
+  )
   const valoresDeArticulacion = useMemo(() => {
     const valores: Record<string, number> = {}
     for (const a of articulacionesDeclaradas) {
@@ -1001,10 +1061,13 @@ export function ConsolaQuirurgica({
             url: urlDelElegido,
             ajustes: ajustesDelElegido,
             articulaciones: valoresDeArticulacion,
-            corta: iconoDelElegido === 'bisturi',
+            corta: iconoDelElegido === 'bisturi' || !!queHace.corta,
+            planoDeCorte: queHace.corta,
+            separa: queHace.separa,
+            perfora: queHace.perfora,
           }
         : null,
-    [urlDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido],
+    [urlDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace],
   )
 
   /**
@@ -1012,7 +1075,6 @@ export function ConsolaQuirurgica({
    * el catálogo entero agrupado por categoría y filtrado por lo que escriba.
    */
   const gruposDeLaBandeja = useMemo(() => {
-    if (!editor) return [{ clave: 'todo', titulo: null as string | null, instrumentos: caso.instrumental }]
     const filtro = busquedaDeInstrumento.trim().toLowerCase()
     const visibles = caso.instrumental.filter(
       (i) => !filtro || i.nombre.toLowerCase().includes(filtro),
@@ -1022,12 +1084,18 @@ export function ConsolaQuirurgica({
       const clave = i.categoria ?? 'otros'
       porCategoria.set(clave, [...(porCategoria.get(clave) ?? []), i])
     }
-    return [...porCategoria.entries()].map(([clave, instrumentos]) => ({
-      clave,
-      titulo: ETIQUETA_DE_CATEGORIA[clave] ?? 'Otros',
-      instrumentos,
-    }))
-  }, [editor, caso.instrumental, busquedaDeInstrumento])
+    // En el orden del catálogo (corte, suturas, exposición…), que es el de la
+    // mesa de instrumentación, y no en el que se hayan ido encontrando.
+    const orden = CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string)
+    const posicion = (clave: string) => (orden.includes(clave) ? orden.indexOf(clave) : orden.length)
+    return [...porCategoria.entries()]
+      .sort(([a], [b]) => posicion(a) - posicion(b))
+      .map(([clave, instrumentos]) => ({
+        clave,
+        titulo: ETIQUETA_DE_CATEGORIA[clave] ?? 'Otros',
+        instrumentos,
+      }))
+  }, [caso.instrumental, busquedaDeInstrumento])
 
   // Los bytes de los modelos de la bandeja se piden en segundo plano, de uno en
   // uno y cuando el navegador está ocioso, para que al pulsar un instrumento
@@ -1151,7 +1219,12 @@ export function ConsolaQuirurgica({
     }
   }
 
-  const modosVisibles = editor ? [...MODOS, MODO_SENALAR] : MODOS
+  const modosVisibles = [
+    ...MODOS,
+    ...(editor ? [MODO_SENALAR] : []),
+    ...(queHace.separa ? [MODO_SEPARAR] : []),
+    ...(queHace.perfora ? [MODO_PERFORAR] : []),
+  ]
   const ayudaDelModo = modosVisibles.find((m) => m.valor === modo)?.ayuda ?? ''
   const etiquetaDelModoDelPaso = MODOS.find((m) => m.valor === modoDelPaso)?.etiqueta ?? null
   const topesDelDeslizador = paso ? rangoDelDeslizadorDeFuerza(paso) : { min: 0, max: 120 }
@@ -1503,6 +1576,24 @@ export function ConsolaQuirurgica({
           </p>
         </div>
 
+        {herida && (herida.capas.length > 0 || herida.aviso) ? (
+          <div className="consola-herida-bloque" role="status">
+            <h3 className="consola-subtitulo">Herida</h3>
+            {herida.capas.length > 0 ? (
+              <p className="consola-herida-datos">
+                {herida.capas.map((c) => (c === 'piel' ? 'Piel' : 'Planos profundos')).join(' y ')} ·{' '}
+                {Math.round(herida.largoMm)} mm de largo · abierta {Math.round(herida.aperturaMm)} mm
+              </p>
+            ) : null}
+            {herida.aviso ? <p className="consola-herida-aviso">{herida.aviso}</p> : null}
+            {herida.capas.length > 0 ? (
+              <button type="button" className="consola-boton consola-boton-ancho" onClick={() => mando.current?.cerrarHeridas()}>
+                <Undo2 size={16} aria-hidden /> Cerrar la herida
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="consola-capas-bloque">
           <h3 className="consola-subtitulo">Capas</h3>
           <ul className="consola-capas">
@@ -1542,6 +1633,24 @@ export function ConsolaQuirurgica({
             modo={modo}
             fluoroscopia={fluoroscopia}
             ayudas={ayudas}
+            inclinacionDeBroca={inclinacionDeBroca}
+            alHerir={setHerida}
+            alPerforar={(hecha) => {
+              const mm = (n: number) => n.toFixed(1).replace('.', ',')
+              const partes = [
+                `Perforación de Ø ${String(hecha.diametroMm).replace('.', ',')} mm y ${mm(hecha.profundidadMm)} mm`,
+                hecha.bicortical ? 'bicortical' : 'solo la cortical cercana',
+                `${Math.round(hecha.anguloConElEje)}° con el eje del hueso`,
+              ]
+              const torcida = Math.abs(90 - hecha.anguloConElEje) > 10
+              const larga = hecha.sePasoMm > 3
+              anotar(
+                `${partes.join(', ')}.${
+                  larga ? ` Se pasó ${mm(hecha.sePasoMm)} mm de la cortical opuesta: riesgo para las partes blandas.` : ''
+                }${torcida ? ' No quedó perpendicular al eje del hueso.' : ''}`,
+                larga || torcida ? 'atencion' : 'bien',
+              )
+            }}
             instrumento={instrumentoEnEscena}
             milimetrosPorUnidad={escalaMm}
             ejeLargo={caso.ejeLargo}
@@ -1564,6 +1673,10 @@ export function ConsolaQuirurgica({
             // aplicarle nada, y hacerlo en el montaje del componente dejaba
             // el hueso reducido y el caso resuelto de entrada.
             alCargar={() => {
+              // Un lienzo recién cargado no trae ninguna herida: si el modelo se
+              // vuelve a montar (otro archivo, una recarga en caliente), lo que la
+              // consola creía cortado ya no existe en la escena.
+              setHerida(null)
               setDelArchivo({
                 url: caso.modeloUrl ?? '',
                 nodos: mando.current?.nodosDelModelo() ?? [],
@@ -1816,7 +1929,7 @@ export function ConsolaQuirurgica({
                 <button
                   type="button"
                   className="consola-boton consola-boton-ancho"
-                  onClick={() => mando.current?.borrarTrazo()}
+                  onClick={() => mando.current?.borrarTrazo(true)}
                 >
                   <Eraser size={16} aria-hidden /> Borrar trazo
                 </button>
@@ -1950,10 +2063,32 @@ export function ConsolaQuirurgica({
               onChange={(e) => setBusquedaDeInstrumento(e.target.value)}
             />
           ) : null}
-          {gruposDeLaBandeja.map((grupo) => (
-            <div key={grupo.clave} className="consola-bandeja-grupo">
-              {grupo.titulo ? <h4 className="consola-bandeja-categoria">{grupo.titulo}</h4> : null}
-              <ul className="consola-bandeja">
+          {gruposDeLaBandeja.map((grupo) => {
+            // Con algo escrito en el buscador se abren todas las familias que
+            // tienen coincidencias: buscar es saltarse el recorrido.
+            const abierta = busquedaDeInstrumento.trim() !== '' || categoriaAbierta === grupo.clave
+            const idDelPanel = `bandeja-${grupo.clave}`
+            const traeElElegido = grupo.instrumentos.some((i) => i.id === instrumento)
+            return (
+            <div key={grupo.clave} className={`consola-bandeja-grupo${abierta ? ' abierto' : ''}`}>
+              <button
+                type="button"
+                className="consola-bandeja-cabecera"
+                aria-expanded={abierta}
+                aria-controls={idDelPanel}
+                onClick={() => setCategoriaAbierta((antes) => (antes === grupo.clave ? null : grupo.clave))}
+              >
+                <ChevronRight size={16} aria-hidden className="consola-bandeja-flecha" />
+                <span className="consola-bandeja-titulo">{grupo.titulo}</span>
+                {traeElElegido ? (
+                  <span className="consola-bandeja-en-mano" title="Tiene el instrumento que lleva en la mano">
+                    en la mano
+                  </span>
+                ) : null}
+                <span className="consola-bandeja-cuenta u-num">{grupo.instrumentos.length}</span>
+              </button>
+              {abierta ? (
+              <ul className="consola-bandeja" id={idDelPanel}>
                 {grupo.instrumentos.map((it) => (
                   <li key={it.id}>
                     <button
@@ -1981,9 +2116,11 @@ export function ConsolaQuirurgica({
                   </li>
                 ))}
               </ul>
+              ) : null}
             </div>
-          ))}
-          {editor && gruposDeLaBandeja.length === 0 ? (
+            )
+          })}
+          {gruposDeLaBandeja.length === 0 ? (
             <p className="consola-vacio">Ningún instrumento coincide con la búsqueda.</p>
           ) : null}
 
@@ -2068,6 +2205,79 @@ export function ConsolaQuirurgica({
                       </output>
                     </label>
                   ))}
+                </div>
+              ) : null}
+
+              {queHace.corta ? (
+                <p className="consola-instrumento-texto">
+                  Corta {queHace.corta === 'piel' ? 'la piel' : 'los planos de debajo de la piel'}: pase al
+                  modo «Trazar» y arrastre sobre el modelo. Al soltar, la malla se abre a lo largo del trazo.
+                </p>
+              ) : null}
+
+              {queHace.separa ? (
+                <div className="consola-instrumento-articulaciones">
+                  <label className="consola-instrumento-articulacion">
+                    <span>Apertura</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={queHace.separa.maximoMm}
+                      step={1}
+                      value={Math.min(queHace.separa.maximoMm, Math.round(herida?.aperturaMm ?? 0))}
+                      disabled={!herida || herida.capas.length === 0}
+                      onChange={(e) => mando.current?.abrirHeridas(Number(e.target.value))}
+                      aria-label={`Apertura de la herida con ${instrumentoElegido.nombre}`}
+                    />
+                    <output>{Math.round(herida?.aperturaMm ?? 0)} mm</output>
+                  </label>
+                  <p className="consola-instrumento-texto">
+                    {queHace.separa.autoestatico
+                      ? 'Autoestático: se queda abierto solo, con su trinquete.'
+                      : 'De mano: abre el borde que sostiene; el otro lo sostiene un ayudante.'}{' '}
+                    Abre hasta {queHace.separa.maximoMm} mm. {herida && herida.capas.length > 0
+                      ? 'También se puede arrastrar desde el borde de la herida, en modo «Separar».'
+                      : 'Aún no hay herida: corte antes con un bisturí.'}
+                  </p>
+                </div>
+              ) : null}
+
+              {queHace.perfora ? (
+                <div className="consola-instrumento-articulaciones">
+                  {(
+                    [
+                      ['longitudinal', 'A lo largo del hueso'],
+                      ['transversal', 'A lo ancho'],
+                    ] as const
+                  ).map(([eje, etiqueta]) => (
+                    <label key={eje} className="consola-instrumento-articulacion">
+                      <span>{etiqueta}</span>
+                      <input
+                        type="range"
+                        min={-45}
+                        max={45}
+                        step={1}
+                        value={inclinacionDeBroca[eje]}
+                        onChange={(e) =>
+                          setInclinacionDeBroca((antes) => ({ ...antes, [eje]: Number(e.target.value) }))
+                        }
+                        aria-label={`Inclinación de la broca ${etiqueta.toLowerCase()}`}
+                      />
+                      <output>{inclinacionDeBroca[eje]}°</output>
+                    </label>
+                  ))}
+                  <div className="consola-instrumento-acciones">
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      onClick={() => setInclinacionDeBroca({ longitudinal: 0, transversal: 0 })}
+                    >
+                      Perpendicular a la cortical
+                    </button>
+                    <button type="button" className="consola-boton" onClick={() => mando.current?.borrarAgujeros()}>
+                      Quitar agujeros
+                    </button>
+                  </div>
                 </div>
               ) : null}
 
