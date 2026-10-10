@@ -26,13 +26,15 @@ export interface SuturaEnEscena {
   hechos: THREE.Object3D[]
   /** La próxima puntada empieza una línea nueva. */
   siguienteEsNueva?: boolean
+  /** Cuánto se ha tirado del hilo, de 0 (flojo) a 1 (apretado del todo). Cose primero y tira después (D-171). */
+  tension: number
 }
 
 export function crearSutura(escena: THREE.Scene, hilo: HiloDeSutura): SuturaEnEscena {
   const grupo = new THREE.Group()
   grupo.name = 'sutura'
   escena.add(grupo)
-  return { grupo, puntos: [], hilo, hechos: [] }
+  return { grupo, puntos: [], hilo, hechos: [], tension: 0 }
 }
 
 /** Las mallas visibles de un modelo, que es contra lo que se apoya el hilo. */

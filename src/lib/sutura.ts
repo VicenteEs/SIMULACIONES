@@ -29,6 +29,25 @@ export interface PuntoDeSutura {
   lado: 1 | -1 | 0
   /** Empieza una línea nueva: no se une al punto anterior. */
   nuevaLinea: boolean
+  /**
+   * Dónde se picó. `punto` es dónde está **ahora**: al tirar del hilo el labio de la herida se mueve y se
+   * lleva la puntada con él (D-171), y las medidas de la sutura se hacen con el sitio donde se picó, no con
+   * el que queda al apretar.
+   */
+  base?: Vec3
+  /** Cómo sigue la puntada al labio de la herida cuando este se mueve. */
+  ref?: {
+    /** La malla cortada en la que se picó (su `uuid`). */
+    malla: string
+    /** Hacia dónde se separa el labio, en el mundo. */
+    dir: Vec3
+    lado: 1 | -1
+    /** Cuánto del movimiento del labio le llega a la puntada: 1 en el borde, menos cuanto más lejos. */
+    peso: number
+    /** Cuánto estaba abierto cada labio al picar. */
+    mas0: number
+    menos0: number
+  }
 }
 
 /** Entre qué separaciones una puntada de piel se considera bien puesta, en mm. */
@@ -102,6 +121,77 @@ export function medirLaSutura(puntos: readonly PuntoDeSutura[], milimetrosPorUni
 export function cierreDeLaHerida(cruces: number, largoDeLaHeridaMm: number): number {
   if (!(largoDeLaHeridaMm > 0) || cruces <= 0) return 0
   return Math.min(1, (cruces * SEPARACION_IDEAL_MM.max) / largoDeLaHeridaMm)
+}
+
+/**
+ * Lo que de verdad se cierra: lo que las puntadas permiten, por lo que se ha tirado del hilo.
+ *
+ * Con el hilo flojo (tensión 0) la herida sigue abierta aunque las puntadas ya crucen: coser y tirar son dos
+ * gestos (D-171). Antes cada puntada cruzada cerraba su tramo en el momento, sin que nada se tirara.
+ */
+export function cierreConTension(cruces: number, largoDeLaHeridaMm: number, tension: number): number {
+  return cierreDeLaHerida(cruces, largoDeLaHeridaMm) * traccionDelHilo(tension)
+}
+
+// ----------------------------------------------------------------------------------------- tensión
+
+/**
+ * La tensión con la que la herida queda justo cerrada, de 0 a 1.
+ *
+ * Tirar del hilo acerca los bordes hasta que se tocan, y de ahí en adelante no hay nada más que acercar: lo que
+ * sigue es apretar de más. Con el 80 % de la carrera ya está cerrada; el 20 % restante es margen para pasarse.
+ */
+export const TENSION_DE_CIERRE = 0.8
+
+/** Por encima de esta tensión el hilo estrangula el borde (isquemia de la piel): se dice y no se aprueba. */
+export const TENSION_QUE_ESTRANGULA = 0.92
+
+/** Cuánto de lo que las puntadas pueden cerrar se cierra con esta tensión, de 0 a 1. */
+export function traccionDelHilo(tension: number): number {
+  if (!(tension > 0)) return 0
+  return Math.min(1, tension / TENSION_DE_CIERRE)
+}
+
+/**
+ * Lo que dice la herida de cómo se tiró del hilo, o `null` si no hay nada que decir (sin cruces, ni se ha tirado).
+ *
+ * `cierreMaximo` es lo que las puntadas **podrían** cerrar (`cierreDeLaHerida`): con pocos cruces, tirar todo
+ * lo que se quiera no cierra más que eso, y decirlo es lo que lleva a quien aprende a poner más puntadas en
+ * vez de más fuerza.
+ */
+export function juicioDeLaTension(p: {
+  tension: number
+  cruces: number
+  cierreMaximo: number
+  /** El largo de la herida, en mm, para decir cuántas puntadas faltan. */
+  largoMm?: number
+}): { texto: string; atencion: boolean; estrangula: boolean } | null {
+  if (p.cruces <= 0) {
+    return p.tension > 0
+      ? { texto: 'Ninguna puntada cruza la herida: tirar del hilo no acerca nada. Pique a un lado y otro de la herida.', atencion: true, estrangula: false }
+      : null
+  }
+  if (p.tension <= 0.02) return null
+  if (p.tension > TENSION_QUE_ESTRANGULA) {
+    return {
+      texto: 'Demasiada tensión: el hilo estrangula el borde de la piel y lo deja sin riego. Afloje un poco: basta con que los bordes se toquen.',
+      atencion: true,
+      estrangula: true,
+    }
+  }
+  if (p.cierreMaximo < 0.95) {
+    const pct = Math.round(p.cierreMaximo * 100)
+    const faltan = p.largoMm && p.largoMm > 0 ? Math.max(1, Math.ceil((p.largoMm * (1 - p.cierreMaximo)) / SEPARACION_IDEAL_MM.max)) : null
+    return {
+      texto: `Con ${p.cruces} ${p.cruces === 1 ? 'puntada que cruza' : 'puntadas que cruzan'} la herida solo se puede cerrar el ${pct} %: faltan ${faltan ? `unas ${faltan} puntadas más` : 'puntadas'}, no fuerza.`,
+      atencion: true,
+      estrangula: false,
+    }
+  }
+  if (p.tension < TENSION_DE_CIERRE - 0.05) {
+    return { texto: 'El hilo aún está flojo: siga tirando hasta que los bordes se toquen.', atencion: true, estrangula: false }
+  }
+  return { texto: 'Bordes afrontados: los labios se tocan sin estrangular la piel.', atencion: false, estrangula: false }
 }
 
 /** Lo que se dice de la última puntada, o `null` si estuvo bien (o fue la primera). */

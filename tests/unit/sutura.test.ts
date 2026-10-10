@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   SEPARACION_IDEAL_MM,
+  TENSION_DE_CIERRE,
+  TENSION_QUE_ESTRANGULA,
+  cierreConTension,
   cierreDeLaHerida,
   hiloDelInstrumento,
   juicioDeLaPuntada,
+  juicioDeLaTension,
   medirLaSutura,
+  traccionDelHilo,
   type PuntoDeSutura,
 } from '@/lib/sutura'
 
@@ -95,5 +100,51 @@ describe('hiloDelInstrumento', () => {
   })
   it('un instrumento que no es hilo no cose', () => {
     expect(hiloDelInstrumento({ slug: 'pinza-diseccion-con-dientes', nombre: 'Pinza de disección con dientes' })).toBeNull()
+  })
+})
+
+describe('tirar del hilo (D-171)', () => {
+  it('con el hilo flojo no se cierra nada, aunque las puntadas crucen', () => {
+    expect(cierreConTension(6, 40, 0)).toBe(0)
+    expect(traccionDelHilo(0)).toBe(0)
+  })
+
+  it('la tracción llega al máximo con la tensión de cierre y no pasa de ahí', () => {
+    expect(traccionDelHilo(TENSION_DE_CIERRE)).toBe(1)
+    expect(traccionDelHilo(TENSION_DE_CIERRE / 2)).toBeCloseTo(0.5, 9)
+    expect(traccionDelHilo(1)).toBe(1)
+    expect(traccionDelHilo(-3)).toBe(0)
+  })
+
+  it('el cierre es lo que las puntadas permiten por lo que se tira', () => {
+    // 2 cruces en 40 mm: 50 % posible.
+    expect(cierreConTension(2, 40, TENSION_DE_CIERRE)).toBeCloseTo(0.5, 9)
+    expect(cierreConTension(2, 40, TENSION_DE_CIERRE / 2)).toBeCloseTo(0.25, 9)
+    // 4 cruces en 40 mm: todo.
+    expect(cierreConTension(4, 40, 1)).toBe(1)
+  })
+
+  it('sin cruces, tirar no acerca nada y se dice', () => {
+    const j = juicioDeLaTension({ tension: 0.5, cruces: 0, cierreMaximo: 0 })
+    expect(j?.texto).toMatch(/ninguna puntada cruza/i)
+    expect(juicioDeLaTension({ tension: 0, cruces: 0, cierreMaximo: 0 })).toBeNull()
+  })
+
+  it('con pocas puntadas dice cuántas faltan, y no pide más fuerza', () => {
+    const j = juicioDeLaTension({ tension: 0.85, cruces: 2, cierreMaximo: 0.25, largoMm: 80 })
+    expect(j?.atencion).toBe(true)
+    expect(j?.texto).toMatch(/faltan unas 6 puntadas más/)
+    expect(j?.estrangula).toBe(false)
+  })
+
+  it('el hilo flojo, el justo y el que estrangula se distinguen', () => {
+    const base = { cruces: 5, cierreMaximo: 1 }
+    expect(juicioDeLaTension({ ...base, tension: 0.3 })?.texto).toMatch(/flojo/)
+    const justo = juicioDeLaTension({ ...base, tension: TENSION_DE_CIERRE })
+    expect(justo?.atencion).toBe(false)
+    expect(justo?.texto).toMatch(/afrontados/)
+    const apretado = juicioDeLaTension({ ...base, tension: TENSION_QUE_ESTRANGULA + 0.03 })
+    expect(apretado?.estrangula).toBe(true)
+    expect(apretado?.texto).toMatch(/estrangula/)
   })
 })

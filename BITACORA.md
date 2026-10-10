@@ -5656,6 +5656,55 @@ desplazamiento inicial) y se jugó cada paso con «Probar este paso». Salieron 
   «Mover» (la reducción no se pudo completar a mano); la placa se apoya en la tibia proximal y deja
   holgura en la meseta; y el cursor del Weitlaner sigue mostrando una tijera.
 
+### D-171 · 2026-10-10 · vigente
+**La rueda maneja el instrumento, las capas mandan, cualquier trozo de hueso se mueve, la sutura se tira del
+hilo y lo cortado sobrevive a recargar.**
+Pedido del dueño tras D-170 (la prueba de punta a punta en el servidor): «las herramientas que se abren se
+abran con el scroll», «que se vean todas las partes» en el paso de coser, «las capas funcionen como las del
+taller anatómico, ahora no responden y se bloquean», «aplicar tensión o tirar el hilo para que se cierre la
+incisión» y «las piezas fracturadas no se pueden mover».
+- *La rueda del ratón* es del instrumento que se tiene en la mano cuando este se maneja con ella
+  (`ruedaDelInstrumento`, en la consola): abre y cierra las tijeras y las pinzas (su primera articulación), abre el
+  separador **y** la herida a la vez (2 mm por muesca), alarga o acorta el tornillo (2 mm) y tira del hilo o lo
+  afloja (4 % por muesca). Mientras tanto la rueda ya no acerca el modelo: con Ctrl o Mayúsculas sí (y el
+  pellizco del trackpad, que el navegador manda como rueda con Ctrl). Un instrumento que no se maneja con la
+  rueda la deja para el zoom, y la sutura solo la usa cuando ya hay puntadas. Se hizo así y no con un modo
+  aparte porque acercar y abrir las tijeras con el mismo gesto no deja hacer ninguna de las dos.
+- *Las capas* (`visibilidadDelPaso`, `capasAlEntrarEnPaso`). Tres fallos distintos que se veían igual:
+  (1) el lienzo solo se ordenaba al cargar el archivo y al cambiar de paso, así que el editor, al «Rellenar desde
+  el modelo», seguía enseñando la piel con el interruptor apagado; ahora se reordena cuando cambian las piezas o
+  lo que cada paso muestra. (2) Un paso que declaraba «solo la piel» dejaba el interruptor del hueso moviéndose
+  sin efecto; ahora una capa encendida a mano enseña **todas** sus piezas (`capasForzadas`, que se vacía al
+  cambiar de paso). (3) El fragmento móvil no tenía capa y se quedaba a la vista con el hueso apagado: ahora es
+  hueso (`capaDelRol`). Al entrar en un paso que declara, los interruptores quedan diciendo lo que se ve, en vez
+  de quedarse encendidos los de una capa que el paso no enseña.
+- *Mover* agarra **cualquier trozo de hueso** visible (`huesoBajoElCursor`), no solo el fragmento que el caso
+  mide, y atraviesa la piel y el músculo: con la piel delante el rayo agarraba la piel y no pasaba nada. Solo el
+  fragmento declarado alimenta las medidas; los demás se mueven libres y «Volver al desplazamiento inicial» los
+  devuelve (`restaurarPiezas`).
+- *La sutura se tira.* Coser y tirar son dos gestos: las puntadas ya no cierran la herida al cruzarla, sino que
+  fijan **cuánto puede cerrarse** (`cierreDeLaHerida`, 10 mm de herida por cruce) y el cierre es eso por la
+  tracción del hilo (`cierreConTension`; la tensión de cierre es el 80 % de la carrera). Cada puntada se mueve con
+  el labio al que está cosida (`seguirAlLabio`: dirección, lado y un peso que baja con la distancia, como al
+  abrir), y las medidas se hacen con el sitio donde se picó, no con el que queda al apretar. Por encima del
+  92 % el hilo estrangula el borde y se dice; con pocos cruces el juicio dice **cuántas puntadas faltan**
+  (con 2 cruces en 67 mm: «faltan unas 5 puntadas más, no fuerza»). Probado en pantalla: 22 puntadas, 16 cruces,
+  tensión 80 % → herida cerrada al 100 %.
+- *Coser y Fijar* giran el modelo con el arrastre, como decía la ayuda y no hacía el código (`enableRotate`
+  solo estaba en Orbitar). El «zoom que saltaba» de la prueba del servidor era el panel cambiando de ancho, no un
+  fallo.
+- *Lo cortado y cosido sobrevive a recargar* (`serializarSesion`, `restaurarSesion`): cada medio segundo se
+  guarda en `sessionStorage` (de la pestaña, no de la cuenta) los trazos de los cortes, la apertura, las puntadas
+  y la tensión, y al abrir el modelo se vuelve a cortar con el mismo trazo. Se guarda el trazo y no la geometría
+  porque son decenas de puntos y no cientos de miles de vértices. Las puntadas guardan el **lugar** de su herida
+  en la lista y no su `uuid`, que cambia al recargar. No se recuerdan la placa, los tornillos, los agujeros ni
+  los trozos movidos.
+- *El Weitlaner con aspecto de tijera* no es un fallo del modelo: el Weitlaner de verdad tiene argollas,
+  articulación y rastrillos en las puntas, y así se hizo. Queda como límite que el cursor es pequeño.
+- *Consecuencias malas:* quien cosía y veía la herida cerrarse sola ahora tiene que tirar del hilo (el panel lo
+  dice); con una herida de 19 cm hacen falta unas 19 puntadas que crucen, que es lo que pasa de verdad; el
+  guardado en la pestaña no cubre todo lo que se hace sobre el paciente.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

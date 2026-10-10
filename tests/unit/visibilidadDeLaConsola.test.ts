@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  capaDelRol,
+  capasAlEntrarEnPaso,
   capasQueEnciendeElPaso,
   declaracionDelPaso,
   medidaInicial,
@@ -183,5 +185,51 @@ describe('las medidas del caso recién abierto', () => {
       diastasis: 0,
       angulacion: 0,
     })
+  })
+})
+
+describe('las capas mandan sobre lo que el paso propone (D-171)', () => {
+  it('el fragmento móvil se apaga con el hueso: no tiene interruptor propio', () => {
+    expect(capaDelRol('fragmento')).toBe('hueso')
+    expect(capaDelRol('piel')).toBe('piel')
+    const { nodos } = visibilidadDelPaso([{}], piezas, 0, apagadas('hueso'))
+    expect(nodos).not.toContain('Tibia')
+    expect(nodos).not.toContain('Fragmento')
+  })
+
+  it('una capa encendida a mano enseña todas sus piezas aunque el paso declare solo otras', () => {
+    const pasos = [{ muestra: ['Piel'] }]
+    const sinForzar = visibilidadDelPaso(pasos, piezas, 0, apagadas('musculo'))
+    expect(sinForzar.nodos).toEqual(['Piel'])
+    const forzandoHueso = visibilidadDelPaso(pasos, piezas, 0, apagadas('musculo'), new Set(['hueso']))
+    expect(forzandoHueso.nodos).toEqual(expect.arrayContaining(['Piel', 'Tibia', 'Fragmento']))
+    expect(forzandoHueso.nodos).not.toContain('Musculo')
+    expect(forzandoHueso.nodos).not.toContain('Placa')
+  })
+
+  it('una capa forzada pero apagada de nuevo no se ve', () => {
+    const r = visibilidadDelPaso([{ muestra: ['Piel'] }], piezas, 0, apagadas('hueso'), new Set(['hueso']))
+    expect(r.nodos).toEqual(['Piel'])
+  })
+
+  it('al entrar en un paso que declara, los interruptores quedan diciendo lo que se ve', () => {
+    const pasos = [{ muestra: ['Piel'] }]
+    const r = capasAlEntrarEnPaso(pasos, piezas, 0, apagadas('piel', 'musculo'))
+    expect([...r].sort()).toEqual(['hueso', 'musculo'])
+  })
+
+  it('un paso que declara hueso deja el fragmento en la capa del hueso', () => {
+    const r = capasAlEntrarEnPaso([{ muestra: ['Tibia', 'Fragmento'] }], piezas, 0, apagadas('hueso'))
+    expect([...r].sort()).toEqual(['musculo', 'piel'])
+  })
+
+  it('un paso que no declara nada deja los interruptores como los puso el residente', () => {
+    const r = capasAlEntrarEnPaso([{}], piezas, 0, apagadas('piel'))
+    expect([...r]).toEqual(['piel'])
+  })
+
+  it('si lo declarado no es de ninguna pieza conocida no se toca nada', () => {
+    const r = capasAlEntrarEnPaso([{ muestra: ['Otra'] }], piezas, 0, apagadas('musculo'))
+    expect([...r]).toEqual(['musculo'])
   })
 })

@@ -680,6 +680,7 @@ export function visibilidadDelPaso(
   piezas: PiezaConRol[],
   indicePaso: number,
   capasApagadas: Set<string>,
+  capasForzadas: Set<string> = new Set(),
 ): { nodos: string[] | null; encender: string[] } {
   const declarados = declaracionDelPaso(pasos, indicePaso)
   const base = declarados ?? piezas.filter((p) => p.rol !== 'implante').map((p) => p.nodo)
@@ -691,16 +692,68 @@ export function visibilidadDelPaso(
   const rolDe = new Map(piezas.map((p) => [p.nodo, p.rol]))
   const visibles = base.filter((nodo) => {
     const rol = rolDe.get(nodo)
-    return !rol || !capasApagadas.has(rol)
+    return !rol || !capasApagadas.has(capaDelRol(rol))
   })
+  // Una capa que el residente enciende a mano enseña **todas** sus piezas, las declare el paso o no.
+  // Sin esto, con un paso que declara «solo la piel» el interruptor del hueso se movía y no pasaba nada:
+  // la casilla decía una cosa y el lienzo otra, que es lo que el taller anatómico nunca hace (D-171).
+  for (const p of piezas) {
+    if (p.rol === 'implante' || !p.nodo) continue
+    const capa = capaDelRol(p.rol)
+    if (capasForzadas.has(capa) && !capasApagadas.has(capa) && !visibles.includes(p.nodo)) visibles.push(p.nodo)
+  }
   if (visibles.length > 0) return { nodos: visibles, encender: [] }
 
   const encender: string[] = []
   for (const nodo of base) {
     const rol = rolDe.get(nodo)
-    if (rol && capasApagadas.has(rol) && !encender.includes(rol)) encender.push(rol)
+    const capa = rol ? capaDelRol(rol) : null
+    if (capa && capasApagadas.has(capa) && !encender.includes(capa)) encender.push(capa)
   }
   return { nodos: base, encender }
+}
+
+/**
+ * A qué interruptor de la consola pertenece un papel: el fragmento móvil es hueso y se apaga con el hueso.
+ * Antes el fragmento no tenía capa —ningún interruptor se llamaba «fragmento»— y se quedaba a la vista con
+ * el hueso apagado.
+ */
+export function capaDelRol(rol: string): string {
+  return rol === 'fragmento' ? 'hueso' : rol
+}
+
+/**
+ * Cómo quedan los interruptores al entrar en un paso.
+ *
+ * Un paso que declara lo que se ve manda sobre los interruptores y **los deja diciendo la verdad**: se
+ * encienden las capas de lo declarado y se apagan las demás, porque una casilla encendida de una capa que el
+ * paso no enseña es una casilla que miente. Un paso que no declara nada deja los interruptores como los puso
+ * el residente. El residente puede volver a encender lo que quiera: eso es `capasForzadas`.
+ */
+export function capasAlEntrarEnPaso(
+  pasos: PasoConMuestra[],
+  piezas: PiezaConRol[],
+  indicePaso: number,
+  capasApagadas: Set<string>,
+): Set<string> {
+  const siguientes = new Set(capasApagadas)
+  const declarados = declaracionDelPaso(pasos, indicePaso)
+  if (!declarados) return siguientes
+  const rolDe = new Map(piezas.map((p) => [p.nodo, p.rol]))
+  const conDeclaradas = new Set<string>()
+  for (const nodo of declarados) {
+    const rol = rolDe.get(nodo)
+    if (rol && rol !== 'implante') conDeclaradas.add(capaDelRol(rol))
+  }
+  // Sin ninguna pieza reconocible en lo declarado (otro archivo) no se toca nada: eso lo resuelve el lienzo.
+  if (conDeclaradas.size === 0) return siguientes
+  for (const p of piezas) {
+    if (p.rol === 'implante') continue
+    const capa = capaDelRol(p.rol)
+    if (conDeclaradas.has(capa)) siguientes.delete(capa)
+    else siguientes.add(capa)
+  }
+  return siguientes
 }
 
 /**
@@ -780,7 +833,8 @@ export function capasQueEnciendeElPaso(
   const roles: string[] = []
   for (const nodo of declarados) {
     const rol = rolDe.get(nodo)
-    if (rol && capasApagadas.has(rol) && !roles.includes(rol)) roles.push(rol)
+    const capa = rol ? capaDelRol(rol) : null
+    if (capa && capasApagadas.has(capa) && !roles.includes(capa)) roles.push(capa)
   }
   return roles
 }

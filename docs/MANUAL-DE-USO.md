@@ -706,12 +706,16 @@ coinciden.
   dicen.
 - **Coser (los hilos de sutura).** Con una sutura en la mano el modo pasa a **Coser**: cada
   **clic** sobre la piel suma una puntada y el hilo queda dibujado entre una y otra, pegado
-  al tejido (el arrastre sigue girando el modelo). Una puntada que cae al otro lado de la
-  herida la **cruza** y la va cerrando: cada cruce cubre unos diez milímetros. El panel
-  cuenta las puntadas, el hilo gastado, los cruces y la separación media (lo habitual en
-  piel es de 5 a 10 mm; la consola avisa si va muy junta o muy abierta). «Deshacer la
-  última», «Cortar el hilo» (la próxima puntada empieza otra línea) y «Quitar la sutura»,
-  que devuelve la herida a como estaba.
+  al tejido (el arrastre gira el modelo). Una puntada que cae al otro lado de la herida la
+  **cruza**: cada cruce permite cerrar unos diez milímetros de herida, pero **el hilo está
+  flojo hasta que se tira de él**. Con la **rueda del ratón** (hacia delante aprieta, hacia
+  atrás afloja), el deslizador «Tirar del hilo» o sus botones, los labios se acercan y las
+  puntadas con ellos. Con el 80 % de tensión la herida queda justo cerrada; por encima del
+  92 % el hilo estrangula el borde y la consola lo dice. Si faltan puntadas dice cuántas.
+  El panel cuenta las puntadas, el hilo gastado, los cruces, la separación media (lo habitual
+  en piel es de 5 a 10 mm), la tensión y lo cerrada que está la herida. «Deshacer la última»,
+  «Cortar el hilo» (la próxima puntada empieza otra línea) y «Quitar la sutura», que devuelve
+  la herida a como estaba.
 - **Fijar (placa, tornillos y medidor).** Con una **placa** en la mano, modo **Fijar**: pique
   sobre el hueso y se apoya con su largo siguiendo el hueso. Con el **medidor de
   profundidad** apoyado en un agujero, dice cuánto hueso hay debajo y qué tornillo pedir (lo
@@ -719,6 +723,19 @@ coinciden.
   perpendicular a la placa con el largo del deslizador, y la consola dice si es bicortical y
   si la punta asoma de más (hasta 4 mm se tolera). Los clavos y el injerto, por ahora, solo
   se ven en la escena.
+- **La rueda del ratón maneja el instrumento.** Con unas tijeras, una pinza o un portaagujas
+  en la mano, la rueda sobre el modelo los **abre y cierra**; con un separador abre el
+  separador y la herida a la vez; con un tornillo cambia su largo; con una sutura que ya tiene
+  puntadas, tira del hilo. Para acercar el modelo, **Ctrl + rueda**. Un instrumento que no
+  se maneja con la rueda la deja para el zoom, como siempre.
+- **Mover agarra cualquier trozo de hueso.** En el paso de reducir, «Mover» arrastra el trozo
+  que se agarre, esté la piel encendida o no. Solo el fragmento que el caso mide cambia las
+  medidas; «Volver al desplazamiento inicial» devuelve todos a su sitio.
+- **Las capas** (piel, músculo, hueso) se encienden y apagan siempre, como en el taller
+  anatómico: un paso propone qué se ve, pero lo que se encienda a mano se ve entero.
+- **Recargar la página no pierde lo cortado ni lo cosido** (se guarda en la pestaña): la
+  herida, su apertura, las puntadas y la tensión vuelven. La placa, los tornillos y los
+  agujeros no.
 - **Qué puntúa.** Dos objetivos nuevos del paso: **perforación** (el calibre de la broca, el
   rango de ángulo con el eje del hueso y, si se pide, que sea bicortical; pasarse más de 3 mm
   de la cortical opuesta es una complicación) y **fijación** (cuántos tornillos hacen falta y

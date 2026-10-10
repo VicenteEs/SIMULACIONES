@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
-  capasQueEnciendeElPaso,
+  capaDelRol,
+  capasAlEntrarEnPaso,
   evaluarGesto,
   fuerzaInicial,
   instruccionDelPaso,
@@ -561,6 +562,14 @@ export function ConsolaQuirurgica({
   // las capas de lo que declara se encienden solas (`entrarEnPaso`), y el cruce
   // no puede dejar el lienzo vacío (`visibilidadDelPaso`).
   const [capasApagadas, setCapasApagadas] = useState<Set<string>>(() => new Set(['piel', 'musculo']))
+  /**
+   * Las capas que el residente encendió a mano en este paso. Enseñan todas sus piezas aunque el paso declare
+   * ver solo algunas: el interruptor manda sobre lo que el paso propone (D-171). Se vacía al cambiar de paso,
+   * que es cuando el paso vuelve a proponer.
+   */
+  const capasForzadas = useRef<Set<string>>(new Set())
+  /** Lo último que se dijo de la tensión del hilo, para no repetirlo con cada vuelta de la rueda. */
+  const juicioDeTensionDicho = useRef<string | null>(null)
 
   const paso = caso.pasos[indice]
   const terminado = indice >= caso.pasos.length
@@ -754,7 +763,7 @@ export function ConsolaQuirurgica({
 
   const refrescarVisibles = useCallback(
     (indicePaso: number, apagadas: Set<string>) => {
-      const { nodos, encender } = visibilidadDelPaso(caso.pasos, caso.piezas, indicePaso, apagadas)
+      const { nodos, encender } = visibilidadDelPaso(caso.pasos, caso.piezas, indicePaso, apagadas, capasForzadas.current)
       const mostrado = mando.current?.mostrar(nodos)
       // El caso nombra piezas que el archivo no tiene. Se enseña el modelo
       // entero —el lienzo ya lo decidió— y se dice, con la causa y la salida:
@@ -786,26 +795,51 @@ export function ConsolaQuirurgica({
   /** Entra en un paso: pone las capas que ese paso necesita y refresca el lienzo. */
   const entrarEnPaso = useCallback(
     (indicePaso: number, apagadas: Set<string>) => {
-      const encender = capasQueEnciendeElPaso(caso.pasos, caso.piezas, indicePaso, apagadas)
-      let siguientes = apagadas
-      if (encender.length > 0) {
-        siguientes = new Set(apagadas)
-        for (const rol of encender) siguientes.delete(rol)
-        setCapasApagadas(siguientes)
-        anotar(`Este paso se trabaja sobre ${capasEnProsa(encender)}: se vuelve a mostrar.`, 'atencion')
-      }
+      // Cada paso vuelve a proponer lo suyo: lo que el residente forzó en el anterior se olvida.
+      capasForzadas.current = new Set()
+      // Los interruptores quedan diciendo lo que el paso enseña (no se quedan encendidos los de una capa
+      // que el paso no muestra) y el residente puede volver a encender lo que quiera.
+      const siguientes = capasAlEntrarEnPaso(caso.pasos, caso.piezas, indicePaso, apagadas)
+      const cambio = siguientes.size !== apagadas.size || [...siguientes].some((rol) => !apagadas.has(rol))
+      if (cambio) setCapasApagadas(siguientes)
       refrescarVisibles(indicePaso, siguientes)
     },
-    [caso.pasos, caso.piezas, anotar, refrescarVisibles],
+    [caso.pasos, caso.piezas, refrescarVisibles],
   )
 
   const alternarCapa = (rol: string) => {
     const siguientes = new Set(capasApagadas)
-    if (siguientes.has(rol)) siguientes.delete(rol)
-    else siguientes.add(rol)
+    if (siguientes.has(rol)) {
+      siguientes.delete(rol)
+      capasForzadas.current.add(rol)
+    } else {
+      siguientes.add(rol)
+      capasForzadas.current.delete(rol)
+    }
     setCapasApagadas(siguientes)
     refrescarVisibles(indice, siguientes)
   }
+
+  // Si las piezas o lo que cada paso muestra cambian con el modelo ya abierto —en el editor, al «Rellenar
+  // desde el modelo» o al escribir un paso—, el lienzo se vuelve a ordenar. Antes solo se ordenaba al cargar el
+  // archivo y al cambiar de paso: el editor rellenaba las piezas y el lienzo seguía enseñando la piel con el
+  // interruptor de la piel apagado, hasta que alguien lo tocaba.
+  const firmaDeLoVisible = useMemo(
+    () => JSON.stringify([caso.piezas.map((p) => [p.nodo, p.rol]), caso.pasos.map((p) => p.muestra ?? [])]),
+    [caso.piezas, caso.pasos],
+  )
+  const modeloAbierto = delArchivo?.url === caso.modeloUrl
+  // Lo que el efecto de abajo lee «en el momento», sin que cambiarlo lo dispare: solo lo dispara cambiar lo
+  // que se ve. Se actualiza en un efecto y no durante el pintado, que es donde React no deja escribir refs.
+  const alRefrescar = useRef({ refrescarVisibles, indice, capasApagadas })
+  useEffect(() => {
+    alRefrescar.current = { refrescarVisibles, indice, capasApagadas }
+  })
+  useEffect(() => {
+    if (!modeloAbierto) return
+    const { refrescarVisibles: refrescar, indice: paso, capasApagadas: apagadas } = alRefrescar.current
+    refrescar(paso, apagadas)
+  }, [firmaDeLoVisible, modeloAbierto])
 
   // ------------------------------------------------------------- aplicar
   function aplicarPaso() {
@@ -1011,6 +1045,8 @@ export function ConsolaQuirurgica({
 
   /** Deja el fragmento donde empieza el caso: desplazado, sin reducir. */
   const colocarEnDesplazamientoInicial = useCallback(() => {
+    // Los otros trozos de hueso que se movieron con «Mover» vuelven también a su sitio.
+    mando.current?.restaurarPiezas()
     const d = caso.desplazamientoInicial
     const aUnidades = (mm: number) => mm / escalaMm
     mando.current?.colocarFragmento(
@@ -1123,6 +1159,65 @@ export function ConsolaQuirurgica({
         : null,
     [urlDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace],
   )
+
+  /**
+   * Qué hace la rueda del ratón con el instrumento en la mano (D-171): abre las tijeras y los separadores, tira
+   * del hilo, alarga el tornillo. `null`: el instrumento no se maneja con ella y la rueda acerca el modelo.
+   *
+   * La sutura solo la usa cuando ya hay puntadas: antes de la primera no hay nada que tensar, y quitarle el
+   * zoom al residente por un hilo que aún no tira de nada sería robarle la rueda para nada.
+   */
+  const ruedaDelInstrumento: 'abre' | 'tira' | 'alarga' | null = !instrumentoElegido
+    ? null
+    : queHace.sutura
+      ? sutura && sutura.puntadas > 0
+        ? 'tira'
+        : null
+      : queHace.coloca?.tipo === 'tornillo'
+        ? 'alarga'
+        : queHace.separa || articulacionesDeclaradas.length > 0
+          ? 'abre'
+          : null
+
+  const alRuedaDelInstrumento = (deltaY: number): boolean => {
+    const m = mando.current
+    if (!m || !ruedaDelInstrumento) return false
+    // Hacia delante (deltaY negativo) abre, tira o alarga; hacia atrás, al revés.
+    const sentido = deltaY < 0 ? 1 : -1
+    const entre = (minimo: number, maximo: number, valor: number) => Math.min(maximo, Math.max(minimo, valor))
+    if (ruedaDelInstrumento === 'tira') {
+      m.tensarSutura(m.tensionDeLaSutura() + sentido * 0.04)
+      return true
+    }
+    if (ruedaDelInstrumento === 'alarga') {
+      setLargoDeTornillo((antes) => entre(10, 60, antes + sentido * 2))
+      return true
+    }
+    const articulacion = articulacionesDeclaradas[0]
+    if (queHace.separa) {
+      const tope = queHace.separa.maximoMm
+      const nuevo = entre(0, tope, Math.round((herida?.aperturaMm ?? 0) + sentido * 2))
+      if (herida && herida.capas.length > 0) m.abrirHeridas(nuevo)
+      // El instrumento se abre a la vez que la herida: la misma rueda, el mismo gesto.
+      if (articulacion) {
+        const valor = articulacion.min + ((articulacion.max - articulacion.min) * nuevo) / tope
+        setArticulacionesMovidas((antes) => ({ ...antes, [articulacion.nombre]: Math.round(valor) }))
+      }
+      return true
+    }
+    if (articulacion) {
+      const paso = (articulacion.max - articulacion.min) / 20
+      setArticulacionesMovidas((antes) => {
+        const actual = antes[articulacion.nombre] ?? valoresDeArticulacion[articulacion.nombre] ?? articulacion.inicial
+        return {
+          ...antes,
+          [articulacion.nombre]: Math.round(entre(articulacion.min, articulacion.max, actual + sentido * paso) * 2) / 2,
+        }
+      })
+      return true
+    }
+    return false
+  }
 
   /**
    * La bandeja tal como se pinta: el residente la ve en una lista; el editor,
@@ -1654,7 +1749,7 @@ export function ConsolaQuirurgica({
           <h3 className="consola-subtitulo">Capas</h3>
           <ul className="consola-capas">
             {CAPAS.map((capa) => {
-              const hay = caso.piezas.some((p) => p.rol === capa.rol)
+              const hay = caso.piezas.some((p) => capaDelRol(p.rol) === capa.rol)
               return (
                 <li key={capa.rol}>
                   {/* Un interruptor y no una casilla: lo que hace es encender y
@@ -1698,16 +1793,28 @@ export function ConsolaQuirurgica({
                 return
               }
               if (estado.juicio) anotar(estado.juicio, 'atencion')
-              if (estado.cierre >= 1 && !heridaCerradaDicha.current) {
+              // Se dice cuando cambia la cosa, no en cada vuelta de la rueda: diez avisos iguales tapan el registro.
+              const dicho = juicioDeTensionDicho.current
+              const juicioT = estado.juicioDeLaTension
+              if (juicioT && juicioT.texto !== dicho) {
+                juicioDeTensionDicho.current = juicioT.texto
+                anotar(juicioT.texto, juicioT.atencion ? 'atencion' : 'bien')
+              } else if (!juicioT) {
+                juicioDeTensionDicho.current = null
+              }
+              if (estado.cierre >= 0.999 && !estado.juicioDeLaTension?.estrangula && !heridaCerradaDicha.current) {
                 heridaCerradaDicha.current = true
                 anotar(
                   `Herida cerrada con ${estado.puntadas} puntadas de ${estado.hilo}, ${estado.bienEspaciadas} de ${estado.tramos} bien espaciadas (5 a 10 mm).`,
                   estado.bienEspaciadas === estado.tramos ? 'bien' : 'atencion',
                 )
               }
-              if (estado.cierre < 1) heridaCerradaDicha.current = false
+              if (estado.cierre < 0.999) heridaCerradaDicha.current = false
             }}
             largoDeTornillo={largoDeTornillo}
+            alRueda={alRuedaDelInstrumento}
+            capturaLaRueda={ruedaDelInstrumento !== null}
+            claveDeSesion={`trauma-sesion:${editor ? 'editor' : 'residente'}:${documentoId}:${caso.modeloUrl ?? ''}`}
             alFijar={(estado, suceso) => {
               setFijacion(estado)
               if (!suceso) return
@@ -2291,6 +2398,20 @@ export function ConsolaQuirurgica({
                 </div>
               ) : null}
 
+              {ruedaDelInstrumento ? (
+                <p className="consola-instrumento-texto consola-instrumento-rueda">
+                  <strong>Rueda del ratón sobre el modelo:</strong>{' '}
+                  {ruedaDelInstrumento === 'tira'
+                    ? 'hacia delante tira del hilo; hacia atrás lo afloja.'
+                    : ruedaDelInstrumento === 'alarga'
+                      ? 'hacia delante alarga el tornillo; hacia atrás lo acorta.'
+                      : queHace.separa
+                        ? 'hacia delante abre el separador y la herida; hacia atrás los cierra.'
+                        : 'hacia delante abre el instrumento; hacia atrás lo cierra.'}{' '}
+                  Para acercar el modelo, Ctrl + rueda.
+                </p>
+              ) : null}
+
               {queHace.corta ? (
                 <p className="consola-instrumento-texto">
                   Corta {queHace.corta === 'piel' ? 'la piel' : 'los planos de debajo de la piel'}: pase al
@@ -2424,7 +2545,9 @@ export function ConsolaQuirurgica({
                   <p className="consola-instrumento-texto">
                     Cose: pase al modo «Coser» y pique con un clic sobre la piel. Cada clic suma una puntada y el
                     hilo queda dibujado entre una y otra, de {queHace.sutura.nombre}. Una puntada que cae al otro
-                    lado de la herida acerca los bordes; lo habitual en piel es de 5 a 10 mm entre puntadas.
+                    lado de la herida es la que la cierra, pero el hilo está flojo hasta que se tira de él: con la
+                    rueda del ratón (o el deslizador) se aprieta y los bordes se acercan. Lo habitual en piel es de 5 a
+                    10 mm entre puntadas, y apretar de más estrangula el borde.
                   </p>
                   {sutura ? (
                     <dl className="consola-sutura-medidas">
@@ -2445,10 +2568,55 @@ export function ConsolaQuirurgica({
                         <dd>{sutura.tramos > 0 ? `${sutura.separacionMediaMm.toFixed(1).replace('.', ',')} mm` : '—'}</dd>
                       </div>
                       <div>
+                        <dt>Tensión del hilo</dt>
+                        <dd>{Math.round(sutura.tension * 100)} %</dd>
+                      </div>
+                      <div>
                         <dt>Herida cerrada</dt>
                         <dd>{herida && herida.capas.length > 0 ? `${Math.round(sutura.cierre * 100)} %` : 'sin herida'}</dd>
                       </div>
                     </dl>
+                  ) : null}
+                  {sutura && sutura.puntadas > 0 ? (
+                    <div className="consola-sutura-tension">
+                      <label className="consola-instrumento-articulacion">
+                        <span>Tirar del hilo</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={Math.round(sutura.tension * 100)}
+                          onChange={(e) => mando.current?.tensarSutura(Number(e.target.value) / 100)}
+                          aria-label="Tensión del hilo"
+                        />
+                        <output>{Math.round(sutura.tension * 100)} %</output>
+                      </label>
+                      <div className="consola-instrumento-acciones">
+                        <button
+                          type="button"
+                          className="consola-boton"
+                          onClick={() => mando.current?.tensarSutura((mando.current?.tensionDeLaSutura() ?? 0) + 0.1)}
+                        >
+                          Tirar del hilo
+                        </button>
+                        <button
+                          type="button"
+                          className="consola-boton"
+                          onClick={() => mando.current?.tensarSutura((mando.current?.tensionDeLaSutura() ?? 0) - 0.1)}
+                        >
+                          Aflojar
+                        </button>
+                      </div>
+                      {sutura.juicioDeLaTension ? (
+                        <p
+                          className={`consola-instrumento-texto${sutura.juicioDeLaTension.atencion ? ' consola-herida-aviso' : ''}`}
+                          role="status"
+                        >
+                          {sutura.juicioDeLaTension.texto}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : null}
                   <div className="consola-instrumento-acciones">
                     <button

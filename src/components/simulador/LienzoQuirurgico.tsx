@@ -22,7 +22,16 @@ import {
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import type { PlanoDeCorte } from '@/lib/comportamientoDelInstrumento'
 import { abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, type HeridaEnCapa } from './heridas'
-import { cierreDeLaHerida, juicioDeLaPuntada, medirLaSutura, type HiloDeSutura, type MedidaDeLaSutura } from '@/lib/sutura'
+import {
+  cierreDeLaHerida,
+  cierreConTension,
+  juicioDeLaPuntada,
+  juicioDeLaTension,
+  medirLaSutura,
+  type HiloDeSutura,
+  type MedidaDeLaSutura,
+  type PuntoDeSutura,
+} from '@/lib/sutura'
 import { agujeroBajoElPunto, colocarPlaca, colocarTornillo, crearImplantes, medirBajoElAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { largoSugerido, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
@@ -118,6 +127,12 @@ export interface MandoDelLienzo {
   deshacerPuntada: () => void
   /** Quita toda la sutura y devuelve la herida a como estaba antes de coser. */
   quitarSutura: () => void
+  /** Tira del hilo (o lo afloja): de 0, flojo, a 1, apretado del todo. Los labios de la herida se acercan. */
+  tensarSutura: (tension: number) => void
+  /** Cuánto se ha tirado del hilo ahora, de 0 a 1. */
+  tensionDeLaSutura: () => number
+  /** Devuelve cada trozo de hueso que se movió con «Mover» a donde estaba (el fragmento del caso no: ese lo coloca la consola). */
+  restaurarPiezas: () => void
   /** La próxima puntada empieza una línea nueva: no se une con la anterior. */
   nuevaLineaDeSutura: () => void
   /** Quita los tornillos puestos, y la placa si `conPlaca`. */
@@ -186,6 +201,12 @@ export interface EstadoDeLaSutura extends MedidaDeLaSutura {
   /** La última puntada cruzó la herida. */
   ultimaCruza: boolean
   hilo: string
+  /** Cuánto se ha tirado del hilo, de 0 a 1. */
+  tension: number
+  /** Lo que las puntadas que hay podrían cerrar, de 0 a 1: lo que se cierra con la tensión justa. */
+  cierreMaximo: number
+  /** Qué se dice de cómo está el hilo (flojo, justo, estrangula), o `null` si no hay nada que decir. */
+  juicioDeLaTension: { texto: string; atencion: boolean; estrangula: boolean } | null
 }
 
 /** Cómo apunta la broca respecto de la cortical, en grados: a lo largo del hueso y a lo ancho. */
@@ -260,6 +281,9 @@ export function LienzoQuirurgico({
   alCoser,
   alFijar,
   largoDeTornillo = 24,
+  alRueda,
+  capturaLaRueda = false,
+  claveDeSesion,
   alTrazar,
   alMoverFragmento,
   alCargar,
@@ -309,6 +333,24 @@ export function LienzoQuirurgico({
   alFijar?: (estado: EstadoDeLaFijacion | null, suceso?: SucesoDeFijacion) => void
   /** Cuántos milímetros de largo tiene el tornillo que se pone. */
   largoDeTornillo?: number
+  /**
+   * La rueda del ratón sobre el lienzo, cuando el instrumento que se tiene en la mano la usa (D-171):
+   * abre y cierra las tijeras y los separadores, tira del hilo, alarga el tornillo. Devuelve `true` si hizo algo.
+   * `deltaY` es el de la rueda: negativo, hacia delante.
+   */
+  alRueda?: (deltaY: number) => boolean
+  /**
+   * El instrumento en la mano se maneja con la rueda. Mientras sea cierto la rueda ya no acerca el modelo
+   * (con Ctrl, o con Mayúsculas, sí): acercar y abrir las tijeras con el mismo gesto es no poder hacer ninguna.
+   */
+  capturaLaRueda?: boolean
+  /**
+   * Con una clave, lo cortado y cosido sobrevive a recargar la página (D-171): se guarda en `sessionStorage`
+   * —de esa pestaña, no de la cuenta— y se vuelve a hacer al abrir el modelo. Sin clave no se guarda nada.
+   * Lo que la consola recuerda del recorrido (los pasos, el puntaje) ya sobrevivía; la herida no, y un
+   * residente que recargaba en el paso de cerrar se encontraba con una piel sin cortar.
+   */
+  claveDeSesion?: string
   /** Se llama con el trazo completo cada vez que cambia. */
   alTrazar?: (puntos: Punto3[]) => void
   /**
@@ -393,6 +435,10 @@ export function LienzoQuirurgico({
     aperturaAntesDeCoser?: Map<HeridaEnCapa, { mas: number; menos: number }>
     /** La placa y los tornillos puestos sobre el hueso (D-169). */
     implantes?: ImplantesEnEscena
+    /** Dónde estaba cada trozo de hueso que el residente movió, para devolverlo a su sitio (D-171). */
+    origenesDePiezas?: Map<THREE.Object3D, { posicion: THREE.Vector3; rotacion: THREE.Euler }>
+    /** Los cortes que hay hechos, en orden, para volver a hacerlos al recargar (D-171). */
+    cortes?: CorteGuardado[]
   }>({
     puntosDelTrazo: [],
     materialesOriginales: new Map(),
@@ -423,6 +469,9 @@ export function LienzoQuirurgico({
     alCoser,
     alFijar,
     largoDeTornillo,
+    alRueda,
+    capturaLaRueda,
+    claveDeSesion,
   })
   useEffect(() => {
     ultimas.current = {
@@ -445,6 +494,9 @@ export function LienzoQuirurgico({
       alCoser,
       alFijar,
       largoDeTornillo,
+      alRueda,
+      capturaLaRueda,
+      claveDeSesion,
     }
   })
 
@@ -487,6 +539,16 @@ export function LienzoQuirurgico({
         if (!(objeto as THREE.Mesh).isMesh) return
         objeto.visible = visibles === null || visibles.includes(objeto.name)
       })
+      // El hilo está cosido a la piel: con la piel apagada no se queda flotando sobre el hueso.
+      const sutura = taller.current.sutura
+      if (sutura) {
+        const nombresDePiel = new Set(ultimas.current.piezas.filter((p) => p.rol === 'piel').map((p) => p.nodo))
+        let pielVisible = nombresDePiel.size === 0
+        raiz.traverse((objeto) => {
+          if ((objeto as THREE.Mesh).isMesh && objeto.visible && nombresDePiel.has(objeto.name)) pielVisible = true
+        })
+        sutura.grupo.visible = pielVisible
+      }
       taller.current.pedirDibujo?.()
       return { ausentes, sinCoincidencias, porPapel }
     },
@@ -556,6 +618,7 @@ export function LienzoQuirurgico({
           heridas.forEach(cerrarCapa)
           taller.current.heridas.delete(capa)
           taller.current.ultimaHerida = undefined
+          taller.current.cortes = (taller.current.cortes ?? []).filter((c) => c.plano !== capa)
           ultimas.current.alHerir?.(estadoDeLasHeridas(taller.current, ultimas.current.milimetrosPorUnidad))
         }
       }
@@ -587,19 +650,42 @@ export function LienzoQuirurgico({
       const s = taller.current.sutura
       if (!s || s.puntos.length === 0) return
       s.puntos.pop()
-      refrescarSutura(taller.current, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null)
+      if (s.puntos.length === 0) s.tension = 0
+      refrescarSutura(taller.current, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
     },
 
     quitarSutura: () => {
       const t = taller.current
       if (!t.sutura) return
       t.sutura.puntos.length = 0
-      refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null)
+      t.sutura.tension = 0
+      refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
     },
 
     nuevaLineaDeSutura: () => {
       const s = taller.current.sutura
       if (s) s.siguienteEsNueva = true
+    },
+
+    tensarSutura: (tension) => {
+      const t = taller.current
+      if (!t.sutura || t.sutura.puntos.length === 0) return
+      t.sutura.tension = Math.min(1, Math.max(0, tension))
+      refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
+    },
+
+    tensionDeLaSutura: () => taller.current.sutura?.tension ?? 0,
+
+    restaurarPiezas: () => {
+      const t = taller.current
+      const fragmento = t.fragmento
+      t.origenesDePiezas?.forEach((origen, pieza) => {
+        // El fragmento del caso lo coloca la consola con el desplazamiento inicial del caso.
+        if (fragmento && (pieza === fragmento || perteneceA(pieza, fragmento))) return
+        pieza.position.copy(origen.posicion)
+        pieza.rotation.copy(origen.rotacion)
+      })
+      t.pedirDibujo?.()
     },
 
     quitarImplantes: (conPlaca) => {
@@ -703,6 +789,80 @@ export function LienzoQuirurgico({
     }
 
     // --- carga del modelo ---------------------------------------------------
+    // --- la sesión: lo cortado y cosido sobrevive a recargar -------------------------------------------
+    const claveActual = () => ultimas.current.claveDeSesion
+    let ultimoGuardado = ''
+    const guardarSesion = () => {
+      const clave = claveActual()
+      if (!clave) return
+      const texto = serializarSesion(taller.current)
+      if (texto === ultimoGuardado) return
+      ultimoGuardado = texto
+      try {
+        if (texto) sessionStorage.setItem(clave, texto)
+        else sessionStorage.removeItem(clave)
+      } catch {
+        // Sin almacenamiento (navegación privada, cuota): el caso sigue funcionando, solo no se recuerda.
+      }
+    }
+    const restaurarSesion = () => {
+      const clave = claveActual()
+      if (!clave) return
+      let guardado: SesionGuardada | null = null
+      try {
+        const crudo = sessionStorage.getItem(clave)
+        guardado = crudo ? (JSON.parse(crudo) as SesionGuardada) : null
+      } catch {
+        guardado = null
+      }
+      if (!guardado || guardado.v !== 1) return
+      const t = taller.current
+      const mmPorUnidad = ultimas.current.milimetrosPorUnidad || 1000
+      // Los cortes, en el mismo orden en que se hicieron: así la lista de heridas queda igual que estaba.
+      for (const corte of guardado.cortes ?? []) {
+        t.puntosDelTrazo = corte.puntos.map(([x, y, z]) => ({ x, y, z }))
+        t.normalesDelTrazo = corte.normales.map(([x, y, z]) => ({ x, y, z }))
+        aplicarElCorte(corte.plano, true)
+      }
+      t.puntosDelTrazo = []
+      t.normalesDelTrazo = []
+      dibujarTrazo(t)
+      const heridas = todasLasHeridas(t)
+      heridas.forEach((h, i) => {
+        const a = guardado!.apertura?.[i]
+        if (a) abrirCapa(h, a.mas, a.menos)
+      })
+      if (guardado.aperturaAntesDeCoser && heridas.length > 0) {
+        t.aperturaAntesDeCoser = new Map()
+        guardado.aperturaAntesDeCoser.forEach((a, i) => {
+          if (a && heridas[i]) t.aperturaAntesDeCoser!.set(heridas[i], { mas: a.mas, menos: a.menos })
+        })
+      }
+      if (heridas.length > 0) ultimas.current.alHerir?.(estadoDeLasHeridas(t, mmPorUnidad))
+      const hilo = guardado.sutura
+      if (hilo && t.escena && hilo.puntos.length > 0) {
+        const sutura = crearSutura(t.escena, hilo.hilo)
+        sutura.tension = hilo.tension
+        sutura.puntos = hilo.puntos.map((q) => ({
+          punto: q.base,
+          base: q.base,
+          normal: q.normal,
+          lado: q.lado,
+          nuevaLinea: q.nuevaLinea,
+          ref:
+            q.ref && heridas[q.ref.herida]
+              ? { ...q.ref, malla: heridas[q.ref.herida].malla.uuid }
+              : undefined,
+        }))
+        t.sutura = sutura
+        refrescarSutura(t, mmPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
+      }
+      t.pedirDibujo?.()
+    }
+    // Cada medio segundo se mira si algo cambió; es más barato y más seguro que acordarse de guardar en cada
+    // sitio que corta, abre, cose o tira del hilo.
+    const reloj = window.setInterval(guardarSesion, 600)
+
     /**
      * Con los decodificadores de compresión puestos.
      *
@@ -754,6 +914,9 @@ export function LienzoQuirurgico({
         // donde ya no había nada: el modelo se veía, pero el cursor no
         // encontraba superficie porque el rayo pasaba de largo.
         ultimas.current.alCargar?.()
+        // Después de avisar a la consola, que en `alCargar` se pone a cero: lo recuperado de la sesión se avisa
+        // a continuación y es lo que se queda.
+        restaurarSesion()
         encuadrarVisible(taller.current)
         sucio = true
       },
@@ -776,6 +939,8 @@ export function LienzoQuirurgico({
     const rayo = new THREE.Raycaster()
     const puntero = new THREE.Vector2()
     let arrastrando = false
+    /** El trozo de hueso que se arrastra en modo Mover. */
+    let piezaAgarrada: THREE.Object3D | null = null
     let planoDeArrastre: THREE.Plane | null = null
     const puntoAuxiliar = new THREE.Vector3()
     const inicioDeArrastre = new THREE.Vector3()
@@ -871,9 +1036,17 @@ export function LienzoQuirurgico({
      * corta el plano de abajo).
      */
     const cortarConElTrazo = () => {
-      const instrumentoActual = ultimas.current.instrumento
-      const plano = instrumentoActual?.planoDeCorte
+      const plano = ultimas.current.instrumento?.planoDeCorte
       if (!plano) return
+      aplicarElCorte(plano, false)
+    }
+
+    /**
+     * Corta la capa `plano` con el trazo que hay en `puntosDelTrazo`. Es lo que hace el bisturí al soltar y lo
+     * que repite la sesión guardada al recargar; en ese caso (`desdeLaSesion`) se corta aunque la capa esté
+     * apagada ahora mismo, porque cuando se cortó estaba encendida.
+     */
+    const aplicarElCorte = (plano: PlanoDeCorte, desdeLaSesion: boolean) => {
       const t = taller.current
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       const trazo = t.puntosDelTrazo
@@ -892,7 +1065,7 @@ export function LienzoQuirurgico({
       const mallas: THREE.Mesh[] = []
       t.raiz?.traverse((o) => {
         const m = o as THREE.Mesh
-        if (m.isMesh && m.visible && nombres.has(m.name)) mallas.push(m)
+        if (m.isMesh && (desdeLaSesion || m.visible) && nombres.has(m.name)) mallas.push(m)
       })
       if (mallas.length === 0) {
         aviso(
@@ -927,6 +1100,22 @@ export function LienzoQuirurgico({
       if (otras.length > 0) for (const h of hechas) abrirCapa(h, otras[0].mas, otras[0].menos)
       t.heridas.set(plano, hechas)
       t.ultimaHerida = plano
+      // Un corte nuevo cambia la piel por debajo de las puntadas de antes: se quitan, y con ellas lo que
+      // habían cerrado. Sin esto la sutura vieja seguía diciendo «cerrada al 100 %» sobre una herida abierta.
+      t.aperturaAntesDeCoser = undefined
+      if (t.sutura && t.sutura.puntos.length > 0) {
+        t.sutura.puntos.length = 0
+        t.sutura.tension = 0
+        refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
+      }
+      t.cortes = [
+        ...(t.cortes ?? []).filter((c) => c.plano !== plano),
+        {
+          plano,
+          puntos: trazo.map((q) => [q.x, q.y, q.z] as [number, number, number]),
+          normales: t.normalesDelTrazo.map((q) => [q.x, q.y, q.z] as [number, number, number]),
+        },
+      ]
       // La línea roja era la guía; con la herida abierta flotaría en el aire.
       if (t.trazo) t.trazo.visible = false
       ultimas.current.alHerir?.(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad))
@@ -1225,13 +1414,21 @@ export function LienzoQuirurgico({
       }
 
       if (modoActual === 'mover') {
-        const fragmento = taller.current.fragmento
-        if (!fragmento) return
-        const golpe = superficieBajoElCursor()
-        // Solo se arrastra si se agarró el propio fragmento: agarrar la diáfisis
-        // fija y ver moverse la otra mitad sería desconcertante.
-        if (!golpe || !perteneceA(golpe.object, fragmento)) return
-
+        // Se agarra **cualquier trozo de hueso** que el rayo toque, no solo el fragmento que el caso mide
+        // (D-171). Con la tibia partida en cuatro trozos, el residente quiere poder empujar el que sea; y
+        // agarrar solo uno hacía que los demás «no se pudieran mover» sin decir por qué. Se busca entre los
+        // huesos y no entre todas las superficies: con la piel o el músculo delante, el rayo antes agarraba
+        // la piel y no pasaba nada.
+        const golpe = huesoBajoElCursor()
+        if (!golpe) {
+          taller.current.decir?.('Apunte a un trozo de hueso para moverlo: Mover solo agarra el hueso visible.')
+          return
+        }
+        const pieza = golpe.object
+        const t = taller.current
+        const origenes = (t.origenesDePiezas ??= new Map())
+        if (!origenes.has(pieza)) origenes.set(pieza, { posicion: pieza.position.clone(), rotacion: pieza.rotation.clone() })
+        piezaAgarrada = pieza
         controles.enabled = false
         arrastrando = true
         // Se arrastra sobre el plano perpendicular a la cámara que pasa por el
@@ -1240,7 +1437,7 @@ export function LienzoQuirurgico({
         const normal = camara.getWorldDirection(new THREE.Vector3()).negate()
         planoDeArrastre = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, golpe.point)
         rayo.ray.intersectPlane(planoDeArrastre, inicioDeArrastre)
-        posicionAlEmpezar.copy(fragmento.position)
+        posicionAlEmpezar.copy(pieza.position)
       }
     }
 
@@ -1409,14 +1606,17 @@ export function LienzoQuirurgico({
       }
       const normal = normalDelGolpe(golpe)
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
-      sutura.puntos.push({
+      const nuevoPunto: PuntoDeSutura = {
         punto: [golpe.point.x, golpe.point.y, golpe.point.z],
+        base: [golpe.point.x, golpe.point.y, golpe.point.z],
         normal: [normal.x, normal.y, normal.z],
         lado: ladoDelPunto(t, golpe.point, unidadesPorMm),
         nuevaLinea: sutura.puntos.length === 0 || !!sutura.siguienteEsNueva,
-      })
+      }
+      nuevoPunto.ref = seguirAlLabio(t, golpe, unidadesPorMm)
+      sutura.puntos.push(nuevoPunto)
       sutura.siguienteEsNueva = false
-      refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, 'ultima')
+      refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, 'ultima', ultimas.current.alHerir)
     }
 
     const alMover = (evento: PointerEvent) => {
@@ -1478,11 +1678,9 @@ export function LienzoQuirurgico({
       // tenía al empezar, y mover el ratón con el botón pulsado no la desvía.
       if (modoActual === 'perforar') return
 
-      if (modoActual === 'mover' && planoDeArrastre && taller.current.fragmento) {
+      if (modoActual === 'mover' && planoDeArrastre && piezaAgarrada) {
         if (!rayo.ray.intersectPlane(planoDeArrastre, puntoAuxiliar)) return
-        taller.current.fragmento.position
-          .copy(posicionAlEmpezar)
-          .add(puntoAuxiliar.clone().sub(inicioDeArrastre))
+        piezaAgarrada.position.copy(posicionAlEmpezar).add(puntoAuxiliar.clone().sub(inicioDeArrastre))
         pedirDibujo()
       }
     }
@@ -1509,7 +1707,10 @@ export function LienzoQuirurgico({
       // del fragmento sale por un solo camino. Sin origen no hay contra qué
       // medir y no se avisa: inventar un cero aquí es lo que hacía que un caso
       // saliera ya reducido.
-      if (ultimas.current.modo === 'mover' && f && origen) {
+      const eraElFragmento = !!f && !!piezaAgarrada && (piezaAgarrada === f || perteneceA(piezaAgarrada, f))
+      piezaAgarrada = null
+      // Mover otro trozo no cambia lo que el caso mide: solo el fragmento declarado alimenta las medidas.
+      if (ultimas.current.modo === 'mover' && f && origen && eraElFragmento) {
         ultimas.current.alMoverFragmento?.(desplazamientoDesde(origen.posicion, f.position), {
           x: grados(f.rotation.x - origen.rotacion.x),
           y: grados(f.rotation.y - origen.rotacion.y),
@@ -1517,6 +1718,28 @@ export function LienzoQuirurgico({
         })
       }
     }
+
+    /**
+     * La rueda. Con un instrumento que se maneja con ella, la rueda es del instrumento; con Ctrl o Mayúsculas
+     * (y el pellizco del trackpad, que el navegador manda como rueda con Ctrl) acerca el modelo a mano, porque
+     * `OrbitControls` tiene el zoom apagado mientras el instrumento la usa.
+     */
+    const alGirarLaRueda = (evento: WheelEvent) => {
+      const u = ultimas.current
+      if (!u.capturaLaRueda || !u.alRueda) return
+      evento.preventDefault()
+      if (evento.ctrlKey || evento.metaKey || evento.shiftKey) {
+        const factor = Math.exp(Math.max(-60, Math.min(60, evento.deltaY)) * 0.0022)
+        const desde = camara.position.clone().sub(controles.target)
+        const distancia = Math.min(controles.maxDistance, Math.max(controles.minDistance, desde.length() * factor))
+        camara.position.copy(controles.target).add(desde.setLength(distancia))
+        controles.update()
+        pedirDibujo()
+        return
+      }
+      u.alRueda(evento.deltaY)
+    }
+    render.domElement.addEventListener('wheel', alGirarLaRueda, { passive: false })
 
     render.domElement.addEventListener('pointerdown', alBajar)
     render.domElement.addEventListener('pointerdown', alBajarParaCoser)
@@ -1566,6 +1789,9 @@ export function LienzoQuirurgico({
       render.setAnimationLoop(null)
       observador.disconnect()
       controles.removeEventListener('change', pedirDibujo)
+      window.clearInterval(reloj)
+      guardarSesion()
+      render.domElement.removeEventListener('wheel', alGirarLaRueda)
       render.domElement.removeEventListener('pointerdown', alBajar)
       render.domElement.removeEventListener('pointerdown', alBajarParaCoser)
       render.domElement.removeEventListener('pointerup', alSubirParaCoser)
@@ -1743,7 +1969,10 @@ export function LienzoQuirurgico({
     if (!controles) return
     // En modo Trazar y Mover, la órbita estorba: cada arrastre giraría la
     // escena en vez de dibujar. Se apaga el giro y se deja el zoom.
-    controles.enableRotate = modo === 'orbitar'
+    // Coser y Fijar son de **clic**, no de arrastre: el arrastre gira el modelo para coser el otro lado, como dice
+    // la ayuda. Estaba apagado con el resto de modos y el residente no podía mirar la herida de frente (D-171).
+    controles.enableRotate = modo === 'orbitar' || modo === 'coser' || modo === 'fijar'
+    controles.enableZoom = !capturaLaRueda
     // `OrbitControls` pone `touch-action: none` al conectarse; esto lo
     // corrige después, en cada cambio de modo (ver `gestoTactil`).
     if (taller.current.render) taller.current.render.domElement.style.touchAction = gestoTactil(modo)
@@ -1757,7 +1986,7 @@ export function LienzoQuirurgico({
               ? 'ew-resize'
               : 'move'
     }
-  }, [modo])
+  }, [modo, capturaLaRueda])
 
   return <div className="consola-lienzo" ref={lienzo} />
 }
@@ -1812,6 +2041,8 @@ export type Taller = {
   sutura?: SuturaEnEscena
   aperturaAntesDeCoser?: Map<HeridaEnCapa, { mas: number; menos: number }>
   implantes?: ImplantesEnEscena
+  origenesDePiezas?: Map<THREE.Object3D, { posicion: THREE.Vector3; rotacion: THREE.Euler }>
+  cortes?: CorteGuardado[]
   /** Escribe en la etiqueta que flota sobre el lienzo. */
   decir?: (texto: string) => void
 }
@@ -2226,6 +2457,111 @@ function ladoDelPunto(taller: Taller, punto: THREE.Vector3, unidadesPorMm: numbe
   return mejor && mejor.cerca <= 25 * unidadesPorMm ? mejor.lado : 0
 }
 
+/** Un corte hecho con el bisturí, tal como se guarda para volver a hacerlo. */
+export interface CorteGuardado {
+  plano: PlanoDeCorte
+  puntos: [number, number, number][]
+  normales: [number, number, number][]
+}
+
+/** Lo cortado y cosido, en el formato que va a `sessionStorage`. */
+interface SesionGuardada {
+  v: 1
+  cortes: CorteGuardado[]
+  /** Cuánto está abierta cada herida, en el orden de `todasLasHeridas`, en unidades del mundo. */
+  apertura: { mas: number; menos: number }[]
+  aperturaAntesDeCoser: ({ mas: number; menos: number } | null)[] | null
+  sutura: {
+    hilo: HiloDeSutura
+    tension: number
+    puntos: {
+      base: [number, number, number]
+      normal: [number, number, number]
+      lado: 1 | -1 | 0
+      nuevaLinea: boolean
+      /** `herida` es el lugar de la herida en la lista y no su `uuid`, que cambia al recargar. */
+      ref?: { herida: number; dir: [number, number, number]; lado: 1 | -1; peso: number; mas0: number; menos0: number }
+    }[]
+  } | null
+}
+
+/**
+ * Lo que hay hecho sobre el paciente, o `''` si no hay nada que recordar.
+ *
+ * Los cortes se guardan con su trazo y no con la geometría resultante: es lo que hace falta para volver a
+ * cortar el mismo modelo, y son unas decenas de puntos y no cientos de miles de vértices.
+ */
+export function serializarSesion(taller: Taller): string {
+  const heridas = todasLasHeridas(taller)
+  const cortes = taller.cortes ?? []
+  const sutura = taller.sutura
+  const hayPuntos = !!sutura && sutura.puntos.length > 0
+  if (cortes.length === 0 && !hayPuntos) return ''
+  const indice = new Map(heridas.map((h, i) => [h.malla.uuid, i]))
+  const datos: SesionGuardada = {
+    v: 1,
+    cortes,
+    apertura: heridas.map((h) => ({ mas: h.mas, menos: h.menos })),
+    aperturaAntesDeCoser: taller.aperturaAntesDeCoser
+      ? heridas.map((h) => taller.aperturaAntesDeCoser?.get(h) ?? null)
+      : null,
+    sutura:
+      sutura && hayPuntos
+        ? {
+            hilo: sutura.hilo,
+            tension: sutura.tension,
+            puntos: sutura.puntos.map((q) => ({
+              base: (q.base ?? q.punto) as [number, number, number],
+              normal: q.normal as [number, number, number],
+              lado: q.lado,
+              nuevaLinea: q.nuevaLinea,
+              ref:
+                q.ref && indice.has(q.ref.malla)
+                  ? {
+                      herida: indice.get(q.ref.malla) as number,
+                      dir: q.ref.dir as [number, number, number],
+                      lado: q.ref.lado,
+                      peso: q.ref.peso,
+                      mas0: q.ref.mas0,
+                      menos0: q.ref.menos0,
+                    }
+                  : undefined,
+            })),
+          }
+        : null,
+  }
+  return JSON.stringify(datos)
+}
+
+/**
+ * Cómo sigue una puntada al labio de la herida donde se picó (D-171).
+ *
+ * Se busca la herida de la malla que se picó y, en ella, el labio más cercano: de ahí salen hacia dónde se
+ * separa, a qué lado cae y cuánto de lo que el labio se mueve le llega (el peso baja con la distancia, igual
+ * que `cortarMalla` al abrir). Sin herida cerca, la puntada no sigue a nada.
+ */
+function seguirAlLabio(taller: Taller, golpe: THREE.Intersection, unidadesPorMm: number): PuntoDeSutura['ref'] {
+  let mejor: { h: HeridaEnCapa; info: NonNullable<ReturnType<typeof ladoDeLaHerida>> } | null = null
+  for (const h of todasLasHeridas(taller)) {
+    if (h.malla !== golpe.object) continue
+    const info = ladoDeLaHerida(h, golpe.point)
+    if (info && (!mejor || info.cerca < mejor.info.cerca)) mejor = { h, info }
+  }
+  if (!mejor || mejor.info.cerca > 25 * unidadesPorMm) return undefined
+  const alcance = 30 * unidadesPorMm
+  const x = Math.min(1, mejor.info.cerca / alcance)
+  const peso = 1 - x * x * (3 - 2 * x)
+  const d = mejor.info.direccion
+  return {
+    malla: mejor.h.malla.uuid,
+    dir: [d.x, d.y, d.z],
+    lado: mejor.info.lado,
+    peso,
+    mas0: mejor.h.mas,
+    menos0: mejor.h.menos,
+  }
+}
+
 /**
  * Lo que hay que rehacer cuando cambia la sutura: el hilo dibujado, lo que cierra
  * la herida y lo que se le dice a la consola.
@@ -2241,14 +2577,22 @@ export function refrescarSutura(
   milimetrosPorUnidad: number,
   avisar: ((estado: EstadoDeLaSutura | null) => void) | undefined,
   juicio: 'ultima' | null,
+  /** Para decirle a la consola cuánto queda abierta la herida cuando la sutura la cierra: sin esto el panel de la herida seguía diciendo lo de antes. */
+  alHerir?: (estado: EstadoDeLasHeridas | null) => void,
 ) {
   const sutura = taller.sutura
   if (!sutura) return
   const unidadesPorMm = 1 / (milimetrosPorUnidad || 1000)
   const heridas = todasLasHeridas(taller)
-  const medida = medirLaSutura(sutura.puntos, milimetrosPorUnidad)
+  // Las medidas son las de donde se picó, no las de donde queda al tirar del hilo: al cerrarse la herida las
+  // puntadas se acercan, y medirlas así las daría por «muy juntas».
+  const medida = medirLaSutura(
+    sutura.puntos.map((p) => ({ ...p, punto: p.base ?? p.punto })),
+    milimetrosPorUnidad,
+  )
   const largoMm = heridas.length > 0 ? Math.max(...heridas.map((h) => h.largo)) / unidadesPorMm : 0
-  const cierre = cierreDeLaHerida(medida.cruces, largoMm)
+  const cierreMaximo = cierreDeLaHerida(medida.cruces, largoMm)
+  const cierre = cierreConTension(medida.cruces, largoMm, sutura.tension)
 
   if (heridas.length > 0) {
     if (cierre > 0 && !taller.aperturaAntesDeCoser) {
@@ -2261,7 +2605,21 @@ export function refrescarSutura(
         if (base) abrirCapa(h, base.mas * (1 - cierre), base.menos * (1 - cierre))
       }
       if (cierre === 0) taller.aperturaAntesDeCoser = undefined
+      alHerir?.(estadoDeLasHeridas(taller, milimetrosPorUnidad))
     }
+  }
+
+  // Cada puntada se va con el labio al que está cosida: cuando la herida se cierra, el hilo la acompaña.
+  for (const p of sutura.puntos) {
+    if (!p.base || !p.ref) continue
+    const ref = p.ref
+    const h = heridas.find((x) => x.malla.uuid === ref.malla)
+    if (!h) {
+      p.punto = [...p.base]
+      continue
+    }
+    const movimiento = (ref.lado > 0 ? h.mas - ref.mas0 : -(h.menos - ref.menos0)) * ref.peso
+    p.punto = [p.base[0] + ref.dir[0] * movimiento, p.base[1] + ref.dir[1] * movimiento, p.base[2] + ref.dir[2] * movimiento]
   }
 
   const superficies = taller.raiz ? mallasVisibles(taller.raiz) : []
@@ -2281,11 +2639,15 @@ export function refrescarSutura(
     `Puntada ${sutura.puntos.length}` +
     (ultimaSeparacionMm !== null ? ` · ${ultimaSeparacionMm.toFixed(0)} mm de la anterior` : ' · empieza una línea') +
     (ultimaCruza ? ' · cruza la herida' : '') +
-    (heridas.length > 0 ? ` · herida cerrada al ${Math.round(cierre * 100)} %` : '')
+    (heridas.length > 0 ? ` · tensión ${Math.round(sutura.tension * 100)} % · herida cerrada al ${Math.round(cierre * 100)} %` : '')
   taller.decir?.(texto)
   avisar?.({
     ...medida,
     cierre,
+    cierreMaximo,
+    tension: sutura.tension,
+    juicioDeLaTension:
+      heridas.length > 0 ? juicioDeLaTension({ tension: sutura.tension, cruces: medida.cruces, cierreMaximo, largoMm }) : null,
     ultimaSeparacionMm,
     juicio: juicio === 'ultima' ? juicioDeLaPuntada(ultimaSeparacionMm) : null,
     ultimaCruza,
@@ -2298,6 +2660,7 @@ export function refrescarSutura(
 function cerrarTodasLasHeridas(taller: Taller) {
   for (const h of todasLasHeridas(taller)) cerrarCapa(h)
   taller.heridas?.clear()
+  taller.cortes = []
   taller.ultimaHerida = undefined
   if (taller.trazo) taller.trazo.visible = true
 }
