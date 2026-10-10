@@ -1340,10 +1340,13 @@ export function LienzoQuirurgico({
           t.decir?.('Bajo ese agujero no hay hueso que medir.')
           return
         }
-        const sugerido = largoSugerido(medida.espesorMm)
+        const antesDelHueso = placa.grosorMm + medida.distanciaAlHuesoMm
+        const sugerido = largoSugerido(medida.espesorMm, antesDelHueso)
         decirYAvisar({
           tipo: 'medida',
-          texto: `Agujero ${agujero + 1}: hueso de ${medida.espesorMm.toFixed(0)} mm. Pida un tornillo de ${sugerido} mm.`,
+          texto: `Agujero ${agujero + 1}: hueso de ${medida.espesorMm.toFixed(0)} mm${
+            antesDelHueso >= 1 ? ` y ${antesDelHueso.toFixed(0)} mm de placa y holgura` : ''
+          }. Pida un tornillo de ${sugerido} mm.`,
           atencion: false,
           largoSugeridoMm: sugerido,
         })

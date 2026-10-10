@@ -59,10 +59,19 @@ export function sirveParaMedir(i: { slug?: string | null }): boolean {
   return i.slug === 'medidor-profundidad'
 }
 
-/** El largo de tornillo que se pide para un espesor medido: lo medido y dos milímetros, en pasos de 2. */
-export function largoSugerido(espesorMm: number): number {
+/**
+ * El largo de tornillo que se pide para un espesor medido: lo medido y dos milímetros, en pasos de 2.
+ *
+ * `antesDelHuesoMm` es lo que hay entre la cara de arriba de la placa y la cortical cercana (la placa
+ * misma y la holgura si no apoya del todo). El medidor de profundidad de verdad lee desde la placa, así
+ * que lo cuenta. Sin él, el servidor pedía un tornillo de 36 mm para un agujero en el que solo el de 52
+ * cruzaba las dos corticales: la placa del caso de prueba quedaba 14 mm sobre el hueso, y el medidor
+ * mandaba a poner un tornillo que juzgaba corto él mismo.
+ */
+export function largoSugerido(espesorMm: number, antesDelHuesoMm = 0): number {
   if (!(espesorMm > 0)) return 10
-  return Math.min(60, Math.max(10, Math.ceil((espesorMm + 2) / 2) * 2))
+  const total = espesorMm + Math.max(0, antesDelHuesoMm)
+  return Math.min(60, Math.max(10, Math.ceil((total + 2) / 2) * 2))
 }
 
 /** Hasta cuánto puede asomar la punta por la cortical opuesta antes de molestar a las partes blandas. */

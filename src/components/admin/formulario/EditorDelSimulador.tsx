@@ -350,7 +350,11 @@ export function EditorDelSimulador({
 
       {pestana === 'paso' && pasoActual ? (
         <div className="editor-simulador-cuerpo" role="tabpanel">
+          {/* La clave por paso importa por los editores de texto enriquecido: TipTap guarda su contenido dentro
+              y no lo relee cuando solo cambia el valor, así que al pasar del paso 1 al 2 «Qué se hace» seguía
+              enseñando el texto del 1 (y escribir ahí lo mezclaba). Con la clave se monta un editor nuevo. */}
           <FilaDeCampos
+            key={String(pasoActual.id ?? indiceVigente)}
             campos={camposVisiblesDelPaso()}
             valores={pasoActual}
             alCambiar={cambiarDelPaso}

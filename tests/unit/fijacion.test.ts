@@ -21,6 +21,25 @@ describe('largoSugerido', () => {
     expect(largoSugerido(90)).toBe(60)
     expect(largoSugerido(0)).toBe(10)
   })
+  it('cuenta la placa y la holgura: el medidor lee desde la placa, no desde el hueso', () => {
+    expect(largoSugerido(34, 14)).toBe(50)
+    expect(largoSugerido(34, 0)).toBe(36)
+  })
+  it('lo que sugiere lo juzga bien el propio juicio: bicortical y sin pasarse', () => {
+    // Regresión del servidor: se pedían 36 mm para un hueso de 34 con 14 mm de placa y holgura
+    // y ese tornillo se quedaba en la cortical cercana.
+    for (const espesorMm of [12, 20.4, 34, 41.7]) {
+      for (const holgura of [0, 1.5, 3, 14]) {
+        const grosorDeLaPlacaMm = 3
+        const distanciaAlHuesoMm = holgura
+        const largoMm = largoSugerido(espesorMm, grosorDeLaPlacaMm + distanciaAlHuesoMm)
+        if (largoMm >= 60) continue
+        const j = juzgarTornillo({ largoMm, grosorDeLaPlacaMm, distanciaAlHuesoMm, espesorMm })
+        expect(j.bicortical).toBe(true)
+        expect(j.largo).toBe(false)
+      }
+    }
+  })
 })
 
 describe('juzgarTornillo', () => {

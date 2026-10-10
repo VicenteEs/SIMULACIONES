@@ -5637,6 +5637,25 @@ compresión de los tornillos; una sola placa a la vez; una sola sutura; los cód
 metatarsianos y los grupos B/C siguen pendientes de Cristóbal; y los 23 modelos de D-168 más las
 diez placas regeneradas hay que cargarlos en producción (se hizo con SQL: `scripts/instrumental-a-sql.ts`).
 
+### D-170 · 2026-10-10 · vigente
+**Primera prueba de punta a punta en el servidor, como editor, sobre el caso «ejemplo» (siete pasos
+sobre `pierna-prueba.glb`): dos fallos que no se veían con el caso de prueba local.**
+Se armó el caso desde el propio editor de ved (piezas «rellenar desde el modelo», siete pasos, bandeja,
+desplazamiento inicial) y se jugó cada paso con «Probar este paso». Salieron dos errores de verdad:
+- *El editor de «Qué se hace» enseñaba el texto del paso anterior.* TipTap guarda su contenido por dentro
+  y no lo relee cuando solo cambia el valor; al pasar del paso 1 al 2 el cuadro seguía mostrando el
+  texto del 1 (en la base el paso 2 estaba vacío). `FilaDeCampos` del paso lleva ahora `key` por paso
+  (`EditorDelSimulador.tsx`), que monta un editor nuevo.
+- *El medidor de profundidad pedía un tornillo que él mismo juzgaba corto.* Sugería lo medido más 2 mm
+  del **hueso**, sin contar la placa ni la holgura hasta la cortical cercana; el medidor de verdad lee
+  desde la placa. En la tibia proximal la placa quedaba 14 mm sobre el hueso: el medidor decía 36 mm y
+  solo cruzaba las dos corticales el de 52. `largoSugerido(espesor, antesDelHueso)` cuenta ahora la placa
+  y la holgura, el mensaje lo dice («y 14 mm de placa y holgura») y una prueba comprueba que lo que se
+  sugiere sale bicortical y sin pasarse con el propio `juzgarTornillo`.
+- *Sin resolver:* en este modelo del atlas el fragmento marcado como móvil no responde al arrastre con
+  «Mover» (la reducción no se pudo completar a mano); la placa se apoya en la tibia proximal y deja
+  holgura en la meseta; y el cursor del Weitlaner sigue mostrando una tijera.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
