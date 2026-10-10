@@ -27,6 +27,8 @@ const OBJETIVOS = [
   { value: 'trazo', label: 'Trazar una incisión de la longitud correcta' },
   { value: 'reduccion', label: 'Reducir la fractura dentro de la tolerancia' },
   { value: 'fuerza', label: 'Aplicar la fuerza correcta' },
+  { value: 'perforacion', label: 'Perforar con el calibre y el ángulo correctos' },
+  { value: 'fijacion', label: 'Fijar con placa y tornillos' },
 ]
 
 /**
@@ -77,7 +79,7 @@ const exigeElRangoDeSuObjetivo = (
     return 'Cada paso tiene que declarar qué se evalúa.'
   }
   if (!OBJETIVOS.some((opcion) => opcion.value === valor)) {
-    return 'Ese objetivo no está en la lista: instrumento, trazo, reducción o fuerza.'
+    return 'Ese objetivo no está en la lista: instrumento, trazo, reducción, fuerza, perforación o fijación.'
   }
 
   const paso = (siblingData ?? {}) as Record<string, unknown>
@@ -422,6 +424,23 @@ export const Cirugias: CollectionConfig = {
             { name: 'fuerzaMaxima', type: 'number', label: 'Fuerza máxima útil (N)' },
           ],
           admin: { condition: (_, hermanos) => hermanos?.objetivo === 'fuerza' },
+        },
+        {
+          type: 'row',
+          fields: [
+            { name: 'calibreBroca', type: 'number', label: 'Calibre de la broca (mm)' },
+            { name: 'anguloMinimo', type: 'number', label: 'Ángulo mínimo con el eje del hueso (°)' },
+            { name: 'anguloMaximo', type: 'number', label: 'Ángulo máximo con el eje del hueso (°)' },
+          ],
+          admin: { condition: (_, hermanos) => hermanos?.objetivo === 'perforacion' },
+        },
+        {
+          type: 'row',
+          fields: [
+            { name: 'tornillosMinimos', type: 'number', label: 'Tornillos que hacen falta' },
+            { name: 'exigeBicortical', type: 'checkbox', label: 'Tienen que ser bicorticales' },
+          ],
+          admin: { condition: (_, hermanos) => hermanos?.objetivo === 'fijacion' || hermanos?.objetivo === 'perforacion' },
         },
         // --- qué se ve ---
         {

@@ -49,10 +49,12 @@ import {
   Move,
   OctagonAlert,
   PenLine,
+  Pin,
   Rotate3d,
   RotateCcw,
   ScanLine,
   Scissors,
+  Spline,
   Trophy,
   Undo2,
   UnfoldHorizontal,
@@ -82,13 +84,16 @@ import type {
   AyudasDeEscopia,
   DatosDeNodo,
   EstadoDeLasHeridas,
+  EstadoDeLaSutura,
   InclinacionDeBroca,
   InstrumentoEnEscena,
   MandoDelLienzo,
   Modo,
+  PerforacionHecha,
   PiezaDelCaso,
   VistaDeEscopia,
 } from './LienzoQuirurgico'
+import { resumenDeLaFijacion, type EstadoDeLaFijacion } from '@/lib/fijacion'
 
 /**
  * Consola de reducción y fijación de fracturas.
@@ -322,6 +327,22 @@ const MODO_SEPARAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
     'Separar: arrastre desde el borde de la herida hacia fuera para abrirla. Uno de mano abre el borde que sostiene; uno autoestático abre los dos.',
 }
 
+const MODO_COSER: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'coser',
+  etiqueta: 'Coser',
+  icono: Spline,
+  ayuda:
+    'Coser: pique con un clic sobre la piel; cada clic suma una puntada y el hilo queda dibujado entre una y otra. Con el arrastre se gira el modelo.',
+}
+
+const MODO_FIJAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'fijar',
+  etiqueta: 'Fijar',
+  icono: Pin,
+  ayuda:
+    'Fijar: con una placa, pique sobre el hueso y se apoya; con un tornillo o el medidor, pique en un agujero de la placa. Con el arrastre se gira el modelo.',
+}
+
 const MODO_PERFORAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
   valor: 'perforar',
   etiqueta: 'Perforar',
@@ -347,6 +368,8 @@ const MODO_DEL_OBJETIVO: Record<Objetivo, Modo> = {
   trazo: 'trazar',
   reduccion: 'mover',
   fuerza: 'orbitar',
+  perforacion: 'perforar',
+  fijacion: 'fijar',
 }
 
 /** «la piel», «la piel y el músculo»: para escribirlo dentro de una frase. */
@@ -478,6 +501,16 @@ export function ConsolaQuirurgica({
   // Lo que hay cortado y abierto. Lo avisa el lienzo al cortar, al soltar un
   // separador y al cerrar; durante el arrastre se lee en su etiqueta.
   const [herida, setHerida] = useState<EstadoDeLasHeridas | null>(null)
+  // La sutura que se está haciendo: la avisa el lienzo con cada puntada (D-169).
+  const [sutura, setSutura] = useState<EstadoDeLaSutura | null>(null)
+  // Para decir «herida cerrada» una sola vez por sutura, y no en cada puntada que queda cerrada.
+  const heridaCerradaDicha = useRef(false)
+  // La placa y los tornillos puestos sobre el hueso, y el largo del tornillo que se pondrá (D-169).
+  const [fijacion, setFijacion] = useState<EstadoDeLaFijacion | null>(null)
+  const [largoDeTornillo, setLargoDeTornillo] = useState(24)
+  // La última perforación y de qué paso era: el paso que evalúa la broca mira la suya, no la de
+  // un paso anterior.
+  const [ultimaPerforacion, setUltimaPerforacion] = useState<{ paso: string; hecha: PerforacionHecha } | null>(null)
   // Lo que trae el archivo, anotado con el modelo de que salió: se lee una vez,
   // al terminar de cargar, y no en cada pintado.
   const [delArchivo, setDelArchivo] = useState<{ url: string; nodos: string[]; datos: DatosDeNodo[] } | null>(null)
@@ -786,6 +819,16 @@ export function ConsolaQuirurgica({
       diastasis: reduccion.diastasis,
       angulacion: reduccion.angulacion,
       fuerza,
+      perforacion:
+        ultimaPerforacion && ultimaPerforacion.paso === paso.id
+          ? {
+              diametroMm: ultimaPerforacion.hecha.diametroMm,
+              anguloConElEje: ultimaPerforacion.hecha.anguloConElEje,
+              bicortical: ultimaPerforacion.hecha.bicortical,
+              sePasoMm: ultimaPerforacion.hecha.sePasoMm,
+            }
+          : undefined,
+      fijacion: resumenDeLaFijacion(fijacion),
     })
 
     const clase: Anotacion['clase'] =
@@ -936,6 +979,9 @@ export function ConsolaQuirurgica({
     setResultado(null)
     mando.current?.borrarTrazo()
     // Reiniciar el caso también cierra lo cortado y quita los agujeros.
+    setUltimaPerforacion(null)
+    mando.current?.quitarSutura()
+    mando.current?.quitarImplantes(true)
     mando.current?.cerrarHeridas()
     mando.current?.borrarAgujeros()
     colocarEnDesplazamientoInicial()
@@ -1010,7 +1056,9 @@ export function ConsolaQuirurgica({
     const que = destino ? comportamientoDelInstrumento(destino) : null
     if (que?.separa) setModo('separar')
     else if (que?.perfora) setModo('perforar')
-    else if (modo === 'separar' || modo === 'perforar') setModo('orbitar')
+    else if (que?.sutura) setModo('coser')
+    else if (que?.coloca || que?.mide) setModo('fijar')
+    else if (modo === 'separar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar') setModo('orbitar')
     setInstrumento(id)
     setArticulacionesDeclaradas([])
     setArticulacionesMovidas({})
@@ -1068,6 +1116,9 @@ export function ConsolaQuirurgica({
             planoDeCorte: queHace.corta,
             separa: queHace.separa,
             perfora: queHace.perfora,
+            sutura: queHace.sutura,
+            coloca: queHace.coloca,
+            mide: queHace.mide,
           }
         : null,
     [urlDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace],
@@ -1227,6 +1278,8 @@ export function ConsolaQuirurgica({
     ...(editor ? [MODO_SENALAR] : []),
     ...(queHace.separa ? [MODO_SEPARAR] : []),
     ...(queHace.perfora ? [MODO_PERFORAR] : []),
+    ...(queHace.sutura ? [MODO_COSER] : []),
+    ...(queHace.coloca || queHace.mide ? [MODO_FIJAR] : []),
   ]
   const ayudaDelModo = modosVisibles.find((m) => m.valor === modo)?.ayuda ?? ''
   const etiquetaDelModoDelPaso = MODOS.find((m) => m.valor === modoDelPaso)?.etiqueta ?? null
@@ -1638,7 +1691,32 @@ export function ConsolaQuirurgica({
             ayudas={ayudas}
             inclinacionDeBroca={inclinacionDeBroca}
             alHerir={setHerida}
+            alCoser={(estado) => {
+              setSutura(estado)
+              if (!estado) {
+                heridaCerradaDicha.current = false
+                return
+              }
+              if (estado.juicio) anotar(estado.juicio, 'atencion')
+              if (estado.cierre >= 1 && !heridaCerradaDicha.current) {
+                heridaCerradaDicha.current = true
+                anotar(
+                  `Herida cerrada con ${estado.puntadas} puntadas de ${estado.hilo}, ${estado.bienEspaciadas} de ${estado.tramos} bien espaciadas (5 a 10 mm).`,
+                  estado.bienEspaciadas === estado.tramos ? 'bien' : 'atencion',
+                )
+              }
+              if (estado.cierre < 1) heridaCerradaDicha.current = false
+            }}
+            largoDeTornillo={largoDeTornillo}
+            alFijar={(estado, suceso) => {
+              setFijacion(estado)
+              if (!suceso) return
+              if (suceso.largoSugeridoMm) setLargoDeTornillo(suceso.largoSugeridoMm)
+              if (suceso.tipo === 'aviso') anotar(suceso.texto, 'atencion')
+              else anotar(suceso.texto, suceso.atencion ? 'atencion' : 'bien')
+            }}
             alPerforar={(hecha) => {
+              if (paso) setUltimaPerforacion({ paso: paso.id, hecha })
               const mm = (n: number) => n.toFixed(1).replace('.', ',')
               const partes = [
                 `Perforación de Ø ${String(hecha.diametroMm).replace('.', ',')} mm y ${mm(hecha.profundidadMm)} mm`,
@@ -1680,6 +1758,8 @@ export function ConsolaQuirurgica({
               // vuelve a montar (otro archivo, una recarga en caliente), lo que la
               // consola creía cortado ya no existe en la escena.
               setHerida(null)
+              setSutura(null)
+              setFijacion(null)
               setDelArchivo({
                 url: caso.modeloUrl ?? '',
                 nodos: mando.current?.nodosDelModelo() ?? [],
@@ -2279,6 +2359,121 @@ export function ConsolaQuirurgica({
                     </button>
                     <button type="button" className="consola-boton" onClick={() => mando.current?.borrarAgujeros()}>
                       Quitar agujeros
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {queHace.coloca || queHace.mide ? (
+                <div className="consola-instrumento-articulaciones">
+                  <p className="consola-instrumento-texto">
+                    {queHace.coloca?.tipo === 'placa'
+                      ? 'Pase al modo «Fijar» y pique sobre el hueso: la placa se apoya con su largo siguiendo el hueso.'
+                      : queHace.coloca?.tipo === 'tornillo'
+                        ? 'Pase al modo «Fijar» y pique en un agujero de la placa. El tornillo entra perpendicular a la placa; mida antes con el medidor de profundidad.'
+                        : 'Pase al modo «Fijar» y apoye el medidor en un agujero de la placa: dice cuánto hueso hay debajo y qué tornillo pedir.'}
+                  </p>
+                  {queHace.coloca?.tipo === 'tornillo' ? (
+                    <label className="consola-instrumento-articulacion">
+                      <span>Largo del tornillo</span>
+                      <input
+                        type="range"
+                        min={10}
+                        max={60}
+                        step={2}
+                        value={largoDeTornillo}
+                        onChange={(e) => setLargoDeTornillo(Number(e.target.value))}
+                        aria-label="Largo del tornillo"
+                      />
+                      <output>{largoDeTornillo} mm</output>
+                    </label>
+                  ) : null}
+                  {fijacion?.placa ? (
+                    <p className="consola-instrumento-texto">
+                      {fijacion.placa.nombre}: {fijacion.tornillos.length} de {fijacion.placa.agujeros} agujeros con
+                      tornillo
+                      {fijacion.tornillos.length > 0
+                        ? `, ${resumenDeLaFijacion(fijacion).bicorticales} bicorticales`
+                        : ''}
+                      .
+                    </p>
+                  ) : null}
+                  <div className="consola-instrumento-acciones">
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      disabled={!fijacion || fijacion.tornillos.length === 0}
+                      onClick={() => mando.current?.quitarImplantes(false)}
+                    >
+                      Quitar los tornillos
+                    </button>
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      disabled={!fijacion}
+                      onClick={() => mando.current?.quitarImplantes(true)}
+                    >
+                      Quitar la placa
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {queHace.sutura ? (
+                <div className="consola-instrumento-articulaciones">
+                  <p className="consola-instrumento-texto">
+                    Cose: pase al modo «Coser» y pique con un clic sobre la piel. Cada clic suma una puntada y el
+                    hilo queda dibujado entre una y otra, de {queHace.sutura.nombre}. Una puntada que cae al otro
+                    lado de la herida acerca los bordes; lo habitual en piel es de 5 a 10 mm entre puntadas.
+                  </p>
+                  {sutura ? (
+                    <dl className="consola-sutura-medidas">
+                      <div>
+                        <dt>Puntadas</dt>
+                        <dd>{sutura.puntadas}</dd>
+                      </div>
+                      <div>
+                        <dt>Hilo</dt>
+                        <dd>{Math.round(sutura.largoDeHiloMm)} mm</dd>
+                      </div>
+                      <div>
+                        <dt>Cruzan la herida</dt>
+                        <dd>{sutura.cruces}</dd>
+                      </div>
+                      <div>
+                        <dt>Separación media</dt>
+                        <dd>{sutura.tramos > 0 ? `${sutura.separacionMediaMm.toFixed(1).replace('.', ',')} mm` : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt>Herida cerrada</dt>
+                        <dd>{herida && herida.capas.length > 0 ? `${Math.round(sutura.cierre * 100)} %` : 'sin herida'}</dd>
+                      </div>
+                    </dl>
+                  ) : null}
+                  <div className="consola-instrumento-acciones">
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      disabled={!sutura}
+                      onClick={() => mando.current?.deshacerPuntada()}
+                    >
+                      Deshacer la última
+                    </button>
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      disabled={!sutura}
+                      onClick={() => mando.current?.nuevaLineaDeSutura()}
+                    >
+                      Cortar el hilo
+                    </button>
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      disabled={!sutura}
+                      onClick={() => mando.current?.quitarSutura()}
+                    >
+                      Quitar la sutura
                     </button>
                   </div>
                 </div>

@@ -5513,16 +5513,15 @@ agrupa por ellas, igual que el resto.
 - **Tamaños.** Hay un modelo por tipo (una LCP de 8 agujeros, un tornillo de 24 mm, un
   clavo de 330), no uno por calibre; los parámetros están arriba en cada llamada y se
   cambian ahí. Las medidas son de referencia: Cristóbal enviará el catálogo y se corrigen.
-- Los implantes **no actúan sobre el paciente** (`comportamientoDelInstrumento` lo prueba): se
-  eligen y se ven en la escena, pero colocarlos sobre el hueso y atornillarlos queda para
-  E5.7.
+- ~~Los implantes **no actúan sobre el paciente**~~ (superado en D-169: la placa y los
+  tornillos se colocan sobre el hueso): se eligen y se ven en la escena.
 
 *Las fracturas.* La tabla de huesos de `huesosAO.ts` pasa de 12 a **90 piezas**: la clavícula,
 los cinco metacarpianos y metatarsianos y las 14 falanges de la mano y del pie, por lado. Un
 hueso ya puede tener varias piezas del atlas (`piezasDelHueso`).
 - *Códigos.* La clavícula es «15.2-A2» (con punto: sin él el 5 se leería como segmento) y sus
-  extremos se llaman medial y lateral. Los de **mano y pie son provisionales** (7M, 7F, 8M,
-  8F) y la pantalla lo dice: no están validados contra el compendio de 2018 (E4-Q1), y mejor
+  extremos se llaman medial y lateral. ~~Los de **mano y pie son provisionales** (7M, 7F, 8M,
+  8F)~~ (superado en D-169: eran 77, 78, 87 y 88) y la pantalla lo dice: no están validados contra el compendio de 2018 (E4-Q1), y mejor
   un código con su aviso que uno que parezca oficial sin serlo.
 - *La espiroidea (A1) pasa a disponible, aproximada*: un plano de 55 a 60° (el tope del
   corte). Se probó una versión con dos planos —un corte oblicuo y una pared que contiene el
@@ -5549,6 +5548,94 @@ asistente construye fracturas en 90 piezas con el atlas de verdad como banco de 
 *Malas:* 23 modelos más para cargar en producción por el taller (los `.glb` no van al
 repositorio); un tercio de los huesos pequeños no ofrece todos los grupos; los códigos de mano
 y pie son nuestros hasta que Cristóbal los valide; y la espiroidea no es una hélice.
+
+### D-169 · 2026-10-10 · vigente
+**El editor rehace las piezas al cambiar de modelo, la fractura en martillo, los códigos de
+mano y pie contrastados con AO/OTA 2018, la sutura, la placa y los tornillos sobre el hueso,
+la broca y la fijación que puntúan, y el buscador por clasificación AO (E6, primera parte).**
+Pedido del dueño tras D-168, con una captura del aviso «Ninguna de las piezas que declara este
+caso está en el modelo cargado», y la instrucción de probarlo todo sobre el modelo del atlas y no
+sobre el cilindro sintético.
+
+*El aviso de las piezas.* El caso guarda **nombres** de objeto, y los nombres son del archivo. Se
+leyó la base de ved: el caso «sa» apunta a `pierna-prueba.glb` y declara «Piel» y
+«Tibia_izquierda_1_2_1», que ese archivo sí trae. El aviso sale cuando se **cambia el modelo** y
+las piezas se quedan hablando del anterior —en la captura, el cambio a otro archivo del atlas—.
+Dos arreglos, uno para quien escribe y otro para quien lee:
+- *El editor lo rehace solo* (`repararPiezasConElModelo`, `src/lib/piezasDelCaso.ts`). Al
+  elegir otro modelo, las piezas que el archivo no tiene se quitan, las que coinciden se
+  **conservan con su papel** (es decisión del autor) y el modelo aporta las que falten con su
+  papel y etiqueta (los `extras` que escribe el exportador del atlas). Lo que cada paso mostraba
+  pasa al modelo nuevo **por su papel** (`traducirMuestra`, movida desde
+  `scripts/pierna-derecha-en-el-caso.ts`). Se cuenta en un aviso con «Deshacer». Al abrir un caso
+  ya guardado solo actúa si **ninguna** pieza está: con algunas sí y otras no, alguien escribió mal
+  un nombre y decide el autor.
+- *La consola lo resuelve por papel* para el residente (`mostrar` del lienzo): antes de rendirse y
+  enseñar el modelo entero, enseña lo que el modelo dice que es piel, músculo y hueso.
+- Probado en el navegador con `pierna-prueba.glb` copiado de ved: al pasar el caso de prueba a ese
+  modelo, de 5 piezas quedan 10 y el aviso lo cuenta.
+
+*La fractura «tipo martillo».* Pedida con la palabra de Cristóbal: la más frecuente, una
+conminuta en un solo punto. Grupo nuevo **CM «Conminuta focal»** del tipo C, solo en diáfisis:
+dos planos casi transversales dejan el foco, y de él saltan dos **esquirlas de cortical** por
+lados opuestos (planos paralelos al eje, a 0,65 del radio *de donde se corta*) y el núcleo se
+parte por un plano tumbado: **6 fragmentos**. Código «42-C»: AO 2018 no numera los grupos de B y C
+en la diáfisis (el folleto del compendio dice 12B y 12C), y no se inventa un número.
+- *Tres diseños fallaron antes* —planos por el eje girados entre sí; tres esquirlas a 120°; partir
+  una esquirla— y dejaban fragmentos abiertos en casi todos los huesos. El actual sale en los
+  largos con la semilla 1 (barridas 40 semillas por hueso: de 1 a 6 fallos por 40).
+- `EjeDelHueso` gana `perfil` (el radio por tajadas): el máximo de la tibia es tres veces el de la
+  diáfisis, y un plano a medio radio quedaba fuera del hueso.
+- *Una trampa de la prueba:* `cerrada` redondeaba a la micra y daba por abiertos trozos que la
+  librería (que suelda a 0,1 micra) trata como cerrados. Ahora suelda por celdas igual que ella.
+- Sin resolver: 29 piezas no sacan la conminuta (falanges de 15–30 mm, la clavícula, el radio
+  izquierdo y algunos metacarpianos). Están en `SABIDO_QUE_NO_SALE`, 53 entradas en total.
+
+*Los códigos, contrastados con el compendio AO/OTA 2018* (folleto de la edición, p. 10): mano 7
+con metacarpianos **77** y falanges **78**; pie 8 con metatarsianos **87** y falanges **88**. El
+rayo o el dedo van tras el hueso: `77.3.2-A3`, `78.2.1.2`. Los míos (7M, 7F, 8M, 8F) estaban mal y
+desaparecen. Además, **el radio, el cúbito y el peroné se escriben `2R2`, `2U2`, `4F2`** (la letra
+antes del segmento), no `22R`. Sigue marcado provisional solo el metatarsiano: el folleto trae el
+ejemplo de la falange del pie (`88.1.2.1`) y no el de sus metatarsianos, y su sintaxis se deduce.
+Pendiente con Cristóbal: los grupos B2/B3/C2/C3 son de 2007, y 2018 los reúne en 12B y 12C.
+
+*La sutura.* Instrumentos «Sutura …» con modo **Coser**: cada clic sobre el tejido suma una puntada
+y el hilo queda dibujado entre una y otra, apoyado en la superficie (lo que cruza la herida queda
+tendido sobre el hueco). Se mide la separación (5 a 10 mm es lo habitual en piel), cuántos tramos
+**cruzan la herida** y la herida se cierra en proporción: cada cruce cubre 10 mm
+(`src/lib/sutura.ts`). Deshacer la última puntada o quitar la sutura devuelve la herida a como
+estaba. El hilo vive fuera del modelo: no se vuelve a picar y cortar la piel no lo rompe.
+Pruebas con una herida real. Probado en la pierna del atlas: se corta (177 mm), se abre 83 mm con
+el Weitlaner y se cose.
+
+*La placa y los tornillos sobre el hueso* (E5.7). Modo **Fijar**: la placa se apoya sobre el
+hueso con su largo siguiendo el eje; el tornillo entra por el agujero que se pica,
+perpendicular a la placa; el **medidor de profundidad** lee el espesor bajo un agujero y sugiere
+el largo (lo medido y 2 mm). Cada tornillo se juzga: bicortical, punta fuera hasta 4 mm
+(`src/lib/fijacion.ts`). Las placas necesitaban decir **dónde están sus agujeros** (glTF no trae
+la ausencia de malla): van en la meta del archivo (`th.agujeros`, en el marco de Blender) y se
+regeneraron las diez placas. Solo se colocan placas y tornillos de placa; los clavos y el
+injerto se siguen viendo y no más.
+
+*La broca y la fijación puntúan.* Dos objetivos nuevos del paso: **perforación** (calibre, rango
+de ángulo con el eje, bicortical) y **fijación** (cuántos tornillos, bicorticales). Pasarse de la
+cortical opuesta más de 3 mm y un tornillo largo son **complicaciones** (el paso entero se
+pierde, D-059). Migración `20261010_040353` (dos valores del enum y cinco columnas, en las dos
+tablas de pasos). Los desenlaces se guardan como texto, no como enum: no pidieron migración.
+
+*Técnica AO por clasificación* (E6: el buscador). `leerCodigos` entiende las formas con que se
+escribieron los códigos (`42-A2`, `43-C2 / 43-C3`, `15.2-A2`, `77.3.2-A3`) y el navegador de la
+portada afina hueso → segmento → tipo → grupo → **manejo**, con el número de fichas tras cada
+opción; el listado sigue debajo como «Todas las técnicas». El caso AO gana `tratamiento`
+(migración `20261010_042311`). Siguen sin hacer: normalizar las 711 fichas, las escenas del
+taller, el reproductor, exportar a vídeo y los casos guía (E6.2, E6.3, E6.5 a E6.8).
+
+*Consecuencias buenas.* Cambiar de modelo ya no deja el caso hablando de otro archivo; el taller
+construye la fractura más frecuente; el residente puede coser, atornillar una placa y ser
+puntuado por perforar. *Malas:* 29 piezas sin conminuta focal; no se miden la tracción ni la
+compresión de los tornillos; una sola placa a la vez; una sola sutura; los códigos de los
+metatarsianos y los grupos B/C siguen pendientes de Cristóbal; y los 23 modelos de D-168 más las
+diez placas regeneradas hay que cargarlos en producción (se hizo con SQL: `scripts/instrumental-a-sql.ts`).
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -7648,12 +7735,11 @@ La parte sin código, conseguir los modelos 3D, puede empezar ya.
   instrumento elegido aparece en la escena**, sigue al cursor y se articula con los
   deslizadores (D-166).
   - ~~El instrumento elegido en la bandeja aparece en la escena.~~ Hecho (D-166).
-  - El bisturí sigue el trazo de la incisión: **hecho a medias** (la punta de
-    cualquier instrumento acompaña al trazo; falta que el bisturí se incline y se
-    hunda como un corte).
+  - ~~El bisturí sigue el trazo de la incisión~~: hecho (D-167, y D-169 con la sutura).
   - La pinza aparece sobre el foco al reducir.
-  - El implante (placa y tornillos) aparece en su paso; el papel `implante` ya
-    empieza oculto.
+  - ~~El implante (placa y tornillos) aparece en su paso~~: placa y tornillos **se
+    colocan sobre el hueso** (D-169, modo Fijar); los clavos y el injerto siguen
+    solo en la bandeja.
 - [ ] **E5.8 · Pruebas, manual y D-nnn.**
 
 **Preguntas**
@@ -7964,7 +8050,7 @@ qué tarjeta tiene y cuánta memoria.
 | E3 · Manipulación directa | hecha y desplegada | 2 | D-160 |
 | E4 · Fracturas AO | v1 desplegada (sin A1 ni encuadre en la ficha); falta validar con Cristóbal | 3–4 | D-161 |
 | E5 · Piel e instrumental | piel hecha (D-155), ajustada (D-159) y con interruptor (D-162); instrumental pendiente | 2–3 | D-155, D-159, D-162 |
-| E6 · Manejo AO paso a paso | pendiente | 3–4 | — |
+| E6 · Manejo AO paso a paso | **parcial:** buscador por clasificación (hueso → segmento → tipo → grupo → manejo) y `tratamiento` (D-169); faltan escenas, reproductor, vídeo y casos guía | 3–4 | D-169 |
 | E7 · Módulo 06 DICOM: anuncio y buzón | desplegada (sin comentarios en los requisitos) | 1–2 | D-163 |
 
 ---

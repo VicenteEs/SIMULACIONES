@@ -32,6 +32,24 @@ export const CasosAO: CollectionConfig = {
     { name: 'titulo', type: 'text', required: true, label: 'Título del caso' },
     { name: 'codigo', type: 'text', label: 'Código AO/OTA' },
     {
+      // Para el navegador por clasificación (D-169, E6): después de elegir el código, las alternativas
+      // de manejo de esa fractura. Vacío en las fichas que no son de una fractura.
+      name: 'tratamiento',
+      type: 'select',
+      label: 'Manejo que enseña',
+      options: [
+        { label: 'Tratamiento conservador', value: 'conservador' },
+        { label: 'Tornillos interfragmentarios', value: 'tornillos' },
+        { label: 'Placa', value: 'placa' },
+        { label: 'Clavo endomedular', value: 'clavo' },
+        { label: 'Fijador externo', value: 'fijador-externo' },
+        { label: 'Agujas de Kirschner', value: 'kirschner' },
+        { label: 'Artroplastia', value: 'artroplastia' },
+        { label: 'Otro', value: 'otro' },
+      ],
+      admin: { description: 'Con él, la ficha aparece entre las alternativas de manejo de su código en Técnica AO.' },
+    },
+    {
       name: 'procedimiento',
       type: 'richText',
       editor: editorClinico,

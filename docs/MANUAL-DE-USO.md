@@ -384,7 +384,11 @@ metatarsianos** y las **falanges** de la mano y del pie (90 piezas, derechas e i
 3. **Tipo:** A simple, B en cuña, C multifragmentaria. En los extremos solo está el
    simple.
 4. **Grupo:** transversa (A3), oblicua (A2), espiroidea (A1), cuña íntegra (B2) o
-   fragmentada (B3), segmentaria íntegra (C2) o fragmentada (C3). La **espiroidea sale
+   fragmentada (B3), segmentaria íntegra (C2) o fragmentada (C3) y la **conminuta focal
+   («martillo»)**: un golpe en un solo punto que deja la diáfisis en seis trozos juntos, el
+   dibujo de la multifragmentaria más frecuente. Su código es solo el tipo (`42-C`), porque
+   AO 2018 no numera los grupos de la diáfisis. No sale en la clavícula ni en unas falanges
+   (la pestaña lo avisa). La **espiroidea sale
    aproximada**: un solo plano muy oblicuo (55–60°), no una hélice.
 5. **Porción:** dónde cae, cuánto ocupa (la altura de la cuña o el largo del segmento),
    cuánto se inclina y por qué cara. Sobre el hueso se ve el plano del primer corte.
@@ -405,8 +409,11 @@ enseñar.
 **Los huesos pequeños.**
 - La clavícula lleva su código con punto («15.2-A2») y sus extremos se llaman **medial** y
   **lateral**.
-- Los códigos de **mano y pie** (72M, 72F…) son **provisionales**: no están validados
-  contra el compendio de 2018 y la pantalla lo avisa con una nota bajo el hueso.
+- Los códigos de **mano y pie** son los del compendio AO/OTA 2018 (D-169): metacarpianos
+  **77**, falanges de la mano **78**, metatarsianos **87**, falanges del pie **88**, con el
+  rayo o el dedo tras el hueso (`77.3.2-A3`: tercer metacarpiano, diáfisis). El radio, el
+  cúbito y el peroné se escriben `2R2`, `2U2` y `4F2`. Solo el del metatarsiano sigue
+  marcado provisional: su sintaxis exacta no está en el folleto del compendio.
 - En huesos de 30 a 50 mm, algunos patrones (sobre todo la cuña y la segmentaria
   fragmentada en las falanges) pueden salir con la malla abierta o fallar con «El plano no
   corta la malla». Si pasa, mueva la porción o elija otro grupo. Lo que se sabe que no
@@ -665,6 +672,12 @@ anatómico. Con ellos encendidos aparece un panel con:
 Bajo «Ver todos los campos como formulario», al pie de la pestaña, están los mismos
 campos como formulario de siempre, para quien prefiera escribir las cifras.
 
+**Al cambiar el modelo del caso.** Si el caso hablaba de otro archivo, el editor **rehace
+las piezas solo**: quita las que el modelo no tiene, conserva las que coinciden (con el papel
+que usted les dio), añade las que faltan desde lo que el modelo dice de sí mismo y pasa lo
+que cada paso mostraba al modelo nuevo por su papel (la piel sigue siendo la piel). Lo cuenta
+en un aviso con «Deshacer». Falta, por lo general, marcar cuál es el fragmento móvil.
+
 **La bandeja por familias.** Tanto el editor como el residente ven los instrumentos
 agrupados por su categoría —«Corte y disección», «Suturas y cierre», «Separadores y
 exposición»…— y cada familia es un botón con su contador: al pulsarlo se despliegan sus
@@ -690,9 +703,44 @@ coinciden.
   −45° a +45°) y una etiqueta dice el **ángulo con el eje del hueso** (90° es perpendicular).
   Al soltar queda el túnel y el registro anota calibre, profundidad, si fue bicortical y
   el ángulo. Si la broca pasa de largo la cortical opuesta, la etiqueta y el registro lo
-  dicen. No puntúa todavía.
+  dicen.
+- **Coser (los hilos de sutura).** Con una sutura en la mano el modo pasa a **Coser**: cada
+  **clic** sobre la piel suma una puntada y el hilo queda dibujado entre una y otra, pegado
+  al tejido (el arrastre sigue girando el modelo). Una puntada que cae al otro lado de la
+  herida la **cruza** y la va cerrando: cada cruce cubre unos diez milímetros. El panel
+  cuenta las puntadas, el hilo gastado, los cruces y la separación media (lo habitual en
+  piel es de 5 a 10 mm; la consola avisa si va muy junta o muy abierta). «Deshacer la
+  última», «Cortar el hilo» (la próxima puntada empieza otra línea) y «Quitar la sutura»,
+  que devuelve la herida a como estaba.
+- **Fijar (placa, tornillos y medidor).** Con una **placa** en la mano, modo **Fijar**: pique
+  sobre el hueso y se apoya con su largo siguiendo el hueso. Con el **medidor de
+  profundidad** apoyado en un agujero, dice cuánto hueso hay debajo y qué tornillo pedir (lo
+  medido más dos milímetros). Con un **tornillo** de placa, pique en un agujero: entra
+  perpendicular a la placa con el largo del deslizador, y la consola dice si es bicortical y
+  si la punta asoma de más (hasta 4 mm se tolera). Los clavos y el injerto, por ahora, solo
+  se ven en la escena.
+- **Qué puntúa.** Dos objetivos nuevos del paso: **perforación** (el calibre de la broca, el
+  rango de ángulo con el eje del hueso y, si se pide, que sea bicortical; pasarse más de 3 mm
+  de la cortical opuesta es una complicación) y **fijación** (cuántos tornillos hacen falta y
+  si tienen que ser bicorticales; un tornillo largo es una complicación). Se eligen en el
+  editor, en «Qué se evalúa en este paso».
 
 ---
+
+### 6c. El buscador por clasificación AO de «Técnica AO»
+
+La portada del módulo 03 tiene arriba un **buscador por clasificación**, como el de AO Surgery
+Reference: se elige el **hueso**, el **segmento** (proximal, diáfisis, distal; en la clavícula,
+medial y lateral), el **tipo** (A simple, B en cuña, C multifragmentaria), el **patrón** y, al final,
+las **alternativas de manejo** (placa, clavo endomedular, tornillos, fijador externo…). Cada
+opción dice **cuántas fichas** hay detrás, y las que no tienen ninguna se ven apagadas. «Empezar
+de nuevo» vuelve al principio, y debajo sigue el listado de siempre, «Todas las técnicas».
+
+Para que una ficha aparezca ahí hace falta **escribir su código AO** en el campo «Código
+AO/OTA» (`42-A2`, `43-C`, `15.2-A2`; una lista, `43-C2 / 43-C3`, vale) y elegir el **«Manejo que
+enseña»**. El buscador entiende las formas con que se han escrito los códigos hasta ahora; lo que
+no reconoce como un código no se busca, pero la ficha sigue en «Todas las técnicas». De las 711
+fichas importadas solo unas pocas traen un código legible: normalizarlas es una tarea pendiente.
 
 ## 7. Comentarios de los lectores
 

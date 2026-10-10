@@ -283,7 +283,7 @@ def placa_recta(slug, nombre, tipo, n, paso, ancho, grosor, medidas, d_agujero=3
         rebajes_de_la_cara_inferior(rb, [(a + b) / 2 for a, b in zip(ys, ys[1:])], ancho, 2.1)
         restar(ob, rb)
     suavizar(ob, 38)
-    meta_raiz(raiz, slug, nombre, medidas)
+    meta_raiz(raiz, slug, nombre, medidas, agujeros=[(0.0, y) for y in ys])
     return raiz
 
 
@@ -323,6 +323,7 @@ def placa_con_cabeza(slug, nombre, forma, medidas, largo_cuerpo, paso, ancho_cue
     c = bmesh.new()
     av = bmesh.new()
     ys = [(-largo_cuerpo / 2 + paso * 0.9 + k * paso) for k in range(n_cuerpo)]
+    posiciones = [(0.0, y) for y in ys]  # para el simulador (D-169)
     for y in ys:
         if combi:
             agujero_combi(c, 0, y, d_agujero * 1.2, paso * 0.40, grosor)
@@ -336,11 +337,13 @@ def placa_con_cabeza(slug, nombre, forma, medidas, largo_cuerpo, paso, ancho_cue
         for k in range(n_cabeza):
             agujero_redondo(c, x0 + sep * k, y_cab, d_agujero, grosor)
             avellanado_redondo(av, x0 + sep * k, y_cab, d_agujero, grosor)
+            posiciones.append((x0 + sep * k, y_cab))
     elif forma == 'T':
         for k in range(n_cabeza):
             x = -ancho_cabeza / 2 + sep * (k + 1)
             agujero_redondo(c, x, y_cab, d_agujero, grosor)
             avellanado_redondo(av, x, y_cab, d_agujero, grosor)
+            posiciones.append((x, y_cab))
     else:
         mitades = n_cabeza // 2
         xs = [-ancho_cabeza / 2 + sep * (k + 1) for k in range(mitades)]
@@ -350,13 +353,14 @@ def placa_con_cabeza(slug, nombre, forma, medidas, largo_cuerpo, paso, ancho_cue
                 z_extra = -(x * x) / (2 * r)
                 torno(c, [(-1.0 + z_extra, d_agujero * 0.62), (grosor + 1.0 + z_extra, d_agujero * 0.62)], 24,
                       Matrix.Translation((x, y_cab + dy, 0)))
+                posiciones.append((x, y_cab + dy))
     restar(cuerpo, c)
     if len(av.verts):
         restar(cuerpo, av)
     else:
         av.free()
     suavizar(cuerpo, 38)
-    meta_raiz(raiz, slug, nombre, medidas)
+    meta_raiz(raiz, slug, nombre, medidas, agujeros=posiciones)
     return raiz
 
 
@@ -389,11 +393,14 @@ def placa_gancho(slug, nombre, medidas, n=3, paso=12.0, ancho=11.0, grosor=3.0, 
     unir(ob, gancho)
 
     c = bmesh.new()
+    posiciones = []
     for k in range(n):
-        agujero_redondo(c, 0, -6.0 - largo / 2 + 7.0 + k * paso, 3.5, grosor)
+        y_agujero = -6.0 - largo / 2 + 7.0 + k * paso
+        agujero_redondo(c, 0, y_agujero, 3.5, grosor)
+        posiciones.append((0.0, y_agujero))
     restar(ob, c)
     suavizar(ob, 38)
-    meta_raiz(raiz, slug, nombre, medidas)
+    meta_raiz(raiz, slug, nombre, medidas, agujeros=posiciones)
     return raiz
 
 

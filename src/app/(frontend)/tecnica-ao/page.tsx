@@ -8,6 +8,7 @@ import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Vacio } from '@/components/Estados'
 import { CabeceraDeModulo, claseDeModulo } from '@/components/Cabeceras'
 import { TarjetaFicha } from '@/components/TarjetaFicha'
+import { NavegadorPorClasificacion } from '@/components/NavegadorPorClasificacion'
 import { lecturasDelResidente } from '@/lib/lecturas'
 import { Plus } from 'lucide-react'
 
@@ -54,7 +55,7 @@ export default async function Listado() {
     // viajaba cada documento entero, con sus relaciones a dos niveles, para
     // enseñar un código y un nombre.
     depth: 0,
-    select: { titulo: true, codigo: true, _status: true },
+    select: { titulo: true, codigo: true, tratamiento: true, _status: true },
     sort: 'titulo',
   })
 
@@ -96,6 +97,21 @@ export default async function Listado() {
           accion={puedeCrear ? 'Crear el primero' : undefined}
         />
       ) : (
+        <>
+        {/* Buscar por clasificación AO, como en AO Surgery Reference (D-169, E6). Reemplaza al listado
+            como entrada del módulo; el listado sigue debajo, porque casi ninguna de las fichas
+            importadas trae un código que se pueda leer y no por eso dejan de ser una técnica. */}
+        <NavegadorPorClasificacion
+          fichas={resultado.docs.map((d) => ({
+            id: d.id,
+            titulo: d.titulo as string,
+            codigo: (d.codigo as string) ?? null,
+            tratamiento: (d.tratamiento as string) ?? null,
+            borrador: d._status === 'draft',
+            leida: lecturas.leida(d.id),
+          }))}
+        />
+        <h2 className="navegador-ao-titulo navegador-ao-todas">Todas las técnicas</h2>
         <ul className="rejilla-fichas">
           {resultado.docs.map((d) => (
             <li key={d.id}>
@@ -110,6 +126,7 @@ export default async function Listado() {
             </li>
           ))}
         </ul>
+        </>
       )}
     </main>
   )

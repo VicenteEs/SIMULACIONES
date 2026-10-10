@@ -53,6 +53,8 @@ const CAMPOS_DEL_OBJETIVO: Record<string, string[]> = {
   trazo: ['trazoMinimo', 'trazoMaximo'],
   reduccion: ['toleranciaDesplazamiento', 'toleranciaDiastasis', 'toleranciaAngulacion'],
   fuerza: ['fuerzaMinima', 'fuerzaMaxima'],
+  perforacion: ['calibreBroca', 'anguloMinimo', 'anguloMaximo', 'exigeBicortical'],
+  fijacion: ['tornillosMinimos', 'exigeBicortical'],
 }
 const TODOS_LOS_RANGOS = Object.values(CAMPOS_DEL_OBJETIVO).flat()
 

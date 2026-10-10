@@ -1194,3 +1194,14 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
 .consola-herida-bloque { display: grid; gap: var(--e-2); }
 .consola-herida-datos { margin: 0; font-size: var(--t-xs); color: var(--c-texto-2); }
 .consola-herida-aviso { margin: 0; font-size: var(--t-xs); color: var(--c-atencion, var(--c-texto-2)); }
+
+/* Las medidas de la sutura que se está haciendo (D-169): cinco cifras en rejilla. */
+.consola-sutura-medidas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--e-2);
+  margin: 0;
+}
+.consola-sutura-medidas div { display: grid; gap: 2px; }
+.consola-sutura-medidas dt { font-size: var(--t-xs); color: var(--c-texto-2); }
+.consola-sutura-medidas dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }

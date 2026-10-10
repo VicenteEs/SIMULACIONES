@@ -39,12 +39,22 @@ export const RESULTADOS = {
   REDUCCION_INSUFICIENTE: 'reduccion-insuficiente',
   FUERZA_INSUFICIENTE: 'fuerza-insuficiente',
   FUERZA_EXCESIVA: 'fuerza-excesiva',
+  // D-169: la broca y la fijación con placa también se miden.
+  SIN_PERFORACION: 'sin-perforacion',
+  PERFORACION_CALIBRE: 'perforacion-calibre',
+  PERFORACION_TORCIDA: 'perforacion-torcida',
+  PERFORACION_UNICORTICAL: 'perforacion-unicortical',
+  PERFORACION_PASADA: 'perforacion-pasada',
+  SIN_PLACA: 'sin-placa',
+  TORNILLOS_INSUFICIENTES: 'tornillos-insuficientes',
+  TORNILLO_UNICORTICAL: 'tornillo-unicortical',
+  TORNILLO_LARGO: 'tornillo-largo',
   CORRECTO: 'correcto',
 } as const
 
 export type Resultado = (typeof RESULTADOS)[keyof typeof RESULTADOS]
 
-export type Objetivo = 'instrumento' | 'trazo' | 'reduccion' | 'fuerza'
+export type Objetivo = 'instrumento' | 'trazo' | 'reduccion' | 'fuerza' | 'perforacion' | 'fijacion'
 
 export interface PasoQuirurgico {
   titulo?: string
@@ -59,6 +69,15 @@ export interface PasoQuirurgico {
   toleranciaAngulacion?: number | null
   fuerzaMinima?: number | null
   fuerzaMaxima?: number | null
+  /** Perforación (D-169): el calibre que debe tener la broca, en mm. Vacío: cualquiera. */
+  calibreBroca?: number | null
+  /** Perforación: entre qué ángulos con el eje del hueso se acepta (90° es perpendicular). */
+  anguloMinimo?: number | null
+  anguloMaximo?: number | null
+  /** Perforación y fijación: se exige que crucen las dos corticales. */
+  exigeBicortical?: boolean | null
+  /** Fijación: cuántos tornillos hacen falta como mínimo. */
+  tornillosMinimos?: number | null
   exito?: string | null
   insuficiente?: string | null
   excesivo?: string | null
@@ -78,6 +97,16 @@ export interface Gesto {
   /** Cuánto queda angulado, en grados. */
   angulacion?: number
   fuerza?: number
+  /** La última perforación hecha en el paso, o `undefined` si no hay ninguna. */
+  perforacion?: {
+    diametroMm: number
+    anguloConElEje: number
+    bicortical: boolean
+    /** Cuánto pasó de largo la cortical opuesta, en mm. */
+    sePasoMm: number
+  }
+  /** Lo que hay fijado: si hay placa, cuántos tornillos, cuántos bicorticales y cuántos largos. */
+  fijacion?: { placa: boolean; tornillos: number; bicorticales: number; largos: number }
 }
 
 export interface Evaluacion {
@@ -223,6 +252,10 @@ export function objetivoDelPaso(paso: PasoQuirurgico): Objetivo {
 
   if (declara(paso.fuerzaMinima, paso.fuerzaMaxima)) return 'fuerza'
   if (declara(paso.trazoMinimo, paso.trazoMaximo)) return 'trazo'
+  // Los números de la perforación y de la fijación se crearon sin `DEFAULT`
+  // (D-169): un número ahí lo tecleó una persona, igual que el rango de la fuerza.
+  if (declara(paso.anguloMinimo, paso.anguloMaximo)) return 'perforacion'
+  if (declara(paso.tornillosMinimos)) return 'fijacion'
   // Las tres tolerancias no deducen nada cuando el paso ya trae 'instrumento'
   // escrito: tienen `defaultValue: 5` en `Cirugias.ts` y `DEFAULT 5` en la
   // migración, de modo que **toda** fila las lleva puestas. Deducir de ellas
@@ -356,11 +389,87 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
       return bien(paso.exito)
     }
 
+    case 'perforacion': {
+      const p = gesto.perforacion
+      if (!p) {
+        return nada(
+          'Todavía no hay ninguna perforación. Active el modo Perforar, apunte al hueso y mantenga pulsado.',
+          RESULTADOS.SIN_PERFORACION,
+        )
+      }
+      const { calibreBroca, anguloMinimo, anguloMaximo } = paso
+      // El calibre se compara a la décima: 3,2 y 3,25 son la misma broca en pabellón.
+      if (typeof calibreBroca === 'number' && Math.abs(p.diametroMm - calibreBroca) > 0.05) {
+        return nada(
+          `${paso.insuficiente || 'La broca no es del calibre que pide este paso.'} (Ø ${redondear1(p.diametroMm)} mm · se pide Ø ${calibreBroca} mm)`,
+          RESULTADOS.PERFORACION_CALIBRE,
+        )
+      }
+      const minimo = typeof anguloMinimo === 'number' ? anguloMinimo : 0
+      const maximo = typeof anguloMaximo === 'number' ? anguloMaximo : 180
+      if (p.anguloConElEje < minimo || p.anguloConElEje > maximo) {
+        return nada(
+          `${paso.insuficiente || 'La perforación no quedó con la inclinación correcta.'} (${Math.round(p.anguloConElEje)}° con el eje del hueso · se aceptan ${Math.round(minimo)}–${Math.round(maximo)}°)`,
+          RESULTADOS.PERFORACION_TORCIDA,
+        )
+      }
+      if (paso.exigeBicortical && !p.bicortical) {
+        return nada(
+          `${paso.insuficiente || 'La perforación no atravesó la cortical opuesta.'} (se pide bicortical)`,
+          RESULTADOS.PERFORACION_UNICORTICAL,
+        )
+      }
+      // Pasarse de la cortical opuesta daña lo que hay detrás —tendones, nervios, vasos—: es una
+      // complicación, no un reintento, y cuesta el paso entero (`puntosDelPaso`).
+      if (p.sePasoMm > PASARSE_DE_LA_CORTICAL_MM) {
+        return nada(
+          `${paso.excesivo || 'La broca pasó de largo la cortical opuesta: riesgo para las partes blandas.'} (${redondear1(p.sePasoMm)} mm de más · hasta ${PASARSE_DE_LA_CORTICAL_MM} mm se tolera)`,
+          RESULTADOS.PERFORACION_PASADA,
+          true,
+        )
+      }
+      return bien(paso.exito)
+    }
+
+    case 'fijacion': {
+      const f = gesto.fijacion
+      if (!f?.placa) {
+        return nada(
+          'Todavía no hay ninguna placa sobre el hueso. Coja una placa, active el modo Fijar y pique sobre el hueso.',
+          RESULTADOS.SIN_PLACA,
+        )
+      }
+      const necesarios = paso.tornillosMinimos ?? 1
+      if (f.tornillos < necesarios) {
+        return nada(
+          `${paso.insuficiente || 'La placa no tiene los tornillos que hacen falta.'} (${f.tornillos} de ${necesarios} tornillos)`,
+          RESULTADOS.TORNILLOS_INSUFICIENTES,
+        )
+      }
+      if (paso.exigeBicortical && f.bicorticales < f.tornillos) {
+        return nada(
+          `${paso.insuficiente || 'Hay tornillos que no cruzan las dos corticales.'} (${f.bicorticales} de ${f.tornillos} bicorticales)`,
+          RESULTADOS.TORNILLO_UNICORTICAL,
+        )
+      }
+      if (f.largos > 0) {
+        return nada(
+          `${paso.excesivo || 'Hay tornillos largos: la punta asoma de más por la cortical opuesta y roza las partes blandas.'} (${f.largos} ${f.largos === 1 ? 'tornillo largo' : 'tornillos largos'})`,
+          RESULTADOS.TORNILLO_LARGO,
+          true,
+        )
+      }
+      return bien(paso.exito)
+    }
+
     default:
       // Objetivo «instrumento»: bastaba con elegirlo bien, y ya se comprobó.
       return bien(paso.exito)
   }
 }
+
+/** Cuánto puede pasarse la broca de la cortical opuesta sin que cuente como daño, en mm. */
+export const PASARSE_DE_LA_CORTICAL_MM = 3
 
 /** Punto medio del rango útil: la posición de partida razonable del control. */
 export function fuerzaInicial(paso: PasoQuirurgico): number {
@@ -483,6 +592,25 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
       const rango = rangoDeFuerzaEnTexto(paso)
       return conInstrumento(
         `gradúe la fuerza antes de aplicar el paso.${rango ? ` Rango útil: ${rango}.` : ''}`,
+      )
+    }
+    case 'perforacion': {
+      const minimo = paso.anguloMinimo
+      const maximo = paso.anguloMaximo
+      const rango =
+        typeof minimo === 'number' || typeof maximo === 'number'
+          ? ` Se acepta entre ${typeof minimo === 'number' ? Math.round(minimo) : 0}° y ${typeof maximo === 'number' ? Math.round(maximo) : 180}° con el eje del hueso (90° es perpendicular).`
+          : ''
+      const calibre = typeof paso.calibreBroca === 'number' ? ` La broca es de Ø ${paso.calibreBroca} mm.` : ''
+      const bicortical = paso.exigeBicortical ? ' Tiene que cruzar las dos corticales, sin pasarse.' : ''
+      return conInstrumento(
+        `active el modo Perforar, elija la inclinación y mantenga pulsado sobre el hueso.${calibre}${rango}${bicortical}`,
+      )
+    }
+    case 'fijacion': {
+      const n = paso.tornillosMinimos ?? 1
+      return conInstrumento(
+        `active el modo Fijar: apoye la placa sobre el hueso y ponga ${n} ${n === 1 ? 'tornillo' : 'tornillos'} en sus agujeros.${paso.exigeBicortical ? ' Los tornillos tienen que cruzar las dos corticales.' : ''} Mida antes con el medidor de profundidad.`,
       )
     }
     default:

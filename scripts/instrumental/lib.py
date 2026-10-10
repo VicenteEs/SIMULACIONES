@@ -464,13 +464,16 @@ def triangulos():
     return total
 
 
-def meta_raiz(raiz, slug, nombre, medidas, partes=None, notas=''):
+def meta_raiz(raiz, slug, nombre, medidas, partes=None, notas='', agujeros=None):
     raiz['th'] = json.dumps({
         'instrumento': slug,
         'nombre': nombre,
         'medidas': medidas,
         'articulaciones': list(_articulaciones),
         'notas': notas,
+        # Dónde están los agujeros de una placa (x ancho, y largo, en mm): el simulador
+        # los necesita para atornillar, y glTF no los trae (D-169).
+        'agujeros': [[round(x, 3), round(y, 3)] for x, y in (agujeros or [])],
         'generado_por': 'scripts/instrumental/' + slug.replace('-', '_') + '.py',
     }, ensure_ascii=False)
 

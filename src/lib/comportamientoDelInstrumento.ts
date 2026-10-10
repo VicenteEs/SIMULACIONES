@@ -10,8 +10,11 @@
  *
  * Se decide por `slug` (el identificador que también nombra el modelo 3D) y,
  * para lo que el panel haya creado a mano sin slug conocido, por el nombre.
- * Sin imports: lo leen la consola, el lienzo y las pruebas.
+ * Lo leen la consola, el lienzo y las pruebas.
  */
+
+import { quePuedeColocar, sirveParaMedir, type QueColoca } from './fijacion'
+import { hiloDelInstrumento, type HiloDeSutura } from './sutura'
 
 export type PlanoDeCorte = 'piel' | 'musculo'
 
@@ -31,9 +34,15 @@ export interface ComportamientoDelInstrumento {
     /** Cuánto avanza por segundo con el motor, en mm. Un machuelo a mano va mucho más despacio. */
     avanceMmPorSegundo: number
   } | null
+  /** Cose: cada clic sobre el tejido suma un punto y el hilo queda dibujado entre ellos (D-169). */
+  sutura: HiloDeSutura | null
+  /** Se coloca sobre el hueso: una placa se apoya, un tornillo se pone en un agujero (D-169). */
+  coloca: QueColoca | null
+  /** Mide cuánto hueso hay bajo un agujero de la placa (el medidor de profundidad). */
+  mide: boolean
 }
 
-const NADA: ComportamientoDelInstrumento = { corta: null, separa: null, perfora: null }
+const NADA: ComportamientoDelInstrumento = { corta: null, separa: null, perfora: null, sutura: null, coloca: null, mide: false }
 
 const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'bisturi-piel-n22': { ...NADA, corta: 'piel' },
@@ -75,6 +84,16 @@ export function comportamientoDelInstrumento(i: {
   nombre: string
   icono?: string | null
 }): ComportamientoDelInstrumento {
+  const base = sinSutura(i)
+  // Un hilo no corta, no separa ni perfora: si el instrumento ya hace algo, no es una sutura.
+  if (base.corta || base.separa || base.perfora) return base
+  const coloca = quePuedeColocar(i)
+  const mide = sirveParaMedir(i)
+  // Una placa o un tornillo no se confunden con un hilo, aunque su nombre diga «de sutura».
+  return { ...base, coloca, mide, sutura: coloca || mide ? null : hiloDelInstrumento(i) }
+}
+
+function sinSutura(i: { slug?: string | null; nombre: string; icono?: string | null }): ComportamientoDelInstrumento {
   const conocido = i.slug ? POR_SLUG[i.slug] : undefined
   if (conocido) return conocido
 

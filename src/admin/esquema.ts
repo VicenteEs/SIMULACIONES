@@ -410,6 +410,23 @@ export const CasosAO: EsquemaDeColeccion = {
       campos: [
         { tipo: 'texto', nombre: 'titulo', etiqueta: 'Título del caso', requerido: true },
         { tipo: 'texto', nombre: 'codigo', etiqueta: 'Código AO/OTA', medio: true },
+        {
+          tipo: 'seleccion',
+          nombre: 'tratamiento',
+          etiqueta: 'Manejo que enseña',
+          medio: true,
+          ayuda: 'Con él, la ficha aparece entre las alternativas de manejo de su código en Técnica AO.',
+          opciones: [
+            { valor: 'conservador', etiqueta: 'Tratamiento conservador' },
+            { valor: 'tornillos', etiqueta: 'Tornillos interfragmentarios' },
+            { valor: 'placa', etiqueta: 'Placa' },
+            { valor: 'clavo', etiqueta: 'Clavo endomedular' },
+            { valor: 'fijador-externo', etiqueta: 'Fijador externo' },
+            { valor: 'kirschner', etiqueta: 'Agujas de Kirschner' },
+            { valor: 'artroplastia', etiqueta: 'Artroplastia' },
+            { valor: 'otro', etiqueta: 'Otro' },
+          ],
+        },
         { tipo: 'rico', nombre: 'procedimiento', etiqueta: 'Procedimiento' },
       ],
     },
@@ -490,6 +507,17 @@ export const REGLAS_DEL_OBJETIVO_DEL_PASO: {
       mensaje:
         'Un paso que evalúa la fuerza necesita al menos uno de los dos topes: sin rango, cualquier fuerza se da por buena.',
     },
+    {
+      opcion: 'perforacion',
+      campos: ['anguloMinimo', 'anguloMaximo'],
+      mensaje:
+        'Un paso que evalúa la perforación necesita al menos uno de los dos ángulos: sin rango, cualquier inclinación se da por buena.',
+    },
+    {
+      opcion: 'fijacion',
+      campos: ['tornillosMinimos'],
+      mensaje: 'Un paso que evalúa la fijación necesita saber cuántos tornillos hacen falta.',
+    },
   ],
   prohibe: [
     {
@@ -507,9 +535,9 @@ export const REGLAS_DEL_OBJETIVO_DEL_PASO: {
       // fuerza y trazo se crearon sin `DEFAULT`, y ahí un número lo tecleó una
       // persona.
       opcion: 'instrumento',
-      campos: ['fuerzaMinima', 'fuerzaMaxima', 'trazoMinimo', 'trazoMaximo'],
+      campos: ['fuerzaMinima', 'fuerzaMaxima', 'trazoMinimo', 'trazoMaximo', 'anguloMinimo', 'anguloMaximo', 'tornillosMinimos'],
       mensaje:
-        'Un paso que solo pide elegir el instrumento no puede llevar además un rango de fuerza o de incisión: borre esos números, o cambie el objetivo al que de verdad se mide.',
+        'Un paso que solo pide elegir el instrumento no puede llevar además un rango de fuerza, de incisión, de ángulo o de tornillos: borre esos números, o cambie el objetivo al que de verdad se mide.',
     },
   ],
 }
@@ -683,6 +711,8 @@ export const Cirugias: EsquemaDeColeccion = {
                 { valor: 'trazo', etiqueta: 'Trazar una incisión de la longitud correcta' },
                 { valor: 'reduccion', etiqueta: 'Reducir dentro de la tolerancia' },
                 { valor: 'fuerza', etiqueta: 'Aplicar la fuerza correcta' },
+                { valor: 'perforacion', etiqueta: 'Perforar con el calibre y el ángulo correctos' },
+                { valor: 'fijacion', etiqueta: 'Fijar con placa y tornillos' },
               ],
               // Las tres reglas no se escriben aquí: son las mismas que hace
               // cumplir `exigeElRangoDeSuObjetivo` en
@@ -745,6 +775,35 @@ export const Cirugias: EsquemaDeColeccion = {
               ayuda: 'Solo si el objetivo es la fuerza.',
             },
             { tipo: 'numero', nombre: 'fuerzaMaxima', etiqueta: 'Fuerza máxima útil (N)', medio: true },
+            {
+              tipo: 'numero',
+              nombre: 'calibreBroca',
+              etiqueta: 'Calibre de la broca (mm)',
+              medio: true,
+              ayuda: 'Solo si el objetivo es perforar. Vacío: cualquier broca.',
+            },
+            {
+              tipo: 'numero',
+              nombre: 'anguloMinimo',
+              etiqueta: 'Ángulo mínimo con el eje del hueso (°)',
+              medio: true,
+              ayuda: 'Solo si el objetivo es perforar. 90° es perpendicular a la cortical.',
+            },
+            { tipo: 'numero', nombre: 'anguloMaximo', etiqueta: 'Ángulo máximo con el eje del hueso (°)', medio: true },
+            {
+              tipo: 'numero',
+              nombre: 'tornillosMinimos',
+              etiqueta: 'Tornillos que hacen falta',
+              medio: true,
+              ayuda: 'Solo si el objetivo es fijar con placa.',
+            },
+            {
+              tipo: 'casilla',
+              nombre: 'exigeBicortical',
+              etiqueta: 'Tienen que cruzar las dos corticales',
+              medio: true,
+              ayuda: 'Para perforar y para fijar.',
+            },
             {
               tipo: 'lista',
               nombre: 'muestra',

@@ -20,6 +20,8 @@ import * as migration_20261007_060514_comentarios_del_taller from './20261007_06
 import * as migration_20261007_140233_requisitos_del_buzon from './20261007_140233_requisitos_del_buzon';
 import * as migration_20261008_210126_instrumental_con_categoria from './20261008_210126_instrumental_con_categoria';
 import * as migration_20261010_000243_implantes_y_categorias from './20261010_000243_implantes_y_categorias';
+import * as migration_20261010_040353_objetivos_de_perforacion_y_fijacion from './20261010_040353_objetivos_de_perforacion_y_fijacion';
+import * as migration_20261010_042311_tratamiento_de_los_casos_ao from './20261010_042311_tratamiento_de_los_casos_ao';
 
 export const migrations = [
   {
@@ -130,6 +132,16 @@ export const migrations = [
   {
     up: migration_20261010_000243_implantes_y_categorias.up,
     down: migration_20261010_000243_implantes_y_categorias.down,
-    name: '20261010_000243_implantes_y_categorias'
+    name: '20261010_000243_implantes_y_categorias',
+  },
+  {
+    up: migration_20261010_040353_objetivos_de_perforacion_y_fijacion.up,
+    down: migration_20261010_040353_objetivos_de_perforacion_y_fijacion.down,
+    name: '20261010_040353_objetivos_de_perforacion_y_fijacion',
+  },
+  {
+    up: migration_20261010_042311_tratamiento_de_los_casos_ao.up,
+    down: migration_20261010_042311_tratamiento_de_los_casos_ao.down,
+    name: '20261010_042311_tratamiento_de_los_casos_ao'
   },
 ];

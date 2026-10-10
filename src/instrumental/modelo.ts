@@ -37,6 +37,13 @@ export interface MetaDeRaiz {
   medidas: string
   articulaciones: ArticulacionDeclarada[]
   notas: string
+  /**
+   * Dónde están los agujeros de una placa, en milímetros y en el marco de Blender
+   * en que se modeló: x a lo ancho, y a lo largo (D-169). El simulador los necesita
+   * para saber dónde cae un tornillo; glTF no los trae por sí solo, porque un
+   * agujero es la ausencia de malla. Vacío en lo que no es una placa.
+   */
+  agujeros: [number, number][]
 }
 
 export interface MetaDeNodo {
@@ -89,6 +96,13 @@ export function metaDeRaiz(extras: unknown): MetaDeRaiz | null {
     medidas: typeof th.medidas === 'string' ? th.medidas : '',
     articulaciones,
     notas: typeof th.notas === 'string' ? th.notas : '',
+    agujeros: Array.isArray(th.agujeros)
+      ? (th.agujeros as unknown[]).flatMap((a): [number, number][] =>
+          Array.isArray(a) && a.length === 2 && a.every((v) => typeof v === 'number' && Number.isFinite(v))
+            ? [[a[0] as number, a[1] as number]]
+            : [],
+        )
+      : [],
   }
 }
 

@@ -348,7 +348,7 @@ export const INDICACIONES: Readonly<Record<ModuloDeIngesta, Readonly<Record<stri
     'pasos.fase': 'La fase del acto quirúrgico, como en el catálogo de fases.',
     'pasos.descripcion': 'Qué se hace en el paso.',
     'pasos.objetivo':
-      'Qué se le mide al residente: «instrumento» (elegir el correcto), «trazo» (la longitud de la incisión), «reduccion» (dejar la fractura dentro de la tolerancia) o «fuerza». Con «trazo» hace falta al menos una longitud; con «fuerza», al menos un tope; con «instrumento» no puede haber ni longitudes ni fuerzas.',
+      'Qué se le mide al residente: «instrumento» (elegir el correcto), «trazo» (la longitud de la incisión), «reduccion» (dejar la fractura dentro de la tolerancia), «fuerza», «perforacion» (calibre y ángulo de la broca) o «fijacion» (placa y tornillos). Con «trazo» hace falta al menos una longitud; con «fuerza», al menos un tope; con «perforacion», al menos un ángulo; con «fijacion», los tornillos; con «instrumento» no puede haber nada de eso.',
     'pasos.instrumento': 'El instrumento correcto para el paso, como en el catálogo de instrumental.',
     'pasos.puntos': 'Cuánto vale el paso. Si la fuente no lo dice, 10.',
     'pasos.trazoMinimo': 'Solo con objetivo «trazo»: la incisión mínima, en milímetros.',
@@ -362,6 +362,12 @@ export const INDICACIONES: Readonly<Record<ModuloDeIngesta, Readonly<Record<stri
     'pasos.fuerzaMinima':
       'Solo con objetivo «fuerza»: la fuerza mínima útil, en newtons. Los libros rara vez la dan: sin ella, no use ese objetivo.',
     'pasos.fuerzaMaxima': 'Solo con objetivo «fuerza»: la fuerza máxima útil, en newtons.',
+    'pasos.calibreBroca': 'Solo con objetivo «perforacion»: el calibre de la broca, en milímetros. Vacío: cualquier broca.',
+    'pasos.anguloMinimo':
+      'Solo con objetivo «perforacion»: el ángulo mínimo con el eje del hueso, en grados (90 es perpendicular). Hace falta al menos uno de los dos ángulos.',
+    'pasos.anguloMaximo': 'Solo con objetivo «perforacion»: el ángulo máximo con el eje del hueso, en grados.',
+    'pasos.tornillosMinimos': 'Solo con objetivo «fijacion»: cuántos tornillos hacen falta en la placa.',
+    'pasos.exigeBicortical': 'Con «perforacion» o «fijacion»: si tienen que cruzar las dos corticales (verdadero o falso).',
     'pasos.exito': 'Lo que se le dice al residente si lo hace bien.',
     'pasos.insuficiente': 'Lo que se le dice si se queda corto.',
     'pasos.excesivo': 'Lo que se le dice si se pasa.',

@@ -120,6 +120,15 @@ export const NOMBRE_DEL_DESENLACE: Record<Resultado, string> = {
   [RESULTADOS.REDUCCION_INSUFICIENTE]: 'Reducción insuficiente',
   [RESULTADOS.FUERZA_INSUFICIENTE]: 'Fuerza insuficiente',
   [RESULTADOS.FUERZA_EXCESIVA]: 'Fuerza excesiva',
+  [RESULTADOS.SIN_PERFORACION]: 'Sin perforación',
+  [RESULTADOS.PERFORACION_CALIBRE]: 'Broca de otro calibre',
+  [RESULTADOS.PERFORACION_TORCIDA]: 'Perforación torcida',
+  [RESULTADOS.PERFORACION_UNICORTICAL]: 'Perforación unicortical',
+  [RESULTADOS.PERFORACION_PASADA]: 'Broca pasada de largo',
+  [RESULTADOS.SIN_PLACA]: 'Sin placa',
+  [RESULTADOS.TORNILLOS_INSUFICIENTES]: 'Faltan tornillos',
+  [RESULTADOS.TORNILLO_UNICORTICAL]: 'Tornillo unicortical',
+  [RESULTADOS.TORNILLO_LARGO]: 'Tornillo largo',
   [RESULTADOS.CORRECTO]: 'Correcto',
 }
 

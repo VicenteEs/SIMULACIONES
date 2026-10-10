@@ -1307,6 +1307,12 @@ export interface CasosAo {
   id: number;
   titulo: string;
   codigo?: string | null;
+  /**
+   * Con él, la ficha aparece entre las alternativas de manejo de su código en Técnica AO.
+   */
+  tratamiento?:
+    | ('conservador' | 'tornillos' | 'placa' | 'clavo' | 'fijador-externo' | 'kirschner' | 'artroplastia' | 'otro')
+    | null;
   procedimiento?: {
     root: {
       type: string;
@@ -1558,7 +1564,7 @@ export interface Cirugia {
           };
           [k: string]: unknown;
         } | null;
-        objetivo: 'instrumento' | 'trazo' | 'reduccion' | 'fuerza';
+        objetivo: 'instrumento' | 'trazo' | 'reduccion' | 'fuerza' | 'perforacion' | 'fijacion';
         /**
          * Se exige en todos los objetivos: sin el instrumento en la mano no hay gesto.
          */
@@ -1572,6 +1578,11 @@ export interface Cirugia {
         toleranciaAngulacion?: number | null;
         fuerzaMinima?: number | null;
         fuerzaMaxima?: number | null;
+        calibreBroca?: number | null;
+        anguloMinimo?: number | null;
+        anguloMaximo?: number | null;
+        tornillosMinimos?: number | null;
+        exigeBicortical?: boolean | null;
         /**
          * Deje la lista vacía para que se vea lo mismo que en el paso anterior. El implante aparece en el paso que lo coloca.
          */
@@ -3175,6 +3186,7 @@ export interface ManiobrasSelect<T extends boolean = true> {
 export interface CasosAoSelect<T extends boolean = true> {
   titulo?: T;
   codigo?: T;
+  tratamiento?: T;
   procedimiento?: T;
   pasos?:
     | T
@@ -3330,6 +3342,11 @@ export interface CirugiasSelect<T extends boolean = true> {
         toleranciaAngulacion?: T;
         fuerzaMinima?: T;
         fuerzaMaxima?: T;
+        calibreBroca?: T;
+        anguloMinimo?: T;
+        anguloMaximo?: T;
+        tornillosMinimos?: T;
+        exigeBicortical?: T;
         muestra?:
           | T
           | {

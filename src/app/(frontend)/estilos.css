@@ -2015,3 +2015,23 @@ body:has(> .portada-publica) > .portada-publica {
 .buzon-estado-descartado { color: var(--mudo); }
 .buzon-estado-en-estudio { color: var(--ambar-texto); }
 .buzon-admin { display: grid; gap: 6px; border-top: 1px solid var(--borde, #d7dfec); padding-top: 8px; }
+
+/* El navegador por clasificación AO de Técnica AO (D-169, E6). */
+.navegador-ao { display: grid; gap: var(--e-3); margin-bottom: var(--e-6); padding: var(--e-4); border: 1px solid var(--linea-suave); border-radius: var(--r-lg); background: var(--superficie); }
+.navegador-ao-cabecera { display: flex; align-items: center; justify-content: space-between; gap: var(--e-3); flex-wrap: wrap; }
+.navegador-ao-titulo { margin: 0; font-size: var(--t-lg); }
+.navegador-ao-todas { margin: var(--e-6) 0 var(--e-3); }
+.navegador-ao-nota { margin: 0; color: var(--pizarra); font-size: var(--t-sm); }
+.navegador-ao-paso { margin: var(--e-2) 0 0; font-size: var(--t-base); }
+.navegador-ao-migas { display: flex; align-items: center; flex-wrap: wrap; gap: var(--e-1); margin: 0; padding: 0; list-style: none; font-size: var(--t-sm); }
+.navegador-ao-migas li { display: flex; align-items: center; gap: var(--e-1); line-height: 1; }
+.navegador-ao-migas svg { flex: none; }
+.navegador-ao-migas .miga { border: 0; background: transparent; padding: 2px var(--e-2); border-radius: var(--r-sm); color: var(--pizarra); cursor: pointer; font: inherit; }
+.navegador-ao-migas .miga:hover { background: var(--superficie-2); }
+.navegador-ao-migas .miga.activa { color: inherit; font-weight: 600; }
+.navegador-ao-opciones { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--e-2); margin: 0; padding: 0; list-style: none; }
+.opcion-ao { display: flex; align-items: center; justify-content: space-between; gap: var(--e-2); width: 100%; padding: var(--e-2) var(--e-3); border: 1px solid var(--linea-suave); border-radius: var(--r-sm); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.opcion-ao:hover:not(:disabled) { border-color: var(--acento, var(--marca)); }
+.opcion-ao:disabled { opacity: 0.45; cursor: not-allowed; }
+.opcion-ao.elegida { border-color: var(--acento, var(--marca)); font-weight: 600; }
+.opcion-ao-cuenta { min-width: 1.6em; padding: 0 6px; border-radius: 999px; background: var(--superficie-2); font-size: var(--t-xs); font-variant-numeric: tabular-nums; text-align: center; }

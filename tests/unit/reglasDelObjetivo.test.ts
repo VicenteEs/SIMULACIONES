@@ -120,7 +120,7 @@ describe('publicar un paso con el objetivo mal acompañado', () => {
     // El caso que se colaba: la colección lo rechaza, pero su motivo no llega a
     // la pantalla. Aquí tiene que salir en español y nombrando la fila.
     const aviso = avisosDelPanel({ objetivo: 'instrumento', fuerzaMinima: 8, fuerzaMaxima: 20 })
-    expect(aviso).toContain('no puede llevar además un rango de fuerza o de incisión')
+    expect(aviso).toContain('no puede llevar además un rango de fuerza, de incisión')
     expect(aviso).toContain('En paso 1:')
   })
 
