@@ -554,5 +554,6 @@ describe('todas las piezas que el asistente sabe fracturar', () => {
       if (fallos.length > 0) encontrado[id] = fallos.join(',')
     }
     expect(encontrado).toEqual(SABIDO_QUE_NO_SALE)
-  })
+    // Con la cobertura medida es unas diez veces más lenta: los 5 s de siempre no alcanzan.
+  }, 120_000)
 })

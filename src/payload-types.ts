@@ -427,7 +427,21 @@ export interface Instrumental {
    * Agrupa el listado del taller. No cambia nada del simulador.
    */
   categoria?:
-    ('corte' | 'suturas' | 'exposicion' | 'periostio' | 'reduccion' | 'fijacion' | 'modelado' | 'enclavado') | null;
+    | (
+        | 'corte'
+        | 'suturas'
+        | 'exposicion'
+        | 'periostio'
+        | 'reduccion'
+        | 'fijacion'
+        | 'modelado'
+        | 'enclavado'
+        | 'placas'
+        | 'tornillos'
+        | 'clavos'
+        | 'injerto'
+      )
+    | null;
   icono?:
     | (
         | 'generico'
@@ -441,6 +455,10 @@ export interface Instrumental {
         | 'martillo'
         | 'atornillador'
         | 'aguja'
+        | 'placa'
+        | 'tornillo'
+        | 'clavo'
+        | 'injerto'
       )
     | null;
   descripcion?: string | null;

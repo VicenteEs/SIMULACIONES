@@ -371,9 +371,10 @@ desplazado, una fractura.
 
 ### Construir una fractura AO (pestaña «Fractura»)
 
-Para partir un hueso largo en los fragmentos de un patrón de la clasificación AO/OTA,
-sin trazar nada a mano. Sirve para el húmero, el radio, el cúbito, el fémur, la tibia y
-el peroné.
+Para partir un hueso en los fragmentos de un patrón de la clasificación AO/OTA, sin
+trazar nada a mano. Sirve para el húmero, el radio, el cúbito, el fémur, la tibia y el
+peroné, y desde D-168 también para la **clavícula**, los **metacarpianos y
+metatarsianos** y las **falanges** de la mano y del pie (90 piezas, derechas e izquierdas).
 
 1. **Seleccione el hueso** (un clic sobre él, o su casilla en la lista) y abra la
    pestaña **Fractura**. El hueso tiene que estar **entero, encendido y en su sitio**;
@@ -382,9 +383,9 @@ el peroné.
    lo más ancho de la epífisis (regla de Heim).
 3. **Tipo:** A simple, B en cuña, C multifragmentaria. En los extremos solo está el
    simple.
-4. **Grupo:** transversa (A3), oblicua (A2), cuña íntegra (B2) o fragmentada (B3),
-   segmentaria íntegra (C2) o fragmentada (C3). La espiroidea (A1) sale como
-   «Próximamente».
+4. **Grupo:** transversa (A3), oblicua (A2), espiroidea (A1), cuña íntegra (B2) o
+   fragmentada (B3), segmentaria íntegra (C2) o fragmentada (C3). La **espiroidea sale
+   aproximada**: un solo plano muy oblicuo (55–60°), no una hélice.
 5. **Porción:** dónde cae, cuánto ocupa (la altura de la cuña o el largo del segmento),
    cuánto se inclina y por qué cara. Sobre el hueso se ve el plano del primer corte.
    «Otra variante» cambia los detalles del corte de dentro sin cambiar los fragmentos
@@ -400,6 +401,18 @@ fracturado, el rótulo y una línea con el código.
 **Importante:** los patrones son **esquemáticos**. Enseñan la forma del trazo, no
 sustituyen al atlas de AO, y deben validarse con el traumatólogo antes de usarse para
 enseñar.
+
+**Los huesos pequeños.**
+- La clavícula lleva su código con punto («15.2-A2») y sus extremos se llaman **medial** y
+  **lateral**.
+- Los códigos de **mano y pie** (72M, 72F…) son **provisionales**: no están validados
+  contra el compendio de 2018 y la pantalla lo avisa con una nota bajo el hueso.
+- En huesos de 30 a 50 mm, algunos patrones (sobre todo la cuña y la segmentaria
+  fragmentada en las falanges) pueden salir con la malla abierta o fallar con «El plano no
+  corta la malla». Si pasa, mueva la porción o elija otro grupo. Lo que se sabe que no
+  sale está en `tests/unit/fracturasAO.test.ts`, pieza por pieza.
+- Quedan fuera la **rótula**, la escápula, el astrágalo y el calcáneo: se clasifican por
+  la superficie articular, que el asistente todavía no dibuja.
 
 ### Manipular con el ratón (tecla V)
 
@@ -549,7 +562,8 @@ Arriba del taller hay dos pestañas: **Anatomía** (todo lo de arriba) e
 Se llega también con `/admin-panel/atlas?pestana=instrumental`.
 
 **A la izquierda, el listado.** Agrupado por categoría (corte, suturas,
-exposición, periostio, reducción, fijación, modelado, enclavado). Los que ya
+exposición, periostio, reducción, fijación, modelado, enclavado y, de D-168, **placas,
+tornillos, clavos endomedulares e injerto óseo**). Los que ya
 tienen modelo llevan la etiqueta «3D»; el contador de arriba dice «N de M con
 modelo 3D», y el filtro «Sin modelo 3D» deja solo lo que falta.
 
@@ -650,6 +664,33 @@ anatómico. Con ellos encendidos aparece un panel con:
 
 Bajo «Ver todos los campos como formulario», al pie de la pestaña, están los mismos
 campos como formulario de siempre, para quien prefiera escribir las cifras.
+
+**La bandeja por familias.** Tanto el editor como el residente ven los instrumentos
+agrupados por su categoría —«Corte y disección», «Suturas y cierre», «Separadores y
+exposición»…— y cada familia es un botón con su contador: al pulsarlo se despliegan sus
+cuadros, de una familia a la vez. La que contiene el instrumento que se lleva en la mano
+dice «en la mano». Con algo en el buscador (solo en el editor) se abren todas las que
+coinciden.
+
+**Los instrumentos actúan sobre el paciente.** Hay tres, y cada uno trae su modo de ratón:
+- **Cortar (bisturí, electrobisturí, tijeras).** Con el instrumento en la mano, modo
+  **Trazar**: arrastre sobre el modelo y, **al soltar**, la malla se parte a lo largo del
+  trazo. El bisturí de piel corta la piel; el profundo, el electrobisturí y las tijeras, los
+  planos de debajo (todos los músculos visibles). Hace falta que la capa esté encendida.
+  La herida se ve como una incisión con un borde rojo. «Borrar trazo» la deshace; pasar de
+  paso no (la piel cortada sigue cortada), y «Cerrar la herida» o reiniciar el caso la cierran.
+- **Separar (Senn-Miller, Farabeuf, Hohmann, Gelpi, Weitlaner, Beckman-Adson).** Al coger
+  uno, el modo pasa a **Separar**: arrastre desde el borde de la herida hacia fuera. Los de
+  mano abren el borde que agarran (hasta 22–40 mm) y los autoestáticos abren los dos y se
+  quedan abiertos (hasta 55–90 mm). También hay un deslizador de apertura en el recuadro del
+  instrumento. Mientras se arrastra, una etiqueta sobre el lienzo dice cuánto está abierta.
+- **Perforar (brocas de 1,5 a 4,5 mm, avellanador, machuelo, fresa).** El modo pasa a
+  **Perforar**. Apunte al hueso y **mantenga pulsado**: la broca gira y avanza. Antes de
+  empezar, dos deslizadores eligen la **inclinación** (a lo largo del hueso y a lo ancho, de
+  −45° a +45°) y una etiqueta dice el **ángulo con el eje del hueso** (90° es perpendicular).
+  Al soltar queda el túnel y el registro anota calibre, profundidad, si fue bicortical y
+  el ángulo. Si la broca pasa de largo la cortical opuesta, la etiqueta y el registro lo
+  dicen. No puntúa todavía.
 
 ---
 

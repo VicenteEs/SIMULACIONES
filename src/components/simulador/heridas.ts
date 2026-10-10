@@ -33,16 +33,35 @@ export interface ParametrosDeCorte {
   alcance: number
 }
 
+/**
+ * Un valor de un atributo tal como está guardado, sin normalizar.
+ *
+ * `getComponent` de three devuelve lo normalizado (0 a 1) para los atributos
+ * enteros que lo piden —los colores de vértice en bytes—, y al guardarlo de vuelta
+ * en el mismo arreglo de bytes se truncaba a cero: la piel perdía su color justo
+ * donde se cortaba. Se lee el arreglo tal cual.
+ */
+function valorCrudo(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: number, k: number): number {
+  if ((a as THREE.BufferAttribute).isBufferAttribute) {
+    return (a.array as unknown as ArrayLike<number>)[i * a.itemSize + k]
+  }
+  const intercalado = a as THREE.InterleavedBufferAttribute
+  return (intercalado.data.array as unknown as ArrayLike<number>)[i * intercalado.data.stride + intercalado.offset + k]
+}
+
 /** Los atributos que no son posición ni normal se copian vértice a vértice por el mapa de origen. */
 function copiarAtributo(origen: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, mapa: Uint32Array) {
   const tam = origen.itemSize
   // Del mismo tipo que el original (colores en bytes, uv en flotantes…): copiar a
   // un Float32Array aceptaría el dato pero cambiaría cómo la tarjeta lo lee.
-  const Tipo = origen.array.constructor as new (n: number) => Float32Array
+  const fuente = (origen as THREE.BufferAttribute).isBufferAttribute
+    ? (origen as THREE.BufferAttribute).array
+    : (origen as THREE.InterleavedBufferAttribute).data.array
+  const Tipo = fuente.constructor as new (n: number) => Float32Array
   const nuevo = new Tipo(mapa.length * tam)
   for (let i = 0; i < mapa.length; i++) {
     for (let k = 0; k < tam; k++) {
-      nuevo[i * tam + k] = origen.getComponent(mapa[i], k)
+      nuevo[i * tam + k] = valorCrudo(origen, mapa[i], k)
     }
   }
   return new THREE.BufferAttribute(nuevo, tam, origen.normalized)
@@ -179,29 +198,32 @@ export function cerrarCapa(h: HeridaEnCapa) {
 /**
  * Dónde cae un punto del mundo respecto de la herida: de qué labio es y hacia
  * dónde se separa. Sirve para que un separador agarre el labio que se pincha.
+ *
+ * El vértice de labio más cercano da la dirección y la distancia; **el lado lo
+ * dice a qué lado de ese vértice cae el punto**. Con la herida cerrada los dos
+ * labios ocupan el mismo sitio y el más cercano era siempre el primero que se
+ * miraba: un Farabeuf agarraba siempre el mismo borde, pincharan donde pincharan.
  */
 export function ladoDeLaHerida(h: HeridaEnCapa, puntoDelMundo: THREE.Vector3): { lado: 1 | -1; direccion: THREE.Vector3; cerca: number } | null {
   const local = puntoDelMundo.clone().applyMatrix4(h.malla.matrixWorld.clone().invert())
-  // El vértice del labio más cercano manda: dice el lado, la dirección y a qué distancia está.
   let mejor = Infinity
-  let mejorLado: 1 | -1 = 1
+  let vertice: THREE.Vector3 | null = null
   let direccion: THREE.Vector3 | null = null
   const posiciones = h.malla.geometry.getAttribute('position') as THREE.BufferAttribute
-  for (const [cadena, lado] of [
-    [h.corte.labios.mas, 1],
-    [h.corte.labios.menos, -1],
-  ] as const) {
+  for (const cadena of [h.corte.labios.mas, h.corte.labios.menos]) {
     for (const v of cadena) {
-      const d = local.distanceTo(new THREE.Vector3(posiciones.getX(v), posiciones.getY(v), posiciones.getZ(v)))
+      const p = new THREE.Vector3(posiciones.getX(v), posiciones.getY(v), posiciones.getZ(v))
+      const d = local.distanceTo(p)
       if (d < mejor) {
         mejor = d
-        mejorLado = lado
+        vertice = p
         direccion = new THREE.Vector3(h.corte.direccion[3 * v], h.corte.direccion[3 * v + 1], h.corte.direccion[3 * v + 2])
       }
     }
   }
-  if (!direccion) return null
+  if (!vertice || !direccion) return null
+  const lado: 1 | -1 = local.clone().sub(vertice).dot(direccion) >= 0 ? 1 : -1
   // La dirección se lleva al mundo, sin la traslación.
   const enElMundo = direccion.transformDirection(h.malla.matrixWorld)
-  return { lado: mejorLado, direccion: enElMundo, cerca: mejor * h.escala }
+  return { lado, direccion: enElMundo, cerca: mejor * h.escala }
 }
