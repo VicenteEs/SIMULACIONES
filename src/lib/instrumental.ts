@@ -23,6 +23,13 @@ export const CATEGORIAS_DE_INSTRUMENTAL = [
   { value: 'fijacion', label: 'Perforación y fijación' },
   { value: 'modelado', label: 'Modelado de placas' },
   { value: 'enclavado', label: 'Enclavado endomedular' },
+  // Los implantes (D-168): lo que queda dentro del paciente. Van aparte del
+  // instrumental porque el residente los elige por otra razón —qué fijación
+  // cabe en esta fractura— y no por la maniobra que toca.
+  { value: 'placas', label: 'Placas' },
+  { value: 'tornillos', label: 'Tornillos' },
+  { value: 'clavos', label: 'Clavos endomedulares' },
+  { value: 'injerto', label: 'Injerto óseo' },
 ] as const
 
 export type CategoriaDeInstrumental = (typeof CATEGORIAS_DE_INSTRUMENTAL)[number]['value']
@@ -112,4 +119,32 @@ export const INSTRUMENTAL_BASE: readonly InstrumentoBase[] = [
   { slug: 'dedo-reductor', nombre: 'Dedo reductor endomedular', categoria: 'enclavado', icono: 'punzon', descripcion: 'Reduce indirectamente fragmentos dentro del canal sin abrir el foco.', especificaciones: 'Ø 9 mm · largo 420 mm · punta curva · empuñadura en T.' },
   { slug: 'fresa-flexible', nombre: 'Fresa flexible canulada', categoria: 'enclavado', icono: 'fresa', descripcion: 'Prepara el canal medular antes del clavo.', especificaciones: 'Cabezas de 8,5 a 12,0 mm de 0,5 en 0,5 · eje flexible · acople AO/Hudson.' },
   { slug: 'arco-insercion', nombre: 'Arco de inserción del clavo (guía proximal)', categoria: 'enclavado', icono: 'guia', descripcion: 'Guía los tornillos de bloqueo proximales del clavo.', especificaciones: 'Específico de cada clavo · perno de conexión · camisas de bloqueo.' },
+  // ------------------------------------------------- brocas que faltaban (D-168)
+  { slug: 'broca-1-5', nombre: 'Broca AO 1,5 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Túnel piloto del tornillo de 2,0 mm en minifragmentos (mano, falanges).', especificaciones: 'Ø 1,5 × 60 mm · sistema mini · acople rápido AO.' },
+  { slug: 'broca-2-0', nombre: 'Broca AO 2,0 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Túnel piloto del tornillo de 2,7 mm y del bloqueado de 2,4 mm.', especificaciones: 'Ø 2,0 × 80 mm · fragmento pequeño · acople rápido AO.' },
+  { slug: 'broca-3-5', nombre: 'Broca AO 3,5 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Agujero de deslizamiento del tornillo cortical de 3,5 mm usado como tornillo de tracción.', especificaciones: 'Ø 3,5 × 110 mm · acople rápido AO.' },
+  { slug: 'broca-4-5', nombre: 'Broca AO 4,5 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Agujero de deslizamiento del tornillo cortical de 4,5 mm usado como tornillo de tracción.', especificaciones: 'Ø 4,5 × 145 mm · acople rápido AO.' },
+  // ------------------------------------------------------------ placas (D-168)
+  { slug: 'placa-dcp-4-5', nombre: 'Placa DCP 4,5 mm estrecha', categoria: 'placas', icono: 'placa', descripcion: 'Placa de compresión dinámica: sus óvalos con avellanado inclinado comprimen el foco al apretar el tornillo.', especificaciones: 'Ancho 12 mm · grosor 3,6 mm · 8 agujeros a 16 mm · tornillos de 4,5 mm.' },
+  { slug: 'placa-lc-dcp-3-5', nombre: 'Placa LC-DCP 3,5 mm', categoria: 'placas', icono: 'placa', descripcion: 'Compresión dinámica con contacto limitado: la cara que toca el hueso va rebajada entre agujeros y respeta la irrigación del periostio.', especificaciones: 'Ancho 10 mm · grosor 3,2 mm · 8 agujeros a 13 mm · tornillos de 3,5 mm.' },
+  { slug: 'placa-lcp-recta-3-5', nombre: 'Placa LCP recta 3,5 mm', categoria: 'placas', icono: 'placa', descripcion: 'Placa de compresión bloqueada: cada agujero combinado admite un tornillo normal (compresión) o uno bloqueado.', especificaciones: 'Ancho 11 mm · grosor 4,0 mm · 8 agujeros combinados a 13 mm.' },
+  { slug: 'placa-lcp-recta-4-5', nombre: 'Placa LCP recta 4,5/5,0 mm ancha', categoria: 'placas', icono: 'placa', descripcion: 'La LCP de hueso largo: fémur, húmero y tibia, con tornillos de 4,5 o bloqueados de 5,0.', especificaciones: 'Ancho 16 mm · grosor 5,2 mm · 8 agujeros combinados a 16 mm.' },
+  { slug: 'placa-lcp-anatomica-tibia-proximal', nombre: 'Placa LCP anatómica de tibia proximal lateral', categoria: 'placas', icono: 'placa', descripcion: 'Precontorneada para la meseta tibial lateral: la cabeza curva abraza la metáfisis y lleva dos filas de agujeros de bloqueo.', especificaciones: 'Cabeza de 44 mm con 6 agujeros de bloqueo · cuerpo de 12 mm con 7 combinados · grosor 4,5 mm.' },
+  { slug: 'placa-tercio-de-cana', nombre: 'Placa de tercio de caña 3,5 mm', categoria: 'placas', icono: 'placa', descripcion: 'Delgada y curva como un tercio de tubo, para el maléolo lateral, el peroné distal y la clavícula.', especificaciones: 'Ancho 10 mm · grosor 1,0 mm · 6 agujeros ovales a 12 mm.' },
+  { slug: 'placa-reconstruccion-3-5', nombre: 'Placa de reconstrucción 3,5 mm', categoria: 'placas', icono: 'placa', descripcion: 'Con muescas entre agujeros: se moldea en los tres planos sobre pelvis, acetábulo y clavícula.', especificaciones: 'Ancho 10 mm · grosor 2,7 mm · 10 agujeros a 10 mm.' },
+  { slug: 'placa-t-3-5', nombre: 'Placa en T 3,5 mm', categoria: 'placas', icono: 'placa', descripcion: 'Cabeza horizontal con tres agujeros y cuerpo recto: radio distal, húmero distal, meseta.', especificaciones: 'Cabeza de 30 mm · cuerpo de 10 mm con 4 óvalos · grosor 3,2 mm.' },
+  { slug: 'placa-l-3-5', nombre: 'Placa en L 3,5 mm', categoria: 'placas', icono: 'placa', descripcion: 'Como la T pero con la cabeza hacia un solo lado: existe derecha e izquierda.', especificaciones: 'Cabeza de 28 mm · cuerpo de 10 mm con 4 óvalos · grosor 3,2 mm.' },
+  { slug: 'placa-gancho-clavicular', nombre: 'Placa en gancho para clavícula', categoria: 'placas', icono: 'placa', descripcion: 'Para la luxación acromioclavicular y la fractura distal de clavícula: el gancho pasa bajo el acromion.', especificaciones: 'Ancho 11 mm · grosor 3,0 mm · 3 agujeros · gancho de 15 mm.' },
+  // ---------------------------------------------------------- tornillos (D-168)
+  { slug: 'tornillo-cortical-3-5', nombre: 'Tornillo cortical 3,5 mm', categoria: 'tornillos', icono: 'tornillo', descripcion: 'Rosca en todo su largo, para hueso cortical: fija la placa o actúa como tornillo de tracción.', especificaciones: 'Ø 3,5 mm · núcleo 2,4 · paso 1,25 · de 10 a 60 mm · cabeza hexagonal de 2,5.' },
+  { slug: 'tornillo-esponjosa-6-5', nombre: 'Tornillo de esponjosa 6,5 mm', categoria: 'tornillos', icono: 'tornillo', descripcion: 'Rosca ancha y parcial, para metáfisis: al apretar, la rosca avanza y comprime el fragmento.', especificaciones: 'Ø 6,5 mm · núcleo 3,0 · paso 2,75 · de 30 a 120 mm · rosca de 16 o 32 mm.' },
+  { slug: 'tornillo-bloqueado-lcp-3-5', nombre: 'Tornillo bloqueado LCP 3,5 mm', categoria: 'tornillos', icono: 'tornillo', descripcion: 'Su cabeza tiene rosca y se traba en la placa: forma un solo bloque de ángulo fijo.', especificaciones: 'Ø 3,5 mm · núcleo 2,9 · Stardrive T15 · de 10 a 60 mm.' },
+  { slug: 'tornillo-bloqueo-clavo-5-0', nombre: 'Tornillo de bloqueo de clavo 5,0 mm', categoria: 'tornillos', icono: 'tornillo', descripcion: 'Atraviesa el hueso y los agujeros del clavo para controlar la rotación y el acortamiento.', especificaciones: 'Ø 5,0 mm · de 20 a 100 mm · cabeza baja con Stardrive.' },
+  // ------------------------------------------------------------- clavos (D-168)
+  { slug: 'clavo-tibial-9x330', nombre: 'Clavo tibial 9 × 330 mm', categoria: 'clavos', icono: 'clavo', descripcion: 'Clavo endomedular tibial con curva proximal para entrar bajo el tendón rotuliano.', especificaciones: 'Ø 9 mm · 330 mm · curva proximal de 11° · 3 agujeros proximales (uno dinámico) y 3 distales de Ø 5.' },
+  { slug: 'clavo-femoral-11x380', nombre: 'Clavo femoral 11 × 380 mm', categoria: 'clavos', icono: 'clavo', descripcion: 'Clavo femoral anterógrado: sigue el arco anterior del fémur y entra por el trocánter mayor.', especificaciones: 'Ø 11 mm · 380 mm · radio 1.500 mm · desvío proximal de 5° · 2 agujeros proximales y 3 distales.' },
+  { slug: 'clavo-pfn-240', nombre: 'Clavo cefalomedular PFN 10 × 240 mm', categoria: 'clavos', icono: 'clavo', descripcion: 'Para fracturas pertrocantéricas: un tornillo cefálico y otro antirrotatorio van al cuello y la cabeza femoral.', especificaciones: 'Ø 10 mm · 240 mm · desvío proximal de 6° · ángulo cuello-diáfisis 130° · cefálico Ø 10,35 y antirrotatorio Ø 6,5.' },
+  // ------------------------------------------------------------- injerto (D-168)
+  { slug: 'injerto-oseo-tricortical', nombre: 'Injerto óseo tricortical de cresta ilíaca', categoria: 'injerto', icono: 'injerto', descripcion: 'Bloque con tres corticales y esponjosa, para rellenar un defecto estructural y dar soporte.', especificaciones: 'Unos 30 × 15 × 18 mm · autoinjerto de la cresta ilíaca.' },
+  { slug: 'injerto-oseo-esponjoso', nombre: 'Injerto óseo esponjoso en trozos', categoria: 'injerto', icono: 'injerto', descripcion: 'Esponjosa en fragmentos de 3 a 8 mm, para alojar en un defecto o en el foco de una pseudoartrosis.', especificaciones: 'Trozos de 3 a 8 mm · autoinjerto de la cresta ilíaca o de la metáfisis.' },
 ]

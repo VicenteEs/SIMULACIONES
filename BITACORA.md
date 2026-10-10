@@ -5485,6 +5485,71 @@ de una sola pieza se parten juntas; el corte rehace la geometría de la malla al
 que en una malla de cientos de miles de triángulos tarda (hay que medirlo con un modelo
 real); la broca no cuenta en el puntaje ni toca el fragmento.
 
+### D-168 · 2026-10-10 · vigente
+**Los implantes entran al catálogo (placas, tornillos, clavos, injerto) y el asistente de
+fracturas aprende los huesos pequeños y la espiroidea.**
+Respuestas de Cristóbal a las cinco preguntas, tal como quedaron en la lista de pendientes:
+las placas (DCP, LC-DCP, LCP rectas y anatómicas, tercio de caña, reconstrucción, T y L,
+gancho), los clavos endomedulares con su instrumental, el injerto óseo, las brocas que
+faltaban, y «agregar metacarpianos y falanges, clavícula y rótula… y más, las de las partes
+chicas también», con las espiroideas (A1).
+
+*Los implantes.* 23 modelos nuevos, hechos con Blender como el resto del catálogo
+(`scripts/instrumental/implantes.py` trae las funciones y cada `<slug>.py` es una llamada de
+una línea; `generar-todo.sh` los reconoce solo): diez placas, cuatro tornillos, tres clavos,
+dos injertos y cuatro brocas (1,5 / 2,0 / 3,5 / 4,5 mm). Cuatro categorías nuevas
+—**Placas, Tornillos, Clavos endomedulares, Injerto óseo**— y cuatro iconos, con su
+migración (`20261010_000243_implantes_y_categorias`: `ALTER TYPE … ADD VALUE`). La bandeja
+agrupa por ellas, igual que el resto.
+- Una **placa se posa de plano** (su cara contra el hueso en Z = 0), a diferencia del
+  instrumental, que va de pie con la punta en el origen: el simulador pone el modelo con su
+  +Z hacia fuera de la superficie, así que queda apoyada y no clavada.
+- Los agujeros se hacen con **un sólido por agujero** y el avellanado en una segunda pasada:
+  un cortador hecho de cilindros solapados no se funde con el booleano exacto y dejaba
+  óvalos reducidos a dos medias lunas.
+- El **PFN** lleva sus dos tornillos (cefálico y antirrotatorio) como nodos aparte, para
+  poder ocultarlos desde el taller; el clavo se ensancha en el tramo proximal, donde pasa el
+  canal de 11 mm.
+- **Tamaños.** Hay un modelo por tipo (una LCP de 8 agujeros, un tornillo de 24 mm, un
+  clavo de 330), no uno por calibre; los parámetros están arriba en cada llamada y se
+  cambian ahí. Las medidas son de referencia: Cristóbal enviará el catálogo y se corrigen.
+- Los implantes **no actúan sobre el paciente** (`comportamientoDelInstrumento` lo prueba): se
+  eligen y se ven en la escena, pero colocarlos sobre el hueso y atornillarlos queda para
+  E5.7.
+
+*Las fracturas.* La tabla de huesos de `huesosAO.ts` pasa de 12 a **90 piezas**: la clavícula,
+los cinco metacarpianos y metatarsianos y las 14 falanges de la mano y del pie, por lado. Un
+hueso ya puede tener varias piezas del atlas (`piezasDelHueso`).
+- *Códigos.* La clavícula es «15.2-A2» (con punto: sin él el 5 se leería como segmento) y sus
+  extremos se llaman medial y lateral. Los de **mano y pie son provisionales** (7M, 7F, 8M,
+  8F) y la pantalla lo dice: no están validados contra el compendio de 2018 (E4-Q1), y mejor
+  un código con su aviso que uno que parezca oficial sin serlo.
+- *La espiroidea (A1) pasa a disponible, aproximada*: un plano de 55 a 60° (el tope del
+  corte). Se probó una versión con dos planos —un corte oblicuo y una pared que contiene el
+  eje, que deja una lengüeta— y se descartó: el fragmento de «todo lo demás» sale como unión
+  de dos trozos cerrados cuyas tapas no casan y deja de ser cerrado. La hélice real sigue
+  pendiente de que `osteotomia.ts` sepa tapar una superficie curva (R1 de P-001).
+- *La cuña (B2/B3) se reescribió* como dos cortes de un solo plano, uno tras otro, en vez
+  del corte de dos planos de una vez. Es la misma cuña y los mismos tres fragmentos, pero
+  cada uno cerrado por construcción: con el método anterior fallaba en el radio izquierdo y
+  en 38 de los 40 huesos pequeños probados.
+- *Lo que todavía no sale* está escrito pieza por pieza en `SABIDO_QUE_NO_SALE`
+  (`tests/unit/fracturasAO.test.ts`): 24 de las 90 piezas, casi todas falanges del pie y
+  de la mano de 30 mm, con la malla abierta en algún grupo o con un plano que no llega a
+  cortar. La prueba falla si algo nuevo se rompe y también si algo viejo se arregla, y la
+  pantalla lo avisa con una nota en esos huesos.
+- *Fuera, a propósito:* la **rótula**, la escápula, el astrágalo y el calcáneo. Se
+  clasifican por lo que pasa en la superficie articular y el asistente todavía no sabe
+  dibujarla; Cristóbal ya dijo que escápula, astrágalo y calcáneo pueden esperar y que la
+  rótula se revisa en la sesión conjunta. Sus identificadores quedan anotados en
+  `huesosAO.ts`.
+
+*Consecuencias buenas.* Un residente puede elegir una placa y un tornillo por familia, y el
+asistente construye fracturas en 90 piezas con el atlas de verdad como banco de pruebas.
+*Malas:* 23 modelos más para cargar en producción por el taller (los `.glb` no van al
+repositorio); un tercio de los huesos pequeños no ofrece todos los grupos; los códigos de mano
+y pie son nuestros hasta que Cristóbal los valide; y la espiroidea no es una hélice.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

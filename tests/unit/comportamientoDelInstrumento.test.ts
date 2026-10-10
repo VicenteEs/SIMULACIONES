@@ -24,8 +24,12 @@ describe('comportamiento del instrumental', () => {
       'separador-gelpi',
       'separador-weitlaner',
       'separador-beckman-adson',
+      'broca-1-5',
+      'broca-2-0',
       'broca-2-5',
       'broca-3-2',
+      'broca-3-5',
+      'broca-4-5',
       'avellanador',
       'machuelo-3-5',
       'fresa-flexible',
@@ -50,8 +54,15 @@ describe('comportamiento del instrumental', () => {
   it('las brocas perforan con su calibre, y el instrumental común no hace nada', () => {
     expect(comportamientoDelInstrumento(base('broca-2-5')).perfora?.diametroMm).toBe(2.5)
     expect(comportamientoDelInstrumento(base('broca-3-2')).perfora?.diametroMm).toBe(3.2)
+    // Las de minifragmentos y la de deslizamiento: cada calibre es el suyo.
+    expect(comportamientoDelInstrumento(base('broca-1-5')).perfora?.diametroMm).toBe(1.5)
+    expect(comportamientoDelInstrumento(base('broca-4-5')).perfora?.diametroMm).toBe(4.5)
     const pinza = comportamientoDelInstrumento(base('pinza-diseccion-con-dientes'))
     expect(pinza).toEqual({ corta: null, separa: null, perfora: null })
+    // Los implantes no actúan sobre el paciente: se colocan, no se usan.
+    for (const i of INSTRUMENTAL_BASE.filter((x) => ['placas', 'tornillos', 'clavos', 'injerto'].includes(x.categoria))) {
+      expect(comportamientoDelInstrumento(i), i.slug).toEqual({ corta: null, separa: null, perfora: null })
+    }
   })
 
   it('un instrumento creado a mano se reconoce por su nombre', () => {

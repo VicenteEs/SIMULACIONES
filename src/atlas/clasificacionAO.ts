@@ -96,9 +96,10 @@ export interface GrupoDeLaTabla {
   /** Segmentos en que se ofrece. Los extremos solo admiten oblicua y transversa. */
   segmentos: readonly SegmentoAO[]
   /**
-   * Si el patrón ya sabe construirse. `espiroidea` no: su superficie no es un plano
-   * (riesgo R1 de P-001) y se queda marcada hasta que `osteotomia.ts` sepa cortar
-   * por un helicoide. La tabla la conserva para que se vea lo que falta.
+   * Si el patrón ya sabe construirse. `espiroidea` pasó a sí en D-168, pero
+   * **aproximada**: su superficie real es una hélice y no un plano (riesgo R1 de
+   * P-001), y lo que se corta es un plano muy oblicuo. Una hélice de verdad pide
+   * que `osteotomia.ts` sepa tapar una superficie curva.
    */
   disponible: boolean
 }
@@ -108,11 +109,12 @@ export const GRUPOS_AO: readonly GrupoDeLaTabla[] = [
     id: 'A1',
     tipo: 'A',
     nombre: 'Espiroidea',
-    descripcion: 'El trazo da una vuelta alrededor del hueso, como un tornillo.',
+    descripcion:
+      'El trazo da una vuelta alrededor del hueso, como un tornillo. Se dibuja esquematizado: un solo corte muy oblicuo.',
     patron: 'espiroidea',
     fragmentos: 2,
     segmentos: [2],
-    disponible: false,
+    disponible: true,
   },
   {
     id: 'A2',
@@ -176,15 +178,54 @@ export const GRUPOS_AO: readonly GrupoDeLaTabla[] = [
   },
 ]
 
-/** Los huesos que el asistente sabe fracturar: los largos (v1). */
-export type HuesoAO = 'humero' | 'radio' | 'cubito' | 'femur' | 'tibia' | 'peroneo'
+/**
+ * Los huesos que el asistente sabe fracturar: los largos (v1) y, desde D-168, la
+ * clavícula y los huesos pequeños de la mano y del pie, que tienen la misma
+ * forma de trabajo —un eje largo con dos extremos y una diáfisis— y por eso
+ * entran por la misma tabla de segmentos y de grupos.
+ */
+export type HuesoAO =
+  | 'humero'
+  | 'radio'
+  | 'cubito'
+  | 'femur'
+  | 'tibia'
+  | 'peroneo'
+  | 'clavicula'
+  | 'metacarpiano'
+  | 'falange_mano'
+  | 'metatarsiano'
+  | 'falange_pie'
 
 export interface HuesoDeLaTabla {
   id: HuesoAO
   /** El número con que empieza un código AO: 1 húmero, 2 antebrazo, 3 fémur, 4 pierna. */
   codigo: string
   nombre: string
+  /**
+   * Entre el hueso y el segmento: la clavícula es «15.2», no «152». Sin esto, el
+   * 5 de «15» se leería como parte del segmento.
+   */
+  separador?: '.'
+  /**
+   * El código no es el de AO/OTA sino el nuestro mientras no lo valide el
+   * traumatólogo (E4-Q1): se enseña igual, pero la pantalla lo dice. Mejor un
+   * código provisional con su aviso que uno que parezca oficial sin serlo.
+   */
+  provisional?: boolean
+  /** Cómo se llaman sus dos extremos, si no son «proximal» y «distal». */
+  extremos?: { proximal: string; distal: string }
+  /**
+   * Un aviso para quien construye la fractura: lo que este hueso no garantiza.
+   * En los huesos de la mano y del pie, de 30 a 50 mm, los cortes en cuña y los
+   * segmentarios fragmentados pueden salir con la malla abierta o no llegar a
+   * cortar (`SABIDO_QUE_NO_SALE` en las pruebas lo lista pieza por pieza).
+   */
+  nota?: string
 }
+
+const NOTA_DE_LOS_PEQUENOS =
+  'Hueso pequeño: el código es provisional (lo valida el traumatólogo) y, con tan poco hueso, los cortes en cuña y los segmentarios fragmentados pueden salir con la malla abierta o no llegar a cortar. Si pasa, cambie la posición o elija otro grupo.'
 
 export const HUESOS_AO: readonly HuesoDeLaTabla[] = [
   { id: 'humero', codigo: '1', nombre: 'Húmero' },
@@ -193,6 +234,14 @@ export const HUESOS_AO: readonly HuesoDeLaTabla[] = [
   { id: 'femur', codigo: '3', nombre: 'Fémur' },
   { id: 'tibia', codigo: '4', nombre: 'Tibia' },
   { id: 'peroneo', codigo: '4F', nombre: 'Peroné' },
+  // Clavícula: AO/OTA 15.1 medial, 15.2 diáfisis, 15.3 lateral.
+  { id: 'clavicula', codigo: '15', nombre: 'Clavícula', separador: '.', extremos: { proximal: 'Medial', distal: 'Lateral' } },
+  // Mano y pie: los códigos de AO/OTA 2018 para estos huesos no están validados
+  // (E4-Q1); estos son nuestros, con la letra del hueso, y se avisa.
+  { id: 'metacarpiano', codigo: '7M', nombre: 'Metacarpiano', provisional: true, nota: NOTA_DE_LOS_PEQUENOS },
+  { id: 'falange_mano', codigo: '7F', nombre: 'Falange de la mano', provisional: true, nota: NOTA_DE_LOS_PEQUENOS },
+  { id: 'metatarsiano', codigo: '8M', nombre: 'Metatarsiano', provisional: true, nota: NOTA_DE_LOS_PEQUENOS },
+  { id: 'falange_pie', codigo: '8F', nombre: 'Falange del pie', provisional: true, nota: NOTA_DE_LOS_PEQUENOS },
 ]
 
 export function huesoAO(id: string): HuesoDeLaTabla | null {
@@ -205,6 +254,16 @@ export function grupoAO(id: string): GrupoDeLaTabla | null {
 
 export function segmentoAO(id: number): SegmentoDeLaTabla | null {
   return SEGMENTOS_AO.find((s) => s.id === id) ?? null
+}
+
+/** El nombre del segmento en un hueso: «proximal» y «distal», salvo en la clavícula («medial», «lateral»). */
+export function nombreDelSegmento(hueso: string, segmento: number): string | null {
+  const s = segmentoAO(segmento)
+  if (!s) return null
+  const extremos = huesoAO(hueso)?.extremos
+  if (extremos && segmento === 1) return extremos.proximal
+  if (extremos && segmento === 3) return extremos.distal
+  return s.nombre
 }
 
 /** Los grupos que se ofrecen para un segmento y un tipo, en el orden de la tabla. */
@@ -226,9 +285,11 @@ export function codigoAO(hueso: string, segmento: number, grupo: string): string
   const g = grupoAO(grupo)
   if (!h || !g || !segmentoAO(segmento) || !g.segmentos.includes(segmento as SegmentoAO)) return null
   // «2R» y «2U» son un hueso y una letra: el segmento se cuela entre las dos.
-  const letra = h.codigo.length > 1 ? h.codigo.slice(1) : ''
-  const numero = h.codigo.slice(0, 1)
-  return `${numero}${segmento}${letra}-${g.id}`
+  // «15», en cambio, son dos cifras de hueso y se separa con un punto.
+  const termina = /[A-Za-z]$/.test(h.codigo)
+  const letra = termina ? h.codigo.slice(-1) : ''
+  const numero = termina ? h.codigo.slice(0, -1) : h.codigo
+  return `${numero}${h.separador ?? ''}${segmento}${letra}-${g.id}`
 }
 
 /** Lo que dice la etiqueta sobre el modelo: «42-A2 · Tibia, diáfisis, oblicua». */
@@ -236,7 +297,7 @@ export function describirFractura(hueso: string, segmento: number, grupo: string
   const codigo = codigoAO(hueso, segmento, grupo)
   const h = huesoAO(hueso)
   const g = grupoAO(grupo)
-  const s = segmentoAO(segmento)
+  const s = nombreDelSegmento(hueso, segmento)
   if (!codigo || !h || !g || !s) return null
-  return `${codigo} · ${h.nombre}, ${s.nombre.toLowerCase()}, ${g.nombre.toLowerCase()}`
+  return `${codigo} · ${h.nombre}, ${s.toLowerCase()}, ${g.nombre.toLowerCase()}`
 }

@@ -17,16 +17,35 @@
  * |---|---|
  * | A3 transversa | un plano casi perpendicular al eje (0–15°) |
  * | A2 oblicua | un plano inclinado 30–60° hacia la cara elegida |
- * | B2 cuña íntegra | una cuña (dos planos, un lado del hueso), y un plano transversal por su vértice |
+ * | B2 cuña íntegra | dos planos que se cruzan en el vértice de la cuña, aplicados uno tras otro |
  * | B3 cuña fragmentada | B2 y otro corte que parte la cuña en dos |
  * | C2 segmentaria íntegra | dos planos paralelos, `extension` separados |
  * | C3 segmentaria fragmentada | C2 y otro corte oblicuo que parte el segmento |
+ * | A1 espiroidea | un plano muy oblicuo (55–60°, el máximo que admite el corte), el mismo mecanismo que la oblicua |
  *
- * `A1` espiroidea no está: su superficie no es un plano (R1 de P-001).
+ * `A1` espiroidea es una **aproximación**: la superficie de una espiroidea es una
+ * hélice y no un plano (R1 de P-001), y lo que se dibuja es el plano más
+ * inclinado que enseña la misma radiografía —el trazo oblicuo largo—. Se probó
+ * una versión con dos planos (un corte oblicuo y una pared que contiene el eje,
+ * que deja una lengüeta) y se descartó: el fragmento de «todo lo demás» sale como
+ * unión de dos trozos cerrados cuyas tapas no casan, y deja de ser un trozo
+ * cerrado, que es lo que exige cada fragmento (R3). Lo valida Cristóbal (E4-Q1).
  *
  * El fragmento `a` de un corte es el que queda hacia donde apunta su normal. Los
  * planos de aquí apuntan al lado **distal**, así que `a` es el distal y `b`, el
- * proximal; en la cuña, `a` es la cuña.
+ * proximal.
+ *
+ * ## La cuña son dos cortes de un plano
+ *
+ * Hasta D-168 la cuña se hacía de una vez con los dos planos (`otrosPlanos`): `a`
+ * era la cuña y `b` «todo lo demás», una sola pieza que después se partía con un
+ * plano transversal. Esa pieza era la unión de dos trozos cerrados, con sus tapas
+ * una contra otra sin coincidir triángulo a triángulo, y en un hueso pequeño o
+ * achatado (los metacarpianos, las falanges, el radio izquierdo) el corte
+ * siguiente la dejaba abierta: ninguno de los huesos pequeños salía bien.
+ * Ahora son dos cortes de un solo plano, uno detrás de otro, que dejan los mismos
+ * tres fragmentos y todos cerrados por construcción: el plano 1 aparta el distal,
+ * y el plano 2 parte lo que queda en la cuña y el proximal.
  */
 
 import type { EjeDelHueso } from '@/lib/planoDeCorte'
@@ -46,6 +65,8 @@ export const EXTENSION_MAXIMA = 40
 /** A2 es oblicua desde 30°, y A3 transversa por debajo: es la definición de AO. */
 export const INCLINACION_OBLICUA_MINIMA = 30
 export const INCLINACION_TRANSVERSA_MAXIMA = 15
+/** Una espiroidea se dibuja con un corte aún más inclinado que una oblicua. */
+export const INCLINACION_ESPIROIDEA_MINIMA = 55
 
 /** La receta con la que nace cada grupo: lo que el asistente propone antes de tocar nada. */
 export function recetaPorOmision(
@@ -71,7 +92,7 @@ export function recetaPorOmision(
       centro: segmento === 1 ? 15 : segmento === 3 ? 85 : 50,
       extension: patron === 'segmentaria-integra' || patron === 'segmentaria-fragmentada' ? 15 : 8,
     },
-    inclinacion: patron === 'oblicua' ? 45 : 0,
+    inclinacion: patron === 'oblicua' ? 45 : patron === 'espiroidea' ? 60 : 0,
     giro: 0,
     semilla: 1,
   }
@@ -197,10 +218,15 @@ export function cortesDeLaFractura(receta: RecetaDeFractura, eje: EjeDelHueso): 
       const tangente = acotar(altura / (3 * r), 0.05, 2)
       const n1 = sies(unitario(resta(por(c, tangente), u)))
       const n2 = sies(unitario(suma(por(c, tangente), u)))
+      // El plano 1 mira hacia la cara y hacia lo proximal: lo que queda del otro
+      // lado (`#b`) es el fragmento distal. Lo que sí queda a su lado (`#a`) se
+      // parte con el plano 2, que mira hacia la cara y hacia lo distal: del lado
+      // de su normal (`#a#a`) está la cuña, y del otro (`#a#b`) el proximal.
+      const principal = idDeFragmento(raiz, 'a')
+      const cuna = idDeFragmento(principal, 'a')
       const cortes: CorteDePieza[] = [
-        { pieza: raiz, punto: sies(vertice), normal: n1, otrosPlanos: [{ punto: sies(vertice), normal: n2 }] },
-        // Lo que no es cuña se parte por el vértice: proximal y distal.
-        { pieza: idDeFragmento(raiz, 'b'), punto: sies(enElEje(eje, s0)), normal: sies(u) },
+        { pieza: raiz, punto: sies(vertice), normal: n1 },
+        { pieza: principal, punto: sies(vertice), normal: n2 },
       ]
       if (grupo.patron === 'cuna-fragmentada') {
         // La cuña se parte en dos por un plano casi transversal que pasa por su
@@ -209,7 +235,7 @@ export function cortesDeLaFractura(receta: RecetaDeFractura, eje: EjeDelHueso): 
         const torcer = ((azar(receta.semilla, 1) - 0.5) * 50 * Math.PI) / 180
         const normal = unitario(suma(por(u, Math.cos(torcer)), por(c, Math.sin(torcer))))
         cortes.push({
-          pieza: idDeFragmento(raiz, 'a'),
+          pieza: cuna,
           punto: sies(suma(enElEje(eje, s0), por(c, 0.5 * r))),
           normal: sies(normal),
         })
@@ -239,8 +265,12 @@ export function cortesDeLaFractura(receta: RecetaDeFractura, eje: EjeDelHueso): 
       }
       return cortes
     }
-    case 'espiroidea':
-      return []
+    case 'espiroidea': {
+      // Muy oblicua por omisión: de 55° en adelante, que es lo que la distingue
+      // de una oblicua corriente.
+      const inclinacion = acotar(receta.inclinacion, INCLINACION_ESPIROIDEA_MINIMA, INCLINACION_MAXIMA)
+      return [{ pieza: raiz, ...planoEnElEje(eje, centro, inclinacion, receta.giro) }]
+    }
   }
 }
 

@@ -51,8 +51,12 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'separador-weitlaner': { ...NADA, separa: { maximoMm: 65, autoestatico: true } },
   'separador-beckman-adson': { ...NADA, separa: { maximoMm: 90, autoestatico: true } },
 
+  'broca-1-5': { ...NADA, perfora: { diametroMm: 1.5, avanceMmPorSegundo: 9 } },
+  'broca-2-0': { ...NADA, perfora: { diametroMm: 2.0, avanceMmPorSegundo: 9 } },
   'broca-2-5': { ...NADA, perfora: { diametroMm: 2.5, avanceMmPorSegundo: 9 } },
   'broca-3-2': { ...NADA, perfora: { diametroMm: 3.2, avanceMmPorSegundo: 9 } },
+  'broca-3-5': { ...NADA, perfora: { diametroMm: 3.5, avanceMmPorSegundo: 9 } },
+  'broca-4-5': { ...NADA, perfora: { diametroMm: 4.5, avanceMmPorSegundo: 8 } },
   avellanador: { ...NADA, perfora: { diametroMm: 6, avanceMmPorSegundo: 3 } },
   'machuelo-3-5': { ...NADA, perfora: { diametroMm: 3.5, avanceMmPorSegundo: 2 } },
   'fresa-flexible': { ...NADA, perfora: { diametroMm: 9, avanceMmPorSegundo: 12 } },

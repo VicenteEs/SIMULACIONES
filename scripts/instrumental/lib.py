@@ -87,6 +87,12 @@ MATERIALES = {
     'cobre':            ('#B8733E', 1.0, 0.3, 0.0),
     'laton':            ('#C9A24B', 1.0, 0.3, 0.0),
     'madera_oscura':    ('#4B3425', 0.0, 0.55, 0.1),
+    # Implantes e injerto (D-168). Los clavos de titanio salen anodizados, y
+    # cada tono es una convención para distinguirlos en pantalla.
+    'titanio_azul':     ('#3E6FB8', 0.88, 0.34, 0.0),
+    'titanio_dorado':   ('#C9A24A', 0.9, 0.32, 0.0),
+    'hueso_cortical':   ('#E7DCC2', 0.0, 0.55, 0.0),
+    'hueso_esponjoso':  ('#C8946A', 0.0, 0.9, 0.0),
 }
 _cache_materiales = {}
 

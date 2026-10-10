@@ -10,7 +10,7 @@ import {
   gruposDe,
   tiposDe,
 } from '@/atlas/clasificacionAO'
-import { PIEZAS_FRACTURABLES, huesoDeLaPieza, piezaDelHueso } from '@/atlas/huesosAO'
+import { PIEZAS_FRACTURABLES, huesoDeLaPieza, piezaDelHueso, piezasDelHueso } from '@/atlas/huesosAO'
 import {
   EXTENSION_MAXIMA,
   cortesDeLaFractura,
@@ -157,14 +157,31 @@ describe('la tabla AO', () => {
     expect(gruposDe(2, 'A').map((g) => g.id)).toEqual(['A1', 'A2', 'A3'])
     expect(gruposDe(2, 'B').map((g) => g.id)).toEqual(['B2', 'B3'])
     expect(gruposDe(2, 'C').map((g) => g.id)).toEqual(['C2', 'C3'])
-    // En un extremo: la oblicua y la transversa; la espiroidea no.
+    // En un extremo: la oblicua y la transversa; la espiroidea solo en la diáfisis.
     expect(gruposDe(1, 'A').map((g) => g.id)).toEqual(['A2', 'A3'])
   })
 
-  it('la espiroidea figura en la tabla pero no está disponible', () => {
+  it('la espiroidea se construye, aproximada, y solo en la diáfisis (D-168)', () => {
     const a1 = GRUPOS_AO.find((g) => g.id === 'A1')!
-    expect(a1.disponible).toBe(false)
-    expect(GRUPOS_AO.filter((g) => g.disponible).map((g) => g.id)).toEqual(['A2', 'A3', 'B2', 'B3', 'C2', 'C3'])
+    expect(a1.disponible).toBe(true)
+    expect(a1.segmentos).toEqual([2])
+    expect(GRUPOS_AO.filter((g) => g.disponible).map((g) => g.id)).toEqual(['A1', 'A2', 'A3', 'B2', 'B3', 'C2', 'C3'])
+  })
+
+  it('el código de la clavícula lleva punto («15.2-A2») y los de mano y pie se avisan provisionales', () => {
+    expect(codigoAO('clavicula', 2, 'A2')).toBe('15.2-A2')
+    expect(codigoAO('clavicula', 1, 'A3')).toBe('15.1-A3')
+    expect(describirFractura('clavicula', 3, 'A2')).toBe('15.3-A2 · Clavícula, lateral, oblicua')
+    expect(describirFractura('metacarpiano', 2, 'A3')).toBe('72M-A3 · Metacarpiano, diáfisis, transversa')
+    expect(HUESOS_AO.filter((h) => h.provisional).map((h) => h.id)).toEqual([
+      'metacarpiano',
+      'falange_mano',
+      'metatarsiano',
+      'falange_pie',
+    ])
+    // Los de siempre conservan su código.
+    expect(codigoAO('radio', 2, 'A3')).toBe('22R-A3')
+    expect(codigoAO('humero', 2, 'B2')).toBe('12-B2')
   })
 
   it('la etiqueta dice el código y qué es, en palabras', () => {
@@ -183,23 +200,57 @@ describe('los huesos y las piezas del atlas', () => {
       femur: /^(Left |Right )?femur$/i,
       tibia: /^(Left |Right )?tibia$/i,
       peroneo: /^(Left |Right )?fibula$/i,
+      clavicula: /^(Left |Right )?clavicle$/i,
+      metacarpiano: /^(Left |Right )(first|second|third|fourth|fifth) metacarpal bone$/i,
+      metatarsiano: /^(Left |Right )(first|second|third|fourth|fifth) metatarsal bone$/i,
+      falange_mano: /^(Proximal|Middle|Distal) phalanx of (left|right) (thumb|index finger|middle finger|ring finger|little finger)$/i,
+      falange_pie: /^(Proximal|Middle|Distal) phalanx of (left|right) (big toe|second toe|third toe|fourth toe|little toe)$/i,
     }
     for (const hueso of HUESOS_AO) {
       for (const lado of ['derecho', 'izquierdo'] as const) {
-        const id = piezaDelHueso(hueso.id, lado)
-        const pieza = catalogo.piezas.find((p) => p.id === id)
-        expect(pieza, `${hueso.nombre} ${lado} (${id})`).toBeDefined()
-        expect(pieza!.nombre, id).toMatch(nombres[hueso.id])
-        expect(pieza!.sistema, id).toBe('skeletal')
-        // Y el lado coincide: el derecho del paciente está en x negativa.
-        const x = (pieza!.caja[0][0] + pieza!.caja[1][0]) / 2
-        expect(lado === 'derecho' ? x < 0 : x > 0, `${id} del lado ${lado}`).toBe(true)
+        const ids = piezasDelHueso(hueso.id, lado)
+        expect(ids.length, `${hueso.nombre} ${lado}`).toBeGreaterThan(0)
+        for (const id of ids) {
+          const pieza = catalogo.piezas.find((p) => p.id === id)
+          expect(pieza, `${hueso.nombre} ${lado} (${id})`).toBeDefined()
+          expect(pieza!.nombre, id).toMatch(nombres[hueso.id])
+          expect(pieza!.sistema, id).toBe('skeletal')
+          // Y el lado coincide con lo que dice el nombre, para los que lo traen.
+          expect(/\bright\b/i.test(pieza!.nombre) ? 'derecho' : /\bleft\b/i.test(pieza!.nombre) ? 'izquierdo' : lado, id).toBe(lado)
+        }
+        // El derecho del paciente está en x negativa: con la media de las cajas de todas sus piezas.
+        const xs = ids.map((id) => {
+          const p = catalogo.piezas.find((q) => q.id === id)!
+          return (p.caja[0][0] + p.caja[1][0]) / 2
+        })
+        const media = xs.reduce((a, b) => a + b, 0) / xs.length
+        expect(lado === 'derecho' ? media < 0 : media > 0, `${hueso.nombre} del lado ${lado}`).toBe(true)
       }
     }
+    // piezaDelHueso sigue entregando la primera: es lo que usaban las pruebas de los huesos largos.
+    expect(piezaDelHueso('tibia', 'derecho')).toBe('FJ3387')
   })
 
-  it('seis huesos por dos lados, sin repetir ninguna pieza', () => {
-    expect(PIEZAS_FRACTURABLES.size).toBe(12)
+  it('once huesos por dos lados, sin repetir ninguna pieza', () => {
+    expect(HUESOS_AO).toHaveLength(11)
+    const total = HUESOS_AO.reduce(
+      (n, h) => n + piezasDelHueso(h.id, 'derecho').length + piezasDelHueso(h.id, 'izquierdo').length,
+      0,
+    )
+    // 6 largos y la clavícula (14) + 10 metacarpianos + 10 metatarsianos + 28 falanges de la mano + 28 del pie.
+    expect(total).toBe(90)
+    // Con el mapa del mismo tamaño no se repite ningún identificador.
+    expect(PIEZAS_FRACTURABLES.size).toBe(total)
+  })
+
+  it('de cualquiera de las falanges y metacarpianos sale su hueso y su lado', () => {
+    expect(huesoDeLaPieza('FJ3350')).toEqual({ hueso: 'metacarpiano', lado: 'derecho' })
+    expect(huesoDeLaPieza('FJ3252#a')).toEqual({ hueso: 'metacarpiano', lado: 'izquierdo' })
+    expect(huesoDeLaPieza('FJ3318')).toEqual({ hueso: 'falange_mano', lado: 'izquierdo' })
+    expect(huesoDeLaPieza('FJ3310')).toEqual({ hueso: 'falange_pie', lado: 'derecho' })
+    expect(huesoDeLaPieza('FJ3362')).toEqual({ hueso: 'clavicula', lado: 'derecho' })
+    // Rótula, escápula, astrágalo y calcáneo siguen fuera: se revisan con el traumatólogo.
+    for (const fuera of ['FJ3381', 'FJ3275', 'FJ3384', 'FJ3385', 'FJ3360']) expect(huesoDeLaPieza(fuera)).toBeNull()
   })
 
   it('de un fragmento sale el hueso de su pieza', () => {
@@ -283,7 +334,7 @@ describe('una receta que llega de fuera', () => {
       { ...buena, pieza: 'con espacios' },
       { ...buena, hueso: 'rodilla' },
       { ...buena, grupo: 'Z9' },
-      { ...buena, grupo: 'A1' }, // no disponible
+      { ...buena, grupo: 'A1', segmento: 1 }, // la espiroidea no se ofrece en un extremo
       { ...buena, segmento: 1, grupo: 'B2' }, // la cuña no se ofrece en un extremo
       { ...buena, porcion: null },
       { ...buena, inclinacion: Number.NaN },
@@ -309,7 +360,7 @@ describe('una receta que llega de fuera', () => {
 
 // -------------------------------------------------------------- los patrones
 
-describe('los patrones de fractura sobre los seis huesos largos del atlas', () => {
+describe('los patrones de fractura sobre los huesos del atlas', () => {
   const casos = [
     ['la tibia derecha', 'FJ3387', 'tibia'],
     ['el fémur derecho', 'FJ3365', 'femur'],
@@ -318,6 +369,13 @@ describe('los patrones de fractura sobre los seis huesos largos del atlas', () =
     ['el cúbito derecho', 'FJ3391', 'cubito'],
     ['el peroné derecho', 'FJ3366', 'peroneo'],
     ['la tibia izquierda', 'FJ3282', 'tibia'],
+    // Los huesos pequeños (D-168): la misma tabla, con huesos de un centímetro.
+    ['la clavícula derecha', 'FJ3362', 'clavicula'],
+    ['el primer metacarpiano derecho', 'FJ3350', 'metacarpiano'],
+    ['el tercer metatarsiano izquierdo', 'FJ3247', 'metatarsiano'],
+    ['la falange proximal del índice derecho', 'FJ3322', 'falange_mano'],
+    ['la falange distal del pulgar derecho', 'FJ3198', 'falange_mano'],
+    ['la falange proximal del tercer dedo del pie derecho', 'FJ3320', 'falange_pie'],
   ] as const
 
   for (const [nombre, id, hueso] of casos) {
@@ -330,7 +388,12 @@ describe('los patrones de fractura sobre los seis huesos largos del atlas', () =
       it.each(grupos.map((g) => [g.id, g.nombre, g.fragmentos] as const))(
         '%s (%s) deja %i fragmentos cerrados que suman el hueso',
         (grupo, _nombre, esperados) => {
-          const receta: RecetaDeFractura = { ...recetaPorOmision(id, hueso, 2, grupo), semilla: 7 }
+          // La semilla cambia dónde cae el corte de dentro de la cuña fragmentada: con
+          // la 7 de los huesos largos, una falange de 40 mm deja la cuña fuera del
+          // plano. Para los pequeños se usa la de siempre, la 1, que es también la
+          // de `SABIDO_QUE_NO_SALE`.
+          const grande = ['humero', 'radio', 'cubito', 'femur', 'tibia', 'peroneo'].includes(hueso)
+          const receta: RecetaDeFractura = { ...recetaPorOmision(id, hueso, 2, grupo), semilla: grande ? 7 : 1 }
           expect(fragmentosEsperados(receta)).toBe(esperados)
           const cortes = cortesDeLaFractura(receta, eje)
           expect(cortes.length).toBeGreaterThan(0)
@@ -403,11 +466,19 @@ describe('los patrones de fractura sobre los seis huesos largos del atlas', () =
     }
   })
 
-  it('la espiroidea no genera cortes mientras no esté construida', () => {
+  it('la espiroidea es un solo plano muy oblicuo, nunca menos de 55°', () => {
     const entera = leerPieza('FJ3387')
     const eje = ejeDelHueso(entera.posiciones, entera.indices)!
-    const receta = { ...recetaPorOmision('FJ3387', 'tibia', 2, 'A2'), grupo: 'A1' as const }
-    expect(cortesDeLaFractura(receta, eje)).toEqual([])
+    const receta = recetaPorOmision('FJ3387', 'tibia', 2, 'A1')
+    expect(receta.inclinacion).toBe(60)
+    const cortes = cortesDeLaFractura(receta, eje)
+    expect(cortes).toHaveLength(1)
+    // Una receta que pide menos se sube: si no, sería una oblicua con otro nombre.
+    const floja = cortesDeLaFractura({ ...receta, inclinacion: 20 }, eje)
+    const grados = (c: (typeof cortes)[number]) =>
+      (Math.acos(Math.abs(c.normal[0] * eje.direccion[0] + c.normal[1] * eje.direccion[1] + c.normal[2] * eje.direccion[2])) * 180) / Math.PI
+    expect(grados(floja[0])).toBeGreaterThanOrEqual(54.9)
+    expect(grados(cortes[0])).toBeGreaterThan(grados(cortesDeLaFractura(recetaPorOmision('FJ3387', 'tibia', 2, 'A2'), eje)[0]))
   })
 
   it('el centro se limita al segmento, con la mitad de la extensión a cada lado', () => {
@@ -418,5 +489,70 @@ describe('los patrones de fractura sobre los seis huesos largos del atlas', () =
     expect(min).toBeCloseTo(aPorcentaje(eje, segmentos.diafisis[0]) + 10, 6)
     expect(max).toBeCloseTo(aPorcentaje(eje, segmentos.diafisis[1]) - 10, 6)
     expect(min).toBeLessThan(max)
+  })
+})
+
+
+// ------------------------------------------------- todas las piezas, una por una
+
+/**
+ * Lo que se sabe que no sale bien, pieza por pieza (E4-Q1, D-168).
+ *
+ * Con las 90 piezas del asistente se comprobó cada patrón: casi todos salen en
+ * tres fragmentos cerrados que suman el hueso. En unas pocas falanges y huesos
+ * del pie —de 30 mm, con cortes de 4 mm de grosor— el patrón sale con la malla
+ * abierta por algún sitio (`abierta`) o el plano no llega a cortar (`error`).
+ * No se esconde: queda escrito aquí, y la prueba falla tanto si algo nuevo se
+ * rompe como si algo viejo se arregla, para que la lista no mienta en ningún
+ * sentido. La pantalla lo dice en la nota del hueso (`HuesoDeLaTabla.nota`).
+ */
+const SABIDO_QUE_NO_SALE: Record<string, string> = {
+  FJ3240: 'C3|abierta',
+  FJ3250: 'C2|abierta,C3|abierta',
+  FJ3327: 'B2|abierta,B3|abierta',
+  FJ3326: 'B3|error',
+  FJ3323: 'B3|error',
+  FJ3306: 'B3|error',
+  FJ3292: 'B3|error',
+  FJ3316: 'B3|error',
+  FJ3299: 'B3|error',
+  FJ3291: 'B3|error',
+  FJ3187: 'B3|abierta',
+  FJ3310: 'B2|abierta,B3|abierta,C3|abierta',
+  FJ3324: 'C3|abierta',
+  FJ3301: 'C2|abierta,C3|abierta',
+  FJ3305: 'B3|abierta,C3|abierta',
+  FJ3191: 'C3|abierta',
+  FJ3329: 'B3|abierta',
+  FJ3328: 'B2|abierta,B3|abierta,C3|abierta',
+  FJ3312: 'C3|abierta',
+  FJ3293: 'C3|abierta',
+  FJ3298: 'B2|abierta,B3|abierta,C3|abierta',
+  FJ3182: 'C3|abierta',
+  FJ3180: 'C2|abierta,C3|abierta',
+  FJ3185: 'C3|abierta',
+}
+
+describe('todas las piezas que el asistente sabe fracturar', () => {
+  it('cada patrón de la diáfisis sale bien en cada pieza, salvo lo que está escrito arriba', () => {
+    const encontrado: Record<string, string> = {}
+    for (const [id, { hueso }] of PIEZAS_FRACTURABLES) {
+      const entera = leerPieza(id)
+      const eje = ejeDelHueso(entera.posiciones, entera.indices)
+      expect(eje, `${id} tiene eje`).not.toBeNull()
+      const fallos: string[] = []
+      for (const grupo of GRUPOS_AO.filter((g) => g.disponible && g.segmentos.includes(2))) {
+        try {
+          const receta = recetaPorOmision(id, hueso, 2, grupo.id)
+          const hojas = aplicar(entera, id, cortesDeLaFractura(receta, eje!))
+          if (hojas.size !== grupo.fragmentos) fallos.push(`${grupo.id}|${hojas.size}`)
+          else if (![...hojas.values()].every(cerrada)) fallos.push(`${grupo.id}|abierta`)
+        } catch {
+          fallos.push(`${grupo.id}|error`)
+        }
+      }
+      if (fallos.length > 0) encontrado[id] = fallos.join(',')
+    }
+    expect(encontrado).toEqual(SABIDO_QUE_NO_SALE)
   })
 })

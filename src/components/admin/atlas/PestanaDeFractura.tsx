@@ -21,6 +21,8 @@ import {
   codigoAO,
   describirFractura,
   gruposDe,
+  huesoAO,
+  nombreDelSegmento,
   tiposDe,
   type GrupoAO,
   type SegmentoAO,
@@ -187,7 +189,8 @@ export function PestanaDeFractura({
       <div className="fractura">
         <h3 className="atlas-subtitulo">1 · Seleccione un hueso</h3>
         <p className="campo-ayuda">
-          Pulse en el visor un hueso largo —húmero, radio, cúbito, fémur, tibia o peroné— o elíjalo en la lista.
+          Pulse en el visor un hueso —húmero, radio, cúbito, fémur, tibia, peroné, clavícula, metacarpiano, metatarsiano o
+          falange— o elíjalo en la lista.
         </p>
       </div>
     )
@@ -202,7 +205,8 @@ export function PestanaDeFractura({
         </p>
       ) : (
         <p className="campo-ayuda">
-          Seleccione un hueso largo —húmero, radio, cúbito, fémur, tibia o peroné— para construir su fractura.
+          Seleccione un hueso —húmero, radio, cúbito, fémur, tibia, peroné, clavícula, metacarpiano, metatarsiano o
+          falange— para construir su fractura.
         </p>
       )}
 
@@ -225,6 +229,7 @@ export function PestanaDeFractura({
       ) : null}
 
       {!hecha && raiz && estado && estado !== 'entero' ? <p className="campo-ayuda">{POR_QUE_NO[estado]}</p> : null}
+      {raiz && hueso && huesoAO(hueso.hueso)?.nota ? <p className="campo-ayuda">{huesoAO(hueso.hueso)?.nota}</p> : null}
 
       {!hecha && raiz && hueso && estado === 'entero' && medida ? (
         <>
@@ -232,7 +237,11 @@ export function PestanaDeFractura({
           <Tarjetas
             nombre="Segmento del hueso"
             elegida={borrador.segmento === null ? null : String(borrador.segmento)}
-            tarjetas={SEGMENTOS_AO.map((s) => ({ id: String(s.id), titulo: s.nombre, detalle: s.descripcion }))}
+            tarjetas={SEGMENTOS_AO.map((s) => ({
+              id: String(s.id),
+              titulo: nombreDelSegmento(hueso.hueso, s.id) ?? s.nombre,
+              detalle: s.descripcion,
+            }))}
             alElegir={(id) => alCambiarBorrador(conSegmento(borrador, Number(id) as SegmentoAO))}
           />
 

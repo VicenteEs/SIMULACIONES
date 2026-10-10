@@ -1,43 +1,79 @@
 /**
- * Qué pieza del atlas es qué hueso de la clasificación AO (D-161, E4).
+ * Qué pieza del atlas es qué hueso de la clasificación AO (D-161, E4; D-168).
  *
  * El atlas conoce identificadores (`FJ3387`) y la clasificación, huesos (la
- * tibia). Esta tabla es el puente, a mano y corta a propósito: solo los huesos
- * largos de la v1. Una prueba (`huesosAO.test.ts`) comprueba contra el catálogo
- * real que cada identificador existe, es un hueso y se llama como dice la tabla;
+ * tibia). Esta tabla es el puente, a mano y corta a propósito: los huesos
+ * largos de la v1 y, desde D-168, la clavícula y los huesos pequeños de la mano
+ * y del pie. Una prueba (`huesosAO.test.ts`) comprueba contra el catálogo real
+ * que cada identificador existe, es un hueso y se llama como dice la tabla;
  * regenerar el atlas con identificadores nuevos se oye ahí y no en el taller.
  *
- * Más adelante (v2), con sus identificadores ya medidos: clavícula `FJ3362` /
- * `FJ3237`, escápula `FJ3384` / `FJ3279`, rótula `FJ3381` / `FJ3275`,
- * metacarpianos `FJ3350`–`FJ3358` / `FJ3240`–`FJ3252`, astrágalo `FJ3385` /
- * `FJ3280` y calcáneo `FJ3360` / `FJ3256`.
+ * Un tipo de hueso puede tener **varias piezas por lado**: los cinco
+ * metacarpianos son cinco piezas del atlas y un solo hueso para la tabla de AO.
+ *
+ * Quedan fuera, a propósito: la rótula (`FJ3381` / `FJ3275`), la escápula
+ * (`FJ3384` / `FJ3279`), el astrágalo (`FJ3385` / `FJ3280`) y el calcáneo
+ * (`FJ3360` / `FJ3256`). La rótula, la escápula y el calcáneo se clasifican por
+ * lo que pasa en la superficie articular, y el asistente todavía no sabe
+ * dibujarla; se revisan con el traumatólogo (E4-Q1).
  */
 
 import type { HuesoAO } from './clasificacionAO'
 
 export type LadoDelHueso = 'derecho' | 'izquierdo'
 
-/** Derecho, izquierdo: el derecho del paciente, que en el atlas está en x negativa. */
-const TABLA: Record<HuesoAO, readonly [string, string]> = {
-  humero: ['FJ3368', 'FJ3262'],
-  radio: ['FJ3349', 'FJ3277'],
-  cubito: ['FJ3391', 'FJ3286'],
-  femur: ['FJ3365', 'FJ3259'],
-  tibia: ['FJ3387', 'FJ3282'],
-  peroneo: ['FJ3366', 'FJ3260'],
+interface PiezasDelHueso {
+  /** El derecho del paciente, que en el atlas está en x negativa. */
+  derecho: readonly string[]
+  izquierdo: readonly string[]
 }
 
-/** La pieza de un hueso en un lado. */
+const TABLA: Record<HuesoAO, PiezasDelHueso> = {
+  humero: { derecho: ['FJ3368'], izquierdo: ['FJ3262'] },
+  radio: { derecho: ['FJ3349'], izquierdo: ['FJ3277'] },
+  cubito: { derecho: ['FJ3391'], izquierdo: ['FJ3286'] },
+  femur: { derecho: ['FJ3365'], izquierdo: ['FJ3259'] },
+  tibia: { derecho: ['FJ3387'], izquierdo: ['FJ3282'] },
+  peroneo: { derecho: ['FJ3366'], izquierdo: ['FJ3260'] },
+  clavicula: { derecho: ['FJ3362'], izquierdo: ['FJ3237'] },
+  // Del primero al quinto.
+  metacarpiano: {
+    derecho: ['FJ3350', 'FJ3352', 'FJ3354', 'FJ3356', 'FJ3358'],
+    izquierdo: ['FJ3240', 'FJ3243', 'FJ3246', 'FJ3249', 'FJ3252'],
+  },
+  metatarsiano: {
+    derecho: ['FJ3351', 'FJ3353', 'FJ3355', 'FJ3357', 'FJ3359'],
+    izquierdo: ['FJ3241', 'FJ3244', 'FJ3247', 'FJ3250', 'FJ3253'],
+  },
+  // Primero las proximales, luego las medias y al final las distales; dentro de
+  // cada grupo, del pulgar al meñique (la mano) y del dedo gordo al pequeño (el pie).
+  falange_mano: {
+    derecho: ['FJ3327', 'FJ3322', 'FJ3325', 'FJ3326', 'FJ3323', 'FJ3303', 'FJ3306', 'FJ3292', 'FJ3304', 'FJ3198', 'FJ3193', 'FJ3196', 'FJ3197', 'FJ3194'],
+    izquierdo: ['FJ3318', 'FJ3313', 'FJ3316', 'FJ3317', 'FJ3314', 'FJ3296', 'FJ3299', 'FJ3291', 'FJ3297', 'FJ3188', 'FJ3183', 'FJ3186', 'FJ3187', 'FJ3184'],
+  },
+  falange_pie: {
+    derecho: ['FJ3310', 'FJ3319', 'FJ3320', 'FJ3321', 'FJ3324', 'FJ3300', 'FJ3301', 'FJ3302', 'FJ3305', 'FJ3192', 'FJ3189', 'FJ3190', 'FJ3191', 'FJ3195'],
+    izquierdo: ['FJ3329', 'FJ3328', 'FJ3311', 'FJ3312', 'FJ3315', 'FJ3293', 'FJ3294', 'FJ3295', 'FJ3298', 'FJ3182', 'FJ3179', 'FJ3180', 'FJ3181', 'FJ3185'],
+  },
+}
+
+/** Todas las piezas de un hueso en un lado (los cinco metacarpianos, las catorce falanges…). */
+export function piezasDelHueso(hueso: HuesoAO, lado: LadoDelHueso): readonly string[] {
+  return TABLA[hueso][lado]
+}
+
+/** La primera pieza de un hueso en un lado. Para los huesos de una sola pieza es **la** pieza. */
 export function piezaDelHueso(hueso: HuesoAO, lado: LadoDelHueso): string {
-  return TABLA[hueso][lado === 'derecho' ? 0 : 1]
+  return TABLA[hueso][lado][0]
 }
 
 /** Todas las piezas que el asistente sabe fracturar, con su hueso y su lado. */
 export const PIEZAS_FRACTURABLES: ReadonlyMap<string, { hueso: HuesoAO; lado: LadoDelHueso }> = new Map(
-  (Object.entries(TABLA) as [HuesoAO, readonly [string, string]][]).flatMap(([hueso, [derecha, izquierda]]) => [
-    [derecha, { hueso, lado: 'derecho' }] as [string, { hueso: HuesoAO; lado: LadoDelHueso }],
-    [izquierda, { hueso, lado: 'izquierdo' }] as [string, { hueso: HuesoAO; lado: LadoDelHueso }],
-  ]),
+  (Object.entries(TABLA) as [HuesoAO, PiezasDelHueso][]).flatMap(([hueso, piezas]) =>
+    (['derecho', 'izquierdo'] as const).flatMap((lado) =>
+      piezas[lado].map((id) => [id, { hueso, lado }] as [string, { hueso: HuesoAO; lado: LadoDelHueso }]),
+    ),
+  ),
 )
 
 /**

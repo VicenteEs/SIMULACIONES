@@ -68,10 +68,10 @@ describe('el borrador', () => {
     expect(d.grupo).toBeNull()
   })
 
-  it('un tipo con un solo grupo disponible lo elige solo, y la espiroidea no se puede elegir', () => {
+  it('un tipo con un solo grupo disponible lo elige solo, y la espiroidea ya se puede elegir', () => {
     // En la diáfisis, B tiene B2 y B3: hay que elegir. En un extremo, A tiene A2 y A3.
     expect(conTipo(conSegmento(BORRADOR_VACIO, 2), 'B').grupo).toBeNull()
-    expect(conGrupo(conTipo(conSegmento(BORRADOR_VACIO, 2), 'A'), 'A1').grupo).toBeNull()
+    expect(conGrupo(conTipo(conSegmento(BORRADOR_VACIO, 2), 'A'), 'A1').grupo).toBe('A1')
   })
 
   it('la receta sale con lo propuesto por el grupo, dentro del segmento', () => {

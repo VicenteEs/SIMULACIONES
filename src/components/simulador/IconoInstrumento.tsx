@@ -32,6 +32,14 @@ const TRAZOS: Record<string, string> = {
   atornillador: 'M12 3 v10 M9 13 h6 v3 h-6 z M12 16 v5',
   // Aguja curva con hilo.
   aguja: 'M4 16 C8 8 16 8 20 6 M20 6 l-3 1 M20 6 l-1 3',
+  // Una placa con sus agujeros (los puntos son trazos de largo cero con extremos redondos).
+  placa: 'M3 10 h18 v4 h-18 z M7 12 h.01 M12 12 h.01 M17 12 h.01',
+  // Cabeza, vástago y rosca.
+  tornillo: 'M8 3 h8 M12 3 v3 M9 6 h6 M12 6 v15 M9 10 l3 1.5 M15 13 l-3 1.5 M9 16 l3 1.5',
+  // Un clavo largo con dos agujeros de bloqueo.
+  clavo: 'M12 3 v18 M10 7 h4 M10 17 h4 M11 4 v-.5 M13 4 v-.5',
+  // Un bloque irregular de hueso.
+  injerto: 'M5 9 L9 6 L16 7 L19 11 L18 17 L12 20 L6 18 Z M9 11 h.01 M14 13 h.01 M11 16 h.01',
   // Instrumento sin dibujo propio.
   generico: 'M12 4 v16 M8 8 h8',
 }

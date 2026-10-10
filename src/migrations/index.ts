@@ -19,6 +19,7 @@ import * as migration_20261006_232958_modulos_en_mantencion from './20261006_232
 import * as migration_20261007_060514_comentarios_del_taller from './20261007_060514_comentarios_del_taller';
 import * as migration_20261007_140233_requisitos_del_buzon from './20261007_140233_requisitos_del_buzon';
 import * as migration_20261008_210126_instrumental_con_categoria from './20261008_210126_instrumental_con_categoria';
+import * as migration_20261010_000243_implantes_y_categorias from './20261010_000243_implantes_y_categorias';
 
 export const migrations = [
   {
@@ -124,6 +125,11 @@ export const migrations = [
   {
     up: migration_20261008_210126_instrumental_con_categoria.up,
     down: migration_20261008_210126_instrumental_con_categoria.down,
-    name: '20261008_210126_instrumental_con_categoria'
+    name: '20261008_210126_instrumental_con_categoria',
+  },
+  {
+    up: migration_20261010_000243_implantes_y_categorias.up,
+    down: migration_20261010_000243_implantes_y_categorias.down,
+    name: '20261010_000243_implantes_y_categorias'
   },
 ];
