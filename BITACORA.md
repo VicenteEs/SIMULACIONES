@@ -5678,6 +5678,11 @@ incisión» y «las piezas fracturadas no se pueden mover».
   cambiar de paso). (3) El fragmento móvil no tenía capa y se quedaba a la vista con el hueso apagado: ahora es
   hueso (`capaDelRol`). Al entrar en un paso que declara, los interruptores quedan diciendo lo que se ve, en vez
   de quedarse encendidos los de una capa que el paso no enseña.
+- *Se arranca con todo encendido.* Antes la piel y el músculo empezaban apagados porque «Mover» solo agarraba el
+  fragmento si el rayo lo golpeaba a él; ya no hace falta, y a quien cortaba le obligaba a encender la piel antes
+  de poder cortar. Si un paso necesita ver el hueso lo declara con `muestra` (el paso 4 del caso de ejemplo declara
+  los huesos y el 7 todas las piezas: **un paso vacío hereda lo del último que declaró**, y un último paso sin
+  declarar enseñaba lo del paso 4).
 - *Mover* agarra **cualquier trozo de hueso** visible (`huesoBajoElCursor`), no solo el fragmento que el caso
   mide, y atraviesa la piel y el músculo: con la piel delante el rayo agarraba la piel y no pasaba nada. Solo el
   fragmento declarado alimenta las medidas; los demás se mueven libres y «Volver al desplazamiento inicial» los

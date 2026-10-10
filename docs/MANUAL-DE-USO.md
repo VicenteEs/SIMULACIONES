@@ -731,7 +731,7 @@ coinciden.
 - **Mover agarra cualquier trozo de hueso.** En el paso de reducir, «Mover» arrastra el trozo
   que se agarre, esté la piel encendida o no. Solo el fragmento que el caso mide cambia las
   medidas; «Volver al desplazamiento inicial» devuelve todos a su sitio.
-- **Las capas** (piel, músculo, hueso) se encienden y apagan siempre, como en el taller
+- **Las capas** (piel, músculo, hueso) empiezan **todas encendidas** y se encienden y apagan siempre, como en el taller
   anatómico: un paso propone qué se ve, pero lo que se encienda a mano se ve entero.
 - **Recargar la página no pierde lo cortado ni lo cosido** (se guarda en la pestaña): la
   herida, su apertura, las puntadas y la tensión vuelven. La placa, los tornillos y los

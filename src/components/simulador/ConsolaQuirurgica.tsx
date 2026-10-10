@@ -553,15 +553,13 @@ export function ConsolaQuirurgica({
   const [complicaciones, setComplicaciones] = useState<ComplicacionDelCaso[]>([])
   const [registro, setRegistro] = useState<Anotacion[]>([])
   const [resultado, setResultado] = useState<Anotacion | null>(null)
-  // Se arranca con la piel y el músculo apagados, y no encendidos, por el modo
-  // «mover»: el lienzo solo arrastra el fragmento si el rayo golpea el propio
-  // fragmento, y con la piel delante golpea la piel. Encenderlas de salida
-  // dejaría sin poder reducir todos los casos que no escriben `muestra`.
-  //
-  // Lo que manda sobre esto es el paso: al entrar en uno que declara `muestra`,
-  // las capas de lo que declara se encienden solas (`entrarEnPaso`), y el cruce
-  // no puede dejar el lienzo vacío (`visibilidadDelPaso`).
-  const [capasApagadas, setCapasApagadas] = useState<Set<string>>(() => new Set(['piel', 'musculo']))
+  // Se arranca con **todo encendido** (D-171). Antes se empezaba con la piel y el músculo apagados porque el
+  // modo «mover» solo agarraba el fragmento si el rayo lo golpeaba a él, y con la piel delante golpeaba la piel.
+  // Ya no hace falta: «Mover» busca entre los huesos, atraviese lo que atraviese. Y a quien corta la piel le
+  // estorbaba más: había que encender la capa antes de poder cortar, con un aviso para explicarlo. Si un paso
+  // necesita ver el hueso, lo declara con `muestra` y al entrar los interruptores quedan como el paso pide
+  // (`capasAlEntrarEnPaso`); y siempre se puede apagar una capa o usar «Rayos X».
+  const [capasApagadas, setCapasApagadas] = useState<Set<string>>(() => new Set())
   /**
    * Las capas que el residente encendió a mano en este paso. Enseñan todas sus piezas aunque el paso declare
    * ver solo algunas: el interruptor manda sobre lo que el paso propone (D-171). Se vacía al cambiar de paso,
