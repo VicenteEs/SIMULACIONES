@@ -20,6 +20,7 @@ import {
   propuestasDelModelo,
   quitarPieza,
   rellenarDesdeElModelo,
+  repararPiezasConElModelo,
   type PiezaEnEdicion,
   type RolDePieza,
 } from '@/lib/piezasDelCaso'
@@ -63,6 +64,10 @@ const ROLES: { valor: RolDePieza; etiqueta: string }[] = [
   { valor: 'implante', etiqueta: 'Implante' },
 ]
 
+/** El identificador de una relación, venga como número, texto u objeto poblado. */
+const idDelModelo = (v: unknown): string =>
+  typeof v === 'object' && v !== null ? String((v as { id?: unknown }).id ?? '') : String(v ?? '')
+
 const esNumero = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const redondear = (n: number) => Math.round(n * 10) / 10
 
@@ -89,6 +94,20 @@ export function EditorDelSimulador({
   const [instrumentos, setInstrumentos] = useState<InstrumentoParaElEditor[]>([])
   const [errorDeInstrumentos, setErrorDeInstrumentos] = useState<string | null>(null)
   const [clasicoAbierto, setClasicoAbierto] = useState(false)
+  // Lo que el editor rehizo solo al cambiar de modelo (D-169), con lo de antes
+  // para poder devolverlo. El modelo para el que ya se miró vive en una ref: es
+  // una decisión por modelo, y si el autor quita piezas a mano después no se
+  // las vuelve a poner.
+  const [reparacion, setReparacion] = useState<{
+    texto: string
+    antes: { piezas: PiezaEnEdicion[]; pasos: Fila[] }
+  } | null>(null)
+  const reparadoPara = useRef<string | null>(null)
+  // El modelo con el que se abrió el editor: distinguir «se abrió un caso ya
+  // guardado» de «el autor acaba de elegir otro modelo» decide cuánto se toca.
+  // Por el identificador del campo y no por la dirección: la dirección depende de
+  // que las opciones de la relación ya hayan llegado.
+  const [modeloAlAbrir] = useState(() => idDelModelo(valores.modelo))
 
   // El catálogo entero con sus modelos: es lo que la bandeja del editor enseña.
   useEffect(() => {
@@ -239,8 +258,73 @@ export function EditorDelSimulador({
     })
   }
 
+  /**
+   * Si el modelo cambió y el caso se quedó hablando del anterior, lo rehace solo.
+   *
+   * El aviso de la consola decía «Rellenar desde el modelo lo arregla», y era
+   * cierto, pero quien elige otro modelo no tendría por qué saber que le toca
+   * hacer ese arreglo: el editor lo hace y lo cuenta, con un «Deshacer» por si
+   * el autor sí quería lo que tenía (`repararPiezasConElModelo`).
+   */
+  const repararAlCambiarDeModelo = (vivo: VistaDelEnsayo) => {
+    if (!vivo.modeloCargado || !caso.modeloUrl || reparadoPara.current === caso.modeloUrl) return
+    reparadoPara.current = caso.modeloUrl
+    const cambioDeModelo = idDelModelo(valores.modelo) !== modeloAlAbrir
+    const muestraDe = (p: Fila): string[] | null =>
+      Array.isArray(p.muestra)
+        ? (p.muestra as Fila[]).map((m) => (typeof m.nodo === 'string' ? m.nodo : '')).filter(Boolean)
+        : null
+    const r = repararPiezasConElModelo(
+      piezas,
+      pasos.map(muestraDe),
+      propuestasDelModelo(vivo.datosDeLosNodos),
+      vivo.nodosDelArchivo,
+      cambioDeModelo,
+    )
+    if (!r) return
+    const pasosNuevos = pasos.map((p, i) => {
+      const muestra = r.muestraPorPaso[i]
+      if (!muestra || !Array.isArray(p.muestra)) return p
+      return { ...p, muestra: muestra.map((nodo) => ({ nodo, [CLAVE_DE_FILA]: nuevaClave() })) }
+    })
+    alCambiar('piezas', r.piezas)
+    alCambiar('pasos', pasosNuevos)
+    setReparacion({
+        antes: { piezas, pasos },
+        texto:
+          `${r.quitadas.length === 1 ? 'Una pieza del caso era de otro archivo y se quitó' : `${r.quitadas.length} piezas del caso eran de otro archivo y se quitaron`}: ahora son las ${r.piezas.length} de este modelo. ` +
+          (r.perdidos.length > 0
+            ? `Un paso enseñaba ${r.perdidos.join(', ')} y este modelo no lo trae: revise lo que muestra. `
+            : 'Lo que cada paso enseñaba pasó al modelo por su papel. ') +
+          (hayFragmento(r.piezas) ? '' : 'Falta marcar cuál es el fragmento móvil, en «Piezas».'),
+    })
+  }
+
   const panel = (vivo: VistaDelEnsayo) => (
     <>
+      <AlTenerElModelo vivo={vivo} hacer={repararAlCambiarDeModelo} />
+      {reparacion ? (
+        <div className="editor-simulador-alerta" role="status">
+          <strong>Se cambió de modelo y las piezas se rehicieron solas.</strong>
+          <p>{reparacion.texto}</p>
+          <div className="editor-simulador-capturas-botones">
+            <button
+              type="button"
+              className="consola-boton"
+              onClick={() => {
+                alCambiar('piezas', reparacion.antes.piezas)
+                alCambiar('pasos', reparacion.antes.pasos)
+                setReparacion(null)
+              }}
+            >
+              Deshacer
+            </button>
+            <button type="button" className="consola-boton" onClick={() => setReparacion(null)}>
+              Entendido
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="editor-simulador-pestanas" role="tablist" aria-label="Qué se edita">
         {(
           [
@@ -696,4 +780,19 @@ function PanelDePiezas({
       )}
     </div>
   )
+}
+
+/**
+ * Corre `hacer` en cuanto el modelo está abierto, y otra vez si cambia.
+ *
+ * Es un componente y no una llamada en el cuerpo del panel porque lo que hace
+ * escribe en el formulario, y eso no se hace durante el dibujo. `hacer` se
+ * protege solo contra repetirse (una vez por modelo), de modo que correr en cada
+ * dibujo no cuesta nada.
+ */
+function AlTenerElModelo({ vivo, hacer }: { vivo: VistaDelEnsayo; hacer: (vivo: VistaDelEnsayo) => void }) {
+  useEffect(() => {
+    hacer(vivo)
+  })
+  return null
 }

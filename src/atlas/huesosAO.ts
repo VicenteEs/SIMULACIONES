@@ -77,6 +77,34 @@ export const PIEZAS_FRACTURABLES: ReadonlyMap<string, { hueso: HuesoAO; lado: La
 )
 
 /**
+ * El rayo o el dedo de una pieza, como lo escribe el compendio AO/OTA 2018 (D-169):
+ * `3` para el tercer metacarpiano, `2.1` para la falange proximal del segundo dedo
+ * (dedo y falange, separados por un punto). `null` si la pieza no es de un hueso
+ * que lleve identificador.
+ *
+ * Sale de la posición de la pieza en `TABLA`, que está ordenada a propósito. Los
+ * cinco metacarpianos y metatarsianos, del primero al quinto. Las catorce falanges,
+ * en tres tandas: las cinco proximales, las cuatro medias (el pulgar y el dedo gordo
+ * no tienen) y las cinco distales.
+ */
+export function identificadorDeLaPieza(id: string): string | null {
+  const raiz = id.includes('#') ? id.slice(0, id.indexOf('#')) : id
+  const info = PIEZAS_FRACTURABLES.get(raiz)
+  if (!info) return null
+  const lista = TABLA[info.hueso][info.lado]
+  const indice = lista.indexOf(raiz)
+  if (indice < 0) return null
+  if (info.hueso === 'metacarpiano' || info.hueso === 'metatarsiano') return String(indice + 1)
+  if (info.hueso === 'falange_mano' || info.hueso === 'falange_pie') {
+    // Proximales (0–4): dedos 1 a 5. Medias (5–8): dedos 2 a 5. Distales (9–13): dedos 1 a 5.
+    if (indice < 5) return `${indice + 1}.1`
+    if (indice < 9) return `${indice - 5 + 2}.2`
+    return `${indice - 9 + 1}.3`
+  }
+  return null
+}
+
+/**
  * De un identificador del atlas, el hueso y el lado, o `null` si no es un hueso
  * que se sepa fracturar. Acepta también un fragmento (`FJ3387#a`): es de la misma
  * pieza.

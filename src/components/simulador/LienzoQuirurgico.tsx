@@ -10,6 +10,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { ruta } from '@/lib/rutas'
 import { desplazamientoDesde, posicionAbsoluta, type EjeLargo } from '@/lib/reduccion'
 import { reconciliarConElModelo } from '@/lib/simulador'
+import { propuestaDelNodo, traducirMuestra, type PiezaEnEdicion } from '@/lib/piezasDelCaso'
 import {
   aplicarColores,
   aplicarEntorno,
@@ -55,8 +56,13 @@ export interface Punto3 {
 export interface ResultadoDeMostrar {
   /** Los nodos pedidos que el archivo no tiene. */
   ausentes: string[]
-  /** No se pudo mostrar **ninguno** de los pedidos: se enseñó el modelo entero. */
+  /** No se pudo mostrar **ninguno** de los pedidos por su nombre. */
   sinCoincidencias: boolean
+  /**
+   * Con `sinCoincidencias`, lo que se enseñó fue lo que el modelo dice que es del
+   * mismo papel (D-169) y no el modelo entero. Si no hay papel que case, `false`.
+   */
+  porPapel: boolean
 }
 
 /** Las dos proyecciones de un C-arm, y la vista libre del ratón. */
@@ -381,21 +387,44 @@ export function LienzoQuirurgico({
   useImperativeHandle(mando, () => ({
     mostrar: (nodos) => {
       const raiz = taller.current.raiz
-      if (!raiz) return { ausentes: [], sinCoincidencias: false }
+      if (!raiz) return { ausentes: [], sinCoincidencias: false, porPapel: false }
       const existentes: string[] = []
+      const delModelo: PiezaEnEdicion[] = []
       raiz.traverse((objeto) => {
-        if ((objeto as THREE.Mesh).isMesh && objeto.name) existentes.push(objeto.name)
+        if (!(objeto as THREE.Mesh).isMesh || !objeto.name) return
+        existentes.push(objeto.name)
+        // El exportador del atlas deja el papel de cada objeto en `userData`.
+        const propuesta = propuestaDelNodo(objeto.name, objeto.userData)
+        if (propuesta) delModelo.push({ nodo: propuesta.nodo, rol: propuesta.rol })
       })
       // Se enseña lo declarado **que exista**; si no existe nada de lo declarado,
       // el modelo entero. Apagarlo todo por no encontrar los nombres era el
       // lienzo en negro de O-078.
-      const { nodos: visibles, ausentes, sinCoincidencias } = reconciliarConElModelo(nodos, existentes)
+      const reconciliado = reconciliarConElModelo(nodos, existentes)
+      const { ausentes, sinCoincidencias } = reconciliado
+      let visibles = reconciliado.nodos
+      // El caso habla de otro archivo (D-169): antes de rendirse y enseñarlo todo,
+      // se enseña lo que el modelo dice que es del mismo papel. Un paso que mostraba
+      // la piel y el hueso sigue mostrando la piel y el hueso, se llamen como se
+      // llamen. El nombre manda cuando casa; esto solo entra cuando no casa ninguno.
+      let porPapel = false
+      if (sinCoincidencias && nodos) {
+        const rolesViejos = new Map<string, string>()
+        for (const p of ultimas.current.piezas) {
+          if (typeof p.nodo === 'string' && typeof p.rol === 'string') rolesViejos.set(p.nodo, p.rol)
+        }
+        const traducido = traducirMuestra(nodos, rolesViejos, delModelo, existentes)
+        if (traducido.muestra.length > 0) {
+          visibles = traducido.muestra
+          porPapel = true
+        }
+      }
       raiz.traverse((objeto) => {
         if (!(objeto as THREE.Mesh).isMesh) return
         objeto.visible = visibles === null || visibles.includes(objeto.name)
       })
       taller.current.pedirDibujo?.()
-      return { ausentes, sinCoincidencias }
+      return { ausentes, sinCoincidencias, porPapel }
     },
 
     hayFragmento: () => !!taller.current.fragmento,

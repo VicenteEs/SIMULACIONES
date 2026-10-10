@@ -92,6 +92,17 @@ function Pictograma({ grupo }: { grupo: GrupoAO }) {
         {trazo('M12 36 L 28 26')}
       </>
     ),
+    // Un golpe: trazos que salen de un mismo punto.
+    CM: (
+      <>
+        {trazo('M20 30 L 10 18')}
+        {trazo('M20 30 L 32 20')}
+        {trazo('M20 30 L 8 38')}
+        {trazo('M20 30 L 30 42')}
+        {trazo('M20 30 L 20 14')}
+        <circle cx="20" cy="30" r="2.4" className="fractura-trazo" fill="none" />
+      </>
+    ),
   }
   return (
     <svg viewBox="0 0 40 60" width="34" height="50" aria-hidden="true" focusable="false">
@@ -212,7 +223,7 @@ export function PestanaDeFractura({
 
       {hecha ? (
         <div className="fractura-hecha">
-          <p className="atlas-lectura">{describirFractura(hecha.hueso, hecha.segmento, hecha.grupo)}</p>
+          <p className="atlas-lectura">{describirFractura(hecha.hueso, hecha.segmento, hecha.grupo, hecha.pieza)}</p>
           <p className="campo-ayuda">
             Ya está fracturado: {fragmentosEsperados(hecha)} fragmentos, que se mueven con «Manipular» (V), con G y R o con
             las asas. En la ficha el residente ve el hueso ya fracturado, con este código.
@@ -296,7 +307,7 @@ export function PestanaDeFractura({
           <h3 className="atlas-subtitulo">6 · Vista previa</h3>
           {receta ? (
             <>
-              <p className="atlas-lectura">{describirFractura(receta.hueso, receta.segmento, receta.grupo)}</p>
+              <p className="atlas-lectura">{describirFractura(receta.hueso, receta.segmento, receta.grupo, receta.pieza)}</p>
               <p className="campo-ayuda">
                 Deja {fragmentosEsperados(receta)} fragmentos. El plano del primer corte se ve sobre el hueso mientras
                 ajusta; «Fracturar» los crea en un solo paso, que Ctrl + Z deshace.
@@ -319,7 +330,7 @@ export function PestanaDeFractura({
           <ul className="atlas-apuntes">
             {fracturas.map((f) => (
               <li key={f.pieza}>
-                <span>{describirFractura(f.hueso, f.segmento, f.grupo) ?? f.codigo}</span>
+                <span>{describirFractura(f.hueso, f.segmento, f.grupo, f.pieza) ?? f.codigo}</span>
               </li>
             ))}
           </ul>
@@ -347,7 +358,7 @@ function Porcion({
   const mandos = mandosDelGrupo(grupo)
   const limites = limitesDelMandoDelCentro(medida, segmento, grupo, receta.porcion.extension)
   const cambiar = (parte: Partial<BorradorDeFractura>) => alCambiarBorrador({ ...borrador, ...parte })
-  const codigo = codigoAO(receta.hueso, receta.segmento, receta.grupo)
+  const codigo = codigoAO(receta.hueso, receta.segmento, receta.grupo, receta.pieza)
   const corto = GRUPOS_AO.find((g) => g.id === grupo)?.nombre.toLowerCase() ?? ''
 
   return (

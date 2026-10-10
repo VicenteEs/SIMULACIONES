@@ -158,6 +158,8 @@ export function mandosDelGrupo(grupo: GrupoAO): MandosDelGrupo {
       return { centro: true, extension: true, inclinacion: { min: 0, max: INCLINACION_TRANSVERSA_MAXIMA }, cara: false, variante: false }
     case 'segmentaria-fragmentada':
       return { centro: true, extension: true, inclinacion: { min: 0, max: INCLINACION_TRANSVERSA_MAXIMA }, cara: true, variante: true }
+    case 'conminuta-focal':
+      return { centro: true, extension: true, inclinacion: { min: 0, max: INCLINACION_TRANSVERSA_MAXIMA }, cara: true, variante: true }
     default:
       return { centro: false, extension: false, inclinacion: null, cara: false, variante: false }
   }

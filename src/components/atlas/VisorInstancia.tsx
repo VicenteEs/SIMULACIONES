@@ -159,7 +159,7 @@ export function VisorInstancia({
       {preparado.limpio.fracturas && preparado.limpio.fracturas.length > 0 ? (
         <figcaption className="atlas-fracturas">
           {preparado.limpio.fracturas
-            .map((f) => describirFractura(f.hueso, f.segmento, f.grupo) ?? f.codigo)
+            .map((f) => describirFractura(f.hueso, f.segmento, f.grupo, f.pieza) ?? f.codigo)
             .join(' · ')}
         </figcaption>
       ) : null}

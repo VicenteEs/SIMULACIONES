@@ -53,6 +53,7 @@ import {
   propuestasDelModelo,
   quitarPieza,
   rellenarDesdeElModelo,
+  traducirMuestra,
   type PiezaEnEdicion,
   type PropuestaDelModelo,
 } from '../src/lib/piezasDelCaso'
@@ -270,66 +271,10 @@ export function corteParaLaFractura(
 
 // ------------------------------------------------------------ el caso nuevo
 
-/**
- * Lo que ve un paso, pasado de los objetos del modelo viejo a los del nuevo.
- *
- * Por su **papel**, no por su nombre: el modelo viejo tenía `piel`, `musculo`,
- * `tibia_proximal` y `tibia_distal`, y el exportado del atlas tiene `Piel`,
- * `Musculos`, `Tejido_conectivo`, `Arterias`… y los dos trozos de la tibia. No
- * hay nombre que case, y tampoco hace falta: el paso que enseñaba la piel tiene
- * que seguir enseñando la piel, el que enseñaba el hueso fijo, todo lo que en el
- * modelo nuevo es hueso fijo —el trozo proximal y el resto del esqueleto—, y el
- * que enseñaba el fragmento, el fragmento.
- *
- * Tres reglas:
- *
- *  - Un nodo que **ya existe en el modelo nuevo** se queda tal cual. Es lo que
- *    hace que ejecutar el guion dos veces no cambie nada la segunda, y lo que
- *    respeta un paso que el traumatólogo ya afinó a mano contra el modelo nuevo:
- *    si dejó solo el trozo proximal, no se le vuelve a añadir el esqueleto.
- *  - Un nodo viejo se sustituye por todos los del modelo nuevo con su mismo
- *    papel, en el orden de las piezas, sin repetir.
- *  - Un nodo viejo cuyo papel no se conoce, o cuyo papel ya no tiene nadie en el
- *    modelo nuevo, se pierde y se devuelve en `perdidos` para decirlo. No se
- *    calla: un paso que se queda sin lo que enseñaba hereda lo del anterior
- *    (`declaracionDelPaso`), y enseña otra cosa sin ningún error.
- *
- * `rolesViejos` son los papeles de las piezas del caso ANTES de rellenarlas: es
- * lo único que dice qué era `tibia_proximal`, porque en las piezas nuevas ya no
- * está.
- */
-export function traducirMuestra(
-  muestra: string[],
-  rolesViejos: ReadonlyMap<string, string>,
-  piezasNuevas: PiezaEnEdicion[],
-  nodosDelModelo: readonly string[],
-): { muestra: string[]; perdidos: string[] } {
-  const enElModelo = new Set(nodosDelModelo)
-  const salida: string[] = []
-  const perdidos: string[] = []
-  const poner = (nodo: string) => {
-    if (!salida.includes(nodo)) salida.push(nodo)
-  }
-
-  for (const nodo of muestra) {
-    if (enElModelo.has(nodo)) {
-      poner(nodo)
-      continue
-    }
-    const rol = rolesViejos.get(nodo)
-    const conEseRol = rol
-      ? piezasNuevas
-          .filter((p) => p.rol === rol && typeof p.nodo === 'string' && enElModelo.has(p.nodo))
-          .map((p) => p.nodo as string)
-      : []
-    if (conEseRol.length === 0) {
-      perdidos.push(rol ? `${nodo} (${rol})` : nodo)
-      continue
-    }
-    conEseRol.forEach(poner)
-  }
-  return { muestra: salida, perdidos }
-}
+// `traducirMuestra` vive en `src/lib/piezasDelCaso.ts` desde D-169: el editor del simulador
+// la usa también al cambiar de modelo. Se vuelve a exportar aquí porque las pruebas y
+// quien lea este guion la buscan donde nació.
+export { traducirMuestra }
 
 /** Un paso tal como sale de la base con `depth: 0`. */
 export interface PasoLeido {

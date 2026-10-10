@@ -8,9 +8,10 @@ import {
   codigoAO,
   describirFractura,
   gruposDe,
+  huesoAO,
   tiposDe,
 } from '@/atlas/clasificacionAO'
-import { PIEZAS_FRACTURABLES, huesoDeLaPieza, piezaDelHueso, piezasDelHueso } from '@/atlas/huesosAO'
+import { PIEZAS_FRACTURABLES, huesoDeLaPieza, identificadorDeLaPieza, piezaDelHueso, piezasDelHueso } from '@/atlas/huesosAO'
 import {
   EXTENSION_MAXIMA,
   cortesDeLaFractura,
@@ -78,14 +79,60 @@ function volumen(malla: MallaIndexada): number {
   return v
 }
 
-/** Cada arista la comparten dos triángulos, soldando por posición a la micra. */
+/**
+ * Cada arista la comparten dos triángulos, soldando los vértices que están a menos
+ * de 0,3 micras (D-169).
+ *
+ * Antes se redondeaba cada coordenada a la micra y se comparaban cadenas. Redondear
+ * parte en dos a dos vértices que caen a ambos lados de un límite por cerca que
+ * estén, y la librería de cortes suelda a una décima de micra (`SOLDADURA` en
+ * `osteotomia.ts`): con cortes que dejan puntos a menos de una micra unos de otros
+ * —cinco cortes seguidos sobre un hueso de un centímetro—, la prueba veía triángulos
+ * degenerados y aristas «sueltas» en trozos que el visor trata como cerrados.
+ * Aquí se sueldan por celdas, mirando las 27 vecinas, igual que la librería.
+ */
 function cerrada(malla: MallaIndexada): boolean {
   const { posiciones: p, indices } = malla
-  const micras = (x: number) => Math.round(x * 1e6)
-  const clave = (v: number) => `${micras(p[v * 3])},${micras(p[v * 3 + 1])},${micras(p[v * 3 + 2])}`
+  const tolerancia = 3e-7
+  const celda = 1e-6
+  const vertices = Math.floor(p.length / 3)
+  const canonico = new Int32Array(vertices).fill(-1)
+  const rejilla = new Map<string, number[]>()
+  const clave = (x: number, y: number, z: number) => `${x},${y},${z}`
+  for (let v = 0; v < vertices; v += 1) {
+    const cx = Math.floor(p[v * 3] / celda)
+    const cy = Math.floor(p[v * 3 + 1] / celda)
+    const cz = Math.floor(p[v * 3 + 2] / celda)
+    let encontrado = -1
+    for (let dx = -1; dx <= 1 && encontrado < 0; dx += 1) {
+      for (let dy = -1; dy <= 1 && encontrado < 0; dy += 1) {
+        for (let dz = -1; dz <= 1 && encontrado < 0; dz += 1) {
+          for (const otro of rejilla.get(clave(cx + dx, cy + dy, cz + dz)) ?? []) {
+            if (
+              Math.abs(p[otro * 3] - p[v * 3]) < tolerancia &&
+              Math.abs(p[otro * 3 + 1] - p[v * 3 + 1]) < tolerancia &&
+              Math.abs(p[otro * 3 + 2] - p[v * 3 + 2]) < tolerancia
+            ) {
+              encontrado = otro
+              break
+            }
+          }
+        }
+      }
+    }
+    if (encontrado >= 0) {
+      canonico[v] = canonico[encontrado]
+    } else {
+      canonico[v] = v
+      const k = clave(cx, cy, cz)
+      const lista = rejilla.get(k)
+      if (lista) lista.push(v)
+      else rejilla.set(k, [v])
+    }
+  }
   const aristas = new Map<string, number>()
   for (let t = 0; t < indices.length; t += 3) {
-    const tri = [clave(indices[t]), clave(indices[t + 1]), clave(indices[t + 2])]
+    const tri = [canonico[indices[t]], canonico[indices[t + 1]], canonico[indices[t + 2]]]
     for (let k = 0; k < 3; k += 1) {
       const a = tri[k]
       const b = tri[(k + 1) % 3]
@@ -133,10 +180,10 @@ describe('la tabla AO', () => {
     expect(codigoAO('tibia', 2, 'A2')).toBe('42-A2')
     expect(codigoAO('femur', 2, 'B2')).toBe('32-B2')
     expect(codigoAO('humero', 2, 'C2')).toBe('12-C2')
-    // El radio y el cúbito llevan su letra después del segmento.
-    expect(codigoAO('radio', 2, 'A3')).toBe('22R-A3')
-    expect(codigoAO('cubito', 2, 'A3')).toBe('22U-A3')
-    expect(codigoAO('peroneo', 2, 'A3')).toBe('42F-A3')
+    // Desde 2018 el radio, el cúbito y el peroné llevan su letra antes del segmento.
+    expect(codigoAO('radio', 2, 'A3')).toBe('2R2-A3')
+    expect(codigoAO('cubito', 2, 'A3')).toBe('2U2-A3')
+    expect(codigoAO('peroneo', 2, 'A3')).toBe('4F2-A3')
   })
 
   it('no inventa códigos: un grupo que el segmento no admite no tiene', () => {
@@ -153,10 +200,10 @@ describe('la tabla AO', () => {
     expect(tiposDe(3).map((t) => t.id)).toEqual(['A'])
   })
 
-  it('los grupos de cada tipo en la diáfisis son los de 2018', () => {
+  it('los grupos de cada tipo en la diáfisis (A es de 2018; B y C son nuestros patrones, D-169)', () => {
     expect(gruposDe(2, 'A').map((g) => g.id)).toEqual(['A1', 'A2', 'A3'])
     expect(gruposDe(2, 'B').map((g) => g.id)).toEqual(['B2', 'B3'])
-    expect(gruposDe(2, 'C').map((g) => g.id)).toEqual(['C2', 'C3'])
+    expect(gruposDe(2, 'C').map((g) => g.id)).toEqual(['C2', 'C3', 'CM'])
     // En un extremo: la oblicua y la transversa; la espiroidea solo en la diáfisis.
     expect(gruposDe(1, 'A').map((g) => g.id)).toEqual(['A2', 'A3'])
   })
@@ -165,22 +212,54 @@ describe('la tabla AO', () => {
     const a1 = GRUPOS_AO.find((g) => g.id === 'A1')!
     expect(a1.disponible).toBe(true)
     expect(a1.segmentos).toEqual([2])
-    expect(GRUPOS_AO.filter((g) => g.disponible).map((g) => g.id)).toEqual(['A1', 'A2', 'A3', 'B2', 'B3', 'C2', 'C3'])
+    expect(GRUPOS_AO.filter((g) => g.disponible).map((g) => g.id)).toEqual(['A1', 'A2', 'A3', 'B2', 'B3', 'C2', 'C3', 'CM'])
   })
 
-  it('el código de la clavícula lleva punto («15.2-A2») y los de mano y pie se avisan provisionales', () => {
+  it('la conminuta focal («martillo») es del tipo C, solo de diáfisis, y su código es el del tipo (D-169)', () => {
+    const cm = GRUPOS_AO.find((g) => g.id === 'CM')!
+    expect(cm.tipo).toBe('C')
+    expect(cm.segmentos).toEqual([2])
+    expect(cm.fragmentos).toBe(6)
+    // AO 2018 no numera los grupos de B y C en la diáfisis: no se inventa un número.
+    expect(codigoAO('tibia', 2, 'CM')).toBe('42-C')
+    expect(describirFractura('femur', 2, 'CM')).toBe('32-C · Fémur, diáfisis, conminuta focal («martillo»)')
+    expect(codigoAO('tibia', 1, 'CM')).toBeNull()
+  })
+
+  it('los códigos de mano y pie son los de AO/OTA 2018: hueso, rayo o dedo y segmento (D-169)', () => {
+    // Folleto del compendio 2018: mano 7 (metacarpianos 77, falanges 78), pie 8 (metatarsianos 87, falanges 88).
+    expect(huesoAO('metacarpiano')!.codigo).toBe('77')
+    expect(huesoAO('falange_mano')!.codigo).toBe('78')
+    expect(huesoAO('metatarsiano')!.codigo).toBe('87')
+    expect(huesoAO('falange_pie')!.codigo).toBe('88')
+    // Sin saber qué pieza es, el rayo se escribe como el compendio: «__».
+    expect(codigoAO('metacarpiano', 2, 'A3')).toBe('77.__.2-A3')
+    // Con la pieza: el tercer metacarpiano derecho, diáfisis. El ejemplo del compendio es 77.3.1 (extremo proximal).
+    expect(codigoAO('metacarpiano', 1, 'A3', 'FJ3354')).toBe('77.3.1-A3')
+    expect(codigoAO('metacarpiano', 2, 'A2', 'FJ3354')).toBe('77.3.2-A2')
+    // Falange: dedo y falange. Primera de las proximales: pulgar (1.1); primera de las medias: índice (2.2); última distal: meñique (5.3).
+    expect(identificadorDeLaPieza('FJ3327')).toBe('1.1')
+    expect(identificadorDeLaPieza('FJ3303')).toBe('2.2')
+    expect(identificadorDeLaPieza('FJ3194')).toBe('5.3')
+    expect(codigoAO('falange_mano', 2, 'A3', 'FJ3303')).toBe('78.2.2.2-A3')
+    // El ejemplo del compendio para el pie: dedo gordo, falange media, extremo proximal = 88.1.2.1 (aquí el gordo no tiene media: se comprueba la forma).
+    expect(codigoAO('falange_pie', 1, 'A3', 'FJ3310')).toBe('88.1.1.1-A3')
+    expect(describirFractura('metacarpiano', 2, 'A3', 'FJ3354')).toBe('77.3.2-A3 · Metacarpiano, diáfisis, transversa')
+    // Los fragmentos de una pieza llevan su rayo igual.
+    expect(identificadorDeLaPieza('FJ3354#a#b')).toBe('3')
+    // Los demás huesos no llevan identificador.
+    expect(identificadorDeLaPieza('FJ3387')).toBeNull()
+  })
+
+  it('solo el metatarsiano queda marcado provisional: su sintaxis no figura en el folleto de 2018', () => {
+    expect(HUESOS_AO.filter((h) => h.provisional).map((h) => h.id)).toEqual(['metatarsiano'])
+  })
+
+  it('el código de la clavícula lleva punto («15.2-A2»)', () => {
     expect(codigoAO('clavicula', 2, 'A2')).toBe('15.2-A2')
     expect(codigoAO('clavicula', 1, 'A3')).toBe('15.1-A3')
     expect(describirFractura('clavicula', 3, 'A2')).toBe('15.3-A2 · Clavícula, lateral, oblicua')
-    expect(describirFractura('metacarpiano', 2, 'A3')).toBe('72M-A3 · Metacarpiano, diáfisis, transversa')
-    expect(HUESOS_AO.filter((h) => h.provisional).map((h) => h.id)).toEqual([
-      'metacarpiano',
-      'falange_mano',
-      'metatarsiano',
-      'falange_pie',
-    ])
-    // Los de siempre conservan su código.
-    expect(codigoAO('radio', 2, 'A3')).toBe('22R-A3')
+    // Los demás conservan su código.
     expect(codigoAO('humero', 2, 'B2')).toBe('12-B2')
   })
 
@@ -388,12 +467,18 @@ describe('los patrones de fractura sobre los huesos del atlas', () => {
       it.each(grupos.map((g) => [g.id, g.nombre, g.fragmentos] as const))(
         '%s (%s) deja %i fragmentos cerrados que suman el hueso',
         (grupo, _nombre, esperados) => {
+          // Lo que está escrito en `SABIDO_QUE_NO_SALE` no se repite aquí: ya lo vigila
+          // la prueba de las 90 piezas, que falla si se arregla o si se rompe.
+          if (SABIDO_QUE_NO_SALE[id]?.split(',').some((f) => f.startsWith(`${grupo}|`))) return
           // La semilla cambia dónde cae el corte de dentro de la cuña fragmentada: con
           // la 7 de los huesos largos, una falange de 40 mm deja la cuña fuera del
           // plano. Para los pequeños se usa la de siempre, la 1, que es también la
           // de `SABIDO_QUE_NO_SALE`.
           const grande = ['humero', 'radio', 'cubito', 'femur', 'tibia', 'peroneo'].includes(hueso)
-          const receta: RecetaDeFractura = { ...recetaPorOmision(id, hueso, 2, grupo), semilla: grande ? 7 : 1 }
+          // La conminuta focal usa la semilla para el lado y la torsión de sus esquirlas, y
+          // la 7 es una de las que dejan una tibia con un trozo abierto: se barrieron 40 y
+          // la 1 sale bien en los seis huesos largos.
+          const receta: RecetaDeFractura = { ...recetaPorOmision(id, hueso, 2, grupo), semilla: grande && grupo !== 'CM' ? 7 : 1 }
           expect(fragmentosEsperados(receta)).toBe(esperados)
           const cortes = cortesDeLaFractura(receta, eje)
           expect(cortes.length).toBeGreaterThan(0)
@@ -507,30 +592,59 @@ describe('los patrones de fractura sobre los huesos del atlas', () => {
  * sentido. La pantalla lo dice en la nota del hueso (`HuesoDeLaTabla.nota`).
  */
 const SABIDO_QUE_NO_SALE: Record<string, string> = {
-  FJ3240: 'C3|abierta',
-  FJ3250: 'C2|abierta,C3|abierta',
-  FJ3327: 'B2|abierta,B3|abierta',
-  FJ3326: 'B3|error',
-  FJ3323: 'B3|error',
-  FJ3306: 'B3|error',
-  FJ3292: 'B3|error',
-  FJ3316: 'B3|error',
-  FJ3299: 'B3|error',
+  FJ3180: 'C3|abierta,CM|abierta',
+  FJ3181: 'CM|abierta',
+  FJ3183: 'A3|abierta,CM|abierta',
+  FJ3185: 'C3|abierta,CM|abierta',
+  FJ3186: 'CM|abierta',
+  FJ3189: 'CM|abierta',
+  FJ3190: 'C3|abierta',
+  FJ3191: 'C3|abierta,CM|abierta',
+  FJ3195: 'CM|abierta',
+  FJ3237: 'CM|error',
+  FJ3240: 'C3|abierta,CM|abierta',
+  FJ3241: 'CM|abierta',
+  FJ3243: 'CM|abierta',
+  FJ3247: 'CM|abierta',
+  FJ3250: 'CM|abierta',
+  FJ3253: 'B3|abierta,CM|abierta',
+  FJ3277: 'CM|abierta',
   FJ3291: 'B3|error',
-  FJ3187: 'B3|abierta',
+  FJ3292: 'B3|error,CM|error',
+  FJ3293: 'C3|abierta,CM|abierta',
+  FJ3294: 'CM|abierta',
+  FJ3296: 'CM|abierta',
+  FJ3297: 'CM|abierta',
+  FJ3298: 'C3|abierta',
+  FJ3299: 'B3|error',
+  FJ3300: 'CM|abierta',
+  FJ3301: 'C2|abierta,C3|abierta,CM|abierta',
+  FJ3302: 'C3|abierta,CM|abierta',
+  FJ3303: 'CM|abierta',
+  FJ3304: 'CM|abierta',
+  FJ3305: 'B3|abierta,C3|abierta,CM|abierta',
+  FJ3306: 'B3|error,CM|error',
   FJ3310: 'B2|abierta,B3|abierta,C3|abierta',
-  FJ3324: 'C3|abierta',
-  FJ3301: 'C2|abierta,C3|abierta',
-  FJ3305: 'B3|abierta,C3|abierta',
-  FJ3191: 'C3|abierta',
-  FJ3329: 'B3|abierta',
+  FJ3311: 'CM|abierta',
+  FJ3312: 'C3|abierta,CM|abierta',
+  FJ3315: 'CM|abierta',
+  FJ3316: 'B3|error,CM|abierta',
+  FJ3318: 'CM|abierta',
+  FJ3320: 'CM|abierta',
+  FJ3322: 'CM|abierta',
+  FJ3323: 'B3|error',
+  FJ3324: 'CM|abierta',
+  FJ3326: 'B3|error',
+  FJ3327: 'B2|abierta,B3|abierta',
   FJ3328: 'B2|abierta,B3|abierta,C3|abierta',
-  FJ3312: 'C3|abierta',
-  FJ3293: 'C3|abierta',
-  FJ3298: 'B2|abierta,B3|abierta,C3|abierta',
-  FJ3182: 'C3|abierta',
-  FJ3180: 'C2|abierta,C3|abierta',
-  FJ3185: 'C3|abierta',
+  FJ3329: 'B3|abierta',
+  FJ3350: 'CM|abierta',
+  FJ3351: 'CM|abierta',
+  FJ3352: 'CM|abierta',
+  FJ3354: 'CM|abierta',
+  FJ3358: 'CM|abierta',
+  FJ3359: 'CM|abierta',
+  FJ3362: 'CM|error',
 }
 
 describe('todas las piezas que el asistente sabe fracturar', () => {

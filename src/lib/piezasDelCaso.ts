@@ -200,6 +200,148 @@ export function cambiarRolDePieza(
   })
 }
 
+/**
+ * Lo que ve un paso, pasado de los objetos del modelo viejo a los del nuevo.
+ *
+ * Por su **papel**, no por su nombre: el modelo viejo tenía `piel`, `musculo`,
+ * `tibia_proximal` y `tibia_distal`, y el exportado del atlas tiene `Piel`,
+ * `Musculos`, `Tejido_conectivo`, `Arterias`… y los dos trozos de la tibia. No
+ * hay nombre que case, y tampoco hace falta: el paso que enseñaba la piel tiene
+ * que seguir enseñando la piel, el que enseñaba el hueso fijo, todo lo que en el
+ * modelo nuevo es hueso fijo —el trozo proximal y el resto del esqueleto—, y el
+ * que enseñaba el fragmento, el fragmento.
+ *
+ * Tres reglas:
+ *
+ *  - Un nodo que **ya existe en el modelo nuevo** se queda tal cual. Es lo que
+ *    hace que ejecutar el guion dos veces no cambie nada la segunda, y lo que
+ *    respeta un paso que el traumatólogo ya afinó a mano contra el modelo nuevo:
+ *    si dejó solo el trozo proximal, no se le vuelve a añadir el esqueleto.
+ *  - Un nodo viejo se sustituye por todos los del modelo nuevo con su mismo
+ *    papel, en el orden de las piezas, sin repetir.
+ *  - Un nodo viejo cuyo papel no se conoce, o cuyo papel ya no tiene nadie en el
+ *    modelo nuevo, se pierde y se devuelve en `perdidos` para decirlo. No se
+ *    calla: un paso que se queda sin lo que enseñaba hereda lo del anterior
+ *    (`declaracionDelPaso`), y enseña otra cosa sin ningún error.
+ *
+ * `rolesViejos` son los papeles de las piezas del caso ANTES de rellenarlas: es
+ * lo único que dice qué era `tibia_proximal`, porque en las piezas nuevas ya no
+ * está.
+ */
+export function traducirMuestra(
+  muestra: string[],
+  rolesViejos: ReadonlyMap<string, string>,
+  piezasNuevas: PiezaEnEdicion[],
+  nodosDelModelo: readonly string[],
+): { muestra: string[]; perdidos: string[] } {
+  const enElModelo = new Set(nodosDelModelo)
+  const salida: string[] = []
+  const perdidos: string[] = []
+  const poner = (nodo: string) => {
+    if (!salida.includes(nodo)) salida.push(nodo)
+  }
+
+  for (const nodo of muestra) {
+    if (enElModelo.has(nodo)) {
+      poner(nodo)
+      continue
+    }
+    const rol = rolesViejos.get(nodo)
+    const conEseRol = rol
+      ? piezasNuevas
+          .filter((p) => p.rol === rol && typeof p.nodo === 'string' && enElModelo.has(p.nodo))
+          .map((p) => p.nodo as string)
+      : []
+    if (conEseRol.length === 0) {
+      perdidos.push(rol ? `${nodo} (${rol})` : nodo)
+      continue
+    }
+    conEseRol.forEach(poner)
+  }
+  return { muestra: salida, perdidos }
+}
+
+/**
+ * Lo que sale de rehacer las piezas de un caso contra el modelo que ahora tiene.
+ */
+export interface ReparacionDeLasPiezas {
+  /** La lista nueva, la que propone el propio modelo. */
+  piezas: PiezaEnEdicion[]
+  /** Lo que ve cada paso, traducido por papel. `null` donde el paso no declaraba nada. */
+  muestraPorPaso: (string[] | null)[]
+  /** Los objetos del caso que el modelo no tenía y se quitan. */
+  quitadas: string[]
+  /** Lo que un paso enseñaba y el modelo nuevo no tiene en ningún papel. */
+  perdidos: string[]
+}
+
+/**
+ * Rehace las piezas de un caso cuyo modelo cambió (D-169).
+ *
+ * El caso guarda **nombres** de objeto, y los nombres son del archivo: al elegir
+ * otro modelo —otra exportación del atlas, el hueso partido de otra manera— todo
+ * lo que el caso declaraba deja de existir, y lo único que se veía era un aviso
+ * al abrir la consola («Ninguna de las piezas que declara este caso está en el
+ * modelo cargado») cuya salida eran tres clics del editor. Quien cambia de
+ * modelo no se equivoca: hace lo que se espera, y la plataforma se queda con la
+ * mitad del trabajo.
+ *
+ * Cuándo actúa:
+ *
+ *  - **Con `cambioDeModelo`** —el autor acaba de elegir otro archivo—, siempre que
+ *    haya piezas que el archivo no tiene. Las que sí coinciden se conservan tal
+ *    cual, con su papel (es una decisión suya: «Piel» se llama «Piel» en los dos
+ *    modelos, y el hueso fijo que marcó sigue marcado); las que no, se quitan, y
+ *    el modelo aporta las que falten. La captura que dio origen a esto era
+ *    justamente ese caso: se cambió el modelo y cuatro de las cinco piezas se
+ *    quedaron esperando objetos que ya no existían.
+ *  - **Sin él** —se abrió un caso ya guardado—, solo si **ninguna** pieza está.
+ *    Con algunas sí y otras no, alguien escribió mal un nombre o quitó un hueso a
+ *    propósito: ahí quien decide es el autor, con el panel de piezas delante.
+ *    Con ninguna no hay nada que conservar y se puede rehacer sin pisar nada.
+ *
+ * La lista nueva es la que el propio modelo propone (`rellenarDesdeElModelo`:
+ * el exportador del atlas deja pegado a cada objeto su papel y su etiqueta), y lo
+ * que cada paso mostraba pasa al modelo nuevo **por su papel** (`traducirMuestra`):
+ * el paso que enseñaba la piel sigue enseñando la piel, aunque ahora se llame de
+ * otra manera. Devuelve `null` si no hay nada que hacer: el modelo no propone
+ * nada (no viene del atlas), no hay piezas declaradas o alguna sí está.
+ */
+export function repararPiezasConElModelo(
+  piezas: PiezaEnEdicion[],
+  muestraDeLosPasos: (string[] | null)[],
+  propuestas: PropuestaDelModelo[],
+  enElArchivo: string[],
+  cambioDeModelo = false,
+): ReparacionDeLasPiezas | null {
+  if (enElArchivo.length === 0 || propuestas.length === 0) return null
+  const declaradas = nodosDeclarados(piezas)
+  if (declaradas.length === 0) return null
+  const huerfanas = declaradas.filter((n) => !enElArchivo.includes(n))
+  if (huerfanas.length === 0) return null
+  if (!cambioDeModelo && huerfanas.length < declaradas.length) return null
+
+  const rolesViejos = new Map<string, string>()
+  for (const p of piezas) {
+    if (nodoDe(p) && typeof p.rol === 'string') rolesViejos.set(nodoDe(p), p.rol)
+  }
+  // Solo lo que de verdad está en el archivo: una propuesta de un objeto que el
+  // archivo no trae no sirve para nada.
+  const posibles = propuestas.filter((p) => enElArchivo.includes(p.nodo))
+  const conservadas = piezas.filter((p) => enElArchivo.includes(nodoDe(p)))
+  const { piezas: nuevas } = rellenarDesdeElModelo(conservadas, posibles)
+  if (nuevas.length === 0) return null
+
+  const perdidos: string[] = []
+  const muestraPorPaso = muestraDeLosPasos.map((muestra) => {
+    if (!muestra || muestra.length === 0) return muestra
+    const traducida = traducirMuestra(muestra, rolesViejos, nuevas, enElArchivo)
+    for (const p of traducida.perdidos) if (!perdidos.includes(p)) perdidos.push(p)
+    return traducida.muestra
+  })
+  return { piezas: nuevas, muestraPorPaso, quitadas: huerfanas, perdidos }
+}
+
 /** Quita una pieza de la lista. */
 export const quitarPieza = (piezas: PiezaEnEdicion[], nodo: string): PiezaEnEdicion[] =>
   piezas.filter((p) => nodoDe(p) !== nodo)

@@ -142,6 +142,14 @@ export interface EjeDelHueso {
   distal: number
   /** La distancia máxima de un vértice al eje: cuánto mide de ancho, a lo sumo. */
   radio: number
+  /**
+   * Lo mismo, tramo a tramo: la distancia máxima al eje de los vértices de cada una
+   * de las `TRAMOS_DEL_RADIO` tajadas iguales entre `proximal` y `distal`. `radio`
+   * es el de las epífisis, que en la tibia es tres veces el de la diáfisis, y un
+   * patrón que corta cerca del eje necesita el de donde corta (D-169). Opcional: un
+   * eje armado a mano, sin malla, no lo trae.
+   */
+  perfil?: number[]
   /** Unitario y perpendicular al eje: la cara desde la que se cuenta el giro, 0°. */
   delante: Vector3
   /** Unitario y perpendicular a los dos: la cara del giro de 90°. */
@@ -308,6 +316,7 @@ export function ejeDelHueso(
   let proximal = Infinity
   let distal = -Infinity
   let radio = 0
+  const rels: [number, number][] = []
   for (let t = inicio; t < fin; t += 1) {
     const i = indices[t]
     if (i >= vertices) continue
@@ -317,6 +326,14 @@ export function ejeDelHueso(
     if (s > distal) distal = s
     const r = largo(resta(rel, escalar(direccion, s)))
     if (r > radio) radio = r
+    rels.push([s, r])
+  }
+  const perfil = new Array<number>(TRAMOS_DEL_RADIO).fill(0)
+  if (distal > proximal) {
+    for (const [s, r] of rels) {
+      const tramo = Math.min(TRAMOS_DEL_RADIO - 1, Math.floor(((s - proximal) / (distal - proximal)) * TRAMOS_DEL_RADIO))
+      if (r > perfil[tramo]) perfil[tramo] = r
+    }
   }
 
   const extremoMenor = [0, 1, 2].map((e) => centro[e] + direccion[e] * proximal) as Vector3
@@ -338,7 +355,25 @@ export function ejeDelHueso(
   const lado = centro[0] < 0 ? -1 : 1
   if (fuera[0] * lado < 0) fuera = escalar(fuera, -1)
 
-  return { centro, direccion, proximal, distal, radio, delante, fuera }
+  return { centro, direccion, proximal, distal, radio, perfil, delante, fuera }
+}
+
+/** En cuántas tajadas se mide el radio a lo largo del eje (`EjeDelHueso.perfil`). */
+export const TRAMOS_DEL_RADIO = 40
+
+/**
+ * El radio del hueso a `s` metros del centro, a lo largo del eje: el de la tajada
+ * en que cae, o el de la más ancha de las vecinas si esa quedó vacía. Sin perfil
+ * (un eje armado a mano) vale una cuarta parte del radio máximo, que es lo que mide
+ * una diáfisis de las del atlas frente a sus epífisis.
+ */
+export function radioEn(eje: EjeDelHueso, s: number): number {
+  const perfil = eje.perfil
+  if (!perfil || perfil.length === 0 || !(eje.distal > eje.proximal)) return eje.radio / 4
+  const t = Math.min(perfil.length - 1, Math.max(0, Math.floor(((s - eje.proximal) / (eje.distal - eje.proximal)) * perfil.length)))
+  // Un vértice suelto en la tajada vecina no cuenta; sí lo más ancho entre ella y sus dos lados.
+  const local = Math.max(perfil[t], perfil[Math.max(0, t - 1)] * 0.9, perfil[Math.min(perfil.length - 1, t + 1)] * 0.9)
+  return local > 0 ? local : eje.radio / 4
 }
 
 /** Un plano: un punto suyo y su normal unitaria. */

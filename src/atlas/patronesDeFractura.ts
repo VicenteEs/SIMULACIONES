@@ -22,6 +22,7 @@
  * | C2 segmentaria íntegra | dos planos paralelos, `extension` separados |
  * | C3 segmentaria fragmentada | C2 y otro corte oblicuo que parte el segmento |
  * | A1 espiroidea | un plano muy oblicuo (55–60°, el máximo que admite el corte), el mismo mecanismo que la oblicua |
+| C conminuta focal («martillo») | dos planos que acotan una zona de `extension` y tres que la parten desde dentro: seis fragmentos juntos en un solo punto |
  *
  * `A1` espiroidea es una **aproximación**: la superficie de una espiroidea es una
  * hélice y no un plano (R1 de P-001), y lo que se dibuja es el plano más
@@ -49,7 +50,7 @@
  */
 
 import type { EjeDelHueso } from '@/lib/planoDeCorte'
-import { INCLINACION_MAXIMA, POSICION_MAXIMA, POSICION_MINIMA, planoDelCorte } from '@/lib/planoDeCorte'
+import { INCLINACION_MAXIMA, POSICION_MAXIMA, POSICION_MINIMA, planoDelCorte, radioEn } from '@/lib/planoDeCorte'
 import { codigoAO, describirFractura, grupoAO, huesoAO, segmentoAO, type GrupoAO, type HuesoAO, type SegmentoAO } from './clasificacionAO'
 import { huesoDeLaPieza } from './huesosAO'
 import { idDeFragmento, type CorteDePieza, type FracturaDeInstancia, type RecetaDeFractura } from './formato'
@@ -57,6 +58,18 @@ import type { SegmentosDelHueso } from './segmentosAO'
 import { aPorcentaje } from './segmentosAO'
 
 export type { RecetaDeFractura, FracturaDeInstancia }
+
+/**
+ * Dónde cortan las esquirlas de la conminuta focal y cómo se parte el núcleo
+ * (D-169). No son gusto: salen de barrer a mano 40 semillas por hueso con la
+ * profundidad (0,3–0,65 del radio) y la torsión (0–40°) de las esquirlas, y de
+ * contar los trozos que salían abiertos. Es un barrido ruidoso —cambiar un grado
+ * cambia qué semillas fallan—, y esta combinación dejó a los seis huesos largos con
+ * menos de una semilla de cada diez fallida. Vale lo mismo que un número de
+ * lotería: si se toca, hay que repetir el barrido (`tests/unit/fracturasAO.test.ts`).
+ */
+const FONDO_DE_LA_ESQUIRLA = 0.65
+const INCLINACION_DEL_NUCLEO = (60 * Math.PI) / 180
 
 /** Cuánto puede ocupar la porción, en % del largo del hueso. */
 export const EXTENSION_MINIMA = 3
@@ -90,7 +103,7 @@ export function recetaPorOmision(
     grupo,
     porcion: {
       centro: segmento === 1 ? 15 : segmento === 3 ? 85 : 50,
-      extension: patron === 'segmentaria-integra' || patron === 'segmentaria-fragmentada' ? 15 : 8,
+      extension: patron === 'segmentaria-integra' || patron === 'segmentaria-fragmentada' ? 15 : patron === 'conminuta-focal' ? 15 : 8,
     },
     inclinacion: patron === 'oblicua' ? 45 : patron === 'espiroidea' ? 60 : 0,
     giro: 0,
@@ -265,6 +278,54 @@ export function cortesDeLaFractura(receta: RecetaDeFractura, eje: EjeDelHueso): 
       }
       return cortes
     }
+    case 'conminuta-focal': {
+      // Un golpe en un solo punto: cinco cortes, seis fragmentos. Los dos primeros
+      // son planos casi transversales a `extension` uno del otro y dejan el trozo
+      // intermedio —el foco—. De él saltan dos esquirlas de cortical por lados
+      // opuestos (dos planos paralelos al eje, apartados de él, que cortan solo una
+      // viruta de la pared) y el núcleo que queda se parte con un plano inclinado.
+      //
+      // Esa disposición no es casual; es lo que quedó tras tres intentos que dejaban
+      // fragmentos abiertos en casi todos los huesos (D-169):
+      //  - Planos que atraviesan el foco por el eje, girados entre sí: cortar una
+      //    mitad ya tapada por otro plano que pasa por el mismo sitio dejaba el
+      //    contorno cruzándose consigo mismo.
+      //  - Tres esquirlas a 120°: los planos de dos esquirlas contiguas se cortan
+      //    dentro del hueso, y la tercera se cortaba justo sobre la tapa de la
+      //    anterior.
+      // Dos esquirlas **paralelas** no se cortan nunca, y el plano que parte el
+      // núcleo es casi perpendicular a sus tapas, como el segundo corte de una cuña.
+      // Cada corte parte **un** trozo cerrado con **un** plano, de modo que todo sale
+      // cerrado por construcción (R3).
+      const inclinacion = acotar(receta.inclinacion, 0, INCLINACION_TRANSVERSA_MAXIMA)
+      const mitad = extension / 2
+      const arriba = planoEnElEje(eje, centro - mitad, inclinacion, receta.giro)
+      const abajo = planoEnElEje(eje, centro + mitad, inclinacion, receta.giro)
+      const distal = idDeFragmento(raiz, 'a')
+      const foco = idDeFragmento(distal, 'b')
+      const sinLaPrimera = idDeFragmento(foco, 'b')
+      const nucleo = idDeFragmento(sinLaPrimera, 'b')
+      const s0 = eje.proximal + (centro / 100) * largo
+      // El radio **de donde se corta**, no el de las epífisis: en la tibia el máximo
+      // es tres veces el de la diáfisis y un plano a medio radio quedaba fuera del hueso.
+      const r = Math.max(radioEn(eje, s0), 1e-3)
+      const giro1 = receta.giro + (azar(receta.semilla, 4) - 0.5) * 60
+      const lado = cara(eje, giro1)
+      const centroDelFoco = enElEje(eje, s0)
+      // Un poco torcido hacia el eje largo para que la viruta sea cuña y no loncha.
+      const t = (30 * Math.PI) / 180
+      const n1 = unitario(suma(por(lado, Math.cos(t)), por(u, Math.sin(t))))
+      // El núcleo se parte por un plano tumbado 60° hacia el lado de las esquirlas.
+      const romper = unitario(suma(por(u, Math.cos(INCLINACION_DEL_NUCLEO)), por(lado, Math.sin(INCLINACION_DEL_NUCLEO))))
+      return [
+        { pieza: raiz, ...arriba },
+        { pieza: distal, ...abajo },
+        { pieza: foco, punto: sies(suma(centroDelFoco, por(lado, FONDO_DE_LA_ESQUIRLA * r))), normal: sies(n1) },
+        // La del otro lado: la misma normal vuelta del revés, así que es paralela.
+        { pieza: sinLaPrimera, punto: sies(resta(centroDelFoco, por(lado, FONDO_DE_LA_ESQUIRLA * r))), normal: sies(por(n1, -1)) },
+        { pieza: nucleo, punto: sies(centroDelFoco), normal: sies(romper) },
+      ]
+    }
     case 'espiroidea': {
       // Muy oblicua por omisión: de 55° en adelante, que es lo que la distingue
       // de una oblicua corriente.
@@ -286,14 +347,14 @@ export function fragmentosEsperados(receta: RecetaDeFractura): number {
  * fractura. Cabe en los 80 caracteres que admite un rótulo.
  */
 export function etiquetaDeLaFractura(receta: Pick<RecetaDeFractura, 'pieza' | 'hueso' | 'segmento' | 'grupo'>): string | null {
-  const texto = describirFractura(receta.hueso, receta.segmento, receta.grupo)
+  const texto = describirFractura(receta.hueso, receta.segmento, receta.grupo, receta.pieza)
   const lado = huesoDeLaPieza(receta.pieza)?.lado
   return texto ? (lado ? `${texto} · ${lado}` : texto) : null
 }
 
 /** El código y la descripción de una receta, para la etiqueta. */
 export function codigoDeLaReceta(receta: RecetaDeFractura): string | null {
-  return codigoAO(receta.hueso, receta.segmento, receta.grupo)
+  return codigoAO(receta.hueso, receta.segmento, receta.grupo, receta.pieza)
 }
 
 // ------------------------------------------------- dónde puede caer la porción

@@ -194,7 +194,7 @@ describe('cableado en el taller, el visor y la ficha', () => {
     expect(acciones).toContain('fracturas: bruto?.fracturas,')
     expect(acciones).toContain('fracturas: entrada.fracturas,')
     expect(ficha).toContain('fracturas: contenido.fracturas,')
-    expect(ficha).toContain('describirFractura(f.hueso, f.segmento, f.grupo)')
+    expect(ficha).toContain('describirFractura(f.hueso, f.segmento, f.grupo, f.pieza)')
   })
 
   it('el visor mide el hueso para el asistente, con la misma geometría de siempre', () => {

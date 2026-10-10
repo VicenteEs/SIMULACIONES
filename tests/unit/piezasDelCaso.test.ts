@@ -7,6 +7,7 @@ import {
   piezasHuerfanas,
   piezasSinUsar,
   quitarPieza,
+  repararPiezasConElModelo,
 } from '@/lib/piezasDelCaso'
 
 /**
@@ -123,5 +124,88 @@ describe('capturar el desplazamiento', () => {
     // Multiplicar por cero daria un desplazamiento nulo: un caso ya reducido de
     // entrada, que se aprueba sin tocar nada y parece que funciona.
     expect(desplazamientoEnMilimetros(estado, 0)).toMatchObject({ x: 12.5, y: 18 })
+  })
+})
+
+describe('rehacer las piezas cuando el modelo cambia (D-169)', () => {
+  // El modelo nuevo es una exportación del atlas: sus objetos traen papel y etiqueta.
+  const propuestas = [
+    { nodo: 'Tibia_derecha_1_fragmento_distal', rol: 'fragmento' as const, etiqueta: 'Tibia derecha, distal' },
+    { nodo: 'Tibia_derecha_2_fragmento_proximal', rol: 'hueso' as const, etiqueta: 'Tibia derecha, proximal' },
+    { nodo: 'Esqueleto', rol: 'hueso' as const, etiqueta: 'Esqueleto' },
+    { nodo: 'Musculos', rol: 'musculo' as const, etiqueta: 'Músculos' },
+    { nodo: 'Piel', rol: 'piel' as const, etiqueta: 'Piel' },
+  ]
+  const enElArchivo = propuestas.map((p) => p.nodo)
+  // El caso venía de otra exportación: ni un nombre coincide (el caso de la captura).
+  const delOtroModelo = [
+    { nodo: 'piel_vieja', rol: 'piel', etiqueta: '' },
+    { nodo: 'Tibia_izquierda_1_2_1', rol: 'hueso', etiqueta: '' },
+  ]
+
+  it('rehace la lista con lo que propone el modelo y traduce lo que ve cada paso por su papel', () => {
+    const r = repararPiezasConElModelo(
+      delOtroModelo,
+      [['piel_vieja'], ['Tibia_izquierda_1_2_1'], null],
+      propuestas,
+      enElArchivo,
+    )
+    expect(r).not.toBeNull()
+    expect(r!.piezas.map((p) => p.nodo)).toEqual(enElArchivo)
+    expect(r!.quitadas).toEqual(['piel_vieja', 'Tibia_izquierda_1_2_1'])
+    expect(r!.muestraPorPaso[0]).toEqual(['Piel'])
+    // El hueso viejo pasa a todo lo que ahora es hueso fijo.
+    expect(r!.muestraPorPaso[1]).toEqual(['Tibia_derecha_2_fragmento_proximal', 'Esqueleto'])
+    // Un paso que no declaraba nada sigue sin declarar nada: no se le inventa.
+    expect(r!.muestraPorPaso[2]).toBeNull()
+    expect(r!.perdidos).toEqual([])
+  })
+
+  it('al abrir un caso guardado no toca nada si alguna pieza sí está: ahí el autor decide', () => {
+    const mezcla = [...delOtroModelo, { nodo: 'Piel', rol: 'piel', etiqueta: '' }]
+    expect(repararPiezasConElModelo(mezcla, [], propuestas, enElArchivo)).toBeNull()
+  })
+
+  it('al cambiar de modelo conserva las que coinciden (con su papel) y rehace las demás', () => {
+    // «Piel» se llama igual en los dos modelos y el autor la dejó como piel; el hueso no existe ya.
+    const mezcla = [
+      { nodo: 'Piel', rol: 'piel', etiqueta: 'Mi piel' },
+      { nodo: 'Hueso_proximal', rol: 'hueso', etiqueta: '' },
+      { nodo: 'Fragmento_distal', rol: 'fragmento', etiqueta: '' },
+    ]
+    const r = repararPiezasConElModelo(mezcla, [['Hueso_proximal', 'Piel']], propuestas, enElArchivo, true)
+    expect(r).not.toBeNull()
+    expect(r!.quitadas).toEqual(['Hueso_proximal', 'Fragmento_distal'])
+    const piel = r!.piezas.find((p) => p.nodo === 'Piel')
+    expect(piel).toMatchObject({ rol: 'piel', etiqueta: 'Mi piel' })
+    expect(r!.piezas.map((p) => p.nodo).sort()).toEqual([...enElArchivo].sort())
+    expect(r!.muestraPorPaso[0]).toEqual(['Tibia_derecha_2_fragmento_proximal', 'Esqueleto', 'Piel'])
+  })
+
+  it('al cambiar de modelo no hace nada si todas las piezas ya están', () => {
+    const buenas = propuestas.map((p) => ({ nodo: p.nodo, rol: p.rol, etiqueta: p.etiqueta }))
+    expect(repararPiezasConElModelo(buenas, [], propuestas, enElArchivo, true)).toBeNull()
+  })
+
+  it('no hace nada si el modelo no propone nada (no viene del atlas) o aún no se ha leído', () => {
+    expect(repararPiezasConElModelo(delOtroModelo, [], [], enElArchivo)).toBeNull()
+    expect(repararPiezasConElModelo(delOtroModelo, [], propuestas, [])).toBeNull()
+  })
+
+  it('no inventa piezas a un caso que no declaraba ninguna', () => {
+    expect(repararPiezasConElModelo([], [], propuestas, enElArchivo)).toBeNull()
+  })
+
+  it('dice lo que un paso enseñaba y el modelo nuevo no tiene en ningún papel', () => {
+    const sinPiel = propuestas.filter((p) => p.rol !== 'piel')
+    const r = repararPiezasConElModelo(delOtroModelo, [['piel_vieja']], sinPiel, sinPiel.map((p) => p.nodo))
+    expect(r!.perdidos).toEqual(['piel_vieja (piel)'])
+    expect(r!.muestraPorPaso[0]).toEqual([])
+  })
+
+  it('deja un solo fragmento móvil aunque el modelo proponga dos', () => {
+    const dos = [...propuestas, { nodo: 'Otro', rol: 'fragmento' as const, etiqueta: 'Otro' }]
+    const r = repararPiezasConElModelo(delOtroModelo, [], dos, dos.map((p) => p.nodo))
+    expect(r!.piezas.filter((p) => p.rol === 'fragmento')).toHaveLength(1)
   })
 })

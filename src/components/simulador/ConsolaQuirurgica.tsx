@@ -729,8 +729,11 @@ export function ConsolaQuirurgica({
       if (mostrado?.sinCoincidencias) {
         avisarUnaVez(
           'sin-coincidencias',
-          `Ninguna de las piezas que declara este caso está en el modelo cargado (faltan ${mostrado.ausentes.length}), así que se muestra el modelo entero. ` +
-            'Suele pasar al volver a exportar el hueso con otros nombres: en «Piezas del modelo» del editor, «Rellenar desde el modelo» lo arregla.',
+          mostrado.porPapel
+            ? `Las piezas que declara este caso (${mostrado.ausentes.length}) son de otro archivo, así que se muestran las del modelo cargado por su papel: piel, músculo, hueso. ` +
+                'Para dejarlo fijo, en «Piezas» del editor, «Rellenar desde el modelo».'
+            : `Ninguna de las piezas que declara este caso está en el modelo cargado (faltan ${mostrado.ausentes.length}), así que se muestra el modelo entero. ` +
+                'Suele pasar al volver a exportar el hueso con otros nombres: en «Piezas del modelo» del editor, «Rellenar desde el modelo» lo arregla.',
         )
       }
       if (encender.length === 0) return
