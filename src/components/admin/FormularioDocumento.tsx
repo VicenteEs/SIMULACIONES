@@ -116,6 +116,9 @@ const MOTIVO_EN_PALABRAS: Partial<Record<MotivoParaNoGuardarSolo, string>> = {
   lista: 'validada: no se guarda sola',
 }
 
+/** Dónde se anota la pestaña abierta al guardar por primera vez un caso nuevo (ver `useState` de `seccion`). */
+const CLAVE_DE_LA_PESTANA = 'trauma-pestana-al-crear'
+
 export function FormularioDocumento({
   esquema,
   documento,
@@ -146,8 +149,35 @@ export function FormularioDocumento({
   const avisar = useAvisos()
 
   const [valores, setValores] = useState<Record<string, unknown>>(documento)
-  const [seccion, setSeccion] = useState(0)
+  // En qué pestaña se estaba: al guardar por primera vez un caso nuevo la ficha pasa de `/nuevo` a `/<id>` y la
+  // pantalla se vuelve a montar, que antes devolvía a la primera pestaña (y, con ella, tiraba el simulador que
+  // se tenía abierto). Se recuerda aquí, en la pestaña del navegador, hasta que la ficha nueva lo recoge.
+  const [seccion, setSeccion] = useState(() => {
+    if (id === null) return 0
+    try {
+      const guardado = JSON.parse(sessionStorage.getItem(CLAVE_DE_LA_PESTANA) ?? 'null') as {
+        coleccion?: string
+        id?: string
+        seccion?: number
+      } | null
+      // Solo se lee: se borra al montar (efecto de abajo). Borrarlo aquí lo perdía en desarrollo, donde React llama
+      // dos veces al inicializador y la segunda ya no lo encontraba.
+      if (guardado?.coleccion === esquema.slug && guardado.id === id && Number.isInteger(guardado.seccion)) {
+        return Math.min(Math.max(0, guardado.seccion as number), esquema.secciones.length - 1)
+      }
+    } catch {
+      // Sin almacenamiento: se abre en la primera pestaña, como siempre.
+    }
+    return 0
+  })
   const [relaciones, setRelaciones] = useState<Relaciones>({})
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(CLAVE_DE_LA_PESTANA)
+    } catch {
+      // Sin almacenamiento no hay nada que borrar.
+    }
+  }, [])
   const [sucio, setSucio] = useState(false)
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
 
@@ -631,6 +661,14 @@ export function FormularioDocumento({
         if (ediciones.current === edicionesAlEnviar) copia.borrar()
         if (ediciones.current === edicionesAlEnviar) sucioDesde.current = null
         if (id === null) {
+          try {
+            sessionStorage.setItem(
+              CLAVE_DE_LA_PESTANA,
+              JSON.stringify({ coleccion: esquema.slug, id: resultado.datos.id, seccion }),
+            )
+          } catch {
+            // Sin almacenamiento: la ficha nueva abrirá en la primera pestaña.
+          }
           router.replace(`/admin-panel/contenido/${esquema.slug}/${resultado.datos.id}`)
         } else {
           if (!automatico) {

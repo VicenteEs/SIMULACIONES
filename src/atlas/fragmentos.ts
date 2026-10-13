@@ -17,8 +17,9 @@
 
 import * as THREE from 'three'
 import { partirMalla, partirPorVariosPlanos, type MallaIndexada } from '@/lib/osteotomia'
-import { OPACIDAD_DE_RAYOS_X, type AspectoDePieza, type EscenaDelAtlas, type TransformacionDePieza } from './cargador'
+import { type AspectoDePieza, type EscenaDelAtlas, type TransformacionDePieza } from './cargador'
 import { focoDeLaTapa } from './manipular'
+import { crearMaterialDeRadiografia } from './materialDeRadiografia'
 import {
   idDeFragmento,
   piezaDe,
@@ -50,6 +51,10 @@ export interface FragmentoDelAtlas {
    * vuelve a cortar. La de la malla está centrada en el origen y no sirve.
    */
   enReposo: MallaIndexada
+  /** El material de siempre, apartado mientras el trozo se pinta como radiografía. */
+  materialNormal?: THREE.Material
+  /** El material de la radiografía de este trozo, creado la primera vez que se pide. */
+  materialRayosX?: THREE.ShaderMaterial
 }
 
 /**
@@ -225,13 +230,27 @@ export function pintarFragmento(
   seleccionado: boolean,
   aspecto: AspectoDePieza | null | undefined = null,
   rayosX = false,
+  /** Cuánto absorbe el sistema del trozo (`densidadDelSistema`); `null`, no se ve (vasos, nervios). */
+  densidadRx: number | null = 0.3,
 ) {
+  // Con los rayos X, el trozo se pinta como el resto del cuerpo: una radiografía, con la densidad de su
+  // sistema (el hueso, casi blanco). El material de siempre se aparta y vuelve al apagarlos.
+  if (rayosX) {
+    fragmento.materialNormal ??= fragmento.malla.material as THREE.Material
+    fragmento.materialRayosX ??= crearMaterialDeRadiografia(densidadRx ?? 0)
+    // Seleccionado suma algo más, para que se siga viendo cuál es.
+    fragmento.materialRayosX.uniforms.uDensidad.value = (densidadRx ?? 0) * (seleccionado ? 1.35 : 1)
+    fragmento.malla.material = fragmento.materialRayosX
+    return
+  }
+  if (fragmento.materialNormal && fragmento.malla.material !== fragmento.materialNormal) {
+    fragmento.malla.material = fragmento.materialNormal
+  }
   const material = fragmento.malla.material as THREE.MeshStandardMaterial
   if (aspecto?.color) material.color.set(aspecto.color)
   else material.color.copy(fragmento.colorBase)
   if (seleccionado) material.color.lerp(NARANJA_DE_SELECCION, 0.88)
-  // Con los rayos X, los trozos van al mismo 50 % que todo lo demás (D-139).
-  const opacidad = rayosX ? OPACIDAD_DE_RAYOS_X : (aspecto?.opacidad ?? 1)
+  const opacidad = aspecto?.opacidad ?? 1
   material.transparent = opacidad < 1
   material.opacity = opacidad
   material.depthWrite = opacidad >= 1
@@ -240,6 +259,9 @@ export function pintarFragmento(
 export function liberarFragmento(fragmento: FragmentoDelAtlas) {
   fragmento.malla.geometry.dispose()
   ;(fragmento.malla.material as THREE.Material).dispose()
+  // Si estaba en radiografía, el material de siempre y el otro son dos: se sueltan los dos.
+  fragmento.materialNormal?.dispose()
+  fragmento.materialRayosX?.dispose()
   fragmento.malla.removeFromParent()
 }
 

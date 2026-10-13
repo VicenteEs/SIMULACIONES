@@ -57,8 +57,20 @@ describe('comportamiento del instrumental', () => {
     // Las de minifragmentos y la de deslizamiento: cada calibre es el suyo.
     expect(comportamientoDelInstrumento(base('broca-1-5')).perfora?.diametroMm).toBe(1.5)
     expect(comportamientoDelInstrumento(base('broca-4-5')).perfora?.diametroMm).toBe(4.5)
-    const pinza = comportamientoDelInstrumento(base('pinza-diseccion-con-dientes'))
-    expect(pinza).toEqual({ corta: null, separa: null, perfora: null, sutura: null, coloca: null, mide: false })
+    // El martillo no hace nada en el paciente: ni corta, ni separa, ni pellizca, ni perfora. (La pinza de
+    // disección ya no es de las que no hacen nada: pellizca la piel hacia arriba.)
+    const martillo = comportamientoDelInstrumento(base('martillo'))
+    expect(martillo).toEqual({
+      corta: null,
+      separa: null,
+      pellizca: null,
+      electro: false,
+      perfora: null,
+      sutura: null,
+      coloca: null,
+      mide: false,
+    })
+    expect(comportamientoDelInstrumento(base('pinza-diseccion-con-dientes')).pellizca).toEqual({ conDientes: true })
     // Los implantes no cortan, separan ni perforan: se colocan (D-169). Los clavos y el
     // injerto, por ahora, solo se ven en la escena.
     for (const i of INSTRUMENTAL_BASE.filter((x) => ['placas', 'tornillos', 'clavos', 'injerto'].includes(x.categoria))) {

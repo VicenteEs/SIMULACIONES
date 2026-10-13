@@ -11,6 +11,7 @@ import {
 import { GuardiaDeAtras } from '@/components/admin/GuardiaDeAtras'
 import { NotasDelRevisorEnLaBarra } from '@/components/admin/NotasDelRevisorEnLaBarra'
 import { BotonSalir } from '@/components/BotonSalir'
+import { LogoChessCore } from '@/components/LogoChessCore'
 import { CajonDelPanel } from '@/components/admin/CajonDelPanel'
 import { IconoDeMenu } from '@/components/admin/NavegacionAdmin'
 import './admin.css'
@@ -214,8 +215,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </GuardiaDeSalida>
             </div>
             <p className="admin-sidebar-credito">
-              Desarrollado por {AUTORIA.nombre} ·{' '}
-              <a href={`mailto:${AUTORIA.correo}`}>{AUTORIA.correo}</a>
+              <span className="admin-sidebar-credito-marca">
+                Desarrollado por
+                <LogoChessCore sobre="oscuro" alto={40} />
+              </span>
+              {AUTORIA.nombre} · <a href={`mailto:${AUTORIA.correo}`}>{AUTORIA.correo}</a>
             </p>
           </div>
         </CajonDelPanel>

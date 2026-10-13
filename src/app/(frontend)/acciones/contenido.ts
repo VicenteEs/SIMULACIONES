@@ -22,7 +22,13 @@ import {
   faltantes,
   sinIdentificadoresDeFila,
 } from '@/admin/depurar'
-import { exigirIdentificador } from '@/lib/validacion'
+import { exigirIdentificador, exigirTexto, textoOpcional } from '@/lib/validacion'
+import {
+  CATALOGOS_AMPLIABLES,
+  esCatalogoAmpliable,
+  opcionIgualA,
+  tipoDeLaClasificacion,
+} from '@/lib/catalogosAmpliables'
 import {
   cambioDesde,
   marcaDe,
@@ -344,6 +350,86 @@ export async function opcionesDeRelacion(
         tipo: typeof doc.mimeType === 'string' ? doc.mimeType : undefined,
       }
     })
+  })
+}
+
+// ------------------------------------------------- ensanchar un catálogo
+
+/**
+ * Agrega una fila a un catálogo del simulador desde el propio formulario del
+ * caso: el «¿No está? Agregar» del buscador de hueso, clasificación, técnica y
+ * fase (`SelectorConBusqueda`).
+ *
+ * Quien llama es un editor con el caso abierto, no la administración: por eso
+ * pasa por `exigirEdicionDe`, que le exige el rol y el permiso del módulo, y no
+ * por `exigirAdmin`. Es lo que se pidió: que las técnicas y los huesos nuevos los
+ * ponga quien escribe el caso, en el momento en que se da cuenta de que faltan.
+ *
+ * **Nunca duplica.** Si ya hay una fila con ese nombre —sin mirar tildes ni
+ * mayúsculas— devuelve la que hay y lo dice (`yaExistia`): dos editores
+ * escribiendo «Fijador externo» a la vez, o uno que no vio la lista porque
+ * todavía no había cargado, no deben dejar dos filas que se ven iguales y que
+ * ningún caso sabe distinguir. La comparación es la de `opcionIgualA`, la misma
+ * que usa el control para decidir si ofrece agregar.
+ *
+ * Solo catálogos de `CATALOGOS_AMPLIABLES`: la acción se puede invocar a mano con
+ * cualquier slug, y no está pensada para crear filas en colecciones que tienen
+ * su propio formulario y sus propias reglas.
+ */
+export async function agregarAlCatalogo(
+  coleccion: unknown,
+  entrada: unknown,
+): Promise<Respuesta<{ id: string; etiqueta: string; yaExistia: boolean }>> {
+  return accion(async () => {
+    if (!esCatalogoAmpliable(coleccion)) {
+      throw new Error('A ese catálogo no se le agregan filas desde el caso.')
+    }
+    const slug = coleccion
+    const catalogo = CATALOGOS_AMPLIABLES[slug]
+    const { payload, usuario } = await exigirEdicionDe(slug)
+    if (!entrada || typeof entrada !== 'object') throw new Error('No llegó nada que agregar.')
+    const e = entrada as Record<string, unknown>
+
+    const nombre = exigirTexto(e.nombre, `El nombre de ${catalogo.conArticulo}`, 120)
+    const extra = catalogo.extra
+    const codigo = extra
+      ? extra.requerido
+        ? exigirTexto(e.codigo, extra.etiqueta, extra.maximo)
+        : textoOpcional(e.codigo, extra.etiqueta, extra.maximo)
+      : undefined
+
+    const existentes = await payload.find({
+      collection: slug as never,
+      limit: 1000,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const filas = existentes.docs as unknown as Record<string, unknown>[]
+    const repetida = opcionIgualA(
+      filas.map((f) => ({ id: String(f.id), etiqueta: String(f.nombre ?? '') })),
+      nombre,
+    )
+    if (repetida) return { id: repetida.id, etiqueta: repetida.etiqueta, yaExistia: true }
+
+    // Al final de la lista y no al principio: lo añadido se encuentra donde se
+    // espera, y el orden de lo que ya había —que alguien ordenó a propósito— no
+    // se toca. De diez en diez para que el administrador pueda meter una entre medias.
+    const orden = filas.reduce((mayor, f) => Math.max(mayor, typeof f.orden === 'number' ? f.orden : 0), 0) + 10
+
+    const datos: Record<string, unknown> = { nombre, orden }
+    if (codigo) datos.codigo = codigo
+    if (slug === 'clasificaciones-ao' && codigo) {
+      const tipo = tipoDeLaClasificacion(codigo)
+      if (tipo) datos.tipo = tipo
+    }
+
+    const creada = await payload.create({
+      collection: slug as never,
+      data: datos as never,
+      user: usuario as never,
+    })
+    revalidatePath(rutaDeLista(slug))
+    return { id: String((creada as { id: unknown }).id), etiqueta: nombre, yaExistia: false }
   })
 }
 

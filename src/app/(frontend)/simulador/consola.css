@@ -905,7 +905,7 @@
    trabaja sobre el modelo, no lo mira de pasada. El mínimo de 460 px de arriba
    es para un residente en un portátil; aquí manda la altura de la ventana. */
 .consola-editor {
-  grid-template-columns: 196px minmax(0, 1fr) minmax(360px, 420px);
+  grid-template-columns: 236px minmax(0, 1fr) minmax(320px, 380px);
   margin: var(--e-3) 0 var(--e-6);
 }
 /* El alto del lienzo lo fija la ventana, no el contenido: con el panel de edición
@@ -913,13 +913,15 @@
    píxeles. Las dos columnas se desplazan por dentro y la fila mide lo que el
    lienzo con sus medidas. */
 .consola.consola-editor { --alto-editor: clamp(520px, 72vh, 920px); }
-.consola.consola-editor .consola-lienzo-marco,
-.consola.consola-editor .consola-lienzo { flex: none; height: var(--alto-editor); min-height: 0; }
-.consola-editor .consola-izq,
-.consola-editor .consola-der {
-  max-height: calc(var(--alto-editor) + 120px);
-  overflow-y: auto;
-  scrollbar-width: thin;
+@media (max-width: 900px) {
+  .consola.consola-editor .consola-lienzo-marco,
+  .consola.consola-editor .consola-lienzo { flex: none; height: var(--alto-editor); min-height: 0; }
+  .consola-editor .consola-izq,
+  .consola-editor .consola-der {
+    max-height: calc(var(--alto-editor) + 120px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
 }
 .consola-editor .consola-segmentado { grid-template-columns: repeat(2, 1fr); }
 .consola-editor-panel {
@@ -930,7 +932,7 @@
   border-bottom: 1px solid var(--c-linea);
 }
 @media (max-width: 1200px) {
-  .consola-editor { grid-template-columns: 180px minmax(0, 1fr) minmax(320px, 380px); }
+  .consola-editor { grid-template-columns: 220px minmax(0, 1fr) minmax(300px, 360px); }
 }
 
 /* La consola del residente, a todo el ancho de la pantalla (D-166). El `main`
@@ -947,13 +949,9 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
     grid-template-columns: 200px minmax(0, 1fr) 280px;
   }
 }
-/* Y más alto, por la misma razón; en el móvil manda su propia regla de abajo. */
-@media (min-width: 901px) {
-  main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) .consola-lienzo-marco,
-  main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) .consola-lienzo {
-    min-height: clamp(460px, 64vh, 780px);
-  }
-}
+/* El alto del lienzo en pantallas grandes ya no se fija aquí: lo decide la regla «todo a la vista» del final de
+   esta hoja, que reparte el alto de la ventana entre el lienzo, las medidas y las columnas. En el móvil manda
+   su propia regla de abajo. */
 
 /* ---------- caso terminado ---------- */
 .consola-fin {
@@ -1205,3 +1203,283 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
 .consola-sutura-medidas div { display: grid; gap: 2px; }
 .consola-sutura-medidas dt { font-size: var(--t-xs); color: var(--c-texto-2); }
 .consola-sutura-medidas dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+
+/* ==========================================================================
+   D-172: todo a la vista
+   ==========================================================================
+
+   «El simulador excede el tamaño de la pantalla. Ajustaría eso para que estén todos
+   los comandos a la vista.» La consola medía lo que midiera su contenido: unos 1.100 px
+   con el editor, y en un portátil el botón de «Aplicar paso», la bandeja y las
+   capas quedaban cada uno en una pantalla distinta.
+
+   Ahora, en pantallas anchas, el **área de trabajo** (las tres columnas y el lienzo)
+   mide lo que da la ventana —el alto de la ventana menos lo que hay encima— y cada
+   columna se desplaza por dentro si su contenido es más largo. El lienzo se queda con
+   el alto que sobra, y el botón de aplicar el paso va pegado al borde de abajo de su
+   columna: a la vista siempre. «Ampliar» (`.consola-completa`) saca la consola de la
+   página y le da la ventana entera, para quien quiere verlo todo sin nada más.
+   ========================================================================== */
+@media (min-width: 901px) {
+  .consola {
+    /* Lo que ocupan la barra y los pasos, ya compactos, y el margen de la página, para que el
+       conjunto quepa en la ventana sin bajar. */
+    --consola-util: clamp(480px, calc(100dvh - 250px), 980px);
+    grid-template-rows: auto auto var(--consola-util) auto;
+  }
+  .consola-barra { padding: var(--e-2) var(--e-5); gap: var(--e-1) var(--e-5); }
+  .consola-titulo { font-size: var(--t-base); }
+  .consola-insignia { width: 32px; height: 32px; }
+  .consola-puntaje-numero { font-size: 28px; }
+  .consola-reiniciar { min-height: 34px; }
+  .consola-pasos { padding: var(--e-1) var(--e-5); }
+  .consola-paso { flex-basis: 132px; padding: var(--e-1) var(--e-2) var(--e-1) 0; }
+
+  .consola-izq,
+  .consola-der {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    gap: var(--e-4);
+    padding: var(--e-3) var(--e-3);
+  }
+  .consola-centro { min-height: 0; }
+  .consola .consola-lienzo-marco,
+  .consola .consola-lienzo { flex: 1 1 0; height: auto; min-height: 0; }
+  .consola-lienzo-marco { min-height: 0; }
+
+  /* Las medidas, en una tira baja de cuatro: eran tarjetas de 100 px que se comían el alto del lienzo, y con el
+     centro estrecho (el editor, en un portátil) el rótulo se partía letra a letra. */
+  .consola-medidas { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: var(--e-2); gap: var(--e-1); }
+  .consola-medida { display: block; min-width: 0; padding: var(--e-1) var(--e-2); }
+  .consola-medida dt {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .consola-medida-valor { font-size: var(--t-base); }
+  .consola-medida .consola-desglose { font-size: 10px; }
+  .consola-medida .consola-medida-tope { font-size: 10px; line-height: 1.25; }
+
+  /* La barra, en una sola línea: lo que sobra se recorta con puntos suspensivos en vez de bajar a otra. */
+  .consola-barra { flex-wrap: nowrap; }
+  .consola-identidad { flex: 0 1 auto; min-width: 0; }
+  .consola-titulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .consola-datos { flex: 1 1 0; min-width: 0; flex-wrap: nowrap; gap: 0 var(--e-4); overflow: hidden; }
+  .consola-datos > div { min-width: 0; }
+  .consola-datos dd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 18ch; }
+  .consola-marcador { flex: none; min-width: 96px; }
+  .consola-reiniciar { flex: none; }
+
+  /* El modo, el lienzo y las capas son lo que más se toca: se aprietan los botones del modo. */
+  .consola-modo { min-height: 48px; }
+  .consola-capas { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--e-2); }
+  .consola-interruptor { flex-direction: column-reverse; align-items: flex-start; min-height: 0; gap: var(--e-1); }
+  .consola-interruptor input { top: 0; margin: 0; }
+
+  /* La acción del paso al final de su columna y pegada abajo: «Aplicar paso» no se pierde por largo que
+     sea lo que hay encima (la bandeja abierta, el panel del editor, el instrumento en la mano). */
+  .consola-accion {
+    order: 99;
+    position: sticky;
+    bottom: calc(var(--e-3) * -1);
+    z-index: 3;
+    margin: auto calc(var(--e-3) * -1) calc(var(--e-3) * -1);
+    padding: var(--e-2) var(--e-3);
+    background: var(--c-panel-2);
+    border-top: 1px solid var(--c-linea-fuerte);
+    box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.3);
+  }
+  .consola-accion .consola-aplicar { min-height: 42px; }
+
+  /* La bandeja: tarjetas de una línea, para que quepan más sin bajar. */
+  .instrumento { min-height: 40px; flex-direction: row; align-items: center; gap: var(--e-2); }
+  .instrumento-icono { width: 18px; height: 18px; }
+  .consola-bandeja { grid-template-columns: 1fr; }
+}
+
+/* ---- «Ampliar»: la consola ocupa la ventana entera ---- */
+.consola.consola-completa {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow-y: auto;
+  /* Lo de arriba (barra y pasos) mide unos 120 px: el resto de la ventana es del área de trabajo. */
+  --consola-util: calc(100dvh - 124px);
+}
+.consola-completa .consola-lienzo-boton[aria-pressed='true'] { background: var(--c-texto); color: var(--c-fondo); }
+body:has(.consola-completa) { overflow: hidden; }
+
+/* ---- el submodo: cómo se traza y qué se mueve ---- */
+.consola-submodo {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--e-1);
+  margin-top: var(--e-2);
+  padding: var(--e-1);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+}
+.consola-submodo-boton {
+  min-height: 32px;
+  padding: 0 var(--e-2);
+  font: inherit;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--c-texto-2);
+  background: none;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.consola-submodo-boton:hover { color: var(--c-texto); }
+.consola-submodo-boton.activo { color: var(--c-fondo); background: var(--c-texto); }
+
+/* ---- fluoroscopia: el botón, el menú de proyecciones y la imagen en círculo ---- */
+.consola-lienzo-herramientas { flex-wrap: wrap; justify-content: flex-end; z-index: 3; }
+.consola-fluoro-envoltorio { position: relative; }
+.consola-fluoro-vista { font-weight: 700; }
+.consola-fluoro-menu {
+  position: absolute;
+  top: calc(100% + var(--e-1));
+  right: 0;
+  z-index: 4;
+  min-width: 220px;
+  margin: 0;
+  padding: var(--e-1);
+  list-style: none;
+  background: var(--c-panel);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sombra-2);
+}
+.consola-fluoro-opcion {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: var(--e-2) var(--e-3);
+  font: inherit;
+  text-align: left;
+  color: var(--c-texto);
+  background: none;
+  border: 0;
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.consola-fluoro-opcion:hover { background: var(--c-panel-2); }
+.consola-fluoro-opcion strong { font-size: var(--t-sm); }
+.consola-fluoro-opcion small { font-size: var(--t-xs); color: var(--c-texto-2); }
+.consola-escopia { width: 268px; top: calc(var(--e-3) + 46px); max-height: calc(100% - var(--e-3) * 2 - 46px); overflow-y: auto; }
+/* La imagen es un círculo: lo que ve el intensificador del arco. Fondo negro por fuera. */
+.consola-escopia-imagen {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #000;
+  border-radius: 50%;
+  border: 2px solid var(--c-linea-fuerte);
+}
+.consola-escopia-zoom { margin-top: var(--e-1); }
+
+/* ---- bandeja: el buscador, «añadir» y los separadores y pinzas puestos ---- */
+.consola-busqueda-envoltorio {
+  position: relative;
+  display: block;
+  margin: 0 0 var(--e-3);
+  color: var(--c-rotulo);
+}
+.consola-busqueda-envoltorio > svg { position: absolute; left: var(--e-3); top: 50%; transform: translateY(-50%); pointer-events: none; }
+.consola-busqueda-envoltorio .consola-busqueda { margin: 0; padding-left: calc(var(--e-3) + 22px); }
+.consola-anadir { margin: 0 0 var(--e-3); }
+.consola-anadir .consola-boton-ancho { margin-top: 0; }
+.consola-anadir-lista { display: grid; gap: var(--e-2); margin-top: var(--e-2); }
+.consola-anadir-lista .consola-busqueda { margin: 0; }
+.consola-anadir-lista ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.consola-anadir-opcion {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  width: 100%;
+  padding: var(--e-2) var(--e-3);
+  font: inherit;
+  font-size: var(--t-xs);
+  text-align: left;
+  color: var(--c-texto);
+  background: var(--c-panel-2);
+  border: 1px dashed var(--c-linea-fuerte);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.consola-anadir-opcion:hover { border-color: var(--c-acento); color: var(--c-acento); }
+
+.consola-separadores { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-1); }
+.consola-separadores li {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+  background: var(--c-panel-2);
+}
+.consola-separadores li.activo { border-color: var(--c-acento); box-shadow: inset 0 0 0 1px var(--c-acento); }
+.consola-separador-nombre {
+  flex: 1;
+  min-width: 0;
+  padding: var(--e-2);
+  font: inherit;
+  font-size: var(--t-xs);
+  text-align: left;
+  color: var(--c-texto);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.consola-separador-quitar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  color: var(--c-texto-2);
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--c-linea);
+  cursor: pointer;
+}
+.consola-separador-quitar:hover { color: var(--c-grave); }
+
+/* ---- electrobisturí: el modo (el color del botón del lápiz) y la potencia ---- */
+.consola-electro-modos { display: grid; grid-template-columns: 1fr 1fr; gap: var(--e-2); }
+.consola-electro-modo {
+  display: grid;
+  gap: 1px;
+  min-height: 44px;
+  place-content: center;
+  padding: 0 var(--e-2);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 650;
+  text-align: center;
+  color: var(--c-texto);
+  background: var(--c-panel-2);
+  border: 2px solid var(--c-linea-fuerte);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.consola-electro-modo small { font-family: var(--mono); font-size: var(--t-xs); letter-spacing: 0.1em; opacity: 0.85; }
+/* El lápiz tiene un botón amarillo (CUT) y otro azul (COAG): los modos llevan esos colores. */
+.consola-electro-modo.corte.activo { color: #1a1300; background: #f2c94c; border-color: #f2c94c; }
+.consola-electro-modo.coagulacion.activo { color: #04122b; background: #6aa9ff; border-color: #6aa9ff; }
+.consola-instrumento-guia { font-style: italic; color: var(--c-texto); }
+
+/* Con menos de 1500 px el rótulo del módulo sobra: el título ya dice qué es y la barra tiene que caber en una línea. */
+@media (min-width: 901px) and (max-width: 1500px) {
+  .consola-identidad .consola-rotulo { display: none; }
+}

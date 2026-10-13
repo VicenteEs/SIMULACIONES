@@ -228,6 +228,14 @@ body:has(.admin-layout) .barra { display: none; }
   overflow-wrap: anywhere;
 }
 .admin-sidebar-credito a { color: var(--cian); text-decoration: none; }
+/* La marca de quien desarrolló la plataforma: «Desarrollado por» y su logotipo (blanco, sobre la barra marina). */
+.admin-sidebar-credito-marca {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin-bottom: var(--e-2);
+}
+
 .admin-sidebar-credito a:hover { text-decoration: underline; }
 
 /* La guardia de «Salir» no puede romper el `flex` del pie. */

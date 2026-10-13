@@ -331,10 +331,10 @@ export interface OpcionDeCatalogo {
  * la página del residente: así no hay dos traducciones de un caso que puedan
  * separarse.
  *
- * Con una diferencia deliberada: la bandeja. El residente ve la del caso (los
- * instrumentos de sus pasos más los señuelos); el editor ve **el catálogo
- * entero**, agrupable por categoría, con cada instrumento marcado si ya está en
- * la bandeja del caso.
+ * La bandeja es la misma que ve el residente: los instrumentos de los pasos
+ * más los que el autor eligió. El catálogo entero no se pinta —se pintaba, y el
+ * editor armaba algo que no se parecía a lo que vería quien recorre el caso—;
+ * va aparte en `catalogoDelEditor` para el botón «Añadir a la bandeja».
  */
 export function casoDesdeElFormulario(
   valores: Documento,
@@ -391,19 +391,29 @@ export function casoDesdeElFormulario(
     instrumental: [],
   })
 
+  const comoInstrumento = (i: InstrumentoParaElEditor) => ({
+    id: i.id,
+    nombre: i.nombre,
+    icono: i.icono,
+    descripcion: i.descripcion || null,
+    modeloUrl: i.modeloUrl,
+    encuadreDelModelo: null,
+    ajustes: i.ajustes,
+    categoria: i.categoria,
+    slug: i.slug ?? null,
+    enLaBandejaDelCaso: enLaBandeja.has(i.id),
+  })
   return {
     ...base,
-    instrumental: contexto.instrumentos.map((i) => ({
-      id: i.id,
-      nombre: i.nombre,
-      icono: i.icono,
-      descripcion: i.descripcion || null,
-      modeloUrl: i.modeloUrl,
-      encuadreDelModelo: null,
-      ajustes: i.ajustes,
-      categoria: i.categoria,
-      slug: i.slug ?? null,
-      enLaBandejaDelCaso: enLaBandeja.has(i.id),
-    })),
+    // La bandeja que se pinta es solo la del caso —los instrumentos que el autor eligió y los que piden los
+    // pasos—, ordenada por nombre como la ve el residente. El editor veía antes el catálogo entero ahí, y lo
+    // que armaba no se parecía a lo que vería quien recorre el caso: «solo las herramientas que selecciono
+    // tienen que aparecer en la interfaz del simulador».
+    instrumental: contexto.instrumentos
+      .filter((i) => enLaBandeja.has(i.id))
+      .map(comoInstrumento)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    // El catálogo entero queda aparte, solo para el botón «Añadir a la bandeja».
+    catalogoDelEditor: contexto.instrumentos.map(comoInstrumento),
   }
 }

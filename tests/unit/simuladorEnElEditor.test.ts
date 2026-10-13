@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { OPACIDAD_DE_RAYOS_X as OPACIDAD_DEL_ATLAS } from '@/atlas/cargador'
-import { OPACIDAD_DE_RAYOS_X as OPACIDAD_DEL_SIMULADOR } from '@/components/simulador/LienzoQuirurgico'
+import { DENSIDAD_POR_PAPEL, DENSIDAD_POR_SISTEMA } from '@/lib/radiografia'
 import { piezasQueFaltanEnElArchivo, reconciliarConElModelo } from '@/lib/simulador'
 import { casoDesdeElFormulario, casoParaLaConsola } from '@/lib/casoQuirurgico'
 import {
@@ -72,11 +71,15 @@ describe('piezasQueFaltanEnElArchivo', () => {
   })
 })
 
-describe('los rayos X son los del taller anatómico', () => {
-  it('con la misma opacidad', () => {
-    // El dueño pidió que la fluoroscopia fuera **ese** RX. Si una de las dos
-    // cifras cambia sin la otra, vuelven a ser dos vistas con el mismo nombre.
-    expect(OPACIDAD_DEL_SIMULADOR).toBe(OPACIDAD_DEL_ATLAS)
+describe('los rayos X del simulador y los del taller anatómico son la misma radiografía', () => {
+  it('con la misma densidad para el mismo tejido', () => {
+    // Antes eran «todo al 50 % de opacidad» y se comparaba esa cifra. Ahora son una radiografía: cada
+    // tejido absorbe lo que dice `lib/radiografia`, y el atlas lo lee por sistema y el simulador por papel.
+    // Si una de las dos tablas se mueve sin la otra, el hueso del taller y el del simulador dejan de
+    // verse igual de blancos.
+    expect(DENSIDAD_POR_PAPEL.hueso).toBe(DENSIDAD_POR_SISTEMA.skeletal)
+    expect(DENSIDAD_POR_PAPEL.musculo).toBe(DENSIDAD_POR_SISTEMA.muscular)
+    expect(DENSIDAD_POR_PAPEL.piel).toBe(DENSIDAD_POR_SISTEMA.integumentary)
   })
 })
 
@@ -120,18 +123,32 @@ describe('casoDesdeElFormulario: la consola, desde lo que se está escribiendo',
     expect(caso.pasos.map((p) => p.id)).toEqual(['c1', 'c2'])
   })
 
-  it('la bandeja del editor es el catálogo entero, con marca de cuáles ya están en la del caso', () => {
+  it('la bandeja del editor es solo la del caso, la misma que ve el residente', () => {
     const caso = casoDesdeElFormulario(valores, { opciones, instrumentos })
-    expect(caso.instrumental.map((i) => i.nombre)).toEqual([
+    // Los de los pasos (el 4) y los que el autor eligió (el 12): en orden de nombre. El 9 no está: no lo pide
+    // ningún paso ni se eligió, y antes aparecía igual porque la bandeja era el catálogo entero.
+    expect(caso.instrumental.map((i) => i.nombre)).toEqual(['Martillo', 'Tijera de Mayo recta'])
+    expect(caso.instrumental.every((i) => i.enLaBandejaDelCaso)).toBe(true)
+    expect(caso.instrumental.map((i) => i.id)).not.toContain('9')
+  })
+
+  it('el catálogo entero va aparte, para «Añadir a la bandeja», con marca de cuáles ya están', () => {
+    const caso = casoDesdeElFormulario(valores, { opciones, instrumentos })
+    expect(caso.catalogoDelEditor?.map((i) => i.nombre)).toEqual([
       'Tijera de Mayo recta',
       'Pinza de Verbrugge',
       'Martillo',
     ])
-    const marca = Object.fromEntries(caso.instrumental.map((i) => [i.id, i.enLaBandejaDelCaso]))
+    const marca = Object.fromEntries((caso.catalogoDelEditor ?? []).map((i) => [i.id, i.enLaBandejaDelCaso]))
     // El 4 por que un paso lo pide; el 12 por declararse; el 9 no está.
     expect(marca).toEqual({ '4': true, '9': false, '12': true })
-    expect(caso.instrumental[1].categoria).toBe('reduccion')
-    expect(caso.instrumental[1].modeloUrl).toBeNull()
+    expect(caso.catalogoDelEditor?.[1].categoria).toBe('reduccion')
+    expect(caso.catalogoDelEditor?.[1].modeloUrl).toBeNull()
+  })
+
+  it('añadir a la bandeja un instrumento del catálogo lo pasa a la bandeja que se pinta', () => {
+    const caso = casoDesdeElFormulario({ ...valores, instrumental: ['12', '9'] }, { opciones, instrumentos })
+    expect(caso.instrumental.map((i) => i.id).sort()).toEqual(['12', '4', '9'])
   })
 
   it('sin modelo elegido, el caso no tiene dirección (el editor pide elegirlo)', () => {

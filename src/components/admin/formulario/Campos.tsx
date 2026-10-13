@@ -38,6 +38,7 @@ import {
 import { formularioDeArchivo, subidorQueAvisa } from '@/admin/subidas'
 import { EditorDeEncuadre } from './EditorDeEncuadre'
 import { TallerDePiezas, type DesplazamientoInicial } from './TallerDePiezas'
+import { SelectorConBusqueda } from './SelectorConBusqueda'
 import type { Encuadre } from '@/components/Visor3D'
 
 /**
@@ -394,101 +395,54 @@ export function ControlDeCampo({
         </div>
       )
 
-    case 'relacion':
+    case 'relacion': {
+      // Escrito y filtrable, con «¿No está? Agregar» en los catálogos que lo admiten: ver
+      // `SelectorConBusqueda`. Antes eran un `<select>` y una columna de casillas, que con setenta
+      // instrumentos y cuarenta modelos obligaban a recorrer la lista entera.
+      const opciones = relaciones[campo.coleccion] ?? []
+      const identificador = (v: unknown): string =>
+        texto(v && typeof v === 'object' ? (v as { id?: unknown }).id : v)
       if (campo.multiple) {
-        // Los identificadores llegan sueltos o como documentos poblados, según
-        // la profundidad con la que se leyó: se normalizan antes de comparar,
-        // porque «3» y 3 no son la misma casilla marcada.
-        const marcados = (Array.isArray(valor) ? valor : [])
-          .map((v) => (v && typeof v === 'object' ? (v as { id?: unknown }).id : v))
-          .map((v) => texto(v))
-          .filter(Boolean)
-        const opciones = relaciones[campo.coleccion] ?? []
+        // Los identificadores llegan sueltos o como documentos poblados, según la profundidad con la que
+        // se leyó: se normalizan antes de comparar, porque «3» y 3 no son la misma ficha marcada.
+        const marcados = (Array.isArray(valor) ? valor : []).map(identificador).filter(Boolean)
         return (
-          // Las N casillas son un solo campo y hay que anunciarlas como tal.
-          // Sueltas, el lector recorre «Placa LCP 3.5, casilla, no marcada»,
-          // «Taladro, casilla, no marcada»… y nunca dice de qué va la lista, así
-          // que la ayuda —que es la que explica que dejarla vacía no significa
-          // «sin instrumental» sino «la componen los pasos»— tampoco llega.
-          //
-          // Es `role="group"` y no `<fieldset>` a propósito, aunque el caso
-          // 'grupo' de aquí abajo sí use fieldset. Aquel lleva `.campo-grupo`,
-          // que rehace borde, relleno y margen y además viste su `<legend>`;
-          // este tendría que llevar `.campo`, que solo declara `flex` y
-          // `min-width`, así que se quedaría con el borde acanalado y el
-          // relleno que el navegador le pone a todo fieldset, y su rótulo
-          // tendría que dejar de ser el mismo `<span class="campo-etiqueta">`
-          // que usan sus vecinos para pasar a `<legend>`. El marco y la
-          // etiqueta de este campo quedarían distintos de los de al lado por un
-          // arreglo que es de accesibilidad y no de aspecto.
-          //
-          // Cuando se decidió pesaba también una regla `.campo legend` heredada
-          // del simulador viejo (`estilos.css`), que los pintaba en mono y
-          // mayúsculas. Esa regla puede desaparecer —era de las que quedaron
-          // huérfanas— y la decisión no se mueve: el motivo de arriba no
-          // depende de ella.
-          <div
-            className="campo"
-            role="group"
-            aria-labelledby={idEtiqueta}
-            aria-describedby={describe}
-          >
+          // Las N fichas son un solo campo y hay que anunciarlas como tal (el rótulo y la ayuda se
+          // anuncian al entrar en el grupo, no ficha a ficha).
+          <div className="campo" role="group" aria-labelledby={idEtiqueta} aria-describedby={describe}>
             {rotulo}
             {ayuda}
-            <div className="campo-casillas">
-              {opciones.length === 0 ? (
-                <p className="campo-ayuda">Todavía no hay nada que elegir en ese catálogo.</p>
-              ) : (
-                opciones.map((o) => (
-                  // Sin clase a propósito: lo viste `.campo-casillas label`, por
-                  // su sitio. Llevaba `campo-casilla`, que es además el nombre de
-                  // la envoltura de un campo booleano, y esa colisión ya volvió
-                  // fila flex al aviso de los metadatos DICOM y lo dejó donde
-                  // nadie lo lee (el porqué entero está en `admin.css`, junto a
-                  // la regla). Perdía por especificidad, así que quitarla no
-                  // cambia un píxel; lo que quita es el nombre con dos dueños.
-                  <label key={o.id}>
-                    <input
-                      type="checkbox"
-                      checked={marcados.includes(o.id)}
-                      onChange={(e) =>
-                        alCambiar(
-                          e.target.checked
-                            ? [...marcados, o.id]
-                            : marcados.filter((m) => m !== o.id),
-                        )
-                      }
-                    />
-                    <span>{o.etiqueta}</span>
-                  </label>
-                ))
-              )}
-            </div>
+            <SelectorConBusqueda
+              multiple
+              id={id}
+              idDeLaAyuda={describe}
+              coleccion={campo.coleccion}
+              opciones={opciones}
+              valor={marcados}
+              alCambiar={alCambiar}
+              alRecargar={() => alRecargarRelacion?.(campo.coleccion)}
+              marcador="Escriba para buscar y marcar…"
+            />
           </div>
         )
       }
       return (
         <div className={`campo${campo.medio ? ' campo-medio' : ''}`}>
           {etiqueta}
-          <select
+          <SelectorConBusqueda
             id={id}
-            className="campo-control"
-            aria-describedby={describe}
-            value={texto(
-              valor && typeof valor === 'object' ? (valor as { id?: unknown }).id : valor,
-            )}
-            onChange={(e) => alCambiar(e.target.value || null)}
-          >
-            <option value="">— ninguno —</option>
-            {(relaciones[campo.coleccion] ?? []).map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.etiqueta}
-              </option>
-            ))}
-          </select>
+            idDeLaAyuda={describe}
+            coleccion={campo.coleccion}
+            opciones={opciones}
+            valor={identificador(valor)}
+            alCambiar={alCambiar}
+            alRecargar={() => alRecargarRelacion?.(campo.coleccion)}
+            requerido={campo.requerido}
+          />
           {ayuda}
         </div>
       )
+    }
 
     case 'archivo':
       return (

@@ -363,8 +363,11 @@ desplazado, una fractura.
   vez para que se vea lo de debajo. Con la piel encendida, **el clic y el marco la
   dejan pasar**: seleccionan lo que hay debajo, y la piel solo se elige desde la
   lista o si es lo único que hay donde se pulsa.
-- **«Rayos X»** (Alt + Z) vuelve todo translúcido, como en Blender, para
-  encontrar un hueso bajo el músculo. Es solo una forma de mirar: no se guarda.
+- **«Rayos X»** (Alt + Z) lo muestra como una radiografía: fondo negro y cada
+  tejido en un gris según su densidad (el hueso, casi blanco; el músculo, gris
+  medio; la piel, apenas), sin vasos ni nervios. Sirve para encontrar un hueso bajo
+  el músculo y para ver los fragmentos de una fractura. Es solo una forma de mirar:
+  no se guarda.
 - **Mayús + G** selecciona todo lo encendido del mismo sistema que lo
   seleccionado —todos los músculos, todos los vasos—, que es la forma rápida de
   quitar una capa entera: Mayús + G y después Supr.
@@ -396,7 +399,11 @@ metatarsianos** y las **falanges** de la mano y del pie (90 piezas, derechas e i
    principales.
 6. **«Fracturar»** crea los fragmentos de una vez (un solo paso de Ctrl + Z), deja un
    **rótulo con el código** sobre el hueso —«42-A2 · Tibia, diáfisis, oblicua · derecho»— y
-   selecciona los fragmentos para moverlos con «Manipular» (V).
+   selecciona los fragmentos para moverlos con «Manipular» (V). Los fragmentos **intermedios
+   quedan desordenados al azar**, como en una fractura de verdad: cada uno corrido entre 0,5 mm y
+   2 cm del sitio que le corresponde y angulado entre 5° y 20°. Si la fractura solo tiene dos
+   fragmentos, se angula el más pequeño. El aviso dice cuánto se corrieron y se angularon; con «Manipular» (V)
+   se acomodan a mano.
 
 «Cambiar la fractura» la quita y vuelve a ofrecer el asistente con lo que tenía;
 «Quitar la fractura» devuelve el hueso entero. En la ficha, el residente ve el hueso ya
@@ -647,11 +654,34 @@ y no guarda nada. Sirve para comprobar que el gesto que usted considera correcto
 pasa, y que uno torcido no.
 
 **La bandeja del editor** trae **todos** los instrumentos del catálogo, agrupados
-por categoría y con buscador. Al pulsar uno, aparece en el lienzo (si tiene modelo
-3D; si no, dice «sin 3D»). En su recuadro: *Es el correcto en este paso* y
+por categoría. Está en la columna de la izquierda, junto al lienzo, para que no quede
+fuera de la vista. Se busca **escribiendo** («hohm», «pinza dient»): se compara por
+palabras y sin tildes. Al pulsar uno, aparece en el lienzo (si tiene modelo 3D; si no,
+dice «sin 3D») y la consola pasa sola al modo que le corresponde (Trazar para un bisturí,
+Separar para un separador…). En su recuadro: *Es el correcto en este paso* y
 *Añadir a la bandeja* (o *Quitar de la bandeja*). El residente ve solo la bandeja
 del caso: los instrumentos que piden los pasos más los que usted añada como
-señuelos.
+señuelos; también puede filtrarla escribiendo.
+
+**Lo que no está en la lista, se agrega ahí mismo.** El hueso, el segmento, la técnica, la
+clasificación y la fase del caso, y el modelo, se eligen **escribiendo** en un cuadro que
+filtra la lista. Si lo que busca no está, el botón **«¿No está? Agregar»** lo crea y lo deja
+guardado para todos (no crea un duplicado si ya existe uno con ese nombre, sin mirar tildes ni
+mayúsculas). Pueden hacerlo los editores y los administradores.
+
+**Copiar y pegar pasos entre cirugías.** El botón del portapapeles, a la derecha de la franja
+de pasos, abre el cuadro «Pasos entre cirugías». Se marcan los pasos que se quieren llevar
+(el posicionamiento, el abordaje…) y **Copiar N pasos** los guarda en ese navegador; también
+está **Duplicar el paso N**. En la otra cirugía, el mismo cuadro ofrece **Pegar después del paso
+N**, **al principio** o **al final**. Se copian el texto, el objetivo, los rangos, el instrumento
+y la fase de cada paso. Para llevarlos a otro ordenador, **Guardar en un archivo** y, allá,
+**Cargar de un archivo**. Los rangos capturados de un modelo (una incisión trazada) valen para
+ese modelo: si el de destino es otro, conviene volver a capturarlos.
+
+**Si el editor parece «borrar» la incisión.** En un caso nuevo, el primer «Guardar borrador»
+cambia la dirección de la página y vuelve a montar el editor. Desde D-172 el editor recuerda el
+paso, el instrumento en la mano, el modo y lo cortado mientras la pestaña esté abierta; si
+aun así se pierde, avise: no es algo que usted haya hecho mal.
 
 **Si el modelo se ve entero y las piezas no coinciden.** Aparece un aviso rojo en la
 pestaña **Piezas** («N de M piezas no están en este modelo»). Suele pasar al volver a
@@ -659,9 +689,12 @@ exportar el hueso con otros nombres. «Rellenar desde el modelo» pone las pieza
 archivo nuevo; «Quitar las que no están» limpia las viejas. Mientras tanto el
 simulador muestra el modelo entero, no una pantalla vacía.
 
-**Rayos X.** El botón **Rayos X** del lienzo es la misma vista translúcida del taller
-anatómico. Con ellos encendidos aparece un panel con:
-- las proyecciones **AP** y **lateral**, perpendiculares al eje del hueso;
+**Rayos X y fluoroscopia.** El botón **Rayos X** del lienzo es la misma radiografía en
+grises del taller anatómico (fondo negro, el hueso blanco, sin vasos). El botón
+**Fluoroscopia** abre, al lado del lienzo, un recuadro con la imagen circular del arco en C:
+lo denso se ve oscuro, como en la pantalla del pabellón. Con ella encendida aparece un panel con:
+- las proyecciones **AP**, **lateral** y **oblicua** (45°), que se eligen en el mismo recuadro;
+- un deslizador para **acercar** la imagen;
 - la **guía de ejes** (verde el hueso fijo, ámbar el fragmento) y cuántos grados hay
   entre los dos, comparados con el tope del paso;
 - **Dónde debe quedar**: la silueta verde del fragmento reducido (una ayuda para
@@ -685,18 +718,42 @@ cuadros, de una familia a la vez. La que contiene el instrumento que se lleva en
 dice «en la mano». Con algo en el buscador (solo en el editor) se abren todas las que
 coinciden.
 
-**Los instrumentos actúan sobre el paciente.** Hay tres, y cada uno trae su modo de ratón:
+**Los instrumentos actúan sobre el paciente.** Al pulsar un instrumento en la bandeja, la consola pasa
+sola al modo que le corresponde y el panel de su recuadro dice qué hacer con él. Cada familia trae el suyo:
 - **Cortar (bisturí, electrobisturí, tijeras).** Con el instrumento en la mano, modo
-  **Trazar**: arrastre sobre el modelo y, **al soltar**, la malla se parte a lo largo del
-  trazo. El bisturí de piel corta la piel; el profundo, el electrobisturí y las tijeras, los
-  planos de debajo (todos los músculos visibles). Hace falta que la capa esté encendida.
-  La herida se ve como una incisión con un borde rojo. «Borrar trazo» la deshace; pasar de
+  **Trazar**. La incisión se hace de **dos maneras**, que se eligen arriba del lienzo:
+  - **En línea recta:** un clic marca el **inicio** y otro clic, el **final**; entre los dos
+    se ve la línea de guía y, al segundo clic, la malla se parte a lo largo de ella.
+  - **A mano alzada:** se arrastra sobre el modelo y, **al soltar**, la malla se parte a lo
+    largo del trazo.
+  El bisturí de piel corta la piel; el profundo, el electrobisturí y las tijeras, los planos de
+  debajo (todos los músculos visibles). Hace falta que la capa esté encendida. La herida queda
+  a la vista como una **cinta roja** siguiendo el corte, aunque los labios estén pegados; la
+  cinta se aparta sola cuando la herida abre más de 5 mm. «Borrar trazo» la deshace; pasar de
   paso no (la piel cortada sigue cortada), y «Cerrar la herida» o reiniciar el caso la cierran.
-- **Separar (Senn-Miller, Farabeuf, Hohmann, Gelpi, Weitlaner, Beckman-Adson).** Al coger
-  uno, el modo pasa a **Separar**: arrastre desde el borde de la herida hacia fuera. Los de
-  mano abren el borde que agarran (hasta 22–40 mm) y los autoestáticos abren los dos y se
-  quedan abiertos (hasta 55–90 mm). También hay un deslizador de apertura en el recuadro del
-  instrumento. Mientras se arrastra, una etiqueta sobre el lienzo dice cuánto está abierta.
+  La incisión de la piel **no se borra** al cambiar a otro bisturí o a un separador.
+- **Electrobisturí.** Además de cortar, trae sus mandos: **Corte** o **Coagulación**, y la
+  **potencia en vatios** (escala de 0 a 100 W). Lo habitual es 30–50 W para cortar y 25–45 W
+  para coagular; por debajo de 10 W no corta y por encima de 75 W quema el borde. La consola lo
+  dice en el propio recuadro.
+- **Tijera de Metzenbaum.** Se maneja **cerrada** y se abre poco a poco con la rueda del ratón.
+- **Pinzas con dientes, de disección, Adson, Allis (pellizcar).** Con una en la mano, el modo
+  pasa a **Pinzar**: haga clic junto al borde de la herida y la pinza **toma la piel y la
+  levanta**; arrastre hacia arriba, o use la rueda, para levantar más. El deslizador «Levantar» dice
+  cuántos milímetros. Dos pinzas —la del cirujano y la del ayudante, una a cada borde— dan una
+  piel **tensa**, que es la que se corta bien; con una sola, o con ninguna, la consola avisa
+  que falta tensión. «Soltar la piel» quita la pinza. Caben dos pinzas a la vez.
+- **Separar (Senn-Miller, Farabeuf, Hohmann, Gelpi, Weitlaner, Beckman-Adson).** Se hace en
+  tres tiempos: **(1)** pulsar el separador en la bandeja; **(2)** hacer **clic en el punto de la
+  incisión** donde va; **(3)** abrir con la **rueda del ratón** o, en una tablet, con la **barra
+  «Apertura»** del recuadro. La herida abre **donde está puesto el separador** y se cierra hacia
+  los extremos, así que con dos separadores en puntos distintos se abre en dos sitios. Los de
+  mano (Farabeuf, Senn-Miller) empujan la piel hacia un lado y abren el borde que sostienen
+  (hasta 22–40 mm), y el otro lo sostiene el ayudante con otra hoja; los autoestáticos (Gelpi,
+  Weitlaner) se clavan a los dos bordes y se quedan abiertos solos (hasta 55–90 mm). El
+  **Hohmann** no abre la piel: se apoya en el **borde del hueso** y retrae las partes blandas de
+  ese lado. Caben hasta seis separadores; la lista del recuadro permite elegir cuál se abre y
+  quitarlos de uno en uno o todos («Quitar los separadores»).
 - **Perforar (brocas de 1,5 a 4,5 mm, avellanador, machuelo, fresa).** El modo pasa a
   **Perforar**. Apunte al hueso y **mantenga pulsado**: la broca gira y avanza. Antes de
   empezar, dos deslizadores eligen la **inclinación** (a lo largo del hueso y a lo ancho, de
@@ -728,9 +785,11 @@ coinciden.
   separador y la herida a la vez; con un tornillo cambia su largo; con una sutura que ya tiene
   puntadas, tira del hilo. Para acercar el modelo, **Ctrl + rueda**. Un instrumento que no
   se maneja con la rueda la deja para el zoom, como siempre.
-- **Mover agarra cualquier trozo de hueso.** En el paso de reducir, «Mover» arrastra el trozo
-  que se agarre, esté la piel encendida o no. Solo el fragmento que el caso mide cambia las
-  medidas; «Volver al desplazamiento inicial» devuelve todos a su sitio.
+- **Mover tiene dos submodos.** **«Todo junto»** (el de partida, salvo en los pasos de reducir)
+  desplaza piel, músculo y hueso a la vez, como un bloque, para que nada quede atrás; **«Un trozo»**
+  arrastra el trozo de hueso que se agarre, esté la piel encendida o no, y es lo que hace falta
+  para reducir. Solo el fragmento que el caso mide cambia las medidas; «Volver al desplazamiento
+  inicial» devuelve todos a su sitio.
 - **Las capas** (piel, músculo, hueso) empiezan **todas encendidas** y se encienden y apagan siempre, como en el taller
   anatómico: un paso propone qué se ve, pero lo que se encienda a mano se ve entero.
 - **Recargar la página no pierde lo cortado ni lo cosido** (se guarda en la pestaña): la

@@ -562,7 +562,7 @@ export const Cirugias: EsquemaDeColeccion = {
     {
       titulo: 'El caso',
       descripcion:
-        'Hueso, trazo y técnica salen de catálogos que usted mismo edita en Contenido. Si falta alguno, créelo ahí y vuelva.',
+        'Hueso, clasificación y técnica se buscan escribiendo. Si lo que busca no está, el propio campo ofrece «¿No está? Agregar»: queda guardado en el catálogo y sale la próxima vez, para todos.',
       campos: [
         { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre del caso', requerido: true },
         { tipo: 'relacion', nombre: 'hueso', etiqueta: 'Hueso', coleccion: 'huesos-ao', medio: true },

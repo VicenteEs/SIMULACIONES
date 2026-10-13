@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useImperativeHandle, useRef, useState, type RefObject } from 'react'
+import { densidadDelSistema } from '@/lib/radiografia'
 import * as THREE from 'three'
 // De `three/examples/jsm` y no de `three-stdlib`, que trae los mismos controles.
 // En el árbol conviven las dos procedencias, y lo que de verdad pesa no es esta
@@ -223,6 +224,18 @@ export interface MandoDelVisor {
    * para decir dónde cae cada cosa. `null` si la pieza no está montada.
    */
   medirHueso: (pieza: string) => { eje: EjeDelHueso; segmentos: SegmentosDelHueso } | null
+  /**
+   * Los trozos en que está partido un hueso ahora mismo (sus hojas), con lo que hace falta
+   * para desordenarlos al fracturar: su centro y su foco en el sitio anatómico, y cuánto
+   * miden (el volumen de su caja, que es comparable entre trozos). Lista vacía si el hueso
+   * no está partido o el visor todavía no ha construido los trozos.
+   */
+  trozosDelHueso: (pieza: string) => {
+    id: string
+    centro: [number, number, number]
+    foco: [number, number, number] | null
+    tamano: number
+  }[]
   /**
    * Una tecla durante el gesto: X, Y o Z lo atan a ese eje (otra vez la misma
    * lo suelta), Intro confirma y Esc cancela. Devuelve `true` si había un gesto
@@ -581,6 +594,33 @@ export function VisorAtlas({
     empezarTransformacion: (modo) => taller.current.gesto?.empezar(modo) ?? false,
     lecturaDelFragmento: (id, movidas) => taller.current.lecturaDelFragmento?.(id, movidas) ?? null,
     medirHueso: (pieza) => taller.current.medirHueso?.(pieza) ?? null,
+    trozosDelHueso: (pieza) => {
+      const trozos: {
+        id: string
+        centro: [number, number, number]
+        foco: [number, number, number] | null
+        tamano: number
+      }[] = []
+      for (const trozo of taller.current.fragmentos?.values() ?? []) {
+        if (trozo.pieza !== pieza) continue
+        const p = trozo.enReposo.posiciones
+        const minimo = [Infinity, Infinity, Infinity]
+        const maximo = [-Infinity, -Infinity, -Infinity]
+        for (let i = 0; i < p.length; i += 3) {
+          for (let k = 0; k < 3; k += 1) {
+            if (p[i + k] < minimo[k]) minimo[k] = p[i + k]
+            if (p[i + k] > maximo[k]) maximo[k] = p[i + k]
+          }
+        }
+        trozos.push({
+          id: trozo.id,
+          centro: [trozo.centro.x, trozo.centro.y, trozo.centro.z],
+          foco: trozo.foco ? [trozo.foco.x, trozo.foco.y, trozo.foco.z] : null,
+          tamano: p.length === 0 ? 0 : (maximo[0] - minimo[0]) * (maximo[1] - minimo[1]) * (maximo[2] - minimo[2]),
+        })
+      }
+      return trozos
+    },
     teclaDeTransformacion: (tecla) => taller.current.gesto?.tecla(tecla) ?? false,
     mirarDesde: (lado) => {
       const t = taller.current
@@ -2002,9 +2042,18 @@ export function VisorAtlas({
   // mallas: se repasan todas en cada cambio y no hay nada que optimizar.
   useEffect(() => {
     const t = taller.current
+    // El sistema de cada pieza, para saber cuánto absorbe su trozo en la radiografía.
+    const sistemaDe = new Map((catalogo?.piezas ?? []).map((p) => [p.id, p.sistema]))
     for (const trozo of t.fragmentos?.values() ?? []) {
       trozo.malla.visible = (!visibles || visibles.has(trozo.pieza)) && !apagados?.has(trozo.id)
-      pintarFragmento(trozo, !!seleccion?.has(trozo.id), aspectos?.get(trozo.pieza), rayosX)
+      const sistema = sistemaDe.get(trozo.pieza)
+      pintarFragmento(
+        trozo,
+        !!seleccion?.has(trozo.id),
+        aspectos?.get(trozo.pieza),
+        rayosX,
+        sistema ? densidadDelSistema(sistema) : densidadDelSistema('skeletal'),
+      )
       colocarFragmento(trozo, transformaciones?.get(trozo.id))
     }
     t.pedirDibujo?.()
@@ -2112,6 +2161,9 @@ export function VisorAtlas({
     const escena = taller.current.escena
     if (!escena) return
     aplicarRayosX(escena, rayosX)
+    // La radiografía es luz sobre negro: el vacío es negro de verdad y no el degradado del marco, que se vería a
+    // través de un lienzo transparente.
+    taller.current.render?.setClearColor(0x000000, rayosX ? 1 : 0)
     taller.current.pedirDibujo?.()
   }, [catalogo, rayosX, progreso])
 

@@ -52,6 +52,12 @@ import {
 import { huesoDeLaPieza } from '@/atlas/huesosAO'
 import { OPACIDAD_DE_LA_PIEL, idDeLaPiel } from '@/atlas/piel'
 import { codigoDeLaReceta, cortesDeLaFractura, etiquetaDeLaFractura } from '@/atlas/patronesDeFractura'
+import {
+  anguloDeLaTransformacion,
+  desordenarLosFragmentos,
+  distanciaDeLaTransformacion,
+} from '@/atlas/desordenDeLaFractura'
+import type { EjeDelHueso } from '@/lib/planoDeCorte'
 import { parejasContralaterales, reflejarGiro, reflejarVector } from '@/atlas/espejo'
 import {
   MAXIMO_DE_MARCAS,
@@ -442,6 +448,14 @@ export function TallerDeAtlas({
    */
   const [fracturas, setFracturas] = useState<FracturaDeInstancia[]>([])
   const [borrador, setBorrador] = useState<BorradorDeFractura>(BORRADOR_VACIO)
+  // La fractura que acaba de hacerse y todavía no se ha desordenado: los trozos los construye el visor
+  // después de que el taller pida los cortes, así que se espera a que existan (ver el efecto de abajo).
+  const [desordenPendiente, setDesordenPendiente] = useState<{
+    pieza: string
+    eje: EjeDelHueso
+    codigo: string
+    intentos: number
+  } | null>(null)
 
   const [instancia, setInstancia] = useState<string | null>(null)
   /**
@@ -1391,6 +1405,9 @@ export function TallerDeAtlas({
     }
     apuntarPaso()
     setCortes([...cortes, ...nuevos])
+    // Los trozos intermedios nacen corridos y torcidos, como en una fractura de verdad: se hace en cuanto el
+    // visor los ha construido, y en la misma entrada del historial (no se vuelve a apuntar el paso).
+    setDesordenPendiente({ pieza: receta.pieza, eje: medida.eje, codigo, intentos: 0 })
     setFracturas([...fracturas.filter((f) => f.pieza !== receta.pieza), { ...receta, codigo }])
     // El rótulo, algo fuera del hueso por el lado de fuera, a la altura del trazo.
     const texto = etiquetaDeLaFractura(receta)
@@ -1417,6 +1434,47 @@ export function TallerDeAtlas({
       texto: `${codigo}: ${hojasDe([...cortes, ...nuevos], receta.pieza).length} fragmentos. Muévalos con «Manipular» (V); el rótulo con el código ya está sobre el hueso.`,
     })
   }
+
+  /**
+   * Desordena los trozos de la fractura recién hecha (petición de Cristóbal): los intermedios se desplazan al
+   * azar entre 0,5 mm y 2 cm y se angulan entre 5° y 20°; con solo dos trozos, el más pequeño se angula. La
+   * cuenta está en `desordenDeLaFractura.ts`.
+   *
+   * Es un efecto y no parte de `fracturar` porque los trozos —su centro, su foco, su tamaño— los construye el
+   * visor al recibir los cortes, un pintado después de que el taller los pida. Si todavía no están, se vuelve a
+   * mirar a los 120 ms, hasta unas 25 veces: un hueso enorme tarda en partirse.
+   */
+  useEffect(() => {
+    if (!desordenPendiente) return
+    const trozos = mando.current?.trozosDelHueso(desordenPendiente.pieza) ?? []
+    if (trozos.length < 2) {
+      if (desordenPendiente.intentos >= 25) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- se abandona el intento tras esperar a los trozos
+        setDesordenPendiente(null)
+        return
+      }
+      const reloj = window.setTimeout(
+        () => setDesordenPendiente((d) => (d ? { ...d, intentos: d.intentos + 1 } : d)),
+        120,
+      )
+      return () => window.clearTimeout(reloj)
+    }
+    const nuevas = desordenarLosFragmentos(trozos, desordenPendiente.eje)
+    setDesordenPendiente(null)
+    if (nuevas.size === 0) return
+    setTransformaciones((previas) => new Map([...previas, ...nuevas]))
+    const todas = [...nuevas.values()]
+    const mayorDistancia = Math.max(...todas.map(distanciaDeLaTransformacion)) * 1000
+    const mayorAngulo = Math.max(...todas.map(anguloDeLaTransformacion))
+    const detalle =
+      trozos.length === 2
+        ? `El fragmento más pequeño quedó angulado ${Math.round(mayorAngulo)}°.`
+        : `${nuevas.size === 1 ? 'El fragmento intermedio quedó' : `Los ${nuevas.size} fragmentos intermedios quedaron`} corrido${nuevas.size === 1 ? '' : 's'} y angulado${nuevas.size === 1 ? '' : 's'} (hasta ${mayorDistancia.toFixed(mayorDistancia < 10 ? 1 : 0).replace('.', ',')} mm y ${Math.round(mayorAngulo)}°).`
+    setAviso({
+      tipo: 'ok',
+      texto: `${desordenPendiente.codigo}: ${trozos.length} fragmentos. ${detalle} Muévalos con «Manipular» (V); el rótulo con el código ya está sobre el hueso.`,
+    })
+  }, [desordenPendiente])
 
   /** Quita una fractura del asistente: el hueso vuelve entero y a su sitio, y se va su rótulo. */
   const quitarFractura = (pieza: string) => {

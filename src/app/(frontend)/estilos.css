@@ -1880,6 +1880,24 @@ dd > div blockquote p:last-child,
    hacia un lado. */
 .pie-de-pagina-correo { overflow-wrap: anywhere; }
 
+/* La firma con el logotipo de ChessCore. «Desarrollado por» y el logo van en una línea y el logo se
+   alinea con la base del texto; en un teléfono de 320 px envuelven sin empujar la página. */
+.pie-de-pagina-autoria {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  margin-bottom: var(--e-1);
+}
+.pie-de-pagina-marca { display: inline-flex; align-items: center; }
+.logo-chesscore { display: block; height: auto; max-width: 100%; }
+/* Dos archivos, uno por fondo: el original es negro sobre transparente (`LogoChessCore.tsx`). Sobre el
+   papel se ve el negro; sobre la portada marina, el blanco. */
+.logo-sobre-oscuro { display: none; }
+.portada-publica ~ .pie-de-pagina .logo-sobre-papel { display: none; }
+.portada-publica ~ .pie-de-pagina .logo-sobre-oscuro { display: inline-flex; }
+
 /* Dentro del panel no se ve: la barra lateral ya lleva el crédito
    (`.admin-sidebar-credito`), y dos firmas en la misma pantalla sobran.
 

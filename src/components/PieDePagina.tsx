@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { AUTORIA } from '@/lib/autoria'
+import { LogoChessCore } from '@/components/LogoChessCore'
 
 /**
  * Pie de todas las páginas de la plataforma: qué es esto, quién lo hizo y a
@@ -30,8 +31,22 @@ export function PieDePagina() {
         <strong>TraumaHub</strong> · Plataforma docente de traumatología ·{' '}
         <Link href="/creditos">Créditos y licencias</Link>
       </p>
+      {/* El logotipo de ChessCore da la cara por quien lo desarrolló: es lo que ve el residente, quien se
+          registra y quien edita, en todas las pantallas públicas. Sobre la portada marina cambia a su versión
+          blanca por CSS (`.portada-publica ~ .pie-de-pagina`), que elige cuál de los dos archivos se enseña. */}
+      <p className="pie-de-pagina-autoria">
+        <span>Desarrollado por</span>
+        <span className="pie-de-pagina-marca">
+          <span className="logo-sobre-papel">
+            <LogoChessCore sobre="papel" alto={48} />
+          </span>
+          <span className="logo-sobre-oscuro">
+            <LogoChessCore sobre="oscuro" alto={48} />
+          </span>
+        </span>
+      </p>
       <p>
-        Desarrollado por {AUTORIA.nombre}. Cualquier consulta, a{' '}
+        {AUTORIA.nombre}. Cualquier consulta, a{' '}
         <a className="pie-de-pagina-correo" href={`mailto:${AUTORIA.correo}`}>
           {AUTORIA.correo}
         </a>

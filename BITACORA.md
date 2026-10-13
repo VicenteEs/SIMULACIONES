@@ -3948,7 +3948,7 @@ nombre se exporta sin ella y sin avisos de piel. El recorte de piel de la
 exportación sigue en el código, probado con pieles sintéticas, por si vuelve.
 Los 23 modelos `.glb` que la traían siguen intactos: son archivos aparte.
 
-### D-139 · 2026-09-22 · vigente
+### D-139 · 2026-09-22 · superada por D-172 (los rayos X son ahora una radiografía en grises)
 **Rayos X como en Blender, y el taller a todo el ancho.**
 El damero de D-129 no se leía como los rayos X de Blender: lo de detrás se veía
 a trozos y lo de delante seguía tapando. Ahora es mezcla de verdad al 50 %, sin
@@ -5334,7 +5334,7 @@ validados por un traumatólogo; lo que el residente mueve en el deslizador no se
 guarda ni cuenta para el puntaje; los implantes (placas, tornillos, clavos) no se
 modelaron, porque no son instrumental.
 
-### D-166 · 2026-10-09 · vigente
+### D-166 · 2026-10-09 · vigente, con los rayos X rehechos en D-172
 **El editor de un caso quirúrgico es la propia consola del residente, a todo el
 ancho, con el instrumental en la escena y los rayos X del taller.**
 Pedido del dueño, en cuatro partes: (1) que el editor sea lo mismo que ve el
@@ -5709,6 +5709,79 @@ incisión» y «las piezas fracturadas no se pueden mover».
 - *Consecuencias malas:* quien cosía y veía la herida cerrarse sola ahora tiene que tirar del hilo (el panel lo
   dice); con una herida de 19 cm hacen falta unas 19 puntadas que crucen, que es lo que pasa de verdad; el
   guardado en la pestaña no cubre todo lo que se hace sobre el paciente.
+
+### D-172 · 2026-10-12 · vigente
+**El simulador se maneja con el instrumento en la mano: cada uno hace lo que hace en pabellón, las pinzas y los
+separadores se ponen en la herida, los rayos X son una radiografía de verdad, hay fluoroscopia en un recuadro y el
+editor puede añadir lo que falte a los catálogos.**
+Pedido del dueño con la narrativa de Cristóbal Cofré («la pinza pellizca la piel hacia arriba; el Farabeuf
+empuja la piel para un lado y otro, lo mismo que el Senn-Miller; el Hohmann se apoya en el borde del hueso»), probado
+en pantalla sobre los modelos reales de la copia de producción del 12-10-2026 (la restaurada en `trauma_prod`).
+- *Una incisión que parecía borrarse (la pregunta «¿lo hizo mal el editor o está malo esto?»). Estaba malo esto.*
+  En un caso **nuevo**, guardar el borrador por primera vez crea la ficha y cambia la dirección (`/nuevo` pasa a
+  `/<id>`); Next vuelve a montar la página y con ella el editor entero, el lienzo incluido. Se perdían la incisión, el
+  instrumento en la mano y el paso en que se estaba, justo cuando quien editaba acababa de cambiar de bisturí a
+  separador. En una ficha ya guardada no pasaba. La incisión ya se recordaba (D-171), pero con una clave que llevaba el
+  identificador de la ficha, que es lo que cambia. Ahora la clave del editor es **el modelo** y `ensayoDelEditor.ts`
+  recuerda también el paso, el instrumento, el modo, el tipo de trazo y la potencia (`sessionStorage`, de la pestaña).
+  Y la pestaña del formulario en que se estaba (`CLAVE_DE_LA_PESTANA`, `FormularioDocumento.tsx`). Aparte de eso, un
+  corte limpio dejaba los dos labios pegados y no se veía nada: cada herida lleva una **cinta** roja de 2,4 mm
+  (`cinta`, en `heridas.ts`) que se aparta sola cuando la herida abre más de 5 mm. La primera versión de la cinta
+  se tendía entre los vértices de los labios y, probada con la pierna real del atlas, **se veía a trozos, como una línea
+  de puntos**: los vértices caen donde el trazo cruza una arista y en la espinilla (triángulos largos) quedan a decenas
+  de milímetros unos de otros; la recta que los une pasa por dentro de la pierna y la piel la tapa, por mucho que se
+  la suba (se probó con 0,5 y con 1,5 mm sin cambio). Ahora se tiende por los **nodos del trazo**, que son los puntos
+  que se pincharon sobre la piel con su normal (`MallaCortada.curva`): línea continua en cualquier malla.
+- *Cada instrumento hace lo suyo* (`comportamientoDelInstrumento.ts`, `exposicion.ts`). `pellizca` (pinzas con dientes,
+  de disección, Adson, Allis): se pone en la piel y la levanta; dos pinzas, la del cirujano y la del ayudante, dan la
+  tensión (`tensionDeLaPiel`: sin ninguna, floja; con una, mala; con dos opuestas, buena). `separa` (Farabeuf,
+  Senn-Miller, Hohmann, Gelpi, Weitlaner…): se **elige**, se hace clic en el punto de la herida donde va y se **abre con la
+  rueda** del ratón o con la barra de abajo (tablet). La herida abre donde está el separador y se cierra hacia los
+  extremos (`perfil(t)` en `abrirHerida`, con `largoT` por vértice). El Hohmann declara `apoyoEnHueso`: se apoya en el
+  borde del hueso y no abre piel. Hasta seis separadores y dos pinzas a la vez.
+- *Bisturí profundo y electrobisturí* cortan los planos de debajo de la piel; la tijera de Metzenbaum se maneja cerrada y
+  se abre poco a poco con la rueda. El electrobisturí lleva **potencia en vatios, de 0 a 100** (`electrobisturi.ts`),
+  con modo corte o coagulación: por debajo de 10 W no corta, por encima de 75 W quema el borde, y el rango habitual
+  (30–50 W corte, 25–45 W coagulación) se avisa.
+- *La incisión se hace de dos maneras*: **en línea recta** —clic en el inicio y clic en el final— o **a mano alzada**
+  (el trazo que antes salía como «la tacorne»). Elegir un instrumento pasa solo al modo «Trazar».
+- *«Rayos X» es ahora una radiografía* (`radiografia.ts`, `materialDeRadiografia.ts`), en el simulador y en el taller
+  anatómico: fondo negro, cada tejido en un gris según su densidad (hueso 1, implante 1,9, músculo 0,3, piel 0,14;
+  pulmón 0,06), un término de borde que da espesor, y **sin vasos ni nervios**. Suma blanco sobre negro con mezcla
+  aditiva y sin escribir profundidad. Sustituye al «todo translúcido al 50 %» de D-139 y de D-166.
+- *Fluoroscopia* (renombra al botón de los rayos X del simulador). Abre un **recuadro al lado del lienzo** con la imagen
+  circular de un arco en C: se renderiza la misma escena de rayos X desde la cámara AP, lateral u oblicua (45° entre el
+  eje del hueso y el rayo) a un `WebGLRenderTarget`, se leen los píxeles y `aFluoroscopia` los pasa a negativo (lo denso, oscuro),
+  con círculo, viñeta y ruido. El menú elige la proyección; el contador de segundos de escopia y las ayudas de D-166
+  (guía de ejes y dónde debe quedar) siguen y se apagan. Es `PanelDeFluoroscopia.tsx`, aparte de la consola.
+- *«Mover» mueve todo junto*: en el simulador, el modo Mover tiene dos submodos. «Todo junto» (el de partida, salvo en los
+  pasos de reducir) desplaza piel, músculo y hueso a la vez, como un bloque; «Un trozo» agarra el trozo de hueso que se
+  toque, que es lo que hace falta para reducir una fractura (`moverTodoElegido`).
+- *Todo a la vista*: la consola cabe en una pantalla de 1366 × 657 sin desplazar (barra del lienzo en una línea, medidas
+  en cuatro fichas compactas, la bandeja y el recuadro de la fluoroscopia en columnas).
+- *Solo la bandeja del caso.* El residente y la consola ven los instrumentos que el editor puso en el caso, con un filtro
+  escrito (por palabras y sin tildes: «hohm», «pinza dient»). El editor ve el catálogo entero agrupado, y cada
+  instrumento tiene «Añadir a la bandeja» (`casoQuirurgico.ts`, `catalogoDelEditor`).
+- *El editor amplía los catálogos.* Hueso, segmento, técnica, clasificación y fase se eligen escribiendo (`SelectorConBusqueda`),
+  y «¿No está? Agregar» crea la entrada en la base (`agregarAlCatalogo`, solo catálogos de `catalogosAmpliables.ts`, con la
+  guardia de edición del módulo de cirugías; un nombre repetido devuelve el existente, no uno duplicado). El modelo se
+  elige igual, de los que hay en la base.
+- *Copiar y pegar pasos entre cirugías* (`PasosEntreCirugias`, `pasosCopiados.ts`, `portapapelesDePasos.ts`): se copia
+  uno, varios o todos; el portapapeles es del navegador y no de la cuenta; al pegar se rehacen los identificadores y se
+  conservan el instrumento y la fase por su identificador, no por su posición.
+- *Logo de ChessCore* junto a «Desarrollado por» en el pie de todas las vistas (residente, registro, editor, administración):
+  `LogoChessCore.tsx`, con una versión oscura para papel y una clara para fondos oscuros (la fuente era negra sobre
+  blanco opaco: se convirtió la luminancia en transparencia).
+- *Taller anatómico, «Fracturar».* Los trozos intermedios se desordenan al azar (`desordenarLosFragmentos`): cada uno se
+  desplaza entre 0,5 mm y 2 cm y se inclina entre 5° y 20°; si solo hay dos trozos, se angula el más pequeño.
+- *Consecuencias buenas.* Un editor puede armar un caso entero sin salir de la ficha y sin pedirle nada al administrador;
+  el instrumento hace lo que hace en el quirófano y se nota al usarlo; la incisión recién hecha ya no «desaparece».
+  *Malas.* Los separadores, pinzas, agujeros y trozos movidos **no sobreviven a recargar** (sí la incisión, la apertura y
+  las puntadas, D-171); el modo Mover del taller anatómico no se tocó (cada sistema se mueve por separado ahí; el
+  cambio es del simulador); en dos trozos solo se angula, no se desplaza; la fluoroscopia es una vista con la misma
+  escena, no una simulación de atenuación (los vasos y nervios solo se esconden). El compilador de React rechazaba las
+  memorias de la consola si `encuadreVigente` se llamaba sobre el instrumento dentro del pintado: se calcula en una
+  memoria aparte (prueba en `poseEnLasTresPantallas.test.ts`).
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**

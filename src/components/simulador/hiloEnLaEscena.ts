@@ -33,6 +33,8 @@ export interface SuturaEnEscena {
 export function crearSutura(escena: THREE.Scene, hilo: HiloDeSutura): SuturaEnEscena {
   const grupo = new THREE.Group()
   grupo.name = 'sutura'
+  // El hilo no absorbe rayos X: la radiografía y la fluoroscopia lo esconden (`radiografiaEnLaEscena.ts`).
+  grupo.userData.deInterfaz = true
   escena.add(grupo)
   return { grupo, puntos: [], hilo, hechos: [], tension: 0 }
 }

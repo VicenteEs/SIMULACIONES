@@ -41,24 +41,32 @@ import {
   Box,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Drill,
   Eraser,
   Focus,
+  Hand,
   Info,
   Crosshair,
+  Maximize2,
+  Minimize2,
   Move,
   OctagonAlert,
   PenLine,
   Pin,
+  Plus,
   Rotate3d,
   RotateCcw,
   ScanLine,
   Scissors,
+  Search,
   Spline,
   Trophy,
   Undo2,
   UnfoldHorizontal,
+  X,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 // La hoja de la consola, aparte de `estilos.css`: el porqué está en su cabecera.
@@ -79,22 +87,41 @@ import { Visor3D } from '@/components/VisoresPerezosos'
 import { encuadreVigente, type Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import { CATEGORIAS_DE_INSTRUMENTAL, ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
-import { comportamientoDelInstrumento } from '@/lib/comportamientoDelInstrumento'
+import { comportamientoDelInstrumento, guiaDelInstrumento } from '@/lib/comportamientoDelInstrumento'
 import { InstrumentoArticulado } from './InstrumentoArticulado'
+import { PanelDeFluoroscopia } from './PanelDeFluoroscopia'
+import {
+  juicioDeLaPotencia,
+  limitarPotencia,
+  POTENCIA_INICIAL_W,
+  POTENCIA_MAXIMA_W,
+  RANGO_HABITUAL,
+  type ModoDelElectrobisturi,
+} from '@/lib/electrobisturi'
+import { TIPOS_DE_TRAZO, type TipoDeTrazo } from '@/lib/trazoRecto'
+import {
+  PROYECCIONES_DE_FLUOROSCOPIA,
+  SEGUNDOS_DE_ESCOPIA_ALTOS,
+  type ProyeccionDeFluoroscopia,
+} from '@/lib/radiografia'
+import { adviertePorLaTension, ALTURA_MAXIMA_DEL_PELLIZCO_MM, aperturaMaxima } from '@/lib/exposicion'
 import type {
   AyudasDeEscopia,
   DatosDeNodo,
   EstadoDeLasHeridas,
   EstadoDeLaSutura,
+  EstadoDeLosPellizcos,
+  EstadoDeLosSeparadores,
   InclinacionDeBroca,
   InstrumentoEnEscena,
   MandoDelLienzo,
   Modo,
   PerforacionHecha,
   PiezaDelCaso,
-  VistaDeEscopia,
 } from './LienzoQuirurgico'
 import { resumenDeLaFijacion, type EstadoDeLaFijacion } from '@/lib/fijacion'
+import { paraComparar } from '@/lib/catalogosAmpliables'
+import { claveDeLaConsolaDelEditor, guardarEnsayoDeLaConsola, leerEnsayoDeLaConsola } from '@/lib/ensayoDelEditor'
 
 /**
  * Consola de reducción y fijación de fracturas.
@@ -199,6 +226,13 @@ export interface CasoDeConsola {
   }
   pasos: PasoDeConsola[]
   instrumental: InstrumentoDeBandeja[]
+  /**
+   * Solo en el editor: el catálogo entero, para ofrecer «Añadir a la bandeja». La bandeja que se pinta
+   * (`instrumental`) es siempre **solo la del caso**, igual que la ve el residente: los que el autor eligió
+   * y los que piden los pasos. Antes el editor veía el catálogo entero en la bandeja y lo que armaba no se
+   * parecía a lo que vería quien lo recorre.
+   */
+  catalogoDelEditor?: InstrumentoDeBandeja[]
 }
 
 /**
@@ -293,13 +327,13 @@ const MODOS: readonly { valor: Modo; etiqueta: string; ayuda: string; icono: Luc
     valor: 'trazar',
     etiqueta: 'Trazar',
     icono: PenLine,
-    ayuda: 'Trazar: arrastre sobre el modelo para dibujar la incisión.',
+    ayuda: 'Trazar: marque el inicio y el final de la incisión con dos clics (línea recta) o arrastre para dibujarla a mano alzada.',
   },
   {
     valor: 'mover',
     etiqueta: 'Mover',
     icono: Move,
-    ayuda: 'Mover: arrastre el fragmento para colocarlo; la órbita queda desactivada.',
+    ayuda: 'Mover: arrastre para colocar. «Todo junto» mueve piel, músculo y hueso a la vez; «Un trozo» agarra el trozo de hueso que se toque.',
   },
 ]
 
@@ -325,7 +359,19 @@ const MODO_SEPARAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
   etiqueta: 'Separar',
   icono: UnfoldHorizontal,
   ayuda:
-    'Separar: arrastre desde el borde de la herida hacia fuera para abrirla. Uno de mano abre el borde que sostiene; uno autoestático abre los dos.',
+    'Separar: haga clic en el punto de la incisión donde quiere poner el separador y ábralo con la rueda del ratón (o con la barra). Uno de mano abre el borde que sostiene; uno autoestático abre los dos.',
+}
+
+/**
+ * El modo de las pinzas de disección: pellizcan la piel hacia arriba. Con dientes, y de a dos —una la toma
+ * quien opera y la otra el ayudante—, dan tensión a los bordes para cortar la piel por completo.
+ */
+const MODO_PINZAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'pinzar',
+  etiqueta: 'Pinzar',
+  icono: Hand,
+  ayuda:
+    'Pinzar: pique en la piel junto al borde de la herida y se levanta un pliegue; arrastre hacia arriba para levantar más, o use la rueda. Dos pinzas, una por borde, tensan la piel.',
 }
 
 const MODO_COSER: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
@@ -470,13 +516,31 @@ export function ConsolaQuirurgica({
   const [modo, setModo] = useState<Modo>(
     () => MODO_DEL_OBJETIVO[objetivoDelPaso(caso.pasos[0] ?? {})],
   )
-  const [fluoroscopia, setFluoroscopia] = useState(false)
+  // La fluoroscopia: `null` apagada; encendida, la proyección con que se mira (AP, lateral u oblicua). Al
+  // encenderla la vista «Rayos X» pasa a radiografía y se abre al lado la imagen del arco en C, en círculo.
+  const [fluoroscopia, setFluoroscopia] = useState<ProyeccionDeFluoroscopia | null>(null)
+  const [menuDeFluoroscopia, setMenuDeFluoroscopia] = useState(false)
+  const [zoomDeFluoroscopia, setZoomDeFluoroscopia] = useState(1)
   // Las ayudas de los rayos X (D-166). Los ejes salen puestos —son lo que
   // enseña a leer la angulación— y el objetivo no: ver dónde debe quedar el
   // hueso es una ayuda que conviene poder quitar, porque en una radioscopia
   // real nadie lo dibuja.
   const [ayudas, setAyudas] = useState<AyudasDeEscopia>({ objetivo: false, ejes: true })
-  const [vistaDeEscopia, setVistaDeEscopia] = useState<VistaDeEscopia>('libre')
+  // La consola ocupa toda la pantalla (ver `.consola-completa`): con todos los mandos a la vista.
+  const [pantallaCompleta, setPantallaCompleta] = useState(false)
+  // La incisión en recta es la de siempre: la mano alzada sale temblorosa.
+  const [tipoDeTrazo, setTipoDeTrazo] = useState<TipoDeTrazo>('recto')
+  // «Mover todo junto» o un trozo de hueso. Sin elegir (`null`), manda el paso: reducir mueve un trozo.
+  const [moverTodoElegido, setMoverTodoElegido] = useState<boolean | null>(null)
+  // El electrobisturí: modo (amarillo CUT / azul COAG) y potencia, en vatios de 0 a 100.
+  const [modoElectro, setModoElectro] = useState<ModoDelElectrobisturi>('corte')
+  const [potenciaW, setPotenciaW] = useState(POTENCIA_INICIAL_W)
+  // Lo que hay puesto en el campo: separadores en la herida y pinzas que sostienen la piel.
+  const [separadores, setSeparadores] = useState<EstadoDeLosSeparadores | null>(null)
+  const [pellizcos, setPellizcos] = useState<EstadoDeLosPellizcos | null>(null)
+  const lienzoDeFluoroscopia = useRef<HTMLCanvasElement>(null)
+  /** Cuándo se avisó por última vez de que falta colocar el separador: la rueda gira diez veces seguidas y no hay que repetirlo. */
+  const avisoDelSeparador = useRef(0)
   // Segundos con los rayos encendidos en esta exposición. La dosis es lo que más
   // se descuida al aprender: se cuenta y se dice al apagar.
   const [segundosDeEscopia, setSegundosDeEscopia] = useState(0)
@@ -1014,6 +1078,7 @@ export function ConsolaQuirurgica({
     setUltimaPerforacion(null)
     mando.current?.quitarSutura()
     mando.current?.quitarImplantes(true)
+    mando.current?.soltarPellizco()
     mando.current?.cerrarHeridas()
     mando.current?.borrarAgujeros()
     colocarEnDesplazamientoInicial()
@@ -1088,16 +1153,55 @@ export function ConsolaQuirurgica({
     // siempre. El modo de un paso (trazar, mover) no se toca: lo pide el paso.
     const destino = id ? caso.instrumental.find((i) => i.id === id) : null
     const que = destino ? comportamientoDelInstrumento(destino) : null
-    if (que?.separa) setModo('separar')
+    // Al coger un instrumento se pasa solo al modo que ese instrumento usa: el bisturí, las tijeras y el
+    // electrobisturí, a «Trazar»; el separador, a «Separar»; la pinza de disección, a «Pinzar»… Era lo que
+    // se pedía: que el residente no tenga que acordarse de cambiar de modo después de coger la herramienta.
+    if (que?.corta) setModo('trazar')
+    else if (que?.separa) setModo('separar')
+    else if (que?.pellizca) setModo('pinzar')
     else if (que?.perfora) setModo('perforar')
     else if (que?.sutura) setModo('coser')
     else if (que?.coloca || que?.mide) setModo('fijar')
-    else if (modo === 'separar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar') setModo('orbitar')
+    else if (modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar') setModo('orbitar')
     setInstrumento(id)
     setArticulacionesDeclaradas([])
     setArticulacionesMovidas({})
     setErrorDelInstrumento(null)
   }
+
+  // El ensayo del editor sobrevive a que la consola se vuelva a montar (ver `ensayoDelEditor.ts`): el
+  // instrumento en la mano y el modo. Se recupera cuando la bandeja ya lo trae —el catálogo llega después de
+  // montar—, y solo entonces se empieza a guardar, para no pisar lo recordado con los valores de partida.
+  const claveDelEnsayo = editor ? claveDeLaConsolaDelEditor(caso.modeloUrl ?? '') : null
+  const ensayoRecuperado = useRef(false)
+  const recuperarElEnsayo = useRef<() => void>(() => {})
+  useEffect(() => {
+    recuperarElEnsayo.current = () => {
+      if (!claveDelEnsayo || ensayoRecuperado.current) return
+      const guardado = leerEnsayoDeLaConsola(claveDelEnsayo)
+      if (!guardado) {
+        ensayoRecuperado.current = true
+        return
+      }
+      const catalogoCargado = (caso.catalogoDelEditor?.length ?? 0) > 0
+      const estaEnLaBandeja = guardado.instrumento ? caso.instrumental.some((i) => i.id === guardado.instrumento) : true
+      // Todavía no llegó el catálogo: se espera. Si ya llegó y el instrumento ya no está en la bandeja, se deja.
+      if (!estaEnLaBandeja && !catalogoCargado) return
+      ensayoRecuperado.current = true
+      setTipoDeTrazo(guardado.tipoDeTrazo)
+      setModoElectro(guardado.modoElectro)
+      setPotenciaW(limitarPotencia(guardado.potenciaW))
+      if (guardado.instrumento && estaEnLaBandeja) elegirInstrumento(guardado.instrumento)
+      if (guardado.modo) setModo(guardado.modo as Modo)
+    }
+  })
+  useEffect(() => {
+    recuperarElEnsayo.current()
+  }, [caso.instrumental, caso.catalogoDelEditor, claveDelEnsayo])
+  useEffect(() => {
+    if (!claveDelEnsayo || !ensayoRecuperado.current) return
+    guardarEnsayoDeLaConsola(claveDelEnsayo, { v: 1, instrumento, modo, tipoDeTrazo, modoElectro, potenciaW })
+  }, [claveDelEnsayo, instrumento, modo, tipoDeTrazo, modoElectro, potenciaW])
 
   const girar = (eje: 'x' | 'y' | 'z', valor: number) => {
     const nuevos = { ...giros, [eje]: valor }
@@ -1123,12 +1227,27 @@ export function ConsolaQuirurgica({
   const iconoDelElegido = instrumentoElegido?.icono ?? null
   const slugDelElegido = instrumentoElegido?.slug ?? null
   const nombreDelElegido = instrumentoElegido?.nombre ?? ''
+  /**
+   * El encuadre con el que se ve el instrumento. Va en una memoria y no llamado dentro del pintado: el compilador de
+   * React da por mutable lo que una función recibe como argumento, y llamada así sobre `instrumentoElegido` hacía
+   * que rechazara las memorias de más abajo (`queHace`, `valoresDeArticulacion`, `instrumentoEnEscena`) y dejara
+   * sin optimizar la consola entera.
+   */
+  const encuadreDelModeloElegido = instrumentoElegido?.encuadreDelModelo ?? null
+  const encuadreDelElegido = useMemo(
+    () => encuadreVigente(undefined, encuadreDelModeloElegido),
+    [encuadreDelModeloElegido],
+  )
   /** Qué le hace al paciente el instrumento en la mano: corta, separa, perfora. */
   const queHace = useMemo(
     () =>
       comportamientoDelInstrumento({ slug: slugDelElegido, nombre: nombreDelElegido, icono: iconoDelElegido }),
     [slugDelElegido, nombreDelElegido, iconoDelElegido],
   )
+  /** Cómo se usa el instrumento en el abordaje, tal como lo cuenta el traumatólogo. */
+  const guia = instrumentoElegido
+    ? guiaDelInstrumento({ slug: slugDelElegido, nombre: nombreDelElegido, icono: iconoDelElegido })
+    : null
   const valoresDeArticulacion = useMemo(() => {
     const valores: Record<string, number> = {}
     for (const a of articulacionesDeclaradas) {
@@ -1139,33 +1258,40 @@ export function ConsolaQuirurgica({
   }, [articulacionesDeclaradas, articulacionesMovidas, ajustesDelElegido])
 
   /** Lo que el lienzo necesita para poner el instrumento en la escena. */
+  const idDelElegido = instrumentoElegido?.id
   const instrumentoEnEscena = useMemo<InstrumentoEnEscena | null>(
     () =>
       urlDelElegido
         ? {
             url: urlDelElegido,
+            id: idDelElegido,
+            nombre: nombreDelElegido,
             ajustes: ajustesDelElegido,
             articulaciones: valoresDeArticulacion,
             corta: iconoDelElegido === 'bisturi' || !!queHace.corta,
             planoDeCorte: queHace.corta,
             separa: queHace.separa,
+            pellizca: queHace.pellizca,
+            electro: queHace.electro ? { modo: modoElectro, potenciaW } : null,
             perfora: queHace.perfora,
             sutura: queHace.sutura,
             coloca: queHace.coloca,
             mide: queHace.mide,
           }
         : null,
-    [urlDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace],
+    [urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, modoElectro, potenciaW],
   )
 
   /**
-   * Qué hace la rueda del ratón con el instrumento en la mano (D-171): abre las tijeras y los separadores, tira
-   * del hilo, alarga el tornillo. `null`: el instrumento no se maneja con ella y la rueda acerca el modelo.
+   * Qué hace la rueda del ratón con el instrumento en la mano (D-171): abre las tijeras, abre el separador
+   * colocado, levanta la piel con la pinza, sube o baja la potencia del electrobisturí, tira del hilo, alarga
+   * el tornillo. `null`: el instrumento no se maneja con ella y la rueda acerca el modelo.
    *
    * La sutura solo la usa cuando ya hay puntadas: antes de la primera no hay nada que tensar, y quitarle el
-   * zoom al residente por un hilo que aún no tira de nada sería robarle la rueda para nada.
+   * zoom al residente por un hilo que aún no tira de nada sería robarle la rueda para nada. La pinza, igual:
+   * con ninguna puesta no hay qué levantar.
    */
-  const ruedaDelInstrumento: 'abre' | 'tira' | 'alarga' | null = !instrumentoElegido
+  const ruedaDelInstrumento: 'abre' | 'separa' | 'levanta' | 'potencia' | 'tira' | 'alarga' | null = !instrumentoElegido
     ? null
     : queHace.sutura
       ? sutura && sutura.puntadas > 0
@@ -1173,14 +1299,22 @@ export function ConsolaQuirurgica({
         : null
       : queHace.coloca?.tipo === 'tornillo'
         ? 'alarga'
-        : queHace.separa || articulacionesDeclaradas.length > 0
-          ? 'abre'
-          : null
+        : queHace.separa
+          ? 'separa'
+          : queHace.pellizca
+            ? pellizcos && pellizcos.lista.length > 0
+              ? 'levanta'
+              : null
+            : queHace.electro
+              ? 'potencia'
+              : articulacionesDeclaradas.length > 0
+                ? 'abre'
+                : null
 
   const alRuedaDelInstrumento = (deltaY: number): boolean => {
     const m = mando.current
     if (!m || !ruedaDelInstrumento) return false
-    // Hacia delante (deltaY negativo) abre, tira o alarga; hacia atrás, al revés.
+    // Hacia delante (deltaY negativo) abre, tira, alarga o sube; hacia atrás, al revés.
     const sentido = deltaY < 0 ? 1 : -1
     const entre = (minimo: number, maximo: number, valor: number) => Math.min(maximo, Math.max(minimo, valor))
     if (ruedaDelInstrumento === 'tira') {
@@ -1191,18 +1325,29 @@ export function ConsolaQuirurgica({
       setLargoDeTornillo((antes) => entre(10, 60, antes + sentido * 2))
       return true
     }
-    const articulacion = articulacionesDeclaradas[0]
-    if (queHace.separa) {
-      const tope = queHace.separa.maximoMm
-      const nuevo = entre(0, tope, Math.round((herida?.aperturaMm ?? 0) + sentido * 2))
-      if (herida && herida.capas.length > 0) m.abrirHeridas(nuevo)
-      // El instrumento se abre a la vez que la herida: la misma rueda, el mismo gesto.
-      if (articulacion) {
-        const valor = articulacion.min + ((articulacion.max - articulacion.min) * nuevo) / tope
-        setArticulacionesMovidas((antes) => ({ ...antes, [articulacion.nombre]: Math.round(valor) }))
-      }
+    if (ruedaDelInstrumento === 'potencia') {
+      setPotenciaW((antes) => limitarPotencia(antes + sentido * 5))
       return true
     }
+    if (ruedaDelInstrumento === 'levanta') {
+      m.levantarPellizco(sentido * 1.5)
+      return true
+    }
+    if (ruedaDelInstrumento === 'separa') {
+      // El separador se abre donde está puesto. Sin ninguno puesto, la rueda no abre nada: la herida se
+      // abre con un separador, no sola, y se dice cómo ponerlo.
+      if (!separadores || separadores.lista.length === 0) {
+        const ahora = Date.now()
+        if (ahora - avisoDelSeparador.current > 4000) {
+          avisoDelSeparador.current = ahora
+          anotar('Primero haga clic en la herida para colocar el separador; después se abre con la rueda.', 'atencion')
+        }
+        return true
+      }
+      m.moverSeparador(sentido * 2)
+      return true
+    }
+    const articulacion = articulacionesDeclaradas[0]
     if (articulacion) {
       const paso = (articulacion.max - articulacion.min) / 20
       setArticulacionesMovidas((antes) => {
@@ -1222,10 +1367,13 @@ export function ConsolaQuirurgica({
    * el catálogo entero agrupado por categoría y filtrado por lo que escriba.
    */
   const gruposDeLaBandeja = useMemo(() => {
-    const filtro = busquedaDeInstrumento.trim().toLowerCase()
-    const visibles = caso.instrumental.filter(
-      (i) => !filtro || i.nombre.toLowerCase().includes(filtro),
-    )
+    // Por palabras y sin tildes, para que «hohm» o «pinza dient» encuentren el instrumento sin acertar el nombre.
+    const palabras = paraComparar(busquedaDeInstrumento).split(' ').filter(Boolean)
+    const visibles = caso.instrumental.filter((i) => {
+      if (palabras.length === 0) return true
+      const texto = paraComparar(`${i.nombre} ${i.descripcion ?? ''}`)
+      return palabras.every((p) => texto.includes(p))
+    })
     const porCategoria = new Map<string, InstrumentoDeBandeja[]>()
     for (const i of visibles) {
       const clave = i.categoria ?? 'otros'
@@ -1276,43 +1424,62 @@ export function ConsolaQuirurgica({
     }
   }, [direccionesDeLaBandeja])
 
+  const fluoroscopiaEncendida = fluoroscopia !== null
+
   // El tiempo de escopia cuenta mientras los rayos están encendidos. Un
   // intervalo y no el reloj de cada pintado: lo único que cambia es un número
   // que se actualiza cada segundo.
   useEffect(() => {
-    if (!fluoroscopia) return
+    if (!fluoroscopiaEncendida) return
     const reloj = window.setInterval(() => setSegundosDeEscopia((s) => s + 1), 1000)
     return () => window.clearInterval(reloj)
-  }, [fluoroscopia])
+  }, [fluoroscopiaEncendida])
+
+  // La imagen del arco en C se redibuja unas siete veces por segundo. No es un efecto del estado de la
+  // consola: lo que cambia la imagen es la escena (un instrumento que se mueve, una herida que se abre), y
+  // eso vive en el lienzo, que dice si cambió. Cuando no cambió, `dibujarFluoroscopia` no lee nada.
+  useEffect(() => {
+    if (fluoroscopia === null) return
+    const reloj = window.setInterval(() => {
+      const lienzo = lienzoDeFluoroscopia.current
+      if (lienzo) mando.current?.dibujarFluoroscopia(lienzo, fluoroscopia, zoomDeFluoroscopia)
+    }, 140)
+    return () => window.clearInterval(reloj)
+  }, [fluoroscopia, zoomDeFluoroscopia])
 
   /**
-   * Enciende o apaga los rayos X.
+   * Apaga la fluoroscopia.
    *
    * Al apagar, deja dicho cuánto se estuvo expuesto. Con una pantalla que da
    * igual cuánto dure, el hábito que se aprende es dejarla encendida; en
    * quirófano cada segundo es dosis para el paciente y para el equipo.
    */
-  const alternarRayosX = () => {
-    if (fluoroscopia) {
-      if (segundosDeEscopia > 0) {
-        anotar(
-          segundosDeEscopia > 20
-            ? `Rayos X apagados tras ${segundosDeEscopia} s. Fue mucho: en pabellón se dispara en tomas cortas, mira la imagen y se apaga.`
-            : `Rayos X apagados tras ${segundosDeEscopia} s: una toma corta, como corresponde.`,
-          segundosDeEscopia > 20 ? 'atencion' : 'bien',
-        )
-      }
-      setVistaDeEscopia('libre')
-      mando.current?.mirarDesde('libre')
-    } else {
-      setSegundosDeEscopia(0)
+  const apagarFluoroscopia = () => {
+    if (segundosDeEscopia > 0) {
+      anotar(
+        segundosDeEscopia > SEGUNDOS_DE_ESCOPIA_ALTOS
+          ? `Fluoroscopia apagada tras ${segundosDeEscopia} s. Fue mucho: en pabellón se dispara en tomas cortas, mira la imagen y se apaga.`
+          : `Fluoroscopia apagada tras ${segundosDeEscopia} s: una toma corta, como corresponde.`,
+        segundosDeEscopia > SEGUNDOS_DE_ESCOPIA_ALTOS ? 'atencion' : 'bien',
+      )
     }
-    setFluoroscopia(!fluoroscopia)
+    setMenuDeFluoroscopia(false)
+    setFluoroscopia(null)
+    mando.current?.mirarDesde('libre')
   }
 
-  const cambiarVistaDeEscopia = (vista: VistaDeEscopia) => {
-    setVistaDeEscopia(vista)
-    mando.current?.mirarDesde(vista)
+  /** Enciende la fluoroscopia con la proyección elegida, o cambia de proyección si ya estaba encendida. */
+  const elegirProyeccion = (proyeccion: ProyeccionDeFluoroscopia) => {
+    if (fluoroscopia === null) setSegundosDeEscopia(0)
+    setFluoroscopia(proyeccion)
+    setMenuDeFluoroscopia(false)
+    mando.current?.mirarDesde(proyeccion)
+  }
+
+  /** El botón: apagada, abre el menú de las tres proyecciones; encendida, la apaga. */
+  const alternarRayosX = () => {
+    if (fluoroscopiaEncendida) apagarFluoroscopia()
+    else setMenuDeFluoroscopia((abierto) => !abierto)
   }
 
   /**
@@ -1366,10 +1533,15 @@ export function ConsolaQuirurgica({
     }
   }
 
+  // «Mover todo junto» salvo en el paso de reducir, donde hace falta agarrar un trozo de hueso suelto. Si quien
+  // usa la consola lo elige a mano, manda lo elegido hasta que cambie de paso.
+  const moverTodoEfectivo = moverTodoElegido ?? objetivo !== 'reduccion'
+
   const modosVisibles = [
     ...MODOS,
     ...(editor ? [MODO_SENALAR] : []),
     ...(queHace.separa ? [MODO_SEPARAR] : []),
+    ...(queHace.pellizca ? [MODO_PINZAR] : []),
     ...(queHace.perfora ? [MODO_PERFORAR] : []),
     ...(queHace.sutura ? [MODO_COSER] : []),
     ...(queHace.coloca || queHace.mide ? [MODO_FIJAR] : []),
@@ -1541,707 +1713,16 @@ export function ConsolaQuirurgica({
 
   const tieneMandosPropios = objetivo === 'trazo' || largoDelTrazoMm > 0 || objetivo === 'reduccion'
 
-  return (
-    <section
-      className={`consola mod-4${terminado ? ' consola-terminada' : ''}${editor ? ' consola-editor' : ''}`}
-      aria-labelledby="consola-titulo"
-    >
-      {/* --------------------------------------------------------- barra */}
-      {/* El nombre del caso ya es el <h1> de la página, y la barra lo repetía
-          en un <h2> idéntico a 200 px. Aquí se nombra la herramienta y se
-          dejan los datos del caso, que es lo que se consulta con el caso
-          abierto. */}
-      <header className="consola-barra">
-        <div className="consola-identidad">
-          <span className="consola-insignia" aria-hidden>
-            <Scissors size={18} />
-          </span>
-          <div>
-            <p className="consola-rotulo">
-              Módulo 04 · Simulador{editor ? ' · editando: lo que ve el residente' : ''}
-            </p>
-            <h2 id="consola-titulo" className="consola-titulo">
-              Consola de reducción y fijación
-            </h2>
-          </div>
-        </div>
-        <dl className="consola-datos">
-          {caso.hueso ? (
-            <div>
-              <dt>Hueso</dt>
-              <dd>{caso.hueso}</dd>
-            </div>
-          ) : null}
-          {caso.clasificacion ? (
-            <div>
-              <dt>Clasificación AO</dt>
-              <dd>
-                {caso.clasificacion}
-                {/* El código lo compone el servidor con el número del hueso y
-                    el de la clasificación; aquí solo se muestra si existe. */}
-                {codigo ? <span className="consola-codigo">{codigo}</span> : null}
-              </dd>
-            </div>
-          ) : null}
-          {caso.tecnica ? (
-            <div>
-              <dt>Técnica</dt>
-              <dd>{caso.tecnica}</dd>
-            </div>
-          ) : null}
-        </dl>
-        {/* El tope lo da `puntajeMaximo`, que suma los pasos enteros, mientras
-            que el acierto tras un fallo cobra la mitad y tras una complicación
-            no cobra nada (`puntosDelPaso`). O sea: este número es la referencia
-            del caso, y en cuanto se falla un paso ya no se puede igualar. Está
-            puesto así a propósito; lo que no se puede hacer es cambiar una de
-            las dos cuentas sin la otra. */}
-        <div className="consola-marcador">
-          <div className="consola-puntaje" aria-label={`Puntaje: ${puntaje} de ${maximo}`}>
-            <span className="consola-puntaje-numero u-num">{puntaje}</span>
-            <span className="consola-puntaje-total u-num">/ {maximo}</span>
-          </div>
-          <span className="consola-puntaje-medidor" aria-hidden>
-            <span style={{ width: `${maximo > 0 ? Math.round((puntaje / maximo) * 100) : 0}%` }} />
-          </span>
-          {/* Lo que quedó de la vez anterior, en el sitio donde el residente
-              mira al llegar, pero en pequeño: el marcador grande cuenta el
-              recorrido de ahora y arranca en cero a propósito. Lo guardado es
-              un estado —el último recorrido—, no un punto de guardado, así que
-              no se sabe qué pasos tenía resueltos. Sumarlo al marcador y
-              dejarle repetir el caso le cobraría los mismos pasos dos veces, y
-              el número subiría solo con recargar. El detalle está abajo, en
-              «Su recorrido anterior». */}
-          {recorridoGuardado ? (
-            <span className="consola-puntaje-anterior u-num">
-              anterior {recorridoGuardado.puntaje}
-              {recorridoGuardado.puntajeMaximo !== null ? ` de ${recorridoGuardado.puntajeMaximo}` : ''}
-            </span>
-          ) : null}
-        </div>
-        {/* «Reiniciar» tira todo el avance del caso y estaba a ocho píxeles del
-            «/ 12», leído de corrido como una tercera pieza del marcador. Ahora
-            va aparte, sin relleno y con su icono, y antes de borrar pregunta
-            con el diálogo propio (`reiniciar`). */}
-        <button type="button" className="consola-reiniciar" onClick={() => void reiniciar()}>
-          <RotateCcw size={16} aria-hidden /> {editor ? 'Reiniciar el ensayo' : 'Reiniciar caso'}
-        </button>
-      </header>
-
-      {/* ---------------------------------------------------------- pasos */}
-      {/* Arriba y no debajo del lienzo: es la barra de progreso del caso, y
-          debajo quedaba entre las medidas y el pie, fuera de la vista en el
-          portátil de referencia. Se desplaza en horizontal como el guion de
-          pabellón cuando no cabe. */}
-      <div className="consola-pasos-fila">
-      <ol className="consola-pasos" aria-label="Pasos del caso">
-        {caso.pasos.map((p, i) => {
-          const estado = estadoDelPaso(p, i)
-          const contenido = (
-            <>
-              <span className="consola-paso-marca" aria-hidden>
-                {estado === 'resuelto' ? (
-                  <Check size={14} strokeWidth={3} />
-                ) : estado.includes('complicado') ? (
-                  <AlertTriangle size={13} strokeWidth={2.5} />
-                ) : (
-                  i + 1
-                )}
-              </span>
-              <span className="consola-paso-texto">
-                <span className="consola-paso-titulo">{p.titulo}</span>
-                {p.faseNombre ? <span className="consola-paso-fase">{p.faseNombre}</span> : null}
-                <span className="sr-only">
-                  Paso {i + 1}: {PALABRA_DEL_ESTADO[estado]}
-                </span>
-              </span>
-            </>
-          )
-          return (
-            <li
-              key={p.id}
-              className={`consola-paso ${estado}`}
-              aria-current={i === indice ? 'step' : undefined}
-            >
-              {/* En el editor cada paso es un botón: se salta a cualquiera, en
-                  cualquier orden, que es lo que hace falta para escribirlos.
-                  El residente los recorre en orden y no se toca. */}
-              {editor ? (
-                <button type="button" className="consola-paso-boton" onClick={() => irAlPaso(i)}>
-                  {contenido}
-                </button>
-              ) : (
-                contenido
-              )}
-            </li>
-          )
-        })}
-      </ol>
-      {editor ? <div className="consola-pasos-acciones">{editor.barraDePasos}</div> : null}
-      </div>
-
-      {/* ------------------------------------------------ columna izquierda */}
-      {/* Sin `consola-panel-izq` ni `<aside>`: en pantalla estrecha esta
-          columna se deshace (`display: contents`) para que el modo suba
-          encima del lienzo y las capas bajen debajo, y un `<aside>` con
-          `display: contents` pierde su papel en algunos lectores de pantalla. */}
-      <div className="consola-izq">
-        <div className="consola-modos-bloque">
-          <h3 className="consola-subtitulo" id="consola-modo">
-            Modo
-          </h3>
-          <div className="consola-segmentado" role="group" aria-labelledby="consola-modo">
-            {modosVisibles.map((m) => {
-              const Icono = m.icono
-              const pedido = modoDelPaso === m.valor
-              return (
-                <button
-                  key={m.valor}
-                  type="button"
-                  className={`consola-modo${modo === m.valor ? ' activo' : ''}${pedido ? ' pedido' : ''}`}
-                  aria-pressed={modo === m.valor}
-                  title={m.ayuda}
-                  onClick={() => setModo(m.valor)}
-                >
-                  <Icono size={18} aria-hidden />
-                  <span>{m.etiqueta}</span>
-                  {/* El modo que pide el paso se señalaba con « ·» pegado a la
-                      etiqueta, un punto de 3 px que nadie veía. Ahora es una
-                      marca con palabra, y sigue sin imponerse: cambiar de modo
-                      a mano es posible (`MODO_DEL_OBJETIVO`). */}
-                  {pedido ? <span className="consola-modo-pedido">paso</span> : null}
-                </button>
-              )
-            })}
-          </div>
-          <p className="consola-ayuda">
-            {ayudaDelModo}
-            {etiquetaDelModoDelPaso ? (
-              <span className="consola-ayuda-pedido">
-                {' '}
-                Este paso se hace en modo {etiquetaDelModoDelPaso}.
-              </span>
-            ) : null}
-          </p>
-        </div>
-
-        {herida && (herida.capas.length > 0 || herida.aviso) ? (
-          <div className="consola-herida-bloque" role="status">
-            <h3 className="consola-subtitulo">Herida</h3>
-            {herida.capas.length > 0 ? (
-              <p className="consola-herida-datos">
-                {herida.capas.map((c) => (c === 'piel' ? 'Piel' : 'Planos profundos')).join(' y ')} ·{' '}
-                {Math.round(herida.largoMm)} mm de largo · abierta {Math.round(herida.aperturaMm)} mm
-              </p>
-            ) : null}
-            {herida.aviso ? <p className="consola-herida-aviso">{herida.aviso}</p> : null}
-            {herida.capas.length > 0 ? (
-              <button type="button" className="consola-boton consola-boton-ancho" onClick={() => mando.current?.cerrarHeridas()}>
-                <Undo2 size={16} aria-hidden /> Cerrar la herida
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div className="consola-capas-bloque">
-          <h3 className="consola-subtitulo">Capas</h3>
-          <ul className="consola-capas">
-            {CAPAS.map((capa) => {
-              const hay = caso.piezas.some((p) => capaDelRol(p.rol) === capa.rol)
-              return (
-                <li key={capa.rol}>
-                  {/* Un interruptor y no una casilla: lo que hace es encender y
-                      apagar algo que se ve, no marcar una opción de un
-                      formulario. Sigue siendo un `checkbox` por dentro, con
-                      `role="switch"`, así que el teclado y el lector de
-                      pantalla lo tratan como lo que es. */}
-                  <label className={`consola-interruptor${hay ? '' : ' consola-capa-vacia'}`}>
-                    <span>{capa.etiqueta}</span>
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      checked={!capasApagadas.has(capa.rol)}
-                      disabled={!hay}
-                      onChange={() => alternarCapa(capa.rol)}
-                    />
-                    <span className="consola-interruptor-pista" aria-hidden />
-                  </label>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      </div>
-
-      {/* -------------------------------------------------------- lienzo */}
-      <div className="consola-centro">
-        <div className={`consola-lienzo-marco modo-${modo}`}>
-          <LienzoQuirurgico
-            url={caso.modeloUrl}
-            piezas={caso.piezas}
-            modo={modo}
-            fluoroscopia={fluoroscopia}
-            ayudas={ayudas}
-            inclinacionDeBroca={inclinacionDeBroca}
-            alHerir={setHerida}
-            alCoser={(estado) => {
-              setSutura(estado)
-              if (!estado) {
-                heridaCerradaDicha.current = false
-                return
-              }
-              if (estado.juicio) anotar(estado.juicio, 'atencion')
-              // Se dice cuando cambia la cosa, no en cada vuelta de la rueda: diez avisos iguales tapan el registro.
-              const dicho = juicioDeTensionDicho.current
-              const juicioT = estado.juicioDeLaTension
-              if (juicioT && juicioT.texto !== dicho) {
-                juicioDeTensionDicho.current = juicioT.texto
-                anotar(juicioT.texto, juicioT.atencion ? 'atencion' : 'bien')
-              } else if (!juicioT) {
-                juicioDeTensionDicho.current = null
-              }
-              if (estado.cierre >= 0.999 && !estado.juicioDeLaTension?.estrangula && !heridaCerradaDicha.current) {
-                heridaCerradaDicha.current = true
-                anotar(
-                  `Herida cerrada con ${estado.puntadas} puntadas de ${estado.hilo}, ${estado.bienEspaciadas} de ${estado.tramos} bien espaciadas (5 a 10 mm).`,
-                  estado.bienEspaciadas === estado.tramos ? 'bien' : 'atencion',
-                )
-              }
-              if (estado.cierre < 0.999) heridaCerradaDicha.current = false
-            }}
-            largoDeTornillo={largoDeTornillo}
-            alRueda={alRuedaDelInstrumento}
-            capturaLaRueda={ruedaDelInstrumento !== null}
-            claveDeSesion={`trauma-sesion:${editor ? 'editor' : 'residente'}:${documentoId}:${caso.modeloUrl ?? ''}`}
-            alFijar={(estado, suceso) => {
-              setFijacion(estado)
-              if (!suceso) return
-              if (suceso.largoSugeridoMm) setLargoDeTornillo(suceso.largoSugeridoMm)
-              if (suceso.tipo === 'aviso') anotar(suceso.texto, 'atencion')
-              else anotar(suceso.texto, suceso.atencion ? 'atencion' : 'bien')
-            }}
-            alPerforar={(hecha) => {
-              if (paso) setUltimaPerforacion({ paso: paso.id, hecha })
-              const mm = (n: number) => n.toFixed(1).replace('.', ',')
-              const partes = [
-                `Perforación de Ø ${String(hecha.diametroMm).replace('.', ',')} mm y ${mm(hecha.profundidadMm)} mm`,
-                hecha.bicortical ? 'bicortical' : 'solo la cortical cercana',
-                `${Math.round(hecha.anguloConElEje)}° con el eje del hueso`,
-              ]
-              const torcida = Math.abs(90 - hecha.anguloConElEje) > 10
-              const larga = hecha.sePasoMm > 3
-              anotar(
-                `${partes.join(', ')}.${
-                  larga ? ` Se pasó ${mm(hecha.sePasoMm)} mm de la cortical opuesta: riesgo para las partes blandas.` : ''
-                }${torcida ? ' No quedó perpendicular al eje del hueso.' : ''}`,
-                larga || torcida ? 'atencion' : 'bien',
-              )
-            }}
-            instrumento={instrumentoEnEscena}
-            milimetrosPorUnidad={escalaMm}
-            ejeLargo={caso.ejeLargo}
-            alCargarInstrumento={(declaradas, error) => {
-              setArticulacionesDeclaradas(declaradas ?? [])
-              setErrorDelInstrumento(error ?? null)
-            }}
-            // Del trazo solo se guarda su longitud. Los puntos se quedan en
-            // el lienzo, que ya es su dueño; subirlos a React repintaba la
-            // consola entera —los dos campos ricos del pie incluidos— unas
-            // treinta veces por incisión, compitiendo con el bucle de dibujo.
-            alTrazar={(puntos) => setLargoDelTrazoMm(largoDelTrazo(puntos, escalaMm))}
-            alMoverFragmento={() => {
-              recalcularMedidas()
-              editor?.alMoverFragmento?.()
-            }}
-            alSenalar={editor?.alSenalar}
-            // El fragmento se coloca desplazado cuando el archivo termina de
-            // cargar, no antes: hasta ese momento no hay ningún nodo al que
-            // aplicarle nada, y hacerlo en el montaje del componente dejaba
-            // el hueso reducido y el caso resuelto de entrada.
-            alCargar={() => {
-              // Un lienzo recién cargado no trae ninguna herida: si el modelo se
-              // vuelve a montar (otro archivo, una recarga en caliente), lo que la
-              // consola creía cortado ya no existe en la escena.
-              setHerida(null)
-              setSutura(null)
-              setFijacion(null)
-              setDelArchivo({
-                url: caso.modeloUrl ?? '',
-                nodos: mando.current?.nodosDelModelo() ?? [],
-                datos: mando.current?.datosDeLosNodos() ?? [],
-              })
-              colocarEnDesplazamientoInicial()
-              entrarEnPaso(indice, capasApagadas)
-              // Lo que el caso declara frente a lo que el archivo trae. Si no
-              // hay nada en común, `refrescarVisibles` ya lo dijo; aquí queda
-              // el caso a medias —unas piezas están y otras no— y el de un
-              // modelo sin fragmento, que dejaba los pasos de reducción sin
-              // nada que mover (O-078).
-              const faltan = piezasQueFaltanEnElArchivo(caso.piezas, mando.current?.nodosDelModelo() ?? [])
-              if (faltan.ausentes.length > 0 && faltan.ausentes.length < faltan.total) {
-                avisarUnaVez(
-                  'faltan-piezas',
-                  `El caso declara ${faltan.ausentes.length} de ${faltan.total} piezas que este modelo no tiene (${faltan.ausentes
-                    .slice(0, 3)
-                    .join(', ')}${faltan.ausentes.length > 3 ? '…' : ''}). Esas no se muestran.`,
-                )
-              }
-              if (
-                mando.current &&
-                !mando.current.hayFragmento() &&
-                caso.pasos.some((p) => p.objetivo === 'reduccion')
-              ) {
-                avisarUnaVez(
-                  'sin-fragmento',
-                  'El modelo no trae el fragmento móvil que declara el caso: los pasos de reducción no tienen nada que mover.',
-                )
-              }
-            }}
-            // Un modelo que no abre tiene que decirlo. Sin esto el residente
-            // se queda mirando un lienzo vacío creyendo que aún carga.
-            alFallar={(mensaje) => anotar(mensaje, 'grave')}
-            mando={asignarMando}
-          />
-          {/* Encuadrar sobre el lienzo y no en la columna de mandos: es una
-              orden de la vista, y en el móvil la columna queda por debajo del
-              lienzo, lejos de lo que encuadra. */}
-          <div className="consola-lienzo-herramientas">
-            <button
-              type="button"
-              className="consola-lienzo-boton"
-              onClick={() => mando.current?.encuadrar()}
-            >
-              <Focus size={16} aria-hidden /> Encuadrar
-            </button>
-            <button
-              type="button"
-              className={`consola-lienzo-boton consola-fluoro${fluoroscopia ? ' activo' : ''}`}
-              aria-pressed={fluoroscopia}
-              title="Todo translúcido: la misma vista de rayos X del taller anatómico"
-              onClick={alternarRayosX}
-            >
-              <ScanLine size={16} aria-hidden /> Rayos X
-            </button>
-          </div>
-
-          {/* El panel de los rayos X. Solo existe con ellos encendidos: son las
-              dos proyecciones de un C-arm, dos ayudas para leer la imagen y el
-              contador de exposición. Todo lo que aquí se dibuja de más son
-              ayudas de aprendizaje —en una radioscopia real no se ve dónde
-              debe quedar el hueso—, y por eso se apagan. */}
-          {fluoroscopia ? (
-            <div className="consola-escopia" role="group" aria-label="Rayos X">
-              <p className="consola-escopia-cabeza">
-                <span>
-                  <ScanLine size={14} aria-hidden /> Rayos X
-                </span>
-                <span
-                  className={`consola-escopia-tiempo u-num${segundosDeEscopia > 20 ? ' alto' : ''}`}
-                  aria-label={`${segundosDeEscopia} segundos de escopia`}
-                >
-                  {segundosDeEscopia} s
-                </span>
-              </p>
-              <div className="consola-escopia-vistas" role="group" aria-label="Proyección">
-                {(
-                  [
-                    ['libre', 'Libre'],
-                    ['ap', 'AP'],
-                    ['lateral', 'Lateral'],
-                  ] as const
-                ).map(([valor, etiqueta]) => (
-                  <button
-                    key={valor}
-                    type="button"
-                    className={`consola-escopia-vista${vistaDeEscopia === valor ? ' activo' : ''}`}
-                    aria-pressed={vistaDeEscopia === valor}
-                    onClick={() => cambiarVistaDeEscopia(valor)}
-                  >
-                    {etiqueta}
-                  </button>
-                ))}
-              </div>
-              <label className="consola-escopia-opcion">
-                <input
-                  type="checkbox"
-                  checked={ayudas.ejes}
-                  onChange={(e) => setAyudas({ ...ayudas, ejes: e.target.checked })}
-                />
-                <span>
-                  Guía de ejes
-                  <small>verde, el hueso fijo · ámbar, el fragmento</small>
-                </span>
-              </label>
-              <label className="consola-escopia-opcion">
-                <input
-                  type="checkbox"
-                  checked={ayudas.objetivo}
-                  disabled={!caso.piezas.some((p) => p.rol === 'fragmento')}
-                  onChange={(e) => setAyudas({ ...ayudas, objetivo: e.target.checked })}
-                />
-                <span>
-                  Dónde debe quedar
-                  <small>silueta verde del fragmento reducido</small>
-                </span>
-              </label>
-              {ayudas.ejes ? (
-                <p className="consola-escopia-lectura">
-                  Entre los dos ejes hay <strong className="u-num">{reduccion.angulacion}°</strong>
-                  {objetivo === 'reduccion' && topes
-                    ? reduccion.angulacion > topes.angulacion
-                      ? `: se pasa del tope de ${topes.angulacion}°.`
-                      : `: dentro del tope de ${topes.angulacion}°.`
-                    : '.'}
-                </p>
-              ) : null}
-              {segundosDeEscopia > 20 ? (
-                <p className="consola-escopia-aviso">
-                  Mucha exposición. En pabellón se dispara, se mira y se apaga.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-
-        <dl className="consola-medidas">
-          {medidas.map((m) => (
-            <div
-              key={m.nombre}
-              className="consola-medida"
-              data-estado={m.lectura ? m.lectura.estado : undefined}
-            >
-              <dt>{m.nombre}</dt>
-              <dd className="consola-medida-valor u-num">{m.valor}</dd>
-              {m.desglose ? <dd className="consola-desglose u-num">{m.desglose}</dd> : null}
-              {m.lectura ? (
-                <dd className="consola-medida-tope">
-                  {m.lectura.referencia} · <strong>{m.lectura.veredicto}</strong>
-                </dd>
-              ) : null}
-            </div>
-          ))}
-        </dl>
-      </div>
-
-      {/* ------------------------------------------------ columna derecha */}
-      <div className="consola-der">
-        {/* El editor del caso: sus pestañas van arriba de todo, y debajo sigue
-            el paso tal como lo ve el residente. Lo que se escribe arriba se ve
-            cambiar abajo. */}
-        {editor ? (
-          <div className="consola-editor-panel">
-            {editor.panel({
-              trazoMm: largoDelTrazoMm,
-              reduccion: {
-                desplazamiento: reduccion.desplazamiento,
-                angulacion: reduccion.angulacion,
-                diastasis: reduccion.diastasis,
-              },
-              fuerza,
-              nodosDelArchivo: delArchivo?.url === caso.modeloUrl ? delArchivo.nodos : [],
-              datosDeLosNodos: delArchivo?.url === caso.modeloUrl ? delArchivo.datos : [],
-              modeloCargado: delArchivo?.url === caso.modeloUrl,
-              instrumentoEnLaMano: instrumento,
-            })}
-          </div>
-        ) : null}
-        {terminado ? (
-          <div className="consola-fin" role="status">
-            <span className="consola-fin-icono" aria-hidden>
-              <Trophy size={24} />
-            </span>
-            <p className="consola-rotulo">Caso terminado</p>
-            <p className="consola-fin-puntaje">
-              <span className="u-num">{puntaje}</span>
-              <span className="consola-fin-total u-num"> / {maximo} puntos</span>
-            </p>
-            {/* Es el único sitio en el que la complicación sobrevive al paso
-                en el que ocurrió: el registro de abajo se recorta a diez
-                líneas. Se nombra aparte del reintento porque cuesta aparte
-                (`puntosDelPaso`), y decir «hubo que repetir 3 pasos» sin
-                distinguirlas volvería a igualar lo que este cambio separa. */}
-            <p>{resumenDelCaso}</p>
-            {/* Que quede dicho, y aquí: es el único momento en el que el
-                residente decide si repetir el caso, y saber que lo que hizo
-                no se pierde es lo que separa «repetir para mejorar» de
-                «repetir porque si no, no queda nada». */}
-            <p>
-              Su puntaje y sus complicaciones quedan guardados: los encontrará al volver a este
-              caso y en su portada.
-            </p>
-            {/* Solo cuando la escritura volvió, y en las dos direcciones:
-                afirmar «cuenta como leído» mientras viaja sería adelantarse a
-                un fallo posible, y callar el fallo dejaría el caso «por leer»
-                en la portada sin que el residente sepa por qué. */}
-            {lecturaAlTerminar === 'marcada' ? (
-              <p className="consola-fin-leido">
-                <CheckCircle2 size={16} aria-hidden /> El caso cuenta ya como leído en su portada.
-              </p>
-            ) : lecturaAlTerminar === 'fallida' ? (
-              <p className="consola-fin-fallo">
-                No se pudo marcar el caso como leído. Márquelo con la casilla de arriba de la
-                página.
-              </p>
-            ) : null}
-            {/* Terminar no puede ser un callejón: hasta aquí lo único que
-                quedaba era la miga de arriba del todo, fuera de la vista
-                después de seiscientos píxeles de consola. */}
-            <div className="consola-fin-acciones">
-              <button type="button" className="consola-aplicar" onClick={() => void reiniciar()}>
-                <RotateCcw size={16} aria-hidden /> Repetir el caso
-              </button>
-              <Link href="/simulador" className="consola-boton">
-                <ArrowLeft size={16} aria-hidden /> Volver a la lista
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div
-              className={`consola-objetivo${tieneMandosPropios ? ' consola-objetivo-con-mandos' : ''}`}
-            >
-              <p className="consola-rotulo">
-                Paso {indice + 1} de {caso.pasos.length}
-              </p>
-              <h3 className="consola-objetivo-titulo">{paso.titulo}</h3>
-              <p className="consola-instruccion">{instruccionDelPaso(paso)}</p>
-
-              {/* También fuera de un paso de trazo: dibujar no depende del
-                  objetivo sino del modo, y la raya se pinta con `depthTest`
-                  apagado, así que atraviesa el hueso y no hay forma de
-                  esconderla girando la cámara. Sin este botón, un trazo hecho
-                  por error en un paso de reducción tapaba el fragmento justo
-                  donde hay que ver cómo encaja, y solo se quitaba reiniciando
-                  el caso entero. */}
-              {objetivo === 'trazo' || largoDelTrazoMm > 0 ? (
-                <button
-                  type="button"
-                  className="consola-boton consola-boton-ancho"
-                  onClick={() => mando.current?.borrarTrazo(true)}
-                >
-                  <Eraser size={16} aria-hidden /> Borrar trazo
-                </button>
-              ) : null}
-
-              {objetivo === 'reduccion' ? (
-                <div className="consola-angulacion">
-                  {/* El ratón traslada, que es un gesto de dos ejes; una
-                      rotación tiene tres. Sin estos mandos, un caso que empieza
-                      angulado no se podría reducir por mucho que se arrastrara,
-                      y el residente no entendería por qué. */}
-                  <p className="consola-ayuda">
-                    Arrastre el fragmento para alinearlo y corrija la angulación aquí.
-                  </p>
-                  {(
-                    [
-                      ['z', 'Varo / valgo'],
-                      ['x', 'Ante / recurvatum'],
-                      ['y', 'Rotación'],
-                    ] as const
-                  ).map(([eje, etiqueta]) => (
-                    <label key={eje} className="consola-deslizador">
-                      <span className="consola-deslizador-cabeza">
-                        <span>{etiqueta}</span>
-                        <output className="u-num">{Math.round(giros[eje])}°</output>
-                      </span>
-                      <input
-                        type="range"
-                        min={-45}
-                        max={45}
-                        step={0.5}
-                        value={giros[eje]}
-                        onChange={(e) => girar(eje, Number(e.target.value))}
-                      />
-                    </label>
-                  ))}
-                  <button
-                    type="button"
-                    className="consola-boton consola-boton-ancho"
-                    onClick={colocarEnDesplazamientoInicial}
-                  >
-                    <Undo2 size={16} aria-hidden /> Volver al desplazamiento inicial
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            {/* La acción del paso: en el escritorio, debajo de su instrucción;
-                en el móvil, una barra pegada al borde de abajo mientras la
-                consola esté a la vista, con el paso resumido. Allí la columna
-                de mandos queda dos pantallas por debajo del lienzo, y aplicar
-                el paso obligaba a bajar y volver a subir para ver qué había
-                pasado en el modelo. */}
-            <div className="consola-accion">
-              <p className="consola-accion-resumen">
-                <span className="consola-rotulo">
-                  Paso {indice + 1} de {caso.pasos.length} · {paso.titulo}
-                </span>
-                <span className="consola-accion-instruccion">{instruccionDelPaso(paso)}</span>
-              </p>
-
-              {objetivo === 'fuerza' ? (
-                <label
-                  className={`consola-deslizador consola-fuerza${fuerzaDentro ? ' dentro' : ''}`}
-                  style={franjaUtil as React.CSSProperties}
-                >
-                  {/* El rango se enseña antes de aplicar, como ya se hace con
-                      el trazo. Escondido, el residente exploraba el deslizador
-                      —que es lo que se hace con un deslizador—, se pasaba, y la
-                      consola le anotaba como complicación quirúrgica una
-                      adivinanza que ella misma le había obligado a hacer
-                      teniendo el rango guardado a mano. */}
-                  <span className="consola-deslizador-cabeza">
-                    <span>
-                      Fuerza{rangoUtil ? <span className="consola-rango"> · rango útil {rangoUtil}</span> : null}
-                    </span>
-                    <output className="u-num">{fuerza} N</output>
-                  </span>
-                  <input
-                    type="range"
-                    min={topesDelDeslizador.min}
-                    max={topesDelDeslizador.max}
-                    value={fuerza}
-                    onChange={(e) => setFuerza(Number(e.target.value))}
-                  />
-                </label>
-              ) : null}
-
-              {/* Sin `disabled`. Apagado y mudo, el botón principal nacía y
-                  renacía gris en cada paso, y nada en pantalla lo relacionaba
-                  con la bandeja: el residente cumplía la consigna al pie de la
-                  letra y se quedaba atascado. Dejándolo vivo, quien contesta es
-                  `evaluarGesto`, que tiene la frase escrita desde el principio
-                  —«Seleccione un instrumento antes de ejecutar el paso»— y que
-                  hasta ahora era un camino imposible de recorrer, porque el
-                  único sitio que lo llama colgaba de este botón. */}
-              <button type="button" className="consola-aplicar" onClick={aplicarPaso}>
-                <Check size={18} aria-hidden /> {editor ? 'Probar este paso' : 'Aplicar paso'}
-              </button>
-
-              {/* Lo que acaba de pasar, donde el residente está mirando. El
-                  registro completo sigue en el pie, que en este portátil queda
-                  por debajo del pliegue. */}
-              <div role="status" aria-live="polite">
-                {resultado ? (
-                  <ul className="consola-registro consola-registro-ultimo">
-                    {lineaDeRegistro(resultado, 'ultimo')}
-                  </ul>
-                ) : null}
-              </div>
-            </div>
-          </>
-        )}
-
+  // La bandeja con el instrumento en la mano. En el editor va en la columna de la izquierda: la de la derecha es del
+  // panel de edición, que es largo, y dejaba la bandeja fuera de la vista (era lo que se pedía: todo a la vista).
+  const bloqueDeLaBandeja = (
         <div className="consola-bandeja-bloque">
-          <h3 className="consola-subtitulo">
-            Instrumental{editor ? ` · ${caso.instrumental.length}` : ''}
-          </h3>
-          {/* El editor ve el catálogo entero, ya cargado: son los instrumentos
-              que se modelaron, y el autor tiene que poder cogerlos todos para
-              decidir cuál va en cada paso. El residente ve la bandeja del caso
-              —los de los pasos más los señuelos—, porque una bandeja con los
-              cuarenta del hospital no enseña a elegir. */}
-          {editor ? (
+          <h3 className="consola-subtitulo">Instrumental · {caso.instrumental.length}</h3>
+          {/* Solo los instrumentos del caso, los mismos que ve el residente: los que el autor eligió en la
+              bandeja y los que piden los pasos. Y siempre con buscador: con cuarenta instrumentos, recorrer
+              las familias a ojo es lo que más tiempo quita. Se busca por palabras y sin tildes. */}
+          <label className="consola-busqueda-envoltorio">
+            <Search size={14} aria-hidden />
             <input
               type="search"
               className="consola-busqueda"
@@ -2250,6 +1731,19 @@ export function ConsolaQuirurgica({
               value={busquedaDeInstrumento}
               onChange={(e) => setBusquedaDeInstrumento(e.target.value)}
             />
+          </label>
+          {editor && caso.catalogoDelEditor ? (
+            <AnadirALaBandeja
+              catalogo={caso.catalogoDelEditor}
+              alAnadir={(id) => editor.alAlternarEnLaBandeja(id)}
+            />
+          ) : null}
+          {caso.instrumental.length === 0 ? (
+            <p className="consola-vacio">
+              {editor
+                ? 'La bandeja del caso está vacía: añada instrumentos con el botón de arriba, o se arma sola con los que piden los pasos.'
+                : 'Este caso no tiene instrumental.'}
+            </p>
           ) : null}
           {gruposDeLaBandeja.map((grupo) => {
             // Con algo escrito en el buscador se abren todas las familias que
@@ -2308,7 +1802,7 @@ export function ConsolaQuirurgica({
             </div>
             )
           })}
-          {gruposDeLaBandeja.length === 0 ? (
+          {gruposDeLaBandeja.length === 0 && caso.instrumental.length > 0 ? (
             <p className="consola-vacio">Ningún instrumento coincide con la búsqueda.</p>
           ) : null}
 
@@ -2323,7 +1817,7 @@ export function ConsolaQuirurgica({
           {instrumentoElegido ? (
             <div className="consola-instrumento">
               {instrumentoElegido.modeloUrl &&
-              encuadreVigente(undefined, instrumentoElegido.encuadreDelModelo) === undefined ? (
+              encuadreDelElegido === undefined ? (
                 // Sin pose capturada a mano, el modelo se abre en el visor
                 // articulado del taller: con sus retoques, y con los
                 // deslizadores que el archivo declare (la tijera se abre). Con
@@ -2355,7 +1849,7 @@ export function ConsolaQuirurgica({
                   // que un taladro que abre torcido o diminuto no se corrige
                   // girándolo —el residente está en mitad de un paso—, se deja
                   // por imposible.
-                  encuadre={encuadreVigente(undefined, instrumentoElegido.encuadreDelModelo)}
+                  encuadre={encuadreDelElegido}
                   nombre={instrumentoElegido.nombre}
                 />
               ) : (
@@ -2403,44 +1897,194 @@ export function ConsolaQuirurgica({
                     ? 'hacia delante tira del hilo; hacia atrás lo afloja.'
                     : ruedaDelInstrumento === 'alarga'
                       ? 'hacia delante alarga el tornillo; hacia atrás lo acorta.'
-                      : queHace.separa
-                        ? 'hacia delante abre el separador y la herida; hacia atrás los cierra.'
-                        : 'hacia delante abre el instrumento; hacia atrás lo cierra.'}{' '}
+                      : ruedaDelInstrumento === 'separa'
+                        ? 'hacia delante abre el separador colocado y la herida; hacia atrás los cierra.'
+                        : ruedaDelInstrumento === 'levanta'
+                          ? 'hacia delante levanta más la piel con la pinza; hacia atrás la baja.'
+                          : ruedaDelInstrumento === 'potencia'
+                            ? 'hacia delante sube la potencia del electrobisturí (de 5 en 5 W); hacia atrás la baja.'
+                            : 'hacia delante abre el instrumento; hacia atrás lo cierra.'}{' '}
                   Para acercar el modelo, Ctrl + rueda.
                 </p>
               ) : null}
 
+              {guia ? <p className="consola-instrumento-texto consola-instrumento-guia">{guia}</p> : null}
+
               {queHace.corta ? (
                 <p className="consola-instrumento-texto">
-                  Corta {queHace.corta === 'piel' ? 'la piel' : 'los planos de debajo de la piel'}: pase al
-                  modo «Trazar» y arrastre sobre el modelo. Al soltar, la malla se abre a lo largo del trazo.
+                  Corta {queHace.corta === 'piel' ? 'la piel' : 'los planos de debajo de la piel'}: en el modo
+                  «Trazar», dos clics marcan el inicio y el final de la incisión (o arrastre, a mano alzada, si
+                  elige esa opción). La malla se abre a lo largo del trazo.
                 </p>
+              ) : null}
+
+              {queHace.electro ? (
+                <div className="consola-instrumento-articulaciones">
+                  <div className="consola-electro-modos" role="group" aria-label="Modo del electrobisturí">
+                    {(
+                      [
+                        ['corte', 'Corte', 'CUT'],
+                        ['coagulacion', 'Coagulación', 'COAG'],
+                      ] as const
+                    ).map(([valor, nombre, boton]) => (
+                      <button
+                        key={valor}
+                        type="button"
+                        className={`consola-electro-modo ${valor}${modoElectro === valor ? ' activo' : ''}`}
+                        aria-pressed={modoElectro === valor}
+                        onClick={() => setModoElectro(valor)}
+                      >
+                        {nombre} <small>{boton}</small>
+                      </button>
+                    ))}
+                  </div>
+                  <label className="consola-instrumento-articulacion">
+                    <span>Potencia</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={POTENCIA_MAXIMA_W}
+                      step={1}
+                      value={potenciaW}
+                      onChange={(e) => setPotenciaW(limitarPotencia(Number(e.target.value)))}
+                      aria-label="Potencia del electrobisturí en vatios"
+                    />
+                    <output>{potenciaW} W</output>
+                  </label>
+                  <p
+                    className={`consola-instrumento-texto${juicioDeLaPotencia(modoElectro, potenciaW).atencion ? ' consola-herida-aviso' : ''}`}
+                    role="status"
+                  >
+                    {juicioDeLaPotencia(modoElectro, potenciaW).texto} Escala de 0 a {POTENCIA_MAXIMA_W} W; lo habitual al{' '}
+                    {modoElectro === 'corte' ? 'cortar' : 'coagular'}: {RANGO_HABITUAL[modoElectro][0]}–{RANGO_HABITUAL[modoElectro][1]} W.
+                  </p>
+                </div>
+              ) : null}
+
+              {queHace.pellizca ? (
+                <div className="consola-instrumento-articulaciones">
+                  <p className="consola-instrumento-texto">
+                    {pellizcos?.tension === 'tensa'
+                      ? 'Piel tensa: los dos bordes están tomados con pinza con dientes.'
+                      : pellizcos?.tension === 'un-borde'
+                        ? 'Un borde tomado: falta la pinza del otro lado (la del ayudante).'
+                        : adviertePorLaTension('ninguna')}
+                  </p>
+                  {pellizcos && pellizcos.lista.length > 0 ? (
+                    <ul className="consola-separadores">
+                      {pellizcos.lista.map((q) => (
+                        <li key={q.id} className={q.id === pellizcos.activo ? 'activo' : ''}>
+                          <button
+                            type="button"
+                            className="consola-separador-nombre"
+                            onClick={() => mando.current?.elegirPellizco(q.id)}
+                          >
+                            Pinza {q.conDientes ? 'con dientes' : 'sin dientes'} · {q.lado === 0 ? 'sin borde' : q.lado > 0 ? 'borde A' : 'borde B'} ·{' '}
+                            {Math.round(q.alturaMm)} mm
+                          </button>
+                          <button
+                            type="button"
+                            className="consola-separador-quitar"
+                            aria-label="Soltar la piel"
+                            onClick={() => mando.current?.soltarPellizco(q.id)}
+                          >
+                            <X size={14} aria-hidden />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {pellizcos && pellizcos.lista.length > 0 ? (
+                    <label className="consola-instrumento-articulacion">
+                      <span>Levantar</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={ALTURA_MAXIMA_DEL_PELLIZCO_MM}
+                        step={1}
+                        value={Math.round(pellizcos.lista.find((q) => q.id === pellizcos.activo)?.alturaMm ?? 0)}
+                        onChange={(e) => {
+                          const activo = pellizcos.lista.find((q) => q.id === pellizcos.activo)
+                          if (activo) mando.current?.levantarPellizco(Number(e.target.value) - activo.alturaMm)
+                        }}
+                        aria-label="Cuánto levanta la pinza la piel"
+                      />
+                      <output>{Math.round(pellizcos.lista.find((q) => q.id === pellizcos.activo)?.alturaMm ?? 0)} mm</output>
+                    </label>
+                  ) : null}
+                  {pellizcos && pellizcos.lista.length > 0 ? (
+                    <div className="consola-instrumento-acciones">
+                      <button type="button" className="consola-boton" onClick={() => mando.current?.soltarPellizco()}>
+                        Soltar la piel
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
 
               {queHace.separa ? (
                 <div className="consola-instrumento-articulaciones">
-                  <label className="consola-instrumento-articulacion">
-                    <span>Apertura</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={queHace.separa.maximoMm}
-                      step={1}
-                      value={Math.min(queHace.separa.maximoMm, Math.round(herida?.aperturaMm ?? 0))}
-                      disabled={!herida || herida.capas.length === 0}
-                      onChange={(e) => mando.current?.abrirHeridas(Number(e.target.value))}
-                      aria-label={`Apertura de la herida con ${instrumentoElegido.nombre}`}
-                    />
-                    <output>{Math.round(herida?.aperturaMm ?? 0)} mm</output>
-                  </label>
                   <p className="consola-instrumento-texto">
-                    {queHace.separa.autoestatico
-                      ? 'Autoestático: se queda abierto solo, con su trinquete.'
-                      : 'De mano: abre el borde que sostiene; el otro lo sostiene un ayudante.'}{' '}
-                    Abre hasta {queHace.separa.maximoMm} mm. {herida && herida.capas.length > 0
-                      ? 'También se puede arrastrar desde el borde de la herida, en modo «Separar».'
-                      : 'Aún no hay herida: corte antes con un bisturí.'}
+                    {queHace.separa.apoyoEnHueso
+                      ? 'Haga clic sobre el hueso: el separador se apoya en su borde y retrae las partes blandas de ese lado.'
+                      : queHace.separa.autoestatico
+                        ? 'Autoestático: haga clic en el punto de la incisión donde quiere ponerlo; se clava a los dos bordes y se queda abierto solo.'
+                        : 'De mano: haga clic junto al borde de la herida que quiere sostener; abre ese borde y el otro lo sostiene el ayudante (otra hoja).'}{' '}
+                    Después se abre con la rueda del ratón o con la barra de abajo, hasta {queHace.separa.maximoMm} mm.{' '}
+                    {herida && herida.capas.length > 0 ? '' : 'Aún no hay herida: corte antes con un bisturí.'}
                   </p>
+                  {separadores && separadores.lista.length > 0 ? (
+                    <>
+                      <ul className="consola-separadores">
+                        {separadores.lista.map((q) => (
+                          <li key={q.id} className={q.id === separadores.activo ? 'activo' : ''}>
+                            <button
+                              type="button"
+                              className="consola-separador-nombre"
+                              onClick={() => mando.current?.elegirSeparador(q.id)}
+                            >
+                              {q.nombre} · {q.lado === 0 ? 'los dos bordes' : q.lado > 0 ? 'borde A' : 'borde B'} · {q.aperturaMm} mm
+                            </button>
+                            <button
+                              type="button"
+                              className="consola-separador-quitar"
+                              aria-label={`Quitar ${q.nombre}`}
+                              onClick={() => mando.current?.quitarSeparador(q.id)}
+                            >
+                              <X size={14} aria-hidden />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {(() => {
+                        const activo = separadores.lista.find((q) => q.id === separadores.activo)
+                        if (!activo) return null
+                        return (
+                          <label className="consola-instrumento-articulacion">
+                            <span>Apertura</span>
+                            <input
+                              type="range"
+                              min={0}
+                              max={activo.maximoMm}
+                              step={1}
+                              value={activo.aperturaMm}
+                              onChange={(e) => mando.current?.abrirSeparador(Number(e.target.value))}
+                              aria-label={`Apertura de ${activo.nombre}`}
+                            />
+                            <output>{activo.aperturaMm} mm</output>
+                          </label>
+                        )
+                      })()}
+                      <p className="consola-instrumento-texto">
+                        Herida abierta: {Math.round(aperturaMaxima(separadores.lista))} mm.
+                      </p>
+                      <div className="consola-instrumento-acciones">
+                        <button type="button" className="consola-boton" onClick={() => mando.current?.quitarSeparador()}>
+                          Quitar los separadores
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -2676,6 +2320,734 @@ export function ConsolaQuirurgica({
             </div>
           ) : null}
         </div>
+  )
+
+  return (
+    <section
+      className={`consola mod-4${terminado ? ' consola-terminada' : ''}${editor ? ' consola-editor' : ''}`}
+      aria-labelledby="consola-titulo"
+    >
+      {/* --------------------------------------------------------- barra */}
+      {/* El nombre del caso ya es el <h1> de la página, y la barra lo repetía
+          en un <h2> idéntico a 200 px. Aquí se nombra la herramienta y se
+          dejan los datos del caso, que es lo que se consulta con el caso
+          abierto. */}
+      <header className="consola-barra">
+        <div className="consola-identidad">
+          <span className="consola-insignia" aria-hidden>
+            <Scissors size={18} />
+          </span>
+          <div>
+            <p className="consola-rotulo">
+              Módulo 04 · Simulador{editor ? ' · editando: lo que ve el residente' : ''}
+            </p>
+            <h2 id="consola-titulo" className="consola-titulo">
+              Consola de reducción y fijación
+            </h2>
+          </div>
+        </div>
+        <dl className="consola-datos">
+          {caso.hueso ? (
+            <div>
+              <dt>Hueso</dt>
+              <dd>{caso.hueso}</dd>
+            </div>
+          ) : null}
+          {caso.clasificacion ? (
+            <div>
+              <dt>Clasificación AO</dt>
+              <dd>
+                {caso.clasificacion}
+                {/* El código lo compone el servidor con el número del hueso y
+                    el de la clasificación; aquí solo se muestra si existe. */}
+                {codigo ? <span className="consola-codigo">{codigo}</span> : null}
+              </dd>
+            </div>
+          ) : null}
+          {caso.tecnica ? (
+            <div>
+              <dt>Técnica</dt>
+              <dd>{caso.tecnica}</dd>
+            </div>
+          ) : null}
+        </dl>
+        {/* El tope lo da `puntajeMaximo`, que suma los pasos enteros, mientras
+            que el acierto tras un fallo cobra la mitad y tras una complicación
+            no cobra nada (`puntosDelPaso`). O sea: este número es la referencia
+            del caso, y en cuanto se falla un paso ya no se puede igualar. Está
+            puesto así a propósito; lo que no se puede hacer es cambiar una de
+            las dos cuentas sin la otra. */}
+        <div className="consola-marcador">
+          <div className="consola-puntaje" aria-label={`Puntaje: ${puntaje} de ${maximo}`}>
+            <span className="consola-puntaje-numero u-num">{puntaje}</span>
+            <span className="consola-puntaje-total u-num">/ {maximo}</span>
+          </div>
+          <span className="consola-puntaje-medidor" aria-hidden>
+            <span style={{ width: `${maximo > 0 ? Math.round((puntaje / maximo) * 100) : 0}%` }} />
+          </span>
+          {/* Lo que quedó de la vez anterior, en el sitio donde el residente
+              mira al llegar, pero en pequeño: el marcador grande cuenta el
+              recorrido de ahora y arranca en cero a propósito. Lo guardado es
+              un estado —el último recorrido—, no un punto de guardado, así que
+              no se sabe qué pasos tenía resueltos. Sumarlo al marcador y
+              dejarle repetir el caso le cobraría los mismos pasos dos veces, y
+              el número subiría solo con recargar. El detalle está abajo, en
+              «Su recorrido anterior». */}
+          {recorridoGuardado ? (
+            <span className="consola-puntaje-anterior u-num">
+              anterior {recorridoGuardado.puntaje}
+              {recorridoGuardado.puntajeMaximo !== null ? ` de ${recorridoGuardado.puntajeMaximo}` : ''}
+            </span>
+          ) : null}
+        </div>
+        {/* «Reiniciar» tira todo el avance del caso y estaba a ocho píxeles del
+            «/ 12», leído de corrido como una tercera pieza del marcador. Ahora
+            va aparte, sin relleno y con su icono, y antes de borrar pregunta
+            con el diálogo propio (`reiniciar`). */}
+        <button type="button" className="consola-reiniciar" onClick={() => void reiniciar()}>
+          <RotateCcw size={16} aria-hidden /> {editor ? 'Reiniciar el ensayo' : 'Reiniciar caso'}
+        </button>
+      </header>
+
+      {/* ---------------------------------------------------------- pasos */}
+      {/* Arriba y no debajo del lienzo: es la barra de progreso del caso, y
+          debajo quedaba entre las medidas y el pie, fuera de la vista en el
+          portátil de referencia. Se desplaza en horizontal como el guion de
+          pabellón cuando no cabe. */}
+      <div className="consola-pasos-fila">
+      <ol className="consola-pasos" aria-label="Pasos del caso">
+        {caso.pasos.map((p, i) => {
+          const estado = estadoDelPaso(p, i)
+          const contenido = (
+            <>
+              <span className="consola-paso-marca" aria-hidden>
+                {estado === 'resuelto' ? (
+                  <Check size={14} strokeWidth={3} />
+                ) : estado.includes('complicado') ? (
+                  <AlertTriangle size={13} strokeWidth={2.5} />
+                ) : (
+                  i + 1
+                )}
+              </span>
+              <span className="consola-paso-texto">
+                <span className="consola-paso-titulo">{p.titulo}</span>
+                {p.faseNombre ? <span className="consola-paso-fase">{p.faseNombre}</span> : null}
+                <span className="sr-only">
+                  Paso {i + 1}: {PALABRA_DEL_ESTADO[estado]}
+                </span>
+              </span>
+            </>
+          )
+          return (
+            <li
+              key={p.id}
+              className={`consola-paso ${estado}`}
+              aria-current={i === indice ? 'step' : undefined}
+            >
+              {/* En el editor cada paso es un botón: se salta a cualquiera, en
+                  cualquier orden, que es lo que hace falta para escribirlos.
+                  El residente los recorre en orden y no se toca. */}
+              {editor ? (
+                <button type="button" className="consola-paso-boton" onClick={() => irAlPaso(i)}>
+                  {contenido}
+                </button>
+              ) : (
+                contenido
+              )}
+            </li>
+          )
+        })}
+      </ol>
+      {editor ? <div className="consola-pasos-acciones">{editor.barraDePasos}</div> : null}
+      </div>
+
+      {/* ------------------------------------------------ columna izquierda */}
+      {/* Sin `consola-panel-izq` ni `<aside>`: en pantalla estrecha esta
+          columna se deshace (`display: contents`) para que el modo suba
+          encima del lienzo y las capas bajen debajo, y un `<aside>` con
+          `display: contents` pierde su papel en algunos lectores de pantalla. */}
+      <div className="consola-izq">
+        <div className="consola-modos-bloque">
+          <h3 className="consola-subtitulo" id="consola-modo">
+            Modo
+          </h3>
+          <div className="consola-segmentado" role="group" aria-labelledby="consola-modo">
+            {modosVisibles.map((m) => {
+              const Icono = m.icono
+              const pedido = modoDelPaso === m.valor
+              return (
+                <button
+                  key={m.valor}
+                  type="button"
+                  className={`consola-modo${modo === m.valor ? ' activo' : ''}${pedido ? ' pedido' : ''}`}
+                  aria-pressed={modo === m.valor}
+                  title={m.ayuda}
+                  onClick={() => setModo(m.valor)}
+                >
+                  <Icono size={18} aria-hidden />
+                  <span>{m.etiqueta}</span>
+                  {/* El modo que pide el paso se señalaba con « ·» pegado a la
+                      etiqueta, un punto de 3 px que nadie veía. Ahora es una
+                      marca con palabra, y sigue sin imponerse: cambiar de modo
+                      a mano es posible (`MODO_DEL_OBJETIVO`). */}
+                  {pedido ? <span className="consola-modo-pedido">paso</span> : null}
+                </button>
+              )
+            })}
+          </div>
+          <p className="consola-ayuda">
+            {ayudaDelModo}
+            {etiquetaDelModoDelPaso ? (
+              <span className="consola-ayuda-pedido">
+                {' '}
+                Este paso se hace en modo {etiquetaDelModoDelPaso}.
+              </span>
+            ) : null}
+          </p>
+          {/* Las dos formas de trazar la incisión: la recta entre dos clics (inicio y final) y la mano
+              alzada. La recta es la de una incisión de abordaje; a mano sale temblorosa. */}
+          {modo === 'trazar' ? (
+            <div className="consola-submodo" role="group" aria-label="Cómo se traza la incisión">
+              {TIPOS_DE_TRAZO.map((t) => (
+                <button
+                  key={t.valor}
+                  type="button"
+                  className={`consola-submodo-boton${tipoDeTrazo === t.valor ? ' activo' : ''}`}
+                  aria-pressed={tipoDeTrazo === t.valor}
+                  title={t.ayuda}
+                  onClick={() => {
+                    setTipoDeTrazo(t.valor)
+                    mando.current?.cancelarTrazo()
+                  }}
+                >
+                  {t.etiqueta}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {/* «Mover» separaba cada sistema y se perdía todo: ahora mueve todo junto, y el paso de reducir
+              —que necesita un trozo de hueso suelto— lo deja en «Un trozo». */}
+          {modo === 'mover' ? (
+            <div className="consola-submodo" role="group" aria-label="Qué se mueve">
+              {(
+                [
+                  [true, 'Todo junto', 'Piel, músculo y hueso se mueven a la vez, como un bloque.'],
+                  [false, 'Un trozo', 'Agarra el trozo de hueso que se toque: lo que hace falta para reducir una fractura.'],
+                ] as const
+              ).map(([valor, etiqueta, ayuda]) => (
+                <button
+                  key={etiqueta}
+                  type="button"
+                  className={`consola-submodo-boton${moverTodoEfectivo === valor ? ' activo' : ''}`}
+                  aria-pressed={moverTodoEfectivo === valor}
+                  title={ayuda}
+                  onClick={() => setMoverTodoElegido(valor)}
+                >
+                  {etiqueta}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {herida && (herida.capas.length > 0 || herida.aviso) ? (
+          <div className="consola-herida-bloque" role="status">
+            <h3 className="consola-subtitulo">Herida</h3>
+            {herida.capas.length > 0 ? (
+              <p className="consola-herida-datos">
+                {herida.capas.map((c) => (c === 'piel' ? 'Piel' : 'Planos profundos')).join(' y ')} ·{' '}
+                {Math.round(herida.largoMm)} mm de largo · abierta {Math.round(herida.aperturaMm)} mm
+              </p>
+            ) : null}
+            {herida.aviso ? <p className="consola-herida-aviso">{herida.aviso}</p> : null}
+            {herida.capas.length > 0 ? (
+              <button type="button" className="consola-boton consola-boton-ancho" onClick={() => mando.current?.cerrarHeridas()}>
+                <Undo2 size={16} aria-hidden /> Cerrar la herida
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="consola-capas-bloque">
+          <h3 className="consola-subtitulo">Capas</h3>
+          <ul className="consola-capas">
+            {CAPAS.map((capa) => {
+              const hay = caso.piezas.some((p) => capaDelRol(p.rol) === capa.rol)
+              return (
+                <li key={capa.rol}>
+                  {/* Un interruptor y no una casilla: lo que hace es encender y
+                      apagar algo que se ve, no marcar una opción de un
+                      formulario. Sigue siendo un `checkbox` por dentro, con
+                      `role="switch"`, así que el teclado y el lector de
+                      pantalla lo tratan como lo que es. */}
+                  <label className={`consola-interruptor${hay ? '' : ' consola-capa-vacia'}`}>
+                    <span>{capa.etiqueta}</span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={!capasApagadas.has(capa.rol)}
+                      disabled={!hay}
+                      onChange={() => alternarCapa(capa.rol)}
+                    />
+                    <span className="consola-interruptor-pista" aria-hidden />
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+        {editor ? bloqueDeLaBandeja : null}
+      </div>
+
+      {/* -------------------------------------------------------- lienzo */}
+      <div className="consola-centro">
+        <div className={`consola-lienzo-marco modo-${modo}`}>
+          <LienzoQuirurgico
+            url={caso.modeloUrl}
+            piezas={caso.piezas}
+            modo={modo}
+            fluoroscopia={fluoroscopiaEncendida}
+            ayudas={ayudas}
+            inclinacionDeBroca={inclinacionDeBroca}
+            trazo={tipoDeTrazo}
+            moverTodo={moverTodoEfectivo}
+            alGesto={anotar}
+            alSeparar={setSeparadores}
+            alPellizcar={setPellizcos}
+            alHerir={setHerida}
+            alCoser={(estado) => {
+              setSutura(estado)
+              if (!estado) {
+                heridaCerradaDicha.current = false
+                return
+              }
+              if (estado.juicio) anotar(estado.juicio, 'atencion')
+              // Se dice cuando cambia la cosa, no en cada vuelta de la rueda: diez avisos iguales tapan el registro.
+              const dicho = juicioDeTensionDicho.current
+              const juicioT = estado.juicioDeLaTension
+              if (juicioT && juicioT.texto !== dicho) {
+                juicioDeTensionDicho.current = juicioT.texto
+                anotar(juicioT.texto, juicioT.atencion ? 'atencion' : 'bien')
+              } else if (!juicioT) {
+                juicioDeTensionDicho.current = null
+              }
+              if (estado.cierre >= 0.999 && !estado.juicioDeLaTension?.estrangula && !heridaCerradaDicha.current) {
+                heridaCerradaDicha.current = true
+                anotar(
+                  `Herida cerrada con ${estado.puntadas} puntadas de ${estado.hilo}, ${estado.bienEspaciadas} de ${estado.tramos} bien espaciadas (5 a 10 mm).`,
+                  estado.bienEspaciadas === estado.tramos ? 'bien' : 'atencion',
+                )
+              }
+              if (estado.cierre < 0.999) heridaCerradaDicha.current = false
+            }}
+            largoDeTornillo={largoDeTornillo}
+            alRueda={alRuedaDelInstrumento}
+            capturaLaRueda={ruedaDelInstrumento !== null}
+            // En el editor la clave es solo el modelo: la ficha cambia de identificador al guardar un caso nuevo por
+            // primera vez, y con ella la clave —se perdía la incisión—. Ver `ensayoDelEditor.ts`.
+            claveDeSesion={editor ? `trauma-sesion:editor::${caso.modeloUrl ?? ''}` : `trauma-sesion:residente:${documentoId}:${caso.modeloUrl ?? ''}`}
+            alFijar={(estado, suceso) => {
+              setFijacion(estado)
+              if (!suceso) return
+              if (suceso.largoSugeridoMm) setLargoDeTornillo(suceso.largoSugeridoMm)
+              if (suceso.tipo === 'aviso') anotar(suceso.texto, 'atencion')
+              else anotar(suceso.texto, suceso.atencion ? 'atencion' : 'bien')
+            }}
+            alPerforar={(hecha) => {
+              if (paso) setUltimaPerforacion({ paso: paso.id, hecha })
+              const mm = (n: number) => n.toFixed(1).replace('.', ',')
+              const partes = [
+                `Perforación de Ø ${String(hecha.diametroMm).replace('.', ',')} mm y ${mm(hecha.profundidadMm)} mm`,
+                hecha.bicortical ? 'bicortical' : 'solo la cortical cercana',
+                `${Math.round(hecha.anguloConElEje)}° con el eje del hueso`,
+              ]
+              const torcida = Math.abs(90 - hecha.anguloConElEje) > 10
+              const larga = hecha.sePasoMm > 3
+              anotar(
+                `${partes.join(', ')}.${
+                  larga ? ` Se pasó ${mm(hecha.sePasoMm)} mm de la cortical opuesta: riesgo para las partes blandas.` : ''
+                }${torcida ? ' No quedó perpendicular al eje del hueso.' : ''}`,
+                larga || torcida ? 'atencion' : 'bien',
+              )
+            }}
+            instrumento={instrumentoEnEscena}
+            milimetrosPorUnidad={escalaMm}
+            ejeLargo={caso.ejeLargo}
+            alCargarInstrumento={(declaradas, error) => {
+              setArticulacionesDeclaradas(declaradas ?? [])
+              setErrorDelInstrumento(error ?? null)
+            }}
+            // Del trazo solo se guarda su longitud. Los puntos se quedan en
+            // el lienzo, que ya es su dueño; subirlos a React repintaba la
+            // consola entera —los dos campos ricos del pie incluidos— unas
+            // treinta veces por incisión, compitiendo con el bucle de dibujo.
+            alTrazar={(puntos) => setLargoDelTrazoMm(largoDelTrazo(puntos, escalaMm))}
+            alMoverFragmento={() => {
+              recalcularMedidas()
+              editor?.alMoverFragmento?.()
+            }}
+            alSenalar={editor?.alSenalar}
+            // El fragmento se coloca desplazado cuando el archivo termina de
+            // cargar, no antes: hasta ese momento no hay ningún nodo al que
+            // aplicarle nada, y hacerlo en el montaje del componente dejaba
+            // el hueso reducido y el caso resuelto de entrada.
+            alCargar={() => {
+              // Un lienzo recién cargado no trae ninguna herida: si el modelo se
+              // vuelve a montar (otro archivo, una recarga en caliente), lo que la
+              // consola creía cortado ya no existe en la escena.
+              setHerida(null)
+              setSutura(null)
+              setFijacion(null)
+              setDelArchivo({
+                url: caso.modeloUrl ?? '',
+                nodos: mando.current?.nodosDelModelo() ?? [],
+                datos: mando.current?.datosDeLosNodos() ?? [],
+              })
+              colocarEnDesplazamientoInicial()
+              entrarEnPaso(indice, capasApagadas)
+              // Lo que el caso declara frente a lo que el archivo trae. Si no
+              // hay nada en común, `refrescarVisibles` ya lo dijo; aquí queda
+              // el caso a medias —unas piezas están y otras no— y el de un
+              // modelo sin fragmento, que dejaba los pasos de reducción sin
+              // nada que mover (O-078).
+              const faltan = piezasQueFaltanEnElArchivo(caso.piezas, mando.current?.nodosDelModelo() ?? [])
+              if (faltan.ausentes.length > 0 && faltan.ausentes.length < faltan.total) {
+                avisarUnaVez(
+                  'faltan-piezas',
+                  `El caso declara ${faltan.ausentes.length} de ${faltan.total} piezas que este modelo no tiene (${faltan.ausentes
+                    .slice(0, 3)
+                    .join(', ')}${faltan.ausentes.length > 3 ? '…' : ''}). Esas no se muestran.`,
+                )
+              }
+              if (
+                mando.current &&
+                !mando.current.hayFragmento() &&
+                caso.pasos.some((p) => p.objetivo === 'reduccion')
+              ) {
+                avisarUnaVez(
+                  'sin-fragmento',
+                  'El modelo no trae el fragmento móvil que declara el caso: los pasos de reducción no tienen nada que mover.',
+                )
+              }
+            }}
+            // Un modelo que no abre tiene que decirlo. Sin esto el residente
+            // se queda mirando un lienzo vacío creyendo que aún carga.
+            alFallar={(mensaje) => anotar(mensaje, 'grave')}
+            mando={asignarMando}
+          />
+          {/* Encuadrar sobre el lienzo y no en la columna de mandos: es una
+              orden de la vista, y en el móvil la columna queda por debajo del
+              lienzo, lejos de lo que encuadra. */}
+          <div className="consola-lienzo-herramientas">
+            <button
+              type="button"
+              className="consola-lienzo-boton"
+              onClick={() => mando.current?.encuadrar()}
+            >
+              <Focus size={16} aria-hidden /> Encuadrar
+            </button>
+            {/* «El simulador excede el tamaño de la pantalla»: con esto ocupa la pantalla entera y los mandos
+                caben a la vista. En una pantalla pequeña es lo que hace falta; el modo normal queda para leer
+                la página. */}
+            <button
+              type="button"
+              className="consola-lienzo-boton"
+              aria-pressed={pantallaCompleta}
+              title={pantallaCompleta ? 'Volver al tamaño de la página' : 'Ocupar toda la pantalla, con todos los mandos a la vista'}
+              onClick={() => setPantallaCompleta((v) => !v)}
+            >
+              {pantallaCompleta ? <Minimize2 size={16} aria-hidden /> : <Maximize2 size={16} aria-hidden />}
+              {pantallaCompleta ? 'Reducir' : 'Ampliar'}
+            </button>
+            {/* «Rayos X» se llama fluoroscopia, que es lo que se hace en pabellón, y abre un menú con las tres
+                proyecciones del arco en C. Al elegir una, la vista pasa a radiografía y se abre al lado la imagen
+                de la fluoroscopia, en círculo. */}
+            <div className="consola-fluoro-envoltorio">
+              <button
+                type="button"
+                className={`consola-lienzo-boton consola-fluoro${fluoroscopiaEncendida ? ' activo' : ''}`}
+                aria-pressed={fluoroscopiaEncendida}
+                aria-haspopup={fluoroscopiaEncendida ? undefined : 'menu'}
+                aria-expanded={fluoroscopiaEncendida ? undefined : menuDeFluoroscopia}
+                title="Fluoroscopia: la imagen del arco en C, en círculo, con lo más denso en negro. Elija la proyección."
+                onClick={alternarRayosX}
+              >
+                <ScanLine size={16} aria-hidden /> Fluoroscopia
+                {fluoroscopia ? (
+                  <span className="consola-fluoro-vista">
+                    · {PROYECCIONES_DE_FLUOROSCOPIA.find((q) => q.valor === fluoroscopia)?.etiqueta}
+                  </span>
+                ) : (
+                  <ChevronDown size={14} aria-hidden />
+                )}
+              </button>
+              {menuDeFluoroscopia && !fluoroscopiaEncendida ? (
+                <ul className="consola-fluoro-menu" role="menu" aria-label="Proyección de la fluoroscopia">
+                  {PROYECCIONES_DE_FLUOROSCOPIA.map((q) => (
+                    <li key={q.valor} role="none">
+                      <button type="button" role="menuitem" className="consola-fluoro-opcion" onClick={() => elegirProyeccion(q.valor)}>
+                        <strong>{q.etiqueta}</strong>
+                        <small>{q.ayuda}</small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
+
+          {/* La imagen del arco en C. Solo existe con la fluoroscopia encendida: la imagen en círculo, con lo
+              denso en negro como en la pantalla del pabellón, las tres proyecciones, el contador de exposición
+              y las dos ayudas de aprendizaje (que se apagan: en una fluoroscopia real nadie dibuja dónde debe
+              quedar el hueso). */}
+          {fluoroscopia ? (
+            <PanelDeFluoroscopia
+              proyeccion={fluoroscopia}
+              segundos={segundosDeEscopia}
+              zoom={zoomDeFluoroscopia}
+              ayudas={ayudas}
+              hayFragmento={caso.piezas.some((p) => p.rol === 'fragmento')}
+              angulacion={reduccion.angulacion}
+              topeDeAngulacion={objetivo === 'reduccion' && topes ? topes.angulacion : null}
+              lienzo={lienzoDeFluoroscopia}
+              alElegirProyeccion={elegirProyeccion}
+              alAcercar={setZoomDeFluoroscopia}
+              alCambiarAyudas={setAyudas}
+              alApagar={apagarFluoroscopia}
+            />
+          ) : null}
+        </div>
+
+        <dl className="consola-medidas">
+          {medidas.map((m) => (
+            <div
+              key={m.nombre}
+              className="consola-medida"
+              data-estado={m.lectura ? m.lectura.estado : undefined}
+            >
+              <dt>{m.nombre}</dt>
+              <dd className="consola-medida-valor u-num">{m.valor}</dd>
+              {m.desglose ? <dd className="consola-desglose u-num">{m.desglose}</dd> : null}
+              {m.lectura ? (
+                <dd className="consola-medida-tope">
+                  {m.lectura.referencia} · <strong>{m.lectura.veredicto}</strong>
+                </dd>
+              ) : null}
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      {/* ------------------------------------------------ columna derecha */}
+      <div className="consola-der">
+        {/* El editor del caso: sus pestañas van arriba de todo, y debajo sigue
+            el paso tal como lo ve el residente. Lo que se escribe arriba se ve
+            cambiar abajo. */}
+        {editor ? (
+          <div className="consola-editor-panel">
+            {editor.panel({
+              trazoMm: largoDelTrazoMm,
+              reduccion: {
+                desplazamiento: reduccion.desplazamiento,
+                angulacion: reduccion.angulacion,
+                diastasis: reduccion.diastasis,
+              },
+              fuerza,
+              nodosDelArchivo: delArchivo?.url === caso.modeloUrl ? delArchivo.nodos : [],
+              datosDeLosNodos: delArchivo?.url === caso.modeloUrl ? delArchivo.datos : [],
+              modeloCargado: delArchivo?.url === caso.modeloUrl,
+              instrumentoEnLaMano: instrumento,
+            })}
+          </div>
+        ) : null}
+        {terminado ? (
+          <div className="consola-fin" role="status">
+            <span className="consola-fin-icono" aria-hidden>
+              <Trophy size={24} />
+            </span>
+            <p className="consola-rotulo">Caso terminado</p>
+            <p className="consola-fin-puntaje">
+              <span className="u-num">{puntaje}</span>
+              <span className="consola-fin-total u-num"> / {maximo} puntos</span>
+            </p>
+            {/* Es el único sitio en el que la complicación sobrevive al paso
+                en el que ocurrió: el registro de abajo se recorta a diez
+                líneas. Se nombra aparte del reintento porque cuesta aparte
+                (`puntosDelPaso`), y decir «hubo que repetir 3 pasos» sin
+                distinguirlas volvería a igualar lo que este cambio separa. */}
+            <p>{resumenDelCaso}</p>
+            {/* Que quede dicho, y aquí: es el único momento en el que el
+                residente decide si repetir el caso, y saber que lo que hizo
+                no se pierde es lo que separa «repetir para mejorar» de
+                «repetir porque si no, no queda nada». */}
+            <p>
+              Su puntaje y sus complicaciones quedan guardados: los encontrará al volver a este
+              caso y en su portada.
+            </p>
+            {/* Solo cuando la escritura volvió, y en las dos direcciones:
+                afirmar «cuenta como leído» mientras viaja sería adelantarse a
+                un fallo posible, y callar el fallo dejaría el caso «por leer»
+                en la portada sin que el residente sepa por qué. */}
+            {lecturaAlTerminar === 'marcada' ? (
+              <p className="consola-fin-leido">
+                <CheckCircle2 size={16} aria-hidden /> El caso cuenta ya como leído en su portada.
+              </p>
+            ) : lecturaAlTerminar === 'fallida' ? (
+              <p className="consola-fin-fallo">
+                No se pudo marcar el caso como leído. Márquelo con la casilla de arriba de la
+                página.
+              </p>
+            ) : null}
+            {/* Terminar no puede ser un callejón: hasta aquí lo único que
+                quedaba era la miga de arriba del todo, fuera de la vista
+                después de seiscientos píxeles de consola. */}
+            <div className="consola-fin-acciones">
+              <button type="button" className="consola-aplicar" onClick={() => void reiniciar()}>
+                <RotateCcw size={16} aria-hidden /> Repetir el caso
+              </button>
+              <Link href="/simulador" className="consola-boton">
+                <ArrowLeft size={16} aria-hidden /> Volver a la lista
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div
+              className={`consola-objetivo${tieneMandosPropios ? ' consola-objetivo-con-mandos' : ''}`}
+            >
+              <p className="consola-rotulo">
+                Paso {indice + 1} de {caso.pasos.length}
+              </p>
+              <h3 className="consola-objetivo-titulo">{paso.titulo}</h3>
+              <p className="consola-instruccion">{instruccionDelPaso(paso)}</p>
+
+              {/* También fuera de un paso de trazo: dibujar no depende del
+                  objetivo sino del modo, y la raya se pinta con `depthTest`
+                  apagado, así que atraviesa el hueso y no hay forma de
+                  esconderla girando la cámara. Sin este botón, un trazo hecho
+                  por error en un paso de reducción tapaba el fragmento justo
+                  donde hay que ver cómo encaja, y solo se quitaba reiniciando
+                  el caso entero. */}
+              {objetivo === 'trazo' || largoDelTrazoMm > 0 ? (
+                <button
+                  type="button"
+                  className="consola-boton consola-boton-ancho"
+                  onClick={() => mando.current?.borrarTrazo(true)}
+                >
+                  <Eraser size={16} aria-hidden /> Borrar trazo
+                </button>
+              ) : null}
+
+              {objetivo === 'reduccion' ? (
+                <div className="consola-angulacion">
+                  {/* El ratón traslada, que es un gesto de dos ejes; una
+                      rotación tiene tres. Sin estos mandos, un caso que empieza
+                      angulado no se podría reducir por mucho que se arrastrara,
+                      y el residente no entendería por qué. */}
+                  <p className="consola-ayuda">
+                    Arrastre el fragmento para alinearlo y corrija la angulación aquí.
+                  </p>
+                  {(
+                    [
+                      ['z', 'Varo / valgo'],
+                      ['x', 'Ante / recurvatum'],
+                      ['y', 'Rotación'],
+                    ] as const
+                  ).map(([eje, etiqueta]) => (
+                    <label key={eje} className="consola-deslizador">
+                      <span className="consola-deslizador-cabeza">
+                        <span>{etiqueta}</span>
+                        <output className="u-num">{Math.round(giros[eje])}°</output>
+                      </span>
+                      <input
+                        type="range"
+                        min={-45}
+                        max={45}
+                        step={0.5}
+                        value={giros[eje]}
+                        onChange={(e) => girar(eje, Number(e.target.value))}
+                      />
+                    </label>
+                  ))}
+                  <button
+                    type="button"
+                    className="consola-boton consola-boton-ancho"
+                    onClick={colocarEnDesplazamientoInicial}
+                  >
+                    <Undo2 size={16} aria-hidden /> Volver al desplazamiento inicial
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            {/* La acción del paso: en el escritorio, debajo de su instrucción;
+                en el móvil, una barra pegada al borde de abajo mientras la
+                consola esté a la vista, con el paso resumido. Allí la columna
+                de mandos queda dos pantallas por debajo del lienzo, y aplicar
+                el paso obligaba a bajar y volver a subir para ver qué había
+                pasado en el modelo. */}
+            <div className="consola-accion">
+              <p className="consola-accion-resumen">
+                <span className="consola-rotulo">
+                  Paso {indice + 1} de {caso.pasos.length} · {paso.titulo}
+                </span>
+                <span className="consola-accion-instruccion">{instruccionDelPaso(paso)}</span>
+              </p>
+
+              {objetivo === 'fuerza' ? (
+                <label
+                  className={`consola-deslizador consola-fuerza${fuerzaDentro ? ' dentro' : ''}`}
+                  style={franjaUtil as React.CSSProperties}
+                >
+                  {/* El rango se enseña antes de aplicar, como ya se hace con
+                      el trazo. Escondido, el residente exploraba el deslizador
+                      —que es lo que se hace con un deslizador—, se pasaba, y la
+                      consola le anotaba como complicación quirúrgica una
+                      adivinanza que ella misma le había obligado a hacer
+                      teniendo el rango guardado a mano. */}
+                  <span className="consola-deslizador-cabeza">
+                    <span>
+                      Fuerza{rangoUtil ? <span className="consola-rango"> · rango útil {rangoUtil}</span> : null}
+                    </span>
+                    <output className="u-num">{fuerza} N</output>
+                  </span>
+                  <input
+                    type="range"
+                    min={topesDelDeslizador.min}
+                    max={topesDelDeslizador.max}
+                    value={fuerza}
+                    onChange={(e) => setFuerza(Number(e.target.value))}
+                  />
+                </label>
+              ) : null}
+
+              {/* Sin `disabled`. Apagado y mudo, el botón principal nacía y
+                  renacía gris en cada paso, y nada en pantalla lo relacionaba
+                  con la bandeja: el residente cumplía la consigna al pie de la
+                  letra y se quedaba atascado. Dejándolo vivo, quien contesta es
+                  `evaluarGesto`, que tiene la frase escrita desde el principio
+                  —«Seleccione un instrumento antes de ejecutar el paso»— y que
+                  hasta ahora era un camino imposible de recorrer, porque el
+                  único sitio que lo llama colgaba de este botón. */}
+              <button type="button" className="consola-aplicar" onClick={aplicarPaso}>
+                <Check size={18} aria-hidden /> {editor ? 'Probar este paso' : 'Aplicar paso'}
+              </button>
+
+              {/* Lo que acaba de pasar, donde el residente está mirando. El
+                  registro completo sigue en el pie, que en este portátil queda
+                  por debajo del pliegue. */}
+              <div role="status" aria-live="polite">
+                {resultado ? (
+                  <ul className="consola-registro consola-registro-ultimo">
+                    {lineaDeRegistro(resultado, 'ultimo')}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
+          </>
+        )}
+
+        {!editor ? bloqueDeLaBandeja : null}
       </div>
 
       {/* ------------------------------------------------- retroalimentación */}
@@ -2755,5 +3127,72 @@ export function ConsolaQuirurgica({
         ) : null}
       </div>
     </section>
+  )
+}
+
+/**
+ * «Añadir a la bandeja»: solo del editor. Busca en el catálogo entero —por palabras y sin tildes— lo que todavía
+ * no está en la bandeja del caso y lo añade con un clic. La bandeja se pinta con lo del caso y nada más; esto es
+ * lo único que enseña el resto del catálogo.
+ */
+function AnadirALaBandeja({
+  catalogo,
+  alAnadir,
+}: {
+  catalogo: InstrumentoDeBandeja[]
+  alAnadir: (id: string) => void
+}) {
+  const [abierto, setAbierto] = useState(false)
+  const [texto, setTexto] = useState('')
+  const palabras = paraComparar(texto).split(' ').filter(Boolean)
+  const candidatos = catalogo
+    .filter((i) => !i.enLaBandejaDelCaso)
+    .filter((i) => palabras.every((p) => paraComparar(`${i.nombre} ${i.descripcion ?? ''}`).includes(p)))
+    // Sin nada escrito se enseñan pocos: la lista entera es más larga que la columna y no ayuda a buscar.
+    .slice(0, palabras.length > 0 ? 8 : 5)
+  return (
+    <div className="consola-anadir">
+      <button
+        type="button"
+        className="consola-boton consola-boton-ancho"
+        aria-expanded={abierto}
+        onClick={() => setAbierto((a) => !a)}
+      >
+        <Plus size={16} aria-hidden /> Añadir a la bandeja
+      </button>
+      {abierto ? (
+        <div className="consola-anadir-lista">
+          <input
+            type="search"
+            className="consola-busqueda"
+            placeholder="Escriba el nombre del instrumento…"
+            aria-label="Instrumento que se añade a la bandeja"
+            value={texto}
+            autoFocus
+            onChange={(e) => setTexto(e.target.value)}
+          />
+          {candidatos.length === 0 ? (
+            <p className="consola-vacio">{palabras.length > 0 ? 'Nada coincide: ya está en la bandeja o no existe.' : 'Todo el catálogo está en la bandeja.'}</p>
+          ) : (
+            <ul>
+              {candidatos.map((i) => (
+                <li key={i.id}>
+                  <button
+                    type="button"
+                    className="consola-anadir-opcion"
+                    onClick={() => {
+                      alAnadir(i.id)
+                      setTexto('')
+                    }}
+                  >
+                    <Plus size={12} aria-hidden /> {i.nombre}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
   )
 }

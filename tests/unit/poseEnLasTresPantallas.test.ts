@@ -213,10 +213,11 @@ describe('quien tenía que llamar a la regla, la llama: los tres', () => {
   })
 
   it('el instrumento que el residente tiene en la mano en la consola', () => {
+    // La regla se llama en una memoria, antes del pintado (el compilador de React rechaza las memorias vecinas si se
+    // la llama dentro del pintado sobre el instrumento), y el visor recibe su resultado: nunca el encuadre a pelo.
     expect(CONSOLA).toMatch(/import \{[^}]*encuadreVigente/)
-    expect(CONSOLA).toMatch(
-      /<Visor3D[\s\S]{0,300}encuadre=\{encuadreVigente\([\s\S]{0,120}encuadreDelModelo\)\}/,
-    )
+    expect(CONSOLA).toMatch(/const encuadreDelElegido = useMemo\(\s*\(\) => encuadreVigente\(undefined, encuadreDelModeloElegido\)/)
+    expect(CONSOLA).toMatch(/<Visor3D[\s\S]{0,300}encuadre=\{encuadreDelElegido\}/)
   })
 
   it('y ninguno de los tres se escribe la precedencia por su cuenta', () => {

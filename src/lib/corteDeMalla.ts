@@ -77,6 +77,19 @@ export interface MallaCortada extends MallaPlana {
   direccion: Float32Array
   /** +1 labio «más», −1 labio «menos», 0 lo que no pertenece a la herida. */
   lado: Int8Array
+  /**
+   * Dónde cae cada vértice a lo largo de la incisión, de 0 (inicio) a 1 (final).
+   * Es lo que permite abrir la herida **donde está el separador** y no por igual
+   * en todo su largo (`abrirHerida` con perfil).
+   */
+  largoT: Float32Array
+  /**
+   * La incisión ya preparada: sus nodos son los puntos que se trazaron sobre la piel, que están **en la superficie**,
+   * con la normal y el lateral de cada uno. Los vértices de los labios, en cambio, caen donde el trazo cruza una
+   * arista, y en una malla de triángulos largos quedan a decenas de milímetros unos de otros: una cinta tendida entre
+   * ellos queda por dentro de la pierna y se ve a trozos. La cinta de la herida se tiende por aquí.
+   */
+  curva: CurvaDeIncision
   /** Cada labio, de un extremo de la incisión al otro: para dibujar su borde. */
   labios: { mas: number[]; menos: number[] }
   /** Cuántas aristas se partieron: 0 quiere decir que la incisión no tocó la malla. */
@@ -241,7 +254,7 @@ const suave = (x: number) => {
  * deprisa de lo que su altura toleraba.
  */
 const AFILADO = 0.5
-const afilado = (t: number) => suave(Math.min(t, 1 - t) / AFILADO)
+export const afilado = (t: number) => suave(Math.min(t, 1 - t) / AFILADO)
 
 /**
  * Parte la malla a lo largo de la incisión. Devuelve `null` si la incisión no
@@ -423,6 +436,7 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
   const peso = new Float32Array(total)
   const direccion = new Float32Array(total * 3)
   const lado = Int8Array.from(lista.lado)
+  const largoT = new Float32Array(total)
   for (let i = 0; i < total; i++) {
     if (lado[i] === 0 && i < nVertices) continue
     const p = leer(posiciones, i)
@@ -430,6 +444,7 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
     const pr = proyectar(curva, p)
     if (pr.altura < -opciones.profundidad || pr.altura > opciones.profundidad * 0.5) continue
     const cerca = 1 - suave(Math.abs(pr.lateral) / Math.max(opciones.alcance, 1e-9))
+    largoT[i] = pr.t
     peso[i] = cerca * afilado(pr.t)
     direccion[3 * i] = pr.direccion[0]
     direccion[3 * i + 1] = pr.direccion[1]
@@ -447,6 +462,8 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
     peso,
     direccion,
     lado,
+    largoT,
+    curva,
     labios: { mas: ordenar(labios.mas), menos: ordenar(labios.menos) },
     aristasPartidas: partidas.size,
   }
@@ -462,7 +479,18 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
  * el ayudante sostiene el otro; un Weitlaner, que se queda abierto solo, mueve
  * los dos por igual.
  */
-export function abrirHerida(corte: MallaCortada, mas: number, menos: number): Float32Array {
+export function abrirHerida(
+  corte: MallaCortada,
+  mas: number,
+  menos: number,
+  /**
+   * Cuánto abre cada labio en cada punto de la herida (de 0 a 1 a lo largo de
+   * ella), en las mismas unidades. Con perfil, `mas` y `menos` no se usan: cada
+   * vértice abre lo que el perfil diga de su posición. Es lo que deja que un
+   * separador abra la herida donde está puesto y la cierre hacia los extremos.
+   */
+  perfil?: (t: number) => { mas: number; menos: number },
+): Float32Array {
   const salida = Float32Array.from(corte.posiciones)
   const n = corte.lado.length
   for (let i = 0; i < n; i++) {
@@ -470,7 +498,8 @@ export function abrirHerida(corte: MallaCortada, mas: number, menos: number): Fl
     if (peso === 0) continue
     const lado = corte.lado[i]
     if (lado === 0) continue
-    const k = peso * (lado > 0 ? mas : -menos)
+    const aqui = perfil ? perfil(corte.largoT[i]) : null
+    const k = peso * (lado > 0 ? (aqui ? aqui.mas : mas) : -(aqui ? aqui.menos : menos))
     salida[3 * i] += corte.direccion[3 * i] * k
     salida[3 * i + 1] += corte.direccion[3 * i + 1] * k
     salida[3 * i + 2] += corte.direccion[3 * i + 2] * k

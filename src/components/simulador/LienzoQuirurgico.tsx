@@ -21,7 +21,44 @@ import {
 } from '@/instrumental/herramienta3d'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import type { PlanoDeCorte } from '@/lib/comportamientoDelInstrumento'
-import { abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, type HeridaEnCapa } from './heridas'
+import { ANCHO_VISIBLE_DE_LA_INCISION_MM, abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, type HeridaEnCapa } from './heridas'
+import { juicioDeLaPotencia, type ModoDelElectrobisturi } from '@/lib/electrobisturi'
+import {
+  adviertePorLaTension,
+  ALTURA_INICIAL_DEL_PELLIZCO_MM,
+  ALTURA_MAXIMA_DEL_PELLIZCO_MM,
+  aperturaMaxima,
+  ladoAlColocar,
+  limitarApertura,
+  MAXIMO_DE_PELLIZCOS,
+  MAXIMO_DE_SEPARADORES,
+  tensionDeLaPiel,
+  tipoDelSeparador,
+  type Pellizco,
+  type SeparadorColocado,
+  type TensionDeLaPiel,
+} from '@/lib/exposicion'
+import { esRectaValida, muestrasEntre, type TipoDeTrazo } from '@/lib/trazoRecto'
+import type { ProyeccionDeFluoroscopia } from '@/lib/radiografia'
+import {
+  aplicarRadiografia,
+  dibujarFluoroscopia,
+  prepararFluoroscopia,
+  soltarFluoroscopia,
+  type EscenaParaRadiografia,
+  type TallerDeFluoroscopia,
+} from './radiografiaEnLaEscena'
+import {
+  aplicarSeparadoresALasHeridas,
+  colocarInstrumento,
+  crearPliegue,
+  posarPliegue,
+  posarSeparador,
+  soltarPellizco,
+  soltarSeparador,
+  type PellizcoEnEscena,
+  type SeparadorEnEscena,
+} from './exposicionEnLaEscena'
 import {
   cierreDeLaHerida,
   cierreConTension,
@@ -57,7 +94,7 @@ import '@/app/(frontend)/simulador/consola.css'
  * quien está mirando una pantalla quieta.
  */
 
-export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'perforar' | 'coser' | 'fijar'
+export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar'
 
 export interface Punto3 {
   x: number
@@ -78,8 +115,22 @@ export interface ResultadoDeMostrar {
   porPapel: boolean
 }
 
-/** Las dos proyecciones de un C-arm, y la vista libre del ratón. */
-export type VistaDeEscopia = 'libre' | 'ap' | 'lateral'
+/** Las proyecciones de un C-arm (de frente, de lado, oblicua), y la vista libre del ratón. */
+export type VistaDeEscopia = 'libre' | 'ap' | 'lateral' | 'oblicua'
+
+/** Los separadores que hay puestos en la herida y cuál es el que responde a la rueda. */
+export interface EstadoDeLosSeparadores {
+  lista: SeparadorColocado[]
+  /** El que se abre con la rueda y con la barra: el último puesto o el último que se tocó. */
+  activo: number | null
+}
+
+/** Las pinzas que sostienen un pliegue de piel y cómo queda la piel. */
+export interface EstadoDeLosPellizcos {
+  lista: Pellizco[]
+  activo: number | null
+  tension: TensionDeLaPiel
+}
 
 export interface MandoDelLienzo {
   /**
@@ -135,6 +186,32 @@ export interface MandoDelLienzo {
   restaurarPiezas: () => void
   /** La próxima puntada empieza una línea nueva: no se une con la anterior. */
   nuevaLineaDeSutura: () => void
+  /**
+   * Abre el separador activo hasta `mm` (la barra deslizante de una tableta). Con
+   * `id` se elige otro antes de abrir. Sin ningún separador colocado no hace nada.
+   */
+  abrirSeparador: (mm: number, id?: number) => void
+  /** Cambia la apertura del separador activo en `deltaMm` (una muesca de la rueda). */
+  moverSeparador: (deltaMm: number) => void
+  /** Elige cuál de los separadores colocados responde a la rueda y a la barra. */
+  elegirSeparador: (id: number) => void
+  /** Quita un separador colocado (o todos si no se dice cuál); la herida se cierra en lo que le tocaba. */
+  quitarSeparador: (id?: number) => void
+  /** Cambia cuánto levanta la pinza activa la piel, en milímetros. */
+  levantarPellizco: (deltaMm: number) => void
+  /** Elige qué pinza responde a la rueda. */
+  elegirPellizco: (id: number) => void
+  /** Suelta una pinza (o todas si no se dice cuál): la piel vuelve a su sitio. */
+  soltarPellizco: (id?: number) => void
+  /** Cancela una línea recta empezada y todavía sin terminar. */
+  cancelarTrazo: () => void
+  /**
+   * Dibuja la imagen del arco en C sobre un lienzo 2D, con la proyección y el
+   * zoom pedidos. Devuelve `true` si dibujó y `false` si nada había cambiado
+   * desde la última vez (la consola la llama a ritmo fijo y no hay que releer la
+   * tarjeta gráfica sin motivo).
+   */
+  dibujarFluoroscopia: (destino: HTMLCanvasElement, proyeccion: ProyeccionDeFluoroscopia, zoom: number) => boolean
   /** Quita los tornillos puestos, y la placa si `conPlaca`. */
   quitarImplantes: (conPlaca: boolean) => void
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
@@ -168,8 +245,15 @@ export interface InstrumentoEnEscena {
   corta?: boolean
   /** Qué capa parte al trazar: la piel o los planos de abajo (D-167). Sin esto solo dibuja. */
   planoDeCorte?: PlanoDeCorte | null
+  /** Identificador y nombre del catálogo: un separador colocado se vuelve a dibujar y se nombra en pantalla. */
+  id?: string
+  nombre?: string
   /** Separa los bordes de una herida: cuánto abre como máximo y si se queda abierto solo. */
-  separa?: { maximoMm: number; autoestatico: boolean } | null
+  separa?: { maximoMm: number; autoestatico: boolean; apoyoEnHueso?: boolean } | null
+  /** Pellizca la piel hacia arriba: las pinzas de disección. */
+  pellizca?: { conDientes: boolean } | null
+  /** Es el electrobisturí: su modo y su potencia en vatios deciden si corta y cómo deja el borde. */
+  electro?: { modo: ModoDelElectrobisturi; potenciaW: number } | null
   /** Perfora el hueso: gira, avanza mientras se mantiene pulsado y deja un túnel. */
   perfora?: { diametroMm: number; avanceMmPorSegundo: number } | null
   /** Cose: cada clic suma una puntada y el hilo queda dibujado en la piel (D-169). */
@@ -284,6 +368,11 @@ export function LienzoQuirurgico({
   alRueda,
   capturaLaRueda = false,
   claveDeSesion,
+  trazo: tipoDeTrazo = 'recto',
+  moverTodo = false,
+  alGesto,
+  alSeparar,
+  alPellizcar,
   alTrazar,
   alMoverFragmento,
   alCargar,
@@ -351,6 +440,22 @@ export function LienzoQuirurgico({
    * residente que recargaba en el paso de cerrar se encontraba con una piel sin cortar.
    */
   claveDeSesion?: string
+  /**
+   * Cómo se traza la incisión: en línea recta entre dos clics (inicio y final) o a mano alzada.
+   * A mano alzada sale temblorosa; una incisión de abordaje es una recta.
+   */
+  trazo?: TipoDeTrazo
+  /**
+   * «Mover» mueve todo junto —piel, músculo y hueso a la vez— y no un trozo suelto. Con esto
+   * apagado agarra el trozo de hueso que se toque (lo que hace falta para reducir una fractura).
+   */
+  moverTodo?: boolean
+  /** Algo que decirle al residente desde el lienzo: lo que el electrobisturí hizo, si la piel quedó tensa… */
+  alGesto?: (texto: string, tono: 'bien' | 'atencion' | 'grave') => void
+  /** Cambió lo que hay de separadores colocados en la herida. */
+  alSeparar?: (estado: EstadoDeLosSeparadores) => void
+  /** Cambió lo que hay de pinzas sosteniendo la piel. */
+  alPellizcar?: (estado: EstadoDeLosPellizcos) => void
   /** Se llama con el trazo completo cada vez que cambia. */
   alTrazar?: (puntos: Punto3[]) => void
   /**
@@ -432,13 +537,31 @@ export function LienzoQuirurgico({
     /** La sutura que se está haciendo: los puntos y el hilo dibujado (D-169). */
     sutura?: SuturaEnEscena
     /** Cuánto estaban abiertas las heridas antes de que la sutura las cerrara, para poder devolverlas. */
-    aperturaAntesDeCoser?: Map<HeridaEnCapa, { mas: number; menos: number }>
+    aperturaAntesDeCoser?: Map<HeridaEnCapa, { mas: number; menos: number; perfil?: HeridaEnCapa['perfil'] }>
     /** La placa y los tornillos puestos sobre el hueso (D-169). */
     implantes?: ImplantesEnEscena
     /** Dónde estaba cada trozo de hueso que el residente movió, para devolverlo a su sitio (D-171). */
     origenesDePiezas?: Map<THREE.Object3D, { posicion: THREE.Vector3; rotacion: THREE.Euler }>
     /** Los cortes que hay hechos, en orden, para volver a hacerlos al recargar (D-171). */
     cortes?: CorteGuardado[]
+    /** Los separadores colocados en la herida y cuál responde a la rueda. */
+    separadores?: SeparadorEnEscena[]
+    separadorActivo?: number | null
+    siguienteSeparador?: number
+    /** Las pinzas que sostienen un pliegue de piel. */
+    pellizcos?: PellizcoEnEscena[]
+    pellizcoActivo?: number | null
+    siguientePellizco?: number
+    /** La imagen del arco en C: el blanco de dibujo y su cámara. */
+    fluoroscopia?: TallerDeFluoroscopia
+    /** Cuántas veces se ha dibujado la escena: la fluoroscopia solo se rehace si cambió. */
+    cuadro?: number
+    /** Lo que la radiografía cambia de la escena, para devolverlo al apagarla. */
+    ocultosEnRadiografia?: Map<THREE.Object3D, boolean>
+    /** El primer clic de una línea recta, a la espera del segundo. */
+    inicioDeLaRecta?: { x: number; y: number; punto: Punto3; normal: Punto3 }
+    /** El clic que marca dónde empieza la incisión recta, para dibujar su marca. */
+    marcaDeInicio?: THREE.Mesh
   }>({
     puntosDelTrazo: [],
     materialesOriginales: new Map(),
@@ -472,6 +595,11 @@ export function LienzoQuirurgico({
     alRueda,
     capturaLaRueda,
     claveDeSesion,
+    tipoDeTrazo,
+    moverTodo,
+    alGesto,
+    alSeparar,
+    alPellizcar,
   })
   useEffect(() => {
     ultimas.current = {
@@ -497,6 +625,11 @@ export function LienzoQuirurgico({
       alRueda,
       capturaLaRueda,
       claveDeSesion,
+      tipoDeTrazo,
+      moverTodo,
+      alGesto,
+      alSeparar,
+      alPellizcar,
     }
   })
 
@@ -605,6 +738,7 @@ export function LienzoQuirurgico({
     },
 
     borrarTrazo: (deshacerCorte = false) => {
+      cancelarLaRecta(taller.current)
       taller.current.puntosDelTrazo = []
       taller.current.normalesDelTrazo = []
       dibujarTrazo(taller.current)
@@ -628,11 +762,18 @@ export function LienzoQuirurgico({
 
     cerrarHeridas: () => {
       cerrarTodasLasHeridas(taller.current)
+      ultimas.current.alSeparar?.(estadoDeLosSeparadores(taller.current))
       ultimas.current.alHerir?.(null)
       taller.current.pedirDibujo?.()
     },
 
     abrirHeridas: (mm) => {
+      // Con separadores colocados, la apertura es de ellos: esto abre el que responde a la rueda.
+      if (taller.current.separadores?.length) {
+        const activo = separadorActivo(taller.current)
+        if (activo) cambiarApertura(taller.current, activo, mm, ultimas.current)
+        return
+      }
       const unidades = Math.max(0, mm) / (ultimas.current.milimetrosPorUnidad || 1000)
       for (const h of todasLasHeridas(taller.current)) abrirCapa(h, unidades / 2, unidades / 2)
       ultimas.current.alHerir?.(estadoDeLasHeridas(taller.current, ultimas.current.milimetrosPorUnidad))
@@ -686,6 +827,63 @@ export function LienzoQuirurgico({
         pieza.rotation.copy(origen.rotacion)
       })
       t.pedirDibujo?.()
+    },
+
+    abrirSeparador: (mm, id) => {
+      const t = taller.current
+      if (id !== undefined) t.separadorActivo = id
+      const activo = separadorActivo(t)
+      if (activo) cambiarApertura(t, activo, mm, ultimas.current)
+    },
+
+    moverSeparador: (deltaMm) => {
+      const t = taller.current
+      const activo = separadorActivo(t)
+      if (activo) cambiarApertura(t, activo, activo.datos.aperturaMm + deltaMm, ultimas.current)
+    },
+
+    elegirSeparador: (id) => {
+      taller.current.separadorActivo = id
+      ultimas.current.alSeparar?.(estadoDeLosSeparadores(taller.current))
+    },
+
+    quitarSeparador: (id) => quitarSeparadores(taller.current, ultimas.current, id),
+
+    levantarPellizco: (deltaMm) => {
+      const t = taller.current
+      const activo = pellizcoActivo(t)
+      if (!activo) return
+      const u = ultimas.current
+      activo.datos.alturaMm = Math.min(ALTURA_MAXIMA_DEL_PELLIZCO_MM, Math.max(0, activo.datos.alturaMm + deltaMm))
+      posarPliegue(activo, 1 / (u.milimetrosPorUnidad || 1000))
+      avisarPellizcos(t, u)
+    },
+
+    elegirPellizco: (id) => {
+      taller.current.pellizcoActivo = id
+      avisarPellizcos(taller.current, ultimas.current)
+    },
+
+    soltarPellizco: (id) => soltarPellizcos(taller.current, ultimas.current, id),
+
+    cancelarTrazo: () => cancelarLaRecta(taller.current),
+
+    dibujarFluoroscopia: (destino, proyeccion, zoom) => {
+      const t = taller.current
+      const ctx = contextoDeRadiografia(t)
+      if (!t.render || !ctx) return false
+      // Sin la radiografía puesta, los materiales son los de verdad y la imagen saldría en color y al revés.
+      if (t.materialesOriginales.size === 0) return false
+      t.fluoroscopia ??= prepararFluoroscopia()
+      return dibujarFluoroscopia(
+        t.render,
+        ctx,
+        t.fluoroscopia,
+        destino,
+        { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo },
+        t.cuadro ?? 0,
+        [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
+      )
     },
 
     quitarImplantes: (conPlaca) => {
@@ -904,7 +1102,7 @@ export function LienzoQuirurgico({
           ? { posicion: f.position.clone(), rotacion: f.rotation.clone() }
           : undefined
         aplicarPiezas(taller.current, ultimas.current.piezas)
-        if (ultimas.current.fluoroscopia) aplicarFluoroscopia(taller.current, true)
+        if (ultimas.current.fluoroscopia) ponerLaRadiografia(taller.current, true)
         sincronizarAyudas(taller.current, ultimas.current.fluoroscopia, ultimas.current.ayudas)
 
         // El encuadre va DESPUÉS de avisar, y el orden no es un detalle. Quien
@@ -942,6 +1140,20 @@ export function LienzoQuirurgico({
     /** El trozo de hueso que se arrastra en modo Mover. */
     let piezaAgarrada: THREE.Object3D | null = null
     let planoDeArrastre: THREE.Plane | null = null
+    /** «Mover todo junto»: el arrastre desplaza el modelo entero (la cámara se lleva la vista), no un trozo. */
+    let moviendoTodo = false
+    /** El clic de la línea recta, a la espera de saber si fue un clic o un arrastre. */
+    let clicDeRecta: { x: number; y: number; punto: Punto3; normal: Punto3 } | null = null
+    /** El clic con que se coloca un separador, a la espera de saber si fue un clic o un arrastre. */
+    let clicDeSeparador: {
+      x: number
+      y: number
+      punto: THREE.Vector3
+      normal: THREE.Vector3
+      info: { lado: 1 | -1; direccion: THREE.Vector3; cerca: number; t: number }
+    } | null = null
+    /** La pinza que se está levantando con el arrastre vertical. */
+    let levantando: { id: number; y0: number; altura0: number } | null = null
     const puntoAuxiliar = new THREE.Vector3()
     const inicioDeArrastre = new THREE.Vector3()
     const posicionAlEmpezar = new THREE.Vector3()
@@ -1024,8 +1236,6 @@ export function LienzoQuirurgico({
     }
     let perforando: Perforacion | null = null
     let ultimoCuadro = performance.now()
-    /** El labio que el separador tiene agarrado mientras se arrastra, y cómo estaban los dos al empezar. */
-    let sostenido: { lado: 1 | -1; direccion: THREE.Vector3; mas0: number; menos0: number } | null = null
 
     /**
      * Parte con el trazo la capa que corta el instrumento (D-167).
@@ -1036,9 +1246,34 @@ export function LienzoQuirurgico({
      * corta el plano de abajo).
      */
     const cortarConElTrazo = () => {
-      const plano = ultimas.current.instrumento?.planoDeCorte
+      const u = ultimas.current
+      const plano = u.instrumento?.planoDeCorte
       if (!plano) return
-      aplicarElCorte(plano, false)
+      const t = taller.current
+      // El electrobisturí corta según su potencia y su modo: con poca no corta, en coagulación solo sella y
+      // con demasiada carboniza el borde. Lo dice `juicioDeLaPotencia`, y la consola lo anota.
+      let quemado = false
+      const electro = u.instrumento?.electro
+      if (electro) {
+        const j = juicioDeLaPotencia(electro.modo, electro.potenciaW)
+        u.alGesto?.(j.texto, j.atencion ? 'atencion' : 'bien')
+        if (!j.corta) {
+          // No cortó: el trazo no queda como una incisión que no existe.
+          t.puntosDelTrazo = []
+          t.normalesDelTrazo = []
+          dibujarTrazo(t)
+          u.alTrazar?.([])
+          pedirDibujo()
+          return
+        }
+        quemado = j.quema
+      }
+      // Profundizar sin la piel tomada con pinzas: es lo que se avisa, no lo que se impide.
+      if (plano === 'musculo' && (t.heridas?.get('piel')?.length ?? 0) > 0) {
+        const aviso = adviertePorLaTension(tensionDeLaPiel((t.pellizcos ?? []).map((q) => q.datos)))
+        if (aviso) u.alGesto?.(aviso, 'atencion')
+      }
+      aplicarElCorte(plano, false, quemado)
     }
 
     /**
@@ -1046,7 +1281,7 @@ export function LienzoQuirurgico({
      * que repite la sesión guardada al recargar; en ese caso (`desdeLaSesion`) se corta aunque la capa esté
      * apagada ahora mismo, porque cuando se cortó estaba encendida.
      */
-    const aplicarElCorte = (plano: PlanoDeCorte, desdeLaSesion: boolean) => {
+    const aplicarElCorte = (plano: PlanoDeCorte, desdeLaSesion: boolean, quemado = false) => {
       const t = taller.current
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       const trazo = t.puntosDelTrazo
@@ -1085,6 +1320,7 @@ export function LienzoQuirurgico({
         // La piel es fina; los planos profundos empiezan bajo ella y bajo la grasa.
         profundidad: (plano === 'piel' ? 14 : 50) * unidadesPorMm,
         alcance: 30 * unidadesPorMm,
+        unidadesPorMm,
       }
       const hechas: HeridaEnCapa[] = []
       for (const malla of mallas) {
@@ -1097,7 +1333,14 @@ export function LienzoQuirurgico({
       }
       // Si ya había otras heridas abiertas, la nueva se abre lo mismo.
       const otras = todasLasHeridas(t)
-      if (otras.length > 0) for (const h of hechas) abrirCapa(h, otras[0].mas, otras[0].menos)
+      if (otras.length > 0) for (const h of hechas) abrirCapa(h, otras[0].mas, otras[0].menos, otras[0].perfil)
+      // Un borde quemado se ve: más oscuro, casi negro.
+      if (quemado) {
+        for (const h of hechas) {
+          ;(h.bordes.material as THREE.LineBasicMaterial).color.set(0x1d140f)
+          ;(h.cinta.material as THREE.MeshBasicMaterial).color.set(0x2a1d16)
+        }
+      }
       t.heridas.set(plano, hechas)
       t.ultimaHerida = plano
       // Un corte nuevo cambia la piel por debajo de las puntadas de antes: se quitan, y con ellas lo que
@@ -1228,6 +1471,7 @@ export function LienzoQuirurgico({
       agujero.position.copy(p.entrada).addScaledVector(p.dirEntra, p.profundidad / 2)
       agujero.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.dirEntra)
       agujero.raycast = () => {}
+      agujero.userData.agujero = true
       escenaActual.add(agujero)
       taller.current.agujeros.push(agujero)
       // Un tope: cien agujeros no enseñan nada y cuestan geometría.
@@ -1329,6 +1573,299 @@ export function LienzoQuirurgico({
       pedirDibujo()
     }
 
+    // --- la línea recta -----------------------------------------------------------------------------
+    /** Lleva un punto de pantalla (en píxeles de la ventana) a un rayo de la cámara. */
+    const apuntarA = (x: number, y: number) => {
+      const caja = render.domElement.getBoundingClientRect()
+      puntero.set(((x - caja.left) / caja.width) * 2 - 1, -((y - caja.top) / caja.height) * 2 + 1)
+      rayo.setFromCamera(puntero, camara)
+    }
+
+    /**
+     * La recta entre dos puntos de pantalla, llevada a la superficie: cada punto intermedio se proyecta con un
+     * rayo de la cámara, de modo que la línea se pega a la piel aunque esté curva y, vista desde donde se
+     * trazó, es exactamente recta. Devuelve si pudo trazarla.
+     */
+    const trazarLaRecta = (a: { x: number; y: number }, b: { x: number; y: number }, cortar: boolean): boolean => {
+      const t = taller.current
+      if (!esRectaValida(a, b)) {
+        t.decir?.('Los dos puntos están muy juntos: marque el inicio y el final de la incisión más separados.')
+        return false
+      }
+      const largoPx = Math.hypot(b.x - a.x, b.y - a.y)
+      // Más puntos al cortar que en la vista previa (cada rayo recorre el modelo entero); nunca más de 120.
+      const separacion = Math.max(cortar ? 5 : Math.max(5, largoPx / 14), largoPx / 120)
+      const muestras = muestrasEntre(a, b, separacion)
+      const puntos: Punto3[] = []
+      const normales: Punto3[] = []
+      let fallos = 0
+      for (const m of muestras) {
+        apuntarA(m.x, m.y)
+        const golpe = superficieBajoElCursor()
+        if (!golpe) {
+          fallos++
+          continue
+        }
+        puntos.push({ x: golpe.point.x, y: golpe.point.y, z: golpe.point.z })
+        const n = normalDelGolpe(golpe)
+        normales.push({ x: n.x, y: n.y, z: n.z })
+      }
+      if (puntos.length < 3 || fallos > muestras.length / 2) {
+        if (cortar) t.decir?.('La recta sale del modelo: marque los dos puntos sobre la piel.')
+        return false
+      }
+      t.puntosDelTrazo = puntos
+      t.normalesDelTrazo = normales
+      dibujarTrazo(t)
+      ultimas.current.alTrazar?.([...puntos])
+      pedirDibujo()
+      if (cortar) cortarConElTrazo()
+      return true
+    }
+
+    /** Dibuja la recta provisional del inicio al cursor, sin cortar, a unos quince cuadros por segundo. */
+    let ultimaVistaPrevia = 0
+    const vistaPreviaDeLaRecta = (evento: PointerEvent, desde: { x: number; y: number }) => {
+      const ahora = performance.now()
+      if (ahora - ultimaVistaPrevia < 66) return
+      ultimaVistaPrevia = ahora
+      trazarLaRecta(desde, { x: evento.clientX, y: evento.clientY }, false)
+    }
+
+    /** La marca roja del inicio de la incisión, mientras se espera el segundo clic. */
+    const marcarElInicio = (punto: Punto3) => {
+      const t = taller.current
+      // Solo se quita la marca anterior: `cancelarLaRecta` también olvida el inicio, que quien llama acaba de anotar.
+      if (t.marcaDeInicio) {
+        t.marcaDeInicio.removeFromParent()
+        t.marcaDeInicio.geometry.dispose()
+        ;(t.marcaDeInicio.material as THREE.Material).dispose()
+        t.marcaDeInicio = undefined
+      }
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const marca = new THREE.Mesh(
+        new THREE.SphereGeometry(1.8 * unidadesPorMm, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xff5a4a, depthTest: false }),
+      )
+      marca.position.set(punto.x, punto.y, punto.z)
+      marca.renderOrder = 1000
+      marca.raycast = () => {}
+      marca.userData.deInterfaz = true
+      escena.add(marca)
+      t.marcaDeInicio = marca
+      pedirDibujo()
+    }
+
+    /** Un gesto de línea recta terminó: o fue un arrastre de inicio a fin, o fue un clic. */
+    const terminarLaRecta = (evento: PointerEvent | undefined) => {
+      const t = taller.current
+      const clic = clicDeRecta
+      clicDeRecta = null
+      // Salir del lienzo con el botón pulsado cancela el gesto en vez de cortar por donde se soltó.
+      if (!clic || !evento || evento.type !== 'pointerup') return
+      const movio = Math.hypot(evento.clientX - clic.x, evento.clientY - clic.y)
+      if (movio >= 6) {
+        // De inicio a fin arrastrando: vale como las dos marcas a la vez.
+        cancelarLaRecta(t)
+        trazarLaRecta({ x: clic.x, y: clic.y }, { x: evento.clientX, y: evento.clientY }, true)
+        return
+      }
+      if (!t.inicioDeLaRecta) {
+        t.inicioDeLaRecta = { x: clic.x, y: clic.y, punto: clic.punto, normal: clic.normal }
+        // Un trazo anterior ya no vale: este es otro.
+        t.puntosDelTrazo = []
+        t.normalesDelTrazo = []
+        dibujarTrazo(t)
+        ultimas.current.alTrazar?.([])
+        marcarElInicio(clic.punto)
+        t.decir?.('Inicio marcado. Haga clic donde termina la incisión (Esc cancela).')
+        return
+      }
+      const inicio = t.inicioDeLaRecta
+      cancelarLaRecta(t)
+      trazarLaRecta({ x: inicio.x, y: inicio.y }, { x: evento.clientX, y: evento.clientY }, true)
+    }
+
+    // --- separadores colocados ----------------------------------------------------------------------
+    /** El separador ya colocado que está bajo el cursor, si lo hay. */
+    const separadorBajoElCursor = (): SeparadorEnEscena | null => {
+      const lista = taller.current.separadores ?? []
+      if (lista.length === 0) return null
+      const golpes = rayo.intersectObjects(
+        lista.map((q) => q.instrumento.grupo),
+        true,
+      )
+      for (const g of golpes) {
+        const dueno = lista.find((q) => {
+          let o: THREE.Object3D | null = g.object
+          while (o) {
+            if (o === q.instrumento.grupo) return true
+            o = o.parent
+          }
+          return false
+        })
+        if (dueno) return dueno
+      }
+      return null
+    }
+
+    const refrescarLaRadiografia = () => {
+      const ctx = contextoDeRadiografia(taller.current)
+      if (ctx && ultimas.current.fluoroscopia) aplicarRadiografia(ctx, true)
+    }
+
+    /** Pone el separador en el sitio de la herida donde se hizo clic. La apertura la da luego la rueda, o la barra. */
+    const colocarSeparador = (c: NonNullable<typeof clicDeSeparador>) => {
+      const t = taller.current
+      const u = ultimas.current
+      const inst = u.instrumento
+      const separa = inst?.separa
+      if (!inst || !separa || !t.escena) return
+      const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
+      const lista = (t.separadores ??= [])
+      const tipo = tipoDelSeparador(separa)
+      const lado = ladoAlColocar(tipo, c.info.lado)
+      const posicion = c.info.t
+      // Uno igual y muy cerca: se elige ese en lugar de poner un segundo encima.
+      const igual = lista.find(
+        (q) => q.datos.instrumentoId === (inst.id ?? '') && q.datos.lado === lado && Math.abs(q.datos.posicion - posicion) < 0.08,
+      )
+      if (igual) {
+        t.separadorActivo = igual.datos.id
+        u.alSeparar?.(estadoDeLosSeparadores(t))
+        t.decir?.(`${igual.datos.nombre}: ya hay uno aquí. Ábralo con la rueda del ratón.`)
+        return
+      }
+      if (lista.length >= MAXIMO_DE_SEPARADORES) {
+        t.decir?.(`Son ${MAXIMO_DE_SEPARADORES} separadores: es el máximo que cabe. Quite alguno.`)
+        return
+      }
+      const id = (t.siguienteSeparador = (t.siguienteSeparador ?? 0) + 1)
+      const datos: SeparadorColocado = {
+        id,
+        instrumentoId: inst.id ?? '',
+        nombre: inst.nombre ?? 'Separador',
+        tipo,
+        lado,
+        posicion,
+        maximoMm: separa.maximoMm,
+        aperturaMm: 0,
+      }
+      const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(camara.quaternion)
+      const mango = c.normal.clone().multiplyScalar(0.85).addScaledVector(arriba, 0.65).normalize()
+      // Hacia donde se aleja el labio que sostiene: con el signo de su lado (un autoestático no se desplaza).
+      const direccion = c.info.direccion.clone().multiplyScalar(lado === 0 ? 1 : lado)
+      const nuevo: SeparadorEnEscena = {
+        datos,
+        url: inst.url,
+        ajustes: inst.ajustes,
+        punto: c.punto.clone(),
+        normal: c.normal.clone(),
+        direccion,
+        mango,
+        instrumento: colocarInstrumento(t.escena, inst.url, inst.ajustes, t.entorno ?? null, 1000 / (u.milimetrosPorUnidad || 1000), () => {
+          posarSeparador(nuevo, unidadesPorMm)
+          refrescarLaRadiografia()
+          pedirDibujo()
+        }),
+      }
+      lista.push(nuevo)
+      t.separadorActivo = id
+      reaplicarSeparadores(t, u)
+      t.decir?.(`${datos.nombre} colocado. Ábralo con la rueda del ratón (o con la barra del panel).`)
+      pedirDibujo()
+    }
+
+    const alSubirParaSeparar = (evento: PointerEvent) => {
+      const clic = clicDeSeparador
+      clicDeSeparador = null
+      if (!clic) return
+      if (Math.hypot(evento.clientX - clic.x, evento.clientY - clic.y) > 6) return
+      colocarSeparador(clic)
+    }
+
+    // --- pinzas ---------------------------------------------------------------------------------------
+    const pellizcoBajoElCursor = (): PellizcoEnEscena | null => {
+      const lista = taller.current.pellizcos ?? []
+      if (lista.length === 0) return null
+      const golpes = rayo.intersectObjects(
+        lista.flatMap((q) => [q.pliegue, q.instrumento.grupo]),
+        true,
+      )
+      for (const g of golpes) {
+        const dueno = lista.find((q) => {
+          let o: THREE.Object3D | null = g.object
+          while (o) {
+            if (o === q.pliegue || o === q.instrumento.grupo) return true
+            o = o.parent
+          }
+          return false
+        })
+        if (dueno) return dueno
+      }
+      return null
+    }
+
+    /** El color de la piel que se pellizca, para que el pliegue no destaque como un parche de otro color. */
+    const colorDeLaPiel = (objeto: THREE.Object3D): THREE.Color => {
+      const malla = objeto as THREE.Mesh
+      const original = taller.current.materialesOriginales.get(malla) ?? malla.material
+      const material = Array.isArray(original) ? original[0] : original
+      const color = (material as THREE.MeshStandardMaterial | undefined)?.color
+      return color ? color.clone() : new THREE.Color(0xd9b8a3)
+    }
+
+    /** Toma la piel con la pinza: levanta un pliegue en el punto pinchado y deja la pinza sujetándolo. */
+    const crearPellizco = (golpe: THREE.Intersection) => {
+      const t = taller.current
+      const u = ultimas.current
+      const inst = u.instrumento
+      const pellizca = inst?.pellizca
+      if (!inst || !pellizca || !t.escena) return null
+      const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
+      const lista = (t.pellizcos ??= [])
+      if (lista.length >= MAXIMO_DE_PELLIZCOS) {
+        t.decir?.('Ya hay dos pinzas puestas: una la sostiene quien opera y la otra el ayudante. Suelte una para mover otra.')
+        return null
+      }
+      const n = normalDelGolpe(golpe)
+      // A qué borde de la herida pertenece, si ya hay herida: es lo que decide si los dos están tomados.
+      let lado: 1 | -1 | 0 = 0
+      let cerca = Infinity
+      for (const h of todasLasHeridas(t)) {
+        const info = ladoDeLaHerida(h, golpe.point)
+        if (info && info.cerca < cerca) {
+          cerca = info.cerca
+          lado = info.lado
+        }
+      }
+      if (cerca > 40 * unidadesPorMm) lado = 0
+      const id = (t.siguientePellizco = (t.siguientePellizco ?? 0) + 1)
+      const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(camara.quaternion)
+      const mango = n.clone().multiplyScalar(0.45).addScaledVector(arriba, 0.9).normalize()
+      const pliegue = crearPliegue(colorDeLaPiel(golpe.object))
+      escena.add(pliegue)
+      const nuevo: PellizcoEnEscena = {
+        datos: { id, conDientes: pellizca.conDientes, lado, alturaMm: ALTURA_INICIAL_DEL_PELLIZCO_MM },
+        url: inst.url,
+        ajustes: inst.ajustes,
+        pliegue,
+        punto: golpe.point.clone(),
+        normal: n,
+        mango,
+        instrumento: colocarInstrumento(t.escena, inst.url, inst.ajustes, t.entorno ?? null, 1000 / (u.milimetrosPorUnidad || 1000), () => {
+          posarPliegue(nuevo, unidadesPorMm)
+          refrescarLaRadiografia()
+          pedirDibujo()
+        }),
+      }
+      lista.push(nuevo)
+      t.pellizcoActivo = id
+      posarPliegue(nuevo, unidadesPorMm)
+      avisarPellizcos(t, u)
+      return nuevo
+    }
+
     const alBajar = (evento: PointerEvent) => {
       const { modo: modoActual } = ultimas.current
       if (modoActual === 'orbitar') return
@@ -1347,6 +1884,20 @@ export function LienzoQuirurgico({
       if (modoActual === 'trazar') {
         const golpe = superficieBajoElCursor()
         if (!golpe) return
+        if (ultimas.current.tipoDeTrazo === 'recto') {
+          // Línea recta: se decide al soltar si fue un clic (marca el inicio o el final) o un arrastre de
+          // inicio a fin. Mientras tanto se bloquea la órbita, como al dibujar a mano.
+          const n = normalDelGolpe(golpe)
+          clicDeRecta = {
+            x: evento.clientX,
+            y: evento.clientY,
+            punto: { x: golpe.point.x, y: golpe.point.y, z: golpe.point.z },
+            normal: { x: n.x, y: n.y, z: n.z },
+          }
+          controles.enabled = false
+          arrastrando = true
+          return
+        }
         controles.enabled = false
         arrastrando = true
         taller.current.puntosDelTrazo = [
@@ -1367,36 +1918,74 @@ export function LienzoQuirurgico({
 
       if (modoActual === 'separar') {
         const separa = ultimas.current.instrumento?.separa
-        const heridas = todasLasHeridas(taller.current)
         if (!separa) return
+        const t = taller.current
+        // Pinchar un separador que ya está puesto lo elige: es el que responde a la rueda.
+        const puesto = separadorBajoElCursor()
+        if (puesto) {
+          t.separadorActivo = puesto.datos.id
+          ultimas.current.alSeparar?.(estadoDeLosSeparadores(t))
+          t.decir?.(`${puesto.datos.nombre}: abierto ${puesto.datos.aperturaMm} mm. Ábralo con la rueda.`)
+          clicDeSeparador = null
+          return
+        }
+        const heridas = todasLasHeridas(t)
         if (heridas.length === 0) {
-          taller.current.decir?.('No hay herida que separar: corte primero con un bisturí, en modo Trazar.')
+          t.decir?.('No hay herida que separar: corte primero con un bisturí, en modo Trazar.')
+          return
+        }
+        // El Hohmann se apoya en el borde del hueso: se pincha el hueso. Los demás, la piel junto a la herida.
+        const golpe = separa.apoyoEnHueso ? huesoBajoElCursor() : superficieBajoElCursor()
+        if (!golpe) {
+          t.decir?.(separa.apoyoEnHueso ? 'Apunte al borde del hueso: el Hohmann se apoya en el hueso.' : 'Acerque el separador a la herida.')
+          return
+        }
+        const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+        // El borde más cercano de todas las heridas es el que se agarra.
+        let elegido: NonNullable<ReturnType<typeof ladoDeLaHerida>> | null = null
+        for (const h of heridas) {
+          const info = ladoDeLaHerida(h, golpe.point)
+          if (info && (!elegido || info.cerca < elegido.cerca)) elegido = info
+        }
+        if (!elegido || (!separa.apoyoEnHueso && elegido.cerca > 30 * unidadesPorMm)) {
+          t.decir?.('Acerque el separador al borde de la herida y haga clic para colocarlo.')
+          return
+        }
+        // Un clic coloca; el gesto se resuelve al soltar (`alSubirParaSeparar`).
+        clicDeSeparador = {
+          x: evento.clientX,
+          y: evento.clientY,
+          punto: golpe.point.clone(),
+          normal: normalDelGolpe(golpe),
+          info: elegido,
+        }
+        return
+      }
+
+      if (modoActual === 'pinzar') {
+        if (!ultimas.current.instrumento?.pellizca) return
+        const t = taller.current
+        const u = ultimas.current
+        // Pinchar una pinza que ya sostiene la piel la elige, y arrastrar arriba o abajo cambia cuánto levanta.
+        const puesta = pellizcoBajoElCursor()
+        if (puesta) {
+          t.pellizcoActivo = puesta.datos.id
+          levantando = { id: puesta.datos.id, y0: evento.clientY, altura0: puesta.datos.alturaMm }
+          controles.enabled = false
+          arrastrando = true
+          avisarPellizcos(t, u)
           return
         }
         const golpe = superficieBajoElCursor()
-        if (!golpe) return
-        const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
-        // El borde más cercano de todas las heridas es el que se agarra.
-        let elegido: { info: NonNullable<ReturnType<typeof ladoDeLaHerida>> } | null = null
-        for (const h of heridas) {
-          const info = ladoDeLaHerida(h, golpe.point)
-          if (info && (!elegido || info.cerca < elegido.info.cerca)) elegido = { info }
-        }
-        if (!elegido || elegido.info.cerca > 30 * unidadesPorMm) {
-          taller.current.decir?.('Acerque el separador al borde de la herida.')
+        if (!golpe) {
+          t.decir?.('Apunte a la piel junto al borde de la herida para tomarla con la pinza.')
           return
         }
+        const creada = crearPellizco(golpe)
+        if (!creada) return
+        levantando = { id: creada.datos.id, y0: evento.clientY, altura0: creada.datos.alturaMm }
         controles.enabled = false
         arrastrando = true
-        const normal = camara.getWorldDirection(new THREE.Vector3()).negate()
-        planoDeArrastre = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, golpe.point)
-        rayo.ray.intersectPlane(planoDeArrastre, inicioDeArrastre)
-        sostenido = {
-          lado: elegido.info.lado,
-          direccion: elegido.info.direccion,
-          mas0: heridas[0].mas,
-          menos0: heridas[0].menos,
-        }
         return
       }
 
@@ -1410,6 +1999,25 @@ export function LienzoQuirurgico({
         controles.enabled = false
         arrastrando = true
         empezarPerforacion(golpe)
+        return
+      }
+
+      if (modoActual === 'mover' && ultimas.current.moverTodo) {
+        // «Todo junto»: piel, músculo y hueso se mueven a la vez, como un solo bloque. Se hace llevando la vista
+        // con el arrastre (la cámara y su punto de mira se desplazan lo que se arrastra), y no tocando cada
+        // pieza: el modelo, los separadores, las pinzas, el hilo y la placa —que no son del modelo— se quedan
+        // todos juntos en su sitio, que es lo que se perdía al mover los sistemas por separado.
+        const golpe = superficieBajoElCursor()
+        if (!golpe) {
+          taller.current.decir?.('Apunte al modelo para moverlo.')
+          return
+        }
+        moviendoTodo = true
+        controles.enabled = false
+        arrastrando = true
+        const normal = camara.getWorldDirection(new THREE.Vector3()).negate()
+        planoDeArrastre = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, golpe.point)
+        rayo.ray.intersectPlane(planoDeArrastre, inicioDeArrastre)
         return
       }
 
@@ -1621,12 +2229,44 @@ export function LienzoQuirurgico({
 
     const alMover = (evento: PointerEvent) => {
       if (!arrastrando) {
+        // Con el inicio de una recta ya marcado, la recta provisional sigue al cursor.
+        const inicio = taller.current.inicioDeLaRecta
+        if (inicio && ultimas.current.modo === 'trazar') vistaPreviaDeLaRecta(evento, inicio)
         // Sin arrastre, el instrumento solo acompaña al cursor.
         seguirConLaHerramienta(evento)
         return
       }
       const { modo: modoActual } = ultimas.current
       aCoordenadas(evento)
+
+      if (modoActual === 'trazar' && ultimas.current.tipoDeTrazo === 'recto') {
+        const desde = clicDeRecta ? { x: clicDeRecta.x, y: clicDeRecta.y } : taller.current.inicioDeLaRecta
+        if (desde && Math.hypot(evento.clientX - desde.x, evento.clientY - desde.y) >= 6) vistaPreviaDeLaRecta(evento, desde)
+        return
+      }
+
+      if (modoActual === 'pinzar' && levantando) {
+        const t = taller.current
+        const p = (t.pellizcos ?? []).find((q) => q.datos.id === levantando!.id)
+        if (!p) return
+        // Arrastrar hacia arriba levanta la piel: 0,12 mm por píxel, o sea unos 12 mm cada 100 px.
+        const altura = levantando.altura0 + (levantando.y0 - evento.clientY) * 0.12
+        p.datos.alturaMm = Math.min(ALTURA_MAXIMA_DEL_PELLIZCO_MM, Math.max(0, altura))
+        posarPliegue(p, 1 / (ultimas.current.milimetrosPorUnidad || 1000))
+        t.decir?.(`Pinza: piel levantada ${p.datos.alturaMm.toFixed(0)} mm`)
+        pedirDibujo()
+        return
+      }
+
+      if (modoActual === 'mover' && moviendoTodo && planoDeArrastre) {
+        if (!rayo.ray.intersectPlane(planoDeArrastre, puntoAuxiliar)) return
+        const delta = puntoAuxiliar.clone().sub(inicioDeArrastre)
+        camara.position.sub(delta)
+        controles.target.sub(delta)
+        controles.update()
+        pedirDibujo()
+        return
+      }
 
       if (modoActual === 'trazar') {
         const golpe = superficieBajoElCursor()
@@ -1647,33 +2287,6 @@ export function LienzoQuirurgico({
         return
       }
 
-      if (modoActual === 'separar' && sostenido && planoDeArrastre) {
-        const separa = ultimas.current.instrumento?.separa
-        if (!separa || !rayo.ray.intersectPlane(planoDeArrastre, puntoAuxiliar)) return
-        const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
-        // Hacia fuera de la herida es «abrir»: la dirección del labio por su lado.
-        const delta = puntoAuxiliar.clone().sub(inicioDeArrastre).dot(sostenido.direccion) * sostenido.lado
-        const tope = separa.maximoMm * unidadesPorMm
-        const base = separa.autoestatico
-          ? Math.max(sostenido.mas0, sostenido.menos0)
-          : sostenido.lado > 0
-            ? sostenido.mas0
-            : sostenido.menos0
-        const nuevo = Math.min(tope, Math.max(0, base + delta))
-        // Un autoestático se abre por los dos lados a la vez, con su trinquete; uno
-        // de mano solo mueve el labio que sostiene, y el otro lo sostiene otro.
-        const mas = separa.autoestatico ? nuevo : sostenido.lado > 0 ? nuevo : sostenido.mas0
-        const menos = separa.autoestatico ? nuevo : sostenido.lado < 0 ? nuevo : sostenido.menos0
-        for (const h of todasLasHeridas(taller.current)) abrirCapa(h, mas, menos)
-        const abierta = (mas + menos) / unidadesPorMm
-        taller.current.decir?.(
-          `Herida abierta ${abierta.toFixed(0)} mm${nuevo >= tope - 1e-9 ? ' · tope del separador' : ''}`,
-        )
-        posarHerramienta(superficieBajoElCursor())
-        pedirDibujo()
-        return
-      }
-
       // La broca no sigue al cursor mientras perfora: va por la trayectoria que
       // tenía al empezar, y mover el ratón con el botón pulsado no la desvía.
       if (modoActual === 'perforar') return
@@ -1685,18 +2298,27 @@ export function LienzoQuirurgico({
       }
     }
 
-    const alSubir = () => {
+    const alSubir = (evento?: PointerEvent) => {
       if (!arrastrando) return
       arrastrando = false
       planoDeArrastre = null
+      moviendoTodo = false
       controles.enabled = true
 
       const modoAlSoltar = ultimas.current.modo
-      if (modoAlSoltar === 'trazar') cortarConElTrazo()
-      if (modoAlSoltar === 'separar' && sostenido) {
-        sostenido = null
-        taller.current.decir?.('')
-        ultimas.current.alHerir?.(estadoDeLasHeridas(taller.current, ultimas.current.milimetrosPorUnidad))
+      if (modoAlSoltar === 'trazar') {
+        if (ultimas.current.tipoDeTrazo === 'recto') terminarLaRecta(evento)
+        else cortarConElTrazo()
+      }
+      if (modoAlSoltar === 'pinzar' && levantando) {
+        const t = taller.current
+        const hecho = levantando
+        levantando = null
+        const p = (t.pellizcos ?? []).find((q) => q.datos.id === hecho.id)
+        // Una pinza que se baja hasta la piel suelta el pliegue: es la forma de quitarla con el ratón.
+        if (p && p.datos.alturaMm < 1.5) soltarPellizcos(t, ultimas.current, hecho.id)
+        else avisarPellizcos(t, ultimas.current)
+        t.decir?.('')
       }
       if (perforando) terminarPerforacion()
 
@@ -1744,6 +2366,15 @@ export function LienzoQuirurgico({
     render.domElement.addEventListener('pointerdown', alBajar)
     render.domElement.addEventListener('pointerdown', alBajarParaCoser)
     render.domElement.addEventListener('pointerup', alSubirParaCoser)
+    render.domElement.addEventListener('pointerup', alSubirParaSeparar)
+    // Esc deshace una línea recta que se empezó y no se terminó.
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && taller.current.inicioDeLaRecta) {
+        cancelarLaRecta(taller.current)
+        pedirDibujo()
+      }
+    }
+    window.addEventListener('keydown', alTeclear)
     render.domElement.addEventListener('pointermove', alMover)
     render.domElement.addEventListener('pointerup', alSubir)
     render.domElement.addEventListener('pointerleave', alSubir)
@@ -1781,7 +2412,14 @@ export function LienzoQuirurgico({
       // Los ejes de la guía se recolocan en cada dibujo: el fragmento se mueve
       // con el ratón y la guía tiene que seguirlo.
       if (taller.current.guias) actualizarGuias(taller.current, ultimas.current.ejeLargo, ultimas.current.piezas)
+      // Con la radiografía puesta, lo que ha aparecido desde el último dibujo (un tornillo, un separador, el
+      // instrumento recién cogido) tiene que verse también como radiografía: se repasa la escena, que es pequeña.
+      if (ultimas.current.fluoroscopia) {
+        const ctx = contextoDeRadiografia(taller.current)
+        if (ctx) aplicarRadiografia(ctx, true)
+      }
       render.render(escena, camara)
+      taller.current.cuadro = (taller.current.cuadro ?? 0) + 1
     })
 
     return () => {
@@ -1795,6 +2433,8 @@ export function LienzoQuirurgico({
       render.domElement.removeEventListener('pointerdown', alBajar)
       render.domElement.removeEventListener('pointerdown', alBajarParaCoser)
       render.domElement.removeEventListener('pointerup', alSubirParaCoser)
+      render.domElement.removeEventListener('pointerup', alSubirParaSeparar)
+      window.removeEventListener('keydown', alTeclear)
       render.domElement.removeEventListener('pointermove', alMover)
       render.domElement.removeEventListener('pointerup', alSubir)
       render.domElement.removeEventListener('pointerleave', alSubir)
@@ -1811,7 +2451,11 @@ export function LienzoQuirurgico({
       // `malla.material`, y lo que la fluoroscopia aparta en el mapa quedaría
       // fuera de su alcance: terminar un caso con la fluoroscopia encendida
       // dejaba sin soltar justo los materiales y las texturas del modelo.
-      aplicarFluoroscopia(taller.current, false)
+      ponerLaRadiografia(taller.current, false)
+      soltarFluoroscopia(taller.current.fluoroscopia)
+      for (const q of taller.current.separadores ?? []) soltarSeparador(q)
+      for (const q of taller.current.pellizcos ?? []) soltarPellizco(q)
+      cancelarLaRecta(taller.current)
       sincronizarAyudas(taller.current, false, undefined)
       // Las heridas devuelven su geometría original a la malla antes de soltar:
       // `liberar` suelta la que la malla tenga puesta, y la otra quedaría colgando.
@@ -1875,9 +2519,12 @@ export function LienzoQuirurgico({
     taller.current.pedirDibujo?.()
   }, [piezas])
 
+  // La vista de rayos X es ahora una radiografía (grises según lo que absorbe cada cosa, sobre negro). El
+  // cuerpo que enciende y apaga esto está en `radiografiaEnLaEscena.ts`; los demás objetos que aparecen mientras
+  // tanto —el instrumento, un tornillo, un separador— se cambian en cada dibujo (ver el bucle de render).
   useEffect(() => {
     if (!taller.current.raiz) return
-    aplicarFluoroscopia(taller.current, fluoroscopia)
+    ponerLaRadiografia(taller.current, fluoroscopia)
     taller.current.pedirDibujo?.()
   }, [fluoroscopia])
 
@@ -1973,6 +2620,8 @@ export function LienzoQuirurgico({
     // la ayuda. Estaba apagado con el resto de modos y el residente no podía mirar la herida de frente (D-171).
     controles.enableRotate = modo === 'orbitar' || modo === 'coser' || modo === 'fijar'
     controles.enableZoom = !capturaLaRueda
+    // Cambiar de modo o de forma de trazar deja sin terminar la recta que se había empezado.
+    cancelarLaRecta(taller.current)
     // `OrbitControls` pone `touch-action: none` al conectarse; esto lo
     // corrige después, en cada cambio de modo (ver `gestoTactil`).
     if (taller.current.render) taller.current.render.domElement.style.touchAction = gestoTactil(modo)
@@ -1982,11 +2631,11 @@ export function LienzoQuirurgico({
           ? 'grab'
           : modo === 'trazar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar'
             ? 'crosshair'
-            : modo === 'separar'
-              ? 'ew-resize'
+            : modo === 'separar' || modo === 'pinzar'
+              ? 'pointer'
               : 'move'
     }
-  }, [modo, capturaLaRueda])
+  }, [modo, capturaLaRueda, tipoDeTrazo])
 
   return <div className="consola-lienzo" ref={lienzo} />
 }
@@ -2016,6 +2665,18 @@ export function gestoTactil(modo: Modo): 'pan-y' | 'none' {
 // probarse. Las ejercita `tests/unit/lienzoQuirurgico.test.ts`.
 
 export type Taller = {
+  render?: THREE.WebGLRenderer
+  separadores?: SeparadorEnEscena[]
+  separadorActivo?: number | null
+  siguienteSeparador?: number
+  pellizcos?: PellizcoEnEscena[]
+  pellizcoActivo?: number | null
+  siguientePellizco?: number
+  fluoroscopia?: TallerDeFluoroscopia
+  cuadro?: number
+  ocultosEnRadiografia?: Map<THREE.Object3D, boolean>
+  inicioDeLaRecta?: { x: number; y: number; punto: Punto3; normal: Punto3 }
+  marcaDeInicio?: THREE.Mesh
   escena?: THREE.Scene
   camara?: THREE.PerspectiveCamera
   controles?: OrbitControls
@@ -2039,7 +2700,7 @@ export type Taller = {
   ultimaHerida?: PlanoDeCorte
   agujeros?: THREE.Mesh[]
   sutura?: SuturaEnEscena
-  aperturaAntesDeCoser?: Map<HeridaEnCapa, { mas: number; menos: number }>
+  aperturaAntesDeCoser?: Map<HeridaEnCapa, { mas: number; menos: number; perfil?: HeridaEnCapa['perfil'] }>
   implantes?: ImplantesEnEscena
   origenesDePiezas?: Map<THREE.Object3D, { posicion: THREE.Vector3; rotacion: THREE.Euler }>
   cortes?: CorteGuardado[]
@@ -2174,62 +2835,18 @@ export function aplicarPiezas(taller: Taller, piezas: PiezaDelCaso[]) {
 }
 
 /**
- * La opacidad de todo con los rayos X puestos.
+ * Enciende o apaga la radiografía de la escena (petición de Cristóbal: la vista «Rayos X» tiene que ser una
+ * radiografía, con sus grises, y no el cuerpo transparente al 50 %).
  *
- * La misma que usa el taller anatómico (`OPACIDAD_DE_RAYOS_X`, en
- * `@/atlas/cargador`): el dueño pidió que la fluoroscopia fuera **ese** RX y no
- * otra cosa, y la forma de que no se separen es que digan lo mismo. Está
- * repetida aquí y no importada porque aquel módulo trae los sombreadores del
- * atlas entero, y el residente no los necesita para abrir un caso;
- * `tests/unit/lienzoQuirurgico.test.ts` compara las dos cifras.
+ * El trabajo está en `radiografiaEnLaEscena.ts`. Aquí solo se añade lo que es del lienzo: con la radiografía
+ * el fondo es negro de verdad —el vacío es negro— y no el degradado del marco, que se ve a través de un lienzo
+ * transparente.
  */
-export const OPACIDAD_DE_RAYOS_X = 0.5
-
-/**
- * Vista de rayos X (D-166): la del taller anatómico, todo translúcido.
- *
- * Antes era una lectura en grises sumando luz (mezcla aditiva con un material
- * plano), que se parecía a una radiografía pero no a nada de lo que el
- * traumatólogo usa para preparar el caso: en el taller ya tenía «Rayos X», con
- * cada pieza de su color al 50 %, y eran dos vistas distintas con el mismo
- * nombre. Ahora es una sola.
- *
- * Se trabaja sobre **copias** del material: el original se guarda en el mapa y
- * vuelve al apagar, así que el color y las texturas del archivo no se tocan, y
- * `liberar` no se entera de nada.
- */
-function aplicarFluoroscopia(taller: Taller, encendida: boolean) {
-  const raiz = taller.raiz
-  if (!raiz) return
-
-  const traslucido = (material: THREE.Material): THREE.Material => {
-    const copia = material.clone()
-    copia.transparent = true
-    copia.opacity = OPACIDAD_DE_RAYOS_X
-    // Sin escribir profundidad las capas se suman en vez de taparse, que es lo
-    // que deja ver el hueso a través de la piel.
-    copia.depthWrite = false
-    return copia
-  }
-
-  raiz.traverse((objeto) => {
-    const malla = objeto as THREE.Mesh
-    if (!malla.isMesh) return
-
-    if (encendida) {
-      if (taller.materialesOriginales.has(malla)) return
-      taller.materialesOriginales.set(malla, malla.material)
-      malla.material = Array.isArray(malla.material)
-        ? malla.material.map(traslucido)
-        : traslucido(malla.material)
-    } else {
-      const original = taller.materialesOriginales.get(malla)
-      if (!original) return
-      for (const m of Array.isArray(malla.material) ? malla.material : [malla.material]) m.dispose()
-      malla.material = original
-      taller.materialesOriginales.delete(malla)
-    }
-  })
+function ponerLaRadiografia(taller: Taller, encendida: boolean) {
+  const ctx = contextoDeRadiografia(taller)
+  if (!ctx) return
+  aplicarRadiografia(ctx, encendida)
+  taller.render?.setClearColor(0x000000, encendida ? 1 : 0)
 }
 
 // ------------------------------------------------- ayudas de los rayos X
@@ -2255,7 +2872,11 @@ function proyecciones(eje: EjeLargo): { ap: THREE.Vector3; lateral: THREE.Vector
 /** Pone la cámara en una de las dos proyecciones, o en la de siempre. */
 function mirarDesdeProyeccion(taller: Taller, vista: VistaDeEscopia, eje: EjeLargo) {
   const p = proyecciones(eje)
-  encuadrarVisible(taller, vista === 'ap' ? p.ap : vista === 'lateral' ? p.lateral : undefined)
+  const oblicua = p.ap.clone().add(p.lateral).normalize()
+  encuadrarVisible(
+    taller,
+    vista === 'ap' ? p.ap : vista === 'lateral' ? p.lateral : vista === 'oblicua' ? oblicua : undefined,
+  )
 }
 
 /** Las mallas visibles que no son del fragmento, y de ellas las que el caso llama hueso. */
@@ -2338,6 +2959,7 @@ export function sincronizarAyudas(
     copia.matrix.identity()
     grupo.add(copia)
     grupo.userData.auxiliar = true
+    grupo.userData.deAyuda = true
     escena.add(grupo)
     taller.fantasma = grupo
   }
@@ -2457,6 +3079,125 @@ function ladoDelPunto(taller: Taller, punto: THREE.Vector3, unidadesPorMm: numbe
   return mejor && mejor.cerca <= 25 * unidadesPorMm ? mejor.lado : 0
 }
 
+/**
+ * Cuánto abre cada labio de una herida en un punto de su largo. Sin perfil es parejo; con él, es lo que
+ * manden los separadores colocados. `t` ausente se toma por la mitad de la herida.
+ */
+function aperturaAqui(h: HeridaEnCapa, t: number | undefined): { mas: number; menos: number } {
+  return h.perfil ? h.perfil(t ?? 0.5) : { mas: h.mas, menos: h.menos }
+}
+
+// ------------------------------------------------- separadores y pinzas colocados
+
+type LoUltimo = {
+  milimetrosPorUnidad: number
+  alSeparar?: (estado: EstadoDeLosSeparadores) => void
+  alPellizcar?: (estado: EstadoDeLosPellizcos) => void
+  alHerir?: (estado: EstadoDeLasHeridas | null) => void
+  alCoser?: (estado: EstadoDeLaSutura | null) => void
+}
+
+const separadorActivo = (t: Taller): SeparadorEnEscena | undefined =>
+  (t.separadores ?? []).find((s) => s.datos.id === t.separadorActivo) ?? (t.separadores ?? [])[(t.separadores ?? []).length - 1]
+
+const pellizcoActivo = (t: Taller): PellizcoEnEscena | undefined =>
+  (t.pellizcos ?? []).find((p) => p.datos.id === t.pellizcoActivo) ?? (t.pellizcos ?? [])[(t.pellizcos ?? []).length - 1]
+
+function estadoDeLosSeparadores(t: Taller): EstadoDeLosSeparadores {
+  const activo = separadorActivo(t)
+  return { lista: (t.separadores ?? []).map((s) => ({ ...s.datos })), activo: activo?.datos.id ?? null }
+}
+
+function estadoDeLosPellizcos(t: Taller): EstadoDeLosPellizcos {
+  const lista = (t.pellizcos ?? []).map((p) => ({ ...p.datos }))
+  return { lista, activo: pellizcoActivo(t)?.datos.id ?? null, tension: tensionDeLaPiel(lista) }
+}
+
+function avisarPellizcos(t: Taller, u: LoUltimo) {
+  t.pedirDibujo?.()
+  u.alPellizcar?.(estadoDeLosPellizcos(t))
+}
+
+/**
+ * Vuelve a abrir las heridas como mandan los separadores que hay, y a posar cada uno donde le toca. Se llama
+ * al colocar, al abrir, al quitar: la herida es una función de los separadores, no una cuenta que se lleve aparte.
+ */
+function reaplicarSeparadores(t: Taller, u: LoUltimo) {
+  const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
+  aplicarSeparadoresALasHeridas(
+    todasLasHeridas(t),
+    (t.separadores ?? []).map((s) => s.datos),
+    unidadesPorMm,
+  )
+  for (const s of t.separadores ?? []) posarSeparador(s, unidadesPorMm)
+  // Si hay puntadas, la herida se vuelve a cerrar sobre la apertura nueva: se olvida la base de antes.
+  if (t.sutura && t.sutura.puntos.length > 0) {
+    t.aperturaAntesDeCoser = undefined
+    refrescarSutura(t, u.milimetrosPorUnidad, u.alCoser, null, u.alHerir)
+  }
+  u.alHerir?.(estadoDeLasHeridas(t, u.milimetrosPorUnidad))
+  u.alSeparar?.(estadoDeLosSeparadores(t))
+  t.pedirDibujo?.()
+}
+
+function cambiarApertura(t: Taller, s: SeparadorEnEscena, mm: number, u: LoUltimo) {
+  s.datos.aperturaMm = limitarApertura(mm, s.datos.maximoMm)
+  t.separadorActivo = s.datos.id
+  reaplicarSeparadores(t, u)
+  t.decir?.(`${s.datos.nombre}: abierto ${s.datos.aperturaMm} mm${s.datos.aperturaMm >= s.datos.maximoMm ? ' · tope del separador' : ''}`)
+}
+
+/** Quita un separador, o todos. La herida se cierra en lo que ese separador abría. */
+function quitarSeparadores(t: Taller, u: LoUltimo, id?: number) {
+  const todos = t.separadores ?? []
+  const quedan: SeparadorEnEscena[] = []
+  for (const s of todos) {
+    if (id === undefined || s.datos.id === id) soltarSeparador(s)
+    else quedan.push(s)
+  }
+  t.separadores = quedan
+  if (!quedan.some((s) => s.datos.id === t.separadorActivo)) t.separadorActivo = quedan[quedan.length - 1]?.datos.id ?? null
+  reaplicarSeparadores(t, u)
+}
+
+function soltarPellizcos(t: Taller, u: LoUltimo, id?: number) {
+  const quedan: PellizcoEnEscena[] = []
+  for (const p of t.pellizcos ?? []) {
+    if (id === undefined || p.datos.id === id) soltarPellizco(p)
+    else quedan.push(p)
+  }
+  t.pellizcos = quedan
+  if (!quedan.some((p) => p.datos.id === t.pellizcoActivo)) t.pellizcoActivo = quedan[quedan.length - 1]?.datos.id ?? null
+  avisarPellizcos(t, u)
+}
+
+/** La escena tal como la necesita la radiografía. */
+function contextoDeRadiografia(t: Taller): EscenaParaRadiografia | null {
+  if (!t.escena) return null
+  t.ocultosEnRadiografia ??= new Map()
+  return {
+    escena: t.escena,
+    raiz: t.raiz,
+    rolesAplicados: t.rolesAplicados,
+    materialesOriginales: t.materialesOriginales,
+    ocultos: t.ocultosEnRadiografia,
+  }
+}
+
+/** Deshace una línea recta empezada: la marca de inicio y el trazo de guía. */
+function cancelarLaRecta(t: Taller) {
+  if (t.marcaDeInicio) {
+    t.marcaDeInicio.removeFromParent()
+    t.marcaDeInicio.geometry.dispose()
+    ;(t.marcaDeInicio.material as THREE.Material).dispose()
+    t.marcaDeInicio = undefined
+  }
+  if (t.inicioDeLaRecta) {
+    t.inicioDeLaRecta = undefined
+    t.decir?.('')
+  }
+}
+
 /** Un corte hecho con el bisturí, tal como se guarda para volver a hacerlo. */
 export interface CorteGuardado {
   plano: PlanoDeCorte
@@ -2480,7 +3221,7 @@ interface SesionGuardada {
       lado: 1 | -1 | 0
       nuevaLinea: boolean
       /** `herida` es el lugar de la herida en la lista y no su `uuid`, que cambia al recargar. */
-      ref?: { herida: number; dir: [number, number, number]; lado: 1 | -1; peso: number; mas0: number; menos0: number }
+      ref?: { herida: number; dir: [number, number, number]; lado: 1 | -1; peso: number; t?: number; mas0: number; menos0: number }
     }[]
   } | null
 }
@@ -2522,6 +3263,7 @@ export function serializarSesion(taller: Taller): string {
                       dir: q.ref.dir as [number, number, number],
                       lado: q.ref.lado,
                       peso: q.ref.peso,
+                      t: q.ref.t,
                       mas0: q.ref.mas0,
                       menos0: q.ref.menos0,
                     }
@@ -2552,13 +3294,17 @@ function seguirAlLabio(taller: Taller, golpe: THREE.Intersection, unidadesPorMm:
   const x = Math.min(1, mejor.info.cerca / alcance)
   const peso = 1 - x * x * (3 - 2 * x)
   const d = mejor.info.direccion
+  // Con separadores colocados la herida no abre igual en todo su largo: la puntada sigue lo que abre el
+  // labio **en su sitio** (la posición `t` a lo largo de la herida), no el máximo.
+  const aqui = aperturaAqui(mejor.h, mejor.info.t)
   return {
     malla: mejor.h.malla.uuid,
     dir: [d.x, d.y, d.z],
     lado: mejor.info.lado,
     peso,
-    mas0: mejor.h.mas,
-    menos0: mejor.h.menos,
+    t: mejor.info.t,
+    mas0: aqui.mas,
+    menos0: aqui.menos,
   }
 }
 
@@ -2596,13 +3342,26 @@ export function refrescarSutura(
 
   if (heridas.length > 0) {
     if (cierre > 0 && !taller.aperturaAntesDeCoser) {
-      taller.aperturaAntesDeCoser = new Map(heridas.map((h) => [h, { mas: h.mas, menos: h.menos }]))
+      taller.aperturaAntesDeCoser = new Map(heridas.map((h) => [h, { mas: h.mas, menos: h.menos, perfil: h.perfil }]))
     }
     const antes = taller.aperturaAntesDeCoser
     if (antes) {
       for (const h of heridas) {
         const base = antes.get(h)
-        if (base) abrirCapa(h, base.mas * (1 - cierre), base.menos * (1 - cierre))
+        if (!base) continue
+        const factor = 1 - cierre
+        const perfil = base.perfil
+        abrirCapa(
+          h,
+          base.mas * factor,
+          base.menos * factor,
+          perfil
+            ? (t) => {
+                const o = perfil(t)
+                return { mas: o.mas * factor, menos: o.menos * factor }
+              }
+            : undefined,
+        )
       }
       if (cierre === 0) taller.aperturaAntesDeCoser = undefined
       alHerir?.(estadoDeLasHeridas(taller, milimetrosPorUnidad))
@@ -2618,7 +3377,8 @@ export function refrescarSutura(
       p.punto = [...p.base]
       continue
     }
-    const movimiento = (ref.lado > 0 ? h.mas - ref.mas0 : -(h.menos - ref.menos0)) * ref.peso
+    const aqui = aperturaAqui(h, ref.t)
+    const movimiento = (ref.lado > 0 ? aqui.mas - ref.mas0 : -(aqui.menos - ref.menos0)) * ref.peso
     p.punto = [p.base[0] + ref.dir[0] * movimiento, p.base[1] + ref.dir[1] * movimiento, p.base[2] + ref.dir[2] * movimiento]
   }
 
@@ -2658,6 +3418,10 @@ export function refrescarSutura(
 
 /** Cierra todas las heridas: cada malla recupera la geometría de antes del corte. */
 function cerrarTodasLasHeridas(taller: Taller) {
+  // Un separador está puesto en una herida: sin ella no tiene dónde estar.
+  for (const q of taller.separadores ?? []) soltarSeparador(q)
+  taller.separadores = []
+  taller.separadorActivo = null
   for (const h of todasLasHeridas(taller)) cerrarCapa(h)
   taller.heridas?.clear()
   taller.cortes = []
@@ -2695,6 +3459,7 @@ function dibujarTrazo(taller: Taller) {
   // Se dibuja al final y sin comprobar profundidad: una incisión trazada sobre
   // la piel no debe desaparecer bajo el relieve del propio modelo.
   linea.renderOrder = 999
+  linea.userData.deInterfaz = true
   escena.add(linea)
   taller.trazo = linea
 }

@@ -448,3 +448,73 @@
 
 /* El botón pequeño de la consola, que el editor también usa. */
 .consola .consola-boton { display: inline-flex; align-items: center; gap: var(--e-1); }
+
+/* ---------- selector con búsqueda (`SelectorConBusqueda.tsx`) ----------
+   Un cuadro de texto que filtra la lista mientras se escribe. La lista se
+   despliega debajo, encima del contenido que sigue (`z-index`), y no empuja el
+   formulario: en el editor del simulador los campos están en una columna
+   estrecha y un desplegable que los mueve a cada letra se pierde. */
+.selector-busqueda { position: relative; display: flex; flex-direction: column; gap: var(--e-2); }
+.selector-cuadro { position: relative; display: flex; align-items: center; }
+.selector-entrada { padding-right: 2.2rem; text-overflow: ellipsis; }
+/* Con algo elegido, el nombre se lee como valor y no como marcador tenue; al enfocar, vuelve a tenue para
+   que se vea que lo que se escribe filtra. */
+.selector-entrada.con-valor::placeholder { color: var(--tinta); opacity: 1; }
+.selector-entrada.con-valor:focus::placeholder { color: var(--mudo); }
+.selector-flecha {
+  position: absolute; right: 2px; top: 2px; bottom: 2px; width: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: none; color: var(--pizarra); cursor: pointer; border-radius: var(--r-sm);
+}
+.selector-flecha:hover { color: var(--marca); }
+.selector-desplegable {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+  background: var(--superficie); border: 1px solid var(--linea-fuerte); border-radius: var(--r);
+  box-shadow: var(--sombra-2); overflow: hidden;
+}
+.selector-lista { list-style: none; margin: 0; padding: var(--e-1); max-height: 260px; overflow-y: auto; }
+.selector-opcion {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--e-2);
+  padding: var(--e-2) var(--e-3); border-radius: var(--r-sm);
+  font-size: var(--t-sm); color: var(--tinta); cursor: pointer;
+}
+.selector-opcion.resaltada { background: var(--marca-tenue); }
+.selector-opcion.marcada { font-weight: 600; color: var(--marca); }
+.selector-opcion-ninguno { color: var(--mudo); }
+.selector-opcion-texto { overflow-wrap: anywhere; }
+.selector-opcion-agregar {
+  justify-content: flex-start; margin-top: var(--e-1); border-top: 1px dashed var(--linea);
+  border-radius: 0 0 var(--r-sm) var(--r-sm); color: var(--marca); font-weight: 500;
+}
+.selector-vacio { padding: var(--e-3); font-size: var(--t-sm); color: var(--mudo); }
+.selector-fichas { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--e-1); }
+.selector-ficha {
+  display: inline-flex; align-items: center; gap: var(--e-1);
+  padding: 2px var(--e-1) 2px var(--e-2); border-radius: 999px;
+  background: var(--marca-tenue); color: var(--marca); font-size: var(--t-xs); font-weight: 600;
+}
+.selector-ficha-quitar {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+  border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer;
+}
+.selector-ficha-quitar:hover { background: var(--linea); }
+.selector-agregar {
+  display: flex; flex-direction: column; gap: var(--e-2);
+  padding: var(--e-3); border-top: 1px solid var(--linea); background: var(--superficie-2);
+}
+.selector-agregar-titulo { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--tinta); }
+.selector-agregar-campo { display: flex; flex-direction: column; gap: 2px; font-size: var(--t-xs); color: var(--pizarra); }
+.selector-agregar-campo small { color: var(--mudo); }
+.selector-agregar-acciones { display: flex; gap: var(--e-2); }
+.selector-aviso { margin: 0; font-size: var(--t-xs); color: var(--marca); }
+
+/* ---------- copiar y pegar pasos entre cirugías (`PasosEntreCirugias.tsx`) ---------- */
+.pasos-entre-cirugias { display: grid; gap: var(--e-5); }
+.pasos-entre-cirugias h3 { margin: 0 0 var(--e-1); font-size: var(--t-base); }
+.pasos-entre-cirugias section { display: grid; gap: var(--e-2); padding-bottom: var(--e-4); border-bottom: 1px solid var(--linea); }
+.pasos-entre-cirugias section:last-child { border-bottom: 0; padding-bottom: 0; }
+.pec-lista, .pec-copiados { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; max-height: 220px; overflow-y: auto; }
+.pec-copiados { list-style: decimal inside; font-size: var(--t-sm); color: var(--pizarra); }
+.pec-lista label { display: flex; align-items: center; gap: var(--e-2); padding: var(--e-1) var(--e-2); border-radius: var(--r-sm); cursor: pointer; font-size: var(--t-sm); }
+.pec-lista label:hover { background: var(--superficie-2); }
+.pec-acciones { display: flex; flex-wrap: wrap; gap: var(--e-2); }

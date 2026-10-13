@@ -152,3 +152,145 @@ describe('ladoDeLaHerida', () => {
     expect(Math.abs(arriba.direccion.dot(new THREE.Vector3(0, 1, 0)))).toBeGreaterThan(0.9)
   })
 })
+
+describe('la cinta: una incisión recién hecha no desaparece', () => {
+  // La piel de la prueba mide 20 unidades: se toma la unidad como milímetro para hablar en milímetros.
+  const EN_MM = { ...PARAMETROS, unidadesPorMm: 1 }
+
+  it('con la herida cerrada, la cinta existe, está a la vista y mide el ancho mínimo', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, EN_MM)!
+    expect(herida.cinta.parent).toBe(malla)
+    expect(herida.cinta.visible).toBe(true)
+    // Es decoración: no se pincha ni compite con la piel al elegir qué se corta.
+    expect(herida.cinta.raycast).toBeInstanceOf(Function)
+    const cinta = herida.cinta.geometry.getAttribute('position') as THREE.BufferAttribute
+    const ancho = (i: number) => Math.hypot(cinta.getX(2 * i) - cinta.getX(2 * i + 1), cinta.getY(2 * i) - cinta.getY(2 * i + 1))
+    const medio = Math.floor(cinta.count / 4)
+    expect(ancho(medio)).toBeCloseTo(2.4, 1)
+  })
+
+  it('al abrirse hasta el ancho mínimo se mantiene; al pasar de los 5 mm se aparta y deja ver el plano de debajo', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, EN_MM)!
+    abrirCapa(herida, 1, 1)
+    expect(herida.cinta.visible).toBe(true)
+    abrirCapa(herida, 4, 4)
+    expect(herida.cinta.visible).toBe(false)
+    // Y al cerrar otra vez, vuelve: la incisión sigue ahí.
+    abrirCapa(herida, 0, 0)
+    expect(herida.cinta.visible).toBe(true)
+  })
+
+  it('cerrar la herida quita también la cinta de la malla', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, EN_MM)!
+    cerrarCapa(herida)
+    expect(herida.cinta.parent).toBeNull()
+  })
+})
+
+describe('abrir según un perfil: el separador abre donde está puesto', () => {
+  const EN_MM = { profundidad: 4, alcance: 6, unidadesPorMm: 1 }
+
+  /** La separación entre los dos labios, medida donde la incisión pasa por el punto `t` (de 0 a 1). */
+  function separacionEn(h: NonNullable<ReturnType<typeof cortarCapa>>, t: number) {
+    const p = h.malla.geometry.getAttribute('position') as THREE.BufferAttribute
+    let mejor = 0
+    for (let k = 0; k < h.corte.labios.mas.length; k++) {
+      const i = h.corte.labios.mas[k]
+      if (Math.abs(h.corte.largoT[i] - t) < Math.abs(h.corte.largoT[h.corte.labios.mas[mejor]] - t)) mejor = k
+    }
+    const [a, b] = [h.corte.labios.mas[mejor], h.corte.labios.menos[mejor]]
+    return Math.hypot(p.getX(a) - p.getX(b), p.getY(a) - p.getY(b), p.getZ(a) - p.getZ(b))
+  }
+
+  it('con un perfil que solo abre el primer tercio, ahí hay hueco y en el otro extremo no', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, EN_MM)!
+    abrirCapa(herida, 3, 3, (t) => (t < 0.35 ? { mas: 3, menos: 3 } : { mas: 0, menos: 0 }))
+    expect(separacionEn(herida, 0.3)).toBeGreaterThan(separacionEn(herida, 0.85) + 1)
+    // El perfil se guarda para poder reaplicarlo cuando cambie algo (por ejemplo, otra capa que se corta).
+    expect(herida.perfil).toBeInstanceOf(Function)
+    expect(herida.mas).toBe(3)
+  })
+
+  it('sin perfil, abre parejo a lo largo (como siempre)', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, EN_MM)!
+    abrirCapa(herida, 2, 2)
+    expect(herida.perfil).toBeUndefined()
+    expect(separacionEn(herida, 0.5)).toBeGreaterThan(3)
+    expect(Math.abs(separacionEn(herida, 0.45) - separacionEn(herida, 0.55))).toBeLessThan(0.3)
+  })
+})
+
+describe('ladoDeLaHerida también dice dónde está el punto a lo largo de la incisión', () => {
+  it('t crece de un extremo al otro, para que cada separador se acuerde de su sitio', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision(0)
+    const herida = cortarCapa(malla, puntos, normales, PARAMETROS)!
+    const alPrincipio = ladoDeLaHerida(herida, new THREE.Vector3(-4, 0.3, 0))!
+    const alMedio = ladoDeLaHerida(herida, new THREE.Vector3(0, 0.3, 0))!
+    const alFinal = ladoDeLaHerida(herida, new THREE.Vector3(4, 0.3, 0))!
+    expect(alPrincipio.t).toBeLessThan(alMedio.t)
+    expect(alMedio.t).toBeLessThan(alFinal.t)
+    expect(alMedio.t).toBeGreaterThan(0.35)
+    expect(alMedio.t).toBeLessThan(0.65)
+  })
+})
+
+describe('la cinta se tiende por el trazo, no por los vértices de los labios', () => {
+  it('tiene un par de vértices por nodo del trazo y cada par queda junto al punto que se pinchó', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision(0.3)
+    const herida = cortarCapa(malla, puntos, normales, { profundidad: 4, alcance: 6, unidadesPorMm: 1 })!
+    const nodos = herida.corte.curva.tramos.length + 1
+    const cinta = herida.cinta.geometry.getAttribute('position') as THREE.BufferAttribute
+    expect(cinta.count).toBe(2 * nodos)
+    // Los nodos están sobre la piel (z = 0) y la cinta va un milímetro por encima, centrada en el corte.
+    for (let k = 0; k < nodos; k++) {
+      const cz = (cinta.getZ(2 * k) + cinta.getZ(2 * k + 1)) / 2
+      const cy = (cinta.getY(2 * k) + cinta.getY(2 * k + 1)) / 2
+      expect(cz).toBeCloseTo(1, 3)
+      expect(cy).toBeCloseTo(0.3, 3)
+    }
+  })
+
+  it('con una malla de triángulos largos, la cinta sigue entera donde los vértices de los labios están lejos', () => {
+    // Pocas filas y columnas: los vértices de los labios quedan a 10 unidades unos de otros, pero la cinta no se
+    // parte porque sus nodos son los del trazo (a 0,5 unidades).
+    const g = new THREE.PlaneGeometry(20, 20, 2, 2)
+    const malla = new THREE.Mesh(g, new THREE.MeshStandardMaterial())
+    malla.updateMatrixWorld(true)
+    const { puntos, normales } = incision(0.3)
+    const herida = cortarCapa(malla, puntos, normales, { profundidad: 4, alcance: 6, unidadesPorMm: 1 })!
+    expect(herida).not.toBeNull()
+    const nodos = herida.corte.curva.tramos.length + 1
+    expect(nodos).toBeGreaterThan(herida.corte.labios.mas.length)
+    const cinta = herida.cinta.geometry.getAttribute('position') as THREE.BufferAttribute
+    let mayorSalto = 0
+    for (let k = 1; k < nodos; k++) {
+      mayorSalto = Math.max(mayorSalto, Math.abs(cinta.getX(2 * k) - cinta.getX(2 * k - 2)))
+    }
+    expect(mayorSalto).toBeLessThan(1.5)
+  })
+
+  it('al abrir con perfil, la cinta se ensancha donde abre el separador y no en el otro extremo', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision(0.3)
+    const herida = cortarCapa(malla, puntos, normales, { profundidad: 4, alcance: 6, unidadesPorMm: 1 })!
+    // 4 mm de apertura al principio de la herida: la cinta sigue a la vista (menos de 5 mm), más ancha ahí.
+    abrirCapa(herida, 4, 0, (t) => (t < 0.5 ? { mas: 4, menos: 0 } : { mas: 0, menos: 0 }))
+    const cinta = herida.cinta.geometry.getAttribute('position') as THREE.BufferAttribute
+    const ancho = (k: number) => Math.hypot(cinta.getX(2 * k) - cinta.getX(2 * k + 1), cinta.getY(2 * k) - cinta.getY(2 * k + 1))
+    const nodos = cinta.count / 2
+    expect(herida.cinta.visible).toBe(true)
+    expect(ancho(Math.floor(nodos * 0.4))).toBeGreaterThan(ancho(Math.floor(nodos * 0.9)) + 0.5)
+  })
+})

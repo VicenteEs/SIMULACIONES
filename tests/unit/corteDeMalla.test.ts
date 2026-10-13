@@ -202,6 +202,45 @@ describe('abrirHerida', () => {
     expect(Math.abs(abierta[3 * i + 1] - corte.posiciones[3 * i + 1])).toBeGreaterThan(2)
   })
 
+  it('cada vértice sabe dónde cae a lo largo de la incisión, de 0 a 1 y creciendo con la x', () => {
+    expect(corte.largoT.length).toBe(corte.lado.length)
+    const lista = corte.labios.mas
+    const ts = lista.map((i) => corte.largoT[i])
+    for (const t of ts) {
+      expect(t).toBeGreaterThanOrEqual(0)
+      expect(t).toBeLessThanOrEqual(1)
+    }
+    // La incisión de la prueba va de x = 5 a x = 15: el labio, ordenado de un extremo a otro, recorre ese rango.
+    const x = lista.map((i) => corte.posiciones[3 * i])
+    for (let k = 1; k < lista.length; k++) {
+      expect(Math.sign(ts[k] - ts[k - 1])).toBe(Math.sign(x[k] - x[k - 1]) || 0)
+    }
+  })
+
+  it('con perfil, la herida abre donde el perfil lo pide y se queda cerrada donde no (un separador puesto en un extremo)', () => {
+    // Un separador colocado a un tercio: abre 3 mm hasta ahí y nada después.
+    const abierta = abrirHerida(corte, 0, 0, (t) => (t < 0.4 ? { mas: 3, menos: 3 } : { mas: 0, menos: 0 }))
+    const separacionEn = (t: number) => {
+      const k = corte.labios.mas.reduce((mejor, i, idx) => (Math.abs(corte.largoT[i] - t) < Math.abs(corte.largoT[corte.labios.mas[mejor]] - t) ? idx : mejor), 0)
+      const [i, j] = [corte.labios.mas[k], corte.labios.menos[k]]
+      return Math.hypot(abierta[3 * i] - abierta[3 * j], abierta[3 * i + 1] - abierta[3 * j + 1])
+    }
+    expect(separacionEn(0.25)).toBeGreaterThan(separacionEn(0.9) + 1)
+    // Y donde el perfil dice cero, los labios quedan juntos como estaban.
+    const [i, j] = [corte.labios.mas.at(-1)!, corte.labios.menos.at(-1)!]
+    const juntos = Math.hypot(corte.posiciones[3 * i] - corte.posiciones[3 * j], corte.posiciones[3 * i + 1] - corte.posiciones[3 * j + 1])
+    expect(separacionEn(1)).toBeCloseTo(juntos, 3)
+  })
+
+  it('sin perfil, abrir sigue siendo igual a lo de siempre: el perfil es opcional', () => {
+    const a = abrirHerida(corte, 2, 1)
+    const b = abrirHerida(corte, 2, 1, undefined)
+    expect([...a]).toEqual([...b])
+    // Un perfil constante da lo mismo que pasar los dos valores sueltos.
+    const c = abrirHerida(corte, 0, 0, () => ({ mas: 2, menos: 1 }))
+    for (let k = 0; k < a.length; k++) expect(c[k]).toBeCloseTo(a[k], 5)
+  })
+
   it('el tejido lejano de la herida no se entera', () => {
     const abierta = abrirHerida(corte, 4, 4)
     // El vértice de la esquina (0,0) está a más de 10 mm del corte: no se mueve.

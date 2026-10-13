@@ -260,6 +260,13 @@ const GUARDIAS: Record<string, Clasificacion> = {
 
   'contenido.ts:listarDocumentos': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m, {}] },
   'contenido.ts:opcionesDeRelacion': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m] },
+  // «¿No está? Agregar» del hueso, la clasificación, la técnica y la fase: el catálogo es vocabulario del módulo
+  // de cirugías, así que se gobierna con el permiso de ese módulo (`MODULO_DEL_VOCABULARIO`).
+  'contenido.ts:agregarAlCatalogo': {
+    guardia: 'edicionDeModulo',
+    modulo: 'cirugias',
+    argumentos: () => ['tecnicas-quirurgicas', { nombre: 'Fijación de prueba' }],
+  },
   'contenido.ts:guardarDocumento': {
     guardia: 'edicionDeModulo',
     modulo: 'argumento',

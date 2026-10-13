@@ -26,6 +26,8 @@ import {
 } from '@/lib/piezasDelCaso'
 import { CLAVE_DE_FILA, nuevaClave } from '@/admin/identidadDeBloques'
 import { FilaDeCampos, valoresPorOmision, type Relaciones } from './Campos'
+import { PasosEntreCirugias } from './PasosEntreCirugias'
+import { claveDelPasoDelEditor, guardarPasoDelEditor, leerPasoDelEditor } from '@/lib/ensayoDelEditor'
 
 /**
  * El editor de un caso quirúrgico: la consola del residente con el panel de
@@ -91,7 +93,10 @@ export function EditorDelSimulador({
 }) {
   const confirmar = useConfirmar()
   const mando = useRef<MandoDelLienzo | null>(null)
-  const [indice, setIndice] = useState(0)
+  // El paso en que se estaba sobrevive a que el editor se vuelva a montar (guardar un caso nuevo por primera
+  // vez cambia de página): ver `ensayoDelEditor.ts`. La clave es el modelo y no la ficha, que es lo que cambia.
+  const claveDelPaso = claveDelPasoDelEditor(idDelModelo(valores.modelo))
+  const [indice, setIndice] = useState(() => leerPasoDelEditor(claveDelPaso) ?? 0)
   const [pestana, setPestana] = useState<'paso' | 'piezas' | 'caso'>('paso')
   const [instrumentos, setInstrumentos] = useState<InstrumentoParaElEditor[]>([])
   const [errorDeInstrumentos, setErrorDeInstrumentos] = useState<string | null>(null)
@@ -152,6 +157,9 @@ export function EditorDelSimulador({
   )
   const indiceVigente = Math.min(indice, Math.max(0, pasos.length - 1))
   const pasoActual = pasos[indiceVigente]
+  useEffect(() => {
+    guardarPasoDelEditor(claveDelPaso, indiceVigente)
+  }, [claveDelPaso, indiceVigente])
 
   const caso = useMemo(
     () =>
@@ -416,6 +424,20 @@ export function EditorDelSimulador({
           panel,
           barraDePasos: (
             <>
+              <PasosEntreCirugias
+                nombreDelCaso={typeof valores.nombre === 'string' ? valores.nombre : ''}
+                pasos={pasos}
+                indiceActual={indiceVigente}
+                nodosDelModelo={() => {
+                  const nodos = mando.current?.nodosDelModelo()
+                  return nodos && nodos.length > 0 ? nodos : null
+                }}
+                alPegar={(nuevos, primero) => {
+                  escribirPasos(nuevos)
+                  setIndice(primero)
+                  setPestana('paso')
+                }}
+              />
               <button type="button" className="consola-boton" onClick={anadirPaso}>
                 <Plus size={14} aria-hidden /> Paso
               </button>

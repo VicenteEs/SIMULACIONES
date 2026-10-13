@@ -44,7 +44,12 @@ export interface PuntoDeSutura {
     lado: 1 | -1
     /** Cuánto del movimiento del labio le llega a la puntada: 1 en el borde, menos cuanto más lejos. */
     peso: number
-    /** Cuánto estaba abierto cada labio al picar. */
+    /**
+     * Dónde cae la puntada a lo largo de la herida, de 0 a 1. Con separadores colocados la herida no abre
+     * igual en todo su largo, y la puntada sigue lo que abre el labio en su sitio. Ausente en lo guardado antes.
+     */
+    t?: number
+    /** Cuánto estaba abierto cada labio al picar, en ese sitio. */
     mas0: number
     menos0: number
   }

@@ -22,6 +22,8 @@
  * no hay ni una línea de descompresión.
  */
 
+import { densidadDelSistema } from '@/lib/radiografia'
+import { GANANCIA_DE_LA_RADIOGRAFIA } from './materialDeRadiografia'
 import * as THREE from 'three'
 import { ruta } from '@/lib/rutas'
 import { corregirCatalogo } from './clasificacion'
@@ -327,7 +329,7 @@ export function montarEscena(
     geometria.setIndex(new THREE.BufferAttribute(orden, 1))
     geometria.computeBoundingSphere()
 
-    const material = materialDelSistema(colores.get(sistema) ?? '#cccccc', estados, lado, giros, traslados, aspectos)
+    const material = materialDelSistema(colores.get(sistema) ?? '#cccccc', estados, lado, giros, traslados, aspectos, sistema)
     const malla = new THREE.Mesh(geometria, material)
     malla.name = sistema
     // El cuerpo no se mueve nunca: recortar por volumen de cámara solo gasta.
@@ -373,6 +375,7 @@ function materialDelSistema(
   giros: THREE.DataTexture,
   traslados: THREE.DataTexture,
   aspectos: THREE.DataTexture,
+  sistema: string,
 ): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({
     color: new THREE.Color(color),
@@ -394,11 +397,16 @@ function materialDelSistema(
   // una anatomía que no estaba dibujada.
   material.userData.separacion = 0
   material.userData.rayosX = 0
+  // Cuánto absorbe este sistema, para la radiografía: `null` es «no se ve» (vasos, nervios, linfáticos) y llega
+  // al sombreador como 0, que descarta el píxel. Es la misma tabla que usa el simulador (`lib/radiografia`).
+  material.userData.densidadRx = densidadDelSistema(sistema) ?? 0
 
   material.onBeforeCompile = (sombreador) => {
     sombreador.uniforms.estados = { value: estados }
     sombreador.uniforms.ladoEstados = { value: lado }
     sombreador.uniforms.rayosX = { value: material.userData.rayosX }
+    sombreador.uniforms.densidadRx = { value: material.userData.densidadRx }
+    sombreador.uniforms.gananciaRx = { value: GANANCIA_DE_LA_RADIOGRAFIA }
     sombreador.uniforms.aspectos = { value: aspectos }
     sombreador.uniforms.giros = { value: giros }
     sombreador.uniforms.traslados = { value: traslados }
@@ -456,6 +464,8 @@ function materialDelSistema(
       varying float vSeleccionada;
       varying vec4 vAspecto;
       uniform float rayosX;
+      uniform float densidadRx;
+      uniform float gananciaRx;
     ${sombreador.fragmentShader}`
       .replace(
         '#include <clipping_planes_fragment>',
@@ -463,6 +473,8 @@ function materialDelSistema(
         // Descartar es lo que hace que apagar una pieza sea gratis: no se toca
         // la geometría, simplemente sus píxeles no se pintan.
         if (vVisible < 0.5) discard;
+        // Radiografía: lo que no absorbe nada —vasos, nervios— no se dibuja.
+        if (rayosX > 0.5 && densidadRx <= 0.0) discard;
         // La opacidad propia de la pieza (D-134): se tiran píxeles en
         // proporción, repartidos por una trama sin dibujo visible (la
         // secuencia R2), y por los huecos se ve lo de detrás. Un músculo al
@@ -488,6 +500,19 @@ function materialDelSistema(
         // seleccionar. Sobre músculo ya se veía; sobre hueso, no.
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95, 0.38, 0.0), vSeleccionada * 0.88);`,
       )
+      // La radiografía manda sobre el color y la luz: cada superficie suma luz blanca en proporción a lo que
+      // absorbe su sistema, más fuerte donde el rayo la cruza de refilón (ahí atraviesa más material), y el
+      // fondo es negro. Con mezcla aditiva lo más grueso sale más blanco, y el hueso se lee como hueso. La
+      // pieza seleccionada suma un poco más para que se siga viendo cuál es.
+      .replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>
+        if (rayosX > 0.5) {
+          float rasante = 1.0 - abs(normalize(vNormal).z);
+          float aporte = densidadRx * (0.045 + 0.2 * pow(rasante, 1.5)) * gananciaRx + vSeleccionada * 0.18;
+          gl_FragColor = vec4(vec3(1.0), clamp(aporte, 0.0, 1.0));
+        }`,
+      )
 
     // Se guarda para poder mover el mando de separación sin recompilar.
     material.userData.sombreador = sombreador
@@ -510,7 +535,10 @@ export function aplicarSeparacion(escena: EscenaDelAtlas, separacion: number) {
   }
 }
 
-/** La opacidad de todo con los rayos X puestos: la de Blender por omisión. */
+/**
+ * La opacidad con que se pintan los trozos sueltos de un hueso partido cuando no hay radiografía. Con los rayos X
+ * puestos ya no se usa: la radiografía los pinta con el material de su sistema (ver `aplicarRayosX`).
+ */
 export const OPACIDAD_DE_RAYOS_X = 0.5
 
 /**
@@ -534,6 +562,12 @@ export function aplicarRayosX(escena: EscenaDelAtlas, encendidos: boolean) {
     material.transparent = encendidos
     material.opacity = encendidos ? OPACIDAD_DE_RAYOS_X : 1
     material.depthWrite = !encendidos
+    // La radiografía suma luz: fondo + blanco × aporte. Sin mezcla aditiva sería una transparencia.
+    material.depthTest = !encendidos
+    material.blending = encendidos ? THREE.CustomBlending : THREE.NormalBlending
+    material.blendEquation = THREE.AddEquation
+    material.blendSrc = THREE.SrcAlphaFactor
+    material.blendDst = encendidos ? THREE.OneFactor : THREE.OneMinusSrcAlphaFactor
     material.needsUpdate = true
     const sombreador = material.userData.sombreador
     if (sombreador?.uniforms?.rayosX) sombreador.uniforms.rayosX.value = material.userData.rayosX
