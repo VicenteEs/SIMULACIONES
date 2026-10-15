@@ -9,7 +9,13 @@ import {
   type HerramientaCargada,
 } from '@/instrumental/herramienta3d'
 import type { AjustesDeInstrumento } from '@/instrumental/modelo'
-import { aperturaEnLaPosicion, type Pellizco, type SeparadorColocado } from '@/lib/exposicion'
+import {
+  alturaEfectivaDelPellizco,
+  aperturaDeLaCapa,
+  type CapaDeLaHerida,
+  type Pellizco,
+  type SeparadorColocado,
+} from '@/lib/exposicion'
 import { abrirCapa, type HeridaEnCapa } from './heridas'
 
 /**
@@ -88,6 +94,18 @@ export function posarEn(grupo: THREE.Object3D, punto: THREE.Vector3, mango: THRE
 
 // ------------------------------------------------------------ separadores
 
+/**
+ * Dónde está apoyado un separador en un plano: el punto de la superficie de esa capa, su normal, hacia dónde se
+ * aleja el labio y en qué lugar de la herida de esa capa cae. Cada separador guarda el de cada plano por el que
+ * ha pasado, para que bajarlo al músculo y volver a subirlo a la piel lo deje donde estaba.
+ */
+export interface SitioDeSeparador {
+  punto: THREE.Vector3
+  normal: THREE.Vector3
+  direccion: THREE.Vector3
+  posicion: number
+}
+
 export interface SeparadorEnEscena {
   datos: SeparadorColocado
   instrumento: InstrumentoColocado
@@ -100,6 +118,16 @@ export interface SeparadorEnEscena {
   direccion: THREE.Vector3
   /** La inclinación del mango al colocarlo (la de la cámara de entonces). */
   mango: THREE.Vector3
+  /** Los sitios que ha tenido en cada plano de partes blandas (el del hueso, que es del Hohmann, no cambia). */
+  sitios: Partial<Record<CapaDeLaHerida, SitioDeSeparador>>
+}
+
+/** Lleva el separador a un sitio ya calculado de otro plano. */
+export function apoyarSeparadorEn(s: SeparadorEnEscena, sitio: SitioDeSeparador, lado: 1 | -1 | 0) {
+  s.punto = sitio.punto.clone()
+  s.normal = sitio.normal.clone()
+  s.direccion = sitio.direccion.clone().multiplyScalar(lado === 0 ? 1 : lado)
+  s.datos.posicion = sitio.posicion
 }
 
 /**
@@ -136,30 +164,35 @@ export function posarSeparador(s: SeparadorEnEscena, unidadesPorMm: number) {
 }
 
 /**
- * Abre las heridas como mandan los separadores colocados: más donde está cada
- * uno y menos hacia los extremos. Sin ninguno, las cierra.
+ * Abre las heridas como mandan los separadores, las pinzas y la disección roma: más donde está cada uno y menos
+ * hacia los extremos, **capa por capa** —cada herida se abre con lo que le llega, `aperturaDeLaCapa`—. Sin nada
+ * que las abra, las cierra.
  */
 export function aplicarSeparadoresALasHeridas(
-  heridas: HeridaEnCapa[],
+  heridasPorCapa: ReadonlyMap<CapaDeLaHerida, HeridaEnCapa[]>,
   lista: readonly SeparadorColocado[],
+  pellizcos: readonly Pellizco[],
   unidadesPorMm: number,
 ) {
-  if (lista.length === 0) {
-    for (const h of heridas) abrirCapa(h, 0, 0)
-    return
+  for (const [capa, heridas] of heridasPorCapa) {
+    if (heridas.length === 0) continue
+    let mas = 0
+    let menos = 0
+    for (let i = 0; i <= 40; i++) {
+      const a = aperturaDeLaCapa(capa, i / 40, lista, pellizcos)
+      mas = Math.max(mas, a.mas)
+      menos = Math.max(menos, a.menos)
+    }
+    if (mas === 0 && menos === 0) {
+      for (const h of heridas) abrirCapa(h, 0, 0)
+      continue
+    }
+    const perfil = (t: number) => {
+      const a = aperturaDeLaCapa(capa, t, lista, pellizcos)
+      return { mas: a.mas * unidadesPorMm, menos: a.menos * unidadesPorMm }
+    }
+    for (const h of heridas) abrirCapa(h, mas * unidadesPorMm, menos * unidadesPorMm, perfil)
   }
-  let mas = 0
-  let menos = 0
-  for (let i = 0; i <= 40; i++) {
-    const a = aperturaEnLaPosicion(lista, i / 40)
-    mas = Math.max(mas, a.mas)
-    menos = Math.max(menos, a.menos)
-  }
-  const perfil = (t: number) => {
-    const a = aperturaEnLaPosicion(lista, t)
-    return { mas: a.mas * unidadesPorMm, menos: a.menos * unidadesPorMm }
-  }
-  for (const h of heridas) abrirCapa(h, mas * unidadesPorMm, menos * unidadesPorMm, perfil)
 }
 
 // ------------------------------------------------------------------ pellizcos
@@ -173,6 +206,8 @@ export interface PellizcoEnEscena {
   punto: THREE.Vector3
   normal: THREE.Vector3
   mango: THREE.Vector3
+  /** Hacia dónde se aleja de la herida, unitaria y ya con el signo de su lado: por donde tira al separarse. */
+  direccion: THREE.Vector3
 }
 
 /** El radio de la base del pliegue de piel, en milímetros: lo que cabe entre los dientes de la pinza y se levanta con ella. */
@@ -204,16 +239,27 @@ export function crearPliegue(color: THREE.ColorRepresentation): THREE.Mesh {
   return malla
 }
 
-/** Escala el pliegue a su altura y deja la cima donde va la punta de la pinza. */
+/**
+ * Escala el pliegue a su altura y deja la cima donde va la punta de la pinza.
+ *
+ * Con las mandíbulas abiertas la pinza no sostiene nada: el pliegue desaparece y la pinza queda apoyada en la piel
+ * con sus ramas abiertas. Al separarse de su pareja, la pinza se lleva el pliegue consigo (tira de la piel).
+ */
 export function posarPliegue(p: PellizcoEnEscena, unidadesPorMm: number) {
-  const altura = Math.max(0.5, p.datos.alturaMm) * unidadesPorMm
+  const efectiva = alturaEfectivaDelPellizco(p.datos)
+  const altura = Math.max(0.5, efectiva) * unidadesPorMm
   const radio = RADIO_DEL_PLIEGUE_MM * unidadesPorMm
+  const base = p.punto.clone().addScaledVector(p.direccion, Math.max(0, p.datos.separacionMm) * unidadesPorMm)
+  p.pliegue.visible = efectiva > 0.3
   p.pliegue.scale.set(radio, altura, radio)
-  p.pliegue.position.copy(p.punto)
+  p.pliegue.position.copy(base)
   p.pliegue.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.normal)
-  // La punta de los dientes agarra la cima del pliegue.
-  const cima = p.punto.clone().addScaledVector(p.normal, altura)
+  // La punta de los dientes agarra la cima del pliegue; sin pliegue, toca la piel.
+  const cima = base.clone().addScaledVector(p.normal, efectiva > 0.3 ? altura : 0.3 * unidadesPorMm)
   posarEn(p.instrumento.grupo, cima, p.mango)
+  // Las mandíbulas: cerradas sobre el pliegue (agarre 1) o abiertas (agarre 0), con la primera articulación del archivo.
+  const h = p.instrumento.herramienta
+  if (h) aplicarPose(h, p.ajustes, articulacionesParaLaApertura(h, p.ajustes, (1 - p.datos.agarre) * 100, 100))
 }
 
 export function soltarPellizco(p: PellizcoEnEscena) {

@@ -178,6 +178,69 @@ export const ANGULO_DE_LA_PROYECCION: Readonly<Record<ProyeccionDeFluoroscopia, 
   lateral: 90,
 }
 
+// ---------------------------------------------------------------- mover la extremidad bajo el arco
+
+/**
+ * Cuánto se ha corrido la extremidad dentro de la imagen del arco, en radios del círculo: `x` hacia la derecha
+ * de la imagen, `y` hacia arriba. En pabellón el arco está quieto y es el miembro el que se mueve para que lo
+ * que interesa —el foco de fractura, la punta del clavo— caiga en el centro; aquí se hace arrastrando la imagen.
+ */
+export interface DesplazamientoDeLaImagen {
+  x: number
+  y: number
+}
+
+export const SIN_DESPLAZAMIENTO: Readonly<DesplazamientoDeLaImagen> = { x: 0, y: 0 }
+
+/** Hasta dónde se puede correr la extremidad: más allá se sale del círculo y no queda nada que mirar. */
+export const TOPE_DEL_DESPLAZAMIENTO = 1.6
+
+const entre = (valor: number, minimo: number, maximo: number) => Math.min(maximo, Math.max(minimo, valor))
+
+export function limitarDesplazamiento(d: DesplazamientoDeLaImagen): DesplazamientoDeLaImagen {
+  return {
+    x: entre(Number.isFinite(d.x) ? d.x : 0, -TOPE_DEL_DESPLAZAMIENTO, TOPE_DEL_DESPLAZAMIENTO),
+    y: entre(Number.isFinite(d.y) ? d.y : 0, -TOPE_DEL_DESPLAZAMIENTO, TOPE_DEL_DESPLAZAMIENTO),
+  }
+}
+
+/**
+ * Arrastrar la imagen `dxPx`, `dyPx` píxeles (con `dyPx` hacia abajo, como el ratón) corre la extremidad lo
+ * mismo que el cursor: lo que está bajo el dedo se queda bajo el dedo. `ladoPx` es lo que mide la imagen en
+ * pantalla; el círculo ocupa su mitad en cada sentido.
+ */
+export function arrastrarLaImagen(
+  actual: DesplazamientoDeLaImagen,
+  dxPx: number,
+  dyPx: number,
+  ladoPx: number,
+): DesplazamientoDeLaImagen {
+  const radioPx = Math.max(1, ladoPx / 2)
+  return limitarDesplazamiento({ x: actual.x + dxPx / radioPx, y: actual.y - dyPx / radioPx })
+}
+
+type Vec3 = readonly [number, number, number]
+
+/**
+ * A dónde apunta la cámara de la imagen cuando la extremidad se ha corrido `d`: es el centro de lo que se
+ * encuadra, movido **al revés** (si el miembro sube por la imagen, la cámara mira más abajo de él). `derecha`
+ * y `arriba` son los ejes de la imagen en el mundo; `radio` es el radio del círculo en unidades del mundo.
+ */
+export function centroDeLaImagen(
+  centro: Vec3,
+  radio: number,
+  derecha: Vec3,
+  arriba: Vec3,
+  d: DesplazamientoDeLaImagen,
+): [number, number, number] {
+  const { x, y } = limitarDesplazamiento(d)
+  return [
+    centro[0] - (derecha[0] * x + arriba[0] * y) * radio,
+    centro[1] - (derecha[1] * x + arriba[1] * y) * radio,
+    centro[2] - (derecha[2] * x + arriba[2] * y) * radio,
+  ]
+}
+
 /**
  * Cuántos segundos de escopia son «demasiados».
  *

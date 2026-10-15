@@ -69,8 +69,14 @@ describe('comportamiento del instrumental', () => {
       sutura: null,
       coloca: null,
       mide: false,
+      roma: null,
     })
     expect(comportamientoDelInstrumento(base('pinza-diseccion-con-dientes')).pellizca).toEqual({ conDientes: true })
+    // La Metzenbaum corta como una tijera y además separa los planos por tensión (disección roma). Es la única.
+    const roma = INSTRUMENTAL_BASE.filter((x) => comportamientoDelInstrumento(x).roma).map((x) => x.slug)
+    expect(roma).toEqual(['tijera-metzenbaum'])
+    expect(comportamientoDelInstrumento(base('tijera-metzenbaum')).corta).toBe('musculo')
+    expect(comportamientoDelInstrumento({ nombre: 'Tijera Metzenbaum curva' }).roma).not.toBeNull()
     // Los implantes no cortan, separan ni perforan: se colocan (D-169). Los clavos y el
     // injerto, por ahora, solo se ven en la escena.
     for (const i of INSTRUMENTAL_BASE.filter((x) => ['placas', 'tornillos', 'clavos', 'injerto'].includes(x.categoria))) {

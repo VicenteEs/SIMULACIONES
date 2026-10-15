@@ -198,6 +198,12 @@ El vocabulario con el que se escriben los casos —huesos AO, clasificaciones AO
 técnicas, fases e instrumental— son cinco colecciones que el traumatólogo edita
 desde el panel, con los mismos permisos que el resto del contenido.
 
+El paciente se puede poner de pie, en decúbito supino o en decúbito prono (se mueve la
+vista, no el modelo), y cada instrumento hace en él lo que hace en pabellón: las pinzas de
+Adson van de a dos, los separadores se apoyan en la piel o en el músculo, la tijera de
+Metzenbaum corta o diseca por tensión, y la fluoroscopia enseña su imagen en un recuadro sin
+tocar la escena (D-173).
+
 El convenio del que depende todo: **el modelo se exporta reducido** y el caso
 declara cuánto está desplazado al empezar. La posición correcta es siempre el
 cero, y lo que la consola mide es cuánto falta para llegar.
@@ -206,6 +212,7 @@ cero, y lo que la consola mide es cuánto falta para llegar.
 |---|---|
 | `src/lib/simulador.ts` | El motor. Los cuatro objetivos de un paso, sin interfaz |
 | `src/lib/reduccion.ts` | La geometría: desplazamiento, diástasis, angulación y largo del trazo |
+| `src/lib/exposicion.ts`, `diseccionRoma.ts`, `posicionDelPaciente.ts` | Separadores y pinzas por plano, disección roma con la Metzenbaum y posición del paciente: la aritmética, sin three |
 | `src/lib/casoQuirurgico.ts` | Aplana el documento de Payload en lo que la consola necesita |
 | `src/components/simulador/LienzoQuirurgico.tsx` | El lienzo three.js: capas, trazo, arrastre y fluoroscopia |
 | `src/components/simulador/ConsolaQuirurgica.tsx` | La consola: bandeja, medidas, pasos y bitácora |

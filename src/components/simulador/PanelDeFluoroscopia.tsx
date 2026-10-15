@@ -1,10 +1,14 @@
 'use client'
 
-import type { RefObject } from 'react'
-import { ScanLine, X } from 'lucide-react'
+import { useEffect, useRef, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
+import { Crosshair, ScanLine, X } from 'lucide-react'
 import {
   PROYECCIONES_DE_FLUOROSCOPIA,
   SEGUNDOS_DE_ESCOPIA_ALTOS,
+  SIN_DESPLAZAMIENTO,
+  arrastrarLaImagen,
+  limitarDesplazamiento,
+  type DesplazamientoDeLaImagen,
   type ProyeccionDeFluoroscopia,
 } from '@/lib/radiografia'
 import type { AyudasDeEscopia } from './LienzoQuirurgico'
@@ -15,6 +19,10 @@ import type { AyudasDeEscopia } from './LienzoQuirurgico'
  * Solo existe con la fluoroscopia encendida: la imagen en círculo, con lo más denso en negro como en la pantalla
  * del pabellón, las tres proyecciones (AP, lateral y oblicua), el contador de exposición y las dos ayudas de
  * aprendizaje —que se apagan: en una fluoroscopia real nadie dibuja dónde debe quedar el hueso—.
+ *
+ * La imagen se **arrastra**: en pabellón el arco está quieto y es el miembro el que se mueve para que el foco de
+ * fractura o la punta del clavo caiga en el centro. Arrastrar hacia arriba sube la extremidad por la imagen, y
+ * con el teclado lo hacen las flechas. El lienzo de la izquierda no se entera: no se mueve nada del paciente.
  *
  * Es un componente aparte y no parte de la consola por lo mismo que la consola ya no lleva el resto de su
  * marcado: es lo único que cambia con el reloj de la exposición, y en la consola, con su estado entero,
@@ -29,6 +37,8 @@ export function PanelDeFluoroscopia({
   angulacion,
   topeDeAngulacion,
   lienzo,
+  desplazamiento,
+  alDesplazar,
   alElegirProyeccion,
   alAcercar,
   alCambiarAyudas,
@@ -46,12 +56,53 @@ export function PanelDeFluoroscopia({
   topeDeAngulacion: number | null
   /** Donde se dibuja la imagen: el lienzo 2D que `mando.dibujarFluoroscopia` rellena. */
   lienzo: RefObject<HTMLCanvasElement | null>
+  /** Cuánto se ha corrido el miembro bajo el arco, en radios del círculo. */
+  desplazamiento: DesplazamientoDeLaImagen
+  alDesplazar: (desplazamiento: DesplazamientoDeLaImagen) => void
   alElegirProyeccion: (p: ProyeccionDeFluoroscopia) => void
   alAcercar: (zoom: number) => void
   alCambiarAyudas: (ayudas: AyudasDeEscopia) => void
   alApagar: () => void
 }) {
   const etiqueta = PROYECCIONES_DE_FLUOROSCOPIA.find((q) => q.valor === proyeccion)?.etiqueta
+  // El arrastre sigue al puntero y no al estado: entre dos movimientos seguidos React puede no haber repintado
+  // todavía, y partir del valor de la última pantalla perdería un trozo del gesto.
+  const actual = useRef(desplazamiento)
+  useEffect(() => {
+    actual.current = desplazamiento
+  }, [desplazamiento])
+  const agarrado = useRef<{ x: number; y: number } | null>(null)
+  const corrido = desplazamiento.x !== 0 || desplazamiento.y !== 0
+
+  const alBajar = (e: PointerEvent<HTMLCanvasElement>) => {
+    try {
+      // Seguir al puntero aunque salga de la imagen; si el navegador no deja (puntero ya soltado), el arrastre sigue igual.
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // sin captura
+    }
+    agarrado.current = { x: e.clientX, y: e.clientY }
+  }
+  const alMover = (e: PointerEvent<HTMLCanvasElement>) => {
+    const desde = agarrado.current
+    if (!desde) return
+    const lado = e.currentTarget.getBoundingClientRect().width
+    actual.current = arrastrarLaImagen(actual.current, e.clientX - desde.x, e.clientY - desde.y, lado)
+    agarrado.current = { x: e.clientX, y: e.clientY }
+    alDesplazar(actual.current)
+  }
+  const alSoltar = () => {
+    agarrado.current = null
+  }
+  const alTeclear = (e: KeyboardEvent<HTMLCanvasElement>) => {
+    const paso = 0.12
+    // Las flechas mueven la extremidad en el sentido de la flecha, igual que el arrastre.
+    const dx = e.key === 'ArrowRight' ? paso : e.key === 'ArrowLeft' ? -paso : 0
+    const dy = e.key === 'ArrowUp' ? paso : e.key === 'ArrowDown' ? -paso : 0
+    if (dx === 0 && dy === 0) return
+    e.preventDefault()
+    alDesplazar(limitarDesplazamiento({ x: actual.current.x + dx, y: actual.current.y + dy }))
+  }
   return (
     <div className="consola-escopia" role="group" aria-label="Fluoroscopia">
       <p className="consola-escopia-cabeza">
@@ -71,8 +122,23 @@ export function PanelDeFluoroscopia({
         width={384}
         height={384}
         role="img"
-        aria-label={`Imagen de fluoroscopia, proyección ${etiqueta}`}
+        tabIndex={0}
+        aria-label={`Imagen de fluoroscopia, proyección ${etiqueta}. Arrastre para mover la extremidad; con el teclado, las flechas.`}
+        title="Arrastre para subir o bajar la extremidad bajo el arco"
+        onPointerDown={alBajar}
+        onPointerMove={alMover}
+        onPointerUp={alSoltar}
+        onPointerCancel={alSoltar}
+        onKeyDown={alTeclear}
       />
+      <p className="consola-escopia-lectura consola-escopia-mover">
+        <small>Arrastre la imagen para subir o bajar la extremidad.</small>
+        {corrido ? (
+          <button type="button" className="consola-escopia-centrar" onClick={() => alDesplazar(SIN_DESPLAZAMIENTO)}>
+            <Crosshair size={12} aria-hidden /> Centrar
+          </button>
+        ) : null}
+      </p>
       <div className="consola-escopia-vistas" role="group" aria-label="Proyección">
         {PROYECCIONES_DE_FLUOROSCOPIA.map((q) => (
           <button

@@ -24,6 +24,7 @@ import {
   type PasoQuirurgico,
 } from '@/lib/simulador'
 import { largoDelTrazo, medirReduccion, type EjeLargo } from '@/lib/reduccion'
+import { POSICIONES_DEL_PACIENTE, type PosicionDelPaciente } from '@/lib/posicionDelPaciente'
 import {
   MAXIMO_DE_COMPLICACIONES,
   type ComplicacionDelCaso,
@@ -37,7 +38,9 @@ import { useConfirmar } from '@/components/ui/Confirmar'
 import { Vacio } from '@/components/ui/Vacio'
 import {
   AlertTriangle,
+  ArrowDownToLine,
   ArrowLeft,
+  ArrowUpFromLine,
   Box,
   Check,
   CheckCircle2,
@@ -46,6 +49,7 @@ import {
   Drill,
   Eraser,
   Focus,
+  FoldVertical,
   Hand,
   Info,
   Crosshair,
@@ -58,6 +62,7 @@ import {
   Plus,
   Rotate3d,
   RotateCcw,
+  RotateCw,
   ScanLine,
   Scissors,
   Search,
@@ -102,12 +107,22 @@ import { TIPOS_DE_TRAZO, type TipoDeTrazo } from '@/lib/trazoRecto'
 import {
   PROYECCIONES_DE_FLUOROSCOPIA,
   SEGUNDOS_DE_ESCOPIA_ALTOS,
+  SIN_DESPLAZAMIENTO,
+  type DesplazamientoDeLaImagen,
   type ProyeccionDeFluoroscopia,
 } from '@/lib/radiografia'
-import { adviertePorLaTension, ALTURA_MAXIMA_DEL_PELLIZCO_MM, aperturaMaxima } from '@/lib/exposicion'
+import {
+  adviertePorLaTension,
+  ALTURA_MAXIMA_DEL_PELLIZCO_MM,
+  aperturaMaxima,
+  ETIQUETA_DEL_PLANO,
+  PASO_DE_AGARRE,
+  SEPARACION_MAXIMA_DE_PINZAS_MM,
+} from '@/lib/exposicion'
 import type {
   AyudasDeEscopia,
   DatosDeNodo,
+  EstadoDeLaDiseccion,
   EstadoDeLasHeridas,
   EstadoDeLaSutura,
   EstadoDeLosPellizcos,
@@ -359,7 +374,7 @@ const MODO_SEPARAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
   etiqueta: 'Separar',
   icono: UnfoldHorizontal,
   ayuda:
-    'Separar: haga clic en el punto de la incisión donde quiere poner el separador y ábralo con la rueda del ratón (o con la barra). Uno de mano abre el borde que sostiene; uno autoestático abre los dos.',
+    'Separar: elija el plano —piel o músculo—, haga clic en el punto de la incisión donde quiere poner el separador y ábralo con la rueda del ratón (o con la barra). Uno de mano abre el borde que sostiene; uno autoestático abre los dos. Para separar el músculo, baje al músculo uno que ya esté puesto.',
 }
 
 /**
@@ -371,7 +386,19 @@ const MODO_PINZAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucide
   etiqueta: 'Pinzar',
   icono: Hand,
   ayuda:
-    'Pinzar: pique en la piel junto al borde de la herida y se levanta un pliegue; arrastre hacia arriba para levantar más, o use la rueda. Dos pinzas, una por borde, tensan la piel.',
+    'Pinzar: un clic pone la pareja de pinzas, una frente a la otra, a los dos lados de la incisión (o de donde irá). La rueda las separa o las junta; Mayúsculas + rueda abre o cierra las mandíbulas. Arrastrar una pinza hacia arriba levanta más la piel.',
+}
+
+/**
+ * El modo de la disección roma con la tijera de Metzenbaum (petición de Cristóbal): se apoya la punta cerrada en el
+ * tejido, se abren las ramas y el plano se separa por tensión, no por corte; se avanza y se vuelve a abrir.
+ */
+const MODO_DISECAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'disecar',
+  etiqueta: 'Disecar',
+  icono: FoldVertical,
+  ayuda:
+    'Disecar (disección roma): un clic apoya la punta cerrada de la tijera en el tejido; la rueda abre las ramas y el plano se separa por tensión, sin cortar. Otro clic más allá avanza, y se vuelve a abrir.',
 }
 
 const MODO_COSER: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
@@ -516,11 +543,17 @@ export function ConsolaQuirurgica({
   const [modo, setModo] = useState<Modo>(
     () => MODO_DEL_OBJETIVO[objetivoDelPaso(caso.pasos[0] ?? {})],
   )
+  // La posición del paciente: de pie, decúbito supino o prono. `null` cuando la vista se giró a mano (giro libre
+  // o girada 90°) y ya no es ninguna de las tres. Mueve la cámara, no el modelo (`posicionDelPaciente.ts`).
+  const [posicion, setPosicion] = useState<PosicionDelPaciente | null>('de-pie')
+  const [giroLibre, setGiroLibre] = useState(false)
   // La fluoroscopia: `null` apagada; encendida, la proyección con que se mira (AP, lateral u oblicua). Al
-  // encenderla la vista «Rayos X» pasa a radiografía y se abre al lado la imagen del arco en C, en círculo.
+  // encenderla se abre al lado la imagen del arco en C, en círculo; el lienzo principal no cambia.
   const [fluoroscopia, setFluoroscopia] = useState<ProyeccionDeFluoroscopia | null>(null)
   const [menuDeFluoroscopia, setMenuDeFluoroscopia] = useState(false)
   const [zoomDeFluoroscopia, setZoomDeFluoroscopia] = useState(1)
+  // Cuánto se ha corrido la extremidad bajo el arco: se arrastra la imagen, como en pabellón se mueve el miembro.
+  const [desplazamientoDeFluoroscopia, setDesplazamientoDeFluoroscopia] = useState<DesplazamientoDeLaImagen>(SIN_DESPLAZAMIENTO)
   // Las ayudas de los rayos X (D-166). Los ejes salen puestos —son lo que
   // enseña a leer la angulación— y el objetivo no: ver dónde debe quedar el
   // hueso es una ayuda que conviene poder quitar, porque en una radioscopia
@@ -538,6 +571,12 @@ export function ConsolaQuirurgica({
   // Lo que hay puesto en el campo: separadores en la herida y pinzas que sostienen la piel.
   const [separadores, setSeparadores] = useState<EstadoDeLosSeparadores | null>(null)
   const [pellizcos, setPellizcos] = useState<EstadoDeLosPellizcos | null>(null)
+  // Cómo se usa la tijera de Metzenbaum: cortando, como cualquier tijera, o en disección roma (separa por tensión).
+  const [usoDeLaTijera, setUsoDeLaTijera] = useState<'cortar' | 'roma'>('cortar')
+  // En qué plano se apoyan los separadores que se pongan: la piel o, más profundo, el músculo.
+  const [planoDeSeparador, setPlanoDeSeparador] = useState<'piel' | 'musculo'>('piel')
+  // La disección roma en curso: en qué plano, cuántas veces se separó y si la punta está apoyada.
+  const [diseccion, setDiseccion] = useState<EstadoDeLaDiseccion | null>(null)
   const lienzoDeFluoroscopia = useRef<HTMLCanvasElement>(null)
   /** Cuándo se avisó por última vez de que falta colocar el separador: la rueda gira diez veces seguidas y no hay que repetirlo. */
   const avisoDelSeparador = useRef(0)
@@ -1081,6 +1120,7 @@ export function ConsolaQuirurgica({
     mando.current?.soltarPellizco()
     mando.current?.cerrarHeridas()
     mando.current?.borrarAgujeros()
+    setDiseccion(null)
     colocarEnDesplazamientoInicial()
     entrarEnPaso(0, capasApagadas)
   }
@@ -1156,13 +1196,16 @@ export function ConsolaQuirurgica({
     // Al coger un instrumento se pasa solo al modo que ese instrumento usa: el bisturí, las tijeras y el
     // electrobisturí, a «Trazar»; el separador, a «Separar»; la pinza de disección, a «Pinzar»… Era lo que
     // se pedía: que el residente no tenga que acordarse de cambiar de modo después de coger la herramienta.
-    if (que?.corta) setModo('trazar')
+    // La Metzenbaum se usa de dos maneras: cortando o en disección roma; se recuerda la última que se eligió.
+    if (que?.roma && usoDeLaTijera === 'roma') setModo('disecar')
+    else if (que?.corta) setModo('trazar')
     else if (que?.separa) setModo('separar')
     else if (que?.pellizca) setModo('pinzar')
     else if (que?.perfora) setModo('perforar')
     else if (que?.sutura) setModo('coser')
     else if (que?.coloca || que?.mide) setModo('fijar')
-    else if (modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar') setModo('orbitar')
+    else if (modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar') setModo('orbitar')
+    setDiseccion(null)
     setInstrumento(id)
     setArticulacionesDeclaradas([])
     setArticulacionesMovidas({})
@@ -1244,6 +1287,8 @@ export function ConsolaQuirurgica({
       comportamientoDelInstrumento({ slug: slugDelElegido, nombre: nombreDelElegido, icono: iconoDelElegido }),
     [slugDelElegido, nombreDelElegido, iconoDelElegido],
   )
+  /** La Metzenbaum en disección roma: no corta, apoya la punta y separa el plano al abrir las ramas. */
+  const usoRoma = !!queHace.roma && modo === 'disecar'
   /** Cómo se usa el instrumento en el abordaje, tal como lo cuenta el traumatólogo. */
   const guia = instrumentoElegido
     ? guiaDelInstrumento({ slug: slugDelElegido, nombre: nombreDelElegido, icono: iconoDelElegido })
@@ -1257,6 +1302,19 @@ export function ConsolaQuirurgica({
     return valores
   }, [articulacionesDeclaradas, articulacionesMovidas, ajustesDelElegido])
 
+  // Las ramas de la Metzenbaum en disección roma: lo que se abren —con la rueda o con la barra— es lo que separa el
+  // plano. Se le dice al lienzo como una fracción de su recorrido, de 0 (cerradas, donde empiezan) a 1 (abiertas del todo).
+  const articulacionDeLasRamas = usoRoma ? articulacionesDeclaradas[0] : undefined
+  const aberturaDeLasRamas = articulacionDeLasRamas
+    ? (valoresDeArticulacion[articulacionDeLasRamas.nombre] ?? articulacionDeLasRamas.inicial)
+    : null
+  useEffect(() => {
+    if (!articulacionDeLasRamas || aberturaDeLasRamas === null) return
+    const { inicial, max } = articulacionDeLasRamas
+    const fraccion = max === inicial ? 0 : (aberturaDeLasRamas - inicial) / (max - inicial)
+    mando.current?.abrirDiseccion(Math.min(1, Math.max(0, fraccion)))
+  }, [articulacionDeLasRamas, aberturaDeLasRamas])
+
   /** Lo que el lienzo necesita para poner el instrumento en la escena. */
   const idDelElegido = instrumentoElegido?.id
   const instrumentoEnEscena = useMemo<InstrumentoEnEscena | null>(
@@ -1268,8 +1326,9 @@ export function ConsolaQuirurgica({
             nombre: nombreDelElegido,
             ajustes: ajustesDelElegido,
             articulaciones: valoresDeArticulacion,
-            corta: iconoDelElegido === 'bisturi' || !!queHace.corta,
-            planoDeCorte: queHace.corta,
+            corta: (iconoDelElegido === 'bisturi' || !!queHace.corta) && !usoRoma,
+            planoDeCorte: usoRoma ? null : queHace.corta,
+            roma: usoRoma ? queHace.roma : null,
             separa: queHace.separa,
             pellizca: queHace.pellizca,
             electro: queHace.electro ? { modo: modoElectro, potenciaW } : null,
@@ -1279,7 +1338,7 @@ export function ConsolaQuirurgica({
             mide: queHace.mide,
           }
         : null,
-    [urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, modoElectro, potenciaW],
+    [urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW],
   )
 
   /**
@@ -1291,7 +1350,7 @@ export function ConsolaQuirurgica({
    * zoom al residente por un hilo que aún no tira de nada sería robarle la rueda para nada. La pinza, igual:
    * con ninguna puesta no hay qué levantar.
    */
-  const ruedaDelInstrumento: 'abre' | 'separa' | 'levanta' | 'potencia' | 'tira' | 'alarga' | null = !instrumentoElegido
+  const ruedaDelInstrumento: 'abre' | 'separa' | 'pinza' | 'potencia' | 'tira' | 'alarga' | null = !instrumentoElegido
     ? null
     : queHace.sutura
       ? sutura && sutura.puntadas > 0
@@ -1303,7 +1362,7 @@ export function ConsolaQuirurgica({
           ? 'separa'
           : queHace.pellizca
             ? pellizcos && pellizcos.lista.length > 0
-              ? 'levanta'
+              ? 'pinza'
               : null
             : queHace.electro
               ? 'potencia'
@@ -1311,9 +1370,11 @@ export function ConsolaQuirurgica({
                 ? 'abre'
                 : null
 
-  const alRuedaDelInstrumento = (deltaY: number): boolean => {
+  const alRuedaDelInstrumento = (deltaY: number, mayusculas = false): boolean => {
     const m = mando.current
     if (!m || !ruedaDelInstrumento) return false
+    // Con Mayúsculas solo las pinzas se quedan la rueda (abrir y cerrar las mandíbulas); el resto la devuelve al zoom.
+    if (mayusculas && ruedaDelInstrumento !== 'pinza') return false
     // Hacia delante (deltaY negativo) abre, tira, alarga o sube; hacia atrás, al revés.
     const sentido = deltaY < 0 ? 1 : -1
     const entre = (minimo: number, maximo: number, valor: number) => Math.min(maximo, Math.max(minimo, valor))
@@ -1329,8 +1390,10 @@ export function ConsolaQuirurgica({
       setPotenciaW((antes) => limitarPotencia(antes + sentido * 5))
       return true
     }
-    if (ruedaDelInstrumento === 'levanta') {
-      m.levantarPellizco(sentido * 1.5)
+    if (ruedaDelInstrumento === 'pinza') {
+      // Hacia delante separa las dos pinzas (tiran de los bordes de la piel) o abre las mandíbulas; hacia atrás, al revés.
+      if (mayusculas) m.abrirMandibulas(sentido)
+      else m.separarPinzas(sentido * 1.5)
       return true
     }
     if (ruedaDelInstrumento === 'separa') {
@@ -1442,10 +1505,10 @@ export function ConsolaQuirurgica({
     if (fluoroscopia === null) return
     const reloj = window.setInterval(() => {
       const lienzo = lienzoDeFluoroscopia.current
-      if (lienzo) mando.current?.dibujarFluoroscopia(lienzo, fluoroscopia, zoomDeFluoroscopia)
+      if (lienzo) mando.current?.dibujarFluoroscopia(lienzo, fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia)
     }, 140)
     return () => window.clearInterval(reloj)
-  }, [fluoroscopia, zoomDeFluoroscopia])
+  }, [fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia])
 
   /**
    * Apaga la fluoroscopia.
@@ -1465,7 +1528,9 @@ export function ConsolaQuirurgica({
     }
     setMenuDeFluoroscopia(false)
     setFluoroscopia(null)
-    mando.current?.mirarDesde('libre')
+    // La próxima vez, el miembro empieza centrado. La vista del lienzo no se tocó al encender, así que no hay
+    // nada que devolver.
+    setDesplazamientoDeFluoroscopia(SIN_DESPLAZAMIENTO)
   }
 
   /** Enciende la fluoroscopia con la proyección elegida, o cambia de proyección si ya estaba encendida. */
@@ -1473,7 +1538,8 @@ export function ConsolaQuirurgica({
     if (fluoroscopia === null) setSegundosDeEscopia(0)
     setFluoroscopia(proyeccion)
     setMenuDeFluoroscopia(false)
-    mando.current?.mirarDesde(proyeccion)
+    // La vista del lienzo se queda como estaba (petición de Cristóbal): el arco tiene su propia cámara y la
+    // proyección solo cambia la imagen del recuadro.
   }
 
   /** El botón: apagada, abre el menú de las tres proyecciones; encendida, la apaga. */
@@ -1542,6 +1608,7 @@ export function ConsolaQuirurgica({
     ...(editor ? [MODO_SENALAR] : []),
     ...(queHace.separa ? [MODO_SEPARAR] : []),
     ...(queHace.pellizca ? [MODO_PINZAR] : []),
+    ...(queHace.roma ? [MODO_DISECAR] : []),
     ...(queHace.perfora ? [MODO_PERFORAR] : []),
     ...(queHace.sutura ? [MODO_COSER] : []),
     ...(queHace.coloca || queHace.mide ? [MODO_FIJAR] : []),
@@ -1899,8 +1966,8 @@ export function ConsolaQuirurgica({
                       ? 'hacia delante alarga el tornillo; hacia atrás lo acorta.'
                       : ruedaDelInstrumento === 'separa'
                         ? 'hacia delante abre el separador colocado y la herida; hacia atrás los cierra.'
-                        : ruedaDelInstrumento === 'levanta'
-                          ? 'hacia delante levanta más la piel con la pinza; hacia atrás la baja.'
+                        : ruedaDelInstrumento === 'pinza'
+                          ? 'hacia delante separa las dos pinzas, tirando de los bordes de la piel; hacia atrás las junta. Con Mayúsculas, hacia delante abre las mandíbulas y hacia atrás las cierra.'
                           : ruedaDelInstrumento === 'potencia'
                             ? 'hacia delante sube la potencia del electrobisturí (de 5 en 5 W); hacia atrás la baja.'
                             : 'hacia delante abre el instrumento; hacia atrás lo cierra.'}{' '}
@@ -1910,7 +1977,40 @@ export function ConsolaQuirurgica({
 
               {guia ? <p className="consola-instrumento-texto consola-instrumento-guia">{guia}</p> : null}
 
-              {queHace.corta ? (
+              {queHace.roma ? (
+                <div className="consola-submodo" role="group" aria-label="Cómo se usa la tijera">
+                  {(
+                    [
+                      ['cortar', 'Cortar', 'Como una tijera cualquiera: se traza la incisión y la malla se abre a lo largo del trazo.'],
+                      ['roma', 'Disección roma', 'Se apoya la punta cerrada, se abren las ramas y el plano se separa por tensión, sin cortar.'],
+                    ] as const
+                  ).map(([valor, etiqueta, ayuda]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      className={`consola-submodo-boton${usoDeLaTijera === valor ? ' activo' : ''}`}
+                      aria-pressed={usoDeLaTijera === valor}
+                      title={ayuda}
+                      onClick={() => {
+                        setUsoDeLaTijera(valor)
+                        setModo(valor === 'roma' ? 'disecar' : 'trazar')
+                      }}
+                    >
+                      {etiqueta}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {usoRoma ? (
+                <p className="consola-instrumento-texto" role="status">
+                  {diseccion?.apoyada
+                    ? diseccion.aperturas > 0
+                      ? `Punta apoyada en ${diseccion.capa === 'piel' ? 'la piel' : 'el músculo'} · ${diseccion.aperturas} ${diseccion.aperturas === 1 ? 'apertura' : 'aperturas'}. Abra las ramas con la rueda; para avanzar, haga clic más allá.`
+                      : `Punta apoyada en ${diseccion.capa === 'piel' ? 'la piel' : 'el músculo'}. Abra las ramas con la rueda del ratón: el plano se separa por tensión.`
+                    : 'Haga clic en el tejido para apoyar la punta cerrada; después se abren las ramas con la rueda del ratón y el plano se separa por tensión, sin cortar. Para avanzar, otro clic más allá.'}
+                </p>
+              ) : queHace.corta ? (
                 <p className="consola-instrumento-texto">
                   Corta {queHace.corta === 'piel' ? 'la piel' : 'los planos de debajo de la piel'}: en el modo
                   «Trazar», dos clics marcan el inicio y el final de la incisión (o arrastre, a mano alzada, si
@@ -2013,6 +2113,44 @@ export function ConsolaQuirurgica({
                     </label>
                   ) : null}
                   {pellizcos && pellizcos.lista.length > 0 ? (
+                    <>
+                      <label className="consola-instrumento-articulacion">
+                        <span>Separar</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={SEPARACION_MAXIMA_DE_PINZAS_MM}
+                          step={0.5}
+                          value={Math.max(...pellizcos.lista.map((q) => q.separacionMm))}
+                          onChange={(e) =>
+                            mando.current?.separarPinzas(
+                              Number(e.target.value) - Math.max(...pellizcos.lista.map((q) => q.separacionMm)),
+                            )
+                          }
+                          aria-label="Cuánto se separan las pinzas, tirando de los bordes de la piel"
+                        />
+                        <output>{Math.max(...pellizcos.lista.map((q) => q.separacionMm)).toFixed(0)} mm</output>
+                      </label>
+                      <label className="consola-instrumento-articulacion">
+                        <span>Mandíbulas</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={10}
+                          value={Math.round(Math.min(...pellizcos.lista.map((q) => q.agarre)) * 100)}
+                          onChange={(e) =>
+                            mando.current?.abrirMandibulas(
+                              (Math.min(...pellizcos.lista.map((q) => q.agarre)) - Number(e.target.value) / 100) / PASO_DE_AGARRE,
+                            )
+                          }
+                          aria-label="Cuánto están cerradas las mandíbulas de las pinzas"
+                        />
+                        <output>{Math.round(Math.min(...pellizcos.lista.map((q) => q.agarre)) * 100)} % cerradas</output>
+                      </label>
+                    </>
+                  ) : null}
+                  {pellizcos && pellizcos.lista.length > 0 ? (
                     <div className="consola-instrumento-acciones">
                       <button type="button" className="consola-boton" onClick={() => mando.current?.soltarPellizco()}>
                         Soltar la piel
@@ -2024,6 +2162,29 @@ export function ConsolaQuirurgica({
 
               {queHace.separa ? (
                 <div className="consola-instrumento-articulaciones">
+                  {/* El plano en que se apoya el separador (petición de Cristóbal): la piel para abrir campo, o más
+                      profundo, el músculo. El Hohmann se apoya en el hueso y no elige. */}
+                  {!queHace.separa.apoyoEnHueso ? (
+                    <div className="consola-submodo" role="group" aria-label="Plano en que se apoya el separador">
+                      {(
+                        [
+                          ['piel', 'Piel', 'Apoya el separador en la piel: abre la piel y deja ver el plano de abajo.'],
+                          ['musculo', 'Músculo', 'Apoya el separador más profundo, en el músculo: separa el músculo y la piel que tiene encima.'],
+                        ] as const
+                      ).map(([valor, etiqueta, ayuda]) => (
+                        <button
+                          key={valor}
+                          type="button"
+                          className={`consola-submodo-boton${planoDeSeparador === valor ? ' activo' : ''}`}
+                          aria-pressed={planoDeSeparador === valor}
+                          title={ayuda}
+                          onClick={() => setPlanoDeSeparador(valor)}
+                        >
+                          {etiqueta}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   <p className="consola-instrumento-texto">
                     {queHace.separa.apoyoEnHueso
                       ? 'Haga clic sobre el hueso: el separador se apoya en su borde y retrae las partes blandas de ese lado.'
@@ -2043,8 +2204,31 @@ export function ConsolaQuirurgica({
                               className="consola-separador-nombre"
                               onClick={() => mando.current?.elegirSeparador(q.id)}
                             >
-                              {q.nombre} · {q.lado === 0 ? 'los dos bordes' : q.lado > 0 ? 'borde A' : 'borde B'} · {q.aperturaMm} mm
+                              {q.nombre} · {q.lado === 0 ? 'los dos bordes' : q.lado > 0 ? 'borde A' : 'borde B'} ·{' '}
+                              {ETIQUETA_DEL_PLANO[q.plano]} · {q.aperturaMm} mm
                             </button>
+                            {q.tipo !== 'palanca' ? (
+                              <button
+                                type="button"
+                                className="consola-separador-plano"
+                                title={
+                                  q.plano === 'piel'
+                                    ? 'Apoyar este separador más profundo, en el músculo'
+                                    : 'Volver a apoyar este separador en la piel'
+                                }
+                                onClick={() => mando.current?.cambiarPlanoDelSeparador(q.id, q.plano === 'piel' ? 'musculo' : 'piel')}
+                              >
+                                {q.plano === 'piel' ? (
+                                  <>
+                                    <ArrowDownToLine size={13} aria-hidden /> Al músculo
+                                  </>
+                                ) : (
+                                  <>
+                                    <ArrowUpFromLine size={13} aria-hidden /> A la piel
+                                  </>
+                                )}
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="consola-separador-quitar"
@@ -2482,7 +2666,12 @@ export function ConsolaQuirurgica({
                   className={`consola-modo${modo === m.valor ? ' activo' : ''}${pedido ? ' pedido' : ''}`}
                   aria-pressed={modo === m.valor}
                   title={m.ayuda}
-                  onClick={() => setModo(m.valor)}
+                  onClick={() => {
+                    setModo(m.valor)
+                    // Las dos maneras de usar la Metzenbaum se recuerdan: al volver a cogerla se abre como se dejó.
+                    if (m.valor === 'disecar') setUsoDeLaTijera('roma')
+                    else if (m.valor === 'trazar') setUsoDeLaTijera('cortar')
+                  }}
                 >
                   <Icono size={18} aria-hidden />
                   <span>{m.etiqueta}</span>
@@ -2550,6 +2739,51 @@ export function ConsolaQuirurgica({
           ) : null}
         </div>
 
+        {/* Cómo está el paciente en la mesa. Antes solo se podía orbitar con el miembro vertical, como de pie, y nadie
+            opera así: «Supino» y «Prono» lo acuestan con un clic, y el giro libre deja inclinarlo a gusto. Mueve la
+            vista y no el modelo, así que lo que ya está puesto (separadores, pinzas, hilo, placa) no se descoloca. */}
+        <div className="consola-paciente-bloque">
+          <h3 className="consola-subtitulo" id="consola-posicion">
+            Paciente
+          </h3>
+          <div className="consola-segmentado" role="group" aria-labelledby="consola-posicion">
+            {POSICIONES_DEL_PACIENTE.map((p) => (
+              <button
+                key={p.valor}
+                type="button"
+                className={`consola-modo consola-posicion${posicion === p.valor ? ' activo' : ''}`}
+                aria-pressed={posicion === p.valor}
+                title={p.ayuda}
+                onClick={() => {
+                  setPosicion(p.valor)
+                  mando.current?.ponerPosicion(p.valor)
+                }}
+              >
+                <span>{p.etiqueta}</span>
+              </button>
+            ))}
+          </div>
+          <div className="consola-paciente-giro">
+            <label className="consola-interruptor" title="Con el giro libre, arrastrar da la vuelta al paciente sin «arriba» fijo: se puede acostar a mano.">
+              <span>Giro libre</span>
+              <input type="checkbox" role="switch" checked={giroLibre} onChange={(e) => setGiroLibre(e.target.checked)} />
+              <span className="consola-interruptor-pista" aria-hidden />
+            </label>
+            <button
+              type="button"
+              className="consola-boton consola-boton-icono"
+              title="Girar la vista 90° en el plano de la pantalla: tumba al paciente o lo levanta"
+              aria-label="Girar la vista 90 grados"
+              onClick={() => {
+                setPosicion(null)
+                mando.current?.rodarVista(90)
+              }}
+            >
+              <RotateCw size={16} aria-hidden /> 90°
+            </button>
+          </div>
+        </div>
+
         {herida && (herida.capas.length > 0 || herida.aviso) ? (
           <div className="consola-herida-bloque" role="status">
             <h3 className="consola-subtitulo">Herida</h3>
@@ -2607,6 +2841,14 @@ export function ConsolaQuirurgica({
             piezas={caso.piezas}
             modo={modo}
             fluoroscopia={fluoroscopiaEncendida}
+            giroLibre={giroLibre}
+            alGirarLaVista={() => setPosicion(null)}
+            planoDelSeparador={planoDeSeparador}
+            alDisecar={(estado) => {
+              setDiseccion(estado)
+              // Se va abriendo y avanzando: al apoyar la punta en otro sitio las ramas vuelven a estar cerradas.
+              if (estado?.evento === 'apoyo') setArticulacionesMovidas({})
+            }}
             ayudas={ayudas}
             inclinacionDeBroca={inclinacionDeBroca}
             trazo={tipoDeTrazo}
@@ -2698,6 +2940,8 @@ export function ConsolaQuirurgica({
               setHerida(null)
               setSutura(null)
               setFijacion(null)
+              // Un modelo recién cargado se abre de pie, de frente.
+              setPosicion('de-pie')
               setDelArchivo({
                 url: caso.modeloUrl ?? '',
                 nodos: mando.current?.nodosDelModelo() ?? [],
@@ -2810,6 +3054,8 @@ export function ConsolaQuirurgica({
               angulacion={reduccion.angulacion}
               topeDeAngulacion={objetivo === 'reduccion' && topes ? topes.angulacion : null}
               lienzo={lienzoDeFluoroscopia}
+              desplazamiento={desplazamientoDeFluoroscopia}
+              alDesplazar={setDesplazamientoDeFluoroscopia}
               alElegirProyeccion={elegirProyeccion}
               alAcercar={setZoomDeFluoroscopia}
               alCambiarAyudas={setAyudas}

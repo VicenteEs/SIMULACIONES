@@ -20,8 +20,47 @@
  * verdad, y eso es lo que calcula `aperturaEnLaPosicion`.
  */
 
-/** Cómo actúa cada tipo de separador. */
-export type TipoDeSeparador = 'mano' | 'autoestatico' | 'palanca'
+/**
+ * Cómo actúa cada tipo de separador. `roma` no es un instrumento: es la separación por tensión de una
+ * disección roma con la tijera de Metzenbaum (el punto donde las ramas se abren), que abre la herida del
+ * plano que se está disecando mientras las ramas están abiertas y nada más.
+ */
+export type TipoDeSeparador = 'mano' | 'autoestatico' | 'palanca' | 'roma'
+
+/** Las capas de partes blandas donde hay herida: la piel y los planos profundos. */
+export type CapaDeLaHerida = 'piel' | 'musculo'
+
+/**
+ * A qué profundidad está apoyado un separador (petición de Cristóbal): en la piel, en el músculo o —el Hohmann—
+ * en el hueso. Decide qué heridas abre: un separador abre **su plano y todos los de encima**, porque la hoja
+ * que está apoyada en el músculo tiene que pasar por la piel para llegar y la lleva consigo. Un Farabeuf en la
+ * piel abre solo la piel; el mismo Farabeuf, apoyado más profundo, abre la piel y el músculo.
+ */
+export type PlanoDelSeparador = 'piel' | 'musculo' | 'hueso'
+
+export const ETIQUETA_DEL_PLANO: Readonly<Record<PlanoDelSeparador, string>> = {
+  piel: 'piel',
+  musculo: 'músculo',
+  hueso: 'hueso',
+}
+
+/** «en la piel», «en el músculo», «en el hueso»: para escribirlo dentro de una frase. */
+export function enElPlano(plano: PlanoDelSeparador): string {
+  return plano === 'piel' ? 'en la piel' : `en el ${ETIQUETA_DEL_PLANO[plano]}`
+}
+
+/** Qué heridas abre un separador apoyado en cada plano. */
+const CAPAS_QUE_ABRE: Readonly<Record<PlanoDelSeparador, readonly CapaDeLaHerida[]>> = {
+  piel: ['piel'],
+  musculo: ['piel', 'musculo'],
+  hueso: ['piel', 'musculo'],
+}
+
+/** ¿Este separador abre la herida de esta capa? La separación roma solo abre la de su propio plano. */
+export function abreLaCapa(s: Pick<SeparadorColocado, 'plano' | 'tipo'>, capa: CapaDeLaHerida): boolean {
+  if (s.tipo === 'roma') return s.plano === capa
+  return CAPAS_QUE_ABRE[s.plano].includes(capa)
+}
 
 export interface SeparadorColocado {
   id: number
@@ -29,6 +68,8 @@ export interface SeparadorColocado {
   instrumentoId: string
   nombre: string
   tipo: TipoDeSeparador
+  /** En qué plano está apoyado: qué heridas abre. */
+  plano: PlanoDelSeparador
   /** A qué labio de la herida se agarra: +1, −1, o 0 si abraza los dos (autoestático). */
   lado: 1 | -1 | 0
   /** Dónde está a lo largo de la incisión, de 0 (inicio) a 1 (final). */
@@ -47,6 +88,8 @@ export const ALCANCE_POR_TIPO: Readonly<Record<TipoDeSeparador, number>> = {
   autoestatico: 0.4,
   // La palanca retrae músculo y no piel: su zona es ancha y blanda.
   palanca: 0.3,
+  // Las ramas de la tijera abren un tramo corto: lo que cabe entre sus puntas.
+  roma: 0.07,
 }
 
 export function tipoDelSeparador(separa: { autoestatico: boolean; apoyoEnHueso?: boolean }): TipoDeSeparador {
@@ -81,6 +124,25 @@ export function aperturaEnLaPosicion(
   return { mas, menos }
 }
 
+/**
+ * Cuánto abre cada labio de la herida de **una capa** en un punto, con lo que haya puesto: los separadores que
+ * llegan a esa capa, las pinzas (solo en la piel: sujetan piel) y la separación roma que se esté haciendo.
+ * Donde se solapan manda el que más abre, como entre separadores.
+ */
+export function aperturaDeLaCapa(
+  capa: CapaDeLaHerida,
+  posicion: number,
+  separadores: readonly SeparadorColocado[],
+  pellizcos: readonly Pellizco[] = [],
+): { mas: number; menos: number } {
+  const dePinzas = capa === 'piel' ? aperturaPorLasPinzas(pellizcos, posicion) : { mas: 0, menos: 0 }
+  const deSeparadores = aperturaEnLaPosicion(
+    separadores.filter((s) => abreLaCapa(s, capa)),
+    posicion,
+  )
+  return { mas: Math.max(deSeparadores.mas, dePinzas.mas), menos: Math.max(deSeparadores.menos, dePinzas.menos) }
+}
+
 /** La apertura máxima de la herida, en milímetros: lo que dice el panel. */
 export function aperturaMaxima(separadores: readonly SeparadorColocado[]): number {
   let mayor = 0
@@ -111,12 +173,58 @@ export interface Pellizco {
   lado: 1 | -1 | 0
   /** Cuánto levanta la piel, en milímetros. */
   alturaMm: number
+  /** Dónde está a lo largo de la incisión, de 0 (inicio) a 1 (final); la mitad si todavía no hay herida. */
+  posicion: number
+  /**
+   * Cuánto se ha alejado de la herida, en milímetros: las dos pinzas de la pareja se separan tirando de los
+   * bordes de la piel hacia fuera, y eso abre la herida un poco (la tensión).
+   */
+  separacionMm: number
+  /**
+   * Cuánto están cerradas las mandíbulas, de 0 (abiertas, sueltan la piel) a 1 (cerradas sobre el pliegue). Una
+   * pinza abierta no sostiene nada: no levanta el pliegue ni tensa.
+   */
+  agarre: number
 }
 
 export const ALTURA_MAXIMA_DEL_PELLIZCO_MM = 16
 export const ALTURA_INICIAL_DEL_PELLIZCO_MM = 8
 /** Cuántas pinzas a la vez: la de quien opera y la del ayudante. */
 export const MAXIMO_DE_PELLIZCOS = 2
+/** Hasta dónde se aleja cada pinza de la pareja de la herida, en milímetros. */
+export const SEPARACION_MAXIMA_DE_PINZAS_MM = 14
+/** Cuánto cambian las mandíbulas con cada muesca de la rueda (con Mayúsculas). */
+export const PASO_DE_AGARRE = 0.1
+/** Con menos agarre que esto la pinza suelta la piel: ni levanta ni tensa. */
+export const AGARRE_MINIMO_PARA_SOSTENER = 0.5
+/** La anchura de lo que tira una pinza, como fracción del largo de la herida: es un tramo corto de piel. */
+export const ALCANCE_DE_LA_PINZA = 0.1
+
+export const limitarSeparacionDePinzas = (mm: number): number =>
+  Math.min(SEPARACION_MAXIMA_DE_PINZAS_MM, Math.max(0, Math.round(mm * 10) / 10))
+export const limitarAgarre = (valor: number): number => Math.min(1, Math.max(0, Math.round(valor * 100) / 100))
+
+/** Cuánto levanta de verdad el pliegue: la altura que se le dio, por lo cerradas que estén las mandíbulas. */
+export const alturaEfectivaDelPellizco = (p: Pick<Pellizco, 'alturaMm' | 'agarre'>): number =>
+  p.agarre >= AGARRE_MINIMO_PARA_SOSTENER ? p.alturaMm * p.agarre : 0
+
+/**
+ * Cuánto abren las pinzas cada labio de la **piel** en un punto: tiran de él hacia fuera lo que se han separado,
+ * y solo mientras lo sostienen (las mandíbulas cerradas). Es la tensión con que el ayudante y quien opera
+ * ponen la piel antes de cortar; es poco, unos milímetros, frente a lo que abre un separador.
+ */
+export function aperturaPorLasPinzas(pellizcos: readonly Pellizco[], posicion: number): { mas: number; menos: number } {
+  let mas = 0
+  let menos = 0
+  for (const p of pellizcos) {
+    if (p.lado === 0 || p.agarre < AGARRE_MINIMO_PARA_SOSTENER) continue
+    const d = (posicion - p.posicion) / ALCANCE_DE_LA_PINZA
+    const abre = Math.max(0, p.separacionMm) * Math.exp(-0.5 * d * d)
+    if (p.lado > 0) mas = Math.max(mas, abre)
+    else menos = Math.max(menos, abre)
+  }
+  return { mas, menos }
+}
 
 export type TensionDeLaPiel = 'ninguna' | 'un-borde' | 'tensa'
 
@@ -126,7 +234,7 @@ export type TensionDeLaPiel = 'ninguna' | 'un-borde' | 'tensa'
  * medias, que es justo lo que se aprende a evitar.
  */
 export function tensionDeLaPiel(pellizcos: readonly Pellizco[]): TensionDeLaPiel {
-  const firmes = pellizcos.filter((p) => p.conDientes && p.alturaMm >= 3)
+  const firmes = pellizcos.filter((p) => p.conDientes && p.alturaMm >= 3 && p.agarre >= AGARRE_MINIMO_PARA_SOSTENER)
   const mas = firmes.some((p) => p.lado >= 0)
   const menos = firmes.some((p) => p.lado <= 0)
   if (firmes.length >= 2 && mas && menos) return 'tensa'

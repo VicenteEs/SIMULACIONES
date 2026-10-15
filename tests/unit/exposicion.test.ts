@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
+  abreLaCapa,
   adviertePorLaTension,
+  alturaEfectivaDelPellizco,
   ALCANCE_POR_TIPO,
+  AGARRE_MINIMO_PARA_SOSTENER,
+  aperturaDeLaCapa,
   aperturaEnLaPosicion,
   aperturaMaxima,
+  aperturaPorLasPinzas,
   ladoAlColocar,
+  limitarAgarre,
   limitarApertura,
+  limitarSeparacionDePinzas,
+  SEPARACION_MAXIMA_DE_PINZAS_MM,
   tensionDeLaPiel,
   tipoDelSeparador,
   type Pellizco,
@@ -18,6 +26,7 @@ const separador = (extra: Partial<SeparadorColocado> = {}): SeparadorColocado =>
   instrumentoId: '10',
   nombre: 'Farabeuf',
   tipo: 'mano',
+  plano: 'piel',
   lado: 1,
   posicion: 0.5,
   maximoMm: 30,
@@ -98,7 +107,16 @@ describe('los separadores colocados abren donde están', () => {
 })
 
 describe('las pinzas tensan la piel', () => {
-  const pinza = (extra: Partial<Pellizco> = {}): Pellizco => ({ id: 1, conDientes: true, lado: 1, alturaMm: 8, ...extra })
+  const pinza = (extra: Partial<Pellizco> = {}): Pellizco => ({
+    id: 1,
+    conDientes: true,
+    lado: 1,
+    alturaMm: 8,
+    posicion: 0.5,
+    separacionMm: 0,
+    agarre: 1,
+    ...extra,
+  })
 
   it('hacen falta dos con dientes, una en cada borde, para que la piel quede tensa', () => {
     expect(tensionDeLaPiel([])).toBe('ninguna')
@@ -151,5 +169,98 @@ describe('la guía de cada instrumento cuenta el abordaje como lo cuenta el trau
   })
   it('un instrumento sin nada que contar no inventa una guía', () => {
     expect(guiaDelInstrumento({ slug: 'martillo', nombre: 'Martillo' })).toBeNull()
+  })
+})
+
+describe('cada separador abre su plano y los de encima', () => {
+  it('uno apoyado en la piel abre solo la piel', () => {
+    const s = separador({ plano: 'piel' })
+    expect(abreLaCapa(s, 'piel')).toBe(true)
+    expect(abreLaCapa(s, 'musculo')).toBe(false)
+  })
+
+  it('apoyado más profundo, en el músculo, abre el músculo y la piel que tiene encima', () => {
+    // La hoja tiene que pasar por la piel para llegar al músculo y la lleva consigo.
+    const s = separador({ plano: 'musculo' })
+    expect(abreLaCapa(s, 'piel')).toBe(true)
+    expect(abreLaCapa(s, 'musculo')).toBe(true)
+  })
+
+  it('el Hohmann, apoyado en el hueso, retrae todo lo blando', () => {
+    const s = separador({ plano: 'hueso', tipo: 'palanca' })
+    expect(abreLaCapa(s, 'piel')).toBe(true)
+    expect(abreLaCapa(s, 'musculo')).toBe(true)
+  })
+
+  it('la separación roma de una disección solo abre el plano que se está disecando', () => {
+    const s = separador({ plano: 'musculo', tipo: 'roma', lado: 0 })
+    expect(abreLaCapa(s, 'musculo')).toBe(true)
+    expect(abreLaCapa(s, 'piel')).toBe(false)
+  })
+
+  it('la apertura de una capa cuenta solo los separadores que le llegan', () => {
+    const enLaPiel = separador({ id: 1, plano: 'piel', aperturaMm: 10 })
+    const enElMusculo = separador({ id: 2, plano: 'musculo', aperturaMm: 25 })
+    expect(aperturaDeLaCapa('piel', 0.5, [enLaPiel, enElMusculo]).mas).toBeCloseTo(25, 5)
+    // Con solo el de la piel, el músculo no se abre.
+    expect(aperturaDeLaCapa('musculo', 0.5, [enLaPiel]).mas).toBe(0)
+    expect(aperturaDeLaCapa('musculo', 0.5, [enLaPiel, enElMusculo]).mas).toBeCloseTo(25, 5)
+  })
+})
+
+describe('la pareja de pinzas de Adson', () => {
+  const pinza = (extra: Partial<Pellizco> = {}): Pellizco => ({
+    id: 1,
+    conDientes: true,
+    lado: 1,
+    alturaMm: 8,
+    posicion: 0.5,
+    separacionMm: 0,
+    agarre: 1,
+    ...extra,
+  })
+
+  it('separadas tiran de cada borde de la piel hacia fuera, y abren la herida', () => {
+    const par = [pinza({ id: 1, lado: 1, separacionMm: 6 }), pinza({ id: 2, lado: -1, separacionMm: 6 })]
+    const abre = aperturaPorLasPinzas(par, 0.5)
+    expect(abre.mas).toBeCloseTo(6, 5)
+    expect(abre.menos).toBeCloseTo(6, 5)
+    // Tiran de un tramo corto: lejos de donde están, la herida no se mueve.
+    expect(aperturaPorLasPinzas(par, 0.95).mas).toBeLessThan(0.1)
+  })
+
+  it('cerradas sin separar no abren nada', () => {
+    expect(aperturaPorLasPinzas([pinza({ separacionMm: 0 })], 0.5)).toEqual({ mas: 0, menos: 0 })
+  })
+
+  it('con las mandíbulas abiertas la pinza suelta la piel: ni tensa, ni levanta, ni abre', () => {
+    const suelta = pinza({ agarre: 0.2, separacionMm: 8 })
+    expect(aperturaPorLasPinzas([suelta], 0.5)).toEqual({ mas: 0, menos: 0 })
+    expect(alturaEfectivaDelPellizco(suelta)).toBe(0)
+    expect(tensionDeLaPiel([suelta, pinza({ id: 2, lado: -1, agarre: 0.2 })])).toBe('ninguna')
+  })
+
+  it('el pliegue sube en proporción a lo cerradas que estén las mandíbulas', () => {
+    expect(alturaEfectivaDelPellizco(pinza({ alturaMm: 10, agarre: 1 }))).toBe(10)
+    expect(alturaEfectivaDelPellizco(pinza({ alturaMm: 10, agarre: AGARRE_MINIMO_PARA_SOSTENER }))).toBe(5)
+  })
+
+  it('las pinzas solo abren la piel: el músculo no se entera', () => {
+    const par = [pinza({ id: 1, lado: 1, separacionMm: 6 }), pinza({ id: 2, lado: -1, separacionMm: 6 })]
+    expect(aperturaDeLaCapa('piel', 0.5, [], par).mas).toBeCloseTo(6, 5)
+    expect(aperturaDeLaCapa('musculo', 0.5, [], par).mas).toBe(0)
+  })
+
+  it('con un separador y las pinzas a la vez manda el que más abre, no la suma', () => {
+    const par = [pinza({ id: 1, lado: 1, separacionMm: 6 })]
+    const s = separador({ lado: 1, aperturaMm: 20 })
+    expect(aperturaDeLaCapa('piel', 0.5, [s], par).mas).toBeCloseTo(20, 5)
+  })
+
+  it('los topes: la separación y el agarre se quedan en su rango', () => {
+    expect(limitarSeparacionDePinzas(100)).toBe(SEPARACION_MAXIMA_DE_PINZAS_MM)
+    expect(limitarSeparacionDePinzas(-3)).toBe(0)
+    expect(limitarAgarre(1.7)).toBe(1)
+    expect(limitarAgarre(-0.2)).toBe(0)
   })
 })

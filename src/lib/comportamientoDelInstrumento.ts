@@ -19,6 +19,9 @@ import { esElectrobisturi } from './electrobisturi'
 
 export type PlanoDeCorte = 'piel' | 'musculo'
 
+/** Cuánto separan las puntas de la Metzenbaum con las ramas abiertas del todo: lo que cabe entre ellas, unos 14 mm. */
+export const ABERTURA_ROMA_DE_LA_METZENBAUM_MM = 14
+
 export interface ComportamientoDelInstrumento {
   /** Corta al trazar. `piel` abre la piel; `musculo` los planos profundos (bajo la piel). */
   corta: PlanoDeCorte | null
@@ -54,6 +57,12 @@ export interface ComportamientoDelInstrumento {
   coloca: QueColoca | null
   /** Mide cuánto hueso hay bajo un agujero de la placa (el medidor de profundidad). */
   mide: boolean
+  /**
+   * Además de cortar, separa los planos **por tensión** sin cortarlos: la disección roma de la tijera de Metzenbaum.
+   * Se mete la punta cerrada en el tejido, se abren las ramas, se avanza y se vuelve a abrir (petición de
+   * Cristóbal). `maximoMm` es lo que separan las puntas con las ramas abiertas del todo.
+   */
+  roma: { maximoMm: number } | null
 }
 
 const NADA: ComportamientoDelInstrumento = {
@@ -65,6 +74,7 @@ const NADA: ComportamientoDelInstrumento = {
   sutura: null,
   coloca: null,
   mide: false,
+  roma: null,
 }
 
 const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
@@ -72,7 +82,8 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'bisturi-profundo-n15': { ...NADA, corta: 'musculo' },
   electrobisturi: { ...NADA, corta: 'musculo', electro: true },
   'tijera-mayo': { ...NADA, corta: 'musculo' },
-  'tijera-metzenbaum': { ...NADA, corta: 'musculo' },
+  // La Metzenbaum se usa de dos maneras: cortando, como cualquier tijera, o en disección roma (se elige en el panel).
+  'tijera-metzenbaum': { ...NADA, corta: 'musculo', roma: { maximoMm: ABERTURA_ROMA_DE_LA_METZENBAUM_MM } },
 
   // Los de mano los sostiene un ayudante o el propio cirujano: abren poco y solo
   // mientras alguien los sujeta. Los autoestáticos se quedan abiertos con su trinquete.
@@ -129,6 +140,9 @@ function sinSutura(i: { slug?: string | null; nombre: string; icono?: string | n
   // red de seguridad, no la regla; lo que el catálogo base trae va en la tabla.
   const nombre = i.nombre.toLowerCase()
   if (esElectrobisturi(i)) return { ...NADA, corta: 'musculo', electro: true }
+  if (/metzenbaum/.test(nombre)) {
+    return { ...NADA, corta: 'musculo', roma: { maximoMm: ABERTURA_ROMA_DE_LA_METZENBAUM_MM } }
+  }
   if (/bistur/.test(nombre) || i.icono === 'bisturi') {
     return { ...NADA, corta: /piel|\b(10|11|20|21|22)\b/.test(nombre) ? 'piel' : 'musculo' }
   }
@@ -170,16 +184,16 @@ export function guiaDelInstrumento(i: { slug?: string | null; nombre: string; ic
   if (que.corta === 'piel') {
     return 'Solo la primera incisión, la de la piel, se hace con bisturí de piel. Después se toman los bordes con pinzas y se sigue con bisturí profundo o electrobisturí.'
   }
-  if (que.corta === 'musculo' && /metzenbaum/i.test(`${i.slug ?? ''} ${i.nombre}`)) {
-    return 'Otra opción para llegar a los planos profundos es meterse con la tijera de Metzenbaum cerrada y, a medida que se avanza, ir abriéndola (con la rueda del ratón). Se hace cuando se quiere ir con cuidado por haber estructuras delicadas.'
+  if (que.roma) {
+    return 'La Metzenbaum se usa de dos maneras. Para cortar, como cualquier tijera: se traza la incisión. Para la disección roma —cuando se quiere ir con cuidado por haber estructuras delicadas— se elige «Disección roma»: se apoya la punta cerrada en el tejido con un clic, se abren las ramas con la rueda del ratón y el plano se separa por tensión, no por corte; después se avanza (otro clic más allá) y se vuelve a abrir, y así se va avanzando.'
   }
   if (que.corta === 'musculo') {
     return 'Aquí suele aparecer la fascia, un tejido transparente o rosado que envuelve a los músculos como un estuche: se corta con bisturí profundo o electrobisturí. Al llegar a los músculos se va separando hasta llegar al hueso.'
   }
   if (que.pellizca) {
     return que.pellizca.conDientes
-      ? 'Tras la incisión de la piel se toman los bordes con pinzas con dientes: una la toma quien opera y la otra el ayudante. Así se da tensión para cortar la piel por completo. La pinza pellizca la piel hacia arriba.'
-      : 'La pinza sin dientes toma tejidos delicados sin lesionarlos. Pellizca hacia arriba, pero no da tensión a la piel: para eso se usan las de dientes.'
+      ? 'Las pinzas de Adson van de a dos, una frente a la otra: un clic las coloca a los dos lados de la incisión (una la toma quien opera y la otra el ayudante) y pellizcan la piel hacia arriba. La rueda las separa o las junta, tirando de los bordes; con Mayúsculas, la rueda abre o cierra las mandíbulas. Así se da tensión para cortar la piel por completo.'
+      : 'La pinza sin dientes toma tejidos delicados sin lesionarlos. Van de a dos, una frente a la otra, y pellizcan hacia arriba, pero no dan tensión a la piel: para eso se usan las de dientes.'
   }
   if (que.separa?.apoyoEnHueso) {
     return 'El Hohmann se apoya en el borde del hueso: haga clic sobre el hueso y retrae las partes blandas de ese lado. Se abre con la rueda del ratón o con la barra.'
@@ -188,7 +202,7 @@ export function guiaDelInstrumento(i: { slug?: string | null; nombre: string; ic
     return 'Autoestático: se clava a los dos lados de la herida y se queda abierto solo, con su trinquete. Haga clic en el punto de la incisión donde quiere ponerlo y ábralo con la rueda del ratón o con la barra.'
   }
   if (que.separa) {
-    return 'Una vez tomados los bordes y con el bisturí profundo, se meten los separadores y se llega a un plano más profundo. El Farabeuf y el Senn-Miller empujan la piel hacia un lado y hacia el otro, y se usan en pareja: uno por borde. Haga clic en la herida, junto al borde que quiere sostener, y ábralo con la rueda o con la barra.'
+    return 'Una vez tomados los bordes y con el bisturí profundo, se meten los separadores y se llega a un plano más profundo. El Farabeuf y el Senn-Miller empujan la piel hacia un lado y hacia el otro, y se usan en pareja: uno por borde. Elija el plano —piel o músculo—, haga clic en la herida junto al borde que quiere sostener y ábralo con la rueda o con la barra. Para separar el músculo, baje al músculo un separador que ya esté puesto.'
   }
   return null
 }

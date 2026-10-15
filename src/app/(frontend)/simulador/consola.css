@@ -1124,6 +1124,7 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
   .consola-instrumento { margin-right: var(--e-4); }
 
   .consola-capas-bloque { order: 7; padding: var(--e-4); background: var(--c-panel); border-top: 1px solid var(--c-linea); }
+  .consola-paciente-bloque { order: 7; padding: var(--e-4); background: var(--c-panel); border-top: 1px solid var(--c-linea); }
   .consola-capas { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--e-3); }
   .consola-interruptor { flex-direction: column-reverse; align-items: flex-start; gap: var(--e-1); }
   .consola-interruptor input { top: 0; margin: 0; }
@@ -1190,6 +1191,29 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
 }
 .consola-lienzo-lectura[hidden] { display: none; }
 .consola-herida-bloque { display: grid; gap: var(--e-2); }
+/* La posición del paciente (de pie, supino, prono) y el giro libre. */
+.consola-paciente-bloque { display: grid; gap: var(--e-2); }
+.consola-paciente-bloque .consola-posicion { min-height: 34px; flex-direction: row; }
+.consola-paciente-giro { display: flex; align-items: center; justify-content: space-between; gap: var(--e-2); }
+.consola-separador-plano {
+  grid-area: plano;
+  justify-self: start;
+  margin: 0 var(--e-2) var(--e-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  padding: 2px var(--e-2);
+  font: inherit;
+  font-size: var(--t-xs);
+  color: var(--c-texto-2);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.consola-separador-plano:hover { color: var(--c-texto); }
+.consola-boton-icono { display: inline-flex; align-items: center; gap: var(--e-1); padding: var(--e-1) var(--e-2); font-size: var(--t-xs); }
 .consola-herida-datos { margin: 0; font-size: var(--t-xs); color: var(--c-texto-2); }
 .consola-herida-aviso { margin: 0; font-size: var(--t-xs); color: var(--c-atencion, var(--c-texto-2)); }
 
@@ -1377,7 +1401,31 @@ body:has(.consola-completa) { overflow: hidden; }
 .consola-fluoro-opcion:hover { background: var(--c-panel-2); }
 .consola-fluoro-opcion strong { font-size: var(--t-sm); }
 .consola-fluoro-opcion small { font-size: var(--t-xs); color: var(--c-texto-2); }
-.consola-escopia { width: 268px; top: calc(var(--e-3) + 46px); max-height: calc(100% - var(--e-3) * 2 - 46px); overflow-y: auto; }
+/* El recuadro no puede tapar el lienzo: en el editor el lienzo es angosto y 268 px eran casi todo su ancho, y quien
+   miraba la fluoroscopia dejaba de ver la escena que estaba trabajando. Ocupa a lo sumo la mitad. */
+/* En la consola del residente, con pantalla ancha, el recuadro va **al lado** del lienzo y no encima: el lienzo cede ese
+   ancho y se sigue viendo entero lo que se estaba mirando (petición de Cristóbal: que el cuadro del rayo no tape el
+   resto de la imagen). En el editor, con su panel a la derecha, el lienzo es angosto y se queda el recuadro encima. */
+@media (min-width: 1000px) {
+  .consola:not(.consola-editor) .consola-lienzo-marco:has(> .consola-escopia) { flex-direction: row; }
+  .consola:not(.consola-editor) .consola-lienzo-marco > .consola-escopia {
+    position: relative;
+    top: auto;
+    right: auto;
+    flex: none;
+    width: 268px;
+    max-height: none;
+    padding-top: calc(var(--e-3) + 46px);
+    border-width: 0 0 0 1px;
+    border-radius: 0;
+    backdrop-filter: none;
+  }
+  /* La barra del lienzo sigue sobre el lienzo, no sobre el recuadro. */
+  .consola:not(.consola-editor) .consola-lienzo-marco:has(> .consola-escopia) > .consola-lienzo-herramientas {
+    right: calc(268px + var(--e-3));
+  }
+}
+.consola-escopia { width: min(268px, 52%); top: calc(var(--e-3) + 46px); max-height: calc(100% - var(--e-3) * 2 - 46px); overflow-y: auto; }
 /* La imagen es un círculo: lo que ve el intensificador del arco. Fondo negro por fuera. */
 .consola-escopia-imagen {
   display: block;
@@ -1388,6 +1436,25 @@ body:has(.consola-completa) { overflow: hidden; }
   border: 2px solid var(--c-linea-fuerte);
 }
 .consola-escopia-zoom { margin-top: var(--e-1); }
+/* La imagen se arrastra: el cursor lo dice y el dedo no desplaza la página mientras se mueve el miembro. */
+.consola-escopia-imagen { cursor: grab; touch-action: none; user-select: none; }
+.consola-escopia-imagen:active { cursor: grabbing; }
+.consola-escopia-imagen:focus-visible { outline: 2px solid var(--c-acento, #5aa9ff); outline-offset: 2px; }
+.consola-escopia-mover { display: flex; align-items: center; justify-content: space-between; gap: var(--e-2); }
+.consola-escopia-mover small { color: var(--c-rotulo); }
+.consola-escopia-centrar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  padding: 2px var(--e-2);
+  font: inherit;
+  font-size: var(--t-xs);
+  color: var(--c-texto);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
 
 /* ---- bandeja: el buscador, «añadir» y los separadores y pinzas puestos ---- */
 .consola-busqueda-envoltorio {
@@ -1422,7 +1489,10 @@ body:has(.consola-completa) { overflow: hidden; }
 
 .consola-separadores { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-1); }
 .consola-separadores li {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 32px;
+  /* El botón de plano (`Al músculo`) va debajo del nombre y no le quita el ancho: la columna es estrecha. */
+  grid-template-areas: 'nombre quitar' 'plano quitar';
   align-items: stretch;
   gap: 2px;
   border: 1px solid var(--c-linea);
@@ -1431,7 +1501,7 @@ body:has(.consola-completa) { overflow: hidden; }
 }
 .consola-separadores li.activo { border-color: var(--c-acento); box-shadow: inset 0 0 0 1px var(--c-acento); }
 .consola-separador-nombre {
-  flex: 1;
+  grid-area: nombre;
   min-width: 0;
   padding: var(--e-2);
   font: inherit;
@@ -1443,7 +1513,7 @@ body:has(.consola-completa) { overflow: hidden; }
   cursor: pointer;
 }
 .consola-separador-quitar {
-  flex: none;
+  grid-area: quitar;
   display: grid;
   place-items: center;
   width: 32px;

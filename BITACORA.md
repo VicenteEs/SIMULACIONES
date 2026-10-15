@@ -5710,7 +5710,7 @@ incisión» y «las piezas fracturadas no se pueden mover».
   dice); con una herida de 19 cm hacen falta unas 19 puntadas que crucen, que es lo que pasa de verdad; el
   guardado en la pestaña no cubre todo lo que se hace sobre el paciente.
 
-### D-172 · 2026-10-12 · vigente
+### D-172 · 2026-10-12 · vigente, con la fluoroscopia y las pinzas rehechas en D-173
 **El simulador se maneja con el instrumento en la mano: cada uno hace lo que hace en pabellón, las pinzas y los
 separadores se ponen en la herida, los rayos X son una radiografía de verdad, hay fluoroscopia en un recuadro y el
 editor puede añadir lo que falte a los catálogos.**
@@ -5746,7 +5746,8 @@ en pantalla sobre los modelos reales de la copia de producción del 12-10-2026 (
 - *La incisión se hace de dos maneras*: **en línea recta** —clic en el inicio y clic en el final— o **a mano alzada**
   (el trazo que antes salía como «la tacorne»). Elegir un instrumento pasa solo al modo «Trazar».
 - *«Rayos X» es ahora una radiografía* (`radiografia.ts`, `materialDeRadiografia.ts`), en el simulador y en el taller
-  anatómico: fondo negro, cada tejido en un gris según su densidad (hueso 1, implante 1,9, músculo 0,3, piel 0,14;
+  anatómico (~~el lienzo del simulador pasaba a verse así al encender la fluoroscopia~~: superado en D-173, ahora solo la imagen
+  del recuadro): fondo negro, cada tejido en un gris según su densidad (hueso 1, implante 1,9, músculo 0,3, piel 0,14;
   pulmón 0,06), un término de borde que da espesor, y **sin vasos ni nervios**. Suma blanco sobre negro con mezcla
   aditiva y sin escribir profundidad. Sustituye al «todo translúcido al 50 %» de D-139 y de D-166.
 - *Fluoroscopia* (renombra al botón de los rayos X del simulador). Abre un **recuadro al lado del lienzo** con la imagen
@@ -5782,6 +5783,80 @@ en pantalla sobre los modelos reales de la copia de producción del 12-10-2026 (
   escena, no una simulación de atenuación (los vasos y nervios solo se esconden). El compilador de React rechazaba las
   memorias de la consola si `encuadreVigente` se llamaba sobre el instrumento dentro del pintado: se calcula en una
   memoria aparte (prueba en `poseEnLasTresPantallas.test.ts`).
+
+### D-173 · 2026-10-16 · vigente
+**La incisión ya no desaparece, las Adson van de a dos, los separadores eligen plano, la Metzenbaum diseca por
+tensión, la fluoroscopia deja la vista como estaba y el paciente se puede acostar.**
+Pedido de Cristóbal tras probar D-172, con los vídeos de referencia (animaciones 3D de fijación del maléolo, MIPO,
+abordaje trimaleolar de la guía AO, abordaje posterolateral y disección lateral del peroné): «las pinzas Adson por lado y
+lado… que el scroll vaya abriendo o cerrando»; «poder elegir el plano en que quiero situar el Farabeuf… tomar uno que
+esté puesto y apoyarlo más profundo»; «la Metzenbaum: cortar, o disección roma, posicionar y scrollear para abrir, luego
+avanzar»; «me volvió a pasar que desaparece la incisión del bisturí y no logro meter los separadores»; «al usar
+fluoroscopia que no se pierda el resto de la imagen» y «mover para arriba y abajo lo que se ve (arrastrar la
+extremidad)»; «podía girarla y mirarla desde la planta pero no acostar… botones decúbito supino y prono». Las tres
+decisiones de diseño las eligió el dueño: la rueda de las Adson separa y, con Mayúsculas, abre las mandíbulas; la
+Metzenbaum se elige entre Cortar y Disección roma en el panel; el paciente se acuesta moviendo la vista y no el modelo.
+
+*La incisión que desaparecía (O-079).* No era el cierre por primera vez de D-172: era `mostrar`. La cinta roja de la
+herida (D-172) es una `Mesh` con nombre, hija de la malla que se cortó, y `mostrar(nodos)` apaga «toda malla que no está
+en la lista». Con cada cambio de paso o de capa —`refrescarVisibles`— la cinta se apagaba, y una incisión limpia, con los
+labios pegados, no se ve por ningún otro lado: la incisión «desaparecía» y quien iba a meter los separadores no encontraba
+por dónde. También se colaba en la lista de piezas del editor, como si fuera un trozo del archivo.
+`esDeInterfazDelModelo` y `aplicarVisibilidad` (`LienzoQuirurgico.tsx`) dejan fuera la cinta y el borde en `mostrar`,
+`nodosVisibles`, `nodosDelModelo` y `datosDeLosNodos`; probado con un modelo de verdad (la cinta sigue visible al apagar y
+encender capas). Y un segundo agujero del mismo síntoma: un corte nuevo cerraba la herida de la capa **antes** de saber si
+cortaba; si el trazo salía del modelo, la incisión buena se perdía. Ahora, si no corta nada, se rehace la anterior.
+
+*Las Adson, de a dos.* Un clic pone **la pareja**, una por borde, enfrentadas (los mangos se abren hacia fuera), a los dos
+lados de la herida o, sin herida, de donde irá la incisión (el trazo, o de lado a lado de la pantalla). La rueda las separa
+o las junta —tiran de los bordes de la piel y abren la herida unos milímetros, `aperturaPorLasPinzas`— y con Mayúsculas abre o
+cierra las mandíbulas: con menos de la mitad cerradas la pinza suelta la piel (no levanta el pliegue ni tensa). Pliegue y
+pinza se mueven juntos. Las pinzas solo toman la piel (`golpeEnLaCapa(['piel'])`).
+
+*Los separadores eligen plano.* `SeparadorColocado.plano` (piel, músculo o hueso para el Hohmann): un separador abre **su plano
+y los de encima** (la hoja pasa por la piel para llegar al músculo y la lleva consigo), `abreLaCapa`, y la herida de cada capa se
+abre con lo que le llega (`aperturaDeLaCapa`, `aplicarSeparadoresALasHeridas` por capa). Antes todo separador abría todas las
+heridas. El panel tiene el selector «Piel | Músculo» para los que se pongan, y cada separador puesto un botón «Al músculo» /
+«A la piel» que lo baja por la normal hasta la superficie del músculo (cada plano guarda su sitio, así subir y bajar lo deja
+donde estaba). Sin herida en el músculo, lo dice y no hace nada.
+
+*La Metzenbaum en disección roma.* Modo nuevo «Disecar», elegido con «Cortar | Disección roma»: un clic apoya la punta cerrada
+(plano = el de la pieza tocada: piel o músculo), la rueda abre las ramas, y al pasar del 12 % de su recorrido ese punto entra en
+la herida del plano y se abre por tensión, sin cortar (`diseccionRoma.ts`). Otro clic más allá avanza —las ramas vuelven a
+cerrarse— y la herida pasa por todos los puntos donde se separó. Con las ramas cerradas el plano queda disecado pero sus
+labios se juntan: lo disecado queda disecado. **Una disección nunca borra una herida que no hizo ella**: sobre una incisión con
+bisturí, las ramas la abren donde se apoyan (a menos de 30 mm) y no la rehacen; es lo que se probó mal primero: apoyar la punta
+en la piel sustituía la incisión de 346 mm por una ranura de 12.
+
+*La fluoroscopia ya no cambia la vista.* El recuadro seguía siendo lo de D-172, pero encender la fluoroscopia además convertía el
+lienzo principal en radiografía y movía la cámara a la proyección: se perdía lo que se estaba trabajando. Ahora los materiales
+de la radiografía se ponen **solo mientras dura el dibujo de la imagen** (`ponerRadiografiaTemporal`, síncrono, uno por densidad,
+se devuelven en un `finally`), el lienzo se queda como estaba y el recuadro va **al lado** del lienzo en la consola del residente
+(`@media` ancho; en el editor, con su panel, el lienzo es angosto y se queda encima, a lo sumo la mitad). La imagen se arrastra:
+sube o baja la extremidad bajo el arco (`arrastrarLaImagen`, `centroDeLaImagen`; flechas con el teclado; «Centrar»), como en
+pabellón se mueve el miembro con el arco quieto. Supera lo de D-172 sobre «el lienzo pasa a radiografía».
+
+*Decúbito y giro libre.* «De pie», «Supino» y «Prono» (bloque «Paciente») ponen la **cámara**: el hueso en horizontal, visto desde
+arriba, proximal a la izquierda, por delante (supino) o por detrás (prono) (`posicionDelPaciente.ts`). Se mueve la vista y no el
+modelo porque separadores, pinzas, hilo, placa y trazo están en el mundo: girar el cuerpo los dejaría donde estaban. «Giro libre»
+gira la cámara con los ejes de la pantalla, sin polos (`girarLaVista`): se puede acostar a mano; «↻ 90°» la tumba en el plano.
+`OrbitControls` guarda su «arriba» en un campo privado (`_quat`) que solo lee al construirse: `sincronizarElArriba` lo reescribe y una
+prueba falla si una versión de three lo renombra. «Encuadrar» conserva la posición elegida con los botones.
+
+*Los enlaces en los textos.* Ya se podían: el editor de texto enriquecido (`EditorTextoRico`) trae el botón «Insertar enlace»
+—también se enlaza al pegar una dirección— en «Qué se hace», «Estructura o principio en juego» y en los bloques de texto de las
+fichas; valen http, https, mailto, tel y rutas internas (`enlaceSeguro`), y el residente los ve pulsables. No se tocó nada; se
+documentó en el manual.
+
+*Consecuencias buenas.* La incisión sobrevive a cambiar de paso, de capa y de instrumento; se puede exponer por planos como en la
+cirugía de verdad (piel, luego músculo) y llegar al plano profundo sin cortar; la fluoroscopia enseña la imagen sin quitar la
+escena; el residente opera con el paciente acostado. Probado en pantalla con el modelo `pierna-prueba.glb` y el instrumental de
+`medios/modelos` (con filas temporales en la base local, ya deshechas). *Malas.* Las pinzas, los separadores y la punta de la tijera
+siguen sin sobrevivir a recargar (D-171/D-172); la disección roma pierde sus puntos al recargar (la herida sí vuelve, y las
+ramas la abren donde se apoyan); un clic de la tijera sobre el hueso no hace nada y lo dice; en el editor, con el lienzo angosto, el
+recuadro de la fluoroscopia sigue tapando la mitad; la imagen de la fluoroscopia no gira con el paciente (el arco ve el miembro
+vertical); no se mide la tensión de la disección ni se puntúa. Pruebas nuevas: `posicionDelPaciente`, `diseccionRoma`,
+`fluoroscopiaDesplazada` y ampliaciones de `exposicion`, `comportamientoDelInstrumento` y `lienzoQuirurgico`.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -7088,6 +7163,31 @@ piezas que el archivo no tiene): lienzo en negro, 3 mm y 12° de la nada.
 (−) El caso sigue necesitando que alguien reponga las piezas: el simulador ya no
 se ve en negro, pero un caso con las piezas equivocadas enseña el hueso entero y no
 lo que el autor quería. Es lo correcto —y se avisa—, no una solución.
+
+### O-079 · 2026-10-16 · alta · resuelta
+**La incisión del bisturí desaparecía al cambiar de paso o de capa (y quien iba a poner los separadores no tenía por dónde).**
+*Dónde se ve:* en el editor y en la consola del residente, con cualquier modelo que tenga piel. Se corta la piel con el
+bisturí, se pasa al paso siguiente —o se enciende y se apaga una capa— y la incisión ya no se ve. Era el segundo aviso de
+Cristóbal («me volvió a pasar»), después de D-172, que lo había atribuido a otra causa.
+*Descartado antes de buscar:* no era el primer «Guardar borrador» (D-172: volvía a montar la consola y se perdía el corte; eso
+sí se arregló y la herida sobrevive a recargar), ni el cierre de la herida (`Cerrar la herida` y `Borrar trazo` son botones). Lo
+que queda en pie es que la herida seguía en la malla y lo que se apagaba era lo que la hacía visible.
+*Causa.* La cinta roja que D-172 puso para que una incisión limpia —con los labios pegados— se vea es una `Mesh` con nombre
+(`cinta-de-la-herida`), hija de la malla cortada. `mostrar(nodos)` recorre el modelo con `traverse` y deja visible solo lo que
+está en la lista de piezas; la cinta no está, así que se apagaba con cada `refrescarVisibles` (cambio de paso, de capa,
+«Rellenar desde el modelo»). `actualizarCinta` solo la vuelve a decidir al abrir o cerrar la herida. Lo único que quedaba era
+el borde de líneas, que cae sobre la superficie y no se ve. Con `mostrar(null)` pasaba lo contrario: encendía una cinta que
+había decidido apartarse. Y la cinta aparecía en la lista de piezas del editor, `nodosVisibles`, `nodosDelModelo` y
+`datosDeLosNodos`, como si fuera un trozo del archivo.
+*Qué se probó.* La causa se leyó en el código —no se pudo ver fallar antes de arreglarla: el caso local no trae piel hasta que se
+cambia de modelo—, y el arreglo se comprobó con la prueba unitaria y en pantalla con `pierna-prueba.glb`: corte de 302 mm, capas
+apagadas y encendidas, `cinta.visible` sigue en `true`. Y un segundo agujero del mismo síntoma, que se vio al leer `aplicarElCorte`:
+cerraba la herida de la capa antes de saber si el trazo nuevo cortaba, y si salía del modelo se perdía la incisión buena.
+*Arreglo.* `esDeInterfazDelModelo` y `aplicarVisibilidad` (`LienzoQuirurgico.tsx`) excluyen la cinta y el borde en esos cuatro
+sitios; si un corte nuevo no corta nada, se rehace el anterior. Pruebas en `tests/unit/lienzoQuirurgico.test.ts`: la cinta
+sigue visible al mostrar una lista de piezas, no se enciende si había decidido apartarse, se va con la piel si esta se apaga y no
+entra en la lista de piezas.
+(−) No hay prueba con WebGL de que la cinta se *vea*; está probado el estado, y lo demás en pantalla.
 
 ---
 

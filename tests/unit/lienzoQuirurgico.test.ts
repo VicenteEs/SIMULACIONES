@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest'
 import * as THREE from 'three'
 import {
   aplicarPiezas,
+  aplicarVisibilidad,
+  datosDeLosNodos,
+  esDeInterfazDelModelo,
   liberarMaterial,
   type PiezaDelCaso,
   type Taller,
@@ -129,5 +132,82 @@ describe('liberarMaterial', () => {
 
     expect(() => liberarMaterial(material)).not.toThrow()
     expect(soltarMaterial).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('aplicarVisibilidad (la incisión que desaparecía)', () => {
+  // Lo que pasó: la cinta roja de la herida es una malla con nombre, hija de la piel, y `mostrar` apagaba «todo lo
+  // que no está en la lista». Con cada cambio de paso o de capa la cinta se apagaba, y una incisión limpia —con
+  // los labios pegados— no se ve por ningún otro lado: la incisión «desaparecía» y no había por dónde meter los
+  // separadores.
+  function modeloConHerida() {
+    const raiz = new THREE.Group()
+    const piel = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial())
+    piel.name = 'piel'
+    const cinta = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial())
+    cinta.name = 'cinta-de-la-herida'
+    piel.add(cinta)
+    const hueso = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial())
+    hueso.name = 'tibia'
+    raiz.add(piel, hueso)
+    return { raiz, piel, cinta, hueso }
+  }
+
+  it('no apaga la cinta de la herida al mostrar una lista de piezas', () => {
+    const { raiz, piel, cinta, hueso } = modeloConHerida()
+    aplicarVisibilidad(raiz, ['piel'])
+    expect(piel.visible).toBe(true)
+    expect(hueso.visible).toBe(false)
+    expect(cinta.visible).toBe(true)
+  })
+
+  it('tampoco la enciende cuando la herida abrió tanto que decidió apartarla', () => {
+    // `actualizarCinta` la oculta cuando la herida pasa de unos milímetros; mostrar todo no se la devuelve.
+    const { raiz, cinta } = modeloConHerida()
+    cinta.visible = false
+    aplicarVisibilidad(raiz, null)
+    expect(cinta.visible).toBe(false)
+  })
+
+  it('con la piel apagada la cinta se va con ella, porque es hija de la piel', () => {
+    const { raiz, piel, cinta } = modeloConHerida()
+    aplicarVisibilidad(raiz, ['tibia'])
+    expect(piel.visible).toBe(false)
+    // Sigue «visible» de por sí, pero no se pinta: la ve quien mira el padre.
+    expect(cinta.parent?.visible).toBe(false)
+  })
+
+  it('enciende y apaga las piezas de verdad como siempre', () => {
+    const { raiz, piel, hueso } = modeloConHerida()
+    aplicarVisibilidad(raiz, ['tibia'])
+    expect([piel.visible, hueso.visible]).toEqual([false, true])
+    aplicarVisibilidad(raiz, null)
+    expect([piel.visible, hueso.visible]).toEqual([true, true])
+  })
+})
+
+describe('esDeInterfazDelModelo', () => {
+  it('reconoce la cinta, el borde y lo marcado como interfaz, y no las piezas', () => {
+    const con = (nombre: string, datos: Record<string, unknown> = {}) => {
+      const o = new THREE.Object3D()
+      o.name = nombre
+      Object.assign(o.userData, datos)
+      return o
+    }
+    expect(esDeInterfazDelModelo(con('cinta-de-la-herida'))).toBe(true)
+    expect(esDeInterfazDelModelo(con('borde-de-la-herida'))).toBe(true)
+    expect(esDeInterfazDelModelo(con('lo-que-sea', { deInterfaz: true }))).toBe(true)
+    expect(esDeInterfazDelModelo(con('Tibia_izquierda'))).toBe(false)
+  })
+
+  it('la cinta no aparece en la lista de piezas del archivo', () => {
+    const raiz = new THREE.Group()
+    const tibia = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial())
+    tibia.name = 'Tibia'
+    const cinta = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial())
+    cinta.name = 'cinta-de-la-herida'
+    tibia.add(cinta)
+    raiz.add(tibia)
+    expect(datosDeLosNodos(raiz).map((n) => n.nodo)).toEqual(['Tibia'])
   })
 })
