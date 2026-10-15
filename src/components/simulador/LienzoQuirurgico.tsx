@@ -9,7 +9,10 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { ruta } from '@/lib/rutas'
 import { desplazamientoDesde, posicionAbsoluta, type EjeLargo } from '@/lib/reduccion'
-import { reconciliarConElModelo } from '@/lib/simulador'
+import { largoVisibleDelAgujero, reconciliarConElModelo } from '@/lib/simulador'
+import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
+import { desplazamientoDelArrastre, giroDelArrastre } from '@/atlas/transformar'
+import { ajustarAlSalto, barridoEnPantalla, centroLocalDe, colocarEnElMundo } from './asasDelHueso'
 import { propuestaDelNodo, traducirMuestra, type PiezaEnEdicion } from '@/lib/piezasDelCaso'
 import {
   aplicarColores,
@@ -1305,6 +1308,88 @@ export function LienzoQuirurgico({
     const inicioDeArrastre = new THREE.Vector3()
     const posicionAlEmpezar = new THREE.Vector3()
 
+    // --- las asas del trozo elegido (D-174) ------------------------------------------------------------
+    // Arrastrar el hueso lo traslada en el plano de la pantalla y nada más; para corregir una angulación hacen
+    // falta los tres giros, y para llevarlo hacia dentro o hacia fuera de la imagen, un movimiento a lo largo de
+    // cada eje. Son las asas del taller del atlas: flechas para mover, aros para girar, y el aro blanco que gira
+    // sobre la línea de visión. Aparecen sobre el trozo que se agarró, solo en «Mover» y «Un trozo».
+    const manipulador = crearGizmo()
+    // Es interfaz, no anatomía: la fluoroscopia lo esconde mientras dibuja y no absorbe rayos.
+    manipulador.grupo.userData.deInterfaz = true
+    escena.add(manipulador.grupo)
+    let elegida: THREE.Object3D | null = null
+    let asaAgarrada: {
+      asa: AsaDelGizmo
+      x: number
+      y: number
+      pivote: THREE.Vector3
+      inicial: THREE.Matrix4
+      inversaDelPadre: THREE.Matrix4
+    } | null = null
+    /** El clic en el vacío, a la espera de saber si fue un clic (suelta el trozo) o el arrastre de la órbita. */
+    let clicEnElVacio: { x: number; y: number } | null = null
+
+    /** Pone las asas sobre el trozo elegido, con el tamaño que las hace agarrables, o las esconde. */
+    const gizmoAlDia = () => {
+      const u = ultimas.current
+      if (u.modo !== 'mover') elegida = null
+      const raiz = taller.current.raiz
+      const pieza = elegida
+      const hay = !!pieza && !!raiz && !u.moverTodo && pieza.visible && perteneceA(pieza, raiz)
+      manipulador.grupo.visible = hay
+      if (!hay || !pieza) return
+      pieza.updateMatrixWorld(true)
+      const donde = pieza.localToWorld(centroLocalDe(pieza))
+      manipulador.grupo.position.copy(donde)
+      // Un poco menos que el sexto del alto del lienzo: en el editor de casos el lienzo es angosto.
+      manipulador.grupo.scale.setScalar(escalaDelGizmo(camara, donde) * 0.8)
+      manipulador.mirarA(camara)
+    }
+
+    /** El asa bajo el puntero, si la hay. `rayo` tiene que venir ya apuntado. */
+    const asaBajoElRayo = (): AsaDelGizmo | null => {
+      if (!manipulador.grupo.visible) return null
+      manipulador.grupo.updateMatrixWorld(true)
+      const toques = rayo
+        .intersectObjects(manipulador.asas, false)
+        .map((toque) => toque.object.userData.asa as AsaDelGizmo)
+      // Si el rayo cruza una flecha y un aro, gana la flecha: de frente, el aro de Y se ve de canto justo sobre
+      // la flecha de X y su asa, más gorda, la tapaba entera (la misma regla del taller del atlas).
+      return toques.find((asa) => asa.modo === 'mover') ?? toques[0] ?? null
+    }
+
+    /** Lleva el trozo adonde lo pide el asa agarrada, medido siempre desde donde estaba al agarrarla. */
+    const moverConLaAsa = (evento: PointerEvent) => {
+      const a = asaAgarrada
+      const pieza = elegida
+      if (!a || !pieza) return
+      const caja = render.domElement.getBoundingClientRect()
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const eje = a.asa.eje === 'vista' ? null : a.asa.eje
+      let traslacion = new THREE.Vector3()
+      let giro = new THREE.Quaternion()
+      let lectura: string
+      if (a.asa.modo === 'mover') {
+        traslacion = desplazamientoDelArrastre(camara, a.pivote, evento.clientX - a.x, evento.clientY - a.y, Math.max(1, caja.height), eje)
+        lectura = `Mover · eje ${(eje ?? 'x').toUpperCase()} · ${(traslacion.length() / unidadesPorMm).toFixed(1).replace('.', ',')} mm`
+      } else {
+        const enPantalla = a.pivote.clone().project(camara)
+        const cx = ((enPantalla.x + 1) / 2) * caja.width
+        const cy = ((1 - enPantalla.y) / 2) * caja.height
+        let angulo = barridoEnPantalla(cx, cy, a.x - caja.left, a.y - caja.top, evento.clientX - caja.left, evento.clientY - caja.top)
+        // Con Ctrl el giro salta de cinco en cinco grados, como en el taller del atlas.
+        if (evento.ctrlKey || evento.metaKey) angulo = ajustarAlSalto(angulo)
+        giro = giroDelArrastre(camara, a.pivote, angulo, eje)
+        const grados = ((((angulo * 180) / Math.PI) % 360) + 540) % 360 - 180
+        lectura = `Girar · ${eje ? `eje ${eje.toUpperCase()}` : 'sobre la línea de visión'} · ${Math.round(grados)}°`
+      }
+      const { posicion, rotacion } = colocarEnElMundo(a.inicial, a.inversaDelPadre, a.pivote, traslacion, giro)
+      pieza.position.copy(posicion)
+      pieza.quaternion.copy(rotacion)
+      taller.current.decir?.(lectura)
+      pedirDibujo()
+    }
+
     const aCoordenadas = (evento: PointerEvent) => {
       const caja = render.domElement.getBoundingClientRect()
       puntero.set(
@@ -1630,14 +1715,19 @@ export function LienzoQuirurgico({
         return
       }
       const radio = (config.diametroMm / 2) * unidadesPorMm
+      // El agujero se dibuja solo hasta donde hay hueso: la salida por la cortical opuesta. Si la broca se pasó de
+      // largo, lo de más es aire (o partes blandas) y el cilindro negro asomaba por el otro lado del hueso, flotando
+      // en mitad de la imagen. El exceso no se dibuja, pero sigue contando: `sePaso` y el aviso de la lectura salen
+      // de la profundidad real de la broca, no de lo que se ve.
+      const largoDelAgujero = largoVisibleDelAgujero(p.profundidad, p.salidaPorLaOpuesta)
       const agujero = new THREE.Mesh(
-        new THREE.CylinderGeometry(radio, radio, p.profundidad, 16, 1, false),
+        new THREE.CylinderGeometry(radio, radio, largoDelAgujero, 16, 1, false),
         new THREE.MeshBasicMaterial({ color: 0x120909 }),
       )
       // Va en la escena y no dentro del modelo: `mostrar()` apaga las mallas que
       // no están en la lista, y un agujero sin nombre desaparecería con cada
       // cambio de capa.
-      agujero.position.copy(p.entrada).addScaledVector(p.dirEntra, p.profundidad / 2)
+      agujero.position.copy(p.entrada).addScaledVector(p.dirEntra, largoDelAgujero / 2)
       agujero.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.dirEntra)
       agujero.raycast = () => {}
       agujero.userData.agujero = true
@@ -2172,6 +2262,7 @@ export function LienzoQuirurgico({
       if (modoActual === 'orbitar') return
 
       aCoordenadas(evento)
+      clicEnElVacio = null
 
       if (modoActual === 'senalar') {
         // Señalar no arrastra ni modifica nada: solo dice qué hay debajo. Se
@@ -2334,6 +2425,35 @@ export function LienzoQuirurgico({
         return
       }
 
+      // Un asa del trozo elegido gana a todo lo demás: está dibujada encima de la escena, y si el hueso de debajo
+      // se agarrara en su lugar, tocar una flecha arrastraría el trozo sobre la pantalla.
+      if (modoActual === 'mover' && !ultimas.current.moverTodo && elegida) {
+        const asa = asaBajoElRayo()
+        if (asa) {
+          elegida.updateMatrixWorld(true)
+          const t = taller.current
+          const origenes = (t.origenesDePiezas ??= new Map())
+          if (!origenes.has(elegida)) origenes.set(elegida, { posicion: elegida.position.clone(), rotacion: elegida.rotation.clone() })
+          asaAgarrada = {
+            asa,
+            x: evento.clientX,
+            y: evento.clientY,
+            pivote: elegida.localToWorld(centroLocalDe(elegida)),
+            inicial: elegida.matrixWorld.clone(),
+            inversaDelPadre: elegida.parent ? elegida.parent.matrixWorld.clone().invert() : new THREE.Matrix4(),
+          }
+          controles.enabled = false
+          arrastrando = true
+          // El arrastre sigue aunque el cursor se pase sobre otra cosa; sin captura, `pointerleave` lo soltaba.
+          try {
+            render.domElement.setPointerCapture(evento.pointerId)
+          } catch {
+            // Un puntero que ya no existe (eventos sintéticos) no impide mover.
+          }
+          return
+        }
+      }
+
       if (modoActual === 'mover' && ultimas.current.moverTodo) {
         // «Todo junto»: piel, músculo y hueso se mueven a la vez, como un solo bloque. Se hace llevando la vista
         // con el arrastre (la cámara y su punto de mira se desplazan lo que se arrastra), y no tocando cada
@@ -2361,10 +2481,16 @@ export function LienzoQuirurgico({
         // la piel y no pasaba nada.
         const golpe = huesoBajoElCursor()
         if (!golpe) {
-          taller.current.decir?.('Apunte a un trozo de hueso para moverlo: Mover solo agarra el hueso visible.')
+          // Un clic sin arrastre en el vacío suelta el trozo elegido (`alSubirParaSoltarElTrozo`); arrastrando es la
+          // órbita de siempre, y el trozo sigue con sus asas para verlo desde otro lado.
+          clicEnElVacio = { x: evento.clientX, y: evento.clientY }
+          if (!elegida) taller.current.decir?.('Apunte a un trozo de hueso para moverlo: Mover solo agarra el hueso visible.')
           return
         }
         const pieza = golpe.object
+        // Cambiar de trozo mueve las asas sin cambiar si se ven: el lienzo solo dibuja cuando se le pide.
+        if (elegida !== pieza) pedirDibujo()
+        elegida = pieza
         const t = taller.current
         const origenes = (t.origenesDePiezas ??= new Map())
         if (!origenes.has(pieza)) origenes.set(pieza, { posicion: pieza.position.clone(), rotacion: pieza.rotation.clone() })
@@ -2571,6 +2697,11 @@ export function LienzoQuirurgico({
       const { modo: modoActual } = ultimas.current
       aCoordenadas(evento)
 
+      if (asaAgarrada) {
+        moverConLaAsa(evento)
+        return
+      }
+
       if (modoActual === 'trazar' && ultimas.current.tipoDeTrazo === 'recto') {
         const desde = clicDeRecta ? { x: clicDeRecta.x, y: clicDeRecta.y } : taller.current.inicioDeLaRecta
         if (desde && Math.hypot(evento.clientX - desde.x, evento.clientY - desde.y) >= 6) vistaPreviaDeLaRecta(evento, desde)
@@ -2661,8 +2792,19 @@ export function LienzoQuirurgico({
       // del fragmento sale por un solo camino. Sin origen no hay contra qué
       // medir y no se avisa: inventar un cero aquí es lo que hacía que un caso
       // saliera ya reducido.
-      const eraElFragmento = !!f && !!piezaAgarrada && (piezaAgarrada === f || perteneceA(piezaAgarrada, f))
+      // Lo que se tocó: el trozo agarrado con el ratón o el que se movió con un asa. Los dos avisan igual.
+      const tocada = piezaAgarrada ?? (asaAgarrada ? elegida : null)
+      const eraElFragmento = !!f && !!tocada && (tocada === f || perteneceA(tocada, f))
       piezaAgarrada = null
+      if (asaAgarrada) {
+        asaAgarrada = null
+        taller.current.decir?.('')
+        try {
+          if (evento && render.domElement.hasPointerCapture(evento.pointerId)) render.domElement.releasePointerCapture(evento.pointerId)
+        } catch {
+          // La captura ya se había soltado.
+        }
+      }
       // Mover otro trozo no cambia lo que el caso mide: solo el fragmento declarado alimenta las medidas.
       if (ultimas.current.modo === 'mover' && f && origen && eraElFragmento) {
         ultimas.current.alMoverFragmento?.(desplazamientoDesde(origen.posicion, f.position), {
@@ -2745,6 +2887,16 @@ export function LienzoQuirurgico({
     render.domElement.addEventListener('pointerup', alSubirParaCoser)
     render.domElement.addEventListener('pointerup', alSubirParaSeparar)
     render.domElement.addEventListener('pointerup', alSubirParaDisecar)
+    const alSubirParaSoltarElTrozo = (evento: PointerEvent) => {
+      const clic = clicEnElVacio
+      clicEnElVacio = null
+      if (clic && elegida && Math.hypot(evento.clientX - clic.x, evento.clientY - clic.y) < 5) {
+        elegida = null
+        gizmoAlDia()
+        pedirDibujo()
+      }
+    }
+    render.domElement.addEventListener('pointerup', alSubirParaSoltarElTrozo)
     // Esc deshace una línea recta que se empezó y no se terminó.
     const alTeclear = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && taller.current.inicioDeLaRecta) {
@@ -2784,9 +2936,15 @@ export function LienzoQuirurgico({
         }
       }
       ultimoCuadro = ahora
+      // Que las asas aparezcan o desaparezcan al cambiar de modo o de submodo también pide un dibujo.
+      const habiaAsas = manipulador.grupo.visible
+      gizmoAlDia()
+      if (manipulador.grupo.visible !== habiaAsas) sucio = true
       const movio = controles.update()
       if (!sucio && !movio) return
       sucio = false
+      // La cámara pudo moverse en la línea de arriba: las asas se recolocan y se reescalan para medir lo mismo.
+      gizmoAlDia()
       // Los ejes de la guía se recolocan en cada dibujo: el fragmento se mueve
       // con el ratón y la guía tiene que seguirlo.
       if (taller.current.guias) actualizarGuias(taller.current, ultimas.current.ejeLargo, ultimas.current.piezas)
@@ -2811,6 +2969,7 @@ export function LienzoQuirurgico({
       render.domElement.removeEventListener('pointerup', alSubirParaCoser)
       render.domElement.removeEventListener('pointerup', alSubirParaSeparar)
       render.domElement.removeEventListener('pointerup', alSubirParaDisecar)
+      render.domElement.removeEventListener('pointerup', alSubirParaSoltarElTrozo)
       window.removeEventListener('keydown', alTeclear)
       render.domElement.removeEventListener('pointermove', alMover)
       render.domElement.removeEventListener('pointerup', alSubir)
@@ -2837,6 +2996,7 @@ export function LienzoQuirurgico({
       if (taller.current.sutura) soltarSutura(taller.current.sutura)
       if (taller.current.implantes) quitarImplantes(taller.current.implantes)
       lectura.remove()
+      manipulador.liberar()
       // Liberar a mano: aquí hay decenas de megabytes en la tarjeta y pasear
       // por la plataforma acabaría tirando la pestaña.
       liberar(escena)

@@ -348,7 +348,7 @@ const MODOS: readonly { valor: Modo; etiqueta: string; ayuda: string; icono: Luc
     valor: 'mover',
     etiqueta: 'Mover',
     icono: Move,
-    ayuda: 'Mover: arrastre para colocar. «Todo junto» mueve piel, músculo y hueso a la vez; «Un trozo» agarra el trozo de hueso que se toque.',
+    ayuda: 'Mover: arrastre para colocar. «Todo junto» mueve piel, músculo y hueso a la vez; «Un trozo» agarra el trozo de hueso que se toque y le pone sus asas: las flechas lo mueven en cada eje, los aros lo giran en cada eje y el aro blanco lo gira sobre la línea de visión (Ctrl: de cinco en cinco grados).',
   },
 ]
 
@@ -3191,7 +3191,7 @@ export function ConsolaQuirurgica({
                       angulado no se podría reducir por mucho que se arrastrara,
                       y el residente no entendería por qué. */}
                   <p className="consola-ayuda">
-                    Arrastre el fragmento para alinearlo y corrija la angulación aquí.
+                    Arrastre el fragmento para alinearlo; sus flechas lo mueven y sus aros lo giran en cada eje (rojo X, verde Y, azul Z). Los deslizadores afinan la angulación.
                   </p>
                   {(
                     [

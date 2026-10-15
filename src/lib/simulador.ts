@@ -471,6 +471,18 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
 /** Cuánto puede pasarse la broca de la cortical opuesta sin que cuente como daño, en mm. */
 export const PASARSE_DE_LA_CORTICAL_MM = 3
 
+/**
+ * Cuánto del agujero se dibuja: hasta la cortical opuesta y ni un milímetro más.
+ *
+ * La broca puede pasarse de largo —es un error que el paso puntúa—, pero el hueso no tiene agujero donde no hay
+ * hueso. Dibujado entero, el cilindro negro asomaba por el otro lado y quedaba flotando fuera de la pierna. Lo que
+ * se pasó se avisa y se evalúa con `sePasoMm`; aquí solo se decide qué se ve. Nunca negativo, aunque la salida
+ * venga de un rayo que no cruzó nada.
+ */
+export function largoVisibleDelAgujero(profundidad: number, salidaPorLaOpuesta: number): number {
+  return Math.max(0, Math.min(profundidad, salidaPorLaOpuesta))
+}
+
 /** Punto medio del rango útil: la posición de partida razonable del control. */
 export function fuerzaInicial(paso: PasoQuirurgico): number {
   const { fuerzaMinima, fuerzaMaxima } = paso
