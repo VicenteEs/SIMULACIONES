@@ -1545,10 +1545,15 @@ export function LienzoQuirurgico({
         if (m.isMesh && (desdeLaSesion || m.visible) && nombres.has(m.name)) mallas.push(m)
       })
       if (mallas.length === 0) {
+        // Dos causas distintas con dos arreglos distintos (D-176). Antes las dos decían «encienda la capa», y en una
+        // cirugía sin ninguna pieza de piel la consola mandaba a encender una capa que ya estaba encendida.
+        const capa = plano === 'piel' ? 'piel' : 'músculo'
         aviso(
-          plano === 'piel'
-            ? 'No hay piel visible que cortar: encienda la capa «Piel».'
-            : 'No hay músculo visible que cortar: encienda la capa «Músculo».',
+          nombres.size === 0
+            ? `Ninguna pieza de este modelo es ${capa}: márquela en «Piezas» del editor del caso (o «Rellenar desde el modelo»).`
+            : plano === 'piel'
+              ? 'No hay piel visible que cortar: encienda la capa «Piel».'
+              : 'No hay músculo visible que cortar: encienda la capa «Músculo».',
         )
         return
       }
@@ -1650,9 +1655,10 @@ export function LienzoQuirurgico({
     const posarBroca = (golpe: THREE.Intersection | null) => {
       const herramienta = taller.current.herramienta
       const config = ultimas.current.instrumento?.perfora
-      if (!herramienta || !config) return
+      // Sin el modelo de la broca se perfora igual y se lee igual (D-176): lo que no hay es broca que mover.
+      if (!config) return
       if (!golpe && !perforando) {
-        if (herramienta.raiz.visible) {
+        if (herramienta?.raiz.visible) {
           herramienta.raiz.visible = false
           pedirDibujo()
         }
@@ -1663,12 +1669,14 @@ export function LienzoQuirurgico({
       const t = perforando ?? trayectoriaDeBroca(golpe!)
       const profundidad = perforando?.profundidad ?? 0
       const giro = taller.current.giroDeLaBroca ?? 0
-      herramienta.raiz.quaternion
-        .setFromUnitVectors(new THREE.Vector3(0, 1, 0), t.salida)
-        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), giro))
-      // La punta en la entrada; al avanzar, se hunde por su propio eje.
-      herramienta.raiz.position.copy(t.entrada).addScaledVector(t.dirEntra, profundidad)
-      herramienta.raiz.visible = true
+      if (herramienta) {
+        herramienta.raiz.quaternion
+          .setFromUnitVectors(new THREE.Vector3(0, 1, 0), t.salida)
+          .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), giro))
+        // La punta en la entrada; al avanzar, se hunde por su propio eje.
+        herramienta.raiz.position.copy(t.entrada).addScaledVector(t.dirEntra, profundidad)
+        herramienta.raiz.visible = true
+      }
       const mm = (u: number) => (u / unidadesPorMm).toFixed(1).replace('.', ',')
       // Pasar de largo la cortical opuesta es el error clásico de quien aprende:
       // la broca sigue y lo que hay detrás son partes blandas. Se dice mientras ocurre.
@@ -1852,7 +1860,9 @@ export function LienzoQuirurgico({
     const trazarLaRecta = (a: { x: number; y: number }, b: { x: number; y: number }, cortar: boolean): boolean => {
       const t = taller.current
       if (!esRectaValida(a, b)) {
-        t.decir?.('Los dos puntos están muy juntos: marque el inicio y el final de la incisión más separados.')
+        // Solo al cortar (D-176). La vista previa pasa por aquí con el ratón aún pegado al inicio, en los primeros
+        // píxeles de cada arrastre, y el aviso se quedaba escrito encima de una incisión que sí se había hecho.
+        if (cortar) t.decir?.('Los dos puntos están muy juntos: marque el inicio y el final de la incisión más separados.')
         return false
       }
       const largoPx = Math.hypot(b.x - a.x, b.y - a.y)
@@ -1882,7 +1892,11 @@ export function LienzoQuirurgico({
       dibujarTrazo(t)
       ultimas.current.alTrazar?.([...puntos])
       pedirDibujo()
-      if (cortar) cortarConElTrazo()
+      if (cortar) {
+        // Lo que quedara escrito del gesto anterior («Inicio marcado…») ya no vale: la recta está hecha.
+        t.decir?.('')
+        cortarConElTrazo()
+      }
       return true
     }
 
@@ -2415,7 +2429,8 @@ export function LienzoQuirurgico({
       }
 
       if (modoActual === 'perforar') {
-        if (!ultimas.current.instrumento?.perfora || !taller.current.herramienta) return
+        // Sin exigir el modelo de la broca (D-176): perforar es de la broca, no de su dibujo.
+        if (!ultimas.current.instrumento?.perfora) return
         const golpe = huesoBajoElCursor()
         if (!golpe) {
           taller.current.decir?.('Apunte al hueso: la broca solo perfora el hueso visible.')

@@ -689,6 +689,13 @@ exportar el hueso con otros nombres. «Rellenar desde el modelo» pone las pieza
 archivo nuevo; «Quitar las que no están» limpia las viejas. Mientras tanto el
 simulador muestra el modelo entero, no una pantalla vacía.
 
+**Una cirugía nueva se opera sin rellenar las piezas.** Desde D-176, lo que la pestaña
+**Piezas** no declara toma la capa que trae el modelo (piel, músculo, hueso…), así que el
+bisturí corta, la broca perfora y los separadores se apoyan en cuanto el caso tiene modelo.
+Si una herramienta dice que «ninguna pieza de este modelo es piel» (o músculo, o hueso), el
+modelo no trae esa capa: márquela en **Piezas** o pulse «Rellenar desde el modelo». Los
+instrumentos del catálogo sin modelo 3D también funcionan: se juegan con el marcador.
+
 **Rayos X y fluoroscopia.** El botón **Rayos X** del lienzo es la misma radiografía en
 grises del taller anatómico (fondo negro, el hueso blanco, sin vasos). El botón
 **Fluoroscopia** abre, al lado del lienzo, un recuadro con la imagen circular del arco en C:

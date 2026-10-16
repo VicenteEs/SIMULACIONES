@@ -90,6 +90,12 @@ español y, dentro del archivo, la capa de la simulación que le toca a cada una
 tiene un botón **Rellenar desde el modelo** que escribe las piezas sin teclear
 nada.
 
+Desde D-176 ni siquiera hace falta pulsarlo para operar: si el caso no declara una
+pieza, el simulador usa la capa que trae el modelo (y, si no trae ninguna, la que
+sugiere su nombre: «Piel», «Músculos», «Tibia»…). El botón sigue sirviendo para
+dejarlas escritas y corregir la que el nombre adivine mal; lo declarado en
+**Piezas** manda siempre.
+
 Si aun así lo abre en Blender para retocarlo y lo vuelve a exportar, marque
 **Incluir → Propiedades personalizadas** (*Custom Properties*), que viene
 **apagado** por omisión. Ahí viajan las capas: sin esa casilla el modelo se ve

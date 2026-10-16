@@ -5976,6 +5976,50 @@ ella todo lo que se pega debajo. La lista de módulos pide un gesto más (pasar 
 medias. El filtro por rol se calcula sobre el rol de hoy de la cuenta, no sobre el que tenía cuando leyó: un residente ascendido a
 editor pasa a «equipo» con todo su historial.
 
+### D-176 · 2026-10-16 · vigente
+**Una cirugía recién creada juega con los papeles que trae su modelo, y un instrumento sin modelo 3D hace lo suyo igual.**
+Pedido del dueño: «funciona bien en el ejemplo que tengo, pero si creo otra cirugía no sale como debería: el bisturí no corta y se
+sale la línea. Quiero que funcionen todas las herramientas en cualquier cirugía». Para probarlo pidió una copia del modelo completo
+llamada «prueeeebbaaa» y operar sobre ella; se hizo en la base local, no en producción.
+
+*Causa.* Todas las herramientas deciden por el **papel** de cada objeto del modelo: el bisturí corta lo que es piel (o músculo, en
+profundidad), los separadores y las pinzas se apoyan en la capa que toca, la broca y «Mover» trabajan sobre lo que es hueso, las capas
+encienden y apagan por papel, y la fluoroscopia pinta cada cosa con su densidad. Ese papel salía **solo** de la lista «Piezas» del caso.
+En la cirugía de ejemplo esa lista estaba rellena; en una creada después, si nadie pulsaba «Rellenar desde el modelo», estaba vacía, y
+para la consola el modelo no tenía piel, ni músculo, ni hueso. El bisturí trazaba la línea roja, no encontraba nada que cortar y
+dejaba la línea pintada con un aviso que mentía —«No hay piel visible: encienda la capa Piel»— con la piel a la vista. Lo mismo, en
+silencio, con el resto de herramientas. El modelo ya traía escrito qué es cada cosa: el exportador del atlas deja `userData.rol` en
+cada malla (D-169).
+
+*Arreglo.* La consola juega con las **piezas efectivas** (`piezasConLasDelModelo`, `src/lib/piezasDelCaso.ts`): las declaradas, más
+el papel que el modelo da a lo que el caso no declaró. Lo declarado manda; lo no declarado toma `userData.rol` y, si el modelo no lo
+trae (uno hecho a mano en Blender), el que sugiere el nombre (`rolPorElNombre`: «Piel», «skin», «Músculos», «Tibia», «Fémur»,
+«Placa»…). Lo que no se entiende se queda fuera, como antes, en lugar de adivinarlo. Si el caso ya tiene fragmento, otro que el archivo
+llame fragmento entra como hueso fijo: dos fragmentos móviles se juegan sin error y el residente reduce el que no se mide. No se
+escribe nada en el caso: es la lectura de la consola, y el editor sigue diciendo qué falta en «Piezas».
+
+Se encontraron otros tres fallos al probar cada herramienta en la copia:
+1. *Los instrumentos sin modelo 3D no hacían nada.* `instrumentoEnEscena` exigía la dirección del modelo del instrumento, así que una
+   «Pinza de disección» o un «Farabeuf» del catálogo sin `.glb` quedaban sin comportamiento: ni pinzaban ni separaban. Lo que hace un
+   instrumento es del instrumento, no de su dibujo; ahora basta con elegirlo, y si no hay modelo se juega con el marcador de siempre.
+   Por la misma razón, la broca ya no exige el modelo para perforar (`posarBroca`, `alBajar`).
+2. *El aviso del bisturí sin piel* distingue ahora los dos casos: si ninguna pieza del modelo tiene ese papel, lo dice y señala
+   «Piezas» del editor; si la hay y está apagada, sigue el «encienda la capa».
+3. *«Los dos puntos están muy juntos»* salía también con las herramientas que no cortan, y se quedaba puesto tras un corte bueno.
+   Ahora solo lo dice el bisturí, y un corte bueno lo borra.
+
+*Cómo se probó.* Copia del modelo de la tibia (`prueeeebbaaa.glb`) en dos cirugías locales: una con «Rellenar desde el modelo» y otra
+sin ninguna pieza declarada, que es la del fallo. En la segunda, con el editor abierto: bisturí de piel (herida en la piel, sin aviso),
+pinza de disección sin modelo (la pareja se coloca y abre 6 mm), Farabeuf sin modelo (se apoya en la piel y abre), bisturí profundo
+(tres heridas en el músculo), Metzenbaum en disección roma (apoyada y ramas abiertas), broca (un agujero), «Mover → Un trozo» con las
+asas (el trozo se movió 53 mm) y la fluoroscopia AP (dibuja la pierna). Pruebas nuevas en `piezasDelCaso.test.ts`.
+
+*Consecuencias buenas.* Una cirugía nueva se puede operar en cuanto tiene modelo, sin pasar por «Piezas», y el catálogo de
+instrumentos sirve aunque a un instrumento le falte su dibujo. *Malas.* `rolPorElNombre` lee nombres y puede equivocarse con uno raro
+(«Radio» es hueso, aunque fuera el nombre de otra cosa); para eso está declarar la pieza, que manda. La página del residente lee el
+caso publicado y no el borrador —una cirugía en borrador no se ve allí—, que es lo que se quiere, pero significa que lo que se prueba en
+el editor de un borrador no llega al residente hasta publicarlo.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

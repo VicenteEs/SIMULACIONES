@@ -77,6 +77,69 @@ export function propuestaDelNodo(nodo: string, datos: unknown): PropuestaDelMode
   return { nodo, rol, etiqueta: etiqueta.trim() }
 }
 
+/**
+ * El papel que sugiere el nombre de un objeto, para los modelos que no lo traen escrito (D-176).
+ *
+ * Los modelos que salen del atlas dicen su papel en `userData.rol`; uno hecho a mano en Blender no dice nada, y entonces
+ * lo único que hay es el nombre. Se reconoce lo evidente —«Piel», «skin», «Musculos», «Tibia», «Femur»…— y nada más:
+ * un nombre que no se entiende se queda sin papel, como hasta ahora, en vez de adivinarlo. Sin acentos y sin mayúsculas,
+ * porque los nombres que deja Blender vienen de cualquier manera.
+ */
+export function rolPorElNombre(nodo: string): RolDePieza | null {
+  const n = nodo.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  if (/\b(piel|skin|integument)|^piel|piel_|_piel/.test(n)) return 'piel'
+  if (/(placa|plate|tornillo|screw|clavo|nail|implante|implant)/.test(n)) return 'implante'
+  if (/(muscul|muscle|tendon|fascia|vena|vein|arteri|nervi|nerve|conectivo|connective|ligament)/.test(n)) return 'musculo'
+  if (
+    /(hueso|bone|esquelet|skelet|tibia|femur|peron|fibul|humer|radio|radius|cubito|ulna|clavicul|escapul|scapul|pelvis|vertebr|astragal|talus|calcane|metatars|metacarp|falange|phalan|rotula|patella|carpo|tarso|craneo|costill)/.test(
+      n,
+    )
+  ) {
+    return 'hueso'
+  }
+  return null
+}
+
+/**
+ * Las piezas con que se juega un caso: las que declara, más el papel que el modelo da a lo que el caso no declaró (D-176).
+ *
+ * Todas las herramientas del simulador deciden por el papel de cada objeto: el bisturí corta lo que es piel, la broca
+ * perfora lo que es hueso, los separadores se apoyan en la piel o el músculo, la fluoroscopia pinta cada cosa con su
+ * densidad. Ese papel solo salía de la lista de piezas del caso, de modo que en una cirugía recién creada —sin haber
+ * pulsado «Rellenar desde el modelo»— no había piel para nadie: el bisturí dibujaba la línea roja y no cortaba, y la
+ * consola decía «encienda la capa Piel» con la piel a la vista. El modelo ya traía escrito qué es cada cosa.
+ *
+ * Reglas, y por qué:
+ *  - **Lo declarado manda.** Si el traumatólogo dijo que un objeto es hueso, es hueso, diga lo que diga el archivo.
+ *  - Lo que el caso no declara toma el papel que escribe el exportador del atlas (`userData.rol`), y si no lo trae, el
+ *    que sugiere su nombre (`rolPorElNombre`). Lo que no se entiende se queda fuera, como antes.
+ *  - **Un solo fragmento.** Si el caso ya marcó cuál es el fragmento que se mide, otro que el archivo llame «fragmento»
+ *    entra como hueso: dos fragmentos móviles se juegan sin ningún error y el residente reduce el que no se mide.
+ */
+export function piezasConLasDelModelo<T extends { nodo: string; rol: RolDePieza; etiqueta?: string | null }>(
+  declaradas: readonly T[],
+  nodosDelModelo: readonly { nodo: string; datos: unknown }[],
+): (T | { nodo: string; rol: RolDePieza; etiqueta: string })[] {
+  if (nodosDelModelo.length === 0) return [...declaradas]
+  const declarados = new Set(declaradas.map((p) => p.nodo))
+  let hayFragmentoDeclarado = declaradas.some((p) => p.rol === 'fragmento')
+  const anadidas: { nodo: string; rol: RolDePieza; etiqueta: string }[] = []
+  for (const { nodo, datos } of nodosDelModelo) {
+    if (!nodo || declarados.has(nodo)) continue
+    const escrito = datos && typeof datos === 'object' ? (datos as { rol?: unknown; etiqueta?: unknown }) : {}
+    let rol: RolDePieza | null = esRolDePieza(escrito.rol) ? escrito.rol : rolPorElNombre(nodo)
+    if (!rol) continue
+    if (rol === 'fragmento') {
+      if (hayFragmentoDeclarado) rol = 'hueso'
+      else hayFragmentoDeclarado = true
+    }
+    const etiqueta = typeof escrito.etiqueta === 'string' && escrito.etiqueta.trim() ? escrito.etiqueta.trim() : nodo
+    declarados.add(nodo)
+    anadidas.push({ nodo, rol, etiqueta })
+  }
+  return anadidas.length === 0 ? [...declaradas] : [...declaradas, ...anadidas]
+}
+
 /** Las propuestas de un modelo entero, en el orden en que trae los objetos. */
 export function propuestasDelModelo(
   nodos: { nodo: string; datos: unknown }[],

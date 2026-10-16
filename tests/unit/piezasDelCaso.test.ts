@@ -4,10 +4,12 @@ import {
   cambiarRolDePieza,
   desplazamientoEnMilimetros,
   hayFragmento,
+  piezasConLasDelModelo,
   piezasHuerfanas,
   piezasSinUsar,
   quitarPieza,
   repararPiezasConElModelo,
+  rolPorElNombre,
 } from '@/lib/piezasDelCaso'
 
 /**
@@ -207,5 +209,94 @@ describe('rehacer las piezas cuando el modelo cambia (D-169)', () => {
     const dos = [...propuestas, { nodo: 'Otro', rol: 'fragmento' as const, etiqueta: 'Otro' }]
     const r = repararPiezasConElModelo(delOtroModelo, [], dos, dos.map((p) => p.nodo))
     expect(r!.piezas.filter((p) => p.rol === 'fragmento')).toHaveLength(1)
+  })
+})
+
+describe('las piezas con que se juega una cirugía recién creada (D-176)', () => {
+  // Lo que lee la consola de una copia del modelo de la tibia del atlas: cada objeto con el papel que le escribió el
+  // exportador. Es el caso del fallo: la cirugía no declara ninguna pieza y el bisturí no encontraba piel.
+  const delAtlas = [
+    { nodo: 'Piel', datos: { rol: 'piel', etiqueta: 'Piel' } },
+    { nodo: 'Musculos', datos: { rol: 'musculo', etiqueta: 'Músculos' } },
+    { nodo: 'Tibia_izquierda_1_1', datos: { rol: 'fragmento', etiqueta: 'Tibia, distal' } },
+    { nodo: 'Tibia_izquierda_2', datos: { rol: 'hueso', etiqueta: 'Tibia, proximal' } },
+  ]
+
+  it('una cirugía sin piezas toma los papeles que trae el modelo', () => {
+    const piezas = piezasConLasDelModelo([], delAtlas)
+    expect(piezas.map((p) => [p.nodo, p.rol])).toEqual([
+      ['Piel', 'piel'],
+      ['Musculos', 'musculo'],
+      ['Tibia_izquierda_1_1', 'fragmento'],
+      ['Tibia_izquierda_2', 'hueso'],
+    ])
+    expect(piezas[1].etiqueta).toBe('Músculos')
+  })
+
+  it('lo que el caso declara manda sobre lo que dice el archivo', () => {
+    // El traumatólogo marcó los músculos como hueso: raro, pero es su caso, y el archivo no le enmienda la plana.
+    const piezas = piezasConLasDelModelo([{ nodo: 'Musculos', rol: 'hueso' as const, etiqueta: 'Mío' }], delAtlas)
+    expect(piezas.filter((p) => p.nodo === 'Musculos')).toEqual([{ nodo: 'Musculos', rol: 'hueso', etiqueta: 'Mío' }])
+    expect(piezas.map((p) => p.nodo)).toEqual(['Musculos', 'Piel', 'Tibia_izquierda_1_1', 'Tibia_izquierda_2'])
+  })
+
+  it('si el caso ya tiene fragmento, el del archivo entra como hueso fijo', () => {
+    // Dos fragmentos móviles se juegan sin ningún error, y el residente reduce el que no se mide.
+    const piezas = piezasConLasDelModelo([{ nodo: 'Tibia_izquierda_2', rol: 'fragmento' as const }], delAtlas)
+    expect(piezas.filter((p) => p.rol === 'fragmento').map((p) => p.nodo)).toEqual(['Tibia_izquierda_2'])
+    expect(piezas.find((p) => p.nodo === 'Tibia_izquierda_1_1')?.rol).toBe('hueso')
+  })
+
+  it('un modelo sin papeles escritos se entiende por el nombre, y lo que no se entiende se queda fuera', () => {
+    const deBlender = [
+      { nodo: 'skin', datos: {} },
+      { nodo: 'Fémur', datos: null },
+      { nodo: 'Cubo.001', datos: {} },
+    ]
+    const piezas = piezasConLasDelModelo([], deBlender)
+    expect(piezas).toEqual([
+      { nodo: 'skin', rol: 'piel', etiqueta: 'skin' },
+      { nodo: 'Fémur', rol: 'hueso', etiqueta: 'Fémur' },
+    ])
+  })
+
+  it('un papel escrito que no es de los cinco no cuenta y se mira el nombre', () => {
+    // Blender deja propiedades con cualquier contenido: «Hueso» con mayúscula no lo reconoce ningún filtro de la consola.
+    expect(piezasConLasDelModelo([], [{ nodo: 'Tibia', datos: { rol: 'Hueso' } }])).toEqual([
+      { nodo: 'Tibia', rol: 'hueso', etiqueta: 'Tibia' },
+    ])
+  })
+
+  it('con el modelo aún sin leer devuelve lo declarado tal cual', () => {
+    const declaradas = [{ nodo: 'Piel', rol: 'piel' as const }]
+    const piezas = piezasConLasDelModelo(declaradas, [])
+    expect(piezas).toEqual(declaradas)
+    // Una copia: la consola la usa como dependencia de memo y no debe poder tocar el caso.
+    expect(piezas).not.toBe(declaradas)
+  })
+})
+
+describe('el papel que sugiere el nombre (D-176)', () => {
+  it.each([
+    ['Piel', 'piel'],
+    ['piel_pierna', 'piel'],
+    ['Skin.001', 'piel'],
+    ['Musculos', 'musculo'],
+    ['Músculo tibial anterior', 'musculo'],
+    ['Tendon_de_Aquiles', 'musculo'],
+    ['Placa_LCP', 'implante'],
+    ['Tornillo_3', 'implante'],
+    ['Tibia_izquierda_2', 'hueso'],
+    ['Esqueleto', 'hueso'],
+    ['Peroné', 'hueso'],
+    ['Calcaneus', 'hueso'],
+  ])('«%s» es %s', (nombre, rol) => {
+    expect(rolPorElNombre(nombre)).toBe(rol)
+  })
+
+  it('un nombre que no se entiende se queda sin papel en vez de adivinarlo', () => {
+    expect(rolPorElNombre('Cubo.001')).toBeNull()
+    expect(rolPorElNombre('Pierna')).toBeNull()
+    expect(rolPorElNombre('')).toBeNull()
   })
 })

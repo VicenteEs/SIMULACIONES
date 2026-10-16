@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { piezasConLasDelModelo } from '@/lib/piezasDelCaso'
 import {
   capaDelRol,
   capasAlEntrarEnPaso,
@@ -626,6 +627,14 @@ export function ConsolaQuirurgica({
   // Lo que trae el archivo, anotado con el modelo de que salió: se lee una vez,
   // al terminar de cargar, y no en cada pintado.
   const [delArchivo, setDelArchivo] = useState<{ url: string; nodos: string[]; datos: DatosDeNodo[] } | null>(null)
+  // Las piezas con que se juega: las que declara el caso, más el papel que el propio modelo da a lo que el caso no
+  // declaró (D-176). Sin esto, en una cirugía recién creada —sin «Rellenar desde el modelo»— ninguna pieza era piel ni
+  // hueso, y el bisturí, los separadores, las pinzas, la broca y las capas no tenían sobre qué actuar. Lo declarado manda
+  // siempre; lo del modelo solo rellena huecos, y solo cuando el archivo que se ve es el del caso.
+  const piezas = useMemo(
+    () => piezasConLasDelModelo(caso.piezas, delArchivo?.url === caso.modeloUrl ? delArchivo.datos : []),
+    [caso.piezas, caso.modeloUrl, delArchivo],
+  )
   const [fuerza, setFuerza] = useState(() => fuerzaInicial(caso.pasos[0] ?? {}))
   // La geometría del trazo no sube a React: de ella solo se usa un número, y el
   // lienzo ya es dueño de sus puntos. Guardar la polilínea entera obligaba a
@@ -872,7 +881,7 @@ export function ConsolaQuirurgica({
 
   const refrescarVisibles = useCallback(
     (indicePaso: number, apagadas: Set<string>) => {
-      const { nodos, encender } = visibilidadDelPaso(caso.pasos, caso.piezas, indicePaso, apagadas, capasForzadas.current)
+      const { nodos, encender } = visibilidadDelPaso(caso.pasos, piezas, indicePaso, apagadas, capasForzadas.current)
       const mostrado = mando.current?.mostrar(nodos)
       // El caso nombra piezas que el archivo no tiene. Se enseña el modelo
       // entero —el lienzo ya lo decidió— y se dice, con la causa y la salida:
@@ -898,7 +907,7 @@ export function ConsolaQuirurgica({
       })
       anotar(`Se vuelve a mostrar ${capasEnProsa(encender)}: sin eso el lienzo se quedaba vacío.`, 'atencion')
     },
-    [caso.pasos, caso.piezas, anotar, avisarUnaVez],
+    [caso.pasos, piezas, anotar, avisarUnaVez],
   )
 
   /** Entra en un paso: pone las capas que ese paso necesita y refresca el lienzo. */
@@ -908,12 +917,12 @@ export function ConsolaQuirurgica({
       capasForzadas.current = new Set()
       // Los interruptores quedan diciendo lo que el paso enseña (no se quedan encendidos los de una capa
       // que el paso no muestra) y el residente puede volver a encender lo que quiera.
-      const siguientes = capasAlEntrarEnPaso(caso.pasos, caso.piezas, indicePaso, apagadas)
+      const siguientes = capasAlEntrarEnPaso(caso.pasos, piezas, indicePaso, apagadas)
       const cambio = siguientes.size !== apagadas.size || [...siguientes].some((rol) => !apagadas.has(rol))
       if (cambio) setCapasApagadas(siguientes)
       refrescarVisibles(indicePaso, siguientes)
     },
-    [caso.pasos, caso.piezas, refrescarVisibles],
+    [caso.pasos, piezas, refrescarVisibles],
   )
 
   const alternarCapa = (rol: string) => {
@@ -934,8 +943,8 @@ export function ConsolaQuirurgica({
   // archivo y al cambiar de paso: el editor rellenaba las piezas y el lienzo seguía enseñando la piel con el
   // interruptor de la piel apagado, hasta que alguien lo tocaba.
   const firmaDeLoVisible = useMemo(
-    () => JSON.stringify([caso.piezas.map((p) => [p.nodo, p.rol]), caso.pasos.map((p) => p.muestra ?? [])]),
-    [caso.piezas, caso.pasos],
+    () => JSON.stringify([piezas.map((p) => [p.nodo, p.rol]), caso.pasos.map((p) => p.muestra ?? [])]),
+    [piezas, caso.pasos],
   )
   const modeloAbierto = delArchivo?.url === caso.modeloUrl
   // Lo que el efecto de abajo lee «en el momento», sin que cambiarlo lo dispare: solo lo dispara cambiar lo
@@ -1323,13 +1332,22 @@ export function ConsolaQuirurgica({
     mando.current?.abrirDiseccion(Math.min(1, Math.max(0, fraccion)))
   }, [articulacionDeLasRamas, aberturaDeLasRamas])
 
-  /** Lo que el lienzo necesita para poner el instrumento en la escena. */
+  /**
+   * Lo que el lienzo necesita para poner el instrumento en la escena.
+   *
+   * Existe aunque el instrumento no tenga modelo 3D (D-176): antes dependía de `urlDelElegido`, y un instrumento sin
+   * archivo dejaba al lienzo sin instrumento en la mano —el modo cambiaba a «Separar» y el clic no hacía nada, sin un
+   * aviso—. Lo que hace un instrumento (cortar, separar, perforar…) es del instrumento, no de su dibujo: sin modelo no
+   * se ve, pero funciona. El lienzo ya no carga nada con una dirección vacía, y lo que se coloca sin modelo se coloca
+   * igual, invisible (`colocarInstrumento`).
+   */
   const idDelElegido = instrumentoElegido?.id
+  const hayElegido = instrumentoElegido !== null
   const instrumentoEnEscena = useMemo<InstrumentoEnEscena | null>(
     () =>
-      urlDelElegido
+      hayElegido
         ? {
-            url: urlDelElegido,
+            url: urlDelElegido ?? '',
             id: idDelElegido,
             nombre: nombreDelElegido,
             ajustes: ajustesDelElegido,
@@ -1346,7 +1364,7 @@ export function ConsolaQuirurgica({
             mide: queHace.mide,
           }
         : null,
-    [urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW],
+    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW],
   )
 
   /**
@@ -2818,7 +2836,7 @@ export function ConsolaQuirurgica({
           <h3 className="consola-subtitulo">Capas</h3>
           <ul className="consola-capas">
             {CAPAS.map((capa) => {
-              const hay = caso.piezas.some((p) => capaDelRol(p.rol) === capa.rol)
+              const hay = piezas.some((p) => capaDelRol(p.rol) === capa.rol)
               return (
                 <li key={capa.rol}>
                   {/* Un interruptor y no una casilla: lo que hace es encender y
@@ -2850,7 +2868,7 @@ export function ConsolaQuirurgica({
         <div className={`consola-lienzo-marco modo-${modo}`}>
           <LienzoQuirurgico
             url={caso.modeloUrl}
-            piezas={caso.piezas}
+            piezas={piezas}
             modo={modo}
             fluoroscopia={fluoroscopiaEncendida}
             giroLibre={giroLibre}
@@ -3063,7 +3081,7 @@ export function ConsolaQuirurgica({
               zoom={zoomDeFluoroscopia}
               ancho={anchoDeFluoroscopia}
               ayudas={ayudas}
-              hayFragmento={caso.piezas.some((p) => p.rol === 'fragmento')}
+              hayFragmento={piezas.some((p) => p.rol === 'fragmento')}
               angulacion={reduccion.angulacion}
               topeDeAngulacion={objetivo === 'reduccion' && topes ? topes.angulacion : null}
               lienzo={lienzoDeFluoroscopia}
