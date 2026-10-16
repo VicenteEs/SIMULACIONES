@@ -2,6 +2,8 @@ import { getPayload, type Payload } from 'payload'
 import config from '@payload-config'
 import { SLUGS_DE_MODULOS } from '@/collections'
 import { resumirRecorridos, type ResumenDeRecorridos } from '@/lib/progresoDelSimulador'
+import { leerTodas } from '@/lib/leerTodas'
+import { esDelEquipo, filasDeQuien, type QuienLee } from '@/lib/seguimiento'
 import { MODULOS, NOMBRE_DE_MODULO, rutaPublica } from './modulos'
 
 /**
@@ -172,9 +174,14 @@ export interface ActividadDelSimulador extends ResumenDeRecorridos {
 
 export interface ResumenDeActividad {
   registros: number
+  /** Fichas marcadas como leídas, en total y de siempre. Las de la semana están en `marcadas7dias`. */
   completados: number
   ultimos7dias: number
   lectoresActivos7dias: number
+  /** De esas personas, cuántas son residentes y no equipo. */
+  residentesActivos7dias: number
+  /** Fichas que alguien marcó como leídas en los últimos 7 días (del registro de acciones, que lleva la fecha). */
+  marcadas7dias: number
   /**
    * Puntajes y complicaciones del módulo 04.
    *
@@ -189,8 +196,36 @@ export interface ResumenDeActividad {
   ilegible: boolean
 }
 
-export async function resumenDeActividad(payload: Payload): Promise<ResumenDeActividad> {
+/**
+ * El rol real de cada cuenta, por identificador; `null` si no se pudo leer.
+ *
+ * Con esto el seguimiento separa al equipo de los residentes (`src/lib/seguimiento.ts`). Se lee una vez por pantalla y se
+ * le pasa a quien lo necesite, y solo la columna del rol: es el único dato de la cuenta que hace falta para decidir.
+ */
+export async function rolesDeLasCuentas(payload: Payload): Promise<Map<string, string> | null> {
+  try {
+    const { docs } = await leerTodas(payload, { coleccion: 'usuarios', select: { rol: true } })
+    return new Map(docs.map((u) => [String(u.id), typeof u.rol === 'string' ? u.rol : '']))
+  } catch (error) {
+    console.error('[panel] no se pudieron leer los roles de las cuentas:', error)
+    return null
+  }
+}
+
+/** Una persona distinta por cuenta: lo que dice `Set` de los identificadores de las filas. */
+const personasDe = (filas: readonly Record<string, unknown>[]): Set<string> =>
+  new Set(filas.map((f) => String(typeof f.usuario === 'object' && f.usuario ? (f.usuario as { id?: unknown }).id : f.usuario)))
+
+export async function resumenDeActividad(
+  payload: Payload,
+  quien: QuienLee = 'todos',
+): Promise<ResumenDeActividad> {
   const hace7dias = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const roles = await rolesDeLasCuentas(payload)
+  // Sin los roles no se puede separar a nadie: se avisa como cualquier otra lectura que falló, en vez de mostrar «todos»
+  // bajo el rótulo «solo residentes».
+  const rolesIlegibles = roles === null && quien !== 'todos'
+  const rolDe = roles ?? new Map<string, string>()
 
   const [registros, completados] = await Promise.all([
     contar(payload, 'actividad'),
@@ -199,33 +234,44 @@ export async function resumenDeActividad(payload: Payload): Promise<ResumenDeAct
 
   let ultimos7dias = 0
   let lectoresActivos7dias = 0
-  let fallo = false
+  let residentesActivos7dias = 0
+  let marcadas7dias = 0
+  let fallo = rolesIlegibles
   try {
-    const recientes = await payload.find({
-      collection: 'actividad',
+    // Todas las filas de la semana y no las mil más recientes: antes `ultimos7dias` salía de `totalDocs` y era exacto,
+    // pero el número de personas salía de las mil filas traídas y se quedaba en un suelo (D-175).
+    const recientes = await leerTodas(payload, {
+      coleccion: 'actividad',
       where: { ultimaVisita: { greater_than: hace7dias } },
-      limit: 1000,
-      depth: 0,
-      overrideAccess: true,
+      select: { usuario: true },
     })
-    ultimos7dias = recientes.totalDocs
-    // Se cuentan personas distintas, no visitas: diez fichas abiertas por una
-    // sola persona no son diez residentes usando la plataforma.
-    //
-    // Y cada ficha cuenta una vez: `src/collections/Actividad.ts` declara el
-    // índice único sobre (usuario, coleccion, documentoId) y la migración
-    // `20260913_033442_actividad_una_fila_por_ficha` lo crea, así que las dos
-    // filas gemelas que antes dejaba `anotar` al abrir y marcar a la vez —y
-    // que inflaban esta cifra— ya no pueden existir.
-    //
-    // Ojo con el tope: esto sale de los documentos traídos y no de un
-    // `COUNT(DISTINCT …)`, que Payload no ofrece. Pasadas las 1000 filas en
-    // una semana, `ultimos7dias` sigue exacto —es `totalDocs`— pero el número
-    // de personas se queda en un suelo. Subir el tope sin más es traerse la
-    // tabla a la memoria del servidor para contarla.
-    lectoresActivos7dias = new Set(
-      recientes.docs.map((d) => String((d as { usuario?: unknown }).usuario)),
-    ).size
+    const delPedido = filasDeQuien(recientes.docs, quien, rolDe)
+    ultimos7dias = delPedido.length
+    // Se cuentan personas distintas, no visitas: diez fichas abiertas por una sola persona no son diez residentes
+    // usando la plataforma. Y cada ficha cuenta una vez: `actividad` tiene un índice único sobre (usuario, colección,
+    // documento) (`20260913_033442_actividad_una_fila_por_ficha`).
+    const personas = personasDe(delPedido)
+    lectoresActivos7dias = personas.size
+    residentesActivos7dias = [...personas].filter((id) => !esDelEquipo(rolDe.get(id))).length
+
+    // «Marcadas como leídas» de la semana, de verdad: el contador de antes era `completados`, el total de siempre, y la
+    // tarjeta lo presentaba junto a «los últimos 7 días». Las marcas con su fecha están en el registro de acciones.
+    const marcas = await leerTodas(payload, {
+      coleccion: 'registro-de-acciones',
+      where: {
+        and: [
+          { accion: { equals: 'lectura' } },
+          { detalle: { equals: 'la marcó como leída' } },
+          { fecha: { greater_than: hace7dias } },
+        ],
+      },
+      select: { usuario: true, coleccion: true, documentoId: true },
+    })
+    const claves = new Set<string>()
+    for (const m of filasDeQuien(marcas.docs, quien, rolDe)) {
+      claves.add(`${String(typeof m.usuario === 'object' && m.usuario ? (m.usuario as { id?: unknown }).id : m.usuario)}|${String(m.coleccion)}|${String(m.documentoId)}`)
+    }
+    marcadas7dias = claves.size
   } catch (error) {
     // La actividad es accesoria: si falla, el resto del panel sigue en pie.
     // Pero un cero silencioso aquí se lee como «nadie entró esta semana», que
@@ -239,7 +285,9 @@ export async function resumenDeActividad(payload: Payload): Promise<ResumenDeAct
     completados: completados ?? 0,
     ultimos7dias,
     lectoresActivos7dias,
-    simulador: await actividadDelSimulador(payload),
+    residentesActivos7dias,
+    marcadas7dias,
+    simulador: await actividadDelSimulador(payload, quien, rolDe),
     ilegible: fallo || registros === null || completados === null,
   }
 }
@@ -258,20 +306,20 @@ export async function resumenDeActividad(payload: Payload): Promise<ResumenDeAct
  * servidor; lo que hace falta el día que se llegue ahí es contar en la base, y
  * el agrupado por paso que necesita el panel no se pide con `count`.
  */
-async function actividadDelSimulador(payload: Payload): Promise<ActividadDelSimulador> {
+async function actividadDelSimulador(
+  payload: Payload,
+  quien: QuienLee = 'todos',
+  rolDe: ReadonlyMap<string, string> = new Map(),
+): Promise<ActividadDelSimulador> {
   try {
-    const { docs } = await payload.find({
-      collection: 'actividad',
+    // Todas las filas de simulador (D-175): con el tope de mil, pasadas mil filas esto era un suelo y no un recuento. El
+    // usuario va como identificador —profundidad 0—: aquí se cuentan pasos, no personas, y solo hace falta para separar
+    // al equipo de los residentes.
+    const { docs } = await leerTodas(payload, {
+      coleccion: 'actividad',
       where: { coleccion: { equals: 'cirugias' } },
-      limit: 1000,
-      // Profundidad 0: de la fila se leen el puntaje y la lista de
-      // complicaciones, que viven dentro del documento. El usuario no hace
-      // falta —aquí se cuentan pasos, no personas— y poblarlo serían mil
-      // consultas más.
-      depth: 0,
-      overrideAccess: true,
     })
-    return { ...resumirRecorridos(docs), ilegible: false }
+    return { ...resumirRecorridos(filasDeQuien(docs, quien, rolDe)), ilegible: false }
   } catch (error) {
     // Un cero aquí se lee como «nadie ha usado el simulador», que es una
     // conclusión sobre los residentes y no sobre la base. Es el mismo error que

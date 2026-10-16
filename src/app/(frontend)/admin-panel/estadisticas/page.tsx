@@ -1,9 +1,19 @@
-import type { Payload } from 'payload'
+import type { Payload, Where } from 'payload'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { BarraApilada, BarrasHorizontales, BarrasVerticales, type Punto } from '@/components/admin/Graficos'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { PlegarTodo } from '@/components/admin/PlegarTodo'
 import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
+import { leerTodas } from '@/lib/leerTodas'
+import {
+  QUIEN_EN_PALABRAS,
+  claveDeMes,
+  esDelEquipo,
+  filasDeQuien,
+  lecturasPorMes,
+  quienDeLaConsulta,
+} from '@/lib/seguimiento'
+import { FiltroDeQuien } from '@/components/admin/FiltroDeQuien'
 import { clientePayload } from '../datos'
 import { MODULOS } from '../modulos'
 import { leerTitulosDeFichas } from '../titulosDeFichas'
@@ -50,13 +60,6 @@ function ultimosDoceMeses(): {
   })
 }
 
-const claveDeMes = (iso: unknown): string | null => {
-  if (typeof iso !== 'string') return null
-  const fecha = new Date(iso)
-  if (Number.isNaN(fecha.getTime())) return null
-  return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`
-}
-
 /**
  * Lo que hay en una colección, o `null` si la consulta no se pudo hacer.
  *
@@ -72,18 +75,18 @@ const claveDeMes = (iso: unknown): string | null => {
 async function leerColeccion(
   payload: Payload,
   slug: string,
-  opciones: { limite: number; orden?: string; borradores?: boolean },
+  opciones: { columnas: string[]; where?: Where },
 ): Promise<Record<string, unknown>[] | null> {
   try {
-    const { docs } = await payload.find({
-      collection: slug as never,
-      limit: opciones.limite,
-      depth: 0,
-      draft: opciones.borradores === true,
-      sort: opciones.orden,
-      overrideAccess: true,
+    // Todas las filas y solo las columnas que se cuentan (D-175). Antes se pedían las 1.000 o 2.000 más recientes con
+    // todos sus campos, y pasado el tope los totales de esta pantalla eran los de las filas más recientes presentados
+    // como el total; con 1.736 patologías escritas ya se estaba a un paso.
+    const { docs } = await leerTodas(payload, {
+      coleccion: slug,
+      where: opciones.where,
+      select: Object.fromEntries(opciones.columnas.map((c) => [c, true])),
     })
-    return docs as Record<string, unknown>[]
+    return docs
   } catch (error) {
     console.error(`[panel] no se pudo leer «${slug}» para las estadísticas:`, error)
     return null
@@ -92,14 +95,9 @@ async function leerColeccion(
 
 /** Fechas de creación de todos los documentos de una colección, o `null`. */
 async function fechasDeCreacion(payload: Payload, slug: string): Promise<string[] | null> {
-  // `borradores` va en alto porque el panel cuenta lo escrito, no lo publicado:
-  // una ficha en borrador es trabajo hecho y tiene que aparecer en la barra del
-  // mes en que se escribió.
-  const docs = await leerColeccion(payload, slug, {
-    limite: 2000,
-    orden: 'createdAt',
-    borradores: true,
-  })
+  // Se leen los documentos de la tabla principal y no las versiones: el panel cuenta lo escrito, no lo publicado, y
+  // una ficha en borrador tiene su fila ahí desde que nace, así que cae en la barra del mes en que se escribió.
+  const docs = await leerColeccion(payload, slug, { columnas: ['createdAt'] })
   if (docs === null) return null
   return docs.map((d) => d.createdAt).filter((v): v is string => typeof v === 'string')
 }
@@ -113,13 +111,19 @@ async function fechasDeCreacion(payload: Payload, slug: string): Promise<string[
 const conteo = (valor: number, ilegible: boolean, singular: string, plural: string): string =>
   ilegible ? `— ${plural}` : `${valor} ${valor === 1 ? singular : plural}`
 
-export default async function PaginaEstadisticas() {
+export default async function PaginaEstadisticas({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   await exigirPanel('admin')
+  const quien = quienDeLaConsulta((await searchParams).quien)
 
   const payload = await clientePayload()
   const meses = ultimosDoceMeses()
+  const inicioDeLosMeses = new Date(`${meses[0].clave}-01T00:00:00`).toISOString()
 
-  const [porModulo, actividad, comentarios, usuarios] = await Promise.all([
+  const [porModulo, actividadTodas, comentarios, usuarios, aperturas] = await Promise.all([
     Promise.all(
       MODULOS.map(async (m) => ({
         slug: m.slug,
@@ -128,12 +132,29 @@ export default async function PaginaEstadisticas() {
       })),
     ),
     leerColeccion(payload, 'actividad', {
-      limite: 2000,
-      orden: '-ultimaVisita',
+      columnas: ['usuario', 'coleccion', 'documentoId', 'ultimaVisita', 'completado'],
     }),
-    leerColeccion(payload, 'comentarios', { limite: 1000 }),
-    leerColeccion(payload, 'usuarios', { limite: 500 }),
+    leerColeccion(payload, 'comentarios', { columnas: ['estado', 'coleccion'] }),
+    leerColeccion(payload, 'usuarios', { columnas: ['rol', 'activo', 'ultimoAcceso'] }),
+    // Cada apertura de una ficha, con su fecha: de ahí sale «Lecturas por mes». La tabla `actividad` solo guarda la última
+    // visita de cada persona a cada ficha, y con ella una ficha abierta en dos meses contaba solo en el último.
+    leerColeccion(payload, 'registro-de-acciones', {
+      columnas: ['fecha', 'usuario', 'coleccion', 'documentoId'],
+      where: { and: [{ accion: { equals: 'lectura' } }, { fecha: { greater_than_equal: inicioDeLosMeses } }] },
+    }),
   ])
+
+  // El rol de cada cuenta decide a quién se cuenta en la lectura (`?quien=`): el equipo que prueba la plataforma y los
+  // residentes que la usan no son lo mismo, y juntos, con cinco cuentas de equipo y ningún residente, todo el seguimiento
+  // era del equipo sin decirlo. Si no se pudieron leer las cuentas, no se puede separar a nadie y se avisa.
+  const rolDe = new Map<string, string>(
+    (usuarios ?? []).map((u) => [String(u.id), typeof u.rol === 'string' ? u.rol : '']),
+  )
+  const sinRoles = usuarios === null && quien !== 'todos'
+  const actividad = actividadTodas === null ? null : sinRoles ? [] : filasDeQuien(actividadTodas, quien, rolDe)
+  const lecturasDelEquipo =
+    actividadTodas === null ? 0 : actividadTodas.filter((r) => esDelEquipo(rolDe.get(String(r.usuario)))).length
+  const aperturasDeQuien = aperturas === null || sinRoles ? [] : filasDeQuien(aperturas, quien, rolDe)
 
   // Las fichas más leídas se cuentan aquí arriba, y no con el resto de la
   // lectura, porque piden una segunda vuelta a la base —sus títulos— y lo que
@@ -159,7 +180,8 @@ export default async function PaginaEstadisticas() {
   // mirar la migración correcta y mirarlas todas.
   const noSePudoLeer = [
     ...modulosIlegibles.map((m) => m.nombre),
-    ...(actividad === null ? ['el registro de lecturas'] : []),
+    ...(actividadTodas === null ? ['el registro de lecturas'] : []),
+    ...(aperturas === null ? ['las aperturas de fichas'] : []),
     ...(comentarios === null ? ['los comentarios'] : []),
     ...(usuarios === null ? ['las cuentas'] : []),
     ...modulosConTitulosIlegibles(masLeidas, estadosDeLasMasLeidas).map(
@@ -182,10 +204,18 @@ export default async function PaginaEstadisticas() {
     valor: registros.filter((r) => r.coleccion === m.slug).length,
   })).sort((a, b) => b.valor - a.valor)
 
-  const visitasPorMes: Punto[] = meses.map((mes) => ({
+  // Cada barra son las fichas distintas que cada persona abrió ese mes, sacadas de las aperturas con su fecha. Antes salía
+  // de `actividad` poniendo cada ficha en el mes de su última visita: una ficha abierta en septiembre y otra vez en octubre
+  // contaba solo en octubre, y septiembre se vaciaba solo (D-175).
+  const lecturasMensuales = lecturasPorMes(
+    meses.map((m) => m.clave),
+    aperturasDeQuien,
+    registros,
+  )
+  const visitasPorMes: Punto[] = meses.map((mes, i) => ({
     etiqueta: mes.etiqueta,
     detalle: mes.detalle,
-    valor: registros.filter((r) => claveDeMes(r.ultimaVisita) === mes.clave).length,
+    valor: lecturasMensuales[i],
   }))
 
   // Con el título de cada ficha y no con su número de fila, que es como estaba:
@@ -229,7 +259,8 @@ export default async function PaginaEstadisticas() {
         subtitulo={
           <>
             {conteo(totalFichas, contenidoIlegible, 'ficha escrita', 'fichas escritas')} ·{' '}
-            {conteo(totalVisitas, actividad === null, 'lectura registrada', 'lecturas registradas')} ·{' '}
+            {conteo(totalVisitas, actividad === null, 'lectura registrada', 'lecturas registradas')}
+            {quien === 'todos' ? '' : ` (${QUIEN_EN_PALABRAS[quien]})`} ·{' '}
             {conteo(activos, usuarios === null, 'cuenta con acceso', 'cuentas con acceso')}
           </>
         }
@@ -306,6 +337,15 @@ export default async function PaginaEstadisticas() {
         titulo="Quién lo está leyendo"
         resumen={conteo(totalVisitas, actividad === null, 'lectura', 'lecturas')}
       >
+        <FiltroDeQuien
+          actual={quien}
+          ruta="/admin-panel/estadisticas"
+          nota={
+            actividadTodas === null
+              ? undefined
+              : `${actividadTodas.length - lecturasDelEquipo} de residentes · ${lecturasDelEquipo} del equipo`
+          }
+        />
         <div className="admin-grid">
           <div className={`admin-card admin-card-ancha${actividad === null ? ' admin-card-ilegible' : ''}`}>
             <div className="admin-card-title">Lecturas por mes</div>
@@ -317,7 +357,8 @@ export default async function PaginaEstadisticas() {
             ) : (
               <>
                 <p className="admin-card-note">
-                  Cada barra cuenta las fichas visitadas en ese mes, no las visitas repetidas.
+                  Cada barra cuenta las fichas distintas que cada persona abrió ese mes, no las visitas repetidas. Una
+                  ficha abierta en dos meses cuenta en los dos.
                 </p>
                 <BarrasVerticales datos={visitasPorMes} titulo="Lecturas por mes" />
               </>

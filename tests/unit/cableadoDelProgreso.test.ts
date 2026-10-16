@@ -276,7 +276,7 @@ describe('la portada enseña el registro que promete', () => {
 describe('el panel ve en qué se atasca su gente', () => {
   it('el resumen de actividad cuenta también los recorridos', () => {
     expect(DATOS).toContain('resumirRecorridos')
-    expect(DATOS).toContain('simulador: await actividadDelSimulador(payload)')
+    expect(DATOS).toContain('simulador: await actividadDelSimulador(payload, quien, rolDe)')
   })
 
   it('los recorridos traen su propio «no se pudo leer»', () => {
@@ -289,7 +289,7 @@ describe('el panel ve en qué se atasca su gente', () => {
   })
 
   it('la pantalla de actividad lo pide y lo pinta', () => {
-    expect(PANEL_ACTIVIDAD).toContain('resumenDeActividad(payload)')
+    expect(PANEL_ACTIVIDAD).toContain('resumenDeActividad(payload, quien)')
     expect(PANEL_ACTIVIDAD).toContain('atascos.map(')
     expect(PANEL_ACTIVIDAD).toContain('simulador.ilegible')
   })

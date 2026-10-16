@@ -444,8 +444,12 @@ export default async function ResumenAdmin() {
               ) : (
                 <>
                   fichas abiertas por {actividad.lectoresActivos7dias} persona
-                  {actividad.lectoresActivos7dias === 1 ? '' : 's'} · {actividad.completados}{' '}
-                  marcadas como leídas
+                  {actividad.lectoresActivos7dias === 1 ? '' : 's'}
+                  {/* «Residentes» aparte (D-175): con cuentas de equipo probando la plataforma, «3 personas» podían
+                      ser tres administradores y ningún residente, y la tarjeta no lo decía. */}
+                  {` (${actividad.residentesActivos7dias} residente${actividad.residentesActivos7dias === 1 ? '' : 's'})`} ·{' '}
+                  {actividad.marcadas7dias} marcada{actividad.marcadas7dias === 1 ? '' : 's'} como leída
+                  {actividad.marcadas7dias === 1 ? '' : 's'} esta semana
                 </>
               )
             }

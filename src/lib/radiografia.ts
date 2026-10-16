@@ -192,16 +192,80 @@ export interface DesplazamientoDeLaImagen {
 
 export const SIN_DESPLAZAMIENTO: Readonly<DesplazamientoDeLaImagen> = { x: 0, y: 0 }
 
-/** Hasta dónde se puede correr la extremidad: más allá se sale del círculo y no queda nada que mirar. */
+/** Hasta dónde se puede correr la extremidad con el zoom en 1: más allá se sale del círculo y no queda nada que mirar. */
 export const TOPE_DEL_DESPLAZAMIENTO = 1.6
+
+/**
+ * Cuánto se puede acercar la imagen (D-175).
+ *
+ * El mínimo es lo de siempre; el máximo sube de 2 a 4 porque con el hueso entero en el círculo un foco de fractura
+ * o la punta de un clavo ocupan un puñado de píxeles, y en pabellón el arco se acerca hasta que se ven. Más de 4
+ * no sirve: el modelo no tiene detalle que mostrar y la imagen se vuelve una mancha.
+ */
+export const ZOOM_MINIMO_DE_LA_IMAGEN = 0.6
+export const ZOOM_MAXIMO_DE_LA_IMAGEN = 4
 
 const entre = (valor: number, minimo: number, maximo: number) => Math.min(maximo, Math.max(minimo, valor))
 
-export function limitarDesplazamiento(d: DesplazamientoDeLaImagen): DesplazamientoDeLaImagen {
+/** El zoom dentro de lo que la imagen admite; lo que no es un número vuelve a 1. */
+export function limitarZoom(zoom: number): number {
+  return entre(Number.isFinite(zoom) ? zoom : 1, ZOOM_MINIMO_DE_LA_IMAGEN, ZOOM_MAXIMO_DE_LA_IMAGEN)
+}
+
+/**
+ * Hasta dónde se puede correr la extremidad con este zoom.
+ *
+ * El desplazamiento se mide en radios del círculo, y con zoom el círculo abarca menos hueso: a 4× el hueso entero
+ * son cuatro radios de ancho, y un tope de 1,6 radios dejaba el extremo del hueso fuera de alcance (a 4× solo se
+ * podía recorrer el 40 % de la mitad del hueso). El tope crece con el zoom y no baja de 1,6: alejando la imagen no
+ * hace falta tanto, pero encogerlo la dejaría a media pantalla de ninguna parte.
+ */
+export function topeDelDesplazamiento(zoom = 1): number {
+  return TOPE_DEL_DESPLAZAMIENTO * Math.max(1, limitarZoom(zoom))
+}
+
+export function limitarDesplazamiento(d: DesplazamientoDeLaImagen, zoom = 1): DesplazamientoDeLaImagen {
+  const tope = topeDelDesplazamiento(zoom)
   return {
-    x: entre(Number.isFinite(d.x) ? d.x : 0, -TOPE_DEL_DESPLAZAMIENTO, TOPE_DEL_DESPLAZAMIENTO),
-    y: entre(Number.isFinite(d.y) ? d.y : 0, -TOPE_DEL_DESPLAZAMIENTO, TOPE_DEL_DESPLAZAMIENTO),
+    x: entre(Number.isFinite(d.x) ? d.x : 0, -tope, tope),
+    y: entre(Number.isFinite(d.y) ? d.y : 0, -tope, tope),
   }
+}
+
+/**
+ * Cuántos píxeles por lado conviene dibujar la imagen para el ancho con que se enseña.
+ *
+ * Tres escalones y no el ancho exacto: cada tamaño es un blanco de render y un búfer propios, y cambiarlos a cada
+ * píxel de un arrastre de borde los reharía cientos de veces. Se dibuja un poco por encima de lo que se ve (el
+ * navegador reduce bien y agranda mal), y nunca más de 768: leer esos píxeles de la tarjeta, siete veces por
+ * segundo, es lo que hay que cuidar.
+ */
+export const LADOS_DE_LA_IMAGEN = [384, 512, 768] as const
+export type LadoDeLaImagen = (typeof LADOS_DE_LA_IMAGEN)[number]
+
+export function ladoDeLaImagen(anchoEnPantalla: number, densidadDePantalla = 1): LadoDeLaImagen {
+  const px = (Number.isFinite(anchoEnPantalla) ? Math.max(0, anchoEnPantalla) : 0) * (Number.isFinite(densidadDePantalla) ? Math.max(1, densidadDePantalla) : 1)
+  if (px <= 400) return 384
+  if (px <= 560) return 512
+  return 768
+}
+
+/**
+ * Lo que se puede ensanchar el recuadro de la fluoroscopia, en píxeles.
+ *
+ * El mínimo es lo que aguanta la imagen sin que los botones de abajo se amontonen; el máximo, lo que cabe a un
+ * lado del lienzo en una pantalla normal. Quien lo usa lo recorta además a lo que mida su contenedor.
+ */
+export const ANCHO_MINIMO_DEL_RECUADRO = 220
+export const ANCHO_MAXIMO_DEL_RECUADRO = 720
+export const ANCHO_INICIAL_DEL_RECUADRO = 268
+
+export function limitarAnchoDelRecuadro(ancho: number, disponible?: number): number {
+  const tope = Math.max(
+    ANCHO_MINIMO_DEL_RECUADRO,
+    Math.min(ANCHO_MAXIMO_DEL_RECUADRO, Number.isFinite(disponible ?? NaN) ? (disponible as number) : ANCHO_MAXIMO_DEL_RECUADRO),
+  )
+  return Math.round(entre(Number.isFinite(ancho) ? ancho : ANCHO_INICIAL_DEL_RECUADRO, ANCHO_MINIMO_DEL_RECUADRO, tope))
 }
 
 /**
@@ -214,9 +278,10 @@ export function arrastrarLaImagen(
   dxPx: number,
   dyPx: number,
   ladoPx: number,
+  zoom = 1,
 ): DesplazamientoDeLaImagen {
   const radioPx = Math.max(1, ladoPx / 2)
-  return limitarDesplazamiento({ x: actual.x + dxPx / radioPx, y: actual.y - dyPx / radioPx })
+  return limitarDesplazamiento({ x: actual.x + dxPx / radioPx, y: actual.y - dyPx / radioPx }, zoom)
 }
 
 type Vec3 = readonly [number, number, number]
@@ -232,8 +297,9 @@ export function centroDeLaImagen(
   derecha: Vec3,
   arriba: Vec3,
   d: DesplazamientoDeLaImagen,
+  zoom = 1,
 ): [number, number, number] {
-  const { x, y } = limitarDesplazamiento(d)
+  const { x, y } = limitarDesplazamiento(d, zoom)
   return [
     centro[0] - (derecha[0] * x + arriba[0] * y) * radio,
     centro[1] - (derecha[1] * x + arriba[1] * y) * radio,

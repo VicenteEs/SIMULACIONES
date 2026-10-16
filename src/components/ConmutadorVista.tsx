@@ -49,8 +49,9 @@ export function ConmutadorVista({ rolReal, simulando }: { rolReal: string; simul
   return (
     <>
       {simulando ? (
-        <div className="aviso-vista">
-          <span>Está viendo la plataforma como residente.</span>
+        <div className="aviso-vista" title="Está viendo la plataforma como residente.">
+          <Eye size={16} aria-hidden="true" className="aviso-vista-icono" />
+          <span className="aviso-vista-texto">Está viendo la plataforma como residente.</span>
           <button type="button" onClick={() => cambiar(null)} disabled={ocupado}>
             Volver a mi vista
           </button>

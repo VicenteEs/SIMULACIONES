@@ -5908,6 +5908,74 @@ siguen descomponiendo el giro en tres ángulos de Euler, y con giros de más de 
 reducir una fractura no hace falta tanto. La selección del trozo no sobrevive a recargar, y los agujeros ya hechos no acompañan al
 hueso si se mueve después (están en la escena, no colgados del hueso). Prueba nueva: `asasDelHueso`.
 
+### D-175 · 2026-10-16 · vigente
+**La fluoroscopia se acerca hasta 4× y su recuadro se ensancha; la barra superior lleva el logotipo grande en un rectángulo
+blanco y los módulos caben siempre; y el seguimiento del panel deja de contar lo que no pasó.**
+Pedido del dueño: «en la fluoroscopia, zoom hasta ×4 y poder regular el ancho de la pantalla, más grande o más pequeña»; «una
+mejora estética arriba, en las vistas de residente, alumnos, editores y administrador: un rectángulo con las puntas
+redondeadas y agrandar el logo»; «las pestañas de la barra se solapan: quiero que se vean todas, en la pestaña lateral, en una
+lista desplegable o con hover»; «en el administrador, un rectángulo blanco desde la línea hacia arriba detrás del logo»;
+«agrandar los logos de TraumaHub y de ChessCore en todos lados»; y «asegurarme de que la parte de seguimiento funcione a la
+perfección y que todas las funciones capturen información real: hay funciones que no tienen la info correcta».
+
+*Fluoroscopia.* El zoom sube de 2× a 4× (`ZOOM_MAXIMO_DE_LA_IMAGEN`): deslizador, tres botones (1×, 2×, 4×), la rueda sobre la
+imagen y las teclas + y −. El desplazamiento del miembro se mide en radios del círculo, y con zoom el círculo abarca menos hueso:
+a 4× el tope de 1,6 radios dejaba fuera de alcance el extremo del hueso, así que el tope crece con el zoom (`topeDelDesplazamiento`)
+y al alejar lo corrido se recorta. El recuadro se ensancha arrastrando su borde izquierdo (o con las flechas, o con el deslizador
+«Tamaño»), entre 220 y 720 px y nunca más de tres cuartos del lienzo; el ancho se recuerda en el navegador (`localStorage`, con
+`try`). Más ancho también es más píxeles: la imagen se dibuja en tres escalones —384, 512 y 768 px por lado según el ancho y la
+densidad de la pantalla (`ladoDeLaImagen`)— y solo cambia de blanco de render cuando cambia de escalón.
+
+*Barra superior.* La marca va en un rectángulo blanco de esquinas redondeadas —el libro del logotipo es azul oscuro y sobre el
+marino casi no se veía— con el logotipo de 54 px (antes 40) y la barra sube de 58 a 76 px. El alto sale de una variable
+(`--alto-barra`): estaba escrito a mano en tres sitios (la barra y dos `top` de barras pegajosas) y agrandar el logotipo
+obligaba a acordarse de los tres. Los módulos: la fila de cinco necesita más de 1.680 px junto al logotipo grande y los controles
+de la cuenta, y antes, cuando no cabía, se desplazaba en horizontal —«Simulador» e «Imágenes» quedaban fuera de la pantalla sin
+que nada lo dijera—. Ahora, entre 901 y 1.679 px, los cinco están en una lista «Módulos» que se abre al pasar el puntero (solo un
+ratón), al pulsar o con el teclado, y el botón dice el módulo en que se está; por debajo de 900 px sigue el menú del teléfono. El
+aviso de «ver como residente» pierde la frase por debajo de 1.900 px y conserva el botón para volver. El panel del administrador
+lleva la cabecera —logotipo y nombre— en un rectángulo blanco en lugar de la línea, y el logotipo de ChessCore sube a 72 px en el
+pie y a 60 en el panel; el de TraumaHub, a 300 px en el acceso y 400 en la portada. `estilosPublicos.test.ts` vigilaba que la
+marca de la barra se declarara una vez y cupiera en la barra; ahora comprueba lo mismo contra la variable, y que no vuelva a
+escribirse el alto a mano.
+
+*Seguimiento.* Se auditó contra la base real de producción, solo con recuentos (cuentas, filas por tabla, tiempos y acciones; ningún
+dato personal), y contra una prueba de punta a punta en local: un residente de prueba entra, abre una ficha, la marca como leída y
+deja la pestaña abierta; el administrador lee las cuatro pantallas. Lo que **sí funciona**: el tiempo activo (dos minutos de
+uso contaron 122 s, sin doble conteo entre pestañas), la zona horaria del servidor (el contenedor corre en Santiago), el rol que se
+anota con cada acto, las aperturas y marcas de lectura, y los resultados del simulador. Lo que **estaba mal**, y se corrigió:
+1. *La tarjeta «Lectura de los últimos 7 días» del resumen* presentaba «N marcadas como leídas» junto a la semana, pero N era el
+   total de siempre. Ahora son las marcas de la semana, sacadas del registro de acciones, que lleva la fecha (`marcadas7dias`);
+   y dice cuántas de las personas son residentes.
+2. *El equipo y los residentes se contaban juntos.* Con cinco cuentas de equipo y ningún residente en producción, todo «lo que se
+   lee» era el equipo probando, sin decirlo. `?quien=` (todos, solo residentes, solo el equipo; `FiltroDeQuien`,
+   `src/lib/seguimiento.ts`) en Actividad y Estadísticas, una insignia «Equipo» junto al nombre y la cuenta de lecturas de cada lado.
+   Se separa por el rol **real** de la cuenta, no por el que se simule; una cuenta borrada cuenta como residente.
+3. *«Lecturas por mes» ponía cada ficha en el mes de su última visita:* una ficha abierta en septiembre y otra vez en octubre
+   contaba solo en octubre, y septiembre se vaciaba retroactivamente. Ahora sale de las aperturas del registro, que llevan su
+   fecha, y las filas anteriores al registro se cuentan en el mes de su última visita (`lecturasPorMes`).
+4. *Los recuentos se cortaban sin aviso* a las 1.000 o 2.000 filas más recientes —en Actividad (por persona, fichas más leídas),
+   en Estadísticas (lecturas, cuentas, comentarios, fichas creadas) y en el resumen—, de modo que pasado el tope los totales eran los
+   de las filas más recientes presentados como el total. Con 2.717 fichas ya escritas, estaba a un paso. `leerTodas` cuenta primero
+   y pide después todo lo que hay, con solo las columnas que se cuentan; con un techo de 200.000 filas dice si lo leído es una parte.
+5. *«Cuentas activas hoy»* contaba la fila de tiempo de una cuenta borrada (queda con el usuario a nulo, a propósito) como una
+   cuenta activa. Su tiempo sigue sumando en «tiempo activo hoy»; la cuenta ya no.
+Pruebas nuevas: `seguimiento`, y ampliaciones de `fluoroscopiaDesplazada` y `estilosPublicos`.
+
+*Lo que no se midió y se deja dicho.* No hay tiempo de lectura por ficha (se sabe cuándo se abrió y cuántos minutos estuvo activa la
+cuenta, no cuánto estuvo en cada ficha). Del simulador se guarda **el último recorrido** de cada residente y no el historial
+(`Actividad.ts`), de modo que «Veces» en la tabla de atascos son las complicaciones de ese último intento. Las pruebas de
+integración del repositorio dejan en el registro de la base contra la que corren las filas de sus cuentas de prueba
+(`roles-xxxx@prueba.invalid`): en la base local de desarrollo había más de cinco mil, y si algún día corrieran contra una base con
+datos reales, el seguimiento las contaría.
+
+*Consecuencias buenas.* La fluoroscopia deja ver el foco de fractura o la punta del clavo a 4× y la imagen se puede poner del
+tamaño que cada uno quiera; la barra enseña los cinco módulos en cualquier pantalla y el logotipo se ve; los números del seguimiento
+significan lo que dicen, y cuando entren los residentes se podrán mirar sin el equipo. *Malas.* La barra es 18 px más alta, y con
+ella todo lo que se pega debajo. La lista de módulos pide un gesto más (pasar el puntero) donde antes se veía la fila entera a
+medias. El filtro por rol se calcula sobre el rol de hoy de la cuenta, no sobre el que tenía cuando leyó: un residente ascendido a
+editor pasa a «equipo» con todo su historial.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

@@ -217,7 +217,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <p className="admin-sidebar-credito">
               <span className="admin-sidebar-credito-marca">
                 Desarrollado por
-                <LogoChessCore sobre="oscuro" alto={40} />
+                <LogoChessCore sobre="oscuro" alto={60} />
               </span>
               {AUTORIA.nombre} · <a href={`mailto:${AUTORIA.correo}`}>{AUTORIA.correo}</a>
             </p>

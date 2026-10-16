@@ -38,10 +38,10 @@ export function PieDePagina() {
         <span>Desarrollado por</span>
         <span className="pie-de-pagina-marca">
           <span className="logo-sobre-papel">
-            <LogoChessCore sobre="papel" alto={48} />
+            <LogoChessCore sobre="papel" alto={72} />
           </span>
           <span className="logo-sobre-oscuro">
-            <LogoChessCore sobre="oscuro" alto={48} />
+            <LogoChessCore sobre="oscuro" alto={72} />
           </span>
         </span>
       </p>

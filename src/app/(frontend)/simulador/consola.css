@@ -1413,7 +1413,9 @@ body:has(.consola-completa) { overflow: hidden; }
     top: auto;
     right: auto;
     flex: none;
-    width: 268px;
+    /* El ancho lo elige quien mira (D-175): se estira el borde o el deslizador «Tamaño», y llega en `--ancho-escopia`.
+       Nunca más de tres cuartos del lienzo, para que lo que se estaba trabajando no desaparezca. */
+    width: min(var(--ancho-escopia, 268px), 75%);
     max-height: none;
     padding-top: calc(var(--e-3) + 46px);
     border-width: 0 0 0 1px;
@@ -1422,10 +1424,48 @@ body:has(.consola-completa) { overflow: hidden; }
   }
   /* La barra del lienzo sigue sobre el lienzo, no sobre el recuadro. */
   .consola:not(.consola-editor) .consola-lienzo-marco:has(> .consola-escopia) > .consola-lienzo-herramientas {
-    right: calc(268px + var(--e-3));
+    right: calc(min(var(--ancho-escopia, 268px), 75%) + var(--e-3));
   }
 }
-.consola-escopia { width: min(268px, 52%); top: calc(var(--e-3) + 46px); max-height: calc(100% - var(--e-3) * 2 - 46px); overflow-y: auto; }
+.consola-escopia { width: min(var(--ancho-escopia, 268px), 78%); top: calc(var(--e-3) + 46px); max-height: calc(100% - var(--e-3) * 2 - 46px); overflow-y: auto; }
+/* El borde izquierdo del recuadro, que se arrastra para ensancharlo o estrecharlo: una franja de 12 px de ancho
+   (cómoda para el puntero) con una rayita en el medio que dice que se agarra. `touch-action: none` para que el dedo
+   no desplace la página mientras se estira. */
+.consola-escopia-borde {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 12px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.consola-escopia-borde::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 4px;
+  height: 44px;
+  transform: translateY(-50%);
+  background: var(--c-linea-fuerte);
+  border-radius: 2px;
+  transition: background-color var(--dur-rapida, 120ms) ease;
+}
+.consola-escopia-borde:hover::after,
+.consola-escopia-borde:focus-visible::after { background: var(--c-acento, #5aa9ff); }
+.consola-escopia-borde:focus-visible { outline: none; }
+/* Los acercamientos rápidos: tres botones con la misma pinta que las proyecciones. */
+.consola-escopia-zooms {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--e-1);
+  padding: var(--e-1);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+}
 /* La imagen es un círculo: lo que ve el intensificador del arco. Fondo negro por fuera. */
 .consola-escopia-imagen {
   display: block;

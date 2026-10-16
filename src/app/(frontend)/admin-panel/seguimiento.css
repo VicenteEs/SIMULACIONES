@@ -49,6 +49,30 @@
 /* El registro acto por acto: la línea de filtros dentro de su sección. */
 .plegable .admin-filters { margin-bottom: var(--e-4); }
 
+/* «Lecturas de»: todos, solo residentes o solo el equipo (D-175). Una fila de botones con la misma forma que los
+   filtros del registro: el elegido en azul de la marca, y la nota de cuántas lecturas hay de cada lado al final. */
+.seguimiento-quien {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-4);
+  margin-bottom: var(--e-4);
+}
+.seguimiento-quien-rotulo { font-size: var(--t-sm); font-weight: 600; color: var(--pizarra); }
+.seguimiento-quien-opciones { display: inline-flex; flex-wrap: wrap; gap: var(--e-1); padding: 3px; background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-full); }
+.seguimiento-quien-opcion {
+  display: inline-flex; align-items: center; min-height: 34px; padding: 0 var(--e-4);
+  font-size: var(--t-sm); font-weight: 550; color: var(--pizarra); text-decoration: none;
+  border-radius: var(--r-full);
+  transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease;
+}
+.seguimiento-quien-opcion:hover { background: var(--papel); color: var(--tinta); }
+.seguimiento-quien-opcion.activa { background: var(--marca); color: var(--superficie); }
+.seguimiento-quien-nota { font-size: var(--t-sm); color: var(--mudo); }
+
+/* El rol de cada persona en «Por persona» y «Últimas visitas». */
+.seguimiento-rol { margin-left: var(--e-2); vertical-align: middle; }
+
 @media (max-width: 640px) {
   .plegable-cuerpo { padding: var(--e-4); }
 }

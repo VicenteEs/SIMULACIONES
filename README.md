@@ -203,7 +203,8 @@ vista, no el modelo), y cada instrumento hace en él lo que hace en pabellón: l
 Adson van de a dos, los separadores se apoyan en la piel o en el músculo, la tijera de
 Metzenbaum corta o diseca por tensión, y la fluoroscopia enseña su imagen en un recuadro sin
 tocar la escena (D-173). En «Mover», el trozo de hueso que se agarra trae flechas para moverlo
-y aros para girarlo en cada eje (D-174).
+y aros para girarlo en cada eje (D-174). La fluoroscopia se acerca hasta 4× y su recuadro se
+ensancha a gusto; el seguimiento del panel separa al equipo de los residentes (D-175).
 
 El convenio del que depende todo: **el modelo se exporta reducido** y el caso
 declara cuánto está desplazado al empezar. La posición correcta es siempre el

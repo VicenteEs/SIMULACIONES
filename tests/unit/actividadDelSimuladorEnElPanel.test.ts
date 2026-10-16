@@ -36,8 +36,8 @@ const complicacion = (extra: Record<string, unknown> = {}) => ({
 
 /** Distingue las dos consultas por lo que preguntan, no por el orden. */
 const respondiendo = (recorridos: unknown[]) => {
-  buscar.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
-    const esDelSimulador = JSON.stringify(where).includes('cirugias')
+  buscar.mockImplementation(async ({ where }: { where?: Record<string, unknown> }) => {
+    const esDelSimulador = JSON.stringify(where ?? {}).includes('cirugias')
     return esDelSimulador
       ? { docs: recorridos, totalDocs: recorridos.length }
       : { docs: [], totalDocs: 0 }
@@ -79,19 +79,21 @@ describe('el resumen de actividad cuenta los recorridos del simulador', () => {
 
   it('pide solo las filas del simulador', async () => {
     // Cinco módulos escriben en esta tabla y solo uno juega: traerse las otras
-    // para tirarlas gasta el tope de 1000 filas en lo que no se va a contar.
+    // para tirarlas gasta la lectura en lo que no se va a contar.
     await resumenDeActividad(payload)
     const delSimulador = buscar.mock.calls
       .map(([opciones]) => opciones)
-      .find((opciones) => JSON.stringify(opciones.where).includes('cirugias'))
+      .find((opciones) => JSON.stringify(opciones.where ?? {}).includes('cirugias'))
     expect(delSimulador, 'no se consultó por los recorridos').toBeTruthy()
-    expect(delSimulador.limit).toBe(1000)
+    // Sin el tope de mil filas (D-175): se piden todas las que hay —aquí el conteo dice 4—, de una vez y sin paginar.
+    expect(delSimulador.limit).toBe(4)
+    expect(delSimulador.pagination).toBe(false)
     expect(delSimulador.overrideAccess).toBe(true)
   })
 
   it('un fallo al leerlos se dice, no se convierte en un cero', async () => {
-    buscar.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
-      if (JSON.stringify(where).includes('cirugias')) throw new Error('relation does not exist')
+    buscar.mockImplementation(async ({ where }: { where?: Record<string, unknown> }) => {
+      if (JSON.stringify(where ?? {}).includes('cirugias')) throw new Error('relation does not exist')
       return { docs: [], totalDocs: 0 }
     })
 

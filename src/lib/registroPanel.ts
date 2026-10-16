@@ -253,11 +253,18 @@ export async function leerResumenDeCuentas(payload: Payload, ahora: Date = new D
     await payload.count({ collection: 'registro-de-acciones', where: { fecha: { greater_than_equal: inicioHoy } }, overrideAccess: true })
   ).totalDocs
   const deHoy = tiempoPorDia.filter((t) => t.dia === hoy)
+  // «Cuentas activas» son cuentas que existen: la fila de tiempo de una cuenta borrada se queda con el usuario a nulo (el
+  // tiempo trabajado no deja de haber ocurrido), y contada como una cuenta activa inflaba la cifra con gente que ya no está.
+  // Su tiempo sí suma en «tiempo activo hoy», que es el de todo el trabajo hecho. Y una persona cuenta una vez aunque haya
+  // dos filas (no debería: hay un índice único por cuenta y día).
+  const cuentasQueExisten = new Set(cuentas.map((c) => c.id))
   return {
     cuentas,
     tiempoPorDia,
     accionesHoy,
-    cuentasActivasHoy: deHoy.filter((t) => t.segundos > 0).length,
+    cuentasActivasHoy: new Set(
+      deHoy.filter((t) => t.segundos > 0 && cuentasQueExisten.has(t.usuarioId)).map((t) => t.usuarioId),
+    ).size,
     segundosHoy: deHoy.reduce((n, t) => n + t.segundos, 0),
   }
 }

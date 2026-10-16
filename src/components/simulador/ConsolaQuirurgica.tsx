@@ -104,10 +104,15 @@ import {
   type ModoDelElectrobisturi,
 } from '@/lib/electrobisturi'
 import { TIPOS_DE_TRAZO, type TipoDeTrazo } from '@/lib/trazoRecto'
+import { anchoGuardadoDelRecuadro, guardarAnchoDelRecuadro } from './anchoDelRecuadro'
 import {
   PROYECCIONES_DE_FLUOROSCOPIA,
   SEGUNDOS_DE_ESCOPIA_ALTOS,
   SIN_DESPLAZAMIENTO,
+  ladoDeLaImagen,
+  limitarAnchoDelRecuadro,
+  limitarDesplazamiento,
+  limitarZoom,
   type DesplazamientoDeLaImagen,
   type ProyeccionDeFluoroscopia,
 } from '@/lib/radiografia'
@@ -552,6 +557,9 @@ export function ConsolaQuirurgica({
   const [fluoroscopia, setFluoroscopia] = useState<ProyeccionDeFluoroscopia | null>(null)
   const [menuDeFluoroscopia, setMenuDeFluoroscopia] = useState(false)
   const [zoomDeFluoroscopia, setZoomDeFluoroscopia] = useState(1)
+  // Lo ancho que quiere el residente el recuadro de la imagen (D-175). Se recuerda entre visitas: quien lo prefiere
+  // grande lo quiere así en todos los casos, y volver a estirarlo cada vez que enciende los rayos cansa.
+  const [anchoDeFluoroscopia, setAnchoDeFluoroscopia] = useState(() => anchoGuardadoDelRecuadro())
   // Cuánto se ha corrido la extremidad bajo el arco: se arrastra la imagen, como en pabellón se mueve el miembro.
   const [desplazamientoDeFluoroscopia, setDesplazamientoDeFluoroscopia] = useState<DesplazamientoDeLaImagen>(SIN_DESPLAZAMIENTO)
   // Las ayudas de los rayos X (D-166). Los ejes salen puestos —son lo que
@@ -1505,7 +1513,11 @@ export function ConsolaQuirurgica({
     if (fluoroscopia === null) return
     const reloj = window.setInterval(() => {
       const lienzo = lienzoDeFluoroscopia.current
-      if (lienzo) mando.current?.dibujarFluoroscopia(lienzo, fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia)
+      if (!lienzo) return
+      // Se dibuja con los píxeles que hacen falta para el ancho con que se enseña: ensanchar el recuadro sin esto
+      // solo agranda una imagen de 384 px y la vuelve borrosa.
+      const lado = ladoDeLaImagen(lienzo.getBoundingClientRect().width, window.devicePixelRatio)
+      mando.current?.dibujarFluoroscopia(lienzo, fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia, lado)
     }, 140)
     return () => window.clearInterval(reloj)
   }, [fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia])
@@ -3049,6 +3061,7 @@ export function ConsolaQuirurgica({
               proyeccion={fluoroscopia}
               segundos={segundosDeEscopia}
               zoom={zoomDeFluoroscopia}
+              ancho={anchoDeFluoroscopia}
               ayudas={ayudas}
               hayFragmento={caso.piezas.some((p) => p.rol === 'fragmento')}
               angulacion={reduccion.angulacion}
@@ -3057,7 +3070,17 @@ export function ConsolaQuirurgica({
               desplazamiento={desplazamientoDeFluoroscopia}
               alDesplazar={setDesplazamientoDeFluoroscopia}
               alElegirProyeccion={elegirProyeccion}
-              alAcercar={setZoomDeFluoroscopia}
+              alAcercar={(z) => {
+                const nuevo = limitarZoom(z)
+                setZoomDeFluoroscopia(nuevo)
+                // Al alejar, el tope de cuánto se puede correr el miembro baja: lo corrido se recorta con él.
+                setDesplazamientoDeFluoroscopia((d) => limitarDesplazamiento(d, nuevo))
+              }}
+              alCambiarAncho={(a) => {
+                const nuevo = limitarAnchoDelRecuadro(a)
+                setAnchoDeFluoroscopia(nuevo)
+                guardarAnchoDelRecuadro(nuevo)
+              }}
               alCambiarAyudas={setAyudas}
               alApagar={apagarFluoroscopia}
             />

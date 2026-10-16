@@ -972,6 +972,21 @@ personas.
 «Estadísticas» muestra cuánto contenido hay, qué se lee más y dónde se comenta.
 «Actividad», quién abrió qué y su paso por el simulador.
 
+**¿De quién son las lecturas?** Las dos pantallas traen arriba «Lecturas de»:
+*Todos*, *Solo residentes* o *Solo el equipo* (administradores y editores). Sin
+esa separación, el equipo que prueba la plataforma contaba como si fuera un
+residente. Junto al filtro está cuántas lecturas hay de cada lado, y en «Actividad»
+las cuentas del equipo llevan una marca «Equipo» junto al nombre. Se separa por el
+rol de la cuenta, no por la vista «como residente» que un administrador pueda estar
+mirando.
+
+**Los números son completos.** Los recuentos leen todas las filas, no las más
+recientes: ya no se cortan a las mil o dos mil últimas. «Lecturas por mes» cuenta,
+por mes, las fichas distintas que cada persona abrió, de modo que una ficha abierta
+en septiembre y otra vez en octubre cuenta en los dos meses. En «Resumen», las
+«marcadas como leídas» de «Lectura de los últimos 7 días» son las de esa semana,
+no las de siempre.
+
 **El puntaje del simulador no es una calificación.** Sirve para ver qué gesto se
 le atraviesa a la gente, no para evaluar a nadie, y el panel lo dice en la misma
 pantalla. La actividad de lectura solo la ven los administradores: trátela como

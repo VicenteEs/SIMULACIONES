@@ -372,13 +372,36 @@ describe('los logotipos reservan su hueco', () => {
    */
   it('la marca de la barra se declara una sola vez y cabe en la barra', () => {
     const marcas = reglas.filter((r) => r.selector === '.marca-logo')
-    expect(marcas.length).toBe(1)
+    // Una sin condición: una segunda pisaría a la primera sin avisar. Las de pantalla estrecha (D-175) están dentro de
+    // un `@media`, tienen su propio contexto y se comprueban abajo.
+    const base = marcas.filter((r) => r.contexto.length === 0)
+    expect(base.length).toBe(1)
+    expect(base[0].declaraciones.width).toBe(base[0].declaraciones.height)
 
-    const alto = parseFloat(marcas[0].declaraciones.height)
-    expect(marcas[0].declaraciones.width).toBe(marcas[0].declaraciones.height)
-
+    // El alto de la barra sale de una variable y no de un número escrito en tres sitios (D-175).
     const barra = reglas.find((r) => r.selector === '.barra-interior' && r.contexto.length === 0)!
-    expect(alto).toBeLessThanOrEqual(parseFloat(barra.declaraciones.height))
+    expect(barra.declaraciones.height).toBe('var(--alto-barra)')
+    const altoDeLaBarra = (contexto: (r: (typeof reglas)[number]) => boolean) =>
+      parseFloat(reglas.filter((r) => r.selector === ':root' && r.declaraciones['--alto-barra'] && contexto(r)).at(-1)!.declaraciones['--alto-barra'])
+
+    // La marca va dentro de un rectángulo con 5 px de relleno por lado, y todo tiene que caber con aire.
+    const alto = parseFloat(base[0].declaraciones.height)
+    expect(alto + 10).toBeLessThan(altoDeLaBarra((r) => r.contexto.length === 0))
+
+    // En el teléfono la barra baja y el logotipo con ella: la misma cuenta con las cifras de esa pantalla.
+    const enElTelefono = marcas.find((r) => r.contexto.length > 0)
+    if (enElTelefono) {
+      const altoTelefono = parseFloat(enElTelefono.declaraciones.height)
+      expect(altoTelefono + 8).toBeLessThan(altoDeLaBarra((r) => r.contexto.length > 0))
+    }
+  })
+
+  it('ninguna barra pegajosa ni margen de pestaña lleva el alto de la barra escrito a mano', () => {
+    // Los 58 px de antes, escritos en dos `top` y en un margen: si alguien vuelve a escribirlos, la barra grande los pisa.
+    const sinVariable = reglas.filter((r) =>
+      Object.entries(r.declaraciones).some(([propiedad, valor]) => (propiedad === 'top' || propiedad === 'scroll-margin-top') && valor === '58px'),
+    )
+    expect(sinVariable).toEqual([])
   })
 })
 

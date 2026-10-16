@@ -1,13 +1,27 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import {
+  ANCHO_INICIAL_DEL_RECUADRO,
+  ANCHO_MAXIMO_DEL_RECUADRO,
+  ANCHO_MINIMO_DEL_RECUADRO,
   SIN_DESPLAZAMIENTO,
   TOPE_DEL_DESPLAZAMIENTO,
+  ZOOM_MAXIMO_DE_LA_IMAGEN,
+  ZOOM_MINIMO_DE_LA_IMAGEN,
   arrastrarLaImagen,
   centroDeLaImagen,
+  ladoDeLaImagen,
+  limitarAnchoDelRecuadro,
   limitarDesplazamiento,
+  limitarZoom,
+  topeDelDesplazamiento,
 } from '@/lib/radiografia'
-import { ponerRadiografiaTemporal, prepararFluoroscopia, soltarFluoroscopia } from '@/components/simulador/radiografiaEnLaEscena'
+import {
+  ajustarLadoDeLaFluoroscopia,
+  ponerRadiografiaTemporal,
+  prepararFluoroscopia,
+  soltarFluoroscopia,
+} from '@/components/simulador/radiografiaEnLaEscena'
 
 /**
  * Mover la extremidad bajo el arco, y que la fluoroscopia no toque la escena de quien trabaja.
@@ -69,6 +83,101 @@ describe('centroDeLaImagen', () => {
   it('si el miembro va a la derecha, la cámara mira a su izquierda', () => {
     const [x] = centroDeLaImagen(centro, 5, derecha, arriba, { x: 1, y: 0 })
     expect(x).toBeCloseTo(5, 6)
+  })
+})
+
+describe('el zoom hasta 4× (D-175)', () => {
+  it('admite de 0,6 a 4 y lo demás se recorta; lo que no es un número vuelve a 1', () => {
+    expect(ZOOM_MINIMO_DE_LA_IMAGEN).toBe(0.6)
+    expect(ZOOM_MAXIMO_DE_LA_IMAGEN).toBe(4)
+    expect(limitarZoom(9)).toBe(4)
+    expect(limitarZoom(0.1)).toBe(0.6)
+    expect(limitarZoom(2.5)).toBe(2.5)
+    expect(limitarZoom(NaN)).toBe(1)
+  })
+
+  it('el tope de lo que se puede correr el miembro crece con el zoom y no baja de lo de siempre', () => {
+    expect(topeDelDesplazamiento(1)).toBe(TOPE_DEL_DESPLAZAMIENTO)
+    expect(topeDelDesplazamiento(0.6)).toBe(TOPE_DEL_DESPLAZAMIENTO)
+    expect(topeDelDesplazamiento(4)).toBeCloseTo(TOPE_DEL_DESPLAZAMIENTO * 4, 9)
+    // Y un zoom fuera de rango no abre el tope más allá de 4×.
+    expect(topeDelDesplazamiento(40)).toBeCloseTo(TOPE_DEL_DESPLAZAMIENTO * 4, 9)
+  })
+
+  it('con 4× se puede llegar al extremo del hueso, que con el tope de 1× quedaba fuera de alcance', () => {
+    // A 4× el hueso entero mide cuatro radios de ancho: su extremo está a unos dos radios del centro, y con el
+    // tope de 1,6 radios no se llegaba a él.
+    const lejos = arrastrarLaImagen(SIN_DESPLAZAMIENTO, 0, -5000, 192, 4)
+    expect(lejos.y).toBeGreaterThan(2)
+    expect(lejos.y).toBeCloseTo(TOPE_DEL_DESPLAZAMIENTO * 4, 9)
+    // Con 1× sigue parando donde paraba.
+    expect(arrastrarLaImagen(SIN_DESPLAZAMIENTO, 0, -5000, 192, 1).y).toBe(TOPE_DEL_DESPLAZAMIENTO)
+  })
+
+  it('arrastrar sigue al cursor igual con cualquier zoom: lo que se pinchó se queda bajo el dedo', () => {
+    // Medio lado de arrastre es un radio del círculo, esté el zoom como esté: el radio ya incluye el zoom.
+    expect(arrastrarLaImagen(SIN_DESPLAZAMIENTO, 0, -96, 192, 4).y).toBeCloseTo(1, 6)
+    expect(arrastrarLaImagen(SIN_DESPLAZAMIENTO, 0, -96, 192, 0.6).y).toBeCloseTo(1, 6)
+  })
+
+  it('al alejar se recorta lo corrido que ya no cabe', () => {
+    const corrido = limitarDesplazamiento({ x: 5, y: -5 }, 4)
+    expect(corrido).toEqual({ x: 5, y: -5 })
+    expect(limitarDesplazamiento(corrido, 1)).toEqual({ x: TOPE_DEL_DESPLAZAMIENTO, y: -TOPE_DEL_DESPLAZAMIENTO })
+  })
+
+  it('el foco de la cámara se mueve con el zoom que se pide, sin recortar de más', () => {
+    const centro: [number, number, number] = [0, 0, 0]
+    const [, y4] = centroDeLaImagen(centro, 1, [1, 0, 0], [0, 1, 0], { x: 0, y: 3 }, 4)
+    expect(y4).toBeCloseTo(-3, 6)
+    const [, y1] = centroDeLaImagen(centro, 1, [1, 0, 0], [0, 1, 0], { x: 0, y: 3 }, 1)
+    expect(y1).toBeCloseTo(-TOPE_DEL_DESPLAZAMIENTO, 6)
+  })
+})
+
+describe('el tamaño del recuadro y de la imagen (D-175)', () => {
+  it('la imagen se dibuja con más píxeles cuanto más ancha se enseña', () => {
+    expect(ladoDeLaImagen(268)).toBe(384)
+    expect(ladoDeLaImagen(400)).toBe(384)
+    expect(ladoDeLaImagen(480)).toBe(512)
+    expect(ladoDeLaImagen(700)).toBe(768)
+  })
+
+  it('tiene en cuenta la densidad de la pantalla, y una densidad rara no la rompe', () => {
+    // 268 px CSS en una pantalla de densidad 2 son 536 píxeles reales.
+    expect(ladoDeLaImagen(268, 2)).toBe(512)
+    expect(ladoDeLaImagen(268, 0)).toBe(384)
+    expect(ladoDeLaImagen(268, NaN)).toBe(384)
+    expect(ladoDeLaImagen(NaN)).toBe(384)
+  })
+
+  it('el ancho del recuadro se queda entre el mínimo y el máximo, y dentro de lo que cabe', () => {
+    expect(limitarAnchoDelRecuadro(50)).toBe(ANCHO_MINIMO_DEL_RECUADRO)
+    expect(limitarAnchoDelRecuadro(5000)).toBe(ANCHO_MAXIMO_DEL_RECUADRO)
+    expect(limitarAnchoDelRecuadro(500)).toBe(500)
+    // Lo que cabe: no pasa de lo que le deja el contenedor…
+    expect(limitarAnchoDelRecuadro(700, 450)).toBe(450)
+    // …pero un contenedor diminuto no lo baja del mínimo.
+    expect(limitarAnchoDelRecuadro(300, 100)).toBe(ANCHO_MINIMO_DEL_RECUADRO)
+    expect(limitarAnchoDelRecuadro(NaN)).toBe(ANCHO_INICIAL_DEL_RECUADRO)
+  })
+
+  it('cambiar el lado reserva un blanco nuevo y suelta el de antes; el mismo lado no hace nada', () => {
+    const f = prepararFluoroscopia()
+    expect(f.lado).toBe(384)
+    expect(f.buffer.length).toBe(384 * 384 * 4)
+    const antes = f.rt
+    ajustarLadoDeLaFluoroscopia(f, 384)
+    expect(f.rt).toBe(antes)
+    f.huella = 'algo'
+    ajustarLadoDeLaFluoroscopia(f, 768)
+    expect(f.lado).toBe(768)
+    expect(f.rt).not.toBe(antes)
+    expect(f.rt.width).toBe(768)
+    expect(f.buffer.length).toBe(768 * 768 * 4)
+    // Hay que volver a dibujar con el tamaño nuevo: la huella de antes ya no vale.
+    expect(f.huella).toBe('')
+    soltarFluoroscopia(f)
   })
 })
 

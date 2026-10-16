@@ -7,6 +7,9 @@ import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
 import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import { Vacio } from '@/components/ui/Vacio'
 import { NOMBRE_DEL_DESENLACE } from '@/lib/progresoDelSimulador'
+import { FiltroDeQuien } from '@/components/admin/FiltroDeQuien'
+import { leerTodas } from '@/lib/leerTodas'
+import { QUIEN_EN_PALABRAS, esDelEquipo, filasDeQuien, quienDeLaConsulta } from '@/lib/seguimiento'
 import { clientePayload, resumenDeActividad } from '../datos'
 import { NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
 import {
@@ -62,6 +65,19 @@ function InsigniaDeModulo({ coleccion }: { coleccion: string }) {
   )
 }
 
+/**
+ * «Equipo» junto al nombre de quien es administrador o editor, para que se vea a primera vista quién es residente y quién
+ * prueba la plataforma (D-175). El residente no lleva marca: es el caso normal, y marcarlo llenaría la tabla.
+ */
+function InsigniaDeRol({ rol }: { rol: string }) {
+  if (!esDelEquipo(rol)) return null
+  return (
+    <span className="insignia insignia-neutra seguimiento-rol" title={rol === 'admin' ? 'Administrador' : 'Editor'}>
+      Equipo
+    </span>
+  )
+}
+
 const fechaHora = (valor?: string | null) =>
   valor
     ? new Date(valor).toLocaleString('es-CL', {
@@ -77,6 +93,8 @@ interface Registro {
   usuarioId: string
   usuarioNombre: string
   usuarioCorreo: string
+  /** El rol real de la cuenta, para saber si es equipo o residente. Vacío si la cuenta ya no existe. */
+  rol: string
   coleccion: string
   documentoId: string
   completado: boolean
@@ -87,6 +105,7 @@ interface PorPersona {
   usuarioId: string
   nombre: string
   correo: string
+  rol: string
   visitadas: number
   completadas: number
   ultima: string | null
@@ -107,8 +126,13 @@ interface PorPersona {
  * puntaje del simulador no es una nota —lo calcula el navegador y el servidor no
  * lo puede recalcular—, así que se enseña dicho en la propia pantalla.
  */
-export default async function PaginaActividad() {
+export default async function PaginaActividad({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   await exigirPanel('admin')
+  const quien = quienDeLaConsulta((await searchParams).quien)
 
   const payload = await clientePayload()
 
@@ -123,33 +147,46 @@ export default async function PaginaActividad() {
   // «no se pudo leer» que los títulos de abajo arrastraban con «Ficha
   // eliminada», y que las tarjetas del resumen dejaron de cometer con
   // `ilegible`.
-  const [listado, resumen] = await Promise.all([
-    payload
-      .find({
-        collection: 'actividad',
-        limit: 1000,
-        sort: '-ultimaVisita',
-        depth: 1,
-        overrideAccess: true,
-      })
-      .catch((error) => {
-        console.error('[panel] no se pudo leer la tabla de actividad:', error)
-        return null
-      }),
-    resumenDeActividad(payload),
+  //
+  // Todas las filas y no las mil más recientes (D-175): con el tope, «Por persona» y «Fichas más leídas» eran un recuento de
+  // las últimas mil filas presentado como el total. La cuenta de cada fila se pide aparte y una sola vez —nombre, correo y
+  // rol—, en vez de poblarla fila por fila, y de ella sale también la separación entre el equipo y los residentes.
+  const [listado, cuentas, resumen] = await Promise.all([
+    leerTodas(payload, { coleccion: 'actividad', sort: '-ultimaVisita' }).catch((error) => {
+      console.error('[panel] no se pudo leer la tabla de actividad:', error)
+      return null
+    }),
+    leerTodas(payload, { coleccion: 'usuarios', select: { nombre: true, email: true, rol: true } }).catch((error) => {
+      console.error('[panel] no se pudieron leer las cuentas de la actividad:', error)
+      return null
+    }),
+    resumenDeActividad(payload, quien),
   ])
-  const docs = listado?.docs ?? []
-  const totalDocs = listado?.totalDocs ?? 0
+  const infoDe = new Map(
+    (cuentas?.docs ?? []).map((c) => [
+      String(c.id),
+      { nombre: typeof c.nombre === 'string' && c.nombre ? c.nombre : '', correo: typeof c.email === 'string' ? c.email : '—', rol: typeof c.rol === 'string' ? c.rol : '' },
+    ]),
+  )
+  const rolDe = new Map([...infoDe].map(([id, c]) => [id, c.rol]))
+  // Sin cuentas no se puede separar a nadie: se enseña todo y se avisa, en vez de rotular «solo residentes» lo que no lo es.
+  const sinRoles = cuentas === null && quien !== 'todos'
+  const todasLasFilas = (listado?.docs ?? []) as Record<string, unknown>[]
+  const docs = sinRoles ? todasLasFilas : filasDeQuien(todasLasFilas, quien, rolDe)
+  const totalDocs = docs.length
+  const delEquipo = todasLasFilas.filter((d) => esDelEquipo(rolDe.get(String(d.usuario)))).length
   const simulador = resumen.simulador
   const atascos = simulador.atascos.slice(0, 20)
 
-  const registros: Registro[] = (docs as unknown as Record<string, unknown>[]).map((d) => {
-    const usuario = d.usuario as { id?: unknown; nombre?: string; email?: string } | null
+  const registros: Registro[] = docs.map((d) => {
+    const id = String(d.usuario ?? '')
+    const cuenta = infoDe.get(id)
     return {
       id: String(d.id),
-      usuarioId: String(usuario?.id ?? d.usuario ?? ''),
-      usuarioNombre: usuario?.nombre ?? 'Cuenta eliminada',
-      usuarioCorreo: usuario?.email ?? '—',
+      usuarioId: id,
+      usuarioNombre: cuenta ? cuenta.nombre || cuenta.correo : 'Cuenta eliminada',
+      usuarioCorreo: cuenta?.correo ?? '—',
+      rol: cuenta?.rol ?? '',
       coleccion: String(d.coleccion ?? ''),
       documentoId: String(d.documentoId ?? ''),
       completado: d.completado === true,
@@ -164,6 +201,7 @@ export default async function PaginaActividad() {
       usuarioId: r.usuarioId,
       nombre: r.usuarioNombre,
       correo: r.usuarioCorreo,
+      rol: r.rol,
       visitadas: 0,
       completadas: 0,
       ultima: null,
@@ -251,10 +289,27 @@ export default async function PaginaActividad() {
               {totalDocs} registro{totalDocs === 1 ? '' : 's'} de lectura · {personas.length}{' '}
               persona
               {personas.length === 1 ? '' : 's'} han abierto alguna ficha
+              {quien === 'todos' ? '' : ` (${QUIEN_EN_PALABRAS[quien]})`}
             </>
           ) : undefined
         }
       />
+
+      {listado ? (
+        <FiltroDeQuien
+          actual={quien}
+          ruta="/admin-panel/actividad"
+          nota={`${todasLasFilas.length - delEquipo} de residentes · ${delEquipo} del equipo`}
+        />
+      ) : null}
+
+      {sinRoles ? (
+        <div className="admin-aviso admin-aviso-atencion" role="status">
+          <strong>No se pudieron leer las cuentas.</strong> Sin ellas no se puede separar al equipo de los residentes, así
+          que lo que se ve aquí es de todas las cuentas aunque se haya pedido otra cosa. El detalle queda en el registro
+          del servidor.
+        </div>
+      ) : null}
 
       {modulosIlegibles.length > 0 ? (
         <div className="admin-aviso admin-aviso-atencion" role="status">
@@ -303,7 +358,10 @@ export default async function PaginaActividad() {
                     return (
                       <tr key={p.usuarioId}>
                         <td>
-                          <div className="admin-table-user-name">{p.nombre}</div>
+                          <div className="admin-table-user-name">
+                            {p.nombre}
+                            <InsigniaDeRol rol={p.rol} />
+                          </div>
                           <div className="admin-table-user-email">{p.correo}</div>
                         </td>
                         <td className="u-num">{p.visitadas}</td>
@@ -537,7 +595,10 @@ export default async function PaginaActividad() {
                     return (
                       <tr key={r.id}>
                         <td>
-                          <div className="admin-table-user-name">{r.usuarioNombre}</div>
+                          <div className="admin-table-user-name">
+                            {r.usuarioNombre}
+                            <InsigniaDeRol rol={r.rol} />
+                          </div>
                           <div className="admin-table-user-email">{r.usuarioCorreo}</div>
                         </td>
                         <td>

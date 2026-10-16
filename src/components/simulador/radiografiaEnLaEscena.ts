@@ -7,7 +7,9 @@ import {
   aFluoroscopia,
   centroDeLaImagen,
   densidadDelPapel,
+  LADOS_DE_LA_IMAGEN,
   limitarDesplazamiento,
+  limitarZoom,
   type DesplazamientoDeLaImagen,
   type ProyeccionDeFluoroscopia,
 } from '@/lib/radiografia'
@@ -111,8 +113,10 @@ export function ponerRadiografiaTemporal(ctx: EscenaParaRadiografia, f: TallerDe
 
 export interface OpcionesDeLaImagen {
   proyeccion: ProyeccionDeFluoroscopia
-  /** 0,6 a 2: cuánto se acerca. 1 encuadra el hueso entero con un poco de aire. */
+  /** 0,6 a 4: cuánto se acerca. 1 encuadra el hueso entero con un poco de aire. */
   zoom: number
+  /** Píxeles por lado con que se dibuja (`ladoDeLaImagen`), según lo grande que se enseñe. Sin él, el que ya tiene. */
+  lado?: number
   /** Qué eje del archivo es el largo del hueso (decide qué es «de frente»). */
   ejeLargo: 'x' | 'y' | 'z'
   /** Cuánto se ha corrido la extremidad bajo el arco (arrastrando la imagen). Sin él, centrada. */
@@ -122,6 +126,8 @@ export interface OpcionesDeLaImagen {
 export interface TallerDeFluoroscopia {
   rt: THREE.WebGLRenderTarget
   buffer: Uint8Array
+  /** Píxeles por lado del blanco y del búfer. */
+  lado: number
   camara: THREE.PerspectiveCamera
   /** Para no repetir el dibujo si nada cambió. */
   huella: string
@@ -130,20 +136,40 @@ export interface TallerDeFluoroscopia {
 }
 
 export const LADO_DE_LA_IMAGEN = 384
+const LADOS_VALIDOS: readonly number[] = LADOS_DE_LA_IMAGEN
 
-export function prepararFluoroscopia(): TallerDeFluoroscopia {
-  const rt = new THREE.WebGLRenderTarget(LADO_DE_LA_IMAGEN, LADO_DE_LA_IMAGEN, {
+function blancoDeLado(lado: number) {
+  return new THREE.WebGLRenderTarget(lado, lado, {
     type: THREE.UnsignedByteType,
     format: THREE.RGBAFormat,
     depthBuffer: false,
   })
+}
+
+export function prepararFluoroscopia(lado: number = LADO_DE_LA_IMAGEN): TallerDeFluoroscopia {
   return {
-    rt,
-    buffer: new Uint8Array(LADO_DE_LA_IMAGEN * LADO_DE_LA_IMAGEN * 4),
+    rt: blancoDeLado(lado),
+    buffer: new Uint8Array(lado * lado * 4),
+    lado,
     camara: new THREE.PerspectiveCamera(14, 1, 0.01, 100),
     huella: '',
     materiales: new Map(),
   }
+}
+
+/**
+ * Cambia el tamaño con que se dibuja la imagen: suelta el blanco de antes y reserva el nuevo.
+ *
+ * Solo si el lado cambió: un blanco de render es memoria de la tarjeta, y reservarlo siete veces por segundo es
+ * justo lo que `huella` existe para evitar.
+ */
+export function ajustarLadoDeLaFluoroscopia(f: TallerDeFluoroscopia, lado: number) {
+  if (f.lado === lado) return
+  f.rt.dispose()
+  f.rt = blancoDeLado(lado)
+  f.buffer = new Uint8Array(lado * lado * 4)
+  f.lado = lado
+  f.huella = ''
 }
 
 export function soltarFluoroscopia(f: TallerDeFluoroscopia | undefined) {
@@ -196,8 +222,11 @@ export function dibujarFluoroscopia(
   esconder: (THREE.Object3D | undefined)[],
 ): boolean {
   if (!ctx.raiz) return false
-  const desplazamiento = limitarDesplazamiento(opciones.desplazamiento ?? SIN_DESPLAZAMIENTO)
-  const huella = `${opciones.proyeccion}|${opciones.zoom}|${opciones.ejeLargo}|${desplazamiento.x.toFixed(3)},${desplazamiento.y.toFixed(3)}|${cuadro}`
+  const zoom = limitarZoom(opciones.zoom)
+  const desplazamiento = limitarDesplazamiento(opciones.desplazamiento ?? SIN_DESPLAZAMIENTO, zoom)
+  if (opciones.lado && LADOS_VALIDOS.includes(opciones.lado)) ajustarLadoDeLaFluoroscopia(f, opciones.lado)
+  const lado = f.lado
+  const huella = `${opciones.proyeccion}|${zoom}|${lado}|${opciones.ejeLargo}|${desplazamiento.x.toFixed(3)},${desplazamiento.y.toFixed(3)}|${cuadro}`
   if (huella === f.huella) return false
   f.huella = huella
 
@@ -212,11 +241,11 @@ export function dibujarFluoroscopia(
   const centro = caja.getCenter(new THREE.Vector3())
   const tam = caja.getSize(new THREE.Vector3())
   // El círculo cubre la dimensión mayor con un 12 % de aire, y el zoom la acerca.
-  const radio = (Math.max(tam.x, tam.y, tam.z) / 2) * 1.12 / Math.max(0.3, opciones.zoom)
+  const radio = (Math.max(tam.x, tam.y, tam.z) / 2) * 1.12 / zoom
   const distancia = radio / Math.tan((f.camara.fov * Math.PI) / 360)
   // Con la extremidad corrida, la cámara mira a otro punto del miembro, no al centro del hueso.
   const foco = new THREE.Vector3(
-    ...centroDeLaImagen([centro.x, centro.y, centro.z], radio, [derecha.x, derecha.y, derecha.z], [arriba.x, arriba.y, arriba.z], desplazamiento),
+    ...centroDeLaImagen([centro.x, centro.y, centro.z], radio, [derecha.x, derecha.y, derecha.z], [arriba.x, arriba.y, arriba.z], desplazamiento, zoom),
   )
   f.camara.position.copy(foco).addScaledVector(direccion, distancia)
   f.camara.up.copy(arriba)
@@ -236,7 +265,7 @@ export function dibujarFluoroscopia(
     render.setClearColor(0x000000, 1)
     render.clear()
     render.render(ctx.escena, f.camara)
-    render.readRenderTargetPixels(f.rt, 0, 0, LADO_DE_LA_IMAGEN, LADO_DE_LA_IMAGEN, f.buffer)
+    render.readRenderTargetPixels(f.rt, 0, 0, lado, lado, f.buffer)
   } finally {
     // Pase lo que pase, la escena de quien está trabajando vuelve a ser la suya.
     render.setRenderTarget(null)
@@ -245,11 +274,11 @@ export function dibujarFluoroscopia(
     escondidos.forEach((o) => (o.visible = true))
   }
 
-  const imagen = aFluoroscopia(f.buffer, LADO_DE_LA_IMAGEN, LADO_DE_LA_IMAGEN, { ganancia: 1, ruido: 0.6, semilla: cuadro })
-  destino.width = LADO_DE_LA_IMAGEN
-  destino.height = LADO_DE_LA_IMAGEN
+  const imagen = aFluoroscopia(f.buffer, lado, lado, { ganancia: 1, ruido: 0.6, semilla: cuadro })
+  destino.width = lado
+  destino.height = lado
   const lienzo = destino.getContext('2d')
   if (!lienzo) return false
-  lienzo.putImageData(new ImageData(new Uint8ClampedArray(imagen), LADO_DE_LA_IMAGEN, LADO_DE_LA_IMAGEN), 0, 0)
+  lienzo.putImageData(new ImageData(new Uint8ClampedArray(imagen), lado, lado), 0, 0)
   return true
 }

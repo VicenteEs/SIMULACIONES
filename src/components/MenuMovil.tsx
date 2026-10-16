@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ConmutadorVista } from './ConmutadorVista'
 import { BotonSalir } from './BotonSalir'
-import { LayoutDashboard, Wrench, X } from 'lucide-react'
+import { ChevronDown, LayoutDashboard, LayoutGrid, Wrench, X } from 'lucide-react'
 import { IDENTIDAD_DE_MODULO } from './ui/modulos'
 import { InsigniaMantencion } from './ui/InsigniaMantencion'
 
@@ -80,6 +80,105 @@ export function BarraDeModulos({ modulos }: { modulos: EntradaDeMenu[] }) {
         </Link>
       ))}
     </nav>
+  )
+}
+
+/**
+ * Los módulos en una lista desplegable, para las pantallas donde la fila no cabe (D-175).
+ *
+ * La fila de `BarraDeModulos` necesita más de 1.600 px junto al logotipo grande y los controles de la cuenta, y antes,
+ * cuando no cabía, se desplazaba en horizontal: «Simulador» e «Imágenes» quedaban fuera de la pantalla y nada decía que
+ * existían. Aquí están los cinco juntos, sin tener que buscarlos.
+ *
+ * Se abre de tres maneras, porque la barra se usa con ratón, con dedo y con teclado: al **pasar el puntero** (solo un
+ * ratón: en una pantalla táctil el «pasar» no existe y abriría y cerraría de golpe), al **pulsar** el botón —que la deja
+ * fija hasta pulsar fuera, Escape o elegir uno— y al **entrar con el teclado**. Se cierra al cambiar de página, con
+ * Escape, al pulsar fuera y cuando el foco sale de ella.
+ *
+ * En el botón dice «Módulos», o el nombre del módulo en el que se está: es la única señal de dónde se está cuando la fila
+ * no se ve.
+ */
+export function MenuDeModulos({ modulos }: { modulos: EntradaDeMenu[] }) {
+  const rutaActual = usePathname()
+  const [porPuntero, setPorPuntero] = useState(false)
+  const [fijado, setFijado] = useState(false)
+  const caja = useRef<HTMLDivElement>(null)
+  const boton = useRef<HTMLButtonElement>(null)
+  const abierto = porPuntero || fijado
+  const activo = modulos.find((m) => esModuloActivo(rutaActual, m.ruta))
+
+  // Cerrar al cambiar de página, durante el pintado y no en un efecto (la misma razón que en `MenuMovil`).
+  const [rutaPintada, setRutaPintada] = useState(rutaActual)
+  if (rutaActual !== rutaPintada) {
+    setRutaPintada(rutaActual)
+    setPorPuntero(false)
+    setFijado(false)
+  }
+
+  useEffect(() => {
+    if (!abierto) return
+    const alPulsarFuera = (evento: PointerEvent) => {
+      if (!caja.current?.contains(evento.target as Node)) {
+        setPorPuntero(false)
+        setFijado(false)
+      }
+    }
+    const alTeclear = (evento: KeyboardEvent) => {
+      if (evento.key !== 'Escape') return
+      setPorPuntero(false)
+      setFijado(false)
+      boton.current?.focus()
+    }
+    document.addEventListener('pointerdown', alPulsarFuera)
+    document.addEventListener('keydown', alTeclear)
+    return () => {
+      document.removeEventListener('pointerdown', alPulsarFuera)
+      document.removeEventListener('keydown', alTeclear)
+    }
+  }, [abierto])
+
+  return (
+    <div
+      ref={caja}
+      className="modulos-desplegable"
+      onPointerEnter={(e) => {
+        if (e.pointerType === 'mouse') setPorPuntero(true)
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === 'mouse') setPorPuntero(false)
+      }}
+      onBlur={(e) => {
+        // El foco salió de toda la caja —no solo del botón hacia la lista—: se cierra.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFijado(false)
+      }}
+    >
+      <button
+        ref={boton}
+        type="button"
+        className={`modulos-boton${activo ? ' modulos-boton-activo' : ''}`}
+        aria-expanded={abierto}
+        aria-haspopup="true"
+        aria-controls="lista-de-modulos"
+        onClick={() => setFijado(!fijado)}
+      >
+        {activo ? <IconoDeModulo coleccion={activo.coleccion} tamano={16} /> : <LayoutGrid size={16} aria-hidden="true" />}
+        {activo ? activo.etiqueta : 'Módulos'}
+        <ChevronDown size={14} aria-hidden="true" className="modulos-flecha" />
+      </button>
+      <ul id="lista-de-modulos" className="modulos-lista" hidden={!abierto} aria-label="Módulos">
+        {modulos.map((m) => (
+          <li key={m.ruta}>
+            <Link href={m.ruta} aria-current={esModuloActivo(rutaActual, m.ruta) ? 'page' : undefined}>
+              <span className={`icono-modulo icono-modulo-sm ${IDENTIDAD_DE_MODULO[m.coleccion]?.clase ?? ''}`}>
+                <IconoDeModulo coleccion={m.coleccion} tamano={16} />
+              </span>
+              {m.etiqueta}
+              {m.enMantencion ? <InsigniaMantencion /> : null}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

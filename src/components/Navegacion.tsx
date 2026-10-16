@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ConmutadorVista } from './ConmutadorVista'
 import { BotonSalir } from './BotonSalir'
-import { BarraDeModulos, MenuMovil } from './MenuMovil'
+import { BarraDeModulos, MenuDeModulos, MenuMovil } from './MenuMovil'
 import { ruta } from '@/lib/rutas'
 import { LayoutDashboard, CircleUserRound } from 'lucide-react'
 import { obtenerSesion } from '@/lib/sesion'
@@ -100,7 +100,10 @@ export async function Navegacion({
           </div>
         </Link>
 
+        {/* Las dos navegaciones de módulos se pintan siempre y CSS elige: la fila entera donde cabe, la lista
+            desplegable donde no (D-175). Antes la fila se desplazaba en horizontal y dos módulos quedaban fuera. */}
         <BarraDeModulos modulos={modulos} />
+        <MenuDeModulos modulos={modulos} />
 
         <div className="barra-derecha">
           <ConmutadorVista rolReal={rolReal} simulando={simulando} />

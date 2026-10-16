@@ -245,20 +245,32 @@ a { color: var(--marca); }
 main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--e-16); }
 
 /* ---------- barra de navegación ---------- */
+/* El alto de la barra, en un solo sitio (D-175). Antes eran 58 px escritos a mano en `.barra-interior`, en los dos
+   `top` de las barras pegajosas de más abajo y en el `scroll-margin-top` de las pestañas, y agrandar el logotipo
+   obligaba a acordarse de los cuatro. Ahora todo cuelga de esta variable. */
+:root { --alto-barra: 76px; }
 .barra { background: var(--tinta); color: var(--sobre-tinta-1); position: sticky; top: 0; z-index: var(--z-barra); border-bottom: 1px solid var(--marino-1); }
-.barra-interior { max-width: 1120px; margin: 0 auto; padding: 0 var(--e-6); height: 58px; display: flex; align-items: center; gap: var(--e-6); }
-.marca { display: flex; align-items: center; gap: var(--e-3); color: var(--superficie); text-decoration: none; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
-/* La marca es cuadrada (`public/icon.png`, 192 × 192), así que se fijan los dos
-   lados. Hubo dos reglas: esta con `height: 38px; width: auto` y otra en el
-   bloque de correcciones con 30 × 30, que ganaba por ir después; quien venía a
-   agrandar el logotipo tocaba esta, recargaba y no veía nada. Queda una sola.
+.barra-interior { max-width: 1680px; margin: 0 auto; padding: 0 var(--e-6); height: var(--alto-barra); display: flex; align-items: center; gap: var(--e-6); }
+/* La marca va dentro de un rectángulo blanco de esquinas redondeadas (petición del dueño): el libro del logotipo es azul
+   oscuro y sobre el fondo marino de la barra casi no se veía. El rectángulo es de la marca entera —logotipo y nombre—,
+   y el nombre pasa a tinta oscura para leerse sobre blanco. */
+.marca {
+  display: flex; align-items: center; gap: var(--e-3);
+  padding: 5px var(--e-4) 5px 6px;
+  background: var(--superficie); color: var(--tinta);
+  border-radius: 18px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+  text-decoration: none; font-weight: 650; font-size: var(--t-lg); letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap;
+  flex-shrink: 0;
+}
+/* La marca es cuadrada (`public/icon.png`, 192 × 192), así que se fijan los dos lados. Hubo dos reglas: una con
+   `height: 38px; width: auto` y otra en un bloque de «correcciones» con 30 × 30, que ganaba por ir después; quien venía
+   a agrandar el logotipo tocaba una, recargaba y no veía nada. Queda una sola.
 
-   40 px caben en los 58 de `.barra-interior` con nueve de aire por lado, igual
-   que `.menu-boton`, que mide lo mismo. Pasar de ahí obliga a subir la barra, y
-   de esa altura cuelgan `.pestana { scroll-margin-top }`, `.indice-ficha
-   { top }` y el `calc(100vh - 58px)` de `.admin-layout`. */
-.marca-logo { height: 40px; width: 40px; object-fit: contain; display: block; flex-shrink: 0; }
-.marca-sub { display: block; font-family: var(--mono); font-size: var(--t-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--sobre-tinta-3); font-weight: 500; margin-top: 1px; }
+   54 px dentro de un rectángulo de 64 caben en los 76 de la barra con seis de aire por lado. De la altura de la barra
+   cuelgan `.pestana { scroll-margin-top }`, `.indice-ficha { top }` y las barras pegajosas de más abajo, y todas leen
+   `--alto-barra`. */
+.marca-logo { height: 54px; width: 54px; object-fit: contain; display: block; flex-shrink: 0; }
+.marca-sub { display: block; font-family: var(--mono); font-size: var(--t-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--pizarra); font-weight: 500; margin-top: 2px; }
 
 /* La fila de módulos no se parte en dos líneas: `.barra-interior` fija 58 px de
    alto, y un `flex-wrap` desbordaba la barra y empujaba el contenido. Si no
@@ -301,6 +313,48 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
   border-bottom-color: var(--cian);
 }
 .modulos a[aria-current="page"] svg { opacity: 1; color: var(--cian-claro); }
+
+/* Los módulos en una lista que se despliega (D-175). La fila de cinco no cabe junto al logotipo grande y los controles
+   de la cuenta hasta bien pasados los 1.600 px, y antes, cuando no cabía, se desplazaba en horizontal: «Simulador» e
+   «Imágenes» quedaban fuera de la pantalla, sin que nada dijera que existían. Ahora, donde la fila no cabe, los cinco
+   están dentro de «Módulos»: se abre al pasar el puntero, al pulsar o con el teclado, y muestra todos a la vez.
+   Las dos navegaciones se pintan siempre y CSS elige cuál se ve, igual que con el menú del teléfono. */
+.modulos-desplegable { display: none; position: relative; flex-shrink: 0; }
+.modulos-boton {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  min-height: 44px; padding: 0 var(--e-4);
+  color: var(--sobre-tinta-1); font: inherit; font-size: var(--t-sm); font-weight: 600;
+  background: var(--sobre-tinta-velo); border: 1px solid var(--sobre-tinta-borde); border-radius: var(--r-full);
+  cursor: pointer; white-space: nowrap;
+  transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease;
+}
+.modulos-boton:hover, .modulos-boton[aria-expanded="true"] { background: var(--sobre-tinta-velo-2); border-color: var(--sobre-tinta-borde-fuerte); }
+.modulos-boton-activo { border-bottom: 2px solid var(--cian); }
+.modulos-boton svg { flex: none; }
+.modulos-boton .modulos-flecha { transition: transform var(--dur-rapida) ease; opacity: 0.8; }
+.modulos-boton[aria-expanded="true"] .modulos-flecha { transform: rotate(180deg); }
+/* La lista sale pegada al botón, sin hueco: con un hueco, al llevar el puntero del botón a la lista se cruzaba un trozo
+   de barra que cerraba el menú. El «puente» invisible de arriba lo cubre. */
+.modulos-lista {
+  position: absolute; top: 100%; left: 0; z-index: calc(var(--z-barra) + 2);
+  min-width: 270px; margin: 0; padding: var(--e-2); list-style: none;
+  background: var(--superficie); color: var(--tinta);
+  border: 1px solid var(--linea-suave); border-radius: 16px; box-shadow: var(--sombra-3);
+}
+.modulos-lista::before { content: ''; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }
+.modulos-lista[hidden] { display: none; }
+.modulos-lista a {
+  display: flex; align-items: center; gap: var(--e-3);
+  min-height: 46px; padding: 0 var(--e-3);
+  color: var(--tinta); text-decoration: none; font-size: var(--t-sm); font-weight: 550;
+  border-radius: var(--r-lg); white-space: nowrap;
+}
+.modulos-lista a:hover, .modulos-lista a:focus-visible { background: var(--papel); }
+.modulos-lista a[aria-current="page"] { background: var(--marca-tenue, #eaf1fc); color: var(--marca); }
+@media (min-width: 901px) and (max-width: 1679px) {
+  .modulos { display: none; }
+  .modulos-desplegable { display: block; }
+}
 .barra-derecha { display: flex; align-items: center; gap: var(--e-2); margin-left: auto; }
 /* 40 px de alto: es lo mínimo que se pulsa con el dedo en una tableta, y en la
    barra conviven «Panel», «Ver como residente» y «Salir». */
@@ -516,7 +570,7 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
 /* Cada sección lleva un <h2> de verdad, de 22 px, y encima el rótulo pequeño
    del módulo como antetítulo. Antes el <h2> era ese rótulo de 11,5 px, y el
    <h3> de los bloques, a 17 px, se leía como el título importante. */
-.pestana { margin-bottom: var(--e-12); scroll-margin-top: 78px; }
+.pestana { margin-bottom: var(--e-12); scroll-margin-top: calc(var(--alto-barra) + 20px); }
 .pestana > h2 {
   font-size: var(--t-lg); margin-bottom: var(--e-5); padding-bottom: var(--e-3);
   border-bottom: 1px solid var(--linea);
@@ -655,7 +709,7 @@ figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-
    segmentos y cada maniobra plegable. Sin esto, llegar al hombro era bajar
    por toda la columna cervical. */
 .herramientas-maniobras {
-  position: sticky; top: 58px; z-index: 5;
+  position: sticky; top: var(--alto-barra); z-index: 5;
   display: flex; flex-direction: column; gap: var(--e-3);
   margin: 0 calc(-1 * var(--e-2)) var(--e-6); padding: var(--e-3) var(--e-2);
   background: var(--papel); border-bottom: 1px solid var(--linea-suave);
@@ -891,7 +945,7 @@ figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-
      horizontal. Antes se apilaba como una nube de píldoras encima del texto y
      desaparecía al empezar a leer, que es justo cuando hace falta saltar. */
   .indice-ficha {
-    top: 58px; z-index: 5;
+    top: var(--alto-barra); z-index: 5;
     margin: 0 calc(-1 * var(--e-4)); padding: var(--e-2) var(--e-4);
     background: var(--papel); border-bottom: 1px solid var(--linea);
   }
@@ -905,7 +959,7 @@ figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-
     border: 1px solid var(--linea); border-radius: var(--r-full); background: var(--superficie);
   }
   .indice-ficha li a.activa { background: var(--acento-tenue, var(--marca-tenue)); border-color: var(--acento, var(--marca)); }
-  .pestana { scroll-margin-top: 120px; }
+  .pestana { scroll-margin-top: calc(var(--alto-barra) + 62px); }
 }
 
 /* ==========================================================================
@@ -1078,8 +1132,8 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
    doble. El 78 % es lo que lo protege del mínimo de arriba en el teléfono más
    estrecho. */
 .acceso-logo {
-  width: 240px;
-  max-width: 78%;
+  width: 300px;
+  max-width: 92%;
   height: auto;
   object-fit: contain;
   /* Las dimensiones reales de `public/logo-hd.png`. Los `<img>` de las páginas
@@ -1351,8 +1405,18 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 }
 
 @media (max-width: 640px) {
+  :root { --alto-barra: 64px; }
   .barra-interior { padding: 0 var(--e-3); gap: var(--e-2); }
   .marca-sub { display: none; }
+  .marca { padding: 4px var(--e-3) 4px 5px; font-size: var(--t-base); }
+  .marca-logo { height: 44px; width: 44px; }
+}
+
+/* El aviso de «ver como residente» en la barra, donde el sitio es justo: la frase se esconde y queda el botón, que
+   dice lo importante —cómo volver—. En el menú del teléfono, con todo el ancho, la frase sigue. */
+@media (max-width: 1899px) {
+  .barra-derecha .aviso-vista { padding-left: var(--e-1); }
+  .barra-derecha .aviso-vista-texto { display: none; }
 }
 
 .menu-conmutador { padding: 0 var(--e-3) var(--e-3); }
@@ -1431,8 +1495,8 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
    emborronarse. En un teléfono de 375 px la columna deja 331 de ancho y el
    logotipo pinta 238. */
 .portada-logo {
-  width: 320px;
-  max-width: 72%;
+  width: 400px;
+  max-width: 82%;
   height: auto;
   /* Proporción de `public/logo-hd.png`, por lo mismo que en `.acceso-logo`, y
      aquí con más motivo: la portada es una columna centrada, así que al

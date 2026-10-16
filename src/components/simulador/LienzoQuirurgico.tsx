@@ -304,6 +304,8 @@ export interface MandoDelLienzo {
     proyeccion: ProyeccionDeFluoroscopia,
     zoom: number,
     desplazamiento?: DesplazamientoDeLaImagen,
+    /** Píxeles por lado con que se dibuja: más grande el recuadro, más píxeles (`ladoDeLaImagen`). */
+    lado?: number,
   ) => boolean
   /** Quita los tornillos puestos, y la placa si `conPlaca`. */
   quitarImplantes: (conPlaca: boolean) => void
@@ -1013,7 +1015,7 @@ export function LienzoQuirurgico({
 
     cancelarTrazo: () => cancelarLaRecta(taller.current),
 
-    dibujarFluoroscopia: (destino, proyeccion, zoom, desplazamiento) => {
+    dibujarFluoroscopia: (destino, proyeccion, zoom, desplazamiento, lado) => {
       const t = taller.current
       const ctx = contextoDeRadiografia(t)
       if (!t.render || !ctx) return false
@@ -1023,7 +1025,7 @@ export function LienzoQuirurgico({
         ctx,
         t.fluoroscopia,
         destino,
-        { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, desplazamiento },
+        { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, desplazamiento, lado },
         t.cuadro ?? 0,
         [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
       )

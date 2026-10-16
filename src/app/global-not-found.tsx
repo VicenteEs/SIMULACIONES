@@ -112,8 +112,8 @@ const estiloCaja: CSSProperties = {
 }
 
 const estiloLogo: CSSProperties = {
-  width: 180,
-  maxWidth: '60%',
+  width: 240,
+  maxWidth: '72%',
   height: 'auto',
   aspectRatio: '1200 / 655',
   display: 'block',
