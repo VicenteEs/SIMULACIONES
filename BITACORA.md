@@ -5858,6 +5858,56 @@ recuadro de la fluoroscopia sigue tapando la mitad; la imagen de la fluoroscopia
 vertical); no se mide la tensión de la disección ni se puntúa. Pruebas nuevas: `posicionDelPaciente`, `diseccionRoma`,
 `fluoroscopiaDesplazada` y ampliaciones de `exposicion`, `comportamientoDelInstrumento` y `lienzoQuirurgico`.
 
+### D-174 · 2026-10-16 · vigente
+**En «Mover», el trozo de hueso trae asas para moverlo y girarlo en cada eje, y el agujero de la broca ya no asoma por el otro
+lado del hueso.**
+Pedido del dueño, a partir de lo que usó Cristóbal: «en la parte de mover también poder moverlo en el eje… que aparezca esa
+esfera… y poder moverlo y girarlo en todos los ejes, para corregir la angulación de todos lados y hacerlos coincidir», y «cuando
+hago un hoyo en un hueso y se pasa la broca aparece una parte negra y no la quiero». Hasta D-171 «Mover» solo trasladaba el
+trozo sobre el plano de la pantalla, y la angulación se corregía con tres deslizadores de ±45° que solo valían para el
+fragmento del caso.
+
+*Las asas.* Son las del taller del atlas (`crearGizmo`, D-133 y D-160) y su cuenta (`desplazamientoDelArrastre`,
+`giroDelArrastre`), no un manipulador nuevo: tres flechas para mover en X, Y y Z, tres aros para girar sobre cada eje y un aro
+blanco que gira sobre la línea de visión (Ctrl salta de cinco en cinco grados). Salen sobre el trozo que se agarra, solo en
+«Mover» con «Un trozo», y valen para **cualquier** trozo de hueso, no solo el fragmento que el caso mide. Lo que importa de cómo
+se hizo (`asasDelHueso.ts`, probado sin WebGL en `asasDelHueso.test.ts`):
+- *Giran sobre el centro del trozo*, no sobre el origen de su nodo: en lo exportado sin centrar ese origen está a decenas de
+  centímetros del hueso (`pivoteEnSuCentro`, O-076) y el hueso describiría un arco en vez de girar. `centroLocalDe` lo mide en el
+  espacio del nodo, de modo que el manipulador acompaña al hueso al girar; con la caja del mundo, que crece al girar, bailaba.
+- *Todo se mide desde la matriz que tenía el trozo al agarrar el asa* (`colocarEnElMundo`), no sumando incrementos: un gesto de
+  ida y vuelta lo deja donde estaba. Y se hace **en el mundo**, con la inversa del padre: sumar a `position` solo acierta con el
+  padre en reposo.
+- *El asa gana al hueso que tiene debajo* (está dibujada encima de la escena); si no, tocar una flecha arrastraría el hueso por la
+  pantalla. Entre una flecha y un aro bajo el cursor, gana la flecha, como en el atlas.
+- *Un clic sin arrastre en el vacío suelta el trozo*; arrastrar en el vacío orbita y **conserva** la selección, que es lo que
+  hace falta para mirar el hueso desde el otro lado antes de corregir. Cambiar de modo o pasar a «Todo junto» esconde las asas.
+- *Es interfaz*: `userData.deInterfaz`, así que la fluoroscopia la esconde mientras dibuja y no absorbe rayos.
+- Si el trozo es el fragmento del caso, al soltar se avisa igual que al arrastrarlo (`alMoverFragmento`): desplazamiento,
+  angulación y diástasis se recalculan y los deslizadores se ponen donde quedó. «Volver al desplazamiento inicial» devuelve todos
+  los trozos a su sitio.
+Un error que salió al probar: al cambiar de un trozo a otro las asas no se movían hasta que algo más pedía dibujar, porque el
+lienzo solo dibuja cuando se le pide y el cambio no alteraba si se veían o no. Ahora elegir otro trozo pide el dibujo.
+
+*El agujero de la broca.* `terminarPerforacion` dibujaba un cilindro negro con **toda** la profundidad que había avanzado la
+broca; si se pasaba de la cortical opuesta —un error que el paso puntúa—, lo de más asomaba por el otro lado del hueso y quedaba
+flotando en el aire. `largoVisibleDelAgujero` lo corta en la salida por la cortical opuesta. Lo que se pasó sigue contando: el
+aviso «se pasó X mm» y la evaluación salen de la profundidad real de la broca, no de lo que se dibuja.
+
+*Qué se probó.* En pantalla, con el caso de la tibia partida: la flecha roja mueve el fragmento siguiendo el cursor 1:1 (30 px,
+60 mm a esa distancia) y el panel de medidas se actualiza; cada uno de los tres aros gira exactamente 30° sobre su eje del mundo
+y el centro del hueso no se mueve; el clic en el vacío suelta, orbitar conserva y pasar a Orbitar esconde las asas. El agujero: con
+la fresa flexible (Ø 9 mm) mantenida pulsada sobre la tibia hasta el tope —36 mm de profundidad, «¡se pasó 12,0 mm de la cortical
+opuesta!»— el cilindro del agujero mide 24 mm, la profundidad menos lo que se pasó; pintado de rojo para verlo, solo asoma el punto
+de entrada y nada flota fuera del hueso (antes el cilindro medía los 36 y sobraban 12 mm por el otro lado).
+
+*Consecuencias buenas.* Se puede corregir una angulación por los tres lados y llevar un trozo hacia dentro o hacia fuera de la
+imagen, que con el ratón solo no se podía; sirve para cualquier trozo. La broca ya no deja pedazos negros en el aire. *Malas.* Los
+ejes de las asas son los del **mundo**, no los del hueso: con un hueso inclinado un aro no es «a lo largo» ni «a lo ancho». Las medidas
+siguen descomponiendo el giro en tres ángulos de Euler, y con giros de más de unos 90° sobre Y esa descomposición salta; para
+reducir una fractura no hace falta tanto. La selección del trozo no sobrevive a recargar, y los agujeros ya hechos no acompañan al
+hueso si se mueve después (están en la escena, no colgados del hueso). Prueba nueva: `asasDelHueso`.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

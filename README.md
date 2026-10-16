@@ -202,7 +202,8 @@ El paciente se puede poner de pie, en decúbito supino o en decúbito prono (se 
 vista, no el modelo), y cada instrumento hace en él lo que hace en pabellón: las pinzas de
 Adson van de a dos, los separadores se apoyan en la piel o en el músculo, la tijera de
 Metzenbaum corta o diseca por tensión, y la fluoroscopia enseña su imagen en un recuadro sin
-tocar la escena (D-173).
+tocar la escena (D-173). En «Mover», el trozo de hueso que se agarra trae flechas para moverlo
+y aros para girarlo en cada eje (D-174).
 
 El convenio del que depende todo: **el modelo se exporta reducido** y el caso
 declara cuánto está desplazado al empezar. La posición correcta es siempre el
