@@ -234,7 +234,7 @@ describe('la sesión guardada (D-171)', () => {
       ref: { malla: herida.malla.uuid, dir: [0, 1, 0], lado: 1, peso: 0.8, mas0: 4, menos0: 4 },
     })
     const guardado = JSON.parse(serializarSesion(taller))
-    expect(guardado.v).toBe(1)
+    expect(guardado.v).toBe(2)
     expect(guardado.cortes).toHaveLength(1)
     expect(guardado.apertura).toEqual([{ mas: 4, menos: 4 }])
     expect(guardado.sutura.tension).toBe(0.6)
