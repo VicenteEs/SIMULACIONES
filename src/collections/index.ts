@@ -2,6 +2,7 @@ import type { CollectionConfig } from 'payload'
 import { Usuarios } from './Usuarios'
 import { Segmentos } from './Segmentos'
 import { TiposDeFicha } from './TiposDeFicha'
+import { EstructurasAnatomicas } from './EstructurasAnatomicas'
 import { Medios } from './Medios'
 import { Modelos3D } from './Modelos3D'
 import { InstanciasAtlas } from './InstanciasAtlas'
@@ -50,6 +51,7 @@ const DECLARADAS: CollectionConfig[] = [
   Medios,
   Modelos3D,
   InstanciasAtlas,
+  EstructurasAnatomicas,
   ...CATALOGOS_DEL_SIMULADOR,
   Patologias,
   Maniobras,
@@ -81,6 +83,7 @@ export {
   Medios,
   Modelos3D,
   InstanciasAtlas,
+  EstructurasAnatomicas,
   HuesosAO,
   ClasificacionesAO,
   TecnicasQuirurgicas,

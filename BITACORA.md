@@ -9167,8 +9167,14 @@ botón deja esa lista como la mesa de los practicantes.
   sufijo de trozo (por `id`, no por nombre), y la pareja del lado opuesto. Pruebas con piezas reales del catálogo.
   *(Hecha. La pareja del lado opuesto no se reescribió: se usa `parejasContralaterales` de `src/atlas/espejo.ts`, que ya
   resuelve los 231 nombres repetidos por la caja reflejada, y las pruebas la ejercitan con el catálogo real.)*
-- [ ] **E8.2 · Colección `estructuras-anatomicas`** con su esquema del panel, versiones, acceso (lectura con sesión;
+- [x] **E8.2 · Colección `estructuras-anatomicas`** con su esquema del panel, versiones, acceso (lectura con sesión;
   escritura de editores y administradores) y migración.
+  *(Hecha, con tres matices. **Sin entrada en `esquema.ts`:** la pantalla de E8.4 es propia y el editor genérico no la
+  toca. **Borrar es solo del administrador** y el panel no lo ofrece. **Sin `abordaje`:** es de E10 y llega con su
+  migración, para no dejar un campo muerto que E10 quizá quiera de otra forma. La migración
+  `20261017_161451_estructuras_anatomicas` se probó subiendo y bajando dentro de una transacción con ROLLBACK, y eso
+  encontró un fallo del generador: el `down` soltaba las tablas antes de quitar la clave foránea que cuelga de
+  `payload_locked_documents_rels`; el orden se corrigió a mano. La matriz de roles ganó la clase `estructuras`.)*
 - [ ] **E8.3 · Siembra** (`scripts/sembrar-estructuras.ts`, idempotente): una fila por pieza del catálogo con
   `atlasId`, `nombreOriginal`, `sistema`, `region` y `lado`. Se corre en el despliegue de la etapa.
 - [ ] **E8.4 · La pantalla** `/admin-panel/estructuras`: contador, filtro, pestañas y ventana de edición.

@@ -73,6 +73,7 @@ export interface Config {
     medios: Medio;
     'modelos-3d': Modelos3D;
     'instancias-atlas': InstanciasAtlas;
+    'estructuras-anatomicas': EstructurasAnatomica;
     'huesos-ao': HuesosAo;
     'clasificaciones-ao': ClasificacionesAo;
     'tecnicas-quirurgicas': TecnicasQuirurgica;
@@ -105,6 +106,7 @@ export interface Config {
     medios: MediosSelect<false> | MediosSelect<true>;
     'modelos-3d': Modelos3DSelect<false> | Modelos3DSelect<true>;
     'instancias-atlas': InstanciasAtlasSelect<false> | InstanciasAtlasSelect<true>;
+    'estructuras-anatomicas': EstructurasAnatomicasSelect<false> | EstructurasAnatomicasSelect<true>;
     'huesos-ao': HuesosAoSelect<false> | HuesosAoSelect<true>;
     'clasificaciones-ao': ClasificacionesAoSelect<false> | ClasificacionesAoSelect<true>;
     'tecnicas-quirurgicas': TecnicasQuirurgicasSelect<false> | TecnicasQuirurgicasSelect<true>;
@@ -354,6 +356,33 @@ export interface InstanciasAtlas {
    * Con qué preparación del atlas se creó. Si el atlas se regenera, sirve para avisar de las piezas que ya no existan.
    */
   atlasVersion?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "estructuras-anatomicas".
+ */
+export interface EstructurasAnatomica {
+  id: number;
+  atlasId: string;
+  nombreOriginal: string;
+  sistema?: string | null;
+  region?: string | null;
+  lado?: string | null;
+  nombreLatino?: string | null;
+  definicion?: string | null;
+  origen?: string | null;
+  insercion?: string | null;
+  inervacion?: string | null;
+  accion?: string | null;
+  irrigacion?: string | null;
+  notas?: string | null;
+  /**
+   * Una pieza marcada así no abre ficha cuando alguien la pincha (por ejemplo, un órgano) y no cuenta como pendiente.
+   */
+  oculta?: boolean | null;
+  huerfana?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2228,6 +2257,10 @@ export interface PayloadLockedDocument {
         value: number | InstanciasAtlas;
       } | null)
     | ({
+        relationTo: 'estructuras-anatomicas';
+        value: number | EstructurasAnatomica;
+      } | null)
+    | ({
         relationTo: 'huesos-ao';
         value: number | HuesosAo;
       } | null)
@@ -2484,6 +2517,29 @@ export interface InstanciasAtlasSelect<T extends boolean = true> {
   numeroDePiezas?: T;
   contenido?: T;
   atlasVersion?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "estructuras-anatomicas_select".
+ */
+export interface EstructurasAnatomicasSelect<T extends boolean = true> {
+  atlasId?: T;
+  nombreOriginal?: T;
+  sistema?: T;
+  region?: T;
+  lado?: T;
+  nombreLatino?: T;
+  definicion?: T;
+  origen?: T;
+  insercion?: T;
+  inervacion?: T;
+  accion?: T;
+  irrigacion?: T;
+  notas?: T;
+  oculta?: T;
+  huerfana?: T;
   updatedAt?: T;
   createdAt?: T;
 }

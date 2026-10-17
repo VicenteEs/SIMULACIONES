@@ -24,7 +24,8 @@ import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
 type Registro = Record<string, unknown>
 
 const titulo = (doc: Registro): string | undefined => {
-  for (const campo of ['nombre', 'titulo', 'asunto', 'alt', 'email', 'filename', 'texto']) {
+  // `nombreOriginal` es el de la estructura anatómica (D-179): sin él, el registro diría «#1432».
+  for (const campo of ['nombre', 'titulo', 'asunto', 'alt', 'email', 'filename', 'texto', 'nombreOriginal']) {
     const valor = doc[campo]
     if (typeof valor === 'string' && valor.trim()) return valor.trim().slice(0, 200)
   }

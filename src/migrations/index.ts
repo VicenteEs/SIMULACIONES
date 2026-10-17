@@ -23,6 +23,7 @@ import * as migration_20261010_000243_implantes_y_categorias from './20261010_00
 import * as migration_20261010_040353_objetivos_de_perforacion_y_fijacion from './20261010_040353_objetivos_de_perforacion_y_fijacion';
 import * as migration_20261010_042311_tratamiento_de_los_casos_ao from './20261010_042311_tratamiento_de_los_casos_ao';
 import * as migration_20261017_152409_tipos_de_ficha_y_avisos_de_catalogo from './20261017_152409_tipos_de_ficha_y_avisos_de_catalogo';
+import * as migration_20261017_161451_estructuras_anatomicas from './20261017_161451_estructuras_anatomicas';
 
 export const migrations = [
   {
@@ -148,6 +149,11 @@ export const migrations = [
   {
     up: migration_20261017_152409_tipos_de_ficha_y_avisos_de_catalogo.up,
     down: migration_20261017_152409_tipos_de_ficha_y_avisos_de_catalogo.down,
-    name: '20261017_152409_tipos_de_ficha_y_avisos_de_catalogo'
+    name: '20261017_152409_tipos_de_ficha_y_avisos_de_catalogo',
+  },
+  {
+    up: migration_20261017_161451_estructuras_anatomicas.up,
+    down: migration_20261017_161451_estructuras_anatomicas.down,
+    name: '20261017_161451_estructuras_anatomicas'
   },
 ];

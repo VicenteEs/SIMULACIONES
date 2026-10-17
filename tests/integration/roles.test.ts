@@ -168,6 +168,11 @@ const escribeModulo = (a: Actor, modulo: string) =>
  *  - `apoyo`: segmentos, medios, modelos 3D y preparaciones del atlas. Los usan
  *    los cinco módulos a la vez, así que no admiten restricción por módulo: un
  *    editor restringido los sigue escribiendo (ver `puedeEditar`).
+ *  - `estructuras`: el listado global de estructuras anatómicas (D-179). Lo lee
+ *    cualquier cuenta activa —la ficha la ve el residente—, lo escriben editor y
+ *    administrador, y **borrar es solo del administrador**: una ficha borrada es
+ *    información perdida, y el panel no ofrece borrar. Sus versiones, las lee quien
+ *    edita (eso lo prueba el bloque «las estructuras anatómicas»).
  *  - `cuentas`: solo el administrador.
  *  - `administracion`: lo que no es una cuenta pero se gobierna igual, solo el
  *    administrador —las difusiones (D-120)—. Va aparte de `cuentas` porque esa
@@ -178,7 +183,7 @@ const escribeModulo = (a: Actor, modulo: string) =>
  *    «propuestos», sus autores (eso lo prueba el bloque «el buzón de requisitos»);
  *    lo borra el administrador.
  */
-type Clase = 'modulo' | 'vocabulario' | 'apoyo' | 'cuentas' | 'administracion' | 'propias' | 'buzon'
+type Clase = 'modulo' | 'vocabulario' | 'apoyo' | 'estructuras' | 'cuentas' | 'administracion' | 'propias' | 'buzon'
 
 const CLASE_DE: Record<string, Clase> = {
   usuarios: 'cuentas',
@@ -188,6 +193,8 @@ const CLASE_DE: Record<string, Clase> = {
   medios: 'apoyo',
   'modelos-3d': 'apoyo',
   'instancias-atlas': 'apoyo',
+  // El listado global de estructuras anatómicas (D-179, P-003 E8).
+  'estructuras-anatomicas': 'estructuras',
   'huesos-ao': 'vocabulario',
   'clasificaciones-ao': 'vocabulario',
   'tecnicas-quirurgicas': 'vocabulario',
@@ -240,6 +247,8 @@ function politica(slug: string, clase: Clase): Record<string, Esperado> {
       }
     case 'apoyo':
       return { leer: esActivo, crear: escribeContenido, editar: escribeContenido, borrar: escribeContenido }
+    case 'estructuras':
+      return { leer: esActivo, crear: escribeContenido, editar: escribeContenido, borrar: esAdmin }
     case 'cuentas':
     case 'administracion':
       return { leer: esAdmin, crear: esAdmin, editar: esAdmin, borrar: esAdmin }
@@ -380,6 +389,12 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
   'instancias-atlas': {
     titulo: 'nombre',
     fabricar: (nombre) => ({ data: { nombre, contenido: { piezas: [{ id: 'pieza-de-prueba' }] } } }),
+  },
+  // El título es el nombre latino y no `nombreOriginal`: ese lo fija la siembra y no se
+  // reescribe por la API, así que la operación «editar» de la matriz no lo podría tocar.
+  'estructuras-anatomicas': {
+    titulo: 'nombreLatino',
+    fabricar: (nombre) => ({ data: { atlasId: nombre, nombreOriginal: nombre, nombreLatino: nombre, sistema: 'muscular' } }),
   },
   'huesos-ao': { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre } }) },
   'clasificaciones-ao': { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre, codigo: 'A1' } }) },
