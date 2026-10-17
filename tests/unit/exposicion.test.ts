@@ -12,6 +12,7 @@ import {
   caben,
   direccionDelMango,
   ladosParaLaPareja,
+  laPareja,
   MAXIMO_DE_SEPARADORES,
   posicionQueAcompana,
   ladoAlColocar,
@@ -346,5 +347,29 @@ describe('la pareja de separadores (P-003 E3)', () => {
     expect(caben(MAXIMO_DE_SEPARADORES - 2, 2)).toBe(true)
     expect(caben(MAXIMO_DE_SEPARADORES - 1, 2)).toBe(false)
     expect(caben(MAXIMO_DE_SEPARADORES, 1)).toBe(false)
+  })
+})
+
+describe('quién va en pareja con quién (P-003 E3)', () => {
+  const a = separador({ id: 1, lado: 1, posicion: 0.5 })
+  const b = separador({ id: 2, lado: -1, posicion: 0.52 })
+
+  it('la pareja es el del borde de enfrente, del mismo instrumento, plano y altura', () => {
+    expect(laPareja([a, b], a)).toEqual([b])
+    expect(laPareja([a, b], b)).toEqual([a])
+  })
+
+  it('otro instrumento, otro plano, el mismo borde o muy lejos no son pareja', () => {
+    expect(laPareja([a, separador({ id: 3, lado: -1, instrumentoId: '99' })], a)).toEqual([])
+    expect(laPareja([a, separador({ id: 3, lado: -1, plano: 'musculo' })], a)).toEqual([])
+    expect(laPareja([a, separador({ id: 3, lado: 1, posicion: 0.5 })], a)).toEqual([])
+    expect(laPareja([a, separador({ id: 3, lado: -1, posicion: 0.9 })], a)).toEqual([])
+  })
+
+  it('un autoestático y un Hohmann no tienen pareja', () => {
+    const auto = separador({ id: 4, tipo: 'autoestatico', lado: 0 })
+    const palanca = separador({ id: 5, tipo: 'palanca', lado: 1 })
+    expect(laPareja([auto, a], auto)).toEqual([])
+    expect(laPareja([palanca, separador({ id: 6, tipo: 'palanca', lado: -1 })], palanca)).toEqual([])
   })
 })

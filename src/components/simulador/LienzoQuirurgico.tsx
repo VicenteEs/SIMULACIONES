@@ -24,22 +24,29 @@ import {
 } from '@/instrumental/herramienta3d'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import type { PlanoDeCorte } from '@/lib/comportamientoDelInstrumento'
-import { ANCHO_VISIBLE_DE_LA_INCISION_MM, abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, type HeridaEnCapa } from './heridas'
+import { ANCHO_VISIBLE_DE_LA_INCISION_MM, abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, sitioEnLaHerida, type HeridaEnCapa } from './heridas'
 import { juicioDeLaPotencia, type ModoDelElectrobisturi } from '@/lib/electrobisturi'
 import {
   adviertePorLaTension,
   ALTURA_INICIAL_DEL_PELLIZCO_MM,
   ALTURA_MAXIMA_DEL_PELLIZCO_MM,
   AGARRE_MINIMO_PARA_SOSTENER,
+  abreLaCapa,
   aperturaMaxima,
+  caben,
+  direccionDelMango,
   enElPlano,
   ladoAlColocar,
+  ladosParaLaPareja,
+  laPareja,
   limitarAgarre,
   limitarApertura,
   limitarSeparacionDePinzas,
   MAXIMO_DE_PELLIZCOS,
   MAXIMO_DE_SEPARADORES,
   PASO_DE_AGARRE,
+  posicionQueAcompana,
+  RETRASO_AL_ACOMPANAR_MM,
   SEPARACION_MAXIMA_DE_PINZAS_MM,
   tensionDeLaPiel,
   tipoDelSeparador,
@@ -82,6 +89,7 @@ import {
   apoyarSeparadorEn,
   colocarInstrumento,
   crearPliegue,
+  posarEn,
   posarPliegue,
   posarSeparador,
   soltarPellizco,
@@ -480,6 +488,8 @@ export function LienzoQuirurgico({
   giroLibre = false,
   alGirarLaVista,
   planoDelSeparador = 'piel',
+  separadoresEnPareja = true,
+  acompanarAlBisturi = false,
   alDisecar,
   instrumento = null,
   ayudas,
@@ -525,6 +535,10 @@ export function LienzoQuirurgico({
   alGirarLaVista?: () => void
   /** En qué plano se apoyan los separadores que se pongan a partir de ahora: la piel o el músculo. */
   planoDelSeparador?: 'piel' | 'musculo'
+  /** Un clic pone los dos separadores de mano, uno por borde (P-003 E3). Los autoestáticos y el Hohmann van de uno en uno. */
+  separadoresEnPareja?: boolean
+  /** Al terminar un corte, la pareja de pinzas y la de separadores más cercanas a la punta se corren tras ella (P-003 E3). */
+  acompanarAlBisturi?: boolean
   /** Pasó algo en la disección roma: se apoyó la punta, se separó el plano o se cerraron las ramas. */
   alDisecar?: (estado: EstadoDeLaDiseccion | null) => void
   /**
@@ -688,6 +702,10 @@ export function LienzoQuirurgico({
     separadores?: SeparadorEnEscena[]
     separadorActivo?: number | null
     siguienteSeparador?: number
+    /** El separador que se levantó con un clic y sigue al cursor hasta que otro clic lo deja (P-003 E3). */
+    separadorEnLaMano?: EnLaMano<SeparadorEnEscena>
+    /** Lo mismo para una pinza. */
+    pinzaEnLaMano?: EnLaMano<PellizcoEnEscena>
     /** Las pinzas que sostienen un pliegue de piel. */
     pellizcos?: PellizcoEnEscena[]
     pellizcoActivo?: number | null
@@ -725,6 +743,8 @@ export function LienzoQuirurgico({
     giroLibre,
     alGirarLaVista,
     planoDelSeparador,
+    separadoresEnPareja,
+    acompanarAlBisturi,
     alDisecar,
     instrumento,
     ayudas,
@@ -759,6 +779,8 @@ export function LienzoQuirurgico({
       giroLibre,
       alGirarLaVista,
       planoDelSeparador,
+      separadoresEnPareja,
+      acompanarAlBisturi,
       alDisecar,
       instrumento,
       ayudas,
@@ -1003,7 +1025,22 @@ export function LienzoQuirurgico({
     moverSeparador: (deltaMm) => {
       const t = taller.current
       const activo = separadorActivo(t)
-      if (activo) cambiarApertura(t, activo, activo.datos.aperturaMm + deltaMm, ultimas.current)
+      if (!activo) return
+      // La rueda abre la pareja por igual (P-003 E3); la barra del panel, solo el elegido.
+      const pareja = laPareja(
+        (t.separadores ?? []).map((q) => q.datos),
+        activo.datos,
+      )
+      if (pareja.length === 0) {
+        cambiarApertura(t, activo, activo.datos.aperturaMm + deltaMm, ultimas.current)
+        return
+      }
+      const ids = new Set([activo.datos.id, ...pareja.map((q) => q.id)])
+      for (const q of t.separadores ?? []) {
+        if (ids.has(q.datos.id)) q.datos.aperturaMm = limitarApertura(q.datos.aperturaMm + deltaMm, q.datos.maximoMm)
+      }
+      reaplicarSeparadores(t, ultimas.current)
+      t.decir?.(`${activo.datos.nombre} ×2: abiertos ${activo.datos.aperturaMm} mm`)
     },
 
     elegirSeparador: (id) => {
@@ -1350,11 +1387,14 @@ export function LienzoQuirurgico({
       normal: THREE.Vector3
       info: { lado: 1 | -1; direccion: THREE.Vector3; cerca: number; t: number }
       plano: PlanoDelSeparador
+      /** La herida de la que salió `info`: la pareja necesita su otro labio. */
+      herida: HeridaEnCapa
     } | null = null
     /** El clic que apoya la punta de la tijera en disección roma, a la espera de saber si fue un clic o un arrastre. */
     let clicDeDiseccion: { x: number; y: number; golpe: THREE.Intersection; normal: THREE.Vector3 } | null = null
     /** La pinza que se está levantando con el arrastre vertical. */
-    let levantando: { id: number; y0: number; altura0: number } | null = null
+    let levantando: { id: number; y0: number; altura0: number; movido: boolean } | null = null
+    let ultimaBusquedaDeSeparador = 0
     const puntoAuxiliar = new THREE.Vector3()
     const inicioDeArrastre = new THREE.Vector3()
     const posicionAlEmpezar = new THREE.Vector3()
@@ -1668,6 +1708,9 @@ export function LienzoQuirurgico({
       // La herida nueva se abre con lo que le toca —separadores, pinzas y la disección en curso, capa por capa—,
       // y no como la primera que hubiera: la del músculo no se abre con lo que abre la de la piel.
       reaplicarSeparadores(t, ultimas.current)
+      // «Acompañar el bisturí» (P-003 E3): la pareja de pinzas y la de separadores más cercanas a la punta se corren
+      // tras ella. Solo con un corte hecho por el residente: ni al recargar la sesión ni al rehacer ni la disección.
+      if (ultimas.current.acompanarAlBisturi && !desdeLaSesion && !esRehacer && !deDiseccion) acompanarAlCorte(t, ultimas.current, plano)
       // La línea roja era la guía; con la herida abierta flotaría en el aire.
       if (t.trazo) t.trazo.visible = false
       ultimas.current.alHerir?.(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad))
@@ -2013,6 +2056,42 @@ export function LienzoQuirurgico({
     }
 
     // --- separadores colocados ----------------------------------------------------------------------
+    /**
+     * A cuántos píxeles del cursor queda un instrumento colocado, medido sobre la recta que va de su punta a su
+     * extremo más lejano; `null` si está a más de `margenPx`. Un Farabeuf es una chapa fina: de canto, el rayo
+     * del cursor pasa de largo aunque el cursor esté encima, y levantarlo (P-003 E3) sería cuestión de puntería.
+     */
+    const distanciaEnPantalla = (grupo: THREE.Object3D, margenPx: number): number | null => {
+      const caja = new THREE.Box3().setFromObject(grupo)
+      if (caja.isEmpty()) return null
+      const punta = grupo.position
+      let lejos = punta.clone()
+      let mayor = -1
+      for (const x of [caja.min.x, caja.max.x]) {
+        for (const y of [caja.min.y, caja.max.y]) {
+          for (const z of [caja.min.z, caja.max.z]) {
+            const d = punta.distanceToSquared(new THREE.Vector3(x, y, z))
+            if (d > mayor) {
+              mayor = d
+              lejos = new THREE.Vector3(x, y, z)
+            }
+          }
+        }
+      }
+      const caja2d = render.domElement.getBoundingClientRect()
+      const aPixeles = (v: THREE.Vector3) => {
+        const p = v.clone().project(camara)
+        return new THREE.Vector2(((p.x + 1) / 2) * caja2d.width, ((1 - p.y) / 2) * caja2d.height)
+      }
+      const a = aPixeles(punta)
+      const b = aPixeles(lejos)
+      const c = new THREE.Vector2(((puntero.x + 1) / 2) * caja2d.width, ((1 - puntero.y) / 2) * caja2d.height)
+      const ab = b.clone().sub(a)
+      const k = ab.lengthSq() === 0 ? 0 : Math.min(1, Math.max(0, c.clone().sub(a).dot(ab) / ab.lengthSq()))
+      const d = a.clone().addScaledVector(ab, k).distanceTo(c)
+      return d <= margenPx ? d : null
+    }
+
     /** El separador ya colocado que está bajo el cursor, si lo hay. */
     const separadorBajoElCursor = (): SeparadorEnEscena | null => {
       const lista = taller.current.separadores ?? []
@@ -2032,10 +2111,74 @@ export function LienzoQuirurgico({
         })
         if (dueno) return dueno
       }
-      return null
+      // De canto el rayo no toca la chapa: se elige el que pasa más cerca del cursor en pantalla.
+      let cercano: SeparadorEnEscena | null = null
+      let mejor = Infinity
+      for (const q of lista) {
+        const d = distanciaEnPantalla(q.instrumento.grupo, 14)
+        if (d !== null && d < mejor) {
+          mejor = d
+          cercano = q
+        }
+      }
+      return cercano
     }
 
-    /** Pone el separador en el sitio de la herida donde se hizo clic. La apertura la da luego la rueda, o la barra. */
+    /**
+     * Pone un separador en un sitio de la herida. La inclinación del mango sale del lado que sostiene
+     * (`direccionDelMango`), no de hacia dónde mire la cámara: con la cámara, todos se acostaban hacia el mismo
+     * sitio de la pantalla y se cruzaban sobre la herida (P-003 E3). `direccion` es la del labio «más», sin signo.
+     */
+    const ponerUnSeparador = (
+      sitio: { punto: THREE.Vector3; normal: THREE.Vector3; direccion: THREE.Vector3; posicion: number },
+      lado: 1 | -1 | 0,
+      plano: PlanoDelSeparador,
+    ): SeparadorEnEscena | null => {
+      const t = taller.current
+      const u = ultimas.current
+      const inst = u.instrumento
+      const separa = inst?.separa
+      if (!inst || !separa || !t.escena) return null
+      const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
+      const lista = (t.separadores ??= [])
+      const id = (t.siguienteSeparador = (t.siguienteSeparador ?? 0) + 1)
+      const datos: SeparadorColocado = {
+        id,
+        instrumentoId: inst.id ?? '',
+        nombre: inst.nombre ?? 'Separador',
+        tipo: tipoDelSeparador(separa),
+        plano,
+        lado,
+        posicion: sitio.posicion,
+        maximoMm: separa.maximoMm,
+        aperturaMm: 0,
+      }
+      const m = direccionDelMango([sitio.normal.x, sitio.normal.y, sitio.normal.z], [sitio.direccion.x, sitio.direccion.y, sitio.direccion.z], lado)
+      const nuevo: SeparadorEnEscena = {
+        datos,
+        url: inst.url,
+        ajustes: inst.ajustes,
+        punto: sitio.punto.clone(),
+        normal: sitio.normal.clone(),
+        // Hacia donde se aleja el labio que sostiene, con el signo de su lado (un autoestático no se desplaza).
+        direccion: sitio.direccion.clone().multiplyScalar(lado === 0 ? 1 : lado),
+        mango: new THREE.Vector3(m[0], m[1], m[2]),
+        // El sitio de este plano queda guardado: bajarlo al músculo y volver a subirlo lo deja donde estaba.
+        sitios:
+          plano === 'hueso'
+            ? {}
+            : { [plano]: { punto: sitio.punto.clone(), normal: sitio.normal.clone(), direccion: sitio.direccion.clone(), posicion: sitio.posicion } },
+        instrumento: colocarInstrumento(t.escena, inst.url, inst.ajustes, t.entorno ?? null, 1000 / (u.milimetrosPorUnidad || 1000), () => {
+          posarSeparador(nuevo, unidadesPorMm)
+          pedirDibujo()
+        }),
+      }
+      lista.push(nuevo)
+      t.separadorActivo = id
+      return nuevo
+    }
+
+    /** Pone el separador en el sitio de la herida donde se hizo clic; en pareja, también el del borde de enfrente. La apertura la da luego la rueda, o la barra. */
     const colocarSeparador = (c: NonNullable<typeof clicDeSeparador>) => {
       const t = taller.current
       const u = ultimas.current
@@ -2048,62 +2191,172 @@ export function LienzoQuirurgico({
       const lado = ladoAlColocar(tipo, c.info.lado)
       const posicion = c.info.t
       // Uno igual y muy cerca: se elige ese en lugar de poner un segundo encima.
-      const igual = lista.find(
-        (q) =>
-          q.datos.instrumentoId === (inst.id ?? '') &&
-          q.datos.plano === c.plano &&
-          q.datos.lado === lado &&
-          Math.abs(q.datos.posicion - posicion) < 0.08,
+      const cercanos = lista.filter(
+        (q) => q.datos.instrumentoId === (inst.id ?? '') && q.datos.plano === c.plano && Math.abs(q.datos.posicion - posicion) < 0.08,
       )
+      const igual = cercanos.find((q) => q.datos.lado === lado)
       if (igual) {
         t.separadorActivo = igual.datos.id
         u.alSeparar?.(estadoDeLosSeparadores(t))
         t.decir?.(`${igual.datos.nombre}: ya hay uno aquí. Ábralo con la rueda del ratón.`)
         return
       }
-      if (lista.length >= MAXIMO_DE_SEPARADORES) {
-        t.decir?.(`Son ${MAXIMO_DE_SEPARADORES} separadores: es el máximo que cabe. Quite alguno.`)
+      // En pareja (los de mano, de a dos como las pinzas): un clic pone uno por borde, a la misma altura. Con uno ya
+      // puesto aquí, el clic completa la pareja con el que falta.
+      const enPareja = u.separadoresEnPareja !== false && tipo === 'mano' && c.plano !== 'hueso'
+      const lados: (1 | -1 | 0)[] = enPareja ? ladosParaLaPareja(cercanos.map((q) => q.datos.lado)) : [lado]
+      if (!lados.includes(lado)) lados.push(lado)
+      if (!caben(lista.length, lados.length)) {
+        t.decir?.(
+          lados.length > 1
+            ? `Entre los dos no caben: el máximo son ${MAXIMO_DE_SEPARADORES} separadores. Quite alguno o desactive «En pareja».`
+            : `Son ${MAXIMO_DE_SEPARADORES} separadores: es el máximo que cabe. Quite alguno.`,
+        )
         return
       }
-      const id = (t.siguienteSeparador = (t.siguienteSeparador ?? 0) + 1)
-      const datos: SeparadorColocado = {
-        id,
-        instrumentoId: inst.id ?? '',
-        nombre: inst.nombre ?? 'Separador',
-        tipo,
-        plano: c.plano,
-        lado,
-        posicion,
-        maximoMm: separa.maximoMm,
-        aperturaMm: 0,
+      // El del clic va donde se apuntó; el de enfrente, en el borde opuesto de la misma posición: el reflejo del
+      // primero respecto de la línea de la herida, llevado a la superficie del plano.
+      const linea = sitioEnLaHerida(c.herida, posicion, 1)
+      const hechos: SeparadorEnEscena[] = []
+      for (const l of lados) {
+        if (l === lado) {
+          const s = ponerUnSeparador({ punto: c.punto, normal: c.normal, direccion: c.info.direccion, posicion }, l, c.plano)
+          if (s) hechos.push(s)
+          continue
+        }
+        if (!linea) continue
+        // A qué distancia de la línea cayó el clic, con signo; el de enfrente se pone a la misma del otro lado.
+        const desvio = c.punto.clone().sub(linea.punto).dot(linea.direccion)
+        const lejos = Math.max(Math.abs(desvio), 3 * unidadesPorMm) * -Math.sign(desvio || c.info.lado)
+        const q = linea.punto.clone().addScaledVector(linea.direccion, lejos)
+        const capa = c.plano === 'musculo' ? 'musculo' : 'piel'
+        const sobre = proyectarEnLaCapa(q, linea.normal, capa, c.herida.malla)
+        const s = ponerUnSeparador({ punto: sobre.punto, normal: sobre.normal, direccion: linea.direccion, posicion: linea.t }, l, c.plano)
+        if (s) hechos.push(s)
       }
-      const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(camara.quaternion)
-      const mango = c.normal.clone().multiplyScalar(0.85).addScaledVector(arriba, 0.65).normalize()
-      // Hacia donde se aleja el labio que sostiene: con el signo de su lado (un autoestático no se desplaza).
-      const direccion = c.info.direccion.clone().multiplyScalar(lado === 0 ? 1 : lado)
-      const nuevo: SeparadorEnEscena = {
-        datos,
-        url: inst.url,
-        ajustes: inst.ajustes,
-        punto: c.punto.clone(),
-        normal: c.normal.clone(),
-        direccion,
-        mango,
-        // El sitio de este plano queda guardado: bajarlo al músculo y volver a subirlo lo deja donde estaba.
-        sitios:
-          c.plano === 'hueso'
-            ? {}
-            : { [c.plano]: { punto: c.punto.clone(), normal: c.normal.clone(), direccion: c.info.direccion.clone(), posicion } },
-        instrumento: colocarInstrumento(t.escena, inst.url, inst.ajustes, t.entorno ?? null, 1000 / (u.milimetrosPorUnidad || 1000), () => {
-          posarSeparador(nuevo, unidadesPorMm)
-          pedirDibujo()
-        }),
-      }
-      lista.push(nuevo)
-      t.separadorActivo = id
+      if (hechos.length === 0) return
       reaplicarSeparadores(t, u)
-      t.decir?.(`${datos.nombre} colocado ${enElPlano(c.plano)}. Ábralo con la rueda del ratón (o con la barra del panel).`)
+      t.decir?.(
+        hechos.length > 1
+          ? `${hechos[0].datos.nombre} ×2 colocados ${enElPlano(c.plano)}, uno por borde. Ábralos con la rueda (Mayúsculas + rueda, solo el que está bajo el cursor).`
+          : `${hechos[0].datos.nombre} colocado ${enElPlano(c.plano)}. Ábralo con la rueda del ratón (o con la barra del panel).`,
+      )
       pedirDibujo()
+    }
+
+    /**
+     * Deja el separador que se llevaba en el borde de la herida más cercano al clic. Conserva su apertura; el lado
+     * lo decide el borde en que se hizo clic (un Farabeuf puede pasar de un borde al de enfrente), y el plano es el
+     * suyo.
+     */
+    const dejarElSeparador = (c: NonNullable<typeof clicDeSeparador>) => {
+      const t = taller.current
+      const u = ultimas.current
+      const mano = t.separadorEnLaMano
+      if (!mano) return
+      const s = mano.objeto
+      const lado = ladoAlColocar(s.datos.tipo, c.info.lado)
+      s.punto = c.punto.clone()
+      s.normal = c.normal.clone()
+      s.direccion = c.info.direccion.clone().multiplyScalar(lado === 0 ? 1 : lado)
+      const m = direccionDelMango([c.normal.x, c.normal.y, c.normal.z], [c.info.direccion.x, c.info.direccion.y, c.info.direccion.z], lado)
+      s.mango = new THREE.Vector3(m[0], m[1], m[2])
+      s.datos.lado = lado
+      s.datos.posicion = c.info.t
+      s.datos.aperturaMm = mano.previo.datos.aperturaMm
+      // Los sitios de otros planos eran del lugar de antes: solo vale el de aquí.
+      s.sitios =
+        s.datos.plano === 'hueso'
+          ? {}
+          : { [s.datos.plano]: { punto: c.punto.clone(), normal: c.normal.clone(), direccion: c.info.direccion.clone(), posicion: c.info.t } }
+      t.separadorEnLaMano = undefined
+      t.separadorActivo = s.datos.id
+      atenuarInstrumento(s.instrumento.grupo, false)
+      reaplicarSeparadores(t, u)
+      t.decir?.(`${s.datos.nombre} reubicado, abierto ${s.datos.aperturaMm} mm.`)
+      pedirDibujo()
+    }
+
+    /**
+     * Mientras un separador o una pinza está «en la mano» (P-003 E3, respuesta 3 del dueño: «que cuando se haga
+     * clic se suelte y se pueda reubicar»), sigue al cursor sobre el borde de la herida más cercano, atenuado, sin
+     * abrir nada; el clic siguiente lo deja. Es una vista previa barata: no rehace la herida en cada movimiento.
+     */
+    const llevarLoQueSeLevanto = (evento: PointerEvent) => {
+      const t = taller.current
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const sep = t.separadorEnLaMano
+      if (sep) {
+        aCoordenadas(evento)
+        const s = sep.objeto
+        const plano = s.datos.plano
+        const capas: CapaDeLaHerida[] = plano === 'hueso' ? ['piel', 'musculo'] : [plano]
+        const heridas = capas.flatMap((c) => t.heridas.get(c) ?? [])
+        const golpe = plano === 'hueso' ? huesoBajoElCursor() : golpeEnLaCapa([plano])
+        if (!golpe || heridas.length === 0) return
+        let elegido: NonNullable<ReturnType<typeof ladoDeLaHerida>> | null = null
+        for (const h of heridas) {
+          const info = ladoDeLaHerida(h, golpe.point)
+          if (info && (!elegido || info.cerca < elegido.cerca)) elegido = info
+        }
+        if (!elegido) return
+        const n = normalDelGolpe(golpe)
+        const lado = ladoAlColocar(s.datos.tipo, elegido.lado)
+        const m = direccionDelMango([n.x, n.y, n.z], [elegido.direccion.x, elegido.direccion.y, elegido.direccion.z], lado)
+        posarEn(s.instrumento.grupo, golpe.point.clone().addScaledVector(n, 0.4 * unidadesPorMm), new THREE.Vector3(m[0], m[1], m[2]))
+        pedirDibujo()
+        return
+      }
+      const pin = t.pinzaEnLaMano
+      if (pin) {
+        aCoordenadas(evento)
+        const golpe = golpeEnLaCapa(['piel'])
+        if (!golpe) return
+        const p = pin.objeto
+        const n = normalDelGolpe(golpe)
+        const eje = ejeLateralEn(golpe, n)
+        const sobre = proyectarEnLaPiel(golpe.point, n, golpe.object)
+        const lado = p.datos.lado === 0 ? 1 : p.datos.lado
+        p.punto = sobre.punto
+        p.normal = sobre.normal
+        p.direccion = eje.direccion.clone().multiplyScalar(lado)
+        p.mango = sobre.normal.clone().multiplyScalar(0.6).addScaledVector(p.direccion, 0.7).normalize()
+        posarPliegue(p, unidadesPorMm)
+        pedirDibujo()
+      }
+    }
+
+    /** Deja la pinza que se llevaba en el borde de la herida más cercano al clic, con el agarre que tenía. */
+    const dejarLaPinza = (golpe: THREE.Intersection) => {
+      const t = taller.current
+      const u = ultimas.current
+      const pin = t.pinzaEnLaMano
+      if (!pin) return
+      const p = pin.objeto
+      const n = normalDelGolpe(golpe)
+      const eje = ejeLateralEn(golpe, n)
+      const sobre = proyectarEnLaPiel(golpe.point, n, golpe.object)
+      let lado: 1 | -1 = p.datos.lado === 0 ? 1 : p.datos.lado
+      let mejor: NonNullable<ReturnType<typeof ladoDeLaHerida>> | null = null
+      for (const h of t.heridas.get('piel') ?? []) {
+        const info = ladoDeLaHerida(h, golpe.point)
+        if (info && (!mejor || info.cerca < mejor.cerca)) mejor = info
+      }
+      // Con herida, la pinza toma el borde en que se hizo clic; sin ella, conserva el que tenía.
+      if (eje.conHerida && mejor) lado = mejor.lado
+      p.punto = sobre.punto
+      p.normal = sobre.normal
+      p.direccion = eje.direccion.clone().multiplyScalar(lado)
+      p.mango = sobre.normal.clone().multiplyScalar(0.6).addScaledVector(p.direccion, 0.7).normalize()
+      p.datos.lado = lado
+      p.datos.posicion = eje.t
+      p.datos.agarre = pin.previo.datos.agarre
+      t.pinzaEnLaMano = undefined
+      t.pellizcoActivo = p.datos.id
+      atenuarInstrumento(p.instrumento.grupo, false)
+      reaplicarSeparadores(t, u)
+      avisarPellizcos(t, u)
+      t.decir?.('Pinza reubicada.')
     }
 
     /**
@@ -2160,7 +2413,9 @@ export function LienzoQuirurgico({
       clicDeSeparador = null
       if (!clic) return
       if (Math.hypot(evento.clientX - clic.x, evento.clientY - clic.y) > 6) return
-      colocarSeparador(clic)
+      // Con uno en la mano, el clic lo deja; si no, coloca uno nuevo.
+      if (taller.current.separadorEnLaMano) dejarElSeparador(clic)
+      else colocarSeparador(clic)
     }
 
     // --- pinzas ---------------------------------------------------------------------------------------
@@ -2182,7 +2437,17 @@ export function LienzoQuirurgico({
         })
         if (dueno) return dueno
       }
-      return null
+      // Las mandíbulas de canto no las toca el rayo: la pinza que pasa más cerca del cursor en pantalla (P-003 E3).
+      let cercana: PellizcoEnEscena | null = null
+      let mejor = Infinity
+      for (const q of lista) {
+        const d = distanciaEnPantalla(q.instrumento.grupo, 14)
+        if (d !== null && d < mejor) {
+          mejor = d
+          cercana = q
+        }
+      }
+      return cercana
     }
 
     /** El color de la piel que se pellizca, para que el pliegue no destaque como un parche de otro color. */
@@ -2234,10 +2499,10 @@ export function LienzoQuirurgico({
       return { direccion: derecha.normalize(), t: 0.5, conHerida: false }
     }
 
-    /** Lleva un punto a la superficie de la piel, bajando por la normal: la pinza se apoya en la piel, no en el aire. */
-    const proyectarEnLaPiel = (q: THREE.Vector3, n: THREE.Vector3, respaldo: THREE.Object3D) => {
+    /** Lleva un punto a la superficie de una capa (la piel, el músculo), bajando por la normal: no se apoya en el aire. */
+    const proyectarEnLaCapa = (q: THREE.Vector3, n: THREE.Vector3, capa: 'piel' | 'musculo', respaldo: THREE.Object3D) => {
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
-      const mallas = mallasConRol(taller.current, ultimas.current.piezas, ['piel'])
+      const mallas = mallasConRol(taller.current, ultimas.current.piezas, [capa])
       const lanzado = new THREE.Raycaster(q.clone().addScaledVector(n, 10 * unidadesPorMm), n.clone().negate(), 0, 30 * unidadesPorMm)
       const g = lanzado.intersectObjects(mallas, false)[0]
       if (!g) return { punto: q.clone(), normal: n.clone(), objeto: respaldo }
@@ -2245,6 +2510,8 @@ export function LienzoQuirurgico({
       if (normal.dot(n) < 0) normal.negate()
       return { punto: g.point.clone(), normal, objeto: g.object as THREE.Object3D }
     }
+    const proyectarEnLaPiel = (q: THREE.Vector3, n: THREE.Vector3, respaldo: THREE.Object3D) =>
+      proyectarEnLaCapa(q, n, 'piel', respaldo)
 
     /** Una pinza tomando la piel en ese punto, en su borde, con el mango abierto hacia fuera. */
     const crearPellizcoEn = (
@@ -2374,20 +2641,25 @@ export function LienzoQuirurgico({
       }
 
       if (modoActual === 'separar') {
-        const separa = ultimas.current.instrumento?.separa
-        if (!separa) return
         const t = taller.current
-        // Pinchar un separador que ya está puesto lo elige: es el que responde a la rueda.
-        const puesto = separadorBajoElCursor()
-        if (puesto) {
-          t.separadorActivo = puesto.datos.id
-          ultimas.current.alSeparar?.(estadoDeLosSeparadores(t))
-          t.decir?.(`${puesto.datos.nombre}: apoyado ${enElPlano(puesto.datos.plano)}, abierto ${puesto.datos.aperturaMm} mm. Ábralo con la rueda.`)
-          clicDeSeparador = null
-          return
+        const enLaMano = t.separadorEnLaMano
+        const separa = ultimas.current.instrumento?.separa
+        // Con un separador en la mano se puede dejar aunque se haya cambiado de instrumento: lo que se deja es el suyo.
+        if (!separa && !enLaMano) return
+        // Pinchar un separador ya puesto lo levanta (P-003 E3, respuesta 3 del dueño): sigue al cursor y el clic
+        // siguiente lo deja donde se apunte. La rueda no necesita elegirlo: actúa sobre el que está bajo el cursor.
+        if (!enLaMano) {
+          const puesto = separadorBajoElCursor()
+          if (puesto) {
+            levantarSeparador(t, ultimas.current, puesto)
+            esconderHerramienta()
+            clicDeSeparador = null
+            return
+          }
         }
-        // El plano en que se apoya (petición de Cristóbal): el que se eligió en el panel; el Hohmann, el hueso.
-        const plano: PlanoDelSeparador = separa.apoyoEnHueso ? 'hueso' : ultimas.current.planoDelSeparador
+        // El plano en que se apoya (petición de Cristóbal): el que se eligió en el panel; el Hohmann, el hueso. El
+        // separador que se lleva en la mano conserva el suyo.
+        const plano: PlanoDelSeparador = enLaMano ? enLaMano.objeto.datos.plano : separa!.apoyoEnHueso ? 'hueso' : ultimas.current.planoDelSeparador
         const capas: CapaDeLaHerida[] = plano === 'hueso' ? ['piel', 'musculo'] : [plano]
         const heridas = capas.flatMap((c) => t.heridas.get(c) ?? [])
         if (heridas.length === 0) {
@@ -2415,15 +2687,19 @@ export function LienzoQuirurgico({
         const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
         // El borde más cercano de las heridas de ese plano es el que se agarra.
         let elegido: NonNullable<ReturnType<typeof ladoDeLaHerida>> | null = null
+        let heridaElegida: HeridaEnCapa | null = null
         for (const h of heridas) {
           const info = ladoDeLaHerida(h, golpe.point)
-          if (info && (!elegido || info.cerca < elegido.cerca)) elegido = info
+          if (info && (!elegido || info.cerca < elegido.cerca)) {
+            elegido = info
+            heridaElegida = h
+          }
         }
-        if (!elegido || (plano !== 'hueso' && elegido.cerca > 30 * unidadesPorMm)) {
-          t.decir?.('Acerque el separador al borde de la herida y haga clic para colocarlo.')
+        if (!elegido || !heridaElegida || (plano !== 'hueso' && elegido.cerca > 30 * unidadesPorMm)) {
+          t.decir?.(enLaMano ? 'Acerque el separador al borde de la herida y haga clic para dejarlo (Esc lo devuelve).' : 'Acerque el separador al borde de la herida y haga clic para colocarlo.')
           return
         }
-        // Un clic coloca; el gesto se resuelve al soltar (`alSubirParaSeparar`).
+        // Un clic coloca (o deja); el gesto se resuelve al soltar (`alSubirParaSeparar`).
         clicDeSeparador = {
           x: evento.clientX,
           y: evento.clientY,
@@ -2431,6 +2707,7 @@ export function LienzoQuirurgico({
           normal: normalDelGolpe(golpe),
           info: elegido,
           plano,
+          herida: heridaElegida,
         }
         return
       }
@@ -2451,11 +2728,22 @@ export function LienzoQuirurgico({
         if (!ultimas.current.instrumento?.pellizca) return
         const t = taller.current
         const u = ultimas.current
-        // Pinchar una pinza que ya sostiene la piel la elige, y arrastrar arriba o abajo cambia cuánto levanta.
+        // Con una pinza en la mano, el clic la deja en el borde que se apunta (P-003 E3).
+        if (t.pinzaEnLaMano) {
+          const destino = golpeEnLaCapa(['piel'])
+          if (!destino) {
+            t.decir?.('Apunte a la piel junto a la herida para dejar la pinza (Esc la devuelve).')
+            return
+          }
+          dejarLaPinza(destino)
+          return
+        }
+        // Pinchar una pinza que ya sostiene la piel la elige, y arrastrar arriba o abajo cambia cuánto levanta; un
+        // clic sin arrastre la levanta para reubicarla (P-003 E3, se resuelve al soltar).
         const puesta = pellizcoBajoElCursor()
         if (puesta) {
           t.pellizcoActivo = puesta.datos.id
-          levantando = { id: puesta.datos.id, y0: evento.clientY, altura0: puesta.datos.alturaMm }
+          levantando = { id: puesta.datos.id, y0: evento.clientY, altura0: puesta.datos.alturaMm, movido: false }
           controles.enabled = false
           arrastrando = true
           avisarPellizcos(t, u)
@@ -2753,6 +3041,24 @@ export function LienzoQuirurgico({
 
     const alMover = (evento: PointerEvent) => {
       if (!arrastrando) {
+        // Lo que se levantó con un clic (separador o pinza) sigue al cursor, y el instrumento de la mano se aparta.
+        if (taller.current.separadorEnLaMano || taller.current.pinzaEnLaMano) {
+          llevarLoQueSeLevanto(evento)
+          return
+        }
+        // La rueda actúa sobre el separador que está bajo el cursor (P-003 E3): sin elegirlo con un clic, que ahora lo levanta.
+        if (ultimas.current.modo === 'separar' && (taller.current.separadores?.length ?? 0) > 0) {
+          const ahora = performance.now()
+          if (ahora - ultimaBusquedaDeSeparador > 66) {
+            ultimaBusquedaDeSeparador = ahora
+            aCoordenadas(evento)
+            const bajo = separadorBajoElCursor()
+            if (bajo && taller.current.separadorActivo !== bajo.datos.id) {
+              taller.current.separadorActivo = bajo.datos.id
+              ultimas.current.alSeparar?.(estadoDeLosSeparadores(taller.current))
+            }
+          }
+        }
         // Con el inicio de una recta ya marcado, la recta provisional sigue al cursor.
         const inicio = taller.current.inicioDeLaRecta
         if (inicio && ultimas.current.modo === 'trazar') vistaPreviaDeLaRecta(evento, inicio)
@@ -2779,6 +3085,7 @@ export function LienzoQuirurgico({
         const p = (t.pellizcos ?? []).find((q) => q.datos.id === levantando!.id)
         if (!p) return
         // Arrastrar hacia arriba levanta la piel: 0,12 mm por píxel, o sea unos 12 mm cada 100 px.
+        if (Math.abs(levantando.y0 - evento.clientY) >= 4) levantando.movido = true
         const altura = levantando.altura0 + (levantando.y0 - evento.clientY) * 0.12
         p.datos.alturaMm = Math.min(ALTURA_MAXIMA_DEL_PELLIZCO_MM, Math.max(0, altura))
         posarPliegue(p, 1 / (ultimas.current.milimetrosPorUnidad || 1000))
@@ -2844,10 +3151,18 @@ export function LienzoQuirurgico({
         const hecho = levantando
         levantando = null
         const p = (t.pellizcos ?? []).find((q) => q.datos.id === hecho.id)
-        // Una pinza que se baja hasta la piel suelta el pliegue: es la forma de quitarla con el ratón.
-        if (p && p.datos.alturaMm < 1.5) soltarPellizcos(t, ultimas.current, hecho.id)
-        else avisarPellizcos(t, ultimas.current)
-        t.decir?.('')
+        if (p && !hecho.movido) {
+          // Un clic sin arrastre levanta la pinza para reubicarla (P-003 E3).
+          levantarPinza(t, ultimas.current, p)
+          esconderHerramienta()
+        } else if (p && p.datos.alturaMm < 1.5) {
+          // Una pinza que se baja hasta la piel suelta el pliegue: es la forma de quitarla con el ratón.
+          soltarPellizcos(t, ultimas.current, hecho.id)
+          t.decir?.('')
+        } else {
+          avisarPellizcos(t, ultimas.current)
+          t.decir?.('')
+        }
       }
       if (perforando) terminarPerforacion()
 
@@ -2968,6 +3283,10 @@ export function LienzoQuirurgico({
       if (e.key === 'Escape' && taller.current.inicioDeLaRecta) {
         cancelarLaRecta(taller.current)
         pedirDibujo()
+      }
+      // Esc devuelve a su sitio lo que se levantó con un clic y todavía no se dejó (P-003 E3).
+      if (e.key === 'Escape' && (taller.current.separadorEnLaMano || taller.current.pinzaEnLaMano)) {
+        devolverLoQueSeLevanto(taller.current, ultimas.current)
       }
     }
     window.addEventListener('keydown', alTeclear)
@@ -3237,6 +3556,14 @@ export function LienzoQuirurgico({
     }
   }, [modo, capturaLaRueda, tipoDeTrazo, giroLibre])
 
+  // Lo que se levantó con un clic se devuelve si se sale del modo en que se levantó: seguiría «en la mano» sin
+  // manera de dejarlo.
+  useEffect(() => {
+    const t = taller.current
+    if (modo !== 'separar' && t.separadorEnLaMano) devolverLoQueSeLevanto(t, ultimas.current)
+    if (modo !== 'pinzar' && t.pinzaEnLaMano) devolverLoQueSeLevanto(t, ultimas.current)
+  }, [modo])
+
   return <div className="consola-lienzo" ref={lienzo} />
 }
 
@@ -3273,6 +3600,8 @@ export type Taller = {
   separadores?: SeparadorEnEscena[]
   separadorActivo?: number | null
   siguienteSeparador?: number
+  separadorEnLaMano?: EnLaMano<SeparadorEnEscena>
+  pinzaEnLaMano?: EnLaMano<PellizcoEnEscena>
   pellizcos?: PellizcoEnEscena[]
   pellizcoActivo?: number | null
   siguientePellizco?: number
@@ -3310,6 +3639,15 @@ export type Taller = {
   cortes?: CorteGuardado[]
   /** Escribe en la etiqueta que flota sobre el lienzo. */
   decir?: (texto: string) => void
+}
+
+/**
+ * Un separador o una pinza que se levantó con un clic (P-003 E3, respuesta 3 del dueño): sigue al cursor hasta que
+ * otro clic lo deja. `previo` guarda cómo estaba, para que Escape lo devuelva a su sitio sin perder nada.
+ */
+export interface EnLaMano<T extends { datos: object }> {
+  objeto: T
+  previo: { punto: THREE.Vector3; normal: THREE.Vector3; direccion: THREE.Vector3; mango: THREE.Vector3; datos: T['datos'] }
 }
 
 const distancia = (a: Punto3, b: THREE.Vector3) => Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z)
@@ -3780,6 +4118,7 @@ function quitarSeparadores(t: Taller, u: LoUltimo, id?: number) {
     else quedan.push(s)
   }
   t.separadores = quedan
+  if (t.separadorEnLaMano && !quedan.includes(t.separadorEnLaMano.objeto)) t.separadorEnLaMano = undefined
   if (!quedan.some((s) => s.datos.id === t.separadorActivo)) t.separadorActivo = quedan[quedan.length - 1]?.datos.id ?? null
   reaplicarSeparadores(t, u)
 }
@@ -3791,6 +4130,7 @@ function soltarPellizcos(t: Taller, u: LoUltimo, id?: number) {
     else quedan.push(p)
   }
   t.pellizcos = quedan
+  if (t.pinzaEnLaMano && !quedan.includes(t.pinzaEnLaMano.objeto)) t.pinzaEnLaMano = undefined
   if (!quedan.some((p) => p.datos.id === t.pellizcoActivo)) t.pellizcoActivo = quedan[quedan.length - 1]?.datos.id ?? null
   // Sin la pinza, la piel ya no está tensa: la herida deja de abrirse con lo que ella tiraba.
   reaplicarSeparadores(t, u)
@@ -3996,8 +4336,152 @@ function cambiarElPlanoDelSeparador(t: Taller, u: LoUltimo, id: number, plano: C
   }
   s.datos.plano = plano
   apoyarSeparadorEn(s, sitio, s.datos.lado)
+  const m = direccionDelMango([sitio.normal.x, sitio.normal.y, sitio.normal.z], [sitio.direccion.x, sitio.direccion.y, sitio.direccion.z], s.datos.lado)
+  s.mango = new THREE.Vector3(m[0], m[1], m[2])
   reaplicarSeparadores(t, u)
   t.decir?.(`${s.datos.nombre}: apoyado ${enElPlano(plano)}.`)
+}
+
+// ------------------------------------------------ levantar y dejar, y acompañar al bisturí (P-003 E3)
+
+/**
+ * Pone un instrumento translúcido (o lo devuelve a como estaba): la vista previa de lo que se lleva en la mano. Se
+ * guarda lo anterior en el `userData` de cada material para devolverlo exacto, también si ya era transparente.
+ */
+function atenuarInstrumento(grupo: THREE.Object3D, atenuar: boolean) {
+  grupo.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh) return
+    for (const material of Array.isArray(m.material) ? m.material : [m.material]) {
+      if (atenuar) {
+        if (material.userData.antesDeAtenuar) continue
+        material.userData.antesDeAtenuar = { transparent: material.transparent, opacity: material.opacity }
+        material.transparent = true
+        material.opacity = 0.5
+      } else if (material.userData.antesDeAtenuar) {
+        const antes = material.userData.antesDeAtenuar as { transparent: boolean; opacity: number }
+        material.transparent = antes.transparent
+        material.opacity = antes.opacity
+        delete material.userData.antesDeAtenuar
+      }
+      material.needsUpdate = true
+    }
+  })
+}
+
+/**
+ * Levanta un separador puesto: queda en la mano, atenuado, y la herida se cierra en lo que él abría (su apertura
+ * se le devuelve al dejarlo). Con otra cosa ya en la mano no se levanta nada: de a una.
+ */
+function levantarSeparador(t: Taller, u: LoUltimo, s: SeparadorEnEscena) {
+  if (t.separadorEnLaMano || t.pinzaEnLaMano) return
+  t.separadorEnLaMano = {
+    objeto: s,
+    previo: { punto: s.punto.clone(), normal: s.normal.clone(), direccion: s.direccion.clone(), mango: s.mango.clone(), datos: { ...s.datos } },
+  }
+  t.separadorActivo = s.datos.id
+  s.datos.aperturaMm = 0
+  atenuarInstrumento(s.instrumento.grupo, true)
+  reaplicarSeparadores(t, u)
+  t.decir?.(`${s.datos.nombre} en la mano: haga clic junto al borde donde lo quiere dejar (Esc lo devuelve).`)
+}
+
+/** Levanta una pinza: suelta el pliegue (mandíbulas abiertas) y queda en la mano hasta que un clic la deja. */
+function levantarPinza(t: Taller, u: LoUltimo, p: PellizcoEnEscena) {
+  if (t.separadorEnLaMano || t.pinzaEnLaMano) return
+  t.pinzaEnLaMano = {
+    objeto: p,
+    previo: { punto: p.punto.clone(), normal: p.normal.clone(), direccion: p.direccion.clone(), mango: p.mango.clone(), datos: { ...p.datos } },
+  }
+  t.pellizcoActivo = p.datos.id
+  p.datos.agarre = 0
+  atenuarInstrumento(p.instrumento.grupo, true)
+  reaplicarSeparadores(t, u)
+  avisarPellizcos(t, u)
+  t.decir?.('Pinza en la mano: haga clic junto al borde donde la quiere dejar (Esc la devuelve).')
+}
+
+/** Escape (o salir del modo): lo que se levantó vuelve exactamente a donde estaba, con lo que tenía. */
+function devolverLoQueSeLevanto(t: Taller, u: LoUltimo) {
+  const sep = t.separadorEnLaMano
+  if (sep) {
+    const s = sep.objeto
+    s.punto = sep.previo.punto
+    s.normal = sep.previo.normal
+    s.direccion = sep.previo.direccion
+    s.mango = sep.previo.mango
+    Object.assign(s.datos, sep.previo.datos)
+    t.separadorEnLaMano = undefined
+    atenuarInstrumento(s.instrumento.grupo, false)
+    reaplicarSeparadores(t, u)
+    t.decir?.(`${s.datos.nombre} devuelto a su sitio.`)
+  }
+  const pin = t.pinzaEnLaMano
+  if (pin) {
+    const p = pin.objeto
+    p.punto = pin.previo.punto
+    p.normal = pin.previo.normal
+    p.direccion = pin.previo.direccion
+    p.mango = pin.previo.mango
+    Object.assign(p.datos, pin.previo.datos)
+    t.pinzaEnLaMano = undefined
+    atenuarInstrumento(p.instrumento.grupo, false)
+    reaplicarSeparadores(t, u)
+    avisarPellizcos(t, u)
+    t.decir?.('Pinza devuelta a su sitio.')
+  }
+}
+
+/**
+ * «Acompañar el bisturí» (P-003 E3, respuesta 4 del dueño: pinzas **y** separadores). Al terminar un corte, la
+ * pareja de separadores y la pareja de pinzas más cercanas a la punta se corren a lo largo de la herida nueva,
+ * unos 15 mm por detrás de la punta, **sin cambiar de borde ni de apertura**.
+ *
+ * Se hace al terminar el corte y no mientras se traza porque la herida solo existe cuando el trazo se cierra: a
+ * mano alzada o en recta, lo que hay durante el arrastre es la línea de guía. Con la incisión por tramos (E4), cada
+ * tramo hace que la pareja avance tras él.
+ */
+function acompanarAlCorte(t: Taller, u: LoUltimo, capa: PlanoDeCorte) {
+  const herida = t.heridas?.get(capa)?.[0]
+  if (!herida) return
+  const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
+  const largoMm = herida.largo / unidadesPorMm
+  const tObjetivo = posicionQueAcompana(1, largoMm, RETRASO_AL_ACOMPANAR_MM)
+  const sitio = sitioEnLaHerida(herida, tObjetivo, 1)
+  if (!sitio) return
+  // Los de mano de esa capa que están más cerca de la punta, que se mueven juntos (una pareja comparte posición).
+  const propios = (t.separadores ?? []).filter((s) => s.datos.tipo !== 'roma' && s.datos.plano === capa)
+  const masAdelantado = propios.reduce((m, s) => Math.max(m, s.datos.posicion), -1)
+  const grupo = propios.filter((s) => masAdelantado - s.datos.posicion < 0.08)
+  for (const s of grupo) {
+    const lado = s.datos.lado
+    s.punto = sitio.punto.clone()
+    s.normal = sitio.normal.clone()
+    s.direccion = sitio.direccion.clone().multiplyScalar(lado === 0 ? 1 : lado)
+    const m = direccionDelMango([sitio.normal.x, sitio.normal.y, sitio.normal.z], [sitio.direccion.x, sitio.direccion.y, sitio.direccion.z], lado)
+    s.mango = new THREE.Vector3(m[0], m[1], m[2])
+    s.datos.posicion = sitio.t
+    s.sitios[capa] = { punto: sitio.punto.clone(), normal: sitio.normal.clone(), direccion: sitio.direccion.clone(), posicion: sitio.t }
+  }
+  // Las pinzas toman la piel: solo siguen a un corte de la piel.
+  let pinzasMovidas = 0
+  if (capa === 'piel') {
+    for (const p of t.pellizcos ?? []) {
+      if (p.datos.lado === 0) continue
+      const mm = sitioEnLaHerida(herida, tObjetivo, p.datos.lado)
+      if (!mm) continue
+      // A los 4 mm del borde, como cuando se ponen sobre una herida ya abierta.
+      p.punto = mm.punto.clone().addScaledVector(mm.direccion, 4 * unidadesPorMm)
+      p.normal = mm.normal.clone()
+      p.direccion = mm.direccion.clone()
+      p.mango = mm.normal.clone().multiplyScalar(0.6).addScaledVector(mm.direccion, 0.7).normalize()
+      p.datos.posicion = mm.t
+      pinzasMovidas++
+    }
+  }
+  if (grupo.length === 0 && pinzasMovidas === 0) return
+  reaplicarSeparadores(t, u)
+  t.decir?.('Las pinzas y los separadores acompañan al bisturí.')
 }
 
 /** La escena tal como la necesita la radiografía. */
@@ -4245,6 +4729,7 @@ function cerrarTodasLasHeridas(taller: Taller) {
   // Un separador está puesto en una herida: sin ella no tiene dónde estar.
   for (const q of taller.separadores ?? []) soltarSeparador(q)
   taller.separadores = []
+  taller.separadorEnLaMano = undefined
   taller.separadorActivo = null
   for (const h of todasLasHeridas(taller)) cerrarCapa(h)
   taller.heridas?.clear()

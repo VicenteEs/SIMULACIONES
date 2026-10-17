@@ -606,6 +606,10 @@ export function ConsolaQuirurgica({
   const [usoDeLaTijera, setUsoDeLaTijera] = useState<'cortar' | 'roma'>('cortar')
   // En qué plano se apoyan los separadores que se pongan: la piel o, más profundo, el músculo.
   const [planoDeSeparador, setPlanoDeSeparador] = useState<'piel' | 'musculo'>('piel')
+  // Los separadores de mano se ponen de a dos, uno por borde (P-003 E3), como las pinzas. Encendido por omisión.
+  const [separadoresEnPareja, setSeparadoresEnPareja] = useState(true)
+  // Pinzas y separadores se corren tras el bisturí al terminar un corte (P-003 E3). Apagado por omisión.
+  const [acompanarAlBisturi, setAcompanarAlBisturi] = useState(false)
   // La disección roma en curso: en qué plano, cuántas veces se separó y si la punta está apoyada.
   const [diseccion, setDiseccion] = useState<EstadoDeLaDiseccion | null>(null)
   const lienzoDeFluoroscopia = useRef<HTMLCanvasElement>(null)
@@ -2181,6 +2185,11 @@ export function ConsolaQuirurgica({
 
               {queHace.pellizca ? (
                 <div className="consola-instrumento-articulaciones">
+                  <label className="consola-interruptor" title="Al terminar un corte, la pareja de pinzas y la de separadores más cercanas a la punta se corren tras ella, unos 15 mm por detrás.">
+                    <span>Acompañar el bisturí</span>
+                    <input type="checkbox" role="switch" checked={acompanarAlBisturi} onChange={(e) => setAcompanarAlBisturi(e.target.checked)} />
+                    <span className="consola-interruptor-pista" aria-hidden />
+                  </label>
                   <p className="consola-instrumento-texto">
                     {pellizcos?.tension === 'tensa'
                       ? 'Piel tensa: los dos bordes están tomados con pinza con dientes.'
@@ -2303,12 +2312,26 @@ export function ConsolaQuirurgica({
                       ))}
                     </div>
                   ) : null}
+                  {!queHace.separa.apoyoEnHueso && !queHace.separa.autoestatico ? (
+                    <label className="consola-interruptor" title="Un clic pone los dos separadores, uno por borde, a la misma altura. La rueda abre los dos por igual; la barra del panel, solo el elegido.">
+                      <span>En pareja</span>
+                      <input type="checkbox" role="switch" checked={separadoresEnPareja} onChange={(e) => setSeparadoresEnPareja(e.target.checked)} />
+                      <span className="consola-interruptor-pista" aria-hidden />
+                    </label>
+                  ) : null}
+                  <label className="consola-interruptor" title="Al terminar un corte, la pareja de pinzas y la de separadores más cercanas a la punta se corren tras ella, unos 15 mm por detrás.">
+                    <span>Acompañar el bisturí</span>
+                    <input type="checkbox" role="switch" checked={acompanarAlBisturi} onChange={(e) => setAcompanarAlBisturi(e.target.checked)} />
+                    <span className="consola-interruptor-pista" aria-hidden />
+                  </label>
                   <p className="consola-instrumento-texto">
                     {queHace.separa.apoyoEnHueso
                       ? 'Haga clic sobre el hueso: el separador se apoya en su borde y retrae las partes blandas de ese lado.'
                       : queHace.separa.autoestatico
                         ? 'Autoestático: haga clic en el punto de la incisión donde quiere ponerlo; se clava a los dos bordes y se queda abierto solo.'
-                        : 'De mano: haga clic junto al borde de la herida que quiere sostener; abre ese borde y el otro lo sostiene el ayudante (otra hoja).'}{' '}
+                        : separadoresEnPareja
+                          ? 'De mano, en pareja: un clic junto a la herida pone los dos, uno por borde. Un clic en uno puesto lo levanta; otro clic lo deja donde se apunte (Esc lo devuelve).'
+                          : 'De mano: haga clic junto al borde de la herida que quiere sostener; abre ese borde y el otro lo sostiene el ayudante (otra hoja). Un clic en uno puesto lo levanta; otro clic lo deja.'}{' '}
                     Después se abre con la rueda del ratón o con la barra de abajo, hasta {queHace.separa.maximoMm} mm.{' '}
                     {herida && herida.capas.length > 0 ? '' : 'Aún no hay herida: corte antes con un bisturí.'}
                   </p>
@@ -2962,6 +2985,8 @@ export function ConsolaQuirurgica({
             giroLibre={giroLibre}
             alGirarLaVista={() => setPosicion(null)}
             planoDelSeparador={planoDeSeparador}
+            separadoresEnPareja={separadoresEnPareja}
+            acompanarAlBisturi={acompanarAlBisturi}
             alDisecar={(estado) => {
               setDiseccion(estado)
               // Se va abriendo y avanzando: al apoyar la punta en otro sitio las ramas vuelven a estar cerradas.

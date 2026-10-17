@@ -157,6 +157,27 @@ export function ladosParaLaPareja(ocupados: readonly (1 | -1 | 0)[]): (1 | -1)[]
   return faltan
 }
 
+/**
+ * Los separadores que van con este en pareja: los del mismo instrumento y plano, en el borde de enfrente y a la
+ * misma altura de la herida (menos de 0,08 del largo). La rueda abre la pareja por igual; la barra del panel, solo el
+ * elegido. Un autoestático o un Hohmann no tienen pareja.
+ */
+export function laPareja<T extends Pick<SeparadorColocado, 'id' | 'instrumentoId' | 'plano' | 'tipo' | 'lado' | 'posicion'>>(
+  lista: readonly T[],
+  de: T,
+): T[] {
+  if (de.tipo !== 'mano' || de.lado === 0) return []
+  return lista.filter(
+    (q) =>
+      q.id !== de.id &&
+      q.tipo === 'mano' &&
+      q.instrumentoId === de.instrumentoId &&
+      q.plano === de.plano &&
+      q.lado === -de.lado &&
+      Math.abs(q.posicion - de.posicion) < 0.08,
+  )
+}
+
 /** ¿Caben `cuantos` separadores más sin pasar del tope? La pareja cuenta dos. */
 export const caben = (puestos: number, cuantos: number): boolean => puestos + cuantos <= MAXIMO_DE_SEPARADORES
 
