@@ -9175,8 +9175,13 @@ botón deja esa lista como la mesa de los practicantes.
   `20261017_161451_estructuras_anatomicas` se probó subiendo y bajando dentro de una transacción con ROLLBACK, y eso
   encontró un fallo del generador: el `down` soltaba las tablas antes de quitar la clave foránea que cuelga de
   `payload_locked_documents_rels`; el orden se corrigió a mano. La matriz de roles ganó la clase `estructuras`.)*
-- [ ] **E8.3 · Siembra** (`scripts/sembrar-estructuras.ts`, idempotente): una fila por pieza del catálogo con
+- [x] **E8.3 · Siembra** (`scripts/sembrar-estructuras.ts`, idempotente): una fila por pieza del catálogo con
   `atlasId`, `nombreOriginal`, `sistema`, `region` y `lado`. Se corre en el despliegue de la etapa.
+  *(Hecha: la lógica vive en `sincronizarConElAtlas` (`src/lib/estructurasServidor.ts`) y la usan el guion —que por omisión
+  simula— y, en E8.4, el botón «Cargar las piezas del atlas» del panel; los scripts de despliegue no corren guiones de
+  `tsx`, así que el botón es lo que se usa en el servidor. Crea lo que falta, refresca solo los datos del atlas, marca como
+  «sin pieza» lo que ya no está y casa por nombre original solo cuando no hay duda. La prueba de integración siembra las
+  2.231 piezas dentro de una transacción que se deshace, y deja la base de desarrollo como estaba.)*
 - [ ] **E8.4 · La pantalla** `/admin-panel/estructuras`: contador, filtro, pestañas y ventana de edición.
 - [ ] **E8.5 · Planilla:** descargar por región, leer `.xlsx`, vista previa, «aplicar también al lado opuesto» y
   aplicar.
