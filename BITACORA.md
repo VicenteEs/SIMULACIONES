@@ -9166,12 +9166,12 @@ o en Contenido → Instrumental—, para confirmar que E6.6 cubre lo que vio.
 
 **Tareas**
 
-- [ ] **E7.1 · Registro de uso** en la consola (`usados`), alimentado por los mismos avisos que ya emite el lienzo
+- [x] **E7.1 · Registro de uso** (commit `5272879`) en la consola (`usados`), alimentado por los mismos avisos que ya emite el lienzo
   (`alHerir`, `alSeparar`, `alFijar`, `alCoser`…), y el resumen como función pura en `src/lib/insumos.ts`, con pruebas.
-- [ ] **E7.2 · Bloque al terminar** para el residente.
-- [ ] **E7.3 · Casillas y «Usar como bandeja del caso»** en el editor, con un callback nuevo
+- [x] **E7.2 · Bloque al terminar** (commit `5272879`) para el residente.
+- [x] **E7.3 · Casillas y «Usar como bandeja del caso»** (commit `5272879`) en el editor, con un callback nuevo
   `editor.alFijarLaBandeja(ids)`.
-- [ ] **E7.4 · Manual y D-nnn.**
+- [x] **E7.4 · Manual y D-nnn.** (commit `5272879`)
 
 **Hecho cuando…** Al terminar una cirugía en el editor aparece la lista de lo usado, con los tornillos por largo, y un
 botón deja esa lista como la mesa de los practicantes.
