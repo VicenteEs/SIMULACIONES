@@ -8463,6 +8463,761 @@ qué tarjeta tiene y cuánta memoria.
 
 ---
 
+### P-003 · 2026-10-17 · en curso (escrito; ninguna etapa empezada)
+**Las observaciones de Cristóbal sobre el simulador quirúrgico: catálogos que se amplían con aviso, fluoroscopia
+por disparos y con penetración, separadores que no se cruzan y se reubican, varios abordajes en una cirugía,
+reducción con pinza, placa que se ajusta antes de perforar, insumos al terminar, y una ficha anatómica global
+con su botón «Info» y el trabajo por planos.**
+
+*El número P-002 está reservado para planificar con DICOM (ver E7 del P-001); por eso este es el P-003.*
+
+#### De dónde sale
+
+El documento «observaciones simulador quirurgico.pdf» (9 páginas), que el dueño trajo el 2026-10-17 con las
+notas de Cristóbal después de operar en `ved` la versión de D-176. Lo que pide, en el orden del documento:
+
+1. **Fluoroscopia:** cambiar la penetración —«más o menos opaco»—, jugar con filtros y contrastes «respetando las
+   densidades».
+2. **Catálogos:** el «¿No está? Agregar» también en **Segmento** (Patologías y Maniobras) y en **Tipo** (hoy Trauma
+   u Ortopedia, fijo). Al agregar, que salga un comentario que diga quién agregó qué y dónde.
+3. **Farabeuf uno frente a otro,** como la pareja de Adson («ahora no deja»).
+4. **Acompañar el gesto:** una opción para que pinzas y separadores avancen con el bisturí.
+5. **Los separadores no se cruzan** en medio del campo: van del centro hacia fuera, como en una cirugía real (la
+   captura muestra cuatro Farabeuf con los mangos cruzados tapando la herida; la de referencia, dos separadores
+   tirando de los bordes hacia fuera).
+6. **El trazo rojo de la incisión se queda** al profundizar; tiene que desaparecer.
+7. **Reducción:** tomar el fragmento con una pinza de camarón (Weber) y, agarrado, moverlo como se mueven los
+   fragmentos en el taller anatómico.
+8. **Reubicar un Farabeuf ya puesto:** «habitualmente trabajamos con los mismos 4 (o incluso menos), que vamos
+   moviendo».
+9. **Más de un abordaje** en la misma cirugía, sin que se borre el anterior; cortes discontinuos que quedan abiertos.
+10. Mantener la reducción con aguja o pinza: **se deja para después**, por indicación del propio documento.
+11. **Placa:** moverla arriba y abajo, angularla, sobre el hueso, mirándola con la fluoroscopia; cuando se está
+    conforme, se perforan los orificios.
+12. **Fluoroscopia por disparos:** un botón «Disparar» que toma una imagen fija, como en pabellón, y ese modo por
+    defecto; el vídeo de hoy queda como opción.
+13. **El medidor no se mete** visualmente en el orificio.
+14. **«No encuentro los tornillos».**
+15. **Al terminar la cirugía,** un resumen de los insumos usados, y ofrecer que sean los de la mesa de los
+    practicantes.
+16. **Botón «Info»:** apretado, al hacer clic en una estructura se destaca y se abre su ficha —nombre, nombre
+    latino, definición, origen, inserción, inervación, acción, irrigación—, con los mismos campos que las capturas
+    de la aplicación de anatomía que cita; sin apretar, desaparece. Los nombres, los del taller anatómico en español.
+17. **Por planos:** al marcar un músculo, además de su información, ofrecer «Cortar» o «Separar», y en cada una los
+    instrumentos (cortar: tijera de Metzenbaum, bisturí profundo, electrobisturí; separar: Farabeuf, Senn-Miller,
+    Hohmann —«una paleta con una punta curva que se mete y se apoya sobre los bordes del hueso»—). El cuadro lo
+    completa el editor, con los campos por defecto a la vista para que sepa qué le falta. «Me hace mucho más sentido
+    ir por plano que separar todo lo profundo como una única masa, sobre todo considerando la finalidad docente.»
+18. **Contexto, no tarea:** habrá abordajes como el deltopectoral, con varios planos musculares (entre deltoides y
+    pectoral mayor, separar el tendón conjunto, cortar el subescapular desde su inserción). Fija el horizonte de
+    E9 y E10.
+
+#### Respuestas del dueño · 2026-10-17
+
+Cierran las preguntas que se le hicieron antes de escribir el plan:
+
+1. **Aviso al ampliar un catálogo:** comentario **pendiente y con correo**, y no solo en Segmento y Tipo: en
+   **todos** los campos con «¿No está? Agregar» (hueso, clasificación, técnica, fase, segmento, tipo). Fija E1.
+2. **Reducción con pinza:** «agarra y mueve». La pinza toma el fragmento, aparecen las asas del taller y la pinza
+   lo acompaña hasta soltarla. Fija E5.
+3. **Reubicar un separador:** «que cuando se haga clic se suelte y se pueda reubicar». Un clic en un separador
+   puesto lo levanta; el clic siguiente lo deja donde se apunta. Fija E3.
+4. **Acompañar el gesto:** **pinzas y separadores**. Fija E3.
+5. **Tornillos:** exigir broca y medidor antes del tornillo, en el orden real. Fija E6.
+6. **Insumos al terminar:** elegir uno por uno, con casillas. Fija E7.
+7. **Dónde va «Info» y dónde se escribe:** se anota en el **taller anatómico** (para que al exportar el modelo la
+   información vaya con él) y en el **simulador**, y todo cae en **un listado global**: una estructura llenada una
+   vez no se vuelve a llenar. Un hueso partido se anota con el nombre del hueso —«Tibia derecha»— y no con el de
+   cada trozo («Tibia derecha_1», «_2»). «Quiero que esta parte quede bien hecha y revisada para no perder
+   información.» Fija E8 y E9.
+8. **Cómo se carga:** panel **y** planilla. Además, una entrada nueva en la barra lateral del editor, **debajo de
+   Comentarios**, con el listado completo de las piezas, en dos módulos:
+   - **Pendientes**, con la opción de subir la planilla **por cada parte del cuerpo** y de editar a mano una pieza
+     al pincharla, en una ventana emergente;
+   - **Listado**, con las demás;
+   - arriba de todo, un **contador con porcentajes** de lo que falta, y un **filtro** para buscar una pieza;
+   - con los nombres en español del taller.
+
+   Fija E8.
+9. **Lados:** «si hay 20000 piezas, que se llenen todas, no por derecho o izquierdo». **Una ficha por pieza del
+   atlas** (cada lado la suya), pero el editor puede subir **la misma planilla a los dos lados**. Fija E8.
+10. **Qué entra en el listado:** **todo** el atlas, con una marca **«No mostrar»** por pieza; una pieza marcada así
+    no abre ficha cuando alguien la pincha (por ejemplo, un órgano). Fija E8 y E9.
+11. **Casos que ya existen:** se **reexportan** con las estructuras separadas, conservando sus piezas y sus pasos.
+    Fija E9.
+12. **Contador de la fluoroscopia:** los disparos **no se cuentan**; el vídeo sigue contando segundos como hoy.
+    Fija E2.
+
+#### Por qué en este orden
+
+- **E1** (catálogos) y **E2** (fluoroscopia) no dependen de nada y son cortas: resuelven pedidos ya, y pueden ir en
+  paralelo con cualquier otra.
+- **E3** (separadores y pinzas) va antes que **E4** (varios abordajes): E4 cambia cómo se guardan las heridas y a qué
+  herida pertenece cada separador, y hacerlo con los separadores ya rehechos evita tocar dos veces lo mismo.
+- **E5** (reducción con pinza) reutiliza las asas de D-174 y el «instrumento que se queda puesto» de E3.
+- **E6** (placa, perforación, medidor y tornillos) necesita E2 para mirar la placa con disparos y la penetración.
+- **E7** (insumos) se escribe cuando las acciones de E3 a E6 ya existen, porque lo que cuenta es lo que **se usó**.
+- **E8** (listado global de estructuras) no depende del simulador y puede empezar en paralelo a E3–E7. Es la base de
+  datos de **E9** (exportar con estructuras separadas e «Info»), y E9 lo es de **E10** (trabajar por planos).
+- **E10** es la de más riesgo geométrico (deformar un músculo al retraerlo) y la que más se apoya en todo lo
+  anterior; por eso va al final.
+
+#### Reglas para todas las etapas
+
+- Las de siempre (AGENTS.md): todo en español; cada etapa termina con `npm run typecheck`, `npm run lint`,
+  `npm run test:coverage`, `npm run test:integration` y `npm run build`; las de integración **nunca contra la base
+  de producción** (O-048). Antes de desplegar una migración, «Respaldar ahora» en el panel.
+- **Lo que se prueba sin lienzo va en `src/lib`** (sin `three`, sin React), como `exposicion.ts`, `fijacion.ts` o
+  `radiografia.ts`: la aritmética de cada cambio se ata con pruebas unitarias, y la escena solo la pega.
+- **Ninguna escritura de E8 borra información en silencio** (ver «Cómo no perder información», en E8).
+- Cada etapa deja su `D-nnn` en la sección 2 y actualiza `docs/MANUAL-DE-USO.md`; las que cambian lo que ve el
+  residente, también el manual `.docx` del simulador.
+- Commits con `(P-003 En.m)` al final del mensaje.
+- Antes de dar una etapa por hecha, se opera de punta a punta en local sobre una copia del modelo completo (el
+  procedimiento de D-176: una cirugía de prueba, solo en la base local) y se anota en su D-nnn qué se probó.
+
+---
+
+#### E1 · Catálogos que se amplían, con aviso · 1 sesión · pendiente
+
+**De dónde sale:** pedidos 2 y respuesta 1.
+
+**Cómo funciona hoy**
+
+- `src/lib/catalogosAmpliables.ts` declara cuatro catálogos ampliables (`huesos-ao`, `clasificaciones-ao`,
+  `tecnicas-quirurgicas`, `fases-quirurgicas`). `SelectorConBusqueda` (`src/components/admin/formulario/`) ofrece
+  «¿No está? Agregar» solo si la colección está en esa tabla, y llama a `agregarAlCatalogo`
+  (`src/app/(frontend)/acciones/contenido.ts`), que nunca duplica (compara sin tildes ni mayúsculas) y crea la fila
+  al final del orden.
+- `agregarAlCatalogo` **no avisa a nadie**: no sabe desde qué ficha se llamó.
+- **Segmento** es una relación con `segmentos` (`src/collections/Segmentos.ts`: `nombre` y `orden`). Es «material
+  de apoyo»: cualquier editor lo escribe, sin restricción por módulo (`puedeEditar`, `src/lib/guardias.ts`).
+- **Tipo** es un `select` fijo en `Patologias.ts` (`trauma`, `ortopedia`), con su gemelo `TIPO_DE_FICHA` en
+  `src/admin/esquema.ts`, y la biblioteca lo filtra con dos opciones escritas a mano (`BibliotecaFiltrable.tsx`). En
+  PostgreSQL es un tipo enumerado: **un valor nuevo pide migración**, así que no se puede ampliar desde el panel tal
+  como está.
+- Los comentarios (`src/collections/Comentarios.ts`) se cuelgan de una ficha (`coleccion` + `documentoId`); su gancho
+  pone de autor a quien escribe y manda el correo a los administradores. `coleccion` es un enumerado: patologías,
+  maniobras, casos AO, cirugías, estudios e `instancias-atlas`. El modelo a seguir es
+  `src/collections/hooks/instrumentosPropuestos.ts`.
+
+**Decisiones de diseño**
+
+- **Tipo pasa a ser un catálogo:** colección nueva `tipos-de-ficha` (`nombre`, `orden`), sembrada con «Trauma» y
+  «Ortopedia», y `patologias.tipo` pasa de `select` a relación. Es la única manera de que un editor agregue un tipo
+  sin un despliegue.
+- **El aviso sale de la acción, no de un gancho:** solo la acción sabe desde qué ficha y qué campo se agregó.
+  `agregarAlCatalogo(coleccion, entrada, desde)`, con `desde = { coleccion, documentoId | null, campo }`.
+- **Texto del comentario:** «{Nombre} agregó {el hueso | la técnica | el segmento…} «{X}» al catálogo desde el
+  campo «{campo}» de esta ficha. Revise que no esté repetido con otro nombre.» Pendiente, con correo (lo pone el
+  gancho de `Comentarios`). Si la fila ya existía (`yaExistia`), no hay aviso: no se agregó nada.
+- **Ficha todavía sin guardar** (no tiene `documentoId`): la acción devuelve el aviso sin crearlo y el formulario lo
+  guarda en su estado; la acción de guardar lo crea en cuanto la ficha tiene número. Si la ficha nunca se guarda,
+  el catálogo sí ganó la fila: el aviso se crea igual, colgado de la colección del catálogo (ver E1.3).
+- **Instrumental:** «Técnicas en las que se usa» también amplía `tecnicas-quirurgicas`. Su ficha es del catálogo
+  `instrumental`, que no es un valor de `comentarios.coleccion`: se agrega al enumerado (migración `ALTER TYPE … ADD
+  VALUE`) y a `rutaDelPanelParaComentario`.
+
+**Tareas**
+
+- [ ] **E1.1 · Tipo como catálogo.**
+  - Colección `tipos-de-ficha` (lectura con sesión, escritura con `escrituraDeModulo('patologias')`) en
+    `src/collections/catalogos.ts`, y en `MODULO_DEL_VOCABULARIO` como vocabulario de `patologias`.
+  - `Patologias.tipo`: relación `tipos-de-ficha`, no obligatoria.
+  - Migración: crear la tabla, sembrar Trauma (orden 10) y Ortopedia (20), añadir `tipo_id` a `patologias` **y** a
+    `_patologias_v` (`version_tipo_id`), copiar desde el enumerado (`trauma` → Trauma, `ortopedia` → Ortopedia),
+    soltar las columnas viejas y el tipo enumerado. Probar la migración contra una copia del respaldo de producción
+    antes de desplegar.
+  - `esquema.ts`: `tipo` pasa a `relacion` (lo ata `esquema.test.ts`). Biblioteca: el filtro lee los tipos de la base
+    y filtra por identificador. Buscar en `src/` y `tests/` todo lo que lea `patologia.tipo` como texto (biblioteca,
+    ingesta, plantillas) y adaptarlo.
+- [ ] **E1.2 · Segmento y Tipo ampliables.** Entradas `segmentos` («el segmento», «Nombre del segmento») y
+  `tipos-de-ficha` («el tipo», «Nombre del tipo») en `CATALOGOS_AMPLIABLES`. Comprobar que `exigirEdicionDe` deja
+  agregar segmentos a quien edita patologías **o** maniobras.
+- [ ] **E1.3 · El aviso.**
+  - `agregarAlCatalogo` recibe `desde`. `SelectorConBusqueda` lo arma con la colección y el número de la ficha
+    abierta y con la etiqueta del campo (le llegan de `Campos.tsx`).
+  - Con ficha guardada: crea el comentario con el `req` del usuario (autor correcto) y `estado: 'pendiente'`.
+  - Sin ficha guardada: devuelve `avisoPendiente`; `FormularioDocumento` lo guarda y la acción de crear lo emite
+    tras el `create`. Si el formulario se descarta, el aviso se crea al cerrar la pestaña con `sendBeacon` a una
+    ruta propia; si eso también falla, queda en el registro de acciones (E1.4), que no se pierde.
+  - `comentarios.coleccion` gana `instrumental` (migración) y su ruta en el panel.
+- [ ] **E1.4 · Registro.** Cada fila agregada se anota también en el registro de acciones (`RegistroDeAcciones`:
+  quién, qué catálogo, qué nombre, desde qué ficha). El comentario se puede resolver; el registro no se borra.
+- [ ] **E1.5 · Pruebas, manual y D-nnn.** Unitarias: la tabla ampliable, el texto del aviso, no avisar si
+  `yaExistia`. Integración: un editor agrega un segmento desde una patología y aparece el comentario pendiente a su
+  nombre; un lector no puede agregar; la migración del tipo conserva el valor de cada patología.
+
+**Hecho cuando…** Desde una patología se escribe «Columna cervical» en Segmento, se pulsa «¿No está? Agregar» y el
+comentario «Fulano agregó el segmento «Columna cervical»…» está en Comentarios con su correo. Lo mismo con un tipo
+nuevo («Oncología ortopédica»), que además aparece en el filtro de la biblioteca.
+
+---
+
+#### E2 · Fluoroscopia por disparos, con penetración, contraste y filtros · 1–2 sesiones · pendiente
+
+**De dónde sale:** pedidos 1 y 12, respuesta 12.
+
+**Cómo funciona hoy**
+
+- `ConsolaQuirurgica.tsx` redibuja la imagen cada 140 ms mientras está encendida (un `setInterval`) y cuenta un
+  segundo de escopia cada segundo (otro intervalo); al apagar anota cuánto duró.
+- `dibujarFluoroscopia` (`src/components/simulador/radiografiaEnLaEscena.ts`) renderiza la escena con el material de
+  radiografía a un blanco de render, **lee los píxeles** (suma aditiva de densidades: lo grueso y denso, más blanco) y
+  se los pasa a `aFluoroscopia` (`src/lib/radiografia.ts`), que hace el negativo **lineal** (`20 + 195·(1 − materia)`),
+  el círculo, la viñeta y el ruido, con `ganancia: 1, ruido: 0.6` fijos. No dibuja si la «huella» (proyección, zoom,
+  lado, eje, desplazamiento, cuadro) no cambió.
+- `PanelDeFluoroscopia.tsx` tiene proyecciones, zoom hasta 4×, tamaño, arrastre y ayudas. No hay disparo, ni
+  penetración, ni contraste, ni filtro.
+
+**Decisiones de diseño**
+
+- **Dos modos:** «Disparo» (por omisión) y «Vídeo» (el de hoy). Se elige con un conmutador en el panel y se recuerda
+  en el navegador (`localStorage`, con `try`).
+- **Disparo:** el botón «Disparar» (y la barra espaciadora o la tecla F con el foco en la imagen) hace **un** dibujo
+  forzado y la imagen se queda. Cambiar de proyección, de zoom o arrastrar el miembro **no** redibuja: hasta el
+  siguiente disparo, la imagen dice «Toma de hace N s» y el botón invita a disparar. **No se cuenta** (respuesta 12).
+- **Vídeo:** como hoy, y sigue contando segundos con el aviso de los 20 s.
+- **La imagen cruda se guarda.** `dibujarFluoroscopia` separa la toma (render y lectura de píxeles) del revelado
+  (`aFluoroscopia`). La última toma cruda se conserva, y **penetración, contraste, brillo y filtro se aplican sobre
+  ella al instante**, sin otro disparo: es lo que hace la consola del arco con la última imagen (ventana y nivel), y
+  así ajustar no obliga a «irradiar» otra vez.
+- **Penetración «respetando las densidades».** El revelado deja de ser lineal: la transmisión es
+  `T = exp(−μ(kV) · materia)`, con `μ` que baja al subir los kV. Con kV bajos las partes blandas se separan del
+  fondo y el hueso se satura; con kV altos se ve dentro del hueso y del metal. **La función es monótona para
+  cualquier ajuste**: más materia nunca sale más clara. Esa propiedad es la prueba principal.
+- **Mandos:** «Penetración (kV)» de 50 a 120 (70 por omisión), «Contraste» de 0,5 a 2, «Brillo» de −30 % a +30 %,
+  y «Filtro»: Ninguno · Realzar bordes (máscara de enfoque 3×3, que hace saltar las corticales y los bordes de la
+  placa) · Positivo (como una radiografía, blanco lo denso). Un botón «Restablecer». Se recuerdan en el navegador.
+
+**Tareas**
+
+- [ ] **E2.1 · Revelado en `src/lib/radiografia.ts`.** `revelarFluoroscopia(crudo, lado, ajustes)`, con `kv`,
+  `contraste`, `brillo`, `filtro`, `ruido` y `semilla`. `aFluoroscopia` queda como el revelado con los valores por
+  omisión, para no romper a quien lo llama. Pruebas: monotonía para una rejilla de ajustes; el círculo sigue
+  recortando; el positivo invierte el orden; el realce no cambia la media de una zona lisa.
+- [ ] **E2.2 · Toma y revelado separados** en `radiografiaEnLaEscena.ts`: `tomarFluoroscopia` devuelve el búfer crudo y
+  sus datos (proyección, zoom, desplazamiento, hora); `revelarEn(destino, toma, ajustes)` pinta. El `mando` del lienzo
+  expone `dispararFluoroscopia()` (fuerza la toma aunque la huella no cambie).
+- [ ] **E2.3 · Modos en la consola.** El intervalo de 140 ms y el de los segundos solo corren en «Vídeo». En
+  «Disparo», el panel pide la toma al pulsar y revela al cambiar un ajuste.
+- [ ] **E2.4 · Panel.** Conmutador Disparo/Vídeo, botón «Disparar» grande, «Toma de hace N s», los cuatro mandos en un
+  desplegable «Ajustes de imagen» (para que el recuadro siga cabiendo en 1366 × 657), y el contador solo en vídeo.
+- [ ] **E2.5 · Pruebas, manual y D-nnn.** Además de E2.1: que en disparo no corre ningún intervalo
+  (`setInterval` espiado) y que en vídeo los segundos siguen sumando.
+
+**Hecho cuando…** Al encender la fluoroscopia no se ve nada hasta pulsar «Disparar»; la imagen se queda; subir los kV
+deja ver la placa dentro del hueso sin otro disparo; el contador solo aparece en vídeo.
+
+---
+
+#### E3 · Separadores y pinzas: hacia fuera, en pareja, reubicables y acompañando al bisturí · 2 sesiones · pendiente
+
+**De dónde sale:** pedidos 3, 4, 5 y 8; respuestas 3 y 4.
+
+**Cómo funciona hoy, y por qué falla**
+
+- `colocarSeparador` (`LienzoQuirurgico.tsx`) orienta el mango con
+  `mango = normal·0,85 + arriba_de_la_cámara·0,65`. **El mango no depende del lado que sostiene**: todos los
+  separadores se inclinan hacia el mismo sitio de la pantalla, sea cual sea su borde, y por eso se cruzan sobre la
+  herida (la captura del documento). Las pinzas sí lo hacen bien: `mango = n·0,6 + dirección·0,7`, hacia fuera de
+  su lado (`crearPellizcoEn`).
+- **Por qué «no deja» poner un Farabeuf frente a otro:** en modo Separar, el primer paso del clic es
+  `separadorBajoElCursor()`, y si el rayo toca un separador puesto, **lo elige** en vez de poner otro. Con el mango
+  cruzado sobre la herida, el clic en el borde de enfrente cae casi siempre sobre la hoja o el mango del primero.
+  Además, un igual del mismo lado a menos del 8 % del largo se elige en lugar de duplicarse, y el tope es de seis
+  (`MAXIMO_DE_SEPARADORES`, `src/lib/exposicion.ts`).
+- **Las Adson van de a dos** (`crearParDePinzas`: un clic pone la pareja enfrentada). Los separadores de mano, uno
+  por clic.
+- **Un separador puesto no se puede mover:** se elige para la rueda o se quita.
+- **Nada sigue al bisturí:** pinzas y separadores guardan `posicion` (0 a 1 a lo largo de la herida) y no cambia sola.
+
+**Decisiones de diseño**
+
+- **Mango hacia fuera, del centro de la herida a su lado:** `mango = normal·cos θ + dirección·sin θ`, con θ ≈ 40° y
+  `dirección` la que aleja su labio. Un autoestático (lado 0) va vertical, en el centro. Así ningún mango puede
+  cruzar la línea de la herida.
+- **Farabeuf y Senn-Miller en pareja,** como las Adson: un clic junto a la incisión pone los dos, uno por borde, a la
+  misma altura. Conmutador «En pareja» en el panel (encendido por omisión para los de mano; el Hohmann, de uno en
+  uno). La rueda abre la pareja por igual; Mayúsculas + rueda, solo el que está bajo el cursor. La pareja cuenta dos
+  para el tope de seis.
+- **Clic en un separador puesto lo levanta** (respuesta 3): queda «en la mano», sigue al cursor por el borde de la
+  herida (vista previa semitransparente sobre el labio más cercano) y el clic siguiente lo deja ahí, en su plano.
+  Escape lo devuelve a donde estaba. Guarda su apertura y la recupera al dejarlo. Se mantiene la otra forma de
+  elegir uno para la rueda: la rueda actúa sobre el que está bajo el cursor, o si no hay, sobre el último dejado.
+  Lo mismo para cada pinza de la pareja de Adson.
+- **«Acompañar el bisturí»** (respuesta 4), conmutador en el panel, apagado por omisión: mientras se traza con un
+  instrumento que corta y ya hay herida, la pareja de pinzas y la pareja de separadores más cercanas a la punta se
+  corren a lo largo de la herida, unos 15 mm por detrás de la punta, sin cambiar de borde ni de apertura.
+
+**Tareas**
+
+- [ ] **E3.1 · Geometría en `src/lib/exposicion.ts`.** `direccionDelMango(normal, direccion, lado)` y
+  `posicionQueAcompana(tPunta, largoMm, retrasoMm)`, sin `three`, con pruebas: el mango nunca apunta al lado contrario
+  de su labio; el autoestático, vertical; el acompañamiento no se sale de [0, 1].
+- [ ] **E3.2 · `sitioEnLaHerida(h, t, lado)` en `heridas.ts`:** punto, normal y dirección del labio en la posición `t`
+  (lo necesitan la reubicación y el acompañamiento; hoy el sitio solo sale de un clic).
+- [ ] **E3.3 · Mango hacia fuera** en `colocarSeparador`, `cambiarElPlanoDelSeparador` y al cargar la sesión guardada.
+- [ ] **E3.4 · Pareja de separadores** (`crearParDeSeparadores`, en el molde de `crearParDePinzas`), el conmutador y la
+  rueda por pareja.
+- [ ] **E3.5 · Levantar y dejar:** estado `separadorEnLaMano` (y `pinzaEnLaMano`), vista previa, Escape, y el clic que
+  deja. Los avisos de la consola dicen qué pasa en cada paso.
+- [ ] **E3.6 · Acompañar el bisturí** en el arrastre de Trazar, con el conmutador en el panel.
+- [ ] **E3.7 · Pruebas, manual y D-nnn.** Además de E3.1: un clic en el borde opuesto con un Farabeuf puesto pone el
+  segundo y no elige el primero (lo comprueba el estado del lienzo en una prueba de navegador); levantar y dejar
+  conserva la apertura; la sesión guardada (D-171) recupera las parejas.
+
+**Hecho cuando…** Cuatro Farabeuf en dos parejas abren la herida con los mangos hacia fuera, sin tapar el centro; uno
+se levanta con un clic y se deja más arriba con otro; con «Acompañar» encendido, al alargar la incisión las pinzas y
+los separadores la siguen.
+
+---
+
+#### E4 · Varios abordajes en una cirugía, y el trazo que se va al profundizar · 2–3 sesiones · pendiente
+
+**De dónde sale:** pedidos 6 y 9.
+
+**Cómo funciona hoy, y por qué falla**
+
+- **Una herida por capa.** `aplicarElCorte` cierra la herida anterior de esa capa antes de cortar
+  (`t.heridas.get(plano)?.forEach(cerrarCapa)`, «un trazo nuevo es una incisión nueva»), y `t.cortes` guarda **uno**
+  por plano. Por eso un segundo abordaje en la piel borra el primero.
+- **Así se corta una malla** (`heridas.ts`): `cortarCapa` reemplaza la geometría de la malla por la cortada y guarda
+  la original; `abrirCapa` mueve los vértices de los labios desde la geometría base del corte; `cerrarCapa` devuelve
+  la original. Con un solo corte por malla, cerrar es trivial; con dos, **el segundo corta la malla ya cortada** y la
+  apertura de cada uno tiene que sumarse.
+- **Los separadores y las pinzas se aplican por capa,** no por herida (`aplicarSeparadoresALasHeridas`): su `posicion`
+  es a lo largo de «la» herida de su capa.
+- **El rojo que se queda:** el trazo guía ya se esconde al cortar. Lo que sigue rojo son los **bordes** de la herida
+  (`borde-de-la-herida`, líneas `0x8c1c1c`), que se ven siempre. La **cinta** sí se aparta al abrir más de 5 mm
+  (`APERTURA_QUE_APARTA_LA_CINTA_MM`).
+- Lo cortado sobrevive a recargar (D-171): `sessionStorage` cada 600 ms, con `t.cortes` en un formato propio.
+
+**Decisiones de diseño**
+
+- **Una lista de incisiones, no una por capa.** Cada una tiene `id`, capa, trazo (puntos y normales) e instrumento.
+  Las de la misma malla se aplican **en orden** sobre la geometría original: se rehace la cadena entera al añadir o
+  cerrar una. Es más lento que encadenar a mano, pero exacto, y cerrar la del medio no deja geometría rota.
+- **La apertura se compone:** cada corte devuelve el mapa de vértices de origen (`corte.origen`) y su campo de
+  desplazamiento; la posición final es la base del último corte más los desplazamientos de cada uno, llevados por
+  los mapas. Va en `src/lib/corteDeMalla.ts` como función pura, con pruebas: dos cortes paralelos abren los dos;
+  cerrar uno deja el otro como estaba; ningún vértice queda sin su desplazamiento.
+- **Cada separador y cada pinza pertenecen a una incisión** (`SeparadorColocado.incision`), y su `posicion` es a lo
+  largo de esa incisión. `aperturaDeLaCapa` pasa a calcularse por incisión.
+- **Un trazo nuevo es otra incisión** si no toca ninguna; si arranca o termina a menos de 5 mm del extremo de una
+  incisión de su capa, la **alarga** (cortes discontinuos que se unen). Así se puede abrir en dos tiempos.
+- **El rojo se va al profundizar:** los bordes se apartan con la misma regla que la cinta (apertura de más de 5 mm),
+  y además cuando hay una incisión del plano de debajo en el mismo sitio. Quedan como un borde del color de la piel,
+  un poco más oscuro, para que se lea el labio sin la línea roja.
+- **Panel «Incisiones»:** «Incisión 1 · piel · 42 mm», «Incisión 2 · músculo · 30 mm»…, con «Cerrar» en cada una.
+  La medida del paso (`objetivo: 'trazo'`) juzga **la última** incisión, como hoy; el panel enseña además el total.
+- **La sesión guardada** pasa a versión 2 (lista de incisiones con su `id`), y sabe leer la 1.
+
+**Tareas**
+
+- [ ] **E4.1 · Composición de cortes** en `src/lib/corteDeMalla.ts`, con sus pruebas.
+- [ ] **E4.2 · Lista de incisiones** en el lienzo (`t.incisiones`), la cadena por malla y `cerrarIncision(id)`.
+- [ ] **E4.3 · Separadores y pinzas por incisión** (`src/lib/exposicion.ts` y `exposicionEnLaEscena.ts`).
+- [ ] **E4.4 · Alargar una incisión** con un trazo que empieza en su extremo.
+- [ ] **E4.5 · Bordes que se apartan** (`actualizarBordes`, regla de la cinta y del plano de debajo).
+- [ ] **E4.6 · Panel «Incisiones»** en la consola.
+- [ ] **E4.7 · Sesión guardada v2,** compatible con la v1.
+- [ ] **E4.8 · Pruebas, manual y D-nnn.** Dos abordajes en la piel y uno en el músculo bajo el primero; cerrar el del
+  medio; recargar la página y recuperarlos; la evaluación del paso de trazo sigue igual.
+
+**Hecho cuando…** Se abre la piel en dos sitios, se profundiza bajo uno de ellos, los dos quedan abiertos con sus
+separadores, ninguna línea roja queda flotando sobre una herida abierta, y recargar la página lo deja todo igual.
+
+**Riesgo:** es la etapa de más riesgo de regresión en partes blandas (D-167, D-171, D-173). Antes de empezar se
+escriben las pruebas de lo que hoy funciona —un corte, abrir, coser, recargar— para no perderlo.
+
+---
+
+#### E5 · Reducir con la pinza: agarra y mueve · 1–2 sesiones · pendiente
+
+**De dónde sale:** pedido 7 y respuesta 2.
+
+**Cómo funciona hoy**
+
+- En ved están las tres pinzas de reducción (Verbrugge, con puntas «camarón / Weber» y de punta de bola), con sus
+  modelos 3D. **No hacen nada:** no están en `POR_SLUG` de `src/lib/comportamientoDelInstrumento.ts` y su nombre no
+  casa con ninguna regla de respaldo.
+- Mover un trozo es el modo «Mover → Un trozo» (D-171): se agarra cualquier hueso visible y aparecen las asas de
+  D-174 (`asasDelHueso.ts`, las mismas del taller, `@/atlas/gizmo`). Se mide lo de siempre: desplazamiento,
+  angulación y diástasis.
+
+**Decisiones de diseño**
+
+- **Comportamiento nuevo `reduce`** (`{ tipo: 'puntas' | 'garra' | 'bola' }`) para los tres slugs, y para lo creado a
+  mano cuyo nombre diga «pinza de reducción», «Weber», «camarón» o «Verbrugge».
+- **Con la pinza en la mano, un clic en un trozo de hueso lo toma:** la pinza queda colocada en ese punto, con el
+  mango hacia fuera por la normal del hueso y las mandíbulas cerradas, **como hija del trozo** (`attach`, que
+  conserva la posición en el mundo). Así acompaña al trozo sin código propio. El trozo queda elegido con sus asas, y
+  se mueve con ellas o arrastrando la pinza.
+- **Soltar:** «Soltar la pinza» en el panel, o un clic en la pinza. Hasta dos pinzas puestas a la vez.
+- **Sin hueso expuesto se avisa, no se impide:** si el punto no está bajo una incisión abierta hasta el hueso, la
+  consola lo dice, igual que avisa de profundizar sin tensión.
+- La pinza cuenta como metal en la fluoroscopia (ya lo hace todo lo que no es del modelo).
+
+**Tareas**
+
+- [ ] **E5.1 · `reduce` en `comportamientoDelInstrumento.ts`**, su guía de uso y sus pruebas.
+- [ ] **E5.2 · Tomar el trozo** en el lienzo: `pinzasDeReduccion[]` con `InstrumentoColocado`, `attach` al nodo y
+  elegirlo para las asas. Al elegir la pinza, la consola pasa sola a «Mover → Un trozo».
+- [ ] **E5.3 · Soltar,** quitar al reiniciar el paso, y guardarlas en la sesión (D-171).
+- [ ] **E5.4 · Pruebas, manual y D-nnn.** Mover un trozo con la pinza puesta cambia las medidas igual que sin ella; la
+  pinza sigue al trozo al girarlo con un aro.
+
+**Hecho cuando…** Con la pinza Weber se toma el fragmento distal, se lleva a su sitio con las flechas y los aros
+mirando la fluoroscopia, y la pinza se queda agarrándolo hasta soltarla.
+
+---
+
+#### E6 · Placa que se ajusta, perforar por sus agujeros, medidor en el orificio y tornillos que se encuentran · 2 sesiones · pendiente
+
+**De dónde sale:** pedidos 11, 13 y 14; respuesta 5.
+
+**Cómo funciona hoy**
+
+- `fijarConClic` (`LienzoQuirurgico.tsx`): con una placa en la mano, un clic en el hueso la apoya con `colocarPlaca`
+  (`implantesEnLaEscena.ts`), con el largo siguiendo el eje del hueso. **Otro clic pone otra y quita la anterior**
+  (`quitarImplantes`): no se puede mover ni girar la que está.
+- Con un tornillo en la mano, un clic en un agujero lo pone perpendicular a la placa con el largo elegido, y lo juzga
+  (`juzgarTornillo`, `src/lib/fijacion.ts`). **No hace falta haber perforado ni medido.**
+- El medidor (`medidor-profundidad`) solo **lee**: dice el espesor y el largo que hay que pedir. El instrumento en la
+  mano sigue al cursor por la superficie y **no entra en el agujero**.
+- **Los tornillos sí existen** en ved (consultado el 2026-10-17): cortical 3,5, esponjosa 6,5, bloqueado LCP 3,5 y
+  bloqueo de clavo 5,0, en la categoría «Tornillos», con sus modelos. **Por qué no se encuentran:** la consola enseña
+  solo la **bandeja del caso** (lo que el editor añadió y lo que piden los pasos). Si el caso no los trae, no
+  aparecen, y «Añadir a la bandeja» enseña cinco sugerencias mientras no se escribe nada. Además, el de bloqueo de
+  clavo no está en `COLOCA_POR_SLUG`: en la mano no hace nada.
+
+**Decisiones de diseño**
+
+- **La placa puesta se ajusta, no se reemplaza.** Un clic en la placa la elige y aparecen asas restringidas:
+  - una flecha a lo largo del hueso (subir y bajar);
+  - otra de lado a lado, que la desliza rodeando el hueso;
+  - un aro alrededor de la normal, para angularla sobre el hueso.
+
+  Tras cada movimiento **se vuelve a asentar**: tres rayos (centro y extremos) hacia el hueso dan el apoyo y la
+  normal, la cara de abajo queda sobre el punto más alto y nunca dentro del hueso, y se recalcula cuánto queda
+  separada. Para cambiar de placa, «Quitar la placa».
+- **«Fijar la placa»** cierra el ajuste (las asas se van). Solo con la placa fijada se perfora por sus agujeros.
+- **La broca se centra en el agujero:** con la placa fijada y la broca en la mano, sobre un agujero la broca toma su
+  eje (como la guía de broca). Al perforar se anota en el agujero: diámetro, largo y si cruzó las dos corticales. Si
+  el diámetro no es el de su tornillo (2,5 para el cortical y el bloqueado de 3,5; 3,2 para el de esponjosa), se
+  avisa.
+- **El medidor entra en el orificio:** sobre un agujero perforado, el medidor se posa en su eje con la punta en la
+  cortical opuesta, y la lectura queda anotada en el agujero.
+- **El tornillo exige el orden** (respuesta 5): agujero perforado y medido; si no, la consola dice qué falta y no lo
+  pone. El largo del tornillo en la mano toma el sugerido por el medidor (se puede cambiar).
+- **Los tornillos se encuentran solos:** cada placa declara sus compañeros (`COMPANEROS_DE_LA_PLACA` en
+  `fijacion.ts`: tornillos que admite, broca, medidor y destornillador). Con una placa en la bandeja, la consola
+  enseña sus compañeros aunque el editor no los haya añadido, marcados «para esta placa». «Añadir a la bandeja»
+  enseña además el catálogo por categorías, no solo cinco sugerencias.
+
+**Tareas**
+
+- [ ] **E6.1 · `fijacion.ts`:** compañeros de cada placa, calibre de broca de cada tornillo, estado por agujero
+  (`perforado`, `medido`) y la regla del orden, con sus pruebas. El tornillo de bloqueo de clavo pasa a
+  `COLOCA_POR_SLUG` como tornillo (o se marca como «solo con clavo» hasta que haya clavos: decidir al empezar).
+- [ ] **E6.2 · Asentar la placa** (`asentarPlaca` en `implantesEnLaEscena.ts`) y las asas restringidas, reutilizando
+  `@/atlas/gizmo` como en D-174.
+- [ ] **E6.3 · Fijar, perforar por el agujero y anotar** (broca centrada; el agujero de D-174 sigue sin asomar).
+- [ ] **E6.4 · Medidor dentro del orificio** (pose de la herramienta en el eje del agujero).
+- [ ] **E6.5 · Tornillo con orden** y largo sugerido.
+- [ ] **E6.6 · Compañeros en la bandeja** y «Añadir a la bandeja» por categorías.
+- [ ] **E6.7 · Pruebas, manual y D-nnn.** El recorrido completo con la LCP 3,5 sobre la tibia: placa, ajustarla
+  mirando la fluoroscopia, fijarla, broca 2,5, medidor, tornillo de lo medido más 2 mm, bicortical.
+
+**Hecho cuando…** La placa se coloca, se sube, se baja y se angula sobre el hueso mirando disparos de fluoroscopia;
+fijada, se perfora por cada agujero, el medidor entra en él y el tornillo sale del largo medido. Los tornillos están
+en la bandeja en cuanto hay una placa.
+
+**Pregunta para Cristóbal (E6-Q1):** dónde buscó los tornillos —en la bandeja del residente, en «Añadir a la bandeja»
+o en Contenido → Instrumental—, para confirmar que E6.6 cubre lo que vio.
+
+---
+
+#### E7 · Los insumos usados, al terminar · 1 sesión · pendiente
+
+**De dónde sale:** pedido 15 y respuesta 6.
+
+**Cómo funciona hoy**
+
+- Al terminar el último paso, la consola enseña «Caso terminado» con el puntaje, las complicaciones y los botones
+  de repetir y volver (`ConsolaQuirurgica.tsx`). No dice qué se usó.
+- La bandeja del caso es el campo `instrumental` de la cirugía (relación múltiple), y en el editor se toca con
+  `alAlternarEnLaBandeja` (uno a uno).
+
+**Decisiones de diseño**
+
+- **Se anota lo que se usó, no lo que se tocó:** un instrumento cuenta cuando hizo algo (cortar, separar, pinzar,
+  perforar, medir, coser, poner placa o tornillo, tomar un trozo). Elegirlo y soltarlo no cuenta.
+- **Los implantes, con sus medidas:** la placa por su nombre, y los tornillos agrupados por tipo y largo («Tornillo
+  cortical 3,5 mm × 36 mm · 4»).
+- **Al terminar,** un bloque «Insumos utilizados» agrupado por categoría, para residente y editor.
+- **En el editor** (respuesta 6): cada fila lleva una casilla, todas marcadas, y un botón «Usar como bandeja del
+  caso». La bandeja queda **exactamente** con lo marcado. Lo que estaba en la bandeja y no se usó aparece al final,
+  desmarcado, para poder conservarlo marcándolo: nada sale de la bandeja sin que se vea.
+
+**Tareas**
+
+- [ ] **E7.1 · Registro de uso** en la consola (`usados`), alimentado por los mismos avisos que ya emite el lienzo
+  (`alHerir`, `alSeparar`, `alFijar`, `alCoser`…), y el resumen como función pura en `src/lib/insumos.ts`, con pruebas.
+- [ ] **E7.2 · Bloque al terminar** para el residente.
+- [ ] **E7.3 · Casillas y «Usar como bandeja del caso»** en el editor, con un callback nuevo
+  `editor.alFijarLaBandeja(ids)`.
+- [ ] **E7.4 · Manual y D-nnn.**
+
+**Hecho cuando…** Al terminar una cirugía en el editor aparece la lista de lo usado, con los tornillos por largo, y un
+botón deja esa lista como la mesa de los practicantes.
+
+---
+
+#### E8 · El listado global de estructuras anatómicas · 3 sesiones · pendiente
+
+**De dónde sale:** pedidos 16 y 17 (la parte de los datos); respuestas 7, 8, 9 y 10.
+
+**Lo que hay en el atlas** (contado el 2026-10-17 en `public/atlas/catalogo.json`)
+
+- **2.231 piezas.** Cada una tiene `id` (FJ…, de BodyParts3D), `nombre` en inglés —«Left …», «Right …»: es la clave
+  de las traducciones y no se reescribe—, `fma`, `sistema` y `region`. 2.218 tienen nombre en español
+  (`src/atlas/nombres-es.json`, `nombreEnEspanol`).
+- **Por lado:** 631 izquierdas, 598 derechas y 1.002 sin lado (las de la línea media y las que el atlas no separa).
+- **Por sistema:** arterias 639, venas 404, músculos 402, huesos 296, nervios 139, respiratorio 119, digestivo 97,
+  órganos de los sentidos 45, tejido conectivo 40, corazón 23, reproductor 12, urinario 6, endocrino 4, linfático 3,
+  piel 2.
+- **Por región (13):** cabeza 465, cuello 77, tórax 956, abdomen 189, tronco 4, miembro superior derecho 101 e
+  izquierdo 108, mano derecha 19 e izquierda 19, miembro inferior derecho 124 e izquierdo 117, pie derecho 26 e
+  izquierdo 26.
+- **Un trozo de hueso partido conserva el `id` de su pieza entera** (`exportarAtlas.ts`, `PiezaLeida.trozo`): «Tibia
+  derecha_1» y «Tibia derecha_2» son la pieza FJ… de la tibia derecha con un sufijo. Es lo que permite que un hueso
+  partido se anote en la ficha del hueso entero (respuesta 7) sin adivinar nada por el nombre.
+
+**Decisiones de diseño**
+
+- **Una ficha por pieza del atlas,** con clave el `id` del atlas (`atlasId`, único). Se guarda también el
+  `nombreOriginal` en inglés, para volver a casar las fichas si algún día se regenera el atlas y cambian los
+  identificadores (el catálogo trae `version`; ver «Cómo no perder información»).
+- **El nombre que se enseña es el del taller,** en español (`nombreEnEspanol`), con su lado. No se escribe a mano:
+  sale del atlas y así no se desincroniza.
+- **Campos de la ficha** (los de las capturas): nombre latino, definición, origen, inserción, inervación, acción
+  (función), irrigación, notas. Más `oculta` («No mostrar») y, para E10, `abordaje: { cortar: instrumentos[],
+  separar: instrumentos[] }`.
+- **Qué campos cuentan para «completa», según el sistema,** porque un hueso no tiene inserción y una arteria no tiene
+  inervación:
+
+  | Sistema | Cuentan para «completa» |
+  |---|---|
+  | Músculo | definición, origen, inserción, inervación, acción, irrigación |
+  | Hueso | definición, irrigación |
+  | Arteria | definición, origen, irrigación (qué irriga) |
+  | Vena | definición, irrigación (qué drena) |
+  | Nervio | definición, origen, inervación (qué inerva), acción |
+  | Tejido conectivo y ligamentos | definición, origen, inserción |
+  | Los demás | definición |
+
+  El nombre latino y las notas no cuentan: se agradecen, no se exigen. La tabla vive en `src/lib/estructuras.ts` y
+  la pantalla enseña en gris los campos que faltan («para que sepa qué le falta», pedido 17).
+- **«No mostrar»** (respuesta 10): una pieza oculta sale del contador y de «Pendientes», no abre ficha cuando se la
+  pincha en el simulador ni en el taller, y se ve en un filtro «Ocultas» para devolverla.
+- **La pantalla** (respuesta 8): entrada **«Estructuras»** en la barra lateral del panel, debajo de Comentarios
+  (`admin-panel/layout.tsx`), para editores y administradores. Ruta `/admin-panel/estructuras`.
+  - Arriba, el **contador**: completas, pendientes y ocultas, con su porcentaje, en total y por región.
+  - El **filtro**: por nombre (sin tildes, por palabras, como el resto del panel), por región, por sistema y por
+    estado.
+  - Dos pestañas: **Pendientes** y **Listado** (todas las no ocultas, con su estado). Una fila se pincha y abre la
+    **ventana de edición**, con los campos en el orden de la captura y los que faltan marcados.
+  - En Pendientes, por cada región: **«Descargar la planilla»** y **«Subir la planilla»**.
+- **La planilla** (Excel de verdad, con `src/lib/planilla.ts`): una hoja con una fila por pieza de la región y las
+  columnas `id del atlas`, `nombre`, `lado`, `sistema`, los campos de la ficha y `no mostrar`. Se descarga vacía o
+  con lo ya escrito. **Para subirla hace falta leer `.xlsx`**, que hoy la plataforma no lee: un lector mínimo en
+  `src/lib/leerPlanilla.ts` (el ZIP con `inflateRaw` de `zlib`, `sharedStrings.xml` y la hoja), en el servidor.
+- **La misma planilla a los dos lados** (respuesta 9): al subir, la opción «Aplicar también al lado opuesto». Cada
+  fila de «Right X» se escribe además en «Left X» (por el nombre original en inglés, que lleva el lado delante), y
+  al revés. Las piezas sin pareja se dicen en el resumen.
+- **Se anota desde tres sitios, y van al mismo listado:** esta pantalla, el taller anatómico (E8.6) y el simulador
+  (E9.4). Una pieza anotada en uno aparece llena en los otros.
+
+**Cómo no perder información** (respuesta 7, «quiero que quede bien hecha y revisada»)
+
+- **Subir nunca sobrescribe en silencio.** Antes de escribir, la pantalla enseña una vista previa: cuántas fichas se
+  llenan por primera vez, cuántas **cambiarían** (con lo de antes y lo de después, campo a campo) y cuántas quedan
+  igual. Por omisión, una celda vacía en la planilla **no borra** lo escrito, y lo que cambiaría se aplica solo si se
+  marca. Nada se escribe hasta pulsar «Aplicar».
+- **Historial:** la colección guarda versiones (`versions: { maxPerDoc: 20 }`), y la ventana de edición deja ver y
+  restaurar la anterior.
+- **Registro:** cada subida queda en el registro de acciones (quién, qué región, cuántas fichas, qué opción).
+- **Una sola fila por pieza** (índice único en `atlasId`), y la siembra no pisa nada: crea solo lo que falta.
+- **Un respaldo antes de cada subida grande** se ofrece desde la misma pantalla («Respaldar ahora», el de siempre).
+- **Si el atlas se regenera** y un `atlasId` ya no existe, la ficha no se borra: queda «huérfana», se intenta casar
+  por `nombreOriginal` y, si no casa, se enseña en un filtro «Sin pieza en el atlas» para reasignarla a mano.
+
+**Tareas**
+
+- [ ] **E8.1 · `src/lib/estructuras.ts`:** campos por sistema, «completa», contador, normalización de lado y de
+  sufijo de trozo (por `id`, no por nombre), y la pareja del lado opuesto. Pruebas con piezas reales del catálogo.
+- [ ] **E8.2 · Colección `estructuras-anatomicas`** con su esquema del panel, versiones, acceso (lectura con sesión;
+  escritura de editores y administradores) y migración.
+- [ ] **E8.3 · Siembra** (`scripts/sembrar-estructuras.ts`, idempotente): una fila por pieza del catálogo con
+  `atlasId`, `nombreOriginal`, `sistema`, `region` y `lado`. Se corre en el despliegue de la etapa.
+- [ ] **E8.4 · La pantalla** `/admin-panel/estructuras`: contador, filtro, pestañas y ventana de edición.
+- [ ] **E8.5 · Planilla:** descargar por región, leer `.xlsx`, vista previa, «aplicar también al lado opuesto» y
+  aplicar.
+- [ ] **E8.6 · El taller anatómico:** al seleccionar una pieza, una pestaña «Info» en el panel derecho (el componente
+  de pestañas de E2 del P-001) con la misma ficha editable; un trozo partido abre la de su pieza.
+- [ ] **E8.7 · Pruebas, manual y D-nnn.** Integración: subir la planilla dos veces no duplica; una celda vacía no
+  borra; aplicar al lado opuesto llena la pareja y no pisa lo ya escrito; un lector no escribe; una pieza oculta no
+  cuenta.
+
+**Hecho cuando…** El editor descarga la planilla de «Miembro inferior derecho», la llena con IA, la sube, ve que se
+llenan 124 fichas, la aplica también al izquierdo, y el contador baja. Una pieza se corrige a mano en la ventana y se
+ve igual en el taller.
+
+---
+
+#### E9 · Exportar con las estructuras separadas, y el botón «Info» del simulador · 2–3 sesiones · pendiente
+
+**De dónde sale:** pedidos 16 y 17; respuestas 7, 10 y 11.
+
+**Cómo funciona hoy**
+
+- `agruparParaGlb` (`src/lib/exportarAtlas.ts`) deja sueltas solo las **protagonistas** del caso (el hueso que se
+  rompe) y **funde todo lo demás por sistema**: un solo objeto «Músculos», otro «Arterias»… Lo decidió así porque la
+  consola apagaba lo que el caso no declaraba y ciento treinta objetos sueltos obligaban a escribir ciento treinta
+  filas en «Piezas». **D-176 quitó ese motivo:** la consola ya juega con el papel que trae cada objeto.
+- Las protagonistas llevan en sus `extras` `rol`, `etiqueta`, `sistema`, `nombreOriginal` y `fma`, pero **no el `id`
+  del atlas**. Los objetos fundidos no tienen ninguno: no hay manera de saber qué músculo se pincha.
+
+**Decisiones de diseño**
+
+- **Cada pieza, un objeto,** con `atlasId` en sus `extras` (también las protagonistas y los trozos, que llevan el `id`
+  de su pieza entera). La exportación nueva lo hace por omisión. El límite de 5 MB no cambia: los triángulos son los
+  mismos; lo que crece son los objetos.
+- **Rendimiento:** una pierna son unas 140 piezas, que el equipo de referencia mueve sin problema. Una preparación de
+  cuerpo entero serían 2.231 objetos, demasiados para dibujar uno a uno. Se mide en el equipo de referencia y, si hace
+  falta, por encima de unas 400 piezas se funden **solo** las venas, arterias y linfáticos por región, y los músculos,
+  huesos y nervios siguen sueltos.
+- **Reexportar los casos que existen** (respuesta 11): un botón «Volver a exportar con estructuras separadas» en el
+  editor de la cirugía. Exporta un modelo nuevo desde la misma preparación y lo pone en el caso; las piezas
+  declaradas se conservan por nombre y papel, y lo que veía cada paso se traduce como en D-169
+  (`repararPiezasConElModelo`). El modelo viejo no se borra. Hay que comprobar al empezar de dónde saca el caso su
+  preparación, y que el guion de D-169 cubre este camino.
+- **«Info» en la consola:** un botón en la barra del lienzo. Encendido, un clic en una estructura:
+  - **la destaca** (un tinte en su material, que se devuelve al soltar);
+  - **abre su ficha** al lado, con las secciones de las capturas: «Estructura seleccionada» (nombre y nombre latino) y
+    «Aprenda más» (definición, origen, inserción, inervación, acción e irrigación), plegables.
+
+  Apagado, la ficha desaparece y el clic vuelve a ser el de la herramienta.
+- **De dónde salen los datos:** al abrir el caso se piden de una vez las fichas de los `atlasId` del modelo (una
+  consulta). Una estructura oculta no abre ficha. Un objeto fundido de un modelo viejo dice «Este modelo no separa las
+  estructuras», y al editor le ofrece reexportarlo.
+- **El editor escribe desde ahí:** en el editor de la cirugía, la ficha tiene «Editar», que abre la misma ventana de
+  E8. El residente solo la lee.
+- **Lo que se exporta lleva la información:** no se copia dentro del `.glb` —quedaría vieja en cuanto alguien
+  corrigiera una ficha—; el `.glb` lleva el `atlasId` y la ficha se lee del listado global. Es lo que pide la
+  respuesta 7: que no haya que volver a llenarla.
+
+**Tareas**
+
+- [ ] **E9.1 · `agruparParaGlb` con `separarEstructuras`** y `atlasId` en los `extras`; pruebas con la exportación de
+  verdad (`piernaDerechaEnElCaso.test.ts` es el molde).
+- [ ] **E9.2 · Medir el rendimiento** en el equipo de referencia con una pierna y con un tronco, y decidir el umbral
+  de fusión de vasos.
+- [ ] **E9.3 · «Volver a exportar con estructuras separadas»** en el editor de la cirugía.
+- [ ] **E9.4 · «Info» en la consola:** el botón, el destacado, la ficha y «Editar» para el editor.
+- [ ] **E9.5 · Pruebas, manual y D-nnn.** Pinchar el músculo tibial anterior abre su ficha; una pieza oculta no; un
+  trozo de tibia abre la ficha de la tibia; en un modelo viejo, el aviso.
+
+**Hecho cuando…** En una cirugía reexportada, con «Info» encendido, se pincha un músculo y se ve destacado con su ficha
+al lado; el editor la corrige ahí mismo y el cambio aparece en el listado global.
+
+---
+
+#### E10 · Trabajar por planos: cortar o separar un músculo concreto · 3 sesiones · pendiente
+
+**De dónde sale:** pedidos 17 y 18.
+
+**Cómo funciona hoy**
+
+- La capa «músculo» es **una masa**: el bisturí profundo corta todas las mallas de papel `musculo` que cruza el trazo,
+  y los separadores del plano del músculo abren esa herida (D-173). No hay manera de elegir un músculo, ni de
+  apartarlo entero sin cortarlo.
+
+**Decisiones de diseño**
+
+- **Con «Info» encendido, la ficha de un músculo ofrece «Cortar» y «Separar».** Cada una despliega los instrumentos
+  de su `abordaje` (E8). Elegir uno lo pone en la mano —si no está en la bandeja, se añade para esa sesión— y **fija
+  el músculo como objetivo**.
+- **Valores por omisión** del abordaje de un músculo, que el editor cambia en la ficha (pedido 17): cortar con tijera
+  de Metzenbaum, bisturí profundo o electrobisturí; separar con Farabeuf, Senn-Miller u Hohmann. La ficha enseña los
+  valores por omisión aunque nadie los haya tocado, y marca si el editor los cambió.
+- **Cortar un músculo objetivo** corta solo ese músculo (`aplicarElCorte` con la lista de mallas reducida a la suya),
+  con todo lo de E4.
+- **Separar un músculo objetivo no lo corta: lo retrae.** El separador se apoya en su borde y, al abrir, los vértices
+  del músculo cercanos al punto de apoyo se desplazan en la dirección del separador con un peso que cae suave con la
+  distancia (gaussiano, de unos 40 mm). Es una deformación, no un corte, y se deshace al cerrar. Así se ve lo que
+  hay debajo, como al retraer el pectoral mayor para ver el tendón conjunto. La cuenta va en `src/lib/retraccion.ts`
+  y se prueba sin lienzo: nada se mueve fuera del radio, el punto de apoyo se mueve lo que abre el separador, y
+  cerrar devuelve cada vértice a su sitio.
+- **El Hohmann** sigue apoyándose en el borde del hueso (D-167) y retrae lo que haya por encima con la misma
+  deformación.
+
+**Tareas**
+
+- [ ] **E10.1 · `src/lib/retraccion.ts`** con sus pruebas.
+- [ ] **E10.2 · «Cortar» y «Separar» en la ficha** del músculo, con los instrumentos del abordaje y su valor por
+  omisión.
+- [ ] **E10.3 · Músculo objetivo** en el lienzo: corte reducido y retracción.
+- [ ] **E10.4 · Guardarlo en la sesión** (D-171) y en las incisiones de E4.
+- [ ] **E10.5 · Pruebas, manual y D-nnn.** Un abordaje con dos planos: separar un músculo, cortar el de debajo desde
+  su inserción y ver el hueso.
+
+**Hecho cuando…** En la pierna reexportada, el residente separa el tibial anterior con un Farabeuf, corta el plano de
+debajo con la Metzenbaum y llega al hueso, plano por plano.
+
+**Preguntas para Cristóbal**
+
+- **E10-Q1 · Los instrumentos por omisión** de los vasos y los nervios: ¿se ofrece algo para ellos (proteger,
+  ligar), o solo los músculos llevan «Cortar» y «Separar»?
+- **E10-Q2 · ¿Un orden de planos por caso?** Que el editor declare en un paso «separar el deltoides» y que la consola
+  lo evalúe como hoy evalúa el instrumento. Encaja como `objetivo` nuevo de paso, con su migración; queda para
+  después de ver E10 funcionando.
+
+---
+
+#### Fuera de este plan, a propósito
+
+- **Mantener la reducción con aguja de Kirschner o con la pinza puesta** (pedido 10): el propio documento lo deja para
+  después. La pinza de E5 ya se queda puesta, que es la mitad del gesto.
+
+#### Cómo retomarlo en otra sesión
+
+1. Leer este P-003 entero, sus respuestas y las D-nnn que vaya enlazando.
+2. `git log --oneline --grep "P-003"` dice qué tareas ya se hicieron.
+3. Seguir por la primera casilla sin marcar de la etapa en curso. E1, E2 y E8 pueden empezar en cualquier momento;
+   las demás, en orden.
+4. Al terminar una tarea, marcar su casilla con el commit. Al terminar una etapa, cambiar su estado aquí y en la tabla,
+   escribir su D-nnn y probarla de punta a punta en local antes de desplegar.
+
+#### Estado
+
+| Etapa | Estado | Sesiones | Depende de | Decisiones |
+|---|---|---|---|---|
+| E1 · Catálogos que se amplían, con aviso | pendiente | 1 | — | — |
+| E2 · Fluoroscopia por disparos y penetración | pendiente | 1–2 | — | — |
+| E3 · Separadores y pinzas | pendiente | 2 | — | — |
+| E4 · Varios abordajes; el rojo que se va | pendiente | 2–3 | E3 | — |
+| E5 · Reducir con la pinza | pendiente | 1–2 | E3 | — |
+| E6 · Placa, perforación, medidor y tornillos | pendiente | 2 | E2 | — |
+| E7 · Insumos al terminar | pendiente | 1 | E3–E6 | — |
+| E8 · Listado global de estructuras | pendiente | 3 | — | — |
+| E9 · Estructuras separadas e «Info» | pendiente | 2–3 | E8 | — |
+| E10 · Trabajar por planos | pendiente | 3 | E4, E9 | — |
+
+---
+
 ## 6. Convenciones de esta bitácora
 
 - Cada decisión entra como `D-nnn` con contexto y consecuencia, no solo con el
