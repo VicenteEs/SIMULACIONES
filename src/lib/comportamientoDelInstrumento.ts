@@ -63,7 +63,15 @@ export interface ComportamientoDelInstrumento {
    * Cristóbal). `maximoMm` es lo que separan las puntas con las ramas abiertas del todo.
    */
   roma: { maximoMm: number } | null
+  /**
+   * Toma un trozo de hueso y lo acompaña mientras se mueve: las pinzas de reducción (P-003 E5). Con la pinza en la mano
+   * un clic en un trozo la deja agarrándolo; el trozo se mueve con las asas y la pinza va con él hasta soltarla.
+   * `tipo` es la forma de las puntas: «puntas» (camarón o Weber), «garra» (Verbrugge) o «bola».
+   */
+  reduce: { tipo: 'puntas' | 'garra' | 'bola' } | null
 }
+
+export type TipoDePinzaDeReduccion = 'puntas' | 'garra' | 'bola'
 
 const NADA: ComportamientoDelInstrumento = {
   corta: null,
@@ -75,6 +83,7 @@ const NADA: ComportamientoDelInstrumento = {
   coloca: null,
   mide: false,
   roma: null,
+  reduce: null,
 }
 
 const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
@@ -98,6 +107,11 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   // Las pinzas de disección: pellizcan la piel hacia arriba. Con dientes tensan; sin dientes, no.
   'pinza-diseccion-con-dientes': { ...NADA, pellizca: { conDientes: true } },
   'pinza-diseccion-sin-dientes': { ...NADA, pellizca: { conDientes: false } },
+
+  // Las pinzas de reducción toman el hueso, no la piel: con ellas se lleva un fragmento a su sitio (P-003 E5).
+  'pinza-reduccion-puntas': { ...NADA, reduce: { tipo: 'puntas' } },
+  'pinza-reduccion-verbrugge': { ...NADA, reduce: { tipo: 'garra' } },
+  'pinza-reduccion-bola': { ...NADA, reduce: { tipo: 'bola' } },
 
   'broca-1-5': { ...NADA, perfora: { diametroMm: 1.5, avanceMmPorSegundo: 9 } },
   'broca-2-0': { ...NADA, perfora: { diametroMm: 2.0, avanceMmPorSegundo: 9 } },
@@ -125,7 +139,7 @@ export function comportamientoDelInstrumento(i: {
 }): ComportamientoDelInstrumento {
   const base = sinSutura(i)
   // Un hilo no corta, no separa ni perfora: si el instrumento ya hace algo, no es una sutura.
-  if (base.corta || base.separa || base.perfora || base.pellizca) return base
+  if (base.corta || base.separa || base.perfora || base.pellizca || base.reduce) return base
   const coloca = quePuedeColocar(i)
   const mide = sirveParaMedir(i)
   // Una placa o un tornillo no se confunden con un hilo, aunque su nombre diga «de sutura».
@@ -145,6 +159,10 @@ function sinSutura(i: { slug?: string | null; nombre: string; icono?: string | n
   }
   if (/bistur/.test(nombre) || i.icono === 'bisturi') {
     return { ...NADA, corta: /piel|\b(10|11|20|21|22)\b/.test(nombre) ? 'piel' : 'musculo' }
+  }
+  // Las de reducción antes que las de disección: «pinza de reducción con puntas» no es una pinza con dientes.
+  if (/pinza.*reducci|reducci.*pinza|weber|camar[oó]n|verbrugge/.test(nombre)) {
+    return { ...NADA, reduce: { tipo: /bola/.test(nombre) ? 'bola' : /verbrugge|garra/.test(nombre) ? 'garra' : 'puntas' } }
   }
   if (/pinza de disecci|pinza.*adson|pinza.*dientes/.test(nombre) && !/reducci/.test(nombre)) {
     return { ...NADA, pellizca: { conDientes: /con dientes|dientes|adson|ratón|raton/.test(nombre) && !/sin dientes/.test(nombre) } }
@@ -189,6 +207,9 @@ export function guiaDelInstrumento(i: { slug?: string | null; nombre: string; ic
   }
   if (que.corta === 'musculo') {
     return 'Aquí suele aparecer la fascia, un tejido transparente o rosado que envuelve a los músculos como un estuche: se corta con bisturí profundo o electrobisturí. Al llegar a los músculos se va separando hasta llegar al hueso.'
+  }
+  if (que.reduce) {
+    return 'La pinza de reducción toma el hueso: con ella en la mano, un clic en un trozo la deja agarrándolo. Después se mueve el trozo con las flechas y los aros, mirando la fluoroscopia, y la pinza va con él hasta que se la suelta. Hace falta que el abordaje llegue hasta el hueso.'
   }
   if (que.pellizca) {
     return que.pellizca.conDientes

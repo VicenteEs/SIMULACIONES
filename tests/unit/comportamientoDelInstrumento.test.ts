@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { INSTRUMENTAL_BASE } from '@/lib/instrumental'
-import { comportamientoDelInstrumento, diametroEnElNombre } from '@/lib/comportamientoDelInstrumento'
+import { comportamientoDelInstrumento, diametroEnElNombre, guiaDelInstrumento } from '@/lib/comportamientoDelInstrumento'
 
 /**
  * Qué hace cada instrumento en la escena (D-167). La tabla se escribió a mano,
@@ -70,6 +70,7 @@ describe('comportamiento del instrumental', () => {
       coloca: null,
       mide: false,
       roma: null,
+      reduce: null,
     })
     expect(comportamientoDelInstrumento(base('pinza-diseccion-con-dientes')).pellizca).toEqual({ conDientes: true })
     // La Metzenbaum corta como una tijera y además separa los planos por tensión (disección roma). Es la única.
@@ -131,5 +132,39 @@ describe('las suturas cosen (D-169)', () => {
   it('una sutura creada a mano se reconoce por el nombre', () => {
     expect(comportamientoDelInstrumento({ nombre: 'Prolene 4-0' }).sutura).not.toBeNull()
     expect(comportamientoDelInstrumento({ nombre: 'Pinza de disección' }).sutura).toBeNull()
+  })
+})
+
+describe('las pinzas de reducción toman el hueso (P-003 E5)', () => {
+  it('las tres del catálogo base reducen, cada una con la forma de sus puntas, y no hacen nada más', () => {
+    const r = (slug: string) => comportamientoDelInstrumento({ slug, nombre: slug })
+    expect(r('pinza-reduccion-puntas').reduce).toEqual({ tipo: 'puntas' })
+    expect(r('pinza-reduccion-verbrugge').reduce).toEqual({ tipo: 'garra' })
+    expect(r('pinza-reduccion-bola').reduce).toEqual({ tipo: 'bola' })
+    for (const slug of ['pinza-reduccion-puntas', 'pinza-reduccion-verbrugge', 'pinza-reduccion-bola']) {
+      const c = r(slug)
+      expect(c.pellizca).toBeNull()
+      expect(c.corta).toBeNull()
+      expect(c.separa).toBeNull()
+      expect(c.sutura).toBeNull()
+    }
+  })
+
+  it('una creada a mano se reconoce por su nombre: Weber, camarón, Verbrugge, de bola', () => {
+    const n = (nombre: string) => comportamientoDelInstrumento({ nombre }).reduce
+    expect(n('Pinza de reducción')).toEqual({ tipo: 'puntas' })
+    expect(n('Pinza camarón (Weber)')).toEqual({ tipo: 'puntas' })
+    expect(n('Pinza de Verbrugge')).toEqual({ tipo: 'garra' })
+    expect(n('Pinza de reducción de punta de bola')).toEqual({ tipo: 'bola' })
+  })
+
+  it('ninguna pinza de disección ni ningún otro instrumento reduce', () => {
+    expect(comportamientoDelInstrumento({ slug: 'pinza-diseccion-con-dientes', nombre: 'Pinza de disección con dientes (Adson)' }).reduce).toBeNull()
+    expect(comportamientoDelInstrumento({ nombre: 'Pinza con dientes' }).reduce).toBeNull()
+    expect(comportamientoDelInstrumento({ nombre: 'Bisturí N°10' }).reduce).toBeNull()
+  })
+
+  it('la guía dice cómo se usa', () => {
+    expect(guiaDelInstrumento({ slug: 'pinza-reduccion-puntas', nombre: 'Pinza de reducción' })).toMatch(/toma el hueso/)
   })
 })

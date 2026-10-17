@@ -89,6 +89,8 @@ import {
   aplicarSeparadoresALasHeridas,
   apoyarSeparadorEn,
   colocarInstrumento,
+  soltarInstrumento,
+  type InstrumentoColocado,
   crearPliegue,
   posarEn,
   posarPliegue,
@@ -134,7 +136,7 @@ import '@/app/(frontend)/simulador/consola.css'
  * quien está mirando una pantalla quieta.
  */
 
-export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar'
+export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar' | 'reducir'
 
 export interface Punto3 {
   x: number
@@ -262,6 +264,8 @@ export interface MandoDelLienzo {
   borrarTrazo: (deshacerCorte?: boolean) => void
   /** Cierra todas las heridas: la piel y el músculo vuelven a como estaban. */
   cerrarHeridas: () => void
+  /** Suelta una pinza de reducción (o todas): el trozo queda donde está (P-003 E5). */
+  soltarPinzaDeReduccion: (id?: number) => void
   /** Cierra una incisión (la que dice el panel «Incisiones»); las demás se quedan abiertas (P-003 E4). */
   cerrarIncision: (id: number) => void
   /** Abre (o cierra) las heridas hasta `mm` de apertura, sin arrastrar. */
@@ -402,7 +406,25 @@ export interface InstrumentoEnEscena {
   mide?: boolean
   /** Está en disección roma: la punta apoyada y las ramas que se abren separan el plano sin cortarlo. */
   roma?: { maximoMm: number } | null
+  /** Pinza de reducción: un clic en un trozo de hueso la deja agarrándolo (P-003 E5). */
+  reduce?: { tipo: 'puntas' | 'garra' | 'bola' } | null
 }
+
+/** Una pinza de reducción que tiene agarrado un trozo de hueso: es hija del trozo, así que lo acompaña (P-003 E5). */
+export interface PinzaDeReduccion {
+  id: number
+  nombre: string
+  pieza: THREE.Object3D
+  instrumento: InstrumentoColocado
+}
+
+/** Qué pinzas de reducción hay puestas y en qué trozo, para el panel. */
+export interface EstadoDeLaReduccion {
+  pinzas: { id: number; nombre: string; pieza: string }[]
+}
+
+/** Cuántas pinzas de reducción a la vez: la de quien opera y la del ayudante. */
+export const MAXIMO_DE_PINZAS_DE_REDUCCION = 2
 
 /** Lo que acaba de pasar con la fijación, para escribirlo en el registro de la consola. */
 export interface SucesoDeFijacion {
@@ -521,6 +543,7 @@ export function LienzoQuirurgico({
   alGesto,
   alSeparar,
   alPellizcar,
+  alReducir,
   alTrazar,
   alMoverFragmento,
   alCargar,
@@ -621,6 +644,8 @@ export function LienzoQuirurgico({
   alSeparar?: (estado: EstadoDeLosSeparadores) => void
   /** Cambió lo que hay de pinzas sosteniendo la piel. */
   alPellizcar?: (estado: EstadoDeLosPellizcos) => void
+  /** Cambió lo que hay de pinzas de reducción agarrando un trozo de hueso (P-003 E5). */
+  alReducir?: (estado: EstadoDeLaReduccion) => void
   /** Se llama con el trazo completo cada vez que cambia. */
   alTrazar?: (puntos: Punto3[]) => void
   /**
@@ -713,6 +738,9 @@ export function LienzoQuirurgico({
     separadores?: SeparadorEnEscena[]
     separadorActivo?: number | null
     siguienteSeparador?: number
+    /** Las pinzas de reducción puestas y la siguiente a numerar (P-003 E5). */
+    pinzasDeReduccion?: PinzaDeReduccion[]
+    siguientePinzaDeReduccion?: number
     /** El separador que se levantó con un clic y sigue al cursor hasta que otro clic lo deja (P-003 E3). */
     separadorEnLaMano?: EnLaMano<SeparadorEnEscena>
     /** Lo mismo para una pinza. */
@@ -784,6 +812,7 @@ export function LienzoQuirurgico({
     alGesto,
     alSeparar,
     alPellizcar,
+    alReducir,
   })
   useEffect(() => {
     ultimas.current = {
@@ -820,6 +849,7 @@ export function LienzoQuirurgico({
       alGesto,
       alSeparar,
       alPellizcar,
+      alReducir,
     }
   })
 
@@ -965,6 +995,8 @@ export function LienzoQuirurgico({
       taller.current.pedirDibujo?.()
     },
 
+    soltarPinzaDeReduccion: (id) => soltarPinzasDeReduccion(taller.current, ultimas.current, id),
+
     cerrarIncision: (id) => {
       const t = taller.current
       cerrarLaIncision(t, id, { conSusSeparadores: false })
@@ -1026,6 +1058,8 @@ export function LienzoQuirurgico({
 
     restaurarPiezas: () => {
       const t = taller.current
+      // Las pinzas de reducción son hijas de los trozos que se devuelven a su sitio: se sueltan con ellos (P-003 E5).
+      soltarPinzasDeReduccion(t, ultimas.current)
       const fragmento = t.fragmento
       t.origenesDePiezas?.forEach((origen, pieza) => {
         // El fragmento del caso lo coloca la consola con el desplazamiento inicial del caso.
@@ -1416,6 +1450,8 @@ export function LienzoQuirurgico({
     /** La pinza que se está levantando con el arrastre vertical. */
     let levantando: { id: number; y0: number; altura0: number; movido: boolean } | null = null
     let ultimaBusquedaDeSeparador = 0
+    /** El clic con que se agarra un trozo con la pinza de reducción, a la espera de saber si fue un clic o un arrastre. */
+    let clicParaLaPinza: { x: number; y: number; golpe: THREE.Intersection; pieza: THREE.Object3D } | null = null
     const puntoAuxiliar = new THREE.Vector3()
     const inicioDeArrastre = new THREE.Vector3()
     const posicionAlEmpezar = new THREE.Vector3()
@@ -1444,10 +1480,10 @@ export function LienzoQuirurgico({
     /** Pone las asas sobre el trozo elegido, con el tamaño que las hace agarrables, o las esconde. */
     const gizmoAlDia = () => {
       const u = ultimas.current
-      if (u.modo !== 'mover') elegida = null
+      if (u.modo !== 'mover' && u.modo !== 'reducir') elegida = null
       const raiz = taller.current.raiz
       const pieza = elegida
-      const hay = !!pieza && !!raiz && !u.moverTodo && pieza.visible && perteneceA(pieza, raiz)
+      const hay = !!pieza && !!raiz && (u.modo === 'reducir' || !u.moverTodo) && pieza.visible && perteneceA(pieza, raiz)
       manipulador.grupo.visible = hay
       if (!hay || !pieza) return
       pieza.updateMatrixWorld(true)
@@ -2331,6 +2367,64 @@ export function LienzoQuirurgico({
       pedirDibujo()
     }
 
+    // --- la pinza de reducción: agarra y mueve (P-003 E5) -------------------------------------------
+    /** La pinza de reducción puesta que está bajo el cursor, si la hay. */
+    const pinzaDeReduccionBajoElCursor = (): PinzaDeReduccion | null => {
+      const lista = taller.current.pinzasDeReduccion ?? []
+      if (lista.length === 0) return null
+      const golpes = rayo.intersectObjects(
+        lista.map((q) => q.instrumento.grupo),
+        true,
+      )
+      for (const g of golpes) {
+        const dueno = lista.find((q) => perteneceA(g.object, q.instrumento.grupo))
+        if (dueno) return dueno
+      }
+      let cercana: PinzaDeReduccion | null = null
+      let mejor = Infinity
+      for (const q of lista) {
+        const d = distanciaEnPantalla(q.instrumento.grupo, 14)
+        if (d !== null && d < mejor) {
+          mejor = d
+          cercana = q
+        }
+      }
+      return cercana
+    }
+
+    /**
+     * Deja la pinza de reducción agarrando el trozo de hueso: queda en el punto tocado, con el mango hacia fuera por
+     * la normal del hueso, **como hija del trozo** (`attach` conserva su posición en el mundo). Así lo acompaña sin
+     * código propio al moverlo con las asas o al girarlo con un aro. Sin hueso expuesto se avisa, no se impide.
+     */
+    const tomarConLaPinza = (golpe: THREE.Intersection, pieza: THREE.Object3D) => {
+      const t = taller.current
+      const u = ultimas.current
+      const inst = u.instrumento
+      if (!inst?.reduce || !t.escena) return
+      const lista = (t.pinzasDeReduccion ??= [])
+      if (lista.some((q) => q.pieza === pieza)) {
+        t.decir?.('Este trozo ya tiene una pinza. Muévalo con las flechas y los aros; un clic en la pinza la suelta.')
+        return
+      }
+      if (lista.length >= MAXIMO_DE_PINZAS_DE_REDUCCION) {
+        t.decir?.(`Ya hay ${MAXIMO_DE_PINZAS_DE_REDUCCION} pinzas puestas: una la lleva quien opera y la otra el ayudante. Suelte una (un clic en ella).`)
+        return
+      }
+      const normal = normalDelGolpe(golpe)
+      const colocado = colocarInstrumento(t.escena, inst.url, inst.ajustes, t.entorno ?? null, 1000 / (u.milimetrosPorUnidad || 1000))
+      posarEn(colocado.grupo, golpe.point, normal)
+      pieza.attach(colocado.grupo)
+      const id = (t.siguientePinzaDeReduccion = (t.siguientePinzaDeReduccion ?? 0) + 1)
+      lista.push({ id, nombre: inst.nombre ?? 'Pinza de reducción', pieza, instrumento: colocado })
+      u.alReducir?.(estadoDeLaReduccion(t))
+      // Sin un abordaje que llegue al hueso, la pinza se pone igual pero se dice: en una cirugía de verdad no se llega.
+      const hayAbordaje = (t.heridas.get('musculo')?.length ?? 0) > 0 || (t.heridas.get('piel')?.length ?? 0) > 0
+      if (!hayAbordaje) u.alGesto?.('La pinza toma el hueso sin que haya un abordaje hasta él: primero se corta y se separan los planos.', 'atencion')
+      t.decir?.(`${inst.nombre ?? 'Pinza'} agarrando el trozo. Muévalo con las flechas y los aros; un clic en la pinza la suelta.`)
+      pedirDibujo()
+    }
+
     /**
      * Mientras un separador o una pinza está «en la mano» (P-003 E3, respuesta 3 del dueño: «que cuando se haga
      * clic se suelte y se pueda reubicar»), sigue al cursor sobre el borde de la herida más cercano, atenuado, sin
@@ -2840,7 +2934,7 @@ export function LienzoQuirurgico({
 
       // Un asa del trozo elegido gana a todo lo demás: está dibujada encima de la escena, y si el hueso de debajo
       // se agarrara en su lugar, tocar una flecha arrastraría el trozo sobre la pantalla.
-      if (modoActual === 'mover' && !ultimas.current.moverTodo && elegida) {
+      if (muevePorTrozo(modoActual, ultimas.current.moverTodo) && elegida) {
         const asa = asaBajoElRayo()
         if (asa) {
           elegida.updateMatrixWorld(true)
@@ -2886,7 +2980,17 @@ export function LienzoQuirurgico({
         return
       }
 
-      if (modoActual === 'mover') {
+      if (modoActual === 'reducir') {
+        // Un clic en una pinza de reducción puesta la suelta (P-003 E5): el trozo queda donde está.
+        const puesta = pinzaDeReduccionBajoElCursor()
+        if (puesta) {
+          soltarPinzasDeReduccion(taller.current, ultimas.current, puesta.id)
+          clicParaLaPinza = null
+          return
+        }
+      }
+
+      if (modoActual === 'mover' || modoActual === 'reducir') {
         // Se agarra **cualquier trozo de hueso** que el rayo toque, no solo el fragmento que el caso mide
         // (D-171). Con la tibia partida en cuatro trozos, el residente quiere poder empujar el que sea; y
         // agarrar solo uno hacía que los demás «no se pudieran mover» sin decir por qué. Se busca entre los
@@ -2908,6 +3012,8 @@ export function LienzoQuirurgico({
         const origenes = (t.origenesDePiezas ??= new Map())
         if (!origenes.has(pieza)) origenes.set(pieza, { posicion: pieza.position.clone(), rotacion: pieza.rotation.clone() })
         piezaAgarrada = pieza
+        // Con la pinza de reducción, un clic sin arrastre deja la pinza agarrando este trozo (se resuelve al soltar).
+        clicParaLaPinza = modoActual === 'reducir' ? { x: evento.clientX, y: evento.clientY, golpe, pieza } : null
         controles.enabled = false
         arrastrando = true
         // Se arrastra sobre el plano perpendicular a la cámara que pasa por el
@@ -3186,7 +3292,7 @@ export function LienzoQuirurgico({
       // tenía al empezar, y mover el ratón con el botón pulsado no la desvía.
       if (modoActual === 'perforar') return
 
-      if (modoActual === 'mover' && planoDeArrastre && piezaAgarrada) {
+      if ((modoActual === 'mover' || modoActual === 'reducir') && planoDeArrastre && piezaAgarrada) {
         if (!rayo.ray.intersectPlane(planoDeArrastre, puntoAuxiliar)) return
         piezaAgarrada.position.copy(posicionAlEmpezar).add(puntoAuxiliar.clone().sub(inicioDeArrastre))
         pedirDibujo()
@@ -3233,6 +3339,11 @@ export function LienzoQuirurgico({
       // medir y no se avisa: inventar un cero aquí es lo que hacía que un caso
       // saliera ya reducido.
       // Lo que se tocó: el trozo agarrado con el ratón o el que se movió con un asa. Los dos avisan igual.
+      if (clicParaLaPinza) {
+        const clic = clicParaLaPinza
+        clicParaLaPinza = null
+        if (evento && Math.hypot(evento.clientX - clic.x, evento.clientY - clic.y) < 5) tomarConLaPinza(clic.golpe, clic.pieza)
+      }
       const tocada = piezaAgarrada ?? (asaAgarrada ? elegida : null)
       const eraElFragmento = !!f && !!tocada && (tocada === f || perteneceA(tocada, f))
       piezaAgarrada = null
@@ -3246,7 +3357,7 @@ export function LienzoQuirurgico({
         }
       }
       // Mover otro trozo no cambia lo que el caso mide: solo el fragmento declarado alimenta las medidas.
-      if (ultimas.current.modo === 'mover' && f && origen && eraElFragmento) {
+      if ((ultimas.current.modo === 'mover' || ultimas.current.modo === 'reducir') && f && origen && eraElFragmento) {
         ultimas.current.alMoverFragmento?.(desplazamientoDesde(origen.posicion, f.position), {
           x: grados(f.rotation.x - origen.rotacion.x),
           y: grados(f.rotation.y - origen.rotacion.y),
@@ -3431,6 +3542,7 @@ export function LienzoQuirurgico({
       soltarFluoroscopia(taller.current.fluoroscopia)
       for (const q of taller.current.separadores ?? []) soltarSeparador(q)
       for (const q of taller.current.pellizcos ?? []) soltarPellizco(q)
+      for (const q of taller.current.pinzasDeReduccion ?? []) soltarInstrumento(q.instrumento)
       cancelarLaRecta(taller.current)
       sincronizarAyudas(taller.current, false, undefined)
       // Las heridas devuelven su geometría original a la malla antes de soltar:
@@ -3663,6 +3775,8 @@ export type Taller = {
   siguienteSeparador?: number
   separadorEnLaMano?: EnLaMano<SeparadorEnEscena>
   pinzaEnLaMano?: EnLaMano<PellizcoEnEscena>
+  pinzasDeReduccion?: PinzaDeReduccion[]
+  siguientePinzaDeReduccion?: number
   pellizcos?: PellizcoEnEscena[]
   pellizcoActivo?: number | null
   siguientePellizco?: number
@@ -4109,6 +4223,7 @@ type LoUltimo = {
   alTrazar?: (puntos: Punto3[]) => void
   alGesto?: (texto: string, tono: 'bien' | 'atencion' | 'grave') => void
   alDisecar?: (estado: EstadoDeLaDiseccion | null) => void
+  alReducir?: (estado: EstadoDeLaReduccion) => void
 }
 
 /** Las mallas visibles de las piezas con alguno de estos papeles (la piel, el músculo). */
@@ -4565,6 +4680,33 @@ function acompanarAlCorte(t: Taller, u: LoUltimo, capa: PlanoDeCorte, incision: 
   if (grupo.length === 0 && pinzasMovidas === 0) return
   reaplicarSeparadores(t, u)
   t.decir?.('Las pinzas y los separadores acompañan al bisturí.')
+}
+
+// --------------------------------------------- pinza de reducción: agarra y mueve (P-003 E5)
+
+/** ¿El arrastre de un clic mueve un trozo suelto, con asas? «Mover → Un trozo» y «Reducir» sí; «Todo junto», no. */
+function muevePorTrozo(modo: Modo, moverTodo: boolean): boolean {
+  return modo === 'reducir' || (modo === 'mover' && !moverTodo)
+}
+
+function estadoDeLaReduccion(t: Taller): EstadoDeLaReduccion {
+  return { pinzas: (t.pinzasDeReduccion ?? []).map((p) => ({ id: p.id, nombre: p.nombre, pieza: p.pieza.name })) }
+}
+
+/** Suelta una pinza de reducción, o todas: el trozo queda donde está, sin la pinza. */
+function soltarPinzasDeReduccion(t: Taller, u: LoUltimo, id?: number) {
+  const quedan: PinzaDeReduccion[] = []
+  for (const p of t.pinzasDeReduccion ?? []) {
+    if (id === undefined || p.id === id) soltarInstrumento(p.instrumento)
+    else quedan.push(p)
+  }
+  const habia = (t.pinzasDeReduccion ?? []).length
+  t.pinzasDeReduccion = quedan
+  if (habia !== quedan.length) {
+    u.alReducir?.(estadoDeLaReduccion(t))
+    t.decir?.('Pinza soltada.')
+    t.pedirDibujo?.()
+  }
 }
 
 // ------------------------------------------------------------ incisiones (P-003 E4)

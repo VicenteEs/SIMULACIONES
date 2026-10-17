@@ -52,6 +52,7 @@ import {
   Focus,
   FoldVertical,
   Hand,
+  HandGrab,
   Info,
   Crosshair,
   Maximize2,
@@ -141,6 +142,7 @@ import type {
   EstadoDeLasHeridas,
   EstadoDeLaSutura,
   EstadoDeLosPellizcos,
+  EstadoDeLaReduccion,
   EstadoDeLosSeparadores,
   InclinacionDeBroca,
   InstrumentoEnEscena,
@@ -405,6 +407,18 @@ const MODO_PINZAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucide
 }
 
 /**
+ * El modo de las pinzas de reducción (P-003 E5): un clic en un trozo de hueso deja la pinza agarrándolo, y el trozo se
+ * mueve con las asas del taller (flechas y aros) con la pinza puesta hasta que se la suelta.
+ */
+const MODO_REDUCIR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'reducir',
+  etiqueta: 'Reducir',
+  icono: HandGrab,
+  ayuda:
+    'Reducir: un clic en un trozo de hueso deja la pinza agarrándolo. Llévelo a su sitio con las flechas y los aros mirando la fluoroscopia; la pinza va con él. Un clic en la pinza la suelta.',
+}
+
+/**
  * El modo de la disección roma con la tijera de Metzenbaum (petición de Cristóbal): se apoya la punta cerrada en el
  * tejido, se abren las ramas y el plano se separa por tensión, no por corte; se avanza y se vuelve a abrir.
  */
@@ -603,6 +617,8 @@ export function ConsolaQuirurgica({
   // Lo que hay puesto en el campo: separadores en la herida y pinzas que sostienen la piel.
   const [separadores, setSeparadores] = useState<EstadoDeLosSeparadores | null>(null)
   const [pellizcos, setPellizcos] = useState<EstadoDeLosPellizcos | null>(null)
+  // Las pinzas de reducción que tienen agarrado un trozo de hueso (P-003 E5).
+  const [pinzasDeReduccion, setPinzasDeReduccion] = useState<EstadoDeLaReduccion | null>(null)
   // Cómo se usa la tijera de Metzenbaum: cortando, como cualquier tijera, o en disección roma (separa por tensión).
   const [usoDeLaTijera, setUsoDeLaTijera] = useState<'cortar' | 'roma'>('cortar')
   // En qué plano se apoyan los separadores que se pongan: la piel o, más profundo, el músculo.
@@ -1245,10 +1261,11 @@ export function ConsolaQuirurgica({
     else if (que?.corta) setModo('trazar')
     else if (que?.separa) setModo('separar')
     else if (que?.pellizca) setModo('pinzar')
+    else if (que?.reduce) setModo('reducir')
     else if (que?.perfora) setModo('perforar')
     else if (que?.sutura) setModo('coser')
     else if (que?.coloca || que?.mide) setModo('fijar')
-    else if (modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar') setModo('orbitar')
+    else if (modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
     setDiseccion(null)
     setInstrumento(id)
     setArticulacionesDeclaradas([])
@@ -1384,6 +1401,7 @@ export function ConsolaQuirurgica({
             roma: usoRoma ? queHace.roma : null,
             separa: queHace.separa,
             pellizca: queHace.pellizca,
+            reduce: queHace.reduce,
             electro: queHace.electro ? { modo: modoElectro, potenciaW } : null,
             perfora: queHace.perfora,
             sutura: queHace.sutura,
@@ -1731,6 +1749,7 @@ export function ConsolaQuirurgica({
     ...(editor ? [MODO_SENALAR] : []),
     ...(queHace.separa ? [MODO_SEPARAR] : []),
     ...(queHace.pellizca ? [MODO_PINZAR] : []),
+    ...(queHace.reduce ? [MODO_REDUCIR] : []),
     ...(queHace.roma ? [MODO_DISECAR] : []),
     ...(queHace.perfora ? [MODO_PERFORAR] : []),
     ...(queHace.sutura ? [MODO_COSER] : []),
@@ -2284,6 +2303,42 @@ export function ConsolaQuirurgica({
                         Soltar la piel
                       </button>
                     </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {queHace.reduce ? (
+                <div className="consola-instrumento-articulaciones">
+                  <p className="consola-instrumento-texto">
+                    Pinza de reducción: haga clic en un trozo de hueso para agarrarlo. Llévelo a su sitio con las flechas y los aros
+                    mirando la fluoroscopia; la pinza va con él. Un clic en la pinza la suelta. Caben dos: la de quien opera y la del
+                    ayudante.
+                  </p>
+                  {pinzasDeReduccion && pinzasDeReduccion.pinzas.length > 0 ? (
+                    <>
+                      <ul className="consola-separadores">
+                        {pinzasDeReduccion.pinzas.map((q) => (
+                          <li key={q.id}>
+                            <span className="consola-separador-nombre">
+                              {q.nombre} · {q.pieza || 'trozo'}
+                            </span>
+                            <button
+                              type="button"
+                              className="consola-separador-quitar"
+                              aria-label={`Soltar ${q.nombre}`}
+                              onClick={() => mando.current?.soltarPinzaDeReduccion(q.id)}
+                            >
+                              <X size={14} aria-hidden />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="consola-instrumento-acciones">
+                        <button type="button" className="consola-boton" onClick={() => mando.current?.soltarPinzaDeReduccion()}>
+                          Soltar la pinza
+                        </button>
+                      </div>
+                    </>
                   ) : null}
                 </div>
               ) : null}
@@ -3020,6 +3075,7 @@ export function ConsolaQuirurgica({
             alGesto={anotar}
             alSeparar={setSeparadores}
             alPellizcar={setPellizcos}
+            alReducir={setPinzasDeReduccion}
             alHerir={setHerida}
             alCoser={(estado) => {
               setSutura(estado)
