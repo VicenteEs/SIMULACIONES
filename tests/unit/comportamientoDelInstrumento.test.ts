@@ -83,7 +83,8 @@ describe('comportamiento del instrumental', () => {
     for (const i of INSTRUMENTAL_BASE.filter((x) => ['placas', 'tornillos', 'clavos', 'injerto'].includes(x.categoria))) {
       const que = comportamientoDelInstrumento(i)
       expect([que.corta, que.separa, que.perfora, que.sutura], i.slug).toEqual([null, null, null, null])
-      expect(!!que.coloca, i.slug).toBe(['placas', 'tornillos'].includes(i.categoria) && i.slug !== 'tornillo-bloqueo-clavo-5-0')
+      // El de bloqueo de clavo también «coloca», pero marcado `soloConClavo`: en la mano no pone nada (D-183).
+      expect(!!que.coloca, i.slug).toBe(['placas', 'tornillos'].includes(i.categoria))
     }
   })
 
@@ -96,8 +97,8 @@ describe('comportamiento del instrumental', () => {
     })
     expect(comportamientoDelInstrumento(base('tornillo-bloqueado-lcp-3-5')).coloca).toMatchObject({ bloqueado: true })
     expect(comportamientoDelInstrumento(base('medidor-profundidad')).mide).toBe(true)
-    // El tornillo de bloqueo de un clavo no va en una placa.
-    expect(comportamientoDelInstrumento(base('tornillo-bloqueo-clavo-5-0')).coloca).toBeNull()
+    // El tornillo de bloqueo de un clavo no va en una placa: se reconoce, pero solo con clavo (D-183).
+    expect(comportamientoDelInstrumento(base('tornillo-bloqueo-clavo-5-0')).coloca).toMatchObject({ soloConClavo: true })
   })
 
   it('un instrumento creado a mano se reconoce por su nombre', () => {

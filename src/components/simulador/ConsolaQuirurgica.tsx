@@ -93,7 +93,7 @@ import { Visor3D } from '@/components/VisoresPerezosos'
 // módulos.
 import { encuadreVigente, type Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import { CATEGORIAS_DE_INSTRUMENTAL, ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
-import { leerFichaParaElSimulador, type FichaParaElSimulador } from '@/app/(frontend)/acciones/estructuras'
+import { leerFichaParaElSimulador, type FichaParaElSimulador } from '@/app/(frontend)/acciones/fichaDelSimulador'
 import { VentanaDeEstructura } from '@/app/(frontend)/admin-panel/estructuras/VentanaDeEstructura'
 import { familiaDeSistema } from '@/lib/estructuras'
 import { agruparInsumos, anotarUso, filasParaLaBandeja, type RegistroDeInsumos } from '@/lib/insumos'

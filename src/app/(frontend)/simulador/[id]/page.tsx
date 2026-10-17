@@ -8,6 +8,7 @@ import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Miga } from '@/compon
 import { CasoConSuLectura } from '@/components/simulador/CasoConSuLectura'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import { casoParaLaConsola, companerosQueFaltan, conCompanerosDeLaPlaca } from '@/lib/casoQuirurgico'
+import { traerCompanerosDeLaPlaca } from '@/lib/companerosDeLaPlaca'
 import { lecturasDelResidente } from '@/lib/lecturas'
 import { recorridoGuardado } from '@/lib/progresoDelSimulador'
 import { Rico } from '@/components/Rico'
@@ -52,21 +53,7 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
   // medidor, destornillador— aunque el caso no los declare, marcados «para esta placa». Si el catálogo no responde, la
   // bandeja queda como estaba: es una ayuda, no una condición para abrir el caso.
   const documentoDelCaso = cirugia as unknown as Record<string, unknown>
-  const faltan = companerosQueFaltan(documentoDelCaso)
-  const companeros =
-    faltan.length > 0
-      ? await payload
-          .find({
-            collection: 'instrumental',
-            where: { slug: { in: faltan } },
-            depth: 2,
-            limit: 50,
-            overrideAccess: false,
-            user: usuarioEfectivo as never,
-          })
-          .then((r) => r.docs as unknown as Record<string, unknown>[])
-          .catch(() => [] as Record<string, unknown>[])
-      : []
+  const companeros = await traerCompanerosDeLaPlaca(payload, usuarioEfectivo, companerosQueFaltan(documentoDelCaso))
   const caso = casoParaLaConsola(conCompanerosDeLaPlaca(documentoDelCaso, companeros))
 
   // La casilla de «leída» tiene que nacer sabiendo si ya lo está, y

@@ -284,10 +284,14 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'atlas.ts:duplicarInstancia': { guardia: 'editor', argumentos: () => ['5'] },
   'atlas.ts:eliminarInstancia': { guardia: 'editor', argumentos: () => ['5'] },
   'atlas.ts:exportarComoModelo': { guardia: 'editor', argumentos: () => ['5'] },
+  // Crea un modelo nuevo: es de quien edita (P-003 E9).
+  'atlas.ts:reexportarConEstructurasSeparadas': { guardia: 'editor', argumentos: () => ['5'] },
 
   // El listado global de estructuras anatómicas (D-179): llenan el editor y el administrador; cargar las
   // piezas del atlas toca miles de filas y es solo del administrador.
   'estructuras.ts:leerEstructura': { guardia: 'editor', argumentos: () => ['FJ1'] },
+  // Solo lee, y es para cualquier sesión activa: la ficha de «Info» la ve también el residente (P-003 E9).
+  'fichaDelSimulador.ts:leerFichaParaElSimulador': { guardia: 'sesion', argumentos: () => ['FJ1'] },
   'estructuras.ts:guardarEstructura': {
     guardia: 'editor',
     argumentos: () => ['FJ1', { campos: { definicion: 'Hueso largo.' }, base: { definicion: '' } }],

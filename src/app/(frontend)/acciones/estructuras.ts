@@ -15,10 +15,7 @@
  * segmentos). Solo «Cargar las piezas del atlas» es del administrador.
  */
 import { revalidatePath } from 'next/cache'
-import { accion, ErrorDeAcceso, exigirAdmin, exigirEditor, type Respuesta } from '@/lib/guardias'
-import { obtenerSesion } from '@/lib/sesion'
-import { getPayload } from 'payload'
-import config from '@payload-config'
+import { accion, exigirAdmin, exigirEditor, type Respuesta } from '@/lib/guardias'
 import { exigirIdentificador } from '@/lib/validacion'
 import { CAMPOS_DE_LA_FICHA, type CampoDeLaFicha, type FichaCompleta } from '@/lib/estructuras'
 import { leerCatalogo } from '@/lib/catalogoDelAtlas'
@@ -50,52 +47,6 @@ function textosDeLaFicha(valor: unknown, que: string): Partial<Record<CampoDeLaF
     salida[campo] = texto
   }
   return salida
-}
-
-/** Lo que el botón «Info» del simulador enseña de una estructura: la ficha sin las notas internas. */
-export interface FichaParaElSimulador {
-  atlasId: string
-  nombre: string
-  /** El sistema del atlas (`muscular`, `nervous`…): el simulador ofrece «Cortar» y «Separar» solo a los músculos. */
-  sistema: string
-  nombreLatino: string
-  definicion: string
-  origen: string
-  insercion: string
-  inervacion: string
-  accion: string
-  irrigacion: string
-  /** Una estructura oculta en el listado no abre ficha (P-003 E9). */
-  oculta: boolean
-}
-
-/**
- * La ficha de una estructura para quien usa el simulador, sea residente o editor.
- *
- * Lectura, con cualquier sesión activa —como la colección, `lecturaSimple`—: la escritura sigue siendo del editor
- * (`guardarEstructura`). Las `notas` no salen: son del equipo, no del residente.
- */
-export async function leerFichaParaElSimulador(atlasId: unknown): Promise<Respuesta<FichaParaElSimulador | null>> {
-  return accion(async () => {
-    const { usuario, activo } = await obtenerSesion()
-    if (!usuario || !activo) throw new ErrorDeAcceso('Acceso denegado: inicie sesión.')
-    const id = exigirIdentificador(atlasId, 'La pieza')
-    const ficha = await leerFicha(await getPayload({ config }), await leerCatalogo(), id)
-    if (!ficha || ficha.oculta) return null
-    return {
-      atlasId: ficha.atlasId,
-      nombre: ficha.nombre,
-      sistema: ficha.sistema,
-      nombreLatino: ficha.nombreLatino,
-      definicion: ficha.definicion,
-      origen: ficha.origen,
-      insercion: ficha.insercion,
-      inervacion: ficha.inervacion,
-      accion: ficha.accion,
-      irrigacion: ficha.irrigacion,
-      oculta: false,
-    }
-  })
 }
 
 /** La ficha de una pieza y sus versiones anteriores, para abrir la ventana de edición. */
