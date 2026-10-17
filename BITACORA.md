@@ -9373,13 +9373,15 @@ ve igual en el taller.
 
 **Tareas**
 
-- [ ] **E9.1 · `agruparParaGlb` con `separarEstructuras`** y `atlasId` en los `extras`; pruebas con la exportación de
+- [x] **E9.1 · `agruparParaGlb` con `separarEstructuras`** (commit `3ce50b0`) y `atlasId` en los `extras`; pruebas con la exportación de
   verdad (`piernaDerechaEnElCaso.test.ts` es el molde).
 - [ ] **E9.2 · Medir el rendimiento** en el equipo de referencia con una pierna y con un tronco, y decidir el umbral
   de fusión de vasos.
-- [ ] **E9.3 · «Volver a exportar con estructuras separadas»** en el editor de la cirugía.
-- [ ] **E9.4 · «Info» en la consola:** el botón, el destacado, la ficha y «Editar» para el editor.
-- [ ] **E9.5 · Pruebas, manual y D-nnn.** Pinchar el músculo tibial anterior abre su ficha; una pieza oculta no; un
+  *(Pendiente: no se pudo medir en el equipo de referencia; se dejó el umbral del plan, 400 piezas, ajustable con
+  `maximoDePiezasSueltas`. Ver D-185.)*
+- [x] **E9.3 · «Volver a exportar con estructuras separadas»** (commit `3ce50b0`) en el editor de la cirugía.
+- [x] **E9.4 · «Info» en la consola:** (commit `3ce50b0`) el botón, el destacado, la ficha y «Editar» para el editor.
+- [x] **E9.5 · Pruebas, manual y D-nnn.** (commit `3ce50b0`) Pinchar el músculo tibial anterior abre su ficha; una pieza oculta no; un
   trozo de tibia abre la ficha de la tibia; en un modelo viejo, el aviso.
 
 **Hecho cuando…** En una cirugía reexportada, con «Info» encendido, se pincha un músculo y se ve destacado con su ficha
