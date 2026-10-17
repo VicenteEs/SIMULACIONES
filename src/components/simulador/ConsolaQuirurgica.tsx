@@ -3286,140 +3286,6 @@ export function ConsolaQuirurgica({
 
       {/* -------------------------------------------------------- lienzo */}
       <div className="consola-centro">
-        {modo === 'info' && info ? (
-          <div className="consola-info" role="region" aria-label="Ficha de la estructura">
-            <h3 className="consola-subtitulo">Estructura seleccionada</h3>
-            {info.estado === 'ficha' ? (
-              <>
-                <p>
-                  <strong>{info.ficha.nombre}</strong>
-                  {info.ficha.nombreLatino ? <em> · {info.ficha.nombreLatino}</em> : null}
-                </p>
-                <details open>
-                  <summary>Aprenda más</summary>
-                  {(
-                    [
-                      ['Definición', info.ficha.definicion],
-                      ['Origen', info.ficha.origen],
-                      ['Inserción', info.ficha.insercion],
-                      ['Inervación', info.ficha.inervacion],
-                      ['Acción', info.ficha.accion],
-                      ['Irrigación', info.ficha.irrigacion],
-                    ] as const
-                  )
-                    .filter(([, texto]) => texto)
-                    .map(([titulo, texto]) => (
-                      <p key={titulo}>
-                        <strong>{titulo}.</strong> {texto}
-                      </p>
-                    ))}
-                  {!info.ficha.definicion && !info.ficha.origen && !info.ficha.insercion && !info.ficha.inervacion && !info.ficha.accion && !info.ficha.irrigacion ? (
-                    <p className="consola-vacio">Todavía no tiene ficha escrita.</p>
-                  ) : null}
-                </details>
-                {familiaDeSistema(info.ficha.sistema) === 'musculo' ? (
-                  <div className="consola-info-acciones">
-                    <button
-                      type="button"
-                      className="consola-boton"
-                      aria-pressed={eligiendoAccion === 'cortar'}
-                      onClick={() => setEligiendoAccion(eligiendoAccion === 'cortar' ? null : 'cortar')}
-                    >
-                      Cortar
-                    </button>
-                    <button
-                      type="button"
-                      className="consola-boton"
-                      aria-pressed={eligiendoAccion === 'separar'}
-                      onClick={() => setEligiendoAccion(eligiendoAccion === 'separar' ? null : 'separar')}
-                    >
-                      Separar
-                    </button>
-                    {eligiendoAccion ? (
-                      <ul className="consola-info-instrumentos">
-                        {instrumentosParaActuarEnElMusculo(eligiendoAccion, eligiendoAccion === 'cortar' ? info.ficha.abordajeCortar : info.ficha.abordajeSeparar).length === 0 ? (
-                          <li className="consola-vacio">
-                            {eligiendoAccion === 'cortar'
-                              ? 'No hay en la bandeja un instrumento para cortar músculo (bisturí, tijera de Metzenbaum o electrobisturí).'
-                              : 'No hay en la bandeja un separador (Farabeuf, Senn-Miller, Hohmann…).'}
-                          </li>
-                        ) : (
-                          instrumentosParaActuarEnElMusculo(eligiendoAccion, eligiendoAccion === 'cortar' ? info.ficha.abordajeCortar : info.ficha.abordajeSeparar).map((i) => (
-                            <li key={i.id}>
-                              <button
-                                type="button"
-                                className="consola-anadir-opcion"
-                                onClick={() => {
-                                  const accion = eligiendoAccion
-                                  setMusculoObjetivo({
-                                    nodo: info.nodo,
-                                    nombre: info.ficha.nombre,
-                                    accion,
-                                    // Lo que ya estaba cortado antes de elegir no cuenta: solo vale la incisión nueva.
-                                    yaCortadas: (herida?.incisiones ?? []).filter((x) => x.capa === 'musculo').map((x) => x.id),
-                                  })
-                                  setEligiendoAccion(null)
-                                  elegirInstrumento(i.id)
-                                  // Elegir el instrumento ya cambió de modo, pero la tijera puede haber ido a «disecar»:
-                                  // aquí se pide cortar, no disecar.
-                                  setModo(accion === 'cortar' ? 'trazar' : 'separar')
-                                }}
-                              >
-                                {eligiendoAccion === 'cortar' ? 'Cortar' : 'Separar'} con {i.nombre}
-                              </button>
-                            </li>
-                          ))
-                        )}
-                      </ul>
-                    ) : null}
-                  </div>
-                ) : null}
-                {editor ? (
-                  <button type="button" className="consola-boton" onClick={() => setEditandoLaFicha(info.ficha.atlasId)}>
-                    Editar
-                  </button>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <p>
-                  <strong>{info.estado === 'cargando' ? info.nombre : 'nombre' in info ? info.nombre : ''}</strong>
-                </p>
-                <p className="consola-vacio">
-                  {info.estado === 'cargando'
-                    ? 'Abriendo la ficha…'
-                    : info.estado === 'modeloViejo'
-                      ? 'Este modelo no separa las estructuras: el objeto que pinchó agrupa varias. Un editor puede volver a exportarlo con las estructuras separadas desde el editor del caso.'
-                      : info.estado === 'sinFicha'
-                        ? 'Esta estructura no tiene ficha o no se muestra.'
-                        : 'No se pudo leer la ficha.'}
-                </p>
-              </>
-            )}
-          </div>
-        ) : null}
-        {musculoObjetivo ? (
-          <div className="consola-info consola-objetivo-de-plano" role="status">
-            <p>
-              {musculoObjetivo.accion === 'cortar' ? 'Cortando solo' : 'Separando'} <strong>{musculoObjetivo.nombre}</strong>
-              {musculoObjetivo.accion === 'separar'
-                ? retracciones.some((r) => r.nodo === musculoObjetivo.nodo)
-                  ? ` · retraído ${Math.round(retracciones.find((r) => r.nodo === musculoObjetivo.nodo)?.aperturaMm ?? 0)} mm (la rueda lo abre o lo cierra)`
-                  : ' · haga clic en el músculo con el separador'
-                : ' · trace la incisión sobre él con el instrumento'}
-            </p>
-            <div className="consola-info-acciones">
-              {retracciones.length > 0 ? (
-                <button type="button" className="consola-boton" onClick={() => mando.current?.soltarRetracciones()}>
-                  Soltar el músculo
-                </button>
-              ) : null}
-              <button type="button" className="consola-boton" onClick={() => setMusculoObjetivo(null)}>
-                Quitar el objetivo
-              </button>
-            </div>
-          </div>
-        ) : null}
         {editandoLaFicha ? (
           <VentanaDeEstructura
             atlasId={editandoLaFicha}
@@ -3729,6 +3595,147 @@ export function ConsolaQuirurgica({
               alCambiarAyudas={setAyudas}
               alApagar={apagarFluoroscopia}
             />
+          ) : null}
+          {/* Info y el músculo elegido, a la derecha del lienzo como la fluoroscopia (no arriba): ahí no empuja el
+              modelo hacia abajo y se lee al lado de lo que se pincha. El objetivo se queda aunque se salga del modo
+              «Info»; la ficha solo se ve en ese modo. */}
+          {(modo === 'info' && info) || musculoObjetivo ? (
+            <div className="consola-info-ficha" role="group" aria-label="Info">
+              {musculoObjetivo ? (
+                <div className="consola-info consola-objetivo-de-plano" role="status">
+                  <p>
+                    {musculoObjetivo.accion === 'cortar' ? 'Cortando solo' : 'Separando'} <strong>{musculoObjetivo.nombre}</strong>
+                    {musculoObjetivo.accion === 'separar'
+                      ? retracciones.some((r) => r.nodo === musculoObjetivo.nodo)
+                        ? ` · retraído ${Math.round(retracciones.find((r) => r.nodo === musculoObjetivo.nodo)?.aperturaMm ?? 0)} mm (la rueda lo abre o lo cierra)`
+                        : ' · haga clic en el músculo con el separador'
+                      : ' · trace la incisión sobre él con el instrumento'}
+                  </p>
+                  <div className="consola-info-acciones">
+                    {retracciones.length > 0 ? (
+                      <button type="button" className="consola-boton" onClick={() => mando.current?.soltarRetracciones()}>
+                        Soltar el músculo
+                      </button>
+                    ) : null}
+                    <button type="button" className="consola-boton" onClick={() => setMusculoObjetivo(null)}>
+                      Quitar el objetivo
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {modo === 'info' && info ? (
+                <div className="consola-info" role="region" aria-label="Ficha de la estructura">
+                  <h3 className="consola-subtitulo">Estructura seleccionada</h3>
+                  {info.estado === 'ficha' ? (
+                    <>
+                      <p>
+                        <strong>{info.ficha.nombre}</strong>
+                        {info.ficha.nombreLatino ? <em> · {info.ficha.nombreLatino}</em> : null}
+                      </p>
+                      <details open>
+                        <summary>Aprenda más</summary>
+                        {(
+                          [
+                            ['Definición', info.ficha.definicion],
+                            ['Origen', info.ficha.origen],
+                            ['Inserción', info.ficha.insercion],
+                            ['Inervación', info.ficha.inervacion],
+                            ['Acción', info.ficha.accion],
+                            ['Irrigación', info.ficha.irrigacion],
+                          ] as const
+                        )
+                          .filter(([, texto]) => texto)
+                          .map(([titulo, texto]) => (
+                            <p key={titulo}>
+                              <strong>{titulo}.</strong> {texto}
+                            </p>
+                          ))}
+                        {!info.ficha.definicion && !info.ficha.origen && !info.ficha.insercion && !info.ficha.inervacion && !info.ficha.accion && !info.ficha.irrigacion ? (
+                          <p className="consola-vacio">Todavía no tiene ficha escrita.</p>
+                        ) : null}
+                      </details>
+                      {familiaDeSistema(info.ficha.sistema) === 'musculo' ? (
+                        <div className="consola-info-acciones">
+                          <button
+                            type="button"
+                            className="consola-boton"
+                            aria-pressed={eligiendoAccion === 'cortar'}
+                            onClick={() => setEligiendoAccion(eligiendoAccion === 'cortar' ? null : 'cortar')}
+                          >
+                            Cortar
+                          </button>
+                          <button
+                            type="button"
+                            className="consola-boton"
+                            aria-pressed={eligiendoAccion === 'separar'}
+                            onClick={() => setEligiendoAccion(eligiendoAccion === 'separar' ? null : 'separar')}
+                          >
+                            Separar
+                          </button>
+                          {eligiendoAccion ? (
+                            <ul className="consola-info-instrumentos">
+                              {instrumentosParaActuarEnElMusculo(eligiendoAccion, eligiendoAccion === 'cortar' ? info.ficha.abordajeCortar : info.ficha.abordajeSeparar).length === 0 ? (
+                                <li className="consola-vacio">
+                                  {eligiendoAccion === 'cortar'
+                                    ? 'No hay en la bandeja un instrumento para cortar músculo (bisturí, tijera de Metzenbaum o electrobisturí).'
+                                    : 'No hay en la bandeja un separador (Farabeuf, Senn-Miller, Hohmann…).'}
+                                </li>
+                              ) : (
+                                instrumentosParaActuarEnElMusculo(eligiendoAccion, eligiendoAccion === 'cortar' ? info.ficha.abordajeCortar : info.ficha.abordajeSeparar).map((i) => (
+                                  <li key={i.id}>
+                                    <button
+                                      type="button"
+                                      className="consola-anadir-opcion"
+                                      onClick={() => {
+                                        const accion = eligiendoAccion
+                                        setMusculoObjetivo({
+                                          nodo: info.nodo,
+                                          nombre: info.ficha.nombre,
+                                          accion,
+                                          // Lo que ya estaba cortado antes de elegir no cuenta: solo vale la incisión nueva.
+                                          yaCortadas: (herida?.incisiones ?? []).filter((x) => x.capa === 'musculo').map((x) => x.id),
+                                        })
+                                        setEligiendoAccion(null)
+                                        elegirInstrumento(i.id)
+                                        // Elegir el instrumento ya cambió de modo, pero la tijera puede haber ido a «disecar»:
+                                        // aquí se pide cortar, no disecar.
+                                        setModo(accion === 'cortar' ? 'trazar' : 'separar')
+                                      }}
+                                    >
+                                      {eligiendoAccion === 'cortar' ? 'Cortar' : 'Separar'} con {i.nombre}
+                                    </button>
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {editor ? (
+                        <button type="button" className="consola-boton" onClick={() => setEditandoLaFicha(info.ficha.atlasId)}>
+                          Editar
+                        </button>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <p>
+                        <strong>{info.estado === 'cargando' ? info.nombre : 'nombre' in info ? info.nombre : ''}</strong>
+                      </p>
+                      <p className="consola-vacio">
+                        {info.estado === 'cargando'
+                          ? 'Abriendo la ficha…'
+                          : info.estado === 'modeloViejo'
+                            ? 'Este modelo no separa las estructuras: el objeto que pinchó agrupa varias. Un editor puede volver a exportarlo con las estructuras separadas desde el editor del caso.'
+                            : info.estado === 'sinFicha'
+                              ? 'Esta estructura no tiene ficha o no se muestra.'
+                              : 'No se pudo leer la ficha.'}
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </div>
 

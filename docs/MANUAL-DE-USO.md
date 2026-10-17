@@ -858,7 +858,8 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   instrumento de la bandeja lleva una casilla (lo usado, marcada; lo que no se usó, sin marcar)
   y **«Usar como bandeja del caso»** deja la bandeja exactamente con lo marcado.
 - **Info.** El modo **Info** de la barra del modelo sirve para todos: un clic en una estructura
-  (un músculo, un nervio, un vaso, un hueso) la **destaca en azul** y abre al lado su ficha,
+  (un músculo, un nervio, un vaso, un hueso) la **destaca en azul** y abre su ficha **a la derecha del
+  modelo**, como la fluoroscopia,
   con el nombre, el nombre latino y «Aprenda más» (definición, origen, inserción, inervación,
   acción e irrigación). Una pieza apagada no se pincha. Quien edita ve además **«Editar»**, que
   abre la ficha para corregirla en el momento. Si el modelo del caso agrupa las estructuras por

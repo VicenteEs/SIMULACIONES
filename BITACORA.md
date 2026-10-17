@@ -6279,6 +6279,10 @@ Cierra los pendientes de D-180 a D-187.
 
 *Sigue sin hacerse* (y se dice): la incisión recta entre dos puntos lejanos de una pierna corta por dentro del miembro —es la cuerda, no la superficie—, y en el sóleo (que casi no se ve) el corte elegido no atravesó la malla; ambas cosas son de siempre y no de E10. Lo de Cristóbal, probarlo con una pierna suya, sigue siendo recomendable.
 
+### D-189 · 2026-10-18 · vigente
+**La ficha de «Info» y el músculo elegido van a la derecha del lienzo, como la fluoroscopia, y no arriba.**
+Pedido del dueño: «que se despliegue como se despliega fluoroscopia, a la derecha, no arriba». Antes el panel (`consola-info`) se pintaba encima del lienzo y lo empujaba hacia abajo cada vez que se pinchaba una estructura. Ahora es un panel `consola-info-ficha` dentro del marco del lienzo, bajo la barra, con el mismo criterio que el recuadro de rayos: con pantalla ancha en la consola del residente va **al lado** del lienzo (270 px) y la barra del lienzo se corre para no quedar sobre él; en el editor, o en pantalla estrecha, va **encima** del lienzo, en su esquina derecha. El músculo elegido («Cortando solo…», «Soltar el músculo», «Quitar el objetivo») va en el mismo panel y se queda aunque se salga del modo «Info»; la ficha solo se ve en ese modo. Con la **fluoroscopia encendida a la vez** no caben las dos columnas (el lienzo quedaba en unos 60 px): el recuadro de rayos conserva su columna y la ficha pasa a ir encima del lienzo, junto a él. Sin cambios de lógica ni de datos. *Probado* en el navegador con el caso de prueba (solo la ficha; con y sin fluoroscopia).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
