@@ -31,6 +31,8 @@ export type QueColoca =
       largoDelModeloMm: number
       /** De cabeza roscada: se traba en la placa. */
       bloqueado: boolean
+      /** Se pone en un clavo y no en una placa: sin clavo en el simulador, no tiene dónde ir (P-003 E6). */
+      soloConClavo?: boolean
     }
 
 const COLOCA_POR_SLUG: Readonly<Record<string, QueColoca>> = {
@@ -47,6 +49,95 @@ const COLOCA_POR_SLUG: Readonly<Record<string, QueColoca>> = {
   'tornillo-cortical-3-5': { tipo: 'tornillo', diametroMm: 3.5, largoDelModeloMm: 24, bloqueado: false },
   'tornillo-esponjosa-6-5': { tipo: 'tornillo', diametroMm: 6.5, largoDelModeloMm: 50, bloqueado: false },
   'tornillo-bloqueado-lcp-3-5': { tipo: 'tornillo', diametroMm: 3.5, largoDelModeloMm: 26, bloqueado: true },
+  // De bloqueo de clavo (P-003 E6): se pone en el orificio del clavo, no en una placa. Hasta que el simulador tenga
+  // clavos en el hueso no se puede atornillar en nada: se reconoce como tornillo para que se pueda elegir y la consola
+  // diga por qué no entra, en vez de quedarse en la mano sin hacer nada.
+  'tornillo-bloqueo-clavo-5-0': { tipo: 'tornillo', diametroMm: 5, largoDelModeloMm: 40, bloqueado: true, soloConClavo: true },
+}
+
+// ------------------------------------------------- lo que acompaña a cada placa (P-003 E6)
+
+const PARA_3_5 = ['tornillo-cortical-3-5', 'broca-2-5', 'medidor-profundidad', 'destornillador-hexagonal']
+const PARA_LCP = ['tornillo-bloqueado-lcp-3-5', 'guia-broca-roscada-lcp', 'destornillador-stardrive']
+const PARA_4_5 = ['tornillo-esponjosa-6-5', 'broca-3-2', 'broca-4-5', 'medidor-profundidad', 'destornillador-hexagonal']
+
+/**
+ * Qué instrumentos necesita cada placa para ponerse: los tornillos que admite, la broca de cada uno, el medidor y el
+ * destornillador. **«No encuentro los tornillos»** (pedido de Cristóbal) era esto: la bandeja del caso solo enseñaba lo
+ * que el editor había añadido o lo que piden los pasos, y un caso con una placa pero sin sus tornillos en la bandeja
+ * no los mostraba. Con una placa en la bandeja, la consola enseña sus compañeros aunque nadie los haya añadido, marcados
+ * «para esta placa». Se decide por `slug` de la placa, como el resto de las reglas del simulador.
+ */
+export const COMPANEROS_DE_LA_PLACA: Readonly<Record<string, readonly string[]>> = {
+  'placa-lcp-recta-3-5': [...PARA_3_5, ...PARA_LCP],
+  'placa-lcp-recta-4-5': [...PARA_4_5, ...PARA_LCP],
+  'placa-lcp-anatomica-tibia-proximal': [...PARA_3_5, ...PARA_LCP, 'tornillo-esponjosa-6-5', 'broca-3-2'],
+  'placa-lc-dcp-3-5': [...PARA_3_5, 'guia-broca-doble-dcp'],
+  'placa-dcp-4-5': [...PARA_4_5, 'guia-broca-doble-dcp'],
+  'placa-reconstruccion-3-5': PARA_3_5,
+  'placa-t-3-5': PARA_3_5,
+  'placa-l-3-5': PARA_3_5,
+  'placa-tercio-de-cana': PARA_3_5,
+  'placa-gancho-clavicular': PARA_3_5,
+}
+
+/** Los `slug` de lo que acompaña a estas placas, sin repetir y sin las propias placas. Una placa que no se conoce no suma nada. */
+export function companerosDeLasPlacas(slugsDePlacas: readonly (string | null | undefined)[]): string[] {
+  const salida = new Set<string>()
+  for (const placa of slugsDePlacas) for (const c of (placa && COMPANEROS_DE_LA_PLACA[placa]) || []) salida.add(c)
+  return [...salida]
+}
+
+/**
+ * El calibre de la broca que lleva cada tornillo: lo que se perfora **antes** de atornillar. El cortical y el
+ * bloqueado de 3,5 mm, con 2,5; el de esponjosa de 6,5 y el cortical de 4,5, con 3,2; el de bloqueo de clavo de 5,0, con 4,3.
+ * Otro calibre, el 70 % redondeado a décimas (la regla del calibre de núcleo).
+ */
+export function calibreDeBrocaParaElTornillo(diametroMm: number): number {
+  const conocidos: Record<string, number> = { '3.5': 2.5, '4.5': 3.2, '6.5': 3.2, '5': 4.3 }
+  const clave = String(Math.round(diametroMm * 10) / 10)
+  return conocidos[clave] ?? Math.round(diametroMm * 0.7 * 10) / 10
+}
+
+/** Qué se anotó en un agujero de la placa: lo que se perforó y lo que se midió. */
+export interface EstadoDelAgujero {
+  perforado: { diametroMm: number; profundidadMm: number; bicortical: boolean } | null
+  medido: { espesorMm: number; sugeridoMm: number } | null
+}
+
+export const AGUJERO_VIRGEN: EstadoDelAgujero = { perforado: null, medido: null }
+
+/**
+ * El orden real de la fijación (respuesta 5 del dueño): **se perfora, se mide y se atornilla**. El medidor entra
+ * en el orificio que hizo la broca, así que sin perforar no hay qué medir; y el tornillo se pide del largo que dijo el
+ * medidor. Devuelve lo que falta para el paso que se quiere dar, o `null` si se puede.
+ */
+export function loQueFaltaPara(paso: 'medir' | 'atornillar', e: EstadoDelAgujero | undefined): 'perforar' | 'medir' | null {
+  const estado = e ?? AGUJERO_VIRGEN
+  if (!estado.perforado) return 'perforar'
+  if (paso === 'atornillar' && !estado.medido) return 'medir'
+  return null
+}
+
+/** Lo que se le dice al residente cuando falta un paso. */
+export function textoDeLoQueFalta(falta: 'perforar' | 'medir', agujero: number, paso: 'medir' | 'atornillar'): string {
+  const n = agujero + 1
+  if (falta === 'perforar') {
+    return paso === 'medir'
+      ? `El agujero ${n} todavía no está perforado: el medidor entra en el orificio que hace la broca.`
+      : `El agujero ${n} todavía no está perforado: se perfora, se mide y después se atornilla.`
+  }
+  return `Falta medir el agujero ${n}: el tornillo se pide del largo que dice el medidor.`
+}
+
+/** Si la broca con que se perforó no es la del tornillo, qué se avisa; `null` si es la que corresponde. */
+export function avisoDeCalibre(perforadoMm: number, tornilloMm: number): string | null {
+  const esperado = calibreDeBrocaParaElTornillo(tornilloMm)
+  if (Math.abs(perforadoMm - esperado) < 0.05) return null
+  const f = (n: number) => String(n).replace('.', ',')
+  return perforadoMm < esperado
+    ? `Se perforó con ${f(perforadoMm)} mm y este tornillo de ${f(tornilloMm)} mm lleva ${f(esperado)} mm: el agujero quedó estrecho.`
+    : `Se perforó con ${f(perforadoMm)} mm y este tornillo de ${f(tornilloMm)} mm lleva ${f(esperado)} mm: el agujero quedó ancho y el tornillo no agarra.`
 }
 
 /** Qué coloca un instrumento, o `null` si no es una placa ni un tornillo de placa. */
@@ -150,8 +241,17 @@ export interface TornilloPuesto {
 
 /** Lo que hay fijado ahora mismo: la placa y sus tornillos. */
 export interface EstadoDeLaFijacion {
-  placa: { nombre: string; agujeros: number; apoyada: boolean; separadaDelHuesoMm: number } | null
+  placa: {
+    nombre: string
+    agujeros: number
+    apoyada: boolean
+    separadaDelHuesoMm: number
+    /** La placa ya se dio por buena (P-003 E6): solo entonces se perfora por sus agujeros. */
+    fijada?: boolean
+  } | null
   tornillos: TornilloPuesto[]
+  /** Lo que se perforó y se midió en cada agujero, por su índice (P-003 E6). */
+  agujeros?: { indice: number; perforado: EstadoDelAgujero['perforado']; medido: EstadoDelAgujero['medido'] }[]
 }
 
 /**

@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import { INSTRUMENTAL_BASE } from '@/lib/instrumental'
 import {
+  AGUJERO_VIRGEN,
+  COMPANEROS_DE_LA_PLACA,
   PUNTA_FUERA_MAXIMA_MM,
   agujeroMasCercano,
+  avisoDeCalibre,
+  calibreDeBrocaParaElTornillo,
+  companerosDeLasPlacas,
+  loQueFaltaPara,
+  quePuedeColocar,
+  textoDeLoQueFalta,
   juzgarTornillo,
   largoSugerido,
   resumenDeLaFijacion,
@@ -114,5 +123,89 @@ describe('resumenDeLaFijacion', () => {
       tornillos: [tornillo(0, true, 2), tornillo(1, true, 7), tornillo(2, false, -4)],
     }
     expect(resumenDeLaFijacion(estado)).toEqual({ placa: true, tornillos: 3, bicorticales: 2, largos: 1 })
+  })
+})
+
+describe('lo que acompaña a cada placa (P-003 E6)', () => {
+  const slugsDelCatalogo = new Set(INSTRUMENTAL_BASE.map((i) => i.slug))
+
+  it('toda placa del catálogo base declara sus compañeros, y cada compañero existe en el catálogo', () => {
+    const placas = INSTRUMENTAL_BASE.filter((i) => quePuedeColocar(i)?.tipo === 'placa').map((i) => i.slug)
+    expect(placas.length).toBeGreaterThan(5)
+    for (const placa of placas) {
+      expect(COMPANEROS_DE_LA_PLACA[placa!], `la placa ${placa} no declara compañeros`).toBeDefined()
+      for (const c of COMPANEROS_DE_LA_PLACA[placa!]) expect(slugsDelCatalogo.has(c), `${placa} nombra «${c}», que no existe`).toBe(true)
+    }
+  })
+
+  it('cada placa admite al menos un tornillo, una broca, el medidor y un destornillador', () => {
+    for (const [placa, lista] of Object.entries(COMPANEROS_DE_LA_PLACA)) {
+      expect(lista.some((c) => quePuedeColocar({ slug: c })?.tipo === 'tornillo'), `${placa}: sin tornillos`).toBe(true)
+      expect(lista.some((c) => c.startsWith('broca-')), `${placa}: sin broca`).toBe(true)
+      expect(lista).toContain('medidor-profundidad')
+      expect(lista.some((c) => c.startsWith('destornillador-')), `${placa}: sin destornillador`).toBe(true)
+    }
+  })
+
+  it('la LCP admite el tornillo bloqueado y la DCP no', () => {
+    expect(COMPANEROS_DE_LA_PLACA['placa-lcp-recta-3-5']).toContain('tornillo-bloqueado-lcp-3-5')
+    expect(COMPANEROS_DE_LA_PLACA['placa-dcp-4-5']).not.toContain('tornillo-bloqueado-lcp-3-5')
+  })
+
+  it('varias placas suman sin repetir, y una placa que no se conoce no suma nada', () => {
+    const dos = companerosDeLasPlacas(['placa-lcp-recta-3-5', 'placa-t-3-5'])
+    expect(new Set(dos).size).toBe(dos.length)
+    expect(companerosDeLasPlacas(['bisturi-piel-n22', null, undefined])).toEqual([])
+  })
+
+  it('el tornillo de bloqueo de clavo se reconoce como tornillo, pero solo con clavo', () => {
+    const c = quePuedeColocar({ slug: 'tornillo-bloqueo-clavo-5-0' })
+    expect(c).toMatchObject({ tipo: 'tornillo', diametroMm: 5, soloConClavo: true })
+  })
+})
+
+describe('la broca de cada tornillo (P-003 E6)', () => {
+  it('2,5 para el cortical y el bloqueado de 3,5; 3,2 para el de esponjosa; 4,3 para el de bloqueo de clavo', () => {
+    expect(calibreDeBrocaParaElTornillo(3.5)).toBe(2.5)
+    expect(calibreDeBrocaParaElTornillo(6.5)).toBe(3.2)
+    expect(calibreDeBrocaParaElTornillo(4.5)).toBe(3.2)
+    expect(calibreDeBrocaParaElTornillo(5)).toBe(4.3)
+  })
+
+  it('otro calibre sale del 70 % redondeado a décimas', () => {
+    expect(calibreDeBrocaParaElTornillo(2.7)).toBe(1.9)
+  })
+
+  it('avisa si el agujero quedó estrecho o ancho, y calla si es el que toca', () => {
+    expect(avisoDeCalibre(2.5, 3.5)).toBeNull()
+    expect(avisoDeCalibre(2.0, 3.5)).toMatch(/estrecho/)
+    expect(avisoDeCalibre(3.2, 3.5)).toMatch(/ancho/)
+    expect(avisoDeCalibre(3.2, 6.5)).toBeNull()
+  })
+})
+
+describe('el orden: se perfora, se mide y se atornilla (P-003 E6)', () => {
+  const perforado = { diametroMm: 2.5, profundidadMm: 30, bicortical: true }
+  const medido = { espesorMm: 28, sugeridoMm: 30 }
+
+  it('sin perforar no se puede medir ni atornillar', () => {
+    expect(loQueFaltaPara('medir', undefined)).toBe('perforar')
+    expect(loQueFaltaPara('atornillar', AGUJERO_VIRGEN)).toBe('perforar')
+    expect(loQueFaltaPara('atornillar', { perforado: null, medido })).toBe('perforar')
+  })
+
+  it('perforado se puede medir, pero para atornillar falta medir', () => {
+    expect(loQueFaltaPara('medir', { perforado, medido: null })).toBeNull()
+    expect(loQueFaltaPara('atornillar', { perforado, medido: null })).toBe('medir')
+  })
+
+  it('perforado y medido se puede atornillar', () => {
+    expect(loQueFaltaPara('atornillar', { perforado, medido })).toBeNull()
+  })
+
+  it('el aviso dice qué falta y en qué agujero, contando desde 1', () => {
+    expect(textoDeLoQueFalta('perforar', 0, 'atornillar')).toMatch(/agujero 1 .*perfor/)
+    expect(textoDeLoQueFalta('perforar', 2, 'medir')).toMatch(/agujero 3 .*medidor/)
+    expect(textoDeLoQueFalta('medir', 4, 'atornillar')).toMatch(/medir el agujero 5/)
   })
 })
