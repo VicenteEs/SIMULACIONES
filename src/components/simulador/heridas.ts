@@ -344,6 +344,47 @@ export function cerrarCapa(h: HeridaEnCapa) {
 }
 
 /**
+ * El sitio de la herida a una fracción `t` de su largo: el punto de la incisión (sobre la superficie, sin la
+ * apertura), la normal de la piel ahí y hacia dónde se aleja el labio de ese `lado` (con su signo). Lo piden
+ * lo que se reubica y lo que acompaña al bisturí, que ya no parten de un clic sino de una posición.
+ *
+ * Sale de la **curva de la incisión** y no de los vértices de los labios, por lo mismo que la cinta: los nodos
+ * del trazo están en la superficie y a pocos milímetros unos de otros; los vértices caen donde el trazo cruza
+ * una arista. Y se mide sin la apertura, porque `posarSeparador` ya suma lo que el labio se ha separado.
+ */
+export function sitioEnLaHerida(
+  h: HeridaEnCapa,
+  t: number,
+  lado: 1 | -1 | 0,
+): { punto: THREE.Vector3; normal: THREE.Vector3; direccion: THREE.Vector3; t: number } | null {
+  const curva = h.corte.curva
+  const nodos = curva.tramos.length + 1
+  if (nodos < 2 || curva.largoTotal <= 0) return null
+  const objetivo = Math.min(1, Math.max(0, t)) * curva.largoTotal
+  let mejor = 0
+  let cerca = Infinity
+  for (let k = 0; k < nodos; k++) {
+    const desde = k === nodos - 1 ? curva.largoTotal : curva.tramos[k].desde
+    const d = Math.abs(desde - objetivo)
+    if (d < cerca) {
+      cerca = d
+      mejor = k
+    }
+  }
+  const ultimo = mejor === nodos - 1
+  const tramo = curva.tramos[ultimo ? mejor - 1 : mejor]
+  const a = ultimo
+    ? [tramo.a[0] + tramo.d[0] * tramo.largo, tramo.a[1] + tramo.d[1] * tramo.largo, tramo.a[2] + tramo.d[2] * tramo.largo]
+    : tramo.a
+  const aMundo = h.malla.matrixWorld
+  const punto = new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(aMundo)
+  const normal = new THREE.Vector3(...curva.normales[mejor]).transformDirection(aMundo)
+  const direccion = new THREE.Vector3(...curva.laterales[mejor]).transformDirection(aMundo)
+  if (lado < 0) direccion.negate()
+  return { punto, normal, direccion, t: curva.largoTotal > 0 ? (ultimo ? 1 : tramo.desde / curva.largoTotal) : 0 }
+}
+
+/**
  * Dónde cae un punto del mundo respecto de la herida: de qué labio es y hacia
  * dónde se separa. Sirve para que un separador agarre el labio que se pincha.
  *

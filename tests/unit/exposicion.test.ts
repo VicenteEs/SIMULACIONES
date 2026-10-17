@@ -9,6 +9,11 @@ import {
   aperturaEnLaPosicion,
   aperturaMaxima,
   aperturaPorLasPinzas,
+  caben,
+  direccionDelMango,
+  ladosParaLaPareja,
+  MAXIMO_DE_SEPARADORES,
+  posicionQueAcompana,
   ladoAlColocar,
   limitarAgarre,
   limitarApertura,
@@ -262,5 +267,84 @@ describe('la pareja de pinzas de Adson', () => {
     expect(limitarSeparacionDePinzas(-3)).toBe(0)
     expect(limitarAgarre(1.7)).toBe(1)
     expect(limitarAgarre(-0.2)).toBe(0)
+  })
+})
+
+describe('el mango del separador sale hacia fuera de la herida (P-003 E3)', () => {
+  const normal = [0, 0, 1] as const
+  // La dirección del labio «más»: hacia +X. La herida corre a lo largo de Y.
+  const direccion = [1, 0, 0] as const
+
+  it('el mango nunca apunta al lado contrario de su labio', () => {
+    const mas = direccionDelMango(normal, direccion, 1)
+    const menos = direccionDelMango(normal, direccion, -1)
+    expect(mas[0]).toBeGreaterThan(0)
+    expect(menos[0]).toBeLessThan(0)
+    // Y los dos salen hacia arriba, no hacia dentro de la piel.
+    expect(mas[2]).toBeGreaterThan(0)
+    expect(menos[2]).toBeGreaterThan(0)
+  })
+
+  it('dos separadores de bordes opuestos no se cruzan: sus mangos se alejan entre sí', () => {
+    const mas = direccionDelMango(normal, direccion, 1)
+    const menos = direccionDelMango(normal, direccion, -1)
+    // Sobre la herida (x = 0) el de + está a la derecha y el de − a la izquierda; sus mangos siguen de su lado.
+    expect(mas[0] - menos[0]).toBeGreaterThan(0)
+  })
+
+  it('es unitario y forma 40° con la normal', () => {
+    const v = direccionDelMango(normal, direccion, 1)
+    expect(Math.hypot(...v)).toBeCloseTo(1, 10)
+    expect((Math.acos(v[2]) * 180) / Math.PI).toBeCloseTo(40, 6)
+  })
+
+  it('el autoestático va vertical, en el centro', () => {
+    expect(direccionDelMango(normal, direccion, 0)).toEqual([0, 0, 1])
+  })
+
+  it('no depende de hacia dónde mire la cámara: solo de la normal y del lado', () => {
+    const a = direccionDelMango([0, 1, 0], [0, 0, 1], 1)
+    expect(a[2]).toBeGreaterThan(0)
+    expect(a[1]).toBeGreaterThan(0)
+  })
+
+  it('una normal nula no produce NaN', () => {
+    expect(direccionDelMango([0, 0, 0], [0, 0, 0], 1).every(Number.isFinite)).toBe(true)
+  })
+})
+
+describe('lo que acompaña al bisturí (P-003 E3)', () => {
+  it('va por detrás de la punta y nunca se sale de la herida', () => {
+    expect(posicionQueAcompana(0.5, 100, 15)).toBeCloseTo(0.35, 10)
+    expect(posicionQueAcompana(0.05, 100, 15)).toBe(0)
+    expect(posicionQueAcompana(1.5, 100, 15)).toBeCloseTo(0.85, 10)
+    expect(posicionQueAcompana(-1, 100, 15)).toBe(0)
+  })
+
+  it('con una herida sin largo se queda en la punta', () => {
+    expect(posicionQueAcompana(0.7, 0, 15)).toBe(0.7)
+  })
+
+  it('un retraso negativo no adelanta a la punta', () => {
+    expect(posicionQueAcompana(0.4, 100, -20)).toBe(0.4)
+  })
+})
+
+describe('la pareja de separadores (P-003 E3)', () => {
+  it('pone uno por borde, y si ya hay uno, completa con el otro', () => {
+    expect(ladosParaLaPareja([])).toEqual([1, -1])
+    expect(ladosParaLaPareja([1])).toEqual([-1])
+    expect(ladosParaLaPareja([-1])).toEqual([1])
+    expect(ladosParaLaPareja([1, -1])).toEqual([])
+  })
+
+  it('un autoestático ya puesto no cuenta como lado: no se completa con él', () => {
+    expect(ladosParaLaPareja([0])).toEqual([1, -1])
+  })
+
+  it('la pareja cuenta dos para el tope', () => {
+    expect(caben(MAXIMO_DE_SEPARADORES - 2, 2)).toBe(true)
+    expect(caben(MAXIMO_DE_SEPARADORES - 1, 2)).toBe(false)
+    expect(caben(MAXIMO_DE_SEPARADORES, 1)).toBe(false)
   })
 })

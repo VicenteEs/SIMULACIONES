@@ -100,6 +100,66 @@ export function tipoDelSeparador(separa: { autoestatico: boolean; apoyoEnHueso?:
 /** Cuántos separadores caben a la vez: más no entran en una herida de abordaje. */
 export const MAXIMO_DE_SEPARADORES = 6
 
+// ------------------------------------------------- hacia dónde se inclina el mango
+
+export type Vector3Plano = readonly [number, number, number]
+
+/**
+ * Cuánto se abre el mango de un separador respecto de la normal, en grados. Con 40° el mango sale claramente
+ * hacia fuera de la herida sin tumbarse sobre la piel: a 0° taparía el centro del campo, a 90° iría pegado a ella.
+ */
+export const ANGULO_DEL_MANGO_GRADOS = 40
+
+/**
+ * Hacia dónde apunta el mango de un separador: de la herida hacia fuera, del lado del labio que sostiene
+ * (`normal·cos θ + dirección·sen θ`). Antes se inclinaba hacia «arriba de la cámara», sin mirar el lado: todos
+ * los separadores se acostaban hacia el mismo sitio de la pantalla y se cruzaban sobre la herida (la captura
+ * de Cristóbal con cuatro Farabeuf cruzados). Con el signo del lado, ningún mango puede cruzar la línea de la
+ * herida. El autoestático (lado 0) abraza los dos labios y va derecho, sobre el centro.
+ *
+ * `direccion` es la del labio «más» (la que da `ladoDeLaHerida`), sin signo: el signo lo pone `lado`.
+ */
+export function direccionDelMango(normal: Vector3Plano, direccion: Vector3Plano, lado: 1 | -1 | 0): Vector3Plano {
+  const radianes = (ANGULO_DEL_MANGO_GRADOS * Math.PI) / 180
+  const hacia = lado === 0 ? 0 : Math.sin(radianes) * lado
+  const arriba = lado === 0 ? 1 : Math.cos(radianes)
+  const v: [number, number, number] = [
+    normal[0] * arriba + direccion[0] * hacia,
+    normal[1] * arriba + direccion[1] * hacia,
+    normal[2] * arriba + direccion[2] * hacia,
+  ]
+  const largo = Math.hypot(v[0], v[1], v[2])
+  // Una normal nula no debería llegar: se devuelve la normal tal cual antes que dividir por cero.
+  return largo < 1e-12 ? normal : [v[0] / largo, v[1] / largo, v[2] / largo]
+}
+
+/**
+ * Dónde queda, a lo largo de la herida, lo que acompaña al bisturí: unos milímetros por detrás de la punta, sin
+ * salirse de la herida. Con una herida de largo cero se queda en la punta, que es lo único que se sabe.
+ */
+export function posicionQueAcompana(tPunta: number, largoMm: number, retrasoMm: number): number {
+  const t = Math.min(1, Math.max(0, tPunta))
+  if (!(largoMm > 0)) return t
+  return Math.min(1, Math.max(0, t - Math.max(0, retrasoMm) / largoMm))
+}
+
+/** Cuánto va por detrás de la punta lo que acompaña al bisturí, en milímetros. */
+export const RETRASO_AL_ACOMPANAR_MM = 15
+
+/**
+ * Los lados de una pareja de separadores de mano: uno por labio, a la misma altura. Si ya hay uno puesto en
+ * ese sitio, la pareja se completa solo con el lado que falta, igual que hace la pareja de pinzas.
+ */
+export function ladosParaLaPareja(ocupados: readonly (1 | -1 | 0)[]): (1 | -1)[] {
+  const faltan: (1 | -1)[] = []
+  if (!ocupados.includes(1)) faltan.push(1)
+  if (!ocupados.includes(-1)) faltan.push(-1)
+  return faltan
+}
+
+/** ¿Caben `cuantos` separadores más sin pasar del tope? La pareja cuenta dos. */
+export const caben = (puestos: number, cuantos: number): boolean => puestos + cuantos <= MAXIMO_DE_SEPARADORES
+
 /**
  * Cuánto abre cada labio en un punto de la herida, en milímetros.
  *

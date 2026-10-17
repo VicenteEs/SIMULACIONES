@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
-import { abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida } from '@/components/simulador/heridas'
+import { abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, sitioEnLaHerida } from '@/components/simulador/heridas'
 
 /**
  * El pegamento entre el corte de mallas y la escena (D-167): `heridas.ts` pasa la
@@ -292,5 +292,63 @@ describe('la cinta se tiende por el trazo, no por los vértices de los labios', 
     const nodos = cinta.count / 2
     expect(herida.cinta.visible).toBe(true)
     expect(ancho(Math.floor(nodos * 0.4))).toBeGreaterThan(ancho(Math.floor(nodos * 0.9)) + 0.5)
+  })
+})
+
+describe('sitioEnLaHerida: el sitio a una fracción del largo (P-003 E3.2)', () => {
+  it('recorre la incisión de un extremo al otro, sobre la piel y con su normal', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, PARAMETROS)!
+    const inicio = sitioEnLaHerida(herida, 0, 1)!
+    const medio = sitioEnLaHerida(herida, 0.5, 1)!
+    const fin = sitioEnLaHerida(herida, 1, 1)!
+    expect(inicio.punto.x).toBeCloseTo(-5, 1)
+    expect(medio.punto.x).toBeCloseTo(0, 0)
+    expect(fin.punto.x).toBeCloseTo(5, 1)
+    for (const s of [inicio, medio, fin]) {
+      expect(s.punto.z).toBeCloseTo(0, 5)
+      expect(s.normal.z).toBeGreaterThan(0.99)
+    }
+  })
+
+  it('el lado contrario mira al contrario, y los dos son perpendiculares a la incisión', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, PARAMETROS)!
+    const mas = sitioEnLaHerida(herida, 0.5, 1)!
+    const menos = sitioEnLaHerida(herida, 0.5, -1)!
+    expect(mas.direccion.dot(menos.direccion)).toBeCloseTo(-1, 5)
+    expect(Math.abs(mas.direccion.x)).toBeLessThan(1e-6)
+    expect(Math.abs(mas.direccion.y)).toBeGreaterThan(0.99)
+  })
+
+  it('no suma la apertura: el separador ya la suma al posarse', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, PARAMETROS)!
+    const cerrada = sitioEnLaHerida(herida, 0.5, 1)!
+    abrirCapa(herida, 2, 2)
+    const abierta = sitioEnLaHerida(herida, 0.5, 1)!
+    expect(abierta.punto.distanceTo(cerrada.punto)).toBeLessThan(1e-6)
+  })
+
+  it('una fracción fuera de rango se acota a los extremos', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, PARAMETROS)!
+    expect(sitioEnLaHerida(herida, -3, 1)!.punto.x).toBeCloseTo(-5, 1)
+    expect(sitioEnLaHerida(herida, 9, 1)!.punto.x).toBeCloseTo(5, 1)
+  })
+
+  it('concuerda con lo que dice ladoDeLaHerida del mismo punto', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, PARAMETROS)!
+    const sitio = sitioEnLaHerida(herida, 0.5, 1)!
+    const info = ladoDeLaHerida(herida, sitio.punto.clone().addScaledVector(sitio.direccion, 0.3))!
+    expect(info.lado).toBe(1)
+    expect(info.direccion.dot(sitio.direccion)).toBeGreaterThan(0.99)
+    expect(info.t).toBeCloseTo(sitio.t, 1)
   })
 })
