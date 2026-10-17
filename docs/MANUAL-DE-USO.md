@@ -68,6 +68,8 @@ hacen perder.
 | Crear, guardar, publicar, retirar y eliminar fichas | — | sí | sí |
 | Taller anatómico | — | sí | sí |
 | Ver y resolver comentarios | — | sí | sí |
+| Estructuras anatómicas: llenar fichas y subir planillas (sección 7b) | — | sí | sí |
+| Cargar las piezas del atlas en el listado de estructuras | — | — | sí |
 | Eliminar comentarios | — | — | sí |
 | Estadísticas y actividad de lectura | — | — | sí |
 | Cuentas, solicitudes y permisos | — | — | sí |
@@ -105,6 +107,7 @@ Barra lateral, grupo **«Trabajo»** (editores y administradores):
 | «Contenido» | Donde se escribe. Arriba los cinco **«Módulos»**, abajo el **«Material de apoyo»**. |
 | «Taller anatómico» | Armar preparaciones del atlas 3D para ponerlas en las fichas. |
 | «Comentarios» | Lo que los lectores escriben en las fichas: errores, sugerencias, correcciones. |
+| «Estructuras» | La ficha de cada pieza del atlas (nombre latino, origen, inserción, inervación…), con su contador y la planilla de Excel por región. Sección 7b. |
 
 Grupos **«Seguimiento»** y **«Administración»** (solo administradores):
 «Estadísticas», «Actividad», «Auditoría», «Usuarios y permisos», «Difusión»,
@@ -294,11 +297,14 @@ lista de antes. Para traer algo que no está, mire **«Todo el atlas»**.
 
 ### Las tres pestañas del panel derecho
 
-El panel de la derecha del taller está partido en tres pestañas. Se cambia con el
+El panel de la derecha del taller está partido en pestañas. Se cambia con el
 ratón o con las flechas del teclado.
 
 - **Pieza:** posición y giro, color y transparencia, rótulos y medidas. Es lo que
   se hace con lo seleccionado.
+- **Info:** la ficha de la pieza seleccionada —nombre latino, definición, origen,
+  inserción, inervación, acción, irrigación—, la misma del listado «Estructuras»
+  (sección 7b). Un trozo de hueso partido abre la del hueso entero.
 - **Preparación:** el nombre, para qué sirve, las vistas con nombre, los modelos 3D
   y las preparaciones guardadas. Es la pestaña con la que se abre el taller.
 - **Comentarios:** lo que el equipo ha dicho de esta preparación (ver abajo). Si
@@ -863,6 +869,123 @@ el número de pendientes en la barra lateral.
 
 ---
 
+## 7b. Estructuras anatómicas: el listado global
+
+Cada pieza del atlas —2.231— tiene **una ficha** con lo que un residente querría
+saber de ella: nombre latino, definición, origen, inserción, inervación, acción e
+irrigación. Se llena **una sola vez** y sirve en todos los sitios: el taller
+anatómico, el simulador y el modelo que se exporta. La pantalla está en la barra
+lateral, **«Estructuras»**, debajo de «Comentarios». La ven y la llenan editores y
+administradores.
+
+### El contador y el filtro
+
+Arriba, el **avance**: cuántas fichas están completas, cuántas pendientes (a medias
+o sin empezar), cuántas ocultas, con su porcentaje. «Por región» desglosa lo mismo
+por parte del cuerpo; pulsar una región filtra la lista.
+
+Dos pestañas:
+
+- **Pendientes:** lo que todavía falta. Es donde se trabaja.
+- **Listado:** todas las piezas con su estado, también las completas.
+
+El **filtro** busca por nombre —en español o en inglés, sin tildes y por palabras en
+cualquier orden: «peroneo derecho» encuentra «Peroneo corto derecho»—, y por región,
+sistema y estado. En «Listado» el estado también permite ver las **ocultas** y las
+**sin pieza en el atlas**.
+
+**Qué cuenta para «completa».** No es lo mismo para todo: un hueso no tiene
+inserción ni una arteria inervación.
+
+| Pieza | Se pide |
+|---|---|
+| Músculo | Definición, origen, inserción, inervación, acción, irrigación |
+| Hueso | Definición, irrigación |
+| Arteria | Definición, origen, irrigación (qué irriga) |
+| Vena | Definición, irrigación (qué drena) |
+| Nervio | Definición, origen, inervación (qué inerva), acción |
+| Tejido conectivo y ligamentos | Definición, origen, inserción |
+| Los demás sistemas | Definición |
+
+El nombre latino y las notas **no cuentan**: se agradecen, no se exigen.
+
+### Escribir una ficha a mano
+
+Se pincha una pieza y se abre su ventana. Los campos van en el orden de las
+capturas de la aplicación de anatomía que citó Cristóbal. Los que cuentan y están
+vacíos dicen **«Falta»**; los demás dicen «no se exige», pero se pueden llenar.
+
+- **«No mostrar»:** la pieza no abre ficha cuando alguien la pincha (por ejemplo,
+  un órgano) y sale del contador de pendientes. Se puede devolver desde el filtro
+  «Ocultas».
+- **«Historial»:** cada guardado deja la ficha como estaba, hasta veinte versiones.
+  «Restaurar» devuelve una; lo que había antes queda también como versión, así que
+  se puede volver atrás.
+- **Si otra persona escribió el mismo campo mientras usted escribía,** no se guarda
+  nada y la ventana enseña las dos versiones: «Quedarme con lo que hay ahora» o
+  «Guardar el mío de todos modos» (lo de la otra persona queda en el historial).
+- Cerrar sin guardar pregunta antes.
+
+### La primera vez (administrador)
+
+Si el aviso amarillo dice «Faltan 2.231 piezas del atlas en el listado», el
+administrador pulsa **«Cargar las piezas del atlas»**. Crea la ficha vacía de cada
+una y **no toca nada de lo ya escrito**: se puede pulsar otra vez sin riesgo. Se usa
+también después de regenerar el atlas. Una ficha cuya pieza el atlas ya no trae
+**no se borra**: queda como «sin pieza en el atlas», con todo lo escrito.
+
+### La planilla de Excel por región
+
+Para llenar muchas piezas de una vez. En la pestaña «Pendientes», «Planilla de Excel
+por región»:
+
+1. **Descargar** la región: «Vacía» o «Con lo escrito». Por omisión baja solo las
+   piezas pendientes; desmarque la casilla para bajarlas todas. La hoja «Cómo
+   llenarla» va dentro del archivo.
+2. **Llenarla** —a mano o dándosela a una IA con esa hoja de instrucciones—.
+   No cambie la columna «Id del atlas». Si no sabe un dato, déjelo vacío.
+3. **Subir** («Subir planilla»). La ventana lee el archivo y **enseña lo que haría
+   antes de escribir nada**: cuántas fichas se llenan por primera vez, cuántas se
+   completan, cuántas traen un texto distinto del escrito, cuántas quedan igual; y,
+   campo por campo, qué había y qué trae la planilla. Recién entonces se habilita
+   **«Aplicar»**.
+
+Lo que la subida **nunca** hace:
+
+- **Una celda vacía no borra** lo escrito. Para corregir o borrar, use la ventana de
+  la ficha.
+- **No reemplaza lo ya escrito** salvo que marque «Reemplazar también lo ya
+  escrito»; y entonces se ve el antes y el después de cada campo, y lo de antes queda
+  en el historial.
+- **No escribe lo que no se vio.** «Aplicar» vuelve a calcular con las fichas de ese
+  momento; si alguien las tocó mientras tanto, no escribe y pide ver de nuevo.
+- **No deja nada a medias:** si algo falla, no se escribe ninguna ficha.
+- **Lo dudoso se salta y se dice:** un id que no existe, un id repetido, una fila
+  cuyo «Nombre original» no es el del id (un id estropeado al copiar), un texto
+  demasiado largo. Salen en el resumen, con su fila.
+
+**«Aplicar también al lado opuesto».** Lo de cada pieza «derecha» se copia a su
+pareja «izquierda», y al revés: una planilla sirve para los dos lados. Solo llena
+huecos —nunca pisa lo que la otra ficha ya tenga, ni lo que la propia planilla diga
+de ella—. Las piezas que no tienen una pareja deducible con seguridad (el atlas las
+nombra sin lado, como «Set of perforating arteries», o son de la línea media) se
+listan en el resumen: se llenan subiendo la planilla del otro lado.
+
+Cada subida queda en el **registro de acciones** (quién, qué planilla, cuántas
+fichas, con qué opciones), sin copiar el contenido. Antes de una subida grande, el
+administrador puede pulsar **«Respaldar ahora»** en la misma ventana.
+
+### «Info» en el taller anatómico
+
+En el taller, la pestaña **«Info»** del panel derecho enseña la ficha de la pieza
+seleccionada, la misma que esta pantalla: lo que se escribe en un sitio se ve en el
+otro. Un **trozo de hueso partido** abre la ficha del hueso entero («Tibia derecha_1»
+y «Tibia derecha_2» son la tibia derecha). Lo escrito y sin guardar **no se pierde al
+pinchar otra pieza**: la pestaña dice «Info (1 sin guardar)» y, al volver a esa pieza,
+el texto está.
+
+---
+
 ## 8. Ver la plataforma como la ve un residente
 
 En la barra del **sitio público** —no dentro del panel— está «Ver como
@@ -1099,6 +1222,9 @@ Un residente ve la descripción del módulo y no el buzón.
 | «Según lo registrado, la revisión de esta ficha parece rápida» | El aviso dice por qué. Si la revisó de verdad, puede marcarla igual; quedará señalada. |
 | «Respaldar ahora» falla, o «Sistema» marca la herramienta de respaldo | El aviso dice qué permiso falta en la carpeta de respaldos. Avise al desarrollador. |
 | El archivo se rechaza al subir | Formato o peso: 50 MB imagen y video, 5 MB modelos, video solo MP4 o WEBM. |
+| La planilla de estructuras «no es una planilla de Excel» | Tiene que ser un `.xlsx`. Si es un `.xls` o un `.csv`, ábralo en Excel y guárdelo como «Libro de Excel (.xlsx)». |
+| «Lo que se iba a escribir cambió desde la vista previa» | Alguien tocó esas fichas mientras usted miraba. No se escribió nada: pulse «Ver de nuevo». |
+| Una fila de la planilla «no se aplicó» | El resumen dice por qué: id que no existe, id repetido, nombre original que no es el del id, o texto demasiado largo. |
 | El video se corta al subir | Pruebe uno más liviano; si ese sube, comprima el grande. |
 | No aparece un módulo en «Contenido» | Sus permisos no lo incluyen. Lo cambia un administrador. |
 | Un residente dice que no ve un módulo | Puede estar en mantención (sección 14) o no estar entre los que su cuenta tiene asignados (sección 9). «Contenido» y «Usuarios y permisos» lo dicen. |

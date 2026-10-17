@@ -61,6 +61,7 @@ levanta la base y arranca el servidor con doble clic.
 | `npm run generate:types` | Regenera `src/payload-types.ts` desde las colecciones |
 | `npm run build` | Compilación de producción |
 | `npx tsx scripts/importar-ingesta.ts` | Importa las fichas de `data_traumahub/listos` como borradores en revisión. Sin `--ejecutar` solo comprueba (D-144) |
+| `npx tsx scripts/sembrar-estructuras.ts` | Crea la ficha vacía de cada pieza del atlas en el listado de estructuras. Sin `--aplicar` solo simula; no pisa nada escrito (D-179) |
 
 Las pruebas de integración hablan con PostgreSQL, y la base tiene que existir
 **y tener el esquema**. `npm run db:up` solo levanta el contenedor: las
@@ -181,9 +182,33 @@ aquí.
 | `src/app/(frontend)/admin-panel/revision/` | «Por revisar», la cola de quien revisa |
 | `src/app/(frontend)/admin-panel/auditoria/` | «Auditoría», solo administrador: gráficos, tablas y la planilla |
 | `src/lib/planilla.ts` | La planilla de Excel, escrita a mano (D-143) |
+| `src/lib/leerPlanilla.ts` | Su lector: lee un `.xlsx` subido, con la suma de control del ZIP comprobada (D-179) |
 
 La ingesta de contenido entra por `registrarParaRevision`, con el libro, el
 capítulo, las páginas y el lote de cada ficha.
+
+## El listado de estructuras anatómicas
+
+Cada pieza del atlas —2.231— tiene una ficha con nombre latino, definición, origen,
+inserción, inervación, acción e irrigación, que se escribe **una vez** y sirve en el
+taller, en el simulador y en el modelo exportado (D-179). La clave es el identificador
+del atlas (`FJ…`), único en la base, y no una cirugía ni un caso.
+
+| Archivo | Qué hace |
+|---|---|
+| `src/collections/EstructurasAnatomicas.ts` | La colección: acceso, versiones (veinte por ficha) y qué campos no se reescriben por la API |
+| `src/lib/estructuras.ts` | Lo puro: campos, qué cuenta para «completa» según el sistema, estados y contador |
+| `src/lib/estructurasServidor.ts` | Sincronizar con el atlas (sin pisar nada), leer, guardar sin pisar a otra persona, versiones |
+| `src/lib/planillaDeEstructuras.ts` | La planilla por región y el plan de lo que cambiaría una que se sube (puro) |
+| `src/lib/subirPlanillaDeEstructuras.ts` | Vista previa y aplicar: recalcula con una huella y escribe todo o nada |
+| `src/app/(frontend)/admin-panel/estructuras/` | La pantalla «Estructuras» del panel |
+| `src/app/(frontend)/api/estructuras/planilla/route.ts` | Descargar y subir la planilla de Excel |
+| `src/components/admin/estructuras/FichaEditable.tsx` | La ficha editable: ventana del panel y pestaña «Info» del taller |
+
+Subir una planilla nunca sobrescribe en silencio: se ve antes qué se llenaría y qué
+cambiaría, una celda vacía no borra y lo ya escrito solo se reemplaza si se marca. Tras
+desplegar, el administrador abre «Estructuras» y pulsa «Cargar las piezas del atlas». El
+manual está en `docs/MANUAL-DE-USO.md`, sección 7b.
 
 ## La consola quirúrgica
 

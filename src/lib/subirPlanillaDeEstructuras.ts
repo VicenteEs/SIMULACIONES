@@ -111,9 +111,18 @@ export async function aplicarPlanilla(
   bytes: Uint8Array,
   opciones: OpcionesDelPlan,
   huella: string,
-  quien: { usuario: unknown; nombreDelArchivo?: string },
+  quien: {
+    usuario: unknown
+    nombreDelArchivo?: string
+    /**
+     * Una petición que ya trae su transacción: las pruebas de integración la usan para
+     * deshacerlo todo después. Sin ella, esta función abre —y cierra— la suya.
+     */
+    req?: PayloadRequest
+  },
 ): Promise<ResultadoDeAplicar> {
-  const req = await createLocalReq({ user: quien.usuario as never }, payload)
+  const req = quien.req ?? (await createLocalReq({ user: quien.usuario as never }, payload))
+  // `false` si la petición ya venía dentro de una transacción: entonces no es de esta función cerrarla.
   const abierta = await initTransaction(req)
   try {
     const contexto = await contextoDelPlan(payload, catalogo, req)
