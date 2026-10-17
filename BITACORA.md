@@ -9438,12 +9438,13 @@ al lado; el editor la corrige ahí mismo y el cambio aparece en el listado globa
 
 **Tareas**
 
-- [ ] **E10.1 · `src/lib/retraccion.ts`** con sus pruebas.
-- [ ] **E10.2 · «Cortar» y «Separar» en la ficha** del músculo, con los instrumentos del abordaje y su valor por
+- [x] **E10.1 · `src/lib/retraccion.ts`** (commit `0dad095`) con sus pruebas.
+- [x] **E10.2 · «Cortar» y «Separar» en la ficha** (commit `0dad095`) del músculo, con los instrumentos del abordaje y su valor por
   omisión.
-- [ ] **E10.3 · Músculo objetivo** en el lienzo: corte reducido y retracción.
+- [x] **E10.3 · Músculo objetivo** (commit `0dad095`) en el lienzo: corte reducido y retracción.
 - [ ] **E10.4 · Guardarlo en la sesión** (D-171) y en las incisiones de E4.
-- [ ] **E10.5 · Pruebas, manual y D-nnn.** Un abordaje con dos planos: separar un músculo, cortar el de debajo desde
+  *(Pendiente: ni la retracción ni el músculo objetivo se guardan en la sesión. Ver D-186.)*
+- [x] **E10.5 · Pruebas, manual y D-nnn.** (commit `0dad095`) Un abordaje con dos planos: separar un músculo, cortar el de debajo desde
   su inserción y ver el hueso.
 
 **Hecho cuando…** En la pierna reexportada, el residente separa el tibial anterior con un Farabeuf, corta el plano de
