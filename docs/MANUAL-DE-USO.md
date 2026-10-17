@@ -841,6 +841,17 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   perpendicular a la placa con el largo del deslizador, y la consola dice si es bicortical y
   si la punta asoma de más (hasta 4 mm se tolera). Los clavos y el injerto, por ahora, solo
   se ven en la escena.
+- **La placa se ajusta y se fija; el orden es perforar, medir y atornillar.** Con la placa ya
+  puesta aparece un panel con tres deslizadores (**largo**, **lado** y **ángulo**) y la
+  consola dice cuánto queda separada del hueso; la placa nunca entra en él. **«Fijar la
+  placa»** cierra el ajuste («Soltar» lo reabre). Con ella fijada, la **broca** se centra en el
+  agujero y al perforar lo anota (diámetro, largo y si cruzó las dos corticales; si el
+  diámetro no es el del tornillo, avisa). El **medidor** entra en el orificio y deja anotada su
+  lectura. El **tornillo** solo entra en un agujero perforado y medido: si no, la consola dice
+  qué falta. El de bloqueo de clavo solo sirve con clavo. Los tornillos, las brocas, el
+  medidor y el destornillador de la placa aparecen solos en la bandeja con la etiqueta «para
+  esta placa», y «Añadir a la bandeja» enseña el catálogo por categorías. El ajuste de la
+  placa no se guarda al recargar.
 - **La rueda del ratón maneja el instrumento.** Con unas tijeras, una pinza o un portaagujas
   en la mano, la rueda sobre el modelo los **abre y cierra**; con un separador abre el
   separador y la herida a la vez; con un tornillo cambia su largo; con una sutura que ya tiene

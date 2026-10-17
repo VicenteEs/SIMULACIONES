@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import {
   agujeroBajoElPunto,
+  ajustarPlaca,
   colocarPlaca,
   colocarTornillo,
   crearImplantes,
@@ -226,5 +227,72 @@ describe('medir y atornillar', () => {
     expect(c.implantes.placa).toBeUndefined()
     // Solo queda el hueso en la escena.
     expect(c.escena.children).toHaveLength(1)
+  })
+})
+
+describe('ajustar la placa ya puesta (P-003 E6)', () => {
+  it('subirla y bajarla a lo largo del hueso la mueve por el eje y la deja apoyada', () => {
+    const c = colocar()
+    const antes = posicionDelAgujero(c.placa, 1, 'abajo')
+    expect(ajustarPlaca(c.placa, [c.hueso], { largoMm: 10, ladoMm: 0, giroGrados: 0 })).toBe(true)
+    const despues = posicionDelAgujero(c.placa, 1, 'abajo')
+    expect(despues.y - antes.y).toBeCloseTo(10, 1)
+    // Sigue sobre el cilindro: la cara de abajo a ras del hueso, sin entrar.
+    expect(despues.z).toBeGreaterThanOrEqual(6 - 1e-6)
+    expect(c.placa.separadaDelHuesoMm).toBeLessThan(1)
+    expect(c.placa.ajuste.largoMm).toBe(10)
+  })
+
+  it('rodear el hueso de lado a lado la lleva por la superficie: se inclina y sigue tocando', () => {
+    const c = colocar()
+    expect(ajustarPlaca(c.placa, [c.hueso], { largoMm: 0, ladoMm: 5, giroGrados: 0 })).toBe(true)
+    // La normal de la placa gira con la superficie del cilindro: ya no es +Z.
+    expect(Math.abs(c.placa.normal.x)).toBeGreaterThan(0.1)
+    const centro = posicionDelAgujero(c.placa, 1, 'abajo')
+    // Está sobre el cilindro de radio 6 (el eje es Y): x² + z² ≈ 36 con una holgura de décimas.
+    expect(Math.hypot(centro.x, centro.z)).toBeGreaterThanOrEqual(6 - 1e-3)
+    expect(Math.hypot(centro.x, centro.z)).toBeLessThan(6.8)
+  })
+
+  it('angularla gira el largo de la placa alrededor de la normal', () => {
+    const c = colocar()
+    expect(ajustarPlaca(c.placa, [c.hueso], { largoMm: 0, ladoMm: 0, giroGrados: 20 })).toBe(true)
+    const a = posicionDelAgujero(c.placa, 0, 'abajo')
+    const b = posicionDelAgujero(c.placa, 2, 'abajo')
+    // Los agujeros eran una línea paralela al hueso (Y); con 20° la línea se aparta de Y.
+    const largo = b.clone().sub(a)
+    const angulo = (Math.atan2(Math.hypot(largo.x, largo.z), Math.abs(largo.y)) * 180) / Math.PI
+    expect(angulo).toBeGreaterThan(10)
+    expect(c.placa.ajuste.giroGrados).toBe(20)
+  })
+
+  it('nunca queda dentro del hueso, ni con el ajuste más raro', () => {
+    const c = colocar()
+    for (const largoMm of [-30, 0, 30]) {
+      for (const ladoMm of [-8, 0, 8]) {
+        for (const giroGrados of [-30, 0, 45]) {
+          if (!ajustarPlaca(c.placa, [c.hueso], { largoMm, ladoMm, giroGrados })) continue
+          for (let i = 0; i < AGUJEROS.length; i++) {
+            const abajo = posicionDelAgujero(c.placa, i, 'abajo')
+            // Ningún agujero de la cara de abajo cae a menos de 6 del eje (dentro del cilindro) salvo el redondeo.
+            expect(Math.hypot(abajo.x, abajo.z)).toBeGreaterThanOrEqual(6 - 0.3)
+          }
+        }
+      }
+    }
+  })
+
+  it('sin hueso bajo el punto pedido no mueve nada y lo dice', () => {
+    const c = colocar()
+    const antes = c.placa.grupo.position.clone()
+    expect(ajustarPlaca(c.placa, [c.hueso], { largoMm: 500, ladoMm: 0, giroGrados: 0 })).toBe(false)
+    expect(c.placa.grupo.position.distanceTo(antes)).toBe(0)
+    expect(c.placa.ajuste.largoMm).toBe(0)
+  })
+
+  it('la placa recién puesta nace sin fijar y sin nada anotado en sus agujeros', () => {
+    const c = colocar()
+    expect(c.placa.fijada).toBe(false)
+    expect(c.placa.agujeros.size).toBe(0)
   })
 })

@@ -6182,6 +6182,24 @@ Quinta etapa del plan P-003 (E5). Pedido de Cristóbal: «tomar el fragmento con
 
 *Consecuencias buenas.* La pinza hace lo que dice su nombre y reutiliza todo lo de D-171 y D-174. *Malas.* **Las pinzas de reducción no se guardan en la sesión** (recargar la página las suelta; el trozo conserva su sitio solo si el caso lo guarda, que hoy no). **La pinza no tiene articulación de agarre propia**: queda con la pose del modelo; cerrar y abrir las mandíbulas al tomar y soltar queda para cuando haya una animación de agarre. El modelo de la pinza es el de ved, y su tamaño en un modelo exportado en milímetros sigue la misma cuenta que los demás instrumentos.
 
+### D-183 · 2026-10-18 · vigente
+**La placa se ajusta y se fija, se perfora por sus agujeros, el medidor entra en el orificio y el tornillo exige el orden; los compañeros de la placa salen solos en la bandeja.**
+Sexta etapa del plan P-003 (E6). Pedidos 11, 13 y 14 y respuesta 5 de Cristóbal.
+
+*Qué había.* Un clic con la placa en la mano la apoyaba y **otro clic la reemplazaba**; el tornillo entraba sin haber perforado ni medido; el medidor solo leía y no entraba en el agujero; y los tornillos «no se encontraban» porque la consola enseñaba solo la bandeja declarada por el caso.
+
+*Qué se hizo.*
+- **`fijacion.ts`:** `COMPANEROS_DE_LA_PLACA` (tornillos, broca, medidor y destornillador de cada placa), `calibreDeBrocaParaElTornillo` (2,5 para cortical y bloqueado de 3,5; 3,2 para esponjosa), el estado por agujero (`perforado`, `medido`) y la regla del orden **perforar → medir → atornillar**, con `loQueFaltaPara` / `textoDeLoQueFalta` para que la consola diga qué falta en vez de callar. El tornillo de bloqueo de clavo queda marcado **«solo con clavo»** (`soloConClavo`) hasta que haya clavos: en la mano no coloca nada y la consola lo avisa.
+- **Placa ajustable** (`ajustarPlaca`, `implantesEnLaEscena.ts`): tras cada cambio se **vuelve a asentar** con tres rayos (centro y extremos): la cara de abajo queda sobre el punto más alto y nunca dentro del hueso. Se corre a lo largo, de lado a lado y se angula. **«Fijar la placa»** cierra el ajuste; solo fijada se perfora por sus agujeros; «Soltar» la vuelve a abrir.
+- **Broca por el eje del agujero**, anotando en él diámetro, largo y si cruzó las dos corticales; el calibre equivocado se avisa. **Medidor en el orificio:** se posa en el eje con la punta en la cortical opuesta y la lectura queda en el agujero. **Tornillo con orden:** sin agujero perforado y medido la consola dice qué falta y no lo pone; el largo en la mano toma el sugerido.
+- **Compañeros en la bandeja:** la página del simulador pide al catálogo (con los permisos del usuario) los compañeros que el caso no declaró cuando hay una placa, marcados «para esta placa»; si el catálogo no responde, la bandeja queda como estaba. «Añadir a la bandeja» enseña **el catálogo por categorías** y no cinco sugerencias. E6-Q1 (dónde buscó los tornillos) se dejó sin preguntar por indicación del dueño: los tornillos aparecen estén donde estén.
+
+*Desviación del plan, a propósito.* El plan pedía **asas restringidas** (flecha, flecha lateral y aro con `@/atlas/gizmo`). Se hizo con **deslizadores** en un panel de la consola (largo, lado, ángulo): son precisos, no compiten con el arrastre de la cámara ni con el de trozos, y se pueden manejar con teclado. Las asas quedan para cuando alguien las eche en falta.
+
+*Probado.* Pruebas unitarias del asentado (sobre hueso plano, inclinado, sin hueso debajo, con ajuste), del calibre, de los compañeros y del orden, y de la lista de compañeros que faltan en un caso (`casoQuirurgico`). Typecheck y lint limpios. **En el navegador** se comprobó la carga del simulador con una placa en la bandeja y que la placa se coloca, se ajusta con los deslizadores y se fija; el recorrido perforar → medir → atornillar completo sobre el lienzo **no se pudo recorrer a mano** (los agujeros caen fuera de la zona donde el hueso responde al rayo en el caso de prueba, de modelo antiguo), y lo cubren las pruebas de la lógica pura. Conviene que Cristóbal lo recorra con la LCP 3,5 sobre la tibia.
+
+*Consecuencias buenas.* El orden real de la técnica deja de ser opcional, la placa se corrige sin quitarla y los tornillos están a la vista. *Malas.* El ajuste de la placa **no se guarda en la sesión** (recargar la deja como la dejó el caso: sin placa); los deslizadores son menos directos que las asas; el mapa de compañeros es una tabla escrita a mano en `fijacion.ts` y una placa nueva del catálogo no tiene compañeros hasta añadirla ahí.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -9046,7 +9064,7 @@ mirando la fluoroscopia, y la pinza se queda agarrándolo hasta soltarla.
 
 ---
 
-#### E6 · Placa que se ajusta, perforar por sus agujeros, medidor en el orificio y tornillos que se encuentran · 2 sesiones · pendiente
+#### E6 · Placa que se ajusta, perforar por sus agujeros, medidor en el orificio y tornillos que se encuentran · 2 sesiones · hecha en local (2026-10-18, D-183; sin desplegar)
 
 **De dónde sale:** pedidos 11, 13 y 14; respuesta 5.
 
@@ -9415,7 +9433,7 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 | E3 · Separadores y pinzas | hecha en local; sin desplegar | 2 | — | D-180 |
 | E4 · Varios abordajes; el rojo que se va | hecha en local; sin desplegar | 2–3 | E3 | D-181 |
 | E5 · Reducir con la pinza | hecha en local; sin desplegar | 1–2 | E3 | D-182 |
-| E6 · Placa, perforación, medidor y tornillos | pendiente | 2 | E2 | — |
+| E6 · Placa, perforación, medidor y tornillos | hecha en local; sin desplegar | 2 | E2 | D-183 |
 | E7 · Insumos al terminar | pendiente | 1 | E3–E6 | — |
 | E8 · Listado global de estructuras | hecha en local; sin desplegar | 3 | — | D-179 |
 | E9 · Estructuras separadas e «Info» | pendiente | 2–3 | E8 | — |

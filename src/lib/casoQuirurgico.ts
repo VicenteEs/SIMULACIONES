@@ -9,6 +9,7 @@ import type { PiezaDelCaso } from '@/components/simulador/LienzoQuirurgico'
 import type { Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import { ajustesValidos, type AjustesDeInstrumento } from '@/instrumental/modelo'
 import type { EjeLargo } from '@/lib/reduccion'
+import { companerosDeLasPlacas, quePuedeColocar } from '@/lib/fijacion'
 import { objetivoDelPaso, type Objetivo } from '@/lib/simulador'
 
 /**
@@ -192,6 +193,8 @@ function instrumentoDeBandeja(bruto: unknown): InstrumentoDeBandeja | null {
     // El identificador con que se reconoce qué hace en la escena (corta,
     // separa, perfora): ver `comportamientoDelInstrumento`.
     slug: texto(doc.slug),
+    // Lo que el caso no declaró pero la placa necesita (P-003 E6): se enseña marcado «para esta placa».
+    paraLaPlaca: doc.__paraLaPlaca === true ? true : undefined,
     // El modelo del instrumento viaja como dirección, no como documento: la
     // consola solo necesita saber de dónde bajarlo, y solo baja el del que el
     // residente tiene en la mano.
@@ -263,6 +266,48 @@ function bandejaDelCaso(pasos: Documento[], declarado: unknown): InstrumentoDeBa
   for (const crudo of pasos) agregar((crudo as Documento)?.instrumento)
 
   return [...porId.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+}
+
+/** Lo que hay en la bandeja de un caso, declarado o pedido por un paso: los documentos de instrumento que llegaron poblados. */
+function instrumentosDelCaso(documento: Documento): unknown[] {
+  return [
+    ...(Array.isArray(documento.instrumental) ? documento.instrumental : []),
+    ...(Array.isArray(documento.pasos) ? (documento.pasos as Documento[]).map((p) => p?.instrumento) : []),
+  ]
+}
+
+/**
+ * Los `slug` de las placas que hay en la bandeja de un caso, para saber qué compañeros hay que traer (P-003 E6). Las
+ * relaciones vienen pobladas (`depth: 2`); una que llegue como número se ignora: sin documento no hay `slug`.
+ */
+export function slugsDePlacasDelCaso(documento: Documento): string[] {
+  const salida = new Set<string>()
+  for (const b of instrumentosDelCaso(documento)) {
+    const slug = b && typeof b === 'object' ? texto((b as Documento).slug) : null
+    if (slug && quePuedeColocar({ slug })?.tipo === 'placa') salida.add(slug)
+  }
+  return [...salida]
+}
+
+/**
+ * Los `slug` que faltan en la bandeja: los compañeros de sus placas (tornillos, brocas, medidor, destornillador) que el
+ * caso no trae. «No encuentro los tornillos»: la bandeja solo enseñaba lo declarado, y un caso con placa y sin tornillos
+ * no los mostraba. Devuelve los que hay que pedir al catálogo.
+ */
+export function companerosQueFaltan(documento: Documento): string[] {
+  const yaEstan = new Set(
+    instrumentosDelCaso(documento)
+      .map((b) => (b && typeof b === 'object' ? texto((b as Documento).slug) : null))
+      .filter((x): x is string => Boolean(x)),
+  )
+  return companerosDeLasPlacas(slugsDePlacasDelCaso(documento)).filter((c) => !yaEstan.has(c))
+}
+
+/** El documento del caso con los compañeros de su placa añadidos a la bandeja, marcados como tales. */
+export function conCompanerosDeLaPlaca(documento: Documento, companeros: readonly Documento[]): Documento {
+  if (companeros.length === 0) return documento
+  const declarados = Array.isArray(documento.instrumental) ? documento.instrumental : []
+  return { ...documento, instrumental: [...declarados, ...companeros.map((c) => ({ ...c, __paraLaPlaca: true }))] }
 }
 
 export function casoParaLaConsola(documento: Documento): CasoDeConsola {

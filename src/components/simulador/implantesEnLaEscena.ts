@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { juzgarTornillo, type TornilloPuesto } from '@/lib/fijacion'
+import { juzgarTornillo, type EstadoDelAgujero, type TornilloPuesto } from '@/lib/fijacion'
 
 /**
  * La placa y los tornillos sobre el hueso, dentro de la escena (D-169).
@@ -32,6 +32,21 @@ export interface PlacaColocada {
   /** Las caras de abajo y de arriba, en la coordenada Y local del modelo (metros). */
   yMinimoLocal: number
   yMaximoLocal: number
+  /** Cuánto mide el contorno de la placa a lo largo, en mm: de ahí salen los puntos de apoyo al asentarla. */
+  largoMm: number
+  /**
+   * Dónde se apoyó la primera vez y hacia dónde iba el hueso: el origen de los tres ajustes (subir y bajar a lo largo,
+   * rodear el hueso de lado a lado, angular) que se miden desde ahí (P-003 E6).
+   */
+  anclaje: { punto: THREE.Vector3; normal: THREE.Vector3; ejeDelHueso: THREE.Vector3 }
+  /** Cuánto se ha movido desde el anclaje: a lo largo y de lado en mm, y el giro sobre la normal en grados. */
+  ajuste: { largoMm: number; ladoMm: number; giroGrados: number }
+  /** El punto de la caja del modelo (sin girar, en el mundo) que va sobre el punto de apoyo: se vuelve a usar al reasentar. */
+  desdeElOrigen: THREE.Vector3
+  /** La placa se dio por buena: ya no se mueve y solo entonces se perfora por sus agujeros. */
+  fijada: boolean
+  /** Lo que se perforó y se midió en cada agujero, por su índice. */
+  agujeros: Map<number, EstadoDelAgujero>
 }
 
 export interface TornilloEnEscena {
@@ -157,12 +172,75 @@ export function colocarPlaca(p: {
     milimetrosPorUnidad: p.milimetrosPorUnidad,
     yMinimoLocal: caja.min.y / escalaLocal,
     yMaximoLocal: caja.max.y / escalaLocal,
+    largoMm: tamano.z / unidadesPorMm,
+    anclaje: { punto: p.punto.clone(), normal: p.normal.clone().normalize(), ejeDelHueso: p.ejeDelHueso.clone().normalize() },
+    ajuste: { largoMm: 0, ladoMm: 0, giroGrados: 0 },
+    desdeElOrigen: desdeElOrigen.clone().applyQuaternion(q.clone().invert()),
+    fijada: false,
+    agujeros: new Map(),
   }
   // Cuánto queda separada del hueso en el agujero más cercano al punto de apoyo.
   const medida = medirBajoElAgujero(placa, indiceDelAgujeroMasCercano(placa, p.punto), p.huesos)
   placa.separadaDelHuesoMm = medida ? Math.max(0, medida.distanciaAlHuesoMm) : 0
   p.implantes.placa = placa
   return placa
+}
+
+/**
+ * Vuelve a asentar la placa después de moverla (P-003 E6, pedido de Cristóbal: «moverla arriba y abajo, angularla,
+ * sobre el hueso»): `largoMm` la sube o la baja a lo largo del hueso, `ladoMm` la rodea de lado a lado y `giroGrados`
+ * la angula alrededor de la normal; los tres se miden desde donde se apoyó la primera vez.
+ *
+ * Tras cada movimiento se **vuelve a asentar**: tres rayos hacia el hueso (en el centro y a un lado y otro, a lo largo
+ * de la placa) dan el apoyo y la normal, y la cara de abajo queda sobre el punto más alto, **nunca dentro del hueso**;
+ * después se recalcula cuánto queda separada. Devuelve `false` (y no mueve nada) si bajo el punto pedido no hay hueso.
+ */
+export function ajustarPlaca(
+  placa: PlacaColocada,
+  huesos: THREE.Object3D[],
+  ajuste: { largoMm: number; ladoMm: number; giroGrados: number },
+): boolean {
+  const unidades = 1 / placa.milimetrosPorUnidad
+  const { punto, normal: normalInicial, ejeDelHueso } = placa.anclaje
+  const lateral = new THREE.Vector3().crossVectors(normalInicial, ejeDelHueso).normalize()
+  const objetivo = punto
+    .clone()
+    .addScaledVector(ejeDelHueso, ajuste.largoMm * unidades)
+    .addScaledVector(lateral, ajuste.ladoMm * unidades)
+  const hacia = normalInicial.clone().negate()
+  const medio = Math.max(2, placa.largoMm * 0.35)
+  const sondas = [0, medio, -medio].map((d) => objetivo.clone().addScaledVector(ejeDelHueso, d * unidades))
+  const golpes: { punto: THREE.Vector3; normal: THREE.Vector3 }[] = []
+  for (const origen of sondas) {
+    const r = new THREE.Raycaster(origen.clone().addScaledVector(normalInicial, 60 * unidades), hacia, 0, 200 * unidades)
+      .intersectObjects(huesos, false)
+      .find((g) => g.object.visible)
+    if (!r) continue
+    const n = r.face ? r.face.normal.clone().transformDirection(r.object.matrixWorld) : normalInicial.clone()
+    if (n.dot(normalInicial) < 0) n.negate()
+    golpes.push({ punto: r.point.clone(), normal: n })
+  }
+  // El apoyo del centro es el que manda; sin él, con lo que haya.
+  if (golpes.length === 0) return false
+  const centro = golpes[0]
+  const normal = golpes.reduce((a, g) => a.add(g.normal), new THREE.Vector3()).normalize()
+  // El eje de la placa, sobre el plano de la normal nueva y girado lo que pida el ajuste.
+  const eje = ejeDelHueso.clone().addScaledVector(normal, -ejeDelHueso.dot(normal)).normalize()
+  eje.applyAxisAngle(normal, (ajuste.giroGrados * Math.PI) / 180)
+  const q = orientar(normal, eje.clone().negate())
+  placa.grupo.quaternion.copy(q)
+  const base = centro.punto.clone().addScaledVector(normal, 0.2 * unidades)
+  // La cara de abajo sobre el punto más alto de lo que toca: nunca dentro del hueso.
+  let subir = 0
+  for (const g of golpes) subir = Math.max(subir, g.punto.clone().sub(base).dot(normal))
+  base.addScaledVector(normal, subir)
+  placa.grupo.position.copy(base).sub(placa.desdeElOrigen.clone().applyQuaternion(q))
+  placa.grupo.updateMatrixWorld(true)
+  placa.normal.copy(normal)
+  placa.ajuste = { ...ajuste }
+  const medida = medirBajoElAgujero(placa, indiceDelAgujeroMasCercano(placa, centro.punto), huesos)
+  placa.separadaDelHuesoMm = medida ? Math.max(0, medida.distanciaAlHuesoMm) : 0
+  return true
 }
 
 /** El agujero cuyo centro, en el mundo, queda más cerca de `punto`. */

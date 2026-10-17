@@ -111,8 +111,8 @@ import {
   type MedidaDeLaSutura,
   type PuntoDeSutura,
 } from '@/lib/sutura'
-import { agujeroBajoElPunto, colocarPlaca, colocarTornillo, crearImplantes, medirBajoElAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
-import { largoSugerido, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
+import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, colocarTornillo, crearImplantes, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
+import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
 // La regla base de `.consola-lienzo` vive en la hoja de la consola, y este
 // lienzo lo monta también el taller de piezas del panel: sin importarla aquí,
@@ -356,6 +356,13 @@ export interface MandoDelLienzo {
   reiniciarFluoroscopia: () => void
   /** Quita los tornillos puestos, y la placa si `conPlaca`. */
   quitarImplantes: (conPlaca: boolean) => void
+  /**
+   * Mueve la placa puesta, sin fijar, y la vuelve a asentar sobre el hueso (P-003 E6): `largoMm` a lo largo del hueso,
+   * `ladoMm` rodeándolo, `giroGrados` alrededor de la normal. Devuelve `false` si ahí no hay hueso.
+   */
+  ajustarLaPlaca: (ajuste: { largoMm: number; ladoMm: number; giroGrados: number }) => boolean
+  /** Da la placa por buena (ya no se mueve y se perfora por sus agujeros) o la vuelve a dejar ajustable. */
+  fijarLaPlaca: (fijar: boolean) => void
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
   estadoDeLaFijacion: () => EstadoDeLaFijacion | null
   /** Encuadra lo que esté visible. */
@@ -428,7 +435,7 @@ export const MAXIMO_DE_PINZAS_DE_REDUCCION = 2
 
 /** Lo que acaba de pasar con la fijación, para escribirlo en el registro de la consola. */
 export interface SucesoDeFijacion {
-  tipo: 'placa' | 'tornillo' | 'medida' | 'aviso'
+  tipo: 'placa' | 'tornillo' | 'medida' | 'aviso' | 'agujero'
   texto: string
   /** Hay algo que corregir. */
   atencion: boolean
@@ -1181,6 +1188,36 @@ export function LienzoQuirurgico({
       taller.current.pedirDibujo?.()
     },
 
+    ajustarLaPlaca: (ajuste) => {
+      const placa = taller.current.implantes?.placa
+      if (!placa || placa.fijada) return false
+      const hecho = ajustarPlaca(placa, mallasDeHuesoVisibles(taller.current, ultimas.current.piezas), ajuste)
+      if (!hecho) {
+        taller.current.decir?.('Ahí no hay hueso bajo la placa: devuélvala hacia donde estaba.')
+        return false
+      }
+      ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current))
+      taller.current.pedirDibujo?.()
+      return true
+    },
+
+    fijarLaPlaca: (fijar) => {
+      const placa = taller.current.implantes?.placa
+      if (!placa) return
+      placa.fijada = fijar
+      taller.current.decir?.(
+        fijar
+          ? 'Placa fijada. Ahora se perfora por cada agujero, se mide y se atornilla.'
+          : 'Placa suelta: se puede ajustar otra vez. Lo perforado en sus agujeros se conserva.',
+      )
+      ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current), {
+        tipo: 'placa',
+        texto: fijar ? `${placa.nombre} fijada.` : `${placa.nombre} suelta para ajustarla.`,
+        atencion: false,
+      })
+      taller.current.pedirDibujo?.()
+    },
+
     estadoDeLaFijacion: () => estadoDeLaFijacion(taller.current),
 
     // Encuadrar conserva la posición del paciente que se eligió con los botones; con el giro libre o a la
@@ -1574,28 +1611,7 @@ export function LienzoQuirurgico({
      * visibles. La piel y el músculo se atraviesan —la broca va con su camisa de
      * protección— y no se perforan.
      */
-    const mallasDeHueso = (): THREE.Mesh[] => {
-      const raiz = taller.current.raiz
-      if (!raiz) return []
-      const rolDe = new Map(ultimas.current.piezas.map((p) => [p.nodo, p.rol]))
-      const todas: THREE.Mesh[] = []
-      raiz.traverse((o) => {
-        const m = o as THREE.Mesh
-        if (m.isMesh && m.visible) todas.push(m)
-      })
-      const conRol = todas.filter((m) => {
-        const rol = rolDe.get(m.name)
-        return rol === 'hueso' || rol === 'fragmento'
-      })
-      // Sin roles declarados no se sabe cuál es hueso: vale cualquier cosa que no
-      // sea piel, músculo o implante.
-      return conRol.length > 0
-        ? conRol
-        : todas.filter((m) => {
-            const rol = rolDe.get(m.name)
-            return rol !== 'piel' && rol !== 'musculo' && rol !== 'implante'
-          })
-    }
+    const mallasDeHueso = (): THREE.Mesh[] => mallasDeHuesoVisibles(taller.current, ultimas.current.piezas)
     /**
      * Primer punto de la superficie visible, bajo el cursor, de las piezas con alguno de estos papeles: la piel, o el
      * músculo. Los separadores se apoyan en un plano —el que se elige—, y para apoyarlos en el músculo el rayo tiene
@@ -1608,6 +1624,8 @@ export function LienzoQuirurgico({
 
     // --- la broca: gira, avanza y deja un túnel --------------------------------
     interface Perforacion {
+      /** El agujero de la placa por el que se perfora, si la broca se centró en uno (P-003 E6). */
+      agujero?: number
       entrada: THREE.Vector3
       /** Hacia dónde entra la broca, unitario. */
       dirEntra: THREE.Vector3
@@ -1805,8 +1823,36 @@ export function LienzoQuirurgico({
     }
     taller.current.aplicarElCorte = aplicarElCorte
 
+    /**
+     * El agujero de la placa **fijada** sobre el que apunta el cursor, o `null`: con la placa fijada, la broca sobre un
+     * agujero se centra en su eje (P-003 E6). Sin placa, o sin fijar, o lejos de todos, se perfora donde se apunte.
+     */
+    const agujeroParaLaBroca = (golpe: THREE.Intersection): number | null => {
+      const placa = taller.current.implantes?.placa
+      if (!placa?.fijada) return null
+      const sobre = rayo.intersectObject(placa.grupo, true)[0]?.point ?? golpe.point
+      return agujeroBajoElPunto(placa, sobre, 7)
+    }
+
     /** Cómo entraría la broca por este golpe, con la inclinación que eligió quien la usa. */
-    const trayectoriaDeBroca = (golpe: THREE.Intersection) => {
+    const trayectoriaDeBroca = (golpe: THREE.Intersection): Omit<Perforacion, 'profundidad' | 'maxima' | 'salidaPorLaOpuesta'> => {
+      const placa = taller.current.implantes?.placa
+      const agujero = agujeroParaLaBroca(golpe)
+      if (placa && agujero !== null) {
+        // Por el eje del agujero: perpendicular a la placa, entrando por la cortical cercana.
+        const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+        const eje = VECTOR_DEL_EJE[ultimas.current.ejeLargo]
+        const salida = placa.normal.clone()
+        const medida = medirBajoElAgujero(placa, agujero, mallasDeHueso())
+        const entrada = posicionDelAgujero(placa, agujero, 'abajo').addScaledVector(salida, -(medida?.distanciaAlHuesoMm ?? 0) * unidadesPorMm)
+        return {
+          agujero,
+          entrada,
+          dirEntra: salida.clone().negate(),
+          salida,
+          anguloConElEje: grados(Math.acos(Math.min(1, Math.abs(salida.clone().negate().dot(eje))))),
+        }
+      }
       const normal = normalDelGolpe(golpe)
       const eje = VECTOR_DEL_EJE[ultimas.current.ejeLargo]
       // El eje del hueso proyectado sobre la cortical: el sentido «a lo largo» de
@@ -1861,7 +1907,7 @@ export function LienzoQuirurgico({
       // la broca sigue y lo que hay detrás son partes blandas. Se dice mientras ocurre.
       const pasado = perforando ? profundidad - perforando.salidaPorLaOpuesta : 0
       taller.current.decir?.(
-        `Broca Ø ${String(config.diametroMm).replace('.', ',')} mm · ${Math.round(t.anguloConElEje)}° con el eje del hueso${
+        `Broca Ø ${String(config.diametroMm).replace('.', ',')} mm${t.agujero !== undefined ? ` · agujero ${t.agujero + 1} de la placa` : ''} · ${Math.round(t.anguloConElEje)}° con el eje del hueso${
           perforando ? ` · ${mm(profundidad)} mm` : ' · mantenga pulsado para perforar'
         }${pasado > 1 * unidadesPorMm ? ` · ¡se pasó ${mm(pasado)} mm de la cortical opuesta!` : ''}`,
       )
@@ -1930,6 +1976,21 @@ export function LienzoQuirurgico({
         ;(viejo.material as THREE.Material).dispose()
       }
       const sePaso = Math.max(0, p.profundidad - p.salidaPorLaOpuesta)
+      // Perforado por un agujero de la placa: queda anotado (diámetro, largo, bicortical); volver a perforarlo borra lo
+      // que se había medido, porque el orificio es otro (P-003 E6).
+      const placaDelAgujero = taller.current.implantes?.placa
+      if (placaDelAgujero && p.agujero !== undefined) {
+        const bicortical = p.profundidad >= p.salidaPorLaOpuesta - 0.5 * unidadesPorMm
+        placaDelAgujero.agujeros.set(p.agujero, {
+          perforado: { diametroMm: config.diametroMm, profundidadMm: p.profundidad / unidadesPorMm, bicortical },
+          medido: null,
+        })
+        ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current), {
+          tipo: 'agujero',
+          texto: `Agujero ${p.agujero + 1} perforado con Ø ${String(config.diametroMm).replace('.', ',')} mm (${bicortical ? 'bicortical' : 'solo la cortical cercana'}). Ahora se mide con el medidor.`,
+          atencion: !bicortical,
+        })
+      }
       ultimas.current.alPerforar?.({
         diametroMm: config.diametroMm,
         profundidadMm: p.profundidad / unidadesPorMm,
@@ -1966,6 +2027,25 @@ export function LienzoQuirurgico({
           pedirDibujo()
         }
         return
+      }
+      // El medidor sobre un agujero perforado de la placa fijada **entra en el orificio** (P-003 E6): se posa en su eje
+      // con la punta en la cortical opuesta, en vez de seguir al cursor por la superficie.
+      const placaMedida = taller.current.implantes?.placa
+      if (ultimas.current.modo === 'fijar' && ultimas.current.instrumento?.mide && placaMedida?.fijada) {
+        const agujero = agujeroBajoElPunto(placaMedida, golpe.point, 7)
+        const medida = agujero !== null && placaMedida.agujeros.get(agujero)?.perforado ? medirBajoElAgujero(placaMedida, agujero, mallasDeHueso()) : null
+        if (agujero !== null && medida) {
+          const u = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+          const n = placaMedida.normal
+          herramienta.raiz.position
+            .copy(posicionDelAgujero(placaMedida, agujero, 'abajo'))
+            .addScaledVector(n, -(medida.distanciaAlHuesoMm + medida.espesorMm) * u)
+          herramienta.raiz.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n)
+          herramienta.raiz.visible = true
+          taller.current.decir?.(`Medidor en el agujero ${agujero + 1}: hueso de ${medida.espesorMm.toFixed(0)} mm. Haga clic para anotar la medida.`)
+          pedirDibujo()
+          return
+        }
       }
       const normal = normalDelGolpe(golpe)
       const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(camara.quaternion)
@@ -3064,6 +3144,10 @@ export function LienzoQuirurgico({
         return
       }
       if (inst.coloca?.tipo === 'placa' && herramienta) {
+        if (imp.placa?.fijada) {
+          t.decir?.('La placa está fijada: quítela («Quitar la placa») para poner otra.')
+          return
+        }
         const golpe = huesoBajoElCursor()
         if (!golpe) {
           t.decir?.('Apunte al hueso: la placa se apoya sobre el hueso visible.')
@@ -3096,7 +3180,7 @@ export function LienzoQuirurgico({
         decirYAvisar({
           tipo: 'placa',
           texto:
-            `${placa.nombre} apoyada: ${placa.agujerosMm.length} agujeros.` +
+            `${placa.nombre} apoyada: ${placa.agujerosMm.length} agujeros. Ajústela con los controles del panel (a lo largo, de lado, angular) y pulse «Fijar la placa».` +
             (separada > 1.5 ? ` Queda a ${separada.toFixed(1).replace('.', ',')} mm del hueso: apóyela donde el hueso sea más recto.` : ''),
           atencion: separada > 1.5,
         })
@@ -3117,6 +3201,16 @@ export function LienzoQuirurgico({
         return
       }
       if (inst.mide) {
+        // El orden real (P-003 E6): el medidor entra en el orificio que hizo la broca.
+        if (!placa.fijada) {
+          t.decir?.('Fije primero la placa (botón «Fijar la placa»): se perfora y se mide por sus agujeros.')
+          return
+        }
+        const falta = loQueFaltaPara('medir', placa.agujeros.get(agujero))
+        if (falta) {
+          t.decir?.(textoDeLoQueFalta(falta, agujero, 'medir'))
+          return
+        }
         const medida = medirBajoElAgujero(placa, agujero, huesos)
         if (!medida) {
           t.decir?.('Bajo ese agujero no hay hueso que medir.')
@@ -3124,6 +3218,7 @@ export function LienzoQuirurgico({
         }
         const antesDelHueso = placa.grosorMm + medida.distanciaAlHuesoMm
         const sugerido = largoSugerido(medida.espesorMm, antesDelHueso)
+        placa.agujeros.set(agujero, { perforado: placa.agujeros.get(agujero)!.perforado, medido: { espesorMm: medida.espesorMm, sugeridoMm: sugerido } })
         decirYAvisar({
           tipo: 'medida',
           texto: `Agujero ${agujero + 1}: hueso de ${medida.espesorMm.toFixed(0)} mm${
@@ -3135,6 +3230,21 @@ export function LienzoQuirurgico({
         return
       }
       if (inst.coloca?.tipo === 'tornillo' && herramienta) {
+        if (inst.coloca.soloConClavo) {
+          t.decir?.('Este tornillo es de bloqueo de clavo: todavía no hay clavo en el hueso del simulador. Para una placa use el cortical, el de esponjosa o el bloqueado LCP.')
+          return
+        }
+        // El orden real (P-003 E6): placa fijada, agujero perforado y medido.
+        if (!placa.fijada) {
+          t.decir?.('Fije primero la placa (botón «Fijar la placa»): el tornillo va en un agujero perforado y medido.')
+          return
+        }
+        const falta = loQueFaltaPara('atornillar', placa.agujeros.get(agujero))
+        if (falta) {
+          t.decir?.(textoDeLoQueFalta(falta, agujero, 'atornillar'))
+          return
+        }
+        const calibre = avisoDeCalibre(placa.agujeros.get(agujero)!.perforado!.diametroMm, inst.coloca.diametroMm)
         const puesto = colocarTornillo({
           escena: t.escena,
           plantilla: herramienta.raiz,
@@ -3156,8 +3266,9 @@ export function LienzoQuirurgico({
           texto:
             `Tornillo de ${puesto.largoMm} mm en el agujero ${agujero + 1}: ` +
             (puesto.bicortical ? 'bicortical.' : 'solo la cortical cercana.') +
-            (puesto.aviso && puesto.bicortical ? ` ${puesto.aviso}` : ''),
-          atencion: !!puesto.aviso,
+            (puesto.aviso && puesto.bicortical ? ` ${puesto.aviso}` : '') +
+            (calibre ? ` ${calibre}` : ''),
+          atencion: !!puesto.aviso || !!calibre,
         })
       }
     }
@@ -4185,8 +4296,13 @@ export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
       agujeros: imp.placa.agujerosMm.length,
       apoyada: imp.placa.separadaDelHuesoMm <= 1.5,
       separadaDelHuesoMm: imp.placa.separadaDelHuesoMm,
+      fijada: imp.placa.fijada,
+      ajuste: { ...imp.placa.ajuste },
     },
     tornillos: [...imp.tornillos.values()].map((t) => t.datos).sort((a, b) => a.agujero - b.agujero),
+    agujeros: [...imp.placa.agujeros.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([indice, e]) => ({ indice, perforado: e.perforado, medido: e.medido })),
   }
 }
 
@@ -4224,6 +4340,32 @@ type LoUltimo = {
   alGesto?: (texto: string, tono: 'bien' | 'atencion' | 'grave') => void
   alDisecar?: (estado: EstadoDeLaDiseccion | null) => void
   alReducir?: (estado: EstadoDeLaReduccion) => void
+}
+
+/**
+ * Las mallas que la broca puede perforar y la placa puede apoyarse en: el hueso y el fragmento, y solo los visibles.
+ * La piel y el músculo se atraviesan —la broca va con su camisa de protección— y no se perforan. Sin roles
+ * declarados no se sabe cuál es hueso: vale cualquier cosa que no sea piel, músculo o implante.
+ */
+function mallasDeHuesoVisibles(t: Taller, piezas: PiezaDelCaso[]): THREE.Mesh[] {
+  const raiz = t.raiz
+  if (!raiz) return []
+  const rolDe = new Map(piezas.map((p) => [p.nodo, p.rol]))
+  const todas: THREE.Mesh[] = []
+  raiz.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (m.isMesh && m.visible) todas.push(m)
+  })
+  const conRol = todas.filter((m) => {
+    const rol = rolDe.get(m.name)
+    return rol === 'hueso' || rol === 'fragmento'
+  })
+  return conRol.length > 0
+    ? conRol
+    : todas.filter((m) => {
+        const rol = rolDe.get(m.name)
+        return rol !== 'piel' && rol !== 'musculo' && rol !== 'implante'
+      })
 }
 
 /** Las mallas visibles de las piezas con alguno de estos papeles (la piel, el músculo). */

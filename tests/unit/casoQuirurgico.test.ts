@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { casoParaLaConsola } from '@/lib/casoQuirurgico'
+import {
+  casoParaLaConsola,
+  companerosQueFaltan,
+  conCompanerosDeLaPlaca,
+  slugsDePlacasDelCaso,
+} from '@/lib/casoQuirurgico'
 import { evaluarGesto, fuerzaInicial, objetivoDelPaso, RESULTADOS } from '@/lib/simulador'
 import { largoDelTrazo } from '@/lib/reduccion'
 
@@ -212,5 +217,49 @@ describe('la bandeja que ve el residente (D-167)', () => {
     expect(porNombre['Separador de Hohmann']).toBe('exposicion')
     // Un instrumento sin categoría no desaparece: la consola lo mete en «Otros».
     expect(porNombre['Sin categoría']).toBeNull()
+  })
+})
+
+describe('los compañeros de la placa en la bandeja (P-003 E6)', () => {
+  const doc = (slugs: string[], pasos: Record<string, unknown>[] = []) => ({
+    nombre: 'Caso',
+    instrumental: slugs.map((slug, i) => ({ id: i + 1, nombre: slug, slug })),
+    pasos,
+  })
+
+  it('reconoce las placas de la bandeja y de los pasos, y ninguna otra cosa', () => {
+    expect(slugsDePlacasDelCaso(doc(['bisturi-piel-n22', 'placa-lcp-recta-3-5']))).toEqual(['placa-lcp-recta-3-5'])
+    expect(
+      slugsDePlacasDelCaso(doc(['bisturi-piel-n22'], [{ instrumento: { id: 9, nombre: 'T', slug: 'placa-t-3-5' } }])),
+    ).toEqual(['placa-t-3-5'])
+    expect(slugsDePlacasDelCaso(doc(['bisturi-piel-n22']))).toEqual([])
+  })
+
+  it('una relación que llega como número no tiene slug y no rompe', () => {
+    expect(slugsDePlacasDelCaso({ instrumental: [5, 6], pasos: [{ instrumento: 7 }] })).toEqual([])
+  })
+
+  it('pide lo que falta, no lo que ya está en la bandeja', () => {
+    const faltan = companerosQueFaltan(doc(['placa-lcp-recta-3-5', 'tornillo-cortical-3-5']))
+    expect(faltan).not.toContain('tornillo-cortical-3-5')
+    expect(faltan).toContain('tornillo-bloqueado-lcp-3-5')
+    expect(faltan).toContain('medidor-profundidad')
+    // Sin placa no se pide nada: la bandeja es la del caso.
+    expect(companerosQueFaltan(doc(['bisturi-piel-n22']))).toEqual([])
+  })
+
+  it('los compañeros llegan a la bandeja marcados «para esta placa» y sin pisar lo declarado', () => {
+    const base = doc(['placa-lcp-recta-3-5'])
+    const caso = casoParaLaConsola(
+      conCompanerosDeLaPlaca(base, [{ id: 50, nombre: 'Tornillo cortical 3,5', slug: 'tornillo-cortical-3-5' }]),
+    )
+    const tornillo = caso.instrumental.find((i) => i.slug === 'tornillo-cortical-3-5')!
+    expect(tornillo.paraLaPlaca).toBe(true)
+    expect(caso.instrumental.find((i) => i.slug === 'placa-lcp-recta-3-5')!.paraLaPlaca).toBeUndefined()
+  })
+
+  it('sin compañeros que añadir, el documento sale tal cual', () => {
+    const base = doc(['placa-lcp-recta-3-5'])
+    expect(conCompanerosDeLaPlaca(base, [])).toBe(base)
   })
 })

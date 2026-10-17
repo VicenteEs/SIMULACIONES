@@ -232,6 +232,8 @@ export interface InstrumentoDeBandeja {
   categoria?: string | null
   /** Con qué identificador se reconoce qué hace en la escena (corta, separa, perfora). */
   slug?: string | null
+  /** Lo trajo la placa de la bandeja y no el caso: tornillo, broca, medidor o destornillador de esa placa (P-003 E6). */
+  paraLaPlaca?: boolean
   /** Solo en el editor: si el instrumento ya está en la bandeja que el caso declara. */
   enLaBandejaDelCaso?: boolean
   /** Para qué sirve, tal como lo escribió el traumatólogo en el catálogo. */
@@ -2002,6 +2004,10 @@ export function ConsolaQuirurgica({
                         <span className="instrumento-etiqueta instrumento-etiqueta-paso">este paso</span>
                       ) : it.enLaBandejaDelCaso ? (
                         <span className="instrumento-etiqueta">en la bandeja</span>
+                      ) : it.paraLaPlaca ? (
+                        <span className="instrumento-etiqueta" title="Lo necesita la placa de la bandeja: tornillos, brocas, medidor y destornillador">
+                          para esta placa
+                        </span>
                       ) : null}
                     </button>
                   </li>
@@ -2512,10 +2518,10 @@ export function ConsolaQuirurgica({
                 <div className="consola-instrumento-articulaciones">
                   <p className="consola-instrumento-texto">
                     {queHace.coloca?.tipo === 'placa'
-                      ? 'Pase al modo «Fijar» y pique sobre el hueso: la placa se apoya con su largo siguiendo el hueso.'
+                      ? 'Pase al modo «Fijar» y pique sobre el hueso: la placa se apoya con su largo siguiendo el hueso. Después se ajusta con los controles de abajo y se pulsa «Fijar la placa».'
                       : queHace.coloca?.tipo === 'tornillo'
-                        ? 'Pase al modo «Fijar» y pique en un agujero de la placa. El tornillo entra perpendicular a la placa; mida antes con el medidor de profundidad.'
-                        : 'Pase al modo «Fijar» y apoye el medidor en un agujero de la placa: dice cuánto hueso hay debajo y qué tornillo pedir.'}
+                        ? 'Con la placa fijada: perfore el agujero con la broca, mídalo con el medidor y entonces pique en él. El tornillo entra perpendicular a la placa.'
+                        : 'Con la placa fijada y el agujero perforado, apoye el medidor en él: dice cuánto hueso hay debajo y qué tornillo pedir.'}
                   </p>
                   {queHace.coloca?.tipo === 'tornillo' ? (
                     <label className="consola-instrumento-articulacion">
@@ -2531,6 +2537,70 @@ export function ConsolaQuirurgica({
                       />
                       <output>{largoDeTornillo} mm</output>
                     </label>
+                  ) : null}
+                  {/* Ajustar la placa puesta y darla por buena (P-003 E6): subirla y bajarla a lo largo del hueso,
+                      rodearlo, angularla; tras cada movimiento se vuelve a asentar. Fijada, ya no se mueve y se perfora. */}
+                  {fijacion?.placa && !fijacion.placa.fijada ? (
+                    <>
+                      {(
+                        [
+                          ['largoMm', 'A lo largo del hueso', -40, 40, 1, 'mm'],
+                          ['ladoMm', 'De lado a lado', -15, 15, 1, 'mm'],
+                          ['giroGrados', 'Angular', -45, 45, 1, '°'],
+                        ] as const
+                      ).map(([campo, etiqueta, min, max, paso, unidad]) => {
+                        const ajuste = fijacion.placa?.ajuste ?? { largoMm: 0, ladoMm: 0, giroGrados: 0 }
+                        return (
+                          <label key={campo} className="consola-instrumento-articulacion">
+                            <span>{etiqueta}</span>
+                            <input
+                              type="range"
+                              min={min}
+                              max={max}
+                              step={paso}
+                              value={ajuste[campo]}
+                              onChange={(e) => mando.current?.ajustarLaPlaca({ ...ajuste, [campo]: Number(e.target.value) })}
+                              aria-label={`Ajustar la placa: ${etiqueta.toLowerCase()}`}
+                            />
+                            <output>
+                              {ajuste[campo]} {unidad}
+                            </output>
+                          </label>
+                        )
+                      })}
+                      <div className="consola-instrumento-acciones">
+                        <button type="button" className="consola-boton" onClick={() => mando.current?.fijarLaPlaca(true)}>
+                          Fijar la placa
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                  {fijacion?.placa?.fijada ? (
+                    <>
+                      <ul className="consola-separadores" aria-label="Agujeros de la placa">
+                        {Array.from({ length: fijacion.placa.agujeros }, (_, i) => {
+                          const a = fijacion.agujeros?.find((x) => x.indice === i)
+                          const t = fijacion.tornillos.find((x) => x.agujero === i)
+                          return (
+                            <li key={i}>
+                              <span className="consola-separador-nombre">
+                                Agujero {i + 1} ·{' '}
+                                {t
+                                  ? `tornillo de ${t.largoMm} mm`
+                                  : a?.perforado
+                                    ? `perforado Ø ${String(a.perforado.diametroMm).replace('.', ',')}${a.medido ? ` · medido ${Math.round(a.medido.espesorMm)} mm` : ' · falta medir'}`
+                                    : 'sin perforar'}
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                      <div className="consola-instrumento-acciones">
+                        <button type="button" className="consola-boton" onClick={() => mando.current?.fijarLaPlaca(false)}>
+                          Soltar el ajuste
+                        </button>
+                      </div>
+                    </>
                   ) : null}
                   {fijacion?.placa ? (
                     <p className="consola-instrumento-texto">
@@ -3632,8 +3702,20 @@ function AnadirALaBandeja({
   const candidatos = catalogo
     .filter((i) => !i.enLaBandejaDelCaso)
     .filter((i) => palabras.every((p) => paraComparar(`${i.nombre} ${i.descripcion ?? ''}`).includes(p)))
-    // Sin nada escrito se enseñan pocos: la lista entera es más larga que la columna y no ayuda a buscar.
-    .slice(0, palabras.length > 0 ? 8 : 5)
+    // Escribiendo se enseñan pocos; sin nada escrito, todo el catálogo por categorías (P-003 E6): antes eran cinco
+    // sugerencias y los tornillos no aparecían si no se sabía su nombre.
+    .slice(0, palabras.length > 0 ? 8 : 200)
+  const ordenDeCategorias = CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string)
+  const posicionDeCategoria = (k: string) => (ordenDeCategorias.includes(k) ? ordenDeCategorias.indexOf(k) : ordenDeCategorias.length)
+  const porCategoria =
+    palabras.length > 0
+      ? null
+      : [
+          ...candidatos.reduce(
+            (m, i) => m.set(i.categoria ?? 'otros', [...(m.get(i.categoria ?? 'otros') ?? []), i]),
+            new Map<string, InstrumentoDeBandeja[]>(),
+          ),
+        ].sort(([a], [b]) => posicionDeCategoria(a) - posicionDeCategoria(b))
   return (
     <div className="consola-anadir">
       <button
@@ -3657,6 +3739,28 @@ function AnadirALaBandeja({
           />
           {candidatos.length === 0 ? (
             <p className="consola-vacio">{palabras.length > 0 ? 'Nada coincide: ya está en la bandeja o no existe.' : 'Todo el catálogo está en la bandeja.'}</p>
+          ) : porCategoria ? (
+            porCategoria.map(([clave, lista]) => (
+              <div key={clave}>
+                <p className="consola-instrumento-texto">{ETIQUETA_DE_CATEGORIA[clave] ?? 'Otros'}</p>
+                <ul>
+                  {lista.map((i) => (
+                    <li key={i.id}>
+                      <button
+                        type="button"
+                        className="consola-anadir-opcion"
+                        onClick={() => {
+                          alAnadir(i.id)
+                          setTexto('')
+                        }}
+                      >
+                        <Plus size={12} aria-hidden /> {i.nombre}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
           ) : (
             <ul>
               {candidatos.map((i) => (

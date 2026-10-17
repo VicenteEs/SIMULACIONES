@@ -248,6 +248,8 @@ export interface EstadoDeLaFijacion {
     separadaDelHuesoMm: number
     /** La placa ya se dio por buena (P-003 E6): solo entonces se perfora por sus agujeros. */
     fijada?: boolean
+    /** Cuánto se ha movido desde donde se apoyó: a lo largo y de lado en mm, y el giro sobre la normal en grados. */
+    ajuste?: { largoMm: number; ladoMm: number; giroGrados: number }
   } | null
   tornillos: TornilloPuesto[]
   /** Lo que se perforó y se midió en cada agujero, por su índice (P-003 E6). */
