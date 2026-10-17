@@ -6134,6 +6134,22 @@ Octava etapa del plan P-003 (E8). Pedidos de Cristóbal: que al pinchar una estr
 
 *Consecuencias buenas.* Lo que se sabe de cada estructura se escribe una vez y llega al taller, al simulador (E9) y al modelo exportado; el editor puede llenar una región entera con una IA y verla antes de que toque nada; y todo guardado, subida o restauración deja la ficha anterior en su historial. *Malas.* **Veinte versiones por ficha es un historial finito:** a la vigésima primera la más antigua se pierde (una subida repetida de la misma planilla no crece, porque no escribe nada). **El lado opuesto no alcanza a todo:** de las 124 piezas del miembro inferior derecho, 25 no tienen una pareja que se pueda deducir con seguridad (el atlas nombra «Set of perforating arteries» sin lado, y varias de la línea media cuelgan de la región); se dicen en el resumen y se llenan subiendo la planilla del otro lado. Lo que se copia al otro lado **dice lo mismo**, así que los textos no deben mencionar el lado (la hoja de instrucciones lo dice). **Reasignar a mano una ficha «sin pieza» no está hecho:** hoy se conservan, se enseñan en el filtro y se casan solas por nombre original cuando no hay duda; si el atlas se regenera con nombres repetidos, quedan esperando (y se puede pedir ese paso como etapa aparte). Cada ficha sembrada guarda su versión inicial vacía, unas 2.231 filas en `_estructuras_anatomicas_v`. Tras desplegar hay que **aplicar la migración, «Respaldar ahora» antes, y pulsar «Cargar las piezas del atlas» una vez**: el despliegue no siembra solo.
 
+### D-180 · 2026-10-17 · vigente
+**Los separadores salen del campo hacia fuera, se ponen en pareja, se levantan con un clic para reubicarlos, y las pinzas y los separadores pueden acompañar al bisturí.**
+Tercera etapa del plan P-003 (E3). Pedidos de Cristóbal tras operar en `ved`: que el Farabeuf se pueda poner «uno frente a otro, como la pareja de Adson» («ahora no deja»); que los separadores no se crucen en medio del campo («del centro hacia fuera, como en una cirugía real»: la captura mostraba cuatro Farabeuf con los mangos cruzados tapando la herida); que se pueda reubicar un Farabeuf ya puesto («habitualmente trabajamos con los mismos 4, que vamos moviendo»); y que pinzas y separadores avancen con el bisturí. Respuestas del dueño: **clic en uno puesto = se levanta, el clic siguiente lo deja**; acompañar vale para **pinzas y separadores**.
+
+*Por qué se cruzaban.* `colocarSeparador` inclinaba el mango con `normal·0,85 + arriba_de_la_cámara·0,65`: no dependía del lado que sostiene, y todos se acostaban hacia el mismo sitio de la pantalla. Ahora el mango sale de `direccionDelMango` (`src/lib/exposicion.ts`, sin `three`, con pruebas): `normal·cos 40° + dirección·sen 40°` con el signo del lado, así que ningún mango puede cruzar la línea de la herida; el autoestático va vertical. Vale también al cambiar de plano. **Por qué «no dejaba» poner el de enfrente:** el clic en el borde opuesto caía casi siempre sobre la hoja o el mango del primero, que lo elegía en lugar de poner otro; con el mango hacia fuera deja de ocurrir, y además el clic pone la pareja entera.
+
+*En pareja* (conmutador «En pareja», encendido por omisión para los de mano; el Hohmann y los autoestáticos van de a uno): un clic pone uno por borde, a la misma altura; el de enfrente es el reflejo del primero respecto de la línea de la herida, llevado a la superficie de su plano (`sitioEnLaHerida`, `heridas.ts`, que sale de la curva de la incisión y no de los vértices de los labios, y **sin** la apertura, porque `posarSeparador` ya la suma). Con uno ya puesto en ese sitio, el clic completa la pareja con el que falta (`ladosParaLaPareja`). La pareja cuenta dos para el tope de seis. **La rueda abre la pareja por igual** (`laPareja`); la barra del panel abre solo el elegido. **Se cambió el plan en un punto:** el plan decía «Mayúsculas + rueda abre solo el de bajo el cursor», pero Mayúsculas + rueda ya acerca el modelo (D-171) y quitárselo rompe el zoom; quien quiera abrir uno solo usa la barra, y la rueda actúa sobre el separador que está bajo el cursor (se elige al pasar por encima, sin clic, porque el clic ahora levanta).
+
+*Levantar y dejar.* Un clic en un separador puesto lo levanta (`separadorEnLaMano`): queda atenuado, sigue al cursor sobre el borde de la herida más cercano **sin rehacer la herida en cada movimiento** (la vista previa solo mueve el instrumento), y la herida se cierra en lo que él abría. El clic siguiente lo deja: conserva su apertura, toma el borde en que se hizo clic y su plano. **Escape lo devuelve exacto a donde estaba** (con su apertura), y también se devuelve si se sale del modo. Lo mismo con cada pinza: un clic **sin arrastre** la levanta; arrastrar hacia arriba sigue cambiando cuánto levanta la piel. Encontrar un instrumento delgado con el cursor era cuestión de puntería —una chapa de canto no la toca el rayo—, así que si el rayo no acierta se elige el que pasa a menos de 14 px del cursor.
+
+*Acompañar el bisturí* (conmutador, apagado por omisión, en los paneles de pinzas y de separadores): **al terminar un corte**, la pareja de separadores y la de pinzas más cercanas a la punta se corren a lo largo de la herida nueva, unos 15 mm por detrás (`posicionQueAcompana`), sin cambiar de borde ni de apertura. **Se hace al terminar y no mientras se traza** porque la herida solo existe cuando el trazo se cierra: durante el arrastre lo que hay es la línea de guía. No actúa al recargar la sesión, al rehacer ni en la disección roma.
+
+*Probado* en local con un administrador de prueba y un caso de prueba (creados y borrados después): dos Farabeuf con un clic, uno por borde y con los mangos hacia fuera; abrir la pareja con la rueda (los dos 2 mm); levantar uno, verlo seguir al cursor y dejarlo más arriba («reubicado, abierto 2 mm»); Escape lo devuelve con su apertura; con «Acompañar» encendido, un corte nuevo lleva el Farabeuf más adelantado a la punta; pinza Adson: pareja, levantar una, dejarla en otro punto. Pruebas nuevas: la geometría del mango, el acompañamiento, la pareja y el tope (`exposicion.test.ts`), y `sitioEnLaHerida` contra mallas de verdad (`heridasEnLaEscena.test.ts`). **No se probó** en el navegador el Hohmann ni los autoestáticos con esto (no cambian: van de a uno).
+
+*Consecuencias buenas.* Los separadores ya no tapan el centro del campo y se pueden mover sin quitarlos. *Malas.* **Los separadores y las pinzas siguen sin guardarse en la sesión** (D-171 guarda cortes y suturas): al recargar la página hay que volver a ponerlos; el plan lo daba por hecho, pero nunca se guardaron, y guardarlos con la sesión v2 de E4 (que añade las incisiones) es el momento. **Un clic en una pinza ya puesta ahora la levanta**, y quien solo quería elegirla debe pulsar Esc o dejarla. Si se reubica uno de la pareja, deja de ser pareja a efectos de «acompañar» y de la rueda.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -8836,7 +8852,7 @@ deja ver la placa dentro del hueso sin otro disparo; el contador solo aparece en
 
 ---
 
-#### E3 · Separadores y pinzas: hacia fuera, en pareja, reubicables y acompañando al bisturí · 2 sesiones · pendiente
+#### E3 · Separadores y pinzas: hacia fuera, en pareja, reubicables y acompañando al bisturí · 2 sesiones · hecha en local (2026-10-17, D-180; sin desplegar)
 
 **De dónde sale:** pedidos 3, 4, 5 y 8; respuestas 3 y 4.
 
@@ -8877,18 +8893,18 @@ deja ver la placa dentro del hueso sin otro disparo; el contador solo aparece en
 
 **Tareas**
 
-- [ ] **E3.1 · Geometría en `src/lib/exposicion.ts`.** `direccionDelMango(normal, direccion, lado)` y
+- [x] **E3.1 · Geometría en `src/lib/exposicion.ts`.** (commit `fd1a529`) `direccionDelMango(normal, direccion, lado)` y
   `posicionQueAcompana(tPunta, largoMm, retrasoMm)`, sin `three`, con pruebas: el mango nunca apunta al lado contrario
   de su labio; el autoestático, vertical; el acompañamiento no se sale de [0, 1].
-- [ ] **E3.2 · `sitioEnLaHerida(h, t, lado)` en `heridas.ts`:** punto, normal y dirección del labio en la posición `t`
+- [x] **E3.2 · `sitioEnLaHerida(h, t, lado)` en `heridas.ts`:** (commit `fd1a529`) punto, normal y dirección del labio en la posición `t`
   (lo necesitan la reubicación y el acompañamiento; hoy el sitio solo sale de un clic).
-- [ ] **E3.3 · Mango hacia fuera** en `colocarSeparador`, `cambiarElPlanoDelSeparador` y al cargar la sesión guardada.
-- [ ] **E3.4 · Pareja de separadores** (`crearParDeSeparadores`, en el molde de `crearParDePinzas`), el conmutador y la
+- [x] **E3.3 · Mango hacia fuera** (commit `4a23372`) en `colocarSeparador`, `cambiarElPlanoDelSeparador` y al cargar la sesión guardada.
+- [x] **E3.4 · Pareja de separadores** (commit `4a23372`) (`crearParDeSeparadores`, en el molde de `crearParDePinzas`), el conmutador y la
   rueda por pareja.
-- [ ] **E3.5 · Levantar y dejar:** estado `separadorEnLaMano` (y `pinzaEnLaMano`), vista previa, Escape, y el clic que
+- [x] **E3.5 · Levantar y dejar:** (commit `4a23372`) estado `separadorEnLaMano` (y `pinzaEnLaMano`), vista previa, Escape, y el clic que
   deja. Los avisos de la consola dicen qué pasa en cada paso.
-- [ ] **E3.6 · Acompañar el bisturí** en el arrastre de Trazar, con el conmutador en el panel.
-- [ ] **E3.7 · Pruebas, manual y D-nnn.** Además de E3.1: un clic en el borde opuesto con un Farabeuf puesto pone el
+- [x] **E3.6 · Acompañar el bisturí** (commit `4a23372`) en el arrastre de Trazar, con el conmutador en el panel.
+- [x] **E3.7 · Pruebas, manual y D-nnn.** (commit `fd1a529`) Además de E3.1: un clic en el borde opuesto con un Farabeuf puesto pone el
   segundo y no elige el primero (lo comprueba el estado del lienzo en una prueba de navegador); levantar y dejar
   conserva la apertura; la sesión guardada (D-171) recupera las parejas.
 
@@ -9364,7 +9380,7 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 |---|---|---|---|---|
 | E1 · Catálogos que se amplían, con aviso | hecha en local; sin desplegar | 1 | — | D-177 |
 | E2 · Fluoroscopia por disparos y penetración | hecha en local; sin desplegar | 1–2 | — | D-178 |
-| E3 · Separadores y pinzas | pendiente | 2 | — | — |
+| E3 · Separadores y pinzas | hecha en local; sin desplegar | 2 | — | D-180 |
 | E4 · Varios abordajes; el rojo que se va | pendiente | 2–3 | E3 | — |
 | E5 · Reducir con la pinza | pendiente | 1–2 | E3 | — |
 | E6 · Placa, perforación, medidor y tornillos | pendiente | 2 | E2 | — |

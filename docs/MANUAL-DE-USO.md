@@ -785,11 +785,28 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   «Apertura»** del recuadro. La herida abre **donde está puesto el separador** y se cierra hacia
   los extremos, así que con dos separadores en puntos distintos se abre en dos sitios. Los de
   mano (Farabeuf, Senn-Miller) empujan la piel hacia un lado y abren el borde que sostienen
-  (hasta 22–40 mm), y el otro lo sostiene el ayudante con otra hoja; los autoestáticos (Gelpi,
-  Weitlaner) se clavan a los dos bordes y se quedan abiertos solos (hasta 55–90 mm). El
-  **Hohmann** no abre la piel: se apoya en el **borde del hueso** y retrae las partes blandas de
-  ese lado. Caben hasta seis separadores; la lista del recuadro permite elegir cuál se abre y
-  quitarlos de uno en uno o todos («Quitar los separadores»).
+  (hasta 22–40 mm); los autoestáticos (Gelpi, Weitlaner) se clavan a los dos bordes y se quedan
+  abiertos solos (hasta 55–90 mm). El **Hohmann** no abre la piel: se apoya en el **borde del
+  hueso** y retrae las partes blandas de ese lado. Caben hasta seis separadores; la lista del
+  recuadro permite elegir cuál se abre y quitarlos de uno en uno o todos («Quitar los
+  separadores»).
+  - **En pareja.** Con «En pareja» encendido (lo está de entrada), un clic pone **los dos
+    Farabeuf o Senn-Miller, uno por borde y a la misma altura**, como las pinzas; los mangos
+    salen hacia fuera y no se cruzan sobre la herida. Con uno ya puesto, el clic completa la
+    pareja. Cada pareja cuenta dos para el máximo de seis. La **rueda abre los dos por igual**;
+    la barra «Apertura» abre solo el que está elegido, y la rueda actúa sobre el que está
+    bajo el cursor.
+  - **Reubicar.** Un **clic en un separador (o una pinza) ya puesto lo levanta**: queda
+    translúcido, sigue al cursor sobre el borde de la herida y la herida se cierra en lo que
+    abría. El **clic siguiente lo deja** donde se apunta, con la misma apertura; **Esc lo
+    devuelve** a su sitio. Para una pinza, un clic sin arrastre la levanta; arrastrar hacia
+    arriba sigue cambiando cuánto levanta la piel.
+  - **Acompañar el bisturí.** Con este conmutador encendido (en los paneles de separadores y de
+    pinzas; apagado de entrada), al terminar un corte la pareja de pinzas y la de separadores
+    más cercanas a la punta se corren a lo largo de la herida nueva, unos 15 mm por detrás de
+    ella, sin cambiar de borde ni de apertura.
+  - **Al recargar la página** los separadores y las pinzas no se conservan (sí lo cortado y lo
+    cosido): hay que volver a ponerlos.
 - **Perforar (brocas de 1,5 a 4,5 mm, avellanador, machuelo, fresa).** El modo pasa a
   **Perforar**. Apunte al hueso y **mantenga pulsado**: la broca gira y avanza. Antes de
   empezar, dos deslizadores eligen la **inclinación** (a lo largo del hueso y a lo ancho, de
