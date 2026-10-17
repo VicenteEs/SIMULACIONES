@@ -64,45 +64,6 @@
 .estructuras-mas { display: flex; align-items: center; gap: var(--e-3); margin: var(--e-4) 0; }
 .estructuras-mas-cuenta { font-size: var(--t-sm); color: var(--mudo); }
 
-/* La ventana de edición. */
-.estructuras-cargando { color: var(--mudo); }
-.estructuras-ventana-meta { margin: 0 0 var(--e-3); font-size: var(--t-sm); color: var(--mudo); }
-.estructuras-campo .admin-form-label { display: flex; align-items: center; gap: var(--e-2); }
-.estructuras-campo-falta .admin-form-input { border-color: var(--ambar-texto); background: var(--ambar-tenue); }
-.estructuras-marca-falta {
-  font-size: var(--t-xs, 0.75rem);
-  font-weight: 650;
-  color: var(--ambar-texto);
-  background: var(--ambar-tenue);
-  border-radius: 999px;
-  padding: 0 var(--e-2);
-}
-.estructuras-marca-opcional { font-size: var(--t-xs, 0.75rem); font-weight: 400; color: var(--mudo); }
-.estructuras-oculta {
-  display: flex;
-  gap: var(--e-2);
-  align-items: flex-start;
-  margin: var(--e-3) 0;
-  font-size: var(--t-sm);
-}
-.estructuras-oculta input { margin-top: 3px; }
-
-.estructuras-conflicto ul { margin: var(--e-2) 0; padding-left: var(--e-4); }
-.estructuras-conflicto-texto { font-size: var(--t-sm); white-space: pre-wrap; word-break: break-word; }
-.estructuras-conflicto-texto span { font-weight: 650; }
-.estructuras-conflicto-nota { margin: var(--e-2) 0 0; font-size: var(--t-sm); }
-
-.estructuras-historial { margin: var(--e-3) 0; font-size: var(--t-sm); }
-.estructuras-historial > summary { cursor: pointer; display: flex; align-items: center; gap: var(--e-1); font-weight: 600; }
-.estructuras-historial ul { list-style: none; padding: 0; margin: var(--e-2) 0 0; display: grid; gap: var(--e-2); }
-.estructuras-historial li { border: 1px solid var(--linea-suave); border-radius: var(--r); padding: var(--e-2) var(--e-3); }
-.estructuras-historial-cabeza { display: flex; justify-content: space-between; align-items: center; gap: var(--e-2); }
-.estructuras-historial dl { margin: var(--e-1) 0 0; }
-.estructuras-historial dt { font-weight: 650; display: inline; }
-.estructuras-historial dt::after { content: ': '; }
-.estructuras-historial dd { display: inline; margin: 0; color: var(--mudo); }
-.estructuras-historial dl > div { margin-bottom: 2px; }
-
 /* La planilla de Excel por región. */
 .estructuras-planilla { margin-bottom: var(--e-3); }
 .estructuras-planilla > details > summary { cursor: pointer; display: flex; align-items: center; gap: var(--e-2); font-weight: 600; padding: var(--e-2) 0; }

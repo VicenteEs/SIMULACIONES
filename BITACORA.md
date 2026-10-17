@@ -9200,8 +9200,12 @@ botón deja esa lista como la mesa de los practicantes.
   el del id —un id estropeado al copiar— no se aplica. Del lado opuesto: «Set of perforating arteries» y otras 24 piezas del
   miembro inferior derecho no tienen pareja deducible (el atlas las nombra sin lado o son de la línea media): se dicen en el
   resumen en vez de adivinarlas, y se llenan subiendo también la planilla del otro lado.)*
-- [ ] **E8.6 · El taller anatómico:** al seleccionar una pieza, una pestaña «Info» en el panel derecho (el componente
+- [x] **E8.6 · El taller anatómico:** al seleccionar una pieza, una pestaña «Info» en el panel derecho (el componente
   de pestañas de E2 del P-001) con la misma ficha editable; un trozo partido abre la de su pieza.
+  *(Hecha. La ficha es un solo componente, `FichaEditable`, que usan la ventana de la pantalla y la pestaña del taller, así que
+  lo que se escribe en uno se ve en el otro. Un trozo (`FJ…#a`) abre la ficha de su pieza entera por `piezaDe`, no por el
+  nombre. **Lo escrito y sin guardar no se pierde al pinchar otra pieza:** el borrador queda en el taller, la pestaña dice «Info (1
+  sin guardar)» y cerrar la página pregunta; al volver a la pieza, el texto está.)*
 - [ ] **E8.7 · Pruebas, manual y D-nnn.** Integración: subir la planilla dos veces no duplica; una celda vacía no
   borra; aplicar al lado opuesto llena la pareja y no pisa lo ya escrito; un lector no escribe; una pieza oculta no
   cuenta.

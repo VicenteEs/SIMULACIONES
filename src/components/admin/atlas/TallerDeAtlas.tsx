@@ -42,6 +42,7 @@ import { seleccionTras, type ModoDeSeleccion } from '@/atlas/seleccion'
 import { cuaternionDeGrados, gradosDeCuaternion } from '@/atlas/angulos'
 import { describirLectura } from '@/atlas/lecturaClinica'
 import { PestanaDeFractura, type EstadoDelHueso } from '@/components/admin/atlas/PestanaDeFractura'
+import { PestanaDeInfo, useBorradoresDeInfo } from '@/components/admin/atlas/PestanaDeInfo'
 import {
   BORRADOR_VACIO,
   borradorDeLaReceta,
@@ -463,10 +464,12 @@ export function TallerDeAtlas({
    * que es lo primero que había: el nombre y la descripción. Con un enlace de la
    * bandeja de comentarios arranca en «Comentarios».
    */
-  const [pestana, setPestana] = useState<'pieza' | 'preparacion' | 'fractura' | 'comentarios'>(
+  const [pestana, setPestana] = useState<'pieza' | 'info' | 'preparacion' | 'fractura' | 'comentarios'>(
     comentarioInicial ? 'comentarios' : 'preparacion',
   )
   const comentarios = useComentariosDelTaller(instancia)
+  /** Lo escrito en «Info» y sin guardar, que no se pierde al pinchar otra pieza (D-179, P-003 E8.6). */
+  const info = useBorradoresDeInfo()
   /** Los comentarios anclados, marcados sobre el modelo (E2.4). Apagables: tapan lo que se mira. */
   const [marcadoresDeComentarios, setMarcadoresDeComentarios] = useState(true)
   const [nombre, setNombre] = useState('')
@@ -2886,6 +2889,7 @@ export function TallerDeAtlas({
             alCambiar={(id) => setPestana(id as typeof pestana)}
             pestanas={[
               { id: 'pieza', etiqueta: 'Pieza' },
+              { id: 'info', etiqueta: info.pendientes > 0 ? `Info (${info.pendientes} sin guardar)` : 'Info' },
               { id: 'preparacion', etiqueta: 'Preparación' },
               { id: 'fractura', etiqueta: 'Fractura' },
               {
@@ -3082,6 +3086,16 @@ export function TallerDeAtlas({
             </ul>
           )}
 
+          </PanelDePestana>
+
+          <PanelDePestana base="taller" id="info" activa={pestana}>
+            <PestanaDeInfo
+              seleccion={seleccion}
+              catalogo={catalogo}
+              nombreDePieza={nombreDePieza}
+              borradores={info.borradores}
+              guardarBorrador={info.guardarBorrador}
+            />
           </PanelDePestana>
 
           <PanelDePestana base="taller" id="fractura" activa={pestana}>
