@@ -708,6 +708,7 @@ export const Cirugias: EsquemaDeColeccion = {
                 { valor: 'fuerza', etiqueta: 'Aplicar la fuerza correcta' },
                 { valor: 'perforacion', etiqueta: 'Perforar con el calibre y el ángulo correctos' },
                 { valor: 'fijacion', etiqueta: 'Fijar con placa y tornillos' },
+                { valor: 'planos', etiqueta: 'Cortar o separar un músculo concreto' },
               ],
               // Las tres reglas no se escriben aquí: son las mismas que hace
               // cumplir `exigeElRangoDeSuObjetivo` en
@@ -798,6 +799,23 @@ export const Cirugias: EsquemaDeColeccion = {
               etiqueta: 'Tienen que cruzar las dos corticales',
               medio: true,
               ayuda: 'Para perforar y para fijar.',
+            },
+            {
+              tipo: 'texto',
+              nombre: 'musculoDelPlano',
+              etiqueta: 'Músculo (nombre de su objeto en el modelo)',
+              medio: true,
+              ayuda: 'Solo si el objetivo es cortar o separar un músculo concreto.',
+            },
+            {
+              tipo: 'seleccion',
+              nombre: 'accionDelPlano',
+              etiqueta: 'Qué hay que hacer con él',
+              medio: true,
+              opciones: [
+                { valor: 'cortar', etiqueta: 'Cortarlo' },
+                { valor: 'separar', etiqueta: 'Separarlo (retraerlo)' },
+              ],
             },
             {
               tipo: 'lista',

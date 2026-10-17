@@ -29,6 +29,7 @@ const OBJETIVOS = [
   { value: 'fuerza', label: 'Aplicar la fuerza correcta' },
   { value: 'perforacion', label: 'Perforar con el calibre y el ángulo correctos' },
   { value: 'fijacion', label: 'Fijar con placa y tornillos' },
+  { value: 'planos', label: 'Cortar o separar un músculo concreto' },
 ]
 
 /**
@@ -79,7 +80,7 @@ const exigeElRangoDeSuObjetivo = (
     return 'Cada paso tiene que declarar qué se evalúa.'
   }
   if (!OBJETIVOS.some((opcion) => opcion.value === valor)) {
-    return 'Ese objetivo no está en la lista: instrumento, trazo, reducción, fuerza, perforación o fijación.'
+    return 'Ese objetivo no está en la lista: instrumento, trazo, reducción, fuerza, perforación, fijación o planos.'
   }
 
   const paso = (siblingData ?? {}) as Record<string, unknown>
@@ -90,6 +91,14 @@ const exigeElRangoDeSuObjetivo = (
   // escribe es que le falta la longitud, no que le sobra la fuerza.
   for (const regla of REGLAS_DEL_OBJETIVO_DEL_PASO.exige) {
     if (valor === regla.opcion && !declara(regla.campos)) return regla.mensaje
+  }
+  // Los planos (P-003 E10) piden texto y no números, que es lo único que sabe mirar la lista de arriba: sin músculo o
+  // sin acción no hay qué evaluar, y el paso se daría por bueno al elegir cualquier cosa.
+  if (valor === 'planos') {
+    const musculo = typeof paso.musculoDelPlano === 'string' ? paso.musculoDelPlano.trim() : ''
+    if (musculo === '' || (paso.accionDelPlano !== 'cortar' && paso.accionDelPlano !== 'separar')) {
+      return 'Un paso de planos necesita el músculo (el nombre de su objeto en el modelo) y si hay que cortarlo o separarlo.'
+    }
   }
 
   // Ojo con lo que la regla que prohíbe alcanza: `validate` no corre solo sobre
@@ -441,6 +450,22 @@ export const Cirugias: CollectionConfig = {
             { name: 'exigeBicortical', type: 'checkbox', label: 'Tienen que ser bicorticales' },
           ],
           admin: { condition: (_, hermanos) => hermanos?.objetivo === 'fijacion' || hermanos?.objetivo === 'perforacion' },
+        },
+        {
+          type: 'row',
+          fields: [
+            { name: 'musculoDelPlano', type: 'text', maxLength: 200, label: 'Músculo (nombre de su objeto en el modelo)' },
+            {
+              name: 'accionDelPlano',
+              type: 'select',
+              label: 'Qué hay que hacer con él',
+              options: [
+                { value: 'cortar', label: 'Cortarlo' },
+                { value: 'separar', label: 'Separarlo (retraerlo)' },
+              ],
+            },
+          ],
+          admin: { condition: (_, hermanos) => hermanos?.objetivo === 'planos' },
         },
         // --- qué se ve ---
         {

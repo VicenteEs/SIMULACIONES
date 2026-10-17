@@ -6247,6 +6247,20 @@ Décima etapa del plan P-003 (E10). Pedidos 17 y 18 de Cristóbal. E10-Q1 (qué 
 
 *Consecuencias buenas.* Se ve lo que hay debajo de un músculo sin cortarlo, y un corte puede ir a un solo músculo. *Malas.* La retracción es una deformación local sin colisiones: el músculo puede atravesar lo de al lado; un músculo cortado después de retraerlo pierde la retracción.
 
+### D-187 · 2026-10-18 · vigente
+**El orden de los planos es un objetivo de paso: «Cortar o separar un músculo concreto».**
+Respuesta del dueño a E10-Q2 («¿el orden de planos debe ser un objetivo de paso?»): **sí**. Completa D-186.
+
+*Qué se hizo.* Un objetivo nuevo, **`planos`**, con dos campos en el paso: `musculoDelPlano` (el nombre del objeto del músculo en el modelo) y `accionDelPlano` (`cortar` o `separar`). La consola lo evalúa como evalúa lo demás (`evaluarGesto`), con el instrumento exigido como siempre: hay que **haber elegido en «Info» ese músculo y esa acción**, y entonces, para *cortar*, haber hecho la incisión sobre él, o, para *separar*, tenerlo **retraído al menos 5 mm** (`RETRACCION_MINIMA_MM`). Dos desenlaces nuevos (`sin-musculo-elegido`, `plano-sin-hacer`, con su nombre en el panel); el modo del paso es «Info», que es donde están «Cortar» y «Separar». Un abordaje con dos planos se escribe como dos pasos: «separar el tibial anterior», «cortar el plano de debajo».
+- **Migración** `20261017_223757_planos_en_los_pasos`: añade `planos` a los dos enums de `objetivo` (el de la tabla de pasos y el de sus versiones), crea el enum de la acción y las dos columnas en las dos tablas. Solo **añade**: no cambia ni borra nada de lo que ya hay, y las filas existentes no reciben valor en las columnas nuevas. El `ADD VALUE` de un enum no se puede usar en la misma transacción que lo crea, y aquí no se usa.
+- La validación de la colección exige músculo y acción cuando el objetivo es `planos` (la lista de reglas numéricas no sabe mirar texto); el editor del caso esconde los dos campos salvo con ese objetivo; el formato de importación los documenta.
+
+*Desviación.* El editor escribe el **nombre del objeto a mano** en el campo; no hay todavía un «tomar el de Info». Un nombre mal escrito no da error al guardar: el paso nunca se podría superar, y la consola lo dice («Elija en “Info” el músculo de este paso…»).
+
+*Probado.* Pruebas unitarias del objetivo (no se deduce a otro, sin instrumento, músculo o acción ajenos, mínimo de retracción, cortar, instrucción, nombres del panel y paso hasta la consola). Typecheck, lint, tipos de Payload regenerados y la prueba de migraciones en verde. Sin recorrer a mano en el navegador.
+
+*Consecuencias buenas.* El orden de los planos se enseña y se evalúa como el resto. *Malas.* Un valor nuevo en un enum de PostgreSQL **no se puede quitar** con una migración inversa limpia: la bajada rehace el enum y falla si ya hay un paso con `planos`.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -9450,7 +9464,7 @@ al lado; el editor la corrige ahí mismo y el cambio aparece en el listado globa
 **Hecho cuando…** En la pierna reexportada, el residente separa el tibial anterior con un Farabeuf, corta el plano de
 debajo con la Metzenbaum y llega al hueso, plano por plano.
 
-**Preguntas para Cristóbal**
+**Preguntas para Cristóbal** *(E10-Q1: se omitió por indicación del dueño; E10-Q2: sí, ver D-187)*
 
 - **E10-Q1 · Los instrumentos por omisión** de los vasos y los nervios: ¿se ofrece algo para ellos (proteger,
   ligar), o solo los músculos llevan «Cortar» y «Separar»?

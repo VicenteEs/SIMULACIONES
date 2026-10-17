@@ -123,6 +123,8 @@ function pasosDelCaso(documento: Documento): PasoDeConsola[] {
       anguloMaximo: typeof p.anguloMaximo === 'number' ? p.anguloMaximo : null,
       exigeBicortical: p.exigeBicortical === true,
       tornillosMinimos: typeof p.tornillosMinimos === 'number' ? p.tornillosMinimos : null,
+      musculoDelPlano: texto(p.musculoDelPlano),
+      accionDelPlano: p.accionDelPlano === 'separar' ? ('separar' as const) : p.accionDelPlano === 'cortar' ? ('cortar' as const) : null,
     }
     // El relleno va **antes** de la deducción, y no al revés: la columna tiene
     // `DEFAULT 'instrumento'`, así que una fila sin objetivo no es una fila que

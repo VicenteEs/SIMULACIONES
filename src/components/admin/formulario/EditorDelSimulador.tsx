@@ -59,6 +59,7 @@ const CAMPOS_DEL_OBJETIVO: Record<string, string[]> = {
   fuerza: ['fuerzaMinima', 'fuerzaMaxima'],
   perforacion: ['calibreBroca', 'anguloMinimo', 'anguloMaximo', 'exigeBicortical'],
   fijacion: ['tornillosMinimos', 'exigeBicortical'],
+  planos: ['musculoDelPlano', 'accionDelPlano'],
 }
 const TODOS_LOS_RANGOS = Object.values(CAMPOS_DEL_OBJETIVO).flat()
 
@@ -270,7 +271,7 @@ export function EditorDelSimulador({
       // Un rango que no toca a este objetivo se esconde, salvo que ya tenga un
       // valor: escondido y lleno, el servidor lo rechazaría (`exigeAlguno` /
       // `prohibeAlguno`) y nadie sabría dónde está.
-      return delObjetivo.includes(c.nombre) || esNumero(pasoActual?.[c.nombre])
+      return delObjetivo.includes(c.nombre) || esNumero(pasoActual?.[c.nombre]) || (typeof pasoActual?.[c.nombre] === 'string' && pasoActual[c.nombre] !== '')
     })
   }
 

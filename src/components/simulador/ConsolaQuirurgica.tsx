@@ -492,6 +492,8 @@ const MODO_DEL_OBJETIVO: Record<Objetivo, Modo> = {
   fuerza: 'orbitar',
   perforacion: 'perforar',
   fijacion: 'fijar',
+  // El paso de planos se resuelve desde la ficha de «Info», que es donde están «Cortar» y «Separar».
+  planos: 'info',
 }
 
 /** «la piel», «la piel y el músculo»: para escribirlo dentro de una frase. */
@@ -1064,6 +1066,13 @@ export function ConsolaQuirurgica({
             }
           : undefined,
       fijacion: resumenDeLaFijacion(fijacion),
+      plano: {
+        nodo: musculoObjetivo?.nodo ?? null,
+        accion: musculoObjetivo?.accion ?? null,
+        // Se cortó con ese músculo elegido: la herida del plano muscular existe y el objetivo era cortar.
+        cortado: musculoObjetivo?.accion === 'cortar' && (herida?.capas ?? []).includes('musculo'),
+        retraidoMm: retracciones.find((r) => r.nodo === musculoObjetivo?.nodo)?.aperturaMm ?? 0,
+      },
     })
 
     const clase: Anotacion['clase'] =

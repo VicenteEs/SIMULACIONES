@@ -1606,7 +1606,7 @@ export interface Cirugia {
           };
           [k: string]: unknown;
         } | null;
-        objetivo: 'instrumento' | 'trazo' | 'reduccion' | 'fuerza' | 'perforacion' | 'fijacion';
+        objetivo: 'instrumento' | 'trazo' | 'reduccion' | 'fuerza' | 'perforacion' | 'fijacion' | 'planos';
         /**
          * Se exige en todos los objetivos: sin el instrumento en la mano no hay gesto.
          */
@@ -1625,6 +1625,8 @@ export interface Cirugia {
         anguloMaximo?: number | null;
         tornillosMinimos?: number | null;
         exigeBicortical?: boolean | null;
+        musculoDelPlano?: string | null;
+        accionDelPlano?: ('cortar' | 'separar') | null;
         /**
          * Deje la lista vacía para que se vea lo mismo que en el paso anterior. El implante aparece en el paso que lo coloca.
          */
@@ -3442,6 +3444,8 @@ export interface CirugiasSelect<T extends boolean = true> {
         anguloMaximo?: T;
         tornillosMinimos?: T;
         exigeBicortical?: T;
+        musculoDelPlano?: T;
+        accionDelPlano?: T;
         muestra?:
           | T
           | {

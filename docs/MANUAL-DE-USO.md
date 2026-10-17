@@ -872,6 +872,11 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   un clic en el músculo lo **retrae sin cortarlo** y la rueda lo abre o lo cierra, hasta el tope del
   separador, para ver lo que hay debajo; «Soltar el músculo» lo devuelve a su sitio. «Quitar el
   objetivo» vuelve a trabajar sobre la capa entera. La retracción no se guarda al recargar.
+- **Pasos de «planos» (para quien escribe el caso).** Un paso puede evaluar **«Cortar o separar un
+  músculo concreto»**: se escribe el nombre del objeto del músculo en el modelo y se elige si hay
+  que cortarlo o separarlo. El residente tiene que elegir ese músculo en «Info», pulsar la acción
+  y hacerla (cortar: trazar la incisión sobre él; separar: retraerlo al menos 5 mm). Un abordaje
+  con dos planos son dos pasos seguidos.
 - **La rueda del ratón maneja el instrumento.** Con unas tijeras, una pinza o un portaagujas
   en la mano, la rueda sobre el modelo los **abre y cierra**; con un separador abre el
   separador y la herida a la vez; con un tornillo cambia su largo; con una sutura que ya tiene

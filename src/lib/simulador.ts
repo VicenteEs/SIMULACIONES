@@ -49,12 +49,18 @@ export const RESULTADOS = {
   TORNILLOS_INSUFICIENTES: 'tornillos-insuficientes',
   TORNILLO_UNICORTICAL: 'tornillo-unicortical',
   TORNILLO_LARGO: 'tornillo-largo',
+  // P-003 E10: trabajar por planos, un músculo concreto.
+  SIN_MUSCULO_ELEGIDO: 'sin-musculo-elegido',
+  PLANO_SIN_HACER: 'plano-sin-hacer',
   CORRECTO: 'correcto',
 } as const
 
 export type Resultado = (typeof RESULTADOS)[keyof typeof RESULTADOS]
 
-export type Objetivo = 'instrumento' | 'trazo' | 'reduccion' | 'fuerza' | 'perforacion' | 'fijacion'
+export type Objetivo = 'instrumento' | 'trazo' | 'reduccion' | 'fuerza' | 'perforacion' | 'fijacion' | 'planos'
+
+/** Cuánto tiene que haber retraído un músculo, como mínimo, para dar por hecho «separarlo» (P-003 E10). */
+export const RETRACCION_MINIMA_MM = 5
 
 export interface PasoQuirurgico {
   titulo?: string
@@ -78,6 +84,9 @@ export interface PasoQuirurgico {
   exigeBicortical?: boolean | null
   /** Fijación: cuántos tornillos hacen falta como mínimo. */
   tornillosMinimos?: number | null
+  /** Planos (P-003 E10): el nombre del objeto del músculo sobre el que se trabaja, y si hay que cortarlo o separarlo. */
+  musculoDelPlano?: string | null
+  accionDelPlano?: 'cortar' | 'separar' | null
   exito?: string | null
   insuficiente?: string | null
   excesivo?: string | null
@@ -107,6 +116,11 @@ export interface Gesto {
   }
   /** Lo que hay fijado: si hay placa, cuántos tornillos, cuántos bicorticales y cuántos largos. */
   fijacion?: { placa: boolean; tornillos: number; bicorticales: number; largos: number }
+  /**
+   * El músculo elegido con «Info» y lo hecho con él (P-003 E10): su nodo, si se va a cortar o a separar, si se cortó
+   * y cuánto está retraído. `nodo` es `null` mientras no se haya elegido ninguno.
+   */
+  plano?: { nodo: string | null; accion: 'cortar' | 'separar' | null; cortado: boolean; retraidoMm: number }
 }
 
 export interface Evaluacion {
@@ -462,6 +476,31 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
       return bien(paso.exito)
     }
 
+    case 'planos': {
+      const pedido = paso.musculoDelPlano ?? ''
+      const accion = paso.accionDelPlano === 'separar' ? 'separar' : 'cortar'
+      const p = gesto.plano
+      if (!p?.nodo || p.nodo !== pedido || p.accion !== accion) {
+        return nada(
+          `Elija en «Info» el músculo de este paso y pulse «${accion === 'cortar' ? 'Cortar' : 'Separar'}».`,
+          RESULTADOS.SIN_MUSCULO_ELEGIDO,
+        )
+      }
+      if (accion === 'cortar' && !p.cortado) {
+        return nada(
+          `${paso.insuficiente || 'Todavía no cortó ese músculo.'} Trace la incisión sobre él con el instrumento en la mano.`,
+          RESULTADOS.PLANO_SIN_HACER,
+        )
+      }
+      if (accion === 'separar' && p.retraidoMm < RETRACCION_MINIMA_MM) {
+        return nada(
+          `${paso.insuficiente || 'El músculo no está retraído.'} Apoye el separador en él y ábralo con la rueda (al menos ${RETRACCION_MINIMA_MM} mm).`,
+          RESULTADOS.PLANO_SIN_HACER,
+        )
+      }
+      return bien(paso.exito)
+    }
+
     default:
       // Objetivo «instrumento»: bastaba con elegirlo bien, y ya se comprobó.
       return bien(paso.exito)
@@ -623,6 +662,12 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
       const n = paso.tornillosMinimos ?? 1
       return conInstrumento(
         `active el modo Fijar: apoye la placa sobre el hueso y ponga ${n} ${n === 1 ? 'tornillo' : 'tornillos'} en sus agujeros.${paso.exigeBicortical ? ' Los tornillos tienen que cruzar las dos corticales.' : ''} Mida antes con el medidor de profundidad.`,
+      )
+    }
+    case 'planos': {
+      const accion = paso.accionDelPlano === 'separar' ? 'separe' : 'corte'
+      return conInstrumento(
+        `active «Info», pinche el músculo del paso, pulse «${accion === 'corte' ? 'Cortar' : 'Separar'}» y ${accion} ese músculo${accion === 'separe' ? ` hasta retraerlo al menos ${RETRACCION_MINIMA_MM} mm` : ''}.`,
       )
     }
     default:

@@ -129,6 +129,8 @@ export const NOMBRE_DEL_DESENLACE: Record<Resultado, string> = {
   [RESULTADOS.TORNILLOS_INSUFICIENTES]: 'Faltan tornillos',
   [RESULTADOS.TORNILLO_UNICORTICAL]: 'Tornillo unicortical',
   [RESULTADOS.TORNILLO_LARGO]: 'Tornillo largo',
+  [RESULTADOS.SIN_MUSCULO_ELEGIDO]: 'Músculo sin elegir',
+  [RESULTADOS.PLANO_SIN_HACER]: 'Plano sin hacer',
   [RESULTADOS.CORRECTO]: 'Correcto',
 }
 

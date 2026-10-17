@@ -24,6 +24,7 @@ import * as migration_20261010_040353_objetivos_de_perforacion_y_fijacion from '
 import * as migration_20261010_042311_tratamiento_de_los_casos_ao from './20261010_042311_tratamiento_de_los_casos_ao';
 import * as migration_20261017_152409_tipos_de_ficha_y_avisos_de_catalogo from './20261017_152409_tipos_de_ficha_y_avisos_de_catalogo';
 import * as migration_20261017_161451_estructuras_anatomicas from './20261017_161451_estructuras_anatomicas';
+import * as migration_20261017_223757_planos_en_los_pasos from './20261017_223757_planos_en_los_pasos';
 
 export const migrations = [
   {
@@ -154,6 +155,11 @@ export const migrations = [
   {
     up: migration_20261017_161451_estructuras_anatomicas.up,
     down: migration_20261017_161451_estructuras_anatomicas.down,
-    name: '20261017_161451_estructuras_anatomicas'
+    name: '20261017_161451_estructuras_anatomicas',
+  },
+  {
+    up: migration_20261017_223757_planos_en_los_pasos.up,
+    down: migration_20261017_223757_planos_en_los_pasos.down,
+    name: '20261017_223757_planos_en_los_pasos'
   },
 ];
