@@ -6212,6 +6212,23 @@ Séptima etapa del plan P-003 (E7). Pedido 15 y respuesta 6 de Cristóbal.
 
 *Consecuencias buenas.* La lista sale de lo que ocurrió y no de lo que alguien recuerde; la bandeja del caso se ajusta en un clic. *Malas.* El registro **no se guarda en la sesión** (recargar a mitad lo vacía); cambiar el largo de un tornillo ya puesto con la rueda puede anotar otro largo; el medidor y la broca cuentan aunque no dejen nada en el paciente (son insumos de esterilización igualmente).
 
+### D-185 · 2026-10-18 · vigente
+**Los modelos se exportan con cada estructura como objeto propio, y el modo «Info» del simulador destaca una estructura y abre su ficha.**
+Novena etapa del plan P-003 (E9). Pedidos 16 y 17; respuestas 7, 10 y 11 de Cristóbal.
+
+*Qué había.* `agruparParaGlb` dejaba sueltas solo las protagonistas y fundía el resto por sistema («Músculos», «Arterias»…): no había manera de saber qué músculo se pinchaba. El motivo de fundir (ciento treinta filas en «Piezas») lo quitó D-176.
+
+*Qué se hizo.*
+- **`separarEstructuras`** en `agruparParaGlb` / `prepararExportacion` / `exportarPreparacion`: cada pieza sale como objeto propio con **`atlasId`** en los `extras` (las protagonistas lo llevan siempre; los dos trozos de un hueso partido comparten el del hueso entero). **Por omisión se separa** en la acción del taller (`exportarComoModelo`); `separarEstructuras: false` devuelve lo fundido. **Por encima de 400 piezas** (`MAXIMO_DE_PIEZAS_SUELTAS`) se funden solo arterias, venas y linfáticos, por sistema; músculos, huesos y nervios siguen sueltos. El guion `pierna-derecha-en-el-caso.ts` pide `false` a propósito: arma el caso de prueba de D-169 con el modelo fundido y compara sus bytes con los de los modelos que ya hay.
+- **«Volver a exportar con estructuras separadas»** en el editor del caso (`reexportarConEstructurasSeparadas`): el modelo no guarda su preparación, pero sí su nombre «<preparación> · del atlas»; de ahí se vuelve a ella (si no existe o hay dos con ese nombre, se dice y no se adivina). Crea un modelo **nuevo** —el viejo no se borra—, lo pone en el caso y las piezas se rehacen solas por el camino de D-169 (con «Deshacer»). El botón solo sale cuando el modelo trae objetos fundidos por sistema.
+- **«Info»**: un modo más de la barra, para todos. Un clic en una estructura la **destaca** (una malla hija translúcida con la misma geometría: no se toca el material, que lo tocan la fluoroscopia y los colores, y no se puede pinchar) y abre al lado su ficha: «Estructura seleccionada» (nombre y latino) y «Aprenda más» (definición, origen, inserción, inervación, acción, irrigación). La ficha se pide al listado de E8 con `leerFichaParaElSimulador` (cualquier sesión activa; las `notas` no salen; una estructura oculta no abre ficha). Un objeto fundido de un modelo viejo dice «Este modelo no separa las estructuras». En el editor hay **«Editar»**, que abre la misma ventana de E8; al guardar la ficha se vuelve a leer.
+
+*Desviaciones.* (1) La ficha se pide **al pinchar** y no «de una vez al abrir el caso»: una consulta pequeña por clic evita traer de golpe cientos de fichas y nunca queda vieja. (2) «Info» es **un modo de la barra** y no un interruptor que se superpone al modo de la herramienta: es lo que permite no tocar el manejo del ratón de los demás modos. (3) **El rendimiento no se midió en el equipo de referencia** (E9.2): el umbral de 400 es el del plan y `maximoDePiezasSueltas` lo hace ajustable; conviene probar una pierna y un tronco antes de fiarse.
+
+*Probado.* Pruebas unitarias de la agrupación (sin la opción, con ella, trozos, umbral y umbral justo), de la exportación real contra el atlas (por omisión, cuatro piezas son cuatro objetos con su `atlasId`) y del destacado (tinte hijo, se muda, se quita, pieza apagada, no se pincha, no cuenta como pieza). Typecheck y lint limpios.
+
+*Consecuencias buenas.* Se puede pinchar cualquier músculo; la información sale del listado global y no hay que volver a llenarla. *Malas.* Un modelo con todo suelto tiene más objetos que dibujar (una pierna son unos 140); los casos viejos siguen fundidos hasta que un editor los reexporta; el modelo viejo queda en la biblioteca.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -9312,7 +9329,7 @@ ve igual en el taller.
 
 ---
 
-#### E9 · Exportar con las estructuras separadas, y el botón «Info» del simulador · 2–3 sesiones · pendiente
+#### E9 · Exportar con las estructuras separadas, y el botón «Info» del simulador · 2–3 sesiones · hecha en local (2026-10-18, D-185; sin desplegar)
 
 **De dónde sale:** pedidos 16 y 17; respuestas 7, 10 y 11.
 
@@ -9448,7 +9465,7 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 | E6 · Placa, perforación, medidor y tornillos | hecha en local; sin desplegar | 2 | E2 | D-183 |
 | E7 · Insumos al terminar | hecha en local; sin desplegar | 1 | E3–E6 | D-184 |
 | E8 · Listado global de estructuras | hecha en local; sin desplegar | 3 | — | D-179 |
-| E9 · Estructuras separadas e «Info» | pendiente | 2–3 | E8 | — |
+| E9 · Estructuras separadas e «Info» | hecha en local; sin desplegar | 2–3 | E8 | D-185 |
 | E10 · Trabajar por planos | pendiente | 3 | E4, E9 | — |
 
 ---

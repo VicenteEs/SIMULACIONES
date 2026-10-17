@@ -857,6 +857,14 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   cuenta), por categoría y con los tornillos por tipo y largo. En el **editor**, cada
   instrumento de la bandeja lleva una casilla (lo usado, marcada; lo que no se usó, sin marcar)
   y **«Usar como bandeja del caso»** deja la bandeja exactamente con lo marcado.
+- **Info.** El modo **Info** de la barra del modelo sirve para todos: un clic en una estructura
+  (un músculo, un nervio, un vaso, un hueso) la **destaca en azul** y abre al lado su ficha,
+  con el nombre, el nombre latino y «Aprenda más» (definición, origen, inserción, inervación,
+  acción e irrigación). Una pieza apagada no se pincha. Quien edita ve además **«Editar»**, que
+  abre la ficha para corregirla en el momento. Si el modelo del caso agrupa las estructuras por
+  sistema, dice que no las separa; en el editor del caso aparece entonces **«Volver a exportar
+  con estructuras separadas»**, que crea un modelo nuevo desde la misma preparación (el actual no
+  se borra) y rehace las piezas del caso.
 - **La rueda del ratón maneja el instrumento.** Con unas tijeras, una pinza o un portaagujas
   en la mano, la rueda sobre el modelo los **abre y cierra**; con un separador abre el
   separador y la herida a la vez; con un tornillo cambia su largo; con una sutura que ya tiene

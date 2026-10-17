@@ -93,6 +93,8 @@ import { Visor3D } from '@/components/VisoresPerezosos'
 // módulos.
 import { encuadreVigente, type Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import { CATEGORIAS_DE_INSTRUMENTAL, ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
+import { leerFichaParaElSimulador, type FichaParaElSimulador } from '@/app/(frontend)/acciones/estructuras'
+import { VentanaDeEstructura } from '@/app/(frontend)/admin-panel/estructuras/VentanaDeEstructura'
 import { agruparInsumos, anotarUso, filasParaLaBandeja, type RegistroDeInsumos } from '@/lib/insumos'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import { comportamientoDelInstrumento, guiaDelInstrumento } from '@/lib/comportamientoDelInstrumento'
@@ -424,6 +426,17 @@ const MODO_REDUCIR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
 }
 
 /**
+ * El modo «Info» (P-003 E9): un clic en una estructura la destaca y abre su ficha al lado. No modifica nada, así que
+ * está para todos y con cualquier instrumento; al salir del modo el tinte se quita.
+ */
+const MODO_INFO: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'info',
+  etiqueta: 'Info',
+  icono: Info,
+  ayuda: 'Info: haga clic en una estructura —un músculo, un nervio, un vaso, un hueso— y se destaca; al lado aparece su ficha. Una pieza apagada no se pincha.',
+}
+
+/**
  * El modo de la disección roma con la tijera de Metzenbaum (petición de Cristóbal): se apoya la punta cerrada en el
  * tejido, se abren las ramas y el plano se separa por tensión, no por corte; se avanza y se vuelve a abrir.
  */
@@ -645,6 +658,14 @@ export function ConsolaQuirurgica({
   // de lo usado», el valor de partida, y solo se guarda lo que la persona toca.
   const [insumos, setInsumos] = useState<RegistroDeInsumos>({})
   const [marcadasParaLaBandeja, setMarcadasParaLaBandeja] = useState<Set<string> | null>(null)
+  // La estructura que se pinchó con «Info» y lo que se sabe de ella (P-003 E9). El panel solo se ve en ese modo.
+  const [info, setInfo] = useState<
+    | { estado: 'cargando'; nodo: string; nombre: string }
+    | { estado: 'ficha'; nodo: string; ficha: FichaParaElSimulador }
+    | { estado: 'sinFicha' | 'modeloViejo' | 'error'; nodo: string; nombre: string }
+    | null
+  >(null)
+  const [editandoLaFicha, setEditandoLaFicha] = useState<string | null>(null)
   // El instrumento en la mano: qué articulaciones declara su archivo y cuánto
   // las ha movido quien lo usa. Vive aquí y no dentro del visor pequeño porque
   // lo mueven dos cosas a la vez —los deslizadores y la escena— y las dos
@@ -1005,6 +1026,10 @@ export function ConsolaQuirurgica({
   useEffect(() => {
     alRefrescar.current = { refrescarVisibles, indice, capasApagadas }
   })
+  // Fuera del modo «Info» no queda ningún tinte puesto (P-003 E9).
+  useEffect(() => {
+    if (modo !== 'info') mando.current?.resaltarNodo(null)
+  }, [modo])
   useEffect(() => {
     if (!modeloAbierto) return
     const { refrescarVisibles: refrescar, indice: paso, capasApagadas: apagadas } = alRefrescar.current
@@ -1780,6 +1805,7 @@ export function ConsolaQuirurgica({
     ...(queHace.perfora ? [MODO_PERFORAR] : []),
     ...(queHace.sutura ? [MODO_COSER] : []),
     ...(queHace.coloca || queHace.mide ? [MODO_FIJAR] : []),
+    MODO_INFO,
   ]
   const ayudaDelModo = modosVisibles.find((m) => m.valor === modo)?.ayuda ?? ''
   const etiquetaDelModoDelPaso = MODOS.find((m) => m.valor === modoDelPaso)?.etiqueta ?? null
@@ -3207,6 +3233,77 @@ export function ConsolaQuirurgica({
 
       {/* -------------------------------------------------------- lienzo */}
       <div className="consola-centro">
+        {modo === 'info' && info ? (
+          <div className="consola-info" role="region" aria-label="Ficha de la estructura">
+            <h3 className="consola-subtitulo">Estructura seleccionada</h3>
+            {info.estado === 'ficha' ? (
+              <>
+                <p>
+                  <strong>{info.ficha.nombre}</strong>
+                  {info.ficha.nombreLatino ? <em> · {info.ficha.nombreLatino}</em> : null}
+                </p>
+                <details open>
+                  <summary>Aprenda más</summary>
+                  {(
+                    [
+                      ['Definición', info.ficha.definicion],
+                      ['Origen', info.ficha.origen],
+                      ['Inserción', info.ficha.insercion],
+                      ['Inervación', info.ficha.inervacion],
+                      ['Acción', info.ficha.accion],
+                      ['Irrigación', info.ficha.irrigacion],
+                    ] as const
+                  )
+                    .filter(([, texto]) => texto)
+                    .map(([titulo, texto]) => (
+                      <p key={titulo}>
+                        <strong>{titulo}.</strong> {texto}
+                      </p>
+                    ))}
+                  {!info.ficha.definicion && !info.ficha.origen && !info.ficha.insercion && !info.ficha.inervacion && !info.ficha.accion && !info.ficha.irrigacion ? (
+                    <p className="consola-vacio">Todavía no tiene ficha escrita.</p>
+                  ) : null}
+                </details>
+                {editor ? (
+                  <button type="button" className="consola-boton" onClick={() => setEditandoLaFicha(info.ficha.atlasId)}>
+                    Editar
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <p>
+                  <strong>{info.estado === 'cargando' ? info.nombre : 'nombre' in info ? info.nombre : ''}</strong>
+                </p>
+                <p className="consola-vacio">
+                  {info.estado === 'cargando'
+                    ? 'Abriendo la ficha…'
+                    : info.estado === 'modeloViejo'
+                      ? 'Este modelo no separa las estructuras: el objeto que pinchó agrupa varias. Un editor puede volver a exportarlo con las estructuras separadas desde el editor del caso.'
+                      : info.estado === 'sinFicha'
+                        ? 'Esta estructura no tiene ficha o no se muestra.'
+                        : 'No se pudo leer la ficha.'}
+                </p>
+              </>
+            )}
+          </div>
+        ) : null}
+        {editandoLaFicha ? (
+          <VentanaDeEstructura
+            atlasId={editandoLaFicha}
+            region=""
+            sistema=""
+            alCerrar={() => setEditandoLaFicha(null)}
+            alGuardar={() => {
+              // La ficha ya cambió: se vuelve a leer la que se está enseñando.
+              if (info && info.estado === 'ficha' && info.ficha.atlasId === editandoLaFicha) {
+                void leerFichaParaElSimulador(editandoLaFicha).then((r) => {
+                  if (r.exito && r.datos) setInfo({ estado: 'ficha', nodo: info.nodo, ficha: r.datos })
+                })
+              }
+            }}
+          />
+        ) : null}
         <div className={`consola-lienzo-marco modo-${modo}`}>
           <LienzoQuirurgico
             url={caso.modeloUrl}
@@ -3323,6 +3420,31 @@ export function ConsolaQuirurgica({
               editor?.alMoverFragmento?.()
             }}
             alSenalar={editor?.alSenalar}
+            alInformar={(golpe) => {
+              if (!golpe) {
+                mando.current?.resaltarNodo(null)
+                setInfo(null)
+                return
+              }
+              mando.current?.resaltarNodo(golpe.nodo)
+              const nombre = golpe.etiqueta ?? golpe.nodo.replace(/_/g, ' ')
+              // Un objeto fundido por sistema (un modelo exportado antes de P-003 E9) no dice qué músculo es:
+              // se avisa en vez de enseñar la ficha de otra cosa.
+              if (!golpe.atlasId) {
+                setInfo({ estado: 'modeloViejo', nodo: golpe.nodo, nombre })
+                return
+              }
+              setInfo({ estado: 'cargando', nodo: golpe.nodo, nombre })
+              void leerFichaParaElSimulador(golpe.atlasId).then((r) => {
+                const actual = r.exito ? (r.datos ?? null) : null
+                setInfo((previo) => {
+                  // Si ya se pinchó otra mientras tanto, esta respuesta llega tarde y no se enseña.
+                  if (!previo || previo.nodo !== golpe.nodo) return previo
+                  if (!r.exito) return { estado: 'error', nodo: golpe.nodo, nombre }
+                  return actual ? { estado: 'ficha', nodo: golpe.nodo, ficha: actual } : { estado: 'sinFicha', nodo: golpe.nodo, nombre }
+                })
+              })
+            }}
             // El fragmento se coloca desplazado cuando el archivo termina de
             // cargar, no antes: hasta ese momento no hay ningún nodo al que
             // aplicarle nada, y hacerlo en el montaje del componente dejaba

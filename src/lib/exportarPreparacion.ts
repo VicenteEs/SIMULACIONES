@@ -95,6 +95,12 @@ export interface OpcionesDeExportarPreparacion {
   corte?: unknown
   /** Otro directorio del atlas; por omisión, `public/atlas` bajo `process.cwd()`. */
   directorioDelAtlas?: string
+  /**
+   * Cada pieza como objeto propio, con su `atlasId` (P-003 E9). **Por omisión sí**: es lo que permite pinchar un
+   * músculo en la consola y abrir su ficha. `false` devuelve la forma de antes, fundida por sistema, para quien tenga
+   * una razón (un modelo para Blender que no quiera ciento cuarenta objetos).
+   */
+  separarEstructuras?: boolean
 }
 
 /** El modelo creado y lo que hay que decir de él. */
@@ -240,6 +246,7 @@ export async function exportarPreparacion(
   const { objetos, piezas, centro, sinLaPiel, pielRecortada, pielFuera, sinTraducir, corte: cortado } =
     prepararExportacion(rehecha.piezas, {
       protagonistas,
+      separarEstructuras: opciones.separarEstructuras !== false,
       colores,
       nombresDeSistema,
       corte,

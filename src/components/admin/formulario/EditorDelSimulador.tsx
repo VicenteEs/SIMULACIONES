@@ -7,7 +7,9 @@ import {
   type VistaDelEnsayo,
 } from '@/components/simulador/ConsolaQuirurgica'
 import type { MandoDelLienzo } from '@/components/simulador/LienzoQuirurgico'
+import { useRouter } from 'next/navigation'
 import { listarInstrumental } from '@/app/(frontend)/acciones/instrumental'
+import { reexportarConEstructurasSeparadas } from '@/app/(frontend)/acciones/atlas'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import type { Campo } from '@/admin/esquema'
 import { casoDesdeElFormulario, type InstrumentoParaElEditor } from '@/lib/casoQuirurgico'
@@ -105,6 +107,10 @@ export function EditorDelSimulador({
   // para poder devolverlo. El modelo para el que ya se miró vive en una ref: es
   // una decisión por modelo, y si el autor quita piezas a mano después no se
   // las vuelve a poner.
+  // «Volver a exportar con estructuras separadas» (P-003 E9): trabajando, o el motivo si no se pudo.
+  const router = useRouter()
+  const [reexportando, setReexportando] = useState(false)
+  const [errorAlReexportar, setErrorAlReexportar] = useState<string | null>(null)
   const [reparacion, setReparacion] = useState<{
     texto: string
     antes: { piezas: PiezaEnEdicion[]; pasos: Fila[] }
@@ -310,9 +316,51 @@ export function EditorDelSimulador({
     })
   }
 
+  /**
+   * Crea un modelo nuevo desde la misma preparación con cada estructura como objeto propio y lo pone en el caso. El
+   * viejo no se borra. El caso solo puede enseñar el modelo nuevo cuando la página trae la lista de modelos al día, de
+   * ahí el `refresh`: lo escrito en el formulario se conserva, porque el componente no se desmonta.
+   */
+  const reexportarSeparado = async () => {
+    setReexportando(true)
+    setErrorAlReexportar(null)
+    const r = await reexportarConEstructurasSeparadas(idDelModelo(valores.modelo))
+    setReexportando(false)
+    if (!r.exito || !r.datos) {
+      setErrorAlReexportar(r.mensaje ?? 'No se pudo volver a exportar.')
+      return
+    }
+    const id = Number(r.datos.id)
+    alCambiar('modelo', Number.isFinite(id) ? id : r.datos.id)
+    router.refresh()
+  }
+
   const panel = (vivo: VistaDelEnsayo) => (
     <>
       <AlTenerElModelo vivo={vivo} hacer={repararAlCambiarDeModelo} />
+      {vivo.modeloCargado &&
+      vivo.datosDeLosNodos.length > 0 &&
+      // Un objeto fundido por sistema trae `sistema` pero ningún `nombreOriginal` (solo lo llevan las piezas sueltas):
+      // es la marca de un modelo del atlas exportado como antes. Uno de Blender no trae `sistema` y no se reexporta.
+      vivo.datosDeLosNodos.some((d) => {
+        const x = d.datos as { sistema?: unknown; nombreOriginal?: unknown } | null
+        return typeof x?.sistema === 'string' && typeof x?.nombreOriginal !== 'string'
+      }) ? (
+        <div className="editor-simulador-alerta" role="status">
+          <strong>Este modelo agrupa las estructuras por sistema.</strong>
+          <p>
+            Con el botón «Info» no se puede pinchar un músculo suelto. Volver a exportar crea un modelo nuevo desde la misma
+            preparación, con cada estructura por separado, y lo pone en este caso; el modelo de ahora no se borra y las
+            piezas del caso se rehacen solas (hay «Deshacer»).
+          </p>
+          <div className="editor-simulador-capturas-botones">
+            <button type="button" className="consola-boton" disabled={reexportando} onClick={() => void reexportarSeparado()}>
+              {reexportando ? 'Exportando…' : 'Volver a exportar con estructuras separadas'}
+            </button>
+          </div>
+          {errorAlReexportar ? <p className="campo-error">{errorAlReexportar}</p> : null}
+        </div>
+      ) : null}
       {reparacion ? (
         <div className="editor-simulador-alerta" role="status">
           <strong>Se cambió de modelo y las piezas se rehicieron solas.</strong>

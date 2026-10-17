@@ -79,6 +79,20 @@ export interface OpcionesDeExportacion {
    * porque la consola apaga todo lo que el caso no declara.
    */
   protagonistas?: string[]
+  /**
+   * Cada pieza sale como **un objeto propio**, con su `atlasId` en los `extras` (P-003 E9).
+   *
+   * Fundir por sistema tenía un motivo —ciento treinta objetos sueltos obligaban a escribir ciento treinta filas en
+   * «Piezas»— y D-176 lo quitó: la consola ya juega con el papel que trae cada objeto. Separadas, cada una se puede
+   * pinchar («Info») y cortar o retraer una por una. Los triángulos son los mismos; lo que crece es el número de objetos.
+   */
+  separarEstructuras?: boolean
+  /**
+   * Con `separarEstructuras`, a partir de cuántas piezas se funden **solo los vasos** (arterias, venas y linfáticos,
+   * por sistema): una preparación de cuerpo entero son más de dos mil objetos, demasiados para dibujar uno a uno, y los
+   * vasos son lo más numeroso y lo que menos se pincha. Músculos, huesos y nervios siguen sueltos.
+   */
+  maximoDePiezasSueltas?: number
   /** Color por sistema, del catálogo. */
   colores?: Record<string, string>
   /**
@@ -161,6 +175,10 @@ export function colorDeGltf(hex: string | undefined): [number, number, number, n
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1]
 }
 
+/** Por encima de estas piezas, con `separarEstructuras`, los vasos se funden por sistema (ver `OpcionesDeExportacion`). */
+export const MAXIMO_DE_PIEZAS_SUELTAS = 400
+const SISTEMAS_DE_VASOS: ReadonlySet<string> = new Set(['arterial', 'venous', 'lymphatic'])
+
 /**
  * Agrupa las piezas leídas en los objetos que tendrá el archivo.
  *
@@ -189,6 +207,8 @@ export function colorDeGltf(hex: string | undefined): [number, number, number, n
  *  - `etiqueta`: el nombre en español CON tildes, el que se enseña.
  *  - `sistema`: el identificador del sistema, que es la clave de
  *    `ROL_DE_SISTEMA` y permite rehacer el rol si la tabla cambia.
+ *  - `atlasId`, con `separarEstructuras` en todas y si no solo en las protagonistas: el `id` de la pieza en el
+ *    atlas, para que «Info» encuentre su ficha (P-003 E9).
  *  - `nombreOriginal` y `fma`, solo en las protagonistas: la licencia del atlas
  *    obliga a poder rastrear lo traducido, y un sistema fundido no tiene un
  *    único original que citar.
@@ -203,12 +223,15 @@ export function agruparParaGlb(
   const protagonistas = new Set(opciones.protagonistas ?? [])
   const colores = opciones.colores ?? {}
   const nombresDeSistema = opciones.nombresDeSistema ?? {}
+  // Con las estructuras separadas, todo es «protagonista» salvo los vasos de un cuerpo demasiado grande.
+  const separar = opciones.separarEstructuras === true
+  const fundeVasos = separar && piezas.length > (opciones.maximoDePiezasSueltas ?? MAXIMO_DE_PIEZAS_SUELTAS)
 
   const sueltas: PiezaLeida[] = []
   const porSistema = new Map<string, PiezaLeida[]>()
 
   for (const pieza of piezas) {
-    if (protagonistas.has(pieza.id)) {
+    if (protagonistas.has(pieza.id) || (separar && !(fundeVasos && SISTEMAS_DE_VASOS.has(pieza.sistema)))) {
       sueltas.push(pieza)
       continue
     }
@@ -239,6 +262,9 @@ export function agruparParaGlb(
         etiqueta,
         sistema: pieza.sistema,
         nombreOriginal: pieza.nombre,
+        // El id de la pieza entera en el atlas: lo que «Info» usa para pedir su ficha al listado global (P-003 E9).
+        // Los dos trozos de un hueso partido lo comparten, a propósito: los dos abren la ficha del hueso.
+        ...(separar || protagonistas.has(pieza.id) ? { atlasId: pieza.id } : {}),
         ...(pieza.fma ? { fma: pieza.fma } : {}),
         ...(pieza.trozo ? { trozo: pieza.trozo.lado } : {}),
       },

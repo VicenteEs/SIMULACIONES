@@ -88,7 +88,8 @@ describe('exportar una pierna del atlas', () => {
       contenido: { piezas: PIERNA.map((id) => ({ id })) },
     })
 
-    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387'] })
+    // Fundido por sistema, como se exportaba antes de P-003 E9: lo que se prueba aquí es la traducción y el centrado.
+    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387'], separarEstructuras: false })
     expect(r.exito, r.mensaje).toBe(true)
 
     // La acción devuelve `nodos` como siempre y, además, las piezas.
@@ -122,6 +123,29 @@ describe('exportar una pierna del atlas', () => {
     const caja = new THREE.Box3().setFromObject(gltf.scene)
     expect(caja.getCenter(new THREE.Vector3()).length()).toBeLessThan(1e-4)
     expect(caja.getSize(new THREE.Vector3()).y).toBeLessThan(0.5)
+  }, 60_000)
+
+  it('por omisión cada estructura sale como objeto propio, con su atlasId (P-003 E9)', async () => {
+    payloadFalso.findByID.mockResolvedValue({
+      id: 7,
+      nombre: 'Pierna derecha',
+      contenido: { piezas: PIERNA.map((id) => ({ id })) },
+    })
+
+    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387'] })
+    expect(r.exito, r.mensaje).toBe(true)
+    // Cuatro piezas, cuatro objetos: nada de «Esqueleto» ni «Musculos» fundidos.
+    expect(r.datos?.nodos).toHaveLength(PIERNA.length)
+    expect(r.datos?.nodos).not.toContain('Musculos')
+
+    const { file } = payloadFalso.create.mock.calls[0][0] as { file: { data: Buffer } }
+    const datos = file.data
+    const gltf = await new GLTFLoader().parseAsync(
+      datos.buffer.slice(datos.byteOffset, datos.byteOffset + datos.byteLength) as ArrayBuffer,
+      '',
+    )
+    const ids = datosDeLosNodos(gltf.scene).map((d) => d.datos.atlasId)
+    expect([...ids].sort()).toEqual([...PIERNA].sort())
   }, 60_000)
 })
 

@@ -378,6 +378,48 @@ export async function eliminarInstancia(id: unknown): Promise<Respuesta> {
 }
 
 /**
+ * Vuelve a exportar el modelo de un caso con cada estructura como objeto propio (P-003 E9).
+ *
+ * El modelo no guarda de qué preparación salió, pero sí su nombre, que `exportarPreparacion` escribe siempre como
+ * «<preparación> · del atlas»: de ahí se vuelve a la preparación. Si hay dos con el mismo nombre no se adivina cuál:
+ * se dice y quien edita elige a mano. Crea un modelo **nuevo** y no toca el viejo —otros casos pueden seguir usándolo—;
+ * el editor lo pone en el caso, y las piezas se rehacen solas al cambiar de modelo (`repararPiezasConElModelo`).
+ */
+export async function reexportarConEstructurasSeparadas(modeloId: unknown): Promise<Respuesta<ModeloExportado>> {
+  return accion(async () => {
+    const { payload, usuario } = await exigirEditor()
+    const id = exigirIdentificador(modeloId, 'El modelo')
+    const modelo = (await payload.findByID({ collection: 'modelos-3d', id, depth: 0, overrideAccess: true })) as {
+      nombre?: unknown
+    }
+    const nombre = typeof modelo.nombre === 'string' ? modelo.nombre : ''
+    const sufijo = ' · del atlas'
+    if (!nombre.endsWith(sufijo)) {
+      throw new Error('Este modelo no salió del atlas anatómico, así que no hay preparación desde la que volver a exportar.')
+    }
+    const preparacion = nombre.slice(0, -sufijo.length)
+    const candidatas = (
+      await payload.find({
+        collection: 'instancias-atlas',
+        where: { nombre: { equals: preparacion } },
+        limit: 2,
+        depth: 0,
+        overrideAccess: true,
+      })
+    ).docs as { id: unknown }[]
+    if (candidatas.length === 0) {
+      throw new Error(`No existe la preparación «${preparacion}»: se borró o cambió de nombre. Expórtela de nuevo desde el taller del atlas.`)
+    }
+    if (candidatas.length > 1) {
+      throw new Error(`Hay varias preparaciones llamadas «${preparacion}»: expórtela desde el taller del atlas, eligiendo la correcta.`)
+    }
+    const nuevo = await exportarPreparacion(payload, candidatas[0].id, { separarEstructuras: true }, usuario)
+    revalidatePath(RUTA_PANEL)
+    return nuevo
+  })
+}
+
+/**
  * Exporta una preparación a un modelo 3D que la consola quirúrgica pueda abrir.
  *
  * Es la guardia y una llamada. Todo el trabajo —leer el atlas, partir el hueso
@@ -393,14 +435,19 @@ export async function eliminarInstancia(id: unknown): Promise<Respuesta> {
  */
 export async function exportarComoModelo(
   id: unknown,
-  opciones?: { protagonistas?: unknown; corte?: unknown },
+  opciones?: { protagonistas?: unknown; corte?: unknown; separarEstructuras?: unknown },
 ): Promise<Respuesta<ModeloExportado>> {
   return accion(async () => {
     const { payload, usuario } = await exigirEditor()
     const modelo = await exportarPreparacion(
       payload,
       id,
-      { protagonistas: opciones?.protagonistas, corte: opciones?.corte },
+      {
+        protagonistas: opciones?.protagonistas,
+        corte: opciones?.corte,
+        // Por omisión se separan (P-003 E9); solo un `false` explícito vuelve a fundir por sistema.
+        separarEstructuras: opciones?.separarEstructuras !== false,
+      },
       usuario,
     )
     revalidatePath(RUTA_PANEL)

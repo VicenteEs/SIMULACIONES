@@ -879,6 +879,9 @@ export async function ejecutar(
     protagonistas: [tibia.id],
     corte,
     directorioDelAtlas: opciones.directorioDelAtlas,
+    // Este guion arma las piezas del caso de prueba con el modelo fundido por sistema (D-169) y compara sus bytes con
+    // los de los modelos que ya hay: separar las estructuras (P-003 E9, el valor por omisión) cambiaría ambas cosas.
+    separarEstructuras: false,
   })
   const creacion = enMemoria.creacion()
   const bytes = enMemoria.archivo()

@@ -136,7 +136,7 @@ import '@/app/(frontend)/simulador/consola.css'
  * quien está mirando una pantalla quieta.
  */
 
-export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar' | 'reducir'
+export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar' | 'reducir' | 'info'
 
 export interface Punto3 {
   x: number
@@ -268,6 +268,8 @@ export interface MandoDelLienzo {
   soltarPinzaDeReduccion: (id?: number) => void
   /** Cierra una incisión (la que dice el panel «Incisiones»); las demás se quedan abiertas (P-003 E4). */
   cerrarIncision: (id: number) => void
+  /** Destaca una pieza del modelo con un tinte encima (el botón «Info», P-003 E9); `null` lo quita. */
+  resaltarNodo: (nodo: string | null) => void
   /** Abre (o cierra) las heridas hasta `mm` de apertura, sin arrastrar. */
   abrirHeridas: (mm: number) => void
   /** Lo que hay abierto ahora mismo, o `null` si no se ha cortado nada. */
@@ -555,6 +557,7 @@ export function LienzoQuirurgico({
   alMoverFragmento,
   alCargar,
   alSenalar,
+  alInformar,
   alFallar,
   mando,
 }: {
@@ -678,6 +681,12 @@ export function LienzoQuirurgico({
    * letra de diferencia no da error: deja una pieza que no se enciende.
    */
   alSenalar?: (nodo: string) => void
+  /**
+   * Se llama con lo que hay bajo el clic, en modo «info» (P-003 E9): el nodo y el `atlasId` que el exportador le dejó
+   * en los `extras`. `null` si el clic cayó en el vacío. Un objeto de un modelo viejo —fundido por sistema— llega sin
+   * `atlasId`: la consola lo dice, no lo adivina.
+   */
+  alInformar?: (golpe: { nodo: string; atlasId: string | null; etiqueta: string | null } | null) => void
   mando?: Ref<MandoDelLienzo>
 }) {
   const lienzo = useRef<HTMLDivElement>(null)
@@ -804,6 +813,7 @@ export function LienzoQuirurgico({
     alMoverFragmento,
     alCargar,
     alSenalar,
+    alInformar,
     alFallar,
     alCargarInstrumento,
     alHerir,
@@ -841,6 +851,7 @@ export function LienzoQuirurgico({
       alMoverFragmento,
       alCargar,
       alSenalar,
+      alInformar,
       alFallar,
       alCargarInstrumento,
       alHerir,
@@ -1003,6 +1014,8 @@ export function LienzoQuirurgico({
     },
 
     soltarPinzaDeReduccion: (id) => soltarPinzasDeReduccion(taller.current, ultimas.current, id),
+
+    resaltarNodo: (nodo) => resaltarUnNodo(taller.current, nodo),
 
     cerrarIncision: (id) => {
       const t = taller.current
@@ -2829,6 +2842,24 @@ export function LienzoQuirurgico({
       aCoordenadas(evento)
       clicEnElVacio = null
 
+      if (modoActual === 'info') {
+        // Como señalar, no modifica nada: dice qué hay bajo el clic y la consola abre su ficha. El primer golpe visible
+        // es lo que el residente ve; una pieza apagada no se pincha.
+        const golpe = superficieBajoElCursor()
+        const objeto = golpe?.object
+        const datos = objeto?.userData ?? {}
+        ultimas.current.alInformar?.(
+          objeto?.name
+            ? {
+                nodo: objeto.name,
+                atlasId: typeof datos.atlasId === 'string' ? datos.atlasId : null,
+                etiqueta: typeof datos.etiqueta === 'string' ? datos.etiqueta : null,
+              }
+            : null,
+        )
+        return
+      }
+
       if (modoActual === 'senalar') {
         // Señalar no arrastra ni modifica nada: solo dice qué hay debajo. Se
         // deja la órbita encendida para poder girar el modelo y seguir
@@ -3977,6 +4008,53 @@ export function datosDeLosNodos(raiz: THREE.Object3D): DatosDeNodo[] {
  * que la incisión «desaparecía» y quien iba a meter los separadores no encontraba por dónde. También se colaba en
  * la lista de piezas del editor, como si fuera un trozo más del archivo.
  */
+const NOMBRE_DEL_TINTE = 'tinte-de-info'
+
+/**
+ * Pone un tinte translúcido sobre la malla de `nodo` y quita el anterior. Es otra malla hija con la misma geometría y
+ * no un cambio del material de la pieza: los materiales los tocan la fluoroscopia, los colores por papel y la
+ * visibilidad, y devolver el original después de todo eso era un camino a un color equivocado. Esta no se puede
+ * pinchar (`raycast` vacío), para que el clic siguiente siga cayendo en la pieza y no en su tinte.
+ */
+export function resaltarUnNodo(taller: { raiz?: THREE.Object3D | null; pedirDibujo?: () => void }, nodo: string | null) {
+  const raiz = taller.raiz
+  if (!raiz) return
+  const viejos: THREE.Object3D[] = []
+  raiz.traverse((o) => {
+    if (o.name === NOMBRE_DEL_TINTE) viejos.push(o)
+  })
+  for (const v of viejos) {
+    v.parent?.remove(v)
+    ;(v as THREE.Mesh).material instanceof THREE.Material && ((v as THREE.Mesh).material as THREE.Material).dispose()
+  }
+  if (nodo) {
+    let destino: THREE.Mesh | null = null
+    raiz.traverse((o) => {
+      if (!destino && (o as THREE.Mesh).isMesh && o.name === nodo && o.visible && !esDeInterfazDelModelo(o)) destino = o as THREE.Mesh
+    })
+    const malla = destino as THREE.Mesh | null
+    if (malla) {
+      const tinte = new THREE.Mesh(
+        malla.geometry,
+        new THREE.MeshBasicMaterial({
+          color: 0x2f7bff,
+          transparent: true,
+          opacity: 0.55,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+        }),
+      )
+      tinte.name = NOMBRE_DEL_TINTE
+      tinte.userData.deInterfaz = true
+      tinte.raycast = () => {}
+      malla.add(tinte)
+    }
+  }
+  taller.pedirDibujo?.()
+}
+
 export function esDeInterfazDelModelo(objeto: THREE.Object3D): boolean {
   return objeto.name === 'cinta-de-la-herida' || objeto.name === 'borde-de-la-herida' || objeto.userData.deInterfaz === true
 }
