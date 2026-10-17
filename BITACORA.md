@@ -9190,8 +9190,16 @@ botón deja esa lista como la mesa de los practicantes.
   `src/lib/catalogoDelAtlas.ts` —`exportarPreparacion.ts` la reexporta— para que el listado no importe el archivo que exporta sin
   sesión, que `exportarSinSesionAcotado.test.ts` reserva a la acción con guardia. Sin aviso numérico en la barra: «2.000
   pendientes» no se atiende, se trabaja de a poco.)*
-- [ ] **E8.5 · Planilla:** descargar por región, leer `.xlsx`, vista previa, «aplicar también al lado opuesto» y
+- [x] **E8.5 · Planilla:** descargar por región, leer `.xlsx`, vista previa, «aplicar también al lado opuesto» y
   aplicar.
+  *(Hecha. Lector en `src/lib/leerPlanilla.ts` (ZIP con CRC-32 comprobado, topes contra ZIP bombas, se probó con archivos de
+  openpyxl y de xlsxwriter además del escritor propio); el plan —qué se llena, qué se reemplazaría, qué se salta— es puro, en
+  `src/lib/planillaDeEstructuras.ts`; la ruta `/api/estructuras/planilla` descarga (GET) y sube (POST), una ruta y no una acción
+  por lo que ya dice `next.config.mjs` de los archivos. **Aplicar recalcula el plan con las fichas de ese momento y compara una
+  huella** con la de la vista previa: si algo cambió, no escribe. Todo en una transacción. Una fila cuyo «Nombre original» no es
+  el del id —un id estropeado al copiar— no se aplica. Del lado opuesto: «Set of perforating arteries» y otras 24 piezas del
+  miembro inferior derecho no tienen pareja deducible (el atlas las nombra sin lado o son de la línea media): se dicen en el
+  resumen en vez de adivinarlas, y se llenan subiendo también la planilla del otro lado.)*
 - [ ] **E8.6 · El taller anatómico:** al seleccionar una pieza, una pestaña «Info» en el panel derecho (el componente
   de pestañas de E2 del P-001) con la misma ficha editable; un trozo partido abre la de su pieza.
 - [ ] **E8.7 · Pruebas, manual y D-nnn.** Integración: subir la planilla dos veces no duplica; una celda vacía no

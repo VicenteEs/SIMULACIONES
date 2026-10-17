@@ -31,6 +31,8 @@ export const ACCIONES_DEL_REGISTRO = [
   { value: 'cambio-de-permisos', label: 'Cambió permisos o rol' },
   { value: 'mantencion-de-modulo', label: 'Cambió la mantención de un módulo' },
   { value: 'importacion', label: 'Importó contenido' },
+  // Una planilla del listado de estructuras anatómicas subida desde el panel (D-179).
+  { value: 'subida-de-planilla', label: 'Subió una planilla' },
 ] as const
 
 export type AccionDelRegistro = (typeof ACCIONES_DEL_REGISTRO)[number]['value']

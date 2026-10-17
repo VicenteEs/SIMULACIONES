@@ -102,3 +102,39 @@
 .estructuras-historial dt::after { content: ': '; }
 .estructuras-historial dd { display: inline; margin: 0; color: var(--mudo); }
 .estructuras-historial dl > div { margin-bottom: 2px; }
+
+/* La planilla de Excel por región. */
+.estructuras-planilla { margin-bottom: var(--e-3); }
+.estructuras-planilla > details > summary { cursor: pointer; display: flex; align-items: center; gap: var(--e-2); font-weight: 600; padding: var(--e-2) 0; }
+.estructuras-planilla-ayuda { margin: var(--e-1) 0 var(--e-3); font-size: var(--t-sm); color: var(--mudo); }
+.estructuras-planilla-solo { display: flex; align-items: center; gap: var(--e-2); margin-bottom: var(--e-3); font-size: var(--t-sm); }
+.estructuras-planilla-acciones { display: flex; flex-wrap: wrap; gap: var(--e-2); align-items: center; }
+.estructuras-planilla-acciones .admin-btn { display: inline-flex; align-items: center; gap: var(--e-1); text-decoration: none; }
+.estructuras-planilla-nada { color: var(--mudo); font-size: var(--t-sm); }
+
+/* La ventana de subida y su vista previa. */
+.estructuras-opciones { border: 1px solid var(--linea); border-radius: var(--r); padding: var(--e-3); margin: 0 0 var(--e-4); }
+.estructuras-opciones legend { padding: 0 var(--e-2); font-size: var(--t-sm); font-weight: 650; }
+.estructuras-opciones label { display: flex; gap: var(--e-2); align-items: flex-start; font-size: var(--t-sm); margin-bottom: var(--e-2); }
+.estructuras-opciones label:last-child { margin-bottom: 0; }
+.estructuras-opciones input { margin-top: 3px; }
+.estructuras-respaldo { display: flex; gap: var(--e-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--e-4); }
+.estructuras-vista { border-top: 1px solid var(--linea); padding-top: var(--e-3); margin-top: var(--e-3); }
+.estructuras-vista h3 { margin: 0 0 var(--e-3); font-size: var(--t-md, 1rem); }
+.estructuras-vista-cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--e-2); }
+.estructuras-cifra { border: 1px solid var(--linea); border-radius: var(--r); padding: var(--e-2) var(--e-3); background: var(--superficie); }
+.estructuras-cifra-ok { border-left: 4px solid var(--verde); }
+.estructuras-cifra-atencion { border-left: 4px solid var(--ambar-texto); }
+.estructuras-cifra-valor { font-size: 1.4rem; font-weight: 700; line-height: 1.2; }
+.estructuras-cifra-etiqueta { font-size: var(--t-xs, 0.75rem); color: var(--mudo); }
+.estructuras-vista-resumen { margin: var(--e-3) 0; font-size: var(--t-sm); }
+.estructuras-vista-bloque { margin: var(--e-2) 0; font-size: var(--t-sm); }
+.estructuras-vista-bloque > summary { cursor: pointer; font-weight: 650; }
+.estructuras-vista-bloque ul { margin: var(--e-2) 0; padding-left: var(--e-4); }
+.estructuras-vista-lista { max-height: 220px; overflow: auto; }
+.estructuras-vista-cambios { list-style: none; padding-left: 0 !important; max-height: 340px; overflow: auto; display: grid; gap: var(--e-2); }
+.estructuras-vista-cambios > li { border: 1px solid var(--linea-suave); border-radius: var(--r); padding: var(--e-2) var(--e-3); }
+.estructuras-vista-fila { color: var(--mudo); font-weight: 400; }
+.estructuras-vista-cambio { margin-top: var(--e-1); }
+.estructuras-vista-antes { color: var(--mudo); white-space: pre-wrap; word-break: break-word; }
+.estructuras-vista-despues { white-space: pre-wrap; word-break: break-word; }

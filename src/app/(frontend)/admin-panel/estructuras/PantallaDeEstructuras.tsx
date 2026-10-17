@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { DatabaseZap, SearchX } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
-import { Pestanas } from '@/components/ui/Pestanas'
+import { PanelDePestana, Pestanas } from '@/components/ui/Pestanas'
 import { useAvisos } from '@/components/ui/Avisos'
 import { Vacio } from '@/components/ui/Vacio'
 import {
@@ -21,6 +21,7 @@ import {
 import type { FilaDelListado, Listado } from '@/lib/listadoDeEstructuras'
 import { claseDeInsignia, TONO_DE_ESTRUCTURA } from '@/lib/tonosDeEstado'
 import { cargarPiezasDelAtlas } from '@/app/(frontend)/acciones/estructuras'
+import { PlanillaPorRegion } from './PlanillaPorRegion'
 import { VentanaDeEstructura } from './VentanaDeEstructura'
 
 /** Cuántas filas se pintan de una vez: son 2.231 y no hace falta pintarlas todas para leer. */
@@ -234,6 +235,17 @@ export function PantallaDeEstructuras({ listado, puedeCargar }: { listado: Lista
           { id: 'listado', etiqueta: `Listado (${formatoDeEntero(delListado)})` },
         ]}
       />
+
+      <PanelDePestana base="estructuras" id="pendientes" activa={pestana}>
+        <PlanillaPorRegion
+          regiones={regionesConPiezas.map((r) => {
+            const c = porRegion.get(r.id) as Conteo
+            return { id: r.id, nombre: r.nombre, pendientes: c.pendientes, total: c.porLlenar }
+          })}
+          puedeRespaldar={puedeCargar}
+          alAplicar={() => router.refresh()}
+        />
+      </PanelDePestana>
 
       <div className="admin-filters">
         <div className="admin-filter-group">
