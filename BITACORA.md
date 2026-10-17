@@ -9163,8 +9163,10 @@ botón deja esa lista como la mesa de los practicantes.
 
 **Tareas**
 
-- [ ] **E8.1 · `src/lib/estructuras.ts`:** campos por sistema, «completa», contador, normalización de lado y de
+- [x] **E8.1 · `src/lib/estructuras.ts`:** campos por sistema, «completa», contador, normalización de lado y de
   sufijo de trozo (por `id`, no por nombre), y la pareja del lado opuesto. Pruebas con piezas reales del catálogo.
+  *(Hecha. La pareja del lado opuesto no se reescribió: se usa `parejasContralaterales` de `src/atlas/espejo.ts`, que ya
+  resuelve los 231 nombres repetidos por la caja reflejada, y las pruebas la ejercitan con el catálogo real.)*
 - [ ] **E8.2 · Colección `estructuras-anatomicas`** con su esquema del panel, versiones, acceso (lectura con sesión;
   escritura de editores y administradores) y migración.
 - [ ] **E8.3 · Siembra** (`scripts/sembrar-estructuras.ts`, idempotente): una fila por pieza del catálogo con
