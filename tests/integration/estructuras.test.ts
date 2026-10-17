@@ -66,26 +66,33 @@ describe.skipIf(intento.payload === null)('la siembra del atlas entero, contra P
 
   it('crea una ficha por pieza y la segunda pasada no cambia nada', async () => {
     const catalogo = await leerCatalogo()
-    const antes = (await leerTodasLasEstructuras(payload, { atlasId: true }, req)).length
+    // Solo cuentan las fichas de piezas del catálogo: `roles.test.ts` escribe y borra fichas de prueba en la misma base
+    // y, si las dos corren a la vez, esas aparecen aquí a medias (viene de P-003: nunca fue una garantía del test).
+    const delCatalogo = new Set(catalogo.piezas.map((p) => p.id))
+    const soloDelCatalogo = <T extends { atlasId: string }>(filas: T[]) => filas.filter((f) => delCatalogo.has(f.atlasId))
+    const antes = soloDelCatalogo(await leerTodasLasEstructuras(payload, { atlasId: true }, req)).length
 
     const primera = await sincronizarConElAtlas(payload, catalogo, { origen: 'prueba', req })
     expect(primera.creadas + primera.yaEstaban).toBe(catalogo.piezas.length)
     expect(primera.creadas).toBe(catalogo.piezas.length - antes)
 
-    const filas = await leerTodasLasEstructuras(payload, undefined, req)
-    expect(filas).toHaveLength(Math.max(antes, catalogo.piezas.length))
+    const filas = soloDelCatalogo(await leerTodasLasEstructuras(payload, undefined, req))
+    expect(filas).toHaveLength(catalogo.piezas.length)
     expect(new Set(filas.map((f) => f.atlasId)).size).toBe(filas.length)
 
     const segunda = await sincronizarConElAtlas(payload, catalogo, { origen: 'prueba', req })
-    expect(segunda).toEqual({
+    // `huerfanas` no se compara con cero: si `roles.test.ts` tiene fichas de prueba a medias en la base mientras esto corre,
+    // la siembra las marca huérfanas (no son del catálogo). Lo que importa es que ninguna ficha **del catálogo** lo esté.
+    expect(segunda).toMatchObject({
       creadas: 0,
       yaEstaban: catalogo.piezas.length,
       actualizadas: 0,
-      huerfanas: 0,
       recuperadas: 0,
       casadasPorNombre: 0,
     })
-    expect(await leerTodasLasEstructuras(payload, { atlasId: true }, req)).toHaveLength(filas.length)
+    const completas = await leerTodasLasEstructuras(payload, { atlasId: true, huerfana: true }, req)
+    expect(soloDelCatalogo(completas).filter((f) => (f as { huerfana?: boolean }).huerfana === true)).toEqual([])
+    expect(soloDelCatalogo(await leerTodasLasEstructuras(payload, { atlasId: true }, req))).toHaveLength(filas.length)
   }, 600_000)
 
   it('el índice único de atlasId rechaza una segunda ficha para la misma pieza', async () => {

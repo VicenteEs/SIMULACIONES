@@ -131,7 +131,7 @@ describe('descargar', () => {
   it('una pieza oculta sale marcada y fuera de las pendientes', async () => {
     base.filas = [{ id: 1, atlasId: tibia.id, nombreOriginal: tibia.nombre, oculta: true }]
     const filas = leerPlanilla(new Uint8Array(await (await pedirGet('region=miembro-inferior-derecho&contenido=escrita&solo=todas')).arrayBuffer()))[0].filas
-    expect(filas.find((f) => f[2] === 'Right tibia')?.[14]).toBe('sí')
+    expect(filas.find((f) => f[2] === 'Right tibia')?.[16]).toBe('sí')
     const pendientes = leerPlanilla(new Uint8Array(await (await pedirGet('region=miembro-inferior-derecho&solo=pendientes')).arrayBuffer()))[0].filas
     expect(pendientes.some((f) => f[2] === 'Right tibia')).toBe(false)
   })
