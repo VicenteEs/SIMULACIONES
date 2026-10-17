@@ -1,15 +1,19 @@
 import * as THREE from 'three'
-import { crearMaterialDeRadiografia } from '@/atlas/materialDeRadiografia'
+import { GANANCIA_DE_LA_RADIOGRAFIA, crearMaterialDeRadiografia } from '@/atlas/materialDeRadiografia'
 import {
+  AJUSTES_DE_LA_IMAGEN_POR_OMISION,
   ANGULO_DE_LA_PROYECCION,
   DENSIDAD_DEL_METAL,
+  FACTOR_DE_LA_TOMA,
   SIN_DESPLAZAMIENTO,
   aFluoroscopia,
   centroDeLaImagen,
   densidadDelPapel,
   LADOS_DE_LA_IMAGEN,
+  limitarAjustes,
   limitarDesplazamiento,
   limitarZoom,
+  type AjustesDeLaImagen,
   type DesplazamientoDeLaImagen,
   type ProyeccionDeFluoroscopia,
 } from '@/lib/radiografia'
@@ -71,7 +75,9 @@ export function ponerRadiografiaTemporal(ctx: EscenaParaRadiografia, f: TallerDe
   const materialPara = (densidad: number) => {
     let m = f.materiales.get(densidad)
     if (!m) {
-      m = crearMaterialDeRadiografia(densidad)
+      // La toma se captura con menos ganancia y se revela con `FACTOR_DE_LA_TOMA` (ver `aFluoroscopia`): así lo muy
+      // denso no se satura en la captura y los kilovoltios altos tienen algo que mostrar.
+      m = crearMaterialDeRadiografia(densidad, GANANCIA_DE_LA_RADIOGRAFIA / FACTOR_DE_LA_TOMA)
       f.materiales.set(densidad, m)
     }
     return m
@@ -121,6 +127,10 @@ export interface OpcionesDeLaImagen {
   ejeLargo: 'x' | 'y' | 'z'
   /** Cuánto se ha corrido la extremidad bajo el arco (arrastrando la imagen). Sin él, centrada. */
   desplazamiento?: DesplazamientoDeLaImagen
+  /** Cómo se revela la toma (P-003, E2). Sin ellos, los de siempre: 70 kV, sin contraste ni filtro. */
+  ajustes?: Partial<AjustesDeLaImagen>
+  /** Hace la toma aunque nada haya cambiado: es lo que hace el botón «Disparar». */
+  forzar?: boolean
 }
 
 export interface TallerDeFluoroscopia {
@@ -129,8 +139,16 @@ export interface TallerDeFluoroscopia {
   /** Píxeles por lado del blanco y del búfer. */
   lado: number
   camara: THREE.PerspectiveCamera
-  /** Para no repetir el dibujo si nada cambió. */
+  /** Para no repetir la toma si nada cambió: proyección, zoom, posición, lado, eje y cuadro, **sin** los ajustes. */
   huella: string
+  /**
+   * Los ajustes con que se reveló la última imagen. Va aparte de `huella` a propósito: cambiar los kilovoltios o el
+   * contraste vuelve a revelar la misma toma, no la repite —repetirla leería píxeles de la tarjeta sin motivo, y en
+   * el modo de disparo sería «irradiar» otra vez—.
+   */
+  huellaDelRevelado: string
+  /** De qué es la imagen que hay en `buffer`; `null` mientras no se haya hecho ninguna toma. */
+  toma: { cuadro: number; lado: number } | null
   /** El material de la radiografía de cada densidad: se crean una vez y se ponen y quitan en cada dibujo. */
   materiales: Map<number, THREE.ShaderMaterial>
 }
@@ -153,6 +171,8 @@ export function prepararFluoroscopia(lado: number = LADO_DE_LA_IMAGEN): TallerDe
     lado,
     camara: new THREE.PerspectiveCamera(14, 1, 0.01, 100),
     huella: '',
+    huellaDelRevelado: '',
+    toma: null,
     materiales: new Map(),
   }
 }
@@ -170,6 +190,23 @@ export function ajustarLadoDeLaFluoroscopia(f: TallerDeFluoroscopia, lado: numbe
   f.buffer = new Uint8Array(lado * lado * 4)
   f.lado = lado
   f.huella = ''
+  // El búfer nuevo está vacío: la toma de antes ya no está en él.
+  f.huellaDelRevelado = ''
+  f.toma = null
+}
+
+/**
+ * Olvida lo que la imagen ya tenía dibujado: la próxima toma y el próximo revelado se hacen aunque nada haya cambiado.
+ *
+ * Hace falta cuando el lienzo donde se pintaba ya no tiene la imagen —se apagó y se encendió la fluoroscopia, o se
+ * cambió de modo y se vació— y la escena sigue igual: sin esto, la huella dice «no ha cambiado nada» y el vídeo se
+ * queda en negro hasta que alguien mueva algo.
+ */
+export function reiniciarLaFluoroscopia(f: TallerDeFluoroscopia | undefined) {
+  if (!f) return
+  f.huella = ''
+  f.huellaDelRevelado = ''
+  f.toma = null
 }
 
 export function soltarFluoroscopia(f: TallerDeFluoroscopia | undefined) {
@@ -203,19 +240,22 @@ export function cajaAEncuadrar(raiz: THREE.Object3D, roles: Map<string, string>)
 }
 
 /**
- * Dibuja la imagen del arco en C sobre `destino` y devuelve `true` si dibujó.
+ * Hace la **toma**: renderiza la escena desde la proyección pedida y deja los píxeles crudos en `f.buffer`.
+ * Devuelve `true` si la hizo.
  *
- * Renderiza la escena —con los materiales de la radiografía puestos solo mientras dura el dibujo— desde la
- * proyección pedida a un blanco pequeño, lee los píxeles y los pasa al negativo dentro del círculo. Se hace
- * con el mismo `WebGLRenderer` de la escena y no con uno segundo: un contexto más duplicaría en memoria de
- * vídeo la geometría de la pierna entera. Si nada cambió desde el último dibujo (misma proyección, mismo zoom,
- * misma posición del miembro, mismo cuadro), no hace nada: leer píxeles de la tarjeta cuesta.
+ * Con los materiales de la radiografía puestos solo mientras dura el dibujo y a un blanco pequeño. Se hace con el
+ * mismo `WebGLRenderer` de la escena y no con uno segundo: un contexto más duplicaría en memoria de vídeo la
+ * geometría de la pierna entera. Si nada cambió desde la última toma (misma proyección, mismo zoom, misma posición
+ * del miembro, mismo cuadro) no hace nada, salvo que se fuerce —el botón «Disparar»—: leer píxeles de la tarjeta cuesta.
+ *
+ * Está aparte del revelado (`revelarLaToma`) desde el modo de disparo (P-003, E2): en pabellón se dispara una vez y se
+ * mira esa imagen, y los mandos de la imagen —kilovoltios, contraste, filtro— cambian cómo se lee, no se vuelven a
+ * disparar.
  */
-export function dibujarFluoroscopia(
+export function tomarFluoroscopia(
   render: THREE.WebGLRenderer,
   ctx: EscenaParaRadiografia,
   f: TallerDeFluoroscopia,
-  destino: HTMLCanvasElement,
   opciones: OpcionesDeLaImagen,
   cuadro: number,
   /** Se esconden mientras dura el dibujo: ayudas de pantalla que un arco no vería. */
@@ -227,7 +267,7 @@ export function dibujarFluoroscopia(
   if (opciones.lado && LADOS_VALIDOS.includes(opciones.lado)) ajustarLadoDeLaFluoroscopia(f, opciones.lado)
   const lado = f.lado
   const huella = `${opciones.proyeccion}|${zoom}|${lado}|${opciones.ejeLargo}|${desplazamiento.x.toFixed(3)},${desplazamiento.y.toFixed(3)}|${cuadro}`
-  if (huella === f.huella) return false
+  if (!opciones.forzar && huella === f.huella) return false
   f.huella = huella
 
   const { ap, lateral, arriba } = direcciones(opciones.ejeLargo)
@@ -274,11 +314,54 @@ export function dibujarFluoroscopia(
     escondidos.forEach((o) => (o.visible = true))
   }
 
-  const imagen = aFluoroscopia(f.buffer, lado, lado, { ganancia: 1, ruido: 0.6, semilla: cuadro })
+  f.toma = { cuadro, lado }
+  // Lo que hay en el búfer es otra imagen: lo revelado antes ya no corresponde.
+  f.huellaDelRevelado = ''
+  return true
+}
+
+/**
+ * **Revela** la última toma sobre `destino` con los ajustes dados y devuelve `true` si pintó.
+ *
+ * No toca la escena ni la tarjeta gráfica: trabaja sobre los píxeles ya leídos. Por eso mover los kilovoltios o el
+ * contraste es instantáneo, en vídeo y en disparo, y por eso en disparo no cuenta como exposición. Si los ajustes no
+ * cambiaron desde el último revelado no hace nada (`forzar` lo obliga).
+ */
+export function revelarLaToma(
+  f: TallerDeFluoroscopia,
+  destino: HTMLCanvasElement,
+  ajustes?: Partial<AjustesDeLaImagen>,
+  forzar = false,
+): boolean {
+  if (!f.toma) return false
+  const a = limitarAjustes(ajustes ?? AJUSTES_DE_LA_IMAGEN_POR_OMISION)
+  const huella = `${a.kv}|${a.contraste}|${a.brillo}|${a.filtro}`
+  if (!forzar && huella === f.huellaDelRevelado) return false
+  // El lado de la toma y no el de ahora: ensanchar el recuadro entre dos disparos no vacía la imagen que se mira.
+  const lado = f.toma.lado
+  const imagen = aFluoroscopia(f.buffer, lado, lado, { ...a, ganancia: FACTOR_DE_LA_TOMA, ruido: 0.6, semilla: f.toma.cuadro })
   destino.width = lado
   destino.height = lado
   const lienzo = destino.getContext('2d')
   if (!lienzo) return false
   lienzo.putImageData(new ImageData(new Uint8ClampedArray(imagen), lado, lado), 0, 0)
+  f.huellaDelRevelado = huella
   return true
+}
+
+/**
+ * Toma y revela en un solo paso: lo que hace el modo de vídeo siete veces por segundo, y el disparo una vez.
+ * Devuelve `true` si pintó. Es lo que había antes de separar las dos mitades, con el mismo comportamiento.
+ */
+export function dibujarFluoroscopia(
+  render: THREE.WebGLRenderer,
+  ctx: EscenaParaRadiografia,
+  f: TallerDeFluoroscopia,
+  destino: HTMLCanvasElement,
+  opciones: OpcionesDeLaImagen,
+  cuadro: number,
+  esconder: (THREE.Object3D | undefined)[],
+): boolean {
+  const tomada = tomarFluoroscopia(render, ctx, f, opciones, cuadro, esconder)
+  return revelarLaToma(f, destino, opciones.ajustes, tomada)
 }

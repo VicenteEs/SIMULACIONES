@@ -710,13 +710,26 @@ instrumentos del catálogo sin modelo 3D también funcionan: se juegan con el ma
 grises del taller anatómico (fondo negro, el hueso blanco, sin vasos). El botón
 **Fluoroscopia** abre, al lado del lienzo, un recuadro con la imagen circular del arco en C:
 lo denso se ve oscuro, como en la pantalla del pabellón. Con ella encendida aparece un panel con:
+- el **modo**: **Disparo** (el de partida) o **Vídeo**. En disparo la imagen no aparece hasta
+  pulsar **Disparar** (o Intro / espacio con la imagen enfocada): cada pulsación es **una toma**, y
+  la imagen se queda quieta, como la del pabellón. Cambiar la proyección, el acercamiento o la
+  posición del miembro **no** repinta: la consola avisa de que la imagen es de la toma anterior y
+  hay que disparar otra vez. Las tomas **no cuentan** como exposición. En **Vídeo** la imagen es la
+  de siempre, en vivo, y sí cuenta segundos. El modo que elija se recuerda en su navegador;
 - las proyecciones **AP**, **lateral** y **oblicua** (45°), que se eligen en el mismo recuadro;
-- un deslizador para **acercar** la imagen;
+- un deslizador para **acercar** la imagen (hasta 4×);
+- los **Ajustes de imagen** (desde D-178): **Penetración** en kilovoltios (50 a 120; con pocos la
+  imagen es más opaca y con muchos el rayo atraviesa más y se distingue lo que hay dentro del hueso
+  o detrás del metal), **Contraste**, **Brillo** y un **filtro** (*Realzar bordes*, que marca la
+  cortical y el borde de la placa, o *Positivo*, que deja lo denso blanco como una radiografía).
+  Cambian cómo se **lee** la última toma, no la densidad de cada tejido: se aplican al instante,
+  sin volver a disparar, y no invierten nunca el orden de las densidades. *Restablecer* vuelve a los
+  valores de siempre (70 kV). También se recuerdan;
 - la **guía de ejes** (verde el hueso fijo, ámbar el fragmento) y cuántos grados hay
   entre los dos, comparados con el tope del paso;
 - **Dónde debe quedar**: la silueta verde del fragmento reducido (una ayuda para
   aprender, apagable);
-- el **tiempo de escopia**: al apagar los rayos, la consola dice si fue una toma
+- el **tiempo de escopia** (solo en vídeo): al apagar los rayos, la consola dice si fue una toma
   corta o demasiada exposición. No resta puntos.
 
 Bajo «Ver todos los campos como formulario», al pie de la pestaña, están los mismos

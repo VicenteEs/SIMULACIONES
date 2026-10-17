@@ -1,11 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AJUSTES_DE_LA_IMAGEN_POR_OMISION,
   ANGULO_DE_LA_PROYECCION,
+  BRILLO_MAXIMO,
+  CONTRASTE_MAXIMO,
+  CONTRASTE_MINIMO,
+  FACTOR_DE_LA_TOMA,
+  FILTROS_DE_FLUOROSCOPIA,
+  KV_INICIAL,
+  KV_MAXIMO,
+  KV_MINIMO,
   aFluoroscopia,
   aporteDeLaSuperficie,
+  claridadDeLaMateria,
   densidadDelPapel,
   densidadDelSistema,
   DENSIDAD_POR_SISTEMA,
+  factorDeKv,
+  limitarAjustes,
   PROYECCIONES_DE_FLUOROSCOPIA,
 } from '@/lib/radiografia'
 
@@ -111,6 +123,150 @@ describe('aFluoroscopia', () => {
     const c = aFluoroscopia(rellenar(60, 60, 60), ancho, alto, { ruido: 1, semilla: 4 })
     expect(Array.from(a)).toEqual(Array.from(b))
     expect(Array.from(a)).not.toEqual(Array.from(c))
+  })
+})
+
+describe('los ajustes de la imagen (P-003, E2)', () => {
+  const lado = 64
+  const centro = lado / 2
+  /** Una toma lisa de un solo tono. */
+  const plana = (v: number) => {
+    const p = new Uint8ClampedArray(lado * lado * 4)
+    for (let i = 0; i < lado * lado; i++) p.set([v, v, v, 255], i * 4)
+    return p
+  }
+  /** La mitad izquierda con un tono y la derecha con otro: un borde recto en el medio. */
+  const conBorde = (izquierda: number, derecha: number) => {
+    const p = new Uint8ClampedArray(lado * lado * 4)
+    for (let y = 0; y < lado; y++) {
+      for (let x = 0; x < lado; x++) {
+        const v = x < lado / 2 ? izquierda : derecha
+        p.set([v, v, v, 255], (y * lado + x) * 4)
+      }
+    }
+    return p
+  }
+  const valor = (img: Uint8ClampedArray, x = centro, y = centro) => img[(y * lado + x) * 4]
+  const sinRuido = { ruido: 0 }
+
+  it('con los ajustes de siempre la imagen es la de antes', () => {
+    // 70 kV, contraste 1, brillo 0 y sin filtro: pasar los ajustes por omisión no cambia ni un píxel.
+    const base = aFluoroscopia(plana(110), lado, lado, sinRuido)
+    const explicitos = aFluoroscopia(plana(110), lado, lado, { ...sinRuido, ...AJUSTES_DE_LA_IMAGEN_POR_OMISION })
+    expect(Array.from(explicitos)).toEqual(Array.from(base))
+    // Y la toma a media ganancia revelada con el factor de la toma es la de ganancia entera.
+    const mitad = aFluoroscopia(plana(55), lado, lado, { ...sinRuido, ganancia: FACTOR_DE_LA_TOMA })
+    const entera = aFluoroscopia(plana(110), lado, lado, { ...sinRuido, ganancia: 1 })
+    expect(Math.abs(valor(mitad) - valor(entera))).toBeLessThanOrEqual(1)
+  })
+
+  it('más materia nunca sale más clara, sean cuales sean los ajustes (respeta las densidades)', () => {
+    // La propiedad que importa: cambiar los mandos reparte los grises de otra manera, pero no invierte el orden.
+    for (const kv of [KV_MINIMO, 60, KV_INICIAL, 90, KV_MAXIMO]) {
+      for (const contraste of [CONTRASTE_MINIMO, 1, CONTRASTE_MAXIMO]) {
+        for (const brillo of [-BRILLO_MAXIMO, 0, BRILLO_MAXIMO]) {
+          let anterior = Infinity
+          for (let crudo = 0; crudo <= 1; crudo += 0.05) {
+            const c = claridadDeLaMateria(crudo, FACTOR_DE_LA_TOMA, { kv, contraste, brillo, filtro: 'ninguno' })
+            expect(c, `kv ${kv} · contraste ${contraste} · brillo ${brillo} · crudo ${crudo.toFixed(2)}`).toBeLessThanOrEqual(anterior + 1e-9)
+            anterior = c
+          }
+        }
+      }
+    }
+  })
+
+  it('con pocos kilovoltios todo se ve más opaco y con muchos, más penetrado', () => {
+    const en = (kv: number) => valor(aFluoroscopia(plana(60), lado, lado, { ...sinRuido, ganancia: FACTOR_DE_LA_TOMA, kv }))
+    expect(en(KV_MINIMO)).toBeLessThan(en(KV_INICIAL))
+    expect(en(KV_INICIAL)).toBeLessThan(en(KV_MAXIMO))
+  })
+
+  it('con muchos kilovoltios se distingue lo que con pocos se confunde', () => {
+    // Dos materias densas, 0,55 y 0,75 de la toma. A 50 kV las dos pasan del tope y salen igual de negras; a 120 kV
+    // cada una sale con su gris. Es lo que un arco enseña al subir la penetración: lo que hay dentro del hueso.
+    const separacion = (kv: number) => {
+      const poco = valor(aFluoroscopia(plana(140), lado, lado, { ...sinRuido, ganancia: FACTOR_DE_LA_TOMA, kv }))
+      const mucho = valor(aFluoroscopia(plana(191), lado, lado, { ...sinRuido, ganancia: FACTOR_DE_LA_TOMA, kv }))
+      return poco - mucho
+    }
+    expect(separacion(KV_MINIMO)).toBe(0)
+    expect(separacion(KV_MAXIMO)).toBeGreaterThan(15)
+  })
+
+  it('el contraste separa los grises y el brillo los sube o los baja', () => {
+    const dos = (contraste: number, brillo = 0) => {
+      const a = valor(aFluoroscopia(plana(102), lado, lado, { ...sinRuido, contraste, brillo })) // materia 0,4
+      const b = valor(aFluoroscopia(plana(153), lado, lado, { ...sinRuido, contraste, brillo })) // materia 0,6
+      return { a, b, diferencia: a - b }
+    }
+    expect(dos(2).diferencia).toBeGreaterThan(dos(1).diferencia)
+    expect(dos(CONTRASTE_MINIMO).diferencia).toBeLessThan(dos(1).diferencia)
+    expect(dos(1, 0.2).a).toBeGreaterThan(dos(1, 0).a)
+    expect(dos(1, -0.2).a).toBeLessThan(dos(1, 0).a)
+  })
+
+  it('el positivo invierte la imagen: lo denso, blanco, y el vacío, negro', () => {
+    const neg = (v: number) => valor(aFluoroscopia(plana(v), lado, lado, { ...sinRuido, filtro: 'ninguno' }))
+    const pos = (v: number) => valor(aFluoroscopia(plana(v), lado, lado, { ...sinRuido, filtro: 'positivo' }))
+    expect(pos(255)).toBeGreaterThan(pos(0))
+    expect(pos(255)).toBeGreaterThan(190)
+    expect(pos(0)).toBeLessThan(60)
+    // Y es exactamente el reverso del negativo en el mismo punto.
+    expect(neg(255) + pos(255)).toBeGreaterThan(200)
+    expect(neg(0)).toBeGreaterThan(neg(255))
+  })
+
+  it('realzar bordes no toca lo liso y hace saltar el contorno', () => {
+    const liso = aFluoroscopia(plana(110), lado, lado, { ...sinRuido, filtro: 'bordes' })
+    const lisoSin = aFluoroscopia(plana(110), lado, lado, sinRuido)
+    expect(valor(liso)).toBe(valor(lisoSin))
+
+    // A la izquierda hay poca materia (se ve clara) y a la derecha mucha (se ve oscura): el salto entre los dos píxeles
+    // pegados al borde es mayor con el realce, que aclara el lado claro y oscurece el oscuro.
+    const sin = aFluoroscopia(conBorde(60, 200), lado, lado, sinRuido)
+    const con = aFluoroscopia(conBorde(60, 200), lado, lado, { ...sinRuido, filtro: 'bordes' })
+    const x = lado / 2
+    const salto = (img: Uint8ClampedArray) => valor(img, x - 1) - valor(img, x)
+    expect(salto(con)).toBeGreaterThan(salto(sin))
+    // Lejos del borde no cambia.
+    expect(valor(con, 8)).toBe(valor(sin, 8))
+    expect(valor(con, lado - 9)).toBe(valor(sin, lado - 9))
+  })
+
+  it('el círculo recorta con cualquier filtro', () => {
+    for (const filtro of ['ninguno', 'bordes', 'positivo'] as const) {
+      const img = aFluoroscopia(plana(200), lado, lado, { ...sinRuido, filtro })
+      expect(valor(img, 0, 0), filtro).toBe(0)
+      expect(valor(img, lado - 1, lado - 1), filtro).toBe(0)
+    }
+  })
+
+  it('lo que no es válido vuelve al valor de siempre y lo demás se recorta', () => {
+    expect(limitarAjustes(null)).toEqual(AJUSTES_DE_LA_IMAGEN_POR_OMISION)
+    expect(limitarAjustes({ kv: Number.NaN, contraste: Infinity, brillo: 'mucho' as unknown as number, filtro: 'inventado' as never })).toEqual(
+      AJUSTES_DE_LA_IMAGEN_POR_OMISION,
+    )
+    expect(limitarAjustes({ kv: 10, contraste: 9, brillo: -5 })).toEqual({
+      kv: KV_MINIMO,
+      contraste: CONTRASTE_MAXIMO,
+      brillo: -BRILLO_MAXIMO,
+      filtro: 'ninguno',
+    })
+    expect(limitarAjustes({ kv: 999 }).kv).toBe(KV_MAXIMO)
+    expect(limitarAjustes({ filtro: 'bordes' }).filtro).toBe('bordes')
+  })
+
+  it('los tres filtros están declarados, con su ayuda', () => {
+    expect(FILTROS_DE_FLUOROSCOPIA.map((f) => f.valor)).toEqual(['ninguno', 'bordes', 'positivo'])
+    for (const f of FILTROS_DE_FLUOROSCOPIA) expect(f.ayuda.length, f.valor).toBeGreaterThan(10)
+  })
+
+  it('los kilovoltios de siempre no cambian nada y los extremos cambian en el sentido que dicen', () => {
+    expect(factorDeKv(KV_INICIAL)).toBe(1)
+    expect(factorDeKv(KV_MINIMO)).toBeGreaterThan(1)
+    expect(factorDeKv(KV_MAXIMO)).toBeLessThan(1)
+    expect(factorDeKv(Number.NaN)).toBe(1)
   })
 })
 

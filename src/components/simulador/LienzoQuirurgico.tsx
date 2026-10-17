@@ -67,10 +67,12 @@ import {
   type PosicionDelPaciente,
 } from '@/lib/posicionDelPaciente'
 import { POSE_AL_CARGAR, aplicarLaPose, poseActual, ponerLaPose } from './vistaDelPaciente'
-import type { DesplazamientoDeLaImagen, ProyeccionDeFluoroscopia } from '@/lib/radiografia'
+import type { AjustesDeLaImagen, DesplazamientoDeLaImagen, ProyeccionDeFluoroscopia } from '@/lib/radiografia'
 import {
   dibujarFluoroscopia,
   prepararFluoroscopia,
+  reiniciarLaFluoroscopia,
+  revelarLaToma,
   soltarFluoroscopia,
   type EscenaParaRadiografia,
   type TallerDeFluoroscopia,
@@ -306,7 +308,31 @@ export interface MandoDelLienzo {
     desplazamiento?: DesplazamientoDeLaImagen,
     /** Píxeles por lado con que se dibuja: más grande el recuadro, más píxeles (`ladoDeLaImagen`). */
     lado?: number,
+    /** Cómo se revela la toma: kilovoltios, contraste, brillo y filtro (P-003, E2). */
+    ajustes?: Partial<AjustesDeLaImagen>,
   ) => boolean
+  /**
+   * El botón «Disparar» (P-003, E2): hace **una** toma ahora, aunque nada haya cambiado, y la revela. Es el modo por
+   * omisión de la fluoroscopia: en pabellón se dispara, se mira y se apaga.
+   */
+  dispararFluoroscopia: (
+    destino: HTMLCanvasElement,
+    proyeccion: ProyeccionDeFluoroscopia,
+    zoom: number,
+    desplazamiento?: DesplazamientoDeLaImagen,
+    lado?: number,
+    ajustes?: Partial<AjustesDeLaImagen>,
+  ) => boolean
+  /**
+   * Vuelve a revelar la última toma con otros ajustes, sin disparar: mover los kilovoltios, el contraste o el filtro
+   * es leer de otra manera lo que ya se capturó. Devuelve `false` si no hay toma todavía.
+   */
+  revelarFluoroscopia: (destino: HTMLCanvasElement, ajustes?: Partial<AjustesDeLaImagen>) => boolean
+  /**
+   * Hace olvidar a la fluoroscopia lo que ya tenía dibujado, para que la próxima toma se haga aunque la escena sea la
+   * misma: se llama cuando el lienzo de la imagen se vació o es otro (apagar y encender, cambiar de modo).
+   */
+  reiniciarFluoroscopia: () => void
   /** Quita los tornillos puestos, y la placa si `conPlaca`. */
   quitarImplantes: (conPlaca: boolean) => void
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
@@ -676,6 +702,8 @@ export function LienzoQuirurgico({
     fluoroscopia?: TallerDeFluoroscopia
     /** Cuántas veces se ha dibujado la escena: la fluoroscopia solo se rehace si cambió. */
     cuadro?: number
+    /** Cuántas veces se ha disparado la fluoroscopia: da a cada toma su propio grano de ruido. */
+    disparos?: number
     /** El primer clic de una línea recta, a la espera del segundo. */
     inicioDeLaRecta?: { x: number; y: number; punto: Punto3; normal: Punto3 }
     /** El clic que marca dónde empieza la incisión recta, para dibujar su marca. */
@@ -1015,7 +1043,7 @@ export function LienzoQuirurgico({
 
     cancelarTrazo: () => cancelarLaRecta(taller.current),
 
-    dibujarFluoroscopia: (destino, proyeccion, zoom, desplazamiento, lado) => {
+    dibujarFluoroscopia: (destino, proyeccion, zoom, desplazamiento, lado, ajustes) => {
       const t = taller.current
       const ctx = contextoDeRadiografia(t)
       if (!t.render || !ctx) return false
@@ -1025,11 +1053,32 @@ export function LienzoQuirurgico({
         ctx,
         t.fluoroscopia,
         destino,
-        { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, desplazamiento, lado },
+        { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, desplazamiento, lado, ajustes },
         t.cuadro ?? 0,
         [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
       )
     },
+
+    dispararFluoroscopia: (destino, proyeccion, zoom, desplazamiento, lado, ajustes) => {
+      const t = taller.current
+      const ctx = contextoDeRadiografia(t)
+      if (!t.render || !ctx) return false
+      t.fluoroscopia ??= prepararFluoroscopia()
+      return dibujarFluoroscopia(
+        t.render,
+        ctx,
+        t.fluoroscopia,
+        destino,
+        { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, desplazamiento, lado, ajustes, forzar: true },
+        // Un cuadro propio por disparo: el grano del ruido de cada toma es distinto, como en una imagen de verdad.
+        (t.cuadro ?? 0) + (t.disparos = (t.disparos ?? 0) + 1),
+        [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
+      )
+    },
+
+    revelarFluoroscopia: (destino, ajustes) => (taller.current.fluoroscopia ? revelarLaToma(taller.current.fluoroscopia, destino, ajustes) : false),
+
+    reiniciarFluoroscopia: () => reiniciarLaFluoroscopia(taller.current.fluoroscopia),
 
     quitarImplantes: (conPlaca) => {
       const imp = taller.current.implantes
@@ -3229,6 +3278,7 @@ export type Taller = {
   siguientePellizco?: number
   fluoroscopia?: TallerDeFluoroscopia
   cuadro?: number
+  disparos?: number
   inicioDeLaRecta?: { x: number; y: number; punto: Punto3; normal: Punto3 }
   marcaDeInicio?: THREE.Mesh
   escena?: THREE.Scene

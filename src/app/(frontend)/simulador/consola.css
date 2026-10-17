@@ -1480,6 +1480,31 @@ body:has(.consola-completa) { overflow: hidden; }
 .consola-escopia-imagen { cursor: grab; touch-action: none; user-select: none; }
 .consola-escopia-imagen:active { cursor: grabbing; }
 .consola-escopia-imagen:focus-visible { outline: 2px solid var(--c-acento, #5aa9ff); outline-offset: 2px; }
+/* P-003, E2: el modo (disparo o vídeo), el botón de disparar y los ajustes de la imagen. */
+.consola-escopia-modos,
+.consola-escopia-filtros {
+  display: grid;
+  gap: var(--e-1);
+  padding: var(--e-1);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+}
+.consola-escopia-modos { grid-template-columns: repeat(2, 1fr); }
+.consola-escopia-filtros { grid-template-columns: repeat(3, 1fr); }
+.consola-escopia-filtros .consola-escopia-vista { min-height: 28px; font-size: 11px; }
+.consola-escopia-disparar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-1);
+  width: 100%;
+  min-height: 40px;
+}
+.consola-escopia-ajustes { display: grid; gap: var(--e-2); }
+.consola-escopia-ajustes > summary { cursor: pointer; font-weight: 600; color: var(--c-texto); }
+.consola-escopia-ajustes[open] > summary { margin-bottom: var(--e-1); }
+.consola-escopia-centrar:disabled { opacity: 0.5; cursor: default; }
 .consola-escopia-mover { display: flex; align-items: center; justify-content: space-between; gap: var(--e-2); }
 .consola-escopia-mover small { color: var(--c-rotulo); }
 .consola-escopia-centrar {

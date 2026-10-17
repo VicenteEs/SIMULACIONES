@@ -107,6 +107,13 @@ import {
 import { TIPOS_DE_TRAZO, type TipoDeTrazo } from '@/lib/trazoRecto'
 import { anchoGuardadoDelRecuadro, guardarAnchoDelRecuadro } from './anchoDelRecuadro'
 import {
+  ajustesGuardadosDeLaImagen,
+  guardarAjustesDeLaImagen,
+  guardarModoDeEscopia,
+  modoGuardadoDeEscopia,
+  type ModoDeEscopia,
+} from './ajustesDeLaImagen'
+import {
   PROYECCIONES_DE_FLUOROSCOPIA,
   SEGUNDOS_DE_ESCOPIA_ALTOS,
   SIN_DESPLAZAMIENTO,
@@ -114,6 +121,7 @@ import {
   limitarAnchoDelRecuadro,
   limitarDesplazamiento,
   limitarZoom,
+  type AjustesDeLaImagen,
   type DesplazamientoDeLaImagen,
   type ProyeccionDeFluoroscopia,
 } from '@/lib/radiografia'
@@ -561,6 +569,20 @@ export function ConsolaQuirurgica({
   // Lo ancho que quiere el residente el recuadro de la imagen (D-175). Se recuerda entre visitas: quien lo prefiere
   // grande lo quiere así en todos los casos, y volver a estirarlo cada vez que enciende los rayos cansa.
   const [anchoDeFluoroscopia, setAnchoDeFluoroscopia] = useState(() => anchoGuardadoDelRecuadro())
+  // «Disparo» (una toma por pulsación, lo que se hace en pabellón) o «vídeo» (la imagen en vivo de antes): por
+  // omisión el disparo, y el que cada quien elija se recuerda en su navegador (P-003, E2).
+  const [modoDeEscopia, setModoDeEscopia] = useState<ModoDeEscopia>(() => modoGuardadoDeEscopia())
+  // Cómo se revela la imagen: kilovoltios, contraste, brillo y filtro. Se aplican a la última toma sin volver a disparar.
+  const [ajustesDeLaImagen, setAjustesDeLaImagen] = useState<AjustesDeLaImagen>(() => ajustesGuardadosDeLaImagen())
+  // La última toma del modo de disparo: de cuándo es y con qué proyección, acercamiento y posición se hizo, para decir
+  // «hace N s» y si la imagen quedó vieja. `ahora` solo avanza mientras hay una toma que mirar.
+  const [ultimaToma, setUltimaToma] = useState<{
+    hora: number
+    proyeccion: ProyeccionDeFluoroscopia
+    zoom: number
+    desplazamiento: DesplazamientoDeLaImagen
+  } | null>(null)
+  const [ahoraDeLaEscopia, setAhoraDeLaEscopia] = useState(0)
   // Cuánto se ha corrido la extremidad bajo el arco: se arrastra la imagen, como en pabellón se mueve el miembro.
   const [desplazamientoDeFluoroscopia, setDesplazamientoDeFluoroscopia] = useState<DesplazamientoDeLaImagen>(SIN_DESPLAZAMIENTO)
   // Las ayudas de los rayos X (D-166). Los ejes salen puestos —son lo que
@@ -1515,30 +1537,89 @@ export function ConsolaQuirurgica({
 
   const fluoroscopiaEncendida = fluoroscopia !== null
 
-  // El tiempo de escopia cuenta mientras los rayos están encendidos. Un
-  // intervalo y no el reloj de cada pintado: lo único que cambia es un número
-  // que se actualiza cada segundo.
+  // El tiempo de escopia cuenta mientras los rayos están encendidos **en vídeo**. En disparo no cuenta nada: una toma
+  // no es exposición que medir aquí (pedido de Cristóbal: «las fotos no quiero que se cuenten, el vídeo sí»). Un
+  // intervalo y no el reloj de cada pintado: lo único que cambia es un número que se actualiza cada segundo.
+  const enVideo = fluoroscopiaEncendida && modoDeEscopia === 'video'
   useEffect(() => {
-    if (!fluoroscopiaEncendida) return
+    if (!enVideo) return
     const reloj = window.setInterval(() => setSegundosDeEscopia((s) => s + 1), 1000)
     return () => window.clearInterval(reloj)
-  }, [fluoroscopiaEncendida])
+  }, [enVideo])
 
-  // La imagen del arco en C se redibuja unas siete veces por segundo. No es un efecto del estado de la
-  // consola: lo que cambia la imagen es la escena (un instrumento que se mueve, una herida que se abre), y
-  // eso vive en el lienzo, que dice si cambió. Cuando no cambió, `dibujarFluoroscopia` no lee nada.
+  // La imagen del arco en C se redibuja unas siete veces por segundo, **solo en vídeo**. No es un efecto del estado
+  // de la consola: lo que cambia la imagen es la escena (un instrumento que se mueve, una herida que se abre), y
+  // eso vive en el lienzo, que dice si cambió. Cuando no cambió, `dibujarFluoroscopia` no lee nada. En disparo no
+  // corre ningún intervalo: la imagen se hace al pulsar «Disparar» (`dispararLaFluoroscopia`).
   useEffect(() => {
-    if (fluoroscopia === null) return
+    if (fluoroscopia === null || modoDeEscopia !== 'video') return
     const reloj = window.setInterval(() => {
       const lienzo = lienzoDeFluoroscopia.current
       if (!lienzo) return
       // Se dibuja con los píxeles que hacen falta para el ancho con que se enseña: ensanchar el recuadro sin esto
       // solo agranda una imagen de 384 px y la vuelve borrosa.
       const lado = ladoDeLaImagen(lienzo.getBoundingClientRect().width, window.devicePixelRatio)
-      mando.current?.dibujarFluoroscopia(lienzo, fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia, lado)
+      mando.current?.dibujarFluoroscopia(lienzo, fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia, lado, ajustesDeLaImagen)
     }, 140)
     return () => window.clearInterval(reloj)
-  }, [fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia])
+  }, [fluoroscopia, modoDeEscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia, ajustesDeLaImagen])
+
+  // En disparo, mover los kilovoltios, el contraste o el filtro vuelve a **revelar** la última toma, sin disparar:
+  // es leerla de otra manera. Sin toma (`ultimaToma` nulo) no hay nada que revelar.
+  const hayTomaQueRevelar = fluoroscopia !== null && modoDeEscopia === 'disparo' && ultimaToma !== null
+  useEffect(() => {
+    if (!hayTomaQueRevelar) return
+    const lienzo = lienzoDeFluoroscopia.current
+    if (lienzo) mando.current?.revelarFluoroscopia(lienzo, ajustesDeLaImagen)
+  }, [hayTomaQueRevelar, ajustesDeLaImagen])
+
+  // El «hace N s» de la última toma avanza cada segundo mientras haya una que mirar.
+  useEffect(() => {
+    if (!hayTomaQueRevelar) return
+    const reloj = window.setInterval(() => setAhoraDeLaEscopia(Date.now()), 1000)
+    return () => window.clearInterval(reloj)
+  }, [hayTomaQueRevelar])
+
+  /** El botón «Disparar»: una toma ahora, con lo que hay en la escena y los ajustes de la imagen. */
+  const dispararLaFluoroscopia = () => {
+    const lienzo = lienzoDeFluoroscopia.current
+    if (fluoroscopia === null || !lienzo) return
+    const lado = ladoDeLaImagen(lienzo.getBoundingClientRect().width, window.devicePixelRatio)
+    const hecha = mando.current?.dispararFluoroscopia(lienzo, fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia, lado, ajustesDeLaImagen)
+    if (!hecha) return
+    const hora = Date.now()
+    setAhoraDeLaEscopia(hora)
+    setUltimaToma({ hora, proyeccion: fluoroscopia, zoom: zoomDeFluoroscopia, desplazamiento: desplazamientoDeFluoroscopia })
+  }
+
+  /** Cambia entre disparo y vídeo y lo recuerda. Pasar a disparo deja la imagen vacía: la de vídeo no es una toma. */
+  const elegirModoDeEscopia = (modo: ModoDeEscopia) => {
+    if (modo === modoDeEscopia) return
+    setModoDeEscopia(modo)
+    guardarModoDeEscopia(modo)
+    // El lienzo y lo que el lienzo del taller cree que ya tiene dibujado dejan de coincidir: sin este reinicio, volver
+    // a vídeo con la escena quieta no repintaba nada, porque la huella decía «no ha cambiado».
+    mando.current?.reiniciarFluoroscopia()
+    if (modo === 'disparo') {
+      setUltimaToma(null)
+      const lienzo = lienzoDeFluoroscopia.current
+      lienzo?.getContext('2d')?.clearRect(0, 0, lienzo.width, lienzo.height)
+    }
+  }
+
+  const cambiarAjustesDeLaImagen = (ajustes: AjustesDeLaImagen) => {
+    setAjustesDeLaImagen(ajustes)
+    guardarAjustesDeLaImagen(ajustes)
+  }
+
+  // De cuándo es la imagen y si lo que se cambió desde entonces ya no corresponde a ella.
+  const haceSegundosDeLaToma = ultimaToma ? Math.max(0, Math.round(((ahoraDeLaEscopia || ultimaToma.hora) - ultimaToma.hora) / 1000)) : null
+  const tomaDesactualizada =
+    ultimaToma !== null &&
+    (ultimaToma.proyeccion !== fluoroscopia ||
+      ultimaToma.zoom !== zoomDeFluoroscopia ||
+      ultimaToma.desplazamiento.x !== desplazamientoDeFluoroscopia.x ||
+      ultimaToma.desplazamiento.y !== desplazamientoDeFluoroscopia.y)
 
   /**
    * Apaga la fluoroscopia.
@@ -1558,6 +1639,7 @@ export function ConsolaQuirurgica({
     }
     setMenuDeFluoroscopia(false)
     setFluoroscopia(null)
+    setUltimaToma(null)
     // La próxima vez, el miembro empieza centrado. La vista del lienzo no se tocó al encender, así que no hay
     // nada que devolver.
     setDesplazamientoDeFluoroscopia(SIN_DESPLAZAMIENTO)
@@ -1565,7 +1647,13 @@ export function ConsolaQuirurgica({
 
   /** Enciende la fluoroscopia con la proyección elegida, o cambia de proyección si ya estaba encendida. */
   const elegirProyeccion = (proyeccion: ProyeccionDeFluoroscopia) => {
-    if (fluoroscopia === null) setSegundosDeEscopia(0)
+    if (fluoroscopia === null) {
+      setSegundosDeEscopia(0)
+      // Encendida de nuevo no hay toma que mirar: en disparo, la imagen empieza vacía hasta pulsar «Disparar», y en
+      // vídeo el lienzo es nuevo y hay que pintarlo aunque la escena no se haya movido.
+      setUltimaToma(null)
+      mando.current?.reiniciarFluoroscopia()
+    }
     setFluoroscopia(proyeccion)
     setMenuDeFluoroscopia(false)
     // La vista del lienzo se queda como estaba (petición de Cristóbal): el arco tiene su propia cámara y la
@@ -3077,7 +3165,14 @@ export function ConsolaQuirurgica({
           {fluoroscopia ? (
             <PanelDeFluoroscopia
               proyeccion={fluoroscopia}
+              modo={modoDeEscopia}
               segundos={segundosDeEscopia}
+              haceSegundos={haceSegundosDeLaToma}
+              desactualizada={tomaDesactualizada}
+              ajustes={ajustesDeLaImagen}
+              alElegirModo={elegirModoDeEscopia}
+              alDisparar={dispararLaFluoroscopia}
+              alCambiarAjustes={cambiarAjustesDeLaImagen}
               zoom={zoomDeFluoroscopia}
               ancho={anchoDeFluoroscopia}
               ayudas={ayudas}

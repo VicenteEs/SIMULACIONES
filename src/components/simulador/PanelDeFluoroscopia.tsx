@@ -1,22 +1,32 @@
 'use client'
 
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
-import { Crosshair, ScanLine, X } from 'lucide-react'
+import { Crosshair, RotateCcw, ScanLine, X, Zap } from 'lucide-react'
 import {
+  AJUSTES_DE_LA_IMAGEN_POR_OMISION,
   ANCHO_MAXIMO_DEL_RECUADRO,
   ANCHO_MINIMO_DEL_RECUADRO,
+  BRILLO_MAXIMO,
+  CONTRASTE_MAXIMO,
+  CONTRASTE_MINIMO,
+  FILTROS_DE_FLUOROSCOPIA,
+  KV_MAXIMO,
+  KV_MINIMO,
   PROYECCIONES_DE_FLUOROSCOPIA,
   SEGUNDOS_DE_ESCOPIA_ALTOS,
   SIN_DESPLAZAMIENTO,
   ZOOM_MAXIMO_DE_LA_IMAGEN,
   ZOOM_MINIMO_DE_LA_IMAGEN,
   arrastrarLaImagen,
+  limitarAjustes,
   limitarAnchoDelRecuadro,
   limitarDesplazamiento,
   limitarZoom,
+  type AjustesDeLaImagen,
   type DesplazamientoDeLaImagen,
   type ProyeccionDeFluoroscopia,
 } from '@/lib/radiografia'
+import { MODOS_DE_ESCOPIA, type ModoDeEscopia } from './ajustesDeLaImagen'
 import type { AyudasDeEscopia } from './LienzoQuirurgico'
 
 /** Los acercamientos que se piden de un toque; el deslizador y la rueda cubren lo que hay entre medias. */
@@ -49,7 +59,11 @@ const enEspanol = (n: number) => n.toFixed(1).replace('.', ',')
  */
 export function PanelDeFluoroscopia({
   proyeccion,
+  modo,
   segundos,
+  haceSegundos,
+  desactualizada,
+  ajustes,
   zoom,
   ancho,
   ayudas,
@@ -59,6 +73,9 @@ export function PanelDeFluoroscopia({
   lienzo,
   desplazamiento,
   alDesplazar,
+  alElegirModo,
+  alDisparar,
+  alCambiarAjustes,
   alElegirProyeccion,
   alAcercar,
   alCambiarAncho,
@@ -66,7 +83,15 @@ export function PanelDeFluoroscopia({
   alApagar,
 }: {
   proyeccion: ProyeccionDeFluoroscopia
+  /** «disparo» (por omisión): una toma por pulsación; «video»: la imagen en vivo, que cuenta exposición. */
+  modo: ModoDeEscopia
+  /** Segundos de exposición: solo cuentan en vídeo. */
   segundos: number
+  /** Segundos desde la última toma del modo de disparo; `null` mientras no se ha disparado. */
+  haceSegundos: number | null
+  /** Se cambió la proyección, el acercamiento o la posición del miembro después de la última toma. */
+  desactualizada: boolean
+  ajustes: AjustesDeLaImagen
   zoom: number
   /** Ancho del recuadro, en píxeles. */
   ancho: number
@@ -82,6 +107,9 @@ export function PanelDeFluoroscopia({
   /** Cuánto se ha corrido el miembro bajo el arco, en radios del círculo. */
   desplazamiento: DesplazamientoDeLaImagen
   alDesplazar: (desplazamiento: DesplazamientoDeLaImagen) => void
+  alElegirModo: (modo: ModoDeEscopia) => void
+  alDisparar: () => void
+  alCambiarAjustes: (ajustes: AjustesDeLaImagen) => void
   alElegirProyeccion: (p: ProyeccionDeFluoroscopia) => void
   alAcercar: (zoom: number) => void
   alCambiarAncho: (ancho: number) => void
@@ -144,6 +172,12 @@ export function PanelDeFluoroscopia({
     agarrado.current = null
   }
   const alTeclear = (e: KeyboardEvent<HTMLCanvasElement>) => {
+    // Intro o espacio disparan, como el pedal: con la imagen enfocada, sin soltar el teclado.
+    if ((e.key === 'Enter' || e.key === ' ') && modo === 'disparo') {
+      e.preventDefault()
+      alDisparar()
+      return
+    }
     const paso = 0.12
     // Las flechas mueven la extremidad en el sentido de la flecha, igual que el arrastre.
     const dx = e.key === 'ArrowRight' ? paso : e.key === 'ArrowLeft' ? -paso : 0
@@ -221,13 +255,32 @@ export function PanelDeFluoroscopia({
         <span>
           <ScanLine size={14} aria-hidden /> Fluoroscopia · {etiqueta}
         </span>
-        <span
-          className={`consola-escopia-tiempo u-num${segundos > SEGUNDOS_DE_ESCOPIA_ALTOS ? ' alto' : ''}`}
-          aria-label={`${segundos} segundos de escopia`}
-        >
-          {segundos} s
-        </span>
+        {modo === 'video' ? (
+          <span
+            className={`consola-escopia-tiempo u-num${segundos > SEGUNDOS_DE_ESCOPIA_ALTOS ? ' alto' : ''}`}
+            aria-label={`${segundos} segundos de escopia`}
+          >
+            {segundos} s
+          </span>
+        ) : (
+          // Una toma no es exposición que contar (pedido de Cristóbal): aquí solo se dice de cuándo es la imagen.
+          <span className="consola-escopia-tiempo u-num">{haceSegundos === null ? 'sin toma' : `hace ${haceSegundos} s`}</span>
+        )}
       </p>
+      <div className="consola-escopia-modos" role="group" aria-label="Modo de la fluoroscopia">
+        {MODOS_DE_ESCOPIA.map((m) => (
+          <button
+            key={m.valor}
+            type="button"
+            className={`consola-escopia-vista${modo === m.valor ? ' activo' : ''}`}
+            aria-pressed={modo === m.valor}
+            title={m.ayuda}
+            onClick={() => alElegirModo(m.valor)}
+          >
+            {m.etiqueta}
+          </button>
+        ))}
+      </div>
       <canvas
         ref={lienzo}
         className="consola-escopia-imagen"
@@ -243,6 +296,26 @@ export function PanelDeFluoroscopia({
         onPointerCancel={alSoltar}
         onKeyDown={alTeclear}
       />
+      {modo === 'disparo' ? (
+        <>
+          <button
+            type="button"
+            className="consola-aplicar consola-escopia-disparar"
+            onClick={alDisparar}
+            title="Una toma ahora, como el pedal del arco. La imagen se queda hasta el siguiente disparo (también Intro o espacio con la imagen enfocada)."
+          >
+            <Zap size={14} aria-hidden /> Disparar
+          </button>
+          {/* Lo que cambia la imagen no la repinta hasta disparar: se dice, para que no parezca que no responde. */}
+          <p className="consola-escopia-lectura" role="status">
+            {haceSegundos === null
+              ? 'Todavía no hay toma: pulse «Disparar» para tomar la imagen.'
+              : desactualizada
+                ? 'La imagen es de la toma anterior: cambió la proyección, el acercamiento o la posición. Dispare otra vez.'
+                : 'Imagen de la última toma.'}
+          </p>
+        </>
+      ) : null}
       <p className="consola-escopia-lectura consola-escopia-mover">
         <small>Arrastre la imagen para subir o bajar la extremidad.</small>
         {corrido ? (
@@ -304,6 +377,70 @@ export function PanelDeFluoroscopia({
         />
         <output>{ancho} px</output>
       </label>
+      <details className="consola-escopia-ajustes">
+        <summary>Ajustes de imagen</summary>
+        <label className="consola-instrumento-articulacion consola-escopia-zoom">
+          <span>Penetración</span>
+          <input
+            type="range"
+            min={KV_MINIMO}
+            max={KV_MAXIMO}
+            step={1}
+            value={ajustes.kv}
+            onChange={(e) => alCambiarAjustes(limitarAjustes({ ...ajustes, kv: Number(e.target.value) }))}
+            aria-label="Penetración de la imagen, en kilovoltios: con pocos se ve más opaco; con muchos, el rayo atraviesa más"
+          />
+          <output>{ajustes.kv} kV</output>
+        </label>
+        <label className="consola-instrumento-articulacion consola-escopia-zoom">
+          <span>Contraste</span>
+          <input
+            type="range"
+            min={CONTRASTE_MINIMO}
+            max={CONTRASTE_MAXIMO}
+            step={0.05}
+            value={ajustes.contraste}
+            onChange={(e) => alCambiarAjustes(limitarAjustes({ ...ajustes, contraste: Number(e.target.value) }))}
+            aria-label="Contraste de la imagen"
+          />
+          <output>{ajustes.contraste.toFixed(2).replace('.', ',')}×</output>
+        </label>
+        <label className="consola-instrumento-articulacion consola-escopia-zoom">
+          <span>Brillo</span>
+          <input
+            type="range"
+            min={-BRILLO_MAXIMO * 100}
+            max={BRILLO_MAXIMO * 100}
+            step={1}
+            value={Math.round(ajustes.brillo * 100)}
+            onChange={(e) => alCambiarAjustes(limitarAjustes({ ...ajustes, brillo: Number(e.target.value) / 100 }))}
+            aria-label="Brillo de la imagen"
+          />
+          <output>{`${ajustes.brillo > 0 ? '+' : ''}${Math.round(ajustes.brillo * 100)} %`}</output>
+        </label>
+        <div className="consola-escopia-filtros" role="group" aria-label="Filtro de la imagen">
+          {FILTROS_DE_FLUOROSCOPIA.map((f) => (
+            <button
+              key={f.valor}
+              type="button"
+              className={`consola-escopia-vista${ajustes.filtro === f.valor ? ' activo' : ''}`}
+              aria-pressed={ajustes.filtro === f.valor}
+              title={f.ayuda}
+              onClick={() => alCambiarAjustes({ ...ajustes, filtro: f.valor })}
+            >
+              {f.etiqueta}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="consola-escopia-centrar"
+          disabled={JSON.stringify(ajustes) === JSON.stringify(AJUSTES_DE_LA_IMAGEN_POR_OMISION)}
+          onClick={() => alCambiarAjustes({ ...AJUSTES_DE_LA_IMAGEN_POR_OMISION })}
+        >
+          <RotateCcw size={12} aria-hidden /> Restablecer
+        </button>
+      </details>
       <label className="consola-escopia-opcion">
         <input
           type="checkbox"
@@ -337,7 +474,7 @@ export function PanelDeFluoroscopia({
             : '.'}
         </p>
       ) : null}
-      {segundos > SEGUNDOS_DE_ESCOPIA_ALTOS ? (
+      {modo === 'video' && segundos > SEGUNDOS_DE_ESCOPIA_ALTOS ? (
         <p className="consola-escopia-aviso">Mucha exposición. En pabellón se dispara, se mira y se apaga.</p>
       ) : null}
       <button type="button" className="consola-boton consola-boton-ancho" onClick={alApagar}>

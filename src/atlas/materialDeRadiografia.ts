@@ -21,9 +21,17 @@ import * as THREE from 'three'
  */
 export const GANANCIA_DE_LA_RADIOGRAFIA = 2.3
 
-export function crearMaterialDeRadiografia(densidad: number): THREE.ShaderMaterial {
+/**
+ * `ganancia` es la de la toma. La radiografía del atlas usa la de siempre; la fluoroscopia del simulador captura con
+ * menos (`GANANCIA_DE_LA_RADIOGRAFIA / FACTOR_DE_LA_TOMA`) y revela multiplicando, para que lo muy denso no se sature
+ * en la propia captura —un búfer de 8 bits no guarda más de 1— y los kilovoltios altos tengan algo que enseñar.
+ */
+export function crearMaterialDeRadiografia(
+  densidad: number,
+  ganancia: number = GANANCIA_DE_LA_RADIOGRAFIA,
+): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    uniforms: { uDensidad: { value: densidad }, uGanancia: { value: GANANCIA_DE_LA_RADIOGRAFIA } },
+    uniforms: { uDensidad: { value: densidad }, uGanancia: { value: ganancia } },
     vertexShader: /* glsl */ `
       varying vec3 vNormal;
       void main() {

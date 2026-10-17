@@ -6063,6 +6063,59 @@ bandeja de comentarios crece. Si el formulario se descarta sin guardar, la fila 
 ficha no exista: se dice así en el texto. El correo sale por cada aviso, con el mismo cupo que el resto de comentarios. La
 columna `tipo` de una patología ya no tiene valor por omisión.
 
+### D-178 · 2026-10-17 · vigente
+**La fluoroscopia dispara una toma, no es un vídeo, y la imagen se ajusta con kilovoltios, contraste, brillo y filtros.**
+Segunda etapa del plan P-003 (E2). Pedidos de Cristóbal: «permitir cambiar la penetrancia (más o menos opaco), jugar con filtros y
+contrastes para resaltar más o menos, respetando las densidades»; y «en fluoroscopia, un botón de disparar: así uno va avanzando y
+tomando toques, como en la cirugía; no dejar en vivo; pero dejar una opción de vídeo como la que ya está, que no sea por defecto».
+Respuesta del dueño: **las fotos no se cuentan; el vídeo sí, como ya lo hace**.
+
+*Disparo y vídeo.* Dos modos (`ModoDeEscopia`), con el **disparo por omisión** y el vídeo como opción; el que cada quien elige se
+recuerda en su navegador (`ajustesDeLaImagen.ts`, `localStorage` con `try`, como el ancho del recuadro). En disparo no corre ningún
+intervalo: encender la fluoroscopia no enseña nada hasta pulsar «Disparar» (también Intro o espacio con la imagen enfocada), cada
+pulsación hace **una** toma forzada con su propio grano de ruido, y la imagen se queda quieta. Cambiar la proyección, el acercamiento
+o la posición del miembro no repinta —en pabellón hay que volver a disparar—, y la consola lo dice («la imagen es de la toma anterior»).
+El encabezado dice «hace N s» en vez de contar exposición. En vídeo todo sigue como era: se redibuja unas siete veces por segundo y
+cuenta segundos, con el aviso de los 20 s y la nota al apagar. Pasar a disparo vacía el lienzo (la imagen de vídeo no es una toma).
+
+*Toma y revelado, separados.* `dibujarFluoroscopia` hacía las dos cosas a la vez. Ahora `tomarFluoroscopia` renderiza y lee los píxeles
+crudos a `f.buffer`, y `revelarLaToma` los pasa al negativo con los ajustes; `dibujarFluoroscopia` sigue siendo las dos juntas (el
+vídeo) con el mismo comportamiento. Es lo que permite mover los kilovoltios, el contraste o el filtro **sin volver a disparar**: se
+revela otra vez la misma toma, y por eso tampoco cuenta como exposición. Las huellas están aparte (`huella` de la toma, `huellaDelRevelado`
+de los ajustes). El revelado usa el lado que tenía la toma, no el del recuadro de ahora: ensanchar el recuadro entre dos disparos no
+vacía la imagen.
+
+*Los mandos* (`lib/radiografia.ts`, puro y con pruebas): **Penetración** de 50 a 120 kV, **Contraste** de 0,5 a 2, **Brillo** de −30 a
++30 %, y **filtro**: ninguno, *realzar bordes* (máscara de enfoque con promedio de 3×3: lo liso no cambia y el contorno salta) o
+*positivo* (lo denso, blanco). Con 70 kV y el resto en su sitio la imagen es idéntica a la de antes de que hubiera mandos
+(`AJUSTES_DE_LA_IMAGEN_POR_OMISION`). La penetración multiplica la materia por `(70 / kV)²`: aproximación a propósito simple, suficiente
+para que el mando haga lo que el de un arco y se pueda probar con números. Lo que se fija con una prueba es **«respetando las
+densidades»**: `claridadDeLaMateria` es **monótona** para toda combinación de kilovoltios, contraste y brillo —más materia nunca sale
+más clara—; los mandos reparten los grises, no los ordenan de otra manera. La densidad de cada tejido (`DENSIDAD_POR_PAPEL`) no se toca.
+
+*Margen en la captura.* Para que subir los kilovoltios tenga algo que mostrar, la toma se **captura con la mitad de la ganancia**
+(`GANANCIA_DE_LA_RADIOGRAFIA / FACTOR_DE_LA_TOMA`) y el revelado la multiplica por `FACTOR_DE_LA_TOMA`: un búfer de 8 bits no guarda más de 1, y
+con la ganancia entera el metal sobre el hueso llegaba al tope en la propia captura, donde ningún mando podía recuperarlo.
+`crearMaterialDeRadiografia` gana un segundo parámetro con la ganancia (la radiografía del taller sigue con la de siempre). Se prueba
+que dos materias densas que a 50 kV se confunden se distinguen a 120 kV, y que la toma a media ganancia revelada con el factor equivale
+a la de ganancia entera.
+
+*Un fallo que apareció al probarlo.* Volver de disparo a vídeo, o apagar y encender, con la escena quieta, dejaba el lienzo en negro:
+el lienzo era otro (o estaba vacío) y la huella decía «no ha cambiado nada». `reiniciarFluoroscopia` la borra, y la consola la llama al
+encender y al cambiar de modo. Antes podía pasar también al apagar y encender; no se notaba porque la escena casi siempre se repintaba.
+
+*Probado* en local sobre «prueeeebbaaa»: encendida en AP no se ve nada («Todavía no hay toma»); un disparo pinta (28 tonos) y la imagen
+se queda quieta un segundo después; otro disparo cambia el ruido; con 50 kV la media baja (160) y con 120 sube (181); *positivo* invierte
+(38); el filtro, el contraste y el restablecer responden sin disparar; en vídeo cuenta 2 s, 4 s y no hay botón de disparar; el modo se
+recuerda tras recargar; volver a vídeo y apagar-encender repintan. Pruebas nuevas: `radiografia.test.ts` (los mandos),
+`fluoroscopiaPorDisparos.test.ts` (toma y revelado, qué corre en cada modo, lo que se recuerda).
+
+*Consecuencias buenas.* La fluoroscopia se parece a lo que se hace en pabellón: se dispara, se mira, se ajusta; y la exposición solo la
+cuenta quien elige el vídeo. *Malas.* Quien venía usando el vídeo tiene que elegirlo una vez (queda recordado). En disparo el residente
+puede mover el miembro y no ver nada hasta volver a disparar, que es lo real pero sorprende al principio; el aviso lo explica. El revelado
+de 768 px con realce de bordes recorre cerca de seis millones de valores por imagen: en vídeo con filtro, a siete cuadros por segundo, puede
+notarse en un equipo modesto. El modelo de penetración es una aproximación, no física de verdad.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -8706,7 +8759,7 @@ nuevo («Oncología ortopédica»), que además aparece en el filtro de la bibli
 
 ---
 
-#### E2 · Fluoroscopia por disparos, con penetración, contraste y filtros · 1–2 sesiones · pendiente
+#### E2 · Fluoroscopia por disparos, con penetración, contraste y filtros · 1–2 sesiones · hecha en local (2026-10-17, D-178; sin desplegar)
 
 **De dónde sale:** pedidos 1 y 12, respuesta 12.
 
@@ -8744,18 +8797,20 @@ nuevo («Oncología ortopédica»), que además aparece en el filtro de la bibli
 
 **Tareas**
 
-- [ ] **E2.1 · Revelado en `src/lib/radiografia.ts`.** `revelarFluoroscopia(crudo, lado, ajustes)`, con `kv`,
+- [x] **E2.1 · Revelado en `src/lib/radiografia.ts`.** *(Hecha: `aFluoroscopia` acepta los ajustes y `claridadDeLaMateria` es la función
+  monótona que se prueba; no hubo función `revelarFluoroscopia` aparte.)* `revelarFluoroscopia(crudo, lado, ajustes)`, con `kv`,
   `contraste`, `brillo`, `filtro`, `ruido` y `semilla`. `aFluoroscopia` queda como el revelado con los valores por
   omisión, para no romper a quien lo llama. Pruebas: monotonía para una rejilla de ajustes; el círculo sigue
   recortando; el positivo invierte el orden; el realce no cambia la media de una zona lisa.
-- [ ] **E2.2 · Toma y revelado separados** en `radiografiaEnLaEscena.ts`: `tomarFluoroscopia` devuelve el búfer crudo y
+- [x] **E2.2 · Toma y revelado separados** *(hecha: `tomarFluoroscopia`, `revelarLaToma`, `reiniciarLaFluoroscopia`)* en `radiografiaEnLaEscena.ts`: `tomarFluoroscopia` devuelve el búfer crudo y
   sus datos (proyección, zoom, desplazamiento, hora); `revelarEn(destino, toma, ajustes)` pinta. El `mando` del lienzo
   expone `dispararFluoroscopia()` (fuerza la toma aunque la huella no cambie).
-- [ ] **E2.3 · Modos en la consola.** El intervalo de 140 ms y el de los segundos solo corren en «Vídeo». En
+- [x] **E2.3 · Modos en la consola.** El intervalo de 140 ms y el de los segundos solo corren en «Vídeo». En
   «Disparo», el panel pide la toma al pulsar y revela al cambiar un ajuste.
-- [ ] **E2.4 · Panel.** Conmutador Disparo/Vídeo, botón «Disparar» grande, «Toma de hace N s», los cuatro mandos en un
+- [x] **E2.4 · Panel.** Conmutador Disparo/Vídeo, botón «Disparar» grande, «Toma de hace N s», los cuatro mandos en un
   desplegable «Ajustes de imagen» (para que el recuadro siga cabiendo en 1366 × 657), y el contador solo en vídeo.
-- [ ] **E2.5 · Pruebas, manual y D-nnn.** Además de E2.1: que en disparo no corre ningún intervalo
+- [x] **E2.5 · Pruebas, manual y D-nnn.** *(D-178. En lugar de espiar `setInterval`, una prueba lee el código de la consola y
+  comprueba que los dos relojes dependen del modo; el resto, en el navegador.)* Además de E2.1: que en disparo no corre ningún intervalo
   (`setInterval` espiado) y que en vídeo los segundos siguen sumando.
 
 **Hecho cuando…** Al encender la fluoroscopia no se ve nada hasta pulsar «Disparar»; la imagen se queda; subir los kV
@@ -9258,7 +9313,7 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 | Etapa | Estado | Sesiones | Depende de | Decisiones |
 |---|---|---|---|---|
 | E1 · Catálogos que se amplían, con aviso | hecha en local; sin desplegar | 1 | — | D-177 |
-| E2 · Fluoroscopia por disparos y penetración | pendiente | 1–2 | — | — |
+| E2 · Fluoroscopia por disparos y penetración | hecha en local; sin desplegar | 1–2 | — | D-178 |
 | E3 · Separadores y pinzas | pendiente | 2 | — | — |
 | E4 · Varios abordajes; el rojo que se va | pendiente | 2–3 | E3 | — |
 | E5 · Reducir con la pinza | pendiente | 1–2 | E3 | — |

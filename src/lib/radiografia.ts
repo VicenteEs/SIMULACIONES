@@ -88,13 +88,136 @@ export function aporteDeLaSuperficie(densidad: number, rasante: number): number 
   return densidad * (0.045 + 0.2 * Math.pow(r, 1.5))
 }
 
-export interface OpcionesDeFluoroscopia {
-  /** La ganancia: cuánto contraste da la imagen (0,5 a 2). Un arco real la ajusta solo. */
+// ---------------------------------------------------------------- ajustes de la imagen (P-003, E2)
+
+/**
+ * Cómo se revela la toma: los mandos del arco que cambian la imagen sin volver a irradiar.
+ *
+ * Cristóbal pidió «poder cambiar la penetrancia de la fluoroscopia (más o menos opaco), jugar con filtros y
+ * contrastes para resaltar más o menos, respetando las densidades». Ninguno de los cuatro cambia lo que hay
+ * (la densidad de cada tejido sale de `DENSIDAD_POR_PAPEL` y no se toca): cambian cómo se **lee** lo que ya se
+ * capturó, igual que la ventana y el nivel de la consola de un arco.
+ */
+export type FiltroDeFluoroscopia = 'ninguno' | 'bordes' | 'positivo'
+
+export const FILTROS_DE_FLUOROSCOPIA: readonly { valor: FiltroDeFluoroscopia; etiqueta: string; ayuda: string }[] = [
+  { valor: 'ninguno', etiqueta: 'Ninguno', ayuda: 'La imagen tal como sale del arco: lo denso, oscuro.' },
+  { valor: 'bordes', etiqueta: 'Realzar bordes', ayuda: 'Marca los contornos: la cortical, los agujeros y el borde de la placa.' },
+  { valor: 'positivo', etiqueta: 'Positivo', ayuda: 'Como una radiografía: lo denso, blanco, sobre fondo negro.' },
+]
+
+export interface AjustesDeLaImagen {
+  /**
+   * Los kilovoltios del tubo: la **penetración**. Con pocos, lo blando se separa del fondo y el hueso se satura
+   * (más opaco); con muchos, el rayo atraviesa más y se distingue lo que hay dentro del hueso o detrás del metal.
+   */
+  kv: number
+  /** Cuánto se separan los grises (0,5 a 2). 1 es la imagen de siempre. */
+  contraste: number
+  /** Cuánto se aclara (+) o se oscurece (−) todo, de −0,3 a 0,3. */
+  brillo: number
+  filtro: FiltroDeFluoroscopia
+}
+
+export const KV_MINIMO = 50
+export const KV_MAXIMO = 120
+/** Con 70 kV la imagen es la que había antes de que hubiera mandos: todo lo anterior sigue valiendo. */
+export const KV_INICIAL = 70
+export const CONTRASTE_MINIMO = 0.5
+export const CONTRASTE_MAXIMO = 2
+export const BRILLO_MAXIMO = 0.3
+
+export const AJUSTES_DE_LA_IMAGEN_POR_OMISION: Readonly<AjustesDeLaImagen> = {
+  kv: KV_INICIAL,
+  contraste: 1,
+  brillo: 0,
+  filtro: 'ninguno',
+}
+
+const esFiltro = (valor: unknown): valor is FiltroDeFluoroscopia =>
+  FILTROS_DE_FLUOROSCOPIA.some((f) => f.valor === valor)
+
+/** Los ajustes dentro de lo que la imagen admite; lo que no es un número o un filtro conocido vuelve a su valor de siempre. */
+export function limitarAjustes(a: Partial<AjustesDeLaImagen> | null | undefined): AjustesDeLaImagen {
+  const numero = (valor: unknown, porOmision: number) => (typeof valor === 'number' && Number.isFinite(valor) ? valor : porOmision)
+  return {
+    kv: Math.round(entre(numero(a?.kv, KV_INICIAL), KV_MINIMO, KV_MAXIMO)),
+    contraste: Math.round(entre(numero(a?.contraste, 1), CONTRASTE_MINIMO, CONTRASTE_MAXIMO) * 100) / 100,
+    brillo: Math.round(entre(numero(a?.brillo, 0), -BRILLO_MAXIMO, BRILLO_MAXIMO) * 100) / 100,
+    filtro: esFiltro(a?.filtro) ? a.filtro : 'ninguno',
+  }
+}
+
+/**
+ * Cuánto se multiplica la materia según los kilovoltios, relativo a los 70 de siempre.
+ *
+ * Un modelo más simple que la física real, a propósito: la absorción cae aproximadamente con el cuadrado de la
+ * energía, así que 50 kV absorbe casi el doble que 70 y 120 kV, algo más de un tercio. Basta para que el mando haga
+ * lo que hace el de un arco —más o menos opaco— y se pueda probar con números.
+ */
+export function factorDeKv(kv: number): number {
+  const k = entre(Number.isFinite(kv) ? kv : KV_INICIAL, KV_MINIMO, KV_MAXIMO)
+  return Math.pow(KV_INICIAL / k, 2)
+}
+
+/**
+ * La claridad de un píxel (0 negro, 1 el fondo) para la materia que acumuló la toma, de 0 a 1.
+ *
+ * `crudo` es lo capturado, de 0 a 1; `ganancia` devuelve la toma a la escala de siempre (la captura se hace con
+ * menos ganancia para que lo muy denso no se sature antes de revelar). Es **monótona**: más materia nunca sale más
+ * clara, sean cuales sean los ajustes. Es lo que significa «respetando las densidades», y es lo primero que se prueba.
+ */
+export function claridadDeLaMateria(crudo: number, ganancia: number, a: AjustesDeLaImagen): number {
+  const materia = Math.min(1, Math.max(0, crudo) * ganancia * factorDeKv(a.kv))
+  const claridad = 1 - materia
+  return entre((claridad - 0.5) * a.contraste + 0.5 + a.brillo, 0, 1)
+}
+
+export interface OpcionesDeFluoroscopia extends Partial<AjustesDeLaImagen> {
+  /**
+   * Cuánto se multiplica lo capturado para volver a la escala de siempre. La toma de la consola se captura con
+   * la mitad de la ganancia (`FACTOR_DE_LA_TOMA`) y se revela con este factor: así lo muy denso —el metal sobre el
+   * hueso— no llega al tope antes de tiempo y los kilovoltios altos tienen algo que mostrar.
+   */
   ganancia?: number
   /** El grano del ruido, de 0 (limpia) a 1. */
   ruido?: number
   /** Un número cualquiera, para que el mismo cuadro dé siempre el mismo ruido. */
   semilla?: number
+}
+
+/**
+ * Cuánto menos se capturan los rayos de lo que se revela: la toma sale con `1 / FACTOR_DE_LA_TOMA` de la ganancia
+ * de la radiografía y el revelado la multiplica por esto. Con 70 kV y los demás mandos en su sitio, la imagen es
+ * idéntica a la de antes.
+ */
+export const FACTOR_DE_LA_TOMA = 2
+
+/** Aclara un valor 0-1 en el sentido contrario: lo denso, blanco. */
+const positivo = (claridad: number) => 1 - claridad
+
+/**
+ * Realce de bordes: máscara de enfoque con un promedio de 3×3. Donde la imagen es lisa no cambia nada; donde hay un
+ * borde, el lado claro se aclara y el oscuro se oscurece, y el contorno salta.
+ */
+function realzarBordes(c: Float32Array, ancho: number, alto: number): Float32Array {
+  const fuerza = 1.6
+  const salida = new Float32Array(c.length)
+  for (let y = 0; y < alto; y++) {
+    for (let x = 0; x < ancho; x++) {
+      let suma = 0
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = Math.min(alto - 1, Math.max(0, y + dy))
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = Math.min(ancho - 1, Math.max(0, x + dx))
+          suma += c[yy * ancho + xx]
+        }
+      }
+      const centro = c[y * ancho + x]
+      salida[y * ancho + x] = Math.min(1, Math.max(0, centro + fuerza * (centro - suma / 9)))
+    }
+  }
+  return salida
 }
 
 /**
@@ -111,6 +234,8 @@ export interface OpcionesDeFluoroscopia {
  * - Dentro, fondo gris claro sin materia (215); cuanta más hay, más oscuro.
  * - Un oscurecimiento suave hacia el borde (viñeta) y grano: sin ellos la
  *   imagen se lee como un dibujo y no como una escopia.
+ * - Los ajustes (`kv`, `contraste`, `brillo`, `filtro`) cambian cómo se lee la toma, no lo que hay en ella; con los
+ *   de por omisión la imagen es la de siempre.
  */
 export function aFluoroscopia(
   pixeles: Uint8ClampedArray | Uint8Array,
@@ -120,12 +245,22 @@ export function aFluoroscopia(
 ): Uint8ClampedArray {
   const ganancia = opciones.ganancia ?? 1
   const ruido = opciones.ruido ?? 0.5
+  const ajustes = limitarAjustes(opciones)
   let estado = ((opciones.semilla ?? 1) * 2654435761) >>> 0
   const azar = () => {
     // Congruencial lineal: no hace falta calidad, hace falta que sea barato y repetible.
     estado = (Math.imul(estado, 1664525) + 1013904223) >>> 0
     return estado / 4294967296
   }
+
+  // La claridad de cada píxel, antes del círculo: el realce mira a los vecinos, y los de fuera del círculo cuentan.
+  let claridades: Float32Array = new Float32Array(ancho * alto)
+  for (let i = 0; i < ancho * alto; i++) {
+    const o = i * 4
+    claridades[i] = claridadDeLaMateria((pixeles[o] + pixeles[o + 1] + pixeles[o + 2]) / (3 * 255), ganancia, ajustes)
+  }
+  if (ajustes.filtro === 'bordes') claridades = realzarBordes(claridades, ancho, alto)
+
   const salida = new Uint8ClampedArray(ancho * alto * 4)
   const cx = (ancho - 1) / 2
   const cy = (alto - 1) / 2
@@ -140,13 +275,11 @@ export function aFluoroscopia(
         salida[destino + 3] = 255
         continue
       }
-      const origen = (origenY * ancho + x) * 4
-      const materia = Math.min(1, ((pixeles[origen] + pixeles[origen + 1] + pixeles[origen + 2]) / (3 * 255)) * ganancia)
       // El negativo: sin materia, gris claro (215); con mucha, casi negro (20). Lineal a propósito: las partes blandas
       // quedan en gris claro y el hueso, que absorbe tres veces más, en gris oscuro, como en la pantalla del arco.
-      const claridad = 1 - materia
+      const claridad = claridades[origenY * ancho + x]
       const vineta = 1 - 0.28 * Math.pow(d, 3)
-      let valor = (20 + 195 * claridad) * vineta
+      let valor = (20 + 195 * (ajustes.filtro === 'positivo' ? positivo(claridad) : claridad)) * vineta
       if (ruido > 0) valor += (azar() - 0.5) * 14 * ruido
       const v = Math.max(0, Math.min(255, valor))
       salida[destino] = v
