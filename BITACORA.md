@@ -8704,7 +8704,7 @@ qué tarjeta tiene y cuánta memoria.
 
 ---
 
-### P-003 · 2026-10-17 · en curso (escrito; ninguna etapa empezada)
+### P-003 · 2026-10-17 · hecha en local, sin desplegar (2026-10-18; E1 a E10 hechas; faltan E9.2, medir el rendimiento, y E10.4, guardar la retracción en la sesión)
 **Las observaciones de Cristóbal sobre el simulador quirúrgico: catálogos que se amplían con aviso, fluoroscopia
 por disparos y con penetración, separadores que no se cruzan y se reubican, varios abordajes en una cirugía,
 reducción con pinza, placa que se ajusta antes de perforar, insumos al terminar, y una ficha anatómica global
