@@ -9181,11 +9181,11 @@ botón deja esa lista como la mesa de los practicantes.
 
 **Tareas**
 
-- [x] **E8.1 · `src/lib/estructuras.ts`:** campos por sistema, «completa», contador, normalización de lado y de
+- [x] **E8.1 · `src/lib/estructuras.ts`:** (commit `ef7b270`) campos por sistema, «completa», contador, normalización de lado y de
   sufijo de trozo (por `id`, no por nombre), y la pareja del lado opuesto. Pruebas con piezas reales del catálogo.
   *(Hecha. La pareja del lado opuesto no se reescribió: se usa `parejasContralaterales` de `src/atlas/espejo.ts`, que ya
   resuelve los 231 nombres repetidos por la caja reflejada, y las pruebas la ejercitan con el catálogo real.)*
-- [x] **E8.2 · Colección `estructuras-anatomicas`** con su esquema del panel, versiones, acceso (lectura con sesión;
+- [x] **E8.2 · Colección `estructuras-anatomicas`** (commit `fa7dedb`) con su esquema del panel, versiones, acceso (lectura con sesión;
   escritura de editores y administradores) y migración.
   *(Hecha, con tres matices. **Sin entrada en `esquema.ts`:** la pantalla de E8.4 es propia y el editor genérico no la
   toca. **Borrar es solo del administrador** y el panel no lo ofrece. **Sin `abordaje`:** es de E10 y llega con su
@@ -9193,14 +9193,14 @@ botón deja esa lista como la mesa de los practicantes.
   `20261017_161451_estructuras_anatomicas` se probó subiendo y bajando dentro de una transacción con ROLLBACK, y eso
   encontró un fallo del generador: el `down` soltaba las tablas antes de quitar la clave foránea que cuelga de
   `payload_locked_documents_rels`; el orden se corrigió a mano. La matriz de roles ganó la clase `estructuras`.)*
-- [x] **E8.3 · Siembra** (`scripts/sembrar-estructuras.ts`, idempotente): una fila por pieza del catálogo con
+- [x] **E8.3 · Siembra** (commit `9933551`) (`scripts/sembrar-estructuras.ts`, idempotente): una fila por pieza del catálogo con
   `atlasId`, `nombreOriginal`, `sistema`, `region` y `lado`. Se corre en el despliegue de la etapa.
   *(Hecha: la lógica vive en `sincronizarConElAtlas` (`src/lib/estructurasServidor.ts`) y la usan el guion —que por omisión
   simula— y, en E8.4, el botón «Cargar las piezas del atlas» del panel; los scripts de despliegue no corren guiones de
   `tsx`, así que el botón es lo que se usa en el servidor. Crea lo que falta, refresca solo los datos del atlas, marca como
   «sin pieza» lo que ya no está y casa por nombre original solo cuando no hay duda. La prueba de integración siembra las
   2.231 piezas dentro de una transacción que se deshace, y deja la base de desarrollo como estaba.)*
-- [x] **E8.4 · La pantalla** `/admin-panel/estructuras`: contador, filtro, pestañas y ventana de edición.
+- [x] **E8.4 · La pantalla** (commit `e6454cd`) `/admin-panel/estructuras`: contador, filtro, pestañas y ventana de edición.
   *(Hecha, sin la planilla, que es E8.5. El texto de las fichas no viaja con el listado: la pantalla recibe nombres, estados y qué
   falta, y la ventana pide la ficha al abrirse. **Guardar no pisa lo que otra persona escribió:** el navegador manda cómo estaba
   cada campo al abrir y cómo está ahora, el servidor escribe solo lo que esa persona tocó y, si otra escribió el mismo campo
@@ -9208,7 +9208,7 @@ botón deja esa lista como la mesa de los practicantes.
   `src/lib/catalogoDelAtlas.ts` —`exportarPreparacion.ts` la reexporta— para que el listado no importe el archivo que exporta sin
   sesión, que `exportarSinSesionAcotado.test.ts` reserva a la acción con guardia. Sin aviso numérico en la barra: «2.000
   pendientes» no se atiende, se trabaja de a poco.)*
-- [x] **E8.5 · Planilla:** descargar por región, leer `.xlsx`, vista previa, «aplicar también al lado opuesto» y
+- [x] **E8.5 · Planilla:** (commit `88ff9cd`) descargar por región, leer `.xlsx`, vista previa, «aplicar también al lado opuesto» y
   aplicar.
   *(Hecha. Lector en `src/lib/leerPlanilla.ts` (ZIP con CRC-32 comprobado, topes contra ZIP bombas, se probó con archivos de
   openpyxl y de xlsxwriter además del escritor propio); el plan —qué se llena, qué se reemplazaría, qué se salta— es puro, en
@@ -9218,13 +9218,13 @@ botón deja esa lista como la mesa de los practicantes.
   el del id —un id estropeado al copiar— no se aplica. Del lado opuesto: «Set of perforating arteries» y otras 24 piezas del
   miembro inferior derecho no tienen pareja deducible (el atlas las nombra sin lado o son de la línea media): se dicen en el
   resumen en vez de adivinarlas, y se llenan subiendo también la planilla del otro lado.)*
-- [x] **E8.6 · El taller anatómico:** al seleccionar una pieza, una pestaña «Info» en el panel derecho (el componente
+- [x] **E8.6 · El taller anatómico:** (commit `a44eb12`) al seleccionar una pieza, una pestaña «Info» en el panel derecho (el componente
   de pestañas de E2 del P-001) con la misma ficha editable; un trozo partido abre la de su pieza.
   *(Hecha. La ficha es un solo componente, `FichaEditable`, que usan la ventana de la pantalla y la pestaña del taller, así que
   lo que se escribe en uno se ve en el otro. Un trozo (`FJ…#a`) abre la ficha de su pieza entera por `piezaDe`, no por el
   nombre. **Lo escrito y sin guardar no se pierde al pinchar otra pieza:** el borrador queda en el taller, la pestaña dice «Info (1
   sin guardar)» y cerrar la página pregunta; al volver a la pieza, el texto está.)*
-- [x] **E8.7 · Pruebas, manual y D-nnn.** Integración: subir la planilla dos veces no duplica; una celda vacía no
+- [x] **E8.7 · Pruebas, manual y D-nnn.** (commit `9c0c87e`) Integración: subir la planilla dos veces no duplica; una celda vacía no
   borra; aplicar al lado opuesto llena la pareja y no pisa lo ya escrito; un lector no escribe; una pieza oculta no
   cuenta.
 
