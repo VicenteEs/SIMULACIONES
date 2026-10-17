@@ -93,6 +93,7 @@ import { Visor3D } from '@/components/VisoresPerezosos'
 // módulos.
 import { encuadreVigente, type Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import { CATEGORIAS_DE_INSTRUMENTAL, ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
+import { agruparInsumos, anotarUso, filasParaLaBandeja, type RegistroDeInsumos } from '@/lib/insumos'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import { comportamientoDelInstrumento, guiaDelInstrumento } from '@/lib/comportamientoDelInstrumento'
 import { InstrumentoArticulado } from './InstrumentoArticulado'
@@ -311,6 +312,8 @@ export interface EdicionEnLaConsola {
   alSenalar: (nodo: string) => void
   /** Añade o quita un instrumento de la bandeja que declara el caso. */
   alAlternarEnLaBandeja: (id: string) => void
+  /** Deja la bandeja del caso exactamente con estos instrumentos (los insumos usados, al terminar: P-003 E7). */
+  alFijarLaBandeja: (ids: string[]) => void
   /** Pone el instrumento que se tiene en la mano como el correcto del paso que se edita. */
   alUsarEnElPaso: (id: string) => void
   /** El instrumento correcto del paso que se edita, para marcarlo en la bandeja. */
@@ -638,6 +641,10 @@ export function ConsolaQuirurgica({
   // se descuida al aprender: se cuenta y se dice al apagar.
   const [segundosDeEscopia, setSegundosDeEscopia] = useState(0)
   const [instrumento, setInstrumento] = useState<string | null>(null)
+  // Lo que se usó en este recorrido (P-003 E7) y, en el editor, qué filas están marcadas para la bandeja: `null` es «las
+  // de lo usado», el valor de partida, y solo se guarda lo que la persona toca.
+  const [insumos, setInsumos] = useState<RegistroDeInsumos>({})
+  const [marcadasParaLaBandeja, setMarcadasParaLaBandeja] = useState<Set<string> | null>(null)
   // El instrumento en la mano: qué articulaciones declara su archivo y cuánto
   // las ha movido quien lo usa. Vive aquí y no dentro del visor pequeño porque
   // lo mueven dos cosas a la vez —los deslizadores y la escena— y las dos
@@ -1158,6 +1165,8 @@ export function ConsolaQuirurgica({
       return
 
     setIndice(0)
+    setInsumos({})
+    setMarcadasParaLaBandeja(null)
     setModo(MODO_DEL_OBJETIVO[objetivoDelPaso(caso.pasos[0] ?? {})])
     elegirInstrumento(null)
     setFuerza(fuerzaInicial(caso.pasos[0] ?? {}))
@@ -1322,6 +1331,21 @@ export function ConsolaQuirurgica({
 
   /** El instrumento que el residente tiene en la mano, ya resuelto. */
   const instrumentoElegido = caso.instrumental.find((i) => i.id === instrumento) ?? null
+  /**
+   * Anota que el instrumento de la mano **hizo algo**. Se llama desde los avisos del lienzo —que ya dicen cuándo se cortó,
+   * se separó, se pinzó, se perforó, se cosió o se fijó— y no al elegirlo: elegirlo y soltarlo no es usarlo.
+   */
+  const usarElDeLaMano = (largoMm?: number) => {
+    if (!instrumentoElegido) return
+    setInsumos((r) =>
+      anotarUso(r, {
+        instrumentoId: instrumentoElegido.id,
+        nombre: instrumentoElegido.nombre,
+        categoria: instrumentoElegido.categoria,
+        largoMm,
+      }),
+    )
+  }
 
   /**
    * Con qué valor está cada articulación del instrumento elegido: lo que movió
@@ -1923,6 +1947,67 @@ export function ConsolaQuirurgica({
   }
 
   const tieneMandosPropios = objetivo === 'trazo' || largoDelTrazoMm > 0 || objetivo === 'reduccion'
+
+  // «Insumos utilizados» al terminar (P-003 E7): lo que hizo algo en el recorrido, por categoría y con los tornillos
+  // por largo. En el editor cada fila lleva una casilla —todo lo usado marcado— y un botón que deja la bandeja del caso
+  // exactamente con lo marcado; lo que estaba en la bandeja y no se usó sale desmarcado, para que nada se vaya sin verse.
+  const gruposDeInsumos = agruparInsumos(
+    insumos,
+    CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string),
+  )
+  const filasDeLaBandeja = filasParaLaBandeja(
+    insumos,
+    caso.instrumental.filter((i) => i.enLaBandejaDelCaso).map((i) => ({ id: i.id, nombre: i.nombre })),
+  )
+  const estaMarcada = (f: { id: string; usado: boolean }) => (marcadasParaLaBandeja ? marcadasParaLaBandeja.has(f.id) : f.usado)
+  const alternarMarca = (id: string) => {
+    const partida = new Set(marcadasParaLaBandeja ?? filasDeLaBandeja.filter((f) => f.usado).map((f) => f.id))
+    if (partida.has(id)) partida.delete(id)
+    else partida.add(id)
+    setMarcadasParaLaBandeja(partida)
+  }
+  const bloqueDeInsumos =
+    gruposDeInsumos.length === 0 ? (
+      <p className="consola-vacio">No se usó ningún instrumento en este recorrido.</p>
+    ) : (
+      <div className="consola-insumos">
+        <h3 className="consola-subtitulo">Insumos utilizados</h3>
+        {gruposDeInsumos.map((g) => (
+          <div key={g.categoria}>
+            <p className="consola-instrumento-texto">{ETIQUETA_DE_CATEGORIA[g.categoria] ?? 'Otros'}</p>
+            <ul>
+              {g.insumos.map((u) => (
+                <li key={u.clave}>
+                  {u.nombre} · <span className="u-num">{u.cantidad}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {editor ? (
+          <div className="consola-insumos-editor">
+            <p className="consola-instrumento-texto">Bandeja del caso</p>
+            <ul>
+              {filasDeLaBandeja.map((f) => (
+                <li key={f.id}>
+                  <label>
+                    <input type="checkbox" checked={estaMarcada(f)} onChange={() => alternarMarca(f.id)} /> {f.nombre}
+                    {!f.usado ? ' (no se usó)' : ''}
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              className="consola-boton"
+              onClick={() => editor.alFijarLaBandeja(filasDeLaBandeja.filter(estaMarcada).map((f) => f.id))}
+            >
+              Usar como bandeja del caso
+            </button>
+          </div>
+        ) : null}
+      </div>
+    )
 
   // La bandeja con el instrumento en la mano. En el editor va en la columna de la izquierda: la de la derecha es del
   // panel de edición, que es largo, y dejaba la bandeja fuera de la vista (era lo que se pedía: todo a la vista).
@@ -3143,12 +3228,26 @@ export function ConsolaQuirurgica({
             trazo={tipoDeTrazo}
             moverTodo={moverTodoEfectivo}
             alGesto={anotar}
-            alSeparar={setSeparadores}
-            alPellizcar={setPellizcos}
-            alReducir={setPinzasDeReduccion}
-            alHerir={setHerida}
+            alSeparar={(e) => {
+              setSeparadores(e)
+              if (e.lista.length > 0 && queHace.separa) usarElDeLaMano()
+            }}
+            alPellizcar={(e) => {
+              setPellizcos(e)
+              if (e.lista.length > 0 && queHace.pellizca) usarElDeLaMano()
+            }}
+            alReducir={(e) => {
+              setPinzasDeReduccion(e)
+              if (e.pinzas.length > 0 && queHace.reduce) usarElDeLaMano()
+            }}
+            alHerir={(e) => {
+              setHerida(e)
+              // Solo cuenta si la mano trae algo que corta: el panel también se refresca al cerrar o separar.
+              if (e && e.capas.length > 0 && (queHace.corta || queHace.roma)) usarElDeLaMano()
+            }}
             alCoser={(estado) => {
               setSutura(estado)
+              if (estado && estado.puntadas > 0 && queHace.sutura) usarElDeLaMano()
               if (!estado) {
                 heridaCerradaDicha.current = false
                 return
@@ -3181,11 +3280,16 @@ export function ConsolaQuirurgica({
             alFijar={(estado, suceso) => {
               setFijacion(estado)
               if (!suceso) return
+              // La placa o el tornillo puestos, y lo que se perforó o midió, son insumos gastados: la placa se
+              // anota entera y cada tornillo con su largo, que es lo que se pide a esterilización.
+              if (suceso.tipo === 'tornillo') usarElDeLaMano(largoDeTornillo)
+              else if (suceso.tipo === 'placa' || suceso.tipo === 'medida' || suceso.tipo === 'agujero') usarElDeLaMano()
               if (suceso.largoSugeridoMm) setLargoDeTornillo(suceso.largoSugeridoMm)
               if (suceso.tipo === 'aviso') anotar(suceso.texto, 'atencion')
               else anotar(suceso.texto, suceso.atencion ? 'atencion' : 'bien')
             }}
             alPerforar={(hecha) => {
+              usarElDeLaMano()
               if (paso) setUltimaPerforacion({ paso: paso.id, hecha })
               const mm = (n: number) => n.toFixed(1).replace('.', ',')
               const partes = [
@@ -3430,6 +3534,7 @@ export function ConsolaQuirurgica({
                 (`puntosDelPaso`), y decir «hubo que repetir 3 pasos» sin
                 distinguirlas volvería a igualar lo que este cambio separa. */}
             <p>{resumenDelCaso}</p>
+            {bloqueDeInsumos}
             {/* Que quede dicho, y aquí: es el único momento en el que el
                 residente decide si repetir el caso, y saber que lo que hizo
                 no se pierde es lo que separa «repetir para mejorar» de

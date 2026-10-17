@@ -852,6 +852,11 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   medidor y el destornillador de la placa aparecen solos en la bandeja con la etiqueta «para
   esta placa», y «Añadir a la bandeja» enseña el catálogo por categorías. El ajuste de la
   placa no se guarda al recargar.
+- **Insumos utilizados.** Al terminar el caso, la consola lista **lo que se usó** (lo que hizo
+  algo: cortó, separó, pinzó, perforó, midió, cosió o fijó; elegir un instrumento y soltarlo no
+  cuenta), por categoría y con los tornillos por tipo y largo. En el **editor**, cada
+  instrumento de la bandeja lleva una casilla (lo usado, marcada; lo que no se usó, sin marcar)
+  y **«Usar como bandeja del caso»** deja la bandeja exactamente con lo marcado.
 - **La rueda del ratón maneja el instrumento.** Con unas tijeras, una pinza o un portaagujas
   en la mano, la rueda sobre el modelo los **abre y cierra**; con un separador abre el
   separador y la herida a la vez; con un tornillo cambia su largo; con una sutura que ya tiene

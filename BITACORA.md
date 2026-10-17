@@ -6200,6 +6200,18 @@ Sexta etapa del plan P-003 (E6). Pedidos 11, 13 y 14 y respuesta 5 de Cristóbal
 
 *Consecuencias buenas.* El orden real de la técnica deja de ser opcional, la placa se corrige sin quitarla y los tornillos están a la vista. *Malas.* El ajuste de la placa **no se guarda en la sesión** (recargar la deja como la dejó el caso: sin placa); los deslizadores son menos directos que las asas; el mapa de compañeros es una tabla escrita a mano en `fijacion.ts` y una placa nueva del catálogo no tiene compañeros hasta añadirla ahí.
 
+### D-184 · 2026-10-18 · vigente
+**Al terminar, la consola dice qué insumos se usaron, y el editor puede dejarlos como la bandeja del caso.**
+Séptima etapa del plan P-003 (E7). Pedido 15 y respuesta 6 de Cristóbal.
+
+*Qué había.* «Caso terminado» daba puntaje y complicaciones, pero no qué se gastó; y la bandeja se tocaba de a un instrumento.
+
+*Qué se hizo.* `src/lib/insumos.ts` (puro, con pruebas): `anotarUso`, `agruparInsumos` y `filasParaLaBandeja`. La consola guarda el registro (`insumos`) y lo alimenta con **los mismos avisos que el lienzo ya emitía** (`alHerir`, `alSeparar`, `alPellizcar`, `alReducir`, `alCoser`, `alPerforar`, `alFijar`), nunca al elegir un instrumento: **se anota lo que se usó, no lo que se tocó**. Un instrumento cuenta una vez por recorrido (diez puntadas son una aguja); **cada tornillo suma, por tipo y largo** («Tornillo cortical 3,5 mm × 36 mm · 4»). Cada aviso exige además que el instrumento de la mano sea de ese tipo (un panel que se refresca al cerrar una herida no anota el bisturí que ya no se usa). Reiniciar el caso vacía el registro. Al terminar se enseña el bloque **«Insumos utilizados»**, por categoría, para residente y editor. En el editor, cada fila de la bandeja lleva una casilla —lo usado, marcado; lo que estaba en la bandeja y no se usó, **desmarcado y al final**, para que nada salga sin verse— y **«Usar como bandeja del caso»** deja `instrumental` exactamente con lo marcado (`editor.alFijarLaBandeja`).
+
+*Probado.* Pruebas unitarias (uso único, tornillos por largo con coma decimal, agrupado por categoría con «otros» al final, filas del editor). Typecheck y lint limpios.
+
+*Consecuencias buenas.* La lista sale de lo que ocurrió y no de lo que alguien recuerde; la bandeja del caso se ajusta en un clic. *Malas.* El registro **no se guarda en la sesión** (recargar a mitad lo vacía); cambiar el largo de un tornillo ya puesto con la rueda puede anotar otro largo; el medidor y la broca cuentan aunque no dejen nada en el paciente (son insumos de esterilización igualmente).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -9130,7 +9142,7 @@ o en Contenido → Instrumental—, para confirmar que E6.6 cubre lo que vio.
 
 ---
 
-#### E7 · Los insumos usados, al terminar · 1 sesión · pendiente
+#### E7 · Los insumos usados, al terminar · 1 sesión · hecha en local (2026-10-18, D-184; sin desplegar)
 
 **De dónde sale:** pedido 15 y respuesta 6.
 
@@ -9434,7 +9446,7 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 | E4 · Varios abordajes; el rojo que se va | hecha en local; sin desplegar | 2–3 | E3 | D-181 |
 | E5 · Reducir con la pinza | hecha en local; sin desplegar | 1–2 | E3 | D-182 |
 | E6 · Placa, perforación, medidor y tornillos | hecha en local; sin desplegar | 2 | E2 | D-183 |
-| E7 · Insumos al terminar | pendiente | 1 | E3–E6 | — |
+| E7 · Insumos al terminar | hecha en local; sin desplegar | 1 | E3–E6 | D-184 |
 | E8 · Listado global de estructuras | hecha en local; sin desplegar | 3 | — | D-179 |
 | E9 · Estructuras separadas e «Info» | pendiente | 2–3 | E8 | — |
 | E10 · Trabajar por planos | pendiente | 3 | E4, E9 | — |

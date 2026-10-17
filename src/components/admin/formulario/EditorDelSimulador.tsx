@@ -477,6 +477,8 @@ export function EditorDelSimulador({
             if (nuevas !== piezas) alCambiar('piezas', nuevas)
           },
           alAlternarEnLaBandeja: alternarEnLaBandeja,
+          // La bandeja queda exactamente con lo marcado al terminar (P-003 E7).
+          alFijarLaBandeja: (ids) => alCambiar('instrumental', ids),
           alUsarEnElPaso: (id) => escribirVariosDelPaso({ instrumento: id, instrumentoPropuesto: '' }),
           instrumentoDelPaso:
             pasoActual?.instrumento === undefined || pasoActual.instrumento === null
