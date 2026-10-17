@@ -46,6 +46,7 @@ import { MenuAcciones, type OpcionDeMenu } from '@/components/ui/MenuAcciones'
 import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
 import dynamic from 'next/dynamic'
 import { FilaDeCampos, type Relaciones } from './formulario/Campos'
+import { ContextoDeFicha } from './formulario/contextoDeFicha'
 
 // La consola quirúrgica entera no viaja con el formulario de las demás fichas:
 // se pide solo al abrir la sección que la usa (D-166).
@@ -282,6 +283,9 @@ export function FormularioDocumento({
   const ultimoIntentoAutomatico = useRef(0)
 
   const presencia = usePresencia({ coleccion: esquema.slug, id })
+  // Qué ficha está abierta, para el aviso de «¿No está? Agregar» (P-003, E1). Memorizada: un objeto nuevo en cada
+  // pintado repintaría todos los desplegables de la ficha por una identidad que no cambió.
+  const ficha = useMemo(() => ({ coleccion: esquema.slug, documentoId: id }), [esquema.slug, id])
 
   /**
    * Colecciones a las que apunta algún campo del esquema o de los bloques.
@@ -1360,6 +1364,7 @@ export function FormularioDocumento({
         {esquema.secciones[seccion]?.descripcion ? (
           <p className="editor-seccion-nota">{esquema.secciones[seccion].descripcion}</p>
         ) : null}
+        <ContextoDeFicha.Provider value={ficha}>
         {esquema.secciones[seccion]?.vista === 'simulador' ? (
           // La consola del residente con el editor encima (D-166). Escribe sobre
           // los mismos `valores` que la fila de campos de abajo.
@@ -1380,6 +1385,7 @@ export function FormularioDocumento({
             alRecargarRelacion={(coleccion) => void cargarRelacion(coleccion, true)}
           />
         )}
+        </ContextoDeFicha.Provider>
       </section>
     </div>
   )

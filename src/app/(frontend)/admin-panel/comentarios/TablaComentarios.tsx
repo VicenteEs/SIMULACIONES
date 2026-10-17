@@ -349,18 +349,21 @@ export function TablaComentarios({
                           <Pencil aria-hidden size={13} />
                           Editar
                         </Link>
-                        <Link
-                          href={rutaPublica(c.coleccion, c.documentoId)}
-                          className="comentario-enlace"
-                          aria-label={
-                            c.fichaTitulo
-                              ? `Ver «${c.fichaTitulo}» en el sitio público`
-                              : 'Ver la ficha comentada en el sitio público'
-                          }
-                        >
-                          <ExternalLink aria-hidden size={13} />
-                          Ver ficha
-                        </Link>
+                        {/* Una fila de catálogo no tiene página pública: solo se edita (D-177). */}
+                        {MODULOS.some((m) => m.slug === c.coleccion) ? (
+                          <Link
+                            href={rutaPublica(c.coleccion, c.documentoId)}
+                            className="comentario-enlace"
+                            aria-label={
+                              c.fichaTitulo
+                                ? `Ver «${c.fichaTitulo}» en el sitio público`
+                                : 'Ver la ficha comentada en el sitio público'
+                            }
+                          >
+                            <ExternalLink aria-hidden size={13} />
+                            Ver ficha
+                          </Link>
+                        ) : null}
                       </div>
                     )}
                   </td>

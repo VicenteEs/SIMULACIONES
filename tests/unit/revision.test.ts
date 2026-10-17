@@ -138,7 +138,8 @@ describe('palabrasPorSeccion', () => {
     const documento = {
       nombre: 'Fractura de meseta tibial',
       segmento: 3,
-      tipo: 'trauma',
+      // Una relación desde D-177 (era una opción fija): se lee por su identificador, como el segmento.
+      tipo: 2,
       definicion: [
         {
           blockType: 'texto',
@@ -151,7 +152,7 @@ describe('palabrasPorSeccion', () => {
     const secciones = palabrasPorSeccion(Patologias, documento)
     expect(secciones.map((s) => s.seccion)).toEqual(Patologias.secciones.map((s) => s.titulo))
     const de = (titulo: string) => secciones.find((s) => s.seccion === titulo)!.palabras
-    expect(de('Identificación')).toEqual(['Fractura', 'de', 'meseta', 'tibial', 'segmento=#3', 'tipo=trauma'])
+    expect(de('Identificación')).toEqual(['Fractura', 'de', 'meseta', 'tibial', 'segmento=#3', 'tipo=#2'])
     expect(de('Definición')).toEqual([
       '[texto]',
       'Qué',

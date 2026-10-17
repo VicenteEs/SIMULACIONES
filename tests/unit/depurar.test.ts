@@ -53,7 +53,10 @@ describe('reconstrucción del documento', () => {
   })
 
   it('un valor fuera de la lista de opciones no se guarda tal cual', () => {
-    expect(depurarDocumento(patologias, { tipo: 'inventado' }).tipo).toBeNull()
+    // El tipo de la patología era la lista de opciones de este ejemplo; desde D-177 es un catálogo (una relación),
+    // y la lista cerrada la dan ahora el tipo de la clasificación AO —A, B o C— y el origen del modelo.
+    expect(depurarDocumento(esquemaDe('clasificaciones-ao'), { tipo: 'Z' }).tipo).toBeNull()
+    expect(depurarDocumento(esquemaDe('clasificaciones-ao'), { tipo: 'B' }).tipo).toBe('B')
     // El origen del modelo sí es obligatorio: cae en la primera opción.
     expect(depurarDocumento(modelos, { origen: 'inventado' }).origen).toBe('tc')
   })

@@ -6020,6 +6020,49 @@ instrumentos sirve aunque a un instrumento le falte su dibujo. *Malas.* `rolPorE
 caso publicado y no el borrador —una cirugía en borrador no se ve allí—, que es lo que se quiere, pero significa que lo que se prueba en
 el editor de un borrador no llega al residente hasta publicarlo.
 
+### D-177 · 2026-10-17 · vigente
+**El segmento y el tipo se agregan desde la ficha, y toda fila nueva de un catálogo deja un aviso pendiente.**
+Primera etapa del plan P-003 (E1). Pedido de Cristóbal: poder agregar otros segmentos anatómicos y otros tipos desde la propia
+patología, y que al agregar «se envíe un comentario y aparezca que tal persona agregó esto en tal parte». Respuesta del dueño: el
+aviso va **pendiente y con correo**, y en **todos** los campos con «¿No está? Agregar», no solo en los dos nuevos.
+
+*El tipo pasa a ser un catálogo.* `patologias.tipo` era un `select` de dos opciones, que en PostgreSQL es un tipo enumerado: «Oncología
+ortopédica» pedía editar el código, migrar y desplegar. Ahora es la colección `tipos-de-ficha` (`nombre`, `orden`), sembrada con
+«Trauma» y «Ortopedia», y la patología la apunta con una relación. Es material de apoyo, como los segmentos: lo escribe cualquier
+editor, porque se agrega desde cualquier ficha. La biblioteca lee los tipos de la base para su filtro (antes eran dos `<option>` escritos
+a mano) y compara por identificador. La migración (`20261017_152409_tipos_de_ficha_y_avisos_de_catalogo`) **lleva el valor de cada
+patología al catálogo antes de soltar la columna vieja**, también en las versiones; el generador solo sabía borrar. Se probó subiéndola y
+bajándola dentro de una transacción con una patología «ortopedia» y una versión «ortopedia»: el valor viaja en los dos sentidos. Una
+patología sin tipo —ya no hay valor por omisión— sale en «Todos los tipos» y en ningún filtro de tipo.
+
+*El aviso.* `agregarAlCatalogo` recibe ahora de dónde se agrega (`desde`: colección, número de la ficha si ya existe y etiqueta del
+campo, que le llegan al desplegable por un contexto de React, `ContextoDeFicha`, y no por propiedades a través de cinco niveles). Tras
+crear la fila deja un comentario pendiente, a nombre de quien agregó, con el texto de `textoDelAvisoDeCatalogo` («Fulano agregó el
+segmento «Cadera» al catálogo desde el campo «Segmento anatómico» de la patología «…». Revise que no sea el mismo de otro que ya
+estaba con distinto nombre.»); el gancho de `Comentarios` manda el correo. **Cuelga de la fila nueva y no de la ficha**: es sobre la fila
+que hay que actuar (renombrarla o borrarla si está repetida), la fila siempre existe y la ficha puede estar todavía sin guardar, que es lo
+que sin esto obligaba a aplazar el aviso hasta el primer guardado. Para eso `comentarios.coleccion` gana los seis slugs de los
+catálogos ampliables (migración) y el panel de comentarios los reconoce: título de la fila, «Catálogo de …» y solo el enlace «Editar»
+(una fila de catálogo no tiene página pública). Un fallo al avisar no deshace la fila. Si la fila ya existía, no hay aviso. Cada fila
+agregada queda además en el registro de acciones, como cualquier escritura (`conRegistro`).
+
+*La ingesta.* `tipo` pasa a ser un catálogo de la ingesta (`tipos-de-ficha`), y la búsqueda de una entrada de catálogo ya **no
+distingue mayúsculas ni tildes** si no hay una igual: los libros ya preparados dicen `"tipo": "trauma"` y tienen que reconocer
+«Trauma». Sigue sin crear nada: reconoce lo que ya está. Las secuencias de demostración (`demo.ts`, `contenido-de-demostracion.ts`) siembran
+el tipo.
+
+*Probado* en local, con un administrador de prueba: se abrió una patología, se escribió «Oncología ortopédica» en Tipo, apareció «¿No
+está? Agregar el tipo…», se pulsó, y quedaron la fila y el comentario pendiente con su texto; el panel de comentarios lo enseña con
+«Catálogo de tipos de ficha», el título de la fila y solo «Editar»; y el filtro de la biblioteca lista el tipo nuevo. Pruebas nuevas en
+`catalogosAmpliables.test.ts` (la tabla, el texto del aviso, la acción con y sin ficha guardada, y que un fallo del aviso no deshace la
+fila) y en `convertirIngesta.test.ts`.
+
+*Consecuencias buenas.* El equipo amplía segmentos y tipos sin esperar un despliegue, y la administración se entera de cada fila nueva
+con quién, qué y dónde. *Malas.* Un editor que agrega por error una fila deja un aviso que alguien tiene que resolver; con mucho uso, la
+bandeja de comentarios crece. Si el formulario se descarta sin guardar, la fila ya está en el catálogo (y el aviso, creado) aunque la
+ficha no exista: se dice así en el texto. El correo sale por cada aviso, con el mismo cupo que el resto de comentarios. La
+columna `tipo` de una patología ya no tiene valor por omisión.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -8578,9 +8621,15 @@ Cierran las preguntas que se le hicieron antes de escribir el plan:
 
 ---
 
-#### E1 · Catálogos que se amplían, con aviso · 1 sesión · pendiente
+#### E1 · Catálogos que se amplían, con aviso · 1 sesión · hecha en local (2026-10-17, D-177; sin desplegar)
 
 **De dónde sale:** pedidos 2 y respuesta 1.
+
+**Lo que cambió al hacerla** (el diseño de abajo es el que se escribió antes; esto es lo que se hizo, y por qué):
+el aviso **cuelga de la fila nueva del catálogo y no de la ficha**. Así no hay que aplazarlo cuando la ficha está sin guardar, ni
+agregar `instrumental` al enumerado de comentarios, ni usar `sendBeacon`: la fila siempre existe. Por eso `comentarios.coleccion`
+gana los seis slugs de los catálogos ampliables, y E1.3 no necesitó el aviso pendiente en el formulario. `tipos-de-ficha` es
+material de apoyo como `segmentos` (no vocabulario de un módulo), para que cualquier editor lo agregue desde su ficha.
 
 **Cómo funciona hoy**
 
@@ -8620,7 +8669,8 @@ Cierran las preguntas que se le hicieron antes de escribir el plan:
 
 **Tareas**
 
-- [ ] **E1.1 · Tipo como catálogo.**
+- [x] **E1.1 · Tipo como catálogo.** *(Hecha. La colección quedó aparte, en `src/collections/TiposDeFicha.ts`, como material de
+  apoyo; ver «Lo que cambió al hacerla».)*
   - Colección `tipos-de-ficha` (lectura con sesión, escritura con `escrituraDeModulo('patologias')`) en
     `src/collections/catalogos.ts`, y en `MODULO_DEL_VOCABULARIO` como vocabulario de `patologias`.
   - `Patologias.tipo`: relación `tipos-de-ficha`, no obligatoria.
@@ -8631,10 +8681,10 @@ Cierran las preguntas que se le hicieron antes de escribir el plan:
   - `esquema.ts`: `tipo` pasa a `relacion` (lo ata `esquema.test.ts`). Biblioteca: el filtro lee los tipos de la base
     y filtra por identificador. Buscar en `src/` y `tests/` todo lo que lea `patologia.tipo` como texto (biblioteca,
     ingesta, plantillas) y adaptarlo.
-- [ ] **E1.2 · Segmento y Tipo ampliables.** Entradas `segmentos` («el segmento», «Nombre del segmento») y
+- [x] **E1.2 · Segmento y Tipo ampliables.** Entradas `segmentos` («el segmento», «Nombre del segmento») y
   `tipos-de-ficha` («el tipo», «Nombre del tipo») en `CATALOGOS_AMPLIABLES`. Comprobar que `exigirEdicionDe` deja
   agregar segmentos a quien edita patologías **o** maniobras.
-- [ ] **E1.3 · El aviso.**
+- [x] **E1.3 · El aviso.** *(Hecha, pero colgado de la fila nueva: sin aviso pendiente en el formulario ni `sendBeacon`.)*
   - `agregarAlCatalogo` recibe `desde`. `SelectorConBusqueda` lo arma con la colección y el número de la ficha
     abierta y con la etiqueta del campo (le llegan de `Campos.tsx`).
   - Con ficha guardada: crea el comentario con el `req` del usuario (autor correcto) y `estado: 'pendiente'`.
@@ -8642,9 +8692,11 @@ Cierran las preguntas que se le hicieron antes de escribir el plan:
     tras el `create`. Si el formulario se descarta, el aviso se crea al cerrar la pestaña con `sendBeacon` a una
     ruta propia; si eso también falla, queda en el registro de acciones (E1.4), que no se pierde.
   - `comentarios.coleccion` gana `instrumental` (migración) y su ruta en el panel.
-- [ ] **E1.4 · Registro.** Cada fila agregada se anota también en el registro de acciones (`RegistroDeAcciones`:
-  quién, qué catálogo, qué nombre, desde qué ficha). El comentario se puede resolver; el registro no se borra.
-- [ ] **E1.5 · Pruebas, manual y D-nnn.** Unitarias: la tabla ampliable, el texto del aviso, no avisar si
+- [x] **E1.4 · Registro.** *(Ya lo hace `conRegistro` en toda colección declarada: quién, qué catálogo y qué fila; la ficha de
+  origen queda en el texto del comentario.)* Cada fila agregada se anota también en el registro de acciones
+  (`RegistroDeAcciones`: quién, qué catálogo, qué nombre, desde qué ficha). El comentario se puede resolver; el registro no se borra.
+- [x] **E1.5 · Pruebas, manual y D-nnn.** *(D-177; manual y guía de ingesta al día. La integración de «un editor agrega un segmento»
+  se probó en el navegador local, no en una prueba automática.)* Unitarias: la tabla ampliable, el texto del aviso, no avisar si
   `yaExistia`. Integración: un editor agrega un segmento desde una patología y aparece el comentario pendiente a su
   nombre; un lector no puede agregar; la migración del tipo conserva el valor de cada patología.
 
@@ -9205,7 +9257,7 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 
 | Etapa | Estado | Sesiones | Depende de | Decisiones |
 |---|---|---|---|---|
-| E1 · Catálogos que se amplían, con aviso | pendiente | 1 | — | — |
+| E1 · Catálogos que se amplían, con aviso | hecha en local; sin desplegar | 1 | — | D-177 |
 | E2 · Fluoroscopia por disparos y penetración | pendiente | 1–2 | — | — |
 | E3 · Separadores y pinzas | pendiente | 2 | — | — |
 | E4 · Varios abordajes; el rojo que se va | pendiente | 2–3 | E3 | — |

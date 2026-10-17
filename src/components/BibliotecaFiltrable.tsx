@@ -31,9 +31,12 @@ interface Segmento {
 export function BibliotecaFiltrable({
   fichas,
   segmentos,
+  tipos,
 }: {
   fichas: Ficha[]
   segmentos: Segmento[]
+  /** Los tipos del catálogo (trauma, ortopedia y los que se agreguen), para el desplegable. */
+  tipos: Segmento[]
 }) {
   const [texto, setTexto] = React.useState('')
   const [tipo, setTipo] = React.useState('')
@@ -94,9 +97,12 @@ export function BibliotecaFiltrable({
         </select>
 
         <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Filtrar por tipo">
-          <option value="">Trauma y ortopedia</option>
-          <option value="trauma">Solo trauma</option>
-          <option value="ortopedia">Solo ortopedia</option>
+          <option value="">Todos los tipos</option>
+          {tipos.map((t) => (
+            <option key={t.id} value={String(t.id)}>
+              {t.nombre}
+            </option>
+          ))}
         </select>
 
         {hayFiltros ? (

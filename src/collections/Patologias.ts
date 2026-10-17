@@ -46,14 +46,14 @@ export const Patologias: CollectionConfig = {
     },
     { name: 'codigo', type: 'text', label: 'Código AO/OTA o abreviatura' },
     {
+      // Era un `select` con dos opciones y un valor por omisión («trauma»). Pasó a catálogo para que el equipo
+      // agregue tipos desde la ficha sin un despliegue (D-177). Sin valor por omisión: un campo de relación no
+      // puede llevar el identificador de una fila que depende de la base, y la biblioteca trata una ficha sin
+      // tipo como «ni trauma ni ortopedia»: sale en «Trauma y ortopedia» y en ningún filtro de tipo.
       name: 'tipo',
-      type: 'select',
-      defaultValue: 'trauma',
+      type: 'relationship',
+      relationTo: 'tipos-de-ficha',
       label: 'Tipo',
-      options: [
-        { label: 'Trauma', value: 'trauma' },
-        { label: 'Ortopedia', value: 'ortopedia' },
-      ],
     },
     {
       type: 'tabs',

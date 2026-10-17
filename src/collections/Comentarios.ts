@@ -12,6 +12,7 @@ import { mensajeDeComentarioNuevo } from '@/correo/mensajes'
 // este importa `@/collections`, que importa este archivo. El ciclo no falla al
 // compilar; falla al arrancar, con la tabla todavía sin definir.
 import { NOMBRE_DE_DESTINO, rutaDelPanelParaComentario } from '@/app/(frontend)/admin-panel/modulos'
+import { CATALOGOS_CON_AVISO } from '@/lib/catalogosAmpliables'
 import { direccionPublica } from './Usuarios'
 
 /**
@@ -178,6 +179,9 @@ export const Comentarios: CollectionConfig = {
         // ficha de módulo. Es un valor más del enumerado, y por eso pide su
         // migración (`ALTER TYPE … ADD VALUE`).
         { label: 'instancias-atlas', value: 'instancias-atlas' },
+        // Las filas que el equipo agrega a un catálogo desde una ficha (P-003, E1): el aviso «Fulano agregó la
+        // técnica X» cuelga de la fila nueva. También es un valor más del enumerado y pide su migración.
+        ...CATALOGOS_CON_AVISO.map((slug) => ({ label: slug, value: slug })),
       ],
       access: FIJADO_AL_CREAR,
       admin: {

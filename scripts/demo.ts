@@ -46,6 +46,13 @@ async function main() {
     overrideAccess: true,
   })
 
+  // El tipo es un catálogo (D-177): la ficha de demostración apunta a «Trauma».
+  const tipo = await payload.create({
+    collection: 'tipos-de-ficha',
+    data: { nombre: 'Trauma', orden: 10 },
+    overrideAccess: true,
+  })
+
   await payload.create({
     collection: 'patologias',
     overrideAccess: true,
@@ -54,7 +61,7 @@ async function main() {
       subtitulo: 'Contenido de relleno para revisar la presentación',
       segmento: segmento.id,
       codigo: 'DEMO',
-      tipo: 'trauma',
+      tipo: tipo.id,
       _status: 'published',
       definicion: [
         { blockType: 'texto', titulo: 'Cómo se ve un bloque de texto', cuerpo: parrafo('Este párrafo ejercita el editor de texto enriquecido. El autor escribe con negrita, cursiva, listas y encabezados, y el resultado se guarda como árbol estructurado, nunca como HTML.') },

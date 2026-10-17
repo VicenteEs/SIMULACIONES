@@ -22,6 +22,7 @@ import * as migration_20261008_210126_instrumental_con_categoria from './2026100
 import * as migration_20261010_000243_implantes_y_categorias from './20261010_000243_implantes_y_categorias';
 import * as migration_20261010_040353_objetivos_de_perforacion_y_fijacion from './20261010_040353_objetivos_de_perforacion_y_fijacion';
 import * as migration_20261010_042311_tratamiento_de_los_casos_ao from './20261010_042311_tratamiento_de_los_casos_ao';
+import * as migration_20261017_152409_tipos_de_ficha_y_avisos_de_catalogo from './20261017_152409_tipos_de_ficha_y_avisos_de_catalogo';
 
 export const migrations = [
   {
@@ -142,6 +143,11 @@ export const migrations = [
   {
     up: migration_20261010_042311_tratamiento_de_los_casos_ao.up,
     down: migration_20261010_042311_tratamiento_de_los_casos_ao.down,
-    name: '20261010_042311_tratamiento_de_los_casos_ao'
+    name: '20261010_042311_tratamiento_de_los_casos_ao',
+  },
+  {
+    up: migration_20261017_152409_tipos_de_ficha_y_avisos_de_catalogo.up,
+    down: migration_20261017_152409_tipos_de_ficha_y_avisos_de_catalogo.down,
+    name: '20261017_152409_tipos_de_ficha_y_avisos_de_catalogo'
   },
 ];

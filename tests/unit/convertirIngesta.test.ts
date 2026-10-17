@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { claveDeCatalogo, convertirSobre } from '@/ingesta/convertir'
 
-const ids = new Map<string, number>([[claveDeCatalogo('segmentos', 'Rodilla'), 7]])
+const ids = new Map<string, number>([
+  [claveDeCatalogo('segmentos', 'Rodilla'), 7],
+  // El tipo es un catálogo desde D-177: «trauma» en minúscula, como lo escriben los libros ya preparados,
+  // tiene que reconocer «Trauma».
+  [claveDeCatalogo('tipos-de-ficha', 'Trauma'), 3],
+])
 
 const sobre = (ficha: unknown, extra: Record<string, unknown> = {}) => ({
   formato: 'traumahub/ingesta-1',
@@ -28,6 +33,7 @@ describe('convertirSobre', () => {
     const r = convertirSobre(sobre(fichaBuena), ids, 'prueba')
     expect(r.errores).toEqual([])
     expect(r.documento.segmento).toBe(7)
+    expect(r.documento.tipo).toBe(3)
     const bloques = r.documento.definicion as Record<string, unknown>[]
     expect(bloques.map((b) => b.blockType)).toEqual(['texto', 'advertencia'])
     expect(JSON.stringify(bloques[0].cuerpo)).toContain('negrita')

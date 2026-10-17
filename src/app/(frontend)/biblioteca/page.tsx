@@ -69,7 +69,7 @@ export default async function Biblioteca() {
   const puedeCrearFichas = esEditor && puedeEditar(usuario ?? {}, 'patologias')
   const puedeCrearSegmentos = esEditor && puedeEditar(usuario ?? {}, 'segmentos')
 
-  const [fichas, segmentos] = await Promise.all([
+  const [fichas, segmentos, tipos] = await Promise.all([
     payload.find({
       collection: 'patologias',
       overrideAccess: false,
@@ -92,6 +92,9 @@ export default async function Biblioteca() {
       sort: 'nombre',
     }),
     payload.find({ collection: 'segmentos', overrideAccess: false, user, limit: 100, sort: 'orden' }),
+    // Los tipos son un catálogo desde D-177 (antes eran dos opciones escritas en el código): el filtro enseña los que
+    // hay, incluidos los que el equipo agregue.
+    payload.find({ collection: 'tipos-de-ficha', overrideAccess: false, user, limit: 100, sort: 'orden' }),
   ])
 
   const idDe = (relacion: unknown): number | string | null => {
@@ -114,13 +117,15 @@ export default async function Biblioteca() {
     nombre: f.nombre as string,
     subtitulo: (f.subtitulo as string) ?? null,
     codigo: (f.codigo as string) ?? null,
-    tipo: (f.tipo as string) ?? null,
+    // El identificador del tipo, como texto: es lo que compara el filtro con el valor de su desplegable.
+    tipo: idDe(f.tipo) === null ? null : String(idDe(f.tipo)),
     segmentoId: idDe(f.segmento),
     borrador: f._status === 'draft',
     leida: lecturas.leida(f.id),
   }))
 
   const listaSegmentos = segmentos.docs.map((s) => ({ id: s.id, nombre: s.nombre as string }))
+  const listaTipos = tipos.docs.map((t) => ({ id: t.id, nombre: t.nombre as string }))
 
   return (
     <main className={claseDeModulo('patologias')}>
@@ -166,7 +171,7 @@ export default async function Biblioteca() {
           accion={puedeCrearFichas ? 'Crear la primera ficha' : undefined}
         />
       ) : (
-        <BibliotecaFiltrable fichas={lista} segmentos={listaSegmentos} />
+        <BibliotecaFiltrable fichas={lista} segmentos={listaSegmentos} tipos={listaTipos} />
       )}
     </main>
   )

@@ -69,6 +69,7 @@ export interface Config {
   collections: {
     usuarios: Usuario;
     segmentos: Segmento;
+    'tipos-de-ficha': TiposDeFicha;
     medios: Medio;
     'modelos-3d': Modelos3D;
     'instancias-atlas': InstanciasAtlas;
@@ -100,6 +101,7 @@ export interface Config {
   collectionsSelect: {
     usuarios: UsuariosSelect<false> | UsuariosSelect<true>;
     segmentos: SegmentosSelect<false> | SegmentosSelect<true>;
+    'tipos-de-ficha': TiposDeFichaSelect<false> | TiposDeFichaSelect<true>;
     medios: MediosSelect<false> | MediosSelect<true>;
     'modelos-3d': Modelos3DSelect<false> | Modelos3DSelect<true>;
     'instancias-atlas': InstanciasAtlasSelect<false> | InstanciasAtlasSelect<true>;
@@ -219,6 +221,17 @@ export interface Usuario {
  * via the `definition` "segmentos".
  */
 export interface Segmento {
+  id: number;
+  nombre: string;
+  orden?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tipos-de-ficha".
+ */
+export interface TiposDeFicha {
   id: number;
   nombre: string;
   orden?: number | null;
@@ -502,7 +515,7 @@ export interface Patologia {
   subtitulo?: string | null;
   segmento: number | Segmento;
   codigo?: string | null;
-  tipo?: ('trauma' | 'ortopedia') | null;
+  tipo?: (number | null) | TiposDeFicha;
   /**
    * Agregue los bloques que necesite y arrástrelos para reordenarlos.
    */
@@ -1870,7 +1883,19 @@ export interface EstudiosIa {
 export interface Comentario {
   id: number;
   usuario?: (number | null) | Usuario;
-  coleccion: 'patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia' | 'instancias-atlas';
+  coleccion:
+    | 'patologias'
+    | 'maniobras'
+    | 'casos-ao'
+    | 'cirugias'
+    | 'estudios-ia'
+    | 'instancias-atlas'
+    | 'huesos-ao'
+    | 'clasificaciones-ao'
+    | 'tecnicas-quirurgicas'
+    | 'fases-quirurgicas'
+    | 'segmentos'
+    | 'tipos-de-ficha';
   documentoId: string;
   ancla?:
     | {
@@ -2187,6 +2212,10 @@ export interface PayloadLockedDocument {
         value: number | Segmento;
       } | null)
     | ({
+        relationTo: 'tipos-de-ficha';
+        value: number | TiposDeFicha;
+      } | null)
+    | ({
         relationTo: 'medios';
         value: number | Medio;
       } | null)
@@ -2356,6 +2385,16 @@ export interface UsuariosSelect<T extends boolean = true> {
  * via the `definition` "segmentos_select".
  */
 export interface SegmentosSelect<T extends boolean = true> {
+  nombre?: T;
+  orden?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tipos-de-ficha_select".
+ */
+export interface TiposDeFichaSelect<T extends boolean = true> {
   nombre?: T;
   orden?: T;
   updatedAt?: T;

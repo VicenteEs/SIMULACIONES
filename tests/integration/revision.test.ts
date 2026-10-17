@@ -57,7 +57,6 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
   const documentoCon = (manejo: string) => ({
     nombre: `Fractura de prueba ${marca}`,
     segmento: Number(segmentoId),
-    tipo: 'trauma',
     definicion: [{ blockType: 'texto', cuerpo: textoLlanoALexical('Una fractura de la diáfisis tibial en el adulto joven.') }],
     manejo: [{ blockType: 'texto', cuerpo: textoLlanoALexical(manejo) }],
   })

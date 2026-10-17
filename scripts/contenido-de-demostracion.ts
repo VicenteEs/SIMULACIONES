@@ -175,6 +175,9 @@ async function principal() {
   }
   console.log(`  ${segmentos.size} segmentos`)
 
+  // El tipo de una patología es un catálogo desde D-177: se siembra el que usan las fichas de demostración.
+  const tipoTrauma = await sembrar(payload, 'tipos-de-ficha', 'nombre', 'Trauma', { nombre: 'Trauma', orden: 10 })
+
   // --- la imagen -----------------------------------------------------------
   console.log('Imagen de apoyo')
   const alt = 'Esquema de trazos de fractura, material de demostración'
@@ -219,7 +222,7 @@ async function principal() {
     subtitulo: 'Adulto · trazo simple y multifragmentario',
     segmento: segmentos.get('Pierna'),
     codigo: '42',
-    tipo: 'trauma',
+    tipo: tipoTrauma,
     definicion: [
       { blockType: 'advertencia', tono: 'atencion', texto: AVISO },
       bloqueTexto(

@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { Usuarios } from './Usuarios'
 import { Segmentos } from './Segmentos'
+import { TiposDeFicha } from './TiposDeFicha'
 import { Medios } from './Medios'
 import { Modelos3D } from './Modelos3D'
 import { InstanciasAtlas } from './InstanciasAtlas'
@@ -45,6 +46,7 @@ export const SLUGS_DE_MODULOS = [
 const DECLARADAS: CollectionConfig[] = [
   Usuarios,
   Segmentos,
+  TiposDeFicha,
   Medios,
   Modelos3D,
   InstanciasAtlas,
@@ -75,6 +77,7 @@ export const COLECCIONES: CollectionConfig[] = DECLARADAS.map(conRegistro)
 export {
   Usuarios,
   Segmentos,
+  TiposDeFicha,
   Medios,
   Modelos3D,
   InstanciasAtlas,

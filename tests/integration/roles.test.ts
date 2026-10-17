@@ -183,6 +183,8 @@ type Clase = 'modulo' | 'vocabulario' | 'apoyo' | 'cuentas' | 'administracion' |
 const CLASE_DE: Record<string, Clase> = {
   usuarios: 'cuentas',
   segmentos: 'apoyo',
+  // El tipo de una patología (D-177): material de apoyo como los segmentos, porque se agrega desde cualquier ficha.
+  'tipos-de-ficha': 'apoyo',
   medios: 'apoyo',
   'modelos-3d': 'apoyo',
   'instancias-atlas': 'apoyo',
@@ -357,6 +359,7 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
     }),
   },
   segmentos: { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre, orden: 999 } }) },
+  'tipos-de-ficha': { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre, orden: 999 } }) },
   medios: {
     titulo: 'alt',
     fabricar: (nombre) => ({

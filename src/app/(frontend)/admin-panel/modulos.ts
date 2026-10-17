@@ -56,9 +56,26 @@ export const rutaPublica = (coleccion: string, id: string | number): string => {
  */
 export const SLUG_DEL_TALLER = 'instancias-atlas'
 
-/** Nombre legible de todo lo que se puede comentar: los cinco módulos y el taller. */
+/**
+ * Los catálogos a cuyas filas nuevas se les deja un aviso (P-003, E1). El comentario cuelga de la fila, así que
+ * «a qué pertenece» se lee como el catálogo, y el enlace útil es «Editar» (renombrarla o borrarla si está repetida).
+ */
+export const NOMBRE_DE_CATALOGO: Record<string, string> = {
+  'huesos-ao': 'Catálogo de huesos',
+  'clasificaciones-ao': 'Catálogo de clasificaciones AO',
+  'tecnicas-quirurgicas': 'Catálogo de técnicas',
+  'fases-quirurgicas': 'Catálogo de fases',
+  segmentos: 'Catálogo de segmentos',
+  'tipos-de-ficha': 'Catálogo de tipos de ficha',
+}
+
+export const esCatalogoComentable = (coleccion: string): boolean =>
+  Object.prototype.hasOwnProperty.call(NOMBRE_DE_CATALOGO, coleccion)
+
+/** Nombre legible de todo lo que se puede comentar: los cinco módulos, el taller y las filas nuevas de un catálogo. */
 export const NOMBRE_DE_DESTINO: Record<string, string> = {
   ...NOMBRE_DE_MODULO,
+  ...NOMBRE_DE_CATALOGO,
   [SLUG_DEL_TALLER]: 'Taller anatómico',
 }
 

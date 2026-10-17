@@ -421,6 +421,7 @@ export function ControlDeCampo({
               valor={marcados}
               alCambiar={alCambiar}
               alRecargar={() => alRecargarRelacion?.(campo.coleccion)}
+              etiquetaDelCampo={campo.etiqueta}
               marcador="Escriba para buscar y marcar…"
             />
           </div>
@@ -437,6 +438,7 @@ export function ControlDeCampo({
             valor={identificador(valor)}
             alCambiar={alCambiar}
             alRecargar={() => alRecargarRelacion?.(campo.coleccion)}
+            etiquetaDelCampo={campo.etiqueta}
             requerido={campo.requerido}
           />
           {ayuda}

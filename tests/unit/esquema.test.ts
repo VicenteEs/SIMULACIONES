@@ -164,6 +164,8 @@ describe('el esquema del panel cubre las colecciones', () => {
         'modelos-3d',
         'patologias',
         'segmentos',
+        // El tipo de una patología: un catálogo desde D-177 (era una lista fija).
+        'tipos-de-ficha',
         // Los catálogos del simulador: el vocabulario con el que el
         // traumatólogo escribe los casos, y que él mismo mantiene.
         'huesos-ao',

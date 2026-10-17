@@ -29,6 +29,7 @@ import {
 import { avisoDeContenidoQueSeBorraria, depurarDocumento, faltantes } from '@/admin/depurar'
 import { bloqueDe } from '@/admin/bloques'
 import { haciaLexical } from '@/lib/textoRico'
+import { paraComparar } from '@/lib/catalogosAmpliables'
 import {
   BLOQUES_FUERA_DE_LA_INGESTA,
   CATALOGOS_DE_INGESTA,
@@ -112,7 +113,19 @@ function convertirRelacion(campo: Extract<Campo, { tipo: 'relacion' }>, valor: u
       return null
     }
     const limpio = nombre.trim()
-    const id = ctx.ids.get(claveDeCatalogo(campo.coleccion, limpio))
+    let id = ctx.ids.get(claveDeCatalogo(campo.coleccion, limpio))
+    // Sin mayúsculas ni tildes si no hay una igual: «trauma» es «Trauma» (D-177). No crea nada: solo reconoce lo que
+    // ya está en el catálogo, que es lo que el importador exige.
+    if (id === undefined) {
+      const prefijo = claveDeCatalogo(campo.coleccion, '')
+      const buscado = paraComparar(limpio)
+      for (const [clave, valor] of ctx.ids) {
+        if (clave.startsWith(prefijo) && paraComparar(clave.slice(prefijo.length)) === buscado) {
+          id = valor
+          break
+        }
+      }
+    }
     if (id === undefined) {
       ctx.faltan.set(claveDeCatalogo(campo.coleccion, limpio), { catalogo: campo.coleccion, valor: limpio })
       return null

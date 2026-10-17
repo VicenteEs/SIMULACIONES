@@ -155,6 +155,10 @@ export const CATALOGOS_DE_INGESTA = {
   'tecnicas-quirurgicas': { campo: 'nombre', nombre: 'técnicas quirúrgicas' },
   'fases-quirurgicas': { campo: 'nombre', nombre: 'fases quirúrgicas' },
   instrumental: { campo: 'nombre', nombre: 'instrumental' },
+  // El tipo de una patología («Trauma», «Ortopedia»…): era un valor fijo y es un catálogo desde D-177. Se nombra
+  // por lo que se lee, y como los libros ya preparados dicen «trauma» en minúscula, la búsqueda no distingue
+  // mayúsculas (ver `convertirRelacion`).
+  'tipos-de-ficha': { campo: 'nombre', nombre: 'tipos de ficha' },
 } as const
 
 export type CatalogoDeIngesta = keyof typeof CATALOGOS_DE_INGESTA

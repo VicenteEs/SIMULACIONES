@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CATALOGOS_AMPLIABLES,
+  CATALOGOS_CON_AVISO,
   esCatalogoAmpliable,
   filtrarOpciones,
   hayQueOfrecerAgregar,
   opcionIgualA,
   paraComparar,
+  textoDelAvisoDeCatalogo,
   tipoDeLaClasificacion,
 } from '@/lib/catalogosAmpliables'
+import { NOMBRE_DE_CATALOGO, esCatalogoComentable } from '@/app/(frontend)/admin-panel/modulos'
 
 /**
  * El buscador con «¿No está? Agregar» de hueso, clasificación, técnica y fase.
@@ -70,12 +73,14 @@ describe('cuándo ofrecer agregar', () => {
 })
 
 describe('qué catálogos se ensanchan', () => {
-  it('son hueso, clasificación, técnica y fase, y nada más', () => {
+  it('son hueso, clasificación, técnica, fase, segmento y tipo, y nada más', () => {
     expect(Object.keys(CATALOGOS_AMPLIABLES).sort()).toEqual([
       'clasificaciones-ao',
       'fases-quirurgicas',
       'huesos-ao',
+      'segmentos',
       'tecnicas-quirurgicas',
+      'tipos-de-ficha',
     ])
     expect(esCatalogoAmpliable('tecnicas-quirurgicas')).toBe(true)
     // El resto de colecciones tienen su propio formulario y sus propias reglas.
@@ -90,6 +95,20 @@ describe('qué catálogos se ensanchan', () => {
     expect(CATALOGOS_AMPLIABLES['tecnicas-quirurgicas'].extra).toBeUndefined()
   })
 
+  it('segmento y tipo se identifican por su nombre, sin campo extra', () => {
+    expect(CATALOGOS_AMPLIABLES.segmentos.extra).toBeUndefined()
+    expect(CATALOGOS_AMPLIABLES['tipos-de-ficha'].extra).toBeUndefined()
+  })
+
+  it('cada catálogo ampliable tiene su nombre en el panel y su valor en el enumerado de los avisos (D-177)', () => {
+    // Si se agrega un catálogo a la tabla y no a estas dos listas, el aviso de «Fulano agregó…» falla al guardarse
+    // (el enumerado de `comentarios.coleccion` no lo conoce) o sale con el slug a la vista.
+    expect([...CATALOGOS_CON_AVISO].sort()).toEqual(Object.keys(CATALOGOS_AMPLIABLES).sort())
+    expect(Object.keys(NOMBRE_DE_CATALOGO).sort()).toEqual(Object.keys(CATALOGOS_AMPLIABLES).sort())
+    for (const slug of Object.keys(CATALOGOS_AMPLIABLES)) expect(esCatalogoComentable(slug), slug).toBe(true)
+    expect(esCatalogoComentable('cirugias')).toBe(false)
+  })
+
   it('el tipo de la clasificación sale de la letra del código', () => {
     expect(tipoDeLaClasificacion('A2')).toBe('A')
     expect(tipoDeLaClasificacion(' c3')).toBe('C')
@@ -101,13 +120,14 @@ describe('qué catálogos se ensanchan', () => {
 
 // ------------------------------------------------------------- la acción
 
-const { estado, buscar, crear } = vi.hoisted(() => ({
+const { estado, buscar, buscarUno, crear } = vi.hoisted(() => ({
   estado: {
     usuario: null as Record<string, unknown> | null,
     activo: true,
     rolReal: 'editor' as string | null,
   },
   buscar: vi.fn(),
+  buscarUno: vi.fn(),
   crear: vi.fn(),
 }))
 
@@ -121,7 +141,7 @@ vi.mock('@/lib/sesion', () => ({
     usuarioEfectivo: estado.usuario,
   }),
 }))
-vi.mock('payload', () => ({ getPayload: async () => ({ find: buscar, create: crear }) }))
+vi.mock('payload', () => ({ getPayload: async () => ({ find: buscar, findByID: buscarUno, create: crear }) }))
 vi.mock('@payload-config', () => ({ default: {} }))
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 
@@ -130,7 +150,9 @@ import { agregarAlCatalogo } from '@/app/(frontend)/acciones/contenido'
 describe('agregarAlCatalogo', () => {
   beforeEach(() => {
     buscar.mockReset()
+    buscarUno.mockReset()
     crear.mockReset()
+    buscarUno.mockResolvedValue({ id: 5, nombre: 'Principios de la artroplastia de cadera' })
     buscar.mockResolvedValue({
       docs: [
         { id: 1, nombre: 'prueba técnica', orden: 0 },
@@ -205,5 +227,104 @@ describe('agregarAlCatalogo', () => {
     const r = await agregarAlCatalogo('tecnicas-quirurgicas', { nombre: 'Nueva' })
     expect(r.exito).toBe(false)
     expect(crear).not.toHaveBeenCalled()
+  })
+
+  it('el segmento y el tipo se agregan desde una patología, por un editor de patologías', async () => {
+    // Son material de apoyo, como los segmentos de siempre: no los gobierna el permiso del simulador.
+    estado.usuario = { id: 7, rol: 'editor', activo: true, modulosEditables: ['patologias'] }
+    for (const catalogo of ['segmentos', 'tipos-de-ficha']) {
+      crear.mockClear()
+      const r = await agregarAlCatalogo(catalogo, { nombre: 'Columna cervical' })
+      expect(r.exito, catalogo).toBe(true)
+      expect(crear.mock.calls[0][0].collection).toBe(catalogo)
+    }
+  })
+
+  describe('el aviso que deja al agregar (P-003, E1)', () => {
+    const desdeUnaPatologia = { coleccion: 'patologias', documentoId: '5', campo: 'Segmento anatómico' }
+
+    it('deja un comentario pendiente sobre la fila nueva, a nombre de quien la agregó y desde dónde', async () => {
+      estado.usuario = { id: 7, rol: 'editor', activo: true, modulosEditables: [], nombre: 'Cristóbal Cofré' }
+      const r = await agregarAlCatalogo('segmentos', { nombre: 'Cadera' }, desdeUnaPatologia)
+      expect(r.exito).toBe(true)
+      expect(crear).toHaveBeenCalledTimes(2)
+      const aviso = crear.mock.calls[1][0]
+      expect(aviso.collection).toBe('comentarios')
+      // Cuelga de la fila nueva (99), no de la ficha: es sobre la fila que hay que actuar.
+      expect(aviso.data).toMatchObject({ coleccion: 'segmentos', documentoId: '99', estado: 'pendiente' })
+      expect(aviso.data.texto).toBe(
+        'Cristóbal Cofré agregó el segmento «Cadera» al catálogo desde el campo «Segmento anatómico» de ' +
+          'la patología «Principios de la artroplastia de cadera». ' +
+          'Revise que no sea el mismo de otro que ya estaba con distinto nombre.',
+      )
+      // El autor es quien agregó: el gancho de `Comentarios` lo toma del usuario que escribe.
+      expect(aviso.user).toMatchObject({ id: 7 })
+    })
+
+    it('con la ficha todavía sin guardar lo dice así, sin inventar un número', async () => {
+      const r = await agregarAlCatalogo('tipos-de-ficha', { nombre: 'Oncología ortopédica' }, {
+        coleccion: 'patologias',
+        documentoId: null,
+        campo: 'Tipo',
+      })
+      expect(r.exito).toBe(true)
+      expect(buscarUno).not.toHaveBeenCalled()
+      expect(crear.mock.calls[1][0].data.texto).toContain('de una patología nueva, todavía sin guardar')
+    })
+
+    it('el hueso nuevo cuenta su número AO en el aviso', async () => {
+      await agregarAlCatalogo('huesos-ao', { nombre: 'Peroné (diáfisis)', codigo: '4F2' }, { coleccion: 'cirugias', documentoId: '3', campo: 'Hueso' })
+      expect(crear.mock.calls[1][0].data.texto).toContain('el hueso «Peroné (diáfisis)» (4F2)')
+    })
+
+    it('si la fila ya existía no hay nada que avisar', async () => {
+      await agregarAlCatalogo('tecnicas-quirurgicas', { nombre: 'CLAVO ENDOMEDULAR' }, desdeUnaPatologia)
+      expect(crear).not.toHaveBeenCalled()
+    })
+
+    it('un origen que no es de una colección editable no sale en el aviso, pero la fila se agrega', async () => {
+      // La acción se puede invocar a mano: lo que no se reconoce se descarta en vez de escribirse en un comentario.
+      const r = await agregarAlCatalogo('segmentos', { nombre: 'Cadera' }, { coleccion: 'usuarios', documentoId: '1', campo: 'x' })
+      expect(r.exito).toBe(true)
+      expect(buscarUno).not.toHaveBeenCalled()
+      expect(crear.mock.calls[1][0].data.texto).toContain('al catálogo desde una ficha. Revise')
+    })
+
+    it('si el aviso falla, la fila agregada se queda y el editor sigue con su trabajo', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      crear.mockImplementation(async ({ collection, data }: { collection: string; data: Record<string, unknown> }) => {
+        if (collection === 'comentarios') throw new Error('se cayó la tabla')
+        return { id: 99, ...data }
+      })
+      const r = await agregarAlCatalogo('segmentos', { nombre: 'Cadera' }, desdeUnaPatologia)
+      expect(r).toMatchObject({ exito: true, datos: { id: '99', etiqueta: 'Cadera', yaExistia: false } })
+      expect(error).toHaveBeenCalled()
+      error.mockRestore()
+    })
+  })
+})
+
+describe('el texto del aviso', () => {
+  const catalogo = { articulo: 'la' as const, singular: 'técnica' }
+
+  it('nombra a quien agregó, qué, desde qué campo y de qué ficha', () => {
+    expect(
+      textoDelAvisoDeCatalogo({
+        quien: 'Ana',
+        catalogo,
+        nombre: 'Fijador externo',
+        campo: 'Técnica',
+        ficha: { articulo: 'el', singular: 'caso', titulo: 'Fractura de tibia' },
+        fichaNueva: null,
+      }),
+    ).toBe(
+      'Ana agregó la técnica «Fijador externo» al catálogo desde el campo «Técnica» del caso «Fractura de tibia». ' +
+        'Revise que no sea el mismo de otro que ya estaba con distinto nombre.',
+    )
+  })
+
+  it('sin ficha ni ficha nueva, se queda en el campo', () => {
+    const texto = textoDelAvisoDeCatalogo({ quien: 'Ana', catalogo, nombre: 'X', campo: 'Técnica', ficha: null, fichaNueva: null })
+    expect(texto).toContain('desde el campo «Técnica». Revise')
   })
 })

@@ -35,6 +35,7 @@ export const dynamic = 'force-dynamic'
  */
 const ICONO_DE_APOYO: Record<string, LucideIcon> = {
   segmentos: Layers,
+  'tipos-de-ficha': ListChecks,
   medios: Film,
   'modelos-3d': Layers,
   'huesos-ao': Bone,

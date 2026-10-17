@@ -667,7 +667,17 @@ señuelos; también puede filtrarla escribiendo.
 clasificación y la fase del caso, y el modelo, se eligen **escribiendo** en un cuadro que
 filtra la lista. Si lo que busca no está, el botón **«¿No está? Agregar»** lo crea y lo deja
 guardado para todos (no crea un duplicado si ya existe uno con ese nombre, sin mirar tildes ni
-mayúsculas). Pueden hacerlo los editores y los administradores.
+mayúsculas). Pueden hacerlo los editores y los administradores. Desde D-177 pasa igual en las
+**patologías** y en las **maniobras**: el **segmento anatómico** y el **tipo** (Trauma, Ortopedia y los
+que se vayan agregando) también se escriben y se agregan ahí mismo. El tipo dejó de ser una lista fija;
+el filtro de la biblioteca enseña los que haya.
+
+**Cada fila que se agrega avisa.** Al agregar un hueso, una clasificación, una técnica, una fase, un
+segmento o un tipo, queda en **Comentarios** un aviso pendiente —y le llega por correo a los
+administradores— que dice «*Fulano agregó el segmento «Cadera» al catálogo desde el campo «Segmento
+anatómico» de la patología «…»*». Sirve para que alguien revise que no sea el mismo de otro que ya
+estaba con distinto nombre; el botón **Editar** del aviso abre la fila para renombrarla o borrarla, y
+**Resolver** lo cierra. Si la ficha aún no estaba guardada, el aviso lo dice así.
 
 **Copiar y pegar pasos entre cirugías.** El botón del portapapeles, a la derecha de la franja
 de pasos, abre el cuadro «Pasos entre cirugías». Se marcan los pasos que se quieren llevar

@@ -27,7 +27,9 @@ import {
   CATALOGOS_AMPLIABLES,
   esCatalogoAmpliable,
   opcionIgualA,
+  textoDelAvisoDeCatalogo,
   tipoDeLaClasificacion,
+  type OrigenDelAgregado,
 } from '@/lib/catalogosAmpliables'
 import {
   cambioDesde,
@@ -375,10 +377,16 @@ export async function opcionesDeRelacion(
  * Solo catálogos de `CATALOGOS_AMPLIABLES`: la acción se puede invocar a mano con
  * cualquier slug, y no está pensada para crear filas en colecciones que tienen
  * su propio formulario y sus propias reglas.
+ *
+ * **Avisa** (P-003, E1): cada fila nueva deja un comentario pendiente sobre ella, a nombre de quien la agregó,
+ * que dice desde qué campo de qué ficha (`desde`), y le llega por correo a los administradores como cualquier
+ * comentario. Si la fila ya existía no se avisa: no se agregó nada. Un fallo al avisar no deshace la fila —ya está
+ * en el catálogo y el editor la está usando— y queda en el registro del servidor.
  */
 export async function agregarAlCatalogo(
   coleccion: unknown,
   entrada: unknown,
+  desde?: unknown,
 ): Promise<Respuesta<{ id: string; etiqueta: string; yaExistia: boolean }>> {
   return accion(async () => {
     if (!esCatalogoAmpliable(coleccion)) {
@@ -429,8 +437,93 @@ export async function agregarAlCatalogo(
       user: usuario as never,
     })
     revalidatePath(rutaDeLista(slug))
-    return { id: String((creada as { id: unknown }).id), etiqueta: nombre, yaExistia: false }
+    const idNuevo = String((creada as { id: unknown }).id)
+    await avisarDeLaFilaNueva(payload, usuario, { catalogo: slug, id: idNuevo, nombre, codigo, desde })
+    return { id: idNuevo, etiqueta: nombre, yaExistia: false }
   })
+}
+
+/** Lo que el navegador dice sobre de dónde agregó la fila, validado: la acción se puede invocar a mano. */
+function origenDelAgregado(valor: unknown): OrigenDelAgregado | null {
+  if (!valor || typeof valor !== 'object') return null
+  const v = valor as Record<string, unknown>
+  if (!esColeccionEditable(v.coleccion)) return null
+  let documentoId: string | null = null
+  if (v.documentoId !== null && v.documentoId !== undefined && v.documentoId !== '') {
+    try {
+      documentoId = exigirIdentificador(v.documentoId, 'La ficha')
+    } catch {
+      documentoId = null
+    }
+  }
+  const campo = typeof v.campo === 'string' ? v.campo.trim().slice(0, 80) : ''
+  return { coleccion: v.coleccion, documentoId, campo: campo || 'este campo' }
+}
+
+/**
+ * Deja el comentario que cuenta quién agregó una fila al catálogo y desde dónde.
+ *
+ * Cuelga de la fila nueva (`coleccion` del catálogo, `documentoId` de la fila): es sobre ella que hay que actuar, y
+ * existe siempre, a diferencia de la ficha desde la que se agregó, que puede estar sin guardar. Va con
+ * `payload.create` y el usuario: el gancho de `Comentarios` pone el autor y manda el correo.
+ */
+async function avisarDeLaFilaNueva(
+  payload: Awaited<ReturnType<typeof exigirEdicionDe>>['payload'],
+  usuario: Record<string, unknown>,
+  p: { catalogo: string; id: string; nombre: string; codigo?: string; desde: unknown },
+): Promise<void> {
+  try {
+    const origen = origenDelAgregado(p.desde)
+    let ficha: { articulo: 'el' | 'la'; singular: string; titulo: string | null } | null = null
+    let fichaNueva: string | null = null
+    if (origen) {
+      const esquema = esquemaDe(origen.coleccion)
+      const singular = esquema.singular.toLowerCase()
+      if (origen.documentoId) {
+        const doc = await payload
+          .findByID({
+            collection: origen.coleccion as never,
+            id: origen.documentoId,
+            depth: 0,
+            draft: esquema.versionada,
+            overrideAccess: true,
+          })
+          .catch(() => null)
+        const titulo = (doc as Record<string, unknown> | null)?.[esquema.titulo]
+        ficha = {
+          articulo: esquema.genero === 'f' ? 'la' : 'el',
+          singular,
+          titulo: typeof titulo === 'string' && titulo.trim() ? titulo.trim() : null,
+        }
+      } else {
+        fichaNueva = `${esquema.genero === 'f' ? 'una' : 'un'} ${singular}`
+      }
+    }
+    const quien =
+      (typeof usuario.nombre === 'string' && usuario.nombre.trim()) ||
+      (typeof usuario.email === 'string' && usuario.email) ||
+      'Una cuenta'
+    await payload.create({
+      collection: 'comentarios',
+      data: {
+        coleccion: p.catalogo,
+        documentoId: p.id,
+        texto: textoDelAvisoDeCatalogo({
+          quien,
+          catalogo: CATALOGOS_AMPLIABLES[p.catalogo],
+          nombre: p.nombre,
+          codigo: p.codigo,
+          campo: origen?.campo ?? null,
+          ficha,
+          fichaNueva,
+        }),
+        estado: 'pendiente',
+      } as never,
+      user: usuario as never,
+    })
+  } catch (error) {
+    console.error('[catalogo] la fila se agregó pero no se pudo dejar el aviso:', error)
+  }
 }
 
 // ---------------------------------------------------------------- escribir

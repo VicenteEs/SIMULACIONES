@@ -263,11 +263,6 @@ const bloques = (nombre: string, etiqueta: string): Campo => ({
   ayuda: 'Apile los bloques que necesite y muévalos con las flechas.',
 })
 
-const TIPO_DE_FICHA: Opcion[] = [
-  { valor: 'trauma', etiqueta: 'Trauma' },
-  { valor: 'ortopedia', etiqueta: 'Ortopedia' },
-]
-
 // ------------------------------------------------------------------- módulos
 
 export const Patologias: EsquemaDeColeccion = {
@@ -307,7 +302,7 @@ export const Patologias: EsquemaDeColeccion = {
           etiqueta: 'Código AO/OTA o abreviatura',
           medio: true,
         },
-        { tipo: 'seleccion', nombre: 'tipo', etiqueta: 'Tipo', opciones: TIPO_DE_FICHA },
+        { tipo: 'relacion', nombre: 'tipo', etiqueta: 'Tipo', coleccion: 'tipos-de-ficha', medio: true },
       ],
     },
     { titulo: 'Definición', campos: [bloques('definicion', 'Contenido de la pestaña')] },
@@ -938,6 +933,32 @@ export const Segmentos: EsquemaDeColeccion = {
   ],
 }
 
+export const TiposDeFicha: EsquemaDeColeccion = {
+  slug: 'tipos-de-ficha',
+  singular: 'Tipo de ficha',
+  plural: 'Tipos de ficha',
+  genero: 'm',
+  titulo: 'nombre',
+  descripcion: 'Trauma, ortopedia y los que se vayan agregando. Filtran la biblioteca de patologías.',
+  versionada: false,
+  familia: 'apoyo',
+  buscarEn: ['nombre'],
+  columnas: [
+    { nombre: 'nombre', etiqueta: 'Tipo' },
+    { nombre: 'orden', etiqueta: 'Orden', formato: 'numero' },
+    { nombre: 'updatedAt', etiqueta: 'Editado', formato: 'fecha' },
+  ],
+  secciones: [
+    {
+      titulo: 'El tipo',
+      campos: [
+        { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre del tipo', requerido: true },
+        { tipo: 'numero', nombre: 'orden', etiqueta: 'Orden de aparición', medio: true },
+      ],
+    },
+  ],
+}
+
 // ------------------------------------------------------- los techos de subida
 
 /**
@@ -1438,6 +1459,7 @@ export const ESQUEMAS: EsquemaDeColeccion[] = [
   Cirugias,
   EstudiosIA,
   Segmentos,
+  TiposDeFicha,
   HuesosAO,
   ClasificacionesAO,
   TecnicasQuirurgicas,

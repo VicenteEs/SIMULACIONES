@@ -81,10 +81,31 @@ export const CATALOGOS_AMPLIABLES: Readonly<Record<string, CatalogoAmpliable>> =
     conArticulo: 'una fase',
     etiquetaDelNombre: 'Nombre de la fase',
   },
+  // Los dos que pidió Cristóbal para Patologías y Maniobras (P-003, E1): el segmento anatómico y el tipo
+  // (trauma, ortopedia…). Ninguno lleva campo extra: se identifican por su nombre, como la técnica o la fase.
+  segmentos: {
+    singular: 'segmento',
+    articulo: 'el',
+    conArticulo: 'un segmento anatómico',
+    etiquetaDelNombre: 'Nombre del segmento',
+  },
+  'tipos-de-ficha': {
+    singular: 'tipo',
+    articulo: 'el',
+    conArticulo: 'un tipo de ficha',
+    etiquetaDelNombre: 'Nombre del tipo',
+  },
 }
 
 export const esCatalogoAmpliable = (coleccion: unknown): coleccion is string =>
   typeof coleccion === 'string' && Object.prototype.hasOwnProperty.call(CATALOGOS_AMPLIABLES, coleccion)
+
+/**
+ * Los catálogos de los que cuelga un aviso de fila nueva: son los mismos que se pueden ampliar, y de esta lista
+ * sale el enumerado de `comentarios.coleccion`. Agregar un catálogo ampliable agrega su valor al enumerado, y eso
+ * pide una migración (`tests/unit/migraciones.test.ts` lo comprueba).
+ */
+export const CATALOGOS_CON_AVISO: readonly string[] = Object.keys(CATALOGOS_AMPLIABLES)
 
 /**
  * Lo que se compara al buscar y al detectar repetidos: sin tildes, en minúsculas
@@ -134,6 +155,55 @@ export function opcionIgualA<T extends OpcionBuscable>(opciones: readonly T[], e
  */
 export const hayQueOfrecerAgregar = (opciones: readonly OpcionBuscable[], escrito: string): boolean =>
   paraComparar(escrito) !== '' && !opcionIgualA(opciones, escrito)
+
+/**
+ * De dónde se agregó una fila: la ficha que estaba abierta y el campo desde el que se pulsó «¿No está? Agregar».
+ *
+ * `documentoId` es `null` cuando la ficha es nueva y todavía no se guardó: no tiene número al que apuntar, y el
+ * aviso lo dice con esas palabras en vez de dejar una referencia rota.
+ */
+export interface OrigenDelAgregado {
+  coleccion: string
+  documentoId: string | null
+  campo: string
+}
+
+/**
+ * El texto del comentario que avisa de una fila nueva en un catálogo (P-003, E1).
+ *
+ * El equipo agrega huesos, técnicas, segmentos y tipos mientras escribe un caso, y nadie más se entera: dos
+ * editores que escriben «Fijador externo» y «Fijador Externo (Ilizarov)» dejan dos filas que significan lo
+ * mismo, y el catálogo se ensucia sin que la administración lo vea. El comentario cuelga de la fila nueva, no de
+ * la ficha: es sobre la fila que hay que actuar (renombrarla, fusionarla o dejarla), y la fila siempre existe,
+ * mientras que la ficha puede estar todavía sin guardar.
+ *
+ * Es puro y está aquí, junto a la tabla de catálogos, para que se pruebe sin base de datos.
+ */
+export function textoDelAvisoDeCatalogo(p: {
+  quien: string
+  catalogo: Pick<CatalogoAmpliable, 'articulo' | 'singular'>
+  nombre: string
+  codigo?: string
+  /** La etiqueta del campo desde el que se agregó; sin ella (la acción se llamó sin origen) solo se dice «una ficha». */
+  campo: string | null
+  /** La ficha abierta, si ya tiene número: «la patología «Principios de…»». Sin ella, es una ficha nueva. */
+  ficha: { articulo: 'el' | 'la'; singular: string; titulo: string | null } | null
+  /**
+   * Para una ficha nueva: «una patología», «un caso»… Sin ella ni `ficha`, el aviso no dice de qué ficha se
+   * trató (la acción se llamó sin saberlo) y se queda en el campo.
+   */
+  fichaNueva: string | null
+}): string {
+  const que = `${p.catalogo.articulo} ${p.catalogo.singular} «${p.nombre}»${p.codigo ? ` (${p.codigo})` : ''}`
+  // «de la patología», pero «del caso»: la contracción se escribe aquí y no en quien llama.
+  const donde = p.ficha
+    ? `${p.ficha.articulo === 'el' ? 'del' : 'de la'} ${p.ficha.singular}${p.ficha.titulo ? ` «${p.ficha.titulo}»` : ''}`
+    : p.fichaNueva
+      ? `de ${p.fichaNueva} nueva, todavía sin guardar`
+      : null
+  const desde = p.campo ? `desde el campo «${p.campo}»${donde ? ` ${donde}` : ''}` : 'desde una ficha'
+  return `${p.quien} agregó ${que} al catálogo ${desde}. Revise que no sea el mismo de otro que ya estaba con distinto nombre.`
+}
 
 /** El tipo AO («A», «B», «C») que sugiere un código de clasificación como «B2». */
 export function tipoDeLaClasificacion(codigo: string): 'A' | 'B' | 'C' | undefined {

@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, Plus, X } from 'lucide-react'
 import { agregarAlCatalogo } from '@/app/(frontend)/acciones/contenido'
+import { ContextoDeFicha } from './contextoDeFicha'
 import {
   CATALOGOS_AMPLIABLES,
   filtrarOpciones,
@@ -51,6 +52,8 @@ interface PropsComunes {
   marcador?: string
   /** Si la cuenta no puede escribir, el desplegable no ofrece agregar. */
   puedeAgregar?: boolean
+  /** La etiqueta del campo, para el aviso que se deja al agregar una fila: «desde el campo «Técnica»». */
+  etiquetaDelCampo?: string
 }
 
 type Props =
@@ -69,7 +72,8 @@ type Props =
     })
 
 export function SelectorConBusqueda(props: Props) {
-  const { id, idDeLaAyuda, coleccion, alRecargar, marcador, puedeAgregar = true } = props
+  const { id, idDeLaAyuda, coleccion, alRecargar, marcador, puedeAgregar = true, etiquetaDelCampo } = props
+  const ficha = useContext(ContextoDeFicha)
   const idLista = useId()
   const contenedor = useRef<HTMLDivElement>(null)
   const cuadro = useRef<HTMLInputElement>(null)
@@ -172,7 +176,12 @@ export function SelectorConBusqueda(props: Props) {
     if (!catalogo) return
     setOcupado(true)
     setError(null)
-    const respuesta = await agregarAlCatalogo(coleccion, { nombre, codigo })
+    // De dónde se agrega, para el comentario que le llega a la administración (P-003, E1).
+    const respuesta = await agregarAlCatalogo(
+      coleccion,
+      { nombre, codigo },
+      ficha ? { coleccion: ficha.coleccion, documentoId: ficha.documentoId, campo: etiquetaDelCampo ?? '' } : undefined,
+    )
     setOcupado(false)
     if (!respuesta.exito || !respuesta.datos) {
       setError(respuesta.mensaje ?? 'No se pudo agregar. Inténtelo de nuevo.')

@@ -217,7 +217,7 @@ Una patología de la biblioteca, de la definición a la rehabilitación, en seis
 | `subtitulo` | texto | | Una línea que acote el alcance: «Adulto · trazo simple y complejo». |
 | `segmento` | catálogo de segmentos | sí | El que fija `temas.csv`. |
 | `codigo` | texto | | El código AO/OTA («42») o la sigla con que se la conoce. |
-| `tipo` | opción: `trauma` u `ortopedia` | | `trauma` para las lesiones agudas; `ortopedia` para la patología no traumática: degenerativa, congénita, del desarrollo o tumoral. Póngalo siempre. |
+| `tipo` | catálogo de tipos: `trauma` u `ortopedia` (en minúscula o como esté escrito en el catálogo; otro nombre solo si ya existe) | | `trauma` para las lesiones agudas; `ortopedia` para la patología no traumática: degenerativa, congénita, del desarrollo o tumoral. Póngalo siempre. |
 | `definicion` | bloques | | Qué es, a quién afecta y con qué frecuencia, el mecanismo en una frase y las lesiones asociadas que hay que buscar. |
 | `mecanismo` | bloques | | Cómo se produce: energía, dirección de la fuerza, biomecánica y la anatomía que explica el patrón de la lesión. |
 | `clasificacion` | bloques | | Las clasificaciones que se usan en la práctica, cada una en un `tabla-clasificacion`; cómo aplicarlas y para qué sirven, en un `texto`. |

@@ -33,6 +33,7 @@ import {
   rutaPublica,
   NOMBRE_DE_MODULO,
 } from './datos'
+import { NOMBRE_DE_DESTINO } from './modulos'
 import './resumen.css'
 
 export const dynamic = 'force-dynamic'
@@ -613,7 +614,7 @@ export default async function ResumenAdmin() {
                       <td data-etiqueta="Módulo">
                         <div>
                           <span className="insignia insignia-neutra">
-                            {NOMBRE_DE_MODULO[comentario.coleccion ?? ''] ?? comentario.coleccion}
+                            {NOMBRE_DE_DESTINO[comentario.coleccion ?? ''] ?? comentario.coleccion}
                           </span>
                           {tituloDeFicha ? (
                             <div className="admin-table-user-email">{tituloDeFicha}</div>
@@ -638,13 +639,16 @@ export default async function ResumenAdmin() {
                               <PenLine aria-hidden size={15} />
                               Editar
                             </Link>
-                            <Link
-                              href={rutaPublica(comentario.coleccion, comentario.documentoId)}
-                              className="admin-btn admin-btn-sm admin-btn-ghost"
-                            >
-                              <Eye aria-hidden size={15} />
-                              Ver ficha
-                            </Link>
+                            {/* La fila nueva de un catálogo no tiene página pública (D-177). */}
+                            {NOMBRE_DE_MODULO[comentario.coleccion] ? (
+                              <Link
+                                href={rutaPublica(comentario.coleccion, comentario.documentoId)}
+                                className="admin-btn admin-btn-sm admin-btn-ghost"
+                              >
+                                <Eye aria-hidden size={15} />
+                                Ver ficha
+                              </Link>
+                            ) : null}
                           </div>
                         ) : null}
                       </td>
