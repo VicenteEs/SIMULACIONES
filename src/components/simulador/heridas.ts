@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { abrirHerida, afilado, cortarMalla, type MallaCortada, type Vec3 } from '@/lib/corteDeMalla'
+import { afilado, componerCortes, cortarMalla, type MallaCortada, type Vec3 } from '@/lib/corteDeMalla'
 
 /**
  * La herida de una capa de partes blandas dentro de la escena (D-167).
@@ -44,7 +44,24 @@ export interface HeridaEnCapa {
   unidadesPorMm: number
   /** El largo de la incisión, en unidades del mundo. */
   largo: number
+  /**
+   * A qué incisión pertenece. Una incisión puede cortar varias mallas de su capa (cada una da una herida), y en una
+   * misma capa puede haber varias incisiones (P-003 E4): los separadores y las pinzas pertenecen a una de ellas.
+   */
+  incision: number
+  /** Cómo se hizo, para volver a cortarla cuando se cierra otra incisión de la misma malla. */
+  trazo: { puntos: THREE.Vector3[]; normales: THREE.Vector3[]; parametros: ParametrosDeCorte }
 }
+
+/**
+ * Las heridas de cada malla, en el orden en que se hicieron (P-003 E4). Cada corte parte la malla que dejó el
+ * anterior, así que sus posiciones se componen (`componerCortes`) y cerrar una del medio obliga a rehacer las
+ * siguientes. Vive aquí y no en cada herida para que cualquiera que abra, cierre o corte vea la misma cadena.
+ */
+const CADENAS = new WeakMap<THREE.Mesh, HeridaEnCapa[]>()
+
+/** Las heridas de una malla, de la primera a la última. */
+export const cadenaDeLaMalla = (malla: THREE.Mesh): readonly HeridaEnCapa[] => CADENAS.get(malla) ?? []
 
 export interface ParametrosDeCorte {
   /** Cuánto penetra el corte hacia dentro de la malla, en unidades del mundo. */
@@ -53,6 +70,8 @@ export interface ParametrosDeCorte {
   alcance: number
   /** Unidades del mundo por milímetro, para el ancho de la cinta. Sin él se supone 0,001 (metros). */
   unidadesPorMm?: number
+  /** A qué incisión pertenece esta herida (P-003 E4). Sin él, la 0. */
+  incision?: number
 }
 
 /** Ancho mínimo de la cinta de la incisión, en milímetros (la mitad a cada lado). */
@@ -109,6 +128,14 @@ export function cortarCapa(
   if (original.groups.length > 1) return null
   const posicion = original.getAttribute('position')
   if (!posicion) return null
+  // Una malla que ya tiene una herida se corta **cerrada**: se vuelve a su base (la del último corte) antes de leerla,
+  // o el segundo corte partiría la geometría con la apertura del primero metida dentro (P-003 E4).
+  const previas = CADENAS.get(malla) ?? []
+  const ultima = previas[previas.length - 1]
+  if (ultima) {
+    ;(posicion.array as Float32Array).set(ultima.corte.posiciones)
+    posicion.needsUpdate = true
+  }
 
   malla.updateWorldMatrix(true, false)
   const aLocal = malla.matrixWorld.clone().invert()
@@ -216,8 +243,13 @@ export function cortarCapa(
     menos: 0,
     largo,
     unidadesPorMm: parametros.unidadesPorMm ?? 0.001,
+    incision: parametros.incision ?? 0,
+    trazo: { puntos: puntos.map((p) => p.clone()), normales: normales.map((n) => n.clone()), parametros },
   }
+  CADENAS.set(malla, [...previas, herida])
   actualizarBordes(herida)
+  // Las heridas de antes conservan lo que tenían abierto: se componen sobre la malla nueva.
+  if (previas.length > 0) recomponer(malla)
   return herida
 }
 
@@ -310,37 +342,87 @@ export function abrirCapa(
   h.mas = mas
   h.menos = menos
   h.perfil = perfil
-  const posiciones = abrirHerida(
-    h.corte,
-    mas / h.escala,
-    menos / h.escala,
-    perfil
-      ? (t) => {
-          const o = perfil(t)
-          return { mas: o.mas / h.escala, menos: o.menos / h.escala }
-        }
-      : undefined,
-  )
-  const atributo = h.malla.geometry.getAttribute('position') as THREE.BufferAttribute
-  ;(atributo.array as Float32Array).set(posiciones)
-  atributo.needsUpdate = true
-  h.malla.geometry.computeVertexNormals()
-  h.malla.geometry.computeBoundingSphere()
-  h.malla.geometry.computeBoundingBox()
-  actualizarBordes(h)
+  recomponer(h.malla)
 }
 
-/** Deshace el corte: la malla vuelve a su geometría de antes y se sueltan las nuevas. */
-export function cerrarCapa(h: HeridaEnCapa) {
-  const nueva = h.malla.geometry
-  h.malla.geometry = h.original
-  nueva.dispose()
+/**
+ * Deja la malla con todas sus heridas abiertas lo que tiene cada una, y los bordes siguiendo a los labios. Con una
+ * sola herida es lo de siempre; con varias, `componerCortes` las suma sobre la geometría del último corte.
+ */
+function recomponer(malla: THREE.Mesh) {
+  const cadena = CADENAS.get(malla)
+  if (!cadena || cadena.length === 0) return
+  const posiciones = componerCortes(
+    cadena.map((h) => ({
+      corte: h.corte,
+      apertura: {
+        mas: h.mas / h.escala,
+        menos: h.menos / h.escala,
+        perfil: h.perfil
+          ? (t: number) => {
+              const o = h.perfil!(t)
+              return { mas: o.mas / h.escala, menos: o.menos / h.escala }
+            }
+          : undefined,
+      },
+    })),
+  )
+  const atributo = malla.geometry.getAttribute('position') as THREE.BufferAttribute
+  ;(atributo.array as Float32Array).set(posiciones)
+  atributo.needsUpdate = true
+  malla.geometry.computeVertexNormals()
+  malla.geometry.computeBoundingSphere()
+  malla.geometry.computeBoundingBox()
+  for (const h of cadena) actualizarBordes(h)
+}
+
+/** Quita de la escena lo que una herida dibuja (bordes y cinta), sin tocar la geometría de la malla. */
+function quitarLoQueDibuja(h: HeridaEnCapa) {
   h.bordes.removeFromParent()
   h.bordes.geometry.dispose()
   ;(h.bordes.material as THREE.Material).dispose()
   h.cinta.removeFromParent()
   h.cinta.geometry.dispose()
   ;(h.cinta.material as THREE.Material).dispose()
+}
+
+/**
+ * Deshace un corte: la malla recupera la geometría de antes de él y se sueltan las nuevas. Si es la última herida de
+ * la malla es solo eso. Si hay otras hechas **después**, cada una se hizo sobre la geometría de esta y hay que
+ * volver a cortarlas sobre la anterior (con su mismo trazo, su misma apertura): se rehacen en el mismo objeto, así
+ * que quien tenga una referencia a ellas la sigue teniendo. Devuelve las que ya no se pudieron rehacer.
+ */
+export function cerrarCapa(h: HeridaEnCapa): HeridaEnCapa[] {
+  const cadena = CADENAS.get(h.malla) ?? []
+  const k = cadena.indexOf(h)
+  if (k >= 0 && k < cadena.length - 1) {
+    const posteriores = cadena.slice(k + 1)
+    for (const w of [...posteriores].reverse()) cerrarCapa(w)
+    cerrarCapa(h)
+    const perdidas: HeridaEnCapa[] = []
+    for (const w of posteriores) {
+      const nueva = cortarCapa(w.malla, w.trazo.puntos, w.trazo.normales, w.trazo.parametros)
+      if (!nueva) {
+        perdidas.push(w)
+        continue
+      }
+      // `nueva` quedó al final de la cadena; en su lugar entra `w`, con lo que ya tenía abierto y su incisión.
+      const actual = CADENAS.get(w.malla)!
+      const { mas, menos, perfil, incision } = w
+      Object.assign(w, nueva, { mas, menos, perfil, incision })
+      actual[actual.length - 1] = w
+      recomponer(w.malla)
+    }
+    return perdidas
+  }
+  const nueva = h.malla.geometry
+  h.malla.geometry = h.original
+  nueva.dispose()
+  quitarLoQueDibuja(h)
+  if (k >= 0) cadena.splice(k, 1)
+  if (cadena.length > 0) recomponer(h.malla)
+  else CADENAS.delete(h.malla)
+  return []
 }
 
 /**

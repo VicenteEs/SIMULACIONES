@@ -10,6 +10,7 @@ import {
   aperturaMaxima,
   aperturaPorLasPinzas,
   caben,
+  deLaIncision,
   direccionDelMango,
   ladosParaLaPareja,
   laPareja,
@@ -371,5 +372,23 @@ describe('quién va en pareja con quién (P-003 E3)', () => {
     const palanca = separador({ id: 5, tipo: 'palanca', lado: 1 })
     expect(laPareja([auto, a], auto)).toEqual([])
     expect(laPareja([palanca, separador({ id: 6, tipo: 'palanca', lado: -1 })], palanca)).toEqual([])
+  })
+})
+
+describe('cada separador y cada pinza abren su incisión (P-003 E4)', () => {
+  it('se quedan los de esa incisión y los que todavía no son de ninguna', () => {
+    const lista = [separador({ id: 1, incision: 1 }), separador({ id: 2, incision: 2 }), separador({ id: 3 })]
+    expect(deLaIncision(lista, 1).map((s) => s.id)).toEqual([1, 3])
+    expect(deLaIncision(lista, 2).map((s) => s.id)).toEqual([2, 3])
+    expect(deLaIncision(lista, 9).map((s) => s.id)).toEqual([3])
+  })
+
+  it('con dos incisiones en la misma capa, el separador de una no abre la otra', () => {
+    const a = separador({ id: 1, incision: 1, aperturaMm: 20 })
+    const b = separador({ id: 2, incision: 2, aperturaMm: 8 })
+    const deLaPrimera = aperturaDeLaCapa('piel', 0.5, deLaIncision([a, b], 1))
+    const deLaSegunda = aperturaDeLaCapa('piel', 0.5, deLaIncision([a, b], 2))
+    expect(deLaPrimera.mas).toBeCloseTo(20, 5)
+    expect(deLaSegunda.mas).toBeCloseTo(8, 5)
   })
 })

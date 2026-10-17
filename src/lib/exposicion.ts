@@ -78,6 +78,11 @@ export interface SeparadorColocado {
   maximoMm: number
   /** Cuánto lleva abierto, en milímetros. */
   aperturaMm: number
+  /**
+   * A qué incisión pertenece (P-003 E4): su `posicion` es a lo largo de esa incisión y solo la abre a ella. Sin él
+   * —lo que se puso antes de que hubiera herida, o la separación roma de una disección— abre la de su capa.
+   */
+  incision?: number
 }
 
 /** La anchura, como fracción del largo de la herida, de la zona que abre cada tipo. */
@@ -224,6 +229,15 @@ export function aperturaDeLaCapa(
   return { mas: Math.max(deSeparadores.mas, dePinzas.mas), menos: Math.max(deSeparadores.menos, dePinzas.menos) }
 }
 
+/**
+ * Lo que de una lista abre una incisión: lo que se puso en ella y lo que no es de ninguna todavía (pinzas puestas
+ * antes de que hubiera herida). Con dos incisiones en la misma capa, un separador de una no abre la otra, aunque
+ * su `posicion` caiga en un punto que las dos tienen (P-003 E4).
+ */
+export function deLaIncision<T extends { incision?: number }>(lista: readonly T[], incision: number): T[] {
+  return lista.filter((x) => x.incision === undefined || x.incision === incision)
+}
+
 /** La apertura máxima de la herida, en milímetros: lo que dice el panel. */
 export function aperturaMaxima(separadores: readonly SeparadorColocado[]): number {
   let mayor = 0
@@ -266,6 +280,8 @@ export interface Pellizco {
    * pinza abierta no sostiene nada: no levanta el pliegue ni tensa.
    */
   agarre: number
+  /** A qué incisión de la piel tira (P-003 E4). Sin él, a la que se haga después. */
+  incision?: number
 }
 
 export const ALTURA_MAXIMA_DEL_PELLIZCO_MM = 16

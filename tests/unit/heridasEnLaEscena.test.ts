@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
-import { abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, sitioEnLaHerida } from '@/components/simulador/heridas'
+import { abrirCapa, cadenaDeLaMalla, cerrarCapa, cortarCapa, ladoDeLaHerida, sitioEnLaHerida } from '@/components/simulador/heridas'
 
 /**
  * El pegamento entre el corte de mallas y la escena (D-167): `heridas.ts` pasa la
@@ -350,5 +350,111 @@ describe('sitioEnLaHerida: el sitio a una fracción del largo (P-003 E3.2)', () 
     expect(info.lado).toBe(1)
     expect(info.direccion.dot(sitio.direccion)).toBeGreaterThan(0.99)
     expect(info.t).toBeCloseTo(sitio.t, 1)
+  })
+})
+
+describe('varias incisiones en una misma malla (P-003 E4)', () => {
+  const dos = (malla: THREE.Mesh) => {
+    const a = incision(-4)
+    const b = incision(5)
+    const h1 = cortarCapa(malla, a.puntos, a.normales, { ...PARAMETROS, incision: 1 })!
+    const h2 = cortarCapa(malla, b.puntos, b.normales, { ...PARAMETROS, incision: 2 })!
+    return { h1, h2 }
+  }
+  const posiciones = (m: THREE.Mesh) => Float32Array.from(m.geometry.getAttribute('position').array as Float32Array)
+
+  it('un segundo corte no cierra el primero: los dos quedan en la cadena de la malla, con su incisión', () => {
+    const malla = pielPlana()
+    const { h1, h2 } = dos(malla)
+    expect(h1).not.toBeNull()
+    expect(h2).not.toBeNull()
+    expect(cadenaDeLaMalla(malla)).toEqual([h1, h2])
+    expect([h1.incision, h2.incision]).toEqual([1, 2])
+    // La geometría es la del último corte y guarda la del primero como «original».
+    expect(malla.geometry.getAttribute('position').count).toBeGreaterThan(h1.corte.lado.length)
+    expect(h2.original.getAttribute('position').count).toBe(h1.corte.lado.length)
+  })
+
+  it('cada una abre lo suyo, y el borde de cada una sigue a sus labios', () => {
+    const malla = pielPlana()
+    const { h1, h2 } = dos(malla)
+    const reposo = posiciones(malla)
+    abrirCapa(h1, 1, 1)
+    const soloPrimero = posiciones(malla)
+    expect([...soloPrimero]).not.toEqual([...reposo])
+    abrirCapa(h2, 1.5, 1.5)
+    expect([...posiciones(malla)]).not.toEqual([...soloPrimero])
+    // Cerrar la apertura de la segunda deja lo que había con solo la primera abierta.
+    abrirCapa(h2, 0, 0)
+    posiciones(malla).forEach((v, i) => expect(v).toBeCloseTo(soloPrimero[i], 6))
+    // Y los dos bordes se mueven con sus labios.
+    const borde1 = Float32Array.from(h1.bordes.geometry.getAttribute('position').array as Float32Array)
+    abrirCapa(h1, 2, 2)
+    expect([...(h1.bordes.geometry.getAttribute('position').array as Float32Array)]).not.toEqual([...borde1])
+  })
+
+  it('cerrar la última deja la malla como estaba con solo la primera, y la primera sigue abierta lo que estaba', () => {
+    const malla = pielPlana()
+    const control = pielPlana()
+    const a = incision(-4)
+    const hc = cortarCapa(control, a.puntos, a.normales, PARAMETROS)!
+    abrirCapa(hc, 1, 1)
+    const { h1, h2 } = dos(malla)
+    abrirCapa(h1, 1, 1)
+    abrirCapa(h2, 2, 2)
+    cerrarCapa(h2)
+    expect(cadenaDeLaMalla(malla)).toEqual([h1])
+    expect(malla.geometry.getAttribute('position').count).toBe(control.geometry.getAttribute('position').count)
+    posiciones(malla).forEach((v, i) => expect(v).toBeCloseTo(posiciones(control)[i], 6))
+  })
+
+  it('cerrar la del medio rehace la siguiente sobre la anterior, en el mismo objeto y con lo que tenía abierto', () => {
+    const malla = pielPlana()
+    const control = pielPlana()
+    const b = incision(5)
+    const hc = cortarCapa(control, b.puntos, b.normales, PARAMETROS)!
+    abrirCapa(hc, 2, 2)
+    const { h1, h2 } = dos(malla)
+    abrirCapa(h1, 1, 1)
+    abrirCapa(h2, 2, 2)
+    const perdidas = cerrarCapa(h1)
+    expect(perdidas).toEqual([])
+    // La segunda sigue siendo el mismo objeto, ahora la única, y la malla es la de haber cortado solo la suya.
+    expect(cadenaDeLaMalla(malla)).toEqual([h2])
+    expect(h2.mas).toBe(2)
+    expect(malla.geometry.getAttribute('position').count).toBe(control.geometry.getAttribute('position').count)
+    posiciones(malla).forEach((v, i) => expect(v).toBeCloseTo(posiciones(control)[i], 6))
+    // Su borde y su cinta siguen colgando de la malla, y los de la cerrada ya no.
+    expect(h2.bordes.parent).toBe(malla)
+    expect(h1.bordes.parent).toBeNull()
+  })
+
+  it('cerrarlas todas, de la última a la primera, devuelve la geometría original', () => {
+    const malla = pielPlana()
+    const original = malla.geometry
+    const reposo = posiciones(malla)
+    const { h1, h2 } = dos(malla)
+    abrirCapa(h1, 1, 1)
+    abrirCapa(h2, 1, 1)
+    cerrarCapa(h2)
+    cerrarCapa(h1)
+    expect(malla.geometry).toBe(original)
+    expect([...posiciones(malla)]).toEqual([...reposo])
+    expect(cadenaDeLaMalla(malla)).toEqual([])
+  })
+
+  it('cerrarlas en el orden en que se hicieron también termina en la geometría original', () => {
+    const malla = pielPlana()
+    const original = malla.geometry
+    const { h1, h2 } = dos(malla)
+    abrirCapa(h1, 1, 1)
+    cerrarCapa(h1)
+    cerrarCapa(h2)
+    expect(malla.geometry).toBe(original)
+    expect(cadenaDeLaMalla(malla)).toEqual([])
+  })
+
+  it('una malla sin heridas no tiene cadena', () => {
+    expect(cadenaDeLaMalla(pielPlana())).toEqual([])
   })
 })

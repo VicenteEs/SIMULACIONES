@@ -12,6 +12,7 @@ import type { AjustesDeInstrumento } from '@/instrumental/modelo'
 import {
   alturaEfectivaDelPellizco,
   aperturaDeLaCapa,
+  deLaIncision,
   type CapaDeLaHerida,
   type Pellizco,
   type SeparadorColocado,
@@ -176,22 +177,30 @@ export function aplicarSeparadoresALasHeridas(
 ) {
   for (const [capa, heridas] of heridasPorCapa) {
     if (heridas.length === 0) continue
-    let mas = 0
-    let menos = 0
-    for (let i = 0; i <= 40; i++) {
-      const a = aperturaDeLaCapa(capa, i / 40, lista, pellizcos)
-      mas = Math.max(mas, a.mas)
-      menos = Math.max(menos, a.menos)
+    // Cada incisión se abre con lo que es suyo (P-003 E4): dos incisiones de la misma capa no se abren la una a la
+    // otra aunque el separador de una caiga en un punto que la otra también tiene.
+    const porIncision = new Map<number, HeridaEnCapa[]>()
+    for (const h of heridas) porIncision.set(h.incision, [...(porIncision.get(h.incision) ?? []), h])
+    for (const [incision, deEsta] of porIncision) {
+      const suyos = deLaIncision(lista, incision)
+      const suyas = deLaIncision(pellizcos, incision)
+      let mas = 0
+      let menos = 0
+      for (let i = 0; i <= 40; i++) {
+        const a = aperturaDeLaCapa(capa, i / 40, suyos, suyas)
+        mas = Math.max(mas, a.mas)
+        menos = Math.max(menos, a.menos)
+      }
+      if (mas === 0 && menos === 0) {
+        for (const h of deEsta) abrirCapa(h, 0, 0)
+        continue
+      }
+      const perfil = (t: number) => {
+        const a = aperturaDeLaCapa(capa, t, suyos, suyas)
+        return { mas: a.mas * unidadesPorMm, menos: a.menos * unidadesPorMm }
+      }
+      for (const h of deEsta) abrirCapa(h, mas * unidadesPorMm, menos * unidadesPorMm, perfil)
     }
-    if (mas === 0 && menos === 0) {
-      for (const h of heridas) abrirCapa(h, 0, 0)
-      continue
-    }
-    const perfil = (t: number) => {
-      const a = aperturaDeLaCapa(capa, t, lista, pellizcos)
-      return { mas: a.mas * unidadesPorMm, menos: a.menos * unidadesPorMm }
-    }
-    for (const h of heridas) abrirCapa(h, mas * unidadesPorMm, menos * unidadesPorMm, perfil)
   }
 }
 
