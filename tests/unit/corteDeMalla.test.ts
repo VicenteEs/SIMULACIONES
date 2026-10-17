@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   abrirHerida,
+  componerCortes,
   cortarMalla,
   largoDeLaHerida,
   proyectar,
@@ -313,5 +314,104 @@ describe('un tubo cerrado, como una pierna', () => {
 describe('largoDeLaHerida', () => {
   it('mide la incisión', () => {
     expect(largoDeLaHerida(incisionRecta(5, 15, 10))).toBeCloseTo(10, 5)
+  })
+})
+
+describe('componerCortes: una malla cortada varias veces (P-003 E4)', () => {
+  /** La malla plana cortada dos veces: primero en y = 6, luego, sobre lo que dejó, en y = `y2`. */
+  function dosCortes(y2: number) {
+    const base = rejilla(21, 20)
+    const c1 = cortarMalla(base, incisionRecta(4, 16, 6), OPCIONES)!
+    const c2 = cortarMalla({ posiciones: c1.posiciones, indices: c1.indices }, incisionRecta(4, 16, y2), OPCIONES)!
+    return { base, c1, c2 }
+  }
+
+  it('con un solo corte es exactamente abrirHerida', () => {
+    const base = rejilla(21, 20)
+    const c1 = cortarMalla(base, incisionRecta(4, 16, 6), OPCIONES)!
+    const a = componerCortes([{ corte: c1, apertura: { mas: 1.2, menos: 0.7 } }])
+    expect([...a]).toEqual([...abrirHerida(c1, 1.2, 0.7)])
+  })
+
+  it('el segundo corte conserva los vértices del primero y añade los suyos al final', () => {
+    const { c1, c2 } = dosCortes(14)
+    expect(c2.lado.length).toBeGreaterThan(c1.lado.length)
+    // Los vértices que ya había no cambian de índice ni de sitio: es lo que permite componer.
+    for (let i = 0; i < c1.lado.length * 3; i++) expect(c2.posiciones[i]).toBe(c1.posiciones[i])
+    for (let i = 0; i < c1.lado.length; i++) expect(c2.origen[i]).toBe(i)
+  })
+
+  it('con el segundo cerrado, la malla abre lo del primero; con el primero cerrado, lo del segundo', () => {
+    const { c1, c2 } = dosCortes(14)
+    const n1 = c1.lado.length
+    const soloPrimero = componerCortes([
+      { corte: c1, apertura: { mas: 1.5, menos: 1.5 } },
+      { corte: c2, apertura: { mas: 0, menos: 0 } },
+    ])
+    const abierta1 = abrirHerida(c1, 1.5, 1.5)
+    for (let i = 0; i < n1 * 3; i++) expect(soloPrimero[i]).toBeCloseTo(abierta1[i], 6)
+
+    const soloSegundo = componerCortes([
+      { corte: c1, apertura: { mas: 0, menos: 0 } },
+      { corte: c2, apertura: { mas: 2, menos: 1 } },
+    ])
+    expect([...soloSegundo]).toEqual([...abrirHerida(c2, 2, 1)])
+  })
+
+  it('dos heridas lejanas abren cada una lo suyo y no se estorban', () => {
+    const { c1, c2 } = dosCortes(15)
+    const n1 = c1.lado.length
+    const juntas = componerCortes([
+      { corte: c1, apertura: { mas: 1.5, menos: 1.5 } },
+      { corte: c2, apertura: { mas: 2, menos: 2 } },
+    ])
+    const a1 = abrirHerida(c1, 1.5, 1.5)
+    const a2 = abrirHerida(c2, 2, 2)
+    for (let i = 0; i < n1; i++) {
+      for (let k = 0; k < 3; k++) {
+        // base + desplazamiento del primero + desplazamiento del segundo.
+        const esperado = a1[3 * i + k] + (a2[3 * i + k] - c2.posiciones[3 * i + k])
+        expect(juntas[3 * i + k]).toBeCloseTo(esperado, 6)
+      }
+    }
+  })
+
+  it('un vértice nuevo del segundo corte dentro de la zona del primero hereda el arrastre de su arista', () => {
+    // A 3 mm del primero: dentro de su alcance (6), así que algunos vértices nuevos del segundo caen en su zona.
+    const { c1, c2 } = dosCortes(9)
+    const juntas = componerCortes([
+      { corte: c1, apertura: { mas: 2, menos: 2 } },
+      { corte: c2, apertura: { mas: 0, menos: 0 } },
+    ])
+    const n1 = c1.lado.length
+    const a1 = abrirHerida(c1, 2, 2)
+    let comprobados = 0
+    for (let v = n1; v < c2.lado.length; v++) {
+      const origen = c2.origen[v]
+      const esperado = [0, 1, 2].map((k) => c2.posiciones[3 * v + k] + (a1[3 * origen + k] - c1.posiciones[3 * origen + k]))
+      for (let k = 0; k < 3; k++) expect(juntas[3 * v + k]).toBeCloseTo(esperado[k], 6)
+      if (c1.peso[origen] > 0) comprobados++
+    }
+    expect(comprobados).toBeGreaterThan(0)
+  })
+
+  it('no deja ningún número roto ni ningún triángulo vuelto del revés al abrir las dos', () => {
+    const { c1, c2 } = dosCortes(14)
+    const juntas = componerCortes([
+      { corte: c1, apertura: { mas: 1, menos: 1 } },
+      { corte: c2, apertura: { mas: 1, menos: 1 } },
+    ])
+    expect(juntas.every(Number.isFinite)).toBe(true)
+    for (let t = 0; t < c2.indices.length; t += 3) {
+      const [a, b, c] = [c2.indices[t], c2.indices[t + 1], c2.indices[t + 2]]
+      const u = [0, 1, 2].map((k) => juntas[3 * b + k] - juntas[3 * a + k])
+      const w = [0, 1, 2].map((k) => juntas[3 * c + k] - juntas[3 * a + k])
+      // La malla plana mira a +Z: la normal de cada triángulo no puede darse la vuelta.
+      expect(u[0] * w[1] - u[1] * w[0]).toBeGreaterThan(-1e-6)
+    }
+  })
+
+  it('sin cortes no hay nada que componer', () => {
+    expect(componerCortes([]).length).toBe(0)
   })
 })

@@ -507,6 +507,57 @@ export function abrirHerida(
   return salida
 }
 
+/** Cuánto abre cada labio de un corte: lo mismo que pide `abrirHerida`. */
+export interface AperturaDeUnCorte {
+  mas: number
+  menos: number
+  perfil?: (t: number) => { mas: number; menos: number }
+}
+
+/**
+ * Las posiciones de una malla cortada **varias veces**, con cada herida abierta lo suyo (P-003 E4).
+ *
+ * Cada corte se hizo sobre la malla que dejó el anterior: partió una geometría que ya tenía su herida (cerrada, en
+ * reposo). `cortarMalla` conserva los índices de los vértices que ya había y añade los nuevos al final, y de cada
+ * nuevo dice de qué vértice sale (`origen`: el de su arista). Eso basta para componer: la posición final de un
+ * vértice es la **base del último corte** más lo que cada corte lo desplaza, buscando, hacia atrás por el mapa de
+ * `origen`, qué vértice del corte anterior era. Un vértice nuevo del corte 2 que cae en la zona que abría el corte 1
+ * hereda el arrastre de su arista de origen: es la misma piel.
+ *
+ * Con un solo corte es exactamente `abrirHerida`. Con dos cortes lejanos, cada uno abre lo suyo; con el primero
+ * cerrado, sale el segundo solo.
+ *
+ * `cortes` va del primero al último y cada uno es una malla cortada sobre la anterior.
+ */
+export function componerCortes(cortes: readonly { corte: MallaCortada; apertura: AperturaDeUnCorte }[]): Float32Array {
+  const ultimo = cortes[cortes.length - 1]
+  if (!ultimo) return new Float32Array(0)
+  const salida = Float32Array.from(ultimo.corte.posiciones)
+  const n = ultimo.corte.lado.length
+  // A qué vértice de la geometría de cada corte corresponde cada vértice final: empieza siendo él mismo.
+  const indice = new Uint32Array(n)
+  for (let v = 0; v < n; v++) indice[v] = v
+  for (let j = cortes.length - 1; j >= 0; j--) {
+    const { corte, apertura } = cortes[j]
+    for (let v = 0; v < n; v++) {
+      const i = indice[v]
+      const peso = corte.peso[i]
+      if (peso === 0) continue
+      const lado = corte.lado[i]
+      if (lado === 0) continue
+      const aqui = apertura.perfil ? apertura.perfil(corte.largoT[i]) : null
+      const k = peso * (lado > 0 ? (aqui ? aqui.mas : apertura.mas) : -(aqui ? aqui.menos : apertura.menos))
+      if (k === 0) continue
+      salida[3 * v] += corte.direccion[3 * i] * k
+      salida[3 * v + 1] += corte.direccion[3 * i + 1] * k
+      salida[3 * v + 2] += corte.direccion[3 * i + 2] * k
+    }
+    // Un paso atrás: el mismo vértice, pero en la geometría anterior a este corte.
+    if (j > 0) for (let v = 0; v < n; v++) indice[v] = corte.origen[indice[v]]
+  }
+  return salida
+}
+
 /** Cuánto mide la herida de largo (la incisión), en las unidades de la malla. */
 export function largoDeLaHerida(incision: IncisionSobreLaMalla): number {
   const curva = prepararIncision(incision, 0)
