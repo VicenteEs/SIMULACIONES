@@ -6170,6 +6170,18 @@ Cuarta etapa del plan P-003 (E4). Pedidos de Cristóbal: «el trazo rojo de la i
 
 *Consecuencias buenas.* Se puede abrir en dos tiempos y tener varios abordajes; cerrar uno no toca los demás. *Malas.* **Un trazo que no toca a ninguna ya no reemplaza a la anterior**: quien se equivoca al trazar debe cerrar la incisión mala desde el panel o con «Borrar trazo» (antes se arreglaba trazando otra vez). **El segundo corte se hace sobre la malla cerrada** y no sobre la abierta por los separadores: si se traza sobre un labio muy abierto, el corte puede caer unos milímetros desplazado. **Los separadores y las pinzas siguen sin guardarse en la sesión** (hacía falta el catálogo de instrumentos para volver a cargarlos; queda para cuando se guarde el caso en curso). Con muchas incisiones en la misma malla rehacer la cadena cuesta (cada una vuelve a cortar la malla); con dos o tres no se nota.
 
+### D-182 · 2026-10-17 · vigente
+**La pinza de reducción agarra un trozo de hueso y lo acompaña al moverlo.**
+Quinta etapa del plan P-003 (E5). Pedido de Cristóbal: «tomar el fragmento con una pinza de camarón (Weber) y, agarrado, moverlo como se mueven los fragmentos en el taller anatómico». Respuesta del dueño: **«agarra y mueve»**: la pinza toma el fragmento, aparecen las asas del taller y la pinza lo acompaña hasta soltarla.
+
+*Qué había.* Las tres pinzas de reducción (Verbrugge, de puntas «camarón / Weber» y de punta de bola) estaban en el catálogo con sus modelos 3D y **no hacían nada**: no estaban en `POR_SLUG` y su nombre no casaba con ninguna regla de respaldo. Mover un trozo era «Mover → Un trozo» (D-171), con las asas de D-174.
+
+*Qué se hizo.* Comportamiento nuevo **`reduce`** (`{ tipo: 'puntas' | 'garra' | 'bola' }`, `comportamientoDelInstrumento.ts`) para los tres slugs y, como red de seguridad, para lo creado a mano cuyo nombre diga «pinza de reducción», «Weber», «camarón» o «Verbrugge» (antes que la regla de las pinzas de disección, para que «pinza de reducción con dientes» no pellizque piel). Al coger una, la consola pasa sola a un modo nuevo, **«Reducir»**, que es «Mover → Un trozo» más la pinza: un **clic sin arrastre** en un trozo de hueso deja la pinza agarrándolo en ese punto, con el mango hacia fuera por la normal del hueso, **como hija del trozo** (`attach`, que conserva la posición en el mundo); así lo acompaña al moverlo con las flechas o al girarlo con un aro sin código propio. El trozo queda elegido con sus asas y arrastrarlo sigue siendo mover (un clic seguido de arrastre no pone otra pinza). Mover un trozo en «Reducir» cambia las medidas del caso exactamente igual que en «Mover». **Soltar:** un clic en la pinza o «Soltar la pinza» en el panel; también se sueltan al devolver los trozos a su sitio (reiniciar el paso) y al desmontar el lienzo. Caben **dos** (quien opera y el ayudante), una por trozo. **Sin un abordaje que llegue al hueso se avisa, no se impide**, como se avisa de profundizar sin tensión.
+
+*Probado* en local (cuenta y caso de prueba creados y borrados después, con una pinza de reducción de prueba con su modelo): al coger la Weber el modo pasa a «Reducir»; un clic en el hueso la deja agarrando el trozo («Esqueleto») y aparecen las asas; arrastrar una flecha movió el trozo y **la pinza fue con él**; «Soltar la pinza» la quitó. Pruebas nuevas del comportamiento (los tres slugs, las de nombre, que ninguna pinza de disección reduce, la guía).
+
+*Consecuencias buenas.* La pinza hace lo que dice su nombre y reutiliza todo lo de D-171 y D-174. *Malas.* **Las pinzas de reducción no se guardan en la sesión** (recargar la página las suelta; el trozo conserva su sitio solo si el caso lo guarda, que hoy no). **La pinza no tiene articulación de agarre propia**: queda con la pose del modelo; cerrar y abrir las mandíbulas al tomar y soltar queda para cuando haya una animación de agarre. El modelo de la pinza es el de ved, y su tamaño en un modelo exportado en milímetros sigue la misma cuenta que los demás instrumentos.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -8994,7 +9006,7 @@ escriben las pruebas de lo que hoy funciona —un corte, abrir, coser, recargar�
 
 ---
 
-#### E5 · Reducir con la pinza: agarra y mueve · 1–2 sesiones · pendiente
+#### E5 · Reducir con la pinza: agarra y mueve · 1–2 sesiones · hecha en local (2026-10-17, D-182; sin desplegar)
 
 **De dónde sale:** pedido 7 y respuesta 2.
 
@@ -9022,11 +9034,11 @@ escriben las pruebas de lo que hoy funciona —un corte, abrir, coser, recargar�
 
 **Tareas**
 
-- [ ] **E5.1 · `reduce` en `comportamientoDelInstrumento.ts`**, su guía de uso y sus pruebas.
-- [ ] **E5.2 · Tomar el trozo** en el lienzo: `pinzasDeReduccion[]` con `InstrumentoColocado`, `attach` al nodo y
+- [x] **E5.1 · `reduce` en `comportamientoDelInstrumento.ts`** (commit `7d6cada`), su guía de uso y sus pruebas.
+- [x] **E5.2 · Tomar el trozo** (commit `7d6cada`) en el lienzo: `pinzasDeReduccion[]` con `InstrumentoColocado`, `attach` al nodo y
   elegirlo para las asas. Al elegir la pinza, la consola pasa sola a «Mover → Un trozo».
-- [ ] **E5.3 · Soltar,** quitar al reiniciar el paso, y guardarlas en la sesión (D-171).
-- [ ] **E5.4 · Pruebas, manual y D-nnn.** Mover un trozo con la pinza puesta cambia las medidas igual que sin ella; la
+- [x] **E5.3 · Soltar,** (commit `7d6cada`) quitar al reiniciar el paso, y guardarlas en la sesión (D-171).
+- [x] **E5.4 · Pruebas, manual y D-nnn.** (commit `7d6cada`) Mover un trozo con la pinza puesta cambia las medidas igual que sin ella; la
   pinza sigue al trozo al girarlo con un aro.
 
 **Hecho cuando…** Con la pinza Weber se toma el fragmento distal, se lleva a su sitio con las flechas y los aros
@@ -9402,7 +9414,7 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 | E2 · Fluoroscopia por disparos y penetración | hecha en local; sin desplegar | 1–2 | — | D-178 |
 | E3 · Separadores y pinzas | hecha en local; sin desplegar | 2 | — | D-180 |
 | E4 · Varios abordajes; el rojo que se va | hecha en local; sin desplegar | 2–3 | E3 | D-181 |
-| E5 · Reducir con la pinza | pendiente | 1–2 | E3 | — |
+| E5 · Reducir con la pinza | hecha en local; sin desplegar | 1–2 | E3 | D-182 |
 | E6 · Placa, perforación, medidor y tornillos | pendiente | 2 | E2 | — |
 | E7 · Insumos al terminar | pendiente | 1 | E3–E6 | — |
 | E8 · Listado global de estructuras | hecha en local; sin desplegar | 3 | — | D-179 |

@@ -851,6 +851,12 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   arrastra el trozo de hueso que se agarre, esté la piel encendida o no, y es lo que hace falta
   para reducir. Solo el fragmento que el caso mide cambia las medidas; «Volver al desplazamiento
   inicial» devuelve todos a su sitio.
+- **Pinzas de reducción (Weber o camarón, Verbrugge, de punta de bola).** Con una en la mano el modo
+  pasa a **Reducir**: un **clic** en un trozo de hueso la deja **agarrándolo**, y el trozo queda
+  elegido con sus flechas y aros. Se lleva a su sitio mirando la fluoroscopia y **la pinza va con
+  él**. Un clic en la pinza (o «Soltar la pinza») la suelta; caben dos. Si el abordaje no llega al
+  hueso la consola lo avisa, pero deja agarrar. Reiniciar el paso las suelta; recargar la página
+  también (no se guardan).
 - **Las capas** (piel, músculo, hueso) empiezan **todas encendidas** y se encienden y apagan siempre, como en el taller
   anatómico: un paso propone qué se ve, pero lo que se encienda a mano se ve entero.
 - **Recargar la página no pierde lo cortado ni lo cosido** (se guarda en la pestaña): la
