@@ -150,6 +150,8 @@ const NIVEL_DE_PAGINA: Record<string, Nivel> = {
   'contenido/[coleccion]/[id]/page.tsx': 'modulo',
   'atlas/page.tsx': 'editor',
   'comentarios/page.tsx': 'editor',
+  // El listado global de estructuras anatómicas (D-179): lo llena el traumatólogo, que es editor.
+  'estructuras/page.tsx': 'editor',
   'usuarios/page.tsx': 'admin',
   'difusion/page.tsx': 'admin',
   'respaldos/page.tsx': 'admin',

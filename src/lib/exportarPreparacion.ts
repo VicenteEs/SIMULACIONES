@@ -15,6 +15,7 @@ import {
   type PiezaExportada,
   type PiezaLeida,
 } from '@/lib/exportarAtlas'
+import { DIRECTORIO_DEL_ATLAS, leerCatalogo } from '@/lib/catalogoDelAtlas'
 import { reproducirPreparacion } from '@/lib/reproducirPreparacion'
 import { normalizarCorte } from '@/lib/planoDeCorte'
 import { exigirIdentificador } from '@/lib/validacion'
@@ -41,48 +42,12 @@ import { exigirIdentificador } from '@/lib/validacion'
  * `revalidatePath`, y lo hace la acción al volver.
  */
 
-/** Dónde están el catálogo y los paquetes cuando nadie dice otra cosa. */
-const DIRECTORIO_DEL_ATLAS = () => join(process.cwd(), 'public', 'atlas')
-
-/**
- * Los catálogos leídos, recordados por directorio.
- *
- * Son 0,7 MB de JSON que no cambian mientras el proceso viva: volver a leerlos
- * y analizarlos en cada guardado sería gastar por nada.
- *
- * Se recuerda YA corregido (`corregirCatalogo`), y la corrección va aquí, en la
- * única puerta del servidor, y no en la exportación. El navegador corrige en
- * `cargarCatalogo`; si el servidor no lo hiciera, el taller pintaría el peroneo
- * corto como músculo y el archivo exportado lo seguiría fundiendo con el
- * esqueleto, con el rol de hueso escrito dentro: con la capa de músculo
- * apagada, el residente vería un músculo pegado al peroné como si fuera hueso.
- *
- * Por directorio y no uno solo porque un guion puede apuntar a otro atlas
- * (`directorioDelAtlas`) en el mismo proceso que el de siempre.
- */
-const catalogos = new Map<string, CatalogoDelAtlas>()
-
-/**
- * El catálogo del atlas instalado.
- *
- * Exportada porque las acciones del taller la usan también para validar y
- * listar; son la misma lectura y el mismo recuerdo.
- */
-export async function leerCatalogo(directorio = DIRECTORIO_DEL_ATLAS()): Promise<CatalogoDelAtlas> {
-  const recordado = catalogos.get(directorio)
-  if (recordado) return recordado
-  try {
-    const crudo = await readFile(join(directorio, 'catalogo.json'), 'utf8')
-    const catalogoEnMemoria = corregirCatalogo(JSON.parse(crudo) as CatalogoDelAtlas)
-    catalogos.set(directorio, catalogoEnMemoria)
-    return catalogoEnMemoria
-  } catch {
-    throw new Error(
-      'El atlas anatómico no está instalado en este servidor. ' +
-        'Falta public/atlas/catalogo.json.',
-    )
-  }
-}
+// El directorio del atlas y la lectura de su catálogo viven en `catalogoDelAtlas.ts`, aparte de este
+// archivo: este exporta sin sesión y `exportarSinSesionAcotado.test.ts` vigila que solo lo importe la
+// acción con guardia, de modo que quien solo necesita **leer el catálogo** (el listado de estructuras,
+// D-179) no tenga que pasar por aquí. Se reexporta para que `acciones/atlas.ts` y los guiones sigan
+// importándola de donde siempre.
+export { leerCatalogo }
 
 /**
  * Un paquete de geometría del atlas, descomprimido en memoria.

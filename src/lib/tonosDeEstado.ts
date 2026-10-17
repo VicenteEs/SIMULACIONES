@@ -1,3 +1,4 @@
+import type { EstadoDeEstructura } from './estructuras'
 import type { EstadoDeRevision } from './revision'
 
 /**
@@ -41,3 +42,17 @@ export const claseDeInsignia = (tono: Tono) => `insignia insignia-${tono}`
  * que la paleta siga viviendo en las hojas: el SVG la resuelve igual.
  */
 export const colorDeTono = (tono: Tono) => `var(--tono-${tono})`
+
+/**
+ * El tono de cada estado de una ficha de estructura anatómica (D-179): completa
+ * es correcto, a medias pide atención, sin empezar es neutro —son la mayoría y no
+ * deben gritar—, y una ficha sin pieza en el atlas es la única que avisa de un
+ * problema.
+ */
+export const TONO_DE_ESTRUCTURA: Record<EstadoDeEstructura, Tono> = {
+  completa: 'ok',
+  'a-medias': 'atencion',
+  'sin-empezar': 'neutra',
+  oculta: 'neutra',
+  'sin-pieza': 'peligro',
+}

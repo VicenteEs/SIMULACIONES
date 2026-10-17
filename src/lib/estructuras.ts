@@ -39,6 +39,38 @@ export type CampoDeLaFicha = (typeof CAMPOS_DE_LA_FICHA)[number]
 /** Lo que hay escrito en una ficha. Un campo sin escribir es `''` o no está. */
 export type FichaDeEstructura = Partial<Record<CampoDeLaFicha, string | null | undefined>>
 
+/** Una fila de la colección `estructuras-anatomicas`, tal como la leen la pantalla y la siembra. */
+export interface FilaDeEstructura extends FichaDeEstructura {
+  id: number | string
+  atlasId: string
+  nombreOriginal: string
+  sistema?: string | null
+  region?: string | null
+  lado?: LadoDeLaPieza | null
+  oculta?: boolean | null
+  huerfana?: boolean | null
+  updatedAt?: string
+}
+
+/** La ficha entera de una pieza, lista para la ventana de edición. Un campo sin escribir es `''`. */
+export interface FichaCompleta extends Record<CampoDeLaFicha, string> {
+  atlasId: string
+  /** El nombre del taller, en español, con su lado. */
+  nombre: string
+  /** El original en inglés. */
+  original: string
+  sistema: string
+  region: string
+  lado: LadoDeLaPieza | null
+  oculta: boolean
+  /** La pieza ya no está en el atlas. */
+  huerfana: boolean
+  /** Si ya hay fila en la base. Sin ella, guardar la crea. */
+  sembrada: boolean
+  /** Cuándo se guardó por última vez, o `null` si nunca. */
+  actualizada: string | null
+}
+
 export const ETIQUETA_DEL_CAMPO: Readonly<Record<CampoDeLaFicha, string>> = {
   nombreLatino: 'Nombre latino',
   definicion: 'Definición',
@@ -278,9 +310,14 @@ export interface Conteo {
   porcentajePendientes: number
 }
 
-/** Un porcentaje con un decimal; `0` si no hay nada que dividir. */
+/**
+ * Un porcentaje con un decimal; `0` si no hay nada que dividir. Lo que no es cero
+ * no baja de 0,1: con 2.231 piezas, una ficha llena es el 0,04 %, y redondeado
+ * diría «0 %» —como si no se hubiera hecho nada— justo cuando se acaba de hacer.
+ */
 export function porcentaje(parte: number, total: number): number {
-  return total <= 0 ? 0 : Math.round((parte / total) * 1000) / 10
+  if (total <= 0 || parte <= 0) return 0
+  return Math.max(0.1, Math.round((parte / total) * 1000) / 10)
 }
 
 export function contarEstructuras(filas: readonly Pick<FilaParaContar, 'estado'>[]): Conteo {

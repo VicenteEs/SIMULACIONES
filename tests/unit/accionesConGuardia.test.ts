@@ -285,6 +285,16 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'atlas.ts:eliminarInstancia': { guardia: 'editor', argumentos: () => ['5'] },
   'atlas.ts:exportarComoModelo': { guardia: 'editor', argumentos: () => ['5'] },
 
+  // El listado global de estructuras anatómicas (D-179): llenan el editor y el administrador; cargar las
+  // piezas del atlas toca miles de filas y es solo del administrador.
+  'estructuras.ts:leerEstructura': { guardia: 'editor', argumentos: () => ['FJ1'] },
+  'estructuras.ts:guardarEstructura': {
+    guardia: 'editor',
+    argumentos: () => ['FJ1', { campos: { definicion: 'Hueso largo.' }, base: { definicion: '' } }],
+  },
+  'estructuras.ts:restaurarVersionDeEstructura': { guardia: 'editor', argumentos: () => ['FJ1', '5'] },
+  'estructuras.ts:cargarPiezasDelAtlas': { guardia: 'admin', argumentos: () => [] },
+
   // El instrumental del taller (D-165): el editor describe, el administrador carga y retoca el modelo.
   'instrumental.ts:listarInstrumental': { guardia: 'editor', argumentos: () => [] },
   'instrumental.ts:crearInstrumento': { guardia: 'editor', argumentos: () => [{ nombre: 'Un instrumento de prueba' }] },
@@ -417,7 +427,7 @@ const GUARDIAS: Record<string, Clasificacion> = {
  * regla, la forma más corta de poner verde una acción nueva sin guardia sería
  * clasificarla como «de sesión».
  */
-const ARCHIVOS_DE_CONTENIDO = ['contenido.ts', 'atlas.ts']
+const ARCHIVOS_DE_CONTENIDO = ['contenido.ts', 'atlas.ts', 'estructuras.ts']
 
 // ------------------------------------------------------------ descubrimiento
 

@@ -170,6 +170,11 @@ describe('el contador', () => {
     expect(porcentaje(1, 3)).toBe(33.3)
     expect(porcentaje(2, 3)).toBe(66.7)
   })
+
+  it('una ficha llena de 2.231 no se redondea a cero', () => {
+    expect(porcentaje(1, 2231)).toBe(0.1)
+    expect(porcentaje(0, 2231)).toBe(0)
+  })
 })
 
 describe('el lado', () => {

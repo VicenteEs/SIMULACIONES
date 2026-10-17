@@ -1,0 +1,104 @@
+/* La pantalla de estructuras anatómicas (D-179, P-003 E8). */
+
+.estructuras-contador { margin: var(--e-4) 0; }
+.estructuras-contador-leyenda { margin-top: var(--e-2); font-size: var(--t-sm); color: var(--mudo); }
+.estructuras-contador-leyenda strong { color: var(--tinta); font-size: var(--t-md, 1rem); }
+
+.estructuras-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--e-3);
+  margin-top: var(--e-4);
+}
+.estructuras-tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  padding: var(--e-3) var(--e-4);
+}
+.estructuras-tarjeta-ok { border-left: 4px solid var(--verde); }
+.estructuras-tarjeta-atencion { border-left: 4px solid var(--ambar-texto); }
+.estructuras-tarjeta-titulo { font-size: var(--t-sm); color: var(--mudo); }
+.estructuras-tarjeta-valor { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+.estructuras-tarjeta-detalle { font-size: var(--t-sm); color: var(--mudo); }
+
+/* La barra de avance: el fondo es la línea y el relleno, el verde de «completa». */
+.estructuras-barra {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--linea-suave);
+  overflow: hidden;
+  min-width: 90px;
+}
+.estructuras-barra-relleno { height: 100%; background: var(--verde); border-radius: 999px; transition: width 0.25s; }
+
+.estructuras-regiones { margin-bottom: var(--e-4); }
+.estructuras-regiones > summary { cursor: pointer; font-weight: 600; padding: var(--e-2) 0; }
+.estructuras-col-barra { min-width: 150px; }
+.estructuras-col-barra .estructuras-barra { display: inline-block; width: 90px; vertical-align: middle; margin-right: var(--e-2); }
+.estructuras-porcentaje { font-size: var(--t-sm); color: var(--mudo); }
+.estructuras-enlace {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--marca);
+  cursor: pointer;
+  text-align: left;
+}
+.estructuras-enlace:hover { text-decoration: underline; }
+
+.estructuras-nombre {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--marca);
+  cursor: pointer;
+  text-align: left;
+}
+.estructuras-nombre:hover { text-decoration: underline; }
+.estructuras-falta { color: var(--mudo); font-size: var(--t-sm); max-width: 280px; }
+
+.estructuras-mas { display: flex; align-items: center; gap: var(--e-3); margin: var(--e-4) 0; }
+.estructuras-mas-cuenta { font-size: var(--t-sm); color: var(--mudo); }
+
+/* La ventana de edición. */
+.estructuras-cargando { color: var(--mudo); }
+.estructuras-ventana-meta { margin: 0 0 var(--e-3); font-size: var(--t-sm); color: var(--mudo); }
+.estructuras-campo .admin-form-label { display: flex; align-items: center; gap: var(--e-2); }
+.estructuras-campo-falta .admin-form-input { border-color: var(--ambar-texto); background: var(--ambar-tenue); }
+.estructuras-marca-falta {
+  font-size: var(--t-xs, 0.75rem);
+  font-weight: 650;
+  color: var(--ambar-texto);
+  background: var(--ambar-tenue);
+  border-radius: 999px;
+  padding: 0 var(--e-2);
+}
+.estructuras-marca-opcional { font-size: var(--t-xs, 0.75rem); font-weight: 400; color: var(--mudo); }
+.estructuras-oculta {
+  display: flex;
+  gap: var(--e-2);
+  align-items: flex-start;
+  margin: var(--e-3) 0;
+  font-size: var(--t-sm);
+}
+.estructuras-oculta input { margin-top: 3px; }
+
+.estructuras-conflicto ul { margin: var(--e-2) 0; padding-left: var(--e-4); }
+.estructuras-conflicto-texto { font-size: var(--t-sm); white-space: pre-wrap; word-break: break-word; }
+.estructuras-conflicto-texto span { font-weight: 650; }
+.estructuras-conflicto-nota { margin: var(--e-2) 0 0; font-size: var(--t-sm); }
+
+.estructuras-historial { margin: var(--e-3) 0; font-size: var(--t-sm); }
+.estructuras-historial > summary { cursor: pointer; display: flex; align-items: center; gap: var(--e-1); font-weight: 600; }
+.estructuras-historial ul { list-style: none; padding: 0; margin: var(--e-2) 0 0; display: grid; gap: var(--e-2); }
+.estructuras-historial li { border: 1px solid var(--linea-suave); border-radius: var(--r); padding: var(--e-2) var(--e-3); }
+.estructuras-historial-cabeza { display: flex; justify-content: space-between; align-items: center; gap: var(--e-2); }
+.estructuras-historial dl { margin: var(--e-1) 0 0; }
+.estructuras-historial dt { font-weight: 650; display: inline; }
+.estructuras-historial dt::after { content: ': '; }
+.estructuras-historial dd { display: inline; margin: 0; color: var(--mudo); }
+.estructuras-historial dl > div { margin-bottom: 2px; }

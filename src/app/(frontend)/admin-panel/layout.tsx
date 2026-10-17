@@ -134,6 +134,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           icono: 'comentarios',
           aviso: pendientes || undefined,
         },
+        // Debajo de Comentarios, como pidió el dueño (D-179). Sin aviso: «2.000
+        // pendientes» en la barra no se atiende, se trabaja de a poco.
+        { ruta: '/admin-panel/estructuras', etiqueta: 'Estructuras', icono: 'estructuras' },
       ],
     },
   ]

@@ -46,7 +46,7 @@ describe('las pruebas de las estructuras no se omiten solas', () => {
 
 describe.skipIf(intento.payload === null)('la siembra del atlas entero, contra PostgreSQL', async () => {
   const payload = intento.payload as Payload
-  const { leerCatalogo } = await import('@/lib/exportarPreparacion')
+  const { leerCatalogo } = await import('@/lib/catalogoDelAtlas')
   const { sincronizarConElAtlas, leerTodasLasEstructuras } = await import('@/lib/estructurasServidor')
   const { createLocalReq } = await import('payload')
 

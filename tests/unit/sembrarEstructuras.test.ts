@@ -4,11 +4,8 @@ import { describe, expect, it } from 'vitest'
 import type { Payload } from 'payload'
 import { corregirCatalogo } from '@/atlas/clasificacion'
 import type { CatalogoDelAtlas, PiezaDelAtlas } from '@/atlas/formato'
-import {
-  resumenDeLaSiembra,
-  sincronizarConElAtlas,
-  type FilaDeEstructura,
-} from '@/lib/estructurasServidor'
+import type { FilaDeEstructura } from '@/lib/estructuras'
+import { resumenDeLaSiembra, sincronizarConElAtlas } from '@/lib/estructurasServidor'
 
 /**
  * La siembra del listado global de estructuras (D-179, P-003 E8.3).

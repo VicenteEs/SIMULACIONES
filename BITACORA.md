@@ -9182,7 +9182,14 @@ botón deja esa lista como la mesa de los practicantes.
   `tsx`, así que el botón es lo que se usa en el servidor. Crea lo que falta, refresca solo los datos del atlas, marca como
   «sin pieza» lo que ya no está y casa por nombre original solo cuando no hay duda. La prueba de integración siembra las
   2.231 piezas dentro de una transacción que se deshace, y deja la base de desarrollo como estaba.)*
-- [ ] **E8.4 · La pantalla** `/admin-panel/estructuras`: contador, filtro, pestañas y ventana de edición.
+- [x] **E8.4 · La pantalla** `/admin-panel/estructuras`: contador, filtro, pestañas y ventana de edición.
+  *(Hecha, sin la planilla, que es E8.5. El texto de las fichas no viaja con el listado: la pantalla recibe nombres, estados y qué
+  falta, y la ventana pide la ficha al abrirse. **Guardar no pisa lo que otra persona escribió:** el navegador manda cómo estaba
+  cada campo al abrir y cómo está ahora, el servidor escribe solo lo que esa persona tocó y, si otra escribió el mismo campo
+  mientras tanto, no guarda nada y enseña las dos versiones (`guardarFicha`). `leerCatalogo` se mudó a
+  `src/lib/catalogoDelAtlas.ts` —`exportarPreparacion.ts` la reexporta— para que el listado no importe el archivo que exporta sin
+  sesión, que `exportarSinSesionAcotado.test.ts` reserva a la acción con guardia. Sin aviso numérico en la barra: «2.000
+  pendientes» no se atiende, se trabaja de a poco.)*
 - [ ] **E8.5 · Planilla:** descargar por región, leer `.xlsx`, vista previa, «aplicar también al lado opuesto» y
   aplicar.
 - [ ] **E8.6 · El taller anatómico:** al seleccionar una pieza, una pestaña «Info» en el panel derecho (el componente

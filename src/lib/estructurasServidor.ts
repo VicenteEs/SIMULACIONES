@@ -27,21 +27,19 @@
  */
 import type { Payload, PayloadRequest } from 'payload'
 import type { CatalogoDelAtlas } from '@/atlas/formato'
-import { ladoDeLaPieza, type FichaDeEstructura, type LadoDeLaPieza } from '@/lib/estructuras'
+import { nombreEnEspanol } from '@/atlas/nombres'
+import {
+  CAMPOS_DE_LA_FICHA,
+  ETIQUETA_DEL_CAMPO,
+  LARGO_MAXIMO_DEL_CAMPO,
+  ladoDeLaPieza,
+  normalizarTexto,
+  type CampoDeLaFicha,
+  type FichaCompleta,
+  type FilaDeEstructura,
+} from '@/lib/estructuras'
 import { registrarAccion } from '@/lib/registroServidor'
-
-/** Una fila de la colección, con lo que la sincronización mira. */
-export interface FilaDeEstructura extends FichaDeEstructura {
-  id: number | string
-  atlasId: string
-  nombreOriginal: string
-  sistema?: string | null
-  region?: string | null
-  lado?: LadoDeLaPieza | null
-  oculta?: boolean | null
-  huerfana?: boolean | null
-  updatedAt?: string
-}
+import { ErrorDeValidacion } from '@/lib/validacion'
 
 export interface ResultadoDeLaSiembra {
   /** Fichas nuevas, una por pieza que no tenía. */
@@ -262,4 +260,277 @@ export function resumenDeLaSiembra(r: ResultadoDeLaSiembra): string {
     r.huerfanas ? `${r.huerfanas} sin pieza en el atlas (no se borraron)` : null,
   ]
   return partes.filter((p): p is string => p !== null).join(' · ')
+}
+
+// ---------------------------------------------------------------- una ficha
+
+/** Las columnas de la ficha: lo que hay que leer para enseñarla. */
+const COLUMNAS_DE_LA_FICHA: Record<string, true> = {
+  atlasId: true,
+  nombreOriginal: true,
+  sistema: true,
+  region: true,
+  lado: true,
+  oculta: true,
+  huerfana: true,
+  updatedAt: true,
+  ...Object.fromEntries(CAMPOS_DE_LA_FICHA.map((campo) => [campo, true as const])),
+}
+
+async function filaDeLaPieza(
+  payload: Payload,
+  atlasId: string,
+  req?: Partial<PayloadRequest>,
+): Promise<FilaDeEstructura | null> {
+  const { docs } = await payload.find({
+    collection: 'estructuras-anatomicas',
+    where: { atlasId: { equals: atlasId } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+    select: COLUMNAS_DE_LA_FICHA as never,
+    ...(req ? { req: req as PayloadRequest } : {}),
+  })
+  return (docs[0] as unknown as FilaDeEstructura | undefined) ?? null
+}
+
+/** La ficha tal como la lee la ventana de edición: los textos sin escribir, vacíos. */
+function aFichaCompleta(
+  atlasId: string,
+  fila: FilaDeEstructura | null,
+  pieza: CatalogoDelAtlas['piezas'][number] | undefined,
+): FichaCompleta {
+  const original = pieza?.nombre ?? fila?.nombreOriginal ?? ''
+  const textos = Object.fromEntries(
+    CAMPOS_DE_LA_FICHA.map((campo) => [campo, normalizarTexto(fila?.[campo])]),
+  ) as Record<CampoDeLaFicha, string>
+  return {
+    ...textos,
+    atlasId,
+    nombre: nombreEnEspanol(original),
+    original,
+    // Del catálogo de hoy cuando la pieza existe; de lo guardado si ya no está.
+    sistema: pieza?.sistema ?? fila?.sistema ?? '',
+    region: pieza?.region ?? fila?.region ?? '',
+    lado: pieza ? ladoDeLaPieza(pieza.nombre, pieza.region) : (fila?.lado ?? null),
+    oculta: fila?.oculta === true,
+    huerfana: !pieza && fila !== null,
+    sembrada: fila !== null,
+    actualizada: fila?.updatedAt ?? null,
+  }
+}
+
+/** La ficha de una pieza, o `null` si ni el atlas ni la base la conocen. */
+export async function leerFicha(
+  payload: Payload,
+  catalogo: CatalogoDelAtlas,
+  atlasId: string,
+  req?: Partial<PayloadRequest>,
+): Promise<FichaCompleta | null> {
+  const pieza = catalogo.piezas.find((p) => p.id === atlasId)
+  const fila = await filaDeLaPieza(payload, atlasId, req)
+  if (!pieza && !fila) return null
+  return aFichaCompleta(atlasId, fila, pieza)
+}
+
+/** Lo que el navegador manda al guardar una ficha. */
+export interface CambiosDeLaFicha {
+  /** Los textos como están ahora en el formulario. */
+  campos: Partial<Record<CampoDeLaFicha, unknown>>
+  /** Los textos como estaban cuando se abrió la ventana: lo que permite saber qué tocó esta persona. */
+  base: Partial<Record<CampoDeLaFicha, unknown>>
+  oculta?: unknown
+  ocultaBase?: unknown
+}
+
+export type ResultadoDeGuardar =
+  | { tipo: 'guardada'; ficha: FichaCompleta; cambiados: (CampoDeLaFicha | 'oculta')[] }
+  | { tipo: 'conflicto'; campos: CampoDeLaFicha[]; actual: FichaCompleta }
+
+/** Rechaza un texto que pasa del tope de su campo, nombrándolo; no lo corta. */
+export function exigirLargoDelCampo(campo: CampoDeLaFicha, texto: string): void {
+  const maximo = LARGO_MAXIMO_DEL_CAMPO[campo]
+  if (texto.length > maximo) {
+    throw new ErrorDeValidacion(
+      `«${ETIQUETA_DEL_CAMPO[campo]}» pasa de ${maximo} caracteres (tiene ${texto.length}). No se guardó nada; acórtelo.`,
+    )
+  }
+}
+
+/**
+ * Guarda los cambios de una ficha **sin pisar lo que otra persona haya escrito
+ * mientras tanto**.
+ *
+ * El navegador manda cómo estaban los textos al abrir la ventana (`base`) y cómo
+ * están ahora (`campos`). De ahí sale qué tocó esta persona: solo eso se escribe, y
+ * lo que no tocó no se vuelve a mandar a la base. Si un campo que tocó **ya no
+ * vale lo que valía al abrir** —alguien más lo escribió—, no se guarda nada y se
+ * devuelve el conflicto con la ficha actual: la pantalla le enseña las dos cosas y
+ * le deja decidir. Dos personas que tocan campos distintos de la misma ficha no
+ * se estorban. Con `forzar` se escribe igual, y lo que había queda en las
+ * versiones de la ficha (veinte por pieza).
+ *
+ * Una pieza que todavía no tiene fila (falta sembrar) se crea aquí, con los datos
+ * del atlas; una que no está ni en el atlas ni en la base no existe.
+ *
+ * Sin guardia, a propósito: la pone quien lo llama (`exigirEditor`).
+ */
+export async function guardarFicha(
+  payload: Payload,
+  catalogo: CatalogoDelAtlas,
+  atlasId: string,
+  cambios: CambiosDeLaFicha,
+  opciones: { forzar?: boolean; req?: Partial<PayloadRequest> } = {},
+): Promise<ResultadoDeGuardar> {
+  const { req } = opciones
+  const conReq = req ? { req: req as PayloadRequest } : {}
+  const pieza = catalogo.piezas.find((p) => p.id === atlasId)
+  const fila = await filaDeLaPieza(payload, atlasId, req)
+  if (!pieza && !fila) throw new ErrorDeValidacion('Esa pieza no está en el atlas ni en el listado.')
+
+  const nuevos: Partial<Record<CampoDeLaFicha, string>> = {}
+  const conflictos: CampoDeLaFicha[] = []
+  for (const campo of CAMPOS_DE_LA_FICHA) {
+    if (!(campo in cambios.campos)) continue
+    const ahora = normalizarTexto(cambios.campos[campo])
+    const alAbrir = normalizarTexto(cambios.base?.[campo])
+    if (ahora === alAbrir) continue
+    exigirLargoDelCampo(campo, ahora)
+    const actual = normalizarTexto(fila?.[campo])
+    // Ya vale lo que esta persona quiere escribir: nada que hacer.
+    if (actual === ahora) continue
+    if (actual !== alAbrir) conflictos.push(campo)
+    nuevos[campo] = ahora
+  }
+
+  // «No mostrar» es una casilla: si esta persona la cambió, ya vale lo que quiere o sigue como estaba al
+  // abrir, así que no hay conflicto posible que enseñar —solo dos valores—.
+  let oculta: boolean | undefined
+  if (cambios.oculta !== undefined) {
+    const ahora = cambios.oculta === true
+    const alAbrir = cambios.ocultaBase === true
+    if (ahora !== alAbrir && ahora !== (fila?.oculta === true)) oculta = ahora
+  }
+
+  if (conflictos.length > 0 && !opciones.forzar) {
+    return { tipo: 'conflicto', campos: conflictos, actual: aFichaCompleta(atlasId, fila, pieza) }
+  }
+
+  const cambiados: (CampoDeLaFicha | 'oculta')[] = Object.keys(nuevos) as CampoDeLaFicha[]
+  const datos: Record<string, unknown> = { ...nuevos }
+  if (oculta !== undefined) {
+    datos.oculta = oculta
+    cambiados.push('oculta')
+  }
+  if (cambiados.length === 0) return { tipo: 'guardada', ficha: aFichaCompleta(atlasId, fila, pieza), cambiados }
+
+  const guardada = fila
+    ? await payload.update({
+        collection: 'estructuras-anatomicas',
+        id: fila.id,
+        data: datos as never,
+        overrideAccess: true,
+        select: COLUMNAS_DE_LA_FICHA as never,
+        ...conReq,
+      })
+    : await payload.create({
+        collection: 'estructuras-anatomicas',
+        data: { ...(pieza ? datosDelAtlas(pieza) : {}), oculta: false, huerfana: false, ...datos } as never,
+        overrideAccess: true,
+        select: COLUMNAS_DE_LA_FICHA as never,
+        ...conReq,
+      })
+  return {
+    tipo: 'guardada',
+    ficha: aFichaCompleta(atlasId, guardada as unknown as FilaDeEstructura, pieza),
+    cambiados,
+  }
+}
+
+// ---------------------------------------------------------------- versiones
+
+/** Una versión anterior de la ficha, con lo escrito en ella. */
+export interface VersionDeLaFicha {
+  id: string
+  guardada: string
+  oculta: boolean
+  textos: Partial<Record<CampoDeLaFicha, string>>
+}
+
+/** La versión más reciente guardada es la ficha de hoy: no es una «anterior». */
+function coincideConLaVigente(version: VersionDeLaFicha, fila: FilaDeEstructura): boolean {
+  if (version.oculta !== (fila.oculta === true)) return false
+  return CAMPOS_DE_LA_FICHA.every((campo) => (version.textos[campo] ?? '') === normalizarTexto(fila[campo]))
+}
+
+/**
+ * Las versiones anteriores de una ficha, la más reciente primero, **sin contar la
+ * vigente**. Cada guardado deja la ficha como estaba (`versions` de la colección,
+ * veinte por pieza).
+ */
+export async function leerVersiones(
+  payload: Payload,
+  atlasId: string,
+  req?: Partial<PayloadRequest>,
+): Promise<VersionDeLaFicha[]> {
+  const fila = await filaDeLaPieza(payload, atlasId, req)
+  if (!fila) return []
+  const { docs } = await payload.findVersions({
+    collection: 'estructuras-anatomicas',
+    where: { parent: { equals: fila.id } },
+    sort: '-updatedAt',
+    limit: 21,
+    depth: 0,
+    overrideAccess: true,
+    ...(req ? { req: req as PayloadRequest } : {}),
+  })
+  return docs
+    .map((v) => {
+      const version = v as unknown as { id: number | string; updatedAt: string; version: Record<string, unknown> }
+      const textos: Partial<Record<CampoDeLaFicha, string>> = {}
+      for (const campo of CAMPOS_DE_LA_FICHA) {
+        const texto = normalizarTexto(version.version[campo])
+        if (texto !== '') textos[campo] = texto
+      }
+      return {
+        id: String(version.id),
+        guardada: version.updatedAt,
+        oculta: version.version.oculta === true,
+        textos,
+      }
+    })
+    .filter((v) => !coincideConLaVigente(v, fila))
+    .slice(0, 20)
+}
+
+/**
+ * Devuelve una ficha a como estaba en una de sus versiones.
+ *
+ * Escribe solo lo que es de la ficha —los ocho textos y «No mostrar»—, no lo del
+ * atlas: una versión vieja trae el sistema y la región de entonces, y restaurarlos
+ * deshacería una corrección de clasificación. Lo que había **antes de restaurar**
+ * queda en las versiones como cualquier otro guardado, así que restaurar tampoco
+ * pierde nada, y se puede volver atrás.
+ */
+export async function restaurarVersion(
+  payload: Payload,
+  atlasId: string,
+  versionId: string,
+  req?: Partial<PayloadRequest>,
+): Promise<void> {
+  const fila = await filaDeLaPieza(payload, atlasId, req)
+  if (!fila) throw new ErrorDeValidacion('Esa ficha no existe.')
+  const versiones = await leerVersiones(payload, atlasId, req)
+  const version = versiones.find((v) => v.id === versionId)
+  // Solo una versión de ESTA ficha: el identificador viene del navegador.
+  if (!version) throw new ErrorDeValidacion('Esa versión no es de esta ficha, o ya no se conserva.')
+  const datos: Record<string, unknown> = { oculta: version.oculta }
+  for (const campo of CAMPOS_DE_LA_FICHA) datos[campo] = version.textos[campo] ?? null
+  await payload.update({
+    collection: 'estructuras-anatomicas',
+    id: fila.id,
+    data: datos as never,
+    overrideAccess: true,
+    ...(req ? { req: req as PayloadRequest } : {}),
+  })
 }

@@ -34,7 +34,7 @@ async function principal() {
 
   const { getPayload } = await import('payload')
   const { default: config } = await import('../src/payload.config')
-  const { leerCatalogo } = await import('../src/lib/exportarPreparacion')
+  const { leerCatalogo } = await import('../src/lib/catalogoDelAtlas')
   const { sincronizarConElAtlas, resumenDeLaSiembra, leerTodasLasEstructuras } = await import(
     '../src/lib/estructurasServidor'
   )
