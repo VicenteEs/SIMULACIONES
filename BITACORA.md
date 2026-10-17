@@ -9109,16 +9109,16 @@ mirando la fluoroscopia, y la pinza se queda agarrándolo hasta soltarla.
 
 **Tareas**
 
-- [ ] **E6.1 · `fijacion.ts`:** compañeros de cada placa, calibre de broca de cada tornillo, estado por agujero
+- [x] **E6.1 · `fijacion.ts`:** (commit `a2d55df`) compañeros de cada placa, calibre de broca de cada tornillo, estado por agujero
   (`perforado`, `medido`) y la regla del orden, con sus pruebas. El tornillo de bloqueo de clavo pasa a
   `COLOCA_POR_SLUG` como tornillo (o se marca como «solo con clavo» hasta que haya clavos: decidir al empezar).
-- [ ] **E6.2 · Asentar la placa** (`asentarPlaca` en `implantesEnLaEscena.ts`) y las asas restringidas, reutilizando
+- [x] **E6.2 · Asentar la placa** (commit `8d3a4d8`) (`asentarPlaca` en `implantesEnLaEscena.ts`) y las asas restringidas, reutilizando
   `@/atlas/gizmo` como en D-174.
-- [ ] **E6.3 · Fijar, perforar por el agujero y anotar** (broca centrada; el agujero de D-174 sigue sin asomar).
-- [ ] **E6.4 · Medidor dentro del orificio** (pose de la herramienta en el eje del agujero).
-- [ ] **E6.5 · Tornillo con orden** y largo sugerido.
-- [ ] **E6.6 · Compañeros en la bandeja** y «Añadir a la bandeja» por categorías.
-- [ ] **E6.7 · Pruebas, manual y D-nnn.** El recorrido completo con la LCP 3,5 sobre la tibia: placa, ajustarla
+- [x] **E6.3 · Fijar, perforar por el agujero y anotar** (commit `8d3a4d8`) (broca centrada; el agujero de D-174 sigue sin asomar).
+- [x] **E6.4 · Medidor dentro del orificio** (commit `8d3a4d8`) (pose de la herramienta en el eje del agujero).
+- [x] **E6.5 · Tornillo con orden** (commit `8d3a4d8`) y largo sugerido.
+- [x] **E6.6 · Compañeros en la bandeja** (commit `8d3a4d8`) y «Añadir a la bandeja» por categorías.
+- [x] **E6.7 · Pruebas, manual y D-nnn.** (commit `8d3a4d8`) El recorrido completo con la LCP 3,5 sobre la tibia: placa, ajustarla
   mirando la fluoroscopia, fijarla, broca 2,5, medidor, tornillo de lo medido más 2 mm, bicortical.
 
 **Hecho cuando…** La placa se coloca, se sube, se baja y se angula sobre el hueso mirando disparos de fluoroscopia;
