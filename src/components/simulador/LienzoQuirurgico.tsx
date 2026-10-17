@@ -24,7 +24,8 @@ import {
 } from '@/instrumental/herramienta3d'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import type { PlanoDeCorte } from '@/lib/comportamientoDelInstrumento'
-import { ANCHO_VISIBLE_DE_LA_INCISION_MM, abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, sitioEnLaHerida, type HeridaEnCapa } from './heridas'
+import { ANCHO_VISIBLE_DE_LA_INCISION_MM, abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, refrescarBordes, sitioEnLaHerida, type HeridaEnCapa } from './heridas'
+import { incisionQueAlarga, UMBRAL_PARA_ALARGAR_MM, type Punto, type ResumenDeIncision } from '@/lib/incisiones'
 import { juicioDeLaPotencia, type ModoDelElectrobisturi } from '@/lib/electrobisturi'
 import {
   adviertePorLaTension,
@@ -200,6 +201,8 @@ interface DiseccionActiva {
   maximoMm: number
   /** Dónde cae cada nodo a lo largo de la herida, en el orden de `nodos`. */
   posiciones: number[]
+  /** La incisión que esta disección hizo —o sobre la que separa—: su separación roma abre solo esa (P-003 E4). */
+  incision?: number
 }
 
 /** Cómo se hace un corte (`aplicarElCorte`). */
@@ -212,6 +215,10 @@ interface OpcionesDelCorte {
   deDiseccion?: boolean
   /** Cortar aunque la capa esté apagada: lo que se repite al recargar la sesión. */
   desdeLaSesion?: boolean
+  /** Es esta incisión (la que se recarga o se rehace): conserva su número y no se pregunta si alarga otra. */
+  id?: number
+  /** Esta incisión se vuelve a hacer con el trazo de ahora (la herida de una disección que avanza). */
+  reemplaza?: number
 }
 
 export interface MandoDelLienzo {
@@ -255,6 +262,8 @@ export interface MandoDelLienzo {
   borrarTrazo: (deshacerCorte?: boolean) => void
   /** Cierra todas las heridas: la piel y el músculo vuelven a como estaban. */
   cerrarHeridas: () => void
+  /** Cierra una incisión (la que dice el panel «Incisiones»); las demás se quedan abiertas (P-003 E4). */
+  cerrarIncision: (id: number) => void
   /** Abre (o cierra) las heridas hasta `mm` de apertura, sin arrastrar. */
   abrirHeridas: (mm: number) => void
   /** Lo que hay abierto ahora mismo, o `null` si no se ha cortado nada. */
@@ -435,6 +444,8 @@ export interface EstadoDeLasHeridas {
   capas: PlanoDeCorte[]
   largoMm: number
   aperturaMm: number
+  /** Cada incisión por separado, en el orden en que se hicieron (P-003 E4): el panel las lista con su «Cerrar». */
+  incisiones: ResumenDeIncision[]
   /** Por qué no se cortó nada, si se intentó y no hubo dónde. */
   aviso?: string
 }
@@ -714,8 +725,11 @@ export function LienzoQuirurgico({
     posicion?: PosicionDelPaciente
     /** La disección roma en curso: los puntos donde se separó y la punta apoyada. */
     diseccion?: DiseccionActiva
-    /** Corta la capa con el trazo que haya en `puntosDelTrazo`: lo expone el montaje para la disección roma. */
-    aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => void
+    /** Corta la capa con el trazo que haya en `puntosDelTrazo`: lo expone el montaje para la disección roma. Devuelve la incisión. */
+    aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => number | undefined
+    /** El número de la próxima incisión y el de la última que se hizo (P-003 E4). */
+    siguienteIncision?: number
+    ultimaIncision?: number
     /** La imagen del arco en C: el blanco de dibujo y su cámara. */
     fluoroscopia?: TallerDeFluoroscopia
     /** Cuántas veces se ha dibujado la escena: la fluoroscopia solo se rehace si cambió. */
@@ -932,13 +946,11 @@ export function LienzoQuirurgico({
       // al pasar de paso la consola borra el trazo (la medida vuelve a cero) y la
       // piel cortada tiene que seguir cortada en el paso siguiente.
       if (deshacerCorte) {
-        const capa = taller.current.ultimaHerida
-        const heridas = capa ? taller.current.heridas.get(capa) : undefined
-        if (capa && heridas) {
-          heridas.forEach(cerrarCapa)
-          taller.current.heridas.delete(capa)
-          taller.current.ultimaHerida = undefined
-          taller.current.cortes = (taller.current.cortes ?? []).filter((c) => c.plano !== capa)
+        // Se deshace la última incisión que se hizo (P-003 E4): con varias en la misma capa, las demás se quedan.
+        const id = taller.current.ultimaIncision
+        if (id !== undefined) {
+          cerrarLaIncision(taller.current, id, { conSusSeparadores: false })
+          reaplicarSeparadores(taller.current, ultimas.current)
           ultimas.current.alHerir?.(estadoDeLasHeridas(taller.current, ultimas.current.milimetrosPorUnidad))
         }
       }
@@ -951,6 +963,15 @@ export function LienzoQuirurgico({
       ultimas.current.alSeparar?.(estadoDeLosSeparadores(taller.current))
       ultimas.current.alHerir?.(null)
       taller.current.pedirDibujo?.()
+    },
+
+    cerrarIncision: (id) => {
+      const t = taller.current
+      cerrarLaIncision(t, id, { conSusSeparadores: false })
+      reaplicarSeparadores(t, ultimas.current)
+      avisarPellizcos(t, ultimas.current)
+      ultimas.current.alHerir?.(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad))
+      t.pedirDibujo?.()
     },
 
     abrirHeridas: (mm) => {
@@ -1249,14 +1270,14 @@ export function LienzoQuirurgico({
       } catch {
         guardado = null
       }
-      if (!guardado || guardado.v !== 1) return
+      if (!guardado || (guardado.v !== 1 && guardado.v !== 2)) return
       const t = taller.current
       const mmPorUnidad = ultimas.current.milimetrosPorUnidad || 1000
       // Los cortes, en el mismo orden en que se hicieron: así la lista de heridas queda igual que estaba.
       for (const corte of guardado.cortes ?? []) {
         t.puntosDelTrazo = corte.puntos.map(([x, y, z]) => ({ x, y, z }))
         t.normalesDelTrazo = corte.normales.map(([x, y, z]) => ({ x, y, z }))
-        aplicarElCorte(corte.plano, { desdeLaSesion: true })
+        aplicarElCorte(corte.plano, { desdeLaSesion: true, id: corte.id, quemado: corte.quemado })
       }
       t.puntosDelTrazo = []
       t.normalesDelTrazo = []
@@ -1611,21 +1632,24 @@ export function LienzoQuirurgico({
      * que repite la sesión guardada al recargar —en ese caso (`desdeLaSesion`) se corta aunque la capa esté
      * apagada ahora mismo, porque cuando se cortó estaba encendida— y lo que deja la disección roma como herida.
      */
-    const aplicarElCorte = (plano: PlanoDeCorte, opciones: OpcionesDelCorte = {}) => {
-      const { desdeLaSesion = false, quemado = false, esRehacer = false, deDiseccion = false } = opciones
+    const aplicarElCorte = (plano: PlanoDeCorte, opciones: OpcionesDelCorte = {}): number | undefined => {
+      const { desdeLaSesion = false, quemado = false, esRehacer = false, deDiseccion = false, id: idPedido, reemplaza } = opciones
       const t = taller.current
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       const trazo = t.puntosDelTrazo
-      if (trazo.length < 3) return
+      if (trazo.length < 3) return undefined
       let largo = 0
       for (let i = 1; i < trazo.length; i++) {
         largo += Math.hypot(trazo[i].x - trazo[i - 1].x, trazo[i].y - trazo[i - 1].y, trazo[i].z - trazo[i - 1].z)
       }
       const aviso = (texto: string) =>
-        ultimas.current.alHerir?.({ ...(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad) ?? { capas: [], largoMm: 0, aperturaMm: 0 }), aviso: texto })
+        ultimas.current.alHerir?.({
+          ...(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad) ?? { capas: [], largoMm: 0, aperturaMm: 0, incisiones: [] }),
+          aviso: texto,
+        })
       if (largo < 5 * unidadesPorMm) {
         aviso('La incisión es demasiado corta para abrir la herida: trace al menos 5 mm.')
-        return
+        return undefined
       }
       const nombres = new Set(ultimas.current.piezas.filter((p) => p.rol === plano).map((p) => p.nodo))
       const mallas: THREE.Mesh[] = []
@@ -1644,20 +1668,44 @@ export function LienzoQuirurgico({
               ? 'No hay piel visible que cortar: encienda la capa «Piel».'
               : 'No hay músculo visible que cortar: encienda la capa «Músculo».',
         )
-        return
+        return undefined
       }
-      // La herida de antes de esta capa se cierra: un trazo nuevo es una incisión nueva.
-      const previo = (t.cortes ?? []).find((c) => c.plano === plano)
-      t.heridas.get(plano)?.forEach(cerrarCapa)
-      t.heridas.delete(plano)
 
-      const puntos = trazo.map((p) => new THREE.Vector3(p.x, p.y, p.z))
-      const normales = t.normalesDelTrazo.map((n) => new THREE.Vector3(n.x, n.y, n.z))
+      // ¿Es otra incisión o alarga una? (P-003 E4). Antes un trazo nuevo cerraba la herida de su capa: un segundo
+      // abordaje en la piel borraba el primero. Ahora las incisiones se suman, y un trazo que arranca o termina a
+      // menos de 5 mm del extremo de una de su capa la **alarga** (abrir en dos tiempos). Al recargar la sesión,
+      // rehacer o hacer la herida de una disección no se pregunta: cada una ya sabe cuál es.
+      let id = idPedido ?? reemplaza
+      let puntosDelCorte: Punto[] = trazo.map((q) => [q.x, q.y, q.z])
+      let normalesDelCorte: Punto[] = t.normalesDelTrazo.map((q) => [q.x, q.y, q.z])
+      if (id === undefined && !desdeLaSesion && !esRehacer && !deDiseccion) {
+        const alarga = incisionQueAlarga(
+          (t.cortes ?? []).map((c) => ({ id: c.id ?? -1, capa: c.plano, puntos: c.puntos, normales: c.normales })),
+          plano,
+          { puntos: puntosDelCorte, normales: normalesDelCorte },
+          UMBRAL_PARA_ALARGAR_MM * unidadesPorMm,
+        )
+        if (alarga) {
+          id = alarga.id
+          puntosDelCorte = [...alarga.unida.puntos]
+          normalesDelCorte = [...alarga.unida.normales]
+        }
+      }
+      const previo = id !== undefined ? (t.cortes ?? []).find((c) => c.id === id) : undefined
+      if (id === undefined) id = t.siguienteIncision = (t.siguienteIncision ?? 0) + 1
+      else t.siguienteIncision = Math.max(t.siguienteIncision ?? 0, id)
+      // La incisión de antes que se alarga o se reemplaza se cierra para hacerla de nuevo: sus separadores y sus
+      // pinzas se quedan, son suyos.
+      if (previo) cerrarLaIncision(t, id, { conSusSeparadores: true })
+
+      const puntos = puntosDelCorte.map((p) => new THREE.Vector3(p[0], p[1], p[2]))
+      const normales = normalesDelCorte.map((n) => new THREE.Vector3(n[0], n[1], n[2]))
       const parametros = {
         // La piel es fina; los planos profundos empiezan bajo ella y bajo la grasa.
         profundidad: (plano === 'piel' ? 14 : 50) * unidadesPorMm,
         alcance: 30 * unidadesPorMm,
         unidadesPorMm,
+        incision: id,
       }
       const hechas: HeridaEnCapa[] = []
       for (const malla of mallas) {
@@ -1665,25 +1713,27 @@ export function LienzoQuirurgico({
         if (herida) hechas.push(herida)
       }
       if (hechas.length === 0) {
-        // La herida de antes ya se cerró para hacer sitio a esta. Si el trazo nuevo no cortó nada —salió del
-        // modelo, o no cruzó la malla— se rehace la que había: la incisión buena no se pierde por un clic de más.
+        // Si se reemplazaba una incisión y el trazo nuevo no cortó nada, se rehace la que había: la incisión buena
+        // no se pierde por un clic de más.
         if (previo && !esRehacer) {
           t.puntosDelTrazo = previo.puntos.map(([x, y, z]) => ({ x, y, z }))
           t.normalesDelTrazo = previo.normales.map(([x, y, z]) => ({ x, y, z }))
-          aplicarElCorte(plano, { desdeLaSesion: true, esRehacer: true, deDiseccion })
+          aplicarElCorte(plano, { desdeLaSesion: true, esRehacer: true, deDiseccion, id, quemado: previo.quemado })
         }
         aviso('El trazo no atraviesa ninguna malla de esa capa.')
-        return
+        return undefined
       }
       // Un borde quemado se ve: más oscuro, casi negro.
       if (quemado) {
         for (const h of hechas) {
-          ;(h.bordes.material as THREE.LineBasicMaterial).color.set(0x1d140f)
+          h.quemado = true
           ;(h.cinta.material as THREE.MeshBasicMaterial).color.set(0x2a1d16)
+          refrescarBordes(h)
         }
       }
-      t.heridas.set(plano, hechas)
+      t.heridas.set(plano, [...(t.heridas.get(plano) ?? []), ...hechas])
       t.ultimaHerida = plano
+      t.ultimaIncision = id
       // Un corte nuevo cambia la piel por debajo de las puntadas de antes: se quitan, y con ellas lo que
       // habían cerrado. Sin esto la sutura vieja seguía diciendo «cerrada al 100 %» sobre una herida abierta.
       t.aperturaAntesDeCoser = undefined
@@ -1693,28 +1743,29 @@ export function LienzoQuirurgico({
         refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
       }
       t.cortes = [
-        ...(t.cortes ?? []).filter((c) => c.plano !== plano),
-        {
-          plano,
-          puntos: trazo.map((q) => [q.x, q.y, q.z] as [number, number, number]),
-          normales: t.normalesDelTrazo.map((q) => [q.x, q.y, q.z] as [number, number, number]),
-        },
+        ...(t.cortes ?? []),
+        { id, plano, puntos: puntosDelCorte.map((p) => [p[0], p[1], p[2]]), normales: normalesDelCorte.map((n) => [n[0], n[1], n[2]]), quemado },
       ]
+      // Las pinzas puestas antes de que hubiera herida (donde «irá la incisión») son de la primera de la piel.
+      if (plano === 'piel') for (const q of t.pellizcos ?? []) if (q.datos.incision === undefined) q.datos.incision = id
       // Los puntos de una disección roma anterior en este plano ya no valen: la herida es otra.
       if (!deDiseccion && t.diseccion?.capa === plano) {
         t.diseccion.nodos = []
         t.diseccion.posiciones = []
+        t.diseccion.incision = undefined
       }
+      actualizarLaProfundidad(t)
       // La herida nueva se abre con lo que le toca —separadores, pinzas y la disección en curso, capa por capa—,
       // y no como la primera que hubiera: la del músculo no se abre con lo que abre la de la piel.
       reaplicarSeparadores(t, ultimas.current)
       // «Acompañar el bisturí» (P-003 E3): la pareja de pinzas y la de separadores más cercanas a la punta se corren
       // tras ella. Solo con un corte hecho por el residente: ni al recargar la sesión ni al rehacer ni la disección.
-      if (ultimas.current.acompanarAlBisturi && !desdeLaSesion && !esRehacer && !deDiseccion) acompanarAlCorte(t, ultimas.current, plano)
+      if (ultimas.current.acompanarAlBisturi && !desdeLaSesion && !esRehacer && !deDiseccion) acompanarAlCorte(t, ultimas.current, plano, id)
       // La línea roja era la guía; con la herida abierta flotaría en el aire.
       if (t.trazo) t.trazo.visible = false
       ultimas.current.alHerir?.(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad))
       pedirDibujo()
+      return id
     }
     taller.current.aplicarElCorte = aplicarElCorte
 
@@ -2133,6 +2184,7 @@ export function LienzoQuirurgico({
       sitio: { punto: THREE.Vector3; normal: THREE.Vector3; direccion: THREE.Vector3; posicion: number },
       lado: 1 | -1 | 0,
       plano: PlanoDelSeparador,
+      incision?: number,
     ): SeparadorEnEscena | null => {
       const t = taller.current
       const u = ultimas.current
@@ -2152,6 +2204,7 @@ export function LienzoQuirurgico({
         posicion: sitio.posicion,
         maximoMm: separa.maximoMm,
         aperturaMm: 0,
+        incision,
       }
       const m = direccionDelMango([sitio.normal.x, sitio.normal.y, sitio.normal.z], [sitio.direccion.x, sitio.direccion.y, sitio.direccion.z], lado)
       const nuevo: SeparadorEnEscena = {
@@ -2220,7 +2273,7 @@ export function LienzoQuirurgico({
       const hechos: SeparadorEnEscena[] = []
       for (const l of lados) {
         if (l === lado) {
-          const s = ponerUnSeparador({ punto: c.punto, normal: c.normal, direccion: c.info.direccion, posicion }, l, c.plano)
+          const s = ponerUnSeparador({ punto: c.punto, normal: c.normal, direccion: c.info.direccion, posicion }, l, c.plano, c.herida.incision)
           if (s) hechos.push(s)
           continue
         }
@@ -2231,7 +2284,7 @@ export function LienzoQuirurgico({
         const q = linea.punto.clone().addScaledVector(linea.direccion, lejos)
         const capa = c.plano === 'musculo' ? 'musculo' : 'piel'
         const sobre = proyectarEnLaCapa(q, linea.normal, capa, c.herida.malla)
-        const s = ponerUnSeparador({ punto: sobre.punto, normal: sobre.normal, direccion: linea.direccion, posicion: linea.t }, l, c.plano)
+        const s = ponerUnSeparador({ punto: sobre.punto, normal: sobre.normal, direccion: linea.direccion, posicion: linea.t }, l, c.plano, c.herida.incision)
         if (s) hechos.push(s)
       }
       if (hechos.length === 0) return
@@ -2263,6 +2316,7 @@ export function LienzoQuirurgico({
       s.mango = new THREE.Vector3(m[0], m[1], m[2])
       s.datos.lado = lado
       s.datos.posicion = c.info.t
+      s.datos.incision = c.herida.incision
       s.datos.aperturaMm = mano.previo.datos.aperturaMm
       // Los sitios de otros planos eran del lugar de antes: solo vale el de aquí.
       s.sitios =
@@ -2337,13 +2391,16 @@ export function LienzoQuirurgico({
       const eje = ejeLateralEn(golpe, n)
       const sobre = proyectarEnLaPiel(golpe.point, n, golpe.object)
       let lado: 1 | -1 = p.datos.lado === 0 ? 1 : p.datos.lado
-      let mejor: NonNullable<ReturnType<typeof ladoDeLaHerida>> | null = null
+      let mejor: (NonNullable<ReturnType<typeof ladoDeLaHerida>> & { incision: number }) | null = null
       for (const h of t.heridas.get('piel') ?? []) {
         const info = ladoDeLaHerida(h, golpe.point)
-        if (info && (!mejor || info.cerca < mejor.cerca)) mejor = info
+        if (info && (!mejor || info.cerca < mejor.cerca)) mejor = { ...info, incision: h.incision }
       }
       // Con herida, la pinza toma el borde en que se hizo clic; sin ella, conserva el que tenía.
-      if (eje.conHerida && mejor) lado = mejor.lado
+      if (eje.conHerida && mejor) {
+        lado = mejor.lado
+        p.datos.incision = mejor.incision
+      }
       p.punto = sobre.punto
       p.normal = sobre.normal
       p.direccion = eje.direccion.clone().multiplyScalar(lado)
@@ -2465,14 +2522,14 @@ export function LienzoQuirurgico({
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       const tangente = (v: THREE.Vector3) => v.clone().sub(n.clone().multiplyScalar(v.dot(n)))
       // Con la herida abierta, el eje es el que la herida usa para separar sus labios.
-      let mejor: NonNullable<ReturnType<typeof ladoDeLaHerida>> | null = null
+      let mejor: (NonNullable<ReturnType<typeof ladoDeLaHerida>> & { incision: number }) | null = null
       for (const h of t.heridas.get('piel') ?? []) {
         const info = ladoDeLaHerida(h, golpe.point)
-        if (info && (!mejor || info.cerca < mejor.cerca)) mejor = info
+        if (info && (!mejor || info.cerca < mejor.cerca)) mejor = { ...info, incision: h.incision }
       }
       if (mejor && mejor.cerca <= 40 * unidadesPorMm) {
         const d = tangente(mejor.direccion)
-        if (d.lengthSq() > 1e-10) return { direccion: d.normalize(), t: mejor.t, conHerida: true }
+        if (d.lengthSq() > 1e-10) return { direccion: d.normalize(), t: mejor.t, conHerida: true, incision: mejor.incision }
       }
       // Sin herida todavía, la pareja se pone a los dos lados de la incisión que se va a hacer: la que está
       // trazada, si hay trazo, o si no, de lado a lado de la pantalla.
@@ -2492,11 +2549,11 @@ export function LienzoQuirurgico({
           }
         }
         const lateral = along ? new THREE.Vector3().crossVectors(n, along) : null
-        if (lateral && lateral.lengthSq() > 1e-12) return { direccion: lateral.normalize(), t: 0.5, conHerida: false }
+        if (lateral && lateral.lengthSq() > 1e-12) return { direccion: lateral.normalize(), t: 0.5, conHerida: false, incision: undefined }
       }
       const derecha = tangente(new THREE.Vector3(1, 0, 0).applyQuaternion(camara.quaternion))
       if (derecha.lengthSq() < 1e-10) derecha.set(1, 0, 0)
-      return { direccion: derecha.normalize(), t: 0.5, conHerida: false }
+      return { direccion: derecha.normalize(), t: 0.5, conHerida: false, incision: undefined }
     }
 
     /** Lleva un punto a la superficie de una capa (la piel, el músculo), bajando por la normal: no se apoya en el aire. */
@@ -2521,6 +2578,7 @@ export function LienzoQuirurgico({
       lado: 1 | -1,
       direccionLateral: THREE.Vector3,
       posicion: number,
+      incision?: number,
     ) => {
       const t = taller.current
       const u = ultimas.current
@@ -2545,6 +2603,7 @@ export function LienzoQuirurgico({
           posicion,
           separacionMm: 0,
           agarre: 1,
+          incision,
         },
         url: inst.url,
         ajustes: inst.ajustes,
@@ -2581,7 +2640,7 @@ export function LienzoQuirurgico({
       for (const lado of lados) {
         const q = golpe.point.clone().addScaledVector(eje.direccion, lado * separacion)
         const sobre = proyectarEnLaPiel(q, n, golpe.object)
-        crearPellizcoEn(sobre.objeto, sobre.punto, sobre.normal, lado, eje.direccion, eje.t)
+        crearPellizcoEn(sobre.objeto, sobre.punto, sobre.normal, lado, eje.direccion, eje.t, eje.incision)
       }
       // La tensión que ya hubiera (de una pareja anterior que se soltó) no se arrastra: nacen cerradas y sin separar.
       reaplicarSeparadores(t, u)
@@ -3596,7 +3655,9 @@ export type Taller = {
   render?: THREE.WebGLRenderer
   posicion?: PosicionDelPaciente
   diseccion?: DiseccionActiva
-  aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => void
+  aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => number | undefined
+  siguienteIncision?: number
+  ultimaIncision?: number
   separadores?: SeparadorEnEscena[]
   separadorActivo?: number | null
   siguienteSeparador?: number
@@ -3979,10 +4040,22 @@ export function estadoDeLasHeridas(taller: Taller, milimetrosPorUnidad: number):
   const todas = todasLasHeridas(taller)
   if (todas.length === 0) return null
   const unidadesPorMm = 1 / (milimetrosPorUnidad || 1000)
+  const incisiones: ResumenDeIncision[] = []
+  for (const c of taller.cortes ?? []) {
+    const suyas = todas.filter((h) => h.incision === c.id)
+    if (suyas.length === 0 || c.id === undefined) continue
+    incisiones.push({
+      id: c.id,
+      capa: c.plano,
+      largoMm: Math.max(...suyas.map((h) => h.largo)) / unidadesPorMm,
+      aperturaMm: Math.max(...suyas.map((h) => h.mas + h.menos)) / unidadesPorMm,
+    })
+  }
   return {
     capas: [...(taller.heridas?.keys() ?? [])],
     largoMm: Math.max(...todas.map((h) => h.largo)) / unidadesPorMm,
     aperturaMm: Math.max(...todas.map((h) => h.mas + h.menos)) / unidadesPorMm,
+    incisiones,
   }
 }
 
@@ -4180,6 +4253,7 @@ function separadorDeLaDiseccion(d: DiseccionActiva | undefined): SeparadorColoca
     posicion: d.posicion,
     maximoMm: d.maximoMm,
     aperturaMm: aperturaPorLabioEnMm(d.fraccion, d.maximoMm),
+    incision: d.incision,
   }
 }
 
@@ -4218,9 +4292,13 @@ function abrirLaDiseccion(t: Taller, u: LoUltimo, fraccion: number) {
     // Sobre una herida que ya estaba: se abre por donde está la punta, y si la punta está lejos de ella no hay nada
     // que abrir. No se rehace la herida.
     let mejor: NonNullable<ReturnType<typeof ladoDeLaHerida>> | null = null
+    let incisionCercana: number | undefined
     for (const h of t.heridas?.get(d.capa) ?? []) {
       const info = ladoDeLaHerida(h, d.apoyada.punto)
-      if (info && (!mejor || info.cerca < mejor.cerca)) mejor = info
+      if (info && (!mejor || info.cerca < mejor.cerca)) {
+        mejor = info
+        incisionCercana = h.incision
+      }
     }
     if (!mejor || mejor.cerca > 30 * unidadesPorMm) {
       t.decir?.('La punta está lejos de la herida de este plano: apóyela dentro de la herida para abrirla por tensión.')
@@ -4229,6 +4307,7 @@ function abrirLaDiseccion(t: Taller, u: LoUltimo, fraccion: number) {
     d.apoyada.separo = true
     d.aperturas++
     d.posicion = mejor.t
+    d.incision = incisionCercana
     u.alGesto?.(textoDeLaDiseccion(d.capa, d.aperturas), 'bien')
     u.alDisecar?.({ capa: d.capa, aperturas: d.aperturas, apoyada: true, evento: 'separo' })
   } else if (separaElPlano(f) && !d.apoyada.separo) {
@@ -4282,7 +4361,9 @@ function reconstruirLaDiseccion(t: Taller, u: LoUltimo, d: DiseccionActiva) {
   t.puntosDelTrazo = puntos
   t.normalesDelTrazo = normales
   d.posiciones = trazo.posiciones
-  t.aplicarElCorte?.(d.capa, { deDiseccion: true })
+  // La herida de la disección es una incisión propia que se rehace con cada punto nuevo: reemplaza a la suya, no se
+  // suma a las demás (P-003 E4).
+  d.incision = t.aplicarElCorte?.(d.capa, { deDiseccion: true, reemplaza: d.incision })
   // La disección no deja trazo de guía: la herida es lo que se ve.
   t.puntosDelTrazo = []
   t.normalesDelTrazo = []
@@ -4441,8 +4522,8 @@ function devolverLoQueSeLevanto(t: Taller, u: LoUltimo) {
  * mano alzada o en recta, lo que hay durante el arrastre es la línea de guía. Con la incisión por tramos (E4), cada
  * tramo hace que la pareja avance tras él.
  */
-function acompanarAlCorte(t: Taller, u: LoUltimo, capa: PlanoDeCorte) {
-  const herida = t.heridas?.get(capa)?.[0]
+function acompanarAlCorte(t: Taller, u: LoUltimo, capa: PlanoDeCorte, incision: number) {
+  const herida = (t.heridas?.get(capa) ?? []).find((h) => h.incision === incision)
   if (!herida) return
   const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
   const largoMm = herida.largo / unidadesPorMm
@@ -4450,7 +4531,9 @@ function acompanarAlCorte(t: Taller, u: LoUltimo, capa: PlanoDeCorte) {
   const sitio = sitioEnLaHerida(herida, tObjetivo, 1)
   if (!sitio) return
   // Los de mano de esa capa que están más cerca de la punta, que se mueven juntos (una pareja comparte posición).
-  const propios = (t.separadores ?? []).filter((s) => s.datos.tipo !== 'roma' && s.datos.plano === capa)
+  const propios = (t.separadores ?? []).filter(
+    (s) => s.datos.tipo !== 'roma' && s.datos.plano === capa && (s.datos.incision === undefined || s.datos.incision === incision),
+  )
   const masAdelantado = propios.reduce((m, s) => Math.max(m, s.datos.posicion), -1)
   const grupo = propios.filter((s) => masAdelantado - s.datos.posicion < 0.08)
   for (const s of grupo) {
@@ -4467,7 +4550,7 @@ function acompanarAlCorte(t: Taller, u: LoUltimo, capa: PlanoDeCorte) {
   let pinzasMovidas = 0
   if (capa === 'piel') {
     for (const p of t.pellizcos ?? []) {
-      if (p.datos.lado === 0) continue
+      if (p.datos.lado === 0 || (p.datos.incision !== undefined && p.datos.incision !== incision)) continue
       const mm = sitioEnLaHerida(herida, tObjetivo, p.datos.lado)
       if (!mm) continue
       // A los 4 mm del borde, como cuando se ponen sobre una herida ya abierta.
@@ -4482,6 +4565,67 @@ function acompanarAlCorte(t: Taller, u: LoUltimo, capa: PlanoDeCorte) {
   if (grupo.length === 0 && pinzasMovidas === 0) return
   reaplicarSeparadores(t, u)
   t.decir?.('Las pinzas y los separadores acompañan al bisturí.')
+}
+
+// ------------------------------------------------------------ incisiones (P-003 E4)
+
+/**
+ * Cierra todas las heridas de una incisión —de la última a la primera, para no rehacer lo que se va a cerrar— y la
+ * saca de las listas. Con `conSusSeparadores: false` se llevan también sus separadores y sus pinzas (sin herida no
+ * tienen dónde estar); con `true` se quedan, porque la incisión se va a volver a hacer con el mismo id (alargada o
+ * reemplazada).
+ *
+ * Si cerrar una del medio obliga a rehacer otras de la misma malla y alguna ya no se deja cortar, esas heridas se
+ * sueltan también de las listas: es lo único que se puede hacer con una herida que no existe.
+ */
+function cerrarLaIncision(t: Taller, id: number, opciones: { conSusSeparadores: boolean }) {
+  const suyas = todasLasHeridas(t).filter((h) => h.incision === id)
+  const perdidas = new Set<HeridaEnCapa>()
+  for (const h of [...suyas].reverse()) for (const p of cerrarCapa(h)) perdidas.add(p)
+  const heridas = t.heridas ?? new Map<PlanoDeCorte, HeridaEnCapa[]>()
+  for (const [capa, lista] of [...heridas.entries()]) {
+    const quedan = lista.filter((h) => h.incision !== id && !perdidas.has(h))
+    if (quedan.length === 0) heridas.delete(capa)
+    else heridas.set(capa, quedan)
+  }
+  t.cortes = (t.cortes ?? []).filter((c) => c.id !== id)
+  if (t.ultimaIncision === id) {
+    t.ultimaIncision = t.cortes[t.cortes.length - 1]?.id
+    t.ultimaHerida = t.cortes[t.cortes.length - 1]?.plano
+  }
+  if (!opciones.conSusSeparadores) {
+    const quedanSep: SeparadorEnEscena[] = []
+    for (const s of t.separadores ?? []) {
+      if (s.datos.incision === id) soltarSeparador(s)
+      else quedanSep.push(s)
+    }
+    t.separadores = quedanSep
+    if (t.separadorEnLaMano && !quedanSep.includes(t.separadorEnLaMano.objeto)) t.separadorEnLaMano = undefined
+    if (!quedanSep.some((s) => s.datos.id === t.separadorActivo)) t.separadorActivo = quedanSep[quedanSep.length - 1]?.datos.id ?? null
+    const quedanPin: PellizcoEnEscena[] = []
+    for (const p of t.pellizcos ?? []) {
+      if (p.datos.incision === id) soltarPellizco(p)
+      else quedanPin.push(p)
+    }
+    t.pellizcos = quedanPin
+    if (t.pinzaEnLaMano && !quedanPin.includes(t.pinzaEnLaMano.objeto)) t.pinzaEnLaMano = undefined
+    if (!quedanPin.some((p) => p.datos.id === t.pellizcoActivo)) t.pellizcoActivo = quedanPin[quedanPin.length - 1]?.datos.id ?? null
+  }
+  actualizarLaProfundidad(t)
+}
+
+/**
+ * Las heridas de la piel dejan de ser «la incisión recién hecha» cuando hay una más profunda: el borde rojo pasa al
+ * tono de la piel (P-003 E4, pedido de Cristóbal: «el trazo rojo de la incisión se queda al profundizar; tiene que
+ * desaparecer»).
+ */
+function actualizarLaProfundidad(t: Taller) {
+  const hayProfunda = (t.heridas?.get('musculo')?.length ?? 0) > 0
+  for (const h of t.heridas?.get('piel') ?? []) {
+    if (!!h.profundizada === hayProfunda) continue
+    h.profundizada = hayProfunda
+    refrescarBordes(h)
+  }
 }
 
 /** La escena tal como la necesita la radiografía. */
@@ -4509,11 +4653,16 @@ export interface CorteGuardado {
   plano: PlanoDeCorte
   puntos: [number, number, number][]
   normales: [number, number, number][]
+  /** El número de la incisión (P-003 E4). Las sesiones de antes no lo traen: se les da uno al recargar. */
+  id?: number
+  /** El borde quedó quemado por el electrobisturí. */
+  quemado?: boolean
 }
 
 /** Lo cortado y cosido, en el formato que va a `sessionStorage`. */
 interface SesionGuardada {
-  v: 1
+  /** La 1 guardaba una sola herida por capa y sin número; la 2, todas las incisiones con el suyo (P-003 E4). */
+  v: 1 | 2
   cortes: CorteGuardado[]
   /** Cuánto está abierta cada herida, en el orden de `todasLasHeridas`, en unidades del mundo. */
   apertura: { mas: number; menos: number }[]
@@ -4546,7 +4695,7 @@ export function serializarSesion(taller: Taller): string {
   if (cortes.length === 0 && !hayPuntos) return ''
   const indice = new Map(heridas.map((h, i) => [h.malla.uuid, i]))
   const datos: SesionGuardada = {
-    v: 1,
+    v: 2,
     cortes,
     apertura: heridas.map((h) => ({ mas: h.mas, menos: h.menos })),
     aperturaAntesDeCoser: taller.aperturaAntesDeCoser
@@ -4731,10 +4880,12 @@ function cerrarTodasLasHeridas(taller: Taller) {
   taller.separadores = []
   taller.separadorEnLaMano = undefined
   taller.separadorActivo = null
-  for (const h of todasLasHeridas(taller)) cerrarCapa(h)
+  // De la última a la primera: cerrar una del medio obligaría a rehacer las que se hicieron después (P-003 E4).
+  for (const h of [...todasLasHeridas(taller)].reverse()) cerrarCapa(h)
   taller.heridas?.clear()
   taller.cortes = []
   taller.ultimaHerida = undefined
+  taller.ultimaIncision = undefined
   if (taller.trazo) taller.trazo.visible = true
 }
 

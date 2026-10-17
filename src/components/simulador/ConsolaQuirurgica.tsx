@@ -133,6 +133,7 @@ import {
   PASO_DE_AGARRE,
   SEPARACION_MAXIMA_DE_PINZAS_MM,
 } from '@/lib/exposicion'
+import { rotuloDeLaIncision } from '@/lib/incisiones'
 import type {
   AyudasDeEscopia,
   DatosDeNodo,
@@ -2935,9 +2936,29 @@ export function ConsolaQuirurgica({
               </p>
             ) : null}
             {herida.aviso ? <p className="consola-herida-aviso">{herida.aviso}</p> : null}
+            {/* Cada incisión por separado (P-003 E4): se pueden tener varios abordajes a la vez, y cerrar uno sin
+                tocar los demás. Con una sola, el bloque de arriba ya lo dice todo. */}
+            {herida.incisiones.length > 1 ? (
+              <ul className="consola-separadores" aria-label="Incisiones">
+                {herida.incisiones.map((inc, i) => (
+                  <li key={inc.id}>
+                    <span className="consola-separador-nombre">{rotuloDeLaIncision(i + 1, inc)}</span>
+                    <button
+                      type="button"
+                      className="consola-separador-quitar"
+                      aria-label={`Cerrar la incisión ${i + 1}`}
+                      title="Cerrar solo esta incisión"
+                      onClick={() => mando.current?.cerrarIncision(inc.id)}
+                    >
+                      <X size={14} aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {herida.capas.length > 0 ? (
               <button type="button" className="consola-boton consola-boton-ancho" onClick={() => mando.current?.cerrarHeridas()}>
-                <Undo2 size={16} aria-hidden /> Cerrar la herida
+                <Undo2 size={16} aria-hidden /> {herida.incisiones.length > 1 ? 'Cerrar todas las heridas' : 'Cerrar la herida'}
               </button>
             ) : null}
           </div>

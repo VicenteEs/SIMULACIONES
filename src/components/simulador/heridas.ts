@@ -51,6 +51,13 @@ export interface HeridaEnCapa {
   incision: number
   /** Cómo se hizo, para volver a cortarla cuando se cierra otra incisión de la misma malla. */
   trazo: { puntos: THREE.Vector3[]; normales: THREE.Vector3[]; parametros: ParametrosDeCorte }
+  /** El borde quedó quemado (electrobisturí con demasiada potencia): conserva su color oscuro. */
+  quemado?: boolean
+  /**
+   * Hay otra herida más profunda: el borde deja de ser la línea roja de «incisión recién hecha» (P-003 E4). Una
+   * línea roja flotando sobre una herida que ya se profundizó es lo que Cristóbal pidió que desapareciera.
+   */
+  profundizada?: boolean
 }
 
 /**
@@ -78,6 +85,14 @@ export interface ParametrosDeCorte {
 export const ANCHO_VISIBLE_DE_LA_INCISION_MM = 2.4
 /** Con la herida más abierta que esto la cinta se aparta: se ve el plano de debajo. */
 export const APERTURA_QUE_APARTA_LA_CINTA_MM = 5
+/** El borde de una incisión recién hecha: rojo, para que se vea sobre la piel. */
+export const COLOR_DEL_BORDE_RECIEN_HECHO = 0x8c1c1c
+/**
+ * El borde de una herida ya abierta o ya profundizada: un tono de piel oscurecida, que deja leer el labio sin una
+ * línea roja encima (P-003 E4). El quemado del electrobisturí conserva su color propio.
+ */
+export const COLOR_DEL_BORDE_ABIERTO = 0x4a2e27
+export const COLOR_DEL_BORDE_QUEMADO = 0x1d140f
 
 /**
  * Un valor de un atributo tal como está guardado, sin normalizar.
@@ -191,7 +206,7 @@ export function cortarCapa(
   bordesGeometria.setAttribute('position', new THREE.BufferAttribute(new Float32Array(segmentos * 4 * 3), 3))
   const bordes = new THREE.LineSegments(
     bordesGeometria,
-    new THREE.LineBasicMaterial({ color: 0x8c1c1c, depthWrite: false }),
+    new THREE.LineBasicMaterial({ color: COLOR_DEL_BORDE_RECIEN_HECHO, depthWrite: false }),
   )
   bordes.name = 'borde-de-la-herida'
   // El borde es decoración: no se pincha ni tapa lo que hay debajo.
@@ -251,6 +266,11 @@ export function cortarCapa(
   // Las heridas de antes conservan lo que tenían abierto: se componen sobre la malla nueva.
   if (previas.length > 0) recomponer(malla)
   return herida
+}
+
+/** Vuelve a dibujar el borde y la cinta de una herida con lo que tiene ahora (apertura, quemado, profundizada). */
+export function refrescarBordes(h: HeridaEnCapa) {
+  actualizarBordes(h)
 }
 
 function actualizarBordes(h: HeridaEnCapa) {
@@ -328,7 +348,12 @@ function actualizarCinta(h: HeridaEnCapa) {
   }
   destino.needsUpdate = true
   h.cinta.geometry.computeBoundingSphere()
-  h.cinta.visible = (abertura * h.escala) / h.unidadesPorMm <= APERTURA_QUE_APARTA_LA_CINTA_MM
+  const abierta = (abertura * h.escala) / h.unidadesPorMm > APERTURA_QUE_APARTA_LA_CINTA_MM
+  h.cinta.visible = !abierta
+  // El borde rojo es la incisión recién hecha: al abrirla o profundizarla se vuelve del tono de la piel (P-003 E4).
+  ;(h.bordes.material as THREE.LineBasicMaterial).color.set(
+    h.quemado ? COLOR_DEL_BORDE_QUEMADO : abierta || h.profundizada ? COLOR_DEL_BORDE_ABIERTO : COLOR_DEL_BORDE_RECIEN_HECHO,
+  )
 }
 
 /** Separa los labios: `mas` y `menos` en unidades del mundo. */

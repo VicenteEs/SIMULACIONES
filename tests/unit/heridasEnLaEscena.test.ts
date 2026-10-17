@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
-import { abrirCapa, cadenaDeLaMalla, cerrarCapa, cortarCapa, ladoDeLaHerida, sitioEnLaHerida } from '@/components/simulador/heridas'
+import {
+  abrirCapa,
+  cadenaDeLaMalla,
+  cerrarCapa,
+  COLOR_DEL_BORDE_ABIERTO,
+  COLOR_DEL_BORDE_QUEMADO,
+  COLOR_DEL_BORDE_RECIEN_HECHO,
+  cortarCapa,
+  ladoDeLaHerida,
+  refrescarBordes,
+  sitioEnLaHerida,
+} from '@/components/simulador/heridas'
 
 /**
  * El pegamento entre el corte de mallas y la escena (D-167): `heridas.ts` pasa la
@@ -456,5 +467,46 @@ describe('varias incisiones en una misma malla (P-003 E4)', () => {
 
   it('una malla sin heridas no tiene cadena', () => {
     expect(cadenaDeLaMalla(pielPlana())).toEqual([])
+  })
+})
+
+describe('el borde rojo se va al abrir o profundizar (P-003 E4.5)', () => {
+  const color = (h: ReturnType<typeof cortarCapa>) => ((h!.bordes.material as THREE.LineBasicMaterial).color.getHex())
+  const nueva = () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    return cortarCapa(malla, puntos, normales, PARAMETROS)!
+  }
+
+  it('recién hecha es roja', () => {
+    expect(color(nueva())).toBe(COLOR_DEL_BORDE_RECIEN_HECHO)
+  })
+
+  it('con poca apertura sigue roja y al pasar de 5 mm toma el tono de la piel', () => {
+    const h = nueva()
+    // La malla de prueba mide 20 unidades: 1 unidad = 1 mm si `unidadesPorMm` es 1.
+    h.unidadesPorMm = 1
+    abrirCapa(h, 1, 1)
+    expect(color(h)).toBe(COLOR_DEL_BORDE_RECIEN_HECHO)
+    abrirCapa(h, 4, 4)
+    expect(color(h)).toBe(COLOR_DEL_BORDE_ABIERTO)
+  })
+
+  it('al profundizar (otra herida más profunda) deja de ser roja aunque esté cerrada', () => {
+    const h = nueva()
+    h.profundizada = true
+    refrescarBordes(h)
+    expect(color(h)).toBe(COLOR_DEL_BORDE_ABIERTO)
+    h.profundizada = false
+    refrescarBordes(h)
+    expect(color(h)).toBe(COLOR_DEL_BORDE_RECIEN_HECHO)
+  })
+
+  it('el borde quemado por el electrobisturí conserva su color oscuro pase lo que pase', () => {
+    const h = nueva()
+    h.quemado = true
+    h.profundizada = true
+    refrescarBordes(h)
+    expect(color(h)).toBe(COLOR_DEL_BORDE_QUEMADO)
   })
 })
