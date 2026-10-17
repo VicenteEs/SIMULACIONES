@@ -95,6 +95,7 @@ import { encuadreVigente, type Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import { CATEGORIAS_DE_INSTRUMENTAL, ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
 import { leerFichaParaElSimulador, type FichaParaElSimulador } from '@/app/(frontend)/acciones/estructuras'
 import { VentanaDeEstructura } from '@/app/(frontend)/admin-panel/estructuras/VentanaDeEstructura'
+import { familiaDeSistema } from '@/lib/estructuras'
 import { agruparInsumos, anotarUso, filasParaLaBandeja, type RegistroDeInsumos } from '@/lib/insumos'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import { comportamientoDelInstrumento, guiaDelInstrumento } from '@/lib/comportamientoDelInstrumento'
@@ -666,6 +667,11 @@ export function ConsolaQuirurgica({
     | null
   >(null)
   const [editandoLaFicha, setEditandoLaFicha] = useState<string | null>(null)
+  // El músculo sobre el que se trabaja (P-003 E10): «cortar» solo ese, o «separar» (retraerlo sin cortarlo), con qué
+  // instrumentos se ofrece cada cosa y lo que hay retraído ahora.
+  const [musculoObjetivo, setMusculoObjetivo] = useState<{ nodo: string; nombre: string; accion: 'cortar' | 'separar' } | null>(null)
+  const [eligiendoAccion, setEligiendoAccion] = useState<'cortar' | 'separar' | null>(null)
+  const [retracciones, setRetracciones] = useState<{ nodo: string; nombre: string; aperturaMm: number; maximoMm: number }[]>([])
   // El instrumento en la mano: qué articulaciones declara su archivo y cuánto
   // las ha movido quien lo usa. Vive aquí y no dentro del visor pequeño porque
   // lo mueven dos cosas a la vez —los deslizadores y la escena— y las dos
@@ -1192,6 +1198,8 @@ export function ConsolaQuirurgica({
     setIndice(0)
     setInsumos({})
     setMarcadasParaLaBandeja(null)
+    setMusculoObjetivo(null)
+    setEligiendoAccion(null)
     setModo(MODO_DEL_OBJETIVO[objetivoDelPaso(caso.pasos[0] ?? {})])
     elegirInstrumento(null)
     setFuerza(fuerzaInicial(caso.pasos[0] ?? {}))
@@ -1973,6 +1981,26 @@ export function ConsolaQuirurgica({
   }
 
   const tieneMandosPropios = objetivo === 'trazo' || largoDelTrazoMm > 0 || objetivo === 'reduccion'
+
+  /**
+   * Los instrumentos de la bandeja que sirven para actuar sobre un músculo (P-003 E10), los preferidos primero: para
+   * cortar, la tijera de Metzenbaum, el bisturí profundo y el electrobisturí; para separar, el Farabeuf, el Senn-Miller
+   * y el Hohmann. Es lo que se ofrece por omisión: la ficha del músculo no guarda aún un abordaje propio.
+   */
+  const instrumentosParaActuar = (accion: 'cortar' | 'separar') => {
+    const preferidos = accion === 'cortar' ? ['metzenbaum', 'bisturi', 'electro'] : ['farabeuf', 'senn', 'hohmann']
+    const sinTildes = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const sirven = caso.instrumental.filter((i) => {
+      const q = comportamientoDelInstrumento(i)
+      return accion === 'cortar' ? q.corta === 'musculo' || !!q.roma : !!q.separa
+    })
+    const puesto = (i: { nombre: string; slug?: string | null }) => {
+      const texto = sinTildes(`${i.slug ?? ''} ${i.nombre}`)
+      const k = preferidos.findIndex((p) => texto.includes(p))
+      return k < 0 ? preferidos.length : k
+    }
+    return [...sirven].sort((a, b) => puesto(a) - puesto(b))
+  }
 
   // «Insumos utilizados» al terminar (P-003 E7): lo que hizo algo en el recorrido, por categoría y con los tornillos
   // por largo. En el editor cada fila lleva una casilla —todo lo usado marcado— y un botón que deja la bandeja del caso
@@ -3264,6 +3292,57 @@ export function ConsolaQuirurgica({
                     <p className="consola-vacio">Todavía no tiene ficha escrita.</p>
                   ) : null}
                 </details>
+                {familiaDeSistema(info.ficha.sistema) === 'musculo' ? (
+                  <div className="consola-info-acciones">
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      aria-pressed={eligiendoAccion === 'cortar'}
+                      onClick={() => setEligiendoAccion(eligiendoAccion === 'cortar' ? null : 'cortar')}
+                    >
+                      Cortar
+                    </button>
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      aria-pressed={eligiendoAccion === 'separar'}
+                      onClick={() => setEligiendoAccion(eligiendoAccion === 'separar' ? null : 'separar')}
+                    >
+                      Separar
+                    </button>
+                    {eligiendoAccion ? (
+                      <ul className="consola-info-instrumentos">
+                        {instrumentosParaActuar(eligiendoAccion).length === 0 ? (
+                          <li className="consola-vacio">
+                            {eligiendoAccion === 'cortar'
+                              ? 'No hay en la bandeja un instrumento para cortar músculo (bisturí, tijera de Metzenbaum o electrobisturí).'
+                              : 'No hay en la bandeja un separador (Farabeuf, Senn-Miller, Hohmann…).'}
+                          </li>
+                        ) : (
+                          instrumentosParaActuar(eligiendoAccion).map((i) => (
+                            <li key={i.id}>
+                              <button
+                                type="button"
+                                className="consola-anadir-opcion"
+                                onClick={() => {
+                                  const accion = eligiendoAccion
+                                  setMusculoObjetivo({ nodo: info.nodo, nombre: info.ficha.nombre, accion })
+                                  setEligiendoAccion(null)
+                                  elegirInstrumento(i.id)
+                                  // Elegir el instrumento ya cambió de modo, pero la tijera puede haber ido a «disecar»:
+                                  // aquí se pide cortar, no disecar.
+                                  setModo(accion === 'cortar' ? 'trazar' : 'separar')
+                                }}
+                              >
+                                {eligiendoAccion === 'cortar' ? 'Cortar' : 'Separar'} con {i.nombre}
+                              </button>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
                 {editor ? (
                   <button type="button" className="consola-boton" onClick={() => setEditandoLaFicha(info.ficha.atlasId)}>
                     Editar
@@ -3286,6 +3365,28 @@ export function ConsolaQuirurgica({
                 </p>
               </>
             )}
+          </div>
+        ) : null}
+        {musculoObjetivo ? (
+          <div className="consola-info consola-objetivo-de-plano" role="status">
+            <p>
+              {musculoObjetivo.accion === 'cortar' ? 'Cortando solo' : 'Separando'} <strong>{musculoObjetivo.nombre}</strong>
+              {musculoObjetivo.accion === 'separar'
+                ? retracciones.some((r) => r.nodo === musculoObjetivo.nodo)
+                  ? ` · retraído ${Math.round(retracciones.find((r) => r.nodo === musculoObjetivo.nodo)?.aperturaMm ?? 0)} mm (la rueda lo abre o lo cierra)`
+                  : ' · haga clic en el músculo con el separador'
+                : ' · trace la incisión sobre él con el instrumento'}
+            </p>
+            <div className="consola-info-acciones">
+              {retracciones.length > 0 ? (
+                <button type="button" className="consola-boton" onClick={() => mando.current?.soltarRetracciones()}>
+                  Soltar el músculo
+                </button>
+              ) : null}
+              <button type="button" className="consola-boton" onClick={() => setMusculoObjetivo(null)}>
+                Quitar el objetivo
+              </button>
+            </div>
           </div>
         ) : null}
         {editandoLaFicha ? (
@@ -3420,6 +3521,8 @@ export function ConsolaQuirurgica({
               editor?.alMoverFragmento?.()
             }}
             alSenalar={editor?.alSenalar}
+            musculoObjetivo={musculoObjetivo ? { nodo: musculoObjetivo.nodo, accion: musculoObjetivo.accion } : null}
+            alRetraer={(estado) => setRetracciones(estado.lista)}
             alInformar={(golpe) => {
               if (!golpe) {
                 mando.current?.resaltarNodo(null)

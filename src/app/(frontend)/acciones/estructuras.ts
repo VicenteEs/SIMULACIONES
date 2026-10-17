@@ -56,6 +56,8 @@ function textosDeLaFicha(valor: unknown, que: string): Partial<Record<CampoDeLaF
 export interface FichaParaElSimulador {
   atlasId: string
   nombre: string
+  /** El sistema del atlas (`muscular`, `nervous`…): el simulador ofrece «Cortar» y «Separar» solo a los músculos. */
+  sistema: string
   nombreLatino: string
   definicion: string
   origen: string
@@ -83,6 +85,7 @@ export async function leerFichaParaElSimulador(atlasId: unknown): Promise<Respue
     return {
       atlasId: ficha.atlasId,
       nombre: ficha.nombre,
+      sistema: ficha.sistema,
       nombreLatino: ficha.nombreLatino,
       definicion: ficha.definicion,
       origen: ficha.origen,

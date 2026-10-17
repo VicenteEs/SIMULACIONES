@@ -57,6 +57,7 @@ import {
   type SeparadorColocado,
   type TensionDeLaPiel,
 } from '@/lib/exposicion'
+import { RADIO_DE_RETRACCION_MM, retraerVertices } from '@/lib/retraccion'
 import {
   aperturaPorLabioEnMm,
   avanzo,
@@ -270,6 +271,8 @@ export interface MandoDelLienzo {
   cerrarIncision: (id: number) => void
   /** Destaca una pieza del modelo con un tinte encima (el botón «Info», P-003 E9); `null` lo quita. */
   resaltarNodo: (nodo: string | null) => void
+  /** Devuelve los músculos retraídos a su sitio (P-003 E10). */
+  soltarRetracciones: () => void
   /** Abre (o cierra) las heridas hasta `mm` de apertura, sin arrastrar. */
   abrirHeridas: (mm: number) => void
   /** Lo que hay abierto ahora mismo, o `null` si no se ha cortado nada. */
@@ -558,6 +561,8 @@ export function LienzoQuirurgico({
   alCargar,
   alSenalar,
   alInformar,
+  alRetraer,
+  musculoObjetivo,
   alFallar,
   mando,
 }: {
@@ -687,6 +692,13 @@ export function LienzoQuirurgico({
    * `atlasId`: la consola lo dice, no lo adivina.
    */
   alInformar?: (golpe: { nodo: string; atlasId: string | null; etiqueta: string | null } | null) => void
+  /**
+   * El músculo sobre el que se trabaja (P-003 E10): con `cortar`, el bisturí profundo corta solo ese; con `separar`,
+   * un clic con un separador en la mano lo **retrae** sin cortarlo. `null` es lo de siempre: la capa entera.
+   */
+  musculoObjetivo?: { nodo: string; accion: 'cortar' | 'separar' } | null
+  /** Se llama cuando cambian las retracciones de músculo, con lo que hay puesto. */
+  alRetraer?: (estado: EstadoDeLasRetracciones) => void
   mando?: Ref<MandoDelLienzo>
 }) {
   const lienzo = useRef<HTMLDivElement>(null)
@@ -754,6 +766,9 @@ export function LienzoQuirurgico({
     separadores?: SeparadorEnEscena[]
     separadorActivo?: number | null
     siguienteSeparador?: number
+    /** Los músculos retraídos con un separador, sin cortar (P-003 E10). */
+    retracciones?: RetraccionDeMusculo[]
+    siguienteRetraccion?: number
     /** Las pinzas de reducción puestas y la siguiente a numerar (P-003 E5). */
     pinzasDeReduccion?: PinzaDeReduccion[]
     siguientePinzaDeReduccion?: number
@@ -814,6 +829,8 @@ export function LienzoQuirurgico({
     alCargar,
     alSenalar,
     alInformar,
+    alRetraer,
+    musculoObjetivo,
     alFallar,
     alCargarInstrumento,
     alHerir,
@@ -852,6 +869,8 @@ export function LienzoQuirurgico({
       alCargar,
       alSenalar,
       alInformar,
+      alRetraer,
+      musculoObjetivo,
       alFallar,
       alCargarInstrumento,
       alHerir,
@@ -1017,6 +1036,8 @@ export function LienzoQuirurgico({
 
     resaltarNodo: (nodo) => resaltarUnNodo(taller.current, nodo),
 
+    soltarRetracciones: () => soltarLasRetracciones(taller.current, ultimas.current),
+
     cerrarIncision: (id) => {
       const t = taller.current
       cerrarLaIncision(t, id, { conSusSeparadores: false })
@@ -1099,6 +1120,11 @@ export function LienzoQuirurgico({
 
     moverSeparador: (deltaMm) => {
       const t = taller.current
+      // Un músculo retraído (P-003 E10) responde a la rueda cuando no hay separadores puestos en una herida.
+      if (!(t.separadores ?? []).length && (t.retracciones ?? []).length) {
+        moverLaRetraccion(t, ultimas.current, deltaMm)
+        return
+      }
       const activo = separadorActivo(t)
       if (!activo) return
       // La rueda abre la pareja por igual (P-003 E3); la barra del panel, solo el elegido.
@@ -1719,6 +1745,12 @@ export function LienzoQuirurgico({
         return undefined
       }
       const nombres = new Set(ultimas.current.piezas.filter((p) => p.rol === plano).map((p) => p.nodo))
+      // Con un músculo elegido para cortar (P-003 E10) el bisturí profundo corta solo ese y no toda la capa.
+      const elegido = ultimas.current.musculoObjetivo
+      if (plano === 'musculo' && elegido?.accion === 'cortar' && nombres.has(elegido.nodo)) {
+        nombres.clear()
+        nombres.add(elegido.nodo)
+      }
       const mallas: THREE.Mesh[] = []
       t.raiz?.traverse((o) => {
         const m = o as THREE.Mesh
@@ -2908,6 +2940,26 @@ export function LienzoQuirurgico({
         const t = taller.current
         const enLaMano = t.separadorEnLaMano
         const separa = ultimas.current.instrumento?.separa
+        // Con un músculo elegido para separar (P-003 E10) el clic lo retrae sin cortarlo, haya herida o no: el
+        // separador se apoya en el músculo, no en la incisión.
+        const objetivo = ultimas.current.musculoObjetivo
+        if (objetivo?.accion === 'separar' && separa && !enLaMano) {
+          const raiz = t.raiz
+          const golpeEnElMusculo = raiz
+            ? rayo.intersectObject(raiz, true).find((g) => g.object.visible && g.object.name === objetivo.nodo && (g.object as THREE.Mesh).isMesh)
+            : undefined
+          if (!golpeEnElMusculo) {
+            t.decir?.(`Apunte a ${objetivo.nodo.replace(/_/g, ' ')}: es el músculo que eligió para separar (y tiene que estar visible).`)
+            return
+          }
+          retraerElMusculo(
+            t,
+            ultimas.current,
+            { malla: golpeEnElMusculo.object as THREE.Mesh, punto: golpeEnElMusculo.point.clone(), normal: normalDelGolpe(golpeEnElMusculo) },
+            { nombre: ultimas.current.instrumento?.nombre ?? 'Separador', maximoMm: separa.maximoMm },
+          )
+          return
+        }
         // Con un separador en la mano se puede dejar aunque se haya cambiado de instrumento: lo que se deja es el suyo.
         if (!separa && !enLaMano) return
         // Pinchar un separador ya puesto lo levanta (P-003 E3, respuesta 3 del dueño): sigue al cursor y el clic
@@ -3917,6 +3969,8 @@ export type Taller = {
   siguienteSeparador?: number
   separadorEnLaMano?: EnLaMano<SeparadorEnEscena>
   pinzaEnLaMano?: EnLaMano<PellizcoEnEscena>
+  retracciones?: RetraccionDeMusculo[]
+  siguienteRetraccion?: number
   pinzasDeReduccion?: PinzaDeReduccion[]
   siguientePinzaDeReduccion?: number
   pellizcos?: PellizcoEnEscena[]
@@ -4008,6 +4062,124 @@ export function datosDeLosNodos(raiz: THREE.Object3D): DatosDeNodo[] {
  * que la incisión «desaparecía» y quien iba a meter los separadores no encontraba por dónde. También se colaba en
  * la lista de piezas del editor, como si fuera un trozo más del archivo.
  */
+/** Un músculo apartado por un separador, sin cortar (P-003 E10). Todo en el espacio local de la malla. */
+export interface RetraccionDeMusculo {
+  id: number
+  nodo: string
+  nombre: string
+  malla: THREE.Mesh
+  /** Las posiciones de antes de retraer: la cuenta parte siempre de ellas, para que cerrar devuelva lo que había. */
+  original: Float32Array
+  apoyo: THREE.Vector3
+  direccion: THREE.Vector3
+  aperturaMm: number
+  maximoMm: number
+}
+
+export interface EstadoDeLasRetracciones {
+  lista: { id: number; nodo: string; nombre: string; aperturaMm: number; maximoMm: number }[]
+}
+
+export const estadoDeLasRetracciones = (t: { retracciones?: RetraccionDeMusculo[] }): EstadoDeLasRetracciones => ({
+  lista: (t.retracciones ?? []).map((r) => ({ id: r.id, nodo: r.nodo, nombre: r.nombre, aperturaMm: r.aperturaMm, maximoMm: r.maximoMm })),
+})
+
+/**
+ * Pone las posiciones de la malla como las deja la retracción (`retraerVertices`), a partir de las originales. Si la malla
+ * ya no es la de antes —un corte la partió y tiene otros vértices— la retracción se da por perdida y devuelve `false`:
+ * aplicar posiciones de otra geometría la deformaría sin sentido.
+ */
+export function aplicarUnaRetraccion(r: RetraccionDeMusculo, unidadesPorMm: number): boolean {
+  const atributo = r.malla.geometry.getAttribute('position') as THREE.BufferAttribute | undefined
+  if (!atributo || atributo.array.length !== r.original.length) return false
+  retraerVertices(
+    r.original,
+    atributo.array as unknown as { [i: number]: number; length: number },
+    [r.apoyo.x, r.apoyo.y, r.apoyo.z],
+    [r.direccion.x, r.direccion.y, r.direccion.z],
+    r.aperturaMm * unidadesPorMm,
+    RADIO_DE_RETRACCION_MM * unidadesPorMm,
+  )
+  atributo.needsUpdate = true
+  // Sin esto el músculo se ilumina como si no se hubiera movido y la cámara lo recorta por la caja de antes.
+  r.malla.geometry.computeVertexNormals()
+  r.malla.geometry.computeBoundingSphere()
+  r.malla.geometry.computeBoundingBox()
+  return true
+}
+
+/**
+ * Apoya un separador en el borde de un músculo y lo retrae sin cortarlo (P-003 E10). Con una retracción ya puesta en ese
+ * músculo la reemplaza: dos separadores en el mismo músculo se sumarían a ciegas. Tira hacia fuera de su centro, en el
+ * sentido perpendicular al eje del hueso y a la superficie, que es hacia donde se aparta el borde de un músculo en un
+ * abordaje.
+ */
+function retraerElMusculo(
+  t: Taller,
+  u: LoUltimo,
+  golpe: { malla: THREE.Mesh; punto: THREE.Vector3; normal: THREE.Vector3 },
+  instrumento: { nombre: string; maximoMm: number },
+) {
+  const { malla } = golpe
+  const atributo = malla.geometry.getAttribute('position') as THREE.BufferAttribute
+  const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
+  const previa = (t.retracciones ?? []).find((r) => r.malla === malla)
+  const original = previa ? previa.original : Float32Array.from(atributo.array as ArrayLike<number>)
+  const eje = new THREE.Vector3(u.ejeLargo === 'x' ? 1 : 0, u.ejeLargo === 'y' ? 1 : 0, u.ejeLargo === 'z' ? 1 : 0)
+  const lateral = new THREE.Vector3().crossVectors(eje, golpe.normal)
+  if (lateral.lengthSq() < 1e-8) lateral.set(1, 0, 0)
+  lateral.normalize()
+  const centro = new THREE.Box3().setFromObject(malla).getCenter(new THREE.Vector3())
+  if (golpe.punto.clone().sub(centro).dot(lateral) < 0) lateral.negate()
+  const aLocal = new THREE.Matrix4().copy(malla.matrixWorld).invert()
+  const nueva: RetraccionDeMusculo = {
+    id: previa?.id ?? (t.siguienteRetraccion = (t.siguienteRetraccion ?? 0) + 1),
+    nodo: malla.name,
+    nombre: instrumento.nombre,
+    malla,
+    original,
+    apoyo: malla.worldToLocal(golpe.punto.clone()),
+    direccion: lateral.transformDirection(aLocal).normalize(),
+    aperturaMm: Math.min(10, instrumento.maximoMm),
+    maximoMm: instrumento.maximoMm,
+  }
+  t.retracciones = [...(t.retracciones ?? []).filter((r) => r !== previa), nueva]
+  aplicarUnaRetraccion(nueva, unidadesPorMm)
+  t.decir?.(`${nueva.nombre} apoyado en ${nueva.nodo.replace(/_/g, ' ')}: se retrae sin cortarlo (${nueva.aperturaMm} mm). La rueda lo abre o lo cierra.`)
+  u.alRetraer?.(estadoDeLasRetracciones(t))
+  t.pedirDibujo?.()
+}
+
+/** Abre o cierra la última retracción puesta, dentro del tope de su separador. */
+function moverLaRetraccion(t: Taller, u: LoUltimo, deltaMm: number) {
+  const r = (t.retracciones ?? [])[(t.retracciones ?? []).length - 1]
+  if (!r) return
+  r.aperturaMm = Math.min(r.maximoMm, Math.max(0, r.aperturaMm + deltaMm))
+  if (!aplicarUnaRetraccion(r, 1 / (u.milimetrosPorUnidad || 1000))) t.retracciones = (t.retracciones ?? []).filter((q) => q !== r)
+  t.decir?.(`${r.nombre}: ${r.nodo.replace(/_/g, ' ')} retraído ${Math.round(r.aperturaMm)} mm${r.aperturaMm >= r.maximoMm ? ' · tope del separador' : ''}`)
+  u.alRetraer?.(estadoDeLasRetracciones(t))
+  t.pedirDibujo?.()
+}
+
+/** Devuelve cada músculo retraído a su sitio y olvida las retracciones. */
+function soltarLasRetracciones(t: Taller, u?: LoUltimo) {
+  for (const r of t.retracciones ?? []) {
+    const atributo = r.malla.geometry.getAttribute('position') as THREE.BufferAttribute | undefined
+    if (!atributo || atributo.array.length !== r.original.length) continue
+    ;(atributo.array as Float32Array).set(r.original)
+    atributo.needsUpdate = true
+    r.malla.geometry.computeVertexNormals()
+    r.malla.geometry.computeBoundingSphere()
+    r.malla.geometry.computeBoundingBox()
+  }
+  const habia = (t.retracciones ?? []).length > 0
+  t.retracciones = []
+  if (habia) {
+    u?.alRetraer?.(estadoDeLasRetracciones(t))
+    t.pedirDibujo?.()
+  }
+}
+
 const NOMBRE_DEL_TINTE = 'tinte-de-info'
 
 /**
@@ -4407,6 +4579,8 @@ function aperturaAqui(h: HeridaEnCapa, t: number | undefined): { mas: number; me
 // ------------------------------------------------- separadores y pinzas colocados
 
 type LoUltimo = {
+  musculoObjetivo?: { nodo: string; accion: 'cortar' | 'separar' } | null
+  alRetraer?: (estado: EstadoDeLasRetracciones) => void
   milimetrosPorUnidad: number
   piezas: PiezaDelCaso[]
   ejeLargo: EjeLargo
@@ -5235,6 +5409,8 @@ export function refrescarSutura(
 
 /** Cierra todas las heridas: cada malla recupera la geometría de antes del corte. */
 function cerrarTodasLasHeridas(taller: Taller) {
+  // Un músculo retraído vuelve a su sitio con todo lo demás (P-003 E10).
+  soltarLasRetracciones(taller)
   // Los puntos de la disección eran de las heridas que se cierran.
   taller.diseccion = undefined
   // Un separador está puesto en una herida: sin ella no tiene dónde estar.

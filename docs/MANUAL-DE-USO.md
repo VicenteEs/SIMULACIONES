@@ -865,6 +865,13 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   sistema, dice que no las separa; en el editor del caso aparece entonces **«Volver a exportar
   con estructuras separadas»**, que crea un modelo nuevo desde la misma preparación (el actual no
   se borra) y rehace las piezas del caso.
+- **Cortar o separar un músculo concreto.** En la ficha de un **músculo** (modo Info) hay dos
+  botones. **Cortar** ofrece los instrumentos de la bandeja que cortan músculo (tijera de
+  Metzenbaum, bisturí profundo, electrobisturí): con uno en la mano, la incisión corta **solo ese
+  músculo** y no toda la capa. **Separar** ofrece los separadores (Farabeuf, Senn-Miller, Hohmann):
+  un clic en el músculo lo **retrae sin cortarlo** y la rueda lo abre o lo cierra, hasta el tope del
+  separador, para ver lo que hay debajo; «Soltar el músculo» lo devuelve a su sitio. «Quitar el
+  objetivo» vuelve a trabajar sobre la capa entera. La retracción no se guarda al recargar.
 - **La rueda del ratón maneja el instrumento.** Con unas tijeras, una pinza o un portaagujas
   en la mano, la rueda sobre el modelo los **abre y cierra**; con un separador abre el
   separador y la herida a la vez; con un tornillo cambia su largo; con una sutura que ya tiene

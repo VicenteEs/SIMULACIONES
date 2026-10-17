@@ -6229,6 +6229,24 @@ Novena etapa del plan P-003 (E9). Pedidos 16 y 17; respuestas 7, 10 y 11 de Cris
 
 *Consecuencias buenas.* Se puede pinchar cualquier músculo; la información sale del listado global y no hay que volver a llenarla. *Malas.* Un modelo con todo suelto tiene más objetos que dibujar (una pierna son unos 140); los casos viejos siguen fundidos hasta que un editor los reexporta; el modelo viejo queda en la biblioteca.
 
+### D-186 · 2026-10-18 · vigente
+**Cortar o separar un músculo concreto: la ficha de «Info» ofrece «Cortar» y «Separar», y separar retrae el músculo sin cortarlo.**
+Décima etapa del plan P-003 (E10). Pedidos 17 y 18 de Cristóbal. E10-Q1 (qué llevan vasos y nervios) se **omitió por indicación del dueño**: solo los músculos ofrecen las dos acciones.
+
+*Qué había.* La capa «músculo» era una masa: el bisturí profundo cortaba todas las mallas de papel `musculo` que cruzaba el trazo y los separadores abrían esa herida. No se podía elegir un músculo ni apartarlo entero sin cortarlo.
+
+*Qué se hizo.*
+- **`src/lib/retraccion.ts`** (puro, con pruebas): `pesoDeRetraccion` (campana de Gauss de σ = 40 mm que llega exactamente a 0 a 3σ, sin escalón) y `retraerVertices`, que parte siempre de las posiciones **originales**: repetir la misma apertura no suma y cerrar devuelve cada vértice a su sitio.
+- **En la ficha de un músculo** (modo «Info», solo si su sistema es muscular): botones **Cortar** y **Separar**, cada uno con los instrumentos de la bandeja que sirven —para cortar, Metzenbaum, bisturí profundo y electrobisturí; para separar, Farabeuf, Senn-Miller y Hohmann, en ese orden de preferencia—. Elegir uno lo pone en la mano, pasa al modo que toca y **fija el músculo como objetivo**; un aviso en pantalla lo dice y tiene «Quitar el objetivo».
+- **Cortar un músculo objetivo** corta solo ese (`aplicarElCorte` con la lista de mallas reducida a la suya), con todo lo de E4.
+- **Separar un músculo objetivo no lo corta: lo retrae.** Un clic en el músculo con el separador apoya la retracción en ese punto, con el tope del separador y hacia fuera de su centro (perpendicular al eje del hueso y a la superficie). La rueda la abre o la cierra; «Soltar el músculo» la devuelve. Se recalculan normales y esfera envolvente, para que no se ilumine ni se recorte como el original. Una retracción cuya malla fue partida después por un corte se da por perdida en vez de deformar otra geometría.
+
+*Desviaciones.* (1) **Los instrumentos por omisión no están en un campo `abordaje` de la ficha** (E8 ya lo había dejado fuera): se eligen de la bandeja por su comportamiento y su nombre. Un campo editable pide su propia migración y una pantalla en la ficha, y se dejó para cuando alguien pida abordajes distintos por músculo. (2) **No se guarda en la sesión ni en las incisiones** (E10.4): recargar suelta la retracción, como los separadores. (3) El **Hohmann** retrae con la misma deformación pero apoyado donde se hace clic en el músculo, no en el borde del hueso.
+
+*Probado.* Pruebas unitarias de la campana y de la retracción (apoyo, radio, cierre, repetir, cuenta de movidos, dirección) y de su aplicación a una malla (mueve lo cercano y deja lo lejano, cerrar devuelve lo de antes, una malla partida se da por perdida). Typecheck y lint limpios. **Sin recorrer a mano en el navegador** con un modelo exportado separado: conviene que Cristóbal lo pruebe en la pierna reexportada.
+
+*Consecuencias buenas.* Se ve lo que hay debajo de un músculo sin cortarlo, y un corte puede ir a un solo músculo. *Malas.* La retracción es una deformación local sin colisiones: el músculo puede atravesar lo de al lado; un músculo cortado después de retraerlo pierde la retracción.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -9389,7 +9407,7 @@ al lado; el editor la corrige ahí mismo y el cambio aparece en el listado globa
 
 ---
 
-#### E10 · Trabajar por planos: cortar o separar un músculo concreto · 3 sesiones · pendiente
+#### E10 · Trabajar por planos: cortar o separar un músculo concreto · 3 sesiones · hecha en local (2026-10-18, D-186; sin desplegar)
 
 **De dónde sale:** pedidos 17 y 18.
 
@@ -9468,7 +9486,7 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 | E7 · Insumos al terminar | hecha en local; sin desplegar | 1 | E3–E6 | D-184 |
 | E8 · Listado global de estructuras | hecha en local; sin desplegar | 3 | — | D-179 |
 | E9 · Estructuras separadas e «Info» | hecha en local; sin desplegar | 2–3 | E8 | D-185 |
-| E10 · Trabajar por planos | pendiente | 3 | E4, E9 | — |
+| E10 · Trabajar por planos | hecha en local; sin desplegar | 3 | E4, E9 | D-186 |
 
 ---
 
