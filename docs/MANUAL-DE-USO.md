@@ -807,6 +807,14 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
     ella, sin cambiar de borde ni de apertura.
   - **Al recargar la página** los separadores y las pinzas no se conservan (sí lo cortado y lo
     cosido): hay que volver a ponerlos.
+- **Varios abordajes en la misma cirugía.** Un trazo nuevo **ya no borra** la incisión anterior de
+  su capa: las incisiones se suman. Si el trazo **empieza (o termina) a menos de 5 mm del extremo
+  de una**, la **alarga** (así se abre en dos tiempos); si no, es otra incisión. Con más de una,
+  el recuadro «Herida» las lista —«Incisión 2 · músculo · 30 mm»— con una **×** que cierra solo esa;
+  «Cerrar todas las heridas» las cierra todas. Cada separador y cada pinza abre la incisión en que
+  se puso. Para corregir una incisión mal trazada, ciérrela desde esa lista (o «Borrar trazo»,
+  que deshace la última) y trace otra. El **borde rojo** de una incisión recién hecha se vuelve del
+  tono de la piel cuando se abre más de 5 mm o cuando hay una herida más profunda.
 - **Perforar (brocas de 1,5 a 4,5 mm, avellanador, machuelo, fresa).** El modo pasa a
   **Perforar**. Apunte al hueso y **mantenga pulsado**: la broca gira y avanza. Antes de
   empezar, dos deslizadores eligen la **inclinación** (a lo largo del hueso y a lo ancho, de

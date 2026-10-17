@@ -6150,6 +6150,26 @@ Tercera etapa del plan P-003 (E3). Pedidos de Cristóbal tras operar en `ved`: q
 
 *Consecuencias buenas.* Los separadores ya no tapan el centro del campo y se pueden mover sin quitarlos. *Malas.* **Los separadores y las pinzas siguen sin guardarse en la sesión** (D-171 guarda cortes y suturas): al recargar la página hay que volver a ponerlos; el plan lo daba por hecho, pero nunca se guardaron, y guardarlos con la sesión v2 de E4 (que añade las incisiones) es el momento. **Un clic en una pinza ya puesta ahora la levanta**, y quien solo quería elegirla debe pulsar Esc o dejarla. Si se reubica uno de la pareja, deja de ser pareja a efectos de «acompañar» y de la rueda.
 
+### D-181 · 2026-10-17 · vigente
+**Varios abordajes en una misma cirugía: las incisiones se suman en vez de borrarse, un trazo que arranca donde terminó otra la alarga, y el borde rojo se va al abrir o profundizar.**
+Cuarta etapa del plan P-003 (E4). Pedidos de Cristóbal: «el trazo rojo de la incisión se queda al profundizar; tiene que desaparecer» y más de un abordaje en la misma cirugía, «sin que se borre el anterior; cortes discontinuos que quedan abiertos».
+
+*Qué fallaba.* `aplicarElCorte` cerraba la herida anterior de la capa antes de cortar («un trazo nuevo es una incisión nueva») y `cortes` guardaba una por plano: un segundo abordaje en la piel borraba el primero. Y lo rojo que quedaba flotando no era el trazo de guía (que ya se esconde al cortar) sino los **bordes** de la herida (`0x8c1c1c`), que se veían siempre.
+
+*Cómo se hace.* Una **incisión** es un trazo sobre una capa, con su número; puede cortar varias mallas (cada una da una herida) y en una capa puede haber varias. **Cada corte parte la malla que dejó el anterior**, y `cortarMalla` conserva los índices de los vértices que había y añade los nuevos al final con su `origen`: eso permite **componer** (`componerCortes`, `corteDeMalla.ts`, sin `three`): la posición final de un vértice es la base del último corte más lo que cada corte lo desplaza, buscando hacia atrás por `origen`. Con un solo corte es exactamente `abrirHerida`; con dos lejanos cada uno abre lo suyo; un vértice nuevo del segundo corte dentro de la zona del primero hereda el arrastre de su arista. En la escena (`heridas.ts`) cada malla tiene su **cadena de heridas**: al cortar una malla que ya tiene herida se vuelve antes a su base cerrada; `abrirCapa` recompone toda la cadena; **cerrar la última** devuelve la geometría anterior, y **cerrar una del medio rehace las posteriores** sobre la anterior, con su mismo trazo y su misma apertura y **en el mismo objeto** (quien tenga una referencia la conserva).
+
+*Alargar.* Un trazo que arranca o termina a menos de **5 mm** del extremo de una incisión de su capa la alarga (`alargarIncision`, `incisiones.ts`): se une por el par de extremos más cercano, en el sentido que haga falta, sin repetir el punto de unión, y la incisión conserva su número (sus separadores y pinzas se quedan). Si no toca ninguna es otra. Al recargar la sesión, rehacer o hacer la herida de una disección no se pregunta. **La medida del paso** (`objetivo: 'trazo'`) sigue juzgando el trazo dibujado y no la incisión unida, como hoy.
+
+*Separadores y pinzas por incisión.* Cada uno guarda a qué incisión pertenece (`incision`) y su `posicion` es a lo largo de ella; `aplicarSeparadoresALasHeridas` abre cada incisión solo con lo suyo (`deLaIncision`), de modo que el separador de una no abre la otra aunque caiga en un punto que las dos tienen. Las pinzas puestas antes de que hubiera herida («donde irá la incisión») pasan a ser de la primera de la piel que se haga. La separación roma de una disección abre la incisión sobre la que separa; la herida de una disección es una incisión propia que se **reemplaza** con cada punto nuevo, no se suma.
+
+*El rojo.* El borde es rojo mientras es «la incisión recién hecha»; al abrirse más de 5 mm (la misma regla que aparta la cinta) o cuando hay una herida más profunda, pasa a un tono de piel oscurecida que deja leer el labio sin línea roja encima. El borde quemado del electrobisturí conserva su color. (`COLOR_DEL_BORDE_*` en `heridas.ts`.)
+
+*Panel «Incisiones».* Con más de una, la consola las lista («Incisión 2 · músculo · 30 mm · abierta 12 mm») con una × que cierra **solo esa**; «Cerrar todas las heridas» las cierra todas. «Borrar trazo» y el reinicio deshacen la **última** incisión, no toda la capa. **La sesión guardada pasa a la versión 2** (todas las incisiones con su número y si quemaron) y **sabe leer la 1**.
+
+*Probado* en local (administrador y caso de prueba creados y borrados después): dos incisiones en la piel conviven (antes la segunda borraba la primera); cerrar la 1 desde el panel deja la 2; un trazo que arranca en el extremo de una la alarga (109 mm pasa a 200 mm y siguen siendo dos); recargar la página las recupera las dos. Pruebas nuevas: composición de cortes sobre mallas de verdad (con el segundo cerrado, con el primero cerrado, lejanos, cercanos, sin triángulos vueltos), la cadena de heridas (cerrar la última, la del medio, todas en los dos órdenes, mismo objeto, apertura conservada), el borde (rojo, abierto, profundizada, quemado), alargar (cuatro formas de unir, umbral, no modifica lo que recibe, qué incisión elige) y `deLaIncision`. **No se probó** en el navegador la apertura por separadores de dos incisiones a la vez (lo cubren las pruebas de aritmética) ni la sesión v1 (el código la acepta; no hay una guardada con que probarlo).
+
+*Consecuencias buenas.* Se puede abrir en dos tiempos y tener varios abordajes; cerrar uno no toca los demás. *Malas.* **Un trazo que no toca a ninguna ya no reemplaza a la anterior**: quien se equivoca al trazar debe cerrar la incisión mala desde el panel o con «Borrar trazo» (antes se arreglaba trazando otra vez). **El segundo corte se hace sobre la malla cerrada** y no sobre la abierta por los separadores: si se traza sobre un labio muy abierto, el corte puede caer unos milímetros desplazado. **Los separadores y las pinzas siguen sin guardarse en la sesión** (hacía falta el catálogo de instrumentos para volver a cargarlos; queda para cuando se guarde el caso en curso). Con muchas incisiones en la misma malla rehacer la cadena cuesta (cada una vuelve a cortar la malla); con dos o tres no se nota.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -8914,7 +8934,7 @@ los separadores la siguen.
 
 ---
 
-#### E4 · Varios abordajes en una cirugía, y el trazo que se va al profundizar · 2–3 sesiones · pendiente
+#### E4 · Varios abordajes en una cirugía, y el trazo que se va al profundizar · 2–3 sesiones · hecha en local (2026-10-17, D-181; sin desplegar)
 
 **De dónde sale:** pedidos 6 y 9.
 
@@ -8956,14 +8976,14 @@ los separadores la siguen.
 
 **Tareas**
 
-- [ ] **E4.1 · Composición de cortes** en `src/lib/corteDeMalla.ts`, con sus pruebas.
-- [ ] **E4.2 · Lista de incisiones** en el lienzo (`t.incisiones`), la cadena por malla y `cerrarIncision(id)`.
-- [ ] **E4.3 · Separadores y pinzas por incisión** (`src/lib/exposicion.ts` y `exposicionEnLaEscena.ts`).
-- [ ] **E4.4 · Alargar una incisión** con un trazo que empieza en su extremo.
-- [ ] **E4.5 · Bordes que se apartan** (`actualizarBordes`, regla de la cinta y del plano de debajo).
-- [ ] **E4.6 · Panel «Incisiones»** en la consola.
-- [ ] **E4.7 · Sesión guardada v2,** compatible con la v1.
-- [ ] **E4.8 · Pruebas, manual y D-nnn.** Dos abordajes en la piel y uno en el músculo bajo el primero; cerrar el del
+- [x] **E4.1 · Composición de cortes** (commit `8bfb5b5`) en `src/lib/corteDeMalla.ts`, con sus pruebas.
+- [x] **E4.2 · Lista de incisiones** (commit `b7a170b`) en el lienzo (`t.incisiones`), la cadena por malla y `cerrarIncision(id)`.
+- [x] **E4.3 · Separadores y pinzas por incisión** (commit `b7a170b`) (`src/lib/exposicion.ts` y `exposicionEnLaEscena.ts`).
+- [x] **E4.4 · Alargar una incisión** (commit `b7a170b`) con un trazo que empieza en su extremo.
+- [x] **E4.5 · Bordes que se apartan** (commit `b7a170b`) (`actualizarBordes`, regla de la cinta y del plano de debajo).
+- [x] **E4.6 · Panel «Incisiones»** (commit `b7a170b`) en la consola.
+- [x] **E4.7 · Sesión guardada v2,** (commit `98eb95a`) compatible con la v1.
+- [x] **E4.8 · Pruebas, manual y D-nnn.** (commit `b7a170b`) Dos abordajes en la piel y uno en el músculo bajo el primero; cerrar el del
   medio; recargar la página y recuperarlos; la evaluación del paso de trazo sigue igual.
 
 **Hecho cuando…** Se abre la piel en dos sitios, se profundiza bajo uno de ellos, los dos quedan abiertos con sus
@@ -9381,7 +9401,7 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 | E1 · Catálogos que se amplían, con aviso | hecha en local; sin desplegar | 1 | — | D-177 |
 | E2 · Fluoroscopia por disparos y penetración | hecha en local; sin desplegar | 1–2 | — | D-178 |
 | E3 · Separadores y pinzas | hecha en local; sin desplegar | 2 | — | D-180 |
-| E4 · Varios abordajes; el rojo que se va | pendiente | 2–3 | E3 | — |
+| E4 · Varios abordajes; el rojo que se va | hecha en local; sin desplegar | 2–3 | E3 | D-181 |
 | E5 · Reducir con la pinza | pendiente | 1–2 | E3 | — |
 | E6 · Placa, perforación, medidor y tornillos | pendiente | 2 | E2 | — |
 | E7 · Insumos al terminar | pendiente | 1 | E3–E6 | — |
