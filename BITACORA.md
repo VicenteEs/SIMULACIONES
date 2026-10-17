@@ -6180,7 +6180,7 @@ Quinta etapa del plan P-003 (E5). Pedido de Cristóbal: «tomar el fragmento con
 
 *Probado* en local (cuenta y caso de prueba creados y borrados después, con una pinza de reducción de prueba con su modelo): al coger la Weber el modo pasa a «Reducir»; un clic en el hueso la deja agarrando el trozo («Esqueleto») y aparecen las asas; arrastrar una flecha movió el trozo y **la pinza fue con él**; «Soltar la pinza» la quitó. Pruebas nuevas del comportamiento (los tres slugs, las de nombre, que ninguna pinza de disección reduce, la guía).
 
-*Consecuencias buenas.* La pinza hace lo que dice su nombre y reutiliza todo lo de D-171 y D-174. *Malas.* **Las pinzas de reducción no se guardan en la sesión** (recargar la página las suelta; el trozo conserva su sitio solo si el caso lo guarda, que hoy no). **La pinza no tiene articulación de agarre propia**: queda con la pose del modelo; cerrar y abrir las mandíbulas al tomar y soltar queda para cuando haya una animación de agarre. El modelo de la pinza es el de ved, y su tamaño en un modelo exportado en milímetros sigue la misma cuenta que los demás instrumentos.
+*Consecuencias buenas.* La pinza hace lo que dice su nombre y reutiliza todo lo de D-171 y D-174. *Malas.* **Las pinzas de reducción no se guardaban en la sesión** (superado por D-188: ya se guardan; antes, recargar la página las soltaba; el trozo conserva su sitio solo si el caso lo guarda, que hoy no). **La pinza no tiene articulación de agarre propia**: queda con la pose del modelo; cerrar y abrir las mandíbulas al tomar y soltar queda para cuando haya una animación de agarre. El modelo de la pinza es el de ved, y su tamaño en un modelo exportado en milímetros sigue la misma cuenta que los demás instrumentos.
 
 ### D-183 · 2026-10-18 · vigente
 **La placa se ajusta y se fija, se perfora por sus agujeros, el medidor entra en el orificio y el tornillo exige el orden; los compañeros de la placa salen solos en la bandeja.**
@@ -6260,6 +6260,24 @@ Respuesta del dueño a E10-Q2 («¿el orden de planos debe ser un objetivo de pa
 *Probado.* Pruebas unitarias del objetivo (no se deduce a otro, sin instrumento, músculo o acción ajenos, mínimo de retracción, cortar, instrucción, nombres del panel y paso hasta la consola). Typecheck, lint, tipos de Payload regenerados y la prueba de migraciones en verde. Sin recorrer a mano en el navegador.
 
 *Consecuencias buenas.* El orden de los planos se enseña y se evalúa como el resto. *Malas.* Un valor nuevo en un enum de PostgreSQL **no se puede quitar** con una migración inversa limpia: la bajada rehace el enum y falla si ya hay un paso con `planos`.
+
+### D-188 · 2026-10-18 · vigente
+**Recorrido en el navegador de E6, E9 y E10, tres fallos que salieron de ahí, y lo que quedaba pendiente: la sesión guarda lo puesto, la ficha lleva el abordaje y se midió el rendimiento.**
+Cierra los pendientes de D-180 a D-187.
+
+*Recorrido hecho en local* (cuenta, instrumentos, modelos y caso de prueba creados y borrados después; el modelo es la preparación «pierna derecha» del atlas, 139 piezas):
+- **E9.** «Volver a exportar con estructuras separadas» creó el modelo nuevo y el editor rehizo las piezas solo (5 piezas viejas fuera, 139 nuevas). Con el modelo separado, «Info» identifica por nombre cada músculo que se pincha (recto femoral, vasto medial, tibial anterior, sóleo, flexor largo de los dedos…), con su ficha; con un modelo viejo dice que no separa las estructuras.
+- **E10.** «Separar» con el Farabeuf retrae el tibial anterior 10 mm al hacer clic y 14 mm tras dos giros de la rueda, y el paso de planos pasa a «Gesto completado»; sin retraer, dice «El músculo no está retraído». «Cortar» con la Metzenbaum corta **solo** el tibial anterior (herida de 72 mm).
+- **E6.** Placa apoyada, fijada, broca de 2,5 sobre el agujero 4 («Agujero 4 perforado con Ø 2,5 mm… Ahora se mide»), tornillo en un agujero sin perforar rechazado («El agujero 5 todavía no está perforado: se perfora, se mide y después se atornilla»), medidor en el agujero 4 («hueso de 53 mm… Pida un tornillo de 60 mm»), tornillo de 60 mm puesto, bicortical.
+
+*Tres fallos que solo se veían así, ya corregidos.* (1) El botón de reexportar dejaba al editor en «Falta elegir el modelo 3D»: la lista de modelos del desplegable se pidió al abrir la página y no traía el recién creado; ahora se vuelve a pedir (`alRecargarRelacion`). (2) **La rueda no abría el músculo retraído**: el manejador de la rueda del separador exigía separadores en una herida y callaba; ahora una retracción también responde. (3) **Cortar un músculo elegido no cortaba nada** si el trazo se apoyaba en otro músculo que lo tapaba: con un objetivo de corte el rayo del trazo busca ese músculo aunque haya otros encima. Además, el paso «cortar» contaba una herida que ya existía antes de elegir el músculo: ahora solo cuenta una incisión nueva.
+
+*Pendientes cerrados.*
+- **La sesión guarda lo puesto (versión 3)**: separadores, pinzas, pinzas de reducción y músculos retraídos, cada uno con su modelo 3D y su pose, y el músculo objetivo en la clave de sesión de la consola. Se leen las versiones 1 y 2. Comprobado con separadores y con retracción y objetivo tras recargar (los separadores vuelven y la herida sigue abierta); **las pinzas de disección y las de reducción se escriben y se leen con el mismo molde pero no se recorrieron a mano** (el caso de prueba no tiene piel ni una pinza de reducción en la bandeja).
+- **Abordaje por músculo (E10.2)**: dos campos de texto nuevos en la ficha, `abordajeCortar` y `abordajeSeparar` (identificadores de instrumento separados por comas), que pasan por la ventana, la planilla y el historial como el resto. Si están escritos y alguno está en la bandeja, esos van primero y solos; si no, valen los de siempre. **Migración** `20261017_231443_abordaje_de_las_estructuras`: cuatro `ADD COLUMN` (la tabla y la de versiones), sin tocar nada.
+- **Rendimiento (E9.2)**: la pierna separada (139 objetos, unos 119 000 triángulos) se mueve a unos 60 cuadros por segundo con la órbita en un lienzo de 905 × 767 en esta máquina. **Un cuerpo entero no cabe**: exportado separado pesa 56,6 MB y el techo son 5 MB, así que una preparación de cientos de objetos es el máximo realista y el umbral de 400 piezas para fundir los vasos se queda como red de seguridad.
+
+*Sigue sin hacerse* (y se dice): la incisión recta entre dos puntos lejanos de una pierna corta por dentro del miembro —es la cuerda, no la superficie—, y en el sóleo (que casi no se ve) el corte elegido no atravesó la malla; ambas cosas son de siempre y no de E10. Lo de Cristóbal, probarlo con una pierna suya, sigue siendo recomendable.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -8704,7 +8722,7 @@ qué tarjeta tiene y cuánta memoria.
 
 ---
 
-### P-003 · 2026-10-17 · hecha en local, sin desplegar (2026-10-18; E1 a E10 hechas; faltan E9.2, medir el rendimiento, y E10.4, guardar la retracción en la sesión)
+### P-003 · 2026-10-17 · hecha en local, sin desplegar (2026-10-18; E1 a E10 hechas y recorridas en el navegador, ver D-188)
 **Las observaciones de Cristóbal sobre el simulador quirúrgico: catálogos que se amplían con aviso, fluoroscopia
 por disparos y con penetración, separadores que no se cruzan y se reubican, varios abordajes en una cirugía,
 reducción con pinza, placa que se ajusta antes de perforar, insumos al terminar, y una ficha anatómica global
@@ -9409,8 +9427,7 @@ ve igual en el taller.
   verdad (`piernaDerechaEnElCaso.test.ts` es el molde).
 - [ ] **E9.2 · Medir el rendimiento** en el equipo de referencia con una pierna y con un tronco, y decidir el umbral
   de fusión de vasos.
-  *(Pendiente: no se pudo medir en el equipo de referencia; se dejó el umbral del plan, 400 piezas, ajustable con
-  `maximoDePiezasSueltas`. Ver D-185.)*
+  *(Medido con una pierna separada, no con el equipo de referencia: ~60 fps; un cuerpo entero no cabe en el techo de 5 MB. Ver D-188.)*
 - [x] **E9.3 · «Volver a exportar con estructuras separadas»** (commit `3ce50b0`) en el editor de la cirugía.
 - [x] **E9.4 · «Info» en la consola:** (commit `3ce50b0`) el botón, el destacado, la ficha y «Editar» para el editor.
 - [x] **E9.5 · Pruebas, manual y D-nnn.** (commit `3ce50b0`) Pinchar el músculo tibial anterior abre su ficha; una pieza oculta no; un
@@ -9457,7 +9474,7 @@ al lado; el editor la corrige ahí mismo y el cambio aparece en el listado globa
   omisión.
 - [x] **E10.3 · Músculo objetivo** (commit `0dad095`) en el lienzo: corte reducido y retracción.
 - [ ] **E10.4 · Guardarlo en la sesión** (D-171) y en las incisiones de E4.
-  *(Pendiente: ni la retracción ni el músculo objetivo se guardan en la sesión. Ver D-186.)*
+  *(Hecho en D-188: la sesión v3 guarda la retracción y el músculo objetivo.)*
 - [x] **E10.5 · Pruebas, manual y D-nnn.** (commit `0dad095`) Un abordaje con dos planos: separar un músculo, cortar el de debajo desde
   su inserción y ver el hueso.
 

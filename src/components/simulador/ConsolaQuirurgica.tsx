@@ -96,6 +96,7 @@ import { CATEGORIAS_DE_INSTRUMENTAL, ETIQUETA_DE_CATEGORIA } from '@/lib/instrum
 import { leerFichaParaElSimulador, type FichaParaElSimulador } from '@/app/(frontend)/acciones/fichaDelSimulador'
 import { VentanaDeEstructura } from '@/app/(frontend)/admin-panel/estructuras/VentanaDeEstructura'
 import { familiaDeSistema } from '@/lib/estructuras'
+import { instrumentosParaActuar } from '@/lib/abordajeDelMusculo'
 import { agruparInsumos, anotarUso, filasParaLaBandeja, type RegistroDeInsumos } from '@/lib/insumos'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import { comportamientoDelInstrumento, guiaDelInstrumento } from '@/lib/comportamientoDelInstrumento'
@@ -662,6 +663,7 @@ export function ConsolaQuirurgica({
   const [insumos, setInsumos] = useState<RegistroDeInsumos>({})
   const [marcadasParaLaBandeja, setMarcadasParaLaBandeja] = useState<Set<string> | null>(null)
   // La estructura que se pinchó con «Info» y lo que se sabe de ella (P-003 E9). El panel solo se ve en ese modo.
+  const claveDeLaSesion = editor ? `trauma-sesion:editor::${caso.modeloUrl ?? ''}` : `trauma-sesion:residente:${documentoId}:${caso.modeloUrl ?? ''}`
   const [info, setInfo] = useState<
     | { estado: 'cargando'; nodo: string; nombre: string }
     | { estado: 'ficha'; nodo: string; ficha: FichaParaElSimulador }
@@ -671,7 +673,7 @@ export function ConsolaQuirurgica({
   const [editandoLaFicha, setEditandoLaFicha] = useState<string | null>(null)
   // El músculo sobre el que se trabaja (P-003 E10): «cortar» solo ese, o «separar» (retraerlo sin cortarlo), con qué
   // instrumentos se ofrece cada cosa y lo que hay retraído ahora.
-  const [musculoObjetivo, setMusculoObjetivo] = useState<{ nodo: string; nombre: string; accion: 'cortar' | 'separar' } | null>(null)
+  const [musculoObjetivo, setMusculoObjetivo] = useState<{ nodo: string; nombre: string; accion: 'cortar' | 'separar'; yaCortadas: number[] } | null>(null)
   const [eligiendoAccion, setEligiendoAccion] = useState<'cortar' | 'separar' | null>(null)
   const [retracciones, setRetracciones] = useState<{ nodo: string; nombre: string; aperturaMm: number; maximoMm: number }[]>([])
   // El instrumento en la mano: qué articulaciones declara su archivo y cuánto
@@ -1034,6 +1036,29 @@ export function ConsolaQuirurgica({
   useEffect(() => {
     alRefrescar.current = { refrescarVisibles, indice, capasApagadas }
   })
+  // El músculo elegido sobrevive a recargar, junto con lo demás de la sesión (P-003 E10.4). Va en su propia clave, al
+  // lado de la del lienzo, porque es del estado de la consola y no de la escena.
+  const claveDelObjetivo = `${claveDeLaSesion}:objetivo`
+  useEffect(() => {
+    try {
+      const crudo = sessionStorage.getItem(claveDelObjetivo)
+      const g = crudo ? (JSON.parse(crudo) as { nodo?: unknown; nombre?: unknown; accion?: unknown; yaCortadas?: unknown }) : null
+      if (g && typeof g.nodo === 'string' && typeof g.nombre === 'string' && (g.accion === 'cortar' || g.accion === 'separar')) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setMusculoObjetivo({ nodo: g.nodo, nombre: g.nombre, accion: g.accion, yaCortadas: Array.isArray(g.yaCortadas) ? g.yaCortadas.filter((x): x is number => typeof x === 'number') : [] })
+      }
+    } catch {
+      // Sin almacenamiento el objetivo simplemente no se recuerda.
+    }
+  }, [claveDelObjetivo])
+  useEffect(() => {
+    try {
+      if (musculoObjetivo) sessionStorage.setItem(claveDelObjetivo, JSON.stringify(musculoObjetivo))
+      else sessionStorage.removeItem(claveDelObjetivo)
+    } catch {
+      // idem
+    }
+  }, [musculoObjetivo, claveDelObjetivo])
   // Fuera del modo «Info» no queda ningún tinte puesto (P-003 E9).
   useEffect(() => {
     if (modo !== 'info') mando.current?.resaltarNodo(null)
@@ -1069,8 +1094,10 @@ export function ConsolaQuirurgica({
       plano: {
         nodo: musculoObjetivo?.nodo ?? null,
         accion: musculoObjetivo?.accion ?? null,
-        // Se cortó con ese músculo elegido: la herida del plano muscular existe y el objetivo era cortar.
-        cortado: musculoObjetivo?.accion === 'cortar' && (herida?.capas ?? []).includes('musculo'),
+        // Se cortó con ese músculo elegido: hay una incisión muscular que no estaba al elegirlo.
+        cortado:
+          musculoObjetivo?.accion === 'cortar' &&
+          (herida?.incisiones ?? []).some((x) => x.capa === 'musculo' && !musculoObjetivo.yaCortadas.includes(x.id)),
         retraidoMm: retracciones.find((r) => r.nodo === musculoObjetivo?.nodo)?.aperturaMm ?? 0,
       },
     })
@@ -1538,6 +1565,11 @@ export function ConsolaQuirurgica({
     if (ruedaDelInstrumento === 'separa') {
       // El separador se abre donde está puesto. Sin ninguno puesto, la rueda no abre nada: la herida se
       // abre con un separador, no sola, y se dice cómo ponerlo.
+      // Un músculo retraído con el separador (P-003 E10) también responde a la rueda, aunque no haya herida.
+      if (retracciones.length > 0 && (!separadores || separadores.lista.length === 0)) {
+        m.moverSeparador(sentido * 2)
+        return true
+      }
       if (!separadores || separadores.lista.length === 0) {
         const ahora = Date.now()
         if (ahora - avisoDelSeparador.current > 4000) {
@@ -1991,25 +2023,9 @@ export function ConsolaQuirurgica({
 
   const tieneMandosPropios = objetivo === 'trazo' || largoDelTrazoMm > 0 || objetivo === 'reduccion'
 
-  /**
-   * Los instrumentos de la bandeja que sirven para actuar sobre un músculo (P-003 E10), los preferidos primero: para
-   * cortar, la tijera de Metzenbaum, el bisturí profundo y el electrobisturí; para separar, el Farabeuf, el Senn-Miller
-   * y el Hohmann. Es lo que se ofrece por omisión: la ficha del músculo no guarda aún un abordaje propio.
-   */
-  const instrumentosParaActuar = (accion: 'cortar' | 'separar') => {
-    const preferidos = accion === 'cortar' ? ['metzenbaum', 'bisturi', 'electro'] : ['farabeuf', 'senn', 'hohmann']
-    const sinTildes = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    const sirven = caso.instrumental.filter((i) => {
-      const q = comportamientoDelInstrumento(i)
-      return accion === 'cortar' ? q.corta === 'musculo' || !!q.roma : !!q.separa
-    })
-    const puesto = (i: { nombre: string; slug?: string | null }) => {
-      const texto = sinTildes(`${i.slug ?? ''} ${i.nombre}`)
-      const k = preferidos.findIndex((p) => texto.includes(p))
-      return k < 0 ? preferidos.length : k
-    }
-    return [...sirven].sort((a, b) => puesto(a) - puesto(b))
-  }
+  /** Los instrumentos de la bandeja para cortar o separar un músculo: los de su ficha o, sin ellos, los de siempre. */
+  const instrumentosParaActuarEnElMusculo = (accion: 'cortar' | 'separar', delEditor: readonly string[] = []) =>
+    instrumentosParaActuar(accion, caso.instrumental, delEditor)
 
   // «Insumos utilizados» al terminar (P-003 E7): lo que hizo algo en el recorrido, por categoría y con los tornillos
   // por largo. En el editor cada fila lleva una casilla —todo lo usado marcado— y un botón que deja la bandeja del caso
@@ -3321,21 +3337,27 @@ export function ConsolaQuirurgica({
                     </button>
                     {eligiendoAccion ? (
                       <ul className="consola-info-instrumentos">
-                        {instrumentosParaActuar(eligiendoAccion).length === 0 ? (
+                        {instrumentosParaActuarEnElMusculo(eligiendoAccion, eligiendoAccion === 'cortar' ? info.ficha.abordajeCortar : info.ficha.abordajeSeparar).length === 0 ? (
                           <li className="consola-vacio">
                             {eligiendoAccion === 'cortar'
                               ? 'No hay en la bandeja un instrumento para cortar músculo (bisturí, tijera de Metzenbaum o electrobisturí).'
                               : 'No hay en la bandeja un separador (Farabeuf, Senn-Miller, Hohmann…).'}
                           </li>
                         ) : (
-                          instrumentosParaActuar(eligiendoAccion).map((i) => (
+                          instrumentosParaActuarEnElMusculo(eligiendoAccion, eligiendoAccion === 'cortar' ? info.ficha.abordajeCortar : info.ficha.abordajeSeparar).map((i) => (
                             <li key={i.id}>
                               <button
                                 type="button"
                                 className="consola-anadir-opcion"
                                 onClick={() => {
                                   const accion = eligiendoAccion
-                                  setMusculoObjetivo({ nodo: info.nodo, nombre: info.ficha.nombre, accion })
+                                  setMusculoObjetivo({
+                                    nodo: info.nodo,
+                                    nombre: info.ficha.nombre,
+                                    accion,
+                                    // Lo que ya estaba cortado antes de elegir no cuenta: solo vale la incisión nueva.
+                                    yaCortadas: (herida?.incisiones ?? []).filter((x) => x.capa === 'musculo').map((x) => x.id),
+                                  })
                                   setEligiendoAccion(null)
                                   elegirInstrumento(i.id)
                                   // Elegir el instrumento ya cambió de modo, pero la tijera puede haber ido a «disecar»:
@@ -3483,7 +3505,7 @@ export function ConsolaQuirurgica({
             capturaLaRueda={ruedaDelInstrumento !== null}
             // En el editor la clave es solo el modelo: la ficha cambia de identificador al guardar un caso nuevo por
             // primera vez, y con ella la clave —se perdía la incisión—. Ver `ensayoDelEditor.ts`.
-            claveDeSesion={editor ? `trauma-sesion:editor::${caso.modeloUrl ?? ''}` : `trauma-sesion:residente:${documentoId}:${caso.modeloUrl ?? ''}`}
+            claveDeSesion={claveDeLaSesion}
             alFijar={(estado, suceso) => {
               setFijacion(estado)
               if (!suceso) return

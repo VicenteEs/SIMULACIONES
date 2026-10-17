@@ -428,6 +428,9 @@ export interface PinzaDeReduccion {
   nombre: string
   pieza: THREE.Object3D
   instrumento: InstrumentoColocado
+  /** Qué modelo es y cómo se pintó, para volver a ponerla al recargar la sesión (P-003). */
+  url?: string
+  ajustes?: AjustesDeInstrumento | null
 }
 
 /** Qué pinzas de reducción hay puestas y en qué trozo, para el panel. */
@@ -1380,7 +1383,7 @@ export function LienzoQuirurgico({
       } catch {
         guardado = null
       }
-      if (!guardado || (guardado.v !== 1 && guardado.v !== 2)) return
+      if (!guardado || (guardado.v !== 1 && guardado.v !== 2 && guardado.v !== 3)) return
       const t = taller.current
       const mmPorUnidad = ultimas.current.milimetrosPorUnidad || 1000
       // Los cortes, en el mismo orden en que se hicieron: así la lista de heridas queda igual que estaba.
@@ -1403,6 +1406,8 @@ export function LienzoQuirurgico({
           if (a && heridas[i]) t.aperturaAntesDeCoser!.set(heridas[i], { mas: a.mas, menos: a.menos })
         })
       }
+      // Separadores, pinzas, pinzas de reducción y músculos retraídos (sesión v3): lo que se había puesto sobre la herida.
+      restaurarLoPuesto(t, ultimas.current, guardado)
       if (heridas.length > 0) ultimas.current.alHerir?.(estadoDeLasHeridas(t, mmPorUnidad))
       const hilo = guardado.sutura
       if (hilo && t.escena && hilo.puntos.length > 0) {
@@ -1631,6 +1636,14 @@ export function LienzoQuirurgico({
       // devuelve también los cruces con mallas ocultas, de modo que sin él se
       // trazaría sobre la piel apagada creyendo trazar sobre el hueso.
       const golpes = rayo.intersectObject(raiz, true).filter((g) => g.object.visible)
+      // Con un músculo elegido para cortar (P-003 E10) la incisión se apoya en **ese** músculo aunque otros lo tapen:
+      // el rayo pasa de largo por lo que hay encima, como la hoja que va a ese plano. Si apunta a otra cosa, se queda
+      // con la primera superficie y el corte avisa de que no atraviesa el músculo elegido.
+      const elegido = ultimas.current.musculoObjetivo
+      if (elegido?.accion === 'cortar' && ultimas.current.modo === 'trazar') {
+        const delMusculo = golpes.find((g) => g.object.name === elegido.nodo)
+        if (delMusculo) return delMusculo
+      }
       return golpes[0] ?? null
     }
 
@@ -2541,7 +2554,7 @@ export function LienzoQuirurgico({
       posarEn(colocado.grupo, golpe.point, normal)
       pieza.attach(colocado.grupo)
       const id = (t.siguientePinzaDeReduccion = (t.siguientePinzaDeReduccion ?? 0) + 1)
-      lista.push({ id, nombre: inst.nombre ?? 'Pinza de reducción', pieza, instrumento: colocado })
+      lista.push({ id, nombre: inst.nombre ?? 'Pinza de reducción', pieza, instrumento: colocado, url: inst.url, ajustes: inst.ajustes })
       u.alReducir?.(estadoDeLaReduccion(t))
       // Sin un abordaje que llegue al hueso, la pinza se pone igual pero se dice: en una cirugía de verdad no se llega.
       const hayAbordaje = (t.heridas.get('musculo')?.length ?? 0) > 0 || (t.heridas.get('piel')?.length ?? 0) > 0
@@ -3969,6 +3982,7 @@ export type Taller = {
   siguienteSeparador?: number
   separadorEnLaMano?: EnLaMano<SeparadorEnEscena>
   pinzaEnLaMano?: EnLaMano<PellizcoEnEscena>
+  entorno?: THREE.Texture
   retracciones?: RetraccionDeMusculo[]
   siguienteRetraccion?: number
   pinzasDeReduccion?: PinzaDeReduccion[]
@@ -5195,10 +5209,63 @@ export interface CorteGuardado {
   quemado?: boolean
 }
 
+type P3 = [number, number, number]
+const aP3 = (v: THREE.Vector3): P3 => [v.x, v.y, v.z]
+const deP3 = (p: P3) => new THREE.Vector3(p[0], p[1], p[2])
+
+interface SeparadorGuardado {
+  datos: SeparadorColocado
+  url: string
+  ajustes: AjustesDeInstrumento | null
+  punto: P3
+  normal: P3
+  direccion: P3
+  mango: P3
+  sitios: Partial<Record<CapaDeLaHerida, { punto: P3; normal: P3; direccion: P3; posicion: number }>>
+}
+interface PellizcoGuardado {
+  datos: Pellizco
+  url: string
+  ajustes: AjustesDeInstrumento | null
+  punto: P3
+  normal: P3
+  mango: P3
+  direccion: P3
+}
+interface PinzaDeReduccionGuardada {
+  id: number
+  nombre: string
+  /** El nodo del trozo que agarra. */
+  pieza: string
+  url: string
+  ajustes: AjustesDeInstrumento | null
+  /** Pose de la pinza dentro de su trozo (es hija suya). */
+  posicion: P3
+  rotacion: [number, number, number, number]
+  escala: P3
+}
+interface RetraccionGuardada {
+  id: number
+  nodo: string
+  nombre: string
+  apoyo: P3
+  direccion: P3
+  aperturaMm: number
+  maximoMm: number
+}
+
 /** Lo cortado y cosido, en el formato que va a `sessionStorage`. */
 interface SesionGuardada {
-  /** La 1 guardaba una sola herida por capa y sin número; la 2, todas las incisiones con el suyo (P-003 E4). */
-  v: 1 | 2
+  /**
+   * La 1 guardaba una sola herida por capa y sin número; la 2, todas las incisiones con el suyo (P-003 E4); la 3, además,
+   * los separadores, las pinzas, las pinzas de reducción y los músculos retraídos.
+   */
+  v: 1 | 2 | 3
+  /** Lo puesto sobre el paciente (v3). Cada lista se vuelve a armar con el mismo modelo 3D que tenía. */
+  separadores?: SeparadorGuardado[]
+  pellizcos?: PellizcoGuardado[]
+  pinzasDeReduccion?: PinzaDeReduccionGuardada[]
+  retracciones?: RetraccionGuardada[]
   cortes: CorteGuardado[]
   /** Cuánto está abierta cada herida, en el orden de `todasLasHeridas`, en unidades del mundo. */
   apertura: { mas: number; menos: number }[]
@@ -5228,10 +5295,57 @@ export function serializarSesion(taller: Taller): string {
   const cortes = taller.cortes ?? []
   const sutura = taller.sutura
   const hayPuntos = !!sutura && sutura.puntos.length > 0
-  if (cortes.length === 0 && !hayPuntos) return ''
+  const hayPuesto =
+    (taller.separadores ?? []).length + (taller.pellizcos ?? []).length + (taller.pinzasDeReduccion ?? []).length + (taller.retracciones ?? []).length > 0
+  if (cortes.length === 0 && !hayPuntos && !hayPuesto) return ''
   const indice = new Map(heridas.map((h, i) => [h.malla.uuid, i]))
   const datos: SesionGuardada = {
-    v: 2,
+    v: 3,
+    separadores: (taller.separadores ?? []).map((q) => ({
+      datos: { ...q.datos },
+      url: q.url,
+      ajustes: q.ajustes,
+      punto: aP3(q.punto),
+      normal: aP3(q.normal),
+      direccion: aP3(q.direccion),
+      mango: aP3(q.mango),
+      sitios: Object.fromEntries(
+        Object.entries(q.sitios).map(([capa, st]) => [capa, { punto: aP3(st.punto), normal: aP3(st.normal), direccion: aP3(st.direccion), posicion: st.posicion }]),
+      ),
+    })),
+    pellizcos: (taller.pellizcos ?? []).map((q) => ({
+      datos: { ...q.datos },
+      url: q.url,
+      ajustes: q.ajustes,
+      punto: aP3(q.punto),
+      normal: aP3(q.normal),
+      mango: aP3(q.mango),
+      direccion: aP3(q.direccion),
+    })),
+    pinzasDeReduccion: (taller.pinzasDeReduccion ?? [])
+      .filter((q) => q.url)
+      .map((q) => {
+        const g = q.instrumento.grupo
+        return {
+          id: q.id,
+          nombre: q.nombre,
+          pieza: q.pieza.name,
+          url: q.url as string,
+          ajustes: q.ajustes ?? null,
+          posicion: aP3(g.position),
+          rotacion: [g.quaternion.x, g.quaternion.y, g.quaternion.z, g.quaternion.w],
+          escala: aP3(g.scale),
+        }
+      }),
+    retracciones: (taller.retracciones ?? []).map((r) => ({
+      id: r.id,
+      nodo: r.nodo,
+      nombre: r.nombre,
+      apoyo: aP3(r.apoyo),
+      direccion: aP3(r.direccion),
+      aperturaMm: r.aperturaMm,
+      maximoMm: r.maximoMm,
+    })),
     cortes,
     apertura: heridas.map((h) => ({ mas: h.mas, menos: h.menos })),
     aperturaAntesDeCoser: taller.aperturaAntesDeCoser
@@ -5264,6 +5378,124 @@ export function serializarSesion(taller: Taller): string {
         : null,
   }
   return JSON.stringify(datos)
+}
+
+/**
+ * Vuelve a poner lo que se había puesto sobre el paciente: separadores, pinzas, pinzas de reducción y músculos
+ * retraídos. Cada instrumento se vuelve a cargar con el mismo modelo 3D y la misma pose que tenía; lo demás (lo
+ * abierto, lo tensado) lo recalcula `reaplicarSeparadores` de lo que quedó puesto, como al colocarlo.
+ *
+ * Lo que no se encuentra —un trozo o un músculo que el modelo ya no trae— se salta en silencio: restaurar la
+ * sesión nunca debe romper la carga del caso.
+ */
+function restaurarLoPuesto(t: Taller, u: LoUltimo, g: SesionGuardada) {
+  const escena = t.escena
+  if (!escena) return
+  const mm = u.milimetrosPorUnidad || 1000
+  const unidadesPorMm = 1 / mm
+  const escala = 1000 / mm
+  let hayAlgo = false
+
+  for (const q of g.separadores ?? []) {
+    const nuevo: SeparadorEnEscena = {
+      datos: { ...q.datos },
+      url: q.url,
+      ajustes: q.ajustes,
+      punto: deP3(q.punto),
+      normal: deP3(q.normal),
+      direccion: deP3(q.direccion),
+      mango: deP3(q.mango),
+      sitios: Object.fromEntries(
+        Object.entries(q.sitios).map(([capa, st]) => [capa, { punto: deP3(st.punto), normal: deP3(st.normal), direccion: deP3(st.direccion), posicion: st.posicion }]),
+      ),
+      instrumento: colocarInstrumento(escena, q.url, q.ajustes, t.entorno ?? null, escala, () => {
+        posarSeparador(nuevo, unidadesPorMm)
+        t.pedirDibujo?.()
+      }),
+    }
+    ;(t.separadores ??= []).push(nuevo)
+    t.siguienteSeparador = Math.max(t.siguienteSeparador ?? 0, q.datos.id)
+    t.separadorActivo = q.datos.id
+    hayAlgo = true
+  }
+
+  const piel = u.piezas.filter((p) => p.rol === 'piel').map((p) => escena.getObjectByName(p.nodo)).find(Boolean)
+  const color = (): THREE.Color => {
+    const malla = piel as THREE.Mesh | undefined
+    const original = malla ? (t.materialesOriginales.get(malla) ?? malla.material) : undefined
+    const material = Array.isArray(original) ? original[0] : original
+    const c = (material as THREE.MeshStandardMaterial | undefined)?.color
+    return c ? c.clone() : new THREE.Color(0xd9b8a3)
+  }
+  for (const q of g.pellizcos ?? []) {
+    const pliegue = crearPliegue(color())
+    escena.add(pliegue)
+    const nuevo: PellizcoEnEscena = {
+      datos: { ...q.datos },
+      url: q.url,
+      ajustes: q.ajustes,
+      pliegue,
+      punto: deP3(q.punto),
+      normal: deP3(q.normal),
+      mango: deP3(q.mango),
+      direccion: deP3(q.direccion),
+      instrumento: colocarInstrumento(escena, q.url, q.ajustes, t.entorno ?? null, escala, () => {
+        posarPliegue(nuevo, unidadesPorMm)
+        t.pedirDibujo?.()
+      }),
+    }
+    ;(t.pellizcos ??= []).push(nuevo)
+    t.siguientePellizco = Math.max(t.siguientePellizco ?? 0, q.datos.id)
+    t.pellizcoActivo = q.datos.id
+    posarPliegue(nuevo, unidadesPorMm)
+    hayAlgo = true
+  }
+
+  for (const q of g.pinzasDeReduccion ?? []) {
+    const pieza = escena.getObjectByName(q.pieza)
+    if (!pieza) continue
+    const colocado = colocarInstrumento(escena, q.url, q.ajustes, t.entorno ?? null, escala)
+    // Hija del trozo, con la pose que tenía dentro de él: así lo acompaña al moverlo, como antes de recargar.
+    pieza.add(colocado.grupo)
+    colocado.grupo.position.set(...q.posicion)
+    colocado.grupo.quaternion.set(...q.rotacion)
+    colocado.grupo.scale.set(...q.escala)
+    ;(t.pinzasDeReduccion ??= []).push({ id: q.id, nombre: q.nombre, pieza, instrumento: colocado, url: q.url, ajustes: q.ajustes })
+    t.siguientePinzaDeReduccion = Math.max(t.siguientePinzaDeReduccion ?? 0, q.id)
+    u.alReducir?.(estadoDeLaReduccion(t))
+  }
+
+  if (hayAlgo) {
+    reaplicarSeparadores(t, u)
+    avisarPellizcos(t, u)
+  }
+
+  // Los músculos retraídos, después de los cortes: la malla que se retrae es la que quedó tras cortarla.
+  for (const q of g.retracciones ?? []) {
+    let malla: THREE.Mesh | null = null
+    escena.traverse((o) => {
+      if (!malla && (o as THREE.Mesh).isMesh && o.name === q.nodo && !esDeInterfazDelModelo(o)) malla = o as THREE.Mesh
+    })
+    const m = malla as THREE.Mesh | null
+    if (!m) continue
+    const atributo = m.geometry.getAttribute('position') as THREE.BufferAttribute | undefined
+    if (!atributo) continue
+    const r: RetraccionDeMusculo = {
+      id: q.id,
+      nodo: q.nodo,
+      nombre: q.nombre,
+      malla: m,
+      original: Float32Array.from(atributo.array as ArrayLike<number>),
+      apoyo: deP3(q.apoyo),
+      direccion: deP3(q.direccion),
+      aperturaMm: q.aperturaMm,
+      maximoMm: q.maximoMm,
+    }
+    if (!aplicarUnaRetraccion(r, unidadesPorMm)) continue
+    ;(t.retracciones ??= []).push(r)
+    t.siguienteRetraccion = Math.max(t.siguienteRetraccion ?? 0, q.id)
+  }
+  if ((t.retracciones ?? []).length > 0) u.alRetraer?.(estadoDeLasRetracciones(t))
 }
 
 /**

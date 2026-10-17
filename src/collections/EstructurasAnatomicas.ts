@@ -137,6 +137,8 @@ export const EstructurasAnatomicas: CollectionConfig = {
     textoDeLaFicha('accion', true),
     textoDeLaFicha('irrigacion', true),
     textoDeLaFicha('notas', true),
+    textoDeLaFicha('abordajeCortar', false),
+    textoDeLaFicha('abordajeSeparar', false),
     {
       name: 'oculta',
       type: 'checkbox',

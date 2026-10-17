@@ -7,7 +7,6 @@ import {
   type VistaDelEnsayo,
 } from '@/components/simulador/ConsolaQuirurgica'
 import type { MandoDelLienzo } from '@/components/simulador/LienzoQuirurgico'
-import { useRouter } from 'next/navigation'
 import { listarInstrumental } from '@/app/(frontend)/acciones/instrumental'
 import { reexportarConEstructurasSeparadas } from '@/app/(frontend)/acciones/atlas'
 import { useConfirmar } from '@/components/ui/Confirmar'
@@ -109,7 +108,6 @@ export function EditorDelSimulador({
   // una decisión por modelo, y si el autor quita piezas a mano después no se
   // las vuelve a poner.
   // «Volver a exportar con estructuras separadas» (P-003 E9): trabajando, o el motivo si no se pudo.
-  const router = useRouter()
   const [reexportando, setReexportando] = useState(false)
   const [errorAlReexportar, setErrorAlReexportar] = useState<string | null>(null)
   const [reparacion, setReparacion] = useState<{
@@ -319,8 +317,8 @@ export function EditorDelSimulador({
 
   /**
    * Crea un modelo nuevo desde la misma preparación con cada estructura como objeto propio y lo pone en el caso. El
-   * viejo no se borra. El caso solo puede enseñar el modelo nuevo cuando la página trae la lista de modelos al día, de
-   * ahí el `refresh`: lo escrito en el formulario se conserva, porque el componente no se desmonta.
+   * viejo no se borra. El caso solo puede enseñar el modelo nuevo cuando la lista de modelos está al día, de ahí
+   * `alRecargarRelacion`: lo escrito en el formulario se conserva, porque el componente no se desmonta.
    */
   const reexportarSeparado = async () => {
     setReexportando(true)
@@ -332,8 +330,10 @@ export function EditorDelSimulador({
       return
     }
     const id = Number(r.datos.id)
+    // La lista de modelos del desplegable se pidió al abrir la página y no trae el recién creado: sin pedirla de nuevo
+    // el caso no encuentra su dirección y el editor dice «Falta elegir el modelo 3D».
+    alRecargarRelacion?.('modelos-3d')
     alCambiar('modelo', Number.isFinite(id) ? id : r.datos.id)
-    router.refresh()
   }
 
   const panel = (vivo: VistaDelEnsayo) => (

@@ -13,6 +13,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { exigirIdentificador } from '@/lib/validacion'
 import { leerCatalogo } from '@/lib/catalogoDelAtlas'
 import { leerFicha } from '@/lib/estructurasServidor'
+import { identificadoresDeInstrumento } from '@/lib/abordajeDelMusculo'
 
 /** Lo que el botón «Info» del simulador enseña de una estructura: la ficha sin las notas internas. */
 export interface FichaParaElSimulador {
@@ -29,6 +30,9 @@ export interface FichaParaElSimulador {
   irrigacion: string
   /** Una estructura oculta en el listado no abre ficha (P-003 E9). */
   oculta: boolean
+  /** Con qué instrumentos se corta o se separa este músculo, si el editor lo dejó escrito (P-003 E10): sus identificadores. */
+  abordajeCortar: string[]
+  abordajeSeparar: string[]
 }
 
 /**
@@ -56,6 +60,8 @@ export async function leerFichaParaElSimulador(atlasId: unknown): Promise<Respue
       accion: ficha.accion,
       irrigacion: ficha.irrigacion,
       oculta: false,
+      abordajeCortar: identificadoresDeInstrumento(ficha.abordajeCortar),
+      abordajeSeparar: identificadoresDeInstrumento(ficha.abordajeSeparar),
     }
   })
 }

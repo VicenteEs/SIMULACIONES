@@ -378,6 +378,8 @@ export interface EstructurasAnatomica {
   accion?: string | null;
   irrigacion?: string | null;
   notas?: string | null;
+  abordajeCortar?: string | null;
+  abordajeSeparar?: string | null;
   /**
    * Una pieza marcada así no abre ficha cuando alguien la pincha (por ejemplo, un órgano) y no cuenta como pendiente.
    */
@@ -2540,6 +2542,8 @@ export interface EstructurasAnatomicasSelect<T extends boolean = true> {
   accion?: T;
   irrigacion?: T;
   notas?: T;
+  abordajeCortar?: T;
+  abordajeSeparar?: T;
   oculta?: T;
   huerfana?: T;
   updatedAt?: T;

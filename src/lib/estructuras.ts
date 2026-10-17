@@ -32,6 +32,10 @@ export const CAMPOS_DE_LA_FICHA = [
   'accion',
   'irrigacion',
   'notas',
+  // Con qué instrumentos se corta o se separa este músculo en el simulador (P-003 E10): identificadores de instrumento
+  // separados por comas. Vacío: los de siempre, que salen de lo que haya en la bandeja.
+  'abordajeCortar',
+  'abordajeSeparar',
 ] as const
 
 export type CampoDeLaFicha = (typeof CAMPOS_DE_LA_FICHA)[number]
@@ -80,6 +84,8 @@ export const ETIQUETA_DEL_CAMPO: Readonly<Record<CampoDeLaFicha, string>> = {
   accion: 'Acción',
   irrigacion: 'Irrigación',
   notas: 'Notas',
+  abordajeCortar: 'Cortar con (identificadores de instrumento, separados por comas)',
+  abordajeSeparar: 'Separar con (identificadores de instrumento, separados por comas)',
 }
 
 /**
@@ -100,6 +106,8 @@ export const LARGO_MAXIMO_DEL_CAMPO: Readonly<Record<CampoDeLaFicha, number>> = 
   accion: 1500,
   irrigacion: 1500,
   notas: 3000,
+  abordajeCortar: 300,
+  abordajeSeparar: 300,
 }
 
 /**

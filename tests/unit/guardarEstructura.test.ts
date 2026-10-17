@@ -283,6 +283,6 @@ describe('las versiones de una ficha', () => {
 
 describe('los campos de la ficha', () => {
   it('son los que la colección declara', () => {
-    expect(CAMPOS_DE_LA_FICHA).toHaveLength(8)
+    expect(CAMPOS_DE_LA_FICHA).toHaveLength(10)
   })
 })

@@ -83,7 +83,8 @@ describe('descargar la planilla', () => {
     expect(estructuras.filas).toHaveLength(125)
     expect(estructuras.filas[0]).toEqual([
       'Id del atlas', 'Nombre', 'Nombre original', 'Lado', 'Sistema', 'Qué falta',
-      'Nombre latino', 'Definición', 'Origen', 'Inserción', 'Inervación', 'Acción', 'Irrigación', 'Notas', 'No mostrar',
+      'Nombre latino', 'Definición', 'Origen', 'Inserción', 'Inervación', 'Acción', 'Irrigación', 'Notas',
+      'Cortar con (identificadores de instrumento, separados por comas)', 'Separar con (identificadores de instrumento, separados por comas)', 'No mostrar',
     ])
     const tibia = estructuras.filas.find((f) => f[2] === 'Right tibia')!
     expect(tibia.slice(0, 6)).toEqual([idDe('Right tibia'), 'Tibia derecha', 'Right tibia', 'Derecho', 'Esqueleto', 'Definición, Irrigación'])

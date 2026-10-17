@@ -805,8 +805,8 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
     pinzas; apagado de entrada), al terminar un corte la pareja de pinzas y la de separadores
     más cercanas a la punta se corren a lo largo de la herida nueva, unos 15 mm por detrás de
     ella, sin cambiar de borde ni de apertura.
-  - **Al recargar la página** los separadores y las pinzas no se conservan (sí lo cortado y lo
-    cosido): hay que volver a ponerlos.
+  - **Al recargar la página** los separadores y las pinzas se conservan, igual que lo cortado y lo
+    cosido (cada uno vuelve con su modelo y en su sitio).
 - **Varios abordajes en la misma cirugía.** Un trazo nuevo **ya no borra** la incisión anterior de
   su capa: las incisiones se suman. Si el trazo **empieza (o termina) a menos de 5 mm del extremo
   de una**, la **alarga** (así se abre en dos tiempos); si no, es otra incisión. Con más de una,
@@ -871,7 +871,11 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   músculo** y no toda la capa. **Separar** ofrece los separadores (Farabeuf, Senn-Miller, Hohmann):
   un clic en el músculo lo **retrae sin cortarlo** y la rueda lo abre o lo cierra, hasta el tope del
   separador, para ver lo que hay debajo; «Soltar el músculo» lo devuelve a su sitio. «Quitar el
-  objetivo» vuelve a trabajar sobre la capa entera. La retracción no se guarda al recargar.
+  objetivo» vuelve a trabajar sobre la capa entera. Lo puesto (separadores, pinzas, músculos
+  retraídos y el músculo elegido) se recuerda al recargar la página, como lo cortado y cosido.
+  En **Taller de estructuras → ficha**, los campos «Cortar con» y «Separar con» permiten dejar
+  escritos, por músculo, los instrumentos que se ofrecen (sus identificadores, separados por
+  comas); vacíos, se ofrecen los de siempre.
 - **Pasos de «planos» (para quien escribe el caso).** Un paso puede evaluar **«Cortar o separar un
   músculo concreto»**: se escribe el nombre del objeto del músculo en el modelo y se elige si hay
   que cortarlo o separarlo. El residente tiene que elegir ese músculo en «Info», pulsar la acción
@@ -892,7 +896,7 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   elegido con sus flechas y aros. Se lleva a su sitio mirando la fluoroscopia y **la pinza va con
   él**. Un clic en la pinza (o «Soltar la pinza») la suelta; caben dos. Si el abordaje no llega al
   hueso la consola lo avisa, pero deja agarrar. Reiniciar el paso las suelta; recargar la página
-  también (no se guardan).
+  no las suelta.
 - **Las capas** (piel, músculo, hueso) empiezan **todas encendidas** y se encienden y apagan siempre, como en el taller
   anatómico: un paso propone qué se ve, pero lo que se encienda a mano se ve entero.
 - **Recargar la página no pierde lo cortado ni lo cosido** (se guarda en la pestaña): la

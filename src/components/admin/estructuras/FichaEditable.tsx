@@ -36,7 +36,7 @@ export interface BorradorDeLaFicha {
 }
 
 /** Los campos que se escriben en una línea; el resto, en un cuadro de varias. */
-const DE_UNA_LINEA: readonly CampoDeLaFicha[] = ['nombreLatino']
+const DE_UNA_LINEA: readonly CampoDeLaFicha[] = ['nombreLatino', 'abordajeCortar', 'abordajeSeparar']
 
 const textosDe = (ficha: FichaCompleta): TextosDeLaFicha =>
   Object.fromEntries(CAMPOS_DE_LA_FICHA.map((campo) => [campo, ficha[campo]])) as TextosDeLaFicha

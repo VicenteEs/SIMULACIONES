@@ -75,6 +75,8 @@ const ANCHO_DEL_CAMPO: Record<CampoDeLaFicha, number> = {
   accion: 42,
   irrigacion: 42,
   notas: 32,
+  abordajeCortar: 30,
+  abordajeSeparar: 30,
 }
 
 const COLUMNAS_DE_LA_PLANILLA: ColumnaDePlanilla[] = [
@@ -102,6 +104,8 @@ const SINONIMOS_DE_CAMPO: Record<CampoDeLaFicha, string[]> = {
   accion: ['accion', 'funcion'],
   irrigacion: ['irrigacion', 'vascularizacion'],
   notas: ['notas', 'nota', 'observaciones'],
+  abordajeCortar: ['cortar con identificadores de instrumento separados por comas', 'cortar con', 'abordaje cortar'],
+  abordajeSeparar: ['separar con identificadores de instrumento separados por comas', 'separar con', 'abordaje separar'],
 }
 const SINONIMOS_DEL_ID = ['id del atlas', 'id', 'atlasid', 'id atlas', 'identificador']
 const SINONIMOS_DE_OCULTA = ['no mostrar', 'oculta', 'ocultar', 'oculto']
