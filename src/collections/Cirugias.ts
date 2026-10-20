@@ -211,6 +211,21 @@ export const Cirugias: CollectionConfig = {
     },
 
     {
+      // Qué ve el residente en la bandeja (P-004 E3). `completa`: todo el catálogo de instrumental, que es lo que pidió
+      // Cristóbal —«que todo el instrumental parta por defecto en la bandeja; si tengo que ir metiendo, se vuelve
+      // engorroso el panel»—. `acotada`: solo lo que el editor eligió más lo que piden los pasos, que es lo de antes. La
+      // migración dejó en `acotada` los casos que ya tenían su bandeja armada.
+      name: 'bandeja',
+      type: 'select',
+      required: true,
+      defaultValue: 'completa',
+      label: 'Qué ve el residente en la bandeja',
+      options: [
+        { label: 'Toda la mesa (todo el instrumental)', value: 'completa' },
+        { label: 'Solo lo que elijo', value: 'acotada' },
+      ],
+    },
+    {
       name: 'instrumental',
       type: 'relationship',
       relationTo: 'instrumental',
@@ -218,7 +233,7 @@ export const Cirugias: CollectionConfig = {
       label: 'Bandeja del caso',
       admin: {
         description:
-          'Lo que el residente tendrá delante. Si se deja vacío, la bandeja la componen los instrumentos que piden los pasos. Declararla sirve para AÑADIR señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Sin ellos, acertar es elegir entre lo que ya se sabe que sirve.',
+          'Solo cuenta con «Solo lo que elijo». Entonces es lo que el residente tendrá delante, más lo que piden los pasos; declararla sirve para AÑADIR señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Con «Toda la mesa» el residente ve todo el instrumental y esta lista no se usa.',
       },
     },
 

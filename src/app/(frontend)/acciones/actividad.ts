@@ -18,6 +18,7 @@ import {
   type ComplicacionDelCaso,
   type ResultadoDeCirugia,
 } from '@/lib/progresoDelSimulador'
+import { MAXIMO_DE_INSUMOS, type InsumoDelRecorrido } from '@/lib/insumos'
 
 /**
  * Registro de lo que cada residente ha visitado, marcado como leído y jugado.
@@ -322,6 +323,21 @@ function complicacionValida(bruta: unknown, posicion: number): ComplicacionDelCa
  * columna, de modo que nunca se le entrega a Payload una lista que él vaya a
  * rechazar entera —y con ella el puntaje—.
  */
+function insumoValido(bruto: unknown, posicion: number): InsumoDelRecorrido {
+  if (!bruto || typeof bruto !== 'object') {
+    throw new ErrorDeValidacion(`El insumo ${posicion} no llegó como corresponde.`)
+  }
+  const i = bruto as Record<string, unknown>
+  const nombre = typeof i.nombre === 'string' ? i.nombre.trim().slice(0, 200) : ''
+  if (!nombre) throw new ErrorDeValidacion(`El insumo ${posicion} no trae nombre.`)
+  const cantidad = i.cantidad
+  if (typeof cantidad !== 'number' || !Number.isInteger(cantidad) || cantidad < 1 || cantidad > 10_000) {
+    throw new ErrorDeValidacion(`La cantidad del insumo ${posicion} no es un número entero.`)
+  }
+  const categoria = typeof i.categoria === 'string' && i.categoria.trim() ? i.categoria.trim().slice(0, 60) : null
+  return { nombre, categoria, cantidad }
+}
+
 function resultadoValido(valor: unknown): ResultadoDeCirugia {
   if (!valor || typeof valor !== 'object') {
     throw new ErrorDeValidacion('El resultado del caso no llegó como corresponde.')
@@ -349,10 +365,23 @@ function resultadoValido(valor: unknown): ResultadoDeCirugia {
     )
   }
 
+  // Los insumos (P-004 E3): una lista que se puede no mandar —un navegador de antes de este cambio—, pero que si llega
+  // tiene que ser como se espera, y que no pasa del tope: se rechaza en vez de recortarla, por lo mismo que las
+  // complicaciones.
+  const crudos = r.insumos
+  if (crudos !== undefined && crudos !== null && !Array.isArray(crudos)) {
+    throw new ErrorDeValidacion('Los insumos tienen que llegar en una lista.')
+  }
+  const insumosCrudos = Array.isArray(crudos) ? crudos : []
+  if (insumosCrudos.length > MAXIMO_DE_INSUMOS) {
+    throw new ErrorDeValidacion(`Un recorrido no puede traer más de ${MAXIMO_DE_INSUMOS} insumos.`)
+  }
+
   return {
     puntaje,
     puntajeMaximo,
     complicaciones: lista.map((bruta, i) => complicacionValida(bruta, i + 1)),
+    insumos: insumosCrudos.map((bruto, i) => insumoValido(bruto, i + 1)),
   }
 }
 
@@ -389,6 +418,7 @@ export async function registrarResultadoDeCirugia(
       puntaje: datos.puntaje,
       puntajeMaximo: datos.puntajeMaximo,
       complicaciones: datos.complicaciones,
+      insumos: datos.insumos,
     })
   } catch (error) {
     console.error('[actividad] no se pudo guardar el resultado del caso:', error)

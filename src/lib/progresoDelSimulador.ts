@@ -26,6 +26,7 @@
  */
 
 import { RESULTADOS, type Resultado } from '@/lib/simulador'
+import { MAXIMO_DE_INSUMOS, type InsumoDelRecorrido } from '@/lib/insumos'
 
 /**
  * Cuántas complicaciones caben en un recorrido.
@@ -66,6 +67,8 @@ export interface ResultadoDeCirugia {
   puntaje: number
   puntajeMaximo: number
   complicaciones: ComplicacionDelCaso[]
+  /** Lo que se usó en el recorrido (P-004 E3): es lo que «queda para los estudiantes» al terminar. */
+  insumos: InsumoDelRecorrido[]
 }
 
 /** Lo que vuelve de la base: lo mismo, menos lo que la fila no traiga. */
@@ -81,6 +84,8 @@ export interface RecorridoGuardado {
    */
   puntajeMaximo: number | null
   complicaciones: ComplicacionDelCaso[]
+  /** Los insumos del último recorrido; vacío si la fila no los trae (los recorridos de antes de P-004 E3). */
+  insumos: InsumoDelRecorrido[]
 }
 
 /**
@@ -167,6 +172,19 @@ function complicacionGuardada(bruta: unknown): ComplicacionDelCaso | null {
 }
 
 /**
+ * Un insumo tal como lo devuelve la base. Se descarta el que no se nombra o no cuenta ninguno: una fila escrita a mano
+ * puede traer cualquier cosa y la lista se lee en una pantalla del residente, no se interpreta.
+ */
+function insumoGuardado(bruto: unknown): InsumoDelRecorrido | null {
+  if (!bruto || typeof bruto !== 'object') return null
+  const i = bruto as Record<string, unknown>
+  const nombre = texto(i.nombre)
+  const cantidad = entero(i.cantidad, 1)
+  if (!nombre || cantidad === null) return null
+  return { nombre, categoria: texto(i.categoria), cantidad }
+}
+
+/**
  * El recorrido que guarda una fila de `actividad`, o `null` si no hay ninguno.
  *
  * `null` y no un objeto a cero: las cuatro colecciones que no son `cirugias`
@@ -187,10 +205,17 @@ export function recorridoGuardado(fila: unknown): RecorridoGuardado | null {
     })
     .slice(0, MAXIMO_DE_COMPLICACIONES)
 
-  const puntaje = cuenta(f.puntaje)
-  if (puntaje === null && complicaciones.length === 0) return null
+  const insumos = (Array.isArray(f.insumos) ? f.insumos : [])
+    .flatMap((bruto) => {
+      const limpio = insumoGuardado(bruto)
+      return limpio ? [limpio] : []
+    })
+    .slice(0, MAXIMO_DE_INSUMOS)
 
-  return { puntaje: puntaje ?? 0, puntajeMaximo: cuenta(f.puntajeMaximo), complicaciones }
+  const puntaje = cuenta(f.puntaje)
+  if (puntaje === null && complicaciones.length === 0 && insumos.length === 0) return null
+
+  return { puntaje: puntaje ?? 0, puntajeMaximo: cuenta(f.puntajeMaximo), complicaciones, insumos }
 }
 
 /** Un paso en el que la gente se queda atascada, con cuánto y a cuántos. */

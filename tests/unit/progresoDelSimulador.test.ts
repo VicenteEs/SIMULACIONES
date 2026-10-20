@@ -38,6 +38,35 @@ const fila = (extra: Record<string, unknown> = {}) => ({
 })
 
 describe('reconocer un recorrido guardado', () => {
+  it('los insumos del recorrido vuelven tal como se guardaron, y los que no se entienden se descartan (P-004 E3)', () => {
+    const recorrido = recorridoGuardado(
+      fila({
+        insumos: [
+          { nombre: 'Bisturí', categoria: 'corte', cantidad: 1 },
+          { nombre: '  ', cantidad: 2 },
+          { nombre: 'Sin cantidad' },
+          { nombre: 'Placa', categoria: null, cantidad: 1 },
+          'basura',
+        ],
+      }),
+    )
+    expect(recorrido?.insumos).toEqual([
+      { nombre: 'Bisturí', categoria: 'corte', cantidad: 1 },
+      { nombre: 'Placa', categoria: null, cantidad: 1 },
+    ])
+  })
+
+  it('una fila de antes de los insumos no los trae, y se lee con la lista vacía', () => {
+    expect(recorridoGuardado(fila())?.insumos).toEqual([])
+  })
+
+  it('una fila que solo trae insumos ya es un recorrido', () => {
+    const recorrido = recorridoGuardado(
+      fila({ puntaje: null, puntajeMaximo: null, complicaciones: [], insumos: [{ nombre: 'Bisturí', categoria: 'corte', cantidad: 1 }] }),
+    )
+    expect(recorrido?.insumos).toHaveLength(1)
+  })
+
   it('devuelve el puntaje, su máximo y las complicaciones de la fila', () => {
     const recorrido = recorridoGuardado(fila())
     expect(recorrido?.puntaje).toBe(18)

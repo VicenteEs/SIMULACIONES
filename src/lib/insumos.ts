@@ -59,6 +59,28 @@ export function anotarUso(registro: RegistroDeInsumos, uso: InsumoUsado): Regist
   }
 }
 
+/** Lo que se guarda de un insumo con el recorrido (P-004 E3): lo que se lee, sin el identificador interno. */
+export interface InsumoDelRecorrido {
+  nombre: string
+  categoria: string | null
+  cantidad: number
+}
+
+/** Cuántos insumos distintos caben en un recorrido: el tope de una lista que se manda al servidor. */
+export const MAXIMO_DE_INSUMOS = 100
+
+/**
+ * El registro de lo usado, plano y ordenado, para mandarlo con el recorrido.
+ *
+ * Por categoría en el orden de la bandeja y por nombre dentro de cada una, que es el orden en que se lee: así dos
+ * recorridos que usaron lo mismo mandan lo mismo, y `guardarRecorrido` no repite una escritura idéntica.
+ */
+export function resumenDeInsumos(registro: RegistroDeInsumos, ordenDeCategorias: readonly string[]): InsumoDelRecorrido[] {
+  return agruparInsumos(registro, ordenDeCategorias)
+    .flatMap((g) => g.insumos.map((u) => ({ nombre: u.nombre, categoria: u.categoria, cantidad: u.cantidad })))
+    .slice(0, MAXIMO_DE_INSUMOS)
+}
+
 export interface GrupoDeInsumos {
   categoria: string
   insumos: UsoDeInsumo[]

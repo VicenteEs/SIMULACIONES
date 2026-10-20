@@ -28,6 +28,8 @@ import * as migration_20261017_223757_planos_en_los_pasos from './20261017_22375
 import * as migration_20261017_231443_abordaje_de_las_estructuras from './20261017_231443_abordaje_de_las_estructuras';
 import * as migration_20261020_221621_tabla_de_vera_health from './20261020_221621_tabla_de_vera_health';
 import * as migration_20261020_223951_modelos_en_dos_carpetas from './20261020_223951_modelos_en_dos_carpetas';
+import * as migration_20261020_225415_bandeja_completa_o_acotada from './20261020_225415_bandeja_completa_o_acotada';
+import * as migration_20261020_225911_insumos_del_recorrido from './20261020_225911_insumos_del_recorrido';
 
 export const migrations = [
   {
@@ -178,6 +180,16 @@ export const migrations = [
   {
     up: migration_20261020_223951_modelos_en_dos_carpetas.up,
     down: migration_20261020_223951_modelos_en_dos_carpetas.down,
-    name: '20261020_223951_modelos_en_dos_carpetas'
+    name: '20261020_223951_modelos_en_dos_carpetas',
+  },
+  {
+    up: migration_20261020_225415_bandeja_completa_o_acotada.up,
+    down: migration_20261020_225415_bandeja_completa_o_acotada.down,
+    name: '20261020_225415_bandeja_completa_o_acotada',
+  },
+  {
+    up: migration_20261020_225911_insumos_del_recorrido.up,
+    down: migration_20261020_225911_insumos_del_recorrido.down,
+    name: '20261020_225911_insumos_del_recorrido'
   },
 ];

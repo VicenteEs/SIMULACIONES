@@ -682,9 +682,16 @@ fuera de la vista. Se busca **escribiendo** («hohm», «pinza dient»): se comp
 palabras y sin tildes. Al pulsar uno, aparece en el lienzo (si tiene modelo 3D; si no,
 dice «sin 3D») y la consola pasa sola al modo que le corresponde (Trazar para un bisturí,
 Separar para un separador…). En su recuadro: *Es el correcto en este paso* y
-*Añadir a la bandeja* (o *Quitar de la bandeja*). El residente ve solo la bandeja
-del caso: los instrumentos que piden los pasos más los que usted añada como
-señuelos; también puede filtrarla escribiendo.
+*Añadir a la bandeja* (o *Quitar de la bandeja*).
+
+**Qué ve el residente en la bandeja.** Por omisión, **toda la mesa**: todo el
+instrumental del catálogo, agrupado por categoría, sin que usted tenga que ir metiéndolo
+(en la consola hay un interruptor sobre la bandeja: *Toda la mesa* / *Solo lo que elijo*).
+Con **«Solo lo que elijo»** el residente ve únicamente lo que piden los pasos más lo que
+usted añada como señuelos; es lo que hay que usar si quiere limitar la elección. Quitar un
+instrumento de la bandeja con la mesa completa la pasa a «Solo lo que elijo» con todos los
+demás. Las cirugías que ya tenían su bandeja armada **la conservan**. El residente también
+puede filtrarla escribiendo.
 
 **Lo que no está en la lista, se agrega ahí mismo.** El hueso, el segmento, la técnica, la
 clasificación y la fase del caso, y el modelo, se eligen **escribiendo** en un cuadro que
@@ -871,9 +878,12 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   placa no se guarda al recargar.
 - **Insumos utilizados.** Al terminar el caso, la consola lista **lo que se usó** (lo que hizo
   algo: cortó, separó, pinzó, perforó, midió, cosió o fijó; elegir un instrumento y soltarlo no
-  cuenta), por categoría y con los tornillos por tipo y largo. En el **editor**, cada
-  instrumento de la bandeja lleva una casilla (lo usado, marcada; lo que no se usó, sin marcar)
-  y **«Usar como bandeja del caso»** deja la bandeja exactamente con lo marcado.
+  cuenta), por categoría y con los tornillos por tipo y largo. **Queda guardado con el
+  recorrido**: al volver a abrir el caso, «Su recorrido anterior» muestra también los
+  insumos que usó. En el **editor**, cada instrumento de la bandeja lleva una casilla (lo
+  usado, marcada; con «Solo lo que elijo», lo que estaba y no se usó, sin marcar) y
+  **«Usar como bandeja del caso»** deja la bandeja exactamente con lo marcado y la pasa a
+  «Solo lo que elijo».
 - **Info.** El modo **Info** de la barra del modelo sirve para todos: un clic en una estructura
   (un músculo, un nervio, un vaso, un hueso) la **destaca en azul** y abre su ficha **a la derecha del
   modelo**, como la fluoroscopia,

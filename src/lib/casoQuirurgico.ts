@@ -197,6 +197,8 @@ function instrumentoDeBandeja(bruto: unknown): InstrumentoDeBandeja | null {
     slug: texto(doc.slug),
     // Lo que el caso no declaró pero la placa necesita (P-003 E6): se enseña marcado «para esta placa».
     paraLaPlaca: doc.__paraLaPlaca === true ? true : undefined,
+    // Lo que está en la bandeja porque la mesa es completa y no porque el caso lo pida (P-004 E3).
+    porOmision: doc.__porOmision === true ? true : undefined,
     // El modelo del instrumento viaja como dirección, no como documento: la
     // consola solo necesita saber de dónde bajarlo, y solo baja el del que el
     // residente tiene en la mano.
@@ -312,6 +314,33 @@ export function conCompanerosDeLaPlaca(documento: Documento, companeros: readonl
   return { ...documento, instrumental: [...declarados, ...companeros.map((c) => ({ ...c, __paraLaPlaca: true }))] }
 }
 
+/**
+ * Qué ve el residente en la bandeja (P-004 E3): `completa` —todo el catálogo, que es lo que pidió Cristóbal— o
+ * `acotada` —lo que el editor eligió y lo que piden los pasos—. Un valor que no se entiende cuenta como completa:
+ * es el de un caso nuevo, y el que una bandeja sin elegir daría de todas formas.
+ */
+export const bandejaDelDocumento = (documento: Documento): 'completa' | 'acotada' =>
+  documento.bandeja === 'acotada' ? 'acotada' : 'completa'
+
+/**
+ * El documento del caso con toda la mesa en la bandeja, si la bandeja es completa (P-004 E3).
+ *
+ * `catalogo` son los documentos de instrumental que el servidor trajo (`traerTodaLaMesa`). Lo que el caso ya traía
+ * —declarado, pedido por un paso o compañero de la placa— se queda como estaba, sin marca; lo demás entra marcado
+ * `__porOmision`. Con la bandeja acotada, o sin catálogo, el documento vuelve igual.
+ */
+export function conTodaLaMesa(documento: Documento, catalogo: readonly Documento[]): Documento {
+  if (bandejaDelDocumento(documento) === 'acotada' || catalogo.length === 0) return documento
+  const yaEstan = new Set(
+    instrumentosDelCaso(documento)
+      .map((b) => (b && typeof b === 'object' ? String((b as Documento).id ?? '') : ''))
+      .filter(Boolean),
+  )
+  const declarados = Array.isArray(documento.instrumental) ? documento.instrumental : []
+  const nuevos = catalogo.filter((c) => !yaEstan.has(String(c.id ?? ''))).map((c) => ({ ...c, __porOmision: true }))
+  return { ...documento, instrumental: [...declarados, ...nuevos] }
+}
+
 export function casoParaLaConsola(documento: Documento): CasoDeConsola {
   const modelo = documento.modelo
   const desplazamiento = (documento.desplazamientoInicial ?? {}) as Documento
@@ -335,6 +364,7 @@ export function casoParaLaConsola(documento: Documento): CasoDeConsola {
       giroZ: numero(desplazamiento.giroZ, 0),
     },
     pasos: pasosDelCaso(documento),
+    bandeja: bandejaDelDocumento(documento),
     instrumental: bandejaDelCaso(
       Array.isArray(documento.pasos) ? (documento.pasos as Documento[]) : [],
       documento.instrumental,
@@ -407,6 +437,7 @@ export function casoDesdeElFormulario(
   }
 
   const modelo = buscar('modelos-3d', valores.modelo)
+  const completa = bandejaDelDocumento(valores) === 'completa'
   const enLaBandeja = new Set<string>()
   for (const bruto of Array.isArray(valores.instrumental) ? valores.instrumental : []) {
     const id = idDeRelacion(bruto)
@@ -436,6 +467,7 @@ export function casoDesdeElFormulario(
     pasos,
     // El catálogo entero se pone abajo; aquí no se arma la bandeja del caso.
     instrumental: [],
+    bandeja: valores.bandeja,
   })
 
   const comoInstrumento = (i: InstrumentoParaElEditor) => ({
@@ -448,7 +480,8 @@ export function casoDesdeElFormulario(
     ajustes: i.ajustes,
     categoria: i.categoria,
     slug: i.slug ?? null,
-    enLaBandejaDelCaso: enLaBandeja.has(i.id),
+    // Con la mesa completa todo está en la bandeja del residente (P-004 E3).
+    enLaBandejaDelCaso: completa || enLaBandeja.has(i.id),
   })
   return {
     ...base,
@@ -457,7 +490,7 @@ export function casoDesdeElFormulario(
     // que armaba no se parecía a lo que vería quien recorre el caso: «solo las herramientas que selecciono
     // tienen que aparecer en la interfaz del simulador».
     instrumental: contexto.instrumentos
-      .filter((i) => enLaBandeja.has(i.id))
+      .filter((i) => completa || enLaBandeja.has(i.id))
       .map(comoInstrumento)
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
     // El catálogo entero queda aparte, solo para el botón «Añadir a la bandeja».

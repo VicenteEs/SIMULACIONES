@@ -1613,8 +1613,9 @@ export interface Cirugia {
     };
     [k: string]: unknown;
   } | null;
+  bandeja: 'completa' | 'acotada';
   /**
-   * Lo que el residente tendrá delante. Si se deja vacío, la bandeja la componen los instrumentos que piden los pasos. Declararla sirve para AÑADIR señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Sin ellos, acertar es elegir entre lo que ya se sabe que sirve.
+   * Solo cuenta con «Solo lo que elijo». Entonces es lo que el residente tendrá delante, más lo que piden los pasos; declararla sirve para AÑADIR señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Con «Toda la mesa» el residente ve todo el instrumental y esta lista no se usa.
    */
   instrumental?: (number | Instrumental)[] | null;
   /**
@@ -2040,6 +2041,15 @@ export interface Actividad {
   completado?: boolean | null;
   puntaje?: number | null;
   puntajeMaximo?: number | null;
+  insumos?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   complicaciones?:
     | {
         paso: string;
@@ -3558,6 +3568,7 @@ export interface CirugiasSelect<T extends boolean = true> {
   tecnica?: T;
   codigo?: T;
   resumen?: T;
+  bandeja?: T;
   instrumental?: T;
   modelo?: T;
   milimetrosPorUnidad?: T;
@@ -3881,6 +3892,7 @@ export interface ActividadSelect<T extends boolean = true> {
   completado?: T;
   puntaje?: T;
   puntajeMaximo?: T;
+  insumos?: T;
   complicaciones?:
     | T
     | {

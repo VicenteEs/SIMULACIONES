@@ -6437,6 +6437,41 @@ cierra en E6.1.
 *Malas.* «Recuperar la vista» vuelve a montar el dibujo y lo que no se guarda en la sesión (la placa puesta, la pinza en la mano) se
 pierde; las incisiones, los separadores y las retracciones vuelven por la sesión guardada (D-188).
 
+### D-195 · 2026-10-21 · vigente
+**Toda la mesa en la bandeja por omisión, y los insumos de cada recorrido quedan guardados para el residente.**
+Tercera etapa de P-004 (E3). Pedido 7 de Cristóbal: «que todo el instrumental parta por defecto en la bandeja; al final que salga el
+resumen de lo utilizado y que eso quede para los estudiantes; si tengo que ir metiendo, se vuelve engorroso el panel». Respuesta del dueño a
+Q1: **solo las cirugías que no han armado su bandeja** ven toda la mesa.
+
+*Qué se hizo.*
+- **Un campo `bandeja` en la cirugía** (`completa` | `acotada`, `completa` por omisión; en las versiones también). Con `completa`, la
+  página del residente trae todo el catálogo de instrumental (`traerTodaLaMesa`, `src/lib/mesaCompleta.ts`, con los permisos de quien
+  abre el caso y sin romper el caso si el catálogo no responde) y `conTodaLaMesa` lo suma a lo que el caso ya traía, sin repetir y con la
+  marca `__porOmision`. Con `acotada`, la bandeja es la de antes: lo declarado, lo que piden los pasos y los compañeros de la placa.
+- **El editor ve lo mismo que el residente.** Sobre la bandeja hay un interruptor «Toda la mesa» / «Solo lo que elijo». Quitar un
+  instrumento con la mesa completa la deja en «Solo lo que elijo» con todos los demás; «Usar como bandeja del caso» (E7) la deja acotada con
+  lo marcado; con la mesa completa se esconden «Añadir a la bandeja» y la etiqueta «en la bandeja» de cada uno, que serían ruido, y lo
+  «no usado» de las casillas no lista todo el catálogo.
+- **Rendimiento:** la consola precargaba en segundo plano los bytes de todos los modelos de la bandeja; con la mesa completa son decenas. Se
+  precargan los del caso y los de la familia que está abierta; los demás, al cogerlos.
+- **Los insumos quedan con el recorrido:** `actividad.insumos` (JSON, `[{ nombre, categoria, cantidad }]`), que la consola manda en cada
+  hito con el puntaje y las complicaciones (`resumenDeInsumos`, ordenado, para que dos recorridos iguales manden lo mismo y no se repita
+  una escritura idéntica); `registrarResultadoDeCirugia` lo comprueba entero (lista, nombre, cantidad entera, tope de cien); y «Su
+  recorrido anterior» lo enseña al volver. Un navegador de antes de este cambio no lo manda y se guarda igual, con la lista vacía.
+- **Migraciones.** `20261020_225415_bandeja_completa_o_acotada`: las dos columnas y el reparto de S2 —`acotada` para la cirugía que ya
+  tiene alguna fila en `cirugias_rels` o en `_cirugias_v_rels`, que es donde viven los borradores; `completa` para el resto— y
+  `…_insumos_del_recorrido`: una columna `jsonb`. Las dos solo añaden.
+
+*Probado.* Unitarias (la mesa completa suma sin repetir, la acotada no suma, el editor ve lo mismo, el cableado de la página y de la consola,
+los insumos de ida y vuelta y su validación) y de integración contra PostgreSQL: una cirugía nueva nace `completa`, lo escrito se guarda, y
+**el `UPDATE` de la migración ejecutado tal cual** deja acotada a la que tenía bandeja y completa a la que no. En local: el simulador de
+una cirugía publicada muestra los 22 instrumentos en sus cinco familias; en el editor, el interruptor pasa una cirugía de «Solo lo que
+elijo» a «Toda la mesa» y la bandeja pasa de 0 a 22.
+
+*Consecuencias buenas.* Un caso nuevo se puede recorrer sin armar nada, y lo que el residente usó se queda. *Malas.* Con toda la mesa, los
+instrumentos «señuelo» dejan de poder escasear: acertar es elegir entre todo el catálogo, que es más difícil que entre cinco; quien quiera lo
+de antes elige «Solo lo que elijo». La bandeja del residente tiene decenas de instrumentos: se recorre por familias y con el buscador.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -9902,7 +9937,7 @@ causa queda anotada como pendiente.
 
 ---
 
-#### E3 · Toda la mesa en la bandeja por omisión · 1 sesión
+#### E3 · Toda la mesa en la bandeja por omisión · 1 sesión · hecha en local (2026-10-21, D-195)
 
 **De dónde sale:** pedido 7. Depende de E7 de P-003.
 
@@ -9931,10 +9966,10 @@ causa queda anotada como pendiente.
 
 **Tareas**
 
-- [ ] **E3.1 · Campo `bandeja` y migración** con el reparto, tipos regenerados, esquema del panel y su botón.
-- [ ] **E3.2 · `casoParaLaConsola` con toda la mesa** (y la precarga acotada).
-- [ ] **E3.3 · Guardar el resumen de lo usado** con el recorrido y mostrarlo al reabrir.
-- [ ] **E3.4 · Pruebas, manual y D-nnn.** Un caso sin bandeja ve toda la mesa; uno con bandeja armada la conserva; «Volver a toda la mesa»;
+- [x] **E3.1 · Campo `bandeja` y migración** con el reparto, tipos regenerados, esquema del panel y su botón.
+- [x] **E3.2 · `casoParaLaConsola` con toda la mesa** (y la precarga acotada).
+- [x] **E3.3 · Guardar el resumen de lo usado** con el recorrido y mostrarlo al reabrir.
+- [x] **E3.4 · Pruebas, manual y D-nnn.** *(D-195)* Un caso sin bandeja ve toda la mesa; uno con bandeja armada la conserva; «Volver a toda la mesa»;
   el resumen sobrevive a recargar.
 
 **Hecho cuando…** Una cirugía nueva abre con todos los instrumentos agrupados por categoría y, al terminar, el resumen de lo usado se
@@ -10366,7 +10401,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 |---|---|---|---|---|
 | E1 · Modelos 3D en dos carpetas | hecha en local; sin desplegar | 1 | — | D-193 |
 | E2 · La pantalla en blanco | hecha en local; sin desplegar | 1 | — | D-194 |
-| E3 · Toda la mesa en la bandeja | pendiente | 1 | — | — |
+| E3 · Toda la mesa en la bandeja | hecha en local; sin desplegar | 1 | — | D-195 |
 | E4 · Barra de modos y «Seleccionar estructura» | pendiente | 1 | — | — |
 | E5 · Abordaje por planos de corrido | pendiente | 2 | E4 | — |
 | E6 · La placa: una sola, ejes anatómicos, números | pendiente | 2 | E2, E4 | — |

@@ -275,6 +275,15 @@ export const Actividad: CollectionConfig = {
        * paso—, el identificador deja de encontrar nada y sin esas dos columnas
        * la complicación se queda sin poder nombrarse.
        */
+      // Lo que se usó en el último recorrido (P-004 E3): `[{ nombre, categoria, cantidad }]`, tal como lo leyó el residente
+      // en «Insumos utilizados» al terminar. JSON y no un arreglo de Payload porque se escribe y se lee entero, igual que
+      // las notas de la revisión, y un arreglo pediría una tabla aparte para unas decenas de líneas que nadie consulta
+      // por separado. El tope de cien lo comprueba `registrarResultadoDeCirugia` (`MAXIMO_DE_INSUMOS`).
+      name: 'insumos',
+      type: 'json',
+      label: 'Insumos usados en el último recorrido',
+    },
+    {
       name: 'complicaciones',
       type: 'array',
       label: 'Complicaciones',

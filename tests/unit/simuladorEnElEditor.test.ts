@@ -124,7 +124,8 @@ describe('casoDesdeElFormulario: la consola, desde lo que se está escribiendo',
   })
 
   it('la bandeja del editor es solo la del caso, la misma que ve el residente', () => {
-    const caso = casoDesdeElFormulario(valores, { opciones, instrumentos })
+    // «Solo lo que elijo» (P-004 E3): con la mesa completa la bandeja es el catálogo entero.
+    const caso = casoDesdeElFormulario({ ...valores, bandeja: 'acotada' }, { opciones, instrumentos })
     // Los de los pasos (el 4) y los que el autor eligió (el 12): en orden de nombre. El 9 no está: no lo pide
     // ningún paso ni se eligió, y antes aparecía igual porque la bandeja era el catálogo entero.
     expect(caso.instrumental.map((i) => i.nombre)).toEqual(['Martillo', 'Tijera de Mayo recta'])
@@ -133,7 +134,7 @@ describe('casoDesdeElFormulario: la consola, desde lo que se está escribiendo',
   })
 
   it('el catálogo entero va aparte, para «Añadir a la bandeja», con marca de cuáles ya están', () => {
-    const caso = casoDesdeElFormulario(valores, { opciones, instrumentos })
+    const caso = casoDesdeElFormulario({ ...valores, bandeja: 'acotada' }, { opciones, instrumentos })
     expect(caso.catalogoDelEditor?.map((i) => i.nombre)).toEqual([
       'Tijera de Mayo recta',
       'Pinza de Verbrugge',

@@ -633,13 +633,26 @@ export const Cirugias: EsquemaDeColeccion = {
           clase: 'cuerpo',
         },
         {
+          tipo: 'seleccion',
+          nombre: 'bandeja',
+          etiqueta: 'Qué ve el residente en la bandeja',
+          requerido: true,
+          porOmision: 'completa',
+          opciones: [
+            { valor: 'completa', etiqueta: 'Toda la mesa (todo el instrumental)' },
+            { valor: 'acotada', etiqueta: 'Solo lo que elijo' },
+          ],
+          ayuda:
+            'Por omisión el residente tiene todo el instrumental delante, sin que haya que ir metiéndolo. «Solo lo que elijo» la limita a la lista de abajo y a lo que piden los pasos.',
+        },
+        {
           tipo: 'relacion',
           nombre: 'instrumental',
           etiqueta: 'Bandeja del caso',
           coleccion: 'instrumental',
           multiple: true,
           ayuda:
-            'Si se deja vacía, la componen los instrumentos que piden los pasos. Declararla sirve para añadir señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Lo que un paso necesita se añade solo, aunque aquí falte.',
+            'Solo cuenta con «Solo lo que elijo». Declararla sirve para añadir señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Lo que un paso necesita se añade solo, aunque aquí falte.',
         },
         {
           tipo: 'numero',

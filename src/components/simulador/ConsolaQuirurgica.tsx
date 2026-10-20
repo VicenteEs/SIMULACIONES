@@ -103,7 +103,7 @@ import { leerFichaParaElSimulador, type FichaParaElSimulador } from '@/app/(fron
 import { VentanaDeEstructura } from '@/app/(frontend)/admin-panel/estructuras/VentanaDeEstructura'
 import { familiaDeSistema } from '@/lib/estructuras'
 import { instrumentosParaActuar } from '@/lib/abordajeDelMusculo'
-import { agruparInsumos, anotarUso, filasParaLaBandeja, type RegistroDeInsumos } from '@/lib/insumos'
+import { agruparInsumos, anotarUso, filasParaLaBandeja, resumenDeInsumos, type RegistroDeInsumos } from '@/lib/insumos'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import { comportamientoDelInstrumento, guiaDelInstrumento } from '@/lib/comportamientoDelInstrumento'
 import { InstrumentoArticulado } from './InstrumentoArticulado'
@@ -245,6 +245,8 @@ export interface InstrumentoDeBandeja {
   slug?: string | null
   /** Lo trajo la placa de la bandeja y no el caso: tornillo, broca, medidor o destornillador de esa placa (P-003 E6). */
   paraLaPlaca?: boolean
+  /** Está porque la mesa es completa y no porque el caso lo pida (P-004 E3): no se precarga hasta abrir su categoría. */
+  porOmision?: boolean
   /** Solo en el editor: si el instrumento ya está en la bandeja que el caso declara. */
   enLaBandejaDelCaso?: boolean
   /** Para qué sirve, tal como lo escribió el traumatólogo en el catálogo. */
@@ -270,6 +272,11 @@ export interface CasoDeConsola {
     giroZ: number
   }
   pasos: PasoDeConsola[]
+  /**
+   * Qué ve el residente en la bandeja (P-004 E3): `completa`, todo el catálogo de instrumental; o `acotada`, lo que el
+   * editor eligió y lo que piden los pasos.
+   */
+  bandeja: 'completa' | 'acotada'
   instrumental: InstrumentoDeBandeja[]
   /**
    * Solo en el editor: el catálogo entero, para ofrecer «Añadir a la bandeja». La bandeja que se pinta
@@ -322,8 +329,10 @@ export interface EdicionEnLaConsola {
   alSenalar: (nodo: string) => void
   /** Añade o quita un instrumento de la bandeja que declara el caso. */
   alAlternarEnLaBandeja: (id: string) => void
-  /** Deja la bandeja del caso exactamente con estos instrumentos (los insumos usados, al terminar: P-003 E7). */
+  /** Deja la bandeja del caso exactamente con estos instrumentos (los insumos usados, al terminar: P-003 E7), y «Solo lo que elijo». */
   alFijarLaBandeja: (ids: string[]) => void
+  /** Cambia lo que ve el residente en la bandeja: toda la mesa o solo lo que el editor elige (P-004 E3). */
+  alCambiarLaBandeja: (modo: 'completa' | 'acotada') => void
   /** Pone el instrumento que se tiene en la mano como el correcto del paso que se edita. */
   alUsarEnElPaso: (id: string) => void
   /** El instrumento correcto del paso que se edita, para marcarlo en la bandeja. */
@@ -876,13 +885,19 @@ export function ConsolaQuirurgica({
    * repintado, así que leerlo aquí guardaría siempre el del hito anterior.
    */
   const guardarRecorrido = useCallback(
-    (puntajeActual: number, lista: ComplicacionDelCaso[]) => {
+    (puntajeActual: number, lista: ComplicacionDelCaso[], usados: RegistroDeInsumos) => {
       // El editor ensaya: lo que ocurre aquí no es el recorrido de nadie.
       if (editor) return
       const datos: ResultadoDeCirugia = {
         puntaje: puntajeActual,
         puntajeMaximo: maximo,
         complicaciones: lista,
+        // Lo usado hasta este hito, que es lo que «queda para los estudiantes» al terminar (P-004 E3). Se pasa y no se
+        // lee del estado, por lo mismo que el puntaje: a quien llama le acaban de cambiar.
+        insumos: resumenDeInsumos(
+          usados,
+          CATEGORIAS_DE_INSTRUMENTAL.map((cat) => cat.value as string),
+        ),
       }
       const huella = JSON.stringify(datos)
       if (huella === ultimoMandado.current) return
@@ -1178,7 +1193,7 @@ export function ConsolaQuirurgica({
         // conservar es lo último que pasó, no lo primero.
         const nuevas = [...complicaciones, nueva].slice(-MAXIMO_DE_COMPLICACIONES)
         setComplicaciones(nuevas)
-        guardarRecorrido(puntaje, nuevas)
+        guardarRecorrido(puntaje, nuevas, insumos)
       } else if (evaluacion.resultado !== RESULTADOS.SIN_INSTRUMENTO) anotarEn(setFallados)
       return
     }
@@ -1205,7 +1220,7 @@ export function ConsolaQuirurgica({
     // `guardarRecorrido`, que descarta la que sería idéntica a la anterior.
     // El marcador final no necesita nada aparte: el último paso es un hito como
     // los demás y lo deja guardado.
-    guardarRecorrido(puntajeTrasElPaso, complicaciones)
+    guardarRecorrido(puntajeTrasElPaso, complicaciones, insumos)
 
     const siguiente = indice + 1
     // La lectura sí: es otro campo y otra acción (`marcarCasoComoLeido`). Se
@@ -1658,7 +1673,13 @@ export function ConsolaQuirurgica({
   // La dependencia es el texto de las direcciones y no el arreglo: en el editor
   // el caso se rehace con cada letra que se escribe, y con el arreglo la
   // precarga volvería a empezar en cada una.
-  const direccionesDeLaBandeja = caso.instrumental.map((i) => i.modeloUrl ?? '').join('|')
+  //
+  // Con la mesa completa (P-004 E3) la bandeja son decenas de instrumentos y bajar todos sus modelos de entrada sería
+  // lo que ya se evitó: se precargan los del caso y los de la familia que está abierta; los demás, al cogerlos.
+  const direccionesDeLaBandeja = caso.instrumental
+    .filter((i) => !i.porOmision || i.categoria === categoriaAbierta)
+    .map((i) => i.modeloUrl ?? '')
+    .join('|')
   useEffect(() => {
     const direcciones = [...new Set(direccionesDeLaBandeja.split('|').filter(Boolean))]
     if (direcciones.length === 0) return
@@ -2060,7 +2081,10 @@ export function ConsolaQuirurgica({
   )
   const filasDeLaBandeja = filasParaLaBandeja(
     insumos,
-    caso.instrumental.filter((i) => i.enLaBandejaDelCaso).map((i) => ({ id: i.id, nombre: i.nombre })),
+    // Con la mesa completa lo «no usado» sería todo el catálogo (P-004 E3): solo se lista lo que de verdad se había elegido.
+    caso.instrumental
+      .filter((i) => i.enLaBandejaDelCaso && caso.bandeja === 'acotada')
+      .map((i) => ({ id: i.id, nombre: i.nombre })),
   )
   const estaMarcada = (f: { id: string; usado: boolean }) => (marcadasParaLaBandeja ? marcadasParaLaBandeja.has(f.id) : f.usado)
   const alternarMarca = (id: string) => {
@@ -2117,6 +2141,35 @@ export function ConsolaQuirurgica({
   const bloqueDeLaBandeja = (
         <div className="consola-bandeja-bloque">
           <h3 className="consola-subtitulo">Instrumental · {caso.instrumental.length}</h3>
+          {/* Qué ve el residente (P-004 E3): toda la mesa por omisión, para no ir metiendo instrumento por instrumento, o
+              solo lo que el editor elija. Es una orden del editor; el residente no la ve. */}
+          {editor ? (
+            <>
+              <div className="consola-submodo" role="group" aria-label="Qué ve el residente en la bandeja">
+                {(
+                  [
+                    ['completa', 'Toda la mesa'],
+                    ['acotada', 'Solo lo que elijo'],
+                  ] as const
+                ).map(([modo, etiqueta]) => (
+                  <button
+                    key={modo}
+                    type="button"
+                    className={`consola-submodo-boton${caso.bandeja === modo ? ' activo' : ''}`}
+                    aria-pressed={caso.bandeja === modo}
+                    onClick={() => editor.alCambiarLaBandeja(modo)}
+                  >
+                    {etiqueta}
+                  </button>
+                ))}
+              </div>
+              <p className="consola-ayuda">
+                {caso.bandeja === 'completa'
+                  ? 'El residente ve todo el instrumental. Para limitarlo, quite instrumentos de la lista o pase a «Solo lo que elijo».'
+                  : 'El residente ve solo lo de abajo y lo que piden los pasos.'}
+              </p>
+            </>
+          ) : null}
           {/* Solo los instrumentos del caso, los mismos que ve el residente: los que el autor eligió en la
               bandeja y los que piden los pasos. Y siempre con buscador: con cuarenta instrumentos, recorrer
               las familias a ojo es lo que más tiempo quita. Se busca por palabras y sin tildes. */}
@@ -2131,7 +2184,7 @@ export function ConsolaQuirurgica({
               onChange={(e) => setBusquedaDeInstrumento(e.target.value)}
             />
           </label>
-          {editor && caso.catalogoDelEditor ? (
+          {editor && caso.catalogoDelEditor && caso.bandeja === 'acotada' ? (
             <AnadirALaBandeja
               catalogo={caso.catalogoDelEditor}
               alAnadir={(id) => editor.alAlternarEnLaBandeja(id)}
@@ -2190,7 +2243,7 @@ export function ConsolaQuirurgica({
                       ) : null}
                       {editor?.instrumentoDelPaso === it.id ? (
                         <span className="instrumento-etiqueta instrumento-etiqueta-paso">este paso</span>
-                      ) : it.enLaBandejaDelCaso ? (
+                      ) : it.enLaBandejaDelCaso && caso.bandeja === 'acotada' ? (
                         <span className="instrumento-etiqueta">en la bandeja</span>
                       ) : it.paraLaPlaca ? (
                         <span className="instrumento-etiqueta" title="Lo necesita la placa de la bandeja: tornillos, brocas, medidor y destornillador">
@@ -4076,6 +4129,18 @@ export function ConsolaQuirurgica({
               . Es lo último que quedó guardado de este caso; el marcador de arriba cuenta el
               recorrido de ahora.
             </p>
+            {recorridoGuardado.insumos.length > 0 ? (
+              <div className="consola-insumos">
+                <p className="consola-instrumento-texto">Insumos que usó</p>
+                <ul>
+                  {recorridoGuardado.insumos.map((u) => (
+                    <li key={u.nombre}>
+                      {u.nombre} · <span className="u-num">{u.cantidad}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {recorridoGuardado.complicaciones.length > 0 ? (
               <ul className="consola-registro">
                 {recorridoGuardado.complicaciones.map((complicacion, i) =>

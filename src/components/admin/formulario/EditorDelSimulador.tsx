@@ -221,6 +221,13 @@ export function EditorDelSimulador({
     )
 
   const alternarEnLaBandeja = (id: string) => {
+    // Con la mesa completa todo está en la bandeja (P-004 E3): quitar uno la deja en «Solo lo que elijo» con todos los
+    // demás, que es lo que dice quitar un instrumento de la mesa.
+    if (valores.bandeja !== 'acotada') {
+      alCambiar('instrumental', instrumentos.filter((i) => i.id !== id).map((i) => i.id))
+      alCambiar('bandeja', 'acotada')
+      return
+    }
     const actuales = idsDeLaBandeja()
     alCambiar('instrumental', actuales.includes(id) ? actuales.filter((x) => x !== id) : [...actuales, id])
   }
@@ -527,7 +534,11 @@ export function EditorDelSimulador({
           },
           alAlternarEnLaBandeja: alternarEnLaBandeja,
           // La bandeja queda exactamente con lo marcado al terminar (P-003 E7).
-          alFijarLaBandeja: (ids) => alCambiar('instrumental', ids),
+          alFijarLaBandeja: (ids) => {
+            alCambiar('instrumental', ids)
+            alCambiar('bandeja', 'acotada')
+          },
+          alCambiarLaBandeja: (modo) => alCambiar('bandeja', modo),
           alUsarEnElPaso: (id) => escribirVariosDelPaso({ instrumento: id, instrumentoPropuesto: '' }),
           instrumentoDelPaso:
             pasoActual?.instrumento === undefined || pasoActual.instrumento === null

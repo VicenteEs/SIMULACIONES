@@ -7,8 +7,15 @@ import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Miga } from '@/components/Estados'
 import { CasoConSuLectura } from '@/components/simulador/CasoConSuLectura'
 import { FormularioComentario } from '@/components/FormularioComentario'
-import { casoParaLaConsola, companerosQueFaltan, conCompanerosDeLaPlaca } from '@/lib/casoQuirurgico'
+import {
+  bandejaDelDocumento,
+  casoParaLaConsola,
+  companerosQueFaltan,
+  conCompanerosDeLaPlaca,
+  conTodaLaMesa,
+} from '@/lib/casoQuirurgico'
 import { traerCompanerosDeLaPlaca } from '@/lib/companerosDeLaPlaca'
+import { traerTodaLaMesa } from '@/lib/mesaCompleta'
 import { lecturasDelResidente } from '@/lib/lecturas'
 import { recorridoGuardado } from '@/lib/progresoDelSimulador'
 import { Rico } from '@/components/Rico'
@@ -54,7 +61,10 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
   // bandeja queda como estaba: es una ayuda, no una condición para abrir el caso.
   const documentoDelCaso = cirugia as unknown as Record<string, unknown>
   const companeros = await traerCompanerosDeLaPlaca(payload, usuarioEfectivo, companerosQueFaltan(documentoDelCaso))
-  const caso = casoParaLaConsola(conCompanerosDeLaPlaca(documentoDelCaso, companeros))
+  // Y la mesa completa (P-004 E3): un caso que no armó su bandeja la tiene con todo el instrumental, sin que el editor haya
+  // tenido que ir metiéndolo. Uno con «Solo lo que elijo» conserva la suya y no consulta el catálogo.
+  const mesa = bandejaDelDocumento(documentoDelCaso) === 'completa' ? await traerTodaLaMesa(payload, usuarioEfectivo) : []
+  const caso = casoParaLaConsola(conTodaLaMesa(conCompanerosDeLaPlaca(documentoDelCaso, companeros), mesa))
 
   // La casilla de «leída» tiene que nacer sabiendo si ya lo está, y
   // `RastreadorActividad` es de cliente: no puede consultarlo él. Sin esto la

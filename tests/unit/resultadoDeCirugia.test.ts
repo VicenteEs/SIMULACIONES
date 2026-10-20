@@ -108,7 +108,42 @@ describe('guardar el recorrido de un caso', () => {
       puntaje: 18,
       puntajeMaximo: 40,
       complicaciones: [],
+      insumos: [],
     })
+  })
+
+  it('guarda los insumos del recorrido, con su cantidad y su categoría (P-004 E3)', async () => {
+    await registrarResultadoDeCirugia(
+      '7',
+      recorrido({
+        insumos: [
+          { nombre: 'Bisturí de piel', categoria: 'corte', cantidad: 1 },
+          { nombre: 'Tornillo cortical 3,5 mm × 36 mm', categoria: 'fijacion', cantidad: 4 },
+        ],
+      }),
+    )
+    expect(loEscrito().insumos).toEqual([
+      { nombre: 'Bisturí de piel', categoria: 'corte', cantidad: 1 },
+      { nombre: 'Tornillo cortical 3,5 mm × 36 mm', categoria: 'fijacion', cantidad: 4 },
+    ])
+  })
+
+  it('un navegador de antes de los insumos no los manda y se guarda igual, con la lista vacía', async () => {
+    // `recorrido()` no trae insumos: es lo que mandaba un navegador de antes.
+    await registrarResultadoDeCirugia('7', recorrido())
+    expect(loEscrito().insumos).toEqual([])
+  })
+
+  it('rechaza unos insumos que no son una lista, que no se nombran o que no cuentan un entero', async () => {
+    for (const mal of ['una cadena', [{ cantidad: 1 }], [{ nombre: 'Bisturí', cantidad: 0 }], [{ nombre: 'Bisturí', cantidad: 1.5 }], [null]]) {
+      await expect(registrarResultadoDeCirugia('7', recorrido({ insumos: mal as never }))).rejects.toThrow()
+    }
+    expect(crear).not.toHaveBeenCalled()
+  })
+
+  it('rechaza más insumos de los que caben', async () => {
+    const muchos = Array.from({ length: 101 }, (_, i) => ({ nombre: `Insumo ${i}`, categoria: null, cantidad: 1 }))
+    await expect(registrarResultadoDeCirugia('7', recorrido({ insumos: muchos }))).rejects.toThrow(/más de 100 insumos/)
   })
 
   it('un caso limpio se guarda igual', async () => {
