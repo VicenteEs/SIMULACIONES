@@ -9610,6 +9610,687 @@ debajo con la Metzenbaum y llega al hueso, plano por plano.
 
 ---
 
+### P-004 · 2026-10-21 · en curso
+**Segunda ronda de observaciones de Cristóbal sobre el simulador, ya probando E1–E10 de P-003 en `ved`: modelos 3D en dos carpetas, una
+pantalla que se queda en blanco, bandeja completa por omisión, barra de modos arriba y «Seleccionar estructura», abordaje por planos
+sin pasos de más, placa con una sola copia y ejes anatómicos, un menú de movimiento por ejes, el instrumental que se queda en el
+orificio mientras se pide el disparo, tornillos con su secuencia, sus tipos y su trayectoria, compresión con el agujero oval, y la
+radiografía postoperatoria con su lámina.**
+
+#### De dónde sale
+
+El documento **«observaciones simulador quirurgico (1).pdf»** (7 páginas; el dueño lo trajo el 2026-10-21), la segunda versión del
+de P-003: Cristóbal volvió a operar en `ved` con lo que P-003 dejó (las capturas muestran el «Info» de E9, el «Separando Extensor
+largo…» de E10, la placa de E6 y el «Fluoroscopia · AP · HACE 18 S» de E2) y reescribió el documento con lo que sigue faltando. Lo
+que pide, en el orden del documento, numerado para poder citarlo:
+
+1. **Modelos 3D en dos carpetas:** `herramientas` y `modelos_cuerpo`; las listas desplegables se indexan a ellas y los modelos que ya
+   hay se reparten. *(Hoy, al elegir un modelo 3D, salen todos revueltos: herramientas y modelos del atlas.)*
+2. **La placa:** una vez puesta, que **no sigan saliendo más placas al mover el ratón** y que tome el protagonismo la posición. El
+   control «A lo largo del hueso» **no deja más que −40 mm**. En nomenclatura: desplazar hacia **proximal** (la cabeza), **distal**
+   (el pie), **anterior** (adelante), **posterior** (atrás) y la **angulación**. «Ese panel deberíamos mejorarlo.»
+3. **La broca se queda donde estaba** haciendo el hoyo cuando el usuario se mueve para pedir el disparo (se mete y se saca con la rueda y
+   hay un botón para apagarla). *El disparo es para saber cuánto falta para terminar de brocar.*
+4. **Pantalla en blanco:** «me maneé mucho en una y me fui a blanco. Reinicio.» (la captura muestra el lienzo blanco con el panel
+   intacto y «Placa DCP 4,5 mm estrecha fijada.»).
+5. **Largo del tornillo (mm) y cantidad de orificios de la placa:** poder escribir el número en un campo.
+6. **Reducción manual o automática** al elegir la pinza de reducción (camarón o equivalente). Al pinchar «automática» se elimina todo el
+   desplazamiento: *no entramparse en la reducción si el objetivo docente es otro, pero mantener el ejercicio porque da realidad.*
+7. **Todo el instrumental en la bandeja por omisión.** Al final, el resumen de lo utilizado, que **queda para los estudiantes**. *Si hay
+   que ir metiendo, el panel se vuelve engorroso.*
+8. **Cortar un músculo:** que quede la marca temporalmente (como al abrir la piel) y poder **meter el Farabeuf en medio de la incisión**
+   —con lo que la línea desaparece— para ver el plano más profundo. *«Ahora no me aparece como que el fara quede puesto.»*
+9. **El panel lateral es poco práctico:** orbitar, trazar y los demás modos **arriba, ordenados de izquierda a derecha**; y «Información»
+   mejor se llama **«Seleccionar estructura»**.
+10. **Separar estructuras de corrido:** pinchar una estructura, girar la ruedita, que se **desplace hacia delante o hacia atrás**; pinchar
+    otra y separarla de una —*pincho-ruedita-pincho otra estructura-ruedita*— y así se va abriendo el abordaje. **Separar por omisión.**
+    Si hay una estructura que cortar: el botón de cortar, que **quede marcada la incisión**; se vuelve a separar, se pincha la herida y se
+    abre igual que la piel.
+11. **Función de un tornillo o una placa: compresiva o no.** En una placa con **orificios ovalados**, un tornillo **excéntrico** deja que el
+    hueso se deslice y se apriete contra el otro fragmento. Para un tornillo, **elegir la trayectoria con un clic al inicio y otro al
+    final** (una línea, como la incisión automática), y ahí ofrecer la broca, luego el medidor, luego el tornillo. La compresión se logra
+    de **dos formas**: brocar **grande** el fragmento cercano y **chico** el lejano (el tornillo desliza por el cercano y arrastra al otro),
+    o usar **tornillos de rosca parcial** (deslizan en el cercano y empujan contra el otro).
+12. **La secuencia brocar–medir–poner tornillo:** que se **despliegue el instrumento que viene después**, porque siempre es ese orden. Los
+    tornillos, **separados por tipo** (bloqueado, cortical, esponjosa, rosca parcial…); al elegir uno, **escribir el diámetro de un
+    listado** y luego **el largo en números**, en un recuadro.
+13. **El instrumental que hace el hoyo, mide o hace entrar el tornillo se queda en su posición** mientras se pide el rayo: *el rayo muchas
+    veces se usa para saber qué tan profundo vas.*
+14. **Placa de compresión:** al ir a brocar, ofrecer un **zoom al lugar de trabajo** y elegir la posición del tornillo respecto al orificio;
+    al hacer clic se marca el punto y dice si es **céntrico** (no comprime), **concéntrico hacia la fractura** (no comprime) o
+    **excéntrico, más lejos de la fractura** (comprime).
+15. **Manipular un fragmento:** el sistema de ejes se hace pesado. Al pincharlo con la camarón (o equivalente) se abre un menú con tres
+    botones: **1) Trasladar** (se abren otros tres: eje coronal, axial, sagital); **2) Angular** (dos: eje coronal o sagital); **3) Rotar**; y
+    que se mueva **con las flechas del teclado y/o arrastrando con el ratón**. **El mismo principio para la placa.**
+16. **No urgente — apariencia de pabellón:** con el Dani se cortarán los pedazos de cuerpo que «se lavan» (lo que queda fuera de los campos
+    quirúrgicos); al elegir una cirugía, la apariencia de pabellón; lo cortado (la pierna entera o desde la rodilla) es lo que no queda
+    cubierto por el campo, y la pierna se sigue pudiendo mover.
+17. **Radiografía postoperatoria:** al terminar la cirugía, una pantalla «Cirugía finalizada. Felicidades. Ir a radiografía
+    postoperatoria»; se toma **como la fluoroscopia** (posición, angulación, zoom), pero **rectangular y con los grises invertidos** (más
+    denso, más blanco). Se acepta y se pide el nombre «Dr. ____» (el usuario), se autocompleta el nombre de la fractura, se escribe la
+    intervención («reducción y osteosíntesis con placa / clavo endomedular…») y se ofrece **descargar la radiografía postoperatoria**,
+    con la información llenada, emulando la presentación de los casos, **con el logotipo de TraumaHub y en la metadata**. Las capturas
+    son las láminas de la reunión clínica: fondo negro, «EQUIPO TOBILLO», caso, diagnóstico, «Fecha de Cx … Dr. …».
+18. *(Importancia, no es una tarea.)* Si se vende a universidades: **1)** impacto visual, porque se parece mucho al proceso quirúrgico;
+    **2)** si se usa formalmente como asignatura, el docente pide X cirugías y el estudiante lleva un registro y **envía esto como
+    comprobante**; **3)** distingue de otras aplicaciones parecidas. De ahí que E11 guarde también los datos y no solo la imagen.
+
+#### Qué había y qué cambia respecto de P-003
+
+- **Ya estaba hecho y se mantiene:** fluoroscopia por disparos (E2), varias incisiones (E4), pinza que agarra (E5), placa que se ajusta,
+  perfora por su agujero, medidor y tornillo con orden (E6), insumos usados (E7), listado global y «Info» (E8, E9), cortar o separar un
+  músculo concreto (E10). El documento nuevo **no los pide de nuevo: los corrige y los lleva más lejos**.
+- **Cambia de sitio o de comportamiento:** el selector de modos (de la columna izquierda a la barra del lienzo), el nombre de «Info», la
+  bandeja (de «lo declarado» a «toda la mesa»), el control de la placa (de tres deslizadores a un menú por ejes), la perforación (de
+  «mantener pulsado» a «instrumento que se queda»).
+- **Es nuevo:** las dos carpetas de modelos, la trayectoria del tornillo, la compresión, la reducción automática, la radiografía
+  postoperatoria y su lámina.
+- **Un fallo que sale de P-003 y que no se había visto:** `ui.css` y `estilos.css` usaban la clase `.pestana` para dos cosas distintas y
+  dejaban el texto de las fichas en una sola línea (D-192). No es del simulador, pero explica que la ficha de «Info» se leyera mal.
+
+#### Base de trabajo
+
+`origin/main` ya trae P-003 entero (`911cac7`, la rama de la otra sesión, empujada a `main`) y D-190 a D-192 (`205b7c0`). El `main`
+**local** de `D:\simulaciones` va 33 commits por detrás y su árbol tiene una E3 a medio hacer **que ya no sirve** (la otra sesión la
+terminó, `4a23372`): no se toca ni se usa. P-004 se hace en la copia de trabajo `claude/clever-wright-b49f3a`, que parte de `origin/main`,
+y al final se empuja a `main` (avance rápido) y se despliega.
+
+#### Respuestas del dueño y decisiones tomadas sin preguntar
+
+*(Se completa al contestar el dueño; lo que sigue son las suposiciones con que se empieza, y cada una dice qué se cambia si no.)*
+
+- **S1 · Nombres de las carpetas:** «Herramientas» y «Modelos del cuerpo» (en la base `herramienta` y `cuerpo`). El reparto de lo que ya
+  hay: **herramienta** lo que algún instrumento usa como modelo; **cuerpo** lo demás. Se puede corregir uno a uno.
+- **S2 · La bandeja completa solo vale para los casos que no la han elegido:** un caso cuyo editor ya armó su bandeja la conserva
+  (`acotada`); los demás pasan a `completa`. «Usar como bandeja del caso» (E7) deja el caso en `acotada`, y hay un «Volver a toda la mesa».
+- **S3 · Reducción automática:** la elige el residente, en el momento, en el panel de la pinza. El paso se da por hecho, **se anota
+  «reducción automática» y no puntúa el ejercicio de reducir** (para que no valga lo mismo que hacerlo a mano).
+- **S4 · Flechas del teclado:** 1 mm y 1° por pulsación; Mayús, 0,2 mm y 0,2°; Ctrl, 5 mm y 5°. Arrastrar con el ratón mueve a lo largo del
+  eje elegido, tal como se ve en la pantalla.
+- **S5 · «Cantidad de orificios de la placa»:** se escribe en el panel de la placa y la placa se **construye con esa cantidad**, con el paso
+  entre agujeros del modelo (si coincide con el del modelo, se usa el modelo tal cual). Es una suposición de peso: ver Q2.
+- **S6 · Zonas del orificio oval** (de la fractura hacia fuera): *cerca de la fractura* → no comprime (y avisa que tiende a separar);
+  *centro* → neutro, no comprime; *lejos de la fractura* → **excéntrico, comprime** (hasta 1 mm por tornillo, que es lo de una DCP). Es lo
+  que dice el documento; **Cristóbal lo valida** (Q3).
+- **S7 · Lámina postoperatoria:** un PNG de 1920 × 1080, fondo negro, de una a tres radiografías, con el texto de la presentación y el
+  logotipo; la metadata va **dentro del PNG** (bloques `tEXt`: autor, título, descripción, programa, fecha y los datos del caso).
+- **S8 · Apariencia de pabellón (pedido 16):** no se hace ahora. Depende de que el Dani corte los modelos; ver E12.
+
+**Preguntas para el dueño o para Cristóbal** (con lo que se asume mientras tanto)
+
+- **Q1 · «Todo el instrumental en la bandeja»:** ¿también para los casos que ya tienen su bandeja armada? *Se asume que no (S2).*
+- **Q2 · «Cantidad de orificios»:** ¿es que el residente **elija** cuántos orificios tiene la placa (6, 8, 10, 12…), o que el **editor** la
+  declare al crear el instrumento? *Se asume lo primero (S5): se escribe al coger la placa.*
+- **Q3 · Compresión:** ¿es correcta la lectura de las tres zonas del orificio oval (S6)? En una DCP real el tornillo del lado de la fractura
+  *distrae*; el documento dice «no hace compresión». *Se avisa «tiende a separar», que no contradice al documento.*
+- **Q4 · Lámina:** ¿qué debe llevar además de caso, diagnóstico, intervención, cirujano y fecha? ¿Los **insumos** de E7? ¿El **puntaje**?
+  *Se asumen los insumos y no el puntaje (el puntaje es del docente).*
+
+#### E1 · Los modelos 3D en dos carpetas: herramientas y cuerpo · 1 sesión
+
+**De dónde sale:** pedido 1.
+
+**Cómo funciona hoy**
+
+- `modelos-3d` es una sola colección (`src/collections/Modelos3D.ts`, esquema del panel en `Modelos3D` de `src/admin/esquema.ts`) sin ningún
+  campo que distinga lo que es una herramienta de lo que es un trozo de cuerpo. Los modelos de instrumento entran por
+  `TallerDeInstrumental.tsx` (`formularioDeArchivo('modelos-3d', archivo)`) y los de cuerpo por la exportación del atlas
+  (`exportarPreparacion.ts`, `acciones/atlas.ts`).
+- Todos los desplegables de modelo (`opcionesDeRelacion('modelos-3d')` en `acciones/contenido.ts`, que lista hasta 500 sin mirar nada) se
+  llenan con todo: el modelo del instrumento (`Instrumental.modelo`), el del caso (`Cirugias.modelo`), el del paso de un caso AO
+  (`CasosAO.pasos.modelo`) y el del bloque «Modelo 3D» de una ficha (`bloques.ts`).
+
+**Decisiones de diseño**
+
+- **Un campo `clase` en la colección** (`select`: `herramienta` | `cuerpo`; obligatorio; `cuerpo` por omisión; con índice). «Carpeta» en el
+  sentido del documento: un filtro con nombre, no una carpeta del disco —mover archivos rompería las direcciones guardadas—.
+- **El desplegable se indexa a la carpeta:** `Campo` de tipo `relacion` gana `clase?: 'herramienta' | 'cuerpo'`;
+  `opcionesDeRelacion` devuelve la `clase` de cada modelo y el selector (`SelectorDeRelacion` en `Campos.tsx`) filtra por la del campo.
+  `Instrumental.modelo` → `herramienta`; `Cirugias.modelo` → `cuerpo`; el bloque «Modelo 3D» y el paso de un caso AO, **sin filtro pero con
+  los dos grupos rotulados** (una ficha puede enseñar una placa o un hueso).
+- **La colección también lo exige** (`filterOptions` en la relación de `Instrumental.modelo` y de `Cirugias.modelo`), porque el panel no
+  es la única puerta: lo que no pase por el selector se rechaza con el mensaje en español de `faltantes`.
+- **Al crear:** `TallerDeInstrumental` fija `herramienta`; la exportación del atlas, `cuerpo`; al subir a mano, el formulario pide la clase.
+- **El listado** de modelos 3D del panel gana una columna «Carpeta» y el filtro de siempre por ella (pestañas «Herramientas» y «Modelos
+  del cuerpo»), con la cuenta en cada una.
+- **Migración** (`ADD COLUMN`, un enum nuevo): el reparto de S1 con un `UPDATE` —`herramienta` para todo modelo que `instrumental.modelo_id`
+  nombre—. Sin tocar nada más. La bajada quita la columna y el enum.
+
+**Tareas**
+
+- [ ] **E1.1 · Colección, esquema del panel y migración** con el reparto, y los tipos de Payload regenerados.
+- [ ] **E1.2 · `opcionesDeRelacion` y el selector:** la `clase` en la respuesta, el filtro por campo y los dos grupos rotulados cuando el
+  campo no filtra.
+- [ ] **E1.3 · Quién crea qué:** el taller de instrumental y la exportación del atlas fijan su clase; el formulario de subida la pide.
+- [ ] **E1.4 · El listado con sus dos pestañas** y la columna.
+- [ ] **E1.5 · Pruebas, manual y D-nnn.** El reparto de la migración (contra PostgreSQL: un modelo usado por un instrumento queda
+  `herramienta`, uno suelto `cuerpo`); `opcionesDeRelacion` con y sin `clase`; que el selector del instrumento no ofrezca un modelo de
+  cuerpo y el del caso no ofrezca una herramienta; que `esquema.test.ts` siga viendo los campos en los dos lados.
+
+**Hecho cuando…** En el editor de un instrumento solo salen herramientas, en el de una cirugía solo modelos del cuerpo, y el listado de
+modelos se divide en sus dos carpetas con los modelos que ya había bien repartidos.
+
+---
+
+#### E2 · La pantalla que se queda en blanco · 1 sesión
+
+**De dónde sale:** pedido 4. «Me maneé mucho en una y me fui a blanco. Reinicio.»
+
+**Qué se sabe y qué no.** El lienzo quedó blanco con el panel de la derecha vivo (`Placa DCP … fijada`), así que la página no se cayó:
+**se paró el dibujo**. Las causas posibles, de más a menos probable:
+
+1. **Pérdida del contexto WebGL.** No hay ningún `webglcontextlost` en `LienzoQuirurgico.tsx` (se comprobó: solo hay
+   `render.forceContextLoss()` al desmontar). Con la fluoroscopia se usan **dos** usos de GPU —la escena y el `WebGLRenderTarget` de
+   `radiografiaEnLaEscena.ts` con su `readPixels`— y cada ajuste de la placa recalcula rayos y materiales; si el navegador pierde el
+   contexto, el lienzo queda en blanco para siempre y sin aviso.
+2. **Una excepción en el bucle de dibujo** (`ajustarPlaca`, `asentarPlaca` o el revelado de la fluoroscopia) que corta el
+   `requestAnimationFrame`: la pantalla queda como estaba, o en blanco si el último cuadro no se pintó.
+3. **Una fuga:** clones de material por movimiento del ratón (la placa «sale» en cada movimiento: pedido 2) que llenan la memoria de la GPU
+   hasta que el navegador mata el contexto. *Esta es la sospecha de la que cuelga E6.1: sin el clon por movimiento, la causa 3 desaparece.*
+
+**Decisiones de diseño**
+
+- **Primero medir:** un contador de `render.info.memory` (geometrías y texturas) y de objetos de la escena, a la vista en una ruta de
+  depuración, y un recorrido en el navegador que mueve la placa 200 veces, dispara 20 veces y pone y quita instrumentos; el número tiene
+  que **volver a lo de partida**. Si crece, ahí está la fuga y se arregla donde esté.
+- **Pase lo que pase, que no se quede en blanco:** `webglcontextlost` (con `preventDefault`) y `webglcontextrestored` en el lienzo. Al
+  perderse, un aviso sobre el lienzo —«La imagen se detuvo; se está recuperando»—; al restaurarse, se rehace el renderizador y la escena
+  **desde la sesión guardada** (D-171/D-188, que ya recupera incisiones, separadores, pinzas y retracciones). Si no se restaura en tres
+  segundos, un botón «Recuperar la vista» que remonta el lienzo con `key`, sin tocar el panel ni los pasos: el residente **no pierde el
+  ensayo** (hoy lo pierde porque el único remedio es «Reiniciar el ensayo»).
+- **El bucle no muere por una excepción:** cada cuadro dentro de un `try`; el primer error se anota en la consola y se avisa, y el bucle
+  sigue.
+- La lógica de «perdido / restaurado / reintentado» va en una función pura (`src/lib/controlDelContexto.ts`) con pruebas; el lienzo solo
+  la llama.
+
+**Tareas**
+
+- [ ] **E2.1 · Medir:** contadores, y el recorrido de 200 ajustes y 20 disparos; anotar el resultado en la D-nnn.
+- [ ] **E2.2 · `controlDelContexto.ts`** y los dos manejadores en el lienzo, con el aviso y el botón.
+- [ ] **E2.3 · El bucle con `try`** y el primer error a la consola de la página.
+- [ ] **E2.4 · Arreglar lo que la medición encuentre** (si hay fuga, quitarla).
+- [ ] **E2.5 · Pruebas, manual y D-nnn.** La función pura; una prueba de navegador que provoca la pérdida con la extensión
+  `WEBGL_lose_context` y comprueba que el lienzo vuelve con lo que tenía.
+
+**Hecho cuando…** Provocada la pérdida del contexto, el lienzo se recupera solo con la herida abierta y la placa puesta, y el recorrido de
+200 ajustes termina con la misma memoria de GPU con que empezó.
+
+**Riesgo:** no se pudo reproducir el blanco de Cristóbal con certeza; si la medición no lo explica, la protección sigue valiendo y la
+causa queda anotada como pendiente.
+
+---
+
+#### E3 · Toda la mesa en la bandeja por omisión · 1 sesión
+
+**De dónde sale:** pedido 7. Depende de E7 de P-003.
+
+**Cómo funciona hoy**
+
+- La bandeja que ve el residente es `caso.instrumental`, que `bandejaDelCaso` (`src/lib/casoQuirurgico.ts`) arma con lo que el editor
+  declaró (`Cirugias.instrumental`) más lo que piden los pasos, y `conCompanerosDeLaPlaca` suma los de la placa (E6). Un caso nuevo sale
+  **con la bandeja vacía** («añada instrumentos con el botón de arriba, o se arma sola con los que piden los pasos»), y meter instrumento
+  por instrumento es lo que Cristóbal llama engorroso.
+- Al terminar, E7 muestra «Insumos utilizados» (`insumos.ts`) y, en el editor, «Usar como bandeja del caso».
+
+**Decisiones de diseño**
+
+- **Un campo `bandeja` en la cirugía** (`select`: `completa` | `acotada`, `completa` por omisión). Con `completa`, la bandeja es **todo el
+  catálogo publicado** (`listarInstrumental`) más lo del caso, y los que no estaban declarados llevan la marca `__porOmision`, como
+  `__paraLaPlaca`. Con `acotada`, lo de hoy.
+- **Migración con reparto** (S2): `acotada` para las cirugías que ya tienen alguna fila en `cirugias_rels` de `instrumental`, `completa`
+  para el resto. Nada cambia para un caso ya armado.
+- **El editor:** «Usar como bandeja del caso» pone `acotada`; un botón nuevo «Volver a toda la mesa» pone `completa`.
+- **Rendimiento:** la consola precarga en segundo plano **los bytes de todos los modelos de la bandeja**
+  (`direccionesDeLaBandeja`); con toda la mesa son decenas. Se precargan solo los que piden los pasos y los de la categoría abierta; el
+  resto, al cogerlos (ya existe el aviso de «el modelo se está abriendo»).
+- **Lo usado «queda para los estudiantes»:** el resumen de E7 se guarda con el recorrido (`progresoDelSimulador.ts`, que hoy guarda
+  puntaje y resultados) como lista de `{ nombre, categoría, cantidad, medida }`, para que el residente lo vuelva a ver y E11 lo ponga en
+  la lámina. Es un campo JSON nuevo en `actividad`, con migración que solo añade.
+
+**Tareas**
+
+- [ ] **E3.1 · Campo `bandeja` y migración** con el reparto, tipos regenerados, esquema del panel y su botón.
+- [ ] **E3.2 · `casoParaLaConsola` con toda la mesa** (y la precarga acotada).
+- [ ] **E3.3 · Guardar el resumen de lo usado** con el recorrido y mostrarlo al reabrir.
+- [ ] **E3.4 · Pruebas, manual y D-nnn.** Un caso sin bandeja ve toda la mesa; uno con bandeja armada la conserva; «Volver a toda la mesa»;
+  el resumen sobrevive a recargar.
+
+**Hecho cuando…** Una cirugía nueva abre con todos los instrumentos agrupados por categoría y, al terminar, el resumen de lo usado se
+puede volver a ver.
+
+---
+
+#### E4 · La barra de modos arriba y «Seleccionar estructura» · 1 sesión
+
+**De dónde sale:** pedido 9. Antes de E5 y de E6.
+
+**Cómo funciona hoy**
+
+- Los modos (`MODOS`, `MODO_SEPARAR`, `MODO_PINZAR`, `MODO_REDUCIR`, `MODO_INFO`, `MODO_DISECAR`, `MODO_COSER`, `MODO_FIJAR`,
+  `MODO_PERFORAR` en `ConsolaQuirurgica.tsx`) se pintan en un bloque de la **columna izquierda** (`consola-modos-bloque`,
+  `consola-segmentado`), en una rejilla de dos columnas, junto a la ayuda del modo. Encima del lienzo solo hay
+  Encuadrar / Ampliar / Fluoroscopia (`consola-lienzo-herramientas`).
+- «Info» se llama así en la etiqueta, la ayuda, los avisos, el manual y varias pruebas que leen el código.
+
+**Decisiones de diseño**
+
+- **Una barra de modos sobre el lienzo, de izquierda a derecha,** en este orden: Orbitar · Trazar · Mover · Separar · Pinzar · Reducir ·
+  Perforar · Fijar · Coser · Disecar · **Seleccionar estructura** (y, para el editor, Señalar). Solo salen los que el instrumento en la
+  mano usa, como hoy. Icono y texto; en pantalla estrecha, solo el icono con su `title` y su `aria-label`. La ayuda del modo pasa a una
+  línea bajo la barra.
+- **La columna izquierda queda para la bandeja y los mandos del instrumento:** sin el bloque de modos, el instrumento y sus controles suben.
+- **«Info» pasa a llamarse «Seleccionar estructura»** en todo lo que se lee (etiqueta, ayuda, avisos, manual, documentos). La clave interna
+  `info` **no cambia**: está en la sesión guardada y en `MODO_DEL_OBJETIVO` (`planos: 'info'`), y cambiarla rompería lo guardado.
+- **Separar es el modo por omisión** cuando el instrumento en la mano es un separador, y lo que se abre al entrar al paso de abordaje.
+  Pasa a decirse en E5.
+
+**Tareas**
+
+- [ ] **E4.1 · La barra** sobre el lienzo, con su orden, su versión estrecha y sus clases en `consola.css`; el bloque de la columna izquierda
+  se va.
+- [ ] **E4.2 · El nombre nuevo** en todo lo visible, con la búsqueda de lo que lo mencione (`Info`) en consola, manual, `comportamientoDelInstrumento`
+  y las pruebas.
+- [ ] **E4.3 · La ayuda del modo** bajo la barra y la marca «paso» del modo que pide el paso.
+- [ ] **E4.4 · Pruebas, manual y D-nnn.** Las pruebas que leen el código siguen verdes con el nombre nuevo; recorrido en el navegador del
+  orden de la barra en pantalla ancha y estrecha.
+
+**Hecho cuando…** Los modos están arriba, de izquierda a derecha, y el que antes se llamaba «Info» se llama «Seleccionar estructura»
+en todas partes.
+
+---
+
+#### E5 · Abordaje por planos de corrido: pinchar, girar, pinchar · 2 sesiones
+
+**De dónde sale:** pedidos 8 y 10. Depende de E4. Corrige y continúa a E10 de P-003 (D-186, D-187, D-188).
+
+**Cómo funciona hoy**
+
+- Para separar un músculo hay que **abrir su ficha** («Info»), pulsar «Separar», elegir un instrumento de la bandeja (se pone en la mano y
+  pasa al modo), y entonces hacer clic en el músculo: eso fija `musculoObjetivo` (uno solo) y apoya la retracción en ese punto
+  (`retracciones[]` admite varios, pero el objetivo es **uno**). La rueda abre o cierra **la** retracción del objetivo.
+- Para cortar: ficha → «Cortar» → instrumento → trazar sobre el músculo (`aplicarElCorte` con la lista de mallas reducida a la suya).
+- El Farabeuf de piel se coloca con un clic **en el plano que se haya elegido** («elija el plano —piel o músculo—», texto del modo
+  Separar) sobre una incisión de ese plano (`sitioParaSeparar`, `colocarSeparador`).
+- **Lo que Cristóbal ve:** tras cortar un músculo no queda marca visible y el Farabeuf no «queda puesto» en la incisión.
+
+**Hipótesis del fallo del Farabeuf (a comprobar en el navegador antes de tocar nada):** el clic se resuelve contra las incisiones **del
+plano elegido** (la piel, por omisión) y la herida está en el plano `musculo`; no encuentra sitio y no dice nada. Y el corte de un
+músculo objetivo no dibuja la cinta ni el borde rojo temporales porque esa parte (E4.5 de P-003: `actualizarBordes`) solo se ejercitó con
+la piel.
+
+**Decisiones de diseño**
+
+- **Se deja de elegir el plano.** El clic del separador busca **la incisión más cercana al cursor en cualquier plano**, con preferencia por
+  la más profunda de las visibles; el plano sale de la herida y no de un selector. (El selector sigue en el panel como «forzar el plano»
+  para el que lo quiera.)
+- **El flujo continuo de separar:** con un separador en la mano y el modo Separar, **un clic sobre un músculo lo separa de una**: lo fija
+  como objetivo, apoya la retracción y la rueda la abre; el **siguiente clic en otro músculo** deja el anterior retraído y pasa al nuevo.
+  Es el *pincho–ruedita–pincho otra estructura–ruedita* del documento. No hace falta abrir la ficha; la ficha de «Seleccionar estructura»
+  sigue sirviendo para elegir **qué instrumento** y para **cortar**.
+- **Una lista de lo separado** («Estructuras separadas: Tibial anterior · 14 mm · Soltar», una fila por retracción) con la rueda actuando
+  sobre la última y un clic en una fila para volver a hacerla la activa.
+- **Desplazar hacia delante o hacia atrás** (pedido 10): además de abrir, la retracción se corre **a lo largo del músculo** arrastrando el
+  separador o con Mayús + rueda; el centro de la campana de `retraccion.ts` se mueve y los vértices se recalculan siempre desde los
+  originales (ya es así: repetir no suma).
+- **Cortar sin salir del flujo:** «Cortar» (en la ficha o con la tecla `C` en el modo Separar) toma el instrumento de corte de la bandeja,
+  pasa a Trazar sobre el músculo objetivo, y al soltar **queda la incisión marcada**: la cinta y el borde rojo temporales, **como en la
+  piel**, con la regla de P-003 E4.5 (se apartan al abrir más de 5 mm). Al volver al modo Separar, el clic en la herida pone el Farabeuf en
+  medio de ella y la abre: **la línea desaparece** al abrir, como en la piel.
+- **Separar por omisión:** al entrar a un paso de abordaje o al coger un separador, el modo es Separar.
+
+**Tareas**
+
+- [ ] **E5.1 · Reproducir en el navegador el «el fara no queda puesto»** con la pierna reexportada y fijar la causa (anotarla aquí).
+- [ ] **E5.2 · El separador busca la incisión en cualquier plano** (`sitioParaSeparar`) y la marca temporal del corte de un músculo.
+- [ ] **E5.3 · Clic sobre un músculo con el separador = separarlo** (objetivo automático) y el paso al siguiente; la lista de lo separado.
+- [ ] **E5.4 · Desplazar la retracción a lo largo del músculo** (arrastre y Mayús + rueda) en `retraccion.ts` y en el lienzo.
+- [ ] **E5.5 · «Cortar» desde el flujo** y el regreso a Separar con la herida marcada.
+- [ ] **E5.6 · Pruebas, manual y D-nnn.** El abordaje de dos planos de corrido —separar el tibial anterior, separar el siguiente, cortar el
+  de debajo, separar la herida— sin abrir la ficha más que para cortar; el Farabeuf queda en la incisión de un músculo y la línea
+  desaparece al abrir; la retracción desplazada se rehace desde los originales.
+
+**Hecho cuando…** En la pierna reexportada se separan dos músculos seguidos con clic y rueda, se corta uno, se ve la marca, se pincha la
+herida con el Farabeuf y se abre con la línea ya borrada.
+
+**Riesgo:** toca E10, E3 y E4 de P-003 a la vez. Antes de empezar se escriben las pruebas de lo que hoy funciona: separar un músculo con
+la ficha, cortar un músculo, abrir la piel con dos Farabeuf.
+
+---
+
+#### E6 · La placa: una sola, con ejes anatómicos y números · 2 sesiones
+
+**De dónde sale:** pedidos 2 y 5. Depende de E2 (la fuga) y de E4.
+
+**Cómo funciona hoy**
+
+- Con la placa en la mano el instrumento **sigue al cursor** por la superficie (`posarHerramienta` en cada movimiento del ratón, 30 veces
+  por segundo): es la placa «que sale» mientras se mueve el ratón aun cuando ya hay una puesta (`colocarPlaca`, un clic). Después de
+  puesta, la consola enseña **tres deslizadores** (`ConsolaQuirurgica.tsx`): «A lo largo del hueso» −40…+40 mm, «De lado a lado»
+  −15…+15 mm y «Angular» −45…+45°, y «Fijar la placa». El tope de ±40 mm es fijo, no sale del hueso.
+- El tornillo se elige con un **deslizador de largo** de 10 a 60 mm de dos en dos.
+- Los modelos de placa traen `agujeros` (posiciones en mm, `herramienta.meta.agujeros`), no el número ni el paso por separado.
+
+**Decisiones de diseño**
+
+- **Una sola placa:** mientras haya una placa puesta, el instrumento en la mano **no se pinta ni sigue al cursor**; la posición la lleva la
+  placa puesta. Para otra, «Quitar la placa». (Esto es también lo que quita la sospecha de fuga de E2.)
+- **Direcciones anatómicas.** `ejesDelPaciente(ejeLargo)` de `posicionDelPaciente.ts` ya da los tres ejes del paciente —`hueso`, `frente`,
+  `lado`—; con eso el panel habla de **proximal / distal** (a lo largo del hueso), **anterior / posterior** y **medial / lateral**
+  (alrededor del hueso) en vez de «a lo largo / de lado». El sentido de «proximal» sale de una opción del caso (`extremoProximal`: `+` o
+  `-` del eje largo; por omisión, el lado de la rodilla para tibia y fémur, del hombro para húmero…), declarada como `ejeLargo` y
+  corregible por el editor.
+- **El rango sale del hueso:** `largoMm` va de lo que permite el largo de la malla de hueso visible menos el de la placa (no un 40 fijo), y
+  el giro alrededor del hueso se mide en grados de vuelta (±90°) y no en milímetros.
+- **El control es el menú por ejes de E7** (el mismo de los fragmentos), con **un campo numérico** para cada movimiento: escribir «−75»
+  mueve la placa 75 mm hacia distal. Los deslizadores se van.
+- **Largo del tornillo y orificios** (pedido 5): el largo del tornillo se **escribe** en un campo (8–120 mm; el deslizador se va) con el
+  sugerido del medidor escrito de antemano. La **cantidad de orificios** se escribe al coger la placa (S5, Q2): `crearPlacaALaMedida`
+  (`src/lib/placaALaMedida.ts`, pura: contornos, posiciones de los agujeros y óvalos) construye la placa con el **paso entre agujeros**,
+  el ancho y el grosor del modelo; si la cantidad es la del modelo, se usa el modelo tal cual. El material y el color son los del modelo.
+
+**Tareas**
+
+- [ ] **E6.1 · Una sola placa:** `posarHerramienta` no pinta la placa en la mano si ya hay una puesta; prueba de que, con una puesta, mover
+  el ratón no cambia la cantidad de placas de la escena.
+- [ ] **E6.2 · `ejesAnatomicos`** (puro): proximal, distal, anterior, posterior, medial, lateral desde `ejesDelPaciente` y `extremoProximal`;
+  el campo `extremoProximal` en el caso y su valor por omisión.
+- [ ] **E6.3 · Rangos reales** de `ajustarPlaca` (a partir del hueso) y el giro alrededor del hueso en grados.
+- [ ] **E6.4 · Campos numéricos** del ajuste de la placa y **largo del tornillo escrito**.
+- [ ] **E6.5 · Placa a la medida:** `crearPlacaALaMedida` y el campo de orificios; con sus pruebas (posiciones, paso, que 8 de 8 devuelva el
+  modelo).
+- [ ] **E6.6 · Pruebas, manual y D-nnn.** Placa puesta, mover el ratón y no sale otra; desplazar 75 mm hacia distal y que la placa se
+  desplace 75 mm en el eje; una placa de 6 orificios sobre la tibia con sus seis agujeros perforables.
+
+**Hecho cuando…** Se pone la placa, no sale ninguna más al mover el ratón, se la lleva 75 mm hacia distal escribiendo el número o con los
+botones, se la angula, y se pide una de seis orificios sin hacer nada raro.
+
+**Riesgo:** la placa a la medida es lo más inseguro del pedido 5 (ver Q2); si Cristóbal quería otra cosa, se cambia sin tocar el resto.
+
+---
+
+#### E7 · Un menú de movimiento por ejes, y reducción manual o automática · 2 sesiones
+
+**De dónde sale:** pedidos 6 y 15. Depende de E6 (la placa lo usa).
+
+**Cómo funciona hoy**
+
+- Mover un trozo de hueso es el modo Mover → «Un trozo» o la pinza de reducción (E5 de P-003): el trozo muestra las **asas del taller del
+  atlas** (`@/atlas/gizmo`: tres flechas, tres aros y el aro de la vista; `asasDelHueso.ts` lleva la cuenta). Cristóbal: «nos manejamos
+  bastante con el sistema de ejes»; son siete asas a la vez.
+- La reducción solo se hace a mano.
+
+**Decisiones de diseño**
+
+- **El menú, junto al objeto elegido** (o en la barra, si el objeto no cabe): **Trasladar** (abre Coronal · Axial · Sagital), **Angular**
+  (abre Coronal · Sagital) y **Rotar**. Elegido un eje, **se dibuja una sola línea** (en vez de siete asas) y se mueve con las **flechas del
+  teclado** y/o **arrastrando** a lo largo de esa línea tal como se ve en pantalla. Pasos de S4. Lleva su lectura numérica («+3,0 mm»).
+- **Los tres ejes son los del paciente** (E6.2): axial = a lo largo del hueso (proximal/distal), coronal = de lado a lado (medial/lateral),
+  sagital = de delante atrás (anterior/posterior). **Angular coronal** es la varo/valgo y **angular sagital** la antecurvatum/recurvatum;
+  **Rotar** gira sobre el eje largo (mala rotación). Coinciden con las medidas que ya calcula el motor (desplazamiento, angulación,
+  diástasis).
+- **Las asas de siempre quedan** detrás de «Asas libres» (un interruptor del menú), para quien se maneje con ellas: nada se pierde.
+- **Es genérico:** un componente `MenuDeMovimiento` y una cuenta pura `movimientoPorEjes.ts` (definición de los ejes, pasos, topes, cómo
+  se pasa un arrastre en píxeles a milímetros por la proyección del eje). Lo usan el fragmento (E5 de P-003) y la placa (E6) con la
+  misma interfaz y distinta lista de ejes.
+- **Reducción manual o automática:** al coger la pinza de reducción, el panel enseña «Reducción: Manual · Automática» (por omisión,
+  manual). **Automática** lleva todos los fragmentos de su desplazamiento actual a cero en 600 ms con una curva suave y deja medida 0 en
+  desplazamiento, angulación y diástasis. Se anota `reduccionAutomatica` en el recorrido (S3): el paso se da por hecho y **el ejercicio de
+  reducir no puntúa**; el resumen final lo dice.
+
+**Tareas**
+
+- [ ] **E7.1 · `movimientoPorEjes.ts`** (puro, con pruebas: pasos, topes, signo del arrastre según la cámara).
+- [ ] **E7.2 · `MenuDeMovimiento`** y su línea de eje en el lienzo; teclado y arrastre; «Asas libres».
+- [ ] **E7.3 · El fragmento y la placa usan el menú** (reemplaza los tres deslizadores y los dos campos numéricos de E6.4 por el del menú).
+- [ ] **E7.4 · Reducción automática** (la animación, la medida cero, `reduccionAutomatica`, el puntaje y el resumen).
+- [ ] **E7.5 · Pruebas, manual y D-nnn.** Mover un fragmento 3 mm hacia distal con la flecha y que la medida cambie 3 mm; angular en el eje
+  sagital 5°; la automática deja las tres medidas en 0; una reducción a mano sigue puntuando.
+
+**Hecho cuando…** Se pincha el fragmento con la pinza, se elige Trasladar → Axial y se lleva con las flechas, o se pulsa «Automática» y
+queda reducido; la placa se mueve con el mismo menú.
+
+---
+
+#### E8 · El instrumento se queda en el orificio mientras se pide el disparo · 2 sesiones
+
+**De dónde sale:** pedidos 3 y 13. Depende de E2, E6 y E7.
+
+**Cómo funciona hoy**
+
+- Perforar es **mantener pulsado**: `empezarPerforacion` crea `perforando` (profundidad, máxima, salida por la cortical opuesta) y cada
+  cuadro avanza `avanceMmPorSegundo`; al **soltar**, `terminarPerforacion` dibuja el agujero y anota el calibre. Nada queda «a medias»:
+  el hoyo se acaba cuando el ratón se suelta, y al ir al botón «Disparar» el cursor sale del lienzo y la broca se esconde
+  (`esconderHerramienta`) o se suelta.
+- El medidor y el tornillo se posan por clic y no tienen estado de «dentro».
+- Resultado: no se puede pedir una imagen con la broca a la mitad de la cortical, que es **justo para lo que sirve el rayo**.
+
+**Decisiones de diseño**
+
+- **Un estado `instrumentoEnElOrificio`** en el lienzo —`{ tipo: 'broca' | 'medidor' | 'tornillo', trayectoria, profundidad, máxima,
+  salidaPorLaOpuesta, encendida }`— que **no depende del puntero**: ni salir del lienzo ni pulsar un botón lo suelta.
+- **Cómo se maneja:** un clic **engancha** el instrumento en la entrada (profundidad 0). Avanza **manteniendo pulsado** (como hoy) o con la
+  **rueda** (±0,5 mm por muesca; con Mayús, ±0,1; con la rueda hacia atrás se saca); **«Apagar la broca»** (botón y tecla `Espacio`) la
+  detiene sin retirarla; **«Retirar»** (botón, Esc o botón derecho) termina: para la broca, es lo que hace hoy `terminarPerforacion`
+  (dibuja el agujero y anota el calibre); para el medidor, anota la lectura; para el tornillo, da por puesto el tornillo si llegó al largo.
+- **Con el instrumento puesto, el disparo lo ve:** la fluoroscopia ya cuenta como metal todo lo que no es del modelo; la imagen enseña la
+  broca dentro del hueso, que es lo que se pide. El panel de la fluoroscopia puede ofrecer, con la ayuda de aprendizaje encendida, la
+  profundidad y lo que falta hasta la cortical opuesta, y se apaga con las demás ayudas.
+- **No se puede coger otra cosa a medias:** cambiar de instrumento o de modo con uno puesto lo **retira** antes (con su aviso), para no
+  dejar un hoyo a medias sin querer. Cambiar de paso o reiniciar también.
+- La cuenta de cuánto avanza y cuánto falta va en una función pura (`src/lib/profundidadDeLaBroca.ts`) con pruebas; el estado del lienzo se
+  limita a llamarla.
+
+**Tareas**
+
+- [ ] **E8.1 · `profundidadDeLaBroca.ts`** (puro): avance por tiempo, por rueda, tope, cortical opuesta, «se pasó».
+- [ ] **E8.2 · El estado `instrumentoEnElOrificio`** en el lienzo para la broca (engancha, avanza, apaga, retira) sin depender del puntero.
+- [ ] **E8.3 · El medidor y el tornillo** con el mismo estado.
+- [ ] **E8.4 · Los botones** («Apagar la broca», «Retirar») y la rueda en la consola; la lectura de profundidad en el panel.
+- [ ] **E8.5 · Pruebas, manual y D-nnn.** Enganchar la broca, ir al botón de disparar, disparar y ver la broca en la imagen y en la misma
+  profundidad; retirar y que quede el agujero con su calibre; cambiar de instrumento con la broca puesta la retira.
+
+**Hecho cuando…** Se perfora hasta la mitad, se sale del lienzo para pulsar «Disparar», la imagen enseña la broca donde estaba, se sigue
+brocando con la rueda y se retira.
+
+**Riesgo:** reemplaza el «mantener pulsado» de D-167/E6, que el residente ya conoce; por eso el mantener pulsado **sigue funcionando** y
+solo se le añade lo que se queda.
+
+---
+
+#### E9 · Tornillos: su secuencia, sus tipos, sus medidas y su trayectoria · 2–3 sesiones
+
+**De dónde sale:** pedidos 11 (trayectoria), 12 y 5 (largo). Depende de E8.
+
+**Cómo funciona hoy**
+
+- Un tornillo solo se pone **en un agujero de una placa fijada** (`fijarConClic`); la broca, el medidor y el tornillo son tres
+  instrumentos de la bandeja que el residente va cogiendo uno por uno. La trayectoria es el eje del agujero. No hay manera de poner un
+  tornillo fuera de una placa (el de compresión entre fragmentos, el de bloqueo…).
+- `COMPANEROS_DE_LA_PLACA` (E6) trae sus tornillos a la bandeja; en la categoría «Tornillos» van todos juntos y se distinguen por el nombre.
+
+**Decisiones de diseño**
+
+- **La trayectoria con dos clics** (pedido 11): en el modo Fijar, con un tornillo o con la broca en la mano y **sin agujero bajo el cursor**,
+  el primer clic es la **entrada** y el segundo la **salida**; entre ellos se dibuja una línea sobre el hueso, **como la incisión recta**
+  (`trazoRecto.ts`, `vistaPreviaDeLaRecta`: el reparto en pantalla y cada punto llevado a la superficie con un rayo). La línea es la
+  `trayectoria` y queda dibujada; la broca, el medidor y el tornillo la siguen. Con un agujero de placa, la trayectoria es su eje, como hoy.
+- **La secuencia se despliega sola:** el panel «Fijación» enseña los tres tiempos —**1 Brocar · 2 Medir · 3 Atornillar**— con el actual
+  marcado. Al terminar uno, el siguiente instrumento **se abre en la bandeja** (la categoría se despliega y el instrumento queda marcado
+  «siguiente») y, por omisión, **se pone en la mano** solo (se puede apagar). `siguienteDeLaSecuencia` (puro) lo decide.
+- **Tornillos por tipo:** la categoría «Tornillos» se parte en subgrupos —**cortical, esponjosa, rosca parcial, bloqueado, canulado…**—, con
+  un campo `tipoDeTornillo` (`select`) en `instrumental` (migración que solo añade) y, mientras no esté escrito, deducido del nombre
+  (`COLOCA_POR_SLUG` y el nombre).
+- **Al elegir un tornillo, dos casillas:** el **diámetro**, de una lista según el tipo (2,7 · 3,5 · 4,0 · 4,5 · 5,0 · 6,5 mm), y el **largo
+  en milímetros, escrito** (con el sugerido por el medidor ya puesto). El diámetro cambia la escala del modelo y el **calibre de broca**
+  que se espera (`avisoDeCalibre`, E6).
+- **Rosca parcial:** el tipo declara `roscaMm` (por ejemplo 16 mm); lo usa E10.
+
+**Tareas**
+
+- [ ] **E9.1 · `trayectoriaDelTornillo`:** los dos clics y la línea sobre el hueso (reutilizando `trazoRecto`), su estado y su borrado.
+- [ ] **E9.2 · La broca, el medidor y el tornillo siguen la trayectoria** (agujero de placa o línea elegida).
+- [ ] **E9.3 · `siguienteDeLaSecuencia`** y el panel «Fijación» con sus tres tiempos y el despliegue de la bandeja.
+- [ ] **E9.4 · `tipoDeTornillo`** (campo, migración, deducción por nombre) y los subgrupos de la bandeja.
+- [ ] **E9.5 · Diámetro de una lista y largo escrito;** escala del modelo y calibre esperado.
+- [ ] **E9.6 · Pruebas, manual y D-nnn.** Un tornillo de tracción entre dos fragmentos con dos clics, sin placa: broca, medidor, tornillo; la
+  secuencia se despliega sola; los subgrupos; el diámetro y el largo escritos.
+
+**Hecho cuando…** Sobre una fractura oblicua se marcan entrada y salida, la broca sigue la línea, al terminar el medidor ya está en la
+mano, y el tornillo se elige por tipo, con su diámetro de la lista y su largo escrito.
+
+---
+
+#### E10 · Compresión: el orificio oval, el tornillo excéntrico y las dos técnicas · 2 sesiones
+
+**De dónde sale:** pedidos 11 y 14. Depende de E9 y de E7 (el fragmento se mueve al comprimir). Se valida con Cristóbal (Q3).
+
+**Cómo funciona hoy**
+
+- Todos los agujeros de la placa son iguales y circulares (`agujerosMm`: posiciones). `juzgarTornillo` (`src/lib/fijacion.ts`) mide
+  bicortical y calibre, no compresión. El hueso no se mueve al apretar.
+
+**Decisiones de diseño**
+
+- **El orificio oval:** el agujero de la placa gana `forma` (`redondo` | `oval` | `combi`) y, si es oval, `largoOvalMm` (por omisión el
+  doble del diámetro del tornillo). Se declara en el modelo (`meta.agujeros`) y, mientras no esté, se deduce del nombre (DCP → oval, LCP →
+  combi). Un campo `tipoDeAgujero` en `instrumental` (migración que solo añade) lo hace editable.
+- **Vista de trabajo con zoom** (pedido 14): al ir a brocar un agujero oval de una placa fijada, la cámara **se acerca al agujero**
+  (encuadre suave, con vuelta atrás) y sobre el lienzo aparece un esquema del óvalo con la flecha «hacia la fractura». **Un clic dentro del
+  óvalo marca el punto de perforación** (`desviacionMm` respecto del centro, a lo largo de la placa) y dice: **céntrico / cerca de la
+  fractura → no comprime** (con aviso «tiende a separar») y **lejos de la fractura → excéntrico, comprime N mm** (S6).
+- **De qué lado queda la fractura:** `ladoDeLaFractura(agujero)` (puro) toma el sentido, a lo largo de la placa, del hueco entre fragmentos
+  (el centro de la diástasis medido por el motor) respecto del agujero.
+- **La compresión se aplica de verdad:** al apretar el tornillo excéntrico, el fragmento que la placa sujeta **se desliza hacia el otro**
+  hasta `compresionMm = min(1,0, 2 × excentricidad)` (1 mm por tornillo, el de una DCP) y la **diástasis baja** en la medida, con una
+  animación corta. Es lo que hace visible «el hueso se desliza y se aprieta contra el otro fragmento».
+- **Las dos técnicas de tracción** (pedido 11), evaluadas por `src/lib/compresion.ts` (puro):
+  1. **Broca de deslizamiento:** el fragmento **cercano** se perfora con un calibre **≥ el diámetro exterior del tornillo** y el **lejano** con
+     el calibre de núcleo; la perforación anota qué calibre se usó en cada fragmento según por dónde cruza la fractura (E8 sabe la
+     profundidad; la fractura está a una distancia conocida a lo largo de la trayectoria). Hay compresión si cercano ≥ exterior y lejano =
+     núcleo.
+  2. **Rosca parcial:** hay compresión si **toda la rosca** (`roscaMm`) queda en el fragmento lejano; si **cruza la fractura**, no comprime y
+     el aviso dice por qué.
+- **El resultado se ve y se cuenta:** `estadoDeLaFijacion` gana `compresion: { mm, tecnica }` (`excentrico` | `deslizamiento` |
+  `rosca-parcial` | `null`); el panel dice «Compresión 1,0 mm (tornillo excéntrico en el agujero 3)» y los insumos de E7 anotan la técnica.
+- **Un objetivo opcional de paso** `exigeCompresion` (casilla en el paso de fijación, con migración que solo añade): la consola lo evalúa
+  como el resto. Si Cristóbal no lo quiere, queda sin usar.
+
+**Tareas**
+
+- [ ] **E10.1 · `compresion.ts`** (puro, con pruebas): zonas del óvalo, mm de compresión, broca de deslizamiento, rosca parcial.
+- [ ] **E10.2 · El orificio oval** (`forma`, `largoOvalMm`, `tipoDeAgujero`, migración) y su dibujo en la placa.
+- [ ] **E10.3 · Vista de trabajo:** encuadre al agujero, el esquema del óvalo, el clic que marca el punto y el texto.
+- [ ] **E10.4 · Aplicar la compresión:** el fragmento se desliza, la diástasis baja.
+- [ ] **E10.5 · Las dos técnicas** sobre la trayectoria de E9 (calibre por fragmento, rosca que cruza o no la fractura).
+- [ ] **E10.6 · `compresion` en el estado, el panel, los insumos y el objetivo opcional.**
+- [ ] **E10.7 · Pruebas, manual y D-nnn.** Excéntrico lejos de la fractura comprime 1 mm y la diástasis baja 1 mm; céntrico no; cerca no y
+  avisa; deslizamiento con la broca grande en el cercano; rosca parcial que cruza no comprime.
+
+**Hecho cuando…** En una placa DCP sobre una fractura transversa, el tornillo excéntrico del lado lejano acerca los fragmentos 1 mm y la
+diástasis baja; y en una oblicua, el tornillo de tracción con broca de deslizamiento hace lo mismo.
+
+**Riesgo:** es la parte clínica más delicada; por eso las cuentas viven en un módulo puro y legible, y la D-nnn lo dice para que Cristóbal
+la corrija sin tocar el lienzo.
+
+---
+
+#### E11 · Radiografía postoperatoria y su lámina · 2–3 sesiones
+
+**De dónde sale:** pedido 17 (y la nota 18). Depende de E3 (el resumen de lo usado) y reutiliza la fluoroscopia de E2.
+
+**Cómo funciona hoy**
+
+- Al terminar el último paso la consola enseña «Caso terminado» con el puntaje, las complicaciones, «Insumos utilizados» (E7) y los
+  botones de repetir y volver (`ConsolaQuirurgica.tsx`).
+- La fluoroscopia (`radiografiaEnLaEscena.ts`, `lib/radiografia.ts`, `PanelDeFluoroscopia.tsx`) toma una imagen **circular** con un
+  negativo (lo denso, oscuro) y se ajusta con kilovoltios, contraste, brillo y filtros (D-178), con proyección, zoom y desplazamiento.
+
+**Decisiones de diseño**
+
+- **La pantalla de cierre:** al terminar, «Cirugía finalizada. ¡Felicidades! Ir a radiografía postoperatoria». El botón abre el modo
+  radiografía; «Omitir» deja el cierre de hoy.
+- **La toma es la de la fluoroscopia con otro formato:** el mismo panel (proyección AP o lateral, ángulo, zoom, desplazamiento) con
+  `formato: 'radiografia'`: **rectangular** (proporción 3 : 4 de placa, sin máscara circular) y **en positivo** (lo denso, **blanco**), que
+  es `claridadDeLaMateria` con el sentido invertido (lo que ya hace el filtro «positivo» de D-178). No cuenta exposición (es una placa, no
+  escopia). Hasta **tres tomas** (AP, lateral, oblicua), con sus miniaturas y «Aceptar».
+- **Los datos** (S7, Q4): cirujano, **«Dr. ____» ya escrito con el nombre de la cuenta** y editable; **fractura**, autocompletada con la
+  clasificación y el nombre del caso; **intervención**, con sugerencias («Reducción y osteosíntesis con placa», «…con clavo
+  endomedular», «…con tornillos») y **ya propuesta según los implantes usados** (E7: una placa DCP de 8 orificios y 6 tornillos corticales
+  → «Reducción abierta y osteosíntesis con placa DCP 4,5 mm (8 orificios) y 6 tornillos»); fecha de hoy; un «Equipo» de texto libre.
+- **La lámina** (`src/lib/laminaPostoperatoria.ts`, que decide el contenido y la disposición con números, y un lienzo 2D que la dibuja):
+  1920 × 1080, **fondo negro** como las diapositivas de la reunión clínica; arriba una franja con «Radiografía postoperatoria» y el
+  logotipo de TraumaHub (`public/logo-hd.png`, con `ruta()`); a la izquierda el texto de la presentación (Caso · Dg · Cx · Dr. · Fecha ·
+  insumos utilizados); a la derecha las radiografías en fila, cada una con su pie. Se descarga como **PNG**.
+- **La metadata va dentro del PNG:** `src/lib/pngConMetadatos.ts` (puro) inserta bloques `tEXt` antes de `IDAT` con su CRC —`Author`
+  (cirujano), `Title`, `Description` (diagnóstico e intervención), `Software` (TraumaHub), `Creation Time`, `traumahub:caso`—; la prueba
+  los lee de vuelta. No depende de ninguna biblioteca.
+- **Queda registrado** (nota 18): con el recorrido se guardan cirujano, fractura, intervención, fecha e insumos (`actividad`, con
+  migración que solo añade), no la imagen. Es lo que permitirá, más adelante, que un docente cuente «X cirugías» de un estudiante y que el
+  estudiante tenga su comprobante; esa pantalla **no** se hace aquí.
+
+**Tareas**
+
+- [ ] **E11.1 · La pantalla de cierre** y el acceso al modo radiografía.
+- [ ] **E11.2 · El formato `radiografia`** del panel de la fluoroscopia: rectangular, en positivo, sin exposición, hasta tres tomas.
+- [ ] **E11.3 · Los datos:** el formulario, el autocompletado y la intervención propuesta (`intervencionPropuesta`, pura, con pruebas).
+- [ ] **E11.4 · `laminaPostoperatoria.ts` y su dibujo,** con el logotipo.
+- [ ] **E11.5 · `pngConMetadatos.ts`** (puro) y la descarga.
+- [ ] **E11.6 · Guardar los datos con el recorrido** (campo y migración).
+- [ ] **E11.7 · Pruebas, manual y D-nnn.** La proporción y el positivo de la toma; la intervención propuesta con una placa y seis tornillos;
+  los `tEXt` leídos de vuelta de un PNG; recorrido en el navegador: terminar el caso, tomar dos radiografías, rellenar y descargar.
+
+**Hecho cuando…** Al terminar una cirugía se toman una o más radiografías rectangulares y en positivo, se completan los datos ya escritos
+de antemano y se descarga un PNG con el aspecto de la lámina de la reunión clínica, el logotipo y la metadata.
+
+---
+
+#### E12 · Apariencia de pabellón (no urgente) · sin sesiones asignadas
+
+**De dónde sale:** pedido 16. **Se deja a propósito.** Depende de que el Dani corte los modelos («los pedazos de cuerpo que se lavan»).
+
+Cuando lleguen esos modelos hay que decidir, sin hacerlo ahora: (a) **qué es «el campo»** —una pieza más del modelo con un papel nuevo
+(`campo`), de tela, que cubre lo que no se lava, en vez de un recorte del modelo—; (b) **cómo se mueve la pierna** dentro del campo (hoy el
+modo Mover mueve «todo junto» o «un trozo»); (c) **el entorno** —la luz y el fondo de pabellón, que es solo estética y no cuesta—. Mientras
+tanto no hay código; queda anotado aquí para que no se pierda.
+
+---
+
+#### Fuera de este plan, a propósito
+
+- **El registro para el docente** («X cirugías», el comprobante del estudiante, la nota 18): E11 guarda los datos; la pantalla y el
+  reparto a las universidades son otro plan.
+- **Mantener la reducción con aguja de Kirschner** (pedido 10 de P-003): sigue pendiente, por indicación del propio documento.
+
+#### Cómo retomarlo en otra sesión
+
+1. Leer este P-004 entero, sus respuestas y las D-nnn que vaya enlazando (la primera de este plan es la **D-193**).
+2. `git log --oneline --grep "P-004"` dice qué tareas ya se hicieron.
+3. Orden: **E1 → E2 → E3 → E4 → E5 → E6 → E7 → E8 → E9 → E10 → E11**; E12 queda aparte. E1, E2, E3 y E4 son independientes entre sí;
+   E5 sigue a E4; E6 a E2 y E4; E7 a E6; E8 a E7; E9 a E8; E10 a E9; E11 a E3.
+4. Al terminar una tarea, marcar su casilla con el commit `(P-004 En.m)`. Al terminar una etapa, cambiar su estado aquí y en la tabla,
+   escribir su D-nnn, y probarla de punta a punta en local sobre una cirugía de prueba (copia de un caso real, borrada después).
+5. **Al final, y no antes:** `git push origin HEAD:main` (avance rápido) y `npm run desplegar` en `ved`; las migraciones se aplican al
+   desplegar y el despliegue respalda antes.
+
+#### Estado
+
+| Etapa | Estado | Sesiones | Depende de | Decisiones |
+|---|---|---|---|---|
+| E1 · Modelos 3D en dos carpetas | pendiente | 1 | — | — |
+| E2 · La pantalla en blanco | pendiente | 1 | — | — |
+| E3 · Toda la mesa en la bandeja | pendiente | 1 | — | — |
+| E4 · Barra de modos y «Seleccionar estructura» | pendiente | 1 | — | — |
+| E5 · Abordaje por planos de corrido | pendiente | 2 | E4 | — |
+| E6 · La placa: una sola, ejes anatómicos, números | pendiente | 2 | E2, E4 | — |
+| E7 · Menú de movimiento y reducción automática | pendiente | 2 | E6 | — |
+| E8 · El instrumento se queda en el orificio | pendiente | 2 | E2, E6, E7 | — |
+| E9 · Tornillos: secuencia, tipos, medidas, trayectoria | pendiente | 2–3 | E8 | — |
+| E10 · Compresión | pendiente | 2 | E7, E9 | — |
+| E11 · Radiografía postoperatoria y lámina | pendiente | 2–3 | E3 | — |
+| E12 · Apariencia de pabellón | aplazada | — | modelos del Dani | — |
+
+---
+
 ## 6. Convenciones de esta bitácora
 
 - Cada decisión entra como `D-nnn` con contexto y consecuencia, no solo con el
