@@ -291,6 +291,8 @@ export async function exportarPreparacion(
     collection: 'modelos-3d',
     data: {
       nombre,
+      // Un trozo del cuerpo, no una herramienta (P-004 E1): es lo que el desplegable del caso ofrece.
+      clase: 'cuerpo',
       origen: 'sintetico',
       anonimizado: true,
       notas:

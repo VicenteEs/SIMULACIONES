@@ -255,6 +255,9 @@ export const Instrumental: CollectionConfig = {
       name: 'modelo',
       type: 'relationship',
       relationTo: 'modelos-3d',
+      // Solo de la carpeta «Herramientas» (P-004 E1): el panel ya filtra su desplegable, esto es lo que frena una
+      // escritura que no pasó por él.
+      filterOptions: { clase: { equals: 'herramienta' } },
       label: 'Modelo 3D del instrumento',
       access: { create: soloAdministracion, update: soloAdministracion },
       admin: {

@@ -287,6 +287,7 @@ export interface Medio {
 export interface Modelos3D {
   id: number;
   nombre: string;
+  clase: 'herramienta' | 'cuerpo';
   origen: 'tc' | 'rm' | 'sintetico';
   /**
    * Los metadatos DICOM guardan nombre, identificador y fecha de nacimiento aunque la imagen se vea anónima. Ver Q-007 de la bitácora.
@@ -2565,6 +2566,7 @@ export interface MediosSelect<T extends boolean = true> {
  */
 export interface Modelos3DSelect<T extends boolean = true> {
   nombre?: T;
+  clase?: T;
   origen?: T;
   anonimizado?: T;
   triangulos?: T;

@@ -40,6 +40,17 @@ export interface Opcion {
 }
 
 /**
+ * Las dos carpetas de la biblioteca de modelos 3D (P-004 E1). Es un campo y no una carpeta del disco: mover
+ * archivos rompería las direcciones ya guardadas.
+ */
+export type ClaseDeModelo = 'herramienta' | 'cuerpo'
+
+export const CLASES_DE_MODELO: readonly { valor: ClaseDeModelo; etiqueta: string }[] = [
+  { valor: 'herramienta', etiqueta: 'Herramientas' },
+  { valor: 'cuerpo', etiqueta: 'Modelos del cuerpo' },
+]
+
+/**
  * Condición entre la opción elegida en una selección y sus campos hermanos.
  *
  * `campos` se cumple con **uno**: son parejas de mínimo y máximo, y declarar
@@ -119,6 +130,14 @@ export type Campo =
   | (CampoBase & {
       tipo: 'relacion'
       coleccion: string
+      /**
+       * La carpeta de modelos 3D que ofrece este campo (P-004 E1): solo `herramienta` o solo `cuerpo`.
+       *
+       * Sin él, un desplegable de modelos enseña los dos grupos juntos, rotulados; con él, solo el suyo: el
+       * del instrumento no debe ofrecer un hueso ni el del caso una placa. Solo tiene sentido en las
+       * relaciones con `modelos-3d`.
+       */
+      clase?: ClaseDeModelo
       /**
        * Varios a la vez, con casillas en vez de desplegable.
        *
@@ -244,6 +263,11 @@ export interface EsquemaDeColeccion {
   columnas: Columna[]
   /** Campos por los que busca el cuadro de búsqueda del listado. */
   buscarEn: string[]
+  /**
+   * Un campo de selección por el que el listado se parte en pestañas («carpetas»), cada una con su cuenta.
+   * Hoy solo lo usa `modelos-3d` (P-004 E1): herramientas y modelos del cuerpo.
+   */
+  carpetas?: { campo: string; opciones: Opcion[] }
   secciones: Seccion[]
   /**
    * Colecciones de archivo: el registro nace de una subida y no de un
@@ -606,6 +630,7 @@ export const Cirugias: EsquemaDeColeccion = {
           nombre: 'modelo',
           etiqueta: 'Modelo 3D del caso',
           coleccion: 'modelos-3d',
+          clase: 'cuerpo',
         },
         {
           tipo: 'relacion',
@@ -1128,6 +1153,10 @@ export const Modelos3D: EsquemaDeColeccion = {
   versionada: false,
   familia: 'apoyo',
   buscarEn: ['nombre', 'filename'],
+  carpetas: {
+    campo: 'clase',
+    opciones: CLASES_DE_MODELO.map((c) => ({ valor: c.valor, etiqueta: c.etiqueta })),
+  },
   columnas: [
     { nombre: 'nombre', etiqueta: 'Modelo' },
     { nombre: 'origen', etiqueta: 'Origen' },
@@ -1157,6 +1186,17 @@ export const Modelos3D: EsquemaDeColeccion = {
       titulo: 'El modelo',
       campos: [
         { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre del modelo', requerido: true },
+        {
+          tipo: 'seleccion',
+          nombre: 'clase',
+          etiqueta: 'Carpeta',
+          requerido: true,
+          medio: true,
+          porOmision: 'cuerpo',
+          opciones: CLASES_DE_MODELO.map((c) => ({ valor: c.valor, etiqueta: c.etiqueta })),
+          ayuda:
+            'Herramientas: lo que el residente tiene en la mano (instrumentos, placas, tornillos). Modelos del cuerpo: huesos, músculos, piezas del atlas. Los desplegables de modelo solo ofrecen su carpeta.',
+        },
         {
           tipo: 'seleccion',
           nombre: 'origen',
@@ -1458,6 +1498,7 @@ export const Instrumental: EsquemaDeColeccion = {
           nombre: 'modelo',
           etiqueta: 'Modelo 3D del instrumento',
           coleccion: 'modelos-3d',
+          clase: 'herramienta',
           ayuda: 'Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez.',
         },
         {

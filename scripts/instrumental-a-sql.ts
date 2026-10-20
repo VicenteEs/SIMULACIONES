@@ -92,8 +92,8 @@ for (const archivo of archivos) {
   const nombre = `${base.slug} · instrumental`
   const tris = triangulos(bytes)
   salida.push(
-    `INSERT INTO modelos_3d (nombre, origen, anonimizado, triangulos, notas, url, filename, mime_type, filesize) ` +
-      `SELECT ${q(nombre)}, 'sintetico'::enum_modelos_3d_origen, false, ${tris ?? 'NULL'}, ${q(NOTAS)}, ${q(`${prefijo}/api/modelos-3d/file/${archivo}`)}, ` +
+    `INSERT INTO modelos_3d (nombre, clase, origen, anonimizado, triangulos, notas, url, filename, mime_type, filesize) ` +
+      `SELECT ${q(nombre)}, 'herramienta'::enum_modelos_3d_clase, 'sintetico'::enum_modelos_3d_origen, false, ${tris ?? 'NULL'}, ${q(NOTAS)}, ${q(`${prefijo}/api/modelos-3d/file/${archivo}`)}, ` +
       `${q(archivo)}, 'model/gltf-binary', ${statSync(ruta).size} ` +
       `WHERE NOT EXISTS (SELECT 1 FROM modelos_3d WHERE filename = ${q(archivo)});`,
   )

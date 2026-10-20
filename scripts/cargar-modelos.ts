@@ -120,6 +120,8 @@ async function principal() {
         collection: 'modelos-3d',
         data: {
           nombre,
+          // Un atlas de referencia: trozos del cuerpo (P-004 E1).
+          clase: 'cuerpo',
           origen: 'sintetico',
           // Verdadero sin reservas: es un atlas de referencia, no un estudio.
           anonimizado: true,

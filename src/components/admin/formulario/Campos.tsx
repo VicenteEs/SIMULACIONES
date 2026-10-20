@@ -37,6 +37,7 @@ import {
   type BloquesVigentes,
 } from '@/admin/identidadDeBloques'
 import { formularioDeArchivo, subidorQueAvisa } from '@/admin/subidas'
+import { opcionesParaElCampo, type OpcionRelacion, type Relaciones } from '@/admin/opcionesParaElCampo'
 import { leerTablaPegada } from '@/lib/tablaPegada'
 import { EditorDeEncuadre } from './EditorDeEncuadre'
 import { TallerDePiezas, type DesplazamientoInicial } from './TallerDePiezas'
@@ -69,14 +70,7 @@ const EditorTextoRico = dynamic(
   { ssr: false, loading: () => <p className="campo-ayuda">Cargando editor…</p> },
 )
 
-export interface OpcionRelacion {
-  id: string
-  etiqueta: string
-  url?: string
-  tipo?: string
-}
-
-export type Relaciones = Record<string, OpcionRelacion[]>
+export type { OpcionRelacion, Relaciones }
 
 interface Props {
   campo: Campo
@@ -421,7 +415,7 @@ export function ControlDeCampo({
       // Escrito y filtrable, con «¿No está? Agregar» en los catálogos que lo admiten: ver
       // `SelectorConBusqueda`. Antes eran un `<select>` y una columna de casillas, que con setenta
       // instrumentos y cuarenta modelos obligaban a recorrer la lista entera.
-      const opciones = relaciones[campo.coleccion] ?? []
+      const opciones = opcionesParaElCampo(campo, relaciones, valor)
       const identificador = (v: unknown): string =>
         texto(v && typeof v === 'object' ? (v as { id?: unknown }).id : v)
       if (campo.multiple) {

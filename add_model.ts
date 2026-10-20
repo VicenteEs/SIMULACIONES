@@ -27,6 +27,7 @@ async function createTestModel() {
     collection: 'modelos-3d',
     data: {
       nombre: 'Tumor RM Sintético (Procesado con MONAI)',
+      clase: 'cuerpo',
       origen: 'rm',
       anonimizado: true,
       triangulos: 12000,

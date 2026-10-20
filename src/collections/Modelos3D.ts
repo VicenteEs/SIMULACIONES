@@ -74,6 +74,23 @@ export const Modelos3D: CollectionConfig = {
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre del modelo' },
     {
+      // La carpeta (P-004 E1): lo que el residente lleva en la mano o un trozo del cuerpo. Hasta aquí todos los
+      // desplegables de modelo ofrecían todo revuelto, y al elegir la placa de un instrumento salían también los
+      // huesos del atlas. Es un campo y no una carpeta del disco: mover archivos rompería las direcciones guardadas.
+      // `cuerpo` por omisión porque son los que entran por la exportación del atlas y por la subida a mano; los de
+      // instrumental la fijan al crearse (`TallerDeInstrumental`) y la migración repartió los que ya existían.
+      name: 'clase',
+      type: 'select',
+      required: true,
+      defaultValue: 'cuerpo',
+      index: true,
+      label: 'Carpeta',
+      options: [
+        { label: 'Herramientas', value: 'herramienta' },
+        { label: 'Modelos del cuerpo', value: 'cuerpo' },
+      ],
+    },
+    {
       name: 'origen',
       type: 'select',
       required: true,

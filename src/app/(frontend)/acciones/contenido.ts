@@ -153,6 +153,8 @@ export interface Pagina {
   total: number
   pagina: number
   paginas: number
+  /** Cuántos documentos hay en cada carpeta del esquema (`carpetas`), sin mirar la búsqueda: la cuenta de cada pestaña. */
+  cuentasPorCarpeta?: Record<string, number>
 }
 
 export async function listarDocumentos(
@@ -163,6 +165,8 @@ export async function listarDocumentos(
     estado?: 'todos' | 'publicado' | 'borrador'
     orden?: string
     revision?: FiltroDeRevision
+    /** El valor de la carpeta elegida (P-004 E1), si el esquema parte el listado en carpetas. */
+    carpeta?: string
   } = {},
 ): Promise<Respuesta<Pagina>> {
   return accion(async () => {
@@ -190,6 +194,14 @@ export async function listarDocumentos(
       condiciones.push({
         or: esquema.buscarEn.map((campo) => ({ [campo]: { like: busqueda } })),
       })
+    }
+    // Una carpeta (P-004 E1): solo vale un valor que el esquema declare; lo demás se ignora y se enseña todo.
+    const carpeta =
+      esquema.carpetas && typeof opciones.carpeta === 'string'
+        ? esquema.carpetas.opciones.find((o) => o.valor === opciones.carpeta)
+        : undefined
+    if (esquema.carpetas && carpeta) {
+      condiciones.push({ [esquema.carpetas.campo]: { equals: carpeta.valor } })
     }
     if (esquema.versionada && opciones.estado && opciones.estado !== 'todos') {
       condiciones.push({
@@ -276,7 +288,21 @@ export async function listarDocumentos(
       }
     }
 
+    // La cuenta de cada pestaña de carpeta, aparte de la búsqueda: es lo que dice cuántos hay en cada una.
+    const cuentasPorCarpeta: Record<string, number> = {}
+    if (esquema.carpetas) {
+      for (const opcion of esquema.carpetas.opciones) {
+        const { totalDocs } = await payload.count({
+          collection: esquema.slug as never,
+          where: { [esquema.carpetas.campo]: { equals: opcion.valor } } as never,
+          overrideAccess: true,
+        })
+        cuentasPorCarpeta[opcion.valor] = totalDocs
+      }
+    }
+
     return {
+      ...(esquema.carpetas ? { cuentasPorCarpeta } : {}),
       filas: resultado.docs.map((documento) => {
         const doc = documento as unknown as Record<string, unknown>
         const valores: Record<string, unknown> = { id: doc.id }
@@ -319,7 +345,7 @@ const LISTABLES_APARTE: Record<string, string> = {
 
 export async function opcionesDeRelacion(
   coleccion: unknown,
-): Promise<Respuesta<{ id: string; etiqueta: string; url?: string; tipo?: string }[]>> {
+): Promise<Respuesta<{ id: string; etiqueta: string; url?: string; tipo?: string; clase?: string }[]>> {
   return accion(async () => {
     const aparte =
       typeof coleccion === 'string' ? LISTABLES_APARTE[coleccion] : undefined
@@ -350,6 +376,8 @@ export async function opcionesDeRelacion(
           (typeof piezas === 'number' ? ` · ${piezas} piezas` : ''),
         url: typeof doc.url === 'string' ? doc.url : undefined,
         tipo: typeof doc.mimeType === 'string' ? doc.mimeType : undefined,
+        // La carpeta de un modelo 3D (P-004 E1): con ella el desplegable ofrece solo la suya.
+        clase: typeof doc.clase === 'string' ? doc.clase : undefined,
       }
     })
   })

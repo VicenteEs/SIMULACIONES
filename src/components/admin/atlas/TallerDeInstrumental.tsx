@@ -68,6 +68,8 @@ function subirModeloDeInstrumento(archivo: File, nombre: string) {
   formulario.set('nombre', nombre)
   formulario.set('alt', nombre)
   formulario.set('origen', 'sintetico')
+  // La carpeta «Herramientas» (P-004 E1): el desplegable del instrumento solo ofrece de esa.
+  formulario.set('clase', 'herramienta')
   formulario.set('notas', 'Modelo de instrumental, generado con scripts/instrumental o subido desde el taller.')
   return subidorQueAvisa(() => {})(formulario)
 }

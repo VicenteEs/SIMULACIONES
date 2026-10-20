@@ -225,6 +225,14 @@ auditoría registrada». Los visores 3D y los videos no se imprimen: en su lugar
 
 - Se suben desde el propio bloque («Subir nuevo») o en tanda desde «Contenido» →
   «Medios» → «+ Subir archivo», que admite varios a la vez.
+- **Los modelos 3D están en dos carpetas:** «Herramientas» (lo que el residente
+  tiene en la mano: instrumentos, placas, tornillos) y «Modelos del cuerpo»
+  (huesos, músculos, piezas del atlas). En «Contenido» → «Modelos 3D» son dos
+  pestañas, con su cuenta; lo que se sube desde una pestaña cae en ella. Cada
+  desplegable de modelo ofrece solo la suya: el del instrumento, herramientas;
+  el de la cirugía, modelos del cuerpo; el de un bloque de ficha, las dos, con el
+  rótulo delante. Para pasar un modelo de una carpeta a otra, se edita y se
+  cambia «Carpeta».
 - Toda imagen y todo video piden una **«Descripción para lectores de
   pantalla»**. Es obligatoria.
 - **Un `.mov` de iPhone se rechaza**, y cambiarle el nombre a `.mp4` no sirve:

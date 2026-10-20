@@ -30,6 +30,7 @@ import {
 import { useAvisos } from '@/components/ui/Avisos'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import { MenuAcciones, type OpcionDeMenu } from '@/components/ui/MenuAcciones'
+import { Pestanas } from '@/components/ui/Pestanas'
 import { Vacio } from '@/components/ui/Vacio'
 import { CabeceraDePagina } from './CabeceraDePagina'
 
@@ -147,6 +148,10 @@ export function TablaDocumentos({
   const [busqueda, setBusqueda] = useState('')
   const [estado, setEstado] = useState<'todos' | 'publicado' | 'borrador'>('todos')
   const [filtroRevision, setFiltroRevision] = useState<FiltroDeRevision>('todas')
+  // La carpeta elegida (P-004 E1): el listado de modelos 3D se parte en herramientas y modelos del cuerpo. Vale la
+  // primera opción hasta que se elija otra; solo existe si el esquema declara carpetas.
+  const [carpeta, setCarpeta] = useState<string>(esquema.carpetas?.opciones[0]?.valor ?? '')
+  const [cuentasPorCarpeta, setCuentasPorCarpeta] = useState<Record<string, number>>({})
   const [cargando, setCargando] = useState(true)
   // Solo el error se queda en la página: el detalle de por qué falló tiene que
   // seguir a la vista mientras se corrige. El «se publicó» ya no: era un
@@ -164,8 +169,10 @@ export function TablaDocumentos({
         busqueda,
         estado,
         ...(conRevision ? { revision: filtroRevision } : {}),
+        ...(esquema.carpetas ? { carpeta } : {}),
       })
       if (resultado.exito && resultado.datos) {
+        setCuentasPorCarpeta(resultado.datos.cuentasPorCarpeta ?? {})
         setFilas(resultado.datos.filas)
         setTotal(resultado.datos.total)
         setPaginas(resultado.datos.paginas)
@@ -181,7 +188,7 @@ export function TablaDocumentos({
       // una tabla vacía, que es la forma más callada de decir que algo falló.
       setCargando(false)
     }
-  }, [esquema.slug, pagina, busqueda, estado, conRevision, filtroRevision])
+  }, [esquema.slug, esquema.carpetas, pagina, busqueda, estado, conRevision, filtroRevision, carpeta])
 
   // La búsqueda espera a que se deje de teclear: sin esto, escribir «fractura»
   // dispara ocho consultas y la última en llegar no tiene por qué ser la buena.
@@ -329,7 +336,7 @@ export function TablaDocumentos({
         subtitulo={`${esquema.descripcion} · ${total} en total`}
         acciones={
           esquema.subida ? (
-            <SubidorDeArchivos esquema={esquema} alTerminar={() => void cargar()} />
+            <SubidorDeArchivos esquema={esquema} alTerminar={() => void cargar()} carpeta={carpeta} />
           ) : (
             /* Decía «+ Nueva {singular en minúsculas}», con el femenino fijo y
                las siglas arrasadas: «+ Nueva hueso», «+ Nueva caso ao»,
@@ -357,6 +364,22 @@ export function TablaDocumentos({
         <div role="alert" className="admin-aviso admin-aviso-error">
           {aviso.texto}
         </div>
+      ) : null}
+
+      {esquema.carpetas ? (
+        <Pestanas
+          base="carpetas"
+          etiqueta={`Carpetas de ${esquema.plural}`}
+          activa={carpeta}
+          alCambiar={(valor) => {
+            setPagina(1)
+            setCarpeta(valor)
+          }}
+          pestanas={esquema.carpetas.opciones.map((o) => ({
+            id: o.valor,
+            etiqueta: `${o.etiqueta}${cuentasPorCarpeta[o.valor] !== undefined ? ` · ${cuentasPorCarpeta[o.valor]}` : ''}`,
+          }))}
+        />
       ) : null}
 
       <div className="admin-filters">
@@ -425,7 +448,12 @@ export function TablaDocumentos({
         </span>
       </div>
 
-      <div className="admin-table-container">
+      <div
+        className="admin-table-container"
+        {...(esquema.carpetas
+          ? { role: 'tabpanel', id: `carpetas-panel-${carpeta}`, 'aria-labelledby': `carpetas-pestana-${carpeta}` }
+          : {})}
+      >
         {filas.length === 0 && !cargando ? (
           <Vacio
             icono={FileText}
@@ -611,9 +639,12 @@ const techoEnMegas = (bytes: number): string => String(Math.round(bytes / (1024 
 function SubidorDeArchivos({
   esquema,
   alTerminar,
+  carpeta,
 }: {
   esquema: EsquemaDeColeccion
   alTerminar: () => void
+  /** La carpeta que está a la vista (P-004 E1): lo que se suba desde aquí cae en ella. */
+  carpeta?: string
 }) {
   const id = useId()
   const idAyuda = `${id}-ayuda`
@@ -701,6 +732,7 @@ function SubidorDeArchivos({
         formulario.set('alt', nombre)
         formulario.set('nombre', nombre)
         formulario.set('origen', 'tc')
+        if (esquema.carpetas && carpeta) formulario.set(esquema.carpetas.campo, carpeta)
         try {
           const r = await subirArchivo(formulario)
           if (!r.exito) problemas.push(`«${archivo.name}»: ${r.mensaje ?? 'no se pudo subir'}.`)

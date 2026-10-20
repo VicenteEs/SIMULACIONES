@@ -6367,6 +6367,38 @@ cada ficha heredaba `nowrap`**, así que los párrafos no se partían y salían 
 —lo hace en la hoja global—, las fichas desplegadas desde P-001 E2 tienen el mismo defecto y se corrigen al desplegar esto. *Lección:* una clase
 de componente compartido no se reutiliza como clase de página: ahora hay un prefijo por dominio (`ficha-`, `pestanas`).
 
+### D-193 · 2026-10-21 · vigente
+**Los modelos 3D están en dos carpetas —herramientas y modelos del cuerpo— y cada desplegable ofrece solo la suya.**
+Primera etapa del plan P-004 (E1). Pedido 1 de Cristóbal: «dos subcarpetas, herramientas y modelos_cuerpo, y que las listas
+desplegables se indexen a esas subcarpetas». Hasta aquí, al elegir el modelo de una placa salían también los huesos del atlas.
+
+*Qué se hizo.*
+- **Un campo `clase`** en `modelos-3d` (`herramienta` | `cuerpo`, obligatorio, `cuerpo` por omisión, con índice). Es un campo y no una
+  carpeta del disco: mover archivos habría roto las direcciones ya guardadas.
+- **El panel:** el listado de modelos se parte en dos pestañas con su cuenta («Herramientas · 9», «Modelos del cuerpo · 4»), por un
+  `carpetas` nuevo del esquema que cualquier colección puede declarar; lo que se sube desde una pestaña cae en ella. El formulario de un
+  modelo tiene su «Carpeta» para pasarlo de una a otra.
+- **Cada desplegable pide la suya:** el campo `relacion` del esquema gana `clase`. El modelo del instrumento es de herramientas y el del
+  caso (cirugía), del cuerpo; el bloque «Modelo 3D» de una ficha y el paso de un caso AO enseñan las dos con el rótulo delante y las
+  herramientas primero (`opcionesParaElCampo`, `src/admin/opcionesParaElCampo.ts`, pura y probada). Lo ya elegido no desaparece aunque
+  sea de la otra carpeta.
+- **La colección lo exige también** (`filterOptions` en `Instrumental.modelo` y `Cirugias.modelo`): por la API, un instrumento con un
+  modelo del cuerpo o una cirugía con una herramienta se **rechazan**. Es lo que frena lo que no pasa por el panel.
+- **Quién crea qué:** el taller de instrumental sube a herramientas; la exportación del atlas y los guiones de carga, al cuerpo; el guion
+  que inserta los modelos de instrumental (`instrumental-a-sql.ts`) los pone en herramientas.
+- **Migración** `20261020_223951_modelos_en_dos_carpetas`: el enum, la columna y el índice, y el reparto de lo que ya había (S1):
+  **herramienta** lo que algún instrumento usa como modelo, salvo lo que también usa una cirugía (un hueso puesto como «instrumento» por
+  error no se vuelve herramienta por eso); lo demás, cuerpo. En la base local: 13 modelos, 9 a herramientas y 4 al cuerpo.
+
+*Probado.* Pruebas unitarias (los dos valores, el campo, el esquema, el selector con y sin carpeta, que lo ya elegido no desaparezca, quién
+crea qué, la migración) y de integración contra PostgreSQL: un modelo nace en el cuerpo; el instrumento y la cirugía rechazan la carpeta
+equivocada y aceptan la suya; y **el `UPDATE` de la migración, ejecutado tal cual está escrito**, deja un modelo de instrumento en
+herramientas, uno compartido con una cirugía en el cuerpo y uno suelto en el cuerpo. Recorrido en local: las dos pestañas con su cuenta.
+
+*Consecuencias buenas.* El desplegable del instrumento deja de mezclar huesos con placas, y lo que se rechaza en la API se dice igual que
+en el panel. *Malas.* Un modelo mal clasificado (por ejemplo, una herramienta que ningún instrumento usaba todavía) queda en el cuerpo y
+hay que pasarlo a mano; el bloque de una ficha puede elegir cualquiera de los dos, y por eso no filtra.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -9738,7 +9770,7 @@ y al final se empuja a `main` (avance rápido) y se despliega.
 - **Q4 · Lámina:** ¿qué debe llevar además de caso, diagnóstico, intervención, cirujano y fecha? ¿Los **insumos** de E7? ¿El **puntaje**?
   *Se asumen los insumos y no el puntaje (el puntaje es del docente).*
 
-#### E1 · Los modelos 3D en dos carpetas: herramientas y cuerpo · 1 sesión
+#### E1 · Los modelos 3D en dos carpetas: herramientas y cuerpo · 1 sesión · hecha en local (2026-10-21, D-193)
 
 **De dónde sale:** pedido 1.
 
@@ -9770,12 +9802,12 @@ y al final se empuja a `main` (avance rápido) y se despliega.
 
 **Tareas**
 
-- [ ] **E1.1 · Colección, esquema del panel y migración** con el reparto, y los tipos de Payload regenerados.
-- [ ] **E1.2 · `opcionesDeRelacion` y el selector:** la `clase` en la respuesta, el filtro por campo y los dos grupos rotulados cuando el
+- [x] **E1.1 · Colección, esquema del panel y migración** con el reparto, y los tipos de Payload regenerados.
+- [x] **E1.2 · `opcionesDeRelacion` y el selector:** la `clase` en la respuesta, el filtro por campo y los dos grupos rotulados cuando el
   campo no filtra.
-- [ ] **E1.3 · Quién crea qué:** el taller de instrumental y la exportación del atlas fijan su clase; el formulario de subida la pide.
-- [ ] **E1.4 · El listado con sus dos pestañas** y la columna.
-- [ ] **E1.5 · Pruebas, manual y D-nnn.** El reparto de la migración (contra PostgreSQL: un modelo usado por un instrumento queda
+- [x] **E1.3 · Quién crea qué:** el taller de instrumental y la exportación del atlas fijan su clase; el formulario de subida la pide.
+- [x] **E1.4 · El listado con sus dos pestañas** y la columna.
+- [x] **E1.5 · Pruebas, manual y D-nnn.** *(D-193)* El reparto de la migración (contra PostgreSQL: un modelo usado por un instrumento queda
   `herramienta`, uno suelto `cuerpo`); `opcionesDeRelacion` con y sin `clase`; que el selector del instrumento no ofrezca un modelo de
   cuerpo y el del caso no ofrezca una herramienta; que `esquema.test.ts` siga viendo los campos en los dos lados.
 
@@ -10294,7 +10326,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 
 | Etapa | Estado | Sesiones | Depende de | Decisiones |
 |---|---|---|---|---|
-| E1 · Modelos 3D en dos carpetas | pendiente | 1 | — | — |
+| E1 · Modelos 3D en dos carpetas | hecha en local; sin desplegar | 1 | — | D-193 |
 | E2 · La pantalla en blanco | pendiente | 1 | — | — |
 | E3 · Toda la mesa en la bandeja | pendiente | 1 | — | — |
 | E4 · Barra de modos y «Seleccionar estructura» | pendiente | 1 | — | — |

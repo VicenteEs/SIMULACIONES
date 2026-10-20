@@ -227,6 +227,8 @@ export const Cirugias: CollectionConfig = {
       name: 'modelo',
       type: 'relationship',
       relationTo: 'modelos-3d',
+      // Solo de la carpeta «Modelos del cuerpo» (P-004 E1): un caso se opera sobre un hueso, no sobre una placa.
+      filterOptions: { clase: { equals: 'cuerpo' } },
       label: 'Modelo 3D del caso',
       admin: {
         description:

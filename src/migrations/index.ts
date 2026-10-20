@@ -27,6 +27,7 @@ import * as migration_20261017_161451_estructuras_anatomicas from './20261017_16
 import * as migration_20261017_223757_planos_en_los_pasos from './20261017_223757_planos_en_los_pasos';
 import * as migration_20261017_231443_abordaje_de_las_estructuras from './20261017_231443_abordaje_de_las_estructuras';
 import * as migration_20261020_221621_tabla_de_vera_health from './20261020_221621_tabla_de_vera_health';
+import * as migration_20261020_223951_modelos_en_dos_carpetas from './20261020_223951_modelos_en_dos_carpetas';
 
 export const migrations = [
   {
@@ -172,6 +173,11 @@ export const migrations = [
   {
     up: migration_20261020_221621_tabla_de_vera_health.up,
     down: migration_20261020_221621_tabla_de_vera_health.down,
-    name: '20261020_221621_tabla_de_vera_health'
+    name: '20261020_221621_tabla_de_vera_health',
+  },
+  {
+    up: migration_20261020_223951_modelos_en_dos_carpetas.up,
+    down: migration_20261020_223951_modelos_en_dos_carpetas.down,
+    name: '20261020_223951_modelos_en_dos_carpetas'
   },
 ];
