@@ -15,7 +15,7 @@ import { leerCatalogo } from '@/lib/catalogoDelAtlas'
 import { leerFicha } from '@/lib/estructurasServidor'
 import { identificadoresDeInstrumento } from '@/lib/abordajeDelMusculo'
 
-/** Lo que el botón «Info» del simulador enseña de una estructura: la ficha sin las notas internas. */
+/** Lo que el modo «Seleccionar estructura» del simulador enseña de una estructura: la ficha sin las notas internas. */
 export interface FichaParaElSimulador {
   atlasId: string
   nombre: string

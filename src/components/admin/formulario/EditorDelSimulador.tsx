@@ -357,7 +357,7 @@ export function EditorDelSimulador({
         <div className="editor-simulador-alerta" role="status">
           <strong>Este modelo agrupa las estructuras por sistema.</strong>
           <p>
-            Con el botón «Info» no se puede pinchar un músculo suelto. Volver a exportar crea un modelo nuevo desde la misma
+            Con «Seleccionar estructura» no se puede pinchar un músculo suelto. Volver a exportar crea un modelo nuevo desde la misma
             preparación, con cada estructura por separado, y lo pone en este caso; el modelo de ahora no se borra y las
             piezas del caso se rehacen solas (hay «Deshacer»).
           </p>

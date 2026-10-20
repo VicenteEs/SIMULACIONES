@@ -482,7 +482,7 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
       const p = gesto.plano
       if (!p?.nodo || p.nodo !== pedido || p.accion !== accion) {
         return nada(
-          `Elija en «Info» el músculo de este paso y pulse «${accion === 'cortar' ? 'Cortar' : 'Separar'}».`,
+          `Elija con «Seleccionar estructura» el músculo de este paso y pulse «${accion === 'cortar' ? 'Cortar' : 'Separar'}».`,
           RESULTADOS.SIN_MUSCULO_ELEGIDO,
         )
       }
@@ -667,7 +667,7 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
     case 'planos': {
       const accion = paso.accionDelPlano === 'separar' ? 'separe' : 'corte'
       return conInstrumento(
-        `active «Info», pinche el músculo del paso, pulse «${accion === 'corte' ? 'Cortar' : 'Separar'}» y ${accion} ese músculo${accion === 'separe' ? ` hasta retraerlo al menos ${RETRACCION_MINIMA_MM} mm` : ''}.`,
+        `active «Seleccionar estructura», pinche el músculo del paso, pulse «${accion === 'corte' ? 'Cortar' : 'Separar'}» y ${accion} ese músculo${accion === 'separe' ? ` hasta retraerlo al menos ${RETRACCION_MINIMA_MM} mm` : ''}.`,
       )
     }
     default:

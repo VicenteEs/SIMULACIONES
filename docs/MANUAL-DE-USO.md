@@ -771,6 +771,13 @@ que usted les dio), añade las que faltan desde lo que el modelo dice de sí mis
 que cada paso mostraba al modelo nuevo por su papel (la piel sigue siendo la piel). Lo cuenta
 en un aviso con «Deshacer». Falta, por lo general, marcar cuál es el fragmento móvil.
 
+**Los modos, arriba.** Los modos de ratón —**Orbitar, Trazar, Mover, Separar, Pinzar, Reducir,
+Perforar, Fijar, Coser, Disecar y Seleccionar estructura**— están en una **barra sobre el lienzo,
+de izquierda a derecha**, en el orden en que se hace una cirugía; solo salen los que el
+instrumento en la mano usa. Bajo la barra, una línea dice qué hace el modo; el modo que pide el
+paso lleva la marca «paso». En un lienzo estrecho la barra queda en iconos (el nombre sale al
+pasar el ratón). Las dos formas de trazar y «Todo junto / Un trozo» se eligen a su lado.
+
 **La bandeja por familias.** Tanto el editor como el residente ven los instrumentos
 agrupados por su categoría —«Corte y disección», «Suturas y cierre», «Separadores y
 exposición»…— y cada familia es un botón con su contador: al pulsarlo se despliegan sus
@@ -884,7 +891,7 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   usado, marcada; con «Solo lo que elijo», lo que estaba y no se usó, sin marcar) y
   **«Usar como bandeja del caso»** deja la bandeja exactamente con lo marcado y la pasa a
   «Solo lo que elijo».
-- **Info.** El modo **Info** de la barra del modelo sirve para todos: un clic en una estructura
+- **Seleccionar estructura** (antes «Info»). El modo **Seleccionar estructura** de la barra de modos sirve para todos: un clic en una estructura
   (un músculo, un nervio, un vaso, un hueso) la **destaca en azul** y abre su ficha **a la derecha del
   modelo**, como la fluoroscopia,
   con el nombre, el nombre latino y «Aprenda más» (definición, origen, inserción, inervación,
@@ -893,7 +900,7 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   sistema, dice que no las separa; en el editor del caso aparece entonces **«Volver a exportar
   con estructuras separadas»**, que crea un modelo nuevo desde la misma preparación (el actual no
   se borra) y rehace las piezas del caso.
-- **Cortar o separar un músculo concreto.** En la ficha de un **músculo** (modo Info) hay dos
+- **Cortar o separar un músculo concreto.** En la ficha de un **músculo** (modo Seleccionar estructura) hay dos
   botones. **Cortar** ofrece los instrumentos de la bandeja que cortan músculo (tijera de
   Metzenbaum, bisturí profundo, electrobisturí): con uno en la mano, la incisión corta **solo ese
   músculo** y no toda la capa. **Separar** ofrece los separadores (Farabeuf, Senn-Miller, Hohmann):

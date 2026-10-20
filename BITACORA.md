@@ -6472,6 +6472,33 @@ elijo» a «Toda la mesa» y la bandeja pasa de 0 a 22.
 instrumentos «señuelo» dejan de poder escasear: acertar es elegir entre todo el catálogo, que es más difícil que entre cinco; quien quiera lo
 de antes elige «Solo lo que elijo». La bandeja del residente tiene decenas de instrumentos: se recorre por familias y con el buscador.
 
+### D-196 · 2026-10-21 · vigente
+**Los modos van en una barra sobre el lienzo, de izquierda a derecha, y «Info» se llama «Seleccionar estructura».**
+Cuarta etapa de P-004 (E4). Pedido 9 de Cristóbal: «el panel lateral está medio poco práctico para maniobrar; quizás lo de elegir si orbitar,
+trazar y todo eso podría quedar arriba ordenado de izquierda a derecha; el que pusiste “información” quedaría mejor que se llame
+“seleccionar estructura”».
+
+*Qué se hizo.*
+- **La barra** (`consola-barra-de-modos`) es un hermano **anterior** del marco del lienzo, no un hijo: dentro del marco chocaba con los
+  botones Encuadrar / Ampliar / Fluoroscopia, que son absolutos arriba a la derecha. Lleva los botones de modo, con icono y texto, y a su lado
+  los submodos de siempre («Línea recta / Mano alzada» al trazar, «Todo junto / Un trozo» al mover); debajo, la ayuda del modo en una línea y el
+  «Este paso se hace en modo…». Sale de la columna izquierda, que queda para el paciente, las capas, la herida y la bandeja.
+- **El orden** es el de una cirugía: Orbitar · Trazar · Mover · (Señalar, solo editor) · Separar · Pinzar · Reducir · Perforar · Fijar · Coser ·
+  Disecar · Seleccionar estructura. Solo salen los que el instrumento en la mano usa, como antes.
+- **Ancho estrecho:** la barra es un contenedor de tamaño (`container-type: inline-size`) y por debajo de 640 px de barra queda el icono; el
+  texto no se quita con `display: none` sino que se esconde a la vista y no al lector de pantalla.
+- **El nombre:** «Seleccionar estructura» en la etiqueta, la ayuda, el aviso del editor sobre el modelo agrupado y los dos mensajes del motor
+  que mandan al músculo del paso. La **clave interna sigue siendo `info`**: está en la sesión guardada y en `MODO_DEL_OBJETIVO`
+  (`planos: 'info'`), y cambiarla rompía lo guardado. La pestaña «Info» del **taller anatómico** (E8) no se toca: es otra pantalla.
+
+*Probado.* Pruebas unitarias que leen el código (el orden, el nombre nuevo, que el bloque viejo ya no esté, que la barra no sea hija del marco, que
+el texto se esconda sin `display: none`) y recorrido en el navegador: la barra con los cuatro modos de un caso sin instrumentos, con los iconos y
+la marca «paso» en el que pide el paso, los submodos al lado y la ayuda debajo; los botones del lienzo ya no se pisan con ella.
+
+*Consecuencias buenas.* Los modos están a la vista y en el orden en que se usan; la columna izquierda se acorta. *Malas.* Con muchos modos
+(un caso con taladro, placa y sutura) la barra pasa a dos filas en un lienzo no muy ancho y le quita alto al lienzo; en un teléfono es un
+bloque más antes del modelo.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -9977,7 +10004,7 @@ puede volver a ver.
 
 ---
 
-#### E4 · La barra de modos arriba y «Seleccionar estructura» · 1 sesión
+#### E4 · La barra de modos arriba y «Seleccionar estructura» · 1 sesión · hecha en local (2026-10-21, D-196)
 
 **De dónde sale:** pedido 9. Antes de E5 y de E6.
 
@@ -10003,12 +10030,12 @@ puede volver a ver.
 
 **Tareas**
 
-- [ ] **E4.1 · La barra** sobre el lienzo, con su orden, su versión estrecha y sus clases en `consola.css`; el bloque de la columna izquierda
+- [x] **E4.1 · La barra** sobre el lienzo, con su orden, su versión estrecha y sus clases en `consola.css`; el bloque de la columna izquierda
   se va.
-- [ ] **E4.2 · El nombre nuevo** en todo lo visible, con la búsqueda de lo que lo mencione (`Info`) en consola, manual, `comportamientoDelInstrumento`
+- [x] **E4.2 · El nombre nuevo** en todo lo visible, con la búsqueda de lo que lo mencione (`Info`) en consola, manual, `comportamientoDelInstrumento`
   y las pruebas.
-- [ ] **E4.3 · La ayuda del modo** bajo la barra y la marca «paso» del modo que pide el paso.
-- [ ] **E4.4 · Pruebas, manual y D-nnn.** Las pruebas que leen el código siguen verdes con el nombre nuevo; recorrido en el navegador del
+- [x] **E4.3 · La ayuda del modo** bajo la barra y la marca «paso» del modo que pide el paso.
+- [x] **E4.4 · Pruebas, manual y D-nnn.** *(D-196)* Las pruebas que leen el código siguen verdes con el nombre nuevo; recorrido en el navegador del
   orden de la barra en pantalla ancha y estrecha.
 
 **Hecho cuando…** Los modos están arriba, de izquierda a derecha, y el que antes se llamaba «Info» se llama «Seleccionar estructura»
@@ -10402,7 +10429,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | E1 · Modelos 3D en dos carpetas | hecha en local; sin desplegar | 1 | — | D-193 |
 | E2 · La pantalla en blanco | hecha en local; sin desplegar | 1 | — | D-194 |
 | E3 · Toda la mesa en la bandeja | hecha en local; sin desplegar | 1 | — | D-195 |
-| E4 · Barra de modos y «Seleccionar estructura» | pendiente | 1 | — | — |
+| E4 · Barra de modos y «Seleccionar estructura» | hecha en local; sin desplegar | 1 | — | D-196 |
 | E5 · Abordaje por planos de corrido | pendiente | 2 | E4 | — |
 | E6 · La placa: una sola, ejes anatómicos, números | pendiente | 2 | E2, E4 | — |
 | E7 · Menú de movimiento y reducción automática | pendiente | 2 | E6 | — |

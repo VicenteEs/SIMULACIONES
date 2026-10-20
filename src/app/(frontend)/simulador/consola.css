@@ -317,7 +317,61 @@
 }
 .consola-centro { grid-area: centro; display: flex; flex-direction: column; min-width: 0; }
 
-/* ---------- modo: control segmentado ---------- */
+/* ---------- los modos, arriba y de izquierda a derecha (P-004 E4) ----------
+   Una barra sobre el lienzo, en el orden en que se hace una cirugía. Es un contenedor de tamaño: cuando el lienzo es
+   estrecho (la ventana del simulador junto a la fluoroscopia, un tablet) queda el icono y el texto sigue ahí para el
+   lector de pantalla. */
+.consola-barra-de-modos {
+  container-type: inline-size;
+  padding: var(--e-2) var(--e-3) var(--e-1);
+  background: var(--c-panel);
+  border-bottom: 1px solid var(--c-linea);
+}
+.consola-barra-de-modos-fila { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2) var(--e-4); }
+.consola-barra-de-modos-botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-1);
+  padding: var(--e-1);
+  border-radius: var(--r-lg);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea);
+}
+.consola-barra-de-modos .consola-submodo { margin-top: 0; }
+.consola-modo-barra {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 36px;
+  padding: 0 var(--e-3);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--c-texto-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background var(--dur-rapida) var(--curva), color var(--dur-rapida) var(--curva);
+}
+.consola-modo-barra:hover { color: var(--c-texto); background: var(--c-panel-2); }
+.consola-modo-barra.activo { color: #fff; background: var(--c-acento-solido); }
+.consola-modo-barra.pedido:not(.activo) { border: 1px dashed var(--c-acento); color: var(--c-texto); }
+.consola-barra-de-modos-ayuda { margin: var(--e-1) 0 0; font-size: var(--t-xs); }
+@container (max-width: 640px) {
+  .consola-modo-barra { padding: 0 var(--e-2); }
+  .consola-modo-barra-texto {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* ---------- modo: control segmentado (la posición del paciente) ---------- */
 .consola-segmentado {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1095,9 +1149,6 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
   .consola-paso { flex: 0 0 132px; }
 
   .consola-fin { order: 2; margin: var(--e-4); }
-  .consola-modos-bloque { order: 3; padding: var(--e-3) var(--e-4) 0; }
-  .consola-modos-bloque .consola-subtitulo { display: none; }
-  .consola-modos-bloque .consola-ayuda { font-size: var(--t-xs); margin-top: var(--e-2); }
   .consola-modo { flex-direction: row; min-height: 44px; font-size: var(--t-sm); }
   .consola-centro { order: 4; margin-top: var(--e-3); }
   .consola-lienzo-marco,

@@ -443,14 +443,16 @@ const MODO_REDUCIR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
 }
 
 /**
- * El modo «Info» (P-003 E9): un clic en una estructura la destaca y abre su ficha al lado. No modifica nada, así que
- * está para todos y con cualquier instrumento; al salir del modo el tinte se quita.
+ * El modo «Seleccionar estructura» (P-003 E9, que lo llamó «Info»; P-004 E4 lo renombró por pedido de Cristóbal): un clic
+ * en una estructura la destaca y abre su ficha al lado. No modifica nada, así que está para todos y con cualquier
+ * instrumento; al salir del modo el tinte se quita. La clave interna sigue siendo `info`: está en la sesión guardada y
+ * en `MODO_DEL_OBJETIVO`.
  */
 const MODO_INFO: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
   valor: 'info',
-  etiqueta: 'Info',
+  etiqueta: 'Seleccionar estructura',
   icono: Info,
-  ayuda: 'Info: haga clic en una estructura —un músculo, un nervio, un vaso, un hueso— y se destaca; al lado aparece su ficha. Una pieza apagada no se pincha.',
+  ayuda: 'Seleccionar estructura: haga clic en una estructura —un músculo, un nervio, un vaso, un hueso— y se destaca; al lado aparece su ficha. Una pieza apagada no se pincha.',
 }
 
 /**
@@ -508,7 +510,7 @@ const MODO_DEL_OBJETIVO: Record<Objetivo, Modo> = {
   fuerza: 'orbitar',
   perforacion: 'perforar',
   fijacion: 'fijar',
-  // El paso de planos se resuelve desde la ficha de «Info», que es donde están «Cortar» y «Separar».
+  // El paso de planos se resuelve desde la ficha de «Seleccionar estructura», que es donde están «Cortar» y «Separar».
   planos: 'info',
 }
 
@@ -695,7 +697,7 @@ export function ConsolaQuirurgica({
   // de lo usado», el valor de partida, y solo se guarda lo que la persona toca.
   const [insumos, setInsumos] = useState<RegistroDeInsumos>({})
   const [marcadasParaLaBandeja, setMarcadasParaLaBandeja] = useState<Set<string> | null>(null)
-  // La estructura que se pinchó con «Info» y lo que se sabe de ella (P-003 E9). El panel solo se ve en ese modo.
+  // La estructura que se pinchó con «Seleccionar estructura» y lo que se sabe de ella (P-003 E9). El panel solo se ve en ese modo.
   const claveDeLaSesion = editor ? `trauma-sesion:editor::${caso.modeloUrl ?? ''}` : `trauma-sesion:residente:${documentoId}:${caso.modeloUrl ?? ''}`
   const [info, setInfo] = useState<
     | { estado: 'cargando'; nodo: string; nombre: string }
@@ -1098,7 +1100,7 @@ export function ConsolaQuirurgica({
       // idem
     }
   }, [musculoObjetivo, claveDelObjetivo])
-  // Fuera del modo «Info» no queda ningún tinte puesto (P-003 E9).
+  // Fuera del modo «Seleccionar estructura» no queda ningún tinte puesto (P-003 E9).
   useEffect(() => {
     if (modo !== 'info') mando.current?.resaltarNodo(null)
   }, [modo])
@@ -1889,16 +1891,18 @@ export function ConsolaQuirurgica({
   // usa la consola lo elige a mano, manda lo elegido hasta que cambie de paso.
   const moverTodoEfectivo = moverTodoElegido ?? objetivo !== 'reduccion'
 
+  // En el orden en que se hace una cirugía, de izquierda a derecha (P-004 E4): mirar, trazar, mover, exponer, reducir,
+  // perforar, fijar, coser, disecar, y al final «Seleccionar estructura», que no modifica nada.
   const modosVisibles = [
     ...MODOS,
     ...(editor ? [MODO_SENALAR] : []),
     ...(queHace.separa ? [MODO_SEPARAR] : []),
     ...(queHace.pellizca ? [MODO_PINZAR] : []),
     ...(queHace.reduce ? [MODO_REDUCIR] : []),
-    ...(queHace.roma ? [MODO_DISECAR] : []),
     ...(queHace.perfora ? [MODO_PERFORAR] : []),
-    ...(queHace.sutura ? [MODO_COSER] : []),
     ...(queHace.coloca || queHace.mide ? [MODO_FIJAR] : []),
+    ...(queHace.sutura ? [MODO_COSER] : []),
+    ...(queHace.roma ? [MODO_DISECAR] : []),
     MODO_INFO,
   ]
   const ayudaDelModo = modosVisibles.find((m) => m.valor === modo)?.ayuda ?? ''
@@ -3159,94 +3163,6 @@ export function ConsolaQuirurgica({
           encima del lienzo y las capas bajen debajo, y un `<aside>` con
           `display: contents` pierde su papel en algunos lectores de pantalla. */}
       <div className="consola-izq">
-        <div className="consola-modos-bloque">
-          <h3 className="consola-subtitulo" id="consola-modo">
-            Modo
-          </h3>
-          <div className="consola-segmentado" role="group" aria-labelledby="consola-modo">
-            {modosVisibles.map((m) => {
-              const Icono = m.icono
-              const pedido = modoDelPaso === m.valor
-              return (
-                <button
-                  key={m.valor}
-                  type="button"
-                  className={`consola-modo${modo === m.valor ? ' activo' : ''}${pedido ? ' pedido' : ''}`}
-                  aria-pressed={modo === m.valor}
-                  title={m.ayuda}
-                  onClick={() => {
-                    setModo(m.valor)
-                    // Las dos maneras de usar la Metzenbaum se recuerdan: al volver a cogerla se abre como se dejó.
-                    if (m.valor === 'disecar') setUsoDeLaTijera('roma')
-                    else if (m.valor === 'trazar') setUsoDeLaTijera('cortar')
-                  }}
-                >
-                  <Icono size={18} aria-hidden />
-                  <span>{m.etiqueta}</span>
-                  {/* El modo que pide el paso se señalaba con « ·» pegado a la
-                      etiqueta, un punto de 3 px que nadie veía. Ahora es una
-                      marca con palabra, y sigue sin imponerse: cambiar de modo
-                      a mano es posible (`MODO_DEL_OBJETIVO`). */}
-                  {pedido ? <span className="consola-modo-pedido">paso</span> : null}
-                </button>
-              )
-            })}
-          </div>
-          <p className="consola-ayuda">
-            {ayudaDelModo}
-            {etiquetaDelModoDelPaso ? (
-              <span className="consola-ayuda-pedido">
-                {' '}
-                Este paso se hace en modo {etiquetaDelModoDelPaso}.
-              </span>
-            ) : null}
-          </p>
-          {/* Las dos formas de trazar la incisión: la recta entre dos clics (inicio y final) y la mano
-              alzada. La recta es la de una incisión de abordaje; a mano sale temblorosa. */}
-          {modo === 'trazar' ? (
-            <div className="consola-submodo" role="group" aria-label="Cómo se traza la incisión">
-              {TIPOS_DE_TRAZO.map((t) => (
-                <button
-                  key={t.valor}
-                  type="button"
-                  className={`consola-submodo-boton${tipoDeTrazo === t.valor ? ' activo' : ''}`}
-                  aria-pressed={tipoDeTrazo === t.valor}
-                  title={t.ayuda}
-                  onClick={() => {
-                    setTipoDeTrazo(t.valor)
-                    mando.current?.cancelarTrazo()
-                  }}
-                >
-                  {t.etiqueta}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {/* «Mover» separaba cada sistema y se perdía todo: ahora mueve todo junto, y el paso de reducir
-              —que necesita un trozo de hueso suelto— lo deja en «Un trozo». */}
-          {modo === 'mover' ? (
-            <div className="consola-submodo" role="group" aria-label="Qué se mueve">
-              {(
-                [
-                  [true, 'Todo junto', 'Piel, músculo y hueso se mueven a la vez, como un bloque.'],
-                  [false, 'Un trozo', 'Agarra el trozo de hueso que se toque: lo que hace falta para reducir una fractura.'],
-                ] as const
-              ).map(([valor, etiqueta, ayuda]) => (
-                <button
-                  key={etiqueta}
-                  type="button"
-                  className={`consola-submodo-boton${moverTodoEfectivo === valor ? ' activo' : ''}`}
-                  aria-pressed={moverTodoEfectivo === valor}
-                  title={ayuda}
-                  onClick={() => setMoverTodoElegido(valor)}
-                >
-                  {etiqueta}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
         {/* Cómo está el paciente en la mesa. Antes solo se podía orbitar con el miembro vertical, como de pie, y nadie
             opera así: «Supino» y «Prono» lo acuestan con un clic, y el giro libre deja inclinarlo a gusto. Mueve la
             vista y no el modelo, así que lo que ya está puesto (separadores, pinzas, hilo, placa) no se descoloca. */}
@@ -3379,6 +3295,94 @@ export function ConsolaQuirurgica({
             }}
           />
         ) : null}
+        {/* Los modos, arriba y de izquierda a derecha (P-004 E4): vivían en una rejilla de la columna izquierda, lejos del
+            modelo y de las órdenes de la vista, y Cristóbal los pidió «arriba, ordenados de izquierda a derecha». Solo salen
+            los que el instrumento en la mano usa. En un ancho estrecho queda el icono (el texto sigue para el lector de
+            pantalla). La ayuda del modo va debajo, en una línea. */}
+        <div className="consola-barra-de-modos">
+          <div className="consola-barra-de-modos-fila">
+            <div className="consola-barra-de-modos-botones" role="group" aria-label="Modo">
+              {modosVisibles.map((m) => {
+                const Icono = m.icono
+                const pedido = modoDelPaso === m.valor
+                return (
+                  <button
+                    key={m.valor}
+                    type="button"
+                    className={`consola-modo-barra${modo === m.valor ? ' activo' : ''}${pedido ? ' pedido' : ''}`}
+                    aria-pressed={modo === m.valor}
+                    title={m.ayuda}
+                    onClick={() => {
+                      setModo(m.valor)
+                      // Las dos maneras de usar la Metzenbaum se recuerdan: al volver a cogerla se abre como se dejó.
+                      if (m.valor === 'disecar') setUsoDeLaTijera('roma')
+                      else if (m.valor === 'trazar') setUsoDeLaTijera('cortar')
+                    }}
+                  >
+                    <Icono size={16} aria-hidden />
+                    <span className="consola-modo-barra-texto">{m.etiqueta}</span>
+                    {/* El modo que pide el paso se marca con la palabra «paso» y no se impone: cambiar de modo a mano
+                        es posible (`MODO_DEL_OBJETIVO`). */}
+                    {pedido ? <span className="consola-modo-pedido">paso</span> : null}
+                  </button>
+                )
+              })}
+            </div>
+            {/* Las dos formas de trazar la incisión: la recta entre dos clics (inicio y final) y la mano alzada. La
+                recta es la de una incisión de abordaje; a mano sale temblorosa. */}
+            {modo === 'trazar' ? (
+              <div className="consola-submodo" role="group" aria-label="Cómo se traza la incisión">
+                {TIPOS_DE_TRAZO.map((t) => (
+                  <button
+                    key={t.valor}
+                    type="button"
+                    className={`consola-submodo-boton${tipoDeTrazo === t.valor ? ' activo' : ''}`}
+                    aria-pressed={tipoDeTrazo === t.valor}
+                    title={t.ayuda}
+                    onClick={() => {
+                      setTipoDeTrazo(t.valor)
+                      mando.current?.cancelarTrazo()
+                    }}
+                  >
+                    {t.etiqueta}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {/* «Mover» separaba cada sistema y se perdía todo: ahora mueve todo junto, y el paso de reducir —que necesita un
+                trozo de hueso suelto— lo deja en «Un trozo». */}
+            {modo === 'mover' ? (
+              <div className="consola-submodo" role="group" aria-label="Qué se mueve">
+                {(
+                  [
+                    [true, 'Todo junto', 'Piel, músculo y hueso se mueven a la vez, como un bloque.'],
+                    [false, 'Un trozo', 'Agarra el trozo de hueso que se toque: lo que hace falta para reducir una fractura.'],
+                  ] as const
+                ).map(([valor, etiqueta, ayuda]) => (
+                  <button
+                    key={etiqueta}
+                    type="button"
+                    className={`consola-submodo-boton${moverTodoEfectivo === valor ? ' activo' : ''}`}
+                    aria-pressed={moverTodoEfectivo === valor}
+                    title={ayuda}
+                    onClick={() => setMoverTodoElegido(valor)}
+                  >
+                    {etiqueta}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <p className="consola-ayuda consola-barra-de-modos-ayuda">
+            {ayudaDelModo}
+            {etiquetaDelModoDelPaso ? (
+              <span className="consola-ayuda-pedido">
+                {' '}
+                Este paso se hace en modo {etiquetaDelModoDelPaso}.
+              </span>
+            ) : null}
+          </p>
+        </div>
         <div className={`consola-lienzo-marco modo-${modo}`}>
           <LienzoQuirurgico
             key={claveDelLienzo}
@@ -3697,9 +3701,9 @@ export function ConsolaQuirurgica({
           ) : null}
           {/* Info y el músculo elegido, a la derecha del lienzo como la fluoroscopia (no arriba): ahí no empuja el
               modelo hacia abajo y se lee al lado de lo que se pincha. El objetivo se queda aunque se salga del modo
-              «Info»; la ficha solo se ve en ese modo. */}
+              «Seleccionar estructura»; la ficha solo se ve en ese modo. */}
           {(modo === 'info' && info) || musculoObjetivo ? (
-            <div className="consola-info-ficha" role="group" aria-label="Info">
+            <div className="consola-info-ficha" role="group" aria-label="Estructura seleccionada">
               {musculoObjetivo ? (
                 <div className="consola-info consola-objetivo-de-plano" role="status">
                   <p>
