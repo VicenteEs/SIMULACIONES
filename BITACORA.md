@@ -9697,7 +9697,17 @@ y al final se empuja a `main` (avance rápido) y se despliega.
 
 #### Respuestas del dueño y decisiones tomadas sin preguntar
 
-*(Se completa al contestar el dueño; lo que sigue son las suposiciones con que se empieza, y cada una dice qué se cambia si no.)*
+**Respuestas del dueño (2026-10-21)**
+
+- **Q1 → solo las cirugías que no han armado su bandeja** ven toda la mesa; una bandeja ya armada se conserva (S2 queda como estaba).
+- **Q2 → el número de orificios lo escribe el editor, al crear el instrumento** (no el residente). Cambia S5: **no se construye la placa
+  al coger**; el campo vive en el instrumento y sirve para las placas cuyo modelo **no trae** la posición de sus agujeros (el
+  «Este modelo de placa no trae la posición de sus agujeros» de `fijarConClic`, que es lo que Cristóbal se encuentra con una placa suya).
+- **Q3 → sí, así:** las tres zonas del orificio oval como en S6; las cuentas en un módulo aparte para que Cristóbal las corrija.
+- **Q4 → solo los datos básicos** en la lámina: radiografías, caso, diagnóstico, intervención, cirujano, fecha y logotipo. **Sin insumos y
+  sin puntaje.** Cambia S7. Los insumos se siguen guardando con el recorrido (E3.3), pero no salen en la lámina.
+
+*Lo que sigue son las suposiciones con que se empezó, y cada una dice qué se cambia si no.*
 
 - **S1 · Nombres de las carpetas:** «Herramientas» y «Modelos del cuerpo» (en la base `herramienta` y `cuerpo`). El reparto de lo que ya
   hay: **herramienta** lo que algún instrumento usa como modelo; **cuerpo** lo demás. Se puede corregir uno a uno.
@@ -9707,16 +9717,18 @@ y al final se empuja a `main` (avance rápido) y se despliega.
   «reducción automática» y no puntúa el ejercicio de reducir** (para que no valga lo mismo que hacerlo a mano).
 - **S4 · Flechas del teclado:** 1 mm y 1° por pulsación; Mayús, 0,2 mm y 0,2°; Ctrl, 5 mm y 5°. Arrastrar con el ratón mueve a lo largo del
   eje elegido, tal como se ve en la pantalla.
-- **S5 · «Cantidad de orificios de la placa»:** se escribe en el panel de la placa y la placa se **construye con esa cantidad**, con el paso
-  entre agujeros del modelo (si coincide con el del modelo, se usa el modelo tal cual). Es una suposición de peso: ver Q2.
+- **S5 · «Cantidad de orificios de la placa»** *(corregida por Q2)*: es un campo **del instrumento**, que escribe el editor. Si el modelo
+  trae la posición de sus agujeros, esa manda y el campo solo se contrasta; si no la trae, los agujeros se reparten **a partes iguales a
+  lo largo de la placa** según la cantidad escrita.
 - **S6 · Zonas del orificio oval** (de la fractura hacia fuera): *cerca de la fractura* → no comprime (y avisa que tiende a separar);
   *centro* → neutro, no comprime; *lejos de la fractura* → **excéntrico, comprime** (hasta 1 mm por tornillo, que es lo de una DCP). Es lo
   que dice el documento; **Cristóbal lo valida** (Q3).
-- **S7 · Lámina postoperatoria:** un PNG de 1920 × 1080, fondo negro, de una a tres radiografías, con el texto de la presentación y el
-  logotipo; la metadata va **dentro del PNG** (bloques `tEXt`: autor, título, descripción, programa, fecha y los datos del caso).
+- **S7 · Lámina postoperatoria** *(corregida por Q4)*: un PNG de 1920 × 1080, fondo negro, de una a tres radiografías, con **solo** el caso,
+  el diagnóstico, la intervención, el cirujano, la fecha y el logotipo; la metadata va **dentro del PNG** (bloques `tEXt`: autor, título,
+  descripción, programa, fecha y los datos del caso).
 - **S8 · Apariencia de pabellón (pedido 16):** no se hace ahora. Depende de que el Dani corte los modelos; ver E12.
 
-**Preguntas para el dueño o para Cristóbal** (con lo que se asume mientras tanto)
+**Preguntas hechas** (contestadas arriba; se dejan con lo que se asumía)
 
 - **Q1 · «Todo el instrumental en la bandeja»:** ¿también para los casos que ya tienen su bandeja armada? *Se asume que no (S2).*
 - **Q2 · «Cantidad de orificios»:** ¿es que el residente **elija** cuántos orificios tiene la placa (6, 8, 10, 12…), o que el **editor** la
@@ -9983,10 +9995,14 @@ la ficha, cortar un músculo, abrir la piel con dos Farabeuf.
   el giro alrededor del hueso se mide en grados de vuelta (±90°) y no en milímetros.
 - **El control es el menú por ejes de E7** (el mismo de los fragmentos), con **un campo numérico** para cada movimiento: escribir «−75»
   mueve la placa 75 mm hacia distal. Los deslizadores se van.
-- **Largo del tornillo y orificios** (pedido 5): el largo del tornillo se **escribe** en un campo (8–120 mm; el deslizador se va) con el
-  sugerido del medidor escrito de antemano. La **cantidad de orificios** se escribe al coger la placa (S5, Q2): `crearPlacaALaMedida`
-  (`src/lib/placaALaMedida.ts`, pura: contornos, posiciones de los agujeros y óvalos) construye la placa con el **paso entre agujeros**,
-  el ancho y el grosor del modelo; si la cantidad es la del modelo, se usa el modelo tal cual. El material y el color son los del modelo.
+- **Largo del tornillo y orificios** (pedido 5, Q2): el **largo del tornillo** que pone el residente se **escribe** en un campo (8–120 mm; el
+  deslizador se va) con el sugerido del medidor escrito de antemano. La **cantidad de orificios** la escribe **el editor, en el
+  instrumento** (campo `orificios` de `instrumental`, junto al `largoMm` del modelo de un tornillo): hoy la posición de los agujeros viene
+  del propio modelo (`th.agujeros`, que salen de los scripts de Blender de `scripts/instrumental`), y una placa **cargada sin ese dato**
+  dice «este modelo no trae la posición de sus agujeros» y no deja poner un solo tornillo. Con el campo, `agujerosUniformes`
+  (`src/lib/agujerosDeLaPlaca.ts`, pura) los reparte **a partes iguales** a lo largo de la caja del modelo —con un margen en cada extremo—;
+  si el modelo sí trae sus agujeros, esos mandan y el campo solo se contrasta (se avisa si no coinciden). En el taller de instrumental el
+  campo aparece al tratarse de una placa y se ve la posición de los agujeros sobre el modelo antes de guardar.
 
 **Tareas**
 
@@ -9996,15 +10012,17 @@ la ficha, cortar un músculo, abrir la piel con dos Farabeuf.
   el campo `extremoProximal` en el caso y su valor por omisión.
 - [ ] **E6.3 · Rangos reales** de `ajustarPlaca` (a partir del hueso) y el giro alrededor del hueso en grados.
 - [ ] **E6.4 · Campos numéricos** del ajuste de la placa y **largo del tornillo escrito**.
-- [ ] **E6.5 · Placa a la medida:** `crearPlacaALaMedida` y el campo de orificios; con sus pruebas (posiciones, paso, que 8 de 8 devuelva el
-  modelo).
+- [ ] **E6.5 · Orificios del instrumento:** el campo `orificios` (y `largoMm` de un tornillo) en la colección, el esquema del panel y el taller;
+  `agujerosUniformes` y su uso cuando el modelo no trae agujeros; migración que solo añade. Con pruebas (posiciones, márgenes, que los
+  agujeros del modelo manden, el aviso de no coincidir).
 - [ ] **E6.6 · Pruebas, manual y D-nnn.** Placa puesta, mover el ratón y no sale otra; desplazar 75 mm hacia distal y que la placa se
-  desplace 75 mm en el eje; una placa de 6 orificios sobre la tibia con sus seis agujeros perforables.
+  desplace 75 mm en el eje; una placa sin agujeros en el modelo y con «6 orificios» escritos deja perforar sus seis.
 
 **Hecho cuando…** Se pone la placa, no sale ninguna más al mover el ratón, se la lleva 75 mm hacia distal escribiendo el número o con los
-botones, se la angula, y se pide una de seis orificios sin hacer nada raro.
+botones, se la angula, y una placa cargada sin posición de agujeros funciona con solo escribir cuántos tiene.
 
-**Riesgo:** la placa a la medida es lo más inseguro del pedido 5 (ver Q2); si Cristóbal quería otra cosa, se cambia sin tocar el resto.
+**Riesgo:** reparto uniforme de agujeros: una placa con un tramo liso en medio (puente) no queda bien con la cuenta a partes iguales;
+para esas, los agujeros del propio modelo siguen mandando.
 
 ---
 
@@ -10216,15 +10234,15 @@ la corrija sin tocar el lienzo.
 - **Los datos** (S7, Q4): cirujano, **«Dr. ____» ya escrito con el nombre de la cuenta** y editable; **fractura**, autocompletada con la
   clasificación y el nombre del caso; **intervención**, con sugerencias («Reducción y osteosíntesis con placa», «…con clavo
   endomedular», «…con tornillos») y **ya propuesta según los implantes usados** (E7: una placa DCP de 8 orificios y 6 tornillos corticales
-  → «Reducción abierta y osteosíntesis con placa DCP 4,5 mm (8 orificios) y 6 tornillos»); fecha de hoy; un «Equipo» de texto libre.
+  → «Reducción abierta y osteosíntesis con placa DCP 4,5 mm (8 orificios) y 6 tornillos»); fecha de hoy; un «Equipo» de texto libre. La **lámina lleva solo esto** (Q4): ni los insumos ni el puntaje.
 - **La lámina** (`src/lib/laminaPostoperatoria.ts`, que decide el contenido y la disposición con números, y un lienzo 2D que la dibuja):
   1920 × 1080, **fondo negro** como las diapositivas de la reunión clínica; arriba una franja con «Radiografía postoperatoria» y el
-  logotipo de TraumaHub (`public/logo-hd.png`, con `ruta()`); a la izquierda el texto de la presentación (Caso · Dg · Cx · Dr. · Fecha ·
-  insumos utilizados); a la derecha las radiografías en fila, cada una con su pie. Se descarga como **PNG**.
+  logotipo de TraumaHub (`public/logo-hd.png`, con `ruta()`); a la izquierda el texto de la presentación (Caso · Dg · Cx · Dr. · Fecha);
+  a la derecha las radiografías en fila, cada una con su pie. Se descarga como **PNG**.
 - **La metadata va dentro del PNG:** `src/lib/pngConMetadatos.ts` (puro) inserta bloques `tEXt` antes de `IDAT` con su CRC —`Author`
   (cirujano), `Title`, `Description` (diagnóstico e intervención), `Software` (TraumaHub), `Creation Time`, `traumahub:caso`—; la prueba
   los lee de vuelta. No depende de ninguna biblioteca.
-- **Queda registrado** (nota 18): con el recorrido se guardan cirujano, fractura, intervención, fecha e insumos (`actividad`, con
+- **Queda registrado** (nota 18): con el recorrido se guardan cirujano, fractura, intervención, fecha (`actividad`, con
   migración que solo añade), no la imagen. Es lo que permitirá, más adelante, que un docente cuente «X cirugías» de un estudiante y que el
   estudiante tenga su comprobante; esa pantalla **no** se hace aquí.
 
