@@ -6399,6 +6399,44 @@ herramientas, uno compartido con una cirugía en el cuerpo y uno suelto en el cu
 en el panel. *Malas.* Un modelo mal clasificado (por ejemplo, una herramienta que ningún instrumento usaba todavía) queda en el cuerpo y
 hay que pasarlo a mano; el bloque de una ficha puede elegir cualquiera de los dos, y por eso no filtra.
 
+### D-194 · 2026-10-21 · vigente
+**La pantalla del simulador ya no se queda en blanco sin decirlo: el contexto de WebGL se recupera o se vuelve a montar, y el bucle de dibujo no muere por una excepción.**
+Segunda etapa de P-004 (E2). Pedido 4 de Cristóbal: «me maneé mucho en una y me fui a blanco. Reinicio.» El lienzo quedó en blanco con el
+panel de al lado vivo, así que no se cayó la página: se paró el dibujo.
+
+*Qué había.* `LienzoQuirurgico.tsx` no tenía ningún `webglcontextlost` (solo `forceContextLoss` al desmontar), y el bucle
+`render.setAnimationLoop(…)` hacía todo suelto: three.js agenda el cuadro siguiente **después** de llamar a la función, de modo que una
+excepción en cualquier línea —las asas, la guía, el dibujo— no se reagenda y el dibujo se para para siempre. El lienzo queda con el último
+cuadro y se vacía en cuanto algo lo redimensiona (abrir el panel de la fluoroscopia, por ejemplo): en blanco.
+
+*Qué se hizo.*
+- **`src/lib/controlDelContexto.ts`** (puro, probado): el estado del contexto (`vivo` / `perdido` / `recuperado`), qué se le dice a quien
+  opera y cuándo se ofrece volver a montar (`ESPERA_ANTES_DE_OFRECER_MS` = 3 s), y un limitador que avisa **una vez por etapa** de un fallo
+  de dibujo.
+- **El lienzo** escucha `webglcontextlost` (con `preventDefault`, que es lo que deja al navegador devolver el contexto) y
+  `webglcontextrestored` (hace olvidar a la fluoroscopia lo que tenía y pide un dibujo). Los quita **antes** de perder el contexto a
+  propósito al desmontar. No dibuja con el contexto perdido.
+- **El bucle no muere:** cada etapa (`asas`, `controles`, `guías`, `imagen`) va en su propio `try`; el primer fallo de cada una sale por
+  `console.error` y por la línea de lectura del lienzo, y el bucle sigue. Un fallo de las asas ya no impide dibujar el hueso.
+- **La consola** dice «La imagen se detuvo; se está recuperando…», después «La imagen volvió.», y si en 3 s no vuelve, **«Recuperar la
+  vista»**: monta el lienzo de nuevo con una `key` sin tocar el caso, los pasos ni el puntaje.
+- **Para probarlo:** el mando ofrece `estadisticasDelDibujo()` (geometrías, texturas, programas y objetos) y `perderElContexto(volverEnMs)`
+  (la extensión `WEBGL_lose_context`).
+
+*Probado* en local, sobre la cirugía de prueba: con `perderElContexto(1200)` salen «se está recuperando», luego «La imagen volvió.», el
+dibujo sigue y el aviso se va solo; con `perderElContexto()` sin volver, a los 3,8 s aparece la alerta con **«Recuperar la vista»**, el
+botón monta un lienzo nuevo con contexto vivo y el aviso desaparece. **Fuga:** 160 disparos de fluoroscopia con proyecciones y zooms
+distintos dejan **iguales** las geometrías (25), los objetos (42), los programas (8) y las texturas (4) tras el primero: la fluoroscopia no
+fuga. La medición con la placa se hace en E6 (E6.1), que es donde se quita lo que sale a cada movimiento del ratón.
+
+*Lo que no se pudo.* **No se reprodujo el blanco de Cristóbal:** no se sabe si fue pérdida de contexto o una excepción. La protección vale
+para las dos, y si vuelve a pasar, `console.error` dirá la etapa. La causa que queda más a mano es la fuga de la placa de la mano, que se
+cierra en E6.1.
+
+*Consecuencias buenas.* Un blanco deja de ser el final del ensayo: se recupera solo o con un botón, y lo escrito en la consola se queda.
+*Malas.* «Recuperar la vista» vuelve a montar el dibujo y lo que no se guarda en la sesión (la placa puesta, la pinza en la mano) se
+pierde; las incisiones, los separadores y las retracciones vuelven por la sesión guardada (D-188).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -9816,7 +9854,7 @@ modelos se divide en sus dos carpetas con los modelos que ya había bien reparti
 
 ---
 
-#### E2 · La pantalla que se queda en blanco · 1 sesión
+#### E2 · La pantalla que se queda en blanco · 1 sesión · hecha en local (2026-10-21, D-194)
 
 **De dónde sale:** pedido 4. «Me maneé mucho en una y me fui a blanco. Reinicio.»
 
@@ -9849,11 +9887,11 @@ modelos se divide en sus dos carpetas con los modelos que ya había bien reparti
 
 **Tareas**
 
-- [ ] **E2.1 · Medir:** contadores, y el recorrido de 200 ajustes y 20 disparos; anotar el resultado en la D-nnn.
-- [ ] **E2.2 · `controlDelContexto.ts`** y los dos manejadores en el lienzo, con el aviso y el botón.
-- [ ] **E2.3 · El bucle con `try`** y el primer error a la consola de la página.
-- [ ] **E2.4 · Arreglar lo que la medición encuentre** (si hay fuga, quitarla).
-- [ ] **E2.5 · Pruebas, manual y D-nnn.** La función pura; una prueba de navegador que provoca la pérdida con la extensión
+- [x] **E2.1 · Medir:** contadores (`estadisticasDelDibujo`), y 160 disparos sin fuga; **el recorrido con la placa pasa a E6.1** (D-194).
+- [x] **E2.2 · `controlDelContexto.ts`** y los dos manejadores en el lienzo, con el aviso y el botón.
+- [x] **E2.3 · El bucle con `try`** y el primer error a la consola de la página.
+- [x] **E2.4 · Arreglar lo que la medición encuentre:** no hubo fuga en la fluoroscopia; la de la placa va en E6.1.
+- [x] **E2.5 · Pruebas, manual y D-nnn.** *(D-194; la recuperación se probó a mano con la extensión, no en una prueba automática)* La función pura; una prueba de navegador que provoca la pérdida con la extensión
   `WEBGL_lose_context` y comprueba que el lienzo vuelve con lo que tenía.
 
 **Hecho cuando…** Provocada la pérdida del contexto, el lienzo se recupera solo con la herida abierta y la placa puesta, y el recorrido de
@@ -10327,7 +10365,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | Etapa | Estado | Sesiones | Depende de | Decisiones |
 |---|---|---|---|---|
 | E1 · Modelos 3D en dos carpetas | hecha en local; sin desplegar | 1 | — | D-193 |
-| E2 · La pantalla en blanco | pendiente | 1 | — | — |
+| E2 · La pantalla en blanco | hecha en local; sin desplegar | 1 | — | D-194 |
 | E3 · Toda la mesa en la bandeja | pendiente | 1 | — | — |
 | E4 · Barra de modos y «Seleccionar estructura» | pendiente | 1 | — | — |
 | E5 · Abordaje por planos de corrido | pendiente | 2 | E4 | — |

@@ -1318,6 +1318,7 @@ Un residente ve la descripción del módulo y no el buzón.
 | No aparece un módulo en «Contenido» | Sus permisos no lo incluyen. Lo cambia un administrador. |
 | Un residente dice que no ve un módulo | Puede estar en mantención (sección 14) o no estar entre los que su cuenta tiene asignados (sección 9). «Contenido» y «Usuarios y permisos» lo dicen. |
 | «El taller anatómico necesita un computador» | Pantalla demasiado estrecha. Ábralo en un computador. |
+| En el simulador, el lienzo se queda en blanco o dice «La imagen se detuvo» | El navegador le quitó la imagen a la página (memoria de la tarjeta gráfica). Casi siempre vuelve sola en unos segundos y lo dice. Si no, aparece **«Recuperar la vista»**: vuelve a montar el dibujo sin perder el caso, los pasos ni el puntaje. Si pasa a menudo, cierre otras pestañas con modelos 3D. |
 | Publiqué y un lector no lo ve | Confirme la insignia «✓ Publicada» y que la cuenta del lector tiene ese módulo visible. |
 | La plataforma no abre | Avise al desarrollador. No hay nada que hacer desde el navegador. |
 

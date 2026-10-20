@@ -112,6 +112,7 @@ import {
   type MedidaDeLaSutura,
   type PuntoDeSutura,
 } from '@/lib/sutura'
+import { CONTEXTO_VIVO, alPerderse, alRestaurarse, crearLimitadorDeFallos, type EstadoDelContexto } from '@/lib/controlDelContexto'
 import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, colocarTornillo, crearImplantes, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
@@ -362,6 +363,18 @@ export interface MandoDelLienzo {
   /** Quita los tornillos puestos, y la placa si `conPlaca`. */
   quitarImplantes: (conPlaca: boolean) => void
   /**
+   * Lo que la tarjeta y la escena tienen reservado ahora (P-004 E2): geometrías y texturas que cuenta three.js,
+   * programas compilados y objetos de la escena. Es para medir una fuga —el número tiene que volver al de partida
+   * tras mover la placa cientos de veces—, no para pintarlo. `null` si el lienzo aún no está montado.
+   */
+  estadisticasDelDibujo: () => { geometrias: number; texturas: number; programas: number; objetos: number } | null
+  /**
+   * Provoca a propósito la pérdida del contexto de WebGL, y lo devuelve a los `volverEnMs` si se indica. Sirve
+   * para probar la recuperación sin esperar a que el navegador la haga por su cuenta. `false` si el navegador no
+   * ofrece la extensión `WEBGL_lose_context`.
+   */
+  perderElContexto: (volverEnMs?: number) => boolean
+  /**
    * Mueve la placa puesta, sin fijar, y la vuelve a asentar sobre el hueso (P-003 E6): `largoMm` a lo largo del hueso,
    * `ladoMm` rodeándolo, `giroGrados` alrededor de la normal. Devuelve `false` si ahí no hay hueso.
    */
@@ -567,6 +580,7 @@ export function LienzoQuirurgico({
   alRetraer,
   musculoObjetivo,
   alFallar,
+  alCambiarElContexto,
   mando,
 }: {
   url: string
@@ -681,6 +695,12 @@ export function LienzoQuirurgico({
   alCargar?: () => void
   /** Se llama si el archivo no se puede abrir, con algo que se pueda leer. */
   alFallar?: (mensaje: string) => void
+  /**
+   * Se llama cuando el navegador le quita a la página el contexto de WebGL o se lo devuelve (P-004 E2). Sin esto el
+   * lienzo quedaba en blanco para siempre y sin decir nada: la consola enseña el aviso y, si el contexto no vuelve
+   * solo, el botón que monta el lienzo de nuevo.
+   */
+  alCambiarElContexto?: (estado: EstadoDelContexto) => void
   /**
    * Se llama con el nombre del objeto pinchado, en modo «senalar».
    *
@@ -835,6 +855,7 @@ export function LienzoQuirurgico({
     alRetraer,
     musculoObjetivo,
     alFallar,
+    alCambiarElContexto,
     alCargarInstrumento,
     alHerir,
     alPerforar,
@@ -875,6 +896,7 @@ export function LienzoQuirurgico({
       alRetraer,
       musculoObjetivo,
       alFallar,
+      alCambiarElContexto,
       alCargarInstrumento,
       alHerir,
       alPerforar,
@@ -1221,6 +1243,30 @@ export function LienzoQuirurgico({
 
     reiniciarFluoroscopia: () => reiniciarLaFluoroscopia(taller.current.fluoroscopia),
 
+    estadisticasDelDibujo: () => {
+      const dibujo = taller.current.render
+      const escena = taller.current.escena
+      if (!dibujo || !escena) return null
+      let objetos = 0
+      escena.traverse(() => {
+        objetos += 1
+      })
+      return {
+        geometrias: dibujo.info.memory.geometries,
+        texturas: dibujo.info.memory.textures,
+        programas: dibujo.info.programs?.length ?? 0,
+        objetos,
+      }
+    },
+
+    perderElContexto: (volverEnMs) => {
+      const extension = taller.current.render?.getContext().getExtension('WEBGL_lose_context')
+      if (!extension) return false
+      extension.loseContext()
+      if (volverEnMs !== undefined) window.setTimeout(() => extension.restoreContext(), volverEnMs)
+      return true
+    },
+
     quitarImplantes: (conPlaca) => {
       const imp = taller.current.implantes
       if (!imp) return
@@ -1322,6 +1368,28 @@ export function LienzoQuirurgico({
       sucio = true
     }
     controles.addEventListener('change', pedirDibujo)
+
+    // El contexto de WebGL (P-004 E2). El navegador puede quitárselo a la página —memoria de la tarjeta, cambio de
+    // gráfica— y three.js, sin `preventDefault`, no lo deja volver: el lienzo quedaba en blanco para siempre. Con él, el
+    // navegador lo devuelve solo y three.js vuelve a subir lo que haga falta en el siguiente dibujo; si no vuelve, la
+    // consola ofrece montar el lienzo de nuevo (`controlDelContexto.ts`).
+    let estadoDelContexto: EstadoDelContexto = CONTEXTO_VIVO
+    const decirElContexto = (nuevo: EstadoDelContexto) => {
+      estadoDelContexto = nuevo
+      ultimas.current.alCambiarElContexto?.(nuevo)
+    }
+    const alPerderElContexto = (evento: Event) => {
+      evento.preventDefault()
+      decirElContexto(alPerderse(estadoDelContexto, performance.now()))
+    }
+    const alRecuperarElContexto = () => {
+      decirElContexto(alRestaurarse(estadoDelContexto, performance.now()))
+      // La imagen de la fluoroscopia y su toma eran del contexto de antes: se hacen olvidar para que la próxima se repita.
+      reiniciarLaFluoroscopia(taller.current.fluoroscopia)
+      sucio = true
+    }
+    render.domElement.addEventListener('webglcontextlost', alPerderElContexto)
+    render.domElement.addEventListener('webglcontextrestored', alRecuperarElContexto)
 
     // Un estudio que reflejar, solo para los instrumentos (ver `aplicarEntorno`).
     const pmrem = new THREE.PMREMGenerator(render)
@@ -3681,6 +3749,22 @@ export function LienzoQuirurgico({
     })
     observador.observe(contenedor)
 
+    // El bucle no muere por una excepción (P-004 E2). three.js agenda el cuadro siguiente **después** de llamar a esta
+    // función: si ella lanza, nadie lo agenda y el dibujo se para para siempre; el lienzo se queda con el último cuadro
+    // y se queda en blanco en cuanto algo lo redimensiona (abrir el panel de la fluoroscopia). Cada etapa va en su
+    // propio `try`, para que un fallo de las asas no impida dibujar el hueso, y se avisa **una vez** por etapa.
+    const fallos = crearLimitadorDeFallos()
+    const sinCaerse = (etapa: string, hacer: () => void) => {
+      try {
+        hacer()
+      } catch (error) {
+        sucio = false
+        if (fallos.registrar(etapa)) {
+          console.error(`[simulador] fallo al dibujar (${etapa}):`, error)
+          taller.current.decir?.(`Falló una parte del dibujo («${etapa}»): la vista sigue. Si algo no se ve bien, pulse «Encuadrar».`)
+        }
+      }
+    }
     render.setAnimationLoop(() => {
       const ahora = performance.now()
       if (perforando) {
@@ -3698,20 +3782,29 @@ export function LienzoQuirurgico({
         }
       }
       ultimoCuadro = ahora
+      // Sin contexto no hay nada que dibujar, y llamar a `render` con él perdido solo llena la consola de avisos.
+      if (render.getContext().isContextLost()) return
       // Que las asas aparezcan o desaparezcan al cambiar de modo o de submodo también pide un dibujo.
       const habiaAsas = manipulador.grupo.visible
-      gizmoAlDia()
+      sinCaerse('asas', gizmoAlDia)
       if (manipulador.grupo.visible !== habiaAsas) sucio = true
-      const movio = controles.update()
+      let movio = false
+      sinCaerse('controles', () => {
+        movio = controles.update()
+      })
       if (!sucio && !movio) return
       sucio = false
       // La cámara pudo moverse en la línea de arriba: las asas se recolocan y se reescalan para medir lo mismo.
-      gizmoAlDia()
+      sinCaerse('asas', gizmoAlDia)
       // Los ejes de la guía se recolocan en cada dibujo: el fragmento se mueve
       // con el ratón y la guía tiene que seguirlo.
-      if (taller.current.guias) actualizarGuias(taller.current, ultimas.current.ejeLargo, ultimas.current.piezas)
-      render.render(escena, camara)
-      taller.current.cuadro = (taller.current.cuadro ?? 0) + 1
+      if (taller.current.guias) {
+        sinCaerse('guías', () => actualizarGuias(taller.current, ultimas.current.ejeLargo, ultimas.current.piezas))
+      }
+      sinCaerse('imagen', () => {
+        render.render(escena, camara)
+        taller.current.cuadro = (taller.current.cuadro ?? 0) + 1
+      })
     })
 
     return () => {
@@ -3733,6 +3826,9 @@ export function LienzoQuirurgico({
       render.domElement.removeEventListener('pointerup', alSubirParaDisecar)
       render.domElement.removeEventListener('pointerup', alSubirParaSoltarElTrozo)
       window.removeEventListener('keydown', alTeclear)
+      // Antes de `forceContextLoss`, más abajo: perder el contexto a propósito al desmontar no es un fallo que avisar.
+      render.domElement.removeEventListener('webglcontextlost', alPerderElContexto)
+      render.domElement.removeEventListener('webglcontextrestored', alRecuperarElContexto)
       render.domElement.removeEventListener('pointermove', alMover)
       render.domElement.removeEventListener('pointerup', alSubir)
       render.domElement.removeEventListener('pointerleave', alSubir)

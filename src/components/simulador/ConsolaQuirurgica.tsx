@@ -5,6 +5,12 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { piezasConLasDelModelo } from '@/lib/piezasDelCaso'
 import {
+  CONTEXTO_VIVO,
+  TIEMPO_DEL_AVISO_DE_RECUPERADO_MS,
+  loQueSeEnseña,
+  type EstadoDelContexto,
+} from '@/lib/controlDelContexto'
+import {
   capaDelRol,
   capasAlEntrarEnPaso,
   evaluarGesto,
@@ -609,6 +615,24 @@ export function ConsolaQuirurgica({
   // «Disparo» (una toma por pulsación, lo que se hace en pabellón) o «vídeo» (la imagen en vivo de antes): por
   // omisión el disparo, y el que cada quien elija se recuerda en su navegador (P-003, E2).
   const [modoDeEscopia, setModoDeEscopia] = useState<ModoDeEscopia>(() => modoGuardadoDeEscopia())
+
+  // El contexto de WebGL del lienzo (P-004 E2). Si el navegador se lo quita a la página, el lienzo avisa; aquí se dice
+  // «se está recuperando» y, pasados unos segundos sin que vuelva, se ofrece montarlo de nuevo con la clave. El caso,
+  // los pasos y el puntaje son de la consola y no se tocan: lo que se vuelve a montar es solo el dibujo.
+  const [estadoDelContexto, setEstadoDelContexto] = useState<EstadoDelContexto>(CONTEXTO_VIVO)
+  const [relojDelContexto, setRelojDelContexto] = useState(0)
+  const [claveDelLienzo, setClaveDelLienzo] = useState(0)
+  useEffect(() => {
+    if (estadoDelContexto.fase === 'perdido') {
+      const reloj = window.setInterval(() => setRelojDelContexto(performance.now()), 500)
+      return () => window.clearInterval(reloj)
+    }
+    if (estadoDelContexto.fase === 'recuperado') {
+      const fin = window.setTimeout(() => setEstadoDelContexto(CONTEXTO_VIVO), TIEMPO_DEL_AVISO_DE_RECUPERADO_MS)
+      return () => window.clearTimeout(fin)
+    }
+  }, [estadoDelContexto])
+  const avisoDelContexto = loQueSeEnseña(estadoDelContexto, relojDelContexto)
   // Cómo se revela la imagen: kilovoltios, contraste, brillo y filtro. Se aplican a la última toma sin volver a disparar.
   const [ajustesDeLaImagen, setAjustesDeLaImagen] = useState<AjustesDeLaImagen>(() => ajustesGuardadosDeLaImagen())
   // La última toma del modo de disparo: de cuándo es y con qué proyección, acercamiento y posición se hizo, para decir
@@ -3304,6 +3328,8 @@ export function ConsolaQuirurgica({
         ) : null}
         <div className={`consola-lienzo-marco modo-${modo}`}>
           <LienzoQuirurgico
+            key={claveDelLienzo}
+            alCambiarElContexto={setEstadoDelContexto}
             url={caso.modeloUrl}
             piezas={piezas}
             modo={modo}
@@ -3495,6 +3521,26 @@ export function ConsolaQuirurgica({
             alFallar={(mensaje) => anotar(mensaje, 'grave')}
             mando={asignarMando}
           />
+          {avisoDelContexto.mensaje ? (
+            <div
+              className={`consola-contexto${avisoDelContexto.urgente ? ' urgente' : ''}`}
+              role={avisoDelContexto.urgente ? 'alert' : 'status'}
+            >
+              <p>{avisoDelContexto.mensaje}</p>
+              {avisoDelContexto.ofrecerRecuperar ? (
+                <button
+                  type="button"
+                  className="consola-boton"
+                  onClick={() => {
+                    setClaveDelLienzo((c) => c + 1)
+                    setEstadoDelContexto(CONTEXTO_VIVO)
+                  }}
+                >
+                  Recuperar la vista
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {/* Encuadrar sobre el lienzo y no en la columna de mandos: es una
               orden de la vista, y en el móvil la columna queda por debajo del
               lienzo, lejos de lo que encuadra. */}

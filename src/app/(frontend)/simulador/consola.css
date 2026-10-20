@@ -1190,6 +1190,17 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
   pointer-events: none;
 }
 .consola-lienzo-lectura[hidden] { display: none; }
+/* El aviso de que la imagen se detuvo (P-004 E2): centrado sobre el lienzo, con el botón de volver a montarlo cuando el
+   navegador no devuelve el contexto solo. */
+.consola-contexto {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--e-3);
+  padding: var(--e-4); text-align: center;
+  background: color-mix(in srgb, var(--c-fondo) 78%, transparent);
+  color: var(--c-texto); font-size: var(--t-sm);
+}
+.consola-contexto p { margin: 0; max-width: 46ch; }
+.consola-contexto.urgente { background: color-mix(in srgb, var(--c-fondo) 92%, transparent); }
 .consola-herida-bloque { display: grid; gap: var(--e-2); }
 /* La posición del paciente (de pie, supino, prono) y el giro libre. */
 .consola-paciente-bloque { display: grid; gap: var(--e-2); }
