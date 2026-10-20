@@ -7,6 +7,7 @@ import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Vacio } from '@/components/Estados'
 import { EyebrowDeModulo, MigaDePan, claseDeModulo } from '@/components/Cabeceras'
 import { BotonImprimir } from '@/components/BotonImprimir'
+import { EncabezadoImpreso } from '@/components/EncabezadoImpreso'
 import { BotonComentar } from '@/components/BotonComentar'
 import { Landmark } from 'lucide-react'
 import { Bloques } from '@/components/Bloques'
@@ -69,6 +70,12 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
 
   return (
     <main className={claseDeModulo('casos-ao')}>
+      <EncabezadoImpreso
+        coleccion="casos-ao"
+        documentoId={id}
+        tipo="Caso de técnica AO"
+        titulo={caso.titulo as string}
+      />
       <MigaDePan
         pasos={[
           { href: '/', texto: 'Inicio' },

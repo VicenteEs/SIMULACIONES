@@ -12,6 +12,7 @@ import {
   HeadingFeature,
   FixedToolbarFeature,
 } from '@payloadcms/richtext-lexical'
+import { leerTablaPegada } from '@/lib/tablaPegada'
 
 /** Editor de texto acotado: estructura sí, decoración no. */
 export const editorClinico = lexicalEditor({
@@ -70,6 +71,35 @@ export const BloqueClasificacion: Block = {
         { name: 'descripcion', type: 'textarea', required: true, label: 'Descripción' },
       ],
     },
+  ],
+}
+
+/**
+ * Una tabla de Vera Health pegada tal cual.
+ *
+ * Se guarda el texto que se pegó y no la tabla troceada: Payload no tiene una
+ * lista de listas, y así el traumatólogo conserva el original con el que volver
+ * a pegar. Se lee al pintar con `leerTablaPegada`, la misma función con la que
+ * el panel avisa de si se reconoce.
+ */
+export const BloqueTablaVera: Block = {
+  slug: 'tabla-vera-health',
+  labels: { singular: 'Tabla de Vera Health', plural: 'Tablas de Vera Health' },
+  fields: [
+    { name: 'titulo', type: 'text', label: 'Título de la tabla (opcional)' },
+    {
+      name: 'tabla',
+      type: 'textarea',
+      required: true,
+      label: 'Tabla pegada',
+      // El mensaje en español llega al panel por `faltantes`; este es el que
+      // frena una escritura que no pasó por él (la API local, un guion).
+      validate: (valor: string | null | undefined) => {
+        const leida = leerTablaPegada(valor)
+        return leida.ok ? true : leida.motivo
+      },
+    },
+    { name: 'pie', type: 'text', label: 'Nota al pie (opcional)' },
   ],
 }
 
@@ -275,6 +305,7 @@ export const BLOQUES: Block[] = [
   BloqueTexto,
   BloqueLista,
   BloqueClasificacion,
+  BloqueTablaVera,
   BloqueAdvertencia,
   BloqueImagen,
   BloqueVideo,

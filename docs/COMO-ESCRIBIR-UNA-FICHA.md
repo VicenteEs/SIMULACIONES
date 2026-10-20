@@ -59,13 +59,14 @@ Dentro de cada pestaña se agregan bloques, en la cantidad que haga falta y en
 el orden que se quiera. Cada bloque trae dos flechas para subirlo o bajarlo, un
 triángulo para plegarlo cuando estorbe y una cruz para quitarlo.
 
-Son ocho, y aparecen en este orden al pulsar **+ Agregar bloque**:
+Son nueve, y aparecen en este orden al pulsar **+ Agregar bloque**:
 
 | Bloque | Cuándo conviene |
 |---|---|
 | **Texto** | Párrafos con negrita, cursiva, listas y subtítulos. El caballo de batalla |
 | **Lista clínica** | Puntos donde cada uno tiene una idea destacada y su desarrollo |
 | **Tabla de clasificación** | Código y descripción: 32-A, 32-B, 32-C |
+| **Tabla de Vera Health** | Una tabla de varias columnas pegada tal cual la entrega Vera Health: grupo, patología, datos, evidencia |
 | **Advertencia** | Algo que no se debe pasar por alto. Tres tonos, ver abajo |
 | **Imagen** | Radiografías, esquemas, fotografías. Ancho completo, media columna o pequeña |
 | **Video** | Maniobras, gestos quirúrgicos |

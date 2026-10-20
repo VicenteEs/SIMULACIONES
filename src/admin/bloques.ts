@@ -9,6 +9,7 @@
 
 import type { Campo } from './esquema'
 import { textoPlano } from '@/lib/textoRico'
+import { leerTablaPegada } from '@/lib/tablaPegada'
 
 export interface EsquemaDeBloque {
   slug: string
@@ -79,6 +80,31 @@ export const BLOQUES: EsquemaDeBloque[] = [
           { tipo: 'area', nombre: 'descripcion', etiqueta: 'Descripción', requerido: true },
         ],
       },
+    ],
+  },
+  {
+    slug: 'tabla-vera-health',
+    nombre: 'Tabla de Vera Health',
+    resumen: (v) => {
+      const leida = leerTablaPegada(v.tabla)
+      const forma = leida.ok
+        ? `${leida.tabla.filas.length} fila${leida.tabla.filas.length === 1 ? '' : 's'} × ${leida.tabla.encabezados.length} columnas`
+        : 'tabla sin reconocer'
+      return recorta(v.titulo) || forma
+    },
+    campos: [
+      { tipo: 'texto', nombre: 'titulo', etiqueta: 'Título de la tabla (opcional)' },
+      {
+        tipo: 'area',
+        nombre: 'tabla',
+        etiqueta: 'Tabla pegada',
+        requerido: true,
+        tabla: true,
+        filas: 10,
+        ayuda:
+          'Pegue la tabla tal como la entrega Vera Health: la primera línea es el encabezado y la segunda lleva guiones (| --- | --- |). También sirve una tabla copiada de una página web.',
+      },
+      { tipo: 'texto', nombre: 'pie', etiqueta: 'Nota al pie (opcional)' },
     ],
   },
   {

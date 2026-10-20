@@ -2,6 +2,7 @@ import React from 'react'
 import { RichText } from '@payloadcms/richtext-lexical/react'
 import { conversoresRicos } from '@/components/Rico'
 import { encuadreVigente, type Encuadre } from '@/lib/encuadre'
+import { leerTablaPegada, trozosDeLaCelda } from '@/lib/tablaPegada'
 import { Visor3D, VisorInstancia } from './VisoresPerezosos'
 import { Info, Lightbulb, OctagonAlert, type LucideIcon } from 'lucide-react'
 
@@ -72,6 +73,69 @@ function BloqueClasificacion({ bloque }: { bloque: Bloque }) {
         </table>
       </div>
     </section>
+  )
+}
+
+/**
+ * Tabla de Vera Health: el texto pegado, leído con `leerTablaPegada`.
+ *
+ * Comparte envoltorio con `.clasificacion` —el mismo marco, el mismo desborde
+ * horizontal en el teléfono— y solo añade lo suyo en `.tabla-vera`
+ * (`estilos.css`), de modo que el aspecto de las dos tablas se gobierna junto.
+ * Cada celda se pinta como texto de React: lo pegado no puede traer HTML a la
+ * ficha.
+ */
+function BloqueTablaVera({ bloque }: { bloque: Bloque }) {
+  const leida = leerTablaPegada(bloque.tabla)
+  // Una tabla que ya no se lee —se guardó como borrador sin reconocer— no se
+  // enseña a medias: el título solo, o nada, es mejor que una tabla rota.
+  if (!leida.ok) return null
+  const { encabezados, filas, alineaciones } = leida.tabla
+  return (
+    <section className="bloque">
+      {typeof bloque.titulo === 'string' && bloque.titulo ? <h3>{bloque.titulo}</h3> : null}
+      <div className="tabla-desplazable">
+        <table className="tabla-vera">
+          <thead>
+            <tr>
+              {encabezados.map((e, i) => (
+                <th key={i} scope="col" data-alinea={alineaciones[i] ?? undefined}>
+                  {e}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((fila, i) => (
+              <tr key={i}>
+                {fila.map((celda, j) => (
+                  <td key={j} data-alinea={alineaciones[j] ?? undefined}>
+                    <TextoDeCelda celda={celda} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {typeof bloque.pie === 'string' && bloque.pie ? (
+        <p className="tabla-vera-pie">{bloque.pie}</p>
+      ) : null}
+    </section>
+  )
+}
+
+/** Los saltos de línea y la negrita de una celda, sin tocar el HTML. */
+function TextoDeCelda({ celda }: { celda: string }) {
+  return (
+    <>
+      {celda.split('\n').map((linea, i) => (
+        <React.Fragment key={i}>
+          {i > 0 ? <br /> : null}
+          {trozosDeLaCelda(linea).map((t, j) => (t.negrita ? <strong key={j}>{t.texto}</strong> : t.texto))}
+        </React.Fragment>
+      ))}
+    </>
   )
 }
 
@@ -231,6 +295,7 @@ const RENDERIZADORES: Record<string, React.ComponentType<{ bloque: Bloque }>> = 
   texto: BloqueTexto,
   'lista-clinica': BloqueLista,
   'tabla-clasificacion': BloqueClasificacion,
+  'tabla-vera-health': BloqueTablaVera,
   advertencia: BloqueAdvertencia,
   imagen: BloqueImagen,
   video: BloqueVideo,

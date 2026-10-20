@@ -15,6 +15,7 @@
 import { camposDe, type Campo, type EsquemaDeColeccion } from './esquema'
 import { bloqueDe, esBloqueConocido } from './bloques'
 import { desdeLexical, estaVacio, haciaLexical } from '@/lib/textoRico'
+import { leerTablaPegada } from '@/lib/tablaPegada'
 
 /** Techos de tamaño. Ningún contenido real se acerca; un ataque, sí. */
 const MAXIMO_FILAS = 500
@@ -355,6 +356,15 @@ export function faltantes(
       const juzgable = profundo || campo.tipo !== 'rico'
       if (campo.requerido && juzgable && sinLlenar(campo, valor)) {
         problemas.push(`Falta «${campo.etiqueta.toLowerCase()}»${donde}.`)
+      }
+
+      // Una tabla pegada que no se reconoce saldría vacía en la ficha. El
+      // validador del bloque (`BloqueTablaVera`) la frena igual, pero con
+      // «The following field is invalid: Tabla pegada» y el texto en español
+      // dentro de `error.data`; aquí llega entero y dice qué falta pegar.
+      if (profundo && campo.tipo === 'area' && campo.tabla && !sinLlenar(campo, valor)) {
+        const leida = leerTablaPegada(valor)
+        if (!leida.ok) problemas.push(`${encabezado(donde)}${leida.motivo}`)
       }
 
       // Un modo de evaluación sin su rango aprueba cualquier cosa, y la

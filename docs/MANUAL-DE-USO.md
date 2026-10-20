@@ -200,11 +200,20 @@ Cada uno se pliega (▾), se mueve (↑ ↓) y se quita (✕).
 | «Texto» | Casi todo. Párrafos con formato. |
 | «Lista clínica» | Puntos con una idea en negrita y su desarrollo. |
 | «Tabla de clasificación» | Código o tipo + descripción (AO, Garden, Gustilo…). |
+| «Tabla de Vera Health» | Una tabla de varias columnas que se pega tal cual la entrega Vera Health (o se copia de una página). Debajo del recuadro dice si la reconoce y cuántas filas y columnas ve; si no la reconoce, no deja publicar. |
 | «Advertencia» | «Atención», «Error frecuente» o «Perla clínica». Con moderación: si todo es advertencia, nada lo es. |
 | «Imagen» | Radiografías y esquemas. |
 | «Video» | Maniobras y gestos quirúrgicos. |
 | «Preparación anatómica» | Una pieza del atlas que el lector puede girar. Se arma antes en el taller. |
 | «Modelo 3D» | Un archivo `.glb` propio, con su encuadre inicial. |
+
+### Guardar la ficha como PDF
+
+El botón **«Guardar PDF»** de cada ficha abre el diálogo de impresión del navegador; en «Destino» se elige «Guardar como PDF». El PDF sale
+en hoja A4 con el logotipo de TraumaHub, **quién lo emitió** (la cuenta con la que se entró), **quién auditó el contenido** (quien pulsó
+«Listo para publicar» en la revisión) y la fecha; el texto va justificado, las tablas ocupan todo el ancho y repiten su cabecera en cada
+hoja, y cada hoja lleva al pie el título, el emisor, el auditor y «Página N de M». Una ficha que nunca pasó por revisión dice «Sin
+auditoría registrada». Los visores 3D y los videos no se imprimen: en su lugar queda una línea que dice dónde verlos.
 
 ### Imágenes, videos y modelos
 

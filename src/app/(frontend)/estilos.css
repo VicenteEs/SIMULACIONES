@@ -267,7 +267,7 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
    a agrandar el logotipo tocaba una, recargaba y no veía nada. Queda una sola.
 
    54 px dentro de un rectángulo de 64 caben en los 76 de la barra con seis de aire por lado. De la altura de la barra
-   cuelgan `.pestana { scroll-margin-top }`, `.indice-ficha { top }` y las barras pegajosas de más abajo, y todas leen
+   cuelgan `.ficha-seccion { scroll-margin-top }`, `.indice-ficha { top }` y las barras pegajosas de más abajo, y todas leen
    `--alto-barra`. */
 .marca-logo { height: 54px; width: 54px; object-fit: contain; display: block; flex-shrink: 0; }
 .marca-sub { display: block; font-family: var(--mono); font-size: var(--t-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--pizarra); font-weight: 500; margin-top: 2px; }
@@ -570,8 +570,8 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
 /* Cada sección lleva un <h2> de verdad, de 22 px, y encima el rótulo pequeño
    del módulo como antetítulo. Antes el <h2> era ese rótulo de 11,5 px, y el
    <h3> de los bloques, a 17 px, se leía como el título importante. */
-.pestana { margin-bottom: var(--e-12); scroll-margin-top: calc(var(--alto-barra) + 20px); }
-.pestana > h2 {
+.ficha-seccion { margin-bottom: var(--e-12); scroll-margin-top: calc(var(--alto-barra) + 20px); }
+.ficha-seccion > h2 {
   font-size: var(--t-lg); margin-bottom: var(--e-5); padding-bottom: var(--e-3);
   border-bottom: 1px solid var(--linea);
 }
@@ -592,6 +592,23 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
 .clasificacion th, .clasificacion td { text-align: left; vertical-align: top; padding: var(--e-3) var(--e-4); border-bottom: 1px solid var(--linea-suave); }
 .clasificacion tr:last-child th, .clasificacion tr:last-child td { border-bottom: none; }
 .clasificacion th { white-space: nowrap; font-family: var(--mono); font-size: var(--t-sm); color: var(--marca-honda); background: var(--superficie-2); }
+
+/* Tabla pegada de Vera Health. Mismo marco que `.clasificacion` (el
+   `.tabla-desplazable` de arriba) y mismas fuentes de color: el aspecto de las
+   tablas de la plataforma se toca aquí, en este bloque y en el de arriba, no
+   en cada ficha. Con cuatro columnas de texto largo no cabe en un teléfono sin
+   aplastar la última, así que tiene un ancho mínimo y el marco la desplaza. */
+.tabla-vera { border-collapse: collapse; width: 100%; min-width: 640px; font-size: var(--t-sm); line-height: 1.5; }
+.tabla-vera th, .tabla-vera td { text-align: left; vertical-align: top; padding: var(--e-3) var(--e-4); border-bottom: 1px solid var(--linea-suave); }
+.tabla-vera thead th { font-weight: 600; color: var(--marca-honda); background: var(--superficie-2); border-bottom: 1px solid var(--linea); vertical-align: bottom; }
+.tabla-vera tbody tr:nth-child(even) td { background: var(--superficie-2); }
+.tabla-vera tbody tr:last-child td { border-bottom: none; }
+/* La primera columna es la que clasifica (el grupo): destaca sin pasar a ser
+   un encabezado de fila, que el lector de pantalla leería en cada celda. */
+.tabla-vera td:first-child { font-weight: 600; color: var(--marca-honda); }
+.tabla-vera [data-alinea='centro'] { text-align: center; }
+.tabla-vera [data-alinea='derecha'] { text-align: right; }
+.tabla-vera-pie { margin: var(--e-2) 0 0; font-size: var(--t-sm); color: var(--pizarra); }
 
 /* ---------- avisos en línea ----------
    Una sola familia para todo lo que avisa dentro de una página: los bloques de
@@ -959,7 +976,7 @@ figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-
     border: 1px solid var(--linea); border-radius: var(--r-full); background: var(--superficie);
   }
   .indice-ficha li a.activa { background: var(--acento-tenue, var(--marca-tenue)); border-color: var(--acento, var(--marca)); }
-  .pestana { scroll-margin-top: calc(var(--alto-barra) + 62px); }
+  .ficha-seccion { scroll-margin-top: calc(var(--alto-barra) + 62px); }
 }
 
 /* ==========================================================================
@@ -1029,23 +1046,67 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 
 /* ==========================================================================
    Modo Quirófano (Impresión / PDF)
+
+   «Guardar PDF» es la impresión del navegador, así que el aspecto del PDF es
+   esto y nada más: el membrete (`EncabezadoImpreso.tsx`), el pie de cada hoja,
+   el texto justificado y las tablas centradas. Todo con los mismos tokens que
+   la pantalla, para que tocar un color o un tamaño aquí y en la ficha sea un
+   solo cambio.
    ========================================================================== */
+/* El membrete solo existe en papel. */
+.membrete-impreso { display: none; }
+
 @media print {
   @page {
-    margin: 1.5cm;
+    size: A4;
+    margin: 1.8cm 1.8cm 2.2cm;
+
+    /* El pie de cada hoja: a la izquierda quién lo emitió y quién lo auditó
+       (el texto lo pone `EncabezadoImpreso`, que conoce los nombres), a la
+       derecha el número de hoja. Los márgenes con contenido son de Chrome y
+       Edge desde la versión 131; en un navegador más viejo no salen y queda el
+       membrete de la primera hoja, que dice lo mismo. */
+    @bottom-left {
+      font: 7.5pt/1.3 var(--sans, sans-serif);
+      color: var(--pizarra, #46587a);
+      vertical-align: top;
+      padding-top: 0.35cm;
+      border-top: 0.5pt solid var(--linea-fuerte, #8794ad);
+    }
+    @bottom-right {
+      content: 'Página ' counter(page) ' de ' counter(pages);
+      font: 7.5pt/1.3 var(--sans, sans-serif);
+      color: var(--pizarra, #46587a);
+      vertical-align: top;
+      padding-top: 0.35cm;
+      border-top: 0.5pt solid var(--linea-fuerte, #8794ad);
+      width: 3.2cm;
+    }
+  }
+
+  /* Sin esto Chrome tira todos los fondos al imprimir salvo que la persona
+     marque «Gráficos de fondo» en el diálogo, y las cabeceras de tabla, los
+     avisos y el membrete salían como texto negro sobre blanco. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   body {
     background: white;
-    color: black;
-    font-size: 11pt;
+    color: var(--tinta);
+    font-size: 10.5pt;
+    line-height: 1.5;
   }
+
+  body > main { max-width: none; margin: 0; padding: 0; }
 
   /* Ocultar elementos interactivos y de navegación. El pie de página va con
      ellos: en papel sus dos enlaces no se pueden pulsar, y al final de una
      ficha impresa para pabellón puede ser justo lo que manda las últimas
      líneas a una hoja más. */
-  nav, .miga, .boton, .boton-imprimir, .barra-acciones, .rastreador-actividad, .formulario-comentario, .comentar, .pie-de-pagina {
+  nav, .barra, .miga, .boton, .boton-imprimir, .barra-acciones, .rastreador-actividad, .formulario-comentario, .comentar, .pie-de-pagina,
+  .pestana-eyebrow {
     display: none !important;
   }
 
@@ -1065,8 +1126,99 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
     display: block;
   }
 
-  /* Evitar cortes feos a mitad de página */
-  .bloque, h2, h3, h4, figure, table, li {
+  /* ---- el membrete de la primera hoja ---- */
+  .membrete-impreso { display: block; margin-bottom: 0.5cm; }
+  .membrete-marca {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6cm;
+    padding-bottom: 0.2cm; border-bottom: 2pt solid var(--marca);
+  }
+  /* El archivo trae aire alrededor del dibujo: a esta altura el dibujo mide
+     unos 1,6 cm y el nombre se lee entero. */
+  .membrete-logo { height: 2.6cm; width: auto; aspect-ratio: 1200 / 655; object-fit: contain; margin-left: -0.4cm; }
+  .membrete-documento { display: flex; flex-direction: column; align-items: flex-end; gap: 2pt; text-align: right; }
+  .membrete-tipo { font-size: 16pt; font-weight: 650; letter-spacing: -0.015em; color: var(--marca-honda); }
+  .membrete-lema { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.1em; color: var(--pizarra); }
+  .membrete-datos {
+    display: grid; grid-template-columns: 1fr 1.3fr 1.1fr; margin: 0.25cm 0 0;
+    background: var(--superficie-2); border: 0.5pt solid var(--linea-fuerte);
+  }
+  .membrete-datos > div { padding: 0.15cm 0.3cm; }
+  .membrete-datos > div + div { border-left: 0.5pt solid var(--linea-fuerte); }
+  .membrete-datos dt { font-size: 6.5pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--pizarra); }
+  .membrete-datos dd { margin: 1pt 0 0; font-size: 9pt; font-weight: 600; color: var(--tinta); }
+
+  /* ---- títulos ---- */
+  .cabecera-ficha { padding-bottom: 0.3cm; margin-bottom: 0.6cm; border-bottom: 0.75pt solid var(--linea-fuerte); }
+  .cabecera-ficha h1 { max-width: none; font-size: 20pt; line-height: 1.15; color: var(--marca-honda); }
+  .ficha-seccion { margin-bottom: 0.7cm; }
+  .ficha-seccion > h2 {
+    font-size: 13.5pt; margin-bottom: 0.3cm; padding-bottom: 3pt;
+    color: var(--marca-honda); border-bottom: 1pt solid var(--marca);
+  }
+  .bloque { margin-bottom: 0.45cm; }
+  .bloque h3 { font-size: 11.5pt; margin-bottom: 0.15cm; color: var(--marca-honda); }
+
+  /* ---- el texto, justificado ----
+     Con guiones (`hyphens: auto` funciona porque el `<html>` lleva `lang="es"`):
+     sin ellos, una columna justificada de 17 cm abre huecos enormes entre
+     palabras cuando cae una palabra larga de la jerga clínica. */
+  .ficha-contenido { font-size: 10.5pt; line-height: 1.55; }
+  .ficha-contenido p, .ficha-contenido li, .cabecera-ficha .entrada, .fases p, .advertencia p, .paso-cuerpo p, .opcion p {
+    max-width: none; text-align: justify; hyphens: auto; orphans: 3; widows: 3;
+  }
+  .ficha-contenido .bloque p, .ficha-contenido .lista-clinica, .bloque p, .lista-clinica, .advertencia { max-width: none; }
+  .cabecera-ficha .entrada { font-size: 11pt; }
+
+  /* ---- tablas: centradas, con la cabecera que se repite en cada hoja ---- */
+  /* Sin marco alrededor: un marco que se parte entre dos hojas queda con un
+     hueco vacío debajo de la última fila de cada una. Las líneas las ponen la
+     cabecera y las filas, que sí se parten bien. */
+  .tabla-desplazable {
+    overflow: visible; width: 100%; margin: 0 auto;
+    border: 0; border-top: 1pt solid var(--marca); border-radius: 0; background: transparent;
+  }
+  .clasificacion tbody tr:last-child th, .clasificacion tbody tr:last-child td,
+  .tabla-vera tbody tr:last-child td { border-bottom: 0.75pt solid var(--linea-fuerte); }
+  .clasificacion, .tabla-vera { width: 100%; min-width: 0; margin: 0 auto; font-size: 9pt; line-height: 1.4; }
+  .clasificacion th, .clasificacion td, .tabla-vera th, .tabla-vera td { padding: 0.12cm 0.2cm; }
+  .tabla-vera thead { display: table-header-group; }
+  /* La cabecera sobre el mismo borde que su columna: centrada solo la primera,
+     que es la corta y la que clasifica. Centrar un título sobre texto alineado
+     a la izquierda lo deja flotando entre las dos líneas. */
+  .tabla-vera thead th {
+    vertical-align: middle; color: var(--marca-honda);
+    background: var(--marca-tenue); border-bottom: 1pt solid var(--marca);
+  }
+  .tabla-vera thead th:first-child, .tabla-vera td:first-child { text-align: center; }
+  /* Las tres primeras filas no se separan de la cabecera: una tabla que
+     empieza al pie de la hoja con una sola fila y sigue en la siguiente se lee
+     peor que una que salta entera. */
+  .tabla-vera tbody tr:nth-child(-n + 3) { break-after: avoid; }
+  .tabla-vera tbody tr:nth-child(even) td { background: var(--superficie-2); }
+  .tabla-vera-pie { font-size: 8.5pt; text-align: center; }
+
+  /* ---- figuras ---- */
+  .figura { text-align: center; }
+  .figura img { max-height: 9cm; width: auto; margin: 0 auto; border-radius: 0; }
+  .figura.media, .figura.pequena { float: none; max-width: 60%; margin-inline: auto; }
+  figcaption { text-align: center; font-size: 8.5pt; font-style: italic; }
+
+  /* Lo interactivo no se imprime: un visor 3D sale como un recuadro negro y un
+     video como un rectángulo en blanco. En su lugar queda una línea que dice
+     dónde verlo. */
+  .visor-3d-lienzo, .visor-3d-controles, .visor-3d-ayuda, .bloqueo-tactil, .figura video { display: none !important; }
+  .figura:has(.visor-3d-lienzo, video, .visor-3d-marco)::before {
+    content: 'Contenido interactivo: se ve en la plataforma TraumaHub.';
+    display: block; padding: 0.4cm; text-align: center; font-size: 9pt; color: var(--pizarra);
+    border: 0.75pt dashed var(--linea-fuerte);
+  }
+
+  /* ---- cortes de hoja ----
+     Se protege lo pequeño —una fila, una figura, un aviso, un punto de lista—
+     y se deja partir lo largo. Antes `.bloque` y `table` eran indivisibles, y
+     una tabla de veinte filas saltaba entera a la hoja siguiente dejando media
+     hoja en blanco, o se partía igual si no cabía en ninguna. */
+  .advertencia, .a-favor, .en-contra, h4, figure, tr, li, .tabla-desplazable:has(.clasificacion) {
     page-break-inside: avoid;
     break-inside: avoid;
   }

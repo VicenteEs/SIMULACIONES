@@ -178,6 +178,12 @@
 .campo-control:focus-visible { border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-tenue); outline: 2px solid transparent; }
 .campo-etiqueta { font-size: var(--t-sm); }
 .campo-ayuda { font-size: var(--t-xs); }
+/* La tabla pegada se ve como se escribió: letra de ancho fijo y sin partir las
+   líneas, para que las barras queden en columna. Debajo, lo que se reconoce de
+   ella, en verde si sale bien y en rojo si no. */
+.campo-control-tabla { font-family: var(--mono); font-size: var(--t-xs); line-height: 1.5; white-space: pre; overflow: auto; }
+.campo-lectura-ok { color: var(--verde); }
+.campo-lectura-mal { color: var(--alerta); }
 .campo-error { font-size: var(--t-sm); }
 .campo-grupo { background: var(--superficie-2); border-radius: var(--r-lg); border-color: var(--linea); }
 .campo-casillas { border-color: var(--linea-fuerte); }

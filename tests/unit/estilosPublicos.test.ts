@@ -317,14 +317,14 @@ describe('la hoja no arrastra reglas muertas', () => {
 
   /**
    * Una regla que repite el valor que ya estaba puesto miente sobre que algo
-   * lo había cambiado. La de `.pestana` llevaba además un comentario diciendo
+   * lo había cambiado. La de `.ficha-seccion` llevaba además un comentario diciendo
    * que «vuelve a valer el desplazamiento original», y nada lo había alterado.
    */
   it('el bloque de 1000 px no repite valores que ya valían', () => {
     const repetidoras = reglas.filter(
       (r) =>
         r.contexto.some((c) => c.includes('1000px')) &&
-        (r.selector === '.pestana' || r.selector === '.indice-ficha'),
+        (r.selector === '.ficha-seccion' || r.selector === '.indice-ficha'),
     )
 
     expect(repetidoras.map((r) => r.selector)).toEqual([])

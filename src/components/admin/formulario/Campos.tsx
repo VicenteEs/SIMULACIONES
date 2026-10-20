@@ -18,6 +18,7 @@ import {
   Plus,
   Square,
   Table,
+  TableProperties,
   Trash2,
   Type,
   Video,
@@ -36,6 +37,7 @@ import {
   type BloquesVigentes,
 } from '@/admin/identidadDeBloques'
 import { formularioDeArchivo, subidorQueAvisa } from '@/admin/subidas'
+import { leerTablaPegada } from '@/lib/tablaPegada'
 import { EditorDeEncuadre } from './EditorDeEncuadre'
 import { TallerDePiezas, type DesplazamientoInicial } from './TallerDePiezas'
 import { SelectorConBusqueda } from './SelectorConBusqueda'
@@ -298,21 +300,41 @@ export function ControlDeCampo({
         </div>
       )
 
-    case 'area':
+    case 'area': {
+      // Una tabla pegada dice, debajo, qué se reconoce de ella: es la única
+      // pista que tiene el traumatólogo de que lo pegado saldrá bien en la
+      // ficha, porque el recuadro solo enseña barras y guiones.
+      const lectura = campo.tabla && texto(valor).trim() !== '' ? leerTablaPegada(valor) : null
+      const idEstado = `${id}-lectura`
       return (
         <div className="campo">
           {etiqueta}
           <textarea
             id={id}
-            className="campo-control"
-            aria-describedby={describe}
+            className={`campo-control${campo.tabla ? ' campo-control-tabla' : ''}`}
+            aria-describedby={[describe, lectura ? idEstado : null].filter(Boolean).join(' ') || undefined}
+            aria-invalid={lectura ? !lectura.ok : undefined}
             rows={campo.filas ?? 3}
+            spellCheck={campo.tabla ? false : undefined}
+            wrap={campo.tabla ? 'off' : undefined}
             value={texto(valor)}
             onChange={(e) => alCambiar(e.target.value)}
           />
           {ayuda}
+          {lectura ? (
+            <p
+              id={idEstado}
+              role="status"
+              className={`campo-ayuda campo-lectura ${lectura.ok ? 'campo-lectura-ok' : 'campo-lectura-mal'}`}
+            >
+              {lectura.ok
+                ? `Se reconoce una tabla de ${lectura.tabla.filas.length} ${lectura.tabla.filas.length === 1 ? 'fila' : 'filas'} y ${lectura.tabla.encabezados.length} columnas: ${lectura.tabla.encabezados.join(' · ')}.`
+                : lectura.motivo}
+            </p>
+          ) : null}
         </div>
       )
+    }
 
     case 'numero': {
       // La escala del caso se cierra aquí, en su propia casilla, además de en
@@ -1078,6 +1100,7 @@ const PRESENTACION_DE_BLOQUE: Record<string, { icono: LucideIcon; ayuda: string 
   texto: { icono: Type, ayuda: 'Párrafos con formato: el cuerpo de la ficha.' },
   'lista-clinica': { icono: ListChecks, ayuda: 'Puntos con una idea destacada y su desarrollo.' },
   'tabla-clasificacion': { icono: Table, ayuda: 'Códigos o tipos con su descripción.' },
+  'tabla-vera-health': { icono: TableProperties, ayuda: 'Una tabla pegada tal como la entrega Vera Health.' },
   advertencia: { icono: AlertTriangle, ayuda: 'Un recuadro de aviso o de perla clínica.' },
   imagen: { icono: IconoImagen, ayuda: 'Una imagen de la biblioteca de medios, con su pie.' },
   video: { icono: Video, ayuda: 'Un video de la biblioteca de medios.' },

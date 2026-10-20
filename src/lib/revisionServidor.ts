@@ -854,6 +854,52 @@ export async function revisionParaElEditor(
 }
 
 /**
+ * Quién dio por buena una ficha, para el pie del PDF.
+ *
+ * Solo el nombre y el día, que es lo que se imprime: ni el correo de quien
+ * validó ni cuánto tardó, que son del administrador. `null` cuando la ficha no
+ * entró nunca en revisión —lo escrito a mano antes de la ingesta—, y entonces
+ * el PDF dice que no hay auditoría registrada en vez de inventar un nombre.
+ *
+ * `auditor` queda a `null` mientras nadie la haya validado, o si la cuenta de
+ * quien lo hizo se borró: las dos cosas se imprimen distinto y por eso va el
+ * `estado` aparte.
+ */
+export interface AuditorDeLaFicha {
+  estado: EstadoDeRevision
+  auditor: string | null
+  fecha: string | null
+}
+
+export async function auditorDeLaFicha(
+  payload: Payload,
+  coleccion: string,
+  documentoId: string,
+): Promise<AuditorDeLaFicha | null> {
+  if (!esModuloEnRevision(coleccion)) return null
+  const { docs } = await payload.find({
+    collection: 'revisiones',
+    where: { and: [{ coleccion: { equals: coleccion } }, { documentoId: { equals: documentoId } }] },
+    limit: 1,
+    depth: 1,
+    overrideAccess: true,
+    select: { estado: true, listaPor: true, listaEn: true },
+  })
+  const revision = docs[0] as unknown as Registro | undefined
+  if (!revision) return null
+  const cuenta = revision.listaPor
+  const nombre =
+    cuenta && typeof cuenta === 'object' && typeof (cuenta as Registro).nombre === 'string'
+      ? ((cuenta as Registro).nombre as string).trim()
+      : ''
+  return {
+    estado: revision.estado as EstadoDeRevision,
+    auditor: nombre === '' ? null : nombre,
+    fecha: typeof revision.listaEn === 'string' ? revision.listaEn : null,
+  }
+}
+
+/**
  * Lo que el modelo dejó dicho para quien revise una ficha, o `null` si no está
  * en revisión (D-144).
  *

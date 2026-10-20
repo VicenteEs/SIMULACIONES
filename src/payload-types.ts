@@ -600,6 +600,14 @@ export interface Patologia {
             blockType: 'tabla-clasificacion';
           }
         | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
+          }
+        | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
             texto: string;
             id?: string | null;
@@ -701,6 +709,14 @@ export interface Patologia {
             id?: string | null;
             blockName?: string | null;
             blockType: 'tabla-clasificacion';
+          }
+        | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
           }
         | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
@@ -806,6 +822,14 @@ export interface Patologia {
             blockType: 'tabla-clasificacion';
           }
         | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
+          }
+        | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
             texto: string;
             id?: string | null;
@@ -907,6 +931,14 @@ export interface Patologia {
             id?: string | null;
             blockName?: string | null;
             blockType: 'tabla-clasificacion';
+          }
+        | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
           }
         | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
@@ -1012,6 +1044,14 @@ export interface Patologia {
             blockType: 'tabla-clasificacion';
           }
         | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
+          }
+        | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
             texto: string;
             id?: string | null;
@@ -1113,6 +1153,14 @@ export interface Patologia {
             id?: string | null;
             blockName?: string | null;
             blockType: 'tabla-clasificacion';
+          }
+        | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
           }
         | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
@@ -1285,6 +1333,14 @@ export interface Maniobra {
             id?: string | null;
             blockName?: string | null;
             blockType: 'tabla-clasificacion';
+          }
+        | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
           }
         | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
@@ -1461,6 +1517,14 @@ export interface CasosAo {
             id?: string | null;
             blockName?: string | null;
             blockType: 'tabla-clasificacion';
+          }
+        | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
           }
         | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
@@ -1712,6 +1776,14 @@ export interface Cirugia {
             blockType: 'tabla-clasificacion';
           }
         | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
+          }
+        | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
             texto: string;
             id?: string | null;
@@ -1853,6 +1925,14 @@ export interface EstudiosIa {
             id?: string | null;
             blockName?: string | null;
             blockType: 'tabla-clasificacion';
+          }
+        | {
+            titulo?: string | null;
+            tabla: string;
+            pie?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'tabla-vera-health';
           }
         | {
             tono: 'atencion' | 'error-frecuente' | 'perla';
@@ -2661,6 +2741,15 @@ export interface PatologiasSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
+              id?: T;
+              blockName?: T;
+            };
         advertencia?:
           | T
           | {
@@ -2748,6 +2837,15 @@ export interface PatologiasSelect<T extends boolean = true> {
                     descripcion?: T;
                     id?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
@@ -2841,6 +2939,15 @@ export interface PatologiasSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
+              id?: T;
+              blockName?: T;
+            };
         advertencia?:
           | T
           | {
@@ -2928,6 +3035,15 @@ export interface PatologiasSelect<T extends boolean = true> {
                     descripcion?: T;
                     id?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
@@ -3021,6 +3137,15 @@ export interface PatologiasSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
+              id?: T;
+              blockName?: T;
+            };
         advertencia?:
           | T
           | {
@@ -3108,6 +3233,15 @@ export interface PatologiasSelect<T extends boolean = true> {
                     descripcion?: T;
                     id?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
@@ -3225,6 +3359,15 @@ export interface ManiobrasSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
+              id?: T;
+              blockName?: T;
+            };
         advertencia?:
           | T
           | {
@@ -3335,6 +3478,15 @@ export interface CasosAoSelect<T extends boolean = true> {
                     descripcion?: T;
                     id?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };
@@ -3501,6 +3653,15 @@ export interface CirugiasSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
+              id?: T;
+              blockName?: T;
+            };
         advertencia?:
           | T
           | {
@@ -3625,6 +3786,15 @@ export interface EstudiosIaSelect<T extends boolean = true> {
                     descripcion?: T;
                     id?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        'tabla-vera-health'?:
+          | T
+          | {
+              titulo?: T;
+              tabla?: T;
+              pie?: T;
               id?: T;
               blockName?: T;
             };

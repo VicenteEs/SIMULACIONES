@@ -64,7 +64,17 @@ interface CampoBase {
 
 export type Campo =
   | (CampoBase & { tipo: 'texto' })
-  | (CampoBase & { tipo: 'area'; filas?: number })
+  | (CampoBase & {
+      tipo: 'area'
+      filas?: number
+      /**
+       * El texto es una tabla pegada (Markdown o copiada de una página): se
+       * pinta en letra de ancho fijo, con lo que se reconoce debajo, y al
+       * publicar se exige que se pueda leer (`leerTablaPegada`). Una bandera y
+       * no una función: este esquema cruza al navegador y una función no puede.
+       */
+      tabla?: boolean
+    })
   | (CampoBase & { tipo: 'numero'; min?: number; max?: number; paso?: number })
   | (CampoBase & {
       tipo: 'seleccion'

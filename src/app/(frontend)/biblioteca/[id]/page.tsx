@@ -13,6 +13,7 @@ import { IndiceFicha } from '@/components/IndiceFicha'
 import { FormularioComentario } from '@/components/FormularioComentario'
 
 import { BotonImprimir } from '@/components/BotonImprimir'
+import { EncabezadoImpreso } from '@/components/EncabezadoImpreso'
 import { BotonComentar } from '@/components/BotonComentar'
 import { EyebrowDeModulo, MigaDePan, claseDeModulo } from '@/components/Cabeceras'
 import { Vacio } from '@/components/ui/Vacio'
@@ -68,6 +69,12 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
 
   return (
     <main className={claseDeModulo('patologias')}>
+      <EncabezadoImpreso
+        coleccion="patologias"
+        documentoId={id}
+        tipo="Ficha de patología"
+        titulo={ficha.nombre as string}
+      />
       <MigaDePan
         pasos={[
           { href: '/', texto: 'Inicio' },
@@ -108,7 +115,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
         <Vacio icono={FileText} titulo="Esta ficha aún no tiene contenido publicado" compacto />
       ) : (
         pestanas.map((p, i) => (
-          <section key={p.campo} className="pestana" id={p.campo}>
+          <section key={p.campo} className="ficha-seccion" id={p.campo}>
             {/* El rótulo pequeño es el antetítulo; el título de la sección es
                 el <h2>, a tamaño de título. Antes el <h2> era este rótulo. */}
             <span className="eyebrow pestana-eyebrow">

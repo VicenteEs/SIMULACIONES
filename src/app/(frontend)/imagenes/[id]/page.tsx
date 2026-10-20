@@ -8,6 +8,7 @@ import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo } from '@/components/Estados'
 import { EyebrowDeModulo, MigaDePan, claseDeModulo } from '@/components/Cabeceras'
 import { BotonImprimir } from '@/components/BotonImprimir'
+import { EncabezadoImpreso } from '@/components/EncabezadoImpreso'
 import { BotonComentar } from '@/components/BotonComentar'
 import { FlaskConical, ThumbsDown, ThumbsUp, Star } from 'lucide-react'
 import { Bloques } from '@/components/Bloques'
@@ -72,6 +73,12 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
 
   return (
     <main className={claseDeModulo('estudios-ia')}>
+      <EncabezadoImpreso
+        coleccion="estudios-ia"
+        documentoId={id}
+        tipo="Lectura de imágenes"
+        titulo={estudio.nombre as string}
+      />
       <MigaDePan
         pasos={[
           { href: '/', texto: 'Inicio' },
@@ -121,7 +128,7 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
       </header>
 
       {hallazgos.length > 0 ? (
-        <section className="pestana">
+        <section className="ficha-seccion">
           <span className="eyebrow pestana-eyebrow">Lo que se ve</span>
           <h2>Hallazgos</h2>
           <ul className="lista-clinica">
@@ -133,7 +140,7 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
       ) : null}
 
       {opciones.length > 0 ? (
-        <section className="pestana">
+        <section className="ficha-seccion">
           <span className="eyebrow pestana-eyebrow">Lo que se puede hacer</span>
           <h2>Opciones de manejo</h2>
           {opciones.map((o, i) => {

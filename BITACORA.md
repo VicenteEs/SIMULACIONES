@@ -6283,6 +6283,90 @@ Cierra los pendientes de D-180 a D-187.
 **La ficha de «Info» y el músculo elegido van a la derecha del lienzo, como la fluoroscopia, y no arriba.**
 Pedido del dueño: «que se despliegue como se despliega fluoroscopia, a la derecha, no arriba». Antes el panel (`consola-info`) se pintaba encima del lienzo y lo empujaba hacia abajo cada vez que se pinchaba una estructura. Ahora es un panel `consola-info-ficha` dentro del marco del lienzo, bajo la barra, con el mismo criterio que el recuadro de rayos: con pantalla ancha en la consola del residente va **al lado** del lienzo (270 px) y la barra del lienzo se corre para no quedar sobre él; en el editor, o en pantalla estrecha, va **encima** del lienzo, en su esquina derecha. El músculo elegido («Cortando solo…», «Soltar el músculo», «Quitar el objetivo») va en el mismo panel y se queda aunque se salga del modo «Info»; la ficha solo se ve en ese modo. Con la **fluoroscopia encendida a la vez** no caben las dos columnas (el lienzo quedaba en unos 60 px): el recuadro de rayos conserva su columna y la ficha pasa a ir encima del lienzo, junto a él. Sin cambios de lógica ni de datos. *Probado* en el navegador con el caso de prueba (solo la ficha; con y sin fluoroscopia).
 
+### D-190 · 2026-10-20 · vigente
+**Un bloque «Tabla de Vera Health» para pegar la tabla tal cual la entrega Vera Health.**
+Pedido del dueño: poder incrustar en una ficha tablas con el formato de Vera Health (cuatro columnas: *Grupo · Patología · Datos
+clínicos o radiológicos orientativos · Clinical Evidence*), con el aspecto de las demás tablas para gobernarlo junto. Con la
+«Tabla de clasificación» no se podía: tiene dos columnas fijas (clave y descripción).
+
+*Qué se guarda.* El **texto pegado**, sin convertir (`tabla`, un `textarea`), más un título y una nota al pie opcionales. No se guardó
+la tabla troceada porque Payload no tiene una lista de listas (habría hecho falta una tabla de la base por fila con N columnas fijas) y
+porque así el traumatólogo conserva el original con el que volver a pegar. Se lee **al pintar y al guardar con la misma función**
+(`leerTablaPegada`, `src/lib/tablaPegada.ts`, pura y con pruebas): lo que el editor acepta es lo que el residente ve.
+
+*Qué acepta.* Markdown con barras (`| a | b |` y debajo `| --- | --- |`, con alineación por los dos puntos), y texto separado por
+tabuladores, que es lo que queda al copiar una tabla de una página. Ignora una frase de introducción o una nota al final, respeta la
+barra escapada (`\|`), completa las filas cortas y devuelve las celdas de más a la última columna. Entiende `<br>` y `**negrita**` y
+nada más: cada celda se pinta como texto de React, así que lo pegado no puede traer HTML a la ficha. Máximo ocho columnas y 500 filas.
+
+*En el panel.* Debajo del recuadro —de letra de ancho fijo, sin partir líneas— sale en verde «Se reconoce una tabla de 20 filas y 4
+columnas: …» o en rojo por qué no (`campo-lectura-ok` / `-mal` en `editor.css`). El esquema gana una bandera `tabla` en los campos
+`area` (una bandera y no una función, porque el esquema cruza al navegador). Al publicar, `faltantes` exige que se reconozca, con el
+mensaje en español; el validador del campo en `src/blocks/index.ts` lo repite para lo que no pase por el panel. Un borrador se guarda
+aunque no se reconozca (D-011); la ficha no pinta una tabla que no se lee.
+
+*El aspecto.* `.tabla-vera` en `estilos.css`, justo debajo de `.clasificacion` y con el mismo marco (`.tabla-desplazable`) y los mismos
+tokens. Con cuatro columnas de texto largo tiene un ancho mínimo de 640 px y el marco la desplaza en el teléfono.
+
+*Migración.* `20261020_211031_tabla_de_vera_health`: diez tablas nuevas (el bloque en las cinco colecciones con bloques, más sus
+versiones). Solo crea; no toca nada existente.
+
+*Probado* en local: se abrió el menú «Agregar bloque» (sale «Tabla de Vera Health» con su icono), se pegó la tabla de veinte filas
+del pedido y se reconoció («20 filas y 4 columnas»); con texto suelto el aviso sale en rojo y **no deja publicar** («En tabla de vera
+health 4: No se reconoce una tabla…»); con una tabla copiada con tabuladores se publicó y se ve. Pruebas: `tablaPegada.test.ts`.
+
+*Consecuencias buenas.* El equipo pega la salida de Vera Health y queda una tabla con el estilo de la plataforma, que se cambia en un
+solo sitio. *Malas.* La tabla no es editable celda a celda: se corrige en el texto pegado. La ingesta de libros (`PROMPT-DE-INGESTA`)
+**no conoce el bloque**: las tablas que no son clasificaciones siguen yendo a listas. El nombre del bloque, escrito en minúsculas en
+los avisos del panel («En tabla de vera health 4»), pierde las mayúsculas de la marca.
+
+### D-191 · 2026-10-20 · vigente
+**El PDF de la ficha lleva membrete, emisor y auditor, texto justificado, tablas centradas y pie con número de hoja.**
+Pedido del dueño: los PDF que se guardan salían «todo roñosos»; quería un formato cuidado, con el logotipo de TraumaHub, **quién realizó
+la actividad** (el usuario) y **quién auditó el contenido**.
+
+*Qué es un «PDF» aquí.* El botón «Guardar PDF» es `window.print()`: el PDF lo hace el navegador a partir del bloque `@media print` de
+`estilos.css`. No se generó un PDF en el servidor (haría falta un Chromium en la máquina de producción y reimplementar cada bloque, y
+los visores 3D no tienen versión en papel). Todo el aspecto está, por tanto, en esa hoja de estilos, con los tokens de la pantalla.
+
+*El membrete* (`EncabezadoImpreso.tsx`, de servidor, en las tres fichas imprimibles: biblioteca, técnica AO y lectura de imágenes):
+logotipo, tipo de documento y una franja con **Realizado por** (la cuenta real, no la de la vista previa de rol), **Contenido auditado
+por** y **Fecha de emisión**, que es **solo el día, sin la hora** (el dueño lo pidió al ver la muestra). El día se repone justo antes de
+imprimir (`beforeprint`, `FechaDeEmision.tsx`): una pestaña abierta desde antes de la medianoche no debe imprimir el día anterior. Está
+fijado a `America/Santiago` para que el servidor y el navegador digan lo mismo.
+
+*El auditor* es quien pulsó «Listo para publicar» en la revisión (`revisiones.listaPor`), leído con `auditorDeLaFicha`
+(`revisionServidor.ts`), que devuelve solo el nombre y el día: ni el correo ni los tiempos, que son del administrador. Una ficha que nunca
+entró en revisión dice «Sin auditoría registrada»; una en revisión sin validar, «Auditoría pendiente».
+
+*El pie de cada hoja* (`@page` con márgenes con contenido: título · Realizado por · Auditado por, y «Página N de M») sale de un `<style>`
+con el texto pasado por `literalDeCss`: el nombre lo escribe una persona y una comilla suya cerraría el literal. Los márgenes con
+contenido son de Chrome y Edge desde la 131; en un navegador más viejo no salen y queda el membrete de la primera hoja.
+
+*Formato.* Texto justificado y con guiones (`lang="es"`), títulos en el azul de la marca, tablas a todo el ancho con la cabecera repetida
+en cada hoja y las tres primeras filas pegadas a ella, avisos con su color (`print-color-adjust: exact`), figuras centradas y sin los
+visores 3D ni los videos, que en papel son un recuadro negro o en blanco y se reemplazan por una línea que dice dónde verlos. Se deja
+partir lo largo y se protege lo pequeño (fila, figura, aviso, punto de lista): antes `.bloque` y `table` eran indivisibles y una tabla
+de veinte filas saltaba entera dejando media hoja en blanco.
+
+*Probado* con Chrome 155 imprimiendo a PDF las tres fichas (una patología con la tabla de Vera Health de veinte filas: cuatro hojas
+A4, cabecera repetida, pie en todas). Pruebas: `impresion.test.ts`.
+
+*Consecuencias buenas.* El PDF se ve como un documento y dice de quién es. *Malas.* El diálogo del navegador puede añadir además su propio
+encabezado y pie (fecha, dirección): se desmarca en «Más opciones → Encabezados y pies de página». En un navegador sin márgenes con
+contenido no hay número de hoja. Sigue siendo la impresión del navegador: no se descarga un archivo con nombre propio.
+
+### D-192 · 2026-10-20 · vigente
+**Las secciones de la ficha dejaron de llamarse `.pestana`, que era también el botón de las pestañas.**
+`ui.css` define `.pestana` como botón de pestaña (`white-space: nowrap`, 13 px, `cursor: pointer`, 36 px de alto mínimo) desde
+P-001 E2 (`76085e6`), y `estilos.css` usaba la misma clase para cada sección de la ficha. Las dos reglas se sumaban: **cada sección de
+cada ficha heredaba `nowrap`**, así que los párrafos no se partían y salían en una sola línea fuera de la pantalla, el texto bajaba a
+13 px y las tablas se cortaban. Se vio al imprimir la ficha con la tabla de Vera Health; en pantalla ocurría igual. La sección pasa a
+`.ficha-seccion` (biblioteca e imágenes, `estilos.css`, y la prueba de `estilosPublicos`), y `.pestana` queda solo para los botones.
+*Consecuencia.* Visto en local, con una ficha nueva; no se comprobó contra ved antes de arreglarlo, pero si `ui.css` se carga allí igual
+—lo hace en la hoja global—, las fichas desplegadas desde P-001 E2 tienen el mismo defecto y se corrigen al desplegar esto. *Lección:* una clase
+de componente compartido no se reutiliza como clase de página: ahora hay un prefijo por dominio (`ficha-`, `pestanas`).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
