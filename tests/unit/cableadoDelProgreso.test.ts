@@ -100,7 +100,11 @@ describe('la consola manda lo que calcula', () => {
     )
     expect(aplicar, 'no se encontró aplicarPaso').not.toBe('')
     expect(veces(aplicar, 'guardarRecorrido(')).toBe(2)
-    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(2)
+    // Y un tercer hito, fuera de `aplicarPaso`: elegir la reducción automática (P-004 E7), que cambia lo que puntúa el recorrido y
+    // no puede esperar al paso siguiente. Sigue siendo un gesto raro y deliberado, no una escritura por clic.
+    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(3)
+    const automatica = CONSOLA.slice(CONSOLA.indexOf('const reducirAutomaticamente = '), CONSOLA.indexOf('const colocarEnDesplazamientoInicial'))
+    expect(veces(automatica, 'guardarRecorrido(')).toBe(1)
   })
 
   it('la complicación se guarda con lo que dijo el motor, no con un texto nuevo', () => {

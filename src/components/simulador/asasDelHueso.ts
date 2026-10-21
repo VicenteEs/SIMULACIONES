@@ -12,6 +12,8 @@
  */
 
 import * as THREE from 'three'
+import { ejeFisicoDelMovimiento, vectorDelEje, type AccionDeMovimiento, type EjeAnatomico } from '@/lib/movimientoPorEjes'
+import type { EjeDelHueso } from '@/lib/posicionDelPaciente'
 
 /**
  * Dónde queda una pieza tras desplazarla `traslacion` y girarla `giro` alrededor de `pivote`, todo en el mundo.
@@ -40,6 +42,40 @@ export function colocarEnElMundo(
   const rotacion = new THREE.Quaternion()
   local.decompose(posicion, rotacion, new THREE.Vector3())
   return { posicion, rotacion }
+}
+
+/**
+ * Mueve una pieza `valor` milímetros (trasladar) o grados (angular, rotar) por un eje del paciente, medido desde donde está
+ * ahora (P-004 E7). Es lo que hace cada pulsación de flecha del menú de movimiento. El giro es alrededor del centro de la
+ * pieza y a la derecha según el eje (regla de la mano derecha); la traslación, a lo largo del eje, sin girarla.
+ *
+ * Parte de la matriz del mundo de ahora y la lleva con `colocarEnElMundo`, así que acierta aunque el padre esté movido.
+ * Aparte del lienzo para poder probarla sin WebGL: el error que se paga aquí es de signo y de eje.
+ */
+export function moverPiezaPorEje(
+  pieza: THREE.Object3D,
+  accion: AccionDeMovimiento,
+  eje: EjeAnatomico,
+  valor: number,
+  ejeLargo: EjeDelHueso,
+  unidadesPorMm: number,
+): void {
+  const v = vectorDelEje(ejeFisicoDelMovimiento(accion, eje), ejeLargo)
+  const direccion = new THREE.Vector3(v[0], v[1], v[2])
+  pieza.updateMatrixWorld(true)
+  const pivote = pieza.localToWorld(centroLocalDe(pieza))
+  const traslacion = accion === 'trasladar' ? direccion.clone().multiplyScalar(valor * unidadesPorMm) : new THREE.Vector3()
+  const giro =
+    accion === 'trasladar' ? new THREE.Quaternion() : new THREE.Quaternion().setFromAxisAngle(direccion, (valor * Math.PI) / 180)
+  const { posicion, rotacion } = colocarEnElMundo(
+    pieza.matrixWorld.clone(),
+    pieza.parent ? pieza.parent.matrixWorld.clone().invert() : new THREE.Matrix4(),
+    pivote,
+    traslacion,
+    giro,
+  )
+  pieza.position.copy(posicion)
+  pieza.quaternion.copy(rotacion)
 }
 
 const centrosGuardados = new WeakMap<THREE.Object3D, THREE.Vector3>()

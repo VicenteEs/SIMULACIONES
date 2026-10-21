@@ -12,7 +12,7 @@ import { desplazamientoDesde, posicionAbsoluta, type EjeLargo } from '@/lib/redu
 import { largoVisibleDelAgujero, reconciliarConElModelo } from '@/lib/simulador'
 import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import { desplazamientoDelArrastre, giroDelArrastre } from '@/atlas/transformar'
-import { ajustarAlSalto, barridoEnPantalla, centroLocalDe, colocarEnElMundo } from './asasDelHueso'
+import { ajustarAlSalto, barridoEnPantalla, centroLocalDe, colocarEnElMundo, moverPiezaPorEje } from './asasDelHueso'
 import { propuestaDelNodo, traducirMuestra, type PiezaEnEdicion } from '@/lib/piezasDelCaso'
 import {
   aplicarColores,
@@ -59,6 +59,15 @@ import {
 } from '@/lib/exposicion'
 import { RADIO_DE_RETRACCION_MM, retraerVertices } from '@/lib/retraccion'
 import { rangosDeLaPlaca, sentidoSobreElEje } from '@/lib/ejesAnatomicos'
+import {
+  ejeFisicoDelMovimiento,
+  gradosDelArrastre,
+  letraDelEje,
+  lecturaDelMovimiento,
+  vectorDelEje,
+  type AccionDeMovimiento,
+  type EjeAnatomico,
+} from '@/lib/movimientoPorEjes'
 import { avisoDelClicSinEfecto, correrElApoyo, decidirElClicDelSeparador, invertirLaDireccion, type CandidatoDeHerida } from '@/lib/abordajePorPlanos'
 import {
   aperturaPorLabioEnMm,
@@ -277,6 +286,13 @@ export interface MandoDelLienzo {
   resaltarNodo: (nodo: string | null) => void
   /** Devuelve los músculos retraídos a su sitio (P-003 E10). */
   soltarRetracciones: () => void
+  /**
+   * Mueve el trozo elegido `valor` milímetros (trasladar) o grados (angular, rotar) por un eje del paciente, medido desde
+   * donde está ahora (P-004 E7). Devuelve la lectura («Trasladar · axial · +3,0 mm») o `null` si no hay trozo elegido.
+   */
+  moverPorEje: (accion: AccionDeMovimiento, eje: EjeAnatomico, valor: number) => string | null
+  /** El nombre del trozo elegido, o `null`. */
+  piezaElegida: () => string | null
   /** Devuelve a su sitio un solo músculo retraído (la fila de «Estructuras separadas», P-004 E5). */
   soltarRetraccion: (id: number) => void
   /** Elige cuál de los músculos retraídos responde a la rueda. */
@@ -585,6 +601,9 @@ export function LienzoQuirurgico({
   alSeparar,
   alPellizcar,
   alReducir,
+  movimientoPorEje = null,
+  asasLibres = false,
+  alElegirPieza,
   alTrazar,
   alMoverFragmento,
   alCargar,
@@ -694,6 +713,15 @@ export function LienzoQuirurgico({
   alPellizcar?: (estado: EstadoDeLosPellizcos) => void
   /** Cambió lo que hay de pinzas de reducción agarrando un trozo de hueso (P-003 E5). */
   alReducir?: (estado: EstadoDeLaReduccion) => void
+  /**
+   * El movimiento por ejes que eligió el menú (P-004 E7): con uno, el trozo elegido se mueve con las flechas del teclado y
+   * arrastrando a lo largo de ese eje, y se dibuja **una sola línea** en vez de las siete asas. `null`: sin eje elegido.
+   */
+  movimientoPorEje?: { accion: AccionDeMovimiento; eje: EjeAnatomico } | null
+  /** Las asas de siempre (tres flechas y cuatro aros) se ven aunque haya un menú de ejes: el interruptor «Asas libres». */
+  asasLibres?: boolean
+  /** Cambió el trozo elegido (el que se agarró con el ratón o con la pinza): su nombre, o `null` si se soltó. */
+  alElegirPieza?: (nombre: string | null) => void
   /** Se llama con el trazo completo cada vez que cambia. */
   alTrazar?: (puntos: Punto3[]) => void
   /**
@@ -826,6 +854,10 @@ export function LienzoQuirurgico({
     diseccion?: DiseccionActiva
     /** Corta la capa con el trazo que haya en `puntosDelTrazo`: lo expone el montaje para la disección roma. Devuelve la incisión. */
     aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => number | undefined
+    /** Mueve el trozo elegido por un eje del paciente (P-004 E7): devuelve la lectura, o `null` si no hay trozo elegido. */
+    moverPorEje?: (accion: AccionDeMovimiento, eje: EjeAnatomico, valor: number) => string | null
+    /** El nombre del trozo elegido ahora, o `null`. */
+    piezaElegida?: () => string | null
     /** El número de la próxima incisión y el de la última que se hizo (P-003 E4). */
     siguienteIncision?: number
     ultimaIncision?: number
@@ -888,6 +920,9 @@ export function LienzoQuirurgico({
     alSeparar,
     alPellizcar,
     alReducir,
+    movimientoPorEje,
+    asasLibres,
+    alElegirPieza,
   })
   useEffect(() => {
     ultimas.current = {
@@ -929,6 +964,9 @@ export function LienzoQuirurgico({
       alSeparar,
       alPellizcar,
       alReducir,
+      movimientoPorEje,
+      asasLibres,
+      alElegirPieza,
     }
   })
 
@@ -1081,6 +1119,10 @@ export function LienzoQuirurgico({
     soltarRetracciones: () => soltarLasRetracciones(taller.current, ultimas.current),
 
     soltarRetraccion: (id) => soltarUnaRetraccion(taller.current, ultimas.current, id),
+
+    moverPorEje: (accion, eje, valor) => taller.current.moverPorEje?.(accion, eje, valor) ?? null,
+
+    piezaElegida: () => taller.current.piezaElegida?.() ?? null,
 
     elegirRetraccion: (id) => {
       taller.current.retraccionActiva = id
@@ -1643,6 +1685,34 @@ export function LienzoQuirurgico({
     manipulador.grupo.userData.deInterfaz = true
     escena.add(manipulador.grupo)
     let elegida: THREE.Object3D | null = null
+    /** Cambia el trozo elegido y avisa a la consola solo cuando de verdad cambió (el menú de movimiento lo necesita). */
+    const elegirLaPieza = (pieza: THREE.Object3D | null) => {
+      if (elegida === pieza) return
+      elegida = pieza
+      ultimas.current.alElegirPieza?.(pieza ? pieza.name || 'trozo' : null)
+    }
+    taller.current.piezaElegida = () => (elegida ? elegida.name || 'trozo' : null)
+    /**
+     * La línea del eje elegido en el menú de movimiento (P-004 E7): una sola, en vez de las siete asas. Es interfaz, como
+     * ellas: no se pincha ni la ve la fluoroscopia.
+     */
+    const lineaDelEje = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 0, 0)]),
+      new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true }),
+    )
+    lineaDelEje.renderOrder = 999
+    lineaDelEje.visible = false
+    lineaDelEje.raycast = () => {}
+    lineaDelEje.userData.deInterfaz = true
+    escena.add(lineaDelEje)
+    /** Los arrastres con un eje elegido: desde dónde empezó y cómo estaba el trozo. */
+    let arrastreEnEje: {
+      x: number
+      y: number
+      pivote: THREE.Vector3
+      inicial: THREE.Matrix4
+      inversaDelPadre: THREE.Matrix4
+    } | null = null
     let asaAgarrada: {
       asa: AsaDelGizmo
       x: number
@@ -1657,11 +1727,13 @@ export function LienzoQuirurgico({
     /** Pone las asas sobre el trozo elegido, con el tamaño que las hace agarrables, o las esconde. */
     const gizmoAlDia = () => {
       const u = ultimas.current
-      if (u.modo !== 'mover' && u.modo !== 'reducir') elegida = null
+      if (u.modo !== 'mover' && u.modo !== 'reducir') elegirLaPieza(null)
       const raiz = taller.current.raiz
       const pieza = elegida
       const hay = !!pieza && !!raiz && (u.modo === 'reducir' || !u.moverTodo) && pieza.visible && perteneceA(pieza, raiz)
-      manipulador.grupo.visible = hay
+      // Las siete asas se ven con «Asas libres» o mientras no se haya elegido un eje en el menú de movimiento (P-004 E7).
+      manipulador.grupo.visible = hay && (u.asasLibres || !u.movimientoPorEje)
+      lineaDelEje.visible = hay && !!u.movimientoPorEje
       if (!hay || !pieza) return
       pieza.updateMatrixWorld(true)
       const donde = pieza.localToWorld(centroLocalDe(pieza))
@@ -1669,6 +1741,48 @@ export function LienzoQuirurgico({
       // Un poco menos que el sexto del alto del lienzo: en el editor de casos el lienzo es angosto.
       manipulador.grupo.scale.setScalar(escalaDelGizmo(camara, donde) * 0.8)
       manipulador.mirarA(camara)
+      const eje = u.movimientoPorEje
+      if (eje) {
+        const fisico = ejeFisicoDelMovimiento(eje.accion, eje.eje)
+        const v = vectorDelEje(fisico, u.ejeLargo)
+        const largo = escalaDelGizmo(camara, donde) * 1.1
+        lineaDelEje.position.copy(donde)
+        lineaDelEje.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3(v[0], v[1], v[2]))
+        lineaDelEje.scale.setScalar(largo)
+        // Los colores del taller del atlas: X rojo, Y verde, Z azul.
+        const letra = letraDelEje(fisico, u.ejeLargo)
+        ;(lineaDelEje.material as THREE.LineBasicMaterial).color.set(letra === 'x' ? 0xe5484d : letra === 'y' ? 0x3fb950 : 0x4c8dff)
+      }
+    }
+
+    /**
+     * Mueve el trozo elegido por un eje del paciente, desde donde está ahora (P-004 E7). Es lo que llaman las flechas del
+     * teclado: cada pulsación es un paso, y la cuenta parte de la matriz de ahora porque no hay un «agarre» que la fije.
+     */
+    taller.current.moverPorEje = (accion, eje, valor) => {
+      const pieza = elegida
+      const raiz = taller.current.raiz
+      if (!pieza || !raiz || !perteneceA(pieza, raiz)) return null
+      const u = ultimas.current
+      const t = taller.current
+      const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
+      const origenes = (t.origenesDePiezas ??= new Map())
+      if (!origenes.has(pieza)) origenes.set(pieza, { posicion: pieza.position.clone(), rotacion: pieza.rotation.clone() })
+      moverPiezaPorEje(pieza, accion, eje, valor, u.ejeLargo, unidadesPorMm)
+      const f = t.fragmento
+      const origen = t.origenDelFragmento
+      // Mover otro trozo no cambia lo que el caso mide: solo el fragmento declarado alimenta las medidas.
+      if (f && origen && (pieza === f || perteneceA(pieza, f))) {
+        u.alMoverFragmento?.(desplazamientoDesde(origen.posicion, f.position), {
+          x: grados(f.rotation.x - origen.rotacion.x),
+          y: grados(f.rotation.y - origen.rotacion.y),
+          z: grados(f.rotation.z - origen.rotacion.z),
+        })
+      }
+      const lectura = lecturaDelMovimiento(accion, eje, valor)
+      t.decir?.(lectura)
+      pedirDibujo()
+      return lectura
     }
 
     /** El asa bajo el puntero, si la hay. `rayo` tiene que venir ya apuntado. */
@@ -3328,7 +3442,7 @@ export function LienzoQuirurgico({
         const pieza = golpe.object
         // Cambiar de trozo mueve las asas sin cambiar si se ven: el lienzo solo dibuja cuando se le pide.
         if (elegida !== pieza) pedirDibujo()
-        elegida = pieza
+        elegirLaPieza(pieza)
         const t = taller.current
         const origenes = (t.origenesDePiezas ??= new Map())
         if (!origenes.has(pieza)) origenes.set(pieza, { posicion: pieza.position.clone(), rotacion: pieza.rotation.clone() })
@@ -3344,6 +3458,19 @@ export function LienzoQuirurgico({
         planoDeArrastre = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, golpe.point)
         rayo.ray.intersectPlane(planoDeArrastre, inicioDeArrastre)
         posicionAlEmpezar.copy(pieza.position)
+        // Con un eje elegido en el menú de movimiento el arrastre va por ese eje y no por el plano de la pantalla (P-004 E7).
+        if (ultimas.current.movimientoPorEje) {
+          pieza.updateMatrixWorld(true)
+          arrastreEnEje = {
+            x: evento.clientX,
+            y: evento.clientY,
+            pivote: pieza.localToWorld(centroLocalDe(pieza)),
+            inicial: pieza.matrixWorld.clone(),
+            inversaDelPadre: pieza.parent ? pieza.parent.matrixWorld.clone().invert() : new THREE.Matrix4(),
+          }
+        } else {
+          arrastreEnEje = null
+        }
       }
     }
 
@@ -3665,6 +3792,36 @@ export function LienzoQuirurgico({
       // tenía al empezar, y mover el ratón con el botón pulsado no la desvía.
       if (modoActual === 'perforar') return
 
+      if ((modoActual === 'mover' || modoActual === 'reducir') && arrastreEnEje && piezaAgarrada) {
+        const menu = ultimas.current.movimientoPorEje
+        if (!menu) return
+        const a = arrastreEnEje
+        const caja = render.domElement.getBoundingClientRect()
+        const fisico = ejeFisicoDelMovimiento(menu.accion, menu.eje)
+        const letra = letraDelEje(fisico, ultimas.current.ejeLargo)
+        let traslacion = new THREE.Vector3()
+        let giro = new THREE.Quaternion()
+        let valor: number
+        const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+        const v = vectorDelEje(fisico, ultimas.current.ejeLargo)
+        const eje = new THREE.Vector3(v[0], v[1], v[2])
+        if (menu.accion === 'trasladar') {
+          // Mayúsculas afina: la quinta parte, para llevarlo a una cifra sin acercar la vista.
+          traslacion = desplazamientoDelArrastre(camara, a.pivote, evento.clientX - a.x, evento.clientY - a.y, Math.max(1, caja.height), letra)
+          if (evento.shiftKey) traslacion.multiplyScalar(0.2)
+          valor = traslacion.dot(eje) / unidadesPorMm
+        } else {
+          valor = gradosDelArrastre(evento.clientX - a.x, evento.shiftKey)
+          giro = new THREE.Quaternion().setFromAxisAngle(eje, radianes(valor))
+        }
+        const { posicion, rotacion } = colocarEnElMundo(a.inicial, a.inversaDelPadre, a.pivote, traslacion, giro)
+        piezaAgarrada.position.copy(posicion)
+        piezaAgarrada.quaternion.copy(rotacion)
+        taller.current.decir?.(lecturaDelMovimiento(menu.accion, menu.eje, valor))
+        pedirDibujo()
+        return
+      }
+
       if ((modoActual === 'mover' || modoActual === 'reducir') && planoDeArrastre && piezaAgarrada) {
         if (!rayo.ray.intersectPlane(planoDeArrastre, puntoAuxiliar)) return
         piezaAgarrada.position.copy(posicionAlEmpezar).add(puntoAuxiliar.clone().sub(inicioDeArrastre))
@@ -3720,6 +3877,7 @@ export function LienzoQuirurgico({
       const tocada = piezaAgarrada ?? (asaAgarrada ? elegida : null)
       const eraElFragmento = !!f && !!tocada && (tocada === f || perteneceA(tocada, f))
       piezaAgarrada = null
+      arrastreEnEje = null
       if (asaAgarrada) {
         asaAgarrada = null
         taller.current.decir?.('')
@@ -3815,7 +3973,7 @@ export function LienzoQuirurgico({
       const clic = clicEnElVacio
       clicEnElVacio = null
       if (clic && elegida && Math.hypot(evento.clientX - clic.x, evento.clientY - clic.y) < 5) {
-        elegida = null
+        elegirLaPieza(null)
         gizmoAlDia()
         pedirDibujo()
       }
@@ -3884,8 +4042,9 @@ export function LienzoQuirurgico({
       if (render.getContext().isContextLost()) return
       // Que las asas aparezcan o desaparezcan al cambiar de modo o de submodo también pide un dibujo.
       const habiaAsas = manipulador.grupo.visible
+      const habiaLinea = lineaDelEje.visible
       sinCaerse('asas', gizmoAlDia)
-      if (manipulador.grupo.visible !== habiaAsas) sucio = true
+      if (manipulador.grupo.visible !== habiaAsas || lineaDelEje.visible !== habiaLinea) sucio = true
       let movio = false
       sinCaerse('controles', () => {
         movio = controles.update()
@@ -4880,6 +5039,9 @@ type LoUltimo = {
   alGesto?: (texto: string, tono: 'bien' | 'atencion' | 'grave') => void
   alDisecar?: (estado: EstadoDeLaDiseccion | null) => void
   alReducir?: (estado: EstadoDeLaReduccion) => void
+  movimientoPorEje?: { accion: AccionDeMovimiento; eje: EjeAnatomico } | null
+  asasLibres?: boolean
+  alElegirPieza?: (nombre: string | null) => void
 }
 
 /**

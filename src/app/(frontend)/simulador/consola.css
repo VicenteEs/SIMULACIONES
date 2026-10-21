@@ -359,6 +359,13 @@
 .consola-modo-barra.activo { color: #fff; background: var(--c-acento-solido); }
 .consola-modo-barra.pedido:not(.activo) { border: 1px dashed var(--c-acento); color: var(--c-texto); }
 .consola-barra-de-modos-ayuda { margin: var(--e-1) 0 0; font-size: var(--t-xs); }
+
+/* El menú de movimiento por ejes (P-004 E7): Trasladar · Angular · Rotar, y sus ejes, en una fila bajo los modos. */
+.consola-menu-de-movimiento { display: grid; gap: 2px; margin-top: var(--e-1); padding-top: var(--e-1); border-top: 1px solid var(--c-borde, rgba(255, 255, 255, 0.2)); }
+.consola-menu-de-movimiento-fila { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2); }
+.consola-menu-de-movimiento-titulo { font-size: var(--t-xs); font-weight: 700; color: var(--c-texto-2); }
+.consola-menu-de-movimiento-ejes { display: inline-flex; gap: 2px; padding-left: var(--e-2); border-left: 1px solid var(--c-borde, rgba(255, 255, 255, 0.2)); }
+.consola-menu-de-movimiento-ayuda { margin: 0; font-size: var(--t-xs); }
 @container (max-width: 640px) {
   .consola-modo-barra { padding: 0 var(--e-2); }
   .consola-modo-barra-texto {

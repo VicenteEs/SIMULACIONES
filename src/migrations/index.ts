@@ -31,6 +31,7 @@ import * as migration_20261020_223951_modelos_en_dos_carpetas from './20261020_2
 import * as migration_20261020_225415_bandeja_completa_o_acotada from './20261020_225415_bandeja_completa_o_acotada';
 import * as migration_20261020_225911_insumos_del_recorrido from './20261020_225911_insumos_del_recorrido';
 import * as migration_20261021_000946_orificios_y_largo_del_instrumento from './20261021_000946_orificios_y_largo_del_instrumento';
+import * as migration_20261021_002506_reduccion_automatica_del_recorrido from './20261021_002506_reduccion_automatica_del_recorrido';
 
 export const migrations = [
   {
@@ -196,6 +197,11 @@ export const migrations = [
   {
     up: migration_20261021_000946_orificios_y_largo_del_instrumento.up,
     down: migration_20261021_000946_orificios_y_largo_del_instrumento.down,
-    name: '20261021_000946_orificios_y_largo_del_instrumento'
+    name: '20261021_000946_orificios_y_largo_del_instrumento',
+  },
+  {
+    up: migration_20261021_002506_reduccion_automatica_del_recorrido.up,
+    down: migration_20261021_002506_reduccion_automatica_del_recorrido.down,
+    name: '20261021_002506_reduccion_automatica_del_recorrido'
   },
 ];

@@ -42,6 +42,9 @@ import { marcarComoLeida, registrarResultadoDeCirugia } from '@/app/(frontend)/a
 import { Rico, tieneContenido } from '@/components/Rico'
 import { IconoInstrumento } from './IconoInstrumento'
 import { CampoNumerico } from './CampoNumerico'
+import { MenuDeMovimiento, type SeleccionDeMovimiento } from './MenuDeMovimiento'
+import { ACCIONES_DE_LA_PLACA, ajusteDeLaPlacaPorPaso, lecturaDelMovimiento } from '@/lib/movimientoPorEjes'
+import { acotar } from '@/lib/ejesAnatomicos'
 import { textoDelDesplazamiento } from '@/lib/ejesAnatomicos'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import { Vacio } from '@/components/ui/Vacio'
@@ -454,6 +457,9 @@ const MODO_REDUCIR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
  * instrumento; al salir del modo el tinte se quita. La clave interna sigue siendo `info`: está en la sesión guardada y
  * en `MODO_DEL_OBJETIVO`.
  */
+/** Lo que dura el movimiento de la reducción automática (P-004 E7). */
+const DURACION_DE_LA_REDUCCION_MS = 600
+
 const MODO_INFO: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
   valor: 'info',
   etiqueta: 'Seleccionar estructura',
@@ -716,6 +722,12 @@ export function ConsolaQuirurgica({
   // instrumentos se ofrece cada cosa y lo que hay retraído ahora.
   const [musculoObjetivo, setMusculoObjetivo] = useState<{ nodo: string; nombre: string; accion: 'cortar' | 'separar'; yaCortadas: number[] } | null>(null)
   const [eligiendoAccion, setEligiendoAccion] = useState<'cortar' | 'separar' | null>(null)
+  // El menú de movimiento por ejes (P-004 E7): qué eje eligió el residente para el trozo elegido y para la placa, el nombre del
+  // trozo elegido y si se ven las asas de siempre además del menú.
+  const [movimientoPorEje, setMovimientoPorEje] = useState<SeleccionDeMovimiento | null>(null)
+  const [movimientoDeLaPlaca, setMovimientoDeLaPlaca] = useState<SeleccionDeMovimiento | null>(null)
+  const [piezaElegida, setPiezaElegida] = useState<string | null>(null)
+  const [asasLibres, setAsasLibres] = useState(false)
   const [retracciones, setRetracciones] = useState<{ id: number; nodo: string; nombre: string; aperturaMm: number; maximoMm: number; activa: boolean }[]>([])
   // El instrumento en la mano: qué articulaciones declara su archivo y cuánto
   // las ha movido quien lo usa. Vive aquí y no dentro del visor pequeño porque
@@ -779,6 +791,11 @@ export function ConsolaQuirurgica({
   // quedarse corto dejen de costar lo mismo: el registro de abajo, que era lo
   // único que los distinguía, se recorta a diez líneas y muere al recargar.
   const [fallados, setFallados] = useState<Set<string>>(new Set())
+  // Los pasos en que se eligió la reducción automática (P-004 E7): ahí el ejercicio de reducir no puntúa. La marca del
+  // recorrido entero va en una referencia porque `guardarRecorrido` la lee en el momento en que se llama.
+  const [automaticas, setAutomaticas] = useState<Set<string>>(new Set())
+  const usoLaReduccionAutomatica = useRef(false)
+  const animacionDeLaReduccion = useRef<number | null>(null)
   const [complicados, setComplicados] = useState<Set<string>>(new Set())
   /**
    * Las complicaciones de **este** recorrido, en el orden en que ocurrieron.
@@ -906,6 +923,7 @@ export function ConsolaQuirurgica({
           usados,
           CATEGORIAS_DE_INSTRUMENTAL.map((cat) => cat.value as string),
         ),
+        reduccionAutomatica: usoLaReduccionAutomatica.current,
       }
       const huella = JSON.stringify(datos)
       if (huella === ultimoMandado.current) return
@@ -1215,6 +1233,7 @@ export function ConsolaQuirurgica({
     const puntos = puntosDelPaso(paso, {
       fallo: fallados.has(paso.id),
       complicacion: complicados.has(paso.id),
+      reduccionAutomatica: automaticas.has(paso.id),
     })
     let puntajeTrasElPaso = puntaje
     if (!resueltos.has(paso.id)) {
@@ -1290,6 +1309,8 @@ export function ConsolaQuirurgica({
     setResueltos(new Set())
     setFallados(new Set())
     setComplicados(new Set())
+    setAutomaticas(new Set())
+    usoLaReduccionAutomatica.current = false
     // Lo guardado **no** se borra aquí, y es a propósito: este botón está a
     // ocho píxeles del marcador y se pulsa sin querer. Vaciar la fila dejaría
     // al residente sin el registro de complicaciones del recorrido que acaba de
@@ -1332,6 +1353,52 @@ export function ConsolaQuirurgica({
     )
     setGiros(estado.giros)
   }, [escalaMm, caso.ejeLargo])
+
+  /**
+   * La reducción automática (P-004 E7, pedido 6 de Cristóbal): lleva el fragmento de donde esté a su sitio, con una curva
+   * suave en 600 ms, y deja en cero el desplazamiento, la angulación y la diástasis. Es para no entramparse en la reducción
+   * cuando el objetivo docente es otro; se anota en el recorrido y **el ejercicio de reducir no puntúa**, para que no valga
+   * lo mismo que hacerlo a mano.
+   */
+  const reducirAutomaticamente = () => {
+    const m = mando.current
+    if (!m || !m.hayFragmento()) {
+      anotar('Este caso no tiene un fragmento que reducir.', 'atencion')
+      return
+    }
+    if (animacionDeLaReduccion.current !== null) cancelAnimationFrame(animacionDeLaReduccion.current)
+    const desde = m.estadoDelFragmento()
+    const pasoDeAhora = caso.pasos[indice]
+    const inicio = performance.now()
+    const cuadro = (ahora: number) => {
+      const k = Math.min(1, (ahora - inicio) / DURACION_DE_LA_REDUCCION_MS)
+      const suave = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+      const resta = 1 - suave
+      m.colocarFragmento(
+        { x: desde.posicion.x * resta, y: desde.posicion.y * resta, z: desde.posicion.z * resta },
+        { x: desde.giros.x * resta, y: desde.giros.y * resta, z: desde.giros.z * resta },
+      )
+      if (k < 1) {
+        animacionDeLaReduccion.current = requestAnimationFrame(cuadro)
+        return
+      }
+      animacionDeLaReduccion.current = null
+      // Los otros trozos que se movieron con «Mover» vuelven también a su sitio, como en «volver al inicial».
+      m.restaurarPiezas()
+      recalcularMedidas()
+      if (pasoDeAhora) setAutomaticas((antes) => new Set(antes).add(pasoDeAhora.id))
+      usoLaReduccionAutomatica.current = true
+      anotar('Reducción automática: el desplazamiento, la angulación y la diástasis quedaron en cero. El paso de reducir se da por hecho y no suma puntos.', 'atencion')
+      guardarRecorrido(puntaje, complicaciones, insumos)
+    }
+    animacionDeLaReduccion.current = requestAnimationFrame(cuadro)
+  }
+  useEffect(
+    () => () => {
+      if (animacionDeLaReduccion.current !== null) cancelAnimationFrame(animacionDeLaReduccion.current)
+    },
+    [],
+  )
 
   /** Deja el fragmento donde empieza el caso: desplazado, sin reducir. */
   const colocarEnDesplazamientoInicial = useCallback(() => {
@@ -1903,6 +1970,26 @@ export function ConsolaQuirurgica({
   // «Mover todo junto» salvo en el paso de reducir, donde hace falta agarrar un trozo de hueso suelto. Si quien
   // usa la consola lo elige a mano, manda lo elegido hasta que cambie de paso.
   const moverTodoEfectivo = moverTodoElegido ?? objetivo !== 'reduccion'
+  /** El menú de movimiento sale con un trozo suelto (Mover → Un trozo, o la pinza de reducción) y con la placa puesta sin fijar. */
+  const menuDelTrozo = (modo === 'mover' && !moverTodoEfectivo) || modo === 'reducir'
+  const menuDeLaPlaca = modo === 'fijar' && !!fijacion?.placa && !fijacion.placa.fijada
+  /**
+   * Un paso del menú sobre la placa: parte del ajuste que tiene **ahora** en la escena (no del último que pintó la consola,
+   * que con dos pulsaciones seguidas aún no se repintó), lo acota a los rangos del hueso y se lo pide al lienzo.
+   */
+  const moverLaPlacaPorEje = (accion: Parameters<typeof lecturaDelMovimiento>[0], eje: Parameters<typeof lecturaDelMovimiento>[1], valor: number): string | null => {
+    const placa = mando.current?.estadoDeLaFijacion()?.placa
+    if (!placa?.ajuste) return null
+    const nuevo = ajusteDeLaPlacaPorPaso(placa.ajuste, accion, eje, valor, placa.sentidoDelLado ?? 0)
+    if (!nuevo) return null
+    const rangos = placa.rangos ?? { largoMm: { min: -40, max: 40 }, ladoMm: { min: -15, max: 15 }, giroGrados: { min: -90, max: 90 } }
+    const acotado = {
+      largoMm: acotar(nuevo.largoMm, rangos.largoMm.min, rangos.largoMm.max),
+      ladoMm: acotar(nuevo.ladoMm, rangos.ladoMm.min, rangos.ladoMm.max),
+      giroGrados: acotar(nuevo.giroGrados, rangos.giroGrados.min, rangos.giroGrados.max),
+    }
+    return mando.current?.ajustarLaPlaca(acotado) ? lecturaDelMovimiento(accion, eje, valor) : 'Ahí no hay hueso bajo la placa.'
+  }
 
   // En el orden en que se hace una cirugía, de izquierda a derecha (P-004 E4): mirar, trazar, mover, exponer, reducir,
   // perforar, fijar, coser, disecar, y al final «Seleccionar estructura», que no modifica nada.
@@ -2600,6 +2687,22 @@ export function ConsolaQuirurgica({
                     mirando la fluoroscopia; la pinza va con él. Un clic en la pinza la suelta. Caben dos: la de quien opera y la del
                     ayudante.
                   </p>
+                  {/* Manual o automática (P-004 E7, pedido 6): la automática quita todo el desplazamiento de una vez, para no
+                      entramparse en la reducción cuando el objetivo es otro; el ejercicio de reducir queda sin puntuar. */}
+                  <div className="consola-submodo" role="group" aria-label="Reducción">
+                    <button type="button" className="consola-submodo-boton activo" aria-pressed="true" title="Se reduce con la pinza, a mano: es lo que puntúa.">
+                      Manual
+                    </button>
+                    <button
+                      type="button"
+                      className="consola-submodo-boton"
+                      aria-pressed={false}
+                      title="Lleva el fragmento a su sitio de una vez. El paso de reducir se da por hecho y no suma puntos."
+                      onClick={reducirAutomaticamente}
+                    >
+                      Automática
+                    </button>
+                  </div>
                   {pinzasDeReduccion && pinzasDeReduccion.pinzas.length > 0 ? (
                     <>
                       <ul className="consola-separadores">
@@ -3477,6 +3580,26 @@ export function ConsolaQuirurgica({
               </div>
             ) : null}
           </div>
+          {/* El menú de movimiento por ejes (P-004 E7): el trozo de hueso elegido, o la placa puesta y sin fijar. */}
+          {menuDelTrozo ? (
+            <MenuDeMovimiento
+              seleccion={movimientoPorEje}
+              alElegir={setMovimientoPorEje}
+              alMover={(accion, eje, valor) => mando.current?.moverPorEje(accion, eje, valor) ?? null}
+              sinObjeto={piezaElegida ? undefined : 'Pinche un trozo de hueso —con la pinza de reducción o en «Mover → Un trozo»— y elija cómo moverlo.'}
+              nombreDelObjeto={piezaElegida ? piezaElegida.replace(/_/g, ' ') : null}
+              asasLibres={asasLibres}
+              alCambiarLasAsas={setAsasLibres}
+            />
+          ) : menuDeLaPlaca ? (
+            <MenuDeMovimiento
+              acciones={ACCIONES_DE_LA_PLACA}
+              seleccion={movimientoDeLaPlaca}
+              alElegir={setMovimientoDeLaPlaca}
+              alMover={moverLaPlacaPorEje}
+              nombreDelObjeto="la placa"
+            />
+          ) : null}
           <p className="consola-ayuda consola-barra-de-modos-ayuda">
             {ayudaDelModo}
             {etiquetaDelModoDelPaso ? (
@@ -3600,6 +3723,9 @@ export function ConsolaQuirurgica({
             // consola entera —los dos campos ricos del pie incluidos— unas
             // treinta veces por incisión, compitiendo con el bucle de dibujo.
             alTrazar={(puntos) => setLargoDelTrazoMm(largoDelTrazo(puntos, escalaMm))}
+            movimientoPorEje={menuDelTrozo ? movimientoPorEje : null}
+            asasLibres={asasLibres}
+            alElegirPieza={setPiezaElegida}
             alMoverFragmento={() => {
               recalcularMedidas()
               editor?.alMoverFragmento?.()
@@ -4234,6 +4360,7 @@ export function ConsolaQuirurgica({
                 : `${recorridoGuardado.complicaciones.length} ${
                     recorridoGuardado.complicaciones.length === 1 ? 'complicación' : 'complicaciones'
                   }`}
+              {recorridoGuardado.reduccionAutomatica ? ' · con reducción automática (el ejercicio de reducir no sumó puntos)' : ''}
               . Es lo último que quedó guardado de este caso; el marcador de arriba cuenta el
               recorrido de ahora.
             </p>

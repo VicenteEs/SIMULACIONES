@@ -284,6 +284,14 @@ export const Actividad: CollectionConfig = {
       label: 'Insumos usados en el último recorrido',
     },
     {
+      // Si en el último recorrido se eligió la reducción automática (P-004 E7): el ejercicio de reducir no puntuó. Es lo que
+      // le dice al docente que un 100 % no incluye haber reducido a mano.
+      name: 'reduccionAutomatica',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Usó la reducción automática',
+    },
+    {
       name: 'complicaciones',
       type: 'array',
       label: 'Complicaciones',

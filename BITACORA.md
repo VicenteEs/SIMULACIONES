@@ -6571,6 +6571,41 @@ LCP del catálogo en la pierna del caso 271: se apoya, el panel muestra los tres
 no es una placa muerta. *Malas.* El reparto uniforme no sirve para una placa con un tramo liso en medio (puente): para esas mandan los agujeros del modelo; y
 la placa no tiene aún las flechas del teclado ni el arrastre (E7 los trae para fragmentos y placa).
 
+### D-199 · 2026-10-21 · vigente
+**Un menú de movimiento por ejes para el trozo y para la placa, y la reducción automática que no puntúa.**
+Séptima etapa de P-004 (E7). Pedidos 15 y 6 de Cristóbal: «manipular un fragmento: el sistema de ejes se hace pesado; al pincharlo con la camarón se abre
+un menú con tres botones: Trasladar (eje coronal, axial, sagital), Angular (coronal o sagital) y Rotar; y que se mueva con las flechas del teclado y/o
+arrastrando. El mismo principio para la placa»; «reducción manual o automática… al pinchar automática se elimina todo el desplazamiento».
+
+*Qué se hizo.*
+- **`src/lib/movimientoPorEjes.ts`** (pura): las acciones (Trasladar con tres ejes, Angular con dos, Rotar sin elegir), el **eje físico** de cada una
+  (angular coronal = giro alrededor del eje sagital, y al revés; rotar = sobre el hueso), el vector de cada eje del paciente en los ejes del archivo, los
+  pasos del teclado (S4: 1 · 0,2 con Mayúsculas · 5 con Ctrl), el sentido de cada flecha, los grados por píxel del arrastre y la lectura («Trasladar · axial ·
+  +3,0 mm»). También las acciones de la placa y `ajusteDeLaPlacaPorPaso`.
+- **`MenuDeMovimiento`** (genérico: trozo y placa con la misma interfaz y distinta lista de acciones): vive en la barra de modos, bajo los modos y encima de
+  la ayuda, y no flota sobre el lienzo (que ya tiene sus botones arriba a la derecha). Las flechas solo mueven si no se escribe en un campo y no hay Alt; Esc
+  suelta el eje. El interruptor **«Asas libres»** devuelve las siete asas de siempre sobre el trozo.
+- **En el lienzo:** el trozo elegido se avisa a la consola (`alElegirPieza`); con un eje elegido las asas se esconden y se dibuja **una sola línea** del eje
+  (con el color del taller del atlas), y el arrastre va por ese eje —`desplazamientoDelArrastre` ya proyecta el eje en pantalla— o, si es un giro, 0,4° por
+  píxel. `moverPiezaPorEje` (en `asasDelHueso.ts`, probada con piezas de verdad) lleva el trozo desde su matriz de ahora y avisa de las medidas si es el fragmento.
+- **La placa** se mueve con el mismo menú (`ajustarLaPlaca` desde el ajuste que tiene *ahora* en la escena, acotado a los rangos del hueso). Los campos
+  numéricos de D-198 se quedan: el menú añade el teclado, no quita la cifra exacta.
+- **Reducción automática (S3).** «Manual / Automática» en el panel de la pinza. La automática anima 600 ms (curva suave) del desplazamiento actual a cero y
+  restaura los otros trozos. **`puntosDelPaso` da 0** a un paso de reducción en el que se usó (y no toca a otros pasos); la marca viaja con el recorrido
+  (`ResultadoDeCirugia.reduccionAutomatica`, validada en el servidor, columna `actividad.reduccion_automatica`, migración que solo añade) y «Su recorrido
+  anterior» lo dice.
+
+*Probado.* Pruebas unitarias de las acciones, los ejes, el teclado, la lectura, el movimiento real de una pieza (3 mm axiales = 3 mm de diástasis, 3 mm coronales =
+3 mm de desplazamiento; ida y vuelta devuelve la pieza; con el padre girado el eje sigue siendo el del mundo; 5° sagital gira alrededor de X y el centro no se
+corre), de la placa, de la puntuación y del cableado. En el navegador, caso 2: «Mover → Un trozo», pinchar el fragmento distal, Trasladar → Axial con tres
+pulsaciones (1 + 1 + 5 con Ctrl) → diástasis de 18 a 25 mm, una sola línea y ninguna otra asa visible; Angular → Sagital +5° → angulación 9,8° → 11° y de vuelta a
+9,8°; y con una pinza de reducción de prueba, «Automática» deja las tres medidas en 0 y la fila de actividad queda con `reduccion_automatica = true`.
+
+*Consecuencias buenas.* Un gesto por eje en vez de siete asas, con cifras; la reducción se puede saltar sin regalar el puntaje. *Malas.* El arrastre por un eje casi
+paralelo a la visual es impreciso (para eso están las flechas); el signo de un giro es el de la regla de la mano derecha sobre el eje del archivo, que no siempre
+coincide con «hacia varo» o «hacia valgo» según el lado del paciente (la lectura dice el signo, no el nombre); la marca de reducción automática es del recorrido
+entero, no de un paso.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10229,7 +10264,7 @@ para esas, los agujeros del propio modelo siguen mandando.
 
 ---
 
-#### E7 · Un menú de movimiento por ejes, y reducción manual o automática · 2 sesiones
+#### E7 · Un menú de movimiento por ejes, y reducción manual o automática · 2 sesiones · hecha en local (2026-10-21, D-199)
 
 **De dónde sale:** pedidos 6 y 15. Depende de E6 (la placa lo usa).
 
@@ -10260,11 +10295,11 @@ para esas, los agujeros del propio modelo siguen mandando.
 
 **Tareas**
 
-- [ ] **E7.1 · `movimientoPorEjes.ts`** (puro, con pruebas: pasos, topes, signo del arrastre según la cámara).
-- [ ] **E7.2 · `MenuDeMovimiento`** y su línea de eje en el lienzo; teclado y arrastre; «Asas libres».
-- [ ] **E7.3 · El fragmento y la placa usan el menú** (reemplaza los tres deslizadores y los dos campos numéricos de E6.4 por el del menú).
-- [ ] **E7.4 · Reducción automática** (la animación, la medida cero, `reduccionAutomatica`, el puntaje y el resumen).
-- [ ] **E7.5 · Pruebas, manual y D-nnn.** Mover un fragmento 3 mm hacia distal con la flecha y que la medida cambie 3 mm; angular en el eje
+- [x] **E7.1 · `movimientoPorEjes.ts`** *(D-199)* (puro, con pruebas: pasos, topes, signo del arrastre según la cámara).
+- [x] **E7.2 · `MenuDeMovimiento`** y su línea de eje en el lienzo; teclado y arrastre; «Asas libres».
+- [x] **E7.3 · El fragmento y la placa usan el menú.** *(Los campos numéricos de la placa se conservan: el menú añade el teclado.)*
+- [x] **E7.4 · Reducción automática** (la animación, la medida cero, `reduccionAutomatica`, el puntaje y el resumen).
+- [x] **E7.5 · Pruebas, manual y D-nnn.** Mover un fragmento 3 mm hacia distal con la flecha y que la medida cambie 3 mm; angular en el eje
   sagital 5°; la automática deja las tres medidas en 0; una reducción a mano sigue puntuando.
 
 **Hecho cuando…** Se pincha el fragmento con la pinza, se elige Trasladar → Axial y se lleva con las flechas, o se pulsa «Automática» y
@@ -10503,7 +10538,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | E4 · Barra de modos y «Seleccionar estructura» | hecha en local; sin desplegar | 1 | — | D-196 |
 | E5 · Abordaje por planos de corrido | hecha en local; sin desplegar | 2 | E4 | D-197 |
 | E6 · La placa: una sola, ejes anatómicos, números | hecha en local; sin desplegar | 2 | E2, E4 | D-198 |
-| E7 · Menú de movimiento y reducción automática | pendiente | 2 | E6 | — |
+| E7 · Menú de movimiento y reducción automática | hecha en local; sin desplegar | 2 | E6 | D-199 |
 | E8 · El instrumento se queda en el orificio | pendiente | 2 | E2, E6, E7 | — |
 | E9 · Tornillos: secuencia, tipos, medidas, trayectoria | pendiente | 2–3 | E8 | — |
 | E10 · Compresión | pendiente | 2 | E7, E9 | — |

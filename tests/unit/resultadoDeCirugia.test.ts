@@ -109,6 +109,7 @@ describe('guardar el recorrido de un caso', () => {
       puntajeMaximo: 40,
       complicaciones: [],
       insumos: [],
+      reduccionAutomatica: false,
     })
   })
 

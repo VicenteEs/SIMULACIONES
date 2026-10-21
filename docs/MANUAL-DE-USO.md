@@ -950,10 +950,26 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   inicial» devuelve todos a su sitio.
 - **Pinzas de reducción (Weber o camarón, Verbrugge, de punta de bola).** Con una en la mano el modo
   pasa a **Reducir**: un **clic** en un trozo de hueso la deja **agarrándolo**, y el trozo queda
-  elegido con sus flechas y aros. Se lleva a su sitio mirando la fluoroscopia y **la pinza va con
+  elegido. Se lleva a su sitio mirando la fluoroscopia y **la pinza va con
   él**. Un clic en la pinza (o «Soltar la pinza») la suelta; caben dos. Si el abordaje no llega al
   hueso la consola lo avisa, pero deja agarrar. Reiniciar el paso las suelta; recargar la página
   no las suelta.
+- **Mover un trozo por ejes (menú «Mover»).** Con un trozo de hueso elegido —agarrado con la pinza o
+  con «Mover → Un trozo»— aparece bajo los modos un menú de tres botones: **Trasladar** (se abren
+  *coronal*, *axial* y *sagital*), **Angular** (*coronal*, que es varo/valgo, y *sagital*, que es
+  antecurvatum/recurvatum) y **Rotar** (sobre el eje largo, la mala rotación). Los ejes son los del
+  paciente: axial es a lo largo del hueso (proximal ↔ distal), coronal de lado a lado y sagital de
+  delante atrás. Elegido uno, el lienzo dibuja **una sola línea** y el trozo se mueve con las
+  **flechas del teclado** (1 mm o 1° por pulsación; **Mayúsculas** 0,2; **Ctrl** 5) o **arrastrando**
+  (Mayúsculas afina); la ayuda dice lo que se movió («Trasladar · axial · +3,0 mm»). **Esc** suelta
+  el eje. Las asas de siempre quedan detrás del interruptor **«Asas libres»**. Con la placa puesta y
+  sin fijar sale el mismo menú —Trasladar a lo largo o alrededor del hueso, y Angular— con las
+  flechas.
+- **Reducción manual o automática.** Con una pinza de reducción en la mano, el panel ofrece
+  **Manual** (por omisión) y **Automática**. La automática lleva el fragmento a su sitio en 0,6 s y
+  deja el desplazamiento, la angulación y la diástasis en 0, para no entramparse en la reducción si
+  el objetivo de la clase es otro. **El ejercicio de reducir no puntúa** (reducir a mano sigue
+  puntuando), y el recorrido guarda que se usó: «Su recorrido anterior» lo dice.
 - **Las capas** (piel, músculo, hueso) empiezan **todas encendidas** y se encienden y apagan siempre, como en el taller
   anatómico: un paso propone qué se ve, pero lo que se encienda a mano se ve entero.
 - **Recargar la página no pierde lo cortado ni lo cosido** (se guarda en la pestaña): la

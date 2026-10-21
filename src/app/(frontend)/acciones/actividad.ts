@@ -377,11 +377,18 @@ function resultadoValido(valor: unknown): ResultadoDeCirugia {
     throw new ErrorDeValidacion(`Un recorrido no puede traer más de ${MAXIMO_DE_INSUMOS} insumos.`)
   }
 
+  // La reducción automática (P-004 E7): un booleano que un navegador de antes de este cambio no manda (falso) y que, si
+  // llega, tiene que ser un booleano.
+  if (r.reduccionAutomatica !== undefined && r.reduccionAutomatica !== null && typeof r.reduccionAutomatica !== 'boolean') {
+    throw new ErrorDeValidacion('La marca de reducción automática tiene que ser verdadera o falsa.')
+  }
+
   return {
     puntaje,
     puntajeMaximo,
     complicaciones: lista.map((bruta, i) => complicacionValida(bruta, i + 1)),
     insumos: insumosCrudos.map((bruto, i) => insumoValido(bruto, i + 1)),
+    reduccionAutomatica: r.reduccionAutomatica === true,
   }
 }
 
@@ -419,6 +426,7 @@ export async function registrarResultadoDeCirugia(
       puntajeMaximo: datos.puntajeMaximo,
       complicaciones: datos.complicaciones,
       insumos: datos.insumos,
+      reduccionAutomatica: datos.reduccionAutomatica,
     })
   } catch (error) {
     console.error('[actividad] no se pudo guardar el resultado del caso:', error)

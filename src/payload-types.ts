@@ -2058,6 +2058,7 @@ export interface Actividad {
     | number
     | boolean
     | null;
+  reduccionAutomatica?: boolean | null;
   complicaciones?:
     | {
         paso: string;
@@ -3903,6 +3904,7 @@ export interface ActividadSelect<T extends boolean = true> {
   puntaje?: T;
   puntajeMaximo?: T;
   insumos?: T;
+  reduccionAutomatica?: T;
   complicaciones?:
     | T
     | {

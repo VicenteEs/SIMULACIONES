@@ -561,6 +561,11 @@ export interface HistorialDelPaso {
   fallo: boolean
   /** Hubo antes un gesto que dañó: el trazo o la fuerza se pasaron. */
   complicacion: boolean
+  /**
+   * El residente eligió la reducción **automática** en este paso (P-004 E7, pedido 6 de Cristóbal): el desplazamiento se
+   * llevó a cero sin mover nada a mano, así que el ejercicio de reducir no puntúa. Solo cuenta en un paso de reducción.
+   */
+  reduccionAutomatica?: boolean
 }
 
 /**
@@ -603,6 +608,9 @@ export interface HistorialDelPaso {
  */
 export function puntosDelPaso(paso: PasoQuirurgico, historial: HistorialDelPaso): number {
   if (historial.complicacion) return 0
+  // La automática da el paso por hecho para no entramparse si el objetivo docente es otro, pero no vale lo mismo que
+  // reducirlo a mano: el ejercicio se mantiene «porque da realidad» y por eso se puede evitar, no regalar.
+  if (historial.reduccionAutomatica && objetivoDelPaso(paso) === 'reduccion') return 0
   const valor = valorDelPaso(paso)
   return historial.fallo ? Math.floor(valor / 2) : valor
 }

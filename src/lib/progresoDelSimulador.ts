@@ -69,6 +69,8 @@ export interface ResultadoDeCirugia {
   complicaciones: ComplicacionDelCaso[]
   /** Lo que se usó en el recorrido (P-004 E3): es lo que «queda para los estudiantes» al terminar. */
   insumos: InsumoDelRecorrido[]
+  /** Se usó la reducción automática en algún paso (P-004 E7): el ejercicio de reducir no puntuó. */
+  reduccionAutomatica: boolean
 }
 
 /** Lo que vuelve de la base: lo mismo, menos lo que la fila no traiga. */
@@ -86,6 +88,8 @@ export interface RecorridoGuardado {
   complicaciones: ComplicacionDelCaso[]
   /** Los insumos del último recorrido; vacío si la fila no los trae (los recorridos de antes de P-004 E3). */
   insumos: InsumoDelRecorrido[]
+  /** Si en el último recorrido se usó la reducción automática; `false` en los recorridos de antes de P-004 E7. */
+  reduccionAutomatica: boolean
 }
 
 /**
@@ -215,7 +219,13 @@ export function recorridoGuardado(fila: unknown): RecorridoGuardado | null {
   const puntaje = cuenta(f.puntaje)
   if (puntaje === null && complicaciones.length === 0 && insumos.length === 0) return null
 
-  return { puntaje: puntaje ?? 0, puntajeMaximo: cuenta(f.puntajeMaximo), complicaciones, insumos }
+  return {
+    puntaje: puntaje ?? 0,
+    puntajeMaximo: cuenta(f.puntajeMaximo),
+    complicaciones,
+    insumos,
+    reduccionAutomatica: f.reduccionAutomatica === true,
+  }
 }
 
 /** Un paso en el que la gente se queda atascada, con cuánto y a cuántos. */
