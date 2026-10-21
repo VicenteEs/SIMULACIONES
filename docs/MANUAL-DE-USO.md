@@ -850,9 +850,17 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   **Perforar**. Apunte al hueso y **mantenga pulsado**: la broca gira y avanza. Antes de
   empezar, dos deslizadores eligen la **inclinación** (a lo largo del hueso y a lo ancho, de
   −45° a +45°) y una etiqueta dice el **ángulo con el eje del hueso** (90° es perpendicular).
-  Al soltar queda el túnel y el registro anota calibre, profundidad, si fue bicortical y
-  el ángulo. Si la broca pasa de largo la cortical opuesta, la etiqueta y el registro lo
-  dicen.
+  **Al soltar, la broca se queda puesta en el hoyo** —no se retira—: se puede salir del lienzo
+  a pulsar «Disparar» y la imagen la enseña a la profundidad en que estaba, que es para lo que
+  sirve el rayo. Se sigue metiendo manteniendo pulsado o con la **rueda** (0,5 mm por muesca; con
+  Mayúsculas, 0,1; hacia atrás la saca); **«Apagar la broca»** (o Espacio) la detiene sin
+  retirarla y «Encender la broca» la vuelve a girar. **«Retirar»**, **Esc** o el **botón derecho**
+  la sacan: entonces queda el túnel y el registro anota calibre, profundidad, si fue bicortical y
+  el ángulo. El panel dice la profundidad (y, con la ayuda «Objetivo» de la fluoroscopia
+  encendida, cuánto falta para la cortical opuesta). Si pasa de largo la cortical opuesta, la
+  etiqueta y el registro lo dicen siempre. Cambiar de instrumento o de modo con una puesta la
+  retira. El **medidor** posado en un orificio perforado también se queda ahí mientras se pide
+  el disparo. Un clic con la broca puesta la sigue metiendo; para otro hoyo, primero «Retirar».
 - **Coser (los hilos de sutura).** Con una sutura en la mano el modo pasa a **Coser**: cada
   **clic** sobre la piel suma una puntada y el hilo queda dibujado entre una y otra, pegado
   al tejido (el arrastre gira el modelo). Una puntada que cae al otro lado de la herida la

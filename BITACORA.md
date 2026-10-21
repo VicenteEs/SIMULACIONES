@@ -6606,6 +6606,34 @@ paralelo a la visual es impreciso (para eso están las flechas); el signo de un 
 coincide con «hacia varo» o «hacia valgo» según el lado del paciente (la lectura dice el signo, no el nombre); la marca de reducción automática es del recorrido
 entero, no de un paso.
 
+### D-200 · 2026-10-21 · vigente
+**La broca (y el medidor) se quedan puestos en el orificio mientras se pide el disparo.**
+Octava etapa de P-004 (E8). Pedidos 3 y 13 de Cristóbal: «la broca se queda donde estaba haciendo el hoyo cuando el usuario se mueve para pedir el disparo (se
+mete y se saca con la rueda y hay un botón para apagarla)»; «el rayo muchas veces se usa para saber qué tan profundo vas».
+
+*Qué se hizo.*
+- **`src/lib/profundidadDeLaBroca.ts`** (pura): el avance por cuadro (el tiempo se acota a 50 ms), por muesca de la rueda (0,5 mm; 0,1 con Mayúsculas; sin pasar de la
+  entrada ni del máximo), la lectura (cuánto falta, cuánto se pasó, si está en la cortical opuesta) y el texto, que **solo cuenta cuánto falta si la ayuda «Objetivo»
+  está encendida** —el examen no regala la profundidad— y avisa siempre de haberse pasado.
+- **En el lienzo, `perforando` ya no depende del puntero.** Al pulsar se engancha (o, si ya hay una puesta, se sigue metiendo: empezar otro hoyo es retirar esta
+  primero); al soltar, **solo se detiene el avance** (`avanzando = false`) y la broca queda en el hoyo; salir del lienzo no la esconde (`esconderHerramienta` ya no
+  actúa con una puesta); el bucle avanza únicamente con el ratón pulsado y la broca encendida. Se retira con **«Retirar»**, **Esc**, el **botón derecho**, o al cambiar
+  de modo o de instrumento (la limpieza de un efecto con el id del instrumento), y entonces dibuja el agujero y anota el calibre **de la broca que se enganchó**
+  (`config` guardada al empezar: antes se leía del instrumento en la mano, que al cambiar de instrumento ya era otro).
+- **La rueda** mete y saca (con Mayúsculas, afina); **Espacio** y «Apagar la broca» la detienen sin retirarla; el panel lee la profundidad (se avisa a la consola a lo
+  sumo cada 100 ms, no cada cuadro, para no repintar la consola a 60 Hz).
+- **El medidor** posado en un orificio perforado de la placa fijada se queda ahí aunque el cursor salga del lienzo (`medidorEnElOrificio`); el tornillo ya queda puesto
+  al pincharlo. La fluoroscopia cuenta como metal todo lo visible que no es interfaz, así que la imagen enseña la broca puesta sin tocar nada de la imagen.
+
+*Probado.* Pruebas unitarias de la cuenta (avance, tope, rueda fina sin restos de coma flotante, lectura, texto con y sin ayuda) y del cableado (soltar no retira, salir del
+lienzo no esconde, el bucle, el calibre de la broca enganchada, el botón derecho, la rueda). En el navegador, caso 2: se engancha la broca sobre el fragmento, se sale del
+lienzo (`pointerleave`) y la broca sigue visible en el mismo sitio; la rueda lleva la profundidad de 0,5 a 5,5 mm y la saca a 4,0; «Apagar la broca» la deja «apagada»;
+«Retirar» dibuja el agujero y quita el panel; Esc retira; y coger el Farabeuf con una puesta la retira y deja el agujero (de 2 a 3).
+
+*Consecuencias buenas.* Se puede pedir el rayo con la broca a medio hoyo, que es para lo que sirve; el hoyo no se pierde por un clic o por soltar el ratón. *Malas.* Es un
+cambio de hábito: el residente que soltaba para «terminar» el hoyo ahora tiene que retirar (la ayuda del modo lo dice); y con la pestaña en segundo plano el avance por el
+tiempo es lento (el navegador frena los cuadros), de modo que en pruebas conviene la rueda.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10307,7 +10335,7 @@ queda reducido; la placa se mueve con el mismo menú.
 
 ---
 
-#### E8 · El instrumento se queda en el orificio mientras se pide el disparo · 2 sesiones
+#### E8 · El instrumento se queda en el orificio mientras se pide el disparo · 2 sesiones · hecha en local (2026-10-21, D-200)
 
 **De dónde sale:** pedidos 3 y 13. Depende de E2, E6 y E7.
 
@@ -10338,11 +10366,11 @@ queda reducido; la placa se mueve con el mismo menú.
 
 **Tareas**
 
-- [ ] **E8.1 · `profundidadDeLaBroca.ts`** (puro): avance por tiempo, por rueda, tope, cortical opuesta, «se pasó».
-- [ ] **E8.2 · El estado `instrumentoEnElOrificio`** en el lienzo para la broca (engancha, avanza, apaga, retira) sin depender del puntero.
-- [ ] **E8.3 · El medidor y el tornillo** con el mismo estado.
-- [ ] **E8.4 · Los botones** («Apagar la broca», «Retirar») y la rueda en la consola; la lectura de profundidad en el panel.
-- [ ] **E8.5 · Pruebas, manual y D-nnn.** Enganchar la broca, ir al botón de disparar, disparar y ver la broca en la imagen y en la misma
+- [x] **E8.1 · `profundidadDeLaBroca.ts`** *(D-200)* (puro): avance por tiempo, por rueda, tope, cortical opuesta, «se pasó».
+- [x] **E8.2 · El estado `instrumentoEnElOrificio`** en el lienzo para la broca (engancha, avanza, apaga, retira) sin depender del puntero.
+- [x] **E8.3 · El medidor y el tornillo** con el mismo estado.
+- [x] **E8.4 · Los botones** («Apagar la broca», «Retirar») y la rueda en la consola; la lectura de profundidad en el panel.
+- [x] **E8.5 · Pruebas, manual y D-nnn.** Enganchar la broca, ir al botón de disparar, disparar y ver la broca en la imagen y en la misma
   profundidad; retirar y que quede el agujero con su calibre; cambiar de instrumento con la broca puesta la retira.
 
 **Hecho cuando…** Se perfora hasta la mitad, se sale del lienzo para pulsar «Disparar», la imagen enseña la broca donde estaba, se sigue
@@ -10539,7 +10567,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | E5 · Abordaje por planos de corrido | hecha en local; sin desplegar | 2 | E4 | D-197 |
 | E6 · La placa: una sola, ejes anatómicos, números | hecha en local; sin desplegar | 2 | E2, E4 | D-198 |
 | E7 · Menú de movimiento y reducción automática | hecha en local; sin desplegar | 2 | E6 | D-199 |
-| E8 · El instrumento se queda en el orificio | pendiente | 2 | E2, E6, E7 | — |
+| E8 · El instrumento se queda en el orificio | hecha en local; sin desplegar | 2 | E2, E6, E7 | D-200 |
 | E9 · Tornillos: secuencia, tipos, medidas, trayectoria | pendiente | 2–3 | E8 | — |
 | E10 · Compresión | pendiente | 2 | E7, E9 | — |
 | E11 · Radiografía postoperatoria y lámina | pendiente | 2–3 | E3 | — |

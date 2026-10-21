@@ -60,6 +60,14 @@ import {
 import { RADIO_DE_RETRACCION_MM, retraerVertices } from '@/lib/retraccion'
 import { rangosDeLaPlaca, sentidoSobreElEje } from '@/lib/ejesAnatomicos'
 import {
+  MARGEN_PARA_PASARSE_MM,
+  lecturaDeLaBroca,
+  profundidadTrasLaRueda,
+  profundidadTrasUnCuadro,
+  textoDeLaBroca,
+  type LecturaDeLaBroca,
+} from '@/lib/profundidadDeLaBroca'
+import {
   ejeFisicoDelMovimiento,
   gradosDelArrastre,
   letraDelEje,
@@ -286,6 +294,12 @@ export interface MandoDelLienzo {
   resaltarNodo: (nodo: string | null) => void
   /** Devuelve los músculos retraídos a su sitio (P-003 E10). */
   soltarRetracciones: () => void
+  /** Retira la broca puesta (P-004 E8): dibuja el agujero y anota el calibre. */
+  retirarLaBroca: () => void
+  /** Enciende o apaga la broca puesta sin retirarla; sin argumento, alterna. */
+  apagarLaBroca: (encendida?: boolean) => void
+  /** Una muesca de la rueda con la broca puesta: mete (1) o saca (−1); con `fino`, la quinta parte. */
+  moverLaBroca: (sentido: 1 | -1, fino?: boolean) => void
   /**
    * Mueve el trozo elegido `valor` milímetros (trasladar) o grados (angular, rotar) por un eje del paciente, medido desde
    * donde está ahora (P-004 E7). Devuelve la lectura («Trasladar · axial · +3,0 mm») o `null` si no hay trozo elegido.
@@ -604,6 +618,7 @@ export function LienzoQuirurgico({
   movimientoPorEje = null,
   asasLibres = false,
   alElegirPieza,
+  alCambiarLaBroca,
   alTrazar,
   alMoverFragmento,
   alCargar,
@@ -722,6 +737,11 @@ export function LienzoQuirurgico({
   asasLibres?: boolean
   /** Cambió el trozo elegido (el que se agarró con el ratón o con la pinza): su nombre, o `null` si se soltó. */
   alElegirPieza?: (nombre: string | null) => void
+  /**
+   * La broca puesta en el hoyo (P-004 E8): su lectura cada vez que cambia —no cada cuadro: se avisa a lo sumo cada 100 ms— o
+   * `null` cuando ya no hay ninguna. Con una puesta, la consola ofrece «Apagar la broca» y «Retirar».
+   */
+  alCambiarLaBroca?: (estado: EstadoDeLaBroca | null) => void
   /** Se llama con el trazo completo cada vez que cambia. */
   alTrazar?: (puntos: Punto3[]) => void
   /**
@@ -854,6 +874,14 @@ export function LienzoQuirurgico({
     diseccion?: DiseccionActiva
     /** Corta la capa con el trazo que haya en `puntosDelTrazo`: lo expone el montaje para la disección roma. Devuelve la incisión. */
     aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => number | undefined
+    /** El medidor está posado en un orificio perforado de la placa fijada: no sigue al cursor ni se esconde con él (P-004 E8). */
+    medidorEnElOrificio?: boolean
+    /** Retira la broca puesta: dibuja el agujero y anota el calibre (P-004 E8). */
+    retirarLaBroca?: () => void
+    /** Enciende o apaga la broca puesta, sin retirarla. */
+    apagarLaBroca?: (encendida?: boolean) => void
+    /** Mete (+) o saca (−) la broca puesta una muesca de la rueda. */
+    moverLaBroca?: (sentido: 1 | -1, fino: boolean) => void
     /** Mueve el trozo elegido por un eje del paciente (P-004 E7): devuelve la lectura, o `null` si no hay trozo elegido. */
     moverPorEje?: (accion: AccionDeMovimiento, eje: EjeAnatomico, valor: number) => string | null
     /** El nombre del trozo elegido ahora, o `null`. */
@@ -923,6 +951,7 @@ export function LienzoQuirurgico({
     movimientoPorEje,
     asasLibres,
     alElegirPieza,
+    alCambiarLaBroca,
   })
   useEffect(() => {
     ultimas.current = {
@@ -967,6 +996,7 @@ export function LienzoQuirurgico({
       movimientoPorEje,
       asasLibres,
       alElegirPieza,
+      alCambiarLaBroca,
     }
   })
 
@@ -1121,6 +1151,12 @@ export function LienzoQuirurgico({
     soltarRetraccion: (id) => soltarUnaRetraccion(taller.current, ultimas.current, id),
 
     moverPorEje: (accion, eje, valor) => taller.current.moverPorEje?.(accion, eje, valor) ?? null,
+
+    retirarLaBroca: () => taller.current.retirarLaBroca?.(),
+
+    apagarLaBroca: (encendida) => taller.current.apagarLaBroca?.(encendida),
+
+    moverLaBroca: (sentido, fino = false) => taller.current.moverLaBroca?.(sentido, fino),
 
     piezaElegida: () => taller.current.piezaElegida?.() ?? null,
 
@@ -1755,6 +1791,25 @@ export function LienzoQuirurgico({
       }
     }
 
+    taller.current.retirarLaBroca = () => {
+      if (perforando) terminarPerforacion()
+    }
+    taller.current.apagarLaBroca = (encendida) => {
+      if (!perforando) return
+      perforando.encendida = encendida ?? !perforando.encendida
+      if (!perforando.encendida) perforando.avanzando = false
+      taller.current.decir?.(perforando.encendida ? 'Broca encendida.' : 'Broca apagada: se queda en el hoyo. Retírela cuando termine.')
+      posarBroca(null)
+      avisarDeLaBroca(true)
+    }
+    taller.current.moverLaBroca = (sentido, fino) => {
+      if (!perforando) return
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      perforando.profundidad = profundidadTrasLaRueda(perforando.profundidad / unidadesPorMm, perforando.maxima / unidadesPorMm, sentido, fino) * unidadesPorMm
+      posarBroca(null)
+      avisarDeLaBroca(true)
+    }
+
     /**
      * Mueve el trozo elegido por un eje del paciente, desde donde está ahora (P-004 E7). Es lo que llaman las flechas del
      * teclado: cada pulsación es un paso, y la cuenta parte de la matriz de ahora porque no hay un «agarre» que la fije.
@@ -1900,8 +1955,39 @@ export function LienzoQuirurgico({
       maxima: number
       /** A qué profundidad sale por la cortical opuesta. */
       salidaPorLaOpuesta: number
+      /**
+       * La broca que perfora, tal como era al engancharla (P-004 E8): retirarla puede ocurrir después de cambiar de instrumento
+       * —cambiar de instrumento con una puesta la retira—, y el calibre que se anota es el de esta, no el de la que ahora se
+       * lleva en la mano.
+       */
+      config: { diametroMm: number; avanceMmPorSegundo: number }
+      /** El botón del ratón está pulsado: solo entonces avanza por el tiempo. Soltarlo no retira la broca. */
+      avanzando: boolean
+      /** Gira: apagarla la detiene sin retirarla. */
+      encendida: boolean
     }
     let perforando: Perforacion | null = null
+    let ultimoAvisoDeLaBroca = 0
+    /** Cuenta qué se le avisa a la consola de la broca puesta: la lectura y si gira. Se pide con `forzar` en un cambio de verdad. */
+    const avisarDeLaBroca = (forzar = false) => {
+      const p = perforando
+      const aviso = ultimas.current.alCambiarLaBroca
+      if (!aviso) return
+      const ahora = performance.now()
+      if (!forzar && ahora - ultimoAvisoDeLaBroca < 100) return
+      ultimoAvisoDeLaBroca = ahora
+      if (!p) {
+        aviso(null)
+        return
+      }
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      aviso({
+        lectura: lecturaDeLaBroca(p.profundidad / unidadesPorMm, p.salidaPorLaOpuesta / unidadesPorMm),
+        encendida: p.encendida,
+        diametroMm: p.config.diametroMm,
+        agujero: p.agujero !== undefined ? p.agujero + 1 : undefined,
+      })
+    }
     let ultimoCuadro = performance.now()
 
     /**
@@ -2110,7 +2196,9 @@ export function LienzoQuirurgico({
     }
 
     /** Cómo entraría la broca por este golpe, con la inclinación que eligió quien la usa. */
-    const trayectoriaDeBroca = (golpe: THREE.Intersection): Omit<Perforacion, 'profundidad' | 'maxima' | 'salidaPorLaOpuesta'> => {
+    const trayectoriaDeBroca = (
+      golpe: THREE.Intersection,
+    ): Omit<Perforacion, 'profundidad' | 'maxima' | 'salidaPorLaOpuesta' | 'config' | 'avanzando' | 'encendida'> => {
       const placa = taller.current.implantes?.placa
       const agujero = agujeroParaLaBroca(golpe)
       if (placa && agujero !== null) {
@@ -2177,19 +2265,28 @@ export function LienzoQuirurgico({
         herramienta.raiz.position.copy(t.entrada).addScaledVector(t.dirEntra, profundidad)
         herramienta.raiz.visible = true
       }
-      const mm = (u: number) => (u / unidadesPorMm).toFixed(1).replace('.', ',')
-      // Pasar de largo la cortical opuesta es el error clásico de quien aprende:
-      // la broca sigue y lo que hay detrás son partes blandas. Se dice mientras ocurre.
-      const pasado = perforando ? profundidad - perforando.salidaPorLaOpuesta : 0
+      // Pasar de largo la cortical opuesta es el error clásico de quien aprende: la broca sigue y lo que hay detrás son
+      // partes blandas. Se dice mientras ocurre (`textoDeLaBroca`).
+      const base = `Broca Ø ${String(config.diametroMm).replace('.', ',')} mm${t.agujero !== undefined ? ` · agujero ${t.agujero + 1} de la placa` : ''} · ${Math.round(t.anguloConElEje)}° con el eje del hueso`
       taller.current.decir?.(
-        `Broca Ø ${String(config.diametroMm).replace('.', ',')} mm${t.agujero !== undefined ? ` · agujero ${t.agujero + 1} de la placa` : ''} · ${Math.round(t.anguloConElEje)}° con el eje del hueso${
-          perforando ? ` · ${mm(profundidad)} mm` : ' · mantenga pulsado para perforar'
-        }${pasado > 1 * unidadesPorMm ? ` · ¡se pasó ${mm(pasado)} mm de la cortical opuesta!` : ''}`,
+        perforando
+          ? `${base} · ${textoDeLaBroca(lecturaDeLaBroca(profundidad / unidadesPorMm, perforando.salidaPorLaOpuesta / unidadesPorMm), { encendida: perforando.encendida, ayudaDeAprendizaje: !!ultimas.current.ayudas?.objetivo })}`
+          : `${base} · mantenga pulsado para perforar`,
       )
       pedirDibujo()
     }
 
     const empezarPerforacion = (golpe: THREE.Intersection) => {
+      // Con una broca ya puesta, el clic la sigue metiendo por donde iba (P-004 E8): empezar otro hoyo es retirar esta primero,
+      // y un clic distraído a un lado no tiene que tirar a la basura el hoyo que se estaba midiendo con el rayo.
+      if (perforando) {
+        perforando.avanzando = true
+        ultimoCuadro = performance.now()
+        if (!perforando.encendida) taller.current.decir?.('La broca está apagada: enciéndala («Encender la broca» o Espacio) para seguir.')
+        return
+      }
+      const config = ultimas.current.instrumento?.perfora
+      if (!config) return
       const t = trayectoriaDeBroca(golpe)
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       // Hasta dónde se puede ir: se lanza un rayo desde dentro del hueso en la
@@ -2206,18 +2303,23 @@ export function LienzoQuirurgico({
         profundidad: 0,
         // Se puede pasar de largo: es un error que un residente comete y que
         // conviene que vea y que se le diga.
-        maxima: salidaPorLaOpuesta + 12 * unidadesPorMm,
+        maxima: salidaPorLaOpuesta + MARGEN_PARA_PASARSE_MM * unidadesPorMm,
         salidaPorLaOpuesta,
+        config: { diametroMm: config.diametroMm, avanceMmPorSegundo: config.avanceMmPorSegundo },
+        avanzando: true,
+        encendida: true,
       }
       taller.current.giroDeLaBroca = taller.current.giroDeLaBroca ?? 0
       ultimoCuadro = performance.now()
+      avisarDeLaBroca(true)
       pedirDibujo()
     }
 
     const terminarPerforacion = () => {
       const p = perforando
       perforando = null
-      const config = ultimas.current.instrumento?.perfora
+      avisarDeLaBroca(true)
+      const config = p?.config
       const escenaActual = taller.current.escena
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       if (!p || !config || !escenaActual || p.profundidad < 0.3 * unidadesPorMm) {
@@ -2306,6 +2408,7 @@ export function LienzoQuirurgico({
         return
       }
       if (!golpe) {
+        taller.current.medidorEnElOrificio = false
         if (herramienta.raiz.visible) {
           herramienta.raiz.visible = false
           pedirDibujo()
@@ -2326,11 +2429,16 @@ export function LienzoQuirurgico({
             .addScaledVector(n, -(medida.distanciaAlHuesoMm + medida.espesorMm) * u)
           herramienta.raiz.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n)
           herramienta.raiz.visible = true
+          // Se queda en el orificio aunque el cursor se vaya a pulsar «Disparar» (P-004 E8, pedido 13): el medidor, como la
+          // broca, se usa para saber qué tan hondo estás.
+          taller.current.medidorEnElOrificio = true
           taller.current.decir?.(`Medidor en el agujero ${agujero + 1}: hueso de ${medida.espesorMm.toFixed(0)} mm. Haga clic para anotar la medida.`)
           pedirDibujo()
           return
         }
       }
+      // Fuera de un orificio, el medidor vuelve a seguir al cursor.
+      taller.current.medidorEnElOrificio = false
       const normal = normalDelGolpe(golpe)
       const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(camara.quaternion)
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
@@ -2383,6 +2491,9 @@ export function LienzoQuirurgico({
     const esconderHerramienta = () => {
       const herramienta = taller.current.herramienta
       if (!herramienta?.raiz.visible) return
+      // Lo que está puesto en un hoyo no sigue al cursor ni se esconde con él (P-004 E8, pedidos 3 y 13): el rayo muchas veces
+      // se usa para saber qué tan profundo vas, y para pedirlo hay que salir del lienzo a pulsar «Disparar».
+      if (perforando || taller.current.medidorEnElOrificio) return
       herramienta.raiz.visible = false
       pedirDibujo()
     }
@@ -3859,7 +3970,11 @@ export function LienzoQuirurgico({
           t.decir?.('')
         }
       }
-      if (perforando) terminarPerforacion()
+      // Soltar el ratón detiene el avance pero **no** retira la broca (P-004 E8): se queda en el hoyo hasta «Retirar».
+      if (perforando) {
+        perforando.avanzando = false
+        avisarDeLaBroca(true)
+      }
 
       const f = taller.current.fragmento
       const origen = taller.current.origenDelFragmento
@@ -3995,6 +4110,13 @@ export function LienzoQuirurgico({
     render.domElement.addEventListener('pointerup', alSubir)
     render.domElement.addEventListener('pointerleave', alSubir)
     render.domElement.addEventListener('pointerleave', esconderHerramienta)
+    // El botón derecho retira la broca puesta (P-004 E8): es el gesto de sacarla, junto a «Retirar» y Esc.
+    const alClicDerecho = (evento: MouseEvent) => {
+      if (!perforando) return
+      evento.preventDefault()
+      terminarPerforacion()
+    }
+    render.domElement.addEventListener('contextmenu', alClicDerecho)
 
     const observador = new ResizeObserver(() => {
       if (!contenedor.clientWidth) return
@@ -4023,19 +4145,17 @@ export function LienzoQuirurgico({
     }
     render.setAnimationLoop(() => {
       const ahora = performance.now()
-      if (perforando) {
-        const config = ultimas.current.instrumento?.perfora
-        const dt = Math.min(0.05, (ahora - ultimoCuadro) / 1000)
-        if (config) {
-          const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
-          taller.current.giroDeLaBroca = (taller.current.giroDeLaBroca ?? 0) + dt * 32
-          perforando.profundidad = Math.min(
-            perforando.maxima,
-            perforando.profundidad + config.avanceMmPorSegundo * unidadesPorMm * dt,
-          )
-          posarBroca(null)
-          sucio = true
-        }
+      if (perforando && perforando.avanzando && perforando.encendida) {
+        // Con la config de la broca al engancharla, no la del instrumento que se lleve ahora (P-004 E8).
+        const config = perforando.config
+        const dt = (ahora - ultimoCuadro) / 1000
+        const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+        taller.current.giroDeLaBroca = (taller.current.giroDeLaBroca ?? 0) + Math.min(0.05, dt) * 32
+        perforando.profundidad =
+          profundidadTrasUnCuadro(perforando.profundidad / unidadesPorMm, perforando.maxima / unidadesPorMm, config.avanceMmPorSegundo, dt) * unidadesPorMm
+        posarBroca(null)
+        avisarDeLaBroca()
+        sucio = true
       }
       ultimoCuadro = ahora
       // Sin contexto no hay nada que dibujar, y llamar a `render` con él perdido solo llena la consola de avisos.
@@ -4090,6 +4210,7 @@ export function LienzoQuirurgico({
       render.domElement.removeEventListener('pointerup', alSubir)
       render.domElement.removeEventListener('pointerleave', alSubir)
       render.domElement.removeEventListener('pointerleave', esconderHerramienta)
+      render.domElement.removeEventListener('contextmenu', alClicDerecho)
       controles.dispose()
       // El decodificador Draco es lo único que se crea aquí y no cuelga de la
       // escena, así que `liberar` no lo alcanza: cada instancia levanta su
@@ -4191,6 +4312,13 @@ export function LienzoQuirurgico({
    * dejarían la consola inservible en el equipo de referencia del residente.
    */
   const urlDelInstrumento = instrumento?.url ?? null
+  const idDelInstrumento = instrumento?.id
+  // Cambiar de instrumento con una broca puesta la retira, con el calibre de la que era (P-004 E8). Es la limpieza del efecto y no
+  // su cuerpo: corre justo cuando cambia el instrumento, y al desmontar no hay nada que retirar.
+  useEffect(() => {
+    const taller_ = taller
+    return () => taller_.current.retirarLaBroca?.()
+  }, [idDelInstrumento])
   useEffect(() => {
     const escena = taller.current.escena
     if (!urlDelInstrumento || !escena) return
@@ -4207,6 +4335,7 @@ export function LienzoQuirurgico({
         h.raiz.visible = false
         escena.add(h.raiz)
         taller.current.herramienta = h
+        taller.current.medidorEnElOrificio = false
         cargado = h
         const v = ultimas.current.instrumento
         aplicarPose(h, v?.ajustes ?? null, v?.articulaciones ?? {})
@@ -4272,6 +4401,8 @@ export function LienzoQuirurgico({
     controles.enableZoom = !capturaLaRueda
     // Cambiar de modo o de forma de trazar deja sin terminar la recta que se había empezado.
     cancelarLaRecta(taller.current)
+    // Salir de «Perforar» con una broca puesta la retira (P-004 E8): no se deja un hoyo a medias sin querer.
+    if (modo !== 'perforar') taller.current.retirarLaBroca?.()
     // `OrbitControls` pone `touch-action: none` al conectarse; esto lo
     // corrige después, en cada cambio de modo (ver `gestoTactil`).
     if (taller.current.render) taller.current.render.domElement.style.touchAction = gestoTactil(modo, giroLibre)
@@ -4443,6 +4574,17 @@ export interface RetraccionDeMusculo {
   direccion: THREE.Vector3
   aperturaMm: number
   maximoMm: number
+}
+
+/** La broca puesta en el hoyo (P-004 E8): lo que la consola enseña mientras se pide el disparo. */
+export interface EstadoDeLaBroca {
+  lectura: LecturaDeLaBroca
+  /** Si gira: apagarla la detiene sin retirarla. */
+  encendida: boolean
+  /** El diámetro, para decir de qué broca se habla. */
+  diametroMm: number
+  /** El agujero de la placa por el que va, si va por uno (1 en adelante). */
+  agujero?: number
 }
 
 export interface EstadoDeLasRetracciones {
@@ -5042,6 +5184,7 @@ type LoUltimo = {
   movimientoPorEje?: { accion: AccionDeMovimiento; eje: EjeAnatomico } | null
   asasLibres?: boolean
   alElegirPieza?: (nombre: string | null) => void
+  alCambiarLaBroca?: (estado: EstadoDeLaBroca | null) => void
 }
 
 /**

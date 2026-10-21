@@ -46,6 +46,8 @@ import { MenuDeMovimiento, type SeleccionDeMovimiento } from './MenuDeMovimiento
 import { ACCIONES_DE_LA_PLACA, ajusteDeLaPlacaPorPaso, lecturaDelMovimiento } from '@/lib/movimientoPorEjes'
 import { acotar } from '@/lib/ejesAnatomicos'
 import { textoDelDesplazamiento } from '@/lib/ejesAnatomicos'
+import { textoDeLaBroca } from '@/lib/profundidadDeLaBroca'
+import type { EstadoDeLaBroca } from './LienzoQuirurgico'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import { Vacio } from '@/components/ui/Vacio'
 import {
@@ -500,7 +502,7 @@ const MODO_PERFORAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Luci
   etiqueta: 'Perforar',
   icono: Drill,
   ayuda:
-    'Perforar: apunte al hueso y mantenga pulsado; la broca gira y avanza. Elija antes la inclinación; la etiqueta dice el ángulo con el eje del hueso.',
+    'Perforar: apunte al hueso y mantenga pulsado; la broca gira y avanza. Al soltar se queda en el hoyo —puede ir a pedir el disparo—, se mete o se saca con la rueda y se retira con «Retirar», Esc o el botón derecho. Elija antes la inclinación; la etiqueta dice el ángulo con el eje del hueso.',
 }
 
 /**
@@ -727,6 +729,8 @@ export function ConsolaQuirurgica({
   const [movimientoPorEje, setMovimientoPorEje] = useState<SeleccionDeMovimiento | null>(null)
   const [movimientoDeLaPlaca, setMovimientoDeLaPlaca] = useState<SeleccionDeMovimiento | null>(null)
   const [piezaElegida, setPiezaElegida] = useState<string | null>(null)
+  // La broca puesta en el hoyo (P-004 E8): se queda hasta que se la retira, también mientras se pide el disparo.
+  const [broca, setBroca] = useState<EstadoDeLaBroca | null>(null)
   const [asasLibres, setAsasLibres] = useState(false)
   const [retracciones, setRetracciones] = useState<{ id: number; nodo: string; nombre: string; aperturaMm: number; maximoMm: number; activa: boolean }[]>([])
   // El instrumento en la mano: qué articulaciones declara su archivo y cuánto
@@ -1503,6 +1507,26 @@ export function ConsolaQuirurgica({
     guardarEnsayoDeLaConsola(claveDelEnsayo, { v: 1, instrumento, modo, tipoDeTrazo, modoElectro, potenciaW })
   }, [claveDelEnsayo, instrumento, modo, tipoDeTrazo, modoElectro, potenciaW])
 
+  // Con la broca puesta (P-004 E8): Espacio la apaga o la enciende y Esc la retira, salvo que se esté escribiendo o haya un botón con el foco.
+  const hayBroca = broca !== null
+  useEffect(() => {
+    if (!hayBroca) return
+    const alTeclear = (e: KeyboardEvent) => {
+      const destino = e.target instanceof HTMLElement ? e.target : null
+      const etiqueta = destino?.tagName
+      if (etiqueta === 'INPUT' || etiqueta === 'TEXTAREA' || etiqueta === 'SELECT' || destino?.isContentEditable) return
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        mando.current?.retirarLaBroca()
+      } else if (e.key === ' ' && etiqueta !== 'BUTTON') {
+        e.preventDefault()
+        mando.current?.apagarLaBroca()
+      }
+    }
+    document.addEventListener('keydown', alTeclear)
+    return () => document.removeEventListener('keydown', alTeclear)
+  }, [hayBroca])
+
   const girar = (eje: 'x' | 'y' | 'z', valor: number) => {
     const nuevos = { ...giros, [eje]: valor }
     setGiros(nuevos)
@@ -1634,7 +1658,7 @@ export function ConsolaQuirurgica({
    * zoom al residente por un hilo que aún no tira de nada sería robarle la rueda para nada. La pinza, igual:
    * con ninguna puesta no hay qué levantar.
    */
-  const ruedaDelInstrumento: 'abre' | 'separa' | 'pinza' | 'potencia' | 'tira' | 'alarga' | null = !instrumentoElegido
+  const ruedaDelInstrumento: 'abre' | 'separa' | 'pinza' | 'potencia' | 'tira' | 'alarga' | 'perfora' | null = !instrumentoElegido
     ? null
     : queHace.sutura
       ? sutura && sutura.puntadas > 0
@@ -1642,7 +1666,12 @@ export function ConsolaQuirurgica({
         : null
       : queHace.coloca?.tipo === 'tornillo'
         ? 'alarga'
-        : queHace.separa
+        : queHace.perfora
+          ? // La rueda mete y saca la broca puesta (P-004 E8); sin una puesta, la rueda es del zoom como siempre.
+            broca
+            ? 'perfora'
+            : null
+          : queHace.separa
           ? 'separa'
           : queHace.pellizca
             ? pellizcos && pellizcos.lista.length > 0
@@ -1660,12 +1689,17 @@ export function ConsolaQuirurgica({
     // Con Mayúsculas solo las pinzas se quedan la rueda (abrir y cerrar las mandíbulas) y, con un músculo retraído, el
     // separador (corre la zona retraída a lo largo del músculo, P-004 E5); el resto la devuelve al zoom.
     const correLaRetraccion = ruedaDelInstrumento === 'separa' && retracciones.length > 0 && (!separadores || separadores.lista.length === 0)
-    if (mayusculas && ruedaDelInstrumento !== 'pinza' && !correLaRetraccion) return false
+    if (mayusculas && ruedaDelInstrumento !== 'pinza' && ruedaDelInstrumento !== 'perfora' && !correLaRetraccion) return false
     // Hacia delante (deltaY negativo) abre, tira, alarga o sube; hacia atrás, al revés.
     const sentido = deltaY < 0 ? 1 : -1
     const entre = (minimo: number, maximo: number, valor: number) => Math.min(maximo, Math.max(minimo, valor))
     if (ruedaDelInstrumento === 'tira') {
       m.tensarSutura(m.tensionDeLaSutura() + sentido * 0.04)
+      return true
+    }
+    if (ruedaDelInstrumento === 'perfora') {
+      // Hacia delante mete la broca, hacia atrás la saca; con Mayúsculas, la quinta parte (0,1 mm).
+      m.moverLaBroca(sentido, mayusculas)
       return true
     }
     if (ruedaDelInstrumento === 'alarga') {
@@ -2938,6 +2972,24 @@ export function ConsolaQuirurgica({
                       Quitar agujeros
                     </button>
                   </div>
+                  {/* La broca puesta (P-004 E8, pedidos 3 y 13): se queda en el hoyo mientras se va a pedir el disparo. */}
+                  {broca ? (
+                    <>
+                      <p className="consola-instrumento-texto" role="status">
+                        Broca Ø {String(broca.diametroMm).replace('.', ',')} mm puesta{broca.agujero ? ` en el agujero ${broca.agujero}` : ''}:{' '}
+                        {textoDeLaBroca(broca.lectura, { encendida: broca.encendida, ayudaDeAprendizaje: ayudas.objetivo })}. Se mete y se saca con la
+                        rueda (Mayúsculas afina) y se queda ahí mientras pide el disparo.
+                      </p>
+                      <div className="consola-instrumento-acciones">
+                        <button type="button" className="consola-boton" onClick={() => mando.current?.apagarLaBroca()}>
+                          {broca.encendida ? 'Apagar la broca' : 'Encender la broca'}
+                        </button>
+                        <button type="button" className="consola-boton" onClick={() => mando.current?.retirarLaBroca()}>
+                          Retirar
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -3726,6 +3778,7 @@ export function ConsolaQuirurgica({
             movimientoPorEje={menuDelTrozo ? movimientoPorEje : null}
             asasLibres={asasLibres}
             alElegirPieza={setPiezaElegida}
+            alCambiarLaBroca={setBroca}
             alMoverFragmento={() => {
               recalcularMedidas()
               editor?.alMoverFragmento?.()
