@@ -1500,7 +1500,14 @@ export function ConsolaQuirurgica({
   const reducirAutomaticamente = () => {
     const m = mando.current
     if (!m || !m.hayFragmento()) {
-      anotar('Este caso no tiene un fragmento que reducir.', 'atencion')
+      // Dos causas distintas, con remedios distintos: o el caso nunca marcó la pieza, o la marcó y el modelo ya no la trae (se volvió a exportar y cambió el nombre del nodo).
+      const marcada = piezas.find((p) => p.rol === 'fragmento')
+      anotar(
+        marcada
+          ? `La pieza marcada como fragmento («${marcada.nodo.replace(/_/g, ' ')}») no está en el modelo: si se volvió a exportar, el editor debe volver a marcar el fragmento en el Taller (Piezas del caso).`
+          : 'Este caso no tiene ninguna pieza marcada como fragmento: el editor la marca en el Taller (Piezas del caso) y entonces hay algo que reducir.',
+        'atencion',
+      )
       return
     }
     if (animacionDeLaReduccion.current !== null) cancelAnimationFrame(animacionDeLaReduccion.current)

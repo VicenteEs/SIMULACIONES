@@ -85,13 +85,20 @@ export function crearImplantes(): ImplantesEnEscena {
   return { tornillos: new Map() }
 }
 
-/** Clona un modelo con su propia geometría y su propio material: sobrevive a quien lo copió. */
-export function clonarConRecursos(origen: THREE.Object3D): THREE.Group {
+/**
+ * Clona un modelo con su propio material y, salvo que se pida compartirla, su propia geometría: sobrevive a quien lo copió.
+ *
+ * `compartirGeometria` es para lo que no se deforma —los tornillos—: cada copia usa los mismos buffers del modelo y no los duplica. Con ocho tornillos de un
+ * modelo pesado eran ocho copias de la misma malla en la memoria de la tarjeta, justo cuando la cirugía más carga la escena (la fluoroscopia, la placa, los
+ * músculos), y es de lo que se sospecha cuando el navegador le quita el contexto a la página en pleno atornillado. La placa sí se deforma y sigue con la suya.
+ */
+export function clonarConRecursos(origen: THREE.Object3D, compartirGeometria = false): THREE.Group {
   const copia = origen.clone(true) as THREE.Group
   copia.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
-    m.geometry = m.geometry.clone()
+    if (compartirGeometria) m.userData.geometriaCompartida = true
+    else m.geometry = m.geometry.clone()
     m.material = Array.isArray(m.material) ? m.material.map((x) => x.clone()) : m.material.clone()
   })
   copia.visible = true
@@ -103,7 +110,8 @@ function soltarGrupo(grupo: THREE.Object3D) {
   grupo.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
-    m.geometry.dispose()
+    // La geometría compartida es del modelo y de los demás tornillos: se queda.
+    if (!m.userData.geometriaCompartida) m.geometry.dispose()
     for (const mat of Array.isArray(m.material) ? m.material : [m.material]) mat.dispose()
   })
 }
@@ -437,7 +445,7 @@ export function colocarTornillo(p: {
   const anterior = p.implantes.tornillos.get(p.agujero)
   if (anterior) soltarGrupo(anterior.grupo)
 
-  const grupo = clonarConRecursos(p.plantilla)
+  const grupo = clonarConRecursos(p.plantilla, true)
   const normal = p.placa.normal
   // El tornillo del modelo va con la punta en el origen y la cabeza a +Y: se escala a lo largo y se
   // orienta con la cabeza hacia fuera del hueso, que es la normal de la placa.
@@ -497,7 +505,7 @@ export function colocarTornilloEnLinea(p: {
   const anterior = p.implantes.tornillos.get(p.id)
   if (anterior) soltarGrupo(anterior.grupo)
 
-  const grupo = clonarConRecursos(p.plantilla)
+  const grupo = clonarConRecursos(p.plantilla, true)
   const haciaFuera = p.haciaDentro.clone().negate()
   const escalaBase = grupo.scale.x
   const ancho = escalaBase * (p.diametroDelModeloMm && p.diametroDelModeloMm > 0 ? p.diametroMm / p.diametroDelModeloMm : 1)

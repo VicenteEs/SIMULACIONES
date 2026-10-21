@@ -6876,6 +6876,16 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que no hace todavía:** obtener el injerto de la cresta ilíaca (no hay un sitio donante ni su morbilidad); el esponjoso no se compacta con un impactador; el bloque no se talla a medida ni se fija con tornillos de verdad; no se distingue
   autoinjerto de aloinjerto; los trozos no caen por gravedad: quedan donde se depositan.
 
+### D-214 · 2026-10-21 · vigente
+**Los tornillos comparten la geometría de su modelo, y la reducción automática dice por qué no hay fragmento.**
+- **Lo que contó Cristóbal** (21/10, haciendo una cirugía completa): «me botó» dos veces en pleno atornillado y se perdió lo hecho en la escena; y la reducción automática le dijo que no había fragmentos que reducir. Lo primero
+  encaja con la pérdida de contexto gráfico (D-206 y anteriores): al volver a montarse el lienzo la escena empieza vacía, y el recorrido guardado solo conserva puntaje y complicaciones, no lo puesto en el hueso.
+- **Qué se cambió:** `clonarConRecursos` copiaba la geometría de cada tornillo; con ocho tornillos de un modelo pesado eran ocho copias de la misma malla en la tarjeta, justo en la fase que más carga la escena. Ahora los tornillos
+  **comparten** los buffers del modelo (la placa no: se deforma) y `soltarGrupo` no los libera. **Es una sospecha razonable, no una causa comprobada**: no hay medida de memoria de antes y después.
+- **El aviso de fragmento** distingue las dos causas: sin pieza marcada como fragmento en el caso, o marcada pero ausente del modelo (el nodo cambió de nombre al exportar de nuevo, que es lo que Vicente le preguntó a Cristóbal).
+- **Lo que sigue abierto y es lo más importante:** la escena **no sobrevive** a un remonte del lienzo (placa, tornillos, clavo, injertos, periostio…). Guardarla en el recorrido para reconstruirla sería lo que de verdad evita «perder todo»;
+  no se hizo. También quedó anotada la petición de **las fascias** (sin ellas el abordaje no se parece a una cirugía real) y la del botón para deshacer un abordaje.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
