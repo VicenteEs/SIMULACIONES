@@ -1074,3 +1074,60 @@ th[aria-sort='descending'] { color: var(--marca); }
 .interruptor-mantencion-apagado .interruptor-mantencion-bola { left: 2px; }
 .interruptor-mantencion-apagado { color: var(--ambar-texto); border-color: var(--ambar); }
 .tarjeta-modulo-cabeza .insignia-mantencion { margin-left: auto; }
+
+/* ---------- la barra lateral plegable (pedido del dueño) ----------
+   En escritorio un botón bajo la marca pliega la barra a una columna de iconos: el libro del logotipo sobre su recuadro blanco, sin el
+   nombre, y un icono por pestaña (el nombre sale al pasar el ratón). En pantalla estrecha la barra ya es un cajón y el botón no existe. */
+.admin-barra-plegar { display: none; }
+@media (min-width: 901px) {
+  .admin-barra-plegar {
+    display: flex;
+    align-items: center;
+    gap: var(--e-3);
+    min-height: 36px;
+    margin: 0 0 var(--e-2);
+    padding: 0 var(--e-3);
+    border: 1px solid var(--sobre-tinta-filete);
+    border-radius: var(--r);
+    background: none;
+    color: var(--sobre-tinta-2);
+    font: inherit;
+    font-size: var(--t-sm);
+    cursor: pointer;
+  }
+  .admin-barra-plegar:hover { color: var(--sobre-tinta-1); border-color: var(--sobre-tinta-3); }
+
+  .admin-layout[data-plegada='si'] .admin-sidebar { width: 76px; padding-inline: var(--e-2); }
+  /* La marca: solo el libro, sobre el recuadro blanco. */
+  .admin-layout[data-plegada='si'] .admin-sidebar-header { justify-content: center; padding: 8px; }
+  .admin-layout[data-plegada='si'] .admin-sidebar-header > div { display: none; }
+  .admin-layout[data-plegada='si'] .admin-sidebar-logo { width: 40px; height: 40px; }
+  .admin-layout[data-plegada='si'] .admin-barra-plegar { justify-content: center; padding: 0; }
+  .admin-layout[data-plegada='si'] .admin-barra-plegar-texto { display: none; }
+  /* Los grupos pierden su rótulo y quedan como una raya que los separa. */
+  .admin-layout[data-plegada='si'] .admin-nav-section {
+    height: 0;
+    margin: var(--e-3) var(--e-2) var(--e-2);
+    padding: 0;
+    overflow: hidden;
+    font-size: 0;
+    border-top: 1px solid var(--sobre-tinta-filete);
+  }
+  /* Un icono por pestaña; el contador pasa a una marca en su esquina. */
+  .admin-layout[data-plegada='si'] .admin-nav-link { position: relative; justify-content: center; padding-inline: 0; }
+  .admin-layout[data-plegada='si'] .admin-nav-texto { display: none; }
+  .admin-layout[data-plegada='si'] .admin-nav-aviso {
+    position: absolute;
+    top: 2px;
+    right: 6px;
+    min-width: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+  /* Abajo, lo mismo: el icono de volver y «Salir»; sin el nombre de quien entró ni el crédito de autoría. */
+  .admin-layout[data-plegada='si'] .admin-sidebar-quien,
+  .admin-layout[data-plegada='si'] .admin-sidebar-credito,
+  .admin-layout[data-plegada='si'] .admin-notas-revisor { display: none; }
+  .admin-layout[data-plegada='si'] .admin-sidebar-pie { justify-content: center; padding-inline: 0; }
+  .admin-layout[data-plegada='si'] .admin-salir { padding: 0 var(--e-2); }
+}

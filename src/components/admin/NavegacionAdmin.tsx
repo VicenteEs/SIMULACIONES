@@ -167,6 +167,8 @@ export function NavegacionAdmin({ secciones }: { secciones: SeccionDeMenu[] }) {
                 className={`admin-nav-link${activa ? ' active' : ''}`}
                 aria-current={activa ? 'page' : undefined}
                 aria-label={nombre}
+                // Con la barra plegada solo se ve el icono: el nombre sale al pasar el ratón.
+                title={nombre}
                 onNavigate={alNavegar}
                 {...(entrada.externa
                   ? { target: '_blank', rel: 'noopener noreferrer' }

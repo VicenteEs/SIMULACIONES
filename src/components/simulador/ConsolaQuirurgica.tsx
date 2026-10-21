@@ -7,6 +7,7 @@ import { piezasConLasDelModelo } from '@/lib/piezasDelCaso'
 import {
   CONTEXTO_VIVO,
   TIEMPO_DEL_AVISO_DE_RECUPERADO_MS,
+  cuantoFaltaParaRemontarse,
   loQueSeEnseña,
   type EstadoDelContexto,
 } from '@/lib/controlDelContexto'
@@ -50,6 +51,7 @@ import { textoDeLaBroca } from '@/lib/profundidadDeLaBroca'
 import { NOMBRE_DE_LA_TECNICA } from '@/lib/compresion'
 import { PanelDeCompresion } from './PanelDeCompresion'
 import { RadiografiaPostoperatoria } from './RadiografiaPostoperatoria'
+import { AsaDeAncho } from './AsaDeAncho'
 import { intervencionPropuesta, type DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
 import {
   ETAPAS_DE_FIJACION,
@@ -624,6 +626,8 @@ export function ConsolaQuirurgica({
   mandoRef?: React.MutableRefObject<MandoDelLienzo | null>
 }) {
   const mando = useRef<MandoDelLienzo | null>(null)
+  // La consola entera: ahí se escriben los anchos de las columnas que se arrastran (`AsaDeAncho`).
+  const raizDeLaConsola = useRef<HTMLElement>(null)
   // El lienzo entrega su mando por esta función y no por la ref directa: así la
   // consola conserva su propia ref —estable, que es lo que el compilador de
   // React sabe seguir— y, si la monta el editor, le pasa también el mando a él.
@@ -670,7 +674,16 @@ export function ConsolaQuirurgica({
   useEffect(() => {
     if (estadoDelContexto.fase === 'perdido') {
       const reloj = window.setInterval(() => setRelojDelContexto(performance.now()), 500)
-      return () => window.clearInterval(reloj)
+      // Si el navegador no devuelve el contexto en 30 s, el lienzo se vuelve a montar solo, sin esperar un clic (pedido del dueño: más
+      // margen contra el blanco). Un lienzo nuevo empieza vivo, así que esto no se repite hasta una pérdida nueva.
+      const remontar = window.setTimeout(() => {
+        setClaveDelLienzo((c) => c + 1)
+        setEstadoDelContexto(CONTEXTO_VIVO)
+      }, cuantoFaltaParaRemontarse(estadoDelContexto, performance.now()) ?? 0)
+      return () => {
+        window.clearInterval(reloj)
+        window.clearTimeout(remontar)
+      }
     }
     if (estadoDelContexto.fase === 'recuperado') {
       const fin = window.setTimeout(() => setEstadoDelContexto(CONTEXTO_VIVO), TIEMPO_DEL_AVISO_DE_RECUPERADO_MS)
@@ -678,6 +691,7 @@ export function ConsolaQuirurgica({
     }
   }, [estadoDelContexto])
   const avisoDelContexto = loQueSeEnseña(estadoDelContexto, relojDelContexto)
+
   // Cómo se revela la imagen: kilovoltios, contraste, brillo y filtro. Se aplican a la última toma sin volver a disparar.
   const [ajustesDeLaImagen, setAjustesDeLaImagen] = useState<AjustesDeLaImagen>(() => ajustesGuardadosDeLaImagen())
   // La última toma del modo de disparo: de cuándo es y con qué proyección, acercamiento y posición se hizo, para decir
@@ -2645,7 +2659,17 @@ export function ConsolaQuirurgica({
             piden antes, en segundo plano, para que al pulsar aparezca al
             instante: ver `useEffect` de la precarga.)
           */}
-          {instrumentoElegido ? (
+        </div>
+  )
+
+  /**
+   * Las opciones de la herramienta en la mano: su modelo, el modo de uso, lo que se configura (potencia, apertura, diámetro, largo…),
+   * «Soltar» y, en el editor, «Es el correcto en este paso». Se despliega **a la izquierda del lienzo**, como la ficha de «Seleccionar
+   * estructura» lo hace a la derecha (pedido del dueño): antes vivía en la columna derecha, debajo de la bandeja, y para cambiar una
+   * opción había que apartar la vista del modelo. Es el mismo bloque de siempre, solo que en otro sitio.
+   */
+  const panelDeLaHerramienta = (
+instrumentoElegido ? (
             <div className="consola-instrumento">
               {instrumentoElegido.modeloUrl &&
               encuadreDelElegido === undefined ? (
@@ -3512,12 +3536,12 @@ export function ConsolaQuirurgica({
                 ) : null}
               </div>
             </div>
-          ) : null}
-        </div>
+          ) : null
   )
 
   return (
     <section
+      ref={raizDeLaConsola}
       className={`consola mod-4${terminado ? ' consola-terminada' : ''}${editor ? ' consola-editor' : ''}`}
       aria-labelledby="consola-titulo"
     >
@@ -3668,23 +3692,6 @@ export function ConsolaQuirurgica({
           <h3 className="consola-subtitulo" id="consola-posicion">
             Paciente
           </h3>
-          <div className="consola-segmentado" role="group" aria-labelledby="consola-posicion">
-            {POSICIONES_DEL_PACIENTE.map((p) => (
-              <button
-                key={p.valor}
-                type="button"
-                className={`consola-modo consola-posicion${posicion === p.valor ? ' activo' : ''}`}
-                aria-pressed={posicion === p.valor}
-                title={p.ayuda}
-                onClick={() => {
-                  setPosicion(p.valor)
-                  mando.current?.ponerPosicion(p.valor)
-                }}
-              >
-                <span>{p.etiqueta}</span>
-              </button>
-            ))}
-          </div>
           <div className="consola-paciente-giro">
             <label className="consola-interruptor" title="Con el giro libre, arrastrar da la vuelta al paciente sin «arriba» fijo: se puede acostar a mano.">
               <span>Giro libre</span>
@@ -3776,6 +3783,19 @@ export function ConsolaQuirurgica({
       </div>
 
       {/* -------------------------------------------------------- lienzo */}
+      {/* Las asas para ensanchar o angostar las columnas de los lados arrastrando (pedido del dueño). Son hijas de la rejilla, en la
+          misma celda que su columna y pegadas a su borde, para que no se desplacen con el contenido de la columna. */}
+      <AsaDeAncho
+        raiz={raizDeLaConsola}
+        variable="--ancho-izq"
+        clave="consola.ancho.izq"
+        minimo={160}
+        maximo={440}
+        sentido={1}
+        medir={(asa) => asa.parentElement?.querySelector<HTMLElement>('.consola-izq') ?? null}
+        etiqueta="Ancho de la columna de la izquierda"
+        className="asa-izq"
+      />
       <div className="consola-centro">
         {editandoLaFicha ? (
           <VentanaDeEstructura
@@ -3870,6 +3890,25 @@ export function ConsolaQuirurgica({
                 ))}
               </div>
             ) : null}
+            {/* La posición del paciente, en la misma fila que los modos pero al otro extremo (pedido del dueño): es una orden de
+                la vista, como «Encuadrar», y no de la columna de capas. */}
+            <div className="consola-segmentado consola-posicion-barra" role="group" aria-label="Posición del paciente">
+            {POSICIONES_DEL_PACIENTE.map((p) => (
+              <button
+                key={p.valor}
+                type="button"
+                className={`consola-modo consola-posicion${posicion === p.valor ? ' activo' : ''}`}
+                aria-pressed={posicion === p.valor}
+                title={p.ayuda}
+                onClick={() => {
+                  setPosicion(p.valor)
+                  mando.current?.ponerPosicion(p.valor)
+                }}
+              >
+                <span>{p.etiqueta}</span>
+              </button>
+            ))}
+          </div>
           </div>
           {/* El menú de movimiento por ejes (P-004 E7): el trozo de hueso elegido, o la placa puesta y sin fijar. */}
           {menuDelTrozo ? (
@@ -3902,6 +3941,26 @@ export function ConsolaQuirurgica({
           </p>
         </div>
         <div className={`consola-lienzo-marco modo-${modo}`}>
+          {/* Las opciones de la herramienta en la mano, a la izquierda del lienzo y del mismo tamaño que la ficha de «Seleccionar
+              estructura» (que va a la derecha). Se ve con cualquier modo: la herramienta se configura aunque se esté mirando. */}
+          {panelDeLaHerramienta ? (
+            <div className="consola-herramienta-ficha" role="group" aria-label="Opciones de la herramienta">
+              {panelDeLaHerramienta}
+            </div>
+          ) : null}
+          {panelDeLaHerramienta ? (
+            <AsaDeAncho
+              raiz={raizDeLaConsola}
+              variable="--ancho-herramienta"
+              clave="consola.ancho.herramienta"
+              minimo={220}
+              maximo={560}
+              sentido={1}
+              medir={(asa) => asa.previousElementSibling as HTMLElement | null}
+              etiqueta="Ancho del panel de la herramienta"
+              className="asa-panel"
+            />
+          ) : null}
           <LienzoQuirurgico
             key={claveDelLienzo}
             alCambiarElContexto={setEstadoDelContexto}
@@ -4233,6 +4292,19 @@ export function ConsolaQuirurgica({
               modelo hacia abajo y se lee al lado de lo que se pincha. El objetivo se queda aunque se salga del modo
               «Seleccionar estructura»; la ficha solo se ve en ese modo. */}
           {(modo === 'info' && info) || musculoObjetivo ? (
+            <AsaDeAncho
+              raiz={raizDeLaConsola}
+              variable="--ancho-info"
+              clave="consola.ancho.info"
+              minimo={220}
+              maximo={560}
+              sentido={-1}
+              medir={(asa) => asa.nextElementSibling as HTMLElement | null}
+              etiqueta="Ancho del panel de la estructura"
+              className="asa-panel"
+            />
+          ) : null}
+          {(modo === 'info' && info) || musculoObjetivo ? (
             <div className="consola-info-ficha" role="group" aria-label="Estructura seleccionada">
               {musculoObjetivo ? (
                 <div className="consola-info consola-objetivo-de-plano" role="status">
@@ -4393,6 +4465,17 @@ export function ConsolaQuirurgica({
       </div>
 
       {/* ------------------------------------------------ columna derecha */}
+      <AsaDeAncho
+        raiz={raizDeLaConsola}
+        variable="--ancho-der"
+        clave="consola.ancho.der"
+        minimo={240}
+        maximo={620}
+        sentido={-1}
+        medir={(asa) => asa.parentElement?.querySelector<HTMLElement>('.consola-der') ?? null}
+        etiqueta="Ancho de la columna de la derecha"
+        className="asa-der"
+      />
       <div className="consola-der">
         {/* El editor del caso: sus pestañas van arriba de todo, y debajo sigue
             el paso tal como lo ve el residente. Lo que se escribe arriba se ve

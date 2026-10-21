@@ -1,8 +1,40 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
-import { Menu, X } from 'lucide-react'
+import { Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
+
+/** Dónde se recuerda, en el navegador, si la barra quedó plegada. */
+const CLAVE_PLEGADA = 'panel.barra.plegada'
+
+// Un almacén mínimo para leer lo recordado sin `setState` dentro de un efecto: en el servidor la barra se pinta desplegada y en el
+// navegador `useSyncExternalStore` la corrige al hidratar. `enMemoria` cubre un navegador sin `localStorage` (ventana privada): ahí el
+// plegado vale hasta recargar.
+let enMemoria: boolean | null = null
+const oyentes = new Set<() => void>()
+const suscribirse = (oyente: () => void) => {
+  oyentes.add(oyente)
+  return () => {
+    oyentes.delete(oyente)
+  }
+}
+const leerPlegada = (): boolean => {
+  if (enMemoria !== null) return enMemoria
+  try {
+    return window.localStorage.getItem(CLAVE_PLEGADA) === 'si'
+  } catch {
+    return false
+  }
+}
+const ponerPlegada = (valor: boolean) => {
+  enMemoria = valor
+  try {
+    window.localStorage.setItem(CLAVE_PLEGADA, valor ? 'si' : 'no')
+  } catch {
+    // Se queda en memoria hasta recargar.
+  }
+  oyentes.forEach((o) => o())
+}
 
 /**
  * La barra lateral del panel, que en pantalla estrecha se vuelve cajón.
@@ -22,6 +54,11 @@ import { Menu, X } from 'lucide-react'
  *
  * Se cierra al navegar, con Escape, con el velo y con su botón; al abrir, el
  * foco va al primer enlace, y al cerrar vuelve al botón.
+ *
+ * **En escritorio la barra se pliega** (pedido del dueño): un botón bajo la marca la deja en una columna angosta con solo el logotipo
+ * —el libro, sobre su recuadro blanco, sin el nombre— y los iconos de cada pestaña, para dar el ancho a la pantalla de trabajo. Se
+ * recuerda en el navegador. La marca va en un atributo del contorno (`data-plegada`) y no en una clase de React: la barra y el contenido
+ * son hermanos que este componente no controla, y el CSS es quien sabe qué se esconde.
  */
 export function CajonDelPanel({
   cabecera,
@@ -42,6 +79,11 @@ export function CajonDelPanel({
   const cajon = useRef<HTMLDivElement>(null)
   const boton = useRef<HTMLButtonElement>(null)
   const id = useId()
+  const plegada = useSyncExternalStore(suscribirse, leerPlegada, () => false)
+  useEffect(() => {
+    cajon.current?.closest('.admin-layout')?.setAttribute('data-plegada', plegada ? 'si' : 'no')
+  }, [plegada])
+  const alternarPlegado = () => ponerPlegada(!plegada)
 
   useEffect(() => {
     if (!abierto) return
@@ -77,6 +119,17 @@ export function CajonDelPanel({
           Menú
         </button>
       </div>
+      <button
+        type="button"
+        className="admin-barra-plegar"
+        aria-pressed={plegada}
+        aria-label={plegada ? 'Desplegar la barra lateral' : 'Plegar la barra lateral'}
+        title={plegada ? 'Desplegar la barra lateral' : 'Plegar la barra lateral'}
+        onClick={alternarPlegado}
+      >
+        {plegada ? <PanelLeftOpen aria-hidden size={18} /> : <PanelLeftClose aria-hidden size={18} />}
+        <span className="admin-barra-plegar-texto">Plegar</span>
+      </button>
       {antes}
       <div ref={cajon} id={id} className={`admin-cajon${abierto ? ' admin-cajon-abierto' : ''}`}>
         {children}

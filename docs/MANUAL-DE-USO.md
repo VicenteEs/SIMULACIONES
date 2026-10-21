@@ -113,6 +113,9 @@ Grupos **«Seguimiento»** y **«Administración»** (solo administradores):
 «Estadísticas», «Actividad», «Auditoría», «Usuarios y permisos», «Difusión»,
 «Respaldos» y «Sistema». Van en las secciones 9 a 13.
 
+**La barra lateral se pliega.** Un botón bajo el logotipo la deja en una columna angosta con solo el libro del logotipo sobre su recuadro blanco y un icono
+  por pestaña (el nombre sale al pasar el ratón); se recuerda en el navegador. Plegada se esconden las notas del revisor de la barra.
+
 > **Un guion «—» no es un cero.** En «Resumen», «Estadísticas» y «Actividad»,
 > un guion significa que ese dato no se pudo consultar en ese momento. Recargue
 > antes de sacar conclusiones.
@@ -950,6 +953,21 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   usado, marcada; con «Solo lo que elijo», lo que estaba y no se usó, sin marcar) y
   **«Usar como bandeja del caso»** deja la bandeja exactamente con lo marcado y la pasa a
   «Solo lo que elijo».
+- **Las opciones de la herramienta, a la izquierda del lienzo.** Al coger un instrumento se despliega a la **izquierda del lienzo** un recuadro del mismo
+  tamaño y con el mismo comportamiento que la ficha de «Seleccionar estructura» (que va a la derecha): su modelo y la previsualización, el modo de uso,
+  todo lo que se configura (potencia, apertura, diámetro y largo del tornillo, broca, medidor…), «Soltar» y, en el editor, «Es el correcto en este paso».
+  Con pantalla estrecha (menos de 1000 px) flota sobre el lienzo. La columna derecha queda para la bandeja.
+- **Anchos que se arrastran.** Las dos columnas de los lados de la consola y los recuadros junto al lienzo (el de la herramienta y el de la estructura)
+  se **ensanchan o se angostan arrastrando** su borde con el ratón; con el teclado, ← → de 16 en 16 px, y un doble clic devuelve el ancho de origen.
+  El navegador recuerda cómo se dejaron.
+- **La posición del paciente** («De pie», «Supino», «Prono») está arriba a la derecha, en la misma fila que los modos («Orbitar», «Trazar»…). «Giro
+  libre» y el giro de 90° siguen en la columna izquierda.
+- **Señalar (solo editor).** El modo «Señalar» que ve quien edita sirve para **declarar las piezas del caso**: un clic en un trozo del modelo lo añade a la
+  pestaña «Piezas» con su nombre exacto. El residente no lo tiene.
+- **Margen contra la pantalla en blanco.** Si el navegador le quita a la página el contexto gráfico, la consola espera **12 s** (antes 3) antes de ofrecer
+  «Recuperar la vista» y, si en **30 s** no vuelve, monta el lienzo de nuevo **sola**. Tras una pérdida, el lienzo vuelve a montarse con menos detalle
+  (primero menor resolución, a la segunda sin suavizado de bordes), y el dibujo nunca pasa de 4 millones de píxeles. El tope de 5 MB de los modelos 3D
+  no se subió: es lo que evita que la pantalla se vaya a blanco en equipos modestos.
 - **Seleccionar estructura** (antes «Info»). El modo **Seleccionar estructura** de la barra de modos sirve para todos: un clic en una estructura
   (un músculo, un nervio, un vaso, un hueso) la **destaca en azul** y abre su ficha **a la derecha del
   modelo**, como la fluoroscopia,

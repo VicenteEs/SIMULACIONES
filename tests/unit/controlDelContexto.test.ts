@@ -4,9 +4,14 @@ import { join } from 'node:path'
 import {
   CONTEXTO_VIVO,
   ESPERA_ANTES_DE_OFRECER_MS,
+  ESPERA_PARA_REMONTAR_SOLO_MS,
+  PIXELES_MAXIMOS_DEL_LIENZO,
   TIEMPO_DEL_AVISO_DE_RECUPERADO_MS,
   alPerderse,
   alRestaurarse,
+  calidadDelDibujo,
+  cuantoFaltaParaRemontarse,
+  razonDePixeles,
   crearLimitadorDeFallos,
   loQueSeEnseña,
 } from '@/lib/controlDelContexto'
@@ -122,5 +127,48 @@ describe('el lienzo y la consola usan esto', () => {
   it('el mando ofrece medir la memoria y provocar la pérdida, para poder probarlo', () => {
     expect(lienzo).toContain('estadisticasDelDibujo: () => {')
     expect(lienzo).toContain("getExtension('WEBGL_lose_context')")
+  })
+})
+
+describe('más margen contra el blanco (pedido del dueño)', () => {
+  it('se espera más antes de ofrecer el botón, y más aún antes de volver a montar sola', () => {
+    expect(ESPERA_ANTES_DE_OFRECER_MS).toBeGreaterThanOrEqual(10_000)
+    expect(ESPERA_PARA_REMONTAR_SOLO_MS).toBeGreaterThan(ESPERA_ANTES_DE_OFRECER_MS)
+  })
+
+  it('dice cuánto falta para volver a montar sola, y solo si se perdió', () => {
+    const perdido = alPerderse(CONTEXTO_VIVO, 1000)
+    expect(cuantoFaltaParaRemontarse(perdido, 1000)).toBe(ESPERA_PARA_REMONTAR_SOLO_MS)
+    expect(cuantoFaltaParaRemontarse(perdido, 1000 + ESPERA_PARA_REMONTAR_SOLO_MS - 1)).toBe(1)
+    expect(cuantoFaltaParaRemontarse(perdido, 1000 + ESPERA_PARA_REMONTAR_SOLO_MS)).toBe(0)
+    expect(cuantoFaltaParaRemontarse(perdido, 1_000_000)).toBe(0)
+    expect(cuantoFaltaParaRemontarse(CONTEXTO_VIVO, 1_000_000)).toBeNull()
+    expect(cuantoFaltaParaRemontarse(alRestaurarse(perdido, 2000), 1_000_000)).toBeNull()
+  })
+
+  it('cada pérdida baja el detalle: primero la resolución, luego el suavizado', () => {
+    expect(calidadDelDibujo(0)).toEqual({ razonMaxima: 2, suavizado: true })
+    expect(calidadDelDibujo(1)).toEqual({ razonMaxima: 1.5, suavizado: true })
+    expect(calidadDelDibujo(2)).toEqual({ razonMaxima: 1, suavizado: false })
+    expect(calidadDelDibujo(9)).toEqual({ razonMaxima: 1, suavizado: false })
+  })
+
+  it('la razón de píxeles respeta la pantalla, la calidad y la memoria', () => {
+    // Un lienzo normal en pantalla de alta densidad: manda el tope de la calidad.
+    expect(razonDePixeles(3, 800, 500, 2)).toBe(2)
+    // Un lienzo enorme: manda la memoria, para no pasar de los píxeles máximos.
+    const r = razonDePixeles(2, 2400, 1200, 2)
+    expect(2400 * r * 1200 * r).toBeLessThanOrEqual(PIXELES_MAXIMOS_DEL_LIENZO * 1.001)
+    // Una pantalla de densidad 1 no se amplía.
+    expect(razonDePixeles(1, 800, 500, 2)).toBe(1)
+    // Nunca baja de media razón, por feo que sea el lienzo.
+    expect(razonDePixeles(2, 20000, 20000, 2)).toBe(0.5)
+  })
+
+  it('el lienzo cuenta las pérdidas y pide menos al volver a montarse', () => {
+    const lienzo = fuente('src', 'components', 'simulador', 'LienzoQuirurgico.tsx')
+    expect(lienzo).toContain('perdidasDeContexto += 1')
+    expect(lienzo).toContain('calidadDelDibujo(perdidasDeContexto)')
+    expect(lienzo).toContain("powerPreference: 'high-performance'")
   })
 })

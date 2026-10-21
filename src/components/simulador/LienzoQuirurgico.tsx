@@ -147,7 +147,22 @@ import {
   type MedidaDeLaSutura,
   type PuntoDeSutura,
 } from '@/lib/sutura'
-import { CONTEXTO_VIVO, alPerderse, alRestaurarse, crearLimitadorDeFallos, type EstadoDelContexto } from '@/lib/controlDelContexto'
+import {
+  CONTEXTO_VIVO,
+  alPerderse,
+  alRestaurarse,
+  calidadDelDibujo,
+  crearLimitadorDeFallos,
+  razonDePixeles,
+  type EstadoDelContexto,
+} from '@/lib/controlDelContexto'
+
+/**
+ * Cuántas veces el navegador le ha quitado el contexto de WebGL a esta página desde que se cargó. Vive fuera del componente a propósito:
+ * volver a montar el lienzo (a mano o solo) lo crea de nuevo, y es justo entonces cuando hay que saber que la tarjeta va justa para pedirle
+ * menos (`calidadDelDibujo`).
+ */
+let perdidasDeContexto = 0
 import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
@@ -1554,8 +1569,11 @@ export function LienzoQuirurgico({
     if (!contenedor) return
 
     let vivo = true
-    const render = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    render.setPixelRatio(Math.min(devicePixelRatio, 2))
+    // Cuánto detalle pedir: el de siempre, y menos si el navegador ya le quitó el contexto a esta página (`calidadDelDibujo`). Con
+    // `high-performance` se prefiere la tarjeta dedicada, que tiene más memoria que la integrada.
+    const calidad = calidadDelDibujo(perdidasDeContexto)
+    const render = new THREE.WebGLRenderer({ antialias: calidad.suavizado, alpha: true, powerPreference: 'high-performance' })
+    render.setPixelRatio(razonDePixeles(devicePixelRatio, contenedor.clientWidth, contenedor.clientHeight, calidad.razonMaxima))
     render.setSize(contenedor.clientWidth, contenedor.clientHeight)
     contenedor.appendChild(render.domElement)
 
@@ -1602,6 +1620,7 @@ export function LienzoQuirurgico({
     }
     const alPerderElContexto = (evento: Event) => {
       evento.preventDefault()
+      perdidasDeContexto += 1
       decirElContexto(alPerderse(estadoDelContexto, performance.now()))
     }
     const alRecuperarElContexto = () => {
