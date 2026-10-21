@@ -3,14 +3,15 @@
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowDown, ArrowUp, ArrowUpDown, Flag, SearchX, Send, UserCheck } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Flag, Search, SearchX, Send, UserCheck } from 'lucide-react'
 import { useAvisos } from '@/components/ui/Avisos'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import { Vacio } from '@/components/ui/Vacio'
 import { asignarRevisor, publicarValidadas } from '@/app/(frontend)/acciones/revision'
 import { estadoEnPalabras, type EstadoDeRevision } from '@/lib/revision'
-import type { FilaDeContenido } from '@/lib/auditoria'
+import { filasQueCoinciden, type FilaDeContenido } from '@/lib/auditoria'
 import { claseDeInsignia, tonoDeRevision } from '@/lib/tonosDeEstado'
+
 import { NOMBRE_DE_MODULO } from '../modulos'
 
 /**
@@ -77,6 +78,9 @@ export function TablaDeAuditoria({
   })
   const [elegidas, setElegidas] = useState<Set<string>>(new Set())
   const [asignarA, setAsignarA] = useState('')
+  // El filtro de texto (pedido de quien administra): se escribe parte del nombre, se pincha la ficha y se sigue buscando otra;
+  // lo elegido **no se pierde al cambiar la búsqueda**, para armar de a poco el lote que se asigna a un revisor.
+  const [busqueda, setBusqueda] = useState('')
   // El éxito sale en un aviso flotante, que se ve aunque se haya bajado a la
   // fila doscientos para elegir; el error se queda además escrito encima de
   // la tabla, porque el de publicar en bloque nombra las fichas que fallaron
@@ -141,8 +145,16 @@ export function TablaDeAuditoria({
     )
   }
 
-  const todasElegidas = ordenadas.length > 0 && ordenadas.every((f) => elegidas.has(clave(f)))
+  // Todas las palabras tienen que aparecer, en cualquier orden y sin mirar tildes ni mayúsculas, en el título, la fuente
+  // (módulo, libro, capítulo) o la persona asignada: «tibia pilon» encuentra «Fractura de pilón tibial».
+  const visibles = useMemo(() => filasQueCoinciden(ordenadas, busqueda, (c) => NOMBRE_DE_MODULO[c] ?? c), [ordenadas, busqueda])
+
+  const todasElegidas = visibles.length > 0 && visibles.every((f) => elegidas.has(clave(f)))
+  // La selección sale de **todas** las filas y no de las visibles: lo elegido y escondido por la búsqueda sigue elegido, y es
+  // lo que se asigna o se publica.
   const seleccion = ordenadas.filter((f) => elegidas.has(clave(f)))
+  const clavesVisibles = new Set(visibles.map((f) => clave(f)))
+  const elegidasEscondidas = seleccion.filter((f) => !clavesVisibles.has(clave(f))).length
   const validadasElegidas = seleccion.filter((f) => f.estado === 'lista').length
 
   const enBloque = (
@@ -183,14 +195,36 @@ export function TablaDeAuditoria({
 
   return (
     <div>
+      <div className="auditoria-bloque" role="search">
+        <label className="auditoria-buscador">
+          <Search aria-hidden size={16} />
+          <input
+            type="search"
+            className="admin-input"
+            placeholder="Buscar una ficha por nombre…"
+            aria-label="Buscar una ficha por nombre, módulo, libro o persona asignada"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </label>
+        <span role="status">
+          {busqueda.trim() === '' ? `${filas.length} ficha${filas.length === 1 ? '' : 's'}` : `${visibles.length} de ${filas.length}`}
+        </span>
+      </div>
+
       <div className="auditoria-bloque" role="group" aria-label="Acciones sobre las fichas elegidas">
         <span>
           {seleccion.length === 0
             ? 'Elija fichas en la tabla para actuar sobre varias a la vez.'
             : `${seleccion.length} elegida${seleccion.length === 1 ? '' : 's'}${
-                validadasElegidas > 0 ? ` · ${validadasElegidas} validada${validadasElegidas === 1 ? '' : 's'}` : ''
-              }`}
+                elegidasEscondidas > 0 ? ` (${elegidasEscondidas} fuera de la búsqueda)` : ''
+              }${validadasElegidas > 0 ? ` · ${validadasElegidas} validada${validadasElegidas === 1 ? '' : 's'}` : ''}`}
         </span>
+        {seleccion.length > 0 ? (
+          <button type="button" className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => setElegidas(new Set())}>
+            Quitar la selección
+          </button>
+        ) : null}
         <select
           className="admin-select"
           aria-label="Revisor al que asignar las elegidas"
@@ -294,10 +328,18 @@ export function TablaDeAuditoria({
               <th>
                 <input
                   type="checkbox"
-                  aria-label="Elegir todas las fichas de la tabla"
+                  aria-label={busqueda.trim() === '' ? 'Elegir todas las fichas de la tabla' : 'Elegir todas las fichas que coinciden con la búsqueda'}
                   checked={todasElegidas}
+                  // Con búsqueda, solo mueve las que se ven: las ya elegidas fuera de ella se conservan.
                   onChange={() =>
-                    setElegidas(todasElegidas ? new Set() : new Set(ordenadas.map((f) => clave(f))))
+                    setElegidas((antes) => {
+                      const ahora = new Set(antes)
+                      for (const f of visibles) {
+                        if (todasElegidas) ahora.delete(clave(f))
+                        else ahora.add(clave(f))
+                      }
+                      return ahora
+                    })
                   }
                 />
               </th>
@@ -314,7 +356,14 @@ export function TablaDeAuditoria({
             </tr>
           </thead>
           <tbody>
-            {ordenadas.map((f) => (
+            {visibles.length === 0 ? (
+              <tr>
+                <td colSpan={11}>
+                  <Vacio compacto icono={SearchX} titulo={`Ninguna ficha coincide con «${busqueda.trim()}».`} />
+                </td>
+              </tr>
+            ) : null}
+            {visibles.map((f) => (
               <tr key={clave(f)} className={f.senalada && f.estado === 'lista' ? 'auditoria-fila-senalada' : undefined}>
                 <td>
                   <input

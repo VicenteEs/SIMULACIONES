@@ -870,6 +870,10 @@ th[aria-sort='descending'] { color: var(--marca); }
   color: var(--pizarra);
 }
 .auditoria-bloque > span:first-child { margin-right: auto; }
+/* El buscador de fichas de la auditoría: ocupa lo que quede de la fila y la cuenta («3 de 40») va a su derecha. */
+.auditoria-buscador { display: flex; align-items: center; gap: var(--e-2); flex: 1 1 18rem; max-width: 32rem; }
+.auditoria-buscador .admin-input { flex: 1; }
+.auditoria-bloque[role='search'] > span { margin-right: 0; margin-left: auto; }
 
 /* Once columnas: rellenos más apretados y el título con ancho mínimo, para
    que no se parta en ocho renglones mientras las columnas de números sobran. */

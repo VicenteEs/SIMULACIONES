@@ -1296,7 +1296,9 @@ todo lo de abajo.
   le devolvió, su tiempo y su ritmo. El nombre filtra la página por esa persona.
 - **Fichas:** cada una con su porcentaje editado, los minutos y el ritmo de quien
   la validó y las secciones que revisó; las señaladas van primero y en rojo, con
-  el porqué. Se ordena pulsando el título de una columna. Elija varias para
+  el porqué. Se ordena pulsando el título de una columna. Un **buscador por escritura** sobre la tabla filtra por nombre, módulo, libro, capítulo o persona asignada (varias palabras, en cualquier
+  orden, sin tildes ni mayúsculas); se pincha cada ficha que se quiere y **lo elegido no se pierde al cambiar la búsqueda** («5 elegidas (2 fuera de la
+  búsqueda)»). Elija varias para
   **asignarlas** a un revisor o **publicar las validadas** de una vez.
 - **«Descargar planilla (Excel)»**: todo, sin el filtro de la pantalla, en cinco
   hojas —fichas, revisores, sesiones de tiempo, edición por sección e

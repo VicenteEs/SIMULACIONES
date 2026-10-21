@@ -16,6 +16,7 @@ import {
   origenEnPalabras,
   type EstadoDeRevision,
 } from './revision'
+import { normalizar } from './busqueda'
 
 type Registro = Record<string, unknown>
 
@@ -446,3 +447,21 @@ export const ritmoSospechoso = (ritmo: number | null): boolean =>
   ritmo !== null && ritmo > RITMO_MAXIMO_DE_LECTURA
 
 export { estadoEnPalabras }
+
+/**
+ * Las filas que coinciden con lo escrito en el buscador de la auditoría: todas las palabras tienen que aparecer, en cualquier
+ * orden y sin mirar tildes ni mayúsculas, en el título, el módulo, el libro, el capítulo o la persona asignada. Sin palabras
+ * devuelve todas. «tibia pilon» encuentra «Fractura de pilón tibial».
+ */
+export function filasQueCoinciden<T extends Pick<FilaDeContenido, 'titulo' | 'coleccion' | 'libro' | 'capitulo' | 'asignada'>>(
+  filas: readonly T[],
+  busqueda: string,
+  nombreDelModulo: (coleccion: string) => string = (c) => c,
+): T[] {
+  const palabras = normalizar(busqueda).split(' ').filter(Boolean)
+  if (palabras.length === 0) return [...filas]
+  return filas.filter((f) => {
+    const donde = normalizar([f.titulo, nombreDelModulo(f.coleccion), f.libro, f.capitulo, f.asignada].filter(Boolean).join(' '))
+    return palabras.every((p) => donde.includes(p))
+  })
+}

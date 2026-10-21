@@ -270,6 +270,7 @@ Guía completa: [docs/SERVIDOR.md](docs/SERVIDOR.md).
 | [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) | Exponer el servicio con un túnel de Cloudflare, sin abrir puertos del router |
 | [docs/CORREO.md](docs/CORREO.md) | Correo saliente. Sin él, quien olvide su clave depende de un administrador |
 | [docs/MANUAL-DE-USO.md](docs/MANUAL-DE-USO.md) | Manual del panel para editores y administradores: qué hace cada pantalla, cuentas y permisos, y las trampas que hacen perder trabajo |
+| [docs/MANUAL-DEL-EDITOR.docx](docs/MANUAL-DEL-EDITOR.docx) | Manual general en Word, con el logotipo, para quien escribe contenido en cualquier módulo: reglas de oro, fichas, revisión, estructuras, taller, simulador, comentarios y, para administradores, cuentas y auditoría |
 | [docs/MANUAL-DEL-SIMULADOR-QUIRURGICO.docx](docs/MANUAL-DEL-SIMULADOR-QUIRURGICO.docx) | Manual en Word, con capturas, para quien escribe las cirugías simuladas: crear el caso, preparar las piezas y la bandeja, escribir y probar los pasos, usar cada instrumento, rayos X y fluoroscopia, copiar pasos entre cirugías y publicar |
 | [docs/GUION-DE-RECORRIDO.md](docs/GUION-DE-RECORRIDO.md) | Guion para presentar la plataforma a quienes la van a llenar: una ficha de cero a publicada, en 45 minutos, más 15 solo para administradores |
 | [docs/COMO-ESCRIBIR-UNA-FICHA.md](docs/COMO-ESCRIBIR-UNA-FICHA.md) | Guía para el traumatólogo: segmentos, bloques, borrador y publicación |

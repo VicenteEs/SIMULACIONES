@@ -6751,6 +6751,15 @@ que el nombre del insumo diga «placa», «clavo» o «tornillo» (un insumo con
 con zoom bajo y un miembro muy ancho puede cortar los lados. Al abrir un caso ya
 terminado no se precargan los datos de la lámina anterior (se guardan, pero esta etapa no los lee de vuelta).
 
+### D-204 · 2026-10-21 · vigente
+**La auditoría tiene un buscador por escritura, y lo elegido sobrevive a la búsqueda; y un manual general del editor en Word.**
+Pedido del dueño: en la pestaña «Auditoría», sobre la tabla de fichas, poder *ir buscando por nombre de ficha, ir pinchando, seleccionar varias y luego asignarlas* a un revisor/editor.
+La selección y la asignación en bloque ya existían (`asignarRevisor`); faltaba encontrar las fichas sin recorrer la tabla entera.
+- **El filtro** (`filasQueCoinciden`, en `src/lib/auditoria.ts`, pura y con pruebas): todas las palabras tienen que aparecer, en cualquier orden y sin tildes ni mayúsculas (`normalizar` de `busqueda.ts`, que respeta la eñe), en el título, el módulo, el libro, el capítulo o la persona asignada. Se resuelve en el navegador sobre las filas ya cargadas, como el orden.
+- **La selección se saca de todas las filas, no de las visibles**: lo elegido y escondido por la búsqueda sigue elegido y es lo que se asigna o se publica. La línea de acciones lo dice («5 elegidas (2 fuera de la búsqueda)») y hay «Quitar la selección». La casilla de la cabecera elige o suelta **solo lo que se ve**. Se eligió así y no «borrar la selección al buscar» porque el uso pedido es justamente ir sumando de a poco.
+- **Consecuencia mala:** quien elige y se olvida puede asignar o publicar fichas que ya no ve; por eso el contador de «fuera de la búsqueda» y la confirmación de publicar (que ya contaba las validadas y las señaladas) quedan a la vista.
+- **Manuales en Word** (`docs/`): los dos existentes pasan a simulador 1.4 y taller 1.1, con un capítulo de novedades de P-004 y el logotipo de TraumaHub en la portada y el encabezado; **nuevo `MANUAL-DEL-EDITOR.docx`**, general (la plataforma entera para editores, con un capítulo para administradores). Los .docx se editan en su XML: no hay un guion que los regenere, y las capturas del simulador siguen siendo las de la versión 1.3.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
