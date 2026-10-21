@@ -52,6 +52,7 @@ import { NOMBRE_DE_LA_TECNICA } from '@/lib/compresion'
 import { PanelDeCompresion } from './PanelDeCompresion'
 import { RadiografiaPostoperatoria } from './RadiografiaPostoperatoria'
 import { AsaDeAncho } from './AsaDeAncho'
+import type { EstadoDeLaMesa } from './mesaDeModelado'
 import { intervencionPropuesta, type DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
 import {
   ETAPAS_DE_FIJACION,
@@ -103,6 +104,7 @@ import {
   Trophy,
   Undo2,
   UnfoldHorizontal,
+  Wrench,
   X,
   Zap,
   type LucideIcon,
@@ -516,6 +518,18 @@ const MODO_FIJAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideI
     'Fijar: con una placa, pique sobre el hueso y se apoya; con un tornillo o el medidor, pique en un agujero de la placa. Con el arrastre se gira el modelo.',
 }
 
+/**
+ * El modo del alicate y las grifas (P-005 E1): se dobla y se tuerce una placa **fuera del hueso**, sobre la mesa de modelado. Un clic en la placa apunta al
+ * sitio; la rueda (o los botones del recuadro) dobla o tuerce ahí; arrastrar la placa la mueve.
+ */
+const MODO_MODELAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'modelar',
+  etiqueta: 'Modelar',
+  icono: Wrench,
+  ayuda:
+    'Modelar: con una placa en la mesa, un clic sobre ella apunta al sitio donde se dobla; la rueda dobla (alicate) o tuerce (grifa) ahí, un grado por muesca —con Mayúsculas, una quinta parte—. Arrastrar la placa la mueve. No doble sobre un orificio: lo deforma.',
+}
+
 const MODO_PERFORAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
   valor: 'perforar',
   etiqueta: 'Perforar',
@@ -671,6 +685,9 @@ export function ConsolaQuirurgica({
   const [estadoDelContexto, setEstadoDelContexto] = useState<EstadoDelContexto>(CONTEXTO_VIVO)
   const [relojDelContexto, setRelojDelContexto] = useState(0)
   const [claveDelLienzo, setClaveDelLienzo] = useState(0)
+  // La placa que está en la mesa de modelado, si hay una (P-005 E1): la dice el lienzo cada vez que cambia.
+  const [mesaDeModelado, setMesaDeModelado] = useState<EstadoDeLaMesa | null>(null)
+  const avisoDeLaMesa = useRef(0)
   useEffect(() => {
     if (estadoDelContexto.fase === 'perdido') {
       const reloj = window.setInterval(() => setRelojDelContexto(performance.now()), 500)
@@ -1515,7 +1532,8 @@ export function ConsolaQuirurgica({
     else if (que?.perfora) setModo('perforar')
     else if (que?.sutura) setModo('coser')
     else if (que?.coloca || que?.mide) setModo('fijar')
-    else if (modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
+    else if (que?.modela) setModo('modelar')
+    else if (modo === 'modelar' || modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
     // Cada instrumento empieza con el diámetro de su modelo, y un tornillo queda como «el último» para elegir el siguiente (P-004 E9).
     setDiametroDeTornillo(null)
     if (que?.coloca?.tipo === 'tornillo' && id) setUltimoTornillo(id)
@@ -1700,6 +1718,7 @@ export function ConsolaQuirurgica({
             separa: queHace.separa,
             pellizca: queHace.pellizca,
             reduce: queHace.reduce,
+            modela: queHace.modela,
             electro: queHace.electro ? { modo: modoElectro, potenciaW } : null,
             perfora: queHace.perfora,
             sutura: queHace.sutura,
@@ -1721,9 +1740,16 @@ export function ConsolaQuirurgica({
    * zoom al residente por un hilo que aún no tira de nada sería robarle la rueda para nada. La pinza, igual:
    * con ninguna puesta no hay qué levantar.
    */
-  const ruedaDelInstrumento: 'abre' | 'separa' | 'pinza' | 'potencia' | 'tira' | 'alarga' | 'perfora' | null = !instrumentoElegido
+  const ruedaDelInstrumento: 'abre' | 'separa' | 'pinza' | 'potencia' | 'tira' | 'alarga' | 'perfora' | 'dobla' | 'tuerce' | null = !instrumentoElegido
     ? null
-    : queHace.sutura
+    : queHace.modela === 'flexion' || queHace.modela === 'torsion'
+      ? // La rueda dobla o tuerce la placa de la mesa (P-005 E1); sin placa en la mesa es del zoom como siempre.
+        mesaDeModelado
+        ? queHace.modela === 'flexion'
+          ? 'dobla'
+          : 'tuerce'
+        : null
+      : queHace.sutura
       ? sutura && sutura.puntadas > 0
         ? 'tira'
         : null
@@ -1752,10 +1778,21 @@ export function ConsolaQuirurgica({
     // Con Mayúsculas solo las pinzas se quedan la rueda (abrir y cerrar las mandíbulas) y, con un músculo retraído, el
     // separador (corre la zona retraída a lo largo del músculo, P-004 E5); el resto la devuelve al zoom.
     const correLaRetraccion = ruedaDelInstrumento === 'separa' && retracciones.length > 0 && (!separadores || separadores.lista.length === 0)
-    if (mayusculas && ruedaDelInstrumento !== 'pinza' && ruedaDelInstrumento !== 'perfora' && !correLaRetraccion) return false
+    if (mayusculas && ruedaDelInstrumento !== 'pinza' && ruedaDelInstrumento !== 'perfora' && ruedaDelInstrumento !== 'dobla' && ruedaDelInstrumento !== 'tuerce' && !correLaRetraccion) return false
     // Hacia delante (deltaY negativo) abre, tira, alarga o sube; hacia atrás, al revés.
     const sentido = deltaY < 0 ? 1 : -1
     const entre = (minimo: number, maximo: number, valor: number) => Math.min(maximo, Math.max(minimo, valor))
+    if (ruedaDelInstrumento === 'dobla' || ruedaDelInstrumento === 'tuerce') {
+      // Un grado por muesca; con Mayúsculas, una quinta parte.
+      const grados = sentido * (mayusculas ? 0.2 : 1)
+      const aviso = m.doblarLaPlaca(ruedaDelInstrumento === 'dobla' ? { flexionGrados: grados } : { torsionGrados: grados })
+      const ahora = Date.now()
+      if (aviso && ahora - avisoDeLaMesa.current > 1500) {
+        avisoDeLaMesa.current = ahora
+        anotar(aviso, 'atencion')
+      }
+      return true
+    }
     if (ruedaDelInstrumento === 'tira') {
       m.tensarSutura(m.tensionDeLaSutura() + sentido * 0.04)
       return true
@@ -2278,6 +2315,7 @@ export function ConsolaQuirurgica({
     ...(queHace.coloca || queHace.mide ? [MODO_FIJAR] : []),
     ...(queHace.sutura ? [MODO_COSER] : []),
     ...(queHace.roma ? [MODO_DISECAR] : []),
+    ...(queHace.modela ? [MODO_MODELAR] : []),
     MODO_INFO,
   ]
   const ayudaDelModo = modosVisibles.find((m) => m.valor === modo)?.ayuda ?? ''
@@ -2668,6 +2706,132 @@ export function ConsolaQuirurgica({
    * estructura» lo hace a la derecha (pedido del dueño): antes vivía en la columna derecha, debajo de la bandeja, y para cambiar una
    * opción había que apartar la vista del modelo. Es el mismo bloque de siempre, solo que en otro sitio.
    */
+  /**
+   * La mesa de modelado (P-005 E1, pedido del dueño: «las placas se pueden doblar, no estando en el hueso, con herramientas»). Una placa suelta en el
+   * lienzo que se dobla con el alicate de tres puntos, se tuerce con la grifa y se mueve arrastrándola; después se lleva al hueso con su forma.
+   */
+  const comaDecimal = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',')
+  const doblarDesdeElRecuadro = (cambio: { flexionGrados?: number; torsionGrados?: number }) => {
+    const aviso = mando.current?.doblarLaPlaca(cambio)
+    if (aviso) anotar(aviso, 'atencion')
+  }
+  const llevarLaPlacaALaMesa = () => {
+    if (mando.current?.ponerLaPlacaEnLaMesa()) {
+      anotar(
+        'Placa en la mesa, a un costado del modelo. Arrástrela para moverla; coja el alicate o la grifa («Modelado de placas») y haga clic sobre ella donde quiera doblarla.',
+        'bien',
+      )
+    } else {
+      anotar('Para llevar una placa a la mesa hay que tenerla en la mano y que su modelo haya cargado.', 'atencion')
+    }
+  }
+  const bloqueDeLaPlacaParaLaMesa = (
+    <div className="consola-instrumento-acciones">
+      <button type="button" className="consola-boton" onClick={llevarLaPlacaALaMesa}>
+        <Wrench size={14} aria-hidden /> Llevar a la mesa de modelado
+      </button>
+      {mesaDeModelado && mesaDeModelado.instrumentoId === idDelElegido ? (
+        <p className="consola-instrumento-texto">Esta placa está en la mesa: {mesaDeModelado.texto}</p>
+      ) : null}
+    </div>
+  )
+  // Los botones de grados, escritos como JSX y no como una función que se llama al pintar: el compilador de React no deja que lo que se
+  // llama durante el pintado cree manejadores que lean referencias.
+  const botonesDeFlexion = (
+    <div className="consola-instrumento-articulacion">
+      <span>Doblar (flexión)</span>
+      <div className="consola-instrumento-acciones">
+        {[-5, -1, 1, 5].map((g) => (
+          <button key={g} type="button" className="consola-boton" onClick={() => doblarDesdeElRecuadro({ flexionGrados: g })}>
+            {g > 0 ? `+${g}°` : `−${-g}°`}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+  const botonesDeTorsion = (
+    <div className="consola-instrumento-articulacion">
+      <span>Torcer (torsión)</span>
+      <div className="consola-instrumento-acciones">
+        {[-5, -1, 1, 5].map((g) => (
+          <button key={g} type="button" className="consola-boton" onClick={() => doblarDesdeElRecuadro({ torsionGrados: g })}>
+            {g > 0 ? `+${g}°` : `−${-g}°`}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+  const bloqueDeLaMesa = queHace.modela ? (
+    <div className="consola-instrumento-articulaciones">
+      {!mesaDeModelado ? (
+        <p className="consola-instrumento-texto">
+          No hay ninguna placa en la mesa. Coja una placa de la bandeja («Placas») y pulse «Llevar a la mesa de modelado»; después vuelva a coger esta herramienta.
+        </p>
+      ) : queHace.modela === 'plantilla' ? (
+        <p className="consola-instrumento-texto">
+          <strong>{mesaDeModelado.nombre}</strong> en la mesa. La plantilla de aluminio todavía no copia el contorno del hueso: de momento se modela la placa a ojo con el alicate y la grifa.
+        </p>
+      ) : (
+        <>
+          <p className="consola-instrumento-texto">
+            <strong>{mesaDeModelado.nombre}</strong> en la mesa. {mesaDeModelado.texto}
+          </p>
+          <p className="consola-instrumento-texto" role="status">
+            {mesaDeModelado.sitioMm === null
+              ? 'Un clic sobre la placa apunta al sitio donde se dobla.'
+              : `Sitio: a ${comaDecimal(Math.abs(mesaDeModelado.sitioMm))} mm del centro (${mesaDeModelado.sitioMm >= 0 ? 'hacia un extremo' : 'hacia el otro'}), ${mesaDeModelado.lugarDelSitio}.`}
+          </p>
+          {botonesDeFlexion}
+          {queHace.modela === 'torsion' ? botonesDeTorsion : null}
+          {mesaDeModelado.orificiosDeformados.length > 0 ? (
+            <p className="consola-instrumento-texto">
+              Orificios deformados: {mesaDeModelado.orificiosDeformados.join(', ')}. Un tornillo ahí ya no asienta bien (en una LCP, tampoco se bloquea).
+            </p>
+          ) : null}
+          {mesaDeModelado.fatigados.length > 0 ? (
+            <p className="consola-instrumento-texto">
+              La placa se fatigó en {mesaDeModelado.fatigados.length} {mesaDeModelado.fatigados.length === 1 ? 'sitio' : 'sitios'}: doblada de ida y vuelta, se rompe antes.
+            </p>
+          ) : null}
+          <div className="consola-instrumento-acciones">
+            <button type="button" className="consola-boton" disabled={!mesaDeModelado.conManiobras} onClick={() => mando.current?.deshacerElDoblez()}>
+              Deshacer el último
+            </button>
+            <button type="button" className="consola-boton" onClick={() => mando.current?.girarLaPlacaDeLaMesa({ grados: -15 })} aria-label="Girar la placa 15 grados a la izquierda">
+              <RotateCcw size={14} aria-hidden /> 15°
+            </button>
+            <button type="button" className="consola-boton" onClick={() => mando.current?.girarLaPlacaDeLaMesa({ grados: 15 })} aria-label="Girar la placa 15 grados a la derecha">
+              <RotateCw size={14} aria-hidden /> 15°
+            </button>
+            <button type="button" className="consola-boton" onClick={() => mando.current?.girarLaPlacaDeLaMesa({ voltear: true })}>
+              Voltear
+            </button>
+          </div>
+          <div className="consola-instrumento-acciones">
+            <button
+              type="button"
+              className="consola-boton"
+              onClick={() => {
+                const id = mesaDeModelado.instrumentoId
+                if (!id || !caso.instrumental.some((i) => i.id === id)) {
+                  anotar('La placa de la mesa ya no está en la bandeja: elija una placa y pique sobre el hueso.', 'atencion')
+                  return
+                }
+                elegirInstrumento(id)
+                anotar('Pique sobre el hueso: la placa se apoya con la forma que le dio.', 'bien')
+              }}
+            >
+              Llevar al hueso
+            </button>
+            <button type="button" className="consola-boton" onClick={() => mando.current?.quitarLaPlacaDeLaMesa()}>
+              Quitar de la mesa
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  ) : null
+
   const panelDeLaHerramienta = (
 instrumentoElegido ? (
             <div className="consola-instrumento">
@@ -3235,6 +3399,8 @@ instrumentoElegido ? (
                 </div>
               ) : null}
 
+              {bloqueDeLaMesa}
+
               {queHace.coloca || queHace.mide ? (
                 <div className="consola-instrumento-articulaciones">
                   <p className="consola-instrumento-texto">
@@ -3244,6 +3410,7 @@ instrumentoElegido ? (
                         ? 'Con la placa fijada: perfore el agujero con la broca, mídalo con el medidor y entonces pique en él. El tornillo entra perpendicular a la placa.'
                         : 'Con la placa fijada y el agujero perforado, apoye el medidor en él: dice cuánto hueso hay debajo y qué tornillo pedir.'}
                   </p>
+                  {queHace.coloca?.tipo === 'placa' ? bloqueDeLaPlacaParaLaMesa : null}
                   {bloqueDeLaSecuencia}
                   {bloqueDeLaTrayectoria}
                   {bloqueDeLaCompresion}
@@ -3975,6 +4142,7 @@ instrumentoElegido ? (
           <LienzoQuirurgico
             key={claveDelLienzo}
             alCambiarElContexto={setEstadoDelContexto}
+            alCambiarLaMesa={setMesaDeModelado}
             url={caso.modeloUrl}
             piezas={piezas}
             modo={modo}

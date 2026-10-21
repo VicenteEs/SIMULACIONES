@@ -163,6 +163,18 @@ import {
  * menos (`calidadDelDibujo`).
  */
 let perdidasDeContexto = 0
+import {
+  aplicarElContorno,
+  crearMesa,
+  estadoDeLaMesa,
+  orificiosSMm,
+  ponerLaMarca,
+  sitioDeUnPunto,
+  soltarLaMesa,
+  type EstadoDeLaMesa,
+  type MesaDeModelado,
+} from './mesaDeModelado'
+import { SIN_CONTORNO, deshacerLaUltima, doblar, orificioBajoElDoblez } from '@/lib/contornoDeLaPlaca'
 import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
@@ -188,7 +200,7 @@ import '@/app/(frontend)/simulador/consola.css'
  * quien está mirando una pantalla quieta.
  */
 
-export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar' | 'reducir' | 'info'
+export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar' | 'reducir' | 'modelar' | 'info'
 
 export interface Punto3 {
   x: number
@@ -468,6 +480,24 @@ export interface MandoDelLienzo {
   ajustarLaPlaca: (ajuste: { largoMm: number; ladoMm: number; giroGrados: number }) => boolean
   /** Da la placa por buena (ya no se mueve y se perfora por sus agujeros) o la vuelve a dejar ajustable. */
   fijarLaPlaca: (fijar: boolean) => void
+  /**
+   * Pone la placa que se lleva en la mano sobre la **mesa de modelado** (P-005 E1): una copia suelta, en el lienzo y fuera del hueso, que se dobla
+   * con el alicate y la grifa y se mueve arrastrándola. `false` si no hay una placa en la mano o aún no cargó su modelo.
+   */
+  ponerLaPlacaEnLaMesa: () => boolean
+  /** Quita la placa de la mesa, con lo que se le hizo. */
+  quitarLaPlacaDeLaMesa: () => void
+  /**
+   * Dobla o tuerce la placa de la mesa en el sitio apuntado (un clic sobre ella): `flexionGrados` y `torsionGrados` son lo que se suma. Devuelve lo que
+   * hay que decirle a quien dobla (el tope, el orificio que se deforma…), o `null` si no hay nada que decir.
+   */
+  doblarLaPlaca: (cambio: { flexionGrados?: number; torsionGrados?: number }) => string | null
+  /** Deshace el último doblez de la placa de la mesa. */
+  deshacerElDoblez: () => void
+  /** Gira la placa de la mesa sobre sí misma, de cara a la cámara: `grados` alrededor de la vista, o `voltear` para darle la vuelta. */
+  girarLaPlacaDeLaMesa: (giro: { grados?: number; voltear?: boolean }) => void
+  /** Cómo está la placa de la mesa, o `null` si no hay. */
+  estadoDeLaMesa: () => EstadoDeLaMesa | null
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
   estadoDeLaFijacion: () => EstadoDeLaFijacion | null
   /** Encuadra lo que esté visible. */
@@ -524,6 +554,8 @@ export interface InstrumentoEnEscena {
   roma?: { maximoMm: number } | null
   /** Pinza de reducción: un clic en un trozo de hueso la deja agarrándolo (P-003 E5). */
   reduce?: { tipo: 'puntas' | 'garra' | 'bola' } | null
+  /** Herramienta de modelado de placas (P-005 E1): el alicate dobla, la grifa tuerce, la plantilla copia el contorno del hueso. */
+  modela?: 'flexion' | 'torsion' | 'plantilla' | null
 }
 
 /** Una pinza de reducción que tiene agarrado un trozo de hueso: es hija del trozo, así que lo acompaña (P-003 E5). */
@@ -683,6 +715,7 @@ export function LienzoQuirurgico({
   musculoObjetivo,
   alFallar,
   alCambiarElContexto,
+  alCambiarLaMesa,
   mando,
 }: {
   url: string
@@ -826,6 +859,8 @@ export function LienzoQuirurgico({
    * solo, el botón que monta el lienzo de nuevo.
    */
   alCambiarElContexto?: (estado: EstadoDelContexto) => void
+  /** Cambió la mesa de modelado (P-005 E1): se puso o se quitó una placa, se apuntó un sitio o se dobló. `null` si ya no hay placa en la mesa. */
+  alCambiarLaMesa?: (estado: EstadoDeLaMesa | null) => void
   /**
    * Se llama con el nombre del objeto pinchado, en modo «senalar».
    *
@@ -882,6 +917,8 @@ export function LienzoQuirurgico({
      */
     rolesAplicados: Map<string, PiezaDelCaso['rol']>
     herramienta?: HerramientaCargada
+    /** La placa suelta que se dobla fuera del hueso (P-005 E1). */
+    mesa?: MesaDeModelado
     /** El entorno de estudio que reflejan los instrumentos (el acero sin él se ve negro). */
     entorno?: THREE.Texture
     fantasma?: THREE.Object3D
@@ -1022,6 +1059,7 @@ export function LienzoQuirurgico({
     musculoObjetivo,
     alFallar,
     alCambiarElContexto,
+    alCambiarLaMesa,
     alCargarInstrumento,
     alHerir,
     alPerforar,
@@ -1070,6 +1108,7 @@ export function LienzoQuirurgico({
       musculoObjetivo,
       alFallar,
       alCambiarElContexto,
+      alCambiarLaMesa,
       alCargarInstrumento,
       alHerir,
       alPerforar,
@@ -1525,6 +1564,98 @@ export function LienzoQuirurgico({
       taller.current.pedirDibujo?.()
       return true
     },
+
+    ponerLaPlacaEnLaMesa: () => {
+      const t = taller.current
+      const inst = ultimas.current.instrumento
+      const h = t.herramienta
+      if (!t.escena || !t.camara || !t.controles || !h || inst?.coloca?.tipo !== 'placa') return false
+      if (t.mesa) soltarLaMesa(t.mesa)
+      // Al costado del modelo, de cara a quien mira y con el largo hacia arriba de la pantalla: como una placa sobre la mesa de instrumentos.
+      const haciaLaCamara = t.camara.position.clone().sub(t.controles.target).normalize()
+      const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(t.camara.quaternion)
+      const derecha = new THREE.Vector3(1, 0, 0).applyQuaternion(t.camara.quaternion)
+      // Más cerca de la cámara que el paciente, para que se vea grande y se pueda trabajar: una placa de 110 mm a la distancia del paciente
+      // eran 25 píxeles de alto. A un costado, para no tapar el modelo.
+      const adelante = t.camara.getWorldDirection(new THREE.Vector3())
+      const profundidad = Math.max(0.28, t.camara.position.distanceTo(t.controles.target) * 0.32)
+      const mesa = crearMesa({
+        escena: t.escena,
+        plantilla: h.raiz,
+        nombre: h.meta?.nombre ?? inst.nombre ?? 'Placa',
+        instrumentoId: inst.id ?? null,
+        agujerosMm: h.meta?.agujeros ?? [],
+        posicion: t.camara.position.clone().addScaledVector(adelante, profundidad).addScaledVector(derecha, profundidad * 0.32),
+        haciaLaCamara,
+        arriba,
+        contorno: SIN_CONTORNO,
+      })
+      if (!mesa) return false
+      // La mesa no es del paciente: ni la fluoroscopia ni el encuadre la cuentan.
+      mesa.grupo.userData.deInterfaz = true
+      t.mesa = mesa
+      ultimas.current.alCambiarLaMesa?.(estadoDeLaMesa(mesa))
+      t.pedirDibujo?.()
+      return true
+    },
+
+    quitarLaPlacaDeLaMesa: () => {
+      const t = taller.current
+      if (!t.mesa) return
+      soltarLaMesa(t.mesa)
+      t.mesa = undefined
+      ultimas.current.alCambiarLaMesa?.(null)
+      t.pedirDibujo?.()
+    },
+
+    doblarLaPlaca: (cambio) => {
+      const t = taller.current
+      const mesa = t.mesa
+      if (!mesa) return 'Ponga primero una placa en la mesa: con una placa en la mano, «Llevar a la mesa de modelado».'
+      if (mesa.sitioMm === null) return 'Apunte primero al sitio: un clic sobre la placa marca dónde se dobla.'
+      const soloTorsion = (cambio.flexionGrados ?? 0) === 0
+      const bajo = orificioBajoElDoblez(orificiosSMm(mesa), mesa.sitioMm, soloTorsion)
+      const r = doblar(mesa.contorno, mesa.sitioMm, cambio)
+      mesa.contorno = r.contorno
+      aplicarElContorno(mesa)
+      ultimas.current.alCambiarLaMesa?.(estadoDeLaMesa(mesa))
+      t.pedirDibujo?.()
+      const avisos = [...r.avisos]
+      if (bajo !== null && (r.aplicado.flexionGrados !== 0 || r.aplicado.torsionGrados !== 0)) {
+        avisos.push(`Dobló sobre el orificio ${bajo + 1}: se deforma. Doble entre orificios.`)
+      }
+      return avisos.length > 0 ? avisos.join(' ') : null
+    },
+
+    deshacerElDoblez: () => {
+      const mesa = taller.current.mesa
+      if (!mesa) return
+      mesa.contorno = deshacerLaUltima(mesa.contorno)
+      aplicarElContorno(mesa)
+      ultimas.current.alCambiarLaMesa?.(estadoDeLaMesa(mesa))
+      taller.current.pedirDibujo?.()
+    },
+
+    girarLaPlacaDeLaMesa: ({ grados, voltear }) => {
+      const t = taller.current
+      const mesa = t.mesa
+      if (!mesa || !t.camara) return
+      mesa.grupo.updateMatrixWorld(true)
+      // Se gira sobre su centro: el punto que está en el centro de la caja se queda donde está.
+      const centro = mesa.grupo.localToWorld(mesa.centro.clone())
+      const adelante = t.camara.getWorldDirection(new THREE.Vector3())
+      const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(t.camara.quaternion)
+      const q = voltear
+        ? new THREE.Quaternion().setFromAxisAngle(arriba, Math.PI)
+        : new THREE.Quaternion().setFromAxisAngle(adelante, radianes(grados ?? 0))
+      mesa.grupo.quaternion.premultiply(q)
+      mesa.grupo.updateMatrixWorld(true)
+      const despues = mesa.grupo.localToWorld(mesa.centro.clone())
+      mesa.grupo.position.add(centro.sub(despues))
+      t.pedirDibujo?.()
+    },
+
+    estadoDeLaMesa: () => (taller.current.mesa ? estadoDeLaMesa(taller.current.mesa) : null),
 
     fijarLaPlaca: (fijar) => {
       const placa = taller.current.implantes?.placa
@@ -3394,9 +3525,72 @@ export function LienzoQuirurgico({
       t.decir?.('Pinzas puestas, una frente a la otra. La rueda las separa o las junta; con Mayúsculas abre o cierra las mandíbulas.')
     }
 
+    // --- la mesa de modelado (P-005 E1) -----------------------------------------------------------------
+    // Un clic sobre la placa apunta al sitio donde actuará el alicate o la grifa; arrastrarla la mueve sobre el plano de la pantalla, como se
+    // empuja una placa sobre la mesa. Fuera de la placa el arrastre sigue siendo el de la cámara.
+    let sobreLaMesa: { x: number; y: number; plano: THREE.Plane; ultimo: THREE.Vector3; punto: THREE.Vector3; movido: boolean } | null = null
+    const avisarLaMesa = () => {
+      const mesa = taller.current.mesa
+      ultimas.current.alCambiarLaMesa?.(mesa ? estadoDeLaMesa(mesa) : null)
+    }
+    const alBajarEnLaMesa = (evento: PointerEvent) => {
+      const mesa = taller.current.mesa
+      if (ultimas.current.modo !== 'modelar' || evento.button !== 0 || !mesa) return
+      aCoordenadas(evento)
+      mesa.grupo.updateMatrixWorld(true)
+      const golpe = rayo.intersectObject(mesa.grupo, true).find((g) => g.object.visible && (g.object as THREE.Mesh).isMesh)
+      if (!golpe) return
+      controles.enabled = false
+      const normal = camara.getWorldDirection(new THREE.Vector3()).negate()
+      sobreLaMesa = {
+        x: evento.clientX,
+        y: evento.clientY,
+        plano: new THREE.Plane().setFromNormalAndCoplanarPoint(normal, golpe.point),
+        ultimo: golpe.point.clone(),
+        punto: golpe.point.clone(),
+        movido: false,
+      }
+      try {
+        render.domElement.setPointerCapture(evento.pointerId)
+      } catch {
+        // sin captura
+      }
+    }
+    const alMoverEnLaMesa = (evento: PointerEvent) => {
+      const mesa = taller.current.mesa
+      if (!sobreLaMesa || !mesa) return
+      if (!sobreLaMesa.movido && Math.hypot(evento.clientX - sobreLaMesa.x, evento.clientY - sobreLaMesa.y) < 4) return
+      sobreLaMesa.movido = true
+      aCoordenadas(evento)
+      const aqui = new THREE.Vector3()
+      if (!rayo.ray.intersectPlane(sobreLaMesa.plano, aqui)) return
+      mesa.grupo.position.add(aqui.clone().sub(sobreLaMesa.ultimo))
+      sobreLaMesa.ultimo.copy(aqui)
+      pedirDibujo()
+    }
+    const alSoltarEnLaMesa = (evento: PointerEvent) => {
+      const gesto = sobreLaMesa
+      sobreLaMesa = null
+      if (!gesto) return
+      controles.enabled = true
+      try {
+        render.domElement.releasePointerCapture(evento.pointerId)
+      } catch {
+        // ya estaba suelto
+      }
+      const mesa = taller.current.mesa
+      if (!mesa || gesto.movido) return
+      ponerLaMarca(mesa, sitioDeUnPunto(mesa, gesto.punto))
+      avisarLaMesa()
+      pedirDibujo()
+    }
+    render.domElement.addEventListener('pointerdown', alBajarEnLaMesa)
+    render.domElement.addEventListener('pointermove', alMoverEnLaMesa)
+    render.domElement.addEventListener('pointerup', alSoltarEnLaMesa)
+
     const alBajar = (evento: PointerEvent) => {
       const { modo: modoActual } = ultimas.current
-      if (modoActual === 'orbitar') return
+      if (modoActual === 'orbitar' || modoActual === 'modelar') return
 
       aCoordenadas(evento)
       clicEnElVacio = null
@@ -4146,6 +4340,8 @@ export function LienzoQuirurgico({
           milimetrosPorUnidad: mmPorUnidad,
           huesos,
           implantes: imp,
+          // Si la placa en la mano es la que se dobló en la mesa, se apoya con su forma (P-005 E1).
+          contorno: t.mesa && t.mesa.instrumentoId && t.mesa.instrumentoId === inst.id ? t.mesa.contorno : undefined,
         })
         if (!placa) {
           decirYAvisar({
@@ -4175,10 +4371,16 @@ export function LienzoQuirurgico({
           ejesDelPaciente(ultimas.current.ejeLargo).frente,
         )
         const separada = placa.separadaDelHuesoMm
+        // La placa de la mesa ya está en el hueso: sale de la mesa.
+        if (placa.contorno && t.mesa) {
+          soltarLaMesa(t.mesa)
+          t.mesa = undefined
+          ultimas.current.alCambiarLaMesa?.(null)
+        }
         decirYAvisar({
           tipo: 'placa',
           texto:
-            `${placa.nombre} apoyada: ${placa.agujerosMm.length} agujeros${placa.agujerosDelModelo ? '' : ' (repartidos a partes iguales)'}. Muévala hacia proximal o distal, anterior o posterior, o angúlela, y pulse «Fijar la placa».` +
+            `${placa.nombre} apoyada${placa.contorno ? ` con la forma que se le dio (${placa.contorno.texto.toLowerCase()})` : ''}: ${placa.agujerosMm.length} agujeros${placa.agujerosDelModelo ? '' : ' (repartidos a partes iguales)'}. Muévala hacia proximal o distal, anterior o posterior, o angúlela, y pulse «Fijar la placa».` +
             (separada > 1.5 ? ` Queda a ${separada.toFixed(1).replace('.', ',')} mm del hueso: apóyela donde el hueso sea más recto.` : '') +
             (placa.avisoDeOrificios ? ` ${placa.avisoDeOrificios}` : ''),
           atencion: separada > 1.5 || !!placa.avisoDeOrificios,
@@ -4731,6 +4933,13 @@ export function LienzoQuirurgico({
       // Antes de `forceContextLoss`, más abajo: perder el contexto a propósito al desmontar no es un fallo que avisar.
       render.domElement.removeEventListener('webglcontextlost', alPerderElContexto)
       render.domElement.removeEventListener('webglcontextrestored', alRecuperarElContexto)
+      render.domElement.removeEventListener('pointerdown', alBajarEnLaMesa)
+      render.domElement.removeEventListener('pointermove', alMoverEnLaMesa)
+      render.domElement.removeEventListener('pointerup', alSoltarEnLaMesa)
+      if (taller.current.mesa) {
+        soltarLaMesa(taller.current.mesa)
+        taller.current.mesa = undefined
+      }
       render.domElement.removeEventListener('pointermove', alMover)
       render.domElement.removeEventListener('pointerup', alSubir)
       render.domElement.removeEventListener('pointerleave', alSubir)
@@ -5034,6 +5243,8 @@ export type Taller = {
   rolesAplicados: Map<string, PiezaDelCaso['rol']>
   /** El instrumento que está en escena, si hay uno elegido y ya cargó. */
   herramienta?: HerramientaCargada
+  /** La placa suelta que se dobla fuera del hueso (P-005 E1). */
+  mesa?: MesaDeModelado
   /** La silueta del fragmento en su sitio correcto (ayuda de los rayos X). */
   fantasma?: THREE.Object3D
   /** Los dos ejes de la guía de angulación (ayuda de los rayos X). */

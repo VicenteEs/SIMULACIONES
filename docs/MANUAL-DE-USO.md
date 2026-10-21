@@ -957,6 +957,16 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   tamaño y con el mismo comportamiento que la ficha de «Seleccionar estructura» (que va a la derecha): su modelo y la previsualización, el modo de uso,
   todo lo que se configura (potencia, apertura, diámetro y largo del tornillo, broca, medidor…), «Soltar» y, en el editor, «Es el correcto en este paso».
   Con pantalla estrecha (menos de 1000 px) flota sobre el lienzo. La columna derecha queda para la bandeja.
+- **Modelar una placa fuera del hueso (mesa de modelado).** Una placa se puede **doblar y torcer antes de ponerla en el hueso**, como en pabellón. Con una placa
+  en la mano, **«Llevar a la mesa de modelado»**: aparece una copia suelta, a un costado del modelo, de cara a quien mira; **arrastrándola** se mueve por la
+  pantalla, y «15°» (a un lado y a otro) y «Voltear» la giran. Se coge el **alicate de doblado de tres puntos** (dobla) o la **grifa de torsión** (dobla y tuerce;
+  el catálogo la describe «en los tres planos») —en «Modelado de placas»—, se hace **clic sobre la placa** donde se quiere actuar (una raya naranja marca el sitio) y la
+  **rueda** dobla un grado por muesca (Mayúsculas, una quinta parte); también hay botones de −5°, −1°, +1° y +5°. La malla se deforma de verdad y el recuadro dice
+  «2 dobleces · flexión total 25° · flecha 3,2 mm». Reglas que enseña el recuadro (están en `src/lib/contornoDeLaPlaca.ts` para corregirlas): **no se dobla sobre un orificio**
+  —lo deforma y, en una LCP, estropea la rosca del bloqueo—; un sitio no cede más de 45° y la placa entera no pasa de 120°; **doblar de ida y vuelta en el mismo
+  sitio fatiga el metal**. «Deshacer el último» quita el último doblez. **«Llevar al hueso»** coge la placa de nuevo y, al picar sobre el hueso, **se apoya con la
+  forma que se le dio** (sus agujeros quedan donde los dejó el doblez y la separación al hueso se mide con ellos); la placa sale de la mesa. La plantilla maleable de
+  aluminio todavía no copia el contorno del hueso.
 - **El aviso de lo que acaba de pasar** (un acierto, un error, una complicación) sale **a la derecha del recuadro de la herramienta**, sobre el lienzo y justo
   debajo de su barra, y ya no abajo en la columna derecha. Se cierra con su ✕ y lo reemplaza el siguiente aviso; el registro completo sigue en el pie.
 - **Anchos que se arrastran.** Las dos columnas de los lados de la consola y los recuadros junto al lienzo (el de la herramienta y el de la estructura)

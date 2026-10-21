@@ -6779,6 +6779,22 @@ Dos pedidos del dueño sobre D-205. (1) «Si pincho una herramienta aparece un m
 - **Dibujo:** el tope de píxeles del lienzo pasa de 4 a **16 millones** (un monitor 4K a pantalla completa va a su resolución nativa) y el primer montaje pide hasta **3×** la densidad de la pantalla (antes 2×). Lo que protege sigue en pie: tras una pérdida de contexto el lienzo vuelve con menos (2× y luego 1× sin suavizado), la consola espera 12 s antes de ofrecer «Recuperar la vista» y a los 30 s monta el lienzo sola.
 - **Probado:** el aviso, en el navegador (a la derecha del recuadro, bajo la barra, sin pisarla); los límites, con pruebas (`controlDelContexto`, `subidaDeVideo`, `esquema`). **No probado:** un modelo de 20 MB de verdad ni el comportamiento con muchos instrumentos en una tarjeta concreta.
 
+### D-207 · 2026-10-21 · vigente
+**Las placas se doblan y se tuercen fuera del hueso, en una mesa de modelado dentro del lienzo, con el alicate y la grifa (P-005 E1).**
+Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hueso, con herramientas, que queden en el lienzo y de alguna forma se puedan mover como se haría en la realidad».
+- **Reglas, puras y con pruebas** (`src/lib/contornoDeLaPlaca.ts`): el contorno es una lista de **dobleces** (dónde, cuánta flexión y cuánta torsión) y de ahí sale, integrando, el eje curvo de la placa y la
+  transformación de cada punto del modelo (marco: `u` ancho, `v` grosor, `s` largo, con el centro fijo). Un doblez es un arco de **4 mm** (las clavijas del alicate) y una torsión se reparte en **20 mm**; tienen que caber en el puente
+  entre dos orificios (13 mm de paso en las placas del catálogo). Topes: **45°** de flexión y **40°** de torsión por sitio, **120°** de flexión sumada. Un doblez a menos de media mordaza más 3 mm de un orificio **lo deforma**; doblar
+  **de ida y vuelta** (dos inversiones) en un mismo sitio **fatiga** el metal. Todo es una propuesta que Cristóbal debe revisar.
+- **La mesa** (`mesaDeModelado.ts`, `deformacionDeLaPlaca.ts`): una copia propia del modelo, suelta en la escena, con sus vértices originales guardados: cada cambio de contorno parte de ellos, para no acumular error. Se pone más cerca
+  de la cámara que el paciente y a un costado. Un clic sobre ella apunta al sitio (`sitioDeUnPunto`); arrastrarla la mueve sobre el plano de la pantalla. No sale en la fluoroscopia (`userData.deInterfaz`).
+- **Las herramientas** (`comportamientoDelInstrumento`, campo `modela`): el **alicate de doblado de tres puntos** dobla; la **grifa de torsión** dobla y tuerce (el catálogo dice «en los tres planos»); la **plantilla maleable** queda reconocida pero **todavía no
+  copia el contorno del hueso**. Modo nuevo **«Modelar»**; la rueda dobla o tuerce con la placa en la mesa (si no, sigue siendo el zoom).
+- **Llevar al hueso:** al picar con la placa de la mesa en la mano, `colocarPlaca` recibe el contorno, deforma su copia con la misma función y lee los agujeros a través del mismo mapa (`PlacaColocada.contorno`, `posicionDelAgujero`): la separación al
+  hueso, el medidor y los tornillos ya cuentan con la placa doblada. La placa sale de la mesa.
+- **Lo que no hace todavía:** flexión en el plano de la placa (alicates de canto), la plantilla, ni que el tornillo siga la normal del agujero doblado (entra por la normal del hueso, como siempre); y si la placa doblada se **cruza con el hueso** no se
+  advierte. Probado en el navegador: placa a la mesa, clic, 20 muescas de rueda = 20° y flecha de 7,3 mm, la malla visible curvada de canto, «Llevar al hueso» y apoyada con su forma. Pruebas: 34 nuevas (`contornoDeLaPlaca` y `mesaDeModelado`).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10717,6 +10733,35 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | E10 · Compresión | hecha en local; sin desplegar | 2 | E7, E9 | D-202 |
 | E11 · Radiografía postoperatoria y lámina | hecha en local; sin desplegar | 2–3 | E3 | D-203 |
 | E12 · Apariencia de pabellón | aplazada | — | modelos del Dani | — |
+
+---
+
+### P-005 · 2026-10-21 · en curso
+
+**Cada herramienta de la bandeja que hoy solo se ve, hecha funcional como en la realidad.** Pedido del dueño tras la revisión de las 70 herramientas (D-206): 8 familias
+interactúan en el lienzo y unas 25 son solo modelo y descripción («Orbitar»). Quiere que cada una haga lo que hace en pabellón, empezando por **doblar las placas fuera del
+hueso, con sus herramientas, y poder moverlas en el lienzo como en la mesa**. Se va de una en una: primero se anota aquí qué hace de verdad la herramienta y cómo se recrea, y después se
+programa, se prueba en el navegador y se documenta.
+
+**Regla de oro de la ronda:** una herramienta se da por hecha cuando (1) se puede coger y se ve su acción en el lienzo, (2) tiene sus mandos en el recuadro de la izquierda (D-205),
+(3) las reglas de qué sale bien y qué mal viven en un módulo puro con pruebas —para que Cristóbal las corrija sin tocar el lienzo— y (4) un paso puede pedirla como objetivo.
+
+**Qué hace cada una en la realidad y cómo se recrea** (en el orden de trabajo):
+
+| # | Herramienta | Qué hace en pabellón | Cómo se recrea |
+|---|---|---|---|
+| E1 | **Alicate de doblado de tres puntos**, **grifa de torsión**, **plantilla maleable de aluminio** (y las placas) | La placa precontorneada rara vez calza: se **dobla fuera del hueso** para seguir su curvatura (flexión), se **tuerce** para seguir su torsión (grifas, siempre de a dos, una a cada lado del orificio) y se prueba una **plantilla de aluminio** moldeada al hueso para saber el contorno que hay que darle. No se dobla a través de un orificio (lo deforma y, en una LCP, estropea la rosca del bloqueo) ni de ida y vuelta muchas veces (fatiga el metal). | Modo **Modelar**: la placa se pone en una **mesa** dentro del lienzo, suelta y movible. El alicate dobla donde se apunta (rueda del ratón: ±1° por muesca) y la grifa tuerce. La malla se deforma de verdad a lo largo de un eje que se integra desde los doblez (`contornoDeLaPlaca.ts`, puro). La plantilla copia el contorno del hueso y propone los doblez. La placa ya modelada se lleva al hueso con su forma. |
+| E2 | **Elevador de Freer**, **periostótomo AO/Lambotte**, **periostótomo de Farabeuf** | Despegan el **periostio** de la cortical, sin desgarrarlo, para exponer el hueso donde se apoyará la placa o se reducirá. Se hace antes de la placa. | Modo **Elevar**: arrastrar sobre el hueso deja una zona **expuesta** (se pinta y se mide en mm²); sin ella, la placa avisa de que se apoya sobre periostio. |
+| E3 | **Motor quirúrgico**, **aguja de Kirschner**, **camisa con guía y trocar** | El motor da la rotación a brocas y fresas (velocidad, sentido, enfriamiento); la aguja de Kirschner **fija provisionalmente** o **guía**: se clava en los fragmentos con el motor, se comprueba en la fluoroscopia y se retira; la camisa **protege los blandos** y alinea la broca. | La aguja es una perforación que **deja el alambre puesto** (cruza la fractura y mantiene la reducción, visible en la fluoroscopia); la camisa se apoya sobre el hueso y guía la broca por su eje. |
+| E4 | **Punzón iniciador curvo (awl)**, **guía de punta de oliva**, **tubo de intercambio**, **dedo reductor endomedular**, **arco de inserción**, **fresa flexible canulada** | Enclavado endomedular: el punzón abre el **punto de entrada**; la guía de punta de oliva pasa el canal **cruzando la fractura** (con el dedo reductor se alinea desde dentro); se fresa sobre la guía; el tubo de intercambio cambia las guías; el arco apunta el bloqueo proximal. Es la secuencia del caso «clavo endomedular». | Cada instrumento hace su paso sobre el **eje del canal** (una curva que sigue el hueso): punto de entrada, guía que avanza y cruza, fresado que ensancha, intercambio. El estado del canal (abierto, guía pasada, fresado a N mm) lo juzgan los pasos. |
+| E5 | **Clavos** (tibial, femoral, PFN), **martillo con caras de nailon**, **impactador** | El clavo se **inserta sobre la guía** y se **impacta con el martillo** golpe a golpe hasta la profundidad pedida; se bloquea después con tornillos proximales y distales (guiados por el arco). | El clavo avanza por el canal con cada golpe del martillo (profundidad en mm, hundimiento respecto del punto de entrada); el bloqueo reutiliza el flujo brocar-medir-atornillar de E9 de P-004. |
+| E6 | **Destornilladores** (hexagonal, Stardrive), **limitador de torque**, **atornillador de bloqueo** | Se **atornilla** girando el destornillador; los tornillos **bloqueados** se aprietan con el limitador (se desengancha al llegar a 1,5 N·m); apretar de más desnuda la rosca. | El tornillo ya no «entra de golpe»: se gira (rueda o arrastre) hasta asentar; con el limitador hay un **clic** al llegar al torque; sin él se puede pasar. |
+| E7 | **Injertos óseos** (esponjoso, tricortical) | Se colocan en el **defecto** o la diástasis y se **compactan**; el tricortical se talla y se encaja. | Se apoya el injerto en el defecto, se compacta (volumen que rellena) y se mide cuánto del hueco queda cubierto. |
+
+*Lo que no se promete:* fidelidad biomecánica (resistencia de la placa, fuerza de torque en newtons-metro reales); se recrea el **gesto, la secuencia y los errores típicos**, con reglas que el traumatólogo
+puede leer y corregir. Cada etapa deja su **D-nnn**, su sección en el manual de uso y sus pruebas.
+
+**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 a E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
 
 ---
 

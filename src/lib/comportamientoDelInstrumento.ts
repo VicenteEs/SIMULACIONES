@@ -69,6 +69,11 @@ export interface ComportamientoDelInstrumento {
    * `tipo` es la forma de las puntas: «puntas» (camarón o Weber), «garra» (Verbrugge) o «bola».
    */
   reduce: { tipo: 'puntas' | 'garra' | 'bola' } | null
+  /**
+   * Modela una placa fuera del hueso (P-005 E1): el alicate de tres puntos la **dobla** (flexión), las grifas la **tuercen** y la plantilla
+   * maleable de aluminio copia el contorno del hueso para saber cómo hay que darle forma. Trabajan sobre la placa en la mesa de modelado.
+   */
+  modela: 'flexion' | 'torsion' | 'plantilla' | null
 }
 
 export type TipoDePinzaDeReduccion = 'puntas' | 'garra' | 'bola'
@@ -84,6 +89,7 @@ const NADA: ComportamientoDelInstrumento = {
   mide: false,
   roma: null,
   reduce: null,
+  modela: null,
 }
 
 const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
@@ -112,6 +118,11 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'pinza-reduccion-puntas': { ...NADA, reduce: { tipo: 'puntas' } },
   'pinza-reduccion-verbrugge': { ...NADA, reduce: { tipo: 'garra' } },
   'pinza-reduccion-bola': { ...NADA, reduce: { tipo: 'bola' } },
+
+  // Modelado de placas (P-005 E1)
+  'alicate-doblado': { ...NADA, modela: 'flexion' },
+  'grifas-torsion': { ...NADA, modela: 'torsion' },
+  'plantilla-aluminio': { ...NADA, modela: 'plantilla' },
 
   'broca-1-5': { ...NADA, perfora: { diametroMm: 1.5, avanceMmPorSegundo: 9 } },
   'broca-2-0': { ...NADA, perfora: { diametroMm: 2.0, avanceMmPorSegundo: 9 } },
@@ -177,6 +188,9 @@ function sinSutura(i: { slug?: string | null; nombre: string; icono?: string | n
       },
     }
   }
+  if (/alicate.*dobla|dobla.*alicate|doblador/.test(nombre)) return { ...NADA, modela: 'flexion' }
+  if (/grifa|bending iron|torsi[oó]n/.test(nombre) && !/limitador/.test(nombre)) return { ...NADA, modela: 'torsion' }
+  if (/plantilla.*(aluminio|maleable)|maleable/.test(nombre)) return { ...NADA, modela: 'plantilla' }
   if (/broca/.test(nombre)) {
     return { ...NADA, perfora: { diametroMm: diametroEnElNombre(i.nombre), avanceMmPorSegundo: 9 } }
   }

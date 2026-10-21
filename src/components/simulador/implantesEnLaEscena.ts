@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import { juzgarTornillo, type EstadoDelAgujero, type TornilloPuesto } from '@/lib/fijacion'
 import { agujerosUniformes, avisoDeOrificios, orificiosValidos } from '@/lib/agujerosDeLaPlaca'
 import type { RangosDelAjuste } from '@/lib/ejesAnatomicos'
+import { textoDelContorno, type ContornoDeLaPlaca } from '@/lib/contornoDeLaPlaca'
+import { deformarLasMallas, guardarOriginales, mapaEnElMarcoDelGrupo } from './deformacionDeLaPlaca'
 
 /**
  * La placa y los tornillos sobre el hueso, dentro de la escena (D-169).
@@ -62,6 +64,11 @@ export interface PlacaColocada {
   fijada: boolean
   /** Lo que se perforó y se midió en cada agujero, por su índice. */
   agujeros: Map<number, EstadoDelAgujero>
+  /**
+   * La placa llegó doblada de la mesa de modelado (P-005 E1): `mapa` lleva un punto del marco local del modelo recto adonde quedó con la placa
+   * doblada —los agujeros se leen a través de él— y `texto` dice cómo está. Sin esto, la placa es la recta de siempre.
+   */
+  contorno?: { mapa: (local: THREE.Vector3) => THREE.Vector3; texto: string; contorno: ContornoDeLaPlaca }
 }
 
 export interface TornilloEnEscena {
@@ -150,6 +157,8 @@ export function colocarPlaca(p: {
   milimetrosPorUnidad: number
   huesos: THREE.Object3D[]
   implantes: ImplantesEnEscena
+  /** La placa doblada en la mesa de modelado: se apoya con su forma (P-005 E1). */
+  contorno?: ContornoDeLaPlaca
 }): PlacaColocada | null {
   const orificios = orificiosValidos(p.orificios)
   // Sin agujeros en el modelo y sin una cantidad escrita no hay dónde atornillar: es mejor decirlo que dejar una placa
@@ -197,6 +206,16 @@ export function colocarPlaca(p: {
   p.escena.add(grupo)
   grupo.updateMatrixWorld(true)
 
+  // La placa que viene doblada de la mesa: se deforma la malla con el mismo contorno, partiendo de la recta, y los agujeros se leerán a través
+  // del mismo mapa. El centro del contorno es el de la caja de la recta (el punto de apoyo no se mueve al doblar).
+  let doblada: PlacaColocada['contorno']
+  if (p.contorno && p.contorno.dobleces.length > 0) {
+    const centroLocal = centro.clone().divideScalar(escalaLocal)
+    const mitadMm = (tamano.z / escalaLocal) * 500
+    deformarLasMallas(guardarOriginales(grupo), centroLocal, p.contorno, mitadMm)
+    doblada = { mapa: mapaEnElMarcoDelGrupo(p.contorno, centroLocal, mitadMm), texto: textoDelContorno(p.contorno, mitadMm), contorno: p.contorno }
+  }
+
   quitarImplantes(p.implantes)
   const placa: PlacaColocada = {
     grupo,
@@ -217,6 +236,7 @@ export function colocarPlaca(p: {
     desdeElOrigen: desdeElOrigen.clone().applyQuaternion(q.clone().invert()),
     fijada: false,
     agujeros: new Map(),
+    contorno: doblada,
   }
   // Cuánto queda separada del hueso en el agujero más cercano al punto de apoyo.
   const medida = medirBajoElAgujero(placa, indiceDelAgujeroMasCercano(placa, p.punto), p.huesos)
@@ -317,7 +337,9 @@ export function posicionDelAgujero(placa: PlacaColocada, indice: number, cara: '
   // Los agujeros están en el marco del modelo, en mm; el modelo está en metros. La altura es la de la
   // caja del modelo, medida al colocarla, y no la del origen: el origen de Blender puede estar en
   // cualquier parte del grosor.
-  const local = new THREE.Vector3(x / 1000, cara === 'arriba' ? placa.yMaximoLocal : placa.yMinimoLocal, -y / 1000)
+  const recto = new THREE.Vector3(x / 1000, cara === 'arriba' ? placa.yMaximoLocal : placa.yMinimoLocal, -y / 1000)
+  // Una placa doblada en la mesa (P-005 E1) lleva sus agujeros a donde los dejó el doblez.
+  const local = placa.contorno ? placa.contorno.mapa(recto) : recto
   placa.grupo.updateMatrixWorld(true)
   return placa.grupo.localToWorld(local)
 }
