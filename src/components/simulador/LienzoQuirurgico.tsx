@@ -186,6 +186,7 @@ import {
   type PeriostioEnLaEscena,
 } from './periostioEnLaEscena'
 import { agujerosSobrePeriostio, juicioDeLaExposicion } from '@/lib/periostio'
+import { LARGO_DEL_ALAMBRE_MM, MAXIMO_DE_ALAMBRES, juzgarElAlambre, resumenDeLosAlambres, type EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
 import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
@@ -513,6 +514,8 @@ export interface MandoDelLienzo {
   volverACubrirElPeriostio: () => void
   /** Cuánto hueso hay expuesto, o `null` si no se despegó nada. */
   estadoDelPeriostio: () => EstadoDelPeriostio | null
+  /** Quita todas las agujas de Kirschner que se dejaron puestas (P-005 E3). */
+  quitarLosAlambres: () => void
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
   estadoDeLaFijacion: () => EstadoDeLaFijacion | null
   /** Encuadra lo que esté visible. */
@@ -558,7 +561,7 @@ export interface InstrumentoEnEscena {
   /** Es el electrobisturí: su modo y su potencia en vatios deciden si corta y cómo deja el borde. */
   electro?: { modo: ModoDelElectrobisturi; potenciaW: number } | null
   /** Perfora el hueso: gira, avanza mientras se mantiene pulsado y deja un túnel. */
-  perfora?: { diametroMm: number; avanceMmPorSegundo: number } | null
+  perfora?: { diametroMm: number; avanceMmPorSegundo: number; alambre?: boolean } | null
   /** Cose: cada clic suma una puntada y el hilo queda dibujado en la piel (D-169). */
   sutura?: HiloDeSutura | null
   /** Se coloca sobre el hueso: una placa se apoya, un tornillo se pone en un agujero (D-169). */
@@ -734,6 +737,7 @@ export function LienzoQuirurgico({
   alCambiarElContexto,
   alCambiarLaMesa,
   alCambiarElPeriostio,
+  alCambiarLosAlambres,
   mando,
 }: {
   url: string
@@ -881,6 +885,8 @@ export function LienzoQuirurgico({
   alCambiarLaMesa?: (estado: EstadoDeLaMesa | null) => void
   /** Se despegó periostio (P-005 E2): cuánto hueso quedó expuesto. `null` si se volvió a cubrir todo. */
   alCambiarElPeriostio?: (estado: EstadoDelPeriostio | null) => void
+  /** Cambiaron las agujas de Kirschner puestas (P-005 E3): se clavó una o se quitaron. `null` si no queda ninguna. */
+  alCambiarLosAlambres?: (estado: EstadoDeLosAlambres | null) => void
   /**
    * Se llama con el nombre del objeto pinchado, en modo «senalar».
    *
@@ -941,6 +947,8 @@ export function LienzoQuirurgico({
     mesa?: MesaDeModelado
     /** El periostio despegado (P-005 E2). */
     periostio?: PeriostioEnLaEscena
+    /** Las agujas de Kirschner que se dejaron puestas (P-005 E3). */
+    alambres?: AlambrePuesto[]
     /** El entorno de estudio que reflejan los instrumentos (el acero sin él se ve negro). */
     entorno?: THREE.Texture
     fantasma?: THREE.Object3D
@@ -1083,6 +1091,7 @@ export function LienzoQuirurgico({
     alCambiarElContexto,
     alCambiarLaMesa,
     alCambiarElPeriostio,
+    alCambiarLosAlambres,
     alCargarInstrumento,
     alHerir,
     alPerforar,
@@ -1133,6 +1142,7 @@ export function LienzoQuirurgico({
       alCambiarElContexto,
       alCambiarLaMesa,
       alCambiarElPeriostio,
+      alCambiarLosAlambres,
       alCargarInstrumento,
       alHerir,
       alPerforar,
@@ -1680,6 +1690,19 @@ export function LienzoQuirurgico({
     },
 
     estadoDeLaMesa: () => (taller.current.mesa ? estadoDeLaMesa(taller.current.mesa) : null),
+
+    quitarLosAlambres: () => {
+      const t = taller.current
+      if (!t.alambres || t.alambres.length === 0) return
+      for (const a of t.alambres) {
+        a.malla.removeFromParent()
+        a.malla.geometry.dispose()
+        ;(a.malla.material as THREE.Material).dispose()
+      }
+      t.alambres = []
+      ultimas.current.alCambiarLosAlambres?.(null)
+      t.pedirDibujo?.()
+    },
 
     volverACubrirElPeriostio: () => {
       const t = taller.current
@@ -2284,7 +2307,7 @@ export function LienzoQuirurgico({
        * —cambiar de instrumento con una puesta la retira—, y el calibre que se anota es el de esta, no el de la que ahora se
        * lleva en la mano.
        */
-      config: { diametroMm: number; avanceMmPorSegundo: number }
+      config: { diametroMm: number; avanceMmPorSegundo: number; alambre?: boolean }
       /** El botón del ratón está pulsado: solo entonces avanza por el tiempo. Soltarlo no retira la broca. */
       avanzando: boolean
       /** Gira: apagarla la detiene sin retirarla. */
@@ -2646,7 +2669,7 @@ export function LienzoQuirurgico({
         // conviene que vea y que se le diga.
         maxima: salidaPorLaOpuesta + MARGEN_PARA_PASARSE_MM * unidadesPorMm,
         salidaPorLaOpuesta,
-        config: { diametroMm: config.diametroMm, avanceMmPorSegundo: config.avanceMmPorSegundo },
+        config: { diametroMm: config.diametroMm, avanceMmPorSegundo: config.avanceMmPorSegundo, alambre: config.alambre },
         avanzando: true,
         encendida: true,
       }
@@ -2672,6 +2695,41 @@ export function LienzoQuirurgico({
       // largo, lo de más es aire (o partes blandas) y el cilindro negro asomaba por el otro lado del hueso, flotando
       // en mitad de la imagen. El exceso no se dibuja, pero sigue contando: `sePaso` y el aviso de la lectura salen
       // de la profundidad real de la broca, no de lo que se ve.
+      if (config.alambre) {
+        // Una aguja de Kirschner (P-005 E3) no deja un túnel vacío: se queda el alambre, asomando por la entrada. Es metal en la escena, no
+        // de interfaz, así que la fluoroscopia lo ve; no se puede pinchar para no estorbar a lo que se haga detrás.
+        const largoTotal = LARGO_DEL_ALAMBRE_MM * unidadesPorMm
+        const alambre = new THREE.Mesh(
+          new THREE.CylinderGeometry(radio, radio, largoTotal, 10, 1, false),
+          new THREE.MeshStandardMaterial({ color: 0xcfd3d8, metalness: 0.85, roughness: 0.3 }),
+        )
+        alambre.position.copy(p.entrada).addScaledVector(p.dirEntra, p.profundidad - largoTotal / 2)
+        alambre.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.dirEntra)
+        alambre.raycast = () => {}
+        alambre.name = 'alambre-de-kirschner'
+        escenaActual.add(alambre)
+        const puestos = (taller.current.alambres ??= [])
+        puestos.push({ malla: alambre, profundidadMm: p.profundidad / unidadesPorMm, salidaPorLaOpuestaMm: p.salidaPorLaOpuesta / unidadesPorMm })
+        // Un tope: más agujas no enseñan nada y cuestan geometría; la más vieja se va.
+        if (puestos.length > MAXIMO_DE_ALAMBRES) {
+          const viejo = puestos.shift()!
+          viejo.malla.removeFromParent()
+          viejo.malla.geometry.dispose()
+          ;(viejo.malla.material as THREE.Material).dispose()
+        }
+        const juicio = juzgarElAlambre(puestos[puestos.length - 1])
+        ultimas.current.alCambiarLosAlambres?.(resumenDeLosAlambres(puestos))
+        taller.current.decir?.(juicio.aviso ?? `Aguja de Kirschner puesta: ${puestos[puestos.length - 1].profundidadMm.toFixed(0)} mm, bicortical.`)
+        ultimas.current.alPerforar?.({
+          diametroMm: config.diametroMm,
+          profundidadMm: p.profundidad / unidadesPorMm,
+          anguloConElEje: p.anguloConElEje,
+          bicortical: juicio.bicortical,
+          sePasoMm: juicio.sePasoMm,
+        })
+        pedirDibujo()
+        return
+      }
       const largoDelAgujero = largoVisibleDelAgujero(p.profundidad, p.salidaPorLaOpuesta)
       const agujero = new THREE.Mesh(
         new THREE.CylinderGeometry(radio, radio, largoDelAgujero, 16, 1, false),
@@ -5044,6 +5102,12 @@ export function LienzoQuirurgico({
         soltarElPeriostio(taller.current.periostio)
         taller.current.periostio = undefined
       }
+      for (const a of taller.current.alambres ?? []) {
+        a.malla.removeFromParent()
+        a.malla.geometry.dispose()
+        ;(a.malla.material as THREE.Material).dispose()
+      }
+      taller.current.alambres = []
       render.domElement.removeEventListener('pointerdown', alBajarEnLaMesa)
       render.domElement.removeEventListener('pointermove', alMoverEnLaMesa)
       render.domElement.removeEventListener('pointerup', alSoltarEnLaMesa)
@@ -5358,6 +5422,8 @@ export type Taller = {
   mesa?: MesaDeModelado
   /** El periostio despegado (P-005 E2). */
   periostio?: PeriostioEnLaEscena
+  /** Las agujas de Kirschner que se dejaron puestas (P-005 E3). */
+  alambres?: AlambrePuesto[]
   /** La silueta del fragmento en su sitio correcto (ayuda de los rayos X). */
   fantasma?: THREE.Object3D
   /** Los dos ejes de la guía de angulación (ayuda de los rayos X). */
@@ -6051,6 +6117,13 @@ function ladoDelPunto(taller: Taller, punto: THREE.Vector3, unidadesPorMm: numbe
  * Cuánto abre cada labio de una herida en un punto de su largo. Sin perfil es parejo; con él, es lo que
  * manden los separadores colocados. `t` ausente se toma por la mitad de la herida.
  */
+/** Una aguja de Kirschner clavada y dejada puesta (P-005 E3): la malla del alambre y lo que se midió al clavarla. */
+interface AlambrePuesto {
+  malla: THREE.Mesh
+  profundidadMm: number
+  salidaPorLaOpuestaMm: number
+}
+
 function aperturaAqui(h: HeridaEnCapa, t: number | undefined): { mas: number; menos: number } {
   return h.perfil ? h.perfil(t ?? 0.5) : { mas: h.mas, menos: h.menos }
 }

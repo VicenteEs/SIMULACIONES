@@ -6807,6 +6807,17 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que no hace todavía:** que el periostio despegado dependa de que los blandos estén retraídos (el hueso se pica aunque haya músculo encima), distinguir fragmentos al contar la devitalización, ni pedirlo como objetivo de un paso. Probado en el navegador:
   17 huellas, 390 mm² con la hoja de 6 mm en una pasada de unos 65 mm, la franja visible sobre la tibia sin la capa de músculo. Pruebas: 12 nuevas (`periostio.test.ts`).
 
+### D-209 · 2026-10-21 · vigente
+**La aguja de Kirschner se queda puesta en el hueso y se juzga (P-005 E3, primera parte).**
+- **Reglas, puras y con pruebas** (`src/lib/alambreDeKirschner.ts`): una aguja de 1,6 mm y 150 mm de largo. Se juzga por lo que entró y por la distancia a la cortical opuesta: **menos de 2 mm** «apenas entró»;
+  sin llegar a la opuesta (con media muesca de tolerancia) «cortical cercana, sujeta poco»; **más de 3 mm** pasada la opuesta «riesgo para los blandos». Las cifras son una propuesta a validar con Cristóbal.
+- **En el lienzo:** la aguja es una perforación que, al retirar el motor, **no dibuja un hoyo oscuro sino un alambre de acero** clavado a la profundidad alcanzada, que asoma lo que sobra del largo. No es de interfaz: **la
+  fluoroscopia la ve**. Hasta 6 a la vez (la más antigua se sustituye). «Quitar las agujas» y «Reiniciar el caso» las retiran.
+- **Las herramientas** (`comportamientoDelInstrumento`): `perfora.alambre` para `aguja-kirschner` y por nombre (/kirschner/); las brocas no cambian.
+- **Probado en el navegador:** una aguja de 3,9 mm («solo la cortical cercana»), otra de 26,5 mm que se pasó 6,4 mm (aviso de riesgo), las dos listadas en el recuadro, «Quitar las agujas» las deja en 0. 12 pruebas nuevas.
+- **Lo que queda de E3 y no está hecho:** la **camisa con guía y trocar** (que la aguja o la broca entren guiadas por ella) y el **motor** con su regla de calor (rpm, irrigación). La aguja tampoco **fija** todavía
+  una reducción (mantener los fragmentos mientras se pone el implante definitivo). Se retoman después de E4 a E7.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10773,7 +10784,7 @@ programa, se prueba en el navegador y se documenta.
 *Lo que no se promete:* fidelidad biomecánica (resistencia de la placa, fuerza de torque en newtons-metro reales); se recrea el **gesto, la secuencia y los errores típicos**, con reglas que el traumatólogo
 puede leer y corregir. Cada etapa deja su **D-nnn**, su sección en el manual de uso y sus pruebas.
 
-**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 a E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
+**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 a E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
 
 ---
 

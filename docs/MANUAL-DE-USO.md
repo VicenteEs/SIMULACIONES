@@ -957,6 +957,10 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   tamaño y con el mismo comportamiento que la ficha de «Seleccionar estructura» (que va a la derecha): su modelo y la previsualización, el modo de uso,
   todo lo que se configura (potencia, apertura, diámetro y largo del tornillo, broca, medidor…), «Soltar» y, en el editor, «Es el correcto en este paso».
   Con pantalla estrecha (menos de 1000 px) flota sobre el lienzo. La columna derecha queda para la bandeja.
+- **Aguja de Kirschner (se queda puesta).** Al cogerla, el modo pasa a **«Perforar»** con su calibre (1,6 mm). Se apunta al hueso, se mantiene pulsado y avanza; al
+  **«Retirar»** el motor, **la aguja se queda clavada**: se ve en la escena y en la fluoroscopia, asoma por fuera del hueso y se juzga. El recuadro de la herramienta lista cada aguja
+  («Aguja 2 · 26,5 mm · bicortical · asoma 123 mm») y avisa si **quedó en la cortical cercana** (sujeta poco) o si **se pasó más de 3 mm de la cortical opuesta** (riesgo para vasos y
+  nervios). Caben hasta 6 a la vez; **«Quitar las agujas»** las retira todas. Reglas en `src/lib/alambreDeKirschner.ts`.
 - **Despegar el periostio (Freer y periostótomos).** El **elevador de Freer** (hojas de 3 y 5 mm), el **periostótomo AO / Lambotte** (6 y 14 mm) y el **periostótomo de
   Farabeuf** (11 y 15 mm) despegan el periostio de la cortical, como se hace antes de apoyar una placa. Al cogerlos el modo pasa a **«Elevar»**: se elige la **hoja** en el
   recuadro, se **mantiene pulsado y se arrastra sobre el hueso**, y queda una franja clara —del ancho de la hoja— donde el hueso ya no tiene periostio. El recuadro dice

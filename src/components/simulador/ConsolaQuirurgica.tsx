@@ -54,6 +54,7 @@ import { RadiografiaPostoperatoria } from './RadiografiaPostoperatoria'
 import { AsaDeAncho } from './AsaDeAncho'
 import type { EstadoDeLaMesa } from './mesaDeModelado'
 import type { EstadoDelPeriostio } from './periostioEnLaEscena'
+import type { EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
 import { textoDeLaExposicion } from '@/lib/periostio'
 import { intervencionPropuesta, type DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
 import {
@@ -704,6 +705,8 @@ export function ConsolaQuirurgica({
   // El periostio despegado (P-005 E2): lo dice el lienzo al soltar cada pasada. Y qué hoja del instrumento está elegida (`null`: la primera).
   const [periostioDespegado, setPeriostioDespegado] = useState<EstadoDelPeriostio | null>(null)
   const [anchoDeLaHoja, setAnchoDeLaHoja] = useState<number | null>(null)
+  // Las agujas de Kirschner que se dejaron puestas (P-005 E3).
+  const [alambresPuestos, setAlambresPuestos] = useState<EstadoDeLosAlambres | null>(null)
   const avisoDeLaMesa = useRef(0)
   useEffect(() => {
     if (estadoDelContexto.fase === 'perdido') {
@@ -1418,6 +1421,7 @@ export function ConsolaQuirurgica({
     // Y lo que se hizo fuera del paciente: la placa de la mesa de modelado y el periostio despegado.
     mando.current?.quitarLaPlacaDeLaMesa()
     mando.current?.volverACubrirElPeriostio()
+    mando.current?.quitarLosAlambres()
     mando.current?.soltarPellizco()
     mando.current?.cerrarHeridas()
     mando.current?.borrarAgujeros()
@@ -2861,6 +2865,31 @@ export function ConsolaQuirurgica({
    * dice cuánto se lleva y deja elegir la hoja (el Lambotte trae una de 6 y otra de 14 mm). Las reglas están en `src/lib/periostio.ts`.
    */
   const anchoDeLaHojaVigente = queHace.eleva ? (anchoDeLaHoja ?? queHace.eleva.anchosMm[0]) : 0
+  const bloqueDeLosAlambres = queHace.perfora?.alambre ? (
+    <div className="consola-instrumento-articulaciones">
+      <p className="consola-instrumento-texto">
+        La aguja de Kirschner <strong>se queda puesta</strong>: mantenga pulsado sobre el hueso para clavarla con el motor, y al retirarla con «Retirar» queda el alambre asomando. Para fijar de forma provisional hay que cruzar las dos corticales.
+        Se ve en la fluoroscopia.
+      </p>
+      {alambresPuestos && alambresPuestos.lista.length > 0 ? (
+        <>
+          <ul className="consola-instrumento-texto">
+            {alambresPuestos.lista.map((a) => (
+              <li key={a.numero}>
+                {a.texto}
+                {a.aviso ? ` — ${a.aviso}` : ''}
+              </li>
+            ))}
+          </ul>
+          <div className="consola-instrumento-acciones">
+            <button type="button" className="consola-boton" onClick={() => mando.current?.quitarLosAlambres()}>
+              Quitar las agujas
+            </button>
+          </div>
+        </>
+      ) : null}
+    </div>
+  ) : null
   const bloqueDelPeriostio = queHace.eleva ? (
     <div className="consola-instrumento-articulaciones">
       <label className="consola-instrumento-articulacion">
@@ -3455,6 +3484,8 @@ instrumentoElegido ? (
               ) : null}
 
               {bloqueDelPeriostio}
+
+              {bloqueDeLosAlambres}
 
               {bloqueDeLaMesa}
 
@@ -4201,6 +4232,7 @@ instrumentoElegido ? (
             alCambiarElContexto={setEstadoDelContexto}
             alCambiarLaMesa={setMesaDeModelado}
             alCambiarElPeriostio={setPeriostioDespegado}
+            alCambiarLosAlambres={setAlambresPuestos}
             url={caso.modeloUrl}
             piezas={piezas}
             modo={modo}

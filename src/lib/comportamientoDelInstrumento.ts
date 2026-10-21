@@ -50,6 +50,8 @@ export interface ComportamientoDelInstrumento {
     diametroMm: number
     /** Cuánto avanza por segundo con el motor, en mm. Un machuelo a mano va mucho más despacio. */
     avanceMmPorSegundo: number
+    /** Es una aguja de Kirschner (P-005 E3): al retirar la perforación **se queda el alambre puesto** en vez de un túnel vacío. */
+    alambre?: boolean
   } | null
   /** Cose: cada clic sobre el tejido suma un punto y el hilo queda dibujado entre ellos (D-169). */
   sutura: HiloDeSutura | null
@@ -135,6 +137,7 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'grifas-torsion': { ...NADA, modela: 'torsion' },
   'plantilla-aluminio': { ...NADA, modela: 'plantilla' },
 
+  'aguja-kirschner': { ...NADA, perfora: { diametroMm: 1.6, avanceMmPorSegundo: 9, alambre: true } },
   'broca-1-5': { ...NADA, perfora: { diametroMm: 1.5, avanceMmPorSegundo: 9 } },
   'broca-2-0': { ...NADA, perfora: { diametroMm: 2.0, avanceMmPorSegundo: 9 } },
   'broca-2-5': { ...NADA, perfora: { diametroMm: 2.5, avanceMmPorSegundo: 9 } },
@@ -198,6 +201,10 @@ function sinSutura(i: { slug?: string | null; nombre: string; icono?: string | n
         apoyoEnHueso: /hohmann/.test(nombre),
       },
     }
+  }
+  if (/kirschner/.test(nombre)) {
+    const d = /(\d+(?:[.,]\d+)?)\s*mm/i.exec(nombre)
+    return { ...NADA, perfora: { diametroMm: d ? Number(d[1].replace(',', '.')) : 1.6, avanceMmPorSegundo: 9, alambre: true } }
   }
   if (/freer/.test(nombre)) return { ...NADA, eleva: { anchosMm: [3, 5] } }
   if (/periost[oó]tomo|elevador de periostio|lambotte/.test(nombre)) return { ...NADA, eleva: { anchosMm: [6, 14] } }
