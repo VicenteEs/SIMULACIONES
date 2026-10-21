@@ -187,6 +187,22 @@ import {
 } from './periostioEnLaEscena'
 import { agujerosSobrePeriostio, juicioDeLaExposicion } from '@/lib/periostio'
 import { LARGO_DEL_ALAMBRE_MM, MAXIMO_DE_ALAMBRES, juzgarElAlambre, resumenDeLosAlambres, type EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
+import { siguienteCabeza, type EstadoDelEnclavado, type ReduccionDelFoco } from '@/lib/enclavado'
+import {
+  avanceMaximo,
+  cambiarLaGuia,
+  colocarLaGuia,
+  crearEnclavado,
+  estadoDelEnclavado,
+  juicioDelPasoDeLaGuia,
+  medirElCanal,
+  ponerElCanal,
+  ponerLaEntrada,
+  quitarTodoElEnclavado,
+  remedirElCanal,
+  retirarLaGuia,
+  type EnclavadoEnLaEscena,
+} from './enclavadoEnLaEscena'
 import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
@@ -212,7 +228,7 @@ import '@/app/(frontend)/simulador/consola.css'
  * quien está mirando una pantalla quieta.
  */
 
-export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar' | 'reducir' | 'modelar' | 'elevar' | 'info'
+export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar' | 'reducir' | 'modelar' | 'elevar' | 'enclavar' | 'info'
 
 export interface Punto3 {
   x: number
@@ -516,6 +532,10 @@ export interface MandoDelLienzo {
   estadoDelPeriostio: () => EstadoDelPeriostio | null
   /** Quita todas las agujas de Kirschner que se dejaron puestas (P-005 E3). */
   quitarLosAlambres: () => void
+  /** Quita todo el enclavado puesto —entrada, guía y canal fresado— y lo deja como al principio (P-005 E4). */
+  quitarElEnclavado: () => void
+  /** Retira la guía y el fresado, y deja la entrada marcada (P-005 E4). */
+  retirarLaGuiaDelEnclavado: () => void
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
   estadoDeLaFijacion: () => EstadoDeLaFijacion | null
   /** Encuadra lo que esté visible. */
@@ -576,6 +596,8 @@ export interface InstrumentoEnEscena {
   modela?: 'flexion' | 'torsion' | 'plantilla' | null
   /** Despega el periostio (P-005 E2): arrastrar sobre el hueso deja una franja expuesta del ancho de la hoja elegida, en mm. */
   eleva?: { anchoMm: number } | null
+  /** Paso del enclavado endomedular que hace la herramienta (P-005 E4); `cabezaMm` es la cabeza de fresa elegida. */
+  enclava?: { funcion: 'entrada' | 'guia' | 'dedo' | 'fresa' | 'tubo'; cabezaMm?: number } | null
 }
 
 /** Una pinza de reducción que tiene agarrado un trozo de hueso: es hija del trozo, así que lo acompaña (P-003 E5). */
@@ -738,6 +760,9 @@ export function LienzoQuirurgico({
   alCambiarLaMesa,
   alCambiarElPeriostio,
   alCambiarLosAlambres,
+  alCambiarElEnclavado,
+  medidasDelFoco,
+  clavoPrevistoMm,
   mando,
 }: {
   url: string
@@ -887,6 +912,12 @@ export function LienzoQuirurgico({
   alCambiarElPeriostio?: (estado: EstadoDelPeriostio | null) => void
   /** Cambiaron las agujas de Kirschner puestas (P-005 E3): se clavó una o se quitaron. `null` si no queda ninguna. */
   alCambiarLosAlambres?: (estado: EstadoDeLosAlambres | null) => void
+  /** Cambió el enclavado (P-005 E4): se marcó la entrada, avanzó la guía, se fresó. `null` si se quitó todo. */
+  alCambiarElEnclavado?: (estado: EstadoDelEnclavado | null) => void
+  /** Cómo está la reducción del foco ahora mismo: de ella depende que la guía pase (P-005 E4). */
+  medidasDelFoco?: ReduccionDelFoco | null
+  /** El calibre del clavo que se va a poner, si el caso lo trae en su bandeja: con él se juzga el fresado (P-005 E4). */
+  clavoPrevistoMm?: number | null
   /**
    * Se llama con el nombre del objeto pinchado, en modo «senalar».
    *
@@ -949,6 +980,8 @@ export function LienzoQuirurgico({
     periostio?: PeriostioEnLaEscena
     /** Las agujas de Kirschner que se dejaron puestas (P-005 E3). */
     alambres?: AlambrePuesto[]
+    /** El enclavado endomedular: entrada, guía y canal fresado (P-005 E4). */
+    enclavado?: EnclavadoEnLaEscena
     /** El entorno de estudio que reflejan los instrumentos (el acero sin él se ve negro). */
     entorno?: THREE.Texture
     fantasma?: THREE.Object3D
@@ -1092,6 +1125,9 @@ export function LienzoQuirurgico({
     alCambiarLaMesa,
     alCambiarElPeriostio,
     alCambiarLosAlambres,
+    alCambiarElEnclavado,
+    medidasDelFoco,
+    clavoPrevistoMm,
     alCargarInstrumento,
     alHerir,
     alPerforar,
@@ -1143,6 +1179,9 @@ export function LienzoQuirurgico({
       alCambiarLaMesa,
       alCambiarElPeriostio,
       alCambiarLosAlambres,
+      alCambiarElEnclavado,
+      medidasDelFoco,
+      clavoPrevistoMm,
       alCargarInstrumento,
       alHerir,
       alPerforar,
@@ -1701,6 +1740,23 @@ export function LienzoQuirurgico({
       }
       t.alambres = []
       ultimas.current.alCambiarLosAlambres?.(null)
+      t.pedirDibujo?.()
+    },
+
+    quitarElEnclavado: () => {
+      const t = taller.current
+      if (!t.enclavado) return
+      quitarTodoElEnclavado(t.enclavado)
+      ultimas.current.alCambiarElEnclavado?.(null)
+      t.pedirDibujo?.()
+    },
+
+    retirarLaGuiaDelEnclavado: () => {
+      const t = taller.current
+      if (!t.enclavado?.guia) return
+      retirarLaGuia(t.enclavado)
+      ultimas.current.alCambiarElEnclavado?.(estadoDelEnclavado(t.enclavado, ultimas.current.medidasDelFoco ?? null, ultimas.current.clavoPrevistoMm ?? null))
+      t.decir?.('Guía retirada: el canal vuelve a estar sin fresar.')
       t.pedirDibujo?.()
     },
 
@@ -3750,9 +3806,233 @@ export function LienzoQuirurgico({
     render.domElement.addEventListener('pointermove', alMoverParaElevar)
     render.domElement.addEventListener('pointerup', alSoltarParaElevar)
 
+    // --- enclavado endomedular (P-005 E4) ----------------------------------------------------------------
+    // Cada herramienta hace su paso: el punzón marca la entrada con un clic, la guía de punta de oliva y la fresa se empujan **manteniendo pulsado**, el
+    // dedo reductor se pone o se quita con un clic y el tubo de intercambio cambia la guía por la lisa. Las reglas —si la entrada es buena, cuándo se
+    // atasca la guía, cuánto hay que fresar— están en `src/lib/enclavado.ts`; aquí se mide sobre el hueso y se dibuja.
+    const AVANCE_DE_LA_GUIA_MM_POR_SEGUNDO = 45
+    const AVANCE_DE_LA_FRESA_MM_POR_SEGUNDO = 30
+    const medidasDelFocoAhora = () => ultimas.current.medidasDelFoco ?? null
+    const avisarElEnclavado = () => {
+      const t = taller.current
+      const e = t.enclavado
+      // Si se movió el fragmento desde que se marcó la entrada, el canal y el foco están en otro sitio: se mide otra vez y se vuelve a dibujar.
+      if (e?.entrada && t.escena && remedirElCanal(e, ultimas.current.ejeLargo, ultimas.current.milimetrosPorUnidad)) {
+        const mm = ultimas.current.milimetrosPorUnidad
+        if (e.guia) colocarLaGuia(t.escena, e, Math.min(e.guia.avanceMm, e.entrada.canal.largoDelCanalMm), mm)
+        const hecho = Math.max(0, ...e.cabezasMm)
+        if (e.canal && hecho > 0 && e.guia) ponerElCanal(t.escena, e, hecho, e.guia.avanceMm, mm)
+      }
+      ultimas.current.alCambiarElEnclavado?.(e ? estadoDelEnclavado(e, medidasDelFocoAhora(), ultimas.current.clavoPrevistoMm ?? null) : null)
+    }
+    let enclavando: { funcion: 'guia' | 'fresa'; cabezaMm: number; avanceMm: number; ultimo: number; intervalo: number; avisado: boolean } | null = null
+    const cajaDe = (o: THREE.Object3D) => new THREE.Box3().setFromObject(o)
+    const marcarLaEntrada = (golpe: THREE.Intersection) => {
+      const t = taller.current
+      const escena = t.escena
+      if (!escena) return
+      const mm = ultimas.current.milimetrosPorUnidad
+      const eje = ultimas.current.ejeLargo
+      const hueso = new THREE.Vector3(...ejesDelPaciente(eje).hueso)
+      const pieza = golpe.object as THREE.Mesh
+      const fragmento = t.fragmento
+      const esElFragmento = !!fragmento && (pieza === fragmento || perteneceA(pieza, fragmento))
+      let otra: THREE.Object3D | null = null
+      if (fragmento && !esElFragmento) otra = fragmento
+      else if (esElFragmento) {
+        // El punzón cayó en el fragmento del caso: el otro trozo es el hueso fijo más cercano a él.
+        const centro = cajaDe(pieza).getCenter(new THREE.Vector3())
+        let mejor = Infinity
+        for (const h of huesoFijo(t, ultimas.current.piezas)) {
+          const d = cajaDe(h).getCenter(new THREE.Vector3()).distanceTo(centro)
+          if (d < mejor) {
+            mejor = d
+            otra = h
+          }
+        }
+      }
+      const cajaA = cajaDe(pieza)
+      const cajaB = otra ? cajaDe(otra) : null
+      if (cajaB && !cajaA.clone().expandByScalar(30 / mm).intersectsBox(cajaB)) {
+        t.decir?.('El punzón marca el hueso de la fractura: apunte al fragmento proximal del hueso que se va a enclavar.')
+        return
+      }
+      if (cajaB && cajaB.getCenter(new THREE.Vector3()).dot(hueso) > cajaA.getCenter(new THREE.Vector3()).dot(hueso)) {
+        t.decir?.('La entrada va en el fragmento proximal (el de arriba, hacia la cabeza del paciente): el clavo entra por el extremo proximal y baja.')
+        return
+      }
+      const e = (t.enclavado ??= crearEnclavado())
+      const canal = medirElCanal({ entrada: golpe.point.clone(), cajaProximal: cajaA, cajaDistal: cajaB, eje, milimetrosPorUnidad: mm })
+      // Una entrada nueva invalida lo que dependía de la anterior: la guía y el fresado se rehacen.
+      retirarLaGuia(e)
+      const juicio = ponerLaEntrada(escena, e, golpe.point, normalDelGolpe(golpe), canal, mm, { proximal: pieza, distal: otra })
+      t.decir?.(juicio.aviso ?? 'Entrada marcada: en el extremo proximal y en línea con el canal. Ahora se pasa la guía de punta de oliva.')
+      avisarElEnclavado()
+      t.pedirDibujo?.()
+    }
+    const detenerElEnclavado = (completo: boolean) => {
+      const t = taller.current
+      const h = enclavando
+      if (!h) return
+      window.clearInterval(h.intervalo)
+      enclavando = null
+      controles.enabled = true
+      const e = t.enclavado
+      if (e && h.funcion === 'fresa' && !completo && t.escena) {
+        // La fresa se retiró antes de llegar al fondo: esa pasada no cuenta y el canal vuelve a lo que ya estaba fresado.
+        const hecho = Math.max(0, ...e.cabezasMm)
+        if (hecho > 0 && e.guia) ponerElCanal(t.escena, e, hecho, e.guia.avanceMm, ultimas.current.milimetrosPorUnidad)
+        else if (e.canal) {
+          e.canal.removeFromParent()
+          e.canal = null
+        }
+        t.decir?.('La fresa se retiró antes de llegar al extremo de la guía: esa pasada no cuenta.')
+      }
+      avisarElEnclavado()
+      t.pedirDibujo?.()
+    }
+    const empujarEnclavado = () => {
+      const t = taller.current
+      const h = enclavando
+      const e = t.enclavado
+      const escena = t.escena
+      if (!h || !e?.entrada || !escena) return
+      const mm = ultimas.current.milimetrosPorUnidad
+      const ahora = performance.now()
+      const dt = Math.min(0.1, (ahora - h.ultimo) / 1000)
+      h.ultimo = ahora
+      if (h.funcion === 'guia') {
+        const antes = e.guia?.avanceMm ?? 0
+        const maximo = avanceMaximo(e, medidasDelFocoAhora())
+        const nuevo = Math.min(maximo, antes + AVANCE_DE_LA_GUIA_MM_POR_SEGUNDO * dt)
+        colocarLaGuia(escena, e, nuevo, mm)
+        const paso = juicioDelPasoDeLaGuia(e, medidasDelFocoAhora())
+        const atascada = !paso.pasa && e.entrada.canal.distanciaAlFocoMm !== null && nuevo >= maximo - 0.01
+        if (e.guia) {
+          e.guia.atascada = atascada
+          e.guia.aviso = atascada ? paso.aviso : null
+        }
+        if (atascada && !h.avisado) {
+          h.avisado = true
+          t.decir?.(paso.aviso ?? 'La guía se atasca en el foco.')
+        }
+        if (!atascada) h.avisado = false
+        if (nuevo >= maximo - 0.01 && !atascada) {
+          t.decir?.('La punta de la guía llegó a la epífisis distal, a unos 10 mm de la articulación. Se puede fresar.')
+          detenerElEnclavado(true)
+          return
+        }
+      } else if (e.guia) {
+        h.avanceMm = Math.min(e.guia.avanceMm, h.avanceMm + AVANCE_DE_LA_FRESA_MM_POR_SEGUNDO * dt)
+        ponerElCanal(escena, e, Math.max(h.cabezaMm, ...e.cabezasMm), h.avanceMm, mm)
+        if (h.avanceMm >= e.guia.avanceMm - 1) {
+          e.cabezasMm.push(h.cabezaMm)
+          const f = estadoDelEnclavado(e, medidasDelFocoAhora(), ultimas.current.clavoPrevistoMm ?? null).fresado
+          t.decir?.(f.aviso ?? `Fresado con cabeza de ${String(h.cabezaMm).replace('.', ',')} mm.`)
+          detenerElEnclavado(true)
+          return
+        }
+      }
+      avisarElEnclavado()
+      t.pedirDibujo?.()
+    }
+    const alBajarParaEnclavar = (evento: PointerEvent) => {
+      const que = ultimas.current.instrumento?.enclava
+      if (ultimas.current.modo !== 'enclavar' || evento.button !== 0 || !que) return
+      aCoordenadas(evento)
+      const t = taller.current
+      if (que.funcion === 'entrada') {
+        const golpe = huesoBajoElCursor()
+        if (!golpe) {
+          t.decir?.('Apunte al hueso: el punzón marca la entrada sobre el hueso visible, en el extremo proximal.')
+          return
+        }
+        marcarLaEntrada(golpe)
+        return
+      }
+      const e = (t.enclavado ??= crearEnclavado())
+      if (que.funcion === 'dedo') {
+        e.dedoPuesto = !e.dedoPuesto
+        t.decir?.(
+          e.dedoPuesto
+            ? 'Dedo reductor puesto en el canal: empuja el fragmento distal hacia la línea y deja pasar la guía con un poco más de desalineación.'
+            : 'Dedo reductor retirado.',
+        )
+        avisarElEnclavado()
+        return
+      }
+      if (que.funcion === 'tubo') {
+        const estado = estadoDelEnclavado(e, medidasDelFocoAhora(), ultimas.current.clavoPrevistoMm ?? null)
+        if (!estado.guia?.llegaAlFondo) {
+          t.decir?.('Falta la guía de punta de oliva pasada hasta el extremo distal: el tubo de intercambio corre sobre ella.')
+        } else if (e.cabezasMm.length === 0) {
+          t.decir?.('Falta fresar: la guía se cambia por la lisa después del fresado, para pasar el clavo.')
+        } else if (e.guiaCambiada) {
+          t.decir?.('La guía ya está cambiada por la lisa.')
+        } else {
+          cambiarLaGuia(e)
+          t.decir?.('Guía cambiada: con el tubo de intercambio se retiró la de punta de oliva y quedó la lisa. El canal está listo para el clavo.')
+          avisarElEnclavado()
+          t.pedirDibujo?.()
+        }
+        return
+      }
+      // La guía y la fresa se empujan manteniendo pulsado.
+      if (!e.entrada) {
+        t.decir?.('Marque antes el punto de entrada con el punzón iniciador.')
+        return
+      }
+      if (!e.entrada.juicio.buena) {
+        t.decir?.(`La entrada no sirve: ${e.entrada.juicio.aviso ?? ''} Corríjala con el punzón (un clic en otro punto).`)
+        return
+      }
+      let cabezaMm = 0
+      if (que.funcion === 'guia') {
+        if (e.guiaCambiada) {
+          t.decir?.('La guía ya se cambió por la lisa: para pasar otra de punta de oliva hay que retirar la guía («Retirar la guía») y empezar de nuevo.')
+          return
+        }
+      } else {
+        const estado = estadoDelEnclavado(e, medidasDelFocoAhora(), ultimas.current.clavoPrevistoMm ?? null)
+        if (!estado.guia?.llegaAlFondo) {
+          t.decir?.('Pase antes la guía hasta el extremo distal: la fresa canulada corre sobre ella.')
+          return
+        }
+        const elegida = que.cabezaMm ?? siguienteCabeza(e.cabezasMm)
+        if (elegida === null || elegida === undefined) {
+          t.decir?.('No quedan cabezas más grandes en el juego.')
+          return
+        }
+        if (e.cabezasMm.some((c) => c >= elegida)) {
+          t.decir?.(`La cabeza de ${String(elegida).replace('.', ',')} mm ya pasó: elija una mayor.`)
+          return
+        }
+        cabezaMm = elegida
+      }
+      controles.enabled = false
+      try {
+        render.domElement.setPointerCapture(evento.pointerId)
+      } catch {
+        // sin captura
+      }
+      enclavando = { funcion: que.funcion, cabezaMm, avanceMm: 0, ultimo: performance.now(), intervalo: window.setInterval(empujarEnclavado, 16), avisado: false }
+    }
+    const alSoltarParaEnclavar = (evento: PointerEvent) => {
+      if (!enclavando) return
+      try {
+        render.domElement.releasePointerCapture(evento.pointerId)
+      } catch {
+        // ya estaba suelto
+      }
+      detenerElEnclavado(false)
+    }
+    render.domElement.addEventListener('pointerdown', alBajarParaEnclavar)
+    render.domElement.addEventListener('pointerup', alSoltarParaEnclavar)
+    render.domElement.addEventListener('pointercancel', alSoltarParaEnclavar)
+
     const alBajar = (evento: PointerEvent) => {
       const { modo: modoActual } = ultimas.current
-      if (modoActual === 'orbitar' || modoActual === 'modelar' || modoActual === 'elevar') return
+      if (modoActual === 'orbitar' || modoActual === 'modelar' || modoActual === 'elevar' || modoActual === 'enclavar') return
 
       aCoordenadas(evento)
       clicEnElVacio = null
@@ -5098,6 +5378,14 @@ export function LienzoQuirurgico({
       render.domElement.removeEventListener('pointerdown', alBajarParaElevar)
       render.domElement.removeEventListener('pointermove', alMoverParaElevar)
       render.domElement.removeEventListener('pointerup', alSoltarParaElevar)
+      render.domElement.removeEventListener('pointerdown', alBajarParaEnclavar)
+      render.domElement.removeEventListener('pointerup', alSoltarParaEnclavar)
+      render.domElement.removeEventListener('pointercancel', alSoltarParaEnclavar)
+      if (enclavando) window.clearInterval(enclavando.intervalo)
+      if (taller.current.enclavado) {
+        quitarTodoElEnclavado(taller.current.enclavado)
+        taller.current.enclavado = undefined
+      }
       if (taller.current.periostio) {
         soltarElPeriostio(taller.current.periostio)
         taller.current.periostio = undefined
@@ -5424,6 +5712,8 @@ export type Taller = {
   periostio?: PeriostioEnLaEscena
   /** Las agujas de Kirschner que se dejaron puestas (P-005 E3). */
   alambres?: AlambrePuesto[]
+  /** El enclavado endomedular (P-005 E4). */
+  enclavado?: EnclavadoEnLaEscena
   /** La silueta del fragmento en su sitio correcto (ayuda de los rayos X). */
   fantasma?: THREE.Object3D
   /** Los dos ejes de la guía de angulación (ayuda de los rayos X). */

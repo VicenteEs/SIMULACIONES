@@ -19,7 +19,7 @@ describe('el orden de los modos', () => {
   const bloque = consola.slice(consola.indexOf('const modosVisibles = ['), consola.indexOf('const ayudaDelModo'))
   const orden = [...bloque.matchAll(/\bMODO_[A-ZÑ]+\b|\.\.\.MODOS\b/g)].map((m) => m[0])
 
-  it('es el de una cirugía: mirar, trazar, mover, exponer, reducir, perforar, fijar, coser, elevar, disecar, modelar y, al final, seleccionar', () => {
+  it('es el de una cirugía: mirar, trazar, mover, exponer, reducir, perforar, fijar, coser, elevar, enclavar, disecar, modelar y, al final, seleccionar', () => {
     expect(orden).toEqual([
       '...MODOS',
       'MODO_SENALAR',
@@ -30,6 +30,7 @@ describe('el orden de los modos', () => {
       'MODO_FIJAR',
       'MODO_COSER',
       'MODO_ELEVAR',
+      'MODO_ENCLAVAR',
       'MODO_DISECAR',
       'MODO_MODELAR',
       'MODO_INFO',

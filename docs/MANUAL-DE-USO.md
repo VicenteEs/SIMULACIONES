@@ -957,6 +957,13 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   tamaño y con el mismo comportamiento que la ficha de «Seleccionar estructura» (que va a la derecha): su modelo y la previsualización, el modo de uso,
   todo lo que se configura (potencia, apertura, diámetro y largo del tornillo, broca, medidor…), «Soltar» y, en el editor, «Es el correcto en este paso».
   Con pantalla estrecha (menos de 1000 px) flota sobre el lienzo. La columna derecha queda para la bandeja.
+- **Enclavado endomedular, paso a paso (punzón, guía, dedo reductor, fresa y tubo de intercambio).** Al coger cualquiera de estas herramientas el modo pasa a **«Enclavar»**.
+  Se hacen **en orden**: (1) el **punzón iniciador**, con un clic sobre el extremo proximal del hueso, por delante, marca la **entrada** —un aro verde si sirve, naranja si no—; (2) la **guía de
+  punta de oliva** se empuja **manteniendo pulsado** en el lienzo por el canal, a través del foco, hasta unos 10 mm del extremo distal; **si los fragmentos están desalineados se atasca en el
+  foco** y hay que reducir mejor o ayudarse con el **dedo reductor** (un clic lo pone o lo quita); (3) la **fresa canulada** pasa, manteniendo pulsado, la cabeza elegida en el recuadro, y se sube
+  **de 0,5 en 0,5 mm** hasta quedar 1 a 1,5 mm sobre el calibre del clavo de la bandeja; (4) el **tubo de intercambio**, con un clic, cambia la guía de punta de oliva por la lisa. El recuadro
+  lista cada paso («✓ Guía: hasta el extremo distal») y dice qué falta antes del clavo; «Retirar la guía» y «Quitar el enclavado» deshacen. El canal fresado se ve como un tubo ámbar a través
+  del hueso y no sale en la fluoroscopia; la guía sí. Reglas en `src/lib/enclavado.ts`. El clavo mismo y su inserción son la etapa siguiente.
 - **Aguja de Kirschner (se queda puesta).** Al cogerla, el modo pasa a **«Perforar»** con su calibre (1,6 mm). Se apunta al hueso, se mantiene pulsado y avanza; al
   **«Retirar»** el motor, **la aguja se queda clavada**: se ve en la escena y en la fluoroscopia, asoma por fuera del hueso y se juzga. El recuadro de la herramienta lista cada aguja
   («Aguja 2 · 26,5 mm · bicortical · asoma 123 mm») y avisa si **quedó en la cortical cercana** (sujeta poco) o si **se pasó más de 3 mm de la cortical opuesta** (riesgo para vasos y

@@ -56,6 +56,15 @@ import type { EstadoDeLaMesa } from './mesaDeModelado'
 import type { EstadoDelPeriostio } from './periostioEnLaEscena'
 import type { EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
 import { textoDeLaExposicion } from '@/lib/periostio'
+import {
+  CABEZAS_DE_FRESA_MM,
+  ENCLAVADO_VACIO,
+  listaDelEnclavado,
+  loQueFaltaParaElClavo,
+  clavoPrevisto as elClavoPrevisto,
+  siguienteCabeza,
+  type EstadoDelEnclavado,
+} from '@/lib/enclavado'
 import { intervencionPropuesta, type DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
 import {
   ETAPAS_DE_FIJACION,
@@ -545,6 +554,18 @@ const MODO_ELEVAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucide
     'Elevar: mantenga pulsado y arrastre sobre el hueso para despegar el periostio; la hoja elegida marca el ancho de la franja. Despegue lo que cubrirá la placa y no más: sin su periostio el hueso pierde irrigación.',
 }
 
+/**
+ * El modo de las herramientas del enclavado endomedular (P-005 E4): punzón, guía de punta de oliva, dedo reductor, fresa canulada y tubo de intercambio.
+ * Cada una hace su paso con un clic o manteniendo pulsado, según cuál sea.
+ */
+const MODO_ENCLAVAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'enclavar',
+  etiqueta: 'Enclavar',
+  icono: Crosshair,
+  ayuda:
+    'Enclavar: el punzón marca la entrada con un clic; la guía de punta de oliva y la fresa se empujan manteniendo pulsado; el dedo reductor y el tubo de intercambio, con un clic. Se hacen en ese orden: entrada, guía, fresado y cambio de guía.',
+}
+
 const MODO_PERFORAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
   valor: 'perforar',
   etiqueta: 'Perforar',
@@ -707,6 +728,9 @@ export function ConsolaQuirurgica({
   const [anchoDeLaHoja, setAnchoDeLaHoja] = useState<number | null>(null)
   // Las agujas de Kirschner que se dejaron puestas (P-005 E3).
   const [alambresPuestos, setAlambresPuestos] = useState<EstadoDeLosAlambres | null>(null)
+  // El enclavado endomedular (P-005 E4): lo dice el lienzo tras cada paso. Y qué cabeza de fresa está elegida (`null`: la que sigue).
+  const [enclavado, setEnclavado] = useState<EstadoDelEnclavado | null>(null)
+  const [cabezaDeFresa, setCabezaDeFresa] = useState<number | null>(null)
   const avisoDeLaMesa = useRef(0)
   useEffect(() => {
     if (estadoDelContexto.fase === 'perdido') {
@@ -716,6 +740,11 @@ export function ConsolaQuirurgica({
       const remontar = window.setTimeout(() => {
         setClaveDelLienzo((c) => c + 1)
         setEstadoDelContexto(CONTEXTO_VIVO)
+        // El lienzo nuevo empieza sin lo que el anterior tenía puesto: lo que la consola recordaba de la escena (agujas, periostio, enclavado) ya no existe.
+        setAlambresPuestos(null)
+        setPeriostioDespegado(null)
+        setEnclavado(null)
+        setMesaDeModelado(null)
       }, cuantoFaltaParaRemontarse(estadoDelContexto, performance.now()) ?? 0)
       return () => {
         window.clearInterval(reloj)
@@ -1422,6 +1451,7 @@ export function ConsolaQuirurgica({
     mando.current?.quitarLaPlacaDeLaMesa()
     mando.current?.volverACubrirElPeriostio()
     mando.current?.quitarLosAlambres()
+    mando.current?.quitarElEnclavado()
     mando.current?.soltarPellizco()
     mando.current?.cerrarHeridas()
     mando.current?.borrarAgujeros()
@@ -1558,10 +1588,12 @@ export function ConsolaQuirurgica({
     else if (que?.coloca || que?.mide) setModo('fijar')
     else if (que?.modela) setModo('modelar')
     else if (que?.eleva) setModo('elevar')
-    else if (modo === 'elevar' || modo === 'modelar' || modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
+    else if (que?.enclava) setModo('enclavar')
+    else if (modo === 'enclavar' || modo === 'elevar' || modo === 'modelar' || modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
     // Cada instrumento empieza con el diámetro de su modelo, y un tornillo queda como «el último» para elegir el siguiente (P-004 E9).
     setDiametroDeTornillo(null)
     setAnchoDeLaHoja(null)
+    setCabezaDeFresa(null)
     if (que?.coloca?.tipo === 'tornillo' && id) setUltimoTornillo(id)
     // El tornillo se ofrece con el largo que el editor le escribió al instrumento (P-004 E6); el residente puede escribir otro.
     if (destino?.largoMm && que?.coloca?.tipo === 'tornillo') setLargoDeTornillo(Math.min(MAXIMO_DEL_TORNILLO_MM, Math.max(MINIMO_DEL_TORNILLO_MM, destino.largoMm)))
@@ -1689,6 +1721,14 @@ export function ConsolaQuirurgica({
     [slugDelElegido, nombreDelElegido, tipoDeTornilloEscrito],
   )
   const roscaDelElegido = definicionDelTipo(tipoDelElegido).roscaMm
+  // El enclavado (P-005 E4): la cabeza de fresa que está elegida (o la que sigue), el calibre del clavo que trae la bandeja —con él se juzga el fresado— y
+  // cómo está la reducción del foco, de la que depende que la guía pase.
+  const cabezaDeFresaElegida = queHace.enclava === 'fresa' ? (cabezaDeFresa ?? siguienteCabeza(enclavado?.fresado.cabezasMm ?? [])) : null
+  const clavoPrevisto = useMemo(() => elClavoPrevisto(caso.instrumental.map((i) => i.nombre), caso.hueso), [caso.instrumental, caso.hueso])
+  const medidasDelFoco = useMemo(
+    () => ({ desplazamientoMm: reduccion.desplazamiento, angulacionGrados: reduccion.angulacion }),
+    [reduccion.desplazamiento, reduccion.angulacion],
+  )
   /** La Metzenbaum en disección roma: no corta, apoya la punta y separa el plano al abrir las ramas. */
   const usoRoma = !!queHace.roma && modo === 'disecar'
   /** Cómo se usa el instrumento en el abordaje, tal como lo cuenta el traumatólogo. */
@@ -1746,6 +1786,7 @@ export function ConsolaQuirurgica({
             reduce: queHace.reduce,
             modela: queHace.modela,
             eleva: queHace.eleva ? { anchoMm: anchoDeLaHoja ?? queHace.eleva.anchosMm[0] } : null,
+            enclava: queHace.enclava ? { funcion: queHace.enclava, cabezaMm: cabezaDeFresaElegida ?? undefined } : null,
             electro: queHace.electro ? { modo: modoElectro, potenciaW } : null,
             perfora: queHace.perfora,
             sutura: queHace.sutura,
@@ -1755,7 +1796,7 @@ export function ConsolaQuirurgica({
             mide: queHace.mide,
           }
         : null,
-    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido, tipoDelElegido, roscaDelElegido, anchoDeLaHoja],
+    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido, tipoDelElegido, roscaDelElegido, anchoDeLaHoja, cabezaDeFresaElegida],
   )
 
   /**
@@ -2342,6 +2383,7 @@ export function ConsolaQuirurgica({
     ...(queHace.coloca || queHace.mide ? [MODO_FIJAR] : []),
     ...(queHace.sutura ? [MODO_COSER] : []),
     ...(queHace.eleva ? [MODO_ELEVAR] : []),
+    ...(queHace.enclava ? [MODO_ENCLAVAR] : []),
     ...(queHace.roma ? [MODO_DISECAR] : []),
     ...(queHace.modela ? [MODO_MODELAR] : []),
     MODO_INFO,
@@ -2888,6 +2930,78 @@ export function ConsolaQuirurgica({
           </div>
         </>
       ) : null}
+    </div>
+  ) : null
+  /**
+   * El enclavado endomedular (P-005 E4): cada herramienta hace su paso, y el recuadro dice qué se lleva hecho y qué falta antes del clavo. Las reglas
+   * (entrada, paso de la guía por el foco, fresado progresivo, cambio de guía) están en `src/lib/enclavado.ts`.
+   */
+  const estadoDelEnclavado = enclavado ?? ENCLAVADO_VACIO
+  const textoDelPasoDelEnclavado: Record<NonNullable<typeof queHace.enclava>, string> = {
+    entrada:
+      'Punzón iniciador: un clic sobre el extremo proximal del hueso, por delante, marca el punto de entrada. Debe quedar a unos 25 mm del extremo y en línea con el canal. Verde: sirve; naranja: corríjalo con otro clic.',
+    guia:
+      'Guía de punta de oliva: mantenga pulsado en el lienzo para empujarla por el canal, a través del foco, hasta el extremo distal. Si los fragmentos no están alineados se atasca: reduzca antes, o ayúdese con el dedo reductor. Se ve en la fluoroscopia.',
+    dedo:
+      'Dedo reductor: un clic lo pone —o lo quita— en el canal. Empuja el fragmento distal hacia la línea y deja pasar la guía con algo más de desalineación que sin él.',
+    fresa:
+      'Fresa canulada: con la guía ya en el extremo distal, mantenga pulsado para pasar la cabeza elegida. Se sube de 0,5 en 0,5 mm hasta quedar 1 a 1,5 mm sobre el calibre del clavo.',
+    tubo: 'Tubo de intercambio: un clic, con la guía pasada y el canal fresado, cambia la guía de punta de oliva por la lisa sobre la que corre el clavo.',
+  }
+  const bloqueDelEnclavado = queHace.enclava ? (
+    <div className="consola-instrumento-articulaciones">
+      <p className="consola-instrumento-texto">{textoDelPasoDelEnclavado[queHace.enclava]}</p>
+      {queHace.enclava === 'fresa' ? (
+        <>
+          <label className="consola-instrumento-articulacion">
+            <span>Cabeza</span>
+            <select
+              value={cabezaDeFresaElegida ?? ''}
+              onChange={(e) => setCabezaDeFresa(Number(e.target.value))}
+              aria-label="Diámetro de la cabeza de fresa"
+            >
+              {CABEZAS_DE_FRESA_MM.map((c) => (
+                <option key={c} value={c} disabled={estadoDelEnclavado.fresado.cabezasMm.some((p) => p >= c)}>
+                  {String(c).replace('.', ',')} mm
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="consola-instrumento-texto">
+            {clavoPrevisto
+              ? `Clavo en la bandeja: ${String(clavoPrevisto.diametroMm).replace('.', ',')} mm. Se fresa hasta ${String(clavoPrevisto.diametroMm + 1).replace('.', ',')} mm como mínimo.`
+              : 'No hay un clavo con sus medidas en la bandeja: el fresado se juzga solo por cómo se sube de cabeza.'}
+          </p>
+        </>
+      ) : null}
+      {queHace.enclava === 'dedo' ? (
+        <p className="consola-instrumento-texto" role="status">
+          {estadoDelEnclavado.dedoPuesto ? 'Dedo reductor puesto.' : 'Dedo reductor sin poner.'}
+        </p>
+      ) : null}
+      <ul className="consola-instrumento-texto">
+        {listaDelEnclavado(estadoDelEnclavado).map((p) => (
+          <li key={p.paso}>
+            {p.hecho ? '✓' : '·'} <strong>{p.paso}:</strong> {p.texto}
+          </li>
+        ))}
+      </ul>
+      {estadoDelEnclavado.entrada?.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.entrada.aviso}</p> : null}
+      {estadoDelEnclavado.guia?.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.guia.aviso}</p> : null}
+      {estadoDelEnclavado.fresado.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.fresado.aviso}</p> : null}
+      {loQueFaltaParaElClavo(estadoDelEnclavado).length > 0 ? (
+        <p className="consola-instrumento-texto">Antes del clavo falta: {loQueFaltaParaElClavo(estadoDelEnclavado).join(', ')}.</p>
+      ) : (
+        <p className="consola-instrumento-texto" role="status">El canal está listo para el clavo.</p>
+      )}
+      <div className="consola-instrumento-acciones">
+        <button type="button" className="consola-boton" disabled={!estadoDelEnclavado.guia} onClick={() => mando.current?.retirarLaGuiaDelEnclavado()}>
+          Retirar la guía
+        </button>
+        <button type="button" className="consola-boton" disabled={!enclavado} onClick={() => mando.current?.quitarElEnclavado()}>
+          Quitar el enclavado
+        </button>
+      </div>
     </div>
   ) : null
   const bloqueDelPeriostio = queHace.eleva ? (
@@ -3486,6 +3600,8 @@ instrumentoElegido ? (
               {bloqueDelPeriostio}
 
               {bloqueDeLosAlambres}
+
+              {bloqueDelEnclavado}
 
               {bloqueDeLaMesa}
 
@@ -4233,6 +4349,9 @@ instrumentoElegido ? (
             alCambiarLaMesa={setMesaDeModelado}
             alCambiarElPeriostio={setPeriostioDespegado}
             alCambiarLosAlambres={setAlambresPuestos}
+            alCambiarElEnclavado={setEnclavado}
+            medidasDelFoco={medidasDelFoco}
+            clavoPrevistoMm={clavoPrevisto?.diametroMm ?? null}
             url={caso.modeloUrl}
             piezas={piezas}
             modo={modo}
@@ -4449,6 +4568,10 @@ instrumentoElegido ? (
                   onClick={() => {
                     setClaveDelLienzo((c) => c + 1)
                     setEstadoDelContexto(CONTEXTO_VIVO)
+                    setAlambresPuestos(null)
+                    setPeriostioDespegado(null)
+                    setEnclavado(null)
+                    setMesaDeModelado(null)
                   }}
                 >
                   Recuperar la vista

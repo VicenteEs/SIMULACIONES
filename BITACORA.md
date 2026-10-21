@@ -6818,6 +6818,22 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que queda de E3 y no está hecho:** la **camisa con guía y trocar** (que la aguja o la broca entren guiadas por ella) y el **motor** con su regla de calor (rpm, irrigación). La aguja tampoco **fija** todavía
   una reducción (mantener los fragmentos mientras se pone el implante definitivo). Se retoman después de E4 a E7.
 
+### D-210 · 2026-10-21 · vigente
+**El enclavado endomedular se hace por pasos con sus herramientas: entrada, guía de punta de oliva, dedo reductor, fresado y cambio de guía (P-005 E4).**
+- **Reglas, puras y con pruebas** (`src/lib/enclavado.ts`, 32 pruebas): la **entrada** se juzga por la distancia al extremo proximal (ideal hasta 25 mm, aceptable hasta 40), la desviación de la línea del canal (5 y 10 mm) y que esté por
+  delante. La **guía** pasa el foco si los canales están a menos de la mitad del istmo (5,5 mm) y el foco angulado menos de 15°; con el **dedo reductor**, 9 mm y 25°. El **fresado** empieza por una cabeza
+  chica, sube de 0,5 en 0,5 (un salto de más de 1 mm avisa de calor y presión) y llega a 1 mm sobre el clavo como mínimo y 2 como máximo (de más adelgaza la cortical). Todas las cifras son una propuesta
+  pensada para la tibia y están en constantes para que Cristóbal las corrija.
+- **En el lienzo** (`enclavadoEnLaEscena.ts`): marca de la entrada, guía de acero con oliva (no es de interfaz: la ve la fluoroscopia) y canal fresado como tubo ámbar visto a través del hueso (sí es de interfaz).
+  El canal se **vuelve a medir** si el fragmento se mueve (reducir después de marcar la entrada: la guía atascada sigue y llega al fondo). La guía y la fresa se empujan manteniendo pulsado; el resto, con un clic.
+- **El clavo previsto** sale de la bandeja y del hueso del caso (`clavoPrevisto`: «Tibia» → el tibial, «Fémur» → el femoral antes que el cefalomedular) y es contra lo que se juzga el fresado.
+- **La fresa canulada ya no es una broca de 9 mm** (antes `fresa-flexible` perforaba): ahora es del enclavado. Si el lienzo se vuelve a montar tras perder el contexto gráfico, la consola olvida también lo que
+  recordaba de la escena (agujas, periostio, enclavado, mesa de modelado), que antes quedaba desfasado.
+- **Probado en el navegador** con el caso de tibia: entrada a 16 mm del extremo y a 2,1 mm de la línea; la guía se atasca a 161 mm con 12,5 mm de desplazamiento, y tras la reducción automática sigue hasta
+  354,7 de 364,7 mm; fresado 8,5 → 9 → 9,5 → 10 mm para un clavo de 9 mm; cambio de guía con el tubo.
+- **Lo que no hace todavía:** el clavo, su inserción con martillo e impactador y el arco (E5); el dedo reductor no se dibuja, solo cambia la tolerancia; la entrada no distingue lado medial ni lateral; el canal no sigue la curva
+  real del hueso (es recto, por el centro del fragmento proximal); la guía no se puede perforar fuera del hueso.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10784,7 +10800,7 @@ programa, se prueba en el navegador y se documenta.
 *Lo que no se promete:* fidelidad biomecánica (resistencia de la placa, fuerza de torque en newtons-metro reales); se recrea el **gesto, la secuencia y los errores típicos**, con reglas que el traumatólogo
 puede leer y corregir. Cada etapa deja su **D-nnn**, su sección en el manual de uso y sus pruebas.
 
-**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 a E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
+**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 hecha salvo el clavo (D-210). E5 a E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
 
 ---
 

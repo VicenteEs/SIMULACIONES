@@ -81,6 +81,11 @@ export interface ComportamientoDelInstrumento {
    * hueso expuesto del ancho de la hoja. `anchosMm` son las hojas que ofrece (el Lambotte trae de 6 y de 14 mm).
    */
   eleva: { anchosMm: number[] } | null
+  /**
+   * Hace un paso del enclavado endomedular (P-005 E4): el punzón marca la **entrada**, la guía de punta de oliva pasa el canal, el dedo reductor ayuda a
+   * pasarla por el foco, la fresa canulada ensancha el canal y el tubo de intercambio cambia la guía por una lisa. Las reglas están en `src/lib/enclavado.ts`.
+   */
+  enclava: 'entrada' | 'guia' | 'dedo' | 'fresa' | 'tubo' | null
 }
 
 export type TipoDePinzaDeReduccion = 'puntas' | 'garra' | 'bola'
@@ -98,6 +103,7 @@ const NADA: ComportamientoDelInstrumento = {
   reduce: null,
   modela: null,
   eleva: null,
+  enclava: null,
 }
 
 const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
@@ -146,7 +152,12 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'broca-4-5': { ...NADA, perfora: { diametroMm: 4.5, avanceMmPorSegundo: 8 } },
   avellanador: { ...NADA, perfora: { diametroMm: 6, avanceMmPorSegundo: 3 } },
   'machuelo-3-5': { ...NADA, perfora: { diametroMm: 3.5, avanceMmPorSegundo: 2 } },
-  'fresa-flexible': { ...NADA, perfora: { diametroMm: 9, avanceMmPorSegundo: 12 } },
+  // Enclavado endomedular (P-005 E4). La fresa canulada ya no es una broca de 9 mm: se pasa por la guía y se sube de cabeza en cabeza.
+  'punzon-iniciador': { ...NADA, enclava: 'entrada' },
+  'guia-punta-oliva': { ...NADA, enclava: 'guia' },
+  'dedo-reductor': { ...NADA, enclava: 'dedo' },
+  'fresa-flexible': { ...NADA, enclava: 'fresa' },
+  'tubo-intercambio': { ...NADA, enclava: 'tubo' },
 }
 
 /** «Broca AO 2,5 mm» → 2.5. Sin número reconocible, 3 mm: un calibre intermedio razonable. */
@@ -164,7 +175,7 @@ export function comportamientoDelInstrumento(i: {
 }): ComportamientoDelInstrumento {
   const base = sinSutura(i)
   // Un hilo no corta, no separa ni perfora: si el instrumento ya hace algo, no es una sutura.
-  if (base.corta || base.separa || base.perfora || base.pellizca || base.reduce) return base
+  if (base.corta || base.separa || base.perfora || base.pellizca || base.reduce || base.enclava) return base
   const coloca = quePuedeColocar(i)
   const mide = sirveParaMedir(i)
   // Una placa o un tornillo no se confunden con un hilo, aunque su nombre diga «de sutura».
@@ -206,6 +217,11 @@ function sinSutura(i: { slug?: string | null; nombre: string; icono?: string | n
     const d = /(\d+(?:[.,]\d+)?)\s*mm/i.exec(nombre)
     return { ...NADA, perfora: { diametroMm: d ? Number(d[1].replace(',', '.')) : 1.6, avanceMmPorSegundo: 9, alambre: true } }
   }
+  if (/pun[zc][oó]n (iniciador|de entrada)|\bawl\b/.test(nombre)) return { ...NADA, enclava: 'entrada' }
+  if (/gu[ií]a de punta de oliva|punta de oliva/.test(nombre)) return { ...NADA, enclava: 'guia' }
+  if (/dedo reductor/.test(nombre)) return { ...NADA, enclava: 'dedo' }
+  if (/fresa.*(flexible|canulada)|(flexible|canulada).*fresa/.test(nombre)) return { ...NADA, enclava: 'fresa' }
+  if (/tubo de intercambio/.test(nombre)) return { ...NADA, enclava: 'tubo' }
   if (/freer/.test(nombre)) return { ...NADA, eleva: { anchosMm: [3, 5] } }
   if (/periost[oó]tomo|elevador de periostio|lambotte/.test(nombre)) return { ...NADA, eleva: { anchosMm: [6, 14] } }
   if (/alicate.*dobla|dobla.*alicate|doblador/.test(nombre)) return { ...NADA, modela: 'flexion' }
