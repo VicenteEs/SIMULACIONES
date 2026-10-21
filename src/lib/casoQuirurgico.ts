@@ -122,6 +122,7 @@ function pasosDelCaso(documento: Documento): PasoDeConsola[] {
       anguloMinimo: typeof p.anguloMinimo === 'number' ? p.anguloMinimo : null,
       anguloMaximo: typeof p.anguloMaximo === 'number' ? p.anguloMaximo : null,
       exigeBicortical: p.exigeBicortical === true,
+      exigeCompresion: p.exigeCompresion === true,
       tornillosMinimos: typeof p.tornillosMinimos === 'number' ? p.tornillosMinimos : null,
       musculoDelPlano: texto(p.musculoDelPlano),
       accionDelPlano: p.accionDelPlano === 'separar' ? ('separar' as const) : p.accionDelPlano === 'cortar' ? ('cortar' as const) : null,

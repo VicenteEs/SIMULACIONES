@@ -33,6 +33,7 @@ import * as migration_20261020_225911_insumos_del_recorrido from './20261020_225
 import * as migration_20261021_000946_orificios_y_largo_del_instrumento from './20261021_000946_orificios_y_largo_del_instrumento';
 import * as migration_20261021_002506_reduccion_automatica_del_recorrido from './20261021_002506_reduccion_automatica_del_recorrido';
 import * as migration_20261021_004947_tipo_de_tornillo_del_instrumento from './20261021_004947_tipo_de_tornillo_del_instrumento';
+import * as migration_20261021_011607_exige_compresion_del_paso from './20261021_011607_exige_compresion_del_paso';
 
 export const migrations = [
   {
@@ -208,6 +209,11 @@ export const migrations = [
   {
     up: migration_20261021_004947_tipo_de_tornillo_del_instrumento.up,
     down: migration_20261021_004947_tipo_de_tornillo_del_instrumento.down,
-    name: '20261021_004947_tipo_de_tornillo_del_instrumento'
+    name: '20261021_004947_tipo_de_tornillo_del_instrumento',
+  },
+  {
+    up: migration_20261021_011607_exige_compresion_del_paso.up,
+    down: migration_20261021_011607_exige_compresion_del_paso.down,
+    name: '20261021_011607_exige_compresion_del_paso'
   },
 ];

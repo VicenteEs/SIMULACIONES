@@ -6670,6 +6670,51 @@ a «3 · Atornillar» con el tornillo en la mano; el clic pone el tornillo («50
 tornillo. *Malas.* La trayectoria es una línea recta de la entrada a la salida y no sigue la cortical oblicua de una fractura helicoidal; marcar es explícito (un botón) y no
 automático, para no confundirse con empezar a perforar; la rosca parcial y la compresión son de E10; y el texto de la secuencia habla de «orificio» aunque sea una trayectoria.
 
+### D-202 · 2026-10-21 · vigente
+**La compresión de la fractura: el orificio oval, el tornillo excéntrico y las dos técnicas de tracción — reglas para que Cristóbal las revise.**
+Décima etapa de P-004 (E10). Pedidos 11 y 14 de Cristóbal: «en una placa con orificios ovalados, un tornillo excéntrico deja que el hueso se deslice y se aprieta contra el
+otro fragmento»; «la compresión se logra de dos formas: brocar grande el fragmento cercano y chico el lejano, o usar tornillos de rosca parcial»; «al ir a brocar, ofrecer un zoom
+al lugar de trabajo y elegir la posición del tornillo respecto al orificio; al hacer clic se marca el punto y dice si es céntrico, concéntrico hacia la fractura o excéntrico».
+
+**Las reglas (todas en `src/lib/compresion.ts`, con su prueba en `tests/unit/compresion.test.ts`, que es su especificación legible).** Lo asumido, que **Cristóbal valida (Q3)**:
+1. *El óvalo se parte en tres zonas por su distancia a la fractura:* a menos de **un quinto del semilargo** del centro es **«céntrico»** (no comprime); corrido **hacia la fractura**,
+   **«concéntrico hacia la fractura»** (no comprime y avisa que *tiende a separar*); corrido **al lado contrario**, **«excéntrico, lejos de la fractura»** (comprime). El documento dice
+   «concéntrico hacia la fractura (no comprime)»; lo de *tiende a separar* es mío.
+2. *Cuánto comprime:* `min(1,0 mm, 2 × excentricidad)` por tornillo —lo de una DCP—; se alcanza con medio milímetro de excentricidad. El óvalo mide por omisión **el doble del diámetro del
+   tornillo** de la placa (9 mm en una DCP 4,5; 7 en una LC-DCP 3,5; el diámetro sale del nombre).
+3. *La forma de los orificios se deduce del nombre* de la placa mientras el modelo no la declare: DCP y LC-DCP → ovales; LCP → combinados (el oval admite un tornillo normal); el resto,
+   redondos. **No se añadió** el campo `tipoDeAgujero` al instrumento que el plan preveía: sin un caso real que lo pida era otra migración. Un tornillo **bloqueado no comprime** en ningún caso.
+4. *Broca de deslizamiento:* comprime si el fragmento **cercano** se perforó con un calibre **igual o mayor que el diámetro exterior** del tornillo y el **lejano** con el **de núcleo**
+   (`calibreDeBrocaParaElTornillo`: 2,5 para 3,5; 3,2 para 4,5 y 6,5). Se perfora en **dos tiempos** con la trayectoria de E9: cada retirada de la broca anota su calibre y su
+   profundidad, y el calibre de cada fragmento sale de a qué distancia de la entrada cruza la fractura. Si el cercano queda chico, la rosca agarra ahí y no desliza; si el lejano queda
+   ancho, la rosca no agarra: en los dos casos no comprime y el texto dice cuál.
+5. *Rosca parcial:* comprime si **toda la rosca** (`roscaMm`, 16 mm por omisión en el tipo «rosca parcial» de E9) queda más allá de la fractura (`largo − rosca ≥ distancia − 0,5 mm`); si **la
+   cruza**, agarra en los dos y no comprime; si el tornillo ni la alcanza, tampoco.
+6. *Cada tornillo comprime lo mismo (1 mm)* en las tres técnicas. Lo que se comprime **no pasa de lo que hay separado**: sin diástasis no hay nada que comprimir y el fragmento no se mueve.
+
+*Qué se hizo en la escena.*
+- **Dónde está la fractura:** el punto, sobre el eje del hueso, a medio camino entre los extremos enfrentados del fragmento del caso y del resto del hueso visible (`posicionDeLaFractura`).
+  Sin fragmento en el caso no se sabe, y el panel lo dice en vez de juzgar. De ahí salen el **lado** de la fractura respecto de cada orificio (a lo largo del eje de la placa, `ejeDeLaPlaca`) y
+  **a qué distancia de la entrada cruza** una trayectoria.
+- **La vista de trabajo** (`PanelDeCompresion`): esquema del óvalo con la flecha «fractura →», chips por orificio (✓ si ya está perforado), el clic que marca el punto, el texto de
+  `resultadoDelOval` y «Acercar al orificio» (una cámara que se mueve en 350 ms y vuelve atrás).
+- **La broca** entra corrida del centro lo elegido, y se anota en el orificio (`desviacionMm`). **El tornillo** queda con su cabeza donde se brocó. Al ponerlo, se aplica la regla y **el fragmento se
+  desliza** hacia su sitio reducido (`moverPiezaPorEje`), con lo que **la diástasis baja de verdad** y la mide el mismo motor de siempre.
+- `estadoDeLaFijacion.compresion` suma lo comprimido y las técnicas; el panel lo dice y devolver los trozos a su sitio lo olvida.
+- **Objetivo opcional de paso `exigeCompresion`** (colección, panel, ingesta y migración que solo añade la columna al paso y a sus versiones): el paso de fijación falla con
+  `sin-compresion` si no se comprimió, después de mirar lo demás (tornillos, bicortical, largo). Con él, un tornillo de tracción sin placa también se puede juzgar. Sin marcar, el paso no cambia.
+
+*Probado.* Treinta pruebas de las reglas (zonas, mm, deslizamiento por calibres, rosca que cruza o no, tope por lo separado); y veintitrés de lo que las conecta con la escena: el eje de la placa de
+verdad, el fragmento que se desliza (3 → 2 mm, separado hacia cualquiera de los dos lados, tope por lo separado), el paso que exige comprimir y el cableado. En el navegador, caso 2 con la placa LCP:
+el panel del óvalo con «fractura →», un clic a la izquierda marca −2,7 mm y dice «excéntrico, lejos de la fractura: comprime 1,0 mm»; se broca el orificio 3 con esa desviación, se mide («hueso de
+48 mm… pida 60 mm»), se atornilla: **«Tornillo excéntrico, lejos de la fractura: comprime 1,0 mm. La diástasis bajó 1,0 mm»**, la medida pasa de 18 a 17 mm y el panel dice «Compresión: 1,0 mm
+(tornillo excéntrico)».
+
+*Consecuencias buenas.* La compresión se ve y se mide; las reglas están donde se pueden leer y corregir sin tocar el lienzo. *Malas.* Es la parte clínica más delicada y **sigue siendo una
+suposición hasta que Cristóbal la valide** (en especial: el quinto del semilargo como «centro», el `2 × excentricidad` y el milímetro igual para las tres técnicas); la fractura es un plano
+perpendicular al eje y no sigue una línea oblicua (para una fractura oblicua la distancia de la trayectoria es aproximada); no hay un óvalo dibujado sobre la placa 3D, solo el esquema; y el
+acercamiento de la cámara usa el mismo mínimo de zoom que el resto, así que en un modelo muy grande puede quedarse algo más lejos de los 80 mm.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10460,7 +10505,7 @@ mano, y el tornillo se elige por tipo, con su diámetro de la lista y su largo e
 
 ---
 
-#### E10 · Compresión: el orificio oval, el tornillo excéntrico y las dos técnicas · 2 sesiones
+#### E10 · Compresión: el orificio oval, el tornillo excéntrico y las dos técnicas · 2 sesiones · hecha en local (2026-10-21, D-202; reglas por validar con Cristóbal)
 
 **De dónde sale:** pedidos 11 y 14. Depende de E9 y de E7 (el fragmento se mueve al comprimir). Se valida con Cristóbal (Q3).
 
@@ -10497,13 +10542,13 @@ mano, y el tornillo se elige por tipo, con su diámetro de la lista y su largo e
 
 **Tareas**
 
-- [ ] **E10.1 · `compresion.ts`** (puro, con pruebas): zonas del óvalo, mm de compresión, broca de deslizamiento, rosca parcial.
-- [ ] **E10.2 · El orificio oval** (`forma`, `largoOvalMm`, `tipoDeAgujero`, migración) y su dibujo en la placa.
-- [ ] **E10.3 · Vista de trabajo:** encuadre al agujero, el esquema del óvalo, el clic que marca el punto y el texto.
-- [ ] **E10.4 · Aplicar la compresión:** el fragmento se desliza, la diástasis baja.
-- [ ] **E10.5 · Las dos técnicas** sobre la trayectoria de E9 (calibre por fragmento, rosca que cruza o no la fractura).
-- [ ] **E10.6 · `compresion` en el estado, el panel, los insumos y el objetivo opcional.**
-- [ ] **E10.7 · Pruebas, manual y D-nnn.** Excéntrico lejos de la fractura comprime 1 mm y la diástasis baja 1 mm; céntrico no; cerca no y
+- [x] **E10.1 · `compresion.ts`** *(D-202)* (puro, con pruebas): zonas del óvalo, mm de compresión, broca de deslizamiento, rosca parcial.
+- [x] **E10.2 · El orificio oval:** la forma se deduce del nombre de la placa y el largo del tornillo; sin `tipoDeAgujero` ni migración, y sin dibujo sobre la placa 3D (ver D-202).
+- [x] **E10.3 · Vista de trabajo:** encuadre al agujero, el esquema del óvalo, el clic que marca el punto y el texto.
+- [x] **E10.4 · Aplicar la compresión:** el fragmento se desliza, la diástasis baja.
+- [x] **E10.5 · Las dos técnicas** sobre la trayectoria de E9 (calibre por fragmento, rosca que cruza o no la fractura).
+- [x] **E10.6 · `compresion` en el estado, el panel y el objetivo opcional.** *(Los insumos no anotan la técnica.)*
+- [x] **E10.7 · Pruebas, manual y D-nnn.** Excéntrico lejos de la fractura comprime 1 mm y la diástasis baja 1 mm; céntrico no; cerca no y
   avisa; deslizamiento con la broca grande en el cercano; rosca parcial que cruza no comprime.
 
 **Hecho cuando…** En una placa DCP sobre una fractura transversa, el tornillo excéntrico del lado lejano acerca los fragmentos 1 mm y la
@@ -10605,7 +10650,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | E7 · Menú de movimiento y reducción automática | hecha en local; sin desplegar | 2 | E6 | D-199 |
 | E8 · El instrumento se queda en el orificio | hecha en local; sin desplegar | 2 | E2, E6, E7 | D-200 |
 | E9 · Tornillos: secuencia, tipos, medidas, trayectoria | hecha en local; sin desplegar | 2–3 | E8 | D-201 |
-| E10 · Compresión | pendiente | 2 | E7, E9 | — |
+| E10 · Compresión | hecha en local; sin desplegar | 2 | E7, E9 | D-202 |
 | E11 · Radiografía postoperatoria y lámina | pendiente | 2–3 | E3 | — |
 | E12 · Apariencia de pabellón | aplazada | — | modelos del Dani | — |
 

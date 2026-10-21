@@ -8,7 +8,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { ruta } from '@/lib/rutas'
-import { desplazamientoDesde, posicionAbsoluta, type EjeLargo } from '@/lib/reduccion'
+import { desplazamientoDesde, medirReduccion, posicionAbsoluta, type EjeLargo } from '@/lib/reduccion'
 import { largoVisibleDelAgujero, reconciliarConElModelo } from '@/lib/simulador'
 import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import { desplazamientoDelArrastre, giroDelArrastre } from '@/atlas/transformar'
@@ -59,6 +59,21 @@ import {
 } from '@/lib/exposicion'
 import { RADIO_DE_RETRACCION_MM, retraerVertices } from '@/lib/retraccion'
 import { rangosDeLaPlaca, sentidoSobreElEje } from '@/lib/ejesAnatomicos'
+import {
+  calibresPorFragmento,
+  compresionAplicable,
+  formaDeLosAgujeros,
+  ladoDeLaFractura,
+  resultadoDeLaRoscaParcial,
+  semilargoDelOvalDeLaPlaca,
+  resultadoDelDeslizamiento,
+  resultadoDelOval,
+  sumarCompresion,
+  type CompresionTotal,
+  type PerforacionDeLaTrayectoria,
+  type ResultadoDeCompresion,
+} from '@/lib/compresion'
+import type { TipoDeTornillo } from '@/lib/tornillos'
 import {
   MARGEN_PARA_PASARSE_MM,
   lecturaDeLaBroca,
@@ -133,7 +148,7 @@ import {
   type PuntoDeSutura,
 } from '@/lib/sutura'
 import { CONTEXTO_VIVO, alPerderse, alRestaurarse, crearLimitadorDeFallos, type EstadoDelContexto } from '@/lib/controlDelContexto'
-import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
+import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
 // La regla base de `.consola-lienzo` vive en la hoja de la consola, y este
@@ -296,6 +311,10 @@ export interface MandoDelLienzo {
   soltarRetracciones: () => void
   /** Borra la trayectoria de dos clics y su marca de entrada (P-004 E9). */
   borrarTrayectoriaDelTornillo: () => void
+  /** Elige cuánto se corre la broca del centro de un orificio oval, con signo y en mm (P-004 E10). */
+  fijarDesviacionDelAgujero: (indice: number, mm: number) => void
+  /** Acerca la cámara al orificio (la vista de trabajo) o, con `null`, la devuelve a donde estaba. */
+  acercarseAlAgujero: (indice: number | null) => void
   /** Retira la broca puesta (P-004 E8): dibuja el agujero y anota el calibre. */
   retirarLaBroca: () => void
   /** Enciende o apaga la broca puesta sin retirarla; sin argumento, alterna. */
@@ -457,6 +476,8 @@ export interface InstrumentoEnEscena {
   planoDeCorte?: PlanoDeCorte | null
   /** Cuántos orificios escribió el editor en el instrumento (una placa): reparte los agujeros si el modelo no los trae (P-004 E6). */
   orificios?: number | null
+  /** De qué tipo es el tornillo en la mano y, si es de rosca parcial, cuánto mide su rosca (P-004 E10). */
+  tornillo?: { tipo: TipoDeTornillo; roscaMm?: number } | null
   /** Identificador y nombre del catálogo: un separador colocado se vuelve a dibujar y se nombra en pantalla. */
   id?: string
   nombre?: string
@@ -901,9 +922,19 @@ export function LienzoQuirurgico({
       estado: EstadoDelAgujero
       largoMm: number
       anguloConElEje: number
+      /** Todo lo perforado por ella, por calibre y profundidad: la técnica de deslizamiento mira lo de cada fragmento (P-004 E10). */
+      perforaciones: PerforacionDeLaTrayectoria[]
     }
     /** El primer clic de la trayectoria, a la espera del segundo. */
     puntoDeEntrada?: { punto: THREE.Vector3; marca: THREE.Mesh }
+    /** Cuánto se corre la broca del centro de cada orificio oval, por su índice, en mm (P-004 E10). */
+    desviaciones?: Map<number, number>
+    /** Cuánto se ha comprimido la fractura y con qué técnicas (P-004 E10). */
+    compresion?: CompresionTotal
+    /** Lleva la cámara a un orificio, o la devuelve a donde estaba (P-004 E10). */
+    acercarseAlAgujero?: (indice: number | null) => void
+    /** Hacia qué sentido del eje de la placa está la fractura respecto de cada orificio; vacío si no se sabe dónde está (P-004 E10). */
+    ladosDeLaFractura?: () => Record<number, 1 | -1>
     /** Numera los tornillos de trayectoria libre con enteros negativos. */
     siguienteTornilloLibre?: number
     borrarLaTrayectoria?: () => void
@@ -1193,6 +1224,14 @@ export function LienzoQuirurgico({
 
     borrarTrayectoriaDelTornillo: () => taller.current.borrarLaTrayectoria?.(),
 
+    fijarDesviacionDelAgujero: (indice, mm) => {
+      const t = taller.current
+      ;(t.desviaciones ??= new Map()).set(indice, mm)
+      ultimas.current.alFijar?.(estadoDeLaFijacion(t))
+    },
+
+    acercarseAlAgujero: (indice) => taller.current.acercarseAlAgujero?.(indice),
+
     retirarLaBroca: () => taller.current.retirarLaBroca?.(),
 
     apagarLaBroca: (encendida) => taller.current.apagarLaBroca?.(encendida),
@@ -1273,6 +1312,8 @@ export function LienzoQuirurgico({
       const t = taller.current
       // Las pinzas de reducción son hijas de los trozos que se devuelven a su sitio: se sueltan con ellos (P-003 E5).
       soltarPinzasDeReduccion(t, ultimas.current)
+      // Con los trozos otra vez separados, lo comprimido ya no vale (P-004 E10).
+      t.compresion = undefined
       const fragmento = t.fragmento
       t.origenesDePiezas?.forEach((origen, pieza) => {
         // El fragmento del caso lo coloca la consola con el desplazamiento inicial del caso.
@@ -1417,8 +1458,11 @@ export function LienzoQuirurgico({
     quitarImplantes: (conPlaca) => {
       const imp = taller.current.implantes
       if (!imp) return
-      if (conPlaca) quitarImplantes(imp)
-      else quitarTornillos(imp)
+      if (conPlaca) {
+        quitarImplantes(imp)
+        // Lo que se había elegido en los orificios de esa placa no vale para la siguiente (P-004 E10).
+        taller.current.desviaciones?.clear()
+      } else quitarTornillos(imp)
       ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current))
       taller.current.pedirDibujo?.()
     },
@@ -1986,6 +2030,8 @@ export function LienzoQuirurgico({
       agujero?: number
       /** Va por la trayectoria de dos clics y no por un agujero de placa ni por la normal del hueso (P-004 E9). */
       libre?: boolean
+      /** Cuánto se corrió del centro del orificio oval, con signo y en mm (P-004 E10). */
+      desviacionMm?: number
       entrada: THREE.Vector3
       /** Hacia dónde entra la broca, unitario. */
       dirEntra: THREE.Vector3
@@ -2264,8 +2310,12 @@ export function LienzoQuirurgico({
         const salida = placa.normal.clone()
         const medida = medirBajoElAgujero(placa, agujero, mallasDeHueso())
         const entrada = posicionDelAgujero(placa, agujero, 'abajo').addScaledVector(salida, -(medida?.distanciaAlHuesoMm ?? 0) * unidadesPorMm)
+        // En un orificio oval la broca entra donde se eligió, corrida del centro a lo largo de la placa (P-004 E10).
+        const desviacionMm = formaDeLosAgujeros({ nombre: placa.nombre }) === 'redondo' ? 0 : (taller.current.desviaciones?.get(agujero) ?? 0)
+        if (desviacionMm !== 0) entrada.addScaledVector(ejeDeLaPlaca(placa), desviacionMm * unidadesPorMm)
         return {
           agujero,
+          desviacionMm,
           entrada,
           dirEntra: salida.clone().negate(),
           salida,
@@ -2418,6 +2468,9 @@ export function LienzoQuirurgico({
           perforado: { diametroMm: config.diametroMm, profundidadMm: p.profundidad / unidadesPorMm, bicortical },
           medido: null,
         }
+        // Cada perforación queda anotada con su calibre y su profundidad: la técnica de la broca de deslizamiento mira lo que se hizo en
+        // cada fragmento (P-004 E10).
+        porLaTrayectoria.perforaciones.push({ diametroMm: config.diametroMm, profundidadMm: p.profundidad / unidadesPorMm })
         ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current), {
           tipo: 'agujero',
           texto: `Trayectoria perforada con Ø ${String(config.diametroMm).replace('.', ',')} mm (${bicortical ? 'bicortical' : 'solo la cortical cercana'}). Ahora se mide con el medidor.`,
@@ -2433,6 +2486,7 @@ export function LienzoQuirurgico({
         placaDelAgujero.agujeros.set(p.agujero, {
           perforado: { diametroMm: config.diametroMm, profundidadMm: p.profundidad / unidadesPorMm, bicortical },
           medido: null,
+          ...(p.desviacionMm ? { desviacionMm: p.desviacionMm } : {}),
         })
         ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current), {
           tipo: 'agujero',
@@ -3674,6 +3728,137 @@ export function LienzoQuirurgico({
       clicDeSutura = modoActual === 'coser' || modoActual === 'fijar' ? { x: evento.clientX, y: evento.clientY } : null
     }
 
+    // --- la compresión de la fractura (P-004 E10) ----------------------------------------------------
+    // Las cuentas están en `src/lib/compresion.ts`, legibles, para que Cristóbal las corrija sin tocar esto. Aquí se miden las cosas de la
+    // escena —dónde está la fractura, qué fragmento se mueve— y se aplica lo que esas cuentas deciden.
+    const indiceDelEjeLargo = () => (ultimas.current.ejeLargo === 'x' ? 0 : ultimas.current.ejeLargo === 'z' ? 2 : 1)
+
+    /**
+     * Dónde está la fractura: el punto, sobre el eje del hueso, a medio camino entre los extremos enfrentados del fragmento del caso y del
+     * resto del hueso visible. `null` si el caso no tiene fragmento o no hay otro hueso: sin saber dónde está, no se sabe de qué lado
+     * queda ni a qué distancia.
+     */
+    const posicionDeLaFractura = (): THREE.Vector3 | null => {
+      const f = taller.current.fragmento
+      if (!f) return null
+      const resto = new THREE.Box3()
+      for (const h of mallasDeHueso()) {
+        if (h === f || perteneceA(h, f)) continue
+        resto.expandByObject(h)
+      }
+      const caja = new THREE.Box3().setFromObject(f)
+      if (resto.isEmpty() || caja.isEmpty()) return null
+      const i = indiceDelEjeLargo()
+      const centroDelFragmento = caja.getCenter(new THREE.Vector3())
+      const centroDelResto = resto.getCenter(new THREE.Vector3())
+      const mitad =
+        centroDelFragmento.getComponent(i) < centroDelResto.getComponent(i)
+          ? (caja.max.getComponent(i) + resto.min.getComponent(i)) / 2
+          : (caja.min.getComponent(i) + resto.max.getComponent(i)) / 2
+      return centroDelFragmento.setComponent(i, mitad)
+    }
+
+    /** Hacia qué sentido del eje de la placa está la fractura respecto de un orificio, o `null` si no se sabe dónde está. */
+    const ladoDeLaFracturaEnElAgujero = (placa: NonNullable<ImplantesEnEscena['placa']>, agujero: number): 1 | -1 | null => {
+      const fractura = posicionDeLaFractura()
+      if (!fractura) return null
+      const eje = ejeDeLaPlaca(placa)
+      return ladoDeLaFractura(posicionDelAgujero(placa, agujero, 'abajo').dot(eje), fractura.dot(eje))
+    }
+    taller.current.ladosDeLaFractura = () => {
+      const placa = taller.current.implantes?.placa
+      const lados: Record<number, 1 | -1> = {}
+      if (!placa) return lados
+      placa.agujerosMm.forEach((_, i) => {
+        const lado = ladoDeLaFracturaEnElAgujero(placa, i)
+        if (lado !== null) lados[i] = lado
+      })
+      return lados
+    }
+
+    /** A qué distancia de la entrada cruza la fractura una trayectoria, en mm; `null` si no la cruza o no se sabe dónde está. */
+    const distanciaALaFracturaPorLaTrayectoria = (libre: NonNullable<Taller['trayectoriaDelTornillo']>): number | null => {
+      const fractura = posicionDeLaFractura()
+      if (!fractura) return null
+      const i = indiceDelEjeLargo()
+      const avance = libre.haciaDentro.getComponent(i)
+      // Una trayectoria casi perpendicular al eje del hueso no cruza la fractura: corre paralela a ella.
+      if (Math.abs(avance) < 0.1) return null
+      const s = (fractura.getComponent(i) - libre.entrada.getComponent(i)) / avance
+      if (s <= 0) return null
+      return s / (1 / (ultimas.current.milimetrosPorUnidad || 1000))
+    }
+
+    /**
+     * Desliza el fragmento hacia donde estaba reducido, hasta `mm`, sin pasarse de lo que hay separado. Devuelve cuánto bajó la diástasis. El
+     * fragmento se mueve en vez de «cambiar la medida»: la compresión se ve en la imagen y la miden las mismas cuentas de siempre.
+     */
+    const comprimirElFragmento = (mm: number): number => {
+      const t = taller.current
+      const u = ultimas.current
+      const f = t.fragmento
+      const origen = t.origenDelFragmento
+      if (!f || !origen) return 0
+      const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
+      const d = desplazamientoDesde(origen.posicion, f.position)
+      const alLargo = (u.ejeLargo === 'x' ? d.x : u.ejeLargo === 'z' ? d.z : d.y) / unidadesPorMm
+      const aplicable = compresionAplicable(mm, Math.abs(alLargo))
+      if (aplicable <= 0) return 0
+      // Hacia donde estaba (el sitio reducido): el signo contrario al de la separación.
+      moverPiezaPorEje(f, 'trasladar', 'axial', -Math.sign(alLargo) * aplicable, u.ejeLargo, unidadesPorMm)
+      u.alMoverFragmento?.(desplazamientoDesde(origen.posicion, f.position), {
+        x: grados(f.rotation.x - origen.rotacion.x),
+        y: grados(f.rotation.y - origen.rotacion.y),
+        z: grados(f.rotation.z - origen.rotacion.z),
+      })
+      t.pedirDibujo?.()
+      return aplicable
+    }
+
+    /** Aplica lo que decidió una de las cuentas de `compresion.ts` y devuelve el texto que se le dice a quien opera. */
+    const aplicarLaCompresion = (resultado: ResultadoDeCompresion): string => {
+      if (resultado.mm <= 0 || !resultado.tecnica) return resultado.texto
+      const aplicado = comprimirElFragmento(resultado.mm)
+      if (aplicado <= 0) return `${resultado.texto} No hay separación que comprimir: la diástasis ya está en cero.`
+      const t = taller.current
+      t.compresion = sumarCompresion(t.compresion ?? { mm: 0, tecnicas: [] }, { ...resultado, mm: aplicado })
+      return `${resultado.texto} La diástasis bajó ${aplicado.toFixed(1).replace('.', ',')} mm.`
+    }
+
+    /** La vista de trabajo (P-004 E10, pedido 14): lleva la cámara al orificio, con vuelta atrás. */
+    let vistaGuardada: { posicion: THREE.Vector3; objetivo: THREE.Vector3 } | null = null
+    const llevarLaCamara = (posicion: THREE.Vector3, objetivo: THREE.Vector3) => {
+      const p0 = camara.position.clone()
+      const o0 = controles.target.clone()
+      const inicio = performance.now()
+      const paso = (ahora: number) => {
+        const k = Math.min(1, (ahora - inicio) / 350)
+        const suave = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+        camara.position.lerpVectors(p0, posicion, suave)
+        controles.target.lerpVectors(o0, objetivo, suave)
+        controles.update()
+        pedirDibujo()
+        if (k < 1) requestAnimationFrame(paso)
+      }
+      requestAnimationFrame(paso)
+    }
+    taller.current.acercarseAlAgujero = (indice) => {
+      const t = taller.current
+      if (indice === null) {
+        if (vistaGuardada) llevarLaCamara(vistaGuardada.posicion, vistaGuardada.objetivo)
+        vistaGuardada = null
+        return
+      }
+      const placa = t.implantes?.placa
+      if (!placa || indice < 0 || indice >= placa.agujerosMm.length) return
+      const centro = posicionDelAgujero(placa, indice, 'arriba')
+      if (!vistaGuardada) vistaGuardada = { posicion: camara.position.clone(), objetivo: controles.target.clone() }
+      // Se acerca por donde miraba: a unos 80 mm del orificio, en la misma dirección.
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const direccion = camara.position.clone().sub(controles.target).normalize()
+      llevarLaCamara(centro.clone().addScaledVector(direccion, 80 * unidadesPorMm), centro)
+    }
+
     // --- la trayectoria de un tornillo con dos clics (P-004 E9) -------------------------------------
     // «Para un tornillo, elegir la trayectoria con un clic al inicio y otro al final (una línea, como la incisión automática), y
     // ahí ofrecer la broca, luego el medidor, luego el tornillo.» El primer clic sobre el hueso es la entrada; el segundo, la salida.
@@ -3753,7 +3938,7 @@ export function LienzoQuirurgico({
       t.puntoDeEntrada = undefined
       const anguloConElEje = grados(Math.acos(Math.min(1, Math.abs(haciaDentro.dot(VECTOR_DEL_EJE[u.ejeLargo])))))
       const largoMm = largo / unidadesPorMm
-      t.trayectoriaDelTornillo = { entrada, salida, haciaDentro, linea, estado: { perforado: null, medido: null }, largoMm, anguloConElEje }
+      t.trayectoriaDelTornillo = { entrada, salida, haciaDentro, linea, estado: { perforado: null, medido: null }, largoMm, anguloConElEje, perforaciones: [] }
       u.alCambiarLaTrayectoria?.({ fase: 'lista', largoMm, anguloConElEje })
       u.alFijar?.(estadoDeLaFijacion(t))
       u.alGesto?.(
@@ -3835,13 +4020,25 @@ export function LienzoQuirurgico({
           t.decir?.('Por esa trayectoria no hay hueso donde atornillar.')
           return
         }
+        // Si la trayectoria cruza la fractura, el tornillo de tracción puede comprimir de dos formas (P-004 E10): con la broca de
+        // deslizamiento —el cercano grande, el lejano de núcleo— o con la rosca parcial toda en el lejano.
+        let compresion = ''
+        const distancia = inst.coloca.bloqueado ? null : distanciaALaFracturaPorLaTrayectoria(libre)
+        if (distancia !== null && distancia < puesto.largoMm) {
+          const resultado =
+            inst.tornillo?.tipo === 'rosca-parcial'
+              ? resultadoDeLaRoscaParcial({ roscaMm: inst.tornillo.roscaMm ?? 16, largoMm: puesto.largoMm, distanciaALaFracturaMm: distancia })
+              : resultadoDelDeslizamiento({ ...calibresPorFragmento(libre.perforaciones, distancia), diametroExteriorMm: diametro })
+          compresion = aplicarLaCompresion(resultado)
+        }
         decirYAvisar({
           tipo: 'tornillo',
           texto:
             `Tornillo de ${puesto.largoMm} mm por la trayectoria: ` +
             (puesto.bicortical ? 'bicortical.' : 'solo la cortical cercana.') +
             (puesto.aviso && puesto.bicortical ? ` ${puesto.aviso}` : '') +
-            (calibre ? ` ${calibre}` : ''),
+            (calibre ? ` ${calibre}` : '') +
+            (compresion ? ` ${compresion}` : ''),
           atencion: !!puesto.aviso || !!calibre,
           libre: true,
         })
@@ -4025,13 +4222,24 @@ export function LienzoQuirurgico({
           t.decir?.('Bajo ese agujero no hay hueso donde atornillar.')
           return
         }
+        // En un orificio oval, el tornillo que no es bloqueado puede comprimir según dónde se brocó (P-004 E10).
+        let compresion = ''
+        if (!puesto.bloqueado && formaDeLosAgujeros({ nombre: placa.nombre }) !== 'redondo') {
+          const desviacion = t.desviaciones?.get(agujero) ?? 0
+          const grupo = imp.tornillos.get(agujero)?.grupo
+          // La cabeza del tornillo queda donde se brocó, no en el centro del óvalo.
+          if (grupo && desviacion !== 0) grupo.position.addScaledVector(ejeDeLaPlaca(placa), desviacion / mmPorUnidad)
+          const lado = ladoDeLaFracturaEnElAgujero(placa, agujero)
+          if (lado !== null) compresion = aplicarLaCompresion(resultadoDelOval(desviacion, lado, semilargoDelOvalDeLaPlaca(placa.nombre)))
+        }
         decirYAvisar({
           tipo: 'tornillo',
           texto:
             `Tornillo de ${puesto.largoMm} mm en el agujero ${agujero + 1}: ` +
             (puesto.bicortical ? 'bicortical.' : 'solo la cortical cercana.') +
             (puesto.aviso && puesto.bicortical ? ` ${puesto.aviso}` : '') +
-            (calibre ? ` ${calibre}` : ''),
+            (calibre ? ` ${calibre}` : '') +
+            (compresion ? ` ${compresion}` : ''),
           atencion: !!puesto.aviso || !!calibre,
           agujero,
         })
@@ -4726,6 +4934,10 @@ export type Taller = {
   posicion?: PosicionDelPaciente
   diseccion?: DiseccionActiva
   aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => number | undefined
+  /** Cuánto se corre la broca de cada orificio oval y lo comprimido hasta ahora (P-004 E10). */
+  desviaciones?: Map<number, number>
+  compresion?: CompresionTotal
+  ladosDeLaFractura?: () => Record<number, 1 | -1>
   /** La trayectoria de un tornillo marcada con dos clics (P-004 E9). */
   trayectoriaDelTornillo?: {
     entrada: THREE.Vector3
@@ -4735,6 +4947,7 @@ export type Taller = {
     estado: EstadoDelAgujero
     largoMm: number
     anguloConElEje: number
+    perforaciones: PerforacionDeLaTrayectoria[]
   }
   siguienteIncision?: number
   ultimaIncision?: number
@@ -5424,6 +5637,10 @@ export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
           sentidoDelLado: imp.placa.sentidoDelLado,
           agujerosDelModelo: imp.placa.agujerosDelModelo,
           aviso: imp.placa.avisoDeOrificios,
+          forma: formaDeLosAgujeros({ nombre: imp.placa.nombre }),
+          semilargoDelOvalMm: semilargoDelOvalDeLaPlaca(imp.placa.nombre),
+          ladoDeLaFractura: taller.ladosDeLaFractura?.() ?? {},
+          desviaciones: Object.fromEntries(taller.desviaciones ?? []),
         }
       : null,
     tornillos: [...(imp?.tornillos.values() ?? [])].map((t) => t.datos).sort((a, b) => a.agujero - b.agujero),
@@ -5440,6 +5657,7 @@ export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
           medido: tray.estado.medido,
         }
       : null,
+    compresion: taller.compresion && taller.compresion.mm > 0 ? { mm: taller.compresion.mm, tecnicas: [...taller.compresion.tecnicas] } : null,
   }
 }
 

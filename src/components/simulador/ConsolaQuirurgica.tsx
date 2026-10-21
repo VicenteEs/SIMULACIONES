@@ -47,12 +47,15 @@ import { ACCIONES_DE_LA_PLACA, ajusteDeLaPlacaPorPaso, lecturaDelMovimiento } fr
 import { acotar } from '@/lib/ejesAnatomicos'
 import { textoDelDesplazamiento } from '@/lib/ejesAnatomicos'
 import { textoDeLaBroca } from '@/lib/profundidadDeLaBroca'
+import { NOMBRE_DE_LA_TECNICA } from '@/lib/compresion'
+import { PanelDeCompresion } from './PanelDeCompresion'
 import {
   ETAPAS_DE_FIJACION,
   diametrosDelTipo,
   instrumentoDeLaEtapa,
   siguienteDeLaSecuencia,
   TIPOS_DE_TORNILLO,
+  definicionDelTipo,
   textoDeLaSecuencia,
   tipoDelTornillo,
   type EtapaDeFijacion,
@@ -1614,6 +1617,7 @@ export function ConsolaQuirurgica({
     () => tipoDelTornillo({ slug: slugDelElegido, nombre: nombreDelElegido, tipoDeTornillo: tipoDeTornilloEscrito }),
     [slugDelElegido, nombreDelElegido, tipoDeTornilloEscrito],
   )
+  const roscaDelElegido = definicionDelTipo(tipoDelElegido).roscaMm
   /** La Metzenbaum en disección roma: no corta, apoya la punta y separa el plano al abrir las ramas. */
   const usoRoma = !!queHace.roma && modo === 'disecar'
   /** Cómo se usa el instrumento en el abordaje, tal como lo cuenta el traumatólogo. */
@@ -1673,11 +1677,12 @@ export function ConsolaQuirurgica({
             perfora: queHace.perfora,
             sutura: queHace.sutura,
             orificios: orificiosDelElegido,
+            tornillo: queHace.coloca?.tipo === 'tornillo' ? { tipo: tipoDelElegido, roscaMm: roscaDelElegido } : null,
             coloca: queHace.coloca,
             mide: queHace.mide,
           }
         : null,
-    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido],
+    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido, tipoDelElegido, roscaDelElegido],
   )
 
   /**
@@ -2165,6 +2170,33 @@ export function ConsolaQuirurgica({
         ) : null}
       </div>
     </div>
+  )
+
+  /**
+   * La vista de trabajo de los orificios ovales de la placa fijada y lo que se lleva comprimido (P-004 E10, pedidos 11 y 14). El esquema
+   * deja elegir dónde se broca; qué comprime lo decide `src/lib/compresion.ts`.
+   */
+  const placaFijada = fijacion?.placa?.fijada ? fijacion.placa : null
+  const hayOvales = !!placaFijada && placaFijada.forma !== undefined && placaFijada.forma !== 'redondo'
+  const bloqueDeLaCompresion = (
+    <>
+      {hayOvales && placaFijada ? (
+        <PanelDeCompresion
+          agujeros={placaFijada.agujeros}
+          semilargoMm={placaFijada.semilargoDelOvalMm ?? 4.5}
+          ladoDeLaFractura={placaFijada.ladoDeLaFractura ?? {}}
+          desviaciones={placaFijada.desviaciones ?? {}}
+          perforados={new Set((fijacion?.agujeros ?? []).filter((a) => a.perforado).map((a) => a.indice))}
+          alElegirDesviacion={(i, mm) => mando.current?.fijarDesviacionDelAgujero(i, mm)}
+          alAcercar={(i) => mando.current?.acercarseAlAgujero(i)}
+        />
+      ) : null}
+      {fijacion?.compresion ? (
+        <p className="consola-instrumento-texto" role="status">
+          <strong>Compresión: {fijacion.compresion.mm.toFixed(1).replace('.', ',')} mm</strong> ({fijacion.compresion.tecnicas.map((t) => NOMBRE_DE_LA_TECNICA[t]).join(' y ')}).
+        </p>
+      ) : null}
+    </>
   )
 
   /** Los tres tiempos de la fijación, con el que toca marcado, y el interruptor de poner el siguiente en la mano (P-004 E9). */
@@ -3162,6 +3194,7 @@ export function ConsolaQuirurgica({
                   ) : null}
                   {bloqueDeLaSecuencia}
                   {bloqueDeLaTrayectoria}
+                  {bloqueDeLaCompresion}
                 </div>
               ) : null}
 
@@ -3176,6 +3209,7 @@ export function ConsolaQuirurgica({
                   </p>
                   {bloqueDeLaSecuencia}
                   {bloqueDeLaTrayectoria}
+                  {bloqueDeLaCompresion}
                   {/* El diámetro, de una lista según el tipo (P-004 E9, pedido 12): cambia el grosor del tornillo y la broca que se espera. */}
                   {queHace.coloca?.tipo === 'tornillo' ? (
                     <label className="consola-instrumento-articulacion">

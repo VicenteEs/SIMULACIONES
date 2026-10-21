@@ -469,6 +469,17 @@ export const Cirugias: CollectionConfig = {
           admin: { condition: (_, hermanos) => hermanos?.objetivo === 'fijacion' || hermanos?.objetivo === 'perforacion' },
         },
         {
+          // Opcional (P-004 E10): el paso de fijación exige que lo puesto comprima la fractura.
+          name: 'exigeCompresion',
+          type: 'checkbox',
+          label: 'La fijación tiene que comprimir la fractura',
+          admin: {
+            description:
+              'Placa de compresión con un tornillo excéntrico en el orificio oval, o tornillo de tracción con broca de deslizamiento o rosca parcial. Sin marcar, el paso no mira la compresión.',
+            condition: (_, hermanos) => hermanos?.objetivo === 'fijacion',
+          },
+        },
+        {
           type: 'row',
           fields: [
             { name: 'musculoDelPlano', type: 'text', maxLength: 200, label: 'Músculo (nombre de su objeto en el modelo)' },

@@ -296,6 +296,21 @@ export function indiceDelAgujeroMasCercano(placa: PlacaColocada, punto: THREE.Ve
   return mejor
 }
 
+/**
+ * La dirección de la placa a lo largo, en el mundo, unitaria: del primer agujero al último (P-004 E10). Con un solo agujero, la
+ * del largo del modelo. Es el eje a lo largo del cual se corre la broca en un orificio oval y el que mira hacia la fractura.
+ */
+export function ejeDeLaPlaca(placa: PlacaColocada): THREE.Vector3 {
+  if (placa.agujerosMm.length >= 2) {
+    const a = posicionDelAgujero(placa, 0, 'abajo')
+    const b = posicionDelAgujero(placa, placa.agujerosMm.length - 1, 'abajo')
+    const eje = b.sub(a)
+    if (eje.lengthSq() > 1e-12) return eje.normalize()
+  }
+  placa.grupo.updateMatrixWorld(true)
+  return new THREE.Vector3(0, 0, -1).transformDirection(placa.grupo.matrixWorld).normalize()
+}
+
 /** El centro de un agujero en el mundo, en la cara de arriba o en la de abajo de la placa. */
 export function posicionDelAgujero(placa: PlacaColocada, indice: number, cara: 'arriba' | 'abajo'): THREE.Vector3 {
   const [x, y] = placa.agujerosMm[indice]

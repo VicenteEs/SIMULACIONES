@@ -914,6 +914,18 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   fragmentos. Con un agujero de placa bajo el cursor mandan los de la placa. «Marcar otra trayectoria» la rehace y «Borrar
   la trayectoria» la quita. Se anota lo perforado y lo medido por ella como en un agujero de placa, y el tornillo se pide del
   largo que dice el medidor.
+- **Compresión de la fractura.** Con una **placa de compresión** (DCP, LC-DCP: orificios ovales; LCP: combinados) fijada, el
+  panel enseña el **orificio oval** en un esquema con una flecha hacia la fractura: se elige el orificio y se hace **clic dentro del
+  óvalo** para marcar dónde se broca; el texto dice si es **céntrico** (no comprime), **concéntrico hacia la fractura** (no comprime y
+  tiende a separar) o **excéntrico, lejos de la fractura** (comprime hasta 1 mm por tornillo). «Acercar al orificio» lleva la cámara
+  a él y «Volver la vista» la devuelve. La broca entra donde se eligió; al poner el tornillo (no bloqueado) **el fragmento se
+  desliza hacia su sitio y la diástasis baja** lo comprimido, sin pasar de lo que hay separado. Con un **tornillo de tracción**
+  por una trayectoria de dos clics que cruza la fractura hay dos formas de comprimir: la **broca de deslizamiento** (el fragmento
+  cercano con un calibre no menor que el diámetro exterior y el lejano con el de núcleo, perforando en dos tiempos) o un tornillo
+  de **rosca parcial** con toda la rosca en el fragmento lejano; si la rosca cruza la fractura, no comprime y la consola dice por qué.
+  El panel suma lo comprimido («Compresión: 1,0 mm (tornillo excéntrico)»). Un paso de fijación puede **exigir comprimir** (casilla
+  «La fijación tiene que comprimir la fractura»); sin marcarla, el paso no mira la compresión. Las reglas están en
+  `src/lib/compresion.ts` y en `BITACORA.md` (D-202) para que el traumatólogo las revise.
 - **Orificios de una placa y largo de un tornillo (para el editor).** Si el modelo 3D de una placa
   **no trae la posición de sus agujeros**, se escribe **cuántos orificios tiene** en su instrumento
   (Taller anatómico → Instrumental, campo «Orificios de la placa», o el catálogo): los agujeros se

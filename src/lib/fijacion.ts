@@ -103,6 +103,11 @@ export function calibreDeBrocaParaElTornillo(diametroMm: number): number {
 export interface EstadoDelAgujero {
   perforado: { diametroMm: number; profundidadMm: number; bicortical: boolean } | null
   medido: { espesorMm: number; sugeridoMm: number } | null
+  /**
+   * Cuánto se corrió la broca del centro de un orificio oval, con signo y a lo largo de la placa (P-004 E10). `undefined` en un
+   * orificio redondo o donde no se eligió: es la perforación céntrica.
+   */
+  desviacionMm?: number
 }
 
 export const AGUJERO_VIRGEN: EstadoDelAgujero = { perforado: null, medido: null }
@@ -266,6 +271,15 @@ export interface EstadoDeLaFijacion {
     /** Cuánto se puede mover cada ajuste según el hueso (P-004 E6) y a qué sentido anatómico lleva el signo + de «de lado». */
     rangos?: { largoMm: { min: number; max: number }; ladoMm: { min: number; max: number }; giroGrados: { min: number; max: number } }
     sentidoDelLado?: 1 | -1 | 0
+    /**
+     * La forma de los orificios (P-004 E10): en los ovales y los combinados se elige dónde brocar; el semilargo del óvalo, en mm, y
+     * hacia qué sentido del eje de la placa está la fractura respecto de cada orificio (vacío si no se sabe dónde está), y cuánto
+     * se corrió la broca en cada uno.
+     */
+    forma?: 'redondo' | 'oval' | 'combi'
+    semilargoDelOvalMm?: number
+    ladoDeLaFractura?: Record<number, 1 | -1>
+    desviaciones?: Record<number, number>
     /** Los agujeros vienen del modelo o se repartieron por la cantidad que escribió el editor, y el aviso si no coinciden. */
     agujerosDelModelo?: boolean
     aviso?: string | null
@@ -278,6 +292,8 @@ export interface EstadoDeLaFijacion {
    * ella, que es lo mismo que se anota en un agujero de placa.
    */
   trayectoria?: { largoMm: number; anguloConElEje: number; perforado: EstadoDelAgujero['perforado']; medido: EstadoDelAgujero['medido'] } | null
+  /** Cuánto se ha comprimido la fractura con los tornillos puestos y con qué técnicas (P-004 E10); `null` si nada. */
+  compresion?: { mm: number; tecnicas: ('excentrico' | 'deslizamiento' | 'rosca-parcial')[] } | null
 }
 
 /**
@@ -289,12 +305,25 @@ export function resumenDeLaFijacion(estado: EstadoDeLaFijacion | null): {
   tornillos: number
   bicorticales: number
   largos: number
+  /** Cuánto se comprimió la fractura con lo puesto, en mm (P-004 E10). */
+  compresionMm: number
 } {
-  if (!estado?.placa) return { placa: false, tornillos: 0, bicorticales: 0, largos: 0 }
+  const compresionMm = estado?.compresion?.mm ?? 0
+  // Sin placa pero con tornillos (los de una trayectoria de dos clics, P-004 E9) se cuentan igual: un tornillo de tracción es una fijación.
+  if (!estado?.placa) {
+    return {
+      placa: false,
+      tornillos: estado?.tornillos.length ?? 0,
+      bicorticales: estado?.tornillos.filter((t) => t.bicortical).length ?? 0,
+      largos: estado?.tornillos.filter((t) => t.puntaFueraMm > PUNTA_FUERA_MAXIMA_MM).length ?? 0,
+      compresionMm,
+    }
+  }
   return {
     placa: true,
     tornillos: estado.tornillos.length,
     bicorticales: estado.tornillos.filter((t) => t.bicortical).length,
     largos: estado.tornillos.filter((t) => t.puntaFueraMm > PUNTA_FUERA_MAXIMA_MM).length,
+    compresionMm,
   }
 }

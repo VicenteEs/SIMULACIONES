@@ -1705,6 +1705,10 @@ export interface Cirugia {
         anguloMaximo?: number | null;
         tornillosMinimos?: number | null;
         exigeBicortical?: boolean | null;
+        /**
+         * Placa de compresión con un tornillo excéntrico en el orificio oval, o tornillo de tracción con broca de deslizamiento o rosca parcial. Sin marcar, el paso no mira la compresión.
+         */
+        exigeCompresion?: boolean | null;
         musculoDelPlano?: string | null;
         accionDelPlano?: ('cortar' | 'separar') | null;
         /**
@@ -3629,6 +3633,7 @@ export interface CirugiasSelect<T extends boolean = true> {
         anguloMaximo?: T;
         tornillosMinimos?: T;
         exigeBicortical?: T;
+        exigeCompresion?: T;
         musculoDelPlano?: T;
         accionDelPlano?: T;
         muestra?:

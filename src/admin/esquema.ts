@@ -849,6 +849,13 @@ export const Cirugias: EsquemaDeColeccion = {
               ayuda: 'Para perforar y para fijar.',
             },
             {
+              tipo: 'casilla',
+              nombre: 'exigeCompresion',
+              etiqueta: 'La fijación tiene que comprimir la fractura',
+              medio: true,
+              ayuda: 'Solo para fijar: placa de compresión con tornillo excéntrico, o tornillo de tracción. Sin marcar, el paso no mira la compresión.',
+            },
+            {
               tipo: 'texto',
               nombre: 'musculoDelPlano',
               etiqueta: 'Músculo (nombre de su objeto en el modelo)',

@@ -115,14 +115,26 @@ describe('resumenDeLaFijacion', () => {
     aviso: null,
   })
   it('sin placa no hay fijación', () => {
-    expect(resumenDeLaFijacion(null)).toEqual({ placa: false, tornillos: 0, bicorticales: 0, largos: 0 })
+    expect(resumenDeLaFijacion(null)).toEqual({ placa: false, tornillos: 0, bicorticales: 0, largos: 0, compresionMm: 0 })
+  })
+  it('sin placa pero con tornillos de una trayectoria (P-004 E9) los cuenta, sin dar por hecha una placa', () => {
+    const estado: EstadoDeLaFijacion = { placa: null, tornillos: [{ ...tornillo(-1, true, 1), libre: true }, { ...tornillo(-2, false, -3), libre: true }] }
+    expect(resumenDeLaFijacion(estado)).toEqual({ placa: false, tornillos: 2, bicorticales: 1, largos: 0, compresionMm: 0 })
+  })
+  it('lleva lo comprimido (P-004 E10)', () => {
+    const estado: EstadoDeLaFijacion = {
+      placa: { nombre: 'x', agujeros: 8, apoyada: true, separadaDelHuesoMm: 0 },
+      tornillos: [tornillo(0, true, 2)],
+      compresion: { mm: 1.5, tecnicas: ['excentrico'] },
+    }
+    expect(resumenDeLaFijacion(estado).compresionMm).toBe(1.5)
   })
   it('cuenta los tornillos, los bicorticales y los largos', () => {
     const estado: EstadoDeLaFijacion = {
       placa: { nombre: 'x', agujeros: 8, apoyada: true, separadaDelHuesoMm: 0 },
       tornillos: [tornillo(0, true, 2), tornillo(1, true, 7), tornillo(2, false, -4)],
     }
-    expect(resumenDeLaFijacion(estado)).toEqual({ placa: true, tornillos: 3, bicorticales: 2, largos: 1 })
+    expect(resumenDeLaFijacion(estado)).toEqual({ placa: true, tornillos: 3, bicorticales: 2, largos: 1, compresionMm: 0 })
   })
 })
 

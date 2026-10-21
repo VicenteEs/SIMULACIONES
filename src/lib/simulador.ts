@@ -49,6 +49,8 @@ export const RESULTADOS = {
   TORNILLOS_INSUFICIENTES: 'tornillos-insuficientes',
   TORNILLO_UNICORTICAL: 'tornillo-unicortical',
   TORNILLO_LARGO: 'tornillo-largo',
+  // P-004 E10: la fijación que tiene que comprimir y no comprime.
+  SIN_COMPRESION: 'sin-compresion',
   // P-003 E10: trabajar por planos, un músculo concreto.
   SIN_MUSCULO_ELEGIDO: 'sin-musculo-elegido',
   PLANO_SIN_HACER: 'plano-sin-hacer',
@@ -84,6 +86,11 @@ export interface PasoQuirurgico {
   exigeBicortical?: boolean | null
   /** Fijación: cuántos tornillos hacen falta como mínimo. */
   tornillosMinimos?: number | null
+  /**
+   * Fijación (P-004 E10): la fijación tiene que comprimir la fractura —con un orificio oval y un tornillo excéntrico, con la broca de
+   * deslizamiento o con rosca parcial—. Opcional: sin marcar, el paso no mira la compresión.
+   */
+  exigeCompresion?: boolean | null
   /** Planos (P-003 E10): el nombre del objeto del músculo sobre el que se trabaja, y si hay que cortarlo o separarlo. */
   musculoDelPlano?: string | null
   accionDelPlano?: 'cortar' | 'separar' | null
@@ -115,7 +122,7 @@ export interface Gesto {
     sePasoMm: number
   }
   /** Lo que hay fijado: si hay placa, cuántos tornillos, cuántos bicorticales y cuántos largos. */
-  fijacion?: { placa: boolean; tornillos: number; bicorticales: number; largos: number }
+  fijacion?: { placa: boolean; tornillos: number; bicorticales: number; largos: number; compresionMm?: number }
   /**
    * El músculo elegido con «Info» y lo hecho con él (P-003 E10): su nodo, si se va a cortar o a separar, si se cortó
    * y cuánto está retraído. `nodo` es `null` mientras no se haya elegido ninguno.
@@ -447,7 +454,8 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
 
     case 'fijacion': {
       const f = gesto.fijacion
-      if (!f?.placa) {
+      // Con `exigeCompresion` un tornillo de tracción sin placa también es una fijación que se puede juzgar (P-004 E10).
+      if (!f || (!f.placa && !(paso.exigeCompresion && f.tornillos > 0))) {
         return nada(
           'Todavía no hay ninguna placa sobre el hueso. Coja una placa, active el modo Fijar y pique sobre el hueso.',
           RESULTADOS.SIN_PLACA,
@@ -471,6 +479,12 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
           `${paso.excesivo || 'Hay tornillos largos: la punta asoma de más por la cortical opuesta y roza las partes blandas.'} (${f.largos} ${f.largos === 1 ? 'tornillo largo' : 'tornillos largos'})`,
           RESULTADOS.TORNILLO_LARGO,
           true,
+        )
+      }
+      if (paso.exigeCompresion && !((f.compresionMm ?? 0) > 0)) {
+        return nada(
+          `${paso.insuficiente || 'La fijación no comprime la fractura.'} Con un orificio oval se broca excéntrico, lejos de la fractura; con un tornillo de tracción, con la broca de deslizamiento o con rosca parcial.`,
+          RESULTADOS.SIN_COMPRESION,
         )
       }
       return bien(paso.exito)
@@ -669,7 +683,7 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
     case 'fijacion': {
       const n = paso.tornillosMinimos ?? 1
       return conInstrumento(
-        `active el modo Fijar: apoye la placa sobre el hueso y ponga ${n} ${n === 1 ? 'tornillo' : 'tornillos'} en sus agujeros.${paso.exigeBicortical ? ' Los tornillos tienen que cruzar las dos corticales.' : ''} Mida antes con el medidor de profundidad.`,
+        `active el modo Fijar: apoye la placa sobre el hueso y ponga ${n} ${n === 1 ? 'tornillo' : 'tornillos'} en sus agujeros.${paso.exigeBicortical ? ' Los tornillos tienen que cruzar las dos corticales.' : ''}${paso.exigeCompresion ? ' La fijación tiene que comprimir la fractura.' : ''} Mida antes con el medidor de profundidad.`,
       )
     }
     case 'planos': {

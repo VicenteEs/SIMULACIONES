@@ -374,6 +374,7 @@ export const INDICACIONES: Readonly<Record<ModuloDeIngesta, Readonly<Record<stri
     'pasos.musculoDelPlano': 'Solo con objetivo «planos»: el nombre del objeto del músculo en el modelo (por ejemplo «Tibial_anterior_derecho»).',
     'pasos.accionDelPlano': 'Solo con objetivo «planos»: «cortar» o «separar» (retraerlo sin cortarlo).',
     'pasos.exigeBicortical': 'Con «perforacion» o «fijacion»: si tienen que cruzar las dos corticales (verdadero o falso).',
+    'pasos.exigeCompresion': 'Con «fijacion»: si la fijación tiene que comprimir la fractura (verdadero o falso).',
     'pasos.exito': 'Lo que se le dice al residente si lo hace bien.',
     'pasos.insuficiente': 'Lo que se le dice si se queda corto.',
     'pasos.excesivo': 'Lo que se le dice si se pasa.',
