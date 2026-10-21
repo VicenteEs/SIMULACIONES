@@ -6848,6 +6848,21 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que no hace todavía:** los orificios de bloqueo del clavo y poner los tornillos de bloqueo por el arco y a pulso (E6: el «Tornillo de bloqueo de clavo» sigue sin clavo donde ponerse); el clavo es recto (sin la curva proximal ni el
   arco anterior del fémur); no hay rotación ni longitud como control del clavo; el arco no se dibuja; retirar un clavo hundido no tiene dificultad.
 
+### D-212 · 2026-10-21 · vigente
+**El clavo se bloquea por sus orificios y los tornillos se aprietan con el destornillador y el limitador de torque (P-005 E6).**
+- **Reglas, puras y con pruebas** (`src/lib/bloqueoDelClavo.ts`, 28 pruebas): los **orificios** del clavo por su nombre (tibial 3 proximales —el del medio dinámico— y 3 distales; femoral 2 y 3; el cefalomedular, ninguno), a 15 mm del
+  extremo y de 15 en 15; la **puntería** (guiada por el arco: siempre acierta; a pulso: hasta 2 mm acierta, hasta 4 roza, más falla y no bloquea); el **bloqueo suficiente** (uno proximal y dos distales); y el **apriete**: la cabeza
+  decide el destornillador (bloqueada → Stardrive de su talla, normal → hexagonal), y una cabeza bloqueada de placa lleva su limitador (0,8 / 1,5 / 4,0 N·m). Cifras de partida que Cristóbal debe revisar.
+- **En el lienzo:** el clavo dibuja una marca oscura en cada orificio; el tornillo de bloqueo reutiliza la colocación en línea (`colocarTornilloEnLinea`) por el eje transversal del orificio, con la punta contada desde el
+  extremo del clavo. La puntería se mide por donde el **rayo del cursor pasa más cerca del eje del clavo** (como se mira en la fluoroscopia) y no por la superficie del hueso, que por la perspectiva cae unos milímetros fuera. El
+  destornillador apunta a un tornillo puesto y anota en él cómo se apretó; el limitador se monta con un clic. Retirar el clavo, la guía o marcar otra entrada **quita también los tornillos de bloqueo**.
+- **Las herramientas** (`atornilla`: `destornillador` y `limitador`): por slug y por nombre; el «Atornillador de bloqueo» del catálogo vivo cuenta como Stardrive sin talla (sirve para cualquier cabeza bloqueada). El «Tornillo de bloqueo de
+  clavo» deja de decir que no hay clavo donde ponerse.
+- **Probado en el navegador** (tibia, clavo 9 × 330 asentado): D1 en el centro → acierta; D2 a +3 mm → roza; D3 a +7 mm → falla y no bloquea; P1 con el arco → guiado. El hexagonal y el Stardrive T15 no calzan en la cabeza T25 y el
+  «Atornillador de bloqueo» sí.
+- **Lo que no hace todavía:** el apriete no es requisito de ningún paso del caso (es un aviso); el limitador no se probó en el navegador (sí con pruebas); los tornillos de placa se aprietan igual, pero no hay torque dinámico; el
+  clavo no gira (la rotación) ni se mide su longitud con el calibre; los orificios proximales del cefalomedular (tornillo cefálico) no existen.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10814,7 +10829,7 @@ programa, se prueba en el navegador y se documenta.
 *Lo que no se promete:* fidelidad biomecánica (resistencia de la placa, fuerza de torque en newtons-metro reales); se recrea el **gesto, la secuencia y los errores típicos**, con reglas que el traumatólogo
 puede leer y corregir. Cada etapa deja su **D-nnn**, su sección en el manual de uso y sus pruebas.
 
-**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 hecha (D-210). E5 hecha: clavo, arco, martillo e impactador (D-211). E6 y E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
+**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 hecha (D-210). E5 hecha: clavo, arco, martillo e impactador (D-211). E6 hecha: bloqueo del clavo, destornilladores y limitador (D-212). E7 pendiente, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
 
 ---
 

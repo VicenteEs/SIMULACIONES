@@ -187,6 +187,7 @@ import {
 } from './periostioEnLaEscena'
 import { agujerosSobrePeriostio, juicioDeLaExposicion } from '@/lib/periostio'
 import { LARGO_DEL_ALAMBRE_MM, MAXIMO_DE_ALAMBRES, juzgarElAlambre, resumenDeLosAlambres, type EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
+import { destornilladorDelNombre, juzgarElApriete, juzgarLaPunteria, posicionDelOrificioMm, type OrificioDelClavo } from '@/lib/bloqueoDelClavo'
 import {
   ENTRADA_A_MANO_MM,
   avancePorGolpeMm,
@@ -216,7 +217,7 @@ import {
   retirarLaGuia,
   type EnclavadoEnLaEscena,
 } from './enclavadoEnLaEscena'
-import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
+import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, quitarUnTornillo, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
 // La regla base de `.consola-lienzo` vive en la hoja de la consola, y este
@@ -619,6 +620,8 @@ export interface InstrumentoEnEscena {
     diametroMm?: number
     largoMm?: number
   } | null
+  /** Aprieta los tornillos puestos (P-005 E6): el destornillador, o el limitador de torque que se monta en él. */
+  atornilla?: { tipo: 'destornillador' } | { tipo: 'limitador'; torqueNm: number | null } | null
 }
 
 /** Una pinza de reducción que tiene agarrado un trozo de hueso: es hija del trozo, así que lo acompaña (P-003 E5). */
@@ -782,6 +785,7 @@ export function LienzoQuirurgico({
   alCambiarElPeriostio,
   alCambiarLosAlambres,
   alCambiarElEnclavado,
+  alCambiarElLimitador,
   medidasDelFoco,
   clavoPrevistoMm,
   mando,
@@ -935,6 +939,8 @@ export function LienzoQuirurgico({
   alCambiarLosAlambres?: (estado: EstadoDeLosAlambres | null) => void
   /** Cambió el enclavado (P-005 E4): se marcó la entrada, avanzó la guía, se fresó. `null` si se quitó todo. */
   alCambiarElEnclavado?: (estado: EstadoDelEnclavado | null) => void
+  /** Se montó o se quitó el limitador de torque del destornillador (P-005 E6): los N·m que admite ahora, o `null`. */
+  alCambiarElLimitador?: (torqueNm: number | null) => void
   /** Cómo está la reducción del foco ahora mismo: de ella depende que la guía pase (P-005 E4). */
   medidasDelFoco?: ReduccionDelFoco | null
   /** El calibre del clavo que se va a poner, si el caso lo trae en su bandeja: con él se juzga el fresado (P-005 E4). */
@@ -1003,6 +1009,8 @@ export function LienzoQuirurgico({
     alambres?: AlambrePuesto[]
     /** El enclavado endomedular: entrada, guía y canal fresado (P-005 E4). */
     enclavado?: EnclavadoEnLaEscena
+    /** Los N·m del limitador de torque montado en el destornillador, o `null` (P-005 E6). */
+    limitadorNm?: number | null
     /** El entorno de estudio que reflejan los instrumentos (el acero sin él se ve negro). */
     entorno?: THREE.Texture
     fantasma?: THREE.Object3D
@@ -1147,6 +1155,7 @@ export function LienzoQuirurgico({
     alCambiarElPeriostio,
     alCambiarLosAlambres,
     alCambiarElEnclavado,
+    alCambiarElLimitador,
     medidasDelFoco,
     clavoPrevistoMm,
     alCargarInstrumento,
@@ -1201,6 +1210,7 @@ export function LienzoQuirurgico({
       alCambiarElPeriostio,
       alCambiarLosAlambres,
       alCambiarElEnclavado,
+      alCambiarElLimitador,
       medidasDelFoco,
       clavoPrevistoMm,
       alCargarInstrumento,
@@ -1767,6 +1777,7 @@ export function LienzoQuirurgico({
     quitarElEnclavado: () => {
       const t = taller.current
       if (!t.enclavado) return
+      soltarLosBloqueos(t)
       quitarTodoElEnclavado(t.enclavado)
       ultimas.current.alCambiarElEnclavado?.(null)
       t.pedirDibujo?.()
@@ -1775,6 +1786,7 @@ export function LienzoQuirurgico({
     retirarElClavo: () => {
       const t = taller.current
       if (!t.enclavado?.clavo) return
+      soltarLosBloqueos(t)
       quitarElClavo(t.enclavado)
       ultimas.current.alCambiarElEnclavado?.(estadoDelEnclavado(t.enclavado, ultimas.current.medidasDelFoco ?? null, ultimas.current.clavoPrevistoMm ?? null))
       t.decir?.('Clavo retirado del canal.')
@@ -1784,6 +1796,7 @@ export function LienzoQuirurgico({
     retirarLaGuiaDelEnclavado: () => {
       const t = taller.current
       if (!t.enclavado?.guia) return
+      soltarLosBloqueos(t)
       retirarLaGuia(t.enclavado)
       ultimas.current.alCambiarElEnclavado?.(estadoDelEnclavado(t.enclavado, ultimas.current.medidasDelFoco ?? null, ultimas.current.clavoPrevistoMm ?? null))
       t.decir?.('Guía retirada: el canal vuelve a estar sin fresar.')
@@ -3895,6 +3908,7 @@ export function LienzoQuirurgico({
       const e = (t.enclavado ??= crearEnclavado())
       const canal = medirElCanal({ entrada: golpe.point.clone(), cajaProximal: cajaA, cajaDistal: cajaB, eje, milimetrosPorUnidad: mm })
       // Una entrada nueva invalida lo que dependía de la anterior: la guía y el fresado se rehacen.
+      soltarLosBloqueos(t)
       retirarLaGuia(e)
       const juicio = ponerLaEntrada(escena, e, golpe.point, normalDelGolpe(golpe), canal, mm, { proximal: pieza, distal: otra })
       t.decir?.(juicio.aviso ?? 'Entrada marcada: en el extremo proximal y en línea con el canal. Ahora se pasa la guía de punta de oliva.')
@@ -4028,7 +4042,7 @@ export function LienzoQuirurgico({
           t.decir?.('Ya hay un clavo en el canal: retírelo («Retirar el clavo») para poner otro.')
           return
         }
-        const medidas = { diametroMm: que.diametroMm, largoMm: que.largoMm }
+        const medidas = { diametroMm: que.diametroMm, largoMm: que.largoMm, nombre: ultimas.current.instrumento?.nombre ?? '' }
         // El fresado se juzga contra el clavo que se tiene en la mano, no contra el que la bandeja daba por previsto.
         const faltan = loQueFaltaParaElClavo(estadoDelEnclavado(e, medidasDelFocoAhora(), medidas.diametroMm))
         if (faltan.length > 0) {
@@ -4780,7 +4794,7 @@ export function LienzoQuirurgico({
       }
       if (inst.coloca?.tipo === 'tornillo' && herramienta) {
         if (inst.coloca.soloConClavo) {
-          t.decir?.('Este tornillo es de bloqueo de clavo: todavía no hay clavo en el hueso del simulador.')
+          t.decir?.('Este tornillo es de bloqueo de clavo: va por los orificios del clavo (un clic junto al orificio), no por una trayectoria.')
           return
         }
         if (falta('atornillar')) return
@@ -4831,6 +4845,155 @@ export function LienzoQuirurgico({
       }
     }
 
+    // --- tornillos de bloqueo por el clavo y apriete con destornillador (P-005 E6) ------------------------------
+    // El tornillo de bloqueo se pone por el **orificio del clavo** más cercano al clic, a lo largo del clavo: guiado por el arco si es proximal y está montado, a
+    // pulso si no (y entonces se juzga la puntería). El destornillador aprieta el tornillo al que se apunta, y el limitador de torque se monta en él con un clic.
+    // Las reglas están en `src/lib/bloqueoDelClavo.ts`.
+    const ponerElTornilloDeBloqueo = () => {
+      const t = taller.current
+      const u = ultimas.current
+      const inst = u.instrumento
+      const herramienta = t.herramienta
+      const e = t.enclavado
+      if (!t.escena || !inst?.coloca || inst.coloca.tipo !== 'tornillo' || !herramienta) return
+      if (!e?.clavo || !e.entrada) {
+        t.decir?.('Este tornillo es de bloqueo de clavo: primero se introduce el clavo en el canal (punzón, guía, fresa, tubo y clavo).')
+        return
+      }
+      const golpe = huesoBajoElCursor()
+      if (!golpe) {
+        t.decir?.('Apunte al hueso, a la altura del orificio del clavo por donde va el tornillo.')
+        return
+      }
+      const mm = u.milimetrosPorUnidad || 1000
+      const unidades = 1 / mm
+      const imp = (t.implantes ??= crearImplantes())
+      const canal = e.entrada.canal
+      // A qué altura del clavo se apuntó: donde el rayo del cursor pasa más cerca del eje del clavo. Así se apunta como se mira en la fluoroscopia, al orificio
+      // y no a la superficie del hueso, que por la perspectiva cae unos milímetros más arriba o más abajo.
+      const rd = rayo.ray.direction
+      const ld = canal.direccion
+      const w0 = rayo.ray.origin.clone().sub(canal.origen)
+      const cosenoEntreEjes = rd.dot(ld)
+      const denominador = 1 - cosenoEntreEjes * cosenoEntreEjes
+      const alLargoDelClic =
+        (denominador > 1e-6 ? (ld.dot(w0) - cosenoEntreEjes * rd.dot(w0)) / denominador : golpe.point.clone().sub(canal.origen).dot(ld)) * mm
+      let mejor: { o: OrificioDelClavo; s: number } | null = null
+      for (const o of e.clavo.orificios) {
+        const s = posicionDelOrificioMm(e.clavo, o)
+        if (!mejor || Math.abs(alLargoDelClic - s) < Math.abs(alLargoDelClic - mejor.s)) mejor = { o, s }
+      }
+      if (!mejor) {
+        t.decir?.('Este clavo no trae orificios de bloqueo: el cefalomedular se bloquea con su tornillo cefálico.')
+        return
+      }
+      if (Math.abs(alLargoDelClic - mejor.s) > 25) {
+        t.decir?.('Ahí no hay ningún orificio del clavo: apunte a la altura de uno de los orificios oscuros.')
+        return
+      }
+      const { o, s } = mejor
+      if (e.bloqueos.some((b) => b.orificio === o.id)) {
+        t.decir?.(`El orificio ${o.id} ya tiene su tornillo.`)
+        return
+      }
+      const guiado = o.zona === 'proximal' && e.arcoMontado
+      const desviacionMm = alLargoDelClic - s
+      const juicio = juzgarLaPunteria({ desviacionMm, guiadoPorElArco: guiado, orificio: o.id })
+      // Acertando, el tornillo pasa por el centro; si no, por donde se apuntó.
+      const corrimientoMm = juicio.punteria === 'acierta' ? 0 : desviacionMm
+      const centro = canal.origen.clone().addScaledVector(canal.direccion, (s + corrimientoMm) * unidades)
+      const huesosDelClavo = [e.entrada.proximal, e.entrada.distal].filter((x): x is THREE.Object3D => !!x)
+      for (const h of huesosDelClavo) h.updateMatrixWorld(true)
+      let entrada: THREE.Vector3 | null = null
+      let haciaDentro = canal.transversal.clone().negate()
+      for (const signo of [1, -1]) {
+        const lado = canal.transversal.clone().multiplyScalar(signo)
+        const origen = centro.clone().addScaledVector(lado, 120 * unidades)
+        const golpeDelRayo = new THREE.Raycaster(origen, lado.clone().negate(), 0, 400 * unidades).intersectObjects(huesosDelClavo, true)[0]
+        if (golpeDelRayo) {
+          entrada = golpeDelRayo.point.clone()
+          haciaDentro = lado.clone().negate()
+          break
+        }
+      }
+      if (!entrada) {
+        t.decir?.(`El orificio ${o.id} no cae sobre el hueso: el clavo no llega hasta ahí.`)
+        return
+      }
+      const id = (t.siguienteTornilloLibre = (t.siguienteTornilloLibre ?? 0) + 1) * -1
+      const puesto = colocarTornilloEnLinea({
+        escena: t.escena,
+        plantilla: herramienta.raiz,
+        id,
+        entrada,
+        haciaDentro,
+        largoMm: u.largoDeTornillo,
+        diametroMm: u.diametroDeTornillo ?? inst.coloca.diametroMm,
+        diametroDelModeloMm: inst.coloca.diametroMm,
+        largoDelModeloMm: inst.coloca.largoDelModeloMm,
+        bloqueado: true,
+        milimetrosPorUnidad: mm,
+        huesos: huesosDelClavo,
+        implantes: imp,
+      })
+      if (!puesto) {
+        t.decir?.('Por ahí no hay hueso donde atornillar.')
+        return
+      }
+      puesto.deClavo = o.id
+      puesto.punteria = juicio.punteria
+      e.bloqueos.push({ orificio: o.id, zona: o.zona, tornilloId: id, punteria: juicio.punteria, bloquea: juicio.bloquea })
+      const texto =
+        `Tornillo de bloqueo en ${o.id}${o.dinamico ? ' (orificio dinámico)' : ''}, ${guiado ? 'guiado por el arco' : 'a pulso'}: ` +
+        (puesto.bicortical ? 'bicortical.' : 'solo la cortical cercana: pida uno más largo con el medidor.') +
+        (puesto.aviso && puesto.bicortical ? ` ${puesto.aviso}` : '') +
+        (juicio.aviso ? ` ${juicio.aviso}` : '')
+      t.decir?.(texto)
+      u.alFijar?.(estadoDeLaFijacion(t), { tipo: 'tornillo', texto, atencion: !!juicio.aviso || !!puesto.aviso, libre: true })
+      avisarElEnclavado()
+      t.pedirDibujo?.()
+    }
+
+    const apretarConClic = () => {
+      const t = taller.current
+      const u = ultimas.current
+      const a = u.instrumento?.atornilla
+      if (!a) return
+      if (a.tipo === 'limitador') {
+        if (a.torqueNm === null) {
+          t.decir?.('No se lee en el nombre de este limitador cuántos N·m admite («Limitador de torque 1,5 N·m»).')
+          return
+        }
+        t.limitadorNm = t.limitadorNm === a.torqueNm ? null : a.torqueNm
+        u.alCambiarElLimitador?.(t.limitadorNm)
+        t.decir?.(t.limitadorNm ? `Limitador de ${String(t.limitadorNm).replace('.', ',')} N·m montado en el destornillador.` : 'Limitador de torque retirado del destornillador.')
+        return
+      }
+      const imp = t.implantes
+      if (!imp || imp.tornillos.size === 0) {
+        t.decir?.('No hay tornillos puestos que apretar: primero se coloca el tornillo.')
+        return
+      }
+      const golpe = rayo.intersectObjects([...imp.tornillos.values()].map((x) => x.grupo), true)[0]
+      const puesto = golpe ? [...imp.tornillos.values()].find((x) => perteneceA(golpe.object, x.grupo)) : undefined
+      if (!puesto) {
+        t.decir?.('Apunte a un tornillo puesto: el destornillador aprieta el tornillo al que se apunta.')
+        return
+      }
+      const datos = puesto.datos
+      const juicio = juzgarElApriete({
+        tornillo: { bloqueado: datos.bloqueado, diametroMm: datos.diametroMm, deClavo: !!datos.deClavo },
+        destornillador: destornilladorDelNombre(u.instrumento?.nombre ?? ''),
+        limitadorNm: t.limitadorNm ?? null,
+      })
+      datos.apriete = { apretado: juicio.apretado, texto: juicio.texto, aviso: juicio.aviso }
+      const cual = datos.deClavo ? `de bloqueo en ${datos.deClavo}` : datos.libre ? 'de la trayectoria' : `del agujero ${datos.agujero + 1}`
+      const texto = juicio.apretado ? `Tornillo ${cual} apretado ${juicio.texto}.${juicio.aviso ? ` ${juicio.aviso}` : ''}` : (juicio.aviso ?? 'No se pudo apretar.')
+      t.decir?.(texto)
+      u.alFijar?.(estadoDeLaFijacion(t), { tipo: 'aviso', texto, atencion: !juicio.apretado || !!juicio.aviso, libre: !!datos.libre })
+      t.pedirDibujo?.()
+    }
+
     /**
      * Un clic en modo Fijar: la placa se apoya en el hueso, el tornillo se pone en
      * el agujero que apunta el cursor, el medidor lee el hueso que hay debajo.
@@ -4851,6 +5014,16 @@ export function LienzoQuirurgico({
         t.pedirDibujo?.()
       }
       const huesos = mallasDeHueso()
+
+      // El destornillador y el limitador aprietan lo ya puesto; el tornillo de bloqueo va por los orificios del clavo (P-005 E6).
+      if (inst.atornilla) {
+        apretarConClic()
+        return
+      }
+      if (inst.coloca?.tipo === 'tornillo' && inst.coloca.soloConClavo && herramienta) {
+        ponerElTornilloDeBloqueo()
+        return
+      }
 
       // La placa y el tornillo se clonan del modelo que está en la mano; el medidor no necesita el suyo.
       if (inst.coloca && !herramienta) {
@@ -4983,7 +5156,7 @@ export function LienzoQuirurgico({
       }
       if (inst.coloca?.tipo === 'tornillo' && herramienta) {
         if (inst.coloca.soloConClavo) {
-          t.decir?.('Este tornillo es de bloqueo de clavo: todavía no hay clavo en el hueso del simulador. Para una placa use el cortical, el de esponjosa o el bloqueado LCP.')
+          t.decir?.('Este tornillo es de bloqueo de clavo: va por los orificios del clavo. Para una placa use el cortical, el de esponjosa o el bloqueado LCP.')
           return
         }
         // El orden real (P-003 E6): placa fijada, agujero perforado y medido.
@@ -5814,6 +5987,8 @@ export type Taller = {
   alambres?: AlambrePuesto[]
   /** El enclavado endomedular (P-005 E4). */
   enclavado?: EnclavadoEnLaEscena
+  /** Los N·m del limitador de torque montado en el destornillador, o `null` (P-005 E6). */
+  limitadorNm?: number | null
   /** La silueta del fragmento en su sitio correcto (ayuda de los rayos X). */
   fantasma?: THREE.Object3D
   /** Los dos ejes de la guía de angulación (ayuda de los rayos X). */
@@ -6449,6 +6624,17 @@ export function estadoDeLasHeridas(taller: Taller, milimetrosPorUnidad: number):
 // --------------------------------------------------------------- fijación
 
 /** Lo que hay fijado: la placa y sus tornillos, o `null` si no hay placa. */
+/**
+ * Quita los tornillos de bloqueo que pasaban por el clavo: si el clavo se retira o se rehace el canal, ellos no tienen dónde estar. Va **antes** de quitar el clavo,
+ * que olvida la cuenta de bloqueos.
+ */
+function soltarLosBloqueos(t: Taller) {
+  const e = t.enclavado
+  if (!e || !t.implantes || e.bloqueos.length === 0) return
+  for (const b of e.bloqueos) quitarUnTornillo(t.implantes, b.tornilloId)
+  e.bloqueos = []
+}
+
 export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
   const imp = taller.implantes
   const tray = taller.trayectoriaDelTornillo

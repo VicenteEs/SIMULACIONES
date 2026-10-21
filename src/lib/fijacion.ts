@@ -255,6 +255,12 @@ export interface TornilloPuesto {
   espesorMm: number
   bloqueado: boolean
   aviso: string | null
+  /** Pasa por este orificio del clavo («P1», «D2»…): es un tornillo de bloqueo (P-005 E6). */
+  deClavo?: string
+  /** Cómo apuntó el tornillo de bloqueo al orificio (P-005 E6). */
+  punteria?: 'acierta' | 'roza' | 'falla'
+  /** Con qué se apretó y qué se avisó (P-005 E6); sin esto, el tornillo está puesto y sin apretar. */
+  apriete?: { apretado: boolean; texto: string; aviso: string | null }
 }
 
 /** Lo que hay fijado ahora mismo: la placa y sus tornillos. */

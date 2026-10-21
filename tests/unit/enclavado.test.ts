@@ -200,12 +200,12 @@ describe('lo que falta para el clavo', () => {
 
   it('la lista dice una línea por paso con su estado', () => {
     const l = listaDelEnclavado(completo)
-    expect(l.map((x) => x.paso)).toEqual(['Entrada', 'Guía', 'Fresado', 'Cambio de guía', 'Clavo'])
+    expect(l.map((x) => x.paso)).toEqual(['Entrada', 'Guía', 'Fresado', 'Cambio de guía', 'Clavo', 'Bloqueo'])
     expect(l.slice(0, 4).every((x) => x.hecho)).toBe(true)
     expect(l[4]).toMatchObject({ hecho: false, texto: 'sin poner' })
     expect(l[2].texto).toBe('hasta 10 mm (8,5 → 9 → 9,5 → 10)')
     const vacia = listaDelEnclavado(ENCLAVADO_VACIO)
-    expect(vacia.map((x) => x.hecho)).toEqual([false, false, false, false, false])
+    expect(vacia.map((x) => x.hecho)).toEqual([false, false, false, false, false, false])
     expect(vacia[0].texto).toBe('sin marcar')
   })
 

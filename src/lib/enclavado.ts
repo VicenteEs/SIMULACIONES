@@ -1,3 +1,5 @@
+import { juzgarElBloqueo, type OrificioDelClavo, type Punteria } from './bloqueoDelClavo'
+
 /**
  * El enclavado endomedular, paso a paso (P-005 E4): punto de entrada, guía de punta de oliva, dedo reductor, fresado y cambio de guía.
  *
@@ -348,6 +350,9 @@ export interface EstadoDelEnclavado {
     golpes: number
     /** El último aviso de un golpe (martillo sin protección, atascado). */
     avisoDelGolpe: string | null
+    /** Los orificios del clavo y cómo apuntó el tornillo de cada uno, o `null` si todavía no lleva (P-005 E6). */
+    orificios: { id: string; zona: OrificioDelClavo['zona']; dinamico: boolean; punteria: Punteria | null }[]
+    bloqueo: { suficiente: boolean; aviso: string | null }
   } | null
 }
 
@@ -411,6 +416,20 @@ export function listaDelEnclavado(e: EstadoDelEnclavado): { paso: string; hecho:
         : e.arcoMontado
           ? 'arco montado, sin clavo'
           : 'sin poner',
+    },
+    {
+      paso: 'Bloqueo',
+      hecho: !!e.clavo && e.clavo.bloqueo.suficiente,
+      texto: e.clavo
+        ? e.clavo.orificios.length === 0
+          ? 'este clavo no trae orificios'
+          : e.clavo.orificios.some((o) => o.punteria)
+            ? e.clavo.orificios
+                .filter((o) => o.punteria)
+                .map((o) => `${o.id}${o.punteria === 'acierta' ? '' : o.punteria === 'roza' ? ' (roza)' : ' (falló)'}`)
+                .join(' · ')
+            : 'sin tornillos'
+        : 'sin clavo',
     },
   ]
 }

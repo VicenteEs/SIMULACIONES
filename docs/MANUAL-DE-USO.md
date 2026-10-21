@@ -964,6 +964,12 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   **de 0,5 en 0,5 mm** hasta quedar 1 a 1,5 mm sobre el calibre del clavo de la bandeja; (4) el **tubo de intercambio**, con un clic, cambia la guía de punta de oliva por la lisa. El recuadro
   lista cada paso («✓ Guía: hasta el extremo distal») y dice qué falta antes del clavo; «Retirar la guía» y «Quitar el enclavado» deshacen. El canal fresado se ve como un tubo ámbar a través
   del hueso y no sale en la fluoroscopia; la guía sí. Reglas en `src/lib/enclavado.ts`. El clavo mismo y su inserción son la etapa siguiente.
+- **Bloquear el clavo y apretar los tornillos (tornillo de bloqueo, destornilladores y limitador de torque).** Con el clavo asentado, el **tornillo de bloqueo de clavo** se coge y **un clic en el hueso, a la altura de un
+  orificio oscuro del clavo** (el recuadro los lista: P1… proximales, D1… distales; el tibial trae tres y tres, el del medio proximal dinámico) lo pone por ese orificio. Los **proximales, con el arco montado, van guiados
+  y aciertan siempre**; los **distales van a pulso** y se juzga cuánto se aparta el clic del centro: hasta 2 mm acierta, hasta 4 mm roza el borde (traba poco) y más allá **pasa junto al clavo y no lo bloquea**. El recuadro dice
+  si el bloqueo es suficiente (uno arriba y dos abajo) o qué falta. Después el **destornillador** aprieta el tornillo al que se apunta con un clic: el **hexagonal** para las cabezas normales y el **Stardrive** de la talla
+  de la cabeza para las bloqueadas (T15 en 3,5 mm, T25 en 5,0; el «Atornillador de bloqueo» sirve para el de clavo); si no calza, lo dice. El **limitador de torque** se monta en el destornillador con un clic (otro lo quita):
+  una cabeza bloqueada de placa sin limitador avisa del sobre-apriete, y uno de otros N·m avisa o salta antes. Reglas en `src/lib/bloqueoDelClavo.ts`.
 - **Clavo endomedular: introducirlo y asentarlo (clavo, arco, martillo e impactador).** Con el canal fresado y la guía lisa puesta, el **clavo** de la bandeja («Clavo tibial 9 × 330 mm») se coge y **un clic lo introduce unos
   40 mm con la mano**. Se monta el **arco de inserción** (un clic; otro lo retira) y se golpea con el **impactador** —conectado al arco—: **cada clic es un golpe** que avanza 8 mm si el canal tiene 1 mm o más de holgura sobre el
   clavo, 3 mm si es justa, y nada si no cabe (hay que fresar más). Con el **martillo** directo también avanza, pero avisa de que deforma la rosca del extremo. El recuadro dice cómo asoma, queda **a ras (ideal), hundido** (más de

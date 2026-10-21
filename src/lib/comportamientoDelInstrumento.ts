@@ -17,6 +17,7 @@ import { quePuedeColocar, sirveParaMedir, type QueColoca } from './fijacion'
 import { hiloDelInstrumento, type HiloDeSutura } from './sutura'
 import { esElectrobisturi } from './electrobisturi'
 import { medidasDelClavoEnElNombre } from './enclavado'
+import { torqueEnElNombre } from './bloqueoDelClavo'
 
 export type PlanoDeCorte = 'piel' | 'musculo'
 
@@ -88,6 +89,11 @@ export interface ComportamientoDelInstrumento {
    * **clavo** se mete, el **arco** se monta en él y el **martillo** o el **impactador** lo golpean hasta asentarlo. Las reglas están en `src/lib/enclavado.ts`.
    */
   enclava: 'entrada' | 'guia' | 'dedo' | 'fresa' | 'tubo' | 'clavo' | 'arco' | 'martillo' | 'impactador' | null
+  /**
+   * Aprieta los tornillos ya puestos (P-005 E6): el **destornillador** (hexagonal o Stardrive) aprieta el tornillo al que se apunta, y el **limitador de torque**,
+   * que se monta en él, fija cuántos N·m se admiten. Las reglas —qué destornillador calza en cada cabeza, qué limitador toca— están en `src/lib/bloqueoDelClavo.ts`.
+   */
+  atornilla: { tipo: 'destornillador' } | { tipo: 'limitador'; torqueNm: number | null } | null
 }
 
 export type TipoDePinzaDeReduccion = 'puntas' | 'garra' | 'bola'
@@ -106,6 +112,7 @@ const NADA: ComportamientoDelInstrumento = {
   modela: null,
   eleva: null,
   enclava: null,
+  atornilla: null,
 }
 
 const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
@@ -161,6 +168,10 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'fresa-flexible': { ...NADA, enclava: 'fresa' },
   'tubo-intercambio': { ...NADA, enclava: 'tubo' },
   'arco-insercion': { ...NADA, enclava: 'arco' },
+  // Apretar los tornillos (P-005 E6)
+  'destornillador-hexagonal': { ...NADA, atornilla: { tipo: 'destornillador' } },
+  'destornillador-stardrive': { ...NADA, atornilla: { tipo: 'destornillador' } },
+  'limitador-torque': { ...NADA, atornilla: { tipo: 'limitador', torqueNm: 1.5 } },
   martillo: { ...NADA, enclava: 'martillo' },
   'impactador-clavo': { ...NADA, enclava: 'impactador' },
 }
@@ -180,7 +191,7 @@ export function comportamientoDelInstrumento(i: {
 }): ComportamientoDelInstrumento {
   const base = sinSutura(i)
   // Un hilo no corta, no separa ni perfora: si el instrumento ya hace algo, no es una sutura.
-  if (base.corta || base.separa || base.perfora || base.pellizca || base.reduce || base.enclava) return base
+  if (base.corta || base.separa || base.perfora || base.pellizca || base.reduce || base.enclava || base.atornilla) return base
   const coloca = quePuedeColocar(i)
   const mide = sirveParaMedir(i)
   // Una placa o un tornillo no se confunden con un hilo, aunque su nombre diga «de sutura».
@@ -228,6 +239,8 @@ function sinSutura(i: { slug?: string | null; nombre: string; icono?: string | n
   if (/fresa.*(flexible|canulada)|(flexible|canulada).*fresa/.test(nombre)) return { ...NADA, enclava: 'fresa' }
   if (/tubo de intercambio/.test(nombre)) return { ...NADA, enclava: 'tubo' }
   if (/arco de inserci[oó]n/.test(nombre)) return { ...NADA, enclava: 'arco' }
+  if (/limitador de torque|torqu[ií]metro/.test(nombre)) return { ...NADA, atornilla: { tipo: 'limitador', torqueNm: torqueEnElNombre(i.nombre) } }
+  if (/destornillador|atornillador/.test(nombre)) return { ...NADA, atornilla: { tipo: 'destornillador' } }
   if (/impactador/.test(nombre)) return { ...NADA, enclava: 'impactador' }
   if (/martillo/.test(nombre)) return { ...NADA, enclava: 'martillo' }
   // Un clavo endomedular se reconoce por sus medidas («Clavo tibial 9 × 330 mm»): es el implante que se mete por el canal.

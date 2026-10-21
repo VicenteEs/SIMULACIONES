@@ -732,6 +732,8 @@ export function ConsolaQuirurgica({
   // El enclavado endomedular (P-005 E4): lo dice el lienzo tras cada paso. Y qué cabeza de fresa está elegida (`null`: la que sigue).
   const [enclavado, setEnclavado] = useState<EstadoDelEnclavado | null>(null)
   const [cabezaDeFresa, setCabezaDeFresa] = useState<number | null>(null)
+  // Los N·m del limitador de torque montado en el destornillador (P-005 E6), o `null`.
+  const [limitadorMontadoNm, setLimitadorMontadoNm] = useState<number | null>(null)
   const avisoDeLaMesa = useRef(0)
   useEffect(() => {
     if (estadoDelContexto.fase === 'perdido') {
@@ -745,6 +747,7 @@ export function ConsolaQuirurgica({
         setAlambresPuestos(null)
         setPeriostioDespegado(null)
         setEnclavado(null)
+        setLimitadorMontadoNm(null)
         setMesaDeModelado(null)
       }, cuantoFaltaParaRemontarse(estadoDelContexto, performance.now()) ?? 0)
       return () => {
@@ -1586,7 +1589,7 @@ export function ConsolaQuirurgica({
     else if (que?.reduce) setModo('reducir')
     else if (que?.perfora) setModo('perforar')
     else if (que?.sutura) setModo('coser')
-    else if (que?.coloca || que?.mide) setModo('fijar')
+    else if (que?.coloca || que?.mide || que?.atornilla) setModo('fijar')
     else if (que?.modela) setModo('modelar')
     else if (que?.eleva) setModo('elevar')
     else if (que?.enclava) setModo('enclavar')
@@ -1789,6 +1792,7 @@ export function ConsolaQuirurgica({
             reduce: queHace.reduce,
             modela: queHace.modela,
             eleva: queHace.eleva ? { anchoMm: anchoDeLaHoja ?? queHace.eleva.anchosMm[0] } : null,
+            atornilla: queHace.atornilla,
             enclava: queHace.enclava
               ? { funcion: queHace.enclava, cabezaMm: cabezaDeFresaElegida ?? undefined, ...(queHace.enclava === 'clavo' ? medidasDelClavoElegido : {}) }
               : null,
@@ -2385,7 +2389,7 @@ export function ConsolaQuirurgica({
     ...(queHace.pellizca ? [MODO_PINZAR] : []),
     ...(queHace.reduce ? [MODO_REDUCIR] : []),
     ...(queHace.perfora ? [MODO_PERFORAR] : []),
-    ...(queHace.coloca || queHace.mide ? [MODO_FIJAR] : []),
+    ...(queHace.coloca || queHace.mide || queHace.atornilla ? [MODO_FIJAR] : []),
     ...(queHace.sutura ? [MODO_COSER] : []),
     ...(queHace.eleva ? [MODO_ELEVAR] : []),
     ...(queHace.enclava ? [MODO_ENCLAVAR] : []),
@@ -3020,6 +3024,69 @@ export function ConsolaQuirurgica({
       </div>
     </div>
   ) : null
+  /**
+   * Apretar los tornillos y bloquear el clavo (P-005 E6). El destornillador aprieta el tornillo al que se apunta y el limitador se monta en él con un clic; el
+   * tornillo de bloqueo va por el orificio del clavo más cercano al clic. Las reglas están en `src/lib/bloqueoDelClavo.ts`.
+   */
+  const tornillosPuestos = fijacion?.tornillos ?? []
+  const esDeBloqueoDeClavo = queHace.coloca?.tipo === 'tornillo' && !!queHace.coloca.soloConClavo
+  const bloqueDelAtornillado = queHace.atornilla ? (
+    <div className="consola-instrumento-articulaciones">
+      <p className="consola-instrumento-texto">
+        {queHace.atornilla.tipo === 'limitador'
+          ? 'Limitador de torque: un clic lo monta en el destornillador (otro lo quita). Una cabeza bloqueada de placa se aprieta con el que le corresponde: 0,8 N·m en 2,4 mm, 1,5 en 3,5 y 4,0 en 5,0.'
+          : 'Destornillador: un clic sobre un tornillo puesto lo aprieta. El hexagonal es para las cabezas normales; el Stardrive, de la talla de la cabeza, para las bloqueadas (T15 en 3,5 mm, T25 en 5,0).'}
+      </p>
+      <p className="consola-instrumento-texto" role="status">
+        {limitadorMontadoNm ? `Limitador montado: ${String(limitadorMontadoNm).replace('.', ',')} N·m.` : 'Sin limitador de torque montado.'}
+      </p>
+      {tornillosPuestos.length > 0 ? (
+        <ul className="consola-instrumento-texto">
+          {tornillosPuestos.map((t) => (
+            <li key={t.agujero}>
+              {t.deClavo ? `Bloqueo ${t.deClavo}` : t.libre ? 'Trayectoria' : `Agujero ${t.agujero + 1}`} · {String(t.diametroMm).replace('.', ',')} × {t.largoMm} mm ·{' '}
+              {t.apriete ? (t.apriete.apretado ? `apretado ${t.apriete.texto}` : 'sin apretar') : 'sin apretar'}
+              {t.apriete?.aviso ? ` — ${t.apriete.aviso}` : ''}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="consola-instrumento-texto">No hay tornillos puestos todavía.</p>
+      )}
+    </div>
+  ) : null
+  const bloqueDelBloqueoDelClavo = esDeBloqueoDeClavo ? (
+    <div className="consola-instrumento-articulaciones">
+      <p className="consola-instrumento-texto">
+        Un clic en el hueso, a la altura de un orificio oscuro del clavo, pone el tornillo por ese orificio. Los proximales, con el <strong>arco montado</strong>, van guiados y aciertan siempre; los distales
+        van <strong>a pulso</strong> y se juzga cuánto se aparta el clic del centro del orificio. Pida un largo que cruce las dos corticales (el medidor lo dice). Después se aprieta con el Stardrive.
+      </p>
+      {enclavado?.clavo ? (
+        <>
+          <ul className="consola-instrumento-texto">
+            {enclavado.clavo.orificios.map((o) => (
+              <li key={o.id}>
+                {o.id}
+                {o.dinamico ? ' (dinámico)' : ''} ·{' '}
+                {o.punteria === null ? 'libre' : o.punteria === 'acierta' ? 'bloqueado' : o.punteria === 'roza' ? 'roza el borde' : 'falló: no bloquea'}
+              </li>
+            ))}
+          </ul>
+          {enclavado.clavo.bloqueo.aviso ? (
+            <p className="consola-instrumento-texto" role="status">
+              {enclavado.clavo.bloqueo.aviso}
+            </p>
+          ) : (
+            <p className="consola-instrumento-texto" role="status">
+              El clavo está bloqueado arriba y abajo.
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="consola-instrumento-texto">Todavía no hay clavo en el canal: se introduce antes (punzón, guía, fresa, tubo y clavo).</p>
+      )}
+    </div>
+  ) : null
   const bloqueDelPeriostio = queHace.eleva ? (
     <div className="consola-instrumento-articulaciones">
       <label className="consola-instrumento-articulacion">
@@ -3618,6 +3685,10 @@ instrumentoElegido ? (
               {bloqueDeLosAlambres}
 
               {bloqueDelEnclavado}
+
+              {bloqueDelBloqueoDelClavo}
+
+              {bloqueDelAtornillado}
 
               {bloqueDeLaMesa}
 
@@ -4366,6 +4437,7 @@ instrumentoElegido ? (
             alCambiarElPeriostio={setPeriostioDespegado}
             alCambiarLosAlambres={setAlambresPuestos}
             alCambiarElEnclavado={setEnclavado}
+            alCambiarElLimitador={setLimitadorMontadoNm}
             medidasDelFoco={medidasDelFoco}
             clavoPrevistoMm={clavoPrevisto?.diametroMm ?? null}
             url={caso.modeloUrl}
@@ -4587,6 +4659,7 @@ instrumentoElegido ? (
                     setAlambresPuestos(null)
                     setPeriostioDespegado(null)
                     setEnclavado(null)
+                    setLimitadorMontadoNm(null)
                     setMesaDeModelado(null)
                   }}
                 >

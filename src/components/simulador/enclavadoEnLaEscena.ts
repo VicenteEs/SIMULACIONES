@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { ejesDelPaciente, type EjeDelHueso } from '@/lib/posicionDelPaciente'
+import { juzgarElBloqueo, orificiosDelClavo, posicionDelOrificioMm, type OrificioDelClavo, type Punteria } from '@/lib/bloqueoDelClavo'
 import {
   LARGO_DE_LA_GUIA_MM,
   DIAMETRO_DE_LA_GUIA_MM,
@@ -34,6 +35,8 @@ export interface CanalMedido {
   desdeElExtremoMm: number
   desviacionMm: number
   anteriorMm: number
+  /** Por dónde cruza un tornillo de bloqueo el clavo: perpendicular al canal, hacia el lado del paciente. Unitario. */
+  transversal: THREE.Vector3
 }
 
 /**
@@ -73,9 +76,12 @@ export function medirElCanal(p: {
     }
   }
 
+  const transversal = lado.clone().addScaledVector(direccion, -lado.dot(direccion)).normalize()
+
   return {
     origen: p.entrada.clone(),
     direccion,
+    transversal,
     largoDelCanalMm,
     distanciaAlFocoMm,
     desdeElExtremoMm: (extremoProximal - p.entrada.dot(hueso)) * mm,
@@ -95,11 +101,24 @@ export interface EnclavadoEnLaEscena {
   /** El arco de inserción montado en el clavo (P-005 E5). */
   arcoMontado: boolean
   /** El clavo puesto en el canal (P-005 E5): su punta está `avanceMm` de la entrada. */
-  clavo: { diametroMm: number; largoMm: number; avanceMm: number; golpes: number; avisoDelGolpe: string | null; malla: THREE.Mesh } | null
+  clavo: {
+    diametroMm: number
+    largoMm: number
+    nombre: string
+    avanceMm: number
+    golpes: number
+    avisoDelGolpe: string | null
+    malla: THREE.Mesh
+    /** Los orificios de bloqueo, y una marca oscura en cada uno para verlos a través del hueso (P-005 E6). */
+    orificios: OrificioDelClavo[]
+    marcas: THREE.Mesh[]
+  } | null
+  /** Los tornillos de bloqueo puestos por los orificios del clavo: de cuál, con qué puntería y qué número de tornillo es (P-005 E6). */
+  bloqueos: { orificio: string; zona: OrificioDelClavo['zona']; tornilloId: number; punteria: Punteria; bloquea: boolean }[]
 }
 
 export function crearEnclavado(): EnclavadoEnLaEscena {
-  return { entrada: null, guia: null, dedoPuesto: false, cabezasMm: [], canal: null, guiaCambiada: false, arcoMontado: false, clavo: null }
+  return { entrada: null, guia: null, dedoPuesto: false, cabezasMm: [], canal: null, guiaCambiada: false, arcoMontado: false, clavo: null, bloqueos: [] }
 }
 
 const ejeY = new THREE.Vector3(0, 1, 0)
@@ -148,7 +167,7 @@ export function remedirElCanal(e: EnclavadoEnLaEscena, eje: EjeDelHueso, milimet
   })
   const cambio = Math.abs(nuevo.largoDelCanalMm - antes.largoDelCanalMm) > 0.05 || (nuevo.distanciaAlFocoMm ?? -1) !== (antes.distanciaAlFocoMm ?? -1)
   // La medida de la entrada se conserva tal como se juzgó al marcarla; solo cambia lo que depende de dónde están los trozos.
-  e.entrada.canal = { ...antes, direccion: nuevo.direccion, largoDelCanalMm: nuevo.largoDelCanalMm, distanciaAlFocoMm: nuevo.distanciaAlFocoMm }
+  e.entrada.canal = { ...antes, direccion: nuevo.direccion, transversal: nuevo.transversal, largoDelCanalMm: nuevo.largoDelCanalMm, distanciaAlFocoMm: nuevo.distanciaAlFocoMm }
   return cambio
 }
 
@@ -231,7 +250,7 @@ export function ponerElCanal(escena: THREE.Scene, e: EnclavadoEnLaEscena, mayorM
 export function colocarElClavo(
   escena: THREE.Scene,
   e: EnclavadoEnLaEscena,
-  medidas: { diametroMm: number; largoMm: number },
+  medidas: { diametroMm: number; largoMm: number; nombre?: string },
   avanceMm: number,
   milimetrosPorUnidad: number,
 ) {
@@ -241,7 +260,15 @@ export function colocarElClavo(
     malla.name = 'clavo-endomedular'
     malla.raycast = () => {}
     escena.add(malla)
-    e.clavo = { ...medidas, avanceMm, golpes: 0, avisoDelGolpe: null, malla }
+    const nombre = medidas.nombre ?? ''
+    e.clavo = { diametroMm: medidas.diametroMm, largoMm: medidas.largoMm, nombre, avanceMm, golpes: 0, avisoDelGolpe: null, malla, orificios: orificiosDelClavo(nombre), marcas: [] }
+    for (const _ of e.clavo.orificios) {
+      const marca = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 16), new THREE.MeshBasicMaterial({ color: 0x1b1f27 }))
+      marca.name = 'orificio-del-clavo'
+      marca.raycast = () => {}
+      escena.add(marca)
+      e.clavo.marcas.push(marca)
+    }
   }
   const c = e.clavo
   c.avanceMm = avanceMm
@@ -252,11 +279,26 @@ export function colocarElClavo(
   c.malla.scale.set((c.diametroMm / 2) * u, c.largoMm * u, (c.diametroMm / 2) * u)
   // La punta está a `avance` de la entrada y el clavo se extiende hacia fuera: su centro queda `largo / 2` por detrás de la punta.
   c.malla.position.copy(origen).addScaledVector(direccion, (avanceMm - c.largoMm / 2) * u)
+  // Cada orificio, una marca oscura que cruza el clavo de lado a lado.
+  const { transversal } = e.entrada.canal
+  c.orificios.forEach((o, i) => {
+    const marca = c.marcas[i]
+    if (!marca) return
+    haciaLaDireccion.setFromUnitVectors(ejeY, transversal)
+    marca.quaternion.copy(haciaLaDireccion)
+    marca.scale.set(2.5 * u, (c.diametroMm + 0.6) * u, 2.5 * u)
+    marca.position.copy(origen).addScaledVector(direccion, posicionDelOrificioMm(c, o) * u)
+  })
 }
 
 export function quitarElClavo(e: EnclavadoEnLaEscena) {
-  if (e.clavo) quitarObjeto(e.clavo.malla)
+  if (e.clavo) {
+    quitarObjeto(e.clavo.malla)
+    for (const m of e.clavo.marcas) quitarObjeto(m)
+  }
   e.clavo = null
+  // Los tornillos de bloqueo los quita quien los puso en la escena (`soltarLosBloqueos`): aquí solo se olvida la cuenta.
+  e.bloqueos = []
 }
 
 function quitarObjeto(o: THREE.Object3D) {
@@ -321,6 +363,11 @@ function estadoDelClavo(e: EnclavadoEnLaEscena, c: NonNullable<EnclavadoEnLaEsce
     asiento: juzgarElAsiento({ avanceMm: c.avanceMm, largoMm: c.largoMm, largoDelCanalMm }),
     golpes: c.golpes,
     avisoDelGolpe: c.avisoDelGolpe,
+    orificios: c.orificios.map((o) => ({ id: o.id, zona: o.zona, dinamico: o.dinamico, punteria: e.bloqueos.find((b) => b.orificio === o.id)?.punteria ?? null })),
+    bloqueo: juzgarElBloqueo({
+      proximales: e.bloqueos.filter((b) => b.zona === 'proximal' && b.bloquea).length,
+      distales: e.bloqueos.filter((b) => b.zona === 'distal' && b.bloquea).length,
+    }),
   }
 }
 

@@ -74,6 +74,7 @@ describe('comportamiento del instrumental', () => {
       modela: null,
       eleva: null,
       enclava: 'martillo',
+      atornilla: null,
     })
     expect(comportamientoDelInstrumento(base('pinza-diseccion-con-dientes')).pellizca).toEqual({ conDientes: true })
     // La Metzenbaum corta como una tijera y además separa los planos por tensión (disección roma). Es la única.

@@ -108,6 +108,14 @@ function soltarGrupo(grupo: THREE.Object3D) {
   })
 }
 
+/** Quita un tornillo por su número (el de un orificio de placa, o el negativo de uno libre). */
+export function quitarUnTornillo(imp: ImplantesEnEscena, id: number) {
+  const t = imp.tornillos.get(id)
+  if (!t) return
+  soltarGrupo(t.grupo)
+  imp.tornillos.delete(id)
+}
+
 export function quitarTornillos(imp: ImplantesEnEscena) {
   for (const t of imp.tornillos.values()) soltarGrupo(t.grupo)
   imp.tornillos.clear()
