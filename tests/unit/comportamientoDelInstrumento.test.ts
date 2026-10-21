@@ -57,7 +57,7 @@ describe('comportamiento del instrumental', () => {
     // Las de minifragmentos y la de deslizamiento: cada calibre es el suyo.
     expect(comportamientoDelInstrumento(base('broca-1-5')).perfora?.diametroMm).toBe(1.5)
     expect(comportamientoDelInstrumento(base('broca-4-5')).perfora?.diametroMm).toBe(4.5)
-    // El martillo no hace nada en el paciente: ni corta, ni separa, ni pellizca, ni perfora. (La pinza de
+    // El martillo no corta, ni separa, ni pellizca, ni perfora: solo golpea el clavo (P-005 E5). (La pinza de
     // disección ya no es de las que no hacen nada: pellizca la piel hacia arriba.)
     const martillo = comportamientoDelInstrumento(base('martillo'))
     expect(martillo).toEqual({
@@ -73,7 +73,7 @@ describe('comportamiento del instrumental', () => {
       reduce: null,
       modela: null,
       eleva: null,
-      enclava: null,
+      enclava: 'martillo',
     })
     expect(comportamientoDelInstrumento(base('pinza-diseccion-con-dientes')).pellizca).toEqual({ conDientes: true })
     // La Metzenbaum corta como una tijera y además separa los planos por tensión (disección roma). Es la única.

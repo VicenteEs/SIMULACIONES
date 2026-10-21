@@ -62,6 +62,7 @@ import {
   listaDelEnclavado,
   loQueFaltaParaElClavo,
   clavoPrevisto as elClavoPrevisto,
+  medidasDelClavoEnElNombre,
   siguienteCabeza,
   type EstadoDelEnclavado,
 } from '@/lib/enclavado'
@@ -1724,6 +1725,8 @@ export function ConsolaQuirurgica({
   // El enclavado (P-005 E4): la cabeza de fresa que está elegida (o la que sigue), el calibre del clavo que trae la bandeja —con él se juzga el fresado— y
   // cómo está la reducción del foco, de la que depende que la guía pase.
   const cabezaDeFresaElegida = queHace.enclava === 'fresa' ? (cabezaDeFresa ?? siguienteCabeza(enclavado?.fresado.cabezasMm ?? [])) : null
+  /** Las medidas del clavo en la mano, leídas de su nombre («Clavo tibial 9 × 330 mm»). */
+  const medidasDelClavoElegido = useMemo(() => medidasDelClavoEnElNombre(nombreDelElegido) ?? {}, [nombreDelElegido])
   const clavoPrevisto = useMemo(() => elClavoPrevisto(caso.instrumental.map((i) => i.nombre), caso.hueso), [caso.instrumental, caso.hueso])
   const medidasDelFoco = useMemo(
     () => ({ desplazamientoMm: reduccion.desplazamiento, angulacionGrados: reduccion.angulacion }),
@@ -1786,7 +1789,9 @@ export function ConsolaQuirurgica({
             reduce: queHace.reduce,
             modela: queHace.modela,
             eleva: queHace.eleva ? { anchoMm: anchoDeLaHoja ?? queHace.eleva.anchosMm[0] } : null,
-            enclava: queHace.enclava ? { funcion: queHace.enclava, cabezaMm: cabezaDeFresaElegida ?? undefined } : null,
+            enclava: queHace.enclava
+              ? { funcion: queHace.enclava, cabezaMm: cabezaDeFresaElegida ?? undefined, ...(queHace.enclava === 'clavo' ? medidasDelClavoElegido : {}) }
+              : null,
             electro: queHace.electro ? { modo: modoElectro, potenciaW } : null,
             perfora: queHace.perfora,
             sutura: queHace.sutura,
@@ -1796,7 +1801,7 @@ export function ConsolaQuirurgica({
             mide: queHace.mide,
           }
         : null,
-    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido, tipoDelElegido, roscaDelElegido, anchoDeLaHoja, cabezaDeFresaElegida],
+    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido, tipoDelElegido, roscaDelElegido, anchoDeLaHoja, cabezaDeFresaElegida, medidasDelClavoElegido],
   )
 
   /**
@@ -2938,6 +2943,10 @@ export function ConsolaQuirurgica({
    */
   const estadoDelEnclavado = enclavado ?? ENCLAVADO_VACIO
   const textoDelPasoDelEnclavado: Record<NonNullable<typeof queHace.enclava>, string> = {
+    clavo: 'Clavo endomedular: con el canal fresado y la guía lisa puesta, un clic lo introduce unos 40 mm con la mano. Después se asienta con el impactador montado en el arco (o con el martillo). Se juzga su calibre y su largo contra el canal.',
+    arco: 'Arco de inserción: un clic lo monta en el clavo (o lo retira). Guía los tornillos de bloqueo proximales y recibe el impactador.',
+    martillo: 'Martillo: cada clic es un golpe sobre el clavo. Golpear el extremo del clavo directamente lo deforma: lo correcto es golpear el impactador montado en el arco.',
+    impactador: 'Impactador: va conectado al arco y protege el clavo. Cada clic es un golpe que lo asienta; se busca que quede a ras de la entrada, hasta 10 mm hundido.',
     entrada:
       'Punzón iniciador: un clic sobre el extremo proximal del hueso, por delante, marca el punto de entrada. Debe quedar a unos 25 mm del extremo y en línea con el canal. Verde: sirve; naranja: corríjalo con otro clic.',
     guia:
@@ -2989,6 +2998,10 @@ export function ConsolaQuirurgica({
       {estadoDelEnclavado.entrada?.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.entrada.aviso}</p> : null}
       {estadoDelEnclavado.guia?.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.guia.aviso}</p> : null}
       {estadoDelEnclavado.fresado.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.fresado.aviso}</p> : null}
+      {estadoDelEnclavado.clavo?.calibre.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.clavo.calibre.aviso}</p> : null}
+      {estadoDelEnclavado.clavo?.largo.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.clavo.largo.aviso}</p> : null}
+      {estadoDelEnclavado.clavo?.asiento.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.clavo.asiento.aviso}</p> : null}
+      {estadoDelEnclavado.clavo?.avisoDelGolpe ? <p className="consola-instrumento-texto" role="status">{estadoDelEnclavado.clavo.avisoDelGolpe}</p> : null}
       {loQueFaltaParaElClavo(estadoDelEnclavado).length > 0 ? (
         <p className="consola-instrumento-texto">Antes del clavo falta: {loQueFaltaParaElClavo(estadoDelEnclavado).join(', ')}.</p>
       ) : (
@@ -3000,6 +3013,9 @@ export function ConsolaQuirurgica({
         </button>
         <button type="button" className="consola-boton" disabled={!enclavado} onClick={() => mando.current?.quitarElEnclavado()}>
           Quitar el enclavado
+        </button>
+        <button type="button" className="consola-boton" disabled={!estadoDelEnclavado.clavo} onClick={() => mando.current?.retirarElClavo()}>
+          Retirar el clavo
         </button>
       </div>
     </div>

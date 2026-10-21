@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { comportamientoDelInstrumento } from '@/lib/comportamientoDelInstrumento'
 import {
   ANGULACION_QUE_PASA_GRADOS,
+  AVANCE_POR_GOLPE_JUSTO_MM,
+  AVANCE_POR_GOLPE_SUELTO_MM,
   CABEZAS_DE_FRESA_MM,
   DESPLAZAMIENTO_QUE_PASA_CON_DEDO_MM,
   DESPLAZAMIENTO_QUE_PASA_MM,
@@ -11,8 +13,13 @@ import {
   ENTRADA_ACEPTABLE_DESDE_EL_EXTREMO_MM,
   MARGEN_DISTAL_DE_LA_GUIA_MM,
   avanceMaximoDeLaGuia,
+  avancePorGolpeMm,
+  golpear,
   guiaPasada,
+  juzgarElAsiento,
+  juzgarElCalibreDelClavo,
   juzgarElFresado,
+  juzgarElLargoDelClavo,
   juzgarElPasoDeLaGuia,
   juzgarLaEntrada,
   listaDelEnclavado,
@@ -169,6 +176,8 @@ describe('lo que falta para el clavo', () => {
     dedoPuesto: false,
     fresado: { listo: true, mayorMm: 10, aviso: null, cabezasMm: [8.5, 9, 9.5, 10] },
     guiaCambiada: true,
+    arcoMontado: false,
+    clavo: null,
   }
 
   it('al principio falta todo, en el orden en que se hace', () => {
@@ -191,11 +200,12 @@ describe('lo que falta para el clavo', () => {
 
   it('la lista dice una línea por paso con su estado', () => {
     const l = listaDelEnclavado(completo)
-    expect(l.map((x) => x.paso)).toEqual(['Entrada', 'Guía', 'Fresado', 'Cambio de guía'])
-    expect(l.every((x) => x.hecho)).toBe(true)
+    expect(l.map((x) => x.paso)).toEqual(['Entrada', 'Guía', 'Fresado', 'Cambio de guía', 'Clavo'])
+    expect(l.slice(0, 4).every((x) => x.hecho)).toBe(true)
+    expect(l[4]).toMatchObject({ hecho: false, texto: 'sin poner' })
     expect(l[2].texto).toBe('hasta 10 mm (8,5 → 9 → 9,5 → 10)')
     const vacia = listaDelEnclavado(ENCLAVADO_VACIO)
-    expect(vacia.map((x) => x.hecho)).toEqual([false, false, false, false])
+    expect(vacia.map((x) => x.hecho)).toEqual([false, false, false, false, false])
     expect(vacia[0].texto).toBe('sin marcar')
   })
 
@@ -244,5 +254,115 @@ describe('las herramientas del enclavado hacen su paso', () => {
     expect(consola).toContain('MODO_ENCLAVAR')
     expect(consola).toContain('bloqueDelEnclavado')
     expect(consola).toContain('quitarElEnclavado')
+  })
+})
+
+// ------------------------------------------------------------------------------------------------ el clavo (P-005 E5)
+
+describe('el calibre del clavo contra el canal fresado', () => {
+  it('con 1 mm o más de holgura entra suelto', () => {
+    expect(juzgarElCalibreDelClavo(9, 10)).toMatchObject({ entra: true, aviso: null })
+  })
+
+  it('con menos de 1 mm entra apretado y lo dice; con menos de medio, no entra', () => {
+    const apretado = juzgarElCalibreDelClavo(9, 9.5)
+    expect(apretado.entra).toBe(true)
+    expect(apretado.aviso).toMatch(/Entra apretado/)
+    const no = juzgarElCalibreDelClavo(9, 9)
+    expect(no.entra).toBe(false)
+    expect(no.aviso).toMatch(/se atasca.*10 mm como mínimo/)
+  })
+
+  it('sin fresar no entra', () => {
+    expect(juzgarElCalibreDelClavo(9, 0)).toMatchObject({ entra: false })
+  })
+
+  it('cada golpe avanza lo que permite la holgura, y nada si no cabe', () => {
+    expect(avancePorGolpeMm(1.5)).toBe(AVANCE_POR_GOLPE_SUELTO_MM)
+    expect(avancePorGolpeMm(0.7)).toBe(AVANCE_POR_GOLPE_JUSTO_MM)
+    expect(avancePorGolpeMm(0.2)).toBe(0)
+  })
+})
+
+describe('el largo del clavo contra el canal', () => {
+  it('lo que sobra entre 10 y 40 mm está bien', () => {
+    expect(juzgarElLargoDelClavo(330, 364)).toMatchObject({ bien: true, sobraMm: 34, aviso: null })
+  })
+
+  it('uno largo llega a la articulación y uno corto deja el fragmento distal sin sujeción', () => {
+    expect(juzgarElLargoDelClavo(360, 364).aviso).toMatch(/largo.*articulación/)
+    expect(juzgarElLargoDelClavo(300, 364).aviso).toMatch(/corto.*sin sujeción/)
+  })
+})
+
+describe('el asiento del clavo', () => {
+  const canal = 364
+
+  it('mientras la punta no haya entrado todo el largo, el clavo asoma por la entrada', () => {
+    const a = juzgarElAsiento({ avanceMm: 300, largoMm: 330, largoDelCanalMm: canal })
+    expect(a.asiento).toBe('saliente')
+    expect(a.hundidoMm).toBe(-30)
+    expect(a.aviso).toMatch(/asoma 30 mm.*tendón rotuliano/)
+  })
+
+  it('a ras o hasta 10 mm hundido está bien asentado', () => {
+    expect(juzgarElAsiento({ avanceMm: 330, largoMm: 330, largoDelCanalMm: canal })).toMatchObject({ asiento: 'ideal', aviso: null })
+    expect(juzgarElAsiento({ avanceMm: 338, largoMm: 330, largoDelCanalMm: canal }).asiento).toBe('ideal')
+  })
+
+  it('más de 10 mm hundido avisa de que cuesta retirarlo', () => {
+    const a = juzgarElAsiento({ avanceMm: 345, largoMm: 330, largoDelCanalMm: canal })
+    expect(a.asiento).toBe('hundido')
+    expect(a.aviso).toMatch(/hundido/)
+  })
+
+  it('una punta a menos de 10 mm del fondo del canal pasó la articulación', () => {
+    expect(juzgarElAsiento({ avanceMm: 360, largoMm: 330, largoDelCanalMm: canal }).asiento).toBe('pasado')
+  })
+})
+
+describe('golpear el clavo', () => {
+  it('el impactador sin el arco montado no golpea', () => {
+    const g = golpear('impactador', false)
+    expect(g.golpea).toBe(false)
+    expect(g.aviso).toMatch(/monte primero el arco/)
+  })
+
+  it('el impactador con el arco golpea sin avisos', () => {
+    expect(golpear('impactador', true)).toEqual({ golpea: true, aviso: null })
+  })
+
+  it('el martillo directo avanza el clavo pero avisa de que lo deforma', () => {
+    const g = golpear('martillo', false)
+    expect(g.golpea).toBe(true)
+    expect(g.aviso).toMatch(/deforma la rosca/)
+  })
+})
+
+describe('las herramientas del clavo', () => {
+  it('el clavo, el arco, el martillo y el impactador se reconocen por slug y por nombre', () => {
+    const casos: [string | undefined, string, string][] = [
+      ['clavo-tibial-9x330', 'Clavo tibial 9 × 330 mm', 'clavo'],
+      [undefined, 'Clavo femoral 11 × 380 mm', 'clavo'],
+      ['arco-insercion', 'Arco de inserción del clavo (guía proximal)', 'arco'],
+      ['martillo', 'Martillo con caras de nailon', 'martillo'],
+      [undefined, 'Impactador de clavo', 'impactador'],
+    ]
+    for (const [slug, nombre, funcion] of casos) {
+      expect(comportamientoDelInstrumento({ slug, nombre }).enclava, nombre).toBe(funcion)
+    }
+  })
+
+  it('un tornillo de bloqueo de clavo no es un clavo', () => {
+    expect(comportamientoDelInstrumento({ nombre: 'Tornillo de bloqueo de clavo 5,0 mm' }).enclava).toBeNull()
+  })
+
+  it('al retirar la guía se va también el clavo que dependía del canal, y el lienzo cablea todo (no es de interfaz)', () => {
+    const escena = readFileSync(join(process.cwd(), 'src/components/simulador/enclavadoEnLaEscena.ts'), 'utf8')
+    const lienzo = readFileSync(join(process.cwd(), 'src/components/simulador/LienzoQuirurgico.tsx'), 'utf8')
+    expect(escena).toMatch(/Sin guía ni fresado no hay canal preparado[\s\S]{0,80}quitarElClavo/)
+    expect(escena).not.toMatch(/clavo-endomedular[\s\S]{0,200}deInterfaz = true/)
+    expect(lienzo).toContain("que.funcion === 'impactador'")
+    expect(lienzo).toContain('retirarElClavo')
   })
 })

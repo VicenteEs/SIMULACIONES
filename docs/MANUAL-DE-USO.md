@@ -964,6 +964,11 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   **de 0,5 en 0,5 mm** hasta quedar 1 a 1,5 mm sobre el calibre del clavo de la bandeja; (4) el **tubo de intercambio**, con un clic, cambia la guía de punta de oliva por la lisa. El recuadro
   lista cada paso («✓ Guía: hasta el extremo distal») y dice qué falta antes del clavo; «Retirar la guía» y «Quitar el enclavado» deshacen. El canal fresado se ve como un tubo ámbar a través
   del hueso y no sale en la fluoroscopia; la guía sí. Reglas en `src/lib/enclavado.ts`. El clavo mismo y su inserción son la etapa siguiente.
+- **Clavo endomedular: introducirlo y asentarlo (clavo, arco, martillo e impactador).** Con el canal fresado y la guía lisa puesta, el **clavo** de la bandeja («Clavo tibial 9 × 330 mm») se coge y **un clic lo introduce unos
+  40 mm con la mano**. Se monta el **arco de inserción** (un clic; otro lo retira) y se golpea con el **impactador** —conectado al arco—: **cada clic es un golpe** que avanza 8 mm si el canal tiene 1 mm o más de holgura sobre el
+  clavo, 3 mm si es justa, y nada si no cabe (hay que fresar más). Con el **martillo** directo también avanza, pero avisa de que deforma la rosca del extremo. El recuadro dice cómo asoma, queda **a ras (ideal), hundido** (más de
+  10 mm cuesta retirarlo) o **pasó la articulación**, y juzga el **largo** del clavo contra el canal (que sobren de 10 a 40 mm). Sin el fresado, la guía lisa o el arco el clavo no entra o no se golpea, y el aviso dice qué falta.
+  «Retirar el clavo» lo saca. El clavo se ve en la fluoroscopia. Reglas en `src/lib/enclavado.ts`.
 - **Aguja de Kirschner (se queda puesta).** Al cogerla, el modo pasa a **«Perforar»** con su calibre (1,6 mm). Se apunta al hueso, se mantiene pulsado y avanza; al
   **«Retirar»** el motor, **la aguja se queda clavada**: se ve en la escena y en la fluoroscopia, asoma por fuera del hueso y se juzga. El recuadro de la herramienta lista cada aguja
   («Aguja 2 · 26,5 mm · bicortical · asoma 123 mm») y avisa si **quedó en la cortical cercana** (sujeta poco) o si **se pasó más de 3 mm de la cortical opuesta** (riesgo para vasos y

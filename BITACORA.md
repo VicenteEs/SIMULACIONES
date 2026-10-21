@@ -6834,6 +6834,20 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que no hace todavía:** el clavo, su inserción con martillo e impactador y el arco (E5); el dedo reductor no se dibuja, solo cambia la tolerancia; la entrada no distingue lado medial ni lateral; el canal no sigue la curva
   real del hueso (es recto, por el centro del fragmento proximal); la guía no se puede perforar fuera del hueso.
 
+### D-211 · 2026-10-21 · vigente
+**El clavo endomedular se introduce y se asienta con el arco, el impactador y el martillo (P-005 E5).**
+- **Reglas, puras y con pruebas** (`src/lib/enclavado.ts`): el **calibre** del clavo contra el canal fresado (con menos de 0,5 mm de holgura no entra; con menos de 1 mm entra apretado y avisa), el **largo** contra el canal
+  (deben sobrar de 10 a 40 mm entre la punta y el extremo distal), el **asiento** (a ras o hasta 10 mm hundido es ideal; saliente roza el tendón rotuliano; si la punta pasa a menos de 10 mm del fondo, pasó la articulación) y el
+  **golpe**: el impactador exige el arco montado y no daña; el martillo directo avanza pero deforma la rosca. Cada golpe avanza 8 mm con holgura suelta y 3 mm con holgura justa. Son cifras de partida que Cristóbal debe revisar.
+- **En el lienzo** (`enclavadoEnLaEscena.ts`): el clavo es un cilindro de titanio del calibre y el largo de su nombre (`medidasDelClavoEnElNombre`), con la punta a lo que avanzó desde la entrada; no es de interfaz, así que la
+  fluoroscopia lo ve. Entra 40 mm con la mano, y los clics del martillo o el impactador lo avanzan. Quitar la guía o marcar otra entrada **quita también el clavo**, que dependía del canal; si el fragmento se mueve, el clavo se vuelve
+  a colocar sobre el canal re-medido. No se puede poner el clavo sin entrada buena, guía hasta el fondo, fresado para ESE clavo y guía lisa: el aviso lista lo que falta.
+- **Las herramientas** (`enclava`: `clavo`, `arco`, `martillo`, `impactador`): se reconocen por slug y por nombre (un clavo, por sus medidas «9 × 330 mm»). El martillo, que antes no hacía nada, ahora golpea el clavo.
+- **Probado en el navegador** con la tibia: sin tubo el clavo avisa que falta el cambio de guía; tras el tubo entra 40 mm; el impactador sin arco avisa; con el arco, 37 golpes dejan la punta a 336 mm y el clavo «bien asentado»; un golpe
+  más de martillo lo deja 14 mm hundido con el aviso de la rosca. Pruebas: 62 en total en `enclavado.test.ts` y el comportamiento.
+- **Lo que no hace todavía:** los orificios de bloqueo del clavo y poner los tornillos de bloqueo por el arco y a pulso (E6: el «Tornillo de bloqueo de clavo» sigue sin clavo donde ponerse); el clavo es recto (sin la curva proximal ni el
+  arco anterior del fémur); no hay rotación ni longitud como control del clavo; el arco no se dibuja; retirar un clavo hundido no tiene dificultad.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10800,7 +10814,7 @@ programa, se prueba en el navegador y se documenta.
 *Lo que no se promete:* fidelidad biomecánica (resistencia de la placa, fuerza de torque en newtons-metro reales); se recrea el **gesto, la secuencia y los errores típicos**, con reglas que el traumatólogo
 puede leer y corregir. Cada etapa deja su **D-nnn**, su sección en el manual de uso y sus pruebas.
 
-**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 hecha salvo el clavo (D-210). E5 a E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
+**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 hecha (D-210). E5 hecha: clavo, arco, martillo e impactador (D-211). E6 y E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
 
 ---
 

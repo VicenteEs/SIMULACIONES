@@ -187,10 +187,22 @@ import {
 } from './periostioEnLaEscena'
 import { agujerosSobrePeriostio, juicioDeLaExposicion } from '@/lib/periostio'
 import { LARGO_DEL_ALAMBRE_MM, MAXIMO_DE_ALAMBRES, juzgarElAlambre, resumenDeLosAlambres, type EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
-import { siguienteCabeza, type EstadoDelEnclavado, type ReduccionDelFoco } from '@/lib/enclavado'
+import {
+  ENTRADA_A_MANO_MM,
+  avancePorGolpeMm,
+  golpear,
+  juzgarElAsiento,
+  juzgarElCalibreDelClavo,
+  juzgarElLargoDelClavo,
+  loQueFaltaParaElClavo,
+  siguienteCabeza,
+  type EstadoDelEnclavado,
+  type ReduccionDelFoco,
+} from '@/lib/enclavado'
 import {
   avanceMaximo,
   cambiarLaGuia,
+  colocarElClavo,
   colocarLaGuia,
   crearEnclavado,
   estadoDelEnclavado,
@@ -198,6 +210,7 @@ import {
   medirElCanal,
   ponerElCanal,
   ponerLaEntrada,
+  quitarElClavo,
   quitarTodoElEnclavado,
   remedirElCanal,
   retirarLaGuia,
@@ -536,6 +549,8 @@ export interface MandoDelLienzo {
   quitarElEnclavado: () => void
   /** Retira la guía y el fresado, y deja la entrada marcada (P-005 E4). */
   retirarLaGuiaDelEnclavado: () => void
+  /** Retira el clavo del canal, que queda fresado y con su guía lisa (P-005 E5). */
+  retirarElClavo: () => void
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
   estadoDeLaFijacion: () => EstadoDeLaFijacion | null
   /** Encuadra lo que esté visible. */
@@ -597,7 +612,13 @@ export interface InstrumentoEnEscena {
   /** Despega el periostio (P-005 E2): arrastrar sobre el hueso deja una franja expuesta del ancho de la hoja elegida, en mm. */
   eleva?: { anchoMm: number } | null
   /** Paso del enclavado endomedular que hace la herramienta (P-005 E4); `cabezaMm` es la cabeza de fresa elegida. */
-  enclava?: { funcion: 'entrada' | 'guia' | 'dedo' | 'fresa' | 'tubo'; cabezaMm?: number } | null
+  enclava?: {
+    funcion: 'entrada' | 'guia' | 'dedo' | 'fresa' | 'tubo' | 'clavo' | 'arco' | 'martillo' | 'impactador'
+    cabezaMm?: number
+    /** Solo en el clavo: sus medidas, leídas de su nombre. */
+    diametroMm?: number
+    largoMm?: number
+  } | null
 }
 
 /** Una pinza de reducción que tiene agarrado un trozo de hueso: es hija del trozo, así que lo acompaña (P-003 E5). */
@@ -1748,6 +1769,15 @@ export function LienzoQuirurgico({
       if (!t.enclavado) return
       quitarTodoElEnclavado(t.enclavado)
       ultimas.current.alCambiarElEnclavado?.(null)
+      t.pedirDibujo?.()
+    },
+
+    retirarElClavo: () => {
+      const t = taller.current
+      if (!t.enclavado?.clavo) return
+      quitarElClavo(t.enclavado)
+      ultimas.current.alCambiarElEnclavado?.(estadoDelEnclavado(t.enclavado, ultimas.current.medidasDelFoco ?? null, ultimas.current.clavoPrevistoMm ?? null))
+      t.decir?.('Clavo retirado del canal.')
       t.pedirDibujo?.()
     },
 
@@ -3820,6 +3850,7 @@ export function LienzoQuirurgico({
       if (e?.entrada && t.escena && remedirElCanal(e, ultimas.current.ejeLargo, ultimas.current.milimetrosPorUnidad)) {
         const mm = ultimas.current.milimetrosPorUnidad
         if (e.guia) colocarLaGuia(t.escena, e, Math.min(e.guia.avanceMm, e.entrada.canal.largoDelCanalMm), mm)
+        if (e.clavo) colocarElClavo(t.escena, e, e.clavo, e.clavo.avanceMm, mm)
         const hecho = Math.max(0, ...e.cabezasMm)
         if (e.canal && hecho > 0 && e.guia) ponerElCanal(t.escena, e, hecho, e.guia.avanceMm, mm)
       }
@@ -3975,6 +4006,75 @@ export function LienzoQuirurgico({
           avisarElEnclavado()
           t.pedirDibujo?.()
         }
+        return
+      }
+      if (que.funcion === 'arco') {
+        e.arcoMontado = !e.arcoMontado
+        t.decir?.(
+          e.arcoMontado
+            ? 'Arco de inserción montado en el clavo: guía los tornillos de bloqueo proximales y recibe el impactador.'
+            : 'Arco de inserción retirado del clavo.',
+        )
+        avisarElEnclavado()
+        return
+      }
+      if (que.funcion === 'clavo') {
+        const escena = t.escena
+        if (!escena || !que.diametroMm || !que.largoMm) {
+          t.decir?.('No se leen las medidas del clavo en su nombre («Clavo tibial 9 × 330 mm»): no se puede introducir.')
+          return
+        }
+        if (e.clavo) {
+          t.decir?.('Ya hay un clavo en el canal: retírelo («Retirar el clavo») para poner otro.')
+          return
+        }
+        const medidas = { diametroMm: que.diametroMm, largoMm: que.largoMm }
+        // El fresado se juzga contra el clavo que se tiene en la mano, no contra el que la bandeja daba por previsto.
+        const faltan = loQueFaltaParaElClavo(estadoDelEnclavado(e, medidasDelFocoAhora(), medidas.diametroMm))
+        if (faltan.length > 0) {
+          t.decir?.(`Antes del clavo falta: ${faltan.join(', ')}.`)
+          return
+        }
+        const calibre = juzgarElCalibreDelClavo(medidas.diametroMm, Math.max(0, ...e.cabezasMm))
+        if (!calibre.entra) {
+          t.decir?.(calibre.aviso ?? 'El clavo no entra en el canal.')
+          return
+        }
+        colocarElClavo(escena, e, medidas, ENTRADA_A_MANO_MM, ultimas.current.milimetrosPorUnidad)
+        const largo = juzgarElLargoDelClavo(medidas.largoMm, e.entrada?.canal.largoDelCanalMm ?? 0)
+        t.decir?.(
+          `Clavo ${medidas.diametroMm} × ${medidas.largoMm} mm introducido ${ENTRADA_A_MANO_MM} mm con la mano. Se sigue con el impactador montado en el arco (o con el martillo).${calibre.aviso ? ` ${calibre.aviso}` : ''}${largo.aviso ? ` ${largo.aviso}` : ''}`,
+        )
+        avisarElEnclavado()
+        t.pedirDibujo?.()
+        return
+      }
+      if (que.funcion === 'martillo' || que.funcion === 'impactador') {
+        const escena = t.escena
+        if (!escena || !e.clavo || !e.entrada) {
+          t.decir?.('Primero se introduce el clavo en el canal: el golpe lo asienta.')
+          return
+        }
+        const golpe = golpear(que.funcion, e.arcoMontado)
+        if (!golpe.golpea) {
+          t.decir?.(golpe.aviso ?? 'No se puede golpear así.')
+          return
+        }
+        const holgura = Math.max(0, ...e.cabezasMm) - e.clavo.diametroMm
+        const paso = avancePorGolpeMm(holgura)
+        if (paso === 0) {
+          t.decir?.('El clavo no avanza: el canal quedó justo del calibre del clavo. Retírelo y fresar más.')
+          return
+        }
+        const canal = e.entrada.canal.largoDelCanalMm
+        const nuevo = Math.min(canal, e.clavo.avanceMm + paso)
+        e.clavo.golpes += 1
+        e.clavo.avisoDelGolpe = golpe.aviso
+        colocarElClavo(escena, e, e.clavo, nuevo, ultimas.current.milimetrosPorUnidad)
+        const asiento = juzgarElAsiento({ avanceMm: nuevo, largoMm: e.clavo.largoMm, largoDelCanalMm: canal })
+        t.decir?.([asiento.aviso ?? 'Clavo bien asentado: a ras de la entrada, con la punta en la metáfisis.', golpe.aviso].filter(Boolean).join(' '))
+        avisarElEnclavado()
+        t.pedirDibujo?.()
         return
       }
       // La guía y la fresa se empujan manteniendo pulsado.

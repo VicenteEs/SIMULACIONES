@@ -219,6 +219,112 @@ export function clavoPrevisto(nombres: readonly string[], hueso: string | null):
   return elegido ? { diametroMm: elegido.diametroMm, largoMm: elegido.largoMm } : null
 }
 
+// ------------------------------------------------------------------------------------------------ el clavo (P-005 E5)
+
+/** Cuánto entra el clavo empujándolo con la mano, antes de empezar a golpear, en mm. */
+export const ENTRADA_A_MANO_MM = 40
+/** Holgura mínima entre el canal fresado y el clavo para que entre: por debajo de medio milímetro, no entra. */
+export const HOLGURA_QUE_NO_ENTRA_MM = 0.5
+/** Lo que avanza el clavo con cada golpe, según la holgura: suelto o justo. */
+export const AVANCE_POR_GOLPE_SUELTO_MM = 8
+export const AVANCE_POR_GOLPE_JUSTO_MM = 3
+/** Cuánto puede quedar hundido el extremo proximal del clavo bajo la cortical de entrada, en mm: más cuesta sacarlo si hay que retirarlo. */
+export const HUNDIDO_MAXIMO_MM = 10
+/** Distancia deseable entre la punta del clavo y el extremo distal del canal, en mm: la punta en la metáfisis y sin tocar la articulación. */
+export const SOBRA_MINIMA_DEL_CLAVO_MM = 10
+export const SOBRA_MAXIMA_DEL_CLAVO_MM = 40
+
+export interface JuicioDelCalibreDelClavo {
+  entra: boolean
+  holguraMm: number
+  aviso: string | null
+}
+
+/** ¿Cabe el clavo en el canal que se fresó? Con menos de medio milímetro de holgura se atasca: hay que fresar más, no golpear más fuerte. */
+export function juzgarElCalibreDelClavo(clavoMm: number, fresadoMm: number): JuicioDelCalibreDelClavo {
+  const f = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',')
+  const holguraMm = fresadoMm - clavoMm
+  if (fresadoMm <= 0) return { entra: false, holguraMm, aviso: 'El canal no está fresado: el clavo no entra.' }
+  if (holguraMm < HOLGURA_QUE_NO_ENTRA_MM) {
+    return {
+      entra: false,
+      holguraMm,
+      aviso: `El canal fresado a ${f(fresadoMm)} mm no deja pasar un clavo de ${f(clavoMm)} mm: se atasca. Fresar hasta ${f(clavoMm + MARGEN_MINIMO_DEL_FRESADO_MM)} mm como mínimo.`,
+    }
+  }
+  if (holguraMm < MARGEN_MINIMO_DEL_FRESADO_MM) {
+    return {
+      entra: true,
+      holguraMm,
+      aviso: `Entra apretado (${f(holguraMm)} mm de holgura): cada golpe avanza poco y se corre el riesgo de fracturar el hueso. Lo habitual es fresar 1 a 1,5 mm más que el clavo.`,
+    }
+  }
+  return { entra: true, holguraMm, aviso: null }
+}
+
+/** Lo que avanza el clavo con un golpe del martillo o del impactador, en mm. */
+export function avancePorGolpeMm(holguraMm: number): number {
+  if (holguraMm >= MARGEN_MINIMO_DEL_FRESADO_MM) return AVANCE_POR_GOLPE_SUELTO_MM
+  if (holguraMm >= HOLGURA_QUE_NO_ENTRA_MM) return AVANCE_POR_GOLPE_JUSTO_MM
+  return 0
+}
+
+/**
+ * ¿Es el largo del clavo el que corresponde? Se juzga por lo que sobra entre su punta —con el clavo asentado a ras de la entrada— y el extremo distal del
+ * canal: de 10 a 40 mm. Menos, la punta llega a la articulación; más, el fragmento distal queda sin la sujeción de los tornillos distales.
+ */
+export function juzgarElLargoDelClavo(largoMm: number, largoDelCanalMm: number): { bien: boolean; sobraMm: number; aviso: string | null } {
+  const f = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',')
+  const sobraMm = largoDelCanalMm - largoMm
+  if (sobraMm < SOBRA_MINIMA_DEL_CLAVO_MM) {
+    return { bien: false, sobraMm, aviso: `Un clavo de ${f(largoMm)} mm es largo para este canal (${f(largoDelCanalMm)} mm): la punta llegaría a la articulación. Elija uno más corto.` }
+  }
+  if (sobraMm > SOBRA_MAXIMA_DEL_CLAVO_MM) {
+    return {
+      bien: false,
+      sobraMm,
+      aviso: `Un clavo de ${f(largoMm)} mm es corto para este canal (${f(largoDelCanalMm)} mm): deja ${f(sobraMm)} mm sin cubrir y el fragmento distal quedaría sin sujeción. Elija uno más largo.`,
+    }
+  }
+  return { bien: true, sobraMm, aviso: null }
+}
+
+export type AsientoDelClavo = 'saliente' | 'ideal' | 'hundido' | 'pasado'
+
+/**
+ * Dónde quedó el clavo. `avanceMm` es lo que entró su punta desde la entrada; el extremo proximal está `avanceMm - largoMm` bajo ella: negativo, el
+ * clavo asoma (y roza el tendón rotuliano); de 0 a 10 mm, bien asentado; más, hundido. Si la punta pasa a menos de 10 mm del extremo distal del
+ * canal, **se pasó**: tocaría la articulación.
+ */
+export function juzgarElAsiento(p: { avanceMm: number; largoMm: number; largoDelCanalMm: number }): { asiento: AsientoDelClavo; hundidoMm: number; aviso: string | null } {
+  const f = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',')
+  const hundidoMm = p.avanceMm - p.largoMm
+  if (p.largoDelCanalMm - p.avanceMm < SOBRA_MINIMA_DEL_CLAVO_MM) {
+    return { asiento: 'pasado', hundidoMm, aviso: 'La punta del clavo llegó a la articulación: es largo o se golpeó de más. Hay que retirarlo.' }
+  }
+  if (hundidoMm < 0) {
+    return { asiento: 'saliente', hundidoMm, aviso: `El clavo asoma ${f(-hundidoMm)} mm por la entrada: siga golpeando hasta que quede a ras. Si queda saliente, roza el tendón rotuliano.` }
+  }
+  if (hundidoMm > HUNDIDO_MAXIMO_MM) {
+    return { asiento: 'hundido', hundidoMm, aviso: `El clavo quedó ${f(hundidoMm)} mm hundido bajo la entrada: más de ${HUNDIDO_MAXIMO_MM} mm hace difícil retirarlo después.` }
+  }
+  return { asiento: 'ideal', hundidoMm, aviso: null }
+}
+
+/**
+ * Qué pasa al golpear. El **impactador** se conecta al arco y protege el extremo del clavo: sin el arco montado no se puede golpear con él. El
+ * **martillo** directo sobre el clavo deforma su extremo y la rosca donde luego se atornilla el arco: avanza, pero se avisa.
+ */
+export function golpear(instrumento: 'martillo' | 'impactador', arcoMontado: boolean): { golpea: boolean; aviso: string | null } {
+  if (instrumento === 'impactador' && !arcoMontado) {
+    return { golpea: false, aviso: 'El impactador va conectado al arco: monte primero el arco de inserción en el clavo.' }
+  }
+  if (instrumento === 'martillo') {
+    return { golpea: true, aviso: 'El martillo golpea el extremo del clavo sin protección: se deforma la rosca donde va el arco. Lo correcto es golpear el impactador montado en el arco.' }
+  }
+  return { golpea: true, aviso: null }
+}
+
 // ------------------------------------------------------------------------------------------------ el estado del enclavado
 
 /** Lo que el lienzo le cuenta a la consola de todo el enclavado hasta ahora. */
@@ -229,6 +335,20 @@ export interface EstadoDelEnclavado {
   fresado: JuicioDelFresado & { cabezasMm: number[] }
   /** La guía de punta de oliva se cambió por la lisa con el tubo de intercambio: ya se puede pasar el clavo. */
   guiaCambiada: boolean
+  /** El arco de inserción está montado en el clavo (P-005 E5): el impactador va conectado a él. */
+  arcoMontado: boolean
+  /** El clavo puesto en el canal, o `null` (P-005 E5). */
+  clavo: {
+    diametroMm: number
+    largoMm: number
+    avanceMm: number
+    calibre: JuicioDelCalibreDelClavo
+    largo: { bien: boolean; sobraMm: number; aviso: string | null }
+    asiento: { asiento: AsientoDelClavo; hundidoMm: number; aviso: string | null }
+    golpes: number
+    /** El último aviso de un golpe (martillo sin protección, atascado). */
+    avisoDelGolpe: string | null
+  } | null
 }
 
 export const ENCLAVADO_VACIO: EstadoDelEnclavado = {
@@ -237,6 +357,8 @@ export const ENCLAVADO_VACIO: EstadoDelEnclavado = {
   dedoPuesto: false,
   fresado: { listo: false, mayorMm: 0, aviso: null, cabezasMm: [] },
   guiaCambiada: false,
+  arcoMontado: false,
+  clavo: null,
 }
 
 /** Lo que falta para poder pasar el clavo, en el orden en que se hace; vacío si ya se puede. */
@@ -273,5 +395,22 @@ export function listaDelEnclavado(e: EstadoDelEnclavado): { paso: string; hecho:
     },
     { paso: 'Fresado', hecho: e.fresado.listo, texto: e.fresado.cabezasMm.length ? `hasta ${f(e.fresado.mayorMm)} mm (${e.fresado.cabezasMm.map(f).join(' → ')})` : 'sin fresar' },
     { paso: 'Cambio de guía', hecho: e.guiaCambiada, texto: e.guiaCambiada ? 'guía lisa puesta' : 'pendiente' },
+    {
+      paso: 'Clavo',
+      hecho: !!e.clavo && e.clavo.asiento.asiento === 'ideal',
+      texto: e.clavo
+        ? `${f(e.clavo.diametroMm)} × ${f(e.clavo.largoMm)} mm · ${
+            e.clavo.asiento.asiento === 'ideal'
+              ? 'bien asentado'
+              : e.clavo.asiento.asiento === 'saliente'
+                ? `asoma ${f(-e.clavo.asiento.hundidoMm)} mm`
+                : e.clavo.asiento.asiento === 'hundido'
+                  ? `hundido ${f(e.clavo.asiento.hundidoMm)} mm`
+                  : 'pasó la articulación'
+          }`
+        : e.arcoMontado
+          ? 'arco montado, sin clavo'
+          : 'sin poner',
+    },
   ]
 }

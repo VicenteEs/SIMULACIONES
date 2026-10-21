@@ -5,7 +5,10 @@ import {
   DIAMETRO_DE_LA_GUIA_MM,
   avanceMaximoDeLaGuia,
   guiaPasada,
+  juzgarElAsiento,
+  juzgarElCalibreDelClavo,
   juzgarElFresado,
+  juzgarElLargoDelClavo,
   juzgarElPasoDeLaGuia,
   juzgarLaEntrada,
   type EstadoDelEnclavado,
@@ -89,10 +92,14 @@ export interface EnclavadoEnLaEscena {
   cabezasMm: number[]
   canal: THREE.Mesh | null
   guiaCambiada: boolean
+  /** El arco de inserción montado en el clavo (P-005 E5). */
+  arcoMontado: boolean
+  /** El clavo puesto en el canal (P-005 E5): su punta está `avanceMm` de la entrada. */
+  clavo: { diametroMm: number; largoMm: number; avanceMm: number; golpes: number; avisoDelGolpe: string | null; malla: THREE.Mesh } | null
 }
 
 export function crearEnclavado(): EnclavadoEnLaEscena {
-  return { entrada: null, guia: null, dedoPuesto: false, cabezasMm: [], canal: null, guiaCambiada: false }
+  return { entrada: null, guia: null, dedoPuesto: false, cabezasMm: [], canal: null, guiaCambiada: false, arcoMontado: false, clavo: null }
 }
 
 const ejeY = new THREE.Vector3(0, 1, 0)
@@ -217,6 +224,41 @@ export function ponerElCanal(escena: THREE.Scene, e: EnclavadoEnLaEscena, mayorM
   e.canal.position.copy(origen).addScaledVector(direccion, (largoMm / 2) * u)
 }
 
+/**
+ * Pone el clavo en el canal con su punta a `avanceMm` de la entrada, o lo mueve si ya está. Es un cilindro de titanio del calibre y el largo del clavo en la
+ * mano; lo ve la fluoroscopia (no es de interfaz) y no se pincha.
+ */
+export function colocarElClavo(
+  escena: THREE.Scene,
+  e: EnclavadoEnLaEscena,
+  medidas: { diametroMm: number; largoMm: number },
+  avanceMm: number,
+  milimetrosPorUnidad: number,
+) {
+  if (!e.entrada) return
+  if (!e.clavo) {
+    const malla = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 20), new THREE.MeshStandardMaterial({ color: 0x9fb0c4, metalness: 0.9, roughness: 0.28 }))
+    malla.name = 'clavo-endomedular'
+    malla.raycast = () => {}
+    escena.add(malla)
+    e.clavo = { ...medidas, avanceMm, golpes: 0, avisoDelGolpe: null, malla }
+  }
+  const c = e.clavo
+  c.avanceMm = avanceMm
+  const u = 1 / milimetrosPorUnidad
+  const { origen, direccion } = e.entrada.canal
+  haciaLaDireccion.setFromUnitVectors(ejeY, direccion)
+  c.malla.quaternion.copy(haciaLaDireccion)
+  c.malla.scale.set((c.diametroMm / 2) * u, c.largoMm * u, (c.diametroMm / 2) * u)
+  // La punta está a `avance` de la entrada y el clavo se extiende hacia fuera: su centro queda `largo / 2` por detrás de la punta.
+  c.malla.position.copy(origen).addScaledVector(direccion, (avanceMm - c.largoMm / 2) * u)
+}
+
+export function quitarElClavo(e: EnclavadoEnLaEscena) {
+  if (e.clavo) quitarObjeto(e.clavo.malla)
+  e.clavo = null
+}
+
 function quitarObjeto(o: THREE.Object3D) {
   o.removeFromParent()
   o.traverse((x) => {
@@ -233,18 +275,22 @@ export function quitarTodoElEnclavado(e: EnclavadoEnLaEscena) {
   if (e.entrada) quitarObjeto(e.entrada.marca)
   if (e.guia) quitarObjeto(e.guia.grupo)
   if (e.canal) quitarObjeto(e.canal)
+  quitarElClavo(e)
   e.entrada = null
   e.guia = null
   e.canal = null
   e.dedoPuesto = false
   e.cabezasMm = []
   e.guiaCambiada = false
+  e.arcoMontado = false
 }
 
 /** Retira la guía (y el canal, que dependía de ella): la entrada se queda. */
 export function retirarLaGuia(e: EnclavadoEnLaEscena) {
   if (e.guia) quitarObjeto(e.guia.grupo)
   if (e.canal) quitarObjeto(e.canal)
+  // Sin guía ni fresado no hay canal preparado: el clavo que hubiera puesto tampoco tiene dónde estar.
+  quitarElClavo(e)
   e.guia = null
   e.canal = null
   e.cabezasMm = []
@@ -264,6 +310,20 @@ export function avanceMaximo(e: EnclavadoEnLaEscena, reduccion: ReduccionDelFoco
   return avanceMaximoDeLaGuia({ largoDelCanalMm, distanciaAlFocoMm, pasa: juicioDelPasoDeLaGuia(e, reduccion).pasa })
 }
 
+function estadoDelClavo(e: EnclavadoEnLaEscena, c: NonNullable<EnclavadoEnLaEscena['clavo']>, largoDelCanalMm: number): NonNullable<EstadoDelEnclavado['clavo']> {
+  const mayor = Math.max(0, ...e.cabezasMm)
+  return {
+    diametroMm: c.diametroMm,
+    largoMm: c.largoMm,
+    avanceMm: c.avanceMm,
+    calibre: juzgarElCalibreDelClavo(c.diametroMm, mayor),
+    largo: juzgarElLargoDelClavo(c.largoMm, largoDelCanalMm),
+    asiento: juzgarElAsiento({ avanceMm: c.avanceMm, largoMm: c.largoMm, largoDelCanalMm }),
+    golpes: c.golpes,
+    avisoDelGolpe: c.avisoDelGolpe,
+  }
+}
+
 /** El estado del enclavado para la consola: lo medido, juzgado con las reglas. */
 export function estadoDelEnclavado(e: EnclavadoEnLaEscena, reduccion: ReduccionDelFoco | null, clavoMm: number | null): EstadoDelEnclavado {
   const entrada = e.entrada
@@ -281,5 +341,7 @@ export function estadoDelEnclavado(e: EnclavadoEnLaEscena, reduccion: ReduccionD
     dedoPuesto: e.dedoPuesto,
     fresado: { ...juzgarElFresado(e.cabezasMm, clavoMm), cabezasMm: [...e.cabezasMm] },
     guiaCambiada: e.guiaCambiada,
+    arcoMontado: e.arcoMontado,
+    clavo: e.clavo && e.entrada ? estadoDelClavo(e, e.clavo, e.entrada.canal.largoDelCanalMm) : null,
   }
 }
