@@ -74,6 +74,11 @@ export interface ComportamientoDelInstrumento {
    * maleable de aluminio copia el contorno del hueso para saber cómo hay que darle forma. Trabajan sobre la placa en la mesa de modelado.
    */
   modela: 'flexion' | 'torsion' | 'plantilla' | null
+  /**
+   * Despega el periostio de la cortical (P-005 E2): el Freer y los periostótomos. Con el instrumento en la mano, arrastrar sobre el hueso deja una franja de
+   * hueso expuesto del ancho de la hoja. `anchosMm` son las hojas que ofrece (el Lambotte trae de 6 y de 14 mm).
+   */
+  eleva: { anchosMm: number[] } | null
 }
 
 export type TipoDePinzaDeReduccion = 'puntas' | 'garra' | 'bola'
@@ -90,6 +95,7 @@ const NADA: ComportamientoDelInstrumento = {
   roma: null,
   reduce: null,
   modela: null,
+  eleva: null,
 }
 
 const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
@@ -118,6 +124,11 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'pinza-reduccion-puntas': { ...NADA, reduce: { tipo: 'puntas' } },
   'pinza-reduccion-verbrugge': { ...NADA, reduce: { tipo: 'garra' } },
   'pinza-reduccion-bola': { ...NADA, reduce: { tipo: 'bola' } },
+
+  // Periostio (P-005 E2)
+  'elevador-freer': { ...NADA, eleva: { anchosMm: [3, 5] } },
+  'periostotomo-lambotte': { ...NADA, eleva: { anchosMm: [6, 14] } },
+  'periostotomo-farabeuf': { ...NADA, eleva: { anchosMm: [11, 15] } },
 
   // Modelado de placas (P-005 E1)
   'alicate-doblado': { ...NADA, modela: 'flexion' },
@@ -188,6 +199,8 @@ function sinSutura(i: { slug?: string | null; nombre: string; icono?: string | n
       },
     }
   }
+  if (/freer/.test(nombre)) return { ...NADA, eleva: { anchosMm: [3, 5] } }
+  if (/periost[oó]tomo|elevador de periostio|lambotte/.test(nombre)) return { ...NADA, eleva: { anchosMm: [6, 14] } }
   if (/alicate.*dobla|dobla.*alicate|doblador/.test(nombre)) return { ...NADA, modela: 'flexion' }
   if (/grifa|bending iron|torsi[oó]n/.test(nombre) && !/limitador/.test(nombre)) return { ...NADA, modela: 'torsion' }
   if (/plantilla.*(aluminio|maleable)|maleable/.test(nombre)) return { ...NADA, modela: 'plantilla' }

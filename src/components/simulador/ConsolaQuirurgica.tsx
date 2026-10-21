@@ -53,6 +53,8 @@ import { PanelDeCompresion } from './PanelDeCompresion'
 import { RadiografiaPostoperatoria } from './RadiografiaPostoperatoria'
 import { AsaDeAncho } from './AsaDeAncho'
 import type { EstadoDeLaMesa } from './mesaDeModelado'
+import type { EstadoDelPeriostio } from './periostioEnLaEscena'
+import { textoDeLaExposicion } from '@/lib/periostio'
 import { intervencionPropuesta, type DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
 import {
   ETAPAS_DE_FIJACION,
@@ -530,6 +532,18 @@ const MODO_MODELAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
     'Modelar: con una placa en la mesa, un clic sobre ella apunta al sitio donde se dobla; la rueda dobla (alicate) o tuerce (grifa) ahí, un grado por muesca —con Mayúsculas, una quinta parte—. Arrastrar la placa la mueve. No doble sobre un orificio: lo deforma.',
 }
 
+/**
+ * El modo del Freer y los periostótomos (P-005 E2): se despega el periostio de la cortical donde irá la placa. Mantener pulsado y arrastrar deja una franja de
+ * hueso expuesto del ancho de la hoja.
+ */
+const MODO_ELEVAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
+  valor: 'elevar',
+  etiqueta: 'Elevar',
+  icono: Eraser,
+  ayuda:
+    'Elevar: mantenga pulsado y arrastre sobre el hueso para despegar el periostio; la hoja elegida marca el ancho de la franja. Despegue lo que cubrirá la placa y no más: sin su periostio el hueso pierde irrigación.',
+}
+
 const MODO_PERFORAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
   valor: 'perforar',
   etiqueta: 'Perforar',
@@ -687,6 +701,9 @@ export function ConsolaQuirurgica({
   const [claveDelLienzo, setClaveDelLienzo] = useState(0)
   // La placa que está en la mesa de modelado, si hay una (P-005 E1): la dice el lienzo cada vez que cambia.
   const [mesaDeModelado, setMesaDeModelado] = useState<EstadoDeLaMesa | null>(null)
+  // El periostio despegado (P-005 E2): lo dice el lienzo al soltar cada pasada. Y qué hoja del instrumento está elegida (`null`: la primera).
+  const [periostioDespegado, setPeriostioDespegado] = useState<EstadoDelPeriostio | null>(null)
+  const [anchoDeLaHoja, setAnchoDeLaHoja] = useState<number | null>(null)
   const avisoDeLaMesa = useRef(0)
   useEffect(() => {
     if (estadoDelContexto.fase === 'perdido') {
@@ -1398,6 +1415,9 @@ export function ConsolaQuirurgica({
     setUltimaPerforacion(null)
     mando.current?.quitarSutura()
     mando.current?.quitarImplantes(true)
+    // Y lo que se hizo fuera del paciente: la placa de la mesa de modelado y el periostio despegado.
+    mando.current?.quitarLaPlacaDeLaMesa()
+    mando.current?.volverACubrirElPeriostio()
     mando.current?.soltarPellizco()
     mando.current?.cerrarHeridas()
     mando.current?.borrarAgujeros()
@@ -1533,9 +1553,11 @@ export function ConsolaQuirurgica({
     else if (que?.sutura) setModo('coser')
     else if (que?.coloca || que?.mide) setModo('fijar')
     else if (que?.modela) setModo('modelar')
-    else if (modo === 'modelar' || modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
+    else if (que?.eleva) setModo('elevar')
+    else if (modo === 'elevar' || modo === 'modelar' || modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
     // Cada instrumento empieza con el diámetro de su modelo, y un tornillo queda como «el último» para elegir el siguiente (P-004 E9).
     setDiametroDeTornillo(null)
+    setAnchoDeLaHoja(null)
     if (que?.coloca?.tipo === 'tornillo' && id) setUltimoTornillo(id)
     // El tornillo se ofrece con el largo que el editor le escribió al instrumento (P-004 E6); el residente puede escribir otro.
     if (destino?.largoMm && que?.coloca?.tipo === 'tornillo') setLargoDeTornillo(Math.min(MAXIMO_DEL_TORNILLO_MM, Math.max(MINIMO_DEL_TORNILLO_MM, destino.largoMm)))
@@ -1719,6 +1741,7 @@ export function ConsolaQuirurgica({
             pellizca: queHace.pellizca,
             reduce: queHace.reduce,
             modela: queHace.modela,
+            eleva: queHace.eleva ? { anchoMm: anchoDeLaHoja ?? queHace.eleva.anchosMm[0] } : null,
             electro: queHace.electro ? { modo: modoElectro, potenciaW } : null,
             perfora: queHace.perfora,
             sutura: queHace.sutura,
@@ -1728,7 +1751,7 @@ export function ConsolaQuirurgica({
             mide: queHace.mide,
           }
         : null,
-    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido, tipoDelElegido, roscaDelElegido],
+    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido, tipoDelElegido, roscaDelElegido, anchoDeLaHoja],
   )
 
   /**
@@ -2314,6 +2337,7 @@ export function ConsolaQuirurgica({
     ...(queHace.perfora ? [MODO_PERFORAR] : []),
     ...(queHace.coloca || queHace.mide ? [MODO_FIJAR] : []),
     ...(queHace.sutura ? [MODO_COSER] : []),
+    ...(queHace.eleva ? [MODO_ELEVAR] : []),
     ...(queHace.roma ? [MODO_DISECAR] : []),
     ...(queHace.modela ? [MODO_MODELAR] : []),
     MODO_INFO,
@@ -2829,6 +2853,37 @@ export function ConsolaQuirurgica({
           </div>
         </>
       )}
+    </div>
+  ) : null
+
+  /**
+   * Despegar el periostio (P-005 E2): el Freer y los periostótomos dejan hueso expuesto, del ancho de la hoja, por donde se arrastran. El recuadro
+   * dice cuánto se lleva y deja elegir la hoja (el Lambotte trae una de 6 y otra de 14 mm). Las reglas están en `src/lib/periostio.ts`.
+   */
+  const anchoDeLaHojaVigente = queHace.eleva ? (anchoDeLaHoja ?? queHace.eleva.anchosMm[0]) : 0
+  const bloqueDelPeriostio = queHace.eleva ? (
+    <div className="consola-instrumento-articulaciones">
+      <label className="consola-instrumento-articulacion">
+        <span>Hoja</span>
+        <select value={anchoDeLaHojaVigente} onChange={(e) => setAnchoDeLaHoja(Number(e.target.value))} aria-label="Ancho de la hoja">
+          {queHace.eleva.anchosMm.map((a) => (
+            <option key={a} value={a}>
+              {a} mm
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="consola-instrumento-texto">
+        Mantenga pulsado y arrastre sobre el hueso: queda en claro donde se despegó el periostio. Despegue lo que la placa va a cubrir, y no más.
+      </p>
+      <p className="consola-instrumento-texto" role="status">
+        {textoDeLaExposicion(periostioDespegado?.areaMm2 ?? 0, periostioDespegado?.huellas ?? 0)}
+      </p>
+      <div className="consola-instrumento-acciones">
+        <button type="button" className="consola-boton" disabled={!periostioDespegado} onClick={() => mando.current?.volverACubrirElPeriostio()}>
+          Volver a cubrir el hueso
+        </button>
+      </div>
     </div>
   ) : null
 
@@ -3398,6 +3453,8 @@ instrumentoElegido ? (
                   {bloqueDeLaCompresion}
                 </div>
               ) : null}
+
+              {bloqueDelPeriostio}
 
               {bloqueDeLaMesa}
 
@@ -4143,6 +4200,7 @@ instrumentoElegido ? (
             key={claveDelLienzo}
             alCambiarElContexto={setEstadoDelContexto}
             alCambiarLaMesa={setMesaDeModelado}
+            alCambiarElPeriostio={setPeriostioDespegado}
             url={caso.modeloUrl}
             piezas={piezas}
             modo={modo}

@@ -957,6 +957,12 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   tamaño y con el mismo comportamiento que la ficha de «Seleccionar estructura» (que va a la derecha): su modelo y la previsualización, el modo de uso,
   todo lo que se configura (potencia, apertura, diámetro y largo del tornillo, broca, medidor…), «Soltar» y, en el editor, «Es el correcto en este paso».
   Con pantalla estrecha (menos de 1000 px) flota sobre el lienzo. La columna derecha queda para la bandeja.
+- **Despegar el periostio (Freer y periostótomos).** El **elevador de Freer** (hojas de 3 y 5 mm), el **periostótomo AO / Lambotte** (6 y 14 mm) y el **periostótomo de
+  Farabeuf** (11 y 15 mm) despegan el periostio de la cortical, como se hace antes de apoyar una placa. Al cogerlos el modo pasa a **«Elevar»**: se elige la **hoja** en el
+  recuadro, se **mantiene pulsado y se arrastra sobre el hueso**, y queda una franja clara —del ancho de la hoja— donde el hueso ya no tiene periostio. El recuadro dice
+  cuánto se despegó («Expuesto: unos 390 mm²») y «Volver a cubrir el hueso» lo borra. **Reglas** (en `src/lib/periostio.ts`): al **fijar la placa**, la consola avisa si no se despegó
+  nada («en pabellón se eleva antes de apoyar la placa»), qué agujeros caen sobre periostio sin despegar y si se despegó de más (más de unos 2.500 mm² empieza a quitarle irrigación
+  al hueso). Es un consejo y no una traba: se avisa y se sigue. Para ver las franjas hay que apagar la capa «Músculo».
 - **Modelar una placa fuera del hueso (mesa de modelado).** Una placa se puede **doblar y torcer antes de ponerla en el hueso**, como en pabellón. Con una placa
   en la mano, **«Llevar a la mesa de modelado»**: aparece una copia suelta, a un costado del modelo, de cara a quien mira; **arrastrándola** se mueve por la
   pantalla, y «15°» (a un lado y a otro) y «Voltear» la giran. Se coge el **alicate de doblado de tres puntos** (dobla) o la **grifa de torsión** (dobla y tuerce;

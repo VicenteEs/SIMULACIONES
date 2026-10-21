@@ -6795,6 +6795,18 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que no hace todavía:** flexión en el plano de la placa (alicates de canto), la plantilla, ni que el tornillo siga la normal del agujero doblado (entra por la normal del hueso, como siempre); y si la placa doblada se **cruza con el hueso** no se
   advierte. Probado en el navegador: placa a la mesa, clic, 20 muescas de rueda = 20° y flecha de 7,3 mm, la malla visible curvada de canto, «Llevar al hueso» y apoyada con su forma. Pruebas: 34 nuevas (`contornoDeLaPlaca` y `mesaDeModelado`).
 
+### D-208 · 2026-10-21 · vigente
+**El Freer y los periostótomos despegan el periostio de la cortical, con su modo «Elevar» y un consejo al fijar la placa (P-005 E2).**
+- **Reglas, puras y con pruebas** (`src/lib/periostio.ts`): cada pasada deja **huellas** (discos del ancho de la hoja, en mm, con la normal del hueso); de ahí salen el **área expuesta** (cuadrícula de 1,5 mm, sin contar dos veces lo solapado,
+  aproximada), qué **agujeros de la placa** caen sobre periostio sin despegar (centro a más de radio + 1,5 mm de toda huella) y el consejo: nada despegado, agujeros fuera, o **despegado de más** (**2.500 mm²**, que es una cifra
+  a validar con Cristóbal: sin su periostio el hueso pierde irrigación, sobre todo en los fragmentos).
+- **En el lienzo** (`periostioEnLaEscena.ts`): una malla instanciada de discos (hasta 5.000) pegada a la cortical con un adelanto de profundidad, de color ámbar para que se distinga del hueso, y fuera de la fluoroscopia. Mantener pulsado y arrastrar siembra huellas
+  espaciadas a 0,6 radios.
+- **Las herramientas** (`comportamientoDelInstrumento`, campo `eleva`): Freer (3 y 5 mm), Lambotte (6 y 14), Farabeuf (11 y 15). Modo nuevo **«Elevar»**; el recuadro de la herramienta deja elegir la hoja y dice cuánto se despegó.
+- **El consejo al fijar la placa** (`fijarLaPlaca`): se añade al mensaje, como atención, y no impide fijar. «Reiniciar el caso» vuelve a cubrir el hueso y vacía la mesa de modelado (que antes no se vaciaba).
+- **Lo que no hace todavía:** que el periostio despegado dependa de que los blandos estén retraídos (el hueso se pica aunque haya músculo encima), distinguir fragmentos al contar la devitalización, ni pedirlo como objetivo de un paso. Probado en el navegador:
+  17 huellas, 390 mm² con la hoja de 6 mm en una pasada de unos 65 mm, la franja visible sobre la tibia sin la capa de músculo. Pruebas: 12 nuevas (`periostio.test.ts`).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10761,7 +10773,7 @@ programa, se prueba en el navegador y se documenta.
 *Lo que no se promete:* fidelidad biomecánica (resistencia de la placa, fuerza de torque en newtons-metro reales); se recrea el **gesto, la secuencia y los errores típicos**, con reglas que el traumatólogo
 puede leer y corregir. Cada etapa deja su **D-nnn**, su sección en el manual de uso y sus pruebas.
 
-**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 a E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
+**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 a E7 pendientes, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
 
 ---
 

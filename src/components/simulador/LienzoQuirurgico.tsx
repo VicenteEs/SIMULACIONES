@@ -175,6 +175,17 @@ import {
   type MesaDeModelado,
 } from './mesaDeModelado'
 import { SIN_CONTORNO, deshacerLaUltima, doblar, orificioBajoElDoblez } from '@/lib/contornoDeLaPlaca'
+import {
+  crearPeriostio,
+  estadoDelPeriostio,
+  sembrarHuella,
+  soltarElPeriostio,
+  terminarLaPasada,
+  volverACubrir,
+  type EstadoDelPeriostio,
+  type PeriostioEnLaEscena,
+} from './periostioEnLaEscena'
+import { agujerosSobrePeriostio, juicioDeLaExposicion } from '@/lib/periostio'
 import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
@@ -200,7 +211,7 @@ import '@/app/(frontend)/simulador/consola.css'
  * quien está mirando una pantalla quieta.
  */
 
-export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar' | 'reducir' | 'modelar' | 'info'
+export type Modo = 'orbitar' | 'trazar' | 'mover' | 'senalar' | 'separar' | 'pinzar' | 'perforar' | 'coser' | 'fijar' | 'disecar' | 'reducir' | 'modelar' | 'elevar' | 'info'
 
 export interface Punto3 {
   x: number
@@ -498,6 +509,10 @@ export interface MandoDelLienzo {
   girarLaPlacaDeLaMesa: (giro: { grados?: number; voltear?: boolean }) => void
   /** Cómo está la placa de la mesa, o `null` si no hay. */
   estadoDeLaMesa: () => EstadoDeLaMesa | null
+  /** Vuelve a cubrir todo el hueso con su periostio (P-005 E2): borra lo despegado. */
+  volverACubrirElPeriostio: () => void
+  /** Cuánto hueso hay expuesto, o `null` si no se despegó nada. */
+  estadoDelPeriostio: () => EstadoDelPeriostio | null
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
   estadoDeLaFijacion: () => EstadoDeLaFijacion | null
   /** Encuadra lo que esté visible. */
@@ -556,6 +571,8 @@ export interface InstrumentoEnEscena {
   reduce?: { tipo: 'puntas' | 'garra' | 'bola' } | null
   /** Herramienta de modelado de placas (P-005 E1): el alicate dobla, la grifa tuerce, la plantilla copia el contorno del hueso. */
   modela?: 'flexion' | 'torsion' | 'plantilla' | null
+  /** Despega el periostio (P-005 E2): arrastrar sobre el hueso deja una franja expuesta del ancho de la hoja elegida, en mm. */
+  eleva?: { anchoMm: number } | null
 }
 
 /** Una pinza de reducción que tiene agarrado un trozo de hueso: es hija del trozo, así que lo acompaña (P-003 E5). */
@@ -716,6 +733,7 @@ export function LienzoQuirurgico({
   alFallar,
   alCambiarElContexto,
   alCambiarLaMesa,
+  alCambiarElPeriostio,
   mando,
 }: {
   url: string
@@ -861,6 +879,8 @@ export function LienzoQuirurgico({
   alCambiarElContexto?: (estado: EstadoDelContexto) => void
   /** Cambió la mesa de modelado (P-005 E1): se puso o se quitó una placa, se apuntó un sitio o se dobló. `null` si ya no hay placa en la mesa. */
   alCambiarLaMesa?: (estado: EstadoDeLaMesa | null) => void
+  /** Se despegó periostio (P-005 E2): cuánto hueso quedó expuesto. `null` si se volvió a cubrir todo. */
+  alCambiarElPeriostio?: (estado: EstadoDelPeriostio | null) => void
   /**
    * Se llama con el nombre del objeto pinchado, en modo «senalar».
    *
@@ -919,6 +939,8 @@ export function LienzoQuirurgico({
     herramienta?: HerramientaCargada
     /** La placa suelta que se dobla fuera del hueso (P-005 E1). */
     mesa?: MesaDeModelado
+    /** El periostio despegado (P-005 E2). */
+    periostio?: PeriostioEnLaEscena
     /** El entorno de estudio que reflejan los instrumentos (el acero sin él se ve negro). */
     entorno?: THREE.Texture
     fantasma?: THREE.Object3D
@@ -1060,6 +1082,7 @@ export function LienzoQuirurgico({
     alFallar,
     alCambiarElContexto,
     alCambiarLaMesa,
+    alCambiarElPeriostio,
     alCargarInstrumento,
     alHerir,
     alPerforar,
@@ -1109,6 +1132,7 @@ export function LienzoQuirurgico({
       alFallar,
       alCambiarElContexto,
       alCambiarLaMesa,
+      alCambiarElPeriostio,
       alCargarInstrumento,
       alHerir,
       alPerforar,
@@ -1657,19 +1681,49 @@ export function LienzoQuirurgico({
 
     estadoDeLaMesa: () => (taller.current.mesa ? estadoDeLaMesa(taller.current.mesa) : null),
 
+    volverACubrirElPeriostio: () => {
+      const t = taller.current
+      if (!t.periostio) return
+      volverACubrir(t.periostio)
+      ultimas.current.alCambiarElPeriostio?.(null)
+      t.pedirDibujo?.()
+    },
+
+    estadoDelPeriostio: () => {
+      const p = taller.current.periostio
+      return p && p.huellas.length > 0 ? estadoDelPeriostio(p, ultimas.current.instrumento?.eleva?.anchoMm ?? 0) : null
+    },
+
     fijarLaPlaca: (fijar) => {
       const placa = taller.current.implantes?.placa
       if (!placa) return
       placa.fijada = fijar
+      // ¿Se despegó el periostio donde va la placa? (P-005 E2). Es un consejo y no una traba: se dice y se sigue.
+      let consejoDelPeriostio: string | null = null
+      if (fijar) {
+        const mm = ultimas.current.milimetrosPorUnidad
+        const periostio = taller.current.periostio
+        const centros = placa.agujerosMm.map((_, i) => {
+          const c = posicionDelAgujero(placa, i, 'abajo')
+          return { x: c.x * mm, y: c.y * mm, z: c.z * mm }
+        })
+        const sin = agujerosSobrePeriostio(periostio?.huellas ?? [], centros)
+        consejoDelPeriostio = juicioDeLaExposicion({
+          areaMm2: periostio ? estadoDelPeriostio(periostio, 0).areaMm2 : 0,
+          huellas: periostio?.huellas.length ?? 0,
+          agujerosTotal: centros.length,
+          agujerosSinExponer: sin,
+        }).aviso
+      }
       taller.current.decir?.(
         fijar
-          ? 'Placa fijada. Ahora se perfora por cada agujero, se mide y se atornilla.'
+          ? `Placa fijada. Ahora se perfora por cada agujero, se mide y se atornilla.${consejoDelPeriostio ? ` ${consejoDelPeriostio}` : ''}`
           : 'Placa suelta: se puede ajustar otra vez. Lo perforado en sus agujeros se conserva.',
       )
       ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current), {
         tipo: 'placa',
-        texto: fijar ? `${placa.nombre} fijada.` : `${placa.nombre} suelta para ajustarla.`,
-        atencion: false,
+        texto: fijar ? `${placa.nombre} fijada.${consejoDelPeriostio ? ` ${consejoDelPeriostio}` : ''}` : `${placa.nombre} suelta para ajustarla.`,
+        atencion: !!consejoDelPeriostio,
       })
       taller.current.pedirDibujo?.()
     },
@@ -3588,9 +3642,59 @@ export function LienzoQuirurgico({
     render.domElement.addEventListener('pointermove', alMoverEnLaMesa)
     render.domElement.addEventListener('pointerup', alSoltarEnLaMesa)
 
+    // --- despegar el periostio (P-005 E2) ---------------------------------------------------------------
+    // Con el Freer o un periostótomo en la mano, mantener pulsado y arrastrar sobre el hueso deja una franja expuesta del ancho de la hoja.
+    let elevando = false
+    const sembrarBajoElPuntero = () => {
+      const eleva = ultimas.current.instrumento?.eleva
+      const golpe = huesoBajoElCursor()
+      if (!eleva || !golpe) return
+      taller.current.periostio ??= crearPeriostio(taller.current.escena!)
+      sembrarHuella(taller.current.periostio, golpe.point, normalDelGolpe(golpe), eleva.anchoMm / 2, ultimas.current.milimetrosPorUnidad)
+    }
+    const avisarElPeriostio = () => {
+      const p = taller.current.periostio
+      ultimas.current.alCambiarElPeriostio?.(p && p.huellas.length > 0 ? estadoDelPeriostio(p, ultimas.current.instrumento?.eleva?.anchoMm ?? 0) : null)
+    }
+    const alBajarParaElevar = (evento: PointerEvent) => {
+      if (ultimas.current.modo !== 'elevar' || evento.button !== 0 || !ultimas.current.instrumento?.eleva) return
+      aCoordenadas(evento)
+      if (!huesoBajoElCursor()) return
+      elevando = true
+      controles.enabled = false
+      try {
+        render.domElement.setPointerCapture(evento.pointerId)
+      } catch {
+        // sin captura
+      }
+      sembrarBajoElPuntero()
+      pedirDibujo()
+    }
+    const alMoverParaElevar = (evento: PointerEvent) => {
+      if (!elevando) return
+      aCoordenadas(evento)
+      sembrarBajoElPuntero()
+      pedirDibujo()
+    }
+    const alSoltarParaElevar = (evento: PointerEvent) => {
+      if (!elevando) return
+      elevando = false
+      controles.enabled = true
+      try {
+        render.domElement.releasePointerCapture(evento.pointerId)
+      } catch {
+        // ya estaba suelto
+      }
+      if (taller.current.periostio) terminarLaPasada(taller.current.periostio)
+      avisarElPeriostio()
+    }
+    render.domElement.addEventListener('pointerdown', alBajarParaElevar)
+    render.domElement.addEventListener('pointermove', alMoverParaElevar)
+    render.domElement.addEventListener('pointerup', alSoltarParaElevar)
+
     const alBajar = (evento: PointerEvent) => {
       const { modo: modoActual } = ultimas.current
-      if (modoActual === 'orbitar' || modoActual === 'modelar') return
+      if (modoActual === 'orbitar' || modoActual === 'modelar' || modoActual === 'elevar') return
 
       aCoordenadas(evento)
       clicEnElVacio = null
@@ -4933,6 +5037,13 @@ export function LienzoQuirurgico({
       // Antes de `forceContextLoss`, más abajo: perder el contexto a propósito al desmontar no es un fallo que avisar.
       render.domElement.removeEventListener('webglcontextlost', alPerderElContexto)
       render.domElement.removeEventListener('webglcontextrestored', alRecuperarElContexto)
+      render.domElement.removeEventListener('pointerdown', alBajarParaElevar)
+      render.domElement.removeEventListener('pointermove', alMoverParaElevar)
+      render.domElement.removeEventListener('pointerup', alSoltarParaElevar)
+      if (taller.current.periostio) {
+        soltarElPeriostio(taller.current.periostio)
+        taller.current.periostio = undefined
+      }
       render.domElement.removeEventListener('pointerdown', alBajarEnLaMesa)
       render.domElement.removeEventListener('pointermove', alMoverEnLaMesa)
       render.domElement.removeEventListener('pointerup', alSoltarEnLaMesa)
@@ -5245,6 +5356,8 @@ export type Taller = {
   herramienta?: HerramientaCargada
   /** La placa suelta que se dobla fuera del hueso (P-005 E1). */
   mesa?: MesaDeModelado
+  /** El periostio despegado (P-005 E2). */
+  periostio?: PeriostioEnLaEscena
   /** La silueta del fragmento en su sitio correcto (ayuda de los rayos X). */
   fantasma?: THREE.Object3D
   /** Los dos ejes de la guía de angulación (ayuda de los rayos X). */
