@@ -147,8 +147,8 @@ describe('más margen contra el blanco (pedido del dueño)', () => {
   })
 
   it('cada pérdida baja el detalle: primero la resolución, luego el suavizado', () => {
-    expect(calidadDelDibujo(0)).toEqual({ razonMaxima: 2, suavizado: true })
-    expect(calidadDelDibujo(1)).toEqual({ razonMaxima: 1.5, suavizado: true })
+    expect(calidadDelDibujo(0)).toEqual({ razonMaxima: 3, suavizado: true })
+    expect(calidadDelDibujo(1)).toEqual({ razonMaxima: 2, suavizado: true })
     expect(calidadDelDibujo(2)).toEqual({ razonMaxima: 1, suavizado: false })
     expect(calidadDelDibujo(9)).toEqual({ razonMaxima: 1, suavizado: false })
   })
@@ -156,13 +156,15 @@ describe('más margen contra el blanco (pedido del dueño)', () => {
   it('la razón de píxeles respeta la pantalla, la calidad y la memoria', () => {
     // Un lienzo normal en pantalla de alta densidad: manda el tope de la calidad.
     expect(razonDePixeles(3, 800, 500, 2)).toBe(2)
+    // Un monitor 4K a pantalla completa cabe a su resolución: ya no se recorta como con los 4 millones de antes.
+    expect(razonDePixeles(2, 1920, 1000, 3)).toBe(2)
     // Un lienzo enorme: manda la memoria, para no pasar de los píxeles máximos.
-    const r = razonDePixeles(2, 2400, 1200, 2)
-    expect(2400 * r * 1200 * r).toBeLessThanOrEqual(PIXELES_MAXIMOS_DEL_LIENZO * 1.001)
+    const r = razonDePixeles(3, 4000, 2000, 3)
+    expect(4000 * r * 2000 * r).toBeLessThanOrEqual(PIXELES_MAXIMOS_DEL_LIENZO * 1.001)
     // Una pantalla de densidad 1 no se amplía.
     expect(razonDePixeles(1, 800, 500, 2)).toBe(1)
     // Nunca baja de media razón, por feo que sea el lienzo.
-    expect(razonDePixeles(2, 20000, 20000, 2)).toBe(0.5)
+    expect(razonDePixeles(2, 40000, 40000, 2)).toBe(0.5)
   })
 
   it('el lienzo cuenta las pérdidas y pide menos al volver a montarse', () => {

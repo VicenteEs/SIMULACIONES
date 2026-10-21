@@ -1047,8 +1047,8 @@ export const TiposDeFicha: EsquemaDeColeccion = {
  *    ver antes de haberse descargado entero.
  *  - `modelos-3d` guarda un `.glb` que el visor tiene que cargar **entero** en
  *    la memoria del navegador antes de pintar el primer triángulo. Ahí los
- *    5 MB no son tacañería: por encima, la consola deja de abrirse en el equipo
- *    de un residente (O-008). Ese techo NO sube con el otro, y ese es
+ *    20 MB (eran 5 hasta D-206, cuando el dueño pidió más margen: trabaja con muchos instrumentos y equipo holgado): por encima, la consola
+ *    puede dejar de abrirse en un equipo modesto (O-008). Ese techo NO sube con el otro, y ese es
  *    justamente el motivo de escribirlos en la misma pantalla: separados en dos
  *    archivos, el día que alguien suba el de los vídeos se lleva por delante el
  *    de los modelos «ya que estamos».
@@ -1107,7 +1107,7 @@ export const TECHO_DE_MEDIOS_BYTES = 50 * 1024 * 1024
  * servidor al paquete del navegador —este esquema lo carga el formulario—; los
  * ata `tests/unit/esquema.test.ts`, que falla si se separan.
  */
-export const TECHO_DE_MODELOS_3D_BYTES = 5 * 1024 * 1024
+export const TECHO_DE_MODELOS_3D_BYTES = 20 * 1024 * 1024
 
 export const Medios: EsquemaDeColeccion = {
   slug: 'medios',
@@ -1195,7 +1195,7 @@ export const Modelos3D: EsquemaDeColeccion = {
     // geometría o sin color. La razón completa está en
     // `src/uploads/validarModelo3D.ts`, que es quien rechaza.
     ayuda:
-      'Archivo .glb de hasta 5 MB. En Blender, «glTF Binary (.glb)»: las otras dos opciones dejan un .bin y las texturas en archivos aparte, y aquí se guarda uno solo. Se comprueba el contenido, no la extensión.',
+      'Archivo .glb de hasta 20 MB. En Blender, «glTF Binary (.glb)»: las otras dos opciones dejan un .bin y las texturas en archivos aparte, y aquí se guarda uno solo. Se comprueba el contenido, no la extensión.',
     // Cinco megas, y siguen siendo cinco después de que los de `medios` hayan
     // pasado a cincuenta. El porqué está arriba, junto al otro techo y no aquí,
     // para que quien vaya a mover uno vea el otro en la misma pantalla.

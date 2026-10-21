@@ -224,7 +224,7 @@ auditoría registrada». Los visores 3D y los videos no se imprimen: en su lugar
 |---|---|---|
 | Imagen | PNG, JPG, WEBP, SVG | 50 MB |
 | Video | **MP4 o WEBM** | 50 MB |
-| Modelo 3D | `.glb` | **5 MB** |
+| Modelo 3D | `.glb` | **20 MB** |
 
 - Se suben desde el propio bloque («Subir nuevo») o en tanda desde «Contenido» →
   «Medios» → «+ Subir archivo», que admite varios a la vez.
@@ -957,6 +957,8 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   tamaño y con el mismo comportamiento que la ficha de «Seleccionar estructura» (que va a la derecha): su modelo y la previsualización, el modo de uso,
   todo lo que se configura (potencia, apertura, diámetro y largo del tornillo, broca, medidor…), «Soltar» y, en el editor, «Es el correcto en este paso».
   Con pantalla estrecha (menos de 1000 px) flota sobre el lienzo. La columna derecha queda para la bandeja.
+- **El aviso de lo que acaba de pasar** (un acierto, un error, una complicación) sale **a la derecha del recuadro de la herramienta**, sobre el lienzo y justo
+  debajo de su barra, y ya no abajo en la columna derecha. Se cierra con su ✕ y lo reemplaza el siguiente aviso; el registro completo sigue en el pie.
 - **Anchos que se arrastran.** Las dos columnas de los lados de la consola y los recuadros junto al lienzo (el de la herramienta y el de la estructura)
   se **ensanchan o se angostan arrastrando** su borde con el ratón; con el teclado, ← → de 16 en 16 px, y un doble clic devuelve el ancho de origen.
   El navegador recuerda cómo se dejaron.
@@ -966,8 +968,8 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   pestaña «Piezas» con su nombre exacto. El residente no lo tiene.
 - **Margen contra la pantalla en blanco.** Si el navegador le quita a la página el contexto gráfico, la consola espera **12 s** (antes 3) antes de ofrecer
   «Recuperar la vista» y, si en **30 s** no vuelve, monta el lienzo de nuevo **sola**. Tras una pérdida, el lienzo vuelve a montarse con menos detalle
-  (primero menor resolución, a la segunda sin suavizado de bordes), y el dibujo nunca pasa de 4 millones de píxeles. El tope de 5 MB de los modelos 3D
-  no se subió: es lo que evita que la pantalla se vaya a blanco en equipos modestos.
+  (primero menos resolución, a la segunda sin suavizado de bordes; el primer montaje pide hasta 3× la densidad de la pantalla), y el dibujo nunca pasa de 16 millones de píxeles. El tope de los modelos 3D subió de 5 a **20 MB**
+  (equipo holgado y muchos instrumentos); en un equipo modesto un modelo así puede tardar o no abrir.
 - **Seleccionar estructura** (antes «Info»). El modo **Seleccionar estructura** de la barra de modos sirve para todos: un clic en una estructura
   (un músculo, un nervio, un vaso, un hueso) la **destaca en azul** y abre su ficha **a la derecha del
   modelo**, como la fluoroscopia,
@@ -1432,7 +1434,7 @@ Un residente ve la descripción del módulo y no el buzón.
 | «Esta ficha está en revisión: márquela como Lista para publicar…» | Las fichas en revisión las publica un administrador. Sección 5, «Fichas en revisión». |
 | «Según lo registrado, la revisión de esta ficha parece rápida» | El aviso dice por qué. Si la revisó de verdad, puede marcarla igual; quedará señalada. |
 | «Respaldar ahora» falla, o «Sistema» marca la herramienta de respaldo | El aviso dice qué permiso falta en la carpeta de respaldos. Avise al desarrollador. |
-| El archivo se rechaza al subir | Formato o peso: 50 MB imagen y video, 5 MB modelos, video solo MP4 o WEBM. |
+| El archivo se rechaza al subir | Formato o peso: 50 MB imagen y video, 20 MB modelos, video solo MP4 o WEBM. |
 | La planilla de estructuras «no es una planilla de Excel» | Tiene que ser un `.xlsx`. Si es un `.xls` o un `.csv`, ábralo en Excel y guárdelo como «Libro de Excel (.xlsx)». |
 | «Lo que se iba a escribir cambió desde la vista previa» | Alguien tocó esas fichas mientras usted miraba. No se escribió nada: pulse «Ver de nuevo». |
 | Una fila de la planilla «no se aplicó» | El resumen dice por qué: id que no existe, id repetido, nombre original que no es el del id, o texto demasiado largo. |

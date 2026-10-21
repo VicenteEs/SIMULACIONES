@@ -255,7 +255,7 @@ ilustraciones, esa ruta es el primer sitio donde mirar.
 ## Cuánto pesa lo que se puede subir, y quién corta primero
 
 Desde que el traumatólogo graba en pabellón, `medios` acepta hasta **50 MB** por
-archivo; los modelos 3D siguen en **5 MB**, y no suben con el otro porque un
+archivo; los modelos 3D están en **20 MB**, y no suben con el otro porque un
 `.glb` lo carga entero el navegador del residente antes de pintar nada. Las dos
 cifras están declaradas juntas, con su porqué, en `src/admin/esquema.ts`
 (`TECHO_DE_MEDIOS_BYTES` y `TECHO_DE_MODELOS_3D_BYTES`), y de ahí salen la frase

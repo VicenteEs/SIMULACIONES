@@ -75,7 +75,7 @@ En el panel de la derecha:
 - **Datos → Malla → Aplicar modificadores**: encendido.
 - **Comprimir**: encendido si el archivo pasa de unos pocos MB.
 
-**El archivo debe pesar menos de 5 MB.** Ese es el techo real, y lo comprueba la
+**El archivo debe pesar menos de 20 MB.** Ese es el techo real, y lo comprueba la
 plataforma al subirlo. El motivo no es el servidor: el modelo se descarga en el
 navegador del residente, muchas veces en un portátil modesto y con la red del
 hospital. Si se pasa, baje el número de caras con un modificador **Decimate**
@@ -331,4 +331,4 @@ de escribir el primero.
 | Nada se mueve en modo Mover | Ninguna pieza tiene el papel **fragmento** |
 | El fragmento no se ve al empezar | El desplazamiento inicial es enorme y lo sacó del encuadre. Pruebe con decenas de milímetros, no cientos |
 | Las medidas no bajan al arrastrar | Lo que queda está en profundidad. Mire el desglose por ejes bajo el número y gire la cámara con Orbitar |
-| El archivo no sube | Pasa de 5 MB. Reduzca caras con Decimate y exporte comprimido |
+| El archivo no sube | Pasa de 20 MB. Reduzca caras con Decimate y exporte comprimido |

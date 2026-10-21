@@ -1464,7 +1464,7 @@ function EditorDeBloques({
  *
  * El número ya no se repite en esta pantalla: sale del esquema, que es de donde
  * sale también la frase que lo anuncia. Había un 7 escrito aquí que valía para
- * las dos colecciones, y en modelos 3D era mentira —ahí el techo son 5 MB, los
+ * las dos colecciones, y en modelos 3D era mentira —ahí el techo son 20 MB, los
  * que `validarModelo3D` rechaza por firma—, de modo que un `.glb` de 6 MB
  * viajaba entero para que el servidor lo rehusara.
  */

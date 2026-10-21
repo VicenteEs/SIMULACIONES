@@ -910,7 +910,7 @@ function EspacioDelInstrumento({
                       Quitar el modelo
                     </button>
                   ) : null}
-                  <p className="campo-ayuda">Solo .glb, hasta 5 MB. Un modelo nuevo descarta los retoques del anterior: apuntaban a nombres que pueden no existir.</p>
+                  <p className="campo-ayuda">Solo .glb, hasta 20 MB. Un modelo nuevo descarta los retoques del anterior: apuntaban a nombres que pueden no existir.</p>
                 </>
               ) : (
                 <p className="campo-ayuda">El modelo lo carga el administrador.</p>

@@ -3961,6 +3961,17 @@ instrumentoElegido ? (
               className="asa-panel"
             />
           ) : null}
+          {/* Lo que acaba de pasar (un aviso, un acierto, una complicación) sale **a la derecha del recuadro de la herramienta**, sobre el
+              lienzo, donde se está mirando, y no abajo en la columna de la derecha, que en un portátil queda bajo el pliegue. Se cierra con su
+              ✕ y se reemplaza con el aviso siguiente; el registro completo sigue en el pie. */}
+          {resultado ? (
+            <div className="consola-aviso-flotante" role="status" aria-live="polite">
+              <ul className="consola-registro consola-registro-ultimo">{lineaDeRegistro(resultado, 'ultimo')}</ul>
+              <button type="button" className="consola-aviso-cerrar" aria-label="Cerrar el aviso" onClick={() => setResultado(null)}>
+                <X size={14} aria-hidden />
+              </button>
+            </div>
+          ) : null}
           <LienzoQuirurgico
             key={claveDelLienzo}
             alCambiarElContexto={setEstadoDelContexto}
@@ -4707,16 +4718,8 @@ instrumentoElegido ? (
                 <Check size={18} aria-hidden /> {editor ? 'Probar este paso' : 'Aplicar paso'}
               </button>
 
-              {/* Lo que acaba de pasar, donde el residente está mirando. El
-                  registro completo sigue en el pie, que en este portátil queda
-                  por debajo del pliegue. */}
-              <div role="status" aria-live="polite">
-                {resultado ? (
-                  <ul className="consola-registro consola-registro-ultimo">
-                    {lineaDeRegistro(resultado, 'ultimo')}
-                  </ul>
-                ) : null}
-              </div>
+              {/* El aviso de lo que acaba de pasar ya no va aquí abajo, bajo «Aplicar paso»: sale sobre el lienzo, pegado al recuadro de
+                  la herramienta (pedido del dueño). El registro completo sigue en el pie. */}
             </div>
           </>
         )}

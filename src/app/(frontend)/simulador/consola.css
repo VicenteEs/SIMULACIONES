@@ -1889,3 +1889,49 @@ body:has(.consola-completa) { overflow: hidden; }
 @media (max-width: 999px) {
   .consola-lienzo-marco > .asa-panel { display: none; }
 }
+
+/* ---------- el aviso de lo que acaba de pasar, a la derecha del recuadro de la herramienta (pedido del dueño) ----------
+   Antes salía abajo, bajo «Aplicar paso», en la columna derecha. Ahora flota sobre el lienzo, arriba y pegado al recuadro de la
+   herramienta (que va a la izquierda), con el mismo aspecto de siempre, justo debajo de la barra del lienzo. Si no hay recuadro, sale a la izquierda del lienzo. */
+.consola-aviso-flotante {
+  position: absolute;
+  /* Debajo de la barra del lienzo (Encuadrar, Ampliar, Fluoroscopia), que ocupa la franja de arriba: así no se pisan aunque el lienzo sea angosto. */
+  top: calc(var(--e-3) + 46px);
+  left: var(--e-3);
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+  max-width: min(380px, calc(100% - var(--e-3) * 2));
+  padding: var(--e-2) var(--e-3);
+  font-size: var(--t-sm);
+  background: rgba(15, 23, 41, 0.92);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(6px);
+}
+.consola-aviso-flotante .consola-registro { flex: 1; min-width: 0; }
+.consola-aviso-cerrar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--c-texto-2);
+  background: none;
+  border: 0;
+  border-radius: var(--r-full);
+  cursor: pointer;
+}
+.consola-aviso-cerrar:hover { color: var(--c-texto); background: var(--c-panel-2); }
+/* Con el recuadro de la herramienta flotando sobre el lienzo (menos de 1000 px) el aviso se corre a su derecha... */
+.consola-lienzo-marco:has(> .consola-herramienta-ficha) > .consola-aviso-flotante {
+  left: calc(min(270px, 78%) + var(--e-3) * 2);
+}
+/* ...y con él en su propia columna (1000 px o más) empieza donde empieza el lienzo. */
+@media (min-width: 1000px) {
+  .consola:not(.consola-editor) .consola-lienzo-marco:has(> .consola-herramienta-ficha) > .consola-aviso-flotante {
+    left: calc(var(--ancho-herramienta, 270px) + 8px + var(--e-3));
+  }
+}

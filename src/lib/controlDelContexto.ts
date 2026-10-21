@@ -33,19 +33,23 @@ export function cuantoFaltaParaRemontarse(estado: EstadoDelContexto, ahora: numb
   return estado.fase === 'perdido' ? Math.max(0, ESPERA_PARA_REMONTAR_SOLO_MS - (ahora - estado.desde)) : null
 }
 
-/** La resolución máxima del dibujo, en píxeles totales del lienzo: por encima, la memoria de la tarjeta se come el margen. */
-export const PIXELES_MAXIMOS_DEL_LIENZO = 4_000_000
+/**
+ * La resolución máxima del dibujo, en píxeles totales del lienzo. Eran 4 millones; el dueño trabaja con muchos instrumentos y equipo
+ * holgado (D-206), así que se subió a 16: un monitor 4K a pantalla completa sigue a su resolución nativa. Es un techo de seguridad y no un
+ * objetivo: con un lienzo normal ni se acerca, y tras una pérdida de contexto el lienzo baja solo (`calidadDelDibujo`).
+ */
+export const PIXELES_MAXIMOS_DEL_LIENZO = 16_000_000
 
 /**
  * Cuánto detalle se le pide a la tarjeta gráfica, según cuántas veces el navegador ya le quitó el contexto a esta página.
  *
- * El primer montaje es el de siempre. Cada pérdida es la señal de que la tarjeta va justa de memoria, así que el lienzo que se vuelve a
+ * El primer montaje pide todo lo que la pantalla da (hasta 3×). Cada pérdida es la señal de que la tarjeta va justa de memoria, así que el lienzo que se vuelve a
  * montar pide menos: primero una resolución menor, y a la segunda pérdida, sin suavizado de bordes (que multiplica el buffer). Se nota
  * poco y evita el blanco; si el equipo es holgado, no se activa nunca.
  */
 export function calidadDelDibujo(perdidas: number): { razonMaxima: number; suavizado: boolean } {
-  if (perdidas <= 0) return { razonMaxima: 2, suavizado: true }
-  if (perdidas === 1) return { razonMaxima: 1.5, suavizado: true }
+  if (perdidas <= 0) return { razonMaxima: 3, suavizado: true }
+  if (perdidas === 1) return { razonMaxima: 2, suavizado: true }
   return { razonMaxima: 1, suavizado: false }
 }
 

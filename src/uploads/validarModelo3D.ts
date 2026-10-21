@@ -8,8 +8,8 @@
  * de reducción ocurre antes de la subida y este límite lo hace cumplir.
  */
 
-/** Techo de 5 MB: por encima, la plataforma deja de abrirse en equipos modestos. */
-export const LIMITE_BYTES_MODELO_3D = 5 * 1024 * 1024
+/** Techo de 20 MB (eran 5 hasta D-206): con más, la plataforma puede dejar de abrirse en equipos modestos; el dueño trabaja con equipo holgado y muchos instrumentos. */
+export const LIMITE_BYTES_MODELO_3D = 20 * 1024 * 1024
 
 /**
  * Solo `.glb`. Aquí estuvo también `.gltf`, y era una promesa que no se podía

@@ -87,12 +87,12 @@ describe('los dos techos se declaran juntos y solo sube uno', () => {
     expect(esquemaDe('medios').subida?.maximoBytes).toBe(TECHO_DE_MEDIOS_BYTES)
   })
 
-  it('el de los modelos 3D sigue en 5 MB, y ese es el punto', () => {
+  it('el de los modelos 3D está en 20 MB (subió de 5 en D-206), y sigue por debajo del de los medios', () => {
     // Un `.glb` lo carga ENTERO el navegador del residente antes de pintar el
-    // primer triángulo (O-008). Se nombra el 5 a mano y no se compara solo
+    // primer triángulo (O-008). Se nombra el 20 a mano y no se compara solo
     // contra sí mismo: una prueba que dijera «los dos son iguales a lo que
     // dicen» pasaría igual con los modelos en cincuenta.
-    expect(TECHO_DE_MODELOS_3D_BYTES).toBe(5 * MEGA)
+    expect(TECHO_DE_MODELOS_3D_BYTES).toBe(20 * MEGA)
     expect(esquemaDe('modelos-3d').subida?.maximoBytes).toBe(TECHO_DE_MODELOS_3D_BYTES)
     // Y sigue siendo el que rechaza por firma del archivo.
     expect(TECHO_DE_MODELOS_3D_BYTES).toBe(LIMITE_BYTES_MODELO_3D)
@@ -347,7 +347,7 @@ describe('el techo se hace cumplir, y se dice cuánto pesaba', () => {
   it('quien no anuncia el peso se corta en el byte que se pasa', async () => {
     // El navegador siempre manda `Content-Length`, así que este camino es para
     // el cliente que no lo hace o que miente. Se usa `modelos-3d` porque su
-    // techo son 5 MB y pasárselo cuesta seis megas de ceros y no cincuenta.
+    // techo son 20 MB y pasárselo cuesta veintiún megas de ceros y no cincuenta.
     const respuesta = await llamar(
       new Request(
         'https://traumahub.tailc2094f.ts.net/api/subidas/modelos-3d',
@@ -361,14 +361,14 @@ describe('el techo se hace cumplir, y se dice cuánto pesaba', () => {
               JSON.stringify({ nombre: 'Tibia', origen: 'tc' }),
             ),
           },
-          body: flujoDeMegas(6),
+          body: flujoDeMegas(21),
           duplex: 'half',
         }),
       ),
       'modelos-3d',
     )
     expect(respuesta.status).toBe(413)
-    expect(String((await respuesta.json()).mensaje)).toContain('5 MB')
+    expect(String((await respuesta.json()).mensaje)).toContain('20 MB')
     expect(crear).not.toHaveBeenCalled()
   })
 
@@ -376,17 +376,17 @@ describe('el techo se hace cumplir, y se dice cuánto pesaba', () => {
     // Estos dos casos vivían en `guardarDocumento.test.ts` contra la acción
     // `subirArchivo`, y se mudaron aquí al retirarla: sin ellos, nada
     // comprobaría que la ruta elige el techo de la colección a la que se sube.
-    // Seis megas caben de sobra en los 50 de `medios`, así que una ruta que
+    // Veintiún megas caben de sobra en los 50 de `medios`, así que una ruta que
     // tomara el techo equivocado los dejaría pasar.
     const campos = { nombre: 'Tibia derecha', origen: 'tc' }
     const pasado = await llamar(
-      peticionDeSubida({ nombre: 'tibia.glb', campos, largoDeclarado: 6 * MEGA }),
+      peticionDeSubida({ nombre: 'tibia.glb', campos, largoDeclarado: 21 * MEGA }),
       'modelos-3d',
     )
     expect(pasado.status).toBe(413)
     const mensaje = String((await pasado.json()).mensaje)
-    expect(mensaje).toContain('6,0 MB')
-    expect(mensaje).toContain('el máximo son 5 MB')
+    expect(mensaje).toContain('21,0 MB')
+    expect(mensaje).toContain('el máximo son 20 MB')
     expect(crear).not.toHaveBeenCalled()
 
     const cabe = await llamar(

@@ -628,7 +628,7 @@ export function TablaDocumentos({
  * doméstico tarda minutos en llegar hasta el servidor que lo va a rechazar, y
  * esos minutos se los ahorra quien sube. El número no está escrito en esta
  * pantalla: sale del esquema, que es de donde sale también la frase que lo
- * anuncia justo debajo del botón —50 MB en medios y 5 MB en modelos 3D.
+ * anuncia justo debajo del botón —50 MB en medios y 20 MB en modelos 3D.
  */
 const enMegas = (bytes: number): string => (bytes / (1024 * 1024)).toFixed(1).replace('.', ',')
 

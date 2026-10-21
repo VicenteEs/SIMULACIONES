@@ -1748,7 +1748,7 @@ export function LienzoQuirurgico({
      * Sin ellos, un `.glb` exportado con «Comprimir» desde Blender —que es lo
      * que la guía del traumatólogo le pide hacer en cuanto el archivo pasa de
      * unos pocos MB, y lo que hace falta para que una pierna entera quepa bajo
-     * el techo de 5 MB— no se abre. Y no se abre **en silencio**: el lienzo se
+     * el techo de 20 MB— no se abre. Y no se abre **en silencio**: el lienzo se
      * queda vacío, la cámara encuadra la nada y no hay ningún mensaje.
      *
      * El decodificador se sirve desde la propia plataforma y no desde un CDN:

@@ -33,7 +33,7 @@ import {
  */
 
 /** Cuántos bytes ocupa el modelo antes de que nadie lo quiera abrir. */
-export const TECHO_BYTES = 5 * 1024 * 1024
+export const TECHO_BYTES = 20 * 1024 * 1024
 
 /**
  * Una pieza ya leída del paquete, con su geometría suelta.

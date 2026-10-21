@@ -36,7 +36,7 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
  * que tiene que ser el techo más alto o la colección más generosa quedaría
  * cortada por el límite de la otra. Escrito así, una tercera colección de
  * archivo con un techo mayor entra sola; escrito a dedo, entraría rota. Los
- * 5 MB de los modelos los sigue haciendo cumplir
+ * 20 MB de los modelos los sigue haciendo cumplir
  * `src/uploads/validarModelo3D.ts`, por firma del archivo y por colección.
  */
 type OpcionesDelAdaptador = NonNullable<Parameters<typeof nodemailerAdapter>[0]>['transportOptions']
@@ -237,7 +237,7 @@ export default buildConfig({
     // ausente vale por «sin límite», y reabrir sin él sería el agujero de
     // verdad.
     //
-    // Los modelos 3D tienen además su propio límite de 5 MB, comprobado por
+    // Los modelos 3D tienen además su propio límite de 20 MB, comprobado por
     // firma del archivo (observación O-008).
     limits: { fileSize: TECHO_DE_SUBIDA_BYTES },
     // Sin esto el analizador NO rechaza: su valor por omisión es
