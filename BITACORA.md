@@ -6863,6 +6863,19 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que no hace todavía:** el apriete no es requisito de ningún paso del caso (es un aviso); el limitador no se probó en el navegador (sí con pruebas); los tornillos de placa se aprietan igual, pero no hay torque dinámico; el
   clavo no gira (la rotación) ni se mide su longitud con el calibre; los orificios proximales del cefalomedular (tornillo cefálico) no existen.
 
+### D-213 · 2026-10-21 · vigente
+**Los injertos óseos se depositan en el defecto: esponjoso por puñados y bloque tricortical estructural (P-005 E7).**
+- **Reglas, puras y con pruebas** (`src/lib/injertoOseo.ts`, 21 pruebas): el **volumen del defecto** es el cilindro del ancho del hueso por la diástasis (cc); el esponjoso se deposita de **2 cc por puñado** y el relleno es **bueno entre el
+  60 y el 120 %**, escaso por debajo y excesivo por encima; sin defecto, poner injerto es un error. El **bloque** estructural debe medir el defecto con **2 mm de tolerancia** (corto deja hueco, largo no entra a presión) y, como es
+  estructural, **pide fijación**. Cifras de partida que Cristóbal debe revisar.
+- **En el lienzo** (`injertoEnLaEscena.ts`): los trozos son una malla instanciada de hasta 700 piezas pálidas de 3 a 8 mm, y el bloque una caja de 18 × 12 mm con el largo elegido; **los dos entran en la fluoroscopia**. El lienzo reporta
+  solo lo puesto (`InjertoPuesto`) y **la consola lo juzga con la diástasis de cada momento** (`juzgarElInjerto`): al reducir, el defecto desaparece y el injerto puesto pasa a sobrar.
+- **El foco** donde se aloja sale de `focoEntreLosFragmentos`: el hueso fijo cuya huella más se parece a la del fragmento y que está pegado a él a lo largo del eje. `posicionDeLaFractura`, que usa la compresión, toma todo el resto del hueso
+  visible y con una pierna entera cae a 118 mm del foco; **no se tocó** (es de la compresión, P-004 E10) pero conviene revisarla con un caso de pierna entera.
+- **Probado en el navegador** con la tibia (defecto de 18 mm, unos 14,5 cc): 2, 4, 6 y 8 cc dicen «falta» (14 a 55 %); 10 y 12 cc, «bien relleno»; 20 cc, «demasiado»; el bloque tricortical de 20 mm «encaja» pero «falta fijarlo».
+- **Lo que no hace todavía:** obtener el injerto de la cresta ilíaca (no hay un sitio donante ni su morbilidad); el esponjoso no se compacta con un impactador; el bloque no se talla a medida ni se fija con tornillos de verdad; no se distingue
+  autoinjerto de aloinjerto; los trozos no caen por gravedad: quedan donde se depositan.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10829,7 +10842,7 @@ programa, se prueba en el navegador y se documenta.
 *Lo que no se promete:* fidelidad biomecánica (resistencia de la placa, fuerza de torque en newtons-metro reales); se recrea el **gesto, la secuencia y los errores típicos**, con reglas que el traumatólogo
 puede leer y corregir. Cada etapa deja su **D-nnn**, su sección en el manual de uso y sus pruebas.
 
-**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 hecha (D-210). E5 hecha: clavo, arco, martillo e impactador (D-211). E6 hecha: bloqueo del clavo, destornilladores y limitador (D-212). E7 pendiente, en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
+**Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 hecha (D-210). E5 hecha: clavo, arco, martillo e impactador (D-211). E6 hecha: bloqueo del clavo, destornilladores y limitador (D-212). E7 hecha: injertos óseos (D-213). Quedan la plantilla maleable (E1), la camisa y el motor (E3), en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
 
 ---
 

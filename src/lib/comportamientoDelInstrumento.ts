@@ -18,6 +18,7 @@ import { hiloDelInstrumento, type HiloDeSutura } from './sutura'
 import { esElectrobisturi } from './electrobisturi'
 import { medidasDelClavoEnElNombre } from './enclavado'
 import { torqueEnElNombre } from './bloqueoDelClavo'
+import { injertoDelNombre, type TipoDeInjerto } from './injertoOseo'
 
 export type PlanoDeCorte = 'piel' | 'musculo'
 
@@ -94,6 +95,11 @@ export interface ComportamientoDelInstrumento {
    * que se monta en él, fija cuántos N·m se admiten. Las reglas —qué destornillador calza en cada cabeza, qué limitador toca— están en `src/lib/bloqueoDelClavo.ts`.
    */
   atornilla: { tipo: 'destornillador' } | { tipo: 'limitador'; torqueNm: number | null } | null
+  /**
+   * Es un injerto óseo (P-005 E7): el **esponjoso** se deposita por puñados en el defecto y el **estructural** (tricortical) ocupa el hueco entre los fragmentos.
+   * Las reglas están en `src/lib/injertoOseo.ts`.
+   */
+  injerta: TipoDeInjerto | null
 }
 
 export type TipoDePinzaDeReduccion = 'puntas' | 'garra' | 'bola'
@@ -113,6 +119,7 @@ const NADA: ComportamientoDelInstrumento = {
   eleva: null,
   enclava: null,
   atornilla: null,
+  injerta: null,
 }
 
 const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
@@ -168,6 +175,9 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'fresa-flexible': { ...NADA, enclava: 'fresa' },
   'tubo-intercambio': { ...NADA, enclava: 'tubo' },
   'arco-insercion': { ...NADA, enclava: 'arco' },
+  // Injertos óseos (P-005 E7)
+  'injerto-oseo-esponjoso': { ...NADA, injerta: 'esponjoso' },
+  'injerto-oseo-tricortical': { ...NADA, injerta: 'estructural' },
   // Apretar los tornillos (P-005 E6)
   'destornillador-hexagonal': { ...NADA, atornilla: { tipo: 'destornillador' } },
   'destornillador-stardrive': { ...NADA, atornilla: { tipo: 'destornillador' } },
@@ -191,7 +201,7 @@ export function comportamientoDelInstrumento(i: {
 }): ComportamientoDelInstrumento {
   const base = sinSutura(i)
   // Un hilo no corta, no separa ni perfora: si el instrumento ya hace algo, no es una sutura.
-  if (base.corta || base.separa || base.perfora || base.pellizca || base.reduce || base.enclava || base.atornilla) return base
+  if (base.corta || base.separa || base.perfora || base.pellizca || base.reduce || base.enclava || base.atornilla || base.injerta) return base
   const coloca = quePuedeColocar(i)
   const mide = sirveParaMedir(i)
   // Una placa o un tornillo no se confunden con un hilo, aunque su nombre diga «de sutura».
@@ -239,6 +249,10 @@ function sinSutura(i: { slug?: string | null; nombre: string; icono?: string | n
   if (/fresa.*(flexible|canulada)|(flexible|canulada).*fresa/.test(nombre)) return { ...NADA, enclava: 'fresa' }
   if (/tubo de intercambio/.test(nombre)) return { ...NADA, enclava: 'tubo' }
   if (/arco de inserci[oó]n/.test(nombre)) return { ...NADA, enclava: 'arco' }
+  {
+    const injerto = injertoDelNombre(i)
+    if (injerto) return { ...NADA, injerta: injerto }
+  }
   if (/limitador de torque|torqu[ií]metro/.test(nombre)) return { ...NADA, atornilla: { tipo: 'limitador', torqueNm: torqueEnElNombre(i.nombre) } }
   if (/destornillador|atornillador/.test(nombre)) return { ...NADA, atornilla: { tipo: 'destornillador' } }
   if (/impactador/.test(nombre)) return { ...NADA, enclava: 'impactador' }

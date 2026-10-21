@@ -90,6 +90,8 @@ export function juzgarLaEntrada(p: { desdeElExtremoMm: number; desviacionMm: num
 export interface ReduccionDelFoco {
   desplazamientoMm: number
   angulacionGrados: number
+  /** La separación entre fragmentos a lo largo del hueso: el defecto que un injerto puede rellenar (P-005 E7). */
+  diastasisMm?: number
 }
 
 export interface JuicioDelPaso {

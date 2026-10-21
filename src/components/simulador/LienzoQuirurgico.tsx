@@ -188,6 +188,8 @@ import {
 import { agujerosSobrePeriostio, juicioDeLaExposicion } from '@/lib/periostio'
 import { LARGO_DEL_ALAMBRE_MM, MAXIMO_DE_ALAMBRES, juzgarElAlambre, resumenDeLosAlambres, type EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
 import { destornilladorDelNombre, juzgarElApriete, juzgarLaPunteria, posicionDelOrificioMm, type OrificioDelClavo } from '@/lib/bloqueoDelClavo'
+import { CERCA_DEL_FOCO_MM, VOLUMEN_POR_PUNADO_CC, juzgarElInjerto, largoDeBloqueParaElDefecto, type InjertoPuesto, type TipoDeInjerto } from '@/lib/injertoOseo'
+import { colocarBloque, crearInjerto, depositarPunado, quitarInjerto, type InjertoEnLaEscena } from './injertoEnLaEscena'
 import {
   ENTRADA_A_MANO_MM,
   avancePorGolpeMm,
@@ -550,6 +552,8 @@ export interface MandoDelLienzo {
   quitarElEnclavado: () => void
   /** Retira la guía y el fresado, y deja la entrada marcada (P-005 E4). */
   retirarLaGuiaDelEnclavado: () => void
+  /** Quita todo el injerto puesto: los trozos esponjosos y el bloque (P-005 E7). */
+  quitarElInjerto: () => void
   /** Retira el clavo del canal, que queda fresado y con su guía lisa (P-005 E5). */
   retirarElClavo: () => void
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
@@ -622,6 +626,8 @@ export interface InstrumentoEnEscena {
   } | null
   /** Aprieta los tornillos puestos (P-005 E6): el destornillador, o el limitador de torque que se monta en él. */
   atornilla?: { tipo: 'destornillador' } | { tipo: 'limitador'; torqueNm: number | null } | null
+  /** Es un injerto óseo (P-005 E7): `largoBloqueMm` es el del bloque estructural elegido. */
+  injerta?: { tipo: TipoDeInjerto; largoBloqueMm?: number } | null
 }
 
 /** Una pinza de reducción que tiene agarrado un trozo de hueso: es hija del trozo, así que lo acompaña (P-003 E5). */
@@ -786,6 +792,7 @@ export function LienzoQuirurgico({
   alCambiarLosAlambres,
   alCambiarElEnclavado,
   alCambiarElLimitador,
+  alCambiarElInjerto,
   medidasDelFoco,
   clavoPrevistoMm,
   mando,
@@ -941,6 +948,8 @@ export function LienzoQuirurgico({
   alCambiarElEnclavado?: (estado: EstadoDelEnclavado | null) => void
   /** Se montó o se quitó el limitador de torque del destornillador (P-005 E6): los N·m que admite ahora, o `null`. */
   alCambiarElLimitador?: (torqueNm: number | null) => void
+  /** Cambió lo que hay de injerto puesto (P-005 E7): esponjoso y bloque, sin juzgar. `null` si se quitó todo. */
+  alCambiarElInjerto?: (puesto: InjertoPuesto | null) => void
   /** Cómo está la reducción del foco ahora mismo: de ella depende que la guía pase (P-005 E4). */
   medidasDelFoco?: ReduccionDelFoco | null
   /** El calibre del clavo que se va a poner, si el caso lo trae en su bandeja: con él se juzga el fresado (P-005 E4). */
@@ -1011,6 +1020,8 @@ export function LienzoQuirurgico({
     enclavado?: EnclavadoEnLaEscena
     /** Los N·m del limitador de torque montado en el destornillador, o `null` (P-005 E6). */
     limitadorNm?: number | null
+    /** Los injertos óseos puestos (P-005 E7). */
+    injerto?: InjertoEnLaEscena
     /** El entorno de estudio que reflejan los instrumentos (el acero sin él se ve negro). */
     entorno?: THREE.Texture
     fantasma?: THREE.Object3D
@@ -1156,6 +1167,7 @@ export function LienzoQuirurgico({
     alCambiarLosAlambres,
     alCambiarElEnclavado,
     alCambiarElLimitador,
+    alCambiarElInjerto,
     medidasDelFoco,
     clavoPrevistoMm,
     alCargarInstrumento,
@@ -1211,6 +1223,7 @@ export function LienzoQuirurgico({
       alCambiarLosAlambres,
       alCambiarElEnclavado,
       alCambiarElLimitador,
+      alCambiarElInjerto,
       medidasDelFoco,
       clavoPrevistoMm,
       alCargarInstrumento,
@@ -1771,6 +1784,15 @@ export function LienzoQuirurgico({
       }
       t.alambres = []
       ultimas.current.alCambiarLosAlambres?.(null)
+      t.pedirDibujo?.()
+    },
+
+    quitarElInjerto: () => {
+      const t = taller.current
+      if (!t.injerto) return
+      quitarInjerto(t.injerto)
+      t.injerto = undefined
+      ultimas.current.alCambiarElInjerto?.(null)
       t.pedirDibujo?.()
     },
 
@@ -4994,6 +5016,106 @@ export function LienzoQuirurgico({
       t.pedirDibujo?.()
     }
 
+    // --- injertos óseos (P-005 E7) ------------------------------------------------------------------------------
+    // El esponjoso se deposita por puñados donde falta hueso, junto al foco; el bloque tricortical ocupa el hueco entre los fragmentos. Se juzga contra el defecto de
+    // ahora (la diástasis), que cambia al reducir: por eso el lienzo reporta lo puesto y la consola lo juzga. Las reglas están en `src/lib/injertoOseo.ts`.
+    const anchoDelHuesoEnElFocoMm = () => {
+      const f = taller.current.fragmento
+      if (!f) return 30
+      const tamano = new THREE.Box3().setFromObject(f).getSize(new THREE.Vector3())
+      const otros = [0, 1, 2].filter((k) => k !== indiceDelEjeLargo()).map((k) => tamano.getComponent(k))
+      // El fragmento trae la epífisis y es más ancho que la diáfisis donde se injerta: se acota a lo que mide un hueso largo de adulto.
+      return Math.min(32, Math.min(...otros) * (ultimas.current.milimetrosPorUnidad || 1000))
+    }
+    const lecturaDelInjerto = (): InjertoPuesto | null => {
+      const t = taller.current
+      const inj = t.injerto
+      if (!inj || (inj.esponjosoCc === 0 && !inj.bloque)) return null
+      const imp = t.implantes
+      const hayFijacion = !!(imp?.placa?.fijada || (imp?.tornillos.size ?? 0) > 0 || t.enclavado?.clavo)
+      return { esponjosoCc: inj.esponjosoCc, bloqueLargoMm: inj.bloque?.largoMm ?? null, anchoDelHuesoMm: anchoDelHuesoEnElFocoMm(), sinFijacion: !hayFijacion }
+    }
+    /**
+     * Dónde está el foco, para alojar un injerto: a medio camino, sobre el eje, entre el fragmento del caso y el trozo de hueso que **se le enfrenta**. Ese trozo es el hueso
+     * fijo cuya huella (en los otros dos ejes) más se parece a la del fragmento y que está pegado a él a lo largo del eje —no la fíbula, que va al lado, ni el fémur, que
+     * está lejos—. `posicionDeLaFractura` toma todo el resto del hueso visible y en una pierna entera cae lejos del foco.
+     */
+    const focoEntreLosFragmentos = (): THREE.Vector3 | null => {
+      const t = taller.current
+      const f = t.fragmento
+      if (!f) return null
+      const mm = ultimas.current.milimetrosPorUnidad || 1000
+      const i = indiceDelEjeLargo()
+      const [j, k] = [0, 1, 2].filter((x) => x !== i)
+      const cajaF = new THREE.Box3().setFromObject(f)
+      const solape = (a: THREE.Box3, b: THREE.Box3, eje: number) => Math.max(0, Math.min(a.max.getComponent(eje), b.max.getComponent(eje)) - Math.max(a.min.getComponent(eje), b.min.getComponent(eje)))
+      const area = (c: THREE.Box3) => (c.max.getComponent(j) - c.min.getComponent(j)) * (c.max.getComponent(k) - c.min.getComponent(k))
+      let otra: THREE.Box3 | null = null
+      let mejor = 0.2
+      for (const h of huesoFijo(t, ultimas.current.piezas)) {
+        const c = new THREE.Box3().setFromObject(h)
+        const huecoAlLargo = Math.max(0, Math.max(c.min.getComponent(i) - cajaF.max.getComponent(i), cajaF.min.getComponent(i) - c.max.getComponent(i)))
+        if (huecoAlLargo * mm > 60) continue
+        const parecido = (solape(cajaF, c, j) * solape(cajaF, c, k)) / Math.max(area(cajaF), area(c), 1e-9)
+        if (parecido > mejor) {
+          mejor = parecido
+          otra = c
+        }
+      }
+      if (!otra) return null
+      const centro = cajaF.getCenter(new THREE.Vector3())
+      const frente = (otra as THREE.Box3).getCenter(new THREE.Vector3())
+      const mitad =
+        centro.getComponent(i) < frente.getComponent(i)
+          ? (cajaF.max.getComponent(i) + (otra as THREE.Box3).min.getComponent(i)) / 2
+          : (cajaF.min.getComponent(i) + (otra as THREE.Box3).max.getComponent(i)) / 2
+      return centro.setComponent(i, mitad)
+    }
+    const injertarConClic = () => {
+      const t = taller.current
+      const u = ultimas.current
+      const que = u.instrumento?.injerta
+      if (!que || !t.escena) return
+      const golpe = huesoBajoElCursor()
+      if (!golpe) {
+        t.decir?.('Apunte al hueso, junto al foco: el injerto va donde falta hueso.')
+        return
+      }
+      const fractura = focoEntreLosFragmentos()
+      if (!fractura) {
+        t.decir?.('Este caso no tiene un foco de fractura donde alojar el injerto.')
+        return
+      }
+      const mm = u.milimetrosPorUnidad || 1000
+      const defectoMm = u.medidasDelFoco?.diastasisMm ?? 0
+      const alLejos = Math.abs(golpe.point.getComponent(indiceDelEjeLargo()) - fractura.getComponent(indiceDelEjeLargo())) * mm
+      if (alLejos > CERCA_DEL_FOCO_MM + defectoMm / 2) {
+        t.decir?.(`Eso queda a ${Math.round(alLejos)} mm del foco: el injerto va en el defecto entre los fragmentos, no lejos de él.`)
+        return
+      }
+      const inj = (t.injerto ??= crearInjerto(t.escena))
+      if (que.tipo === 'esponjoso') {
+        if (!depositarPunado(inj, golpe.point, normalDelGolpe(golpe), mm)) {
+          t.decir?.('Ya no cabe más injerto en la escena: es mucho más de lo que cabe en cualquier defecto.')
+          return
+        }
+        inj.esponjosoCc += VOLUMEN_POR_PUNADO_CC
+      } else {
+        const eje = new THREE.Vector3(...ejesDelPaciente(u.ejeLargo).hueso)
+        const largo = que.largoBloqueMm ?? largoDeBloqueParaElDefecto(defectoMm)
+        colocarBloque(t.escena, inj, fractura, eje, largo, mm)
+      }
+      const puesto = lecturaDelInjerto()
+      u.alCambiarElInjerto?.(puesto)
+      const juicio = puesto ? juzgarElInjerto(puesto, defectoMm) : null
+      const texto =
+        que.tipo === 'esponjoso'
+          ? `Injerto esponjoso: ${inj.esponjosoCc} cc puestos.${juicio?.relleno.aviso ? ` ${juicio.relleno.aviso}` : ' El defecto está bien relleno.'}`
+          : `Bloque tricortical de ${inj.bloque?.largoMm} mm en el defecto.${juicio?.bloque?.aviso ? ` ${juicio.bloque.aviso}` : ' Encaja.'}${juicio?.bloque?.sinFijacion ? ' Falta fijarlo: un bloque estructural sin placa ni clavo se mueve.' : ''}`
+      t.decir?.(texto)
+      t.pedirDibujo?.()
+    }
+
     /**
      * Un clic en modo Fijar: la placa se apoya en el hueso, el tornillo se pone en
      * el agujero que apunta el cursor, el medidor lee el hueso que hay debajo.
@@ -5014,6 +5136,11 @@ export function LienzoQuirurgico({
         t.pedirDibujo?.()
       }
       const huesos = mallasDeHueso()
+
+      if (inst.injerta) {
+        injertarConClic()
+        return
+      }
 
       // El destornillador y el limitador aprietan lo ya puesto; el tornillo de bloqueo va por los orificios del clavo (P-005 E6).
       if (inst.atornilla) {
@@ -5655,6 +5782,10 @@ export function LienzoQuirurgico({
       render.domElement.removeEventListener('pointerup', alSoltarParaEnclavar)
       render.domElement.removeEventListener('pointercancel', alSoltarParaEnclavar)
       if (enclavando) window.clearInterval(enclavando.intervalo)
+      if (taller.current.injerto) {
+        quitarInjerto(taller.current.injerto)
+        taller.current.injerto = undefined
+      }
       if (taller.current.enclavado) {
         quitarTodoElEnclavado(taller.current.enclavado)
         taller.current.enclavado = undefined
@@ -5989,6 +6120,8 @@ export type Taller = {
   enclavado?: EnclavadoEnLaEscena
   /** Los N·m del limitador de torque montado en el destornillador, o `null` (P-005 E6). */
   limitadorNm?: number | null
+  /** Los injertos óseos puestos (P-005 E7). */
+  injerto?: InjertoEnLaEscena
   /** La silueta del fragmento en su sitio correcto (ayuda de los rayos X). */
   fantasma?: THREE.Object3D
   /** Los dos ejes de la guía de angulación (ayuda de los rayos X). */

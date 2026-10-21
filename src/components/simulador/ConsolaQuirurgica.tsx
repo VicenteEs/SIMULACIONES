@@ -56,6 +56,7 @@ import type { EstadoDeLaMesa } from './mesaDeModelado'
 import type { EstadoDelPeriostio } from './periostioEnLaEscena'
 import type { EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
 import { textoDeLaExposicion } from '@/lib/periostio'
+import { LARGOS_DEL_BLOQUE_MM, juzgarElInjerto, largoDeBloqueParaElDefecto, listaDelInjerto, type InjertoPuesto } from '@/lib/injertoOseo'
 import {
   CABEZAS_DE_FRESA_MM,
   ENCLAVADO_VACIO,
@@ -734,6 +735,9 @@ export function ConsolaQuirurgica({
   const [cabezaDeFresa, setCabezaDeFresa] = useState<number | null>(null)
   // Los N·m del limitador de torque montado en el destornillador (P-005 E6), o `null`.
   const [limitadorMontadoNm, setLimitadorMontadoNm] = useState<number | null>(null)
+  // Los injertos óseos puestos (P-005 E7): lo dice el lienzo sin juzgar. Y el largo del bloque estructural elegido (`null`: el que corresponde al defecto de ahora).
+  const [injerto, setInjerto] = useState<InjertoPuesto | null>(null)
+  const [largoDelBloque, setLargoDelBloque] = useState<number | null>(null)
   const avisoDeLaMesa = useRef(0)
   useEffect(() => {
     if (estadoDelContexto.fase === 'perdido') {
@@ -748,6 +752,7 @@ export function ConsolaQuirurgica({
         setPeriostioDespegado(null)
         setEnclavado(null)
         setLimitadorMontadoNm(null)
+        setInjerto(null)
         setMesaDeModelado(null)
       }, cuantoFaltaParaRemontarse(estadoDelContexto, performance.now()) ?? 0)
       return () => {
@@ -1456,6 +1461,7 @@ export function ConsolaQuirurgica({
     mando.current?.volverACubrirElPeriostio()
     mando.current?.quitarLosAlambres()
     mando.current?.quitarElEnclavado()
+    mando.current?.quitarElInjerto()
     mando.current?.soltarPellizco()
     mando.current?.cerrarHeridas()
     mando.current?.borrarAgujeros()
@@ -1589,7 +1595,7 @@ export function ConsolaQuirurgica({
     else if (que?.reduce) setModo('reducir')
     else if (que?.perfora) setModo('perforar')
     else if (que?.sutura) setModo('coser')
-    else if (que?.coloca || que?.mide || que?.atornilla) setModo('fijar')
+    else if (que?.coloca || que?.mide || que?.atornilla || que?.injerta) setModo('fijar')
     else if (que?.modela) setModo('modelar')
     else if (que?.eleva) setModo('elevar')
     else if (que?.enclava) setModo('enclavar')
@@ -1598,6 +1604,7 @@ export function ConsolaQuirurgica({
     setDiametroDeTornillo(null)
     setAnchoDeLaHoja(null)
     setCabezaDeFresa(null)
+    setLargoDelBloque(null)
     if (que?.coloca?.tipo === 'tornillo' && id) setUltimoTornillo(id)
     // El tornillo se ofrece con el largo que el editor le escribió al instrumento (P-004 E6); el residente puede escribir otro.
     if (destino?.largoMm && que?.coloca?.tipo === 'tornillo') setLargoDeTornillo(Math.min(MAXIMO_DEL_TORNILLO_MM, Math.max(MINIMO_DEL_TORNILLO_MM, destino.largoMm)))
@@ -1728,12 +1735,13 @@ export function ConsolaQuirurgica({
   // El enclavado (P-005 E4): la cabeza de fresa que está elegida (o la que sigue), el calibre del clavo que trae la bandeja —con él se juzga el fresado— y
   // cómo está la reducción del foco, de la que depende que la guía pase.
   const cabezaDeFresaElegida = queHace.enclava === 'fresa' ? (cabezaDeFresa ?? siguienteCabeza(enclavado?.fresado.cabezasMm ?? [])) : null
+  const largoDelBloqueElegido = largoDelBloque ?? largoDeBloqueParaElDefecto(reduccion.diastasis)
   /** Las medidas del clavo en la mano, leídas de su nombre («Clavo tibial 9 × 330 mm»). */
   const medidasDelClavoElegido = useMemo(() => medidasDelClavoEnElNombre(nombreDelElegido) ?? {}, [nombreDelElegido])
   const clavoPrevisto = useMemo(() => elClavoPrevisto(caso.instrumental.map((i) => i.nombre), caso.hueso), [caso.instrumental, caso.hueso])
   const medidasDelFoco = useMemo(
-    () => ({ desplazamientoMm: reduccion.desplazamiento, angulacionGrados: reduccion.angulacion }),
-    [reduccion.desplazamiento, reduccion.angulacion],
+    () => ({ desplazamientoMm: reduccion.desplazamiento, angulacionGrados: reduccion.angulacion, diastasisMm: reduccion.diastasis }),
+    [reduccion.desplazamiento, reduccion.angulacion, reduccion.diastasis],
   )
   /** La Metzenbaum en disección roma: no corta, apoya la punta y separa el plano al abrir las ramas. */
   const usoRoma = !!queHace.roma && modo === 'disecar'
@@ -1793,6 +1801,7 @@ export function ConsolaQuirurgica({
             modela: queHace.modela,
             eleva: queHace.eleva ? { anchoMm: anchoDeLaHoja ?? queHace.eleva.anchosMm[0] } : null,
             atornilla: queHace.atornilla,
+            injerta: queHace.injerta ? { tipo: queHace.injerta, largoBloqueMm: largoDelBloqueElegido } : null,
             enclava: queHace.enclava
               ? { funcion: queHace.enclava, cabezaMm: cabezaDeFresaElegida ?? undefined, ...(queHace.enclava === 'clavo' ? medidasDelClavoElegido : {}) }
               : null,
@@ -1805,7 +1814,7 @@ export function ConsolaQuirurgica({
             mide: queHace.mide,
           }
         : null,
-    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido, tipoDelElegido, roscaDelElegido, anchoDeLaHoja, cabezaDeFresaElegida, medidasDelClavoElegido],
+    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido, tipoDelElegido, roscaDelElegido, anchoDeLaHoja, cabezaDeFresaElegida, medidasDelClavoElegido, largoDelBloqueElegido],
   )
 
   /**
@@ -2389,7 +2398,7 @@ export function ConsolaQuirurgica({
     ...(queHace.pellizca ? [MODO_PINZAR] : []),
     ...(queHace.reduce ? [MODO_REDUCIR] : []),
     ...(queHace.perfora ? [MODO_PERFORAR] : []),
-    ...(queHace.coloca || queHace.mide || queHace.atornilla ? [MODO_FIJAR] : []),
+    ...(queHace.coloca || queHace.mide || queHace.atornilla || queHace.injerta ? [MODO_FIJAR] : []),
     ...(queHace.sutura ? [MODO_COSER] : []),
     ...(queHace.eleva ? [MODO_ELEVAR] : []),
     ...(queHace.enclava ? [MODO_ENCLAVAR] : []),
@@ -3087,6 +3096,55 @@ export function ConsolaQuirurgica({
       )}
     </div>
   ) : null
+  /**
+   * Los injertos óseos (P-005 E7): el esponjoso se deposita por puñados junto al foco, donde falta hueso, y el bloque tricortical ocupa el hueco entre los fragmentos. Se juzga
+   * contra el defecto de **ahora** (la diástasis): al reducir, el defecto desaparece y el injerto puesto sobra. Las reglas están en `src/lib/injertoOseo.ts`.
+   */
+  const estadoDelInjerto = injerto ? juzgarElInjerto(injerto, reduccion.diastasis) : null
+  const bloqueDelInjerto = queHace.injerta ? (
+    <div className="consola-instrumento-articulaciones">
+      <p className="consola-instrumento-texto">
+        {queHace.injerta === 'esponjoso'
+          ? 'Injerto esponjoso: cada clic junto al foco deposita un puñado de trozos (2 cc). Se busca llenar entre el 60 y el 120 % del defecto que hay entre los fragmentos; más de eso se sale del foco.'
+          : 'Bloque tricortical de cresta ilíaca: un clic junto al foco lo pone en el hueco entre los fragmentos. Debe medir lo mismo que el defecto (con 2 mm de tolerancia) y, como es estructural, hay que fijarlo con placa o clavo.'}
+      </p>
+      {queHace.injerta === 'estructural' ? (
+        <label className="consola-instrumento-articulacion">
+          <span>Largo del bloque</span>
+          <select value={largoDelBloqueElegido} onChange={(e) => setLargoDelBloque(Number(e.target.value))} aria-label="Largo del bloque de injerto">
+            {LARGOS_DEL_BLOQUE_MM.map((l) => (
+              <option key={l} value={l}>
+                {l} mm
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <p className="consola-instrumento-texto" role="status">
+        Defecto entre los fragmentos: {reduccion.diastasis > 0 ? `${String(reduccion.diastasis).replace('.', ',')} mm` : 'ninguno (los fragmentos están juntos)'}
+        {estadoDelInjerto && estadoDelInjerto.defectoCc > 0 ? `, unos ${String(Math.round(estadoDelInjerto.defectoCc * 10) / 10).replace('.', ',')} cc` : ''}.
+      </p>
+      {estadoDelInjerto ? (
+        <>
+          <ul className="consola-instrumento-texto">
+            {listaDelInjerto(estadoDelInjerto).map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+          {estadoDelInjerto.relleno.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelInjerto.relleno.aviso}</p> : null}
+          {estadoDelInjerto.bloque?.aviso ? <p className="consola-instrumento-texto" role="status">{estadoDelInjerto.bloque.aviso}</p> : null}
+          {estadoDelInjerto.bloque?.sinFijacion ? (
+            <p className="consola-instrumento-texto" role="status">El bloque estructural no está fijado: falta la placa, los tornillos o el clavo que lo sostengan.</p>
+          ) : null}
+        </>
+      ) : null}
+      <div className="consola-instrumento-acciones">
+        <button type="button" className="consola-boton" disabled={!injerto} onClick={() => mando.current?.quitarElInjerto()}>
+          Quitar el injerto
+        </button>
+      </div>
+    </div>
+  ) : null
   const bloqueDelPeriostio = queHace.eleva ? (
     <div className="consola-instrumento-articulaciones">
       <label className="consola-instrumento-articulacion">
@@ -3689,6 +3747,8 @@ instrumentoElegido ? (
               {bloqueDelBloqueoDelClavo}
 
               {bloqueDelAtornillado}
+
+              {bloqueDelInjerto}
 
               {bloqueDeLaMesa}
 
@@ -4438,6 +4498,7 @@ instrumentoElegido ? (
             alCambiarLosAlambres={setAlambresPuestos}
             alCambiarElEnclavado={setEnclavado}
             alCambiarElLimitador={setLimitadorMontadoNm}
+            alCambiarElInjerto={setInjerto}
             medidasDelFoco={medidasDelFoco}
             clavoPrevistoMm={clavoPrevisto?.diametroMm ?? null}
             url={caso.modeloUrl}
@@ -4660,6 +4721,7 @@ instrumentoElegido ? (
                     setPeriostioDespegado(null)
                     setEnclavado(null)
                     setLimitadorMontadoNm(null)
+                    setInjerto(null)
                     setMesaDeModelado(null)
                   }}
                 >
