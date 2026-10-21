@@ -47,6 +47,7 @@ import {
   AlertTriangle,
   ArrowDownToLine,
   ArrowLeft,
+  ArrowLeftRight,
   ArrowUpFromLine,
   Box,
   Check,
@@ -415,7 +416,7 @@ const MODO_SEPARAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
   etiqueta: 'Separar',
   icono: UnfoldHorizontal,
   ayuda:
-    'Separar: elija el plano —piel o músculo—, haga clic en el punto de la incisión donde quiere poner el separador y ábralo con la rueda del ratón (o con la barra). Uno de mano abre el borde que sostiene; uno autoestático abre los dos. Para separar el músculo, baje al músculo uno que ya esté puesto.',
+    'Separar: haga clic en el borde de la incisión donde quiere poner el separador (el plano lo decide el clic) o en un músculo para retraerlo, y ábralo con la rueda del ratón (o con la barra). Uno de mano abre el borde que sostiene; uno autoestático abre los dos. Otro clic en otro músculo lo separa también, sin soltar el anterior.',
 }
 
 /**
@@ -679,7 +680,7 @@ export function ConsolaQuirurgica({
   // Cómo se usa la tijera de Metzenbaum: cortando, como cualquier tijera, o en disección roma (separa por tensión).
   const [usoDeLaTijera, setUsoDeLaTijera] = useState<'cortar' | 'roma'>('cortar')
   // En qué plano se apoyan los separadores que se pongan: la piel o, más profundo, el músculo.
-  const [planoDeSeparador, setPlanoDeSeparador] = useState<'piel' | 'musculo'>('piel')
+  const [planoDeSeparador, setPlanoDeSeparador] = useState<'auto' | 'piel' | 'musculo'>('auto')
   // Los separadores de mano se ponen de a dos, uno por borde (P-003 E3), como las pinzas. Encendido por omisión.
   const [separadoresEnPareja, setSeparadoresEnPareja] = useState(true)
   // Pinzas y separadores se corren tras el bisturí al terminar un corte (P-003 E3). Apagado por omisión.
@@ -710,7 +711,7 @@ export function ConsolaQuirurgica({
   // instrumentos se ofrece cada cosa y lo que hay retraído ahora.
   const [musculoObjetivo, setMusculoObjetivo] = useState<{ nodo: string; nombre: string; accion: 'cortar' | 'separar'; yaCortadas: number[] } | null>(null)
   const [eligiendoAccion, setEligiendoAccion] = useState<'cortar' | 'separar' | null>(null)
-  const [retracciones, setRetracciones] = useState<{ nodo: string; nombre: string; aperturaMm: number; maximoMm: number }[]>([])
+  const [retracciones, setRetracciones] = useState<{ id: number; nodo: string; nombre: string; aperturaMm: number; maximoMm: number; activa: boolean }[]>([])
   // El instrumento en la mano: qué articulaciones declara su archivo y cuánto
   // las ha movido quien lo usa. Vive aquí y no dentro del visor pequeño porque
   // lo mueven dos cosas a la vez —los deslizadores y la escena— y las dos
@@ -1580,8 +1581,10 @@ export function ConsolaQuirurgica({
   const alRuedaDelInstrumento = (deltaY: number, mayusculas = false): boolean => {
     const m = mando.current
     if (!m || !ruedaDelInstrumento) return false
-    // Con Mayúsculas solo las pinzas se quedan la rueda (abrir y cerrar las mandíbulas); el resto la devuelve al zoom.
-    if (mayusculas && ruedaDelInstrumento !== 'pinza') return false
+    // Con Mayúsculas solo las pinzas se quedan la rueda (abrir y cerrar las mandíbulas) y, con un músculo retraído, el
+    // separador (corre la zona retraída a lo largo del músculo, P-004 E5); el resto la devuelve al zoom.
+    const correLaRetraccion = ruedaDelInstrumento === 'separa' && retracciones.length > 0 && (!separadores || separadores.lista.length === 0)
+    if (mayusculas && ruedaDelInstrumento !== 'pinza' && !correLaRetraccion) return false
     // Hacia delante (deltaY negativo) abre, tira, alarga o sube; hacia atrás, al revés.
     const sentido = deltaY < 0 ? 1 : -1
     const entre = (minimo: number, maximo: number, valor: number) => Math.min(maximo, Math.max(minimo, valor))
@@ -1608,7 +1611,8 @@ export function ConsolaQuirurgica({
       // abre con un separador, no sola, y se dice cómo ponerlo.
       // Un músculo retraído con el separador (P-003 E10) también responde a la rueda, aunque no haya herida.
       if (retracciones.length > 0 && (!separadores || separadores.lista.length === 0)) {
-        m.moverSeparador(sentido * 2)
+        if (mayusculas) m.correrRetraccion(sentido * 2)
+        else m.moverSeparador(sentido * 2)
         return true
       }
       if (!separadores || separadores.lista.length === 0) {
@@ -2071,6 +2075,28 @@ export function ConsolaQuirurgica({
   }
 
   const tieneMandosPropios = objetivo === 'trazo' || largoDelTrazoMm > 0 || objetivo === 'reduccion'
+
+  /**
+   * «Cortar» desde la lista de estructuras separadas (P-004 E5): el músculo pasa a ser el objetivo del corte, el
+   * instrumento de corte de la bandeja se pone en la mano y el modo cambia a Trazar. Es la misma entrada que la ficha de
+   * «Seleccionar estructura», sin tener que abrirla.
+   */
+  const cortarElMusculoSeparado = (nodo: string) => {
+    const instrumento = instrumentosParaActuar('cortar', caso.instrumental, [])[0]
+    if (!instrumento) {
+      anotar('No hay en la bandeja un instrumento para cortar músculo (bisturí, tijera de Metzenbaum o electrobisturí).', 'atencion')
+      return
+    }
+    setMusculoObjetivo({
+      nodo,
+      nombre: nodo.replace(/_/g, ' '),
+      accion: 'cortar',
+      // Lo que ya estaba cortado antes de elegir no cuenta: solo vale la incisión nueva.
+      yaCortadas: (herida?.incisiones ?? []).filter((x) => x.capa === 'musculo').map((x) => x.id),
+    })
+    elegirInstrumento(instrumento.id)
+    setModo('trazar')
+  }
 
   /** Los instrumentos de la bandeja para cortar o separar un músculo: los de su ficha o, sin ellos, los de siempre. */
   const instrumentosParaActuarEnElMusculo = (accion: 'cortar' | 'separar', delEditor: readonly string[] = []) =>
@@ -2602,6 +2628,7 @@ export function ConsolaQuirurgica({
                     <div className="consola-submodo" role="group" aria-label="Plano en que se apoya el separador">
                       {(
                         [
+                          ['auto', 'Automático', 'El clic decide: en el labio de una herida pone el separador en su plano; sobre un músculo, lejos de toda herida, lo retrae.'],
                           ['piel', 'Piel', 'Apoya el separador en la piel: abre la piel y deja ver el plano de abajo.'],
                           ['musculo', 'Músculo', 'Apoya el separador más profundo, en el músculo: separa el músculo y la piel que tiene encima.'],
                         ] as const
@@ -2715,6 +2742,49 @@ export function ConsolaQuirurgica({
                           Quitar los separadores
                         </button>
                       </div>
+                    </>
+                  ) : null}
+                  {/* Los músculos retraídos con un clic (P-004 E5, pedido 10): una fila por estructura separada, la que
+                      responde a la rueda marcada. «Cortar» sigue desde ahí sin pasar por la ficha. */}
+                  {retracciones.length > 0 ? (
+                    <>
+                      <h4 className="consola-subtitulo">Estructuras separadas</h4>
+                      <ul className="consola-separadores">
+                        {retracciones.map((r) => (
+                          <li key={r.id} className={r.activa ? 'activo' : ''}>
+                            <button type="button" className="consola-separador-nombre" onClick={() => mando.current?.elegirRetraccion(r.id)}>
+                              {r.nodo.replace(/_/g, ' ')} · {Math.round(r.aperturaMm)} mm
+                            </button>
+                            <button
+                              type="button"
+                              className="consola-separador-plano"
+                              title="Apartar este músculo hacia el otro lado (hacia delante o hacia atrás)"
+                              onClick={() => mando.current?.invertirRetraccion(r.id)}
+                            >
+                              <ArrowLeftRight size={13} aria-hidden /> Otro lado
+                            </button>
+                            <button
+                              type="button"
+                              className="consola-separador-plano"
+                              title="Cortar este músculo: el instrumento de corte pasa a la mano y la incisión queda marcada"
+                              onClick={() => cortarElMusculoSeparado(r.nodo)}
+                            >
+                              <Scissors size={13} aria-hidden /> Cortar
+                            </button>
+                            <button
+                              type="button"
+                              className="consola-separador-quitar"
+                              aria-label={`Soltar ${r.nodo.replace(/_/g, ' ')}`}
+                              onClick={() => mando.current?.soltarRetraccion(r.id)}
+                            >
+                              <X size={14} aria-hidden />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="consola-instrumento-texto">
+                        La rueda abre o cierra el músculo marcado; Mayúsculas + rueda corre la zona retraída a lo largo del músculo. Otro clic en otro músculo lo separa también.
+                      </p>
                     </>
                   ) : null}
                 </div>

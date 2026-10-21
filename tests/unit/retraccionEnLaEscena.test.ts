@@ -62,7 +62,7 @@ describe('la retracción de un músculo en la escena (P-003 E10)', () => {
   it('el estado lista lo que hay retraído', () => {
     const r = musculo()
     expect(estadoDeLasRetracciones({ retracciones: [r] })).toEqual({
-      lista: [{ id: 1, nodo: 'Tibial_anterior', nombre: 'Farabeuf', aperturaMm: 20, maximoMm: 40 }],
+      lista: [{ id: 1, nodo: 'Tibial_anterior', nombre: 'Farabeuf', aperturaMm: 20, maximoMm: 40, activa: true }],
     })
     expect(estadoDeLasRetracciones({})).toEqual({ lista: [] })
   })

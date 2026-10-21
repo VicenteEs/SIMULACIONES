@@ -6499,6 +6499,45 @@ la marca «paso» en el que pide el paso, los submodos al lado y la ayuda debajo
 (un caso con taladro, placa y sutura) la barra pasa a dos filas en un lienzo no muy ancho y le quita alto al lienzo; en un teléfono es un
 bloque más antes del modelo.
 
+### D-197 · 2026-10-21 · vigente
+**El plano del separador lo decide el clic, un músculo se separa con un clic y la lista de lo separado manda.**
+Quinta etapa de P-004 (E5). Pedidos 8 y 10 de Cristóbal: «ahora no me aparece como que el fara quede puesto»; «pinchar una estructura, girar la
+ruedita, que se desplace hacia delante o hacia atrás; pinchar otra y separarla de una — pincho-ruedita-pincho otra estructura-ruedita».
+
+*Causa del «el fara no queda puesto» (E5.1).* El plano de apoyo del separador era un selector con **«Piel» por omisión**; con la herida en el
+músculo, el clic buscaba la herida en la piel y respondía «No hay herida en la piel: elija "Músculo"». En el navegador, con el plano en
+«Músculo», el Farabeuf **sí** queda puesto en una incisión del músculo —la pareja, uno por borde— y la cinta del corte **sí** aparece y se
+borra al abrir más de 5 mm: la marca temporal del músculo ya funcionaba. Lo que fallaba era elegir el plano, no el corte. (No se reprodujo en
+la pierna reexportada de Cristóbal —el modelo local trae «Musculos» en una sola pieza—; la causa sale de leer el camino del clic y de la
+prueba con la pieza que hay.)
+
+*Qué se hizo.*
+- **`src/lib/abordajePorPlanos.ts`** (pura, probada): `decidirElClicDelSeparador` recibe qué se ve bajo el cursor y a cuántos milímetros está el
+  labio de la herida de cada plano, y dice `colocar` (con el plano), `separar-musculo` o `nada` (con el motivo). Un clic **sobre el labio**
+  (hasta 8 mm, o 12 píxeles de pantalla si eso es más: con la pierna entera a la vista un píxel son varios milímetros) es para la herida, en el
+  plano que se ve; **lejos del labio y sobre un músculo**, lo retrae de una vez; junto a una herida a menos de 30 mm, como antes.
+- **El selector** gana «Automático» y arranca ahí; «Piel» y «Músculo» siguen forzando el plano, con el comportamiento de antes. El Hohmann y el
+  separador que ya se lleva en la mano no cambian.
+- **No hace falta elegir objetivo** en la ficha para separar: cualquier músculo se retrae con un clic y el siguiente deja el anterior. La
+  retracción nueva pasa a ser la **activa** (la que atiende la rueda).
+- **«Estructuras separadas»** en el panel del separador: una fila por músculo con su apertura; un clic en el nombre lo hace el activo, **«Otro
+  lado»** invierte la dirección en que se aparta (el *hacia delante o hacia atrás* del documento), **«Cortar»** pone el instrumento de corte
+  de la bandeja en la mano y deja el músculo como objetivo, y la X lo suelta. **Mayúsculas + rueda** corre el apoyo a lo largo del eje del hueso.
+- **Cortar un músculo retraído** retira su retracción de la lista: la malla cortada parte de las posiciones que se veían y la retracción de
+  antes tenía las originales de la geometría vieja (dejaba una fila fantasma). Volver a pinchar una malla cuya geometría cambió parte de las
+  posiciones de ahora.
+
+*Probado.* Pruebas unitarias de la decisión con todas las combinaciones (plano automático y forzado, el labio que crece con la vista, el
+músculo sin herida, el Hohmann), de invertir y correr, de la lista de retracciones y del cableado; en el navegador: clic con el Farabeuf sobre
+el músculo → «Musculos · 10 mm», rueda +2 mm, «Otro lado» invierte la dirección, Mayúsculas + rueda corre el apoyo, «Cortar» → Trazar con el
+objetivo, dos clics → incisión en el músculo con cinta visible, clic en la herida → dos Farabeuf «en el músculo», y al abrir 4 mm la cinta
+se apaga.
+
+*Consecuencias buenas.* El abordaje por planos sale sin pasar por la ficha ni por un selector; el fallo que Cristóbal vio deja de ser posible por
+omisión. *Malas.* El umbral entre «labio» y «músculo» es una cifra: con una ventana de piel muy abierta, pinchar el músculo cerca del borde pone
+el separador en la piel (se arregla pinchando más al centro o forzando el plano); la lista habla de «Musculos» mientras el modelo no separe las
+estructuras (el nombre sale del objeto).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10043,7 +10082,7 @@ en todas partes.
 
 ---
 
-#### E5 · Abordaje por planos de corrido: pinchar, girar, pinchar · 2 sesiones
+#### E5 · Abordaje por planos de corrido: pinchar, girar, pinchar · 2 sesiones · hecha en local (2026-10-21, D-197)
 
 **De dónde sale:** pedidos 8 y 10. Depende de E4. Corrige y continúa a E10 de P-003 (D-186, D-187, D-188).
 
@@ -10084,12 +10123,12 @@ la piel.
 
 **Tareas**
 
-- [ ] **E5.1 · Reproducir en el navegador el «el fara no queda puesto»** con la pierna reexportada y fijar la causa (anotarla aquí).
-- [ ] **E5.2 · El separador busca la incisión en cualquier plano** (`sitioParaSeparar`) y la marca temporal del corte de un músculo.
-- [ ] **E5.3 · Clic sobre un músculo con el separador = separarlo** (objetivo automático) y el paso al siguiente; la lista de lo separado.
-- [ ] **E5.4 · Desplazar la retracción a lo largo del músculo** (arrastre y Mayús + rueda) en `retraccion.ts` y en el lienzo.
-- [ ] **E5.5 · «Cortar» desde el flujo** y el regreso a Separar con la herida marcada.
-- [ ] **E5.6 · Pruebas, manual y D-nnn.** El abordaje de dos planos de corrido —separar el tibial anterior, separar el siguiente, cortar el
+- [x] **E5.1 · Reproducir en el navegador el «el fara no queda puesto»** y fijar la causa. *(D-197)* La causa era el plano «Piel» por omisión; la marca del corte del músculo ya funcionaba.
+- [x] **E5.2 · El separador busca la incisión en cualquier plano** (plano automático en `abordajePorPlanos.ts`) y la marca temporal del corte de un músculo (ya funcionaba; comprobada).
+- [x] **E5.3 · Clic sobre un músculo con el separador = separarlo** (sin objetivo) y el paso al siguiente; la lista «Estructuras separadas».
+- [x] **E5.4 · Desplazar la retracción:** «Otro lado» (hacia delante o hacia atrás) y Mayús + rueda a lo largo del músculo. *(El arrastre del separador no se hizo: la rueda y los botones cubren el gesto.)*
+- [x] **E5.5 · «Cortar» desde el flujo** (botón de la fila) y el regreso a Separar con la herida marcada.
+- [x] **E5.6 · Pruebas, manual y D-nnn.** El abordaje de dos planos de corrido —separar el tibial anterior, separar el siguiente, cortar el
   de debajo, separar la herida— sin abrir la ficha más que para cortar; el Farabeuf queda en la incisión de un músculo y la línea
   desaparece al abrir; la retracción desplazada se rehace desde los originales.
 
@@ -10430,7 +10469,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | E2 · La pantalla en blanco | hecha en local; sin desplegar | 1 | — | D-194 |
 | E3 · Toda la mesa en la bandeja | hecha en local; sin desplegar | 1 | — | D-195 |
 | E4 · Barra de modos y «Seleccionar estructura» | hecha en local; sin desplegar | 1 | — | D-196 |
-| E5 · Abordaje por planos de corrido | pendiente | 2 | E4 | — |
+| E5 · Abordaje por planos de corrido | hecha en local; sin desplegar | 2 | E4 | D-197 |
 | E6 · La placa: una sola, ejes anatómicos, números | pendiente | 2 | E2, E4 | — |
 | E7 · Menú de movimiento y reducción automática | pendiente | 2 | E6 | — |
 | E8 · El instrumento se queda en el orificio | pendiente | 2 | E2, E6, E7 | — |

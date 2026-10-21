@@ -900,6 +900,16 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   sistema, dice que no las separa; en el editor del caso aparece entonces **«Volver a exportar
   con estructuras separadas»**, que crea un modelo nuevo desde la misma preparación (el actual no
   se borra) y rehace las piezas del caso.
+- **Abordaje por planos de corrido (separar con un clic).** Con un separador en la mano y el modo
+  **Separar**, **un clic en un músculo lo retrae de una vez**, sin abrir la ficha ni elegir el plano: la rueda lo abre
+  o lo cierra, y **otro clic en otro músculo lo separa también** sin soltar el anterior (pincho, ruedita, pincho otra
+  estructura, ruedita). El plano lo decide el clic: sobre el **labio de una herida** pone el separador en el plano que se
+  ve (piel o músculo, con preferencia por lo que está bajo el cursor); lejos de todo labio y sobre un músculo, lo retrae.
+  El selector del panel («Automático», «Piel», «Músculo») sigue ahí por si se quiere forzar el plano. Debajo, la lista
+  **«Estructuras separadas»** trae una fila por músculo: un clic en el nombre lo hace el que atiende la rueda, **«Otro
+  lado»** lo aparta hacia delante o hacia atrás, **«Cortar»** pone el instrumento de corte en la mano y deja el músculo
+  como objetivo del corte (la incisión queda marcada con su cinta, y al abrirla con el Farabeuf la línea se borra, como
+  en la piel) y la X lo devuelve a su sitio. **Mayúsculas + rueda** corre la zona retraída a lo largo del músculo.
 - **Cortar o separar un músculo concreto.** En la ficha de un **músculo** (modo Seleccionar estructura) hay dos
   botones. **Cortar** ofrece los instrumentos de la bandeja que cortan músculo (tijera de
   Metzenbaum, bisturí profundo, electrobisturí): con uno en la mano, la incisión corta **solo ese
