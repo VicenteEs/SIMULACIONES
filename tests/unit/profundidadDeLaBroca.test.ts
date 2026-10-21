@@ -125,7 +125,7 @@ describe('el cableado', () => {
   it('cambiar de modo o de instrumento la retira, y el botón derecho también', () => {
     expect(lienzo).toContain("if (modo !== 'perforar') taller.current.retirarLaBroca?.()")
     expect(lienzo).toContain('return () => taller_.current.retirarLaBroca?.()')
-    expect(lienzo).toContain("render.domElement.addEventListener('contextmenu', alClicDerecho)")
+    expect(lienzo).toContain("superficie.addEventListener('contextmenu', alClicDerecho)")
   })
 
   it('la consola ofrece «Apagar la broca» y «Retirar», y la rueda mete y saca', () => {

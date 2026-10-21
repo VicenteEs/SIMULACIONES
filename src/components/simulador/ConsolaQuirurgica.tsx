@@ -745,6 +745,8 @@ export function ConsolaQuirurgica({
       // Si el navegador no devuelve el contexto en 30 s, el lienzo se vuelve a montar solo, sin esperar un clic (pedido del dueño: más
       // margen contra el blanco). Un lienzo nuevo empieza vivo, así que esto no se repite hasta una pérdida nueva.
       const remontar = window.setTimeout(() => {
+        // Lo primero es cambiar solo el renderizador, que conserva toda la escena; montar de nuevo el lienzo la vacía y es el último recurso.
+        if (mando.current?.recrearElRenderizador()) return
         setClaveDelLienzo((c) => c + 1)
         setEstadoDelContexto(CONTEXTO_VIVO)
         // El lienzo nuevo empieza sin lo que el anterior tenía puesto: lo que la consola recordaba de la escena (agujas, periostio, enclavado) ya no existe.
@@ -4722,6 +4724,7 @@ instrumentoElegido ? (
                   type="button"
                   className="consola-boton"
                   onClick={() => {
+                    if (mando.current?.recrearElRenderizador()) return
                     setClaveDelLienzo((c) => c + 1)
                     setEstadoDelContexto(CONTEXTO_VIVO)
                     setAlambresPuestos(null)

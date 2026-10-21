@@ -6876,6 +6876,26 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que no hace todavía:** obtener el injerto de la cresta ilíaca (no hay un sitio donante ni su morbilidad); el esponjoso no se compacta con un impactador; el bloque no se talla a medida ni se fija con tornillos de verdad; no se distingue
   autoinjerto de aloinjerto; los trozos no caen por gravedad: quedan donde se depositan.
 
+### D-215 · 2026-10-21 · vigente
+**Perder el contexto gráfico ya no cuesta nada de lo hecho: se cambia solo el renderizador y se conserva la escena; y la reducción automática reconoce las piezas aunque el modelo las nombre distinto.**
+- **Qué pidió el dueño:** «no quiero perder nada en el simulador, que todo se mantenga a no ser que yo lo saque, porque se va a blanco; es como si se saturara». Hasta ahora, si el navegador no devolvía el contexto gráfico,
+  la consola **montaba de nuevo todo el lienzo** a los 30 s y la escena empezaba vacía: placa, tornillos, clavo, injertos, periostio… (lo que Cristóbal perdió dos veces en pleno atornillado). Esto reemplaza ese remedio (D-206 y
+  P-004 E2 lo dejan como último recurso).
+- **Cómo funciona:** el renderizador es lo único que se pierde con el contexto; el modelo, el instrumental y todo lo puesto son objetos de three.js en la memoria normal. A los 4 s de perderse el contexto (`ESPERA_ANTES_DE_REEMPLAZAR_EL_RENDERIZADOR_MS`),
+  el lienzo crea **otro renderizador, con menos detalle** (`calidadDelDibujo`), lo cuelga de la misma escena y de la misma cámara, reconecta los controles, rehace el estudio de reflejos de los instrumentos (era una textura de la tarjeta de antes)
+  y reasigna ese reflejo a los materiales que lo llevaban, y sigue dibujando. Para poder cambiar el lienzo, **los manejadores de puntero cuelgan de una superficie estable** (`superficie`) y no del `<canvas>` (50 oyentes movidos);
+  solo los dos del contexto van en el lienzo. El botón «Recuperar la vista» y el remonte automático de la consola **primero intentan esto** y solo montan de nuevo el lienzo si el navegador no da otro contexto.
+- **Las pérdidas se recuerdan entre visitas** (`localStorage`, tope de 3): una tarjeta que ya falló parte pidiendo menos en la visita siguiente, en vez de tropezar de nuevo con lo mismo a media cirugía.
+- **Probado en el navegador** con `WEBGL_lose_context`: con 6 cc de injerto puestos, el contexto se pierde a propósito; a los 4 s sale «La imagen volvió», el lienzo es otro, el injerto sigue (6 cc), un clic nuevo suma otros 2 cc y la
+  reducción automática mueve el fragmento con el renderizador nuevo.
+- **La reducción automática:** el caso nombra cada pieza y el lienzo la busca por nombre exacto; si el modelo se vuelve a exportar, o el cargador de glTF sanea el nombre («Tibia derecha.001» llega como «Tibia_derecha001»), el
+  fragmento no aparecía y decía «no hay nada que reducir». Ahora, al cargar, `emparejarNodos` (`src/lib/emparejarNodos.ts`, 11 pruebas) pone a los nodos del modelo el nombre del caso cuando coincide sin mayúsculas, tildes ni
+  separadores o sin el sufijo numérico, y **si el caso no marcó ningún fragmento, se usa el nodo «…_fragmento_distal»** que deja el atlas. El **mensaje se mantiene** para lo que sigue siendo imposible y distingue si falta marcar la
+  pieza o si la marcada ya no está en el modelo.
+- **Lo que sigue sin guardarse** si la pestaña se cae o se recarga de verdad (no solo se pierde el contexto): lo puesto en el hueso. La sesión guardada (`sessionStorage`) conserva cortes, suturas, separadores, pinzas y retracciones,
+  pero **no placa, tornillos, clavo, injertos, periostio ni agujas**. Es lo que haría falta guardar para que ni un cuelgue del navegador pierda nada, y no se hizo todavía. Tampoco se resolvió un cuelgue por memoria
+  (el «se pegó» de Cristóbal) que no sea pérdida de contexto.
+
 ### D-214 · 2026-10-21 · vigente
 **Los tornillos comparten la geometría de su modelo, y la reducción automática dice por qué no hay fragmento.**
 - **Lo que contó Cristóbal** (21/10, haciendo una cirugía completa): «me botó» dos veces en pleno atornillado y se perdió lo hecho en la escena; y la reducción automática le dijo que no había fragmentos que reducir. Lo primero

@@ -149,6 +149,7 @@ import {
 } from '@/lib/sutura'
 import {
   CONTEXTO_VIVO,
+  ESPERA_ANTES_DE_REEMPLAZAR_EL_RENDERIZADOR_MS,
   alPerderse,
   alRestaurarse,
   calidadDelDibujo,
@@ -162,7 +163,27 @@ import {
  * volver a montar el lienzo (a mano o solo) lo crea de nuevo, y es justo entonces cuando hay que saber que la tarjeta va justa para pedirle
  * menos (`calidadDelDibujo`).
  */
-let perdidasDeContexto = 0
+const CLAVE_DE_LAS_PERDIDAS = 'traumahub:perdidas-de-contexto'
+/**
+ * Se recuerda entre visitas, en este equipo: una tarjeta que ya perdió el contexto lo volverá a perder con la misma carga, y recargar la página no la hace más holgada. Así el
+ * lienzo de la próxima vez parte pidiéndole menos, en vez de volver a tropezar con lo mismo a media cirugía. Tope de 3: más no baja nada.
+ */
+function perdidasGuardadas(): number {
+  try {
+    const n = Number(window.localStorage.getItem(CLAVE_DE_LAS_PERDIDAS))
+    return Number.isFinite(n) && n > 0 ? Math.min(3, Math.floor(n)) : 0
+  } catch {
+    return 0
+  }
+}
+function guardarLasPerdidas(n: number) {
+  try {
+    window.localStorage.setItem(CLAVE_DE_LAS_PERDIDAS, String(Math.min(3, n)))
+  } catch {
+    // sin almacenamiento: vale lo de esta visita
+  }
+}
+let perdidasDeContexto = typeof window === 'undefined' ? 0 : perdidasGuardadas()
 import {
   aplicarElContorno,
   crearMesa,
@@ -187,6 +208,7 @@ import {
 } from './periostioEnLaEscena'
 import { agujerosSobrePeriostio, juicioDeLaExposicion } from '@/lib/periostio'
 import { LARGO_DEL_ALAMBRE_MM, MAXIMO_DE_ALAMBRES, juzgarElAlambre, resumenDeLosAlambres, type EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
+import { emparejarNodos, normalizarNombreDeNodo } from '@/lib/emparejarNodos'
 import { destornilladorDelNombre, juzgarElApriete, juzgarLaPunteria, posicionDelOrificioMm, type OrificioDelClavo } from '@/lib/bloqueoDelClavo'
 import { CERCA_DEL_FOCO_MM, VOLUMEN_POR_PUNADO_CC, juzgarElInjerto, largoDeBloqueParaElDefecto, type InjertoPuesto, type TipoDeInjerto } from '@/lib/injertoOseo'
 import { colocarBloque, crearInjerto, depositarPunado, quitarInjerto, type InjertoEnLaEscena } from './injertoEnLaEscena'
@@ -554,6 +576,8 @@ export interface MandoDelLienzo {
   retirarLaGuiaDelEnclavado: () => void
   /** Quita todo el injerto puesto: los trozos esponjosos y el bloque (P-005 E7). */
   quitarElInjerto: () => void
+  /** Pone otro renderizador conservando toda la escena (se usa cuando el navegador no devuelve el contexto gráfico). `false` si no se pudo. */
+  recrearElRenderizador: () => boolean
   /** Retira el clavo del canal, que queda fresado y con su guía lisa (P-005 E5). */
   retirarElClavo: () => void
   /** Lo que hay fijado ahora mismo, o `null` si no hay placa. */
@@ -1022,6 +1046,8 @@ export function LienzoQuirurgico({
     limitadorNm?: number | null
     /** Los injertos óseos puestos (P-005 E7). */
     injerto?: InjertoEnLaEscena
+    /** Cambia el renderizador conservando la escena (lo asigna el montaje). */
+    recrearElRenderizador?: () => boolean
     /** El entorno de estudio que reflejan los instrumentos (el acero sin él se ve negro). */
     entorno?: THREE.Texture
     fantasma?: THREE.Object3D
@@ -1787,6 +1813,8 @@ export function LienzoQuirurgico({
       t.pedirDibujo?.()
     },
 
+    recrearElRenderizador: () => taller.current.recrearElRenderizador?.() ?? false,
+
     quitarElInjerto: () => {
       const t = taller.current
       if (!t.injerto) return
@@ -1901,10 +1929,16 @@ export function LienzoQuirurgico({
     // Cuánto detalle pedir: el de siempre, y menos si el navegador ya le quitó el contexto a esta página (`calidadDelDibujo`). Con
     // `high-performance` se prefiere la tarjeta dedicada, que tiene más memoria que la integrada.
     const calidad = calidadDelDibujo(perdidasDeContexto)
-    const render = new THREE.WebGLRenderer({ antialias: calidad.suavizado, alpha: true, powerPreference: 'high-performance' })
+    // El renderizador es lo único que se pierde con el contexto gráfico; la escena y todo lo puesto en ella viven en la memoria normal. Por eso es una variable:
+    // si el navegador no devuelve el contexto, `reemplazarElRenderizador` pone otro y sigue con la misma escena, sin perder nada de lo hecho.
+    let render = new THREE.WebGLRenderer({ antialias: calidad.suavizado, alpha: true, powerPreference: 'high-performance' })
     render.setPixelRatio(razonDePixeles(devicePixelRatio, contenedor.clientWidth, contenedor.clientHeight, calidad.razonMaxima))
     render.setSize(contenedor.clientWidth, contenedor.clientHeight)
-    contenedor.appendChild(render.domElement)
+    // Los manejadores de puntero cuelgan de esta superficie y no del lienzo, que cambia si hay que reemplazar el renderizador.
+    const superficie = document.createElement('div')
+    superficie.style.cssText = 'position:absolute;inset:0'
+    contenedor.appendChild(superficie)
+    superficie.appendChild(render.domElement)
 
     const escena = new THREE.Scene()
     const camara = new THREE.PerspectiveCamera(
@@ -1947,10 +1981,19 @@ export function LienzoQuirurgico({
       estadoDelContexto = nuevo
       ultimas.current.alCambiarElContexto?.(nuevo)
     }
+    // Se asigna más abajo, cuando existen el bucle y lo que depende del renderizador.
+    let reemplazarElRenderizador: () => boolean = () => false
+    let relojDelReemplazo = 0
     const alPerderElContexto = (evento: Event) => {
       evento.preventDefault()
       perdidasDeContexto += 1
+      guardarLasPerdidas(perdidasDeContexto)
       decirElContexto(alPerderse(estadoDelContexto, performance.now()))
+      // Unos segundos para que el navegador lo devuelva solo; si no, otro renderizador con la misma escena: lo hecho no se pierde.
+      window.clearTimeout(relojDelReemplazo)
+      relojDelReemplazo = window.setTimeout(() => {
+        if (vivo && estadoDelContexto.fase === 'perdido') reemplazarElRenderizador()
+      }, ESPERA_ANTES_DE_REEMPLAZAR_EL_RENDERIZADOR_MS)
     }
     const alRecuperarElContexto = () => {
       decirElContexto(alRestaurarse(estadoDelContexto, performance.now()))
@@ -1958,12 +2001,15 @@ export function LienzoQuirurgico({
       reiniciarLaFluoroscopia(taller.current.fluoroscopia)
       sucio = true
     }
-    render.domElement.addEventListener('webglcontextlost', alPerderElContexto)
-    render.domElement.addEventListener('webglcontextrestored', alRecuperarElContexto)
+    const escucharElContexto = (lienzoNuevo: HTMLCanvasElement) => {
+      lienzoNuevo.addEventListener('webglcontextlost', alPerderElContexto)
+      lienzoNuevo.addEventListener('webglcontextrestored', alRecuperarElContexto)
+    }
+    escucharElContexto(render.domElement)
 
     // Un estudio que reflejar, solo para los instrumentos (ver `aplicarEntorno`).
-    const pmrem = new THREE.PMREMGenerator(render)
-    const entorno = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    let pmrem = new THREE.PMREMGenerator(render)
+    let entorno = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
 
     taller.current = {
       ...taller.current,
@@ -2106,6 +2152,8 @@ export function LienzoQuirurgico({
 
         escena.add(raiz)
         taller.current.raiz = raiz
+        // Antes de buscar nada por nombre: si el modelo se exportó de nuevo o el cargador saneó los nombres, las piezas del caso se reconocen igual.
+        renombrarSegunElCaso(raiz, ultimas.current.piezas)
         taller.current.fragmento = buscarFragmento(raiz, ultimas.current.piezas)
         const f = taller.current.fragmento
         taller.current.origenDelFragmento = f
@@ -3817,9 +3865,9 @@ export function LienzoQuirurgico({
       avisarLaMesa()
       pedirDibujo()
     }
-    render.domElement.addEventListener('pointerdown', alBajarEnLaMesa)
-    render.domElement.addEventListener('pointermove', alMoverEnLaMesa)
-    render.domElement.addEventListener('pointerup', alSoltarEnLaMesa)
+    superficie.addEventListener('pointerdown', alBajarEnLaMesa)
+    superficie.addEventListener('pointermove', alMoverEnLaMesa)
+    superficie.addEventListener('pointerup', alSoltarEnLaMesa)
 
     // --- despegar el periostio (P-005 E2) ---------------------------------------------------------------
     // Con el Freer o un periostótomo en la mano, mantener pulsado y arrastrar sobre el hueso deja una franja expuesta del ancho de la hoja.
@@ -3867,9 +3915,9 @@ export function LienzoQuirurgico({
       if (taller.current.periostio) terminarLaPasada(taller.current.periostio)
       avisarElPeriostio()
     }
-    render.domElement.addEventListener('pointerdown', alBajarParaElevar)
-    render.domElement.addEventListener('pointermove', alMoverParaElevar)
-    render.domElement.addEventListener('pointerup', alSoltarParaElevar)
+    superficie.addEventListener('pointerdown', alBajarParaElevar)
+    superficie.addEventListener('pointermove', alMoverParaElevar)
+    superficie.addEventListener('pointerup', alSoltarParaElevar)
 
     // --- enclavado endomedular (P-005 E4) ----------------------------------------------------------------
     // Cada herramienta hace su paso: el punzón marca la entrada con un clic, la guía de punta de oliva y la fresa se empujan **manteniendo pulsado**, el
@@ -4162,9 +4210,9 @@ export function LienzoQuirurgico({
       }
       detenerElEnclavado(false)
     }
-    render.domElement.addEventListener('pointerdown', alBajarParaEnclavar)
-    render.domElement.addEventListener('pointerup', alSoltarParaEnclavar)
-    render.domElement.addEventListener('pointercancel', alSoltarParaEnclavar)
+    superficie.addEventListener('pointerdown', alBajarParaEnclavar)
+    superficie.addEventListener('pointerup', alSoltarParaEnclavar)
+    superficie.addEventListener('pointercancel', alSoltarParaEnclavar)
 
     const alBajar = (evento: PointerEvent) => {
       const { modo: modoActual } = ultimas.current
@@ -5604,7 +5652,7 @@ export function LienzoQuirurgico({
       }
       u.alRueda(evento.deltaY, false)
     }
-    render.domElement.addEventListener('wheel', alGirarLaRueda, { passive: false })
+    superficie.addEventListener('wheel', alGirarLaRueda, { passive: false })
 
     // --- el giro libre ---------------------------------------------------------------------------------
     // `OrbitControls` orbita con el «arriba» fijo, y por eso el miembro no se podía acostar. Con el giro libre
@@ -5643,16 +5691,16 @@ export function LienzoQuirurgico({
         // ya estaba suelto
       }
     }
-    render.domElement.addEventListener('pointerdown', alBajarParaGirar)
-    render.domElement.addEventListener('pointermove', alMoverParaGirar)
-    render.domElement.addEventListener('pointerup', alSoltarParaGirar)
-    render.domElement.addEventListener('pointercancel', alSoltarParaGirar)
+    superficie.addEventListener('pointerdown', alBajarParaGirar)
+    superficie.addEventListener('pointermove', alMoverParaGirar)
+    superficie.addEventListener('pointerup', alSoltarParaGirar)
+    superficie.addEventListener('pointercancel', alSoltarParaGirar)
 
-    render.domElement.addEventListener('pointerdown', alBajar)
-    render.domElement.addEventListener('pointerdown', alBajarParaCoser)
-    render.domElement.addEventListener('pointerup', alSubirParaCoser)
-    render.domElement.addEventListener('pointerup', alSubirParaSeparar)
-    render.domElement.addEventListener('pointerup', alSubirParaDisecar)
+    superficie.addEventListener('pointerdown', alBajar)
+    superficie.addEventListener('pointerdown', alBajarParaCoser)
+    superficie.addEventListener('pointerup', alSubirParaCoser)
+    superficie.addEventListener('pointerup', alSubirParaSeparar)
+    superficie.addEventListener('pointerup', alSubirParaDisecar)
     const alSubirParaSoltarElTrozo = (evento: PointerEvent) => {
       const clic = clicEnElVacio
       clicEnElVacio = null
@@ -5662,7 +5710,7 @@ export function LienzoQuirurgico({
         pedirDibujo()
       }
     }
-    render.domElement.addEventListener('pointerup', alSubirParaSoltarElTrozo)
+    superficie.addEventListener('pointerup', alSubirParaSoltarElTrozo)
     // Esc deshace una línea recta que se empezó y no se terminó.
     const alTeclear = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && taller.current.inicioDeLaRecta) {
@@ -5675,17 +5723,17 @@ export function LienzoQuirurgico({
       }
     }
     window.addEventListener('keydown', alTeclear)
-    render.domElement.addEventListener('pointermove', alMover)
-    render.domElement.addEventListener('pointerup', alSubir)
-    render.domElement.addEventListener('pointerleave', alSubir)
-    render.domElement.addEventListener('pointerleave', esconderHerramienta)
+    superficie.addEventListener('pointermove', alMover)
+    superficie.addEventListener('pointerup', alSubir)
+    superficie.addEventListener('pointerleave', alSubir)
+    superficie.addEventListener('pointerleave', esconderHerramienta)
     // El botón derecho retira la broca puesta (P-004 E8): es el gesto de sacarla, junto a «Retirar» y Esc.
     const alClicDerecho = (evento: MouseEvent) => {
       if (!perforando) return
       evento.preventDefault()
       terminarPerforacion()
     }
-    render.domElement.addEventListener('contextmenu', alClicDerecho)
+    superficie.addEventListener('contextmenu', alClicDerecho)
 
     const observador = new ResizeObserver(() => {
       if (!contenedor.clientWidth) return
@@ -5712,7 +5760,7 @@ export function LienzoQuirurgico({
         }
       }
     }
-    render.setAnimationLoop(() => {
+    const bucle = () => {
       const ahora = performance.now()
       if (perforando && perforando.avanzando && perforando.encendida) {
         // Con la config de la broca al engancharla, no la del instrumento que se lleve ahora (P-004 E8).
@@ -5751,36 +5799,104 @@ export function LienzoQuirurgico({
         render.render(escena, camara)
         taller.current.cuadro = (taller.current.cuadro ?? 0) + 1
       })
-    })
+    }
+    render.setAnimationLoop(bucle)
+
+    /**
+     * Cambia el renderizador por otro **conservando la escena**: el modelo, el instrumental, la placa, los tornillos, el clavo, los injertos, las heridas y la cámara siguen
+     * donde estaban, porque son objetos de three.js en la memoria normal y no del contexto gráfico que se perdió. Solo se rehace lo que sí era de la tarjeta: el renderizador
+     * (con menos detalle, por si la causa era la memoria), el estudio que reflejan los instrumentos y lo de la fluoroscopia. Devuelve `false` si el navegador no da otro contexto.
+     */
+    reemplazarElRenderizador = () => {
+      if (!vivo) return false
+      window.clearTimeout(relojDelReemplazo)
+      const viejo = render
+      const lienzoViejo = viejo.domElement
+      let nuevo: THREE.WebGLRenderer
+      try {
+        const calidadNueva = calidadDelDibujo(perdidasDeContexto)
+        nuevo = new THREE.WebGLRenderer({ antialias: calidadNueva.suavizado, alpha: true, powerPreference: 'high-performance' })
+        if (nuevo.getContext().isContextLost()) {
+          nuevo.dispose()
+          return false
+        }
+        nuevo.setPixelRatio(razonDePixeles(devicePixelRatio, contenedor.clientWidth, contenedor.clientHeight, calidadNueva.razonMaxima))
+        nuevo.setSize(contenedor.clientWidth, contenedor.clientHeight)
+      } catch (error) {
+        console.error('[simulador] no se pudo crear otro renderizador:', error)
+        return false
+      }
+      viejo.setAnimationLoop(null)
+      lienzoViejo.removeEventListener('webglcontextlost', alPerderElContexto)
+      lienzoViejo.removeEventListener('webglcontextrestored', alRecuperarElContexto)
+      nuevo.domElement.style.cursor = lienzoViejo.style.cursor
+      superficie.appendChild(nuevo.domElement)
+      lienzoViejo.remove()
+      render = nuevo
+      taller.current.render = nuevo
+      // Los controles se vuelven a conectar al lienzo nuevo, con la cámara y el punto de mira donde estaban.
+      controles.disconnect()
+      controles.connect(nuevo.domElement)
+      nuevo.domElement.style.touchAction = lienzoViejo.style.touchAction
+      escucharElContexto(nuevo.domElement)
+      // El estudio de reflejos era una textura de la tarjeta de antes: se rehace y se les pone a los materiales que lo llevaban (instrumentos, placa, tornillos).
+      const entornoViejo = entorno
+      pmrem = new THREE.PMREMGenerator(nuevo)
+      entorno = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+      taller.current.entorno = entorno
+      escena.traverse((o) => {
+        const m = o as THREE.Mesh
+        if (!m.isMesh) return
+        for (const material of Array.isArray(m.material) ? m.material : [m.material]) {
+          const conReflejo = material as THREE.MeshStandardMaterial
+          if (conReflejo.envMap === entornoViejo) {
+            conReflejo.envMap = entorno
+            conReflejo.needsUpdate = true
+          }
+        }
+      })
+      reiniciarLaFluoroscopia(taller.current.fluoroscopia)
+      try {
+        viejo.dispose()
+      } catch {
+        // el contexto de antes ya no existe: no hay nada que soltar
+      }
+      sucio = true
+      nuevo.setAnimationLoop(bucle)
+      decirElContexto({ fase: 'recuperado', en: performance.now() })
+      return true
+    }
+    taller.current.recrearElRenderizador = () => reemplazarElRenderizador()
 
     return () => {
       vivo = false
+      window.clearTimeout(relojDelReemplazo)
       render.setAnimationLoop(null)
       observador.disconnect()
       controles.removeEventListener('change', pedirDibujo)
       window.clearInterval(reloj)
       guardarSesion()
-      render.domElement.removeEventListener('wheel', alGirarLaRueda)
-      render.domElement.removeEventListener('pointerdown', alBajarParaGirar)
-      render.domElement.removeEventListener('pointermove', alMoverParaGirar)
-      render.domElement.removeEventListener('pointerup', alSoltarParaGirar)
-      render.domElement.removeEventListener('pointercancel', alSoltarParaGirar)
-      render.domElement.removeEventListener('pointerdown', alBajar)
-      render.domElement.removeEventListener('pointerdown', alBajarParaCoser)
-      render.domElement.removeEventListener('pointerup', alSubirParaCoser)
-      render.domElement.removeEventListener('pointerup', alSubirParaSeparar)
-      render.domElement.removeEventListener('pointerup', alSubirParaDisecar)
-      render.domElement.removeEventListener('pointerup', alSubirParaSoltarElTrozo)
+      superficie.removeEventListener('wheel', alGirarLaRueda)
+      superficie.removeEventListener('pointerdown', alBajarParaGirar)
+      superficie.removeEventListener('pointermove', alMoverParaGirar)
+      superficie.removeEventListener('pointerup', alSoltarParaGirar)
+      superficie.removeEventListener('pointercancel', alSoltarParaGirar)
+      superficie.removeEventListener('pointerdown', alBajar)
+      superficie.removeEventListener('pointerdown', alBajarParaCoser)
+      superficie.removeEventListener('pointerup', alSubirParaCoser)
+      superficie.removeEventListener('pointerup', alSubirParaSeparar)
+      superficie.removeEventListener('pointerup', alSubirParaDisecar)
+      superficie.removeEventListener('pointerup', alSubirParaSoltarElTrozo)
       window.removeEventListener('keydown', alTeclear)
       // Antes de `forceContextLoss`, más abajo: perder el contexto a propósito al desmontar no es un fallo que avisar.
       render.domElement.removeEventListener('webglcontextlost', alPerderElContexto)
       render.domElement.removeEventListener('webglcontextrestored', alRecuperarElContexto)
-      render.domElement.removeEventListener('pointerdown', alBajarParaElevar)
-      render.domElement.removeEventListener('pointermove', alMoverParaElevar)
-      render.domElement.removeEventListener('pointerup', alSoltarParaElevar)
-      render.domElement.removeEventListener('pointerdown', alBajarParaEnclavar)
-      render.domElement.removeEventListener('pointerup', alSoltarParaEnclavar)
-      render.domElement.removeEventListener('pointercancel', alSoltarParaEnclavar)
+      superficie.removeEventListener('pointerdown', alBajarParaElevar)
+      superficie.removeEventListener('pointermove', alMoverParaElevar)
+      superficie.removeEventListener('pointerup', alSoltarParaElevar)
+      superficie.removeEventListener('pointerdown', alBajarParaEnclavar)
+      superficie.removeEventListener('pointerup', alSoltarParaEnclavar)
+      superficie.removeEventListener('pointercancel', alSoltarParaEnclavar)
       if (enclavando) window.clearInterval(enclavando.intervalo)
       if (taller.current.injerto) {
         quitarInjerto(taller.current.injerto)
@@ -5800,18 +5916,18 @@ export function LienzoQuirurgico({
         ;(a.malla.material as THREE.Material).dispose()
       }
       taller.current.alambres = []
-      render.domElement.removeEventListener('pointerdown', alBajarEnLaMesa)
-      render.domElement.removeEventListener('pointermove', alMoverEnLaMesa)
-      render.domElement.removeEventListener('pointerup', alSoltarEnLaMesa)
+      superficie.removeEventListener('pointerdown', alBajarEnLaMesa)
+      superficie.removeEventListener('pointermove', alMoverEnLaMesa)
+      superficie.removeEventListener('pointerup', alSoltarEnLaMesa)
       if (taller.current.mesa) {
         soltarLaMesa(taller.current.mesa)
         taller.current.mesa = undefined
       }
-      render.domElement.removeEventListener('pointermove', alMover)
-      render.domElement.removeEventListener('pointerup', alSubir)
-      render.domElement.removeEventListener('pointerleave', alSubir)
-      render.domElement.removeEventListener('pointerleave', esconderHerramienta)
-      render.domElement.removeEventListener('contextmenu', alClicDerecho)
+      superficie.removeEventListener('pointermove', alMover)
+      superficie.removeEventListener('pointerup', alSubir)
+      superficie.removeEventListener('pointerleave', alSubir)
+      superficie.removeEventListener('pointerleave', esconderHerramienta)
+      superficie.removeEventListener('contextmenu', alClicDerecho)
       controles.dispose()
       // El decodificador Draco es lo único que se crea aquí y no cuelga de la
       // escena, así que `liberar` no lo alcanza: cada instancia levanta su
@@ -5848,6 +5964,7 @@ export function LienzoQuirurgico({
       render.forceContextLoss()
       render.dispose()
       render.domElement.remove()
+      superficie.remove()
       taller.current = {
         puntosDelTrazo: [],
         materialesOriginales: new Map(),
@@ -6122,6 +6239,8 @@ export type Taller = {
   limitadorNm?: number | null
   /** Los injertos óseos puestos (P-005 E7). */
   injerto?: InjertoEnLaEscena
+  /** Cambia el renderizador conservando la escena (lo asigna el montaje). */
+  recrearElRenderizador?: () => boolean
   /** La silueta del fragmento en su sitio correcto (ayuda de los rayos X). */
   fantasma?: THREE.Object3D
   /** Los dos ejes de la guía de angulación (ayuda de los rayos X). */
@@ -6464,10 +6583,41 @@ export function aplicarVisibilidad(raiz: THREE.Object3D, visibles: string[] | nu
 }
 
 /** El nodo declarado como fragmento móvil, si el archivo lo trae. */
+/**
+ * Pone a los nodos del modelo el nombre que el caso les da, cuando el modelo los trae con otro parecido (ver `src/lib/emparejarNodos.ts`). Se hace una sola vez al cargar y así
+ * todo lo que busca por nombre exacto —los roles, las capas, **el fragmento que se reduce**— sigue funcionando sin tocarlo. Sin esto, un modelo exportado de nuevo dejaba el caso sin
+ * fragmento y la reducción automática decía que no había nada que reducir.
+ */
+function renombrarSegunElCaso(raiz: THREE.Object3D, piezas: PiezaDelCaso[]) {
+  const mallas = new Map<string, THREE.Object3D>()
+  const otros = new Map<string, THREE.Object3D>()
+  raiz.traverse((o) => {
+    if (!o.name) return
+    const destino = (o as THREE.Mesh).isMesh ? mallas : otros
+    if (!destino.has(o.name)) destino.set(o.name, o)
+  })
+  const nombresDelModelo = [...new Set([...mallas.keys(), ...otros.keys()])]
+  const pares = emparejarNodos(nombresDelModelo, piezas.map((p) => p.nodo))
+  for (const [delCaso, delModelo] of pares) {
+    // La malla antes que el grupo que se llame igual: los roles se aplican a mallas.
+    const nodo = mallas.get(delModelo) ?? otros.get(delModelo)
+    if (nodo) nodo.name = delCaso
+  }
+  if (pares.size > 0) console.info(`[simulador] ${pares.size} pieza(s) del caso se reconocieron con otro nombre en el modelo:`, Object.fromEntries(pares))
+}
+
 function buscarFragmento(raiz: THREE.Object3D, piezas: PiezaDelCaso[]): THREE.Object3D | undefined {
   const nombre = piezas.find((p) => p.rol === 'fragmento')?.nodo
-  if (!nombre) return undefined
-  const fragmento = raiz.getObjectByName(nombre) ?? undefined
+  // Sin pieza marcada, el modelo exportado del atlas ya dice cuál es el trozo que se mueve: el distal («..._fragmento_distal», el que se tracciona). Se usa ese antes que dejar
+  // el caso sin nada que reducir; marcar la pieza en el Taller sigue siendo lo correcto y tiene prioridad.
+  let porConvencion: THREE.Object3D | undefined
+  if (!nombre) {
+    raiz.traverse((o) => {
+      if (!porConvencion && (o as THREE.Mesh).isMesh && /fragmento_distal/.test(normalizarNombreDeNodo(o.name))) porConvencion = o
+    })
+  }
+  if (!nombre && !porConvencion) return undefined
+  const fragmento = (nombre ? raiz.getObjectByName(nombre) : porConvencion) ?? undefined
   if (fragmento) pivoteEnSuCentro(fragmento)
   return fragmento
 }

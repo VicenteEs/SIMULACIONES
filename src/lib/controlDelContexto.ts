@@ -28,6 +28,13 @@ export const ESPERA_ANTES_DE_OFRECER_MS = 12000
  */
 export const ESPERA_PARA_REMONTAR_SOLO_MS = 30000
 
+/**
+ * Cuánto se espera a que el navegador devuelva solo el contexto antes de **cambiar el renderizador** (pero no la escena). Es el remedio que no pierde nada: el modelo,
+ * el instrumental y todo lo puesto en el hueso viven en la memoria normal y siguen donde estaban; solo se rehace lo que era de la tarjeta gráfica. Montar de nuevo todo
+ * el lienzo, que vacía la escena, queda como último recurso si el navegador no da otro contexto.
+ */
+export const ESPERA_ANTES_DE_REEMPLAZAR_EL_RENDERIZADOR_MS = 4000
+
 /** Cuántos milisegundos faltan para volver a montar el lienzo sin que nadie lo pida; `null` si el contexto no está perdido. */
 export function cuantoFaltaParaRemontarse(estado: EstadoDelContexto, ahora: number): number | null {
   return estado.fase === 'perdido' ? Math.max(0, ESPERA_PARA_REMONTAR_SOLO_MS - (ahora - estado.desde)) : null
