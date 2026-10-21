@@ -24,6 +24,9 @@ import { deformarLasMallas, guardarOriginales, mapaEnElMarcoDelGrupo } from './d
 export interface PlacaColocada {
   grupo: THREE.Group
   nombre: string
+  /** La dirección del modelo 3D de la placa y los orificios que escribió el editor: con ellos se vuelve a colocar la misma placa al recargar la página. */
+  url?: string
+  orificiosEscritos?: number | null
   /** Los agujeros, en milímetros y en el marco de Blender: (ancho, largo). */
   agujerosMm: [number, number][]
   /**
@@ -74,6 +77,8 @@ export interface PlacaColocada {
 export interface TornilloEnEscena {
   grupo: THREE.Group
   datos: TornilloPuesto
+  /** La dirección del modelo 3D del tornillo: con ella se vuelve a poner al recargar la página. */
+  url?: string
 }
 
 export interface ImplantesEnEscena {
@@ -175,6 +180,8 @@ export function colocarPlaca(p: {
   implantes: ImplantesEnEscena
   /** La placa doblada en la mesa de modelado: se apoya con su forma (P-005 E1). */
   contorno?: ContornoDeLaPlaca
+  /** La dirección de su modelo 3D, para guardarla con la sesión. */
+  url?: string
 }): PlacaColocada | null {
   const orificios = orificiosValidos(p.orificios)
   // Sin agujeros en el modelo y sin una cantidad escrita no hay dónde atornillar: es mejor decirlo que dejar una placa
@@ -247,6 +254,8 @@ export function colocarPlaca(p: {
     yMinimoLocal: caja.min.y / escalaLocal,
     yMaximoLocal: caja.max.y / escalaLocal,
     largoMm: tamano.z / unidadesPorMm,
+    url: p.url,
+    orificiosEscritos: orificios,
     anclaje: { punto: p.punto.clone(), normal: p.normal.clone().normalize(), ejeDelHueso: p.ejeDelHueso.clone().normalize() },
     ajuste: { largoMm: 0, ladoMm: 0, giroGrados: 0 },
     desdeElOrigen: desdeElOrigen.clone().applyQuaternion(q.clone().invert()),
@@ -430,6 +439,8 @@ export function colocarTornillo(p: {
   bloqueado: boolean
   huesos: THREE.Object3D[]
   implantes: ImplantesEnEscena
+  /** La dirección del modelo 3D del tornillo, para guardarla con la sesión. */
+  url?: string
 }): TornilloPuesto | null {
   const medida = medirBajoElAgujero(p.placa, p.agujero, p.huesos)
   if (!medida) return null
@@ -468,7 +479,7 @@ export function colocarTornillo(p: {
     bloqueado: p.bloqueado,
     aviso: juicio.aviso,
   }
-  p.implantes.tornillos.set(p.agujero, { grupo, datos })
+  p.implantes.tornillos.set(p.agujero, { grupo, datos, url: p.url })
   return datos
 }
 
@@ -492,6 +503,8 @@ export function colocarTornilloEnLinea(p: {
   milimetrosPorUnidad: number
   huesos: THREE.Object3D[]
   implantes: ImplantesEnEscena
+  /** La dirección del modelo 3D del tornillo, para guardarla con la sesión. */
+  url?: string
 }): TornilloPuesto | null {
   const medida = medirAlLoLargoDeUnaLinea(p.entrada, p.haciaDentro, p.milimetrosPorUnidad, p.huesos)
   if (!medida) return null
@@ -527,7 +540,7 @@ export function colocarTornilloEnLinea(p: {
     bloqueado: p.bloqueado,
     aviso: juicio.aviso,
   }
-  p.implantes.tornillos.set(p.id, { grupo, datos })
+  p.implantes.tornillos.set(p.id, { grupo, datos, url: p.url })
   return datos
 }
 

@@ -964,6 +964,9 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   **de 0,5 en 0,5 mm** hasta quedar 1 a 1,5 mm sobre el calibre del clavo de la bandeja; (4) el **tubo de intercambio**, con un clic, cambia la guía de punta de oliva por la lisa. El recuadro
   lista cada paso («✓ Guía: hasta el extremo distal») y dice qué falta antes del clavo; «Retirar la guía» y «Quitar el enclavado» deshacen. El canal fresado se ve como un tubo ámbar a través
   del hueso y no sale en la fluoroscopia; la guía sí. Reglas en `src/lib/enclavado.ts`. El clavo mismo y su inserción son la etapa siguiente.
+- **Si la imagen se va a blanco o se recarga la página, no se pierde nada.** Si el navegador le quita la tarjeta gráfica al simulador, a los pocos segundos aparece «La imagen volvió» y **todo sigue donde estaba**: la
+  placa, los tornillos, el clavo, los injertos, el periostio, las agujas y la reducción. Si se **recarga la página** (o la pestaña se cae y se vuelve a abrir en la misma ventana), lo puesto en el paciente **vuelve solo** y
+  el simulador avisa «Se recuperó lo que había puesto en el paciente». Solo se vacía si el residente lo quita o pulsa «Reiniciar caso». Lo que **no** vuelve es la placa que se estaba doblando en la mesa de modelado.
 - **Injertos óseos (esponjoso y tricortical).** Con el **injerto esponjoso** en la mano, **cada clic junto al foco deposita un puñado de trozos (2 cc)**; el recuadro dice el defecto que hay entre los fragmentos (la
   diástasis, con su volumen aproximado en cc) y cuánto se lleva puesto: bien entre el 60 y el 120 %; menos, falta; más, «lo que sobra se sale del foco sin compactarse». El **bloque tricortical de cresta ilíaca** se pone
   con un clic en el hueco entre los fragmentos, con el **largo** que se elige en el recuadro (por omisión, el que corresponde al defecto): debe medir lo mismo que el defecto con 2 mm de tolerancia, y como es

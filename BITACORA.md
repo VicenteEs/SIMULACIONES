@@ -6876,6 +6876,26 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que no hace todavía:** obtener el injerto de la cresta ilíaca (no hay un sitio donante ni su morbilidad); el esponjoso no se compacta con un impactador; el bloque no se talla a medida ni se fija con tornillos de verdad; no se distingue
   autoinjerto de aloinjerto; los trozos no caen por gravedad: quedan donde se depositan.
 
+### D-216 · 2026-10-21 · vigente
+**Todo lo colocado sobre el paciente sobrevive a recargar la página, y cada pérdida del contexto gráfico deja un diagnóstico.**
+- **Qué pidió el dueño:** «quiero que todo sobreviva a la recarga y explícame por qué se cae». D-215 evitó perder la escena cuando solo se pierde el contexto gráfico; esto cubre la recarga o la caída de la pestaña.
+- **Qué se guarda** (`sesionDeLoColocado.ts`, en `sessionStorage` con la clave de la sesión y `:colocado`, cada 600 ms y al desmontar, sin pisarlo mientras se restaura): la **placa** (dónde se apoyó, su ajuste, si está fijada, lo perforado y medido
+  en cada orificio, la forma que se le dio en la mesa), los **tornillos** (de placa, de trayectoria y de bloqueo del clavo, con cómo se apretaron), las **agujas de Kirschner**, los **hoyos de las brocas**, la **trayectoria de dos
+  clics**, el **periostio despegado**, el **enclavado entero** (entrada, guía, fresado, cambio de guía, clavo, arco, bloqueos), los **injertos** (cada trozo y el bloque), la **compresión**, las **desviaciones del orificio oval**, el
+  **limitador de torque**, y **dónde quedó el fragmento reducido y los demás trozos movidos**. Se guardan **transformaciones y medidas, no geometría**; al volver se abre de nuevo el modelo de cada instrumento por su dirección
+  (`url` ahora viaja con la placa y los tornillos) y se le aplica lo guardado. Después la consola se entera de lo que volvió (medidas de la reducción, fijación, enclavado, injertos, periostio, agujas, limitador, trayectoria).
+- **Probado en el navegador:** con una placa fijada, el enclavado completo (guía hasta el fondo, fresado hasta 10 mm, cambio de guía, clavo asentado a 336 mm con arco), un tornillo de bloqueo D1, 4 cc de injerto y la fractura reducida,
+  se recargó la página: volvieron la placa fijada (8 orificios), el tornillo, el clavo a 336 mm, los bloqueos, el fresado, el arco, el injerto y la reducción en cero; «Se recuperó lo que había puesto en el paciente.»
+  Más 9 pruebas del viaje de ida y vuelta en una escena nueva (`sesionDeLoColocado.test.ts`).
+- **Lo que sigue sin guardarse:** la **mesa de modelado** (la placa que se está doblando fuera del hueso) y la imagen de la fluoroscopia; y lo que vive en el servidor (puntaje, complicaciones, el paso en que va) ya se guardaba aparte. Si se
+  llena la cuota de `sessionStorage` (5 MB; lo colocado ronda los 5 KB y con mucho injerto o periostio unos cientos) el guardado falla en silencio y la escena sigue.
+- **Por qué se cae (lo que se sabe y lo que no).** Se distinguen **dos** fallos: (1) **pérdida del contexto gráfico** («se va a blanco»): el navegador le quita la tarjeta a la página; con D-215 ya no pierde nada. Las causas posibles son
+  la memoria de la tarjeta (el dibujo llegaba a 3 veces la densidad de la pantalla, con suavizado, y las capas translúcidas de piel y músculo se dibujan encima unas de otras), una tarjeta **integrada** que comparte la memoria con el sistema
+  —el equipo de desarrollo es una Intel UHD y ya ha perdido el contexto cuatro veces—, un dibujo que tarda tanto que Windows reinicia la tarjeta, o una pestaña que pasa a segundo plano. (2) **El «se pegó» y «me botó»:** una pestaña que se
+  cuelga o la mata el navegador por memoria; **no se pudo reproducir**, y no hay prueba de qué la causa. Para dejar de adivinar, **cada pérdida de contexto guarda ahora una línea de diagnóstico** (`diagnosticoDelLienzo.ts`, en
+  `localStorage`, clave `traumahub:diagnostico-del-lienzo`): tarjeta, tamaño del dibujo, geometrías, texturas, vértices, memoria de JavaScript, lo puesto en el paciente y si la pestaña estaba oculta, con una causa probable. Se lee en la
+  consola del navegador del equipo de Cristóbal tras la próxima caída.
+
 ### D-215 · 2026-10-21 · vigente
 **Perder el contexto gráfico ya no cuesta nada de lo hecho: se cambia solo el renderizador y se conserva la escena; y la reducción automática reconoce las piezas aunque el modelo las nombre distinto.**
 - **Qué pidió el dueño:** «no quiero perder nada en el simulador, que todo se mantenga a no ser que yo lo saque, porque se va a blanco; es como si se saturara». Hasta ahora, si el navegador no devolvía el contexto gráfico,

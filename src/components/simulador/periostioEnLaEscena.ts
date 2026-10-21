@@ -78,6 +78,27 @@ export function sembrarHuella(p: PeriostioEnLaEscena, punto: THREE.Vector3, norm
   return true
 }
 
+/**
+ * Pone de nuevo las huellas guardadas (al recargar la página), tal como estaban y **sin** la regla del espaciado: esa regla decide qué huellas nuevas se aceptan, no cuáles se
+ * conservan.
+ */
+export function reponerHuellas(p: PeriostioEnLaEscena, huellas: Huella[], milimetrosPorUnidad: number) {
+  const unidadesPorMm = 1 / milimetrosPorUnidad
+  p.huellas.length = 0
+  for (const h of huellas.slice(0, MAXIMO_DE_HUELLAS)) {
+    const n = new THREE.Vector3(h.nx, h.ny, h.nz).normalize()
+    const radio = h.radioMm * unidadesPorMm
+    haciaLaNormal.setFromUnitVectors(ejeZ, n)
+    const encima = new THREE.Vector3(h.x, h.y, h.z).multiplyScalar(unidadesPorMm).addScaledVector(n, 0.08 * unidadesPorMm)
+    matriz.compose(encima, haciaLaNormal, new THREE.Vector3(radio, radio, 1))
+    p.malla.setMatrixAt(p.huellas.length, matriz)
+    p.huellas.push({ ...h })
+  }
+  p.malla.count = p.huellas.length
+  p.malla.instanceMatrix.needsUpdate = true
+  p.ultima = null
+}
+
 /** Termina la pasada: la próxima huella no se espacia respecto de la última de esta. */
 export function terminarLaPasada(p: PeriostioEnLaEscena) {
   p.ultima = null

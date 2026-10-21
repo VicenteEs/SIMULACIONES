@@ -209,6 +209,8 @@ import {
 import { agujerosSobrePeriostio, juicioDeLaExposicion } from '@/lib/periostio'
 import { LARGO_DEL_ALAMBRE_MM, MAXIMO_DE_ALAMBRES, juzgarElAlambre, resumenDeLosAlambres, type EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
 import { emparejarNodos, normalizarNombreDeNodo } from '@/lib/emparejarNodos'
+import { restaurarLoColocado, serializarLoColocado } from './sesionDeLoColocado'
+import { causaProbable, guardarDiagnostico, type RegistroDeUnaPerdida } from '@/lib/diagnosticoDelLienzo'
 import { destornilladorDelNombre, juzgarElApriete, juzgarLaPunteria, posicionDelOrificioMm, type OrificioDelClavo } from '@/lib/bloqueoDelClavo'
 import { CERCA_DEL_FOCO_MM, VOLUMEN_POR_PUNADO_CC, juzgarElInjerto, largoDeBloqueParaElDefecto, type InjertoPuesto, type TipoDeInjerto } from '@/lib/injertoOseo'
 import { colocarBloque, crearInjerto, depositarPunado, quitarInjerto, type InjertoEnLaEscena } from './injertoEnLaEscena'
@@ -1981,6 +1983,54 @@ export function LienzoQuirurgico({
       estadoDelContexto = nuevo
       ultimas.current.alCambiarElContexto?.(nuevo)
     }
+    // La tarjeta se lee una vez, con el contexto vivo: perdido, ya no se puede preguntar.
+    const nombreDeLaTarjeta = (() => {
+      try {
+        const gl = render.getContext()
+        const extension = gl.getExtension('WEBGL_debug_renderer_info')
+        return extension ? String(gl.getParameter(extension.UNMASKED_RENDERER_WEBGL)) : 'desconocida'
+      } catch {
+        return 'desconocida'
+      }
+    })()
+    /** Deja constancia de lo que había cuando se perdió el contexto (`diagnosticoDelLienzo.ts`): sin ella, la causa son sospechas. */
+    const anotarLaPerdida = () => {
+      try {
+        let objetos = 0
+        let vertices = 0
+        escena.traverse((o) => {
+          objetos += 1
+          const posicion = (o as THREE.Mesh).isMesh ? (o as THREE.Mesh).geometry.getAttribute('position') : undefined
+          if (posicion) vertices += posicion.count
+        })
+        const memoria = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory
+        const tt = taller.current
+        const registro: RegistroDeUnaPerdida = {
+          cuando: new Date().toISOString(),
+          tarjeta: nombreDeLaTarjeta,
+          pixeles: { ancho: render.domElement.width, alto: render.domElement.height, razon: render.getPixelRatio() },
+          geometrias: render.info.memory.geometries,
+          texturas: render.info.memory.textures,
+          programas: render.info.programs?.length ?? 0,
+          objetos,
+          verticesM: Math.round(vertices / 1e5) / 10,
+          memoriaJsMb: memoria ? Math.round(memoria.usedJSHeapSize / 1048576) : null,
+          carga: {
+            tornillos: tt.implantes?.tornillos.size ?? 0,
+            trozosDeInjerto: tt.injerto?.cuenta ?? 0,
+            huellasDePeriostio: tt.periostio?.huellas.length ?? 0,
+            clavo: !!tt.enclavado?.clavo,
+            placa: !!tt.implantes?.placa,
+          },
+          perdidasEnEsteEquipo: perdidasDeContexto,
+          pestana: document.visibilityState === 'visible' ? 'visible' : 'oculta',
+        }
+        guardarDiagnostico(registro)
+        console.warn('[simulador] se perdió el contexto gráfico:', registro, causaProbable(registro))
+      } catch {
+        // el diagnóstico nunca debe impedir recuperar la vista
+      }
+    }
     // Se asigna más abajo, cuando existen el bucle y lo que depende del renderizador.
     let reemplazarElRenderizador: () => boolean = () => false
     let relojDelReemplazo = 0
@@ -1988,6 +2038,7 @@ export function LienzoQuirurgico({
       evento.preventDefault()
       perdidasDeContexto += 1
       guardarLasPerdidas(perdidasDeContexto)
+      anotarLaPerdida()
       decirElContexto(alPerderse(estadoDelContexto, performance.now()))
       // Unos segundos para que el navegador lo devuelva solo; si no, otro renderizador con la misma escena: lo hecho no se pierde.
       window.clearTimeout(relojDelReemplazo)
@@ -2115,7 +2166,90 @@ export function LienzoQuirurgico({
     }
     // Cada medio segundo se mira si algo cambió; es más barato y más seguro que acordarse de guardar en cada
     // sitio que corta, abre, cose o tira del hilo.
-    const reloj = window.setInterval(guardarSesion, 600)
+    // Lo colocado sobre el hueso (placa, tornillos, clavo, injertos…) se guarda aparte, con la misma clave y el mismo ritmo (`sesionDeLoColocado.ts`). Mientras se restaura no se
+    // guarda: la escena todavía está a medias y lo guardado se pisaría con menos de lo que había.
+    const claveDeLoColocado = () => {
+      const clave = claveActual()
+      return clave ? `${clave}:colocado` : null
+    }
+    let ultimoColocado = ''
+    let restaurandoLoColocado = false
+    const guardarLoColocado = () => {
+      const clave = claveDeLoColocado()
+      if (!clave || restaurandoLoColocado) return
+      let texto = ''
+      try {
+        texto = serializarLoColocado(taller.current)
+      } catch (error) {
+        console.error('[simulador] no se pudo guardar lo colocado:', error)
+        return
+      }
+      if (texto === ultimoColocado) return
+      ultimoColocado = texto
+      try {
+        if (texto) sessionStorage.setItem(clave, texto)
+        else sessionStorage.removeItem(clave)
+      } catch {
+        // Sin almacenamiento o sin cuota: se sigue sin guardar, la escena no se ve afectada.
+      }
+    }
+    const reloj = window.setInterval(() => {
+      guardarSesion()
+      guardarLoColocado()
+    }, 600)
+
+    /** Después de restaurar, la consola se entera de lo que volvió: su panel no sabe nada de lo que pasó antes de recargar. */
+    const avisarLoRestaurado = () => {
+      const tt = taller.current
+      const u = ultimas.current
+      const f = tt.fragmento
+      const origen = tt.origenDelFragmento
+      if (f && origen) {
+        // La consola recalcula desplazamiento, angulación y diástasis con el fragmento donde quedó.
+        u.alMoverFragmento?.(desplazamientoDesde(origen.posicion, f.position), {
+          x: grados(f.rotation.x - origen.rotacion.x),
+          y: grados(f.rotation.y - origen.rotacion.y),
+          z: grados(f.rotation.z - origen.rotacion.z),
+        })
+      }
+      u.alFijar?.(estadoDeLaFijacion(tt))
+      if (tt.alambres && tt.alambres.length > 0) u.alCambiarLosAlambres?.(resumenDeLosAlambres(tt.alambres))
+      if (tt.periostio && tt.periostio.huellas.length > 0) u.alCambiarElPeriostio?.(estadoDelPeriostio(tt.periostio, 0))
+      if (tt.enclavado) u.alCambiarElEnclavado?.(estadoDelEnclavado(tt.enclavado, u.medidasDelFoco ?? null, u.clavoPrevistoMm ?? null))
+      u.alCambiarElInjerto?.(lecturaDelInjerto())
+      u.alCambiarElLimitador?.(tt.limitadorNm ?? null)
+      const tray = tt.trayectoriaDelTornillo
+      if (tray) u.alCambiarLaTrayectoria?.({ fase: 'lista', largoMm: tray.largoMm, anguloConElEje: tray.anguloConElEje })
+      tt.decir?.('Se recuperó lo que había puesto en el paciente.')
+      tt.pedirDibujo?.()
+    }
+    const restaurarLoGuardado = async () => {
+      const clave = claveDeLoColocado()
+      if (!clave) return
+      let texto: string | null = null
+      try {
+        texto = sessionStorage.getItem(clave)
+      } catch {
+        texto = null
+      }
+      if (!texto) return
+      ultimoColocado = texto
+      restaurandoLoColocado = true
+      try {
+        const hubo = await restaurarLoColocado(texto, {
+          t: taller.current,
+          milimetrosPorUnidad: ultimas.current.milimetrosPorUnidad || 1000,
+          ejeLargo: ultimas.current.ejeLargo,
+          huesos: () => mallasDeHueso(),
+          vivo: () => vivo,
+        })
+        if (hubo && vivo) avisarLoRestaurado()
+      } catch (error) {
+        console.error('[simulador] no se pudo restaurar lo colocado:', error)
+      } finally {
+        restaurandoLoColocado = false
+      }
+    }
 
     /**
      * Con los decodificadores de compresión puestos.
@@ -2172,6 +2306,8 @@ export function LienzoQuirurgico({
         // Después de avisar a la consola, que en `alCargar` se pone a cero: lo recuperado de la sesión se avisa
         // a continuación y es lo que se queda.
         restaurarSesion()
+        // Lo colocado sobre el hueso vuelve después de lo cortado: la placa se asienta sobre el hueso ya en su sitio.
+        void restaurarLoGuardado()
         encuadrarVisible(taller.current)
         sucio = true
       },
@@ -4885,6 +5021,7 @@ export function LienzoQuirurgico({
           milimetrosPorUnidad: mmPorUnidad,
           huesos,
           implantes: imp,
+          url: inst.url,
         })
         if (!puesto) {
           t.decir?.('Por esa trayectoria no hay hueso donde atornillar.')
@@ -5005,6 +5142,7 @@ export function LienzoQuirurgico({
         milimetrosPorUnidad: mm,
         huesos: huesosDelClavo,
         implantes: imp,
+        url: inst.url,
       })
       if (!puesto) {
         t.decir?.('Por ahí no hay hueso donde atornillar.')
@@ -5232,6 +5370,7 @@ export function LienzoQuirurgico({
           implantes: imp,
           // Si la placa en la mano es la que se dobló en la mesa, se apoya con su forma (P-005 E1).
           contorno: t.mesa && t.mesa.instrumentoId && t.mesa.instrumentoId === inst.id ? t.mesa.contorno : undefined,
+          url: inst.url,
         })
         if (!placa) {
           decirYAvisar({
@@ -5359,6 +5498,7 @@ export function LienzoQuirurgico({
           bloqueado: inst.coloca.bloqueado,
           huesos,
           implantes: imp,
+          url: inst.url,
         })
         if (!puesto) {
           t.decir?.('Bajo ese agujero no hay hueso donde atornillar.')
@@ -5876,6 +6016,7 @@ export function LienzoQuirurgico({
       controles.removeEventListener('change', pedirDibujo)
       window.clearInterval(reloj)
       guardarSesion()
+      guardarLoColocado()
       superficie.removeEventListener('wheel', alGirarLaRueda)
       superficie.removeEventListener('pointerdown', alBajarParaGirar)
       superficie.removeEventListener('pointermove', alMoverParaGirar)

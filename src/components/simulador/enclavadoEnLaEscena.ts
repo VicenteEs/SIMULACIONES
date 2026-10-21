@@ -92,7 +92,7 @@ export function medirElCanal(p: {
 
 export interface EnclavadoEnLaEscena {
   /** La entrada con lo que se midió, y los trozos de hueso entre los que baja el canal: se vuelve a medir si el fragmento se mueve. */
-  entrada: { canal: CanalMedido; juicio: JuicioDeLaEntrada; marca: THREE.Mesh; proximal: THREE.Object3D; distal: THREE.Object3D | null } | null
+  entrada: { canal: CanalMedido; juicio: JuicioDeLaEntrada; marca: THREE.Mesh; normal: THREE.Vector3; proximal: THREE.Object3D; distal: THREE.Object3D | null } | null
   guia: { avanceMm: number; atascada: boolean; aviso: string | null; grupo: THREE.Group; punta: THREE.Mesh; cuerpo: THREE.Mesh } | null
   dedoPuesto: boolean
   cabezasMm: number[]
@@ -147,7 +147,7 @@ export function ponerLaEntrada(
   marca.position.copy(punto).addScaledVector(normal, 0.05 / milimetrosPorUnidad)
   marca.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal.clone().normalize())
   escena.add(marca)
-  e.entrada = { canal, juicio, marca, ...trozos }
+  e.entrada = { canal, juicio, marca, normal: normal.clone().normalize(), ...trozos }
   return juicio
 }
 
