@@ -6538,6 +6538,39 @@ omisión. *Malas.* El umbral entre «labio» y «músculo» es una cifra: con un
 el separador en la piel (se arregla pinchando más al centro o forzando el plano); la lista habla de «Musculos» mientras el modelo no separe las
 estructuras (el nombre sale del objeto).
 
+### D-198 · 2026-10-21 · vigente
+**Una sola placa, con direcciones del paciente y campos que se escriben; los orificios los declara el editor.**
+Sexta etapa de P-004 (E6). Pedidos 2 y 5 de Cristóbal: «una vez puesta la placa, que no sigan saliendo más al mover el ratón»; «el control A lo
+largo del hueso no deja más que −40 mm»; «desplazar hacia proximal, distal, anterior, posterior y la angulación»; «poder escribir el largo del
+tornillo y la cantidad de orificios».
+
+*Qué se hizo.*
+- **Una sola placa.** `posarHerramienta` no pinta ni mueve la placa de la mano si ya hay una puesta; la que se mueve es la puesta. Es también lo que
+  quita la sospecha de fuga de E2 (una malla clonada por movimiento del ratón). Para otra, «Quitar la placa».
+- **`src/lib/ejesAnatomicos.ts`** (pura): `direccionesAnatomicas`, `sentidoSobreElEje`, `textoDelDesplazamiento` («75 mm hacia distal»),
+  `rangosDeLaPlaca` y `numeroEscrito`. **Proximal es el sentido positivo del eje largo** (con el paciente de pie el hueso va hacia arriba:
+  convenio de `posicionDelPaciente.ts`) y anterior el del eje «de frente»; no se añadió el campo `extremoProximal` que el plan preveía, porque el
+  convenio ya cubre tibia, fémur y húmero y un campo más era una migración sin caso que lo pidiera. Medial/lateral no se nombran: dependen de qué
+  miembro es.
+- **Los rangos salen del hueso:** a lo largo, el largo de la malla de hueso visible menos medio largo de placa a cada lado; de lado a lado, el ancho
+  del hueso con tope de 60 mm (en algunos modelos todo el esqueleto es una sola malla y su «ancho» sería el del pie); el giro, ±90°. El ±40 mm fijo se fue.
+  El signo de «anterior ↔ posterior» se calcula al apoyar la placa (el lateral del ajuste frente al eje «de frente») y el panel nombra los botones.
+- **`CampoNumerico`** (nuevo): un número que se escribe, con un botón a cada lado; se confirma con Intro o al salir, Esc lo devuelve, lo que se pasa del rango
+  se **acota y se avisa**, y si la placa no puede ir ahí (sin hueso debajo) lo dice. Sustituye a los deslizadores de la placa y del largo del tornillo (8–120 mm,
+  con la rueda en el mismo rango; el sugerido del medidor sigue en 10–60).
+- **Orificios (Q2).** Campos `orificios` y `largoMm` en `instrumental` (colección, panel y taller; migración que solo añade dos columnas). `colocarPlaca`,
+  si el modelo no trae agujeros y el instrumento sí declara cuántos, los reparte a partes iguales (`agujerosUniformes`: el centro de cada tramo, medio
+  tramo libre en los extremos); si el modelo los trae, mandan y se avisa si el número no coincide. Un tornillo se ofrece con su `largoMm`.
+
+*Probado.* Pruebas unitarias de los ejes, los rangos y la lectura del número; de los agujeros uniformes (posiciones y paso exacto sobre una placa de
+verdad en escena), del aviso, de la migración y de que la colección y el panel coinciden; y que la placa de la mano se esconde. En el navegador, con la placa
+LCP del catálogo en la pierna del caso 271: se apoya, el panel muestra los tres campos, escribir «−75» deja «75 mm hacia distal», el botón «Proximal» suma
+1 mm, un 9999 se deja en 471 y avisa, y con 20 movimientos del ratón no sale ninguna placa más.
+
+*Consecuencias buenas.* La placa se lleva a una cifra exacta, con la nomenclatura de la clínica y sin tope inventado; una placa sin posición de agujeros ya
+no es una placa muerta. *Malas.* El reparto uniforme no sirve para una placa con un tramo liso en medio (puente): para esas mandan los agujeros del modelo; y
+la placa no tiene aún las flechas del teclado ni el arrastre (E7 los trae para fragmentos y placa).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10140,7 +10173,7 @@ la ficha, cortar un músculo, abrir la piel con dos Farabeuf.
 
 ---
 
-#### E6 · La placa: una sola, con ejes anatómicos y números · 2 sesiones
+#### E6 · La placa: una sola, con ejes anatómicos y números · 2 sesiones · hecha en local (2026-10-21, D-198)
 
 **De dónde sale:** pedidos 2 y 5. Depende de E2 (la fuga) y de E4.
 
@@ -10177,16 +10210,15 @@ la ficha, cortar un músculo, abrir la piel con dos Farabeuf.
 
 **Tareas**
 
-- [ ] **E6.1 · Una sola placa:** `posarHerramienta` no pinta la placa en la mano si ya hay una puesta; prueba de que, con una puesta, mover
+- [x] **E6.1 · Una sola placa:** *(D-198)* `posarHerramienta` no pinta la placa en la mano si ya hay una puesta; prueba de que, con una puesta, mover
   el ratón no cambia la cantidad de placas de la escena.
-- [ ] **E6.2 · `ejesAnatomicos`** (puro): proximal, distal, anterior, posterior, medial, lateral desde `ejesDelPaciente` y `extremoProximal`;
-  el campo `extremoProximal` en el caso y su valor por omisión.
-- [ ] **E6.3 · Rangos reales** de `ajustarPlaca` (a partir del hueso) y el giro alrededor del hueso en grados.
-- [ ] **E6.4 · Campos numéricos** del ajuste de la placa y **largo del tornillo escrito**.
-- [ ] **E6.5 · Orificios del instrumento:** el campo `orificios` (y `largoMm` de un tornillo) en la colección, el esquema del panel y el taller;
+- [x] **E6.2 · `ejesAnatomicos`** (puro): proximal, distal, anterior, posterior desde `ejesDelPaciente`. *(Sin campo `extremoProximal` ni medial/lateral: ver D-198.)*
+- [x] **E6.3 · Rangos reales** de `ajustarPlaca` (a partir del hueso) y el giro alrededor del hueso en grados.
+- [x] **E6.4 · Campos numéricos** del ajuste de la placa y **largo del tornillo escrito**.
+- [x] **E6.5 · Orificios del instrumento:** el campo `orificios` (y `largoMm` de un tornillo) en la colección, el esquema del panel y el taller;
   `agujerosUniformes` y su uso cuando el modelo no trae agujeros; migración que solo añade. Con pruebas (posiciones, márgenes, que los
   agujeros del modelo manden, el aviso de no coincidir).
-- [ ] **E6.6 · Pruebas, manual y D-nnn.** Placa puesta, mover el ratón y no sale otra; desplazar 75 mm hacia distal y que la placa se
+- [x] **E6.6 · Pruebas, manual y D-nnn.** Placa puesta, mover el ratón y no sale otra; desplazar 75 mm hacia distal y que la placa se
   desplace 75 mm en el eje; una placa sin agujeros en el modelo y con «6 orificios» escritos deja perforar sus seis.
 
 **Hecho cuando…** Se pone la placa, no sale ninguna más al mover el ratón, se la lleva 75 mm hacia distal escribiendo el número o con los
@@ -10470,7 +10502,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | E3 · Toda la mesa en la bandeja | hecha en local; sin desplegar | 1 | — | D-195 |
 | E4 · Barra de modos y «Seleccionar estructura» | hecha en local; sin desplegar | 1 | — | D-196 |
 | E5 · Abordaje por planos de corrido | hecha en local; sin desplegar | 2 | E4 | D-197 |
-| E6 · La placa: una sola, ejes anatómicos, números | pendiente | 2 | E2, E4 | — |
+| E6 · La placa: una sola, ejes anatómicos, números | hecha en local; sin desplegar | 2 | E2, E4 | D-198 |
 | E7 · Menú de movimiento y reducción automática | pendiente | 2 | E6 | — |
 | E8 · El instrumento se queda en el orificio | pendiente | 2 | E2, E6, E7 | — |
 | E9 · Tornillos: secuencia, tipos, medidas, trayectoria | pendiente | 2–3 | E8 | — |

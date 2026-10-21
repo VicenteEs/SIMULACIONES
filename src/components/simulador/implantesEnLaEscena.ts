@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import { juzgarTornillo, type EstadoDelAgujero, type TornilloPuesto } from '@/lib/fijacion'
+import { agujerosUniformes, avisoDeOrificios, orificiosValidos } from '@/lib/agujerosDeLaPlaca'
+import type { RangosDelAjuste } from '@/lib/ejesAnatomicos'
 
 /**
  * La placa y los tornillos sobre el hueso, dentro de la escena (D-169).
@@ -22,6 +24,19 @@ export interface PlacaColocada {
   nombre: string
   /** Los agujeros, en milímetros y en el marco de Blender: (ancho, largo). */
   agujerosMm: [number, number][]
+  /**
+   * Los agujeros salen del modelo (`true`) o se repartieron a partes iguales por la cantidad que escribió el editor
+   * (`false`, P-004 E6): en el segundo caso la posición es una aproximación y el panel lo dice.
+   */
+  agujerosDelModelo: boolean
+  /** Si el modelo y el instrumento no coinciden en cuántos agujeros hay: el aviso para el editor. */
+  avisoDeOrificios: string | null
+  /** Lo que mide la placa de ancho, en mm: de ahí salen los rangos del ajuste (P-004 E6). */
+  anchoMm: number
+  /** Cuánto se puede mover cada ajuste, según el hueso donde se apoyó (P-004 E6): lo pone quien conoce el hueso. */
+  rangos?: RangosDelAjuste
+  /** A qué sentido anatómico lleva el signo + de «de lado a lado»: 1 hacia anterior, −1 hacia posterior, 0 si no se sabe. */
+  sentidoDelLado?: 1 | -1 | 0
   /** Hacia dónde mira la cara de arriba de la placa: la normal del hueso donde se apoyó. */
   normal: THREE.Vector3
   grosorMm: number
@@ -127,6 +142,8 @@ export function colocarPlaca(p: {
   plantilla: THREE.Object3D
   nombre: string
   agujerosMm: [number, number][]
+  /** Cuántos orificios escribió el editor en el instrumento: reparte los agujeros cuando el modelo no los trae (P-004 E6). */
+  orificios?: number | null
   punto: THREE.Vector3
   normal: THREE.Vector3
   ejeDelHueso: THREE.Vector3
@@ -134,7 +151,10 @@ export function colocarPlaca(p: {
   huesos: THREE.Object3D[]
   implantes: ImplantesEnEscena
 }): PlacaColocada | null {
-  if (p.agujerosMm.length === 0) return null
+  const orificios = orificiosValidos(p.orificios)
+  // Sin agujeros en el modelo y sin una cantidad escrita no hay dónde atornillar: es mejor decirlo que dejar una placa
+  // en la que no se puede hacer nada.
+  if (p.agujerosMm.length === 0 && orificios === null) return null
   const unidadesPorMm = 1 / p.milimetrosPorUnidad
   const grupo = clonarConRecursos(p.plantilla)
   grupo.position.set(0, 0, 0)
@@ -151,6 +171,22 @@ export function colocarPlaca(p: {
   const tamano = caja.getSize(new THREE.Vector3())
   const centro = caja.getCenter(new THREE.Vector3())
   const grosorMm = tamano.y / unidadesPorMm
+  // Sin los agujeros del modelo, a partes iguales a lo largo de la caja (marco de Blender: x a lo ancho, y a lo largo, que
+  // es −Z del modelo). El grupo está en el origen y sin girar, así que lo local es el mundo entre la escala.
+  let agujerosMm = p.agujerosMm
+  const delModelo = agujerosMm.length > 0
+  if (!delModelo && orificios !== null) {
+    const aMm = 1000 / escalaLocal
+    agujerosMm = agujerosUniformes(orificios, {
+      centroXMm: centro.x * aMm,
+      yMinimoMm: -caja.max.z * aMm,
+      yMaximoMm: -caja.min.z * aMm,
+    })
+    if (agujerosMm.length === 0) {
+      soltarGrupo(grupo)
+      return null
+    }
+  }
 
   // El largo de la placa va por −Z (el Y de Blender): hacia donde apunta el eje del hueso.
   const q = orientar(p.normal, p.ejeDelHueso.clone().negate())
@@ -165,7 +201,10 @@ export function colocarPlaca(p: {
   const placa: PlacaColocada = {
     grupo,
     nombre: p.nombre,
-    agujerosMm: p.agujerosMm,
+    agujerosMm,
+    agujerosDelModelo: delModelo,
+    avisoDeOrificios: delModelo ? avisoDeOrificios(agujerosMm.length, orificios) : null,
+    anchoMm: tamano.x / unidadesPorMm,
     normal: p.normal.clone().normalize(),
     grosorMm,
     separadaDelHuesoMm: 0,

@@ -58,6 +58,7 @@ import {
   type TensionDeLaPiel,
 } from '@/lib/exposicion'
 import { RADIO_DE_RETRACCION_MM, retraerVertices } from '@/lib/retraccion'
+import { rangosDeLaPlaca, sentidoSobreElEje } from '@/lib/ejesAnatomicos'
 import { avisoDelClicSinEfecto, correrElApoyo, decidirElClicDelSeparador, invertirLaDireccion, type CandidatoDeHerida } from '@/lib/abordajePorPlanos'
 import {
   aperturaPorLabioEnMm,
@@ -70,6 +71,7 @@ import {
 } from '@/lib/diseccionRoma'
 import { esRectaValida, muestrasEntre, type TipoDeTrazo } from '@/lib/trazoRecto'
 import {
+  ejesDelPaciente,
   girarLaVista,
   poseDeLaPosicion,
   rodarLaVista,
@@ -421,6 +423,8 @@ export interface InstrumentoEnEscena {
   corta?: boolean
   /** Qué capa parte al trazar: la piel o los planos de abajo (D-167). Sin esto solo dibuja. */
   planoDeCorte?: PlanoDeCorte | null
+  /** Cuántos orificios escribió el editor en el instrumento (una placa): reparte los agujeros si el modelo no los trae (P-004 E6). */
+  orificios?: number | null
   /** Identificador y nombre del catálogo: un separador colocado se vuelve a dibujar y se nombra en pantalla. */
   id?: string
   nombre?: string
@@ -2178,6 +2182,15 @@ export function LienzoQuirurgico({
         posarBroca(golpe)
         return
       }
+      // Una sola placa (P-004 E6, pedido 2): con una puesta, la que se lleva en la mano no se pinta ni sigue al cursor. Antes
+      // salía otra con cada movimiento del ratón y tapaba la posición de la que importaba; la que se mueve es la puesta.
+      if (ultimas.current.instrumento?.coloca?.tipo === 'placa' && taller.current.implantes?.placa) {
+        if (herramienta.raiz.visible) {
+          herramienta.raiz.visible = false
+          pedirDibujo()
+        }
+        return
+      }
       if (!golpe) {
         if (herramienta.raiz.visible) {
           herramienta.raiz.visible = false
@@ -3389,6 +3402,7 @@ export function LienzoQuirurgico({
           plantilla: herramienta.raiz,
           nombre: herramienta.meta?.nombre ?? 'Placa',
           agujerosMm: herramienta.meta?.agujeros ?? [],
+          orificios: inst.orificios ?? null,
           punto: golpe.point,
           normal: normalDelGolpe(golpe),
           ejeDelHueso: eje,
@@ -3399,18 +3413,38 @@ export function LienzoQuirurgico({
         if (!placa) {
           decirYAvisar({
             tipo: 'aviso',
-            texto: 'Este modelo de placa no trae la posición de sus agujeros: vuelva a cargarlo desde el catálogo.',
+            texto:
+              'Este modelo de placa no trae la posición de sus agujeros. Un editor puede escribir cuántos orificios tiene en su instrumento (Taller anatómico → Instrumental) o volver a cargar el modelo desde el catálogo.',
             atencion: true,
           })
           return
         }
+        // Lo que mide el hueso visible, en milímetros: de ahí salen los rangos del ajuste y no de un tope fijo.
+        const cajaDelHueso = new THREE.Box3()
+        for (const h of huesos) cajaDelHueso.expandByObject(h)
+        const tamanoDelHueso = cajaDelHueso.getSize(new THREE.Vector3())
+        const indiceDelEje = ultimas.current.ejeLargo === 'x' ? 0 : ultimas.current.ejeLargo === 'z' ? 2 : 1
+        const aMm = ultimas.current.milimetrosPorUnidad || 1000
+        const anchoDelHueso = Math.max(...[0, 1, 2].filter((i) => i !== indiceDelEje).map((i) => tamanoDelHueso.getComponent(i))) * aMm
+        placa.rangos = rangosDeLaPlaca({
+          largoDelHuesoMm: cajaDelHueso.isEmpty() ? 0 : tamanoDelHueso.getComponent(indiceDelEje) * aMm,
+          anchoDelHuesoMm: cajaDelHueso.isEmpty() ? 0 : anchoDelHueso,
+          largoDeLaPlacaMm: placa.largoMm,
+        })
+        // A qué sentido anatómico lleva el signo + de «de lado a lado»: el lateral del ajuste es normal × eje del hueso.
+        const lateralDelAjuste = new THREE.Vector3().crossVectors(placa.anclaje.normal, placa.anclaje.ejeDelHueso)
+        placa.sentidoDelLado = sentidoSobreElEje(
+          [lateralDelAjuste.x, lateralDelAjuste.y, lateralDelAjuste.z],
+          ejesDelPaciente(ultimas.current.ejeLargo).frente,
+        )
         const separada = placa.separadaDelHuesoMm
         decirYAvisar({
           tipo: 'placa',
           texto:
-            `${placa.nombre} apoyada: ${placa.agujerosMm.length} agujeros. Ajústela con los controles del panel (a lo largo, de lado, angular) y pulse «Fijar la placa».` +
-            (separada > 1.5 ? ` Queda a ${separada.toFixed(1).replace('.', ',')} mm del hueso: apóyela donde el hueso sea más recto.` : ''),
-          atencion: separada > 1.5,
+            `${placa.nombre} apoyada: ${placa.agujerosMm.length} agujeros${placa.agujerosDelModelo ? '' : ' (repartidos a partes iguales)'}. Muévala hacia proximal o distal, anterior o posterior, o angúlela, y pulse «Fijar la placa».` +
+            (separada > 1.5 ? ` Queda a ${separada.toFixed(1).replace('.', ',')} mm del hueso: apóyela donde el hueso sea más recto.` : '') +
+            (placa.avisoDeOrificios ? ` ${placa.avisoDeOrificios}` : ''),
+          atencion: separada > 1.5 || !!placa.avisoDeOrificios,
         })
         return
       }
@@ -4798,6 +4832,10 @@ export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
       separadaDelHuesoMm: imp.placa.separadaDelHuesoMm,
       fijada: imp.placa.fijada,
       ajuste: { ...imp.placa.ajuste },
+      rangos: imp.placa.rangos,
+      sentidoDelLado: imp.placa.sentidoDelLado,
+      agujerosDelModelo: imp.placa.agujerosDelModelo,
+      aviso: imp.placa.avisoDeOrificios,
     },
     tornillos: [...imp.tornillos.values()].map((t) => t.datos).sort((a, b) => a.agujero - b.agujero),
     agujeros: [...imp.placa.agujeros.entries()]

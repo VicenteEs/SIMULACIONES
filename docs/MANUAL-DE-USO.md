@@ -869,11 +869,17 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   sobre el hueso y se apoya con su largo siguiendo el hueso. Con el **medidor de
   profundidad** apoyado en un agujero, dice cuánto hueso hay debajo y qué tornillo pedir (lo
   medido más dos milímetros). Con un **tornillo** de placa, pique en un agujero: entra
-  perpendicular a la placa con el largo del deslizador, y la consola dice si es bicortical y
-  si la punta asoma de más (hasta 4 mm se tolera). Los clavos y el injerto, por ahora, solo
+  perpendicular a la placa con el largo que se **escribe** en el campo «Largo del tornillo»
+  (de 8 a 120 mm; el medidor deja escrito el sugerido y la rueda lo corre de a 2 mm), y la consola
+  dice si es bicortical y si la punta asoma de más (hasta 4 mm se tolera). Los clavos y el injerto, por ahora, solo
   se ven en la escena.
 - **La placa se ajusta y se fija; el orden es perforar, medir y atornillar.** Con la placa ya
-  puesta aparece un panel con tres deslizadores (**largo**, **lado** y **ángulo**) y la
+  puesta aparece un panel con tres campos que se escriben —**proximal ↔ distal** (a lo largo
+  del hueso), **anterior ↔ posterior** (alrededor de él) y **angulación** (en grados)— cada uno
+  con sus botones a los lados y una línea que lo dice como se habla en quirófano («75 mm hacia
+  distal»). Los rangos salen del hueso que hay en pantalla y no de un tope fijo: un valor que
+  se pasa se deja en el máximo y el campo lo avisa. **Una sola placa:** con una puesta, la que
+  se lleva en la mano ya no sale al mover el ratón («Quitar la placa» para empezar otra). La
   consola dice cuánto queda separada del hueso; la placa nunca entra en él. **«Fijar la
   placa»** cierra el ajuste («Soltar» lo reabre). Con ella fijada, la **broca** se centra en el
   agujero y al perforar lo anota (diámetro, largo y si cruzó las dos corticales; si el
@@ -883,6 +889,12 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   medidor y el destornillador de la placa aparecen solos en la bandeja con la etiqueta «para
   esta placa», y «Añadir a la bandeja» enseña el catálogo por categorías. El ajuste de la
   placa no se guarda al recargar.
+- **Orificios de una placa y largo de un tornillo (para el editor).** Si el modelo 3D de una placa
+  **no trae la posición de sus agujeros**, se escribe **cuántos orificios tiene** en su instrumento
+  (Taller anatómico → Instrumental, campo «Orificios de la placa», o el catálogo): los agujeros se
+  reparten a partes iguales a lo largo de la placa y se puede perforar cada uno. Si el modelo sí
+  los trae, mandan los del modelo y, si no coincide el número, la consola lo avisa. En un
+  tornillo, «Largo del tornillo (mm)» es el largo con que se ofrece al cogerlo.
 - **Insumos utilizados.** Al terminar el caso, la consola lista **lo que se usó** (lo que hizo
   algo: cortó, separó, pinzó, perforó, midió, cosió o fijó; elegir un instrumento y soltarlo no
   cuenta), por categoría y con los tornillos por tipo y largo. **Queda guardado con el

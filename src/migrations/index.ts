@@ -30,6 +30,7 @@ import * as migration_20261020_221621_tabla_de_vera_health from './20261020_2216
 import * as migration_20261020_223951_modelos_en_dos_carpetas from './20261020_223951_modelos_en_dos_carpetas';
 import * as migration_20261020_225415_bandeja_completa_o_acotada from './20261020_225415_bandeja_completa_o_acotada';
 import * as migration_20261020_225911_insumos_del_recorrido from './20261020_225911_insumos_del_recorrido';
+import * as migration_20261021_000946_orificios_y_largo_del_instrumento from './20261021_000946_orificios_y_largo_del_instrumento';
 
 export const migrations = [
   {
@@ -190,6 +191,11 @@ export const migrations = [
   {
     up: migration_20261020_225911_insumos_del_recorrido.up,
     down: migration_20261020_225911_insumos_del_recorrido.down,
-    name: '20261020_225911_insumos_del_recorrido'
+    name: '20261020_225911_insumos_del_recorrido',
+  },
+  {
+    up: migration_20261021_000946_orificios_y_largo_del_instrumento.up,
+    down: migration_20261021_000946_orificios_y_largo_del_instrumento.down,
+    name: '20261021_000946_orificios_y_largo_del_instrumento'
   },
 ];

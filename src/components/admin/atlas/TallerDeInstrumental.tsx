@@ -93,7 +93,7 @@ const ETIQUETA_DE_ICONO: Record<string, string> = {
   aguja: 'Aguja',
 }
 
-const FORMULARIO_VACIO = { nombre: '', slug: '', categoria: 'fijacion', icono: 'generico', descripcion: '', especificaciones: '' }
+const FORMULARIO_VACIO = { nombre: '', slug: '', categoria: 'fijacion', icono: 'generico', descripcion: '', especificaciones: '', orificios: '', largoMm: '' }
 
 function formatearBytes(n: number | null): string {
   if (n === null) return '—'
@@ -418,6 +418,8 @@ function EspacioDelInstrumento({
           icono: instrumento.icono,
           descripcion: instrumento.descripcion,
           especificaciones: instrumento.especificaciones,
+          orificios: instrumento.orificios === null ? '' : String(instrumento.orificios),
+          largoMm: instrumento.largoMm === null ? '' : String(instrumento.largoMm),
         }
       : FORMULARIO_VACIO,
   )
@@ -711,6 +713,26 @@ function EspacioDelInstrumento({
                 Medidas y especificaciones
               </label>
               <textarea id="instr-esp" className="campo-control" rows={4} value={formulario.especificaciones} onChange={(e) => setFormulario({ ...formulario, especificaciones: e.target.value })} />
+              {/* Los datos que el simulador no puede leer del modelo (P-004 E6): cuántos orificios tiene una placa cuyo modelo no
+                  trae la posición de sus agujeros, y el largo con que se ofrece un tornillo. */}
+              {formulario.categoria === 'placas' ? (
+                <>
+                  <label className="campo-etiqueta" htmlFor="instr-orificios">
+                    Orificios de la placa
+                  </label>
+                  <input id="instr-orificios" className="campo-control" type="number" min={1} max={40} step={1} inputMode="numeric" value={formulario.orificios} onChange={(e) => setFormulario({ ...formulario, orificios: e.target.value })} />
+                  <p className="campo-ayuda">Se reparten a partes iguales a lo largo de la placa si el modelo 3D no trae la posición de sus agujeros. Si la trae, mandan los del modelo.</p>
+                </>
+              ) : null}
+              {formulario.categoria === 'tornillos' ? (
+                <>
+                  <label className="campo-etiqueta" htmlFor="instr-largo">
+                    Largo del tornillo (mm)
+                  </label>
+                  <input id="instr-largo" className="campo-control" type="number" min={5} max={500} step={1} inputMode="numeric" value={formulario.largoMm} onChange={(e) => setFormulario({ ...formulario, largoMm: e.target.value })} />
+                  <p className="campo-ayuda">El largo con que se ofrece al cogerlo; el residente puede escribir otro.</p>
+                </>
+              ) : null}
               <div className="admin-acciones" style={{ marginTop: 8 }}>
                 {creando ? (
                   <>

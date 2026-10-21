@@ -24,6 +24,7 @@ import {
   slugDeInstrumento,
 } from '@/lib/instrumental'
 import { ajustesValidos, type AjustesDeInstrumento } from '@/instrumental/modelo'
+import { orificiosValidos } from '@/lib/agujerosDeLaPlaca'
 
 const RUTA_PANEL = '/admin-panel/atlas'
 
@@ -35,6 +36,9 @@ export interface InstrumentoDelTaller {
   icono: string
   descripcion: string
   especificaciones: string
+  /** Orificios de una placa y largo de un tornillo, escritos por el editor (P-004 E6); `null` si no se escribieron. */
+  orificios: number | null
+  largoMm: number | null
   orden: number
   modelo: { id: string; nombre: string; url: string; bytes: number | null } | null
   ajustes: AjustesDeInstrumento | null
@@ -60,6 +64,8 @@ function aInstrumento(doc: Record<string, unknown>): InstrumentoDelTaller {
     icono: texto(doc.icono) || 'generico',
     descripcion: texto(doc.descripcion),
     especificaciones: texto(doc.especificaciones),
+    orificios: typeof doc.orificios === 'number' ? doc.orificios : null,
+    largoMm: typeof doc.largoMm === 'number' ? doc.largoMm : null,
     orden: typeof doc.orden === 'number' ? doc.orden : 0,
     modelo: m && url ? { id: String(m.id), nombre: texto(m.nombre), url, bytes: typeof m.filesize === 'number' ? m.filesize : null } : null,
     ajustes: doc.ajustes && typeof doc.ajustes === 'object' ? ajustesValidos(doc.ajustes) : null,
@@ -82,7 +88,16 @@ function datosDescriptivos(entrada: unknown) {
     icono,
     descripcion: textoOpcional(e.descripcion, 'Para qué sirve', 600) ?? '',
     especificaciones: textoOpcional(e.especificaciones, 'Las medidas', 1200) ?? '',
+    // Fuera de rango o vacío se guarda como «sin dato» (null): el campo se puede borrar escribiendo nada.
+    orificios: orificiosValidos(e.orificios),
+    largoMm: largoDeTornilloValido(e.largoMm),
   }
+}
+
+/** El largo de un tornillo escrito por el editor: un número de 5 a 500 mm, o `null`. */
+function largoDeTornilloValido(valor: unknown): number | null {
+  const n = typeof valor === 'string' ? Number(valor.trim().replace(',', '.')) : valor
+  return typeof n === 'number' && Number.isFinite(n) && n >= 5 && n <= 500 ? Math.round(n * 10) / 10 : null
 }
 
 /** Todo el instrumental, con el estado de su modelo: es lo que dibuja el listado del taller. */

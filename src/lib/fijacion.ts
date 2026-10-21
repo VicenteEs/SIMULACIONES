@@ -151,6 +151,14 @@ export function sirveParaMedir(i: { slug?: string | null }): boolean {
 }
 
 /**
+ * El rango en que se acepta un largo de tornillo escrito (P-004 E6, pedido 5): de 8 a 120 mm. Es más ancho que el de las
+ * sugerencias del medidor (10–60) a propósito: un fémur pide tornillos más largos, y escribir un largo absurdo lo juzga
+ * `juzgarTornillo` y no este tope.
+ */
+export const MINIMO_DEL_TORNILLO_MM = 8
+export const MAXIMO_DEL_TORNILLO_MM = 120
+
+/**
  * El largo de tornillo que se pide para un espesor medido: lo medido y dos milímetros, en pasos de 2.
  *
  * `antesDelHuesoMm` es lo que hay entre la cara de arriba de la placa y la cortical cercana (la placa
@@ -250,6 +258,12 @@ export interface EstadoDeLaFijacion {
     fijada?: boolean
     /** Cuánto se ha movido desde donde se apoyó: a lo largo y de lado en mm, y el giro sobre la normal en grados. */
     ajuste?: { largoMm: number; ladoMm: number; giroGrados: number }
+    /** Cuánto se puede mover cada ajuste según el hueso (P-004 E6) y a qué sentido anatómico lleva el signo + de «de lado». */
+    rangos?: { largoMm: { min: number; max: number }; ladoMm: { min: number; max: number }; giroGrados: { min: number; max: number } }
+    sentidoDelLado?: 1 | -1 | 0
+    /** Los agujeros vienen del modelo o se repartieron por la cantidad que escribió el editor, y el aviso si no coinciden. */
+    agujerosDelModelo?: boolean
+    aviso?: string | null
   } | null
   tornillos: TornilloPuesto[]
   /** Lo que se perforó y se midió en cada agujero, por su índice (P-003 E6). */

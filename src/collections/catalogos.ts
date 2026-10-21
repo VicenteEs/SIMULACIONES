@@ -252,6 +252,29 @@ export const Instrumental: CollectionConfig = {
       admin: { description: 'Largo, diámetros, sistemas en que se usa. Es lo que se le pasa a quien modela.' },
     },
     {
+      name: 'orificios',
+      type: 'number',
+      label: 'Orificios de la placa',
+      min: 1,
+      max: 40,
+      admin: {
+        step: 1,
+        description:
+          'Solo para placas. Cuántos orificios tiene. Sirve cuando el modelo 3D no trae la posición de sus agujeros: se reparten a partes iguales a lo largo de la placa. Si el modelo sí los trae, mandan los del modelo.',
+      },
+    },
+    {
+      name: 'largoMm',
+      type: 'number',
+      label: 'Largo del tornillo (mm)',
+      min: 5,
+      max: 500,
+      admin: {
+        step: 1,
+        description: 'Solo para tornillos. El largo con que se ofrece al cogerlo; el residente puede escribir otro.',
+      },
+    },
+    {
       name: 'modelo',
       type: 'relationship',
       relationTo: 'modelos-3d',

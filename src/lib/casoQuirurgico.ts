@@ -195,6 +195,9 @@ function instrumentoDeBandeja(bruto: unknown): InstrumentoDeBandeja | null {
     // El identificador con que se reconoce qué hace en la escena (corta,
     // separa, perfora): ver `comportamientoDelInstrumento`.
     slug: texto(doc.slug),
+    // Lo que el editor escribió en el instrumento y el modelo no dice (P-004 E6): los orificios de una placa y el largo de un tornillo.
+    orificios: typeof doc.orificios === 'number' ? doc.orificios : null,
+    largoMm: typeof doc.largoMm === 'number' ? doc.largoMm : null,
     // Lo que el caso no declaró pero la placa necesita (P-003 E6): se enseña marcado «para esta placa».
     paraLaPlaca: doc.__paraLaPlaca === true ? true : undefined,
     // Lo que está en la bandeja porque la mesa es completa y no porque el caso lo pida (P-004 E3).

@@ -752,6 +752,25 @@
   color: var(--c-texto-2);
 }
 .consola-instrumento-articulacion input { width: 100%; min-width: 0; }
+
+/* Un número que se escribe, con un botón a cada lado (P-004 E6): la placa se lleva «75 mm hacia distal» escribiendo la cifra. */
+.consola-campo-numerico { display: grid; gap: 3px; }
+.consola-campo-numerico-etiqueta { font-size: 0.78rem; color: var(--c-texto-suave, inherit); }
+.consola-campo-numerico-fila { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 6px; align-items: center; }
+.consola-campo-numerico-entrada {
+  min-width: 0;
+  width: 100%;
+  text-align: right;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--c-borde, rgba(255, 255, 255, 0.2));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.consola-campo-numerico-unidad { font-size: 0.78rem; opacity: 0.8; }
+.consola-campo-numerico-pie { margin: 0; font-size: 0.78rem; opacity: 0.85; }
+.consola-campo-numerico-aviso { margin: 0; font-size: 0.78rem; color: var(--c-atencion, #e0a030); }
 .consola-instrumento-articulacion output { text-align: right; font-variant-numeric: tabular-nums; }
 .consola-instrumento-texto {
   margin: 0;

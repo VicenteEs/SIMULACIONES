@@ -512,6 +512,14 @@ export interface Instrumental {
    */
   especificaciones?: string | null;
   /**
+   * Solo para placas. Cuántos orificios tiene. Sirve cuando el modelo 3D no trae la posición de sus agujeros: se reparten a partes iguales a lo largo de la placa. Si el modelo sí los trae, mandan los del modelo.
+   */
+  orificios?: number | null;
+  /**
+   * Solo para tornillos. El largo con que se ofrece al cogerlo; el residente puede escribir otro.
+   */
+  largoMm?: number | null;
+  /**
    * Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez: trece modelos cargando a la vez en la bandeja dejarían la consola inservible en un portátil modesto.
    */
   modelo?: (number | null) | Modelos3D;
@@ -2697,6 +2705,8 @@ export interface InstrumentalSelect<T extends boolean = true> {
   icono?: T;
   descripcion?: T;
   especificaciones?: T;
+  orificios?: T;
+  largoMm?: T;
   modelo?: T;
   ajustes?: T;
   tecnicas?: T;

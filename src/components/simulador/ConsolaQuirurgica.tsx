@@ -41,6 +41,8 @@ import {
 import { marcarComoLeida, registrarResultadoDeCirugia } from '@/app/(frontend)/acciones/actividad'
 import { Rico, tieneContenido } from '@/components/Rico'
 import { IconoInstrumento } from './IconoInstrumento'
+import { CampoNumerico } from './CampoNumerico'
+import { textoDelDesplazamiento } from '@/lib/ejesAnatomicos'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import { Vacio } from '@/components/ui/Vacio'
 import {
@@ -163,7 +165,7 @@ import type {
   PerforacionHecha,
   PiezaDelCaso,
 } from './LienzoQuirurgico'
-import { resumenDeLaFijacion, type EstadoDeLaFijacion } from '@/lib/fijacion'
+import { MAXIMO_DEL_TORNILLO_MM, MINIMO_DEL_TORNILLO_MM, resumenDeLaFijacion, type EstadoDeLaFijacion } from '@/lib/fijacion'
 import { paraComparar } from '@/lib/catalogosAmpliables'
 import { claveDeLaConsolaDelEditor, guardarEnsayoDeLaConsola, leerEnsayoDeLaConsola } from '@/lib/ensayoDelEditor'
 
@@ -248,6 +250,9 @@ export interface InstrumentoDeBandeja {
   paraLaPlaca?: boolean
   /** Está porque la mesa es completa y no porque el caso lo pida (P-004 E3): no se precarga hasta abrir su categoría. */
   porOmision?: boolean
+  /** Cuántos orificios tiene una placa y el largo de un tornillo, escritos por el editor (P-004 E6). */
+  orificios?: number | null
+  largoMm?: number | null
   /** Solo en el editor: si el instrumento ya está en la bandeja que el caso declara. */
   enLaBandejaDelCaso?: boolean
   /** Para qué sirve, tal como lo escribió el traumatólogo en el catálogo. */
@@ -1388,6 +1393,8 @@ export function ConsolaQuirurgica({
     else if (que?.sutura) setModo('coser')
     else if (que?.coloca || que?.mide) setModo('fijar')
     else if (modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
+    // El tornillo se ofrece con el largo que el editor le escribió al instrumento (P-004 E6); el residente puede escribir otro.
+    if (destino?.largoMm && que?.coloca?.tipo === 'tornillo') setLargoDeTornillo(Math.min(MAXIMO_DEL_TORNILLO_MM, Math.max(MINIMO_DEL_TORNILLO_MM, destino.largoMm)))
     setDiseccion(null)
     setInstrumento(id)
     setArticulacionesDeclaradas([])
@@ -1523,6 +1530,7 @@ export function ConsolaQuirurgica({
    * igual, invisible (`colocarInstrumento`).
    */
   const idDelElegido = instrumentoElegido?.id
+  const orificiosDelElegido = instrumentoElegido?.orificios ?? null
   const hayElegido = instrumentoElegido !== null
   const instrumentoEnEscena = useMemo<InstrumentoEnEscena | null>(
     () =>
@@ -1542,11 +1550,12 @@ export function ConsolaQuirurgica({
             electro: queHace.electro ? { modo: modoElectro, potenciaW } : null,
             perfora: queHace.perfora,
             sutura: queHace.sutura,
+            orificios: orificiosDelElegido,
             coloca: queHace.coloca,
             mide: queHace.mide,
           }
         : null,
-    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW],
+    [hayElegido, urlDelElegido, idDelElegido, nombreDelElegido, ajustesDelElegido, valoresDeArticulacion, iconoDelElegido, queHace, usoRoma, modoElectro, potenciaW, orificiosDelElegido],
   )
 
   /**
@@ -1593,7 +1602,7 @@ export function ConsolaQuirurgica({
       return true
     }
     if (ruedaDelInstrumento === 'alarga') {
-      setLargoDeTornillo((antes) => entre(10, 60, antes + sentido * 2))
+      setLargoDeTornillo((antes) => entre(MINIMO_DEL_TORNILLO_MM, MAXIMO_DEL_TORNILLO_MM, antes + sentido * 2))
       return true
     }
     if (ruedaDelInstrumento === 'potencia') {
@@ -2833,56 +2842,81 @@ export function ConsolaQuirurgica({
                 <div className="consola-instrumento-articulaciones">
                   <p className="consola-instrumento-texto">
                     {queHace.coloca?.tipo === 'placa'
-                      ? 'Pase al modo «Fijar» y pique sobre el hueso: la placa se apoya con su largo siguiendo el hueso. Después se ajusta con los controles de abajo y se pulsa «Fijar la placa».'
+                      ? 'Pase al modo «Fijar» y pique sobre el hueso: la placa se apoya con su largo siguiendo el hueso. Después se la lleva hacia proximal o distal, anterior o posterior, o se la angula —escribiendo la cifra o con los botones— y se pulsa «Fijar la placa». Con una puesta, la que se lleva en la mano ya no sale.'
                       : queHace.coloca?.tipo === 'tornillo'
                         ? 'Con la placa fijada: perfore el agujero con la broca, mídalo con el medidor y entonces pique en él. El tornillo entra perpendicular a la placa.'
                         : 'Con la placa fijada y el agujero perforado, apoye el medidor en él: dice cuánto hueso hay debajo y qué tornillo pedir.'}
                   </p>
+                  {/* El largo se escribe (P-004 E6, pedido 5): el medidor deja escrito el sugerido y la rueda lo corre de a 2 mm. */}
                   {queHace.coloca?.tipo === 'tornillo' ? (
-                    <label className="consola-instrumento-articulacion">
-                      <span>Largo del tornillo</span>
-                      <input
-                        type="range"
-                        min={10}
-                        max={60}
-                        step={2}
-                        value={largoDeTornillo}
-                        onChange={(e) => setLargoDeTornillo(Number(e.target.value))}
-                        aria-label="Largo del tornillo"
-                      />
-                      <output>{largoDeTornillo} mm</output>
-                    </label>
+                    <CampoNumerico
+                      etiqueta="Largo del tornillo"
+                      valor={largoDeTornillo}
+                      minimo={MINIMO_DEL_TORNILLO_MM}
+                      maximo={MAXIMO_DEL_TORNILLO_MM}
+                      paso={2}
+                      unidad="mm"
+                      alConfirmar={setLargoDeTornillo}
+                    />
                   ) : null}
                   {/* Ajustar la placa puesta y darla por buena (P-003 E6): subirla y bajarla a lo largo del hueso,
                       rodearlo, angularla; tras cada movimiento se vuelve a asentar. Fijada, ya no se mueve y se perfora. */}
                   {fijacion?.placa && !fijacion.placa.fijada ? (
                     <>
-                      {(
-                        [
-                          ['largoMm', 'A lo largo del hueso', -40, 40, 1, 'mm'],
-                          ['ladoMm', 'De lado a lado', -15, 15, 1, 'mm'],
-                          ['giroGrados', 'Angular', -45, 45, 1, '°'],
-                        ] as const
-                      ).map(([campo, etiqueta, min, max, paso, unidad]) => {
+                      {(() => {
+                        // Con las direcciones del paciente (P-004 E6, pedido 2): proximal y distal a lo largo del hueso,
+                        // anterior y posterior alrededor de él, y la angulación en grados. Los rangos salen del hueso.
                         const ajuste = fijacion.placa?.ajuste ?? { largoMm: 0, ladoMm: 0, giroGrados: 0 }
+                        const rangos = fijacion.placa?.rangos ?? {
+                          largoMm: { min: -40, max: 40 },
+                          ladoMm: { min: -15, max: 15 },
+                          giroGrados: { min: -90, max: 90 },
+                        }
+                        const sentidoDelLado = fijacion.placa?.sentidoDelLado ?? 0
+                        const positivoDelLado = sentidoDelLado === 0 ? null : sentidoDelLado > 0 ? 'anterior' : 'posterior'
+                        const negativoDelLado = sentidoDelLado === 0 ? null : sentidoDelLado > 0 ? 'posterior' : 'anterior'
+                        const cambiar = (campo: 'largoMm' | 'ladoMm' | 'giroGrados', n: number) =>
+                          mando.current?.ajustarLaPlaca({ ...ajuste, [campo]: n }) ?? false
                         return (
-                          <label key={campo} className="consola-instrumento-articulacion">
-                            <span>{etiqueta}</span>
-                            <input
-                              type="range"
-                              min={min}
-                              max={max}
-                              step={paso}
-                              value={ajuste[campo]}
-                              onChange={(e) => mando.current?.ajustarLaPlaca({ ...ajuste, [campo]: Number(e.target.value) })}
-                              aria-label={`Ajustar la placa: ${etiqueta.toLowerCase()}`}
+                          <>
+                            <CampoNumerico
+                              etiqueta="Proximal ↔ distal"
+                              valor={ajuste.largoMm}
+                              minimo={rangos.largoMm.min}
+                              maximo={rangos.largoMm.max}
+                              unidad="mm"
+                              textoDelMenos="Distal"
+                              textoDelMas="Proximal"
+                              pie={textoDelDesplazamiento(ajuste.largoMm, 'proximal', 'distal')}
+                              alConfirmar={(n) => cambiar('largoMm', n)}
                             />
-                            <output>
-                              {ajuste[campo]} {unidad}
-                            </output>
-                          </label>
+                            <CampoNumerico
+                              etiqueta="Anterior ↔ posterior"
+                              valor={ajuste.ladoMm}
+                              minimo={rangos.ladoMm.min}
+                              maximo={rangos.ladoMm.max}
+                              unidad="mm"
+                              textoDelMenos={negativoDelLado === 'anterior' ? 'Anterior' : negativoDelLado === 'posterior' ? 'Posterior' : '−'}
+                              textoDelMas={positivoDelLado === 'anterior' ? 'Anterior' : positivoDelLado === 'posterior' ? 'Posterior' : '+'}
+                              pie={textoDelDesplazamiento(ajuste.ladoMm, positivoDelLado, negativoDelLado)}
+                              alConfirmar={(n) => cambiar('ladoMm', n)}
+                            />
+                            <CampoNumerico
+                              etiqueta="Angulación"
+                              valor={ajuste.giroGrados}
+                              minimo={rangos.giroGrados.min}
+                              maximo={rangos.giroGrados.max}
+                              unidad="°"
+                              pie={ajuste.giroGrados === 0 ? 'Siguiendo el eje del hueso' : `Girada ${Math.abs(ajuste.giroGrados)}° a un lado del eje del hueso`}
+                              alConfirmar={(n) => cambiar('giroGrados', n)}
+                            />
+                            {fijacion.placa?.agujerosDelModelo === false ? (
+                              <p className="consola-instrumento-texto">Los agujeros se repartieron a partes iguales por los orificios que escribió el editor: su posición es aproximada.</p>
+                            ) : null}
+                            {fijacion.placa?.aviso ? <p className="consola-instrumento-texto">{fijacion.placa.aviso}</p> : null}
+                          </>
                         )
-                      })}
+                      })()}
                       <div className="consola-instrumento-acciones">
                         <button type="button" className="consola-boton" onClick={() => mando.current?.fijarLaPlaca(true)}>
                           Fijar la placa
