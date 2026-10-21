@@ -292,6 +292,15 @@ export const Actividad: CollectionConfig = {
       label: 'Usó la reducción automática',
     },
     {
+      // La radiografía postoperatoria del último recorrido (P-004 E11): cirujano, diagnóstico, intervención, fecha y equipo tal
+      // como salieron en la lámina. **Los datos, no la imagen**: la lámina se vuelve a hacer cuando haga falta y un PNG por
+      // recorrido llenaría la base. Es lo que permitirá contar «X cirugías» de un estudiante y darle su comprobante; esa
+      // pantalla no existe todavía. JSON por lo mismo que `insumos`: se escribe y se lee entero.
+      name: 'radiografia',
+      type: 'json',
+      label: 'Radiografía postoperatoria del último recorrido',
+    },
+    {
       name: 'complicaciones',
       type: 'array',
       label: 'Complicaciones',

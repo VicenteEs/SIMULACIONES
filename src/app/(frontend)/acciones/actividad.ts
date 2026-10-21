@@ -19,6 +19,7 @@ import {
   type ResultadoDeCirugia,
 } from '@/lib/progresoDelSimulador'
 import { MAXIMO_DE_INSUMOS, type InsumoDelRecorrido } from '@/lib/insumos'
+import { limpiarLosDatos, type DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
 
 /**
  * Registro de lo que cada residente ha visitado, marcado como leído y jugado.
@@ -338,6 +339,26 @@ function insumoValido(bruto: unknown, posicion: number): InsumoDelRecorrido {
   return { nombre, categoria, cantidad }
 }
 
+/**
+ * Los datos de la radiografía postoperatoria (P-004 E11). Sin la clave (`undefined`) no se toca lo guardado; `null` lo borra;
+ * un objeto se limpia con los mismos topes que la lámina (`limpiarLosDatos`). Cada campo tiene que ser texto: lo demás se
+ * rechaza en vez de convertirse en «[object Object]».
+ */
+function radiografiaValida(valor: unknown): DatosDeLaLamina | null | undefined {
+  if (valor === undefined) return undefined
+  if (valor === null) return null
+  if (typeof valor !== 'object' || Array.isArray(valor)) {
+    throw new ErrorDeValidacion('Los datos de la radiografía no llegaron como corresponde.')
+  }
+  const v = valor as Record<string, unknown>
+  for (const campo of ['caso', 'diagnostico', 'intervencion', 'cirujano', 'fecha', 'equipo']) {
+    if (v[campo] !== undefined && v[campo] !== null && typeof v[campo] !== 'string') {
+      throw new ErrorDeValidacion(`El dato «${campo}» de la radiografía tiene que ser texto.`)
+    }
+  }
+  return limpiarLosDatos(v as Partial<DatosDeLaLamina>)
+}
+
 function resultadoValido(valor: unknown): ResultadoDeCirugia {
   if (!valor || typeof valor !== 'object') {
     throw new ErrorDeValidacion('El resultado del caso no llegó como corresponde.')
@@ -389,6 +410,7 @@ function resultadoValido(valor: unknown): ResultadoDeCirugia {
     complicaciones: lista.map((bruta, i) => complicacionValida(bruta, i + 1)),
     insumos: insumosCrudos.map((bruto, i) => insumoValido(bruto, i + 1)),
     reduccionAutomatica: r.reduccionAutomatica === true,
+    radiografia: radiografiaValida(r.radiografia),
   }
 }
 
@@ -427,6 +449,8 @@ export async function registrarResultadoDeCirugia(
       complicaciones: datos.complicaciones,
       insumos: datos.insumos,
       reduccionAutomatica: datos.reduccionAutomatica,
+      // Solo si vino la clave: un guardado de antes de la radiografía no debe borrar la que ya hay.
+      ...(datos.radiografia !== undefined ? { radiografia: datos.radiografia } : {}),
     })
   } catch (error) {
     console.error('[actividad] no se pudo guardar el resultado del caso:', error)

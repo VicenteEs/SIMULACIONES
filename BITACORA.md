@@ -6715,6 +6715,42 @@ suposición hasta que Cristóbal la valide** (en especial: el quinto del semilar
 perpendicular al eje y no sigue una línea oblicua (para una fractura oblicua la distancia de la trayectoria es aproximada); no hay un óvalo dibujado sobre la placa 3D, solo el esquema; y el
 acercamiento de la cámara usa el mismo mínimo de zoom que el resto, así que en un modelo muy grande puede quedarse algo más lejos de los 80 mm.
 
+### D-203 · 2026-10-21 · vigente
+**La radiografía postoperatoria y su lámina: una toma rectangular en positivo, los datos que se piden al cirujano y un PNG con la metadata dentro.**
+Undécima etapa de P-004 (E11). Pedidos 17 y 18 de Cristóbal: al terminar la cirugía, «Cirugía finalizada. Felicidades. Ir a radiografía postoperatoria»; la toma
+«como la fluoroscopia, pero rectangular y con los grises invertidos»; pedir «Dr. ____», autocompletar la fractura y escribir la intervención; descargar la lámina de la
+reunión clínica **sin insumos ni puntaje** (Q4); que quede registrado qué cirugía hizo cada quien.
+
+**Qué se hizo.**
+- **La toma** reutiliza la de la fluoroscopia (`tomarFluoroscopia`, el mismo blanco de render y los mismos materiales de densidad): lo único nuevo es el *revelado*.
+  `aFluoroscopia` recibe `formato: 'placa'`: sin círculo ni viñeta y **en positivo** (lo denso, blanco; el filtro «positivo» del arco la vuelve negativo, que es lo que su nombre
+  hace). La toma sale cuadrada y la placa es **la franja central de 3 : 4** (`recortarALaPlaca`): se recorta en vez de duplicar el blanco de render. Es una placa y no escopia: no
+  suma exposición ni toca el estado del arco en C (`radiografiaPostoperatoria` en el mando del lienzo; se toma a 768 px y deja la fluoroscopia como estaba).
+- **La pantalla de cierre** (`ConsolaQuirurgica`) ofrece «Ir a radiografía postoperatoria» / «Omitir»; el editor no la ve. El panel (`RadiografiaPostoperatoria.tsx`) lleva proyección, zoom,
+  penetración y contraste, hasta **tres tomas** con miniatura y los datos. La **vista previa es la propia lámina** a su tamaño real: lo que se ve es lo que se descarga.
+- **La lámina** (`src/lib/laminaPostoperatoria.ts`): lo que dice y dónde va se decide con números y sin lienzo (se puede probar); `dibujarLaLamina` solo pinta. 1920 × 1080, negro; franja con el
+  título y el logotipo (sobre una placa clara: es de trazo oscuro y sobre negro no se lee); a la izquierda **Caso · Dg · Cx · Cirujano · (Equipo) · Fecha**; a la derecha las radiografías
+  en fila, todas 3 : 4 y lo más grandes que quepan, con su pie («AP», «Lateral»). Los datos pasan por `limpiarLosDatos` (espacios, tope por campo, «Dr.» de más fuera).
+- **La intervención propuesta** (`intervencionPropuesta`) se deduce de lo usado en el recorrido (E7): placa(s) → «Reducción abierta y osteosíntesis con placa X y N tornillos»;
+  clavo → «…con clavo endomedular X y N tornillos de bloqueo»; solo tornillos → «…con N tornillos»; nada → vacío (el cirujano escribe). Se deduce del **nombre** del insumo.
+- **El PNG con metadata** (`src/lib/pngConMetadatos.ts`, sin bibliotecas): bloques `tEXt` antes del primer `IDAT` con su CRC-32 (`Title`, `Author`, `Description`, `Software`,
+  `Creation Time`, `traumahub:caso`, `traumahub:fecha`); `textosDelPng` los lee de vuelta y comprueba el CRC. `tEXt` es Latin-1: lo que no cabe (una flecha, un emoji) sale como «?» en vez de
+  bytes inválidos. Se verificó en el navegador: el PNG de 870 KB trae sus siete bloques.
+- **Queda registrado** (nota 18): campo JSON `radiografia` en `actividad` (**migración** `radiografia_postoperatoria_del_recorrido`: una columna, solo añade) con cirujano, fractura, intervención,
+  fecha y equipo; **no la imagen**. Viaja por `guardarRecorrido` al descargar. *Sin la clave* el servidor no toca lo guardado (un navegador de antes no la borra); *`null`* la borra, y es
+  lo que se manda mientras no se haya descargado en el recorrido en curso, de modo que un recorrido nuevo no hereda la lámina del anterior. Esa pantalla del docente («X cirugías de un
+  estudiante») **no se hace aquí**.
+
+**Probado.** 32 pruebas nuevas (`tests/unit/radiografiaPostoperatoria.test.ts`): CRC de la especificación, los textos de vuelta con acentos y ñ, el orden de los bloques, un CRC estropeado
+que se nota, lo que no es PNG se rechaza; la placa es 3 : 4, llega al borde y en positivo, el filtro la invierte; la limpieza de datos, las líneas de la lámina, las propuestas de
+intervención (placa y seis tornillos, clavo, solo tornillos, dos placas, nada), la disposición de las tomas (3 : 4, dentro del área, sin pisarse) y el cableado. En el navegador, caso 2:
+tomas AP y lateral de 576 × 768, lámina con el texto y el logotipo, descarga con su nombre y metadata, fila de `actividad` con los datos.
+
+*Consecuencias buenas.* La lámina sale lista para la diapositiva y lleva consigo quién la hizo; las reglas de qué dice están en un archivo puro. *Malas.* La intervención propuesta depende de
+que el nombre del insumo diga «placa», «clavo» o «tornillo» (un insumo con otro nombre no se reconoce y el cirujano escribe a mano); la placa es un recorte de la toma cuadrada, así que
+con zoom bajo y un miembro muy ancho puede cortar los lados. Al abrir un caso ya
+terminado no se precargan los datos de la lámina anterior (se guardan, pero esta etapa no los lee de vuelta).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10559,7 +10595,7 @@ la corrija sin tocar el lienzo.
 
 ---
 
-#### E11 · Radiografía postoperatoria y su lámina · 2–3 sesiones
+#### E11 · Radiografía postoperatoria y su lámina · 2–3 sesiones · hecha en local (2026-10-21, D-203)
 
 **De dónde sale:** pedido 17 (y la nota 18). Depende de E3 (el resumen de lo usado) y reutiliza la fluoroscopia de E2.
 
@@ -10595,13 +10631,13 @@ la corrija sin tocar el lienzo.
 
 **Tareas**
 
-- [ ] **E11.1 · La pantalla de cierre** y el acceso al modo radiografía.
-- [ ] **E11.2 · El formato `radiografia`** del panel de la fluoroscopia: rectangular, en positivo, sin exposición, hasta tres tomas.
-- [ ] **E11.3 · Los datos:** el formulario, el autocompletado y la intervención propuesta (`intervencionPropuesta`, pura, con pruebas).
-- [ ] **E11.4 · `laminaPostoperatoria.ts` y su dibujo,** con el logotipo.
-- [ ] **E11.5 · `pngConMetadatos.ts`** (puro) y la descarga.
-- [ ] **E11.6 · Guardar los datos con el recorrido** (campo y migración).
-- [ ] **E11.7 · Pruebas, manual y D-nnn.** La proporción y el positivo de la toma; la intervención propuesta con una placa y seis tornillos;
+- [x] **E11.1 · La pantalla de cierre** y el acceso al modo radiografía.
+- [x] **E11.2 · El formato `radiografia`** del panel de la fluoroscopia: rectangular, en positivo, sin exposición, hasta tres tomas.
+- [x] **E11.3 · Los datos:** el formulario, el autocompletado y la intervención propuesta (`intervencionPropuesta`, pura, con pruebas).
+- [x] **E11.4 · `laminaPostoperatoria.ts` y su dibujo,** con el logotipo.
+- [x] **E11.5 · `pngConMetadatos.ts`** (puro) y la descarga.
+- [x] **E11.6 · Guardar los datos con el recorrido** (campo y migración).
+- [x] **E11.7 · Pruebas, manual y D-nnn.** La proporción y el positivo de la toma; la intervención propuesta con una placa y seis tornillos;
   los `tEXt` leídos de vuelta de un PNG; recorrido en el navegador: terminar el caso, tomar dos radiografías, rellenar y descargar.
 
 **Hecho cuando…** Al terminar una cirugía se toman una o más radiografías rectangulares y en positivo, se completan los datos ya escritos
@@ -10651,7 +10687,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | E8 · El instrumento se queda en el orificio | hecha en local; sin desplegar | 2 | E2, E6, E7 | D-200 |
 | E9 · Tornillos: secuencia, tipos, medidas, trayectoria | hecha en local; sin desplegar | 2–3 | E8 | D-201 |
 | E10 · Compresión | hecha en local; sin desplegar | 2 | E7, E9 | D-202 |
-| E11 · Radiografía postoperatoria y lámina | pendiente | 2–3 | E3 | — |
+| E11 · Radiografía postoperatoria y lámina | hecha en local; sin desplegar | 2–3 | E3 | D-203 |
 | E12 · Apariencia de pabellón | aplazada | — | modelos del Dani | — |
 
 ---

@@ -19,7 +19,7 @@ import {
  * lienzo dibuja una sola línea en vez de las siete asas.
  *
  * Es genérico: lo usan el trozo de hueso y la placa con la misma interfaz y distinta lista de acciones. Quien lo monta dice
- * **qué hace** un paso (\`alMover\`) y el menú solo lleva la cuenta de la elección y de las teclas.
+ * **qué hace** un paso (`alMover`) y el menú solo lleva la cuenta de la elección y de las teclas.
  *
  * Las flechas solo mueven mientras no se escribe en un campo y no hay Alt: el teclado sigue siendo del campo numérico
  * cuando tiene el foco, y Mayúsculas / Ctrl cambian el paso (0,2 · 1 · 5).

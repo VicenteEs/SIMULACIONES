@@ -102,7 +102,8 @@ describe('la consola manda lo que calcula', () => {
     expect(veces(aplicar, 'guardarRecorrido(')).toBe(2)
     // Y un tercer hito, fuera de `aplicarPaso`: elegir la reducción automática (P-004 E7), que cambia lo que puntúa el recorrido y
     // no puede esperar al paso siguiente. Sigue siendo un gesto raro y deliberado, no una escritura por clic.
-    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(3)
+    // Y un cuarto, al descargar la lámina de la radiografía postoperatoria (P-004 E11): los datos escritos viajan con el recorrido.
+    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(4)
     const automatica = CONSOLA.slice(CONSOLA.indexOf('const reducirAutomaticamente = '), CONSOLA.indexOf('const colocarEnDesplazamientoInicial'))
     expect(veces(automatica, 'guardarRecorrido(')).toBe(1)
   })

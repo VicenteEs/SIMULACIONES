@@ -49,6 +49,8 @@ import { textoDelDesplazamiento } from '@/lib/ejesAnatomicos'
 import { textoDeLaBroca } from '@/lib/profundidadDeLaBroca'
 import { NOMBRE_DE_LA_TECNICA } from '@/lib/compresion'
 import { PanelDeCompresion } from './PanelDeCompresion'
+import { RadiografiaPostoperatoria } from './RadiografiaPostoperatoria'
+import { intervencionPropuesta, type DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
 import {
   ETAPAS_DE_FIJACION,
   diametrosDelTipo,
@@ -579,7 +581,10 @@ export function ConsolaQuirurgica({
   alMarcarComoLeido,
   editor,
   mandoRef,
+  cirujano = '',
 }: {
+  /** El nombre de quien opera, de su cuenta, para precargar «Dr. ____» en la radiografía postoperatoria (P-004 E11). */
+  cirujano?: string
   caso: CasoDeConsola
   /**
    * La cirugía cuyo recorrido se guarda.
@@ -824,6 +829,10 @@ export function ConsolaQuirurgica({
   // recorrido entero va en una referencia porque `guardarRecorrido` la lee en el momento en que se llama.
   const [automaticas, setAutomaticas] = useState<Set<string>>(new Set())
   const usoLaReduccionAutomatica = useRef(false)
+  // La radiografía postoperatoria (P-004 E11): la invitación al terminar, el panel abierto u omitida. Los datos escritos van
+  // en una referencia por lo mismo que la marca de arriba: `guardarRecorrido` los lee en el momento en que se llama.
+  const [radiografiaPost, setRadiografiaPost] = useState<'invitacion' | 'abierta' | 'omitida'>('invitacion')
+  const radiografiaDelRecorrido = useRef<DatosDeLaLamina | null>(null)
   const animacionDeLaReduccion = useRef<number | null>(null)
   const [complicados, setComplicados] = useState<Set<string>>(new Set())
   /**
@@ -953,6 +962,8 @@ export function ConsolaQuirurgica({
           CATEGORIAS_DE_INSTRUMENTAL.map((cat) => cat.value as string),
         ),
         reduccionAutomatica: usoLaReduccionAutomatica.current,
+        // `null` borra la del recorrido anterior: la fila describe el último recorrido (P-004 E11).
+        radiografia: radiografiaDelRecorrido.current,
       }
       const huella = JSON.stringify(datos)
       if (huella === ultimoMandado.current) return
@@ -1340,6 +1351,8 @@ export function ConsolaQuirurgica({
     setComplicados(new Set())
     setAutomaticas(new Set())
     usoLaReduccionAutomatica.current = false
+    radiografiaDelRecorrido.current = null
+    setRadiografiaPost('invitacion')
     // Lo guardado **no** se borra aquí, y es a propósito: este botón está a
     // ocho píxeles del marcador y se pulsa sin querer. Vaciar la fila dejaría
     // al residente sin el registro de complicaciones del recorrido que acaba de
@@ -4407,6 +4420,42 @@ export function ConsolaQuirurgica({
               <Trophy size={24} />
             </span>
             <p className="consola-rotulo">Caso terminado</p>
+            {/* La invitación a la radiografía postoperatoria (P-004 E11): lo último que se hace en pabellón antes de cerrar.
+                «Omitir» deja el cierre de siempre; el panel abierto se cierra con su propio botón. */}
+            {radiografiaPost === 'invitacion' && !editor ? (
+              <div className="radiografia-post-invitacion">
+                <p>
+                  <strong>Cirugía finalizada. ¡Felicidades!</strong> Falta la radiografía postoperatoria.
+                </p>
+                <div className="consola-fin-acciones">
+                  <button type="button" className="consola-aplicar" onClick={() => setRadiografiaPost('abierta')}>
+                    <ScanLine size={16} aria-hidden /> Ir a radiografía postoperatoria
+                  </button>
+                  <button type="button" className="consola-boton" onClick={() => setRadiografiaPost('omitida')}>
+                    Omitir
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {radiografiaPost === 'abierta' && !editor ? (
+              <RadiografiaPostoperatoria
+                caso={caso.nombre}
+                diagnosticoInicial={[caso.hueso, caso.clasificacion].filter(Boolean).join(' · ')}
+                cirujanoInicial={cirujano}
+                intervencionInicial={intervencionPropuesta(
+                  resumenDeInsumos(
+                    insumos,
+                    CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string),
+                  ),
+                )}
+                tomar={(destino, proyeccion, zoom, ajustes) => mando.current?.radiografiaPostoperatoria(destino, proyeccion, zoom, ajustes) ?? false}
+                alGuardar={(datos) => {
+                  radiografiaDelRecorrido.current = datos
+                  guardarRecorrido(puntaje, complicaciones, insumos)
+                }}
+                alCerrar={() => setRadiografiaPost('omitida')}
+              />
+            ) : null}
             <p className="consola-fin-puntaje">
               <span className="u-num">{puntaje}</span>
               <span className="consola-fin-total u-num"> / {maximo} puntos</span>

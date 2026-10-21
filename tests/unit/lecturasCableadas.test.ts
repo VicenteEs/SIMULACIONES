@@ -115,8 +115,8 @@ describe('terminar el caso lo da por leído', () => {
     expect(hastaElAcierto).not.toContain('marcarCasoComoLeido')
   })
 
-  it('no toca la cola del recorrido: dos guardados de los pasos, el de la reducción automática y una marca', () => {
-    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(3)
+  it('no toca la cola del recorrido: dos guardados de los pasos, el de la reducción automática, el de la radiografía y una marca', () => {
+    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(4)
     expect(veces(CONSOLA, 'registrarResultadoDeCirugia(')).toBe(1)
   })
 

@@ -184,6 +184,35 @@ export interface OpcionesDeFluoroscopia extends Partial<AjustesDeLaImagen> {
   ruido?: number
   /** Un número cualquiera, para que el mismo cuadro dé siempre el mismo ruido. */
   semilla?: number
+  /**
+   * `'circulo'` (por omisión): la imagen del arco en C, en negativo y recortada en círculo. `'placa'` (P-004 E11): la radiografía
+   * postoperatoria, rectangular, sin viñeta y en positivo —lo denso, blanco, sobre fondo oscuro—, que es como se mira una placa y
+   * como van las diapositivas de la reunión clínica.
+   */
+  formato?: FormatoDeLaImagen
+}
+
+export type FormatoDeLaImagen = 'circulo' | 'placa'
+
+/** La placa es vertical, de 3 : 4: un hueso largo la llena y no sobra aire a los lados como en el círculo. */
+export const PROPORCION_DE_LA_PLACA = 3 / 4
+
+/** Cuántas columnas de una toma cuadrada de `lado` píxeles entran en la placa, centradas. */
+export const columnasDeLaPlaca = (lado: number): number => Math.max(1, Math.round(lado * PROPORCION_DE_LA_PLACA))
+
+/**
+ * Recorta una toma cuadrada (RGBA, `lado` × `lado`) a las columnas centrales de la placa. Se recorta en vez de tomar con otra
+ * proporción para no duplicar el blanco de render: la cámara ya encuadra con aire en el lado largo, que es el del hueso.
+ */
+export function recortarALaPlaca(pixeles: Uint8ClampedArray | Uint8Array, lado: number): { pixeles: Uint8ClampedArray; ancho: number } {
+  const ancho = columnasDeLaPlaca(lado)
+  const desde = Math.floor((lado - ancho) / 2)
+  const salida = new Uint8ClampedArray(ancho * lado * 4)
+  for (let y = 0; y < lado; y++) {
+    const origen = (y * lado + desde) * 4
+    salida.set(pixeles.subarray(origen, origen + ancho * 4), y * ancho * 4)
+  }
+  return { pixeles: salida, ancho }
 }
 
 /**
@@ -262,6 +291,24 @@ export function aFluoroscopia(
   if (ajustes.filtro === 'bordes') claridades = realzarBordes(claridades, ancho, alto)
 
   const salida = new Uint8ClampedArray(ancho * alto * 4)
+  if (opciones.formato === 'placa') {
+    for (let y = 0; y < alto; y++) {
+      const origenY = alto - 1 - y
+      for (let x = 0; x < ancho; x++) {
+        const destino = (y * ancho + x) * 4
+        const claridad = claridades[origenY * ancho + x]
+        // En positivo por omisión; el filtro «positivo» la vuelve negativo, que es lo que el nombre del filtro hace en el arco.
+        let valor = 20 + 195 * (ajustes.filtro === 'positivo' ? claridad : positivo(claridad))
+        if (ruido > 0) valor += (azar() - 0.5) * 14 * ruido
+        const v = Math.max(0, Math.min(255, valor))
+        salida[destino] = v
+        salida[destino + 1] = v
+        salida[destino + 2] = Math.min(255, v + 3)
+        salida[destino + 3] = 255
+      }
+    }
+    return salida
+  }
   const cx = (ancho - 1) / 2
   const cy = (alto - 1) / 2
   const radio = Math.min(ancho, alto) / 2

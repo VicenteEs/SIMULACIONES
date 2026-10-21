@@ -418,6 +418,16 @@ export interface MandoDelLienzo {
    */
   revelarFluoroscopia: (destino: HTMLCanvasElement, ajustes?: Partial<AjustesDeLaImagen>) => boolean
   /**
+   * La radiografía postoperatoria (P-004 E11): una toma de la escena como está ahora, rectangular y en positivo, dibujada en
+   * `destino`. No es escopia: no suma exposición ni toca la imagen del arco en C.
+   */
+  radiografiaPostoperatoria: (
+    destino: HTMLCanvasElement,
+    proyeccion: ProyeccionDeFluoroscopia,
+    zoom: number,
+    ajustes?: Partial<AjustesDeLaImagen>,
+  ) => boolean
+  /**
    * Hace olvidar a la fluoroscopia lo que ya tenía dibujado, para que la próxima toma se haga aunque la escena sea la
    * misma: se llama cuando el lienzo de la imagen se vació o es otro (apagar y encender, cambiar de modo).
    */
@@ -1425,6 +1435,27 @@ export function LienzoQuirurgico({
         (t.cuadro ?? 0) + (t.disparos = (t.disparos ?? 0) + 1),
         [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
       )
+    },
+
+    radiografiaPostoperatoria: (destino, proyeccion, zoom, ajustes) => {
+      const t = taller.current
+      const ctx = contextoDeRadiografia(t)
+      if (!t.render || !ctx) return false
+      t.fluoroscopia ??= prepararFluoroscopia()
+      // Una placa no es escopia: no pasa por `disparos` ni cuenta exposición. Se toma a la resolución más alta que ya sabe hacer el
+      // taller, porque la lámina la amplía, y se vuelve a la de la pantalla al terminar para no dejar la fluoroscopia a otro tamaño.
+      const hecha = dibujarFluoroscopia(
+        t.render,
+        ctx,
+        t.fluoroscopia,
+        destino,
+        { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, lado: 768, ajustes, forzar: true },
+        (t.cuadro ?? 0) + (t.disparos = (t.disparos ?? 0) + 1),
+        [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
+        'placa',
+      )
+      reiniciarLaFluoroscopia(t.fluoroscopia)
+      return hecha
     },
 
     revelarFluoroscopia: (destino, ajustes) => (taller.current.fluoroscopia ? revelarLaToma(taller.current.fluoroscopia, destino, ajustes) : false),

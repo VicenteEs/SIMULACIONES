@@ -101,6 +101,7 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
         caso={caso}
         documentoId={id}
         completadoInicial={lecturas.leida(id)}
+        cirujano={typeof (usuarioEfectivo as { nombre?: unknown } | null)?.nombre === 'string' ? (usuarioEfectivo as { nombre: string }).nombre : ''}
         recorridoGuardado={recorridoGuardado(registroDeLectura)}
       >
         {/* El título y el resumen van dentro para que la casilla de «leída»

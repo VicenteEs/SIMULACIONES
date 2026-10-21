@@ -11,7 +11,7 @@
  * - Un tornillo de tracción comprime de **dos formas**: brocando **grande** el fragmento cercano y **chico** el lejano (el tornillo
  *   desliza por el cercano y arrastra al otro), o con un tornillo de **rosca parcial** (desliza en el cercano y empuja contra el otro).
  *
- * Las suposiciones que hay que validar con él están en \`BITACORA.md\` (S6, Q3): el óvalo se parte en tres zonas por su distancia a la
+ * Las suposiciones que hay que validar con él están en `BITACORA.md` (S6, Q3): el óvalo se parte en tres zonas por su distancia a la
  * fractura, y cada tornillo comprime como mucho **1 mm**, que es lo de una DCP.
  *
  * Es puro y sin three: se prueba con números.
@@ -79,8 +79,8 @@ export type ZonaDelOval = 'cerca-de-la-fractura' | 'centro' | 'lejos-de-la-fract
 export const FRACCION_DEL_CENTRO = 0.2
 
 /**
- * En qué zona del óvalo cayó la broca. \`desviacionMm\` es lo que se corrió del centro, con signo y a lo largo de la placa;
- * \`ladoDeLaFractura\` es hacia qué sentido de ese mismo eje está la fractura (1 hacia el lado positivo, −1 hacia el negativo).
+ * En qué zona del óvalo cayó la broca. `desviacionMm` es lo que se corrió del centro, con signo y a lo largo de la placa;
+ * `ladoDeLaFractura` es hacia qué sentido de ese mismo eje está la fractura (1 hacia el lado positivo, −1 hacia el negativo).
  * «Hacia la fractura» es la desviación vista desde la fractura: positiva si se corrió hacia ella.
  */
 export function zonaDelOval(desviacionMm: number, ladoDeLaFractura: 1 | -1, semilargoMm: number): ZonaDelOval {
@@ -98,7 +98,7 @@ export const NOMBRE_DE_LA_ZONA: Record<ZonaDelOval, string> = {
 
 /**
  * Qué compresión da un tornillo puesto en un orificio oval según donde se brocó. **Solo el excéntrico, lejos de la fractura,
- * comprime**: hasta \`COMPRESION_MAXIMA_POR_TORNILLO_MM\`, que se alcanza con una excentricidad de medio milímetro (\`2 × excentricidad\`).
+ * comprime**: hasta `COMPRESION_MAXIMA_POR_TORNILLO_MM`, que se alcanza con una excentricidad de medio milímetro (`2 × excentricidad`).
  * Cerca de la fractura no comprime y, además, tiende a separar los fragmentos al apretarse; en el centro, es neutro.
  */
 export function resultadoDelOval(desviacionMm: number, ladoDeLaFractura: 1 | -1, semilargoMm: number): ResultadoDeCompresion {
@@ -123,8 +123,8 @@ export function resultadoDelOval(desviacionMm: number, ladoDeLaFractura: 1 | -1,
 }
 
 /**
- * Hacia qué sentido del eje de la placa está la fractura respecto de un orificio: \`posicionDelAgujeroMm\` y
- * \`posicionDeLaFracturaMm\` son coordenadas a lo largo de ese eje. Con la fractura justo sobre el orificio no hay lado y se toma el
+ * Hacia qué sentido del eje de la placa está la fractura respecto de un orificio: `posicionDelAgujeroMm` y
+ * `posicionDeLaFracturaMm` son coordenadas a lo largo de ese eje. Con la fractura justo sobre el orificio no hay lado y se toma el
  * positivo, que es lo mismo que decir que ahí todo es «centro».
  */
 export function ladoDeLaFractura(posicionDelAgujeroMm: number, posicionDeLaFracturaMm: number): 1 | -1 {
@@ -141,9 +141,9 @@ export interface PerforacionDeLaTrayectoria {
 
 /**
  * Los calibres con que quedó perforado cada fragmento, a partir de lo perforado por la trayectoria y de a qué distancia de la
- * entrada la cruza la fractura (\`distanciaALaFracturaMm\`). El **cercano** es lo que va de la entrada a la fractura: lo que se
+ * entrada la cruza la fractura (`distanciaALaFracturaMm`). El **cercano** es lo que va de la entrada a la fractura: lo que se
  * perforó con la broca **más grande** que pasó por ahí. El **lejano** es lo que hay más allá: lo perforado por una broca que
- * llegó más lejos que la fractura (la más chica, si hubo dos). \`null\`: ese fragmento no se perforó.
+ * llegó más lejos que la fractura (la más chica, si hubo dos). `null`: ese fragmento no se perforó.
  */
 export function calibresPorFragmento(
   perforaciones: readonly PerforacionDeLaTrayectoria[],
@@ -203,8 +203,8 @@ export function resultadoDelDeslizamiento(p: {
 // ---------------------------------------------------------------------------------- la rosca parcial
 
 /**
- * La técnica del tornillo de **rosca parcial**: la rosca ocupa los últimos \`roscaMm\` de la punta. Comprime si **toda la rosca** queda
- * en el fragmento lejano, o sea, si la parte lisa llega hasta más allá de la fractura (\`largoMm − roscaMm ≥ distancia\`). Si la rosca
+ * La técnica del tornillo de **rosca parcial**: la rosca ocupa los últimos `roscaMm` de la punta. Comprime si **toda la rosca** queda
+ * en el fragmento lejano, o sea, si la parte lisa llega hasta más allá de la fractura (`largoMm − roscaMm ≥ distancia`). Si la rosca
  * **cruza la fractura** agarra en los dos fragmentos y no comprime; si el tornillo ni siquiera la alcanza, tampoco.
  */
 export function resultadoDeLaRoscaParcial(p: {
@@ -250,7 +250,7 @@ export const NOMBRE_DE_LA_TECNICA: Record<TecnicaDeCompresion, string> = {
 }
 
 /**
- * Cuánto puede bajar la diástasis con una compresión: no se comprime más de lo que hay separado. \`diastasisMm\` es lo que mide el motor
+ * Cuánto puede bajar la diástasis con una compresión: no se comprime más de lo que hay separado. `diastasisMm` es lo que mide el motor
  * de la reducción; sin separación, no hay nada que comprimir y el fragmento no se mueve.
  */
 export function compresionAplicable(compresionMm: number, diastasisMm: number): number {

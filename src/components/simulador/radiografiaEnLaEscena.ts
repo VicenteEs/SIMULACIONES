@@ -7,6 +7,8 @@ import {
   FACTOR_DE_LA_TOMA,
   SIN_DESPLAZAMIENTO,
   aFluoroscopia,
+  recortarALaPlaca,
+  type FormatoDeLaImagen,
   centroDeLaImagen,
   densidadDelPapel,
   LADOS_DE_LA_IMAGEN,
@@ -332,19 +334,24 @@ export function revelarLaToma(
   destino: HTMLCanvasElement,
   ajustes?: Partial<AjustesDeLaImagen>,
   forzar = false,
+  /** `'placa'` (P-004 E11): rectangular y en positivo, para la radiografía postoperatoria. */
+  formato: FormatoDeLaImagen = 'circulo',
 ): boolean {
   if (!f.toma) return false
   const a = limitarAjustes(ajustes ?? AJUSTES_DE_LA_IMAGEN_POR_OMISION)
-  const huella = `${a.kv}|${a.contraste}|${a.brillo}|${a.filtro}`
+  const huella = `${a.kv}|${a.contraste}|${a.brillo}|${a.filtro}|${formato}`
   if (!forzar && huella === f.huellaDelRevelado) return false
   // El lado de la toma y no el de ahora: ensanchar el recuadro entre dos disparos no vacía la imagen que se mira.
   const lado = f.toma.lado
-  const imagen = aFluoroscopia(f.buffer, lado, lado, { ...a, ganancia: FACTOR_DE_LA_TOMA, ruido: 0.6, semilla: f.toma.cuadro })
-  destino.width = lado
+  // La placa es una franja vertical de la misma toma: el círculo ocupa el cuadrado entero, la placa solo sus columnas centrales.
+  const recorte = formato === 'placa' ? recortarALaPlaca(f.buffer, lado) : null
+  const ancho = recorte?.ancho ?? lado
+  const imagen = aFluoroscopia(recorte?.pixeles ?? f.buffer, ancho, lado, { ...a, ganancia: FACTOR_DE_LA_TOMA, ruido: 0.6, semilla: f.toma.cuadro, formato })
+  destino.width = ancho
   destino.height = lado
   const lienzo = destino.getContext('2d')
   if (!lienzo) return false
-  lienzo.putImageData(new ImageData(new Uint8ClampedArray(imagen), lado, lado), 0, 0)
+  lienzo.putImageData(new ImageData(new Uint8ClampedArray(imagen), ancho, lado), 0, 0)
   f.huellaDelRevelado = huella
   return true
 }
@@ -361,7 +368,8 @@ export function dibujarFluoroscopia(
   opciones: OpcionesDeLaImagen,
   cuadro: number,
   esconder: (THREE.Object3D | undefined)[],
+  formato: FormatoDeLaImagen = 'circulo',
 ): boolean {
   const tomada = tomarFluoroscopia(render, ctx, f, opciones, cuadro, esconder)
-  return revelarLaToma(f, destino, opciones.ajustes, tomada)
+  return revelarLaToma(f, destino, opciones.ajustes, tomada, formato)
 }

@@ -9,7 +9,7 @@ import { NOMBRE_DE_LA_ZONA, resultadoDelOval, zonaDelOval, type ZonaDelOval } fr
  * concéntrico hacia la fractura (no comprime) o excéntrico, más lejos de la fractura (comprime)».
  *
  * Es un esquema del óvalo con una flecha hacia la fractura. Un clic dentro del óvalo marca dónde se broca, y el texto de debajo es
- * lo que decide \`resultadoDelOval\` (en \`src/lib/compresion.ts\`, donde Cristóbal puede corregir las reglas). El botón «Acercar» lleva la
+ * lo que decide `resultadoDelOval` (en `src/lib/compresion.ts`, donde Cristóbal puede corregir las reglas). El botón «Acercar» lleva la
  * cámara al orificio.
  */
 

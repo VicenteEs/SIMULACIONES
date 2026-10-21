@@ -932,6 +932,16 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   reparten a partes iguales a lo largo de la placa y se puede perforar cada uno. Si el modelo sí
   los trae, mandan los del modelo y, si no coincide el número, la consola lo avisa. En un
   tornillo, «Largo del tornillo (mm)» es el largo con que se ofrece al cogerlo.
+- **Radiografía postoperatoria.** Al terminar el último paso, la consola dice «Cirugía finalizada. ¡Felicidades!» y ofrece **Ir a radiografía
+  postoperatoria** (o **Omitir**, que deja el cierre de siempre). El panel toma una placa de lo que quedó en la escena —con la
+  proyección AP, lateral u oblicua, el zoom, la penetración (kV) y el contraste—: es **rectangular (3 : 4) y en positivo** (el hueso y el
+  metal, blancos sobre negro), distinta del círculo de la fluoroscopia, y no cuenta exposición. Caben **hasta tres** en la lámina; cada una
+  se puede quitar. Se piden el **cirujano** (precargado con el nombre de la cuenta; el «Dr.» lo pone la lámina), la **fractura**
+  (autocompletada con el hueso y la clasificación del caso), la **intervención** (propuesta según lo usado: «Reducción abierta y
+  osteosíntesis con placa DCP 4,5 mm y 6 tornillos»; se corrige o se elige una frase de la lista) y, si se quiere, el equipo. **Descargar
+  lámina (PNG)** baja una imagen de 1920 × 1080 con fondo negro, el caso, el diagnóstico, la intervención, el cirujano, la fecha, el
+  logotipo y las radiografías; **no lleva los insumos ni el puntaje**. Los mismos datos van **dentro del PNG** (bloques `tEXt`: autor,
+  título, descripción, fecha) y se guardan con el recorrido, aunque no la imagen.
 - **Insumos utilizados.** Al terminar el caso, la consola lista **lo que se usó** (lo que hizo
   algo: cortó, separó, pinzó, perforó, midió, cosió o fijó; elegir un instrumento y soltarlo no
   cuenta), por categoría y con los tornillos por tipo y largo. **Queda guardado con el

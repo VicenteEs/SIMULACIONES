@@ -41,8 +41,11 @@ export function CasoConSuLectura({
   documentoId,
   recorridoGuardado,
   completadoInicial,
+  cirujano,
   children,
 }: {
+  /** El nombre de la cuenta, que la consola precarga como cirujano de la radiografía postoperatoria. */
+  cirujano?: string
   caso: CasoDeConsola
   documentoId: string
   recorridoGuardado: RecorridoGuardado | null
@@ -83,6 +86,7 @@ export function CasoConSuLectura({
         documentoId={documentoId}
         recorridoGuardado={recorridoGuardado}
         alMarcarComoLeido={alMarcarComoLeido}
+        cirujano={cirujano}
       />
     </>
   )

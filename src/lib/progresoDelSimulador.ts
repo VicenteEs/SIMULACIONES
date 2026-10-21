@@ -27,6 +27,7 @@
 
 import { RESULTADOS, type Resultado } from '@/lib/simulador'
 import { MAXIMO_DE_INSUMOS, type InsumoDelRecorrido } from '@/lib/insumos'
+import type { DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
 
 /**
  * Cuántas complicaciones caben en un recorrido.
@@ -71,6 +72,11 @@ export interface ResultadoDeCirugia {
   insumos: InsumoDelRecorrido[]
   /** Se usó la reducción automática en algún paso (P-004 E7): el ejercicio de reducir no puntuó. */
   reduccionAutomatica: boolean
+  /**
+   * La radiografía postoperatoria (P-004 E11): `undefined` no la toca (un navegador de antes de este cambio), `null` la borra
+   * (se empezó otro recorrido) y los datos la guardan.
+   */
+  radiografia?: DatosDeLaLamina | null
 }
 
 /** Lo que vuelve de la base: lo mismo, menos lo que la fila no traiga. */
