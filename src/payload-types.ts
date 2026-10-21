@@ -520,6 +520,10 @@ export interface Instrumental {
    */
   largoMm?: number | null;
   /**
+   * Solo para tornillos. Parte la bandeja en subgrupos y decide qué diámetros se ofrecen al cogerlo. Vacío: se deduce del nombre («cortical», «esponjosa», «bloqueado»…).
+   */
+  tipoDeTornillo?: ('cortical' | 'esponjosa' | 'rosca-parcial' | 'bloqueado' | 'canulado') | null;
+  /**
    * Opcional. Se enseña al residente cuando coge este instrumento, uno cada vez: trece modelos cargando a la vez en la bandeja dejarían la consola inservible en un portátil modesto.
    */
   modelo?: (number | null) | Modelos3D;
@@ -2708,6 +2712,7 @@ export interface InstrumentalSelect<T extends boolean = true> {
   especificaciones?: T;
   orificios?: T;
   largoMm?: T;
+  tipoDeTornillo?: T;
   modelo?: T;
   ajustes?: T;
   tecnicas?: T;

@@ -275,6 +275,22 @@ export const Instrumental: CollectionConfig = {
       },
     },
     {
+      name: 'tipoDeTornillo',
+      type: 'select',
+      label: 'Tipo de tornillo',
+      options: [
+        { label: 'Cortical', value: 'cortical' },
+        { label: 'Esponjosa', value: 'esponjosa' },
+        { label: 'Rosca parcial', value: 'rosca-parcial' },
+        { label: 'Bloqueado', value: 'bloqueado' },
+        { label: 'Canulado', value: 'canulado' },
+      ],
+      admin: {
+        description:
+          'Solo para tornillos. Parte la bandeja en subgrupos y decide qué diámetros se ofrecen al cogerlo. Vacío: se deduce del nombre («cortical», «esponjosa», «bloqueado»…).',
+      },
+    },
+    {
       name: 'modelo',
       type: 'relationship',
       relationTo: 'modelos-3d',

@@ -47,7 +47,17 @@ import { ACCIONES_DE_LA_PLACA, ajusteDeLaPlacaPorPaso, lecturaDelMovimiento } fr
 import { acotar } from '@/lib/ejesAnatomicos'
 import { textoDelDesplazamiento } from '@/lib/ejesAnatomicos'
 import { textoDeLaBroca } from '@/lib/profundidadDeLaBroca'
-import type { EstadoDeLaBroca } from './LienzoQuirurgico'
+import {
+  ETAPAS_DE_FIJACION,
+  diametrosDelTipo,
+  instrumentoDeLaEtapa,
+  siguienteDeLaSecuencia,
+  TIPOS_DE_TORNILLO,
+  textoDeLaSecuencia,
+  tipoDelTornillo,
+  type EtapaDeFijacion,
+} from '@/lib/tornillos'
+import type { EstadoDeLaBroca, EstadoDeLaTrayectoria, SucesoDeFijacion } from './LienzoQuirurgico'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import { Vacio } from '@/components/ui/Vacio'
 import {
@@ -170,7 +180,7 @@ import type {
   PerforacionHecha,
   PiezaDelCaso,
 } from './LienzoQuirurgico'
-import { MAXIMO_DEL_TORNILLO_MM, MINIMO_DEL_TORNILLO_MM, resumenDeLaFijacion, type EstadoDeLaFijacion } from '@/lib/fijacion'
+import { MAXIMO_DEL_TORNILLO_MM, MINIMO_DEL_TORNILLO_MM, calibreDeBrocaParaElTornillo, resumenDeLaFijacion, type EstadoDeLaFijacion } from '@/lib/fijacion'
 import { paraComparar } from '@/lib/catalogosAmpliables'
 import { claveDeLaConsolaDelEditor, guardarEnsayoDeLaConsola, leerEnsayoDeLaConsola } from '@/lib/ensayoDelEditor'
 
@@ -258,6 +268,8 @@ export interface InstrumentoDeBandeja {
   /** Cuántos orificios tiene una placa y el largo de un tornillo, escritos por el editor (P-004 E6). */
   orificios?: number | null
   largoMm?: number | null
+  /** El tipo de tornillo que escribió el editor (P-004 E9); sin él, se deduce del nombre. */
+  tipoDeTornillo?: string | null
   /** Solo en el editor: si el instrumento ya está en la bandeja que el caso declara. */
   enLaBandejaDelCaso?: boolean
   /** Para qué sirve, tal como lo escribió el traumatólogo en el catálogo. */
@@ -731,6 +743,16 @@ export function ConsolaQuirurgica({
   const [piezaElegida, setPiezaElegida] = useState<string | null>(null)
   // La broca puesta en el hoyo (P-004 E8): se queda hasta que se la retira, también mientras se pide el disparo.
   const [broca, setBroca] = useState<EstadoDeLaBroca | null>(null)
+  // Los tornillos (P-004 E9): el diámetro elegido de la lista (`null`: el del modelo), la trayectoria de dos clics y si se está
+  // marcando, qué tiempo de la secuencia brocar · medir · atornillar toca, si el siguiente instrumento pasa solo a la mano y cuál
+  // es el último tornillo que se usó (el siguiente tornillo, y la broca que le corresponde, se eligen a partir de él).
+  const [diametroDeTornillo, setDiametroDeTornillo] = useState<number | null>(null)
+  const [marcandoLaTrayectoria, setMarcandoLaTrayectoria] = useState(false)
+  const [trayectoria, setTrayectoria] = useState<EstadoDeLaTrayectoria | null>(null)
+  const [etapaDeFijacion, setEtapaDeFijacion] = useState<EtapaDeFijacion>('brocar')
+  const [siguienteAutomatico, setSiguienteAutomatico] = useState(true)
+  const [siguienteEnLaBandeja, setSiguienteEnLaBandeja] = useState<string | null>(null)
+  const [ultimoTornillo, setUltimoTornillo] = useState<string | null>(null)
   const [asasLibres, setAsasLibres] = useState(false)
   const [retracciones, setRetracciones] = useState<{ id: number; nodo: string; nombre: string; aperturaMm: number; maximoMm: number; activa: boolean }[]>([])
   // El instrumento en la mano: qué articulaciones declara su archivo y cuánto
@@ -1464,6 +1486,9 @@ export function ConsolaQuirurgica({
     else if (que?.sutura) setModo('coser')
     else if (que?.coloca || que?.mide) setModo('fijar')
     else if (modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
+    // Cada instrumento empieza con el diámetro de su modelo, y un tornillo queda como «el último» para elegir el siguiente (P-004 E9).
+    setDiametroDeTornillo(null)
+    if (que?.coloca?.tipo === 'tornillo' && id) setUltimoTornillo(id)
     // El tornillo se ofrece con el largo que el editor le escribió al instrumento (P-004 E6); el residente puede escribir otro.
     if (destino?.largoMm && que?.coloca?.tipo === 'tornillo') setLargoDeTornillo(Math.min(MAXIMO_DEL_TORNILLO_MM, Math.max(MINIMO_DEL_TORNILLO_MM, destino.largoMm)))
     setDiseccion(null)
@@ -1582,6 +1607,12 @@ export function ConsolaQuirurgica({
     () =>
       comportamientoDelInstrumento({ slug: slugDelElegido, nombre: nombreDelElegido, icono: iconoDelElegido }),
     [slugDelElegido, nombreDelElegido, iconoDelElegido],
+  )
+  /** De qué tipo es el tornillo en la mano: el que escribió el editor o el que se deduce del nombre (P-004 E9). */
+  const tipoDeTornilloEscrito = instrumentoElegido?.tipoDeTornillo ?? null
+  const tipoDelElegido = useMemo(
+    () => tipoDelTornillo({ slug: slugDelElegido, nombre: nombreDelElegido, tipoDeTornillo: tipoDeTornilloEscrito }),
+    [slugDelElegido, nombreDelElegido, tipoDeTornilloEscrito],
   )
   /** La Metzenbaum en disección roma: no corta, apoya la punta y separa el plano al abrir las ramas. */
   const usoRoma = !!queHace.roma && modo === 'disecar'
@@ -1755,6 +1786,47 @@ export function ConsolaQuirurgica({
    * La bandeja tal como se pinta: el residente la ve en una lista; el editor,
    * el catálogo entero agrupado por categoría y filtrado por lo que escriba.
    */
+  /** La fila de un instrumento de la bandeja, aparte para repetirla dentro de los subgrupos de tornillos (P-004 E9). */
+  const filaDeLaBandeja = (it: InstrumentoDeBandeja) => (
+            <li key={it.id}>
+              <button
+                type="button"
+                className={`instrumento${instrumento === it.id ? ' activo' : ''}${
+                  editor?.instrumentoDelPaso === it.id ? ' del-paso' : ''
+                }`}
+                aria-pressed={instrumento === it.id}
+                onClick={() => elegirInstrumento(it.id)}
+              >
+                <IconoInstrumento nombre={it.icono} />
+                <span className="instrumento-nombre">{it.nombre}</span>
+                {instrumento === it.id ? (
+                  <Check size={14} strokeWidth={3} aria-hidden className="instrumento-marca" />
+                ) : null}
+                {editor && !it.modeloUrl ? (
+                  <span className="instrumento-etiqueta">sin 3D</span>
+                ) : null}
+                {siguienteEnLaBandeja === it.id && instrumento !== it.id ? (
+                  <span className="instrumento-etiqueta instrumento-etiqueta-paso" title="Lo que sigue en la secuencia brocar · medir · atornillar">
+                    siguiente
+                  </span>
+                ) : null}
+                {editor?.instrumentoDelPaso === it.id ? (
+                  <span className="instrumento-etiqueta instrumento-etiqueta-paso">este paso</span>
+                ) : it.enLaBandejaDelCaso && caso.bandeja === 'acotada' ? (
+                  <span className="instrumento-etiqueta">en la bandeja</span>
+                ) : it.paraLaPlaca ? (
+                  <span className="instrumento-etiqueta" title="Lo necesita la placa de la bandeja: tornillos, brocas, medidor y destornillador">
+                    para esta placa
+                  </span>
+                ) : null}
+              </button>
+            </li>
+  )
+
+  /** ¿Es un tornillo? Por su categoría, o porque el catálogo lo reconoce como uno que se pone en un agujero (P-004 E9). */
+  const esUnTornillo = (i: InstrumentoDeBandeja) =>
+    i.categoria === 'tornillos' || comportamientoDelInstrumento({ slug: i.slug, nombre: i.nombre, icono: i.icono }).coloca?.tipo === 'tornillo'
+
   const gruposDeLaBandeja = useMemo(() => {
     // Por palabras y sin tildes, para que «hohm» o «pinza dient» encuentren el instrumento sin acertar el nombre.
     const palabras = paraComparar(busquedaDeInstrumento).split(' ').filter(Boolean)
@@ -2004,6 +2076,116 @@ export function ConsolaQuirurgica({
   // «Mover todo junto» salvo en el paso de reducir, donde hace falta agarrar un trozo de hueso suelto. Si quien
   // usa la consola lo elige a mano, manda lo elegido hasta que cambie de paso.
   const moverTodoEfectivo = moverTodoElegido ?? objetivo !== 'reduccion'
+  /**
+   * La secuencia brocar · medir · atornillar (P-004 E9, pedido 12 de Cristóbal): «que se despliegue el instrumento que viene después,
+   * porque siempre es ese orden». Tras cada hecho —un orificio perforado, medido o atornillado— se decide qué toca y se abre en la bandeja
+   * el instrumento que corresponde; con «Poner el siguiente en la mano» encendido (lo está de entrada) pasa además a la mano.
+   */
+  const avanzarLaSecuencia = (estado: EstadoDeLaFijacion | null, suceso: SucesoDeFijacion) => {
+    if (suceso.tipo === 'placa') {
+      setEtapaDeFijacion('brocar')
+      return
+    }
+    if (suceso.agujero === undefined && !suceso.libre) return
+    const delObjetivo = suceso.libre
+      ? estado?.trayectoria
+        ? { perforado: estado.trayectoria.perforado, medido: estado.trayectoria.medido }
+        : null
+      : (estado?.agujeros?.find((a) => a.indice === suceso.agujero) ?? null)
+    const etapa = siguienteDeLaSecuencia(delObjetivo, suceso.tipo === 'tornillo')
+    setEtapaDeFijacion(etapa)
+    const delTornillo = (id: string | null) => {
+      const i = caso.instrumental.find((x) => x.id === id)
+      const c = i ? comportamientoDelInstrumento({ slug: i.slug, nombre: i.nombre, icono: i.icono }) : null
+      return c?.coloca?.tipo === 'tornillo' ? c.coloca.diametroMm : null
+    }
+    const ultimo = suceso.tipo === 'tornillo' ? instrumento : ultimoTornillo
+    const siguiente = instrumentoDeLaEtapa(
+      etapa,
+      // Una copia: el compilador de React da por hecho que lo que se pasa a una función puede cambiar, y `caso.instrumental` es
+      // dependencia de varias memorias de aquí.
+      [...caso.instrumental],
+      (i) => {
+        const c = comportamientoDelInstrumento({ slug: i.slug, nombre: i.nombre, icono: i.icono })
+        return {
+          perfora: !!c.perfora,
+          mide: !!c.mide,
+          tornillo: c.coloca?.tipo === 'tornillo',
+          diametroMm: c.perfora?.diametroMm ?? (c.coloca?.tipo === 'tornillo' ? c.coloca.diametroMm : undefined),
+        }
+      },
+      { ultimoTornilloId: ultimo, diametroDelTornilloMm: diametroDeTornillo ?? delTornillo(ultimo) },
+    )
+    if (!siguiente) return
+    setSiguienteEnLaBandeja(siguiente.id)
+    setCategoriaAbierta(siguiente.categoria ?? null)
+    if (siguienteAutomatico) elegirInstrumento(siguiente.id)
+  }
+
+  /** La trayectoria de un tornillo con dos clics (P-004 E9): el bloque que sale con la broca, el medidor y el tornillo. */
+  const bloqueDeLaTrayectoria = (
+    <div className="consola-trayectoria">
+      <p className="consola-instrumento-texto">
+        {marcandoLaTrayectoria
+          ? trayectoria?.fase === 'salida'
+            ? 'Entrada marcada: haga clic en el hueso donde sale el tornillo.'
+            : 'Haga clic en el hueso donde entra el tornillo y después donde sale.'
+          : trayectoria?.fase === 'lista'
+            ? `Trayectoria de ${Math.round(trayectoria.largoMm ?? 0)} mm, ${Math.round(trayectoria.anguloConElEje ?? 0)}° con el eje del hueso: la broca, el medidor y el tornillo la siguen.`
+            : 'Sin placa, o fuera de sus agujeros, el tornillo va por una trayectoria que se marca con dos clics sobre el hueso.'}
+      </p>
+      <div className="consola-instrumento-acciones">
+        {marcandoLaTrayectoria ? (
+          <button
+            type="button"
+            className="consola-boton"
+            onClick={() => {
+              setMarcandoLaTrayectoria(false)
+              mando.current?.borrarTrayectoriaDelTornillo()
+            }}
+          >
+            Cancelar
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="consola-boton"
+            onClick={() => {
+              mando.current?.borrarTrayectoriaDelTornillo()
+              setMarcandoLaTrayectoria(true)
+            }}
+          >
+            {trayectoria ? 'Marcar otra trayectoria' : 'Marcar la trayectoria'}
+          </button>
+        )}
+        {trayectoria?.fase === 'lista' ? (
+          <button type="button" className="consola-boton" onClick={() => mando.current?.borrarTrayectoriaDelTornillo()}>
+            Borrar la trayectoria
+          </button>
+        ) : null}
+      </div>
+    </div>
+  )
+
+  /** Los tres tiempos de la fijación, con el que toca marcado, y el interruptor de poner el siguiente en la mano (P-004 E9). */
+  const bloqueDeLaSecuencia = (
+    <div className="consola-secuencia">
+      <ol className="consola-secuencia-pasos" aria-label="Secuencia de fijación">
+        {ETAPAS_DE_FIJACION.map((e) => (
+          <li key={e.etapa} className={e.etapa === etapaDeFijacion ? 'actual' : ''} aria-current={e.etapa === etapaDeFijacion ? 'step' : undefined}>
+            {e.numero} · {e.etiqueta}
+          </li>
+        ))}
+      </ol>
+      <p className="consola-instrumento-texto">{textoDeLaSecuencia(etapaDeFijacion, siguienteEnLaBandeja !== null)}</p>
+      <label className="consola-interruptor" title="Al terminar un tiempo, el instrumento que sigue pasa solo a la mano y se abre en la bandeja.">
+        <span>Poner el siguiente en la mano</span>
+        <input type="checkbox" role="switch" checked={siguienteAutomatico} onChange={(e) => setSiguienteAutomatico(e.target.checked)} />
+        <span className="consola-interruptor-pista" aria-hidden />
+      </label>
+    </div>
+  )
+
   /** El menú de movimiento sale con un trozo suelto (Mover → Un trozo, o la pinza de reducción) y con la placa puesta sin fijar. */
   const menuDelTrozo = (modo === 'mover' && !moverTodoEfectivo) || modo === 'reducir'
   const menuDeLaPlaca = modo === 'fijar' && !!fijacion?.placa && !fijacion.placa.fijada
@@ -2383,36 +2565,24 @@ export function ConsolaQuirurgica({
               </button>
               {abierta ? (
               <ul className="consola-bandeja" id={idDelPanel}>
-                {grupo.instrumentos.map((it) => (
-                  <li key={it.id}>
-                    <button
-                      type="button"
-                      className={`instrumento${instrumento === it.id ? ' activo' : ''}${
-                        editor?.instrumentoDelPaso === it.id ? ' del-paso' : ''
-                      }`}
-                      aria-pressed={instrumento === it.id}
-                      onClick={() => elegirInstrumento(it.id)}
-                    >
-                      <IconoInstrumento nombre={it.icono} />
-                      <span className="instrumento-nombre">{it.nombre}</span>
-                      {instrumento === it.id ? (
-                        <Check size={14} strokeWidth={3} aria-hidden className="instrumento-marca" />
-                      ) : null}
-                      {editor && !it.modeloUrl ? (
-                        <span className="instrumento-etiqueta">sin 3D</span>
-                      ) : null}
-                      {editor?.instrumentoDelPaso === it.id ? (
-                        <span className="instrumento-etiqueta instrumento-etiqueta-paso">este paso</span>
-                      ) : it.enLaBandejaDelCaso && caso.bandeja === 'acotada' ? (
-                        <span className="instrumento-etiqueta">en la bandeja</span>
-                      ) : it.paraLaPlaca ? (
-                        <span className="instrumento-etiqueta" title="Lo necesita la placa de la bandeja: tornillos, brocas, medidor y destornillador">
-                          para esta placa
-                        </span>
-                      ) : null}
-                    </button>
-                  </li>
-                ))}
+                {/* Lo que no es un tornillo, como siempre; los tornillos, en subgrupos por tipo (P-004 E9, pedido 12), estén en la
+                    categoría que estén: en el catálogo hay tornillos metidos en «Perforación y fijación». Se clasifican con un objeto nuevo
+                    por instrumento: el compilador de React da por hecho que lo que se pasa a una función puede cambiar, y los instrumentos de
+                    la bandeja son dependencia de varias memorias de aquí. */}
+                {grupo.instrumentos.filter((i) => !esUnTornillo(i)).map(filaDeLaBandeja)}
+                {TIPOS_DE_TORNILLO.map((def) => ({
+                  def,
+                  instrumentos: grupo.instrumentos.filter(
+                    (i) => esUnTornillo(i) && tipoDelTornillo({ slug: i.slug, nombre: i.nombre, tipoDeTornillo: i.tipoDeTornillo }) === def.tipo,
+                  ),
+                }))
+                  .filter((sg) => sg.instrumentos.length > 0)
+                  .map((sg) => (
+                    <li key={sg.def.tipo} className="consola-bandeja-subgrupo">
+                      <h4 className="consola-bandeja-subtitulo">{sg.def.etiqueta}</h4>
+                      <ul className="consola-bandeja">{sg.instrumentos.map(filaDeLaBandeja)}</ul>
+                    </li>
+                  ))}
               </ul>
               ) : null}
             </div>
@@ -2990,6 +3160,8 @@ export function ConsolaQuirurgica({
                       </div>
                     </>
                   ) : null}
+                  {bloqueDeLaSecuencia}
+                  {bloqueDeLaTrayectoria}
                 </div>
               ) : null}
 
@@ -3002,6 +3174,26 @@ export function ConsolaQuirurgica({
                         ? 'Con la placa fijada: perfore el agujero con la broca, mídalo con el medidor y entonces pique en él. El tornillo entra perpendicular a la placa.'
                         : 'Con la placa fijada y el agujero perforado, apoye el medidor en él: dice cuánto hueso hay debajo y qué tornillo pedir.'}
                   </p>
+                  {bloqueDeLaSecuencia}
+                  {bloqueDeLaTrayectoria}
+                  {/* El diámetro, de una lista según el tipo (P-004 E9, pedido 12): cambia el grosor del tornillo y la broca que se espera. */}
+                  {queHace.coloca?.tipo === 'tornillo' ? (
+                    <label className="consola-instrumento-articulacion">
+                      <span>Diámetro</span>
+                      <select
+                        value={diametroDeTornillo ?? queHace.coloca.diametroMm}
+                        onChange={(e) => setDiametroDeTornillo(Number(e.target.value))}
+                        aria-label="Diámetro del tornillo"
+                      >
+                        {diametrosDelTipo(tipoDelElegido, queHace.coloca.diametroMm).map((d) => (
+                          <option key={d} value={d}>
+                            {String(d).replace('.', ',')} mm
+                          </option>
+                        ))}
+                      </select>
+                      <output>broca Ø {String(calibreDeBrocaParaElTornillo(diametroDeTornillo ?? queHace.coloca.diametroMm)).replace('.', ',')}</output>
+                    </label>
+                  ) : null}
                   {/* El largo se escribe (P-004 E6, pedido 5): el medidor deja escrito el sugerido y la rueda lo corre de a 2 mm. */}
                   {queHace.coloca?.tipo === 'tornillo' ? (
                     <CampoNumerico
@@ -3744,6 +3936,7 @@ export function ConsolaQuirurgica({
               if (suceso.largoSugeridoMm) setLargoDeTornillo(suceso.largoSugeridoMm)
               if (suceso.tipo === 'aviso') anotar(suceso.texto, 'atencion')
               else anotar(suceso.texto, suceso.atencion ? 'atencion' : 'bien')
+              avanzarLaSecuencia(estado, suceso)
             }}
             alPerforar={(hecha) => {
               usarElDeLaMano()
@@ -3779,6 +3972,13 @@ export function ConsolaQuirurgica({
             asasLibres={asasLibres}
             alElegirPieza={setPiezaElegida}
             alCambiarLaBroca={setBroca}
+            diametroDeTornillo={diametroDeTornillo}
+            marcandoLaTrayectoria={marcandoLaTrayectoria}
+            alCambiarLaTrayectoria={(e) => {
+              setTrayectoria(e)
+              // Con las dos puntas marcadas ya no se marca más: los clics vuelven a ser de la broca, el medidor y el tornillo.
+              if (e?.fase === 'lista') setMarcandoLaTrayectoria(false)
+            }}
             alMoverFragmento={() => {
               recalcularMedidas()
               editor?.alMoverFragmento?.()

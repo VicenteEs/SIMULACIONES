@@ -6634,6 +6634,42 @@ lienzo (`pointerleave`) y la broca sigue visible en el mismo sitio; la rueda lle
 cambio de hábito: el residente que soltaba para «terminar» el hoyo ahora tiene que retirar (la ayuda del modo lo dice); y con la pestaña en segundo plano el avance por el
 tiempo es lento (el navegador frena los cuadros), de modo que en pruebas conviene la rueda.
 
+### D-201 · 2026-10-21 · vigente
+**Los tornillos por tipo, con diámetro de una lista; la secuencia se despliega sola; y la trayectoria de dos clics.**
+Novena etapa de P-004 (E9). Pedidos 11 y 12 de Cristóbal: «para un tornillo, elegir la trayectoria con un clic al inicio y otro al final (una línea, como la
+incisión automática), y ahí ofrecer la broca, luego el medidor, luego el tornillo»; «que se despliegue el instrumento que viene después, porque siempre es ese orden»;
+«los tornillos, separados por tipo (bloqueado, cortical, esponjosa, rosca parcial…); al elegir uno, escribir el diámetro de un listado y luego el largo en números».
+
+*Qué se hizo.*
+- **`src/lib/tornillos.ts`** (pura): los tipos (cortical, esponjosa, rosca parcial —con su `roscaMm` de 16 para E10—, bloqueado, canulado, otro), su deducción
+  por nombre (el tipo escrito manda; «bloqueo de clavo» es bloqueado; canulado gana a bloqueado y este a cortical), los diámetros de cada tipo con el del modelo
+  siempre incluido, `siguienteDeLaSecuencia` (brocar → medir → atornillar → el orificio siguiente) e `instrumentoDeLaEtapa` (la broca con el calibre del último tornillo,
+  el medidor, el último tornillo usado).
+- **`tipoDeTornillo`** en `instrumental` (colección, panel y taller; migración que crea el tipo y la columna): parte la bandeja en subgrupos —dentro de la categoría
+  que sea: en el catálogo hay tornillos en «Perforación y fijación»— y decide los diámetros.
+- **Diámetro de una lista** y **largo escrito** (D-198) en el panel del tornillo; el diámetro elegido ensancha el modelo en proporción (`diametroDelModeloMm`) sin tocar su
+  largo y cambia el calibre de broca esperado (`avisoDeCalibre`).
+- **La trayectoria de dos clics**: botón «Marcar la trayectoria» (explícito, porque en «Perforar» un clic ya era empezar a perforar): el primer clic sobre el hueso es la
+  entrada, con una marca; el segundo, la salida, y queda una línea. Con ella, **la broca va por la línea** (`trayectoriaDeBroca`: entra por la entrada hacia la salida y
+  no por la normal), **el medidor mide el hueso a lo largo de ella** (`medirAlLoLargoDeUnaLinea`, la misma cuenta que el agujero de placa refactorizada) y **el tornillo se
+  pone sin placa** (`colocarTornilloEnLinea`: cabeza en la entrada, punta hacia dentro; `libre: true` y número negativo, porque no hay agujero que lo nombre). Con un agujero de
+  placa bajo el cursor mandan los de la placa. Lo perforado y lo medido se anotan en la trayectoria con el mismo orden que en un agujero (`loQueFaltaPara`).
+- **La secuencia** (panel «1 · Brocar · 2 · Medir · 3 · Atornillar»): `avanzarLaSecuencia` se llama tras cada suceso de fijación (ahora con `agujero` o `libre`),
+  decide el tiempo que toca, abre la categoría del instrumento que sigue, lo marca «siguiente» y —con el interruptor, encendido de entrada— lo pone en la mano.
+- `estadoDeLaFijacion` ya no devuelve `null` solo porque no haya placa: con tornillos libres o una trayectoria también hay fijación. `resumenDeLaFijacion`, que evalúa los pasos de
+  fijación con placa, sigue contando solo con placa (los pasos de compresión sin placa los evalúa E10 con lo suyo).
+
+*Probado.* Pruebas unitarias de los tipos, los diámetros, la secuencia y la elección del instrumento de cada tiempo, de la medición por una línea (diámetro y cuerda a 45° contra
+un cilindro de verdad), del tornillo en línea (bicortical, asoma 4 mm, corto, ensanchado en proporción sin tocar el largo; y el de placa igual), de la migración, de la
+colección y el panel, y del cableado. En el navegador, caso 2 con tornillos, medidor y broca de prueba en el catálogo local: subgrupos «Corticales» y «De esponjosa»; el diámetro
+de una lista (esponjosa: 4 y 6,5; la broca esperada pasa de 3,2 a 2,8); «Marcar la trayectoria» → entrada, salida → 47 mm, 56°; la broca engancha en la entrada (a 0,9 mm), se
+mete con la rueda y se retira → la secuencia pasa a «2 · Medir» y el medidor ya está en la mano; el clic mide («hueso de 47 mm, pida 50 mm», y el campo del largo ya dice 50) y pasa
+a «3 · Atornillar» con el tornillo en la mano; el clic pone el tornillo («50 mm por la trayectoria: bicortical») y la secuencia vuelve a «1 · Brocar» con la broca de 2,5.
+
+*Consecuencias buenas.* Un tornillo de tracción se pone sin placa y con el orden de la técnica; el residente no tiene que acordarse de qué instrumento sigue ni de qué broca lleva cada
+tornillo. *Malas.* La trayectoria es una línea recta de la entrada a la salida y no sigue la cortical oblicua de una fractura helicoidal; marcar es explícito (un botón) y no
+automático, para no confundirse con empezar a perforar; la rosca parcial y la compresión son de E10; y el texto de la secuencia habla de «orificio» aunque sea una trayectoria.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10381,7 +10417,7 @@ solo se le añade lo que se queda.
 
 ---
 
-#### E9 · Tornillos: su secuencia, sus tipos, sus medidas y su trayectoria · 2–3 sesiones
+#### E9 · Tornillos: su secuencia, sus tipos, sus medidas y su trayectoria · 2–3 sesiones · hecha en local (2026-10-21, D-201)
 
 **De dónde sale:** pedidos 11 (trayectoria), 12 y 5 (largo). Depende de E8.
 
@@ -10411,12 +10447,12 @@ solo se le añade lo que se queda.
 
 **Tareas**
 
-- [ ] **E9.1 · `trayectoriaDelTornillo`:** los dos clics y la línea sobre el hueso (reutilizando `trazoRecto`), su estado y su borrado.
-- [ ] **E9.2 · La broca, el medidor y el tornillo siguen la trayectoria** (agujero de placa o línea elegida).
-- [ ] **E9.3 · `siguienteDeLaSecuencia`** y el panel «Fijación» con sus tres tiempos y el despliegue de la bandeja.
-- [ ] **E9.4 · `tipoDeTornillo`** (campo, migración, deducción por nombre) y los subgrupos de la bandeja.
-- [ ] **E9.5 · Diámetro de una lista y largo escrito;** escala del modelo y calibre esperado.
-- [ ] **E9.6 · Pruebas, manual y D-nnn.** Un tornillo de tracción entre dos fragmentos con dos clics, sin placa: broca, medidor, tornillo; la
+- [x] **E9.1 · `trayectoriaDelTornillo`:** *(D-201)* los dos clics y la línea sobre el hueso (reutilizando `trazoRecto`), su estado y su borrado.
+- [x] **E9.2 · La broca, el medidor y el tornillo siguen la trayectoria** (agujero de placa o línea elegida).
+- [x] **E9.3 · `siguienteDeLaSecuencia`** y el panel «Fijación» con sus tres tiempos y el despliegue de la bandeja.
+- [x] **E9.4 · `tipoDeTornillo`** (campo, migración, deducción por nombre) y los subgrupos de la bandeja.
+- [x] **E9.5 · Diámetro de una lista y largo escrito;** escala del modelo y calibre esperado.
+- [x] **E9.6 · Pruebas, manual y D-nnn.** Un tornillo de tracción entre dos fragmentos con dos clics, sin placa: broca, medidor, tornillo; la
   secuencia se despliega sola; los subgrupos; el diámetro y el largo escritos.
 
 **Hecho cuando…** Sobre una fractura oblicua se marcan entrada y salida, la broca sigue la línea, al terminar el medidor ya está en la
@@ -10568,7 +10604,7 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 | E6 · La placa: una sola, ejes anatómicos, números | hecha en local; sin desplegar | 2 | E2, E4 | D-198 |
 | E7 · Menú de movimiento y reducción automática | hecha en local; sin desplegar | 2 | E6 | D-199 |
 | E8 · El instrumento se queda en el orificio | hecha en local; sin desplegar | 2 | E2, E6, E7 | D-200 |
-| E9 · Tornillos: secuencia, tipos, medidas, trayectoria | pendiente | 2–3 | E8 | — |
+| E9 · Tornillos: secuencia, tipos, medidas, trayectoria | hecha en local; sin desplegar | 2–3 | E8 | D-201 |
 | E10 · Compresión | pendiente | 2 | E7, E9 | — |
 | E11 · Radiografía postoperatoria y lámina | pendiente | 2–3 | E3 | — |
 | E12 · Apariencia de pabellón | aplazada | — | modelos del Dani | — |

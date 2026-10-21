@@ -366,6 +366,15 @@
 .consola-menu-de-movimiento-titulo { font-size: var(--t-xs); font-weight: 700; color: var(--c-texto-2); }
 .consola-menu-de-movimiento-ejes { display: inline-flex; gap: 2px; padding-left: var(--e-2); border-left: 1px solid var(--c-borde, rgba(255, 255, 255, 0.2)); }
 .consola-menu-de-movimiento-ayuda { margin: 0; font-size: var(--t-xs); }
+
+/* Los tornillos (P-004 E9): la bandeja por tipo, los tres tiempos de la fijación y la trayectoria de dos clics. */
+.consola-bandeja-subgrupo { list-style: none; margin: 0; padding: 0; }
+.consola-bandeja-subtitulo { margin: var(--e-2) 0 var(--e-1); font-size: var(--t-xs); font-weight: 700; color: var(--c-texto-2); }
+.consola-secuencia { display: grid; gap: var(--e-1); }
+.consola-secuencia-pasos { display: flex; gap: var(--e-2); margin: 0; padding: 0; list-style: none; font-size: var(--t-xs); }
+.consola-secuencia-pasos li { padding: 2px var(--e-2); border-radius: var(--r-sm); color: var(--c-texto-2); border: 1px solid transparent; }
+.consola-secuencia-pasos li.actual { color: var(--c-fondo); background: var(--c-texto); font-weight: 700; }
+.consola-trayectoria { display: grid; gap: var(--e-1); }
 @container (max-width: 640px) {
   .consola-modo-barra { padding: 0 var(--e-2); }
   .consola-modo-barra-texto {

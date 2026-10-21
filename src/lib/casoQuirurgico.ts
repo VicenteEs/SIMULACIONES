@@ -198,6 +198,8 @@ function instrumentoDeBandeja(bruto: unknown): InstrumentoDeBandeja | null {
     // Lo que el editor escribió en el instrumento y el modelo no dice (P-004 E6): los orificios de una placa y el largo de un tornillo.
     orificios: typeof doc.orificios === 'number' ? doc.orificios : null,
     largoMm: typeof doc.largoMm === 'number' ? doc.largoMm : null,
+    // El tipo de tornillo que escribió el editor (P-004 E9): parte la bandeja en subgrupos; sin él se deduce del nombre.
+    tipoDeTornillo: typeof doc.tipoDeTornillo === 'string' ? doc.tipoDeTornillo : null,
     // Lo que el caso no declaró pero la placa necesita (P-003 E6): se enseña marcado «para esta placa».
     paraLaPlaca: doc.__paraLaPlaca === true ? true : undefined,
     // Lo que está en la bandeja porque la mesa es completa y no porque el caso lo pida (P-004 E3).

@@ -320,20 +320,34 @@ export function medirBajoElAgujero(
   indice: number,
   huesos: THREE.Object3D[],
 ): { distanciaAlHuesoMm: number; espesorMm: number } | null {
-  const unidadesPorMm = 1 / placa.milimetrosPorUnidad
-  const origen = posicionDelAgujero(placa, indice, 'abajo')
+  return medirAlLoLargoDeUnaLinea(posicionDelAgujero(placa, indice, 'abajo'), placa.normal.clone().negate(), placa.milimetrosPorUnidad, huesos)
+}
+
+/**
+ * Lo mismo que `medirBajoElAgujero` para una línea cualquiera (P-004 E9, la trayectoria de dos clics): `origen` está sobre la
+ * cortical o un poco por fuera y `haciaElHueso` es unitario. La separación al hueso de una trayectoria que arranca sobre la
+ * cortical es casi cero.
+ */
+export function medirAlLoLargoDeUnaLinea(
+  origen: THREE.Vector3,
+  haciaElHueso: THREE.Vector3,
+  milimetrosPorUnidad: number,
+  huesos: THREE.Object3D[],
+): { distanciaAlHuesoMm: number; espesorMm: number } | null {
+  const unidadesPorMm = 1 / milimetrosPorUnidad
   const alcance = 120 * unidadesPorMm
-  const abajo = placa.normal.clone().negate()
-  // La cortical cercana: el primer cruce yendo de la placa al hueso. Se sale medio milímetro
-  // dentro de la placa para no depender de dónde caiga exactamente su cara de abajo.
-  const salida = origen.clone().addScaledVector(placa.normal, 0.5 * unidadesPorMm)
+  const abajo = haciaElHueso.clone().normalize()
+  const arriba = abajo.clone().negate()
+  // La cortical cercana: el primer cruce yendo de fuera al hueso. Se sale medio milímetro
+  // por fuera para no depender de dónde caiga exactamente el origen.
+  const salida = origen.clone().addScaledVector(arriba, 0.5 * unidadesPorMm)
   const cercana = new THREE.Raycaster(salida, abajo, 0, alcance).intersectObjects(huesos, false).find((g) => g.object.visible)
   if (!cercana) return null
   // La cortical opuesta: el primer cruce viniendo desde el otro lado. No se mira el segundo cruce del
   // mismo rayo porque three solo cuenta las caras que miran al rayo: al salir del hueso, la superficie
   // «mira» hacia dentro y no se ve. Desde abajo sí es una cara de frente.
   const desdeAbajo = origen.clone().addScaledVector(abajo, alcance)
-  const opuesta = new THREE.Raycaster(desdeAbajo, placa.normal.clone(), 0, alcance).intersectObjects(huesos, false).find((g) => g.object.visible)
+  const opuesta = new THREE.Raycaster(desdeAbajo, arriba, 0, alcance).intersectObjects(huesos, false).find((g) => g.object.visible)
   if (!opuesta) return null
   const distanciaCercana = cercana.distance - 0.5 * unidadesPorMm
   const distanciaOpuesta = alcance - opuesta.distance
@@ -357,6 +371,8 @@ export function colocarTornillo(p: {
   agujero: number
   largoMm: number
   diametroMm: number
+  /** El diámetro del modelo 3D: con otro elegido en la consola (P-004 E9) el tornillo se ensancha o se afina en proporción. */
+  diametroDelModeloMm?: number
   largoDelModeloMm: number
   bloqueado: boolean
   huesos: THREE.Object3D[]
@@ -381,7 +397,8 @@ export function colocarTornillo(p: {
   // El tornillo del modelo va con la punta en el origen y la cabeza a +Y: se escala a lo largo y se
   // orienta con la cabeza hacia fuera del hueso, que es la normal de la placa.
   const escalaBase = grupo.scale.x
-  grupo.scale.set(escalaBase, escalaBase * (p.largoMm / p.largoDelModeloMm), escalaBase)
+  const ancho = escalaBase * (p.diametroDelModeloMm && p.diametroDelModeloMm > 0 ? p.diametroMm / p.diametroDelModeloMm : 1)
+  grupo.scale.set(ancho, escalaBase * (p.largoMm / p.largoDelModeloMm), ancho)
   grupo.quaternion.copy(orientar(normal, new THREE.Vector3().crossVectors(normal, new THREE.Vector3(1, 0, 0))))
   const cabeza = posicionDelAgujero(p.placa, p.agujero, 'arriba')
   grupo.position.copy(cabeza).addScaledVector(normal, -p.largoMm * unidadesPorMm)
@@ -399,6 +416,65 @@ export function colocarTornillo(p: {
     aviso: juicio.aviso,
   }
   p.implantes.tornillos.set(p.agujero, { grupo, datos })
+  return datos
+}
+
+/**
+ * Pone un tornillo en una trayectoria de dos clics, sin placa (P-004 E9): la cabeza sobre la entrada y la punta hacia dentro,
+ * por la dirección de la trayectoria. Es el tornillo de tracción entre dos fragmentos, el interfragmentario. Se anota con un
+ * número negativo (`id`) y `libre: true`: no hay agujero de placa que lo nombre.
+ */
+export function colocarTornilloEnLinea(p: {
+  escena: THREE.Scene
+  plantilla: THREE.Object3D
+  id: number
+  entrada: THREE.Vector3
+  /** Hacia dónde avanza el tornillo, unitario. */
+  haciaDentro: THREE.Vector3
+  largoMm: number
+  diametroMm: number
+  diametroDelModeloMm?: number
+  largoDelModeloMm: number
+  bloqueado: boolean
+  milimetrosPorUnidad: number
+  huesos: THREE.Object3D[]
+  implantes: ImplantesEnEscena
+}): TornilloPuesto | null {
+  const medida = medirAlLoLargoDeUnaLinea(p.entrada, p.haciaDentro, p.milimetrosPorUnidad, p.huesos)
+  if (!medida) return null
+  const unidadesPorMm = 1 / p.milimetrosPorUnidad
+  const juicio = juzgarTornillo({
+    largoMm: p.largoMm,
+    grosorDeLaPlacaMm: 0,
+    distanciaAlHuesoMm: medida.distanciaAlHuesoMm,
+    espesorMm: medida.espesorMm,
+  })
+  const anterior = p.implantes.tornillos.get(p.id)
+  if (anterior) soltarGrupo(anterior.grupo)
+
+  const grupo = clonarConRecursos(p.plantilla)
+  const haciaFuera = p.haciaDentro.clone().negate()
+  const escalaBase = grupo.scale.x
+  const ancho = escalaBase * (p.diametroDelModeloMm && p.diametroDelModeloMm > 0 ? p.diametroMm / p.diametroDelModeloMm : 1)
+  grupo.scale.set(ancho, escalaBase * (p.largoMm / p.largoDelModeloMm), ancho)
+  grupo.quaternion.copy(orientar(haciaFuera, new THREE.Vector3().crossVectors(haciaFuera, new THREE.Vector3(1, 0, 0))))
+  // La punta en el origen del modelo: la cabeza queda en la entrada y la punta `largo` hacia dentro.
+  grupo.position.copy(p.entrada).addScaledVector(p.haciaDentro, p.largoMm * unidadesPorMm)
+  p.escena.add(grupo)
+  grupo.updateMatrixWorld(true)
+
+  const datos: TornilloPuesto = {
+    agujero: p.id,
+    libre: true,
+    largoMm: p.largoMm,
+    diametroMm: p.diametroMm,
+    bicortical: juicio.bicortical,
+    puntaFueraMm: juicio.puntaFueraMm,
+    espesorMm: medida.espesorMm,
+    bloqueado: p.bloqueado,
+    aviso: juicio.aviso,
+  }
+  p.implantes.tornillos.set(p.id, { grupo, datos })
   return datos
 }
 

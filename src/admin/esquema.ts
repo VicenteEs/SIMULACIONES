@@ -1527,6 +1527,20 @@ export const Instrumental: EsquemaDeColeccion = {
           ayuda: 'Solo para tornillos. El largo con que se ofrece al cogerlo; el residente puede escribir otro.',
         },
         {
+          tipo: 'seleccion',
+          nombre: 'tipoDeTornillo',
+          etiqueta: 'Tipo de tornillo',
+          medio: true,
+          ayuda: 'Solo para tornillos. Parte la bandeja en subgrupos y decide qué diámetros se ofrecen. Vacío: se deduce del nombre.',
+          opciones: [
+            { valor: 'cortical', etiqueta: 'Cortical' },
+            { valor: 'esponjosa', etiqueta: 'Esponjosa' },
+            { valor: 'rosca-parcial', etiqueta: 'Rosca parcial' },
+            { valor: 'bloqueado', etiqueta: 'Bloqueado' },
+            { valor: 'canulado', etiqueta: 'Canulado' },
+          ],
+        },
+        {
           tipo: 'relacion',
           nombre: 'modelo',
           etiqueta: 'Modelo 3D del instrumento',

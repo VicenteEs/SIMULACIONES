@@ -236,8 +236,13 @@ export function agujeroMasCercano(agujeros: readonly Vec3[], punto: Vec3, maximo
 
 /** Un tornillo ya puesto, tal como lo cuenta el lienzo. */
 export interface TornilloPuesto {
-  /** Índice del agujero de la placa. */
+  /**
+   * Índice del agujero de la placa. Un tornillo puesto por una trayectoria de dos clics, sin agujero de placa (P-004 E9),
+   * lleva un número negativo y `libre: true`.
+   */
   agujero: number
+  /** Puesto por una trayectoria elegida con dos clics y no por un agujero de placa (P-004 E9). */
+  libre?: boolean
   largoMm: number
   diametroMm: number
   bicortical: boolean
@@ -268,6 +273,11 @@ export interface EstadoDeLaFijacion {
   tornillos: TornilloPuesto[]
   /** Lo que se perforó y se midió en cada agujero, por su índice (P-003 E6). */
   agujeros?: { indice: number; perforado: EstadoDelAgujero['perforado']; medido: EstadoDelAgujero['medido'] }[]
+  /**
+   * La trayectoria elegida con dos clics (P-004 E9), o `null`: de la entrada a la salida, con lo que se perforó y se midió por
+   * ella, que es lo mismo que se anota en un agujero de placa.
+   */
+  trayectoria?: { largoMm: number; anguloConElEje: number; perforado: EstadoDelAgujero['perforado']; medido: EstadoDelAgujero['medido'] } | null
 }
 
 /**

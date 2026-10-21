@@ -133,8 +133,8 @@ import {
   type PuntoDeSutura,
 } from '@/lib/sutura'
 import { CONTEXTO_VIVO, alPerderse, alRestaurarse, crearLimitadorDeFallos, type EstadoDelContexto } from '@/lib/controlDelContexto'
-import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, colocarTornillo, crearImplantes, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
-import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
+import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, type ImplantesEnEscena } from './implantesEnLaEscena'
+import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
 // La regla base de `.consola-lienzo` vive en la hoja de la consola, y este
 // lienzo lo monta también el taller de piezas del panel: sin importarla aquí,
@@ -294,6 +294,8 @@ export interface MandoDelLienzo {
   resaltarNodo: (nodo: string | null) => void
   /** Devuelve los músculos retraídos a su sitio (P-003 E10). */
   soltarRetracciones: () => void
+  /** Borra la trayectoria de dos clics y su marca de entrada (P-004 E9). */
+  borrarTrayectoriaDelTornillo: () => void
   /** Retira la broca puesta (P-004 E8): dibuja el agujero y anota el calibre. */
   retirarLaBroca: () => void
   /** Enciende o apaga la broca puesta sin retirarla; sin argumento, alterna. */
@@ -505,6 +507,10 @@ export interface SucesoDeFijacion {
   atencion: boolean
   /** El largo de tornillo que sugiere la medida, si fue una medida. */
   largoSugeridoMm?: number
+  /** El agujero de la placa del que habla el suceso (índice desde 0), si habla de uno: la secuencia sigue por él (P-004 E9). */
+  agujero?: number
+  /** Habla de la trayectoria de dos clics y no de un agujero de placa (P-004 E9). */
+  libre?: boolean
 }
 
 /** Lo que se sabe de la sutura que se está haciendo. */
@@ -619,6 +625,9 @@ export function LienzoQuirurgico({
   asasLibres = false,
   alElegirPieza,
   alCambiarLaBroca,
+  diametroDeTornillo = null,
+  marcandoLaTrayectoria = false,
+  alCambiarLaTrayectoria,
   alTrazar,
   alMoverFragmento,
   alCargar,
@@ -742,6 +751,12 @@ export function LienzoQuirurgico({
    * `null` cuando ya no hay ninguna. Con una puesta, la consola ofrece «Apagar la broca» y «Retirar».
    */
   alCambiarLaBroca?: (estado: EstadoDeLaBroca | null) => void
+  /** El diámetro de tornillo que eligió el residente en la lista (P-004 E9); `null`: el del modelo. */
+  diametroDeTornillo?: number | null
+  /** La consola pidió marcar la trayectoria: los clics en «Fijar» y «Perforar» son la entrada y la salida, no una acción (P-004 E9). */
+  marcandoLaTrayectoria?: boolean
+  /** La trayectoria de dos clics cambió: esperando la salida, lista, o borrada (`null`). */
+  alCambiarLaTrayectoria?: (estado: EstadoDeLaTrayectoria | null) => void
   /** Se llama con el trazo completo cada vez que cambia. */
   alTrazar?: (puntos: Punto3[]) => void
   /**
@@ -874,6 +889,24 @@ export function LienzoQuirurgico({
     diseccion?: DiseccionActiva
     /** Corta la capa con el trazo que haya en `puntosDelTrazo`: lo expone el montaje para la disección roma. Devuelve la incisión. */
     aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => number | undefined
+    /**
+     * La trayectoria de un tornillo marcada con dos clics sobre el hueso (P-004 E9): de la entrada a la salida, dibujada como una
+     * línea, con lo que se perforó y se midió por ella. La broca, el medidor y el tornillo la siguen.
+     */
+    trayectoriaDelTornillo?: {
+      entrada: THREE.Vector3
+      salida: THREE.Vector3
+      haciaDentro: THREE.Vector3
+      linea: THREE.Line
+      estado: EstadoDelAgujero
+      largoMm: number
+      anguloConElEje: number
+    }
+    /** El primer clic de la trayectoria, a la espera del segundo. */
+    puntoDeEntrada?: { punto: THREE.Vector3; marca: THREE.Mesh }
+    /** Numera los tornillos de trayectoria libre con enteros negativos. */
+    siguienteTornilloLibre?: number
+    borrarLaTrayectoria?: () => void
     /** El medidor está posado en un orificio perforado de la placa fijada: no sigue al cursor ni se esconde con él (P-004 E8). */
     medidorEnElOrificio?: boolean
     /** Retira la broca puesta: dibuja el agujero y anota el calibre (P-004 E8). */
@@ -952,6 +985,9 @@ export function LienzoQuirurgico({
     asasLibres,
     alElegirPieza,
     alCambiarLaBroca,
+    diametroDeTornillo,
+    marcandoLaTrayectoria,
+    alCambiarLaTrayectoria,
   })
   useEffect(() => {
     ultimas.current = {
@@ -997,6 +1033,9 @@ export function LienzoQuirurgico({
       asasLibres,
       alElegirPieza,
       alCambiarLaBroca,
+      diametroDeTornillo,
+      marcandoLaTrayectoria,
+      alCambiarLaTrayectoria,
     }
   })
 
@@ -1151,6 +1190,8 @@ export function LienzoQuirurgico({
     soltarRetraccion: (id) => soltarUnaRetraccion(taller.current, ultimas.current, id),
 
     moverPorEje: (accion, eje, valor) => taller.current.moverPorEje?.(accion, eje, valor) ?? null,
+
+    borrarTrayectoriaDelTornillo: () => taller.current.borrarLaTrayectoria?.(),
 
     retirarLaBroca: () => taller.current.retirarLaBroca?.(),
 
@@ -1943,6 +1984,8 @@ export function LienzoQuirurgico({
     interface Perforacion {
       /** El agujero de la placa por el que se perfora, si la broca se centró en uno (P-003 E6). */
       agujero?: number
+      /** Va por la trayectoria de dos clics y no por un agujero de placa ni por la normal del hueso (P-004 E9). */
+      libre?: boolean
       entrada: THREE.Vector3
       /** Hacia dónde entra la broca, unitario. */
       dirEntra: THREE.Vector3
@@ -2201,6 +2244,19 @@ export function LienzoQuirurgico({
     ): Omit<Perforacion, 'profundidad' | 'maxima' | 'salidaPorLaOpuesta' | 'config' | 'avanzando' | 'encendida'> => {
       const placa = taller.current.implantes?.placa
       const agujero = agujeroParaLaBroca(golpe)
+      // Con una trayectoria de dos clics (P-004 E9) y sin un agujero de placa bajo el cursor, la broca va por la línea marcada: entra
+      // por la entrada, hacia la salida, y no por la normal del hueso donde se apunte.
+      const libre = taller.current.trayectoriaDelTornillo
+      if (libre && agujero === null) {
+        const eje = VECTOR_DEL_EJE[ultimas.current.ejeLargo]
+        return {
+          libre: true,
+          entrada: libre.entrada.clone(),
+          dirEntra: libre.haciaDentro.clone(),
+          salida: libre.haciaDentro.clone().negate(),
+          anguloConElEje: grados(Math.acos(Math.min(1, Math.abs(libre.haciaDentro.dot(eje))))),
+        }
+      }
       if (placa && agujero !== null) {
         // Por el eje del agujero: perpendicular a la placa, entrando por la cortical cercana.
         const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
@@ -2353,6 +2409,22 @@ export function LienzoQuirurgico({
         ;(viejo.material as THREE.Material).dispose()
       }
       const sePaso = Math.max(0, p.profundidad - p.salidaPorLaOpuesta)
+      // Perforado por la trayectoria de dos clics (P-004 E9): se anota en ella lo mismo que en un agujero de placa, y volver a
+      // perforarla borra lo medido, porque el hoyo es otro.
+      const porLaTrayectoria = taller.current.trayectoriaDelTornillo
+      if (p.libre && porLaTrayectoria) {
+        const bicortical = p.profundidad >= p.salidaPorLaOpuesta - 0.5 * unidadesPorMm
+        porLaTrayectoria.estado = {
+          perforado: { diametroMm: config.diametroMm, profundidadMm: p.profundidad / unidadesPorMm, bicortical },
+          medido: null,
+        }
+        ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current), {
+          tipo: 'agujero',
+          texto: `Trayectoria perforada con Ø ${String(config.diametroMm).replace('.', ',')} mm (${bicortical ? 'bicortical' : 'solo la cortical cercana'}). Ahora se mide con el medidor.`,
+          atencion: !bicortical,
+          libre: true,
+        })
+      }
       // Perforado por un agujero de la placa: queda anotado (diámetro, largo, bicortical); volver a perforarlo borra lo
       // que se había medido, porque el orificio es otro (P-003 E6).
       const placaDelAgujero = taller.current.implantes?.placa
@@ -2366,6 +2438,7 @@ export function LienzoQuirurgico({
           tipo: 'agujero',
           texto: `Agujero ${p.agujero + 1} perforado con Ø ${String(config.diametroMm).replace('.', ',')} mm (${bicortical ? 'bicortical' : 'solo la cortical cercana'}). Ahora se mide con el medidor.`,
           atencion: !bicortical,
+          agujero: p.agujero,
         })
       }
       ultimas.current.alPerforar?.({
@@ -3465,6 +3538,11 @@ export function LienzoQuirurgico({
       }
 
       if (modoActual === 'perforar') {
+        // Con «Marcar la trayectoria» encendido el clic es la entrada o la salida, no empezar a perforar (P-004 E9).
+        if (ultimas.current.marcandoLaTrayectoria) {
+          marcarPuntoDeLaTrayectoria()
+          return
+        }
         // Sin exigir el modelo de la broca (D-176): perforar es de la broca, no de su dibujo.
         if (!ultimas.current.instrumento?.perfora) return
         const golpe = huesoBajoElCursor()
@@ -3596,6 +3674,180 @@ export function LienzoQuirurgico({
       clicDeSutura = modoActual === 'coser' || modoActual === 'fijar' ? { x: evento.clientX, y: evento.clientY } : null
     }
 
+    // --- la trayectoria de un tornillo con dos clics (P-004 E9) -------------------------------------
+    // «Para un tornillo, elegir la trayectoria con un clic al inicio y otro al final (una línea, como la incisión automática), y
+    // ahí ofrecer la broca, luego el medidor, luego el tornillo.» El primer clic sobre el hueso es la entrada; el segundo, la salida.
+    // La línea queda dibujada y la broca, el medidor y el tornillo la siguen; con un agujero de placa bajo el cursor mandan los de la
+    // placa, como siempre.
+    const borrarLaTrayectoria = () => {
+      const t = taller.current
+      const tray = t.trayectoriaDelTornillo
+      if (tray) {
+        tray.linea.removeFromParent()
+        tray.linea.geometry.dispose()
+        ;(tray.linea.material as THREE.Material).dispose()
+      }
+      const entrada = t.puntoDeEntrada
+      if (entrada) {
+        entrada.marca.removeFromParent()
+        entrada.marca.geometry.dispose()
+        ;(entrada.marca.material as THREE.Material).dispose()
+      }
+      const habia = !!tray || !!entrada
+      t.trayectoriaDelTornillo = undefined
+      t.puntoDeEntrada = undefined
+      if (habia) {
+        ultimas.current.alCambiarLaTrayectoria?.(null)
+        ultimas.current.alFijar?.(estadoDeLaFijacion(t))
+        t.pedirDibujo?.()
+      }
+    }
+    taller.current.borrarLaTrayectoria = borrarLaTrayectoria
+
+    const marcarPuntoDeLaTrayectoria = () => {
+      const t = taller.current
+      const u = ultimas.current
+      const golpe = huesoBajoElCursor()
+      if (!golpe) {
+        t.decir?.('Apunte al hueso: la trayectoria entra y sale por la cortical.')
+        return
+      }
+      const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
+      // Marcar de nuevo con una trayectoria ya hecha la empieza otra vez.
+      if (t.trayectoriaDelTornillo) borrarLaTrayectoria()
+      if (!t.puntoDeEntrada) {
+        const marca = new THREE.Mesh(
+          new THREE.SphereGeometry(1.2 * unidadesPorMm, 12, 8),
+          new THREE.MeshBasicMaterial({ color: 0xffd34d, depthTest: false, transparent: true }),
+        )
+        marca.position.copy(golpe.point)
+        marca.renderOrder = 998
+        marca.raycast = () => {}
+        marca.userData.deInterfaz = true
+        escena.add(marca)
+        t.puntoDeEntrada = { punto: golpe.point.clone(), marca }
+        u.alCambiarLaTrayectoria?.({ fase: 'salida' })
+        t.decir?.('Entrada marcada. Haga clic donde sale el tornillo.')
+        t.pedirDibujo?.()
+        return
+      }
+      const entrada = t.puntoDeEntrada.punto
+      const salida = golpe.point.clone()
+      const largo = entrada.distanceTo(salida)
+      if (largo < 3 * unidadesPorMm) {
+        t.decir?.('La salida está pegada a la entrada: marque otro punto, más lejos, donde sale el tornillo.')
+        return
+      }
+      const haciaDentro = salida.clone().sub(entrada).normalize()
+      const linea = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([entrada, salida]),
+        new THREE.LineBasicMaterial({ color: 0xffd34d, depthTest: false, transparent: true }),
+      )
+      linea.renderOrder = 998
+      linea.raycast = () => {}
+      linea.userData.deInterfaz = true
+      escena.add(linea)
+      t.puntoDeEntrada.marca.removeFromParent()
+      t.puntoDeEntrada.marca.geometry.dispose()
+      ;(t.puntoDeEntrada.marca.material as THREE.Material).dispose()
+      t.puntoDeEntrada = undefined
+      const anguloConElEje = grados(Math.acos(Math.min(1, Math.abs(haciaDentro.dot(VECTOR_DEL_EJE[u.ejeLargo])))))
+      const largoMm = largo / unidadesPorMm
+      t.trayectoriaDelTornillo = { entrada, salida, haciaDentro, linea, estado: { perforado: null, medido: null }, largoMm, anguloConElEje }
+      u.alCambiarLaTrayectoria?.({ fase: 'lista', largoMm, anguloConElEje })
+      u.alFijar?.(estadoDeLaFijacion(t))
+      u.alGesto?.(
+        `Trayectoria marcada: ${largoMm.toFixed(0)} mm, ${Math.round(anguloConElEje)}° con el eje del hueso. Ahora la broca, el medidor y el tornillo la siguen.`,
+        'bien',
+      )
+      t.decir?.('')
+      t.pedirDibujo?.()
+    }
+
+    /** El medidor y el tornillo sobre la trayectoria de dos clics, con el mismo orden que en un agujero de placa: perforar, medir, atornillar. */
+    const fijarEnLaTrayectoria = (libre: NonNullable<Taller['trayectoriaDelTornillo']>) => {
+      const t = taller.current
+      const u = ultimas.current
+      const inst = u.instrumento
+      const herramienta = t.herramienta
+      if (!inst || !t.escena) return
+      const imp = (t.implantes ??= crearImplantes())
+      const mmPorUnidad = u.milimetrosPorUnidad || 1000
+      const huesos = mallasDeHueso()
+      const decirYAvisar = (suceso: SucesoDeFijacion) => {
+        t.decir?.(suceso.texto)
+        u.alFijar?.(estadoDeLaFijacion(t), suceso)
+        t.pedirDibujo?.()
+      }
+      const falta = (paso: 'medir' | 'atornillar') => {
+        const f = loQueFaltaPara(paso, libre.estado)
+        if (!f) return false
+        t.decir?.(
+          f === 'perforar'
+            ? 'La trayectoria todavía no está perforada: se broca, se mide y después se atornilla.'
+            : 'Falta medir la trayectoria: el tornillo se pide del largo que dice el medidor.',
+        )
+        return true
+      }
+      if (inst.mide) {
+        if (falta('medir')) return
+        const medida = medirAlLoLargoDeUnaLinea(libre.entrada, libre.haciaDentro, mmPorUnidad, huesos)
+        if (!medida) {
+          t.decir?.('Por esa trayectoria no hay hueso que medir.')
+          return
+        }
+        const sugerido = largoSugerido(medida.espesorMm, medida.distanciaAlHuesoMm)
+        libre.estado = { perforado: libre.estado.perforado, medido: { espesorMm: medida.espesorMm, sugeridoMm: sugerido } }
+        decirYAvisar({
+          tipo: 'medida',
+          texto: `Trayectoria: hueso de ${medida.espesorMm.toFixed(0)} mm. Pida un tornillo de ${sugerido} mm.`,
+          atencion: false,
+          largoSugeridoMm: sugerido,
+          libre: true,
+        })
+        return
+      }
+      if (inst.coloca?.tipo === 'tornillo' && herramienta) {
+        if (inst.coloca.soloConClavo) {
+          t.decir?.('Este tornillo es de bloqueo de clavo: todavía no hay clavo en el hueso del simulador.')
+          return
+        }
+        if (falta('atornillar')) return
+        const diametro = u.diametroDeTornillo ?? inst.coloca.diametroMm
+        const calibre = avisoDeCalibre(libre.estado.perforado!.diametroMm, diametro)
+        const id = (t.siguienteTornilloLibre = (t.siguienteTornilloLibre ?? 0) + 1) * -1
+        const puesto = colocarTornilloEnLinea({
+          escena: t.escena,
+          plantilla: herramienta.raiz,
+          id,
+          entrada: libre.entrada,
+          haciaDentro: libre.haciaDentro,
+          largoMm: u.largoDeTornillo,
+          diametroMm: diametro,
+          diametroDelModeloMm: inst.coloca.diametroMm,
+          largoDelModeloMm: inst.coloca.largoDelModeloMm,
+          bloqueado: inst.coloca.bloqueado,
+          milimetrosPorUnidad: mmPorUnidad,
+          huesos,
+          implantes: imp,
+        })
+        if (!puesto) {
+          t.decir?.('Por esa trayectoria no hay hueso donde atornillar.')
+          return
+        }
+        decirYAvisar({
+          tipo: 'tornillo',
+          texto:
+            `Tornillo de ${puesto.largoMm} mm por la trayectoria: ` +
+            (puesto.bicortical ? 'bicortical.' : 'solo la cortical cercana.') +
+            (puesto.aviso && puesto.bicortical ? ` ${puesto.aviso}` : '') +
+            (calibre ? ` ${calibre}` : ''),
+          atencion: !!puesto.aviso || !!calibre,
+          libre: true,
+        })
+      }
+    }
+
     /**
      * Un clic en modo Fijar: la placa se apoya en el hueso, el tornillo se pone en
      * el agujero que apunta el cursor, el medidor lee el hueso que hay debajo.
@@ -3687,15 +3939,23 @@ export function LienzoQuirurgico({
         return
       }
 
-      // Un tornillo o el medidor: hace falta una placa y un agujero bajo el cursor.
+      // Un tornillo o el medidor: un agujero de la placa bajo el cursor o, sin él, la trayectoria de dos clics (P-004 E9).
       const placa = imp.placa
-      if (!placa) {
-        t.decir?.('Coloque primero una placa sobre el hueso.')
+      let agujero: number | null = null
+      if (placa) {
+        const golpesDePlaca = rayo.intersectObject(placa.grupo, true)
+        const sobreLaPlaca = golpesDePlaca[0]?.point ?? huesoBajoElCursor()?.point
+        agujero = sobreLaPlaca ? agujeroBajoElPunto(placa, sobreLaPlaca, 7) : null
+      }
+      const libre = t.trayectoriaDelTornillo
+      if (agujero === null && libre && (inst.mide || inst.coloca?.tipo === 'tornillo')) {
+        fijarEnLaTrayectoria(libre)
         return
       }
-      const golpesDePlaca = rayo.intersectObject(placa.grupo, true)
-      const sobreLaPlaca = golpesDePlaca[0]?.point ?? huesoBajoElCursor()?.point
-      const agujero = sobreLaPlaca ? agujeroBajoElPunto(placa, sobreLaPlaca, 7) : null
+      if (!placa) {
+        t.decir?.('Coloque primero una placa sobre el hueso, o marque la trayectoria del tornillo con dos clics («Marcar la trayectoria»).')
+        return
+      }
       if (agujero === null) {
         t.decir?.('Apunte a un agujero de la placa.')
         return
@@ -3726,6 +3986,7 @@ export function LienzoQuirurgico({
           }. Pida un tornillo de ${sugerido} mm.`,
           atencion: false,
           largoSugeridoMm: sugerido,
+          agujero,
         })
         return
       }
@@ -3744,14 +4005,17 @@ export function LienzoQuirurgico({
           t.decir?.(textoDeLoQueFalta(falta, agujero, 'atornillar'))
           return
         }
-        const calibre = avisoDeCalibre(placa.agujeros.get(agujero)!.perforado!.diametroMm, inst.coloca.diametroMm)
+        // El diámetro que eligió el residente en la lista (P-004 E9), o el del modelo.
+        const diametro = ultimas.current.diametroDeTornillo ?? inst.coloca.diametroMm
+        const calibre = avisoDeCalibre(placa.agujeros.get(agujero)!.perforado!.diametroMm, diametro)
         const puesto = colocarTornillo({
           escena: t.escena,
           plantilla: herramienta.raiz,
           placa,
           agujero,
           largoMm: ultimas.current.largoDeTornillo,
-          diametroMm: inst.coloca.diametroMm,
+          diametroMm: diametro,
+          diametroDelModeloMm: inst.coloca.diametroMm,
           largoDelModeloMm: inst.coloca.largoDelModeloMm,
           bloqueado: inst.coloca.bloqueado,
           huesos,
@@ -3769,6 +4033,7 @@ export function LienzoQuirurgico({
             (puesto.aviso && puesto.bicortical ? ` ${puesto.aviso}` : '') +
             (calibre ? ` ${calibre}` : ''),
           atencion: !!puesto.aviso || !!calibre,
+          agujero,
         })
       }
     }
@@ -3780,7 +4045,9 @@ export function LienzoQuirurgico({
       if (Math.hypot(evento.clientX - clic.x, evento.clientY - clic.y) > 5) return
       if (ultimas.current.modo === 'fijar') {
         aCoordenadas(evento)
-        fijarConClic()
+        // Con «Marcar la trayectoria» encendido el clic es la entrada o la salida, no un tornillo (P-004 E9).
+        if (ultimas.current.marcandoLaTrayectoria) marcarPuntoDeLaTrayectoria()
+        else fijarConClic()
         return
       }
       const hilo = ultimas.current.instrumento?.sutura
@@ -4459,6 +4726,16 @@ export type Taller = {
   posicion?: PosicionDelPaciente
   diseccion?: DiseccionActiva
   aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => number | undefined
+  /** La trayectoria de un tornillo marcada con dos clics (P-004 E9). */
+  trayectoriaDelTornillo?: {
+    entrada: THREE.Vector3
+    salida: THREE.Vector3
+    haciaDentro: THREE.Vector3
+    linea: THREE.Line
+    estado: EstadoDelAgujero
+    largoMm: number
+    anguloConElEje: number
+  }
   siguienteIncision?: number
   ultimaIncision?: number
   separadores?: SeparadorEnEscena[]
@@ -4574,6 +4851,13 @@ export interface RetraccionDeMusculo {
   direccion: THREE.Vector3
   aperturaMm: number
   maximoMm: number
+}
+
+/** La trayectoria de dos clics de un tornillo (P-004 E9): esperando la salida, o lista con su largo y su ángulo con el eje del hueso. */
+export interface EstadoDeLaTrayectoria {
+  fase: 'salida' | 'lista'
+  largoMm?: number
+  anguloConElEje?: number
 }
 
 /** La broca puesta en el hoyo (P-004 E8): lo que la consola enseña mientras se pide el disparo. */
@@ -5124,24 +5408,38 @@ export function estadoDeLasHeridas(taller: Taller, milimetrosPorUnidad: number):
 /** Lo que hay fijado: la placa y sus tornillos, o `null` si no hay placa. */
 export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
   const imp = taller.implantes
-  if (!imp?.placa) return null
+  const tray = taller.trayectoriaDelTornillo
+  // Sin placa pero con tornillos o con una trayectoria (P-004 E9) también hay fijación que contar.
+  if (!imp?.placa && !(imp && imp.tornillos.size > 0) && !tray) return null
   return {
-    placa: {
-      nombre: imp.placa.nombre,
-      agujeros: imp.placa.agujerosMm.length,
-      apoyada: imp.placa.separadaDelHuesoMm <= 1.5,
-      separadaDelHuesoMm: imp.placa.separadaDelHuesoMm,
-      fijada: imp.placa.fijada,
-      ajuste: { ...imp.placa.ajuste },
-      rangos: imp.placa.rangos,
-      sentidoDelLado: imp.placa.sentidoDelLado,
-      agujerosDelModelo: imp.placa.agujerosDelModelo,
-      aviso: imp.placa.avisoDeOrificios,
-    },
-    tornillos: [...imp.tornillos.values()].map((t) => t.datos).sort((a, b) => a.agujero - b.agujero),
-    agujeros: [...imp.placa.agujeros.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([indice, e]) => ({ indice, perforado: e.perforado, medido: e.medido })),
+    placa: imp?.placa
+      ? {
+          nombre: imp.placa.nombre,
+          agujeros: imp.placa.agujerosMm.length,
+          apoyada: imp.placa.separadaDelHuesoMm <= 1.5,
+          separadaDelHuesoMm: imp.placa.separadaDelHuesoMm,
+          fijada: imp.placa.fijada,
+          ajuste: { ...imp.placa.ajuste },
+          rangos: imp.placa.rangos,
+          sentidoDelLado: imp.placa.sentidoDelLado,
+          agujerosDelModelo: imp.placa.agujerosDelModelo,
+          aviso: imp.placa.avisoDeOrificios,
+        }
+      : null,
+    tornillos: [...(imp?.tornillos.values() ?? [])].map((t) => t.datos).sort((a, b) => a.agujero - b.agujero),
+    agujeros: imp?.placa
+      ? [...imp.placa.agujeros.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([indice, e]) => ({ indice, perforado: e.perforado, medido: e.medido }))
+      : [],
+    trayectoria: tray
+      ? {
+          largoMm: tray.largoMm,
+          anguloConElEje: tray.anguloConElEje,
+          perforado: tray.estado.perforado,
+          medido: tray.estado.medido,
+        }
+      : null,
   }
 }
 
@@ -5185,6 +5483,9 @@ type LoUltimo = {
   asasLibres?: boolean
   alElegirPieza?: (nombre: string | null) => void
   alCambiarLaBroca?: (estado: EstadoDeLaBroca | null) => void
+  diametroDeTornillo?: number | null
+  marcandoLaTrayectoria?: boolean
+  alCambiarLaTrayectoria?: (estado: EstadoDeLaTrayectoria | null) => void
 }
 
 /**

@@ -25,6 +25,7 @@ import {
 } from '@/lib/instrumental'
 import { ajustesValidos, type AjustesDeInstrumento } from '@/instrumental/modelo'
 import { orificiosValidos } from '@/lib/agujerosDeLaPlaca'
+import { tipoDeTornilloValido } from '@/lib/tornillos'
 
 const RUTA_PANEL = '/admin-panel/atlas'
 
@@ -39,6 +40,8 @@ export interface InstrumentoDelTaller {
   /** Orificios de una placa y largo de un tornillo, escritos por el editor (P-004 E6); `null` si no se escribieron. */
   orificios: number | null
   largoMm: number | null
+  /** El tipo de tornillo que escribió el editor (P-004 E9); `null` si no escribió ninguno y se deduce del nombre. */
+  tipoDeTornillo: string | null
   orden: number
   modelo: { id: string; nombre: string; url: string; bytes: number | null } | null
   ajustes: AjustesDeInstrumento | null
@@ -66,6 +69,7 @@ function aInstrumento(doc: Record<string, unknown>): InstrumentoDelTaller {
     especificaciones: texto(doc.especificaciones),
     orificios: typeof doc.orificios === 'number' ? doc.orificios : null,
     largoMm: typeof doc.largoMm === 'number' ? doc.largoMm : null,
+    tipoDeTornillo: tipoDeTornilloValido(doc.tipoDeTornillo),
     orden: typeof doc.orden === 'number' ? doc.orden : 0,
     modelo: m && url ? { id: String(m.id), nombre: texto(m.nombre), url, bytes: typeof m.filesize === 'number' ? m.filesize : null } : null,
     ajustes: doc.ajustes && typeof doc.ajustes === 'object' ? ajustesValidos(doc.ajustes) : null,
@@ -91,6 +95,7 @@ function datosDescriptivos(entrada: unknown) {
     // Fuera de rango o vacío se guarda como «sin dato» (null): el campo se puede borrar escribiendo nada.
     orificios: orificiosValidos(e.orificios),
     largoMm: largoDeTornilloValido(e.largoMm),
+    tipoDeTornillo: tipoDeTornilloValido(e.tipoDeTornillo),
   }
 }
 

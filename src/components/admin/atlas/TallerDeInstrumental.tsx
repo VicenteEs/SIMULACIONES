@@ -24,6 +24,7 @@ import {
 import { CATEGORIAS_DE_INSTRUMENTAL, INSTRUMENTAL_BASE, slugDeInstrumento } from '@/lib/instrumental'
 import { hayRetoques, type AjustesDeInstrumento, type Cuaternion, type Vector3 } from '@/instrumental/modelo'
 import { ruta } from '@/lib/rutas'
+import { TIPOS_DE_TORNILLO } from '@/lib/tornillos'
 import { formularioDeArchivo, subidorQueAvisa } from '@/admin/subidas'
 
 /**
@@ -93,7 +94,7 @@ const ETIQUETA_DE_ICONO: Record<string, string> = {
   aguja: 'Aguja',
 }
 
-const FORMULARIO_VACIO = { nombre: '', slug: '', categoria: 'fijacion', icono: 'generico', descripcion: '', especificaciones: '', orificios: '', largoMm: '' }
+const FORMULARIO_VACIO = { nombre: '', slug: '', categoria: 'fijacion', icono: 'generico', descripcion: '', especificaciones: '', orificios: '', largoMm: '', tipoDeTornillo: '' }
 
 function formatearBytes(n: number | null): string {
   if (n === null) return '—'
@@ -420,6 +421,7 @@ function EspacioDelInstrumento({
           especificaciones: instrumento.especificaciones,
           orificios: instrumento.orificios === null ? '' : String(instrumento.orificios),
           largoMm: instrumento.largoMm === null ? '' : String(instrumento.largoMm),
+          tipoDeTornillo: instrumento.tipoDeTornillo ?? '',
         }
       : FORMULARIO_VACIO,
   )
@@ -731,6 +733,18 @@ function EspacioDelInstrumento({
                   </label>
                   <input id="instr-largo" className="campo-control" type="number" min={5} max={500} step={1} inputMode="numeric" value={formulario.largoMm} onChange={(e) => setFormulario({ ...formulario, largoMm: e.target.value })} />
                   <p className="campo-ayuda">El largo con que se ofrece al cogerlo; el residente puede escribir otro.</p>
+                  <label className="campo-etiqueta" htmlFor="instr-tipo-tornillo">
+                    Tipo de tornillo
+                  </label>
+                  <select id="instr-tipo-tornillo" className="campo-control" value={formulario.tipoDeTornillo} onChange={(e) => setFormulario({ ...formulario, tipoDeTornillo: e.target.value })}>
+                    <option value="">Deducirlo del nombre</option>
+                    {TIPOS_DE_TORNILLO.filter((t) => t.tipo !== 'otro').map((t) => (
+                      <option key={t.tipo} value={t.tipo}>
+                        {t.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="campo-ayuda">Parte la bandeja en subgrupos y decide qué diámetros se ofrecen al cogerlo.</p>
                 </>
               ) : null}
               <div className="admin-acciones" style={{ marginTop: 8 }}>

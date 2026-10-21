@@ -897,6 +897,23 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   medidor y el destornillador de la placa aparecen solos en la bandeja con la etiqueta «para
   esta placa», y «Añadir a la bandeja» enseña el catálogo por categorías. El ajuste de la
   placa no se guarda al recargar.
+- **Tornillos por tipo, diámetro y largo.** En la bandeja, los tornillos salen **separados por tipo** —corticales, de
+  esponjosa, de rosca parcial, bloqueados, canulados, otros—, estén en la categoría que estén. Al coger uno, el panel
+  ofrece el **diámetro de una lista** según su tipo (2,7 · 3,5 · 4,0 · 4,5 · 5,0 · 6,5 mm: cada tipo trae los suyos) y dice
+  qué broca le corresponde; y el **largo se escribe** en números (con el sugerido del medidor ya puesto). El diámetro
+  elegido cambia el grosor del tornillo y la broca que se espera: perforar con otra avisa de que el agujero queda estrecho
+  o ancho. El tipo lo escribe el editor en el instrumento («Tipo de tornillo»); sin escribirlo se deduce del nombre.
+- **La secuencia brocar · medir · atornillar se despliega sola.** El panel enseña los tres tiempos con el que toca marcado.
+  Al terminar uno —un orificio perforado, medido o atornillado—, el instrumento que sigue **se abre en la bandeja** (con
+  la etiqueta «siguiente») y, con «Poner el siguiente en la mano» encendido (lo está de entrada), **pasa a la mano**: la
+  broca con el calibre del último tornillo, luego el medidor, luego el último tornillo usado, y vuelta a la broca para el
+  orificio siguiente.
+- **Trayectoria de un tornillo con dos clics.** Con la broca, el medidor o un tornillo en la mano, «Marcar la
+  trayectoria» convierte los dos clics siguientes sobre el hueso en la **entrada** y la **salida**: queda dibujada una línea
+  sobre el hueso, y **la broca, el medidor y el tornillo la siguen**, sin placa, para un tornillo de tracción entre
+  fragmentos. Con un agujero de placa bajo el cursor mandan los de la placa. «Marcar otra trayectoria» la rehace y «Borrar
+  la trayectoria» la quita. Se anota lo perforado y lo medido por ella como en un agujero de placa, y el tornillo se pide del
+  largo que dice el medidor.
 - **Orificios de una placa y largo de un tornillo (para el editor).** Si el modelo 3D de una placa
   **no trae la posición de sus agujeros**, se escribe **cuántos orificios tiene** en su instrumento
   (Taller anatómico → Instrumental, campo «Orificios de la placa», o el catálogo): los agujeros se
