@@ -123,7 +123,18 @@ describe('la portada consulta con el control de acceso puesto', () => {
     const deLaRejilla = listaQueRecorre(PORTADA, 'className="tarjeta-modulo"')
 
     expect(deLosConteos).not.toBe('MODULOS')
-    expect(deLaRejilla).toBe(deLosConteos)
+    // La rejilla recorre los módulos visibles más los que están en mantención y se enseñan como «Próximamente»:
+    // por eso no es literalmente la lista de los conteos, sino una que sale de ella.
+    expect(deLaRejilla).toBe('modulosEnRejilla')
+    expect(PORTADA).toMatch(/const modulosEnRejilla = MODULOS\.filter\(\s*\(m\) => modulosVisibles\.includes\(m\) \|\| modulosProximos\.includes\(m\)/)
+  })
+
+  it('un módulo en mantención sigue en la portada del residente como «Próximamente», sin enlace ni conteo', () => {
+    // Los próximos salen de `cerradoPorMantencion`, la misma pregunta que hace la barra; no se cuentan (no se leen
+    // con acceso) y su tarjeta es un `div`, no un `Link`.
+    expect(PORTADA).toMatch(/modulosProximos = MODULOS\.filter\(\(m\) =>\s*cerradoPorMantencion\(/)
+    expect(PORTADA).toContain('if (i === -1) {')
+    expect(PORTADA).toContain('<div className="tarjeta-modulo" aria-disabled="true">')
   })
 })
 

@@ -93,6 +93,7 @@ export interface Config {
     'tiempo-activo': TiempoActivo;
     ajustes: Ajuste;
     requisitos: Requisito;
+    equipo: Equipo;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -126,6 +127,7 @@ export interface Config {
     'tiempo-activo': TiempoActivoSelect<false> | TiempoActivoSelect<true>;
     ajustes: AjustesSelect<false> | AjustesSelect<true>;
     requisitos: RequisitosSelect<false> | RequisitosSelect<true>;
+    equipo: EquipoSelect<false> | EquipoSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -2307,7 +2309,7 @@ export interface Ajuste {
   id: number;
   nombre?: string | null;
   /**
-   * Los residentes no ven estos módulos. Los editores y administradores sí, con la insignia «En mantención».
+   * Los residentes los ven como «Próximamente», sin poder abrirlos. Los editores y administradores sí, con la insignia «En mantención».
    */
   modulosEnMantencion?: ('patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia')[] | null;
   updatedAt: string;
@@ -2326,6 +2328,20 @@ export interface Requisito {
   estado: 'propuesto' | 'en-estudio' | 'aceptado' | 'hecho' | 'descartado';
   respuesta?: string | null;
   votos?: (number | Usuario)[] | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "equipo".
+ */
+export interface Equipo {
+  id: number;
+  nombre: string;
+  cargo: string;
+  descripcion?: string | null;
+  foto?: (number | null) | Medio;
+  orden?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2456,6 +2472,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'requisitos';
         value: number | Requisito;
+      } | null)
+    | ({
+        relationTo: 'equipo';
+        value: number | Equipo;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -4093,6 +4113,19 @@ export interface RequisitosSelect<T extends boolean = true> {
   estado?: T;
   respuesta?: T;
   votos?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "equipo_select".
+ */
+export interface EquipoSelect<T extends boolean = true> {
+  nombre?: T;
+  cargo?: T;
+  descripcion?: T;
+  foto?: T;
+  orden?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -125,10 +125,9 @@ describe('el selector de archivo de un bloque sube por la ruta', () => {
 
   it('desmontado a mitad —bloque quitado o plegado— no escribe, pero deja el archivo a mano', () => {
     // Escribir resucitaría un bloque quitado, o pisaría con un arreglo viejo lo
-    // tecleado después de plegarlo. Recargar las opciones no pisa nada.
+    // tecleado después de plegarlo. El archivo queda subido y el buscador lo encuentra.
     const rama = /if \(!montado\.current\) \{([\s\S]*?)\n\s*\}/.exec(SELECTOR)
     expect(rama, 'el selector ya no mira si sigue montado al terminar').not.toBeNull()
-    expect(rama![1]).toContain('ultimos.current.alRecargar()')
     expect(rama![1]).not.toContain('alCambiar')
     expect(rama![1]).toContain('return')
     // Y la rama va antes de escribir.

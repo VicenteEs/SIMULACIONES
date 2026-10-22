@@ -173,6 +173,8 @@ describe('el esquema del panel cubre las colecciones', () => {
         'tecnicas-quirurgicas',
         'fases-quirurgicas',
         'instrumental',
+        // El equipo del inicio: lo escribe solo el administrador (`soloAdmin`).
+        'equipo',
       ].sort(),
     )
   })

@@ -12,16 +12,19 @@ import {
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
+  Download,
   GripVertical,
   Image as IconoImagen,
   ListChecks,
   Plus,
+  Search,
   Square,
   Table,
   TableProperties,
   Trash2,
   Type,
   Video,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { useConfirmar } from '@/components/ui/Confirmar'
@@ -36,12 +39,14 @@ import {
   nuevaClave,
   type BloquesVigentes,
 } from '@/admin/identidadDeBloques'
+import { coincideConElFiltro, nombreDeArchivoDe, textoDelBloque } from '@/admin/filtroDeBloques'
 import { formularioDeArchivo, subidorQueAvisa } from '@/admin/subidas'
 import { opcionesParaElCampo, type OpcionRelacion, type Relaciones } from '@/admin/opcionesParaElCampo'
 import { leerTablaPegada } from '@/lib/tablaPegada'
 import { EditorDeEncuadre } from './EditorDeEncuadre'
 import { TallerDePiezas, type DesplazamientoInicial } from './TallerDePiezas'
 import { SelectorConBusqueda } from './SelectorConBusqueda'
+import { BuscadorDeArchivos, useArchivoElegido } from './BuscadorDeArchivos'
 import type { Encuadre } from '@/components/Visor3D'
 
 /**
@@ -468,8 +473,6 @@ export function ControlDeCampo({
           campo={campo}
           valor={valor}
           alCambiar={alCambiar}
-          opciones={relaciones[campo.coleccion] ?? []}
-          alRecargar={() => alRecargarRelacion?.(campo.coleccion)}
           apuntarEnSuBloque={apuntarEnSuBloque}
         />
       )
@@ -1126,6 +1129,8 @@ function EditorDeBloques({
    */
   const [plegados, setPlegados] = useState<Record<string, boolean>>({})
   const [agregando, setAgregando] = useState(false)
+  const [filtro, setFiltro] = useState('')
+  const idDelFiltro = useId()
 
   const disparador = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
@@ -1256,6 +1261,31 @@ function EditorDeBloques({
   const claves = bloques.map(claveDelBloque)
   const cuantosPlegados = claves.filter((c) => plegados[c]).length
 
+  /**
+   * El filtro por texto (los bloques que no coinciden se ocultan, no se quitan).
+   *
+   * Aparece desde cuatro bloques: una ficha de libro termina con una columna de figuras plegadas que se llaman todas
+   * igual en la barra, y con menos que eso se recorre de un vistazo. Se busca en lo que distingue a un bloque
+   * (`textoDelBloque`: su texto, y en una imagen el texto alternativo y el nombre del archivo), no en lo que enseña la
+   * barra.
+   *
+   * Ocultar y no filtrar el arreglo es lo que lo hace seguro: los índices de más abajo (mover, quitar, escribir en el
+   * bloque) siguen siendo los del arreglo entero, y nada de lo que se escribe mientras hay un filtro puesto se pierde
+   * ni se guarda reordenado. Por lo mismo, con el filtro puesto no se mueve ni se arrastra: «subir» intercambiaría con
+   * un vecino que no se ve.
+   */
+  const hayFiltro = bloques.length >= 4
+  const filtrando = hayFiltro && filtro.trim() !== ''
+  const coincidencias = useMemo(() => {
+    if (!filtrando) return null
+    const medios = relaciones.medios ?? []
+    return bloques.map((b) => {
+      const esquema = bloqueDe(String(b.blockType ?? ''))
+      return esquema ? coincideConElFiltro(textoDelBloque(esquema, b, medios), filtro) : false
+    })
+  }, [filtrando, bloques, filtro, relaciones.medios])
+  const cuantosCoinciden = coincidencias ? coincidencias.filter(Boolean).length : bloques.length
+
   return (
     <div className="campo bloques">
       <div className="lista-cabecera">
@@ -1277,6 +1307,43 @@ function EditorDeBloques({
       </div>
       {campo.ayuda ? <p className="campo-ayuda">{campo.ayuda}</p> : null}
 
+      {hayFiltro ? (
+        <div className="bloques-filtro" role="search">
+          <label className="sr-only" htmlFor={idDelFiltro}>
+            {`Filtrar los bloques de «${campo.etiqueta}» por texto`}
+          </label>
+          <Search aria-hidden size={16} className="bloques-filtro-icono" />
+          <input
+            id={idDelFiltro}
+            type="search"
+            className="campo-control"
+            placeholder="Filtrar por texto, descripción o nombre de archivo…"
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            autoComplete="off"
+          />
+          {filtro !== '' ? (
+            <button
+              type="button"
+              className="bloques-filtro-borrar"
+              onClick={() => setFiltro('')}
+              title="Quitar el filtro"
+              aria-label="Quitar el filtro"
+            >
+              <X aria-hidden size={16} />
+            </button>
+          ) : null}
+          {/* Región viva: quien filtra con lector de pantalla no ve que la lista se acorta. */}
+          <span className="bloques-filtro-conteo" role="status">
+            {filtrando
+              ? cuantosCoinciden === 0
+                ? 'Ningún bloque coincide'
+                : `${cuantosCoinciden} de ${bloques.length} bloques`
+              : ''}
+          </span>
+        </div>
+      ) : null}
+
       {bloques.length === 0 ? (
         <p className="bloques-vacio">
           Esta pestaña está vacía. Agregue el primer bloque para empezar a escribir.
@@ -1286,6 +1353,7 @@ function EditorDeBloques({
       {bloques.map((bloque, i) => {
         const esquema = bloqueDe(String(bloque.blockType ?? ''))
         if (!esquema) return null
+        if (coincidencias && !coincidencias[i]) return null
         // Sin clave estable no se ofrece escritor: «el bloque de la posición 3»
         // deja de ser este en cuanto se mueve uno, y apuntar el archivo en el
         // bloque equivocado es peor que dejarlo para elegir a mano.
@@ -1305,7 +1373,7 @@ function EditorDeBloques({
                 className="lista-asa"
                 title={`Arrastrar para mover ${nombreDelBloque} ${i + 1}`}
                 aria-hidden
-                {...arrastre.asa(i)}
+                {...(filtrando ? {} : arrastre.asa(i))}
               >
                 <GripVertical size={16} />
               </span>
@@ -1330,7 +1398,7 @@ function EditorDeBloques({
                 <button
                   type="button"
                   onClick={() => mover(i, -1)}
-                  disabled={i === 0}
+                  disabled={i === 0 || filtrando}
                   title={`Subir ${nombreDelBloque} ${i + 1}`}
                   aria-label={`Subir ${nombreDelBloque} ${i + 1}`}
                 >
@@ -1339,7 +1407,7 @@ function EditorDeBloques({
                 <button
                   type="button"
                   onClick={() => mover(i, 1)}
-                  disabled={i === bloques.length - 1}
+                  disabled={i === bloques.length - 1 || filtrando}
                   title={`Bajar ${nombreDelBloque} ${i + 1}`}
                   aria-label={`Bajar ${nombreDelBloque} ${i + 1}`}
                 >
@@ -1484,19 +1552,31 @@ const techoEnMegas = (bytes: number): string => String(Math.round(bytes / (1024 
  */
 const subidaDe = (slug: string) => ESQUEMAS.find((e) => e.slug === slug)?.subida
 
+/**
+ * Los prefijos de tipo MIME de lo que acepta un campo de archivo, para que el buscador ofrezca solo eso.
+ *
+ * `image/png,image/jpeg` → `['image/']`. Sin esto, el bloque de imagen ofrecía vídeos y el de vídeo, imágenes. Una
+ * extensión suelta (`.glb`) no dice el tipo y no restringe nada: la búsqueda queda sin filtro de tipo.
+ */
+const tiposMimeDe = (acepta: string | undefined): string[] => {
+  const prefijos = new Set<string>()
+  for (const parte of (acepta ?? '').split(',')) {
+    const tipo = parte.trim()
+    if (/^[a-z]+\/[a-z0-9.+-]+$/i.test(tipo)) prefijos.add(`${tipo.split('/')[0]}/`)
+    else return []
+  }
+  return [...prefijos]
+}
+
 function SelectorDeArchivo({
   campo,
   valor,
   alCambiar,
-  opciones,
-  alRecargar,
   apuntarEnSuBloque,
 }: {
   campo: Extract<Campo, { tipo: 'archivo' }>
   valor: unknown
   alCambiar: (nuevo: unknown) => void
-  opciones: OpcionRelacion[]
-  alRecargar: () => void
   apuntarEnSuBloque?: (nuevo: unknown) => boolean
 }) {
   const id = useId()
@@ -1546,10 +1626,10 @@ function SelectorDeArchivo({
    * el bloque se quitó, no lo encuentra y no escribe; si no se ofrece —un campo
    * fuera de un bloque, o un bloque sin clave estable—, queda lo de antes.
    */
-  const ultimos = useRef({ alCambiar, alRecargar, apuntarEnSuBloque })
+  const ultimos = useRef({ alCambiar, apuntarEnSuBloque })
   useEffect(() => {
-    ultimos.current = { alCambiar, alRecargar, apuntarEnSuBloque }
-  }, [alCambiar, alRecargar, apuntarEnSuBloque])
+    ultimos.current = { alCambiar, apuntarEnSuBloque }
+  }, [alCambiar, apuntarEnSuBloque])
   // No es el centinela de «primera vuelta» que el Modo Estricto derrota (ver
   // `EditorDeBloques`): no recuerda si ya se montó, dice si está montado ahora,
   // y el efecto lo vuelve a poner en cada montaje, también en la segunda vuelta
@@ -1579,8 +1659,10 @@ function SelectorDeArchivo({
   const describe =
     [campo.ayuda ? idAyuda : null, error ? idError : null].filter(Boolean).join(' ') || undefined
 
-  const actual = valor && typeof valor === 'object' ? (valor as { id?: unknown }).id : valor
-  const seleccionado = opciones.find((o) => o.id === String(actual ?? ''))
+  // Lo elegido, con su dirección para la vista previa y la descarga: del propio valor si viene poblado, o pedido por su
+  // número. No sale de `opciones`: la biblioteca ya no se carga entera (ver `BuscadorDeArchivos`).
+  const { elegido, idDelValor, recordar } = useArchivoElegido(campo.coleccion, valor)
+  const tiposAceptados = tiposMimeDe(campo.acepta ?? subida?.acepta)
 
   const subir = (archivo: File) => {
     setError(null)
@@ -1607,7 +1689,6 @@ function SelectorDeArchivo({
         if (!montado.current) {
           // Plegado o quitado: lo apunta el bloque por su clave, si sigue ahí.
           if (resultado.exito && resultado.datos) ultimos.current.apuntarEnSuBloque?.(resultado.datos.id)
-          if (resultado.exito) ultimos.current.alRecargar()
           return
         }
         if (resultado.exito && resultado.datos) {
@@ -1618,7 +1699,6 @@ function SelectorDeArchivo({
           if (!ultimos.current.apuntarEnSuBloque?.(resultado.datos.id)) {
             ultimos.current.alCambiar(resultado.datos.id)
           }
-          ultimos.current.alRecargar()
         } else {
           setError(resultado.mensaje ?? 'No se pudo subir el archivo.')
         }
@@ -1649,20 +1729,17 @@ function SelectorDeArchivo({
       </label>
 
       <div className="archivo-fila">
-        <select
+        <BuscadorDeArchivos
           id={id}
-          className="campo-control"
-          aria-describedby={describe}
-          value={String(actual ?? '')}
-          onChange={(e) => alCambiar(e.target.value || null)}
-        >
-          <option value="">— ninguno —</option>
-          {opciones.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.etiqueta}
-            </option>
-          ))}
-        </select>
+          idDeLaAyuda={describe}
+          coleccion={campo.coleccion}
+          tipos={tiposAceptados}
+          elegido={elegido}
+          idDelValor={idDelValor}
+          recordar={recordar}
+          alCambiar={alCambiar}
+          requerido={campo.requerido}
+        />
         {/* `aria-disabled` y no `disabled`: este botón es el que tiene el foco
             justo cuando la subida arranca —el selector de archivo lo devuelve
             aquí al cerrarse—, y desactivarlo con el foco dentro lo suelta en el
@@ -1748,13 +1825,23 @@ function SelectorDeArchivo({
         </p>
       ) : null}
 
-      {seleccionado?.url ? (
+      {elegido?.url ? (
         <div className="archivo-vista">
-          {seleccionado.tipo?.startsWith('video/') ? (
-            <video src={seleccionado.url} controls preload="metadata" />
+          {elegido.tipo?.startsWith('video/') ? (
+            <video src={elegido.url} controls preload="metadata" />
           ) : (
-            <img src={seleccionado.url} alt={seleccionado.etiqueta} />
+            <img src={elegido.url} alt={elegido.etiqueta} />
           )}
+          {/* La dirección sale ya con su prefijo de la plataforma (la `url` que arma Payload): se usa tal cual. `download` solo
+              lo respeta el navegador con una dirección del mismo origen, y esta lo es. */}
+          <a
+            className="admin-btn admin-btn-secondary archivo-descarga"
+            href={elegido.url}
+            download={nombreDeArchivoDe(elegido.url) || true}
+          >
+            <Download aria-hidden size={16} /> Descargar
+            <span className="sr-only">{` ${elegido.tipo?.startsWith('video/') ? 'el video' : 'la imagen'} «${elegido.etiqueta}»`}</span>
+          </a>
         </div>
       ) : null}
 

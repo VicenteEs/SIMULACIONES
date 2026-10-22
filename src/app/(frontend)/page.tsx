@@ -4,7 +4,7 @@ import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { InsigniaMantencion } from '@/components/ui/InsigniaMantencion'
-import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { CuerpoDePortada } from '@/components/CuerpoDePortada'
 import { MallaDeNodos } from '@/components/MallaDeNodos'
 import { ruta } from '@/lib/rutas'
@@ -215,6 +215,15 @@ export default async function Inicio() {
   // contar un módulo que el listado no enseña vuelve a separar las dos pantallas.
   const modulosVisibles = MODULOS.filter((m) =>
     puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, m.coleccion, enMantencion),
+  )
+  // Los módulos en mantención que esta cuenta tendría de no ser por ella: no se
+  // cuentan ni se leen, pero tampoco desaparecen. Salen en la rejilla como
+  // «Próximamente», sin enlace (el mismo recorte que hace la barra).
+  const modulosProximos = MODULOS.filter((m) =>
+    cerradoPorMantencion(usuarioEfectivo as UsuarioSesion | null, m.coleccion, enMantencion),
+  )
+  const modulosEnRejilla = MODULOS.filter(
+    (m) => modulosVisibles.includes(m) || modulosProximos.includes(m),
   )
   const verBiblioteca = modulosVisibles.some((m) => m.coleccion === 'patologias')
   const verTecnicaAO = modulosVisibles.some((m) => m.coleccion === 'casos-ao')
@@ -645,22 +654,49 @@ export default async function Inicio() {
         </section>
       ) : null}
 
-      {modulosVisibles.length > 0 ? (
+      {modulosEnRejilla.length > 0 ? (
         <section className="seccion-portada">
           {/* Los rótulos cuentan lo que hay debajo y no lo que tiene la
               plataforma: a una cuenta restringida a dos módulos, «Los cinco
               módulos» le encabezaba una rejilla de dos tarjetas, y de paso le
               decía cuántos se le están ocultando. */}
           <span className="eyebrow">
-            {modulosVisibles.length === MODULOS.length ? 'Los cinco módulos' : 'Sus módulos'}
+            {modulosEnRejilla.length === MODULOS.length ? 'Los cinco módulos' : 'Sus módulos'}
           </span>
           <h2 className="titulo-seccion">
-            {modulosVisibles.length === MODULOS.length
+            {modulosEnRejilla.length === MODULOS.length
               ? 'Qué incluye la plataforma'
               : 'Qué tiene disponible'}
           </h2>
           <div className="rejilla-modulos">
-            {modulosVisibles.map((m, i) => (
+            {modulosEnRejilla.map((m) => {
+              const i = modulosVisibles.indexOf(m)
+              // Un módulo en mantención: la misma tarjeta que el anunciado, sin
+              // enlace. Un `<a>` apagado se sigue anunciando como enlace, y uno
+              // vivo llevaría a la pantalla de «no disponible».
+              if (i === -1) {
+                return (
+                  <div
+                    key={m.ruta}
+                    className={`${IDENTIDAD_DE_MODULO[m.coleccion]?.clase ?? ''} modulo-anunciado modulo-proximamente-tarjeta`}
+                  >
+                    <div className="tarjeta-modulo" aria-disabled="true">
+                      <span className="modulo-numero" aria-hidden="true">
+                        {m.numero}
+                      </span>
+                      <IconoDelModulo coleccion={m.coleccion} />
+                      <h3>{m.titulo}</h3>
+                      <p>{m.descripcion}</p>
+                      <div className="modulo-pie">
+                        <div className="etiquetas">
+                          <span className="insignia-proximamente">{ROTULO_PROXIMAMENTE}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+              return (
               // La clase del módulo va en la envoltura y no en el enlace: así
               // la tarjeta, su icono, su número y su barra toman `--acento`
               // sin que cada pieza tenga que saber de qué módulo es.
@@ -701,7 +737,8 @@ export default async function Inicio() {
                 </div>
               </Link>
               </div>
-            ))}
+              )
+            })}
             {/* El módulo anunciado (D-163): una tarjeta más, atenuada, con su
                 insignia y sin conteos de lectura —no hay nada que leer—. Lleva a
                 su página, que cuenta lo que va a ser. */}

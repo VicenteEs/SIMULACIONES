@@ -5,9 +5,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ConmutadorVista } from './ConmutadorVista'
 import { BotonSalir } from './BotonSalir'
-import { ChevronDown, LayoutDashboard, LayoutGrid, Wrench, X } from 'lucide-react'
+import { ChevronDown, LayoutDashboard, LayoutGrid, UsersRound, Wrench, X, type LucideIcon } from 'lucide-react'
 import { IDENTIDAD_DE_MODULO } from './ui/modulos'
 import { InsigniaMantencion } from './ui/InsigniaMantencion'
+import { ROTULO_PROXIMAMENTE } from '@/lib/modulosAnunciados'
 
 /**
  * Las dos navegaciones de módulos de la barra superior.
@@ -29,12 +30,25 @@ export interface EntradaDeMenu {
    * existe y se marca. Para un residente la entrada ni se genera.
    */
   enMantencion?: boolean
+  /**
+   * Está en mantención y quien mira es un residente: la entrada sigue en la barra, con la insignia «Próximamente» y
+   * sin enlace. No hay a dónde llevarlo, y un enlace que cae en «no disponible» promete lo que no cumple.
+   */
+  proximamente?: boolean
 }
+
+/** Los iconos de lo que no es un módulo pero vive en la barra («Equipo»). */
+const ICONO_AJENO_A_LOS_MODULOS: Record<string, LucideIcon> = { equipo: UsersRound }
 
 /** El icono del módulo, si lo tiene; un módulo nuevo sin identidad sale sin él. */
 function IconoDeModulo({ coleccion, tamano }: { coleccion: string; tamano: number }) {
-  const Icono = IDENTIDAD_DE_MODULO[coleccion]?.icono
+  const Icono = IDENTIDAD_DE_MODULO[coleccion]?.icono ?? ICONO_AJENO_A_LOS_MODULOS[coleccion]
   return Icono ? <Icono size={tamano} aria-hidden="true" /> : null
+}
+
+/** La insignia ámbar de «Próximamente», la misma del módulo anunciado de la portada. */
+function InsigniaProximamente() {
+  return <span className="insignia-proximamente">{ROTULO_PROXIMAMENTE}</span>
 }
 
 /**
@@ -61,7 +75,14 @@ export function BarraDeModulos({ modulos }: { modulos: EntradaDeMenu[] }) {
 
   return (
     <nav className="modulos" aria-label="Módulos">
-      {modulos.map((m) => (
+      {modulos.map((m) =>
+        m.proximamente ? (
+          <span key={m.ruta} className="modulo-proximamente" aria-disabled="true">
+            <IconoDeModulo coleccion={m.coleccion} tamano={16} />
+            {m.etiqueta}
+            <InsigniaProximamente />
+          </span>
+        ) : (
         <Link
           key={m.ruta}
           href={m.ruta}
@@ -72,13 +93,14 @@ export function BarraDeModulos({ modulos }: { modulos: EntradaDeMenu[] }) {
           {/* Solo un icono: en la fila ancha los cinco módulos compiten por el
               ancho, y la insignia con texto de la pantalla estrecha no cabe. */}
           {m.enMantencion ? (
-            <span className="modulo-en-mantencion" title="En mantención: los residentes no lo ven">
+            <span className="modulo-en-mantencion" title="En mantención: los residentes lo ven como «Próximamente»">
               <Wrench size={13} aria-hidden="true" />
               <span className="sr-only">(en mantención)</span>
             </span>
           ) : null}
         </Link>
-      ))}
+        ),
+      )}
     </nav>
   )
 }
@@ -168,13 +190,23 @@ export function MenuDeModulos({ modulos }: { modulos: EntradaDeMenu[] }) {
       <ul id="lista-de-modulos" className="modulos-lista" hidden={!abierto} aria-label="Módulos">
         {modulos.map((m) => (
           <li key={m.ruta}>
-            <Link href={m.ruta} aria-current={esModuloActivo(rutaActual, m.ruta) ? 'page' : undefined}>
-              <span className={`icono-modulo icono-modulo-sm ${IDENTIDAD_DE_MODULO[m.coleccion]?.clase ?? ''}`}>
-                <IconoDeModulo coleccion={m.coleccion} tamano={16} />
+            {m.proximamente ? (
+              <span className="modulo-proximamente" aria-disabled="true">
+                <span className={`icono-modulo icono-modulo-sm ${IDENTIDAD_DE_MODULO[m.coleccion]?.clase ?? ''}`}>
+                  <IconoDeModulo coleccion={m.coleccion} tamano={16} />
+                </span>
+                {m.etiqueta}
+                <InsigniaProximamente />
               </span>
-              {m.etiqueta}
-              {m.enMantencion ? <InsigniaMantencion /> : null}
-            </Link>
+            ) : (
+              <Link href={m.ruta} aria-current={esModuloActivo(rutaActual, m.ruta) ? 'page' : undefined}>
+                <span className={`icono-modulo icono-modulo-sm ${IDENTIDAD_DE_MODULO[m.coleccion]?.clase ?? ''}`}>
+                  <IconoDeModulo coleccion={m.coleccion} tamano={16} />
+                </span>
+                {m.etiqueta}
+                {m.enMantencion ? <InsigniaMantencion /> : null}
+              </Link>
+            )}
           </li>
         ))}
       </ul>
@@ -357,6 +389,21 @@ export function MenuMovil({
         <nav className="menu-enlaces">
           {modulos.map((m) => {
             const activo = esModuloActivo(ruta, m.ruta)
+            if (m.proximamente) {
+              return (
+                <span
+                  key={m.ruta}
+                  className={`menu-enlace menu-enlace-proximamente ${IDENTIDAD_DE_MODULO[m.coleccion]?.clase ?? ''}`}
+                  aria-disabled="true"
+                >
+                  <span className="icono-modulo icono-modulo-sm">
+                    <IconoDeModulo coleccion={m.coleccion} tamano={16} />
+                  </span>
+                  {m.etiqueta}
+                  <InsigniaProximamente />
+                </span>
+              )
+            }
             return (
               <Link
                 key={m.ruta}

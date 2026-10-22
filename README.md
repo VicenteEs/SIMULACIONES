@@ -127,7 +127,7 @@ para preparar el atlas; lo que viaja en el repositorio es el resultado.
 | `admin/` | Esquema del panel propio: qué campos tiene cada colección y cómo se editan |
 | `atlas/` | Catálogo, carga y selección de piezas del atlas anatómico |
 | `blocks/` | Los bloques de contenido que el autor apila y reordena |
-| `collections/` | Las veinte colecciones de Payload —quince archivos más los cinco catálogos del simulador, que viven juntos en `catalogos.ts`—, con sus ganchos en `hooks/` |
+| `collections/` | Las veintiséis colecciones de Payload —veintiún archivos más los cinco catálogos del simulador, que viven juntos en `catalogos.ts`—, con sus ganchos en `hooks/` |
 | `components/` | Componentes de React: el sitio, el panel en `admin/` y los visores en `atlas/` |
 | `lib/` | Lógica compartida: sesión, rutas, búsqueda, respaldos, encuadre, simulador |
 | `migrations/` | Migraciones de esquema; en producción se aplican al arrancar |

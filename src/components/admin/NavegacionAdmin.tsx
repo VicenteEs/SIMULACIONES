@@ -20,6 +20,7 @@ import {
   ScrollText,
   Settings,
   Users,
+  UsersRound,
   type LucideIcon,
 } from 'lucide-react'
 import { puedeSalirSinPerderCambios } from '@/admin/salidaDelEditor'
@@ -128,6 +129,7 @@ const ICONOS: Record<string, LucideIcon> = {
   registro: ScrollText,
   auditoria: FileSearch,
   usuarios: Users,
+  equipo: UsersRound,
   difusion: Megaphone,
   respaldos: Archive,
   sistema: Settings,
@@ -140,12 +142,21 @@ export function IconoDeMenu({ nombre }: { nombre: string }) {
   return <Icono className="admin-nav-icon" size={18} aria-hidden />
 }
 
-/** El panel es la única ruta que hace coincidencia exacta; el resto, por prefijo. */
-const estaActiva = (ruta: string, actual: string) =>
-  ruta === '/admin-panel' ? actual === ruta : actual.startsWith(ruta)
+/**
+ * El panel es la única ruta que hace coincidencia exacta; el resto, por prefijo.
+ *
+ * Si otra entrada de la barra es un prefijo más largo de la misma ruta, gana ella: «Equipo» cuelga de
+ * `/admin-panel/contenido/equipo` y sin esto «Contenido» se quedaba marcada también, con dos pestañas activas a la vez.
+ */
+const estaActiva = (ruta: string, actual: string, todas: readonly string[] = []) => {
+  if (ruta === '/admin-panel') return actual === ruta
+  if (!actual.startsWith(ruta)) return false
+  return !todas.some((otra) => otra.length > ruta.length && otra.startsWith(ruta) && actual.startsWith(otra))
+}
 
 export function NavegacionAdmin({ secciones }: { secciones: SeccionDeMenu[] }) {
   const actual = usePathname() ?? ''
+  const rutas = secciones.flatMap((s) => s.entradas.filter((e) => !e.externa).map((e) => e.ruta))
 
   return (
     <nav className="admin-nav" aria-label="Secciones del panel">
@@ -153,7 +164,7 @@ export function NavegacionAdmin({ secciones }: { secciones: SeccionDeMenu[] }) {
         <div key={seccion.titulo}>
           <div className="admin-nav-section">{seccion.titulo}</div>
           {seccion.entradas.map((entrada) => {
-            const activa = !entrada.externa && estaActiva(entrada.ruta, actual)
+            const activa = !entrada.externa && estaActiva(entrada.ruta, actual, rutas)
             // El nombre accesible lleva el contador dicho con palabras: el
             // número suelto al lado del texto se leía «Comentarios 3», sin
             // decir tres qué.

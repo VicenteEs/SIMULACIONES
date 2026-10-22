@@ -101,7 +101,7 @@ export function capacidadesPorRol(): CapacidadDeRol[] {
     },
     {
       clave: 'mantencion',
-      etiqueta: 'Poner un módulo en mantención: los residentes no lo ven, los editores sí',
+      etiqueta: 'Poner un módulo en mantención: los residentes lo ven como «Próximamente», los editores lo abren',
       fuente: 'cambiarMantencionDeModulo (exigirAdmin)',
       ...soloAdmin,
     },

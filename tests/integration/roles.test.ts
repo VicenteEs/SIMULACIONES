@@ -178,12 +178,23 @@ const escribeModulo = (a: Actor, modulo: string) =>
  *    administrador —las difusiones (D-120)—. Va aparte de `cuentas` porque esa
  *    clase se ata a la colección de auth, y juntarlas quitaría esa atadura.
  *  - `propias`: filas que pertenecen a una cuenta —comentarios y actividad—.
+ *  - `vitrina`: lo que toda cuenta activa lee y solo el administrador escribe: el equipo de la pestaña «Equipo» del
+ *    inicio. No es `apoyo` (ahí escribe el editor) ni `administracion` (ahí tampoco lee nadie más).
  *  - `buzon`: el buzón de requisitos del módulo anunciado (D-163). Lo leen y lo
  *    crean editor y administrador; lo modifica el administrador y, mientras estén
  *    «propuestos», sus autores (eso lo prueba el bloque «el buzón de requisitos»);
  *    lo borra el administrador.
  */
-type Clase = 'modulo' | 'vocabulario' | 'apoyo' | 'estructuras' | 'cuentas' | 'administracion' | 'propias' | 'buzon'
+type Clase =
+  | 'modulo'
+  | 'vocabulario'
+  | 'apoyo'
+  | 'estructuras'
+  | 'cuentas'
+  | 'administracion'
+  | 'propias'
+  | 'buzon'
+  | 'vitrina'
 
 const CLASE_DE: Record<string, Clase> = {
   usuarios: 'cuentas',
@@ -219,6 +230,8 @@ const CLASE_DE: Record<string, Clase> = {
   ajustes: 'administracion',
   // El buzón de requisitos del módulo 06 anunciado (D-163, E7).
   requisitos: 'buzon',
+  // El equipo que se enseña en el inicio.
+  equipo: 'vitrina',
 }
 
 type Esperado = (a: Actor) => boolean
@@ -252,6 +265,8 @@ function politica(slug: string, clase: Clase): Record<string, Esperado> {
     case 'cuentas':
     case 'administracion':
       return { leer: esAdmin, crear: esAdmin, editar: esAdmin, borrar: esAdmin }
+    case 'vitrina':
+      return { leer: esActivo, crear: esAdmin, editar: esAdmin, borrar: esAdmin }
     case 'buzon':
       // Las filas de la matriz no tienen autor, así que `editar` es del
       // administrador: la excepción del autor se prueba aparte.
@@ -441,6 +456,7 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
     titulo: 'nombre',
     fabricar: (nombre) => ({ data: { nombre, modulosEnMantencion: [] } }),
   },
+  equipo: { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre, cargo: 'Cargo de prueba' } }) },
   requisitos: {
     titulo: 'titulo',
     fabricar: (titulo) => ({

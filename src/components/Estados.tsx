@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
-import { House, LockKeyhole, LogIn, NotebookPen, Plus, Wrench } from 'lucide-react'
+import { Hourglass, House, LockKeyhole, LogIn, NotebookPen, Plus } from 'lucide-react'
 import { Vacio as VacioComun } from '@/components/ui/Vacio'
 import { MigaDePan } from '@/components/Cabeceras'
 
@@ -174,13 +174,15 @@ export function Miga({ href, texto }: { href: string; texto: string }) {
  * dar ninguna.
  *
  * Llega por una dirección escrita a mano, por un marcador o por el enlace de un
- * compañero: la barra y la portada ya no ofrecen el módulo a un residente. Se
- * pinta con un 200, por la misma razón que `SinAccesoAlModulo`.
+ * compañero: la barra y la portada enseñan el módulo al residente como
+ * «Próximamente» y sin enlace, y por eso esta pantalla dice lo mismo y no
+ * «en mantención», que es una palabra del equipo. Se pinta con un 200, por la
+ * misma razón que `SinAccesoAlModulo`.
  */
 export function ModuloNoDisponible({ titulo }: { titulo: string }) {
   return (
-    <Estado icono={Wrench} rotulo="En mantención" titulo={titulo} tono="candado">
-      <p>Este módulo no está disponible en este momento. Vuelva a intentarlo más tarde.</p>
+    <Estado icono={Hourglass} rotulo="Próximamente" titulo={titulo} tono="candado">
+      <p>Este módulo estará disponible próximamente. Vuelva a intentarlo más tarde.</p>
       <div className="fila-botones">
         <Link className="boton" href="/">
           <House size={18} aria-hidden="true" />

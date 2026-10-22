@@ -35,6 +35,7 @@ import * as migration_20261021_002506_reduccion_automatica_del_recorrido from '.
 import * as migration_20261021_004947_tipo_de_tornillo_del_instrumento from './20261021_004947_tipo_de_tornillo_del_instrumento';
 import * as migration_20261021_011607_exige_compresion_del_paso from './20261021_011607_exige_compresion_del_paso';
 import * as migration_20261021_013149_radiografia_postoperatoria_del_recorrido from './20261021_013149_radiografia_postoperatoria_del_recorrido';
+import * as migration_20261022_135032_equipo_del_inicio from './20261022_135032_equipo_del_inicio';
 
 export const migrations = [
   {
@@ -220,6 +221,11 @@ export const migrations = [
   {
     up: migration_20261021_013149_radiografia_postoperatoria_del_recorrido.up,
     down: migration_20261021_013149_radiografia_postoperatoria_del_recorrido.down,
-    name: '20261021_013149_radiografia_postoperatoria_del_recorrido'
+    name: '20261021_013149_radiografia_postoperatoria_del_recorrido',
+  },
+  {
+    up: migration_20261022_135032_equipo_del_inicio.up,
+    down: migration_20261022_135032_equipo_del_inicio.down,
+    name: '20261022_135032_equipo_del_inicio'
   },
 ];

@@ -75,6 +75,7 @@ hacen perder.
 | Cuentas, solicitudes y permisos | — | — | sí |
 | Difusión por correo, respaldos, sistema | — | — | sí |
 | Poner un módulo en mantención (sección 14) | — | — | sí |
+| Administrar el equipo que sale en la pestaña «Equipo» (sección 14c) | — | — | sí |
 
 El editor puede estar limitado a algunos módulos; el administrador ve y edita
 siempre los cinco.
@@ -111,7 +112,7 @@ Barra lateral, grupo **«Trabajo»** (editores y administradores):
 
 Grupos **«Seguimiento»** y **«Administración»** (solo administradores):
 «Estadísticas», «Actividad», «Auditoría», «Usuarios y permisos», «Difusión»,
-«Respaldos» y «Sistema». Van en las secciones 9 a 13.
+«Equipo», «Respaldos» y «Sistema». Van en las secciones 9 a 14c.
 
 **La barra lateral se pliega.** Un botón bajo el logotipo la deja en una columna angosta con solo el libro del logotipo sobre su recuadro blanco y un icono
   por pestaña (el nombre sale al pasar el ratón); se recuerda en el navegador. Plegada se esconden las notas del revisor de la barra.
@@ -238,13 +239,29 @@ auditoría registrada». Los visores 3D y los videos no se imprimen: en su lugar
   cambia «Carpeta».
 - Toda imagen y todo video piden una **«Descripción para lectores de
   pantalla»**. Es obligatoria.
+- El campo **«Archivo»** de un bloque de imagen o de video es un cuadro que se
+  escribe: se busca por la descripción o por el nombre del archivo, se elige de la
+  lista y solo se carga el elegido. Sirve con cualquiera de las miles de figuras
+  subidas, no solo las primeras. El de imagen solo ofrece imágenes y el de video,
+  videos.
+- Bajo la vista previa de cualquier archivo elegido hay un botón
+  **«Descargar»**: baja el archivo con su nombre real. Sirve, por ejemplo, para
+  llevarse la figura de un libro y sustituirla por una propia.
+- Cuando una pestaña tiene **cuatro bloques o más** aparece, sobre ellos, un
+  **filtro por texto**. Busca por palabras, sin tildes ni mayúsculas, en lo
+  escrito en cada bloque y, en una imagen, en su descripción y en el nombre de
+  su archivo. Es lo que ayuda con las figuras que llegan de un libro: todas
+  dicen «AÑADIR MANUALMENTE» en el pie, pero cada una tiene su descripción.
+  Los bloques que no coinciden se ocultan, no se borran; mientras el filtro
+  esté puesto no se pueden subir, bajar ni arrastrar bloques, para no mover uno
+  por error junto a uno que no se ve. Quite el filtro con la «×».
 - **Un `.mov` de iPhone se rechaza**, y cambiarle el nombre a `.mp4` no sirve:
   la plataforma mira el contenido del archivo, no la extensión. Hay que
   convertirlo antes.
 - Un video grande tarda minutos. La barra dice cuánto lleva; al llegar al 100 %
   aparece «Procesando en el servidor…». **No recargue ni cambie de pestaña
   dentro de la ficha mientras sube**: el archivo queda subido pero sin elegir, y
-  hay que buscarlo a mano en el desplegable.
+  hay que buscarlo en el cuadro de «Archivo».
 - Si un video grande se corta con «Se cortó la conexión durante la subida»,
   pruebe con uno más liviano antes de dar nada por roto: las subidas grandes por
   la conexión del servidor no están probadas a fondo.
@@ -1416,7 +1433,7 @@ En «Contenido», cada tarjeta de módulo lleva un interruptor, solo para los
 administradores:
 
 - **Visible para residentes** (verde): lo normal.
-- **En mantención** (ámbar): los residentes dejan de ver el módulo.
+- **En mantención** (ámbar): los residentes ven el módulo como «Próximamente» y no pueden abrirlo.
 
 Al apagarlo la plataforma pide confirmación y dice qué pasa. Devolverlo a
 visible no la pide.
@@ -1425,9 +1442,9 @@ visible no la pide.
 
 | | Residente (lector) | Editor y administrador |
 |---|---|---|
-| Barra superior y menú del teléfono | No aparece | Aparece, con un icono de llave inglesa |
-| Portada | Sin tarjeta, sin conteo ni «Continúa leyendo» de ese módulo | Con la tarjeta, marcada «En mantención» |
-| Una dirección escrita a mano o un enlace guardado | «Este módulo no está disponible en este momento» | Abre como siempre, con la marca junto al título |
+| Barra superior y menú del teléfono | Aparece con la insignia «Próximamente» y sin enlace | Aparece, con un icono de llave inglesa |
+| Portada | Tarjeta atenuada con «Próximamente», sin enlace y sin conteo ni «Continúa leyendo» | Con la tarjeta, marcada «En mantención» |
+| Una dirección escrita a mano o un enlace guardado | «Este módulo estará disponible próximamente» | Abre como siempre, con la marca junto al título |
 | Comentar o marcar como leída | No puede | Puede |
 | Avisos de «contenido nuevo» | No los recibe | Los recibe |
 
@@ -1437,7 +1454,8 @@ de lectura del residente **no se pierde**: solo deja de verse mientras dura la
 mantención y vuelve cuando se devuelve el módulo.
 
 Para comprobarlo antes de avisar a nadie, use «Ver como residente» (sección 8):
-el módulo desaparece de la barra y de la portada, igual que para un residente.
+el módulo sale como «Próximamente» en la barra y en la portada, igual que para
+un residente.
 
 Cada cambio queda en «Registro» (en el panel), con quién lo hizo y a qué hora.
 
@@ -1467,6 +1485,30 @@ El **Resumen** del administrador lleva una tarjeta «Requisitos por atender» co
 siguen propuestos.
 
 Un residente ve la descripción del módulo y no el buzón.
+
+---
+
+## 14c. Equipo: quién sale en la pestaña «Equipo»
+
+La barra superior tiene una pestaña **«Equipo»** que ve toda cuenta con la
+plataforma activada. Muestra una tarjeta por colaborador, con su foto, su cargo
+y una descripción breve.
+
+Se administra desde «Equipo», en el grupo «Administración» de la barra lateral
+del panel. **Solo el administrador**: el editor no ve la pantalla ni puede
+abrirla escribiendo la dirección.
+
+| Campo | Qué poner |
+|---|---|
+| Nombre y cargo | Obligatorios. |
+| Descripción breve | Dos o tres frases: qué hace en la plataforma y de dónde viene. |
+| Foto | Opcional. Se sube con «Subir nuevo» (PNG, JPG o WEBP) o se elige una ya subida. Mejor cuadrada: se muestra en un círculo y un retrato apaisado pierde los lados. Sin foto, la tarjeta muestra las iniciales. |
+| Orden de aparición | De menor a mayor; a igual orden, por nombre. |
+
+Los cambios se ven al recargar la pestaña. Quitar a alguien es «Eliminar» en su
+ficha; no se puede deshacer.
+
+---
 
 ## 15. Cuando algo no sale
 

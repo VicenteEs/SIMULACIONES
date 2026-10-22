@@ -44,9 +44,9 @@ export function InterruptorDeMantencion({
         titulo: `¿Poner «${nombre}» en mantención?`,
         mensaje: (
           <>
-            Los residentes dejarán de ver «{nombre}» en todas partes: la barra, la portada y
-            cualquier enlace. Los editores y administradores lo seguirán viendo, marcado como «En
-            mantención». Se puede devolver a visible cuando quiera.
+            Los residentes no podrán abrir «{nombre}»: lo verán en la barra y en la portada como
+            «Próximamente», sin enlace. Los editores y administradores lo seguirán abriendo,
+            marcado como «En mantención». Se puede devolver a visible cuando quiera.
           </>
         ),
         confirmar: 'Poner en mantención',

@@ -6926,6 +6926,46 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que sigue abierto y es lo más importante:** la escena **no sobrevive** a un remonte del lienzo (placa, tornillos, clavo, injertos, periostio…). Guardarla en el recorrido para reconstruirla sería lo que de verdad evita «perder todo»;
   no se hizo. También quedó anotada la petición de **las fascias** (sin ellas el abordaje no se parece a una cirugía real) y la del botón para deshacer un abordaje.
 
+### D-217 · 2026-10-22 · vigente
+**La mantención se ve como «Próximamente»; las figuras de una ficha se filtran, se buscan, se eligen de entre todas y se descargan; y la plataforma tiene una pestaña «Equipo».**
+Cuatro cambios de un mismo encargo del dueño, que comparten archivo más de lo que parece.
+*1. Mantención (cambia lo que D-156 hacía al residente).* Un módulo en mantención ya no desaparece de la barra ni de la portada
+del residente: sigue ahí con la insignia «Próximamente» (la del módulo 06, D-163) y **sin enlace**. Se le ofrece solo a quien lo tendría
+de no ser por la mantención (`cerradoPorMantencion`), no a quien no lo tiene asignado. La puerta no se movió: `puedeVerModulo` sigue
+cerrando la lectura al lector, y lo que se abre a mano muestra `ModuloNoDisponible`, que ahora dice «Próximamente» y no «en mantención»
+(una palabra del equipo). No se cuenta ni se lee: los conteos, «por leer» y «Continúa leyendo» siguen acotados a los módulos que sí se
+abren. La portada **sin sesión** no cambia (sigue sin enseñarlos): ahí no hay quien los estuviera usando. D-156 queda vigente en todo lo
+demás —quién entra, quién edita, la insignia «En mantención» para el editor—; lo que cambia es solo cómo lo ve el lector.
+*2. Figuras de una ficha.* Las que entran de un libro (D-144) son bloques «Imagen» al final de una pestaña, todos con el pie «AÑADIR
+MANUALMENTE», plegados idénticos. Con cuatro bloques o más, la pestaña del editor gana un filtro por texto (`filtroDeBloques.ts`): busca
+en el texto de cada bloque y, en una imagen, en su descripción y en el nombre del archivo, por palabras y sin tildes. Los bloques que no
+coinciden se **ocultan, no se quitan** —los índices de mover, quitar y escribir siguen siendo los del arreglo—, y con el filtro puesto no
+se reordena ni se arrastra, porque «subir» intercambiaría con un vecino invisible. Todo campo de archivo gana un botón «Descargar» bajo su
+vista previa, con el nombre real del archivo (`download` funciona porque la `url` de Payload es del mismo origen).
+*3. El selector de archivo busca en el servidor.* El `<select>` de antes cargaba las primeras 500 filas de `medios`
+(`opcionesDeRelacion`, `limit: 500`): con las 3.298 figuras de la ingesta quedaban unas 2.800 que **no se podían elegir**, y las 500 viajaban
+enteras en cada ficha. Ahora es un cuadro que se escribe (`BuscadorDeArchivos`): lo escrito va a las acciones `buscarArchivos` —por
+descripción y por nombre de archivo, todas las palabras a la vez, de veinte en veinte— y `archivoPorId`, y de una imagen solo se descarga la
+**elegida**, en la vista previa (la lista no lleva miniaturas). El bloque de imagen solo ofrece imágenes y el de vídeo solo vídeos (`acepta`
+del campo, que también gobierna el cuadro de subir). Lo elegido viaja en el formulario **con sus datos** (`id`, `alt`, `filename`, `url`,
+`mimeType`, la forma de un documento poblado), de modo que la vista previa, la descarga y el filtro de bloques no necesitan una segunda
+consulta, y `depurarDocumento` lo reduce al identificador al guardar. `FormularioDocumento` ya no precarga las colecciones a las que solo
+apunta un campo de archivo (`coleccionesRelacionadasDe(esquema, { conArchivos: false })`). Cierra la pega que dejó anotada la primera
+versión de este cambio.
+*4. Equipo.* Colección `equipo` (nombre, cargo, descripción, foto opcional, orden; migración `equipo_del_inicio`). La lee toda cuenta activa
+y **la escribe solo el administrador** (`administracionDeUsuarios`). Su esquema del panel lleva `soloAdmin: true`, y `puedeEditar` —la
+puerta de las páginas del panel y de las acciones de servidor a la vez— la cierra al editor **aunque su lista de módulos esté vacía**
+(que en un módulo es «todos»). Se administra desde «Equipo» en el grupo «Administración» del panel (`/admin-panel/contenido/equipo`, con
+el editor genérico, sin pantalla propia) y se ve en `/equipo`, con una pestaña en la barra de módulos. «Contenido» ya no la lista como
+material de apoyo.
+*Consecuencias.* (+) El residente no pierde de vista un módulo que vuelve; (+) quien revisa fichas importadas encuentra una figura entre
+miles sin desplegar nada, la baja para sustituirla y puede elegir cualquiera de las subidas; (+) el equipo se edita sin tocar código.
+(−) «Equipo» no es un módulo: está en la barra como entrada suelta (`coleccion: 'equipo'`, con su icono en `MenuMovil`), y el recorte por
+`modulosVisibles` no la alcanza, a propósito. (−) La foto del equipo no se recorta: `object-fit: cover` en un círculo, así que un retrato
+apaisado pierde los lados. (−) Buscar es una consulta por pulsación (con 250 ms de espera); por un túnel lento la lista tarda en
+llenarse y dice «Buscando…». (−) Un documento que trae solo el número del archivo hace una consulta más al abrirse (`archivoPorId`), hoy
+solo tras una subida.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

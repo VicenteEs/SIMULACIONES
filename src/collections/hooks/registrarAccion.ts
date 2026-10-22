@@ -98,7 +98,7 @@ const despuesDeCambiar =
             coleccion: cambio.modulo,
             titulo: NOMBRE_DE_MODULO[cambio.modulo] ?? cambio.modulo,
             detalle: cambio.enMantencion
-              ? 'lo puso en mantención: los residentes dejan de verlo'
+              ? 'lo puso en mantención: los residentes lo ven como «Próximamente»'
               : 'lo devolvió a visible para los residentes',
           },
           req,

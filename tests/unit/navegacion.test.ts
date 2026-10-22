@@ -51,7 +51,24 @@ describe('la barra de módulos', () => {
   it('recorta la lista con la misma función que decide el acceso', () => {
     // `puedeVerModulo` y no una comprobación propia: si la barra y la base
     // discrepan, la que gana es la base, y lo hace lanzando una excepción.
-    expect(CODIGO_NAVEGACION).toMatch(/MODULOS\.filter\(\(m\) => puedeVerModulo\(/)
+    expect(CODIGO_NAVEGACION).toMatch(/MODULOS\.flatMap<EntradaDeMenu>\(\(m\) => \{ if \(puedeVerModulo\(/)
+  })
+
+  it('un módulo en mantención no desaparece para el residente: sale como «próximamente»', () => {
+    // Se retiró que se esfumara de la barra: un módulo que va y viene se lee como una avería. Se ofrece solo a
+    // quien lo tendría de no ser por la mantención, que es lo que contesta `cerradoPorMantencion`.
+    expect(CODIGO_NAVEGACION).toMatch(/if \(cerradoPorMantencion\(efectivo, m\.coleccion, enMantencion\)\) \{ return \[\{ \.\.\.m, proximamente: true \}\]/)
+  })
+
+  it('la entrada «próximamente» no es un enlace en ninguna de las tres navegaciones', () => {
+    // Un `<a>` apagado se sigue anunciando como enlace y el vivo caería en «no disponible».
+    const cuantos = CODIGO_MENU.match(/m\.proximamente/g)?.length ?? 0
+    expect(cuantos).toBeGreaterThanOrEqual(3)
+    expect(CODIGO_MENU).toContain('<InsigniaProximamente />')
+  })
+
+  it('«Equipo» está en la barra de toda cuenta activa, y de nadie más', () => {
+    expect(CODIGO_NAVEGACION).toContain("if (efectivo?.activo) modulos.push({ ruta: '/equipo', coleccion: 'equipo'")
   })
 
   it('filtra con el usuario efectivo, el mismo con el que consultan las páginas', () => {

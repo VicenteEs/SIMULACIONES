@@ -260,6 +260,10 @@ const GUARDIAS: Record<string, Clasificacion> = {
 
   'contenido.ts:listarDocumentos': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m, {}] },
   'contenido.ts:opcionesDeRelacion': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m] },
+  // El selector de archivo del editor: busca y trae de uno en uno, en vez de cargar 500 filas de `medios`.
+  // `medios` es material de apoyo: no se restringe por módulo (`puedeEditar`), así que la guardia que le toca es la de editor.
+  'contenido.ts:buscarArchivos': { guardia: 'editor', argumentos: () => ['medios', { busqueda: 'x' }] },
+  'contenido.ts:archivoPorId': { guardia: 'editor', argumentos: () => ['medios', '1'] },
   // «¿No está? Agregar» del hueso, la clasificación, la técnica y la fase: el catálogo es vocabulario del módulo
   // de cirugías, así que se gobierna con el permiso de ese módulo (`MODULO_DEL_VOCABULARIO`).
   'contenido.ts:agregarAlCatalogo': {

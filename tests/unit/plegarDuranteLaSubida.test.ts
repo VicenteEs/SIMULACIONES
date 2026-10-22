@@ -72,6 +72,16 @@ vi.mock('@/admin/subidas', async (original) => ({
 
 vi.mock('next/dynamic', () => ({ default: () => () => null }))
 
+// El selector de archivo pide al servidor lo elegido y lo que se busca (`BuscadorDeArchivos`): aquí no hay servidor, y
+// lo único que se comprueba es qué número quedó escrito en el bloque.
+vi.mock('@/app/(frontend)/acciones/contenido', () => ({
+  archivoPorId: async (_coleccion: string, id: string) => ({
+    exito: true,
+    datos: { id, etiqueta: `archivo ${id}`, nombre: `${id}.png` },
+  }),
+  buscarArchivos: async () => ({ exito: true, datos: { archivos: [], total: 0 } }),
+}))
+
 // Se importa después de los `vi.mock`, que Vitest sube arriba de todo igual.
 const { ControlDeCampo } = await import('@/components/admin/formulario/Campos')
 
@@ -165,7 +175,10 @@ function elegirArchivoEn(bloque: HTMLElement, nombre: string) {
 }
 
 function teclearEn(bloque: HTMLElement, texto: string) {
-  const entrada = bloque.querySelector<HTMLInputElement>('input[type="text"], input:not([type])')
+  // Sin el cuadro del buscador de archivos, que también es de texto y va antes que el pie.
+  const entrada = bloque.querySelector<HTMLInputElement>(
+    'input[type="text"]:not([role="combobox"]), input:not([type]):not([role="combobox"])',
+  )
   if (!entrada) throw new Error('El bloque no tiene campo de texto pintado')
   // Por el `set` del prototipo: React vigila el `value` del elemento y un
   // `entrada.value = …` directo no lo daría por cambiado.
@@ -204,7 +217,8 @@ function guardar(ficha: Ficha) {
   })
 }
 
-const valorDelSelector = (bloque: HTMLElement) => bloque.querySelector('select')?.value
+const valorDelSelector = (bloque: HTMLElement) =>
+  bloque.querySelector('[role="combobox"]')?.getAttribute('data-valor')
 
 const tresBloques = (): Fila[] => [
   { id: '11', blockType: 'video', video: null, pie: 'Abordaje' },
@@ -327,13 +341,13 @@ describe('una subida en un bloque nuevo que se guarda mientras sube', () => {
     const ficha = fichaDePrueba(tresBloques())
     pintar(ficha)
     elegirArchivoEn(bloquesEnPantalla()[1], 'rx-ap.png')
-    const selectorAntes = bloquesEnPantalla()[1].querySelector('select')
+    const selectorAntes = bloquesEnPantalla()[1].querySelector('[role="combobox"]')
 
     guardar(ficha)
 
     // Si el `key` cambiara, React habría tirado el bloque y la barra de
     // «Subiendo…» se iría a mitad de viaje, que se lee como subida cancelada.
-    expect(bloquesEnPantalla()[1].querySelector('select')).toBe(selectorAntes)
+    expect(bloquesEnPantalla()[1].querySelector('[role="combobox"]')).toBe(selectorAntes)
     expect(bloquesEnPantalla()[1].textContent).toContain('Subiendo «rx-ap.png»')
 
     await terminarSubida(ficha, 'rx-ap.png', '506')

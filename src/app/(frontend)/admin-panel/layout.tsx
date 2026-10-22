@@ -165,6 +165,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           icono: 'usuarios',
           aviso: solicitudes || undefined,
         },
+        { ruta: '/admin-panel/contenido/equipo', etiqueta: 'Equipo', icono: 'equipo' },
         { ruta: '/admin-panel/difusion', etiqueta: 'Difusión', icono: 'difusion' },
         { ruta: '/admin-panel/respaldos', etiqueta: 'Respaldos', icono: 'respaldos' },
         { ruta: '/admin-panel/sistema', etiqueta: 'Sistema', icono: 'sistema' },

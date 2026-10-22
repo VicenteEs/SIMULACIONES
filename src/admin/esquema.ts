@@ -260,6 +260,14 @@ export interface EsquemaDeColeccion {
   versionada: boolean
   /** Grupo bajo el que aparece en la navegación del panel. */
   familia: 'modulos' | 'apoyo'
+  /**
+   * Solo el administrador la lista, la abre y la escribe; el editor ni la ve en «Contenido».
+   *
+   * Lo lee `puedeEditar` (`src/lib/guardias.ts`), que es la puerta de las páginas del panel y de las acciones de
+   * servidor a la vez, de modo que no hay una segunda lista de colecciones reservadas que se pueda quedar atrás.
+   * Hoy, el equipo que se muestra en el inicio (`Equipo`).
+   */
+  soloAdmin?: boolean
   columnas: Columna[]
   /** Campos por los que busca el cuadro de búsqueda del listado. */
   buscarEn: string[]
@@ -1575,6 +1583,62 @@ export const Instrumental: EsquemaDeColeccion = {
   ],
 }
 
+/**
+ * El equipo que se enseña en la pestaña «Equipo» del inicio.
+ *
+ * No es contenido clínico ni material de apoyo de los módulos: lo administra solo el administrador desde su propia
+ * pestaña del panel (`/admin-panel/contenido/equipo`), por eso `soloAdmin`. La `familia` es `apoyo` porque es la que
+ * no tiene borrador ni módulo; el listado de «Contenido» la deja fuera.
+ */
+export const Equipo: EsquemaDeColeccion = {
+  slug: 'equipo',
+  singular: 'Colaborador',
+  plural: 'Equipo',
+  genero: 'm',
+  titulo: 'nombre',
+  descripcion: 'Las personas que llevan la plataforma, con su foto, su cargo y una descripción breve.',
+  versionada: false,
+  familia: 'apoyo',
+  soloAdmin: true,
+  buscarEn: ['nombre', 'cargo'],
+  columnas: [
+    { nombre: 'nombre', etiqueta: 'Nombre' },
+    { nombre: 'cargo', etiqueta: 'Cargo' },
+    { nombre: 'orden', etiqueta: 'Orden', formato: 'numero' },
+    { nombre: 'updatedAt', etiqueta: 'Editado', formato: 'fecha' },
+  ],
+  secciones: [
+    {
+      titulo: 'El colaborador',
+      campos: [
+        { tipo: 'texto', nombre: 'nombre', etiqueta: 'Nombre', requerido: true, medio: true },
+        { tipo: 'texto', nombre: 'cargo', etiqueta: 'Cargo', requerido: true, medio: true },
+        {
+          tipo: 'area',
+          nombre: 'descripcion',
+          etiqueta: 'Descripción breve',
+          filas: 4,
+          ayuda: 'Dos o tres frases: qué hace en la plataforma y de dónde viene.',
+        },
+        {
+          tipo: 'archivo',
+          nombre: 'foto',
+          etiqueta: 'Foto',
+          coleccion: 'medios',
+          acepta: 'image/png,image/jpeg,image/webp',
+          ayuda: 'Un retrato, mejor cuadrado. Sin foto, la tarjeta muestra las iniciales.',
+        },
+        {
+          tipo: 'numero',
+          nombre: 'orden',
+          etiqueta: 'Orden de aparición',
+          ayuda: 'De menor a mayor. A igual orden, por nombre.',
+        },
+      ],
+    },
+  ],
+}
+
 export const ESQUEMAS: EsquemaDeColeccion[] = [
   Patologias,
   Maniobras,
@@ -1590,6 +1654,7 @@ export const ESQUEMAS: EsquemaDeColeccion[] = [
   Instrumental,
   Medios,
   Modelos3D,
+  Equipo,
 ]
 
 /**
@@ -1661,8 +1726,16 @@ export function* recorrerCampos(campos: Campo[]): Generator<Campo> {
  * Derivarla del esquema en vez de escribirla cierra esa puerta: un campo de
  * relación nuevo trae consigo su precarga, y no hay una segunda lista que
  * alguien tenga que acordarse de actualizar.
+ *
+ * `conArchivos: false` deja fuera las colecciones a las que solo apunta un campo de
+ * archivo: el formulario no las precarga, porque el selector de archivo busca en el
+ * servidor y trae solo el elegido (`BuscadorDeArchivos`). Precargar `medios` era traer
+ * 500 filas de 3.300 en cada ficha.
  */
-export function coleccionesRelacionadasDe(esquema: EsquemaDeColeccion): string[] {
+export function coleccionesRelacionadasDe(
+  esquema: EsquemaDeColeccion,
+  { conArchivos = true }: { conArchivos?: boolean } = {},
+): string[] {
   const campos = [
     ...recorrerCampos(camposDe(esquema)),
     // Un campo de bloques puede insertar cualquier bloque, y los bloques
@@ -1674,7 +1747,7 @@ export function coleccionesRelacionadasDe(esquema: EsquemaDeColeccion): string[]
 
   const slugs = new Set<string>()
   for (const campo of campos) {
-    if (campo.tipo === 'relacion' || campo.tipo === 'archivo') slugs.add(campo.coleccion)
+    if (campo.tipo === 'relacion' || (conArchivos && campo.tipo === 'archivo')) slugs.add(campo.coleccion)
   }
   return [...slugs].sort()
 }

@@ -295,7 +295,7 @@ export function FormularioDocumento({
    * clasificación y técnica abrían vacíos sin decir por qué.
    */
   const coleccionesRelacionadas = useMemo(
-    () => coleccionesRelacionadasDe(esquema),
+    () => coleccionesRelacionadasDe(esquema, { conArchivos: false }),
     [esquema],
   )
 

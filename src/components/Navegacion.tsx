@@ -1,11 +1,11 @@
 import Link from 'next/link'
 import { ConmutadorVista } from './ConmutadorVista'
 import { BotonSalir } from './BotonSalir'
-import { BarraDeModulos, MenuDeModulos, MenuMovil } from './MenuMovil'
+import { BarraDeModulos, MenuDeModulos, MenuMovil, type EntradaDeMenu } from './MenuMovil'
 import { ruta } from '@/lib/rutas'
 import { LayoutDashboard, CircleUserRound } from 'lucide-react'
 import { obtenerSesion } from '@/lib/sesion'
-import { puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
+import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { MODULOS as MODULOS_DE_LA_PLATAFORMA } from '@/app/(frontend)/admin-panel/modulos'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 
@@ -77,14 +77,31 @@ export async function Navegacion({
   const hayPanel = rolReal === 'admin' || rolReal === 'editor'
 
   const { usuarioEfectivo } = await obtenerSesion()
-  // Un módulo en mantención desaparece para el residente y, para quien conserva
-  // el acceso, se queda con su marca (D-156). Se pregunta con el usuario
-  // efectivo: el administrador que mira «como residente» lo ve desaparecer, que
-  // es justo para lo que sirve esa vista.
+  // Un módulo en mantención se queda en la barra y no desaparece. Para el
+  // residente sale con la insignia «Próximamente» y sin enlace; para quien
+  // conserva el acceso, con su marca de mantención (D-156). Se pregunta con el
+  // usuario efectivo: el administrador que mira «como residente» lo ve como lo
+  // ve el residente, que es justo para lo que sirve esa vista.
+  //
+  // Antes desaparecía, y eso es lo que se retiró: un módulo que va y viene
+  // de la barra se lee como una avería o como un módulo que no existe, y quien
+  // lo estaba usando ayer no sabe si volverá. Solo se ofrece como «próximamente»
+  // a quien lo tendría de no ser por la mantención (`cerradoPorMantencion`): al
+  // que no tiene el módulo asignado no se le enseña lo que no es suyo.
   const enMantencion = await modulosEnMantencion()
-  const modulos = MODULOS.filter((m) =>
-    puedeVerModulo(usuarioEfectivo as UsuarioSesion | null, m.coleccion, enMantencion),
-  ).map((m) => ({ ...m, enMantencion: enMantencion.includes(m.coleccion) }))
+  const efectivo = usuarioEfectivo as UsuarioSesion | null
+  const modulos: EntradaDeMenu[] = MODULOS.flatMap<EntradaDeMenu>((m) => {
+    if (puedeVerModulo(efectivo, m.coleccion, enMantencion)) {
+      return [{ ...m, enMantencion: enMantencion.includes(m.coleccion) }]
+    }
+    if (cerradoPorMantencion(efectivo, m.coleccion, enMantencion)) {
+      return [{ ...m, proximamente: true }]
+    }
+    return []
+  })
+  // «Equipo» no es un módulo: no tiene permisos ni mantención, y lo ve toda
+  // cuenta activa. Va al final, después de los cinco.
+  if (efectivo?.activo) modulos.push({ ruta: '/equipo', coleccion: 'equipo', etiqueta: 'Equipo' })
 
   return (
     <header className="barra">

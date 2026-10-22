@@ -2269,3 +2269,48 @@ body:has(> .portada-publica) > .portada-publica {
 .opcion-ao:disabled { opacity: 0.45; cursor: not-allowed; }
 .opcion-ao.elegida { border-color: var(--acento, var(--marca)); font-weight: 600; }
 .opcion-ao-cuenta { min-width: 1.6em; padding: 0 6px; border-radius: 999px; background: var(--superficie-2); font-size: var(--t-xs); font-variant-numeric: tabular-nums; text-align: center; }
+
+/* Módulo en mantención visto por un residente: sigue en la barra y en la portada, con la insignia «Próximamente» y sin
+   enlace. No es un enlace apagado: es un texto, y por eso no recibe foco ni hover. Atenuado, pero no tanto como para que
+   la insignia ámbar pierda el contraste. */
+.modulo-proximamente {
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  min-height: 36px; padding: 0 var(--e-3);
+  font-size: var(--t-sm); font-weight: 500; white-space: nowrap; cursor: default;
+}
+.modulos .modulo-proximamente { color: var(--sobre-tinta-2); border: 1px solid transparent; border-bottom-width: 2px; }
+.modulos .modulo-proximamente > svg { flex: none; opacity: 0.6; }
+.modulos-lista .modulo-proximamente { display: flex; min-height: 46px; color: var(--mudo, var(--tinta)); }
+.modulos-lista .modulo-proximamente > .icono-modulo, .menu-enlace-proximamente > .icono-modulo { opacity: 0.6; }
+.modulo-proximamente .insignia-proximamente, .menu-enlace-proximamente .insignia-proximamente { margin-left: auto; }
+.menu-enlace-proximamente { color: var(--mudo, var(--tinta)); cursor: default; }
+.menu-enlace-proximamente:hover { background: transparent; }
+
+/* La tarjeta de un módulo en mantención en la portada del residente: la del módulo anunciado, sin enlace. */
+.modulo-proximamente-tarjeta { cursor: default; }
+.modulo-proximamente-tarjeta .tarjeta-modulo:hover { transform: none; box-shadow: none; }
+
+/* Pestaña «Equipo»: una tarjeta por colaborador, con foto (o iniciales), cargo y una descripción breve. */
+.equipo-rejilla {
+  display: grid; gap: var(--e-4);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  margin: var(--e-4) 0 0; padding: 0; list-style: none;
+}
+.equipo-tarjeta {
+  display: flex; flex-direction: column; align-items: center; gap: var(--e-2);
+  padding: var(--e-5); text-align: center;
+  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
+}
+.equipo-foto {
+  width: 128px; height: 128px; border-radius: var(--r-full); object-fit: cover;
+  background: var(--marca-tenue, #eaf1fc);
+}
+.equipo-iniciales {
+  display: flex; align-items: center; justify-content: center;
+  width: 128px; height: 128px; border-radius: var(--r-full);
+  background: var(--marca-tenue, #eaf1fc); color: var(--marca);
+  font-size: 2.4rem; font-weight: 650; letter-spacing: 0.02em;
+}
+.equipo-tarjeta h2 { margin: var(--e-2) 0 0; font-size: 1.1rem; }
+.equipo-cargo { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--marca); }
+.equipo-descripcion { margin: var(--e-2) 0 0; font-size: var(--t-sm); color: var(--mudo, var(--tinta)); line-height: 1.55; }

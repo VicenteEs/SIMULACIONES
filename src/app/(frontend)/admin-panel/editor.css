@@ -524,3 +524,24 @@
 .pec-lista label { display: flex; align-items: center; gap: var(--e-2); padding: var(--e-1) var(--e-2); border-radius: var(--r-sm); cursor: pointer; font-size: var(--t-sm); }
 .pec-lista label:hover { background: var(--superficie-2); }
 .pec-acciones { display: flex; flex-wrap: wrap; gap: var(--e-2); }
+
+/* ---------- filtro de bloques y descarga de archivos ---------- */
+.bloques-filtro {
+  position: relative; display: flex; align-items: center; gap: var(--e-2); flex-wrap: wrap;
+  margin: var(--e-2) 0 var(--e-3);
+}
+.bloques-filtro .campo-control { flex: 1 1 260px; padding-left: 34px; padding-right: 34px; }
+.bloques-filtro-icono { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--pizarra); pointer-events: none; }
+.bloques-filtro-borrar {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border: 0; border-radius: var(--r-sm); background: none; color: var(--pizarra); cursor: pointer;
+}
+.bloques-filtro-borrar:hover { background: var(--papel); }
+.bloques-filtro-conteo { flex: none; font-size: var(--t-xs); color: var(--pizarra); }
+.archivo-descarga { margin: 0.5rem auto 0; width: fit-content; display: flex; align-items: center; gap: var(--e-1); text-decoration: none; }
+
+/* El archivo elegido y el nombre con que se sube, en el buscador de archivos (`BuscadorDeArchivos.tsx`). */
+.archivo-elegido { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--e-2); margin: 0; font-size: var(--t-sm); }
+.archivo-elegido-nombre { font-size: var(--t-xs); color: var(--mudo); overflow-wrap: anywhere; }
+.archivo-fila > .selector-busqueda { flex: 1 1 auto; min-width: 0; }

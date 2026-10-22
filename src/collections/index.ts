@@ -14,6 +14,7 @@ import { EstudiosIA } from './EstudiosIA'
 import { Comentarios } from './Comentarios'
 import { Ajustes } from './Ajustes'
 import { Requisitos } from './Requisitos'
+import { Equipo } from './Equipo'
 import { Actividad } from './Actividad'
 import { Difusiones } from './Difusiones'
 import { Revisiones } from './Revisiones'
@@ -67,6 +68,7 @@ const DECLARADAS: CollectionConfig[] = [
   TiempoActivo,
   Ajustes,
   Requisitos,
+  Equipo,
 ]
 
 /**
@@ -102,4 +104,5 @@ export {
   RegistroDeAcciones,
   TiempoActivo,
   Ajustes,
+  Equipo,
 }

@@ -137,6 +137,9 @@ export const BLOQUES: EsquemaDeBloque[] = [
         etiqueta: 'Archivo',
         coleccion: 'medios',
         requerido: true,
+        // Solo imágenes: el buscador de archivos filtra por esto, y el bloque de imagen no tiene por qué ofrecer
+        // vídeos entre los resultados (ni el cuadro de subir aceptarlos).
+        acepta: 'image/png,image/jpeg,image/webp,image/svg+xml',
       },
       { tipo: 'texto', nombre: 'pie', etiqueta: 'Pie de imagen' },
       {
@@ -162,6 +165,7 @@ export const BLOQUES: EsquemaDeBloque[] = [
         etiqueta: 'Archivo de video',
         coleccion: 'medios',
         requerido: true,
+        acepta: 'video/mp4,video/webm',
       },
       { tipo: 'texto', nombre: 'pie', etiqueta: 'Pie del video' },
     ],

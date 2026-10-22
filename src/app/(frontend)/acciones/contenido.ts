@@ -383,6 +383,99 @@ export async function opcionesDeRelacion(
   })
 }
 
+// ------------------------------------------------------ buscar un archivo
+
+/** Un archivo de `medios` (o de otra colección de subida), con lo justo para elegirlo y enseñarlo. */
+export interface ArchivoBuscado {
+  id: string
+  /** El texto alternativo, o el nombre del archivo si no lo tiene. */
+  etiqueta: string
+  nombre: string
+  url?: string
+  tipo?: string
+}
+
+/** Cuántos resultados devuelve una búsqueda: los más recientes si no se escribe nada, los mejores si se escribe. */
+const ARCHIVOS_POR_BUSQUEDA = 20
+
+const archivoDe = (documento: unknown, titulo: string): ArchivoBuscado => {
+  const doc = documento as Record<string, unknown>
+  const nombre = typeof doc.filename === 'string' ? doc.filename : ''
+  return {
+    id: String(doc.id),
+    etiqueta: String(doc[titulo] ?? '') || nombre || `#${doc.id}`,
+    nombre,
+    url: typeof doc.url === 'string' ? doc.url : undefined,
+    tipo: typeof doc.mimeType === 'string' ? doc.mimeType : undefined,
+  }
+}
+
+/**
+ * Busca archivos de una colección de subida por lo que se escribió, para el selector de archivo del editor.
+ *
+ * Existe porque el desplegable de antes cargaba las primeras 500 filas de `medios` (`opcionesDeRelacion`): con las
+ * 3.300 figuras que trajo la ingesta (D-144), las que pasaban de esa cifra no se podían elegir, y las 500 se traían
+ * enteras —con su dirección— en cada ficha que se abría. Aquí se pide solo lo que se escribe, de veinte en veinte, y
+ * se busca por la descripción y por el nombre del archivo (`buscarEn` del esquema).
+ *
+ * `tipos` son prefijos de tipo MIME (`image/`, `video/`): el bloque de imagen no debe ofrecer vídeos ni al revés. Llegan
+ * del navegador, así que se limpian antes de ir a la consulta.
+ *
+ * Con `exigirEdicionDe`, como `opcionesDeRelacion`: lee con `overrideAccess: true` y esta guardia es lo único que mira
+ * quién pregunta.
+ */
+export async function buscarArchivos(
+  coleccion: unknown,
+  opciones: { busqueda?: unknown; tipos?: unknown } = {},
+): Promise<Respuesta<{ archivos: ArchivoBuscado[]; total: number }>> {
+  return accion(async () => {
+    const esquema = esquemaValidado(coleccion)
+    const { payload } = await exigirEdicionDe(esquema.slug)
+    if (!esquema.subida) throw new Error('Esa colección no guarda archivos.')
+    if (!opciones || typeof opciones !== 'object') opciones = {}
+
+    const busqueda = typeof opciones.busqueda === 'string' ? opciones.busqueda.trim().slice(0, 120) : ''
+    const tipos = (Array.isArray(opciones.tipos) ? opciones.tipos : [])
+      .filter((t): t is string => typeof t === 'string' && /^[a-z]+\/[a-z0-9.+-]*$/i.test(t))
+      .slice(0, 8)
+
+    const condiciones: Record<string, unknown>[] = []
+    // Cada palabra por separado y todas a la vez, como el resto de los buscadores: «weber figura» encuentra
+    // «Figura 3. Fractura de Weber B» aunque no estén juntas.
+    for (const palabra of busqueda.split(/\s+/).filter(Boolean)) {
+      condiciones.push({ or: esquema.buscarEn.map((campo) => ({ [campo]: { like: palabra } })) })
+    }
+    if (tipos.length > 0) condiciones.push({ or: tipos.map((t) => ({ mimeType: { like: t } })) })
+
+    const resultado = await payload.find({
+      collection: esquema.slug as never,
+      where: (condiciones.length > 0 ? { and: condiciones } : undefined) as never,
+      limit: ARCHIVOS_POR_BUSQUEDA,
+      sort: '-updatedAt',
+      depth: 0,
+      overrideAccess: true,
+    })
+    return {
+      archivos: resultado.docs.map((d) => archivoDe(d, esquema.titulo)),
+      total: resultado.totalDocs,
+    }
+  })
+}
+
+/** Un archivo por su identificador: lo que el selector enseña cuando el documento solo trae el número. */
+export async function archivoPorId(coleccion: unknown, id: unknown): Promise<Respuesta<ArchivoBuscado | null>> {
+  return accion(async () => {
+    const esquema = esquemaValidado(coleccion)
+    const { payload } = await exigirEdicionDe(esquema.slug)
+    if (!esquema.subida) throw new Error('Esa colección no guarda archivos.')
+    const identificador = exigirIdentificador(id, 'El archivo')
+    const documento = await payload
+      .findByID({ collection: esquema.slug as never, id: identificador, depth: 0, overrideAccess: true })
+      .catch(() => null)
+    return documento ? archivoDe(documento, esquema.titulo) : null
+  })
+}
+
 // ------------------------------------------------- ensanchar un catálogo
 
 /**

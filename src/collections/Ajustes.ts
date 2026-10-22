@@ -49,7 +49,7 @@ export const Ajustes: CollectionConfig = {
       options: OPCIONES_DE_MODULO,
       admin: {
         description:
-          'Los residentes no ven estos módulos. Los editores y administradores sí, con la insignia «En mantención».',
+          'Los residentes los ven como «Próximamente», sin poder abrirlos. Los editores y administradores sí, con la insignia «En mantención».',
       },
     },
   ],

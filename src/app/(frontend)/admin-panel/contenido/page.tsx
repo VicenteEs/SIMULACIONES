@@ -119,7 +119,10 @@ export default async function PaginaContenido() {
   // y los ajenos se abrían igual: el «no tiene permiso» llegaba al guardar, con
   // la ficha ya escrita. Un administrador, y un editor sin restricción, siguen
   // viéndolo todo.
-  const visibles = ESQUEMAS.filter((e) => puedeEditar(sesion.usuario, e.slug))
+  //
+  // Sin las reservadas al administrador (el equipo del inicio): tienen su propia pestaña en la barra lateral, y
+  // repetirlas aquí como «material de apoyo» las mezclaría con lo que usan los cinco módulos.
+  const visibles = ESQUEMAS.filter((e) => !e.soloAdmin && puedeEditar(sesion.usuario, e.slug))
 
   const payload = await clientePayload()
   const resumenes = await Promise.all(visibles.map((e) => resumir(payload, e)))

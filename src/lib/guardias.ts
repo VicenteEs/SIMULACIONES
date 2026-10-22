@@ -14,7 +14,12 @@ import { getPayload, type Payload } from 'payload'
 import config from '@payload-config'
 import { SLUGS_DE_MODULOS } from '@/collections'
 import { CATALOGOS_DEL_SIMULADOR } from '@/collections/catalogos'
+import { ESQUEMAS } from '@/admin/esquema'
 import { obtenerSesion } from '@/lib/sesion'
+
+const COLECCIONES_SOLO_ADMIN: ReadonlySet<string> = new Set(
+  ESQUEMAS.filter((e) => e.soloAdmin).map((e) => e.slug),
+)
 
 export class ErrorDeAcceso extends Error {}
 
@@ -103,6 +108,10 @@ const MODULO_DEL_VOCABULARIO: Record<string, string> = Object.fromEntries(
  */
 export function puedeEditar(usuario: Record<string, unknown>, coleccion: string): boolean {
   if (usuario.rol === 'admin') return true
+  // Las colecciones reservadas al administrador (el equipo del inicio) no se abren a ningún editor, ni con la lista de
+  // módulos vacía, que en un módulo significa «todos». Se lee del esquema del panel y no de una lista aparte, por lo
+  // mismo que arriba: una copia que se queda atrás no falla, deja la puerta abierta.
+  if (COLECCIONES_SOLO_ADMIN.has(coleccion)) return false
 
   const permitidos = usuario.modulosEditables
   const restringido = Array.isArray(permitidos) && permitidos.length > 0
