@@ -25,6 +25,8 @@ import {
   tipoDelSeparador,
   type Pellizco,
   type SeparadorColocado,
+  enElPlano,
+  planoSiguiente,
 } from '@/lib/exposicion'
 import { comportamientoDelInstrumento, guiaDelInstrumento } from '@/lib/comportamientoDelInstrumento'
 

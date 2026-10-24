@@ -718,6 +718,7 @@ export const Cirugias: EsquemaDeColeccion = {
                 { valor: 'hueso', etiqueta: 'Hueso (fijo)' },
                 { valor: 'fragmento', etiqueta: 'Fragmento móvil' },
                 { valor: 'implante', etiqueta: 'Implante' },
+                { valor: 'fascia', etiqueta: 'Fascia' },
               ],
             },
           ],

@@ -1337,6 +1337,11 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
 .consola-sutura-medidas dt { font-size: var(--t-xs); color: var(--c-texto-2); }
 .consola-sutura-medidas dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 
+/* El cierre por planos (P-006, E11): una línea por plano, la del plano en que se cose marcada. */
+.consola-sutura-planos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-1); font-size: var(--t-xs); color: var(--c-texto-2); }
+.consola-sutura-planos li { padding: var(--e-1) var(--e-2); border-left: 3px solid transparent; border-radius: var(--r-1, 4px); }
+.consola-sutura-planos li.activo { border-left-color: var(--c-acento, currentColor); color: var(--c-texto); background: var(--c-fondo-2, transparent); }
+
 
 /* ==========================================================================
    D-172: todo a la vista

@@ -435,7 +435,7 @@ export async function reexportarConEstructurasSeparadas(modeloId: unknown): Prom
  */
 export async function exportarComoModelo(
   id: unknown,
-  opciones?: { protagonistas?: unknown; corte?: unknown; separarEstructuras?: unknown },
+  opciones?: { protagonistas?: unknown; corte?: unknown; separarEstructuras?: unknown; fascias?: unknown },
 ): Promise<Respuesta<ModeloExportado>> {
   return accion(async () => {
     const { payload, usuario } = await exigirEditor()
@@ -447,6 +447,8 @@ export async function exportarComoModelo(
         corte: opciones?.corte,
         // Por omisión se separan (P-003 E9); solo un `false` explícito vuelve a fundir por sistema.
         separarEstructuras: opciones?.separarEstructuras !== false,
+        // Entra solo un `false` de verdad: lo que llegue del navegador y no sea eso es «por omisión».
+        fascias: opciones?.fascias === false ? false : undefined,
       },
       usuario,
     )

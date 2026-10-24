@@ -246,6 +246,7 @@ piezas**. Ahí no se escribe nada:
 | Papel | Qué hace la consola con él |
 |---|---|
 | Piel | Capa apagable. Es donde se traza la incisión |
+| Fascia | Capa apagable, **entre la piel y el músculo**. Con ella en el caso, el primer trazo profundo la corta y el segundo llega al músculo, y el cierre va por planos: el Vicryl a la fascia y el nailon a la piel. Los modelos que salen del taller anatómico la traen sola |
 | Músculo | Capa apagable |
 | Hueso fijo | Capa apagable. La parte que no se mueve |
 | Fragmento móvil | **El trozo que el residente reduce.** Solo uno |

@@ -309,10 +309,13 @@ export const Cirugias: CollectionConfig = {
             { label: 'Hueso (fijo)', value: 'hueso' },
             { label: 'Fragmento móvil', value: 'fragmento' },
             { label: 'Implante', value: 'implante' },
+            // Última, y no entre la piel y el músculo donde se ve: así la ordena Postgres al añadirla a un
+            // enumerado ya creado (migración `20261024_160000_rol_fascia`).
+            { label: 'Fascia', value: 'fascia' },
           ],
           admin: {
             description:
-              'Piel y músculo forman las capas que se encienden y apagan. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.',
+              'Piel, fascia y músculo forman las capas que se encienden y apagan. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.',
           },
         },
       ],

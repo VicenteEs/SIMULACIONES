@@ -101,13 +101,13 @@ describe('quién puede', () => {
 })
 
 describe('descargar', () => {
-  it('«Miembro inferior derecho» trae sus 124 piezas con los nombres del taller, y el archivo se vuelve a leer', async () => {
+  it('«Miembro inferior derecho» trae sus 133 piezas con los nombres del taller, y el archivo se vuelve a leer', async () => {
     const respuesta = await pedirGet('region=miembro-inferior-derecho&contenido=vacia&solo=todas')
     expect(respuesta.status).toBe(200)
     expect(respuesta.headers.get('content-type')).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     expect(respuesta.headers.get('content-disposition')).toMatch(/^attachment; filename="estructuras-miembro-inferior-derecho-vacia-\d{8}-\d{6}\.xlsx"$/)
     const [hoja] = leerPlanilla(new Uint8Array(await respuesta.arrayBuffer()))
-    expect(hoja.filas).toHaveLength(125)
+    expect(hoja.filas).toHaveLength(134)
     expect(hoja.filas.find((f) => f[2] === 'Right tibia')?.[1]).toBe('Tibia derecha')
   })
 
@@ -121,7 +121,7 @@ describe('descargar', () => {
     expect(pendientes.some((f) => f[2] === 'Right tibia')).toBe(false)
     // El fémur está a medias: sigue pendiente y trae lo escrito.
     expect(pendientes.find((f) => f[2] === 'Right femur')?.[7]).toBe('Hueso del muslo.')
-    expect(pendientes).toHaveLength(124)
+    expect(pendientes).toHaveLength(133)
     const todas = await filasDe('region=miembro-inferior-derecho&contenido=escrita&solo=todas')
     expect(todas.find((f) => f[2] === 'Right tibia')?.[7]).toBe('Hueso largo medial.')
     const vacia = await filasDe('region=miembro-inferior-derecho&contenido=vacia&solo=todas')

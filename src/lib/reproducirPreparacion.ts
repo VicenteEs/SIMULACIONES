@@ -9,7 +9,9 @@ import {
   type CorteDePieza,
   type TransformacionGuardada,
 } from '@/atlas/formato'
+import { esSistemaDeFascia } from '@/atlas/fascias'
 import { partirMalla, partirPorVariosPlanos, type MallaIndexada } from '@/lib/osteotomia'
+import { partirPorVariosPlanosSinTapa, partirSinTapaPorUnPlano } from '@/lib/recorteDeCapa'
 import type { HuesoPartidoDeAntes, PiezaLeida } from '@/lib/exportarAtlas'
 import type { TrozoDelHueso, Vector3 } from '@/lib/planoDeCorte'
 
@@ -139,14 +141,16 @@ export function colocarMalla(malla: MallaIndexada, t: Transformacion, centro: Ve
 function partirPorElCorte(
   malla: MallaIndexada,
   corte: Pick<CorteDePieza, 'punto' | 'normal' | 'otrosPlanos'>,
+  /** Una lámina (fascia) se parte sin tapar el corte, igual que en el taller: ver `src/lib/recorteDeCapa.ts`. */
+  lamina = false,
 ): { a: MallaIndexada; b: MallaIndexada; avisos: string[] } | null {
   try {
     if (corte.otrosPlanos && corte.otrosPlanos.length > 0) {
-      const p = partirPorVariosPlanos(malla, planosDeUnCorte(corte))
+      const p = (lamina ? partirPorVariosPlanosSinTapa : partirPorVariosPlanos)(malla, planosDeUnCorte(corte))
       if (!p.dentro || !p.fuera || p.dentro.indices.length === 0 || p.fuera.indices.length === 0) return null
       return { a: p.dentro, b: p.fuera, avisos: p.avisos }
     }
-    const r = partirMalla(malla, { punto: corte.punto, normal: corte.normal })
+    const r = (lamina ? partirSinTapaPorUnPlano : partirMalla)(malla, { punto: corte.punto, normal: corte.normal })
     if (r.haciaLaNormal.indices.length === 0 || r.contraLaNormal.indices.length === 0) return null
     return { a: r.haciaLaNormal, b: r.contraLaNormal, avisos: r.avisos }
   } catch {
@@ -216,7 +220,7 @@ export function reproducirPreparacion(contenido: Partial<ContenidoDeInstancia>, 
       if (piezaDe(corte.pieza) !== pieza.id) continue
       const padre = hojas.get(corte.pieza)
       if (!padre) continue
-      const partido = partirPorElCorte(padre.malla, corte)
+      const partido = partirPorElCorte(padre.malla, corte, esSistemaDeFascia(pieza.sistema))
       if (!partido) {
         avisos.push(`Un corte de «${nombreEnEspanol(pieza.nombre)}» no se pudo rehacer y se dejó sin hacer.`)
         continue

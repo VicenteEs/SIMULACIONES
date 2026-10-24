@@ -9,7 +9,7 @@
  * cosas se ve mirando la pantalla, y las dos se ven mirando una prueba.
  */
 
-export type RolDePieza = 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante'
+export type RolDePieza = 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia'
 
 export interface PiezaEnEdicion {
   nodo?: unknown
@@ -29,7 +29,10 @@ export const hayFragmento = (piezas: PiezaEnEdicion[]): boolean =>
   piezas.some((p) => p.rol === 'fragmento')
 
 /**
- * Los cinco papeles que acepta el `select` de `rol` en `src/collections/Cirugias.ts`.
+ * Los seis papeles que acepta el `select` de `rol` en `src/collections/Cirugias.ts`.
+ *
+ * `fascia` es el último (P-006): la capa entre la piel y el músculo. Va al final y no entre medias porque
+ * así lo ordena Postgres al añadir un valor a un enumerado, y la prueba compara la lista tal cual.
  *
  * Una copia, sí, y por eso vigilada: `tests/unit/exportarAlSimulador.test.ts`
  * la compara con las opciones de la colección. Sin esa prueba, un papel nuevo
@@ -42,6 +45,7 @@ export const ROLES_DE_PIEZA: readonly RolDePieza[] = [
   'hueso',
   'fragmento',
   'implante',
+  'fascia',
 ]
 
 const esRolDePieza = (valor: unknown): valor is RolDePieza =>
@@ -89,7 +93,10 @@ export function rolPorElNombre(nodo: string): RolDePieza | null {
   const n = nodo.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   if (/\b(piel|skin|integument)|^piel|piel_|_piel/.test(n)) return 'piel'
   if (/(placa|plate|tornillo|screw|clavo|nail|implante|implant)/.test(n)) return 'implante'
-  if (/(muscul|muscle|tendon|fascia|vena|vein|arteri|nervi|nerve|conectivo|connective|ligament)/.test(n)) return 'musculo'
+  // La fascia profunda es su propia capa (P-006); la superficial va con la piel (se incide con ella). El
+  // tensor de la fascia lata es un músculo que lleva la palabra en el nombre: no es fascia.
+  if (/(fascia|aponeuros)/.test(n) && !/tensor/.test(n)) return /superficial/.test(n) ? 'piel' : 'fascia'
+  if (/(muscul|muscle|tendon|vena|vein|arteri|nervi|nerve|conectivo|connective|ligament)/.test(n)) return 'musculo'
   if (
     /(hueso|bone|esquelet|skelet|tibia|femur|peron|fibul|humer|radio|radius|cubito|ulna|clavicul|escapul|scapul|pelvis|vertebr|astragal|talus|calcane|metatars|metacarp|falange|phalan|rotula|patella|carpo|tarso|craneo|costill)/.test(
       n,

@@ -298,7 +298,8 @@ que guarda, sin aviso.
 
 ## 6. El taller anatómico
 
-Sirve para preparar una vista del atlas (2.231 piezas, la piel incluida; el pelo,
+Sirve para preparar una vista del atlas (2.231 piezas de BodyParts3D, la piel incluida, y las 72
+fascias que calcula la plataforma, que están en «Las fascias»; el pelo,
 las cejas y el vello se quitaron del atlas y no existen) y ponerla en una ficha con
 el bloque «Preparación anatómica».
 
@@ -346,6 +347,38 @@ ratón o con las flechas del teclado.
   y las preparaciones guardadas. Es la pestaña con la que se abre el taller.
 - **Comentarios:** lo que el equipo ha dicho de esta preparación (ver abajo). Si
   hay pendientes, la pestaña lleva su número: «Comentarios (2)».
+
+### Las fascias
+
+El atlas de origen no trae fascia, y la plataforma la **calcula** de lo que sí trae (72 piezas, con su nombre, su
+traducción y su código de la FMA como las demás). Hay cuatro capas, de la más superficial a la más profunda, y cada una
+tiene su botón en la barra del taller («Fascia superficial», «profunda», «meníngea» y «visceral»):
+
+| Capa | Qué es | Qué piezas |
+|---|---|---|
+| **Superficial** (amarilla) | La tela subcutánea, entre la piel y la fascia profunda | Pie, pierna, muslo, nalga, mano, antebrazo, brazo, tórax, abdomen, espalda, cuello y cabeza |
+| **Profunda** (rosada) | La que envuelve a los músculos | Fascia lata, crural, glútea, dorsal del pie, aponeurosis plantar, braquial, antebraquial, aponeurosis palmar, dorsal de la mano, pectoral, toracolumbar, abdominal, cervical y temporal; **los tabiques intermusculares** de la pierna y **los retináculos** del tobillo |
+| **Meníngea** (gris azulado) | Duramadre, aracnoides y piamadre, craneales y espinales, y las hoces del cerebro y del cerebelo | Ocho piezas |
+| **Visceral** (rosa brillante) | Pericardio fibroso, pleura parietal derecha e izquierda, peritoneo parietal y fascia renal | Seis piezas |
+
+«Cuerpo» las abre **apagadas**, para que el cuerpo sea el de siempre; el botón de cada capa **enciende las piezas
+que cubren lo que se ve**, translúcidas, y vuelve a apagarlas. Con una pierna preparada, la fascia profunda que se
+enciende es la de la pierna y no la del cuerpo entero.
+
+**Son aproximaciones calculadas, no anatomía disecada**, y la nota de cada pieza (pase el ratón por su nombre en el
+árbol) dice cómo se hizo y qué le falta: la pleura no tiene pulmones dentro (el atlas no los trae), la piamadre espinal
+envuelve una médula que tampoco está, el tabique transverso de la pierna no existe porque la FMA no le da código.
+
+**Al exportar como modelo** se suman solas, **cortadas a lo que se exporta**: si del taller corta una pierna con el marco, la
+fascia sale solo hasta donde llega el corte y sin tapar, no la pieza entera (un manguito cortado es un anillo abierto, no un
+disco). La profunda entra si hay músculos, la superficial si hay piel, la meníngea si hay cerebro, hueso del cráneo o
+vértebras, y la visceral si hay costillas, corazón o vísceras. La casilla **«Incluir las fascias de la zona»** de la
+exportación las quita, y entonces el archivo sale como antes de que hubiera fascias. Cada fascia sale **como objeto propio**, con
+su nombre, su código y su papel, igual que el resto de las estructuras (con «estructuras fundidas» salen una por capa).
+Los casos que ya tiene en el simulador no cambian solos: abra la preparación en el taller, vuelva a exportar la pierna
+—la fascia saldrá recortada a lo que esa preparación contiene— y elíjala de nuevo en el caso («Rellenar desde el
+modelo» pone a cada pieza su papel; la fascia profunda es «Fascia»). El botón «Volver a exportar con estructuras separadas»
+del editor del caso solo aparece en modelos fundidos por sistema; los demás se vuelven a exportar desde el taller.
 
 ### Comentar una preparación o una pieza
 
@@ -814,7 +847,10 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   - **A mano alzada:** se arrastra sobre el modelo y, **al soltar**, la malla se parte a lo
     largo del trazo.
   El bisturí de piel corta la piel; el profundo, el electrobisturí y las tijeras, los planos de
-  debajo (todos los músculos visibles). Hace falta que la capa esté encendida. La herida queda
+  debajo. **Si el caso trae fascia**, el primer trazo profundo corta **la fascia** (la lámina
+  rosada que cubre al músculo) y el segundo llega **al músculo**: sin abrirla no se entra, y la
+  consola lo dice. Un caso sin fascia, o con la capa «Fascia» apagada, corta el músculo de
+  una vez. Hace falta que la capa esté encendida. La herida queda
   a la vista como una **cinta roja** siguiendo el corte, aunque los labios estén pegados; la
   cinta se aparta sola cuando la herida abre más de 5 mm. «Borrar trazo» la deshace; pasar de
   paso no (la piel cortada sigue cortada), y «Cerrar la herida» o reiniciar el caso la cierran.
@@ -840,7 +876,9 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   abiertos solos (hasta 55–90 mm). El **Hohmann** no abre la piel: se apoya en el **borde del
   hueso** y retrae las partes blandas de ese lado. Caben hasta seis separadores; la lista del
   recuadro permite elegir cuál se abre y quitarlos de uno en uno o todos («Quitar los
-  separadores»).
+  separadores»). El separador se apoya en un plano —**Automático** (el clic decide),
+  **Piel**, **Fascia** (si el caso la trae) o **Músculo**— y abre la herida de ese plano; el botón de cada
+  separador de la lista lo baja un plano a la vez y, tras el último, lo devuelve a la piel.
   - **En pareja.** Con «En pareja» encendido (lo está de entrada), un clic pone **los dos
     Farabeuf o Senn-Miller, uno por borde y a la misma altura**, como las pinzas; los mangos
     salen hacia fuera y no se cruzan sobre la herida. Con uno ya puesto, el clic completa la
@@ -893,6 +931,17 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   en piel es de 5 a 10 mm), la tensión y lo cerrada que está la herida. «Deshacer la última»,
   «Cortar el hilo» (la próxima puntada empieza otra línea) y «Quitar la sutura», que devuelve
   la herida a como estaba.
+  **Cerrar por planos (casos con fascia).** El cierre va **de lo profundo a lo superficial**: primero
+  la **fascia, con Vicryl** (se ve rosada al abrir la piel: se pica donde se ve), y después la
+  **piel, con nailon o Monocryl**. Cada puntada agarra **el plano de la pieza que se toca**, y cada
+  hilo va a su plano: el Vicryl 2-0, a la fascia; el 3-0, a la fascia o a la piel abierta (el
+  subcutáneo); el nailon y el Monocryl, a la piel. Una puntada en el plano que no es el de su
+  hilo se avisa y **no cuenta**, y el músculo no se sutura. Cada plano se mide y se aprieta por
+  su cuenta (el deslizador «Tirar del hilo» es el del plano en que se está cosiendo) y el panel
+  trae una línea por plano: sus puntadas, su separación media y cuánto cierra su herida. Lo
+  habitual entre puntadas es de 5 a 10 mm en piel y, **provisionalmente**, de 8 a 15 mm en
+  fascia. La herida entera está cerrada cuando lo están la piel y la fascia: con la piel cosida
+  y la fascia abierta, el cierre dice 0 %.
 - **Fijar (placa, tornillos y medidor).** Con una **placa** en la mano, modo **Fijar**: pique
   sobre el hueso y se apoya con su largo siguiendo el hueso. Con el **medidor de
   profundidad** apoyado en un agujero, dice cuánto hueso hay debajo y qué tornillo pedir (lo

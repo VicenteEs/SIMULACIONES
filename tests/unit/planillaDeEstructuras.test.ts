@@ -75,12 +75,12 @@ describe('descargar la planilla', () => {
       ...(conLoEscrito && p.nombre === 'Right tibia' ? { ficha: { definicion: 'Hueso largo.' }, oculta: false } : {}),
     }))
 
-  it('«Miembro inferior derecho» son 124 filas, con sus nombres del taller, y una hoja de instrucciones', () => {
-    expect(region).toHaveLength(124)
+  it('«Miembro inferior derecho» son 133 filas, con sus nombres del taller, y una hoja de instrucciones', () => {
+    expect(region).toHaveLength(133)
     const hojas = leerPlanilla(planillaDeEstructuras(paraLaPlanilla(false), nombreDelSistema, 'Prueba'))
     expect(hojas.map((h) => h.nombre)).toEqual(['Estructuras', 'Cómo llenarla'])
     const [estructuras, instrucciones] = hojas
-    expect(estructuras.filas).toHaveLength(125)
+    expect(estructuras.filas).toHaveLength(134)
     expect(estructuras.filas[0]).toEqual([
       'Id del atlas', 'Nombre', 'Nombre original', 'Lado', 'Sistema', 'Qué falta',
       'Nombre latino', 'Definición', 'Origen', 'Inserción', 'Inervación', 'Acción', 'Irrigación', 'Notas',
@@ -314,26 +314,26 @@ describe('aplicar también al lado opuesto', () => {
   })
 })
 
-describe('el caso del dueño: «Miembro inferior derecho», 124 fichas, y también al izquierdo', () => {
+describe('el caso del dueño: «Miembro inferior derecho», 133 fichas, y también al izquierdo', () => {
   const regionDerecha = catalogo.piezas.filter((p) => p.region === 'miembro-inferior-derecho')
 
-  it('124 fichas se llenan, la misma planilla llena además las del izquierdo, y quedan dichas las que no tienen pareja', () => {
+  it('133 fichas se llenan, la misma planilla llena además las del izquierdo, y quedan dichas las que no tienen pareja', () => {
     const filas = regionDerecha.map((p) => [p.id, p.nombre, `Definición de ${p.nombre}`])
     const l = lectura(...filas)
-    expect(l.filas).toHaveLength(124)
+    expect(l.filas).toHaveLength(133)
 
     const sola = planearPlanilla(l, contexto(), SIN_OPCIONES)
-    expect(sola.conteo).toMatchObject({ llenas: 124, cambian: 0, iguales: 0, fichasAEscribir: 124 })
+    expect(sola.conteo).toMatchObject({ llenas: 133, cambian: 0, iguales: 0, fichasAEscribir: 133 })
 
     const conLado = planearPlanilla(l, contexto(), { reemplazar: false, alLadoOpuesto: true })
-    // Las 124 de la derecha, más sus parejas del izquierdo. No son 124: el atlas nombra «Set of perforating arteries» sin
+    // Las 133 de la derecha, más sus parejas del izquierdo. No son 133: el atlas nombra «Set of perforating arteries» sin
     // lado (hay una por pierna) y varias estructuras de la línea media cuelgan de la región; esas no tienen pareja
     // que se pueda deducir, y se dicen en el resumen en lugar de adivinarlas.
-    expect(conLado.conteo.llenas).toBe(124 + conLado.conteo.delLadoOpuesto)
+    expect(conLado.conteo.llenas).toBe(133 + conLado.conteo.delLadoOpuesto)
     expect(conLado.conteo.delLadoOpuesto).toBeGreaterThan(90)
     expect(conLado.sinPareja.length).toBeGreaterThan(0)
     expect(conLado.sinPareja.map((p) => p.nombre)).toContain(nombreEnEspanol('Set of perforating arteries'))
-    expect(conLado.conteo.delLadoOpuesto + conLado.sinPareja.length + conLado.conFilaPropia).toBe(124)
+    expect(conLado.conteo.delLadoOpuesto + conLado.sinPareja.length + conLado.conFilaPropia).toBe(133)
     // Lo que se copia cae en el miembro inferior izquierdo y en ningún otro sitio.
     for (const e of conLado.entradas.filter((x) => x.via === 'lado-opuesto')) expect(e.region).toBe('miembro-inferior-izquierdo')
     // Ninguna pieza se escribe dos veces.
@@ -347,7 +347,7 @@ describe('el caso del dueño: «Miembro inferior derecho», 124 fichas, y tambi�
     expect(vista.conteo.llenas).toBe(plan.conteo.llenas)
     expect(vista.llenan.length).toBeLessThanOrEqual(300)
     expect(vista.recortado.llenan).toBe(Math.max(0, plan.conteo.llenas - 300))
-    expect(vista.regiones).toEqual([{ region: 'miembro-inferior-derecho', piezas: 124 }])
+    expect(vista.regiones).toEqual([{ region: 'miembro-inferior-derecho', piezas: 133 }])
     expect(vista.huella).toBe(plan.huella)
   })
 })

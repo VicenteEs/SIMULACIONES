@@ -10,7 +10,10 @@
  * cursor y a cuántos milímetros está el borde de cada herida— y esta función dice qué hacer con eso.
  */
 
-export type PlanoDeHerida = 'piel' | 'musculo'
+import type { PlanoBlando } from './planosBlandos'
+
+/** Los planos donde puede haber herida: la piel, la fascia (si el caso la trae) y el músculo (P-006, E10). */
+export type PlanoDeHerida = PlanoBlando
 
 /** Una herida abierta en un plano, y a qué distancia de su borde más cercano cayó el clic (`null`: no hay herida ahí). */
 export interface CandidatoDeHerida {
@@ -53,11 +56,21 @@ export interface EntradaDelClic {
   limiteDelLabioMm?: number
 }
 
-/** Los planos en el orden en que se prueban: primero lo que se ve bajo el cursor y, después, lo más profundo. */
-export function ordenDeLosPlanos(rolDelGolpe: string | null): PlanoDeHerida[] {
-  const profundoPrimero: PlanoDeHerida[] = ['musculo', 'piel']
-  if (rolDelGolpe === 'piel') return ['piel', 'musculo']
-  return profundoPrimero
+/**
+ * Los planos en el orden en que se prueban: primero lo que se ve bajo el cursor y, después, lo más profundo.
+ *
+ * `conFascia` solo es verdad en un caso que trae fascia (hay una herida candidata en ella): sin eso el orden es el de
+ * siempre, de dos planos, y lo que ya estaba probado no cambia.
+ */
+export function ordenDeLosPlanos(rolDelGolpe: string | null, conFascia = false): PlanoDeHerida[] {
+  if (!conFascia) {
+    const profundoPrimero: PlanoDeHerida[] = ['musculo', 'piel']
+    if (rolDelGolpe === 'piel') return ['piel', 'musculo']
+    return profundoPrimero
+  }
+  if (rolDelGolpe === 'piel') return ['piel', 'fascia', 'musculo']
+  if (rolDelGolpe === 'fascia') return ['fascia', 'musculo', 'piel']
+  return ['musculo', 'fascia', 'piel']
 }
 
 export function decidirElClicDelSeparador(entrada: EntradaDelClic): DecisionDelClic {
@@ -66,13 +79,13 @@ export function decidirElClicDelSeparador(entrada: EntradaDelClic): DecisionDelC
   const conHerida = candidatos.filter((c) => c.cercaMm !== null)
 
   // Plano forzado: lo de antes, un solo plano y un solo criterio.
-  if (planoForzado === 'piel' || planoForzado === 'musculo') {
+  if (planoForzado === 'piel' || planoForzado === 'fascia' || planoForzado === 'musculo') {
     const c = candidatos.find((x) => x.plano === planoForzado)
     if (!c || c.cercaMm === null) return { accion: 'nada', motivo: 'sin-herida' }
     return c.cercaMm <= LIMITE_PARA_COLOCAR_MM ? { accion: 'colocar', plano: planoForzado } : { accion: 'nada', motivo: 'lejos' }
   }
 
-  const orden = ordenDeLosPlanos(rolDelGolpe)
+  const orden = ordenDeLosPlanos(rolDelGolpe, candidatos.some((c) => c.plano === 'fascia'))
   const mejorEn = (limite: number): PlanoDeHerida | null => {
     for (const plano of orden) {
       const c = conHerida.find((x) => x.plano === plano)

@@ -1,7 +1,9 @@
 import type { CatalogoDelAtlas, PiezaDelAtlas } from '@/atlas/formato'
+import { ASPECTO_POR_OMISION, aspectoDelSistema } from '@/atlas/aspectoDelSistema'
 import { rolDeSistema } from '@/atlas/clasificacion'
+import { esSistemaDeFascia } from '@/atlas/fascias'
 import { nombreEnEspanol, sinTildes, tieneTraduccion } from '@/atlas/nombres'
-import { nombreDeNodo, type ObjetoParaGlb } from '@/lib/glb'
+import { nombreDeNodo, type MaterialDelObjeto, type ObjetoParaGlb } from '@/lib/glb'
 import { partirMalla } from '@/lib/osteotomia'
 import { propuestaDelNodo, type RolDePieza } from '@/lib/piezasDelCaso'
 import {
@@ -180,6 +182,29 @@ export const MAXIMO_DE_PIEZAS_SUELTAS = 400
 const SISTEMAS_DE_VASOS: ReadonlySet<string> = new Set(['arterial', 'venous', 'lymphatic'])
 
 /**
+ * El color y el material con que sale un sistema, de `aspectoDelSistema`.
+ *
+ * Un sistema con el aspecto de siempre sale **sin** `material` y con opacidad 1, de modo que el archivo no
+ * cambia ni un byte: solo las fascias, que declaran otra cosa, llevan rugosidad propia, translucidez y las
+ * extensiones de brillo.
+ */
+export function aspectoParaGlb(
+  hex: string | undefined,
+  sistema: string,
+): { color: [number, number, number, number]; material?: MaterialDelObjeto } {
+  const color = colorDeGltf(hex)
+  const a = aspectoDelSistema(sistema)
+  const igual =
+    a.rugosidad === ASPECTO_POR_OMISION.rugosidad &&
+    a.metalico === ASPECTO_POR_OMISION.metalico &&
+    a.brilloSedoso === 0 &&
+    a.barniz === 0
+  if (a.opacidadDelModelo < 1) color[3] = a.opacidadDelModelo
+  if (igual) return { color }
+  return { color, material: { rugosidad: a.rugosidad, metalico: a.metalico, brilloSedoso: a.brilloSedoso, barniz: a.barniz } }
+}
+
+/**
  * Agrupa las piezas leídas en los objetos que tendrá el archivo.
  *
  * Cada protagonista es su propio objeto. Las demás se funden por sistema, con
@@ -256,7 +281,7 @@ export function agruparParaGlb(
       posiciones: pieza.posiciones,
       normales: pieza.normales,
       indices: pieza.indices,
-      color: colorDeGltf(colores[pieza.sistema]),
+      ...aspectoParaGlb(colores[pieza.sistema], pieza.sistema),
       extras: {
         rol: pieza.trozo?.fragmento ? 'fragmento' : rolDeSistema(pieza.sistema),
         etiqueta,
@@ -275,7 +300,7 @@ export function agruparParaGlb(
     salida.push({
       nombre: sistema,
       ...fusionar(grupo),
-      color: colorDeGltf(colores[sistema]),
+      ...aspectoParaGlb(colores[sistema], sistema),
       extras: {
         rol: rolDeSistema(sistema),
         etiqueta: nombresDeSistema[sistema] || sistema,
@@ -407,6 +432,20 @@ function centroDeLaCaja(objetos: ObjetoParaGlb[]): [number, number, number] | nu
 
 /** Si un objeto es de la capa de piel, según el rol que le escribió `agruparParaGlb`. */
 const esPiel = (objeto: ObjetoParaGlb) => objeto.extras?.rol === 'piel'
+
+/**
+ * Si un objeto **envuelve** lo exportado en vez de ser parte de ello: la piel y las fascias (P-006).
+ *
+ * Es lo que no cuenta para la caja de lo exportado ni para su centro. La piel del atlas es de cuerpo
+ * entero y la fascia, un manguito de una región más grande que la preparación: si contaran, una pierna
+ * exportada con su fascia se centraría en el medio de la fascia y no en el de la pierna. Se mira el
+ * sistema además del rol porque la fascia superficial entra como `piel` (se incide con ella) y la
+ * profunda como `fascia`, y las dos son una envoltura.
+ */
+const esEnvoltura = (objeto: ObjetoParaGlb) =>
+  esPiel(objeto) ||
+  objeto.extras?.rol === 'fascia' ||
+  (typeof objeto.extras?.sistema === 'string' && esSistemaDeFascia(objeto.extras.sistema))
 
 /**
  * Cuánto se amplía la caja de lo preparado para decidir qué piel se queda: 5 cm.
@@ -583,7 +622,7 @@ export function recortarLaPiel(objetos: ObjetoParaGlb[]): {
   recortada: boolean
   fuera: string[]
 } {
-  const zona = cajaDe(objetos.filter((o) => !esPiel(o)))
+  const zona = cajaDe(objetos.filter((o) => !esEnvoltura(o)))
   if (!zona) return { objetos, recortada: false, fuera: [] }
 
   const ampliada: Caja = {
@@ -683,8 +722,8 @@ export function centrarEnSuCaja(objetos: ObjetoParaGlb[]): {
   centro: [number, number, number]
   sinLaPiel: boolean
 } {
-  const sinPiel = objetos.filter((o) => !esPiel(o))
-  const pielConVertices = objetos.some((o) => esPiel(o) && o.posiciones.length > 0)
+  const sinPiel = objetos.filter((o) => !esEnvoltura(o))
+  const pielConVertices = objetos.some((o) => esEnvoltura(o) && o.posiciones.length > 0)
   // Se mide sin la piel solo si queda algo con vértices que medir; si no, con
   // todo, como antes.
   const deLoPreparado = sinPiel.length > 0 ? centroDeLaCaja(sinPiel) : null

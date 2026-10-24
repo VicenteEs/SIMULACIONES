@@ -44,6 +44,12 @@ export const DENSIDAD_POR_SISTEMA: Readonly<Record<string, number | null>> = {
   venous: null,
   nervous: null,
   lymphatic: null,
+  // Las fascias no absorben nada que una placa distinga del tejido que envuelven: una lámina de un
+  // milímetro de colágeno no se ve en una radiografía ni en una fluoroscopia (P-006).
+  'fascia-superficial': null,
+  'fascia-profunda': null,
+  'fascia-meningea': null,
+  'fascia-visceral': null,
 }
 
 /** Lo que no se conoce se trata como tejido blando: ni invisible ni hueso. */
@@ -65,6 +71,9 @@ export const DENSIDAD_POR_PAPEL: Readonly<Record<string, number>> = {
   fragmento: 1,
   musculo: 0.3,
   piel: 0.14,
+  // Una lámina de colágeno de un milímetro no se distingue de lo que envuelve. No es 0 porque
+  // `densidadDelPapel` toma el 0 por «no declarado» y lo trataría como tejido blando (P-006).
+  fascia: 0.02,
   implante: 1.9,
 }
 

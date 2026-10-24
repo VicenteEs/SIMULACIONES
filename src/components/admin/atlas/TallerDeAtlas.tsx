@@ -51,6 +51,7 @@ import {
   type MedidaDelHueso,
 } from '@/atlas/borradorDeFractura'
 import { huesoDeLaPieza } from '@/atlas/huesosAO'
+import { fasciasPresentes, fasciasQueTocan, piezasDelCuerpoBase } from '@/atlas/fascias'
 import { OPACIDAD_DE_LA_PIEL, idDeLaPiel } from '@/atlas/piel'
 import { codigoDeLaReceta, cortesDeLaFractura, etiquetaDeLaFractura } from '@/atlas/patronesDeFractura'
 import {
@@ -320,6 +321,8 @@ interface ResultadoDeExportar {
   piezas?: { nodo: string; etiqueta: string; rol: RolDePieza }[]
   /** El hueso partido y sus dos nodos, si se pidió corte. */
   corte?: CorteExportado | null
+  /** Qué fascias entraron y cuánto de cada una (P-006). Ausente o vacía si no entró ninguna. */
+  fascias?: string[]
 }
 
 /**
@@ -507,6 +510,12 @@ export function TallerDeAtlas({
   // en un recuadro que se abría justo antes de exportar y que olvidaba piezas o
   // listaba otras que ya no estaban en el visor.
   const [exportado, setExportado] = useState<ResultadoDeExportar | null>(null)
+  /**
+   * Si «Exportar como modelo» suma las fascias de la zona (P-006, F-8). Encendido de entrada: es lo que
+   * se pidió, que una pierna vuelva a salir con su fascia recortada a lo que se exporta. No se guarda con
+   * la preparación: es una decisión de cada exportación, y apagada da el archivo de antes de las fascias.
+   */
+  const [incluirFascias, setIncluirFascias] = useState(true)
   /**
    * Piezas o trozos marcados para salir como objeto propio del archivo, además
    * de los que salen solos (ver `reproducirPreparacion`). Es parte de lo que se
@@ -914,7 +923,8 @@ export function TallerDeAtlas({
     import('@/atlas/cargador')
       .then(({ cargarCatalogo }) => cargarCatalogo(aborto.signal))
       .then((c) => {
-        const todas = new Set(c.piezas.map((p) => p.id))
+        // El cuerpo de siempre: las fascias están en el catálogo y se encienden desde la barra (F-6).
+        const todas = piezasDelCuerpoBase(c)
         setCatalogo(c)
         setVisibles(todas)
         // El cuerpo entero y sin nombre es el punto de partida: todavía no hay
@@ -1520,6 +1530,23 @@ export function TallerDeAtlas({
     cambiarVisibles(nuevas)
   }
 
+  /**
+   * El interruptor de una capa de fascia (P-006): enciende las piezas de ese sistema que cubren algo de
+   * lo que hay a la vista, o apaga todas las del sistema.
+   *
+   * Solo las que tocan lo visible (`fasciasQueTocan`): con una pierna preparada, encender la fascia
+   * profunda no debe traer la del otro lado ni la de los brazos. Nacen translúcidas por el aspecto de su
+   * sistema, y es un cambio de lo encendido como cualquier otro: va al historial.
+   */
+  const alternarFascia = (sistema: string) => {
+    if (!catalogo) return
+    const delSistema = catalogo.piezas.filter((p) => p.sistema === sistema).map((p) => p.id)
+    const nuevas = new Set(visibles)
+    if (delSistema.some((id) => visibles.has(id))) for (const id of delSistema) nuevas.delete(id)
+    else for (const id of fasciasQueTocan(catalogo, sistema, visibles)) nuevas.add(id)
+    cambiarVisibles(nuevas)
+  }
+
   /** Todo el cuerpo encendido, también los trozos que se hubieran apagado (D-141). */
   const encenderTodo = () => {
     if (!catalogo) return
@@ -1540,7 +1567,7 @@ export function TallerDeAtlas({
   const empezarDeCero = async (preguntar = true) => {
     if (!catalogo) return
     if (preguntar && !(await confirmarDescarte('Se volverá al cuerpo completo, sin nombre.'))) return
-    const todas = new Set(catalogo.piezas.map((p) => p.id))
+    const todas = piezasDelCuerpoBase(catalogo)
     setHistorial([])
     setRehacer([])
     setTransformaciones(new Map())
@@ -1905,7 +1932,7 @@ export function TallerDeAtlas({
     setExportado(null)
     setTrabajo('exportar')
     try {
-      const r = await exportarComoModelo(id)
+      const r = await exportarComoModelo(id, { fascias: incluirFascias })
       if (!r.exito || !r.datos) {
         setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo exportar.' })
         return
@@ -2331,6 +2358,17 @@ export function TallerDeAtlas({
           >
             Encuadrar
           </button>
+          <label
+            className="atlas-aspecto-fila"
+            title="Suma la fascia profunda si hay músculos, la superficial si hay piel, la meníngea si hay cerebro, cráneo o vértebras y la visceral si hay costillas, corazón o vísceras, cortadas a lo que se exporta. Apagado, sale como antes de que hubiera fascias."
+          >
+            <input
+              type="checkbox"
+              checked={incluirFascias}
+              onChange={(e) => setIncluirFascias(e.target.checked)}
+            />
+            Incluir las fascias de la zona
+          </label>
           <button
             className="admin-btn admin-btn-secondary"
             disabled={enCurso}
@@ -2417,6 +2455,19 @@ export function TallerDeAtlas({
                   <span key={aviso}>
                     <br />
                     <strong>Atención:</strong> {aviso}
+                  </span>
+                ))}
+              </p>
+            ) : null}
+            {/* Las fascias que entraron solas, con cuánto se tomó de cada una: se ve que la fascia es la
+                de esta zona y no la del cuerpo entero, y por qué el archivo trae un objeto más. */}
+            {exportado.fascias?.length ? (
+              <p>
+                <strong>Fascias de la zona</strong>, cortadas a lo exportado y sin tapar el corte:
+                {exportado.fascias.map((nota) => (
+                  <span key={nota}>
+                    <br />
+                    {nota}
                   </span>
                 ))}
               </p>
@@ -2822,6 +2873,20 @@ export function TallerDeAtlas({
               >
                 Piel
               </button>
+              {catalogo
+                ? fasciasPresentes(catalogo).map((fascia) => (
+                    <button
+                      key={fascia.id}
+                      type="button"
+                      className="atlas-herramienta"
+                      aria-pressed={catalogo.piezas.some((p) => p.sistema === fascia.id && visibles.has(p.id))}
+                      title={`${fascia.nombre}: encenderla sobre lo que se ve, translúcida, o apagarla`}
+                      onClick={() => alternarFascia(fascia.id)}
+                    >
+                      Fascia {fascia.corto.toLowerCase()}
+                    </button>
+                  ))
+                : null}
               <button
                 type="button"
                 className="atlas-herramienta"

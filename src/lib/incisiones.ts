@@ -99,14 +99,14 @@ export function incisionQueAlarga(
 /** Lo que el panel «Incisiones» dice de cada una: «Incisión 2 · músculo · 30 mm». */
 export interface ResumenDeIncision {
   id: number
-  capa: 'piel' | 'musculo'
+  capa: 'piel' | 'fascia' | 'musculo'
   largoMm: number
   aperturaMm: number
 }
 
 /** El texto de una incisión en el panel, con su número de orden (1, 2…) y no su `id` interno. */
 export function rotuloDeLaIncision(orden: number, r: Pick<ResumenDeIncision, 'capa' | 'largoMm' | 'aperturaMm'>): string {
-  const capa = r.capa === 'piel' ? 'piel' : 'músculo'
+  const capa = r.capa === 'piel' ? 'piel' : r.capa === 'fascia' ? 'fascia' : 'músculo'
   const abierta = r.aperturaMm >= 1 ? ` · abierta ${Math.round(r.aperturaMm)} mm` : ''
   return `Incisión ${orden} · ${capa} · ${Math.round(r.largoMm)} mm${abierta}`
 }

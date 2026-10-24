@@ -12,6 +12,16 @@
  * se parte de arrays tipados, en el servidor, sin escena y sin WebGL.
  */
 
+/** La parte del material que no es el color. Todo opcional: lo que falta toma el valor de siempre. */
+export interface MaterialDelObjeto {
+  rugosidad?: number
+  metalico?: number
+  /** De 0 a 1; 0 o ausente no escribe la extensión. */
+  brilloSedoso?: number
+  /** De 0 a 1; 0 o ausente no escribe la extensión. */
+  barniz?: number
+}
+
 /** Lo que hace falta saber de un objeto para escribirlo. */
 export interface ObjetoParaGlb {
   /** Nombre del NODO: es lo que la consola busca para encender y apagar. */
@@ -22,6 +32,13 @@ export interface ObjetoParaGlb {
   indices: Uint32Array
   /** Rojo, verde, azul y opacidad, de 0 a 1. */
   color: [number, number, number, number]
+  /**
+   * Cómo se ve la superficie, además del color. Sin él el material sale como siempre —rugosidad 0,85 y metal
+   * 0,05— y el archivo, byte a byte igual que antes de que existiera. Con él se escriben los valores y, si hay
+   * brillo sedoso o barniz, las extensiones glTF que los llevan (`KHR_materials_sheen` y `_clearcoat`), que
+   * Blender y three importan. P-006, E4.
+   */
+  material?: MaterialDelObjeto
   /**
    * Datos que viajan pegados al NODO, en su `extras` de glTF.
    *
@@ -123,6 +140,8 @@ export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8A
   const meshes: Record<string, unknown>[] = []
   const nodes: Record<string, unknown>[] = []
   const materials: Record<string, unknown>[] = []
+  /** Las extensiones que de verdad se usan: glTF exige declararlas, y declarar una que no se usa también molesta. */
+  const usadas = new Set<string>()
 
   for (const objeto of objetos) {
     const { posiciones, normales, indices } = objeto
@@ -172,16 +191,36 @@ export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8A
 
     const nombre = nombreDeNodo(objeto.nombre)
 
+    const m = objeto.material
+    const sedoso = m?.brilloSedoso ?? 0
+    const barniz = m?.barniz ?? 0
+    const extensionesDelMaterial: Record<string, unknown> = {}
+    if (sedoso > 0) {
+      // El halo del brillo sedoso es el color del material aclarado hacia el blanco: en una lámina
+      // rosada, un borde rosa pálido y no un borde gris.
+      const [r, g, b] = objeto.color
+      const aclarar = (c: number) => Math.round((c + (1 - c) * 0.55) * sedoso * 1e4) / 1e4
+      extensionesDelMaterial.KHR_materials_sheen = {
+        sheenColorFactor: [aclarar(r), aclarar(g), aclarar(b)],
+        sheenRoughnessFactor: 0.4,
+      }
+    }
+    if (barniz > 0) {
+      extensionesDelMaterial.KHR_materials_clearcoat = { clearcoatFactor: barniz, clearcoatRoughnessFactor: 0.08 }
+    }
+    for (const nombreDeExtension of Object.keys(extensionesDelMaterial)) usadas.add(nombreDeExtension)
+
     const iMaterial =
       materials.push({
         name: `mat_${nombre}`,
         pbrMetallicRoughness: {
           baseColorFactor: objeto.color,
-          metallicFactor: 0.05,
-          roughnessFactor: 0.85,
+          metallicFactor: m?.metalico ?? 0.05,
+          roughnessFactor: m?.rugosidad ?? 0.85,
         },
         doubleSided: true,
         ...(objeto.color[3] < 1 ? { alphaMode: 'BLEND' } : {}),
+        ...(Object.keys(extensionesDelMaterial).length > 0 ? { extensions: extensionesDelMaterial } : {}),
       }) - 1
 
     const iMesh =
@@ -209,6 +248,7 @@ export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8A
 
   const gltf = {
     asset: { version: '2.0', generator: generador },
+    ...(usadas.size > 0 ? { extensionsUsed: [...usadas].sort() } : {}),
     scene: 0,
     scenes: [{ name: 'escena', nodes: nodes.map((_, i) => i) }],
     nodes,

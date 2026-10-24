@@ -40,6 +40,7 @@ import {
   type EscenaDelAtlas,
 } from '@/atlas/cargador'
 import { impactoBajoElRayo } from '@/atlas/picking'
+import { idsDeFascia } from '@/atlas/fascias'
 import { sinLaPielSiHayMas } from '@/atlas/piel'
 import { crearCajaOrientada, crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import { segmentosDeHeim, type SegmentosDelHueso } from '@/atlas/segmentosAO'
@@ -719,7 +720,14 @@ export function VisorAtlas({
         // «Ninguna», el lienzo quedaba en blanco al 100 % de progreso. Apagar
         // una pieza es un píxel de textura y se deshace; no haberla metido en
         // la malla, no.
-        const seleccionDescargada = ultimas.current.visibles
+        //
+        // Las fascias entran en la malla **siempre**, también cuando «Cuerpo» se abre con ellas
+        // apagadas (`piezasDelCuerpoBase`): son un sistema más que se enciende desde la barra, y
+        // la que no se construyó ahora no se puede encender después. Cuesta un paquete más, el 15.
+        const visiblesAlMontar = ultimas.current.visibles
+        const seleccionDescargada = visiblesAlMontar
+          ? new Set([...visiblesAlMontar, ...idsDeFascia(catalogo)])
+          : visiblesAlMontar
         const necesarias = seleccionDescargada
           ? catalogo.piezas.filter((p) => seleccionDescargada.has(p.id))
           : catalogo.piezas

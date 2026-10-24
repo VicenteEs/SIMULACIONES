@@ -53,6 +53,7 @@ const LienzoQuirurgico = dynamic(
 /** Los cinco papeles, con el nombre que entiende un traumatólogo. */
 const ROLES: { valor: PiezaDelCaso['rol']; etiqueta: string }[] = [
   { valor: 'piel', etiqueta: 'Piel' },
+  { valor: 'fascia', etiqueta: 'Fascia' },
   { valor: 'musculo', etiqueta: 'Músculo' },
   { valor: 'hueso', etiqueta: 'Hueso fijo' },
   { valor: 'fragmento', etiqueta: 'Fragmento móvil' },

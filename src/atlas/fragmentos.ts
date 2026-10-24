@@ -17,6 +17,7 @@
 
 import * as THREE from 'three'
 import { partirMalla, partirPorVariosPlanos, type MallaIndexada } from '@/lib/osteotomia'
+import { partirPorVariosPlanosSinTapa, partirSinTapaPorUnPlano } from '@/lib/recorteDeCapa'
 import { type AspectoDePieza, type EscenaDelAtlas, type TransformacionDePieza } from './cargador'
 import { focoDeLaTapa } from './manipular'
 import { crearMaterialDeRadiografia } from './materialDeRadiografia'
@@ -90,7 +91,12 @@ export function mallaDeLaPieza(escena: EscenaDelAtlas, indice: number): MallaInd
   }
 }
 
-function aMalla(trozo: MallaIndexada, color: THREE.Color): { malla: THREE.Mesh; centro: THREE.Vector3 } {
+function aMalla(
+  trozo: MallaIndexada,
+  color: THREE.Color,
+  rugosidad = 0.72,
+  opacidad = 1,
+): { malla: THREE.Mesh; centro: THREE.Vector3 } {
   const geometria = new THREE.BufferGeometry()
   geometria.setAttribute('position', new THREE.BufferAttribute(trozo.posiciones, 3))
   geometria.setAttribute(
@@ -107,11 +113,14 @@ function aMalla(trozo: MallaIndexada, color: THREE.Color): { malla: THREE.Mesh; 
 
   // El mismo material que las piezas enteras (`materialDelSistema`), para que
   // un trozo no se distinga del hueso del que salió más que por el corte.
+  // Con la rugosidad y la translucidez de su sistema: un trozo de fascia que saliera macizo y mate
+  // dejaría de parecerse a la fascia de la que salió.
   const material = new THREE.MeshStandardMaterial({
     color: color.clone(),
-    roughness: 0.72,
+    roughness: rugosidad,
     metalness: 0.02,
     side: THREE.DoubleSide,
+    ...(opacidad < 1 ? { transparent: true, opacity: opacidad, depthWrite: false } : {}),
   })
   const malla = new THREE.Mesh(geometria, material)
   malla.position.copy(centro)
@@ -137,16 +146,19 @@ export function crearFragmentos(
   const entera = origen ?? mallaDeLaPieza(escena, indice)
   if (!entera) return { motivo: 'Esa pieza no está cargada en el visor.' }
 
+  // Una lámina (fascia) se parte sin tapar el corte: ver `src/lib/recorteDeCapa.ts`.
+  const lamina = escena.cascaras?.[indice] === 1
   let mitades: [MallaIndexada, MallaIndexada]
   try {
     if (corte.otrosPlanos && corte.otrosPlanos.length > 0) {
-      const particion = partirPorVariosPlanos(entera, planosDeUnCorte(corte))
+      const particion = (lamina ? partirPorVariosPlanosSinTapa : partirPorVariosPlanos)(entera, planosDeUnCorte(corte))
       if (!particion.dentro || !particion.fuera) {
         return { motivo: 'El marco no atraviesa la pieza: queda entera dentro o entera fuera.' }
       }
       mitades = [particion.dentro, particion.fuera]
     } else {
-      const partida = partirMalla(entera, { punto: corte.punto, normal: corte.normal })
+      const plano = { punto: corte.punto, normal: corte.normal }
+      const partida = lamina ? partirSinTapaPorUnPlano(entera, plano) : partirMalla(entera, plano)
       mitades = [partida.haciaLaNormal, partida.contraLaNormal]
     }
   } catch (fallo) {
@@ -191,7 +203,7 @@ export function fragmentosDeLasMitades(
       normales: trozo.normales.slice() as MallaIndexada['normales'],
       indices: trozo.indices.slice(),
     }
-    const { malla, centro } = aMalla(trozo, material.color)
+    const { malla, centro } = aMalla(trozo, material.color, material.roughness, escena.opacidadesIniciales?.[indice] ?? 1)
     malla.name = idDeFragmento(pieza, lado)
     return {
       id: malla.name,

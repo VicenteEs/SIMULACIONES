@@ -133,7 +133,9 @@ describe('una pierna exportada con su piel y un músculo protagonista', () => {
   }, 60_000)
 
   it('dice qué sale en inglés y por qué la piel no cuenta, en la respuesta y en las notas', async () => {
-    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387', 'FJ1409'] })
+    // Sin las fascias de la zona (P-006): la tabla de nombres de esta prueba es una semilla fija, y las fascias, que
+    // entran solas con un músculo, saldrían todas «sin traducir» por no estar en ella. Aquí se prueba el aviso de la pierna.
+    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387', 'FJ1409'], fascias: false })
     expect(r.exito, r.mensaje).toBe(true)
 
     // La tibia tiene traducción y no se nombra; el peroneo corto no la tiene.

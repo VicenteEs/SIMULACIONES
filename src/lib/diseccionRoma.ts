@@ -52,6 +52,7 @@ export function aperturaPorLabioEnMm(fraccion: number, maximoMm: number): number
 /** La capa de partes blandas que corresponde al papel de la pieza tocada, o `null` si no es blanda (el hueso). */
 export function capaBlandaDelRol(rol: string | undefined): CapaDeLaHerida | null {
   if (rol === 'piel') return 'piel'
+  if (rol === 'fascia') return 'fascia'
   if (rol === 'musculo') return 'musculo'
   return null
 }
@@ -154,7 +155,7 @@ export function trazoDeLaDiseccion(
 
 /** Lo que se le dice a quien disecó, para escribirlo en el registro de la consola. */
 export function textoDeLaDiseccion(capa: CapaDeLaHerida, aperturas: number): string {
-  const plano = capa === 'piel' ? 'la piel' : 'el plano muscular'
+  const plano = capa === 'piel' ? 'la piel' : capa === 'fascia' ? 'la fascia' : 'el plano muscular'
   return aperturas <= 1
     ? `Disección roma en ${plano}: el tejido se separó por tensión, sin cortar. Avance un poco y vuelva a abrir las ramas.`
     : `Disección roma en ${plano}: ${aperturas} aperturas. Los planos se separan por tensión y no por corte, que es lo que protege lo que hay debajo.`

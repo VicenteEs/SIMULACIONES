@@ -203,6 +203,29 @@ estructura.`
 }
 
 /**
+ * La viñeta que declara las fascias, o `null` si el atlas no tiene ninguna (P-006).
+ *
+ * CC BY 4.0 obliga a decir qué se modificó, y las fascias no son una modificación de una pieza de
+ * BodyParts3D sino piezas que BodyParts3D no tiene: sin esta frase se presentarían, dentro de un
+ * catálogo que cita su origen, como si fueran de él. Las cifras se cuentan sobre el catálogo.
+ */
+export function fasciasDeclaradas(catalogo) {
+  const generadas = catalogo.piezas.filter((p) => p.generada)
+  if (generadas.length === 0) return null
+  const porSistema = catalogo.sistemas
+    .map((s) => ({ nombre: s.nombre.toLocaleLowerCase('es'), cuantas: generadas.filter((p) => p.sistema === s.id).length }))
+    .filter((s) => s.cuantas > 0)
+    .map((s) => `${s.cuantas} de ${s.nombre}`)
+    .join(', ')
+  return vineta(`añadidas ${n(generadas.length)} piezas que **no son de BodyParts3D**: las fascias, que el material de
+    origen no trae: ${porSistema}. Las calcula TraumaHub como el manguito que envuelve la geometría de las piezas de
+    BodyParts3D que cubren: se rellena su volumen, se cierran los surcos entre una pieza y otra y se saca la superficie
+    del resultado. No reproducen ninguna lámina anatómica: su forma sale de las estructuras de debajo y de los
+    parámetros de scripts/atlas/fascias/recetas.py. Llevan identificador propio (TH y cuatro cifras), y el nombre y el
+    código de la Foundational Model of Anatomy de lo que representan; el lado izquierdo es el espejo del derecho; van en un archivo propio, aparte de los de BodyParts3D;`)
+}
+
+/**
  * El ATRIBUCION.md entero.
  *
  * Recibe el catálogo tal como sale de la preparación, con los sistemas del
@@ -216,6 +239,10 @@ export function atribucion(
 ) {
   const { catalogo, aplicadas } = aplicarCorrecciones(catalogoCrudo, correcciones)
   const { vinetas, seccion } = correccionesDeclaradas(catalogo, aplicadas, traducciones)
+  // Las cifras de «mallas de origen» y de regiones son de lo que viene de BodyParts3D; las fascias
+  // generadas se declaran aparte y no cuentan como una pieza más del material de origen.
+  const deOrigen = { ...catalogo, piezas: catalogo.piezas.filter((p) => !p.generada) }
+  const fascias = fasciasDeclaradas(catalogo)
 
   return `# Atribución del atlas anatómico
 
@@ -244,24 +271,24 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
 
 - ejes y unidades convertidos de milímetros y Z arriba a metros y Y arriba;
 - geometría simplificada con meshoptimizer, con un límite de error relativo del
-  0,2 % por estructura; las ${n(catalogo.piezas.length)} mallas de origen se conservan todas;
+  0,2 % por estructura; las ${n(deOrigen.piezas.length)} mallas de origen se conservan todas;
 - normales cuantizadas a entero de 16 bits con signo;
 - la piel (Skin) ensanchada unos milímetros hacia afuera, y hasta un par de
   centímetros en la oreja, allí donde las estructuras de debajo —venas, tracto
   iliotibial, platisma, cartílagos de la nariz y de la oreja— la atravesaban.
   Solo se mueven vértices de la piel, a lo largo de su normal; el resto de la
   geometría no cambia;
-- geometría empaquetada en ${catalogo.paquetes.length} archivos binarios comprimidos;
+- geometría empaquetada en ${catalogo.paquetes.length - (fascias ? 1 : 0)} archivos binarios comprimidos;
 - añadida una clasificación por **región anatómica** que el material original no
   traía: se toma de los conceptos FMA de región del propio atlas (cabeza, tórax,
   miembro superior derecho) cuando la pieza figura entre sus elementos y, si no,
   se deduce de la posición de su caja envolvente;
-${vinetas.map(vineta).join('\n')}
+${fascias ? `${fascias}\n` : ''}${vinetas.map(vineta).join('\n')}
 
 La preparación intermedia procede de https://github.com/ashemag/human-atlas
 (código bajo licencia MIT), que documenta las cuatro primeras adaptaciones.
 ${seccion ? `\n${seccion}\n` : ''}
-${resumenDeRegiones(catalogo)}
+${resumenDeRegiones(deOrigen)}
 
 ## Límites de este material
 

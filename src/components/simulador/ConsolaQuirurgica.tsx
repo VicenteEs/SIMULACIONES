@@ -185,7 +185,11 @@ import {
   ETIQUETA_DEL_PLANO,
   PASO_DE_AGARRE,
   SEPARACION_MAXIMA_DE_PINZAS_MM,
+  enElPlano,
+  planoSiguiente,
+  type CapaDeLaHerida,
 } from '@/lib/exposicion'
+import { NOMBRE_DEL_PLANO } from '@/lib/planosBlandos'
 import { rotuloDeLaIncision } from '@/lib/incisiones'
 import type {
   AyudasDeEscopia,
@@ -405,6 +409,9 @@ interface Anotacion {
 
 const CAPAS = [
   { rol: 'piel', etiqueta: 'Piel', enProsa: 'la piel' },
+  // Entre la piel y el músculo, que es donde está (P-006). Sin piezas de ese papel el interruptor sale
+  // apagado y sin efecto, como el de cualquier capa que el modelo no trae.
+  { rol: 'fascia', etiqueta: 'Fascia', enProsa: 'la fascia' },
   { rol: 'musculo', etiqueta: 'Músculo', enProsa: 'el músculo' },
   { rol: 'hueso', etiqueta: 'Hueso', enProsa: 'el hueso' },
 ] as const
@@ -803,8 +810,8 @@ export function ConsolaQuirurgica({
   const [pinzasDeReduccion, setPinzasDeReduccion] = useState<EstadoDeLaReduccion | null>(null)
   // Cómo se usa la tijera de Metzenbaum: cortando, como cualquier tijera, o en disección roma (separa por tensión).
   const [usoDeLaTijera, setUsoDeLaTijera] = useState<'cortar' | 'roma'>('cortar')
-  // En qué plano se apoyan los separadores que se pongan: la piel o, más profundo, el músculo.
-  const [planoDeSeparador, setPlanoDeSeparador] = useState<'auto' | 'piel' | 'musculo'>('auto')
+  // En qué plano se apoyan los separadores que se pongan: la piel o, más profundo, la fascia y el músculo.
+  const [planoDeSeparador, setPlanoDeSeparador] = useState<'auto' | CapaDeLaHerida>('auto')
   // Los separadores de mano se ponen de a dos, uno por borde (P-003 E3), como las pinzas. Encendido por omisión.
   const [separadoresEnPareja, setSeparadoresEnPareja] = useState(true)
   // Pinzas y separadores se corren tras el bisturí al terminar un corte (P-003 E3). Apagado por omisión.
@@ -896,6 +903,9 @@ export function ConsolaQuirurgica({
     () => piezasConLasDelModelo(caso.piezas, delArchivo?.url === caso.modeloUrl ? delArchivo.datos : []),
     [caso.piezas, caso.modeloUrl, delArchivo],
   )
+  // Un caso con fascia tiene un plano más entre la piel y el músculo: la herida, los separadores y el cierre lo cuentan (P-006).
+  const hayFascia = piezas.some((p) => p.rol === 'fascia')
+  const planosDelCampo: CapaDeLaHerida[] = hayFascia ? ['piel', 'fascia', 'musculo'] : ['piel', 'musculo']
   const [fuerza, setFuerza] = useState(() => fuerzaInicial(caso.pasos[0] ?? {}))
   // La geometría del trazo no sube a React: de ella solo se usa un número, y el
   // lienzo ya es dueño de sus puntos. Guardar la polilínea entera obligaba a
@@ -3527,6 +3537,11 @@ instrumentoElegido ? (
                         [
                           ['auto', 'Automático', 'El clic decide: en el labio de una herida pone el separador en su plano; sobre un músculo, lejos de toda herida, lo retrae.'],
                           ['piel', 'Piel', 'Apoya el separador en la piel: abre la piel y deja ver el plano de abajo.'],
+                          ...(hayFascia
+                            ? ([
+                                ['fascia', 'Fascia', 'Apoya el separador en la fascia: abre la herida de la fascia y deja ver el músculo.'],
+                              ] as const)
+                            : []),
                           ['musculo', 'Músculo', 'Apoya el separador más profundo, en el músculo: separa el músculo y la piel que tiene encima.'],
                         ] as const
                       ).map(([valor, etiqueta, ayuda]) => (
@@ -3584,19 +3599,19 @@ instrumentoElegido ? (
                                 type="button"
                                 className="consola-separador-plano"
                                 title={
-                                  q.plano === 'piel'
-                                    ? 'Apoyar este separador más profundo, en el músculo'
-                                    : 'Volver a apoyar este separador en la piel'
+                                  planoSiguiente(planosDelCampo, q.plano) === 'piel'
+                                    ? 'Volver a apoyar este separador en la piel'
+                                    : `Apoyar este separador más profundo, ${enElPlano(planoSiguiente(planosDelCampo, q.plano))}`
                                 }
-                                onClick={() => mando.current?.cambiarPlanoDelSeparador(q.id, q.plano === 'piel' ? 'musculo' : 'piel')}
+                                onClick={() => mando.current?.cambiarPlanoDelSeparador(q.id, planoSiguiente(planosDelCampo, q.plano))}
                               >
-                                {q.plano === 'piel' ? (
+                                {planoSiguiente(planosDelCampo, q.plano) === 'piel' ? (
                                   <>
-                                    <ArrowDownToLine size={13} aria-hidden /> Al músculo
+                                    <ArrowUpFromLine size={13} aria-hidden /> A la piel
                                   </>
                                 ) : (
                                   <>
-                                    <ArrowUpFromLine size={13} aria-hidden /> A la piel
+                                    <ArrowDownToLine size={13} aria-hidden /> {planoSiguiente(planosDelCampo, q.plano) === 'fascia' ? 'A la fascia' : 'Al músculo'}
                                   </>
                                 )}
                               </button>
@@ -3929,13 +3944,27 @@ instrumentoElegido ? (
 
               {queHace.sutura ? (
                 <div className="consola-instrumento-articulaciones">
-                  <p className="consola-instrumento-texto">
-                    Cose: pase al modo «Coser» y pique con un clic sobre la piel. Cada clic suma una puntada y el
-                    hilo queda dibujado entre una y otra, de {queHace.sutura.nombre}. Una puntada que cae al otro
-                    lado de la herida es la que la cierra, pero el hilo está flojo hasta que se tira de él: con la
-                    rueda del ratón (o el deslizador) se aprieta y los bordes se acercan. Lo habitual en piel es de 5 a
-                    10 mm entre puntadas, y apretar de más estrangula el borde.
-                  </p>
+                  {hayFascia ? (
+                    <p className="consola-instrumento-texto">
+                      Cose por planos: pase al modo «Coser» y pique con un clic sobre el plano que le toca a este hilo
+                      ({queHace.sutura.nombre}
+                      {queHace.sutura.planos && queHace.sutura.planos.length > 0
+                        ? `: ${queHace.sutura.planos.map((p) => NOMBRE_DEL_PLANO[p].toLowerCase()).join(' o ')}`
+                        : ''}
+                      ). Se cierra de lo profundo a lo superficial: primero la fascia, con Vicryl (se ve rosada al abrir
+                      la piel), y después la piel, con nailon o Monocryl. Una puntada en el plano que no es la de su hilo
+                      se avisa y no cuenta. Cada plano se aprieta por su cuenta, con el deslizador, y se mide aparte: lo
+                      habitual en piel es de 5 a 10 mm entre puntadas, y en fascia de 8 a 15 mm.
+                    </p>
+                  ) : (
+                    <p className="consola-instrumento-texto">
+                      Cose: pase al modo «Coser» y pique con un clic sobre la piel. Cada clic suma una puntada y el
+                      hilo queda dibujado entre una y otra, de {queHace.sutura.nombre}. Una puntada que cae al otro
+                      lado de la herida es la que la cierra, pero el hilo está flojo hasta que se tira de él: con la
+                      rueda del ratón (o el deslizador) se aprieta y los bordes se acercan. Lo habitual en piel es de 5 a
+                      10 mm entre puntadas, y apretar de más estrangula el borde.
+                    </p>
+                  )}
                   {sutura ? (
                     <dl className="consola-sutura-medidas">
                       <div>
@@ -3964,10 +3993,23 @@ instrumentoElegido ? (
                       </div>
                     </dl>
                   ) : null}
+                  {sutura?.planos && sutura.planos.length > 0 ? (
+                    <ul className="consola-sutura-planos" aria-label="Cierre por planos">
+                      {sutura.planos.map((p) => (
+                        <li key={p.plano} className={p.plano === sutura.planoActivo ? 'activo' : ''}>
+                          <strong>{p.nombre}</strong>
+                          {': '}
+                          {p.puntadas} {p.puntadas === 1 ? 'puntada' : 'puntadas'}
+                          {p.tramos > 0 ? ` · separación media ${p.separacionMediaMm.toFixed(1).replace('.', ',')} mm` : ''}
+                          {p.conHerida ? ` · cerrada al ${Math.round(p.cierre * 100)} %` : ' · sin herida'}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   {sutura && sutura.puntadas > 0 ? (
                     <div className="consola-sutura-tension">
                       <label className="consola-instrumento-articulacion">
-                        <span>Tirar del hilo</span>
+                        <span>Tirar del hilo{sutura.planoActivo ? ` · ${NOMBRE_DEL_PLANO[sutura.planoActivo].toLowerCase()}` : ''}</span>
                         <input
                           type="range"
                           min={0}
@@ -4245,7 +4287,7 @@ instrumentoElegido ? (
             <h3 className="consola-subtitulo">Herida</h3>
             {herida.capas.length > 0 ? (
               <p className="consola-herida-datos">
-                {herida.capas.map((c) => (c === 'piel' ? 'Piel' : 'Planos profundos')).join(' y ')} ·{' '}
+                {herida.capas.map((c) => NOMBRE_DEL_PLANO[c]).join(' y ')} ·{' '}
                 {Math.round(herida.largoMm)} mm de largo · abierta {Math.round(herida.aperturaMm)} mm
               </p>
             ) : null}

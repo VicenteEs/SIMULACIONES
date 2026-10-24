@@ -245,6 +245,25 @@ import {
 } from './enclavadoEnLaEscena'
 import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, quitarUnTornillo, type ImplantesEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
+import {
+  AVISO_DE_LA_FASCIA,
+  NOMBRE_DEL_PLANO,
+  PLANOS_BLANDOS,
+  PROFUNDIDAD_DEL_PLANO,
+  planoQueCorta,
+  type PlanoBlando,
+} from '@/lib/planosBlandos'
+import {
+  SEPARACION_IDEAL_POR_PLANO,
+  cierreDeCadaHerida,
+  cierreDeTodoElCierre,
+  cierresPorPlano,
+  juicioDelHiloEnElPlano,
+  medirPorPlanos,
+  planoDeLaPuntada,
+  resumirPorPlanos,
+  type ResumenDeUnPlano,
+} from '@/lib/planosDeLaSutura'
 import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, soltarSutura, type SuturaEnEscena } from './hiloEnLaEscena'
 // La regla base de `.consola-lienzo` vive en la hoja de la consola, y este
 // lienzo lo monta también el taller de piezas del panel: sin importarla aquí,
@@ -469,7 +488,7 @@ export interface MandoDelLienzo {
   /** Abre (`sentido` +1) o cierra (−1) las mandíbulas de las pinzas, una muesca de la rueda. */
   abrirMandibulas: (sentido: number) => void
   /** Cambia el plano en que está apoyado un separador ya puesto: lo baja al músculo o lo sube a la piel. */
-  cambiarPlanoDelSeparador: (id: number, plano: 'piel' | 'musculo') => void
+  cambiarPlanoDelSeparador: (id: number, plano: CapaDeLaHerida) => void
   /**
    * Abre las ramas de la tijera en disección roma, de 0 (cerradas) a 1 (abiertas del todo). Con la punta apoyada,
    * el plano se separa por tensión; la primera vez que las ramas pasan de un umbral, ese punto entra en la herida.
@@ -706,6 +725,14 @@ export interface EstadoDeLaSutura extends MedidaDeLaSutura {
   cierreMaximo: number
   /** Qué se dice de cómo está el hilo (flojo, justo, estrangula), o `null` si no hay nada que decir. */
   juicioDeLaTension: { texto: string; atencion: boolean; estrangula: boolean } | null
+  /**
+   * Cómo va cada plano por su cuenta (piel, fascia): sus puntadas, sus cruces, cuánto cierra su herida. Solo en un caso con
+   * fascia, donde se cierra por planos (P-006, E11); `cierre`, `tension` y `juicioDeLaTension` son entonces del cierre entero
+   * y del plano en que se está cosiendo.
+   */
+  planos?: ResumenDeUnPlano[]
+  /** El plano de la última puntada: el que aprieta el deslizador. */
+  planoActivo?: PlanoBlando
 }
 
 /** Cómo apunta la broca respecto de la cortical, en grados: a lo largo del hueso y a lo ancho. */
@@ -758,7 +785,7 @@ export interface DatosDeNodo {
 
 export interface PiezaDelCaso {
   nodo: string
-  rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante'
+  rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia'
   etiqueta?: string | null
 }
 
@@ -843,7 +870,7 @@ export function LienzoQuirurgico({
    * En qué plano se apoyan los separadores que se pongan a partir de ahora. `auto` (por omisión desde P-004 E5) lo decide el
    * clic —lo que se ve bajo el cursor y la herida más cercana—; `piel` y `musculo` lo fuerzan, como antes.
    */
-  planoDelSeparador?: 'auto' | 'piel' | 'musculo'
+  planoDelSeparador?: 'auto' | CapaDeLaHerida
   /** Un clic pone los dos separadores de mano, uno por borde (P-003 E3). Los autoestáticos y el Hohmann van de uno en uno. */
   separadoresEnPareja?: boolean
   /** Al terminar un corte, la pareja de pinzas y la de separadores más cercanas a la punta se corren tras ella (P-003 E3). */
@@ -1063,6 +1090,8 @@ export function LienzoQuirurgico({
     heridas: Map<PlanoDeCorte, HeridaEnCapa[]>
     /** La capa que cortó el último trazo, para que «Borrar trazo» sepa qué herida deshacer. */
     ultimaHerida?: PlanoDeCorte
+    /** El caso trae fascia: la sutura cierra por planos y no todas las heridas a la vez (P-006, E11). */
+    cierrePorPlanos?: boolean
     agujeros: THREE.Mesh[]
     /** Cuánto lleva girando la broca, en radianes. */
     giroDeLaBroca?: number
@@ -1222,6 +1251,8 @@ export function LienzoQuirurgico({
     alCambiarLaTrayectoria,
   })
   useEffect(() => {
+    // Un caso con alguna pieza de fascia cierra por planos; uno sin ella, como siempre (P-006, E11).
+    taller.current.cierrePorPlanos = piezas.some((p) => p.rol === 'fascia')
     ultimas.current = {
       modo,
       piezas,
@@ -1491,7 +1522,15 @@ export function LienzoQuirurgico({
       const s = taller.current.sutura
       if (!s || s.puntos.length === 0) return
       s.puntos.pop()
-      if (s.puntos.length === 0) s.tension = 0
+      if (s.puntos.length === 0) {
+        s.tension = 0
+        s.tensiones = {}
+        s.planoActivo = undefined
+      } else if (taller.current.cierrePorPlanos) {
+        // El deslizador vuelve al plano de la puntada que queda.
+        s.planoActivo = s.puntos[s.puntos.length - 1].plano ?? 'piel'
+        s.tension = s.tensiones[s.planoActivo] ?? 0
+      }
       refrescarSutura(taller.current, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
     },
 
@@ -1500,6 +1539,8 @@ export function LienzoQuirurgico({
       if (!t.sutura) return
       t.sutura.puntos.length = 0
       t.sutura.tension = 0
+      t.sutura.tensiones = {}
+      t.sutura.planoActivo = undefined
       refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
     },
 
@@ -1512,6 +1553,8 @@ export function LienzoQuirurgico({
       const t = taller.current
       if (!t.sutura || t.sutura.puntos.length === 0) return
       t.sutura.tension = Math.min(1, Math.max(0, tension))
+      // Con planos, se aprieta el hilo del plano en que se está cosiendo; el de los otros se queda como estaba.
+      if (t.cierrePorPlanos) t.sutura.tensiones[t.sutura.planoActivo ?? 'piel'] = t.sutura.tension
       refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
     },
 
@@ -2148,12 +2191,14 @@ export function LienzoQuirurgico({
       if (hilo && t.escena && hilo.puntos.length > 0) {
         const sutura = crearSutura(t.escena, hilo.hilo)
         sutura.tension = hilo.tension
+        sutura.tensiones = hilo.tensiones ?? {}
         sutura.puntos = hilo.puntos.map((q) => ({
           punto: q.base,
           base: q.base,
           normal: q.normal,
           lado: q.lado,
           nuevaLinea: q.nuevaLinea,
+          plano: q.plano,
           ref:
             q.ref && heridas[q.ref.herida]
               ? { ...q.ref, malla: heridas[q.ref.herida].malla.uuid }
@@ -2673,12 +2718,19 @@ export function LienzoQuirurgico({
         }
         quemado = j.quema
       }
+      // Los instrumentos profundos cortan el músculo, pero la fascia está en medio: el primer trazo profundo abre la
+      // fascia y el segundo llega al músculo (P-006, E10). Sin fascia visible en el campo se corta el músculo como siempre.
+      const { plano: planoQueSeCorta, redirigido } = planoQueCorta(plano, {
+        hayFascia: mallasConRol(t, u.piezas, ['fascia']).length > 0,
+        fasciaAbierta: (t.heridas?.get('fascia')?.length ?? 0) > 0,
+      })
       // Profundizar sin la piel tomada con pinzas: es lo que se avisa, no lo que se impide.
-      if (plano === 'musculo' && (t.heridas?.get('piel')?.length ?? 0) > 0) {
+      if (planoQueSeCorta !== 'piel' && (t.heridas?.get('piel')?.length ?? 0) > 0) {
         const aviso = adviertePorLaTension(tensionDeLaPiel((t.pellizcos ?? []).map((q) => q.datos)))
         if (aviso) u.alGesto?.(aviso, 'atencion')
       }
-      aplicarElCorte(plano, { quemado })
+      aplicarElCorte(planoQueSeCorta, { quemado })
+      if (redirigido && (t.heridas?.get('fascia')?.length ?? 0) > 0) u.alGesto?.(AVISO_DE_LA_FASCIA, 'bien')
     }
 
     /**
@@ -2720,13 +2772,15 @@ export function LienzoQuirurgico({
       if (mallas.length === 0) {
         // Dos causas distintas con dos arreglos distintos (D-176). Antes las dos decían «encienda la capa», y en una
         // cirugía sin ninguna pieza de piel la consola mandaba a encender una capa que ya estaba encendida.
-        const capa = plano === 'piel' ? 'piel' : 'músculo'
+        const capa = plano === 'piel' ? 'piel' : plano === 'fascia' ? 'fascia' : 'músculo'
         aviso(
           nombres.size === 0
             ? `Ninguna pieza de este modelo es ${capa}: márquela en «Piezas» del editor del caso (o «Rellenar desde el modelo»).`
             : plano === 'piel'
               ? 'No hay piel visible que cortar: encienda la capa «Piel».'
-              : 'No hay músculo visible que cortar: encienda la capa «Músculo».',
+              : plano === 'fascia'
+                ? 'No hay fascia visible que cortar: encienda la capa «Fascia».'
+                : 'No hay músculo visible que cortar: encienda la capa «Músculo».',
         )
         return undefined
       }
@@ -2761,7 +2815,7 @@ export function LienzoQuirurgico({
       const puntos = puntosDelCorte.map((p) => new THREE.Vector3(p[0], p[1], p[2]))
       const normales = normalesDelCorte.map((n) => new THREE.Vector3(n[0], n[1], n[2]))
       const parametros = {
-        // La piel es fina; los planos profundos empiezan bajo ella y bajo la grasa.
+        // La piel es fina; la fascia y los planos profundos empiezan bajo ella y bajo la grasa.
         profundidad: (plano === 'piel' ? 14 : 50) * unidadesPorMm,
         alcance: 30 * unidadesPorMm,
         unidadesPorMm,
@@ -2807,6 +2861,8 @@ export function LienzoQuirurgico({
       if (t.sutura && t.sutura.puntos.length > 0) {
         t.sutura.puntos.length = 0
         t.sutura.tension = 0
+        t.sutura.tensiones = {}
+        t.sutura.planoActivo = undefined
         refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, null, ultimas.current.alHerir)
       }
       t.cortes = [
@@ -3518,8 +3574,7 @@ export function LienzoQuirurgico({
         const desvio = c.punto.clone().sub(linea.punto).dot(linea.direccion)
         const lejos = Math.max(Math.abs(desvio), 3 * unidadesPorMm) * -Math.sign(desvio || c.info.lado)
         const q = linea.punto.clone().addScaledVector(linea.direccion, lejos)
-        const capa = c.plano === 'musculo' ? 'musculo' : 'piel'
-        const sobre = proyectarEnLaCapa(q, linea.normal, capa, c.herida.malla)
+        const sobre = proyectarEnLaCapa(q, linea.normal, c.plano === 'hueso' ? 'piel' : c.plano, c.herida.malla)
         const s = ponerUnSeparador({ punto: sobre.punto, normal: sobre.normal, direccion: linea.direccion, posicion: linea.t }, l, c.plano, c.herida.incision)
         if (s) hechos.push(s)
       }
@@ -3638,7 +3693,7 @@ export function LienzoQuirurgico({
         aCoordenadas(evento)
         const s = sep.objeto
         const plano = s.datos.plano
-        const capas: CapaDeLaHerida[] = plano === 'hueso' ? ['piel', 'musculo'] : [plano]
+        const capas: CapaDeLaHerida[] = plano === 'hueso' ? [...PLANOS_BLANDOS] : [plano]
         const heridas = capas.flatMap((c) => t.heridas.get(c) ?? [])
         const golpe = plano === 'hueso' ? huesoBajoElCursor() : golpeEnLaCapa([plano])
         if (!golpe || heridas.length === 0) return
@@ -3743,7 +3798,9 @@ export function LienzoQuirurgico({
       t.decir?.(
         capa === 'piel'
           ? 'Punta apoyada en la piel. La piel se incide con bisturí; la disección roma es de los planos de debajo.'
-          : 'Punta apoyada en el músculo. Abra las ramas con la rueda del ratón.',
+          : capa === 'fascia'
+            ? 'Punta apoyada en la fascia. Abra las ramas con la rueda del ratón: la fascia se separa del músculo por tensión.'
+            : 'Punta apoyada en el músculo. Abra las ramas con la rueda del ratón.',
       )
       u.alDisecar?.({ capa, aperturas: d.aperturas, apoyada: true, evento: 'apoyo' })
       // Con la punta nueva, lo que se había separado en el apoyo anterior vuelve a cerrarse.
@@ -3850,8 +3907,8 @@ export function LienzoQuirurgico({
       return { direccion: derecha.normalize(), t: 0.5, conHerida: false, incision: undefined }
     }
 
-    /** Lleva un punto a la superficie de una capa (la piel, el músculo), bajando por la normal: no se apoya en el aire. */
-    const proyectarEnLaCapa = (q: THREE.Vector3, n: THREE.Vector3, capa: 'piel' | 'musculo', respaldo: THREE.Object3D) => {
+    /** Lleva un punto a la superficie de una capa (la piel, la fascia, el músculo), bajando por la normal: no se apoya en el aire. */
+    const proyectarEnLaCapa = (q: THREE.Vector3, n: THREE.Vector3, capa: PlanoBlando, respaldo: THREE.Object3D) => {
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       const mallas = mallasConRol(taller.current, ultimas.current.piezas, [capa])
       const lanzado = new THREE.Raycaster(q.clone().addScaledVector(n, 10 * unidadesPorMm), n.clone().negate(), 0, 30 * unidadesPorMm)
@@ -4453,7 +4510,7 @@ export function LienzoQuirurgico({
           const unidadesPorMmDelClic = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
           const primero = superficieBajoElCursor()
           const rolDelGolpe = primero ? (ultimas.current.piezas.find((p) => p.nodo === primero.object.name)?.rol ?? null) : null
-          const candidatos: CandidatoDeHerida[] = (['musculo', 'piel'] as const).map((p) => {
+          const candidatos: CandidatoDeHerida[] = (['musculo', 'fascia', 'piel'] as const).map((p) => {
             const lasHeridas = t.heridas.get(p) ?? []
             const sobreLaCapa = lasHeridas.length > 0 ? golpeEnLaCapa([p]) : null
             if (!sobreLaCapa) return { plano: p, cercaMm: null }
@@ -4492,7 +4549,7 @@ export function LienzoQuirurgico({
           }
           if (decision.accion === 'colocar') plano = decision.plano
         }
-        const capas: CapaDeLaHerida[] = plano === 'hueso' ? ['piel', 'musculo'] : [plano]
+        const capas: CapaDeLaHerida[] = plano === 'hueso' ? [...PLANOS_BLANDOS] : [plano]
         const heridas = capas.flatMap((c) => t.heridas.get(c) ?? [])
         if (heridas.length === 0) {
           t.decir?.(
@@ -5553,6 +5610,18 @@ export function LienzoQuirurgico({
       if (!t.sutura) t.sutura = crearSutura(t.escena, hilo)
       const sutura = t.sutura
       sutura.hilo = hilo
+      // El plano de la puntada es el de la pieza que se tocó. En un caso con fascia cada hilo va a su plano: una puntada de
+      // Vicryl sobre la piel, o de nailon sobre la fascia, se avisa y no cuenta (Cristóbal: «el vicryl debe ir a la fascia»).
+      const plano = planoDeLaPuntada(ultimas.current.piezas.find((p) => p.nodo === golpe.object.name)?.rol)
+      if (t.cierrePorPlanos) {
+        const juicioDelPlano = juicioDelHiloEnElPlano(hilo, plano)
+        if (!juicioDelPlano.acepta) {
+          const texto = juicioDelPlano.texto ?? 'Esa puntada no va en ese plano.'
+          t.decir?.(texto)
+          ultimas.current.alGesto?.(texto, 'atencion')
+          return
+        }
+      }
       if (sutura.puntos.length >= MAXIMO_DE_PUNTADAS) {
         t.decir?.(`Son ${MAXIMO_DE_PUNTADAS} puntadas: es el máximo de una sutura. Quite alguna o empiece otra.`)
         return
@@ -5563,12 +5632,22 @@ export function LienzoQuirurgico({
         punto: [golpe.point.x, golpe.point.y, golpe.point.z],
         base: [golpe.point.x, golpe.point.y, golpe.point.z],
         normal: [normal.x, normal.y, normal.z],
-        lado: ladoDelPunto(t, golpe.point, unidadesPorMm),
-        nuevaLinea: sutura.puntos.length === 0 || !!sutura.siguienteEsNueva,
+        lado: ladoDelPunto(t, golpe.point, unidadesPorMm, t.cierrePorPlanos ? plano : undefined),
+        // Cambiar de plano abre una línea nueva: el hilo de la fascia no se tiende hasta la piel.
+        nuevaLinea:
+          sutura.puntos.length === 0 ||
+          !!sutura.siguienteEsNueva ||
+          (!!t.cierrePorPlanos && (sutura.puntos[sutura.puntos.length - 1].plano ?? 'piel') !== plano),
+        plano,
       }
       nuevoPunto.ref = seguirAlLabio(t, golpe, unidadesPorMm)
       sutura.puntos.push(nuevoPunto)
       sutura.siguienteEsNueva = false
+      // El deslizador pasa al plano en que se acaba de coser, con la tensión que ese plano llevaba.
+      if (t.cierrePorPlanos && sutura.planoActivo !== plano) {
+        sutura.planoActivo = plano
+        sutura.tension = sutura.tensiones[plano] ?? 0
+      }
       refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, 'ultima', ultimas.current.alHerir)
     }
 
@@ -6390,6 +6469,7 @@ export type Taller = {
   normalesDelTrazo?: Punto3[]
   heridas?: Map<PlanoDeCorte, HeridaEnCapa[]>
   ultimaHerida?: PlanoDeCorte
+  cierrePorPlanos?: boolean
   agujeros?: THREE.Mesh[]
   sutura?: SuturaEnEscena
   aperturaAntesDeCoser?: Map<HeridaEnCapa, { mas: number; menos: number; perfil?: HeridaEnCapa['perfil'] }>
@@ -7103,10 +7183,15 @@ export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
 
 // ------------------------------------------------------------------ sutura
 
-/** De qué lado de la herida cae un punto, o 0 si no hay herida a menos de 25 mm. */
-function ladoDelPunto(taller: Taller, punto: THREE.Vector3, unidadesPorMm: number): 1 | -1 | 0 {
+/**
+ * De qué lado de la herida cae un punto, o 0 si no hay herida a menos de 25 mm. Con `plano` (el cierre por planos) solo
+ * cuenta la herida de ese plano: una puntada de fascia cae a un lado u otro de la herida de la fascia, no de la de la piel.
+ */
+function ladoDelPunto(taller: Taller, punto: THREE.Vector3, unidadesPorMm: number, plano?: PlanoBlando): 1 | -1 | 0 {
   let mejor: { lado: 1 | -1; cerca: number } | null = null
-  for (const h of todasLasHeridas(taller)) {
+  const delPlano = plano ? (taller.heridas?.get(plano) ?? []) : []
+  const heridas = delPlano.length > 0 ? delPlano : todasLasHeridas(taller)
+  for (const h of heridas) {
     const info = ladoDeLaHerida(h, punto)
     if (info && (!mejor || info.cerca < mejor.cerca)) mejor = { lado: info.lado, cerca: info.cerca }
   }
@@ -7175,7 +7260,7 @@ function mallasDeHuesoVisibles(t: Taller, piezas: PiezaDelCaso[]): THREE.Mesh[] 
     ? conRol
     : todas.filter((m) => {
         const rol = rolDe.get(m.name)
-        return rol !== 'piel' && rol !== 'musculo' && rol !== 'implante'
+        return rol !== 'piel' && rol !== 'fascia' && rol !== 'musculo' && rol !== 'implante'
       })
 }
 
@@ -7458,15 +7543,19 @@ function cambiarElPlanoDelSeparador(t: Taller, u: LoUltimo, id: number, plano: C
     t.decir?.(
       plano === 'musculo'
         ? 'Todavía no hay herida en el músculo: ábrala con el bisturí profundo o con la disección roma.'
-        : 'No hay herida en la piel.',
+        : plano === 'fascia'
+          ? 'Todavía no hay herida en la fascia: ábrala con el bisturí profundo.'
+          : 'No hay herida en la piel.',
     )
     return
   }
   let sitio: SitioDeSeparador | undefined = s.sitios[plano]
   if (!sitio) {
-    // Hacia dentro desde la piel, o hacia fuera desde el músculo, por la normal de donde está apoyado ahora.
-    const hacia = s.normal.clone().multiplyScalar(plano === 'musculo' ? -1 : 1)
-    const origen = s.punto.clone().addScaledVector(s.normal, (plano === 'musculo' ? 1 : -1) * unidadesPorMm)
+    // Hacia dentro si el plano nuevo es más profundo que el de ahora, o hacia fuera si es más superficial, por la
+    // normal de donde está apoyado ahora (los planos van piel → fascia → músculo).
+    const haciaDentro = PROFUNDIDAD_DEL_PLANO[plano] > PROFUNDIDAD_DEL_PLANO[s.datos.plano === 'hueso' ? 'musculo' : s.datos.plano]
+    const hacia = s.normal.clone().multiplyScalar(haciaDentro ? -1 : 1)
+    const origen = s.punto.clone().addScaledVector(s.normal, (haciaDentro ? 1 : -1) * unidadesPorMm)
     const g = new THREE.Raycaster(origen, hacia, 0, 80 * unidadesPorMm).intersectObjects(mallasConRol(t, u.piezas, [plano]), false)[0]
     const punto = g ? g.point.clone() : s.punto.clone()
     const normal = g?.face ? g.face.normal.clone().transformDirection(g.object.matrixWorld) : s.normal.clone()
@@ -7715,11 +7804,15 @@ function cerrarLaIncision(t: Taller, id: number, opciones: { conSusSeparadores: 
  * desaparecer»).
  */
 function actualizarLaProfundidad(t: Taller) {
-  const hayProfunda = (t.heridas?.get('musculo')?.length ?? 0) > 0
-  for (const h of t.heridas?.get('piel') ?? []) {
-    if (!!h.profundizada === hayProfunda) continue
-    h.profundizada = hayProfunda
-    refrescarBordes(h)
+  const hayMusculo = (t.heridas?.get('musculo')?.length ?? 0) > 0
+  const hayFascia = (t.heridas?.get('fascia')?.length ?? 0) > 0
+  // La piel deja de ser lo último que se cortó con la fascia o con el músculo; la fascia, con el músculo (P-006).
+  for (const [capa, hayProfunda] of [['piel', hayFascia || hayMusculo], ['fascia', hayMusculo]] as const) {
+    for (const h of t.heridas?.get(capa) ?? []) {
+      if (!!h.profundizada === hayProfunda) continue
+      h.profundizada = hayProfunda
+      refrescarBordes(h)
+    }
   }
 }
 
@@ -7818,11 +7911,15 @@ interface SesionGuardada {
   sutura: {
     hilo: HiloDeSutura
     tension: number
+    /** La tensión de cada plano, con el cierre por planos. */
+    tensiones?: Partial<Record<PlanoBlando, number>>
     puntos: {
       base: [number, number, number]
       normal: [number, number, number]
       lado: 1 | -1 | 0
       nuevaLinea: boolean
+      /** El plano de la puntada. Ausente en lo guardado antes de que hubiera planos. */
+      plano?: PlanoBlando
       /** `herida` es el lugar de la herida en la lista y no su `uuid`, que cambia al recargar. */
       ref?: { herida: number; dir: [number, number, number]; lado: 1 | -1; peso: number; t?: number; mas0: number; menos0: number }
     }[]
@@ -7901,11 +7998,13 @@ export function serializarSesion(taller: Taller): string {
         ? {
             hilo: sutura.hilo,
             tension: sutura.tension,
+            tensiones: sutura.tensiones,
             puntos: sutura.puntos.map((q) => ({
               base: (q.base ?? q.punto) as [number, number, number],
               normal: q.normal as [number, number, number],
               lado: q.lado,
               nuevaLinea: q.nuevaLinea,
+              plano: q.plano,
               ref:
                 q.ref && indice.has(q.ref.malla)
                   ? {
@@ -8100,38 +8199,54 @@ export function refrescarSutura(
   const heridas = todasLasHeridas(taller)
   // Las medidas son las de donde se picó, no las de donde queda al tirar del hilo: al cerrarse la herida las
   // puntadas se acercan, y medirlas así las daría por «muy juntas».
-  const medida = medirLaSutura(
-    sutura.puntos.map((p) => ({ ...p, punto: p.base ?? p.punto })),
-    milimetrosPorUnidad,
-  )
+  const puntosMedidos = sutura.puntos.map((p) => ({ ...p, punto: p.base ?? p.punto }))
+  const medida = medirLaSutura(puntosMedidos, milimetrosPorUnidad)
   const largoMm = heridas.length > 0 ? Math.max(...heridas.map((h) => h.largo)) / unidadesPorMm : 0
-  const cierreMaximo = cierreDeLaHerida(medida.cruces, largoMm)
-  const cierre = cierreConTension(medida.cruces, largoMm, sutura.tension)
+
+  // Con fascia en el caso, cada plano se mide y se cierra por su cuenta (P-006, E11): la sutura de la fascia cierra la herida
+  // de la fascia, la de la piel la de la piel, y la herida entera está cerrada cuando lo están las dos. Sin fascia, como
+  // siempre: todas las puntadas cierran todas las heridas.
+  const porPlanos = !!taller.cierrePorPlanos
+  const planoActivo: PlanoBlando = sutura.planoActivo ?? 'piel'
+  const planosConHerida = porPlanos ? PLANOS_BLANDOS.filter((p) => (taller.heridas?.get(p)?.length ?? 0) > 0) : []
+  const largosMm: Partial<Record<PlanoBlando, number>> = {}
+  for (const p of planosConHerida) largosMm[p] = Math.max(...(taller.heridas?.get(p) ?? []).map((h) => h.largo)) / unidadesPorMm
+  const porPlano = porPlanos ? medirPorPlanos(puntosMedidos, milimetrosPorUnidad) : {}
+  const cierres = porPlanos ? cierresPorPlano(porPlano, largosMm, sutura.tensiones) : {}
+  const cierreDeCada = porPlanos ? cierreDeCadaHerida(cierres, planosConHerida) : {}
+
+  const cierreMaximo = porPlanos ? (cierres[planoActivo]?.cierreMaximo ?? 0) : cierreDeLaHerida(medida.cruces, largoMm)
+  const cierreSinPlanos = cierreConTension(medida.cruces, largoMm, sutura.tension)
+  const cierre = porPlanos ? cierreDeTodoElCierre(cierreDeCada, planosConHerida) : cierreSinPlanos
+  const cierreDeLaHeridaDe = (plano: PlanoBlando) => (porPlanos ? (cierreDeCada[plano] ?? 0) : cierreSinPlanos)
+  const hayCierre = porPlanos ? Object.values(cierreDeCada).some((c) => c > 0) : cierreSinPlanos > 0
 
   if (heridas.length > 0) {
-    if (cierre > 0 && !taller.aperturaAntesDeCoser) {
+    if (hayCierre && !taller.aperturaAntesDeCoser) {
       taller.aperturaAntesDeCoser = new Map(heridas.map((h) => [h, { mas: h.mas, menos: h.menos, perfil: h.perfil }]))
     }
     const antes = taller.aperturaAntesDeCoser
     if (antes) {
-      for (const h of heridas) {
-        const base = antes.get(h)
-        if (!base) continue
-        const factor = 1 - cierre
-        const perfil = base.perfil
-        abrirCapa(
-          h,
-          base.mas * factor,
-          base.menos * factor,
-          perfil
-            ? (t) => {
-                const o = perfil(t)
-                return { mas: o.mas * factor, menos: o.menos * factor }
-              }
-            : undefined,
-        )
+      for (const [plano, lista] of taller.heridas ?? []) {
+        const factor = 1 - cierreDeLaHeridaDe(plano)
+        for (const h of lista) {
+          const base = antes.get(h)
+          if (!base) continue
+          const perfil = base.perfil
+          abrirCapa(
+            h,
+            base.mas * factor,
+            base.menos * factor,
+            perfil
+              ? (t) => {
+                  const o = perfil(t)
+                  return { mas: o.mas * factor, menos: o.menos * factor }
+                }
+              : undefined,
+          )
+        }
       }
-      if (cierre === 0) taller.aperturaAntesDeCoser = undefined
+      if (!hayCierre) taller.aperturaAntesDeCoser = undefined
       alHerir?.(estadoDeLasHeridas(taller, milimetrosPorUnidad))
     }
   }
@@ -8163,23 +8278,43 @@ export function refrescarSutura(
   const ultimaSeparacionMm = ultima.nuevaLinea ? null : medida.separacionesMm[medida.separacionesMm.length - 1] ?? null
   const penultima = sutura.puntos[sutura.puntos.length - 2]
   const ultimaCruza = !!penultima && !ultima.nuevaLinea && ultima.lado !== 0 && penultima.lado !== 0 && ultima.lado !== penultima.lado
+  const planoDeLaUltima: PlanoBlando = ultima.plano ?? 'piel'
   const texto =
     `Puntada ${sutura.puntos.length}` +
+    (porPlanos ? ` en ${NOMBRE_DEL_PLANO[planoDeLaUltima].toLowerCase()}` : '') +
     (ultimaSeparacionMm !== null ? ` · ${ultimaSeparacionMm.toFixed(0)} mm de la anterior` : ' · empieza una línea') +
     (ultimaCruza ? ' · cruza la herida' : '') +
     (heridas.length > 0 ? ` · tensión ${Math.round(sutura.tension * 100)} % · herida cerrada al ${Math.round(cierre * 100)} %` : '')
   taller.decir?.(texto)
+  const planos = porPlanos ? resumirPorPlanos(porPlano, cierres, sutura.tensiones, planosConHerida) : undefined
   avisar?.({
     ...medida,
+    // Con planos, lo bien espaciado se juzga con el rango de cada plano, no con el de la piel para todos.
+    bienEspaciadas: planos ? planos.reduce((suma, p) => suma + p.bienEspaciadas, 0) : medida.bienEspaciadas,
     cierre,
     cierreMaximo,
     tension: sutura.tension,
     juicioDeLaTension:
-      heridas.length > 0 ? juicioDeLaTension({ tension: sutura.tension, cruces: medida.cruces, cierreMaximo, largoMm }) : null,
+      heridas.length > 0 && (!porPlanos || planosConHerida.includes(planoActivo))
+        ? juicioDeLaTension({
+            tension: sutura.tension,
+            cruces: porPlanos ? (porPlano[planoActivo]?.cruces ?? 0) : medida.cruces,
+            cierreMaximo,
+            largoMm: porPlanos ? largosMm[planoActivo] : largoMm,
+            tramoMm: porPlanos ? SEPARACION_IDEAL_POR_PLANO[planoActivo].max : undefined,
+          })
+        : null,
     ultimaSeparacionMm,
-    juicio: juicio === 'ultima' ? juicioDeLaPuntada(ultimaSeparacionMm) : null,
+    juicio:
+      juicio === 'ultima'
+        ? porPlanos
+          ? juicioDeLaPuntada(ultimaSeparacionMm, SEPARACION_IDEAL_POR_PLANO[planoDeLaUltima], NOMBRE_DEL_PLANO[planoDeLaUltima].toLowerCase())
+          : juicioDeLaPuntada(ultimaSeparacionMm)
+        : null,
     ultimaCruza,
     hilo: sutura.hilo.nombre,
+    planos,
+    planoActivo: porPlanos ? planoActivo : undefined,
   })
   taller.pedirDibujo?.()
 }

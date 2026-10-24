@@ -16,6 +16,8 @@
  * acerca los bordes.
  */
 
+import type { PlanoBlando } from './planosBlandos'
+
 export type Vec3 = [number, number, number]
 
 /** Un punto de la sutura, en el espacio del mundo del lienzo. */
@@ -29,6 +31,11 @@ export interface PuntoDeSutura {
   lado: 1 | -1 | 0
   /** Empieza una línea nueva: no se une al punto anterior. */
   nuevaLinea: boolean
+  /**
+   * En qué plano de partes blandas se picó: el de la pieza que se tocó (P-006, E11). Es lo que dice qué herida cierra la
+   * puntada y si el hilo va en ese plano. Ausente en lo guardado antes de que hubiera planos: se toma por la piel.
+   */
+  plano?: PlanoBlando
   /**
    * Dónde se picó. `punto` es dónde está **ahora**: al tirar del hilo el labio de la herida se mueve y se
    * lleva la puntada con él (D-171), y las medidas de la sutura se hacen con el sitio donde se picó, no con
@@ -58,6 +65,12 @@ export interface PuntoDeSutura {
 /** Entre qué separaciones una puntada de piel se considera bien puesta, en mm. */
 export const SEPARACION_IDEAL_MM = { min: 5, max: 10 }
 
+/** El mismo rango, que cambia con el plano (P-006, E11): la fascia se cose con puntos más separados que la piel. */
+export interface SeparacionIdeal {
+  min: number
+  max: number
+}
+
 /** Una puntada más lejos que esto de otra no «cose»: es un salto, no una puntada. */
 export const SEPARACION_MAXIMA_MM = 25
 
@@ -86,7 +99,11 @@ const distancia = (a: Vec3, b: Vec3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2
  * están a un lado y a otro (`lado` distinto y ninguno cero). Un tramo que sube por
  * la piel sin cruzar, o una línea sobre piel sin herida, no cierra nada.
  */
-export function medirLaSutura(puntos: readonly PuntoDeSutura[], milimetrosPorUnidad: number): MedidaDeLaSutura {
+export function medirLaSutura(
+  puntos: readonly PuntoDeSutura[],
+  milimetrosPorUnidad: number,
+  ideal: SeparacionIdeal = SEPARACION_IDEAL_MM,
+): MedidaDeLaSutura {
   const escala = milimetrosPorUnidad || 1000
   const separacionesMm: number[] = []
   let cruces = 0
@@ -110,7 +127,7 @@ export function medirLaSutura(puntos: readonly PuntoDeSutura[], milimetrosPorUni
     separacionMediaMm: separacionesMm.length > 0 ? suma / separacionesMm.length : 0,
     separacionMinimaMm: separacionesMm.length > 0 ? Math.min(...separacionesMm) : 0,
     separacionMaximaMm: separacionesMm.length > 0 ? Math.max(...separacionesMm) : 0,
-    bienEspaciadas: separacionesMm.filter((s) => s >= SEPARACION_IDEAL_MM.min && s <= SEPARACION_IDEAL_MM.max).length,
+    bienEspaciadas: separacionesMm.filter((s) => s >= ideal.min && s <= ideal.max).length,
   }
 }
 
@@ -123,9 +140,9 @@ export function medirLaSutura(puntos: readonly PuntoDeSutura[], milimetrosPorUni
  * que el hilo se note, y de que coser mal —muy pocas puntadas— deje la herida
  * entreabierta.
  */
-export function cierreDeLaHerida(cruces: number, largoDeLaHeridaMm: number): number {
+export function cierreDeLaHerida(cruces: number, largoDeLaHeridaMm: number, tramoMm: number = SEPARACION_IDEAL_MM.max): number {
   if (!(largoDeLaHeridaMm > 0) || cruces <= 0) return 0
-  return Math.min(1, (cruces * SEPARACION_IDEAL_MM.max) / largoDeLaHeridaMm)
+  return Math.min(1, (cruces * tramoMm) / largoDeLaHeridaMm)
 }
 
 /**
@@ -134,8 +151,13 @@ export function cierreDeLaHerida(cruces: number, largoDeLaHeridaMm: number): num
  * Con el hilo flojo (tensión 0) la herida sigue abierta aunque las puntadas ya crucen: coser y tirar son dos
  * gestos (D-171). Antes cada puntada cruzada cerraba su tramo en el momento, sin que nada se tirara.
  */
-export function cierreConTension(cruces: number, largoDeLaHeridaMm: number, tension: number): number {
-  return cierreDeLaHerida(cruces, largoDeLaHeridaMm) * traccionDelHilo(tension)
+export function cierreConTension(
+  cruces: number,
+  largoDeLaHeridaMm: number,
+  tension: number,
+  tramoMm: number = SEPARACION_IDEAL_MM.max,
+): number {
+  return cierreDeLaHerida(cruces, largoDeLaHeridaMm, tramoMm) * traccionDelHilo(tension)
 }
 
 // ----------------------------------------------------------------------------------------- tensión
@@ -170,6 +192,8 @@ export function juicioDeLaTension(p: {
   cierreMaximo: number
   /** El largo de la herida, en mm, para decir cuántas puntadas faltan. */
   largoMm?: number
+  /** Cuánto de herida cubre una puntada en este plano, en mm. Sin él, el de la piel. */
+  tramoMm?: number
 }): { texto: string; atencion: boolean; estrangula: boolean } | null {
   if (p.cruces <= 0) {
     return p.tension > 0
@@ -186,7 +210,7 @@ export function juicioDeLaTension(p: {
   }
   if (p.cierreMaximo < 0.95) {
     const pct = Math.round(p.cierreMaximo * 100)
-    const faltan = p.largoMm && p.largoMm > 0 ? Math.max(1, Math.ceil((p.largoMm * (1 - p.cierreMaximo)) / SEPARACION_IDEAL_MM.max)) : null
+    const faltan = p.largoMm && p.largoMm > 0 ? Math.max(1, Math.ceil((p.largoMm * (1 - p.cierreMaximo)) / (p.tramoMm ?? SEPARACION_IDEAL_MM.max))) : null
     return {
       texto: `Con ${p.cruces} ${p.cruces === 1 ? 'puntada que cruza' : 'puntadas que cruzan'} la herida solo se puede cerrar el ${pct} %: faltan ${faltan ? `unas ${faltan} puntadas más` : 'puntadas'}, no fuerza.`,
       atencion: true,
@@ -200,14 +224,19 @@ export function juicioDeLaTension(p: {
 }
 
 /** Lo que se dice de la última puntada, o `null` si estuvo bien (o fue la primera). */
-export function juicioDeLaPuntada(separacionMm: number | null): string | null {
+export function juicioDeLaPuntada(
+  separacionMm: number | null,
+  ideal: SeparacionIdeal = SEPARACION_IDEAL_MM,
+  /** «piel», «fascia»: para decir de qué plano es lo habitual. */
+  plano = 'piel',
+): string | null {
   if (separacionMm === null) return null
   if (separacionMm > SEPARACION_MAXIMA_MM) return null // un salto a otro sitio: no se juzga
-  if (separacionMm < SEPARACION_IDEAL_MM.min) {
-    return `Puntada muy cerca de la anterior (${separacionMm.toFixed(0)} mm): demasiadas juntas estrangulan el borde. Lo habitual en piel es de 5 a 10 mm.`
+  if (separacionMm < ideal.min) {
+    return `Puntada muy cerca de la anterior (${separacionMm.toFixed(0)} mm): demasiadas juntas estrangulan el borde. Lo habitual en ${plano} es de ${ideal.min} a ${ideal.max} mm.`
   }
-  if (separacionMm > SEPARACION_IDEAL_MM.max) {
-    return `Puntada muy separada de la anterior (${separacionMm.toFixed(0)} mm): entre puntadas tan abiertas el borde se levanta. Lo habitual en piel es de 5 a 10 mm.`
+  if (separacionMm > ideal.max) {
+    return `Puntada muy separada de la anterior (${separacionMm.toFixed(0)} mm): entre puntadas tan abiertas el borde se levanta. Lo habitual en ${plano} es de ${ideal.min} a ${ideal.max} mm.`
   }
   return null
 }
@@ -219,13 +248,20 @@ export interface HiloDeSutura {
   /** Color del hilo, 0xRRGGBB. */
   color: number
   nombre: string
+  /**
+   * En qué planos va este hilo (P-006, E11): el Vicryl 2-0 a la fascia, el nailon y el Monocryl a la piel. Sin esta lista (un hilo
+   * creado a mano en el panel) va a cualquiera, porque no se juzga lo que no se sabe.
+   */
+  planos?: readonly PlanoBlando[]
 }
 
 const HILOS: Readonly<Record<string, HiloDeSutura>> = {
-  'sutura-vicryl-2-0': { grosorMm: 0.9, color: 0x6a4cb0, nombre: 'Vicryl 2-0' },
-  'sutura-vicryl-3-0': { grosorMm: 0.75, color: 0x7b5fc4, nombre: 'Vicryl 3-0' },
-  'sutura-nylon-3-0': { grosorMm: 0.7, color: 0x14141a, nombre: 'Nylon 3-0' },
-  'sutura-monocryl-5-0': { grosorMm: 0.5, color: 0xd8c9a0, nombre: 'Monocryl 5-0' },
+  // Las suturas absorbibles van a lo profundo; la de 3-0 también al subcutáneo, que cae en el plano de la piel abierta. Las de
+  // piel no entran en la fascia (Cristóbal: «el vicryl debe ir a la fascia»).
+  'sutura-vicryl-2-0': { grosorMm: 0.9, color: 0x6a4cb0, nombre: 'Vicryl 2-0', planos: ['fascia'] },
+  'sutura-vicryl-3-0': { grosorMm: 0.75, color: 0x7b5fc4, nombre: 'Vicryl 3-0', planos: ['fascia', 'piel'] },
+  'sutura-nylon-3-0': { grosorMm: 0.7, color: 0x14141a, nombre: 'Nylon 3-0', planos: ['piel'] },
+  'sutura-monocryl-5-0': { grosorMm: 0.5, color: 0xd8c9a0, nombre: 'Monocryl 5-0', planos: ['piel'] },
 }
 
 /** Qué hilo es un instrumento, o `null` si no es una sutura. */

@@ -20,6 +20,8 @@
  * verdad, y eso es lo que calcula `aperturaEnLaPosicion`.
  */
 
+import type { PlanoBlando } from './planosBlandos'
+
 /**
  * Cómo actúa cada tipo de separador. `roma` no es un instrumento: es la separación por tensión de una
  * disección roma con la tijera de Metzenbaum (el punto donde las ramas se abren), que abre la herida del
@@ -27,8 +29,8 @@
  */
 export type TipoDeSeparador = 'mano' | 'autoestatico' | 'palanca' | 'roma'
 
-/** Las capas de partes blandas donde hay herida: la piel y los planos profundos. */
-export type CapaDeLaHerida = 'piel' | 'musculo'
+/** Las capas de partes blandas donde hay herida: la piel, la fascia y los planos musculares. */
+export type CapaDeLaHerida = PlanoBlando
 
 /**
  * A qué profundidad está apoyado un separador (petición de Cristóbal): en la piel, en el músculo o —el Hohmann—
@@ -36,24 +38,36 @@ export type CapaDeLaHerida = 'piel' | 'musculo'
  * que está apoyada en el músculo tiene que pasar por la piel para llegar y la lleva consigo. Un Farabeuf en la
  * piel abre solo la piel; el mismo Farabeuf, apoyado más profundo, abre la piel y el músculo.
  */
-export type PlanoDelSeparador = 'piel' | 'musculo' | 'hueso'
+export type PlanoDelSeparador = PlanoBlando | 'hueso'
 
 export const ETIQUETA_DEL_PLANO: Readonly<Record<PlanoDelSeparador, string>> = {
   piel: 'piel',
+  fascia: 'fascia',
   musculo: 'músculo',
   hueso: 'hueso',
 }
 
+/**
+ * El plano al que baja un separador la siguiente vez que se pulsa su botón: uno más profundo cada vez —piel, fascia (si el
+ * caso la trae), músculo— y de vuelta a la piel después del último. Un plano que no está en la lista (el hueso, del Hohmann)
+ * baja al primero más profundo que haya, que es la piel.
+ */
+export function planoSiguiente(planos: readonly CapaDeLaHerida[], actual: PlanoDelSeparador): CapaDeLaHerida {
+  const i = planos.indexOf(actual as CapaDeLaHerida)
+  return planos[(i + 1) % planos.length]
+}
+
 /** «en la piel», «en el músculo», «en el hueso»: para escribirlo dentro de una frase. */
 export function enElPlano(plano: PlanoDelSeparador): string {
-  return plano === 'piel' ? 'en la piel' : `en el ${ETIQUETA_DEL_PLANO[plano]}`
+  return plano === 'piel' || plano === 'fascia' ? `en la ${ETIQUETA_DEL_PLANO[plano]}` : `en el ${ETIQUETA_DEL_PLANO[plano]}`
 }
 
 /** Qué heridas abre un separador apoyado en cada plano. */
 const CAPAS_QUE_ABRE: Readonly<Record<PlanoDelSeparador, readonly CapaDeLaHerida[]>> = {
   piel: ['piel'],
-  musculo: ['piel', 'musculo'],
-  hueso: ['piel', 'musculo'],
+  fascia: ['piel', 'fascia'],
+  musculo: ['piel', 'fascia', 'musculo'],
+  hueso: ['piel', 'fascia', 'musculo'],
 }
 
 /** ¿Este separador abre la herida de esta capa? La separación roma solo abre la de su propio plano. */

@@ -100,8 +100,8 @@ describe('armar el listado', () => {
     expect(cabeza).toEqual([...cabeza].sort((a, b) => a.localeCompare(b, 'es')))
   })
 
-  it('el contador sobre el atlas real da 2.231 pendientes antes de escribir nada', () => {
+  it('el contador sobre el atlas real da 2.303 pendientes (2.231 de BodyParts3D y 72 fascias generadas, P-006) antes de escribir nada', () => {
     const conteo = contarEstructuras(armarListado(catalogo, []).filas)
-    expect(conteo).toMatchObject({ porLlenar: 2231, pendientes: 2231, completas: 0, porcentajeCompletas: 0 })
+    expect(conteo).toMatchObject({ porLlenar: 2303, pendientes: 2303, completas: 0, porcentajeCompletas: 0 })
   })
 })

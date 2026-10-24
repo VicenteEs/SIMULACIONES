@@ -230,10 +230,15 @@ describe('el atlas preparado en esta copia del proyecto', () => {
   // raíz (D-138). La piel se quitó con ellos y volvió sola (D-155,
   // `scripts/atlas/devolver-piel.mjs`): que vuelva el pelo sería un error.
   siHay('trae las 2.231 piezas de BodyParts3D: con la piel y sin el pelo', () => {
-    expect(catalogo!.piezas.length).toBe(2231)
-    expect(catalogo!.piezas.filter((p) => p.nombre === 'Skin')).toHaveLength(1)
-    expect(catalogo!.piezas.some((p) => /hair|eyebrow/i.test(p.nombre))).toBe(false)
-    expect(catalogo!.paquetes.length).toBe(15)
+    // Las fascias (P-006) son piezas generadas que van detrás de las de BodyParts3D, en su propio
+    // paquete: se cuentan aparte, y las de BodyParts3D siguen siendo las de siempre.
+    const deBodyParts = catalogo!.piezas.filter((p) => !p.generada)
+    expect(deBodyParts.length).toBe(2231)
+    expect(deBodyParts.filter((p) => p.nombre === 'Skin')).toHaveLength(1)
+    expect(deBodyParts.some((p) => /hair|eyebrow/i.test(p.nombre))).toBe(false)
+    expect(catalogo!.paquetes.length).toBe(catalogo!.piezas.some((p) => p.generada) ? 16 : 15)
+    // Las generadas van al final: las de BodyParts3D conservan el lugar que tienen en las texturas del visor.
+    expect(catalogo!.piezas.slice(0, 2231).every((p) => !p.generada)).toBe(true)
   })
 
   siHay('no tiene identificadores repetidos', () => {

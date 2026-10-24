@@ -37,6 +37,17 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
   traía: se toma de los conceptos FMA de región del propio atlas (cabeza, tórax,
   miembro superior derecho) cuando la pieza figura entre sus elementos y, si no,
   se deduce de la posición de su caja envolvente;
+- añadidas 72 piezas que **no son de BodyParts3D**: las fascias, que el material
+  de origen no trae: 19 de fascia superficial, 39 de fascia profunda, 8 de
+  fascia meníngea, 6 de fascia visceral. Las calcula TraumaHub como el manguito
+  que envuelve la geometría de las piezas de BodyParts3D que cubren: se rellena
+  su volumen, se cierran los surcos entre una pieza y otra y se saca la
+  superficie del resultado. No reproducen ninguna lámina anatómica: su forma
+  sale de las estructuras de debajo y de los parámetros de
+  scripts/atlas/fascias/recetas.py. Llevan identificador propio (TH y cuatro
+  cifras), y el nombre y el código de la Foundational Model of Anatomy de lo que
+  representan; el lado izquierdo es el espejo del derecho; van en un archivo
+  propio, aparte de los de BodyParts3D;
 - traducidos al español los nombres de los sistemas y de las regiones;
 - traducidos al español, para enseñarlos, los nombres de las estructuras. La
   traducción no sustituye al original: el nombre de BodyParts3D se conserva al
@@ -97,4 +108,4 @@ marcada en el catálogo y el árbol anatómico la señala con un distintivo.
   quirúrgica sobre un paciente concreto.
 
 ---
-Preparación `bp3d-4.0-6d4cc0c0` · 2.273.784 triángulos
+Preparación `bp3d-4.0-f5b4cdcd` · 2.385.557 triángulos

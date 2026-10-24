@@ -12,6 +12,10 @@
  * Uso:
  *   node scripts/atlas/preparar.mjs [ruta-al-material]
  *
+ * Ojo: este guion escribe el catálogo con **las piezas de origen solamente**. Las fascias (`TH####`, paquete 15) se suman
+ * después con `node scripts/atlas/agregar-fascias.mjs --aplicar` y luego `node scripts/atlas/atribucion.mjs`; si no se
+ * vuelven a correr, desaparecen del catálogo (D-218).
+ *
  * Por omisión busca en `.vendor/human-atlas/public/models`, que es donde queda
  * tras clonar el repositorio de origen. Se ejecuta una sola vez: el resultado se
  * versiona, de modo que un despliegue nuevo no depende de esta máquina ni de

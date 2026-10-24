@@ -6966,6 +6966,75 @@ apaisado pierde los lados. (−) Buscar es una consulta por pulsación (con 250 
 llenarse y dice «Buscando…». (−) Un documento que trae solo el número del archivo hace una consulta más al abrirse (`archivoPorId`), hoy
 solo tras una subida.
 
+### D-218 · 2026-10-24 · vigente
+**Las fascias profunda y superficial entran al atlas como 44 piezas generadas (P-006 E1 a E6): se calculan de la geometría de BodyParts3D, viven en un paquete nuevo y se exportan recortadas a lo que se exporta.**
+Cristóbal escribió «el vicryl debe ir a la fascia, que todavía no la incluimos», y el atlas no trae ninguna (ni pulmones ni médula). *Qué hay ahora:* cuatro sistemas nuevos en el catálogo (`fascia-superficial`, `fascia-profunda`, `fascia-meningea`, `fascia-visceral`, con color propio; los dos últimos aún sin piezas), **25 piezas de fascia profunda** (fascia lata, crural, glútea, dorsal del pie, aponeurosis plantar; braquial, antebraquial, aponeurosis palmar, dorsal de la mano; pectoral, toracolumbar, abdominal, capa superficial de la cervical, temporal) y **19 de fascia superficial** (pie, pierna, muslo, mano, antebrazo, brazo, nalga, y tórax, abdomen, espalda, cuello y cabeza). Son `TH0001` a `TH0014` y `TH0100` a `TH0111`, con la `M` de la izquierda como en el atlas de origen; 72.300 triángulos en `cuerpo-15.bin.gz` (0,93 MB comprimido). Los 15 paquetes de BodyParts3D **no cambian** (se comprueba byte a byte al empaquetar) y el catálogo pasa a 2.275 piezas, versión `bp3d-4.0-89cfa836`. Cada pieza lleva nombre original, traducción, FMA verificado en la ontología del EBI (OLS) el mismo día, sistema y región, como las demás.
+*Cómo se calcula* (`scripts/atlas/fascias/`, Python con numpy y scipy; Blender solo para decimar): las piezas del atlas que la fascia envuelve se muestrean, se rellenan por inundación (no por paridad de rayos: las mallas del atlas no son cerradas), se cierran con un radio R para que el manguito **pase por encima de los surcos entre músculos**, se saca la superficie con *Surface Nets* hecho a mano, se suaviza con Taubin, se reduce a la resolución del atlas y se parte por planos anatómicos **sin tapa**, de modo que dos piezas vecinas comparten exactamente su borde. La izquierda es el espejo de la derecha. La **superficial** es el campo intermedio entre la piel y la envolvente profunda (α = 0,4) sujeto siempre por debajo de la piel; en el tronco, donde la envolvente profunda se hunde en el ombligo, se apoya en una pared abdominal sintética a 22 mm de la piel. Cada pieza se acepta solo si pasa sus comprobaciones (nada dentro de lo que envuelve, nada fuera de la piel, sin aristas triples ni islas): la superficial queda con **100 % de la mitad derecha cubierta y 0 % de solape**, y 7 a 16 mm de grasa media bajo la piel. El límite entre tronco y brazo se midió en la piel a cada altura (la axila está cerrada por encima de 1,2 m, así que ahí el límite es una recta al acromion) y son dos planos oblicuos, no uno.
+*Lo exportado.* Al exportar, `fasciasDeLaZona` suma la fascia profunda si hay músculos y la superficial si hay piel, y la **recorta triángulo a triángulo, sin tapa**, a la caja de lo que ya iba más un centímetro y a los planos del marco del taller: la pierna cortada del taller sale con 2.010 de los 2.999 triángulos de la fascia crural y 1.048 de los 1.399 de la superficial de la pierna, y no con la pieza entera. El diálogo de exportar tiene la casilla «Incluir las fascias de la zona». Si la preparación ya lista fascias propias, no se suman otras.
+*En la consola.* Rol nuevo `fascia` para la profunda (migración `20261024_160000_rol_fascia`, al final de los dos enums de Postgres); la superficial toma el rol `piel` y se incide, se separa y se oculta con ella; la meníngea y la visceral serán `musculo` hasta E10. Una incisión profunda también corta la malla de fascia, la densidad en la fluoroscopia es la de un tejido blando (0,02) y la consola tiene el interruptor de capa «Fascia». *Por eso la prueba de la pierna del caso espera ahora `['Piel', 'Fascia_superficial']` como nodos de rol `piel`.*
+*Aspecto.* `aspectoDelSistema.ts` es la única tabla de rugosidad, opacidad, brillo sedoso y barniz; la leen el material del taller, el escritor de `.glb` (`KHR_materials_sheen` y `KHR_materials_clearcoat`) y el guion de Blender. Colores: superficial `#f3dc90`, profunda `#e9b5ad`, meníngea `#cfd5e0`, visceral `#e3bfc8`. Las fibras de colágeno se dibujan en el material según la posición, sin coordenadas de textura.
+*Consecuencias.* (+) Lo ya pedido por Cristóbal tiene dónde apoyarse: hay una capa de fascia que cortar, separar y suturar (E10 y E11). (+) El atlas de origen queda intacto y la regeneración es reproducible (semilla fija, mismo archivo en dos corridas). (+) Todo lo exportado desde el taller sale con la fascia recortada a lo exportado. (−) **Son aproximaciones calculadas, no anatomía disecada:** la fascia superficial es una lámina a un centímetro bajo la piel y no una capa de grasa con volumen, y la profunda sigue la forma de lo que el atlas trae —donde el atlas es pobre, también ella—. (−) **Regenerar el atlas ya no basta:** después de `preparar.mjs` hay que volver a correr `agregar-fascias.mjs --aplicar` y `atribucion.mjs`; la receta de las piezas está en `recetas.py` y los pasos, en el `README`. (−) Los casos ya guardados no llevan fascia hasta que se vuelven a exportar desde el taller; el guion para rehacerlos todos (E3.6) está sin escribir. (−) Del plan faltan los tabiques y retináculos (E7), la meníngea (E8), la visceral (E9) y todo el trabajo por planos del simulador (E10 y E11). (−) Quedan 8 pruebas del repositorio en rojo que **ya fallaban antes** y son del entorno (rutas entre unidades de Windows, permisos del respaldo, un prefijo de `ruta()` que llega por la variable de entorno de esta máquina); ninguna toca las fascias.
+
+### D-219 · 2026-10-24 · vigente
+**Las capas meníngea y visceral, los tabiques y los retináculos entran al atlas (P-006 E7, E8 y E9): 28 piezas más, 72 fascias en total, sin tocar los 15 paquetes de BodyParts3D.**
+Con esto las cuatro capas que pidió el dueño existen: el catálogo pasa a **2.303 piezas** (versión `bp3d-4.0-f5b4cdcd`), de las cuales 72 son generadas (39 de fascia profunda, 19 superficial, 8 meníngea, 6 visceral; 111.773 triángulos, 1,43 MB comprimido en el paquete 15). Las meninges y las serosas no salen de cortar una superficie continua por planos, como la fascia de un miembro: cada una es **su propia superficie** (`Resultado.por_pieza` en `capas.py`), y `generar.py` las decima y comprueba una a una; las pares se espejan.
+*E8 · Meníngea* (`meningea.py`, `hojas.py`, `entradas_meningeas.py`). El atlas trae el cerebro (106 piezas), los huesos del cráneo y las vértebras, **pero ni una meninge ni la médula**. La **duramadre craneal** es la región entre el cerebro y el hueso (el casco del cráneo cerrado con 30 mm para decir qué es «dentro», y de ahí, lo que está a menos de 14 mm del cerebro y no es hueso), cortada en el agujero magno; la **aracnoides** va 1,2 mm por dentro y nunca a menos de 1 mm del cerebro, y la **piamadre** pegada al cerebro cerrado 4 mm; las tres quedan una dentro de otra con al menos 0,8 mm entre ellas (se mide en la comprobación). La **hoz del cerebro** y la **del cerebelo** son láminas del plano medio con el borde libre calculado del cuerpo calloso y de la cresta del tentorio (el atlas trae solo **la mitad derecha** del tentorio: no se completa). La **dura, la aracnoides y la piamadre espinales** son tubos barridos por el conducto vertebral: la pared de delante es la cara posterior de los discos, la de atrás la cara interna de las láminas y los lados los pedículos, y el tubo se encoge hasta no tocar el hueso (3 % de los vértices toca; la primera versión, que buscaba el agujero de cada vértebra en una sección, tocaba el 30 al 50 %, porque las mallas de las vértebras son abiertas). La piamadre espinal es solo la envoltura del calibre medio de la médula, que el atlas no trae.
+*E9 · Visceral* (`visceral.py`). **El atlas no trae pulmones**, así que la **pleura parietal** se define como la cavidad que encierran costillas, esternón, vértebras, intercostales y diafragma, con una tapa inclinada sobre la primera costilla (el estrecho superior está abierto), menos el mediastino; lo que queda a cada lado del plano medio es el saco. Salen 1,5 L a la derecha y 1,3 L a la izquierda, menos que unos pulmones de verdad, y los bronquios quedan dentro. **La pleura izquierda no es el espejo de la derecha** (el corazón está a la izquierda), y por eso la fascia renal y la pleura son cada una su pieza, con su `M`, y la prueba de espejo las exceptúa. El **pericardio fibroso** es el cierre del corazón y la raíz de los grandes vasos a 2,5 mm; el **peritoneo parietal**, el cierre de 3 cm sobre las vísceras, a 3 mm, dentro de la pared supuesta a 22 mm bajo la piel; la **fascia renal**, una bolsa a 15 mm del riñón y de la suprarrenal. **Lo que se aprendió:** sellar la cavidad torácica con una rejilla de 3 mm es frágil: con 10 mm de cierre salía 4,2 L o 0,4 L según cayera la rejilla (la pared mide un voxel), y solo 15 mm la sella siempre (se probó con siete márgenes). Y la pared no se muestrea a tres cuartos de casilla sino a la mitad.
+*E7 · Tabiques y retináculos* (`compartimentos.py`). La pierna se parte en sus cuatro compartimentos (los músculos de cada uno, cerrados 4 mm); el **tabique intermuscular anterior** (entre anterior y lateral) y el **posterior** (entre lateral y posterior superficial) son el cero de la diferencia de las distancias a los dos grupos, donde los dos están a menos de 18 mm, fuera del hueso y dentro de la pierna. Los cinco **retináculos del tobillo** (extensor superior e inferior, flexor, peroneo superior e inferior) son bandas de la propia fascia fina levantadas 1,2 mm. **No se hace el tabique transverso** (entre el posterior superficial y el profundo): la FMA no le da código y toda pieza del atlas lleva uno; tampoco los compartimentos del muslo.
+*Al exportar* se suman con las mismas reglas que la profunda y la superficial: la meníngea si hay cerebro, hueso del cráneo o vértebras (`esContenidoDeMeninge`), la visceral si hay costillas, corazón o vísceras (`esContenidoDeSerosa`), y siempre recortadas a la caja de lo exportado.
+*Consecuencias.* (+) Las cuatro capas están, con nombre, traducción, FMA y recorte como el resto; (+) las nueve piezas de E7 y E8 con espejo y las seis visceral se pueden encender y apagar desde el taller por sistema. (−) **Todo es aproximado y las notas de cada pieza lo dicen:** sin senos venosos, sin espacio subaracnoideo, sin la capa serosa interna del pericardio, sin pulmones; los saco pleurales salen más pequeños que unos pulmones reales y el peritoneo es la envoltura de las vísceras y no la cara interna de una pared que el atlas no tiene. (−) El tabique anterior mide 0,0055 m² (más delgado que el real): donde los músculos del atlas están lejos uno de otro no hay tabique. (−) El tentorio sigue siendo solo medio. (−) La cavidad torácica depende de piezas concretas (la primera lumbar y su disco la cierran por detrás): si el atlas se regenera con otras, la comprobación `cavidad torácica` del generador (4,5 L) lo dice.
+
+### D-220 · 2026-10-24 · vigente
+**La fascia es un plano más del simulador, entre la piel y el músculo, y el cierre va por planos: el Vicryl a la fascia, el nailon a la piel (P-006 E10 y E11).**
+Cristóbal escribió «es crítico incluir la fascia dentro de los planos» y «el vicryl debe ir a la fascia». Hasta ahora la herida tenía dos planos, `piel` y `musculo`, y la sutura de D-169 cosía sobre la piel y cerraba **todas** las heridas con las mismas puntadas.
+*E10 · El plano de herida `fascia`* (`src/lib/planosBlandos.ts`). `PlanoDeCorte`, `CapaDeLaHerida` y `PlanoDelSeparador` pasan a incluir `fascia`. Los instrumentos «profundos» (bisturí N.º 15, electrobisturí, tijeras) siguen pidiendo `musculo`, pero **en un caso con fascia visible el primer trazo profundo abre la fascia y el segundo llega al músculo** (`planoQueCorta`): sin abrirla no se entra, y se le dice a quien trazó. Antes, el trazo que abría el músculo abría también la fascia en el mismo golpe, y no había forma de ver ni de medir la fascia por separado. Un caso sin fascia (los de antes) o con la capa apagada corta el músculo como siempre. Los separadores se pueden apoyar en la fascia (el plano abre su herida y la de encima: piel y fascia), el botón del separador baja un plano a la vez (piel → fascia → músculo → piel), el Hohmann abre los tres, y la disección roma de la Metzenbaum separa la fascia por tensión. La consola nombra las heridas «Piel y Fascia», y el texto de la guía del bisturí profundo deja de ser un aviso («aquí suele aparecer la fascia…») para decir lo que ahora pasa.
+*E11 · El cierre por planos* (`src/lib/planosDeLaSutura.ts`, `hiloEnLaEscena.ts`, `refrescarSutura`). Cada puntada lleva el plano de la pieza que se tocó. **Cada hilo va a su plano:** Vicryl 2-0 a la fascia, Vicryl 3-0 a la fascia o al subcutáneo (que cae en la piel abierta), nailon 3-0 y Monocryl 5-0 a la piel; una puntada en el plano que no es la de su hilo **se avisa y no cuenta**, y el músculo no se sutura con ninguno (lo cierra la fascia). Un hilo creado a mano, sin planos declarados, va donde se lo ponga. La separación entre puntadas, los cruces, la tensión y el cierre se miden **por plano**: la sutura de la fascia cierra la herida de la fascia (y la del músculo, que nadie sutura), la de la piel cierra la de la piel, cada una con su tensión —el deslizador aprieta el plano en que se está cosiendo—, y **la herida entera está cerrada cuando lo están la piel y la fascia**. Con la piel cosida y la fascia abierta el cierre dice 0 %, que es lo que alarmó a Cristóbal. Cambiar de plano abre una línea nueva (el hilo de la fascia no se tiende hasta la piel). El panel muestra una línea por plano con sus puntadas, su separación media y cuánto cierra, y el mensaje de «Herida cerrada con N puntadas» sale cuando lo están las dos.
+*Solo con fascia en el caso.* Un caso que declara alguna pieza con ese papel cierra por planos; uno sin ella, como siempre (todas las puntadas cierran todas las heridas). La sesión guardada recuerda el plano de cada puntada y la tensión de cada plano; lo guardado antes de esto se toma por la piel.
+*Lo que es provisional y lo que no se hizo.* La separación ideal en fascia es **de 8 a 15 mm** (la piel sigue en 5 a 10), y es una cifra mía a la espera de que Cristóbal diga la suya (P4-Q3); está en un solo sitio (`SEPARACION_IDEAL_POR_PLANO`). El tabique entre piel y fascia (la superficial: la tela subcutánea) sigue siendo parte del plano de la piel, y no se cose aparte. **No se hizo:** que un paso del caso pida «incidir la fascia» (los pasos no evalúan heridas por capa hoy), el plano en el editor de pasos, y la prueba en una cirugía real sobre la pierna reexportada, que **no se ha hecho en el navegador**: lo probado son las pruebas de unidad con la escena de three (`suturaPorPlanos.test.ts`, 7 pruebas) y las puras (`planosBlandos`, `planosDeLaSutura`, `exposicion`).
+*Consecuencias.* (+) El cierre que alarmó a Cristóbal se ve y se mide: la distancia entre puntos de la fascia, y que la piel sola no la cierra. (+) Nada cambia para un caso sin fascia. (−) Un caso con fascia exige **dos** trazos profundos para llegar al músculo, y los que ya existen y se reexporten con fascia se comportan así: quien tenga un caso así debe saberlo (se dice en el manual). (−) Una sesión que se guardó con un corte profundo antes de esto no tiene la herida de la fascia: al recargarla, la fascia está entera. (−) Con la tensión **por plano**, aflojar la fascia no afloja la piel; hay que elegir cuál se aprieta cosiendo en ese plano.
+
+### D-221 · 2026-10-24 · vigente
+**La documentación de las fascias, y la vista de Blender como herramienta de revisión (P-006 E12).**
+*Documentación.* `MANUAL-DE-USO.md` gana «Las fascias» en el taller (las cuatro capas, cuándo entran al exportar, la casilla «Incluir las fascias de la zona») y, en el simulador, el primer trazo profundo sobre la fascia, el separador apoyado en ella y el cierre por planos; `COMO-SUBIR-UN-MODELO.md` agrega el papel «Fascia»; `README.md` dice que **regenerar el atlas ya no basta** (D-218); los dos manuales en Word se actualizan —el del simulador pasa a 1.4 y el del taller a 1.1, con párrafos nuevos y **sin capturas nuevas**: las figuras de las pantallas siguen siendo las de antes—. El texto de la casilla de exportar, que solo hablaba de la profunda y la superficial, nombra las cuatro.
+*La vista de Blender* (`scripts/atlas/fascias/vista_en_blender.py`) deja de ser un asunto de la pierna: `--contexto cuerpo` arma el cuerpo entero (esqueleto, cerebro, órganos y la piel casi transparente) con las 72 fascias, cada capa en su colección del esquema (Fascia superficial, profunda, meníngea, visceral), los objetos con su nombre en español y el código FMA como propiedad; `--capas` enseña solo algunas, `--sin-piel`, `--sin-esqueleto`, `--opacidad-capas` y `--corte-x` (un corte sagital) afinan lo que se mira, y `--blend` guarda la escena con luces, cámara y la vista previa de materiales ya puesta. Se cambió la luz (fondo oscuro, transformación «Estándar»): con el gris claro de antes **todas las capas salían blancas**. Se generan con `blender --background --factory-startup --python scripts/atlas/fascias/vista_en_blender.py -- --contexto cuerpo --colores aspecto --lado ambos --blend ruta.blend`, y quedan en `scripts/atlas/fascias/salida/` (ignorada por git).
+*Lo que se miró y lo que se encontró.* La fascia profunda se lee como una lámina rosada nacarada con el rayado longitudinal de las fibras y deja ver la cresta de la tibia; la superficial, como una tela amarillenta y translúcida; las pleuras y el peritoneo, como sacos mauve sobre el esqueleto; en el corte sagital se ven la duramadre y la aracnoides como láminas grises bajo el hueso, y el cerebro dentro. **La fascia profunda deja huecos donde el atlas no trae músculos** (la ingle, el hueco de la nalga, la cara): es lo que hay.
+*Lo que no se hizo.* La ficha de cada fascia con su texto clínico (E12.3): son 72 piezas y ninguna tiene ficha; y las capturas de los manuales.
+
+### D-222 · 2026-10-24 · vigente
+**Las fascias se integran sobre `main` (P-006): qué cambió al pasarlas a la versión de hoy, qué se probó en un navegador de verdad y qué queda.**
+*Cómo llegó.* El trabajo de P-006 se hizo en una copia del repositorio que iba **63 commits por detrás de `origin/main`** (con su `BITACORA.md`
+sin D-194 a D-217 y con la numeración P-004 y P-005 libre) y con cambios sin confirmar de otros trabajos mezclados en el mismo árbol. Para
+subirlo no se confirmó esa copia: se creó un árbol limpio desde `origin/main` y se **pasó solo lo de las fascias**, archivo por archivo
+—lo nuevo, copiado; lo ya existente, solo mis líneas sobre la versión de `main`—, y en el simulador se rehízo a mano contra los cambios de
+P-004 y P-005 (barra de modos, plano «Automático» del separador, incisiones por id). De ahí la renumeración: el plan pasó a **P-006** y sus
+decisiones a **D-218 a D-222**; los comentarios del código que citaban P-004 y D-194 a D-197 se cambiaron solo en las líneas propias.
+*Lo que cambia por haberse integrado.* (1) **Cada fascia sale como objeto propio** al exportar, con su nombre, su código y su papel, porque
+`main` ya separa por estructura (D-185): ya no sale una sola «Fascia_profunda» sino «Fascia_crural_derecha», «Retinaculo_flexor_del_tobillo_derecho»…
+(con `separarEstructuras: false` siguen saliendo fundidas por capa). (2) El **clic del separador** (`abordajePorPlanos`) conoce la fascia:
+el orden de prueba es piel → fascia → músculo solo cuando hay una herida en la fascia; sin ella, el de siempre. (3) El **listado de
+estructuras y las planillas por región cuentan las 72 fascias**: el atlas pasa a 2.303 piezas y «Miembro inferior derecho» de 124 a 133 fichas
+(las fascias piden solo la definición: familia «otro»). (4) La migración `rol_fascia` se rehízo sobre el último esquema (`equipo_del_inicio`).
+*Qué se probó.* `typecheck` limpio; `lint` limpio en lo tocado; `build` bien; **unitarias: 4.538 pasan y fallan 4 de las 5 que ya fallaban en
+`main`** (rutas de Windows y permisos de la carpeta de respaldos); **integración contra un PostgreSQL 17 desechable: 229 pasan y fallan las 7 de
+`estructuras.test.ts` que ya fallaban en `main`**; la migración sube, baja y vuelve a subir. **En el navegador, con una pierna exportada del
+taller con sus fascias**: la capa «Fascia» aparece entre la piel y el músculo; el bisturí de piel abre la piel, el **primer trazo profundo corta la fascia**
+(«Se cortó la fascia, que cubre al músculo…») y el **segundo llega al músculo**; el selector de plano del separador trae «Automático · Piel · Fascia ·
+Músculo» y un Farabeuf apoyado en la fascia abre la herida de la fascia; **Vicryl 2-0 sobre la piel se rechaza** («va a la fascia: esta puntada
+cayó en la piel y no cuenta»), sobre la fascia **cuenta** («Puntada 1 en fascia»), el panel enseña una línea por plano, «Tirar del hilo» es el del plano
+activo y al 80 % cierra la herida de la fascia al 13 % con una sola puntada que cruza, sin tocar la piel; y el taller enseña los cuatro botones de fascia y la
+casilla «Incluir las fascias de la zona». El caso se montó sobre la base desechable con el mismo código que usa la exportación del taller.
+*Lo que se vio y no se corrigió.* Con varias incisiones, **un separador abre la incisión en que se puso** (P-003 E4): uno apoyado en la fascia no abre la
+herida de la piel aunque «CAPAS_QUE_ABRE» diga que la piel va con él; por cómo está escrito `aplicarSeparadoresALasHeridas`, lo mismo le pasa en `main` a uno apoyado en el músculo (no se
+probó aparte), y los textos nuevos hablan solo de la herida de su plano. Quien quiera la piel abierta pone también uno en la piel. La separación ideal en fascia (8 a 15 mm) sigue siendo mía, a la espera de
+Cristóbal (P4-Q3 del plan).
+*Lo que no se hizo.* Un botón en el editor del caso que vuelva a exportar **cualquier** modelo con fascias (hoy «Volver a exportar con estructuras separadas»
+solo sale en un modelo fundido por sistema; para los demás se vuelve a exportar desde el taller, con la preparación guardada) —sustituye al guion E3.6 que se había
+pensado—; la fascia clavipectoral y la parotídea; el tabique transverso y los compartimentos del muslo; que un paso pida «incidir la fascia»; la ficha de cada una de
+las 72 fascias y las capturas nuevas de los manuales.
+*Consecuencias.* (+) Las fascias llegan a `main` con el mismo comportamiento que se probó. (+) Nada cambia para un caso sin fascia. (−) El atlas pesa un paquete más
+(el 15, 1,4 MB comprimido) y la planilla del miembro inferior derecho tiene nueve filas más. (−) `P-004` y `D-194` a `D-197` aparecen todavía en la conversación y en el
+historial de la copia vieja; lo vigente es lo de este archivo.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -10933,6 +11002,683 @@ programa, se prueba en el navegador y se documenta.
 puede leer y corregir. Cada etapa deja su **D-nnn**, su sección en el manual de uso y sus pruebas.
 
 **Estado:** E1 hecha salvo la plantilla maleable (D-207). E2 hecha (D-208). E3 con la aguja de Kirschner hecha (D-209); camisa y motor pendientes. E4 hecha (D-210). E5 hecha: clavo, arco, martillo e impactador (D-211). E6 hecha: bloqueo del clavo, destornilladores y limitador (D-212). E7 hecha: injertos óseos (D-213). Quedan la plantilla maleable (E1), la camisa y el motor (E3), en ese orden salvo que el dueño pida otro (el caso de clavo endomedular de prueba pide E4 y E5).
+
+---
+
+### P-006 · 2026-10-24 · hecha en lo central (E0 a E12), con lo que cada etapa deja sin hacer anotado abajo
+**Las fascias: cuatro capas continuas de cuerpo entero —superficial, profunda, meníngea y visceral— que el atlas no
+trae, hechas como piezas del atlas con la misma estructura que las demás, exportables recortadas a lo que se exporta,
+y puestas como un plano más de la cirugía.**
+
+*Cómo se numeró.* Este plan se escribió y se hizo como **P-004** y sus decisiones como D-194 a D-197, en una copia del
+repositorio que no había recibido todavía lo que `main` llevaba: allí P-004 y P-005 ya eran el plan de los pedidos de la
+segunda ronda y el de las herramientas de la bandeja, y D-194 a D-217 estaban tomadas. Al integrarlo pasó a **P-006** y sus
+decisiones a **D-218 a D-222**; los comentarios del código que lo citan llevan los números nuevos. Los «E1 … E12» y los
+«F-nn» de más abajo no cambian.
+
+*P-002 sigue reservado para DICOM (P-001 E7). Este plan no cuelga de P-003: lo que pide es geometría nueva, y P-003 E8
+a E10 (ficha por estructura, «Info», trabajo por planos) lo usan, no lo contienen.*
+
+#### De dónde sale
+
+El documento «observaciones simulador quirurgico (2).pdf» (2 páginas, que el dueño trajo el 2026-10-24) con nuevas notas de
+Cristóbal tras operar. La **primera página** es de la fascia, y dice:
+
+- «Tuve problemas para suturar. Me daba alarma de que mi cierre estaba muy distanciado. **El vicryl debe ir a la fascia,
+  que todavía no la incluimos.**» Y: «**Es crítico incluir la fascia dentro de los planos.**»
+- Tres imágenes de referencia: **(A)** fascia crural del compartimento anterior en una disección —una lámina nacarada
+  sobre el tibial anterior, con la grasa amarilla por fuera—; **(B)** un corte transversal de pierna con los compartimentos
+  dibujados cada uno con su contorno (anterior: tibial anterior, extensor largo de los dedos y del hallux; lateral: peroneo
+  largo; posterior profundo: tibial posterior y flexores largos; posterior superficial: sóleo y gastrocnemio); **(C)** una
+  ilustración de las dos pantorrillas con la fascia como un manguito translúcido sobre los músculos. El comentario del
+  documento: «es una capa rosada».
+
+Y el dueño, en el chat, ese mismo día, pidió:
+
+1. Que se entienda **cómo está formado el cuerpo y el modelo 3D** y se haga **lo más realista que se pueda**.
+2. Estas **cuatro estructuras**, que describió como una red continua de cuerpo entero —«un traje de malla 3D
+   ininterrumpida de la cabeza a los pies y de la piel a los huesos»—: **fascia superficial** (bajo la piel; lleva vasos,
+   linfa y nervios, amortigua y aísla), **fascia profunda** (envuelve cada músculo, los junta en grupos, se fija al hueso por
+   los tendones y forma las vainas vasculonerviosas), **fascia meníngea** (duramadre, aracnoides y piamadre alrededor del
+   cerebro y la médula) y **fascia visceral** (suspende los órganos en sus cavidades: pleura, pericardio, peritoneo).
+3. Que lo que se agregue quede **con la misma estructura que el resto: nombres, traducciones, enlaces y demás**.
+4. Que las estructuras **se ciñan a las que ya existen**, sin cambiar drásticamente las disposiciones.
+5. Que **lo ya exportado se vuelva a exportar solo con las partes que están en el corte**: si del taller se corta una pierna
+   y hay una fascia más grande, debe salir **cortada a lo que ya estaba exportado, no la pieza completa**.
+6. **Textura y color ideales**, y **abrir el modelo en Blender** al terminar, para ver lo agregado.
+7. Primero **este plan, ultradetallado, en la bitácora**; después, hacerlo **paso por paso**.
+
+#### Lo que se midió antes de escribir el plan (2026-10-24)
+
+Todo esto se leyó en el repositorio o se probó; nada es de memoria.
+
+- **El atlas no tiene fascia.** Ninguna de las 2.231 piezas lo es. Lo más cercano: la cintilla iliotibial (`FJ1423`, hoy en
+  tejido conectivo por la corrección de D-092), las membranas interóseas de pierna y antebrazo, el retináculo flexor de la
+  muñeca —que el atlas de origen clasifica como «órgano de los sentidos»—, la línea alba, el tentorio del cerebelo
+  (`FJ1843`) y el mesenterio del intestino delgado. **No hay pulmones ni médula espinal**: del aparato respiratorio hay
+  los árboles bronquiales y la tráquea, y de la médula solo el conducto central (112 vértices). Sí hay vértebras (C3 a L5,
+  con huecos), costillas, esternón, el diafragma (8.469 vértices), la pared del corazón, el estómago, los riñones.
+- **Cómo es una pieza** (`src/atlas/formato.ts`): `id` (`FJ####`; la izquierda de un par lleva una `M` detrás),
+  `nombre` en inglés —que es la clave de la traducción y no se reescribe—, `fma`, `sistema` (quince, con color propio),
+  `region` (trece) y de dónde salió (`origenRegion`), y dónde vive su geometría: `paquete`, `pos`, `nor`, `idx`,
+  `vertices`, `indices` y `caja`. La geometría son posiciones de 32 bits, normales de 16 y triángulos de 32, en **15
+  paquetes `.bin.gz`** que se sirven «immutable» un año con la versión del catálogo en la dirección. La malla es de baja
+  resolución a propósito: la tibia derecha tiene **334 vértices** y la piel **22.902**; el atlas entero, 2,27 millones de
+  triángulos.
+- **Cómo se pinta** (`src/atlas/cargador.ts`): una malla por sistema, con el número de pieza en cada vértice; encender,
+  apagar, mover o dar opacidad a una pieza es escribir un píxel en una textura. Un sistema nuevo del catálogo es una malla
+  nueva y un material nuevo, sin tocar nada más.
+- **Cómo se nombra**: la traducción vive en `src/atlas/nombres-es.json` indexada por el nombre original; sin traducción, se
+  enseña el original (`nombreEnEspanol`). El árbol enseña `nombre · fma` al pasar el ratón (`ArbolAnatomico.tsx`).
+- **Cómo se exporta** (`exportarAtlas.ts`, `exportarPreparacion.ts`, `reproducirPreparacion.ts`): de una preparación se leen
+  **solo las piezas que lista**, se rehacen sus cortes y movimientos, se funden por sistema salvo las protagonistas, se
+  **recorta la piel** a la caja de lo demás más 5 cm, se centra y se escribe un `.glb` con el rol de cada objeto (`piel`,
+  `musculo`, `hueso`, `fragmento`, `implante`). Las fascias nuevas **no están en ninguna preparación guardada**: sin cambios,
+  nada de lo ya exportado las llevaría.
+- **Cómo corta el taller** (`recorte.ts`, `osteotomia.ts`): el marco que corta parte cada pieza que cruza el borde con
+  `partirPorVariosPlanos`, y **tapa** los contornos que cierran. Para un hueso es lo correcto; para un manguito de fascia
+  sería un disco cruzando la pierna. Es el primer problema real de meter fascias en el taller.
+- **El simulador tiene tres planos** (`piel`, `musculo`, `hueso`; más `fragmento` e `implante`). Las heridas se guardan por
+  plano (`'piel' | 'musculo'`), los separadores se apoyan en uno de los dos, y `rolPorElNombre` manda hoy «fascia» a
+  `musculo` (`piezasDelCaso.ts`). El rol es un `select` de Payload: uno nuevo exige migración.
+- **Los códigos FMA** de las estructuras de abajo se consultaron en el servicio público de ontologías del EBI (OLS, ontología
+  `fma`) el 2026-10-24. Los lados vienen con código propio y consecutivo (derecho N, izquierdo N+1), como en el atlas.
+- **Software disponible en esta máquina:** Blender 5.2 LTS (`C:\Program Files\Blender Foundation\Blender 5.2`), Python 3.14
+  con `numpy` 2.5 y `scipy` 1.18 —sin `skimage`, `trimesh` ni `shapely`—, Node 24, 32 GB de memoria y 32 hilos.
+
+**La prueba de que se puede (E0).** Con las 25 piezas de la pierna derecha bajo la rodilla (músculos, tendón calcáneo,
+membrana interósea, tibia, peroné y huesos del tarso) se pasó a una rejilla de 2 mm, se cerró el volumen con radio de 8 mm
+y se sacó la superficie con *Surface Nets* hecho a mano (el atlas no trae ninguna librería de mallas). Salió un manguito
+de 52.440 vértices que envuelve la pierna, puentea los surcos entre músculos, pasa por encima de la cresta tibial y se
+cierra en el tobillo, como la fascia crural. Se vio en Blender sin ventana (EEVEE, 18 s). Tres lecciones, todas ya
+corregidas en el prototipo y escritas aquí para no repetirlas: la orientación de las caras salió al revés (el 92 % miraba
+hacia dentro) hasta comprobarla contra el interior; **el importador de OBJ de Blender gira el objeto en vez de mover los
+vértices**, y un guion que le pone `rotation_euler = 0` lo tumba; y las mallas del atlas no son todas cerradas, así que el
+relleno **no puede basarse en la paridad de rayos**, sino en inundar desde fuera sobre una superficie algo engrosada.
+
+#### Qué es cada capa, y cómo se llama en el atlas
+
+| Capa | Qué es | Sistema nuevo | Rol en la consola | Color | Piezas con su FMA |
+|---|---|---|---|---|---|
+| **Superficial** | La tela subcutánea: tejido conectivo laxo y grasa entre la piel y la fascia profunda; en el abdomen, fascia de Camper (grasa) y de Scarpa (membranosa) | `fascia-superficial` · «Fascia superficial» | `piel` (se incide con ella, F-9) | `#f3dc90`, amarillo graso | Pierna `FMA50285`/`50286`, muslo `50290`/`50291`, pie `50283`/…, brazo `37785`, antebrazo `57785`, mano `57787`, abdomen `18083`, espalda `32583`, tórax `87553`, cuello `53660`, cabeza `53659` |
+| **Profunda** | La que envuelve a cada músculo y a los grupos, con tabiques y engrosamientos (retináculos, cintilla iliotibial); se fija al hueso | `fascia-profunda` · «Fascia profunda» | **`fascia`**, nuevo | `#e9b5ad`, rosa nacarado | Fascia lata `58778`/`58779`, crural `58791`/`58792`, dorsal del pie `58796`/`58797`, aponeurosis plantar `45172`/`45174`, glútea `312815`/`312817`, braquial `37787`/`37788`, antebraquial `38852`/`38853`, aponeurosis palmar `42440`/`42441`, pectoral `38173`/`38174`, clavipectoral `37340`, toracolumbar `25072`, temporal `270187`/`270189`, parotídea `270191`; tabiques de la pierna `58755` y `58758` |
+| **Meníngea** | Duramadre, aracnoides y piamadre del cerebro y de la médula | `fascia-meningea` · «Fascia meníngea» | `musculo` (partes blandas) hasta E10 | `#cfd5e0`, gris azulado | Duramadre craneal `71236`, espinal `71237`, hoz del cerebro `83967`, de la del cerebelo `83974`, aracnoides `83981`/`83982`, piamadre `78443`/`83975` (el tentorio ya existe, `FJ1843`) |
+| **Visceral** | Las serosas que sostienen y envuelven los órganos: pleura, pericardio, peritoneo | `fascia-visceral` · «Fascia visceral» | `musculo` hasta E10 | `#e3bfc8`, rosa grisáceo brillante | Pleura parietal `27312`/`27313`, visceral `27310`/`27311`, pericardio fibroso `9586`, peritoneo parietal `21451`, visceral `14703`, fascia renal `18105`/`18106`, transversalis `12265` |
+
+*Los colores se eligieron para no confundirse con los que ya existen: hueso `#e8e2d5`, piel `#dcc0a8`, tejido conectivo
+`#d8c9a8` y músculo `#b6544c`. La fascia profunda es rosada porque el documento lo dice, aunque la de un cadáver sea
+blanquecina.*
+
+#### Cómo se genera la geometría (el método, y por qué)
+
+El atlas no trae las fascias y no hay dónde descargarlas con licencia compatible, así que **se generan a partir de la
+geometría de BodyParts3D que ya está en el repositorio**. Una fascia es, por definición, el manguito que envuelve lo de
+debajo: si se conoce lo de debajo, el manguito se calcula. Los pasos, en orden:
+
+1. **Entradas.** Las piezas del atlas que cada fascia envuelve, **leídas ya corregidas** (`correcciones-de-sistema.json`: los
+   peroneos y los dos tibiales son músculos y no esqueleto, y sin eso la fascia crural los dejaría fuera).
+2. **Rejilla.** Cubos de 2 mm en los miembros y de 3 mm en el tronco y la cabeza, sobre la caja de las entradas con un margen
+   de cuatro veces el radio de cierre. Un miembro entero a 2 mm son unos tres millones de voxeles: cabe sobra en memoria.
+3. **Relleno.** La superficie de cada entrada se muestrea en puntos a menos de 1,5 mm (con semilla fija: dos corridas dan el
+   mismo archivo), se marcan los voxeles que tocan, se engrosa un voxel para sellar las grietas de las mallas abiertas y se
+   inunda desde fuera; lo que la inundación no alcanza está dentro.
+4. **Cierre morfológico de radio R.** Se dilata el relleno R y se erosiona R. Es lo que hace que el manguito **pase por encima
+   de los surcos entre músculos** en vez de meterse en ellos, que es lo que hace la fascia de verdad (los tabiques que sí
+   entran son una pieza aparte, E7). R se elige por pieza: 8 mm en la pierna, 12 en el muslo, 4 en el pie.
+5. **Campo con signo** (distancia por fuera menos distancia por dentro), suavizado con una gaussiana de 1,2 voxeles, y la
+   isosuperficie a **−0,5 mm**: la fascia queda medio milímetro **por encima** del músculo y no dentro, para que no se vea
+   a trozos por donde el atlas es bajo de resolución.
+6. **Superficie** con *Surface Nets* (un vértice por celda, quads partidos en dos triángulos), orientada hacia fuera y
+   comprobada contra el campo, no a ojo.
+7. **Suavizado de Taubin** (λ 0,5, μ −0,53; 8 a 12 pasadas): quita el escalón de la rejilla sin encoger el manguito.
+8. **Límites anatómicos.** El manguito sale continuo y se **parte por planos** en los sitios donde la anatomía lo parte (la
+   rodilla, el tobillo, el codo…), con un recorte **sin tapa** que deja la boca abierta. Las dos piezas vecinas comparten
+   exactamente el borde: la red es ininterrumpida, como pidió el dueño.
+9. **Decimado** a la resolución del atlas (unos 4.000 a 8.000 triángulos por pieza) con la colapsa de aristas de Blender, con
+   una tolerancia de 0,4 mm contra la malla fina. Una fascia es lisa: lo que se ve de ella es su forma, no su malla.
+10. **Espejo** para el lado izquierdo: las extremidades del atlas son espejos exactos de décimas de milímetro (D-136), así que
+    el izquierdo es el derecho con `x → −x` y las caras al revés, y se guarda con su identificador de la izquierda.
+11. **Comprobaciones automáticas** antes de aceptar una pieza (se escriben como pruebas, E1.7): ningún vértice dentro del
+    relleno de lo que envuelve; distancia al músculo bajo ella de 0 a R en todos los puntos; el 100 % de las normales
+    hacia fuera; ningún NaN; sin componentes sueltas de menos del 1 % del área; y los mismos bytes en dos corridas.
+
+**La fascia superficial** se calcula distinto: es lo que hay **entre** la piel y la profunda, así que su campo es una mezcla
+de las distancias a las dos —la superficie donde la distancia a la profunda es el 45 % del espesor total—, y donde la piel
+casi toca a la profunda (la cara interna de la tibia, 1 a 3 mm) la capa queda igual de fina, en vez de cruzarla.
+
+**La meníngea y la visceral** salen de cavidades, no de envolturas de músculos (E8, E9): duramadre y aracnoides del interior
+del cráneo y del conducto vertebral —que se obtienen rellenando los anillos de las vértebras y la bóveda—, y las serosas de
+las cavidades del tórax y del abdomen. **Esto se prueba en su etapa y puede salir peor que la profunda**; ver riesgos.
+
+#### Decisiones de diseño
+
+Se asientan como `D-nnn` en la sección 2 al cerrar cada etapa; aquí se numeran `F-n` para poder citarlas.
+
+- **F-1 · Cuatro sistemas nuevos del atlas, y no una pieza en «tejido conectivo».** Cada capa se enciende, se apaga y se
+  pinta por separado, que es lo que se hace al enseñar el plano; en «tejido conectivo» irían mezcladas con tendones y
+  ligamentos y la consola las trataría como músculo. Los identificadores son `fascia-superficial`, `fascia-profunda`,
+  `fascia-meningea` y `fascia-visceral`: **en español**, porque son de nuestra autoría y no de BodyParts3D (AGENTS.md); los
+  de BodyParts3D siguen en inglés porque son los suyos.
+- **F-2 · Geometría generada, reproducible y versionada.** Los guiones viven en `scripts/atlas/fascias/` y el **resultado**
+  va al repositorio (`public/atlas/`), como la piel de D-155: un despliegue no depende de Python ni de Blender. Lo
+  intermedio (mallas finas, vistas de control, `.blend`) va a una carpeta ignorada por git.
+- **F-3 · Un paquete nuevo, `cuerpo-15.bin.gz`, y los quince de siempre no se tocan.** El guion
+  `scripts/atlas/agregar-fascias.mjs` —hermano de `devolver-piel.mjs`— **comprueba byte a byte que los 15 paquetes siguen
+  iguales** antes de escribir, anota las piezas y los sistemas en `catalogo.json`, cambia la versión del catálogo (que viaja
+  en la dirección de cada paquete: es lo que obliga a descargar de nuevo) y rehace `ATRIBUCION.md`. Es idempotente. Un
+  paquete aparte tiene una ventaja más: quien no enciende fascias no lo descarga.
+- **F-4 · Identificadores `TH0001…` (y `TH0001M` para la izquierda).** No chocan con los `FJ` de BodyParts3D, no contienen `#`
+  (que separa los trozos de una pieza partida) y se distinguen a simple vista de lo que viene de fuera. La `M` final es la
+  misma convención del atlas para el lado izquierdo de un par.
+- **F-5 · «La misma estructura que el resto», pieza por pieza.** Cada fascia lleva todo lo que lleva cualquier pieza:
+  `nombre` original en inglés **con el nombre FMA** (para que se pueda buscar en la bibliografía, como pide la licencia),
+  `fma` verificado, `sistema`, `region` entre las trece que ya hay, `origenRegion: 'anatomia'` (la define la FMA; no es una
+  estimación por caja, que es lo que marca el «~» del árbol), `caja` medida de su geometría, su entrada en `nombres-es.json`
+  (**la tabla ya trae el español de cada una al nacer la pieza**, y una prueba lo exige: ninguna fascia sale «sin
+  traducir»), su pareja de espejo, su color de sistema, su densidad para los rayos X y su ficha de E8 al sembrar.
+- **F-6 · «Sin cambiar drásticamente las disposiciones.»** Las preparaciones guardadas listan identificadores: **no ganan
+  ninguna fascia sola**. La base «Cuerpo» (atlas entero, D-152) las enseña **apagadas** al abrir, como un sistema más que se
+  enciende desde el árbol, y al encenderlas llevan una opacidad inicial (35 %, mismo mecanismo que el 30 % de la piel,
+  D-162) para que sigan viéndose los músculos. Ninguna pieza existente cambia de sitio, de nombre ni de color.
+- **F-7 · El marco del taller corta las fascias sin tapar.** Una fascia es una cáscara abierta: la tapa de
+  `partirMalla` sería un disco. Se añade un recorte **sin tapa** (`src/lib/recorteDeCapa.ts`, puro y probado) y el cortador
+  lo usa para las piezas de los cuatro sistemas nuevos, en el taller y al reproducir una preparación en el servidor. **La
+  piel conserva su comportamiento** (con tapa): cambiarlo alteraría preparaciones que ya existen.
+- **F-8 · Al exportar, las fascias entran solas y se recortan a lo exportado.** Es el pedido 5. Regla:
+  - entra la **fascia profunda** si la preparación trae algún músculo; la **superficial** si trae piel; la **meníngea** si trae
+    cerebro o vértebras; la **visceral** si trae órganos de su cavidad. Una preparación de huesos sueltos **no gana
+    nada**;
+  - se toman las piezas de esos sistemas cuya caja toque la zona, donde la zona es la caja de lo que no es piel ni fascia
+    (la misma que ya usa la piel) con **1 cm de margen**, y se **recortan por sus seis caras, triángulo a triángulo**: los
+    que cruzan se parten y el borde queda recto, no dentado como el de la piel;
+  - si la preparación se hizo con un **marco que corta** (cortes con `otrosPlanos`), la fascia se recorta además por **esos
+    mismos planos**, de modo que su borde coincide con el del músculo;
+  - hay una casilla **«Incluir las fascias de la zona»** en el diálogo de exportar, marcada por omisión, y un
+    parámetro `fascias` de `exportarPreparacion` para los guiones;
+  - lo que se recortó se **dice en las notas** del modelo («Fascia profunda: se tomó la zona de lo exportado, 2.140 de los
+    9.800 triángulos de la fascia crural derecha»), igual que la piel.
+- **F-9 · Roles en la consola: `fascia` nuevo para la profunda; la superficial comparte plano con la piel.** En una
+  incisión real se abre «piel y celular subcutáneo» de un solo trazo, y el simulador pinta los planos como capas que se
+  atraviesan juntas: la superficial va con el rol `piel`, y la meníngea y la visceral con `musculo` hasta que haya cirugía de
+  columna o de abdomen. `fascia` es **un rol más** en el `select` de `Cirugias.ts` (migración con `ALTER TYPE … ADD VALUE`,
+  que ya se hizo en D-158 y se vigila en `migraciones.test.ts`). `rolPorElNombre` dejará de mandar «fascia» a músculo, con
+  la excepción del **tensor de la fascia lata**, que es músculo.
+- **F-10 · Fusionadas por sistema, como el resto, hasta E9.** Al exportar salen dos objetos nuevos: «Fascia profunda» y «Fascia
+  superficial», cada uno con todas las piezas de su sistema ya recortadas. Cuando P-003 E9 separe cada estructura, las
+  fascias se separan con ella; el `atlasId` y la ficha de E8 ya existen porque cada pieza tiene `id`.
+- **F-11 · El aspecto es una tabla, no código repartido.** `src/atlas/aspectoDelSistema.ts` (puro): color, rugosidad,
+  brillo sedoso, opacidad inicial y rayado de fibras de cada sistema. La leen el taller (material de la malla del sistema),
+  el escritor de glTF (propiedades PBR y extensiones `KHR_materials_sheen`/`clearcoat`, que Blender importa) y el guion de
+  Blender. Un color cambiado en un solo sitio cambia los tres.
+- **F-12 · Las fibras se dibujan en el material, no se guardan.** Sin coordenadas de textura: una fascia es un manguito de
+  forma arbitraria y poner UV a 80 piezas es un problema que no hace falta tener. El sombreador del taller y el
+  material de Blender calculan el rayado de colágeno (hilos largos con ondulación, oblicuos cruzados en la fascia lata) en
+  función de la posición. En el `.glb` viaja solo el material PBR; **la textura fina se ve en el taller y en Blender**, y
+  en la consola con color, brillo y translucidez. Si E4 enseña que no basta, se hornea (anotado en riesgos).
+- **F-13 · Las pruebas leen los datos reales.** Cada pieza nueva se comprueba contra `public/atlas/` (traducción, FMA con
+  forma de código, espejo, caja igual a la geometría, normales hacia fuera, índices dentro de rango): son las mismas pruebas
+  que ya cuidan el atlas (`atlas.test.ts`, `atlasEnEspanol.test.ts`) con las cifras que cambian (de 2.231 piezas a las que
+  salgan, de 15 paquetes a 16, de 15 sistemas a 19).
+- **F-14 · La licencia manda.** CC BY 4.0 obliga a decir qué se modificó. `scripts/atlas/atribucion.mjs` gana un párrafo:
+  «las fascias son piezas generadas por TraumaHub a partir de la geometría de BodyParts3D; no pertenecen al conjunto de
+  origen», con la lista, y `plantillaDeAtribucion.test.ts` la compara con lo escrito. Sin esto las piezas nuevas se
+  presentarían como de BodyParts3D.
+
+#### Qué toca el código (mapa para quien lo retome)
+
+| Dónde | Qué cambia | Etapa |
+|---|---|---|
+| `scripts/atlas/fascias/` (nuevo) | Motor de generación, recetas, Blender, vistas de control | E1, E2, E5–E9 |
+| `scripts/atlas/agregar-fascias.mjs` (nuevo) | Escribe `cuerpo-15.bin.gz`, el catálogo y la atribución | E1 |
+| `scripts/atlas/preparar.mjs`, `atribucion.mjs` | `SISTEMAS` gana los cuatro; la plantilla declara las fascias; **regenerar el atlas ya no basta: después hay que volver a `agregar-fascias`** (se avisa en `preparar.mjs`) | E1 |
+| `public/atlas/catalogo.json`, `cuerpo-15.bin.gz`, `ATRIBUCION.md` | Versión nueva, piezas y sistemas | E2… |
+| `src/atlas/nombres-es.json` | El español de cada fascia | E2… |
+| `src/atlas/formato.ts` | Nada de tipos si `origenRegion` se queda en `anatomia`; una constante `SISTEMAS_DE_FASCIA` | E1 |
+| `src/atlas/clasificacion.ts` | `ROL_DE_SISTEMA` con los cuatro sistemas | E3 |
+| `src/lib/radiografia.ts` | `DENSIDAD_POR_SISTEMA` y `DENSIDAD_POR_PAPEL`: la fascia no se ve en una placa (`null`) | E3 |
+| `src/atlas/aspectoDelSistema.ts` (nuevo), `cargador.ts` | Tabla de aspecto y su uso en el material; opacidad inicial | E4 |
+| `src/lib/recorteDeCapa.ts` (nuevo), `recorte.ts`, `fragmentos.ts`, `reproducirPreparacion.ts` | Recorte sin tapa para las capas | E3 |
+| `src/lib/exportarAtlas.ts`, `exportarPreparacion.ts` | Inclusión automática, recorte exacto, notas, rol y material | E3, E4 |
+| `src/lib/glb.ts` | Material PBR y extensiones por objeto | E4 |
+| `src/lib/piezasDelCaso.ts`, `src/collections/Cirugias.ts`, `src/admin/esquema.ts`, migración | Rol `fascia` | E3 |
+| `scripts/reexportar-con-fascias.ts` (nuevo) | Vuelve a exportar los casos que ya existen | E3 |
+| `src/components/admin/atlas/TallerDeAtlas.tsx`, `ArbolAnatomico.tsx` | Fascias apagadas en «Cuerpo», interruptores por capa, casilla al exportar | E2, E3 |
+| `src/components/simulador/*`, `src/lib/exposicion.ts`, `heridas.ts`, `sutura.ts`, `comportamientoDelInstrumento.ts` | El plano de la fascia: capa, incisión, separador, sutura | E10, E11 |
+| `tests/unit/atlas.test.ts`, `atlasEnEspanol.test.ts`, `plantillaDeAtribucion.test.ts`, `exportarAlSimulador.test.ts`, `migraciones.test.ts` | Cifras nuevas y pruebas de lo nuevo | todas |
+| `docs/MANUAL-DE-USO.md`, `docs/COMO-SUBIR-UN-MODELO.md`, `README.md`, manual `.docx` del simulador | Qué son las fascias y cómo se exportan | E12 |
+
+#### Reglas para todas las etapas
+
+- Las de siempre (AGENTS.md): todo en español, comentarios que explican el porqué, y al cerrar cada etapa `npm run typecheck`,
+  `npm run lint`, `npm run test:coverage`, `npm run test:integration` y `npm run build`; la integración nunca contra la base de
+  producción (O-048). **Antes de desplegar una etapa con migración, «Respaldar ahora»** en el panel.
+- **Lo que se prueba sin lienzo va en `src/lib` y en `src/atlas`**, sin `three` y sin React.
+- **Cada etapa que cambia geometría termina mirándose en Blender**, con una vista de frente, de lado y un corte transversal
+  guardados en la carpeta de control. Una malla que pasa las comprobaciones puede seguir siendo fea; el ojo es parte de la
+  prueba.
+- **Los paquetes viejos no cambian** (F-3). Si una etapa necesita cambiar una pieza ya escrita, se regenera `cuerpo-15` entero:
+  es reproducible.
+- Commits con `(P-006 En.m)` al final del mensaje. Se escribe una `D-nnn` por etapa, con lo que se probó y lo que no.
+- Antes de dar por hecha una etapa, se prueba **de punta a punta en local** y se anota en su `D-nnn` qué se hizo.
+
+---
+
+#### E0 · La prueba de que se puede · hecha (2026-10-24)
+
+Descrita arriba, en «Lo que se midió». No dejó código en el repositorio —el prototipo era de usar y tirar, en la carpeta
+temporal de la sesión— y **sí dejó el método**, que E1 vuelve a escribir bien y con pruebas. Resultado: la fascia crural sale
+y se ve como tal; el costo es de segundos por pieza.
+
+---
+
+#### E1 · El motor de generación · 1 sesión · hecha (2026-10-24), ver D-218
+
+**De dónde sale:** pedidos 1, 2 y 3; F-2, F-3, F-4, F-13, F-14.
+
+**Qué se construye:** `scripts/atlas/fascias/` y el escritor del atlas. **No añade ninguna fascia todavía**: deja la máquina
+probada, para que E2 sea solo escribir recetas.
+
+**Tareas**
+
+- [ ] **E1.1 · `atlas.py`:** lector del catálogo y de los paquetes (`pos` f32, `nor` i16, `idx` u32 en los desplazamientos del
+  catálogo), que aplica `correcciones-de-sistema.json` igual que `corregirCatalogo`. Pruebas de humo: la tibia derecha da 334
+  vértices y 634 triángulos, y la piel 22.902 y 44.744.
+- [ ] **E1.2 · `campo.py`:** muestreo con semilla, ocupación, relleno por inundación, cierre de radio R, campo con signo,
+  suavizado. Todo en metros. Una prueba con una esfera y un cilindro de tamaño conocido: el volumen del relleno sale dentro
+  del 1 %, y el cierre de dos cilindros paralelos separados menos de 2R los une.
+- [ ] **E1.3 · `malla.py`:** *Surface Nets* (orientación comprobada), Taubin, componentes, **recorte por planos sin tapa**,
+  espejo, normales, cajas. Una prueba: un cilindro hueco cortado por un plano sigue siendo hueco y no gana tapa.
+- [ ] **E1.4 · `recetas.py`:** la tabla declarativa de piezas (`id`, nombre original, FMA, sistema, región, entradas, R, límites,
+  lado, objetivo de triángulos). Es lo único que E2, E5, E6, E8 y E9 tocan.
+- [ ] **E1.5 · `refinar_en_blender.py`:** decimado con tolerancia, comprobación de que no hay aristas sueltas ni caras
+  degeneradas, vistas de control (frente, lado, corte transversal) y el `.blend`.
+- [ ] **E1.6 · `agregar-fascias.mjs`:** empaquetado (alineado a 4 bytes, como `devolver-piel.mjs`), anotación en el catálogo,
+  versión nueva por hash, `ATRIBUCION.md`. Comprueba que los 15 paquetes siguen iguales (SHA-256), que no hay `id` repetido y
+  que cada pieza trae traducción. Sin `--aplicar` solo dice qué haría. Idempotente.
+- [ ] **E1.7 · Pruebas de vitest** de los invariantes del atlas con fascias (F-13), preparadas para que pasen con cero fascias
+  y se vuelvan exigentes con cada una que entra.
+- [ ] **E1.8 · `D-nnn`** y una línea en `README.md` («regenerar el atlas ya no basta»).
+
+**Hecho cuando…** Se ejecuta el motor dos veces con la misma receta de prueba y salen los mismos bytes; las pruebas de humo
+dan las cifras de arriba; y `agregar-fascias.mjs`, sobre una copia del atlas, añade una pieza de prueba, deja los 15 paquetes
+idénticos y es idempotente.
+
+---
+
+#### E2 · La fascia profunda del miembro inferior · 1–2 sesiones · hecha (2026-10-24), ver D-218
+
+**De dónde sale:** pedido 2 (fascia profunda) y la primera página del PDF, que es de la pierna. Es la **primera capa que ve
+Cristóbal**, porque su cirugía es de tibia y peroné.
+
+**Piezas** (derecha; la izquierda sale por espejo, con su `M`). Los límites en `y` se **miden en esta etapa** sobre la caja de
+la tibia y el fémur: son los de la anatomía (meseta tibial, maléolos, ligamento inguinal), no un número puesto a ojo.
+
+| Original (FMA) | Español | Qué envuelve | R | Límites | Región |
+|---|---|---|---|---|---|
+| Right fascia lata proper (`58778`) | Fascia lata derecha | Cuádriceps, isquiotibiales, aductores, grácil, sartorio, tensor de la fascia lata, cintilla iliotibial, fémur | 12 mm | de la meseta tibial al pliegue inguinal | `miembro-inferior-derecho` |
+| Right crural fascia (`58791`) | Fascia crural derecha | Músculos de la pierna, tendón calcáneo, membrana interósea, tibia y peroné | 8 mm | de la meseta tibial a los maléolos | `miembro-inferior-derecho` |
+| Right gluteal fascia (`312815`) | Fascia glútea derecha | Glúteos mayor, medio y menor | 12 mm | de la cresta ilíaca al pliegue glúteo | `abdomen` (donde el atlas pone los glúteos; se confirma) |
+| Dorsal fascia of right foot (`58796`) | Fascia dorsal del pie derecho | Tendones extensores, huesos del tarso y metatarsianos | 5 mm | del tobillo a los dedos, cara dorsal | `pie-derecho` |
+| Right plantar aponeurosis (`45172`) | Aponeurosis plantar derecha | Músculos de la planta, calcáneo | 4 mm | del calcáneo a las cabezas metatarsianas, cara plantar | `pie-derecho` |
+
+*Los retináculos extensores, el flexor y los peroneos (engrosamientos de esta misma fascia en el tobillo) y los tabiques de la
+pierna van en E7, con los compartimentos.*
+
+**Cómo se verá en el taller y en la consola.** La fascia lata y la crural comparten el borde de la rodilla y la crural y la
+dorsal el del tobillo: una sola superficie continua partida en tres. La cintilla iliotibial (`FJ1423`) queda **dentro** de
+la fascia lata, medio milímetro por debajo, y se ve cuando se apaga la fascia.
+
+**Tareas**
+
+- [ ] **E2.1 · Medir los límites** y anotarlos en la receta, con la estructura del atlas en que se apoya cada uno.
+- [ ] **E2.2 · Recetas y generación** de las cinco piezas; vistas de control; revisión a ojo contra las tres imágenes del PDF
+  (¿se ve el compartimento anterior bajo la fascia? ¿pasa sobre la cresta tibial? ¿se cierra en el tobillo?).
+- [ ] **E2.3 · Traducciones** en `nombres-es.json` y una prueba que exige que cada pieza de un sistema `fascia-*` tenga una.
+- [ ] **E2.4 · `agregar-fascias.mjs --aplicar`**: los cuatro sistemas entran al catálogo aunque aún tengan pocas piezas, para
+  que no cambie la forma del árbol entre etapas.
+- [ ] **E2.5 · El taller:** fascias apagadas en «Cuerpo» (F-6), opacidad inicial al encenderlas, interruptor por capa en la
+  barra y entrada en el árbol «Por sistema» y «Por región». Que **buscar «fascia crural», «crural fascia» o «fibula» encuentre lo
+  que debe** (`casaConLaBusqueda`).
+- [ ] **E2.6 · Mirar en Blender** con la pierna completa —piel, fascia, músculos, huesos—, de frente, de lado y en un corte
+  transversal a media pierna. **Abrir el `.blend` para el dueño.**
+- [ ] **E2.7 · Pruebas y `D-nnn`:** `atlas.test.ts` sube a las piezas y paquetes nuevos; `atlasEnEspanol.test.ts`, a las
+  traducciones nuevas; las pruebas de F-13.
+
+**Hecho cuando…** En el taller, sobre «Cuerpo», se enciende «Fascia profunda» y se ve el manguito rosado de la pierna derecha
+y la izquierda sobre los músculos, sin que ninguna preparación guardada haya cambiado; y en Blender se ve el corte
+transversal con la fascia rodeando los cuatro compartimentos, entre la grasa y el músculo.
+
+---
+
+#### E3 · Que lo exportado lleve la fascia, recortada · 2 sesiones · hecha (2026-10-24), ver D-218
+
+**De dónde sale:** pedidos 4 y 5; F-7, F-8, F-9, F-10.
+
+**Cómo funciona hoy:** ver «Lo que se midió». Una preparación guardada no trae fascias; la piel se recorta por caja con
+dentado; el marco del taller tapa lo que corta; el simulador no tiene el rol.
+
+**Tareas**
+
+- [ ] **E3.1 · `src/lib/recorteDeCapa.ts`:** recorte de una malla por planos **sin tapa**, triángulo a triángulo (Sutherland-
+  Hodgman sobre cada cara, con normales interpoladas y vértices compartidos en el borde). Puro. Pruebas: un triángulo
+  cortado en uno o dos; el borde queda sobre el plano a la tolerancia; la suma de áreas se conserva; una malla entera dentro
+  sale igual (el mismo objeto), una entera fuera sale vacía.
+- [ ] **E3.2 · El cortador del taller y el de la reproducción** usan `recorteDeCapa` para las piezas de los sistemas de
+  fascia (`recorte.ts`, `fragmentos.ts`, `reproducirPreparacion.ts`); la piel y el resto siguen con tapa.
+- [ ] **E3.3 · Rol `fascia`:** `RolDePieza`, `ROLES_DE_PIEZA`, `select` de `Cirugias.ts` y `esquema.ts`, `ROL_DE_SISTEMA`
+  (profunda → `fascia`, superficial → `piel`, meníngea y visceral → `musculo`), `DENSIDAD_POR_*` (la fascia no absorbe),
+  `rolPorElNombre` (con el tensor de la fascia lata como excepción), etiqueta del rol en el panel. Migración
+  `ALTER TYPE … ADD VALUE 'fascia'` en cada enumerado de rol (caso y sus versiones). `exportarAlSimulador.test.ts` y
+  `migraciones.test.ts` ya vigilan que las copias coincidan.
+- [ ] **E3.4 · Inclusión y recorte al exportar** (`exportarAtlas.ts`, `exportarPreparacion.ts`): la regla de F-8, incluida la
+  zona por caja con 1 cm y los planos del marco; `centrarEnSuCaja` y `recortarLaPiel` dejan de contar las fascias para la caja;
+  notas y avisos. Pruebas con la pierna real: la caja de lo exportado crece menos de 1 cm por la fascia; ningún triángulo de
+  fascia cae fuera de la zona; con una preparación de **solo huesos** no entra ninguna.
+- [ ] **E3.5 · La casilla «Incluir las fascias de la zona»** en el diálogo de exportar del taller, y el parámetro `fascias`.
+- [ ] **E3.6 · `scripts/reexportar-con-fascias.ts`:** vuelve a exportar los casos que ya existen (el molde es
+  `pierna-derecha-en-el-caso.ts`: **simula por omisión**, `--aplicar` escribe, reutiliza el modelo si sale byte a byte igual y
+  conserva las piezas y los pasos con `repararPiezasConElModelo`). El modelo viejo **no se borra**.
+- [ ] **E3.7 · Probar con el caso real** «pierna derecha» (el de `prueeeebbaaa.glb`): reexportar, comprobar que la fascia sale
+  cortada **solo a la zona** y que el caso se abre en la consola con sus pasos.
+- [ ] **E3.8 · Pruebas y `D-nnn`.**
+
+**Hecho cuando…** La preparación «pierna derecha» se vuelve a exportar y el `.glb` trae el objeto «Fascia profunda» con solo
+la fascia de esa pierna, cortada donde se cortó la preparación, con sus notas diciéndolo; y exportar una preparación de huesos
+sueltos da exactamente el mismo archivo que antes.
+
+---
+
+#### E4 · Aspecto: color, textura y luz · 1–2 sesiones · hecha (2026-10-24), ver D-218
+
+**De dónde sale:** pedido 6; F-11, F-12.
+
+**Qué se busca.** La fascia profunda real es una lámina **brillante, húmeda, nacarada y semitransparente, con un rayado fino
+de fibras de colágeno** (imagen A del PDF); la superficial, un tejido laxo amarillento y mate-brillante entre la grasa; las
+serosas, lisas y muy brillantes; la duramadre, tensa y blanquecina azulada. Eso se traduce en parámetros físicos:
+
+| Capa | Color | Rugosidad | Brillo sedoso | Opacidad inicial | Fibras |
+|---|---|---|---|---|---|
+| Superficial | `#f3dc90` | 0,55 | 0,2 | 0,40 | ninguna (se ve esponjosa por ruido suave) |
+| Profunda | `#e9b5ad` | 0,35 | 0,7 | 0,45 | hilos longitudinales finos, 0,6 mm; oblicuos cruzados en la fascia lata |
+| Meníngea | `#cfd5e0` | 0,30 | 0,4 | 0,50 | tejido tenso, sin hilos |
+| Visceral | `#e3bfc8` | 0,18 | 0,3 | 0,40 | ninguna; **barniz** (`clearcoat`) alto |
+
+*Son valores de partida; se afinan mirando Blender, que es lo que el dueño pidió, y lo que se afine se escribe en la tabla de un
+solo sitio.*
+
+**Tareas**
+
+- [ ] **E4.1 · `aspectoDelSistema.ts`:** la tabla de arriba, pura, con pruebas (todo sistema del catálogo tiene aspecto; los
+  colores coinciden con los del catálogo).
+- [ ] **E4.2 · El taller:** `materialDelSistema` toma de la tabla rugosidad y brillo (`MeshPhysicalMaterial` donde haya
+  brillo sedoso), la opacidad inicial entra en la textura de aspectos al montar la escena, y el rayado de fibras se suma en
+  el fragmento por la posición (sin UV).
+- [ ] **E4.3 · El `.glb`:** `ObjetoParaGlb` gana `material` opcional (rugosidad, metal, brillo sedoso, barniz); `escribirGlb`
+  lo escribe con `KHR_materials_sheen` y `KHR_materials_clearcoat` declaradas en `extensionsUsed`. **Sin `material`, el archivo
+  sale byte a byte como antes** (la prueba que ya existe para los extras es el molde).
+- [ ] **E4.4 · `vista_en_blender.py`:** abre un `.glb` exportado o una selección del atlas y arma el `.blend` con materiales
+  de nodos: color base con gradiente, **fibras** (textura de ondas estirada a lo largo del eje del miembro, con ruido que las
+  ondula) como relieve y rugosidad, brillo sedoso, subsuperficie rosada y alfa; luces de estudio y tres cámaras. Lo que se vea
+  bien aquí se pasa a la tabla.
+- [ ] **E4.5 · Mirar** la pierna con fascia en Blender, comparada con las imágenes A y C del PDF, y afinar.
+- [ ] **E4.6 · Pruebas y `D-nnn`.**
+
+**Hecho cuando…** La fascia crural en Blender se parece a la imagen A (nacarada, brillante, con fibras que se ven de cerca y
+no de lejos) y en el taller se distingue sin esfuerzo del músculo, del hueso y de la piel.
+
+---
+
+#### E5 · La fascia superficial de cuerpo entero · 1–2 sesiones · hecha (2026-10-24), ver D-218
+
+**De dónde sale:** pedido 2 (fascia superficial).
+
+**Método:** el de «La fascia superficial» (arriba), sobre la piel del atlas y la envolvente profunda calculada de **todo** lo
+que no es piel (hueso, músculo, vísceras), para que exista donde aún no hay una fascia profunda con nombre. Partida por
+regiones con la FMA de cada una: pierna, muslo, pie; brazo, antebrazo, mano; tórax, abdomen, espalda; cuello; cabeza.
+
+**Tareas**
+
+- [ ] **E5.1 · La envolvente profunda del cuerpo** a 3 mm (una sola vez, con caché en la carpeta de control).
+- [ ] **E5.2 · La capa superficial** entre piel y envolvente, con comprobación de que **nunca cruza** ni la piel ni la profunda
+  (el espesor mínimo es 0 y el máximo es el de la piel a la profunda).
+- [ ] **E5.3 · Las regiones, recetas y traducciones** («Fascia superficial de la pierna derecha»…), con sus FMA.
+- [ ] **E5.4 · Mirar en Blender:** tronco, un corte transversal de abdomen y uno de muslo, donde la capa es más gruesa.
+- [ ] **E5.5 · Exportar:** la superficial entra con la piel (F-8) y se recorta igual.
+- [ ] **E5.6 · Pruebas y `D-nnn`.**
+
+**Hecho cuando…** Entre la piel y la fascia profunda, en un corte de muslo, se ve la capa superficial como una lámina continua
+que no toca ninguna de las dos.
+
+---
+
+#### E6 · La fascia profunda del resto del cuerpo · 2 sesiones · hecha (2026-10-24), ver D-218
+
+**De dónde sale:** pedido 2.
+
+**Piezas, con el mismo método de E2:** brazo (braquial, que cubre al deltoides) y antebrazo, aponeurosis palmar y fascia dorsal
+de la mano, fascia pectoral y clavipectoral, fascia toracolumbar y pared del abdomen (vaina del recto y aponeurosis del
+oblicuo externo), fascia temporal y parotídea, y la capa de investimento del cuello. Los límites son las articulaciones. **Lo
+que el atlas no trae** (por ejemplo los músculos de la cara completos) se anota como «aproximada» en la receta y en las notas
+de la pieza, y no se inventa.
+
+**Tareas:** E6.1 recetas y generación por región · E6.2 traducciones y FMA verificados (los que no existan en la FMA se
+dicen) · E6.3 mirar en Blender · E6.4 pruebas y `D-nnn`.
+
+**Hecho cuando…** La red de fascia profunda es continua de la cabeza a los pies: dos piezas vecinas cualesquiera comparten su
+borde, y una prueba lo comprueba sobre las uniones.
+
+---
+
+#### E7 · Compartimentos, tabiques y retináculos · 1–2 sesiones · hecha (2026-10-24), ver D-219
+
+**De dónde sale:** la imagen B del PDF (los compartimentos de la pierna dibujados con su contorno) y una necesidad que el
+documento no dice pero un traumatólogo reconoce: **el síndrome compartimental y la fasciotomía**, que es lo que se hace en una
+pierna fracturada.
+
+**Qué se hace:** la pierna se parte en sus cuatro compartimentos —anterior, lateral, posterior superficial y posterior
+profundo— calculando el cierre de cada grupo de músculos; **los tabiques son la superficie donde dos compartimentos se
+encuentran**, y se guardan como piezas propias («Anterior intermuscular septum of leg», `58755`; «Posterior intermuscular
+septum of leg», `58758`; el transverso, a buscar). El muslo, en tres compartimentos. Los **retináculos** del tobillo
+(extensores superior e inferior, flexor, peroneos) son bandas más gruesas de la fascia crural, recortadas de ella y medio
+milímetro por encima.
+
+**Tareas:** E7.1 compartimentos por cierre de grupos · E7.2 tabiques como superficies de contacto · E7.3 retináculos ·
+E7.4 FMA y traducciones · E7.5 mirar en Blender el corte transversal (que se parezca a la imagen B) · E7.6 pruebas y `D-nnn`.
+
+**Hecho cuando…** El corte transversal a media pierna en Blender enseña los cuatro compartimentos separados por sus tabiques,
+cada uno con los músculos que le tocan.
+
+---
+
+#### E8 · La fascia meníngea · 2 sesiones · hecha (2026-10-24), ver D-219
+
+**De dónde sale:** pedido 2 (fascia meníngea).
+
+**Cómo:** *craneal* — se rellena la **bóveda craneal** (cierre de los huesos del cráneo, con los agujeros del tamaño de un
+agujero magno sellados) y se toma la **duramadre** a 0,5 mm por dentro de su cara interna; la **aracnoides** a 2 mm por
+dentro de la duramadre pero sin entrar en el cerebro; la **piamadre** pegada al cerebro (cierre de 3 mm sobre las piezas
+cerebrales). La **hoz del cerebro** es la lámina de duramadre del plano medio entre los hemisferios, y la del cerebelo la
+de entre sus lóbulos; el tentorio ya existe y se respeta. *Espinal* — como el atlas no trae la médula, se rellenan los
+**anillos de las vértebras** corte por corte (agujeros de cada sección horizontal), se cierra entre vértebra y vértebra y se
+obtiene el conducto; el **saco dural** es ese conducto menos 1,5 mm de grasa epidural, y acaba en S2.
+
+**Lo que no se sabe y se mide en esta etapa:** si el cráneo del atlas es lo bastante cerrado, si la piamadre se parece a un
+cerebro o a un bulto (las piezas cerebrales son una por circunvolución), y si de C1 a C2 y de L5 al sacro el conducto sale
+continuo. Si alguna da un resultado malo, se anota **qué se probó** y se entrega la parte que sí salió.
+
+**Tareas:** E8.1 bóveda y duramadre · E8.2 aracnoides y piamadre · E8.3 hoces · E8.4 saco dural · E8.5 FMA y traducciones ·
+E8.6 mirar en Blender (corte sagital y corte transversal de columna) · E8.7 pruebas y `D-nnn`.
+
+**Hecho cuando…** En un corte sagital en Blender, de afuera hacia adentro: hueso, duramadre, aracnoides y piamadre alrededor
+del cerebro; y la duramadre espinal envolviendo el conducto.
+
+---
+
+#### E9 · La fascia visceral · 2 sesiones · hecha (2026-10-24), ver D-219
+
+**De dónde sale:** pedido 2 (fascia visceral).
+
+**Cómo, y la salvedad:** *no hay pulmones en el atlas*, así que **los sacos pleurales no se pueden envolver sobre ellos**: se
+rellenan como **lo que queda del hemitórax una vez que se le quitan el mediastino y el diafragma** (cierre de costillas,
+esternón, vértebras y diafragma; menos corazón, tráquea, esófago y grandes vasos), partido por el plano medio; la **pleura
+parietal** es la superficie interior de esa cavidad. **Pericardio:** cierre de 4 mm sobre la pared del corazón y los
+grandes vasos de su base. **Peritoneo parietal:** la cavidad abdominopélvica que queda entre el diafragma, la pared
+abdominal y el suelo pélvico; **fascia renal:** cierre de 6 mm sobre cada riñón y su grasa. El **peritoneo visceral** y los
+epiplones se dejan para una etapa posterior si la parietal sale bien, porque cada víscera es una pieza.
+
+**Tareas:** E9.1 pleura parietal y sacos · E9.2 pericardio fibroso · E9.3 peritoneo parietal · E9.4 fascia renal · E9.5 FMA y
+traducciones · E9.6 mirar en Blender (corte transversal de tórax y de abdomen) · E9.7 pruebas y `D-nnn`.
+
+**Hecho cuando…** En un corte transversal de tórax se ven los dos sacos pleurales con el corazón en su pericardio entre ellos.
+
+---
+
+#### E10 · El plano de la fascia en el simulador · 2–3 sesiones · hecha (2026-10-24), ver D-220
+
+**De dónde sale:** primera página del PDF («Es crítico incluir la fascia dentro de los planos») y P-003 pedidos 17 y 18
+(«me hace mucho más sentido ir por plano»). Es lo que **da sentido a todo lo anterior**.
+
+**Cómo funciona hoy:** tres capas y dos planos de herida (`piel`, `musculo`); el bisturí profundo corta «músculo» como una
+masa; los separadores se apoyan en la piel o en el músculo (D-173).
+
+**Qué se hace**
+
+- **La capa «Fascia»** en la consola, entre «Piel» y «Músculo», con su interruptor y su color; la fascia se **ve a través**
+  cuando se tira de la piel.
+- **Un plano de herida más, `fascia`:** el bisturí profundo, el electrobisturí y la tijera de Metzenbaum cortan la fascia
+  **antes** de llegar al músculo; sin cortarla, el músculo no se alcanza. El separador puede apoyarse en la fascia.
+- **El texto de `comportamientoDelInstrumento.ts`** («aquí suele aparecer la fascia, un tejido transparente o rosado…») deja
+  de ser un aviso y pasa a ser lo que se ve.
+- **Fluoroscopia:** la fascia no se ve (`null`).
+- **Rellenar desde el modelo** y **reexportar** (E3) ya traen el rol; el editor de pasos ofrece el plano.
+- **Pasos y evaluación:** un paso puede pedir «incidir la fascia» y la consola mide que se hizo y a qué distancia.
+
+**Tareas:** E10.1 rol y capa en la consola · E10.2 plano de herida `fascia` en `heridas.ts` y el lienzo · E10.3 instrumentos y
+separadores · E10.4 editor de pasos · E10.5 manual · E10.6 probar en una cirugía real sobre la pierna reexportada.
+
+**Hecho cuando…** En la pierna reexportada, el residente incide la piel, ve debajo la fascia rosada, la incide con el bisturí
+profundo y llega al músculo; y apagar «Fascia» la quita sin quitar la piel.
+
+---
+
+#### E11 · Cerrar por planos: el vicryl va a la fascia · 2 sesiones · hecha (2026-10-24), ver D-220
+
+**De dónde sale:** «tuve problemas para suturar… me daba alarma de que mi cierre estaba muy distanciado. El vicryl debe ir a la
+fascia».
+
+**Cómo funciona hoy:** `src/lib/sutura.ts` y el hilo del lienzo (D-169) cosen **sobre la piel**; el cierre se mide por la
+distancia entre los bordes de la herida y no sabe de planos.
+
+**Qué se hace:** el cierre se hace **por planos, de profundo a superficial** —fascia con Vicryl 2-0, subcutáneo con Vicryl 3-0
+(o ninguno), piel con nailon 3-0 o Monocryl 5-0—, y cada sutura **solo agarra el plano que le toca** (el Vicryl sobre la piel o
+el nailon sobre la fascia se avisa y no cuenta). La **distancia entre puntos y entre bordes** se mide **sobre el plano
+suturado**, y no sobre la piel: que es lo que dio la alarma. El hilo se dibuja donde está cosido.
+
+**Preguntas para Cristóbal** (sección «Preguntas», abajo): puntos separados o continuos en la fascia, y qué distancia entre
+puntos se acepta por plano.
+
+**Tareas:** E11.1 el plano suturado en `sutura.ts` · E11.2 el hilo sobre la fascia y los bordes que se acercan · E11.3 la
+evaluación por plano · E11.4 la puntada de otro plano que se avisa · E11.5 manual · E11.6 probar el cierre completo.
+
+**Hecho cuando…** Se cierra una incisión en tres planos y la consola mide cada uno con su sutura; un cierre «muy distanciado»
+de fascia se avisa con la distancia real.
+
+---
+
+#### E12 · Documentación y ficha de cada fascia · 1 sesión · hecha (2026-10-24), ver D-221
+
+**Tareas:** E12.1 `docs/MANUAL-DE-USO.md`, `docs/COMO-SUBIR-UN-MODELO.md` y `README.md` al día (qué son las fascias, cómo se
+exportan, la casilla) · E12.2 el manual `.docx` del simulador, con capturas de la capa «Fascia» · E12.3 **ficha de cada fascia
+para P-003 E8**: definición, origen e inserción (que en una fascia son hacia dónde se continúa y a qué hueso se fija) y nombre
+latino (*fascia cruris*, *fascia lata*, *dura mater encephali*…), y la fila de «Fascia» en la tabla de qué campos cuentan
+como «completa» · E12.4 `D-nnn` de cierre y revisión de este plan.
+
+---
+
+#### Lo que no se sabe y puede salir mal
+
+- **La fascia no es un hallazgo del atlas sino un cálculo sobre él.** Es tan buena como el atlas: donde BodyParts3D no trae un
+  músculo, la fascia sale pegada al siguiente y no a lo que debería envolver. Cada pieza lleva en su receta **qué envuelve**, y
+  las notas del modelo lo dicen.
+- **El cierre morfológico rellena concavidades de verdad:** el hueco poplíteo, la axila, la ingle, la barbilla sobre el cuello.
+  La fascia real **también** los puentea, pero no a cualquier radio: con R de más se pierde la forma. Se ajusta pieza por pieza
+  mirándola, y R queda anotado.
+- **Peso.** Unos 2 a 4 mil triángulos por pieza, a unas cien piezas, son del orden de 300 mil triángulos: un 13 % más que el
+  atlas. Con las fascias apagadas no cuesta nada de dibujo (el sombreador las descarta), solo la descarga del paquete 15,
+  que es aparte. El límite de 5 MB del `.glb` (`TECHO_BYTES`) importa más: una fascia por pierna son cerca de 100 KB.
+- **La fascia superficial y la piel casi se tocan** sobre la tibia y las articulaciones; con la piel recortada por caja (5 cm) y
+  la fascia recortada exacta (1 cm), el borde de una y otra **no coincide**, y es **intencional**: la piel sobresale como hoy.
+- **Textura sin UV (F-12).** Funciona en el taller y en Blender; en la consola y en un `.glb` abierto en otro programa se ve
+  color, brillo y translucidez pero no el rayado. Si el dueño lo quiere ahí, se hornea una textura y se generan UV por
+  cilindro en cada pieza; es una etapa más y se decide mirando E4.
+- **El taller con el marco que corta** parte las fascias con la geometría de la cáscara, no con la del volumen: una fascia
+  cortada por un plano oblicuo queda con el borde recto y abierto, que es lo correcto, pero **un manguito cortado en dos por
+  un plano largo se parte en dos láminas** que `reproducirPreparacion` debe seguir tratando como la misma pieza.
+- **Regenerar el atlas** (`preparar.mjs`) borra las fascias del catálogo. Queda anotado en el guion y en el `README`: después
+  hay que volver a pasar `agregar-fascias.mjs`, que es idempotente y reproducible.
+- **P-003 E8 cuenta las piezas del atlas** («2.231»). Cambiará a las que haya con las fascias; la siembra de fichas las toma
+  solas, y la tabla de «completa» necesita su fila.
+
+#### Preguntas para Cristóbal
+
+- **P4-Q1 · ¿Se acepta que la fascia superficial vaya con el plano de la piel?** Se propone así porque en una incisión real se
+  abre «piel y celular subcutáneo» de un solo trazo. Si prefiere un plano propio para el subcutáneo (para suturarlo aparte, con
+  Vicryl 3-0), es un rol más y la etapa E10 sube una sesión.
+- **P4-Q2 · ¿Fasciotomía?** El modelo de E7 deja la pierna lista para ensayar una fasciotomía de los cuatro compartimentos.
+  ¿Es un caso que quiera tener? No cambia el plan, pero decide si E10 incluye el corte de la fascia **a lo largo** y no solo
+  de través.
+- **P4-Q3 · Sutura de la fascia:** ¿puntos separados o continua, y a qué distancia entre puntos se da por buena? (E11.)
+- **P4-Q4 · ¿Qué piezas quiere ver primero?** El orden de este plan es pierna → resto del cuerpo → meníngea → visceral, que sigue
+  su cirugía de tibia. Si la prioridad es otra región, E6 y E8–E9 se reordenan sin costo.
+
+#### Lo que trae el mismo PDF y no es la fascia
+
+La **segunda página** del documento trae observaciones que **no son de este plan**. Se anotan aquí para que no se pierdan, con
+dónde encajan; ninguna se hizo.
+
+| Observación de Cristóbal | Dónde encaja |
+|---|---|
+| Con el nailon también tuve problemas: **al cerrar, la mitad de la placa quedó afuera de la piel** | Nuevo: la piel tiene que **hincharse** sobre la placa y no dejar que el hueso o la placa salgan por encima de ella (la misma que «hacer que la piel se hinche…»). Pertenece al cierre (E11) y a la malla de la piel |
+| «No supe dónde poner **terminar** para que me diera la opción de tomar la Rx postoperatoria» | Nuevo: un botón «Terminar» que cierra la cirugía y ofrece la radiografía de control. Pariente de P-003 E7 (insumos al terminar) |
+| «Me gustaría que al fijar la placa **se despliegue el tiro broca**, luego **inmediatamente el medidor**, luego el tornillo (esto ya ocurre)» | P-003 E6 (placa, perforación, medidor y tornillos): el encadenado automático |
+| «Necesito poder **elegir la cantidad de orificios** de la placa» y «**sacar un tornillo para poner otro**» | P-003 E6, ampliación |
+| «**Cambiar la forma en que se mueve el fragmento óseo**. Es engorroso el sistema multiaxial… al tomar el fragmento de peroné, pesco el talo y desarmo todo» | Nuevo, sobre D-174 (asas): agarrar el trozo que se toca y no el de atrás |
+| «Que sea más fácil **sacar o mover cada cosa**: al pinchar el que está puesto se despliegue su propio menú» | P-003 E3 (separadores reubicables), generalizado a todo lo puesto |
+| «Usé el medidor para brocar el peroné y me daba como **60 mm**; habitualmente son tornillos de **12 mm**: hay que **calibrar el medidor**» | Defecto a investigar en `medidor` (D-169, D-174): lo que mide no es el espesor del hueso que perfora |
+
+*Propuesta, sin aplicar:* abrir un plan aparte (un plan nuevo, P-007, cuando el dueño lo pida) con estas siete cuando se decida el orden; las tres primeras son las que
+Cristóbal sintió como un fallo y no como una mejora.
+
+#### Cómo retomarlo en otra sesión
+
+1. Leer este P-006 entero y las D-nnn que enlace.
+2. `git log --oneline --grep "P-006"` dice qué tareas ya se hicieron.
+3. Seguir por la primera casilla sin marcar de la etapa en curso. E1 es la única sin dependencias; E2 y E3 van en ese orden; E4
+   puede ir en paralelo con E3; E5 a E9 solo piden E1; E10 y E11 piden E3.
+4. Los guiones de generación **se pueden repetir**: si una pieza no gusta, se cambia su receta y se vuelve a generar. Nada de
+   lo ya hecho se pierde porque el paquete 15 se regenera entero.
+5. Al terminar una tarea, marcar su casilla con el commit. Al terminar una etapa, cambiar su estado aquí y en la tabla y
+   escribir su D-nnn.
+
+#### Estado
+
+| Etapa | Estado | Sesiones | Depende de | Decisiones |
+|---|---|---|---|---|
+| E0 · La prueba de que se puede | hecha (2026-10-24) | — | — | — |
+| E1 · El motor de generación | hecha (2026-10-24) · D-218 | 1 | — | — |
+| E2 · Fascia profunda del miembro inferior | hecha (2026-10-24) · D-218 | 1–2 | E1 | — |
+| E3 · Lo exportado lleva la fascia, recortada | hecha; se vuelve a exportar desde el taller, sin guion E3.6 · D-218, D-222 | 2 | E2 | — |
+| E4 · Aspecto: color, textura y luz | hecha · D-218 | 1–2 | E2 | — |
+| E5 · Fascia superficial de cuerpo entero | hecha (2026-10-24) · D-218 | 1–2 | E1, E2 | — |
+| E6 · Fascia profunda del resto del cuerpo | hecha, sin clavipectoral ni parotídea · D-218 | 2 | E1, E2 | — |
+| E7 · Compartimentos, tabiques y retináculos | hecha, sin tabique transverso ni muslo · D-219 | 1–2 | E2 | — |
+| E8 · Fascia meníngea | hecha · D-219 | 2 | E1 | — |
+| E9 · Fascia visceral | hecha · D-219 | 2 | E1 | — |
+| E10 · El plano de la fascia en el simulador | hecha y probada en el navegador, sin el plano en los pasos · D-220, D-222 | 2–3 | E3 | — |
+| E11 · Cerrar por planos | hecha y probada en el navegador, con la separación de la fascia provisional · D-220, D-222 | 2 | E10 | — |
+| E12 · Documentación y ficha de cada fascia | hecha, sin la ficha de cada fascia ni capturas nuevas · D-221 | 1 | todas | — |
+
+*Las casillas `- [ ]` de E1 a E6 no se fueron marcando una a una: vale lo que dice esta tabla y lo que cuenta D-218. Lo que quedó sin hacer dentro de esas etapas: la fascia clavipectoral y la parotídea (E6), el tabique transverso y los compartimentos del muslo (E7), que un paso del caso pida incidir la fascia (E10), un botón del editor que vuelva a exportar cualquier modelo con fascias (en lugar del guion E3.6), la ficha de cada fascia y las capturas de los manuales (E12). La prueba en el navegador con una cirugía real, que faltaba, se hizo al integrar (D-222).*
 
 ---
 

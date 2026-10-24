@@ -47,6 +47,14 @@ export const ROL_DE_SISTEMA: Readonly<Record<string, RolDePieza>> = {
   reproductive: 'musculo',
   endocrine: 'musculo',
   sensory: 'musculo',
+  // Las fascias (P-006). La profunda tiene su capa: se ve entre la piel y el músculo y se incide antes que
+  // él. La superficial es la tela subcutánea y comparte plano con la piel: en una incisión se abre «piel y
+  // celular subcutáneo» de un solo trazo. La meníngea y la visceral no tienen todavía cirugía que las use
+  // (columna, abdomen) y van con las partes blandas; cuando la haya, cada una pide su rol (P-006, E10).
+  'fascia-superficial': 'piel',
+  'fascia-profunda': 'fascia',
+  'fascia-meningea': 'musculo',
+  'fascia-visceral': 'musculo',
 }
 
 /**

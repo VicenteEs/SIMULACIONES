@@ -77,3 +77,8 @@ npm-debug.log*
 
 # Caché de Python de los guiones de Blender
 __pycache__/
+
+# Lo intermedio de la generación de fascias (P-006): mallas finas, vistas de
+# control y .blend. Se reconstruye con `python scripts/atlas/fascias/generar.py`;
+# lo que viaja en el repositorio es el resultado, public/atlas/cuerpo-15.bin.gz.
+/scripts/atlas/fascias/salida/

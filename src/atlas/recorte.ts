@@ -39,6 +39,7 @@ import {
   type CorteDePieza,
 } from './formato'
 import { partirPorVariosPlanos, type MallaIndexada, type ParticionPorPlanos } from '@/lib/osteotomia'
+import { partirPorVariosPlanosSinTapa } from '@/lib/recorteDeCapa'
 import type { RectanguloNormalizado } from './seleccionPorCaja'
 
 export interface PlanoDelMarco {
@@ -215,7 +216,9 @@ export function recortarPorElMarco(
     if (!geometria) continue
     let particion: ParticionPorPlanos
     try {
-      particion = partirPorVariosPlanos(geometria, cruzados)
+      // Una lámina (fascia) se parte sin tapar: ver `src/lib/recorteDeCapa.ts`.
+      const lamina = escena.cascaras?.[candidata.indice] === 1
+      particion = (lamina ? partirPorVariosPlanosSinTapa : partirPorVariosPlanos)(geometria, cruzados)
     } catch {
       // Una malla que no se deja partir —un plano que la roza sin cortarla en
       // ningún intento— se queda como está. No se selecciona: no se sabe de

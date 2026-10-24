@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { PlanoBlando } from '@/lib/planosBlandos'
 import { type HiloDeSutura, type PuntoDeSutura } from '@/lib/sutura'
 
 /**
@@ -28,6 +29,13 @@ export interface SuturaEnEscena {
   siguienteEsNueva?: boolean
   /** Cuánto se ha tirado del hilo, de 0 (flojo) a 1 (apretado del todo). Cose primero y tira después (D-171). */
   tension: number
+  /**
+   * Con el cierre por planos (P-006, E11), cuánto se ha tirado del hilo **de cada plano**: cada uno se aprieta por su cuenta,
+   * y `tension` es la del plano en que se está cosiendo (`planoActivo`). Sin planos, no se usa.
+   */
+  tensiones: Partial<Record<PlanoBlando, number>>
+  /** El plano de la última puntada: el que se aprieta con el deslizador. */
+  planoActivo?: PlanoBlando
 }
 
 export function crearSutura(escena: THREE.Scene, hilo: HiloDeSutura): SuturaEnEscena {
@@ -36,7 +44,7 @@ export function crearSutura(escena: THREE.Scene, hilo: HiloDeSutura): SuturaEnEs
   // El hilo no absorbe rayos X: la radiografía y la fluoroscopia lo esconden (`radiografiaEnLaEscena.ts`).
   grupo.userData.deInterfaz = true
   escena.add(grupo)
-  return { grupo, puntos: [], hilo, hechos: [], tension: 0 }
+  return { grupo, puntos: [], hilo, hechos: [], tension: 0, tensiones: {} }
 }
 
 /** Las mallas visibles de un modelo, que es contra lo que se apoya el hilo. */

@@ -119,6 +119,13 @@ El detalle, incluido qué hacer cuando Docker no arranca en Windows, está en
 y no se versionan. `.vendor/` guarda el material de terceros del que se parte
 para preparar el atlas; lo que viaja en el repositorio es el resultado.
 
+**Regenerar el atlas ya no basta.** Las fascias no vienen en BodyParts3D: se calculan de su geometría con
+`scripts/atlas/fascias/` (Python, con `numpy` y `scipy`; Blender solo para decimar) y se suman al catálogo con
+`scripts/atlas/agregar-fascias.mjs`. Si se vuelve a correr `preparar.mjs`, hay que correr después
+`python scripts/atlas/fascias/generar.py` (si cambió una receta o el atlas), `node scripts/atlas/agregar-fascias.mjs --aplicar` y
+`node scripts/atlas/atribucion.mjs`; sin eso, el catálogo vuelve a las 2.231 piezas de origen y las fascias desaparecen
+del taller y de lo que se exporta. Las decisiones están en D-218 y el plan, en P-006 de `BITACORA.md`.
+
 | Carpeta de `src/` | Qué hay |
 |---|---|
 | `app/(frontend)/` | El sitio del residente y el panel propio, en `admin-panel/` |

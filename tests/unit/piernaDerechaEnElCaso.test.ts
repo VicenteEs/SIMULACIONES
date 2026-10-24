@@ -517,7 +517,8 @@ describe('ejecutar, con la exportación de verdad', () => {
       ...deRol('hueso'),
       ...deRol('fragmento'),
     ])
-    expect(deRol('piel')).toEqual(['Piel'])
+    // La fascia superficial viaja con la piel: es la tela que la sigue por debajo y se levanta con ella (D-218).
+    expect(deRol('piel')).toEqual(['Piel', 'Fascia_superficial'])
     expect(deRol('musculo')).toContain('Musculos')
     // La reducción enseñaba el hueso fijo y el fragmento, y conserva sus medidas.
     expect(muestraDe(caso, 1)).toEqual([...deRol('hueso'), ...deRol('fragmento')])

@@ -64,6 +64,7 @@ const TODOS_LOS_RANGOS = Object.values(CAMPOS_DEL_OBJETIVO).flat()
 
 const ROLES: { valor: RolDePieza; etiqueta: string }[] = [
   { valor: 'piel', etiqueta: 'Piel' },
+  { valor: 'fascia', etiqueta: 'Fascia' },
   { valor: 'musculo', etiqueta: 'Músculo' },
   { valor: 'hueso', etiqueta: 'Hueso fijo' },
   { valor: 'fragmento', etiqueta: 'Fragmento móvil' },

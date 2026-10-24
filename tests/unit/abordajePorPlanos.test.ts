@@ -192,7 +192,7 @@ describe('el cableado', () => {
   })
 
   it('el panel arranca en «Automático» y lista las estructuras separadas con «Cortar» y «Otro lado»', () => {
-    expect(consola).toContain("useState<'auto' | 'piel' | 'musculo'>('auto')")
+    expect(consola).toContain("useState<'auto' | CapaDeLaHerida>('auto')")
     expect(consola).toContain('Estructuras separadas')
     expect(consola).toContain('cortarElMusculoSeparado(r.nodo)')
     expect(consola).toContain('invertirRetraccion(r.id)')

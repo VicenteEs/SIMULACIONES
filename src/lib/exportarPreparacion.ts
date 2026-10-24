@@ -16,6 +16,7 @@ import {
   type PiezaLeida,
 } from '@/lib/exportarAtlas'
 import { DIRECTORIO_DEL_ATLAS, leerCatalogo } from '@/lib/catalogoDelAtlas'
+import { fasciasDeLaZona, sistemasDeFasciaQueEntran } from '@/lib/fasciasDeLaZona'
 import { reproducirPreparacion } from '@/lib/reproducirPreparacion'
 import { normalizarCorte } from '@/lib/planoDeCorte'
 import { exigirIdentificador } from '@/lib/validacion'
@@ -93,6 +94,12 @@ export interface OpcionesDeExportarPreparacion {
    * además en `protagonistas` y ser un hueso (`partirLaPieza`).
    */
   corte?: unknown
+  /**
+   * Si entran solas las fascias de la zona (P-006, F-8): la profunda si hay músculos, la superficial si hay
+   * piel, recortadas a lo que se exporta. Por omisión sí; `false` da el archivo de antes de que hubiera
+   * fascias. Una preparación que ya trae piezas de un sistema de fascia no gana más de él, esté o no marcado.
+   */
+  fascias?: boolean
   /** Otro directorio del atlas; por omisión, `public/atlas` bajo `process.cwd()`. */
   directorioDelAtlas?: string
   /**
@@ -123,6 +130,8 @@ export interface ModeloExportado {
   corte: CorteExportado | null
   /** Lo que no se pudo rehacer de la preparación o no encaja con el simulador. Vacío si nada. */
   avisos: string[]
+  /** Qué fascias entraron y cuánto de cada una (P-006). Vacío si no entró ninguna. */
+  fascias: string[]
 }
 
 /**
@@ -238,20 +247,50 @@ export async function exportarPreparacion(
   // movido en su sitio, los trozos apagados fuera. Sin esto el archivo salía
   // con la geometría original de cada pieza y no se parecía a lo que se veía.
   const rehecha = reproducirPreparacion(contenido, leidas)
+
+  // Las fascias entran solas, recortadas a lo exportado (F-8). Sus paquetes se leen solo si algún sistema
+  // de fascia entra: una exportación de huesos sueltos no toca el paquete 15.
+  const sistemasDeFascia = opciones.fascias === false ? [] : sistemasDeFasciaQueEntran(rehecha.piezas)
+  if (sistemasDeFascia.length > 0) {
+    for (const p of catalogo.piezas) {
+      if (sistemasDeFascia.includes(p.sistema) && !buferes.has(p.paquete)) {
+        buferes.set(p.paquete, await leerPaquete(catalogo, p.paquete, directorio))
+      }
+    }
+  }
+  const deFascia = sistemasDeFascia.length
+    ? fasciasDeLaZona({
+        catalogo,
+        piezas: rehecha.piezas,
+        cortes: contenido.cortes,
+        apagados: new Set(contenido.apagados ?? []),
+        leer: (pieza) => ({
+          id: pieza.id,
+          nombre: pieza.nombre,
+          sistema: pieza.sistema,
+          fma: pieza.fma,
+          posiciones: new Float32Array(new Float32Array(buferes.get(pieza.paquete)!, pieza.pos, pieza.vertices * 3)),
+          normales: new Int16Array(new Int16Array(buferes.get(pieza.paquete)!, pieza.nor, pieza.vertices * 3)),
+          indices: new Uint32Array(new Uint32Array(buferes.get(pieza.paquete)!, pieza.idx, pieza.indices)),
+        }),
+      })
+    : { piezas: [], notas: [] }
+  const conFascias = [...rehecha.piezas, ...deFascia.piezas]
   const pedidas = Array.isArray(opciones.protagonistas)
     ? opciones.protagonistas.map((p) => String(p)).filter(Boolean)
     : []
   const protagonistas = [...new Set([...rehecha.sueltas, ...pedidas])]
 
   const { objetos, piezas, centro, sinLaPiel, pielRecortada, pielFuera, sinTraducir, corte: cortado } =
-    prepararExportacion(rehecha.piezas, {
+    prepararExportacion(conFascias, {
       protagonistas,
       separarEstructuras: opciones.separarEstructuras !== false,
       colores,
       nombresDeSistema,
       corte,
-      // Un guion que pasa su propio corte manda: el de la preparación solo vale cuando nadie pidió otro.
-      partido: corte ? null : rehecha.partido,
+      // Un guion que pasa su propio corte manda: el de la preparación solo vale cuando nadie pidió otro. Con el
+      // hueso ya partido, `prepararExportacion` usa SU lista de piezas y no la de arriba: las fascias van en las dos.
+      partido: corte ? null : rehecha.partido ? { ...rehecha.partido, piezas: [...rehecha.partido.piezas, ...deFascia.piezas] } : null,
     })
   const glb = escribirGlb(objetos, 'TraumaHub · exportado del atlas anatómico')
 
@@ -305,7 +344,10 @@ export async function exportarPreparacion(
         avisosDeLaExportacion({ pielRecortada, pielFuera, sinTraducir, corte: cortado })
           .concat(rehecha.avisos)
           .map((aviso) => ` ${aviso}`)
-          .join(''),
+          .join('') +
+        (deFascia.piezas.length > 0
+          ? ` Fascias de la zona (recortadas a lo exportado, sin tapar el corte): ${deFascia.notas.join(' ')}`
+          : ''),
     } as never,
     file: {
       data: Buffer.from(glb),
@@ -320,6 +362,7 @@ export async function exportarPreparacion(
   return {
     id: String((creado as { id: unknown }).id),
     avisos: rehecha.avisos,
+    fascias: deFascia.notas,
     nombre,
     bytes: glb.byteLength,
     nodos: nombresDelArchivo(objetos),

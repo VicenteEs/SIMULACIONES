@@ -26,7 +26,9 @@ import { densidadDelSistema } from '@/lib/radiografia'
 import { GANANCIA_DE_LA_RADIOGRAFIA } from './materialDeRadiografia'
 import * as THREE from 'three'
 import { ruta } from '@/lib/rutas'
+import { aspectoDelSistema } from './aspectoDelSistema'
 import { corregirCatalogo } from './clasificacion'
+import { esFascia } from './fascias'
 import type { CatalogoDelAtlas, PiezaDelAtlas } from './formato'
 
 /** Cuántos canales ocupa cada pieza en la textura de estado. */
@@ -91,6 +93,19 @@ export interface EscenaDelAtlas {
    */
   aspectos: THREE.DataTexture
   datosDeAspectos: Float32Array
+  /**
+   * Con cuánta opacidad nace cada pieza y a la que vuelve cuando se le quita su aspecto propio
+   * (`ponerAspecto(…, null)`): 1 para casi todas, menos de 1 para las fascias, que son láminas
+   * (`aspectoDelSistema`). Por posición de pieza en el catálogo, como las texturas.
+   */
+  opacidadesIniciales: Float32Array
+  /**
+   * 1 en las piezas que son una **lámina** y no un volumen (las fascias, P-006): al partirlas no se
+   * tapa el corte, porque el contorno de un manguito cortado es un anillo abierto y no un disco.
+   * Por posición de pieza en el catálogo. Opcional para que lo que construya una escena a mano, como
+   * las pruebas, no tenga que declararlo: ausente es «ninguna es lámina».
+   */
+  cascaras?: Uint8Array
   liberar: () => void
 }
 
@@ -245,12 +260,21 @@ export function montarEscena(
   )
   traslados.needsUpdate = true
 
-  // Y el aspecto: sin color propio (rojo a −1) y maciza (opacidad 1).
+  // Y el aspecto: sin color propio (rojo a −1) y maciza (opacidad 1)... salvo lo que su sistema
+  // declara translúcido: una fascia que naciera maciza tapa los músculos que envuelve.
   const datosDeAspectos = new Float32Array(lado * lado * CANALES)
   for (let i = 0; i < datosDeAspectos.length; i += CANALES) {
     datosDeAspectos[i] = -1
     datosDeAspectos[i + 3] = 1
   }
+  const opacidadesIniciales = new Float32Array(total).fill(1)
+  const cascaras = new Uint8Array(total)
+  catalogo.piezas.forEach((pieza, i) => {
+    const opacidad = aspectoDelSistema(pieza.sistema).opacidadInicial
+    opacidadesIniciales[i] = opacidad
+    datosDeAspectos[i * CANALES + 3] = opacidad
+    cascaras[i] = esFascia(pieza) ? 1 : 0
+  })
   const aspectos = new THREE.DataTexture(
     datosDeAspectos,
     lado,
@@ -351,6 +375,8 @@ export function montarEscena(
     datosDeTraslados,
     aspectos,
     datosDeAspectos,
+    opacidadesIniciales,
+    cascaras,
     liberar: () => {
       for (const cosa of aLiberar) cosa.dispose()
       estados.dispose()
@@ -377,10 +403,11 @@ function materialDelSistema(
   aspectos: THREE.DataTexture,
   sistema: string,
 ): THREE.MeshStandardMaterial {
+  const aspecto = aspectoDelSistema(sistema)
   const material = new THREE.MeshStandardMaterial({
     color: new THREE.Color(color),
-    roughness: 0.72,
-    metalness: 0.02,
+    roughness: aspecto.rugosidad,
+    metalness: aspecto.metalico,
     side: THREE.DoubleSide,
   })
 
@@ -400,6 +427,9 @@ function materialDelSistema(
   // Cuánto absorbe este sistema, para la radiografía: `null` es «no se ve» (vasos, nervios, linfáticos) y llega
   // al sombreador como 0, que descarta el píxel. Es la misma tabla que usa el simulador (`lib/radiografia`).
   material.userData.densidadRx = densidadDelSistema(sistema) ?? 0
+  // El rayado de fibras de una fascia (P-006, F-12): se dibuja aquí, según la posición, y no se guarda en
+  // el atlas. Sin coordenadas de textura, porque una fascia es un manguito de forma arbitraria.
+  material.userData.fibras = aspecto.fibras ? 1 : 0
 
   material.onBeforeCompile = (sombreador) => {
     sombreador.uniforms.estados = { value: estados }
@@ -411,9 +441,11 @@ function materialDelSistema(
     sombreador.uniforms.giros = { value: giros }
     sombreador.uniforms.traslados = { value: traslados }
     sombreador.uniforms.separacion = { value: material.userData.separacion }
+    sombreador.uniforms.fibras = { value: material.userData.fibras }
 
     sombreador.vertexShader = `
       attribute float dePieza;
+      varying vec3 vPosicionLocal;
       uniform sampler2D estados;
       uniform float ladoEstados;
       uniform float separacion;
@@ -442,6 +474,7 @@ function materialDelSistema(
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
+        vPosicionLocal = position;
         float fila = floor(dePieza / ladoEstados);
         vec2 uvEstado = vec2((mod(dePieza, ladoEstados) + 0.5) / ladoEstados,
                              (fila + 0.5) / ladoEstados);
@@ -463,9 +496,11 @@ function materialDelSistema(
       varying float vResaltada;
       varying float vSeleccionada;
       varying vec4 vAspecto;
+      varying vec3 vPosicionLocal;
       uniform float rayosX;
       uniform float densidadRx;
       uniform float gananciaRx;
+      uniform float fibras;
     ${sombreador.fragmentShader}`
       .replace(
         '#include <clipping_planes_fragment>',
@@ -489,6 +524,15 @@ function materialDelSistema(
         `#include <color_fragment>
         // El color propio sustituye al del sistema; el rojo en −1 dice que no hay.
         if (vAspecto.r >= 0.0) diffuseColor.rgb = vAspecto.rgb;
+        // Las fibras de colágeno: hilos largos a lo largo del eje del cuerpo (Y), con una ondulación suave
+        // que los hace dejar de ser rectos. Se desvanecen con la distancia (fwidth) en vez de parpadear:
+        // a siete milímetros de periodo, de lejos serían un muaré.
+        if (fibras > 0.5) {
+          float t = vPosicionLocal.y * 1100.0 + 4.0 * sin(vPosicionLocal.x * 260.0 + vPosicionLocal.z * 180.0);
+          float hilo = 0.5 + 0.5 * sin(t);
+          float lejos = clamp(fwidth(t) * 0.35, 0.0, 1.0);
+          diffuseColor.rgb *= 1.0 - 0.12 * hilo * (1.0 - lejos);
+        }
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.62, 0.88), vResaltada * 0.65);
         // El naranja de la selección de Blender, a propósito: quien viene de
         // allí lo lee sin que nadie se lo explique, y no se confunde con el
@@ -693,9 +737,15 @@ export interface AspectoDePieza {
 
 const colorAuxiliar = new THREE.Color()
 
-/** Escribe el aspecto de una pieza, o la devuelve al de su sistema con `null`. */
+/**
+ * Escribe el aspecto de una pieza, o la devuelve al de su sistema con `null`.
+ *
+ * Devolverla al de su sistema es volver a la opacidad con la que nació, que para una fascia no es
+ * 1 (`opacidadesIniciales`): quitarle el aspecto propio no la vuelve maciza. Quien da una opacidad
+ * explícita manda, también si es 1.
+ */
 export function ponerAspecto(
-  escena: Pick<EscenaDelAtlas, 'aspectos' | 'datosDeAspectos'>,
+  escena: Pick<EscenaDelAtlas, 'aspectos' | 'datosDeAspectos'> & Partial<Pick<EscenaDelAtlas, 'opacidadesIniciales'>>,
   indice: number,
   aspecto: AspectoDePieza | null,
 ) {
@@ -710,6 +760,6 @@ export function ponerAspecto(
   } else {
     escena.datosDeAspectos[base] = -1
   }
-  escena.datosDeAspectos[base + 3] = aspecto?.opacidad ?? 1
+  escena.datosDeAspectos[base + 3] = aspecto?.opacidad ?? escena.opacidadesIniciales?.[indice] ?? 1
   escena.aspectos.needsUpdate = true
 }

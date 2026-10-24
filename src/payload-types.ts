@@ -1652,9 +1652,9 @@ export interface Cirugia {
         nodo: string;
         etiqueta?: string | null;
         /**
-         * Piel y músculo forman las capas que se encienden y apagan. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.
+         * Piel, fascia y músculo forman las capas que se encienden y apagan. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.
          */
-        rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante';
+        rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia';
         id?: string | null;
       }[]
     | null;

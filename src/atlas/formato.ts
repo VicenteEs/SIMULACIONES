@@ -72,6 +72,13 @@ export interface PiezaDelAtlas {
   origenRegion: 'anatomia' | 'caja'
   /** Solo la piel: lo que `scripts/atlas/ajustar-piel.mjs` le hizo (D-159). El visor no lo lee. */
   ajustada?: string
+  /**
+   * Solo las piezas que **no son de BodyParts3D** sino que genera TraumaHub a partir de su geometría
+   * (P-006): hoy las fascias, con el valor `'fascia'`. El visor no lo lee; lo leen la atribución, que
+   * está obligada a declararlas, y las pruebas, que cuentan por separado lo que viene de fuera. Sin
+   * este campo, un catálogo con fascias diría que BodyParts3D tiene 2.241 piezas.
+   */
+  generada?: string
   paquete: number
   pos: number
   nor: number

@@ -88,8 +88,9 @@ describe('exportar una pierna del atlas', () => {
       contenido: { piezas: PIERNA.map((id) => ({ id })) },
     })
 
-    // Fundido por sistema, como se exportaba antes de P-003 E9: lo que se prueba aquí es la traducción y el centrado.
-    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387'], separarEstructuras: false })
+    // Fundido por sistema, como se exportaba antes de P-003 E9, y sin las fascias de la zona, que entran solas con cualquier
+    // músculo (P-006, F-8) y tienen su prueba abajo: lo que se prueba aquí es la traducción y el centrado de la pierna sola.
+    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387'], separarEstructuras: false, fascias: false })
     expect(r.exito, r.mensaje).toBe(true)
 
     // La acción devuelve `nodos` como siempre y, además, las piezas.
@@ -132,7 +133,8 @@ describe('exportar una pierna del atlas', () => {
       contenido: { piezas: PIERNA.map((id) => ({ id })) },
     })
 
-    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387'] })
+    // Sin las fascias de la zona (P-006), que entran solas y tienen su prueba abajo: aquí se cuenta la pierna.
+    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387'], fascias: false })
     expect(r.exito, r.mensaje).toBe(true)
     // Cuatro piezas, cuatro objetos: nada de «Esqueleto» ni «Musculos» fundidos.
     expect(r.datos?.nodos).toHaveLength(PIERNA.length)
@@ -146,6 +148,60 @@ describe('exportar una pierna del atlas', () => {
     )
     const ids = datosDeLosNodos(gltf.scene).map((d) => d.datos.atlasId)
     expect([...ids].sort()).toEqual([...PIERNA].sort())
+  })
+
+  it('con un músculo entran solas las fascias de la zona, cada una como objeto propio, recortadas a lo exportado y sin mover el centro', async () => {
+    const preparacion = {
+      id: 7,
+      nombre: 'Pierna derecha',
+      contenido: { piezas: PIERNA.map((id) => ({ id })) },
+    }
+    payloadFalso.findByID.mockResolvedValue(preparacion)
+    const sin = await exportarComoModelo(7, { protagonistas: ['FJ3387'], fascias: false })
+
+    payloadFalso.create.mockClear()
+    payloadFalso.findByID.mockResolvedValue(preparacion)
+    const con = await exportarComoModelo(7, { protagonistas: ['FJ3387'] })
+    expect(con.exito, con.mensaje).toBe(true)
+
+    // Lo que no es fascia sale igual que sin ellas, y cada fascia de la zona es un objeto propio —como cada estructura
+    // desde P-003 E9—, con su nombre en español y su papel; las notas dicen cuánto se tomó de cada una.
+    const fascias = (con.datos?.piezas ?? []).filter((p) => p.rol === 'fascia')
+    expect((con.datos?.piezas ?? []).filter((p) => p.rol !== 'fascia')).toEqual(sin.datos?.piezas)
+    expect(fascias).toEqual(
+      expect.arrayContaining([
+        { nodo: 'Fascia_crural_derecha', etiqueta: 'Fascia crural derecha', rol: 'fascia' },
+        { nodo: 'Retinaculo_flexor_del_tobillo_derecho', etiqueta: 'Retináculo flexor del tobillo derecho', rol: 'fascia' },
+      ]),
+    )
+    expect(fascias.every((p) => !/^Right_|^Left_/.test(p.nodo))).toBe(true)
+    expect(con.datos?.fascias.join(' ')).toMatch(/Fascia crural derecha: se tomó la zona de lo exportado/)
+    // El centro del archivo es el de siempre: la fascia envuelve y no define.
+    const { file } = payloadFalso.create.mock.calls[0][0] as { file: { data: Buffer } }
+    const THREE = await import('three')
+    const gltf = await new GLTFLoader().parseAsync(
+      file.data.buffer.slice(file.data.byteOffset, file.data.byteOffset + file.data.byteLength) as ArrayBuffer,
+      '',
+    )
+    const nodo = datosDeLosNodos(gltf.scene).find((d) => d.nodo === 'Fascia_crural_derecha')
+    expect(nodo?.datos).toMatchObject({ rol: 'fascia', sistema: 'fascia-profunda', etiqueta: 'Fascia crural derecha' })
+    expect(new THREE.Box3().setFromObject(gltf.scene).getCenter(new THREE.Vector3()).length()).toBeLessThan(0.02)
+    // Y la sinopsis del modelo creado lo dice, para quien abra el archivo meses después.
+    const notas = (payloadFalso.create.mock.calls[0][0] as { data: { notas: string } }).data.notas
+    expect(notas).toMatch(/Fascias de la zona/)
+  }, 60_000)
+
+  it('con las estructuras fundidas, las fascias de la zona salen fundidas por capa', async () => {
+    payloadFalso.findByID.mockResolvedValue({
+      id: 7,
+      nombre: 'Pierna derecha',
+      contenido: { piezas: PIERNA.map((id) => ({ id })) },
+    })
+    const r = await exportarComoModelo(7, { protagonistas: ['FJ3387'], separarEstructuras: false })
+    expect(r.exito, r.mensaje).toBe(true)
+    expect(r.datos?.piezas).toEqual(
+      expect.arrayContaining([{ nodo: 'Fascia_profunda', etiqueta: 'Fascia profunda', rol: 'fascia' }]),
+    )
   }, 60_000)
 })
 

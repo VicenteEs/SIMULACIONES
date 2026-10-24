@@ -424,7 +424,8 @@ describe('el taller usa lo que el visor decide', () => {
     for (const viejo of ['panelExportar', 'candidatas', 'filtroProtagonista', 'protagonistasVivas', 'MandosDelCorte']) {
       expect(taller, viejo).not.toContain(viejo)
     }
-    expect(taller).toContain('await exportarComoModelo(id)')
+    // Con una sola decisión por exportación, la casilla de las fascias (P-006): lo demás sigue sin preguntarse.
+    expect(taller).toContain('await exportarComoModelo(id, { fascias: incluirFascias })')
     expect(taller).toContain('sueltas: sueltasVigentes,')
     expect(taller).toContain('Sale suelto: el simulador lo puede mover')
   })

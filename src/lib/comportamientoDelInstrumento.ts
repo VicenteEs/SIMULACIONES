@@ -19,14 +19,19 @@ import { esElectrobisturi } from './electrobisturi'
 import { medidasDelClavoEnElNombre } from './enclavado'
 import { torqueEnElNombre } from './bloqueoDelClavo'
 import { injertoDelNombre, type TipoDeInjerto } from './injertoOseo'
+import type { PlanoBlando } from './planosBlandos'
 
-export type PlanoDeCorte = 'piel' | 'musculo'
+/**
+ * Qué plano pide un instrumento al cortar. Los profundos piden `musculo` y es el lienzo quien decide si el primer
+ * trazo abre antes la fascia que lo cubre (`planoQueCorta`, P-006 E10): ningún instrumento pide `fascia` por sí solo.
+ */
+export type PlanoDeCorte = PlanoBlando
 
 /** Cuánto separan las puntas de la Metzenbaum con las ramas abiertas del todo: lo que cabe entre ellas, unos 14 mm. */
 export const ABERTURA_ROMA_DE_LA_METZENBAUM_MM = 14
 
 export interface ComportamientoDelInstrumento {
-  /** Corta al trazar. `piel` abre la piel; `musculo` los planos profundos (bajo la piel). */
+  /** Corta al trazar. `piel` abre la piel; `musculo` los planos profundos (bajo la piel), con la fascia primero si el caso la trae. */
   corta: PlanoDeCorte | null
   /** Separa los bordes de una herida. */
   separa: {
@@ -293,7 +298,7 @@ export function guiaDelInstrumento(i: { slug?: string | null; nombre: string; ic
     return 'La Metzenbaum se usa de dos maneras. Para cortar, como cualquier tijera: se traza la incisión. Para la disección roma —cuando se quiere ir con cuidado por haber estructuras delicadas— se elige «Disección roma»: se apoya la punta cerrada en el tejido con un clic, se abren las ramas con la rueda del ratón y el plano se separa por tensión, no por corte; después se avanza (otro clic más allá) y se vuelve a abrir, y así se va avanzando.'
   }
   if (que.corta === 'musculo') {
-    return 'Aquí suele aparecer la fascia, un tejido transparente o rosado que envuelve a los músculos como un estuche: se corta con bisturí profundo o electrobisturí. Al llegar a los músculos se va separando hasta llegar al hueso.'
+    return 'Bajo la piel aparece la fascia, una lámina rosada que envuelve a los músculos como un estuche. En un caso que la trae, el primer trazo profundo corta la fascia y el segundo llega al músculo: sin abrirla no se entra. Se corta con bisturí profundo o electrobisturí, y después se va separando hasta llegar al hueso.'
   }
   if (que.reduce) {
     return 'La pinza de reducción toma el hueso: con ella en la mano, un clic en un trozo la deja agarrándolo. Después se mueve el trozo con las flechas y los aros, mirando la fluoroscopia, y la pinza va con él hasta que se la suelta. Hace falta que el abordaje llegue hasta el hueso.'
@@ -310,7 +315,7 @@ export function guiaDelInstrumento(i: { slug?: string | null; nombre: string; ic
     return 'Autoestático: se clava a los dos lados de la herida y se queda abierto solo, con su trinquete. Haga clic en el punto de la incisión donde quiere ponerlo y ábralo con la rueda del ratón o con la barra.'
   }
   if (que.separa) {
-    return 'Una vez tomados los bordes y con el bisturí profundo, se meten los separadores y se llega a un plano más profundo. El Farabeuf y el Senn-Miller empujan la piel hacia un lado y hacia el otro, y se usan en pareja: uno por borde. Elija el plano —piel o músculo—, haga clic en la herida junto al borde que quiere sostener y ábralo con la rueda o con la barra. Para separar el músculo, baje al músculo un separador que ya esté puesto.'
+    return 'Una vez tomados los bordes y con el bisturí profundo, se meten los separadores y se llega a un plano más profundo. El Farabeuf y el Senn-Miller empujan la piel hacia un lado y hacia el otro, y se usan en pareja: uno por borde, con el mango hacia fuera de la herida. Elija el plano —piel o músculo— y haga clic en la incisión: con «En pareja» (lo normal) un clic pone las dos hojas; apagado, una por clic, junto al borde que quiere sostener. Ábralos con la rueda (con Mayúsculas, solo la hoja elegida) o con la barra. Para cambiar uno de sitio, haga clic sobre él y otro clic donde quiere dejarlo (Esc lo devuelve). Para separar el músculo, baje al músculo un separador que ya esté puesto.'
   }
   return null
 }
