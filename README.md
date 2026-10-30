@@ -260,9 +260,10 @@ Cómo preparar el hueso en Blender y armar un caso está en
 Se clona en un Ubuntu y se ejecuta `./scripts/instalar-servidor.sh`, que instala
 Docker si falta, genera los secretos, construye la imagen, levanta los
 contenedores, programa el respaldo diario y comprueba que todo responda. Por
-omisión sale por Tailscale, porque `scripts/comun.sh` hace
-`TUNEL="${TUNEL:-tailscale}"`; para usar Cloudflare hay que decírselo a cada
-guion.
+omisión queda como en `ved` y en Contabo: el `docker-compose.yml` más el
+override de `despliegue/paginas`, sin puertos en el anfitrión y detrás del
+proxy del servidor, que pone el HTTPS. Para usar Cloudflare hay que decírselo
+a cada guion con `TUNEL=cloudflare` (D-223).
 
 Guía completa: [docs/SERVIDOR.md](docs/SERVIDOR.md).
 
@@ -272,17 +273,20 @@ Guía completa: [docs/SERVIDOR.md](docs/SERVIDOR.md).
 |---|---|
 | [docs/PUESTA-EN-MARCHA.md](docs/PUESTA-EN-MARCHA.md) | Requisitos, arranque local, comandos y qué hacer si Docker no parte en Windows |
 | [docs/SERVIDOR.md](docs/SERVIDOR.md) | Guía única para dejar la plataforma en un servidor Ubuntu propio: instalación, operación diaria, respaldos y qué mirar cuando algo falla |
-| [docs/SERVIDOR-WINDOWS.md](docs/SERVIDOR-WINDOWS.md) | El otro despliegue: Windows sin Docker, tras Tailscale Funnel y bajo un prefijo de ruta. Es el que corre hoy en faraday |
-| [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md) | Los tres modos de publicación según la variable `TUNEL`, lo que hace falta antes de desplegar y qué quedó verificado en el ensayo |
+| [docs/SERVIDOR-WINDOWS.md](docs/SERVIDOR-WINDOWS.md) | El despliegue que hubo en Windows sin Docker, tras Tailscale Funnel y bajo un prefijo de ruta. Ese servidor se retiró al pasar a Ubuntu (D-123); sus guiones de respaldo siguen en uso para la base local de un equipo Windows |
+| [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md) | Los dos modos de publicación según la variable `TUNEL`, lo que hace falta antes de desplegar y qué quedó verificado en el ensayo |
 | [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) | Exponer el servicio con un túnel de Cloudflare, sin abrir puertos del router |
 | [docs/CORREO.md](docs/CORREO.md) | Correo saliente. Sin él, quien olvide su clave depende de un administrador |
 | [docs/MANUAL-DE-USO.md](docs/MANUAL-DE-USO.md) | Manual del panel para editores y administradores: qué hace cada pantalla, cuentas y permisos, y las trampas que hacen perder trabajo |
 | [docs/MANUAL-DEL-EDITOR.docx](docs/MANUAL-DEL-EDITOR.docx) | Manual general en Word, con el logotipo, para quien escribe contenido en cualquier módulo: reglas de oro, fichas, revisión, estructuras, taller, simulador, comentarios y, para administradores, cuentas y auditoría |
 | [docs/MANUAL-DEL-SIMULADOR-QUIRURGICO.docx](docs/MANUAL-DEL-SIMULADOR-QUIRURGICO.docx) | Manual en Word, con capturas, para quien escribe las cirugías simuladas: crear el caso, preparar las piezas y la bandeja, escribir y probar los pasos, usar cada instrumento, rayos X y fluoroscopia, copiar pasos entre cirugías y publicar |
+| [docs/MANUAL-DEL-TALLER-ANATOMICO.docx](docs/MANUAL-DEL-TALLER-ANATOMICO.docx) | Manual en Word, paso a paso y con ejemplos, para editores y administradores: preparar piezas del atlas, fracturar huesos y llevarlos a las fichas |
 | [docs/GUION-DE-RECORRIDO.md](docs/GUION-DE-RECORRIDO.md) | Guion para presentar la plataforma a quienes la van a llenar: una ficha de cero a publicada, en 45 minutos, más 15 solo para administradores |
 | [docs/COMO-ESCRIBIR-UNA-FICHA.md](docs/COMO-ESCRIBIR-UNA-FICHA.md) | Guía para el traumatólogo: segmentos, bloques, borrador y publicación |
 | [docs/COMO-SUBIR-UN-MODELO.md](docs/COMO-SUBIR-UN-MODELO.md) | Guía para el traumatólogo: preparar el hueso en Blender y armar un caso quirúrgico paso a paso |
-| [docs/testing/fase-1-acceso.tdd.md](docs/testing/fase-1-acceso.tdd.md) | Evidencia del ciclo de pruebas de la fase 1, control de acceso y subidas |
+| [docs/ESQUEMA-DE-LA-BASE-DE-DATOS.md](docs/ESQUEMA-DE-LA-BASE-DE-DATOS.md) | Foto del esquema de PostgreSQL al 21 de octubre: cómo parte Payload cada colección en tablas, el mapa de relaciones y las tablas por grupo. Para leer la base a mano; la verdad sigue siendo `src/collections` |
+| [docs/DOCUMENTO-BASE-PARA-POSTULACIONES.docx](docs/DOCUMENTO-BASE-PARA-POSTULACIONES.docx) | Texto base para postular a fondos (también en [PDF](docs/DOCUMENTO-BASE-PARA-POSTULACIONES.pdf)): resumen, problema, alternativas y estado del proyecto al 18 de octubre, con lo que falta marcado «por completar» |
+| [docs/marca/](docs/marca/) | Los dos logotipos originales en alta resolución, con fondo transparente |
 | [despliegue/paginas/LEEME.md](despliegue/paginas/LEEME.md) | Cómo encaja esta plataforma junto a las otras páginas del servidor compartido |
 | [archivo/LEEME.md](archivo/LEEME.md) | Qué es el prototipo que se conserva y por qué su contenido no se cargó |
 

@@ -107,8 +107,6 @@ export interface ComportamientoDelInstrumento {
   injerta: TipoDeInjerto | null
 }
 
-export type TipoDePinzaDeReduccion = 'puntas' | 'garra' | 'bola'
-
 const NADA: ComportamientoDelInstrumento = {
   corta: null,
   separa: null,

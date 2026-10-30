@@ -30,12 +30,6 @@ despliegue
 tsconfig.tsbuildinfo
 iniciar.bat
 
-# Material suelto del escritorio de trabajo.
-logo_trauma_*.png
-prueba_*.glb
-generar_modelo.py
-add_model.ts
-
 # Los libros, las fichas y sus figuras (varios GB): material de trabajo, no de la
 # imagen. Sin esto, cada despliegue los enviaba enteros al daemon de Docker.
 data_traumahub

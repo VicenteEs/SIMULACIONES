@@ -7,7 +7,13 @@
 #
 #   git clone git@github.com:VicenteEs/SIMULACIONES.git plataforma
 #   cd plataforma
-#   ./scripts/instalar-servidor.sh
+#   ./scripts/instalar-servidor.sh                     # tras un proxy propio
+#   TUNEL=cloudflare ./scripts/instalar-servidor.sh    # tras un tunel de Cloudflare
+#
+# Por omision deja la plataforma como en ved y en Contabo: el override de
+# despliegue/paginas, sin puertos en el anfitrion, en la red docker «proxy» y
+# bajo /traumahub. El proxy con HTTPS que la publique queda por cuenta de quien
+# instala (ver despliegue/paginas/LEEME.md).
 #
 # Es idempotente: se puede volver a ejecutar sin romper nada. Lo que ya esta
 # hecho se detecta y se salta, y el .env existente NUNCA se sobrescribe.
@@ -23,7 +29,6 @@ echo
 
 [ "$(id -u)" -ne 0 ] || morir "No ejecute este script como root. Use su usuario normal; se pedira sudo cuando haga falta."
 
-TUNEL="${TUNEL:-tailscale}"
 elegir_compose
 echo "Tunel: $TUNEL  ·  Compose: $COMPOSE"
 
@@ -84,9 +89,18 @@ if [ -f .env ]; then
 else
   echo "    No hay .env. Se genera uno con secretos aleatorios."
   echo
-  printf "Direccion publica de la plataforma [https://$(hostname).ts.net]: "
-  read -r url_publica
-  url_publica="${url_publica:-https://$(hostname).ts.net}"
+  # Sin valor por omision: antes proponia https://<equipo>.ts.net, la de un
+  # modo que ya no existe (D-223), y aceptarla con Intro dejaba un .env que
+  # apuntaba a ninguna parte. Con el override, la direccion lleva /traumahub.
+  url_publica=""
+  while [ -z "$url_publica" ]; do
+    if [ "$TUNEL" = "local" ]; then
+      printf "Direccion publica de la plataforma (https://.../traumahub): "
+    else
+      printf "Direccion publica de la plataforma (https://...): "
+    fi
+    read -r url_publica
+  done
 
   clave_bd="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
   secreto="$(openssl rand -base64 48)"
@@ -115,6 +129,10 @@ SMTP_CLAVE=
 SMTP_DESDE=
 
 DIAS_A_CONSERVAR=30
+
+# Grupo con que el override arranca la aplicacion, para que escriba en
+# backups/ (O-067). Es el de quien instala.
+RESPALDOS_GID=$(id -g)
 ENV
   chmod 600 .env
   verde "    .env creado con secretos nuevos (permisos 600)"
@@ -144,6 +162,26 @@ chmod 770 backups 2>/dev/null || sudo chmod 770 backups
 verde "    backups/ lista para el contenedor y para el cron"
 
 # ------------------------------------------------------------ 5. Despliegue
+
+if [ "$TUNEL" = "local" ]; then
+  paso "Preparando el override y la red del proxy"
+  # El override no se versiona dentro del clon (lo ignora .gitignore), asi que
+  # copiarlo no estorba a ningun git pull. Si ya existe es el del servidor y no
+  # se pisa: puede llevar cambios propios.
+  if [ -f docker-compose.override.yml ]; then
+    verde "    ya existe docker-compose.override.yml; no se toca"
+  else
+    cp despliegue/paginas/docker-compose.override.yml .
+    verde "    override copiado de despliegue/paginas"
+  fi
+  # La red es externa al compose: si no existe, `up` falla antes de arrancar.
+  if docker network inspect proxy >/dev/null 2>&1; then
+    verde "    la red «proxy» ya existe"
+  else
+    docker network create proxy >/dev/null
+    verde "    red «proxy» creada"
+  fi
+fi
 
 paso "Desplegando la aplicacion"
 TUNEL="$TUNEL" ./scripts/deploy.sh
@@ -205,10 +243,9 @@ paso "Comprobacion final"
 echo
 verde "Instalacion completada."
 echo
-if [ "$TUNEL" = "tailscale" ]; then
-  echo "Falta publicar el servicio en Tailscale. Ejecute UNA de estas:"
-  echo "    sudo tailscale serve --bg 3000     # privado, solo su tailnet"
-  echo "    sudo tailscale funnel --bg 3000    # publico en internet, con HTTPS"
+if [ "$TUNEL" = "local" ]; then
+  echo "Falta la entrada: un proxy con HTTPS en la red docker «proxy» que lleve"
+  echo "/traumahub a http://traumahub:3000 (ver despliegue/paginas/LEEME.md)."
   echo
 fi
 echo "Primera cuenta:  abra ${NEXT_PUBLIC_SERVER_URL:-la direccion publica}/instalar"

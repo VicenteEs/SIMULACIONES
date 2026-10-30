@@ -1,4 +1,5 @@
-# Producción detrás de un túnel de Cloudflare (alternativa a Tailscale, D-034).
+# Producción detrás de un túnel de Cloudflare (alternativa al proxy del
+# servidor, que es la vía por omisión desde D-223).
 #
 # La aplicación NO publica ningún puerto en el anfitrión: el único camino de
 # entrada es el túnel, que abre una conexión SALIENTE hacia la red de

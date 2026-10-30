@@ -100,9 +100,9 @@ por `--token`: la línea de órdenes de un proceso la ve cualquier usuario de la
 máquina con `ps`.
 
 El token va en el `.env`, como `CLOUDFLARE_TUNNEL_TOKEN`, y hay que **pedir**
-esta variante: `scripts/comun.sh` hace `TUNEL="${TUNEL:-tailscale}"`, así que
-`./scripts/deploy.sh` a secas levanta el despliegue de Tailscale y deja el token
-sin usar. Se despliega con `TUNEL=cloudflare ./scripts/deploy.sh`, y la misma
+esta variante: `scripts/comun.sh` hace `TUNEL="${TUNEL:-local}"`, así que
+`./scripts/deploy.sh` a secas despliega tras el proxy del servidor y deja el
+token sin usar. Se despliega con `TUNEL=cloudflare ./scripts/deploy.sh`, y la misma
 variable hace falta en los demás guiones de operación: sin ella miran el
 despliegue equivocado y lo dan por caído. Ver `docs/DESPLIEGUE.md`.
 

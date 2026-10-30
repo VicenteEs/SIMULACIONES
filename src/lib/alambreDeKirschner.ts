@@ -6,8 +6,6 @@
  * sin lienzo y con pruebas. Las cifras (cuánto es «pasarse», cuántas agujas caben) son una propuesta que el traumatólogo debe revisar.
  */
 
-/** El calibre de la aguja, en mm. */
-export const DIAMETRO_DEL_ALAMBRE_MM = 1.6
 /** Lo que mide la aguja de punta a punta, en mm: de ahí sale cuánto asoma fuera del hueso. */
 export const LARGO_DEL_ALAMBRE_MM = 150
 /** Cuántas agujas se dejan puestas a la vez: más no enseñan nada y cuestan geometría. */

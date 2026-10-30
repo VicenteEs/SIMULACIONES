@@ -409,7 +409,7 @@ La lista de instrumentos disponibles se arma con los que aparecen en el guion,
 en lugar de mantenerla aparte. Así el autor no puede dejar dos listas
 desincronizadas ni ofrecer un instrumento que ningún paso admite.
 
-### D-034 · 2026-08-29 · vigente · supera a D-010
+### D-034 · 2026-08-29 · superada por D-223 · supera a D-010
 **El túnel de producción es Tailscale, no Cloudflare.**
 El servidor ya publica varios servicios por Tailscale y se mantiene esa vía por
 coherencia operativa: una sola herramienta que administrar en lugar de dos.
@@ -7035,6 +7035,55 @@ las 72 fascias y las capturas nuevas de los manuales.
 (el 15, 1,4 MB comprimido) y la planilla del miembro inferior derecho tiene nueve filas más. (−) `P-004` y `D-194` a `D-197` aparecen todavía en la conversación y en el
 historial de la copia vieja; lo vigente es lo de este archivo.
 
+### D-223 · 2026-10-30 · vigente · supera a D-034
+**Limpieza del repositorio: fuera el modo Tailscale del despliegue, el experimento MONAI, el guion de texto rico y el código que solo vivía para sus pruebas; dentro, tres documentos que solo estaban en una copia local.**
+*Cómo se hizo.* Una revisión de lo que no se usa, con un grafo de importaciones desde las entradas de Next y de Payload y un barrido de las exportaciones que nadie
+nombra fuera de su archivo, decidida punto por punto con el dueño. Lo que se conservó también queda aquí, para que la próxima limpieza no vuelva a proponerlo sin saberlo.
+*El modo `tailscale` se quita, y `local` pasa a ser el valor por omisión.* Ningún servidor lo usaba: `ved` y Contabo corren `docker-compose.yml` más el override de
+`despliegue/paginas`, tras su proxy (Nginx Proxy Manager en `ved`, Caddy en Contabo). Era además una trampa con daño demostrado: olvidar el `TUNEL=local` en `ved` levantaba
+la aplicación fuera de la red del proxy y la dejaba en 502 (O-077). Fuera `docker-compose.tailscale.yml` y las ramas que lo atendían en `comun.sh`, `deploy.sh`,
+`salud.sh` e `instalar-servidor.sh`; `TUNEL` admite `local` o `cloudflare`. Para que la nueva omisión no cambie una trampa por otra: `deploy.sh` se niega a seguir en modo
+`local` sin `docker-compose.override.yml`, con un mensaje que dice de dónde copiarlo (sin eso caía en `build app` con un «no such service» que no nombra el archivo);
+`instalar-servidor.sh` copia el override si falta, crea la red `proxy` si no existe, escribe `RESPALDOS_GID` en el `.env` que genera y pide la dirección pública sin
+proponer la `https://<equipo>.ts.net` de antes, que con Intro dejaba un `.env` apuntando a ninguna parte. `ved` sigue entrando por un Funnel de Tailscale, pero delante de
+su proxy y no como modo de este repositorio: lo que lo describe (`despliegue/paginas`, `src/lib/ritmo.ts`) no cambia. Se reescribieron `DESPLIEGUE.md`, `SERVIDOR.md`,
+`CLOUDFLARE.md`, el `README.md`, `.env.example` y las cabeceras de los composes. Los crones de respaldo de los dos servidores ya llevan `TUNEL=local`, y el
+`auto-update.sh` de `ved` llama a `docker compose` sin pasar por `TUNEL`: ninguno nota el cambio.
+*Lo que sale.* (1) `add_model.ts`, `generar_modelo.py` y `prueba_rm_monai.glb`: el experimento de agosto que generaba con MONAI una RM sintética, la convertía en malla y la
+subía como modelo; nadie los importaba. Con ellos, el bloque de `.dockerignore` que los nombraba junto a los logos de la raíz. (2) `scripts/migrar-a-texto-rico.ts`, la
+conversión de una sola vez de los campos que pasaron a texto con formato, para bases anteriores al 2026-09-06, y con él `pg` y `@types/pg` de `devDependencies`:
+era lo único que los importaba, y siguen instalados porque los piden `@payloadcms/db-postgres` y `drizzle-orm`. **`npm uninstall pg @types/pg` no sirvió**: además de
+esas dos líneas, podaba del lock el `esbuild` y el `yaml` anidados de `vitest`, que no tienen nada que ver; se quitaron a mano solo las dos declaraciones, de
+`package.json` y de la raíz del lock, y `npm ci` lo aceptó. (3) `docs/testing/fase-1-acceso.tdd.md`, la evidencia del ciclo de pruebas de la fase 1: lo cubren la matriz de
+roles (D-107, D-108) y esta bitácora. (4) Ocho exportaciones que nadie usaba: `TipoDeCampo` (`src/admin/esquema.ts`), `ejeDe` (`src/atlas/manipular.ts`),
+`EstadoDeDifusion` (`src/collections/Difusiones.ts`), `DIAMETRO_DEL_ALAMBRE_MM` (`src/lib/alambreDeKirschner.ts`), `TipoDePinzaDeReduccion`
+(`src/lib/comportamientoDelInstrumento.ts`), `bytesDeUnDataUrl` (`src/lib/pngConMetadatos.ts`), `ModuloConBuzon` (`src/lib/requisitos.ts`) y `TipoDeParrafo`
+(`src/lib/textoRico.ts`). (5) `capasQueEnciendeElPaso` (`src/lib/simulador.ts`) y `largoDeLaHerida` (`src/lib/corteDeMalla.ts`), con sus pruebas: la aplicación dejó de
+llamarlas el 2026-10-10, con las capas libres de D-171, y desde entonces solo las llamaban sus pruebas, que comprobaban un comportamiento que la consola ya no tiene.
+*Lo que se mueve y lo que entra.* Los dos logotipos originales en alta resolución pasan de la raíz a `docs/marca/`. Entran en `docs/` tres documentos que solo existían en
+un árbol de trabajo local sin confirmar: `DOCUMENTO-BASE-PARA-POSTULACIONES` (`.docx` y `.pdf`, 18-10) y `ESQUEMA-DE-LA-BASE-DE-DATOS.md` (21-10, una foto del esquema;
+la verdad sigue siendo `src/collections`). El `README.md` los lista, junto con `MANUAL-DEL-TALLER-ANATOMICO.docx`, que faltaba en la tabla, y corrige la fila de
+`SERVIDOR-WINDOWS.md`, que decía que ese servidor «corre hoy en faraday»: se retiró al pasar a Ubuntu (D-123).
+*Lo que se miró y se conserva.* Los `.ps1` y `SERVIDOR-WINDOWS.md`: una tarea programada de Windows respalda con ellos cada noche la base local de desarrollo. La
+herramienta de ingesta: las constantes de `formato.ts` que nada importa son el contrato con el proceso externo de `data_traumahub`. El prototipo de agosto en
+`archivo/`. `.claude/settings.local.json`, que sigue en git. Y dos grupos de funciones que solo llaman las pruebas: las cuatro que las pruebas necesitan
+(`textosDelPng`, `cadenaDeLaMalla`, `dePorcentaje`, `multiplicarCuaterniones`) y ocho que nunca se llegaron a conectar (`piezaDelHueso`, `piezasDelHueso`,
+`segmentoEnQueCae`, `direccionesAnatomicas`, `atlasIdDeLaPieza`, `agujeroMasCercano`, `articulacionesIniciales`, `diasDesde`), que se dejan por ahora.
+*Fuera del repositorio.* La revisión partió de `D:\simulaciones`, cuyo `.git` se había recreado vacío el 2026-10-25 tras corromperse, con 2 GB de un respaldo de `ved`,
+árboles de trabajo viejos y un borrador de 430 líneas de la etapa E3 del simulador. Ese borrador se descartó sin copia: la E3 que está en `main` (D-180) se hizo aparte
+y sobre ella se construyeron E4 y lo que siguió, así que integrarlo chocaba en nombres, rompía las incisiones múltiples de E4 y el zoom de D-171. La carpeta se
+rehízo como clon limpio de GitHub.
+*Qué se probó.* Contra `main` medido el mismo día en el mismo clon: `typecheck` limpio; `lint` sin errores y con las mismas 14 advertencias; `build` bien;
+`npm ci` acepta el lock tocado a mano. Unitarias: fallan las mismas 6 que en `main` en este equipo Windows (`directorioDeRespaldos`, `piernaDerechaEnElCaso`,
+`respaldoEnWindows`, `subidaDeVideo` y, por tiempo, `autoria`). Integración contra un PostgreSQL 17 desechable: 229 pasan y fallan las 7 de `estructuras.test.ts`,
+que en `main` limpio fallan igual, solas y sobre una base recién creada (en una de las pasadas de `main` salieron bien: dependen de con qué corren a la vez). Los guiones
+tocados pasan `bash -n`; ninguno se ejecutó contra un Docker de verdad.
+*Consecuencias.* (+) Lo que sale sin decir nada es lo que corren los servidores, y la trampa de O-077 desaparece. (+) Un `deploy.sh` en modo `local` sin override falla
+al principio y diciendo qué falta, no a mitad de la construcción. (+) Menos código que mantener y que leer, y ningún documento único fuera del repositorio. (−) Un servidor
+nuevo ya no queda publicado con un `tailscale serve`: hace falta montar un proxy con HTTPS en la red `proxy`, y eso queda fuera de los guiones (está explicado en
+`despliegue/paginas/LEEME.md`). (−) El camino nuevo de `instalar-servidor.sh` (copiar el override, crear la red, pedir la dirección) solo se comprobó con `bash -n`, no en un
+Ubuntu limpio. (−) Quien tuviera `TUNEL=tailscale` escrito en alguna parte recibe ahora «TUNEL debe ser local o cloudflare»; no se conoce ningún sitio así.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -8307,6 +8356,8 @@ salud interna. Los datos no se tocaron: la base es la misma y hubo respaldo ante
 (−) El valor por omisión sigue siendo una trampa para el siguiente; lo sano sería
 que el script lo leyera de `.env` o se negara a correr en un servidor que ya tiene
 el override.
+*Después.* D-223 quitó el modo `tailscale` y dejó `local` por omisión: la trampa ya
+no existe.
 
 ### O-078 · 2026-10-09 · alta · resuelta
 **El simulador abría en negro cuando el caso declaraba piezas que el archivo ya no tenía.**

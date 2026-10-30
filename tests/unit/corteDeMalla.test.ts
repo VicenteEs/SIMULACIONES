@@ -3,7 +3,6 @@ import {
   abrirHerida,
   componerCortes,
   cortarMalla,
-  largoDeLaHerida,
   proyectar,
   prepararIncision,
   type IncisionSobreLaMalla,
@@ -308,12 +307,6 @@ describe('un tubo cerrado, como una pierna', () => {
         expect(abierta[3 * i + 1]).toBe(corte.posiciones[3 * i + 1])
       }
     }
-  })
-})
-
-describe('largoDeLaHerida', () => {
-  it('mide la incisión', () => {
-    expect(largoDeLaHerida(incisionRecta(5, 15, 10))).toBeCloseTo(10, 5)
   })
 })
 

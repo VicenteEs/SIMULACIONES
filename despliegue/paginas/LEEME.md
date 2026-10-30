@@ -234,7 +234,8 @@ El respaldo diario **ya está programado** en el `crontab` del usuario `ved`:
 ```
 
 `TUNEL=local` hace que el script use el `docker-compose.yml` de la carpeta, que
-es el que aquí corresponde. El volcado se verifica antes de darlo por bueno y
+es el que aquí corresponde. Desde D-223 es también lo que sale sin decir nada,
+pero se deja escrito para que la línea no dependa del valor por omisión. El volcado se verifica antes de darlo por bueno y
 se conservan treinta días.
 
 El panel (`/traumahub/admin-panel/respaldos`) crea y descarga volcados a mano.

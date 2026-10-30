@@ -13,8 +13,9 @@ import { builtinModules } from 'node:module'
  * `src/components/Visor3D.tsx` importa `three-stdlib`, que la traía
  * `@react-three/drei`; `src/payload.config.ts` importa
  * `@payloadcms/translations`, que la traía `payload`; y
- * `scripts/migrar-a-texto-rico.ts` pide `pg`, que lo traía
- * `@payloadcms/db-postgres`. El día que cualquiera de las tres cambie de
+ * `scripts/migrar-a-texto-rico.ts` pedía `pg`, que lo traía
+ * `@payloadcms/db-postgres` (el script se retiró en D-223, y `pg` con él). El
+ * día que cualquiera de ellas cambie de
  * versión —o que el instalador deje de aplanar— la construcción se cae con un
  * «Cannot find module» que no nombra por ninguna parte a quien de verdad la
  * traía, y nadie sabría de dónde salió.
@@ -32,12 +33,13 @@ import { builtinModules } from 'node:module'
  * barrido y sin declarar en ninguna parte. `tests/` sí queda fuera: solo pide
  * lo que ya está en `devDependencies`.
  *
- * Lo que esta prueba **no** puede ver son los tipos. `@types/pg` no aparece
- * escrito en ninguna línea —lo busca TypeScript por su cuenta al resolver `pg`,
- * que no trae los suyos— y venía aplanado desde el mismo
- * `@payloadcms/db-postgres`. Por eso va declarado al lado de `pg` en
- * `devDependencies`, y los dos se mueven juntos: aquí no hay barrera que lo
- * recuerde por nadie.
+ * Lo que esta prueba **no** puede ver son los tipos. Un `@types/…` no aparece
+ * escrito en ninguna línea —lo busca TypeScript por su cuenta al resolver el
+ * paquete que no trae los suyos—, así que puede venir aplanado de otra
+ * dependencia sin que nada lo note. Así venía `@types/pg`, y por eso estuvo
+ * declarado al lado de `pg` hasta que los dos se fueron juntos: el que añada
+ * un paquete sin tipos propios declara también los suyos, porque aquí no hay
+ * barrera que lo recuerde por nadie.
  */
 
 const raiz = process.cwd()

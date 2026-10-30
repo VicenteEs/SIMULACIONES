@@ -18,8 +18,6 @@ export const ESTADOS_DE_DIFUSION = [
   { label: 'Detenida', value: 'detenida' },
 ] as const
 
-export type EstadoDeDifusion = (typeof ESTADOS_DE_DIFUSION)[number]['value']
-
 /**
  * Los correos masivos que manda un administrador desde «Difusión» (D-120).
  *

@@ -22,16 +22,22 @@ paso()  { printf '\n==> %s\n' "$*"; }
 morir() { rojo "$*"; exit 1; }
 
 # Que archivo de compose corresponde al tunel elegido.
-#   TUNEL=tailscale   (por omision)  -> la app publica 127.0.0.1:3000
+#   TUNEL=local       (por omision)  -> docker-compose.yml, que en desarrollo es
+#                                       solo la base y en los servidores suma
+#                                       el override de despliegue/paginas
 #   TUNEL=cloudflare                 -> la app no publica ningun puerto
-#   TUNEL=local                      -> solo la base, para desarrollo
+#
+# Por omision va `local` porque es lo que corren los dos servidores, ved y
+# Contabo, detras de su proxy. Antes la omision era `tailscale`, un modo que ya
+# no usaba nadie, y olvidar el TUNEL=local levantaba un segundo compose fuera
+# de la red del proxy, que respondia 502 (O-077). Ese modo se quito en D-223:
+# lo que sale cuando nadie dice nada tiene que ser lo habitual.
 elegir_compose() {
-  TUNEL="${TUNEL:-tailscale}"
+  TUNEL="${TUNEL:-local}"
   case "$TUNEL" in
-    tailscale)  COMPOSE="docker-compose.tailscale.yml" ;;
-    cloudflare) COMPOSE="docker-compose.prod.yml" ;;
     local)      COMPOSE="docker-compose.yml" ;;
-    *) morir "TUNEL debe ser tailscale, cloudflare o local, no '$TUNEL'." ;;
+    cloudflare) COMPOSE="docker-compose.prod.yml" ;;
+    *) morir "TUNEL debe ser local o cloudflare, no '$TUNEL'." ;;
   esac
   export TUNEL COMPOSE
 }

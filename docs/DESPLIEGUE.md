@@ -14,30 +14,37 @@ después.
 
 ---
 
-## Cómo se publica: tres modos
+## Cómo se publica: dos modos
 
 Lo decide la variable `TUNEL`, y `scripts/comun.sh` la traduce a un archivo de
 compose en la función `elegir_compose`:
 
 | `TUNEL` | Compose | Qué levanta |
 |---|---|---|
-| `tailscale`, por omisión | `docker-compose.tailscale.yml` | Base y aplicación. La aplicación publica `127.0.0.1:3000`, que es de donde lo toma `tailscale serve` |
+| `local`, por omisión | `docker-compose.yml`, más `docker-compose.override.yml` si está | En desarrollo, solo la base, para trabajar con `npm run dev`. En un servidor, con el override de `despliegue/paginas` copiado al lado, también la aplicación: sin puertos en el anfitrión, en la red docker `proxy` y bajo `/traumahub` |
 | `cloudflare` | `docker-compose.prod.yml` | Base, aplicación y un contenedor `tunel` con `cloudflared`. La aplicación no publica ningún puerto |
-| `local` | `docker-compose.yml` | Solo la base, para desarrollar con `npm run dev` |
 
-La diferencia entre los dos primeros no es de gusto (decisión D-034). Con
-Cloudflare el túnel corre como contenedor dentro de la red del compose, así que
-la aplicación no necesita publicar puerto alguno. Con Tailscale el demonio corre
-en el anfitrión, fuera de esa red, y por eso la aplicación sí debe publicar uno.
-Ese puerto se publica en `127.0.0.1` y nunca en `0.0.0.0`: queda alcanzable para
-el propio servidor y para Tailscale, y sigue invisible desde la red local y
-desde internet.
+En los dos, la aplicación no publica ningún puerto en el anfitrión: lo que la
+alcanza vive en una red de Docker. Con Cloudflare es el contenedor del túnel,
+dentro de la red del compose. Con `local` es el proxy del servidor —Nginx Proxy
+Manager en `ved`, Caddy en Contabo—, que la encuentra en la red externa `proxy`
+por el alias `traumahub` y es quien pone el HTTPS. Ese proxy vive en su propio
+compose y ningún guion de este repositorio lo administra; cómo se le da de alta
+la ruta está en `despliegue/paginas/LEEME.md`.
 
-**El valor por omisión es `tailscale`.** `scripts/comun.sh` hace
-`TUNEL="${TUNEL:-tailscale}"`. Ejecutar `./scripts/deploy.sh` a secas no levanta
-ningún túnel de Cloudflare por mucho que `CLOUDFLARE_TUNNEL_TOKEN` esté escrito
-en el `.env`: ese archivo de compose ni siquiera se lee y el token queda sin
-usar. Para Cloudflare hay que decirlo:
+Hubo un tercer modo, `tailscale`, que fue además el valor por omisión (D-034):
+la aplicación publicaba `127.0.0.1:3000` para que `tailscale serve` la tomara
+desde el anfitrión. Ningún servidor lo usaba ya, y olvidar el `TUNEL=local` en
+`ved` levantaba ese compose fuera de la red del proxy, que respondía 502
+(O-077). Se quitó en D-223. `ved` sigue entrando por un Funnel de Tailscale,
+pero delante de su proxy y no como modo de este repositorio.
+
+**El valor por omisión es `local`.** `scripts/comun.sh` hace
+`TUNEL="${TUNEL:-local}"`, y `deploy.sh` se niega a seguir en ese modo si falta
+`docker-compose.override.yml`: sin él no hay aplicación que construir. Ejecutar
+`./scripts/deploy.sh` a secas no levanta ningún túnel de Cloudflare por mucho
+que `CLOUDFLARE_TUNNEL_TOKEN` esté escrito en el `.env`: ese archivo de compose
+ni siquiera se lee y el token queda sin usar. Para Cloudflare hay que decirlo:
 
 ```bash
 TUNEL=cloudflare ./scripts/deploy.sh
@@ -88,26 +95,21 @@ solo se aplica al iniciar sesión, así que el guion se detiene ahí y pide cerr
 el SSH, volver a entrar y ejecutarlo otra vez. De ahí que convenga hacer la
 comprobación de arriba antes de empezar.
 
-### Si se publica por Tailscale (lo habitual)
+### Si se publica tras el proxy del servidor (lo habitual)
 
-No hace falta dominio ni token. Hace falta Tailscale instalado en el servidor y
-con sesión iniciada, y eso se hace aparte: ningún guion lo instala.
-`instalar-servidor.sh` ni siquiera lo comprueba, y `deploy.sh` solo consulta
-`tailscale serve status` al final, para decidir si recuerda el comando de
-publicación. Conviene saberlo porque sin Tailscale el despliegue igual termina
-bien: la plataforma queda corriendo en `127.0.0.1:3000` y sin nadie que la
-alcance.
+No hace falta dominio propio ni token. Hace falta, en el servidor, un proxy
+inverso con HTTPS conectado a la red docker `proxy` que lleve `/traumahub` a
+`http://traumahub:3000`, y eso se monta aparte: ningún guion lo instala ni lo
+configura. En `ved` es Nginx Proxy Manager, detrás de un Funnel de Tailscale; en
+Contabo, Caddy con un certificado de Let's Encrypt. `instalar-servidor.sh`
+copia el override y crea la red `proxy` si no existe, pero sin el proxy el
+despliegue igual termina bien: la plataforma queda corriendo, sana por dentro y
+sin nadie que la alcance desde fuera.
 
-Publicar el servicio es un comando, y hay que elegir cuál:
-
-```bash
-sudo tailscale serve --bg 3000     # privado, solo su tailnet
-sudo tailscale funnel --bg 3000    # público en internet, con HTTPS
-```
-
-`deploy.sh` los recuerda al terminar si ve que el 3000 todavía no está
-publicado. La dirección pública que `instalar-servidor.sh` propone para el
-`.env` es `https://<nombre-del-equipo>.ts.net`, que es la que entrega Tailscale.
+La dirección pública del `.env` lleva el prefijo, porque el override compila la
+aplicación con `BASE_PATH=/traumahub`: en `ved`,
+`https://ved.tailc2094f.ts.net:10000/traumahub`. `instalar-servidor.sh` la pide
+sin proponer ninguna.
 
 ### Si se publica por Cloudflare
 
@@ -151,7 +153,7 @@ Desde un clon limpio, un solo comando:
 ```bash
 git clone git@github.com:VicenteEs/SIMULACIONES.git plataforma
 cd plataforma
-./scripts/instalar-servidor.sh                    # Tailscale, por omisión
+./scripts/instalar-servidor.sh                    # tras el proxy, por omisión
 # o bien:
 TUNEL=cloudflare ./scripts/instalar-servidor.sh
 ```
@@ -171,6 +173,7 @@ token del túnel. En ese caso hay que escribirlo a mano.
 ```bash
 cp .env.example .env
 nano .env
+cp despliegue/paginas/docker-compose.override.yml .   # salvo con TUNEL=cloudflare
 ./scripts/deploy.sh
 ```
 
@@ -181,8 +184,9 @@ POSTGRES_USER=trauma
 POSTGRES_PASSWORD=          # generar: openssl rand -base64 24
 POSTGRES_DB=trauma
 PAYLOAD_SECRET=             # generar: openssl rand -base64 48
-NEXT_PUBLIC_SERVER_URL=     # con Tailscale, https://<equipo>.ts.net
+NEXT_PUBLIC_SERVER_URL=     # tras el proxy, https://<servidor>/traumahub
 CLOUDFLARE_TUNNEL_TOKEN=    # solo en el modo cloudflare
+RESPALDOS_GID=              # tras el proxy: el `id -g` de quien despliega, si no es 1000
 ```
 
 El resto de las variables, con su explicación, está en `.env.example`.
@@ -196,7 +200,7 @@ Si la base ya está en marcha, la respalda antes de reconstruir, en
 `backups/base-AAAAMMDD-HHMMSS.sql.gz`. Solo la base: los archivos subidos no
 entran en ese respaldo, de esos se encarga el respaldo diario. Después espera
 hasta 90 segundos a que la aplicación responda en `/api/salud`. La consulta la
-hace desde dentro del contenedor, porque en el modo Cloudflare no hay ningún
+hace desde dentro del contenedor, porque en ninguno de los dos modos hay un
 puerto publicado en el anfitrión al que llamar, y `/api/salud` toca la base
 antes de contestar: un «ok» significa aplicación y base en pie, no solo el
 puerto abierto.
@@ -283,9 +287,10 @@ eso todo lo que hay delante tiene que estar **por encima** de los 50 MB:
 
 | Modo | Qué hay delante | Tope de cuerpo |
 |---|---|---|
-| `paginas/` (nginx) | Nginx Proxy Manager | `client_max_body_size 64m`, en el fragmento que describe `despliegue/paginas/LEEME.md`. Es el más bajo de los tres y el único que hay que tocar a mano si algún día se pasa de 64 MB |
+| `local` en `ved` | Nginx Proxy Manager | `client_max_body_size 64m`, en el fragmento que describe `despliegue/paginas/LEEME.md`. Es el más bajo de todos y el único que hay que tocar a mano si algún día se pasa de 64 MB |
+| `local` en `ved` | Tailscale Funnel, delante del anterior | Tailscale no publica ningún tope de cuerpo: `funnel` hace de proxy inverso y no analiza lo que pasa. Lo que sí dice su documentación es que Funnel no está pensado para tráfico de alto volumen |
+| `local` en Contabo | Caddy | Caddy no pone tope de cuerpo salvo que el Caddyfile lo pida con `request_body` |
 | `cloudflare` | El borde de Cloudflare | 100 MB en los planes Free, Pro y Business. No es del túnel ni de `cloudflared`: lo aplica el borde, y no se sube con configuración |
-| `tailscale` | Tailscale Funnel | Tailscale no publica ningún tope de cuerpo: `serve`/`funnel` hace de proxy inverso y no analiza lo que pasa. Lo que sí dice su documentación es que Funnel no está pensado para tráfico de alto volumen |
 
 **Los 50 MB por Funnel no se han medido aquí.** Si fallan, el síntoma no será un
 413 sino una conexión cortada a mitad de la barra de progreso, y el panel dirá
@@ -343,7 +348,7 @@ Donde no hay systemd, el mismo guion cae a una línea de cron equivalente, que
 deja el registro en un archivo porque en cron nadie lee la salida:
 
 ```
-0 3 * * * cd /ruta/del/clon && TUNEL=tailscale ./scripts/respaldar.sh --verificar >> backups/respaldo.log 2>&1
+0 3 * * * cd /ruta/del/clon && TUNEL=local ./scripts/respaldar.sh --verificar >> backups/respaldo.log 2>&1
 ```
 
 `salud.sh` comprueba las dos vías y avisa si el respaldo diario no está
@@ -411,7 +416,7 @@ fecha, avisa, deja la base restaurada e indica la orden para hacerlo a mano, ya
 con la plataforma en pie:
 
 ```bash
-gzip -dc backups/medios-FECHA.tar.gz | docker compose -f docker-compose.tailscale.yml exec -T app tar xf - -C /app
+gzip -dc backups/medios-FECHA.tar.gz | docker compose exec -T app tar xf - -C /app
 ```
 
 Con `-f docker-compose.prod.yml` en el modo Cloudflare. Los archivos subidos
@@ -448,7 +453,7 @@ el anterior. Conviene avisar antes de actualizar, porque desde fuera se ve como
 ### Ver el registro
 
 ```bash
-docker compose -f docker-compose.tailscale.yml logs -f app   # modo tailscale
+docker compose logs -f app                                   # modo local: sin -f, para que entre el override
 docker compose -f docker-compose.prod.yml logs -f app        # modo cloudflare
 ```
 
@@ -463,7 +468,6 @@ correo, antes incluso de llegar al inicio de sesión de la plataforma. Es
 gratuito hasta cincuenta usuarios y se configura en **Access → Applications**.
 Muy recomendable.
 
-Con Tailscale la segunda puerta ya está puesta de otra forma: con
-`tailscale serve` la plataforma solo se ve desde la tailnet. Si se publica con
-`tailscale funnel`, en cambio, queda expuesta a internet y la única puerta es el
-inicio de sesión de la plataforma.
+Tras el proxy del servidor no hay segunda puerta: en `ved` la entrada es un
+Funnel, abierto a internet, y en Contabo, Caddy en el 443. En los dos, la única
+puerta es el inicio de sesión de la plataforma.

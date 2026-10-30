@@ -893,32 +893,6 @@ export function piezasQueFaltanEnElArchivo(
 }
 
 /**
- * Las capas apagadas que el paso declara ver: al entrar en él se encienden.
- *
- * El paso manda sobre el interruptor, que es para lo que existe `muestra`. Al
- * revés —restando las capas a lo que el paso declara— una incisión escrita
- * sobre la piel acababa trazada sobre el hueso desnudo, y lo único que lo
- * indicaba era una casilla desmarcada en la otra punta de la pantalla.
- */
-export function capasQueEnciendeElPaso(
-  pasos: PasoConMuestra[],
-  piezas: PiezaConRol[],
-  indicePaso: number,
-  capasApagadas: Set<string>,
-): string[] {
-  const declarados = declaracionDelPaso(pasos, indicePaso)
-  if (!declarados) return []
-  const rolDe = new Map(piezas.map((p) => [p.nodo, p.rol]))
-  const roles: string[] = []
-  for (const nodo of declarados) {
-    const rol = rolDe.get(nodo)
-    const capa = rol ? capaDelRol(rol) : null
-    if (capa && capasApagadas.has(capa) && !roles.includes(capa)) roles.push(capa)
-  }
-  return roles
-}
-
-/**
  * Los topes del deslizador de fuerza.
  *
  * El 0-120 fijo que había aquí era un número inventado, y con un paso de

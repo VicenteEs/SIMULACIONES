@@ -43,11 +43,6 @@ export const EJES_DEL_MUNDO: Readonly<EjesLocales> = {
   z: new THREE.Vector3(0, 0, 1),
 }
 
-/** El eje con nombre, sea del mundo o de un hueso. */
-export function ejeDe(eje: EjeDelGesto, ejes: Readonly<EjesLocales> = EJES_DEL_MUNDO): THREE.Vector3 {
-  return ejes[eje]
-}
-
 /** Los tres ejes de un hueso como los entrega `ejeDelHueso`, en el espacio del atlas. */
 export interface EjesDeUnHueso {
   /** De proximal a distal. */

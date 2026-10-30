@@ -77,13 +77,6 @@ case "$respuesta" in
   *'"estado"'*)      fallo "responde pero no alcanza la base: $respuesta" ;;
   *)                 fallo "no responde en /api/salud" ;;
 esac
-if [ "$TUNEL" = "tailscale" ]; then
-  if command -v tailscale >/dev/null && tailscale serve status 2>/dev/null | grep -q 3000; then
-    bien "Tailscale publica el puerto 3000"
-  else
-    nota "Tailscale no publica el 3000 (sudo tailscale serve --bg 3000)"
-  fi
-fi
 echo
 
 echo "Respaldos"

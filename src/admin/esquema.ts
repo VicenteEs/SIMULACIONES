@@ -21,19 +21,6 @@
 import { BLOQUES } from './bloques'
 import { CATEGORIAS_DE_INSTRUMENTAL } from '@/lib/instrumental'
 
-export type TipoDeCampo =
-  | 'texto'
-  | 'area'
-  | 'numero'
-  | 'seleccion'
-  | 'casilla'
-  | 'relacion'
-  | 'archivo'
-  | 'rico'
-  | 'lista'
-  | 'grupo'
-  | 'bloques'
-
 export interface Opcion {
   valor: string
   etiqueta: string

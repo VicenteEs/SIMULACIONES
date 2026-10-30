@@ -557,9 +557,3 @@ export function componerCortes(cortes: readonly { corte: MallaCortada; apertura:
   }
   return salida
 }
-
-/** Cuánto mide la herida de largo (la incisión), en las unidades de la malla. */
-export function largoDeLaHerida(incision: IncisionSobreLaMalla): number {
-  const curva = prepararIncision(incision, 0)
-  return curva?.largoTotal ?? 0
-}

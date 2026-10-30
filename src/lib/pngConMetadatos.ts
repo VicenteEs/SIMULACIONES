@@ -129,12 +129,3 @@ export function textosDelPng(png: Uint8Array): Record<string, string> {
   }
   return salida
 }
-
-/** Un `data:` URL de un lienzo → sus bytes. */
-export function bytesDeUnDataUrl(dataUrl: string): Uint8Array {
-  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
-  const binario = atob(base64)
-  const bytes = new Uint8Array(binario.length)
-  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i)
-  return bytes
-}

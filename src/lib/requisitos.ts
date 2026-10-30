@@ -26,5 +26,4 @@ export const LARGO_MAXIMO_DE_LA_RESPUESTA = 2000
 
 /** Los módulos que admiten un buzón. De momento, solo el anunciado. */
 export const MODULOS_CON_BUZON = ['planificacion'] as const
-export type ModuloConBuzon = (typeof MODULOS_CON_BUZON)[number]
 

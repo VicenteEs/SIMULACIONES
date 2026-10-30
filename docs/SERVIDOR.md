@@ -14,7 +14,8 @@ cd plataforma
 
 Eso es todo. El script instala Docker si falta, genera los secretos, construye
 la imagen, levanta los contenedores, programa el respaldo diario y comprueba
-que todo responda.
+que todo responda. Lo único que no hace es el proxy con HTTPS que publica la
+plataforma, que en cada servidor es distinto (sección 2).
 
 ---
 
@@ -25,7 +26,7 @@ que todo responda.
 | Ubuntu Server 22.04 o 24.04 LTS | Es la base para la que está escrito el script (D-023) |
 | Un usuario normal con `sudo` | **No** se despliega como root; el script se niega |
 | Clave SSH registrada en GitHub | Para poder clonar el repositorio privado |
-| Tailscale instalado y con sesión iniciada | Es la vía de acceso por omisión (D-034) |
+| Un proxy inverso con HTTPS en la red docker `proxy` | Es la vía de entrada por omisión (D-223): Nginx Proxy Manager en `ved`, Caddy en Contabo |
 
 Docker **no** hace falta instalarlo a mano: si no está, el script lo instala
 desde el repositorio oficial y pide confirmación antes.
@@ -33,7 +34,7 @@ desde el repositorio oficial y pide confirmación antes.
 Comprobación rápida, ya en el servidor:
 
 ```bash
-whoami && sudo -v && ssh -T git@github.com && tailscale status | head -3
+whoami && sudo -v && ssh -T git@github.com
 ```
 
 ---
@@ -46,9 +47,10 @@ cd plataforma
 ./scripts/instalar-servidor.sh
 ```
 
-El script pregunta una sola cosa: la **dirección pública** de la plataforma.
-Con Tailscale suele ser `https://NOMBRE-DEL-SERVIDOR.ts.net`, que se ve con
-`tailscale status`.
+El script pregunta una sola cosa: la **dirección pública** de la plataforma,
+con el prefijo al final, porque la aplicación se compila bajo `/traumahub`: por
+ejemplo `https://NOMBRE-DEL-SERVIDOR/traumahub`. En lo que sigue, SU-DIRECCION
+es esa dirección completa.
 
 Lo demás lo resuelve solo:
 
@@ -57,26 +59,25 @@ Lo demás lo resuelve solo:
    con permisos `600`. **Si ya existe un `.env`, no lo toca.**
 3. Prepara `backups/` con los permisos que necesitan a la vez el contenedor
    (que corre como uid 1001) y su usuario del servidor.
-4. Llama a `scripts/deploy.sh`, que construye y levanta todo.
-5. Programa el respaldo diario con un temporizador de `systemd`, o en el
+4. Copia el override de `despliegue/paginas` como `docker-compose.override.yml`
+   y crea la red docker `proxy` si no existe. Un override que ya esté no lo
+   toca: puede llevar cambios propios del servidor.
+5. Llama a `scripts/deploy.sh`, que construye y levanta todo.
+6. Programa el respaldo diario con un temporizador de `systemd`, o en el
    `crontab` si la máquina no lo trae.
-6. Ejecuta `scripts/salud.sh` y muestra el estado final.
+7. Ejecuta `scripts/salud.sh` y muestra el estado final.
 
 Si algo falla, el script se detiene y dice qué pasó. Volver a ejecutarlo es
 seguro: todo lo que ya está hecho se detecta y se salta.
 
-### Publicar el servicio en Tailscale
+### Publicar el servicio
 
-Al terminar, falta un paso que necesita privilegios y por eso no se hace solo:
-
-```bash
-sudo tailscale serve --bg 3000     # privado: solo su tailnet lo ve
-sudo tailscale funnel --bg 3000    # público en internet, con HTTPS de Tailscale
-```
-
-Con `serve`, la plataforma es invisible desde internet: solo los dispositivos de
-su tailnet llegan a ella. Es lo que corresponde mientras el contenido esté en
-construcción.
+Al terminar, la plataforma corre pero nadie llega a ella desde fuera: falta el
+proxy. Tiene que estar en la red docker `proxy`, poner el HTTPS y llevar
+`/traumahub` a `http://traumahub:3000`. Cómo se hizo en `ved`, con Nginx Proxy
+Manager, está en `despliegue/paginas/LEEME.md`; en Contabo es un Caddy en su
+propio compose. Mientras el proxy no esté, `./scripts/salud.sh` dice que todo
+va bien, porque mira por dentro: la prueba de verdad es abrir SU-DIRECCION.
 
 ### La primera cuenta
 
@@ -113,8 +114,8 @@ Todos los comandos se ejecutan desde el directorio del clon.
 | Actualizar a la última versión | `./scripts/actualizar.sh` |
 | Respaldar ahora | `./scripts/respaldar.sh --verificar` |
 | Restaurar un respaldo | `./scripts/restaurar.sh backups/base-AAAAMMDD-HHMMSS.sql.gz` |
-| Ver el registro en vivo | `docker compose -f docker-compose.tailscale.yml logs -f app` |
-| Reiniciar la aplicación | `docker compose -f docker-compose.tailscale.yml restart app` |
+| Ver el registro en vivo | `docker compose logs -f app` |
+| Reiniciar la aplicación | `docker compose restart app` |
 
 `salud.sh` devuelve un código distinto de cero si algo va mal, así que sirve
 también para encadenarlo con otra cosa o para vigilarlo desde fuera.
@@ -298,11 +299,12 @@ conservar también el archivo suelto, se copia con `scp` como los otros.
 
 ```
                     ┌─────────────────────────────┐
-   tailnet  ───────▶│ tailscale serve (anfitrión) │
+   internet ───────▶│ proxy con HTTPS (su compose)│
                     └──────────────┬──────────────┘
-                                   │ 127.0.0.1:3000
+                                   │ red docker «proxy»
+                                   │ traumahub:3000
                     ┌──────────────▼──────────────┐
-                    │  trauma-app  (uid 1001)     │
+                    │  traumahub-app  (uid 1001)  │
                     │  Next.js + Payload          │
                     └──────┬───────────────┬──────┘
                            │ red interna   │ volúmenes
@@ -314,11 +316,11 @@ conservar también el archivo suelto, se copia con `scp` como los otros.
 
 Puntos que conviene tener presentes:
 
-- La aplicación publica el puerto **solo en `127.0.0.1`**, nunca en `0.0.0.0`:
-  es alcanzable desde el propio servidor y desde Tailscale, y sigue invisible
-  para la red local y para internet.
-- La base **no publica ningún puerto**: solo se llega a ella desde la red
-  interna del compose.
+- La aplicación **no publica ningún puerto** en el anfitrión: la única entrada
+  es el proxy, por la red `proxy`, igual que las demás páginas del servidor.
+- La base publica el 5432 **solo en `127.0.0.1`**, nunca en `0.0.0.0`, para
+  respaldos e inspección desde el propio servidor: sigue invisible para la red
+  local y para internet.
 - El contenedor no corre como root (uid 1001).
 - Los medios subidos y los respaldos viven fuera de la imagen, de modo que
   reconstruirla no borra nada.
@@ -331,7 +333,7 @@ Puntos que conviene tener presentes:
 
 ### La alternativa: Cloudflare
 
-Si algún día hay dominio propio, existe la otra vía (D-034):
+Si algún día hay dominio propio, existe la otra vía (D-223):
 
 ```bash
 TUNEL=cloudflare ./scripts/instalar-servidor.sh
@@ -357,7 +359,7 @@ fue el último respaldo y cuánto disco queda.
 
 | Síntoma | Dónde mirar |
 |---|---|
-| La página no carga | `docker compose -f docker-compose.tailscale.yml logs --tail 100 app` |
+| La página no carga | `docker compose logs --tail 100 app`, y si la aplicación está sana, el proxy |
 | «No autorizado» en todo | La cuenta existe pero no está activa; actívela en `/admin-panel/usuarios` |
 | Nadie recibe correos | No hay SMTP configurado; el panel entrega el enlace de clave a mano (`docs/CORREO.md`) |
 | Se quedó fuera del panel | `npx tsx scripts/restablecer-clave.ts correo@ejemplo.cl` genera un enlace de un solo uso |

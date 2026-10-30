@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Despliegue en el servidor (decisiones D-019, D-023, D-034).
+# Despliegue en el servidor (decisiones D-019, D-023, D-223).
 #
 # Deja el servidor operativo desde un clon limpio del repositorio. Es
 # idempotente: sirve tanto para la primera instalacion como para actualizar.
 #
-#   ./scripts/deploy.sh                 # Tailscale (por omision)
+#   ./scripts/deploy.sh                 # tras el proxy del servidor (por omision)
 #   TUNEL=cloudflare ./scripts/deploy.sh
 #
 # Si la version nueva no llega a responder, se vuelve sola a la imagen anterior.
@@ -37,10 +37,20 @@ requeridas="POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB PAYLOAD_SECRET NEXT_PUBL
 [ "$TUNEL" = "cloudflare" ] && requeridas="$requeridas CLOUDFLARE_TUNNEL_TOKEN"
 # shellcheck disable=SC2086
 exigir_variables $requeridas
+# Con TUNEL=local el servicio `app` no esta en el docker-compose.yml del
+# repositorio, que en desarrollo levanta solo la base: lo pone el override de
+# despliegue/paginas. Sin el, el guion caeria mas abajo en `build app` con un
+# «no such service» que no dice que lo que falta es un archivo.
+if [ "$TUNEL" = "local" ] && [ ! -f docker-compose.override.yml ]; then
+  morir "Falta docker-compose.override.yml, que es el que define la aplicacion.
+    Copielo de su plantilla:  cp despliegue/paginas/docker-compose.override.yml .
+    O despliegue con el tunel de Cloudflare:  TUNEL=cloudflare ./scripts/deploy.sh"
+fi
 # Esto para el despliegue, y no es exceso de celo: sin HTTPS la plataforma
 # arranca, responde y no deja entrar a nadie, nunca. La cookie de sesion sale
-# con Secure en cuanto NODE_ENV vale production (lo fijan los tres composes y
-# el Dockerfile), y el navegador DESCARTA una cookie Secure llegada por http.
+# con Secure en cuanto NODE_ENV vale production (lo fijan los dos composes de
+# produccion y el Dockerfile), y el navegador DESCARTA una cookie Secure
+# llegada por http.
 # Quien despliega crea la primera cuenta en /instalar, el cliente salta al
 # panel, no hay sesion, vuelve al formulario y no aparece ningun error: la
 # accion de servidor devolvio exito. Desde fuera, la plataforma acepta la
@@ -58,7 +68,7 @@ case "$NEXT_PUBLIC_SERVER_URL" in
   *) morir "NEXT_PUBLIC_SERVER_URL no usa HTTPS ($NEXT_PUBLIC_SERVER_URL).
     La cookie de sesion se emite con Secure en produccion, asi que el navegador
     la descarta sobre http: nadie podra entrar y el formulario no dara ningun
-    error. Publique con HTTPS (tailscale serve/funnel, o el tunel de
+    error. Publique con HTTPS (el proxy del servidor, o el tunel de
     Cloudflare) y vuelva a ejecutar este guion." ;;
 esac
 verde "    configuracion completa"
@@ -135,21 +145,17 @@ if [ "$sano" -ne 1 ]; then
   exit 1
 fi
 
-paso "Comprobando el tunel"
+# Con TUNEL=local la entrada es el proxy del servidor (Nginx Proxy Manager en
+# ved, Caddy en Contabo), que vive en su propio compose y que este guion no
+# administra. La salud de arriba se consulta por dentro y no lo cruza: hay que
+# mirarla por fuera, en NEXT_PUBLIC_SERVER_URL.
 if [ "$TUNEL" = "cloudflare" ]; then
+  paso "Comprobando el tunel"
   if dc logs tunel 2>/dev/null | grep -qi "Registered tunnel connection"; then
     verde "    el tunel esta conectado a Cloudflare"
   else
     ambar "    el tunel aun no registra conexiones."
     ambar "    Revise el token en .env y ejecute: $(orden_compose) logs tunel"
-  fi
-else
-  if command -v tailscale >/dev/null && tailscale serve status 2>/dev/null | grep -q "3000"; then
-    verde "    Tailscale ya publica el puerto 3000"
-  else
-    ambar "    Falta publicar el servicio en Tailscale. Ejecute UNA de estas:"
-    echo "      sudo tailscale serve --bg 3000     # privado, solo su tailnet"
-    echo "      sudo tailscale funnel --bg 3000    # publico en internet, con HTTPS"
   fi
 fi
 

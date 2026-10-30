@@ -35,8 +35,6 @@ export interface Fragmento {
 
 export type Alineacion = 'izquierda' | 'centro' | 'derecha' | 'justificado'
 
-export type TipoDeParrafo = 'parrafo' | 'h2' | 'h3' | 'h4' | 'cita' | 'vinetas' | 'numerada'
-
 export type Parrafo =
   | {
       tipo: 'parrafo' | 'h2' | 'h3' | 'h4' | 'cita'

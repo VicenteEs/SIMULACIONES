@@ -1,8 +1,9 @@
 # Desarrollo local. Solo la base de datos corre en contenedor; la aplicación
 # se ejecuta con "npm run dev" para tener recarga en caliente en Windows.
 #
-# Producción: ver docker-compose.tailscale.yml (por omisión) o
-# docker-compose.prod.yml (túnel de Cloudflare).
+# Producción: este mismo archivo más el override de despliegue/paginas, tras el
+# proxy del servidor (por omisión), o docker-compose.prod.yml (túnel de
+# Cloudflare).
 services:
   db:
     image: postgres:17-alpine

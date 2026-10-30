@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   capaDelRol,
   capasAlEntrarEnPaso,
-  capasQueEnciendeElPaso,
   declaracionDelPaso,
   medidaInicial,
   rangoDelDeslizadorDeFuerza,
@@ -98,20 +97,6 @@ describe('qué nodos se encienden', () => {
     const { nodos, encender } = visibilidadDelPaso([{ muestra: ['Piel'] }], piezas, 0, apagadas())
     expect(nodos).toEqual(['Piel'])
     expect(encender).toEqual([])
-  })
-})
-
-describe('el paso manda sobre el interruptor de capas', () => {
-  it('entrar en un paso enciende las capas que ese paso declara ver', () => {
-    expect(
-      capasQueEnciendeElPaso([{ muestra: ['Piel', 'Tibia'] }], piezas, 0, apagadas('piel', 'musculo')),
-    ).toEqual(['piel'])
-  })
-
-  it('un paso que no declara nada no toca las capas', () => {
-    // Aquí el residente manda: el caso no ha dicho nada, y el arranque en hueso
-    // es lo que permite agarrar el fragmento para reducir.
-    expect(capasQueEnciendeElPaso([{}], piezas, 0, apagadas('piel', 'musculo'))).toEqual([])
   })
 })
 
