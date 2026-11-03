@@ -315,6 +315,11 @@ override de `despliegue/paginas`, sin puertos en el anfitrión y detrás del
 proxy del servidor, que pone el HTTPS. Para usar Cloudflare hay que decírselo
 a cada guion con `TUNEL=cloudflare` (D-223).
 
+La imagen trae Chromium: con él el servidor imprime el PDF de «Guardar PDF»
+(D-244). Fuera de Docker se busca en los sitios de siempre (Chromium, Chrome o
+Edge), y `NAVEGADOR_PDF` apunta a otro si hace falta. Sin navegador, todo
+funciona menos ese botón, que lo dice.
+
 Guía completa: [docs/SERVIDOR.md](docs/SERVIDOR.md).
 
 ## Documentación

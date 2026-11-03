@@ -222,7 +222,7 @@ export default async function Ficha({ params }: { params: Promise<{ id: string }
             documentoId={id}
             completadoInicial={completadoInicial}
           />
-          <BotonImprimir />
+          <BotonImprimir pagina="biblioteca" documentoId={id} />
           <BotonComentar coleccion="patologias" documentoId={id} />
           {puedeEditarla ? (
             <Link className="boton boton-fantasma boton-sm" href={`/admin-panel/contenido/patologias/${id}`}>

@@ -7559,6 +7559,77 @@ Sin `NODE_ENV`, Payload no ajusta el esquema ni corre migraciones: el esquema lo
 - (−) **Se cambió la configuración de un proyecto que no es este.** El registro de auditoría del proxy no lo muestra, porque el cambio se hizo en la base, igual que la baja. Lo cuenta esta entrada.
 - (−) **Todas las páginas de ved siguen colgando de un solo host,** así que un proyecto que se apaga todavía puede dejar fuera a los demás.
 
+### D-244 · 2026-11-03 · vigente · cambia cómo sale el PDF de D-191: «Guardar PDF» ya no es la impresión del navegador
+**«Guardar PDF» descarga un PDF que imprime el servidor, con un Chromium sin ventana, sobre la misma página y la misma hoja `@media print`.**
+
+*De dónde sale.* Pedido del dueño, 2026-11-03: que todas las opciones de guardar PDF descarguen su PDF formateado y no pasen por el navegador, porque desde el navegador «se ve una hoja más chica». El botón llamaba a `window.print()`. El resultado dependía del diálogo de cada navegador: el papel por omisión, el escalado, la casilla de «Gráficos de fondo». En el teléfono, la A4 salía encogida dentro de otra hoja.
+
+*Cómo funciona.*
+- **El botón** («Guardar PDF», en la ficha de la biblioteca, en la técnica AO y en la lectura de imágenes) pide `api/pdf/[pagina]/[id]` con `fetch`. Mientras tanto dice «preparando…» y no se puede volver a pulsar. Al llegar, el archivo se descarga con el nombre de la ficha (`traumahub-fractura-de-la-diafisis-tibial.pdf`). Si falla, lo dice un aviso flotante, en castellano.
+- **La ruta** comprueba la sesión antes de abrir nada. Solo acepta esas tres páginas y un id entero: es una lista cerrada y no un camino, porque el navegador entra con la sesión de quien pide.
+- **`src/lib/pdfServidor.ts`** abre un Chromium por PDF con `puppeteer-core`, le pone las cookies de quien pide y carga la página desde dentro, en `127.0.0.1` y el puerto donde escucha el servidor.
+  - Antes de imprimir, hace visibles en papel las secciones ocultas y espera a que carguen las imágenes diferidas, hasta 10 s, y a las fuentes.
+  - Imprime con `preferCSSPageSize`: la A4 la decide `@page`, no la máquina.
+  - Si la página no pinta el membrete, no hay ficha que imprimir (sin acceso, en mantención, no existe) y contesta 404.
+- **Lo que la página puede pedir mientras se imprime** (`destinoDePeticion`, en `src/lib/pdf.ts`):
+  - **Se corta todo lo que no es `GET`.** Así la visita y el latido del tiempo activo no escriben: medido, imprimir no deja ni una fila de actividad, ni un latido, ni una línea de registro.
+  - **Se cortan el vídeo y el aviso de cambios.**
+  - **Se corta todo lo de otro origen.**
+  - **Las imágenes de archivos subidos se traen por dentro.** Payload escribe su dirección con `serverURL`, que es la pública. La primera versión las cortaba como «de otro origen», y la figura de la ficha salía como un recuadro roto: en ved habría pasado con todas. Ahora se pide el mismo camino al origen interno, con la cookie y con `Sec-Fetch-Site`, porque sin esa cabecera Payload no le cree la sesión a quien no es un navegador (`extractJWT`).
+- **Dos a la vez y seis en cola.** Cada impresión es un navegador entero, unos 150 MB mientras dura. Más allá de la cola se contesta 503 con «vuelve a intentarlo».
+- **El navegador** sale de `NAVEGADOR_PDF` o de los sitios de siempre: el Chromium de Alpine con sus dos nombres, y Chrome o Edge en Windows. No se descarga ninguno. El `Dockerfile` instala `chromium` y una fuente de reserva en la etapa de ejecución. Sin navegador, «Guardar PDF» contesta que el servidor no tiene con qué prepararlo, y nada más se cae.
+
+*Por qué un navegador y no una biblioteca de PDF.* El diseño del papel ya existe, en `@media print`: el membrete, el pie de cada hoja con las firmas por `@page`, las tablas que repiten la cabecera. Rehacerlo en otra herramienta deja dos versiones del mismo papel, y la que no se mira se queda vieja. `html2canvas` saca una foto, sin texto que se pueda buscar ni copiar.
+
+*Qué se probó.*
+- Sobre el servidor de desarrollo y la base desechable, las tres páginas por el botón. Salen tres PDF A4 con membrete, pie, «Página N de M» y figuras, y sin errores en la consola.
+- Sin sesión, 401. Con una página o un id inventados, 404. Con una ficha que no existe, 404. Tres a la vez, las tres en 200. Cada uno tarda alrededor de 1,5 s.
+- `puppeteer-core` llega a `.next/standalone`, que es lo que copia la imagen, y desde ahí abre el navegador e imprime.
+- `tests/unit/pdf.test.ts`: la lista cerrada, el id, el origen interno, qué petición sigue, cuál se trae y cuál se corta, las cookies, el nombre del archivo, que el botón no llame a `window.print` y que la ruta compruebe la sesión antes de imprimir.
+
+*Consecuencias.*
+- (+) El mismo PDF para todos, en cualquier navegador y en el teléfono, sin diálogo ni casillas.
+- (+) El diseño sigue en un solo sitio: tocar `@media print` cambia el PDF del botón y el de Ctrl+P a la vez.
+- (−) **La imagen pesa unos 250 MB más**, por Chromium.
+- (−) **Cada PDF cuesta un navegador en el servidor.** El tope de dos a la vez lo acota, pero una clase entera pidiendo a la vez espera su turno.
+- (−) **`--no-sandbox` en Linux.** Dentro de Docker, Chromium no arranca con su caja de arena. Lo compensa que la página solo puede pedir a la propia plataforma.
+- (−) **No está probado todavía en ved:** ni la imagen con Chromium ni el PDF por el proxy. Se verá en el próximo despliegue.
+
+### D-245 · 2026-11-03 · vigente · ajusta D-231 y D-236
+**La portada pública con letra más grande y transiciones suaves: lo que aparece al bajar es el contenido, no la sección, y los fondos se funden despacio.**
+
+*De dónde sale.* Pedido del dueño, 2026-11-03: agrandar las letras de la portada donde se presenta la aplicación y suavizar las transiciones, «se ven muy bruscas», con algo más fluido en los colores.
+
+*La letra.* Cada tamaño de `portada.css` se multiplica por uno de tres escalones, según cuánto mida:
+- **lo menudo** (menos de 13 px) crece un 20 %: los rótulos de 10 px eran lo que peor se leía;
+- **el texto corrido** crece un 12 %;
+- **los titulares** crecen un 6 %, porque crecerlos como el resto rompía la primera pantalla.
+
+El texto sin tamaño propio hereda el de la raíz, ya multiplicado. `/planes` comparte la barra y el pie, pero se queda con los escalones en 1: el pedido era la portada, y una página con la barra crecida y el cuerpo no se vería descuadrada.
+
+*Lo brusco tenía dos causas.*
+- **`RevelarAlBajar` escondía la sección entera, con su fondo.** Mientras una sección oscura esperaba, por su hueco se veía el papel claro de la página, y al llegar a ella el marino entraba de golpe en 0,22 s.
+  - Ahora el fondo está siempre puesto y lo que aparece es el contenido (`.p-contenedor`).
+  - La opacidad tarda 1 s, con una curva que entra y sale despacio. Medido: 2 % a los 40 ms, 64 % a los 350 ms y entero al segundo. Con la curva rápida estaba casi entero a los 300 ms y el resto no se veía.
+- **Los fundidos entre oscuro y claro eran franjas.** Iban en unos 230 px, en línea recta y con un gris escrito a mano en medio. El ojo marca justo los quiebres de un degradado lineal.
+  - Ahora miden `--p-fundido` (de 240 a 360 px según el ancho).
+  - Siguen una curva suave en ocho tramos y se mezclan en oklab, donde el punto medio entre el marino y el papel no sale gris sucio.
+  - La declaración anterior queda delante como reserva para un navegador sin `in oklab` ni `color-mix`.
+  - El contenido empieza al 85 % del fundido, donde el color ya es del otro lado en más de un 95 %: el texto no cae nunca sobre el tono intermedio.
+
+*Además.*
+- **Técnica AO empieza en el blanco en que termina Examina.** Antes había un corte seco entre los dos capítulos.
+- **El pie de la primera pantalla se funde al azul de «El problema».** El degradado en diagonal contra el vertical dejaba una línea.
+- **Las capas del cuerpo cambian en 0,8 s, con la curva suave.**
+- **`--dur` y `--dur-rapida` se redefinen dentro de la portada** (0,45 s y 0,3 s). Así todo color que cambiaba al pasar el ratón se suaviza sin tocar cada regla. El panel sigue con los suyos.
+
+*Qué se probó.* Capturas de la portada entera a 1440 y a 390 px, antes y después: sin desborde horizontal y sin errores en la consola. Y la aparición al bajar con el movimiento activado, en tres instantes: la sección con opacidad 1 desde el primer momento y el contenido entrando. Con «reducir movimiento», nada se esconde, como antes.
+
+*Consecuencias.*
+- (+) Bajar por la portada ya no tiene saltos de color, y la letra se lee mejor, sobre todo la pequeña.
+- (−) **La portada es más larga**: 11.003 px a 1440, antes 10.408. Lo pone el espacio de los fundidos y la letra.
+- (−) Los escalones son tres números a ojo, y con dos titulares que ahora ocupan una línea más («Opera antes de operar»). Si el dueño quiere más o menos, se cambian en la raíz de `.portada` y nada más.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -8891,6 +8962,20 @@ sitios; si un corte nuevo no corta nada, se rehace el anterior. Pruebas en `test
 sigue visible al mostrar una lista de piezas, no se enciende si había decidido apartarse, se va con la piel si esta se apaga y no
 entra en la lista de piezas.
 (−) No hay prueba con WebGL de que la cinta se *vea*; está probado el estado, y lo demás en pantalla.
+
+### O-080 · 2026-11-03 · media · abierta
+**`npm run test:coverage` sin `DATABASE_URI` corre la integración contra la base del `.env`, y si su esquema está atrasado deja datos de prueba sin borrar.**
+*Qué pasó.* Al probar D-244 se corrió `test:coverage` con `OMITIR_INTEGRACION=1` y sin apuntar `DATABASE_URI` a la base desechable. Ese permiso solo omite las pruebas cuando la base **no responde** (`tests/integration/acceso.test.ts`). La del `.env` era la base de desarrollo del dueño, que respondía, así que las pruebas corrieron contra ella. Esa base no tenía las columnas de P-007 (`etapa_de_formacion`, entre otras): fallaron todas las que leen `usuarios`, y los `afterAll`, que borran con `.catch(() => {})`, fallaron igual sin decir nada. Quedaron:
+- 6 cirugías (`carpetas-d7566733 …`, `bandeja-09abad18 …`) con sus versiones;
+- 4 instrumentos;
+- 9 modelos 3D, y sus archivos de 49 bytes en `medios/modelos/`;
+- 2 patologías («Borrador de prueba», «Ficha publicada de prueba»);
+- 2 segmentos;
+- 25 líneas del registro.
+
+Todo entre las 14:27:38 y las 14:27:56 de ese día. Ninguna de esas pruebas tocó la planilla de estructuras: no quedó ni una ficha `FJ-`. Se avisó al dueño y no se borró nada sin su permiso. Con su permiso, el mismo día se borraron en una sola transacción, por id y por esa ventana de tiempo, después de comprobar que ninguna fila de verdad apuntaba a ellas; las dos estructuras de prueba (`pieza-de-prueba-4D070301`) ya las había borrado su propia limpieza, y quedaban solo sus dos líneas del registro, que se fueron con las demás. La pasada buena se repitió sobre una base nueva en el PostgreSQL desechable: 254 de 254.
+*Por qué importa.* Un `.catch(() => {})` en la limpieza tiene sentido para que un fallo no tape al otro. Pero con un esquema atrasado no borra nada y no avisa, y la base de alguien se va llenando de filas de prueba.
+*Propuesta, sin aplicar.* Que las pruebas de integración se nieguen a correr contra una base con migraciones pendientes, o que la limpieza avise en consola de lo que no pudo borrar.
 
 ---
 

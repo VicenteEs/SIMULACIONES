@@ -213,7 +213,7 @@ export default async function CasoAO({ params }: { params: Promise<{ id: string 
             documentoId={id}
             completadoInicial={lecturas.leida(id)}
           />
-          <BotonImprimir />
+          <BotonImprimir pagina="tecnica-ao" documentoId={id} />
           <BotonComentar coleccion="casos-ao" documentoId={id} />
         </div>
       </header>

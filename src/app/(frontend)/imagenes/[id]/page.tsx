@@ -199,7 +199,7 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
             documentoId={id}
             completadoInicial={lecturas.leida(id)}
           />
-          <BotonImprimir />
+          <BotonImprimir pagina="imagenes" documentoId={id} />
           <BotonComentar coleccion="estudios-ia" documentoId={id} />
         </div>
       </header>

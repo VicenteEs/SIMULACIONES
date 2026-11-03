@@ -1362,14 +1362,22 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 /* ==========================================================================
    Modo Quirófano (Impresión / PDF)
 
-   «Guardar PDF» es la impresión del navegador, así que el aspecto del PDF es
-   esto y nada más: el membrete (`EncabezadoImpreso.tsx`), el pie de cada hoja,
-   el texto justificado y las tablas centradas. Todo con los mismos tokens que
-   la pantalla, para que tocar un color o un tamaño aquí y en la ficha sea un
-   solo cambio.
+   «Guardar PDF» lo imprime el servidor con un Chromium sin ventana sobre esta
+   misma página (`src/lib/pdfServidor.ts`, D-244), y Ctrl+P la imprime en el
+   navegador: los dos leen esto y nada más. El membrete
+   (`EncabezadoImpreso.tsx`), el pie de cada hoja, el texto justificado y las
+   tablas centradas. Todo con los mismos tokens que la pantalla, para que tocar
+   un color o un tamaño aquí y en la ficha sea un solo cambio.
    ========================================================================== */
 /* El membrete solo existe en papel. */
 .membrete-impreso { display: none; }
+
+/* Mientras el servidor prepara el PDF, unos segundos. */
+.boton-imprimir-girando { animation: boton-imprimir-girar 0.9s linear infinite; }
+@keyframes boton-imprimir-girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .boton-imprimir-girando { animation: none; }
+}
 
 @media print {
   @page {

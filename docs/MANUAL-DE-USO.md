@@ -244,7 +244,9 @@ Cada uno se pliega (▾), se mueve (↑ ↓) y se quita (✕).
 
 ### Guardar la ficha como PDF
 
-El botón **«Guardar PDF»** de cada ficha abre el diálogo de impresión del navegador; en «Destino» se elige «Guardar como PDF». El PDF sale
+El botón **«Guardar PDF»** de cada ficha (biblioteca, técnica AO y lectura de imágenes) descarga el PDF directamente, sin diálogo de
+impresión: lo prepara el servidor, así que sale igual en cualquier navegador y en el teléfono. Mientras se prepara, el botón dice
+«preparando…»; tarda un par de segundos. El archivo lleva el nombre de la ficha (`traumahub-<título>.pdf`). El PDF sale
 en hoja A4 con el logotipo de TraumaHub, **quién lo emitió** (la cuenta con la que se entró), **quién firmó el contenido** (el médico y
 el kinesiólogo, cada uno con su fecha, o «firma pendiente» si falta una; en una ficha validada antes de las firmas, quién la validó) y
 la fecha; el texto va justificado, las tablas ocupan todo el ancho y repiten su cabecera en cada

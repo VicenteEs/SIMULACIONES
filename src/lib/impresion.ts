@@ -1,10 +1,10 @@
 /**
  * Lo que la ficha impresa necesita saber antes de pintarse.
  *
- * «Guardar PDF» es la impresión del navegador, así que todo el aspecto del PDF
- * vive en el bloque `@media print` de `estilos.css`. Aquí está solo lo que el
- * CSS no puede resolver: dar a una cadena de texto forma de literal de CSS y la
- * fecha de emisión.
+ * «Guardar PDF» lo imprime el servidor sobre la misma página (`pdfServidor.ts`,
+ * D-244), así que todo el aspecto del PDF vive en el bloque `@media print` de
+ * `estilos.css`. Aquí está solo lo que el CSS no puede resolver: dar a una
+ * cadena de texto forma de literal de CSS y la fecha de emisión.
  */
 
 /**

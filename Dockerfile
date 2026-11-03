@@ -66,6 +66,17 @@ ENV NEXT_PUBLIC_BASE_PATH=$BASE_PATH
 # unico camino al respaldo sea la linea de comandos del servidor.
 RUN apk add --no-cache postgresql17-client
 
+# Chromium para «Guardar PDF» (D-244): el servidor imprime la ficha con la
+# misma hoja de estilos de impresion y entrega el archivo hecho, en vez de
+# dejarlo al dialogo de cada navegador. Son unos 250 MB de imagen. La fuente
+# es la de reserva: el texto va en Inter, que la pagina trae consigo, y sin
+# ninguna fuente del sistema un simbolo que Inter no tenga saldria en cuadros.
+# Si un dia se quita, «Guardar PDF» contesta que el servidor no tiene con que
+# preparar el PDF; no se cae nada mas.
+# No se fija NAVEGADOR_PDF: segun la version, Alpine deja el ejecutable como
+# `chromium` o como `chromium-browser`, y `src/lib/pdfServidor.ts` busca los dos.
+RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont
+
 # La aplicacion no corre como root.
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
