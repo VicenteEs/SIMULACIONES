@@ -7527,7 +7527,37 @@ Sin `NODE_ENV`, Payload no ajusta el esquema ni corre migraciones: el esquema lo
 - (+) La receta sirve para cualquier guion que haya que correr en ved con las versiones del lockfile: construir la etapa `builder`, correrla en la red de la aplicación con el `.env` y el volumen de medios, y borrar la imagen.
 - (−) **Esa receta no está en un guion:** quien la repita copia las órdenes de aquí.
 - (−) **El caso de demostración necesita el modelo de prueba, y nada lo avisa antes de empezar.** Fuera del portátil hay que generarlo en el mismo contenedor.
-- (−) **Mientras el host del proxy siga dado de baja, ved no se ve desde fuera,** con el modelo nuevo y todo lo demás.
+- (−) **Mientras el host del proxy siga dado de baja, ved no se ve desde fuera,** con el modelo nuevo y todo lo demás. *(Resuelto en D-243: el host vuelve sin la ruta de APCE.)*
+
+### D-243 · 2026-11-03 · vigente · resuelve lo que D-242 dejó abierto del proxy de ved
+**El host del proxy de ved vuelve, pero sin la ruta `/api` de APCE: con ella, nginx no carga.**
+
+*De dónde sale.* D-242 dejó a ved sin verse desde fuera, porque el único host del Nginx Proxy Manager estaba dado de baja. El dueño pidió reactivarlo.
+
+*Por qué no tal como estaba.*
+- **APCE está apagado.** `apce-web`, `apce-backend` y su PostgreSQL se pararon poco antes de que se diera de baja el host.
+- **La ruta `/api` del host apunta a `apce-backend:8000` con un `proxy_pass` literal,** y nginx resuelve los nombres literales al cargar la configuración. Ese nombre ya no existe.
+- **Se probó aparte,** con un `nginx.conf` de prueba que el nginx que sirve no lee. La conf respaldada da `host not found in upstream "apce-backend"`; sin el bloque `/api`, pasa.
+- **Restaurarla tal cual** habría hecho fallar la siguiente recarga. Y un reinicio del contenedor habría dejado nginx sin arrancar, con todas las páginas fuera. Probablemente por eso se dio de baja el host.
+- **Es la trampa que `custom/server_proxy.conf` ya evita para TraumaHub,** con el destino en una variable y el resolver de Docker.
+
+*Qué se hizo.* El orden está pensado para que un fallo no deje nada a medias:
+1. **Respaldo** de la base del proxy en `database.sqlite.antes-de-reactivar`. Las copias `bak-apce` siguen donde estaban, sin tocar.
+2. **La conf del host 1** vuelve a `proxy_host/1.conf`, sacada de `proxy_host-1.conf.bak-apce` sin el bloque `/api`, y pasa `nginx -t`. Si hubiera fallado, se quitaba y la base no se tocaba.
+3. **En la base,** el host vuelve encendido y sin la marca de borrado, con las mismas ocho rutas que la conf (eran nueve). Así el panel del proxy muestra lo que nginx sirve, y guardar el host desde el panel no devuelve la ruta que lo rompe.
+4. **nginx se recarga.**
+
+*Cómo quedó, comprobado por fuera.*
+- **`/traumahub/api/salud` da 200** por los puertos 10000 y 8443, con la base en «ok».
+- **`/traumahub`, `/mi-web-latsib/` y `/senales/` dan 200.**
+- **La raíz `/` da 502,** porque sigue apuntando a `apce-web`, que está apagado. Ese destino va en variable y se resuelve en cada petición, así que no impide cargar.
+
+*Consecuencias.*
+- (+) ved vuelve a verse desde fuera, con el modelo de D-242 y las demás páginas del servidor.
+- (+) La base y la conf del proxy dicen lo mismo, y lo de antes queda respaldado: deshacerlo es volver a las copias.
+- (−) **La raíz del dominio da 502 mientras APCE siga apagado, y su `/api` no existe.** Cuando APCE vuelva, esa ruta se añade otra vez desde el panel del proxy. Mientras vaya con destino literal, un APCE apagado vuelve a dejar nginx sin cargar.
+- (−) **Se cambió la configuración de un proyecto que no es este.** El registro de auditoría del proxy no lo muestra, porque el cambio se hizo en la base, igual que la baja. Lo cuenta esta entrada.
+- (−) **Todas las páginas de ved siguen colgando de un solo host,** así que un proyecto que se apaga todavía puede dejar fuera a los demás.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
