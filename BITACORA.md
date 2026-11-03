@@ -7501,6 +7501,34 @@ Los dos guiones corren en un contenedor de un solo uso, hecho de la etapa `build
 
 Sin `NODE_ENV`, Payload no ajusta el esquema ni corre migraciones: el esquema lo pone el arranque de la aplicación con sus migraciones, como siempre.
 
+*Lo que pasó en ved, el mismo día.*
+- **El despliegue** de `3c135bf` con `TUNEL=local ./scripts/actualizar.sh` hizo lo suyo:
+  - respaldó la base;
+  - construyó la imagen;
+  - aplicó al arrancar las cinco migraciones de P-007;
+  - dejó la aplicación «healthy», con la salud de dentro en 200.
+- **«p»** entró como la preparación #28: 128 piezas, atlas `bp3d-4.0-2c754ecf`.
+- **`caso-de-prueba.ts` se negó la primera vez**, porque le faltaba `ejemplos/tibia-de-prueba.glb`. `ejemplos/` está en `.gitignore`, así que ningún clon lo trae. Con `node scripts/modelo-de-prueba.mjs` delante, en el mismo contenedor, creó:
+  - lo que faltaba de los catálogos (81 instrumentos en total);
+  - el modelo #110;
+  - el caso de demostración #10: 42-A2, siete pasos.
+- **El guion de la pierna** creó el caso **#11, «Fractura transversa de la tibia izquierda · pierna del atlas»**.
+  - Avisó de que «p» ya traía la tibia izquierda partida en seis cortes, y la rehízo entera y partida solo por el corte pedido (`sinLosCortesDe`, D-241).
+  - El caso es 42-A3, publicado y de siete pasos.
+  - Su modelo es el #111, `p.glb` de 4,2 MB, en `/app/medios/modelos`: dentro del volumen que la aplicación sirve y respalda.
+- La imagen de un solo uso se borró al terminar.
+- **Por fuera, ved devolvía 404, y no por este despliegue.** A las 01:51 de ese día, antes de empezar, alguien marcó como borrado y apagado el único host del Nginx Proxy Manager: `ved.tailc2094f.ts.net` → `apce-web:3000`.
+  - **Cómo se hizo:** directamente en la base del proxy y no desde su interfaz. Su registro de auditoría no tiene entrada nueva, y quedaron copias con el sufijo `bak-apce` (`database.sqlite.bak-apce`, `proxy_host-1.conf.bak-apce`).
+  - **El alcance:** TraumaHub cuelga de ese host por `custom/server_proxy.conf`, igual que las demás páginas de ved, así que quedaron todas fuera.
+  - **No se tocó.** El proxy no es de este proyecto y el cambio tiene aspecto de deliberado. Restaurarlo, o mover TraumaHub a un host propio, lo decide el dueño.
+
+*Consecuencias.*
+- (+) El caso partido de D-241, con su piel, pigmentación y fascias, está en la base de producción y su modelo en el volumen respaldado. No depende de nada del portátil.
+- (+) La receta sirve para cualquier guion que haya que correr en ved con las versiones del lockfile: construir la etapa `builder`, correrla en la red de la aplicación con el `.env` y el volumen de medios, y borrar la imagen.
+- (−) **Esa receta no está en un guion:** quien la repita copia las órdenes de aquí.
+- (−) **El caso de demostración necesita el modelo de prueba, y nada lo avisa antes de empezar.** Fuera del portátil hay que generarlo en el mismo contenedor.
+- (−) **Mientras el host del proxy siga dado de baja, ved no se ve desde fuera,** con el modelo nuevo y todo lo demás.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
