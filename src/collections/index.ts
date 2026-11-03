@@ -15,6 +15,9 @@ import { Comentarios } from './Comentarios'
 import { Ajustes } from './Ajustes'
 import { Requisitos } from './Requisitos'
 import { Equipo } from './Equipo'
+import { MediosPagina } from './MediosPagina'
+import { TextosPagina } from './TextosPagina'
+import { Cotizaciones } from './Cotizaciones'
 import { Actividad } from './Actividad'
 import { Difusiones } from './Difusiones'
 import { Revisiones } from './Revisiones'
@@ -69,6 +72,9 @@ const DECLARADAS: CollectionConfig[] = [
   Ajustes,
   Requisitos,
   Equipo,
+  MediosPagina,
+  TextosPagina,
+  Cotizaciones,
 ]
 
 /**

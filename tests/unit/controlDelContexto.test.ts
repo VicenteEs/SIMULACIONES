@@ -146,11 +146,11 @@ describe('más margen contra el blanco (pedido del dueño)', () => {
     expect(cuantoFaltaParaRemontarse(alRestaurarse(perdido, 2000), 1_000_000)).toBeNull()
   })
 
-  it('cada pérdida baja el detalle: primero la resolución, luego el suavizado', () => {
-    expect(calidadDelDibujo(0)).toEqual({ razonMaxima: 3, suavizado: true })
-    expect(calidadDelDibujo(1)).toEqual({ razonMaxima: 2, suavizado: true })
-    expect(calidadDelDibujo(2)).toEqual({ razonMaxima: 1, suavizado: false })
-    expect(calidadDelDibujo(9)).toEqual({ razonMaxima: 1, suavizado: false })
+  it('cada pérdida baja el detalle: primero la resolución y la oclusión, luego el suavizado y las sombras', () => {
+    expect(calidadDelDibujo(0)).toEqual({ razonMaxima: 3, suavizado: true, oclusion: true, sombras: true })
+    expect(calidadDelDibujo(1)).toEqual({ razonMaxima: 2, suavizado: true, oclusion: false, sombras: true })
+    expect(calidadDelDibujo(2)).toEqual({ razonMaxima: 1, suavizado: false, oclusion: false, sombras: false })
+    expect(calidadDelDibujo(9)).toEqual({ razonMaxima: 1, suavizado: false, oclusion: false, sombras: false })
   })
 
   it('la razón de píxeles respeta la pantalla, la calidad y la memoria', () => {

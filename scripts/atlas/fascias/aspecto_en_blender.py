@@ -22,7 +22,11 @@ Qué se hace con cada tejido, y por qué:
   - **Visceral**: rosa grisácea, brillante y húmeda (el barniz ya viene del archivo).
   - **Músculo**: rojo con vetas finas a lo largo, subsuperficie y mate-brillante.
   - **Hueso**: crema con grano fino y variación suave.
-  - **Piel**: tono de piel, subsuperficie, translúcida si el archivo la trae así.
+  - **Piel**: tono de piel, subsuperficie, translúcida si el archivo la trae así. Con el color por vértice que
+    escribe la exportación (D-227) —codos, labios, pezones, párpados— se multiplica el tono de la piel por él, y
+    donde el vértice es rojo y húmedo (los labios) la rugosidad baja.
+  - **Ojos y córnea** (D-227): el color sale entero del vértice —blanco marfil, iris con su anillo, pupila— y se
+    le pone brillo de superficie mojada; la córnea es un casquete casi transparente que da el reflejo.
   - **Tendones y ligamentos** (tejido conectivo): blanco amarillento con fibras.
 """
 
@@ -163,6 +167,38 @@ def _ruido(arbol, coordenadas, escala, detalle=6.0, rugosidad=0.55, distorsion=0
     return r.outputs['Fac']
 
 
+def _color_por_vertice(objeto, arbol, x=-900, y=500):
+    """
+    La salida de color del atributo de color del objeto (el `COLOR_0` del archivo), o `None` si no trae.
+
+    El importador de glTF crea su propio nodo para él y lo multiplica con el color del material, pero cada aspecto de
+    aquí rehace el color de base y se lo lleva por delante: hay que volver a ponerlo. Se lee el atributo por su
+    nombre porque no se sabe cómo lo llame cada versión de Blender (`Color`, `Col`, `COLOR_0`).
+    """
+    atributos = getattr(objeto.data, 'color_attributes', None)
+    if not atributos or len(atributos) == 0:
+        return None
+    activo = getattr(atributos, 'active_color', None) or atributos[0]
+    nodo = _nodo(arbol, 'ShaderNodeVertexColor', x, y)
+    nodo.layer_name = activo.name
+    return nodo.outputs['Color']
+
+
+def _multiplicar(arbol, a, b, x=-350, y=200):
+    """El producto de dos colores (cada uno, un valor o una salida)."""
+    m = arbol.nodes.new('ShaderNodeMix')
+    m.data_type = 'RGBA'
+    m.location = (x, y)
+    m.blend_type = 'MULTIPLY'
+    m.inputs['Factor'].default_value = 1.0
+    for entrada, v in ((m.inputs[6], a), (m.inputs[7], b)):
+        if hasattr(v, 'node'):
+            arbol.links.new(v, entrada)
+        else:
+            entrada.default_value = v
+    return m.outputs[2]
+
+
 def _bump(arbol, altura, fuerza, distancia, principal):
     b = _nodo(arbol, 'ShaderNodeBump', -250, -380)
     b.inputs['Strength'].default_value = fuerza
@@ -185,7 +221,7 @@ def _matematica(arbol, operacion, a, b, x=-600, y=0):
 # ----------------------------------------------------------------- cada tejido
 
 
-def _fascia_profunda(material, principal, eje):
+def _fascia_profunda(material, principal, eje, objeto=None):
     arbol = material.node_tree
     coord = _nodo(arbol, 'ShaderNodeTexCoord', -1300, 0).outputs['Object']
     hilos = _fibras_alrededor(arbol, coord, eje, 0.0026)
@@ -226,7 +262,7 @@ def _fascia_profunda(material, principal, eje):
     arbol.links.new(variada, principal.inputs['Alpha'])
 
 
-def _fascia_superficial(material, principal, eje):
+def _fascia_superficial(material, principal, eje, objeto=None):
     arbol = material.node_tree
     coord = _nodo(arbol, 'ShaderNodeTexCoord', -1200, 0).outputs['Object']
     grasa = _ruido(arbol, coord, 80.0, 6.0, 0.62, 0.4)
@@ -240,7 +276,7 @@ def _fascia_superficial(material, principal, eje):
     _poner(principal, 'Subsurface Scale', 0.006)
 
 
-def _fascia_meningea(material, principal, eje):
+def _fascia_meningea(material, principal, eje, objeto=None):
     arbol = material.node_tree
     coord = _nodo(arbol, 'ShaderNodeTexCoord', -1200, 0).outputs['Object']
     ruido = _ruido(arbol, coord, 70.0, 4.0, 0.5)
@@ -250,7 +286,7 @@ def _fascia_meningea(material, principal, eje):
     _poner(principal, ('Subsurface Weight', 'Subsurface'), 0.08)
 
 
-def _fascia_visceral(material, principal, eje):
+def _fascia_visceral(material, principal, eje, objeto=None):
     arbol = material.node_tree
     coord = _nodo(arbol, 'ShaderNodeTexCoord', -1200, 0).outputs['Object']
     ruido = _ruido(arbol, coord, 40.0, 4.0, 0.5)
@@ -262,7 +298,7 @@ def _fascia_visceral(material, principal, eje):
     _poner(principal, ('Coat Roughness', 'Clearcoat Roughness'), 0.06)
 
 
-def _musculo(material, principal, eje):
+def _musculo(material, principal, eje, objeto=None):
     arbol = material.node_tree
     coord = _nodo(arbol, 'ShaderNodeTexCoord', -1200, 0).outputs['Object']
     vetas = _fibras(arbol, coord, 900.0, 3.0, 4.0)
@@ -281,7 +317,7 @@ def _musculo(material, principal, eje):
     _poner(principal, 'Subsurface Scale', 0.004)
 
 
-def _hueso(material, principal, eje):
+def _hueso(material, principal, eje, objeto=None):
     arbol = material.node_tree
     coord = _nodo(arbol, 'ShaderNodeTexCoord', -1200, 0).outputs['Object']
     grano = _ruido(arbol, coord, 400.0, 8.0, 0.6)
@@ -293,12 +329,15 @@ def _hueso(material, principal, eje):
     _poner(principal, 'Roughness', 0.62)
 
 
-def _piel(material, principal, eje):
+def _piel(material, principal, eje, objeto=None):
     arbol = material.node_tree
     coord = _nodo(arbol, 'ShaderNodeTexCoord', -1200, 0).outputs['Object']
     poros = _ruido(arbol, coord, 1200.0, 3.0, 0.5)
     manchas = _ruido(arbol, coord, 18.0, 4.0, 0.5, y=-500)
     color = _rampa(arbol, -600, 200, manchas, [(0.3, (0.86, 0.66, 0.55, 1)), (0.7, (0.93, 0.76, 0.66, 1))])
+    por_vertice = _color_por_vertice(objeto, arbol) if objeto is not None else None
+    if por_vertice is not None:
+        color = _multiplicar(arbol, color, por_vertice)
     _desconectar(arbol, principal.inputs['Base Color'])
     arbol.links.new(color, principal.inputs['Base Color'])
     _bump(arbol, poros, 0.1, 0.0003, principal)
@@ -306,9 +345,48 @@ def _piel(material, principal, eje):
     _poner(principal, 'Subsurface Radius', (1.0, 0.35, 0.2))
     _poner(principal, 'Subsurface Scale', 0.005)
     _poner(principal, 'Roughness', 0.5)
+    if por_vertice is not None:
+        # Lo rojo y húmedo —los labios, el verde del multiplicador por los suelos— brilla más que la piel seca: la
+        # rugosidad baja con el canal verde, que es el que más se apaga en ellos.
+        separar = _nodo(arbol, 'ShaderNodeSeparateColor', -650, 550)
+        arbol.links.new(por_vertice, separar.inputs['Color'])
+        mapa = _nodo(arbol, 'ShaderNodeMapRange', -450, 550)
+        mapa.clamp = True
+        mapa.inputs['From Min'].default_value = 0.34
+        mapa.inputs['From Max'].default_value = 0.62
+        mapa.inputs['To Min'].default_value = 0.26
+        mapa.inputs['To Max'].default_value = 0.5
+        arbol.links.new(separar.outputs['Green'], mapa.inputs['Value'])
+        _desconectar(arbol, principal.inputs['Roughness'])
+        arbol.links.new(mapa.outputs['Result'], principal.inputs['Roughness'])
 
 
-def _tejido_conectivo(material, principal, eje):
+def _ojos(material, principal, eje, objeto=None):
+    """Esclera, iris y pupila: el color es el del vértice y lo demás, el brillo de lo mojado."""
+    arbol = material.node_tree
+    por_vertice = _color_por_vertice(objeto, arbol) if objeto is not None else None
+    if por_vertice is not None:
+        _desconectar(arbol, principal.inputs['Base Color'])
+        arbol.links.new(por_vertice, principal.inputs['Base Color'])
+    _poner(principal, 'Roughness', 0.22)
+    _poner(principal, ('Coat Weight', 'Clearcoat'), 1.0)
+    _poner(principal, ('Coat Roughness', 'Clearcoat Roughness'), 0.03)
+    _poner(principal, ('Specular IOR Level', 'Specular'), 0.7)
+    _poner(principal, ('Subsurface Weight', 'Subsurface'), 0.08)
+    _poner(principal, 'Subsurface Radius', (1.0, 0.4, 0.3))
+    _poner(principal, 'Subsurface Scale', 0.002)
+
+
+def _cornea(material, principal, eje, objeto=None):
+    """El casquete transparente sobre el iris: casi no se ve, pero da el reflejo de la ventana."""
+    _poner(principal, 'Roughness', 0.02)
+    _poner(principal, ('Specular IOR Level', 'Specular'), 1.0)
+    _poner(principal, 'IOR', 1.376)
+    _poner(principal, ('Coat Weight', 'Clearcoat'), 1.0)
+    _poner(principal, ('Coat Roughness', 'Clearcoat Roughness'), 0.01)
+
+
+def _tejido_conectivo(material, principal, eje, objeto=None):
     arbol = material.node_tree
     coord = _nodo(arbol, 'ShaderNodeTexCoord', -1200, 0).outputs['Object']
     hilos = _fibras(arbol, coord, 1800.0, 2.0)
@@ -328,6 +406,9 @@ POR_SISTEMA = {
     'skeletal': _hueso,
     'integumentary': _piel,
     'connective': _tejido_conectivo,
+    # Los grupos de aspecto propio que escribe la exportación (`extras.aspecto`), no sistemas.
+    'ojos': _ojos,
+    'cornea': _cornea,
 }
 
 
@@ -371,5 +452,5 @@ def aplicar(objeto, sistema):
             material.surface_render_method = 'DITHERED'
         except Exception:
             pass
-        funcion(material, _principal(material), eje)
+        funcion(material, _principal(material), eje, objeto)
     return True

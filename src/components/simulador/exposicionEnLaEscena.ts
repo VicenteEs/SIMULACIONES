@@ -10,6 +10,7 @@ import {
 } from '@/instrumental/herramienta3d'
 import type { AjustesDeInstrumento } from '@/instrumental/modelo'
 import {
+  abreLaCapa,
   alturaEfectivaDelPellizco,
   aperturaDeLaCapa,
   deLaIncision,
@@ -121,6 +122,99 @@ export interface SeparadorEnEscena {
   mango: THREE.Vector3
   /** Los sitios que ha tenido en cada plano de partes blandas (el del hueso, que es del Hohmann, no cambia). */
   sitios: Partial<Record<CapaDeLaHerida, SitioDeSeparador>>
+  /** El vértice del labio que sostiene, ya buscado (`labioDelSeparador`); se vuelve a buscar si cambia el sitio. */
+  agarre?: AgarreDelLabio | null
+}
+
+// ------------------------------------------------------------ el labio que se sostiene
+
+/** Un vértice de labio de una herida: el que lleva consigo lo que está apoyado en él. */
+export interface AgarreDelLabio {
+  herida: HeridaEnCapa
+  vertice: number
+  /** El punto desde el que se buscó, para saber si sigue valiendo. */
+  desde: THREE.Vector3
+  plano: string
+}
+
+/**
+ * El vértice del labio `lado` más cercano a un punto del mundo, **en reposo**: con la herida cerrada, como
+ * estaba cuando se puso el instrumento. Se busca en las posiciones de antes de abrir (`corte.posiciones`) y no
+ * en las de ahora: con la herida abierta, el vértice más cercano al punto de apoyo sería otro cada vez.
+ */
+export function agarrarElLabio(heridas: readonly HeridaEnCapa[], lado: 1 | -1, punto: THREE.Vector3): Omit<AgarreDelLabio, 'desde' | 'plano'> | null {
+  let mejor: Omit<AgarreDelLabio, 'desde' | 'plano'> | null = null
+  let cerca = Infinity
+  for (const h of heridas) {
+    const local = punto.clone().applyMatrix4(h.malla.matrixWorld.clone().invert())
+    const reposo = h.corte.posiciones
+    for (const v of lado > 0 ? h.corte.labios.mas : h.corte.labios.menos) {
+      const d = Math.hypot(reposo[3 * v] - local.x, reposo[3 * v + 1] - local.y, reposo[3 * v + 2] - local.z)
+      if (d < cerca) {
+        cerca = d
+        mejor = { herida: h, vertice: v }
+      }
+    }
+  }
+  return mejor
+}
+
+/** Cuánto se ha movido ese vértice desde el reposo, en el mundo: lo que abrió la herida y lo que tiró una retracción. */
+export function desplazamientoDelLabio(a: Pick<AgarreDelLabio, 'herida' | 'vertice'>): THREE.Vector3 {
+  const posiciones = a.herida.malla.geometry.getAttribute('position') as THREE.BufferAttribute
+  const reposo = a.herida.corte.posiciones
+  // Otra incisión en la misma malla rehace su geometría: un índice que ya no está no se sigue.
+  if (a.vertice >= posiciones.count || 3 * a.vertice + 2 >= reposo.length) return new THREE.Vector3()
+  const m = a.herida.malla.matrixWorld
+  const ahora = new THREE.Vector3(posiciones.getX(a.vertice), posiciones.getY(a.vertice), posiciones.getZ(a.vertice)).applyMatrix4(m)
+  const antes = new THREE.Vector3(reposo[3 * a.vertice], reposo[3 * a.vertice + 1], reposo[3 * a.vertice + 2]).applyMatrix4(m)
+  return ahora.sub(antes)
+}
+
+/**
+ * Dónde cae un punto del mundo a lo largo de una herida (de 0 a 1) y a qué distancia de sus labios, en reposo.
+ * Es lo que deja que un separador de un plano profundo abra la herida de encima **en su sitio**, aunque las dos
+ * incisiones se trazaran por separado y no midan lo mismo.
+ */
+export function cercaDeLaHerida(h: HeridaEnCapa, punto: THREE.Vector3): { t: number; distancia: number } | null {
+  const local = punto.clone().applyMatrix4(h.malla.matrixWorld.clone().invert())
+  const reposo = h.corte.posiciones
+  let mejor: { t: number; distancia: number } | null = null
+  for (const cadena of [h.corte.labios.mas, h.corte.labios.menos]) {
+    for (const v of cadena) {
+      const d = Math.hypot(reposo[3 * v] - local.x, reposo[3 * v + 1] - local.y, reposo[3 * v + 2] - local.z) * h.escala
+      if (!mejor || d < mejor.distancia) mejor = { t: h.corte.largoT[v], distancia: d }
+    }
+  }
+  return mejor
+}
+
+/**
+ * El labio que sostiene un separador, buscado una vez y guardado mientras siga valiendo.
+ *
+ * Antes el separador se posaba donde **debería** estar el labio —el punto de apoyo más toda la apertura—, y el
+ * labio de verdad abre menos: lo que dice la campana del separador en su sitio, menos hacia los extremos de la
+ * incisión y menos cuanto más lejos del borde se pinchó (`peso` en `corteDeMalla`). La hoja quedaba unos
+ * milímetros por fuera de la piel, en el aire, y más cuanto más se abría (pedido del dueño, 2026-11-03: «que la
+ * herramienta se incruste en las estructuras, no que se muevan y la herramienta se vea en el aire»). Ahora se
+ * agarra el vértice del labio y se lleva con él, como la sutura (`seguirAlLabio`).
+ */
+export function labioDelSeparador(
+  s: SeparadorEnEscena,
+  heridasPorCapa: ReadonlyMap<CapaDeLaHerida, HeridaEnCapa[]> | undefined,
+): Pick<AgarreDelLabio, 'herida' | 'vertice'> | null {
+  if (s.datos.lado === 0 || s.datos.plano === 'hueso' || !heridasPorCapa) return null
+  const heridas = (heridasPorCapa.get(s.datos.plano) ?? []).filter(
+    (h) => s.datos.incision === undefined || h.incision === s.datos.incision,
+  )
+  if (heridas.length === 0) return null
+  const guardado = s.agarre
+  if (guardado && guardado.plano === s.datos.plano && guardado.desde.equals(s.punto) && heridas.includes(guardado.herida)) {
+    return guardado
+  }
+  const hallado = agarrarElLabio(heridas, s.datos.lado, s.punto)
+  s.agarre = hallado ? { ...hallado, desde: s.punto.clone(), plano: s.datos.plano } : null
+  return s.agarre
 }
 
 /** Lleva el separador a un sitio ya calculado de otro plano. */
@@ -152,16 +246,41 @@ export function articulacionesParaLaApertura(
   return valores
 }
 
-/** Deja el separador en su sitio y con la apertura que tiene: el labio que sostiene se lleva la hoja consigo. */
-export function posarSeparador(s: SeparadorEnEscena, unidadesPorMm: number) {
-  const desplazamiento = s.datos.lado === 0 ? 0 : s.datos.aperturaMm * unidadesPorMm
-  const punto = s.punto
-    .clone()
-    .addScaledVector(s.direccion, desplazamiento)
-    .addScaledVector(s.normal, 0.4 * unidadesPorMm)
-  posarEn(s.instrumento.grupo, punto, s.mango)
+/** Cuánto bascula el mango de una palanca apoyada en el hueso con toda su apertura: unos 35°. */
+const BASCULA_DE_LA_PALANCA = Math.tan((35 * Math.PI) / 180)
+
+/**
+ * Deja el separador en su sitio y con la apertura que tiene: el labio que sostiene se lleva la hoja consigo.
+ *
+ * - **Con herida debajo**, la hoja va donde está el vértice del labio que agarró (`labioDelSeparador`), con el
+ *   desfase que tenía al ponerla: se mueve exactamente lo que se movió el tejido.
+ * - **Una palanca en el hueso** (el Hohmann) no se traslada: la punta se queda clavada al otro lado del hueso, y
+ *   lo que abre es el mango, que bascula hacia el lado que aparta. Antes se trasladaba entero con la apertura y la
+ *   punta dejaba el hueso, flotando a un centímetro de la cortical.
+ * - Sin herida que seguir (lo puesto antes de cortar, un autoestático que abraza los dos labios), como antes: el
+ *   punto de apoyo más la apertura.
+ */
+export function posarSeparador(
+  s: SeparadorEnEscena,
+  unidadesPorMm: number,
+  heridasPorCapa?: ReadonlyMap<CapaDeLaHerida, HeridaEnCapa[]>,
+) {
   const h = s.instrumento.herramienta
   if (h) aplicarPose(h, s.ajustes, articulacionesParaLaApertura(h, s.ajustes, s.datos.aperturaMm, s.datos.maximoMm))
+  const encima = s.punto.clone().addScaledVector(s.normal, 0.4 * unidadesPorMm)
+
+  if (s.datos.tipo === 'palanca' && s.datos.plano === 'hueso') {
+    const giro = s.datos.maximoMm > 0 ? Math.min(1, Math.max(0, s.datos.aperturaMm) / s.datos.maximoMm) : 0
+    const mango = s.mango.clone().addScaledVector(s.direccion, BASCULA_DE_LA_PALANCA * giro).normalize()
+    posarEn(s.instrumento.grupo, encima, mango)
+    return
+  }
+
+  const labio = labioDelSeparador(s, heridasPorCapa)
+  const desplazamiento = labio
+    ? desplazamientoDelLabio(labio)
+    : s.direccion.clone().multiplyScalar(s.datos.lado === 0 ? 0 : s.datos.aperturaMm * unidadesPorMm)
+  posarEn(s.instrumento.grupo, encima.add(desplazamiento), s.mango)
 }
 
 /**
@@ -174,6 +293,11 @@ export function aplicarSeparadoresALasHeridas(
   lista: readonly SeparadorColocado[],
   pellizcos: readonly Pellizco[],
   unidadesPorMm: number,
+  /**
+   * Dónde cae un separador de otra incisión a lo largo de esta herida, o `null` si no está sobre ella ni debajo.
+   * Sin esta función, cada herida se abre solo con lo suyo, como antes.
+   */
+  posicionEn?: (s: SeparadorColocado, h: HeridaEnCapa) => number | null,
 ) {
   for (const [capa, heridas] of heridasPorCapa) {
     if (heridas.length === 0) continue
@@ -182,7 +306,7 @@ export function aplicarSeparadoresALasHeridas(
     const porIncision = new Map<number, HeridaEnCapa[]>()
     for (const h of heridas) porIncision.set(h.incision, [...(porIncision.get(h.incision) ?? []), h])
     for (const [incision, deEsta] of porIncision) {
-      const suyos = deLaIncision(lista, incision)
+      const suyos = [...deLaIncision(lista, incision), ...prestados(capa, incision, deEsta, lista, posicionEn)]
       const suyas = deLaIncision(pellizcos, incision)
       let mas = 0
       let menos = 0
@@ -202,6 +326,39 @@ export function aplicarSeparadoresALasHeridas(
       for (const h of deEsta) abrirCapa(h, mas * unidadesPorMm, menos * unidadesPorMm, perfil)
     }
   }
+}
+
+/**
+ * Los separadores de un plano más profundo que abren también esta herida, con su sitio medido en ella.
+ *
+ * Cada capa se corta con su propio trazo y cada trazo es una incisión aparte, con su número: la piel la 1, la
+ * fascia de debajo la 2. Un separador apoyado en la fascia es de la 2, y el filtro por incisión de P-003 E4 lo
+ * dejaba fuera de la piel, aunque `CAPAS_QUE_ABRE` dijera que un separador en la fascia abre la piel. La fascia
+ * se abría y la piel de encima seguía cerrada, con la hoja metida debajo (D-222 lo anotó como pendiente). Ahora
+ * entra si está sobre esta herida o debajo de ella —`posicionEn` lo mide con los labios en reposo—, y abre en su
+ * sitio de esta herida, no en el de la suya: las dos incisiones no miden lo mismo.
+ *
+ * Un separador de la **misma** capa y otra incisión sigue sin entrar: eso es lo que P-003 E4 quería evitar.
+ */
+function prestados(
+  capa: CapaDeLaHerida,
+  incision: number,
+  heridas: readonly HeridaEnCapa[],
+  lista: readonly SeparadorColocado[],
+  posicionEn: ((s: SeparadorColocado, h: HeridaEnCapa) => number | null) | undefined,
+): SeparadorColocado[] {
+  if (!posicionEn) return []
+  const salida: SeparadorColocado[] = []
+  for (const s of lista) {
+    if (s.incision === undefined || s.incision === incision || s.plano === capa || !abreLaCapa(s, capa)) continue
+    for (const h of heridas) {
+      const posicion = posicionEn(s, h)
+      if (posicion === null) continue
+      salida.push({ ...s, posicion })
+      break
+    }
+  }
+  return salida
 }
 
 // ------------------------------------------------------------------ pellizcos

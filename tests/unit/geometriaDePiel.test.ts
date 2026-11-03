@@ -4,44 +4,71 @@ import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 
 /**
- * Ensanchar la piel donde lo de dentro la atraviesa (D-159).
+ * La piel recalculada del atlas (D-224, que supera a D-159).
  *
- * Dos mitades. La geometría se prueba con una esfera, que tiene respuesta
+ * Dos mitades. La geometría se prueba con esferas, que tienen respuesta
  * conocida: el centro está dentro, un punto lejano está fuera, un hueso a un
- * milímetro de la superficie necesita un milímetro más de holgura. Y el atlas
- * real, para que la piel que se entrega siga cubriendo lo que se midió que la
- * atravesaba: si alguien regenera el atlas desde el origen y se olvida de
- * volver a pasar `ajustar-piel.mjs`, esta es la prueba que lo dice.
+ * milímetro de la superficie está a un milímetro de profundidad. Y el atlas
+ * real, con la misma comprobación con que lo escribe `recalcular-piel.mjs`
+ * (`comprobarPiel.mjs`): que todo lo de dentro quede bajo la piel con su
+ * holgura. Si alguien regenera el atlas con `preparar.mjs` y se olvida de volver
+ * a pasar el guion, esta es la prueba que lo dice.
  */
 
+interface Cercano {
+  triangulo: number
+  punto: number[]
+  distancia: number
+  detras: boolean
+}
 interface Buscador {
   dentro: (x: number, y: number, z: number) => boolean
-  cercano: (
-    x: number,
-    y: number,
-    z: number,
-    maximo: number,
-    lado?: number,
-  ) => { triangulo: number; punto: number[]; distancia: number } | null
+  cercano: (x: number, y: number, z: number, maximo: number, lado?: number) => Cercano | null
+  enterradas: () => number
+  enterrada: Uint8Array
 }
 interface Geometria {
-  cascarasDeLaPiel: (pos: Float32Array, idx: Uint32Array, vertices: number) => { exterior: Uint32Array; interior: Uint32Array }
-  crearBuscador: (pos: Float32Array, tri: Uint32Array) => Buscador
-  empujeNecesario: (
+  cascarasPorConectividad: (pos: Float32Array, idx: Uint32Array, vertices: number) => { triangulos: Uint32Array; volumen: number }[]
+  crearBuscador: (pos: Float32Array, tri: Uint32Array, opciones?: { celda?: number; tambienEnterradas?: Uint8Array | null }) => Buscador
+  profundidadBajoLaPiel: (
     b: Buscador,
     x: number,
     y: number,
     z: number,
-    holgura: number,
     alcance: number,
-  ) => { empuje: number; triangulo: number } | null
+    seguro?: number,
+  ) => { profundidad: number; triangulo: number } | null
   relajarEmpuje: (necesita: Float64Array, vecinos: Int32Array[], opciones?: { amortiguacion?: number; vueltas?: number }) => Float64Array
+  envolventeConPendiente: (
+    necesita: Float64Array,
+    vecinos: Int32Array[],
+    posiciones: Float32Array | Float64Array,
+    pendiente: number,
+    opciones?: { barridos?: number },
+  ) => Float64Array
+  suavizarNormales: (normales: Float64Array, vecinos: Int32Array[], activos: Uint8Array, vueltas?: number) => Float64Array
   normalesDeVertice: (pos: Float32Array, tri: Uint32Array, canon: Int32Array, vertices: number) => Float64Array
   verticesSoldados: (pos: Float32Array, vertices: number) => Int32Array
-  vecinosDe: (tri: Uint32Array, canon: Int32Array, vertices: number) => Int32Array[]
-  cercanoEnTriangulo: (...n: number[]) => number[]
+  muestrasDelTriangulo: (pos: Float32Array, a: number, b: number, c: number, paso: number, punto: (x: number, y: number, z: number) => void) => void
+  puntosDeLoDeDentro: (
+    piezas: { nombre: string; sistema: string; vertices: number; generada?: string }[],
+    leer: () => { pos: Float32Array; idx: Uint32Array },
+    elegir: () => boolean,
+    cerca: () => boolean,
+  ) => { puntos: Float32Array; origen: Int32Array }
+  PASO_DE_LAS_GENERADAS: number
+}
+interface Comprobacion {
+  cascarasDeLaPiel: (pos: Float32Array, idx: Uint32Array, vertices: number) => { cuerpo: Uint32Array; orejas: Uint32Array[]; dentro: Uint32Array | null }
+  comprobarLaPiel: (a: {
+    pieza: { pos: Float32Array; idx: Uint32Array; vertices: number }
+    piezas: unknown[]
+    leer: (p: never) => { pos: Float32Array; idx: Uint32Array }
+  }) => { cumple: boolean; lineas: string[]; medidas: { peor: number; peorBajoLaCaraDeDentro: number; orejas: number } }
+  HOLGURA_MINIMA: number
 }
 const geometria = () => import('../../scripts/atlas/geometriaDePiel.mjs') as unknown as Promise<Geometria>
+const comprobacion = () => import('../../scripts/atlas/comprobarPiel.mjs') as unknown as Promise<Comprobacion>
 
 /**
  * Una esfera de radio `r` hecha de franjas y meridianos, con las caras hacia
@@ -73,18 +100,26 @@ function esfera(r: number, haciaFuera: boolean, franjas = 16, meridianos = 32, d
 }
 
 describe('la geometría de la piel, con una esfera', () => {
-  it('distingue la cáscara de fuera, de volumen positivo, de la de dentro', async () => {
+  it('separa las cáscaras por conectividad, cada una con el signo de su volumen', async () => {
     const g = await geometria()
-    const fuera = esfera(1, true)
+    const c = await comprobacion()
+    // La piel de D-224 es así: el cuerpo, dos orejas que se le solapan y la cara de dentro, con las caras al revés.
+    const cuerpo = esfera(1, true)
+    const oreja = esfera(0.1, true, 8, 16, 1)
+    const otra = esfera(0.1, true, 8, 16, -1)
     const dentro = esfera(0.99, false)
-    const pos = Float32Array.from([...fuera.pos, ...dentro.pos])
-    const idx = Uint32Array.from([...fuera.idx, ...Array.from(dentro.idx, (i) => i + fuera.vertices)])
-    const { exterior, interior } = g.cascarasDeLaPiel(pos, idx, pos.length / 3)
-    expect(exterior.length).toBe(fuera.idx.length)
-    expect(interior.length).toBe(dentro.idx.length)
-    // La exterior son los índices de la primera esfera: ninguno pasa de su último vértice.
-    expect(Math.max(...exterior)).toBeLessThan(fuera.vertices)
-    expect(Math.min(...interior)).toBeGreaterThanOrEqual(fuera.vertices)
+    const todas = [cuerpo, oreja, otra, dentro]
+    const desde = todas.map((_, i) => todas.slice(0, i).reduce((n, e) => n + e.vertices, 0))
+    const pos = Float32Array.from(todas.flatMap((e) => [...e.pos]))
+    const idx = Uint32Array.from(todas.flatMap((e, i) => Array.from(e.idx, (v) => v + desde[i])))
+    const cascaras = g.cascarasPorConectividad(pos, idx, pos.length / 3)
+    expect(cascaras.map((k) => Math.sign(k.volumen))).toEqual([1, -1, 1, 1])
+    const piel = c.cascarasDeLaPiel(pos, idx, pos.length / 3)
+    expect(piel.cuerpo.length).toBe(cuerpo.idx.length)
+    expect(Math.max(...piel.cuerpo)).toBeLessThan(cuerpo.vertices)
+    expect(piel.orejas).toHaveLength(2)
+    expect(piel.dentro?.length).toBe(dentro.idx.length)
+    expect(Math.min(...piel.dentro!)).toBeGreaterThanOrEqual(desde[3])
   })
 
   it('sabe qué está dentro y qué fuera', async () => {
@@ -134,23 +169,67 @@ describe('la geometría de la piel, con una esfera', () => {
     expect(b.cercano(1.01, 0, 0, 0.03, -1)).toBeNull()
   })
 
-  it('el empuje es lo que falta para tener la holgura', async () => {
+  it('donde la piel se solapa consigo misma cuenta vueltas, no paridad', async () => {
+    const g = await geometria()
+    // Una mano apoyada en el muslo: dos cáscaras que se meten una en la otra. Un punto de lo que comparten cruza
+    // dos caras en cada rayo, y por paridad salía fuera de las dos; por vueltas está dentro dos veces.
+    const muslo = esfera(1, true)
+    const mano = esfera(0.4, true, 16, 32, 1.2)
+    const pos = Float32Array.from([...muslo.pos, ...mano.pos])
+    const idx = Uint32Array.from([...muslo.idx, ...Array.from(mano.idx, (i) => i + muslo.vertices)])
+    const b = g.crearBuscador(pos, idx)
+    expect(b.dentro(0.9, 0.05, 0.03)).toBe(true)
+    expect(b.dentro(1.5, 0.05, 0.03)).toBe(true)
+    expect(b.dentro(1.7, 0.05, 0.03)).toBe(false)
+  })
+
+  it('lo que queda enterrado en otra parte de la piel no cuenta como superficie', async () => {
+    const g = await geometria()
+    const muslo = esfera(1, true, 32, 64)
+    const mano = esfera(0.4, true, 16, 32, 1.2)
+    const pos = Float32Array.from([...muslo.pos, ...mano.pos])
+    const idx = Uint32Array.from([...muslo.idx, ...Array.from(mano.idx, (i) => i + muslo.vertices)])
+    const b = g.crearBuscador(pos, idx)
+    // Lo del muslo que queda dentro de la mano, y lo de la mano dentro del muslo.
+    expect(b.enterradas()).toBeGreaterThan(20)
+    // Junto a la cara de la mano que está dentro del muslo (en x = 0,8), la superficie de verdad es la del muslo de
+    // alrededor o la mano de fuera, no ella: medir contra ella daba holgura a lo que asomaba.
+    const m = b.cercano(0.82, 0, 0, 0.5)
+    expect(m).not.toBeNull()
+    expect(m!.distancia).toBeGreaterThan(0.05)
+  })
+
+  it('la cara de dentro tampoco mira lo que copia una cara de fuera enterrada', async () => {
+    const g = await geometria()
+    // La cara de dentro es la de fuera hundida, cara a cara. Donde la de fuera se toca consigo misma la copia no se ve
+    // enterrada desde su propio buscador, y se le dice cuáles con `tambienEnterradas`: aquí, media esfera.
+    const e = esfera(1, true, 32, 64)
+    const marca = new Uint8Array(e.idx.length / 3)
+    for (let t = 0; t < marca.length; t++) if (e.pos[e.idx[t * 3] * 3] > 0.5) marca[t] = 1
+    expect(g.crearBuscador(e.pos, e.idx).cercano(0.99, 0, 0, 0.03)).not.toBeNull()
+    const b = g.crearBuscador(e.pos, e.idx, { tambienEnterradas: marca })
+    expect(b.cercano(0.99, 0, 0, 0.03)).toBeNull()
+    expect(b.enterradas()).toBe(marca.reduce((n, m) => n + m, 0))
+  })
+
+  it('la profundidad bajo la piel es positiva dentro, negativa fuera, y nula lejos', async () => {
     const g = await geometria()
     const e = esfera(1, true, 48, 96)
     const b = g.crearBuscador(e.pos, e.idx)
-    const holgura = 0.002
-    // Cinco milímetros por dentro: de sobra, no hace falta empujar.
-    expect(g.empujeNecesario(b, 0.995, 0, 0, holgura, 0.03)!.empuje).toBeLessThan(0)
-    // Un milímetro por dentro: falta otro.
-    const justo = g.empujeNecesario(b, 0.999, 0, 0, holgura, 0.03)!.empuje
+    // Cinco milímetros por dentro, uno por dentro y tres por fuera. Con `seguro` de 3 mm se busca hasta 6 y se mide;
+    // sin él solo se busca hasta 4, y de lo que está más hondo se devuelve esa cota.
+    expect(g.profundidadBajoLaPiel(b, 0.995, 0, 0, 0.03, 0.003)!.profundidad).toBeCloseTo(0.005, 3)
+    expect(g.profundidadBajoLaPiel(b, 0.995, 0, 0, 0.03)).toEqual({ profundidad: 0.004, triangulo: -1 })
+    const justo = g.profundidadBajoLaPiel(b, 0.999, 0, 0, 0.03, 0.002)!.profundidad
     expect(justo).toBeGreaterThan(0.0005)
     expect(justo).toBeLessThan(0.0015)
-    // Tres milímetros por fuera: hay que subir lo que sobresale más la holgura.
-    const asomado = g.empujeNecesario(b, 1.003, 0, 0, holgura, 0.03)!.empuje
-    expect(asomado).toBeGreaterThan(0.004)
-    expect(asomado).toBeLessThan(0.006)
-    // Lejos de la piel no se mide.
-    expect(g.empujeNecesario(b, 0, 0, 0, holgura, 0.03)).toBeNull()
+    expect(g.profundidadBajoLaPiel(b, 1.003, 0, 0, 0.03)!.profundidad).toBeCloseTo(-0.003, 3)
+    // Muy hondo: basta saber que está a más de lo que se pregunta, y no se busca más.
+    const hondo = g.profundidadBajoLaPiel(b, 0, 0, 0, 0.03, 0.001)!
+    expect(hondo.profundidad).toBeGreaterThanOrEqual(0.002)
+    expect(hondo.triangulo).toBe(-1)
+    // Lejos, por fuera, no se mide.
+    expect(g.profundidadBajoLaPiel(b, 2, 0, 0, 0.03)).toBeNull()
   })
 
   it('las normales de una esfera apuntan hacia fuera, con los vértices repetidos soldados', async () => {
@@ -210,7 +289,166 @@ describe('repartir el empuje', () => {
   })
 })
 
-describe('el atlas con la piel ajustada', () => {
+describe('la envolvente con pendiente (D-228)', () => {
+  /** Una rejilla de `n`×`n` vértices a 4 mm, cada uno vecino de sus ocho de alrededor, y sus posiciones. */
+  const rejilla = (n: number, paso = 0.004) => {
+    const posiciones = new Float64Array(n * n * 3)
+    const vecinos: Int32Array[] = []
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        posiciones.set([i * paso, j * paso, 0], (j * n + i) * 3)
+        const ve: number[] = []
+        for (let dj = -1; dj <= 1; dj++) {
+          for (let di = -1; di <= 1; di++) {
+            const a = i + di, b = j + dj
+            if ((di || dj) && a >= 0 && a < n && b >= 0 && b < n) ve.push(b * n + a)
+          }
+        }
+        vecinos.push(Int32Array.from(ve))
+      }
+    }
+    return { posiciones, vecinos }
+  }
+
+  it('nunca baja de lo que cada vértice necesita', async () => {
+    const g = await geometria()
+    const { posiciones, vecinos } = rejilla(9)
+    const necesita = new Float64Array(81)
+    necesita[40] = 0.012
+    necesita[10] = 0.003
+    const d = g.envolventeConPendiente(necesita, vecinos, posiciones, 0.6)
+    expect(d[40]).toBeCloseTo(0.012, 9)
+    expect(d[10]).toBeGreaterThanOrEqual(0.003)
+  })
+
+  it('entre dos vecinos la subida no cambia más que la pendiente por su distancia', async () => {
+    const g = await geometria()
+    const { posiciones, vecinos } = rejilla(15)
+    const necesita = new Float64Array(225)
+    necesita[112] = 0.012
+    const d = g.envolventeConPendiente(necesita, vecinos, posiciones, 0.6)
+    for (let v = 0; v < 225; v++) {
+      for (const w of vecinos[v]) {
+        const largo = Math.hypot(posiciones[v * 3] - posiciones[w * 3], posiciones[v * 3 + 1] - posiciones[w * 3 + 1])
+        expect(Math.abs(d[v] - d[w])).toBeLessThanOrEqual(0.6 * largo + 1e-12)
+      }
+    }
+    // La loma llega a unos 20 mm (12 / 0,6) y se acaba ahí: cinco vértices a un lado, aún sube; siete, ya no.
+    expect(d[112 + 4]).toBeGreaterThan(0.012 - 0.6 * 0.004 * 4 - 1e-9)
+    expect(d[112 + 7]).toBe(0)
+  })
+
+  it('donde relajarEmpuje deja un diente, la envolvente deja una loma', async () => {
+    const g = await geometria()
+    const { posiciones, vecinos } = rejilla(15)
+    const necesita = new Float64Array(225)
+    necesita[112] = 0.012
+    const diente = g.relajarEmpuje(necesita, vecinos)
+    const loma = g.envolventeConPendiente(necesita, vecinos, posiciones, 0.6)
+    const caida = (d: Float64Array) => Math.max(...[...vecinos[112]].map((w) => d[112] - d[w]))
+    // El reparto de siempre pierde casi todo en un paso (con ocho vecinos); la envolvente, 3,4 mm como mucho (en diagonal).
+    expect(caida(diente)).toBeGreaterThan(0.007)
+    expect(caida(loma)).toBeLessThanOrEqual(0.6 * 0.004 * Math.SQRT2 + 1e-12)
+  })
+
+  it('lo que no hace falta no se mueve, y lo que sobra cuenta como cero', async () => {
+    const g = await geometria()
+    const { posiciones, vecinos } = rejilla(5)
+    expect(Math.max(...g.envolventeConPendiente(new Float64Array(25), vecinos, posiciones, 0.6))).toBe(0)
+    expect(Math.max(...g.envolventeConPendiente(new Float64Array(25).fill(-0.01), vecinos, posiciones, 0.6))).toBe(0)
+  })
+})
+
+describe('las normales suavizadas (D-228)', () => {
+  /** Una tira de cinco vértices en fila, cada uno vecino del anterior y del siguiente, con normales que se abren en abanico. */
+  const abanico = () => {
+    const grados = [-60, -30, 0, 30, 60]
+    const normales = new Float64Array(15)
+    grados.forEach((g, i) => normales.set([Math.sin((g * Math.PI) / 180), Math.cos((g * Math.PI) / 180), 0], i * 3))
+    const vecinos = [[1], [0, 2], [1, 3], [2, 4], [3]].map((v) => Int32Array.from(v))
+    return { normales, vecinos }
+  }
+  const anguloEntre = (n: Float64Array, a: number, b: number) =>
+    Math.acos(Math.min(1, n[a * 3] * n[b * 3] + n[a * 3 + 1] * n[b * 3 + 1] + n[a * 3 + 2] * n[b * 3 + 2]))
+
+  it('junta las normales que se abren: dos vecinos pasan a mirar casi igual', async () => {
+    const g = await geometria()
+    const { normales, vecinos } = abanico()
+    const suaves = g.suavizarNormales(normales, vecinos, new Uint8Array(5).fill(1), 6)
+    expect(anguloEntre(suaves, 0, 4)).toBeLessThan(anguloEntre(normales, 0, 4) / 3)
+  })
+
+  it('no toca los vértices que no se piden y devuelve normales unitarias', async () => {
+    const g = await geometria()
+    const { normales, vecinos } = abanico()
+    const activos = Uint8Array.from([0, 1, 1, 1, 0])
+    const suaves = g.suavizarNormales(normales, vecinos, activos, 4)
+    for (const v of [0, 4]) for (let k = 0; k < 3; k++) expect(suaves[v * 3 + k]).toBe(normales[v * 3 + k])
+    for (let v = 0; v < 5; v++) expect(Math.hypot(suaves[v * 3], suaves[v * 3 + 1], suaves[v * 3 + 2])).toBeCloseTo(1, 12)
+  })
+
+  it('sin vueltas no cambia nada', async () => {
+    const g = await geometria()
+    const { normales, vecinos } = abanico()
+    expect([...g.suavizarNormales(normales, vecinos, new Uint8Array(5).fill(1), 0)]).toEqual([...normales])
+  })
+})
+
+describe('qué se mide de un triángulo', () => {
+  // Un triángulo rectángulo de 9 mm de cateto (12,7 de hipotenusa) y uno de un milímetro.
+  const grande = Float32Array.from([0, 0, 0, 0.009, 0, 0, 0, 0.009, 0])
+  const chico = Float32Array.from([0, 0, 0, 0.001, 0, 0, 0, 0.001, 0])
+  const muestras = (g: Geometria, pos: Float32Array, paso: number) => {
+    const p: number[][] = []
+    g.muestrasDelTriangulo(pos, 0, 1, 2, paso, (x, y, z) => p.push([x, y, z]))
+    return p
+  }
+
+  it('de uno menor que el paso, o sin paso, solo el centro', async () => {
+    const g = await geometria()
+    for (const [pos, paso] of [[chico, 0.003], [grande, 0]] as const) {
+      const p = muestras(g, pos, paso)
+      expect(p).toHaveLength(1)
+      expect(p[0][0]).toBeCloseTo((pos[0] + pos[3] + pos[6]) / 3, 9)
+      expect(p[0][1]).toBeCloseTo((pos[1] + pos[4] + pos[7]) / 3, 9)
+    }
+  })
+
+  it('de uno grande, el centro de cada triángulo de su partición: todos dentro y a menos del paso unos de otros', async () => {
+    const g = await geometria()
+    const p = muestras(g, grande, 0.003)
+    // La hipotenusa pide cinco partes: veinticinco triángulos.
+    expect(p).toHaveLength(25)
+    for (const [x, y, z] of p) {
+      expect(x).toBeGreaterThan(0)
+      expect(y).toBeGreaterThan(0)
+      expect(x + y).toBeLessThan(0.009)
+      expect(z).toBe(0)
+    }
+    // Repartidos: su media es el centro del triángulo.
+    expect(p.reduce((s, q) => s + q[0], 0) / p.length).toBeCloseTo(0.003, 9)
+    expect(p.reduce((s, q) => s + q[1], 0) / p.length).toBeCloseTo(0.003, 9)
+  })
+
+  it('las piezas generadas se miden por rejilla y las de BodyParts3D, por su centro', async () => {
+    const g = await geometria()
+    const idx = Uint32Array.from([0, 1, 2])
+    const { puntos, origen } = g.puntosDeLoDeDentro(
+      [
+        { nombre: 'Fascia', sistema: 'fascia-profunda', vertices: 3, generada: 'fascia' },
+        { nombre: 'Hueso', sistema: 'skeletal', vertices: 3 },
+      ],
+      () => ({ pos: grande, idx }),
+      () => true,
+      () => true,
+    )
+    expect(g.PASO_DE_LAS_GENERADAS).toBe(0.003)
+    expect(puntos.length / 3).toBe(3 + 25 + 3 + 1)
+    expect([...origen].filter((n) => n === 0)).toHaveLength(28)
+  })
+})
+
+describe('el atlas con la piel recalculada', () => {
   const RAIZ = process.cwd()
   const catalogo = JSON.parse(readFileSync(join(RAIZ, 'public', 'atlas', 'catalogo.json'), 'utf8')) as {
     version: string
@@ -224,6 +462,7 @@ describe('el atlas con la piel ajustada', () => {
       vertices: number
       indices: number
       caja: number[][]
+      recalculada?: string
       ajustada?: string
     }[]
   }
@@ -242,10 +481,18 @@ describe('el atlas con la piel ajustada', () => {
   }
   const piel = catalogo.piezas.find((p) => p.nombre === 'Skin')!
 
-  it('la piel lleva la marca de haber sido ajustada', () => {
-    // Sin la marca, `ajustar-piel.mjs` volvería a empujar lo que ninguna pasada
-    // resuelve cada vez que alguien lo corriera.
-    expect(piel.ajustada).toMatch(/D-159/)
+  it('la piel lleva la marca de haber sido recalculada, y no la de D-159', () => {
+    // La de `preparar.mjs` es la de origen, sin marca: así se distingue de esta sin abrir la geometría.
+    expect(piel.recalculada).toMatch(/D-224/)
+    expect(piel.ajustada).toBeUndefined()
+  })
+
+  it('es el cuerpo, las dos orejas y la cara de dentro', async () => {
+    const c = await comprobacion()
+    const { cuerpo, orejas, dentro } = c.cascarasDeLaPiel(posiciones(piel), indices(piel), piel.vertices)
+    expect(cuerpo.length).toBeGreaterThan(0)
+    expect(orejas).toHaveLength(2)
+    expect(dentro?.length).toBe(cuerpo.length)
   })
 
   it('la caja de la piel es la de sus vértices', () => {
@@ -264,32 +511,50 @@ describe('el atlas con la piel ajustada', () => {
     }
   })
 
-  it('lo que antes asomaba por fuera de la piel queda dentro', async () => {
-    const g = await geometria()
+  it('la base de la nariz no tiene dientes: ningún vértice se aparta más de 2,5 mm de la media de sus vecinos', () => {
+    // La subida que repartía `relajarEmpuje` dejaba ahí el cartílago de un ala como una aguja de 12 mm junto a vértices
+    // de 3, y el freno contra el giro de las caras bajaba tres vértices más: 5,2 mm medidos, y se veía como un trozo
+    // roto bajo la punta (D-228). Con la envolvente y las normales suavizadas, 1,5; la forma generada tiene 0,6.
     const pos = posiciones(piel)
-    const { exterior } = g.cascarasDeLaPiel(pos, indices(piel), piel.vertices)
-    const buscador = g.crearBuscador(pos, exterior)
-    // Son las estructuras que se midieron asomando antes del ajuste: el tracto
-    // iliotibial (el «tendón» del muslo), las safenas, el platisma y el cartílago
-    // lateral de la nariz. La oreja no está: la piel sube hasta 12 mm y a ella le
-    // pedía 16, así que unos pocos vértices suyos siguen fuera.
-    for (const nombre of [
-      'Left iliotibial tract',
-      'Right iliotibial tract',
-      'Left great saphenous vein',
-      'Right great saphenous vein',
-      'Left platysma',
-      'Right platysma',
-      'Left lateral nasal cartilage',
-    ]) {
-      const p = catalogo.piezas.find((q) => q.nombre === nombre)
-      expect(p, nombre).toBeDefined()
-      const v = posiciones(p!)
-      let fuera = 0
-      for (let i = 0; i < p!.vertices; i++) if (!buscador.dentro(v[i * 3], v[i * 3 + 1], v[i * 3 + 2])) fuera++
-      expect(fuera, nombre).toBe(0)
+    const idx = indices(piel)
+    const suma = new Float64Array(piel.vertices * 3)
+    const grado = new Uint32Array(piel.vertices)
+    for (let t = 0; t < idx.length; t += 3) {
+      for (let k = 0; k < 3; k++) {
+        const v = idx[t + k]
+        for (const w of [idx[t + ((k + 1) % 3)], idx[t + ((k + 2) % 3)]]) {
+          for (let e = 0; e < 3; e++) suma[v * 3 + e] += pos[w * 3 + e]
+          grado[v]++
+        }
+      }
     }
+    let peor = 0
+    let enLaZona = 0
+    for (let v = 0; v < piel.vertices; v++) {
+      const x = pos[v * 3], y = pos[v * 3 + 1], z = pos[v * 3 + 2]
+      if (!(Math.abs(x) < 0.045 && y > 1.52 && y < 1.585 && z > 0.055) || grado[v] === 0) continue
+      enLaZona++
+      peor = Math.max(peor, Math.hypot(x - suma[v * 3] / grado[v], y - suma[v * 3 + 1] / grado[v], z - suma[v * 3 + 2] / grado[v]))
+    }
+    expect(enLaZona).toBeGreaterThan(500)
+    expect(peor).toBeLessThan(0.0025)
   })
+
+  it('nada de lo de dentro asoma: todo queda bajo la piel con su holgura, y bajo la cara de dentro', async () => {
+    // Es la misma comprobación con que `recalcular-piel.mjs` decide si escribe (`comprobarPiel.mjs`): casi cinco millones
+    // de puntos del atlas contra la piel, por eso tarda. Un minuto con la máquina libre y hasta cuatro cuando Windows
+    // limita a `node` en segundo plano (medido el mismo día con el mismo código y los mismos datos): con cinco minutos de
+    // margen, `npm run test:coverage` —la suite entera en paralelo— la dejaba sin tiempo.
+    const c = await comprobacion()
+    const r = c.comprobarLaPiel({
+      pieza: { pos: posiciones(piel), idx: indices(piel), vertices: piel.vertices },
+      piezas: catalogo.piezas,
+      leer: ((p: (typeof catalogo.piezas)[number]) => ({ pos: posiciones(p), idx: indices(p) })) as never,
+    })
+    expect(r.lineas.filter((l) => l.includes('falla'))).toEqual([])
+    expect(r.cumple).toBe(true)
+    expect(r.medidas.peor).toBeGreaterThanOrEqual(c.HOLGURA_MINIMA)
+  }, 900_000)
 
   it('no se movió ninguna otra pieza: la rodilla sigue donde estaba', () => {
     // La tibia izquierda está entera dentro de la caja de la piel, y su caja del

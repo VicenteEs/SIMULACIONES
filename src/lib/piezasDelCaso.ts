@@ -293,6 +293,14 @@ export function cambiarRolDePieza(
  *    modelo nuevo, se pierde y se devuelve en `perdidos` para decirlo. No se
  *    calla: un paso que se queda sin lo que enseñaba hereda lo del anterior
  *    (`declaracionDelPaso`), y enseña otra cosa sin ningún error.
+ *  - **La fascia que el modelo viejo no tenía** entra en todo paso que enseñaba
+ *    el músculo. Está entre la piel y el músculo, y quien ve el músculo ve lo que
+ *    lo cubre. Sin esta regla, un caso de antes de las fascias (P-006) pasado a
+ *    un modelo que las trae no las enseñaba en ningún paso: la capa salía
+ *    apagada, el bisturí profundo se la saltaba y cortaba directo el músculo, y
+ *    la fascia «no se movía» porque nunca llegaba a cortarse (2026-11-03). Si el
+ *    modelo viejo ya tenía fascia, cada paso dice si la enseña, como cualquier
+ *    otro papel.
  *
  * `rolesViejos` son los papeles de las piezas del caso ANTES de rellenarlas: es
  * lo único que dice qué era `tibia_proximal`, porque en las piezas nuevas ya no
@@ -327,6 +335,14 @@ export function traducirMuestra(
       continue
     }
     conEseRol.forEach(poner)
+  }
+
+  const yaHabiaFascia = [...rolesViejos.values()].includes('fascia')
+  const ensenabaElMusculo = muestra.some((nodo) => !enElModelo.has(nodo) && rolesViejos.get(nodo) === 'musculo')
+  if (!yaHabiaFascia && ensenabaElMusculo) {
+    for (const p of piezasNuevas) {
+      if (p.rol === 'fascia' && typeof p.nodo === 'string' && enElModelo.has(p.nodo)) poner(p.nodo)
+    }
   }
   return { muestra: salida, perdidos }
 }

@@ -59,6 +59,9 @@ export const ACCIONES_DE_REVISION = [
   { label: 'Entró en revisión', value: 'registrada' },
   { label: 'Asignada', value: 'asignada' },
   { label: 'Validada', value: 'lista' },
+  // La primera de las dos firmas (D-240): la ficha sigue en revisión hasta que
+  // firme la otra profesión, y entonces la segunda queda como «Validada».
+  { label: 'Firmada', value: 'firmada' },
   { label: 'Editada después de validarla', value: 'reabierta' },
   { label: 'Devuelta al revisor', value: 'devuelta' },
   { label: 'Publicada', value: 'publicada' },

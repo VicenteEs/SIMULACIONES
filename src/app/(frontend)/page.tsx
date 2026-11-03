@@ -5,8 +5,9 @@ import { obtenerSesion } from '@/lib/sesion'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { InsigniaMantencion } from '@/components/ui/InsigniaMantencion'
 import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
-import { CuerpoDePortada } from '@/components/CuerpoDePortada'
-import { MallaDeNodos } from '@/components/MallaDeNodos'
+import { COLUMNAS_PARA_SABERLO, dondeSeQuedo, type DondeSeQuedo } from '@/lib/dondeSeQuedo'
+import { PortadaPublica } from '@/components/portada/PortadaPublica'
+import { leerLaPaginaPublica } from '@/components/portada/datos'
 import { ruta } from '@/lib/rutas'
 import { recorridoGuardado, type RecorridoGuardado } from '@/lib/progresoDelSimulador'
 // `modulos.ts` no importa Payload a propósito (lo explica su cabecera), así que
@@ -15,7 +16,7 @@ import { NOMBRE_DE_MODULO, rutaPublica } from '@/app/(frontend)/admin-panel/modu
 import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
 import { TarjetaFicha } from '@/components/TarjetaFicha'
 import { MODULOS_ANUNCIADOS, ROTULO_PROXIMAMENTE } from '@/lib/modulosAnunciados'
-import { ArrowRight, BookOpen, Clock3, Library, PenLine, ScanLine, UserPlus, Hourglass } from 'lucide-react'
+import { ArrowRight, BookOpen, Library, PenLine, ScanLine, UserPlus, Hourglass } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,86 +88,12 @@ export default async function Inicio() {
   const enMantencion = await modulosEnMantencion()
 
   // ----------------------------------------------------------- sin sesión
+  // La portada pública v2 de Penpot (P-007 E3). Sus textos y sus fotos son los
+  // de «Medios de la página», y el capítulo de un módulo en mantención se
+  // queda sin botón de entrar (D-156): quien no ha entrado se trata como un
+  // residente.
   if (!usuario) {
-    const publicos = MODULOS.filter((m) => !enMantencion.includes(m.coleccion))
-    return (
-      <main className="portada-publica">
-        <div className="portada-fondo" aria-hidden="true">
-          <MallaDeNodos className="portada-malla" />
-        </div>
-
-        <section className="portada-hero">
-          <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="portada-logo" />
-
-          <h1 className="portada-titular">
-            Estudiar, examinar y <em>operar mejor</em>.
-          </h1>
-
-          <p className="portada-bajada">
-            {publicos.length === MODULOS.length ? 'Cinco módulos' : 'Módulos'} que recorren la cadena
-            completa de una decisión clínica: del estudio de la patología a la ejecución en pabellón.
-          </p>
-
-          {/* Las dos puertas son el `.boton` de toda la plataforma: la
-              principal en el cian de la marca, que es lo que se distingue sobre
-              el marino, y la segunda en contorno. «Solicitar acceso» llevaba
-              su estilo en línea, con un margen a la izquierda que en el
-              teléfono la dejaba descolgada debajo de la otra. */}
-          <div className="portada-acciones">
-            <Link className="boton boton-lg portada-boton" href="/entrar">
-              Entrar a la plataforma
-              <ArrowRight size={18} aria-hidden="true" />
-            </Link>
-            <Link className="boton boton-lg portada-enlace-secundario" href="/registro">
-              <UserPlus size={18} aria-hidden="true" />
-              Solicitar acceso
-            </Link>
-          </div>
-
-          <p className="portada-nota">
-            El acceso es cerrado: cada solicitud la revisa un administrador antes de activar la
-            cuenta.
-          </p>
-        </section>
-
-        <section
-          className="portada-tira"
-          aria-label={publicos.length === MODULOS.length ? 'Los cinco módulos' : 'Los módulos'}
-        >
-          {publicos.map((m) => {
-            const Icono = IDENTIDAD_DE_MODULO[m.coleccion]?.icono ?? BookOpen
-            return (
-              <div key={m.ruta} className="portada-tira-item">
-                <span className="portada-tira-icono" aria-hidden="true">
-                  <Icono size={18} />
-                </span>
-                <span>
-                  <span className="portada-tira-numero">{m.numero}</span>
-                  <br />
-                  <span className="portada-tira-nombre">{m.titulo}</span>
-                </span>
-              </div>
-            )
-          })}
-          {/* Los módulos anunciados (D-163): con su insignia y sin enlace, porque
-              su página es para quien tiene cuenta. No cuentan en el texto de
-              arriba ni en la lista de la mantención. */}
-          {MODULOS_ANUNCIADOS.map((m) => (
-            <div key={m.ruta} className="portada-tira-item portada-tira-anunciado">
-              <span className="portada-tira-icono" aria-hidden="true">
-                <ScanLine size={18} />
-              </span>
-              <span>
-                <span className="portada-tira-numero">{m.numero}</span>
-                <br />
-                <span className="portada-tira-nombre">{m.nombre}</span>{' '}
-                <span className="insignia-proximamente">{ROTULO_PROXIMAMENTE}</span>
-              </span>
-            </div>
-          ))}
-        </section>
-      </main>
-    )
+    return <PortadaPublica pagina={await leerLaPaginaPublica()} enMantencion={enMantencion} />
   }
 
   // -------------------------------------------------- cuenta sin activar
@@ -331,7 +258,7 @@ export default async function Inicio() {
   // `rutaPublica` es quien sabe que ese módulo se enlaza por ancla
   // (`/examen-fisico#maniobra-<id>`) y quien dejará de saberlo el día que tenga
   // ficha propia.
-  const continuarLeyendo: { id: string; nombre: string; coleccion: string; destino: string }[] = []
+  const continuarLeyendo: { id: string; nombre: string; coleccion: string; destino: string; donde: DondeSeQuedo | null }[] = []
   for (const registro of actividad.docs as Record<string, unknown>[]) {
     try {
       const doc = (await payload.findByID({
@@ -351,8 +278,13 @@ export default async function Inicio() {
         overrideAccess: false,
         user: usuarioEfectivo as never,
         // Solo se lee el título: sin esto cada ficha llegaba con sus medios y
-        // sus relaciones pobladas a dos niveles (D-128).
+        // sus relaciones pobladas a dos niveles (D-128). La patología y la
+        // técnica AO traen además sus pestañas o sus pasos, sin poblar, para
+        // decir dónde se quedó (D-237); el resto, el nombre y nada más.
         depth: 0,
+        ...(COLUMNAS_PARA_SABERLO[String(registro.coleccion)]
+          ? { select: COLUMNAS_PARA_SABERLO[String(registro.coleccion)] as never }
+          : {}),
       })) as Record<string, unknown>
       const nombre = (doc?.nombre ?? doc?.titulo) as string | undefined
       if (nombre) {
@@ -361,6 +293,7 @@ export default async function Inicio() {
           nombre,
           coleccion: String(registro.coleccion),
           destino: rutaPublica(String(registro.coleccion), String(registro.documentoId)),
+          donde: dondeSeQuedo(String(registro.coleccion), doc, registro.seccion),
         })
       }
     } catch {
@@ -555,14 +488,6 @@ export default async function Inicio() {
             ) : null}
           </div>
         </div>
-
-        <div className="hero-figura">
-          <CuerpoDePortada />
-          <div className="hero-pie">
-            <span>Cuerpo completo · atlas anatómico</span>
-            <span className="hero-codigo">BodyParts3D · CC BY 4.0</span>
-          </div>
-        </div>
       </section>
 
       {continuarLeyendo.length > 0 ? (
@@ -570,28 +495,44 @@ export default async function Inicio() {
           <span className="eyebrow">Donde lo dejó</span>
           <h2 className="titulo-seccion">Continúa leyendo</h2>
           <div className="rejilla-fichas">
-            {continuarLeyendo.map((item) => (
-              // Cada tarjeta en el color de su módulo, con su nombre como
-              // insignia: «Continúa leyendo» mezcla los cinco y sin eso no se
-              // sabía de dónde era cada ficha hasta abrirla.
-              <div key={`${item.coleccion}-${item.id}`} className={IDENTIDAD_DE_MODULO[item.coleccion]?.clase}>
-                <TarjetaFicha
-                  href={item.destino}
-                  titulo={item.nombre}
-                  accion="Retomar lectura"
-                  insignias={
-                    // El slug crudo solo como último recurso: sacaba a la
-                    // portada el nombre de la tabla de PostgreSQL
-                    // —«patologias» sin tilde, «casos ao»—, que ni siquiera
-                    // son palabras.
-                    <span className="insignia insignia-acento">
-                      <Clock3 size={13} aria-hidden="true" />
-                      {NOMBRE_DE_MODULO[item.coleccion] ?? item.coleccion}
-                    </span>
-                  }
-                />
-              </div>
-            ))}
+            {continuarLeyendo.map((item) => {
+              const Icono = IDENTIDAD_DE_MODULO[item.coleccion]?.icono ?? BookOpen
+              const donde = item.donde
+              return (
+                // Cada tarjeta en el color de su módulo, con su nombre como
+                // insignia: «Continúa leyendo» mezcla los cinco y sin eso no se
+                // sabía de dónde era cada ficha hasta abrirla.
+                <div key={`${item.coleccion}-${item.id}`} className={IDENTIDAD_DE_MODULO[item.coleccion]?.clase}>
+                  <TarjetaFicha
+                    // Con el ancla de la pestaña o del paso, la ficha abre
+                    // donde se quedó y no arriba del todo (D-237).
+                    href={`${item.destino}${donde?.ancla ?? ''}`}
+                    titulo={item.nombre}
+                    accion="Retomar lectura"
+                    insignias={
+                      // El slug crudo solo como último recurso: sacaba a la
+                      // portada el nombre de la tabla de PostgreSQL
+                      // —«patologias» sin tilde, «casos ao»—, que ni siquiera
+                      // son palabras.
+                      <span className="insignia insignia-acento">
+                        <Icono size={13} aria-hidden="true" />
+                        {NOMBRE_DE_MODULO[item.coleccion] ?? item.coleccion}
+                      </span>
+                    }
+                    resumen={
+                      donde ? (
+                        <span className="continuar-donde">
+                          <span className="progreso" aria-hidden="true">
+                            <span style={{ width: `${Math.round((donde.numero / donde.total) * 100)}%` }} />
+                          </span>
+                          {donde.rotulo} {donde.numero} de {donde.total} · {donde.nombre}
+                        </span>
+                      ) : undefined
+                    }
+                  />
+                </div>
+              )
+            })}
           </div>
         </section>
       ) : null}

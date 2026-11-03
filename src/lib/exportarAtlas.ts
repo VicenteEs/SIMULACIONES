@@ -3,6 +3,14 @@ import { ASPECTO_POR_OMISION, aspectoDelSistema } from '@/atlas/aspectoDelSistem
 import { rolDeSistema } from '@/atlas/clasificacion'
 import { esSistemaDeFascia } from '@/atlas/fascias'
 import { nombreEnEspanol, sinTildes, tieneTraduccion } from '@/atlas/nombres'
+import {
+  COLOR_DE_LA_CORNEA,
+  COLOR_DE_LOS_OJOS,
+  aspectoPropioDe,
+  pigmentoDeLaPiel,
+  pigmentoDeLosLabios,
+  pigmentoDelOjo,
+} from '@/atlas/pigmentacion'
 import { nombreDeNodo, type MaterialDelObjeto, type ObjetoParaGlb } from '@/lib/glb'
 import { partirMalla } from '@/lib/osteotomia'
 import { propuestaDelNodo, type RolDePieza } from '@/lib/piezasDelCaso'
@@ -254,10 +262,19 @@ export function agruparParaGlb(
 
   const sueltas: PiezaLeida[] = []
   const porSistema = new Map<string, PiezaLeida[]>()
+  // Las piezas de aspecto propio (el ojo: esclera, iris, córnea) se funden aparte del resto de su sistema.
+  const porAspecto = new Map<string, PiezaLeida[]>()
 
   for (const pieza of piezas) {
     if (protagonistas.has(pieza.id) || (separar && !(fundeVasos && SISTEMAS_DE_VASOS.has(pieza.sistema)))) {
       sueltas.push(pieza)
+      continue
+    }
+    const propio = aspectoPropioDe(pieza.nombre)
+    if (propio) {
+      const delGrupo = porAspecto.get(propio.grupo)
+      if (delGrupo) delGrupo.push(pieza)
+      else porAspecto.set(propio.grupo, [pieza])
       continue
     }
     const grupo = porSistema.get(pieza.sistema)
@@ -282,6 +299,8 @@ export function agruparParaGlb(
       normales: pieza.normales,
       indices: pieza.indices,
       ...aspectoParaGlb(colores[pieza.sistema], pieza.sistema),
+      ...aspectoDelOjoSuelto(pieza),
+      ...conColores(coloresDeLaPieza(pieza)),
       extras: {
         rol: pieza.trozo?.fragmento ? 'fragmento' : rolDeSistema(pieza.sistema),
         etiqueta,
@@ -292,6 +311,7 @@ export function agruparParaGlb(
         ...(separar || protagonistas.has(pieza.id) ? { atlasId: pieza.id } : {}),
         ...(pieza.fma ? { fma: pieza.fma } : {}),
         ...(pieza.trozo ? { trozo: pieza.trozo.lado } : {}),
+        ...conAspecto(aspectoPropioDe(pieza.nombre)?.grupo),
       },
     })
   }
@@ -309,7 +329,55 @@ export function agruparParaGlb(
     })
   }
 
+  for (const [grupo, delGrupo] of porAspecto) {
+    const sistema = delGrupo[0].sistema
+    salida.push({
+      nombre: grupo,
+      ...fusionar(delGrupo),
+      ...aspectoDelOjo(grupo),
+      extras: {
+        rol: rolDeSistema(sistema),
+        etiqueta: aspectoPropioDe(delGrupo[0].nombre)?.etiqueta ?? grupo,
+        sistema,
+        aspecto: grupo,
+      },
+    })
+  }
+
   return salida
+}
+
+const conColores = (colores: Uint8Array | undefined) => (colores ? { colores } : {})
+const conAspecto = (aspecto: string | undefined): Record<string, string> => (aspecto ? { aspecto } : {})
+
+/**
+ * El color por vértice de una pieza del atlas, o `undefined` si no lleva (D-227).
+ *
+ * Se mira el sistema además del nombre: una pieza de prueba que se llame «Skin» sin ser la piel del atlas no tiene
+ * las coordenadas del cuerpo, y pintarla con ellas daría manchas donde no hay un codo.
+ */
+function coloresDeLaPieza(pieza: PiezaLeida): Uint8Array | undefined {
+  if (pieza.sistema === 'integumentary') {
+    if (pieza.nombre === 'Skin') return pigmentoDeLaPiel(pieza.posiciones, pieza.normales, pieza.indices)
+    if (pieza.nombre === 'Lip') return pigmentoDeLosLabios(pieza.posiciones)
+    return undefined
+  }
+  if (pieza.sistema === 'sensory') return pigmentoDelOjo(pieza.nombre, pieza.posiciones) ?? undefined
+  return undefined
+}
+
+/** El color y el brillo de un grupo de piezas del ojo: blanco y con barniz (la esclera y el iris están mojados), o transparente. */
+function aspectoDelOjo(grupo: string): Pick<ObjetoParaGlb, 'color' | 'material'> {
+  if (grupo === 'cornea') {
+    return { color: [...COLOR_DE_LA_CORNEA], material: { rugosidad: 0.03, metalico: 0, barniz: 1 } }
+  }
+  return { color: [...COLOR_DE_LOS_OJOS], material: { rugosidad: 0.22, metalico: 0, barniz: 1 } }
+}
+
+/** Lo mismo para una pieza del ojo que sale suelta (una protagonista, o con las estructuras separadas); `{}` para cualquier otra. */
+function aspectoDelOjoSuelto(pieza: PiezaLeida): Partial<Pick<ObjetoParaGlb, 'color' | 'material'>> {
+  const propio = aspectoPropioDe(pieza.nombre)
+  return propio ? aspectoDelOjo(propio.grupo) : {}
 }
 
 /** Pega varias piezas en una sola malla, corriendo los índices. */
@@ -317,6 +385,7 @@ function fusionar(grupo: PiezaLeida[]): {
   posiciones: Float32Array
   normales: Int16Array
   indices: Uint32Array
+  colores?: Uint8Array
 } {
   const vertices = grupo.reduce((t, p) => t + p.posiciones.length / 3, 0)
   const cuantos = grupo.reduce((t, p) => t + p.indices.length, 0)
@@ -324,18 +393,23 @@ function fusionar(grupo: PiezaLeida[]): {
   const posiciones = new Float32Array(vertices * 3)
   const normales = new Int16Array(vertices * 3)
   const indices = new Uint32Array(cuantos)
+  // Solo si alguna pieza del grupo lleva color; las que no, van en blanco (multiplicar por uno no cambia nada).
+  const deCadaPieza = grupo.map(coloresDeLaPieza)
+  const colores = deCadaPieza.some(Boolean) ? new Uint8Array(vertices * 4).fill(255) : undefined
 
   let vBase = 0
   let iBase = 0
-  for (const pieza of grupo) {
+  grupo.forEach((pieza, k0) => {
     posiciones.set(pieza.posiciones, vBase * 3)
     normales.set(pieza.normales, vBase * 3)
+    const suyos = deCadaPieza[k0]
+    if (colores && suyos) colores.set(suyos, vBase * 4)
     for (let k = 0; k < pieza.indices.length; k += 1) indices[iBase + k] = pieza.indices[k] + vBase
     vBase += pieza.posiciones.length / 3
     iBase += pieza.indices.length
-  }
+  })
 
-  return { posiciones, normales, indices }
+  return { posiciones, normales, indices, ...(colores ? { colores } : {}) }
 }
 
 /**
@@ -560,6 +634,10 @@ function recortarMalla(objeto: ObjetoParaGlb, zona: Caja): ObjetoParaGlb {
   // Del mismo tipo que llegaron: las del atlas son enteros de 16 bits, y
   // `escribirGlb` los declara normalizados mirando justo el tipo.
   const nor = normales instanceof Int16Array ? new Int16Array(quedan * 3) : new Float32Array(quedan * 3)
+  // El color por vértice se queda con su vértice: sin esto la piel recortada de una pierna perdería los codos y las
+  // rodillas, o peor, se los pondría en otro sitio.
+  const colores = objeto.colores && objeto.colores.length === vertices * 4 ? objeto.colores : null
+  const col = colores ? new Uint8Array(quedan * 4) : null
   for (let v = 0; v < vertices; v += 1) {
     if (!usado[v]) continue
     const destino = nuevo[v] * 3
@@ -567,6 +645,7 @@ function recortarMalla(objeto: ObjetoParaGlb, zona: Caja): ObjetoParaGlb {
       pos[destino + eje] = posiciones[v * 3 + eje]
       nor[destino + eje] = normales[v * 3 + eje]
     }
+    if (col && colores) col.set(colores.subarray(v * 4, v * 4 + 4), nuevo[v] * 4)
   }
 
   const idx = new Uint32Array(triangulos * 3)
@@ -579,7 +658,7 @@ function recortarMalla(objeto: ObjetoParaGlb, zona: Caja): ObjetoParaGlb {
     k += 3
   }
 
-  return { ...objeto, posiciones: pos, normales: nor, indices: idx }
+  return { ...objeto, posiciones: pos, normales: nor, indices: idx, ...(col ? { colores: col } : {}) }
 }
 
 /**

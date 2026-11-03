@@ -57,6 +57,15 @@ export interface FilaDeContenido {
   asignadaId: string | null
   validador: string
   validadorId: string | null
+  /**
+   * Quién firmó por cada profesión (D-240): el nombre, «cuenta borrada» si la
+   * firma está y la cuenta no, o vacío si falta. Las firmas que siguen en pie:
+   * las que borró un cambio o una devolución quedan en el historial.
+   */
+  firmaMedico: string
+  firmaMedicoId: string | null
+  firmaKinesiologo: string
+  firmaKinesiologoId: string | null
   validadaEn: string | null
   publicadaEn: string | null
   porcentaje: number
@@ -91,6 +100,12 @@ export interface FilaDeRevisor {
   /** Asignadas que todavía no están listas ni publicadas. */
   pendientes: number
   validadas: number
+  /**
+   * Fichas que llevan su firma ahora (D-240), sea la primera o la que la
+   * completó. `validadas` cuenta solo las que completó, que son las que llevan
+   * sus números «al validar».
+   */
+  firmadas: number
   senaladas: number
   /** Veces que el administrador devolvió una ficha que este revisor había validado. */
   devueltas: number
@@ -217,6 +232,12 @@ export function armarAuditoria(entrada: {
     const asignadaId = idDe(r.asignadaA)
     const validadorId = idDe(r.listaPor)
     const validada = fechaO(r.listaEn) !== null
+    const firmaDe = (por: unknown, en: unknown) => {
+      const id = idDe(por)
+      return { id, nombre: fechaO(en) === null ? '' : id === null ? 'cuenta borrada' : nombreDe(id) }
+    }
+    const medico = firmaDe(r.firmaMedicoPor, r.firmaMedicoEn)
+    const kinesiologo = firmaDe(r.firmaKinesiologoPor, r.firmaKinesiologoEn)
     contenidos.push({
       coleccion: texto(r.coleccion),
       documentoId: texto(r.documentoId),
@@ -232,6 +253,10 @@ export function armarAuditoria(entrada: {
       asignadaId,
       validador: nombreDe(validadorId),
       validadorId,
+      firmaMedico: medico.nombre,
+      firmaMedicoId: medico.nombre === '' ? null : medico.id,
+      firmaKinesiologo: kinesiologo.nombre,
+      firmaKinesiologoId: kinesiologo.nombre === '' ? null : kinesiologo.id,
       validadaEn: fechaO(r.listaEn),
       publicadaEn: fechaO(r.publicadaEn),
       porcentaje: numero(r.porcentajeEditado),
@@ -267,7 +292,9 @@ export function armarAuditoria(entrada: {
     let ultimoValidador: string | null = null
     for (const h of Array.isArray(r.historial) ? (r.historial as Registro[]) : []) {
       const quien = idDe(h.usuario)
-      if (h.accion === 'lista') ultimoValidador = quien
+      // La primera firma también es dar la ficha por buena (D-240): si la
+      // devuelven antes de la segunda, la devolución es de quien la firmó.
+      if (h.accion === 'lista' || h.accion === 'firmada') ultimoValidador = quien
       if (h.accion === 'devuelta' && ultimoValidador !== null) {
         devueltasPorValidador.set(ultimoValidador, (devueltasPorValidador.get(ultimoValidador) ?? 0) + 1)
       }
@@ -292,7 +319,9 @@ export function armarAuditoria(entrada: {
   // justo lo que hay que ver, así que entra aunque no tenga sesiones.
   const ids = new Set<string>([
     ...porRevisor.keys(),
-    ...contenidos.flatMap((c) => [c.asignadaId, c.validadorId].filter((id): id is string => id !== null)),
+    ...contenidos.flatMap((c) =>
+      [c.asignadaId, c.validadorId, c.firmaMedicoId, c.firmaKinesiologoId].filter((id): id is string => id !== null),
+    ),
   ])
   const revisores: FilaDeRevisor[] = [...ids].map((id) => {
     const cuenta = cuentas.get(id)
@@ -307,6 +336,7 @@ export function armarAuditoria(entrada: {
       asignadas: asignadas.length,
       pendientes: asignadas.filter((c) => c.estado !== 'lista' && c.estado !== 'publicada').length,
       validadas: suyas.length,
+      firmadas: contenidos.filter((c) => c.firmaMedicoId === id || c.firmaKinesiologoId === id).length,
       senaladas: suyas.filter((c) => c.senalada).length,
       devueltas: devueltasPorValidador.get(id) ?? 0,
       fichasAbiertas: tiempo?.fichas.size ?? 0,

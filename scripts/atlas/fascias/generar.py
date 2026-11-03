@@ -329,6 +329,10 @@ def main():
     todos = sorted(conservados + nuevos, key=lambda p: (p['id'].rstrip('M'), p['id'].endswith('M')))
     ruta.write_text(json.dumps({'version': 1, 'piezas': todos}, ensure_ascii=False, indent=1), encoding='utf8')
     dicho(f'\nManifiesto: {len(todos)} piezas en {ruta}')
+    # La rejilla de 3 mm deja asomar la fascia superficial en los pliegues de la piel (D-224): sin este paso, la prueba
+    # de la piel falla después de agregarla.
+    if 'fascia-superficial' in hechos:
+        dicho('Antes de agregarla: node scripts/atlas/fascias/bajo-la-piel.mjs --aplicar')
 
 
 if __name__ == '__main__':

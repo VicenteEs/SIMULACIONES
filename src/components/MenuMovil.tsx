@@ -68,7 +68,8 @@ function esModuloActivo(rutaActual: string | null, rutaModulo: string): boolean 
  * lector de pantalla recorre cinco enlaces idénticos en cualquier página de la
  * plataforma y no tiene forma de saber en cuál de los cinco está; y un estado
  * que solo se expresa con color deja fuera además a quien no distingue ese
- * azul. El mismo patrón está en `IndiceFicha` y en `NavegacionAdmin`.
+ * azul. El mismo patrón está en `NavegacionAdmin`, y las pestañas de la ficha
+ * lo dicen con `aria-selected` (`PestanasDeFicha`).
  */
 export function BarraDeModulos({ modulos }: { modulos: EntradaDeMenu[] }) {
   const rutaActual = usePathname()

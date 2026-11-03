@@ -9,6 +9,18 @@
  *
  *   --preparacion "<nombre>"   otra preparación (por omisión, «pierna derecha»)
  *   --caso "<nombre>"          otro caso (por omisión, el de scripts/caso-de-prueba.ts)
+ *   --tibia izquierda          parte la tibia izquierda (por omisión, la derecha)
+ *   --nuevo "<nombre>"         no toca el caso: crea otro con ese nombre, copia de él
+ *   --clasificacion A3         la clasificación AO del caso nuevo (solo con --nuevo)
+ *   --separar                  cada estructura como objeto propio, no fundidas por sistema
+ *
+ * Las tres últimas llegaron con la preparación «p», una pierna izquierda, y el
+ * pedido del dueño del 2026-11-03: un caso nuevo sobre ella, «con fractura
+ * cualquiera», y no la tibia del caso de prueba otra vez. Copiar el caso de
+ * prueba trae sus pasos, su bandeja y su instrumental, que valen para cualquier
+ * fractura simple de la diáfisis; lo que cambia es el modelo, la pieza que se
+ * parte y el trazo, que sale de la clasificación como siempre
+ * (`corteParaLaFractura`). El caso de prueba queda como estaba.
  *
  * Lo pidió el traumatólogo con estas palabras: «actualmente tengo uno llamado
  * pierna derecha, quiero que ese esté en el caso de prueba». La preparación
@@ -58,6 +70,8 @@ import {
   type PropuestaDelModelo,
 } from '../src/lib/piezasDelCaso'
 import { describirCorte, normalizarCorte, type CorteDeHueso } from '../src/lib/planoDeCorte'
+import { sinIdentificadoresDeFila } from '../src/admin/depurar'
+import { haciaLexical } from '../src/lib/textoRico'
 
 // Solo importaciones sin efectos arriba: las que leen el entorno al cargarse
 // —la configuración de Payload, las colecciones que arrastra
@@ -87,8 +101,14 @@ export const CASO_DE_PRUEBA = 'Fractura de diáfisis tibial · clavo endomedular
  */
 export const MILIMETROS_POR_UNIDAD_DEL_ATLAS = 1000
 
-/** El hueso que se parte, tal como lo nombra la traducción del atlas. */
-const TIBIA_DERECHA = 'Tibia derecha'
+/**
+ * Los huesos que se pueden partir, tal como los nombra la traducción del atlas.
+ *
+ * Solo las dos tibias: `corteParaLaFractura` sabe partir la diáfisis tibial y
+ * nada más. La izquierda entró con la preparación «p» (2026-11-03).
+ */
+export const TIBIAS = { derecha: 'Tibia derecha', izquierda: 'Tibia izquierda' } as const
+export type LadoDeLaTibia = keyof typeof TIBIAS
 
 /**
  * El código AO de la diáfisis tibial. El corte se pone a media diáfisis, y en
@@ -616,7 +636,10 @@ async function leerElArchivo(bytes: Buffer): Promise<{ nodos: string[]; propuest
   const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
   // `datosDeLosNodos` es la función del lienzo que usa el botón: recorrer la
   // escena por otro camino podría leer un nodo que el botón no ve, o al revés.
-  const { datosDeLosNodos } = await import('../src/components/simulador/LienzoQuirurgico')
+  // Se importa de su módulo y no del lienzo, que arrastra su hoja de estilos: con
+  // ella, Node paraba aquí con «Unknown file extension ".css"» y el guion no
+  // llegaba a poner el modelo en el caso (2026-11-03).
+  const { datosDeLosNodos } = await import('../src/components/simulador/nodosDelModelo')
   const bufer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
   const gltf = await new GLTFLoader().parseAsync(bufer, '')
   const datos = datosDeLosNodos(gltf.scene)
@@ -747,6 +770,18 @@ export interface OpcionesDelGuion {
   aplicar: boolean
   preparacion: string
   caso: string
+  /** Qué tibia se parte; por omisión, la derecha. */
+  tibia?: LadoDeLaTibia
+  /**
+   * Un caso nuevo con este nombre, copia de `caso`, en vez de cambiar `caso`. Si
+   * ya hay uno que se llama así, es ese el que se pone al día: volver a
+   * ejecutarlo no crea otro.
+   */
+  nuevo?: string
+  /** El código de la clasificación AO del caso nuevo (`A3`); sin él, la del caso copiado. */
+  clasificacion?: string
+  /** Cada estructura como objeto propio (P-003 E9); por omisión, fundidas por sistema, como el caso de prueba. */
+  separar?: boolean
   directorioDelAtlas?: string
   /** A dónde va cada línea. Por omisión, la consola, sin secretos. */
   escribir?: (linea: string) => void
@@ -772,6 +807,8 @@ export async function ejecutar(
   const escribir = opciones.escribir ?? ((linea: string) => console.log(sinSecretos(linea)))
   const { base, escrituras } = baseQueRegistra(baseReal, opciones.aplicar)
   const { exportarPreparacion, leerCatalogo } = await import('../src/lib/exportarPreparacion')
+  const nombreDeLaTibia = TIBIAS[opciones.tibia ?? 'derecha']
+  const laTibia = nombreDeLaTibia.toLowerCase()
 
   escribir(
     opciones.aplicar
@@ -803,25 +840,25 @@ export async function ejecutar(
 
   const catalogo = await leerCatalogo(opciones.directorioDelAtlas)
   const tibias = catalogo.piezas.filter(
-    (p) => ids.has(p.id) && normalizarNombre(nombreEnEspanol(p.nombre)) === normalizarNombre(TIBIA_DERECHA),
+    (p) => ids.has(p.id) && normalizarNombre(nombreEnEspanol(p.nombre)) === normalizarNombre(nombreDeLaTibia),
   )
   if (tibias.length === 0) {
     throw new ParadaDelGuion(
       `La preparación «${String(preparacion.nombre)}» (#${String(preparacion.id)}, ${ids.size} piezas) ` +
-        'no incluye la tibia derecha, y es la que se parte. Enciéndala en el taller del atlas, guarde la ' +
+        `no incluye la ${laTibia}, y es la que se parte. Enciéndala en el taller del atlas, guarde la ` +
         'preparación y vuelva a ejecutarlo. No se ha tocado nada.',
     )
   }
   if (tibias.length > 1) {
     throw new ParadaDelGuion(
-      `La preparación incluye ${tibias.length} piezas que se llaman «${TIBIA_DERECHA}» ` +
+      `La preparación incluye ${tibias.length} piezas que se llaman «${nombreDeLaTibia}» ` +
         `(${tibias.map((t) => t.id).join(', ')}), y no sé cuál partir. No se ha tocado nada.`,
     )
   }
   const tibia = tibias[0]
   escribir(
     `Preparación: «${String(preparacion.nombre)}» #${String(preparacion.id)}, ${ids.size} piezas, ` +
-      `con la tibia derecha (${tibia.id}).`,
+      `con la ${laTibia} (${tibia.id}).`,
   )
 
   // 2. El caso y su fractura.
@@ -833,27 +870,81 @@ export async function ejecutar(
     sort: 'nombre',
     overrideAccess: true,
   })
-  const caso = elegirPorNombre(casos as unknown as (DocConNombre & CasoLeido)[], opciones.caso, {
+  const lista = casos as unknown as (DocConNombre & CasoLeido)[]
+  const origen = elegirPorNombre(lista, opciones.caso, {
     singular: 'ningún caso quirúrgico',
     plural: 'Casos que hay',
   })
-  if (caso._status !== 'published') {
-    // Guardar el caso con `draft: false` publicaría también lo que el
-    // traumatólogo tenga a medio escribir, y eso no lo decide un guion.
-    throw new ParadaDelGuion(
-      `El caso «${String(caso.nombre)}» tiene cambios en borrador sin publicar. Publíquelos o descártelos ` +
-        'en el panel y vuelva a ejecutarlo. No se ha tocado nada.',
-    )
+  // El que se pone al día con `--nuevo`, si una pasada anterior ya lo creó.
+  const yaCreado = opciones.nuevo
+    ? lista.find((c) => normalizarNombre(c.nombre) === normalizarNombre(opciones.nuevo))
+    : undefined
+  for (const doc of yaCreado ? [origen, yaCreado] : [origen]) {
+    if (doc._status !== 'published') {
+      // Guardar el caso con `draft: false` publicaría también lo que el
+      // traumatólogo tenga a medio escribir, y eso no lo decide un guion. Y
+      // copiar un caso con borrador copiaría lo que todavía no está publicado.
+      throw new ParadaDelGuion(
+        `El caso «${String(doc.nombre)}» tiene cambios en borrador sin publicar. Publíquelos o descártelos ` +
+          'en el panel y vuelva a ejecutarlo. No se ha tocado nada.',
+      )
+    }
   }
   const leer = async (coleccion: string, valor: unknown) => {
     const id = idDe(valor)
     if (!id) return null
     return base.findByID({ collection: coleccion, id, depth: 0, overrideAccess: true })
   }
+
+  // La clasificación pedida, leída por su código. Solo cambia la del caso nuevo:
+  // la del caso de prueba es la que su modelo, sus pasos y sus pruebas suponen.
+  let clasificacionPedida: Record<string, unknown> | null = null
+  if (opciones.clasificacion) {
+    const { docs: halladas } = await base.find({
+      collection: 'clasificaciones-ao',
+      where: { codigo: { equals: opciones.clasificacion.trim().toUpperCase() } },
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+    })
+    if (halladas.length !== 1) {
+      throw new ParadaDelGuion(
+        `Hay ${halladas.length} clasificaciones AO con el código «${opciones.clasificacion}», y tiene que haber ` +
+          'una. Mire en el panel cómo se llaman (Técnica AO → Clasificaciones). No se ha tocado nada.',
+      )
+    }
+    clasificacionPedida = halladas[0]
+  }
+
+  // La copia: los campos del caso de origen sin sus identificadores, que en
+  // PostgreSQL son la clave de cada fila de los pasos y no se pueden repetir
+  // (lo explica `sinIdentificadoresDeFila`). El modelo y las piezas los pone el
+  // plan, como en el caso de prueba.
+  let copia: Record<string, unknown> | null = null
+  let caso: DocConNombre & CasoLeido = yaCreado ?? origen
+  if (opciones.nuevo && !yaCreado) {
+    const campos: Record<string, unknown> = { ...origen }
+    for (const clave of ['id', 'createdAt', 'updatedAt', '_status']) delete campos[clave]
+    copia = { ...sinIdentificadoresDeFila(campos), nombre: opciones.nuevo.trim() }
+    if (clasificacionPedida) copia.clasificacion = clasificacionPedida.id
+    caso = { ...(copia as unknown as CasoLeido), id: ID_SIMULADO }
+  }
   const fractura: Fractura = {
     hueso: await leer('huesos-ao', caso.hueso),
-    clasificacion: await leer('clasificaciones-ao', caso.clasificacion),
+    clasificacion: clasificacionPedida ?? (await leer('clasificaciones-ao', caso.clasificacion)),
   }
+  if (copia) {
+    // El resumen del origen describe su fractura, y la copia tiene otra: se
+    // escribe uno que dice solo lo que se sabe, sin paciente inventado.
+    const texto =
+      `Fractura ${String(fractura.clasificacion?.nombre ?? '').toLowerCase()} de la diáfisis de la ${laTibia} ` +
+      `(AO ${String(fractura.hueso?.codigo ?? '')}-${String(fractura.clasificacion?.codigo ?? '')}), ` +
+      `sobre la preparación «${String(preparacion.nombre)}» del atlas. Los pasos, la bandeja y el ` +
+      `instrumental son los de «${String(origen.nombre)}».`
+    copia.resumen = haciaLexical([{ tipo: 'parrafo', fragmentos: [{ texto }] }])
+  }
+  const cambiaLaClasificacion =
+    !copia && clasificacionPedida !== null && idDe(caso.clasificacion) !== String(clasificacionPedida.id)
   escribir(
     `Caso: «${String(caso.nombre)}» #${String(caso.id)}, ` +
       `${String(fractura.hueso?.codigo ?? '?')}-${String(fractura.clasificacion?.codigo ?? '?')} ` +
@@ -881,7 +972,9 @@ export async function ejecutar(
     directorioDelAtlas: opciones.directorioDelAtlas,
     // Este guion arma las piezas del caso de prueba con el modelo fundido por sistema (D-169) y compara sus bytes con
     // los de los modelos que ya hay: separar las estructuras (P-003 E9, el valor por omisión) cambiaría ambas cosas.
-    separarEstructuras: false,
+    // `--separar` las separa a propósito, como el botón del taller: es lo que deja pinchar un músculo y apartarlo
+    // solo a él, o abrir solo la fascia que se cortó, y lo que pide un caso hecho para probar el instrumental.
+    separarEstructuras: opciones.separar === true,
   })
   const creacion = enMemoria.creacion()
   const bytes = enMemoria.archivo()
@@ -950,8 +1043,16 @@ export async function ejecutar(
 
   // 4. El caso.
   const plan = planDelCaso(caso, modelo)
-  escribir(`Caso «${String(caso.nombre)}»`)
+  escribir(
+    copia
+      ? `Caso nuevo «${String(caso.nombre)}», copia de «${String(origen.nombre)}» #${String(origen.id)}`
+      : `Caso «${String(caso.nombre)}»`,
+  )
   for (const linea of plan.lineas) escribir(linea)
+  if (cambiaLaClasificacion) {
+    escribir(`  ~ clasificación: pasa a ${String(clasificacionPedida?.codigo)} ${String(clasificacionPedida?.nombre ?? '')}`)
+  }
+  const datos = cambiaLaClasificacion ? { ...plan.datos, clasificacion: clasificacionPedida!.id } : plan.datos
 
   const avisos = [...avisosDelCorte, ...avisosDelModelo, ...plan.avisos]
   if (avisos.length > 0) {
@@ -962,7 +1063,7 @@ export async function ejecutar(
   escribir('')
 
   let escrito = false
-  if (!plan.hayCambios) {
+  if (!copia && !plan.hayCambios && !cambiaLaClasificacion) {
     escribir(
       modeloCreado
         ? 'El caso ya estaba así; solo se ha creado el modelo.'
@@ -970,11 +1071,22 @@ export async function ejecutar(
     )
   } else if (!opciones.aplicar) {
     escribir('Nada escrito. Para aplicar estos cambios: --aplicar')
+  } else if (copia) {
+    // `_status` explícito: en una colección con borradores, crear sin él deja el
+    // documento en borrador, y el caso no saldría en /simulador.
+    const creado = await base.create({
+      collection: 'cirugias',
+      data: { ...copia, ...datos, _status: 'published' },
+      draft: false,
+      overrideAccess: true,
+    })
+    escrito = true
+    escribir(`Caso nuevo #${String(creado.id)} creado y publicado. Ábralo en /simulador.`)
   } else {
     await base.update({
       collection: 'cirugias',
       id: caso.id,
-      data: plan.datos,
+      data: datos,
       draft: false,
       overrideAccess: true,
     })
@@ -992,6 +1104,10 @@ export function leerArgumentos(argumentos: string[]): Omit<OpcionesDelGuion, 'es
   let aplicar: boolean | null = null
   let preparacion = PREPARACION_POR_OMISION
   let caso = CASO_DE_PRUEBA
+  let tibia: LadoDeLaTibia = 'derecha'
+  let nuevo: string | undefined
+  let clasificacion: string | undefined
+  let separar = false
   let ayuda = false
 
   for (let i = 0; i < argumentos.length; i += 1) {
@@ -1017,6 +1133,23 @@ export function leerArgumentos(argumentos: string[]): Omit<OpcionesDelGuion, 'es
       case '--caso':
         caso = valor()
         break
+      case '--tibia': {
+        const lado = normalizarNombre(valor())
+        if (lado !== 'derecha' && lado !== 'izquierda') {
+          throw new ParadaDelGuion(`--tibia es «derecha» o «izquierda», no «${lado}».`)
+        }
+        tibia = lado
+        break
+      }
+      case '--nuevo':
+        nuevo = valor()
+        break
+      case '--clasificacion':
+        clasificacion = valor()
+        break
+      case '--separar':
+        separar = true
+        break
       case '--ayuda':
       case '-h':
       case '--help':
@@ -1024,11 +1157,17 @@ export function leerArgumentos(argumentos: string[]): Omit<OpcionesDelGuion, 'es
         break
       default:
         throw new ParadaDelGuion(
-          `No conozco la opción «${argumentos[i]}». Las que hay: --simular, --aplicar, --preparacion, --caso.`,
+          `No conozco la opción «${argumentos[i]}». Las que hay: --simular, --aplicar, --preparacion, --caso, ` +
+            '--tibia, --nuevo, --clasificacion, --separar.',
         )
     }
   }
-  return { aplicar: aplicar ?? false, preparacion, caso, ayuda }
+  if (clasificacion && !nuevo) {
+    // La clasificación del caso de prueba es la que suponen su modelo y sus
+    // pruebas; cambiarla al pasar no es lo que pide nadie que no cree otro caso.
+    throw new ParadaDelGuion('--clasificacion solo vale con --nuevo: cambia la fractura del caso que se crea.')
+  }
+  return { aplicar: aplicar ?? false, preparacion, caso, tibia, nuevo, clasificacion, separar, ayuda }
 }
 
 const AYUDA = `Pone la preparación «${PREPARACION_POR_OMISION}» del atlas, con la tibia partida, en el caso de prueba.
@@ -1037,7 +1176,11 @@ const AYUDA = `Pone la preparación «${PREPARACION_POR_OMISION}» del atlas, co
   npx tsx scripts/pierna-derecha-en-el-caso.ts --aplicar   lo escribe
 
   --preparacion "<nombre>"   otra preparación
-  --caso "<nombre>"          otro caso (por omisión, «${CASO_DE_PRUEBA}»)`
+  --caso "<nombre>"          otro caso (por omisión, «${CASO_DE_PRUEBA}»)
+  --tibia izquierda          parte la tibia izquierda (por omisión, la derecha)
+  --nuevo "<nombre>"         crea otro caso con ese nombre, copia de --caso, y no toca este
+  --clasificacion A3         la clasificación AO del caso nuevo (solo con --nuevo)
+  --separar                  cada estructura como objeto propio, no fundidas por sistema`
 
 async function principal() {
   const archivoEnv = resolve(process.cwd(), '.env')

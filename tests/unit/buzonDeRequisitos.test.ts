@@ -39,10 +39,16 @@ describe('el módulo anunciado', () => {
   it('la portada, con y sin sesión, lo enseña con su insignia', () => {
     const portada = leer('src', 'app', '(frontend)', 'page.tsx')
     expect(portada).toContain("import { MODULOS_ANUNCIADOS, ROTULO_PROXIMAMENTE } from '@/lib/modulosAnunciados'")
-    // Dos veces: la tira de la portada pública y la rejilla de quien entró.
-    expect(portada.match(/MODULOS_ANUNCIADOS\.map/g)).toHaveLength(2)
-    expect(portada).toContain('portada-tira-anunciado')
+    // Una vez: la rejilla de quien entró. La de la portada pública era la
+    // segunda, y desde la portada v2 (P-007 E3) es la sección «Próximamente»,
+    // que se mira abajo.
+    expect(portada.match(/MODULOS_ANUNCIADOS\.map/g)).toHaveLength(1)
     expect(portada).toContain('className="modulo-anunciado"')
+
+    const publica = leer('src', 'components', 'portada', 'Proximamente.tsx')
+    expect(publica).toContain('MODULOS_ANUNCIADOS.length === 0')
+    expect(publica).toContain('{ROTULO_PROXIMAMENTE}')
+    expect(leer('src', 'components', 'portada', 'PortadaPublica.tsx')).toContain('<Proximamente')
   })
 
   it('no se cuenta entre lo que se lee: sus tarjetas no llevan conteo ni avance', () => {

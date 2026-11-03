@@ -41,6 +41,10 @@ const DE_UNA_LINEA: readonly CampoDeLaFicha[] = ['nombreLatino', 'abordajeCortar
 const textosDe = (ficha: FichaCompleta): TextosDeLaFicha =>
   Object.fromEntries(CAMPOS_DE_LA_FICHA.map((campo) => [campo, ficha[campo]])) as TextosDeLaFicha
 
+// Con la zona de la plataforma, como toda fecha que pinta un componente de
+// cliente (D-236): sin ella, la hora de cada versión guardada dependía del
+// reloj de quien mira, y dos personas hablando de «la de las 21:40» hablaban
+// de versiones distintas.
 const fechaHora = (valor: string) =>
   new Date(valor).toLocaleString('es-CL', {
     day: '2-digit',
@@ -48,6 +52,7 @@ const fechaHora = (valor: string) =>
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Santiago',
   })
 
 const recortar = (texto: string, largo = 110) => (texto.length > largo ? `${texto.slice(0, largo).trimEnd()}…` : texto)

@@ -282,3 +282,18 @@
 .pestana:hover { color: var(--marca); }
 .pestana-activa { color: var(--marca); font-weight: 650; border-bottom-color: var(--marca); }
 .pestana-panel:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+
+/* ---------- imagen con carga y secciones que aparecen (P-007 E1) ---------- */
+/* La silueta va encima de la foto, del mismo tamaño, hasta que llega; la foto
+   debajo ya ocupa su sitio, así que al quitarla no se mueve nada. */
+.imagen-con-carga { position: relative; display: block; overflow: hidden; }
+.imagen-con-carga img { display: block; width: 100%; height: auto; }
+.imagen-con-carga-esqueleto { position: absolute; inset: 0; border-radius: 0; }
+.imagen-con-carga-rota {
+  display: grid; place-items: center; min-height: 160px;
+  background: var(--papel); color: var(--mudo);
+}
+
+[data-revelar] { transition: opacity var(--dur) ease, transform var(--dur) ease; }
+[data-revelar='pendiente'] { opacity: 0; transform: translateY(18px); }
+[data-revelar='visto'] { opacity: 1; transform: none; }

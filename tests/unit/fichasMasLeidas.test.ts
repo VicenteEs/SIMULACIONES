@@ -253,10 +253,14 @@ describe('la página de estadísticas lo usa', () => {
     .replace(/\s+/g, ' ')
 
   it('cuenta, busca los títulos de esas y rotula con ellos', () => {
-    expect(codigo).toContain('fichasConMasLecturas(actividad, 8)')
+    // Desde que hay periodo (D-238) no se cuenta sobre `actividad` entera sino
+    // sobre quién abrió cada ficha dentro de él (`lectoresEnElPeriodo`): sigue
+    // siendo una fila por persona y ficha, que es lo que `fichasConMasLecturas`
+    // cuenta. El orden de los tres pasos es lo que se vigila.
+    expect(codigo).toContain('fichasConMasLecturas(lectoresEnElPeriodo(')
     expect(codigo).toContain('await leerTitulosDeFichas(payload, masLeidas)')
     expect(codigo).toContain('rotularFichasLeidas(masLeidas, estadosDeLasMasLeidas)')
-    expect(codigo).toContain('<BarrasHorizontales titulo="Fichas más leídas" datos={fichasMasLeidas} />')
+    expect(codigo).toMatch(/<BarrasHorizontales titulo=[^>]*Fichas más leídas[^>]*datos=\{fichasMasLeidas\} \/>/)
   })
 
   it('lleva al aviso de arriba los títulos que no se pudieron leer', () => {

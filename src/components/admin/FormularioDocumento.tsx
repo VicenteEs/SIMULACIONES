@@ -67,6 +67,7 @@ import {
   IndicadorDePresencia,
   useEnLinea,
 } from './AvisosDelEditor'
+import { alguienDe, firmaComo, laOtra } from '@/lib/firmas'
 import '@/app/(frontend)/admin-panel/editor.css'
 
 /**
@@ -135,8 +136,8 @@ export function FormularioDocumento({
   rutaPublica: string | null
   /**
    * La revisión de la ficha, si está en revisión (D-142). Con ella, el editor
-   * no ofrece «Publicar» sino «Listo para publicar», mide el tiempo de revisión
-   * y enseña de dónde salió el texto.
+   * no ofrece «Publicar» sino «Firmar como médico» o «como kinesiólogo»
+   * (D-240), mide el tiempo de revisión y enseña de dónde salió el texto.
    */
   revision?: RevisionParaElEditor | null
   /** Rol real de quien edita: el administrador publica lo validado y gobierna la revisión. */
@@ -595,10 +596,10 @@ export function FormularioDocumento({
       revision?.estado !== 'lista' &&
       revision?.estado !== 'publicada' &&
       !(await confirmar({
-        titulo: 'Nadie ha validado todavía esta ficha',
+        titulo: 'Le faltan firmas a esta ficha',
         mensaje:
-          'Si la publica ahora, quedará anotada en la auditoría como publicada sin validar.',
-        confirmar: 'Publicar sin validar',
+          'Una ficha queda lista con la firma de un médico y la de un kinesiólogo. Si la publica ahora, quedará anotada en la auditoría como publicada sin las dos firmas.',
+        confirmar: 'Publicar sin las dos firmas',
       }))
     ) {
       return
@@ -738,10 +739,11 @@ export function FormularioDocumento({
   }, [])
 
   /**
-   * «Listo para publicar» (D-142): guarda lo pendiente, manda el tiempo medido
-   * y pide la validación. Si el servidor la ve rápida, se enseña por qué y se
-   * pregunta; confirmada, se marca igual y queda señalada para el
-   * administrador. No se prohíbe: el revisor puede haberla cotejado en papel.
+   * «Firmar como médico» o «como kinesiólogo» (D-142, D-240): guarda lo
+   * pendiente, manda el tiempo medido y pide la firma. Si el servidor la ve
+   * rápida, se enseña por qué y se pregunta; confirmada, se firma igual y queda
+   * señalada para el administrador. No se prohíbe: el revisor puede haberla
+   * cotejado en papel.
    */
   const marcarLista = () => {
     if (enCurso || id === null) return
@@ -751,7 +753,7 @@ export function FormularioDocumento({
       setSeccion(incompleta)
       setAviso({
         tipo: 'error',
-        texto: 'Antes de darla por lista hay que completar lo obligatorio: la pestaña marcada con «!».',
+        texto: 'Antes de firmarla hay que completar lo obligatorio: la pestaña marcada con «!».',
       })
       return
     }
@@ -766,7 +768,7 @@ export function FormularioDocumento({
             return
           }
           if (!guardado.exito || !guardado.datos) {
-            setAviso({ tipo: 'error', texto: guardado.mensaje ?? 'No se pudo guardar antes de validar.' })
+            setAviso({ tipo: 'error', texto: guardado.mensaje ?? 'No se pudo guardar antes de firmar.' })
             return
           }
           marca.current = guardado.datos.marca
@@ -787,14 +789,14 @@ export function FormularioDocumento({
                     <li key={m}>{m}</li>
                   ))}
                 </ul>
-                <p>Si la marca igualmente como lista, quedará señalada para el administrador.</p>
+                <p>Si la firma igualmente, quedará señalada para el administrador.</p>
               </>
             ),
-            confirmar: 'Marcar como lista',
+            confirmar: 'Firmar igualmente',
             cancelar: 'Seguir revisando',
           })
           if (!seguir) {
-            setAviso({ tipo: 'ok', texto: 'No se marcó. Siga revisando: el tiempo y las pestañas vistas se siguen contando.' })
+            setAviso({ tipo: 'ok', texto: 'No se firmó. Siga revisando: el tiempo y las pestañas vistas se siguen contando.' })
             return
           }
           r = await marcarListaParaPublicar(esquema.slug, id, marca.current, nota, true)
@@ -803,20 +805,23 @@ export function FormularioDocumento({
           setConflicto({ marcaActual: marca.current, texto: r.mensaje ?? MENSAJE_DE_CONFLICTO })
           return
         }
-        if (!r.exito) {
-          setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo marcar como lista.' })
+        if (!r.exito || !r.datos) {
+          setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo firmar.' })
           return
         }
+        const { completa, profesion } = r.datos
         setNota('')
         setAviso({
           tipo: 'ok',
-          texto: 'Marcada como lista para publicar. La publica un administrador; si cambia algo más, tendrá que volver a validarla.',
+          texto: completa
+            ? 'Firmada: con las dos firmas queda lista para publicar. La publica un administrador; si cambia algo más, habrá que volver a firmarla.'
+            : `Firmada ${firmaComo(profesion)}. Falta la firma de ${alguienDe(laOtra(profesion))}; si cambia algo más antes, habrá que volver a firmarla.`,
         })
-        avisar('ok', 'Marcada como lista para publicar.')
+        avisar('ok', completa ? 'Firmada: lista para publicar.' : `Firmada ${firmaComo(profesion)}.`)
         router.refresh()
       } catch (fallo) {
         if (pareceCorteDeRed(fallo, navigator.onLine)) setFalloDeRed(true)
-        setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo marcar como lista.') })
+        setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo firmar.') })
       }
     })
   }
@@ -1122,16 +1127,18 @@ export function FormularioDocumento({
                 >
                   {enCurso ? 'Guardando…' : 'Guardar borrador'}
                 </button>
-                {/* En revisión (D-142), el revisor no publica: da la ficha por
-                    lista y la publica el administrador. Al administrador se le
-                    ofrecen los dos, porque también puede revisar. */}
-                {enRevision && revision?.estado !== 'lista' && revision?.estado !== 'publicada' ? (
+                {/* En revisión (D-142), el revisor no publica: firma la ficha con
+                    su profesión y la publica el administrador. Al administrador
+                    se le ofrecen los dos, porque también puede revisar. El botón
+                    sale solo si a quien mira le toca firmar (D-240); por qué no
+                    le toca lo dice la caja de la revisión. */}
+                {enRevision && revision?.noPuedeFirmar === null && revision.miProfesion ? (
                   <button
                     className={`admin-btn ${esAdmin ? 'admin-btn-secondary' : 'admin-btn-primary'}`}
                     aria-disabled={enCurso}
                     onClick={marcarLista}
                   >
-                    {enCurso ? 'Guardando…' : 'Listo para publicar'}
+                    {enCurso ? 'Guardando…' : `Firmar ${firmaComo(revision.miProfesion)}`}
                   </button>
                 ) : null}
                 {!enRevision || esAdmin ? (

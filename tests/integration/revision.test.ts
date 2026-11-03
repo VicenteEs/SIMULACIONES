@@ -52,6 +52,7 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
   let segmentoId = ''
   let editorId = ''
   let adminId = ''
+  let kinesiologoId = ''
   let fichaId = ''
 
   const documentoCon = (manejo: string) => ({
@@ -68,24 +69,28 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
       overrideAccess: true,
     })
     segmentoId = String(segmento.id)
-    const cuentaDe = async (rol: string) =>
+    const cuentaDe = async (rol: string, profesion?: string, nombre = rol) =>
       String(
         (
           await payload.create({
             collection: 'usuarios',
             data: {
-              nombre: `${rol} ${marca}`,
-              email: `${rol}-${marca}@prueba.invalid`,
+              nombre: `${nombre} ${marca}`,
+              email: `${nombre}-${marca}@prueba.invalid`,
               password: randomBytes(18).toString('base64url'),
               rol,
               activo: true,
+              ...(profesion ? { profesion } : {}),
             } as never,
             overrideAccess: true,
           })
         ).id,
       )
-    editorId = await cuentaDe('editor')
+    // El editor es médico; el kinesiólogo, otra cuenta de editor (D-240). El
+    // administrador queda sin profesión: es la cuenta que no puede firmar.
+    editorId = await cuentaDe('editor', 'medico')
     adminId = await cuentaDe('admin')
+    kinesiologoId = await cuentaDe('editor', 'kinesiologo', 'kinesiologo')
     const ficha = await payload.create({
       collection: 'patologias',
       data: { ...documentoCon('Reducción cerrada y clavo endomedular fresado.'), _status: 'draft' } as never,
@@ -98,7 +103,7 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
   afterAll(async () => {
     await servidor.quitarDeRevision(payload, 'patologias', fichaId).catch(() => {})
     if (fichaId) await payload.delete({ collection: 'patologias', id: fichaId, overrideAccess: true }).catch(() => {})
-    for (const id of [editorId, adminId]) {
+    for (const id of [editorId, adminId, kinesiologoId]) {
       if (id) await payload.delete({ collection: 'usuarios', id, overrideAccess: true }).catch(() => {})
     }
     if (segmentoId) await payload.delete({ collection: 'segmentos', id: segmentoId, overrideAccess: true }).catch(() => {})
@@ -212,7 +217,10 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
     expect(JSON.stringify(conOriginal.original)).toContain('clavo endomedular')
   })
 
-  it('validar con poco tiempo se para antes de escribir; confirmada, queda señalada', async () => {
+  const firmar = (usuarioId: string, nota?: string) =>
+    servidor.validarRevision(payload, { esquema: Patologias, documentoId: fichaId, usuarioId, nota, confirmada: true })
+
+  it('firmar con poco tiempo se para antes de escribir; confirmada, es la primera firma y queda señalada', async () => {
     const sinConfirmar = await servidor.validarRevision(payload, {
       esquema: Patologias,
       documentoId: fichaId,
@@ -223,24 +231,67 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
     expect(sinConfirmar.juicio.rapida).toBe(true)
     expect((await servidor.revisionDe(payload, 'patologias', fichaId))!.estado).toBe('en-revision')
 
-    const confirmada = await servidor.validarRevision(payload, {
-      esquema: Patologias,
-      documentoId: fichaId,
-      usuarioId: editorId,
-      nota: 'Cotejado con el capítulo 54.',
-      confirmada: true,
-    })
-    expect(confirmada.necesitaConfirmacion).toBe(false)
+    const confirmada = await firmar(editorId, 'Cotejado con el capítulo 54.')
+    expect(confirmada).toMatchObject({ necesitaConfirmacion: false, profesion: 'medico', completa: false })
+    // Con una sola firma la ficha sigue en revisión (D-240).
     const revision = (await servidor.revisionDe(payload, 'patologias', fichaId))!
     expect(revision).toMatchObject({
-      estado: 'lista',
+      estado: 'en-revision',
       validacionRapida: true,
-      notaDeRevision: 'Cotejado con el capítulo 54.',
+      notaDeRevision: 'Como médico: Cotejado con el capítulo 54.',
     })
-    expect(String(revision.listaPor)).toBe(editorId)
-    await expect(
-      servidor.validarRevision(payload, { esquema: Patologias, documentoId: fichaId, usuarioId: editorId, confirmada: true }),
-    ).rejects.toThrow(/ya está marcada/)
+    expect(String(revision.firmaMedicoPor)).toBe(editorId)
+    expect(revision.firmaKinesiologoEn ?? null).toBeNull()
+    expect(revision.listaEn ?? null).toBeNull()
+    await expect(firmar(editorId)).rejects.toThrow(/Usted ya la firmó como médico/)
+  })
+
+  it('sin profesión no se firma', async () => {
+    await expect(firmar(adminId)).rejects.toThrow(/no dice si es médico o kinesiólogo/)
+  })
+
+  it('guardar sin cambiar nada no borra la firma; cambiar lo firmado, sí', async () => {
+    const guardar = async (manejo: string, esAdmin = false) => {
+      const documento = depurarDocumento(Patologias, documentoCon(manejo))
+      await payload.update({ collection: 'patologias', id: fichaId, data: documento as never, draft: true, overrideAccess: true })
+      await servidor.anotarGuardado(payload, {
+        esquema: Patologias,
+        documentoId: fichaId,
+        documento,
+        usuarioId: esAdmin ? adminId : kinesiologoId,
+        esAdmin,
+        publicada: false,
+      })
+      return (await servidor.revisionDe(payload, 'patologias', fichaId))!
+    }
+    // El mismo texto que firmó el médico: la firma sigue.
+    const igual = await guardar('Reducción abierta y placa bloqueada de compresión.')
+    expect(String(igual.firmaMedicoPor)).toBe(editorId)
+    // Otro texto, aunque lo guarde el administrador: la firma se va.
+    const otro = await guardar('Reducción abierta y placa bloqueada de compresión con tornillo interfragmentario.', true)
+    expect(otro.firmaMedicoEn ?? null).toBeNull()
+    expect(otro.huellaFirmada ?? null).toBeNull()
+    expect(otro.estado).toBe('en-revision')
+    const ultima = (otro.historial as { accion: string; detalle?: string }[]).at(-1)!
+    expect(ultima).toMatchObject({ accion: 'reabierta' })
+    expect(ultima.detalle).toMatch(/se borraron la firma de un médico/)
+  })
+
+  it('con las dos firmas queda lista, y la segunda es la que valida', async () => {
+    await firmar(editorId)
+    const segunda = await firmar(kinesiologoId, 'Revisada la rehabilitación.')
+    expect(segunda).toMatchObject({ profesion: 'kinesiologo', completa: true })
+    const revision = (await servidor.revisionDe(payload, 'patologias', fichaId))!
+    expect(revision.estado).toBe('lista')
+    expect(String(revision.listaPor)).toBe(kinesiologoId)
+    expect(String(revision.firmaMedicoPor)).toBe(editorId)
+    expect(String(revision.firmaKinesiologoPor)).toBe(kinesiologoId)
+    expect(revision.notaDeRevision).toBe('Como kinesiólogo: Revisada la rehabilitación.')
+    await expect(firmar(kinesiologoId)).rejects.toThrow(/ya tiene las dos firmas/)
+    // En el papel salen las dos, con su nombre.
+    const papel = (await servidor.auditorDeLaFicha(payload, 'patologias', fichaId))!
+    expect(papel.firmas.medico?.nombre).toBe(`editor ${marca}`)
+    expect(papel.firmas.kinesiologo?.nombre).toBe(`kinesiologo ${marca}`)
   })
 
   it('el administrador la devuelve, y publicarla sin validar queda anotado', async () => {
@@ -250,11 +301,15 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
       usuarioId: adminId,
       motivo: 'Falta la clasificación de Gustilo.',
     })
-    expect((await servidor.revisionDe(payload, 'patologias', fichaId))!).toMatchObject({
+    const devuelta = (await servidor.revisionDe(payload, 'patologias', fichaId))!
+    expect(devuelta).toMatchObject({
       estado: 'devuelta',
       devoluciones: 1,
       motivoDeDevolucion: 'Falta la clasificación de Gustilo.',
     })
+    // Devuelta, las firmas se van con ella.
+    expect(devuelta.firmaMedicoEn ?? null).toBeNull()
+    expect(devuelta.firmaKinesiologoEn ?? null).toBeNull()
     await servidor.anotarPublicacion(payload, {
       coleccion: 'patologias',
       documentoId: fichaId,
@@ -266,6 +321,9 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
     expect((revision.historial as { accion: string }[]).map((h) => h.accion)).toEqual([
       'registrada',
       'asignada',
+      'firmada',
+      'reabierta',
+      'firmada',
       'lista',
       'devuelta',
       'publicada',
@@ -276,9 +334,14 @@ describe.skipIf(intento.payload === null)('la revisión de una ficha, de punta a
     const entrada = await leerEntradaDeAuditoria(payload)
     const auditoria = armarAuditoria(entrada)
     const fila = auditoria.contenidos.find((c) => c.documentoId === fichaId)!
-    expect(fila).toMatchObject({ estado: 'publicada', validador: `editor ${marca}`, publicadaSinValidar: true })
+    // Validó quien completó las firmas, el kinesiólogo; a él se le cuenta la
+    // devolución, que llegó después de su firma.
+    expect(fila).toMatchObject({ estado: 'publicada', validador: `kinesiologo ${marca}`, publicadaSinValidar: true })
+    expect(fila).toMatchObject({ firmaMedico: '', firmaKinesiologo: '' })
+    const kinesiologo = auditoria.revisores.find((r) => r.id === kinesiologoId)!
+    expect(kinesiologo).toMatchObject({ validadas: 1, senaladas: 1, devueltas: 1 })
     const revisor = auditoria.revisores.find((r) => r.id === editorId)!
-    expect(revisor).toMatchObject({ validadas: 1, senaladas: 1, devueltas: 1 })
+    expect(revisor).toMatchObject({ validadas: 0, firmadas: 0 })
     expect(revisor.minutosActivos).toBeGreaterThan(0)
   })
 

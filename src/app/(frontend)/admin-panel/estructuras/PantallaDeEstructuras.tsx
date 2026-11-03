@@ -4,6 +4,8 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { DatabaseZap, SearchX } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { Dona } from '@/components/admin/Graficos'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
 import { PanelDePestana, Pestanas } from '@/components/ui/Pestanas'
 import { useAvisos } from '@/components/ui/Avisos'
 import { Vacio } from '@/components/ui/Vacio'
@@ -57,41 +59,6 @@ function pasaElEstado(estado: EstadoDeEstructura, pestana: Pestana, filtro: stri
   }
   if (filtro === 'todos') return estado !== 'oculta' && estado !== 'sin-pieza'
   return filtro === estado
-}
-
-function TarjetaDelContador({
-  titulo,
-  valor,
-  detalle,
-  tono,
-}: {
-  titulo: string
-  valor: string
-  detalle?: string
-  tono?: 'ok' | 'atencion'
-}) {
-  return (
-    <div className={`estructuras-tarjeta${tono ? ` estructuras-tarjeta-${tono}` : ''}`}>
-      <div className="estructuras-tarjeta-titulo">{titulo}</div>
-      <div className="estructuras-tarjeta-valor">{valor}</div>
-      {detalle ? <div className="estructuras-tarjeta-detalle">{detalle}</div> : null}
-    </div>
-  )
-}
-
-function Barra({ porcentaje, etiqueta }: { porcentaje: number; etiqueta: string }) {
-  return (
-    <div
-      className="estructuras-barra"
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(porcentaje)}
-      aria-label={etiqueta}
-    >
-      <div className="estructuras-barra-relleno" style={{ width: `${Math.min(100, porcentaje)}%` }} />
-    </div>
-  )
 }
 
 export function PantallaDeEstructuras({ listado, puedeCargar }: { listado: Listado; puedeCargar: boolean }) {
@@ -179,52 +146,26 @@ export function PantallaDeEstructuras({ listado, puedeCargar }: { listado: Lista
         </div>
       ) : null}
 
-      <ContadorGlobal conteo={conteo} />
+      {/* El avance arriba, como en Penpot (P-007 E5, D-238): el total en una
+          dona y cada región en su barra. Antes eran una barra suelta con tres
+          tarjetas y una tabla «Por región» plegada, que había que abrir para
+          ver lo único que se viene a mirar a esta pantalla: cuánto falta y dónde. */}
+      <div className="estructuras-tablero">
+        <AvanceTotal conteo={conteo} />
+        <AvancePorRegion
+          regiones={regionesConPiezas.map((r) => ({ id: r.id, nombre: r.nombre, conteo: porRegion.get(r.id) as Conteo }))}
+          alElegir={(id) => {
+            cambiar(() => setRegion(id))
+            setPestana('pendientes')
+            setEstado('todos')
+            // La lista queda debajo de las dos tarjetas: sin bajar hasta ella,
+            // pulsar una región no parecía hacer nada.
+            document.getElementById('estructuras-lista')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }}
+        />
+      </div>
 
-      <details className="estructuras-regiones">
-        <summary>Por región</summary>
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Región</th>
-              <th>Completas</th>
-              <th>Pendientes</th>
-              <th className="estructuras-col-barra">Avance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {regionesConPiezas.map((r) => {
-              const c = porRegion.get(r.id) as Conteo
-              return (
-                <tr key={r.id}>
-                  <th scope="row">
-                    <button
-                      type="button"
-                      className="estructuras-enlace"
-                      onClick={() => {
-                        cambiar(() => setRegion(r.id))
-                        setPestana('pendientes')
-                        setEstado('todos')
-                      }}
-                    >
-                      {r.nombre}
-                    </button>
-                  </th>
-                  <td>
-                    {formatoDeEntero(c.completas)} de {formatoDeEntero(c.porLlenar)}
-                  </td>
-                  <td>{formatoDeEntero(c.pendientes)}</td>
-                  <td className="estructuras-col-barra">
-                    <Barra porcentaje={c.porcentajeCompletas} etiqueta={`Avance de ${r.nombre}`} />
-                    <span className="estructuras-porcentaje">{formatoDePorcentaje(c.porcentajeCompletas)}</span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </details>
-
+      <div id="estructuras-lista" className="estructuras-ancla" />
       <Pestanas
         base="estructuras"
         etiqueta="Estructuras"
@@ -396,43 +337,126 @@ export function PantallaDeEstructuras({ listado, puedeCargar }: { listado: Lista
   )
 }
 
-function ContadorGlobal({ conteo }: { conteo: Conteo }) {
+/**
+ * Los tres estados que cuentan para el avance, con el mismo color en la dona y
+ * en las barras de cada región: verde lo terminado, ámbar lo empezado y el gris
+ * de la pista lo que nadie ha tocado. Las ocultas y las que no tienen pieza no
+ * entran: no son trabajo pendiente, y el 100 % es `porLlenar` (`estructuras.ts`).
+ */
+const COLOR_DE_ESTADO = { completas: 'var(--verde)', aMedias: 'var(--ambar)', sinEmpezar: 'var(--linea)' }
+
+/**
+ * «Avance total» de Penpot: cuántas fichas están completas sobre las que hay que
+ * llenar. Penpot reparte en dos —completas y pendientes— y aquí van tres, porque
+ * el listado ya distingue lo empezado de lo que no, y es lo que dice por dónde
+ * seguir. El porcentaje va en la bajada y no en el centro de la dona, como lo
+ * dibuja Penpot: `Dona` pone ahí el total y no tiene cómo poner otra cosa.
+ */
+function AvanceTotal({ conteo }: { conteo: Conteo }) {
   return (
-    <section className="estructuras-contador" aria-label="Avance del listado">
-      <div className="estructuras-contador-barra">
-        <Barra porcentaje={conteo.porcentajeCompletas} etiqueta="Avance del listado" />
-        <div className="estructuras-contador-leyenda">
-          <strong>{formatoDePorcentaje(conteo.porcentajeCompletas)}</strong> completo ·{' '}
-          {formatoDePorcentaje(conteo.porcentajePendientes)} por llenar
-        </div>
-      </div>
-      <div className="estructuras-tarjetas">
-        <TarjetaDelContador
-          titulo="Completas"
-          valor={formatoDeEntero(conteo.completas)}
-          detalle={`${formatoDePorcentaje(conteo.porcentajeCompletas)} de ${formatoDeEntero(conteo.porLlenar)}`}
-          tono="ok"
-        />
-        <TarjetaDelContador
-          titulo="Pendientes"
-          valor={formatoDeEntero(conteo.pendientes)}
-          detalle={`${formatoDeEntero(conteo.aMedias)} a medias · ${formatoDeEntero(conteo.sinEmpezar)} sin empezar`}
-          tono="atencion"
-        />
-        <TarjetaDelContador
-          titulo="Ocultas"
-          valor={formatoDeEntero(conteo.ocultas)}
-          detalle="«No mostrar»: no cuentan"
-        />
-        {conteo.sinPieza > 0 ? (
-          <TarjetaDelContador
-            titulo="Sin pieza en el atlas"
-            valor={formatoDeEntero(conteo.sinPieza)}
-            detalle="Se conservan, esperando casarlas"
-          />
-        ) : null}
-      </div>
-    </section>
+    <TarjetaDeGrafico
+      titulo="Avance total"
+      bajada={
+        <>
+          <strong className="estructuras-avance-cifra">{formatoDePorcentaje(conteo.porcentajeCompletas)}</strong> con la
+          ficha completa · {formatoDeEntero(conteo.porLlenar)} estructuras
+        </>
+      }
+    >
+      <Dona
+        titulo="Estructuras según el estado de su ficha"
+        rotuloDelTotal="estructuras"
+        partes={[
+          { etiqueta: 'Completas', valor: conteo.completas, color: COLOR_DE_ESTADO.completas },
+          { etiqueta: 'A medias', valor: conteo.aMedias, color: COLOR_DE_ESTADO.aMedias },
+          { etiqueta: 'Sin empezar', valor: conteo.sinEmpezar, color: COLOR_DE_ESTADO.sinEmpezar },
+        ]}
+      />
+      {/* Lo que no cuenta se dice, para que el total de la dona no parezca
+          haber perdido piezas: eran dos tarjetas de cifra propias. */}
+      {conteo.ocultas > 0 || conteo.sinPieza > 0 ? (
+        <p className="estructuras-avance-nota">
+          {conteo.ocultas > 0 ? `${formatoDeEntero(conteo.ocultas)} ocultas («No mostrar») no cuentan` : ''}
+          {conteo.ocultas > 0 && conteo.sinPieza > 0 ? ' · ' : ''}
+          {conteo.sinPieza > 0
+            ? `${formatoDeEntero(conteo.sinPieza)} sin pieza en el atlas se conservan, esperando casarlas`
+            : ''}
+          .
+        </p>
+      ) : null}
+    </TarjetaDeGrafico>
+  )
+}
+
+/**
+ * «Por región» de Penpot: las fichas completas sobre el total de cada región,
+ * con lo empezado a continuación.
+ *
+ * No es `BarrasApiladasPorFila`, y a propósito: aquella mide cada fila contra la
+ * más larga —una región con el doble de piezas sale el doble de larga—, y lo que
+ * aquí se compara es la proporción de cada una, con todas sobre el mismo 100 %.
+ * Una región con cuarenta piezas y todas hechas tiene que verse terminada.
+ *
+ * El nombre es un botón, como lo era en la tabla que esto reemplaza: lleva a las
+ * pendientes de esa región.
+ */
+function AvancePorRegion({
+  regiones,
+  alElegir,
+}: {
+  regiones: { id: string; nombre: string; conteo: Conteo }[]
+  alElegir: (id: string) => void
+}) {
+  const parte = (n: number, total: number) => (total > 0 ? `${(n / total) * 100}%` : '0%')
+  return (
+    <TarjetaDeGrafico titulo="Por región" bajada="Fichas completas sobre el total de cada región; pulse una para ver sus pendientes">
+      {regiones.length === 0 ? (
+        <p className="grafico-vacio">Todavía no hay piezas en ninguna región.</p>
+      ) : (
+        <>
+          <ul className="estructuras-avance-regiones">
+            {regiones.map(({ id, nombre, conteo: c }) => {
+              const detalle = `${formatoDeEntero(c.completas)} de ${formatoDeEntero(c.porLlenar)} completas · ${formatoDeEntero(
+                c.aMedias,
+              )} a medias · ${formatoDeEntero(c.sinEmpezar)} sin empezar`
+              return (
+                <li key={id} className="estructuras-avance-region">
+                  <button
+                    type="button"
+                    className="estructuras-enlace estructuras-avance-nombre"
+                    onClick={() => alElegir(id)}
+                    aria-label={`${nombre}: ${formatoDePorcentaje(c.porcentajeCompletas)} completas, ${detalle}. Ver sus pendientes`}
+                  >
+                    {nombre}
+                  </button>
+                  <span className="estructuras-avance-barra" title={detalle} aria-hidden>
+                    <span style={{ width: parte(c.completas, c.porLlenar), background: COLOR_DE_ESTADO.completas }} />
+                    <span style={{ width: parte(c.aMedias, c.porLlenar), background: COLOR_DE_ESTADO.aMedias }} />
+                  </span>
+                  <span className="estructuras-avance-porcentaje" aria-hidden>
+                    {formatoDePorcentaje(c.porcentajeCompletas)}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+          <ul className="grafico-leyenda grafico-leyenda-en-fila" aria-hidden>
+            <li>
+              <span className="grafico-punto" style={{ background: COLOR_DE_ESTADO.completas }} />
+              Completas
+            </li>
+            <li>
+              <span className="grafico-punto" style={{ background: COLOR_DE_ESTADO.aMedias }} />
+              A medias
+            </li>
+            <li>
+              <span className="grafico-punto" style={{ background: COLOR_DE_ESTADO.sinEmpezar }} />
+              Sin empezar
+            </li>
+          </ul>
+        </>
+      )}
+    </TarjetaDeGrafico>
   )
 }
 

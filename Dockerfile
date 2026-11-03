@@ -76,7 +76,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Directorios de escritura, propiedad del usuario de la aplicacion. Ambos se
 # montan como volumen en produccion; se crean aqui para que la imagen funcione
 # tambien sin montarlos.
-RUN mkdir -p ./medios/modelos /backups \
+RUN mkdir -p ./medios/modelos ./medios/pagina /backups \
     && chown -R nextjs:nodejs ./medios /backups
 
 USER nextjs

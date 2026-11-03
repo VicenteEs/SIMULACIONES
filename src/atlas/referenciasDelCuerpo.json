@@ -1,0 +1,352 @@
+{
+  "codo-derecho": [
+    -0.2083,
+    1.1374,
+    -0.0848
+  ],
+  "rodilla-derecho": [
+    -0.082,
+    0.4778,
+    0.0482
+  ],
+  "talon-derecho": [
+    -0.0619,
+    0.0109,
+    -0.0912
+  ],
+  "nudillo-pulgar-derecho": [
+    -0.2904,
+    0.8462,
+    0.0116
+  ],
+  "interfalangica-distal-pulgar-derecho": [
+    -0.3031,
+    0.8148,
+    0.0304
+  ],
+  "yema-pulgar-derecho": [
+    -0.3174,
+    0.75,
+    0.0845
+  ],
+  "nudillo-indice-derecho": [
+    -0.2817,
+    0.8114,
+    0.0184
+  ],
+  "interfalangica-proximal-indice-derecho": [
+    -0.2965,
+    0.7748,
+    0.039
+  ],
+  "interfalangica-distal-indice-derecho": [
+    -0.3025,
+    0.7596,
+    0.0503
+  ],
+  "yema-indice-derecho": [
+    -0.3132,
+    0.7343,
+    0.0963
+  ],
+  "nudillo-medio-derecho": [
+    -0.2671,
+    0.8135,
+    0.0182
+  ],
+  "interfalangica-proximal-medio-derecho": [
+    -0.271,
+    0.7733,
+    0.0397
+  ],
+  "interfalangica-distal-medio-derecho": [
+    -0.2741,
+    0.751,
+    0.0613
+  ],
+  "yema-medio-derecho": [
+    -0.2795,
+    0.726,
+    0.104
+  ],
+  "nudillo-anular-derecho": [
+    -0.2502,
+    0.8181,
+    0.0198
+  ],
+  "interfalangica-proximal-anular-derecho": [
+    -0.2473,
+    0.7789,
+    0.0419
+  ],
+  "interfalangica-distal-anular-derecho": [
+    -0.2496,
+    0.7575,
+    0.0574
+  ],
+  "yema-anular-derecho": [
+    -0.2517,
+    0.7386,
+    0.1052
+  ],
+  "nudillo-menique-derecho": [
+    -0.2325,
+    0.8248,
+    0.0196
+  ],
+  "interfalangica-proximal-menique-derecho": [
+    -0.2255,
+    0.7907,
+    0.0426
+  ],
+  "interfalangica-distal-menique-derecho": [
+    -0.2226,
+    0.7754,
+    0.0532
+  ],
+  "yema-menique-derecho": [
+    -0.2219,
+    0.7511,
+    0.0909
+  ],
+  "metatarso-primer-derecho": [
+    -0.1035,
+    0.0035,
+    0.0921
+  ],
+  "metatarso-segundo-derecho": [
+    -0.1256,
+    0.0017,
+    0.0834
+  ],
+  "metatarso-tercer-derecho": [
+    -0.1373,
+    0.0005,
+    0.078
+  ],
+  "metatarso-cuarto-derecho": [
+    -0.1373,
+    0.0005,
+    0.078
+  ],
+  "metatarso-quinto-derecho": [
+    -0.1429,
+    0.0013,
+    0.0631
+  ],
+  "ojo-derecho": [
+    -0.0304,
+    1.596,
+    0.0533
+  ],
+  "codo-izquierdo": [
+    0.2102,
+    1.1384,
+    -0.0847
+  ],
+  "rodilla-izquierdo": [
+    0.0859,
+    0.4802,
+    0.0491
+  ],
+  "talon-izquierdo": [
+    0.0617,
+    0.0107,
+    -0.0909
+  ],
+  "nudillo-pulgar-izquierdo": [
+    0.2888,
+    0.8408,
+    0.0126
+  ],
+  "interfalangica-distal-pulgar-izquierdo": [
+    0.3011,
+    0.8147,
+    0.0287
+  ],
+  "yema-pulgar-izquierdo": [
+    0.316,
+    0.7501,
+    0.0846
+  ],
+  "nudillo-indice-izquierdo": [
+    0.2777,
+    0.8108,
+    0.0191
+  ],
+  "interfalangica-proximal-indice-izquierdo": [
+    0.2967,
+    0.7755,
+    0.0383
+  ],
+  "interfalangica-distal-indice-izquierdo": [
+    0.302,
+    0.7595,
+    0.0505
+  ],
+  "yema-indice-izquierdo": [
+    0.3114,
+    0.7345,
+    0.0964
+  ],
+  "nudillo-medio-izquierdo": [
+    0.2656,
+    0.8124,
+    0.0187
+  ],
+  "interfalangica-proximal-medio-izquierdo": [
+    0.2707,
+    0.7735,
+    0.0396
+  ],
+  "interfalangica-distal-medio-izquierdo": [
+    0.2754,
+    0.7511,
+    0.0616
+  ],
+  "yema-medio-izquierdo": [
+    0.279,
+    0.7258,
+    0.1034
+  ],
+  "nudillo-anular-izquierdo": [
+    0.2545,
+    0.8152,
+    0.0197
+  ],
+  "interfalangica-proximal-anular-izquierdo": [
+    0.2482,
+    0.7797,
+    0.0416
+  ],
+  "interfalangica-distal-anular-izquierdo": [
+    0.2511,
+    0.7588,
+    0.0568
+  ],
+  "yema-anular-izquierdo": [
+    0.2492,
+    0.7384,
+    0.105
+  ],
+  "nudillo-menique-izquierdo": [
+    0.2313,
+    0.8245,
+    0.0204
+  ],
+  "interfalangica-proximal-menique-izquierdo": [
+    0.2271,
+    0.7927,
+    0.0414
+  ],
+  "interfalangica-distal-menique-izquierdo": [
+    0.2274,
+    0.7751,
+    0.0533
+  ],
+  "yema-menique-izquierdo": [
+    0.2211,
+    0.7508,
+    0.0904
+  ],
+  "metatarso-primer-izquierdo": [
+    0.1059,
+    0.0029,
+    0.0872
+  ],
+  "metatarso-segundo-izquierdo": [
+    0.1259,
+    0.0011,
+    0.0793
+  ],
+  "metatarso-tercer-izquierdo": [
+    0.1381,
+    0.0003,
+    0.0779
+  ],
+  "metatarso-cuarto-izquierdo": [
+    0.1381,
+    0.0003,
+    0.0779
+  ],
+  "metatarso-quinto-izquierdo": [
+    0.1437,
+    0.0011,
+    0.0629
+  ],
+  "ojo-izquierdo": [
+    0.0293,
+    1.596,
+    0.053
+  ],
+  "punta-de-la-nariz": [
+    -0.0044,
+    1.5641,
+    0.1114
+  ],
+  "menton": [
+    -0.0018,
+    1.5067,
+    0.0845
+  ],
+  "pomulo-derecho": [
+    -0.0364,
+    1.5816,
+    0.0699
+  ],
+  "pomulo-izquierdo": [
+    0.0351,
+    1.5845,
+    0.0682
+  ],
+  "pezon-derecho": [
+    -0.1063,
+    1.2779,
+    0.1171
+  ],
+  "pezon-izquierdo": [
+    0.1052,
+    1.2784,
+    0.1169
+  ],
+  "ombligo": [
+    -0.0007,
+    1.0354,
+    0.0967
+  ],
+  "axila-derecho": [
+    -0.1693,
+    1.3095,
+    0.0222
+  ],
+  "axila-izquierdo": [
+    0.1682,
+    1.3132,
+    0.0243
+  ],
+  "pubis": [
+    -0.0021,
+    0.9111,
+    0.0884
+  ],
+  "glande": [
+    -0.0009,
+    0.7993,
+    0.0849
+  ],
+  "oreja-derecho": [
+    -0.07,
+    1.5893,
+    -0.0183
+  ],
+  "oreja-izquierdo": [
+    0.0678,
+    1.5889,
+    -0.0181
+  ],
+  "labios": [
+    0.0003,
+    1.5352,
+    0.0818
+  ]
+}

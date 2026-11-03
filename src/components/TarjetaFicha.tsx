@@ -22,6 +22,8 @@ export function TarjetaFicha({
   borrador,
   leida,
   insignias,
+  figura,
+  antetitulo,
   accion = 'Abrir',
 }: {
   href: string
@@ -32,11 +34,21 @@ export function TarjetaFicha({
   leida?: boolean
   /** Insignias de más, delante del código: el módulo en «Continúa leyendo». */
   insignias?: ReactNode
+  /**
+   * La imagen de cabecera, a sangre, como en los tableros de Penpot de la
+   * biblioteca y del simulador (D-237): el recorte del atlas del segmento.
+   * Es decorativa —el segmento va escrito debajo— y no lleva texto propio.
+   */
+  figura?: ReactNode
+  /** El rótulo pequeño sobre el título: el segmento en la biblioteca. */
+  antetitulo?: string | null
   accion?: string
 }) {
   const hayEtiquetas = Boolean(insignias || codigo || borrador)
   return (
-    <Link href={href} className="tarjeta-ficha">
+    <Link href={href} className={`tarjeta-ficha${figura ? ' tarjeta-ficha-con-figura' : ''}`}>
+      {figura ? <span className="tarjeta-ficha-figura">{figura}</span> : null}
+      {antetitulo ? <span className="tarjeta-ficha-antetitulo">{antetitulo}</span> : null}
       {hayEtiquetas ? (
         <div className="etiquetas">
           {insignias}

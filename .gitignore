@@ -33,6 +33,9 @@ build/
 !/medios/modelos/
 /medios/modelos/*
 !/medios/modelos/.gitkeep
+!/medios/pagina/
+/medios/pagina/*
+!/medios/pagina/.gitkeep
 /src/app/(payload)/admin/importMap.js
 
 # Los libros, las fichas de la ingesta y sus figuras (D-144): varios GB de
@@ -82,3 +85,7 @@ __pycache__/
 # control y .blend. Se reconstruye con `python scripts/atlas/fascias/generar.py`;
 # lo que viaja en el repositorio es el resultado, public/atlas/cuerpo-15.bin.gz.
 /scripts/atlas/fascias/salida/
+
+# Lo mismo para la piel (D-224): la malla lisa que deja `python scripts/atlas/piel/generar.py` y que
+# `recalcular-piel.mjs` empuja y escribe en el atlas. Pesa unos megabytes y se rehace en un minuto.
+/scripts/atlas/piel/salida/

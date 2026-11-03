@@ -1,0 +1,91 @@
+/* Pantalla «Medios de la página» del panel (P-007 E2).
+ *
+ * Solo lo propio de esta pantalla: la rejilla de fotos con su marco, el
+ * formulario de textos con su contador y el original a la vista. Tarjetas,
+ * botones, campos, avisos e insignias salen de `panel.css` y `ui.css`, para que
+ * la pantalla se lea como el resto del panel. En su hoja y no allí porque esto
+ * solo lo usa una página. */
+
+.mp-filtros { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--e-3) var(--e-5); margin-bottom: var(--e-4); }
+.mp-casilla { display: inline-flex; align-items: center; gap: var(--e-2); min-height: 38px; font-size: var(--t-sm); color: var(--pizarra); cursor: pointer; }
+
+.mp-grupo { margin-bottom: var(--e-6); }
+.mp-grupo-titulo { margin: 0 0 var(--e-3); font-size: var(--t-base); font-weight: 650; color: var(--tinta); }
+.mp-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--e-4); }
+
+/* ---------- una foto ---------- */
+.mp-foto { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.mp-foto-arrastrando { outline: 2px dashed var(--marca); outline-offset: -2px; }
+
+/* Un marco de proporción fija para todas, con la foto entera dentro: las
+   capas son verticales y la consola apaisada, y recortarlas para que llenen
+   escondería justo lo que hay que revisar antes de cambiarlas. El cuadriculado
+   de fondo es para ver la transparencia de las capturas del atlas. */
+.mp-foto-marco {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background-color: var(--papel);
+  background-image:
+    linear-gradient(45deg, var(--linea-suave) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--linea-suave) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--linea-suave) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--linea-suave) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+.mp-foto-marco .imagen-con-carga { position: absolute; inset: 0; }
+.mp-foto-marco img,
+.mp-foto-imagen img { width: 100%; height: 100%; object-fit: contain; }
+.mp-foto-insignia { position: absolute; top: var(--e-2); left: var(--e-2); box-shadow: var(--sombra-1); }
+.mp-foto-soltar {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--e-2);
+  background: var(--marca-tenue);
+  color: var(--marca);
+  font-weight: 650;
+}
+
+.mp-foto-cuerpo { display: flex; flex-direction: column; gap: var(--e-2); padding: var(--e-4); }
+.mp-foto-cuerpo .admin-form-hint { margin: 0; }
+.mp-foto-cuerpo .admin-form-group { margin-bottom: var(--e-2); }
+.mp-foto-titulo { margin: 0; font-size: var(--t-base); font-weight: 650; color: var(--tinta); }
+.mp-fecha { margin: 0; font-size: var(--t-xs); color: var(--mudo); }
+.mp-foto-guardar { display: flex; flex-direction: column; gap: var(--e-2); }
+
+.mp-error { margin: var(--e-1) 0 0; font-size: var(--t-sm); color: var(--alerta); }
+
+/* ---------- los textos ---------- */
+.mp-seccion { margin-bottom: var(--e-5); }
+.mp-seccion-cabecera { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2) var(--e-3); margin-bottom: var(--e-4); }
+.mp-seccion-titulo { margin: 0; font-size: var(--t-md); font-weight: 650; color: var(--tinta); }
+.mp-seccion-acciones { position: sticky; bottom: 0; padding-top: var(--e-3); border-top: 1px solid var(--linea-suave); background: var(--superficie); }
+
+.mp-campo-cabecera { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--e-2); }
+.mp-campo-cabecera .admin-form-label { margin-bottom: var(--e-1); }
+.mp-opcional { font-weight: 400; color: var(--mudo); }
+/* El contador a la derecha, en cifras de ancho fijo para que no baile mientras
+   se escribe. En rojo y no solo en otro tono cuando se pasa: es lo que impide
+   guardar, y lo dice también el mensaje de debajo del campo. */
+.mp-contador { margin-left: auto; font-size: var(--t-xs); color: var(--mudo); font-variant-numeric: tabular-nums; }
+.mp-contador-pasado { color: var(--alerta); font-weight: 650; }
+
+.mp-original {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+  margin-top: var(--e-2);
+  padding: var(--e-2) var(--e-3);
+  border-left: 3px solid var(--linea-fuerte);
+  border-radius: var(--r-sm);
+  background: var(--papel);
+  font-size: var(--t-sm);
+  color: var(--pizarra);
+}
+.mp-original p { flex: 1 1 260px; margin: 0; white-space: pre-line; }
+.mp-original-rotulo { font-weight: 650; color: var(--tinta); }

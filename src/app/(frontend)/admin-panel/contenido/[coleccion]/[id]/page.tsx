@@ -47,6 +47,7 @@ export default async function PaginaEditarDocumento({
     ? await revisionParaElEditor(payload, esquema.slug, id, {
         id: String(sesion.usuario.id),
         esAdmin,
+        profesion: (sesion.usuario as { profesion?: unknown }).profesion,
       }).catch((error: unknown) => {
         console.error('[revision] no se pudo leer la revisión de la ficha:', error)
         return null

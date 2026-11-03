@@ -16,6 +16,46 @@
 }
 .comentario-enlace:hover { text-decoration: underline; }
 
+/* La bandeja: filtros y tabla en una tarjeta, como en Penpot (P-007 E5,
+   D-238). La tabla ya trae su borde y su sombra de `.admin-table-container`;
+   dentro de la tarjeta la sombra sobra, que es una caja dentro de otra. */
+.comentarios-bandeja .admin-filters { margin-bottom: var(--e-4); }
+.comentarios-bandeja .admin-table-container { box-shadow: none; }
+/* `.admin-table-modulo` pone mayúscula a cada palabra, pensado para un slug;
+   aquí llega el nombre ya escrito y salía «Lectura De Imágenes». */
+.comentarios-bandeja .admin-table-modulo { text-transform: none; color: var(--mudo); }
+
+/* Quién lo escribió, con sus iniciales en un círculo: la misma forma que la
+   tabla de actividad del Resumen, que vive en `resumen.css` y aquí no se carga. */
+.comentario-autor { display: flex; align-items: center; gap: var(--e-3); }
+.comentario-iniciales {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-full);
+  background: var(--marca-tenue);
+  color: var(--marca);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
   .comentario-celda { max-width: none; grid-column: 1 / -1; }
+  /* En el teléfono la tarjeta pierde el relleno: la tabla apilada ya trae el
+     suyo en cada fila, y con los dos el texto quedaba en una columna angosta. */
+  .comentarios-bandeja { padding: var(--e-3); }
+  /* La celda «Ficha» lleva tres cosas —título, módulo y enlaces— y la tabla
+     apilada pone cada celda en fila con su rótulo: las tres quedaban una al
+     lado de la otra, en columnas de dos palabras. Aquí van una debajo de otra,
+     con el rótulo a la izquierda de todas. */
+  .comentarios-bandeja .tabla-apilable tbody tr > td.comentario-ficha {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    column-gap: var(--e-2);
+    align-items: baseline;
+  }
+  .comentarios-bandeja .tabla-apilable tbody tr > td.comentario-ficha::before { grid-row: 1 / span 3; }
+  .comentarios-bandeja .tabla-apilable tbody tr > td.comentario-ficha > * { grid-column: 2; }
 }

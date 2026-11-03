@@ -175,6 +175,10 @@ describe('el esquema del panel cubre las colecciones', () => {
         'instrumental',
         // El equipo del inicio: lo escribe solo el administrador (`soloAdmin`).
         'equipo',
+        // Las fotos de las páginas públicas (P-007 E2): `soloAdmin`, y con
+        // pantalla propia; el esquema está para que el panel sepa subirlas y
+        // para que el listado genérico redirija a esa pantalla.
+        'medios-pagina',
       ].sort(),
     )
   })
@@ -185,7 +189,9 @@ describe('el esquema del panel cubre las colecciones', () => {
     // `instancias-atlas` tampoco: se arma en el taller del atlas, con su
     // visor, y en el editor genérico saldría como un cuadro de texto con
     // miles de identificadores dentro.
-    for (const slug of ['usuarios', 'comentarios', 'actividad', 'instancias-atlas']) {
+    // Ni `cotizaciones`, que tiene su pestaña y donde lo escrito por quien pide
+    // no se toca (ver `Cotizaciones.ts`).
+    for (const slug of ['usuarios', 'comentarios', 'actividad', 'instancias-atlas', 'cotizaciones']) {
       expect(esColeccionEditable(slug), slug).toBe(false)
     }
   })

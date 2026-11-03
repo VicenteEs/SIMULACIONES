@@ -27,6 +27,8 @@ export interface GrupoDeDestinatarios {
   valor: string
   etiqueta: string
   cuantos: number
+  /** La primera cuenta de la cola de ese grupo, para la vista previa; `null` si el grupo está vacío. */
+  primera: { nombre: string; email: string } | null
 }
 
 export interface DifusionDelHistorial {
@@ -46,6 +48,10 @@ export interface DifusionDelHistorial {
   fallos: Array<{ correo: string; motivo: string }>
 }
 
+// Con la zona puesta (D-236): el historial se pinta en el servidor y se
+// hidrata en el navegador, y sin ella cada uno escribía la hora en la suya. Una
+// difusión de las once de la noche salía con dos días distintos y React tiraba
+// la tabla entera por el desajuste.
 const fechaHora = (valor: string) =>
   new Date(valor).toLocaleString('es-CL', {
     day: '2-digit',
@@ -53,7 +59,20 @@ const fechaHora = (valor: string) =>
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Santiago',
   })
+
+/**
+ * Qué parte de los destinatarios aceptó el servidor de correo, en entero.
+ *
+ * `null` sin destinatarios: un «100 %» de cero personas no dice nada. Se
+ * redondea hacia abajo para que una difusión con un solo fallo entre mil no
+ * diga «100 %» al lado de su fallo.
+ */
+export function porcentajeEnviado(d: Pick<DifusionDelHistorial, 'enviados' | 'total'>): number | null {
+  if (!(d.total > 0)) return null
+  return Math.floor((Math.min(d.enviados, d.total) / d.total) * 100)
+}
 
 const personas = (n: number) => (n === 1 ? '1 persona' : `${n} personas`)
 
@@ -196,6 +215,14 @@ export function PanelDeDifusion({
 
   const grupo = grupos.find((g) => g.valor === audiencia)
   const cuantos = grupo?.cuantos ?? 0
+  // El saludo de la vista previa es el que recibirá la primera persona de la
+  // cola, con su nombre tal cual —vacío incluido, que sale «Hola.»—. Sin nadie
+  // en el grupo no hay a quién mostrárselo, y queda el «Nombre» de muestra.
+  // Ese nombre se busca dentro de la memoria de la vista previa, a partir de
+  // `grupos` y `audiencia`: sacado de `grupo` aquí fuera, el compilador de
+  // React no podía asegurar que nadie lo cambiara entre medias y renunciaba a
+  // optimizar el componente entero.
+  const aQuienLeLlega = grupo?.primera ? grupo.primera.nombre || grupo.primera.email : null
   const algunaEnCurso = hayAlgunaEnviandose(historial)
 
   const sucio = [asunto, mensaje, botonTexto, botonEnlace].some((t) => t.trim() !== '')
@@ -234,21 +261,20 @@ export function PanelDeDifusion({
    * enlaces desde el marco, así que lo que el administrador pegue en el mensaje
    * no puede hacer nada en su sesión.
    */
-  const vistaPrevia = useMemo(
-    () =>
-      armarCorreo(
-        mensajeDeDifusion(
-          {
-            asunto: asunto.trim() || 'Asunto del correo',
-            mensaje: mensaje.trim() || 'Aquí aparecerá su mensaje.',
-            boton: tieneTexto && tieneEnlace ? { texto: botonTexto.trim(), enlace: botonEnlace.trim() } : undefined,
-          },
-          'Nombre',
-        ),
-        { logo: ruta('/logo-correo.png') },
-      ).html,
-    [asunto, mensaje, botonTexto, botonEnlace, tieneTexto, tieneEnlace],
-  )
+  const vistaPrevia = useMemo(() => {
+    const primera = grupos.find((g) => g.valor === audiencia)?.primera
+    return armarCorreo(
+      mensajeDeDifusion(
+        {
+          asunto: asunto.trim() || 'Asunto del correo',
+          mensaje: mensaje.trim() || 'Aquí aparecerá su mensaje.',
+          boton: tieneTexto && tieneEnlace ? { texto: botonTexto.trim(), enlace: botonEnlace.trim() } : undefined,
+        },
+        primera ? primera.nombre : 'Nombre',
+      ),
+      { logo: ruta('/logo-correo.png') },
+    ).html
+  }, [asunto, mensaje, botonTexto, botonEnlace, tieneTexto, tieneEnlace, grupos, audiencia])
 
   // Con texto escrito, la barra lateral y Atrás preguntan antes de salir. Es
   // el mismo patrón que el editor de fichas: apuntarse solo mientras hay algo,
@@ -411,6 +437,28 @@ export function PanelDeDifusion({
           <h2 className="difusion-subtitulo">Redactar</h2>
 
           <div className="admin-form-group">
+            <label className="admin-form-label" htmlFor="difusion-audiencia">
+              Para
+            </label>
+            <select
+              id="difusion-audiencia"
+              className="admin-form-input"
+              value={audiencia}
+              onChange={(e) => cambiar(setAudiencia)(e.target.value)}
+            >
+              {grupos.map((g) => (
+                <option key={g.valor} value={g.valor}>
+                  {g.etiqueta} ({g.cuantos})
+                </option>
+              ))}
+            </select>
+            <p className="admin-form-hint">
+              Solo cuentas activas. Las solicitudes de cuenta sin revisar y las cuentas desactivadas no
+              reciben nada.
+            </p>
+          </div>
+
+          <div className="admin-form-group">
             <label className="admin-form-label" htmlFor="difusion-asunto">
               Asunto
             </label>
@@ -491,28 +539,6 @@ export function PanelDeDifusion({
             ) : null}
           </fieldset>
 
-          <div className="admin-form-group">
-            <label className="admin-form-label" htmlFor="difusion-audiencia">
-              Destinatarios
-            </label>
-            <select
-              id="difusion-audiencia"
-              className="admin-form-input"
-              value={audiencia}
-              onChange={(e) => cambiar(setAudiencia)(e.target.value)}
-            >
-              {grupos.map((g) => (
-                <option key={g.valor} value={g.valor}>
-                  {g.etiqueta} ({g.cuantos})
-                </option>
-              ))}
-            </select>
-            <p className="admin-form-hint">
-              Solo cuentas activas. Las solicitudes de cuenta sin revisar y las cuentas desactivadas no
-              reciben nada.
-            </p>
-          </div>
-
           {problema && sucio ? <p className="difusion-problema">{problema}</p> : null}
           {!problema && cuantos === 0 ? (
             <p className="difusion-problema">No hay ninguna cuenta activa en ese grupo.</p>
@@ -577,10 +603,16 @@ export function PanelDeDifusion({
           )}
         </section>
 
-        <section className="difusion-vista" aria-label="Vista previa del correo">
+        <section className="admin-card difusion-vista" aria-label="Vista previa del correo">
           <div className="difusion-vista-cabecera">
             <h2 className="difusion-subtitulo">Vista previa</h2>
-            <span className="admin-form-hint">Así lo recibirá cada persona, con su nombre en el saludo.</span>
+            <p className="admin-form-hint">
+              {aQuienLeLlega
+                ? `Así le llega a ${aQuienLeLlega}, el primer correo de la cola${
+                    cuantos > 1 ? `; cada una de las ${cuantos} personas lo recibe con su nombre en el saludo` : ''
+                  }.`
+                : 'Así lo recibirá cada persona, con su nombre en el saludo.'}
+            </p>
           </div>
           <iframe className="difusion-vista-marco" title="Vista previa del correo" sandbox="" srcDoc={vistaPrevia} />
         </section>
@@ -591,20 +623,29 @@ export function PanelDeDifusion({
         titulo="Historial"
         resumen={historial.length === 1 ? '1 difusión' : `${historial.length} difusiones`}
       >
+        {historial.length > 0 ? (
+          // «Enviados» es lo que el servidor de correo aceptó al mandarlo. Lo
+          // que rebota después llega al buzón del remitente y la plataforma no
+          // lo ve: decir «entregados», como el diseño, prometería un dato que
+          // no se guarda.
+          <p className="admin-form-hint difusion-historial-nota">
+            {historial.length === 1 ? 'La última difusión' : `Las últimas ${historial.length} difusiones, de la más reciente a la más antigua`}. «Enviados» es la parte de los destinatarios cuyo correo aceptó el servidor; lo
+            que rebote después llega al buzón del remitente y no aparece aquí.
+          </p>
+        ) : null}
         {historial.length === 0 ? (
           <Vacio icono={History} titulo="Todavía no se ha enviado ninguna difusión." compacto>
             Las que se manden desde aquí aparecerán con su avance y sus fallos.
           </Vacio>
         ) : (
       <div className="admin-table-container">
-          <table className="admin-table">
+          <table className="admin-table tabla-apilable">
             <thead>
               <tr>
                 <th>Fecha</th>
                 <th>Asunto</th>
-                <th>Destinatarios</th>
+                <th>Para</th>
                 <th>Enviados</th>
-                <th>Fallidos</th>
                 <th>Estado</th>
                 <th>
                   <span className="sr-only">Acciones</span>
@@ -617,49 +658,55 @@ export function PanelDeDifusion({
                 const IconoDeEstado = estado.icono
                 const interrumpida = d.estado === 'enviando' && !d.enCurso
                 const reanudable = (d.estado === 'detenida' || interrumpida) && d.pendientes > 0
-                const avance = d.total > 0 ? Math.round((d.enviados / d.total) * 100) : 100
+                const porcentaje = porcentajeEnviado(d)
+                // El color de la barra dice cómo terminó y no cuánto falta: verde
+                // si salió a todos, ámbar si alguno falló, y el azul de siempre
+                // mientras sale o si se detuvo con gente por recibirla.
+                const tonoDeLaBarra =
+                  d.fallidos > 0 ? 'difusion-barra-con-fallos' : porcentaje === 100 ? 'difusion-barra-completa' : ''
                 return (
                   <tr key={d.id}>
-                    <td className="difusion-fecha">
-                      {fechaHora(d.creada)}
-                      {d.autor ? <div className="admin-table-user-email">{d.autor}</div> : null}
+                    {/* Cada celda con rótulo lleva un solo hijo: en el teléfono la
+                        celda es una fila flexible detrás de su rótulo, y dos
+                        hijos se ponían uno al lado del otro y se cortaban
+                        contra el borde. */}
+                    <td data-etiqueta="Fecha">
+                      <div className="difusion-fecha">
+                        {fechaHora(d.creada)}
+                        {d.autor ? <div className="admin-table-user-email">{d.autor}</div> : null}
+                      </div>
                     </td>
                     <th scope="row" className="difusion-asunto">
                       {d.asunto}
-                      <div className="admin-table-user-email">{d.audiencia}</div>
                     </th>
-                    <td className="u-num">{d.total}</td>
-                    <td className="difusion-avance">
-                      {d.enviados} de {d.total}
+                    <td data-etiqueta="Para">
+                      <div>
+                        {d.audiencia}
+                        <div className="admin-table-user-email">{personas(d.total)}</div>
+                      </div>
+                    </td>
+                    <td className="difusion-avance" data-etiqueta="Enviados">
+                      <div className="difusion-avance-cuerpo">
+                      <div className="difusion-avance-cifras">
+                        <span className="u-num">{porcentaje === null ? '—' : `${porcentaje} %`}</span>
+                        <span className="admin-table-user-email">
+                          {d.enviados} de {d.total}
+                        </span>
+                      </div>
                       <div
-                        className="admin-progreso"
+                        className={`admin-progreso ${tonoDeLaBarra}`}
                         role="progressbar"
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        aria-valuenow={avance}
+                        aria-valuenow={porcentaje ?? 0}
                         aria-label={`Enviados ${d.enviados} de ${d.total}`}
                       >
-                        <div className="admin-progreso-relleno" style={{ width: `${avance}%` }} />
+                        <div className="admin-progreso-relleno" style={{ width: `${porcentaje ?? 0}%` }} />
+                      </div>
                       </div>
                     </td>
-                    <td>
-                      {d.fallidos === 0 ? (
-                        <span className="difusion-sin-fallos">0</span>
-                      ) : (
-                        <details className="difusion-fallos">
-                          <summary>{d.fallidos}</summary>
-                          <ul>
-                            {d.fallos.map((f, i) => (
-                              <li key={`${f.correo}-${i}`}>
-                                <span className="difusion-fallo-correo">{f.correo}</span>
-                                {f.motivo ? <span className="difusion-fallo-motivo">{f.motivo}</span> : null}
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
-                    </td>
-                    <td>
+                    <td data-etiqueta="Estado">
+                      <div>
                       <span className={claseDeInsignia(estado.tono)}>
                         <IconoDeEstado aria-hidden size={12} />
                         {estado.texto}
@@ -672,8 +719,30 @@ export function PanelDeDifusion({
                       ) : d.estado === 'detenida' && d.pendientes > 0 ? (
                         <div className="admin-table-user-email">Quedan {personas(d.pendientes)}.</div>
                       ) : null}
+                      {/* Los fallos, bajo el estado que explican. Eran una
+                          columna propia con un cero en casi todas las filas. */}
+                      {d.fallidos > 0 ? (
+                        <details className="difusion-fallos">
+                          <summary>
+                            {d.fallidos === 1 ? '1 fallido' : `${d.fallidos} fallidos`}
+                          </summary>
+                          <ul>
+                            {d.fallos.map((f, i) => (
+                              <li key={`${f.correo}-${i}`}>
+                                <span className="difusion-fallo-correo">{f.correo}</span>
+                                {f.motivo ? <span className="difusion-fallo-motivo">{f.motivo}</span> : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : null}
+                      </div>
                     </td>
-                    <td>
+                    {/* Vacía cuando no hay nada que hacer con la fila, para que
+                        `td:empty` la esconda en el teléfono en lugar de dejar
+                        un hueco al pie de la tarjeta. */}
+                    <td className="admin-table-acciones">
+                      {(d.estado === 'enviando' && d.enCurso) || reanudable ? (
                       <div className="admin-table-acciones-fila">
                         {d.estado === 'enviando' && d.enCurso ? (
                           <button
@@ -705,6 +774,7 @@ export function PanelDeDifusion({
                           </button>
                         ) : null}
                       </div>
+                      ) : null}
                     </td>
                   </tr>
                 )

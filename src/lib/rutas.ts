@@ -6,12 +6,18 @@
  * y cuelga de `/traumahub`.
  *
  * Next.js resuelve solo el prefijo de casi todo —`<Link>`, `redirect()`,
- * `router.push()`, `next/image`—, pero **no** de lo que se escribe a mano:
+ * `router.push()`—, pero **no** de lo que se escribe a mano:
  *
  *   - `<img src="/logo.png">`
  *   - `fetch('/api/…')` y `new EventSource('/api/…')`
  *   - `<a href="/api/…">`
  *   - los iconos declarados en `metadata`
+ *   - el `src` de `next/image` cuando es una cadena. Solo la imagen importada
+ *     (`import foto from './foto.webp'`) llega con el prefijo puesto; la que se
+ *     pasa como texto sale tal cual, lo dice la propia guía de `basePath` en
+ *     `node_modules/next/dist/docs`. Hasta P-007 este comentario ponía
+ *     `next/image` entre lo que se resuelve solo, y por eso las fotos subidas
+ *     de la portada (`/api/pagina/…`) habrían salido sin prefijo en el servidor.
  *
  * Para todo eso está `ruta()`. Olvidarla es el fallo típico de una aplicación
  * montada bajo un prefijo: funciona en desarrollo y en el servidor devuelve

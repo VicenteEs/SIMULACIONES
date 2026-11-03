@@ -3,7 +3,7 @@ import { gunzip } from 'node:zlib'
 import { join } from 'node:path'
 import type { Payload } from 'payload'
 import { corregirCatalogo } from '@/atlas/clasificacion'
-import type { CatalogoDelAtlas, ContenidoDeInstancia } from '@/atlas/formato'
+import { piezaDe, type CatalogoDelAtlas, type ContenidoDeInstancia } from '@/atlas/formato'
 import { escribirGlb } from '@/lib/glb'
 import {
   avisosDeLaExportacion,
@@ -108,6 +108,50 @@ export interface OpcionesDeExportarPreparacion {
    * una razón (un modelo para Blender que no quiera ciento cuarenta objetos).
    */
   separarEstructuras?: boolean
+}
+
+/**
+ * La preparación sin los cortes, las fracturas ni los trozos apagados de una pieza.
+ *
+ * Lo usa el corte pedido por un guion, que «manda»: el de la preparación solo
+ * vale cuando nadie pidió otro (ver `partido` más abajo). Hasta 2026-11-03 eso
+ * cubría el hueso partido en dos, pero no los cortes que dibujan la fractura en
+ * el taller, que se rehacían igual. Con la preparación «p», cuya tibia el taller
+ * ya había fracturado en siete trozos, el corte nuevo buscaba la tibia entera,
+ * no la encontraba —quedaban `FJ3282#a`, `FJ3282#a#b`…— y la exportación paraba
+ * con «La pieza que se iba a partir no está en la preparación guardada». Y si la
+ * hubiera encontrado, habría partido la mitad de una fractura vieja.
+ *
+ * Se quitan todos los cortes de la pieza, también un marco que la cruzara: el
+ * corte pedido se mide sobre el hueso entero (a un 50 % de su longitud), y medido
+ * sobre un trozo caería en otro sitio.
+ *
+ * Y el hueso vuelve a su sitio: se quita también lo que la pieza entera tuviera
+ * movido o girado. Un hueso partido en el taller se dibuja con la transformación
+ * de cada trozo, y la de la pieza entera ya no se ve, pero sigue guardada. La
+ * tibia de «p» guardaba un giro de unos 38° de antes de fracturarla: rehecha
+ * entera, salía inclinada, sus trozos cruzaban hasta la otra pierna, y la caja
+ * de lo exportado crecía tanto que se colaban las fascias de la pierna derecha.
+ *
+ * La preparación guardada no se toca.
+ */
+export function sinLosCortesDe(
+  contenido: Partial<ContenidoDeInstancia>,
+  pieza: string,
+): { contenido: Partial<ContenidoDeInstancia>; quitados: number } {
+  const cortes = contenido.cortes ?? []
+  const quedan = cortes.filter((c) => piezaDe(c.pieza) !== pieza)
+  return {
+    contenido: {
+      ...contenido,
+      cortes: quedan,
+      piezas: (contenido.piezas ?? []).map((p) => (p.id === pieza ? { ...p, mover: undefined, girar: undefined } : p)),
+      fracturas: (contenido.fracturas ?? []).filter((f) => f.pieza !== pieza),
+      apagados: (contenido.apagados ?? []).filter((id) => piezaDe(id) !== pieza),
+      sueltas: (contenido.sueltas ?? []).filter((id) => piezaDe(id) !== pieza),
+    },
+    quitados: cortes.length - quedan.length,
+  }
 }
 
 /** El modelo creado y lo que hay que decir de él. */
@@ -246,7 +290,11 @@ export async function exportarPreparacion(
   // Lo guardado, rehecho tal como el taller lo dibuja: los cortes hechos, lo
   // movido en su sitio, los trozos apagados fuera. Sin esto el archivo salía
   // con la geometría original de cada pieza y no se parecía a lo que se veía.
-  const rehecha = reproducirPreparacion(contenido, leidas)
+  // Con un corte pedido, el hueso que se parte se rehace entero (`sinLosCortesDe`).
+  const { contenido: aRehacer, quitados } = corte
+    ? sinLosCortesDe(contenido, corte.pieza)
+    : { contenido, quitados: 0 }
+  const rehecha = reproducirPreparacion(aRehacer, leidas)
 
   // Las fascias entran solas, recortadas a lo exportado (F-8). Sus paquetes se leen solo si algún sistema
   // de fascia entra: una exportación de huesos sueltos no toca el paquete 15.
@@ -262,8 +310,8 @@ export async function exportarPreparacion(
     ? fasciasDeLaZona({
         catalogo,
         piezas: rehecha.piezas,
-        cortes: contenido.cortes,
-        apagados: new Set(contenido.apagados ?? []),
+        cortes: aRehacer.cortes,
+        apagados: new Set(aRehacer.apagados ?? []),
         leer: (pieza) => ({
           id: pieza.id,
           nombre: pieza.nombre,
@@ -317,6 +365,13 @@ export async function exportarPreparacion(
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')}.glb`
+
+  if (cortado && quitados > 0) {
+    cortado.avisos.push(
+      `La preparación ya tenía «${cortado.etiqueta}» partida (${quitados} ${quitados === 1 ? 'corte' : 'cortes'}): ` +
+        'en este modelo sale entera y partida solo por el corte pedido. La preparación no cambia.',
+    )
+  }
 
   // El corte va dicho en las notas con sus dos nodos: en Blender los dos trozos
   // se ven pegados, como un hueso entero, y sin esta frase no hay forma de saber

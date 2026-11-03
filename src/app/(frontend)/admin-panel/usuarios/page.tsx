@@ -3,6 +3,10 @@ import { direccionPublica } from '@/collections/Usuarios'
 import { hayCorreo } from '@/correo/enviar'
 import { clientePayload } from '../datos'
 import { TablaUsuarios, type UsuarioDelPanel } from './TablaUsuarios'
+import { LateralDeCuentas } from './LateralDeCuentas'
+import { tableroDeCuentas } from './tablero'
+import { etiquetaDeEtapa } from '@/lib/solicitudDeCuenta'
+import { esProfesion } from '@/lib/firmas'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +49,7 @@ export default async function PaginaUsuarios() {
   const { sesion } = await exigirPanel('admin')
 
   const payload = await clientePayload()
-  const [cuentas, pedidas] = await Promise.all([
+  const [cuentas, pedidas, tablero] = await Promise.all([
     payload.find({
       collection: 'usuarios',
       // `not_equals` y no `equals: false`: la columna admite nulos, y el
@@ -71,6 +75,7 @@ export default async function PaginaUsuarios() {
       depth: 0,
       overrideAccess: true,
     }),
+    tableroDeCuentas(payload),
   ])
 
   const aFila = (d: unknown): UsuarioDelPanel => {
@@ -82,6 +87,8 @@ export default async function PaginaUsuarios() {
       rol: (u.rol as UsuarioDelPanel['rol']) ?? 'lector',
       activo: u.activo === true,
       institucion: (u.institucion as string) ?? '',
+      etapa: etiquetaDeEtapa(u.etapaDeFormacion),
+      profesion: esProfesion(u.profesion) ? u.profesion : '',
       // La nota del administrador sobre la cuenta. Sin esta línea la tabla la
       // escribe y no la lee: el modal se abre en blanco sobre una nota que sí
       // está guardada, y quien la vea vacía la reescribe encima. Esta es la
@@ -129,6 +136,7 @@ export default async function PaginaUsuarios() {
       idPropio={String(sesion.usuario.id)}
       hayCorreo={hayCorreo()}
       hayDireccion={Boolean(direccionPublica())}
+      lateral={<LateralDeCuentas datos={tablero} />}
     />
   )
 }

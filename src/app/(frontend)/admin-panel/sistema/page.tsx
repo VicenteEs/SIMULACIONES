@@ -1,4 +1,5 @@
 import { connect as abrirSocket, type Socket } from 'node:net'
+import { resolve } from 'node:path'
 import { connect as abrirSocketCifrado } from 'node:tls'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
@@ -15,11 +16,16 @@ import { clientePayload } from '../datos'
 import { versionDelAtlas } from '@/app/(frontend)/acciones/atlas'
 import { ruta } from '@/lib/rutas'
 import { puertoDeCorreo } from '@/correo/enviar'
+import { DIRECTORIO_DEL_ATLAS } from '@/lib/catalogoDelAtlas'
 import { BotonCorreoDePrueba } from './BotonCorreoDePrueba'
+import { BotonVolverAComprobar } from './BotonVolverAComprobar'
+import { pesoDeCarpeta, type PesoDeCarpeta } from './espacio'
 import './sistema.css'
 import { Activity, Archive, CircleCheck, ExternalLink, TriangleAlert } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { BarrasHorizontales } from '@/components/admin/Graficos'
 import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
 import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import { claseDeInsignia } from '@/lib/tonosDeEstado'
 
@@ -49,11 +55,19 @@ const duracion = (segundos: number): string => {
   return `${m} min`
 }
 
-/** Versión y peso de PostgreSQL, si el adaptador deja llegar al pool. */
-async function estadoDeLaBase(payload: unknown): Promise<{ version: string; peso: string }> {
+/**
+ * Versión y peso de PostgreSQL, si el adaptador deja llegar al pool.
+ *
+ * El peso viaja también en bytes (`bytes`), para la tarjeta del disco: antes
+ * solo existía como el texto de `pg_size_pretty` («45 MB»), que no se puede
+ * comparar con las carpetas. Y el texto se escribe ahora con `tamanoLegible`,
+ * el de todas las demás cifras de la página, para que la misma base no salga
+ * «45 MB» en una fila y «45,2 MB» en la tarjeta de al lado.
+ */
+async function estadoDeLaBase(payload: unknown): Promise<{ version: string; peso: string; bytes: number | null }> {
   const pool = (payload as { db?: { pool?: { query?: (sql: string) => Promise<unknown> } } }).db
     ?.pool
-  if (!pool?.query) return { version: 'desconocida', peso: 'desconocido' }
+  if (!pool?.query) return { version: 'desconocida', peso: 'desconocido', bytes: null }
 
   const consultar = async (sql: string): Promise<string> => {
     const resultado = (await pool.query!(sql)) as { rows?: Array<Record<string, unknown>> }
@@ -64,12 +78,19 @@ async function estadoDeLaBase(payload: unknown): Promise<{ version: string; peso
   try {
     const [version, peso] = await Promise.all([
       consultar('select version()'),
-      consultar('select pg_size_pretty(pg_database_size(current_database()))'),
+      // `bigint` llega de `pg` como texto, para no perder precisión; un peso
+      // en bytes cabe de sobra en un `number`.
+      consultar('select pg_database_size(current_database())'),
     ])
+    const bytes = Number(peso)
     // «PostgreSQL 17.2 on x86_64-pc-linux-musl…» — basta con las dos primeras palabras.
-    return { version: version.split(' ').slice(0, 2).join(' '), peso }
+    return {
+      version: version.split(' ').slice(0, 2).join(' '),
+      peso: Number.isFinite(bytes) ? tamanoLegible(bytes) : 'desconocido',
+      bytes: Number.isFinite(bytes) ? bytes : null,
+    }
   } catch {
-    return { version: 'sin respuesta', peso: 'desconocido' }
+    return { version: 'sin respuesta', peso: 'desconocido', bytes: null }
   }
 }
 
@@ -158,6 +179,7 @@ export default async function PaginaSistema() {
   let base: Diagnostico = { ok: false, detalle: 'sin respuesta' }
   let versionBase = 'desconocida'
   let pesoBase = 'desconocido'
+  let bytesBase: number | null = null
   let usuarios = 0
 
   try {
@@ -167,6 +189,7 @@ export default async function PaginaSistema() {
     const info = await estadoDeLaBase(payload)
     versionBase = info.version
     pesoBase = info.peso
+    bytesBase = info.bytes
     base = { ok: true, detalle: `${versionBase} · ${pesoBase}` }
   } catch (error) {
     base = { ok: false, detalle: error instanceof Error ? error.message : 'error desconocido' }
@@ -203,6 +226,8 @@ export default async function PaginaSistema() {
     atlas,
     disco,
     correo,
+    medios,
+    archivosDelAtlas,
   ] = await Promise.all([
     listarRespaldos().then(
       (lista) => ({ lista, fallo: null as string | null }),
@@ -221,8 +246,13 @@ export default async function PaginaSistema() {
           ok: false,
           detalle: 'sin servidor SMTP: la recuperación de contraseña no llega a destino',
         }),
+    // La carpeta de `staticDir` de Medios, que contiene las de MediosPagina y
+    // Modelos3D (`medios/pagina`, `medios/modelos`): se recorre una vez.
+    pesoDeCarpeta(resolve(process.cwd(), 'medios')),
+    pesoDeCarpeta(DIRECTORIO_DEL_ATLAS()),
   ])
   const ultimo = respaldos.find((r) => r.tipo === 'base')
+  const bytesDeRespaldos = respaldos.reduce((t, r) => t + r.bytes, 0)
 
   const enProduccion = process.env.NODE_ENV === 'production'
   const urlPublica = process.env.NEXT_PUBLIC_SERVER_URL || '(sin definir)'
@@ -245,6 +275,16 @@ export default async function PaginaSistema() {
               detalle: `${ultimo.nombre} · ${tamanoLegible(ultimo.bytes)}`,
             }
           : { ok: false, detalle: 'no hay ningún respaldo' },
+      // Era una tarjeta de «Atajos» al pie de la página, lejos de la fila que
+      // dice si hace falta ir. Aquí se va desde el problema.
+      complemento: (
+        <div className="sistema-prueba">
+          <Link href="/admin-panel/respaldos" className="admin-btn admin-btn-secondary admin-btn-sm">
+            <Archive aria-hidden size={14} />
+            Ir a respaldos
+          </Link>
+        </div>
+      ),
     },
     {
       // `pg_dump` presente no basta para respaldar desde el panel: también
@@ -345,40 +385,150 @@ export default async function PaginaSistema() {
   ]
 
   const problemas = comprobaciones.filter((c) => !c.estado.ok).length
+  const porRevisar = comprobaciones.filter((c) => !c.estado.ok).map((c) => c.titulo)
+  // En el servidor y sin hidratar: es la hora en que se hicieron estas
+  // comprobaciones, y «Volver a comprobar» la cambia al repetirlas.
+  const comprobadoA = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+
+  // Lo que ocupa la plataforma, cada parte medida por su lado (P-007 E5,
+  // D-238). Lo que no se pudo medir sale aparte y con su motivo: como barra a
+  // cero diría «no ocupa nada», que es justo lo que no se sabe.
+  const partes: Array<{ etiqueta: string; medida: PesoDeCarpeta | null; motivo: string }> = [
+    {
+      etiqueta: 'Base de datos',
+      medida: bytesBase === null ? null : { bytes: bytesBase, archivos: 0, completo: true },
+      motivo: 'PostgreSQL no dijo su tamaño',
+    },
+    { etiqueta: 'Archivos subidos', medida: medios, motivo: 'no se pudo recorrer la carpeta medios/' },
+    { etiqueta: 'Atlas 3D', medida: archivosDelAtlas, motivo: 'no se pudo recorrer public/atlas/' },
+    {
+      etiqueta: 'Respaldos',
+      medida: respaldosIlegibles ? null : { bytes: bytesDeRespaldos, archivos: respaldos.length, completo: true },
+      motivo: 'no se pudo leer el directorio de respaldos',
+    },
+  ]
+  const medidas = partes.filter((p) => p.medida !== null)
+  const sinMedir = partes.filter((p) => p.medida === null)
+  const discoLleno = disco !== null && disco.usado >= UMBRAL_DE_USO
 
   return (
     <div>
       <CabeceraDePagina
         titulo="Sistema"
-        subtitulo={`Estado de la instalación y sus dependencias · ${usuarios} cuenta${usuarios === 1 ? '' : 's'} registradas`}
+        subtitulo={`Si la plataforma está sana y dónde corre · ${usuarios} cuenta${usuarios === 1 ? '' : 's'} registradas`}
         acciones={
-          <a
-            href={ruta('/api/salud')}
-            className="admin-btn admin-btn-secondary"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Activity aria-hidden size={16} />
-            Comprobación de salud
-            <ExternalLink aria-hidden size={14} />
-          </a>
+          <>
+            <a
+              href={ruta('/api/salud')}
+              className="admin-btn admin-btn-secondary"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Activity aria-hidden size={16} />
+              Comprobación de salud
+              <ExternalLink aria-hidden size={14} />
+            </a>
+            <BotonVolverAComprobar />
+          </>
         }
       />
 
-      {problemas === 0 ? (
-        <div className="admin-aviso admin-aviso-ok">
-          <strong>Todo en orden.</strong>
-          Las {comprobaciones.length} comprobaciones pasan.
-        </div>
-      ) : (
-        <div className="admin-aviso admin-aviso-atencion">
-          <strong>
-            {problemas} comprobación{problemas === 1 ? '' : 'es'} requiere{problemas === 1 ? '' : 'n'}{' '}
-            atención.
-          </strong>
-          Están marcadas más abajo. Ninguna impide usar la plataforma, pero conviene resolverlas.
-        </div>
-      )}
+      <div className="tablero-fila sistema-cabecera">
+        {/* El veredicto, grande, como en Penpot: es lo que se viene a buscar.
+            Era un aviso de una línea encima de la tabla. Atención y no peligro
+            cuando algo falla, por lo mismo que la insignia de cada fila:
+            ninguna de estas comprobaciones impide usar la plataforma. */}
+        <section
+          className={`admin-card sistema-estado ${problemas === 0 ? 'sistema-estado-ok' : 'sistema-estado-atencion'}`}
+          aria-label="Estado general"
+        >
+          <span className="sistema-estado-icono" aria-hidden>
+            {problemas === 0 ? <CircleCheck size={28} /> : <TriangleAlert size={28} />}
+          </span>
+          <div className="sistema-estado-texto">
+            <h2 className="sistema-estado-titulo">
+              {problemas === 0
+                ? 'Todo en orden'
+                : `${problemas} comprobación${problemas === 1 ? '' : 'es'} requiere${problemas === 1 ? '' : 'n'} atención`}
+            </h2>
+            <p className="sistema-estado-detalle">
+              {comprobaciones.length - problemas} de {comprobaciones.length} comprobaciones bien · comprobado a
+              las {comprobadoA}
+            </p>
+            {problemas > 0 ? (
+              <p className="sistema-estado-nota">
+                Por revisar: {porRevisar.join(', ')}. Ninguna impide usar la plataforma, pero conviene resolverlas.
+              </p>
+            ) : null}
+          </div>
+        </section>
+
+        <TarjetaDeGrafico titulo="Espacio en disco" bajada="El del disco donde corre la aplicación">
+          {disco ? (
+            <div className="sistema-disco">
+              <div className="sistema-disco-cifra">
+                <span className={`sistema-disco-uso${discoLleno ? ' admin-card-value-atencion' : ''}`}>
+                  {disco.usado} %
+                </span>
+                <span className="sistema-disco-rotulo">en uso</span>
+              </div>
+              <div
+                className={`admin-progreso sistema-disco-barra${discoLleno ? ' sistema-disco-lleno' : ''}`}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={disco.usado}
+                aria-label="Parte del disco en uso"
+              >
+                <div className="admin-progreso-relleno" style={{ width: `${disco.usado}%` }} />
+              </div>
+              <p className="admin-card-note">
+                {tamanoLegible(disco.bytesLibres)} libres de {tamanoLegible(disco.bytesTotales)}
+                {discoLleno ? ` · pasa del ${UMBRAL_DE_USO} %, el umbral de aviso` : ''}
+              </p>
+            </div>
+          ) : (
+            // Lo mismo que dice la fila «Espacio en disco»: sin dato se calla,
+            // no se inventa una tranquilidad.
+            <p className="admin-card-note">Este sistema de archivos no deja consultar cuánto espacio queda.</p>
+          )}
+
+          <div>
+            <h3 className="sistema-disco-subtitulo">Lo que ocupa la plataforma</h3>
+            {medidas.length > 0 ? (
+              <BarrasHorizontales
+                titulo="Lo que ocupa cada parte de la plataforma"
+                datos={medidas.map((p) => ({
+                  // Con el tope de archivos alcanzado la cifra se queda corta,
+                  // y la etiqueta lo dice en vez de darla por exacta.
+                  etiqueta: p.medida?.completo === false ? `${p.etiqueta} (al menos)` : p.etiqueta,
+                  valor: p.medida?.bytes ?? 0,
+                }))}
+                formato={tamanoLegible}
+              />
+            ) : null}
+            {sinMedir.length > 0 ? (
+              <ul className="sistema-sin-medir">
+                {sinMedir.map((p) => (
+                  <li key={p.etiqueta}>
+                    {p.etiqueta}: no se pudo medir ({p.motivo}).
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {/* Penpot reparte el disco entero, con «Sistema» y «Libre» en la
+                misma dona. Eso pide saber qué hay en cada rincón del disco, y
+                la aplicación solo conoce lo suyo. Además, en el servidor la
+                base y los archivos subidos viven en volúmenes de Docker y los
+                respaldos en una carpeta montada: no tienen por qué estar en el
+                disco del porcentaje, y sumarlos a él mentiría. */}
+            <p className="admin-card-note sistema-disco-nota">
+              Cada parte se mide por su lado. La base, los archivos subidos o los respaldos pueden estar en otro
+              volumen que el del porcentaje de arriba.
+            </p>
+          </div>
+        </TarjetaDeGrafico>
+      </div>
 
       <PlegarTodo />
 
@@ -427,69 +577,61 @@ export default async function PaginaSistema() {
       </SeccionPlegable>
 
       <SeccionPlegable clave="sistema.entorno" titulo="Entorno" resumen="9 datos">
-      <dl className="admin-datos">
-        <dt>PostgreSQL</dt>
-        <dd>{versionBase}</dd>
-        <dt>Tamaño de la base</dt>
-        <dd>{pesoBase}</dd>
-        <dt>Node.js</dt>
-        <dd>{process.version}</dd>
-        <dt>Plataforma</dt>
-        <dd>
-          {process.platform} · {process.arch}
-        </dd>
-        <dt>En marcha desde hace</dt>
-        <dd>{duracion(process.uptime())}</dd>
-        <dt>Memoria del proceso</dt>
-        <dd>{tamanoLegible(process.memoryUsage().rss)}</dd>
-        <dt>Directorio de respaldos</dt>
-        <dd>{directorioDeRespaldos()}</dd>
-        <dt>Respaldos conservados</dt>
-        <dd>
-          {respaldosIlegibles
-            ? '— · no se pudo leer el directorio'
-            : `${respaldos.length} · ${tamanoLegible(respaldos.reduce((t, r) => t + r.bytes, 0))}`}
-        </dd>
-        <dt>Zona horaria del servidor</dt>
-        <dd>{Intl.DateTimeFormat().resolvedOptions().timeZone}</dd>
-      </dl>
+        {/* En baldosas, como en Penpot: es lo que se copia para pedir ayuda,
+            y en dos columnas de 1.440 px los valores quedaban lejos de su
+            nombre. Cada pareja va en su `div`, que el HTML permite dentro de
+            un `dl` justo para esto. */}
+        <dl className="sistema-entorno">
+          <div>
+            <dt>PostgreSQL</dt>
+            <dd>{versionBase}</dd>
+          </div>
+          <div>
+            <dt>Tamaño de la base</dt>
+            <dd>{pesoBase}</dd>
+          </div>
+          <div>
+            <dt>Node.js</dt>
+            <dd>{process.version}</dd>
+          </div>
+          <div>
+            <dt>Plataforma</dt>
+            <dd>
+              {process.platform} · {process.arch}
+            </dd>
+          </div>
+          <div>
+            <dt>En marcha desde hace</dt>
+            <dd>{duracion(process.uptime())}</dd>
+          </div>
+          <div>
+            <dt>Memoria del proceso</dt>
+            <dd>{tamanoLegible(process.memoryUsage().rss)}</dd>
+          </div>
+          <div>
+            <dt>Directorio de respaldos</dt>
+            <dd className="sistema-entorno-ruta">{directorioDeRespaldos()}</dd>
+          </div>
+          <div>
+            <dt>Respaldos conservados</dt>
+            <dd>
+              {respaldosIlegibles
+                ? '— · no se pudo leer el directorio'
+                : `${respaldos.length} · ${tamanoLegible(bytesDeRespaldos)}`}
+            </dd>
+          </div>
+          <div>
+            <dt>Zona horaria del servidor</dt>
+            <dd>{Intl.DateTimeFormat().resolvedOptions().timeZone}</dd>
+          </div>
+        </dl>
       </SeccionPlegable>
 
-      <h2 className="admin-section-title">Atajos</h2>
-      <div className="admin-grid">
-        <div className="admin-card">
-          <div className="admin-card-title">Comprobación de salud</div>
-          <p className="admin-card-note">
-            El extremo que consulta el despliegue para saber si la aplicación y la base responden.
-          </p>
-          <div className="admin-card-actions">
-            <a
-              href={ruta('/api/salud')}
-              className="admin-btn admin-btn-secondary"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              /api/salud
-              <ExternalLink aria-hidden size={14} />
-            </a>
-          </div>
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-title">Respaldos</div>
-          <p className="admin-card-note">Crear, descargar o eliminar copias de la base.</p>
-          <div className="admin-card-actions">
-            <Link href="/admin-panel/respaldos" className="admin-btn admin-btn-secondary">
-              <Archive aria-hidden size={16} />
-              Ir a respaldos
-            </Link>
-          </div>
-        </div>
-        {/* Aquí hubo una tarjeta «CMS de Payload» que abría /admin en una
-            pestaña nueva prometiendo «todo lo que este panel no cubre». Esa
-            interfaz se retiró (D-038) y la ruta solo reenvía aquí mismo: el
-            administrador abría una pestaña para acabar en el panel del que
-            salía. Ya no hay nada que este panel no cubra. */}
-      </div>
+      {/* Aquí iban dos «Atajos»: la comprobación de salud, que ya está en la
+          cabecera, y Respaldos, que pasó a la fila «Respaldo reciente», donde
+          se ve si hace falta ir. Antes de eso hubo una tarjeta «CMS de
+          Payload» que abría /admin; esa interfaz se retiró (D-038) y la ruta
+          solo reenvía al panel. */}
     </div>
   )
 }

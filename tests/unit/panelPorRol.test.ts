@@ -154,6 +154,11 @@ const NIVEL_DE_PAGINA: Record<string, Nivel> = {
   'estructuras/page.tsx': 'editor',
   'usuarios/page.tsx': 'admin',
   'difusion/page.tsx': 'admin',
+  // Las fotos y los textos de la portada pública (P-007 E2): los ve cualquier visitante.
+  'medios-pagina/page.tsx': 'admin',
+  // Las cotizaciones de la portada (P-007 E3): datos de alguien de fuera y un asunto comercial.
+  'cotizaciones/page.tsx': 'admin',
+  'cotizaciones/[id]/page.tsx': 'admin',
   'respaldos/page.tsx': 'admin',
   'sistema/page.tsx': 'admin',
   'estadisticas/page.tsx': 'admin',

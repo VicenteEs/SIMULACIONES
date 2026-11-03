@@ -11,8 +11,9 @@
  * su acción (`exigirEdicionDe` o `exigirAdmin`), y las dos colecciones de la
  * revisión solo admiten al administrador por REST.
  */
+import { createHash } from 'node:crypto'
 import type { Payload } from 'payload'
-import { depurarDocumento, faltantes } from '@/admin/depurar'
+import { depurarDocumento, faltantes, sinIdentificadoresDeFila } from '@/admin/depurar'
 import { esquemaDe, type EsquemaDeColeccion } from '@/admin/esquema'
 import {
   MODULOS_EN_REVISION,
@@ -27,6 +28,21 @@ import {
   type OrigenDeContenido,
   type TiempoDeRevision,
 } from './revision'
+import {
+  CAMPOS_DE_FIRMA,
+  alguienDe,
+  esProfesion,
+  firmaComo,
+  firmasDe,
+  firmasQueFaltan,
+  laOtra,
+  porQueNoPuedeFirmar,
+  textoParaLaHuella,
+  tieneAlguna,
+  tieneLasDos,
+  type FirmasDeLaFicha,
+  type Profesion,
+} from './firmas'
 
 type Registro = Record<string, unknown>
 
@@ -41,7 +57,7 @@ export const esModuloEnRevision = (slug: unknown): slug is (typeof MODULOS_EN_RE
  * lee llegó por el listado o por una llamada a mano.
  */
 export const MENSAJE_DE_PUBLICAR_EN_REVISION =
-  'Esta ficha está en revisión: márquela como «Lista para publicar» y la publicará un administrador.'
+  'Esta ficha está en revisión: con la firma de un médico y la de un kinesiólogo queda lista, y la publicará un administrador.'
 
 /** El identificador de una relación, venga como venga. */
 const idDe = (valor: unknown): string | null => {
@@ -103,6 +119,43 @@ const entradaDeHistorial = (
  */
 const historialCon = (revision: Registro, ...nuevas: ReturnType<typeof entradaDeHistorial>[]) =>
   [...(Array.isArray(revision.historial) ? (revision.historial as Registro[]) : []), ...nuevas].slice(-200)
+
+/**
+ * La huella de lo que hay guardado de una ficha (D-240): lo último, borrador
+ * incluido, depurado con su esquema y sin los identificadores de fila, que no son
+ * contenido. Se lee de la base y no de lo que mandó el formulario para que la
+ * firma y el guardado la calculen exactamente igual: dos caminos distintos al
+ * mismo texto darían dos huellas, y una firma se borraría sin que nadie tocara
+ * nada.
+ */
+async function huellaGuardada(payload: Payload, esquema: EsquemaDeColeccion, documentoId: string): Promise<string> {
+  const documento = (await payload.findByID({
+    collection: esquema.slug as never,
+    id: documentoId,
+    depth: 0,
+    draft: true,
+    overrideAccess: true,
+  })) as unknown as Registro
+  return huellaDe(depurarDocumento(esquema, documento))
+}
+
+const huellaDe = (documento: Registro): string =>
+  createHash('sha256').update(textoParaLaHuella(sinIdentificadoresDeFila(documento))).digest('hex')
+
+/** Lo que se escribe para dejar una ficha sin firmas. */
+const SIN_FIRMAS = {
+  [CAMPOS_DE_FIRMA.medico.por]: null,
+  [CAMPOS_DE_FIRMA.medico.en]: null,
+  [CAMPOS_DE_FIRMA.kinesiologo.por]: null,
+  [CAMPOS_DE_FIRMA.kinesiologo.en]: null,
+  huellaFirmada: null,
+} as const
+
+/** «la firma de un médico», «las dos firmas»: de quién eran las que se borran. */
+const lasFirmasDe = (firmas: FirmasDeLaFicha): string =>
+  tieneLasDos(firmas)
+    ? 'las dos firmas'
+    : `la firma de ${alguienDe(firmas.medico !== null ? 'medico' : 'kinesiologo')}`
 
 export interface DatosDeOrigen {
   origen?: OrigenDeContenido
@@ -213,13 +266,21 @@ export async function registrarParaRevision(
  * guarde, el estado.
  *
  * Un revisor que guarda una ficha pendiente o devuelta la pone «en revisión».
- * Uno que guarda una ya validada —o publicada— la devuelve a «en revisión»: lo
- * validado era otro texto, y el administrador tiene que saber que ha cambiado
- * después de la firma. El administrador que retoca antes de publicar no le
- * cambia el estado; su guardado queda como última edición.
+ *
+ * **Una ficha con firmas (D-240)** las pierde si el guardado cambió lo firmado,
+ * lo guarde quien lo guarde, administrador incluido: una firma dice «este texto
+ * lo revisé», y otro texto no lo revisó nadie. Si estaba lista o publicada,
+ * vuelve a «en revisión». Guardar sin cambiar nada —el mismo texto, la misma
+ * huella— no borra nada. Antes de las firmas, el administrador podía retocar una
+ * ficha validada sin reabrirla (D-142); con dos profesiones firmando, ese
+ * retoque publicaría con sus nombres un texto que no vieron.
+ *
+ * Una ficha validada antes de las firmas no tiene huella, y sigue la regla de
+ * siempre: la reabre el guardado de un revisor, no el del administrador.
  *
  * `publicada` es el guardado con «Publicar» del administrador: entonces la
- * ficha pasa a publicada, y si nadie la había validado, se anota.
+ * ficha pasa a publicada, y si no tenía las dos firmas —o las tenía sobre otro
+ * texto—, se anota.
  */
 export async function anotarGuardado(
   payload: Payload,
@@ -243,20 +304,46 @@ export async function anotarGuardado(
   const nuevas: ReturnType<typeof entradaDeHistorial>[] = []
   let nuevoEstado: EstadoDeRevision = estado
   const extra: Registro = {}
+  const firmas = firmasDe(revision)
+  // Solo se lee la ficha otra vez si hay firmas que defender: es una consulta
+  // más por guardado, y el autoguardado guarda cada pocos segundos.
+  const firmasCaducadas =
+    tieneAlguna(firmas) &&
+    (typeof revision.huellaFirmada !== 'string' ||
+      revision.huellaFirmada !== (await huellaGuardada(payload, entrada.esquema, entrada.documentoId)))
+  if (firmasCaducadas) Object.assign(extra, SIN_FIRMAS)
   if (entrada.publicada) {
+    const validada = estado === 'lista' && !firmasCaducadas
     nuevoEstado = 'publicada'
     extra.publicadaEn = new Date().toISOString()
     extra.publicadaPor = Number(entrada.usuarioId)
-    extra.publicadaSinValidar = estado !== 'lista'
+    extra.publicadaSinValidar = !validada
     nuevas.push(
       entradaDeHistorial('publicada', entrada.usuarioId, {
         porcentaje: medida.porcentaje,
-        detalle: estado !== 'lista' ? 'Publicada sin que nadie la validara.' : undefined,
+        detalle: validada
+          ? undefined
+          : firmasCaducadas
+            ? `Publicada con cambios posteriores a ${lasFirmasDe(firmas)}, que se borraron.`
+            : tieneAlguna(firmas)
+              ? `Publicada sin la firma de ${alguienDe(firmasQueFaltan(firmas)[0])}.`
+              : 'Publicada sin que nadie la validara.',
+      }),
+    )
+  } else if (firmasCaducadas) {
+    nuevoEstado = 'en-revision'
+    nuevas.push(
+      entradaDeHistorial('reabierta', entrada.usuarioId, {
+        porcentaje: medida.porcentaje,
+        detalle:
+          estado === 'publicada'
+            ? `Se editó después de publicarla: se borraron ${lasFirmasDe(firmas)} y el cambio queda en borrador hasta que se vuelva a firmar.`
+            : `Se editó después de firmarla: se borraron ${lasFirmasDe(firmas)} y hay que volver a firmarla.`,
       }),
     )
   } else if (estado === 'pendiente' || estado === 'devuelta') {
     nuevoEstado = 'en-revision'
-  } else if ((estado === 'lista' || estado === 'publicada') && !entrada.esAdmin) {
+  } else if ((estado === 'lista' || estado === 'publicada') && !entrada.esAdmin && !tieneAlguna(firmas)) {
     nuevoEstado = 'en-revision'
     nuevas.push(
       entradaDeHistorial('reabierta', entrada.usuarioId, {
@@ -318,14 +405,17 @@ export async function anotarPublicacion(
     })
     return
   }
-  // Retirada: vuelve a donde estaba antes de publicarse. Si alguien la había
-  // validado, sigue validada; si no, sigue en revisión.
+  // Retirada: vuelve a donde estaba antes de publicarse. Con las dos firmas,
+  // lista; si no, en revisión, a esperar la que falta. Antes miraba `listaEn`,
+  // que se conserva como la foto de la última validación aunque después se
+  // reabra, y una ficha reabierta y retirada volvía a «lista» sin que nadie la
+  // hubiera validado otra vez.
   await payload.update({
     collection: 'revisiones',
     id: String(revision.id),
     overrideAccess: true,
     data: {
-      estado: revision.listaEn ? 'lista' : 'en-revision',
+      estado: tieneLasDos(firmasDe(revision)) ? 'lista' : 'en-revision',
       historial: historialCon(revision, entradaDeHistorial('retirada', entrada.usuarioId)),
     } as never,
   })
@@ -597,10 +687,22 @@ export interface ResultadoDeValidar {
   juicio: JuicioDeLaValidacion
   porcentaje: number
   segundosActivos: number
+  /** Con qué profesión firmó. */
+  profesion: Profesion
+  /** Con esta firma están las dos, y la ficha quedó lista para publicar. */
+  completa: boolean
 }
 
 /**
- * «Listo para publicar»: el revisor da la ficha por buena.
+ * «Firmar como médico» o «como kinesiólogo» (D-240), lo que antes era «Listo
+ * para publicar»: el revisor da la ficha por buena con la firma de su
+ * profesión, que dice su cuenta y no él. Con la primera firma la ficha sigue en
+ * revisión; con la segunda queda lista, y `listaPor`, `listaEn` y los números
+ * «al validar» son los de quien completó: es el momento en que la ficha pasó a
+ * poder publicarse, que es lo que siempre midieron. Los de la primera quedan en
+ * su fila del historial. Una ficha ya publicada sin firmas también se puede
+ * firmar, para ponerle las firmas a lo que se publicó antes de que existieran;
+ * no cambia de estado.
  *
  * Primero se juzga con lo que el propio revisor ha dedicado a la ficha —sus
  * sesiones, no las de otros— y, si parece hecha sin leer
@@ -624,10 +726,17 @@ export async function validarRevision(
 ): Promise<ResultadoDeValidar> {
   const revision = await revisionDe(payload, entrada.esquema.slug, entrada.documentoId, { conOriginal: true })
   if (!revision) throw new Error('Esta ficha no está en revisión.')
-  if (revision.estado === 'lista') throw new Error('Esta ficha ya está marcada como lista para publicar.')
-  // Publicada y sin cambios no hay nada que validar: si alguien la edita, el
-  // guardado la devuelve a «en revisión» (`anotarGuardado`) y entonces sí.
-  if (revision.estado === 'publicada') throw new Error('Esta ficha ya está publicada.')
+  const cuenta = (await payload.findByID({
+    collection: 'usuarios',
+    id: entrada.usuarioId,
+    depth: 0,
+    overrideAccess: true,
+    select: { profesion: true },
+  })) as unknown as Registro
+  let firmas = firmasDe(revision)
+  const motivo = porQueNoPuedeFirmar(firmas, { id: entrada.usuarioId, profesion: cuenta.profesion })
+  if (motivo !== null) throw new Error(motivo)
+  const profesion = cuenta.profesion as Profesion
 
   const documento = depurarDocumento(
     entrada.esquema,
@@ -658,28 +767,72 @@ export async function validarRevision(
   const medida = medirEdicion(palabrasPorSeccion(entrada.esquema, revision.original as Registro), secciones)
 
   if (juicio.rapida && !entrada.confirmada) {
-    return { necesitaConfirmacion: true, juicio, porcentaje: medida.porcentaje, segundosActivos: tiempo.segundosActivos }
+    return {
+      necesitaConfirmacion: true,
+      juicio,
+      porcentaje: medida.porcentaje,
+      segundosActivos: tiempo.segundosActivos,
+      profesion,
+      completa: false,
+    }
   }
 
+  // La otra firma vale solo si es del mismo texto. Un guardado que lo cambia ya
+  // la borra (`anotarGuardado`); esto cubre lo que no pasó por ahí —una
+  // escritura a mano en la base, un guardado que falló a medias—, para que una
+  // firma vieja no complete una ficha que su firmante no vio así.
+  const huella = huellaDe(documento)
+  const otra = laOtra(profesion)
+  const otraVigente = firmas[otra] !== null && revision.huellaFirmada === huella
+  if (!otraVigente) firmas = { ...firmas, [otra]: null }
+  const completa = otraVigente
+  const ahora = new Date().toISOString()
   const nota = entrada.nota?.trim().slice(0, 2000) || null
   const vistasConContenido = conContenido.filter((s) => vistas.includes(s)).length
+  const conProfesion = (texto: string) => `${firmaComo(profesion).replace(/^c/, 'C')}: ${texto}`
+  // La señal y la nota de la primera firma no se pierden con la segunda: se
+  // suman, cada una con su profesión delante.
+  const sumar = (anterior: unknown, nuevo: string | null) =>
+    [otraVigente && typeof anterior === 'string' ? anterior : '', nuevo === null ? '' : conProfesion(nuevo)]
+      .filter(Boolean)
+      .join('\n') || null
+  const campos = CAMPOS_DE_FIRMA[profesion]
+  const yaPublicada = revision.estado === 'publicada'
+  // Publicada o validada antes de que hubiera firmas, la ficha se queda donde
+  // está mientras le falte una: firmarla es completarla, y una primera firma que
+  // la bajara a «en revisión» castigaría a quien vino a ponerla.
+  const estado: EstadoDeRevision = yaPublicada
+    ? 'publicada'
+    : completa
+      ? 'lista'
+      : revision.estado === 'lista'
+        ? 'lista'
+        : 'en-revision'
   await payload.update({
     collection: 'revisiones',
     id: String(revision.id),
     overrideAccess: true,
     data: {
-      estado: 'lista',
-      listaPor: Number(entrada.usuarioId),
-      listaEn: new Date().toISOString(),
-      segundosActivosAlValidar: tiempo.segundosActivos,
-      segundosAbiertosAlValidar: tiempo.segundosAbiertos,
-      porcentajeAlValidar: medida.porcentaje,
-      ritmoAlValidar: juicio.ritmo,
-      seccionesVistasAlValidar: vistasConContenido,
-      seccionesConContenido: conContenido.length,
-      validacionRapida: juicio.rapida,
-      motivosDeAlerta: juicio.motivos.length > 0 ? juicio.motivos.join('; ') : null,
-      notaDeRevision: nota,
+      ...(otraVigente ? {} : { [CAMPOS_DE_FIRMA[otra].por]: null, [CAMPOS_DE_FIRMA[otra].en]: null }),
+      [campos.por]: Number(entrada.usuarioId),
+      [campos.en]: ahora,
+      huellaFirmada: huella,
+      estado,
+      ...(completa
+        ? {
+            listaPor: Number(entrada.usuarioId),
+            listaEn: ahora,
+            segundosActivosAlValidar: tiempo.segundosActivos,
+            segundosAbiertosAlValidar: tiempo.segundosAbiertos,
+            porcentajeAlValidar: medida.porcentaje,
+            ritmoAlValidar: juicio.ritmo,
+            seccionesVistasAlValidar: vistasConContenido,
+            seccionesConContenido: conContenido.length,
+          }
+        : {}),
+      validacionRapida: (otraVigente && revision.validacionRapida === true) || juicio.rapida,
+      motivosDeAlerta: sumar(revision.motivosDeAlerta, juicio.motivos.length > 0 ? juicio.motivos.join('; ') : null),
+      notaDeRevision: sumar(revision.notaDeRevision, nota),
       palabrasActuales: medida.palabrasActuales,
       palabrasQuitadas: medida.palabrasQuitadas,
       palabrasNuevas: medida.palabrasNuevas,
@@ -687,17 +840,28 @@ export async function validarRevision(
       porSeccion: medida.porSeccion,
       historial: historialCon(
         revision,
-        entradaDeHistorial('lista', entrada.usuarioId, {
+        entradaDeHistorial(completa && !yaPublicada ? 'lista' : 'firmada', entrada.usuarioId, {
           porcentaje: medida.porcentaje,
           segundosActivos: tiempo.segundosActivos,
-          detalle: [juicio.rapida ? `Señalada: ${juicio.motivos.join('; ')}.` : '', nota ?? '']
+          detalle: [
+            `${conProfesion(completa ? 'con las dos firmas' : `falta la de ${alguienDe(otra)}`)}.`,
+            juicio.rapida ? `Señalada: ${juicio.motivos.join('; ')}.` : '',
+            nota ?? '',
+          ]
             .filter(Boolean)
             .join(' '),
         }),
       ),
     } as never,
   })
-  return { necesitaConfirmacion: false, juicio, porcentaje: medida.porcentaje, segundosActivos: tiempo.segundosActivos }
+  return {
+    necesitaConfirmacion: false,
+    juicio,
+    porcentaje: medida.porcentaje,
+    segundosActivos: tiempo.segundosActivos,
+    profesion,
+    completa,
+  }
 }
 
 /** El administrador devuelve una ficha al revisor, con el porqué. */
@@ -716,6 +880,9 @@ export async function devolverRevision(
     overrideAccess: true,
     data: {
       estado: 'devuelta',
+      // Devuelta, lo firmado no convenció: las firmas se van con ella, y quien
+      // la corrija la vuelve a firmar con la otra profesión (D-240).
+      ...SIN_FIRMAS,
       motivoDeDevolucion: entrada.motivo,
       devoluciones: Number(revision.devoluciones ?? 0) + 1,
       historial: historialCon(revision, entradaDeHistorial('devuelta', entrada.usuarioId, { detalle: entrada.motivo })),
@@ -783,6 +950,12 @@ export interface RevisionParaElEditor {
   motivosDeAlerta: string | null
   notaDeRevision: string | null
   motivoDeDevolucion: string | null
+  /** Las dos firmas, con el nombre de quien firmó (D-240). */
+  firmas: FirmasDeLaFicha
+  /** La profesión de quien abre la ficha, que decide qué firma pondría. */
+  miProfesion: Profesion | null
+  /** Por qué quien abre la ficha no puede firmarla, o `null` si puede. */
+  noPuedeFirmar: string | null
   /** Lo que lleva dedicado quien abre la ficha, para enseñárselo. */
   mio: { segundosActivos: number; vistas: string[] }
   /** Solo para el administrador: la medida contra el original. */
@@ -808,7 +981,7 @@ export async function revisionParaElEditor(
   payload: Payload,
   coleccion: string,
   documentoId: string,
-  usuario: { id: string; esAdmin: boolean },
+  usuario: { id: string; esAdmin: boolean; profesion?: unknown },
 ): Promise<RevisionParaElEditor | null> {
   if (!esModuloEnRevision(coleccion)) return null
   const { docs } = await payload.find({
@@ -824,7 +997,11 @@ export async function revisionParaElEditor(
   const tiempo = await tiempoDe(payload, coleccion, documentoId, usuario.id)
   const asignada = revision.asignadaA as Registro | null
   const texto = (valor: unknown) => (typeof valor === 'string' && valor.trim() !== '' ? valor : null)
+  const firmas = firmasDe(revision)
   return {
+    firmas,
+    miProfesion: esProfesion(usuario.profesion) ? usuario.profesion : null,
+    noPuedeFirmar: porQueNoPuedeFirmar(firmas, { id: usuario.id, profesion: usuario.profesion }),
     estado: revision.estado as EstadoDeRevision,
     origen: (revision.origen as OrigenDeContenido) ?? 'ia',
     libro: texto(revision.libro),
@@ -869,6 +1046,8 @@ export interface AuditorDeLaFicha {
   estado: EstadoDeRevision
   auditor: string | null
   fecha: string | null
+  /** Las dos firmas, con nombre y día (D-240). */
+  firmas: FirmasDeLaFicha
 }
 
 export async function auditorDeLaFicha(
@@ -883,7 +1062,15 @@ export async function auditorDeLaFicha(
     limit: 1,
     depth: 1,
     overrideAccess: true,
-    select: { estado: true, listaPor: true, listaEn: true },
+    select: {
+      estado: true,
+      listaPor: true,
+      listaEn: true,
+      firmaMedicoPor: true,
+      firmaMedicoEn: true,
+      firmaKinesiologoPor: true,
+      firmaKinesiologoEn: true,
+    },
   })
   const revision = docs[0] as unknown as Registro | undefined
   if (!revision) return null
@@ -896,6 +1083,7 @@ export async function auditorDeLaFicha(
     estado: revision.estado as EstadoDeRevision,
     auditor: nombre === '' ? null : nombre,
     fecha: typeof revision.listaEn === 'string' ? revision.listaEn : null,
+    firmas: firmasDe(revision),
   }
 }
 

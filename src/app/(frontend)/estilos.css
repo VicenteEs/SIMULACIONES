@@ -267,7 +267,7 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
    a agrandar el logotipo tocaba una, recargaba y no veía nada. Queda una sola.
 
    54 px dentro de un rectángulo de 64 caben en los 76 de la barra con seis de aire por lado. De la altura de la barra
-   cuelgan `.ficha-seccion { scroll-margin-top }`, `.indice-ficha { top }` y las barras pegajosas de más abajo, y todas leen
+   cuelgan `.ficha-seccion { scroll-margin-top }`, `.ficha-lateral { top }` y las barras pegajosas de más abajo, y todas leen
    `--alto-barra`. */
 .marca-logo { height: 54px; width: 54px; object-fit: contain; display: block; flex-shrink: 0; }
 .marca-sub { display: block; font-family: var(--mono); font-size: var(--t-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--pizarra); font-weight: 500; margin-top: 2px; }
@@ -486,25 +486,14 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
   margin-top: var(--e-4);
 }
 
+/* Las dos firmas de la ficha (D-240), entre el título y sus acciones. */
+.firmas-de-la-ficha {
+  display: flex; align-items: flex-start; gap: var(--e-2);
+  margin: var(--e-3) 0 0; font-size: var(--t-sm); color: var(--pizarra);
+}
+.firmas-de-la-ficha svg { flex: none; margin-top: 2px; color: var(--verde); }
+
 /* ---------- rejilla de fichas ---------- */
-.grupo-segmento { margin-bottom: var(--e-10); scroll-margin-top: 140px; }
-.grupo-segmento > h3 {
-  display: flex; align-items: baseline; gap: var(--e-3);
-  font-size: var(--t-md); margin-bottom: var(--e-4); padding-bottom: var(--e-2);
-  border-bottom: 1px solid var(--linea-suave);
-}
-/* La región anatómica (D-157): el nivel por encima de los segmentos en el examen
-   físico y en la biblioteca. Un rótulo con regla propia y más peso que el del
-   segmento, para que se lea de un vistazo dónde acaba el miembro superior y
-   empieza el inferior sin sumar una caja más a la página. */
-.region-anatomica { margin-bottom: var(--e-8); }
-.region-titulo {
-  display: flex; align-items: center; gap: var(--e-3);
-  margin: 0 0 var(--e-5); font-size: var(--t-lg);
-  color: var(--acento, var(--marca)); letter-spacing: 0;
-}
-.region-titulo::after { content: ""; flex: 1; height: 2px; background: var(--acento-tenue, var(--marca-tenue)); }
-.grupo-segmento-cuenta { font-size: var(--t-sm); font-weight: 500; color: var(--mudo); letter-spacing: 0; }
 
 /* Una sola declaración de la rejilla y de la tarjeta. Hubo dos —una más
    estrecha que no pintaba nada porque un bloque «Mejoras de Diseño», 460
@@ -565,6 +554,21 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
 }
 .tarjeta-ficha-accion svg { transition: transform var(--dur-rapida) ease; }
 .tarjeta-ficha:hover .tarjeta-ficha-accion svg { transform: translateX(3px); }
+/* La cabecera con imagen (D-237): a sangre sobre el relleno de la tarjeta, con
+   el filete del módulo encima, como en Penpot. El recorte lo hace
+   `FiguraDelSegmento`; aquí solo se le da el sitio. */
+.tarjeta-ficha-figura {
+  position: relative; display: block; height: 150px; overflow: hidden;
+  margin: calc(-1 * var(--e-5)) calc(-1 * var(--e-5)) var(--e-2);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--degradado-marino);
+}
+.tarjeta-ficha-antetitulo {
+  font-family: var(--mono); font-size: var(--t-xs); font-weight: 600; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--acento, var(--marca));
+}
+.figura-segmento { position: absolute; inset: 0; display: block; }
+.figura-segmento img { position: absolute; left: 50%; top: 50%; max-width: none; height: auto; }
 
 /* ---------- secciones de la ficha ---------- */
 /* Cada sección lleva un <h2> de verdad, de 22 px, y encima el rótulo pequeño
@@ -722,88 +726,362 @@ figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-
 .fase-criterio { color: var(--pizarra); font-size: var(--t-sm); }
 
 /* ---------- examen físico ---------- */
-/* Hasta trescientas maniobras en una sola página: un buscador, el índice de
-   segmentos y cada maniobra plegable. Sin esto, llegar al hombro era bajar
-   por toda la columna cervical. */
-.herramientas-maniobras {
-  position: sticky; top: var(--alto-barra); z-index: 5;
-  display: flex; flex-direction: column; gap: var(--e-3);
-  margin: 0 calc(-1 * var(--e-2)) var(--e-6); padding: var(--e-3) var(--e-2);
-  background: var(--papel); border-bottom: 1px solid var(--linea-suave);
+/* Lista y detalle, como el tablero de Penpot (D-237): las fichas de segmento y
+   el buscador arriba, la lista del segmento a la izquierda y la maniobra
+   elegida a la derecha. Antes eran todas las maniobras abiertas una debajo de
+   otra, y llegar al hombro era bajar por toda la columna cervical. */
+.examen-herramientas {
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+  gap: var(--e-3) var(--e-5); margin-bottom: var(--e-6);
 }
-.indice-segmentos { display: flex; gap: var(--e-2); overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
-.indice-segmentos a {
-  flex: none; display: inline-flex; align-items: center; gap: var(--e-2);
-  min-height: 34px; padding: 0 var(--e-3); border-radius: var(--r-full);
-  border: 1px solid var(--linea); background: var(--superficie);
-  color: var(--pizarra); font-size: var(--t-sm); text-decoration: none; white-space: nowrap;
-}
-.indice-segmentos a:hover { border-color: var(--acento, var(--marca)); color: var(--acento, var(--marca)); }
-.indice-segmentos-cuenta { font-size: var(--t-xs); color: var(--mudo); }
-/* El índice por regiones (D-157): el nombre de la región y, a continuación, sus
-   segmentos, todo en la misma fila que se desplaza. Una raya fina separa una
-   región de la siguiente. */
-.indice-region { flex: none; display: flex; align-items: center; gap: var(--e-2); }
-.indice-region + .indice-region { padding-left: var(--e-3); border-left: 1px solid var(--linea); }
-.indice-region-titulo {
-  font-size: var(--t-xs); font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--mudo); white-space: nowrap;
-}
-.herramientas-maniobras .recuento { display: flex; align-items: center; gap: var(--e-2); margin: 0; }
+.examen-herramientas .fichas-de-filtro { flex: 1 1 420px; margin: 0; }
+.examen-herramientas .campo-busqueda { flex: 0 1 340px; }
 
+.examen-cuerpo {
+  display: grid; grid-template-columns: minmax(240px, 360px) minmax(0, 1fr);
+  gap: var(--e-6); align-items: start;
+}
+/* La lista se queda a la vista mientras se baja por una técnica larga, y si
+   el segmento tiene muchas maniobras se desplaza ella sola. */
+.examen-lista {
+  position: sticky; top: calc(var(--alto-barra) + var(--e-4));
+  max-height: calc(100vh - var(--alto-barra) - var(--e-8)); overflow-y: auto;
+  padding: 2px; margin: -2px;
+}
+.examen-lista-titulo {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--e-3);
+  font-size: var(--t-md); margin: 0 0 var(--e-3);
+}
+.examen-lista-cuenta { font-size: var(--t-sm); font-weight: 500; color: var(--mudo); }
+.examen-lista ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e-2); }
+.examen-fila {
+  display: flex; align-items: center; gap: var(--e-3);
+  padding: var(--e-3) var(--e-4); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
+  background: var(--superficie); box-shadow: var(--sombra-1);
+  color: var(--tinta); text-decoration: none;
+  transition: border-color var(--dur) var(--curva);
+}
+.examen-fila:hover { border-color: var(--acento, var(--marca)); }
+.examen-fila:focus-visible { outline: 2px solid var(--acento, var(--marca)); outline-offset: 2px; }
+/* El borde más grueso sin mover el contenido: se resta lo que crece. */
+.examen-fila[aria-current='true'] {
+  border: 2px solid var(--acento, var(--marca));
+  padding: calc(var(--e-3) - 1px) calc(var(--e-4) - 1px);
+}
+.examen-fila-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.examen-fila-nombre { font-weight: 600; }
+.examen-fila-evalua {
+  font-size: var(--t-sm); color: var(--mudo);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.examen-fila .insignia { background: var(--acento-tenue, var(--marca-tenue)); color: var(--acento, var(--marca)); border-color: transparent; }
+.examen-fila-leida { flex: none; display: inline-flex; color: var(--verde); }
+.examen-fila-flecha { flex: none; color: var(--mudo); }
+.examen-sin-resultados {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--e-2);
+  padding: var(--e-5) var(--e-4); border: 1px dashed var(--linea); border-radius: var(--r-lg);
+  color: var(--pizarra);
+}
+.examen-sin-resultados p { margin: 0; }
+
+.examen-detalle { min-width: 0; }
 .maniobra {
-  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
-  box-shadow: var(--sombra-1); margin-bottom: var(--e-3); scroll-margin-top: 150px;
+  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-xl);
+  box-shadow: var(--sombra-1); padding: var(--e-6);
+  scroll-margin-top: calc(var(--alto-barra) + var(--e-4));
 }
 .maniobra[hidden] { display: none; }
+.maniobra-video { margin: 0 0 var(--e-6); }
+.maniobra-video .figura { margin: 0; }
+.maniobra-video video { display: block; width: 100%; border-radius: var(--r-lg); background: var(--lienzo-3d); }
 .maniobra-cabecera {
-  display: flex; align-items: center; gap: var(--e-3);
-  padding: var(--e-4) var(--e-5); cursor: pointer; list-style: none; border-radius: var(--r-lg);
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+  gap: var(--e-3) var(--e-5); margin-bottom: var(--e-5);
 }
-.maniobra-cabecera::-webkit-details-marker { display: none; }
-.maniobra-cabecera:hover { background: var(--superficie-2); }
-.maniobra-cabecera h4 { font-size: var(--t-md); flex: 1; }
-.maniobra-flecha { flex: none; color: var(--mudo); transform: rotate(-90deg); transition: transform var(--dur) var(--curva); }
-.maniobra[open] > .maniobra-cabecera .maniobra-flecha { transform: none; }
-.maniobra[open] > .maniobra-cabecera { border-bottom: 1px solid var(--linea-suave); border-radius: var(--r-lg) var(--r-lg) 0 0; }
-.maniobra-cuerpo { padding: var(--e-5); }
-.maniobra-pie {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2);
-  padding: var(--e-3) var(--e-5); border-top: 1px solid var(--linea-suave); background: var(--superficie-2);
-  border-radius: 0 0 var(--r-lg) var(--r-lg);
+.maniobra-antetitulo {
+  font-family: var(--mono); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.1em;
+  font-weight: 600; color: var(--acento, var(--marca)); margin: 0 0 var(--e-1);
 }
-.maniobra-pie .comentar { flex-basis: 100%; }
-.maniobra-pie .comentar:has(> .boton-comentar) { flex-basis: auto; }
-.ficha-datos { display: grid; grid-template-columns: max-content 1fr; gap: var(--e-2) var(--e-5); margin: 0 0 var(--e-4); font-size: var(--t-base); }
-.ficha-datos dt { font-family: var(--mono); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: var(--acento, var(--marca)); padding-top: 3px; }
-.ficha-datos dd { margin: 0; }
+.maniobra-titulo h3 { font-size: var(--t-xl); margin: 0; }
+/* El foco llega aquí por código al elegir la maniobra: el anillo sobra con el
+   ratón y se queda con el teclado. */
+.maniobra-titulo h3:focus:not(:focus-visible) { outline: none; }
+.maniobra-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2); }
+.maniobra-claves {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--e-3); margin-bottom: var(--e-6);
+}
+.maniobra-clave { background: var(--superficie-2); border-radius: var(--r-lg); padding: var(--e-4); font-size: var(--t-sm); }
+.maniobra-clave h4 { display: flex; align-items: center; gap: var(--e-2); font-size: var(--t-base); margin: 0 0 var(--e-2); }
+.maniobra-clave h4 svg { flex: none; color: var(--acento, var(--marca)); }
+.maniobra-clave p { margin: 0 0 var(--e-2); }
+.maniobra-clave p:last-child, .maniobra-clave div > p:last-child { margin-bottom: 0; }
+.maniobra-tecnica { margin-bottom: var(--e-5); }
+.maniobra-tecnica h4 { font-size: var(--t-md); margin: 0 0 var(--e-3); }
+/* Los pasos de la técnica con su número en un círculo, como en Penpot: la
+   técnica se escribe como lista numerada en el editor, y así se lee como una
+   secuencia y no como un párrafo con cifras. */
+.maniobra-tecnica ol { list-style: none; counter-reset: paso-de-maniobra; padding: 0; margin: 0 0 var(--e-3); }
+.maniobra-tecnica ol > li { counter-increment: paso-de-maniobra; position: relative; padding-left: 2.4rem; margin-bottom: var(--e-3); min-height: 1.7rem; }
+.maniobra-tecnica ol > li::before {
+  content: counter(paso-de-maniobra); position: absolute; left: 0; top: 0;
+  width: 1.7rem; height: 1.7rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--acento-tenue, var(--marca-tenue)); color: var(--acento, var(--marca));
+  font-size: var(--t-xs); font-weight: 700;
+}
+.maniobra-pie { margin-top: var(--e-5); padding-top: var(--e-4); border-top: 1px solid var(--linea-suave); }
+.maniobra-vecinas { display: flex; justify-content: space-between; gap: var(--e-3); margin-top: var(--e-4); }
+.maniobra-vecinas a {
+  display: inline-flex; align-items: center; gap: var(--e-2); min-width: 0;
+  padding: var(--e-2) var(--e-3); border-radius: var(--r-lg);
+  color: var(--acento, var(--marca)); font-weight: 600; text-decoration: none;
+}
+.maniobra-vecinas a:hover { background: var(--acento-tenue, var(--marca-tenue)); }
+.maniobra-vecinas a:focus-visible { outline: 2px solid var(--acento, var(--marca)); outline-offset: 2px; }
+.maniobra-vecinas a > span { display: flex; flex-direction: column; }
+.maniobra-vecinas a svg { flex: none; }
+.maniobra-vecinas-siguiente { margin-left: auto; text-align: right; }
+.maniobra-vecinas-rotulo { font-size: var(--t-xs); font-weight: 500; color: var(--mudo); text-transform: uppercase; letter-spacing: 0.06em; }
+/* En una columna la lista va encima y el detalle debajo; quien elige una
+   maniobra baja hasta ella (`ManiobrasPorSegmento`, `UNA_COLUMNA`). */
+@media (max-width: 900px) {
+  .examen-cuerpo { grid-template-columns: minmax(0, 1fr); }
+  .examen-lista { position: static; max-height: none; overflow: visible; }
+}
+/* En papel sale la maniobra que se está mirando, a todo el ancho: la lista es
+   un `<nav>` y ya se oculta con los demás, pero la rejilla seguía reservándole
+   su columna y la maniobra se imprimía en 360 px. */
+@media print {
+  .examen-cuerpo { display: block; }
+  .maniobra { border: 0; box-shadow: none; padding: 0; }
+}
 
-/* ---------- pasos AO ---------- */
-/* La secuencia quirúrgica como línea de tiempo numerada, el mismo gesto de
-   `.fases`: el número en un círculo sobre el hilo que une los pasos. Antes
-   era una pila de tarjetas idénticas y el «Paso 3» se leía como un rótulo
-   más. */
-.pasos-ao { list-style: none; padding: 0; margin: 0 0 var(--e-8); counter-reset: paso; }
-.pasos-ao > li { position: relative; padding: 0 0 var(--e-8) var(--e-12); }
-.pasos-ao > li::before {
-  content: ''; position: absolute; left: 15px; top: 34px; bottom: 0; width: 2px; background: var(--linea);
+/* ---------- técnica AO, paso a paso ---------- */
+/* Un paso cada vez, como el tablero de Penpot (D-237): el progreso arriba, la
+   lista de pasos a la izquierda, el modelo o la imagen en el centro y el texto
+   a la derecha. Antes era la secuencia entera como línea de tiempo, con un
+   visor 3D por paso montado a la vez. */
+.paso-a-paso { margin: var(--e-6) 0 var(--e-10); }
+.paso-a-paso-barra {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+  gap: var(--e-4) var(--e-6); margin-bottom: var(--e-5);
 }
-.pasos-ao > li:last-child::before { display: none; }
-.paso-circulo {
-  position: absolute; left: 0; top: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; border-radius: 50%;
-  background: var(--acento, var(--marca)); color: var(--superficie);
-  font-weight: 700; font-size: var(--t-sm);
+.paso-a-paso-progreso {
+  flex: 1 1 420px; display: grid; grid-template-columns: 1fr auto; align-items: baseline;
+  gap: var(--e-2) var(--e-4);
 }
-.paso-cuerpo {
-  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
-  box-shadow: var(--sombra-1); padding: var(--e-5) var(--e-6);
+.paso-a-paso-progreso p { margin: 0; }
+.paso-a-paso-porcentaje { font-weight: 700; color: var(--acento, var(--marca)); }
+.paso-a-paso-carril {
+  grid-column: 1 / -1; display: block; height: 8px; border-radius: var(--r-full);
+  background: var(--linea-suave); overflow: hidden;
 }
+.paso-a-paso-carril > span {
+  display: block; height: 100%; border-radius: inherit; background: var(--acento, var(--marca));
+  transition: width var(--dur) var(--curva);
+}
+.paso-a-paso-acciones { display: flex; flex-wrap: wrap; gap: var(--e-2); }
+
+.paso-a-paso-cuerpo {
+  display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: var(--e-5); align-items: start;
+}
+.paso-a-paso-lista {
+  display: flex; flex-direction: column; gap: var(--e-1);
+  padding: var(--e-3); border: 1px solid var(--linea-suave); border-radius: var(--r-xl);
+  background: var(--superficie); box-shadow: var(--sombra-1);
+  position: sticky; top: calc(var(--alto-barra) + var(--e-4));
+}
+.paso-a-paso-paso {
+  display: flex; align-items: center; gap: var(--e-3); width: 100%;
+  padding: var(--e-2) var(--e-3); border: 0; border-radius: var(--r-lg); background: none;
+  color: var(--pizarra); font: inherit; text-align: left; cursor: pointer;
+}
+.paso-a-paso-paso:hover { background: var(--superficie-2); }
+.paso-a-paso-paso:focus-visible { outline: 2px solid var(--acento, var(--marca)); outline-offset: 1px; }
+.paso-a-paso-paso[aria-selected='true'] { background: var(--acento-tenue, var(--marca-tenue)); color: var(--tinta); font-weight: 650; }
+.paso-a-paso-marca {
+  flex: none; display: inline-grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1.5px solid var(--linea); background: var(--superficie);
+  font-size: var(--t-xs); font-weight: 700; color: var(--mudo);
+}
+.paso-a-paso-paso[data-estado='hecho'] .paso-a-paso-marca { border-color: var(--verde); background: var(--verde); color: var(--superficie); }
+.paso-a-paso-paso[data-estado='actual'] .paso-a-paso-marca { border-color: var(--acento, var(--marca)); background: var(--acento, var(--marca)); color: var(--superficie); }
+
+.paso-a-paso-panel { min-width: 0; }
+.paso-a-paso-panel[data-con-visual] {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--e-5); align-items: start;
+}
+.paso-a-paso-visual { min-width: 0; }
+.paso-a-paso-visual .visor-3d-marco { border-radius: var(--r-xl); overflow: hidden; }
+.paso-a-paso-figura {
+  position: relative; margin: 0; aspect-ratio: 4 / 5; overflow: hidden;
+  border-radius: var(--r-xl); background: linear-gradient(180deg, #0b1838, #13306b);
+}
+.paso-a-paso-figura figcaption {
+  position: absolute; left: var(--e-4); top: var(--e-4);
+  display: inline-flex; align-items: center; gap: var(--e-2);
+  padding: var(--e-1) var(--e-3); border-radius: var(--r-full);
+  background: var(--superficie); color: var(--tinta); font-size: var(--t-sm); font-weight: 600;
+}
+.paso-a-paso-texto { display: flex; flex-direction: column; gap: var(--e-4); min-width: 0; }
+.paso-a-paso-titulo { display: flex; flex-direction: column; gap: var(--e-1); font-size: var(--t-lg); margin: 0; }
 .paso-numero { font-family: var(--mono); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--acento, var(--marca)); font-weight: 600; }
-.pasos-ao h2 { font-size: var(--t-lg); margin: var(--e-1) 0 var(--e-3); }
-.paso-cuerpo .advertencia { margin: var(--e-4) 0; }
-.nota-tecnica { font-size: var(--t-base); color: var(--pizarra); border-left: 2px solid var(--linea); padding-left: var(--e-4); max-width: 66ch; margin-bottom: var(--e-4); }
+.paso-tarjeta, .paso-principio, .paso-nota { border-radius: var(--r-xl); padding: var(--e-5); }
+.paso-tarjeta { background: var(--superficie); border: 1px solid var(--linea-suave); box-shadow: var(--sombra-1); }
+.paso-tarjeta h3, .paso-nota h3 { display: flex; align-items: center; gap: var(--e-2); font-size: var(--t-md); margin: 0 0 var(--e-2); }
+/* El principio AO en el violeta lleno del módulo 03, como en Penpot: es la
+   razón del gesto, lo que el residente tiene que llevarse del paso. */
+.paso-principio { background: var(--acento, var(--marca)); color: var(--superficie); }
+.paso-principio-etiqueta {
+  display: inline-flex; align-items: center; gap: var(--e-2); margin-bottom: var(--e-2);
+  font-family: var(--mono); font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em;
+}
+.paso-principio p { margin: 0; font-weight: 600; }
+.paso-nota { background: var(--ambar-tenue); color: var(--ambar-texto); }
+.paso-tarjeta > div > p:last-child, .paso-nota > div > p:last-child { margin-bottom: 0; }
+.paso-tarjeta > div > p, .paso-nota > div > p { margin: 0 0 var(--e-2); }
+.paso-tarjeta h4, .paso-nota h4 { font-size: var(--t-base); margin: var(--e-3) 0 var(--e-1); }
+
+/* En el medio, la imagen se va debajo del texto antes que la lista: el texto
+   es lo que se lee, la imagen acompaña. En una columna la lista de pasos es
+   una tira que se desliza y el progreso queda encima. */
+@media (max-width: 1100px) {
+  .paso-a-paso-panel[data-con-visual] { grid-template-columns: minmax(0, 1fr); }
+  .paso-a-paso-panel[data-con-visual] .paso-a-paso-visual { order: 2; }
+  .paso-a-paso-figura { aspect-ratio: 16 / 9; }
+}
+@media (max-width: 900px) {
+  .paso-a-paso-cuerpo { grid-template-columns: minmax(0, 1fr); }
+  .paso-a-paso-lista {
+    position: static; flex-direction: row; overflow-x: auto; scrollbar-width: none;
+    padding: var(--e-2); margin: 0 calc(-1 * var(--e-4)); border-radius: 0; border-left: 0; border-right: 0;
+  }
+  .paso-a-paso-lista::-webkit-scrollbar { display: none; }
+  .paso-a-paso-paso { width: auto; flex: none; white-space: nowrap; }
+  .paso-a-paso-titulo-actual { display: none; }
+  .paso-a-paso-acciones { width: 100%; }
+  .paso-a-paso-acciones > * { flex: 1; justify-content: center; }
+}
+/* En papel, la técnica entera: todos los pasos seguidos, sin la barra ni la
+   lista, que son para moverse en pantalla. */
+@media print {
+  .paso-a-paso-barra, .paso-a-paso-lista, .paso-a-paso-visual { display: none !important; }
+  .paso-a-paso-cuerpo, .paso-a-paso-panel[data-con-visual] { display: block; }
+  .paso-a-paso-panel[hidden] { display: block !important; }
+  .paso-a-paso-panel { break-inside: avoid-page; margin-bottom: 14pt; }
+  .paso-principio { background: none; color: inherit; border: 1px solid currentColor; }
+}
+
+/* ---------- lectura de imágenes como ejercicio ---------- */
+/* Lo que se ve a la izquierda y el ejercicio a la derecha, como el tablero de
+   Penpot (D-237). Sin código AO con tipo, la página no lleva nada de esto. */
+.lectura-con-ejercicio {
+  display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+  gap: var(--e-6); align-items: start; margin-bottom: var(--e-8);
+}
+.lectura-material { min-width: 0; }
+.lectura-material > .ficha-seccion:first-child { margin-top: 0; }
+.ejercicio { display: flex; flex-direction: column; gap: var(--e-4); position: sticky; top: calc(var(--alto-barra) + var(--e-4)); }
+.ejercicio-tarjeta {
+  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-xl);
+  box-shadow: var(--sombra-1); padding: var(--e-5);
+}
+.ejercicio-pasos {
+  list-style: none; margin: 0; padding: var(--e-3) var(--e-4);
+  display: flex; flex-wrap: wrap; gap: var(--e-2) var(--e-5);
+  background: var(--superficie); border: 1px solid var(--linea-suave); border-radius: var(--r-xl);
+  font-size: var(--t-sm); color: var(--mudo);
+}
+.ejercicio-pasos li { display: inline-flex; align-items: center; gap: var(--e-2); }
+.ejercicio-pasos li[data-estado='actual'] { color: var(--tinta); font-weight: 650; }
+.ejercicio-pasos-marca {
+  display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  border: 1.5px solid var(--linea); font-size: var(--t-xs); font-weight: 700;
+}
+.ejercicio-pasos li[data-estado='hecho'] .ejercicio-pasos-marca { background: var(--verde); border-color: var(--verde); color: var(--superficie); }
+.ejercicio-pasos li[data-estado='actual'] .ejercicio-pasos-marca { background: var(--acento, var(--marca)); border-color: var(--acento, var(--marca)); color: var(--superficie); }
+
+.ejercicio-opciones { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e-2); }
+.ejercicio-opciones legend { display: flex; flex-direction: column; gap: var(--e-1); padding: 0; margin-bottom: var(--e-3); }
+.ejercicio-pregunta { font-size: var(--t-lg); font-weight: 700; color: var(--tinta); }
+.ejercicio-segmento { font-size: var(--t-sm); color: var(--mudo); }
+.ejercicio-tipo {
+  display: flex; align-items: flex-start; gap: var(--e-3); cursor: pointer;
+  padding: var(--e-3) var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-lg);
+  transition: border-color var(--dur) var(--curva), background var(--dur) var(--curva);
+}
+.ejercicio-tipo:hover { border-color: var(--acento, var(--marca)); }
+.ejercicio-tipo:has(input:checked) { border: 2px solid var(--acento, var(--marca)); background: var(--acento-tenue, var(--marca-tenue)); padding: calc(var(--e-3) - 1px) calc(var(--e-4) - 1px); }
+.ejercicio-tipo:has(input:focus-visible) { outline: 2px solid var(--acento, var(--marca)); outline-offset: 2px; }
+.ejercicio-tipo input { margin-top: 3px; accent-color: var(--acento, var(--marca)); width: 18px; height: 18px; flex: none; }
+.ejercicio-tipo > span { display: flex; flex-direction: column; gap: 2px; }
+.ejercicio-tipo > span > span { font-size: var(--t-sm); color: var(--mudo); }
+.ejercicio-pista {
+  display: flex; gap: var(--e-2); margin: var(--e-4) 0 0; padding: var(--e-3) var(--e-4);
+  border-radius: var(--r-lg); background: var(--ambar-tenue); color: var(--ambar-texto); font-size: var(--t-sm);
+}
+.ejercicio-pista svg { flex: none; margin-top: 2px; }
+.ejercicio-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3); margin-top: var(--e-4); }
+.ejercicio-ayuda { font-size: var(--t-sm); color: var(--mudo); }
+
+.ejercicio-resultado { border-left: 4px solid var(--alerta); }
+.ejercicio-resultado[data-acierto] { border-left-color: var(--verde); }
+.ejercicio-resultado h2 { display: flex; align-items: center; gap: var(--e-2); font-size: var(--t-md); margin: 0 0 var(--e-3); color: var(--alerta); }
+.ejercicio-resultado[data-acierto] h2 { color: var(--verde); }
+.ejercicio-resultado h2:focus:not(:focus-visible) { outline: none; }
+.ejercicio-resultado dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--e-2) var(--e-4); margin: 0 0 var(--e-3); }
+.ejercicio-resultado dt { font-size: var(--t-sm); color: var(--mudo); }
+.ejercicio-resultado dd { margin: 0; font-weight: 600; }
+.ejercicio-confianza { display: block; font-size: var(--t-sm); font-weight: 400; color: var(--mudo); }
+.ejercicio-explicacion { font-size: var(--t-sm); color: var(--pizarra); margin: 0 0 var(--e-3); }
+
+.ejercicio-cerrado { background: var(--superficie-2); box-shadow: none; border-style: dashed; }
+.ejercicio-cerrado h2 { display: flex; align-items: center; gap: var(--e-2); font-size: var(--t-md); margin: 0 0 var(--e-2); color: var(--pizarra); }
+.ejercicio-cerrado p { margin: 0; font-size: var(--t-sm); color: var(--mudo); }
+.ejercicio-manejo > .ficha-seccion { margin-top: 0; }
+.ejercicio-en-papel { display: none; }
+
+@media (max-width: 1000px) {
+  .lectura-con-ejercicio { grid-template-columns: minmax(0, 1fr); }
+  .ejercicio { position: static; }
+}
+@media print {
+  .ejercicio-pasos, .ejercicio-tarjeta, .ejercicio-cerrado { display: none !important; }
+  .ejercicio-manejo[hidden] { display: block !important; }
+  .ejercicio-en-papel { display: block; font-weight: 600; }
+  .lectura-con-ejercicio { display: block; }
+  .ejercicio { position: static; }
+}
+
+/* ---------- guía de la consola del simulador ---------- */
+/* Las tres llamadas de Penpot bajo la consola, en su mismo azul tinta para que
+   se lean como parte de ella y no como otra sección de la página (D-237). */
+.guia-consola {
+  margin: var(--e-6) 0; padding: var(--e-5) var(--e-6); border-radius: var(--r-xl);
+  background: var(--tinta); color: var(--sobre-tinta-1);
+}
+.guia-consola-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e-3); margin-bottom: var(--e-4); }
+.guia-consola-cabecera h2 { font-size: var(--t-md); margin: 0; color: var(--sobre-tinta-1); }
+.guia-consola-cabecera .boton-fantasma { color: var(--sobre-tinta-2); }
+.guia-consola-cabecera .boton-fantasma:hover { color: var(--sobre-tinta-1); background: rgb(255 255 255 / 0.08); }
+.guia-consola-llamadas {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--e-4);
+}
+.guia-consola-llamadas li {
+  display: flex; gap: var(--e-3); padding: var(--e-4) var(--e-5);
+  border: 1px solid rgb(255 255 255 / 0.12); border-radius: var(--r-lg); background: rgb(255 255 255 / 0.04);
+}
+.guia-consola-numero {
+  flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--cian); color: var(--tinta); font-weight: 700; font-size: var(--t-sm);
+}
+.guia-consola-llamadas h3 { display: flex; align-items: center; gap: var(--e-2); font-size: var(--t-base); margin: 0 0 var(--e-1); color: var(--sobre-tinta-1); }
+.guia-consola-llamadas p { margin: 0; font-size: var(--t-sm); color: var(--sobre-tinta-2); }
+.guia-consola-reabrir { margin: var(--e-4) 0; }
+@media print { .guia-consola, .guia-consola-reabrir { display: none; } }
 
 /* Aquí vivía el simulador anterior: `.simulador`, `.simulador-principal`,
    `.simulador-registro`, `.instrumentos`, `.marcadores`, `.marcador`,
@@ -922,61 +1200,98 @@ figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-
 }
 .recuento { font-size: var(--t-sm); color: var(--mudo); margin: 0 0 var(--e-6); }
 
-/* ---------- índice lateral de la ficha ---------- */
-
-/* La pista de 190 px solo existe si existe el índice que va en ella.
-   `IndiceFicha` devuelve `null` cuando la ficha tiene menos de dos secciones
-   publicadas —el caso normal de una ficha en construcción, que a propósito no
-   exhibe cuatro pestañas vacías— y entonces `.ficha-contenido` se quedaba solo
-   en la rejilla. La colocación automática de grid mete al hijo único en la
-   PRIMERA pista, así que todo el texto clínico salía en una cinta de 190 px
-   con 830 px de página en blanco al lado. Por debajo de 900 px no se veía,
-   porque ahí la rejilla ya es de una columna: se veía bien en el móvil de
-   quien revisaba y roto en el portátil del residente. */
-.ficha-cuerpo { display: grid; grid-template-columns: 1fr; gap: var(--e-10); align-items: start; }
-.ficha-cuerpo:has(> .indice-ficha) { grid-template-columns: 190px 1fr; }
-.indice-ficha { position: sticky; top: 80px; }
-.indice-titulo { display: block; margin-bottom: var(--e-3); }
-.indice-ficha ul { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--linea); }
-.indice-ficha li a {
-  display: block; padding: var(--e-2) 0 var(--e-2) var(--e-4); margin-left: -2px;
-  border-left: 2px solid transparent; font-size: var(--t-sm); color: var(--pizarra); text-decoration: none;
-  transition: color var(--dur-rapida) ease, border-color var(--dur-rapida) ease;
+/* «Todas · Pendientes · Leídas» de la biblioteca (D-237): un conmutador de
+   tres, con su número. Botones con `aria-pressed`, porque es la misma rejilla
+   filtrada y no tres paneles. */
+.conmutador-lectura { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r); background: var(--papel); }
+.conmutador-lectura button {
+  display: inline-flex; align-items: center; gap: var(--e-2); min-height: 34px; padding: 0 var(--e-3);
+  border: 0; border-radius: calc(var(--r) - 2px); background: none; color: var(--pizarra);
+  font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer;
 }
-.indice-ficha li a:hover { color: var(--tinta); }
-.indice-ficha li a.activa { color: var(--acento, var(--marca)); font-weight: 600; border-left-color: var(--acento, var(--marca)); }
+.conmutador-lectura button:hover { color: var(--tinta); }
+.conmutador-lectura button[aria-pressed='true'] { background: var(--superficie); color: var(--tinta); box-shadow: var(--sombra-1); }
+.conmutador-lectura button:focus-visible { outline: 2px solid var(--marca); outline-offset: 1px; }
+.conmutador-cuenta { font-family: var(--mono); font-size: var(--t-xs); font-weight: 500; color: var(--mudo); }
+
+/* Las fichas de segmento de la biblioteca y del examen físico (D-237): una
+   píldora por segmento, la elegida rellena con el color del módulo. */
+.fichas-de-filtro { display: flex; flex-wrap: wrap; gap: var(--e-2); margin: 0 0 var(--e-4); }
+.fichas-de-filtro button {
+  min-height: 36px; padding: 0 var(--e-4); border: 1px solid var(--linea-fuerte); border-radius: var(--r-full);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-size: var(--t-sm); font-weight: 500; cursor: pointer;
+  transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease, color var(--dur-rapida) ease;
+}
+.fichas-de-filtro button:hover { border-color: var(--acento, var(--marca)); color: var(--acento, var(--marca)); }
+.fichas-de-filtro button[aria-pressed='true'] { background: var(--acento, var(--marca)); border-color: var(--acento, var(--marca)); color: var(--superficie); }
+.fichas-de-filtro button:focus-visible { outline: 2px solid var(--acento, var(--marca)); outline-offset: 2px; }
+
+/* ---------- pestañas y columna lateral de la ficha (D-237) ---------- */
+
+/* Las pestañas de Penpot: una tira bajo la cabecera, con la elegida subrayada
+   en el color del módulo. Sustituyen al índice lateral (`IndiceFicha`), y con
+   él a su pista de 190 px. */
+.ficha-pestanas {
+  display: flex; gap: var(--e-6); margin: 0 0 var(--e-8);
+  border-bottom: 1px solid var(--linea); overflow-x: auto; scrollbar-width: none;
+}
+.ficha-pestanas::-webkit-scrollbar { display: none; }
+.ficha-pestanas button {
+  flex: none; position: relative; min-height: 44px; padding: 0 2px var(--e-3);
+  border: 0; background: none; color: var(--pizarra);
+  font: inherit; font-size: var(--t-base); font-weight: 500; white-space: nowrap; cursor: pointer;
+  transition: color var(--dur-rapida) ease;
+}
+.ficha-pestanas button:hover { color: var(--tinta); }
+.ficha-pestanas button[aria-selected='true'] { color: var(--acento, var(--marca)); font-weight: 600; }
+.ficha-pestanas button[aria-selected='true']::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px;
+  border-radius: 3px 3px 0 0; background: var(--acento, var(--marca));
+}
+.ficha-pestanas button:focus-visible { outline: 2px solid var(--acento, var(--marca)); outline-offset: 2px; border-radius: 4px; }
+
+/* La columna de la derecha solo existe si existe lo que va en ella: es la
+   misma lección que dejó el índice, cuya pista se quedaba vacía cuando la
+   ficha tenía una sola sección y la colocación automática metía todo el texto
+   clínico en la columna estrecha. Hoy la ficha la pinta siempre, pero la
+   rejilla no lo da por hecho. */
+.ficha-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--e-8); align-items: start; }
+.ficha-cuerpo:has(> .ficha-lateral) { grid-template-columns: minmax(0, 1fr) 320px; }
+.ficha-lateral { display: grid; gap: var(--e-4); position: sticky; top: calc(var(--alto-barra) + 20px); }
+.ficha-lateral-tarjeta {
+  padding: var(--e-5); border: 1px solid var(--linea-suave); border-radius: var(--r-lg);
+  background: var(--superficie); box-shadow: var(--sombra-1);
+}
+.ficha-lateral-tarjeta > .rotulo { display: block; margin: 0 0 var(--e-3); }
+.ficha-lateral-datos { display: grid; gap: var(--e-3); margin: 0; }
+.ficha-lateral-datos dt { font-family: var(--mono); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--mudo); }
+.ficha-lateral-datos dd { margin: 2px 0 0; font-weight: 600; color: var(--tinta); }
+.ficha-siguientes { display: grid; gap: var(--e-2); margin: 0; padding: 0; list-style: none; }
+.ficha-siguientes a {
+  display: flex; align-items: center; gap: var(--e-3); padding: var(--e-3) var(--e-4);
+  border-radius: var(--r); background: var(--acento-tenue, var(--marca-tenue)); color: var(--acento, var(--marca));
+  font-size: var(--t-sm); font-weight: 600; text-decoration: none;
+}
+.ficha-siguientes a span { flex: 1; min-width: 0; }
+.ficha-siguientes a svg { flex: none; }
+.ficha-siguientes a:hover { text-decoration: underline; }
 
 @media (max-width: 900px) {
   /* Repite el `:has()` a propósito: una consulta de medios no añade
      especificidad, así que `.ficha-cuerpo` a secas (0,1,0) perdía contra la
-     regla de arriba, que con el `:has()` vale 0,2,0, y la ficha con índice
-     seguía a dos columnas en el móvil. Si allí se cambia el selector, aquí
-     también. */
-  /* `minmax(0, 1fr)` y no `1fr`: la tira del índice es desplazable y su ancho
-     natural es el de todos los enlaces juntos; con `1fr` (mínimo `auto`) la
-     columna crecía hasta él y la ficha entera salía 250 px más ancha que la
-     pantalla. */
+     regla de arriba, que con el `:has()` vale 0,2,0, y la ficha seguía a dos
+     columnas en el móvil. Si allí se cambia el selector, aquí también. */
   .ficha-cuerpo,
-  .ficha-cuerpo:has(> .indice-ficha) { grid-template-columns: minmax(0, 1fr); gap: var(--e-4); }
-  /* En el teléfono el índice es una tira fija bajo la barra, desplazable en
-     horizontal. Antes se apilaba como una nube de píldoras encima del texto y
-     desaparecía al empezar a leer, que es justo cuando hace falta saltar. */
-  .indice-ficha {
-    top: var(--alto-barra); z-index: 5;
-    margin: 0 calc(-1 * var(--e-4)); padding: var(--e-2) var(--e-4);
-    background: var(--papel); border-bottom: 1px solid var(--linea);
+  .ficha-cuerpo:has(> .ficha-lateral) { grid-template-columns: minmax(0, 1fr); gap: var(--e-6); }
+  .ficha-lateral { position: static; }
+  /* En el teléfono la tira de pestañas queda fija bajo la barra, desplazable
+     en horizontal, como quedaba el índice: es justo al leer cuando hace falta
+     cambiar de sección. */
+  .ficha-pestanas {
+    position: sticky; top: var(--alto-barra); z-index: 5; gap: var(--e-5);
+    margin: 0 calc(-1 * var(--e-4)) var(--e-6); padding: 0 var(--e-4);
+    background: var(--papel);
   }
-  .indice-titulo { display: none; }
-  .indice-ficha ul { display: flex; gap: var(--e-2); border-left: none; overflow-x: auto; scrollbar-width: none; }
-  .indice-ficha ul::-webkit-scrollbar { display: none; }
-  .indice-ficha li { flex: none; }
-  .indice-ficha li a {
-    display: inline-flex; align-items: center; min-height: 36px;
-    padding: 0 var(--e-3); margin-left: 0; white-space: nowrap;
-    border: 1px solid var(--linea); border-radius: var(--r-full); background: var(--superficie);
-  }
-  .indice-ficha li a.activa { background: var(--acento-tenue, var(--marca-tenue)); border-color: var(--acento, var(--marca)); }
-  .ficha-seccion { scroll-margin-top: calc(var(--alto-barra) + 62px); }
 }
 
 /* ==========================================================================
@@ -1106,23 +1421,29 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
      ficha impresa para pabellón puede ser justo lo que manda las últimas
      líneas a una hoja más. */
   nav, .barra, .miga, .boton, .boton-imprimir, .barra-acciones, .rastreador-actividad, .formulario-comentario, .comentar, .pie-de-pagina,
-  .pestana-eyebrow {
+  .examen-herramientas,
+  .pestana-eyebrow, .ficha-pestanas, .ficha-lateral, .firmas-de-la-ficha {
     display: none !important;
   }
 
-  .tarjeta, .ficha-cuerpo, .paso-cuerpo, .opcion {
+  /* Las pestañas que no se ven en pantalla van en el papel: la ficha impresa
+     es la ficha entera, como lo era antes de las pestañas (D-237). `hidden`
+     las esconde con la hoja del navegador, que no gana a esto. */
+  .ficha-seccion[hidden] { display: block !important; }
+
+  .tarjeta, .ficha-cuerpo, .paso-tarjeta, .opcion {
     border: none;
     box-shadow: none;
     background: transparent;
   }
 
-  /* En papel no hay rejilla que valga. `.indice-ficha` es un `<nav>`, así que
-     la regla de arriba lo oculta y la rejilla se quedaba con un solo hijo, que
-     grid coloca en la primera pista: la ficha entera salía en una columna de
-     190 px por hoja A4. Se deshace la rejilla en vez de recolocar las pistas
-     porque en papel el índice no sirve para nada: no se puede pulsar. */
+  /* En papel no hay rejilla que valga. La columna lateral se oculta arriba, y
+     con el índice de antes pasó lo que pasaría con ella: la rejilla se quedaba
+     con un solo hijo, que grid coloca en la primera pista, y la ficha entera
+     salía en una columna estrecha por hoja A4. Se deshace la rejilla en vez de
+     recolocar las pistas porque en papel lo de al lado no sirve: son enlaces. */
   .ficha-cuerpo,
-  .ficha-cuerpo:has(> .indice-ficha) {
+  .ficha-cuerpo:has(> .ficha-lateral) {
     display: block;
   }
 
@@ -1163,7 +1484,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
      sin ellos, una columna justificada de 17 cm abre huecos enormes entre
      palabras cuando cae una palabra larga de la jerga clínica. */
   .ficha-contenido { font-size: 10.5pt; line-height: 1.55; }
-  .ficha-contenido p, .ficha-contenido li, .cabecera-ficha .entrada, .fases p, .advertencia p, .paso-cuerpo p, .opcion p {
+  .ficha-contenido p, .ficha-contenido li, .cabecera-ficha .entrada, .fases p, .advertencia p, .paso-a-paso-texto p, .opcion p {
     max-width: none; text-align: justify; hyphens: auto; orphans: 3; widows: 3;
   }
   .ficha-contenido .bloque p, .ficha-contenido .lista-clinica, .bloque p, .lista-clinica, .advertencia { max-width: none; }
@@ -1783,22 +2104,13 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
    medias y, debajo, los módulos con su color y su avance.
    ========================================================================== */
 
+/* Sin la figura del cuerpo de la derecha (D-239): el residente ya la vio en
+   la portada pública, y en su inicio solo empujaba las cifras hacia un lado. */
 .portada-saludo {
-  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--e-10); align-items: center;
   padding-bottom: var(--e-10); margin-bottom: var(--e-10); border-bottom: 1px solid var(--linea);
 }
 .portada-saludo h1 { margin: var(--e-2) 0 var(--e-2); }
 .portada-saludo .lead { margin-bottom: var(--e-6); }
-.hero-figura { position: relative; background: var(--degradado-marino); border-radius: var(--r-xl); padding: var(--e-5); overflow: hidden; box-shadow: var(--sombra-2); }
-/* El lienzo lo pone `CuerpoDePortada` cuando ya tiene qué pintar. Hasta entonces
-   la tarjeta guarda el hueco, para que el pie no salte, y el cuerpo entra
-   fundiéndose en vez de aparecer de golpe. */
-.cuerpo-portada { position: relative; width: 100%; height: 320px; opacity: 0; transition: opacity 1.2s ease; }
-.cuerpo-portada-listo { opacity: 1; }
-.cuerpo-portada canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-@media (prefers-reduced-motion: reduce) { .cuerpo-portada { transition: none; } }
-.hero-pie { display: flex; justify-content: space-between; align-items: baseline; gap: var(--e-2); margin-top: var(--e-3); font-size: var(--t-xs); color: var(--sobre-tinta-3); }
-.hero-codigo { font-family: var(--mono); color: var(--cian-claro); letter-spacing: 0.05em; }
 
 /* Las cifras como tarjetas. Eran tres números sueltos entre dos filetes, y
    «0 marcadas como leídas» al lado de «75 por leer» no decía cuánto faltaba. */
@@ -1849,6 +2161,9 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 .tarjeta-modulo p { font-size: var(--t-sm); color: var(--pizarra); flex: 1; margin: 0 0 var(--e-2); }
 .modulo-avance { display: flex; flex-direction: column; gap: 0; font-size: var(--t-xs); color: var(--mudo); }
 .modulo-avance .progreso { margin-top: var(--e-1); }
+/* Dónde se quedó, en «Continúa leyendo» (D-237): la barra encima de la línea
+   que la explica, como en Penpot. */
+.continuar-donde .progreso { margin: var(--e-1) 0 var(--e-2); }
 .modulo-pie { display: flex; justify-content: space-between; align-items: center; gap: var(--e-2); flex-wrap: wrap; margin-top: var(--e-2); }
 .modulo-pie .etiquetas { margin: 0; }
 .conteo { font-size: var(--t-sm); color: var(--acento, var(--marca)); font-weight: 600; white-space: nowrap; }
@@ -1883,17 +2198,12 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
    ========================================================================== */
 
 .entrada > p:last-child,
-.nota-tecnica > p:last-child,
 dd > div > p:last-child { margin-bottom: 0; }
 
-.nota-tecnica > p { margin-bottom: var(--e-2); }
 
 dd > div > h2,
 dd > div > h3,
-dd > div > h4,
-.nota-tecnica h2,
-.nota-tecnica h3,
-.nota-tecnica h4 {
+dd > div > h4 {
   font-size: var(--t-base);
   margin: var(--e-3) 0 var(--e-1);
   color: var(--tinta);
@@ -2159,8 +2469,6 @@ body:has(> .portada-publica) > .portada-publica {
 
 /* ---------- pantallas estrechas ---------- */
 @media (max-width: 900px) {
-  .portada-saludo { grid-template-columns: 1fr; gap: var(--e-6); }
-  .hero-figura { display: none; }
   .pros-contras { grid-template-columns: 1fr; }
   .acceso { padding-top: var(--e-10); }
 }
@@ -2173,22 +2481,24 @@ body:has(> .portada-publica) > .portada-publica {
   .kpi:first-child { grid-column: 1 / -1; }
   .kpi-valor { font-size: var(--t-lg); }
   .rejilla-modulos, .rejilla-fichas { grid-template-columns: 1fr; }
-  /* La definición en dos columnas no cabe en 360 px: el rótulo arriba y el
-     valor debajo. */
-  .ficha-datos { grid-template-columns: 1fr; gap: 0; }
-  .ficha-datos dd { margin-bottom: var(--e-3); }
-  .maniobra-cabecera, .maniobra-cuerpo { padding: var(--e-4); }
-  .maniobra-pie { padding: var(--e-3) var(--e-4); }
-  .pasos-ao > li { padding-left: var(--e-10); }
-  .paso-cuerpo { padding: var(--e-4); }
+  .maniobra { padding: var(--e-5) var(--e-4); }
+  .maniobra-titulo h3 { font-size: var(--t-lg); }
+  .examen-herramientas .campo-busqueda { flex-basis: 100%; }
+  .paso-tarjeta, .paso-principio, .paso-nota { padding: var(--e-4); }
   .acceso { padding: var(--e-8) var(--e-3) var(--e-8); }
   .acceso-caja { padding: var(--e-6) var(--e-5); }
   .acceso-fondo { height: 200px; }
   .barra-filtros { padding: var(--e-2); }
   .campo-busqueda { min-width: 100%; }
   .barra-filtros select { flex: 1; }
+  .conmutador-lectura { width: 100%; }
+  .conmutador-lectura button { flex: 1; justify-content: center; }
+  /* En el teléfono las fichas de segmento son una tira que se desliza: en
+     varias filas empujaban la primera tarjeta fuera de la pantalla. */
+  .fichas-de-filtro { flex-wrap: nowrap; overflow-x: auto; margin: 0 calc(-1 * var(--e-4)) var(--e-4); padding: 0 var(--e-4) 2px; scrollbar-width: none; }
+  .fichas-de-filtro::-webkit-scrollbar { display: none; }
+  .fichas-de-filtro button { flex: none; }
   .creditos-seccion { flex-direction: column; gap: var(--e-3); }
-  .herramientas-maniobras { margin: 0 calc(-1 * var(--e-4)) var(--e-5); padding: var(--e-2) var(--e-4); }
 }
 
 /* Dentro del visor de la preparación la envoltura del bloqueo táctil tiene

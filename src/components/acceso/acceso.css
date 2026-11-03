@@ -1,0 +1,347 @@
+/* `/entrar` y `/registro` (P-007 E3, D-236): los tableros «Entrar» y
+ * «Registro» de Penpot, una pantalla partida en marca y formulario.
+ *
+ * Con su prefijo, `ac-`, y no sobre las clases `.acceso*` de `estilos.css`:
+ * aquellas siguen vistiendo `/clave`, `/clave/[testigo]` e `/instalar`, que no
+ * tienen tablero propio, y tocarlas cambiaba cinco pantallas para rediseñar dos.
+ * Los colores son los tokens de `estilos.css`, los mismos del sistema de
+ * Penpot (D-232). */
+
+/* La barra y el pie de la plataforma no están en el tablero: la marca la pone
+   el panel oscuro, que enlaza a la portada. Se oculta igual que en la portada
+   pública (`portada.css`). */
+body:has(> .ac-pantalla) > .barra,
+body:has(> .ac-pantalla) > .pie-de-pagina { display: none; }
+
+.ac-pantalla {
+  display: grid;
+  grid-template-columns: minmax(0, 600fr) minmax(0, 840fr);
+  max-width: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background: var(--papel);
+  color: var(--tinta);
+}
+/* En el registro el formulario va a la izquierda y la marca a la derecha. */
+.ac-pantalla-registro {
+  grid-template-columns: minmax(0, 760fr) minmax(0, 680fr);
+  background: var(--superficie);
+}
+
+/* ---------- el panel de marca ---------- */
+.ac-marca {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: clamp(40px, 10vh, 96px) clamp(28px, 4.5vw, 64px) 0;
+  background: var(--degradado-marino);
+  color: var(--sobre-tinta-1);
+  overflow: hidden;
+}
+.ac-marca-malla {
+  position: absolute;
+  inset: 0;
+  color: var(--cian);
+  opacity: 0.16;
+  pointer-events: none;
+}
+.ac-marca > :not(.ac-marca-malla) { position: relative; }
+
+.ac-logo {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px 7px 10px;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--tinta);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.05;
+  text-decoration: none;
+}
+.ac-logo img { display: block; }
+.ac-logo-sub {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--pizarra);
+}
+.ac-logo:focus-visible { outline: 2px solid var(--cian); outline-offset: 3px; }
+/* Sobre fondo claro, el del registro, la píldora lleva su filete. */
+.ac-logo-claro { border: 1px solid var(--linea); }
+.ac-logo-claro:focus-visible { outline-color: var(--marca); }
+
+.ac-marca-titular {
+  /* Diez em: «docente, a un paso.» cabe en una línea y «Su plataforma
+     docente,» no, que es el corte del tablero. */
+  max-width: 10em;
+  margin: clamp(36px, 8vh, 72px) 0 18px;
+  font-size: clamp(30px, 2.8vw, 40px);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: #fff;
+}
+.ac-marca-bajada { max-width: 40ch; margin: 0; font-size: 17px; line-height: 1.6; color: var(--sobre-tinta-2); }
+
+/* Las tres capas al pie, de pie sobre el borde: piel, músculo, hueso, como en
+   el tablero. Van en el flujo y no absolutas, para que en una pantalla baja
+   bajen con el texto en vez de taparlo. */
+.ac-figuras {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(4px, 1vw, 14px);
+  margin-top: auto;
+  padding-top: 32px;
+}
+.ac-figuras img { display: block; width: auto; height: min(360px, 40vh); }
+
+/* ---------- el lado del formulario ---------- */
+.ac-lado {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 48px clamp(16px, 4vw, 56px);
+}
+.ac-tarjeta {
+  width: 100%;
+  max-width: 440px;
+  padding: 40px;
+  border: 1px solid var(--linea-suave);
+  border-radius: 20px;
+  background: var(--superficie);
+  box-shadow: var(--sombra-2);
+}
+.ac-titulo { margin: 0 0 18px; font-size: 30px; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; color: var(--tinta); }
+.ac-bajada { margin: 0 0 22px; font-size: 15px; line-height: 1.55; color: var(--pizarra); }
+
+.ac-formulario { display: flex; flex-direction: column; gap: 18px; }
+.ac-campo { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.ac-campo > label,
+.ac-etiqueta { font-size: 14px; font-weight: 650; color: var(--tinta); }
+.ac-opcional { font-weight: 400; color: var(--mudo); }
+.ac-campo input,
+.ac-campo select,
+.ac-campo textarea {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--linea-fuerte);
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--tinta);
+  font: inherit;
+  font-size: 15px;
+}
+.ac-campo textarea { min-height: 104px; padding: 11px 14px; line-height: 1.5; resize: vertical; }
+.ac-campo input::placeholder,
+.ac-campo textarea::placeholder { color: var(--mudo); }
+.ac-campo input:focus-visible,
+.ac-campo select:focus-visible,
+.ac-campo textarea:focus-visible { border-color: var(--marca); outline: 2px solid var(--marca); outline-offset: 0; }
+.ac-campo [aria-invalid='true'] { border-color: var(--alerta); box-shadow: 0 0 0 1px var(--alerta); }
+.ac-con-icono { position: relative; display: block; }
+.ac-con-icono > svg { position: absolute; top: 50%; left: 14px; color: var(--mudo); pointer-events: none; transform: translateY(-50%); }
+.ac-con-icono input { padding-left: 42px; }
+.ac-pista { margin: 0; font-size: 13px; line-height: 1.45; color: var(--mudo); }
+.ac-aviso { margin: 0; font-size: 13px; font-weight: 500; color: var(--alerta); }
+.ac-acierto { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--verde); }
+
+.ac-error {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--alerta) 35%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--alerta) 7%, var(--superficie));
+  color: var(--tinta);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ac-error > svg { flex: none; margin-top: 2px; color: var(--alerta); }
+
+.ac-boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--marca);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--dur-rapida), transform var(--dur-rapida);
+}
+.ac-boton:hover { background: var(--marca-honda); }
+.ac-boton:active { transform: translateY(1px); }
+.ac-boton:disabled { opacity: 0.75; cursor: progress; }
+.ac-boton:focus-visible { outline: 2px solid var(--marca); outline-offset: 3px; }
+.ac-boton-bloque { width: 100%; }
+.ac-boton-texto {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--marca);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.ac-boton-texto:hover { background: var(--marca-tenue); }
+.ac-boton-texto:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+.ac-girando { animation: ac-girar 0.9s linear infinite; }
+@keyframes ac-girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ac-girando { animation: none; }
+}
+
+.ac-enlace { align-self: center; font-size: 14.5px; font-weight: 550; color: var(--marca); text-decoration: none; }
+.ac-enlace:hover { text-decoration: underline; }
+
+.ac-nota { margin: 24px 0 0; padding-top: 22px; border-top: 1px solid var(--linea); font-size: 14px; line-height: 1.55; color: var(--pizarra); }
+.ac-nota a { font-weight: 650; color: var(--marca); text-decoration: none; }
+.ac-nota a:hover { text-decoration: underline; }
+
+/* ---------- registro: columna, pasos y navegación ---------- */
+.ac-columna {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 568px;
+  min-height: 100%;
+  padding: clamp(32px, 6vh, 56px) 0 48px;
+}
+.ac-pantalla-registro .ac-lado { place-items: start center; padding-inline: clamp(16px, 6.6vw, 96px); }
+.ac-logo-vertical { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; align-self: flex-start; color: var(--tinta); font-family: Georgia, 'Times New Roman', serif; font-size: 17px; font-weight: 600; text-decoration: none; }
+.ac-logo-vertical img { display: block; }
+.ac-logo-vertical:focus-visible { outline: 2px solid var(--marca); outline-offset: 4px; border-radius: 6px; }
+
+.ac-pasos { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 32px 0 28px; padding: 0; list-style: none; }
+.ac-paso { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; color: var(--mudo); }
+.ac-paso-marca {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--linea);
+  border-radius: 50%;
+  background: var(--superficie);
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--mudo);
+}
+.ac-paso[data-estado='hecho'] { color: var(--tinta); }
+.ac-paso[data-estado='hecho'] .ac-paso-marca { border-color: var(--verde); background: var(--verde); color: #fff; }
+.ac-paso[aria-current='step'] { font-weight: 650; color: var(--tinta); }
+.ac-paso[aria-current='step'] .ac-paso-marca { border-color: var(--marca); background: var(--marca); color: #fff; }
+
+.ac-paso-titular { margin: 0 0 12px; font-size: clamp(28px, 3vw, 36px); font-weight: 800; line-height: 1.12; letter-spacing: -0.02em; color: var(--tinta); }
+.ac-paso-titular:focus { outline: none; }
+.ac-paso-bajada { max-width: 52ch; margin: 0 0 26px; font-size: 17px; line-height: 1.5; color: var(--pizarra); }
+.ac-pareja { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.ac-select-corto { max-width: 300px; }
+
+.ac-navegacion { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 34px; }
+.ac-navegacion .ac-boton { margin-left: auto; }
+
+/* El resumen del tercer paso: dos grupos, cada uno con su «Cambiar». */
+.ac-resumen { border: 1px solid var(--linea); border-radius: 14px; }
+.ac-resumen-grupo { padding: 14px 18px 16px; }
+.ac-resumen-grupo + .ac-resumen-grupo { border-top: 1px solid var(--linea); }
+.ac-resumen-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ac-resumen-cabecera h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--tinta); }
+.ac-resumen-cabecera .ac-boton-texto { min-height: 36px; margin-right: -10px; font-size: 14.5px; }
+.ac-resumen dl { display: grid; gap: 10px; margin: 6px 0 0; }
+.ac-resumen dt { font-size: 13px; font-weight: 600; color: var(--mudo); }
+.ac-resumen dd { margin: 0; font-size: 15.5px; line-height: 1.5; color: var(--tinta); overflow-wrap: anywhere; }
+
+.ac-enviada { display: grid; justify-items: start; gap: 14px; }
+.ac-enviada-icono { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--verde-tenue); color: var(--verde); }
+.ac-enviada p { margin: 0; max-width: 52ch; font-size: 16.5px; line-height: 1.6; color: var(--pizarra); }
+
+/* ---------- registro: el panel de la derecha ---------- */
+.ac-marca-registro { justify-content: center; padding-block: 56px; }
+.ac-marca-registro .ac-marca-figura { display: block; align-self: center; width: auto; height: min(300px, 32vh); margin: 0 0 40px; }
+.ac-marca-registro h2 { margin: 0 0 24px; font-size: clamp(24px, 2.2vw, 28px); font-weight: 800; letter-spacing: -0.02em; color: #fff; }
+.ac-promesas { display: grid; gap: 22px; max-width: 460px; margin: 0 0 32px; padding: 0; list-style: none; }
+.ac-promesas li { display: flex; align-items: center; gap: 14px; font-size: 15.5px; line-height: 1.45; color: var(--sobre-tinta-1); }
+.ac-promesas span[aria-hidden] {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--sobre-tinta-velo-2);
+  color: var(--cian-claro);
+}
+.ac-candado {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 460px;
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid var(--sobre-tinta-borde);
+  border-radius: 12px;
+  background: var(--sobre-tinta-velo);
+  font-size: 14px;
+  color: var(--sobre-tinta-2);
+}
+.ac-candado svg { flex: none; color: var(--cian-claro); }
+
+/* ---------- tableta y teléfono ---------- */
+/* El panel de marca pasa arriba (en el registro, abajo) y pierde las figuras:
+   en una columna, tres cuerpos de 360 px empujan el formulario fuera de la
+   primera pantalla, que es lo único a lo que se viene aquí. */
+@media (max-width: 900px) {
+  .ac-pantalla,
+  .ac-pantalla-registro { grid-template-columns: minmax(0, 1fr); }
+  .ac-marca { padding: 24px 20px 28px; }
+  .ac-marca-titular { max-width: none; margin: 22px 0 8px; font-size: 26px; }
+  .ac-marca-bajada { font-size: 15px; }
+  .ac-figuras,
+  .ac-marca-registro .ac-marca-figura { display: none; }
+  .ac-lado { padding: 24px 16px 40px; }
+  .ac-marca-registro { padding-block: 32px; }
+}
+@media (max-width: 560px) {
+  .ac-tarjeta { padding: 28px 22px; border-radius: 16px; }
+  .ac-pareja { grid-template-columns: minmax(0, 1fr); }
+  .ac-select-corto { max-width: none; }
+  .ac-pasos { gap: 8px 14px; margin: 24px 0 22px; }
+  /* En 360 px los tres rótulos no caben: queda el del paso en curso, y los
+     demás siguen ahí para el lector de pantalla. */
+  .ac-paso:not([aria-current='step']) .ac-paso-rotulo {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

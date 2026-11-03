@@ -130,6 +130,8 @@ export function mensajeDeNuevaSolicitud(datos: {
   nombre: string
   correo: string
   institucion?: string
+  /** La etiqueta corta de la etapa de formación («R2», «Docente»), si la indicó. */
+  etapa?: string
   motivo?: string
   enlacePanel: string
 }): Correo {
@@ -148,6 +150,7 @@ export function mensajeDeNuevaSolicitud(datos: {
           ['Nombre', datos.nombre],
           ['Correo', datos.correo],
           ['Institución', datos.institucion?.trim() || '—'],
+          ...(datos.etapa?.trim() ? [['Etapa de formación', datos.etapa.trim()] as [string, string]] : []),
         ],
       },
       ...(datos.motivo?.trim()
@@ -301,5 +304,85 @@ export function mensajeDeRequisitoRespondido(datos: {
     ],
     boton: { texto: 'Abrir el buzón', enlace: datos.enlace },
     motivoDelEnvio: MOTIVO_CUENTA,
+  }
+}
+
+const MOTIVO_COTIZACION = 'Recibe este correo porque alguien pidió una cotización de TraumaHub con esta dirección.'
+
+/**
+ * El acuse a quien pide una cotización desde la portada (P-007 E3).
+ *
+ * No repite lo que escribió: el correo sale hacia la dirección que alguien
+ * puso en un formulario público, sea suya o no, y devolverle a un tercero el
+ * nombre y el mensaje de otro es justo lo que no se hace. Por lo mismo el
+ * saludo va `sinEnlaces` y el nombre ya llegó limpio de enlaces
+ * (`exigirSinEnlaces`).
+ */
+export function mensajeDeCotizacionRecibida(datos: { nombre: string }): Correo {
+  return {
+    asunto: 'TraumaHub · Recibimos tu solicitud de cotización',
+    resumen: 'Tu solicitud de cotización quedó registrada. Te responderemos por correo con una propuesta.',
+    titulo: 'Recibimos tu solicitud',
+    bloques: [
+      saludo(datos.nombre),
+      {
+        tipo: 'parrafo',
+        texto:
+          'Tu solicitud de cotización de TraumaHub quedó registrada. Te responderemos a este correo con una propuesta a la medida de tu servicio.',
+      },
+      {
+        tipo: 'parrafo',
+        texto: `Si quieres agregar algo, responde a este mensaje o escribe a ${AUTORIA.correo}.`,
+      },
+    ],
+    nota: 'Si no pediste esta cotización, puedes ignorar este mensaje: no se creó ninguna cuenta con tu correo.',
+    motivoDelEnvio: MOTIVO_COTIZACION,
+  }
+}
+
+/**
+ * El aviso a los administradores de que llegó una cotización (P-007 E3).
+ *
+ * Lleva todo lo que escribió quien pide, para poder contestar desde el correo
+ * sin abrir el panel; el mensaje va en un bloque `cita`, que se escapa sin
+ * enlazar, como el motivo de una solicitud de cuenta.
+ */
+export function mensajeDeCotizacionNueva(datos: {
+  nombre: string
+  correo: string
+  institucion: string
+  cargo?: string
+  residentes: string
+  modulos: string[]
+  mensaje?: string
+  enlacePanel: string
+}): Correo {
+  return {
+    asunto: `TraumaHub · Nueva cotización: ${datos.institucion}`,
+    resumen: `${datos.nombre} (${datos.institucion}) pidió una cotización para ${datos.residentes} residentes.`,
+    titulo: 'Nueva solicitud de cotización',
+    bloques: [
+      {
+        tipo: 'parrafo',
+        texto: 'Alguien pidió una cotización desde la portada de TraumaHub. Quedó en la pestaña «Cotizaciones» del panel, como nueva.',
+      },
+      {
+        tipo: 'datos',
+        filas: [
+          ['Nombre', datos.nombre],
+          ['Correo', datos.correo],
+          ['Institución', datos.institucion],
+          ['Cargo', datos.cargo?.trim() || '—'],
+          ['Residentes', datos.residentes],
+          ['Módulos', datos.modulos.length > 0 ? datos.modulos.join(', ') : 'No marcó ninguno'],
+        ],
+      },
+      ...(datos.mensaje?.trim()
+        ? ([{ tipo: 'parrafo', texto: 'Lo que escribió:' }, { tipo: 'cita', texto: datos.mensaje.trim() }] as const)
+        : []),
+    ],
+    boton: { texto: 'Ver la cotización', enlace: datos.enlacePanel },
+    nota: 'Para contestar, escriba directamente al correo de la persona. Cambie el estado en el panel para que el resto del equipo sepa que ya se atendió.',
+    motivoDelEnvio: 'Recibe este correo porque es administrador de TraumaHub.',
   }
 }

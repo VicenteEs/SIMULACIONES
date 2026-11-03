@@ -1,8 +1,10 @@
 import Link from 'next/link'
-import { ClipboardList, Download, Flag } from 'lucide-react'
+import { CheckCheck, ClipboardList, Download, Flag, PenLine, Send } from 'lucide-react'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { Cifra } from '@/components/admin/tablero/Cifra'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
 import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import { Vacio } from '@/components/ui/Vacio'
 import {
@@ -21,6 +23,7 @@ import {
   type FiltrosDeAuditoria,
 } from '@/lib/auditoria'
 import { leerEntradaDeAuditoria, type EntradaDeAuditoria } from '@/lib/auditoriaServidor'
+import { iniciales } from '@/lib/iniciales'
 import {
   ESTADOS_DE_REVISION,
   RITMO_MAXIMO_DE_LECTURA,
@@ -33,18 +36,20 @@ import { clientePayload } from '../datos'
 import { MODULOS } from '../modulos'
 import { TablaDeAuditoria } from './TablaDeAuditoria'
 import '../seguimiento.css'
+import './auditoria.css'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Auditoría de la revisión del contenido (D-142).
+ * Auditoría de la revisión del contenido (D-142), con el tablero de Penpot
+ * (P-007 E5, D-238).
  *
  * Es la pantalla que pidió el dueño para «controlar a los traumatólogos y que
  * revisen de verdad el contenido»: cuánto se editó cada ficha respecto de como
  * la entregó el modelo de lenguaje, cuánto tiempo de revisión activa le dedicó
  * quien la dio por buena y a qué ritmo, y qué validaciones parecen hechas sin
- * leer. Arriba los filtros, que valen para todo lo de abajo; después los
- * números que se miran primero, los gráficos, los revisores y las fichas. Todo
+ * leer. Arriba los filtros, que valen para todo lo de abajo; después las cuatro
+ * cifras que se miran primero, los gráficos, los revisores y las fichas. Todo
  * sale de la misma cuenta que la planilla que se descarga (`armarAuditoria`),
  * para que lo que se filtre en Excel sea lo mismo que se ve aquí.
  *
@@ -69,6 +74,8 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 const cifra = (valor: number | null, decimales = 1) =>
   valor === null ? '—' : valor.toLocaleString('es-CL', { maximumFractionDigits: decimales })
 
+const plural = (n: number, una: string, varias: string) => `${n} ${n === 1 ? una : varias}`
+
 const primero = (valor: string | string[] | undefined): string | undefined => {
   const v = Array.isArray(valor) ? valor[0] : valor
   return typeof v === 'string' && v.trim() !== '' ? v.trim().slice(0, 200) : undefined
@@ -88,6 +95,18 @@ export default async function PaginaAuditoria({
     estado: primero(parametros.estado),
   }
   const hayFiltro = Object.values(filtros).some(Boolean)
+
+  // La misma pantalla con un filtro cambiado y los demás como estaban: la
+  // cifra de las listas lleva a ellas sin soltar el módulo o el lote que ya se
+  // había elegido, que era justo lo que se estaba mirando.
+  const conFiltro = (cambio: Partial<FiltrosDeAuditoria>) => {
+    const consulta = new URLSearchParams()
+    for (const [clave, valor] of Object.entries({ ...filtros, ...cambio })) {
+      if (valor) consulta.set(clave, valor)
+    }
+    const texto = consulta.toString()
+    return `/admin-panel/auditoria${texto ? `?${texto}` : ''}`
+  }
 
   let entrada: EntradaDeAuditoria | null = null
   try {
@@ -118,6 +137,11 @@ export default async function PaginaAuditoria({
     .filter((c) => c.activo && (c.rol === 'editor' || c.rol === 'admin'))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
+  // --- las cifras ---------------------------------------------------------
+  const validadas = contenidos.filter((c) => c.validadaEn !== null)
+  const porRevisar = totales.porEstado.pendiente + totales.porEstado['en-revision'] + totales.porEstado.devuelta
+  const parteValidada = totales.fichas > 0 ? Math.round((validadas.length / totales.fichas) * 100) : null
+
   // --- los gráficos -------------------------------------------------------
   const estadoPorModulo = MODULOS.map((m) => ({
     etiqueta: m.nombre,
@@ -126,31 +150,39 @@ export default async function PaginaAuditoria({
     ),
   })).filter((fila) => fila.valores.some((v) => v > 0))
 
-  const validadas = contenidos.filter((c) => c.validadaEn !== null)
+  // Por semana desde el lunes y en la hora del servidor, como las demás
+  // series del panel. `porSemana` ya lo hacía así antes del tablero; pasarse
+  // aquí a `ultimasSemanas` (`series.ts`) daba los mismos lunes y dejaba
+  // `porSemana` sin nadie que la usara.
   const semanas = porSemana(validadas.map((c) => c.validadaEn as string), 12)
   const validacionesPorSemana: Punto[] = semanas.map((s) => {
     const [anio, mes, dia] = s.lunes.split('-').map(Number)
-    return {
-      etiqueta: `${dia} ${MESES[mes - 1]}`,
-      detalle: `Semana del ${dia} de ${MESES[mes - 1]} de ${anio}`,
-      valor: s.total,
-    }
+    return { etiqueta: `${dia} ${MESES[mes - 1]}`, detalle: `semana del ${dia} ${MESES[mes - 1]} ${anio}`, valor: s.total }
   })
+  const validadasEnLasSemanas = semanas.reduce((total, s) => total + s.total, 0)
 
   const cuantoSeEdita: Punto[] = reparto(validadas.map((c) => c.porcentaje)).map((valor, i) => ({
     etiqueta: TRAMOS_DE_EDICION[i].etiqueta,
-    detalle: `Fichas validadas con ${TRAMOS_DE_EDICION[i].etiqueta} editado`,
+    // Corto, porque es el globo de la barra: con «Fichas validadas con más de
+    // 50 % editado» medía 250 px y se salía de la tarjeta.
+    detalle: `${TRAMOS_DE_EDICION[i].etiqueta} editado`,
     valor,
   }))
 
   const conTiempo = revisores.filter((r) => r.minutosActivos > 0)
-  const minutosPorRevisor: Punto[] = conTiempo.map((r) => ({ etiqueta: r.nombre, valor: r.minutosActivos }))
+  const minutosPorRevisor: Punto[] = conTiempo
+    .map((r) => ({ etiqueta: r.nombre, valor: r.minutosActivos }))
+    .sort((a, b) => b.valor - a.valor)
   const ritmoPorRevisor: Punto[] = revisores
     .filter((r) => r.ritmoMedio !== null)
     .map((r) => ({ etiqueta: r.nombre, valor: r.ritmoMedio as number }))
     .sort((a, b) => b.valor - a.valor)
+  // Quién valida más rápido de lo que se lee. Penpot remata el aviso con «sus
+  // validadas pasan a la cola de segunda mirada», y esa cola no existe: aquí
+  // se dice solo lo que la base sostiene, el ritmo, lo editado y cuántas de
+  // sus validaciones quedaron señaladas.
+  const demasiadoRapidos = revisores.filter((r) => ritmoSospechoso(r.ritmoMedio))
 
-  const porRevisar = totales.porEstado.pendiente + totales.porEstado['en-revision'] + totales.porEstado.devuelta
   const filasDeLaTabla = contenidos.slice(0, 500)
 
   return (
@@ -266,194 +298,277 @@ export default async function PaginaAuditoria({
         </Vacio>
       ) : null}
 
-      <div className="auditoria-indicadores">
-        <div className="admin-card">
-          <div className="admin-card-title">Por revisar</div>
-          <div className="admin-card-value">{porRevisar}</div>
-          <p className="admin-card-note">
-            {totales.porEstado.devuelta > 0
-              ? `${totales.porEstado.devuelta} devuelta${totales.porEstado.devuelta === 1 ? '' : 's'} al revisor`
-              : 'pendientes o en revisión'}
-          </p>
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-title">Listas para publicar</div>
-          <div className="admin-card-value">{totales.porEstado.lista}</div>
-          <p className="admin-card-note">validadas y a la espera de publicarse</p>
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-title">Publicadas tras revisión</div>
-          <div className="admin-card-value">{totales.porEstado.publicada}</div>
-          <p className="admin-card-note">
-            {totales.publicadasSinValidar > 0
-              ? `${totales.publicadasSinValidar} sin validar`
-              : 'todas validadas antes'}
-          </p>
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-title">Edición media</div>
-          <div className="admin-card-value">
-            {totales.porcentajeMedioDeLasValidadas === null ? '—' : `${cifra(totales.porcentajeMedioDeLasValidadas)} %`}
-          </div>
-          <p className="admin-card-note">del texto original, en lo validado</p>
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-title">Revisión por ficha</div>
-          <div className="admin-card-value">
-            {totales.minutosMediosPorValidada === null ? '—' : `${cifra(totales.minutosMediosPorValidada)} min`}
-          </div>
-          <p className="admin-card-note">activos, de quien la validó, de media</p>
-        </div>
-        <div className={`admin-card${totales.senaladas > 0 ? ' auditoria-card-alerta' : ''}`}>
-          <div className="admin-card-title">Validaciones señaladas</div>
-          <div className="admin-card-value seguimiento-senal">
-            {totales.senaladas > 0 ? <Flag aria-label="señaladas" size={22} /> : null}
-            {totales.senaladas}
-          </div>
-          <p className="admin-card-note">demasiado rápidas o sin abrir alguna sección</p>
-        </div>
+      {/* Cuatro cifras donde antes había seis tarjetas, como en Penpot. Lo que
+          decían las otras dos no se pierde: lo publicado sin validar va con
+          las validadas, y los minutos por ficha, con la edición media, que es
+          la otra mitad de la misma pregunta: ¿se leyó? */}
+      <div className="tablero-cifras">
+        <Cifra
+          titulo="Validadas"
+          icono={CheckCheck}
+          tono="ok"
+          valor={cifra(validadas.length, 0)}
+          nota={
+            <>
+              {parteValidada === null ? 'ninguna ficha en revisión' : `${parteValidada} % de las ${totales.fichas} en revisión`}
+              {totales.publicadasSinValidar > 0
+                ? ` · ${plural(totales.publicadasSinValidar, 'publicada sin validar', 'publicadas sin validar')}`
+                : ''}
+            </>
+          }
+        />
+        <Cifra
+          href={conFiltro({ estado: 'lista' })}
+          titulo="Listas para publicar"
+          icono={Send}
+          tono="atencion"
+          valor={cifra(totales.porEstado.lista, 0)}
+          claseValor={totales.porEstado.lista > 0 ? 'admin-card-value-atencion' : undefined}
+          nota={
+            <>
+              {porRevisar} por revisar
+              {totales.porEstado.devuelta > 0
+                ? `, ${plural(totales.porEstado.devuelta, 'devuelta', 'devueltas')} al revisor`
+                : ''}{' '}
+              · {totales.porEstado.publicada} ya publicada{totales.porEstado.publicada === 1 ? '' : 's'}
+            </>
+          }
+        />
+        <Cifra
+          titulo="Edición media"
+          icono={PenLine}
+          tono="info"
+          valor={totales.porcentajeMedioDeLasValidadas === null ? '—' : `${cifra(totales.porcentajeMedioDeLasValidadas)} %`}
+          nota={
+            <>
+              del texto original, en lo validado
+              {totales.minutosMediosPorValidada === null
+                ? ''
+                : ` · ${cifra(totales.minutosMediosPorValidada)} min de revisión por ficha`}
+            </>
+          }
+        />
+        <Cifra
+          titulo="Señaladas"
+          icono={Flag}
+          tono="atencion"
+          valor={cifra(totales.senaladas, 0)}
+          claseValor={totales.senaladas > 0 ? 'auditoria-cifra-alerta' : undefined}
+          // Penpot dice «por posible error clínico», y no es lo que se mide:
+          // la señal sale del tiempo y de las secciones abiertas
+          // (`evaluarValidacion`), nunca de lo que dice la ficha.
+          nota="validaciones demasiado rápidas o sin abrir alguna sección"
+        />
       </div>
 
       {/* Tres bloques largos, plegables y con memoria (pedido del dueño): quien
           viene a publicar lo validado va directo a «Las fichas» sin bajar por
-          encima de seis gráficos y de la tabla de revisores. */}
+          encima de los gráficos y de la tabla de revisores. */}
       <PlegarTodo />
 
-      <SeccionPlegable
-        clave="auditoria.como-va"
-        titulo="Cómo va la revisión"
-        resumen={`${estadoPorModulo.length} módulo${estadoPorModulo.length === 1 ? '' : 's'}`}
-      >
-        <div className="admin-grid">
-          <div className="admin-card admin-card-ancha">
-            <div className="admin-card-title">Estado por módulo</div>
-            <p className="admin-card-note">Cada barra, las fichas en revisión de un módulo, por estado.</p>
-            <BarrasApiladasPorFila
-              titulo="Estado de la revisión por módulo"
-              filas={estadoPorModulo}
-              series={SERIES_DE_ESTADO.map((s) => ({ etiqueta: ETIQUETA[s.estado], color: s.color }))}
-            />
+      {/* Los dos bloques de gráficos se pintan como los titulares de sección de
+          Penpot, con las tarjetas blancas debajo (`auditoria.css`). «Las
+          fichas» sigue siendo una caja, como las tablas de Actividad y
+          Registro: es una tabla larga y no un tablero. */}
+      <div className="auditoria-tablero">
+        <SeccionPlegable
+          clave="auditoria.como-va"
+          titulo="Cómo va la revisión"
+          resumen={plural(estadoPorModulo.length, 'módulo', 'módulos')}
+        >
+          {/* Penpot pone «Validaciones por semana» al lado del estado y no
+              dibuja «Cuánto se edita». Aquí va al revés: el reparto de lo
+              editado es una de las dos pistas de que se valida sin leer y no
+              se quita, cabe en un tercio, y las doce semanas caben mejor a
+              lo ancho que apretadas en media fila. */}
+          <div className="tablero-fila">
+            <TarjetaDeGrafico titulo="Estado de la revisión por módulo" bajada="Las fichas en revisión de cada módulo, por estado.">
+              <BarrasApiladasPorFila
+                titulo="Estado de la revisión por módulo"
+                filas={estadoPorModulo}
+                series={SERIES_DE_ESTADO.map((s) => ({ etiqueta: ETIQUETA[s.estado], color: s.color }))}
+              />
+            </TarjetaDeGrafico>
+            <TarjetaDeGrafico
+              titulo="Cuánto se edita"
+              className="auditoria-columnas"
+              bajada="Las validadas, según cuánto cambió su texto. Muchas en «0 %» con poco tiempo de revisión es la señal de que se valida sin leer."
+            >
+              <BarrasVerticales titulo="Fichas validadas por porcentaje editado" datos={cuantoSeEdita} />
+            </TarjetaDeGrafico>
           </div>
-          <div className="admin-card">
-            <div className="admin-card-title">Validaciones por semana</div>
-            <p className="admin-card-note">Fichas dadas por listas, las últimas doce semanas.</p>
-            <BarrasVerticales titulo="Validaciones por semana" datos={validacionesPorSemana} />
-          </div>
-          <div className="admin-card">
-            <div className="admin-card-title">Cuánto se edita</div>
-            <p className="admin-card-note">
-              Fichas validadas según cuánto cambió su texto. Muchas en «0 %» con poco tiempo de revisión
-              es la señal de que se valida sin leer.
-            </p>
-            <BarrasVerticales titulo="Fichas validadas por porcentaje editado" datos={cuantoSeEdita} />
-          </div>
-        </div>
-      </SeccionPlegable>
+          {/* Penpot lo dibuja como una línea. Con las pocas validaciones de
+              cada semana, el eje de `Lineas` repetía «0, 0, 1, 1, 1» (marcas
+              de 0,25 escritas sin decimales); en barras cada semana lleva su
+              número debajo y no hace falta eje. */}
+          <TarjetaDeGrafico
+            titulo="Validaciones por semana"
+            className="auditoria-columnas"
+            bajada={`Fichas dadas por listas, las últimas doce semanas: ${plural(validadasEnLasSemanas, 'validación', 'validaciones')}.`}
+          >
+            <BarrasVerticales titulo="Validaciones por semana" datos={validacionesPorSemana} altura={160} />
+          </TarjetaDeGrafico>
+        </SeccionPlegable>
 
-      <SeccionPlegable
-        clave="auditoria.revisores"
-        titulo="Quién revisa y cómo"
-        resumen={`${revisores.length} revisor${revisores.length === 1 ? '' : 'es'}`}
-      >
-        <div className="admin-grid">
-          <div className="admin-card">
-            <div className="admin-card-title">Minutos de revisión activa</div>
-            <p className="admin-card-note">Con alguien delante: sin tocar nada durante 90 s, deja de contar.</p>
-            <BarrasHorizontales
-              titulo="Minutos de revisión activa por revisor"
-              datos={minutosPorRevisor}
-              formato={(v) => cifra(v)}
-            />
+        <SeccionPlegable
+          clave="auditoria.revisores"
+          titulo="Quién revisa y cómo"
+          resumen={plural(revisores.length, 'revisor', 'revisores')}
+        >
+          <div className="tablero-fila tablero-fila-mitades">
+            {/* Penpot dice «últimos 30 días»: los minutos son todos los
+                registrados, porque las sesiones de revisión se suman desde
+                que la ficha entra y no se guardan por día. */}
+            <TarjetaDeGrafico
+              titulo="Minutos de revisión activa"
+              bajada="Por revisor, todo lo registrado. Sin tocar nada durante 90 s, deja de contar."
+            >
+              <BarrasHorizontales
+                titulo="Minutos de revisión activa por revisor"
+                datos={minutosPorRevisor}
+                formato={(v) => `${cifra(v, 0)} min`}
+              />
+            </TarjetaDeGrafico>
+            <TarjetaDeGrafico
+              titulo="Palabras por minuto al validar"
+              bajada={`De media, por minuto de revisión activa. Sobre ${RITMO_MAXIMO_DE_LECTURA} es difícil haber leído con atención.`}
+            >
+              <BarrasHorizontales
+                titulo="Palabras por minuto al validar, por revisor"
+                datos={ritmoPorRevisor}
+                destacar={(p) => ritmoSospechoso(p.valor)}
+                formato={(v) => cifra(v, 0)}
+                umbral={{ valor: RITMO_MAXIMO_DE_LECTURA, etiqueta: String(RITMO_MAXIMO_DE_LECTURA) }}
+              />
+            </TarjetaDeGrafico>
           </div>
-          <div className="admin-card">
-            <div className="admin-card-title">Ritmo al validar</div>
-            <p className="admin-card-note">
-              Palabras por minuto de revisión activa, de media. Por encima de {RITMO_MAXIMO_DE_LECTURA}{' '}
-              (<Flag aria-label="bandera" size={12} />) no es una lectura atenta.
-            </p>
-            <BarrasHorizontales
-              titulo="Palabras por minuto al validar, por revisor"
-              datos={ritmoPorRevisor}
-              destacar={(p) => ritmoSospechoso(p.valor)}
-              formato={(v) => cifra(v, 0)}
-            />
-          </div>
-        </div>
 
-        {revisores.length > 0 ? (
-          <div className="admin-table-container auditoria-revisores">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Revisor</th>
-                  <th>Asignadas</th>
-                  <th>Sin terminar</th>
-                  <th>Validadas</th>
-                  <th>Señaladas</th>
-                  <th>Devueltas</th>
-                  <th>Min. activos</th>
-                  <th>Min. por ficha validada</th>
-                  <th>Palabras/min</th>
-                  <th>% editado</th>
-                  <th>Última actividad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {revisores.map((r) => (
-                  <tr key={r.id}>
-                    <th scope="row" className="admin-table-user-name">
-                      <Link href={`/admin-panel/auditoria?revisor=${encodeURIComponent(r.id)}`}>{r.nombre}</Link>
-                      <div className="revision-tenue">{r.rol === 'admin' ? 'administrador' : r.rol}</div>
-                    </th>
-                    <td className="auditoria-numero">{r.asignadas}</td>
-                    <td className="auditoria-numero">{r.pendientes}</td>
-                    <td className="auditoria-numero">{r.validadas}</td>
-                    <td className={`auditoria-numero${r.senaladas > 0 ? ' auditoria-alerta' : ''}`}>
-                      {r.senaladas > 0 ? (
-                        <span className="seguimiento-senal">
-                          <Flag aria-label="señaladas" size={14} />
-                          {r.senaladas}
-                        </span>
-                      ) : (
-                        0
-                      )}
-                    </td>
-                    <td className="auditoria-numero">{r.devueltas}</td>
-                    <td className="auditoria-numero">{cifra(r.minutosActivos)}</td>
-                    <td className="auditoria-numero">{cifra(r.minutosPorValidada)}</td>
-                    <td className={`auditoria-numero${ritmoSospechoso(r.ritmoMedio) ? ' auditoria-alerta' : ''}`}>
-                      {ritmoSospechoso(r.ritmoMedio) ? (
-                        <span className="seguimiento-senal">
-                          <Flag aria-label="ritmo sospechoso" size={14} />
-                          {cifra(r.ritmoMedio, 0)}
-                        </span>
-                      ) : (
-                        cifra(r.ritmoMedio, 0)
-                      )}
-                    </td>
-                    <td className="auditoria-numero">{r.porcentajeMedio === null ? '—' : `${cifra(r.porcentajeMedio)} %`}</td>
-                    <td className="u-nowrap">
-                      {r.ultimaActividad
-                        ? new Date(r.ultimaActividad).toLocaleString('es-CL', {
-                            day: '2-digit',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </SeccionPlegable>
+          {revisores.length > 0 ? (
+            <TarjetaDeGrafico
+              titulo="Detalle por revisor"
+              bajada="Pulse un nombre para ver toda la pantalla solo con lo suyo."
+              className="auditoria-detalle"
+            >
+              <div className="admin-table-container auditoria-revisores">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Revisor</th>
+                      <th>Asignadas</th>
+                      <th>Sin terminar</th>
+                      <th>Validadas</th>
+                      <th>Señaladas</th>
+                      <th>Devueltas</th>
+                      <th>Min. activos</th>
+                      <th>Min. por ficha validada</th>
+                      <th>Palabras/min</th>
+                      <th>% editado</th>
+                      <th>Última actividad</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {revisores.map((r) => (
+                      <tr key={r.id}>
+                        <th scope="row" className="admin-table-user-name">
+                          <div className="auditoria-revisor">
+                            <span className="auditoria-revisor-circulo" aria-hidden>
+                              {iniciales(r.nombre)}
+                            </span>
+                            <div>
+                              <Link href={`/admin-panel/auditoria?revisor=${encodeURIComponent(r.id)}`}>{r.nombre}</Link>
+                              <div className="revision-tenue">{r.rol === 'admin' ? 'administrador' : r.rol}</div>
+                            </div>
+                          </div>
+                        </th>
+                        <td className="auditoria-numero">{r.asignadas}</td>
+                        <td className="auditoria-numero">{r.pendientes}</td>
+                        <td className="auditoria-numero">{r.validadas}</td>
+                        <td className={`auditoria-numero${r.senaladas > 0 ? ' auditoria-alerta' : ''}`}>
+                          {r.senaladas > 0 ? (
+                            <span className="seguimiento-senal">
+                              <Flag aria-label="señaladas" size={14} />
+                              {r.senaladas}
+                            </span>
+                          ) : (
+                            0
+                          )}
+                        </td>
+                        <td className="auditoria-numero">{r.devueltas}</td>
+                        <td className="auditoria-numero">{cifra(r.minutosActivos)}</td>
+                        <td className="auditoria-numero">{cifra(r.minutosPorValidada)}</td>
+                        <td className={`auditoria-numero${ritmoSospechoso(r.ritmoMedio) ? ' auditoria-alerta' : ''}`}>
+                          {ritmoSospechoso(r.ritmoMedio) ? (
+                            <span className="seguimiento-senal">
+                              <Flag aria-label="ritmo sospechoso" size={14} />
+                              {cifra(r.ritmoMedio, 0)}
+                            </span>
+                          ) : (
+                            cifra(r.ritmoMedio, 0)
+                          )}
+                        </td>
+                        <td className="auditoria-numero">
+                          {r.porcentajeMedio === null ? (
+                            '—'
+                          ) : (
+                            // La barra es de adorno para comparar a ojo: la
+                            // cifra va al lado y es lo que lee el lector de
+                            // pantalla.
+                            <span className="auditoria-editado">
+                              <span className="auditoria-editado-barra" aria-hidden>
+                                <span
+                                  className="auditoria-editado-relleno"
+                                  style={{ width: `${Math.min(100, Math.max(0, r.porcentajeMedio))}%` }}
+                                />
+                              </span>
+                              {cifra(r.porcentajeMedio)} %
+                            </span>
+                          )}
+                        </td>
+                        <td className="u-nowrap">
+                          {/* En 24 horas: «11:29 p. m.» ocupaba la columna
+                              que le faltaba a la tabla para caber entera. */}
+                          {r.ultimaActividad
+                            ? new Date(r.ultimaActividad).toLocaleString('es-CL', {
+                                day: '2-digit',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hourCycle: 'h23',
+                                timeZone: 'America/Santiago',
+                              })
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {demasiadoRapidos.map((r) => (
+                <div key={r.id} className="admin-aviso admin-aviso-error auditoria-aviso-ritmo" role="note">
+                  <Flag aria-hidden size={16} />
+                  <span>
+                    <Link href={`/admin-panel/auditoria?revisor=${encodeURIComponent(r.id)}`}>{r.nombre}</Link> valida a{' '}
+                    {cifra(r.ritmoMedio, 0)} palabras por minuto de media
+                    {r.porcentajeMedio === null ? '' : ` y edita el ${cifra(r.porcentajeMedio)} % del texto`}: por encima de{' '}
+                    {RITMO_MAXIMO_DE_LECTURA} no es una lectura atenta.
+                    {r.senaladas === 0
+                      ? ''
+                      : r.validadas === 1
+                        ? ' Su única validación quedó señalada.'
+                        : ` ${r.senaladas} de sus ${r.validadas} validaciones quedaron señaladas.`}
+                  </span>
+                </div>
+              ))}
+            </TarjetaDeGrafico>
+          ) : null}
+        </SeccionPlegable>
+      </div>
 
       <SeccionPlegable
         clave="auditoria.fichas"
         titulo="Las fichas"
-        resumen={`${contenidos.length} fila${contenidos.length === 1 ? '' : 's'}`}
+        resumen={plural(contenidos.length, 'fila', 'filas')}
       >
         {contenidos.length > filasDeLaTabla.length ? (
           <p className="seguimiento-nota">

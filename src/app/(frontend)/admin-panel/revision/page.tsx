@@ -1,18 +1,27 @@
 import Link from 'next/link'
-import { CheckCircle2, CornerUpLeft, Inbox, UserRound, Users } from 'lucide-react'
+import { CheckCircle2, CornerUpLeft, Hourglass, Inbox, UserRound, Users } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { BarrasHorizontales, Lineas, NoSePudoLeer, SinDatos } from '@/components/admin/Graficos'
+import { Cifra } from '@/components/admin/tablero/Cifra'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
 import { Vacio } from '@/components/ui/Vacio'
 import { claseDeInsignia, tonoDeRevision } from '@/lib/tonosDeEstado'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { puedeEditar } from '@/lib/guardias'
-import { duracionEnPalabras, estadoEnPalabras, type EstadoDeRevision } from '@/lib/revision'
+import { cifra } from '@/lib/graficos'
+import { diasEntre } from '@/lib/series'
+import { duracionEnPalabras, estadoEnPalabras, origenEnPalabras, type EstadoDeRevision } from '@/lib/revision'
 import { clientePayload } from '../datos'
 import { MODULOS, NOMBRE_DE_MODULO } from '../modulos'
+import { DIAS_DEL_TIEMPO_MEDIO, SEMANAS_DEL_GRAFICO, leerTableroDeLaCola } from './tablero'
+import { PROFESIONES, firmasDe, type FirmasDeLaFicha } from '@/lib/firmas'
+import './revision.css'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * La cola de revisión de quien entra (D-142).
+ * La cola de revisión de quien entra (D-142), con el tablero de Penpot encima
+ * (P-007 E5, D-238).
  *
  * Con cientos de fichas llegando de los libros, buscarlas módulo a módulo en
  * «Contenido» no es un flujo de trabajo. Aquí están juntas, de los módulos que
@@ -21,8 +30,11 @@ export const dynamic = 'force-dynamic'
  * espera a cualquiera, de lo más antiguo a lo más nuevo. Cada fila lleva al
  * editor, que es donde se revisa y donde se mide.
  *
- * No enseña cuánto tardaron los demás: eso es de la auditoría, que es del
- * administrador. A cada uno sí se le dice cuánto lleva dedicado a cada ficha.
+ * Encima, la cola contada: cuánto entra y cuánto sale cada semana, cuánto
+ * tarda en salir y dónde se acumula. Son cifras de la cola de sus módulos y no
+ * de nadie en particular: no enseña cuánto tardó cada revisor, que es de la
+ * auditoría y del administrador. A cada uno sí se le dice cuánto lleva
+ * dedicado a cada ficha.
  */
 
 const VISTAS = [
@@ -30,6 +42,13 @@ const VISTAS = [
   { valor: 'listas', etiqueta: 'Validadas, sin publicar', estados: ['lista'] },
   { valor: 'publicadas', etiqueta: 'Publicadas', estados: ['publicada'] },
 ] as const
+
+/** El título de la tabla de abajo según la vista: dice qué fichas tiene delante. */
+const TITULO_DE_LA_VISTA: Record<(typeof VISTAS)[number]['valor'], string> = {
+  'por-revisar': 'Fichas en la cola',
+  listas: 'Validadas, esperando publicación',
+  publicadas: 'Publicadas tras revisión',
+}
 
 const PRIORIDAD: Record<EstadoDeRevision, number> = {
   devuelta: 0,
@@ -44,6 +63,12 @@ const fecha = (valor: unknown) =>
     ? new Date(valor).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—'
 
+const plural = (n: number, singular: string, plural: string) => `${cifra(n)} ${n === 1 ? singular : plural}`
+
+// Con un decimal: entre «2 días» y «3 días» cabe toda la diferencia entre una
+// cola que va bien y una que se atasca.
+const enDias = (dias: number) => `${cifra(dias, 1)} días`
+
 export default async function PaginaPorRevisar({
   searchParams,
 }: {
@@ -57,6 +82,9 @@ export default async function PaginaPorRevisar({
   const modulos = MODULOS.filter((m) => puedeEditar(sesion.usuario, m.slug)).map((m) => m.slug)
 
   const payload = await clientePayload()
+  // El tablero va aparte de la tabla y a la vez: si una de las dos consultas
+  // falla, la otra sigue en pie, y cada una dice lo suyo.
+  const tableroPedido = leerTableroDeLaCola(payload, modulos)
   let filas: Record<string, unknown>[] = []
   let ilegible = false
   const tiempoMio = new Map<string, number>()
@@ -85,6 +113,7 @@ export default async function PaginaPorRevisar({
         titulo: true,
         estado: true,
         asignadaA: true,
+        origen: true,
         libro: true,
         capitulo: true,
         paginas: true,
@@ -92,6 +121,10 @@ export default async function PaginaPorRevisar({
         motivoDeDevolucion: true,
         ultimaEdicion: true,
         createdAt: true,
+        firmaMedicoPor: true,
+        firmaMedicoEn: true,
+        firmaKinesiologoPor: true,
+        firmaKinesiologoEn: true,
       },
     })
     filas = docs as unknown as Record<string, unknown>[]
@@ -134,6 +167,7 @@ export default async function PaginaPorRevisar({
     console.error('[panel] no se pudo leer la cola de revisión:', error)
     ilegible = true
   }
+  const tablero = await tableroPedido
 
   const idDeLaAsignada = (fila: Record<string, unknown>) => {
     const a = fila.asignadaA as Record<string, unknown> | null
@@ -157,30 +191,21 @@ export default async function PaginaPorRevisar({
     return `/admin-panel/revision${texto ? `?${texto}` : ''}`
   }
 
+  const sinTablero = 'no se pudo leer la tabla de revisiones'
+
   return (
     <div>
       <CabeceraDePagina
         titulo="Por revisar"
-        subtitulo={
-          <>
-            Fichas en revisión de sus módulos · {filas.length} en esta vista
-            {mias > 0 ? ` · ${mias} asignada${mias === 1 ? '' : 's'} a usted` : ''}
-          </>
-        }
+        subtitulo="Fichas de sus módulos que esperan la mirada de un docente antes de publicarse"
       />
-
-      <div className="admin-aviso admin-aviso-info">
-        <strong>Cómo se revisa una ficha.</strong>
-        Ábrala, cotéjela con el libro y las páginas que indica, corrija lo que haga falta y pulse
-        «Listo para publicar». Mientras está abierta se registra el tiempo de revisión activa y qué
-        secciones se revisan; al guardar, cuánto cambia respecto del texto original. La publica un
-        administrador.
-      </div>
 
       {/* Las vistas eran tres enlaces sueltos separados por puntos, con la
           activa en negrita: no se veía que eran pestañas de lo mismo ni
           cuántas fichas había detrás de cada una. Ahora es un control
-          segmentado con su contador, y `aria-current` dice cuál está puesta. */}
+          segmentado con su contador, y `aria-current` dice cuál está puesta.
+          Arriba del todo, como en Penpot, aunque solo cambian la tabla de
+          abajo: las cifras son de la cola entera y no dependen de la vista. */}
       <div className="revision-vistas">
         <nav className="segmentado" aria-label="Qué fichas ver">
           {VISTAS.map((v, i) => (
@@ -208,6 +233,137 @@ export default async function PaginaPorRevisar({
         )}
       </div>
 
+      <div className="tablero-cifras">
+        <Cifra
+          titulo="En cola"
+          icono={Inbox}
+          tono={tablero && tablero.enCola > 0 ? 'atencion' : 'ok'}
+          ilegible={tablero === null}
+          valor={tablero ? cifra(tablero.enCola) : '—'}
+          // Más fichas que entran no es buena noticia para la cola: la flecha
+          // sube en rojo, como en el Resumen, que cuenta lo mismo.
+          cambio={
+            tablero && tablero.entradas7dias > 0
+              ? { valor: tablero.entradas7dias, unidad: '', buenoSiSube: false, respecto: 'entradas a la cola en los últimos 7 días' }
+              : null
+          }
+          serie={tablero?.entradasPorSemana}
+          descripcionDeLaSerie={`Fichas que entraron a la cola cada una de las últimas ${SEMANAS_DEL_GRAFICO} semanas.`}
+          nota={
+            !tablero
+              ? sinTablero
+              : tablero.enCola === 0
+                ? 'nada espera a un revisor'
+                : tablero.atrasadas > 0
+                  ? `${plural(tablero.atrasadas, 'lleva', 'llevan')} una semana o más`
+                  : 'ninguna lleva una semana'
+          }
+        />
+
+        <Cifra
+          titulo="Tiempo medio en cola"
+          icono={Hourglass}
+          tono="info"
+          ilegible={tablero === null}
+          valor={tablero && tablero.diasMedios !== null ? enDias(tablero.diasMedios) : '—'}
+          nota={
+            !tablero
+              ? sinTablero
+              : tablero.diasMedios === null
+                ? `ninguna validada en los últimos ${DIAS_DEL_TIEMPO_MEDIO} días`
+                : `de llegar a validarse · ${plural(tablero.validadasEnElPeriodo, 'validada', 'validadas')} en ${DIAS_DEL_TIEMPO_MEDIO} días${
+                    tablero.diasMediosAntes !== null ? ` · antes, ${enDias(tablero.diasMediosAntes)}` : ''
+                  }`
+          }
+        />
+
+        <Cifra
+          titulo="Validadas · 7 días"
+          icono={CheckCircle2}
+          tono="ok"
+          ilegible={tablero === null}
+          valor={tablero ? cifra(tablero.validadas7dias) : '—'}
+          cambio={
+            tablero && (tablero.validadas7dias > 0 || tablero.validadasAntes7dias > 0)
+              ? { valor: tablero.validadas7dias - tablero.validadasAntes7dias, unidad: '', respecto: 'que los 7 días anteriores' }
+              : null
+          }
+          serie={tablero?.validadasPorSemana}
+          descripcionDeLaSerie={`Fichas validadas cada una de las últimas ${SEMANAS_DEL_GRAFICO} semanas.`}
+          nota={tablero ? `${cifra(tablero.validadasAntes7dias)} en los 7 días anteriores` : sinTablero}
+        />
+
+        <Cifra
+          titulo="Devueltas al revisor"
+          icono={CornerUpLeft}
+          tono={tablero && tablero.devueltas > 0 ? 'atencion' : 'info'}
+          ilegible={tablero === null}
+          valor={tablero ? cifra(tablero.devueltas) : '—'}
+          nota={
+            !tablero
+              ? sinTablero
+              : tablero.revisadas === 0
+                ? 'ninguna ficha se ha revisado todavía'
+                : `${tablero.devueltas > 0 ? 'esperan su corrección · ' : ''}${Math.round(
+                    (tablero.devueltasAlgunaVez / tablero.revisadas) * 100,
+                  )} % de las revisadas volvió alguna vez`
+          }
+        />
+      </div>
+
+      <div className="tablero-fila">
+        <TarjetaDeGrafico
+          titulo="Entradas y salidas de la cola"
+          // La última semana es la que corre: un martes lleva dos días, y su
+          // caída al final de la línea no es una caída.
+          bajada="Fichas que llegaron a revisión y fichas validadas, por semana · la última es la semana en curso"
+          ilegible={tablero === null}
+        >
+          {tablero === null ? (
+            <NoSePudoLeer que="la tabla de revisiones" />
+          ) : (
+            <Lineas
+              titulo={`Fichas que llegaron a revisión y fichas validadas, cada una de las últimas ${SEMANAS_DEL_GRAFICO} semanas`}
+              etiquetas={tablero.semanas.map((s) => s.etiqueta)}
+              detalles={tablero.semanas.map((s) => s.detalle)}
+              series={[
+                { etiqueta: 'Llegaron a revisión', color: 'var(--ambar)', valores: tablero.entradasPorSemana },
+                { etiqueta: 'Validadas', color: 'var(--verde)', valores: tablero.validadasPorSemana },
+              ]}
+              area={false}
+              unidad="fichas"
+            />
+          )}
+        </TarjetaDeGrafico>
+
+        <TarjetaDeGrafico
+          titulo="Cola por módulo"
+          bajada={tablero ? `${plural(tablero.enCola, 'ficha espera', 'fichas esperan')} a un revisor` : 'Las fichas que esperan a un revisor'}
+          ilegible={tablero === null}
+          className="revision-por-modulo"
+        >
+          {tablero === null ? (
+            <NoSePudoLeer que="la tabla de revisiones" />
+          ) : tablero.enCola === 0 ? (
+            <SinDatos texto="No hay nada en cola." />
+          ) : (
+            <BarrasHorizontales
+              titulo="Fichas en cola en cada módulo"
+              datos={tablero.porModulo.map((m) => ({ etiqueta: NOMBRE_DE_MODULO[m.slug] ?? m.slug, valor: m.enCola }))}
+            />
+          )}
+        </TarjetaDeGrafico>
+      </div>
+
+      <div className="admin-aviso admin-aviso-info">
+        <strong>Cómo se revisa una ficha.</strong>
+        Ábrala, cotéjela con el libro y las páginas que indica, corrija lo que haga falta y fírmela:
+        cada ficha necesita la firma de un médico y la de un kinesiólogo, y con las dos queda lista.
+        Mientras está abierta se registra el tiempo de revisión activa y qué secciones se revisan; al
+        guardar, cuánto cambia respecto del texto original. Si el texto cambia después de una firma, la
+        firma se borra. La publica un administrador.
+      </div>
+
       {ilegible ? (
         <div className="admin-aviso admin-aviso-error">
           <strong>No se pudo leer la cola de revisión.</strong>
@@ -229,68 +385,115 @@ export default async function PaginaPorRevisar({
           {soloMias ? 'Solo se muestran las fichas asignadas a usted.' : null}
         </Vacio>
       ) : (
-        <div className="admin-table-container">
-          <table className="admin-table tabla-apilable">
-            <thead>
-              <tr>
-                <th>Ficha</th>
-                <th>Estado</th>
-                <th>Asignada a</th>
-                <th>Fuente</th>
-                <th>Su revisión</th>
-                <th>En revisión desde</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordenadas.map((f) => {
-                const coleccion = String(f.coleccion)
-                const id = String(f.documentoId)
-                const asignada = f.asignadaA as Record<string, unknown> | null
-                const segundos = tiempoMio.get(`${coleccion}/${id}`) ?? 0
-                return (
-                  <tr key={`${coleccion}/${id}`}>
-                    <th scope="row" className="admin-table-user-name">
-                      <Link href={`/admin-panel/contenido/${coleccion}/${id}`}>
-                        {String(f.titulo || `#${id}`)}
-                      </Link>
-                      <div className="revision-tenue">{NOMBRE_DE_MODULO[coleccion] ?? coleccion}</div>
-                      {f.estado === 'devuelta' && f.motivoDeDevolucion ? (
-                        <div className="auditoria-motivos">
-                          <CornerUpLeft aria-hidden size={13} />
-                          Devuelta: {String(f.motivoDeDevolucion)}
-                        </div>
-                      ) : null}
-                    </th>
-                    <td data-etiqueta="Estado">
-                      <span className={claseDeInsignia(tonoDeRevision(String(f.estado)))}>
-                        {estadoEnPalabras(f.estado)}
-                      </span>
-                    </td>
-                    <td data-etiqueta="Asignada a">
-                      {asignada && typeof asignada === 'object'
-                        ? String(asignada.id) === usuarioId
-                          ? 'Usted'
-                          : String(asignada.nombre || asignada.email || '')
-                        : <span className="revision-tenue">sin asignar</span>}
-                    </td>
-                    <td data-etiqueta="Fuente">
-                      {[f.libro, f.capitulo && `cap. ${String(f.capitulo)}`, f.paginas && `págs. ${String(f.paginas)}`]
-                        .filter(Boolean)
-                        .join(' · ') || <span className="revision-tenue">—</span>}
-                    </td>
-                    <td className="auditoria-numero" data-etiqueta="Su revisión">
-                      {segundos > 0 ? duracionEnPalabras(segundos) : '—'}
-                    </td>
-                    <td className="u-nowrap" data-etiqueta="Desde">
-                      {fecha(f.createdAt)}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <TarjetaDeGrafico
+          titulo={TITULO_DE_LA_VISTA[vista.valor]}
+          bajada={
+            <>
+              {plural(filas.length, 'ficha', 'fichas')} en esta vista
+              {soloMias ? ', solo las asignadas a usted' : mias > 0 ? ` · ${mias} asignada${mias === 1 ? '' : 's'} a usted` : ''}
+            </>
+          }
+        >
+          <div className="admin-table-container">
+            <table className="admin-table tabla-apilable">
+              <thead>
+                <tr>
+                  <th>Ficha</th>
+                  <th>Estado</th>
+                  <th>Asignada a</th>
+                  <th>Fuente</th>
+                  <th>Firmas</th>
+                  <th>Su revisión</th>
+                  <th>En revisión desde</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordenadas.map((f) => {
+                  const coleccion = String(f.coleccion)
+                  const id = String(f.documentoId)
+                  const asignada = f.asignadaA as Record<string, unknown> | null
+                  const segundos = tiempoMio.get(`${coleccion}/${id}`) ?? 0
+                  const libro = [f.libro, f.capitulo && `cap. ${String(f.capitulo)}`, f.paginas && `págs. ${String(f.paginas)}`]
+                    .filter(Boolean)
+                    .join(' · ')
+                  const dias = vista.valor === 'por-revisar' ? diasEntre(f.createdAt) : null
+                  return (
+                    <tr key={`${coleccion}/${id}`}>
+                      <th scope="row" className="admin-table-user-name">
+                        <Link href={`/admin-panel/contenido/${coleccion}/${id}`}>
+                          {String(f.titulo || `#${id}`)}
+                        </Link>
+                        <div className="revision-tenue">{NOMBRE_DE_MODULO[coleccion] ?? coleccion}</div>
+                        {f.estado === 'devuelta' && f.motivoDeDevolucion ? (
+                          <div className="auditoria-motivos">
+                            <CornerUpLeft aria-hidden size={13} />
+                            Devuelta: {String(f.motivoDeDevolucion)}
+                          </div>
+                        ) : null}
+                      </th>
+                      <td data-etiqueta="Estado">
+                        <span className={claseDeInsignia(tonoDeRevision(String(f.estado)))}>
+                          {estadoEnPalabras(f.estado)}
+                        </span>
+                      </td>
+                      <td data-etiqueta="Asignada a">
+                        {asignada && typeof asignada === 'object'
+                          ? String(asignada.id) === usuarioId
+                            ? 'Usted'
+                            : String(asignada.nombre || asignada.email || '')
+                          : <span className="revision-tenue">sin asignar</span>}
+                      </td>
+                      {/* De dónde salió el texto —el modelo o un docente— y,
+                          si se sabe, de qué libro, para cotejarlo. */}
+                      <td data-etiqueta="Fuente">
+                        <div>{origenEnPalabras(f.origen)}</div>
+                        {libro ? <div className="revision-tenue">{libro}</div> : null}
+                      </td>
+                      {/* Las dos firmas (D-240): cuál está y cuál falta, para que
+                          un médico vea de un vistazo las que esperan la suya. */}
+                      <td data-etiqueta="Firmas">
+                        <FirmasEnLaFila firmas={firmasDe(f)} />
+                      </td>
+                      <td className="auditoria-numero" data-etiqueta="Su revisión">
+                        {segundos > 0 ? duracionEnPalabras(segundos) : '—'}
+                      </td>
+                      <td className="u-nowrap" data-etiqueta="Desde">
+                        {fecha(f.createdAt)}
+                        {dias !== null ? (
+                          <div className="revision-tenue">
+                            {dias === 0 ? 'llegó hoy' : `${plural(dias, 'día', 'días')} en cola`}
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </TarjetaDeGrafico>
       )}
     </div>
+  )
+}
+
+/** Las dos casillas de firma de una fila: «M» y «K», en verde la puesta. */
+function FirmasEnLaFila({ firmas }: { firmas: FirmasDeLaFicha }) {
+  return (
+    <span className="revision-firmas-fila">
+      {PROFESIONES.map(({ valor, etiqueta }) => {
+        const firma = firmas[valor]
+        return (
+          <span
+            key={valor}
+            className={`insignia ${firma ? 'insignia-ok' : 'insignia-neutra'}`}
+            title={firma ? `${etiqueta}: ${firma.nombre ?? 'cuenta borrada'}` : `${etiqueta}: falta su firma`}
+          >
+            {etiqueta}
+            <span className="sr-only">{firma ? `: firmada por ${firma.nombre ?? 'una cuenta borrada'}` : ': falta'}</span>
+          </span>
+        )
+      })}
+    </span>
   )
 }

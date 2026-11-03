@@ -1,38 +1,33 @@
 import Link from 'next/link'
-import type { ReactNode } from 'react'
 import {
   Activity,
   Archive,
-  ArrowRight,
+  ChevronRight,
   ClipboardCheck,
-  Eye,
   FileText,
   Flag,
   Inbox,
   MessageSquare,
-  PenLine,
+  Plus,
+  ReceiptText,
+  UserPlus,
   Users,
   type LucideIcon,
 } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
-import { PlegarTodo } from '@/components/admin/PlegarTodo'
-import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
-import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
-import { InsigniaMantencion } from '@/components/ui/InsigniaMantencion'
+import { BarrasApiladasPorFila, Dona, Lineas, NoSePudoLeer } from '@/components/admin/Graficos'
+import { Cifra } from '@/components/admin/tablero/Cifra'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { puedeEditar } from '@/lib/guardias'
 import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
 import { listarRespaldos } from '@/lib/respaldosServidor'
-import {
-  clientePayload,
-  conteosPorModulo,
-  resumenDeActividad,
-  resumenDeComentarios,
-  resumenDeUsuarios,
-  rutaPublica,
-  NOMBRE_DE_MODULO,
-} from './datos'
+import { accionDelRegistroEnPalabras } from '@/lib/registro'
+import { cifra, variacion } from '@/lib/graficos'
+import { diasEntre, haceCuanto, ultimosYAnteriores } from '@/lib/series'
+import { clientePayload, conteosPorModulo, resumenDeComentarios } from './datos'
+import { actividadReciente, colaDelResumen, cuentasDelResumen, lecturasPorDia, publicadasEstaSemana } from './resumen'
 import { NOMBRE_DE_DESTINO } from './modulos'
 import './resumen.css'
 
@@ -41,33 +36,34 @@ export const dynamic = 'force-dynamic'
 const fecha = (valor: string | Date) =>
   new Date(valor).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
 
+const plural = (n: number, singular: string, plural: string) => `${cifra(n)} ${n === 1 ? singular : plural}`
+
 /**
- * Resumen del panel.
+ * Resumen del panel, con el tablero de Penpot (P-007 E5, D-238).
  *
- * Responde de un vistazo a las preguntas que se hacen al entrar: qué hay
- * publicado y qué está a medias, qué falta por atender y —si quien mira es el
- * administrador— quién tiene acceso, qué se está leyendo y cuándo fue el
- * último respaldo. Esa última tarjeta importa porque el día que haga falta
- * será tarde para descubrir que el último es de hace dos meses.
+ * Responde de un vistazo a las preguntas que se hacen al entrar: cuántas
+ * cuentas hay y cómo crecen, qué hay publicado, qué espera revisión, cuánto se
+ * lee —y quién—, qué hay que hacer hoy y qué hizo el equipo hace un rato. La
+ * tarjeta del último respaldo pasó a «Para hoy»: el día que haga falta será
+ * tarde para descubrir que el último es de hace dos meses.
+ *
+ * Entra también el editor. La barra lateral le ofrece «Resumen» desde el
+ * primer día, y lo que ve es lo suyo —qué hay publicado, qué está en cola y
+ * qué se ha comentado en sus módulos—; las cuentas, los respaldos, la lectura
+ * y el registro son del administrador y no se le muestran.
  */
 export default async function ResumenAdmin() {
-  // Entra también el editor. La barra lateral le ofrece «Resumen» desde el
-  // primer día, pero esta página exigía administrador y lo devolvía al inicio:
-  // su primer clic en el panel terminaba fuera del panel. Lo que ve es lo suyo
-  // —qué hay publicado, qué está a medias y qué se ha comentado—; las cuentas,
-  // los respaldos y la lectura son del administrador y no se le muestran.
   const { sesion, esAdmin } = await exigirPanel()
 
   const payload = await clientePayload()
-  // Los módulos en mantención (D-156), para marcarlos en su tarjeta.
+  // Los módulos en mantención (D-156), para decirlo bajo el gráfico de contenido.
   const enMantencion = await modulosEnMantencion()
 
-  const [usuarios, comentarios, todosLosModulos, actividad, lecturaDeRespaldos, solicitudes, pendientes, requisitos] =
+  const [cuentas, comentarios, todosLosModulos, lecturaDeRespaldos, solicitudes, pendientes, requisitos, cotizaciones, recientes] =
     await Promise.all([
-      esAdmin ? resumenDeUsuarios(payload) : null,
+      esAdmin ? cuentasDelResumen(payload) : null,
       resumenDeComentarios(payload),
       conteosPorModulo(payload),
-      esAdmin ? resumenDeActividad(payload) : null,
       // El fallo viaja con su motivo: con la carpeta de respaldos sin permisos
       // esta página afirmaba «no hay ningún respaldo» y mandaba a crear el
       // primero, que fallaba igual por la misma causa (O-067).
@@ -95,17 +91,17 @@ export default async function ResumenAdmin() {
             .then((conteo) => conteo.totalDocs)
             .catch(() => 0)
         : 0,
-      // Los cinco comentarios pendientes más recientes. Iban en un `await`
-      // suelto después de este bloque sin depender de nada de él: era una ida
-      // y vuelta a la base de más en la pantalla que abre el panel (D-128).
+      // El comentario pendiente más antiguo, para decir en «Para hoy» desde
+      // cuándo espera alguien una respuesta.
       payload
         .find({
           collection: 'comentarios',
           where: { estado: { equals: 'pendiente' } },
-          sort: '-createdAt',
-          limit: 5,
-          depth: 1,
+          sort: 'createdAt',
+          limit: 1,
+          depth: 0,
           overrideAccess: true,
+          select: { createdAt: true },
         })
         .catch(() => ({ docs: [] as Record<string, unknown>[] })),
       // Los requisitos que nadie ha atendido todavía (D-163): del administrador,
@@ -120,16 +116,24 @@ export default async function ResumenAdmin() {
             .then((conteo) => conteo.totalDocs)
             .catch(() => null)
         : null,
+      // Las cotizaciones que nadie ha abierto (D-236).
+      esAdmin
+        ? payload
+            .count({ collection: 'cotizaciones', where: { estado: { equals: 'nueva' } }, overrideAccess: true })
+            .then((conteo) => conteo.totalDocs)
+            .catch(() => null)
+        : null,
+      esAdmin ? actividadReciente(payload) : null,
     ])
 
   // Un editor con módulos asignados cuenta y ve los suyos: un resumen que suma
   // fichas que no puede tocar no le sirve para saber qué le queda por hacer.
   const modulos = todosLosModulos.filter((m) => puedeEditar(sesion.usuario, m.slug))
+  const suyos = modulos.map((m) => m.slug)
 
   // La revisión del contenido (D-142), de los módulos de quien mira. `null` si
   // la tabla no respondió: la tarjeta lo dice en vez de enseñar ceros.
   const usuarioId = String(sesion.usuario.id)
-  const suyos = modulos.map((m) => m.slug)
   // Sin módulos que editar no hay nada que contar, y un `in` vacío no se deja
   // a la interpretación de cada versión de Payload.
   const contarRevisiones = async (where?: Record<string, unknown>) =>
@@ -144,35 +148,48 @@ export default async function ResumenAdmin() {
             overrideAccess: true,
           })
         ).totalDocs
-  const revision = await Promise.all([
-    contarRevisiones(),
-    contarRevisiones({ estado: { in: ['pendiente', 'en-revision', 'devuelta'] } }),
-    contarRevisiones({
-      and: [{ estado: { in: ['pendiente', 'en-revision', 'devuelta'] } }, { asignadaA: { equals: usuarioId } }],
-    }),
-    contarRevisiones({ estado: { equals: 'lista' } }),
-    contarRevisiones({ and: [{ estado: { equals: 'lista' } }, { validacionRapida: { equals: true } }] }),
+  const [revision, cola, lecturas, publicadasSemana] = await Promise.all([
+    Promise.all([
+      contarRevisiones(),
+      contarRevisiones({ estado: { in: ['pendiente', 'en-revision', 'devuelta'] } }),
+      contarRevisiones({
+        and: [{ estado: { in: ['pendiente', 'en-revision', 'devuelta'] } }, { asignadaA: { equals: usuarioId } }],
+      }),
+      contarRevisiones({ estado: { equals: 'lista' } }),
+      contarRevisiones({ and: [{ estado: { equals: 'lista' } }, { validacionRapida: { equals: true } }] }),
+      // Las que nadie ha tomado. Con las asignadas a quien mira suman lo que
+      // dice el aviso de la barra a un editor; sin ellas, la tarjeta decía
+      // «9» y la barra «3», y no había cómo saber de dónde salían los seis.
+      contarRevisiones({
+        and: [{ estado: { in: ['pendiente', 'en-revision', 'devuelta'] } }, { asignadaA: { exists: false } }],
+      }),
+    ])
+      .then(([total, porRevisar, mias, listas, senaladas, libres]) => ({ total, porRevisar, mias, listas, senaladas, libres }))
+      .catch((error: unknown) => {
+        console.error('[panel] no se pudo contar la revisión:', error)
+        return null
+      }),
+    colaDelResumen(payload, suyos),
+    // Treinta días para el gráfico, que dan también los catorce del
+    // minigráfico y las dos semanas que compara la flecha de la tarjeta.
+    esAdmin ? lecturasPorDia(payload, 30, cuentas?.etapaDe ?? new Map()) : null,
+    publicadasEstaSemana(payload, suyos),
   ])
-    .then(([total, porRevisar, mias, listas, senaladas]) => ({ total, porRevisar, mias, listas, senaladas }))
-    .catch((error: unknown) => {
-      console.error('[panel] no se pudo contar la revisión:', error)
-      return null
-    })
 
   // Los conteos que la base no supo responder vienen a cero y con `ilegible`
   // en alto (`datos.ts`). Sumarlos como ceros da un total que parece un
-  // recuento y no lo es: si falla la tabla de patologías, «Contenido
-  // publicado» baja sola y lo razonable es concluir que se perdió contenido.
-  // Se suma solo lo que se pudo leer y se dice cuántos módulos faltan.
+  // recuento y no lo es: si falla la tabla de patologías, «Fichas publicadas»
+  // baja sola y lo razonable es concluir que se perdió contenido. Se suma solo
+  // lo que se pudo leer y se dice cuántos módulos faltan.
   const legibles = modulos.filter((m) => !m.ilegible)
   const modulosIlegibles = modulos.filter((m) => m.ilegible)
   const publicados = legibles.reduce((total, m) => total + m.publicados, 0)
-  const borradores = legibles.reduce((total, m) => total + m.borradores, 0)
+  const creadas = legibles.reduce((total, m) => total + m.total, 0)
   const hayIlegibles =
     modulosIlegibles.length > 0 ||
     comentarios.ilegible ||
-    usuarios?.ilegible === true ||
-    actividad?.ilegible === true
+    (esAdmin && cuentas === null) ||
+    (esAdmin && lecturas === null)
   const respaldos = lecturaDeRespaldos.lista
   const respaldosIlegibles = lecturaDeRespaldos.fallo
   const ultimoRespaldo = respaldos.find((r) => r.tipo === 'base')
@@ -180,36 +197,10 @@ export default async function ResumenAdmin() {
     ? Math.floor((Date.now() - new Date(ultimoRespaldo.creado).getTime()) / 86_400_000)
     : null
 
-  // Las cinco filas de abajo decían el módulo —«Biblioteca de patologías» en
-  // todas— y nunca de qué ficha hablaban: eso vive en `documentoId`, que en
-  // `Comentarios` es un texto suelto y no una relación, así que la profundidad
-  // con la que se leen trae al autor pero nunca el documento. Son cinco
-  // consultas de profundidad 0 en una página que ya es `force-dynamic`, cada
-  // una por su cuenta: la ficha pudo borrarse y el comentario sigue aquí.
-  const titulosDeFichas = new Map<string, string>()
-  await Promise.all(
-    pendientes.docs.map(async (documento) => {
-      const c = documento as { coleccion?: string; documentoId?: string }
-      if (!c.coleccion || !c.documentoId) return
-      try {
-        const doc = (await payload.findByID({
-          collection: c.coleccion as never,
-          id: c.documentoId,
-          depth: 0,
-          overrideAccess: true,
-        })) as Record<string, unknown> | null
-        const nombre = doc?.nombre ?? doc?.titulo
-        if (typeof nombre === 'string' && nombre.trim() !== '') {
-          titulosDeFichas.set(`${c.coleccion}/${c.documentoId}`, nombre)
-        }
-      } catch {
-        // La ficha ya no está: la fila se queda con el nombre del módulo.
-      }
-    }),
-  )
-
-  // Cuántas secciones plegables tiene la pantalla: con dos, «Plegar todo».
-  const hayComentarios = pendientes.docs.length > 0
+  const totalesDeLectura = lecturas ? lecturas.residentes.map((v, i) => v + lecturas.equipo[i]) : []
+  const semanaDeLectura = ultimosYAnteriores(totalesDeLectura, 7)
+  const masAntiguo = pendientes.docs[0] as { createdAt?: string } | undefined
+  const diasDelMasAntiguo = diasEntre(masAntiguo?.createdAt)
 
   return (
     <div>
@@ -221,6 +212,14 @@ export default async function ResumenAdmin() {
           month: 'long',
           year: 'numeric',
         })}`}
+        acciones={
+          suyos.length > 0 ? (
+            <Link href="/admin-panel/contenido" className="admin-btn admin-btn-primary">
+              <Plus aria-hidden size={18} />
+              Nueva ficha
+            </Link>
+          ) : null
+        }
       />
 
       {/* Lo primero de la página, por encima del respaldo: quien pidió la
@@ -261,10 +260,8 @@ export default async function ResumenAdmin() {
 
       {/* Una tabla que no responde se veía exactamente igual que un módulo
           recién instalado: tarjeta a cero, barra al 0 % y «sin contenido aún».
-          El dato para distinguirlos existe desde que `datos.ts` dejó de
-          confundir «cero» con «no se pudo leer», y hasta aquí no lo miraba
-          nadie. El aviso va arriba del todo porque cambia cómo se leen todos
-          los números de esta pantalla. */}
+          El aviso va arriba del todo porque cambia cómo se leen todos los
+          números de esta pantalla. */}
       {hayIlegibles ? (
         <div className="admin-aviso admin-aviso-atencion" role="status">
           <strong>La base no respondió a parte de este resumen.</strong>
@@ -277,60 +274,46 @@ export default async function ResumenAdmin() {
         </div>
       ) : null}
 
-      <div className="admin-grid">
-        {usuarios ? (
-          <Indicador
+      {/* El editor tiene tres cifras y no cuatro: en la rejilla de cuatro le
+          quedaba un hueco a la derecha que parecía una tarjeta que no cargó. */}
+      <div className={esAdmin ? 'tablero-cifras' : 'tablero-cifras tablero-cifras-3'}>
+        {esAdmin ? (
+          <Cifra
             href="/admin-panel/usuarios"
-            titulo="Cuentas con acceso"
+            titulo="Cuentas activas"
             icono={Users}
             tono="info"
-            ilegible={usuarios.ilegible}
-            valor={
-              usuarios.ilegible ? (
-                '—'
-              ) : (
-                <>
-                  {usuarios.activos}
-                  <span className="admin-numero-tenue"> / {usuarios.total}</span>
-                </>
-              )
+            ilegible={cuentas === null}
+            valor={cuentas === null ? '—' : cifra(cuentas.activas)}
+            cambio={
+              cuentas
+                ? (() => {
+                    const antes = cuentas.activasPorMes[cuentas.activasPorMes.length - 2]
+                    const v = variacion(cuentas.activas, antes)
+                    return v === null ? null : { valor: v, respecto: 'que a fines del mes pasado' }
+                  })()
+                : null
             }
+            serie={cuentas?.activasPorMes}
+            descripcionDeLaSerie="Cuentas activas al cierre de cada uno de los últimos seis meses."
             nota={
-              usuarios.ilegible ? (
-                'no se pudo leer la tabla de cuentas'
-              ) : (
-                <>
-                  {usuarios.admins} administrador{usuarios.admins === 1 ? '' : 'es'} ·{' '}
-                  {usuarios.editores} editor{usuarios.editores === 1 ? '' : 'es'} ·{' '}
-                  {usuarios.lectores} lector{usuarios.lectores === 1 ? '' : 'es'}
-                  {/* Las solicitudes también están sin activar, pero no son
-                      bajas, y ya tienen su aviso arriba: contadas aquí dos
-                      veces, «3 sin activar» hacía buscar tres bajas donde
-                      había una. `Math.max` porque los dos conteos son
-                      consultas distintas, y entre ambas pudo llegar otra. */}
-                  {Math.max(usuarios.inactivos - solicitudes, 0) > 0
-                    ? ` · ${Math.max(usuarios.inactivos - solicitudes, 0)} sin activar`
-                    : ''}
-                  {solicitudes > 0
-                    ? ` · ${solicitudes} solicitud${solicitudes === 1 ? '' : 'es'}`
-                    : ''}
-                </>
-              )
+              cuentas === null
+                ? 'no se pudo leer la tabla de cuentas'
+                : `${plural(cuentas.nuevasEsteMes, 'nueva', 'nuevas')} este mes · ${plural(cuentas.instituciones, 'institución', 'instituciones')}`
             }
           />
         ) : null}
 
-        <Indicador
+        <Cifra
           href="/admin-panel/contenido"
-          titulo="Contenido publicado"
+          titulo="Fichas publicadas"
           icono={FileText}
           tono="ok"
-          valor={publicados}
+          valor={cifra(publicados)}
+          cambio={publicadasSemana ? { valor: publicadasSemana, unidad: '', respecto: 'publicadas en los últimos 7 días' } : null}
           nota={
             <>
-              {borradores > 0
-                ? `${borradores} borrador${borradores === 1 ? '' : 'es'} sin publicar`
-                : 'sin borradores pendientes'}
+              {creadas > 0 ? `de ${cifra(creadas)} creadas · ${Math.round((publicados / creadas) * 100)} %` : 'sin contenido aún'}
               {modulosIlegibles.length > 0
                 ? ` · sin contar ${modulosIlegibles.length} módulo${
                     modulosIlegibles.length === 1 ? '' : 's'
@@ -341,19 +324,30 @@ export default async function ResumenAdmin() {
         />
 
         {revision === null || revision.total > 0 ? (
-          <Indicador
+          <Cifra
             href="/admin-panel/revision"
-            titulo="Revisión del contenido"
+            titulo="Por revisar"
             icono={ClipboardCheck}
             tono={revision !== null && revision.porRevisar > 0 ? 'atencion' : 'info'}
             ilegible={revision === null}
-            valor={revision === null ? '—' : revision.porRevisar}
+            valor={revision === null ? '—' : cifra(revision.porRevisar)}
+            // Más fichas en cola no es buena noticia: la flecha sube en rojo.
+            cambio={
+              cola && cola.entradas7dias > 0
+                ? { valor: cola.entradas7dias, unidad: '', buenoSiSube: false, respecto: 'entradas a la cola en los últimos 7 días' }
+                : null
+            }
+            serie={cola?.entradasPorSemana}
+            descripcionDeLaSerie="Fichas que entraron a la cola cada una de las últimas ocho semanas."
             nota={
               revision === null ? (
                 'no se pudo leer la tabla de revisiones'
               ) : esAdmin ? (
                 <>
-                  por revisar · {revision.listas} lista{revision.listas === 1 ? '' : 's'} para publicar
+                  {cola && cola.atrasadas > 0
+                    ? `${plural(cola.atrasadas, 'lleva', 'llevan')} más de una semana · `
+                    : ''}
+                  {plural(revision.listas, 'lista', 'listas')} para publicar
                   {revision.senaladas > 0 ? (
                     <>
                       {' · '}
@@ -363,11 +357,11 @@ export default async function ResumenAdmin() {
                   ) : null}
                 </>
               ) : (
-                `por revisar en sus módulos${
+                `en sus módulos${
                   revision.mias > 0
                     ? ` · ${revision.mias} asignada${revision.mias === 1 ? '' : 's'} a usted`
                     : ''
-                }`
+                }${revision.libres > 0 ? ` · ${revision.libres} sin asignar` : ''}`
               )
             }
             // La tarjeta tenía dos destinos —la cola y la auditoría— y por eso
@@ -384,335 +378,315 @@ export default async function ResumenAdmin() {
           />
         ) : null}
 
-        <Indicador
-          href="/admin-panel/comentarios"
-          titulo="Comentarios pendientes"
-          icono={MessageSquare}
-          tono={!comentarios.ilegible && comentarios.pendientes > 0 ? 'atencion' : 'info'}
-          ilegible={comentarios.ilegible}
-          // El ámbar de la cifra iba en línea (`'var(--ambar)'`, 3,7:1 sobre
-          // blanco): ahora es una clase con el ámbar de texto, que llega a AA.
-          claseValor={
-            !comentarios.ilegible && comentarios.pendientes > 0 ? 'admin-card-value-atencion' : undefined
-          }
-          valor={
-            comentarios.ilegible ? (
-              '—'
-            ) : (
-              <>
-                {comentarios.pendientes}
-                <span className="admin-numero-tenue"> / {comentarios.total}</span>
-              </>
-            )
-          }
-          nota={
-            comentarios.ilegible
-              ? 'no se pudo leer la tabla de comentarios'
-              : 'retroalimentación recibida en las fichas'
-          }
-        />
-
-        {requisitos !== null || esAdmin ? (
-          <Indicador
-            href="/planificacion"
-            titulo="Requisitos por atender"
-            icono={Inbox}
-            tono={requisitos !== null && requisitos > 0 ? 'atencion' : 'info'}
-            ilegible={requisitos === null}
-            claseValor={requisitos !== null && requisitos > 0 ? 'admin-card-value-atencion' : undefined}
-            valor={requisitos === null ? '—' : requisitos}
-            nota={
-              requisitos === null
-                ? 'no se pudo leer el buzón'
-                : 'propuestos para el módulo 06, sin respuesta'
-            }
-          />
-        ) : null}
-
-        {actividad ? (
-          <Indicador
+        {esAdmin ? (
+          <Cifra
             href="/admin-panel/actividad"
-            titulo="Lectura de los últimos 7 días"
+            titulo="Lecturas · 7 días"
             icono={Activity}
             tono="info"
-            ilegible={actividad.ilegible}
-            valor={actividad.ilegible ? '—' : actividad.ultimos7dias}
+            ilegible={lecturas === null}
+            valor={lecturas === null ? '—' : cifra(semanaDeLectura.ultimos)}
+            cambio={(() => {
+              const v = variacion(semanaDeLectura.ultimos, semanaDeLectura.anteriores)
+              return v === null ? null : { valor: v, respecto: 'que los 7 días anteriores' }
+            })()}
+            serie={totalesDeLectura.slice(-14)}
+            descripcionDeLaSerie="Fichas abiertas cada día de las últimas dos semanas."
             nota={
-              actividad.ilegible ? (
+              lecturas === null ? (
                 // Un cero aquí se lee como «nadie entró esta semana», que es
                 // una conclusión sobre los residentes y no sobre la base.
                 'no se pudo leer el registro de lectura'
               ) : (
                 <>
-                  fichas abiertas por {actividad.lectoresActivos7dias} persona
-                  {actividad.lectoresActivos7dias === 1 ? '' : 's'}
-                  {/* «Residentes» aparte (D-175): con cuentas de equipo probando la plataforma, «3 personas» podían
-                      ser tres administradores y ningún residente, y la tarjeta no lo decía. */}
-                  {` (${actividad.residentesActivos7dias} residente${actividad.residentesActivos7dias === 1 ? '' : 's'})`} ·{' '}
-                  {actividad.marcadas7dias} marcada{actividad.marcadas7dias === 1 ? '' : 's'} como leída
-                  {actividad.marcadas7dias === 1 ? '' : 's'} esta semana
+                  {/* «Residentes» aparte (D-175): con cuentas de equipo probando la plataforma, las lecturas podían
+                      ser todas de administradores y la tarjeta no lo decía. */}
+                  {cifra(lecturas.residentes.slice(-7).reduce((t, v) => t + v, 0))} por residentes
+                  {lecturas.primerAno7dias > 0 ? ` · ${cifra(lecturas.primerAno7dias)} de primer año` : ''}
+                  {` · ${plural(lecturas.residentesActivos7dias, 'residente activo', 'residentes activos')}`}
                 </>
               )
             }
           />
-        ) : null}
-
-        {esAdmin ? (
-          <Indicador
-            href="/admin-panel/respaldos"
-            titulo="Último respaldo"
-            icono={Archive}
-            tono={respaldosIlegibles || diasSinRespaldo === null || diasSinRespaldo > 2 ? 'atencion' : 'ok'}
-            // Una fecha no cabe al tamaño de una cifra: va un paso más pequeña.
-            claseValor="admin-card-value-sm"
-            valor={respaldosIlegibles ? '—' : ultimoRespaldo ? fecha(ultimoRespaldo.creado) : 'ninguno'}
-            nota={
-              respaldosIlegibles
-                ? 'no se pudo leer el directorio de respaldos'
-                : ultimoRespaldo
-                  ? `${tamanoLegible(ultimoRespaldo.bytes)} · ${respaldos.length} archivo${
-                      respaldos.length === 1 ? '' : 's'
-                    } conservado${respaldos.length === 1 ? '' : 's'}`
-                  : 'la base no se ha respaldado nunca'
-            }
+        ) : (
+          <Cifra
+            href="/admin-panel/comentarios"
+            titulo="Comentarios pendientes"
+            icono={MessageSquare}
+            tono={!comentarios.ilegible && comentarios.pendientes > 0 ? 'atencion' : 'info'}
+            ilegible={comentarios.ilegible}
+            claseValor={!comentarios.ilegible && comentarios.pendientes > 0 ? 'admin-card-value-atencion' : undefined}
+            valor={comentarios.ilegible ? '—' : cifra(comentarios.pendientes)}
+            nota={comentarios.ilegible ? 'no se pudo leer la tabla de comentarios' : `de ${cifra(comentarios.total)} recibidos en las fichas`}
           />
-        ) : null}
+        )}
       </div>
 
-      {hayComentarios ? <PlegarTodo /> : null}
-
-      <SeccionPlegable
-        clave="resumen.modulos"
-        titulo="Contenido por módulo"
-        resumen={`${modulos.length} módulo${modulos.length === 1 ? '' : 's'}`}
-      >
-        <div className="admin-grid resumen-modulos">
-          {modulos.map((m) => {
-            const porcentaje = m.total === 0 ? 0 : Math.round((m.publicados / m.total) * 100)
-            const identidad = IDENTIDAD_DE_MODULO[m.slug]
-            const IconoDelModulo = identidad?.icono ?? FileText
-            return (
-              <div
-                key={m.slug}
-                className={`admin-card tarjeta-modulo ${identidad?.clase ?? ''}${m.ilegible ? ' admin-card-ilegible' : ''}`}
-              >
-                <div className="tarjeta-modulo-cabeza">
-                  <span className="icono-modulo" aria-hidden>
-                    <IconoDelModulo size={20} />
-                  </span>
-                  <div>
-                    <div className="admin-card-numero">{m.numero}</div>
-                    <h3 className="tarjeta-modulo-nombre">{m.nombre}</h3>
-                  </div>
-                  {enMantencion.includes(m.slug) ? <InsigniaMantencion /> : null}
-                </div>
-                <div className="admin-card-value">
-                  {m.ilegible ? (
-                    '—'
-                  ) : (
-                    <>
-                      {m.publicados}
-                      {m.borradores > 0 ? (
-                        <span className="admin-numero-tenue"> +{m.borradores} en borrador</span>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-                {/* La barra al 0 % sobre un módulo ilegible es la mitad del
-                    engaño: dibuja un dato que no se tiene. Lleva el color del
-                    módulo (`--acento`, de `mod-N`). */}
-                {m.ilegible ? null : (
-                  <div className="admin-progreso" aria-hidden="true">
-                    <div className="admin-progreso-relleno" style={{ width: `${porcentaje}%` }} />
-                  </div>
-                )}
-                <p className="admin-card-note">
-                  {m.ilegible
-                    ? 'no se pudo leer este módulo'
-                    : m.total === 0
-                      ? 'sin contenido aún'
-                      : `${porcentaje}% publicado`}
-                </p>
-                <div className="admin-card-actions">
-                  {/* Apuntaba a `/admin/collections/…`, que es la interfaz de
-                      Payload: se retiró de esta plataforma y esa ruta hoy solo
-                      reenvía al panel. El botón abría una pestaña nueva,
-                      prometía el módulo y entregaba la portada del panel. */}
-                  <Link
-                    href={`/admin-panel/contenido/${m.slug}`}
-                    className="admin-btn admin-btn-secondary admin-btn-sm"
-                    aria-label={`Editar ${m.nombre}`}
-                  >
-                    <PenLine aria-hidden size={15} />
-                    Editar
-                  </Link>
-                  <Link
-                    href={m.ruta}
-                    className="admin-btn admin-btn-ghost admin-btn-sm"
-                    aria-label={`Ver ${m.nombre} en la plataforma`}
-                  >
-                    <Eye aria-hidden size={15} />
-                    Ver público
-                  </Link>
-                </div>
-              </div>
-            )
-          })}
+      {esAdmin ? (
+        <div className="tablero-fila">
+          <TarjetaDeGrafico
+            titulo="Lecturas por día"
+            bajada="Fichas abiertas en los últimos 30 días, según quién las abrió"
+            ilegible={lecturas === null}
+          >
+            {lecturas === null ? (
+              <NoSePudoLeer que="el registro de lecturas" />
+            ) : (
+              <Lineas
+                titulo="Fichas abiertas por día en los últimos 30 días"
+                etiquetas={lecturas.dias.map((d) => d.etiqueta)}
+                detalles={lecturas.dias.map((d) => d.detalle)}
+                series={[
+                  { etiqueta: 'Residentes', color: 'var(--marca)', valores: lecturas.residentes },
+                  { etiqueta: 'Equipo', color: 'var(--cian)', valores: lecturas.equipo },
+                ]}
+                unidad="fichas"
+              />
+            )}
+          </TarjetaDeGrafico>
+          <TarjetaDeGrafico
+            titulo="Cuentas por rol"
+            bajada={cuentas ? plural(cuentas.activas, 'cuenta activa', 'cuentas activas') : 'Las cuentas activas'}
+            ilegible={cuentas === null}
+          >
+            {cuentas === null ? (
+              <NoSePudoLeer que="la tabla de cuentas" />
+            ) : (
+              <Dona
+                titulo="Cuentas activas por rol"
+                rotuloDelTotal="cuentas"
+                partes={[
+                  { etiqueta: 'Lectores (residentes)', valor: cuentas.lectores, color: 'var(--marca)' },
+                  { etiqueta: 'Editores (docentes)', valor: cuentas.editores, color: 'var(--mod-2)' },
+                  { etiqueta: 'Administradores', valor: cuentas.admins, color: 'var(--mod-3)' },
+                ]}
+              />
+            )}
+          </TarjetaDeGrafico>
         </div>
-      </SeccionPlegable>
+      ) : null}
 
-      {hayComentarios ? (
-        <SeccionPlegable
-          clave="resumen.comentarios"
-          titulo="Últimos comentarios sin resolver"
-          resumen={`${pendientes.docs.length} de ${comentarios.ilegible ? '—' : comentarios.pendientes}`}
+      <div className="tablero-fila">
+        <TarjetaDeGrafico
+          titulo="Contenido por módulo"
+          bajada="Fichas según su estado de revisión"
+          ilegible={modulosIlegibles.length > 0 || cola === null}
           acciones={
-            <Link href="/admin-panel/comentarios" className="admin-btn admin-btn-ghost admin-btn-sm">
-              Ver todos
+            <Link href="/admin-panel/contenido" className="admin-btn admin-btn-ghost admin-btn-sm">
+              Ver contenido
+              <ChevronRight aria-hidden size={15} />
             </Link>
           }
         >
-          <div className="admin-table-container">
-            <table className="admin-table tabla-apilable">
-              <thead>
-                <tr>
-                  <th>Usuario</th>
-                  <th>Comentario</th>
-                  <th>Módulo</th>
-                  <th>Fecha</th>
-                  <th>
-                    <span className="sr-only">Acciones</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendientes.docs.map((c) => {
-                  const comentario = c as {
-                    id: string | number
-                    texto?: string
-                    coleccion?: string
-                    documentoId?: string
-                    createdAt?: string
-                    usuario?: { nombre?: string; email?: string }
-                  }
-                  const tituloDeFicha = titulosDeFichas.get(
-                    `${comentario.coleccion}/${comentario.documentoId}`,
-                  )
-                  return (
-                    <tr key={String(comentario.id)}>
+          {cola === null ? <NoSePudoLeer que="la cola de revisión" /> : null}
+          <BarrasApiladasPorFila
+            titulo="Fichas de cada módulo según su estado: publicadas, validadas, por revisar y en borrador"
+            series={[
+              { etiqueta: 'Publicadas', color: 'var(--verde)' },
+              { etiqueta: 'Validadas', color: 'var(--cian)' },
+              { etiqueta: 'Por revisar', color: 'var(--ambar)' },
+              { etiqueta: 'Borrador', color: 'var(--linea-fuerte)' },
+            ]}
+            filas={legibles.map((m) => {
+              // Las validadas y las que están en cola son borradores con su
+              // fila en `revisiones`; el resto de los borradores no ha entrado
+              // a la cola. Restarlas evita contar dos veces la misma ficha.
+              const enRevision = cola?.porModulo.get(m.slug) ?? { validadas: 0, enCola: 0 }
+              return {
+                etiqueta: `${m.numero} ${m.nombre}${enMantencion.includes(m.slug) ? ' (en mantención)' : ''}`,
+                valores: [
+                  m.publicados,
+                  enRevision.validadas,
+                  enRevision.enCola,
+                  Math.max(0, m.borradores - enRevision.validadas - enRevision.enCola),
+                ],
+              }
+            })}
+          />
+        </TarjetaDeGrafico>
+
+        <TarjetaDeGrafico titulo="Para hoy" bajada="Lo que espera una acción suya">
+          <ul className="para-hoy">
+            {revision && revision.porRevisar > 0 ? (
+              <TareaDeHoy
+                href="/admin-panel/revision"
+                icono={ClipboardCheck}
+                tono="atencion"
+                titulo={`${plural(revision.porRevisar, 'ficha', 'fichas')} por revisar`}
+                detalle={
+                  esAdmin
+                    ? cola && cola.atrasadas > 0
+                      ? `${plural(cola.atrasadas, 'lleva', 'llevan')} más de 7 días`
+                      : 'ninguna lleva más de una semana'
+                    : revision.mias > 0
+                      ? `${plural(revision.mias, 'asignada', 'asignadas')} a usted`
+                      : 'en sus módulos'
+                }
+              />
+            ) : null}
+            {!comentarios.ilegible && comentarios.pendientes > 0 ? (
+              <TareaDeHoy
+                href="/admin-panel/comentarios"
+                icono={MessageSquare}
+                tono="info"
+                titulo={`${plural(comentarios.pendientes, 'comentario', 'comentarios')} sin responder`}
+                detalle={
+                  diasDelMasAntiguo === null
+                    ? 'de residentes en las fichas'
+                    : diasDelMasAntiguo === 0
+                      ? 'el más antiguo es de hoy'
+                      : `el más antiguo lleva ${plural(diasDelMasAntiguo, 'día', 'días')}`
+                }
+              />
+            ) : null}
+            {esAdmin && solicitudes > 0 ? (
+              <TareaDeHoy
+                href="/admin-panel/usuarios"
+                icono={UserPlus}
+                tono="atencion"
+                titulo={`${plural(solicitudes, 'solicitud', 'solicitudes')} de cuenta`}
+                detalle="no pueden entrar hasta que alguien las revise"
+              />
+            ) : null}
+            {cotizaciones ? (
+              <TareaDeHoy
+                href="/admin-panel/cotizaciones"
+                icono={ReceiptText}
+                tono="atencion"
+                titulo={`${plural(cotizaciones, 'cotización nueva', 'cotizaciones nuevas')}`}
+                detalle="sin abrir todavía"
+              />
+            ) : null}
+            {requisitos ? (
+              <TareaDeHoy
+                href="/planificacion"
+                icono={Inbox}
+                tono="info"
+                titulo={`${plural(requisitos, 'requisito', 'requisitos')} por atender`}
+                detalle="propuestos para el módulo 06, sin respuesta"
+              />
+            ) : null}
+            {esAdmin && !respaldosIlegibles && ultimoRespaldo ? (
+              <TareaDeHoy
+                href="/admin-panel/respaldos"
+                icono={Archive}
+                tono={diasSinRespaldo !== null && diasSinRespaldo > 2 ? 'atencion' : 'ok'}
+                titulo={diasSinRespaldo === 0 ? 'Respaldo de hoy correcto' : diasSinRespaldo === 1 ? 'Respaldo de anoche correcto' : `Último respaldo: ${fecha(ultimoRespaldo.creado)}`}
+                detalle={`${tamanoLegible(ultimoRespaldo.bytes)} · ${plural(respaldos.length, 'archivo conservado', 'archivos conservados')}`}
+              />
+            ) : null}
+          </ul>
+          {/* Lo que la lista enseña, contado: sin nada de lo anterior la
+              tarjeta no puede quedarse en blanco, que se lee como «no cargó». */}
+          {(revision?.porRevisar ?? 0) + (comentarios.ilegible ? 0 : comentarios.pendientes) + (esAdmin ? solicitudes : 0) + (cotizaciones ?? 0) + (requisitos ?? 0) === 0 &&
+          !(esAdmin && !respaldosIlegibles && ultimoRespaldo) ? (
+            <p className="grafico-vacio">Nada espera por usted hoy.</p>
+          ) : null}
+        </TarjetaDeGrafico>
+      </div>
+
+      {esAdmin ? (
+        <TarjetaDeGrafico
+          titulo="Actividad reciente"
+          bajada="Los últimos cambios hechos por el equipo"
+          ilegible={recientes === null}
+          acciones={
+            <Link href="/admin-panel/registro" className="admin-btn admin-btn-ghost admin-btn-sm">
+              Ver registro completo
+              <ChevronRight aria-hidden size={15} />
+            </Link>
+          }
+        >
+          {recientes === null ? (
+            <NoSePudoLeer que="el registro de acciones" />
+          ) : recientes.length === 0 ? (
+            <p className="grafico-vacio">Todavía no hay cambios registrados.</p>
+          ) : (
+            <div className="admin-table-container">
+              <table className="admin-table tabla-apilable">
+                <thead>
+                  <tr>
+                    <th scope="col">Quién</th>
+                    <th scope="col">Qué hizo</th>
+                    <th scope="col">Módulo</th>
+                    <th scope="col">Cuándo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recientes.map((r) => (
+                    <tr key={r.id}>
                       <th scope="row">
-                        <div className="admin-table-user-name">
-                          {comentario.usuario?.nombre ?? 'Usuario'}
-                        </div>
-                        <div className="admin-table-user-email">
-                          {comentario.usuario?.email ?? '—'}
-                        </div>
+                        <span className="actividad-quien">
+                          <span className="actividad-iniciales" aria-hidden>
+                            {iniciales(r.quien)}
+                          </span>
+                          {r.quien}
+                        </span>
                       </th>
-                      <td className="admin-table-text" data-etiqueta="Comentario">
-                        {comentario.texto}
+                      <td data-etiqueta="Qué hizo">
+                        {accionDelRegistroEnPalabras(r.accion)}
+                        {r.titulo ? ` «${r.titulo}»` : r.detalle ? ` ${r.detalle}` : ''}
                       </td>
                       <td data-etiqueta="Módulo">
-                        <div>
-                          <span className="insignia insignia-neutra">
-                            {NOMBRE_DE_DESTINO[comentario.coleccion ?? ''] ?? comentario.coleccion}
-                          </span>
-                          {tituloDeFicha ? (
-                            <div className="admin-table-user-email">{tituloDeFicha}</div>
-                          ) : null}
-                        </div>
+                        {r.coleccion ? (
+                          <span className="insignia insignia-neutra">{NOMBRE_DE_DESTINO[r.coleccion] ?? r.coleccion}</span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
-                      <td className="u-nowrap" data-etiqueta="Fecha">
-                        {comentario.createdAt ? fecha(comentario.createdAt) : '—'}
-                      </td>
-                      <td className="admin-table-acciones">
-                        {/* «Editar» y al editor del panel: un comentario
-                            pendiente se atiende corrigiendo la ficha, y desde
-                            la ruta pública eso costaba volver a Panel,
-                            Contenido, el módulo y buscarla por nombre. El
-                            editor además abre esté publicada o retirada. */}
-                        {comentario.coleccion && comentario.documentoId ? (
-                          <div className="admin-table-acciones-fila">
-                            <Link
-                              href={`/admin-panel/contenido/${comentario.coleccion}/${comentario.documentoId}`}
-                              className="admin-btn admin-btn-sm admin-btn-secondary"
-                            >
-                              <PenLine aria-hidden size={15} />
-                              Editar
-                            </Link>
-                            {/* La fila nueva de un catálogo no tiene página pública (D-177). */}
-                            {NOMBRE_DE_MODULO[comentario.coleccion] ? (
-                              <Link
-                                href={rutaPublica(comentario.coleccion, comentario.documentoId)}
-                                className="admin-btn admin-btn-sm admin-btn-ghost"
-                              >
-                                <Eye aria-hidden size={15} />
-                                Ver ficha
-                              </Link>
-                            ) : null}
-                          </div>
-                        ) : null}
+                      <td className="u-nowrap" data-etiqueta="Cuándo">
+                        {haceCuanto(r.fecha)}
                       </td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </SeccionPlegable>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TarjetaDeGrafico>
       ) : null}
     </div>
   )
 }
 
-type TonoDeIndicador = 'ok' | 'atencion' | 'info'
+/** «Docente revisor» → «DR»: el círculo de la persona en la tabla de actividad. */
+const iniciales = (nombre: string) =>
+  nombre
+    .split(/\s+/)
+    .filter((p) => /^[\p{L}]/u.test(p) && !/^(dr|dra)\.?$/i.test(p))
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join('') || '·'
 
 /**
- * Una tarjeta de indicador que lleva a su pantalla entera.
- *
- * Antes cada tarjeta acababa en un botón «Gestionar cuentas», «Ver contenido»,
- * «Revisar»…: el resto de la tarjeta parecía pulsable y no hacía nada, y la
- * rejilla eran seis botones del mismo peso compitiendo con las cifras. Ahora
- * el título es el enlace y lo estira sobre toda la tarjeta (`.kpi-enlace`, el
- * patrón de «enlace estirado»): así un segundo destino —la auditoría en la
- * tarjeta de revisión— puede ir encima sin anidar un `<a>` dentro de otro, que
- * HTML no permite. El lector de pantalla oye un enlace con el nombre del
- * indicador, no la tarjeta entera dictada como nombre del enlace.
+ * Una fila de «Para hoy»: lo que espera, cuánto y desde cuándo, y la fila
+ * entera lleva a donde se atiende.
  */
-function Indicador({
+function TareaDeHoy({
   href,
-  titulo,
   icono: Icono,
   tono,
-  valor,
-  nota,
-  ilegible,
-  claseValor,
-  secundario,
+  titulo,
+  detalle,
 }: {
   href: string
-  titulo: string
   icono: LucideIcon
-  tono: TonoDeIndicador
-  valor: ReactNode
-  nota: ReactNode
-  ilegible?: boolean
-  claseValor?: string
-  secundario?: ReactNode
+  tono: 'ok' | 'atencion' | 'info'
+  titulo: string
+  detalle: string
 }) {
   return (
-    <div className={`admin-card admin-card-enlace kpi${ilegible ? ' admin-card-ilegible' : ''}`}>
-      <div className="kpi-cabeza">
+    <li>
+      <Link href={href} className="para-hoy-tarea">
         <span className={`icono-modulo icono-modulo-sm kpi-icono-${tono}`} aria-hidden>
           <Icono size={16} />
         </span>
-        <Link href={href} className="admin-card-title kpi-enlace">
-          {titulo}
-        </Link>
-        <ArrowRight aria-hidden size={18} className="kpi-flecha" />
-      </div>
-      <div className={`admin-card-value${claseValor ? ` ${claseValor}` : ''}`}>{valor}</div>
-      <p className="admin-card-note">{nota}</p>
-      {secundario}
-    </div>
+        <span className="para-hoy-texto">
+          <strong>{titulo}</strong>
+          <span>{detalle}</span>
+        </span>
+        <ChevronRight aria-hidden size={18} className="para-hoy-flecha" />
+      </Link>
+    </li>
   )
 }

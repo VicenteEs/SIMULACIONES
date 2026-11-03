@@ -1,0 +1,72 @@
+/* ==========================================================================
+   La pestaña Registro (`admin-panel/registro/page.tsx`), con el tablero de
+   Penpot (P-007 E5, D-238). Todo con tokens.
+   ========================================================================== */
+
+/* «Minutos activos por día»: el sábado y el domingo, más claros, para que la
+   caída del fin de semana se lea como lo que es y no como un día malo.
+
+   `BarrasVerticales` no tiene una opción para aclarar una barra suelta, y el
+   gráfico es compartido con las otras pestañas. Como las barras son catorce
+   días seguidos, los fines de semana caen siempre cada siete a partir del
+   primer sábado: la página dice dónde está (`registro-sabado-N`, de 1 a 7) y
+   aquí se aclaran esas columnas con `nth-child`. Depende del marcado del
+   gráfico —una `.grafico-columna` por barra dentro de `.grafico-columnas`—; el
+   día que el gráfico acepte un tono por barra, esto sobra. Una barra a cero
+   conserva su gris, que dice «nada» y no «fin de semana». */
+.registro-sabado-1 .grafico-columna:is(:nth-child(7n + 1), :nth-child(7n + 2)) .grafico-columna-barra:not(.grafico-columna-barra-cero),
+.registro-sabado-2 .grafico-columna:is(:nth-child(7n + 2), :nth-child(7n + 3)) .grafico-columna-barra:not(.grafico-columna-barra-cero),
+.registro-sabado-3 .grafico-columna:is(:nth-child(7n + 3), :nth-child(7n + 4)) .grafico-columna-barra:not(.grafico-columna-barra-cero),
+.registro-sabado-4 .grafico-columna:is(:nth-child(7n + 4), :nth-child(7n + 5)) .grafico-columna-barra:not(.grafico-columna-barra-cero),
+.registro-sabado-5 .grafico-columna:is(:nth-child(7n + 5), :nth-child(7n + 6)) .grafico-columna-barra:not(.grafico-columna-barra-cero),
+.registro-sabado-6 .grafico-columna:is(:nth-child(7n + 6), :nth-child(7n + 7)) .grafico-columna-barra:not(.grafico-columna-barra-cero),
+.registro-sabado-7 .grafico-columna:is(:nth-child(7n + 7), :nth-child(7n + 1)) .grafico-columna-barra:not(.grafico-columna-barra-cero) {
+  background: color-mix(in srgb, var(--marca) 38%, var(--superficie));
+}
+/* Al pasar el ratón o recorrerla con el teclado, la barra marcada se oscurece
+   igual sea o no fin de semana. Va después y con el mismo peso que la regla de
+   arriba, que si no la taparía. */
+.registro-minutos .grafico-columna:is(:hover, .grafico-columna-activa) .grafico-columna-barra:not(.grafico-columna-barra-cero) {
+  background: var(--marca-honda);
+}
+
+/* El globo de cada barra sale centrado sobre su columna, y en los extremos
+   sobresalía de la tarjeta: a 390 px, el del último día se salía de la
+   pantalla y la página se podía arrastrar de lado, aun con el globo
+   invisible, que ocupa su sitio igual. Los tres primeros se abren hacia la
+   derecha y los tres últimos hacia la izquierda; los del medio siguen
+   centrados con el `translate(-50%)` de `panel.css`. Depende del marcado de
+   `BarrasVerticales`, como lo de arriba, y sobra el día que el gráfico lo
+   resuelva solo, como ya hace `Lineas`. */
+.registro-minutos .grafico-columna:nth-child(-n + 3) .grafico-globo { left: 0; transform: translate(0, 4px); }
+.registro-minutos .grafico-columna:nth-last-child(-n + 3) .grafico-globo { left: auto; right: 0; transform: translate(0, 4px); }
+.registro-minutos .grafico-columna:is(:nth-child(-n + 3), :nth-last-child(-n + 3)):is(:hover, .grafico-columna-activa) .grafico-globo {
+  transform: none;
+}
+
+/* En el teléfono, catorce columnas de veinte píxeles: las cifras de debajo
+   («721», «778», «558»…) se pegaban unas a otras y se leían como un solo
+   número. Se quitan ahí; la altura de la barra dice lo mismo, cada barra da
+   su cifra al tocarla, y la tabla para el lector de pantalla las trae todas. */
+@media (max-width: 640px) {
+  .registro-minutos .grafico-eje-valor { display: none; }
+}
+
+/* La cuenta con sus iniciales en un círculo, en la tabla de cuentas. */
+.registro-cuenta { display: flex; align-items: center; gap: var(--e-3); }
+.registro-cuenta-circulo {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-full);
+  background: var(--marca-tenue);
+  color: var(--marca);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* El administrador, en el violeta de la paleta: el verde y el azul ya son del
+   editor y del lector. */
+.registro-rol-admin { --acento: var(--mod-3); --acento-tenue: var(--mod-3-tenue); }

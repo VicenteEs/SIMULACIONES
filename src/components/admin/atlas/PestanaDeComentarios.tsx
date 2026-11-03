@@ -111,6 +111,7 @@ const fechaHora = (valor: string) =>
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Santiago',
   })
 
 export function PestanaDeComentarios({

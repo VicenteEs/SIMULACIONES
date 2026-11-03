@@ -94,6 +94,9 @@ export interface Config {
     ajustes: Ajuste;
     requisitos: Requisito;
     equipo: Equipo;
+    'medios-pagina': MediosPagina;
+    'textos-pagina': TextosPagina;
+    cotizaciones: Cotizacione;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -128,6 +131,9 @@ export interface Config {
     ajustes: AjustesSelect<false> | AjustesSelect<true>;
     requisitos: RequisitosSelect<false> | RequisitosSelect<true>;
     equipo: EquipoSelect<false> | EquipoSelect<true>;
+    'medios-pagina': MediosPaginaSelect<false> | MediosPaginaSelect<true>;
+    'textos-pagina': TextosPaginaSelect<false> | TextosPaginaSelect<true>;
+    cotizaciones: CotizacionesSelect<false> | CotizacionesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -183,6 +189,8 @@ export interface Usuario {
    */
   activo?: boolean | null;
   institucion?: string | null;
+  etapaDeFormacion?: ('r1' | 'r2' | 'r3' | 'r4' | 'kinesiologia' | 'docente') | null;
+  profesion?: ('medico' | 'kinesiologo') | null;
   origen?: ('panel' | 'solicitud') | null;
   pendiente?: boolean | null;
   motivoDeSolicitud?: string | null;
@@ -199,6 +207,7 @@ export interface Usuario {
    * Lo anota la plataforma en cada inicio de sesión.
    */
   ultimoAcceso?: string | null;
+  bienvenidaVistaEn?: string | null;
   notas?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -2057,6 +2066,7 @@ export interface Actividad {
   documentoId: string;
   ultimaVisita?: string | null;
   completado?: boolean | null;
+  seccion?: number | null;
   puntaje?: number | null;
   puntajeMaximo?: number | null;
   insumos?:
@@ -2191,6 +2201,11 @@ export interface Revisione {
   seccionesConContenido?: number | null;
   validacionRapida?: boolean | null;
   motivosDeAlerta?: string | null;
+  firmaMedicoPor?: (number | null) | Usuario;
+  firmaMedicoEn?: string | null;
+  firmaKinesiologoPor?: (number | null) | Usuario;
+  firmaKinesiologoEn?: string | null;
+  huellaFirmada?: string | null;
   notaDeRevision?: string | null;
   motivoDeDevolucion?: string | null;
   devoluciones?: number | null;
@@ -2199,7 +2214,7 @@ export interface Revisione {
   publicadaSinValidar?: boolean | null;
   historial?:
     | {
-        accion: 'registrada' | 'asignada' | 'lista' | 'reabierta' | 'devuelta' | 'publicada' | 'retirada';
+        accion: 'registrada' | 'asignada' | 'lista' | 'firmada' | 'reabierta' | 'devuelta' | 'publicada' | 'retirada';
         usuario?: (number | null) | Usuario;
         fecha: string;
         detalle?: string | null;
@@ -2347,6 +2362,58 @@ export interface Equipo {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "medios-pagina".
+ */
+export interface MediosPagina {
+  id: number;
+  espacio: string;
+  /**
+   * Qué se ve en la foto. Es lo único que llega de ella a quien no la ve.
+   */
+  alt: string;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "textos-pagina".
+ */
+export interface TextosPagina {
+  id: number;
+  espacio: string;
+  texto?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cotizaciones".
+ */
+export interface Cotizacione {
+  id: number;
+  nombre: string;
+  correo: string;
+  institucion: string;
+  cargo?: string | null;
+  residentes: '1 a 5' | '6 a 10' | '11 a 20' | 'Más de 20';
+  modulos?: ('patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia')[] | null;
+  mensaje?: string | null;
+  estado: 'nueva' | 'en-conversacion' | 'cerrada';
+  notas?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -2476,6 +2543,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'equipo';
         value: number | Equipo;
+      } | null)
+    | ({
+        relationTo: 'medios-pagina';
+        value: number | MediosPagina;
+      } | null)
+    | ({
+        relationTo: 'textos-pagina';
+        value: number | TextosPagina;
+      } | null)
+    | ({
+        relationTo: 'cotizaciones';
+        value: number | Cotizacione;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -2528,6 +2607,8 @@ export interface UsuariosSelect<T extends boolean = true> {
   rol?: T;
   activo?: T;
   institucion?: T;
+  etapaDeFormacion?: T;
+  profesion?: T;
   origen?: T;
   pendiente?: T;
   motivoDeSolicitud?: T;
@@ -2535,6 +2616,7 @@ export interface UsuariosSelect<T extends boolean = true> {
   modulosVisibles?: T;
   modulosEditables?: T;
   ultimoAcceso?: T;
+  bienvenidaVistaEn?: T;
   notas?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -3940,6 +4022,7 @@ export interface ActividadSelect<T extends boolean = true> {
   documentoId?: T;
   ultimaVisita?: T;
   completado?: T;
+  seccion?: T;
   puntaje?: T;
   puntajeMaximo?: T;
   insumos?: T;
@@ -4016,6 +4099,11 @@ export interface RevisionesSelect<T extends boolean = true> {
   seccionesConContenido?: T;
   validacionRapida?: T;
   motivosDeAlerta?: T;
+  firmaMedicoPor?: T;
+  firmaMedicoEn?: T;
+  firmaKinesiologoPor?: T;
+  firmaKinesiologoEn?: T;
+  huellaFirmada?: T;
   notaDeRevision?: T;
   motivoDeDevolucion?: T;
   devoluciones?: T;
@@ -4126,6 +4214,52 @@ export interface EquipoSelect<T extends boolean = true> {
   descripcion?: T;
   foto?: T;
   orden?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "medios-pagina_select".
+ */
+export interface MediosPaginaSelect<T extends boolean = true> {
+  espacio?: T;
+  alt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "textos-pagina_select".
+ */
+export interface TextosPaginaSelect<T extends boolean = true> {
+  espacio?: T;
+  texto?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cotizaciones_select".
+ */
+export interface CotizacionesSelect<T extends boolean = true> {
+  nombre?: T;
+  correo?: T;
+  institucion?: T;
+  cargo?: T;
+  residentes?: T;
+  modulos?: T;
+  mensaje?: T;
+  estado?: T;
+  notas?: T;
   updatedAt?: T;
   createdAt?: T;
 }

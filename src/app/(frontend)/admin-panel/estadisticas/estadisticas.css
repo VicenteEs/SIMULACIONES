@@ -1,0 +1,103 @@
+/* ==========================================================================
+   Estadísticas, con el tablero de Penpot (P-007 E5, D-238).
+
+   Las secciones siguen siendo `SeccionPlegable` —se pliegan y recuerdan cómo
+   se dejaron, que lo pidió el dueño—, pero aquí se pintan como los titulares
+   de sección de Penpot: el título sobre el fondo de la página y las tarjetas
+   debajo, blancas y con su sombra. `seguimiento.css` las deja planas y grises
+   dentro de una caja, que es lo que conviene a las tablas largas de Actividad
+   o Registro; esa hoja la comparten, y por eso lo de aquí va bajo
+   `.estadisticas` y no allí.
+   ========================================================================== */
+
+.estadisticas .plegable { background: none; border: 0; box-shadow: none; margin-bottom: var(--e-6); }
+.estadisticas .plegable-cabecera { padding: var(--e-2) var(--e-1); border-radius: var(--r); }
+.estadisticas .plegable[open] > .plegable-cabecera { border-bottom: 0; border-radius: var(--r); }
+.estadisticas .plegable-cabecera:hover { background: var(--linea-suave); }
+.estadisticas .plegable-titulo { font-size: var(--t-lg); }
+.estadisticas .plegable-resumen { background: var(--superficie); }
+.estadisticas .plegable-cuerpo { padding: var(--e-3) 0 0; }
+
+.estadisticas .plegable .admin-card { background: var(--superficie); border-color: var(--linea-suave); box-shadow: var(--sombra-1); }
+.estadisticas .plegable .admin-card-ilegible { background: var(--ambar-tenue); }
+.estadisticas .tablero-fila { margin-bottom: 0; }
+
+/* «Quién lo está leyendo»: tres tarjetas en una fila, como en Penpot. */
+.estadisticas-tercios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--e-4); align-items: start; }
+.estadisticas-tercios > .admin-card { min-width: 0; }
+/* En un tercio de pantalla, las barras horizontales con el nombre a la
+   izquierda dejaban «Lectura de imáge…» y «Lectores (reside…»: el nombre
+   cabía en el 38 % de una tarjeta estrecha. Aquí va como en Penpot, el nombre
+   y la cifra en una línea y la barra entera debajo. */
+/* En el teléfono pasa lo mismo con todas, y vale para todas (abajo). */
+.estadisticas-tercios .grafico-lista { gap: var(--e-3); }
+.estadisticas-tercios .grafico-fila {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'etiqueta valor' 'barra barra';
+  gap: var(--e-1) var(--e-3);
+}
+.estadisticas-tercios .grafico-fila-etiqueta { grid-area: etiqueta; color: var(--tinta); }
+.estadisticas-tercios .grafico-fila-barra { grid-area: barra; }
+.estadisticas-tercios .grafico-fila-valor { grid-area: valor; }
+
+/* El periodo, arriba a la derecha: «Últimos» y tres botones en una píldora,
+   con la misma forma que «Lecturas de» para que se lean como la misma clase
+   de control. */
+.estadisticas-periodo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-1);
+  padding: 3px;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: var(--r-full);
+}
+.estadisticas-periodo-rotulo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  padding: 0 var(--e-2) 0 var(--e-3);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--pizarra);
+}
+.estadisticas-periodo-rotulo svg { color: var(--marca); }
+.estadisticas-periodo-opcion {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 var(--e-3);
+  border-radius: var(--r-full);
+  font-size: var(--t-sm);
+  font-weight: 550;
+  color: var(--pizarra);
+  text-decoration: none;
+  transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease;
+}
+.estadisticas-periodo-opcion:hover { background: var(--papel); color: var(--tinta); }
+.estadisticas-periodo-opcion.activa { background: var(--marca); color: var(--superficie); }
+.estadisticas-periodo-opcion:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+
+@media (max-width: 1100px) {
+  .estadisticas-tercios { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .estadisticas .plegable-cuerpo { padding: var(--e-3) 0 0; }
+  /* El titular de sección a 22 px partía «Cuánto contenido hay y cómo crece»
+     en dos líneas y su cifra en otras dos. */
+  .estadisticas .plegable-titulo { font-size: var(--t-md); }
+  .estadisticas .plegable-resumen { white-space: nowrap; }
+  .estadisticas .grafico-lista { gap: var(--e-3); }
+  .estadisticas .grafico-fila {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'etiqueta valor' 'barra barra';
+    gap: var(--e-1) var(--e-3);
+  }
+  .estadisticas .grafico-fila-etiqueta { grid-area: etiqueta; color: var(--tinta); }
+  /* El título de una ficha más leída no cabe en una línea de teléfono, y
+     cortado en «Fractura de diáfis…» no se sabe cuál es. */
+  .estadisticas .grafico-fila-etiqueta > span { white-space: normal; }
+  .estadisticas .grafico-fila-barra { grid-area: barra; }
+  .estadisticas .grafico-fila-valor { grid-area: valor; }
+}

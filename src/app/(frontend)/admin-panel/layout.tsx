@@ -60,6 +60,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // cuántas están validadas esperando que las publique.
   let porRevisar = 0
   let listas = 0
+  // Las cotizaciones nuevas de la portada (P-007 E3), para el administrador:
+  // quien las pidió espera respuesta, como quien pidió una cuenta.
+  let cotizaciones = 0
   // En una constante: la guardia de arriba estrecha `sesion.usuario`, pero ese
   // estrechamiento no llega dentro de la función que se le pasa a `filter`.
   const cuenta = sesion.usuario
@@ -67,7 +70,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const misModulos = MODULOS.filter((m) => puedeEditar(cuenta, m.slug)).map((m) => m.slug)
   try {
     const payload = await getPayload({ config })
-    const [conteo, conteoDeSolicitudes, conteoPorRevisar, conteoDeListas] = await Promise.all([
+    const [conteo, conteoDeSolicitudes, conteoPorRevisar, conteoDeListas, conteoDeCotizaciones] = await Promise.all([
       payload.count({
         collection: 'comentarios',
         where: { estado: { equals: 'pendiente' } },
@@ -103,11 +106,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             .count({ collection: 'revisiones', where: { estado: { equals: 'lista' } }, overrideAccess: true })
             .catch(() => ({ totalDocs: 0 }))
         : Promise.resolve({ totalDocs: 0 }),
+      // Con su `catch`, como las revisiones: una tabla que falta no puede
+      // dejar el panel entero sin barra.
+      esAdmin
+        ? payload
+            .count({ collection: 'cotizaciones', where: { estado: { equals: 'nueva' } }, overrideAccess: true })
+            .catch(() => ({ totalDocs: 0 }))
+        : Promise.resolve({ totalDocs: 0 }),
     ])
     pendientes = conteo.totalDocs
     solicitudes = conteoDeSolicitudes.totalDocs
     porRevisar = conteoPorRevisar.totalDocs
     listas = conteoDeListas.totalDocs
+    cotizaciones = conteoDeCotizaciones.totalDocs
   } catch {
     // Si la base no responde, el panel debe abrirse igual para poder
     // diagnosticarlo desde la sección de sistema.
@@ -165,7 +176,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           icono: 'usuarios',
           aviso: solicitudes || undefined,
         },
+        // Debajo de las solicitudes de cuenta: las dos son alguien de fuera
+        // que espera respuesta.
+        {
+          ruta: '/admin-panel/cotizaciones',
+          etiqueta: 'Cotizaciones',
+          icono: 'cotizaciones',
+          aviso: cotizaciones || undefined,
+        },
         { ruta: '/admin-panel/contenido/equipo', etiqueta: 'Equipo', icono: 'equipo' },
+        // Las fotos y los textos de la portada pública (P-007 E2). No «Medios»,
+        // que es la colección del contenido clínico: lo pidió el dueño así.
+        { ruta: '/admin-panel/medios-pagina', etiqueta: 'Medios de la página', icono: 'mediosPagina' },
         { ruta: '/admin-panel/difusion', etiqueta: 'Difusión', icono: 'difusion' },
         { ruta: '/admin-panel/respaldos', etiqueta: 'Respaldos', icono: 'respaldos' },
         { ruta: '/admin-panel/sistema', etiqueta: 'Sistema', icono: 'sistema' },

@@ -278,7 +278,11 @@ describe('la pantalla de cuentas escribe y lee la nota', () => {
     // fija aquí porque es la línea más fácil de perder en cualquier retoque de
     // los filtros, y su pérdida no rompe nada: la búsqueda sigue funcionando y
     // deja de encontrar exactamente lo que se buscaba.
-    expect(tabla).toMatch(/normalizar\(\[u\.nombre, u\.email, u\.institucion, u\.notas\]/)
+    //
+    // Se busca la nota dentro de la lista y no la lista entera: cuando la
+    // etapa de formación entró en la búsqueda (D-236), la prueba falló por un
+    // campo que no tenía nada que ver con la nota.
+    expect(tabla).toMatch(/normalizar\(\[[^\]]*\bu\.notas\b[^\]]*\]\.join/)
   })
 
   it('`page.tsx` copia la nota en la lista que recibe la tabla', () => {

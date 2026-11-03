@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { CABECERA_CAMPOS, CABECERA_NOMBRE } from '@/admin/subidas'
 import { depurarDocumento } from '@/admin/depurar'
 import { camposDe, esColeccionEditable, esquemaDe } from '@/admin/esquema'
-import { ErrorDeAcceso, exigirEditor, type Respuesta } from '@/lib/guardias'
+import { ErrorDeAcceso, exigirEdicionDe, type Respuesta } from '@/lib/guardias'
 import { nombreSeguroDeArchivo } from '@/uploads/validarModelo3D'
 
 export const dynamic = 'force-dynamic'
@@ -143,10 +143,15 @@ export async function POST(
 
     // La misma guardia que usaba la acción, y por el mismo motivo: una ruta es
     // otro extremo HTTP y se alcanza sin pasar por la pantalla que la ofrece.
-    // `exigirEditor` y no `exigirEdicionDe`: medios y modelos 3D son material
-    // de apoyo, que `puedeEditar` no restringe por módulo porque lo usan los
-    // cinco a la vez.
-    const { payload, usuario } = await exigirEditor()
+    //
+    // Era `exigirEditor` a secas, con el argumento de que medios y modelos 3D
+    // son material de apoyo y `puedeEditar` no los restringe por módulo. Lo
+    // sigue sin restringir, pero `puedeEditar` también cierra a todo editor las
+    // colecciones `soloAdmin`, y esta ruta no lo preguntaba: no hacía daño
+    // mientras ninguna de esas recibiera archivos, y «Medios de la página»
+    // (P-007 E2) es la primera. Con `exigirEditor`, cualquier editor podía
+    // cambiar la foto de la portada pública.
+    const { payload, usuario } = await exigirEdicionDe(esquema.slug)
 
     const declarado = peticion.headers.get(CABECERA_NOMBRE)
     let nombre: string

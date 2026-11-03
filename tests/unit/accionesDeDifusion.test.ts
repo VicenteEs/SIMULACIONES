@@ -72,6 +72,7 @@ import {
   botonesDisponibles,
   duracionAproximada,
   hayAlgunaEnviandose,
+  porcentajeEnviado,
 } from '@/app/(frontend)/admin-panel/difusion/PanelDeDifusion'
 import {
   detenerDifusion,
@@ -430,7 +431,38 @@ describe('la pantalla', () => {
     expect(html).toContain('No hay servidor de correo configurado')
     expect(html).toContain('href="/admin-panel/sistema"')
     expect(html).toMatch(/<iframe[^>]*sandbox=""/)
-    expect(html).toContain('Hola, Nombre.')
+    // El saludo es el de la primera persona de la cola (P-007 E5, D-238), y
+    // no el «Nombre» de muestra que llevaba antes: la vista previa enseña el
+    // correo que de verdad va a salir.
+    expect(html).toContain('Hola, Ana.')
+    expect(html).toContain('Así le llega a Ana')
+  })
+
+  it('la vista previa saluda a la primera de la cola, y con el grupo vacío vuelve al nombre de muestra', async () => {
+    const html = await pintar()
+    expect(html).toContain('Hola, Ana.')
+    // La primera de la cola sale con el mismo orden y la misma condición que
+    // `destinatariosDe`: por id y solo cuentas activas. Si una de las dos
+    // cambiara, la vista previa saludaría a alguien que no es el primero.
+    const primeras = payload.find.mock.calls
+      .map((llamada) => (llamada as unknown[])[0] as Record<string, unknown>)
+      .filter((a) => a.collection === 'usuarios' && a.limit === 1)
+    expect(primeras).toHaveLength(4)
+    expect(primeras.every((a) => a.sort === 'id' && JSON.stringify(a.where).includes('"activo":{"equals":true}'))).toBe(
+      true,
+    )
+
+    estado.cuentas = []
+    const vacio = await pintar()
+    expect(vacio).toContain('Hola, Nombre.')
+    expect(vacio).not.toContain('Así le llega a')
+  })
+
+  it('el porcentaje enviado no redondea un fallo hasta el 100 %, y sin destinatarios no lo hay', () => {
+    expect(porcentajeEnviado({ enviados: 999, total: 1000 })).toBe(99)
+    expect(porcentajeEnviado({ enviados: 12, total: 40 })).toBe(30)
+    expect(porcentajeEnviado({ enviados: 3, total: 3 })).toBe(100)
+    expect(porcentajeEnviado({ enviados: 0, total: 0 })).toBeNull()
   })
 
   it('sin correo no se ofrece enviar, aunque el formulario esté bien escrito', () => {

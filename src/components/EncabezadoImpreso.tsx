@@ -2,6 +2,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { auditorDeLaFicha } from '@/lib/revisionServidor'
+import { PROFESIONES, tieneAlguna } from '@/lib/firmas'
 import { fechaDeAuditoria, fechaDeEmision, literalDeCss } from '@/lib/impresion'
 import { ruta } from '@/lib/rutas'
 import { FechaDeEmision } from './FechaDeEmision'
@@ -41,6 +42,18 @@ export async function EncabezadoImpreso({
     'Cuenta sin nombre'
 
   const dia = fechaDeAuditoria(revision?.fecha ?? null)
+  // Con firmas (D-240), el papel dice las dos: quién firmó por cada profesión y
+  // cuándo, o que la firma falta. Una ficha impresa con una sola firma tiene que
+  // decirlo, no pasar por auditada.
+  const firmas = revision && tieneAlguna(revision.firmas) ? revision.firmas : null
+  const firmado = firmas
+    ? PROFESIONES.map(({ valor, etiqueta }) => {
+        const firma = firmas[valor]
+        if (firma === null) return `${etiqueta}: firma pendiente`
+        const cuando = fechaDeAuditoria(firma.en)
+        return `${etiqueta}: ${firma.nombre ?? 'cuenta borrada'}${cuando ? ` · ${cuando}` : ''}`
+      }).join(' — ')
+    : null
   const auditoria = !revision
     ? 'Sin auditoría registrada'
     : revision.auditor
@@ -55,7 +68,9 @@ export async function EncabezadoImpreso({
           estilos con datos de la petición, y el texto pasa por `literalDeCss`:
           dentro de `<style>` React no decodifica entidades. */}
       <style>{`@page { @bottom-left { content: ${literalDeCss(
-        `${titulo} · Realizado por ${emisor} · ${revision?.auditor ? `Auditado por ${revision.auditor}` : auditoria}`,
+        `${titulo} · Realizado por ${emisor} · ${
+          firmado ? `Firmado por ${firmado}` : revision?.auditor ? `Auditado por ${revision.auditor}` : auditoria
+        }`,
       )}; } }`}</style>
       <div className="membrete-marca">
         <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="membrete-logo" />
@@ -70,8 +85,8 @@ export async function EncabezadoImpreso({
           <dd>{emisor}</dd>
         </div>
         <div>
-          <dt>Contenido auditado por</dt>
-          <dd>{auditoria}</dd>
+          <dt>{firmado ? 'Contenido firmado por' : 'Contenido auditado por'}</dt>
+          <dd>{firmado ?? auditoria}</dd>
         </div>
         <div>
           <dt>Fecha de emisión</dt>

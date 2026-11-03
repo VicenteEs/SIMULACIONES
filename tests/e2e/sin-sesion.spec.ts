@@ -17,10 +17,20 @@ const RUTAS_PROTEGIDAS = [
 ]
 
 test.describe('visitante sin sesión', () => {
-  test('la portada invita a entrar y no muestra contenido', async ({ page }) => {
+  // La portada v2 (P-007 E3): el titular lo escribe el administrador en
+  // «Medios de la página», así que no se busca por su texto sino por lo que
+  // la página tiene que ofrecer siempre, entrar y cotizar.
+  test('la portada invita a entrar y a cotizar, y no muestra contenido', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('traumatología')
-    await expect(page.getByRole('link', { name: /iniciar sesión/i })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(page.getByRole('link', { name: /^entrar$/i }).first()).toBeVisible()
+    await expect(page.locator('form').filter({ has: page.getByLabel(/correo/i) })).toBeVisible()
+  })
+
+  test('los planes se ven sin sesión y llevan a cotizar', async ({ page }) => {
+    await page.goto('/planes')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(page.getByRole('table')).toBeVisible()
   })
 
   for (const ruta of RUTAS_PROTEGIDAS) {

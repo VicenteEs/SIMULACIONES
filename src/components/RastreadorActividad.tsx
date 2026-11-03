@@ -27,9 +27,10 @@ export function RastreadorActividad({
    * —treinta acciones de servidor en el mismo instante— y, peor que el coste,
    * era falso: «Continúa leyendo» de la portada ordena por `ultimaVisita` y se
    * habría llenado de maniobras que nadie miró, tapando justo las fichas que el
-   * residente sí dejó a medias. Ese listado pasa `false`; la única visita que
-   * de verdad ocurrió —la de la maniobra a la que apuntaba el enlace— la anota
-   * `VisitaDeManiobraEnlazada`.
+   * residente sí dejó a medias. Ese listado pasa `false`, y las visitas que de
+   * verdad ocurren las anota quien sabe que ocurrieron: la de la maniobra a la
+   * que apuntaba el enlace, `VisitaDeManiobraEnlazada`, y la de la que se elige
+   * en la lista, `ManiobrasPorSegmento` (D-237).
    *
    * Marcar «leída» no depende de esto y sigue escribiendo siempre: es un gesto
    * del residente sobre una maniobra concreta, no una suposición nuestra.

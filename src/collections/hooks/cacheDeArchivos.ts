@@ -45,3 +45,28 @@ export function cacheDeArchivoPrivado({ headers }: { headers: Headers }): Header
   headers.set('X-Content-Type-Options', 'nosniff')
   return headers
 }
+
+/**
+ * Las cabeceras de una foto de las páginas públicas (P-007 E2), que se sirve
+ * sin sesión por `api/pagina/[archivo]`.
+ *
+ * Lo contrario de la de arriba en lo que toca a la caché, y por la misma razón
+ * dicha al revés: aquí no hay sesión de nadie que proteger, así que cualquier
+ * caché puede guardarla, y por un año. Eso solo es honesto porque el nombre de
+ * cada foto lleva la huella de su contenido (`nombreDeFoto`): una foto nueva es
+ * otro nombre, nunca el mismo con otra imagen dentro.
+ *
+ * Lo demás se queda igual de cerrado: `nosniff`, y una CSP que no deja hacer
+ * nada al archivo si se abre solo en una pestaña. La colección no admite
+ * SVG, pero esta respuesta no se fía de eso: si un día alguien añade el tipo a
+ * la lista, el archivo seguiría sin poder ejecutar nada.
+ */
+export function cabecerasDeArchivoPublico(headers: Headers): Headers {
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  headers.set('Content-Security-Policy', "default-src 'none'; sandbox; frame-ancestors 'none'")
+  headers.set('X-Content-Type-Options', 'nosniff')
+  // Que otra página no la incruste como si fuera suya, gastando el ancho de
+  // banda del túnel; las que la usan son de este mismo origen.
+  headers.set('Cross-Origin-Resource-Policy', 'same-origin')
+  return headers
+}

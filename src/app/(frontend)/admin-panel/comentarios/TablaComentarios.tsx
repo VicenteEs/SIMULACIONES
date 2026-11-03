@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, CheckCheck, CircleDot, ExternalLink, MessageSquare, Pencil, RotateCcw, SearchX, Trash2 } from 'lucide-react'
@@ -84,6 +84,13 @@ function rotuloSinTitulo(c: ComentarioDelPanel): string | null {
   }
 }
 
+/**
+ * Con la zona puesta (D-236): esta tabla se pinta en el servidor y se vuelve a
+ * pintar en el navegador, y sin `timeZone` cada uno usa la suya. Con el
+ * servidor en UTC, un comentario de las nueve de la noche en Chile salía con el
+ * día siguiente en el servidor y con el suyo en el navegador, y React tiraba la
+ * tabla entera por no coincidir.
+ */
 const fechaHora = (valor: string) =>
   new Date(valor).toLocaleString('es-CL', {
     day: '2-digit',
@@ -91,14 +98,35 @@ const fechaHora = (valor: string) =>
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Santiago',
   })
+
+/**
+ * «Florencia Vargas» → «FV»: el círculo del autor, como en el tablero de
+ * Penpot. Un comentario sin autor —su cuenta se borró— lleva un punto.
+ */
+const iniciales = (nombre: string | null) =>
+  (nombre ?? '')
+    .split(/\s+/)
+    .filter((p) => /^[\p{L}]/u.test(p) && !/^(dr|dra)\.?$/i.test(p))
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join('') || '·'
 
 export function TablaComentarios({
   comentarios,
   puedeEliminar,
+  children,
 }: {
   comentarios: ComentarioDelPanel[]
   puedeEliminar: boolean
+  /**
+   * Lo que va entre la cabecera y la bandeja: los avisos y el tablero de
+   * cifras, que pinta la página en el servidor. Llega ya hecho, como hijos, y
+   * no como datos, porque la cabecera vive aquí —su botón «Resolver todos»
+   * necesita el estado de la tabla— y el tablero tiene que ir debajo de ella.
+   */
+  children?: ReactNode
 }) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
@@ -160,13 +188,12 @@ export function TablaComentarios({
 
   return (
     <div>
+      {/* El subtítulo decía cuántos quedaban sin resolver; ahora lo dice la
+          primera cifra del tablero, contada sobre la tabla entera y no sobre
+          los quinientos que trae esta lista. */}
       <CabeceraDePagina
         titulo="Comentarios y sugerencias"
-        subtitulo={
-          pendientes === 0
-            ? 'No queda nada pendiente por revisar.'
-            : `${pendientes} sin resolver de ${comentarios.length} en total.`
-        }
+        subtitulo="Lo que residentes y docentes dejan en las fichas, el taller y los catálogos"
         acciones={
           pendientes > 0 ? (
             <button
@@ -195,247 +222,260 @@ export function TablaComentarios({
         </div>
       ) : null}
 
-      <div className="admin-filters">
-        <div className="admin-filter-group">
-          <label className="admin-filter-label" htmlFor="buscar-comentario">
-            Buscar
-          </label>
-          <input
-            id="buscar-comentario"
-            className="admin-input"
-            placeholder="Texto o autor"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
-        </div>
-        <div className="admin-filter-group">
-          <label className="admin-filter-label" htmlFor="filtro-estado-comentario">
-            Estado
-          </label>
-          <select
-            id="filtro-estado-comentario"
-            className="admin-select"
-            value={estado}
-            onChange={(e) => setEstado(e.target.value as typeof estado)}
-          >
-            <option value="pendiente">Solo pendientes</option>
-            <option value="resuelto">Solo resueltos</option>
-            <option value="todos">Todos</option>
-          </select>
-        </div>
-        <div className="admin-filter-group">
-          <label className="admin-filter-label" htmlFor="filtro-modulo">
-            Módulo
-          </label>
-          <select
-            id="filtro-modulo"
-            className="admin-select"
-            value={modulo}
-            onChange={(e) => setModulo(e.target.value)}
-          >
-            <option value="todos">Todos los módulos</option>
-            {MODULOS.map((m) => (
-              <option key={m.slug} value={m.slug}>
-                {m.nombre}
-              </option>
-            ))}
-            <option value={SLUG_DEL_TALLER}>{NOMBRE_DE_DESTINO[SLUG_DEL_TALLER]}</option>
-          </select>
-        </div>
-        <span className="admin-filter-count">
-          {visibles.length} de {comentarios.length}
-        </span>
-      </div>
+      {children}
 
-      {visibles.length === 0 ? (
-        comentarios.length === 0 ? (
-          <Vacio icono={MessageSquare} titulo="Todavía nadie ha dejado comentarios en las fichas.">
-            Cuando alguien comente una ficha desde la plataforma, aparecerá aquí.
-          </Vacio>
+      {/* Filtros y tabla en una sola tarjeta, como en Penpot: los filtros son
+          de esta tabla y de nada más de la página. */}
+      <section className="admin-card comentarios-bandeja" aria-label="Bandeja de comentarios">
+        <div className="admin-filters">
+          <div className="admin-filter-group">
+            <label className="admin-filter-label" htmlFor="buscar-comentario">
+              Buscar
+            </label>
+            <input
+              id="buscar-comentario"
+              className="admin-input"
+              placeholder="Texto o autor"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+          <div className="admin-filter-group">
+            <label className="admin-filter-label" htmlFor="filtro-estado-comentario">
+              Estado
+            </label>
+            <select
+              id="filtro-estado-comentario"
+              className="admin-select"
+              value={estado}
+              onChange={(e) => setEstado(e.target.value as typeof estado)}
+            >
+              <option value="pendiente">Solo pendientes</option>
+              <option value="resuelto">Solo resueltos</option>
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+          <div className="admin-filter-group">
+            <label className="admin-filter-label" htmlFor="filtro-modulo">
+              Módulo
+            </label>
+            <select
+              id="filtro-modulo"
+              className="admin-select"
+              value={modulo}
+              onChange={(e) => setModulo(e.target.value)}
+            >
+              <option value="todos">Todos los módulos</option>
+              {MODULOS.map((m) => (
+                <option key={m.slug} value={m.slug}>
+                  {m.nombre}
+                </option>
+              ))}
+              <option value={SLUG_DEL_TALLER}>{NOMBRE_DE_DESTINO[SLUG_DEL_TALLER]}</option>
+            </select>
+          </div>
+          <span className="admin-filter-count">
+            {visibles.length} de {comentarios.length}
+          </span>
+        </div>
+
+        {visibles.length === 0 ? (
+          comentarios.length === 0 ? (
+            <Vacio icono={MessageSquare} titulo="Todavía nadie ha dejado comentarios en las fichas.">
+              Cuando alguien comente una ficha desde la plataforma, aparecerá aquí.
+            </Vacio>
+          ) : (
+            <Vacio
+              icono={SearchX}
+              titulo="Ningún comentario coincide con el filtro."
+              accion={
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-secondary"
+                  onClick={() => {
+                    setEstado('todos')
+                    setModulo('todos')
+                    setBusqueda('')
+                  }}
+                >
+                  Ver todos
+                </button>
+              }
+            />
+          )
         ) : (
-          <Vacio
-            icono={SearchX}
-            titulo="Ningún comentario coincide con el filtro."
-            accion={
-              <button
-                type="button"
-                className="admin-btn admin-btn-secondary"
-                onClick={() => {
-                  setEstado('todos')
-                  setModulo('todos')
-                  setBusqueda('')
-                }}
-              >
-                Ver todos
-              </button>
-            }
-          />
-        )
-      ) : (
-      <div className="admin-table-container">
-          <table className="admin-table tabla-apilable">
-            <thead>
-              <tr>
-                <th>Autor</th>
-                <th>Comentario</th>
-                <th>Ficha</th>
-                <th>Fecha</th>
-                <th>Estado</th>
-                <th>
-                  <span className="sr-only">Acciones</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibles.map((c) => (
-                <tr key={c.id}>
-                  <th scope="row">
-                    <div className="admin-table-user-name">{c.autorNombre ?? 'Usuario'}</div>
-                    <div className="admin-table-user-email">{c.autorCorreo ?? 'sin correo'}</div>
+        <div className="admin-table-container">
+            <table className="admin-table tabla-apilable">
+              <thead>
+                <tr>
+                  <th>Autor</th>
+                  <th>Comentario</th>
+                  <th>Ficha</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>
+                    <span className="sr-only">Acciones</span>
                   </th>
-                  <td className="comentario-celda">
-                    <div className="comentario-texto">{c.texto}</div>
-                  </td>
-                  <td data-etiqueta="Ficha">
-                    {c.fichaEstado === 'titulo' && c.fichaTitulo ? (
-                      <div className="admin-table-user-name">{c.fichaTitulo}</div>
-                    ) : c.fichaEstado !== null ? (
-                      <div className="admin-table-user-email">{rotuloSinTitulo(c)}</div>
-                    ) : null}
-                    <div className="admin-table-modulo">
-                      {NOMBRE_DE_DESTINO[c.coleccion] ?? c.coleccion}
-                    </div>
-                    {/* «Editar» primero, y al editor del panel, porque es lo
-                        que se va a hacer con un comentario que dice que falta
-                        algo. El único enlace que había llevaba a la ficha
-                        pública: desde ahí, corregirla costaba volver a Panel,
-                        Contenido, el módulo, buscar la ficha por nombre y
-                        Editar, con el identificador en pantalla todo el rato.
+                </tr>
+              </thead>
+              <tbody>
+                {visibles.map((c) => (
+                  <tr key={c.id}>
+                    <th scope="row">
+                      <div className="comentario-autor">
+                        <span className="comentario-iniciales" aria-hidden>
+                          {iniciales(c.autorNombre)}
+                        </span>
+                        <div>
+                          <div className="admin-table-user-name">{c.autorNombre ?? 'Usuario'}</div>
+                          <div className="admin-table-user-email">{c.autorCorreo ?? 'sin correo'}</div>
+                        </div>
+                      </div>
+                    </th>
+                    <td className="comentario-celda">
+                      <div className="comentario-texto">{c.texto}</div>
+                    </td>
+                    <td data-etiqueta="Ficha" className="comentario-ficha">
+                      {c.fichaEstado === 'titulo' && c.fichaTitulo ? (
+                        <div className="admin-table-user-name">{c.fichaTitulo}</div>
+                      ) : c.fichaEstado !== null ? (
+                        <div className="admin-table-user-email">{rotuloSinTitulo(c)}</div>
+                      ) : null}
+                      <div className="admin-table-modulo">
+                        {NOMBRE_DE_DESTINO[c.coleccion] ?? c.coleccion}
+                      </div>
+                      {/* «Editar» primero, y al editor del panel, porque es lo
+                          que se va a hacer con un comentario que dice que falta
+                          algo. El único enlace que había llevaba a la ficha
+                          pública: desde ahí, corregirla costaba volver a Panel,
+                          Contenido, el módulo, buscar la ficha por nombre y
+                          Editar, con el identificador en pantalla todo el rato.
 
-                        Solo se quitan donde se sabe que no llevan a nada: la
-                        ficha `eliminada`, y la que no se llegó a preguntar
-                        (`null`) porque su colección ya no es un módulo o no
-                        guarda número. La `ilegible` los conserva, igual que en
-                        actividad: lo probable es que siga ahí, y abrirla es la
-                        forma de comprobarlo. */}
-                    {c.coleccion === SLUG_DEL_TALLER ? (
-                      // Una preparación del taller se atiende en el taller: el
-                      // enlace la abre y señala este comentario (E2, D-158).
-                      c.fichaEstado === 'eliminada' ? null : (
+                          Solo se quitan donde se sabe que no llevan a nada: la
+                          ficha `eliminada`, y la que no se llegó a preguntar
+                          (`null`) porque su colección ya no es un módulo o no
+                          guarda número. La `ilegible` los conserva, igual que en
+                          actividad: lo probable es que siga ahí, y abrirla es la
+                          forma de comprobarlo. */}
+                      {c.coleccion === SLUG_DEL_TALLER ? (
+                        // Una preparación del taller se atiende en el taller: el
+                        // enlace la abre y señala este comentario (E2, D-158).
+                        c.fichaEstado === 'eliminada' ? null : (
+                          <div className="admin-acciones">
+                            <Link
+                              href={rutaDelPanelParaComentario(c.coleccion, c.documentoId, c.id)}
+                              className="comentario-enlace"
+                              aria-label={
+                                c.fichaTitulo
+                                  ? `Abrir «${c.fichaTitulo}» en el taller anatómico`
+                                  : 'Abrir la preparación comentada en el taller anatómico'
+                              }
+                            >
+                              <ExternalLink aria-hidden size={13} />
+                              Abrir en el taller
+                            </Link>
+                          </div>
+                        )
+                      ) : c.fichaEstado === 'eliminada' || c.fichaEstado === null ? null : (
                         <div className="admin-acciones">
                           <Link
-                            href={rutaDelPanelParaComentario(c.coleccion, c.documentoId, c.id)}
+                            href={`/admin-panel/contenido/${c.coleccion}/${c.documentoId}`}
                             className="comentario-enlace"
                             aria-label={
-                              c.fichaTitulo
-                                ? `Abrir «${c.fichaTitulo}» en el taller anatómico`
-                                : 'Abrir la preparación comentada en el taller anatómico'
+                              c.fichaTitulo ? `Editar «${c.fichaTitulo}»` : 'Editar la ficha comentada'
                             }
                           >
-                            <ExternalLink aria-hidden size={13} />
-                            Abrir en el taller
+                            <Pencil aria-hidden size={13} />
+                            Editar
                           </Link>
+                          {/* Una fila de catálogo no tiene página pública: solo se edita (D-177). */}
+                          {MODULOS.some((m) => m.slug === c.coleccion) ? (
+                            <Link
+                              href={rutaPublica(c.coleccion, c.documentoId)}
+                              className="comentario-enlace"
+                              aria-label={
+                                c.fichaTitulo
+                                  ? `Ver «${c.fichaTitulo}» en el sitio público`
+                                  : 'Ver la ficha comentada en el sitio público'
+                              }
+                            >
+                              <ExternalLink aria-hidden size={13} />
+                              Ver ficha
+                            </Link>
+                          ) : null}
                         </div>
-                      )
-                    ) : c.fichaEstado === 'eliminada' || c.fichaEstado === null ? null : (
-                      <div className="admin-acciones">
-                        <Link
-                          href={`/admin-panel/contenido/${c.coleccion}/${c.documentoId}`}
-                          className="comentario-enlace"
-                          aria-label={
-                            c.fichaTitulo ? `Editar «${c.fichaTitulo}»` : 'Editar la ficha comentada'
-                          }
-                        >
-                          <Pencil aria-hidden size={13} />
-                          Editar
-                        </Link>
-                        {/* Una fila de catálogo no tiene página pública: solo se edita (D-177). */}
-                        {MODULOS.some((m) => m.slug === c.coleccion) ? (
-                          <Link
-                            href={rutaPublica(c.coleccion, c.documentoId)}
-                            className="comentario-enlace"
-                            aria-label={
-                              c.fichaTitulo
-                                ? `Ver «${c.fichaTitulo}» en el sitio público`
-                                : 'Ver la ficha comentada en el sitio público'
-                            }
-                          >
-                            <ExternalLink aria-hidden size={13} />
-                            Ver ficha
-                          </Link>
-                        ) : null}
-                      </div>
-                    )}
-                  </td>
-                  <td data-etiqueta="Fecha" className="u-nowrap admin-celda-tenue">
-                    {fechaHora(c.creado)}
-                  </td>
-                  <td data-etiqueta="Estado">
-                    {/* El icono va con la palabra, no en su lugar: el estado no
-                        se dice solo con color. */}
-                    <span className={claseDeInsignia(c.estado === 'pendiente' ? 'atencion' : 'ok')}>
-                      {c.estado === 'pendiente' ? (
-                        <CircleDot aria-hidden size={12} />
-                      ) : (
-                        <Check aria-hidden size={12} />
                       )}
-                      {c.estado === 'pendiente' ? 'Pendiente' : 'Resuelto'}
-                    </span>
-                  </td>
-                  <td className="admin-table-acciones">
-                    <div className="admin-table-acciones-fila">
-                      <button
-                        type="button"
-                        className={`admin-btn admin-btn-sm ${c.estado === 'pendiente' ? 'admin-btn-success' : 'admin-btn-secondary'}`}
-                        disabled={enCurso}
-                        onClick={() =>
-                          ejecutar(
-                            () =>
-                              actualizarComentario(
-                                c.id,
-                                c.estado === 'pendiente' ? 'resuelto' : 'pendiente',
-                              ),
-                            c.estado === 'pendiente'
-                              ? 'Comentario marcado como resuelto.'
-                              : 'Comentario reabierto.',
-                          )
-                        }
-                      >
+                    </td>
+                    <td data-etiqueta="Fecha" className="u-nowrap admin-celda-tenue">
+                      {fechaHora(c.creado)}
+                    </td>
+                    <td data-etiqueta="Estado">
+                      {/* El icono va con la palabra, no en su lugar: el estado no
+                          se dice solo con color. */}
+                      <span className={claseDeInsignia(c.estado === 'pendiente' ? 'atencion' : 'ok')}>
                         {c.estado === 'pendiente' ? (
-                          <Check aria-hidden size={14} />
+                          <CircleDot aria-hidden size={12} />
                         ) : (
-                          <RotateCcw aria-hidden size={14} />
+                          <Check aria-hidden size={12} />
                         )}
-                        {c.estado === 'pendiente' ? 'Resolver' : 'Reabrir'}
-                      </button>
-                      {puedeEliminar ? (
+                        {c.estado === 'pendiente' ? 'Pendiente' : 'Resuelto'}
+                      </span>
+                    </td>
+                    <td className="admin-table-acciones">
+                      <div className="admin-table-acciones-fila">
                         <button
                           type="button"
-                          className="admin-btn admin-btn-sm admin-btn-ghost admin-btn-icon"
+                          className={`admin-btn admin-btn-sm ${c.estado === 'pendiente' ? 'admin-btn-success' : 'admin-btn-secondary'}`}
                           disabled={enCurso}
-                          aria-label={`Eliminar el comentario de ${c.autorNombre ?? 'Usuario'}`}
-                          title="Eliminar"
-                          onClick={async () => {
-                            const si = await confirmar({
-                              titulo: '¿Eliminar este comentario?',
-                              mensaje: 'Se borra la observación de otra persona y no se puede deshacer.',
-                              confirmar: 'Eliminar comentario',
-                              peligro: true,
-                            })
-                            if (si) ejecutar(() => eliminarComentario(c.id), 'Comentario eliminado.')
-                          }}
+                          onClick={() =>
+                            ejecutar(
+                              () =>
+                                actualizarComentario(
+                                  c.id,
+                                  c.estado === 'pendiente' ? 'resuelto' : 'pendiente',
+                                ),
+                              c.estado === 'pendiente'
+                                ? 'Comentario marcado como resuelto.'
+                                : 'Comentario reabierto.',
+                            )
+                          }
                         >
-                          <Trash2 aria-hidden size={16} />
+                          {c.estado === 'pendiente' ? (
+                            <Check aria-hidden size={14} />
+                          ) : (
+                            <RotateCcw aria-hidden size={14} />
+                          )}
+                          {c.estado === 'pendiente' ? 'Resolver' : 'Reabrir'}
                         </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-      </div>
-      )}
+                        {puedeEliminar ? (
+                          <button
+                            type="button"
+                            className="admin-btn admin-btn-sm admin-btn-ghost admin-btn-icon"
+                            disabled={enCurso}
+                            aria-label={`Eliminar el comentario de ${c.autorNombre ?? 'Usuario'}`}
+                            title="Eliminar"
+                            onClick={async () => {
+                              const si = await confirmar({
+                                titulo: '¿Eliminar este comentario?',
+                                mensaje: 'Se borra la observación de otra persona y no se puede deshacer.',
+                                confirmar: 'Eliminar comentario',
+                                peligro: true,
+                              })
+                              if (si) ejecutar(() => eliminarComentario(c.id), 'Comentario eliminado.')
+                            }}
+                          >
+                            <Trash2 aria-hidden size={16} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        </div>
+        )}
+      </section>
     </div>
   )
 }

@@ -7,6 +7,8 @@ import {
   problemaDelDirectorio,
 } from '@/lib/respaldosServidor'
 import { PanelDeRespaldos } from './PanelDeRespaldos'
+import { TableroDeRespaldos } from './TableroDeRespaldos'
+import './respaldos.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,12 +41,20 @@ export default async function PaginaRespaldos() {
     hayPgDump(),
   ])
 
+  const directorio = directorioDeRespaldos()
+
+  // Las cifras y el gráfico se pintan aquí y viajan ya hechos (P-007 E5,
+  // D-238): el panel es de cliente y, calculadas allí, «hoy 03:30» o «hace 2
+  // días» saldrían de la hora del navegador. Reciben solo el fallo de *leer* —no
+  // el de escribir—: con la carpeta legible y sin permiso de escritura los
+  // respaldos que hay siguen siendo ciertos, y enseñarlos ilegibles mentiría.
   return (
     <PanelDeRespaldos
       respaldos={lectura.lista}
-      directorio={directorioDeRespaldos()}
+      directorio={directorio}
       hayHerramienta={disponible}
       problemaDelDirectorio={lectura.fallo ?? problema}
+      tablero={<TableroDeRespaldos respaldos={lectura.lista} fallo={lectura.fallo} directorio={directorio} />}
     />
   )
 }

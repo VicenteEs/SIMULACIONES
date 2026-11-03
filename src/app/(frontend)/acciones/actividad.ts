@@ -176,6 +176,35 @@ export async function registrarVisita(coleccion: unknown, documentoId: unknown):
 }
 
 /**
+ * Los módulos cuyas fichas tienen partes y se abren en la que se diga: las
+ * pestañas de la patología y los pasos de la técnica AO. La maniobra y el
+ * estudio de imagen se leen de una vez. El simulador tiene pasos pero no está:
+ * la consola empieza cada caso en el primero (lo que guarda en el navegador es
+ * lo colocado, D-216), y una tarjeta que dijera «paso 3 de 7» con un botón de
+ * retomar llevaría al paso 1.
+ */
+const MODULOS_CON_SECCIONES = new Set(['patologias', 'casos-ao'])
+
+/**
+ * Deja constancia de en qué pestaña o en qué paso va el residente, para que
+ * «Continúa leyendo» lo devuelva ahí con su nombre (P-007 E4, D-237).
+ *
+ * Con el mismo trato que la visita, y por lo mismo: la llaman las pestañas y
+ * los pasos al cambiar, sin `await`, y su fallo no puede estropear la lectura.
+ * Un número fuera de rango o de un módulo sin partes se ignora sin escribir:
+ * viene de una petición que no salió de nuestras pantallas.
+ */
+export async function anotarSeccion(coleccion: unknown, documentoId: unknown, seccion: unknown): Promise<void> {
+  if (typeof coleccion !== 'string' || !MODULOS_CON_SECCIONES.has(coleccion)) return
+  if (typeof seccion !== 'number' || !Number.isInteger(seccion) || seccion < 1 || seccion > 200) return
+  try {
+    await anotar(coleccion, documentoId, { seccion })
+  } catch (error) {
+    console.error('[actividad] no se pudo anotar la sección:', error)
+  }
+}
+
+/**
  * Marca o desmarca la ficha como leída.
  *
  * Lanza si no quedó escrita, y eso es deliberado: es lo que hace que el `catch`

@@ -82,8 +82,12 @@ export function SolicitudesPendientes({
   )
 }
 
+// Con la zona puesta, como en `impresion.ts`: esta tarjeta se pinta en el
+// servidor y se hidrata en el navegador, y una solicitud de las nueve de la
+// noche en Chile es del día siguiente en UTC. Sin ella React tiraba la tarjeta
+// entera por «03 de noviembre» contra «02 de noviembre» (D-236).
 const fecha = (valor: string) =>
-  new Date(valor).toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })
+  new Date(valor).toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Santiago' })
 
 function TarjetaDeSolicitud({
   solicitud,
@@ -121,8 +125,8 @@ function TarjetaDeSolicitud({
         <div>
           <div className="admin-table-user-name">{solicitud.nombre || '—'}</div>
           <div className="admin-table-user-email">{solicitud.email}</div>
-          {solicitud.institucion ? (
-            <div className="admin-table-user-email">{solicitud.institucion}</div>
+          {solicitud.etapa || solicitud.institucion ? (
+            <div className="admin-table-user-email">{[solicitud.etapa, solicitud.institucion].filter(Boolean).join(' · ')}</div>
           ) : null}
         </div>
         {pedidaEl ? <span className="solicitud-fecha">Pedida el {fecha(pedidaEl)}</span> : null}

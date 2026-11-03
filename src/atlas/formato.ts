@@ -70,8 +70,12 @@ export interface PiezaDelAtlas {
    * no presentar una estimación como un dato.
    */
   origenRegion: 'anatomia' | 'caja'
-  /** Solo la piel: lo que `scripts/atlas/ajustar-piel.mjs` le hizo (D-159). El visor no lo lee. */
-  ajustada?: string
+  /**
+   * Solo la piel: con qué decisión y qué holgura la escribió `scripts/atlas/recalcular-piel.mjs` (D-224). El visor no
+   * lo lee; lo lee la prueba de la piel, que así distingue la recalculada de la de origen que devuelve `preparar.mjs`.
+   * Sustituye a `ajustada` (D-159), que dejaba `ajustar-piel.mjs` y que el guion nuevo quita.
+   */
+  recalculada?: string
   /**
    * Solo las piezas que **no son de BodyParts3D** sino que genera TraumaHub a partir de su geometría
    * (P-006): hoy las fascias, con el valor `'fascia'`. El visor no lo lee; lo leen la atribución, que

@@ -356,6 +356,11 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'registro.ts:registrarLatidoDeActividad': { guardia: 'sesion', argumentos: () => ['/biblioteca'] },
   'actividad.ts:registrarVisita': { guardia: 'sesion', modulo: 'argumento', argumentos: (m) => [m, '12'] },
   'actividad.ts:marcarComoLeida': { guardia: 'sesion', modulo: 'argumento', argumentos: (m) => [m, '12', true] },
+  // Solo los módulos que se abren en una pestaña o un paso; el simulador se ignora sin escribir.
+  'actividad.ts:anotarSeccion': { guardia: 'sesion', modulo: 'casos-ao', argumentos: () => ['casos-ao', '12', 3] },
+  // La bienvenida del primer ingreso (D-237): la cuenta anota su propia fecha,
+  // y el recorrido elegido tiene que ser de un módulo que ve.
+  'bienvenida.ts:cerrarLaBienvenida': { guardia: 'sesion', modulo: 'cirugias', argumentos: () => ['pabellon'] },
   'actividad.ts:registrarResultadoDeCirugia': {
     guardia: 'sesion',
     modulo: 'cirugias',
@@ -381,6 +386,36 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'requisitos.ts:editarRequisito': { guardia: 'editor', argumentos: () => ['5', 'Otro título', 'Otra descripción'] },
   'requisitos.ts:responderRequisito': { guardia: 'admin', argumentos: () => ['5', 'aceptado', 'Lo hacemos.'] },
   'requisitos.ts:eliminarRequisito': { guardia: 'admin', argumentos: () => ['5'] },
+  // Las cotizaciones de la portada (P-007 E3): traen datos de alguien de fuera.
+  'cotizaciones.ts:actualizarCotizacion': { guardia: 'admin', argumentos: () => ['5', { estado: 'cerrada' }] },
+  'cotizaciones.ts:eliminarCotizacion': { guardia: 'admin', argumentos: () => ['5'] },
+  // La segunda acción pública que escribe, con el mismo trato que
+  // `solicitarCuenta`: crea la fila y busca a quién avisar. Nada de `count`
+  // —no hay cuenta que proteger—, ni de `update`, `delete` o `login`.
+  'cotizar.ts:pedirCotizacion': {
+    guardia: 'publica',
+    permitidos: ['create', 'find', 'sendEmail'],
+    argumentos: () => [
+      {
+        nombre: 'Persona Nueva',
+        correo: 'nueva@prueba.invalid',
+        institucion: 'Hospital de prueba',
+        cargo: 'Jefa de programa',
+        residentes: '6 a 10',
+        modulos: ['patologias', 'cirugias'],
+        mensaje: 'Queremos probarlo con una generación.',
+        sitioWeb: '',
+      },
+    ],
+  },
+  // «Medios de la página» (P-007 E2): lo que cambian lo ve cualquier visitante.
+  'mediosPagina.ts:guardarTextosDeLaPagina': {
+    guardia: 'admin',
+    argumentos: () => [[{ espacio: 'portada.hero.titular', texto: 'Otro titular' }]],
+  },
+  'mediosPagina.ts:restaurarTextoDeLaPagina': { guardia: 'admin', argumentos: () => ['portada.hero.titular'] },
+  'mediosPagina.ts:restaurarFotoDeLaPagina': { guardia: 'admin', argumentos: () => ['portada.capas.piel'] },
+  'mediosPagina.ts:retirarFotosAnteriores': { guardia: 'admin', argumentos: () => ['portada.capas.piel'] },
 
   'sesion.ts:entrar': { guardia: 'publica', permitidos: ['login'], argumentos: () => ['a@prueba.invalid', 'clave'] },
   // Salir ya no es solo borrar la cookie (O-059): da de baja su propia sesión en

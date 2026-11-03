@@ -5,3 +5,93 @@
 .sistema-remitente { margin-top: var(--e-1); color: var(--mudo); }
 .sistema-prueba { margin-top: var(--e-2); }
 .sistema-prueba-aviso { margin: var(--e-2) 0 0; }
+
+/* ---------- el veredicto y el disco (P-007 E5, D-238) ---------- */
+
+/* El veredicto, con el fondo del tono de los avisos: es el mismo mensaje que
+ * antes iba en un `admin-aviso`, y el color tiene que seguir diciendo lo mismo
+ * en las dos formas. */
+.sistema-estado {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-4);
+}
+
+.sistema-estado-ok { background: var(--verde-tenue); border-color: var(--verde-tenue); }
+.sistema-estado-atencion { background: var(--ambar-tenue); border-color: var(--ambar-tenue); }
+
+.sistema-estado-icono {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: var(--superficie);
+}
+
+.sistema-estado-ok .sistema-estado-icono { background: var(--verde); }
+.sistema-estado-atencion .sistema-estado-icono { background: var(--ambar); }
+
+.sistema-estado-texto { min-width: 0; }
+
+.sistema-estado-titulo { margin: 0; font-size: var(--t-xl); line-height: 1.2; }
+.sistema-estado-ok .sistema-estado-titulo { color: var(--verde); }
+.sistema-estado-atencion .sistema-estado-titulo { color: var(--ambar-texto); }
+
+.sistema-estado-detalle,
+.sistema-estado-nota { margin: var(--e-1) 0 0; font-size: var(--t-sm); color: var(--pizarra); }
+
+/* El disco: el porcentaje grande, la barra y lo que queda libre. */
+.sistema-disco-cifra { display: flex; align-items: baseline; gap: var(--e-2); }
+.sistema-disco-uso { font-size: var(--t-2xl); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.sistema-disco-rotulo { font-size: var(--t-sm); color: var(--mudo); }
+
+/* Más gruesa que la de una difusión: aquí la barra es la cifra. */
+.sistema-disco-barra { height: 10px; }
+.sistema-disco-lleno { --acento: var(--ambar); }
+
+.sistema-disco-subtitulo {
+  margin: 0 0 var(--e-2);
+  font-size: var(--t-sm);
+  font-weight: 650;
+  color: var(--tinta);
+}
+
+.sistema-sin-medir {
+  margin: var(--e-2) 0 0;
+  padding-left: var(--e-4);
+  font-size: var(--t-sm);
+  color: var(--ambar-texto);
+}
+
+.sistema-disco-nota { margin-top: var(--e-3); }
+
+/* ---------- entorno ---------- */
+/* Baldosas que se reparten solas: cuatro por fila en 1.440 px, una en el
+ * teléfono. */
+.sistema-entorno {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--e-3);
+  margin: 0;
+}
+
+.sistema-entorno > div {
+  min-width: 0;
+  padding: var(--e-3) var(--e-4);
+  border-radius: var(--r);
+  background: var(--papel);
+}
+
+.sistema-entorno dt { font-size: var(--t-xs); color: var(--mudo); }
+.sistema-entorno dd { margin: 2px 0 0; font-size: var(--t-sm); font-weight: 650; color: var(--tinta); }
+
+/* Una ruta es una sola palabra para el navegador, y en desarrollo es la ruta
+ * entera del repositorio: sin esto ensanchaba la baldosa fuera de la rejilla. */
+.sistema-entorno-ruta { overflow-wrap: anywhere; font-family: var(--mono); font-weight: 500; }
+
+/* El icono de «Volver a comprobar» gira mientras se repiten las comprobaciones. */
+.sistema-girando { animation: sistema-giro 1s linear infinite; }
+@keyframes sistema-giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sistema-girando { animation: none; } }

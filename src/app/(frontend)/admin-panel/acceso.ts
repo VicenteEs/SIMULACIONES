@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { esColeccionEditable, esquemaDe } from '@/admin/esquema'
 import { puedeEditar } from '@/lib/guardias'
 import { obtenerSesion } from '@/lib/sesion'
 
@@ -55,5 +56,9 @@ export async function exigirPanel(nivel: 'editor' | 'admin' = 'editor') {
 export async function exigirPanelPara(coleccion: string) {
   const acceso = await exigirPanel()
   if (!puedeEditar(acceso.sesion.usuario, coleccion)) redirect('/admin-panel/contenido')
+  // La colección que tiene su propia pestaña se administra solo ahí: el listado
+  // genérico no sabe lo que sabe la suya (ver `pantallaPropia` en el esquema).
+  const propia = esColeccionEditable(coleccion) ? esquemaDe(coleccion).pantallaPropia : undefined
+  if (propia) redirect(propia)
   return acceso
 }

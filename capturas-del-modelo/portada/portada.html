@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>TraumaHub · Portada</title>
+<meta name="viewport" content="width=1920">
+<style>
+  /* Portada del archivo de Figma «TraumaHub · Sitio web y aplicación». Los colores son los de estilos.css (la paleta sale del
+     logotipo) y la tipografía, la del sitio. Las imágenes van como <img> y no como fondos CSS: html_to_figma descarta los
+     fondos con posición en porcentaje. Todo mide en píxeles: es un lienzo de 1920 × 1080, no una página que se adapte. */
+  @font-face { font-family: 'Inter Variable'; src: url('inter.woff2') format('woff2'); font-weight: 100 900; font-style: normal; }
+  :root {
+    --tinta: #0c1a38; --pizarra: #46587a; --papel: #eef1f7; --linea: #d7dfec;
+    --marca: #12509e; --marca-honda: #0b3570; --cian: #1e9fe0; --cian-tenue: #e2f3fc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #fff; }
+  body { font-family: 'Inter Variable', 'Segoe UI', Arial, sans-serif; color: var(--tinta); position: relative; }
+
+  .izquierda { position: absolute; left: 0; top: 0; width: 1000px; height: 1080px; background: #fff; }
+  .etiqueta { position: absolute; left: 96px; top: 84px; display: flex; align-items: center; gap: 14px;
+    font-family: Consolas, 'SF Mono', monospace; font-size: 17px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pizarra); }
+  .etiqueta i { display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--cian); box-shadow: 0 0 0 5px var(--cian-tenue); }
+  .logo { position: absolute; left: 96px; top: 150px; width: 540px; height: 295px; object-fit: contain; object-position: left center; }
+  h1 { position: absolute; left: 96px; top: 478px; width: 820px; font-size: 96px; line-height: 1.02; font-weight: 750; letter-spacing: -0.03em; color: var(--tinta); }
+  h1 span { color: var(--marca); }
+  .bajada { position: absolute; left: 96px; top: 718px; width: 700px; font-size: 27px; line-height: 1.5; font-weight: 400; color: var(--pizarra); }
+  .fichas { position: absolute; left: 96px; top: 876px; display: flex; gap: 14px; }
+  .ficha { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 24px 0 20px; border: 2px solid var(--linea); border-radius: 26px;
+    font-size: 20px; font-weight: 600; color: var(--marca-honda); background: #fff; }
+  .ficha i { display: block; width: 12px; height: 12px; border-radius: 50%; background: var(--cian); }
+  .pie { position: absolute; left: 96px; bottom: 64px; font-family: Consolas, 'SF Mono', monospace; font-size: 16px; letter-spacing: 0.08em; color: #5a6880; }
+
+  .derecha { position: absolute; left: 1000px; top: 0; width: 920px; height: 1080px; overflow: hidden;
+    background: radial-gradient(ellipse 560px 700px at 50% 56%, #1b5aa8 0%, #0b3570 46%, #0c1a38 100%); }
+  .malla { position: absolute; left: 0; top: 0; width: 920px; height: 1080px; opacity: 0.16; }
+
+  /* Tres cuerpos del mismo encuadre, uno por capa. Cada imagen mide 508 × 800 y el cuerpo ocupa su parte central, así que las cajas
+     se solapan (lo transparente no tapa nada) y las tres figuras caben en 920 px. */
+  .figura { position: absolute; top: 190px; width: 508px; height: 800px; }
+  .figura img { display: block; width: 508px; height: 800px; }
+  .f1 { left: -84px; } .f2 { left: 206px; } .f3 { left: 496px; }
+  .rotulo { position: absolute; top: 1014px; width: 200px; text-align: center; font-family: Consolas, 'SF Mono', monospace; font-size: 16px; font-weight: 600;
+    letter-spacing: 0.18em; text-transform: uppercase; color: #9fd4f3; }
+  .rotulo::before { content: ''; display: block; width: 36px; height: 2px; margin: 0 auto 12px; background: var(--cian); }
+  .r1 { left: 66px; } .r2 { left: 356px; } .r3 { left: 646px; }
+
+  /* Dos cortes en círculo, arriba, con su nombre al lado. Los dos del mismo modelo: lo que se ve dentro es lo mismo que hay bajo la piel. */
+  .corte { position: absolute; top: 34px; width: 160px; height: 160px; border-radius: 50%; border: 3px solid rgba(30,159,224,0.85); background: #0c1a38; overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+  .corte img { position: absolute; }
+  .c1 { left: 52px; } .c2 { left: 492px; }
+  .nombre-corte { position: absolute; top: 94px; width: 190px; font-family: Consolas, 'SF Mono', monospace; font-size: 14px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #cfe8f8; line-height: 1.5; }
+  .n1 { left: 228px; } .n2 { left: 668px; }
+</style>
+</head>
+<body>
+  <div class="izquierda">
+    <div class="etiqueta"><i></i>Prototipo navegable · octubre 2026</div>
+    <img class="logo" src="logo.png" alt="TraumaHub">
+    <h1>Sitio web<br><span>y aplicación</span></h1>
+    <p class="bajada">Plataforma docente de traumatología: atlas anatómico en 3D, simulador quirúrgico con fluoroscopia y la técnica AO paso a paso.</p>
+    <div class="fichas">
+      <div class="ficha"><i></i>Atlas 3D</div>
+      <div class="ficha"><i></i>Simulador con rayos X</div>
+      <div class="ficha"><i></i>Técnica AO</div>
+    </div>
+    <div class="pie">traumahub · diseño y flujo de la plataforma</div>
+  </div>
+
+  <div class="derecha">
+    <svg class="malla" viewBox="0 0 920 1080" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke="#9fd4f3" stroke-width="1">
+        <path d="M0 140 L240 60 L520 150 L920 40"/><path d="M0 420 L180 330 L430 440 L700 310 L920 380"/>
+        <path d="M0 760 L260 680 L560 800 L920 690"/><path d="M0 990 L300 930 L620 1020 L920 940"/>
+        <path d="M240 60 L180 330 L260 680 L300 930"/><path d="M520 150 L430 440 L560 800 L620 1020"/>
+        <path d="M920 40 L700 310 L920 690"/><path d="M700 310 L560 800"/><path d="M180 330 L430 440"/>
+      </g>
+      <g fill="#9fd4f3"><circle cx="240" cy="60" r="4"/><circle cx="520" cy="150" r="4"/><circle cx="180" cy="330" r="4"/><circle cx="430" cy="440" r="5"/>
+        <circle cx="700" cy="310" r="4"/><circle cx="260" cy="680" r="4"/><circle cx="560" cy="800" r="5"/><circle cx="300" cy="930" r="4"/><circle cx="620" cy="1020" r="4"/></g>
+    </svg>
+
+    <div class="figura f1"><img src="../capas/cuerpo-piel.png" alt="Piel"></div>
+    <div class="figura f2"><img src="../capas/cuerpo-musculos.png" alt="Músculos"></div>
+    <div class="figura f3"><img src="../capas/cuerpo-esqueleto.png" alt="Esqueleto"></div>
+    <div class="rotulo r1">Piel</div><div class="rotulo r2">Músculo</div><div class="rotulo r3">Hueso</div>
+
+    <div class="corte c1"><img src="../cortes/corte-sagital-cabeza.png" alt="Corte sagital" style="left:-78px; top:-70px; width:314px; height:auto"></div>
+    <div class="nombre-corte n1">Corte<br>sagital</div>
+    <div class="corte c2"><img src="../cortes/corte-coronal-torax.png" alt="Corte coronal del tórax" style="left:-75px; top:-87px; width:311px; height:auto"></div>
+    <div class="nombre-corte n2">Corte<br>coronal</div>
+  </div>
+</body>
+</html>

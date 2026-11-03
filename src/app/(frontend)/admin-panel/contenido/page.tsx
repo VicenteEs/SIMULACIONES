@@ -1,10 +1,10 @@
 import Link from 'next/link'
-import type { Payload } from 'payload'
 import {
   Bone,
-  ExternalLink,
+  Eye,
   FileText,
   Film,
+  FolderOpen,
   Layers,
   ListChecks,
   Plus,
@@ -14,17 +14,31 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
-import { PlegarTodo } from '@/components/admin/PlegarTodo'
-import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
+import { BarrasVerticales, Minigrafico, NoSePudoLeer, SinDatos } from '@/components/admin/Graficos'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
 import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
-import { ESQUEMAS, type EsquemaDeColeccion } from '@/admin/esquema'
+import { ESQUEMAS } from '@/admin/esquema'
 import { puedeEditar } from '@/lib/guardias'
+import { cifra } from '@/lib/graficos'
+import { haceCuanto } from '@/lib/series'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
+import { MODULOS_ANUNCIADOS } from '@/lib/modulosAnunciados'
 import { InsigniaMantencion } from '@/components/ui/InsigniaMantencion'
 import { InterruptorDeMantencion } from '@/components/admin/InterruptorDeMantencion'
 import { clientePayload } from '../datos'
-import { NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
+import { MODULOS, NOMBRE_DE_MODULO } from '../modulos'
+import {
+  DIAS_DE_LECTURA,
+  MESES_DE_ALTAS,
+  altasPorMes,
+  conteoDelModulo,
+  lecturasDeLosModulos,
+  masRecientes,
+  recientesDe,
+  resumenDeApoyo,
+} from './tablero'
+import './contenido.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,70 +60,22 @@ const ICONO_DE_APOYO: Record<string, LucideIcon> = {
   maniobras: Stethoscope,
 }
 
-const fecha = (valor?: string) =>
-  valor
-    ? new Date(valor).toLocaleDateString('es-CL', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      })
-    : '—'
+const plural = (n: number, singular: string, plural: string) => `${cifra(n)} ${n === 1 ? singular : plural}`
 
-interface ResumenDeColeccion {
-  esquema: EsquemaDeColeccion
-  publicados: number
-  borradores: number
-  recientes: { id: string; titulo: string; publicado: boolean; editado?: string }[]
-}
-
-async function resumir(payload: Payload, esquema: EsquemaDeColeccion): Promise<ResumenDeColeccion> {
-  const contar = async (where?: Record<string, unknown>) => {
-    try {
-      const { totalDocs } = await payload.count({
-        collection: esquema.slug as never,
-        ...(where ? { where: where as never } : {}),
-        overrideAccess: true,
-      })
-      return totalDocs
-    } catch {
-      return 0
-    }
-  }
-
-  const [publicados, borradores, ultimos] = await Promise.all([
-    esquema.versionada ? contar({ _status: { equals: 'published' } }) : contar(),
-    esquema.versionada ? contar({ _status: { equals: 'draft' } }) : Promise.resolve(0),
-    payload
-      .find({
-        collection: esquema.slug as never,
-        limit: 5,
-        sort: '-updatedAt',
-        depth: 0,
-        draft: esquema.versionada,
-        overrideAccess: true,
-      })
-      .catch(() => ({ docs: [] as unknown[] })),
-  ])
-
-  return {
-    esquema,
-    publicados,
-    borradores,
-    recientes: (ultimos.docs as Record<string, unknown>[]).map((doc) => ({
-      id: String(doc.id),
-      titulo: String(doc[esquema.titulo] ?? doc.filename ?? `#${doc.id}`),
-      publicado: doc._status === 'published' || !esquema.versionada,
-      editado: doc.updatedAt as string | undefined,
-    })),
-  }
-}
+const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
 /**
- * Índice del contenido.
+ * Índice del contenido, con el tablero de Penpot (P-007 E5, D-238).
  *
- * Es la portada de trabajo del traumatólogo: qué hay en cada módulo, qué quedó
- * a medias y por dónde seguir. Todo lleva al editor propio; nada de aquí sale
- * de la plataforma.
+ * Es la portada de trabajo del traumatólogo: qué hay en cada módulo, cuánto
+ * está publicado, qué se tocó hace poco y por dónde seguir. Todo lleva al
+ * editor propio; nada de aquí sale de la plataforma.
+ *
+ * Las secciones plegables y «Plegar todo» se fueron con el tablero: estaban
+ * porque la página apilaba dos listas largas —cinco tarjetas con sus cinco
+ * últimas fichas y diez tarjetas de apoyo—, y lo que queda son dos filas
+ * cortas. Plegarlas escondía, de paso, las cifras que esta página tiene que
+ * enseñar al entrar.
  */
 export default async function PaginaContenido() {
   const { sesion, esAdmin } = await exigirPanel()
@@ -123,22 +89,55 @@ export default async function PaginaContenido() {
   // Sin las reservadas al administrador (el equipo del inicio): tienen su propia pestaña en la barra lateral, y
   // repetirlas aquí como «material de apoyo» las mezclaría con lo que usan los cinco módulos.
   const visibles = ESQUEMAS.filter((e) => !e.soloAdmin && puedeEditar(sesion.usuario, e.slug))
+  const modulos = visibles.filter((e) => e.familia === 'modulos')
+  const apoyo = visibles.filter((e) => e.familia === 'apoyo')
+  const slugs = modulos.map((m) => m.slug)
 
   const payload = await clientePayload()
-  const resumenes = await Promise.all(visibles.map((e) => resumir(payload, e)))
+  const [conteos, recientes, lecturas, altas, apoyos, requisitos] = await Promise.all([
+    Promise.all(modulos.map((m) => conteoDelModulo(payload, m.slug))),
+    Promise.all(modulos.map((m) => recientesDe(payload, m))),
+    // Quién lee y cuánto es del administrador, como en el Resumen.
+    esAdmin ? lecturasDeLosModulos(payload, slugs) : null,
+    altasPorMes(payload, slugs),
+    Promise.all(apoyo.map((e) => resumenDeApoyo(payload, e.slug))),
+    // Los requisitos del módulo 06 que nadie ha respondido (D-163): los
+    // responde el administrador. `null` si la tabla no contestó.
+    esAdmin
+      ? payload
+          .count({ collection: 'requisitos', where: { estado: { equals: 'propuesto' } }, overrideAccess: true })
+          .then((c) => c.totalDocs)
+          .catch(() => null)
+      : null,
+  ])
 
-  const modulos = resumenes.filter((r) => r.esquema.familia === 'modulos')
-  const apoyo = resumenes.filter((r) => r.esquema.familia === 'apoyo')
-  const borradores = modulos.reduce((t, r) => t + r.borradores, 0)
+  const legibles = conteos.filter((c) => c !== null)
+  const publicadas = legibles.reduce((t, c) => t + c.publicadas, 0)
+  const borradores = legibles.reduce((t, c) => t + (c.total - c.publicadas), 0)
+  const ilegibles = modulos.filter((_, i) => conteos[i] === null)
+  const ultimas = masRecientes(recientes, 8)
+  const hoy = new Date()
+  const anunciado = MODULOS_ANUNCIADOS[0]
 
   return (
     <div>
       <CabeceraDePagina
         titulo="Contenido"
-        subtitulo={`${modulos.reduce((t, r) => t + r.publicados, 0)} fichas publicadas${
-          borradores > 0 ? ` · ${borradores} en borrador` : ''
+        subtitulo={`Las fichas de los módulos y los catálogos que las ordenan · ${plural(publicadas, 'publicada', 'publicadas')}${
+          borradores > 0 ? ` · ${cifra(borradores)} en borrador` : ''
         }`}
       />
+
+      {/* Una tabla que no responde se veía igual que un módulo recién
+          instalado: tarjeta a cero y «sin contenido aún». */}
+      {ilegibles.length > 0 ? (
+        <div className="admin-aviso admin-aviso-atencion" role="status">
+          <strong>La base no respondió por parte del contenido.</strong>
+          Donde aparece «—» no hay un cero: es un recuento que no se pudo hacer (
+          {ilegibles.map((m) => NOMBRE_DE_MODULO[m.slug] ?? m.plural).join(', ')}). El detalle queda en el registro del
+          servidor.
+        </div>
+      ) : null}
 
       {borradores > 0 ? (
         <div className="admin-aviso admin-aviso-info">
@@ -150,101 +149,222 @@ export default async function PaginaContenido() {
         </div>
       ) : null}
 
-      <PlegarTodo />
-
-      <SeccionPlegable clave="contenido.modulos" titulo="Módulos" resumen={`${modulos.length} módulos`}>
-        <div className="admin-grid">
-          {modulos.map(({ esquema, publicados, borradores: enBorrador, recientes }) => {
-            // El color y el icono del módulo, los mismos de la portada y de la
-            // barra del sitio: quien edita reconoce de un vistazo de cuál habla.
-            const identidad = IDENTIDAD_DE_MODULO[esquema.slug]
-            const Icono = identidad?.icono ?? FileText
-            return (
-              <div
-                key={esquema.slug}
-                className={`admin-card tarjeta-modulo${identidad ? ` ${identidad.clase}` : ''}`}
-              >
-                <div className="tarjeta-modulo-cabeza">
-                  <span className="icono-modulo">
-                    <Icono aria-hidden size={20} />
-                  </span>
-                  <div className="tarjeta-modulo-nombre">{esquema.plural}</div>
-                  {enMantencion.includes(esquema.slug) ? <InsigniaMantencion /> : null}
-                </div>
-                {/* El interruptor es solo del administrador: el editor ve la
-                    marca de arriba, pero no decide quién ve qué. */}
-                {esAdmin ? (
-                  <InterruptorDeMantencion
-                    modulo={esquema.slug}
-                    nombre={NOMBRE_DE_MODULO[esquema.slug] ?? esquema.plural}
-                    enMantencion={enMantencion.includes(esquema.slug)}
-                  />
-                ) : null}
-                <div className="admin-card-value admin-card-value-sm">
-                  {publicados}
-                  {enBorrador > 0 ? <span className="admin-numero-tenue"> +{enBorrador} borr.</span> : null}
-                </div>
-                <p className="admin-card-note">{esquema.descripcion}</p>
-
-                {recientes.length > 0 ? (
-                  <ul className="contenido-recientes">
-                    {recientes.map((r) => (
-                      <li key={r.id}>
-                        <Link href={`/admin-panel/contenido/${esquema.slug}/${r.id}`}>{r.titulo}</Link>
-                        {!r.publicado ? <span className="insignia insignia-atencion">borrador</span> : null}
-                        <span className="contenido-fecha">{fecha(r.editado)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="admin-card-note">Sin contenido aún.</p>
-                )}
-
-                <div className="admin-card-actions">
-                  <Link href={`/admin-panel/contenido/${esquema.slug}`} className="admin-btn admin-btn-secondary">
-                    Ver todas
-                  </Link>
-                  <Link href={`/admin-panel/contenido/${esquema.slug}/nuevo`} className="admin-btn admin-btn-primary">
-                    <Plus aria-hidden size={16} />
-                    Nueva
-                  </Link>
-                  <Link
-                    href={rutaPublica(esquema.slug, '').replace(/\/$/, '')}
-                    className="admin-btn admin-btn-ghost"
-                  >
-                    Ver público
-                    <ExternalLink aria-hidden size={14} />
-                  </Link>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </SeccionPlegable>
-
-      <SeccionPlegable clave="contenido.apoyo" titulo="Material de apoyo" resumen={`${apoyo.length} colecciones`}>
-        <div className="apoyo-rejilla">
-          {apoyo.map(({ esquema, publicados }) => {
-            const Icono = ICONO_DE_APOYO[esquema.slug] ?? FileText
-            return (
-              <Link
-                key={esquema.slug}
-                href={`/admin-panel/contenido/${esquema.slug}`}
-                className="admin-card admin-card-enlace apoyo-tarjeta"
-              >
+      <div className="contenido-modulos">
+        {modulos.map((esquema, i) => {
+          // El color y el icono del módulo, los mismos de la portada y de la
+          // barra del sitio: quien edita reconoce de un vistazo de cuál habla.
+          const identidad = IDENTIDAD_DE_MODULO[esquema.slug]
+          const Icono = identidad?.icono ?? FileText
+          const conteo = conteos[i]
+          const datos = MODULOS.find((m) => m.slug === esquema.slug)
+          const numero = datos?.numero
+          const nombre = NOMBRE_DE_MODULO[esquema.slug] ?? esquema.plural
+          const serie = lecturas?.porModulo[esquema.slug]
+          const leidas = serie?.reduce((t, v) => t + v, 0) ?? 0
+          const porcentaje = conteo && conteo.total > 0 ? Math.round((conteo.publicadas / conteo.total) * 100) : null
+          return (
+            <section
+              key={esquema.slug}
+              className={`admin-card tarjeta-modulo contenido-modulo${identidad ? ` ${identidad.clase}` : ''}${
+                conteo === null ? ' admin-card-ilegible' : ''
+              }`}
+              aria-labelledby={`modulo-${esquema.slug}`}
+            >
+              <div className="tarjeta-modulo-cabeza">
                 <span className="icono-modulo">
                   <Icono aria-hidden size={20} />
                 </span>
-                <div>
-                  <div className="admin-card-title">{esquema.plural}</div>
-                  <p className="admin-card-note">{esquema.descripcion}</p>
+                <div className="contenido-modulo-titulo">
+                  {numero ? <span className="contenido-modulo-numero">{numero}</span> : null}
+                  <h2 className="tarjeta-modulo-nombre" id={`modulo-${esquema.slug}`}>
+                    {nombre}
+                  </h2>
                 </div>
-                <span className="apoyo-cifra">{publicados}</span>
-              </Link>
-            )
-          })}
-        </div>
-      </SeccionPlegable>
+                {enMantencion.includes(esquema.slug) ? <InsigniaMantencion /> : null}
+              </div>
+              {/* El interruptor es solo del administrador: el editor ve la
+                  marca de arriba, pero no decide quién ve qué. */}
+              {esAdmin ? (
+                <InterruptorDeMantencion modulo={esquema.slug} nombre={nombre} enMantencion={enMantencion.includes(esquema.slug)} />
+              ) : null}
+
+              <div className="contenido-modulo-cifras">
+                <div className="contenido-modulo-total">
+                  <span className="admin-card-value">{conteo ? cifra(conteo.total) : '—'}</span>
+                  <span className="contenido-modulo-nota">
+                    {conteo
+                      ? `${conteo.total === 1 ? 'ficha' : 'fichas'} · ${plural(conteo.publicadas, 'publicada', 'publicadas')}`
+                      : 'no se pudo contar'}
+                  </span>
+                </div>
+                {/* Solo con lecturas de verdad: una línea plana a cero junto a un
+                    módulo que nadie abre todavía se lee igual que una rota. */}
+                {serie && leidas > 0 ? (
+                  <Minigrafico
+                    valores={serie}
+                    ancho={120}
+                    alto={36}
+                    color="var(--acento)"
+                    descripcion={`Fichas de ${nombre} abiertas cada día de los últimos ${DIAS_DE_LECTURA} días.`}
+                  />
+                ) : null}
+              </div>
+
+              {porcentaje !== null ? (
+                <div className="contenido-avance">
+                  <span className="progreso" aria-hidden>
+                    <span style={{ width: `${porcentaje}%` }} />
+                  </span>
+                  <span className="contenido-avance-cifra">{porcentaje} % publicado</span>
+                </div>
+              ) : conteo ? (
+                <span className="contenido-modulo-nota">Sin fichas aún.</span>
+              ) : null}
+
+              {esAdmin ? (
+                <span className="contenido-modulo-nota">
+                  {lecturas === null
+                    ? 'no se pudo leer el registro de lecturas'
+                    : `${plural(leidas, 'apertura', 'aperturas')} en los últimos ${DIAS_DE_LECTURA} días`}
+                </span>
+              ) : null}
+
+              <div className="admin-card-actions contenido-modulo-acciones">
+                <Link href={`/admin-panel/contenido/${esquema.slug}`} className="admin-btn admin-btn-secondary admin-btn-sm">
+                  <FolderOpen aria-hidden size={15} />
+                  Abrir
+                </Link>
+                <Link href={`/admin-panel/contenido/${esquema.slug}/nuevo`} className="admin-btn admin-btn-ghost admin-btn-sm">
+                  <Plus aria-hidden size={15} />
+                  Nueva
+                </Link>
+                {/* La portada del módulo y no `rutaPublica(slug, '')`: para
+                    el examen físico, que no tiene página por ficha, aquella
+                    devuelve el ancla de una maniobra sin número. */}
+                <Link href={datos?.ruta ?? '/'} className="admin-btn admin-btn-ghost admin-btn-sm">
+                  <Eye aria-hidden size={15} />
+                  Ver público
+                </Link>
+              </div>
+            </section>
+          )
+        })}
+
+        {/* El módulo que viene (D-163): sin fichas todavía, pero con un buzón
+            de requisitos que alguien tiene que responder. */}
+        {anunciado ? (
+          <Link href={anunciado.ruta} className="contenido-anunciado">
+            <span className="icono-modulo" aria-hidden>
+              <Plus size={20} />
+            </span>
+            <strong>Módulo {anunciado.numero}</strong>
+            <span>{anunciado.nombre}</span>
+            <span className="contenido-modulo-nota">
+              {requisitos === null
+                ? esAdmin
+                  ? 'Propuesto · no se pudieron contar sus requisitos'
+                  : 'Propuesto, reuniendo requisitos'
+                : requisitos === 0
+                  ? 'Propuesto · ningún requisito espera respuesta'
+                  : `Propuesto · ${plural(requisitos, 'requisito espera', 'requisitos esperan')} respuesta`}
+            </span>
+          </Link>
+        ) : null}
+      </div>
+
+      <div className="tablero-fila">
+        <TarjetaDeGrafico titulo="Material de apoyo" bajada="Catálogos y archivos que usan las fichas de los cinco módulos">
+          {apoyo.length === 0 ? (
+            <SinDatos texto="Ningún catálogo a su cargo." />
+          ) : (
+            <div className="admin-table-container">
+              <table className="admin-table tabla-apilable">
+                <thead>
+                  <tr>
+                    <th scope="col">Catálogo</th>
+                    <th scope="col">Filas</th>
+                    <th scope="col">Nuevas · 7 días</th>
+                    <th scope="col">Última edición</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apoyo.map((esquema, i) => {
+                    const Icono = ICONO_DE_APOYO[esquema.slug] ?? FileText
+                    const resumen = apoyos[i]
+                    return (
+                      <tr key={esquema.slug}>
+                        <th scope="row">
+                          <Link href={`/admin-panel/contenido/${esquema.slug}`} className="contenido-apoyo-nombre">
+                            <Icono aria-hidden size={16} />
+                            {esquema.plural}
+                          </Link>
+                        </th>
+                        <td className="auditoria-numero contenido-apoyo-cifra" data-etiqueta="Filas">
+                          {resumen.filas === null ? '—' : cifra(resumen.filas)}
+                        </td>
+                        <td className="contenido-apoyo-cifra" data-etiqueta="Nuevas · 7 días">
+                          {resumen.nuevas === null ? (
+                            '—'
+                          ) : resumen.nuevas > 0 ? (
+                            <span className="insignia insignia-info">+{cifra(resumen.nuevas)}</span>
+                          ) : (
+                            <span className="revision-tenue">ninguna</span>
+                          )}
+                        </td>
+                        <td className="u-nowrap" data-etiqueta="Última edición">
+                          {resumen.ultimaEdicion ? haceCuanto(resumen.ultimaEdicion, hoy) : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TarjetaDeGrafico>
+
+        <TarjetaDeGrafico
+          titulo="Fichas creadas por mes"
+          bajada={`${slugs.length === MODULOS.length ? 'Los cinco módulos juntos' : 'Sus módulos juntos'}, borradores incluidos, de las que existen hoy`}
+          ilegible={altas === null}
+        >
+          {altas === null ? (
+            <NoSePudoLeer que="las fichas de los módulos" />
+          ) : (
+            <>
+              <BarrasVerticales
+                titulo={`Fichas creadas cada uno de los últimos ${MESES_DE_ALTAS} meses`}
+                datos={altas.meses.map((m, i) => ({ etiqueta: m.etiqueta, valor: altas.valores[i], detalle: m.detalle }))}
+              />
+              {/* El mes que corre se compara mal con los cerrados: decirlo
+                  evita leer su barra corta como un frenazo. */}
+              <p className="contenido-modulo-nota">
+                {`${MES_LARGO[hoy.getMonth()].replace(/^./, (l) => l.toUpperCase())} va en su día ${hoy.getDate()}.`}
+              </p>
+            </>
+          )}
+        </TarjetaDeGrafico>
+      </div>
+
+      <TarjetaDeGrafico
+        titulo="Editadas hace poco"
+        bajada="Las últimas fichas que alguien tocó, de todos sus módulos"
+      >
+        {ultimas.length === 0 ? (
+          <SinDatos texto="Todavía no hay fichas." />
+        ) : (
+          <ul className="contenido-recientes">
+            {ultimas.map((r) => (
+              <li key={`${r.coleccion}/${r.id}`}>
+                <Link href={`/admin-panel/contenido/${r.coleccion}/${r.id}`}>{r.titulo}</Link>
+                <span className="insignia insignia-neutra">{NOMBRE_DE_MODULO[r.coleccion] ?? r.coleccion}</span>
+                {!r.publicada ? <span className="insignia insignia-atencion">borrador</span> : null}
+                <span className="contenido-fecha">{r.editada ? haceCuanto(r.editada, hoy) : '—'}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </TarjetaDeGrafico>
     </div>
   )
 }

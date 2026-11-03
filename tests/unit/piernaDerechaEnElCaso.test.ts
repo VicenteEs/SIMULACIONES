@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import {
@@ -62,8 +62,12 @@ function baseEnMemoria() {
 
   const base = {
     find: vi.fn(async ({ collection, where }: Record<string, unknown>) => {
-      const igual = (where as { nombre?: { equals?: unknown } } | undefined)?.nombre?.equals
-      const docs = tabla(String(collection)).filter((d) => igual === undefined || d.nombre === igual)
+      // `{ campo: { equals } }`, que es lo único que pide el guion: el caso por su nombre y la clasificación
+      // por su código.
+      const condiciones = Object.entries((where ?? {}) as Record<string, { equals?: unknown }>)
+      const docs = tabla(String(collection)).filter((d) =>
+        condiciones.every(([campo, { equals }]) => equals === undefined || d[campo] === equals),
+      )
       return { docs: structuredClone(docs) }
     }),
     findByID: vi.fn(async ({ collection, id }: Record<string, unknown>) => {
@@ -193,7 +197,12 @@ const atlasTemporales: string[] = []
  */
 function atlasCambiado(cambiar: (catalogo: CatalogoCrudo) => void): string {
   const instalado = resolve('public', 'atlas')
-  const directorio = mkdtempSync(join(tmpdir(), 'pierna-atlas-'))
+  // En la misma unidad que el repositorio y no en `tmpdir()`: en Windows, con el
+  // repositorio en D: y la carpeta temporal en C:, no hay ruta relativa entre
+  // las dos —`relative` devuelve la absoluta y `join` la pega detrás—, y esta
+  // prueba fallaba en esa máquina sin que el guion tuviera nada que ver.
+  mkdirSync(resolve('node_modules', '.cache'), { recursive: true })
+  const directorio = mkdtempSync(join(resolve('node_modules', '.cache'), 'pierna-atlas-'))
   atlasTemporales.push(directorio)
   const catalogo = JSON.parse(readFileSync(join(instalado, 'catalogo.json'), 'utf8')) as CatalogoCrudo
   for (const paquete of catalogo.paquetes) {
@@ -242,6 +251,24 @@ describe('traducirMuestra: lo que ve un paso pasa al modelo nuevo por su papel',
     expect(
       traducirMuestra(['tibia_proximal', 'tibia_distal'], rolesViejos, piezasNuevas, nodos).muestra,
     ).toEqual(['Tibia_derecha_fragmento_proximal', 'Esqueleto', 'Tibia_derecha_fragmento_distal'])
+  })
+
+  it('la fascia que el modelo viejo no tenía entra donde se veía el músculo, y en ningún otro paso', () => {
+    const conFascia = [...piezasNuevas, { nodo: 'Fascia_profunda', rol: 'fascia' }]
+    const nodosConFascia = conFascia.map((p) => p.nodo)
+    expect(traducirMuestra(['piel', 'musculo'], rolesViejos, conFascia, nodosConFascia).muestra).toEqual([
+      'Piel',
+      'Musculos',
+      'Arterias',
+      'Fascia_profunda',
+    ])
+    // La reducción enseñaba solo el hueso: sigue sin fascia.
+    expect(traducirMuestra(['tibia_proximal'], rolesViejos, conFascia, nodosConFascia).muestra).not.toContain(
+      'Fascia_profunda',
+    )
+    // Si el modelo viejo ya tenía fascia, cada paso decía si la enseñaba: no se añade.
+    const yaConFascia = new Map([...rolesViejos, ['fascia_vieja', 'fascia']])
+    expect(traducirMuestra(['musculo'], yaConFascia, conFascia, nodosConFascia).muestra).toEqual(['Musculos', 'Arterias'])
   })
 
   it('no repite un nodo aunque dos viejos tengan el mismo papel', () => {
@@ -434,6 +461,18 @@ describe('las opciones y los secretos', () => {
     expect(() => leerArgumentos(['--aplicarr'])).toThrow(/No conozco/)
   })
 
+  it('la tibia, el caso nuevo, su clasificación y separar las estructuras (2026-11-03)', () => {
+    expect(leerArgumentos([])).toMatchObject({ tibia: 'derecha', nuevo: undefined, clasificacion: undefined, separar: false })
+    expect(
+      leerArgumentos(['--tibia', 'Izquierda', '--nuevo', 'Tibia partida', '--clasificacion=A3', '--separar']),
+    ).toMatchObject({ tibia: 'izquierda', nuevo: 'Tibia partida', clasificacion: 'A3', separar: true })
+    expect(() => leerArgumentos(['--tibia', 'central'])).toThrow(/derecha.*izquierda/)
+    expect(() => leerArgumentos(['--nuevo'])).toThrow(/Falta el valor de --nuevo/)
+    expect(() => leerArgumentos(['--nuevo', '--aplicar'])).toThrow(/Falta el valor/)
+    // Cambiar la fractura del caso de prueba al pasar rompería lo que suponen su modelo y sus pruebas.
+    expect(() => leerArgumentos(['--clasificacion', 'A3'])).toThrow(/solo vale con --nuevo/)
+  })
+
   it('no imprime la cadena de conexión ni la contraseña de dentro de una URL', () => {
     const entorno = {
       DATABASE_URI: 'postgres://trauma:muysecreta@db:5432/trauma',
@@ -510,13 +549,16 @@ describe('ejecutar, con la exportación de verdad', () => {
     ])
     expect(piezas.map((p) => p.nodo)).not.toContain('tibia_distal')
     const deRol = (rol: string) => piezas.filter((p) => p.rol === rol).map((p) => p.nodo)
-    // La incisión enseñaba las cuatro capas y sigue enseñándolas, con los nodos nuevos.
+    // La incisión enseñaba las cuatro capas y sigue enseñándolas, con los nodos nuevos. Y como enseñaba el
+    // músculo, también la fascia que lo cubre, que el modelo de antes no tenía (`traducirMuestra`).
     expect(muestraDe(caso, 0)).toEqual([
       ...deRol('piel'),
       ...deRol('musculo'),
       ...deRol('hueso'),
       ...deRol('fragmento'),
+      ...deRol('fascia'),
     ])
+    expect(deRol('fascia')).toEqual(['Fascia_profunda'])
     // La fascia superficial viaja con la piel: es la tela que la sigue por debajo y se levanta con ella (D-218).
     expect(deRol('piel')).toEqual(['Piel', 'Fascia_superficial'])
     expect(deRol('musculo')).toContain('Musculos')
@@ -632,6 +674,49 @@ describe('ejecutar, con la exportación de verdad', () => {
     expect(caso.piezas!.map((p) => p.nodo)).not.toContain('Esqueleto')
     expect(muestraDe(caso, 1)).toEqual(['Tibia_derecha_fragmento_proximal', 'Tibia_derecha_fragmento_distal'])
   }, 120_000)
+
+  it('--nuevo crea una copia publicada con su fractura, sin tocar el caso de origen, y la segunda vez no crea otra', async () => {
+    const { caso: origen, modeloViejo } = sembrarElCaso(memoria)
+    const transversa = memoria.sembrar('clasificaciones-ao', { codigo: 'A3', nombre: 'Simple transversa', tipo: 'A' })
+    const antes = JSON.stringify(origen)
+    const pedido = { ...opciones(true), nuevo: 'Tibia partida · copia', clasificacion: 'a3' }
+
+    const primero = await ejecutar(memoria.base, pedido)
+    expect(primero.escrito).toBe(true)
+    const casos = memoria.tablas.get('cirugias')!
+    expect(casos).toHaveLength(2)
+    // El de origen, como estaba: ni su modelo, ni sus piezas, ni su fractura.
+    expect(JSON.stringify(casos[0])).toBe(antes)
+    expect(casos[0].modelo).toBe(modeloViejo.id)
+
+    const copia = casos[1] as unknown as CasoLeido & Record<string, unknown>
+    expect(copia).toMatchObject({ nombre: 'Tibia partida · copia', _status: 'published', clasificacion: transversa.id })
+    expect(copia.modelo).toBe(memoria.tablas.get('modelos-3d')![1].id)
+    expect(copia.piezas!.some((p) => p.rol === 'fragmento' && p.nodo === 'Tibia_derecha_fragmento_distal')).toBe(true)
+    // Las filas de los pasos sin el identificador del origen: en PostgreSQL es la clave de la fila.
+    expect(copia.pasos!.map((p) => (p as { id?: unknown }).id)).toEqual([undefined, undefined, undefined])
+    expect(copia.pasos!.map((p) => p.titulo)).toEqual((origen.pasos as { titulo: string }[]).map((p) => p.titulo))
+    // Un resumen que dice la fractura nueva y no la del origen.
+    expect(JSON.stringify(copia.resumen)).toContain('Fractura simple transversa de la diáfisis de la tibia derecha (AO 42-A3)')
+    // Corte transversal: la clasificación nueva es la que decide cómo se parte la tibia.
+    expect(memoria.tablas.get('modelos-3d')![1].notas).toMatch(/transvers/i)
+
+    const lineas: string[] = []
+    const segundo = await ejecutar(memoria.base, { ...pedido, escribir: (l: string) => lineas.push(l) })
+    expect(memoria.tablas.get('cirugias')).toHaveLength(2)
+    expect(memoria.tablas.get('modelos-3d')).toHaveLength(2)
+    expect(segundo.escrito).toBe(false)
+    expect(lineas.join('\n')).toContain('El caso ya está así')
+  }, 120_000)
+
+  it('--clasificacion con un código que no existe para antes de escribir nada', async () => {
+    sembrarElCaso(memoria)
+    const antes = memoria.foto()
+    await expect(
+      ejecutar(memoria.base, { ...opciones(true), nuevo: 'Otra', clasificacion: 'Z9' }),
+    ).rejects.toThrow(/Hay 0 clasificaciones AO con el código «Z9»/)
+    expect(memoria.foto()).toBe(antes)
+  })
 
   it('para sin tocar nada si la preparación no incluye la tibia derecha', async () => {
     sembrarElCaso(memoria)

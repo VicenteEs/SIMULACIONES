@@ -1,3 +1,4 @@
+import type { EstadoDeCotizacion } from './cotizaciones'
 import type { EstadoDeEstructura } from './estructuras'
 import type { EstadoDeRevision } from './revision'
 
@@ -55,4 +56,15 @@ export const TONO_DE_ESTRUCTURA: Record<EstadoDeEstructura, Tono> = {
   'sin-empezar': 'neutra',
   oculta: 'neutra',
   'sin-pieza': 'peligro',
+}
+
+/**
+ * El tono de cada estado de una cotización (P-007 E3): la nueva espera a que
+ * alguien la conteste, la que está en conversación ya está en manos de alguien
+ * y la cerrada salió del flujo.
+ */
+export const TONO_DE_COTIZACION: Record<EstadoDeCotizacion, Tono> = {
+  nueva: 'atencion',
+  'en-conversacion': 'info',
+  cerrada: 'neutra',
 }

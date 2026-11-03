@@ -12,7 +12,8 @@ import { rutaPublica } from '@/app/(frontend)/admin-panel/modulos'
  *
  * El ancla es un contrato entre tres archivos que no se importan entre sí: lo
  * compone `rutaPublica` («/examen-fisico#maniobra-<id>»), lo declara el
- * `<article id={`maniobra-${m.id}`}>` del listado y lo lee esto. Escribirlo
+ * listado (`id={`maniobra-${m.id}`}`, en el `<article>` de cada
+ * `PanelDeManiobra`) y lo leen esto y `ManiobrasPorSegmento`. Escribirlo
  * aquí a mano sería la tercera copia, y la copia que se queda atrás el día que
  * el examen físico tenga por fin página por documento: `rutaPublica` dejaría de
  * componer anclas, el listado dejaría de declararlas y esta seguiría buscando
@@ -44,8 +45,9 @@ const PREFIJO_DEL_ANCLA = `#${rutaPublica('maniobras', '').split('#')[1] ?? ''}`
 export function VisitaDeManiobraEnlazada({ identificadores }: { identificadores: string[] }) {
   useEffect(() => {
     // Solo al montar, y no en cada `hashchange`: dentro del listado el ancla
-    // solo cambia si el residente pulsa el enlace de otra maniobra, y ahí no ha
-    // pasado de un documento a otro, sigue en la misma página desplazándose.
+    // cambia cuando el residente elige otra maniobra en la lista, y esa visita
+    // ya la anota `ManiobrasPorSegmento` al elegirla. Escucharla también aquí
+    // la contaría dos veces.
     const ancla = window.location.hash
     if (!ancla.startsWith(PREFIJO_DEL_ANCLA)) return
 

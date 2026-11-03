@@ -85,16 +85,12 @@
   top: var(--e-4);
 }
 
-.difusion-vista-cabecera {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--e-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--e-2);
-}
+/* El título y, debajo, a quién le llega: con el nombre de la primera persona
+   de la cola la frase ya no cabe al lado del título (P-007 E5, D-238). */
+.difusion-vista-cabecera { margin-bottom: var(--e-4); }
 
 .difusion-vista-cabecera .difusion-subtitulo { margin: 0; }
+.difusion-vista-cabecera .admin-form-hint { margin: var(--e-1) 0 0; }
 
 /* El fondo es el `papel` de la plantilla del correo y no el del panel, para
    que el marco no parpadee en otro color mientras carga. El alto cabe un
@@ -109,16 +105,31 @@
 }
 
 /* ---------- historial ---------- */
+.difusion-historial-nota { margin: 0 0 var(--e-4); }
+
 .difusion-fecha { white-space: nowrap; }
 
 .difusion-asunto { min-width: 192px; }
 
 .difusion-avance {
-  min-width: 128px;
+  min-width: 144px;
   white-space: nowrap;
 }
 
-.difusion-sin-fallos { color: var(--mudo); }
+/* El porcentaje a la izquierda y «12 de 14» a la derecha, sobre la barra. */
+.difusion-avance-cifras {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e-2);
+}
+.difusion-avance-cifras .admin-table-user-email { margin: 0; }
+
+/* El color de la barra dice cómo terminó (`PanelDeDifusion.tsx`). */
+.difusion-barra-completa { --acento: var(--verde); }
+.difusion-barra-con-fallos { --acento: var(--ambar); }
+
+.difusion-fallos { margin-top: var(--e-1); }
 
 .difusion-fallos summary {
   cursor: pointer;
@@ -158,4 +169,11 @@
    saludo, el texto y el botón sin que la vista previa ocupe tres pantallas. */
 @media (max-width: 640px) {
   .difusion-vista-marco { height: 480px; }
+  /* En la tarjeta apilada de cada fila, la barra ocupa lo que quede tras el
+     rótulo, y las columnas ya no piden su ancho mínimo de tabla. */
+  .difusion-asunto,
+  .difusion-avance { min-width: 0; }
+  .difusion-avance-cuerpo { flex: 1; min-width: 0; }
+  .difusion-fecha { white-space: normal; }
+  .difusion-fallos ul { min-width: 0; }
 }

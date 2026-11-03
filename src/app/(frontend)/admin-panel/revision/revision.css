@@ -1,0 +1,30 @@
+/* ==========================================================================
+   «Por revisar» (`admin-panel/revision/page.tsx`), con su tablero (D-238).
+
+   Lo común del tablero —`.tablero-cifras`, `.tablero-fila`, la tarjeta de
+   gráfico— está en `panel.css`. Aquí solo lo que esta pestaña pone de suyo.
+   ========================================================================== */
+
+/* Las vistas y «Solo las asignadas a mí» en una fila, encima de las cifras.
+   El segmentado trae su propio margen inferior para cuando va solo; aquí lo
+   pone la fila, que también lo necesita cuando el botón baja a la línea
+   siguiente en un teléfono. */
+.revision-vistas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-3);
+  margin-bottom: var(--e-5);
+}
+.revision-vistas .segmentado { margin-bottom: 0; }
+
+/* «Cola por módulo» va en la tercera columna del tablero, y ahí el nombre del
+   módulo no cabía junto a su barra: «Biblioteca de pat…», «Lectura de
+   imáge…». Como en Penpot, el nombre y la cifra van en una línea y la barra
+   debajo, a todo el ancho. Se hace aquí y no en `.grafico-fila` porque en una
+   tarjeta ancha la barra al lado del nombre se lee mejor. */
+.revision-por-modulo .grafico-fila { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--e-1); }
+.revision-por-modulo .grafico-fila-barra { grid-column: 1 / -1; grid-row: 2; }
+
+/* Las dos firmas de cada fila (D-240), una junto a la otra. */
+.revision-firmas-fila { display: inline-flex; flex-wrap: wrap; gap: 4px; }

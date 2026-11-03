@@ -354,9 +354,13 @@ def entradas_tronco_cuello_cabeza(atlas):
         sistemas=['muscular', 'skeletal', 'connective', 'digestive', 'respiratory', 'cardiac', 'urinary', 'reproductive', 'endocrine', 'sensory', 'nervous'],
     )
     # El cerebro y sus partes (nervioso de la cabeza) entran: llenan el cráneo. Los nervios del tronco, no.
+    # La oreja (`External ear`, del sistema sensorial) no: el pabellón es cartílago y piel por fuera de la fascia
+    # temporal. Con ella dentro, el cierre la envolvía, la fascia temporal llegaba a dos milímetros de la oreja, y la
+    # piel de D-224, que no puede quedar por debajo de ninguna fascia profunda, salía abollonada a su alrededor.
     return [
         p for p in piezas
-        if p['nombre'] not in de_los_miembros
+        if p['nombre'] != 'External ear'
+        and p['nombre'] not in de_los_miembros
         and p['nombre'] not in del_hombro
         and not (p['sistema'] == 'nervous' and p['region'] != 'cabeza')
         and not (p['sistema'] == 'skeletal' and any(k in p['nombre'].lower() for k in ('femur', 'tibia', 'fibula', 'humerus', 'radius', 'ulna')))

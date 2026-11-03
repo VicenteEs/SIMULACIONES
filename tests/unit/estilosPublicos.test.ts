@@ -180,25 +180,27 @@ describe('la paleta se lee', () => {
 // El cuerpo de la ficha
 // ---------------------------------------------------------------------------
 
-describe('la rejilla de la ficha no da por hecho que hay índice', () => {
+describe('la rejilla de la ficha no da por hecho que hay columna lateral', () => {
   /**
-   * `IndiceFicha` devuelve `null` con menos de dos secciones publicadas, y en
-   * impresión la esconde `nav { display: none }` porque es un `<nav>`. Las dos
-   * veces la rejilla se queda con un hijo, y grid lo mete en la primera pista:
-   * la ficha entera salía en 190 px de ancho.
+   * Lo aprendido con el índice lateral, que la columna de al lado heredó
+   * (D-237). `IndiceFicha` devolvía `null` con menos de dos secciones, y en
+   * impresión lo escondía `nav { display: none }`: las dos veces la rejilla se
+   * quedaba con un hijo, y grid lo metía en la primera pista. La ficha entera
+   * salía en 190 px de ancho. La columna lateral de hoy tiene la misma forma, y
+   * en papel se oculta también.
    */
-  it('la pista de 190 px solo existe detrás del :has() del índice', () => {
+  it('las dos pistas solo existen detrás del :has() de la columna lateral', () => {
     const conDosPistas = porClase('ficha-cuerpo').filter((r) =>
-      (r.declaraciones['grid-template-columns'] ?? '').startsWith('190px'),
+      (r.declaraciones['grid-template-columns'] ?? '').trim().split(/\s+(?![^(]*\))/).length > 1,
     )
 
     expect(conDosPistas.length).toBeGreaterThan(0)
     for (const r of conDosPistas) {
-      expect(r.selector).toContain(':has(> .indice-ficha)')
+      expect(r.selector).toContain(':has(> .ficha-lateral)')
     }
   })
 
-  it('en papel se deshace la rejilla, con índice y sin él', () => {
+  it('en papel se deshace la rejilla, con columna lateral y sin ella', () => {
     const impresas = porClase('ficha-cuerpo').filter(enImpresion)
     const deshechas = impresas.filter((r) => r.declaraciones.display === 'block')
 
@@ -207,14 +209,21 @@ describe('la rejilla de la ficha no da por hecho que hay índice', () => {
     // quedaría en rejilla igual.
     const selectores = deshechas.flatMap((r) => r.selector.split(',').map((s) => s.trim()))
     expect(selectores).toContain('.ficha-cuerpo')
-    expect(selectores.some((s) => s.includes(':has(> .indice-ficha)'))).toBe(true)
+    expect(selectores.some((s) => s.includes(':has(> .ficha-lateral)'))).toBe(true)
+  })
+
+  it('en papel salen también las pestañas que en pantalla no se ven', () => {
+    // Con pestañas, la ficha impresa sería solo la que estaba abierta: quien
+    // la imprime para el pabellón se llevaría una sección de seis.
+    const ocultas = reglas.filter((r) => enImpresion(r) && r.selector.includes('.ficha-seccion[hidden]'))
+    expect(ocultas.map((r) => r.declaraciones.display)).toEqual(['block !important'])
   })
 
   /**
    * Una consulta de medios no añade especificidad: `.ficha-cuerpo` a secas
    * (0,1,0) pierde contra la regla del `:has()` (0,2,0), así que el bloque de
-   * pantalla estrecha tiene que repetir el `:has()` o la ficha con índice se
-   * queda a dos columnas en el móvil.
+   * pantalla estrecha tiene que repetir el `:has()` o la ficha se queda a dos
+   * columnas en el móvil.
    */
   it('el bloque de pantalla estrecha repite el :has()', () => {
     const estrechas = porClase('ficha-cuerpo').filter(
@@ -222,7 +231,7 @@ describe('la rejilla de la ficha no da por hecho que hay índice', () => {
     )
 
     expect(estrechas.length).toBe(1)
-    expect(estrechas[0].selector).toContain(':has(> .indice-ficha)')
+    expect(estrechas[0].selector).toContain(':has(> .ficha-lateral)')
     expect(estrechas[0].declaraciones['grid-template-columns']).toBe('minmax(0, 1fr)')
   })
 })
@@ -324,7 +333,7 @@ describe('la hoja no arrastra reglas muertas', () => {
     const repetidoras = reglas.filter(
       (r) =>
         r.contexto.some((c) => c.includes('1000px')) &&
-        (r.selector === '.ficha-seccion' || r.selector === '.indice-ficha'),
+        (r.selector === '.ficha-seccion' || r.selector === '.ficha-lateral'),
     )
 
     expect(repetidoras.map((r) => r.selector)).toEqual([])

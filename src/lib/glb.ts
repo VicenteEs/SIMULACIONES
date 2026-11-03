@@ -40,6 +40,14 @@ export interface ObjetoParaGlb {
    */
   material?: MaterialDelObjeto
   /**
+   * Un color por vértice, rojo, verde, azul y opacidad en bytes (cuatro por vértice), que multiplica al del
+   * material: es `COLOR_0` de glTF. Lo escribe la pigmentación del atlas (`src/atlas/pigmentacion.ts`, D-227).
+   *
+   * Es lineal, como pide glTF, y por eso no puede aclarar: el máximo es el color del material. Sin él no se
+   * escribe el atributo ni se toca ningún byte de lo demás, y el archivo sale igual que antes de que existiera.
+   */
+  colores?: Uint8Array
+  /**
    * Datos que viajan pegados al NODO, en su `extras` de glTF.
    *
    * Van en el nodo y no en la malla por dos lectores a la vez. `GLTFLoader` de
@@ -120,7 +128,7 @@ export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8A
   let desplazamiento = 0
 
   /** Mete un array tipado en el búfer y devuelve dónde quedó. */
-  const agregar = (datos: Float32Array | Int16Array | Uint32Array) => {
+  const agregar = (datos: Float32Array | Int16Array | Uint32Array | Uint8Array) => {
     // Todo accessor empieza en múltiplo de 4. Sin esto hay lectores que se
     // niegan a abrir el archivo, y otros que lo abren torcido.
     const relleno = alinear(desplazamiento)
@@ -189,6 +197,22 @@ export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8A
         type: 'SCALAR',
       }) - 1
 
+    // Los colores van después de lo demás, y solo si el objeto los trae: así un archivo sin ellos es byte a byte el de
+    // siempre. Cuatro bytes por vértice, así que el accessor empieza alineado sin relleno propio.
+    let aColor: number | null = null
+    if (objeto.colores && objeto.colores.length === (posiciones.length / 3) * 4) {
+      const vColor = agregar(objeto.colores)
+      const iColor = bufferViews.push({ buffer: 0, ...vColor, target: 34962 }) - 1
+      aColor =
+        accessors.push({
+          bufferView: iColor,
+          componentType: 5121,
+          normalized: true,
+          count: posiciones.length / 3,
+          type: 'VEC4',
+        }) - 1
+    }
+
     const nombre = nombreDeNodo(objeto.nombre)
 
     const m = objeto.material
@@ -227,7 +251,7 @@ export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8A
       meshes.push({
         name: nombre,
         primitives: [
-          { attributes: { POSITION: aPos, NORMAL: aNor }, indices: aInd, material: iMaterial },
+          { attributes: { POSITION: aPos, NORMAL: aNor, ...(aColor !== null ? { COLOR_0: aColor } : {}) }, indices: aInd, material: iMaterial },
         ],
       }) - 1
 

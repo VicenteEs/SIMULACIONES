@@ -20,6 +20,7 @@ import {
   type EstadoDeRevision,
 } from '@/lib/revision'
 import type { RevisionParaElEditor } from '@/lib/revisionServidor'
+import { PROFESIONES, tieneAlguna } from '@/lib/firmas'
 
 /**
  * La revisión de una ficha, dentro de su editor (D-142).
@@ -34,9 +35,12 @@ import type { RevisionParaElEditor } from '@/lib/revisionServidor'
  * se asigna, devolverla con un motivo y sacarla de revisión. Y, en una ficha
  * que no está en revisión, meterla.
  *
- * El botón «Listo para publicar» no vive aquí sino en la barra del editor,
- * junto a «Guardar borrador»: validar incluye guardar lo que haya pendiente, y
- * eso lo sabe hacer el formulario.
+ * Desde D-240, las dos firmas: la del médico y la del kinesiólogo, con quién y
+ * cuándo, o que faltan; y, si quien mira no puede firmar, por qué.
+ *
+ * El botón «Firmar como…» no vive aquí sino en la barra del editor, junto a
+ * «Guardar borrador»: firmar incluye guardar lo que haya pendiente, y eso lo sabe
+ * hacer el formulario.
  */
 
 const fecha = (valor: string | null) =>
@@ -229,7 +233,7 @@ export function RevisionEnElEditor({
     .filter(Boolean)
     .join(' · ')
   const revisadas = secciones.filter((s) => vistas.has(s)).length
-  const cerrada = revision.estado === 'lista' || revision.estado === 'publicada'
+  const puedeFirmar = revision.noPuedeFirmar === null
 
   return (
     <section className="revision-caja" aria-label="Revisión de la ficha">
@@ -253,25 +257,53 @@ export function RevisionEnElEditor({
         </div>
       ) : null}
 
-      {revision.estado === 'lista' || revision.listaPor ? (
+      <div className="revision-firmas" role="group" aria-label="Firmas de la ficha">
+        {PROFESIONES.map(({ valor, etiqueta }) => {
+          const firma = revision.firmas[valor]
+          return (
+            <div key={valor} className={`revision-firma${firma ? ' revision-firma-puesta' : ''}`}>
+              <span className="campo-etiqueta">{etiqueta}</span>
+              {firma ? (
+                <span>
+                  {firma.nombre ?? 'cuenta borrada'} · {fecha(firma.en)}
+                </span>
+              ) : (
+                <span className="revision-tenue">Falta su firma</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Quien no puede firmar sabe por qué. Si ya están las dos, no hace falta
+          decirlo: lo dicen las dos casillas de arriba. */}
+      {revision.noPuedeFirmar && !(revision.firmas.medico && revision.firmas.kinesiologo) ? (
+        <p className="revision-linea">{revision.noPuedeFirmar}</p>
+      ) : null}
+
+      {/* Validada antes de que hubiera firmas: se dice quién y cuándo, que es
+          lo que había entonces. */}
+      {!tieneAlguna(revision.firmas) && (revision.estado === 'lista' || revision.listaPor) ? (
         <p className="revision-linea">
           {conPunto(
             `${revision.estado === 'lista' ? 'Validada' : 'Última validación'}${
               revision.listaPor ? ` por ${revision.listaPor}` : ''
             }${revision.listaEn ? ` el ${fecha(revision.listaEn)}` : ''}`,
           )}
-          {revision.notaDeRevision ? ` Nota: «${revision.notaDeRevision}».` : ''}
         </p>
+      ) : null}
+      {revision.notaDeRevision ? (
+        <p className="revision-linea revision-varias-lineas">Notas de quien firmó: «{revision.notaDeRevision}».</p>
       ) : null}
 
       {esAdmin && revision.validacionRapida && revision.motivosDeAlerta ? (
         <div className="admin-aviso admin-aviso-error">
           <strong>La validación quedó señalada.</strong>
-          {revision.motivosDeAlerta}.
+          <span className="revision-varias-lineas">{revision.motivosDeAlerta}.</span>
         </div>
       ) : null}
 
-      {!cerrada ? (
+      {puedeFirmar ? (
         <>
           <p className="revision-linea">
             Su revisión: {duracionEnPalabras(revision.mio.segundosActivos)} de revisión activa ·{' '}
@@ -294,8 +326,9 @@ export function RevisionEnElEditor({
 
       <p className="revision-nota">
         Mientras la ficha está abierta se registra el tiempo de revisión activa, y al guardar, lo que
-        cambia respecto del texto original. «Listo para publicar» la entrega al administrador, que es
-        quien la publica.
+        cambia respecto del texto original. Cada ficha necesita la firma de un médico y la de un
+        kinesiólogo; con las dos queda lista y la publica un administrador. Si el texto cambia después
+        de una firma, la firma se borra.
       </p>
 
       {esAdmin ? (

@@ -55,7 +55,7 @@ vi.mock('@payload-config', () => ({ default: {} }))
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 
 import { avisosDeLaExportacion, prepararExportacion, type PiezaLeida } from '@/lib/exportarAtlas'
-import { exportarPreparacion } from '@/lib/exportarPreparacion'
+import { exportarPreparacion, sinLosCortesDe } from '@/lib/exportarPreparacion'
 import { exportarComoModelo } from '@/app/(frontend)/acciones/atlas'
 import { datosDeLosNodos } from '@/components/simulador/LienzoQuirurgico'
 import { propuestasDelModelo, rellenarDesdeElModelo } from '@/lib/piezasDelCaso'
@@ -575,6 +575,55 @@ describe('exportarPreparacion, desde un guion y sin sesión', () => {
     expect(data.notas).toContain('La piel del atlas es de cuerpo entero: se recortó a la zona')
   }, 60_000)
 
+  it('una tibia que el taller ya fracturó y giró sale entera y partida solo por el corte pedido', async () => {
+    // La preparación «p» del atlas (2026-11-03): la tibia en siete trozos y un
+    // giro de unos 38° guardado en la pieza entera. El corte pedido no la
+    // encontraba —«La pieza que se iba a partir no está en la preparación
+    // guardada»— y, de haberla encontrado, la rehacía inclinada.
+    const giro38 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), (38 * Math.PI) / 180)
+    payloadFalso.findByID.mockResolvedValue({
+      id: 8,
+      nombre: 'Tibia ya fracturada',
+      contenido: {
+        piezas: [{ id: 'FJ3387', girar: giro38.toArray() }, { id: 'FJ3366' }],
+        cortes: [
+          { pieza: 'FJ3387', punto: [0, 0.25, 0], normal: [0, 1, 0], b: { mover: [0.03, 0, 0] } },
+          { pieza: 'FJ3387#a', punto: [0, 0.3, 0], normal: [0, 1, 0] },
+        ],
+        apagados: ['FJ3387#a#b'],
+        sueltas: ['FJ3387#b'],
+      },
+    })
+    const modelo = await exportarPreparacion(payloadFalso as unknown as Payload, 8, {
+      protagonistas: PIERNA,
+      corte: { pieza: 'FJ3387', posicion: 50, inclinacion: 0, giro: 0, fragmento: 'distal' },
+    })
+
+    expect(modelo.corte?.fragmento).toBe('Tibia_derecha_fragmento_distal')
+    expect(modelo.corte?.avisos.join(' ')).toContain('ya tenía «Tibia derecha» partida (2 cortes)')
+    const { file } = payloadFalso.create.mock.calls[0][0] as { file: { data: Buffer } }
+    const escena = await abrir(file.data)
+    // Los dos trozos del corte pedido, y ninguno de los siete de antes.
+    const nombres: string[] = []
+    escena.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && o.name.startsWith('Tibia')) nombres.push(o.name)
+    })
+    expect(nombres.sort()).toEqual(['Tibia_derecha_fragmento_distal', 'Tibia_derecha_fragmento_proximal'])
+    let suma = 0
+    const caja = new THREE.Box3()
+    for (const nombre of nombres) {
+      const malla = escena.getObjectByName(nombre) as THREE.Mesh
+      const posiciones = delMundo(malla)
+      suma += volumen(posiciones, malla.geometry.getIndex()!.array)
+      caja.expandByObject(malla)
+    }
+    expect(suma / volumenDelAtlas('FJ3387')).toBeCloseTo(1, 5)
+    // Sin el giro guardado: la tibia sigue derecha, más alta que ancha. Girada
+    // 38°, su caja era casi tan ancha como alta.
+    const lados = caja.getSize(new THREE.Vector3())
+    expect(lados.y).toBeGreaterThan(3 * Math.max(lados.x, lados.z))
+  }, 60_000)
+
   it('un corte imposible se rechaza antes de leer el atlas, y no escribe nada', async () => {
     await expect(
       exportarPreparacion(payloadFalso as unknown as Payload, 7, {
@@ -584,6 +633,49 @@ describe('exportarPreparacion, desde un guion y sin sesión', () => {
     ).rejects.toThrow(/entre el 5 y el 95/)
     expect(payloadFalso.findByID).not.toHaveBeenCalled()
     expect(payloadFalso.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('sinLosCortesDe', () => {
+  const contenido = {
+    piezas: [
+      { id: 'FJ3387', mover: [0.01, 0, 0] as [number, number, number], girar: [0, 0, 0.3, 0.95] as [number, number, number, number] },
+      { id: 'FJ3366', mover: [0.02, 0, 0] as [number, number, number] },
+    ],
+    cortes: [
+      { pieza: 'FJ3387', punto: [0, 0, 0] as [number, number, number], normal: [0, 1, 0] as [number, number, number] },
+      { pieza: 'FJ3387#a', punto: [0, 0.1, 0] as [number, number, number], normal: [0, 1, 0] as [number, number, number] },
+      { pieza: 'FJ3366', punto: [0, 0, 0] as [number, number, number], normal: [0, 1, 0] as [number, number, number] },
+    ],
+    apagados: ['FJ3387#a#b', 'FJ3366#b'],
+    sueltas: ['FJ3387#b', 'FJ3366#a'],
+    fracturas: [{ pieza: 'FJ3387' }, { pieza: 'FJ3366' }] as never[],
+  }
+
+  it('quita los cortes, los trozos y la transformación de esa pieza, y de ninguna otra', () => {
+    const { contenido: limpio, quitados } = sinLosCortesDe(contenido, 'FJ3387')
+    expect(quitados).toBe(2)
+    expect(limpio.cortes?.map((c) => c.pieza)).toEqual(['FJ3366'])
+    expect(limpio.apagados).toEqual(['FJ3366#b'])
+    expect(limpio.sueltas).toEqual(['FJ3366#a'])
+    expect(limpio.fracturas?.map((f) => f.pieza)).toEqual(['FJ3366'])
+    const [tibia, perone] = limpio.piezas!
+    expect(tibia.mover).toBeUndefined()
+    expect(tibia.girar).toBeUndefined()
+    expect(perone.mover).toEqual([0.02, 0, 0])
+  })
+
+  it('no toca la preparación que recibe', () => {
+    const copia = structuredClone(contenido)
+    sinLosCortesDe(contenido, 'FJ3387')
+    expect(contenido).toEqual(copia)
+  })
+
+  it('una pieza sin cortes sale igual, con cero quitados', () => {
+    const { contenido: limpio, quitados } = sinLosCortesDe({ piezas: [{ id: 'FJ3387' }] }, 'FJ3387')
+    expect(quitados).toBe(0)
+    expect(limpio.cortes).toEqual([])
+    expect(limpio.piezas).toEqual([{ id: 'FJ3387', mover: undefined, girar: undefined }])
   })
 })
 

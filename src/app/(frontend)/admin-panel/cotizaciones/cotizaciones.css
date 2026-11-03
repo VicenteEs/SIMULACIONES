@@ -1,0 +1,91 @@
+/* La pestaña «Cotizaciones» (P-007 E3): solo lo suyo, con el prefijo `cot-`.
+   La tabla, las tarjetas, los botones y las insignias son los del panel. */
+
+/* ---------- filtro por estado ---------- */
+.cot-filtro {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--e-1);
+  padding: 4px;
+  border: 1px solid var(--linea-suave);
+  border-radius: var(--r-lg);
+  background: var(--papel);
+}
+.cot-filtro-opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--pizarra);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.cot-filtro-opcion:hover { color: var(--tinta); }
+.cot-filtro-opcion[aria-pressed='true'] { background: var(--superficie); color: var(--marca); box-shadow: var(--sombra-1); }
+.cot-filtro-opcion:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+.cot-filtro-cuenta {
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  background: var(--linea-suave);
+  color: var(--pizarra);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.cot-filtro-opcion[aria-pressed='true'] .cot-filtro-cuenta { background: var(--marca-tenue); color: var(--marca); }
+
+/* ---------- lista ---------- */
+/* La nueva lleva una marca a la izquierda: es la que espera respuesta, y se
+   tiene que ver sin leer la columna del estado. */
+.cot-fila-nueva > th { box-shadow: inset 3px 0 0 var(--ambar); }
+.cot-modulos { font-size: var(--t-sm); color: var(--tinta); }
+
+/* ---------- detalle ---------- */
+.cot-detalle-rejilla {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  align-items: start;
+  gap: var(--e-6);
+}
+.cot-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--e-4) var(--e-6); margin: var(--e-4) 0 var(--e-6); }
+.cot-datos dt { font-size: var(--t-xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pizarra); }
+.cot-datos dd { margin: 4px 0 0; color: var(--tinta); overflow-wrap: anywhere; }
+.cot-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.cot-chips li { padding: 3px 10px; border-radius: var(--r-full); background: var(--marca-tenue); color: var(--marca); font-size: var(--t-sm); font-weight: 600; }
+.cot-subtitulo { margin: 0 0 var(--e-2); font-size: var(--t-sm); font-weight: 650; color: var(--pizarra); }
+.cot-mensaje {
+  margin: 0;
+  padding: var(--e-4) var(--e-5);
+  border-left: 3px solid var(--marca);
+  border-radius: 0 var(--r) var(--r) 0;
+  background: var(--papel);
+  color: var(--tinta);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.cot-gestion { display: flex; flex-direction: column; gap: var(--e-2); }
+.cot-gestion .admin-card-title { margin-bottom: var(--e-2); }
+.cot-etiqueta-notas { margin-top: var(--e-4); }
+.cot-notas { width: 100%; min-height: 160px; resize: vertical; line-height: 1.5; }
+.cot-cuenta { margin: 0; font-size: var(--t-xs); color: var(--pizarra); font-variant-numeric: tabular-nums; text-align: right; }
+.cot-cuenta-excedida { color: var(--alerta); font-weight: 650; }
+.cot-gestion-acciones { justify-content: space-between; margin-top: var(--e-2); }
+.cot-borrar { color: var(--alerta); }
+.cot-girando { animation: cot-girar 0.9s linear infinite; }
+@keyframes cot-girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .cot-girando { animation: none; }
+}
+
+@media (max-width: 900px) {
+  .cot-detalle-rejilla,
+  .cot-datos { grid-template-columns: minmax(0, 1fr); }
+}

@@ -188,6 +188,22 @@ export const Revisiones: CollectionConfig = {
       label: 'Validación sospechosamente rápida',
     },
     { name: 'motivosDeAlerta', type: 'textarea', label: 'Por qué se señaló' },
+    // Las dos firmas (D-240): un médico y un kinesiólogo. La ficha pasa a
+    // «lista» cuando están las dos, y entonces `listaPor` y `listaEn` son los
+    // de la segunda. Las escribe solo `validarRevision`, y las borran un
+    // cambio en lo firmado (`anotarGuardado`) y una devolución.
+    { name: 'firmaMedicoPor', type: 'relationship', relationTo: 'usuarios', label: 'Firmada por el médico' },
+    { name: 'firmaMedicoEn', type: 'date', label: 'Firmada por el médico el' },
+    { name: 'firmaKinesiologoPor', type: 'relationship', relationTo: 'usuarios', label: 'Firmada por el kinesiólogo' },
+    { name: 'firmaKinesiologoEn', type: 'date', label: 'Firmada por el kinesiólogo el' },
+    {
+      // La huella del texto que se firmó (`textoParaLaHuella`, en SHA-256). Una
+      // firma vale para ese texto: si un guardado deja otra huella, las firmas
+      // se borran; si deja la misma —guardar sin cambiar nada—, siguen.
+      name: 'huellaFirmada',
+      type: 'text',
+      label: 'Huella del texto firmado',
+    },
     { name: 'notaDeRevision', type: 'textarea', label: 'Nota del revisor al validar' },
     { name: 'motivoDeDevolucion', type: 'textarea', label: 'Por qué se devolvió' },
     { name: 'devoluciones', type: 'number', min: 0, defaultValue: 0, label: 'Veces devuelta' },

@@ -1,21 +1,34 @@
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight, Check, Download, Minus, ScrollText } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Download, Minus, ScrollText, Timer, Users } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { BarrasVerticales, Dona, NoSePudoLeer, type Punto } from '@/components/admin/Graficos'
 import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { Cifra } from '@/components/admin/tablero/Cifra'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
 import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import { Vacio } from '@/components/ui/Vacio'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { cifra } from '@/lib/graficos'
+import { iniciales } from '@/lib/iniciales'
+import { leerTodas } from '@/lib/leerTodas'
 import { capacidadesPorRol, etiquetaDeRolEnRegistro, ROLES } from '@/lib/permisos'
 import { ACCIONES_DEL_REGISTRO, accionDelRegistroEnPalabras, duracionCorta } from '@/lib/registro'
 import {
+  TIPOS_DE_ACCION,
   leerRegistro,
   leerResumenDeCuentas,
+  resumirActos,
+  tiempoPorCasilla,
   type FiltrosDelRegistro,
   type ResumenDelRegistro,
+  type TipoDeAccion,
 } from '@/lib/registroPanel'
 import { ruta } from '@/lib/rutas'
+import { leerFecha, ultimosDias } from '@/lib/series'
+import { DIAS_DE_LA_SEMANA, diaDeLaSemana } from '@/lib/tableroDeActividad'
 import { clientePayload } from '../datos'
 import { MODULOS, NOMBRE_DE_MODULO } from '../modulos'
+import './registro.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,8 +42,34 @@ export const dynamic = 'force-dynamic'
  * registro acto por acto con filtros. Todo sale de las mismas lecturas que la
  * planilla de Excel (`registroPanel.ts`).
  *
+ * Desde el tablero de Penpot (P-007 E5, D-238), los números del día llevan su
+ * línea de las dos últimas semanas, y debajo van los minutos activos por día
+ * —el `tiempoPorDia` que `leerResumenDeCuentas` ya traía para la planilla y la
+ * pantalla no usaba— y en qué se va el tiempo de las cuentas. Las tablas siguen
+ * plegables y con memoria, con sus filtros, su paginación y su planilla.
+ *
  * Solo el administrador: dice qué hace cada persona.
  */
+
+/** Lo que dibujan las líneas de las cifras y las barras de minutos: dos semanas, como en Penpot. */
+const DIAS_DIBUJADOS = 14
+
+/** El color de cada tipo de «Qué se hace», de la paleta: el del módulo cuando lo hay. */
+const COLOR_DEL_TIPO: Record<TipoDeAccion, string> = {
+  leer: 'var(--marca)',
+  simulador: 'var(--mod-4)',
+  comentar: 'var(--cian)',
+  editar: 'var(--verde)',
+  sesion: 'var(--linea-fuerte)',
+  administrar: 'var(--mod-3)',
+}
+
+/** La insignia del rol en la tabla de cuentas, con el color que tiene en Penpot. */
+const INSIGNIA_DEL_ROL: Record<string, string> = {
+  admin: 'insignia insignia-acento registro-rol-admin',
+  editor: 'insignia insignia-ok',
+  lector: 'insignia insignia-info',
+}
 
 const primero = (valor: string | string[] | undefined): string | undefined => {
   const v = Array.isArray(valor) ? valor[0] : valor
@@ -77,11 +116,29 @@ export default async function PaginaDelRegistro({
   const hayFiltro = Object.values(filtros).some(Boolean)
   const pagina = Math.max(1, Number(primero(p.pagina)) || 1)
 
+  const dias = ultimosDias(DIAS_DIBUJADOS)
   let resumen: ResumenDelRegistro | null = null
   let registro: Awaited<ReturnType<typeof leerRegistro>> | null = null
+  // Los actos de las dos semanas, aparte y con su propio `null`: sin ellos faltan la línea de «Acciones hoy» y «Qué se
+  // hace», pero las cuentas y el registro se leyeron bien y no hay por qué tirar la pantalla entera.
+  let actos: Record<string, unknown>[] | null = null
   try {
     const payload = await clientePayload()
-    ;[resumen, registro] = await Promise.all([leerResumenDeCuentas(payload), leerRegistro(payload, filtros, pagina)])
+    ;[resumen, registro, actos] = await Promise.all([
+      leerResumenDeCuentas(payload),
+      leerRegistro(payload, filtros, pagina),
+      leerTodas(payload, {
+        coleccion: 'registro-de-acciones',
+        where: { fecha: { greater_than_equal: (leerFecha(dias[0].clave) ?? new Date(0)).toISOString() } },
+        select: { fecha: true, accion: true, coleccion: true, origen: true },
+      }).then(
+        (r) => r.docs,
+        (error: unknown) => {
+          console.error('[panel] no se pudieron leer los actos de las dos últimas semanas:', error)
+          return null
+        },
+      ),
+    ])
   } catch (error) {
     console.error('[panel] no se pudo leer el registro de acciones:', error)
   }
@@ -106,6 +163,21 @@ export default async function PaginaDelRegistro({
     return `/admin-panel/registro${s ? `?${s}` : ''}`
   }
 
+  // --- el tablero -----------------------------------------------------------
+  const tiempo = tiempoPorCasilla(resumen.tiempoPorDia, dias, new Set(resumen.cuentas.map((c) => c.id)))
+  const deLosActos = actos ? resumirActos(actos, dias) : null
+  const minutosPorDia: Punto[] = dias.map((d, i) => {
+    const dia = diaDeLaSemana(d.clave)
+    return {
+      etiqueta: String(leerFecha(d.clave)?.getDate() ?? ''),
+      detalle: `${dia === null ? '' : `${DIAS_DE_LA_SEMANA[dia]} `}${d.detalle}`,
+      valor: tiempo.minutos[i],
+    }
+  })
+  // Dónde cae el primer sábado de las barras, de 1 a 7: con eso `registro.css` aclara los fines de semana (ver allí
+  // por qué así y no con una opción del gráfico).
+  const primerSabado = dias.findIndex((d) => diaDeLaSemana(d.clave) === 5) + 1
+
   return (
     <div>
       <CabeceraDePagina
@@ -119,22 +191,73 @@ export default async function PaginaDelRegistro({
         }
       />
 
-      <div className="auditoria-indicadores">
-        <div className="admin-card">
-          <div className="admin-card-title">Cuentas activas hoy</div>
-          <div className="admin-card-value">{resumen.cuentasActivasHoy}</div>
-          <p className="admin-card-note">con la plataforma en uso</p>
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-title">Tiempo activo hoy</div>
-          <div className="admin-card-value">{duracionCorta(resumen.segundosHoy)}</div>
-          <p className="admin-card-note">sumado entre todas las cuentas</p>
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-title">Acciones hoy</div>
-          <div className="admin-card-value">{resumen.accionesHoy}</div>
-          <p className="admin-card-note">inicios de sesión, cambios, lecturas…</p>
-        </div>
+      {/* Sin flecha de cambio: «hoy» va por la mitad mientras se mira, y compararlo con el día entero de ayer diría
+          siempre que baja. La línea enseña los días cerrados y el de hoy al final, que se lee como lo que es. */}
+      <div className="tablero-cifras tablero-cifras-3">
+        <Cifra
+          titulo="Cuentas activas hoy"
+          icono={Users}
+          tono="info"
+          valor={cifra(resumen.cuentasActivasHoy)}
+          serie={tiempo.cuentas}
+          descripcionDeLaSerie="Cuentas con tiempo activo cada día de las últimas dos semanas."
+          nota="con la plataforma en uso"
+        />
+        <Cifra
+          titulo="Tiempo activo hoy"
+          icono={Timer}
+          tono="info"
+          valor={duracionCorta(resumen.segundosHoy)}
+          serie={tiempo.minutos}
+          descripcionDeLaSerie="Minutos activos sumados entre todas las cuentas, cada día de las últimas dos semanas."
+          nota="sumado entre todas las cuentas"
+        />
+        <Cifra
+          titulo="Acciones hoy"
+          icono={ScrollText}
+          tono="info"
+          valor={cifra(resumen.accionesHoy)}
+          serie={deLosActos?.porDia}
+          descripcionDeLaSerie="Actos anotados en el registro cada día de las últimas dos semanas."
+          nota="inicios de sesión, cambios, lecturas…"
+        />
+      </div>
+
+      <div className="tablero-fila">
+        <TarjetaDeGrafico
+          titulo="Minutos activos por día"
+          bajada="Todas las cuentas · últimas 2 semanas · más claros, el sábado y el domingo"
+        >
+          <div className={`registro-minutos registro-sabado-${primerSabado}`}>
+            <BarrasVerticales
+              titulo="Minutos activos por día, sumados entre todas las cuentas, en las últimas dos semanas"
+              datos={minutosPorDia}
+              // Más alto que el de serie: la dona de al lado, con su leyenda debajo, mide casi el doble, y la
+              // fila quedaba con un hueco bajo las barras.
+              altura={250}
+            />
+          </div>
+        </TarjetaDeGrafico>
+
+        <TarjetaDeGrafico
+          titulo="Qué se hace"
+          bajada="Lo que hicieron las cuentas en los últimos 7 días"
+          ilegible={deLosActos === null}
+        >
+          {deLosActos === null ? (
+            <NoSePudoLeer que="el registro de la semana" />
+          ) : (
+            <Dona
+              titulo="Acciones de las cuentas en los últimos 7 días, por tipo"
+              rotuloDelTotal="acciones"
+              partes={TIPOS_DE_ACCION.map((t) => ({
+                etiqueta: t.etiqueta,
+                valor: deLosActos.porTipo[t.clave],
+                color: COLOR_DEL_TIPO[t.clave],
+              }))}
+            />
+          )}
+        </TarjetaDeGrafico>
       </div>
 
       <PlegarTodo />
@@ -165,17 +288,28 @@ export default async function PaginaDelRegistro({
             {resumen.cuentas.map((c) => (
               <tr key={c.id}>
                 <td>
-                  <strong>{c.nombre}</strong>
-                  <br />
-                  <span className="admin-card-note">{c.correo}</span>
-                  {!c.activo ? (
-                    <>
+                  <div className="registro-cuenta">
+                    <span className="registro-cuenta-circulo" aria-hidden>
+                      {iniciales(c.nombre)}
+                    </span>
+                    <div>
+                      <strong>{c.nombre}</strong>
                       <br />
-                      <span className="admin-card-note">{c.pendiente ? 'solicitud pendiente' : 'desactivada'}</span>
-                    </>
-                  ) : null}
+                      <span className="admin-card-note">{c.correo}</span>
+                      {!c.activo ? (
+                        <>
+                          <br />
+                          <span className="admin-card-note">{c.pendiente ? 'solicitud pendiente' : 'desactivada'}</span>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
                 </td>
-                <td>{etiquetaDeRolEnRegistro(c.rol)}</td>
+                <td>
+                  <span className={INSIGNIA_DEL_ROL[c.rol] ?? 'insignia insignia-neutra'}>
+                    {etiquetaDeRolEnRegistro(c.rol)}
+                  </span>
+                </td>
                 <td>{c.rol === 'admin' ? 'todos' : modulosEnPalabras(c.modulosVisibles)}</td>
                 <td>
                   {c.rol === 'lector' ? '—' : c.rol === 'admin' ? 'todos' : modulosEnPalabras(c.modulosEditables)}

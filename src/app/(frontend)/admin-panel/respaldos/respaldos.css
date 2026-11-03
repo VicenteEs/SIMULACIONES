@@ -1,0 +1,56 @@
+/* La pestaña de respaldos: «Cómo funciona» como tres pasos numerados (P-007
+ * E5, D-238). Las cifras y el gráfico usan las piezas comunes del tablero y no
+ * necesitan nada propio.
+ *
+ * Hoja aparte, importada por la página, como las de las demás pestañas: solo
+ * la usa esta pantalla. Todo con los tokens de `estilos.css`. */
+
+.respaldos-pasos {
+  display: grid;
+  gap: var(--e-3);
+  margin: 0 0 var(--e-4);
+  padding: 0;
+  list-style: none;
+  counter-reset: paso;
+}
+
+/* El número en un círculo, como en Penpot. Con contador de CSS y no escrito en
+ * el texto, para que un lector de pantalla lea la lista como lista y no
+ * «uno, Cada noche». */
+.respaldos-pasos li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: var(--e-3);
+  row-gap: 2px;
+  counter-increment: paso;
+}
+
+.respaldos-pasos li::before {
+  content: counter(paso);
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--marca-tenue);
+  color: var(--marca);
+  font-size: var(--t-xs);
+  font-weight: 700;
+}
+
+.respaldos-pasos strong { font-size: var(--t-sm); color: var(--tinta); }
+
+.respaldos-pasos span {
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  color: var(--mudo);
+  overflow-wrap: anywhere;
+}
+
+.respaldos-advertencia { margin: 0; }
+
+/* La ruta del directorio en la nota de «En disco»: en el servidor es corta
+ * (`/backups`), en desarrollo es la ruta entera del repositorio y sin esto
+ * ensanchaba la tarjeta fuera de su columna. */
+.respaldos-directorio { overflow-wrap: anywhere; }

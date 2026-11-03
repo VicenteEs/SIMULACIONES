@@ -1,0 +1,135 @@
+/* ==========================================================================
+   «Contenido», el listado de cada módulo y «Equipo» (D-238).
+
+   Las tres pantallas cuelgan de `admin-panel/contenido/` y comparten hoja. Lo
+   común del tablero —`.tablero-fila`, la tarjeta de gráfico, `.tarjeta-modulo`,
+   `.contenido-recientes`— está en `panel.css`; aquí solo lo que estas
+   pantallas ponen de suyo.
+   ========================================================================== */
+
+/* ---------- las tarjetas de módulo ---------- */
+
+/* Tres por fila en un escritorio, como en Penpot, y las que quepan por debajo:
+   con 280 px de mínimo bajan a dos en un portátil estrecho y a una en el
+   teléfono sin una sola regla de ancho. */
+.contenido-modulos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--e-4);
+  margin-bottom: var(--e-5);
+}
+/* La tarjeta del panel no es un enlace: el «levantarse» de la tarjeta de la
+   portada (`estilos.css`) prometía un clic que no lleva a ninguna parte. */
+.contenido-modulo:hover { transform: none; box-shadow: var(--sombra-1); }
+.contenido-modulo .tarjeta-modulo-cabeza { margin-bottom: 0; }
+.contenido-modulo-titulo { display: flex; flex-direction: column; min-width: 0; }
+.contenido-modulo-numero {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--acento, var(--marca));
+}
+.contenido-modulo-cifras { display: flex; align-items: flex-end; gap: var(--e-3); margin-top: var(--e-2); }
+.contenido-modulo-total { display: flex; flex-direction: column; min-width: 0; }
+.contenido-modulo-total .admin-card-value { line-height: 1.1; }
+.contenido-modulo-cifras .minigrafico { flex: 0 1 120px; min-width: 60px; margin-left: auto; }
+.contenido-modulo-cifras .minigrafico svg { width: 100%; }
+.contenido-modulo-nota { font-size: var(--t-sm); color: var(--mudo); }
+.contenido-avance { display: flex; align-items: center; gap: var(--e-3); }
+.contenido-avance .progreso { flex: 1; margin-top: 0; }
+.contenido-avance-cifra { flex-shrink: 0; font-size: var(--t-sm); color: var(--pizarra); font-variant-numeric: tabular-nums; }
+/* Los botones abajo del todo: con o sin interruptor de mantención, las tres
+   tarjetas de una fila los tienen a la misma altura. */
+.contenido-modulo-acciones { margin-top: auto; padding-top: var(--e-2); }
+
+/* El módulo que viene: con borde de trazos, como en Penpot y en la portada,
+   porque todavía no es un módulo con fichas. */
+.contenido-anunciado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-1);
+  min-height: 200px;
+  padding: var(--e-6);
+  border: 1.5px dashed var(--linea-fuerte);
+  border-radius: var(--r-lg);
+  color: var(--pizarra);
+  text-align: center;
+  text-decoration: none;
+}
+.contenido-anunciado strong { font-size: var(--t-md); color: var(--tinta); }
+.contenido-anunciado:hover { border-color: var(--marca); background: var(--superficie); }
+.contenido-anunciado:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+
+/* ---------- el material de apoyo ---------- */
+.contenido-apoyo-nombre { display: inline-flex; align-items: center; gap: var(--e-2); }
+.contenido-apoyo-nombre svg { flex: none; color: var(--mudo); }
+.contenido-apoyo-cifra { font-variant-numeric: tabular-nums; }
+
+/* ---------- el listado de un módulo ---------- */
+
+/* Las pestañas por estado son botones (`aria-pressed`), no los enlaces con
+   `aria-current` de «Por revisar»: se les quita lo que el navegador pone a un
+   botón y se les da el mismo «puesto» del segmentado. */
+.contenido-vistas .segmentado-opcion { border: 0; background: transparent; font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer; }
+.contenido-vistas .segmentado-opcion:focus-visible { outline: 2px solid var(--marca); outline-offset: 1px; }
+.contenido-vistas { margin-bottom: var(--e-4); }
+
+/* La fecha de la tabla entera en una línea (ver `celda` en `TablaDocumentos`). */
+.contenido-listado-fecha { white-space: nowrap; }
+
+/* «Lecturas · 30 d»: la barra contra la ficha más leída del módulo y la cifra
+   al lado, que es lo que se lee; la barra solo dice cuál destaca. */
+.contenido-lecturas { display: inline-flex; align-items: center; gap: var(--e-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.contenido-lecturas-barra { display: inline-block; width: 48px; height: 6px; overflow: hidden; border-radius: var(--r-full); background: var(--linea-suave); }
+.contenido-lecturas-barra > span { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: var(--marca); }
+
+/* ---------- «Equipo» ---------- */
+
+.equipo-personas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--e-4);
+  margin: 0 0 var(--e-5);
+  padding: 0;
+  list-style: none;
+}
+.equipo-persona { display: flex; flex-direction: column; gap: var(--e-2); }
+.equipo-persona-cabeza { display: flex; align-items: center; gap: var(--e-3); }
+.equipo-iniciales {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-full);
+  background: var(--marca-tenue);
+  color: var(--marca);
+  font-size: var(--t-sm);
+  font-weight: 700;
+}
+.equipo-persona-nombre { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.equipo-persona-nombre strong { color: var(--tinta); overflow-wrap: anywhere; }
+.equipo-persona-detalle { font-size: var(--t-sm); color: var(--mudo); }
+.equipo-modulos { display: flex; flex-wrap: wrap; gap: var(--e-1); margin: 0; padding: 0; list-style: none; }
+.equipo-modulo { background: var(--acento-tenue, var(--marca-tenue)); color: var(--acento, var(--marca)); border-color: transparent; }
+.equipo-cifras { display: flex; gap: var(--e-6); margin: auto 0 0; padding-top: var(--e-2); }
+.equipo-cifras > div { display: flex; flex-direction: column-reverse; }
+.equipo-cifras dt { font-size: var(--t-sm); color: var(--mudo); }
+.equipo-cifras dd { margin: 0; font-size: var(--t-lg); font-weight: 700; color: var(--tinta); font-variant-numeric: tabular-nums; }
+
+/* En media fila, «Biblioteca de patologías» cabe al lado de su barra en un
+   escritorio y no en un teléfono: ahí el nombre va encima, como en «Por
+   revisar». */
+@media (max-width: 640px) {
+  .equipo-cobertura .grafico-fila { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--e-1); }
+  .equipo-cobertura .grafico-fila-barra { grid-column: 1 / -1; grid-row: 2; }
+}
+.equipo-aviso { margin: 0; }
+.equipo-aviso p { margin: 0; }
+.equipo-aviso p + p { margin-top: var(--e-1); }
+
+.equipo-lista-titulo { margin: var(--e-6) 0 var(--e-1); font-size: var(--t-md); font-weight: 650; color: var(--tinta); }
+.equipo-lista-bajada { margin: 0 0 var(--e-4); font-size: var(--t-sm); color: var(--mudo); }

@@ -326,6 +326,7 @@ describe('la solicitud de cuenta', { timeout: 30_000 }, () => {
     ['una dirección de correo', { nombre: 'escriba a SOPORTE@EVIL' }],
     ['un salto de línea', { nombre: 'Ana\n\nSu clave vence hoy. Llame al soporte' }],
     ['un enlace en la institución', { institucion: 'Hospital https://evil.example/x' }],
+    ['un enlace en el programa', { programa: 'Traumatología www.evil.cl' }],
   ])('rechaza %s, que el acuse enviaría desde el buzón de la plataforma', async (_, cambio) => {
     // El nombre va al saludo del acuse, dirigido a la dirección que escribió
     // quien llama, sea suya o no: sin esto la acción manda phishing firmado.
@@ -357,6 +358,39 @@ describe('la solicitud de cuenta', { timeout: 30_000 }, () => {
 
   it('exige la institución', async () => {
     const respuesta = await pedirCuenta({ ...SOLICITUD, institucion: '   ' })
+
+    expect(respuesta.exito).toBe(false)
+    expect(crear).not.toHaveBeenCalled()
+  })
+
+  it('guarda el programa detrás de la institución y la etapa de formación, y se la cuenta al administrador', async () => {
+    // Los tres pasos de `/registro` (D-236): el programa no tiene columna
+    // propia y la etapa sí.
+    await pedirCuenta({ ...SOLICITUD, institucion: 'Hospital Regional', programa: ' Traumatología y ortopedia ', etapaDeFormacion: 'r2' })
+
+    const { data } = crear.mock.calls[0][0] as { data: Record<string, unknown> }
+    expect(data.institucion).toBe('Hospital Regional · Traumatología y ortopedia')
+    expect(data.etapaDeFormacion).toBe('r2')
+    const aviso = envios().find((e) => Array.isArray(e.para))
+    expect(JSON.stringify(aviso?.correo)).toContain('"Etapa de formación","R2"')
+  })
+
+  it('sin programa ni etapa guarda la institución sola y la etapa sin poner', async () => {
+    await pedirCuenta({ ...SOLICITUD, programa: '   ', etapaDeFormacion: '' })
+
+    const { data } = crear.mock.calls[0][0] as { data: Record<string, unknown> }
+    expect(data.institucion).toBe(SOLICITUD.institucion)
+    expect(data.etapaDeFormacion).toBeUndefined()
+    expect(JSON.stringify(envios())).not.toContain('Etapa de formación')
+  })
+
+  it.each([
+    ['una etapa que no es de la lista', { etapaDeFormacion: 'r9' }],
+    ['una etapa que no es texto', { etapaDeFormacion: 2 }],
+    // Juntos van a la misma columna, que el panel guarda con 160 de tope.
+    ['institución y programa que juntos pasan del tope', { institucion: 'H'.repeat(150), programa: 'Traumatología' }],
+  ])('rechaza %s sin crear la cuenta', async (_, cambio) => {
+    const respuesta = await pedirCuenta({ ...SOLICITUD, ...cambio })
 
     expect(respuesta.exito).toBe(false)
     expect(crear).not.toHaveBeenCalled()

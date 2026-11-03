@@ -20,6 +20,7 @@
 // este par no forma un ciclo en tiempo de ejecución.
 import { BLOQUES } from './bloques'
 import { CATEGORIAS_DE_INSTRUMENTAL } from '@/lib/instrumental'
+import { TECHO_DE_FOTO_BYTES, TIPOS_DE_FOTO } from '@/lib/espaciosDeLaPagina'
 
 export interface Opcion {
   valor: string
@@ -280,6 +281,18 @@ export interface EsquemaDeColeccion {
    * donde están declarados juntos con el porqué de que sean dos.
    */
   subida?: { acepta: string; ayuda: string; maximoBytes: number }
+  /**
+   * La pestaña propia desde donde se administra, cuando la tiene: el listado y
+   * el editor genéricos de «Contenido» redirigen a ella (`exigirPanelPara`).
+   *
+   * Hoy, «Medios de la página» (P-007 E2): está en esta lista solo para que su
+   * subida pase por la misma ruta que las demás, con su techo y su
+   * comprobación de origen, y no por una segunda escrita para ella. Abierta
+   * además en el listado genérico, serían dos pantallas sobre los mismos datos
+   * diciendo cosas distintas —la genérica no sabe qué foto es la vigente de
+   * cada espacio—, que es justo la razón de D-038.
+   */
+  pantallaPropia?: string
 }
 
 // ---------------------------------------------------------------- auxiliares
@@ -1627,6 +1640,44 @@ export const Equipo: EsquemaDeColeccion = {
   ],
 }
 
+/**
+ * Las fotos de las páginas públicas (P-007 E2). Se administran desde su propia
+ * pestaña, `/admin-panel/medios-pagina`; aquí está lo que necesita la ruta de
+ * subida: el techo, los tipos y los dos campos que acompañan al archivo.
+ */
+export const MediosPagina: EsquemaDeColeccion = {
+  slug: 'medios-pagina',
+  singular: 'Foto de la página',
+  plural: 'Medios de la página',
+  genero: 'f',
+  titulo: 'alt',
+  descripcion: 'Las fotos de la portada y de la página de planes.',
+  versionada: false,
+  familia: 'apoyo',
+  soloAdmin: true,
+  pantallaPropia: '/admin-panel/medios-pagina',
+  buscarEn: ['alt', 'espacio'],
+  columnas: [
+    { nombre: 'espacio', etiqueta: 'Espacio' },
+    { nombre: 'alt', etiqueta: 'Descripción' },
+    { nombre: 'updatedAt', etiqueta: 'Subida', formato: 'fecha' },
+  ],
+  subida: {
+    acepta: TIPOS_DE_FOTO.join(','),
+    ayuda: `Imagen PNG, JPG o WEBP. Máximo ${TECHO_DE_FOTO_BYTES / (1024 * 1024)} MB.`,
+    maximoBytes: TECHO_DE_FOTO_BYTES,
+  },
+  secciones: [
+    {
+      titulo: 'La foto',
+      campos: [
+        { tipo: 'texto', nombre: 'espacio', etiqueta: 'Espacio de la página', requerido: true },
+        { tipo: 'texto', nombre: 'alt', etiqueta: 'Descripción para lectores de pantalla', requerido: true },
+      ],
+    },
+  ],
+}
+
 export const ESQUEMAS: EsquemaDeColeccion[] = [
   Patologias,
   Maniobras,
@@ -1643,6 +1694,7 @@ export const ESQUEMAS: EsquemaDeColeccion[] = [
   Medios,
   Modelos3D,
   Equipo,
+  MediosPagina,
 ]
 
 /**

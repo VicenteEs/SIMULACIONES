@@ -9,6 +9,8 @@ La plataforma escribe correo en estos casos:
 | Recibimos su solicitud | Alguien pide una cuenta en `/registro` | A quien la pidió |
 | Ya tiene una cuenta | Alguien pide una cuenta con un correo que ya tiene una | Al titular de ese correo |
 | Nueva solicitud de cuenta | Alguien pide una cuenta en `/registro` | A los administradores activos (hasta diez) |
+| Recibimos tu solicitud de cotización | Alguien manda el formulario «Cotizar» de la portada (también desde `/planes`) | A quien la pidió |
+| Nueva cotización | Lo mismo | A los administradores activos (hasta diez), con el botón «Ver la cotización» que abre su detalle en *Cotizaciones* |
 | Su cuenta ya está activa / no fue aprobada | Un administrador activa o rechaza una solicitud | A quien la pidió |
 | Nuevo comentario | Alguien comenta una ficha | A los administradores activos (hasta diez) |
 | Difusión | Un administrador la envía desde *Difusión* | A cada cuenta activa del grupo elegido, una por una |
@@ -145,6 +147,25 @@ de quien pide la cuenta. Cualquiera puede escribir un nombre y una institución.
 Por eso la activación es de un administrador, y el correo de aviso se lo
 recuerda.
 
+Desde D-236 la solicitud va en tres pasos (sus datos, su institución y una
+confirmación) y pregunta además el programa y el año de residencia, los dos
+opcionales. El aviso a los administradores lleva el año cuando se indicó.
+
+## Cotizaciones
+
+Desde D-236 la portada y `/planes` tienen un formulario «Cotizar» para que una
+institución pida una propuesta sin crear cuenta. Cada solicitud queda en el
+panel, en *Cotizaciones*, con su estado (nueva, en conversación, cerrada) y
+notas internas, y el menú muestra cuántas están nuevas. Salen dos correos: el
+acuse a quien la pidió y el aviso a los administradores activos, con el enlace
+al detalle. **La respuesta no la manda la plataforma**: el botón «Responder por
+correo» abre el cliente de correo de quien administra, con el destinatario y el
+asunto puestos, para que la propuesta salga de su propio buzón.
+
+El formulario tiene las mismas defensas que `/registro`: campo trampa, cinco
+solicitudes por hora desde una misma dirección y veinte en total, y nada de
+direcciones web en el nombre, la institución ni el cargo.
+
 ---
 
 ## Difusión
@@ -180,6 +201,8 @@ qué pasa exactamente.
   administrador; la opción de invitación por correo aparece desactivada.
 - Las solicitudes de `/registro` siguen llegando al panel, pero ni quien la
   pidió ni los administradores reciben aviso: hay que mirar la barra del panel.
+- Las cotizaciones también: quedan en *Cotizaciones*, con su número en el menú,
+  y no sale ni el acuse ni el aviso.
 - *Difusión* muestra la vista previa y no deja enviar.
 
 Si quien se quedó fuera es el único administrador, el botón **Clave** no le

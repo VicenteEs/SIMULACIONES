@@ -1,0 +1,65 @@
+/* ==========================================================================
+   La pestaña Actividad (`admin-panel/actividad/page.tsx`), con el tablero de
+   Penpot (P-007 E5, D-238).
+
+   Hoja propia porque estas piezas solo existen aquí; lo de las cuatro
+   pantallas de seguimiento está en `seguimiento.css`, que se comparte con
+   Estadísticas y no se toca desde una sola de ellas. Todo con tokens.
+   ========================================================================== */
+
+/* Las horas del mapa de calor, en una línea: cada rótulo vive en la casilla de
+   su hora, que en el teléfono mide diez píxeles, y «0 h» se partía en «0» y
+   «h». Sin cortar, el rótulo empieza en su hora y ocupa las dos de al lado,
+   que van sin rótulo (`cadaCuantasColumnas={3}`). */
+.actividad-calor .grafico-calor-columna { white-space: nowrap; text-align: left; }
+
+/* La frase bajo el mapa de calor: dice con números lo que el dibujo enseña. */
+.actividad-nota { margin: 0; max-width: 72ch; font-size: var(--t-sm); color: var(--pizarra); }
+
+/* «Dónde se equivocan más»: el caso y el paso no caben en la columna de la
+   izquierda de las barras horizontales —en un tercio de la fila se quedaban en
+   «Fractura de diáf…»—, así que van encima de su barra, con las veces a la
+   derecha, como en Penpot. En el color del simulador (`--mod-4`): el rojo de
+   alerta lo usan las barras señaladas, y aquí ninguna lo está más que otra. */
+.actividad-atascos .grafico-lista { gap: var(--e-3); }
+.actividad-atascos .grafico-fila { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--e-1); }
+.actividad-atascos .grafico-fila-etiqueta { grid-column: 1; grid-row: 1; color: var(--tinta); }
+/* Hasta dos renglones: el nombre del caso ocupa casi uno entero, y cortado en
+   uno se perdía justo el paso, que es lo que distingue una barra de otra. */
+.actividad-atascos .grafico-fila-etiqueta > span {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.actividad-atascos .grafico-fila-valor { grid-column: 2; grid-row: 1; align-self: start; white-space: nowrap; }
+.actividad-atascos .grafico-fila-barra { grid-column: 1 / -1; grid-row: 2; }
+.actividad-atascos .grafico-fila-relleno { background: var(--mod-4); }
+
+/* La persona, con sus iniciales en un círculo, en «Por persona». */
+.actividad-persona { display: flex; align-items: center; gap: var(--e-3); }
+.actividad-persona-circulo {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-full);
+  background: var(--marca-tenue);
+  color: var(--marca);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* La línea de las aperturas de cada persona: ancho fijo, para que las líneas
+   de la columna se comparen entre sí.
+
+   `position: relative` porque el `Minigrafico` lleva su frase para el lector
+   de pantalla en un `.sr-only`, que es absoluto: sin un antecesor posicionado
+   dentro de la tabla, se colocaba respecto de uno de fuera, escapaba del
+   recorte del contenedor que se desplaza, y a 390 px la página entera se
+   arrastraba 338 px de lado. */
+.actividad-celda-tendencia { position: relative; min-width: 104px; }
+
+/* Quién lleva días sin abrir una ficha, debajo de la tabla. */
+.actividad-aviso { margin: var(--e-4) 0 0; }

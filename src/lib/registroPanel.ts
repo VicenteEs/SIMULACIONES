@@ -8,6 +8,7 @@ import type { Payload, Where } from 'payload'
 import type { HojaDePlanilla } from './planilla'
 import { capacidadesPorRol, etiquetaDeRolEnRegistro, ROLES } from './permisos'
 import { accionDelRegistroEnPalabras, diaLocal, duracionCorta } from './registro'
+import { claveDeDia, contarEn, sumarEn, type Casilla } from './series'
 
 type Registro = Record<string, unknown>
 
@@ -267,6 +268,95 @@ export async function leerResumenDeCuentas(payload: Payload, ahora: Date = new D
     ).size,
     segundosHoy: deHoy.reduce((n, t) => n + t.segundos, 0),
   }
+}
+
+// ------------------------------------------------------------- tablero
+
+/**
+ * El tiempo activo de cada día de `dias`: los minutos sumados entre todas las
+ * cuentas y cuántas cuentas tuvieron alguno (P-007 E5, D-238).
+ *
+ * Con las mismas reglas que las cifras de hoy de `leerResumenDeCuentas`, para
+ * que el último punto de cada línea sea la cifra que tiene al lado: los minutos
+ * cuentan también los de cuentas ya borradas —el trabajo ocurrió—, y las
+ * cuentas, solo las que existen y una vez por día.
+ */
+export function tiempoPorCasilla(
+  tiempoPorDia: readonly TiempoPorDia[],
+  dias: readonly Casilla[],
+  cuentasQueExisten: ReadonlySet<string>,
+): { minutos: number[]; cuentas: number[] } {
+  const minutos = sumarEn(
+    dias,
+    tiempoPorDia.map((t) => [t.dia, t.segundos / 60] as const),
+  ).map((m) => Math.round(m))
+  const porDia = new Map(dias.map((d) => [d.clave, new Set<string>()]))
+  for (const t of tiempoPorDia) {
+    if (t.segundos > 0 && cuentasQueExisten.has(t.usuarioId)) porDia.get(t.dia)?.add(t.usuarioId)
+  }
+  return { minutos, cuentas: dias.map((d) => porDia.get(d.clave)?.size ?? 0) }
+}
+
+/**
+ * Los grupos de «Qué se hace», en el orden de la leyenda.
+ *
+ * Seis como mucho, porque es lo que una dona deja distinguir (`Dona`); el
+ * registro tiene una docena de acciones y por separado los sectores finos no se
+ * leían. Se agrupan por lo que la persona estaba haciendo y no por el verbo:
+ * abrir un caso del simulador es una lectura de `cirugias`, pero quien mira
+ * quiere saber cuánto se usa el simulador, no cuántas lecturas hay de una
+ * colección más.
+ */
+export const TIPOS_DE_ACCION = [
+  { clave: 'leer', etiqueta: 'Leer fichas' },
+  { clave: 'simulador', etiqueta: 'Simulador' },
+  { clave: 'comentar', etiqueta: 'Comentar' },
+  { clave: 'editar', etiqueta: 'Editar y publicar' },
+  { clave: 'sesion', etiqueta: 'Entrar y salir' },
+  { clave: 'administrar', etiqueta: 'Administrar' },
+] as const
+
+export type TipoDeAccion = (typeof TIPOS_DE_ACCION)[number]['clave']
+
+/**
+ * A qué grupo de «Qué se hace» pertenece un acto del registro.
+ *
+ * Lo de las cuentas es administrar aunque el verbo sea «creó»: dar de alta a
+ * un residente no es editar contenido. Lo que no se reconoce —una acción que
+ * llegue después que esta lista— va a «Administrar» y no se pierde del total.
+ */
+export function tipoDeAccion(accion: unknown, coleccion: unknown): TipoDeAccion {
+  if (accion === 'lectura') return coleccion === 'cirugias' ? 'simulador' : 'leer'
+  if (accion === 'sesion-iniciada' || accion === 'sesion-cerrada') return 'sesion'
+  if (coleccion === 'usuarios') return 'administrar'
+  if (coleccion === 'comentarios') return 'comentar'
+  if (['creo', 'modifico', 'elimino', 'publico', 'retiro'].includes(String(accion))) return 'editar'
+  return 'administrar'
+}
+
+/**
+ * Los actos de los días de `dias`: cuántos hubo cada día, de todos, y de qué
+ * tipo fueron los de los últimos `ultimos` días, solo de las cuentas.
+ *
+ * Por día cuentan todos, como «Acciones hoy», que es la cifra que la línea
+ * acompaña. En el reparto por tipo no entra lo que el servidor anota por su
+ * cuenta (`origen`: «sistema», «importación»): una ingesta de libros deja miles
+ * de «creó» en una tarde, y la dona diría que la plataforma se usa para editar
+ * cuando la pregunta es qué hacen las personas. Un acto de una cuenta que
+ * después se borró sí entra: no tiene `origen`, lo hizo alguien.
+ */
+export function resumirActos(
+  actos: readonly Record<string, unknown>[],
+  dias: readonly Casilla[],
+  ultimos = 7,
+): { porDia: number[]; porTipo: Record<TipoDeAccion, number> } {
+  const recientes = new Set(dias.slice(-ultimos).map((d) => d.clave))
+  const porTipo = Object.fromEntries(TIPOS_DE_ACCION.map((t) => [t.clave, 0])) as Record<TipoDeAccion, number>
+  for (const acto of actos) {
+    if (texto(acto.origen) !== '' || !recientes.has(claveDeDia(acto.fecha) ?? '')) continue
+    porTipo[tipoDeAccion(acto.accion, acto.coleccion)] += 1
+  }
+  return { porDia: contarEn(dias, actos.map((a) => claveDeDia(a.fecha))), porTipo }
 }
 
 // ------------------------------------------------------------- planilla

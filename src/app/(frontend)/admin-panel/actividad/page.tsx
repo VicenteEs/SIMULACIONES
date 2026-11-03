@@ -1,15 +1,30 @@
 import Link from 'next/link'
-import { BookOpen, Check, ExternalLink, Pencil } from 'lucide-react'
+import { BookOpen, BookOpenCheck, Check, ExternalLink, Pencil, Scissors, Users } from 'lucide-react'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { BarrasHorizontales, MapaDeCalor, Minigrafico, NoSePudoLeer, SinDatos, type Punto } from '@/components/admin/Graficos'
 import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { Cifra } from '@/components/admin/tablero/Cifra'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
 import { IDENTIDAD_DE_MODULO } from '@/components/ui/modulos'
 import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import { Vacio } from '@/components/ui/Vacio'
 import { NOMBRE_DEL_DESENLACE } from '@/lib/progresoDelSimulador'
 import { FiltroDeQuien } from '@/components/admin/FiltroDeQuien'
+import { cifra, variacion } from '@/lib/graficos'
+import { iniciales } from '@/lib/iniciales'
 import { leerTodas } from '@/lib/leerTodas'
-import { QUIEN_EN_PALABRAS, esDelEquipo, filasDeQuien, quienDeLaConsulta } from '@/lib/seguimiento'
+import { etiquetaDeRolEnRegistro } from '@/lib/permisos'
+import { QUIEN_EN_PALABRAS, entraEnLoPedido, esDelEquipo, filasDeQuien, quienDeLaConsulta, type QuienLee } from '@/lib/seguimiento'
+import { diasEntre, leerFecha, ultimosDias } from '@/lib/series'
+import {
+  DIAS_DE_LA_SEMANA,
+  franjaConMasUso,
+  franjaEnPalabras,
+  mapaDeUso,
+  parteEntreSemana,
+  resumirLecturas,
+} from '@/lib/tableroDeActividad'
 import { clientePayload, resumenDeActividad } from '../datos'
 import { NOMBRE_DE_MODULO, rutaPublica } from '../modulos'
 import {
@@ -19,8 +34,28 @@ import {
   type ReferenciaDeFicha,
 } from '../titulosDeFichas'
 import '../seguimiento.css'
+import './actividad.css'
 
 export const dynamic = 'force-dynamic'
+
+/** Lo que cubren las cifras de lectura, y lo mismo antes, para la flecha. */
+const DIAS_DEL_PERIODO = 30
+/** El mapa de calor: cuatro semanas enteras, para que cada día de la semana sume las mismas veces. */
+const DIAS_DEL_MAPA = 28
+/** Lo que dibujan los minigráficos, de las cifras y de cada persona. */
+const DIAS_DIBUJADOS = 14
+/** Más que esto sin abrir una ficha y la persona sale nombrada debajo de su tabla. */
+const DIAS_SIN_LEER = 7
+
+const HORAS = Array.from({ length: 24 }, (_, hora) => `${hora} h`)
+
+const TITULO_DE_LOS_ACTIVOS: Record<QuienLee, string> = {
+  todos: 'Personas activas',
+  residentes: 'Residentes activos',
+  equipo: 'Equipo activo',
+}
+
+const porcentaje = (parte: number, total: number) => (total === 0 ? 0 : Math.round((parte / total) * 100))
 
 /**
  * Cómo se nombra una ficha en las tablas de esta página.
@@ -125,6 +160,17 @@ interface PorPersona {
  * ni recorridos. Sirve para decidir dónde poner el esfuerzo de redacción. Y el
  * puntaje del simulador no es una nota —lo calcula el navegador y el servidor no
  * lo puede recalcular—, así que se enseña dicho en la propia pantalla.
+ *
+ * Encima de las tablas, el tablero de Penpot (P-007 E5, D-238): cuatro cifras
+ * de los últimos 30 días, cuándo se estudia y en qué paso del simulador se
+ * equivoca la gente. Todo respeta «Lecturas de»: con «solo residentes», el
+ * mapa de calor es el de los residentes y no el de quien prueba la plataforma.
+ * Las tablas siguen plegables y con memoria, como pidió el dueño; el tablero
+ * no, porque es lo que se viene a mirar.
+ *
+ * Los tiempos del mapa son por día y hora sumados entre todas las cuentas, no
+ * de nadie en particular: dicen a qué hora conviene mandar un aviso, no a qué
+ * hora estudia cada residente.
  */
 export default async function PaginaActividad({
   searchParams,
@@ -151,29 +197,81 @@ export default async function PaginaActividad({
   // Todas las filas y no las mil más recientes (D-175): con el tope, «Por persona» y «Fichas más leídas» eran un recuento de
   // las últimas mil filas presentado como el total. La cuenta de cada fila se pide aparte y una sola vez —nombre, correo y
   // rol—, en vez de poblarla fila por fila, y de ella sale también la separación entre el equipo y los residentes.
-  const [listado, cuentas, resumen] = await Promise.all([
+  //
+  // El tablero lee dos tablas más, cada una con su `null` si falla, por lo mismo que el listado: las lecturas del
+  // registro de acciones —sesenta días, para comparar los últimos treinta con los anteriores— y el tiempo activo de las
+  // cuatro últimas semanas, que es el del mapa de calor.
+  const desdeLecturas = (leerFecha(ultimosDias(2 * DIAS_DEL_PERIODO)[0].clave) ?? new Date(0)).toISOString()
+  const desdeElMapa = ultimosDias(DIAS_DEL_MAPA)[0].clave
+  const [listado, cuentas, resumen, eventos, tiempos] = await Promise.all([
     leerTodas(payload, { coleccion: 'actividad', sort: '-ultimaVisita' }).catch((error) => {
       console.error('[panel] no se pudo leer la tabla de actividad:', error)
       return null
     }),
-    leerTodas(payload, { coleccion: 'usuarios', select: { nombre: true, email: true, rol: true } }).catch((error) => {
+    leerTodas(payload, {
+      coleccion: 'usuarios',
+      select: { nombre: true, email: true, rol: true, activo: true, pendiente: true },
+    }).catch((error) => {
       console.error('[panel] no se pudieron leer las cuentas de la actividad:', error)
       return null
     }),
     resumenDeActividad(payload, quien),
+    leerTodas(payload, {
+      coleccion: 'registro-de-acciones',
+      where: { and: [{ accion: { equals: 'lectura' } }, { fecha: { greater_than_equal: desdeLecturas } }] },
+      select: { fecha: true, usuario: true, coleccion: true, documentoId: true, detalle: true },
+    }).catch((error) => {
+      console.error('[panel] no se pudieron leer las lecturas de la actividad:', error)
+      return null
+    }),
+    // `dia` es texto «AAAA-MM-DD», y comparado como texto ordena igual que la fecha: es como lo filtra el registro.
+    leerTodas(payload, {
+      coleccion: 'tiempo-activo',
+      where: { dia: { greater_than_equal: desdeElMapa } },
+      select: { usuario: true, dia: true, porHora: true },
+    }).catch((error) => {
+      console.error('[panel] no se pudo leer el tiempo activo de la actividad:', error)
+      return null
+    }),
   ])
   const infoDe = new Map(
     (cuentas?.docs ?? []).map((c) => [
       String(c.id),
-      { nombre: typeof c.nombre === 'string' && c.nombre ? c.nombre : '', correo: typeof c.email === 'string' ? c.email : '—', rol: typeof c.rol === 'string' ? c.rol : '' },
+      {
+        nombre: typeof c.nombre === 'string' && c.nombre ? c.nombre : '',
+        correo: typeof c.email === 'string' ? c.email : '—',
+        rol: typeof c.rol === 'string' ? c.rol : '',
+        // Una cuenta desactivada o por aprobar que no lee no es una noticia: no se nombra en el aviso de abajo.
+        habilitada: c.activo === true && c.pendiente !== true,
+      },
     ]),
   )
   const rolDe = new Map([...infoDe].map(([id, c]) => [id, c.rol]))
   // Sin cuentas no se puede separar a nadie: se enseña todo y se avisa, en vez de rotular «solo residentes» lo que no lo es.
   const sinRoles = cuentas === null && quien !== 'todos'
+  const vista: QuienLee = sinRoles ? 'todos' : quien
+  const deQuien = <T extends Record<string, unknown>>(filas: readonly T[]): T[] =>
+    sinRoles ? [...filas] : filasDeQuien(filas, quien, rolDe)
   const todasLasFilas = (listado?.docs ?? []) as Record<string, unknown>[]
-  const docs = sinRoles ? todasLasFilas : filasDeQuien(todasLasFilas, quien, rolDe)
+  const docs = deQuien(todasLasFilas)
   const totalDocs = docs.length
+
+  // --- el tablero -----------------------------------------------------------
+  const lecturas = eventos ? resumirLecturas(deQuien(eventos.docs), { dias: DIAS_DEL_PERIODO, dibujados: DIAS_DIBUJADOS }) : null
+  const mapa = tiempos ? mapaDeUso(deQuien(tiempos.docs)) : null
+  const franja = mapa ? franjaConMasUso(mapa) : null
+  const entreSemana = mapa ? parteEntreSemana(mapa) : null
+  // «De 39 con cuenta»: las cuentas habilitadas del lado que se mira. Las personas activas se cuentan dentro de ellas, para
+  // que el porcentaje no pase de cien con lecturas de una cuenta que después se desactivó.
+  const conCuenta =
+    cuentas === null
+      ? null
+      : new Set([...infoDe].filter(([, c]) => c.habilitada && entraEnLoPedido(vista, c.rol)).map(([id]) => id))
+  const activas = lecturas
+    ? conCuenta
+      ? [...lecturas.personas].filter((id) => conCuenta.has(id)).length
+      : lecturas.personas.size
+    : null
   const delEquipo = todasLasFilas.filter((d) => esDelEquipo(rolDe.get(String(d.usuario)))).length
   const simulador = resumen.simulador
   const atascos = simulador.atascos.slice(0, 20)
@@ -213,7 +311,22 @@ export default async function PaginaActividad({
     }
     porPersona.set(r.usuarioId, actual)
   }
-  const personas = [...porPersona.values()].sort((a, b) => (b.ultima ?? '').localeCompare(a.ultima ?? ''))
+  // Por fichas abiertas, como en Penpot: arriba quien más usa la plataforma. Antes iba por la última visita, que cambia
+  // de orden cada vez que alguien entra y no dice nada que no diga ya su columna.
+  const personas = [...porPersona.values()].sort(
+    (a, b) => b.visitadas - a.visitadas || (b.ultima ?? '').localeCompare(a.ultima ?? ''),
+  )
+
+  // Los residentes que llevan más de una semana sin abrir una ficha, de más a menos días. Solo cuentas que existen y
+  // están habilitadas, y solo residentes: que un editor no lea no es una alarma.
+  const sinVolver =
+    vista === 'equipo'
+      ? []
+      : personas
+          .filter((p) => infoDe.get(p.usuarioId)?.habilitada === true && !esDelEquipo(p.rol))
+          .map((p) => ({ nombre: p.nombre, dias: diasEntre(p.ultima) }))
+          .filter((p): p is { nombre: string; dias: number } => p.dias !== null && p.dias > DIAS_SIN_LEER)
+          .sort((a, b) => b.dias - a.dias)
 
   // Una fila por ficha, ordenada por número de lectores.
   const porFicha = new Map<string, { coleccion: string; documentoId: string; lectores: number; completadas: number }>()
@@ -277,6 +390,20 @@ export default async function PaginaActividad({
     ),
   )
 
+  // «Dónde se equivocan más»: los cinco pasos con más gestos que dañaron, nombrados con el caso y el paso como en la
+  // tabla de abajo. La etiqueta es también la clave de cada barra, así que dos pasos que se llamaran igual —un guion
+  // reordenado que dejó dos «paso 3» del mismo caso— se distinguen por su identificador en vez de pisarse.
+  const vistas = new Set<string>()
+  const pasosConMasDano: Punto[] = atascos.slice(0, 5).map((atasco) => {
+    const caso = rotuloDeFicha(estadoDe('cirugias', atasco.documentoId), atasco.documentoId, 'Caso eliminado')
+    const paso = [atasco.numero ? `paso ${atasco.numero}` : null, atasco.titulo].filter(Boolean).join(', ') || 'paso sin título'
+    let etiqueta = `${caso} · ${paso}`
+    if (vistas.has(etiqueta)) etiqueta = `${etiqueta} (${atasco.paso})`
+    vistas.add(etiqueta)
+    const personasConDano = `${atasco.residentes} persona${atasco.residentes === 1 ? '' : 's'}`
+    return { etiqueta, valor: atasco.veces, detalle: `${etiqueta} · a ${personasConDano}` }
+  })
+
   return (
     <div>
       <CabeceraDePagina
@@ -295,13 +422,13 @@ export default async function PaginaActividad({
         }
       />
 
-      {listado ? (
-        <FiltroDeQuien
-          actual={quien}
-          ruta="/admin-panel/actividad"
-          nota={`${todasLasFilas.length - delEquipo} de residentes · ${delEquipo} del equipo`}
-        />
-      ) : null}
+      {/* El filtro va aunque no se haya podido leer el listado: el tablero de abajo sale de otras tablas y también lo
+          respeta. Lo que se calla es la nota, que cuenta filas del listado. */}
+      <FiltroDeQuien
+        actual={quien}
+        ruta="/admin-panel/actividad"
+        nota={listado ? `${todasLasFilas.length - delEquipo} de residentes · ${delEquipo} del equipo` : undefined}
+      />
 
       {sinRoles ? (
         <div className="admin-aviso admin-aviso-atencion" role="status">
@@ -325,7 +452,133 @@ export default async function PaginaActividad({
           abierto una ficha: la consulta falló. Lo corriente es que falte una tabla —un cambio de
           esquema desplegado sin su migración—; el detalle queda en el registro del servidor.
         </div>
-      ) : registros.length === 0 ? (
+      ) : null}
+
+      <div className="tablero-cifras">
+        <Cifra
+          titulo={TITULO_DE_LOS_ACTIVOS[vista]}
+          icono={Users}
+          tono="ok"
+          ilegible={lecturas === null}
+          valor={activas === null ? '—' : cifra(activas)}
+          serie={lecturas?.personasPorDia}
+          descripcionDeLaSerie="Personas distintas que abrieron alguna ficha cada día de las últimas dos semanas."
+          nota={
+            activas === null
+              ? 'no se pudo leer el registro de lecturas'
+              : conCuenta && conCuenta.size > 0
+                ? `de ${cifra(conCuenta.size)} con cuenta · ${porcentaje(activas, conCuenta.size)} % · abrieron alguna ficha en 30 días`
+                : 'abrieron alguna ficha en los últimos 30 días'
+          }
+        />
+        <Cifra
+          titulo="Fichas abiertas"
+          icono={BookOpen}
+          tono="info"
+          ilegible={lecturas === null}
+          valor={lecturas ? cifra(lecturas.aperturas) : '—'}
+          cambio={(() => {
+            const v = lecturas ? variacion(lecturas.aperturas, lecturas.aperturasAntes) : null
+            return v === null ? null : { valor: v, respecto: 'que los 30 días anteriores' }
+          })()}
+          serie={lecturas?.aperturasPorDia}
+          descripcionDeLaSerie="Fichas abiertas cada día de las últimas dos semanas."
+          nota={lecturas ? 'aperturas en los últimos 30 días' : 'no se pudo leer el registro de lecturas'}
+        />
+        <Cifra
+          titulo="Marcadas como leídas"
+          icono={BookOpenCheck}
+          tono="info"
+          ilegible={lecturas === null}
+          valor={lecturas ? cifra(lecturas.marcadas) : '—'}
+          serie={lecturas?.marcasPorDia}
+          descripcionDeLaSerie="Fichas marcadas como leídas cada día de las últimas dos semanas."
+          nota={
+            lecturas === null
+              ? 'no se pudo leer el registro de lecturas'
+              : lecturas.abiertas > 0
+                ? `${porcentaje(lecturas.marcadasDeLoAbierto, lecturas.abiertas)} % de lo abierto · en 30 días`
+                : 'en los últimos 30 días'
+          }
+        />
+        {/* De siempre y sin minigráfico: la fila de `actividad` guarda el último recorrido de cada caso, no cuándo se
+            jugó cada uno, y una línea por fecha de visita contaría el mismo caso en el día en que se volvió a abrir. */}
+        <Cifra
+          titulo="Casos del simulador"
+          icono={Scissors}
+          tono="info"
+          ilegible={simulador.ilegible}
+          valor={simulador.ilegible ? '—' : cifra(simulador.casos)}
+          nota={
+            simulador.ilegible
+              ? 'no se pudieron leer los recorridos'
+              : simulador.casos === 0
+                ? 'nadie ha recorrido un caso todavía'
+                : `recorridos · ${porcentaje(simulador.casos - simulador.casosConComplicacion, simulador.casos)} % sin ninguna complicación`
+          }
+        />
+      </div>
+
+      <div className="tablero-fila">
+        <TarjetaDeGrafico
+          titulo="Cuándo se estudia"
+          className="actividad-calor"
+          bajada={`Minutos con la plataforma a la vista, según día y hora · últimas 4 semanas${
+            vista === 'todos' ? '' : ` · ${QUIEN_EN_PALABRAS[vista]}`
+          }`}
+          ilegible={mapa === null}
+        >
+          {mapa === null ? (
+            <NoSePudoLeer que="el tiempo activo" />
+          ) : (
+            <>
+              <MapaDeCalor
+                titulo="Minutos activos por día de la semana y hora, en las últimas cuatro semanas"
+                filas={[...DIAS_DE_LA_SEMANA]}
+                columnas={HORAS}
+                valores={mapa.map((horas) => horas.map((segundos) => Math.round(segundos / 60)))}
+                unidad="min"
+                cadaCuantasColumnas={3}
+              />
+              {/* Lo que el dibujo dice, en una frase y con sus números: el pico y cuánto cae entre semana. Penpot
+                  añadía un consejo —a qué hora mandar un aviso—, que es una conclusión de quien mira y no un dato. */}
+              {franja ? (
+                <p className="actividad-nota">
+                  La franja con más uso es {franjaEnPalabras(franja)}
+                  {entreSemana === null ? '.' : `, y el ${Math.round(entreSemana * 100)} % del tiempo cae de lunes a viernes.`}
+                </p>
+              ) : null}
+            </>
+          )}
+        </TarjetaDeGrafico>
+
+        <TarjetaDeGrafico
+          titulo="Dónde se equivocan más"
+          bajada="Simulador quirúrgico · gestos que dañaron, por paso del guion"
+          ilegible={simulador.ilegible}
+          className="actividad-atascos"
+        >
+          {simulador.ilegible ? (
+            <NoSePudoLeer que="los recorridos del simulador" />
+          ) : pasosConMasDano.length === 0 ? (
+            <SinDatos
+              texto={
+                simulador.casos === 0
+                  ? 'Todavía nadie ha recorrido un caso del simulador.'
+                  : 'Ningún paso ha dado complicaciones todavía.'
+              }
+            />
+          ) : (
+            <BarrasHorizontales
+              titulo="Pasos del simulador con más gestos que dañaron"
+              datos={pasosConMasDano}
+              formato={(v) => `${cifra(v)} ${v === 1 ? 'vez' : 'veces'}`}
+            />
+          )}
+        </TarjetaDeGrafico>
+      </div>
+
+      {listado === null ? null : registros.length === 0 ? (
         <Vacio icono={BookOpen} titulo="Todavía nadie ha abierto una ficha.">
           El registro empieza en cuanto una cuenta activa visita contenido publicado.
         </Vacio>
@@ -346,34 +599,58 @@ export default async function PaginaActividad({
                 <thead>
                   <tr>
                     <th>Persona</th>
+                    <th>Rol</th>
                     <th>Fichas abiertas</th>
                     <th>Marcadas como leídas</th>
+                    <th>Últimos {DIAS_DIBUJADOS} días</th>
                     <th>Última visita</th>
                   </tr>
                 </thead>
                 <tbody>
                   {personas.map((p) => {
-                    const porcentaje =
-                      p.visitadas === 0 ? 0 : Math.round((p.completadas / p.visitadas) * 100)
+                    const leidas = porcentaje(p.completadas, p.visitadas)
+                    // Las aperturas de cada día, del registro de acciones. «Fichas abiertas» son las distintas de
+                    // siempre, de `actividad`; la línea dice si ese número sigue creciendo o se paró.
+                    const serie = lecturas?.aperturasDe.get(p.usuarioId)
+                    const enLaQuincena = serie?.reduce((t, v) => t + v, 0) ?? 0
                     return (
                       <tr key={p.usuarioId}>
                         <td>
-                          <div className="admin-table-user-name">
-                            {p.nombre}
-                            <InsigniaDeRol rol={p.rol} />
+                          <div className="actividad-persona">
+                            <span className="actividad-persona-circulo" aria-hidden>
+                              {iniciales(p.nombre)}
+                            </span>
+                            <div>
+                              <div className="admin-table-user-name">{p.nombre}</div>
+                              <div className="admin-table-user-email">{p.correo}</div>
+                            </div>
                           </div>
-                          <div className="admin-table-user-email">{p.correo}</div>
                         </td>
+                        <td>{etiquetaDeRolEnRegistro(p.rol)}</td>
                         <td className="u-num">{p.visitadas}</td>
                         <td className="seguimiento-celda-progreso u-num">
                           {p.completadas}
-                          <span className="admin-numero-tenue"> · {porcentaje}%</span>
+                          <span className="admin-numero-tenue"> · {leidas}%</span>
                           <div className="admin-progreso" aria-hidden="true">
                             <div
                               className="admin-progreso-relleno"
-                              style={{ width: `${porcentaje}%` }}
+                              style={{ width: `${leidas}%` }}
                             />
                           </div>
+                        </td>
+                        <td className="actividad-celda-tendencia">
+                          {lecturas === null ? (
+                            '—'
+                          ) : serie && enLaQuincena > 0 ? (
+                            <Minigrafico
+                              valores={serie}
+                              ancho={88}
+                              alto={26}
+                              descripcion={`${enLaQuincena} apertura${enLaQuincena === 1 ? '' : 's'} en los últimos ${DIAS_DIBUJADOS} días`}
+                            />
+                          ) : (
+                            <span className="admin-numero-tenue">sin aperturas</span>
+                          )}
                         </td>
                         <td className="u-nowrap">{fechaHora(p.ultima)}</td>
                       </tr>
@@ -382,6 +659,24 @@ export default async function PaginaActividad({
                 </tbody>
               </table>
             </div>
+            {/* Lo que en Penpot cierra la tabla: quién dejó de leer. Con los días y sin conclusión: el panel ve que
+                no abrió nada, no por qué. */}
+            {sinVolver.length > 0 ? (
+              <div className="admin-aviso admin-aviso-atencion actividad-aviso" role="status">
+                <strong>
+                  {sinVolver.length === 1
+                    ? `${sinVolver[0].nombre} lleva ${sinVolver[0].dias} días sin abrir una ficha.`
+                    : `${sinVolver.length} residentes llevan más de ${DIAS_SIN_LEER} días sin abrir una ficha:`}
+                </strong>
+                {sinVolver.length > 1
+                  ? ` ${sinVolver
+                      .slice(0, 4)
+                      .map((p) => `${p.nombre} (${p.dias} días)`)
+                      .join(', ')}${sinVolver.length > 4 ? ` y ${sinVolver.length - 4} más` : ''}.`
+                  : ''}{' '}
+                Lo que muestra el panel es lo que pasó, no por qué: conviene preguntar antes de suponer.
+              </div>
+            ) : null}
           </SeccionPlegable>
 
           {/* ------------------------------------------------- simulador --

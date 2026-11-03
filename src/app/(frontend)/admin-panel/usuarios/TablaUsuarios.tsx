@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CheckCircle2,
@@ -37,6 +37,7 @@ import {
   resolverSolicitud,
 } from '@/app/(frontend)/acciones/admin'
 import { SolicitudesPendientes } from './SolicitudesPendientes'
+import { PROFESIONES, etiquetaDeProfesion, type Profesion } from '@/lib/firmas'
 import './solicitudes.css'
 
 export interface UsuarioDelPanel {
@@ -46,6 +47,17 @@ export interface UsuarioDelPanel {
   rol: 'admin' | 'editor' | 'lector'
   activo: boolean
   institucion: string
+  /**
+   * La etapa de formación que dio al pedir la cuenta, ya en su etiqueta corta
+   * («R2», «Docente»), o vacía (D-236). Se pinta delante de la institución, que
+   * es donde el administrador busca de quién se trata.
+   */
+  etapa: string
+  /**
+   * Médico o kinesiólogo, o vacía (D-240): decide qué firma pone en una ficha
+   * en revisión. La cambia el administrador en «Editar».
+   */
+  profesion: Profesion | ''
   creado: string
   ultimoAcceso: string | null
   modulosVisibles: string[]
@@ -84,12 +96,37 @@ const ETIQUETA_ROL: Record<UsuarioDelPanel['rol'], string> = {
   lector: 'Lector',
 }
 
+/**
+ * Los módulos a los que llega una cuenta con su rol, para los números de colores
+ * de la columna «Rol» (P-007 E5, D-238): los que lee un lector y los que escribe
+ * un editor.
+ *
+ * La misma regla que `puedeEditar` y que la visibilidad de los módulos: una
+ * lista vacía es «todos», y un editor solo escribe en lo que además puede ver.
+ * Antes eso solo se sabía abriendo «Permisos por módulo» cuenta por cuenta, y
+ * una residente a la que se le cerró un módulo se veía igual que las demás.
+ */
+export function modulosAlAlcance(u: Pick<UsuarioDelPanel, 'rol' | 'modulosVisibles' | 'modulosEditables'>): {
+  verbo: 'Lee' | 'Edita'
+  modulos: (typeof MODULOS)[number][]
+} {
+  const todos = [...MODULOS]
+  if (u.rol === 'admin') return { verbo: 'Edita', modulos: todos }
+  const dentro = (lista: string[]) => (slug: string) => lista.length === 0 || lista.includes(slug)
+  const ve = todos.filter((m) => dentro(u.modulosVisibles)(m.slug))
+  if (u.rol === 'lector') return { verbo: 'Lee', modulos: ve }
+  return { verbo: 'Edita', modulos: ve.filter((m) => dentro(u.modulosEditables)(m.slug)) }
+}
+
 const fecha = (valor?: string | null) =>
   valor
     ? new Date(valor).toLocaleDateString('es-CL', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
+        // Por lo mismo que en `SolicitudesPendientes.tsx`: servidor y
+        // navegador tienen que decir el mismo día.
+        timeZone: 'America/Santiago',
       })
     : '—'
 
@@ -201,6 +238,7 @@ export function TablaUsuarios({
   idPropio,
   hayCorreo,
   hayDireccion,
+  lateral,
 }: {
   /** Todas las filas de la tabla: las cuentas revisadas y las solicitudes. */
   usuarios: UsuarioDelPanel[]
@@ -212,6 +250,13 @@ export function TablaUsuarios({
   hayCorreo: boolean
   /** Si hay dirección pública con la que armar enlaces que funcionen fuera. */
   hayDireccion: boolean
+  /**
+   * Las cifras de las cuentas —por rol, altas por mes, qué puede cada rol—, ya
+   * pintadas en el servidor (`LateralDeCuentas`). Llegan hechas y no como datos
+   * porque esta tabla no tiene por qué saber dibujarlas, y porque calcularlas
+   * aquí sería hacerlo con las filas de la tabla, que tienen tope.
+   */
+  lateral?: ReactNode
 }) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
@@ -296,7 +341,7 @@ export function TablaUsuarios({
       // pidió esta cuenta», y eso solo sirve si buscando al jefe de servicio
       // aparecen las cuatro cuentas que pidió. No filtra nada que el
       // administrador no esté viendo ya: esta pantalla es suya entera.
-      const donde = normalizar([u.nombre, u.email, u.institucion, u.notas].join(' '))
+      const donde = normalizar([u.nombre, u.email, u.etapa, u.institucion, u.notas].join(' '))
       return palabras.every((palabra) => donde.includes(palabra))
     })
   }, [listaMostrada, busqueda, filtroRol, filtroEstado])
@@ -570,6 +615,12 @@ export function TablaUsuarios({
         }
       />
 
+      {/* La tabla y, a su lado, sus cifras, como en Penpot. Cuando no caben
+          las dos, las cifras bajan debajo de la tabla y se reparten a lo ancho
+          (`solicitudes.css`): con la tabla estrechada a dos tercios, las seis
+          columnas de antes se desplazaban de lado incluso a 1.440 px. */}
+      <div className="usuarios-contenedor">
+      <div className="usuarios-cuerpo">
       <SeccionPlegable
         clave="usuarios.cuentas"
         titulo="Cuentas"
@@ -664,10 +715,8 @@ export function TablaUsuarios({
               <thead>
                 <tr>
                   <th scope="col">Cuenta</th>
-                  <th scope="col">Rol</th>
+                  <th scope="col">Rol y módulos</th>
                   <th scope="col">Estado</th>
-                  <th scope="col">Último acceso</th>
-                  <th scope="col">Alta</th>
                   <th scope="col">
                     <span className="sr-only">Acciones</span>
                   </th>
@@ -677,18 +726,22 @@ export function TablaUsuarios({
                 {visibles.map((u) => {
                   const esUnoMismo = u.id === idPropio
                   const ocupada = filaEnCurso === u.id
+                  const alcance = modulosAlAlcance(u)
+                  const nombresDelAlcance = alcance.modulos.map((m) => m.nombre).join(', ')
                   return (
                     <tr key={u.id} className={ocupada ? 'usuarios-fila-ocupada' : undefined}>
                       {/* La celda que nombra la fila es un `th`: ata el
                           «Editar» y el menú de cada fila a la cuenta que tocan. */}
-                      <th scope="row">
+                      <th scope="row" className="usuarios-cuenta">
                         <div className="admin-table-user-name usuarios-nombre">
                           {u.nombre || '—'}
                           {esUnoMismo ? <span className={claseDeInsignia('neutra')}>usted</span> : null}
                         </div>
                         <div className="admin-table-user-email">{u.email}</div>
-                        {u.institucion ? (
-                          <div className="admin-table-user-email">{u.institucion}</div>
+                        {u.etapa || u.institucion || u.profesion ? (
+                          <div className="admin-table-user-email">
+                            {[etiquetaDeProfesion(u.profesion), u.etapa, u.institucion].filter(Boolean).join(' · ')}
+                          </div>
                         ) : null}
                         {/*
                           La nota se resume en la fila y se lee entera en el modal
@@ -711,7 +764,7 @@ export function TablaUsuarios({
                           </div>
                         ) : null}
                       </th>
-                      <td data-etiqueta="Rol">
+                      <td data-etiqueta="Rol y módulos" className="usuarios-celda-rol">
                         {/*
                           Mientras la fila trabaja, este desplegable lleva
                           `aria-disabled` y no `disabled`, por la misma razón que
@@ -749,8 +802,28 @@ export function TablaUsuarios({
                           <option value="editor">Editor</option>
                           <option value="lector">Lector</option>
                         </select>
+                        {/* El número de cada módulo en su color, como en las
+                            tarjetas del inicio. El nombre va en el texto para
+                            el lector de pantalla y en el `title` para el ratón:
+                            un «3» suelto no dice qué módulo es. */}
+                        <div className="usuarios-modulos" title={`${alcance.verbo}: ${nombresDelAlcance || 'ninguno'}`}>
+                          <span className="sr-only">
+                            {alcance.verbo}: {nombresDelAlcance || 'ningún módulo'}
+                          </span>
+                          {alcance.modulos.length === 0 ? (
+                            <span className="usuarios-modulos-ninguno" aria-hidden>
+                              {alcance.verbo === 'Lee' ? 'No lee ningún módulo' : 'No edita ningún módulo'}
+                            </span>
+                          ) : (
+                            alcance.modulos.map((m) => (
+                              <span key={m.slug} className={`usuarios-modulo usuarios-modulo-${Number(m.numero)}`} aria-hidden>
+                                {Number(m.numero)}
+                              </span>
+                            ))
+                          )}
+                        </div>
                       </td>
-                      <td data-etiqueta="Estado">
+                      <td data-etiqueta="Estado" className="usuarios-celda-estado">
                         {/*
                           Una solicitud lleva su propia insignia, ámbar como los
                           demás «por atender» del panel, y no «Sin activar»: con
@@ -775,12 +848,14 @@ export function TablaUsuarios({
                             Sin activar
                           </span>
                         )}
-                      </td>
-                      <td data-etiqueta="Último acceso" className="u-nowrap">
-                        {fecha(u.ultimoAcceso)}
-                      </td>
-                      <td data-etiqueta="Alta" className="u-nowrap">
-                        {fecha(u.creado)}
+                        {/* El último acceso y el alta, que eran dos columnas,
+                            van bajo la insignia: con la tabla a dos tercios no
+                            cabían, y es junto al estado donde se leen («con
+                            acceso, pero no entra desde junio»). */}
+                        <div className="admin-table-user-email usuarios-fechas">
+                          {u.pendiente ? null : <span>Último acceso: {fecha(u.ultimoAcceso)}</span>}
+                          <span>Alta: {fecha(u.creado)}</span>
+                        </div>
                       </td>
                       <td className="admin-table-acciones">
                         {/*
@@ -915,6 +990,13 @@ export function TablaUsuarios({
           </div>
         )}
       </SeccionPlegable>
+      {lateral ? (
+        <aside className="usuarios-lateral" aria-label="Las cuentas en cifras">
+          {lateral}
+        </aside>
+      ) : null}
+      </div>
+      </div>
 
       {creando ? (
         <ModalNuevaCuenta
@@ -1275,12 +1357,14 @@ function ModalEditar({
     nombre: string
     email: string
     institucion: string
+    profesion: string
     notas?: string
   }) => void
 }) {
   const [nombre, setNombre] = useState(usuario.nombre)
   const [email, setEmail] = useState(usuario.email)
   const [institucion, setInstitucion] = useState(usuario.institucion)
+  const [profesion, setProfesion] = useState<string>(usuario.profesion)
   const notaOriginal = usuario.notas
   const [notas, setNotas] = useState(notaOriginal)
 
@@ -1298,7 +1382,7 @@ function ModalEditar({
           // escribió entretanto desde su propia pestaña. `actualizarUsuario`
           // ignora el campo que no viene, así que omitirla es exactamente «no
           // tocar», y solo se pisa lo que se pisó a propósito.
-          onGuardar({ nombre, email, institucion, ...(notas === notaOriginal ? {} : { notas }) })
+          onGuardar({ nombre, email, institucion, profesion, ...(notas === notaOriginal ? {} : { notas }) })
         }}
       >
         <div className="admin-form-group">
@@ -1340,6 +1424,28 @@ function ModalEditar({
             value={institucion}
             onChange={(e) => setInstitucion(e.target.value)}
           />
+        </div>
+        <div className="admin-form-group">
+          <label className="admin-form-label" htmlFor="editar-profesion">
+            Profesión
+          </label>
+          <select
+            id="editar-profesion"
+            className="admin-form-input"
+            value={profesion}
+            onChange={(e) => setProfesion(e.target.value)}
+          >
+            <option value="">Sin indicar</option>
+            {PROFESIONES.map((p) => (
+              <option key={p.valor} value={p.valor}>
+                {p.etiqueta}
+              </option>
+            ))}
+          </select>
+          <p className="admin-form-hint">
+            Decide qué firma pone en las fichas en revisión: cada ficha necesita la de un médico y la de un
+            kinesiólogo. Sin profesión, la cuenta no firma.
+          </p>
         </div>
         {/*
           El cuadro solo se estira en vertical: `resize` vale `both` por omisión

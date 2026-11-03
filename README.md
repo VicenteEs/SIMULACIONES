@@ -4,7 +4,12 @@ Plataforma docente de traumatología en español, para residentes, traumatólogo
 y kinesiólogos. Es cerrada: nada se ve sin sesión, y ninguna cuenta entra sin que
 la active un administrador (decisión D-020). La cuenta la crea el administrador o
 la pide la propia persona en `/registro`, y queda pendiente hasta que la revisen
-(D-119). El correo que manda la plataforma está en `docs/CORREO.md`.
+(D-119). Sin sesión se ven solo la portada comercial y `/planes`, con el
+formulario «Cotizar» que llega a la pestaña *Cotizaciones* del panel, y las
+pantallas para entrar y pedir la cuenta (D-236); el contenido, nunca. Las fotos
+y los textos de esas dos páginas se cambian desde *Medios de la página*, sin
+tocar código (D-235). El correo que manda la plataforma está en
+`docs/CORREO.md`.
 
 La llevan dos personas con papeles distintos (D-008). El traumatólogo redacta y
 publica desde la propia aplicación, sin depender de nadie; el desarrollador
@@ -62,6 +67,7 @@ levanta la base y arranca el servidor con doble clic.
 | `npm run build` | Compilación de producción |
 | `npx tsx scripts/importar-ingesta.ts` | Importa las fichas de `data_traumahub/listos` como borradores en revisión. Sin `--ejecutar` solo comprueba (D-144) |
 | `npx tsx scripts/sembrar-estructuras.ts` | Crea la ficha vacía de cada pieza del atlas en el listado de estructuras. Sin `--aplicar` solo simula; no pisa nada escrito (D-179) |
+| `npx tsx scripts/pierna-derecha-en-el-caso.ts` | Exporta una preparación del atlas con la tibia partida según la fractura del caso y la pone en el caso de prueba. `--tibia izquierda`, `--nuevo "<nombre>"` (un caso nuevo, copia del de prueba), `--clasificacion A3` (la fractura del nuevo) y `--separar` (cada estructura como objeto propio). Sin `--aplicar` solo simula (D-241) |
 
 Las pruebas de integración hablan con PostgreSQL, y la base tiene que existir
 **y tener el esquema**. `npm run db:up` solo levanta el contenedor: las
@@ -109,7 +115,7 @@ El detalle, incluido qué hacer cuando Docker no arranca en Windows, está en
 | `scripts/` | Operación: arranque local, instalación del servidor, despliegue, actualización, respaldo, restauración y salud |
 | `docs/` | La documentación |
 | `public/` | Estáticos que se sirven sin comprobar sesión, incluido `public/atlas/` con la geometría del atlas anatómico |
-| `medios/` | Los archivos subidos, y los modelos 3D en `medios/modelos/`. Fuera de `public/` a propósito; su contenido no se versiona |
+| `medios/` | Los archivos subidos, los modelos 3D en `medios/modelos/` y las fotos de la portada en `medios/pagina/`. Fuera de `public/` a propósito; su contenido no se versiona |
 | `backups/` | Respaldos `base-AAAAMMDD-HHMMSS.sql.gz` y `medios-AAAAMMDD-HHMMSS.tar.gz`. Ignorada por git |
 | `despliegue/` | Plantillas para convivir con las demás páginas del servidor compartido |
 | `archivo/` | El prototipo original, como referencia. No se ejecuta ni se despliega |
@@ -126,6 +132,39 @@ para preparar el atlas; lo que viaja en el repositorio es el resultado.
 `node scripts/atlas/atribucion.mjs`; sin eso, el catálogo vuelve a las 2.231 piezas de origen y las fascias desaparecen
 del taller y de lo que se exporta. Las decisiones están en D-218 y el plan, en P-006 de `BITACORA.md`.
 
+Con la piel pasa lo mismo (D-224): `preparar.mjs` devuelve la de BodyParts3D, tosca y atravesada por lo de debajo.
+Y las dos cosas dependen una de otra, así que **el orden importa**: la piel se empuja hasta cubrir las fascias
+profundas, y la fascia superficial se calcula a partir de la piel ya hecha.
+
+```bash
+python scripts/atlas/piel/generar.py
+python scripts/atlas/fascias/generar.py
+node scripts/atlas/agregar-fascias.mjs --aplicar
+node scripts/atlas/recalcular-piel.mjs --aplicar
+python scripts/atlas/fascias/generar.py fascia-superficial
+node scripts/atlas/fascias/bajo-la-piel.mjs --aplicar
+node scripts/atlas/agregar-fascias.mjs --aplicar
+```
+
+`generar.py` de la piel hace la superficie lisa; `recalcular-piel.mjs` la empuja hasta cubrirlo todo, le pone la cara de
+dentro, comprueba lo que exige `tests/unit/geometriaDePiel.test.ts` y no escribe si no se cumple (unos doce minutos).
+`bajo-la-piel.mjs` hunde o recorta lo poco de la fascia superficial que la rejilla de `capas.py` deja asomar en los
+pliegues (entre los dedos, la entrepierna, el ángulo de los ojos). La misma prueba falla si la fascia superficial asoma
+por la piel, que es lo que pasa si se saltan los tres últimos pasos o el penúltimo.
+
+**La pigmentación depende de la piel (D-227).** Lo que el exportador pinta —codos, labios, areolas, párpados— se ancla a
+setenta puntos medidos sobre la piel de arriba, en `src/atlas/referenciasDelCuerpo.json`. Si la piel se regenera, hay que
+volver a medirlos, y `tests/unit/pigmentacion.test.ts` falla si alguno queda a más de 3 mm de ella:
+
+```bash
+python scripts/atlas/pigmentacion/medir.py
+```
+
+**Capturas del modelo para la página y Figma (D-229).** `scripts/atlas/capturas/capas_y_cortes.py` dibuja en Blender (Cycles, fondo
+transparente) las capas del cuerpo —piel, sin piel, músculos, esqueleto, vasos, órganos— y los cortes sagital, coronal y axiales
+del `.blend` del atlas completo, y `portada-a-png.mjs` dibuja la portada de Figma. Los PNG van en `capturas-del-modelo/`, con su
+`LEEME.md`; son del modelo del día en que se hicieron y hay que rehacerlos si cambian la piel o las fascias.
+
 | Carpeta de `src/` | Qué hay |
 |---|---|
 | `app/(frontend)/` | El sitio del residente y el panel propio, en `admin-panel/` |
@@ -134,8 +173,8 @@ del taller y de lo que se exporta. Las decisiones están en D-218 y el plan, en 
 | `admin/` | Esquema del panel propio: qué campos tiene cada colección y cómo se editan |
 | `atlas/` | Catálogo, carga y selección de piezas del atlas anatómico |
 | `blocks/` | Los bloques de contenido que el autor apila y reordena |
-| `collections/` | Las veintiséis colecciones de Payload —veintiún archivos más los cinco catálogos del simulador, que viven juntos en `catalogos.ts`—, con sus ganchos en `hooks/` |
-| `components/` | Componentes de React: el sitio, el panel en `admin/` y los visores en `atlas/` |
+| `collections/` | Las treinta colecciones de Payload —veinticinco archivos más los cinco catálogos del simulador, que viven juntos en `catalogos.ts`—, con sus ganchos en `hooks/` |
+| `components/` | Componentes de React: el sitio, el panel en `admin/`, los visores en `atlas/`, la portada pública y `/planes` en `portada/`, y las pantallas de entrar y pedir la cuenta en `acceso/` |
 | `lib/` | Lógica compartida: sesión, rutas, búsqueda, respaldos, encuadre, simulador |
 | `migrations/` | Migraciones de esquema; en producción se aplican al arrancar |
 | `uploads/` | Validación de los modelos 3D subidos: se mira la firma del archivo, no solo su extensión |
@@ -169,6 +208,13 @@ con el mismo gancho, `src/collections/hooks/avisarAlPublicar.ts`. El inventario
 de colecciones vive en un solo sitio, `src/collections/index.ts`, que además
 declara `SLUGS_DE_MODULOS` con estos cinco.
 
+La primera vez que un residente entra pasa por `/bienvenida`, que le ofrece
+cuatro recorridos hacia estos módulos (D-237). Lo que decide qué enseñan sus
+pantallas vive en funciones puras de `src/lib`, con sus pruebas: `bienvenida.ts`,
+`dondeSeQuedo.ts` (el «Continúa leyendo» del inicio), `listaDeManiobras.ts` (la
+lista del examen físico), `clasificacionAO.ts` (el ejercicio de la lectura de
+imágenes) y `encuadreDelSegmento.ts` (el recorte del atlas de cada tarjeta).
+
 Cómo se escribe una ficha, paso a paso, está en
 [docs/COMO-ESCRIBIR-UNA-FICHA.md](docs/COMO-ESCRIBIR-UNA-FICHA.md).
 
@@ -184,7 +230,8 @@ aquí.
 | Archivo | Qué hace |
 |---|---|
 | `src/lib/revision.ts` | Lo puro: palabras por sección, cuánto se editó, cuándo una validación es sospechosa y los umbrales |
-| `src/lib/revisionServidor.ts` | Registrar una ficha en revisión, medir cada guardado, sumar el tiempo, validar, devolver, asignar |
+| `src/lib/revisionServidor.ts` | Registrar una ficha en revisión, medir cada guardado, sumar el tiempo, firmar (médico y kinesiólogo, D-240), devolver, asignar |
+| `src/lib/firmas.ts` | Las dos firmas de una ficha: quién puede firmar, qué falta y la huella del texto firmado (puro) |
 | `src/components/admin/useSeguimientoDeRevision.ts` | El medidor del editor: tiempo abierto y activo, y por qué pestaña |
 | `src/app/(frontend)/admin-panel/revision/` | «Por revisar», la cola de quien revisa |
 | `src/app/(frontend)/admin-panel/auditoria/` | «Auditoría», solo administrador: gráficos, tablas y la planilla |
@@ -249,6 +296,9 @@ cero, y lo que la consola mide es cuánto falta para llegar.
 | `src/lib/exposicion.ts`, `diseccionRoma.ts`, `posicionDelPaciente.ts` | Separadores y pinzas por plano, disección roma con la Metzenbaum y posición del paciente: la aritmética, sin three |
 | `src/lib/casoQuirurgico.ts` | Aplana el documento de Payload en lo que la consola necesita |
 | `src/components/simulador/LienzoQuirurgico.tsx` | El lienzo three.js: capas, trazo, arrastre y fluoroscopia |
+| `src/components/simulador/exposicionEnLaEscena.ts` | Separadores y pinzas puestos en la escena: el labio que sostiene cada uno y las heridas que abre |
+| `src/components/simulador/nodosDelModelo.ts` | Las mallas de un modelo con su `userData` (lo que el taller lee al abrirlo) y lo que cuelga de ellas sin ser pieza; sin estilos, para que lo lean también los guiones |
+| `src/components/simulador/sondaDelLienzo.ts` | Solo en desarrollo: `window.__sondaDelLienzo`, para que una prueba sepa dónde cae una pieza en pantalla y a cuánto queda un separador de su labio |
 | `src/components/simulador/ConsolaQuirurgica.tsx` | La consola: bandeja, medidas, pasos y bitácora |
 | `src/collections/catalogos.ts` | Los cinco catálogos |
 

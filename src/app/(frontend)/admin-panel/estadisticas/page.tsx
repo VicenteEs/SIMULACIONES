@@ -1,24 +1,40 @@
+import Link from 'next/link'
 import type { Payload, Where } from 'payload'
+import { CalendarDays } from 'lucide-react'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
-import { BarraApilada, BarrasHorizontales, BarrasVerticales, type Punto } from '@/components/admin/Graficos'
+import {
+  BarrasApiladasPorFila,
+  BarrasHorizontales,
+  Dona,
+  Lineas,
+  NoSePudoLeer,
+  type Punto,
+  type SerieDeLineas,
+} from '@/components/admin/Graficos'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { PlegarTodo } from '@/components/admin/PlegarTodo'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
 import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import { leerTodas } from '@/lib/leerTodas'
-import {
-  QUIEN_EN_PALABRAS,
-  claveDeMes,
-  esDelEquipo,
-  filasDeQuien,
-  lecturasPorMes,
-  quienDeLaConsulta,
-} from '@/lib/seguimiento'
+import { cifra } from '@/lib/graficos'
+import { claveDeMes, contarEn, ultimosMeses } from '@/lib/series'
+import { QUIEN_EN_PALABRAS, filasDeQuien, lecturasPorMes, quienDeLaConsulta, type QuienLee } from '@/lib/seguimiento'
 import { FiltroDeQuien } from '@/components/admin/FiltroDeQuien'
 import { clientePayload } from '../datos'
 import { MODULOS } from '../modulos'
 import { leerTitulosDeFichas } from '../titulosDeFichas'
 import { fichasConMasLecturas, modulosConTitulosIlegibles, rotularFichasLeidas } from './fichasMasLeidas'
+import {
+  PERIODOS,
+  PERIODO_POR_OMISION,
+  lecturasPorModulo,
+  lectoresEnElPeriodo,
+  periodoDeLaConsulta,
+  rutaDeEstadisticas,
+  type Periodo,
+} from './periodo'
 import '../seguimiento.css'
+import './estadisticas.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +43,14 @@ export const dynamic = 'force-dynamic'
  *
  * Responde a tres preguntas y ninguna más, porque un panel de métricas que
  * responde a treinta no se mira: cuánto contenido hay y a qué ritmo crece,
- * quién lo está leyendo, y qué material pide atención.
+ * quién lo está leyendo, y qué se lee más. Es la composición del tablero de
+ * Penpot (P-007 E5, D-238), con un periodo que se elige arriba y que cambia lo
+ * que se pide a la base (`periodo.ts`).
+ *
+ * La cuarta sección que tenía —«Qué pide atención», con los comentarios sin
+ * resolver y dónde se comenta— se mudó a la pestaña «Comentarios», que ahora
+ * abre con esas mismas cifras contadas sobre la tabla entera. Dos pantallas con
+ * el mismo número son dos sitios donde puede dejar de coincidir.
  *
  * Todo se calcula sobre lecturas acotadas y en paralelo: la página tiene que
  * abrir rápido o dejará de abrirse.
@@ -40,25 +63,6 @@ export const dynamic = 'force-dynamic'
  * fuerte, porque allí un conteo mal leído afea una tarjeta y aquí deja doce
  * barras planas que se leen como «este año no se escribió nada».
  */
-
-const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-
-/** Las últimas doce claves de mes, de la más antigua a la más reciente. */
-function ultimosDoceMeses(): {
-  clave: string
-  etiqueta: string
-  detalle: string
-}[] {
-  const hoy = new Date()
-  return Array.from({ length: 12 }, (_, i) => {
-    const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - (11 - i), 1)
-    return {
-      clave: `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`,
-      etiqueta: MESES[fecha.getMonth()],
-      detalle: `${MESES[fecha.getMonth()]} ${fecha.getFullYear()}`,
-    }
-  })
-}
 
 /**
  * Lo que hay en una colección, o `null` si la consulta no se pudo hacer.
@@ -109,7 +113,10 @@ async function fechasDeCreacion(payload: Payload, slug: string): Promise<string[
  * el plural a propósito: «— ficha» se lee como un uno mal pintado.
  */
 const conteo = (valor: number, ilegible: boolean, singular: string, plural: string): string =>
-  ilegible ? `— ${plural}` : `${valor} ${valor === 1 ? singular : plural}`
+  ilegible ? `— ${plural}` : `${cifra(valor)} ${valor === 1 ? singular : plural}`
+
+/** El color de cada módulo, el suyo de siempre (`--mod-1` a `--mod-5`, en el orden de `MODULOS`). */
+const colorDelModulo = (slug: string) => `var(--mod-${MODULOS.findIndex((m) => m.slug === slug) + 1})`
 
 export default async function PaginaEstadisticas({
   searchParams,
@@ -117,13 +124,17 @@ export default async function PaginaEstadisticas({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   await exigirPanel('admin')
-  const quien = quienDeLaConsulta((await searchParams).quien)
+  const consulta = await searchParams
+  const quien = quienDeLaConsulta(consulta.quien)
+  const periodo = periodoDeLaConsulta(consulta.periodo)
 
   const payload = await clientePayload()
-  const meses = ultimosDoceMeses()
-  const inicioDeLosMeses = new Date(`${meses[0].clave}-01T00:00:00`).toISOString()
+  const meses = ultimosMeses(periodo)
+  const claves = meses.map((m) => m.clave)
+  const enPalabras = `los últimos ${periodo} meses`
+  const inicioDelPeriodo = new Date(`${claves[0]}-01T00:00:00`).toISOString()
 
-  const [porModulo, actividadTodas, comentarios, usuarios, aperturas] = await Promise.all([
+  const [porModulo, actividadTodas, usuarios, aperturas] = await Promise.all([
     Promise.all(
       MODULOS.map(async (m) => ({
         slug: m.slug,
@@ -134,33 +145,35 @@ export default async function PaginaEstadisticas({
     leerColeccion(payload, 'actividad', {
       columnas: ['usuario', 'coleccion', 'documentoId', 'ultimaVisita', 'completado'],
     }),
-    leerColeccion(payload, 'comentarios', { columnas: ['estado', 'coleccion'] }),
-    leerColeccion(payload, 'usuarios', { columnas: ['rol', 'activo', 'ultimoAcceso'] }),
+    leerColeccion(payload, 'usuarios', { columnas: ['rol', 'activo', 'pendiente', 'ultimoAcceso'] }),
     // Cada apertura de una ficha, con su fecha: de ahí sale «Lecturas por mes». La tabla `actividad` solo guarda la última
-    // visita de cada persona a cada ficha, y con ella una ficha abierta en dos meses contaba solo en el último.
+    // visita de cada persona a cada ficha, y con ella una ficha abierta en dos meses contaba solo en el último. Solo las
+    // del periodo: es lo que cambia al elegir otro arriba.
     leerColeccion(payload, 'registro-de-acciones', {
       columnas: ['fecha', 'usuario', 'coleccion', 'documentoId'],
-      where: { and: [{ accion: { equals: 'lectura' } }, { fecha: { greater_than_equal: inicioDeLosMeses } }] },
+      where: { and: [{ accion: { equals: 'lectura' } }, { fecha: { greater_than_equal: inicioDelPeriodo } }] },
     }),
   ])
 
   // El rol de cada cuenta decide a quién se cuenta en la lectura (`?quien=`): el equipo que prueba la plataforma y los
   // residentes que la usan no son lo mismo, y juntos, con cinco cuentas de equipo y ningún residente, todo el seguimiento
-  // era del equipo sin decirlo. Si no se pudieron leer las cuentas, no se puede separar a nadie y se avisa.
+  // era del equipo sin decirlo. Si no se pudieron leer las cuentas, no se puede separar a nadie: la lectura se da por
+  // ilegible si se pidió una parte, y se dibuja junta, sin separar, si se pidió todo.
   const rolDe = new Map<string, string>(
     (usuarios ?? []).map((u) => [String(u.id), typeof u.rol === 'string' ? u.rol : '']),
   )
   const sinRoles = usuarios === null && quien !== 'todos'
-  const actividad = actividadTodas === null ? null : sinRoles ? [] : filasDeQuien(actividadTodas, quien, rolDe)
-  const lecturasDelEquipo =
-    actividadTodas === null ? 0 : actividadTodas.filter((r) => esDelEquipo(rolDe.get(String(r.usuario)))).length
-  const aperturasDeQuien = aperturas === null || sinRoles ? [] : filasDeQuien(aperturas, quien, rolDe)
+  // La lectura entera se da por ilegible si falta cualquiera de sus dos fuentes: sin las aperturas, cada ficha
+  // volvería a caer solo en el mes de su última visita, que es justo el defecto que D-175 corrigió.
+  const lecturaIlegible = actividadTodas === null || aperturas === null || sinRoles
+  const filasDe = (q: QuienLee) => filasDeQuien(actividadTodas ?? [], q, rolDe)
+  const eventosDe = (q: QuienLee) => filasDeQuien(aperturas ?? [], q, rolDe)
 
   // Las fichas más leídas se cuentan aquí arriba, y no con el resto de la
   // lectura, porque piden una segunda vuelta a la base —sus títulos— y lo que
   // no se pueda leer en esa vuelta tiene que entrar en el aviso de abajo. Solo
   // se buscan los títulos de las ocho que se enseñan.
-  const masLeidas = actividad === null ? [] : fichasConMasLecturas(actividad, 8)
+  const masLeidas = lecturaIlegible ? [] : fichasConMasLecturas(lectoresEnElPeriodo(claves, eventosDe(quien), filasDe(quien)), 8)
   const estadosDeLasMasLeidas = await leerTitulosDeFichas(payload, masLeidas)
 
   // Cada módulo falla por su cuenta: que se caiga la tabla de patologías no
@@ -176,94 +189,71 @@ export default async function PaginaEstadisticas({
   const contenidoIlegible = modulosLegibles.length === 0
 
   // Se nombra lo que faltó, y no un «algo falló» genérico: saber que lo caído
-  // es la tabla de comentarios y no la de patologías es la diferencia entre
+  // es la tabla de actividad y no la de patologías es la diferencia entre
   // mirar la migración correcta y mirarlas todas.
   const noSePudoLeer = [
     ...modulosIlegibles.map((m) => m.nombre),
     ...(actividadTodas === null ? ['el registro de lecturas'] : []),
     ...(aperturas === null ? ['las aperturas de fichas'] : []),
-    ...(comentarios === null ? ['los comentarios'] : []),
     ...(usuarios === null ? ['las cuentas'] : []),
     ...modulosConTitulosIlegibles(masLeidas, estadosDeLasMasLeidas).map(
       (nombre) => `los títulos de ${nombre}`,
     ),
   ]
 
-  // --- contenido creado por mes -------------------------------------------
-  const todasLasFechas = modulosLegibles.flatMap((m) => m.fechas)
-  const creadoPorMes: Punto[] = meses.map((mes) => ({
-    etiqueta: mes.etiqueta,
-    detalle: mes.detalle,
-    valor: todasLasFechas.filter((f) => claveDeMes(f) === mes.clave).length,
-  }))
+  // --- contenido ----------------------------------------------------------
+  const totalFichas = modulosLegibles.reduce((t, m) => t + m.fechas.length, 0)
+  const creadasPorModulo = modulosLegibles.map((m) => contarEn(meses, m.fechas.map(claveDeMes)))
+  const creadasEnElPeriodo = creadasPorModulo.flat().reduce((t, v) => t + v, 0)
 
   // --- lectura ------------------------------------------------------------
-  const registros = actividad ?? []
-  const lecturaPorModulo: Punto[] = MODULOS.map((m) => ({
-    etiqueta: m.nombre,
-    valor: registros.filter((r) => r.coleccion === m.slug).length,
-  })).sort((a, b) => b.valor - a.valor)
+  // Cada punto son las fichas distintas que cada persona abrió ese mes, sacadas de las aperturas con su fecha (D-175).
+  // Residentes y equipo van en dos líneas, como en Penpot; el filtro de arriba deja una sola. Sin las cuentas no hay
+  // cómo separarlas, y va una línea con todas.
+  const serieDe = (q: QuienLee) => lecturasPorMes(claves, eventosDe(q), filasDe(q))
+  const residentes = serieDe('residentes')
+  const equipo = serieDe('equipo')
+  const series: SerieDeLineas[] =
+    usuarios === null
+      ? [{ etiqueta: 'Todas las cuentas', color: 'var(--marca)', valores: serieDe('todos') }]
+      : [
+          ...(quien !== 'equipo' ? [{ etiqueta: 'Residentes', color: 'var(--marca)', valores: residentes }] : []),
+          ...(quien !== 'residentes' ? [{ etiqueta: 'Equipo', color: 'var(--cian)', valores: equipo }] : []),
+        ]
+  const totalLecturas = series.flatMap((s) => s.valores).reduce((t, v) => t + v, 0)
+  const suma = (valores: number[]) => valores.reduce((t, v) => t + v, 0)
 
-  // Cada barra son las fichas distintas que cada persona abrió ese mes, sacadas de las aperturas con su fecha. Antes salía
-  // de `actividad` poniendo cada ficha en el mes de su última visita: una ficha abierta en septiembre y otra vez en octubre
-  // contaba solo en octubre, y septiembre se vaciaba solo (D-175).
-  const lecturasMensuales = lecturasPorMes(
-    meses.map((m) => m.clave),
-    aperturasDeQuien,
-    registros,
+  const porModuloLeido = lecturasPorModulo(
+    claves,
+    eventosDe(quien),
+    filasDe(quien),
+    MODULOS.map((m) => m.slug),
   )
-  const visitasPorMes: Punto[] = meses.map((mes, i) => ({
-    etiqueta: mes.etiqueta,
-    detalle: mes.detalle,
-    valor: lecturasMensuales[i],
-  }))
+  const lecturaPorModulo: Punto[] = MODULOS.map((m, i) => ({ etiqueta: m.nombre, valor: porModuloLeido[i] })).sort(
+    (a, b) => b.valor - a.valor,
+  )
 
   // Con el título de cada ficha y no con su número de fila, que es como estaba:
   // «Biblioteca de patologías · #12» obligaba a abrir la tabla en otra ventana
   // para saber qué se estaba leyendo, que es la única pregunta de esta tarjeta.
   const fichasMasLeidas: Punto[] = rotularFichasLeidas(masLeidas, estadosDeLasMasLeidas)
 
-  // --- comentarios --------------------------------------------------------
-  const listaComentarios = comentarios ?? []
-  // Los cinco módulos y el taller anatómico (D-158): sin él, los comentarios de las
-  // preparaciones contaban en el total y en ninguna barra.
-  const comentariosPorModulo: Punto[] = [
-    ...MODULOS.map((m) => ({ etiqueta: m.nombre, slug: m.slug as string })),
-    { etiqueta: 'Taller anatómico', slug: 'instancias-atlas' },
-  ]
-    .map((m) => ({
-      etiqueta: m.etiqueta,
-      valor: listaComentarios.filter((c) => c.coleccion === m.slug).length,
-    }))
-    .sort((a, b) => b.valor - a.valor)
-
-  const pendientes = listaComentarios.filter((c) => c.estado === 'pendiente').length
-
   // --- cuentas ------------------------------------------------------------
+  // Las activas, como en el Resumen: una solicitud sin aprobar no es una cuenta que lea.
   const listaUsuarios = usuarios ?? []
-  const cuenta = (rol: string) => listaUsuarios.filter((u) => u.rol === rol).length
-  const activos = listaUsuarios.filter((u) => u.activo === true).length
-
+  const activas = listaUsuarios.filter((u) => u.activo === true && u.pendiente !== true)
+  const deRol = (rol: string) => activas.filter((u) => u.rol === rol).length
   const hace30dias = Date.now() - 30 * 86_400_000
   const entraronEsteMes = listaUsuarios.filter(
     (u) => typeof u.ultimoAcceso === 'string' && new Date(u.ultimoAcceso).getTime() > hace30dias,
   ).length
 
-  const totalFichas = todasLasFechas.length
-  const totalVisitas = registros.length
-
   return (
-    <div>
+    <div className="estadisticas">
       <CabeceraDePagina
         titulo="Estadísticas"
-        subtitulo={
-          <>
-            {conteo(totalFichas, contenidoIlegible, 'ficha escrita', 'fichas escritas')} ·{' '}
-            {conteo(totalVisitas, actividad === null, 'lectura registrada', 'lecturas registradas')}
-            {quien === 'todos' ? '' : ` (${QUIEN_EN_PALABRAS[quien]})`} ·{' '}
-            {conteo(activos, usuarios === null, 'cuenta con acceso', 'cuentas con acceso')}
-          </>
-        }
+        subtitulo="Cuánto contenido hay, quién lo lee y qué se lee más"
+        acciones={<SelectorDePeriodo actual={periodo} quien={quien} />}
       />
 
       {noSePudoLeer.length > 0 ? (
@@ -276,9 +266,10 @@ export default async function PaginaEstadisticas({
         </div>
       ) : null}
 
-      {/* Los cuatro bloques se pliegan y recuerdan cómo se dejaron (pedido del
-          dueño): quien viene a mirar solo lo que pide atención no tiene que
-          bajar por encima de tres rejillas de gráficos. */}
+      {/* Las secciones se pliegan y recuerdan cómo se dejaron (pedido del
+          dueño): quien viene a mirar solo lo que se lee más no tiene que bajar
+          por encima de dos rejillas de gráficos. Aquí se pintan como los
+          titulares de sección de Penpot y no como cajas (`estadisticas.css`). */}
       <PlegarTodo />
 
       <SeccionPlegable
@@ -286,191 +277,195 @@ export default async function PaginaEstadisticas({
         titulo="Cuánto contenido hay y cómo crece"
         resumen={conteo(totalFichas, contenidoIlegible, 'ficha', 'fichas')}
       >
-        <div className="admin-grid">
-          <div className={`admin-card admin-card-ancha${contenidoIlegible ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Fichas creadas por mes</div>
+        <div className="tablero-fila">
+          <TarjetaDeGrafico
+            titulo="Fichas creadas por mes"
+            bajada={
+              contenidoIlegible
+                ? 'Por módulo'
+                : `Por módulo, en ${enPalabras}: ${conteo(creadasEnElPeriodo, false, 'ficha', 'fichas')}${
+                    modulosIlegibles.length > 0 ? `, sin ${modulosIlegibles.map((m) => m.nombre).join(' ni ')}` : ''
+                  }`
+            }
+            ilegible={modulosIlegibles.length > 0}
+          >
             {contenidoIlegible ? (
-              // Doce barras a cero sobre cero módulos leídos no es un gráfico
-              // vacío: es un gráfico que afirma que no se escribió nada en un año.
-              <p className="admin-card-note">
-                Ningún módulo respondió, así que no hay nada que dibujar aquí. No significa que no haya
-                contenido.
-              </p>
+              // Barras a cero sobre cero módulos leídos no es un gráfico vacío:
+              // es un gráfico que afirma que no se escribió nada en meses.
+              <NoSePudoLeer que="ninguna de las tablas de los módulos, y eso no significa que no haya contenido" />
             ) : (
-              <>
-                <p className="admin-card-note">
-                  Últimos doce meses
-                  {modulosIlegibles.length > 0
-                    ? `, sin ${modulosIlegibles.map((m) => m.nombre).join(' ni ')}`
-                    : ', todos los módulos juntos'}
-                  .
-                </p>
-                <BarrasVerticales datos={creadoPorMes} titulo="Fichas creadas por mes" />
-              </>
+              // Una fila por mes, con los módulos apilados. Penpot las dibuja de
+              // pie, como columnas; el panel no tiene todavía columnas apiladas,
+              // y las filas dicen lo mismo con cada mes rotulado entero.
+              <BarrasApiladasPorFila
+                titulo={`Fichas creadas cada mes en ${enPalabras}, por módulo`}
+                series={modulosLegibles.map((m) => ({ etiqueta: m.nombre, color: colorDelModulo(m.slug) }))}
+                filas={meses.map((mes, i) => ({
+                  etiqueta: mes.detalle,
+                  valores: creadasPorModulo.map((delModulo) => delModulo[i]),
+                }))}
+              />
             )}
-          </div>
+          </TarjetaDeGrafico>
 
-          <div className={`admin-card${modulosIlegibles.length > 0 ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Reparto por módulo</div>
-            <div className="admin-card-value admin-card-value-sm">
-              {contenidoIlegible ? '—' : totalFichas}
-            </div>
-            {/* Solo los módulos que respondieron: una barra a cero sobre un módulo
+          {/* Solo los módulos que respondieron: un sector a cero sobre un módulo
               ilegible es indistinguible de un módulo sin escribir todavía. */}
-            <BarrasHorizontales
-              titulo="Fichas por módulo"
-              datos={modulosLegibles
-                .map((m) => ({ etiqueta: m.nombre, valor: m.fechas.length }))
-                .sort((a, b) => b.valor - a.valor)}
-            />
-            {modulosIlegibles.length > 0 ? (
+          <TarjetaDeGrafico
+            titulo="Fichas por módulo"
+            bajada={`${contenidoIlegible ? '—' : cifra(totalFichas)} en total, hoy`}
+            ilegible={modulosIlegibles.length > 0}
+          >
+            {contenidoIlegible ? (
+              <NoSePudoLeer que="las tablas de los módulos" />
+            ) : (
+              <Dona
+                titulo="Fichas escritas en cada módulo"
+                rotuloDelTotal="fichas"
+                partes={modulosLegibles.map((m) => ({ etiqueta: m.nombre, valor: m.fechas.length, color: colorDelModulo(m.slug) }))}
+              />
+            )}
+            {modulosIlegibles.length > 0 && !contenidoIlegible ? (
               <p className="admin-card-note">
                 Sin {modulosIlegibles.map((m) => m.nombre).join(' ni ')}: no se pudo leer.
               </p>
             ) : null}
-          </div>
+          </TarjetaDeGrafico>
         </div>
       </SeccionPlegable>
 
       <SeccionPlegable
         clave="estadisticas.lectura"
         titulo="Quién lo está leyendo"
-        resumen={conteo(totalVisitas, actividad === null, 'lectura', 'lecturas')}
+        resumen={conteo(totalLecturas, lecturaIlegible, 'lectura', 'lecturas')}
       >
         <FiltroDeQuien
           actual={quien}
           ruta="/admin-panel/estadisticas"
+          parametros={periodo === PERIODO_POR_OMISION ? {} : { periodo: String(periodo) }}
           nota={
-            actividadTodas === null
+            lecturaIlegible || usuarios === null
               ? undefined
-              : `${actividadTodas.length - lecturasDelEquipo} de residentes · ${lecturasDelEquipo} del equipo`
+              : `En ${enPalabras}: ${cifra(suma(residentes))} de residentes · ${cifra(suma(equipo))} del equipo`
           }
         />
-        <div className="admin-grid">
-          <div className={`admin-card admin-card-ancha${actividad === null ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Lecturas por mes</div>
-            {actividad === null ? (
-              <p className="admin-card-note">
-                No se pudo leer el registro de actividad. Las barras están en blanco porque no hay dato, no
-                porque nadie haya entrado.
-              </p>
+        <div className="estadisticas-tercios">
+          <TarjetaDeGrafico
+            titulo="Lecturas por mes"
+            bajada={
+              quien === 'todos'
+                ? 'Fichas abiertas · residentes y equipo'
+                : `Fichas abiertas · ${QUIEN_EN_PALABRAS[quien]}`
+            }
+            ilegible={lecturaIlegible}
+          >
+            {lecturaIlegible ? (
+              // Una línea plana aquí se lee como «nadie entró», que es una
+              // conclusión sobre los residentes y no sobre la base.
+              <NoSePudoLeer que={sinRoles ? 'las cuentas, y sin ellas no se puede separar a nadie' : 'el registro de lecturas'} />
             ) : (
               <>
+                <Lineas
+                  titulo={`Fichas abiertas por mes en ${enPalabras}`}
+                  etiquetas={meses.map((m) => m.etiqueta)}
+                  detalles={meses.map((m) => m.detalle)}
+                  series={series}
+                  unidad="lecturas"
+                />
                 <p className="admin-card-note">
-                  Cada barra cuenta las fichas distintas que cada persona abrió ese mes, no las visitas repetidas. Una
+                  Cada punto cuenta las fichas distintas que cada persona abrió ese mes, no las visitas repetidas. Una
                   ficha abierta en dos meses cuenta en los dos.
                 </p>
-                <BarrasVerticales datos={visitasPorMes} titulo="Lecturas por mes" />
               </>
             )}
-          </div>
+          </TarjetaDeGrafico>
 
-          <div className={`admin-card${actividad === null ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Módulos más leídos</div>
-            {actividad === null ? (
-              <p className="admin-card-note">Sin dato: el registro de actividad no respondió.</p>
+          <TarjetaDeGrafico
+            titulo="Lecturas por módulo"
+            bajada={lecturaIlegible ? `En ${enPalabras}` : `En ${enPalabras} · ${conteo(totalLecturas, false, 'lectura', 'lecturas')}`}
+            ilegible={lecturaIlegible}
+          >
+            {lecturaIlegible ? (
+              <NoSePudoLeer que="el registro de lecturas" />
             ) : (
-              <BarrasHorizontales titulo="Lecturas por módulo" datos={lecturaPorModulo} />
+              <BarrasHorizontales titulo={`Lecturas de cada módulo en ${enPalabras}`} datos={lecturaPorModulo} />
             )}
-          </div>
+          </TarjetaDeGrafico>
 
-          <div className={`admin-card${usuarios === null ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Cuentas</div>
-            <div className="admin-card-value admin-card-value-sm">
-              {usuarios === null ? (
-                '—'
-              ) : (
-                <>
-                  {activos}
-                  <span className="admin-numero-tenue"> de {listaUsuarios.length}</span>
-                </>
-              )}
-            </div>
+          <TarjetaDeGrafico
+            titulo="Cuentas por rol"
+            bajada={
+              usuarios === null
+                ? 'Las cuentas activas, hoy'
+                : `${conteo(activas.length, false, 'activa', 'activas')} de ${cifra(listaUsuarios.length)}, hoy`
+            }
+            ilegible={usuarios === null}
+          >
             {usuarios === null ? (
-              <p className="admin-card-note">
-                No se pudo leer la tabla de usuarios. Esto no dice que no haya cuentas.
-              </p>
+              <NoSePudoLeer que="la tabla de cuentas. Esto no dice que no haya cuentas" />
             ) : (
               <>
-                <p className="admin-card-note">{entraronEsteMes} han entrado en los últimos 30 días</p>
-                <BarraApilada
-                  titulo="Cuentas por rol"
-                  partes={[
-                    {
-                      etiqueta: 'Administradores',
-                      valor: cuenta('admin'),
-                      color: 'var(--marca-honda)',
-                    },
-                    {
-                      etiqueta: 'Editores',
-                      valor: cuenta('editor'),
-                      color: 'var(--marca)',
-                    },
-                    // Era `#8fb6e8`, un celeste suelto que no estaba en la paleta.
-                    // Tres pasos de la misma familia azul, del más hondo al más
-                    // claro, para tres rangos del mismo eje.
-                    {
-                      etiqueta: 'Lectores',
-                      valor: cuenta('lector'),
-                      color: 'var(--cian)',
-                    },
+                <BarrasHorizontales
+                  titulo="Cuentas activas por rol"
+                  datos={[
+                    { etiqueta: 'Lectores (residentes)', valor: deRol('lector') },
+                    { etiqueta: 'Editores (docentes)', valor: deRol('editor') },
+                    { etiqueta: 'Administradores', valor: deRol('admin') },
                   ]}
                 />
+                <p className="admin-card-note">
+                  {conteo(entraronEsteMes, false, 'cuenta ha entrado', 'cuentas han entrado')} en los últimos 30 días.
+                </p>
               </>
             )}
-          </div>
+          </TarjetaDeGrafico>
         </div>
       </SeccionPlegable>
 
-      {actividad !== null && fichasMasLeidas.length > 0 ? (
+      {!lecturaIlegible && fichasMasLeidas.length > 0 ? (
         <SeccionPlegable
           clave="estadisticas.mas-leidas"
           titulo="Qué se lee más"
           resumen={`${fichasMasLeidas.length} fichas`}
         >
-          <BarrasHorizontales titulo="Fichas más leídas" datos={fichasMasLeidas} />
+          <TarjetaDeGrafico
+            titulo="Fichas más leídas"
+            bajada={`Personas distintas que abrieron cada ficha en ${enPalabras}${
+              quien === 'todos' ? '' : ` (${QUIEN_EN_PALABRAS[quien]})`
+            }`}
+          >
+            <BarrasHorizontales titulo={`Fichas más leídas en ${enPalabras}`} datos={fichasMasLeidas} />
+          </TarjetaDeGrafico>
         </SeccionPlegable>
       ) : null}
+    </div>
+  )
+}
 
-      <SeccionPlegable
-        clave="estadisticas.atencion"
-        titulo="Qué pide atención"
-        resumen={comentarios === null ? undefined : `${pendientes} sin resolver`}
-      >
-        <div className="admin-grid">
-          <div className={`admin-card${comentarios === null ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Comentarios sin resolver</div>
-            {/* El ámbar es la señal de «hay trabajo pendiente». Sobre un cero de
-              relleno diría lo contrario de lo que pasa: que no hay nada que
-              atender justo cuando no se sabe si lo hay. Es `--ambar-texto` y no
-              `--ambar`, que como cifra sobre blanco no llegaba a 4,5:1. */}
-            <div
-              className={`admin-card-value${comentarios !== null && pendientes > 0 ? ' admin-card-value-atencion' : ''}`}
-            >
-              {comentarios === null ? '—' : pendientes}
-            </div>
-            <p className="admin-card-note">
-              {comentarios === null
-                ? 'No se pudo leer la tabla de comentarios.'
-                : `de ${listaComentarios.length} recibidos en total`}
-            </p>
-          </div>
-
-          <div className={`admin-card admin-card-ancha${comentarios === null ? ' admin-card-ilegible' : ''}`}>
-            <div className="admin-card-title">Dónde se comenta</div>
-            {comentarios === null ? (
-              <p className="admin-card-note">Sin dato: la tabla de comentarios no respondió.</p>
-            ) : (
-              <>
-                <p className="admin-card-note">
-                  El módulo con más comentarios suele ser el que más falta le hace crecer.
-                </p>
-                <BarrasHorizontales titulo="Comentarios por módulo" datos={comentariosPorModulo} />
-              </>
-            )}
-          </div>
-        </div>
-      </SeccionPlegable>
+/**
+ * «Últimos 3, 6 o 12 meses», arriba a la derecha como en Penpot.
+ *
+ * Enlaces y no un desplegable de cliente, por lo mismo que `FiltroDeQuien`: la
+ * elección va en la dirección, la página sigue siendo de servidor y cada enlace
+ * conserva el «quién» elegido, como `FiltroDeQuien` conserva el periodo.
+ */
+function SelectorDePeriodo({ actual, quien }: { actual: Periodo; quien: QuienLee }) {
+  return (
+    <div className="estadisticas-periodo" role="group" aria-label="Periodo de las estadísticas">
+      <span className="estadisticas-periodo-rotulo">
+        <CalendarDays aria-hidden size={16} />
+        Últimos
+      </span>
+      {PERIODOS.map((p) => (
+        <Link
+          key={p}
+          href={rutaDeEstadisticas(p, quien)}
+          className={`estadisticas-periodo-opcion${p === actual ? ' activa' : ''}`}
+          aria-current={p === actual ? 'true' : undefined}
+          scroll={false}
+        >
+          {p} meses
+        </Link>
+      ))}
     </div>
   )
 }

@@ -3,9 +3,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { obtenerSesion } from '@/lib/sesion'
 import { faltaLaPrimeraCuenta } from '@/app/(frontend)/acciones/sesion'
+import { PanelDeEntrar } from '@/components/acceso/PanelesDeMarca'
 import { FormularioEntrar } from './FormularioEntrar'
-import { ruta } from '@/lib/rutas'
-import { MallaDeNodos } from '@/components/MallaDeNodos'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +14,8 @@ export const metadata: Metadata = {
 }
 
 /**
- * Pantalla de entrada propia.
+ * Pantalla de entrada propia, con el tablero «Entrar» de Penpot (D-236): la
+ * marca a la izquierda y el formulario en su tarjeta a la derecha.
  *
  * Quien ya tiene sesión no la ve: se le manda a donde iba. Volver a mostrar el
  * formulario a alguien que ya entró es el modo más rápido de que crea que su
@@ -28,24 +28,23 @@ export default async function PaginaEntrar() {
   if (await faltaLaPrimeraCuenta()) redirect('/instalar')
 
   return (
-    <main className="acceso">
-      <div className="acceso-fondo" aria-hidden="true">
-        <MallaDeNodos className="portada-malla" />
-      </div>
-      <div className="acceso-caja">
-        <div className="acceso-marca">
-          <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="acceso-logo" />
-        </div>
-        <h1 className="acceso-titulo">Entrar</h1>
+    <main className="ac-pantalla">
+      <PanelDeEntrar />
+      <div className="ac-lado">
+        <section className="ac-tarjeta" aria-labelledby="entrar-titulo">
+          <h1 id="entrar-titulo" className="ac-titulo">
+            Entrar
+          </h1>
+          <p className="ac-bajada">Con su cuenta de la plataforma.</p>
 
-        <FormularioEntrar
-          cuentaInactiva={Boolean(sesion.usuario && !sesion.activo)}
-        />
+          <FormularioEntrar cuentaInactiva={Boolean(sesion.usuario && !sesion.activo)} />
 
-        <p className="acceso-nota">
-          ¿No tiene cuenta? <Link href="/registro">Solicite acceso</Link>. Un administrador revisa
-          cada solicitud antes de activarla.
-        </p>
+          <p className="ac-nota">
+            ¿No tiene cuenta? <Link href="/registro">Solicite acceso.</Link>
+            <br />
+            Un administrador revisa cada solicitud antes de activarla.
+          </p>
+        </section>
       </div>
     </main>
   )

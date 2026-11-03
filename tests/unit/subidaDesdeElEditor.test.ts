@@ -81,8 +81,18 @@ describe('lo que manda el editor al subir un archivo', () => {
     // La ruta crea el documento con lo que llega; un texto obligatorio que el
     // editor no mandara haría fallar toda inserción desde un bloque, con un
     // mensaje de validación que no menciona el formulario.
+    //
+    // Fuera quedan los esquemas con pantalla propia, como `medios-pagina`: a
+    // esos no se llega desde un bloque, sino desde su pantalla, que manda sus
+    // propios campos (el `espacio` de la foto). La segunda comprobación ata
+    // esa excepción: si algún campo del esquema llegara a apuntarles, el
+    // editor podría subirles un archivo y volvería a hacer falta cubrirlos.
     const enviados = new Set(formularioDeArchivo('medios', archivo).keys())
-    for (const esquema of ESQUEMAS.filter((e) => e.subida)) {
+    const fuente = readFileSync(join(process.cwd(), 'src', 'admin', 'esquema.ts'), 'utf8')
+    for (const propio of ESQUEMAS.filter((e) => e.pantallaPropia)) {
+      expect(fuente, `un campo apunta a ${propio.slug}`).not.toContain(`coleccion: '${propio.slug}'`)
+    }
+    for (const esquema of ESQUEMAS.filter((e) => e.subida && !e.pantallaPropia)) {
       const obligatorios = esquema.secciones
         .flatMap((s) => s.campos)
         .filter((c) => c.tipo === 'texto' && c.requerido)

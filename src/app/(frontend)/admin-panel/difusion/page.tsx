@@ -32,12 +32,33 @@ export default async function PaginaDifusion() {
   const lectura = await Promise.all([
     Promise.all(
       AUDIENCIAS_DE_DIFUSION.map(async (a) => {
-        const { totalDocs } = await payload.count({
-          collection: 'usuarios',
-          where: condicionDeDestinatarios(a.value),
-          overrideAccess: true,
-        })
-        return { valor: a.value, etiqueta: a.label, cuantos: totalDocs } satisfies GrupoDeDestinatarios
+        const [{ totalDocs }, { docs: primeras }] = await Promise.all([
+          payload.count({
+            collection: 'usuarios',
+            where: condicionDeDestinatarios(a.value),
+            overrideAccess: true,
+          }),
+          // A quién va el primer correo de la cola, para que la vista previa
+          // diga «Así le llega a Camila Rojas» con el saludo que de verdad
+          // recibirá, y no «Hola, Nombre.». El orden es el de
+          // `destinatariosDe`, por identificador: es la cola que arma el envío.
+          payload.find({
+            collection: 'usuarios',
+            where: condicionDeDestinatarios(a.value),
+            sort: 'id',
+            limit: 1,
+            depth: 0,
+            overrideAccess: true,
+            select: { nombre: true, email: true },
+          }),
+        ])
+        const primera = primeras[0] as { nombre?: string | null; email?: string } | undefined
+        return {
+          valor: a.value,
+          etiqueta: a.label,
+          cuantos: totalDocs,
+          primera: primera ? { nombre: primera.nombre ?? '', email: primera.email ?? '' } : null,
+        } satisfies GrupoDeDestinatarios
       }),
     ),
     payload.find({

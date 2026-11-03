@@ -1,42 +1,59 @@
 /* La pantalla de estructuras anatómicas (D-179, P-003 E8). */
 
-.estructuras-contador { margin: var(--e-4) 0; }
-.estructuras-contador-leyenda { margin-top: var(--e-2); font-size: var(--t-sm); color: var(--mudo); }
-.estructuras-contador-leyenda strong { color: var(--tinta); font-size: var(--t-md, 1rem); }
-
-.estructuras-tarjetas {
+/* El avance, arriba y como en Penpot (P-007 E5, D-238): el total a la
+   izquierda, estrecho, y las regiones a la derecha, que necesitan el ancho para
+   sus barras. Es la `.tablero-fila` del panel al revés, y por eso es propia. */
+.estructuras-tablero {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: var(--e-3);
-  margin-top: var(--e-4);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--e-4);
+  margin-bottom: var(--e-5);
+  align-items: start;
 }
-.estructuras-tarjeta {
-  background: var(--superficie);
-  border: 1px solid var(--linea);
-  border-radius: var(--r);
-  padding: var(--e-3) var(--e-4);
-}
-.estructuras-tarjeta-ok { border-left: 4px solid var(--verde); }
-.estructuras-tarjeta-atencion { border-left: 4px solid var(--ambar-texto); }
-.estructuras-tarjeta-titulo { font-size: var(--t-sm); color: var(--mudo); }
-.estructuras-tarjeta-valor { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
-.estructuras-tarjeta-detalle { font-size: var(--t-sm); color: var(--mudo); }
+.estructuras-avance-cifra { color: var(--verde); font-size: var(--t-md); font-weight: 700; }
+.estructuras-avance-nota { margin: 0; font-size: var(--t-sm); color: var(--mudo); }
 
-/* La barra de avance: el fondo es la línea y el relleno, el verde de «completa». */
-.estructuras-barra {
-  height: 10px;
-  border-radius: 999px;
-  background: var(--linea-suave);
+/* Cada región en una fila: nombre, barra y porcentaje. La barra apila lo
+   completo y lo empezado sobre la pista gris de lo que falta, todas sobre el
+   mismo 100 %. */
+.estructuras-avance-regiones { display: flex; flex-direction: column; gap: var(--e-2); margin: 0; padding: 0; list-style: none; }
+.estructuras-avance-region {
+  display: grid;
+  grid-template-columns: minmax(9rem, 15rem) minmax(0, 1fr) 4.5rem;
+  align-items: center;
+  gap: var(--e-4);
+}
+/* El nombre es un botón, pero se lee como el rótulo de la fila, en tinta y no
+   en el azul de `.estructuras-enlace`: trece nombres en azul eran trece
+   enlaces compitiendo con las barras. Al pasar por encima sí se delata. */
+.estructuras-avance-region .estructuras-avance-nombre { font-weight: 600; color: var(--tinta); }
+.estructuras-avance-region .estructuras-avance-nombre:hover { color: var(--marca); }
+.estructuras-avance-barra {
+  display: flex;
+  height: 12px;
   overflow: hidden;
-  min-width: 90px;
+  border-radius: var(--r-full);
+  background: var(--linea);
 }
-.estructuras-barra-relleno { height: 100%; background: var(--verde); border-radius: 999px; transition: width 0.25s; }
+.estructuras-avance-barra > span { height: 100%; transition: width var(--dur) var(--curva); }
+.estructuras-avance-porcentaje { font-size: var(--t-sm); font-weight: 650; color: var(--tinta); font-variant-numeric: tabular-nums; }
 
-.estructuras-regiones { margin-bottom: var(--e-4); }
-.estructuras-regiones > summary { cursor: pointer; font-weight: 600; padding: var(--e-2) 0; }
-.estructuras-col-barra { min-width: 150px; }
-.estructuras-col-barra .estructuras-barra { display: inline-block; width: 90px; vertical-align: middle; margin-right: var(--e-2); }
-.estructuras-porcentaje { font-size: var(--t-sm); color: var(--mudo); }
+/* El ancla adonde baja la página al pulsar una región: deja aire para que la
+   fila de pestañas no quede pegada al borde. */
+.estructuras-ancla { scroll-margin-top: var(--e-5); }
+
+@media (max-width: 1100px) {
+  .estructuras-tablero { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  /* En el teléfono el nombre va encima y la barra con su porcentaje debajo. */
+  /* El porcentaje en una columna fija: con `auto`, «9,9 %» y «0 %» dejaban
+     cada barra de un largo distinto, y se comparaban mal entre sí. */
+  .estructuras-avance-region { grid-template-columns: minmax(0, 1fr) 4rem; gap: var(--e-1) var(--e-3); }
+  .estructuras-avance-porcentaje { text-align: right; }
+  .estructuras-avance-nombre { grid-column: 1 / -1; }
+}
+
 .estructuras-enlace {
   background: none;
   border: 0;

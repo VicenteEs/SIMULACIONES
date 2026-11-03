@@ -41,10 +41,17 @@
 
 .solicitud-cabecera {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--e-3);
+  gap: var(--e-1) var(--e-3);
 }
+
+/* Los datos ocupan lo que haya y la fecha baja a su línea cuando no cabe al
+   lado. Con la fila sin `wrap` y la fecha en `nowrap`, un correo largo la
+   sacaba de la tarjeta, y en la tercera columna se pintaba sobre la cuarta
+   (D-236). */
+.solicitud-cabecera > div { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
 
 .solicitud-fecha { white-space: nowrap; font-size: var(--t-xs); color: var(--mudo); }
 
@@ -88,8 +95,71 @@
 
 .solicitud-acciones .admin-select { min-width: 140px; }
 
+/* ---------- la tabla y sus cifras al lado (P-007 E5, D-238) ---------- */
+/* Con consulta de contenedor y no de pantalla: lo que decide si caben la
+ * tabla y la columna es el ancho del contenido, y ese cambia también al
+ * plegar la barra lateral. Por debajo de ~1.000 px la tabla de cuatro columnas
+ * ya no cabe junto a 288 px de cifras, y las cifras bajan y se reparten. */
+.usuarios-contenedor { container-type: inline-size; margin-bottom: var(--e-5); }
+
+.usuarios-cuerpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--e-4);
+  align-items: start;
+}
+
+/* La sección plegable trae su margen de abajo para cuando va suelta; dentro de
+ * la rejilla lo pone el `gap`, y con los dos la columna quedaba descolgada. */
+.usuarios-cuerpo > .plegable { margin-bottom: 0; }
+
+.usuarios-lateral {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--e-4);
+  align-items: start;
+}
+
+@container (min-width: 1000px) {
+  .usuarios-cuerpo { grid-template-columns: minmax(0, 1fr) 288px; }
+  .usuarios-lateral { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* «Qué puede cada rol». */
+.usuarios-roles { display: grid; gap: var(--e-1); margin: 0; }
+.usuarios-roles dt { font-size: var(--t-sm); font-weight: 650; color: var(--tinta); }
+.usuarios-roles dd { margin: 0 0 var(--e-2); font-size: var(--t-sm); color: var(--mudo); line-height: 1.45; }
+.usuarios-roles dd:last-child { margin-bottom: 0; }
+
 /* ---------- tabla de cuentas ---------- */
 .usuarios-buscar { min-width: 280px; }
+
+/* Un correo es una sola palabra para el navegador: sin esto, una dirección
+ * larga fijaba el ancho mínimo de la columna y la tabla se salía de su sitio. */
+.usuarios-cuenta { overflow-wrap: anywhere; }
+
+/* Los números de los módulos bajo el rol, en el color de cada uno. */
+.usuarios-modulos { display: flex; flex-wrap: wrap; gap: 3px; margin-top: var(--e-1); }
+.usuarios-modulo {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--r-sm);
+  font-size: var(--t-xs);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.usuarios-modulo-1 { background: var(--mod-1-tenue); color: var(--mod-1); }
+.usuarios-modulo-2 { background: var(--mod-2-tenue); color: var(--mod-2); }
+.usuarios-modulo-3 { background: var(--mod-3-tenue); color: var(--mod-3); }
+.usuarios-modulo-4 { background: var(--mod-4-tenue); color: var(--mod-4); }
+.usuarios-modulo-5 { background: var(--mod-5-tenue); color: var(--mod-5); }
+.usuarios-modulos-ninguno { font-size: var(--t-xs); color: var(--mudo); }
+
+/* El último acceso y el alta bajo la insignia de estado. */
+.usuarios-fechas { display: flex; flex-direction: column; margin-top: var(--e-1); white-space: nowrap; }
 
 /* El nombre y la insignia «usted» en una fila, con aire entre los dos. */
 .usuarios-nombre { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2); }
@@ -155,4 +225,16 @@ textarea[data-redimensionable='vertical'] { resize: vertical; }
   .usuarios-buscar { min-width: 0; }
   /* Dentro de la tarjeta de la fila, el desplegable de rol ocupa lo que haya. */
   .usuarios-rol { flex: 1; min-width: 0; }
+  /* Los módulos y las fechas bajan a su propia línea, alineados bajo el
+   * control y no bajo el rótulo: en la misma línea que el desplegable lo
+   * dejaban en dos letras, y las fechas se cortaban contra el borde. Los 96 px
+   * son los del rótulo de `.tabla-apilable` en `panel.css`. */
+  .tabla-apilable tbody tr > td.usuarios-celda-rol,
+  .tabla-apilable tbody tr > td.usuarios-celda-estado { flex-wrap: wrap; align-items: center; }
+  .usuarios-celda-rol .usuarios-modulos,
+  .usuarios-celda-estado .usuarios-fechas {
+    flex-basis: calc(100% - 96px - var(--e-2));
+    margin: 0 0 0 calc(96px + var(--e-2));
+    white-space: normal;
+  }
 }

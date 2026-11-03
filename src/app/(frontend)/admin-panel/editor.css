@@ -164,6 +164,16 @@
 .revision-caja-fuera { box-shadow: none; padding: var(--e-2) 0; }
 .revision-nota-campo textarea { min-height: 72px; }
 .revision-tenue { font-size: var(--t-sm); }
+
+/* Las dos firmas (D-240): dos casillas lado a lado, la puesta en verde. */
+.revision-firmas { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--e-2); }
+.revision-firma {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--e-2) var(--e-3); border: 1px dashed var(--linea-fuerte); border-radius: var(--r);
+}
+.revision-firma-puesta { border-style: solid; border-color: var(--verde); background: var(--verde-tenue); }
+/* Una línea por firma: los motivos y las notas de cada profesión van separados. */
+.revision-varias-lineas { white-space: pre-line; }
 .revision-nota { font-size: var(--t-sm); }
 
 /* ---------- campos ---------- */

@@ -9,6 +9,9 @@ import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Vacio } from '@/compo
 import { CabeceraDeModulo, claseDeModulo } from '@/components/Cabeceras'
 import { TarjetaFicha } from '@/components/TarjetaFicha'
 import { lecturasDelResidente } from '@/lib/lecturas'
+import { codigoDelCaso } from '@/lib/casoQuirurgico'
+import { segmentoDeLaPlataforma } from '@/lib/clasificacionAO'
+import { FiguraDelSegmento, tieneFigura } from '@/components/FiguraDelSegmento'
 import { Plus } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -46,11 +49,21 @@ export default async function Listado() {
     overrideAccess: false,
     user: usuarioEfectivo as never,
     limit: 200,
-    // Solo lo que pinta la tarjeta, y sin poblar relaciones (D-128). Sin esto
-    // viajaba cada documento entero, con sus relaciones a dos niveles, para
-    // enseñar un código y un nombre.
-    depth: 0,
-    select: { nombre: true, codigo: true, _status: true },
+    // Solo lo que pinta la tarjeta (D-128). Sin esto viajaba cada documento
+    // entero, con sus relaciones a dos niveles, para enseñar un código y un
+    // nombre.
+    //
+    // Desde D-237 la tarjeta enseña también el hueso, el recorte del atlas y
+    // «N pasos · N puntos», así que se pide un nivel de relaciones, pero de
+    // cada una solo su nombre y su código (`populate`), y de cada paso solo sus
+    // puntos. El código del caso puede no estar escrito: se compone con el del
+    // hueso y el de la clasificación, como en la consola (`codigoDelCaso`).
+    depth: 1,
+    select: { nombre: true, codigo: true, _status: true, hueso: true, clasificacion: true, pasos: { puntos: true } },
+    populate: {
+      'huesos-ao': { nombre: true, codigo: true },
+      'clasificaciones-ao': { nombre: true, codigo: true },
+    },
     sort: 'nombre',
   })
 
@@ -93,18 +106,35 @@ export default async function Listado() {
         />
       ) : (
         <ul className="rejilla-fichas">
-          {resultado.docs.map((d) => (
-            <li key={d.id}>
-              <TarjetaFicha
-                href={`/simulador/${d.id}`}
-                titulo={d.nombre as string}
-                codigo={(d.codigo as string) ?? null}
-                borrador={d._status === 'draft'}
-                leida={lecturas.leida(d.id)}
-                accion="Abrir caso"
-              />
-            </li>
-          ))}
+          {resultado.docs.map((d) => {
+            const codigo = codigoDelCaso(d as never)
+            const segmento = segmentoDeLaPlataforma(codigo)
+            const hueso = typeof d.hueso === 'object' && d.hueso ? (d.hueso as { nombre?: string }).nombre : null
+            const pasos = Array.isArray(d.pasos) ? d.pasos : []
+            const puntos = pasos.reduce((suma, p) => suma + (typeof p.puntos === 'number' ? p.puntos : 0), 0)
+            return (
+              <li key={d.id}>
+                <TarjetaFicha
+                  href={`/simulador/${d.id}`}
+                  titulo={d.nombre as string}
+                  codigo={codigo}
+                  resumen={hueso}
+                  borrador={d._status === 'draft'}
+                  leida={lecturas.leida(d.id)}
+                  antetitulo={segmento}
+                  figura={segmento && tieneFigura(segmento) ? <FiguraDelSegmento segmento={segmento} /> : undefined}
+                  insignias={
+                    pasos.length > 0 ? (
+                      <span className="etiqueta">
+                        {pasos.length} {pasos.length === 1 ? 'paso' : 'pasos'} · {puntos} puntos
+                      </span>
+                    ) : undefined
+                  }
+                  accion="Abrir caso"
+                />
+              </li>
+            )
+          })}
         </ul>
       )}
     </main>

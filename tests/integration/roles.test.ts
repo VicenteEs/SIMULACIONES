@@ -232,6 +232,13 @@ const CLASE_DE: Record<string, Clase> = {
   requisitos: 'buzon',
   // El equipo que se enseña en el inicio.
   equipo: 'vitrina',
+  // Las fotos y los textos de las páginas públicas (P-007 E2): solo el
+  // administrador. Lo público es la ruta `api/pagina/[archivo]`, no la colección.
+  'medios-pagina': 'administracion',
+  'textos-pagina': 'administracion',
+  // Las cotizaciones de la portada (P-007 E3): las crea la acción pública
+  // `pedirCotizacion` con `overrideAccess`; por la API, solo el administrador.
+  cotizaciones: 'administracion',
 }
 
 type Esperado = (a: Actor) => boolean
@@ -457,6 +464,22 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
     fabricar: (nombre) => ({ data: { nombre, modulosEnMantencion: [] } }),
   },
   equipo: { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre, cargo: 'Cargo de prueba' } }) },
+  // Todas en el mismo espacio y con la misma imagen: el nombre del archivo sale
+  // de la huella del contenido, y Payload le añade «-1», «-2» a las repetidas.
+  'medios-pagina': {
+    titulo: 'alt',
+    fabricar: (alt) => ({
+      data: { alt, espacio: 'portada.capas.piel' },
+      file: { data: PNG, mimetype: 'image/png', name: `${alt}.png`, size: PNG.length },
+    }),
+  },
+  'textos-pagina': { titulo: 'texto', fabricar: (texto) => ({ data: { espacio: 'portada.hero.titular', texto } }) },
+  cotizaciones: {
+    titulo: 'institucion',
+    fabricar: (institucion) => ({
+      data: { nombre: 'Persona de prueba', correo: 'cotiza@prueba.invalid', institucion, residentes: '1 a 5', estado: 'nueva' },
+    }),
+  },
   requisitos: {
     titulo: 'titulo',
     fabricar: (titulo) => ({

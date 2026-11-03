@@ -51,9 +51,18 @@ const ORDEN_DE_ESTADO: Record<EstadoDeRevision, number> = {
   publicada: 4,
 }
 
+// Con la zona escrita, y no la del equipo que pinta: esta tabla se hidrata, y
+// una validación de las nueve de la noche en Chile salía con un día en el
+// servidor y con el siguiente en un navegador en UTC, y React tiraba la tabla
+// entera por no coincidir (D-236).
 const fecha = (valor: string | null) =>
   valor
-    ? new Date(valor).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' })
+    ? new Date(valor).toLocaleDateString('es-CL', {
+        day: '2-digit',
+        month: 'short',
+        year: '2-digit',
+        timeZone: 'America/Santiago',
+      })
     : '—'
 const numero = (valor: number | null, decimales = 1) =>
   valor === null ? '—' : valor.toLocaleString('es-CL', { maximumFractionDigits: decimales })
@@ -404,7 +413,16 @@ export function TablaDeAuditoria({
                   ) : null}
                 </td>
                 <td>{f.asignada || <span className="revision-tenue">sin asignar</span>}</td>
-                <td>{f.validador || '—'}</td>
+                <td>
+                  {f.validador || '—'}
+                  {/* Las firmas (D-240) bajo quien la validó: quién firmó
+                      cada profesión, o cuál falta. */}
+                  {f.firmaMedico || f.firmaKinesiologo ? (
+                    <div className="revision-tenue">
+                      Médico: {f.firmaMedico || 'falta'} · Kinesiólogo: {f.firmaKinesiologo || 'falta'}
+                    </div>
+                  ) : null}
+                </td>
                 <td className="u-nowrap">{fecha(f.validadaEn)}</td>
                 <td className="auditoria-numero">{numero(f.porcentaje)} %</td>
                 <td className="auditoria-numero">{numero(f.minutosActivosDelValidador)}</td>

@@ -1,5 +1,8 @@
 import React from 'react'
 import { Flag } from 'lucide-react'
+import { SinDatos, TablaAccesible } from './graficos/piezas'
+import type { Punto } from './graficos/BarrasVerticales'
+import type { Umbral } from './graficos/Lineas'
 
 /**
  * Gráficos del panel, dibujados a mano en HTML.
@@ -20,118 +23,24 @@ import { Flag } from 'lucide-react'
  * Los colores llegan como variables (`var(--tono-ok)`, `var(--marca)`), nunca
  * como hexadecimales: la paleta vive en las hojas y el mapa de tonos de
  * estado en `src/lib/tonosDeEstado.ts`, compartido con las insignias.
+ *
+ * Desde P-007 hay además líneas con área, donas, mapa de calor y minigráficos,
+ * en `graficos/`: los que responden al ratón y al teclado son de cliente, y su
+ * aritmética —ejes, trazos, arcos— vive aparte en `src/lib/graficos.ts`, que es
+ * lo que la suite puede probar. Este archivo los reexporta para que una página
+ * los pida a todos al mismo sitio. Las barras verticales se mudaron allí por lo
+ * mismo: ahora se recorren con las flechas.
  */
 
-export interface Punto {
-  etiqueta: string
-  valor: number
-  /** Etiqueta larga para el globo y la tabla, si la corta no basta. */
-  detalle?: string
-}
+export type { Punto } from './graficos/BarrasVerticales'
+export { BarrasVerticales } from './graficos/BarrasVerticales'
+export { Lineas, type SerieDeLineas, type Umbral } from './graficos/Lineas'
+export { Dona, type ParteDeDona } from './graficos/Dona'
+export { MapaDeCalor } from './graficos/MapaDeCalor'
+export { Minigrafico } from './graficos/Minigrafico'
+export { SinDatos, NoSePudoLeer } from './graficos/piezas'
 
 const maximo = (datos: Punto[]) => Math.max(1, ...datos.map((d) => d.valor))
-
-function SinDatos() {
-  return <p className="grafico-vacio">Sin datos todavía.</p>
-}
-
-/** La tabla que lee el lector de pantalla en lugar del dibujo. */
-function TablaAccesible({
-  titulo,
-  columnas,
-  filas,
-}: {
-  titulo: string
-  columnas: string[]
-  filas: (string | number)[][]
-}) {
-  return (
-    <table className="sr-only">
-      <caption>{titulo}</caption>
-      <thead>
-        <tr>
-          {columnas.map((c) => (
-            <th key={c} scope="col">
-              {c}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {filas.map((fila, i) => (
-          <tr key={i}>
-            {fila.map((celda, j) =>
-              j === 0 ? (
-                <th key={j} scope="row">
-                  {celda}
-                </th>
-              ) : (
-                <td key={j}>{celda}</td>
-              ),
-            )}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
-/**
- * Barras verticales: series temporales cortas, como los últimos doce meses.
- *
- * Eran un SVG con `preserveAspectRatio="none"`, que estiraba el dibujo al
- * ancho de la tarjeta: las esquinas redondeadas salían ovaladas y la línea
- * base engordaba o adelgazaba según la pantalla. Ahora cada barra es un
- * bloque con su alto en porcentaje, sobre una rejilla de cuartos, y al pasar
- * el ratón —o al llegar con el tabulador— enseña su cifra en un globo.
- */
-export function BarrasVerticales({
-  datos,
-  titulo,
-  altura = 140,
-}: {
-  datos: Punto[]
-  titulo: string
-  altura?: number
-}) {
-  if (datos.length === 0) return <SinDatos />
-
-  const tope = maximo(datos)
-
-  return (
-    <figure className="grafico">
-      <figcaption className="sr-only">{titulo}</figcaption>
-      <div className="grafico-columnas" style={{ height: altura }} aria-hidden>
-        {datos.map((punto, i) => (
-          <span key={`${punto.etiqueta}-${i}`} className="grafico-columna">
-            <span
-              className={`grafico-columna-barra${punto.valor === 0 ? ' grafico-columna-barra-cero' : ''}`}
-              style={{ height: `${(punto.valor / tope) * 100}%` }}
-            />
-            <span className="grafico-globo">
-              {punto.detalle ?? punto.etiqueta}: <strong>{punto.valor}</strong>
-            </span>
-          </span>
-        ))}
-      </div>
-
-      <div className="grafico-ejes" aria-hidden>
-        {datos.map((punto, i) => (
-          <span key={`${punto.etiqueta}-${i}`} className="grafico-eje">
-            <span className="grafico-eje-valor">{punto.valor}</span>
-            <span className="grafico-eje-etiqueta">{punto.etiqueta}</span>
-          </span>
-        ))}
-      </div>
-
-      <TablaAccesible
-        titulo={titulo}
-        columnas={['Periodo', 'Valor']}
-        filas={datos.map((p) => [p.detalle ?? p.etiqueta, p.valor])}
-      />
-    </figure>
-  )
-}
 
 /**
  * Barras horizontales: comparar categorías con nombre largo.
@@ -140,26 +49,52 @@ export function BarrasVerticales({
  * la bandera delante del nombre: el color no va solo, como pide cualquier
  * señal de estado (D-142: el ritmo de revisión por encima de lo que se lee).
  * `formato` escribe el valor, si no basta el número tal cual.
+ *
+ * `umbral` dibuja una raya vertical que cruza todas las filas, con su rótulo
+ * (P-007): las palabras por minuto al validar llevan la de 250, por encima de
+ * la cual es difícil haber leído con atención (D-142). Sin ella, la bandera
+ * decía que una barra se pasaba pero no de qué. Si el umbral queda por encima
+ * de la barra más larga, la escala se estira hasta él, para que se vea.
  */
 export function BarrasHorizontales({
   datos,
   titulo,
   destacar,
   formato,
+  umbral,
 }: {
   datos: Punto[]
   titulo: string
   destacar?: (punto: Punto) => boolean
   formato?: (valor: number) => string
+  umbral?: Umbral
 }) {
   if (datos.length === 0) return <SinDatos />
-  const tope = maximo(datos)
+  const tope = Math.max(maximo(datos), umbral?.valor ?? 0)
   const escribir = (v: number) => (formato ? formato(v) : String(v))
 
   return (
     <figure className="grafico">
       <figcaption className="sr-only">{titulo}</figcaption>
-      <div className="grafico-lista" aria-hidden>
+      <div
+        className={`grafico-lista${umbral ? ' grafico-lista-con-umbral' : ''}`}
+        style={umbral ? ({ '--umbral': `${(umbral.valor / tope) * 100}%` } as React.CSSProperties) : undefined}
+        aria-hidden
+      >
+        {/* El rótulo va en una fila más, con las mismas columnas que las
+            barras, para que quede justo encima de la raya. La raya la pinta
+            cada barra en su `::after` (`panel.css`): un trazo que cruzara la
+            lista entera tendría que saber dónde empieza la columna de las
+            barras, que depende del nombre más largo. */}
+        {umbral ? (
+          <div className="grafico-fila grafico-umbral-fila">
+            <span />
+            <span className="grafico-umbral-pista">
+              <span className="grafico-umbral-rotulo">{umbral.etiqueta}</span>
+            </span>
+            <span />
+          </div>
+        ) : null}
         {datos.map((punto) => {
           const destacado = destacar?.(punto) ?? false
           return (

@@ -7,6 +7,8 @@ import { armarCorreo } from '@/correo/plantilla'
 import { mensajeDeClaveNueva } from '@/correo/mensajes'
 import { registrarAccion } from '@/lib/registroServidor'
 import { OPCIONES_DE_MODULO } from './opcionesDeModulo'
+import { ETAPAS_DE_FORMACION } from '@/lib/solicitudDeCuenta'
+import { PROFESIONES } from '@/lib/firmas'
 
 /**
  * Cuántos intentos fallidos bloquean una cuenta, y por cuánto tiempo.
@@ -384,6 +386,27 @@ export const Usuarios: CollectionConfig = {
     },
     { name: 'institucion', type: 'text', label: 'Institución o servicio' },
     {
+      // Lo que la persona dice de sí al pedir la cuenta en `/registro`: R1 a
+      // R4, kinesiología o docente (P-007 E3, D-236). Opcional, porque las
+      // cuentas que crea el administrador no lo preguntan y las de antes no lo
+      // tienen. No decide ningún permiso: es un dato más para activar la
+      // cuenta con el rol y los módulos que le tocan.
+      name: 'etapaDeFormacion',
+      type: 'select',
+      label: 'Etapa de formación',
+      options: ETAPAS_DE_FORMACION.map((e) => ({ label: e.larga, value: e.valor })),
+    },
+    {
+      // Médico o kinesiólogo (D-240): decide qué firma pone la cuenta en una
+      // ficha en revisión, y nada más. Lo pone el administrador en «Usuarios y
+      // permisos», no quien firma: si se eligiera al firmar, una misma persona
+      // podría poner las dos firmas que se piden de dos profesiones.
+      name: 'profesion',
+      type: 'select',
+      label: 'Profesión',
+      options: PROFESIONES.map((p) => ({ label: p.etiqueta, value: p.valor })),
+    },
+    {
       // De dónde salió la cuenta. No decide ningún permiso: sirve para que el
       // panel distinga, entre las desactivadas, a quien pidió entrar de quien
       // fue dada de baja, que se atienden al revés.
@@ -485,6 +508,26 @@ export const Usuarios: CollectionConfig = {
         readOnly: true,
         description: 'Lo anota la plataforma en cada inicio de sesión.',
       },
+    },
+    {
+      // Cuándo cerró la bienvenida del primer ingreso, eligiendo un recorrido
+      // o con «Saltar por ahora» (P-007 E4, D-237). Mientras esté vacío,
+      // `entrar()` lleva a la cuenta a `/bienvenida` en vez de a la portada.
+      //
+      // Una fecha y no una casilla: dice además cuándo, que es lo que mira
+      // quien se pregunta si una cuenta llegó a entrar después de activarla. La
+      // migración que lo crea se la pone a las cuentas que ya habían entrado
+      // alguna vez, que conocen la plataforma y no necesitan que se la
+      // presenten.
+      //
+      // El mismo cierre que `ultimoAcceso` y por lo mismo: sin acceso de campo
+      // cualquier administrador podría reescribirla por la API. La escribe
+      // solo `cerrarLaBienvenida`, por la API local.
+      name: 'bienvenidaVistaEn',
+      type: 'date',
+      label: 'Bienvenida vista el',
+      access: { create: () => false, update: () => false },
+      admin: { readOnly: true },
     },
     {
       // Notas del administrador sobre la cuenta —quién la pidió, por qué se

@@ -1,0 +1,97 @@
+/* ==========================================================================
+   La pestaña Auditoría (`admin-panel/auditoria/page.tsx`), con el tablero de
+   Penpot (P-007 E5, D-238).
+
+   Las `.auditoria-*` de antes (filtros, tabla de fichas, números en rojo)
+   siguen en `panel.css`, que comparten todas las pestañas; aquí va solo lo que
+   añade el tablero. Todo con tokens.
+   ========================================================================== */
+
+/* «Cómo va la revisión» y «Quién revisa y cómo» siguen siendo
+   `SeccionPlegable` —se pliegan y recuerdan cómo se dejaron, que lo pidió el
+   dueño—, pero se pintan como los titulares de sección de Penpot: el título
+   sobre el fondo de la página y las tarjetas debajo, blancas y con su sombra.
+   Es lo mismo que hace Estadísticas en su hoja; `seguimiento.css` las deja
+   planas y grises dentro de una caja, que es lo que conviene a «Las fichas»,
+   y por eso esto va bajo `.auditoria-tablero` y no toca esa sección. */
+.auditoria-tablero .plegable { background: none; border: 0; box-shadow: none; margin-bottom: var(--e-6); }
+.auditoria-tablero .plegable-cabecera { padding: var(--e-2) var(--e-1); border-radius: var(--r); }
+.auditoria-tablero .plegable[open] > .plegable-cabecera { border-bottom: 0; border-radius: var(--r); }
+.auditoria-tablero .plegable-cabecera:hover { background: var(--linea-suave); }
+.auditoria-tablero .plegable-titulo { font-size: var(--t-lg); }
+.auditoria-tablero .plegable-resumen { background: var(--superficie); }
+.auditoria-tablero .plegable-cuerpo { display: flex; flex-direction: column; gap: var(--e-4); padding: var(--e-3) 0 0; }
+
+.auditoria-tablero .plegable .admin-card { background: var(--superficie); border-color: var(--linea-suave); box-shadow: var(--sombra-1); }
+/* Las dos tarjetas de cada fila, a la misma altura: con una más corta que la
+   otra, la fila se leía como dos piezas sueltas. */
+.auditoria-tablero .tablero-fila { margin-bottom: 0; align-items: stretch; }
+
+/* El globo de las barras verticales sale centrado sobre su columna, y en las
+   de los extremos sobresalía de la tarjeta: a 390 px, el de la última semana
+   se salía de la pantalla y la página entera se podía arrastrar de lado, aun
+   con el globo invisible, que ocupa su sitio igual. Aquí los tres primeros se
+   abren hacia la derecha desde su columna y los tres últimos hacia la
+   izquierda. Depende del marcado de `BarrasVerticales` (`.grafico-columna` >
+   `.grafico-globo`); el día que el gráfico lo resuelva solo, como ya hace
+   `Lineas` con `grafico-globo-izquierda`, esto sobra. La última regla quita
+   el desplazamiento al pasar el ratón solo en esas seis: en las del medio el
+   globo sigue centrado con el `translate(-50%)` de `panel.css`. */
+.auditoria-columnas .grafico-columna:nth-child(-n + 3) .grafico-globo { left: 0; transform: translate(0, 4px); }
+.auditoria-columnas .grafico-columna:nth-last-child(-n + 3) .grafico-globo { left: auto; right: 0; transform: translate(0, 4px); }
+.auditoria-columnas .grafico-columna:is(:nth-child(-n + 3), :nth-last-child(-n + 3)):is(:hover, .grafico-columna-activa) .grafico-globo {
+  transform: none;
+}
+
+/* «Señaladas», en el rojo de las validaciones señaladas de la tabla. Las tres
+   tonalidades de `Cifra` son las de su icono y no llegan al rojo: el rojo es
+   de lo que ya está mal, y una cifra de señaladas mayor que cero lo está. */
+.admin-card-value.auditoria-cifra-alerta { color: var(--alerta); }
+
+/* «Detalle por revisor»: la tabla dentro de su tarjeta. `panel.css` le da un
+   margen inferior de cuando iba suelta, y dentro de la tarjeta lo pone el
+   hueco entre piezas. */
+.auditoria-detalle .auditoria-revisores { margin: 0; }
+/* Con el círculo de las iniciales, los 170 px de `panel.css` partían el
+   nombre en dos renglones: «Dr. Andrés / Salinas». */
+.auditoria-detalle .auditoria-revisores th[scope='row'] { min-width: 210px; }
+/* Once columnas no caben en el ancho de la tarjeta con los rótulos en una
+   sola línea: «Min. por ficha validada» medía más que su cifra cinco veces, y
+   a 1440 px «% editado» y «Última actividad» quedaban fuera, detrás del
+   desplazamiento. Partidos en dos renglones, con la hora de la última
+   actividad en 24 horas y un poco menos de aire entre columnas, la tabla
+   entra entera. */
+.auditoria-detalle .auditoria-revisores thead th { white-space: normal; vertical-align: bottom; }
+.auditoria-detalle .auditoria-revisores :is(th, td) { padding-inline: var(--e-2); }
+
+/* El revisor con sus iniciales en un círculo, como en Actividad y Registro. */
+.auditoria-revisor { display: flex; align-items: center; gap: var(--e-3); }
+.auditoria-revisor-circulo {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-full);
+  background: var(--marca-tenue);
+  color: var(--marca);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* «% editado» con su barra: un vistazo para comparar revisores sin leer la
+   columna entera. La cifra queda a la derecha, alineada con las demás. */
+.auditoria-editado { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--e-2); }
+.auditoria-editado-barra {
+  flex: none;
+  width: 48px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--r-full);
+  background: var(--linea-suave);
+}
+.auditoria-editado-relleno { display: block; height: 100%; border-radius: var(--r-full); background: var(--marca); }
+
+/* Quien valida por encima de las 250 palabras por minuto, bajo la tabla. */
+.auditoria-aviso-ritmo { display: flex; align-items: flex-start; gap: var(--e-2); margin: 0; }
+.auditoria-aviso-ritmo > svg { flex: none; margin-top: 3px; color: var(--alerta); }

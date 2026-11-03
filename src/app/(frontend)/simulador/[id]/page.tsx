@@ -19,6 +19,7 @@ import { traerTodaLaMesa } from '@/lib/mesaCompleta'
 import { lecturasDelResidente } from '@/lib/lecturas'
 import { recorridoGuardado } from '@/lib/progresoDelSimulador'
 import { Rico } from '@/components/Rico'
+import { GuiaDeLaConsola } from '@/components/simulador/GuiaDeLaConsola'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +110,10 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
         <h1>{caso.nombre}</h1>
         <Rico valor={cirugia.resumen} className="entrada" />
       </CasoConSuLectura>
+
+      {/* Las tres llamadas de Penpot, la primera vez (D-237). Fuera de la
+          consola y no dentro: su cabecera explica por qué. */}
+      <GuiaDeLaConsola />
 
       <FormularioComentario
         coleccion="cirugias"

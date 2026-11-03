@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { borrarRespaldo, respaldarAhora } from '@/app/(frontend)/acciones/respaldos'
 import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
@@ -13,6 +13,11 @@ import { SeccionPlegable } from '@/components/ui/SeccionPlegable'
 import { Vacio } from '@/components/ui/Vacio'
 import { claseDeInsignia } from '@/lib/tonosDeEstado'
 
+// Con la zona puesta (D-236): la tabla se pinta en el servidor y se hidrata en
+// el navegador, y sin ella cada uno escribía la hora en la suya. El respaldo de
+// las 03:00 salía del día anterior visto desde un navegador al oeste, y React
+// tiraba la tabla por el desajuste. Es la zona en que el servidor nombra los
+// archivos (`TZ` en `docker-compose.prod.yml`).
 const fechaHora = (valor: string) =>
   new Date(valor).toLocaleString('es-CL', {
     day: '2-digit',
@@ -20,6 +25,7 @@ const fechaHora = (valor: string) =>
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Santiago',
   })
 
 const antiguedad = (valor: string) => {
@@ -57,12 +63,15 @@ export function PanelDeRespaldos({
   directorio,
   hayHerramienta,
   problemaDelDirectorio = null,
+  tablero = null,
 }: {
   respaldos: Respaldo[]
   directorio: string
   hayHerramienta: boolean
   /** Por qué no se puede leer o escribir en `directorio`, si pasa (O-067). */
   problemaDelDirectorio?: string | null
+  /** Las cifras, el gráfico y «Cómo funciona», ya pintados en el servidor (`TableroDeRespaldos`). */
+  tablero?: ReactNode
 }) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
@@ -104,9 +113,6 @@ export function PanelDeRespaldos({
     })
   }
 
-  const bases = respaldos.filter((r) => r.tipo === 'base')
-  const total = respaldos.reduce((t, r) => t + r.bytes, 0)
-
   const crear = () => {
     setAviso(null)
     iniciar(async () => {
@@ -131,7 +137,9 @@ export function PanelDeRespaldos({
     <div>
       <CabeceraDePagina
         titulo="Respaldos"
-        subtitulo={`${bases.length} volcado${bases.length === 1 ? '' : 's'} de la base · ${tamanoLegible(total)} ocupados en disco`}
+        // Lo que antes decía el subtítulo —cuántos volcados y cuánto ocupan—
+        // lo dicen ahora dos cifras del tablero; aquí queda de dónde salen.
+        subtitulo="Copias de la base y de los archivos subidos: una cada noche, y las que se pidan aquí"
         acciones={
           <button
             type="button"
@@ -155,7 +163,11 @@ export function PanelDeRespaldos({
         // Antes que el aviso de la herramienta: con la carpeta sin permisos el
         // listado sale vacío y el botón falla, y las dos cosas se explican aquí.
         <div className="admin-aviso admin-aviso-error" role="alert">
-          <strong>El directorio de respaldos no está disponible para la aplicación.</strong>{' '}
+          {/* Con la ruta: el aviso es lo que se copia para ir a mirar los
+              permisos, y el tablero de abajo la deja en una nota pequeña. */}
+          <strong>
+            El directorio de respaldos (<code>{directorio}</code>) no está disponible para la aplicación.
+          </strong>{' '}
           {problemaDelDirectorio} Mientras tanto la tabla de abajo puede salir vacía aunque haya
           respaldos en el disco, y «Respaldar ahora» no podrá escribir el archivo.
         </div>
@@ -171,18 +183,10 @@ export function PanelDeRespaldos({
         </div>
       ) : null}
 
-      <div className="admin-aviso admin-aviso-info">
-        <strong>Cómo funciona</strong>
-        En el servidor hay un respaldo diario programado a las 03:00 que conserva treinta días.
-        Estos archivos viven en <code>{directorio}</code>, fuera del contenedor, de modo que
-        sobreviven a un despliegue. Para restaurar uno:{' '}
-        <code>./scripts/restaurar.sh backups/NOMBRE.sql.gz</code> — pide confirmación escrita y
-        respalda el estado actual antes de sobrescribir nada.
-        <br />
-        <br />
-        Descargue una copia de vez en cuando y guárdela en otro lugar: un respaldo que vive en la
-        misma máquina que la base protege del error, no del incendio.
-      </div>
+      {/* El aviso azul de «Cómo funciona» pasó a ser una tarjeta del tablero,
+          con los pasos que de verdad dan los guiones; el directorio, a la nota
+          de «En disco». */}
+      {tablero}
 
       <SeccionPlegable
         clave="respaldos.lista"

@@ -26,6 +26,7 @@ import {
 } from '@/correo/mensajes'
 import { exigirAdmin, exigirEditor, accion, type Respuesta } from '@/lib/guardias'
 import { comoListaDeModulos } from '@/lib/mantencion'
+import { esProfesion } from '@/lib/firmas'
 import {
   exigirContrasena,
   exigirCorreo,
@@ -591,6 +592,7 @@ export async function actualizarUsuario(
     modulosVisibles?: unknown
     modulosEditables?: unknown
     notas?: unknown
+    profesion?: unknown
   },
 ): Promise<Respuesta> {
   return accion(async () => {
@@ -616,6 +618,14 @@ export async function actualizarUsuario(
       // encontraría la nota intacta al volver a abrir. Es el mismo `?? null` de
       // `institucion`, y por el mismo motivo.
       cambios.notas = notaParaGuardar(datos.notas) ?? null
+    }
+    if (datos.profesion !== undefined) {
+      // Médico o kinesiólogo decide qué firma pone la cuenta en una ficha
+      // (D-240). Vacío la deja sin profesión, y entonces no firma ninguna.
+      if (datos.profesion !== '' && datos.profesion !== null && !esProfesion(datos.profesion)) {
+        throw new Error('La profesión tiene que ser médico o kinesiólogo.')
+      }
+      cambios.profesion = esProfesion(datos.profesion) ? datos.profesion : null
     }
     let quitaUnAdmin = false
     if (datos.rol !== undefined) {

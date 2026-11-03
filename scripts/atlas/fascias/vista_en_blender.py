@@ -412,7 +412,8 @@ def construir_desde_un_glb(args):
             continue
         sistema = objeto.get('sistema') or sistema_por_el_nombre(objeto.name)
         if args.colores == 'aspecto' and sistema:
-            ASPECTO.aplicar(objeto, sistema)
+            # Un grupo de aspecto propio (los ojos, la córnea) manda sobre el sistema al que pertenece.
+            ASPECTO.aplicar(objeto, objeto.get('aspecto') or sistema)
         if sistema == 'integumentary' and args.piel_opacidad < 1.0:
             # La piel del archivo es maciza (así se enciende y se apaga en la consola): para mirar lo de
             # debajo se la deja translúcida, o se esconde del todo con 0.

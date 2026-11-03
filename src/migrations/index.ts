@@ -37,6 +37,11 @@ import * as migration_20261021_011607_exige_compresion_del_paso from './20261021
 import * as migration_20261021_013149_radiografia_postoperatoria_del_recorrido from './20261021_013149_radiografia_postoperatoria_del_recorrido';
 import * as migration_20261022_135032_equipo_del_inicio from './20261022_135032_equipo_del_inicio';
 import * as migration_20261024_160000_rol_fascia from './20261024_160000_rol_fascia';
+import * as migration_20261102_232628_medios_de_la_pagina from './20261102_232628_medios_de_la_pagina';
+import * as migration_20261102_235443_cotizaciones from './20261102_235443_cotizaciones';
+import * as migration_20261103_002330_etapa_de_formacion from './20261103_002330_etapa_de_formacion';
+import * as migration_20261103_005145_bienvenida_y_seccion from './20261103_005145_bienvenida_y_seccion';
+import * as migration_20261103_033928_firmas_de_la_ficha from './20261103_033928_firmas_de_la_ficha';
 
 export const migrations = [
   {
@@ -232,6 +237,31 @@ export const migrations = [
   {
     up: migration_20261024_160000_rol_fascia.up,
     down: migration_20261024_160000_rol_fascia.down,
-    name: '20261024_160000_rol_fascia'
+    name: '20261024_160000_rol_fascia',
+  },
+  {
+    up: migration_20261102_232628_medios_de_la_pagina.up,
+    down: migration_20261102_232628_medios_de_la_pagina.down,
+    name: '20261102_232628_medios_de_la_pagina',
+  },
+  {
+    up: migration_20261102_235443_cotizaciones.up,
+    down: migration_20261102_235443_cotizaciones.down,
+    name: '20261102_235443_cotizaciones',
+  },
+  {
+    up: migration_20261103_002330_etapa_de_formacion.up,
+    down: migration_20261103_002330_etapa_de_formacion.down,
+    name: '20261103_002330_etapa_de_formacion',
+  },
+  {
+    up: migration_20261103_005145_bienvenida_y_seccion.up,
+    down: migration_20261103_005145_bienvenida_y_seccion.down,
+    name: '20261103_005145_bienvenida_y_seccion',
+  },
+  {
+    up: migration_20261103_033928_firmas_de_la_ficha.up,
+    down: migration_20261103_033928_firmas_de_la_ficha.down,
+    name: '20261103_033928_firmas_de_la_ficha'
   },
 ];

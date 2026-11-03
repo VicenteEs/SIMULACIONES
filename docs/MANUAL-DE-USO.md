@@ -103,23 +103,35 @@ Barra lateral, grupo **«Trabajo»** (editores y administradores):
 
 | Pantalla | Para qué |
 |---|---|
-| «Resumen» | El estado de todo de un vistazo: fichas por módulo, comentarios pendientes y avisos. |
-| «Por revisar» | Las fichas en revisión de sus módulos: lo devuelto primero, después lo asignado a usted. Sección 5, «Fichas en revisión». |
-| «Contenido» | Donde se escribe. Arriba los cinco **«Módulos»**, abajo el **«Material de apoyo»**. |
+| «Resumen» | El estado de todo de un vistazo. Arriba, cuatro cifras con hacia dónde van: cuentas activas, fichas publicadas, fichas por revisar y lecturas de los últimos 7 días. Debajo, las lecturas por día del último mes (residentes y equipo por separado), las cuentas por rol, el contenido de cada módulo según su estado, **«Para hoy»** —lo que espera una acción suya, con un enlace a donde se atiende— y lo último que hizo el equipo. El editor ve solo lo suyo: contenido, cola y comentarios de sus módulos; en «Por revisar», la nota dice cuántas están sin asignar, que la barra lateral suma a las suyas. |
+| «Por revisar» | Las fichas en revisión de sus módulos: lo devuelto primero, después lo asignado a usted. Arriba, cuántas hay en cola, cuánto tardan de media en validarse, las validadas de la semana y las devueltas; debajo, las entradas y salidas de la cola por semana y la cola por módulo. Sección 5, «Fichas en revisión». |
+| «Contenido» | Donde se escribe. Una tarjeta por módulo con sus fichas y qué parte está publicada, el **«Material de apoyo»**, las fichas creadas por mes y las editadas hace poco. Dentro de un módulo, las pestañas Todas, Publicadas, Validadas, Por revisar y Borradores filtran la lista de un clic. |
 | «Taller anatómico» | Armar preparaciones del atlas 3D para ponerlas en las fichas. |
-| «Comentarios» | Lo que los lectores escriben en las fichas: errores, sugerencias, correcciones. |
-| «Estructuras» | La ficha de cada pieza del atlas (nombre latino, origen, inserción, inervación…), con su contador y la planilla de Excel por región. Sección 7b. |
+| «Comentarios» | Lo que los lectores escriben en las fichas: errores, sugerencias, correcciones. Sección 7. |
+| «Estructuras» | La ficha de cada pieza del atlas (nombre latino, origen, inserción, inervación…), con su avance total y por región (pulse una región para ver solo sus piezas) y la planilla de Excel por región. Sección 7b. |
 
 Grupos **«Seguimiento»** y **«Administración»** (solo administradores):
-«Estadísticas», «Actividad», «Auditoría», «Usuarios y permisos», «Difusión»,
-«Equipo», «Respaldos» y «Sistema». Van en las secciones 9 a 14c.
+«Estadísticas», «Actividad», «Registro», «Auditoría», «Usuarios y permisos»,
+«Cotizaciones», «Equipo», «Medios de la página», «Difusión», «Respaldos» y
+«Sistema». Van en las secciones 9 a 14e.
 
 **La barra lateral se pliega.** Un botón bajo el logotipo la deja en una columna angosta con solo el libro del logotipo sobre su recuadro blanco y un icono
   por pestaña (el nombre sale al pasar el ratón); se recuerda en el navegador. Plegada se esconden las notas del revisor de la barra.
 
 > **Un guion «—» no es un cero.** En «Resumen», «Estadísticas» y «Actividad»,
 > un guion significa que ese dato no se pudo consultar en ese momento. Recargue
-> antes de sacar conclusiones.
+> antes de sacar conclusiones. Una tarjeta con el borde ámbar y «No se pudo
+> leer…» dice lo mismo de un gráfico.
+
+**Cómo se leen las cifras de arriba.** El chip junto a la cifra dice cuánto
+cambió: «▲ +12 %» respecto del periodo anterior, «▲ +3» en unidades. Es verde
+cuando el cambio es bueno y rojo cuando no: más lecturas es verde, más fichas en
+cola es rojo, aunque las dos suban. La línea pequeña de la derecha es la
+tendencia de las últimas semanas, sin escala. Los gráficos se recorren con el
+ratón o, con el foco en ellos, con las flechas del teclado; las leyendas con
+botones apagan y encienden cada serie. «Fichas publicadas» cuenta como nuevas
+solo las fichas que se publicaron **por primera vez** en la semana: corregir y
+volver a publicar una ficha no la suma otra vez.
 
 ---
 
@@ -165,10 +177,13 @@ en diez (10, 20, 30) para poder intercalar después.
 ### Fichas en revisión (el contenido que llega hecho)
 
 Parte del contenido llega ya redactado —por ejemplo, generado con inteligencia
-artificial a partir de un libro— y tiene que revisarlo un traumatólogo antes de
-publicarse. Esas fichas llevan arriba un **recuadro de revisión** con su origen,
-el libro, el capítulo y las páginas de donde salieron, su estado y a quién están
-asignadas. Se encuentran todas juntas en **«Por revisar»**.
+artificial a partir de un libro— y tiene que revisarlo **un médico y un
+kinesiólogo** antes de publicarse: la ficha queda lista cuando tiene **las dos
+firmas**. Esas fichas llevan arriba un **recuadro de revisión** con su origen,
+el libro, el capítulo y las páginas de donde salieron, su estado, a quién están
+asignadas y las dos casillas de firma —«Médico» y «Kinesiólogo»—, con quién
+firmó y cuándo, o «Falta su firma». Se encuentran todas juntas en **«Por
+revisar»**, donde la columna «Firmas» enseña en verde las que ya están.
 
 1. Abra la ficha y **cotéjela con el libro**, pestaña por pestaña. Corrija lo que
    haga falta y guarde el borrador cuantas veces quiera.
@@ -176,23 +191,39 @@ asignadas. Se encuentran todas juntas en **«Por revisar»**.
    con actividad, al menos cinco segundos.
 3. Si quiere, deje una **nota** para quien publica: qué comprobó, qué corrigió,
    qué dudas quedan.
-4. Pulse **«Listo para publicar»**. Guarda lo pendiente y la entrega al
-   administrador, que es quien la publica. En una ficha en revisión el editor no
-   ve «Publicar».
+4. Pulse **«Firmar como médico»** o **«Firmar como kinesiólogo»**: el botón
+   dice la firma que le toca, y eso lo decide su cuenta, no usted. Guarda lo
+   pendiente y pone su firma. Con la primera, la ficha sigue en revisión y espera
+   la de la otra profesión; con la segunda, queda **lista para publicar** y la
+   publica el administrador. En una ficha en revisión el editor no ve «Publicar».
+
+**Si no ve el botón**, el recuadro dice por qué: su cuenta no tiene profesión
+(se la pone el administrador en «Usuarios y permisos», con «Editar»), usted ya
+la firmó, o ya la firmó otra persona de su profesión.
 
 **Qué se registra**, y el recuadro lo dice: el tiempo con la ficha abierta, el
 tiempo de revisión **activa** —con alguien delante: sin tocar nada durante 90
 segundos deja de contar—, qué pestañas se revisaron y, al guardar, cuánto
-cambió el texto respecto de como llegó. Si al pulsar «Listo para publicar» la
-revisión parece hecha sin leer —menos de 30 segundos activos, más de 250
-palabras por minuto, o alguna pestaña con contenido sin abrir—, el panel lo
-dice y pregunta. Se puede marcar igual (quizá se cotejó en papel), pero queda
-**señalada** para el administrador.
+cambió el texto respecto de como llegó. Si al firmar la revisión parece hecha
+sin leer —menos de 30 segundos activos, más de 250 palabras por minuto, o alguna
+pestaña con contenido sin abrir—, el panel lo dice y pregunta. Se puede firmar
+igual (quizá se cotejó en papel), pero queda **señalada** para el
+administrador, con la profesión de quien firmó delante.
 
-- Si **la cambia después de validarla**, vuelve a «En revisión» y hay que volver
-  a validarla: lo validado era otro texto.
-- Si el administrador **la devuelve**, el motivo aparece en el recuadro y la
-  ficha vuelve primera a «Por revisar».
+- **Una firma vale para un texto.** Si alguien cambia la ficha después de una
+  firma —quien sea, también el administrador—, la firma se borra, la ficha
+  vuelve a «En revisión» y hay que volver a firmarla: lo firmado era otro texto.
+  Guardar sin cambiar nada no borra ninguna firma.
+- Si el administrador **la devuelve**, el motivo aparece en el recuadro, las dos
+  firmas se borran y la ficha vuelve primera a «Por revisar».
+- Una ficha **publicada antes de que existieran las firmas** también se puede
+  firmar: no cambia de estado, y queda con sus firmas.
+- El administrador puede publicar una ficha a la que le falta una firma, pero el
+  panel se lo advierte y queda anotada en la auditoría como publicada sin las
+  dos firmas.
+
+Con las dos firmas, la ficha que lee el residente dice bajo el título
+**«Revisada y firmada por…»**, con los dos nombres.
 
 ### Los bloques
 
@@ -214,8 +245,9 @@ Cada uno se pliega (▾), se mueve (↑ ↓) y se quita (✕).
 ### Guardar la ficha como PDF
 
 El botón **«Guardar PDF»** de cada ficha abre el diálogo de impresión del navegador; en «Destino» se elige «Guardar como PDF». El PDF sale
-en hoja A4 con el logotipo de TraumaHub, **quién lo emitió** (la cuenta con la que se entró), **quién auditó el contenido** (quien pulsó
-«Listo para publicar» en la revisión) y la fecha; el texto va justificado, las tablas ocupan todo el ancho y repiten su cabecera en cada
+en hoja A4 con el logotipo de TraumaHub, **quién lo emitió** (la cuenta con la que se entró), **quién firmó el contenido** (el médico y
+el kinesiólogo, cada uno con su fecha, o «firma pendiente» si falta una; en una ficha validada antes de las firmas, quién la validó) y
+la fecha; el texto va justificado, las tablas ocupan todo el ancho y repiten su cabecera en cada
 hoja, y cada hoja lleva al pie el título, el emisor, el auditor y «Página N de M». Una ficha que nunca pasó por revisión dice «Sin
 auditoría registrada». Los visores 3D y los videos no se imprimen: en su lugar queda una línea que dice dónde verlos.
 
@@ -789,6 +821,11 @@ Si una herramienta dice que «ninguna pieza de este modelo es piel» (o músculo
 modelo no trae esa capa: márquela en **Piezas** o pulse «Rellenar desde el modelo». Los
 instrumentos del catálogo sin modelo 3D también funcionan: se juegan con el marcador.
 
+**Ampliar.** El botón **Ampliar** del lienzo saca la consola de la página y le da la ventana
+entera, con los pasos arriba, las capas a la izquierda y la bandeja a la derecha: el lienzo
+crece y no hace falta bajar para llegar a «Aplicar paso». **Reducir** la devuelve a la página.
+Hasta D-241 el botón cambiaba de nombre sin agrandar nada.
+
 **Rayos X y fluoroscopia.** El botón **Rayos X** del lienzo es la misma radiografía en
 grises del taller anatómico (fondo negro, el hueso blanco, sin vasos). El botón
 **Fluoroscopia** abre, al lado del lienzo, un recuadro con la imagen circular del arco en C:
@@ -877,8 +914,14 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   hueso** y retrae las partes blandas de ese lado. Caben hasta seis separadores; la lista del
   recuadro permite elegir cuál se abre y quitarlos de uno en uno o todos («Quitar los
   separadores»). El separador se apoya en un plano —**Automático** (el clic decide),
-  **Piel**, **Fascia** (si el caso la trae) o **Músculo**— y abre la herida de ese plano; el botón de cada
+  **Piel**, **Fascia** (si el caso la trae) o **Músculo**— y abre la herida de ese plano **y la de
+  los planos de encima**: un Farabeuf en la fascia abre también la piel, en el sitio que tiene
+  sobre ella, aunque la piel y la fascia se cortaran con dos trazos distintos (D-241). El botón de cada
   separador de la lista lo baja un plano a la vez y, tras el último, lo devuelve a la piel.
+  - **La hoja va con el tejido.** El separador agarra el borde del labio en que se puso y se
+    mueve exactamente lo que ese borde se mueve: al abrir, la hoja queda apoyada en el labio y no
+    flotando por fuera de él. El **Hohmann** deja la punta donde la clavó, al otro lado del hueso, y
+    lo que se mueve al abrir es el **mango**, que bascula hacia el lado que aparta (hasta unos 35°).
   - **En pareja.** Con «En pareja» encendido (lo está de entrada), un clic pone **los dos
     Farabeuf o Senn-Miller, uno por borde y a la misma altura**, como las pinzas; los mangos
     salen hacia fuera y no se cruzan sobre la herida. Con uno ya puesto, el clic completa la
@@ -901,7 +944,8 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   de una**, la **alarga** (así se abre en dos tiempos); si no, es otra incisión. Con más de una,
   el recuadro «Herida» las lista —«Incisión 2 · músculo · 30 mm»— con una **×** que cierra solo esa;
   «Cerrar todas las heridas» las cierra todas. Cada separador y cada pinza abre la incisión en que
-  se puso. Para corregir una incisión mal trazada, ciérrela desde esa lista (o «Borrar trazo»,
+  se puso; un separador apoyado en un plano profundo abre además la incisión de la piel o de la
+  fascia que tiene justo encima, si cae sobre ella (a 30 mm o menos de su borde, lo mismo que se pide para colocarlo). Para corregir una incisión mal trazada, ciérrela desde esa lista (o «Borrar trazo»,
   que deshace la última) y trace otra. El **borde rojo** de una incisión recién hecha se vuelve del
   tono de la piel cuando se abre más de 5 mm o cuando hay una herida más profunda.
 - **Perforar (brocas de 1,5 a 4,5 mm, avellanador, machuelo, fresa).** El modo pasa a
@@ -1180,7 +1224,10 @@ fichas importadas solo unas pocas traen un código legible: normalizarlas es una
 ## 7. Comentarios de los lectores
 
 Cada ficha tiene «Dejar un comentario o sugerencia». Llegan a «Comentarios», con
-el número de pendientes en la barra lateral.
+el número de pendientes en la barra lateral. Arriba, los pendientes (con la edad
+del más antiguo), los resueltos y los recibidos en 30 días; debajo, cuántos llegan
+por semana y en qué parte de la plataforma. El tiempo de respuesta no se muestra:
+el comentario no guarda cuándo se resolvió.
 
 - «editar →» abre la ficha comentada para corregirla; «ver ficha →», la pública.
 - Los comentarios sobre una **preparación del taller anatómico** salen aquí también,
@@ -1316,6 +1363,50 @@ residente». Baja su vista a la de un lector durante 4 horas o hasta «Volver a 
 vista». Un borrador, visto así, no existe. De ahí el orden: **publicar primero,
 mirar después**.
 
+## 8b. Lo que ve el residente, y lo que eso le pide a quien escribe
+
+Cada pantalla toma lo que usted escribe de una forma concreta. Saberlo evita
+sorpresas al publicar.
+
+- **La bienvenida.** La primera vez que un residente entra, antes del inicio,
+  elige uno de cuatro recorridos («Tengo pabellón pronto», «Estoy estudiando
+  para un examen», «Tengo policlínico», «Quiero practicar imágenes») o «Saltar
+  por ahora». Sale una sola vez. Solo se ofrecen los recorridos de módulos que su
+  cuenta ve y que no están en mantención. Las cuentas que ya habían entrado antes
+  de que existiera no la ven.
+- **El inicio.** «Continúa leyendo» dice en qué pestaña de la patología o en qué
+  paso de la técnica AO se quedó, con el título que tenga **hoy**: si usted
+  renombra un paso, la tarjeta dice el nombre nuevo. Si quita el paso o vacía la
+  pestaña, la tarjeta deja de decirlo y abre la ficha arriba.
+- **La biblioteca y las tarjetas** llevan arriba un recorte del atlas según el
+  **segmento** de la ficha. Un segmento con un nombre que la plataforma no
+  conoce sale sin recorte; los conocidos son los trece de siempre (Hombro,
+  Brazo, Codo… Pelvis y acetábulo, Principios generales).
+- **La ficha de patología** se lee por pestañas, y una pestaña vacía no se
+  muestra (sección 5).
+- **El examen físico** enseña una maniobra a la vez. **El primer video** del
+  contenido pasa arriba de todo, sobre el título; el resto del contenido va en su
+  orden. «Anterior» y «Siguiente» recorren el segmento en el orden en que usted
+  las numeró.
+- **La técnica AO** va paso a paso. «Principio AO en juego» sale como «Principio
+  AO», y la nota del paso como **«Nota técnica»**: escríbala como consejo. Solo el
+  paso a la vista carga su modelo 3D; un paso sin modelo enseña el recorte del
+  hueso.
+- **El simulador** muestra, la primera vez que se abre un caso, la guía «Qué hay
+  en la consola». El residente la oculta y la puede volver a abrir.
+- **La lectura de imágenes se vuelve un ejercicio** cuando el campo «Código» del
+  caso trae un código AO **con su tipo** («42-A2» sí; «42» no) de un hueso largo:
+  húmero, antebrazo, fémur o tibia, segmentos 11 a 13, 21 a 23, 31 a 33 y 41 a
+  44. El residente ve el material y los hallazgos, propone A, B o C y lo compara
+  con el código; las opciones de manejo se abren después. Con cualquier otro
+  código, o sin código, la página se lee como siempre.
+
+  **Escriba los hallazgos describiendo lo que se ve, sin nombrar la
+  clasificación.** «El trazo no llega a la superficie articular» deja pensar;
+  «fractura extraarticular» da la respuesta antes de que el residente la
+  proponga. Los nombres de los tipos que aparecen en el ejercicio siguen el
+  compendio AO/OTA de 2018 y esperan la revisión de un traumatólogo.
+
 ---
 
 # Solo administradores
@@ -1325,11 +1416,19 @@ mirar después**.
 La plataforma es cerrada: nadie ve nada sin una cuenta **activada por un
 administrador**.
 
+En pantalla ancha, «Usuarios y permisos» trae a la derecha las cuentas por rol
+(las mismas cifras y colores que el Resumen), las altas por mes y «Qué puede cada
+rol», en palabras. En la tabla, los números de módulo, en su color, dicen qué ve
+o edita cada cuenta.
+
 ### Solicitudes
 
-Quien quiere entrar llena «Solicitar una cuenta» y queda pendiente. Aparecen en
+Quien quiere entrar llena «Solicita tu cuenta» —desde «Entrar», en tres pasos:
+sus datos, su institución y una confirmación— y queda pendiente. Aparecen en
 «Usuarios y permisos», arriba, en «Solicitudes por revisar», y con un número en
-la barra lateral.
+la barra lateral. Bajo el correo se lee el año de residencia que indicó (R1 a
+R4, Kinesiología o Docente), la institución y, tras un punto medio, el programa
+o servicio; los dos últimos datos son opcionales y pueden faltar.
 
 - **La plataforma no comprueba quién es quien pide la cuenta.** Eso lo hace
   usted. Si no reconoce el nombre, pregunte en el servicio antes de activar.
@@ -1367,6 +1466,9 @@ puede editar»:
   sirve una vez. **Pulsarlo de nuevo invalida el anterior**: no lo pulse dos
   veces «por si acaso». Si el correo falla, el panel muestra el enlace con
   «Copiar» para entregarlo por otra vía.
+- **«Editar» → «Profesión»**: médico o kinesiólogo. Decide qué firma pone la
+  cuenta en las fichas en revisión (sección 5); sin profesión, no firma. Una
+  persona tiene una sola, así que nadie puede poner las dos firmas de una ficha.
 - **«Desactivar»** retira el acceso y conserva todo. Es lo indicado cuando
   alguien termina su rotación.
 - **«Eliminar»** borra su historial de lectura y deja sus comentarios sin autor.
@@ -1385,8 +1487,13 @@ nombre.
 
 1. Escriba «Asunto» y «Mensaje». Una línea en blanco separa párrafos, «- » al
    principio de línea hace lista. El saludo lo pone la plataforma.
-2. Mire la «Vista previa» y pulse **«Enviarme una prueba»**. Siempre.
+2. Mire **«Así le llega a…»**: es el correo tal como sale, con el saludo a la
+   primera persona de la lista. Después pulse **«Enviarme una prueba»**. Siempre.
 3. «Enviar a N personas» y confirme.
+
+En el historial, «Enviados» dice qué parte de la lista aceptó el servidor de
+correo («x de y»), con la barra en ámbar si hubo fallidos. Aceptado no es
+entregado: un correo puede rebotar después, y eso la plataforma no lo ve.
 
 Sale **despacio a propósito** —unos 200 por hora—, porque el servidor de correo
 limita los envíos y esa cuota es la misma de los correos de contraseña. Si el
@@ -1405,9 +1512,16 @@ servicio, no para correo frecuente: no hay forma de darse de baja.
   «Archivos subidos») y guárdelos fuera del servidor. Hoy todos los respaldos
   viven en el mismo disco que la plataforma: protegen de un error, no de que el
   disco muera.
+- Arriba, cuándo fue el último (en ámbar si pasaron más de dos días), cuánto
+  pesó, cuántos se conservan y cuánto ocupan; debajo, el tamaño de cada respaldo
+  del último mes. **Un respaldo mucho más chico que los anteriores es lo que hay
+  que mirar**: puede ser uno que se cortó.
 - Restaurar no se hace desde el panel: se pide al desarrollador.
-- **«Sistema»**: una lista de comprobaciones —base, respaldo reciente, correo,
-  disco—. Si algo se comporta raro, mire aquí primero y mande una captura.
+- **«Sistema»**: arriba, cuántas comprobaciones están bien y cuáles revisar, con
+  «Volver a comprobar»; el espacio libre del disco (en ámbar desde el 90 %
+  ocupado) y lo que ocupa cada parte: la base, los archivos subidos, el atlas y
+  los respaldos. Debajo, la lista de comprobaciones —base, respaldo reciente,
+  correo, disco—. Si algo se comporta raro, mire aquí primero y mande una captura.
 
 ---
 
@@ -1417,15 +1531,17 @@ servicio, no para correo frecuente: no hay forma de darse de baja.
 de verdad. Arriba, filtros por módulo, lote, revisor y estado, que valen para
 todo lo de abajo.
 
-- **Indicadores:** cuántas fichas esperan revisión, cuántas están listas para
-  publicar, cuántas se publicaron (y si alguna sin validar), la edición media,
-  los minutos de revisión por ficha y las **validaciones señaladas** (⚑).
+- **Cifras:** las validadas (y si alguna se publicó sin validar), las listas
+  para publicar —su enlace deja la tabla solo con ellas—, la edición media con
+  los minutos por ficha y las **validaciones señaladas** (⚑).
 - **Gráficos:** el estado por módulo, las validaciones por semana, cuánto se
   edita (muchas fichas en «0 %» con poco tiempo es la señal de que se valida sin
   leer), los minutos de revisión activa y el ritmo de cada revisor, en palabras
-  por minuto: por encima de 250 (⚑) no es una lectura atenta.
-- **Revisores:** lo asignado, lo que falta, lo validado, lo señalado, lo que se
-  le devolvió, su tiempo y su ritmo. El nombre filtra la página por esa persona.
+  por minuto, con la raya de 250 dibujada: por encima (⚑) no es una lectura
+  atenta.
+- **Revisores:** lo asignado, lo que falta, lo validado (las fichas cuya firma
+  las completó), cuántas llevan su firma, lo señalado, lo que se le devolvió, su
+  tiempo y su ritmo. El nombre filtra la página por esa persona.
 - **Fichas:** cada una con su porcentaje editado, los minutos y el ritmo de quien
   la validó y las secciones que revisó; las señaladas van primero y en rojo, con
   el porqué. Se ordena pulsando el título de una columna. Un **buscador por escritura** sobre la tabla filtra por nombre, módulo, libro, capítulo o persona asignada (varias palabras, en cualquier
@@ -1464,6 +1580,20 @@ por mes, las fichas distintas que cada persona abrió, de modo que una ficha abi
 en septiembre y otra vez en octubre cuenta en los dos meses. En «Resumen», las
 «marcadas como leídas» de «Lectura de los últimos 7 días» son las de esa semana,
 no las de siempre.
+
+**El período de «Estadísticas»**: 3, 6 o 12 meses, arriba (6 por omisión).
+Cambia lo que se cuenta, no solo el dibujo, y se conserva al cambiar «Lecturas
+de». Las fichas abiertas son **aperturas**: abrir una ficha. Marcarla como leída
+se cuenta aparte.
+
+**«Cuándo se estudia»**, en «Actividad», es un mapa de las últimas cuatro
+semanas: cada casilla es un día y una hora, más oscura cuanto más tiempo tuvo
+alguien la plataforma a la vista. **«Dónde se equivocan más»** son los pasos del
+simulador con más complicaciones.
+
+**«Registro»** trae arriba las cuentas activas, el tiempo activo y las acciones
+de hoy; debajo, los minutos activos de cada uno de los últimos 14 días y, en
+dona, qué se hace, sin contar lo que hace el propio sistema.
 
 **El puntaje del simulador no es una calificación.** Sirve para ver qué gesto se
 le atraviesa a la gente, no para evaluar a nadie, y el panel lo dice en la misma
@@ -1556,6 +1686,76 @@ abrirla escribiendo la dirección.
 
 Los cambios se ven al recargar la pestaña. Quitar a alguien es «Eliminar» en su
 ficha; no se puede deshacer.
+
+Antes de la lista de colaboradores, la pantalla abre con **el trabajo de
+revisión del equipo**: una tarjeta por editor con sus módulos, sus validadas y
+sus pendientes; la **carga de revisión** (lo asignado sin terminar, según lleve
+más o menos de siete días en cola); y la **cobertura por módulo**, que avisa si
+un módulo depende de una sola persona. Los colaboradores de la página pública no
+son cuentas: aparecer ahí no da acceso a nada.
+
+---
+
+## 14d. Medios de la página: las fotos y los textos de la portada
+
+En «Medios de la página» (solo administradores) se cambian **las fotos y los
+textos comerciales** de la portada pública y de la página de planes, sin pedir
+nada al desarrollador. No tiene que ver con los archivos de las fichas, que
+siguen en «Contenido».
+
+Arriba hay un buscador, el filtro **«Solo lo cambiado»** y dos vistas:
+
+- **Fotos.** Una tarjeta por foto, con la que se ve hoy y la insignia
+  «Original» o «Cambiada». **«Cambiar la foto»** (o arrastrar el archivo
+  encima) la muestra antes de guardar; escriba la descripción, que es
+  obligatoria porque es lo que lee quien no ve la imagen, y pulse **«Guardar la
+  foto»**. Se aceptan PNG, JPEG y WebP de hasta 8 MB; no SVG. **«Restaurar la
+  original»** vuelve a la captura del atlas con que partió.
+- **Textos.** Agrupados por página y sección. Cada campo tiene su contador y,
+  debajo, el original. **«Guardar la sección»** guarda lo cambiado de esa
+  sección; **«Descartar los cambios»** vuelve a lo guardado; **«Restaurar el
+  original»**, en cada campo, borra el cambio. Si intenta salir con algo sin
+  guardar, la plataforma pregunta.
+
+**Vaciar un texto opcional lo quita de la página.** Así se retira, por ejemplo,
+una pregunta frecuente sin tocar código. Los obligatorios no dejan guardarse
+vacíos. Las cifras (cuántas piezas tiene el atlas, cuántos módulos) no se
+escriben: se cuentan solas.
+
+Antes de dar por bueno un cambio, use **«Ver portada como visitante»** o
+**«Ver planes como visitante»**: abren la página tal como la ve alguien sin
+cuenta, aunque usted tenga la sesión iniciada.
+
+> **Los textos de partida son un borrador.** Varias respuestas de las preguntas
+> frecuentes y las prestaciones de cada plan se escribieron para tener algo que
+> mostrar. Revíselos aquí antes de abrir la portada al público.
+
+---
+
+## 14e. Cotizaciones
+
+La portada y la página de planes tienen el formulario **«Cotizar»**, para que
+un hospital o una universidad pida una propuesta sin crear cuenta. Cada
+solicitud llega a **«Cotizaciones»** (solo administradores) y, si el correo está
+configurado, a su buzón con el botón «Ver la cotización». El número junto a la
+pestaña dice cuántas están nuevas.
+
+- La lista abre en **«Nueva»** cuando hay alguna. Los botones de arriba filtran
+  por estado y el buscador busca por institución, nombre o correo.
+- **«Abrir»** muestra lo que escribió: institución, contacto, cuántos residentes
+  quiere incorporar, los módulos que le interesan y su mensaje.
+- **Estado.** Cámbielo a «En conversación» al responder y a «Cerrada» al
+  terminar; se guarda al elegirlo. Las nuevas pierden su marca en la lista y en
+  el menú.
+- **Notas internas.** Solo las ven los administradores; se guardan con
+  **«Guardar notas»**.
+- **«Responder por correo»** abre su programa de correo con el destinatario y el
+  asunto puestos. La plataforma no manda la respuesta: sale de su buzón y la
+  conversación queda ahí.
+- **«Borrar»** elimina la solicitud y no se deshace.
+
+Sin servidor de correo las solicitudes llegan igual, pero nadie recibe aviso:
+mire el número de la pestaña.
 
 ---
 

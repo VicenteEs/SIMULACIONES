@@ -4,9 +4,9 @@ import Link from 'next/link'
 import { obtenerSesion } from '@/lib/sesion'
 import { faltaLaPrimeraCuenta } from '@/app/(frontend)/acciones/sesion'
 import { hayCorreo } from '@/correo/enviar'
-import { FormularioRegistro } from './FormularioRegistro'
 import { ruta } from '@/lib/rutas'
-import { MallaDeNodos } from '@/components/MallaDeNodos'
+import { PanelDeRegistro } from '@/components/acceso/PanelesDeMarca'
+import { FormularioRegistro } from './FormularioRegistro'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,10 +16,11 @@ export const metadata: Metadata = {
 }
 
 /**
- * Solicitud pública de cuenta (D-119).
+ * Solicitud pública de cuenta (D-119), con el tablero «Registro» de Penpot
+ * (D-236): el formulario en tres pasos a la izquierda y la marca a la derecha.
  *
  * Pedir no es entrar: la cuenta nace desactivada y un administrador la revisa
- * antes de activarla. La pantalla lo dice antes del formulario y no solo
+ * antes de activarla. El último paso lo dice antes de enviar y no solo
  * después, porque quien lo descubre al intentar entrar cree que la plataforma
  * se ha roto.
  *
@@ -33,30 +34,25 @@ export default async function PaginaRegistro() {
   if (await faltaLaPrimeraCuenta()) redirect('/instalar')
 
   return (
-    <main className="acceso">
-      <div className="acceso-fondo" aria-hidden="true">
-        <MallaDeNodos className="portada-malla" />
-      </div>
-      <div className="acceso-caja">
-        <div className="acceso-marca">
-          <img src={ruta('/logo-hd.png')} alt="TraumaHub" className="acceso-logo" />
+    <main className="ac-pantalla ac-pantalla-registro">
+      <div className="ac-lado">
+        <div className="ac-columna">
+          <Link href="/" className="ac-logo-vertical" aria-label="TraumaHub, volver a la portada">
+            <img src={ruta('/icon.png')} alt="" width={48} height={48} />
+            TraumaHub
+          </Link>
+
+          {/* Se pregunta aquí, en el servidor, porque la variable no llega al
+              navegador. Sin correo configurado, ni el segundo paso ni el aviso
+              final pueden prometer un mensaje que nunca va a salir. */}
+          <FormularioRegistro conCorreo={hayCorreo()} />
+
+          <p className="ac-nota">
+            ¿Ya tienes cuenta? <Link href="/entrar">Entrar</Link>
+          </p>
         </div>
-        <h1 className="acceso-titulo">Solicitar una cuenta</h1>
-
-        <p className="advertencia">
-          Complete sus datos. La cuenta queda <strong>pendiente</strong> hasta que un administrador
-          revise la solicitud y la active; mientras tanto no podrá entrar.
-        </p>
-
-        {/* Se pregunta aquí, en el servidor, porque la variable no llega al
-            navegador. Sin correo configurado el aviso final no puede prometer
-            un mensaje que nunca va a salir. */}
-        <FormularioRegistro conCorreo={hayCorreo()} />
-
-        <p className="acceso-nota">
-          ¿Ya tiene cuenta? <Link href="/entrar">Entrar</Link>
-        </p>
       </div>
+      <PanelDeRegistro />
     </main>
   )
 }

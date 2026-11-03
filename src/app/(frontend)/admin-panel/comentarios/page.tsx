@@ -1,9 +1,15 @@
+import { CheckCheck, Hourglass, Inbox } from 'lucide-react'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { clientePayload, SLUGS_DE_MODULOS } from '../datos'
 import { NOMBRE_DE_DESTINO, SLUG_DEL_TALLER, esCatalogoComentable } from '../modulos'
 import { claveDeFicha, leerTitulosDeFichas } from '../titulosDeFichas'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { BarrasVerticales, Dona, NoSePudoLeer } from '@/components/admin/Graficos'
+import { Cifra } from '@/components/admin/tablero/Cifra'
+import { TarjetaDeGrafico } from '@/components/admin/tablero/TarjetaDeGrafico'
+import { cifra, variacion } from '@/lib/graficos'
 import { TablaComentarios, type ComentarioDelPanel } from './TablaComentarios'
+import { SEMANAS_DEL_GRAFICO, leerTableroDeComentarios, type TableroDeComentarios } from './tablero'
 import './comentarios.css'
 
 export const dynamic = 'force-dynamic'
@@ -40,18 +46,25 @@ export default async function PaginaComentarios() {
   // NO se hace es seguir adelante con una lista vacía: «todavía nadie ha
   // comentado» y «no se pudo leer» no son lo mismo, y es la misma confusión que
   // las tarjetas del resumen dejaron de cometer con `ilegible`.
-  const listado = await payload
-    .find({
-      collection: 'comentarios',
-      limit: TOPE,
-      sort: '-createdAt',
-      depth: 1,
-      overrideAccess: true,
-    })
-    .catch((error) => {
-      console.error('[panel] no se pudo leer la tabla de comentarios:', error)
-      return null
-    })
+  //
+  // Las cifras de arriba se leen a la vez y por su cuenta (`tablero.ts`): de la
+  // tabla entera y no de estos quinientos, y con su propio `null` si fallan, de
+  // modo que una cifra que no se pudo contar no se lleva la bandeja consigo.
+  const [listado, tablero] = await Promise.all([
+    payload
+      .find({
+        collection: 'comentarios',
+        limit: TOPE,
+        sort: '-createdAt',
+        depth: 1,
+        overrideAccess: true,
+      })
+      .catch((error) => {
+        console.error('[panel] no se pudo leer la tabla de comentarios:', error)
+        return null
+      }),
+    leerTableroDeComentarios(payload),
+  ])
 
   if (!listado) {
     return (
@@ -147,8 +160,11 @@ export default async function PaginaComentarios() {
     ),
   )
 
+  // El aviso y el tablero viajan como hijos de la tabla, que es de cliente y
+  // pinta la cabecera: así quedan debajo del título. El aviso iba antes de la
+  // tabla y, con ella, por encima del título de la página.
   return (
-    <>
+    <TablaComentarios comentarios={comentarios} puedeEliminar={esAdmin}>
       {modulosIlegibles.length > 0 ? (
         <div className="admin-aviso admin-aviso-atencion" role="status">
           <strong>No se pudieron leer los títulos de {modulosIlegibles.join(', ')}.</strong> Esas
@@ -156,7 +172,114 @@ export default async function PaginaComentarios() {
           la consulta falló. El detalle queda en el registro del servidor.
         </div>
       ) : null}
-      <TablaComentarios comentarios={comentarios} puedeEliminar={esAdmin} />
+      <TableroDeLaBandeja tablero={tablero} />
+    </TablaComentarios>
+  )
+}
+
+const plural = (n: number, singular: string, plural: string) => `${cifra(n)} ${n === 1 ? singular : plural}`
+
+/**
+ * Las tres cifras y los dos gráficos de encima de la bandeja (P-007 E5, D-238).
+ *
+ * Penpot dibuja cuatro cifras y aquí van tres. «Tiempo medio de respuesta» y
+ * «Llevaron a un cambio» no se pueden contar, y «Resueltos este mes» quedó en
+ * «Resueltos», desde el principio: los tres necesitan la fecha en que se
+ * resolvió cada comentario, y la base no la guarda (el porqué, en
+ * `tablero.ts`). La tercera cifra son los recibidos en treinta días, que sí
+ * tienen fecha. «De qué tratan» tampoco está —un comentario no guarda su tema—
+ * y en su sitio va dónde se dejaron, que sí se guarda.
+ */
+function TableroDeLaBandeja({ tablero }: { tablero: TableroDeComentarios | null }) {
+  const ilegible = tablero === null
+  const cambio = tablero ? variacion(tablero.recibidos30, tablero.recibidosAntes30) : null
+  return (
+    <>
+      <div className="tablero-cifras tablero-cifras-3">
+        <Cifra
+          titulo="Pendientes"
+          icono={Hourglass}
+          tono={tablero && tablero.pendientes > 0 ? 'atencion' : 'ok'}
+          ilegible={ilegible}
+          claseValor={tablero && tablero.pendientes > 0 ? 'admin-card-value-atencion' : undefined}
+          valor={tablero ? cifra(tablero.pendientes) : '—'}
+          nota={
+            !tablero
+              ? 'no se pudo leer la tabla de comentarios'
+              : tablero.diasDelMasAntiguo === null
+                ? 'ninguno espera respuesta'
+                : tablero.diasDelMasAntiguo === 0
+                  ? 'el más antiguo es de hoy'
+                  : `el más antiguo lleva ${plural(tablero.diasDelMasAntiguo, 'día', 'días')} esperando`
+          }
+        />
+        <Cifra
+          titulo="Resueltos"
+          icono={CheckCheck}
+          tono="ok"
+          ilegible={ilegible}
+          valor={tablero ? cifra(tablero.resueltos) : '—'}
+          nota={
+            !tablero
+              ? 'no se pudo leer la tabla de comentarios'
+              : tablero.total === 0
+                ? 'todavía no ha llegado ninguno'
+                : `de ${plural(tablero.total, 'recibido', 'recibidos')} desde el principio · ${Math.round(
+                    (tablero.resueltos / tablero.total) * 100,
+                  )} %`
+          }
+        />
+        <Cifra
+          titulo="Recibidos · 30 días"
+          icono={Inbox}
+          tono="info"
+          ilegible={ilegible}
+          valor={tablero ? cifra(tablero.recibidos30) : '—'}
+          cambio={cambio === null ? null : { valor: cambio, respecto: 'que los 30 días anteriores' }}
+          serie={tablero?.porSemana}
+          descripcionDeLaSerie={`Comentarios recibidos cada una de las últimas ${SEMANAS_DEL_GRAFICO} semanas.`}
+          nota={
+            !tablero
+              ? 'no se pudo leer la tabla de comentarios'
+              : tablero.recibidos30 === 0
+                ? 'ninguno en el último mes'
+                : `${plural(tablero.resueltosDeLos30, 'ya resuelto', 'ya resueltos')} · ${plural(
+                    tablero.recibidos30 - tablero.resueltosDeLos30,
+                    'pendiente',
+                    'pendientes',
+                  )}`
+          }
+        />
+      </div>
+
+      <div className="tablero-fila">
+        <TarjetaDeGrafico
+          titulo="Comentarios por semana"
+          bajada={`Recibidos en cada una de las últimas ${SEMANAS_DEL_GRAFICO} semanas, de lunes a domingo`}
+          ilegible={ilegible}
+          className="comentarios-semanas"
+        >
+          {tablero ? (
+            <BarrasVerticales
+              titulo={`Comentarios recibidos por semana en las últimas ${SEMANAS_DEL_GRAFICO} semanas`}
+              datos={tablero.semanas.map((s, i) => ({ etiqueta: s.etiqueta, detalle: s.detalle, valor: tablero.porSemana[i] }))}
+            />
+          ) : (
+            <NoSePudoLeer que="la tabla de comentarios" />
+          )}
+        </TarjetaDeGrafico>
+        <TarjetaDeGrafico
+          titulo="Dónde se comenta"
+          bajada={tablero ? `${plural(tablero.total, 'comentario', 'comentarios')} desde el principio` : 'Todos los recibidos'}
+          ilegible={ilegible}
+        >
+          {tablero ? (
+            <Dona titulo="Comentarios recibidos según dónde se dejaron" rotuloDelTotal="comentarios" partes={tablero.porDestino} />
+          ) : (
+            <NoSePudoLeer que="la tabla de comentarios" />
+          )}
+        </TarjetaDeGrafico>
+      </div>
     </>
   )
 }

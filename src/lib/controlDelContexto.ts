@@ -53,11 +53,16 @@ export const PIXELES_MAXIMOS_DEL_LIENZO = 16_000_000
  * El primer montaje pide todo lo que la pantalla da (hasta 3×). Cada pérdida es la señal de que la tarjeta va justa de memoria, así que el lienzo que se vuelve a
  * montar pide menos: primero una resolución menor, y a la segunda pérdida, sin suavizado de bordes (que multiplica el buffer). Se nota
  * poco y evita el blanco; si el equipo es holgado, no se activa nunca.
+ *
+ * La luz del pabellón (D-226) baja con lo mismo y antes que la resolución: la oclusión ambiental (sus texturas a media
+ * resolución, y la escena dibujada otra vez para las normales) se deja a la primera pérdida, y las sombras de la lámpara (un
+ * mapa de 2048 × 2048 y otra pasada de la escena), a la segunda. Lo que se pierde se ve: el modelo queda más plano. Pero es
+ * lo primero que sobra cuando la tarjeta no da para más, y sin ello el simulador es el de antes.
  */
-export function calidadDelDibujo(perdidas: number): { razonMaxima: number; suavizado: boolean } {
-  if (perdidas <= 0) return { razonMaxima: 3, suavizado: true }
-  if (perdidas === 1) return { razonMaxima: 2, suavizado: true }
-  return { razonMaxima: 1, suavizado: false }
+export function calidadDelDibujo(perdidas: number): { razonMaxima: number; suavizado: boolean; oclusion: boolean; sombras: boolean } {
+  if (perdidas <= 0) return { razonMaxima: 3, suavizado: true, oclusion: true, sombras: true }
+  if (perdidas === 1) return { razonMaxima: 2, suavizado: true, oclusion: false, sombras: true }
+  return { razonMaxima: 1, suavizado: false, oclusion: false, sombras: false }
 }
 
 /**

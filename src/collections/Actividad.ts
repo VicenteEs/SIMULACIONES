@@ -216,6 +216,30 @@ export const Actividad: CollectionConfig = {
     },
     {
       /**
+       * Dónde se quedó el residente dentro de la ficha: la pestaña de la
+       * patología o el paso de la técnica AO, contando desde uno (P-007 E4,
+       * D-237).
+       *
+       * Un número y no el nombre de la pestaña o del paso. El nombre lo saca la
+       * portada del propio documento al pintar «Continúa leyendo», así que se
+       * corrige solo si el autor lo reescribe; guardado aquí, la tarjeta seguiría
+       * diciendo el nombre viejo. Y un número no deja escribir en la base el
+       * texto que se le ocurra a quien manda la petición.
+       *
+       * Vacío en la maniobra y en el estudio de imagen, que no tienen partes; en
+       * el simulador, cuya consola empieza cada caso en el primer paso y no
+       * sabría retomarlo en otro (`dondeSeQuedo`), y en las filas de antes de
+       * este campo. Si el autor quita pasos y el número
+       * queda fuera, la portada no lo pinta: no hay nombre que dar.
+       */
+      name: 'seccion',
+      type: 'number',
+      min: 1,
+      max: 200,
+      label: 'Sección donde se quedó',
+    },
+    {
+      /**
        * Lo que el residente lleva cobrado en este caso del simulador.
        *
        * Vacío en las cuatro colecciones que no son `cirugias`, y vacío también

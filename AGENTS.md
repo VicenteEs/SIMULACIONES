@@ -29,13 +29,15 @@ razón de haber quitado una.
 
 La plataforma puede vivir bajo un prefijo (`/traumahub`), porque comparte dominio
 y puerto con otras páginas detrás del mismo proxy. Next.js resuelve solo el
-prefijo de `<Link>`, `redirect()`, `router.push()` y `next/image`, pero no el de
-lo que se escribe a mano:
+prefijo de `<Link>`, `redirect()` y `router.push()`, pero no el de lo que se
+escribe a mano:
 
 - `<img src="/logo.png">`
 - `fetch('/api/…')` y `new EventSource('/api/…')`
 - `<a href="/api/…">`
 - los iconos declarados en `metadata`
+- el `src` de `next/image` cuando es una cadena (solo la imagen importada con
+  `import` trae el prefijo puesto)
 
 Para todo eso está `ruta()`, en `src/lib/rutas.ts`. Olvidarla no falla donde se
 nota: en desarrollo funciona igual, y en el servidor la petición sale sin el

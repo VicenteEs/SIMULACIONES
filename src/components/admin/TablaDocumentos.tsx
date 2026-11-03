@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { estadoEnPalabras, type EsquemaDeColeccion } from '@/admin/esquema'
@@ -13,7 +13,9 @@ import {
   type FilaDeLista,
   type FiltroDeRevision,
 } from '@/app/(frontend)/acciones/contenido'
+import { VISTAS_DEL_LISTADO, vistaDe, type CuentasDeLasVistas } from '@/app/(frontend)/admin-panel/contenido/vistas'
 import { estadoEnPalabras as estadoDeRevision } from '@/lib/revision'
+import { cifra } from '@/lib/graficos'
 import { claseDeInsignia, tonoDeRevision, tonoDePublicacion } from '@/lib/tonosDeEstado'
 import {
   ChevronLeft,
@@ -76,7 +78,9 @@ const fecha = (valor: unknown) =>
  * modo en que este defecto llegó hasta aquí.
  */
 function celda(valor: unknown, formato: string | undefined, esquema: EsquemaDeColeccion) {
-  if (formato === 'fecha') return fecha(valor)
+  // Sin partir: con la columna de lecturas (D-238) la tabla se estrecha y la
+  // fecha bajaba el año a otra línea, que es lo que menos se debe partir.
+  if (formato === 'fecha') return <span className="contenido-listado-fecha">{fecha(valor)}</span>
   if (formato === 'booleano') {
     return (
       <span className={claseDeInsignia(valor === true ? 'ok' : 'neutra')}>
@@ -129,15 +133,53 @@ const motivoDeLaCaida = (fallo: unknown, porOmision: string): string =>
     ? `${porOmision} ${fallo.message}`
     : `${porOmision} Compruebe la conexión e inténtelo otra vez.`
 
+/**
+ * Lo que la página sabe del módulo y la tabla no pide: su nombre y número, y
+ * cuántas fichas tiene en total y publicadas, sin mirar el filtro (D-238).
+ */
+export interface DatosDelModulo {
+  nombre: string
+  numero: string
+  /** La portada pública del módulo, para «Ver público». */
+  publico: string
+  total: number | null
+  /** Las publicadas en el sitio: el documento principal, no la última versión. */
+  publicadas: number | null
+}
+
 export function TablaDocumentos({
   esquema,
   esAdmin = false,
+  modulo,
+  cuentas,
+  lecturas,
+  subtitulo,
+  children,
 }: {
   esquema: EsquemaDeColeccion
   /** Rol real: el editor no publica una ficha en revisión (D-142). */
   esAdmin?: boolean
+  /** Solo en los cinco módulos: cambia la cabecera a la del tablero de Penpot. */
+  modulo?: DatosDelModulo
+  /** Las cuentas de las pestañas por estado (D-238); sin ellas no hay pestañas. */
+  cuentas?: CuentasDeLasVistas
+  /**
+   * Las aperturas de cada ficha en los últimos 30 días, por identificador. Sin
+   * la propiedad no hay columna —el editor no la ve, como en el Resumen—; con
+   * `null`, la columna dice que no se pudo leer en vez de pintar ceros.
+   */
+  lecturas?: Record<string, number> | null
+  /** Para la colección que no se explica con su descripción de esquema («Equipo»). */
+  subtitulo?: ReactNode
+  /** Lo que la página pinta entre la cabecera y el listado: el tablero de «Equipo». */
+  children?: ReactNode
 }) {
   const conRevision = esquema.familia === 'modulos'
+  const conLecturas = lecturas !== undefined
+  // La barra de cada fila se mide contra la ficha más leída del módulo y no
+  // contra la más leída de la página: si no, la primera de cada página
+  // llenaría siempre su barra aunque nadie la abriera.
+  const masLeida = Math.max(1, ...Object.values(lecturas ?? {}))
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
 
@@ -331,9 +373,24 @@ export function TablaDocumentos({
   return (
     <div>
       <CabeceraDePagina
-        migas={[{ etiqueta: 'Contenido', href: '/admin-panel/contenido' }, { etiqueta: esquema.plural }]}
-        titulo={esquema.plural}
-        subtitulo={`${esquema.descripcion} · ${total} en total`}
+        migas={[{ etiqueta: 'Contenido', href: '/admin-panel/contenido' }, { etiqueta: modulo?.nombre ?? esquema.plural }]}
+        titulo={modulo?.nombre ?? esquema.plural}
+        subtitulo={
+          // Del módulo, lo que dice el tablero: cuántas hay y cuántas ve el
+          // residente, sin mirar el filtro, que para eso están las pestañas.
+          // «En el sitio» porque la pestaña «Publicadas» cuenta la última
+          // versión: una publicada con un borrador encima está en una cifra y
+          // no en la otra (`contarComoElListado`).
+          modulo
+            ? [
+                `Módulo ${modulo.numero}`,
+                modulo.total !== null ? `${cifra(modulo.total)} ${modulo.total === 1 ? 'ficha' : 'fichas'}` : null,
+                modulo.publicadas !== null ? `${cifra(modulo.publicadas)} ${modulo.publicadas === 1 ? 'publicada' : 'publicadas'} en el sitio` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : (subtitulo ?? `${esquema.descripcion} · ${total} en total`)
+        }
         acciones={
           esquema.subida ? (
             <SubidorDeArchivos esquema={esquema} alTerminar={() => void cargar()} carpeta={carpeta} />
@@ -345,13 +402,23 @@ export function TablaDocumentos({
                listas repetibles ya usan (`formulario/Campos.tsx`) y no tiene
                que concordar con nada, así que el singular entra tal como está
                escrito en el esquema y «Caso AO» conserva su sigla. */
-            <Link href={`/admin-panel/contenido/${esquema.slug}/nuevo`} className="admin-btn admin-btn-primary">
-              <Plus aria-hidden size={16} />
-              Agregar {esquema.singular}
-            </Link>
+            <>
+              {modulo ? (
+                <Link href={modulo.publico} className="admin-btn admin-btn-secondary">
+                  <Eye aria-hidden size={16} />
+                  Ver público
+                </Link>
+              ) : null}
+              <Link href={`/admin-panel/contenido/${esquema.slug}/nuevo`} className="admin-btn admin-btn-primary">
+                <Plus aria-hidden size={16} />
+                Agregar {esquema.singular}
+              </Link>
+            </>
           )
         }
       />
+
+      {children}
 
       {/* El error sí puede montarse con su texto: `role="alert"` interrumpe y
           los lectores lo leen al insertarse. Aquí no se le lleva el foco, al
@@ -380,6 +447,31 @@ export function TablaDocumentos({
             etiqueta: `${o.etiqueta}${cuentasPorCarpeta[o.valor] !== undefined ? ` · ${cuentasPorCarpeta[o.valor]}` : ''}`,
           }))}
         />
+      ) : null}
+
+      {/* Las pestañas por estado (D-238) son atajos de los dos filtros de
+          abajo, que se quedan para lo que ninguna pestaña cubre. Botones con
+          `aria-pressed` y no enlaces: no cambian de dirección, cambian el
+          listado. Si lo elegido abajo no es ninguna, ninguna queda marcada. */}
+      {cuentas ? (
+        <div className="segmentado contenido-vistas" role="group" aria-label="Fichas por estado">
+          {VISTAS_DEL_LISTADO.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              className="segmentado-opcion"
+              aria-pressed={vistaDe(estado, filtroRevision) === v.id}
+              onClick={() => {
+                setPagina(1)
+                setEstado(v.estado)
+                setFiltroRevision(v.revision)
+              }}
+            >
+              {v.etiqueta}
+              {cuentas[v.id] !== null ? <span className="segmentado-cuenta">{cifra(cuentas[v.id] ?? 0)}</span> : null}
+            </button>
+          ))}
+        </div>
       ) : null}
 
       <div className="admin-filters">
@@ -479,6 +571,7 @@ export function TablaDocumentos({
                   <th key={c.nombre}>{c.etiqueta}</th>
                 ))}
                 {conRevision ? <th>Revisión</th> : null}
+                {conLecturas ? <th>Lecturas · 30 d</th> : null}
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -533,6 +626,20 @@ export function TablaDocumentos({
                           </>
                         ) : (
                           <span className="revision-tenue">—</span>
+                        )}
+                      </td>
+                    ) : null}
+                    {conLecturas ? (
+                      <td data-etiqueta="Lecturas · 30 d">
+                        {lecturas === null ? (
+                          <span title="No se pudo leer el registro de lecturas">—</span>
+                        ) : (
+                          <span className="contenido-lecturas">
+                            <span className="contenido-lecturas-barra" aria-hidden>
+                              <span style={{ width: `${((lecturas?.[fila.id] ?? 0) / masLeida) * 100}%` }} />
+                            </span>
+                            {cifra(lecturas?.[fila.id] ?? 0)}
+                          </span>
                         )}
                       </td>
                     ) : null}

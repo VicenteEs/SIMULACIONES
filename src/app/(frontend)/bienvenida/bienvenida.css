@@ -1,0 +1,160 @@
+/* La bienvenida del primer ingreso (P-007 E4, D-237): el tablero «Bienvenida ·
+ * primer ingreso» de Penpot, una tarjeta blanca sobre el marino entero.
+ *
+ * Con su prefijo, `bv-`, como las de `/entrar` (`ac-`): solo la usa esta
+ * pantalla. Los colores son los tokens de `estilos.css`; el de cada opción, el
+ * del módulo al que lleva (`.mod-N`, en `ui.css`). */
+
+/* La barra y el pie no están en el tablero: es una pausa antes de entrar, y un
+   menú con los cinco módulos al lado de «¿por dónde quieres empezar?» contesta
+   la pregunta antes de que se lea. Se ocultan igual que en `/entrar`. */
+body:has(> .bv-pantalla) > .barra,
+body:has(> .bv-pantalla) > .pie-de-pagina { display: none; }
+
+.bv-pantalla {
+  display: grid;
+  place-items: center;
+  max-width: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: var(--e-6) var(--e-4);
+  background: var(--marino-1);
+  color: var(--tinta);
+}
+
+.bv-tarjeta {
+  width: 100%;
+  max-width: 720px;
+  padding: 40px;
+  border-radius: 24px;
+  background: var(--superficie);
+  box-shadow: 0 30px 80px color-mix(in srgb, var(--marino-1) 60%, transparent);
+}
+
+.bv-progreso { display: flex; gap: 6px; margin-bottom: var(--e-5); }
+.bv-progreso span { width: 60px; height: 4px; border-radius: 2px; background: var(--linea-suave); }
+.bv-progreso span[data-hecho] { background: var(--marca); }
+
+.bv-paso {
+  margin: 0 0 var(--e-5);
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--marca);
+}
+
+.bv-tarjeta h1 {
+  margin: 0 0 var(--e-5);
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.bv-tarjeta h1:focus { outline: none; }
+.bv-tarjeta h1:focus-visible { outline: 2px solid var(--marca); outline-offset: 4px; border-radius: 4px; }
+
+.bv-bajada { margin: 0 0 var(--e-5); color: var(--pizarra); font-size: var(--t-lectura); line-height: 1.5; }
+
+/* ---------- paso 1 ---------- */
+.bv-consejos { display: grid; gap: var(--e-3); margin: 0 0 var(--e-6); padding: 0; list-style: none; }
+.bv-consejos li {
+  display: flex;
+  gap: var(--e-3);
+  align-items: flex-start;
+  padding: var(--e-3) var(--e-4);
+  border: 1px solid var(--linea-suave);
+  border-radius: 12px;
+}
+.bv-consejos svg { flex: none; margin-top: 2px; color: var(--marca); }
+.bv-consejos strong { display: block; color: var(--tinta); }
+.bv-consejos span { display: block; margin-top: 2px; color: var(--pizarra); font-size: var(--t-sm); }
+
+/* ---------- paso 2 ---------- */
+.bv-opciones {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--e-3);
+  min-width: 0;
+  margin: 0 0 var(--e-5);
+  padding: 0;
+  border: 0;
+}
+
+.bv-opcion {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px;
+  border: 1px solid var(--linea-suave);
+  border-radius: 12px;
+  background: var(--superficie);
+  cursor: pointer;
+  transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease;
+}
+.bv-opcion:hover { border-color: var(--acento, var(--marca)); }
+/* El radio de verdad queda debajo de la tarjeta, invisible pero en su sitio:
+   con `display: none` se perdería el foco con el teclado. */
+.bv-opcion input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.bv-opcion:has(input:checked) {
+  border: 2px solid var(--acento, var(--marca));
+  padding: 17px;
+  background: var(--acento-tenue, var(--marca-tenue));
+}
+.bv-opcion:has(input:focus-visible) { outline: 2px solid var(--acento, var(--marca)); outline-offset: 3px; }
+.bv-opcion-icono { margin-bottom: var(--e-2); color: var(--acento, var(--marca)); }
+.bv-opcion-titulo { font-weight: 600; color: var(--tinta); }
+.bv-opcion-bajada { font-size: var(--t-sm); color: var(--pizarra); }
+.bv-opcion-marca { position: absolute; top: 16px; right: 16px; color: var(--acento, var(--marca)); opacity: 0; }
+.bv-opcion:has(input:checked) .bv-opcion-marca { opacity: 1; }
+.bv-opciones:disabled .bv-opcion { cursor: progress; opacity: 0.7; }
+
+/* ---------- pie ---------- */
+.bv-acciones { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e-3); }
+.bv-acciones .boton { min-height: 52px; padding: 0 var(--e-5); }
+
+.bv-saltar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 44px;
+  padding: 0 var(--e-4);
+  border: 0;
+  border-radius: var(--r);
+  background: none;
+  color: var(--marca);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bv-saltar:hover:not(:disabled) { background: var(--marca-tenue); }
+.bv-saltar:disabled { cursor: progress; opacity: 0.7; }
+
+.bv-error {
+  display: flex;
+  gap: var(--e-2);
+  align-items: flex-start;
+  margin: 0 0 var(--e-4);
+  padding: var(--e-3);
+  border-radius: var(--r);
+  background: var(--alerta-tenue);
+  color: var(--alerta);
+  font-size: var(--t-sm);
+}
+.bv-error svg { flex: none; margin-top: 1px; }
+
+.bv-girando { animation: bv-girar 0.9s linear infinite; }
+@keyframes bv-girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bv-girando { animation: none; } }
+
+@media (max-width: 640px) {
+  .bv-pantalla { padding: var(--e-4); }
+  .bv-tarjeta { padding: var(--e-5); border-radius: 18px; }
+  .bv-opciones { grid-template-columns: 1fr; }
+  /* El botón principal arriba y entero, que es el que se busca con el pulgar;
+     «Saltar» debajo, a su ancho. */
+  .bv-acciones { flex-direction: column-reverse; align-items: stretch; }
+  .bv-acciones .boton { width: 100%; }
+}

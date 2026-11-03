@@ -4111,7 +4111,9 @@ instrumentoElegido ? (
   return (
     <section
       ref={raizDeLaConsola}
-      className={`consola mod-4${terminado ? ' consola-terminada' : ''}${editor ? ' consola-editor' : ''}`}
+      // `consola-completa` es lo que hace «Ampliar»: el botón cambiaba de rótulo desde D-172 sin que nada pusiera la
+      // clase, y la consola seguía del tamaño de la página (visto el 2026-11-03, grabando el instrumental).
+      className={`consola mod-4${terminado ? ' consola-terminada' : ''}${editor ? ' consola-editor' : ''}${pantallaCompleta ? ' consola-completa' : ''}`}
       aria-labelledby="consola-titulo"
     >
       {/* --------------------------------------------------------- barra */}

@@ -8,6 +8,7 @@ import {
   type PiezaLeida,
 } from '@/lib/exportarAtlas'
 import type { CatalogoDelAtlas, PiezaDelAtlas } from '@/atlas/formato'
+import referencias from '@/atlas/referenciasDelCuerpo.json'
 
 /**
  * La exportación de una preparación del atlas a un modelo de caso.
@@ -297,5 +298,123 @@ describe('el archivo que sale', () => {
     const texto = new TextDecoder().decode(glb.slice(20, 20 + largoJson))
     expect(texto).not.toContain('Infinity')
     expect(() => JSON.parse(texto)).not.toThrow()
+  })
+})
+
+/** El JSON de un glb ya escrito, para mirar qué atributos declara cada malla. */
+function jsonDe(glb: Uint8Array) {
+  const vista = new DataView(glb.buffer, glb.byteOffset, glb.byteLength)
+  const largoJson = vista.getUint32(12, true)
+  return JSON.parse(new TextDecoder().decode(glb.slice(20, 20 + largoJson)))
+}
+
+describe('el color por vértice del archivo (D-227)', () => {
+  const cuadrado = (extra: Partial<ObjetoParaGlb> = {}): ObjetoParaGlb => ({
+    nombre: 'piel',
+    posiciones: new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]),
+    normales: new Int16Array(12),
+    indices: new Uint32Array([0, 1, 2, 0, 2, 3]),
+    color: [1, 1, 1, 1],
+    ...extra,
+  })
+
+  it('un objeto con colores declara COLOR_0 como bytes normalizados de cuatro componentes', () => {
+    const json = jsonDe(escribirGlb([cuadrado({ colores: new Uint8Array(16).fill(200) })], 'prueba'))
+    const atributos = json.meshes[0].primitives[0].attributes
+    expect(atributos.COLOR_0).toBeDefined()
+    const a = json.accessors[atributos.COLOR_0]
+    expect([a.componentType, a.type, a.count, a.normalized]).toEqual([5121, 'VEC4', 4, true])
+  })
+
+  it('sin colores el archivo es el de siempre, byte a byte', () => {
+    const sin = escribirGlb([cuadrado()], 'prueba')
+    expect(jsonDe(sin).meshes[0].primitives[0].attributes.COLOR_0).toBeUndefined()
+    // Colores de largo equivocado se ignoran en vez de escribir un accessor que el lector rechazaría.
+    const torcido = escribirGlb([cuadrado({ colores: new Uint8Array(7) })], 'prueba')
+    expect([...torcido]).toEqual([...sin])
+  })
+
+  it('los accessors de colores también empiezan en múltiplo de cuatro', () => {
+    const json = jsonDe(escribirGlb([cuadrado({ colores: new Uint8Array(16) }), cuadrado({ colores: new Uint8Array(16) })], 'prueba'))
+    for (const v of json.bufferViews) expect(v.byteOffset % 4).toBe(0)
+  })
+
+  it('la piel y los labios del atlas salen con colores y el resto de su sistema, no', () => {
+    const objetos = agruparParaGlb(
+      [pieza('Skin', 'integumentary'), pieza('Lip', 'integumentary', 2), pieza('Nail of right hand', 'integumentary', 4)],
+      { protagonistas: ['Nail of right hand'] },
+    )
+    const [uña, fundido] = objetos
+    expect(uña.colores).toBeUndefined()
+    expect(fundido.colores).toHaveLength((fundido.posiciones.length / 3) * 4)
+  })
+
+  it('al fundir, las piezas sin color van en blanco para que multiplicar no cambie nada', () => {
+    // La piel, sobre el codo derecho del atlas: en el origen no hay ninguna zona y el tinte saldría blanco.
+    const [x, y, z] = referencias['codo-derecho'] as [number, number, number]
+    const sobreElCodo: PiezaLeida = {
+      ...pieza('Skin', 'integumentary'),
+      posiciones: new Float32Array([x, y, z, x + 0.001, y, z, x + 0.001, y + 0.001, z, x, y + 0.001, z]),
+      normales: new Int16Array([0, 0, -32767, 0, 0, -32767, 0, 0, -32767, 0, 0, -32767]),
+    }
+    const objetos = agruparParaGlb([sobreElCodo, pieza('Hair of head', 'integumentary', 2)])
+    const colores = objetos[0].colores!
+    expect(colores).toHaveLength(8 * 4)
+    // El pelo es la segunda pieza: sus cuatro vértices, los últimos, sin tocar.
+    expect([...colores.subarray(16)]).toEqual(new Array(16).fill(255))
+    // Y la piel del codo sí lleva algo que no es blanco puro.
+    expect([...colores.subarray(0, 16)].some((b) => b < 255)).toBe(true)
+  })
+
+  it('una pieza que se llama «Skin» pero no es del sistema tegumentario no se pinta', () => {
+    const [objeto] = agruparParaGlb([pieza('Skin', 'esqueleto')])
+    expect(objeto.colores).toBeUndefined()
+  })
+
+  it('la esclera y el iris salen en su objeto, y la córnea en otro, con extras.aspecto', () => {
+    const objetos = agruparParaGlb([
+      pieza('Left sclera', 'sensory'),
+      pieza('Left iris', 'sensory', 2),
+      pieza('Left cornea', 'sensory', 4),
+      pieza('Left eyeball', 'sensory', 6),
+    ])
+    const ojos = objetos.find((o) => o.extras?.aspecto === 'ojos')!
+    const cornea = objetos.find((o) => o.extras?.aspecto === 'cornea')!
+    expect(ojos.posiciones).toHaveLength(2 * 12)
+    expect(ojos.colores).toHaveLength(8 * 4)
+    expect(ojos.color).toEqual([1, 1, 1, 1])
+    // La córnea no lleva colores por vértice (es transparente de una sola pieza) pero sí un alfa casi nulo.
+    expect(cornea.colores).toBeUndefined()
+    expect(cornea.color[3]).toBeLessThan(0.1)
+    // Lo que no es del ojo propiamente sigue en su sistema, sin aspecto.
+    expect(objetos.filter((o) => !o.extras?.aspecto).some((o) => o.nombre === 'sensory')).toBe(true)
+  })
+
+  it('con las estructuras separadas cada pieza del ojo conserva su aspecto y su color', () => {
+    const objetos = agruparParaGlb([pieza('Left iris', 'sensory'), pieza('Left cornea', 'sensory', 2)], { separarEstructuras: true })
+    expect(objetos.map((o) => o.extras?.aspecto)).toEqual(['ojos', 'cornea'])
+    expect(objetos[0].colores).toHaveLength(16)
+    expect(objetos[1].color[3]).toBeLessThan(0.1)
+  })
+
+  it('el recorte de la piel arrastra los colores de cada vértice que se queda', () => {
+    const hueso: ObjetoParaGlb = cuadrado({ nombre: 'hueso', extras: { rol: 'hueso', etiqueta: 'Hueso' } })
+    const colores = new Uint8Array([
+      10, 10, 10, 255, // 0, fuera
+      20, 20, 20, 255, // 1
+      30, 30, 30, 255, // 2
+      40, 40, 40, 255, // 3
+      50, 50, 50, 255, // 4
+      60, 60, 60, 255, // 5, fuera
+    ])
+    const piel = cuadrado({
+      posiciones: new Float32Array([5, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 5, 1, 0]),
+      normales: new Int16Array(18),
+      indices: new Uint32Array([0, 1, 3, 1, 2, 3, 2, 4, 3, 2, 5, 4]),
+      colores,
+      extras: { rol: 'piel', etiqueta: 'Piel' },
+    })
+    const recortado = recortarLaPiel([hueso, piel]).objetos[1]
+    expect([...recortado.colores!]).toEqual([20, 20, 20, 255, 30, 30, 30, 255, 40, 40, 40, 255, 50, 50, 50, 255])
   })
 })

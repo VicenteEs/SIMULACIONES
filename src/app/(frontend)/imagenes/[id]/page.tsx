@@ -9,14 +9,23 @@ import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo } from '@/components/E
 import { EyebrowDeModulo, MigaDePan, claseDeModulo } from '@/components/Cabeceras'
 import { BotonImprimir } from '@/components/BotonImprimir'
 import { EncabezadoImpreso } from '@/components/EncabezadoImpreso'
+import { FirmasDeLaFicha } from '@/components/FirmasDeLaFicha'
 import { BotonComentar } from '@/components/BotonComentar'
 import { FlaskConical, ThumbsDown, ThumbsUp, Star } from 'lucide-react'
 import { Bloques } from '@/components/Bloques'
 import { FormularioComentario } from '@/components/FormularioComentario'
 import { RastreadorActividad } from '@/components/RastreadorActividad'
+import { EjercicioDeClasificacion } from '@/components/imagenes/EjercicioDeClasificacion'
+import { ejercicioDeClasificacion } from '@/lib/clasificacionAO'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Un caso de lectura de imágenes. Si su código dice el tipo AO («23-A2»), el
+ * caso se lee como ejercicio (P-007 E4, D-237): lo que se ve a la izquierda y,
+ * a la derecha, proponer una clasificación y compararla, con las opciones de
+ * manejo cerradas hasta entonces. Sin código, o sin tipo, se lee como siempre.
+ */
 export default async function Estudio({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { activo, usuarioEfectivo } = await obtenerSesion()
@@ -71,6 +80,71 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
   // lanza: el estudio se enseña igual con la tabla de actividad caída.
   const lecturas = await lecturasDelResidente(payload, usuarioEfectivo, 'estudios-ia', [id])
 
+  const ejercicio = ejercicioDeClasificacion(estudio.codigo)
+  const confianza = typeof estudio.confianza === 'number' ? estudio.confianza : null
+
+  const seccionDeHallazgos =
+    hallazgos.length > 0 ? (
+      <section className="ficha-seccion">
+        <span className="eyebrow pestana-eyebrow">Lo que se ve</span>
+        <h2>Hallazgos</h2>
+        <ul className="lista-clinica">
+          {hallazgos.map((h, i) => (
+            <li key={i}>{h.texto}</li>
+          ))}
+        </ul>
+      </section>
+    ) : null
+
+  const seccionDeOpciones =
+    opciones.length > 0 ? (
+      <section className="ficha-seccion">
+        <span className="eyebrow pestana-eyebrow">Lo que se puede hacer</span>
+        <h2>Opciones de manejo</h2>
+        {opciones.map((o, i) => {
+          const aFavor = Array.isArray(o.aFavor) ? (o.aFavor as Record<string, string>[]) : []
+          const enContra = Array.isArray(o.enContra) ? (o.enContra as Record<string, string>[]) : []
+          return (
+            <article key={i} className="opcion">
+              <h3>
+                {o.titulo as string}
+                {o.frecuente ? (
+                  <span className="insignia insignia-acento">
+                    <Star size={13} aria-hidden="true" />
+                    Indicación más frecuente
+                  </span>
+                ) : null}
+              </h3>
+              <div className="pros-contras">
+                <div className="a-favor">
+                  <h4>
+                    <ThumbsUp size={14} aria-hidden="true" />
+                    A favor
+                  </h4>
+                  <ul>
+                    {aFavor.map((a, j) => (
+                      <li key={j}>{a.texto}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="en-contra">
+                  <h4>
+                    <ThumbsDown size={14} aria-hidden="true" />
+                    En contra
+                  </h4>
+                  <ul>
+                    {enContra.map((a, j) => (
+                      <li key={j}>{a.texto}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </article>
+          )
+        })}
+      </section>
+    ) : null
+
   return (
     <main className={claseDeModulo('estudios-ia')}>
       <EncabezadoImpreso
@@ -105,17 +179,20 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
       <header className="cabecera-ficha">
         <EyebrowDeModulo slug="estudios-ia">Lectura de imágenes</EyebrowDeModulo>
         <h1>{estudio.nombre as string}</h1>
-        <div className="etiquetas">
-          {estudio.codigo ? <span className="codigo">{estudio.codigo as string}</span> : null}
-          {typeof estudio.confianza === 'number' ? (
-            <span className="etiqueta">Confianza declarada: {estudio.confianza}%</span>
-          ) : null}
-        </div>
+        {/* Con ejercicio, el código y la confianza esperan a que se compare:
+            en la cabecera serían la respuesta escrita encima de la pregunta. */}
+        {ejercicio ? null : (
+          <div className="etiquetas">
+            {estudio.codigo ? <span className="codigo">{estudio.codigo as string}</span> : null}
+            {confianza !== null ? <span className="etiqueta">Confianza declarada: {confianza}%</span> : null}
+          </div>
+        )}
         {/*
           En la cabecera y no al pie, como en la biblioteca: al final de la
           página está el aviso de que la decisión es del cirujano tratante, y no
           conviene poner un control de progreso justo debajo de esa frase.
         */}
+        <FirmasDeLaFicha coleccion="estudios-ia" documentoId={id} />
         <div className="barra-acciones">
           <RastreadorActividad
             coleccion="estudios-ia"
@@ -127,67 +204,23 @@ export default async function Estudio({ params }: { params: Promise<{ id: string
         </div>
       </header>
 
-      {hallazgos.length > 0 ? (
-        <section className="ficha-seccion">
-          <span className="eyebrow pestana-eyebrow">Lo que se ve</span>
-          <h2>Hallazgos</h2>
-          <ul className="lista-clinica">
-            {hallazgos.map((h, i) => (
-              <li key={i}>{h.texto}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {opciones.length > 0 ? (
-        <section className="ficha-seccion">
-          <span className="eyebrow pestana-eyebrow">Lo que se puede hacer</span>
-          <h2>Opciones de manejo</h2>
-          {opciones.map((o, i) => {
-            const aFavor = Array.isArray(o.aFavor) ? (o.aFavor as Record<string, string>[]) : []
-            const enContra = Array.isArray(o.enContra) ? (o.enContra as Record<string, string>[]) : []
-            return (
-              <article key={i} className="opcion">
-                <h3>
-                  {o.titulo as string}
-                  {o.frecuente ? (
-                    <span className="insignia insignia-acento">
-                      <Star size={13} aria-hidden="true" />
-                      Indicación más frecuente
-                    </span>
-                  ) : null}
-                </h3>
-                <div className="pros-contras">
-                  <div className="a-favor">
-                    <h4>
-                      <ThumbsUp size={14} aria-hidden="true" />
-                      A favor
-                    </h4>
-                    <ul>
-                      {aFavor.map((a, j) => (
-                        <li key={j}>{a.texto}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="en-contra">
-                    <h4>
-                      <ThumbsDown size={14} aria-hidden="true" />
-                      En contra
-                    </h4>
-                    <ul>
-                      {enContra.map((a, j) => (
-                        <li key={j}>{a.texto}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </article>
-            )
-          })}
-        </section>
-      ) : null}
-
-      <Bloques bloques={estudio.contenido} />
+      {ejercicio ? (
+        <div className="lectura-con-ejercicio">
+          <div className="lectura-material">
+            <Bloques bloques={estudio.contenido} />
+            {seccionDeHallazgos}
+          </div>
+          <EjercicioDeClasificacion ejercicio={ejercicio} codigo={String(estudio.codigo)} confianza={confianza}>
+            {seccionDeOpciones}
+          </EjercicioDeClasificacion>
+        </div>
+      ) : (
+        <>
+          {seccionDeHallazgos}
+          {seccionDeOpciones}
+          <Bloques bloques={estudio.contenido} />
+        </>
+      )}
 
       <p className="nota-al-pie">
         Las opciones se muestran como apoyo docente. La decisión es del cirujano tratante y depende

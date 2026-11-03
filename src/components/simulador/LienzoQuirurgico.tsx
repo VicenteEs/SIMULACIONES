@@ -6,7 +6,6 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { ruta } from '@/lib/rutas'
 import { desplazamientoDesde, medirReduccion, posicionAbsoluta, type EjeLargo } from '@/lib/reduccion'
 import { largoVisibleDelAgujero, reconciliarConElModelo } from '@/lib/simulador'
@@ -91,7 +90,7 @@ import {
   type AccionDeMovimiento,
   type EjeAnatomico,
 } from '@/lib/movimientoPorEjes'
-import { avisoDelClicSinEfecto, correrElApoyo, decidirElClicDelSeparador, invertirLaDireccion, type CandidatoDeHerida } from '@/lib/abordajePorPlanos'
+import { LIMITE_PARA_COLOCAR_MM, avisoDelClicSinEfecto, correrElApoyo, decidirElClicDelSeparador, invertirLaDireccion, type CandidatoDeHerida } from '@/lib/abordajePorPlanos'
 import {
   aperturaPorLabioEnMm,
   avanzo,
@@ -124,6 +123,7 @@ import {
 import {
   aplicarSeparadoresALasHeridas,
   apoyarSeparadorEn,
+  cercaDeLaHerida,
   colocarInstrumento,
   soltarInstrumento,
   type InstrumentoColocado,
@@ -210,6 +210,8 @@ import { agujerosSobrePeriostio, juicioDeLaExposicion } from '@/lib/periostio'
 import { LARGO_DEL_ALAMBRE_MM, MAXIMO_DE_ALAMBRES, juzgarElAlambre, resumenDeLosAlambres, type EstadoDeLosAlambres } from '@/lib/alambreDeKirschner'
 import { emparejarNodos, normalizarNombreDeNodo } from '@/lib/emparejarNodos'
 import { restaurarLoColocado, serializarLoColocado } from './sesionDeLoColocado'
+import { crearAspectoDelModelo, soltarElAspecto, velloAlDia, vestirElModelo } from './aspectoDelPaciente'
+import { crearEntornoDePabellon, crearOclusion, montarElPabellon, ponerLaSala, prepararElRenderizador, type Oclusion } from './pabellon'
 import { causaProbable, guardarDiagnostico, type RegistroDeUnaPerdida } from '@/lib/diagnosticoDelLienzo'
 import { destornilladorDelNombre, juzgarElApriete, juzgarLaPunteria, posicionDelOrificioMm, type OrificioDelClavo } from '@/lib/bloqueoDelClavo'
 import { CERCA_DEL_FOCO_MM, VOLUMEN_POR_PUNADO_CC, juzgarElInjerto, largoDeBloqueParaElDefecto, type InjertoPuesto, type TipoDeInjerto } from '@/lib/injertoOseo'
@@ -269,6 +271,13 @@ import { MAXIMO_DE_PUNTADAS, crearSutura, mallasVisibles, reconstruirHilo, solta
 // lienzo lo monta también el taller de piezas del panel: sin importarla aquí,
 // allí el contenedor mediría cero de alto. El porqué, en la cabecera de la hoja.
 import '@/app/(frontend)/simulador/consola.css'
+// Viven aparte, sin hoja de estilos, para que un guion de Node pueda leer los
+// nodos de un modelo: importar este archivo arrastra la CSS de arriba, y Node no
+// sabe cargarla (`scripts/pierna-derecha-en-el-caso.ts`). Se vuelven a exportar
+// aquí porque es donde los buscan el panel y las pruebas.
+import { datosDeLosNodos, esDeInterfazDelModelo, type DatosDeNodo } from './nodosDelModelo'
+import { instalarLaSonda } from './sondaDelLienzo'
+export { datosDeLosNodos, esDeInterfazDelModelo, type DatosDeNodo }
 
 /**
  * El lienzo de la consola quirúrgica.
@@ -778,11 +787,6 @@ export interface AyudasDeEscopia {
   ejes: boolean
 }
 
-export interface DatosDeNodo {
-  nodo: string
-  datos: Record<string, unknown>
-}
-
 export interface PiezaDelCaso {
   nodo: string
   rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia'
@@ -1032,6 +1036,8 @@ export function LienzoQuirurgico({
 }) {
   const lienzo = useRef<HTMLDivElement>(null)
 
+  /** Lo que el aspecto realista le puso a cada malla del modelo (D-225): sus materiales y el vello. */
+  const aspecto = useRef(crearAspectoDelModelo())
   const taller = useRef<{
     render?: THREE.WebGLRenderer
     escena?: THREE.Scene
@@ -1309,6 +1315,23 @@ export function LienzoQuirurgico({
       alCambiarLaTrayectoria,
     }
   })
+
+  // Solo en desarrollo: lo que las pruebas de extremo a extremo y las grabaciones del instrumental necesitan medir
+  // desde fuera —dónde cae una pieza en pantalla, si un separador está sobre su labio— (`sondaDelLienzo`).
+  useEffect(
+    () =>
+      instalarLaSonda(() => ({
+        render: taller.current.render,
+        camara: taller.current.camara,
+        controles: taller.current.controles,
+        pedirDibujo: taller.current.pedirDibujo,
+        raiz: taller.current.raiz,
+        heridas: taller.current.heridas,
+        separadores: taller.current.separadores,
+        milimetrosPorUnidad: ultimas.current.milimetrosPorUnidad,
+      })),
+    [],
+  )
 
   useImperativeHandle(mando, () => ({
     mostrar: (nodos) => {
@@ -1969,6 +1992,8 @@ export function LienzoQuirurgico({
   useEffect(() => {
     const contenedor = lienzo.current
     if (!contenedor) return
+    // El aspecto que suelta el desmontaje es el de este montaje: la referencia no cambia, pero así se lee sin dudas.
+    const aspectoDelMontaje = aspecto.current
 
     let vivo = true
     // Cuánto detalle pedir: el de siempre, y menos si el navegador ya le quitó el contexto a esta página (`calidadDelDibujo`). Con
@@ -1977,6 +2002,7 @@ export function LienzoQuirurgico({
     // El renderizador es lo único que se pierde con el contexto gráfico; la escena y todo lo puesto en ella viven en la memoria normal. Por eso es una variable:
     // si el navegador no devuelve el contexto, `reemplazarElRenderizador` pone otro y sigue con la misma escena, sin perder nada de lo hecho.
     let render = new THREE.WebGLRenderer({ antialias: calidad.suavizado, alpha: true, powerPreference: 'high-performance' })
+    prepararElRenderizador(render, calidad)
     render.setPixelRatio(razonDePixeles(devicePixelRatio, contenedor.clientWidth, contenedor.clientHeight, calidad.razonMaxima))
     render.setSize(contenedor.clientWidth, contenedor.clientHeight)
     // Los manejadores de puntero cuelgan de esta superficie y no del lienzo, que cambia si hay que reemplazar el renderizador.
@@ -2003,13 +2029,8 @@ export function LienzoQuirurgico({
     // propio `touch-action: none` al conectarse y pisaría el de aquí.
     render.domElement.style.touchAction = gestoTactil(ultimas.current.modo)
 
-    escena.add(new THREE.HemisphereLight(0xffffff, 0x62708a, 2.0))
-    const principal = new THREE.DirectionalLight(0xffffff, 1.4)
-    principal.position.set(1.4, 2.4, 2.2)
-    escena.add(principal)
-    const relleno = new THREE.DirectionalLight(0xffffff, 0.45)
-    relleno.position.set(-1.6, 0.8, -1.8)
-    escena.add(relleno)
+    // La luz del pabellón (D-226): la lámpara con su sombra, la satélite y la frontal. Se coloca sobre el modelo al cargarlo.
+    const pabellon = montarElPabellon(escena, calidad)
 
     let sucio = true
     const pedirDibujo = () => {
@@ -2093,6 +2114,7 @@ export function LienzoQuirurgico({
       decirElContexto(alRestaurarse(estadoDelContexto, performance.now()))
       // La imagen de la fluoroscopia y su toma eran del contexto de antes: se hacen olvidar para que la próxima se repita.
       reiniciarLaFluoroscopia(taller.current.fluoroscopia)
+      rehacerLaSala(render)
       sucio = true
     }
     const escucharElContexto = (lienzoNuevo: HTMLCanvasElement) => {
@@ -2101,9 +2123,35 @@ export function LienzoQuirurgico({
     }
     escucharElContexto(render.domElement)
 
-    // Un estudio que reflejar, solo para los instrumentos (ver `aplicarEntorno`).
+    // La sala del pabellón que reflejan el instrumental y las placas (ver `aplicarEntorno`) y, flojita, todo lo demás.
     let pmrem = new THREE.PMREMGenerator(render)
-    let entorno = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    let entorno = crearEntornoDePabellon(pmrem)
+    ponerLaSala(escena, entorno)
+    // La oclusión ambiental, solo con la calidad entera: tras perder el contexto una vez se deja de calcular (`calidadDelDibujo`).
+    let oclusion: Oclusion | null = calidad.oclusion ? crearOclusion(escena, camara) : null
+    oclusion?.tamano(render.domElement.width, render.domElement.height)
+    /**
+     * La sala de reflejos es una textura de la tarjeta: con el contexto se pierde, tanto si el navegador lo devuelve como si hay que poner otro renderizador.
+     * Se vuelve a dibujar con `r` y se les pone a los materiales que llevaban la de antes (instrumentos, placa, tornillos).
+     */
+    const rehacerLaSala = (r: THREE.WebGLRenderer) => {
+      const entornoViejo = entorno
+      pmrem = new THREE.PMREMGenerator(r)
+      entorno = crearEntornoDePabellon(pmrem)
+      ponerLaSala(escena, entorno)
+      taller.current.entorno = entorno
+      escena.traverse((o) => {
+        const m = o as THREE.Mesh
+        if (!m.isMesh) return
+        for (const material of Array.isArray(m.material) ? m.material : [m.material]) {
+          const conReflejo = material as THREE.MeshStandardMaterial
+          if (conReflejo.envMap === entornoViejo) {
+            conReflejo.envMap = entorno
+            conReflejo.needsUpdate = true
+          }
+        }
+      })
+    }
 
     taller.current = {
       ...taller.current,
@@ -2339,6 +2387,11 @@ export function LienzoQuirurgico({
           ? { posicion: f.position.clone(), rotacion: f.rotation.clone() }
           : undefined
         aplicarPiezas(taller.current, ultimas.current.piezas)
+        // Antes de devolver lo de la sesión: las heridas y el vello se rehacen sobre la piel ya vestida.
+        const milimetros = ultimas.current.milimetrosPorUnidad || 1000
+        vestirElModelo(aspecto.current, raiz, (nombre) => taller.current.rolesAplicados.get(nombre), milimetros)
+        pabellon.colocar(new THREE.Box3().setFromObject(raiz))
+        oclusion?.escala(milimetros)
         sincronizarAyudas(taller.current, ultimas.current.fluoroscopia, ultimas.current.ayudas)
 
         // El encuadre va DESPUÉS de avisar, y el orden no es un detalle. Quien
@@ -3514,7 +3567,7 @@ export function LienzoQuirurgico({
             ? {}
             : { [plano]: { punto: sitio.punto.clone(), normal: sitio.normal.clone(), direccion: sitio.direccion.clone(), posicion: sitio.posicion } },
         instrumento: colocarInstrumento(t.escena, inst.url, inst.ajustes, t.entorno ?? null, 1000 / (u.milimetrosPorUnidad || 1000), () => {
-          posarSeparador(nuevo, unidadesPorMm)
+          posarSeparador(nuevo, unidadesPorMm, t.heridas)
           pedirDibujo()
         }),
       }
@@ -5959,6 +6012,7 @@ export function LienzoQuirurgico({
       camara.aspect = contenedor.clientWidth / Math.max(1, contenedor.clientHeight)
       camara.updateProjectionMatrix()
       render.setSize(contenedor.clientWidth, contenedor.clientHeight)
+      oclusion?.tamano(render.domElement.width, render.domElement.height)
       sucio = true
     })
     observador.observe(contenedor)
@@ -6014,10 +6068,17 @@ export function LienzoQuirurgico({
       if (taller.current.guias) {
         sinCaerse('guías', () => actualizarGuias(taller.current, ultimas.current.ejeLargo, ultimas.current.piezas))
       }
+      sinCaerse('vello', () => velloAlDia(aspecto.current, taller.current.heridas.values()))
+      // La oclusión, en su propio `try`: si falla, la imagen se dibuja igual, sin ella.
+      sinCaerse('oclusión', () => oclusion?.calcular(render))
       sinCaerse('imagen', () => {
+        pabellon.seguirLaCamara(camara)
+        // La sombra de la lámpara se rehace aquí y solo aquí (ver `prepararElRenderizador`).
+        render.shadowMap.needsUpdate = true
         render.render(escena, camara)
         taller.current.cuadro = (taller.current.cuadro ?? 0) + 1
       })
+      sinCaerse('oclusión', () => oclusion?.aplicar(render))
     }
     render.setAnimationLoop(bucle)
 
@@ -6039,6 +6100,10 @@ export function LienzoQuirurgico({
           nuevo.dispose()
           return false
         }
+        prepararElRenderizador(nuevo, calidadNueva)
+        // La oclusión era de la tarjeta de antes, y con el contexto perdido una vez ya no se calcula (`calidadDelDibujo`).
+        oclusion?.liberar()
+        oclusion = calidadNueva.oclusion ? crearOclusion(escena, camara) : null
         nuevo.setPixelRatio(razonDePixeles(devicePixelRatio, contenedor.clientWidth, contenedor.clientHeight, calidadNueva.razonMaxima))
         nuevo.setSize(contenedor.clientWidth, contenedor.clientHeight)
       } catch (error) {
@@ -6058,22 +6123,9 @@ export function LienzoQuirurgico({
       controles.connect(nuevo.domElement)
       nuevo.domElement.style.touchAction = lienzoViejo.style.touchAction
       escucharElContexto(nuevo.domElement)
-      // El estudio de reflejos era una textura de la tarjeta de antes: se rehace y se les pone a los materiales que lo llevaban (instrumentos, placa, tornillos).
-      const entornoViejo = entorno
-      pmrem = new THREE.PMREMGenerator(nuevo)
-      entorno = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
-      taller.current.entorno = entorno
-      escena.traverse((o) => {
-        const m = o as THREE.Mesh
-        if (!m.isMesh) return
-        for (const material of Array.isArray(m.material) ? m.material : [m.material]) {
-          const conReflejo = material as THREE.MeshStandardMaterial
-          if (conReflejo.envMap === entornoViejo) {
-            conReflejo.envMap = entorno
-            conReflejo.needsUpdate = true
-          }
-        }
-      })
+      rehacerLaSala(nuevo)
+      oclusion?.tamano(nuevo.domElement.width, nuevo.domElement.height)
+      oclusion?.escala(ultimas.current.milimetrosPorUnidad || 1000)
       reiniciarLaFluoroscopia(taller.current.fluoroscopia)
       try {
         viejo.dispose()
@@ -6171,6 +6223,10 @@ export function LienzoQuirurgico({
       if (taller.current.implantes) quitarImplantes(taller.current.implantes)
       lectura.remove()
       manipulador.liberar()
+      // El aspecto antes de `liberar`: devuelve a cada malla su material del archivo y suelta el vello y lo propio.
+      soltarElAspecto(aspectoDelMontaje)
+      oclusion?.liberar()
+      pabellon.liberar()
       // Liberar a mano: aquí hay decenas de megabytes en la tarjeta y pasear
       // por la plataforma acabaría tirando la pestaña.
       liberar(escena)
@@ -6179,6 +6235,7 @@ export function LienzoQuirurgico({
       // Se pierde a propósito para que la tarjeta recupere la memoria al
       // cambiar de caso y no cuando el navegador se decida. Va después de
       // `liberar`, porque el borrado de texturas necesita el contexto vivo.
+      escena.environment = null
       entorno.dispose()
       pmrem.dispose()
       render.forceContextLoss()
@@ -6224,6 +6281,8 @@ export function LienzoQuirurgico({
     if (fragmento !== anterior) sincronizarAyudas(taller.current, false, undefined)
 
     aplicarPiezas(taller.current, piezas)
+    // Una pieza que cambia de papel cambia de aspecto: el taller deja marcar la piel como hueso, y al revés.
+    vestirElModelo(aspecto.current, taller.current.raiz, (nombre) => taller.current.rolesAplicados.get(nombre), ultimas.current.milimetrosPorUnidad || 1000)
     taller.current.pedirDibujo?.()
   }, [piezas])
 
@@ -6500,36 +6559,6 @@ const perteneceA = (objeto: THREE.Object3D, ancestro: THREE.Object3D): boolean =
   return false
 }
 
-/**
- * Las mallas con nombre y su `userData`, en el orden del archivo.
- *
- * Solo mallas, igual que `nodosDelModelo`: son lo único que la consola enciende
- * y apaga, y un grupo vacío con extras propondría una fila para algo que no se
- * ve. Los datos se copian en un objeto llano para que quien los reciba no
- * pueda escribir sobre el `userData` de la escena montada.
- *
- * Sale del componente para poder probarla contra un archivo de verdad abierto
- * con `GLTFLoader`, sin WebGL: es el tramo donde el rol escrito por el
- * exportador podría perderse camino del taller sin ningún error.
- */
-export function datosDeLosNodos(raiz: THREE.Object3D): DatosDeNodo[] {
-  const salida: DatosDeNodo[] = []
-  raiz.traverse((objeto) => {
-    if (!(objeto as THREE.Mesh).isMesh || !objeto.name || esDeInterfazDelModelo(objeto)) return
-    salida.push({ nodo: objeto.name, datos: { ...objeto.userData } })
-  })
-  return salida
-}
-
-/**
- * Lo que cuelga de una malla del modelo sin ser una pieza: la cinta y el borde rojo de una herida.
- *
- * Son hijos de la malla que se cortó, y `traverse` los encuentra con las mallas de verdad. Cuando `mostrar`
- * apagaba «todo lo que no está en la lista», la cinta —que es una `Mesh` con nombre propio— se apagaba con cada
- * cambio de paso o de capa: una incisión limpia deja los dos labios pegados y la cinta es lo único que se ve, así
- * que la incisión «desaparecía» y quien iba a meter los separadores no encontraba por dónde. También se colaba en
- * la lista de piezas del editor, como si fuera un trozo más del archivo.
- */
 /** Un músculo apartado por un separador, sin cortar (P-003 E10). Todo en el espacio local de la malla. */
 export interface RetraccionDeMusculo {
   id: number
@@ -6785,10 +6814,6 @@ export function resaltarUnNodo(taller: { raiz?: THREE.Object3D | null; pedirDibu
     }
   }
   taller.pedirDibujo?.()
-}
-
-export function esDeInterfazDelModelo(objeto: THREE.Object3D): boolean {
-  return objeto.name === 'cinta-de-la-herida' || objeto.name === 'borde-de-la-herida' || objeto.userData.deInterfaz === true
 }
 
 /**
@@ -7308,13 +7333,22 @@ function reaplicarSeparadores(t: Taller, u: LoUltimo) {
   const unidadesPorMm = 1 / (u.milimetrosPorUnidad || 1000)
   const pinzas = (t.pellizcos ?? []).map((p) => p.datos)
   const roma = separadorDeLaDiseccion(t.diseccion)
+  // Un separador de la fascia o del músculo abre también la piel de encima, en el sitio que tiene sobre ella: se
+  // mide desde donde se apoyó, con los labios en reposo, y vale si queda a la distancia a la que se puede colocar.
+  const porId = new Map((t.separadores ?? []).map((s) => [s.datos.id, s]))
+  const alcance = LIMITE_PARA_COLOCAR_MM * unidadesPorMm
   aplicarSeparadoresALasHeridas(
     t.heridas ?? new Map(),
     [...(t.separadores ?? []).map((s) => s.datos), ...(roma ? [roma] : [])],
     pinzas,
     unidadesPorMm,
+    (s, h) => {
+      const enLaEscena = porId.get(s.id)
+      const cerca = enLaEscena ? cercaDeLaHerida(h, enLaEscena.punto) : null
+      return cerca && cerca.distancia <= alcance ? cerca.t : null
+    },
   )
-  for (const s of t.separadores ?? []) posarSeparador(s, unidadesPorMm)
+  for (const s of t.separadores ?? []) posarSeparador(s, unidadesPorMm, t.heridas)
   // Las pinzas se mueven con lo que tiran: al separarse arrastran su trozo de piel, y con las mandíbulas
   // abiertas sueltan el pliegue.
   for (const p of t.pellizcos ?? []) posarPliegue(p, unidadesPorMm)
@@ -8053,7 +8087,7 @@ function restaurarLoPuesto(t: Taller, u: LoUltimo, g: SesionGuardada) {
         Object.entries(q.sitios).map(([capa, st]) => [capa, { punto: deP3(st.punto), normal: deP3(st.normal), direccion: deP3(st.direccion), posicion: st.posicion }]),
       ),
       instrumento: colocarInstrumento(escena, q.url, q.ajustes, t.entorno ?? null, escala, () => {
-        posarSeparador(nuevo, unidadesPorMm)
+        posarSeparador(nuevo, unidadesPorMm, t.heridas)
         t.pedirDibujo?.()
       }),
     }

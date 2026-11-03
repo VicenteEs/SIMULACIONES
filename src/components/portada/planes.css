@@ -1,0 +1,128 @@
+/* `/planes` (P-007 E3): el tablero «Planes» de Penpot (D-232).
+ *
+ * Usa las piezas de `portada.css` (contenedor, titulares, botones, barra,
+ * acordeón y pie) y aquí va solo lo suyo, con el prefijo `pl-`. */
+
+/* ---------- cabecera y tarjetas ---------- */
+.pl-cabecera {
+  padding: calc(var(--p-barra) + 56px) 0 190px;
+  text-align: center;
+}
+.pl-cabecera-texto { max-width: 760px; }
+.pl-cabecera .p-bajada { margin-inline: auto; }
+
+/* Las tarjetas suben sobre la cabecera, como en Penpot: el borde entre el
+   marino y el papel pasa por detrás de ellas a media altura. */
+.pl-planes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--e-5);
+  max-width: 1080px;
+  margin-top: -150px;
+}
+.pl-plan {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 30px 28px 28px;
+  border: 1px solid var(--linea);
+  border-radius: 18px;
+  background: var(--superficie);
+  color: var(--tinta);
+  box-shadow: var(--sombra-2);
+}
+.pl-plan .p-boton { margin-top: auto; }
+.pl-plan-destacado {
+  margin-top: -24px;
+  height: calc(100% + 48px);
+  border-color: var(--marino-3);
+  background: var(--degradado-marino);
+  color: var(--sobre-tinta-1);
+}
+.pl-sello {
+  align-self: flex-start;
+  margin: 0 0 14px;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  background: var(--cian);
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.pl-plan-nombre { margin: 0 0 12px; font-size: 26px; font-weight: 750; line-height: 1.15; letter-spacing: -0.02em; }
+.pl-plan-destacado .pl-plan-nombre { color: #fff; }
+.pl-plan-para { margin: 0 0 18px; font-size: 14.5px; line-height: 1.5; color: var(--pizarra); }
+.pl-plan-destacado .pl-plan-para { color: var(--sobre-tinta-2); }
+.pl-precio { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin: 0 0 18px; }
+.pl-precio strong { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+.pl-plan-destacado .pl-precio strong { color: #fff; }
+.pl-precio span { font-size: 13px; color: var(--pizarra); }
+.pl-plan-destacado .pl-precio span { color: var(--sobre-tinta-2); }
+.pl-incluye { display: grid; gap: 11px; margin: 0 0 26px; padding: 0; list-style: none; font-size: 14.5px; }
+.pl-incluye li { display: flex; align-items: flex-start; gap: 10px; }
+.pl-incluye svg { flex: none; margin-top: 2px; color: var(--verde); }
+.pl-plan-destacado .pl-incluye svg { color: var(--cian-claro); }
+
+/* ---------- piloto ---------- */
+.pl-piloto {
+  display: flex;
+  align-items: center;
+  gap: var(--e-5);
+  margin-top: clamp(64px, 7vw, 96px);
+  padding: 26px 28px;
+  border: 1px solid color-mix(in srgb, var(--verde) 22%, transparent);
+  border-radius: 18px;
+  background: var(--verde-tenue);
+}
+.pl-piloto-icono { display: inline-grid; flex: none; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: var(--verde); color: #fff; }
+.pl-piloto-texto { flex: 1; min-width: 0; }
+.pl-piloto-texto h2 { margin: 0 0 4px; font-size: 19px; font-weight: 700; color: var(--tinta); }
+.pl-piloto-texto p { margin: 0; max-width: 72ch; font-size: 14.5px; line-height: 1.55; color: var(--pizarra); }
+.pl-piloto .p-boton { flex: none; }
+
+/* ---------- comparativa ---------- */
+.pl-comparativa { padding: clamp(64px, 7vw, 96px) 0 clamp(72px, 8vw, 110px); }
+.pl-titular-chico { margin-bottom: var(--e-6); font-size: clamp(24px, 2.6vw, 30px); }
+.pl-tabla-marco { overflow-x: auto; border: 1px solid var(--linea); border-radius: 16px; background: var(--superficie); }
+.pl-tabla-marco:focus-visible { outline: 2px solid var(--marca); outline-offset: 3px; }
+.pl-tabla { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 14.5px; }
+.pl-tabla thead th { padding: 18px 12px; font-size: 14px; font-weight: 650; color: var(--tinta); text-align: center; }
+.pl-tabla thead tr { background: color-mix(in srgb, var(--papel) 55%, var(--superficie)); }
+.pl-tabla tbody th[scope='row'] { padding: 14px 18px 14px 22px; font-weight: 450; color: var(--tinta); text-align: left; }
+.pl-tabla td { width: 17%; padding: 14px 12px; text-align: center; }
+.pl-tabla tbody tr + tr { border-top: 1px solid color-mix(in srgb, var(--linea) 55%, transparent); }
+.pl-tabla-grupo th { padding: 12px 22px; background: var(--papel); font-size: 13.5px; font-weight: 700; color: var(--marca); text-align: left; }
+.pl-si { color: var(--verde); vertical-align: middle; }
+.pl-no { color: var(--pizarra); opacity: 0.55; vertical-align: middle; }
+
+/* ---------- preguntas ---------- */
+/* Las de la portada van sobre papel con líneas; aquí sobre gris, en tarjetas,
+   como en el tablero. */
+.pl-preguntas .p-preguntas { padding: clamp(64px, 7vw, 96px) 0; background: var(--papel); }
+/* En la portada el acordeón va a la izquierda; aquí, como en el tablero, a la derecha. */
+.pl-preguntas .p-preguntas-rejilla > .p-acordeon { order: 0; }
+.pl-preguntas .p-titular { font-size: clamp(26px, 2.8vw, 34px); }
+.pl-preguntas .p-acordeon { display: grid; gap: 12px; }
+.pl-preguntas .p-acordeon-item,
+.pl-preguntas .p-acordeon-item:last-child { padding: 0 20px; border: 1px solid var(--linea); border-radius: 14px; background: var(--superficie); }
+
+/* ---------- cierre ---------- */
+.pl-cierre { padding: clamp(64px, 7vw, 96px) 0; background: var(--marca); color: #fff; text-align: center; }
+.pl-cierre .p-titular { color: #fff; }
+.pl-cierre .p-bajada { margin-inline: auto; color: color-mix(in srgb, #fff 82%, transparent); }
+.pl-cierre :focus-visible { outline: 2px solid var(--cian); outline-offset: 3px; }
+.pl-cierre-acciones { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: var(--e-6); }
+
+/* ---------- teléfono y tableta ---------- */
+@media (max-width: 960px) {
+  .pl-planes { grid-template-columns: minmax(0, 1fr); max-width: 520px; }
+  .pl-plan-destacado { margin-top: 0; height: auto; }
+}
+@media (max-width: 700px) {
+  .pl-piloto { flex-direction: column; align-items: flex-start; }
+  .pl-cierre-acciones .p-boton { width: 100%; }
+}

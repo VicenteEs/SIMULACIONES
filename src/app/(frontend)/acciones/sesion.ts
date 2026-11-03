@@ -34,7 +34,10 @@ import { registrarAccion } from '@/lib/registroServidor'
 import { PATH_DE_LAS_COOKIES } from '@/lib/pathDeLasCookies'
 import { crearLimitador, direccionDeQuienLlama } from '@/lib/ritmo'
 import { exigirContrasena, exigirCorreo, exigirTexto } from '@/lib/validacion'
+import { esperarElSuelo, exigirSinEnlaces } from '@/lib/formularioPublico'
+import { LARGOS_DE_SOLICITUD, esEtapaDeFormacion, etiquetaDeEtapa, institucionConPrograma, type EtapaDeFormacion } from '@/lib/solicitudDeCuenta'
 import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
+import { destinoAlEntrar } from '@/lib/bienvenida'
 
 /**
  * Nombre con el que Payload firma y lee la sesión: `<cookiePrefix>-token`.
@@ -169,7 +172,7 @@ export async function entrar(
 
     const payload = await getPayload({ config })
 
-    let resultado: { token?: string; user?: { activo?: unknown; rol?: unknown } }
+    let resultado: { token?: string; user?: { activo?: unknown; rol?: unknown; bienvenidaVistaEn?: unknown } }
     try {
       resultado = await payload.login({
         collection: 'usuarios',
@@ -235,7 +238,8 @@ export async function entrar(
     // simulación sobrevive.
     almacen.delete({ name: COOKIE_VISTA_PREVIA, path: PATH_DE_LAS_COOKIES })
 
-    return { destino: resultado.user?.rol === 'admin' ? '/admin-panel' : '/' }
+    // El lector que no ha cerrado la bienvenida pasa antes por ella (D-237).
+    return { destino: destinoAlEntrar(resultado.user) }
   })
 }
 
@@ -439,74 +443,6 @@ const LIMITE_POR_DIRECCION = crearLimitador('solicitud-de-cuenta:direccion', {
 const LIMITE_GLOBAL = crearLimitador('solicitud-de-cuenta:global', { maximo: 30, ventanaMs: UNA_HORA })
 
 /**
- * Lo que un nombre o una institución no pueden traer: algo que un cliente de
- * correo convierta en enlace, o un salto de línea.
- *
- * El nombre acaba en el saludo del acuse, que sale desde el buzón real de la
- * plataforma hacia la dirección que la persona escribió, sea suya o no. La
- * plantilla enlaza las direcciones `https://` de los párrafos y convierte los
- * saltos en `<br>`, de modo que sin esto `solicitarCuenta` era un servicio
- * público para mandar, firmado con el dominio de la plataforma, «Hola, su clave
- * vence hoy, renuévela en https://…» a cualquiera. Treinta por hora bastan para
- * quemar la reputación de la cuenta de cPanel, y con ella la recuperación de
- * contraseña de todos.
- *
- * Se rechaza aquí y no solo se escapa en la plantilla porque la plantilla no es
- * el único que enlaza: Gmail y Outlook convierten en enlace un `www.` o un
- * dominio suelto por su cuenta, también en la parte de texto plano. Por eso
- * entran los dominios sin esquema, con dos límites a sabiendas. Uno con ruta se
- * detecta en cualquier caja («EVIL.CL/entrar», «t.co/x»). Uno suelto, solo en
- * minúsculas, porque en mayúsculas choca con las abreviaturas sin espacio que
- * se escriben de verdad en este gremio («Dra.Soto», «U.Chile») y un residente
- * rechazado por escribir su nombre es peor que un «EVIL.COM» que casi ningún
- * buzón pinta como enlace. El mensaje dice cómo salir del falso positivo que
- * queda («dra.soto» en minúsculas).
- *
- * El motivo no pasa por aquí: va en un bloque `cita`, que se escapa sin
- * enlazar, y solo lo leen los administradores.
- */
-const PARECE_ENLACE = new RegExp(
-  [
-    String.raw`\p{Cc}`,
-    String.raw`:\/\/`,
-    String.raw`[wW]{3}\.`,
-    '@',
-    String.raw`[\p{L}\p{N}-]\.\p{L}{2,}\/`,
-    String.raw`[a-z0-9-]\.[a-z]{2,24}(?![\p{L}\p{N}])`,
-  ].join('|'),
-  'u',
-)
-
-function exigirSinEnlaces(texto: string, que: string): string {
-  if (PARECE_ENLACE.test(texto)) {
-    throw new Error(
-      `${que} no puede llevar direcciones web, correos ni saltos de línea. ` +
-        'Si abrevia, deje un espacio después del punto.',
-    )
-  }
-  return texto
-}
-
-/**
- * Lo mínimo que tarda en contestar una solicitud que llegó a mirar la base, o
- * que cayó en el campo trampa y tiene que parecer una que sí llegó.
- *
- * Crear la cuenta cuesta el `pbkdf2` de la contraseña —25 000 iteraciones, unos
- * 70 ms en el equipo de desarrollo y más en el servidor—, la escritura, sus
- * ganchos y la búsqueda de administradores; responder a un correo que ya existe
- * cuesta una consulta. Con la misma respuesta pero no el mismo tiempo, el
- * cronómetro volvía a decir quién tiene cuenta, que es lo que la respuesta
- * idéntica pretende callar. Calcular un hash de relleno en el camino corto no
- * alcanza: iguala el `pbkdf2`, pero no la escritura ni los ganchos, que cambian
- * con la carga de la base.
- *
- * Un suelo de segundo y medio sobra para todo eso con margen, y a una persona
- * que acaba de rellenar seis campos no le pesa. Si algún día crear pasa de ese
- * tiempo, la diferencia reaparece: se sube el suelo, no se quita.
- */
-const DEMORA_MINIMA_MS = 1500
-
-/**
  * Pide una cuenta desde `/registro` (D-119).
  *
  * Es la primera acción que cualquiera puede llamar sin cuenta y que escribe en
@@ -547,16 +483,38 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
       )
     }
 
-    const nombre = exigirSinEnlaces(exigirTexto(bruto.nombre, 'El nombre', 120), 'El nombre')
+    const nombre = exigirSinEnlaces(exigirTexto(bruto.nombre, 'El nombre', LARGOS_DE_SOLICITUD.nombre), 'El nombre')
     const email = exigirCorreo(bruto.correo)
-    const institucion = exigirSinEnlaces(
-      exigirTexto(bruto.institucion, 'La institución o el servicio', 160),
-      'La institución o el servicio',
+    // El programa es opcional y viaja en la misma columna que la institución
+    // (`institucionConPrograma`), así que pasa por los mismos dos filtros: va
+    // al aviso de los administradores igual que ella. Los dos juntos se miden
+    // otra vez al final, con el tope con que el panel guarda la columna.
+    const programa =
+      typeof bruto.programa === 'string' && bruto.programa.trim()
+        ? exigirSinEnlaces(exigirTexto(bruto.programa, 'El programa o servicio', LARGOS_DE_SOLICITUD.programa), 'El programa o servicio')
+        : ''
+    const institucion = exigirTexto(
+      institucionConPrograma(
+        exigirSinEnlaces(
+          exigirTexto(bruto.institucion, 'La institución o el servicio', LARGOS_DE_SOLICITUD.institucion),
+          'La institución o el servicio',
+        ),
+        programa,
+      ),
+      'La institución junto con el programa',
+      LARGOS_DE_SOLICITUD.institucion,
     )
+    // Opcional, pero una que no es de la lista se rechaza en vez de olvidarse:
+    // el formulario solo ofrece las de la lista, y lo que llegue distinto no lo
+    // escribió una persona.
+    if (bruto.etapaDeFormacion != null && bruto.etapaDeFormacion !== '' && !esEtapaDeFormacion(bruto.etapaDeFormacion)) {
+      throw new Error('La etapa de formación no es una de la lista.')
+    }
+    const etapaDeFormacion = esEtapaDeFormacion(bruto.etapaDeFormacion) ? bruto.etapaDeFormacion : undefined
     // Opcional y recortado en lugar de rechazado: el `maxLength` del formulario
     // ya lo impide a una persona, y a quien llama sin formulario no le debemos
     // un mensaje.
-    const motivo = typeof bruto.motivo === 'string' ? bruto.motivo.trim().slice(0, 1000) : ''
+    const motivo = typeof bruto.motivo === 'string' ? bruto.motivo.trim().slice(0, LARGOS_DE_SOLICITUD.motivo) : ''
     const password = exigirContrasena(bruto.contrasena)
 
     const payload = await getPayload({ config })
@@ -574,17 +532,11 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
     // arriba no esperan: no saben nada de ninguna cuenta, y a quien se equivocó
     // en un campo no hay por qué hacerle esperar para corregirlo.
     try {
-      return await registrarSolicitud(payload, { nombre, email, institucion, motivo, password })
+      return await registrarSolicitud(payload, { nombre, email, institucion, etapaDeFormacion, motivo, password })
     } finally {
       await esperarElSuelo(inicio)
     }
   })
-}
-
-/** Espera lo que falte para `DEMORA_MINIMA_MS` desde `inicio`. */
-async function esperarElSuelo(inicio: number): Promise<void> {
-  const falta = inicio + DEMORA_MINIMA_MS - Date.now()
-  if (falta > 0) await new Promise((listo) => setTimeout(listo, falta))
 }
 
 /** La parte de `solicitarCuenta` que ya habla con la base; se llama solo desde ahí. */
@@ -594,9 +546,17 @@ async function registrarSolicitud(
     nombre,
     email,
     institucion,
+    etapaDeFormacion,
     motivo,
     password,
-  }: { nombre: string; email: string; institucion: string; motivo: string; password: string },
+  }: {
+    nombre: string
+    email: string
+    institucion: string
+    etapaDeFormacion?: EtapaDeFormacion
+    motivo: string
+    password: string
+  },
 ): Promise<null> {
   const base = direccionPublica()
   // Con SMTP y sin dirección pública, el aviso al titular hablaría de «/clave»
@@ -658,6 +618,7 @@ async function registrarSolicitud(
         email,
         nombre,
         institucion,
+        etapaDeFormacion,
         password,
         rol: 'lector',
         activo: false,
@@ -721,6 +682,7 @@ async function registrarSolicitud(
               nombre,
               correo: email,
               institucion,
+              etapa: etiquetaDeEtapa(etapaDeFormacion),
               motivo,
               enlacePanel: `${base}/admin-panel/usuarios`,
             }),
