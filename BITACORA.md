@@ -7593,7 +7593,12 @@ Sin `NODE_ENV`, Payload no ajusta el esquema ni corre migraciones: el esquema lo
 - (−) **La imagen pesa unos 250 MB más**, por Chromium.
 - (−) **Cada PDF cuesta un navegador en el servidor.** El tope de dos a la vez lo acota, pero una clase entera pidiendo a la vez espera su turno.
 - (−) **`--no-sandbox` en Linux.** Dentro de Docker, Chromium no arranca con su caja de arena. Lo compensa que la página solo puede pedir a la propia plataforma.
-- (−) **No está probado todavía en ved:** ni la imagen con Chromium ni el PDF por el proxy. Se verá en el próximo despliegue.
+- (−) **En ved falta la prueba con sesión.** Se desplegó el mismo día (`ff5024c`) y por fuera se comprobó:
+  - la salud da 200;
+  - `api/pdf/biblioteca/1` sin sesión, por el proxy, da 401 con su texto;
+  - una página que no está en la lista da 404.
+
+  Dentro del contenedor, Alpine deja el ejecutable como `/usr/bin/chromium-browser` (Chrome 156). `puppeteer-core` lo lanza con `--no-sandbox` e imprime la portada en A4, de 595 × 842 puntos, en menos de un segundo. La imagen entera queda en 1,23 GB. No se entró con una cuenta en producción, así que la ficha impresa con sesión y sus imágenes traídas por dentro las prueba el dueño desde su navegador.
 
 ### D-245 · 2026-11-03 · vigente · ajusta D-231 y D-236
 **La portada pública con letra más grande y transiciones suaves: lo que aparece al bajar es el contenido, no la sección, y los fondos se funden despacio.**
