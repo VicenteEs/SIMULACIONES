@@ -451,6 +451,13 @@
 }
 .editor-simulador-alerta p { margin: 0; font-size: var(--t-sm); color: var(--c-texto-2); }
 .editor-simulador-piezas { display: grid; gap: var(--e-3); }
+/* «Hueso reducido» (P-008 E5): aparte de la captura del desplazamiento, con su raya, porque es otra decisión —dónde va
+   el hueso, no cómo empieza— y el editor tiene que poder encontrarla sin leer los botones de arriba. */
+.editor-simulador-reduccion { display: grid; gap: var(--e-2); padding-top: var(--e-3); border-top: 1px solid var(--c-linea); }
+.editor-simulador-reduccion h3 { margin: 0; font-size: var(--t-sm); color: var(--c-texto); }
+.editor-simulador-reduccion .campo-ayuda { margin: 0; }
+.editor-simulador-ancla { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2); font-size: var(--t-sm); color: var(--c-texto-2); }
+.editor-simulador-ancla select { flex: 1 1 12rem; min-width: 0; }
 .editor-simulador-tabla { width: 100%; border-collapse: collapse; font-size: var(--t-xs); }
 .editor-simulador-tabla th,
 .editor-simulador-tabla td { padding: var(--e-1) var(--e-2); text-align: left; border-bottom: 1px solid var(--c-linea); color: var(--c-texto); vertical-align: middle; }

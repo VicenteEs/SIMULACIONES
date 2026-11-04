@@ -19,6 +19,8 @@
  *   así), pero sí lo que un paso de «bicortical» no acepta.
  */
 
+import { sistemaDelSlug } from './placasRectas'
+
 export type Vec3 = [number, number, number]
 
 /** Qué le hace un implante al paciente: se coloca sobre el hueso. */
@@ -147,7 +149,9 @@ export function avisoDeCalibre(perforadoMm: number, tornilloMm: number): string 
 
 /** Qué coloca un instrumento, o `null` si no es una placa ni un tornillo de placa. */
 export function quePuedeColocar(i: { slug?: string | null }): QueColoca | null {
-  return (i.slug && COLOCA_POR_SLUG[i.slug]) || null
+  // Las de los sistemas de placa recta que no tienen modelo en el catálogo (la LCP 2,4, la DCP 3,5…) solo existen a
+  // medida (P-008 E3): se reconocen por su sistema y no por la tabla, para no tener que repetirlas aquí.
+  return (i.slug && COLOCA_POR_SLUG[i.slug]) || (sistemaDelSlug(i.slug) ? { tipo: 'placa' } : null)
 }
 
 /** Mide la profundidad: el medidor del instrumental, que se apoya en un agujero y lee el espesor del hueso. */

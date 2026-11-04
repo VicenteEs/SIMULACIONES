@@ -13,6 +13,20 @@ import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import { desplazamientoDelArrastre, giroDelArrastre } from '@/atlas/transformar'
 import { ajustarAlSalto, barridoEnPantalla, centroLocalDe, colocarEnElMundo, moverPiezaPorEje } from './asasDelHueso'
 import { propuestaDelNodo, traducirMuestra, type PiezaEnEdicion } from '@/lib/piezasDelCaso'
+import { esCasiIdentidad, reducirPorLasCarasDeCorte, type ResultadoDeLaReduccion, type TransformacionRigida } from '@/lib/reduccionAutomatica'
+import {
+  correrElOrigenDelArchivo,
+  nodosDeHuesoDelArchivo,
+  poseDelArchivo,
+  poseDelTrayecto,
+  ponerPose,
+  posesReducidasDe,
+  registrarPosesDelArchivo,
+  transformacionDesdeElArchivo,
+  trayecto,
+  trozosParaReducir,
+  type TrayectoDeUnTrozo,
+} from './reduccionEnLaEscena'
 import {
   aplicarColores,
   aplicarEntorno,
@@ -21,6 +35,7 @@ import {
   prepararHerramienta,
   type HerramientaCargada,
 } from '@/instrumental/herramienta3d'
+import { cargarModeloDelInstrumento } from '@/instrumental/cargarModelo'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import type { PlanoDeCorte } from '@/lib/comportamientoDelInstrumento'
 import { ANCHO_VISIBLE_DE_LA_INCISION_MM, abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, refrescarBordes, sitioEnLaHerida, type HeridaEnCapa } from './heridas'
@@ -57,9 +72,10 @@ import {
   type TensionDeLaPiel,
 } from '@/lib/exposicion'
 import { RADIO_DE_RETRACCION_MM, retraerVertices } from '@/lib/retraccion'
-import { rangosDeLaPlaca, sentidoSobreElEje } from '@/lib/ejesAnatomicos'
+import { giroEnvuelto, rangosDeLaPlaca, sentidoSobreElEje } from '@/lib/ejesAnatomicos'
 import {
   calibresPorFragmento,
+  COLOR_DE_LA_ZONA,
   compresionAplicable,
   formaDeLosAgujeros,
   ladoDeLaFractura,
@@ -68,6 +84,7 @@ import {
   resultadoDelDeslizamiento,
   resultadoDelOval,
   sumarCompresion,
+  zonaDelOval,
   type CompresionTotal,
   type PerforacionDeLaTrayectoria,
   type ResultadoDeCompresion,
@@ -81,6 +98,7 @@ import {
   textoDeLaBroca,
   type LecturaDeLaBroca,
 } from '@/lib/profundidadDeLaBroca'
+import { estaAsentado, giroDelTornilloRad, metidoTrasLaRueda, textoDelTornilloQueEntra } from '@/lib/tornilloQueEntra'
 import {
   ejeFisicoDelMovimiento,
   gradosDelArrastre,
@@ -113,6 +131,7 @@ import { POSE_AL_CARGAR, aplicarLaPose, poseActual, ponerLaPose } from './vistaD
 import type { AjustesDeLaImagen, DesplazamientoDeLaImagen, ProyeccionDeFluoroscopia } from '@/lib/radiografia'
 import {
   dibujarFluoroscopia,
+  encuadreHaciaElPunto,
   prepararFluoroscopia,
   reiniciarLaFluoroscopia,
   revelarLaToma,
@@ -245,7 +264,7 @@ import {
   retirarLaGuia,
   type EnclavadoEnLaEscena,
 } from './enclavadoEnLaEscena'
-import { agujeroBajoElPunto, ajustarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, quitarUnTornillo, type ImplantesEnEscena } from './implantesEnLaEscena'
+import { agujeroBajoElPunto, ajustarPlaca, apoyoDeLaPlaca, reanclarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, quitarUnTornillo, soltarGrupo, type ImplantesEnEscena, type TornilloEnEscena } from './implantesEnLaEscena'
 import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import {
   AVISO_DE_LA_FASCIA,
@@ -436,6 +455,8 @@ export interface MandoDelLienzo {
   borrarTrayectoriaDelTornillo: () => void
   /** Elige cuánto se corre la broca del centro de un orificio oval, con signo y en mm (P-004 E10). */
   fijarDesviacionDelAgujero: (indice: number, mm: number) => void
+  /** Pone sobre la placa la marca del punto elegido para brocar en ese orificio oval, o la quita con `null` (pedido 14). */
+  marcarElPuntoDeBrocado: (indice: number | null) => void
   /** Acerca la cámara al orificio (la vista de trabajo) o, con `null`, la devuelve a donde estaba. */
   acercarseAlAgujero: (indice: number | null) => void
   /** Retira la broca puesta (P-004 E8): dibuja el agujero y anota el calibre. */
@@ -444,6 +465,12 @@ export interface MandoDelLienzo {
   apagarLaBroca: (encendida?: boolean) => void
   /** Una muesca de la rueda con la broca puesta: mete (1) o saca (−1); con `fino`, la quinta parte. */
   moverLaBroca: (sentido: 1 | -1, fino?: boolean) => void
+  /** Una muesca de la rueda con un tornillo entrando (pedido 13): mete (1) o saca (−1); con `fino`, la cuarta parte. */
+  moverElTornillo: (sentido: 1 | -1, fino?: boolean) => void
+  /** Asienta de una vez el tornillo que está entrando («Atornillar hasta el final»). */
+  terminarElTornillo: () => void
+  /** Saca el tornillo que está entrando, sin tocar el agujero. */
+  sacarElTornillo: () => void
   /**
    * Mueve el trozo elegido `valor` milímetros (trasladar) o grados (angular, rotar) por un eje del paciente, medido desde
    * donde está ahora (P-004 E7). Devuelve la lectura («Trasladar · axial · +3,0 mm») o `null` si no hay trozo elegido.
@@ -475,6 +502,29 @@ export interface MandoDelLienzo {
   tensionDeLaSutura: () => number
   /** Devuelve cada trozo de hueso que se movió con «Mover» a donde estaba (el fragmento del caso no: ese lo coloca la consola). */
   restaurarPiezas: () => void
+  /**
+   * Dónde va cada trozo de hueso para que el hueso quede reducido, sacado de sus caras de corte (P-008 E5). No mueve
+   * nada: lo calcula con cada trozo en su pose del archivo. Sin modelo, `null`.
+   */
+  reduccionPorLasCaras: (ancla?: string | null) => ResultadoDeLaReduccion | null
+  /**
+   * Lleva los trozos hacia su posición reducida: con `fraccion` 0 se anota de dónde sale cada uno, y con 1 llegan. Los
+   * que no tienen posición reducida pero se movieron con «Mover» vuelven a su sitio, que es lo que la reducción
+   * automática hacía antes con ellos. Con `reducciones` se usan esas y no las del caso, y se mueve también el fragmento:
+   * es el editor, que acaba de calcularlas y todavía no las tiene en el caso. Devuelve cuántos trozos se mueven.
+   */
+  llevarPiezasALaReduccion: (fraccion: number, reducciones?: Record<string, TransformacionRigida>) => number
+  /** Si algún trozo del caso tiene posición reducida. */
+  hayPosicionesReducidas: () => boolean
+  /**
+   * Dónde está el fragmento en el archivo, medido como `estadoDelFragmento`, cuando su sitio de reposo es una posición
+   * reducida; si no, `null`. Es el desplazamiento con que empieza un caso que no escribió ninguno.
+   */
+  desplazamientoDelArchivo: () => { posicion: Punto3; giros: Punto3 } | null
+  /** Cuánto se apartan de su pose del archivo los trozos dados: la reducción hecha a mano. Los que no se movieron no salen. */
+  reduccionHechaAMano: (nodos: readonly string[]) => Record<string, TransformacionRigida>
+  /** Deja todos los trozos, también el fragmento, como vinieron en el archivo. */
+  dejarComoEnElArchivo: () => void
   /** La próxima puntada empieza una línea nueva: no se une con la anterior. */
   nuevaLineaDeSutura: () => void
   /**
@@ -541,6 +591,11 @@ export interface MandoDelLienzo {
    */
   revelarFluoroscopia: (destino: HTMLCanvasElement, ajustes?: Partial<AjustesDeLaImagen>) => boolean
   /**
+   * El zoom y cuánto correr la extremidad bajo el arco para que lo puesto en un agujero —la broca, el tornillo que entra o el
+   * medidor— caiga en el centro de la imagen con esta proyección (pedidos 3 y 13). `null` si no hay nada puesto.
+   */
+  encuadrarElInstrumento: (proyeccion: ProyeccionDeFluoroscopia) => { zoom: number; desplazamiento: DesplazamientoDeLaImagen } | null
+  /**
    * La radiografía postoperatoria (P-004 E11): una toma de la escena como está ahora, rectangular y en positivo, dibujada en
    * `destino`. No es escopia: no suma exposición ni toca la imagen del arco en C.
    */
@@ -549,6 +604,8 @@ export interface MandoDelLienzo {
     proyeccion: ProyeccionDeFluoroscopia,
     zoom: number,
     ajustes?: Partial<AjustesDeLaImagen>,
+    /** Cuánto se corre la extremidad bajo el tubo, como en la fluoroscopia (pedido 17). */
+    desplazamiento?: DesplazamientoDeLaImagen,
   ) => boolean
   /**
    * Hace olvidar a la fluoroscopia lo que ya tenía dibujado, para que la próxima toma se haga aunque la escena sea la
@@ -649,7 +706,7 @@ export interface InstrumentoEnEscena {
   id?: string
   nombre?: string
   /** Separa los bordes de una herida: cuánto abre como máximo y si se queda abierto solo. */
-  separa?: { maximoMm: number; autoestatico: boolean; apoyoEnHueso?: boolean } | null
+  separa?: { maximoMm: number; autoestatico: boolean; apoyoEnHueso?: boolean; anchoMm?: number; brazoMm?: number } | null
   /** Pellizca la piel hacia arriba: las pinzas de disección. */
   pellizca?: { conDientes: boolean } | null
   /** Es el electrobisturí: su modo y su potencia en vatios deciden si corta y cómo deja el borde. */
@@ -791,6 +848,12 @@ export interface PiezaDelCaso {
   nodo: string
   rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia'
   etiqueta?: string | null
+  /**
+   * Lo que lleva el trozo de donde está en el archivo a donde va reducido (P-008 E5), o nada si el archivo ya lo trae
+   * en su sitio. Es para los modelos que se exportaron con la fractura ya desplazada: sin esto, su «cero» era el hueso
+   * roto y la reducción automática no tenía a dónde llevarlo.
+   */
+  posicionReducida?: TransformacionRigida | null
 }
 
 const EJES = ['x', 'y', 'z'] as const
@@ -832,6 +895,7 @@ export function LienzoQuirurgico({
   asasLibres = false,
   alElegirPieza,
   alCambiarLaBroca,
+  alCambiarElTornillo,
   diametroDeTornillo = null,
   marcandoLaTrayectoria = false,
   alCambiarLaTrayectoria,
@@ -966,6 +1030,11 @@ export function LienzoQuirurgico({
    * `null` cuando ya no hay ninguna. Con una puesta, la consola ofrece «Apagar la broca» y «Retirar».
    */
   alCambiarLaBroca?: (estado: EstadoDeLaBroca | null) => void
+  /**
+   * El tornillo de placa que está entrando (pedido 13): cuánto lleva cada vez que se mueve, o `null` cuando asienta o se saca.
+   * Con uno entrando, la consola ofrece «Atornillar hasta el final» y «Sacar el tornillo», y la rueda lo mete en vez de alargar.
+   */
+  alCambiarElTornillo?: (estado: EstadoDelTornilloQueEntra | null) => void
   /** El diámetro de tornillo que eligió el residente en la lista (P-004 E9); `null`: el del modelo. */
   diametroDeTornillo?: number | null
   /** La consola pidió marcar la trayectoria: los clics en «Fijar» y «Perforar» son la entrada y la salida, no una acción (P-004 E9). */
@@ -1111,6 +1180,12 @@ export function LienzoQuirurgico({
     implantes?: ImplantesEnEscena
     /** Dónde estaba cada trozo de hueso que el residente movió, para devolverlo a su sitio (D-171). */
     origenesDePiezas?: Map<THREE.Object3D, { posicion: THREE.Vector3; rotacion: THREE.Euler }>
+    /** Dónde queda cada trozo reducido, como pose de su nodo (P-008 E5). El del fragmento es además su origen. */
+    posesReducidas?: Map<THREE.Object3D, THREE.Matrix4>
+    /** Los trozos que están yendo a su sitio en la reducción automática. */
+    trayectosDeLaReduccion?: TrayectoDeUnTrozo[]
+    /** Con qué posiciones reducidas y qué fragmento se calculó lo de arriba: si no cambian, no se rehace. */
+    claveDeLaReduccion?: string
     /** Los cortes que hay hechos, en orden, para volver a hacerlos al recargar (D-171). */
     cortes?: CorteGuardado[]
     /** Los separadores colocados en la herida y cuál responde a la rueda. */
@@ -1161,6 +1236,14 @@ export function LienzoQuirurgico({
     compresion?: CompresionTotal
     /** Lleva la cámara a un orificio, o la devuelve a donde estaba (P-004 E10). */
     acercarseAlAgujero?: (indice: number | null) => void
+    /** La marca del punto de brocado sobre la placa: la pone en ese orificio, o la quita con `null` (pedido 14). */
+    marcarElPuntoDeBrocado?: (indice: number | null) => void
+    /** Se soltó una pinza de reducción: en «Reducir», el trozo que ya no sostiene ninguna deja de estar elegido (pedido 15). */
+    alSoltarLasPinzas?: () => void
+    /** Se borró la recta provisional de una línea que no se terminó: la consola deja de contar su largo (P-008 E1). */
+    alBorrarElTrazo?: () => void
+    /** La vuelve a mirar tras perforar o quitar la placa: se va si su orificio ya no está por brocar. */
+    repasarLaMarcaDeBrocado?: () => void
     /** Hacia qué sentido del eje de la placa está la fractura respecto de cada orificio; vacío si no se sabe dónde está (P-004 E10). */
     ladosDeLaFractura?: () => Record<number, 1 | -1>
     /** Numera los tornillos de trayectoria libre con enteros negativos. */
@@ -1174,6 +1257,14 @@ export function LienzoQuirurgico({
     apagarLaBroca?: (encendida?: boolean) => void
     /** Mete (+) o saca (−) la broca puesta una muesca de la rueda. */
     moverLaBroca?: (sentido: 1 | -1, fino: boolean) => void
+    /** Dónde está lo puesto en un agujero —broca, tornillo que entra, medidor—, para centrar en ello el arco; `null` si nada. */
+    puntoDelInstrumentoPuesto?: () => THREE.Vector3 | null
+    /** Mete (+) o saca (−) el tornillo que está entrando una muesca de la rueda (pedido 13); al llegar al largo, asienta. */
+    moverElTornillo?: (sentido: 1 | -1, fino: boolean) => void
+    /** Asienta de una vez el tornillo que está entrando: cuenta, se juzga y comprime. */
+    terminarElTornillo?: () => void
+    /** Saca el tornillo que está entrando; el agujero sigue perforado y medido. */
+    sacarElTornillo?: () => void
     /** Mueve el trozo elegido por un eje del paciente (P-004 E7): devuelve la lectura, o `null` si no hay trozo elegido. */
     moverPorEje?: (accion: AccionDeMovimiento, eje: EjeAnatomico, valor: number) => string | null
     /** El nombre del trozo elegido ahora, o `null`. */
@@ -1252,6 +1343,7 @@ export function LienzoQuirurgico({
     asasLibres,
     alElegirPieza,
     alCambiarLaBroca,
+    alCambiarElTornillo,
     diametroDeTornillo,
     marcandoLaTrayectoria,
     alCambiarLaTrayectoria,
@@ -1310,6 +1402,7 @@ export function LienzoQuirurgico({
       asasLibres,
       alElegirPieza,
       alCambiarLaBroca,
+      alCambiarElTornillo,
       diametroDeTornillo,
       marcandoLaTrayectoria,
       alCambiarLaTrayectoria,
@@ -1328,6 +1421,7 @@ export function LienzoQuirurgico({
         raiz: taller.current.raiz,
         heridas: taller.current.heridas,
         separadores: taller.current.separadores,
+        implantes: taller.current.implantes,
         milimetrosPorUnidad: ultimas.current.milimetrosPorUnidad,
       })),
     [],
@@ -1490,8 +1584,11 @@ export function LienzoQuirurgico({
     fijarDesviacionDelAgujero: (indice, mm) => {
       const t = taller.current
       ;(t.desviaciones ??= new Map()).set(indice, mm)
+      t.marcarElPuntoDeBrocado?.(indice)
       ultimas.current.alFijar?.(estadoDeLaFijacion(t))
     },
+
+    marcarElPuntoDeBrocado: (indice) => taller.current.marcarElPuntoDeBrocado?.(indice),
 
     acercarseAlAgujero: (indice) => taller.current.acercarseAlAgujero?.(indice),
 
@@ -1500,6 +1597,12 @@ export function LienzoQuirurgico({
     apagarLaBroca: (encendida) => taller.current.apagarLaBroca?.(encendida),
 
     moverLaBroca: (sentido, fino = false) => taller.current.moverLaBroca?.(sentido, fino),
+
+    moverElTornillo: (sentido, fino = false) => taller.current.moverElTornillo?.(sentido, fino),
+
+    terminarElTornillo: () => taller.current.terminarElTornillo?.(),
+
+    sacarElTornillo: () => taller.current.sacarElTornillo?.(),
 
     piezaElegida: () => taller.current.piezaElegida?.() ?? null,
 
@@ -1596,6 +1699,105 @@ export function LienzoQuirurgico({
         pieza.position.copy(origen.posicion)
         pieza.rotation.copy(origen.rotacion)
       })
+      t.pedirDibujo?.()
+    },
+
+    reduccionPorLasCaras: (ancla) => {
+      const t = taller.current
+      if (!t.raiz) return null
+      // Los huesos que el caso declara; si no declara ninguno —el editor recién abrió el modelo—, los que el exportador
+      // marcó como hueso. Los músculos no: el marco del «Recortar» del atlas los deja con tapas que no son de la fractura.
+      const declarados = ultimas.current.piezas.filter((p) => p.rol === 'hueso' || p.rol === 'fragmento').map((p) => p.nodo)
+      const nodos = declarados.length > 0 ? declarados : nodosDeHuesoDelArchivo(t.raiz)
+      return reducirPorLasCarasDeCorte(trozosParaReducir(t.raiz, nodos), {
+        milimetrosPorUnidad: ultimas.current.milimetrosPorUnidad || 1000,
+        ancla,
+      })
+    },
+
+    llevarPiezasALaReduccion: (fraccion, reducciones) => {
+      const t = taller.current
+      const raiz = t.raiz
+      if (!raiz) return 0
+      if (fraccion <= 0 || !t.trayectosDeLaReduccion) {
+        // Como al devolver los trozos a su sitio: las pinzas se sueltan y lo comprimido ya no vale.
+        soltarPinzasDeReduccion(t, ultimas.current)
+        t.compresion = undefined
+        const destinos = reducciones
+          ? posesReducidasDe(raiz, Object.entries(reducciones))
+          : (t.posesReducidas ?? new Map<THREE.Object3D, THREE.Matrix4>())
+        const fragmento = t.fragmento
+        const esDelFragmento = (o: THREE.Object3D) => !!fragmento && (o === fragmento || perteneceA(o, fragmento))
+        const origenes = (t.origenesDePiezas ??= new Map())
+        const trayectos: TrayectoDeUnTrozo[] = []
+        destinos.forEach((hasta, objeto) => {
+          // El fragmento lo lleva la consola, que mide mientras lo mueve; salvo para el editor, que aún no tiene el caso.
+          if (esDelFragmento(objeto) && !reducciones) return
+          // Se anota la pose de salida: «Reiniciar» devuelve el trozo ahí, como a uno movido con «Mover».
+          if (!esDelFragmento(objeto) && !origenes.has(objeto)) {
+            origenes.set(objeto, { posicion: objeto.position.clone(), rotacion: objeto.rotation.clone() })
+          }
+          trayectos.push(trayecto(objeto, hasta))
+        })
+        origenes.forEach((origen, objeto) => {
+          if (destinos.has(objeto) || esDelFragmento(objeto)) return
+          const hasta = new THREE.Matrix4().compose(origen.posicion, new THREE.Quaternion().setFromEuler(origen.rotacion), objeto.scale)
+          trayectos.push(trayecto(objeto, hasta))
+        })
+        t.trayectosDeLaReduccion = trayectos
+      }
+      const trayectos = t.trayectosDeLaReduccion
+      const k = Math.min(1, Math.max(0, fraccion))
+      for (const tramo of trayectos) ponerPose(tramo.objeto, k >= 1 ? tramo.hasta : poseDelTrayecto(tramo, k))
+      if (k >= 1) t.trayectosDeLaReduccion = undefined
+      t.pedirDibujo?.()
+      return trayectos.length
+    },
+
+    hayPosicionesReducidas: () => (taller.current.posesReducidas?.size ?? 0) > 0,
+
+    desplazamientoDelArchivo: () => {
+      const { fragmento: f, origenDelFragmento: origen, posesReducidas } = taller.current
+      if (!f || !origen || !posesReducidas?.has(f)) return null
+      const posicion = new THREE.Vector3()
+      const cuaternion = new THREE.Quaternion()
+      poseDelArchivo(f).decompose(posicion, cuaternion, new THREE.Vector3())
+      const rotacion = new THREE.Euler().setFromQuaternion(cuaternion, f.rotation.order)
+      // Cada ángulo entre −180° y 180°: a `colocarFragmento`, que suma ángulos de Euler, le da igual una vuelta de más,
+      // pero la consola lee de aquí la angulación, y 350° no es una angulación.
+      const giro = (a: number, b: number) => {
+        const g = grados(a - b)
+        return g > 180 ? g - 360 : g <= -180 ? g + 360 : g
+      }
+      return {
+        posicion: desplazamientoDesde(origen.posicion, posicion),
+        giros: { x: giro(rotacion.x, origen.rotacion.x), y: giro(rotacion.y, origen.rotacion.y), z: giro(rotacion.z, origen.rotacion.z) },
+      }
+    },
+
+    reduccionHechaAMano: (nodos) => {
+      const raiz = taller.current.raiz
+      const hechas: Record<string, TransformacionRigida> = {}
+      if (!raiz) return hechas
+      for (const nodo of nodos) {
+        const objeto = raiz.getObjectByName(nodo)
+        if (!objeto) continue
+        const transformacion = transformacionDesdeElArchivo(raiz, objeto)
+        if (!esCasiIdentidad(transformacion, ultimas.current.milimetrosPorUnidad || 1000)) hechas[nodo] = transformacion
+      }
+      return hechas
+    },
+
+    dejarComoEnElArchivo: () => {
+      const t = taller.current
+      soltarPinzasDeReduccion(t, ultimas.current)
+      t.compresion = undefined
+      t.trayectosDeLaReduccion = undefined
+      t.origenesDePiezas?.forEach((origen, pieza) => {
+        pieza.position.copy(origen.posicion)
+        pieza.rotation.copy(origen.rotacion)
+      })
+      if (t.fragmento) ponerPose(t.fragmento, poseDelArchivo(t.fragmento))
       t.pedirDibujo?.()
     },
 
@@ -1702,7 +1904,7 @@ export function LienzoQuirurgico({
       )
     },
 
-    radiografiaPostoperatoria: (destino, proyeccion, zoom, ajustes) => {
+    radiografiaPostoperatoria: (destino, proyeccion, zoom, ajustes, desplazamiento) => {
       const t = taller.current
       const ctx = contextoDeRadiografia(t)
       if (!t.render || !ctx) return false
@@ -1714,13 +1916,22 @@ export function LienzoQuirurgico({
         ctx,
         t.fluoroscopia,
         destino,
-        { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, lado: 768, ajustes, forzar: true },
+        { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, desplazamiento, lado: 768, ajustes, forzar: true },
         (t.cuadro ?? 0) + (t.disparos = (t.disparos ?? 0) + 1),
         [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
         'placa',
       )
       reiniciarLaFluoroscopia(t.fluoroscopia)
       return hecha
+    },
+
+    encuadrarElInstrumento: (proyeccion) => {
+      const t = taller.current
+      const punto = t.puntoDelInstrumentoPuesto?.()
+      const ctx = contextoDeRadiografia(t)
+      if (!punto || !ctx) return null
+      const u = ultimas.current
+      return encuadreHaciaElPunto(ctx, { proyeccion, ejeLargo: u.ejeLargo, milimetrosPorUnidad: u.milimetrosPorUnidad || 1000 }, punto)
     },
 
     revelarFluoroscopia: (destino, ajustes) => (taller.current.fluoroscopia ? revelarLaToma(taller.current.fluoroscopia, destino, ajustes) : false),
@@ -1754,11 +1965,14 @@ export function LienzoQuirurgico({
     quitarImplantes: (conPlaca) => {
       const imp = taller.current.implantes
       if (!imp) return
+      // El que está entrando no está en la lista de los puestos (pedido 13): se saca aparte, o quedaría flotando sin placa.
+      taller.current.sacarElTornillo?.()
       if (conPlaca) {
         quitarImplantes(imp)
         // Lo que se había elegido en los orificios de esa placa no vale para la siguiente (P-004 E10).
         taller.current.desviaciones?.clear()
       } else quitarTornillos(imp)
+      taller.current.repasarLaMarcaDeBrocado?.()
       ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current))
       taller.current.pedirDibujo?.()
     },
@@ -2381,11 +2595,14 @@ export function LienzoQuirurgico({
         taller.current.raiz = raiz
         // Antes de buscar nada por nombre: si el modelo se exportó de nuevo o el cargador saneó los nombres, las piezas del caso se reconocen igual.
         renombrarSegunElCaso(raiz, ultimas.current.piezas)
+        // Y antes de mover nada: las posiciones reducidas del caso se guardan contra la pose del archivo (P-008 E5).
+        registrarPosesDelArchivo(raiz)
         taller.current.fragmento = buscarFragmento(raiz, ultimas.current.piezas)
         const f = taller.current.fragmento
         taller.current.origenDelFragmento = f
           ? { posicion: f.position.clone(), rotacion: f.rotation.clone() }
           : undefined
+        aplicarPosicionesReducidas(taller.current, ultimas.current.piezas)
         aplicarPiezas(taller.current, ultimas.current.piezas)
         // Antes de devolver lo de la sesión: las heridas y el vello se rehacen sobre la piel ya vestida.
         const milimetros = ultimas.current.milimetrosPorUnidad || 1000
@@ -2474,6 +2691,16 @@ export function LienzoQuirurgico({
       ultimas.current.alElegirPieza?.(pieza ? pieza.name || 'trozo' : null)
     }
     taller.current.piezaElegida = () => (elegida ? elegida.name || 'trozo' : null)
+    // En «Reducir» el trozo elegido es el de la pinza: soltarla —con un clic, o porque la reducción automática suelta todas— lo
+    // deja sin elegir. Antes seguía elegido, y la línea del eje y el menú de movimiento quedaban sobre un hueso que nadie agarraba.
+    taller.current.alSoltarLasPinzas = () => {
+      if (ultimas.current.modo !== 'reducir' || !elegida) return
+      if ((taller.current.pinzasDeReduccion ?? []).some((p) => p.pieza === elegida)) return
+      elegirLaPieza(null)
+      gizmoAlDia()
+      pedirDibujo()
+    }
+    taller.current.alBorrarElTrazo = () => ultimas.current.alTrazar?.([])
     /**
      * La línea del eje elegido en el menú de movimiento (P-004 E7): una sola, en vez de las siete asas. Es interfaz, como
      * ellas: no se pincha ni la ve la fluoroscopia.
@@ -2513,8 +2740,10 @@ export function LienzoQuirurgico({
       const raiz = taller.current.raiz
       const pieza = elegida
       const hay = !!pieza && !!raiz && (u.modo === 'reducir' || !u.moverTodo) && pieza.visible && perteneceA(pieza, raiz)
-      // Las siete asas se ven con «Asas libres» o mientras no se haya elegido un eje en el menú de movimiento (P-004 E7).
-      manipulador.grupo.visible = hay && (u.asasLibres || !u.movimientoPorEje)
+      // Las siete asas, solo con «Asas libres» (pedido 15). Hasta D-199 salían también mientras no se elegía un eje, que es justo
+      // al agarrar el trozo: lo primero que se veía era «el sistema de ejes» con el que Cristóbal se manejaba mal, encima del menú
+      // que lo reemplaza. Ahora al agarrar se ve el menú; elegido el eje, su línea.
+      manipulador.grupo.visible = hay && !!u.asasLibres
       lineaDelEje.visible = hay && !!u.movimientoPorEje
       if (!hay || !pieza) return
       pieza.updateMatrixWorld(true)
@@ -2554,6 +2783,19 @@ export function LienzoQuirurgico({
       perforando.profundidad = profundidadTrasLaRueda(perforando.profundidad / unidadesPorMm, perforando.maxima / unidadesPorMm, sentido, fino) * unidadesPorMm
       posarBroca(null)
       avisarDeLaBroca(true)
+    }
+    /**
+     * A dónde mira el arco al «Centrar en la broca» (pedidos 3 y 13): la mitad del recorrido por el hueso —de la entrada a la
+     * cortical opuesta, o hasta la punta si ya se pasó—, que es donde se lee cuánto falta. Del tornillo que entra, la mitad de
+     * su recorrido final; del medidor, su punta, que es la que toca la cortical opuesta.
+     */
+    taller.current.puntoDelInstrumentoPuesto = () => {
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      if (perforando) return perforando.entrada.clone().addScaledVector(perforando.dirEntra, Math.max(perforando.profundidad, perforando.salidaPorLaOpuesta) / 2)
+      if (atornillando) return atornillando.asentado.clone().addScaledVector(atornillando.salida, (atornillando.entrada.datos.largoMm / 2) * unidadesPorMm)
+      const herramienta = taller.current.herramienta
+      if (taller.current.medidorEnElOrificio && herramienta?.raiz.visible) return herramienta.raiz.getWorldPosition(new THREE.Vector3())
+      return null
     }
 
     /**
@@ -2717,6 +2959,28 @@ export function LienzoQuirurgico({
       encendida: boolean
     }
     let perforando: Perforacion | null = null
+    /**
+     * El tornillo de placa que está entrando (pedido 13): el clic lo deja en la entrada del agujero y la rueda lo mete. Mientras
+     * entra no está en `implantes.tornillos` —no cuenta, no se guarda en la sesión ni se juzga—; entra al asentar la cabeza.
+     */
+    interface TornilloQueEntra {
+      agujero: number
+      /** Lo que irá a `implantes.tornillos` al asentar: el modelo ya clonado, escalado y con su juicio. */
+      entrada: TornilloEnEscena
+      /** Dónde queda el modelo con la cabeza apoyada en la placa (la punta es su origen). */
+      asentado: THREE.Vector3
+      /** El giro del modelo asentado; al meterlo gira sobre `salida` lo que manda el paso de la rosca. */
+      giroAsentado: THREE.Quaternion
+      /** La normal de la placa: hacia fuera del hueso, por donde asoma lo que falta por meter. */
+      salida: THREE.Vector3
+      metidoMm: number
+      /** Lo que se dice al asentar y que ya se sabía al pinchar: el aviso de la broca equivocada para el diámetro elegido. */
+      calibre: string | null
+      /** Si al asentar comprime: un orificio oval con un tornillo que no es bloqueado (P-004 E10). */
+      oval: boolean
+      desviacionMm: number
+    }
+    let atornillando: TornilloQueEntra | null = null
     let ultimoAvisoDeLaBroca = 0
     /** Cuenta qué se le avisa a la consola de la broca puesta: la lectura y si gira. Se pide con `forzar` en un cambio de verdad. */
     const avisarDeLaBroca = (forzar = false) => {
@@ -3195,6 +3459,8 @@ export function LienzoQuirurgico({
           medido: null,
           ...(p.desviacionMm ? { desviacionMm: p.desviacionMm } : {}),
         })
+        // El punto ya no está por brocar: la marca de la placa se va si era la de este orificio (pedido 14).
+        taller.current.repasarLaMarcaDeBrocado?.()
         ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current), {
           tipo: 'agujero',
           texto: `Agujero ${p.agujero + 1} perforado con Ø ${String(config.diametroMm).replace('.', ',')} mm (${bicortical ? 'bicortical' : 'solo la cortical cercana'}). Ahora se mide con el medidor.`,
@@ -3234,7 +3500,11 @@ export function LienzoQuirurgico({
       }
       // Una sola placa (P-004 E6, pedido 2): con una puesta, la que se lleva en la mano no se pinta ni sigue al cursor. Antes
       // salía otra con cada movimiento del ratón y tapaba la posición de la que importaba; la que se mueve es la puesta.
-      if (ultimas.current.instrumento?.coloca?.tipo === 'placa' && taller.current.implantes?.placa) {
+      // Lo mismo con un tornillo entrando (pedido 13): el que importa es el del agujero, no otro pegado al cursor.
+      if (
+        (ultimas.current.instrumento?.coloca?.tipo === 'placa' && taller.current.implantes?.placa) ||
+        (ultimas.current.instrumento?.coloca?.tipo === 'tornillo' && atornillando)
+      ) {
         if (herramienta.raiz.visible) {
           herramienta.raiz.visible = false
           pedirDibujo()
@@ -3547,9 +3817,13 @@ export function LienzoQuirurgico({
         plano,
         lado,
         posicion: sitio.posicion,
-        maximoMm: separa.maximoMm,
+        // El tope de un autoestático es lo que abre la herida entera, y cada labio se aparta la mitad: con el tope
+        // entero por labio, el Weitlaner de 65 mm abría 130 (P-008 E2).
+        maximoMm: separa.autoestatico ? separa.maximoMm / 2 : separa.maximoMm,
         aperturaMm: 0,
         incision,
+        anchoMm: separa.anchoMm,
+        brazoMm: separa.brazoMm,
       }
       const m = direccionDelMango([sitio.normal.x, sitio.normal.y, sitio.normal.z], [sitio.direccion.x, sitio.direccion.y, sitio.direccion.z], lado)
       const nuevo: SeparadorEnEscena = {
@@ -4114,6 +4388,91 @@ export function LienzoQuirurgico({
     superficie.addEventListener('pointerdown', alBajarEnLaMesa)
     superficie.addEventListener('pointermove', alMoverEnLaMesa)
     superficie.addEventListener('pointerup', alSoltarEnLaMesa)
+
+    // --- arrastrar la placa puesta (P-008 E4) --------------------------------------------------------------------
+    // Con la placa apoyada y sin fijar, en modo Fijar: pulsar sobre ella y arrastrar la lleva por el hueso a donde apunte
+    // el cursor, también a la otra cara; mientras se arrastra, la rueda la gira sobre su normal (Mayúsculas, de a 1°).
+    // Antes solo se corría con las cifras del panel y dentro de un rango medido desde donde se apoyó, y el dueño pidió
+    // poder dejarla «como se quiere, en cualquier posición». Fuera de la placa, el arrastre sigue siendo el de la cámara;
+    // y un clic sobre ella ya no la vuelve a apoyar en el sitio del clic, que era lo que hacía antes sin querer.
+    let arrastreDeLaPlaca: { x: number; y: number; desfase: THREE.Vector3; giro: number; movido: boolean; ultimo: number } | null = null
+    const alBajarSobreLaPlaca = (evento: PointerEvent) => {
+      const placa = taller.current.implantes?.placa
+      if (ultimas.current.modo !== 'fijar' || evento.button !== 0 || !placa || placa.fijada || ultimas.current.marcandoLaTrayectoria) return
+      aCoordenadas(evento)
+      placa.grupo.updateMatrixWorld(true)
+      const enLaPlaca = rayo.intersectObject(placa.grupo, true).find((g) => g.object.visible && (g.object as THREE.Mesh).isMesh)
+      // Pinchar en un agujero también es agarrar la placa: el rayo pasa por el hueco y da en el hueso, y en una placa de
+      // agujeros impares el centro es justo un agujero.
+      const hueso = huesoBajoElCursor()
+      if (!enLaPlaca && !(hueso && agujeroBajoElPunto(placa, hueso.point, 6) !== null)) return
+      // Lo que hay del punto agarrado al punto de apoyo: así la placa no salta a centrarse en el cursor al empezar a moverla.
+      const agarrado = hueso?.point ?? enLaPlaca!.point
+      arrastreDeLaPlaca = { x: evento.clientX, y: evento.clientY, desfase: apoyoDeLaPlaca(placa).sub(agarrado), giro: placa.ajuste.giroGrados, movido: false, ultimo: 0 }
+      controles.enabled = false
+      // Los demás que escuchan el clic (coser, fijar con clic) no lo ven: el gesto es de la placa.
+      evento.stopImmediatePropagation()
+      try {
+        render.domElement.setPointerCapture(evento.pointerId)
+      } catch {
+        // sin captura
+      }
+    }
+    const llevarLaPlaca = () => {
+      const a = arrastreDeLaPlaca
+      const placa = taller.current.implantes?.placa
+      if (!a || !placa) return
+      const golpe = huesoBajoElCursor()
+      if (!golpe) return
+      if (reanclarPlaca(placa, mallasDeHueso(), golpe.point.clone().add(a.desfase), normalDelGolpe(golpe), a.giro)) pedirDibujo()
+    }
+    const alMoverLaPlaca = (evento: PointerEvent) => {
+      const a = arrastreDeLaPlaca
+      if (!a) return
+      if (!a.movido && Math.hypot(evento.clientX - a.x, evento.clientY - a.y) < 4) return
+      a.movido = true
+      // Como el instrumento que sigue al cursor: unos treinta por segundo, que cada asiento lanza cuatro rayos al hueso.
+      const ahora = performance.now()
+      if (ahora - a.ultimo < 33) return
+      a.ultimo = ahora
+      aCoordenadas(evento)
+      llevarLaPlaca()
+    }
+    const alGirarLaPlaca = (evento: WheelEvent) => {
+      const a = arrastreDeLaPlaca
+      const placa = taller.current.implantes?.placa
+      if (!a || !placa) return
+      evento.preventDefault()
+      evento.stopImmediatePropagation()
+      a.giro = giroEnvuelto(a.giro + Math.sign(evento.deltaY) * (evento.shiftKey ? 1 : 5))
+      a.movido = true
+      if (ajustarPlaca(placa, mallasDeHueso(), { ...placa.ajuste, giroGrados: a.giro })) pedirDibujo()
+    }
+    const alSoltarLaPlaca = (evento: PointerEvent) => {
+      const a = arrastreDeLaPlaca
+      arrastreDeLaPlaca = null
+      if (!a) return
+      controles.enabled = true
+      try {
+        render.domElement.releasePointerCapture(evento.pointerId)
+      } catch {
+        // ya estaba suelto
+      }
+      const placa = taller.current.implantes?.placa
+      if (!placa) return
+      taller.current.decir?.(
+        a.movido
+          ? `Placa en su nuevo sitio${placa.ajuste.giroGrados ? `, girada ${Math.abs(placa.ajuste.giroGrados)}°` : ''}${placa.separadaDelHuesoMm > 1.5 ? `: queda a ${placa.separadaDelHuesoMm.toFixed(1).replace('.', ',')} mm del hueso` : ''}. Cuando esté donde va, pulse «Fijar la placa».`
+          : 'Arrastre la placa para llevarla por el hueso; mientras la arrastra, la rueda la gira.',
+      )
+      ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current))
+      pedirDibujo()
+    }
+    superficie.addEventListener('pointerdown', alBajarSobreLaPlaca)
+    superficie.addEventListener('pointermove', alMoverLaPlaca)
+    superficie.addEventListener('pointerup', alSoltarLaPlaca)
+    superficie.addEventListener('pointercancel', alSoltarLaPlaca)
+    superficie.addEventListener('wheel', alGirarLaPlaca, { passive: false })
 
     // --- despegar el periostio (P-005 E2) ---------------------------------------------------------------
     // Con el Freer o un periostótomo en la mano, mantener pulsado y arrastrar sobre el hueso deja una franja expuesta del ancho de la hoja.
@@ -4941,6 +5300,73 @@ export function LienzoQuirurgico({
       return `${resultado.texto} La diástasis bajó ${aplicado.toFixed(1).replace('.', ',')} mm.`
     }
 
+    /**
+     * La marca del punto de brocado sobre la placa (pedido 14: «al hacer clic se marca el punto que uno va a brocar»). El esquema
+     * del panel lo marcaba solo en 2D: al volver la vista al hueso no quedaba nada que dijera por dónde iba a entrar la broca, y
+     * la broca sigue al cursor hasta el centro del orificio antes de correrse. Es un disco del color de la zona (el mismo del
+     * esquema) apoyado en la boca del orificio. Hay una sola, la del orificio que se está eligiendo, y se va al perforarlo. Es de
+     * interfaz: la fluoroscopia no la ve, y no se puede pinchar.
+     */
+    let marcaDeBrocado: { malla: THREE.Mesh; indice: number } | null = null
+    const quitarLaMarcaDeBrocado = () => {
+      if (!marcaDeBrocado) return
+      marcaDeBrocado.malla.removeFromParent()
+      marcaDeBrocado.malla.geometry.dispose()
+      ;(marcaDeBrocado.malla.material as THREE.Material).dispose()
+      marcaDeBrocado = null
+      pedirDibujo()
+    }
+    taller.current.marcarElPuntoDeBrocado = (indice) => {
+      const t = taller.current
+      const placa = t.implantes?.placa
+      if (
+        indice === null ||
+        !placa?.fijada ||
+        !t.escena ||
+        formaDeLosAgujeros({ nombre: placa.nombre }) === 'redondo' ||
+        indice < 0 ||
+        indice >= placa.agujerosMm.length ||
+        placa.agujeros.get(indice)?.perforado
+      ) {
+        quitarLaMarcaDeBrocado()
+        return
+      }
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const mm = t.desviaciones?.get(indice) ?? 0
+      const lado = ladoDeLaFracturaEnElAgujero(placa, indice)
+      const zona = lado === null ? 'centro' : zonaDelOval(mm, lado, semilargoDelOvalDeLaPlaca(placa.nombre))
+      if (!marcaDeBrocado) {
+        const malla = new THREE.Mesh(
+          new THREE.CircleGeometry(1, 24),
+          // Sin escribir profundidad y adelantado: la boca del orificio está a ras de la cara de la placa, y con la prueba de
+          // profundidad a secas el disco parpadeaba contra ella.
+          new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }),
+        )
+        malla.name = 'marca-del-punto-de-brocado'
+        malla.userData.deInterfaz = true
+        malla.raycast = () => {}
+        malla.renderOrder = 5
+        t.escena.add(malla)
+        marcaDeBrocado = { malla, indice }
+      }
+      marcaDeBrocado.indice = indice
+      const malla = marcaDeBrocado.malla
+      ;(malla.material as THREE.MeshBasicMaterial).color.set(COLOR_DE_LA_ZONA[zona])
+      // Del ancho de una broca de 2,5 mm con algo de borde: lo que se ve es dónde entra, no un círculo que tape el orificio.
+      malla.scale.setScalar(1.6 * unidadesPorMm)
+      malla.position
+        .copy(posicionDelAgujero(placa, indice, 'arriba'))
+        .addScaledVector(ejeDeLaPlaca(placa), mm * unidadesPorMm)
+        .addScaledVector(placa.normal, 0.3 * unidadesPorMm)
+      malla.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), placa.normal.clone().normalize())
+      malla.updateMatrixWorld(true)
+      pedirDibujo()
+    }
+    /** Tras perforar o quitar la placa, la marca se va si su orificio ya no está por brocar. */
+    taller.current.repasarLaMarcaDeBrocado = () => {
+      if (marcaDeBrocado) taller.current.marcarElPuntoDeBrocado?.(marcaDeBrocado.indice)
+    }
+
     /** La vista de trabajo (P-004 E10, pedido 14): lleva la cámara al orificio, con vuelta atrás. */
     let vistaGuardada: { posicion: THREE.Vector3; objetivo: THREE.Vector3 } | null = null
     const llevarLaCamara = (posicion: THREE.Vector3, objetivo: THREE.Vector3) => {
@@ -5510,6 +5936,9 @@ export function LienzoQuirurgico({
           ejesDelPaciente(ultimas.current.ejeLargo).frente,
         )
         const separada = placa.separadaDelHuesoMm
+        // La de la mano se esconde ya y no en el próximo movimiento del ratón: si no, se queda cruzada sobre la que se apoyó
+        // hasta que se mueve el cursor (P-008 E4; `posarHerramienta` ya no la vuelve a enseñar con una puesta).
+        if (herramienta.raiz.visible) herramienta.raiz.visible = false
         // La placa de la mesa ya está en el hueso: sale de la mesa.
         if (placa.contorno && t.mesa) {
           soltarLaMesa(t.mesa)
@@ -5524,6 +5953,14 @@ export function LienzoQuirurgico({
             (placa.avisoDeOrificios ? ` ${placa.avisoDeOrificios}` : ''),
           atencion: separada > 1.5 || !!placa.avisoDeOrificios,
         })
+        return
+      }
+
+      // Con un tornillo entrando, el clic no pone otro (pedido 13): ese se termina o se saca antes, como la broca puesta.
+      if (inst.coloca?.tipo === 'tornillo' && atornillando) {
+        t.decir?.(
+          `El tornillo del agujero ${atornillando.agujero + 1} está entrando: métalo con la rueda o pulse «Atornillar hasta el final»; «Sacar el tornillo» lo quita.`,
+        )
         return
       }
 
@@ -5614,28 +6051,103 @@ export function LienzoQuirurgico({
           t.decir?.('Bajo ese agujero no hay hueso donde atornillar.')
           return
         }
-        // En un orificio oval, el tornillo que no es bloqueado puede comprimir según dónde se brocó (P-004 E10).
-        let compresion = ''
-        if (!puesto.bloqueado && formaDeLosAgujeros({ nombre: placa.nombre }) !== 'redondo') {
-          const desviacion = t.desviaciones?.get(agujero) ?? 0
-          const grupo = imp.tornillos.get(agujero)?.grupo
-          // La cabeza del tornillo queda donde se brocó, no en el centro del óvalo.
-          if (grupo && desviacion !== 0) grupo.position.addScaledVector(ejeDeLaPlaca(placa), desviacion / mmPorUnidad)
-          const lado = ladoDeLaFracturaEnElAgujero(placa, agujero)
-          if (lado !== null) compresion = aplicarLaCompresion(resultadoDelOval(desviacion, lado, semilargoDelOvalDeLaPlaca(placa.nombre)))
-        }
-        decirYAvisar({
-          tipo: 'tornillo',
-          texto:
-            `Tornillo de ${puesto.largoMm} mm en el agujero ${agujero + 1}: ` +
-            (puesto.bicortical ? 'bicortical.' : 'solo la cortical cercana.') +
-            (puesto.aviso && puesto.bicortical ? ` ${puesto.aviso}` : '') +
-            (calibre ? ` ${calibre}` : '') +
-            (compresion ? ` ${compresion}` : ''),
-          atencion: !!puesto.aviso || !!calibre,
+        // Puesto ya está, medido y juzgado; lo que cambia (pedido 13) es que se queda en la entrada del agujero y entra con la
+        // rueda, y solo al asentar la cabeza va a `implantes.tornillos`, cuenta y comprime: la compresión del óvalo es la cabeza
+        // apretando contra su rampa, que no ocurre con el tornillo a medias.
+        const entrada = imp.tornillos.get(agujero)!
+        imp.tornillos.delete(agujero)
+        const oval = !puesto.bloqueado && formaDeLosAgujeros({ nombre: placa.nombre }) !== 'redondo'
+        const desviacionMm = oval ? (t.desviaciones?.get(agujero) ?? 0) : 0
+        // La cabeza del tornillo queda donde se brocó, no en el centro del óvalo (P-004 E10).
+        if (desviacionMm !== 0) entrada.grupo.position.addScaledVector(ejeDeLaPlaca(placa), desviacionMm / mmPorUnidad)
+        atornillando = {
           agujero,
-        })
+          entrada,
+          asentado: entrada.grupo.position.clone(),
+          giroAsentado: entrada.grupo.quaternion.clone(),
+          salida: placa.normal.clone().normalize(),
+          metidoMm: 0,
+          calibre,
+          oval,
+          desviacionMm,
+        }
+        posarElTornilloQueEntra()
+        t.decir?.(
+          `${textoDelTornilloQueEntra({ largoMm: puesto.largoMm, metidoMm: 0, agujero: agujero + 1 })}. Métalo con la rueda (Mayúsculas afina): se queda donde va mientras pide el disparo.`,
+        )
       }
+    }
+
+    /** Pone el tornillo que entra donde va: lo que falta por meter asoma por la normal de la placa, girado lo que manda la rosca. */
+    const posarElTornilloQueEntra = () => {
+      const a = atornillando
+      if (!a) return
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const grupo = a.entrada.grupo
+      grupo.position.copy(a.asentado).addScaledVector(a.salida, (a.entrada.datos.largoMm - a.metidoMm) * unidadesPorMm)
+      // El giro se cuenta desde el asentado hacia atrás: así, al asentar, el modelo queda exactamente como lo dejó `colocarTornillo`.
+      const vueltas = giroDelTornilloRad(a.metidoMm - a.entrada.datos.largoMm, a.entrada.datos.diametroMm)
+      grupo.quaternion.copy(a.giroAsentado).premultiply(new THREE.Quaternion().setFromAxisAngle(a.salida, vueltas))
+      grupo.updateMatrixWorld(true)
+      ultimas.current.alCambiarElTornillo?.({ agujero: a.agujero + 1, largoMm: a.entrada.datos.largoMm, metidoMm: a.metidoMm })
+      taller.current.pedirDibujo?.()
+    }
+
+    /** Asienta la cabeza: el tornillo pasa a contar, se juzga en voz alta y, en un orificio oval, comprime (P-004 E10). */
+    const asentarElTornillo = () => {
+      const a = atornillando
+      const t = taller.current
+      const placa = t.implantes?.placa
+      if (!a || !t.implantes || !placa) return
+      a.metidoMm = a.entrada.datos.largoMm
+      a.entrada.grupo.position.copy(a.asentado)
+      a.entrada.grupo.quaternion.copy(a.giroAsentado)
+      a.entrada.grupo.updateMatrixWorld(true)
+      atornillando = null
+      ultimas.current.alCambiarElTornillo?.(null)
+      t.implantes.tornillos.set(a.agujero, a.entrada)
+      const puesto = a.entrada.datos
+      let compresion = ''
+      if (a.oval) {
+        const lado = ladoDeLaFracturaEnElAgujero(placa, a.agujero)
+        if (lado !== null) compresion = aplicarLaCompresion(resultadoDelOval(a.desviacionMm, lado, semilargoDelOvalDeLaPlaca(placa.nombre)))
+      }
+      const suceso: SucesoDeFijacion = {
+        tipo: 'tornillo',
+        texto:
+          `Tornillo de ${puesto.largoMm} mm en el agujero ${a.agujero + 1}: ` +
+          (puesto.bicortical ? 'bicortical.' : 'solo la cortical cercana.') +
+          (puesto.aviso && puesto.bicortical ? ` ${puesto.aviso}` : '') +
+          (a.calibre ? ` ${a.calibre}` : '') +
+          (compresion ? ` ${compresion}` : ''),
+        atencion: !!puesto.aviso || !!a.calibre,
+        agujero: a.agujero,
+      }
+      t.decir?.(suceso.texto)
+      ultimas.current.alFijar?.(estadoDeLaFijacion(t), suceso)
+      t.pedirDibujo?.()
+    }
+
+    taller.current.moverElTornillo = (sentido, fino) => {
+      const a = atornillando
+      if (!a) return
+      a.metidoMm = metidoTrasLaRueda(a.metidoMm, a.entrada.datos.largoMm, sentido, fino)
+      if (estaAsentado(a.metidoMm, a.entrada.datos.largoMm)) {
+        asentarElTornillo()
+        return
+      }
+      posarElTornilloQueEntra()
+      taller.current.decir?.(textoDelTornilloQueEntra({ largoMm: a.entrada.datos.largoMm, metidoMm: a.metidoMm, agujero: a.agujero + 1 }))
+    }
+    taller.current.terminarElTornillo = () => asentarElTornillo()
+    taller.current.sacarElTornillo = () => {
+      const a = atornillando
+      if (!a) return
+      atornillando = null
+      soltarGrupo(a.entrada.grupo)
+      ultimas.current.alCambiarElTornillo?.(null)
+      taller.current.decir?.(`Tornillo sacado del agujero ${a.agujero + 1}: el agujero sigue perforado y medido.`)
+      taller.current.pedirDibujo?.()
     }
 
     const alSubirParaCoser = (evento: PointerEvent) => {
@@ -6191,6 +6703,11 @@ export function LienzoQuirurgico({
       superficie.removeEventListener('pointerdown', alBajarEnLaMesa)
       superficie.removeEventListener('pointermove', alMoverEnLaMesa)
       superficie.removeEventListener('pointerup', alSoltarEnLaMesa)
+      superficie.removeEventListener('pointerdown', alBajarSobreLaPlaca)
+      superficie.removeEventListener('pointermove', alMoverLaPlaca)
+      superficie.removeEventListener('pointerup', alSoltarLaPlaca)
+      superficie.removeEventListener('pointercancel', alSoltarLaPlaca)
+      superficie.removeEventListener('wheel', alGirarLaPlaca)
       if (taller.current.mesa) {
         soltarLaMesa(taller.current.mesa)
         taller.current.mesa = undefined
@@ -6276,9 +6793,11 @@ export function LienzoQuirurgico({
       }
     }
     if (!fragmento) taller.current.origenDelFragmento = undefined
-    // El objetivo de los rayos X es copia del fragmento de antes: si cambió, se
-    // rehace en el efecto de las ayudas, que va justo detrás de este.
-    if (fragmento !== anterior) sincronizarAyudas(taller.current, false, undefined)
+    // Con una posición reducida guardada, el sitio de reposo del fragmento es ese y no el del archivo (P-008 E5).
+    const otroOrigen = aplicarPosicionesReducidas(taller.current, piezas)
+    // El objetivo de los rayos X es copia del fragmento de antes, en su sitio de reposo: si cambió cualquiera de los
+    // dos, se rehace en el efecto de las ayudas, que va justo detrás de este.
+    if (fragmento !== anterior || otroOrigen) sincronizarAyudas(taller.current, false, undefined)
 
     aplicarPiezas(taller.current, piezas)
     // Una pieza que cambia de papel cambia de aspecto: el taller deja marcar la piel como hueso, y al revés.
@@ -6321,11 +6840,12 @@ export function LienzoQuirurgico({
     if (!urlDelInstrumento || !escena) return
     let vivo = true
     let cargado: HerramientaCargada | undefined
-    new GLTFLoader().load(
+    // Una placa recta a medida (P-008 E3) llega en el acto, sin archivo que bajar: `cargado` queda puesto antes de salir.
+    cargarModeloDelInstrumento(
       urlDelInstrumento,
-      (gltf) => {
+      (modelo) => {
         if (!vivo) return
-        const h = prepararHerramienta(gltf.scene)
+        const h = prepararHerramienta(modelo)
         // El instrumento viene en metros y el caso en las unidades de su
         // archivo: una unidad mide `milimetrosPorUnidad` mm, y un metro son mil.
         h.raiz.scale.setScalar(1000 / (ultimas.current.milimetrosPorUnidad || 1000))
@@ -6343,7 +6863,6 @@ export function LienzoQuirurgico({
         taller.current.herramientaAlCentro?.()
         taller.current.pedirDibujo?.()
       },
-      undefined,
       () => {
         if (!vivo) return
         ultimas.current.alCargarInstrumento?.(null, 'No se pudo abrir el modelo de este instrumento.')
@@ -6534,9 +7053,16 @@ export type Taller = {
   aperturaAntesDeCoser?: Map<HeridaEnCapa, { mas: number; menos: number; perfil?: HeridaEnCapa['perfil'] }>
   implantes?: ImplantesEnEscena
   origenesDePiezas?: Map<THREE.Object3D, { posicion: THREE.Vector3; rotacion: THREE.Euler }>
+  posesReducidas?: Map<THREE.Object3D, THREE.Matrix4>
+  trayectosDeLaReduccion?: TrayectoDeUnTrozo[]
+  claveDeLaReduccion?: string
   cortes?: CorteGuardado[]
   /** Escribe en la etiqueta que flota sobre el lienzo. */
   decir?: (texto: string) => void
+  /** Deja sin elegir el trozo que ya no sostiene ninguna pinza (pedido 15); lo asigna el montaje. */
+  alSoltarLasPinzas?: () => void
+  /** Avisa a la consola de que la recta provisional se borró (P-008 E1); lo asigna el montaje. */
+  alBorrarElTrazo?: () => void
 }
 
 /**
@@ -6589,6 +7115,15 @@ export interface EstadoDeLaBroca {
   diametroMm: number
   /** El agujero de la placa por el que va, si va por uno (1 en adelante). */
   agujero?: number
+}
+
+/** El tornillo de placa que está entrando (pedido 13): lo que la consola enseña mientras se pide el disparo. */
+export interface EstadoDelTornilloQueEntra {
+  /** El agujero de la placa, contado desde 1. */
+  agujero: number
+  largoMm: number
+  /** Lo que ya entró; la cabeza asienta cuando llega al largo. */
+  metidoMm: number
 }
 
 export interface EstadoDeLasRetracciones {
@@ -6908,6 +7443,8 @@ function pivoteEnSuCentro(fragmento: THREE.Object3D) {
   const centro = caja.getCenter(new THREE.Vector3())
   fragmento.userData.pivoteCentrado = true
   if (centro.lengthSq() === 0) return
+  // La pose del archivo se corre igual: contra ella se guarda dónde va el trozo reducido (P-008 E5).
+  correrElOrigenDelArchivo(fragmento, centro)
 
   // Lo de dentro retrocede lo mismo que avanza el nodo: el hueso no se mueve.
   const malla = fragmento as THREE.Mesh
@@ -6918,6 +7455,35 @@ function pivoteEnSuCentro(fragmento: THREE.Object3D) {
   for (const hijo of fragmento.children) hijo.position.sub(centro)
   fragmento.position.add(centro.clone().multiply(fragmento.scale).applyQuaternion(fragmento.quaternion))
   fragmento.updateMatrixWorld(true)
+}
+
+/**
+ * Las posiciones reducidas del caso, puestas en la escena (P-008 E5): la pose de cada trozo reducido y, si el fragmento
+ * tiene la suya, su sitio de reposo —contra él mide la consola y ahí lo deja la reducción automática—. Devuelve si el
+ * sitio de reposo del fragmento cambió.
+ *
+ * Se rehace solo si cambian las posiciones guardadas o el fragmento: en el taller las piezas llegan como lista nueva en
+ * cada repintado, y recalcular cada vez las poses de todos los trozos no cuesta mucho, pero tampoco sirve de nada.
+ */
+function aplicarPosicionesReducidas(t: Taller, piezas: PiezaDelCaso[]): boolean {
+  if (!t.raiz) return false
+  const conPosicion = piezas.flatMap((p) => (p.posicionReducida ? [[p.nodo, p.posicionReducida] as const] : []))
+  const clave = `${t.fragmento?.name ?? ''}|${JSON.stringify(conPosicion)}`
+  if (clave === t.claveDeLaReduccion) return false
+  const primeraVez = t.claveDeLaReduccion === undefined
+  t.claveDeLaReduccion = clave
+  t.posesReducidas = posesReducidasDe(t.raiz, conPosicion)
+  const f = t.fragmento
+  if (!f) return false
+  const reducida = t.posesReducidas.get(f)
+  // Sin posición reducida, el sitio de reposo es donde el fragmento está en el archivo. Al cargar ya lo puso la carga;
+  // después hay que ponerlo, porque el editor pudo quitar la posición reducida o marcar otro trozo como fragmento.
+  if (!reducida && primeraVez) return false
+  const posicion = new THREE.Vector3()
+  const cuaternion = new THREE.Quaternion()
+  ;(reducida ?? poseDelArchivo(f)).decompose(posicion, cuaternion, new THREE.Vector3())
+  t.origenDelFragmento = { posicion, rotacion: new THREE.Euler().setFromQuaternion(cuaternion, f.rotation.order) }
+  return true
 }
 
 /**
@@ -7258,6 +7824,7 @@ type LoUltimo = {
   asasLibres?: boolean
   alElegirPieza?: (nombre: string | null) => void
   alCambiarLaBroca?: (estado: EstadoDeLaBroca | null) => void
+  alCambiarElTornillo?: (estado: EstadoDelTornilloQueEntra | null) => void
   diametroDeTornillo?: number | null
   marcandoLaTrayectoria?: boolean
   alCambiarLaTrayectoria?: (estado: EstadoDeLaTrayectoria | null) => void
@@ -7781,6 +8348,7 @@ function soltarPinzasDeReduccion(t: Taller, u: LoUltimo, id?: number) {
   if (habia !== quedan.length) {
     u.alReducir?.(estadoDeLaReduccion(t))
     t.decir?.('Pinza soltada.')
+    t.alSoltarLasPinzas?.()
     t.pedirDibujo?.()
   }
 }
@@ -7867,6 +8435,15 @@ function cancelarLaRecta(t: Taller) {
   if (t.inicioDeLaRecta) {
     t.inicioDeLaRecta = undefined
     t.decir?.('')
+    // La recta provisional que seguía al cursor se va con la marca (P-008 E1). Quedaba dibujada por encima de todo
+    // —el trazo de guía no mira la profundidad— con Esc, al cambiar de modo o de instrumento: una línea sin incisión
+    // debajo, y la consola contando su largo. Con el inicio marcado no hay otro trazo que perder: marcarlo lo vació.
+    if (t.puntosDelTrazo.length > 0) {
+      t.puntosDelTrazo = []
+      t.normalesDelTrazo = []
+      dibujarTrazo(t)
+      t.alBorrarElTrazo?.()
+    }
   }
 }
 

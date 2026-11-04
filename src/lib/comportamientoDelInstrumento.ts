@@ -44,6 +44,16 @@ export interface ComportamientoDelInstrumento {
      * Se coloca pinchando el **hueso**, no la herida.
      */
     apoyoEnHueso?: boolean
+    /**
+     * Lo ancha que es la hoja a lo largo de la herida, en milímetros: el tramo del labio que aparta entero (P-008 E2).
+     * Sale del modelo de Blender de cada uno (`scripts/instrumental`).
+     */
+    anchoMm?: number
+    /**
+     * En un autoestático, del eje de las ramas al rastrillo, en milímetros: con él, los grados que se abren las ramas
+     * son exactamente los milímetros que se aparta cada labio, y el rastrillo queda en el borde.
+     */
+    brazoMm?: number
   } | null
   /**
    * Pellizca la piel hacia arriba: las pinzas de disección. Con dientes sujetan
@@ -135,13 +145,16 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
 
   // Los de mano los sostiene un ayudante o el propio cirujano: abren poco y solo
   // mientras alguien los sujeta. Los autoestáticos se quedan abiertos con su trinquete.
-  'separador-senn-miller': { ...NADA, separa: { maximoMm: 22, autoestatico: false } },
-  'separador-farabeuf': { ...NADA, separa: { maximoMm: 30, autoestatico: false } },
+  // El ancho de cada hoja y el brazo de cada autoestático, de su modelo: el rastrillo del Senn-Miller mide 22 mm de
+  // lado a lado, la pala chica del Farabeuf 10, la del Hohmann 18; los rastrillos del Weitlaner y del Beckman-Adson,
+  // 4,2 mm por diente más 2, cuelgan del eje a 52 y 70 mm más 2,6 de la barra; las puntas del Gelpi, a 60 más 3.
+  'separador-senn-miller': { ...NADA, separa: { maximoMm: 22, autoestatico: false, anchoMm: 20 } },
+  'separador-farabeuf': { ...NADA, separa: { maximoMm: 30, autoestatico: false, anchoMm: 10 } },
   // El Hohmann no se pone en la herida: se apoya en el borde del hueso y hace palanca sobre lo blando.
-  'separador-hohmann': { ...NADA, separa: { maximoMm: 40, autoestatico: false, apoyoEnHueso: true } },
-  'separador-gelpi': { ...NADA, separa: { maximoMm: 55, autoestatico: true } },
-  'separador-weitlaner': { ...NADA, separa: { maximoMm: 65, autoestatico: true } },
-  'separador-beckman-adson': { ...NADA, separa: { maximoMm: 90, autoestatico: true } },
+  'separador-hohmann': { ...NADA, separa: { maximoMm: 40, autoestatico: false, apoyoEnHueso: true, anchoMm: 18 } },
+  'separador-gelpi': { ...NADA, separa: { maximoMm: 55, autoestatico: true, anchoMm: 5, brazoMm: 63 } },
+  'separador-weitlaner': { ...NADA, separa: { maximoMm: 65, autoestatico: true, anchoMm: 16, brazoMm: 54.6 } },
+  'separador-beckman-adson': { ...NADA, separa: { maximoMm: 90, autoestatico: true, anchoMm: 19, brazoMm: 72.6 } },
 
   // Las pinzas de disección: pellizcan la piel hacia arriba. Con dientes tensan; sin dientes, no.
   'pinza-diseccion-con-dientes': { ...NADA, pellizca: { conDientes: true } },

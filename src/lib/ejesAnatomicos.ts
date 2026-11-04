@@ -83,8 +83,10 @@ const RECORRIDO_MAXIMO_DE_LADO_MM = 60
 /**
  * Los rangos del ajuste de la placa. A lo largo: lo que da el hueso, que se mide desde donde se apoyó la placa y por eso
  * se deja el largo entero menos medio largo de placa en cada sentido (la placa puede haberse apoyado en un extremo). De lado
- * a lado: el ancho del hueso (con tope de 60 mm), que es lo que se puede rodear sin dar la vuelta. El giro, ±90°, porque más allá la placa
- * queda de través y no es una posición que nadie use.
+ * a lado: el ancho del hueso (con tope de 60 mm), que es lo que se puede rodear sin dar la vuelta. El giro, ±180°: la vuelta
+ * entera. Hasta P-008 era ±90° («más allá la placa queda de través»), pero dar la vuelta a una placa es voltearla de
+ * punta a punta, y en una placa que no es simétrica —una L, una anatómica, una con la cabeza de un lado— es justo lo que
+ * hace falta; el dueño pidió poder dejarla «en cualquier posición».
  */
 export function rangosDeLaPlaca(medidas: MedidasParaLosRangos): RangosDelAjuste {
   const largo = Math.max(RECORRIDO_MINIMO_MM, Math.round(medidas.largoDelHuesoMm - medidas.largoDeLaPlacaMm / 2))
@@ -92,8 +94,14 @@ export function rangosDeLaPlaca(medidas: MedidasParaLosRangos): RangosDelAjuste 
   return {
     largoMm: { min: -largo, max: largo },
     ladoMm: { min: -lado, max: lado },
-    giroGrados: { min: -90, max: 90 },
+    giroGrados: { min: -180, max: 180 },
   }
+}
+
+/** Un giro en grados llevado a (−180, 180]: dar la vuelta de más no acumula, y voltear dos veces deja la placa como estaba. */
+export function giroEnvuelto(grados: number): number {
+  const r = ((grados % 360) + 360) % 360
+  return r > 180 ? r - 360 : r
 }
 
 export const acotar = (valor: number, minimo: number, maximo: number) => Math.min(maximo, Math.max(minimo, valor))

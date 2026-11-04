@@ -73,6 +73,8 @@ export function PanelDeFluoroscopia({
   lienzo,
   desplazamiento,
   alDesplazar,
+  instrumentoPuesto = null,
+  alCentrarEnElInstrumento,
   alElegirModo,
   alDisparar,
   alCambiarAjustes,
@@ -107,6 +109,12 @@ export function PanelDeFluoroscopia({
   /** Cuánto se ha corrido el miembro bajo el arco, en radios del círculo. */
   desplazamiento: DesplazamientoDeLaImagen
   alDesplazar: (desplazamiento: DesplazamientoDeLaImagen) => void
+  /**
+   * Lo que está puesto en un agujero y se puede centrar —«la broca», «el tornillo», «el medidor»—, o `null` (pedidos 3 y 13).
+   * Con algo puesto sale «Centrar en la broca»: lleva eso al centro de la imagen y acerca, para leer cuánto falta.
+   */
+  instrumentoPuesto?: string | null
+  alCentrarEnElInstrumento?: () => void
   alElegirModo: (modo: ModoDeEscopia) => void
   alDisparar: () => void
   alCambiarAjustes: (ajustes: AjustesDeLaImagen) => void
@@ -315,6 +323,13 @@ export function PanelDeFluoroscopia({
                 : 'Imagen de la última toma.'}
           </p>
         </>
+      ) : null}
+      {/* Con la broca, el tornillo o el medidor en un agujero (pedidos 3 y 13): a 1× la pierna entera ocupa el círculo y lo que
+          se quiere leer —cuánto falta para la cortical opuesta— son unos pocos píxeles. Se centra y se acerca de una vez. */}
+      {instrumentoPuesto && alCentrarEnElInstrumento ? (
+        <button type="button" className="consola-boton consola-boton-ancho" onClick={alCentrarEnElInstrumento}>
+          <Crosshair size={14} aria-hidden /> Centrar en {instrumentoPuesto}
+        </button>
       ) : null}
       <p className="consola-escopia-lectura consola-escopia-mover">
         <small>Arrastre la imagen para subir o bajar la extremidad.</small>

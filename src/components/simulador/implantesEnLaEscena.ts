@@ -110,7 +110,8 @@ export function clonarConRecursos(origen: THREE.Object3D, compartirGeometria = f
   return copia
 }
 
-function soltarGrupo(grupo: THREE.Object3D) {
+/** Saca un modelo de la escena y suelta lo suyo. Lo usa también el lienzo para el tornillo que se saca a medio entrar. */
+export function soltarGrupo(grupo: THREE.Object3D) {
   grupo.removeFromParent()
   grupo.traverse((o) => {
     const m = o as THREE.Mesh
@@ -285,12 +286,8 @@ export function ajustarPlaca(
   ajuste: { largoMm: number; ladoMm: number; giroGrados: number },
 ): boolean {
   const unidades = 1 / placa.milimetrosPorUnidad
-  const { punto, normal: normalInicial, ejeDelHueso } = placa.anclaje
-  const lateral = new THREE.Vector3().crossVectors(normalInicial, ejeDelHueso).normalize()
-  const objetivo = punto
-    .clone()
-    .addScaledVector(ejeDelHueso, ajuste.largoMm * unidades)
-    .addScaledVector(lateral, ajuste.ladoMm * unidades)
+  const { normal: normalInicial, ejeDelHueso } = placa.anclaje
+  const objetivo = objetivoDelAjuste(placa.anclaje, ajuste, unidades)
   const hacia = normalInicial.clone().negate()
   const medio = Math.max(2, placa.largoMm * 0.35)
   const sondas = [0, medio, -medio].map((d) => objetivo.clone().addScaledVector(ejeDelHueso, d * unidades))
@@ -308,8 +305,12 @@ export function ajustarPlaca(
   if (golpes.length === 0) return false
   const centro = golpes[0]
   const normal = golpes.reduce((a, g) => a.add(g.normal), new THREE.Vector3()).normalize()
-  // El eje de la placa, sobre el plano de la normal nueva y girado lo que pida el ajuste.
-  const eje = ejeDelHueso.clone().addScaledVector(normal, -ejeDelHueso.dot(normal)).normalize()
+  // El eje de la placa, sobre el plano de la normal nueva y girado lo que pida el ajuste. Con la normal casi a lo largo del
+  // hueso (su extremo, la meseta) no hay largo del hueso sobre el que tender la placa: se dice que no, en vez de un eje de
+  // ceros que dejaba la placa en NaN y fuera de la escena (P-008 E4: arrastrándola se llega a cualquier cara).
+  const eje = ejeDelHueso.clone().addScaledVector(normal, -ejeDelHueso.dot(normal))
+  if (eje.lengthSq() < 0.04) return false
+  eje.normalize()
   eje.applyAxisAngle(normal, (ajuste.giroGrados * Math.PI) / 180)
   const q = orientar(normal, eje.clone().negate())
   placa.grupo.quaternion.copy(q)
@@ -325,6 +326,41 @@ export function ajustarPlaca(
   const medida = medirBajoElAgujero(placa, indiceDelAgujeroMasCercano(placa, centro.punto), huesos)
   placa.separadaDelHuesoMm = medida ? Math.max(0, medida.distanciaAlHuesoMm) : 0
   return true
+}
+
+/** Adónde lleva un ajuste: el punto de anclaje corrido lo que pide a lo largo del hueso y de lado. */
+function objetivoDelAjuste(anclaje: PlacaColocada['anclaje'], ajuste: PlacaColocada['ajuste'], unidades: number): THREE.Vector3 {
+  const lateral = new THREE.Vector3().crossVectors(anclaje.normal, anclaje.ejeDelHueso).normalize()
+  return anclaje.punto
+    .clone()
+    .addScaledVector(anclaje.ejeDelHueso, ajuste.largoMm * unidades)
+    .addScaledVector(lateral, ajuste.ladoMm * unidades)
+}
+
+/** Dónde se apoya ahora la placa, en el mundo: el anclaje corrido lo que pide su ajuste. Lo que el arrastre agarra. */
+export function apoyoDeLaPlaca(placa: PlacaColocada): THREE.Vector3 {
+  return objetivoDelAjuste(placa.anclaje, placa.ajuste, 1 / placa.milimetrosPorUnidad)
+}
+
+/**
+ * Lleva la placa a otro sitio del hueso (P-008 E4): la apoya en `punto`, con `normal`, como si se hubiera apoyado ahí la
+ * primera vez, y conserva el giro. Es lo que hace el arrastre: antes la placa solo se corría desde donde se apoyó y
+ * dentro de un rango, y a la otra cara del hueso no llegaba. El eje del hueso es el de siempre. Si ahí no se puede
+ * asentar, la deja donde estaba y devuelve `false`.
+ */
+export function reanclarPlaca(
+  placa: PlacaColocada,
+  huesos: THREE.Object3D[],
+  punto: THREE.Vector3,
+  normal: THREE.Vector3,
+  giroGrados = placa.ajuste.giroGrados,
+): boolean {
+  const antes = { anclaje: placa.anclaje, ajuste: placa.ajuste }
+  placa.anclaje = { punto: punto.clone(), normal: normal.clone().normalize(), ejeDelHueso: placa.anclaje.ejeDelHueso.clone() }
+  if (ajustarPlaca(placa, huesos, { largoMm: 0, ladoMm: 0, giroGrados })) return true
+  placa.anclaje = antes.anclaje
+  placa.ajuste = antes.ajuste
+  return false
 }
 
 /** El agujero cuyo centro, en el mundo, queda más cerca de `punto`. */

@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { MandoDelLienzo, Modo, PiezaDelCaso } from '@/components/simulador/LienzoQuirurgico'
+import { transformacionValida } from '@/lib/reduccionAutomatica'
 import {
   agregarPieza,
   cambiarRolDePieza,
@@ -116,7 +117,9 @@ export function TallerDePiezas({
   const piezasParaElLienzo: PiezaDelCaso[] = piezas.flatMap((p) => {
     const nodo = typeof p.nodo === 'string' ? p.nodo : ''
     if (!nodo) return []
-    return [{ nodo, rol: (typeof p.rol === 'string' ? p.rol : 'hueso') as PiezaDelCaso['rol'] }]
+    // Con su posición reducida (P-008 E5): sin ella, este lienzo mediría el desplazamiento contra el hueso roto.
+    const posicionReducida = transformacionValida(p.posicionReducida)
+    return [{ nodo, rol: (typeof p.rol === 'string' ? p.rol : 'hueso') as PiezaDelCaso['rol'], ...(posicionReducida ? { posicionReducida } : {}) }]
   })
 
   const alCargar = useCallback(() => {

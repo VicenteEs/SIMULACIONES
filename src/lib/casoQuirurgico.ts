@@ -11,6 +11,7 @@ import { ajustesValidos, type AjustesDeInstrumento } from '@/instrumental/modelo
 import type { EjeLargo } from '@/lib/reduccion'
 import { companerosDeLasPlacas, quePuedeColocar } from '@/lib/fijacion'
 import { objetivoDelPaso, type Objetivo } from '@/lib/simulador'
+import { transformacionValida } from '@/lib/reduccionAutomatica'
 
 /**
  * Traduce un documento de Payload en lo que la consola necesita.
@@ -93,7 +94,9 @@ function piezasDelCaso(documento: Documento): PiezaDelCaso[] {
     const nodo = texto(p.nodo)
     if (!nodo) return []
     const rol = typeof p.rol === 'string' ? p.rol : 'hueso'
-    return [{ nodo, rol: rol as PiezaDelCaso['rol'], etiqueta: texto(p.etiqueta) }]
+    // Solo si está entera y es un giro de verdad (P-008 E5): una a medias movería el trozo a cualquier parte.
+    const posicionReducida = transformacionValida(p.posicionReducida)
+    return [{ nodo, rol: rol as PiezaDelCaso['rol'], etiqueta: texto(p.etiqueta), ...(posicionReducida ? { posicionReducida } : {}) }]
   })
 }
 

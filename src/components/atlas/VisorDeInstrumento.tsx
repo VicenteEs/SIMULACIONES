@@ -4,7 +4,7 @@ import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'reac
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { cargarModeloDelInstrumento } from '@/instrumental/cargarModelo'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import {
   metaDeNodo,
@@ -384,11 +384,11 @@ export function VisorDeInstrumento({
       ix.pedir()
       return
     }
-    new GLTFLoader().load(
+    // Con la placa a medida de la bandeja (P-008 E3) no hay archivo: se genera, y el recuadro la enseña como a las demás.
+    cargarModeloDelInstrumento(
       url,
-      (gltf) => {
+      (raiz) => {
         if (cancelado || !interno.current) return
-        const raiz = gltf.scene
         const partes: ParteDelModelo[] = []
         let triangulos = 0
         let meta: MetaDeRaiz | null = null
@@ -442,7 +442,6 @@ export function VisorDeInstrumento({
         alCargar({ partes, meta: metaRaiz, triangulos: Math.round(triangulos), caja: [tam.x * 1000, tam.y * 1000, tam.z * 1000] })
         aplicar.current()
       },
-      undefined,
       () => {
         if (cancelado) return
         setCargada(url)

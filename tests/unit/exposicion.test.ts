@@ -3,8 +3,8 @@ import {
   abreLaCapa,
   adviertePorLaTension,
   alturaEfectivaDelPellizco,
-  ALCANCE_POR_TIPO,
   AGARRE_MINIMO_PARA_SOSTENER,
+  ANGULO_DEL_MANGO_DE_LA_PALANCA_GRADOS,
   aperturaDeLaCapa,
   aperturaEnLaPosicion,
   aperturaMaxima,
@@ -15,6 +15,7 @@ import {
   ladosParaLaPareja,
   laPareja,
   MAXIMO_DE_SEPARADORES,
+  PENDIENTE_MAXIMA_DEL_LABIO,
   posicionQueAcompana,
   ladoAlColocar,
   limitarAgarre,
@@ -44,12 +45,51 @@ const separador = (extra: Partial<SeparadorColocado> = {}): SeparadorColocado =>
 })
 
 describe('los separadores colocados abren donde están', () => {
-  it('abre del todo en su posición y se cierra hacia los extremos', () => {
+  it('bajo la hoja abre lo del panel y de ahí a cada punta el labio va tenso, en recta (P-008 E2)', () => {
     const s = [separador({ posicion: 0.5, aperturaMm: 20 })]
-    expect(aperturaEnLaPosicion(s, 0.5).mas).toBeCloseTo(20, 5)
-    expect(aperturaEnLaPosicion(s, 0.5 + ALCANCE_POR_TIPO.mano).mas).toBeLessThan(13)
-    expect(aperturaEnLaPosicion(s, 0).mas).toBeLessThan(3)
-    expect(aperturaEnLaPosicion(s, 1).mas).toBeLessThan(3)
+    // Una herida de 60 mm y una hoja de 12: de 0,4 a 0,6 del largo abre los 20 enteros.
+    expect(aperturaEnLaPosicion(s, 0.5, 60).mas).toBeCloseTo(20, 5)
+    expect(aperturaEnLaPosicion(s, 0.41, 60).mas).toBeCloseTo(20, 5)
+    // De la hoja a la punta va en recta: a mitad de camino, la mitad.
+    expect(aperturaEnLaPosicion(s, 0.2, 60).mas).toBeCloseTo(10, 5)
+    // Las puntas no se abren nunca.
+    expect(aperturaEnLaPosicion(s, 0, 60).mas).toBe(0)
+    expect(aperturaEnLaPosicion(s, 1, 60).mas).toBe(0)
+  })
+
+  it('a un cuarto del largo abre lo mismo que en el medio: antes abría la mitad (P-008 E2)', () => {
+    expect(aperturaEnLaPosicion([separador({ posicion: 0.25, aperturaMm: 12 })], 0.25, 60).mas).toBeCloseTo(12, 5)
+  })
+
+  it('la hoja ancha aparta entero un tramo más largo que la angosta', () => {
+    const angosta = aperturaEnLaPosicion([separador({ anchoMm: 10 })], 0.6, 60).mas
+    const ancha = aperturaEnLaPosicion([separador({ anchoMm: 20 })], 0.6, 60).mas
+    expect(ancha).toBeCloseTo(20, 5)
+    expect(angosta).toBeLessThan(ancha)
+  })
+
+  it('con dos hojas en el mismo labio, entre ellas el labio no se hunde: las dos tiran de él', () => {
+    const s = [separador({ id: 1, posicion: 0.3, aperturaMm: 12 }), separador({ id: 2, posicion: 0.7, aperturaMm: 12 })]
+    expect(aperturaEnLaPosicion(s, 0.5, 60).mas).toBeCloseTo(12, 5)
+  })
+
+  it('pegada a una punta no abre más de lo que la piel aguanta, y la punta sigue cerrada', () => {
+    // A 3 mm de la punta de una herida de 60: la hoja de 12 la tapa, pero la punta no se abre.
+    const s = [separador({ posicion: 0.05, aperturaMm: 20 })]
+    const enLaHoja = aperturaEnLaPosicion(s, 0.05, 60).mas
+    expect(enLaHoja).toBeLessThanOrEqual(PENDIENTE_MAXIMA_DEL_LABIO * 0.05 * 60 + 1e-9)
+    expect(enLaHoja).toBeGreaterThan(0)
+    expect(aperturaEnLaPosicion(s, 0, 60).mas).toBe(0)
+  })
+
+  it('la hoja es rígida: cerca de una punta abre menos, pero pareja en todo su ancho', () => {
+    // A 12 mm de la punta, la hoja de 12 tiene su borde a 6: ese borde manda, 2 por milímetro, 12 mm en toda la hoja.
+    const s = [separador({ posicion: 0.2, aperturaMm: 20 })]
+    expect(aperturaEnLaPosicion(s, 0.1, 60).mas).toBeCloseTo(12, 5)
+    expect(aperturaEnLaPosicion(s, 0.2, 60).mas).toBeCloseTo(12, 5)
+    expect(aperturaEnLaPosicion(s, 0.3, 60).mas).toBeCloseTo(12, 5)
+    // Y de ahí a la punta, en recta.
+    expect(aperturaEnLaPosicion(s, 0.05, 60).mas).toBeCloseTo(6, 5)
   })
 
   it('una hoja de mano abre solo el labio que sostiene', () => {
@@ -296,9 +336,14 @@ describe('el mango del separador sale hacia fuera de la herida (P-003 E3)', () =
     expect(mas[0] - menos[0]).toBeGreaterThan(0)
   })
 
-  it('es unitario y forma 40° con la normal', () => {
+  it('es unitario y va tendido, a 75° de la normal: despeja el campo (P-008)', () => {
     const v = direccionDelMango(normal, direccion, 1)
     expect(Math.hypot(...v)).toBeCloseTo(1, 10)
+    expect((Math.acos(v[2]) * 180) / Math.PI).toBeCloseTo(75, 6)
+  })
+
+  it('el del Hohmann en el hueso conserva sus 40°: la báscula lo tumba después', () => {
+    const v = direccionDelMango(normal, direccion, 1, ANGULO_DEL_MANGO_DE_LA_PALANCA_GRADOS)
     expect((Math.acos(v[2]) * 180) / Math.PI).toBeCloseTo(40, 6)
   })
 

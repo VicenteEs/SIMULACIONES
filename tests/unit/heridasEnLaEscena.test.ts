@@ -202,6 +202,32 @@ describe('la cinta: una incisión recién hecha no desaparece', () => {
     cerrarCapa(herida)
     expect(herida.cinta.parent).toBeNull()
   })
+
+  it('con un separador o una pinza dentro se aparta en el acto, aunque todavía no abra (P-008 E1)', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, EN_MM)!
+    herida.sostenida = true
+    abrirCapa(herida, 0, 0)
+    expect(herida.cinta.visible).toBe(false)
+    // El borde se va con ella: no queda una línea dibujada encima del instrumento.
+    expect(herida.bordes.visible).toBe(false)
+    // Al quitar el instrumento, la incisión cerrada vuelve a verse.
+    herida.sostenida = false
+    abrirCapa(herida, 0, 0)
+    expect(herida.cinta.visible).toBe(true)
+    expect(herida.bordes.visible).toBe(true)
+  })
+
+  it('abierta, el borde tampoco queda dibujado: era una línea oscura de por vida sobre la herida (P-008 E1)', () => {
+    const malla = pielPlana()
+    const { puntos, normales } = incision()
+    const herida = cortarCapa(malla, puntos, normales, EN_MM)!
+    abrirCapa(herida, 4, 4)
+    expect(herida.bordes.visible).toBe(false)
+    abrirCapa(herida, 0, 0)
+    expect(herida.bordes.visible).toBe(true)
+  })
 })
 
 describe('abrir según un perfil: el separador abre donde está puesto', () => {
@@ -238,6 +264,43 @@ describe('abrir según un perfil: el separador abre donde está puesto', () => {
     expect(herida.perfil).toBeUndefined()
     expect(separacionEn(herida, 0.5)).toBeGreaterThan(3)
     expect(Math.abs(separacionEn(herida, 0.45) - separacionEn(herida, 0.55))).toBeLessThan(0.3)
+  })
+})
+
+describe('ladoDeLaHerida en una malla de triángulos largos (pedido 8 de P-004)', () => {
+  /**
+   * Como un músculo del atlas cortado a lo largo: cuatro columnas de cuadros de 5 de ancho, así que en sus 10 de largo el
+   * trazo cruza pocas aristas y cada labio queda con tres vértices, en x = −3,5, 0 y 1,5.
+   */
+  function musculoLargo(): THREE.Mesh {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(20, 20, 4, 20), new THREE.MeshStandardMaterial())
+    m.name = 'Tibial_anterior'
+    m.updateMatrixWorld(true)
+    return m
+  }
+
+  it('un clic sobre la incisión, lejos de todo vértice del labio, está sobre ella', () => {
+    const malla = musculoLargo()
+    const { puntos, normales } = incision(0.3)
+    const herida = cortarCapa(malla, puntos, normales, PARAMETROS)!
+    expect(herida).not.toBeNull()
+    // Antes el clic quedaba lejos de todo vértice del labio (a 1,5 unidades). Desde P-008 E2 el labio tiene vértices
+    // cada dos milímetros dentro de cada triángulo; lo que se mide sigue siendo el trazo, no los vértices.
+    const sobreElTrazo = new THREE.Vector3(-1.5, 0.3, 0)
+    const info = ladoDeLaHerida(herida, sobreElTrazo)!
+    expect(info.cerca).toBeLessThan(0.05)
+    // Y el sitio a lo largo es el del clic, no el del vértice lejano: la incisión va de x = −5 a x = 5.
+    expect(info.t).toBeCloseTo(0.35, 5)
+  })
+
+  it('el lado sigue siendo el del vértice: arriba y abajo del trazo agarran labios distintos', () => {
+    const malla = musculoLargo()
+    const { puntos, normales } = incision(0.3)
+    const herida = cortarCapa(malla, puntos, normales, PARAMETROS)!
+    const arriba = ladoDeLaHerida(herida, new THREE.Vector3(-1.5, 0.5, 0))!
+    const abajo = ladoDeLaHerida(herida, new THREE.Vector3(-1.5, 0.1, 0))!
+    expect(arriba.lado).not.toBe(abajo.lado)
+    expect(arriba.cerca).toBeCloseTo(0.2, 5)
   })
 })
 

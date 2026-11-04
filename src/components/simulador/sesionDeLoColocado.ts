@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { aplicarEntorno, prepararHerramienta, type HerramientaCargada } from '@/instrumental/herramienta3d'
+import { cargarModeloDelInstrumento } from '@/instrumental/cargarModelo'
 import type { EjeLargo } from '@/lib/reduccion'
 import type { EstadoDelAgujero, TornilloPuesto } from '@/lib/fijacion'
 import type { ContornoDeLaPlaca } from '@/lib/contornoDeLaPlaca'
@@ -226,16 +226,16 @@ export function serializarLoColocado(t: Taller): string {
 
 function cargarPlantilla(url: string, escala: number, entorno: THREE.Texture | null): Promise<HerramientaCargada | null> {
   return new Promise((resolver) => {
-    new GLTFLoader().load(
+    // La placa a medida (P-008 E3) se guarda con su dirección como cualquier otra, y al volver se genera igual.
+    cargarModeloDelInstrumento(
       url,
-      (gltf) => {
-        const h = prepararHerramienta(gltf.scene)
+      (modelo) => {
+        const h = prepararHerramienta(modelo)
         h.raiz.scale.setScalar(escala)
         h.raiz.visible = false
         aplicarEntorno(h, entorno)
         resolver(h)
       },
-      undefined,
       () => resolver(null),
     )
   })

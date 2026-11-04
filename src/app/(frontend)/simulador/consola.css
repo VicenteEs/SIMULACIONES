@@ -77,7 +77,7 @@
   --tono-fondo: rgba(255, 255, 255, 0.04);
 
   display: grid;
-  grid-template-columns: var(--ancho-izq, 220px) minmax(0, 1fr) var(--ancho-der, 300px);
+  grid-template-columns: var(--ancho-izq, 248px) minmax(0, 1fr) var(--ancho-der, 300px);
   grid-template-areas:
     'barra barra barra'
     'pasos pasos pasos'
@@ -921,54 +921,206 @@
   border: 1px solid var(--c-linea-fuerte);
   border-radius: var(--r);
 }
-.consola-bandeja-grupo + .consola-bandeja-grupo { margin-top: var(--e-2); }
-/* La familia de instrumentos (corte, suturas, exposición…): un botón de ancho
-   completo que despliega sus cuadros. Se lee como la mesa de instrumentación,
-   de arriba abajo, y no como una lista de cuarenta cuadros iguales (D-167). */
-.consola-bandeja-cabecera {
-  width: 100%;
+/* ---------- la mesa de instrumental, a la izquierda (P-008 E6) ----------
+   Lo que hay en la mano, los recientes, el buscador y un cuadro con dibujo por familia; al pinchar un cuadro, su lista se
+   despliega debajo de su fila. Reemplaza los acordeones de ancho completo de la columna derecha (D-167): de ellos solo se
+   leía el nombre, y la familia abierta empujaba «Aplicar paso» fuera de la vista. */
+.barra-instrumental { display: grid; align-content: start; gap: var(--e-3); min-width: 0; }
+.barra-instrumental > .consola-subtitulo { margin: 0; }
+.barra-instrumental .consola-busqueda-envoltorio { margin: 0; }
+
+/* En la mano: lo primero que se mira. Con borde de trazos cuando está vacía, para que se lea como un hueco. */
+.barra-instrumental-mano {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--e-2);
+  padding: var(--e-2);
+  background: var(--c-panel-2);
+  border: 1px dashed var(--c-linea-fuerte);
+  border-radius: var(--r);
+}
+.barra-instrumental-mano.con-instrumento { background: var(--c-acento-tenue); border: 1px solid var(--c-acento); }
+.barra-instrumental-mano-icono {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: var(--c-texto-2);
+  background: var(--c-fondo);
+  border-radius: var(--r);
+}
+.barra-instrumental-mano.con-instrumento .barra-instrumental-mano-icono { color: var(--c-acento); }
+.barra-instrumental-mano-icono .instrumento-icono { width: 26px; height: 26px; color: inherit; }
+.barra-instrumental-mano-texto { display: grid; gap: 2px; min-width: 0; font-size: var(--t-xs); line-height: 1.3; color: var(--c-texto-2); }
+.barra-instrumental-mano-texto .consola-rotulo { font-size: 10px; }
+.barra-instrumental-mano-texto strong { font-size: var(--t-sm); line-height: 1.25; color: var(--c-texto); overflow-wrap: anywhere; }
+.barra-instrumental-soltar {
+  min-height: 32px;
+  padding: 0 var(--e-2);
+  font: inherit;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--c-texto);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.barra-instrumental-soltar:hover { border-color: var(--c-acento); }
+
+/* El siguiente de la secuencia brocar · medir · atornillar, a un clic: en el verde de «lo que toca». */
+.barra-instrumental-siguiente {
   display: flex;
   align-items: center;
   gap: var(--e-2);
-  padding: var(--e-2) var(--e-3);
+  width: 100%;
+  min-height: 36px;
+  padding: var(--e-1) var(--e-2);
   font: inherit;
-  font-size: var(--t-sm);
-  font-weight: 600;
+  font-size: var(--t-xs);
+  line-height: 1.3;
   text-align: left;
   color: var(--c-texto);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-bien);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.barra-instrumental-siguiente .instrumento-icono { width: 18px; height: 18px; color: var(--c-bien); }
+.barra-instrumental-siguiente-rotulo { font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--c-bien); }
+
+.barra-instrumental-recientes { display: grid; gap: var(--e-1); }
+.barra-instrumental-recientes .consola-rotulo { font-size: 10px; }
+.barra-instrumental-recientes ul { display: flex; flex-wrap: wrap; gap: var(--e-1); margin: 0; padding: 0; list-style: none; }
+.barra-instrumental-recientes li { min-width: 0; max-width: 100%; }
+.barra-instrumental-reciente {
+  display: flex;
+  align-items: center;
+  gap: var(--e-1);
+  max-width: 100%;
+  min-height: 30px;
+  padding: 2px var(--e-2) 2px var(--e-1);
+  font: inherit;
+  font-size: var(--t-xs);
+  color: var(--c-texto-2);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r-full);
+  cursor: pointer;
+}
+.barra-instrumental-reciente:hover { color: var(--c-texto); border-color: var(--c-linea-fuerte); }
+.barra-instrumental-reciente .instrumento-icono { width: 16px; height: 16px; }
+.barra-instrumental-reciente span { max-width: 18ch; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Tres cuadros por fila, fijos (`COLUMNAS_DE_LA_MESA`): la lista va al final de la fila del cuadro pinchado, y para
+   saber cuál es esa fila hay que saber cuántos caben. */
+.barra-instrumental-familias { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--e-1); }
+.barra-instrumental-familia {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 60px;
+  padding: var(--e-1) 2px;
+  font: inherit;
+  color: var(--c-texto-2);
   background: var(--c-panel-2);
   border: 1px solid var(--c-linea);
   border-radius: var(--r);
   cursor: pointer;
-  transition: border-color var(--dur-rapida) var(--curva), background var(--dur-rapida) var(--curva);
+  transition: border-color var(--dur-rapida) var(--curva), background var(--dur-rapida) var(--curva),
+    color var(--dur-rapida) var(--curva);
 }
-.consola-bandeja-cabecera:hover { border-color: var(--c-linea-fuerte); }
-.consola-bandeja-grupo.abierto > .consola-bandeja-cabecera {
-  border-color: var(--c-acento);
-  background: var(--c-acento-tenue);
-}
-.consola-bandeja-flecha { flex: none; transition: transform var(--dur-rapida) var(--curva); }
-.consola-bandeja-grupo.abierto .consola-bandeja-flecha { transform: rotate(90deg); }
-.consola-bandeja-titulo { flex: 1; min-width: 0; }
-.consola-bandeja-cuenta {
-  flex: none;
-  min-width: 22px;
-  padding: 0 var(--e-1);
-  text-align: center;
+.barra-instrumental-familia .instrumento-icono { width: 24px; height: 24px; color: var(--c-texto); }
+.barra-instrumental-familia:hover { color: var(--c-texto); border-color: var(--c-linea-fuerte); }
+.barra-instrumental-familia-rotulo { max-width: 100%; font-size: 10.5px; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+.barra-instrumental-familia-cuenta {
+  position: absolute;
+  top: 3px;
+  right: 5px;
   font-family: var(--mono);
-  font-size: var(--t-xs);
-  color: var(--c-texto-2);
-  border: 1px solid var(--c-linea-fuerte);
+  font-size: 9px;
+  color: var(--c-rotulo);
+}
+/* La familia del instrumento de la mano lleva un punto en el acento: se sabe de dónde salió sin abrirla. */
+.barra-instrumental-familia.con-mano { border-color: var(--c-acento); }
+.barra-instrumental-familia.con-mano::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 6px;
+  height: 6px;
+  background: var(--c-acento);
   border-radius: var(--r-full);
 }
-.consola-bandeja-en-mano {
-  flex: none;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--c-acento);
+.barra-instrumental-familia.abierta {
+  color: var(--c-texto);
+  background: var(--c-acento-tenue);
+  border-color: var(--c-acento);
+  box-shadow: inset 0 0 0 1px var(--c-acento);
 }
-.consola-bandeja-grupo > .consola-bandeja { margin-top: var(--e-2); }
+.barra-instrumental-familia.abierta .instrumento-icono { color: var(--c-acento); }
+.barra-instrumental-familia:disabled { opacity: 0.35; cursor: default; }
+
+/* La lista desplegada: de lado a lado de la mesa, pegada a la fila de su cuadro y con el borde de su color. */
+.barra-instrumental-lista {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--e-2);
+  margin: 2px 0 var(--e-1);
+  padding: var(--e-2);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-acento);
+  border-radius: var(--r);
+}
+.barra-instrumental-lista-cabecera { display: flex; align-items: center; gap: var(--e-2); font-size: var(--t-xs); font-weight: 650; color: var(--c-texto); }
+.barra-instrumental-lista-cabecera .instrumento-icono { width: 18px; height: 18px; color: var(--c-acento); }
+.barra-instrumental-lista-titulo { flex: 1; min-width: 0; }
+.barra-instrumental-cerrar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--c-texto-2);
+  background: none;
+  border: 0;
+  border-radius: var(--r-full);
+  cursor: pointer;
+}
+.barra-instrumental-cerrar:hover { color: var(--c-texto); background: var(--c-panel-2); }
+
+.barra-instrumental-resultados { display: grid; gap: var(--e-3); }
+.barra-instrumental-resultado { display: grid; gap: var(--e-1); }
+.barra-instrumental-resultado-familia { display: flex; align-items: center; gap: var(--e-1); margin: 0; font-size: var(--t-xs); font-weight: 650; color: var(--c-texto-2); }
+.barra-instrumental-resultado-familia .instrumento-icono { width: 16px; height: 16px; }
+
+/* Las filas de la lista, una línea por instrumento: dibujo y nombre a la izquierda, marcas a la derecha. Con el
+   `space-between` de las tarjetas viejas el nombre se iba al borde derecho, lejos de su dibujo. */
+.barra-instrumental .consola-bandeja { grid-template-columns: 1fr; gap: var(--e-1); }
+.barra-instrumental .instrumento {
+  min-height: 36px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--e-2);
+  padding: var(--e-1) var(--e-2);
+}
+.barra-instrumental .instrumento .instrumento-icono { width: 18px; height: 18px; }
+.barra-instrumental .instrumento-nombre { flex: 1 1 auto; min-width: 0; }
+.barra-instrumental .instrumento-etiqueta { align-self: center; }
+.barra-instrumental .instrumento-marca { position: static; flex: none; }
+
+/* Lo del editor, al pie de la mesa: qué ve el residente y añadir a la bandeja. */
+.barra-instrumental-editor { display: grid; gap: var(--e-2); padding-top: var(--e-3); border-top: 1px solid var(--c-linea); }
+.barra-instrumental-editor > .consola-rotulo { font-size: 10px; }
+.barra-instrumental-editor .consola-ayuda { margin: 0; font-size: var(--t-xs); }
+.barra-instrumental-editor .consola-anadir { margin: 0; }
 .instrumento.del-paso { border-color: var(--c-bien); }
 .instrumento-etiqueta {
   align-self: flex-start;
@@ -981,6 +1133,61 @@
   border-radius: var(--r-sm);
 }
 .instrumento-etiqueta-paso { color: var(--c-bien); border-color: var(--c-bien); }
+
+/* ---------- placa recta a medida (P-008 E3) ----------
+   Arriba de la familia «Placas» y en el panel de la placa en la mano: agujeros y largo, y debajo todas las placas de esa
+   cantidad. Ocupa el ancho de las dos columnas de la bandeja: es un formulario corto, no un cuadro más. */
+.consola-bandeja-a-medida { grid-column: 1 / -1; }
+.placa-a-medida {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-2);
+  background: var(--c-panel-2);
+  border: 1px dashed var(--c-linea-fuerte);
+  border-radius: var(--r);
+}
+.placa-a-medida-titulo { margin: 0; font-size: var(--t-xs); font-weight: 700; color: var(--c-texto); }
+.placa-a-medida-campos { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--e-2); align-items: end; }
+.placa-a-medida-campo { display: grid; gap: 2px; font-size: var(--t-xs); color: var(--c-texto-2); min-width: 0; }
+.placa-a-medida-campo input,
+.placa-a-medida-campo select {
+  min-width: 0;
+  padding: 4px var(--e-2);
+  font: inherit;
+  color: var(--c-texto);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-sm);
+}
+.placa-a-medida-campo input[aria-invalid='true'] { border-color: var(--c-grave); }
+.placa-a-medida-contador { display: flex; align-items: center; gap: 2px; }
+.placa-a-medida-contador select { width: 4.2em; text-align: center; }
+.placa-a-medida-aviso { margin: 0; font-size: var(--t-xs); color: var(--c-atencion); }
+.placa-a-medida-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-1); }
+.placa-a-medida-opcion {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  padding: var(--e-1) var(--e-2);
+  font: inherit;
+  text-align: left;
+  color: var(--c-texto-2);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-rapida) var(--curva), background var(--dur-rapida) var(--curva);
+}
+.placa-a-medida-opcion:hover { border-color: var(--c-linea-fuerte); color: var(--c-texto); }
+.placa-a-medida-opcion.activo { color: var(--c-texto); background: var(--c-acento-tenue); border-color: var(--c-acento); }
+.placa-a-medida-nombre { display: flex; align-items: center; gap: var(--e-1); font-size: var(--t-xs); font-weight: 650; color: var(--c-texto); }
+.placa-a-medida-opcion.activo .placa-a-medida-nombre svg { color: var(--c-acento); }
+.placa-a-medida-datos { font-size: 11px; line-height: 1.35; }
+/* El sistema que no da el largo pedido: queda a la vista, apagado, con el largo entre el que sí sale. */
+.placa-a-medida-no-da { display: grid; gap: 2px; padding: var(--e-1) var(--e-2); color: var(--c-rotulo); opacity: 0.75; }
+.placa-a-medida-no-da .placa-a-medida-nombre { color: var(--c-rotulo); font-weight: 600; }
+.placa-a-medida-desplegable { margin-top: var(--e-2); }
+.placa-a-medida-desplegable > summary { cursor: pointer; font-size: var(--t-xs); font-weight: 600; color: var(--c-acento); margin-bottom: var(--e-2); }
 .consola-instrumento-acciones {
   display: flex;
   flex-wrap: wrap;
@@ -994,7 +1201,7 @@
    trabaja sobre el modelo, no lo mira de pasada. El mínimo de 460 px de arriba
    es para un residente en un portátil; aquí manda la altura de la ventana. */
 .consola-editor {
-  grid-template-columns: var(--ancho-izq, 236px) minmax(0, 1fr) var(--ancho-der, minmax(320px, 380px));
+  grid-template-columns: var(--ancho-izq, 256px) minmax(0, 1fr) var(--ancho-der, minmax(320px, 380px));
   margin: var(--e-3) 0 var(--e-6);
 }
 /* El alto del lienzo lo fija la ventana, no el contenido: con el panel de edición
@@ -1021,7 +1228,7 @@
   border-bottom: 1px solid var(--c-linea);
 }
 @media (max-width: 1200px) {
-  .consola-editor { grid-template-columns: var(--ancho-izq, 220px) minmax(0, 1fr) var(--ancho-der, minmax(300px, 360px)); }
+  .consola-editor { grid-template-columns: var(--ancho-izq, 236px) minmax(0, 1fr) var(--ancho-der, minmax(300px, 360px)); }
 }
 
 /* La consola del residente, a todo el ancho de la pantalla (D-166). El `main`
@@ -1031,11 +1238,11 @@
    que contiene la consola; el resto de la plataforma no se entera. */
 main:has(.consola:not(.consola-editor)) { max-width: min(1760px, 100%); }
 main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
-  grid-template-columns: var(--ancho-izq, 240px) minmax(0, 1fr) var(--ancho-der, 340px);
+  grid-template-columns: var(--ancho-izq, 264px) minmax(0, 1fr) var(--ancho-der, 316px);
 }
 @media (max-width: 1200px) {
   main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
-    grid-template-columns: var(--ancho-izq, 200px) minmax(0, 1fr) var(--ancho-der, 280px);
+    grid-template-columns: var(--ancho-izq, 232px) minmax(0, 1fr) var(--ancho-der, 260px);
   }
 }
 /* El alto del lienzo en pantallas grandes ya no se fija aquí: lo decide la regla «todo a la vista» del final de
@@ -1145,7 +1352,7 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
 
 /* ---------- pantallas medianas ---------- */
 @media (max-width: 1200px) {
-  .consola { grid-template-columns: var(--ancho-izq, 200px) minmax(0, 1fr) var(--ancho-der, 270px); }
+  .consola { grid-template-columns: var(--ancho-izq, 232px) minmax(0, 1fr) var(--ancho-der, 260px); }
   .consola-medidas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -1219,6 +1426,10 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
     scrollbar-width: thin;
   }
   .consola-bandeja li { flex: 0 0 136px; scroll-snap-align: start; }
+  .barra-instrumental.consola-bandeja-bloque { padding: var(--e-4); }
+  .barra-instrumental .consola-bandeja { display: grid; overflow: visible; padding: 0; }
+  .barra-instrumental .consola-bandeja li { flex: none; }
+  .barra-instrumental-familia { min-height: 64px; }
   .consola-instrumento { margin-right: var(--e-4); }
 
   .consola-capas-bloque { order: 7; padding: var(--e-4); background: var(--c-panel); border-top: 1px solid var(--c-linea); }

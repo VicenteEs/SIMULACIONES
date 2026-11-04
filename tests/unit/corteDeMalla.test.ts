@@ -157,6 +157,42 @@ describe('cortarMalla', () => {
     expect(Math.max(...xs)).toBeLessThanOrEqual(15 + 1)
   })
 
+  it('con paso del labio, los labios tienen un vértice cada tanto y la superficie es la misma (P-008 E2)', () => {
+    // La rejilla gruesa: triángulos de 5 mm, como los de la espinilla del atlas a otra escala.
+    const gruesa = rejilla(5, 20)
+    const sinPaso = cortarMalla(gruesa, incisionRecta(2, 18, 10.3), OPCIONES)!
+    const conPaso = cortarMalla(gruesa, incisionRecta(2, 18, 10.3), { ...OPCIONES, pasoDelLabio: 1 })!
+    expect(conPaso.labios.mas.length).toBeGreaterThan(sinPaso.labios.mas.length * 2)
+    expect(conPaso.labios.mas.length).toBe(conPaso.labios.menos.length)
+    expect(area(conPaso, conPaso.posiciones)).toBeCloseTo(area(gruesa), 4)
+    // Entre dos vértices seguidos del labio, nunca más que el paso (con el margen de la diagonal del triángulo).
+    const ts = conPaso.labios.mas.map((i) => conPaso.posiciones[3 * i])
+    for (let k = 1; k < ts.length; k++) expect(Math.abs(ts[k] - ts[k - 1])).toBeLessThanOrEqual(1 + 1e-6)
+  })
+
+  it('con paso del labio, al abrir ningún triángulo se da la vuelta y el labio sigue al perfil donde apoya la hoja', () => {
+    const gruesa = rejilla(5, 20)
+    const corte = cortarMalla(gruesa, incisionRecta(2, 18, 10.3), { ...OPCIONES, pasoDelLabio: 1 })!
+    // Una hoja de 4 mm en el medio que abre 3: la cuerda de `perfilDeLosSeparadores`, a mano.
+    const perfil = (t: number) => {
+      const mm = t < 0.375 ? (3 * t) / 0.375 : t > 0.625 ? (3 * (1 - t)) / 0.375 : 3
+      return { mas: mm, menos: 0 }
+    }
+    const abierta = abrirHerida(corte, 0, 0, perfil)
+    let invertidos = 0
+    for (let t = 0; t < corte.indices.length; t += 3) {
+      const [a, b, c] = [corte.indices[t], corte.indices[t + 1], corte.indices[t + 2]]
+      const orientacion = (p: Float32Array) =>
+        (p[3 * b] - p[3 * a]) * (p[3 * c + 1] - p[3 * a + 1]) - (p[3 * b + 1] - p[3 * a + 1]) * (p[3 * c] - p[3 * a])
+      if (orientacion(corte.posiciones) > 0 && orientacion(abierta) < 0) invertidos++
+    }
+    expect(invertidos).toBe(0)
+    // En el medio, el labio se apartó lo que dice el perfil, sin el estrechamiento de las puntas encima.
+    const medio = corte.labios.mas.reduce((m, i) => (Math.abs(corte.largoT[i] - 0.5) < Math.abs(corte.largoT[m] - 0.5) ? i : m))
+    const movido = Math.hypot(abierta[3 * medio] - corte.posiciones[3 * medio], abierta[3 * medio + 1] - corte.posiciones[3 * medio + 1])
+    expect(movido).toBeCloseTo(3, 3)
+  })
+
   it('una incisión curva también se corta, y sigue conservando el área', () => {
     const puntos: Vec3[] = []
     const normales: Vec3[] = []
@@ -236,9 +272,19 @@ describe('abrirHerida', () => {
     const a = abrirHerida(corte, 2, 1)
     const b = abrirHerida(corte, 2, 1, undefined)
     expect([...a]).toEqual([...b])
-    // Un perfil constante da lo mismo que pasar los dos valores sueltos.
-    const c = abrirHerida(corte, 0, 0, () => ({ mas: 2, menos: 1 }))
-    for (let k = 0; k < a.length; k++) expect(c[k]).toBeCloseTo(a[k], 5)
+  })
+
+  it('con perfil, el peso ya no estrecha las puntas: lo hace el perfil (P-008 E2)', () => {
+    const sinPerfil = abrirHerida(corte, 2, 1)
+    const constante = abrirHerida(corte, 0, 0, () => ({ mas: 2, menos: 1 }))
+    const movido = (p: Float32Array, i: number) => Math.abs(p[3 * i + 1] - corte.posiciones[3 * i + 1])
+    // En el medio de la herida el estrechamiento casi no cuenta: los dos abren lo mismo.
+    const medio = corte.labios.mas.reduce((m, i) => (Math.abs(corte.largoT[i] - 0.5) < Math.abs(corte.largoT[m] - 0.5) ? i : m))
+    expect(movido(constante, medio)).toBeCloseTo(movido(sinPerfil, medio), 1)
+    // Cerca de una punta, el perfil constante abre lo que dice: el peso ya no lo estrecha.
+    const cerca = corte.labios.mas.reduce((m, i) => (corte.largoT[i] < corte.largoT[m] ? i : m))
+    expect(movido(constante, cerca)).toBeCloseTo(2, 3)
+    expect(movido(sinPerfil, cerca)).toBeLessThan(movido(constante, cerca))
   })
 
   it('el tejido lejano de la herida no se entera', () => {

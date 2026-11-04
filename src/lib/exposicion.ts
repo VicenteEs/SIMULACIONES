@@ -15,9 +15,9 @@
  *
  * Se elige el separador, se hace clic en el punto de la incisión donde se quiere
  * poner y se abre con la rueda —o con una barra deslizante, que es lo que hay en
- * una tableta—. La apertura no es pareja a lo largo de toda la herida: se abre
- * donde está el separador y se va cerrando hacia los extremos, como la piel de
- * verdad, y eso es lo que calcula `aperturaEnLaPosicion`.
+ * una tableta—. La apertura no es pareja a lo largo de toda la herida: bajo la hoja
+ * abre lo que dice el panel, al milímetro, y de ahí a cada punta el labio va en
+ * recta, tenso, como la piel de verdad. Eso es lo que calcula `perfilDeLaCapa`.
  */
 
 import type { PlanoBlando } from './planosBlandos'
@@ -90,8 +90,18 @@ export interface SeparadorColocado {
   posicion: number
   /** Hasta dónde puede abrir, en milímetros. */
   maximoMm: number
-  /** Cuánto lleva abierto, en milímetros. */
+  /** Cuánto lleva abierto, en milímetros. En un autoestático, lo que se aparta cada labio. */
   aperturaMm: number
+  /**
+   * Lo ancha que es la hoja a lo largo de la herida, en milímetros: el tramo que abre del todo (P-008 E2). Sin él, lo
+   * de su tipo (`ANCHO_DE_LA_HOJA_POR_TIPO_MM`).
+   */
+  anchoMm?: number
+  /**
+   * En un autoestático, lo que hay del eje de las ramas al rastrillo, en milímetros: convierte los grados que se abren
+   * las ramas en los milímetros que se aparta cada labio, y así el rastrillo queda donde está el borde.
+   */
+  brazoMm?: number
   /**
    * A qué incisión pertenece (P-003 E4): su `posicion` es a lo largo de esa incisión y solo la abre a ella. Sin él
    * —lo que se puso antes de que hubiera herida, o la separación roma de una disección— abre la de su capa.
@@ -99,7 +109,11 @@ export interface SeparadorColocado {
   incision?: number
 }
 
-/** La anchura, como fracción del largo de la herida, de la zona que abre cada tipo. */
+/**
+ * La anchura, como fracción del largo de la herida, de la campana con que abría cada tipo. Hoy solo la usa la
+ * separación roma, que abre un tramo corto entre las puntas de la tijera: las hojas abren con la cuerda de
+ * `perfilDeLosSeparadores` (P-008 E2).
+ */
 export const ALCANCE_POR_TIPO: Readonly<Record<TipoDeSeparador, number>> = {
   // Una hoja sola tira de un tramo corto de piel.
   mano: 0.22,
@@ -110,6 +124,31 @@ export const ALCANCE_POR_TIPO: Readonly<Record<TipoDeSeparador, number>> = {
   // Las ramas de la tijera abren un tramo corto: lo que cabe entre sus puntas.
   roma: 0.07,
 }
+
+/**
+ * Lo ancha que es la hoja de cada tipo, en milímetros, cuando el instrumento no lo dice: la pala chica del Farabeuf
+ * mide 10, el rastrillo de un Weitlaner unos 16, la pala de un Hohmann unos 20. Es el tramo del labio que abre del
+ * todo: la hoja es rígida y no se dobla con la piel.
+ */
+export const ANCHO_DE_LA_HOJA_POR_TIPO_MM: Readonly<Record<TipoDeSeparador, number>> = {
+  mano: 12,
+  autoestatico: 16,
+  palanca: 20,
+  roma: 4,
+}
+
+/**
+ * Cuánto se puede apartar el labio por cada milímetro que lo separa de la punta de la herida. La punta no se abre
+ * nunca —la piel sigue entera ahí—, y una hoja puesta a tres milímetros de ella y abierta veinte haría una uve que
+ * ningún tejido aguanta (y que daba vuelta los triángulos de la malla).
+ */
+export const PENDIENTE_MAXIMA_DEL_LABIO = 2
+
+/** El tramo de cada punta en el que se cierra lo que abren las pinzas y la disección roma, en milímetros. */
+export const PUNTA_QUE_SE_CIERRA_MM = 6
+
+/** El largo que se supone a una herida cuando no se sabe: una incisión de abordaje corriente. */
+export const LARGO_DE_REFERENCIA_MM = 60
 
 export function tipoDelSeparador(separa: { autoestatico: boolean; apoyoEnHueso?: boolean }): TipoDeSeparador {
   if (separa.apoyoEnHueso) return 'palanca'
@@ -124,10 +163,22 @@ export const MAXIMO_DE_SEPARADORES = 6
 export type Vector3Plano = readonly [number, number, number]
 
 /**
- * Cuánto se abre el mango de un separador respecto de la normal, en grados. Con 40° el mango sale claramente
- * hacia fuera de la herida sin tumbarse sobre la piel: a 0° taparía el centro del campo, a 90° iría pegado a ella.
+ * Cuánto se abre el mango de un separador de mano respecto de la normal, en grados.
+ *
+ * Fue de 40° (P-003 E3): salía hacia fuera de la herida, pero casi de pie, y con el mango de pie la pala, que forma
+ * ángulo recto con él, quedaba acostada. El dueño lo dibujó sobre una captura (P-008): el mango va bajo, hacia fuera
+ * y sobre su labio, despejando el campo, y la pala baja metida en la herida, enganchando el borde y traccionando del
+ * centro hacia fuera, «así es como se usa la herramienta». Con 75° el mango queda a 15° de la piel —tendido del
+ * todo, en una pierna convexa rozaría la piel lejos de la herida— y la pala baja casi vertical, un poco por debajo
+ * del labio que sostiene.
  */
-export const ANGULO_DEL_MANGO_GRADOS = 40
+export const ANGULO_DEL_MANGO_GRADOS = 75
+
+/**
+ * El mango del Hohmann apoyado en el hueso sigue a 40°: su pala va por detrás del hueso y lo que abre es la báscula
+ * del mango hacia el lado que aparta (35° más). Tendido como el de una hoja de mano, la báscula lo metería en la piel.
+ */
+export const ANGULO_DEL_MANGO_DE_LA_PALANCA_GRADOS = 40
 
 /**
  * Hacia dónde apunta el mango de un separador: de la herida hacia fuera, del lado del labio que sostiene
@@ -138,8 +189,13 @@ export const ANGULO_DEL_MANGO_GRADOS = 40
  *
  * `direccion` es la del labio «más» (la que da `ladoDeLaHerida`), sin signo: el signo lo pone `lado`.
  */
-export function direccionDelMango(normal: Vector3Plano, direccion: Vector3Plano, lado: 1 | -1 | 0): Vector3Plano {
-  const radianes = (ANGULO_DEL_MANGO_GRADOS * Math.PI) / 180
+export function direccionDelMango(
+  normal: Vector3Plano,
+  direccion: Vector3Plano,
+  lado: 1 | -1 | 0,
+  grados: number = ANGULO_DEL_MANGO_GRADOS,
+): Vector3Plano {
+  const radianes = (grados * Math.PI) / 180
   const hacia = lado === 0 ? 0 : Math.sin(radianes) * lado
   const arriba = lado === 0 ? 1 : Math.cos(radianes)
   const v: [number, number, number] = [
@@ -200,47 +256,162 @@ export function laPareja<T extends Pick<SeparadorColocado, 'id' | 'instrumentoId
 /** ¿Caben `cuantos` separadores más sin pasar del tope? La pareja cuenta dos. */
 export const caben = (puestos: number, cuantos: number): boolean => puestos + cuantos <= MAXIMO_DE_SEPARADORES
 
-/**
- * Cuánto abre cada labio en un punto de la herida, en milímetros.
- *
- * Cada separador abre en forma de campana alrededor de donde está; donde dos se
- * solapan manda el que más abre (no se suman: dos hojas a la vez no abren el doble
- * de lo que abre cada una en ese punto). `posicion` es 0 al inicio y 1 al final.
- */
-export function aperturaEnLaPosicion(
-  separadores: readonly SeparadorColocado[],
-  posicion: number,
-): { mas: number; menos: number } {
-  let mas = 0
-  let menos = 0
-  for (const s of separadores) {
-    const sigma = ALCANCE_POR_TIPO[s.tipo]
-    const d = (posicion - s.posicion) / sigma
-    const campana = Math.exp(-0.5 * d * d)
-    const abre = Math.max(0, s.aperturaMm) * campana
-    if (s.lado >= 0) mas = Math.max(mas, abre)
-    if (s.lado <= 0) menos = Math.max(menos, abre)
-  }
-  return { mas, menos }
+/** Cuánto abre cada labio a lo largo de la herida: de la posición (0 al inicio, 1 al final) a milímetros. */
+export type PerfilDeApertura = (posicion: number) => { mas: number; menos: number }
+
+const suave = (x: number) => {
+  const k = Math.min(1, Math.max(0, x))
+  return k * k * (3 - 2 * k)
+}
+
+/** De 0 en la punta a 1 a `PUNTA_QUE_SE_CIERRA_MM` de ella: lo que se cierra lo que abre en campana. */
+const cierreEnLasPuntas = (posicion: number, largoMm: number) =>
+  suave((Math.min(posicion, 1 - posicion) * largoMm) / PUNTA_QUE_SE_CIERRA_MM)
+
+/** Un tramo del labio sostenido por una hoja: de dónde a dónde (fracción del largo) y cuánto lo aparta. */
+interface Apoyo {
+  desde: number
+  hasta: number
+  mm: number
 }
 
 /**
- * Cuánto abre cada labio de la herida de **una capa** en un punto, con lo que haya puesto: los separadores que
- * llegan a esa capa, las pinzas (solo en la piel: sujetan piel) y la separación roma que se esté haciendo.
- * Donde se solapan manda el que más abre, como entre separadores.
+ * La forma del labio que sostienen las hojas: una cuerda tensa de una punta de la herida a la otra, que pasa por
+ * encima de cada hoja (P-008 E2).
+ *
+ * Antes cada separador abría en campana alrededor de su sitio, y la malla además estrechaba la apertura hacia las
+ * puntas: un Farabeuf a un cuarto del largo, abierto 12 mm, abría 6 en su sitio, y la hoja no estaba donde estaba el
+ * borde. Lo que hace el labio de verdad es otra cosa: el tramo que apoya en la hoja se aparta entero —la hoja es
+ * rígida—, y de ahí a cada punta la piel va tensa, en recta. Con dos hojas en el mismo labio, entre ellas también va
+ * en recta: no se hunde, porque las dos tiran de él. Es la envolvente de arriba de los apoyos y de las dos puntas.
+ *
+ * Cerca de una punta, lo que se aparta tiene tope (`PENDIENTE_MAXIMA_DEL_LABIO`): la punta no se abre. El tope es
+ * el del borde de la hoja más cercano a la punta, y vale para toda la hoja: es rígida, no abre más por un lado que
+ * por el otro. Lo que la hoja tapa a menos de `PUNTA_QUE_SE_CIERRA_MM` de la punta no cuenta: una hoja puesta encima
+ * de la punta abriría la punta, y con el tope de ese borde —cero— no abriría nada.
  */
+function cuerdaDelLabio(apoyos: readonly Apoyo[], largoMm: number): (posicion: number) => number {
+  if (apoyos.length === 0) return () => 0
+  const puntos: [number, number][] = [
+    [0, 0],
+    [1, 0],
+  ]
+  const tope = (x: number) => PENDIENTE_MAXIMA_DEL_LABIO * Math.min(x, 1 - x) * largoMm
+  const margen = Math.min(0.5, PUNTA_QUE_SE_CIERRA_MM / largoMm)
+  const dentro = (x: number) => Math.min(1 - margen, Math.max(margen, x))
+  for (const a of apoyos) {
+    const desde = dentro(a.desde)
+    const hasta = dentro(a.hasta)
+    const mm = Math.min(a.mm, tope(desde), tope(hasta))
+    puntos.push([desde, mm], [hasta, mm])
+  }
+  // La envolvente de arriba (cadena monótona): se quita todo punto que quede por debajo de la recta entre sus vecinos.
+  puntos.sort((p, q) => p[0] - q[0] || p[1] - q[1])
+  const cuerda: [number, number][] = []
+  for (const p of puntos) {
+    while (cuerda.length >= 2) {
+      const o = cuerda[cuerda.length - 2]
+      const a = cuerda[cuerda.length - 1]
+      if ((a[0] - o[0]) * (p[1] - o[1]) - (a[1] - o[1]) * (p[0] - o[0]) >= 0) cuerda.pop()
+      else break
+    }
+    cuerda.push(p)
+  }
+  return (posicion) => {
+    const x = Math.min(1, Math.max(0, posicion))
+    for (let i = 0; i + 1 < cuerda.length; i++) {
+      const [x0, y0] = cuerda[i]
+      const [x1, y1] = cuerda[i + 1]
+      if (x <= x1) return x1 > x0 ? y0 + ((y1 - y0) * (x - x0)) / (x1 - x0) : Math.max(y0, y1)
+    }
+    return 0
+  }
+}
+
+/**
+ * Cuánto abre cada labio a lo largo de una herida de `largoMm`, con estos separadores.
+ *
+ * Las hojas —de mano, autoestáticos, el Hohmann— abren con la cuerda de `cuerdaDelLabio`: bajo la hoja, lo que dice
+ * el panel, al milímetro. La separación roma abre en campana un tramo corto (lo que cabe entre las puntas de la
+ * tijera), cerrada en las puntas. Donde dos se solapan manda el que más abre: no se suman.
+ */
+export function perfilDeLosSeparadores(
+  separadores: readonly SeparadorColocado[],
+  largoMm: number = LARGO_DE_REFERENCIA_MM,
+): PerfilDeApertura {
+  const largo = largoMm > 0 ? largoMm : LARGO_DE_REFERENCIA_MM
+  const mas: Apoyo[] = []
+  const menos: Apoyo[] = []
+  const romas: SeparadorColocado[] = []
+  for (const s of separadores) {
+    if (s.tipo === 'roma') {
+      romas.push(s)
+      continue
+    }
+    const mm = Math.max(0, s.aperturaMm)
+    if (mm === 0) continue
+    const medio = (s.anchoMm ?? ANCHO_DE_LA_HOJA_POR_TIPO_MM[s.tipo]) / 2 / largo
+    const apoyo = { desde: s.posicion - medio, hasta: s.posicion + medio, mm }
+    if (s.lado >= 0) mas.push(apoyo)
+    if (s.lado <= 0) menos.push(apoyo)
+  }
+  const cuerdaMas = cuerdaDelLabio(mas, largo)
+  const cuerdaMenos = cuerdaDelLabio(menos, largo)
+  return (posicion) => {
+    let m = cuerdaMas(posicion)
+    let n = cuerdaMenos(posicion)
+    for (const s of romas) {
+      const d = (posicion - s.posicion) / ALCANCE_POR_TIPO.roma
+      const abre = Math.max(0, s.aperturaMm) * Math.exp(-0.5 * d * d) * cierreEnLasPuntas(posicion, largo)
+      if (s.lado >= 0) m = Math.max(m, abre)
+      if (s.lado <= 0) n = Math.max(n, abre)
+    }
+    return { mas: m, menos: n }
+  }
+}
+
+/** Cuánto abre cada labio en un punto de la herida, en milímetros (`perfilDeLosSeparadores` en ese punto). */
+export function aperturaEnLaPosicion(
+  separadores: readonly SeparadorColocado[],
+  posicion: number,
+  largoMm: number = LARGO_DE_REFERENCIA_MM,
+): { mas: number; menos: number } {
+  return perfilDeLosSeparadores(separadores, largoMm)(posicion)
+}
+
+/**
+ * Cuánto abre cada labio de la herida de **una capa** a lo largo de ella, con lo que haya puesto: los separadores que
+ * llegan a esa capa, las pinzas (solo en la piel: sujetan piel) y la separación roma que se esté haciendo.
+ * Donde se solapan manda el que más abre, como entre separadores. Se arma una vez y se pregunta por cada vértice.
+ */
+export function perfilDeLaCapa(
+  capa: CapaDeLaHerida,
+  separadores: readonly SeparadorColocado[],
+  pellizcos: readonly Pellizco[] = [],
+  largoMm: number = LARGO_DE_REFERENCIA_MM,
+): PerfilDeApertura {
+  const deSeparadores = perfilDeLosSeparadores(
+    separadores.filter((s) => abreLaCapa(s, capa)),
+    largoMm,
+  )
+  if (capa !== 'piel' || pellizcos.length === 0) return deSeparadores
+  return (posicion) => {
+    const s = deSeparadores(posicion)
+    const p = aperturaPorLasPinzas(pellizcos, posicion)
+    const k = cierreEnLasPuntas(posicion, largoMm > 0 ? largoMm : LARGO_DE_REFERENCIA_MM)
+    return { mas: Math.max(s.mas, p.mas * k), menos: Math.max(s.menos, p.menos * k) }
+  }
+}
+
+/** Cuánto abre cada labio de la herida de una capa en un punto (`perfilDeLaCapa` en ese punto). */
 export function aperturaDeLaCapa(
   capa: CapaDeLaHerida,
   posicion: number,
   separadores: readonly SeparadorColocado[],
   pellizcos: readonly Pellizco[] = [],
+  largoMm: number = LARGO_DE_REFERENCIA_MM,
 ): { mas: number; menos: number } {
-  const dePinzas = capa === 'piel' ? aperturaPorLasPinzas(pellizcos, posicion) : { mas: 0, menos: 0 }
-  const deSeparadores = aperturaEnLaPosicion(
-    separadores.filter((s) => abreLaCapa(s, capa)),
-    posicion,
-  )
-  return { mas: Math.max(deSeparadores.mas, dePinzas.mas), menos: Math.max(deSeparadores.menos, dePinzas.menos) }
+  return perfilDeLaCapa(capa, separadores, pellizcos, largoMm)(posicion)
 }
 
 /**

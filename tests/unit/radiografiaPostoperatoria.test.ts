@@ -296,4 +296,15 @@ describe('el cableado de la radiografía postoperatoria', () => {
     const interfaz = lamina.slice(lamina.indexOf('export interface DatosDeLaLamina'), lamina.indexOf('export interface Rectangulo'))
     expect(interfaz).not.toMatch(/insumos|puntaje/i)
   })
+
+  it('la placa se corre a lo largo del miembro como la fluoroscopia, con el mismo tope que el arrastre (pedido 17)', () => {
+    const panel = leer('src/components/simulador/RadiografiaPostoperatoria.tsx').replace(/\r\n/g, '\n')
+    const lienzo = leer('src/components/simulador/LienzoQuirurgico.tsx').replace(/\r\n/g, '\n')
+    expect(panel).toContain('<span>Posición</span>')
+    // Más arriba en el deslizador es la extremidad bajando por la imagen: `y` es hacia dónde se corre ella, no la mirada.
+    expect(panel).toContain('{ x: 0, y: -posicion * topeDelDesplazamiento(zoom) }')
+    expect(CONSOLA.replace(/\r\n/g, '\n')).toContain('mando.current?.radiografiaPostoperatoria(destino, proyeccion, zoom, ajustes, desplazamiento)')
+    const toma = lienzo.slice(lienzo.indexOf('    radiografiaPostoperatoria: (destino'), lienzo.indexOf('    encuadrarElInstrumento: (proyeccion)'))
+    expect(toma).toContain('ejeLargo: ultimas.current.ejeLargo, desplazamiento, lado: 768')
+  })
 })

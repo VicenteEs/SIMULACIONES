@@ -42,6 +42,7 @@ import * as migration_20261102_235443_cotizaciones from './20261102_235443_cotiz
 import * as migration_20261103_002330_etapa_de_formacion from './20261103_002330_etapa_de_formacion';
 import * as migration_20261103_005145_bienvenida_y_seccion from './20261103_005145_bienvenida_y_seccion';
 import * as migration_20261103_033928_firmas_de_la_ficha from './20261103_033928_firmas_de_la_ficha';
+import * as migration_20261103_222204_posicion_reducida_de_las_piezas from './20261103_222204_posicion_reducida_de_las_piezas';
 
 export const migrations = [
   {
@@ -262,6 +263,11 @@ export const migrations = [
   {
     up: migration_20261103_033928_firmas_de_la_ficha.up,
     down: migration_20261103_033928_firmas_de_la_ficha.down,
-    name: '20261103_033928_firmas_de_la_ficha'
+    name: '20261103_033928_firmas_de_la_ficha',
+  },
+  {
+    up: migration_20261103_222204_posicion_reducida_de_las_piezas.up,
+    down: migration_20261103_222204_posicion_reducida_de_las_piezas.down,
+    name: '20261103_222204_posicion_reducida_de_las_piezas'
   },
 ];

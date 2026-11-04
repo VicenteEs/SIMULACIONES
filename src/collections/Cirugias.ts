@@ -318,6 +318,38 @@ export const Cirugias: CollectionConfig = {
               'Piel, fascia y músculo forman las capas que se encienden y apagan. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.',
           },
         },
+        {
+          // Lo que lleva el trozo de donde está en el archivo a donde va reducido (P-008 E5). La escribe la reducción
+          // automática del editor, no una persona: un giro en cuaternión y una traslación en unidades del modelo, que
+          // nadie sabría escribir a mano. Vacía, el archivo ya trae el trozo en su sitio, que es el convenio de D-058.
+          // Va con la pieza y no aparte para que viaje con su trozo al reordenar o quitar filas.
+          name: 'posicionReducida',
+          type: 'group',
+          label: 'Posición reducida',
+          admin: {
+            description:
+              'La calcula «Reducir automáticamente» en el editor del simulador. Vacía si el modelo ya trae el trozo en su sitio.',
+          },
+          fields: [
+            {
+              type: 'row',
+              fields: [
+                { name: 'x', type: 'number', label: 'x' },
+                { name: 'y', type: 'number', label: 'y' },
+                { name: 'z', type: 'number', label: 'z' },
+              ],
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'qx', type: 'number', label: 'qx' },
+                { name: 'qy', type: 'number', label: 'qy' },
+                { name: 'qz', type: 'number', label: 'qz' },
+                { name: 'qw', type: 'number', label: 'qw' },
+              ],
+            },
+          ],
+        },
       ],
     },
     {

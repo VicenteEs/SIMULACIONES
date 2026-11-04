@@ -11,7 +11,9 @@ import {
   type FormatoDeLaImagen,
   centroDeLaImagen,
   densidadDelPapel,
+  desplazamientoParaCentrar,
   LADOS_DE_LA_IMAGEN,
+  zoomParaCentrar,
   limitarAjustes,
   limitarDesplazamiento,
   limitarZoom,
@@ -242,6 +244,46 @@ export function cajaAEncuadrar(raiz: THREE.Object3D, roles: Map<string, string>)
 }
 
 /**
+ * Desde dónde mira el arco y qué encuadra: la dirección de la proyección, los ejes de la imagen, el centro del hueso visible y el
+ * radio del círculo con este zoom. Lo usan la toma y el «Centrar en la broca», que tienen que estar de acuerdo en dónde cae
+ * cada punto: si cada una hiciera su cuenta, cambiar una dejaría a la otra centrando en otra parte.
+ */
+function geometriaDeLaToma(ctx: EscenaParaRadiografia, proyeccion: ProyeccionDeFluoroscopia, ejeLargo: 'x' | 'y' | 'z', zoom: number) {
+  if (!ctx.raiz) return null
+  const { ap, lateral, arriba } = direcciones(ejeLargo)
+  const angulo = (ANGULO_DE_LA_PROYECCION[proyeccion] * Math.PI) / 180
+  const direccion = ap.clone().multiplyScalar(Math.cos(angulo)).addScaledVector(lateral, Math.sin(angulo)).normalize()
+  // Los ejes de la imagen: la cámara mira contra `direccion` y su «arriba» es el eje largo del hueso.
+  const derecha = new THREE.Vector3().crossVectors(direccion.clone().negate(), arriba).normalize()
+  const caja = cajaAEncuadrar(ctx.raiz, ctx.rolesAplicados)
+  if (caja.isEmpty()) return null
+  const centro = caja.getCenter(new THREE.Vector3())
+  const tam = caja.getSize(new THREE.Vector3())
+  // El círculo cubre la dimensión mayor con un 12 % de aire, y el zoom la acerca.
+  const radio = (Math.max(tam.x, tam.y, tam.z) / 2) * 1.12 / limitarZoom(zoom)
+  return { direccion, derecha, arriba, centro, radio }
+}
+
+/**
+ * El «Centrar en la broca» de la fluoroscopia (pedidos 3 y 13): el zoom que deja un campo de unos 16 cm (`zoomParaCentrar`) y
+ * cuánto correr la extremidad para que `punto` (en el mundo) caiga en el centro de la imagen con esta proyección. `null` si no
+ * hay nada que encuadrar.
+ */
+export function encuadreHaciaElPunto(
+  ctx: EscenaParaRadiografia,
+  opciones: { proyeccion: ProyeccionDeFluoroscopia; ejeLargo: 'x' | 'y' | 'z'; milimetrosPorUnidad: number },
+  punto: THREE.Vector3,
+): { zoom: number; desplazamiento: DesplazamientoDeLaImagen } | null {
+  const a1x = geometriaDeLaToma(ctx, opciones.proyeccion, opciones.ejeLargo, 1)
+  if (!a1x) return null
+  const zoom = zoomParaCentrar(a1x.radio * (opciones.milimetrosPorUnidad || 1000))
+  const g = geometriaDeLaToma(ctx, opciones.proyeccion, opciones.ejeLargo, zoom)
+  if (!g) return null
+  const v = (a: THREE.Vector3) => [a.x, a.y, a.z] as const
+  return { zoom, desplazamiento: desplazamientoParaCentrar(v(g.centro), g.radio, v(g.derecha), v(g.arriba), v(punto), zoom) }
+}
+
+/**
  * Hace la **toma**: renderiza la escena desde la proyección pedida y deja los píxeles crudos en `f.buffer`.
  * Devuelve `true` si la hizo.
  *
@@ -272,18 +314,9 @@ export function tomarFluoroscopia(
   if (!opciones.forzar && huella === f.huella) return false
   f.huella = huella
 
-  const { ap, lateral, arriba } = direcciones(opciones.ejeLargo)
-  const angulo = (ANGULO_DE_LA_PROYECCION[opciones.proyeccion] * Math.PI) / 180
-  const direccion = ap.clone().multiplyScalar(Math.cos(angulo)).addScaledVector(lateral, Math.sin(angulo)).normalize()
-  // Los ejes de la imagen: la cámara mira contra `direccion` y su «arriba» es el eje largo del hueso.
-  const derecha = new THREE.Vector3().crossVectors(direccion.clone().negate(), arriba).normalize()
-
-  const caja = cajaAEncuadrar(ctx.raiz, ctx.rolesAplicados)
-  if (caja.isEmpty()) return false
-  const centro = caja.getCenter(new THREE.Vector3())
-  const tam = caja.getSize(new THREE.Vector3())
-  // El círculo cubre la dimensión mayor con un 12 % de aire, y el zoom la acerca.
-  const radio = (Math.max(tam.x, tam.y, tam.z) / 2) * 1.12 / zoom
+  const geometria = geometriaDeLaToma(ctx, opciones.proyeccion, opciones.ejeLargo, zoom)
+  if (!geometria) return false
+  const { direccion, derecha, arriba, centro, radio } = geometria
   const distancia = radio / Math.tan((f.camara.fov * Math.PI) / 360)
   // Con la extremidad corrida, la cámara mira a otro punto del miembro, no al centro del hueso.
   const foco = new THREE.Vector3(

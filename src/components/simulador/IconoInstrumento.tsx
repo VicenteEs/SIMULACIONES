@@ -40,8 +40,21 @@ const TRAZOS: Record<string, string> = {
   clavo: 'M12 3 v18 M10 7 h4 M10 17 h4 M11 4 v-.5 M13 4 v-.5',
   // Un bloque irregular de hueso.
   injerto: 'M5 9 L9 6 L16 7 L19 11 L18 17 L12 20 L6 18 Z M9 11 h.01 M14 13 h.01 M11 16 h.01',
+  // Los tres que siguen dibujan una familia en su cuadro de la mesa (P-008 E6) y el catálogo no los ofrece: con el
+  // genérico, «Periostio», «Perforación» y «Modelado» eran la misma raya.
+  // Mango y espátula redondeada: el periostótomo y el elevador.
+  elevador: 'M12 3 v10 M9 13 h6 v3 a3 3 0 0 1 -6 0 z',
+  // Vástago y cuerpo con sus estrías hasta la punta: la broca.
+  broca: 'M12 3 v5 M10 8 h4 l-2 13 z M10.6 11 l2.8 1.6 M11.1 14.5 l2 1.2',
+  // Una placa doblada, con sus agujeros: el modelado.
+  'placa-curva': 'M3 14 C7 14 9 8 14 8 H21 V11 H14 C10 11 8 17 3 17 Z M6.5 15.5 h.01 M17.5 9.5 h.01',
   // Instrumento sin dibujo propio.
   generico: 'M12 4 v16 M8 8 h8',
+}
+
+/** Si hay dibujo con ese nombre. Un nombre desconocido no falla: sale el genérico, y eso es lo que se vigila. */
+export function tieneDibujo(nombre: string): boolean {
+  return Object.hasOwn(TRAZOS, nombre)
 }
 
 export function IconoInstrumento({ nombre = 'generico' }: { nombre?: string | null }) {

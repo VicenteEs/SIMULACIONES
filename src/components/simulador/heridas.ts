@@ -27,8 +27,9 @@ export interface HeridaEnCapa {
    * guía, que desaparece en cuanto se empieza otro. A quien hacía la incisión
    * con el bisturí de piel y pasaba al bisturí profundo le parecía que la
    * primera se había borrado. La cinta es el surco de la incisión: dos o tres
-   * milímetros de rojo oscuro siguiendo el corte, que se aparta solo cuando la
-   * herida abre más que eso y deja ver el plano de debajo.
+   * milímetros de rojo oscuro siguiendo el corte, que se aparta cuando la herida
+   * abre más que eso y deja ver el plano de debajo, o en cuanto se apoya en ella
+   * un separador o una pinza (`sostenida`).
    */
   cinta: THREE.Mesh
   /** Cuánto está abierto cada labio, en unidades del mundo (el máximo, si hay perfil). */
@@ -40,6 +41,12 @@ export interface HeridaEnCapa {
    * herida abre por igual a todo lo largo (`mas`, `menos`).
    */
   perfil?: (t: number) => { mas: number; menos: number }
+  /**
+   * Hay un separador o una pinza apoyados en esta herida, aunque todavía no la abran (P-008 E1). La cinta y el borde
+   * se apartan con eso y no esperan a que abra cinco milímetros: es lo que pidió Cristóbal, «meter el Farabeuf en
+   * medio de la incisión y que la línea desaparezca» (pedido 8 de P-004). Lo pone `aplicarSeparadoresALasHeridas`.
+   */
+  sostenida?: boolean
   /** Unidades del mundo que mide un milímetro: lo necesita la cinta para su ancho. */
   unidadesPorMm: number
   /** El largo de la incisión, en unidades del mundo. */
@@ -80,6 +87,12 @@ export interface ParametrosDeCorte {
   /** A qué incisión pertenece esta herida (P-003 E4). Sin él, la 0. */
   incision?: number
 }
+
+/**
+ * Cada cuánto, como mucho, hay un vértice en los labios de una herida, en milímetros (P-008 E2). La hoja más angosta
+ * mide diez: con dos milímetros entre vértices el labio se dobla donde ella apoya, y no un par de centímetros más allá.
+ */
+export const PASO_DEL_LABIO_MM = 2
 
 /** Ancho mínimo de la cinta de la incisión, en milímetros (la mitad a cada lado). */
 export const ANCHO_VISIBLE_DE_LA_INCISION_MM = 2.4
@@ -185,6 +198,7 @@ export function cortarCapa(
       // Más que la arista más larga que pueda cruzarse: el corte mira solo la
       // franja que rodea a la incisión.
       holgura: alcanceLocal,
+      pasoDelLabio: (PASO_DEL_LABIO_MM * (parametros.unidadesPorMm ?? 0.001)) / escala,
     },
   )
   if (!corte) return null
@@ -330,8 +344,8 @@ function actualizarCinta(h: HeridaEnCapa) {
       : tramo.a
     const t = ultimo || curva.largoTotal <= 0 ? 1 : tramo.desde / curva.largoTotal
     const abre = h.perfil ? h.perfil(t) : { mas: h.mas, menos: h.menos }
-    // Cuánto se separa cada labio en este punto, con el mismo estrechamiento hacia las puntas que la malla.
-    const peso = afilado(t)
+    // Cuánto se separa cada labio en este punto, como la malla: con perfil, el perfil ya se cierra en las puntas.
+    const peso = h.perfil ? 1 : afilado(t)
     const mas = (abre.mas / h.escala) * peso
     const menos = (abre.menos / h.escala) * peso
     // El lateral es el mismo que mueve a los labios: el «más» va hacia `+lateral` y el «menos» hacia `-lateral`.
@@ -349,12 +363,20 @@ function actualizarCinta(h: HeridaEnCapa) {
   destino.needsUpdate = true
   h.cinta.geometry.computeBoundingSphere()
   const abierta = (abertura * h.escala) / h.unidadesPorMm > APERTURA_QUE_APARTA_LA_CINTA_MM
-  h.cinta.visible = !abierta
+  // Con un instrumento dentro, la incisión ya la señala él (P-008 E1). El borde se va también: en una herida abierta
+  // seguía dibujado de por vida, oscuro, y en el músculo unía vértices separados por centímetros, a través de la abertura.
+  const apartada = abierta || !!h.sostenida
+  h.cinta.visible = !apartada
+  h.bordes.visible = !apartada
   // El borde rojo es la incisión recién hecha: al abrirla o profundizarla se vuelve del tono de la piel (P-003 E4).
   ;(h.bordes.material as THREE.LineBasicMaterial).color.set(
     h.quemado ? COLOR_DEL_BORDE_QUEMADO : abierta || h.profundizada ? COLOR_DEL_BORDE_ABIERTO : COLOR_DEL_BORDE_RECIEN_HECHO,
   )
 }
+
+/** Lo que mide la herida a lo largo de su trazo, en milímetros: el largo con que se reparte lo que abre cada hoja. */
+export const largoEnMm = (h: Pick<HeridaEnCapa, 'corte' | 'escala' | 'unidadesPorMm'>): number =>
+  (h.corte.curva.largoTotal * h.escala) / h.unidadesPorMm
 
 /** Separa los labios: `mas` y `menos` en unidades del mundo. */
 export function abrirCapa(
@@ -492,13 +514,45 @@ export function sitioEnLaHerida(
 }
 
 /**
+ * El punto del trazo más cercano a uno dado, en el espacio de la malla: a qué distancia queda y a qué fracción del
+ * largo. Los nodos del trazo están en la superficie y a pocos milímetros unos de otros, como para la cinta.
+ */
+function sobreElTrazo(h: HeridaEnCapa, local: THREE.Vector3): { distancia: number; t: number } | null {
+  const { tramos, largoTotal } = h.corte.curva
+  if (tramos.length === 0 || largoTotal <= 0) return null
+  let distancia = Infinity
+  let t = 0
+  for (const tramo of tramos) {
+    const rx = local.x - tramo.a[0]
+    const ry = local.y - tramo.a[1]
+    const rz = local.z - tramo.a[2]
+    const s = Math.min(tramo.largo, Math.max(0, rx * tramo.d[0] + ry * tramo.d[1] + rz * tramo.d[2]))
+    const d = Math.hypot(rx - tramo.d[0] * s, ry - tramo.d[1] * s, rz - tramo.d[2] * s)
+    if (d < distancia) {
+      distancia = d
+      t = (tramo.desde + s) / largoTotal
+    }
+  }
+  return { distancia, t }
+}
+
+/**
  * Dónde cae un punto del mundo respecto de la herida: de qué labio es y hacia
  * dónde se separa. Sirve para que un separador agarre el labio que se pincha.
  *
- * El vértice de labio más cercano da la dirección y la distancia; **el lado lo
- * dice a qué lado de ese vértice cae el punto**. Con la herida cerrada los dos
- * labios ocupan el mismo sitio y el más cercano era siempre el primero que se
- * miraba: un Farabeuf agarraba siempre el mismo borde, pincharan donde pincharan.
+ * El vértice de labio más cercano da la dirección; **el lado lo dice a qué lado
+ * de ese vértice cae el punto**. Con la herida cerrada los dos labios ocupan el
+ * mismo sitio y el más cercano era siempre el primero que se miraba: un Farabeuf
+ * agarraba siempre el mismo borde, pincharan donde pincharan.
+ *
+ * La distancia y el sitio a lo largo (`cerca`, `t`) salen del **trazo** cuando
+ * está más cerca que el vértice. Los vértices del labio caen donde el trazo cruza
+ * una arista, y en un músculo de triángulos largos cortado a lo largo quedan a uno
+ * o dos centímetros unos de otros: un clic justo sobre la incisión del músculo
+ * medía más de 8 mm al labio, contaba como «lejos» y retraía el músculo entero en
+ * vez de meter el Farabeuf (pedido 8 de P-004: «no me aparece como que el fara
+ * quede puesto»). El trazo no se mueve al abrir, así que un clic en medio de una
+ * herida abierta también cae sobre ella.
  */
 export function ladoDeLaHerida(
   h: HeridaEnCapa,
@@ -526,5 +580,7 @@ export function ladoDeLaHerida(
   const lado: 1 | -1 = local.clone().sub(vertice).dot(direccion) >= 0 ? 1 : -1
   // La dirección se lleva al mundo, sin la traslación.
   const enElMundo = direccion.transformDirection(h.malla.matrixWorld)
+  const trazo = sobreElTrazo(h, local)
+  if (trazo && trazo.distancia < mejor) return { lado, direccion: enElMundo, cerca: trazo.distancia * h.escala, t: trazo.t }
   return { lado, direccion: enElMundo, cerca: mejor * h.escala, t }
 }

@@ -1,0 +1,200 @@
+import { describe, expect, it } from 'vitest'
+import * as THREE from 'three'
+import {
+  AGUJEROS_MAXIMOS,
+  AGUJEROS_MINIMOS,
+  SISTEMAS_DE_PLACA_RECTA,
+  agujerosDeLaPlacaRectaMm,
+  direccionDeLaPlacaRecta,
+  idDeLaPlacaRecta,
+  instrumentoDeLaPlacaRecta,
+  largoDeCatalogoMm,
+  largoEscritoMm,
+  modeloConLosAgujerosEscritos,
+  placaRecta,
+  placaRectaDeLaDireccion,
+  placaRectaDelId,
+  placasConAgujeros,
+  rangoDeLargoMm,
+} from '@/lib/placasRectas'
+import { quePuedeColocar } from '@/lib/fijacion'
+import { diametroDelTornilloDeLaPlaca, formaDeLosAgujeros } from '@/lib/compresion'
+import { crearPlacaRecta } from '@/instrumental/placaRectaProcedural'
+import { cargarModeloDelInstrumento } from '@/instrumental/cargarModelo'
+import { prepararHerramienta } from '@/instrumental/herramienta3d'
+
+describe('placas rectas a medida (P-008 E3)', () => {
+  it('el largo de catálogo es el del modelo de Blender: agujeros por paso, más las puntas', () => {
+    // `placa_recta` en scripts/instrumental/implantes.py: n * paso + 6 (11 la de reconstrucción).
+    const lcp = SISTEMAS_DE_PLACA_RECTA.find((s) => s.id === 'lcp-3-5')!
+    expect(largoDeCatalogoMm(lcp, 8)).toBe(110)
+    const recon = SISTEMAS_DE_PLACA_RECTA.find((s) => s.id === 'reconstruccion-3-5')!
+    expect(largoDeCatalogoMm(recon, 10)).toBe(111)
+  })
+
+  it('sin largo, sale con su paso de siempre; con largo, con ese largo exacto', () => {
+    const deCatalogo = placaRecta('lcp-3-5', 5)!
+    expect(deCatalogo.pasoMm).toBe(13)
+    expect(deCatalogo.largoMm).toBe(71)
+    // Lo que pidió el dueño: «5 cm y 3 agujeros, y que aparezca eso y no otro».
+    const pedida = placaRecta('lcp-3-5', 3, 50)!
+    expect(pedida.largoMm).toBe(50)
+    expect(pedida.agujeros).toBe(3)
+    expect(agujerosDeLaPlacaRectaMm(pedida)).toHaveLength(3)
+    expect(pedida.pasoMm).toBeCloseTo(44 / 3, 6)
+  })
+
+  it('los agujeros van centrados a lo largo, a la distancia de la placa', () => {
+    const p = placaRecta('dcp-4-5-estrecha', 4)!
+    expect(agujerosDeLaPlacaRectaMm(p)).toEqual([
+      [0, -24],
+      [0, -8],
+      [0, 8],
+      [0, 24],
+    ])
+  })
+
+  it('en la ancha van alternados a un lado y otro del eje', () => {
+    const p = placaRecta('lc-dcp-4-5-ancha', 4)!
+    const xs = agujerosDeLaPlacaRectaMm(p).map(([x]) => x)
+    expect(xs[0]).toBeLessThan(0)
+    expect(xs[1]).toBeGreaterThan(0)
+    expect(xs[2]).toBeLessThan(0)
+    expect(xs[3]).toBeGreaterThan(0)
+  })
+
+  it('un sistema no da cualquier largo: ni encogido hasta juntar los óvalos ni estirado hasta ser otra placa', () => {
+    expect(placaRecta('lcp-2-4', 3, 50)).toBeNull()
+    const [minimo, maximo] = rangoDeLargoMm(SISTEMAS_DE_PLACA_RECTA.find((s) => s.id === 'lcp-2-4')!, 3)
+    expect(placaRecta('lcp-2-4', 3, minimo)).not.toBeNull()
+    expect(placaRecta('lcp-2-4', 3, maximo)).not.toBeNull()
+    expect(placaRecta('lcp-2-4', 3, maximo + 1)).toBeNull()
+  })
+
+  it('fuera de 2 a 16 agujeros, o con un sistema que no existe, no hay placa', () => {
+    expect(placaRecta('lcp-3-5', AGUJEROS_MINIMOS - 1)).toBeNull()
+    expect(placaRecta('lcp-3-5', AGUJEROS_MAXIMOS + 1)).toBeNull()
+    expect(placaRecta('lcp-3-5', 4.5)).toBeNull()
+    expect(placaRecta('no-existe', 5)).toBeNull()
+  })
+
+  it('con 5 agujeros salen todas las de 5, con agujeros de varias medidas', () => {
+    const ofertas = placasConAgujeros(5)
+    expect(ofertas).toHaveLength(SISTEMAS_DE_PLACA_RECTA.length)
+    expect(ofertas.every((o) => o.placa?.agujeros === 5)).toBe(true)
+    expect(new Set(ofertas.map((o) => o.sistema.tornilloMm))).toEqual(new Set([2.4, 2.7, 3.5, 4.5]))
+    expect(new Set(ofertas.map((o) => o.sistema.agujero))).toEqual(new Set(['oval', 'combi', 'redondo']))
+  })
+
+  it('con un largo, primero las que lo dan, todas de ese largo; las que no, al final y con su rango', () => {
+    const ofertas = placasConAgujeros(3, 50)
+    const primeraQueNo = ofertas.findIndex((o) => o.placa === null)
+    expect(primeraQueNo).toBeGreaterThan(0)
+    expect(ofertas.slice(primeraQueNo).every((o) => o.placa === null)).toBe(true)
+    for (const o of ofertas.slice(0, primeraQueNo)) {
+      expect(o.placa!.largoMm).toBe(50)
+      expect(o.placa!.agujeros).toBe(3)
+    }
+    for (const o of ofertas.slice(primeraQueNo)) expect(50 < o.rangoMm[0] || 50 > o.rangoMm[1]).toBe(true)
+    // La que menos se estira va primero.
+    const estirado = ofertas.slice(0, primeraQueNo).map((o) => Math.abs(o.placa!.pasoMm / o.sistema.pasoMm - 1))
+    expect([...estirado].sort((a, b) => a - b)).toEqual(estirado)
+  })
+
+  it('la dirección y el identificador dicen toda la placa: se rehace igual de ellos', () => {
+    const p = placaRecta('lc-dcp-3-5', 7, 92.5)!
+    expect(placaRectaDeLaDireccion(direccionDeLaPlacaRecta(p))).toEqual(p)
+    expect(placaRectaDelId(idDeLaPlacaRecta(p))).toEqual(p)
+    expect(placaRectaDelId('un-id-de-payload')).toBeNull()
+    expect(placaRectaDeLaDireccion('/api/modelos/archivo.glb')).toBeNull()
+  })
+
+  it('el largo se escribe en milímetros o en centímetros', () => {
+    expect(largoEscritoMm('50')).toBe(50)
+    expect(largoEscritoMm('50 mm')).toBe(50)
+    expect(largoEscritoMm('5 cm')).toBe(50)
+    expect(largoEscritoMm('5,5cm')).toBe(55)
+    expect(largoEscritoMm('0')).toBeNull()
+    expect(largoEscritoMm('cinco')).toBeNull()
+  })
+
+  it('cada sistema se reconoce como placa, con la forma de agujero y el tornillo que dibuja', () => {
+    for (const s of SISTEMAS_DE_PLACA_RECTA) {
+      const p = placaRecta(s.id, 5)!
+      const i = instrumentoDeLaPlacaRecta(p)
+      expect(quePuedeColocar(i)).toEqual({ tipo: 'placa' })
+      // El óvalo del que sale la compresión se mide desde el tornillo que dice el nombre.
+      expect(diametroDelTornilloDeLaPlaca(i.nombre)).toBe(s.tornilloMm)
+      // La de tercio de caña lleva óvalos cortos, pero la compresión la trata como redonda desde D-169: se deja así.
+      if (s.id !== 'tercio-de-cana-3-5') expect(formaDeLosAgujeros(i)).toBe(s.agujero)
+    }
+  })
+
+  it('con los orificios que escribió el editor, una placa recta de otra cantidad se genera a medida (P-004 E6)', () => {
+    const lcp = { slug: 'placa-lcp-recta-3-5', modeloUrl: '/api/modelos/lcp.glb' }
+    expect(modeloConLosAgujerosEscritos({ ...lcp, orificios: null })).toBe(lcp.modeloUrl)
+    expect(modeloConLosAgujerosEscritos({ ...lcp, orificios: 8 })).toBe(lcp.modeloUrl)
+    const cinco = placaRectaDeLaDireccion(modeloConLosAgujerosEscritos({ ...lcp, orificios: 5 }))!
+    expect(cinco.agujeros).toBe(5)
+    expect(cinco.sistema.id).toBe('lcp-3-5')
+    // Lo que no es una placa recta, como estaba.
+    expect(modeloConLosAgujerosEscritos({ slug: 'placa-t-3-5', modeloUrl: '/t.glb', orificios: 5 })).toBe('/t.glb')
+  })
+})
+
+describe('el modelo 3D de la placa a medida', () => {
+  const p = placaRecta('lcp-3-5', 5, 70)!
+
+  it('tiene las medidas de la placa, en metros y en el marco de Blender: ancho por X, largo por Z y la cara de abajo en Y = 0', () => {
+    const raiz = crearPlacaRecta(p)
+    raiz.updateMatrixWorld(true)
+    const caja = new THREE.Box3().setFromObject(raiz)
+    const tamano = caja.getSize(new THREE.Vector3())
+    expect(tamano.x * 1000).toBeCloseTo(p.sistema.anchoMm, 1)
+    expect(tamano.z * 1000).toBeCloseTo(70, 1)
+    expect(tamano.y * 1000).toBeCloseTo(p.sistema.grosorMm, 1)
+    expect(caja.min.y).toBeCloseTo(0, 6)
+  })
+
+  it('declara sus agujeros como un modelo de Blender, y los agujeros atraviesan la placa', () => {
+    const h = prepararHerramienta(crearPlacaRecta(p))
+    expect(h.meta?.agujeros).toEqual(agujerosDeLaPlacaRectaMm(p))
+    h.raiz.updateMatrixWorld(true)
+    const rayo = new THREE.Raycaster()
+    const tocaEn = (xMm: number, yMm: number) => {
+      // De arriba abajo; la Y de Blender es −Z en el modelo.
+      rayo.set(new THREE.Vector3(xMm / 1000, 0.05, -yMm / 1000), new THREE.Vector3(0, -1, 0))
+      return rayo.intersectObjects(h.mallas, false).length > 0
+    }
+    for (const [x, y] of h.meta!.agujeros) expect(tocaEn(x, y)).toBe(false)
+    // Entre dos agujeros hay metal, y al lado de la fila también.
+    const [, y0] = h.meta!.agujeros[0]
+    const [, y1] = h.meta!.agujeros[1]
+    expect(tocaEn(0, (y0 + y1) / 2)).toBe(true)
+    expect(tocaEn(p.sistema.anchoMm * 0.4, y0)).toBe(true)
+  })
+
+  it('la de tercio de caña se curva: los bordes bajan hacia el hueso', () => {
+    const tercio = crearPlacaRecta(placaRecta('tercio-de-cana-3-5', 4)!)
+    const malla = tercio.getObjectByName('placa') as THREE.Mesh
+    const posiciones = malla.geometry.getAttribute('position')
+    let enElBorde = Infinity
+    let enElMedio = Infinity
+    for (let i = 0; i < posiciones.count; i++) {
+      const x = Math.abs(posiciones.getX(i)) * 1000
+      const y = posiciones.getY(i) * 1000
+      if (x > 4.5) enElBorde = Math.min(enElBorde, y)
+      if (x < 0.5) enElMedio = Math.min(enElMedio, y)
+    }
+    expect(enElBorde).toBeLessThan(enElMedio - 1)
+  })
+
+  it('el cargador de instrumentos la genera en el acto, y con una dirección que no es de placa avisa del fallo', () => {
+    let cargada: THREE.Object3D | null = null
+    cargarModeloDelInstrumento(direccionDeLaPlacaRecta(p), (raiz) => (cargada = raiz), () => {})
+    expect(cargada).not.toBeNull()
+    let fallo = false
+    cargarModeloDelInstrumento('procedural:placa-recta/no-existe/5', () => {}, () => (fallo = true))
+    expect(fallo).toBe(true)
+  })
+})

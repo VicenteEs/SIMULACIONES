@@ -27,6 +27,7 @@ import {
 } from '@/lib/piezasDelCaso'
 import { CLAVE_DE_FILA, nuevaClave } from '@/admin/identidadDeBloques'
 import { FilaDeCampos, valoresPorOmision, type Relaciones } from './Campos'
+import { transformacionValida, yaEstaEnSuSitio, type ResultadoDeLaReduccion, type TransformacionRigida } from '@/lib/reduccionAutomatica'
 import { PasosEntreCirugias } from './PasosEntreCirugias'
 import { claveDelPasoDelEditor, guardarPasoDelEditor, leerPasoDelEditor } from '@/lib/ensayoDelEditor'
 
@@ -687,6 +688,15 @@ function PanelDePiezas({
   alCambiarDesplazamiento: (nuevo: Fila) => void
 }) {
   const [aviso, setAviso] = useState<string | null>(null)
+  const [avisoDeLaReduccion, setAvisoDeLaReduccion] = useState<string | null>(null)
+  const [ancla, setAncla] = useState('')
+  const animacion = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (animacion.current !== null) cancelAnimationFrame(animacion.current)
+    },
+    [],
+  )
   const propuestas = propuestasDelModelo(vivo.datosDeLosNodos)
   const huerfanas = vivo.modeloCargado ? piezasHuerfanas(piezas, vivo.nodosDelArchivo) : []
   const sinUsar = vivo.nodosDelArchivo.filter((n) => !piezas.some((p) => p.nodo === n))
@@ -738,6 +748,130 @@ function PanelDePiezas({
     setAviso('Desplazamiento inicial capturado.')
   }
 
+  // ------------------------------------------------- el hueso reducido (P-008 E5)
+
+  const nodoDe = (p: PiezaEnEdicion) => (typeof p.nodo === 'string' ? p.nodo : '')
+  const nombreDe = (nodo: string) => {
+    const p = piezas.find((q) => nodoDe(q) === nodo)
+    return typeof p?.etiqueta === 'string' && p.etiqueta.trim() ? p.etiqueta.trim() : nodo.replace(/_/g, ' ')
+  }
+  const conComa = (n: number, decimales: number) => n.toFixed(decimales).replace('.', ',')
+  const huesos = piezas.filter((p) => p.rol === 'hueso' || p.rol === 'fragmento').map(nodoDe).filter(Boolean)
+  const reduccionesDelCaso = Object.fromEntries(
+    piezas.flatMap((p) => {
+      const t = transformacionValida(p.posicionReducida)
+      return t ? [[nodoDe(p), t] as const] : []
+    }),
+  )
+  const cuantasReducidas = Object.keys(reduccionesDelCaso).length
+
+  /** Mueve los trozos a su sitio reducido en 600 ms, como la reducción automática del residente. */
+  const llevarALaReduccion = (reducciones: Record<string, TransformacionRigida>) => {
+    const m = mando.current
+    if (!m) return
+    if (animacion.current !== null) cancelAnimationFrame(animacion.current)
+    m.llevarPiezasALaReduccion(0, reducciones)
+    // La hora de partida la da el primer cuadro y no `performance.now()`: el compilador de React la marca como impura en
+    // el cuerpo del componente (`react-hooks/purity`), y la marca que pasa `requestAnimationFrame` es la misma hora.
+    animacion.current = requestAnimationFrame((inicio) => {
+      const cuadro = (ahora: number) => {
+        const k = Math.min(1, (ahora - inicio) / 600)
+        m.llevarPiezasALaReduccion(k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2, reducciones)
+        animacion.current = k < 1 ? requestAnimationFrame(cuadro) : null
+      }
+      cuadro(inicio)
+    })
+  }
+
+  /**
+   * Escribe las posiciones reducidas en las piezas —añadiendo las que el caso aún no declaraba— y, si el fragmento
+   * cambia de sitio de reposo, pone a cero su desplazamiento inicial: lo escrito se midió contra el sitio viejo, y con
+   * cero el caso empieza como está el modelo, que es la fractura que el editor construyó.
+   */
+  const guardarReducciones = (reducciones: Record<string, TransformacionRigida | null>): boolean => {
+    let nuevas = piezas
+    for (const nodo of Object.keys(reducciones)) {
+      if (!nuevas.some((p) => nodoDe(p) === nodo)) nuevas = agregarPieza(nuevas, nodo, propuestas.find((p) => p.nodo === nodo))
+    }
+    nuevas = nuevas.map((p) => (nodoDe(p) in reducciones ? { ...p, posicionReducida: reducciones[nodoDe(p)] } : p))
+    alCambiarPiezas(nuevas)
+    const fragmento = piezas.find((p) => p.rol === 'fragmento')
+    const habiaDesplazamiento = ['x', 'y', 'z', 'giroX', 'giroY', 'giroZ'].some((k) => typeof desplazamiento[k] === 'number' && desplazamiento[k] !== 0)
+    if (fragmento && nodoDe(fragmento) in reducciones && habiaDesplazamiento) {
+      alCambiarDesplazamiento({ x: 0, y: 0, z: 0, giroX: 0, giroY: 0, giroZ: 0 })
+      return true
+    }
+    return false
+  }
+
+  const explicarSinEncaje = (r: ResultadoDeLaReduccion) =>
+    r.sueltos.length > 0
+      ? `${r.sueltos.map(nombreDe).join(', ')} ${r.sueltos.length === 1 ? 'tiene' : 'tienen'} caras de corte, pero no encajan con las de ningún otro trozo. `
+      : 'No hay trozos con caras de corte planas que encajen entre sí. '
+
+  const reducir = () => {
+    const resultado = mando.current?.reduccionPorLasCaras(ancla || null)
+    if (!resultado) {
+      setAvisoDeLaReduccion('Espere a que el modelo termine de cargar.')
+      return
+    }
+    if (resultado.colocados.length === 0) {
+      setAvisoDeLaReduccion(
+        explicarSinEncaje(resultado) +
+          'La reducción automática funciona con huesos partidos por cortes planos: el «Recortar» del atlas o un corte en Blender. Si no, coloque los trozos con «Mover» y pulse «Guardar la posición actual como reducida».',
+      )
+      return
+    }
+    const moviles = resultado.colocados.filter((c) => !yaEstaEnSuSitio(c))
+    if (moviles.length === 0) {
+      setAvisoDeLaReduccion(
+        `Los trozos ya están reducidos en el modelo: encajan sobre ${resultado.anclas.map((a) => `«${nombreDe(a)}»`).join(' y ')} sin moverse. No hay nada que guardar.`,
+      )
+      return
+    }
+    const reducciones: Record<string, TransformacionRigida | null> = Object.fromEntries(moviles.map((c) => [c.nodo, c.transformacion]))
+    // Los que encajaron donde ya estaban, y las anclas, se quedan sin posición reducida: si tenían una vieja, sobra.
+    for (const nodo of [...resultado.anclas, ...resultado.colocados.filter((c) => yaEstaEnSuSitio(c)).map((c) => c.nodo)]) {
+      if (nodo in reduccionesDelCaso) reducciones[nodo] = null
+    }
+    const desplazamientoACero = guardarReducciones(reducciones)
+    llevarALaReduccion(Object.fromEntries(moviles.map((c) => [c.nodo, c.transformacion])))
+    const vertices = moviles.reduce((s, c) => s + c.vertices, 0)
+    const error = Math.max(...moviles.map((c) => c.errorMm))
+    const sinFragmento = !piezas.some((p) => p.rol === 'fragmento')
+    setAvisoDeLaReduccion(
+      `Reducido sobre ${resultado.anclas.map((a) => `«${nombreDe(a)}»`).join(' y ')}: ${moviles.length} ${moviles.length === 1 ? 'trozo encajado' : 'trozos encajados'} por sus caras de corte ` +
+        `(${vertices} vértices coinciden; error ${error < 0.01 ? 'menor de 0,01' : conComa(error, 2)} mm). ` +
+        moviles.map((c) => `${nombreDe(c.nodo)}: ${conComa(c.desplazamientoMm, 1)} mm y ${conComa(c.giroGrados, 1)}°`).join(' · ') +
+        '. Se guarda con el caso: el residente empieza con la fractura como está en el modelo y la reducción automática lleva los trozos a este sitio.' +
+        (desplazamientoACero ? ' El desplazamiento inicial del fragmento se puso a cero: el caso empieza como está el modelo.' : '') +
+        (sinFragmento ? ' Marque como fragmento móvil el trozo que el residente reduce a mano: se medirá contra este sitio.' : '') +
+        (resultado.sueltos.length > 0 ? ` Sin encajar: ${resultado.sueltos.map(nombreDe).join(', ')}.` : ''),
+    )
+  }
+
+  const guardarAMano = () => {
+    const hechas = mando.current?.reduccionHechaAMano(huesos) ?? {}
+    const nodos = Object.keys(hechas)
+    if (nodos.length === 0) {
+      setAvisoDeLaReduccion(
+        'Ningún trozo está apartado de donde lo trae el modelo. Colóquelos en su sitio con «Mover» (a la izquierda) y vuelva a pulsar.',
+      )
+      return
+    }
+    const desplazamientoACero = guardarReducciones(hechas)
+    setAvisoDeLaReduccion(
+      `Guardada como reducida la posición de ${nodos.map(nombreDe).join(', ')}.` +
+        (desplazamientoACero ? ' El desplazamiento inicial del fragmento se puso a cero: el caso empieza como está el modelo.' : ''),
+    )
+  }
+
+  const quitarReduccion = () => {
+    guardarReducciones(Object.fromEntries(Object.keys(reduccionesDelCaso).map((nodo) => [nodo, null])))
+    mando.current?.dejarComoEnElArchivo()
+    setAvisoDeLaReduccion('Quitada la posición reducida: el caso vuelve a medir contra el modelo tal como está en el archivo.')
+  }
+
   return (
     <div className="editor-simulador-piezas">
       {huerfanas.length > 0 ? (
@@ -783,6 +917,55 @@ function PanelDePiezas({
       <p className="campo-ayuda" role="status">
         {aviso}
       </p>
+
+      <section className="editor-simulador-reduccion" aria-labelledby="editor-simulador-reduccion-titulo">
+        <h3 id="editor-simulador-reduccion-titulo">Hueso reducido</h3>
+        <p className="campo-ayuda">
+          Si el modelo trae la fractura ya desplazada, aquí se decide dónde va cada trozo. <strong>Reducir automáticamente</strong>{' '}
+          los encaja por sus caras de corte, sin mover el que queda quieto. Si no encajan, colóquelos con <strong>Mover</strong>{' '}
+          y guarde esa posición.
+        </p>
+        {huesos.length > 1 ? (
+          <label className="editor-simulador-ancla">
+            <span>Queda quieto</span>
+            <select className="campo-control" value={ancla} onChange={(e) => setAncla(e.target.value)}>
+              <option value="">El trozo más grande</option>
+              {huesos.map((nodo) => (
+                <option key={nodo} value={nodo}>
+                  {nombreDe(nodo)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <div className="editor-simulador-capturas-botones">
+          <button type="button" className="admin-btn admin-btn-primary" onClick={reducir}>
+            Reducir automáticamente
+          </button>
+          <button type="button" className="consola-boton" onClick={guardarAMano}>
+            Guardar la posición actual como reducida
+          </button>
+          {cuantasReducidas > 0 ? (
+            <>
+              <button type="button" className="consola-boton" onClick={() => llevarALaReduccion(reduccionesDelCaso)}>
+                Ver reducido
+              </button>
+              <button type="button" className="consola-boton" onClick={() => mando.current?.dejarComoEnElArchivo()}>
+                Ver como está en el modelo
+              </button>
+              <button type="button" className="consola-boton" onClick={quitarReduccion}>
+                Quitar la posición reducida
+              </button>
+            </>
+          ) : null}
+        </div>
+        <p className="campo-ayuda" role="status">
+          {avisoDeLaReduccion ??
+            (cuantasReducidas > 0
+              ? `${cuantasReducidas} ${cuantasReducidas === 1 ? 'trozo tiene' : 'trozos tienen'} posición reducida guardada: ${Object.keys(reduccionesDelCaso).map(nombreDe).join(', ')}.`
+              : null)}
+        </p>
+      </section>
 
       {sinUsar.length > 0 ? (
         <details className="editor-simulador-sinusar">

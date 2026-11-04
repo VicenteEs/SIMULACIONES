@@ -613,7 +613,7 @@ export function FilaDeCampos({
 }) {
   return (
     <div className="campos">
-      {campos.map((campo) => (
+      {campos.filter((campo) => !campo.oculto).map((campo) => (
         <ControlDeCampo
           key={campo.nombre}
           campo={campo}

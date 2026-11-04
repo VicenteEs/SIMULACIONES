@@ -17,7 +17,18 @@ import {
   textosDeLosMetadatos,
   type DatosDeLaLamina,
 } from '@/lib/laminaPostoperatoria'
-import { KV_INICIAL, KV_MAXIMO, KV_MINIMO, CONTRASTE_MAXIMO, CONTRASTE_MINIMO, PROYECCIONES_DE_FLUOROSCOPIA, type AjustesDeLaImagen, type ProyeccionDeFluoroscopia } from '@/lib/radiografia'
+import {
+  KV_INICIAL,
+  KV_MAXIMO,
+  KV_MINIMO,
+  CONTRASTE_MAXIMO,
+  CONTRASTE_MINIMO,
+  PROYECCIONES_DE_FLUOROSCOPIA,
+  topeDelDesplazamiento,
+  type AjustesDeLaImagen,
+  type DesplazamientoDeLaImagen,
+  type ProyeccionDeFluoroscopia,
+} from '@/lib/radiografia'
 
 /**
  * La radiografía postoperatoria (P-004 E11, pedido 17 de Cristóbal).
@@ -57,12 +68,24 @@ export function RadiografiaPostoperatoria({
   /** Propuesta según lo usado en el recorrido (`intervencionPropuesta`). */
   intervencionInicial: string
   /** Hace la toma en el lienzo dado; `false` si no pudo (la escena no cargó). */
-  tomar: (destino: HTMLCanvasElement, proyeccion: ProyeccionDeFluoroscopia, zoom: number, ajustes: Partial<AjustesDeLaImagen>) => boolean
+  tomar: (
+    destino: HTMLCanvasElement,
+    proyeccion: ProyeccionDeFluoroscopia,
+    zoom: number,
+    ajustes: Partial<AjustesDeLaImagen>,
+    desplazamiento: DesplazamientoDeLaImagen,
+  ) => boolean
   alGuardar: (datos: DatosDeLaLamina) => void
   alCerrar: () => void
 }) {
   const [proyeccion, setProyeccion] = useState<ProyeccionDeFluoroscopia>('ap')
   const [zoom, setZoom] = useState(1)
+  /**
+   * Hacia dónde se corre la extremidad bajo el tubo, de −1 a 1 del tope que permite el zoom (pedido 17: «de la misma forma que la
+   * fluoroscopia, moviendo la posición, la angulación y el zoom»). Sin ella, acercar solo agrandaba el centro del hueso visible
+   * —con la pierna entera, la rodilla—, y el foco operado quedaba fuera de la placa.
+   */
+  const [posicion, setPosicion] = useState(0)
   const [kv, setKv] = useState(KV_INICIAL)
   const [contraste, setContraste] = useState(1)
   const [tomas, setTomas] = useState<Toma[]>([])
@@ -108,7 +131,8 @@ export function RadiografiaPostoperatoria({
       return
     }
     const lienzo = document.createElement('canvas')
-    const hecha = tomar(lienzo, proyeccion, zoom, { kv, contraste })
+    // Hacia arriba en el deslizador es ver más arriba: la extremidad baja por la imagen (el signo de `centroDeLaImagen`).
+    const hecha = tomar(lienzo, proyeccion, zoom, { kv, contraste }, { x: 0, y: -posicion * topeDelDesplazamiento(zoom) })
     if (!hecha) {
       setAviso('No se pudo tomar la radiografía: la escena todavía no está lista.')
       return
@@ -175,6 +199,22 @@ export function RadiografiaPostoperatoria({
           <output className="u-num">{zoom.toFixed(1).replace('.', ',')}×</output>
         </span>
         <input type="range" min={0.6} max={3} step={0.1} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+      </label>
+      <label className="consola-deslizador">
+        <span className="consola-deslizador-cabeza">
+          <span>Posición</span>
+          <output className="u-num">
+            {Math.abs(posicion) < 0.005 ? 'al centro' : `${posicion > 0 ? 'más arriba' : 'más abajo'} ${Math.round(Math.abs(posicion) * 100)} %`}
+          </output>
+        </span>
+        <input
+          type="range"
+          min={-1}
+          max={1}
+          step={0.02}
+          value={posicion}
+          onChange={(e) => setPosicion(Number(e.target.value))}
+        />
       </label>
       <label className="consola-deslizador">
         <span className="consola-deslizador-cabeza">

@@ -9,6 +9,7 @@ import {
   medirBajoElAgujero,
   posicionDelAgujero,
   quitarImplantes,
+  reanclarPlaca,
   quitarTornillos,
 } from '@/components/simulador/implantesEnLaEscena'
 
@@ -264,6 +265,37 @@ describe('ajustar la placa ya puesta (P-003 E6)', () => {
     const angulo = (Math.atan2(Math.hypot(largo.x, largo.z), Math.abs(largo.y)) * 180) / Math.PI
     expect(angulo).toBeGreaterThan(10)
     expect(c.placa.ajuste.giroGrados).toBe(20)
+  })
+
+  it('arrastrada a la otra cara del hueso, se vuelve a apoyar ahí y conserva su giro (P-008 E4)', () => {
+    const c = colocar()
+    // La cara −X del cilindro: con el ajuste de siempre no se llegaba (el lado tiene tope y se asienta mirando por +Z).
+    expect(reanclarPlaca(c.placa, [c.hueso], new THREE.Vector3(-6, 10, 0), new THREE.Vector3(-1, 0, 0), 30)).toBe(true)
+    expect(c.placa.normal.x).toBeLessThan(-0.9)
+    const centro = posicionDelAgujero(c.placa, 1, 'abajo')
+    expect(centro.x).toBeLessThan(-5.9)
+    expect(centro.y).toBeCloseTo(10, 0)
+    expect(c.placa.ajuste).toEqual({ largoMm: 0, ladoMm: 0, giroGrados: 30 })
+    // Y desde ahí, el ajuste de siempre corre desde el sitio nuevo.
+    expect(ajustarPlaca(c.placa, [c.hueso], { largoMm: 5, ladoMm: 0, giroGrados: 30 })).toBe(true)
+    expect(posicionDelAgujero(c.placa, 1, 'abajo').y).toBeCloseTo(15, 0)
+  })
+
+  it('si donde se la lleva no hay hueso, se queda donde estaba', () => {
+    const c = colocar()
+    const antes = posicionDelAgujero(c.placa, 1, 'abajo')
+    const anclaje = c.placa.anclaje
+    expect(reanclarPlaca(c.placa, [c.hueso], new THREE.Vector3(0, 200, 6), NORMAL_Z())).toBe(false)
+    expect(posicionDelAgujero(c.placa, 1, 'abajo').distanceTo(antes)).toBeLessThan(1e-9)
+    expect(c.placa.anclaje).toBe(anclaje)
+  })
+
+  it('en el extremo del hueso, con la normal a lo largo de él, no se tiende: dice que no en vez de romperse', () => {
+    const c = colocar()
+    // La tapa de arriba del cilindro (y = 50), normal +Y: no hay largo del hueso sobre el que tender la placa.
+    expect(reanclarPlaca(c.placa, [c.hueso], new THREE.Vector3(0, 50, 0), EJE_Y())).toBe(false)
+    expect(Number.isFinite(c.placa.grupo.position.x)).toBe(true)
+    expect(Number.isFinite(c.placa.grupo.quaternion.w)).toBe(true)
   })
 
   it('nunca queda dentro del hueso, ni con el ajuste más raro', () => {

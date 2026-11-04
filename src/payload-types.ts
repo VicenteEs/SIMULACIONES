@@ -1664,6 +1664,18 @@ export interface Cirugia {
          * Piel, fascia y músculo forman las capas que se encienden y apagan. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.
          */
         rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia';
+        /**
+         * La calcula «Reducir automáticamente» en el editor del simulador. Vacía si el modelo ya trae el trozo en su sitio.
+         */
+        posicionReducida?: {
+          x?: number | null;
+          y?: number | null;
+          z?: number | null;
+          qx?: number | null;
+          qy?: number | null;
+          qz?: number | null;
+          qw?: number | null;
+        };
         id?: string | null;
       }[]
     | null;
@@ -3710,6 +3722,17 @@ export interface CirugiasSelect<T extends boolean = true> {
         nodo?: T;
         etiqueta?: T;
         rol?: T;
+        posicionReducida?:
+          | T
+          | {
+              x?: T;
+              y?: T;
+              z?: T;
+              qx?: T;
+              qy?: T;
+              qz?: T;
+              qw?: T;
+            };
         id?: T;
       };
   desplazamientoInicial?:

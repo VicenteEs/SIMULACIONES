@@ -807,7 +807,7 @@ línea. A cambio, el código AO de un caso se compone solo —el número del hue
 el de la clasificación, «42» y «A2», dan «42-A2»— y la bandeja de cada caso sale
 de sus propios pasos, sin escribirla aparte.
 
-### D-058 · 2026-09-10 · vigente
+### D-058 · 2026-09-10 · vigente · matizada por D-256 (un modelo exportado con la fractura mide contra su posición reducida)
 **El modelo se exporta reducido y el caso declara cuánto está desplazado.**
 Hacía falta un convenio para saber dónde está «bien». La alternativa era exportar
 dos estados del hueso —roto y reducido— y hacerlos coincidir, que es trabajo
@@ -6505,7 +6505,7 @@ la marca «paso» en el que pide el paso, los submodos al lado y la ayuda debajo
 (un caso con taladro, placa y sutura) la barra pasa a dos filas en un lienzo no muy ancho y le quita alto al lienzo; en un teléfono es un
 bloque más antes del modelo.
 
-### D-197 · 2026-10-21 · vigente
+### D-197 · 2026-10-21 · vigente · la distancia al labio, corregida por D-246
 **El plano del separador lo decide el clic, un músculo se separa con un clic y la lista de lo separado manda.**
 Quinta etapa de P-004 (E5). Pedidos 8 y 10 de Cristóbal: «ahora no me aparece como que el fara quede puesto»; «pinchar una estructura, girar la
 ruedita, que se desplace hacia delante o hacia atrás; pinchar otra y separarla de una — pincho-ruedita-pincho otra estructura-ruedita».
@@ -6544,7 +6544,7 @@ omisión. *Malas.* El umbral entre «labio» y «músculo» es una cifra: con un
 el separador en la piel (se arregla pinchando más al centro o forzando el plano); la lista habla de «Musculos» mientras el modelo no separe las
 estructuras (el nombre sale del objeto).
 
-### D-198 · 2026-10-21 · vigente
+### D-198 · 2026-10-21 · vigente · superada en parte por D-255 (el giro de ±90°) · los orificios escritos de una placa recta los genera D-254
 **Una sola placa, con direcciones del paciente y campos que se escriben; los orificios los declara el editor.**
 Sexta etapa de P-004 (E6). Pedidos 2 y 5 de Cristóbal: «una vez puesta la placa, que no sigan saliendo más al mover el ratón»; «el control A lo
 largo del hueso no deja más que −40 mm»; «desplazar hacia proximal, distal, anterior, posterior y la angulación»; «poder escribir el largo del
@@ -6577,7 +6577,7 @@ LCP del catálogo en la pierna del caso 271: se apoya, el panel muestra los tres
 no es una placa muerta. *Malas.* El reparto uniforme no sirve para una placa con un tramo liso en medio (puente): para esas mandan los agujeros del modelo; y
 la placa no tiene aún las flechas del teclado ni el arrastre (E7 los trae para fragmentos y placa).
 
-### D-199 · 2026-10-21 · vigente
+### D-199 · 2026-10-21 · vigente · superada en parte por D-250 (las asas mientras no se elige un eje) · la reducción automática de varios trozos, D-256
 **Un menú de movimiento por ejes para el trozo y para la placa, y la reducción automática que no puntúa.**
 Séptima etapa de P-004 (E7). Pedidos 15 y 6 de Cristóbal: «manipular un fragmento: el sistema de ejes se hace pesado; al pincharlo con la camarón se abre
 un menú con tres botones: Trasladar (eje coronal, axial, sagital), Angular (coronal o sagital) y Rotar; y que se mueva con las flechas del teclado y/o
@@ -6612,7 +6612,7 @@ paralelo a la visual es impreciso (para eso están las flechas); el signo de un 
 coincide con «hacia varo» o «hacia valgo» según el lado del paciente (la lectura dice el signo, no el nombre); la marca de reducción automática es del recorrido
 entero, no de un paso.
 
-### D-200 · 2026-10-21 · vigente
+### D-200 · 2026-10-21 · vigente · superada en parte por D-247 (el tornillo ya no queda puesto al pincharlo)
 **La broca (y el medidor) se quedan puestos en el orificio mientras se pide el disparo.**
 Octava etapa de P-004 (E8). Pedidos 3 y 13 de Cristóbal: «la broca se queda donde estaba haciendo el hoyo cuando el usuario se mueve para pedir el disparo (se
 mete y se saca con la rueda y hay un botón para apagarla)»; «el rayo muchas veces se usa para saber qué tan profundo vas».
@@ -7373,7 +7373,7 @@ Es la etapa E5 de P-007.
 
 *Qué se probó.* `tests/unit/firmas.test.ts`: lectura de las firmas con la cuenta como id o como documento, una firma sin cuenta, quién puede firmar y por qué no, la huella que no depende del orden de las claves y sí de cualquier cambio, y que los campos existan en las colecciones. `tests/integration/revision.test.ts`, contra PostgreSQL: la primera firma deja la ficha en revisión y señalada; sin profesión no se firma; guardar el mismo texto conserva la firma y cambiarlo —aunque lo haga el administrador— la borra; con las dos queda lista y valida la segunda; el papel trae los dos nombres; devolverla borra las dos; la auditoría cuenta las firmas y la devolución a quien firmó por última vez. Unitarias e integración: pasan todas salvo las 7 de entorno. En un navegador sin cabeza, sobre la base desechable: poner la profesión desde «Editar», firmar como médico con la cuenta de editor (y confirmar la revisión rápida), ver la columna «Firmas», firmar como kinesiólogo con la del administrador, publicar sin que pregunte nada, y ver la línea bajo el título y el membrete con las dos firmas, sin errores en la consola.
 
-### D-241 · 2026-11-03 · vigente · resuelve lo que D-222 dejó del separador de la fascia
+### D-241 · 2026-11-03 · vigente · resuelve lo que D-222 dejó del separador de la fascia · la pala y el borde al milímetro, D-253
 **El simulador sobre una fractura nueva de la pierna del atlas: el separador va con el labio que sostiene, uno apoyado en la fascia abre también la piel, el Hohmann deja la punta en el hueso y «Ampliar» por fin amplía. El caso nuevo es una tibia izquierda 42-A3 sobre la preparación «p».**
 
 *De dónde sale.* Pedido del dueño, 2026-11-03: «que la herramienta se incruste en las estructuras, no que se muevan y la herramienta se vea en el aire»; que las fascias se muevan como la piel y el músculo; «revisa todas las herramientas y crea un vídeo de cómo funciona cada una»; y usar el modelo «p · del atlas», partirle una tibia —«algo nuevo con fractura cualquiera», no la tibia del cuerpo entero de antes— y probarlo todo ahí.
@@ -7634,6 +7634,352 @@ El texto sin tamaño propio hereda el de la raíz, ya multiplicado. `/planes` co
 - (+) Bajar por la portada ya no tiene saltos de color, y la letra se lee mejor, sobre todo la pequeña.
 - (−) **La portada es más larga**: 11.003 px a 1440, antes 10.408. Lo pone el espacio de los fundidos y la letra.
 - (−) Los escalones son tres números a ojo, y con dos titulares que ahora ocupan una línea más («Opera antes de operar»). Si el dueño quiere más o menos, se cambian en la raíz de `.portada` y nada más.
+
+### D-246 · 2026-11-03 · vigente · corrige lo que D-197 dejaba en un músculo de triángulos largos
+**Un clic sobre la incisión de un músculo mete el Farabeuf en ella: la distancia al labio se mide contra el trazo y no contra el vértice más cercano.**
+
+*De dónde sale.* Pedido 8 de P-004: cortar un músculo, que quede la marca, y «poder meter el Farabeuf en medio de la incisión (y que al hacer esto, la línea desaparezca)… Ahora no me aparece como que el fara quede puesto». Repasando el documento contra el simulador el 2026-11-03, sobre la tibia partida (el caso 2833, en una base desechable): se corta el tibial anterior con el bisturí profundo (64 mm), se coge el Farabeuf en «Separar» y se pincha **justo sobre la incisión** —la sonda da el punto por la curva trazada—. El separador no se ponía: «Separador de Farabeuf: Tibial anterior derecho retraído 22 mm», y ningún separador colocado. Lo mismo que vio Cristóbal.
+
+*La causa.* D-197 decide qué hace el clic (`decidirElClicDelSeparador`): sobre el labio de una herida, coloca; lejos del labio y sobre un músculo, lo retrae entero. «Sobre el labio» es a menos de 8 mm (o de 12 píxeles). La distancia salía de `ladoDeLaHerida`, que la medía **al vértice de labio más cercano**. Esos vértices caen donde el trazo cruza una arista, y un músculo del atlas cortado a lo largo tiene triángulos largos en el sentido del corte: el trazo cruza pocas aristas y los vértices quedan a uno o dos centímetros. Un clic en medio de la incisión quedaba a más de 8 mm de todos, contaba como «lejos» y retraía el músculo. En la piel no se notaba, porque su malla es fina y los vértices quedan a pocos milímetros.
+
+*Cómo funciona.* `ladoDeLaHerida` mide también la distancia al **trazo** —los nodos de la incisión, en la superficie y a pocos milímetros, los mismos por los que se tiende la cinta— y se queda con la menor. Si gana el trazo, el sitio a lo largo (`t`) también sale de él, así que la pareja se pone donde se pinchó y no en el vértice lejano. El lado (qué labio agarra cada hoja) sigue saliendo del vértice, como antes. El trazo no se mueve al abrir: un clic en medio de una herida ya abierta también cae sobre ella.
+
+*Qué se probó.*
+- `tests/unit/heridasEnLaEscena.test.ts`, dos pruebas con una malla de cuatro columnas de cuadros: un punto sobre el trazo a 1,5 unidades del vértice más cercano mide 0 y su `t` es el del clic; arriba y abajo del trazo agarran labios distintos. Las 211 pruebas de heridas, separadores y abordaje siguen pasando.
+- En el navegador, el mismo recorrido: el clic sobre la incisión pone **las dos hojas en el plano del músculo**, la rueda las abre 12 mm cada una («Planos profundos · 64 mm de largo · abierta 24 mm») y la cinta roja se aparta. Capturas `musculos-03b` y `musculos-04`, antes y después.
+
+*Consecuencias.*
+- (+) Lo que pidió Cristóbal: pinchar la herida del músculo y abrirla igual que la piel.
+- (+) Cualquier otro uso de `ladoDeLaHerida` (levantar y dejar un separador, el aviso de «acérquelo al borde») mide igual de bien en una malla gruesa: la distancia solo puede bajar.
+- (−) Un clic sobre la incisión ya no retrae ese músculo: para retraerlo entero hay que pinchar lejos de la herida, o quitarla primero. Es lo que D-197 quería decir con «lejos de todo labio».
+- (−) **La hoja queda lejos del labio abierto en el músculo**: la sonda la mide a 18–19 mm, cuando en la piel queda a menos de 1 (D-241). Ver O-081.
+
+### D-247 · 2026-11-03 · vigente · supera en parte a D-200 (el tornillo ya no queda puesto al pincharlo)
+**El tornillo de placa entra con la rueda y se queda a medio entrar mientras se pide el disparo.**
+
+*De dónde sale.* Pedido 13 de P-004: «el instrumental que hace el hoyo, mide o hace entrar el tornillo se queda en su posición mientras se pide el rayo». D-200 dejó puestos la broca y el medidor, y del tornillo dijo que «ya queda puesto al pincharlo»: un clic lo dejaba asentado de una vez, y no había un tornillo a medio camino que mirar en el rayo. En el repaso del 2026-11-03 era lo único de ese pedido que faltaba.
+
+*Cómo funciona.*
+- **El clic** en un orificio perforado y medido deja el tornillo **en la entrada**, perpendicular a la placa y con la desviación elegida si el orificio es oval.
+- **La rueda lo mete y lo saca**, 2 mm por muesca o 0,5 con Mayúsculas, y **gira con la rosca**: una vuelta por paso (1 mm el de 2,7; 1,25 el de 3,5; 1,75 el de 4,5; 2,75 el esponjoso de 6,5). Las cuentas, puras, en `src/lib/tornilloQueEntra.ts`.
+- **El panel** dice cuánto lleva y cuánto falta («lleva 14,0 mm · faltan 14,0 mm para asentar la cabeza») y ofrece «Atornillar hasta el final» y «Sacar el tornillo».
+- **Mientras entra, no cuenta.** No está en `implantes.tornillos`, así que la sesión no lo guarda, la consola no lo suma y el óvalo no comprime. Al asentar —la rueda hasta el largo o el botón— entra en la lista, el óvalo aplica su compresión y la consola recibe el mismo `SucesoDeFijacion` de siempre: la puntuación, la secuencia y la compresión de D-201 y D-202 no cambian, cambia cuándo.
+- Con uno entrando, un clic en otro orificio no pone otro: lo dice. Quitar los implantes lo saca también.
+
+*Qué se probó.* `tests/unit/tornilloQueEntra.test.ts`: la rueda (paso, fino, topes, sin restos de coma flotante), el asiento, la rosca, el texto y el cableado (la rama del clic no cuenta ni comprime; el asiento sí; la sesión guarda solo lo asentado). En el navegador, con la placa DCP fijada en la tibia partida: siete muescas dejan un tornillo de 28 mm con 14 mm metidos, el disparo lo enseña a medio camino y la lista de puestos sigue vacía; «Atornillar hasta el final» lo asienta y la consola lo cuenta bicortical. Capturas `tornillo-02` a `tornillo-05`.
+
+*Consecuencias.*
+- (+) El rayo sirve para lo que lo pide Cristóbal: ver cuánto falta.
+- (−) Un gesto más por tornillo: girar la rueda o pulsar «Atornillar hasta el final».
+- (−) **Solo el tornillo de placa.** El de trayectoria libre (D-201) y el de bloqueo del clavo siguen quedando puestos al pincharlo.
+- (−) La cabeza no aprieta: se asienta cuando lo metido llega al largo; no hay torque ni rosca que se pase.
+
+### D-248 · 2026-11-03 · vigente · completa D-200
+**«Centrar en la broca», «en el medidor» o «en el tornillo»: el arco se acerca y se centra en lo que está puesto.**
+
+*De dónde sale.* Pedidos 3 y 13 de P-004: el disparo con la broca puesta es «para saber cuánto falta para terminar de brocar». Con la pierna entera en el círculo, la broca de 2,5 mm es una raya de pocos píxeles: para verla había que acercar la imagen y arrastrarla hasta dar con ella, y repetirlo en cada disparo.
+
+*Cómo funciona.* Con la broca puesta, el medidor apoyado en un orificio o un tornillo entrando, el panel de la fluoroscopia ofrece «Centrar en …». El lienzo da el punto: de la broca, la mitad de lo perforado; del tornillo, la mitad de su largo asentado; del medidor, donde está. `encuadreHaciaElPunto` calcula el encuadre:
+- el **zoom** deja un campo de unos 16 cm (`zoomParaCentrar`): nunca aleja y no pasa de 4×;
+- el **desplazamiento** es la cuenta inversa de `centroDeLaImagen` (`desplazamientoParaCentrar`), acotada al mismo tope que el arrastre.
+
+Hace lo que haría quien arrastra: deja el zoom y el desplazamiento en el panel, y el disparo siguiente los usa. No dispara solo, para no sumar exposición sin que se pida.
+
+*Qué se probó.* Pruebas: la inversa de `centroDeLaImagen`, el tope, el zoom, y una tibia de 40 cm con la broca a 12 cm del centro que queda centrada a 2,8×. En el navegador, sobre la pierna entera: `broca-04b`, `medidor-03` y `tornillo-04b`, a 4× con el instrumento en el centro.
+
+*Consecuencias.*
+- (+) Un botón por disparo, en vez de acercar y arrastrar.
+- (−) Centra en la mitad del instrumento, no en la punta: para mirar la punta de la broca hay que correr la imagen.
+- (−) Con el medidor fuera de un orificio no hay dónde centrar: lo dice y no mueve nada.
+
+### D-249 · 2026-11-03 · vigente · completa D-202
+**El punto de brocado elegido en el esquema del óvalo se marca también sobre la placa.**
+
+*De dónde sale.* Pedido 14 de P-004: al ir a brocar, «al hacer clic se marca el punto y dice si es céntrico, concéntrico hacia la fractura o excéntrico». D-202 lo hizo en el esquema del óvalo, en el panel: el punto se marcaba en el dibujo y no en la pieza, y en la escena no había dónde apuntar la broca.
+
+*Cómo funciona.* Al elegir el orificio y el punto en el esquema sale sobre la placa un disco de 1,6 mm, del color de su zona. El color es el mismo `COLOR_DE_LA_ZONA` del esquema, que pasa a `src/lib/compresion.ts` para que los dos no se separen. El disco va corrido por el eje de la placa lo que se eligió y 0,3 mm por encima. Es interfaz: no sale en la fluoroscopia ni se pincha. Se va al perforar ese orificio, al quitar la placa o al elegir un orificio redondo.
+
+*Qué se probó.* Prueba del cableado. En el navegador, `broca-02` y `broca-02b` (la vista de «Acercar al orificio»): el disco verde —excéntrico, lejos de la fractura, comprime— en el orificio 2.
+
+*Consecuencias.*
+- (+) Se ve en la pieza dónde va la broca, también de cerca.
+- (−) La broca no se engancha al disco: se sigue apuntando con el ratón. Lo que se juzga sigue siendo la desviación elegida en el esquema, como en D-202.
+
+### D-250 · 2026-11-03 · vigente · supera en parte a D-199 (las asas mientras no se elige un eje)
+**Las siete asas salen solo con «Asas libres», y soltar la pinza deja de elegir el trozo.**
+
+*De dónde sale.* Pedido 15 de P-004: «el sistema de ejes se hace pesado». D-199 puso el menú de movimiento, pero dejó las siete asas a la vista mientras no se eligiera un eje, que es justo el momento de agarrar el trozo: lo primero que se veía al pinchar con la pinza era el sistema de ejes, encima del menú que lo reemplaza. Además, al soltar la pinza —con un clic, o porque la reducción automática las suelta todas— el trozo seguía elegido, y la línea del eje y el menú quedaban sobre un hueso que nadie sostenía.
+
+*Cómo funciona.* `manipulador.grupo.visible = hay && !!u.asasLibres`: las asas, solo con «Asas libres». En «Reducir», soltar la pinza que sostenía el trozo lo deja sin elegir (`alSoltarLasPinzas`).
+
+*Qué se probó.* `tests/unit/movimientoPorEjes.test.ts`, el cableado. En el navegador, `reduccion-02`: al agarrar el fragmento distal, antes salían las siete asas; ahora, el menú y nada encima. Y `reduccion-04`: tras «Automática», antes quedaba la línea del eje; ahora, nada.
+
+*Consecuencias.*
+- (+) Al agarrar se ve el menú que pidió Cristóbal, no lo que le pesaba.
+- (−) Quien se manejaba con las asas tiene que encender «Asas libres»; antes le salían solas.
+
+### D-251 · 2026-11-03 · vigente · completa D-203
+**La radiografía postoperatoria se corre a lo largo del miembro con un deslizador «Posición».**
+
+*De dónde sale.* Pedido 17 de P-004: la radiografía postoperatoria se toma «de la misma forma que la fluoroscopia, moviendo la posición, la angulación y el zoom». D-203 trajo la angulación (AP, lateral, oblicua) y el zoom, pero no la posición. Acercar agrandaba el centro del hueso visible, que en la pierna entera es la rodilla, y el foco de la tibia quedaba fuera de la placa.
+
+*Cómo funciona.* «Posición», de −1 a 1, corre la extremidad bajo el tubo a lo largo de la imagen. El desplazamiento es −posición × `topeDelDesplazamiento(zoom)`: el mismo alcance que el arrastre de la fluoroscopia, y llega a `dibujarFluoroscopia` igual que allí. El rótulo dice «al centro», «más arriba 22 %» o «más abajo 22 %».
+
+*Lo que no se cambió, a propósito.* Sin implantes, la intervención se queda en blanco con sus sugerencias, como dejó D-203 («sin implantes no propone nada: el cirujano escribe»). Se pensó en tomarla de la técnica del caso, pero el caso de prueba, de reducción cerrada, dice «Clavo endomedular» y no lleva clavo: la lámina habría afirmado una osteosíntesis que no se hizo.
+
+*Qué se probó.* Prueba del cableado. En el navegador, el caso de reducción cerrada (una copia del 2833 con un solo paso): a 1× la placa abarca de la cadera al pie; a 2,5× y «más abajo 22 %», de la rodilla al tobillo, con el trazo de la fractura reducida en el centro (`cierre-02b`). La lámina sale con las tres tomas.
+
+*Consecuencias.*
+- (+) Se puede hacer la placa del foco, que es la que se discute en la reunión.
+- (−) Solo a lo largo: a lo ancho el miembro cabe entero y no hizo falta.
+- (−) La placa no se arrastra como la imagen del arco: se ajusta, se toma y se mira.
+
+### D-252 · 2026-11-03 · vigente · primera etapa de P-008
+**La línea negra que quedaba en los cortes era la cinta de la incisión ennegrecida por la oclusión ambiental. Se va, y con un instrumento dentro la incisión ya no se dibuja.**
+
+*De dónde sale.* Pedido del dueño, 2026-11-03 (P-008): «hay una línea negra que se queda en el simulador de los cortes, creo; quiero eliminarla».
+
+*La causa.* Eran tres cosas, y la que se veía negra era la primera:
+- **La cinta de la incisión entraba en la oclusión ambiental del pabellón.** `pabellon.ts` dejaba fuera de la cuenta lo que es interfaz mirando solo la marca `userData.deInterfaz`, y la cinta no la lleva: se reconoce por su nombre, como en el resto del lienzo (`esDeInterfazDelModelo`). Sin normales, la oclusión la daba por enterrada y el velo multiplicaba su rojo por casi cero. Escondiendo la cinta con la sonda, el trazo negro desaparecía.
+- **El borde de la herida seguía dibujado para siempre** en una herida abierta, oscuro, y en el músculo unía vértices separados por centímetros a través de la abertura.
+- **La recta provisional** que sigue al cursor entre los dos clics de «Línea recta» quedaba dibujada encima de todo —el trazo de guía no mira la profundidad— si se cancelaba con Esc, al cambiar de modo o de instrumento: una línea sin incisión debajo, y la consola contando su largo.
+
+*Cómo funciona.*
+- La oclusión usa `esDeInterfazDelModelo`.
+- Una herida con un separador o una pinza apoyados (`sostenida`), aunque todavía no abran, esconde la cinta y el borde: la incisión ya la señala el instrumento. Es lo que pedía Cristóbal en el pedido 8 de P-004: meter el Farabeuf en la incisión «y que la línea desaparezca».
+- Cancelar una recta vacía el trazo, lo vuelve a dibujar y avisa a la consola (`alBorrarElTrazo`), que deja de contar su largo.
+
+*Qué se probó.* `tests/unit/lineaNegraDeLosCortes.test.ts` (el cableado de la oclusión y de la recta cancelada), y casos con mallas de verdad en `heridasEnLaEscena` y `separadorEnElLabio`. En el navegador, sobre la tibia partida (caso 2833, base desechable): el tibial anterior cortado se veía con un trazo negro, y con el arreglo la incisión vuelve a ser roja (`linea-01`, antes y después). Con el Farabeuf puesto en la incisión, la cinta y el borde se apartan (`dibujoDeLasHeridas`: `cinta: false, borde: false`).
+
+*Consecuencias.*
+- (+) La incisión se ve como la herida que es, y una recta abandonada no deja rastro.
+- (+) Cualquier otra pieza de interfaz que se reconozca por su nombre queda también fuera de la oclusión.
+- (−) Con un instrumento dentro ya no se ve el trazo entero de la incisión. Para verlo hay que quitar el separador.
+
+### D-253 · 2026-11-03 · vigente · segunda etapa de P-008 · resuelve O-081 y rehace cómo se posa la hoja de D-241
+**Los separadores abren al milímetro desde su hoja: el borde que sostienen se aparta lo que dice la apertura, en su sitio. La hoja de mano queda con la pala metida en el labio y el mango tendido hacia fuera.**
+
+*De dónde sale.* Pedido del dueño (P-008): «que los separadores interactúen milimétricamente, que se meta y se desplace desde el borde en ese punto de la herramienta hacia afuera; todos los separadores». A media tarea, con un dibujo en rojo sobre una captura: «la herramienta debería quedar como lo rojo, con la paleta hacia abajo y metida en el músculo como si lo estuviera corriendo; así es como se usa, siempre despejando el campo visual y traccionando desde el centro hacia afuera».
+
+*Lo que fallaba.*
+- **La apertura no estaba donde estaba la hoja.** Cada separador abría en campana alrededor de su sitio, y la malla además estrechaba la apertura hacia las puntas: un Farabeuf puesto a un cuarto del largo y abierto 12 mm abría 6 en su sitio.
+- **La hoja agarraba el vértice del labio más cercano**, que en una malla de triángulos largos quedaba a uno o dos centímetros (O-081: 18–19 mm en el músculo). Seguía a un trozo de labio que no era el suyo.
+- **El labio no tenía dónde doblarse**: sus únicos vértices eran los cruces del trazo con las aristas, y una hoja de 10 mm apoyada entre dos no tenía tejido que mover.
+- **El autoestático abría el doble**: el tope de toda la herida se aplicaba a cada labio (el Weitlaner de 65 mm abría 130), y sus ramas se repartían la apertura sin saber de milímetros.
+- **La pala del Farabeuf quedaba acostada** a lo largo de la herida, sobre la piel, con el mango casi de pie. `posarEn` solo fijaba el mango, y el giro alrededor de él quedaba a lo que diera el cuaternión más corto.
+
+*Cómo funciona.*
+- **El labio tiene un vértice cada 2 mm** (`PASO_DEL_LABIO_MM`; `pasoDelLabio` en `corteDeMalla.ts`). El corte pone vértices en medio de cada triángulo que cruza y rehace cada lado en abanico: la superficie es la misma, y el labio ya se dobla donde apoya la hoja.
+- **El labio es una cuerda tensa** (`perfilDeLosSeparadores` y `cuerdaDelLabio`, en `src/lib/exposicion.ts`). El tramo que apoya en la hoja se aparta entero, porque la hoja es rígida. El tramo es el ancho real de la hoja, sacado del modelo de Blender de cada una: Farabeuf 10 mm, Senn-Miller 20, Hohmann 18, Weitlaner 16…
+  - De la hoja a cada punta, la piel va en recta; con dos hojas en el mismo labio, entre ellas también.
+  - Cerca de una punta hay tope, para que la punta no se abra.
+  - El peso del vértice ya no estrecha otra vez hacia las puntas (`pesoLateral`).
+- **La hoja sigue a su punto del labio**, interpolado entre los dos vértices que lo rodean (`labioDelSeparador`), y no al vértice más cercano.
+- **El autoestático** tiene por tope la mitad por labio. Su ángulo sale de lo que se aparta cada labio y del brazo de sus ramas (`brazoMm`, α = 2 · asen(apertura / brazo)): el rastrillo queda en el borde.
+- **La hoja de mano se posa con los dos ejes** (`posarConLosDosEjes`). El codo queda en el borde que sostiene y el mango, tendido hacia fuera sobre su labio, a unos 15° de la piel. La pala sale en ángulo recto con el mango, hacia abajo, metida en la herida a unos 15° de la vertical. Es el dibujo del dueño.
+- **La cara de corte se ve.** Lo que asoma por dentro de un músculo abierto es más oscuro y más rojo que la vaina (`aspectoDelPaciente.ts`); con el mismo rosado, la abertura no se leía.
+
+*Qué se probó.* `tests/unit/separadorEnElLabio.test.ts`, `exposicion.test.ts`, `corteDeMalla.test.ts` y `heridasEnLaEscena.test.ts` cubren:
+- la cuerda: con una hoja, con dos y cerca de la punta;
+- el labio con un vértice cada 2 mm;
+- el autoestático con su brazo;
+- la pala con los dos ejes.
+
+En el navegador, con el Farabeuf en pareja sobre el tibial anterior cortado y abierto 12 mm, la sonda mide:
+- el borde apartado 12 mm en el sitio de la hoja;
+- la punta a 1 mm del labio, donde O-081 medía 18–19;
+- la pala a 15–18° de la vertical y el mango a 15–18° sobre la piel.
+
+Capturas `linea-05` a `linea-07`.
+
+*Consecuencias.*
+- (+) Lo que se ve es lo que se mide: la herida abre lo que dice la apertura, donde está la hoja.
+- (+) Resuelve O-081. La fascia, donde D-241 midió de 1,6 a 6,4 mm entre la hoja y el labio, usa el mismo labio y la misma cuerda, pero no se volvió a medir.
+- (−) Más vértices en los labios, unos treinta por labio y capa en una incisión de 64 mm. No se notó en el equipo de prueba.
+- (−) La cuerda es recta, y el labio de verdad se curva un poco entre la hoja y la punta. A la vista no se distingue; en la cuenta, la apertura cerca de las puntas es algo menor que la real.
+- (−) La pala tiene un ángulo fijo, de unos 15° con la vertical: no se ajusta al grosor del tejido ni se inclina a mano.
+
+### D-254 · 2026-11-03 · vigente · tercera etapa de P-008 · completa D-168 y D-198
+**Placas rectas a medida: se piden los agujeros y, si se quiere, el largo, y salen todas las de esa cantidad, de once sistemas con distinto tornillo. Cada una se genera en el acto con esas medidas exactas.**
+
+*De dónde sale.* Pedido del dueño (P-008): «poder elegir la cantidad de agujeros; por ejemplo, colocar una opción 5 cm y 3 agujeros y aparezca eso, no otro», y «crear varios modelos de placas para que si coloca 5 agujeros salgan todas las de esa cantidad pero diferentes medidas de agujeros».
+
+*Lo que había.* Cada placa del catálogo era un modelo de Blender con un número fijo de agujeros (seis u ocho). El residente que quería una de cinco no la tenía, y el editor que escribía «5 orificios» en el instrumento (D-198) recibía la de ocho con un aviso.
+
+*Cómo funciona.*
+- **`src/lib/placasRectas.ts`** (pura, sin three) define once sistemas, del tornillo de 2,4 al de 4,5.
+  - Los seis que ya estaban en el catálogo (D-168) llevan las medidas de su modelo de Blender, para que la placa a medida y la de siempre no se contradigan.
+  - Los cinco nuevos salen de fichas de fabricantes y distribuidores, con valores aproximados: LCP 2,4, LC-DCP 2,7, DCP 3,5, y LC-DCP 4,5 estrecha y ancha.
+  - Cada sistema dice su tornillo, la distancia entre agujeros, el ancho, el grosor y la forma del agujero: óvalo DCP, combinado LCP o redondo.
+  - También lo que lo distingue: agujeros escalonados en las anchas, muescas en la de reconstrucción y sección curva en la de tercio de caña.
+- **De 2 a 16 agujeros.**
+  - Sin largo, sale el de catálogo: agujeros × distancia, más los extremos.
+  - **Con largo, sale ese largo exacto.** Los agujeros se reparten estirando o encogiendo su distancia, entre el 85 % y el 150 %. Por debajo, los óvalos casi se tocan; más allá, es otra placa y corresponde pedir un agujero más.
+  - El largo se escribe como se dice: «50», «50 mm», «5 cm», «5,5 cm».
+- **La lista** (`ElegirPlacaRecta`) ofrece todas las de esa cantidad. Está arriba de la familia «Placas» y en el panel de la herramienta, en «Otra cantidad de agujeros u otro largo».
+  - Con largo, salen primero las que lo dan, de la que menos se estira a la que más.
+  - Al final, apagadas, van las que no lo dan, con su rango («con 3 agujeros sale de 26,4 a 42 mm»), para que se vea por qué.
+- **El modelo se genera en el navegador** (`placaRectaProcedural.ts`) desde una dirección `procedural:placa-recta/<sistema>/<agujeros>/<largo>`.
+  - Esa dirección es también lo que se guarda con la sesión, y lo que se vuelve a generar al volver.
+  - La placa se comporta como la de catálogo de su sistema: la misma forma de agujero para la broca, el medidor y la compresión (`fijacion.ts` la reconoce por su sistema).
+  - El visor del recuadro la enseña como a las demás.
+- **El editor que escribe otros orificios** en una placa recta de catálogo recibe esa placa, generada con esos agujeros y sin aviso (`modeloConLosAgujerosEscritos`): «que aparezca eso y no otro».
+
+*Fuentes de los sistemas nuevos.*
+- [AO Mini LC-DCP and LCP](https://int.aofoundation.org/approved/approvedsolutionsfolder/2009/mini-lc--dcp-and-lcp)
+- [Movora 2.4 mm](https://eustore.movora.com/2-4mm-Compression-Plate-Low-Contact-5-Hole-8085)
+- [Movora 2.7 mm](https://eustore.movora.com/2-7mm-Compression-Plate-Low-Contact-4-Hole-8131)
+- [Wheeless DCP 3.5](https://www.wheelessonline.com/bones/humerus/dynamic-compression-plates-dcp-3-5-mm/)
+- [Wheeless LC-DCP 4.5](https://www.wheelessonline.com/orthopaedics/lc-dcp-4-5-mm-in-pure-titanium/)
+
+*Qué se probó.* `tests/unit/placasRectas.test.ts` cubre:
+- el largo de catálogo, igual al del modelo de Blender en los seis que lo tienen;
+- el largo exacto pedido y los topes del 85 y del 150 %;
+- el orden de la lista;
+- la dirección, de ida y vuelta;
+- el largo escrito;
+- los orificios del editor.
+
+En el navegador, sobre la tibia partida:
+- 3 agujeros y «5 cm» dan siete placas de 50 mm exactos, y cuatro apagadas con su rango;
+- la DCP 4,5 estrecha de 3 agujeros y 50 mm se apoya en el hueso a 0,2 mm, con sus tres agujeros (`medida-01` a `medida-03`);
+- desde el panel, sale otra de 6 agujeros (`medida-04`).
+
+*Consecuencias.*
+- (+) La placa que se pide es la que sale, con el largo al milímetro y de todos los sistemas a la vez.
+- (+) Un sistema nuevo es una línea en la tabla, no un modelo de Blender por cada largo.
+- (−) Las medidas de los cinco sistemas nuevos son aproximadas y cambian de una marca a otra. Sirven para que haya agujeros de varias medidas, no para planificar una cirugía (Q-011).
+- (−) Solo placas rectas. Las anatómicas, en T, en L o de gancho siguen siendo modelos de catálogo con sus agujeros fijos.
+- (−) Nada impide un tornillo de otro diámetro en el agujero: una placa de 2,4 acepta sin aviso el tornillo de 4,5 de la bandeja.
+
+### D-255 · 2026-11-03 · vigente · cuarta etapa de P-008 · supera en parte a D-198 (el giro de ±90° y la placa que solo se corría con cifras)
+**La placa apoyada se arrastra a cualquier sitio del hueso, también a la otra cara. Se gira con la rueda mientras se arrastra, da la vuelta entera y se voltea con un botón.**
+
+*De dónde sale.* Pedido del dueño (P-008): «las placas quiero que se puedan ajustar como se quiere en cualquier posición, y sean manipulables».
+
+*Lo que había.* D-198 y D-199 movían la placa con cifras, botones y flechas, dentro de un rango medido desde donde se apoyó, y con el giro en ±90°. A la otra cara del hueso no se llegaba, y una placa asimétrica no se podía dar vuelta. Además, un clic sobre la placa la volvía a apoyar en el sitio del clic, sin querer.
+
+*Cómo funciona.*
+- **En modo Fijar, con la placa apoyada y sin fijar, se pulsa sobre ella y se arrastra**: la placa va por el hueso a donde apunte el cursor.
+  - `reanclarPlaca` la vuelve a apoyar en ese punto, con la normal de ahí, como si se hubiera apoyado allí la primera vez, y conserva el giro.
+  - Se agarra donde se pincha, también en un agujero, y no salta a centrarse en el cursor.
+  - Fuera de la placa, el arrastre sigue moviendo la cámara.
+- **Mientras se arrastra, la rueda la gira** sobre su normal, de a 1° con Mayúsculas.
+- **El giro va de −180° a 180°** (`giroEnvuelto`), con botones de 15° y «Voltear» (180°): una placa que no es simétrica se da vuelta sin escribir 180.
+- **Donde no se puede tender** —con la normal casi a lo largo del hueso, en un extremo— la placa se queda donde estaba. Antes quedaba con un eje de ceros, en NaN y fuera de la escena.
+- **La placa de la mano se esconde al apoyar**, y no al mover el ratón: antes quedaba cruzada sobre la apoyada hasta el siguiente movimiento.
+
+*Qué se probó.*
+- `tests/unit/implantesEnLaEscena.test.ts`: arrastrada a la otra cara del hueso, la placa se vuelve a apoyar ahí y conserva su giro.
+- `ejesAnatomicos.test.ts`: el giro envuelto y el rango de ±180°.
+- En el navegador (`arrastre-01` a `arrastre-03`), con la LC-DCP 3,5 de catálogo apoyada en la tibia partida:
+  - arrastrada hacia distal y girada con la rueda, la lectura dice «Placa en su nuevo sitio, girada 20°: queda a 2,6 mm del hueso»;
+  - «Voltear» la deja en −160°.
+
+*Consecuencias.*
+- (+) La placa va donde el cirujano la quiere, con la mano, y las cifras siguen sirviendo para el ajuste fino.
+- (−) Tras arrastrarla puede quedar unos milímetros separada del hueso (2,6 mm en la prueba). Se apoya con la normal media de lo que tiene debajo, y en una diáfisis curva no asienta entera; la lectura lo dice.
+- (−) Mientras se arrastra, la rueda gira la placa y no acerca la cámara.
+
+### D-256 · 2026-11-03 · vigente · quinta etapa de P-008 · completa D-199 y matiza D-058
+**El editor reduce automáticamente un hueso partido en varios trozos encajando sus caras de corte, y la posición reducida se guarda con cada pieza. La reducción automática del residente la usa.**
+
+*De dónde sale.* Pedido del dueño (P-008): «que la reducción automática funcione; que en la parte de creación de la simulación el editor pueda reducirla de forma automática, dejarla en la posición en la que debería».
+
+*Lo que fallaba.* La reducción automática de D-199 llevaba **el fragmento** al cero de D-058, que es el modelo exportado reducido, y devolvía los otros trozos «a su sitio», que es donde están en el archivo.
+- En un hueso partido en varios y exportado ya desplazado, como la tibia 42-A3 de D-241, el sitio del archivo **es** la fractura: «Automática» no hacía nada visible.
+- El editor no tenía cómo decir dónde va cada trozo reducido.
+
+*Cómo funciona.*
+- **`src/lib/reduccionAutomatica.ts`**: un hueso partido con cortes planos —el «Recortar» del atlas (D-141) o un corte de Blender— lleva en cada trozo una tapa por corte, y las dos tapas de un corte comparten los mismos vértices.
+  - Encajar dos trozos es buscar el movimiento rígido que vuelve a poner esos vértices uno encima de otro.
+  - Reducir el hueso entero es encadenar los encajes desde un trozo que se queda quieto: el más grande de cada hueso, o el que se pida.
+  - Se eligió así y no contra el hueso sano del atlas, porque un modelo de Blender no lo trae; ni por la forma de las tapas, porque deja medio milímetro de escalón en cada corte.
+- **En el editor del simulador**, la sección «Hueso reducido» tiene dos botones:
+  - «Reducir automáticamente» lleva los trozos a su sitio en 600 ms y dice lo que hizo: «4 trozos encajados por sus caras de corte (138 vértices coinciden; error menor de 0,01 mm)», y cuánto se movió cada uno;
+  - «Como en el modelo» los devuelve.
+- **La posición se guarda con cada pieza**, en `piezas.posicionReducida`.
+  - Es un cuaternión y una traslación en unidades del modelo.
+  - La migración `20261103_222204_posicion_reducida_de_las_piezas` solo añade columnas.
+  - Va con la pieza para que viaje con su trozo al reordenar o quitar filas.
+- **El formulario no la pinta.** El esquema del editor gana `oculto`, que guarda sin pintar: siete casillas por pieza que nadie sabría rellenar solo invitaban a estropearla, y sin el campo en el esquema `depurar` la tiraría al guardar.
+- **El residente empieza con la fractura del archivo** cuando el caso trae posiciones reducidas y no tiene desplazamiento escrito. Colocar el fragmento «en el cero» lo habría dejado ya reducido.
+- **Si guardar cambia el sitio de reposo del fragmento**, el desplazamiento escrito se pone a cero, porque se había medido contra el sitio viejo.
+- **«Automática»** lleva a la vez el fragmento y los demás trozos a su posición reducida, y sigue sin puntuar (D-199).
+- **El taller** mide el desplazamiento del fragmento contra su posición reducida, no contra el hueso roto.
+
+*Matiz a D-058.* El convenio sigue siendo «el cero es el hueso reducido», pero ya no exige exportar el modelo reducido: un modelo exportado con la fractura, con su posición reducida guardada, mide contra ella.
+
+*Qué se probó.*
+- `tests/unit/reduccionAutomatica.test.ts`, 8 pruebas:
+  - cada trozo vuelve a su sitio exacto, encadenando desde el quieto;
+  - con el ancla desplazada, los demás se reducen sobre ella;
+  - el ancla que se pida, aunque no sea la más grande;
+  - un modelo ya reducido no se mueve (D-058);
+  - un objeto sin caras de corte no cuenta;
+  - dos trozos de cortes distintos no encajan;
+  - el movimiento rígido entre dos nubes de puntos, también planas y sin reflejarlas;
+  - la lectura de lo guardado.
+- `reduccionEnLaEscena.test.ts`, 5 pruebas: la pose del archivo, la pose reducida y el trayecto, que gira alrededor del centro del trozo.
+- La migración y el esquema, en `migraciones.test.ts` y en las pruebas que atan los dos esquemas.
+- En el navegador, sobre el caso 271 en la base desechable (`editor-01` a `editor-05`, `residente-01` a `residente-03`):
+  - «Reducir automáticamente» encaja los 4 trozos, «Como en el modelo» los devuelve y otra vez los reduce al mismo sitio;
+  - guardado y publicado, el residente abre con la fractura;
+  - «Automática» deja la tibia entera: «los trozos quedaron en su sitio. El paso de reducir se da por hecho y no suma puntos»;
+  - «Reiniciar» la vuelve a partir.
+
+*Consecuencias.*
+- (+) La reducción automática hace lo que dice en cualquier modelo partido con cortes planos, y el editor deja el caso reducido sin escribir un número.
+- (+) Un mismo modelo partido sirve para enseñar la fractura y la reducción sin exportar dos versiones.
+- (−) Una fractura esculpida a mano, sin tapas planas, o un trozo cuyos vértices de corte se perdieron al simplificar la malla, no se encaja. Para eso queda colocar el trozo a mano.
+- (−) Dos tapas paralelas y casi iguales de cortes distintos podrían encajar mal en una pieza de CAD muy regular. En la tibia del atlas no pasó, y el aviso dice cuántos vértices coinciden.
+- (−) Lo que el editor guarda como borrador no lo ve el residente hasta publicar: la consola del residente lee la versión publicada.
+
+### D-257 · 2026-11-04 · vigente · sexta etapa de P-008
+**El instrumental va en una mesa a la izquierda, para el residente y para el editor: un cuadro con dibujo por familia, todos a la vista, que despliega su lista debajo. Arriba van lo que hay en la mano, el siguiente de la secuencia y los últimos usados.**
+
+*De dónde sale.* Pedido del dueño (P-008): «mejorar la vista del lado izquierdo de la pantalla del simulador; que la experiencia sea mejor desde el punto de vista del traumatólogo; que sea fácil cambiar de herramientas, quizás con iconos para que pueda ver todas de una y al pincharlo aparezca una lista desplegable para que pueda elegir la correcta».
+
+*Lo que había.* Para el residente, la bandeja era una pila de acordeones en la columna derecha, debajo del paso.
+- Con la mesa completa (D-195) son 83 instrumentos en doce familias: doce cabeceras de ancho completo, de las que solo se leía el nombre.
+- La familia abierta empujaba «Aplicar paso» fuera de la vista.
+- Lo que había en la mano solo se sabía por un borde naranja en una fila, que con la familia cerrada no se veía.
+- La columna izquierda tenía el paciente y las capas, y medio alto vacío.
+
+*Cómo funciona.*
+- **`BarraDeInstrumental`** (`src/components/simulador/`), con su cuenta pura en **`src/lib/barraDeInstrumental.ts`**: un cuadro por familia, tres por fila, con su dibujo, un rótulo de una palabra y cuántos instrumentos tiene.
+  - Al pincharlo, la lista se despliega **debajo de su fila** (`finDeLaFila`) y no al final de la mesa.
+  - Al coger un instrumento, la lista se pliega y el buscador se vacía (`cogerDeLaMesa`).
+  - Esc la cierra y devuelve el foco a su cuadro.
+- **Arriba, «En la mano»**: el instrumento con su dibujo, grande, y «Soltar» a un clic. Debajo van:
+  - **«Siguiente»** en la secuencia brocar · medir · atornillar (D-201);
+  - **«Recientes»**: los últimos cuatro cogidos, para ir y volver entre la broca y el medidor, o entre el bisturí y el separador, sin abrir su familia (`anotarReciente`).
+- **El buscador**, siempre a la vista, busca por palabras y sin tildes, como antes.
+  - Con algo escrito salen las listas de todas las familias con coincidencias, una tras otra.
+  - Los cuadros sin coincidencias se apagan sin moverse.
+  - Con una sola coincidencia, Intro la coge.
+- **Las filas de la lista son las de siempre**, y las pinta la consola: la marca de «siguiente», los tornillos por tipo (D-201), la placa a medida arriba de «Placas» (D-254) y las marcas del editor. En el editor, al pie, van «Qué ve el residente» y «Añadir a la bandeja» (D-195).
+- **Tres dibujos nuevos** en `IconoInstrumento`, para las familias que no tenían el suyo: elevador, broca y placa curva. Con el genérico, tres de los doce cuadros eran la misma raya.
+- **La columna izquierda se ensancha** a 248 px, y a 264 para el residente, cuya columna derecha baja de 340 a 316. El paciente y las capas quedan debajo de la mesa. En el teléfono, la mesa ocupa el ancho y los cuadros miden 64 px de alto.
+- **`instrumentoElegido` va sin `useMemo`.** El compilador de React no podía preservar esa memoria (`preserve-manual-memoization`) y el lint fallaba; es una búsqueda por identificador en una lista corta.
+
+*Qué se probó.*
+- `tests/unit/barraDeInstrumental.test.ts`, 16 pruebas: un dibujo distinto y existente para cada familia, el rótulo dentro del nombre, `finDeLaFila`, los recientes y el cableado de la consola.
+- Las pruebas de la bandeja, los tornillos y la pose que tocan la consola: 94 en total, con las nuevas.
+- En el navegador, a 1600 × 1000, con el residente en el caso 2833:
+  - se abre Separadores y se coge el Farabeuf; al coger el Hohmann, la lista se pliega y el Farabeuf sale en «Recientes»;
+  - «mayo» da su lista de resultados, y «metzen» con Intro coge el instrumento.
+- Con el editor: «Placas» abierta y el pie de la mesa.
+- A 390 × 844, la mesa mide 372 px y nada desborda.
+
+Capturas `panel-01` a `panel-05`, `editor-01` a `editor-03` y `movil-mesa`.
+
+*Consecuencias.*
+- (+) Toda la mesa está a la vista, se cambia de instrumento en uno o dos clics, y lo que hay en la mano se ve siempre.
+- (+) La columna derecha queda para el paso: «Aplicar paso» ya no se va de la vista.
+- (−) Con una familia abierta, el paciente y las capas bajan; en una pantalla de 1000 px de alto quedan bajo el pliegue hasta coger el instrumento.
+- (−) Las familias son las categorías del catálogo. «Perforación» junta brocas, guías, medidores y destornilladores (32), y es la lista más larga.
+- (−) Los recientes duran lo que la página: no se guardan con el recorrido.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -8982,6 +9328,19 @@ Todo entre las 14:27:38 y las 14:27:56 de ese día. Ninguna de esas pruebas toc�
 *Por qué importa.* Un `.catch(() => {})` en la limpieza tiene sentido para que un fallo no tape al otro. Pero con un esquema atrasado no borra nada y no avisa, y la base de alguien se va llenando de filas de prueba.
 *Propuesta, sin aplicar.* Que las pruebas de integración se nieguen a correr contra una base con migraciones pendientes, o que la limpieza avise en consola de lo que no pudo borrar.
 
+### O-081 · 2026-11-03 · media · resuelta (D-253)
+**En un músculo, el Farabeuf queda lejos del labio abierto: la sonda lo mide a 18–19 mm, cuando en la piel queda a menos de 1.**
+*Dónde se ve.* En la tibia partida (caso 2833, base desechable): el tibial anterior cortado a lo largo con el bisturí profundo (64 mm), el Farabeuf en pareja sobre la incisión (D-246) y abierto 12 mm. `__sondaDelLienzo.separadores()` da `alLabioMm` 19 y 17,7; con la cuenta de antes de D-241 serían 21,8 y 23,1. En la captura las hojas están en la herida y la herida abre, pero no se ve que se apoyen en el borde.
+*Lo que se sabe.* Poco. Es lo mismo que D-241 anotó en la fascia —de 1,6 a 6,4 mm entre la hoja y el labio en una malla de triángulos largos—, y aquí peor, porque los vértices del labio del músculo quedan a centímetros (la causa de D-246): el borde abierto es una línea entre pocos vértices.
+*Propuesta, sin aplicar.* Que el corte parta los triángulos largos a lo largo del trazo, para que el labio tenga vértices cada pocos milímetros; o que la hoja se apoye en el borde que se ve (el que mide `alLabio`) y no en la curva del trazo.
+*Resuelta el 2026-11-03 (D-253).* El labio tiene ahora un vértice cada 2 mm y la hoja sigue a su punto del labio: en el mismo recorrido, la sonda mide la punta a 1 mm del borde.
+
+### O-082 · 2026-11-04 · baja · abierta
+**`next dev` puede seguir pintando en el servidor la versión vieja de un componente cliente después de editarlo, y la hidratación falla en cada carga.**
+*Dónde se ve.* Al terminar D-257, el simulador daba «Hydration failed because the server rendered text didn't match the client» en cada carga. El HTML del servidor traía la bandeja de acordeones (`consola-bandeja-grupo`, que ya no estaba en el código), y el cliente, la mesa nueva. `ConsolaQuirurgica.tsx` se había editado muchas veces con guiones de Python durante la misma sesión del servidor (Next 16.3.8, Turbopack). Al reiniciar `next dev`, el servidor pintó la mesa y el error no volvió.
+*Por qué importa.* El aviso parece un error de código —sugiere «a server/client branch» o «Date.now()»— y lleva a buscar en el componente lo que no está ahí. Además, React regenera el árbol en el cliente y la página funciona, así que pasa por buena.
+*Qué hacer.* Ante un desajuste de hidratación tras muchas ediciones con el servidor de desarrollo encendido, mirar primero si el HTML que llega nombra las clases de ahora, y reiniciar `next dev` antes de buscar la causa en el código.
+
 ---
 
 
@@ -9070,6 +9429,12 @@ casos, los estudios son datos de salud y piden una revisión legal y de ética
 antes del primero (Q-005, Q-007).
 
 Mi lectura: docente primero, y decidirlo por escrito antes de empezar el P-002.
+
+### Q-011 · ¿Valen para Cristóbal las placas a medida, la postura del Farabeuf y las familias de la mesa?
+- **Las placas** de los sistemas nuevos (LCP 2,4, LC-DCP 2,7, DCP 3,5, y LC-DCP 4,5 estrecha y ancha) salen de fichas de fabricantes y distribuidores (D-254); la distancia entre agujeros, el ancho y el grosor son aproximados. ¿Son las que se usan en su servicio, o faltan otras?
+- **El largo pedido** se da estirando o encogiendo la distancia entre agujeros, entre el 85 y el 150 %. ¿Le parece razonable, o prefiere que solo salgan los largos de catálogo?
+- **El Farabeuf** queda con la pala a unos 15° de la vertical y el mango a unos 15° sobre la piel (D-253), según el dibujo del dueño. ¿Es así en la mano de un ayudante?
+- **Las familias de la mesa** (D-257) son las categorías del catálogo. ¿Las agruparía de otra forma una arsenalera, por ejemplo separando las brocas de los destornilladores?
 
 ---
 
@@ -11573,22 +11938,60 @@ tanto no hay código; queda anotado aquí para que no se pierda.
 5. **Al final, y no antes:** `git push origin HEAD:main` (avance rápido) y `npm run desplegar` en `ved`; las migraciones se aplican al
    desplegar y el despliegue respalda antes.
 
+#### Repaso del 2026-11-03 contra el documento
+
+El dueño volvió a traer el documento («observaciones simulador quirurgico (3).pdf», otra copia del mismo) y pidió saber cómo está cada
+pedido, qué falta y que se mejorara lo que se pudiera, comprobando el antes y el después. Se recorrió el simulador local con Edge sin
+ventana, sobre una base desechable, antes y después de los cambios. Las capturas están en la página del antes y el después que se le
+pasó al dueño, no en el repositorio.
+
+| Pedido | Cómo está | Visto en |
+|---|---|---|
+| 1 · Modelos 3D en dos carpetas | en ved (D-193) | no se volvió a recorrer |
+| 2 · Una sola placa, ejes anatómicos | en ved (D-198) | `placa-01` a `placa-05`: al mover el ratón no sale otra placa |
+| 3 · La broca se queda | en ved (D-200); el arco se centra en ella, ahora (D-248) | `broca-03`, `broca-04`, `broca-04b` |
+| 4 · Pantalla en blanco | en ved (D-194) | `blanco-01`, `blanco-02`: perdido el contexto, vuelve solo |
+| 5 · Largo y orificios con números | en ved (D-198, D-201) | el panel de `placa-03` |
+| 6 · Reducción manual o automática | en ved (D-199) | `reduccion-04` |
+| 7 · Toda la mesa en la bandeja | en ved (D-195) | `consola-01` |
+| 8 · Músculo cortado y Farabeuf en la incisión | la marca, en ved (D-197); el Farabeuf, arreglado ahora (D-246) | `musculos-03b`, `musculos-04`; queda O-081 |
+| 9 · Barra de modos y «Seleccionar estructura» | en ved (D-196) | `consola-01` |
+| 10 · Separar de corrido | en ved (D-197) | `musculos-01`, `musculos-02` |
+| 11 · Compresión | en ved (D-202); las reglas, por validar con Cristóbal | `broca-02` |
+| 12 · Secuencia y tipos de tornillo | en ved (D-201) | `broca-05`, `tornillo-01` |
+| 13 · El instrumental se queda | la broca y el medidor, en ved (D-200); el tornillo, ahora (D-247) | `medidor-02`, `tornillo-03`, `tornillo-04` |
+| 14 · Zoom al lugar de trabajo y punto de brocado | en ved (D-202); la marca en la placa, ahora (D-249) | `broca-02`, `broca-02b` |
+| 15 · Menú de movimiento | en ved (D-199); las asas solo con «Asas libres», ahora (D-250) | `reduccion-02` a `reduccion-04` |
+| 16 · Apariencia de pabellón | aplazada (E12) | — |
+| 17 · Radiografía postoperatoria | en ved (D-203); la posición, ahora (D-251) | `cierre-01` a `cierre-03`, `cierre-02b` |
+| 18 · Registro para el docente | fuera de este plan | — |
+
+**Lo que falta para darlo por terminado:**
+- Desplegar D-246 a D-251 y que Cristóbal los pruebe en ved.
+- Que Cristóbal valide las reglas de la compresión (E10).
+- E12, cuando lleguen los modelos del Dani.
+- El registro del docente (nota 18), que es otro plan.
+- El tornillo de trayectoria libre y el de bloqueo del clavo, que siguen quedando puestos de un clic (D-247).
+- O-081: la hoja del separador, lejos del labio abierto en el músculo.
+
 #### Estado
 
 | Etapa | Estado | Sesiones | Depende de | Decisiones |
 |---|---|---|---|---|
-| E1 · Modelos 3D en dos carpetas | hecha en local; sin desplegar | 1 | — | D-193 |
-| E2 · La pantalla en blanco | hecha en local; sin desplegar | 1 | — | D-194 |
-| E3 · Toda la mesa en la bandeja | hecha en local; sin desplegar | 1 | — | D-195 |
-| E4 · Barra de modos y «Seleccionar estructura» | hecha en local; sin desplegar | 1 | — | D-196 |
-| E5 · Abordaje por planos de corrido | hecha en local; sin desplegar | 2 | E4 | D-197 |
-| E6 · La placa: una sola, ejes anatómicos, números | hecha en local; sin desplegar | 2 | E2, E4 | D-198 |
-| E7 · Menú de movimiento y reducción automática | hecha en local; sin desplegar | 2 | E6 | D-199 |
-| E8 · El instrumento se queda en el orificio | hecha en local; sin desplegar | 2 | E2, E6, E7 | D-200 |
-| E9 · Tornillos: secuencia, tipos, medidas, trayectoria | hecha en local; sin desplegar | 2–3 | E8 | D-201 |
-| E10 · Compresión | hecha en local; sin desplegar | 2 | E7, E9 | D-202 |
-| E11 · Radiografía postoperatoria y lámina | hecha en local; sin desplegar | 2–3 | E3 | D-203 |
+| E1 · Modelos 3D en dos carpetas | en ved | 1 | — | D-193 |
+| E2 · La pantalla en blanco | en ved | 1 | — | D-194 |
+| E3 · Toda la mesa en la bandeja | en ved | 1 | — | D-195 |
+| E4 · Barra de modos y «Seleccionar estructura» | en ved | 1 | — | D-196 |
+| E5 · Abordaje por planos de corrido | en ved; la distancia al labio, corregida en local | 2 | E4 | D-197, D-246 |
+| E6 · La placa: una sola, ejes anatómicos, números | en ved | 2 | E2, E4 | D-198 |
+| E7 · Menú de movimiento y reducción automática | en ved; las asas, en local | 2 | E6 | D-199, D-250 |
+| E8 · El instrumento se queda en el orificio | en ved; el tornillo que entra y el arco que se centra, en local | 2 | E2, E6, E7 | D-200, D-247, D-248 |
+| E9 · Tornillos: secuencia, tipos, medidas, trayectoria | en ved | 2–3 | E8 | D-201 |
+| E10 · Compresión | en ved; la marca en la placa, en local; reglas por validar | 2 | E7, E9 | D-202, D-249 |
+| E11 · Radiografía postoperatoria y lámina | en ved; la posición, en local | 2–3 | E3 | D-203, D-251 |
 | E12 · Apariencia de pabellón | aplazada | — | modelos del Dani | — |
+
+«En ved» quiere decir que el despliegue de `3c135bf` (D-242) ya la trae.
 
 ---
 
@@ -12341,6 +12744,68 @@ Pedido del dueño, 2026-11-02, tras dejar el archivo de Penpot «casi listo para
 | E4 · Residente | hecha (2026-11-03) | D-237 |
 | E5 · Panel | hecha (2026-11-03) | D-238 |
 | E6 · Lo que la base no guarda | propuesta aparte | — |
+
+### P-008 · 2026-11-03 · hecha en local, sin desplegar (E1 a E6); las propuestas de E7 quedan sin decidir
+**Separadores al milímetro, placas a medida que se arrastran, la reducción automática del editor y del residente, la mesa de instrumental a la izquierda y la línea negra de los cortes.**
+
+#### De dónde sale
+
+Pedido del dueño, 2026-11-03:
+
+1. «Que las herramientas como separadores interactúen milimétricamente para que sea real: que se meta y se desplace desde el borde en ese punto de la herramienta hacia afuera, todos los separadores.» A media tarea añadió, con un dibujo en rojo sobre una captura: «con la paleta hacia abajo y metida en el músculo, como si la estuviera corriendo… siempre despejando el campo visual y traccionando desde el centro hacia afuera».
+2. «Las placas quiero que se puedan ajustar como se quiere en cualquier posición, y sean manipulables, y pueda elegir la cantidad de agujeros: por ejemplo, colocar una opción 5 cm y 3 agujeros y aparezca eso, no otro.» Y «varios modelos de placas para que si coloca 5 agujeros salgan todas las de esa cantidad pero diferentes medidas de agujeros».
+3. «Que la reducción automática funcione (que en la parte de creación de la simulación el editor pueda reducirla de forma automática, dejarla en la posición en la que debería).»
+4. «Mejorar la vista del lado izquierdo de la pantalla del simulador… desde el punto de vista del traumatólogo; que sea fácil cambiar de herramientas, quizás con iconos para que pueda ver todas de una y al pincharlo aparezca una lista desplegable.»
+5. «Hay una línea negra que se queda en el simulador de los cortes, creo; quiero eliminarla.»
+6. «Que me propongas mejoras para el simulador que serían de alto impacto para que se parezca a lo que hacen hoy en día los traumatólogos.»
+
+#### Etapas
+
+- [x] **E1 · La línea negra de los cortes** (pedido 5). D-252.
+- [x] **E2 · Separadores al milímetro** (pedido 1), todos: los de mano, los autoestáticos y la palanca. D-253, que resuelve O-081.
+- [x] **E3 · Placas rectas a medida** (pedido 2): agujeros y largo, todas las de esa cantidad. D-254.
+- [x] **E4 · La placa, a cualquier sitio** (pedido 2): arrastre, rueda, vuelta entera y «Voltear». D-255.
+- [x] **E5 · La reducción automática del editor y del residente** (pedido 3). D-256.
+- [x] **E6 · La mesa de instrumental a la izquierda** (pedido 4). D-257.
+- [ ] **E7 · Propuestas de alto impacto** (pedido 6): se entregaron al dueño el 2026-11-04 y ninguna está decidida. Abajo, en una línea cada una.
+
+#### Cómo se comprobó
+
+Las capturas de antes y después se hicieron en el navegador, contra un PostgreSQL desechable (puerto 55432; la base de desarrollo del dueño no se toca):
+- la tibia partida (caso 2833) para el corte, los separadores, las placas y la mesa;
+- el caso 271 para la reducción, en el editor y como residente;
+- la mesa también a 390 × 844.
+
+Las cinco comprobaciones de `AGENTS.md`, contra la misma base, el 2026-11-04:
+- `typecheck`, limpio. `lint`, sin errores: quedan los 15 avisos de `<img>` que ya había. El único error que dio, `performance.now()` en la animación del editor (D-256), se arregló tomando la hora del primer cuadro, y el recorrido del editor se repitió en el navegador con el mismo resultado.
+- `test:coverage`: pasan 5479. Fallan las tres de respaldos en Windows que ya fallaban: `directorioDeRespaldos`, 2, y `respaldoEnWindows`, 1. La cobertura queda en 87 % de sentencias y 78,5 % de ramas, sobre el suelo de 58. En la pasada completa, `autoria` y `crearComentarioDelTaller` se pasaron de los 5 s por la carga; solas, o con `--testTimeout=20000`, pasan.
+- `test:integration`: 254 de 254.
+- `build`: bien.
+
+#### Propuestas de E7, sin decidir
+
+Ordenadas por lo que acercan el simulador a lo que se juzga hoy en pabellón, y por lo que ya hay hecho para empezar.
+
+1. **Juzgar el montaje con los principios AO**, no solo contarlo. Se miraría la estabilidad absoluta o relativa según el patrón, el largo de trabajo, el largo de la placa frente al de la fractura (*plate span ratio*) y los tornillos por agujero (*screw density*) ([Gautier y Sommer, 2003](https://pubmed.ncbi.nlm.nih.gov/14580987/)). Con los trozos y sus caras de corte (D-256), el largo de la fractura ya se puede medir.
+2. **La rotación, leída en la fluoroscopia**: el escalón cortical y la diferencia de diámetros a cada lado del foco, y el error en grados al terminar ([Keppler y otros, 2021](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8236139/)). Es lo que no se ve sin buscarlo.
+3. **La broca que se siente**: la primera y la segunda cortical, cuántos milímetros pasa del hueso y qué hay detrás. La sobrepenetración baja con la experiencia y con práctica corta en modelo ([PMC9977482](https://pmc.ncbi.nlm.nih.gov/articles/PMC9977482), [PMC8549079](https://pmc.ncbi.nlm.nih.gov/articles/PMC8549079)).
+4. **El arco en C como en pabellón**: colocarlo, contar disparos, segundos y dosis por paso, y los círculos perfectos del bloqueo distal. Su enseñanza suele ser teórica ([RadioGraphics, 2011](https://pubs.rsna.org/doi/full/10.1148/rg.313105125)), y la práctica guiada baja la radiación ([Penn State](https://pure.psu.edu/en/publications/decreased-radiation-exposure-among-orthopedic-residents-is-mainta/)).
+5. **MIPO con las estructuras en riesgo**: la placa por debajo del músculo desde incisiones cortas y los tornillos por incisiones punzantes. Habría aviso cuando el peroneo superficial, el safeno o el paquete tibial anterior quedan cerca ([AO Surgery Reference](https://surgeryreference.aofoundation.org/orthopedic-trauma/adult-trauma/tibial-shaft/approach/minimally-invasive-lateral-approach), [estudio en cadáver, 2010](https://www.pubmed.gov/20657259/)).
+6. **El clavo completo, paso a paso**: punto de entrada, guía, fresado progresivo, bloqueo y tornillos de Poller. Hay ensayos aleatorizados de realidad virtual justo de este procedimiento ([Blumstein y otros, 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7351249)).
+7. **Planificación preoperatoria**: plantillas calibradas sobre la radiografía del caso y, al terminar, lo planificado frente a lo hecho. Sin marcador de calibración, las medidas salen inexactas ([Orthopaedic Proceedings, 2024](https://boneandjoint.org.uk/Article/10.1302/1358-992X.2024.17.009)).
+8. **La línea de tiempo para el debriefing**: cada disparo, cada orificio y cada error, para que el docente comente la cirugía con el residente (nota 18 de P-004).
+9. **Reducción indirecta**: tracción, distractor, Schanz como joystick y pinza colineal, antes de abrir el foco.
+10. **Casos desde la TC del paciente**, con sus fragmentos. Antes de empezar, Q-009.
+
+| Etapa | Estado | Decisiones |
+|---|---|---|
+| E1 · Línea negra | hecha (2026-11-03) | D-252 |
+| E2 · Separadores | hecha (2026-11-03) | D-253 |
+| E3 · Placas a medida | hecha (2026-11-03) | D-254 |
+| E4 · Placa a cualquier sitio | hecha (2026-11-03) | D-255 |
+| E5 · Reducción automática | hecha (2026-11-03) | D-256 |
+| E6 · Mesa de instrumental | hecha (2026-11-04) | D-257 |
+| E7 · Propuestas | entregadas, sin decidir | — |
 
 ---
 

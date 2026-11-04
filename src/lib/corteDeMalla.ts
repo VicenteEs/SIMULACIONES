@@ -66,6 +66,12 @@ export interface OpcionesDeCorte {
    * cada trazo. Tiene que ser mayor que la arista más larga de la zona.
    */
   holgura: number
+  /**
+   * Cada cuánto, como mucho, hay un vértice en los labios, en las unidades de la malla (P-008 E2). Sin él, los labios
+   * tienen solo los vértices donde el trazo cruza una arista: en una malla de triángulos largos quedan a uno o dos
+   * centímetros, el labio es una recta entre ellos y una hoja de 10 mm apoyada en medio no tiene tejido que mover.
+   */
+  pasoDelLabio?: number
 }
 
 export interface MallaCortada extends MallaPlana {
@@ -73,6 +79,12 @@ export interface MallaCortada extends MallaPlana {
   origen: Uint32Array
   /** 0 en reposo, 1 en el borde de la herida, siempre entre los dos. */
   peso: Float32Array
+  /**
+   * El mismo peso sin el estrechamiento hacia las puntas: solo lo cerca que está el vértice de la incisión. Es el que
+   * usa la apertura con perfil, que ya se cierra en las puntas por su cuenta (P-008 E2). Multiplicar las dos cosas
+   * dejaba un Farabeuf puesto a un cuarto del largo, y abierto 12 mm, abriendo 6 en su sitio.
+   */
+  pesoLateral: Float32Array
   /** Unitario, el sentido (positivo) en que se separa el labio «más». */
   direccion: Float32Array
   /** +1 labio «más», −1 labio «menos», 0 lo que no pertenece a la herida. */
@@ -391,6 +403,15 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
       p.mas = p.menos = nuevoVertice(p.posicion, p.a, 0, p.t)
     }
   }
+  /** Los puntos de la grieta entre dos cruces, sin los extremos, a no más de `pasoDelLabio` uno de otro. */
+  const puntosDeLaGrieta = (desde: Vec3, hasta: Vec3): Vec3[] => {
+    const paso = opciones.pasoDelLabio
+    if (!paso || paso <= 0) return []
+    const n = Math.min(64, Math.ceil(largo(resta(hasta, desde)) / paso))
+    const salida: Vec3[] = []
+    for (let j = 1; j < n; j++) salida.push(mezclar(desde, hasta, j / n))
+    return salida
+  }
   /** El vértice de la arista que usa el labio de ese lado. */
   const deLaArista = (a: number, b: number, lado: number): number => {
     const p = partidas.get(claveDeArista(a, b))!
@@ -425,15 +446,33 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
     const ladoResto = -ladoA
     const mab = (lado: number) => deLaArista(a, b, lado)
     const mca = (lado: number) => deLaArista(c, a, lado)
-    indices.push(a, mab(ladoA), mca(ladoA))
+    // La grieta cruza el triángulo en recta, de una arista a la otra. Con `pasoDelLabio` se le ponen vértices en medio,
+    // uno para cada labio, y cada lado se rehace en abanico desde su vértice: la superficie es la misma, pero el labio
+    // ya puede doblarse donde apoya una hoja (P-008 E2). Sin vértices en medio, el abanico es el triángulo de siempre.
+    const enMedio = puntosDeLaGrieta(partidas.get(claveDeArista(a, b))!.posicion, partidas.get(claveDeArista(c, a))!.posicion).map(
+      (q) => {
+        const t = proyectar(curva, q).t
+        // El atributo (la textura, el color) se copia del vértice más cercano de su lado, como en las aristas.
+        const delResto = largo(resta(q, leer(malla.posiciones, b))) <= largo(resta(q, leer(malla.posiciones, c))) ? b : c
+        const enA = nuevoVertice(q, a, ladoA, t)
+        const enElResto = nuevoVertice(q, delResto, ladoResto, t)
+        labios[ladoA > 0 ? 'mas' : 'menos'].push({ i: enA, t })
+        labios[ladoA > 0 ? 'menos' : 'mas'].push({ i: enElResto, t })
+        return { enA, enElResto }
+      },
+    )
+    const cadenaA = [mab(ladoA), ...enMedio.map((x) => x.enA), mca(ladoA)]
+    const cadenaResto = [mab(ladoResto), ...enMedio.map((x) => x.enElResto), mca(ladoResto)]
+    for (let j = 0; j + 1 < cadenaA.length; j++) indices.push(a, cadenaA[j], cadenaA[j + 1])
     indices.push(mab(ladoResto), b, c)
-    indices.push(mab(ladoResto), c, mca(ladoResto))
+    for (let j = cadenaResto.length - 2; j >= 0; j--) indices.push(c, cadenaResto[j + 1], cadenaResto[j])
   }
 
   // -- 6. peso y dirección de cada vértice ---------------------------------------
   const total = lista.origen.length
   const posiciones = Float32Array.from(lista.posiciones)
   const peso = new Float32Array(total)
+  const pesoLateral = new Float32Array(total)
   const direccion = new Float32Array(total * 3)
   const lado = Int8Array.from(lista.lado)
   const largoT = new Float32Array(total)
@@ -446,12 +485,13 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
     const cerca = 1 - suave(Math.abs(pr.lateral) / Math.max(opciones.alcance, 1e-9))
     largoT[i] = pr.t
     peso[i] = cerca * afilado(pr.t)
+    pesoLateral[i] = cerca
     direccion[3 * i] = pr.direccion[0]
     direccion[3 * i + 1] = pr.direccion[1]
     direccion[3 * i + 2] = pr.direccion[2]
   }
   // Los vértices de la punta (sencillos) no se mueven: la herida acaba cerrada.
-  for (let i = nVertices; i < total; i++) if (lado[i] === 0) peso[i] = 0
+  for (let i = nVertices; i < total; i++) if (lado[i] === 0) peso[i] = pesoLateral[i] = 0
 
   const ordenar = (cadena: { i: number; t: number }[]) => cadena.sort((x, y) => x.t - y.t).map((x) => x.i)
 
@@ -460,6 +500,7 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
     indices: Uint32Array.from(indices),
     origen: Uint32Array.from(lista.origen),
     peso,
+    pesoLateral,
     direccion,
     lado,
     largoT,
@@ -494,10 +535,11 @@ export function abrirHerida(
   const salida = Float32Array.from(corte.posiciones)
   const n = corte.lado.length
   for (let i = 0; i < n; i++) {
-    const peso = corte.peso[i]
-    if (peso === 0) continue
     const lado = corte.lado[i]
     if (lado === 0) continue
+    // El perfil ya se cierra en las puntas: el peso no vuelve a estrecharlas (P-008 E2).
+    const peso = perfil ? corte.pesoLateral[i] : corte.peso[i]
+    if (peso === 0) continue
     const aqui = perfil ? perfil(corte.largoT[i]) : null
     const k = peso * (lado > 0 ? (aqui ? aqui.mas : mas) : -(aqui ? aqui.menos : menos))
     salida[3 * i] += corte.direccion[3 * i] * k
@@ -541,10 +583,10 @@ export function componerCortes(cortes: readonly { corte: MallaCortada; apertura:
     const { corte, apertura } = cortes[j]
     for (let v = 0; v < n; v++) {
       const i = indice[v]
-      const peso = corte.peso[i]
-      if (peso === 0) continue
       const lado = corte.lado[i]
       if (lado === 0) continue
+      const peso = apertura.perfil ? corte.pesoLateral[i] : corte.peso[i]
+      if (peso === 0) continue
       const aqui = apertura.perfil ? apertura.perfil(corte.largoT[i]) : null
       const k = peso * (lado > 0 ? (aqui ? aqui.mas : apertura.mas) : -(aqui ? aqui.menos : apertura.menos))
       if (k === 0) continue

@@ -193,6 +193,10 @@ vec3 q = pMm - a * uEjeFibra;
 float fibra = ( ruido3( q * 1.5 + uEjeFibra * a * 0.05 ) - 0.5 ) * desvanecer( 0.7, huella );
 float haz = capas3( q * 0.25 + uEjeFibra * a * 0.01 ) - 0.5;
 diffuseColor.rgb *= 1.0 + uFibra * ( 0.18 * fibra + 0.2 * haz );
+// Lo que se ve por dentro de la cáscara —el interior de un músculo por la herida que abre un separador— es la cara de
+// corte: más oscura y más roja que la vaina. Con el mismo rosado que la superficie, la abertura no se leía y el borde
+// apartado parecía seguir en su sitio (P-008 E2).
+diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.34, 0.32 ), gl_FrontFacing ? 0.0 : 1.0 );
 float alturaDelAspecto = uFibra * ( 0.04 * fibra + 0.08 * haz ) * uUnidadesPorMm;
 float rugosidadDelAspecto = 0.06 * haz;
 `

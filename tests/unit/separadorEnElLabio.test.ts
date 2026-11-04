@@ -5,6 +5,7 @@ import {
   aplicarSeparadoresALasHeridas,
   cercaDeLaHerida,
   labioDelSeparador,
+  labioEnLaPosicion,
   posarSeparador,
   type SeparadorEnEscena,
 } from '@/components/simulador/exposicionEnLaEscena'
@@ -127,7 +128,8 @@ describe('un separador de la fascia abre también la piel de encima', () => {
   it('abre la piel en el sitio que el separador tiene sobre ella, no en el de su incisión', () => {
     // A un cuarto de la fascia: la piel es más larga, y ese punto cae en otro tanto por ciento de ella.
     const { piel, fascia, heridas } = pielYFascia()
-    const s = farabeuf({ posicion: 0.25 })
+    // Una hoja angosta: con la de 12 mm, en una piel de 40 el tramo que aparta entero cubriría los dos sitios.
+    const s = farabeuf({ posicion: 0.25, anchoMm: 2 })
     const apoyo = sitioEnLaHerida(fascia, 0.25, 1)!.punto
     const t = cercaDeLaHerida(piel, apoyo)!.t
     expect(Math.abs(t - 0.25)).toBeGreaterThan(0.05)
@@ -154,39 +156,107 @@ describe('un separador de la fascia abre también la piel de encima', () => {
   })
 })
 
-describe('la hoja va con el labio que sostiene', () => {
-  for (const apertura of [6, 12, 24]) {
-    it(`abierta ${apertura} mm, la hoja está en el labio y no donde decía la cuenta de antes`, () => {
+describe('la hoja aparta el borde al milímetro, en su sitio (P-008 E2)', () => {
+  // La piel de la prueba mide 40 mm. En el medio, el borde de la hoja de 12 está a 14 mm de cada punta y la piel da
+  // 28; a 0,25, a 4 mm de la punta, da 8 (`PENDIENTE_MAXIMA_DEL_LABIO`).
+  for (const [posicion, apertura] of [
+    [0.5, 6],
+    [0.5, 12],
+    [0.5, 24],
+    [0.25, 4],
+    [0.25, 8],
+  ] as const) {
+    it(`a ${posicion} del largo y abierta ${apertura} mm, el borde se aparta ${apertura} mm donde está la hoja`, () => {
       const { piel, heridas } = pielYFascia()
-      const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: apertura }), piel)
-      aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
-      posarSeparador(s, 1, heridas)
-
-      const ahora = alLabio(piel, 1, s.instrumento.grupo.position)
-      const antes = alLabio(piel, 1, s.punto.clone().addScaledVector(s.direccion, apertura).addScaledVector(s.normal, 0.4))
-      expect(ahora).toBeLessThan(1)
-      expect(antes).toBeGreaterThan(ahora)
+      aplicarSeparadoresALasHeridas(heridas, [farabeuf({ plano: 'piel', incision: 1, aperturaMm: apertura, posicion })], [], 1)
+      const borde = labioEnLaPosicion(piel, 1, posicion)!
+      expect(borde.ahora.distanceTo(borde.reposo)).toBeCloseTo(apertura, 1)
     })
   }
 
-  it('el labio se busca una vez y se vuelve a buscar solo si el separador cambia de sitio', () => {
+  it('el codo de la hoja queda sobre ese borde, y no donde decía la cuenta de antes', () => {
     const { piel, heridas } = pielYFascia()
-    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1 }), piel)
-    const primero = labioDelSeparador(s, heridas)
-    expect(primero).not.toBeNull()
-    expect(labioDelSeparador(s, heridas)).toBe(primero)
-    s.punto = sitioEnLaHerida(piel, 0.8, 1)!.punto
-    const segundo = labioDelSeparador(s, heridas)
-    expect(segundo).not.toBe(primero)
-    expect(segundo!.vertice).not.toBe(primero!.vertice)
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    posarSeparador(s, 1, heridas)
+    const borde = labioDelSeparador(s, heridas)!
+    // Un milímetro por encima del borde, para que el mango no se hunda en la piel.
+    expect(s.instrumento.grupo.position.distanceTo(borde.ahora.clone().addScaledVector(s.normal, 1))).toBeLessThan(1e-6)
+    expect(alLabio(piel, 1, s.instrumento.grupo.position)).toBeLessThan(1.01)
   })
 
-  it('sin herida que seguir —un autoestático, o lo puesto antes de cortar— se posa como antes', () => {
+  it('la pala baja metida en la herida y el mango va tendido hacia fuera, sobre su labio (el dibujo del dueño)', () => {
     const { piel, heridas } = pielYFascia()
-    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, tipo: 'autoestatico', lado: 0 }), piel)
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    posarSeparador(s, 1, heridas)
+    const giro = s.instrumento.grupo.quaternion
+    const pala = new THREE.Vector3(0, 0, -1).applyQuaternion(giro)
+    const mango = new THREE.Vector3(0, 1, 0).applyQuaternion(giro)
+    const grados = (a: THREE.Vector3, b: THREE.Vector3) => (a.angleTo(b) * 180) / Math.PI
+    // La pala, a 15° de la vertical y un poco por debajo del labio que sostiene.
+    expect(grados(pala, s.normal.clone().negate())).toBeCloseTo(15, 3)
+    expect(pala.dot(s.direccion)).toBeGreaterThan(0)
+    // El mango, a 15° de la piel y hacia el lado de su labio: no tapa el centro del campo.
+    expect(90 - grados(mango, s.normal)).toBeCloseTo(15, 3)
+    expect(mango.dot(s.direccion)).toBeGreaterThan(0.9)
+  })
+
+  it('movida a otro sitio de la herida, la hoja sigue al borde de ese sitio', () => {
+    const { piel, heridas } = pielYFascia()
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 8 }), piel)
+    const primero = labioDelSeparador(s, heridas)!.reposo
+    s.datos.posicion = 0.8
+    s.punto = sitioEnLaHerida(piel, 0.8, 1)!.punto
+    const segundo = labioDelSeparador(s, heridas)!.reposo
+    expect(segundo.distanceTo(primero)).toBeCloseTo(0.3 * 40, 0)
+  })
+
+  it('un autoestático va en el centro, un poco hundido, con los rastrillos hacia los dos bordes', () => {
+    const { piel, heridas } = pielYFascia()
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, tipo: 'autoestatico', lado: 0, aperturaMm: 10 }), piel)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    posarSeparador(s, 1, heridas)
+    const mas = labioEnLaPosicion(piel, 1, 0.5)!.ahora
+    const menos = labioEnLaPosicion(piel, -1, 0.5)!.ahora
+    const centro = mas.clone().lerp(menos, 0.5).addScaledVector(s.normal, -3)
+    expect(s.instrumento.grupo.position.distanceTo(centro)).toBeLessThan(1e-6)
+    // Las ramas se abren a lo largo de X del modelo: X tiene que ir de un borde al otro.
+    const x = new THREE.Vector3(1, 0, 0).applyQuaternion(s.instrumento.grupo.quaternion)
+    expect(Math.abs(x.dot(mas.clone().sub(menos).normalize()))).toBeGreaterThan(0.99)
+    // Y las argollas se acuestan hacia la punta más cercana, fuera del campo, sin meterse en la piel.
+    const mango = new THREE.Vector3(0, 1, 0).applyQuaternion(s.instrumento.grupo.quaternion)
+    expect(mango.dot(s.normal)).toBeCloseTo(Math.cos(Math.PI / 4), 5)
+  })
+
+  it('lo puesto antes de cortar, sin herida que seguir, se posa como antes', () => {
+    const { piel, heridas } = pielYFascia()
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 9, aperturaMm: 0 }), piel)
     expect(labioDelSeparador(s, heridas)).toBeNull()
     posarSeparador(s, 1, heridas)
     expect(s.instrumento.grupo.position.distanceTo(s.punto.clone().addScaledVector(s.normal, 0.4))).toBeLessThan(1e-9)
+  })
+})
+
+describe('con un separador dentro, la incisión deja de marcarse (P-008 E1)', () => {
+  it('recién puesto, sin abrir todavía, la herida queda sostenida y su cinta se aparta', () => {
+    const { piel, heridas } = pielYFascia()
+    const s = farabeuf({ plano: 'piel', incision: 1, aperturaMm: 0 })
+    aplicarSeparadoresALasHeridas(heridas, [s], [], 1)
+    expect(piel.mas).toBe(0)
+    expect(piel.sostenida).toBe(true)
+    expect(piel.cinta.visible).toBe(false)
+    // Al quitarlo, la incisión cerrada vuelve a verse.
+    aplicarSeparadoresALasHeridas(heridas, [], [], 1)
+    expect(piel.sostenida).toBe(false)
+    expect(piel.cinta.visible).toBe(true)
+  })
+
+  it('un separador de la piel no sostiene la fascia de debajo: su cinta sigue a la vista', () => {
+    const { fascia, heridas } = pielYFascia()
+    aplicarSeparadoresALasHeridas(heridas, [farabeuf({ plano: 'piel', incision: 1, aperturaMm: 0 })], [], 1)
+    expect(fascia.sostenida).toBe(false)
+    expect(fascia.cinta.visible).toBe(true)
   })
 })
 

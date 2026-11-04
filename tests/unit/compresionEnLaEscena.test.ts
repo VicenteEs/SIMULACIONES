@@ -214,12 +214,13 @@ describe('los campos, la migración y el cableado', () => {
   })
 
   it('el lienzo aplica lo que decide compresion.ts: el óvalo en el tornillo de placa, y las dos técnicas por la trayectoria', () => {
-    expect(lienzo).toContain('resultadoDelOval(desviacion, lado, semilargoDelOvalDeLaPlaca(placa.nombre))')
+    // En el óvalo comprime al asentar la cabeza, no al pinchar: el tornillo entra con la rueda (pedido 13).
+    expect(lienzo).toContain('resultadoDelOval(a.desviacionMm, lado, semilargoDelOvalDeLaPlaca(placa.nombre))')
     expect(lienzo).toContain("inst.tornillo?.tipo === 'rosca-parcial'")
     expect(lienzo).toContain('resultadoDeLaRoscaParcial({')
     expect(lienzo).toContain('resultadoDelDeslizamiento({ ...calibresPorFragmento(libre.perforaciones, distancia)')
     // Un tornillo bloqueado no comprime, ni en el óvalo ni por la trayectoria.
-    expect(lienzo).toContain('if (!puesto.bloqueado && formaDeLosAgujeros({ nombre: placa.nombre }) !== \'redondo\')')
+    expect(lienzo).toContain("const oval = !puesto.bloqueado && formaDeLosAgujeros({ nombre: placa.nombre }) !== 'redondo'")
     expect(lienzo).toContain('inst.coloca.bloqueado ? null : distanciaALaFracturaPorLaTrayectoria(libre)')
   })
 

@@ -42,14 +42,19 @@ import {
 import { marcarComoLeida, registrarResultadoDeCirugia } from '@/app/(frontend)/acciones/actividad'
 import { Rico, tieneContenido } from '@/components/Rico'
 import { IconoInstrumento } from './IconoInstrumento'
+import { BarraDeInstrumental, type FamiliaDeLaMesa } from './BarraDeInstrumental'
+import { anotarReciente, MAXIMO_DE_RECIENTES } from '@/lib/barraDeInstrumental'
 import { CampoNumerico } from './CampoNumerico'
 import { MenuDeMovimiento, type SeleccionDeMovimiento } from './MenuDeMovimiento'
 import { ACCIONES_DE_LA_PLACA, ajusteDeLaPlacaPorPaso, lecturaDelMovimiento } from '@/lib/movimientoPorEjes'
-import { acotar } from '@/lib/ejesAnatomicos'
+import { acotar, giroEnvuelto } from '@/lib/ejesAnatomicos'
 import { textoDelDesplazamiento } from '@/lib/ejesAnatomicos'
 import { textoDeLaBroca } from '@/lib/profundidadDeLaBroca'
+import { textoDelTornilloQueEntra } from '@/lib/tornilloQueEntra'
 import { NOMBRE_DE_LA_TECNICA } from '@/lib/compresion'
 import { PanelDeCompresion } from './PanelDeCompresion'
+import { ElegirPlacaRecta } from './ElegirPlacaRecta'
+import { instrumentoDeLaPlacaRecta, modeloConLosAgujerosEscritos, placaRectaDelId, sistemaDelSlug } from '@/lib/placasRectas'
 import { RadiografiaPostoperatoria } from './RadiografiaPostoperatoria'
 import { AsaDeAncho } from './AsaDeAncho'
 import type { EstadoDeLaMesa } from './mesaDeModelado'
@@ -79,7 +84,7 @@ import {
   tipoDelTornillo,
   type EtapaDeFijacion,
 } from '@/lib/tornillos'
-import type { EstadoDeLaBroca, EstadoDeLaTrayectoria, SucesoDeFijacion } from './LienzoQuirurgico'
+import type { EstadoDeLaBroca, EstadoDeLaTrayectoria, EstadoDelTornilloQueEntra, SucesoDeFijacion } from './LienzoQuirurgico'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import { Vacio } from '@/components/ui/Vacio'
 import {
@@ -635,6 +640,23 @@ type LecturaDeMedida = {
   estado: 'dentro' | 'fuera' | 'neutro'
 }
 
+/**
+ * El instrumento con ese identificador, tal como lo tiene la mano (P-008 E3): el de la bandeja —con el modelo de los
+ * agujeros que le escribió el editor, si es una placa recta— o, si no está en ella, la placa recta a medida que el
+ * identificador describe. La placa a medida no se guarda en ningún sitio: su identificador ya lo dice todo.
+ */
+function instrumentoPorId(bandeja: readonly InstrumentoDeBandeja[], id: string | null): InstrumentoDeBandeja | null {
+  if (!id) return null
+  const deLaBandeja = bandeja.find((i) => i.id === id)
+  if (deLaBandeja) {
+    const modeloUrl = modeloConLosAgujerosEscritos(deLaBandeja)
+    // Con otro modelo, el encuadre que se capturó para el del catálogo ya no sirve.
+    return modeloUrl === (deLaBandeja.modeloUrl ?? null) ? deLaBandeja : { ...deLaBandeja, modeloUrl, encuadreDelModelo: null }
+  }
+  const placa = placaRectaDelId(id)
+  return placa ? instrumentoDeLaPlacaRecta(placa) : null
+}
+
 export function ConsolaQuirurgica({
   caso,
   documentoId,
@@ -849,6 +871,8 @@ export function ConsolaQuirurgica({
   const [piezaElegida, setPiezaElegida] = useState<string | null>(null)
   // La broca puesta en el hoyo (P-004 E8): se queda hasta que se la retira, también mientras se pide el disparo.
   const [broca, setBroca] = useState<EstadoDeLaBroca | null>(null)
+  /** El tornillo de placa que está entrando (pedido 13): con uno, la rueda lo mete en vez de alargar el de la mano. */
+  const [tornilloQueEntra, setTornilloQueEntra] = useState<EstadoDelTornilloQueEntra | null>(null)
   // Los tornillos (P-004 E9): el diámetro elegido de la lista (`null`: el del modelo), la trayectoria de dos clics y si se está
   // marcando, qué tiempo de la secuencia brocar · medir · atornillar toca, si el siguiente instrumento pasa solo a la mano y cuál
   // es el último tornillo que se usó (el siguiente tornillo, y la broca que le corresponde, se eligen a partir de él).
@@ -873,6 +897,9 @@ export function ConsolaQuirurgica({
   // bandeja se lee como una mesa de instrumentación, de arriba abajo por
   // familias, y con varias abiertas volvía a ser la lista larga de antes.
   const [categoriaAbierta, setCategoriaAbierta] = useState<string | null>(null)
+  // Los últimos instrumentos cogidos, el más reciente primero (P-008 E6): ir y volver entre la broca y el medidor, o entre
+  // el bisturí y el separador, sin abrir su familia cada vez.
+  const [recientes, setRecientes] = useState<string[]>([])
   // Cómo apunta la broca respecto de la cortical (D-167): a lo largo del hueso y
   // a lo ancho, en grados. Cero y cero es perpendicular a la cortical.
   const [inclinacionDeBroca, setInclinacionDeBroca] = useState<InclinacionDeBroca>({
@@ -1508,16 +1535,22 @@ export function ConsolaQuirurgica({
    * suave en 600 ms, y deja en cero el desplazamiento, la angulación y la diástasis. Es para no entramparse en la reducción
    * cuando el objetivo docente es otro; se anota en el recorrido y **el ejercicio de reducir no puntúa**, para que no valga
    * lo mismo que hacerlo a mano.
+   *
+   * Desde P-008 E5 lleva también los demás trozos que el caso trae con posición reducida —un hueso partido en varios,
+   * exportado ya desplazado—, a la vez que el fragmento. Antes solo había un fragmento que reducir y los otros trozos
+   * «volvían a su sitio», que en esos modelos era volver a la fractura: la reducción automática no hacía nada visible.
    */
   const reducirAutomaticamente = () => {
     const m = mando.current
-    if (!m || !m.hayFragmento()) {
+    const conFragmento = !!m?.hayFragmento()
+    const conTrozos = !!m?.hayPosicionesReducidas()
+    if (!m || (!conFragmento && !conTrozos)) {
       // Dos causas distintas, con remedios distintos: o el caso nunca marcó la pieza, o la marcó y el modelo ya no la trae (se volvió a exportar y cambió el nombre del nodo).
       const marcada = piezas.find((p) => p.rol === 'fragmento')
       anotar(
         marcada
           ? `La pieza marcada como fragmento («${marcada.nodo.replace(/_/g, ' ')}») no está en el modelo: si se volvió a exportar, el editor debe volver a marcar el fragmento en el Taller (Piezas del caso).`
-          : 'Este caso no tiene ninguna pieza marcada como fragmento: el editor la marca en el Taller (Piezas del caso) y entonces hay algo que reducir.',
+          : 'Este caso no tiene nada que reducir: ni una pieza marcada como fragmento ni trozos con su posición reducida. El editor marca el fragmento en el Taller (Piezas del caso) o encaja los trozos con «Reducir automáticamente» en el editor del simulador.',
         'atencion',
       )
       return
@@ -1526,25 +1559,34 @@ export function ConsolaQuirurgica({
     const desde = m.estadoDelFragmento()
     const pasoDeAhora = caso.pasos[indice]
     const inicio = performance.now()
+    // Los demás trozos salen ahora y llegan con el fragmento: a su posición reducida si la tienen y, si solo se movieron
+    // con «Mover», a donde estaban, como en «volver al inicial».
+    m.llevarPiezasALaReduccion(0)
     const cuadro = (ahora: number) => {
       const k = Math.min(1, (ahora - inicio) / DURACION_DE_LA_REDUCCION_MS)
       const suave = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
       const resta = 1 - suave
-      m.colocarFragmento(
-        { x: desde.posicion.x * resta, y: desde.posicion.y * resta, z: desde.posicion.z * resta },
-        { x: desde.giros.x * resta, y: desde.giros.y * resta, z: desde.giros.z * resta },
-      )
+      if (conFragmento) {
+        m.colocarFragmento(
+          { x: desde.posicion.x * resta, y: desde.posicion.y * resta, z: desde.posicion.z * resta },
+          { x: desde.giros.x * resta, y: desde.giros.y * resta, z: desde.giros.z * resta },
+        )
+      }
+      m.llevarPiezasALaReduccion(suave)
       if (k < 1) {
         animacionDeLaReduccion.current = requestAnimationFrame(cuadro)
         return
       }
       animacionDeLaReduccion.current = null
-      // Los otros trozos que se movieron con «Mover» vuelven también a su sitio, como en «volver al inicial».
-      m.restaurarPiezas()
       recalcularMedidas()
       if (pasoDeAhora) setAutomaticas((antes) => new Set(antes).add(pasoDeAhora.id))
       usoLaReduccionAutomatica.current = true
-      anotar('Reducción automática: el desplazamiento, la angulación y la diástasis quedaron en cero. El paso de reducir se da por hecho y no suma puntos.', 'atencion')
+      anotar(
+        conTrozos
+          ? `Reducción automática: los trozos quedaron en su sitio${conFragmento ? ' y el fragmento, sin desplazamiento, angulación ni diástasis' : ''}. El paso de reducir se da por hecho y no suma puntos.`
+          : 'Reducción automática: el desplazamiento, la angulación y la diástasis quedaron en cero. El paso de reducir se da por hecho y no suma puntos.',
+        'atencion',
+      )
       guardarRecorrido(puntaje, complicaciones, insumos)
     }
     animacionDeLaReduccion.current = requestAnimationFrame(cuadro)
@@ -1561,6 +1603,24 @@ export function ConsolaQuirurgica({
     // Los otros trozos de hueso que se movieron con «Mover» vuelven también a su sitio.
     mando.current?.restaurarPiezas()
     const d = caso.desplazamientoInicial
+    // Un modelo exportado con la fractura desplazada, con su posición reducida y sin desplazamiento escrito, empieza como
+    // está en el archivo (P-008 E5): es la fractura que el editor construyó. Colocado «en el cero» habría empezado ya
+    // reducido, que era justo lo contrario de lo que se quería enseñar.
+    const sinDesplazamiento = [d.x, d.y, d.z, d.giroX, d.giroY, d.giroZ].every((n) => n === 0)
+    const delArchivo = sinDesplazamiento ? mando.current?.desplazamientoDelArchivo() : null
+    if (delArchivo) {
+      const aMm = (u: number) => u * escalaMm
+      mando.current?.colocarFragmento(delArchivo.posicion, delArchivo.giros)
+      setGiros(delArchivo.giros)
+      setReduccion(
+        medirReduccion(
+          { x: aMm(delArchivo.posicion.x), y: aMm(delArchivo.posicion.y), z: aMm(delArchivo.posicion.z) },
+          delArchivo.giros,
+          caso.ejeLargo,
+        ),
+      )
+      return
+    }
     const aUnidades = (mm: number) => mm / escalaMm
     mando.current?.colocarFragmento(
       { x: aUnidades(d.x), y: aUnidades(d.y), z: aUnidades(d.z) },
@@ -1601,7 +1661,7 @@ export function ConsolaQuirurgica({
   const elegirInstrumento = (id: string | null) => {
     // Un separador o una broca llevan su modo; al soltarlos se vuelve al de
     // siempre. El modo de un paso (trazar, mover) no se toca: lo pide el paso.
-    const destino = id ? caso.instrumental.find((i) => i.id === id) : null
+    const destino = instrumentoPorId(caso.instrumental, id)
     const que = destino ? comportamientoDelInstrumento(destino) : null
     // Al coger un instrumento se pasa solo al modo que ese instrumento usa: el bisturí, las tijeras y el
     // electrobisturí, a «Trazar»; el separador, a «Separar»; la pinza de disección, a «Pinzar»… Era lo que
@@ -1629,9 +1689,20 @@ export function ConsolaQuirurgica({
     if (destino?.largoMm && que?.coloca?.tipo === 'tornillo') setLargoDeTornillo(Math.min(MAXIMO_DEL_TORNILLO_MM, Math.max(MINIMO_DEL_TORNILLO_MM, destino.largoMm)))
     setDiseccion(null)
     setInstrumento(id)
+    if (id) setRecientes((antes) => anotarReciente(antes, id))
     setArticulacionesDeclaradas([])
     setArticulacionesMovidas({})
     setErrorDelInstrumento(null)
+  }
+
+  /**
+   * Coger desde la mesa (P-008 E6): además de cogerlo, se pliega la lista y se vacía el buscador, como en cualquier
+   * desplegable. Abierta, la lista seguía empujando lo de abajo después de haber elegido, que es justo cuando ya no sirve.
+   */
+  const cogerDeLaMesa = (id: string) => {
+    elegirInstrumento(id)
+    setCategoriaAbierta(null)
+    setBusquedaDeInstrumento('')
   }
 
   // El ensayo del editor sobrevive a que la consola se vuelva a montar (ver `ensayoDelEditor.ts`): el
@@ -1649,7 +1720,8 @@ export function ConsolaQuirurgica({
         return
       }
       const catalogoCargado = (caso.catalogoDelEditor?.length ?? 0) > 0
-      const estaEnLaBandeja = guardado.instrumento ? caso.instrumental.some((i) => i.id === guardado.instrumento) : true
+      // Una placa a medida (P-008 E3) está siempre: no es de la bandeja, se rehace de su identificador.
+      const estaEnLaBandeja = guardado.instrumento ? instrumentoPorId(caso.instrumental, guardado.instrumento) !== null : true
       // Todavía no llegó el catálogo: se espera. Si ya llegó y el instrumento ya no está en la bandeja, se deja.
       if (!estaEnLaBandeja && !catalogoCargado) return
       ensayoRecuperado.current = true
@@ -1699,8 +1771,21 @@ export function ConsolaQuirurgica({
   // clasificación; aquí solo se muestra si existe.
   const codigo = caso.codigo
 
-  /** El instrumento que el residente tiene en la mano, ya resuelto. */
-  const instrumentoElegido = caso.instrumental.find((i) => i.id === instrumento) ?? null
+  /**
+   * El instrumento que el residente tiene en la mano, ya resuelto. Sin `useMemo`, como antes de las placas a medida: con
+   * él, el compilador de React no podía conservar esa memoria («Existing memoization could not be preserved») y dejaba
+   * sin optimizar la consola entera. El compilador ya memoriza esta llamada por sus dos entradas.
+   */
+  const instrumentoElegido = instrumentoPorId(caso.instrumental, instrumento)
+  /**
+   * Con qué instrumento del catálogo cuenta el editor la placa a medida en el paso y en la bandeja (P-008 E3): con la placa
+   * de catálogo de su sistema, porque el caso guarda instrumentos del catálogo y una a medida no lo es. `null` si su
+   * sistema no tiene placa en el catálogo (la LCP 2,4, la DCP 3,5…): entonces no se puede marcar.
+   */
+  const placaAMedidaElegida = placaRectaDelId(instrumento)
+  const idDelElegidoParaElCaso = placaAMedidaElegida
+    ? ((caso.catalogoDelEditor ?? caso.instrumental).find((i) => i.slug === placaAMedidaElegida.sistema.slug)?.id ?? null)
+    : (instrumentoElegido?.id ?? null)
   /**
    * Anota que el instrumento de la mano **hizo algo**. Se llama desde los avisos del lienzo —que ya dicen cuándo se cortó,
    * se separó, se pinzó, se perforó, se cosió o se fijó— y no al elegirlo: elegirlo y soltarlo no es usarlo.
@@ -1883,6 +1968,12 @@ export function ConsolaQuirurgica({
     // Con Mayúsculas solo las pinzas se quedan la rueda (abrir y cerrar las mandíbulas) y, con un músculo retraído, el
     // separador (corre la zona retraída a lo largo del músculo, P-004 E5); el resto la devuelve al zoom.
     const correLaRetraccion = ruedaDelInstrumento === 'separa' && retracciones.length > 0 && (!separadores || separadores.lista.length === 0)
+    // Con un tornillo entrando, la rueda lo mete y lo saca (pedido 13), y Mayúsculas afina como con la broca: ya no alarga el de
+    // la mano, que es otro tornillo y no el que se está mirando en la imagen.
+    if (ruedaDelInstrumento === 'alarga' && tornilloQueEntra) {
+      m.moverElTornillo(deltaY < 0 ? 1 : -1, mayusculas)
+      return true
+    }
     if (mayusculas && ruedaDelInstrumento !== 'pinza' && ruedaDelInstrumento !== 'perfora' && ruedaDelInstrumento !== 'dobla' && ruedaDelInstrumento !== 'tuerce' && !correLaRetraccion) return false
     // Hacia delante (deltaY negativo) abre, tira, alarga o sube; hacia atrás, al revés.
     const sentido = deltaY < 0 ? 1 : -1
@@ -1969,7 +2060,7 @@ export function ConsolaQuirurgica({
                   editor?.instrumentoDelPaso === it.id ? ' del-paso' : ''
                 }`}
                 aria-pressed={instrumento === it.id}
-                onClick={() => elegirInstrumento(it.id)}
+                onClick={() => cogerDeLaMesa(it.id)}
               >
                 <IconoInstrumento nombre={it.icono} />
                 <span className="instrumento-nombre">{it.nombre}</span>
@@ -2026,6 +2117,22 @@ export function ConsolaQuirurgica({
         instrumentos,
       }))
   }, [caso.instrumental, busquedaDeInstrumento])
+
+  // Todas las familias de la mesa, con cuántos instrumentos tiene cada una y cuáles deja ver el buscador (P-008 E6). Los
+  // cuadros no se mueven al escribir: la familia sin coincidencias se apaga, no desaparece, para que la mesa no baile.
+  const familiasDeLaMesa = useMemo((): FamiliaDeLaMesa[] => {
+    const claveDe = (i: InstrumentoDeBandeja) => i.categoria ?? 'otros'
+    const orden = CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string)
+    const posicion = (clave: string) => (orden.includes(clave) ? orden.indexOf(clave) : orden.length)
+    return [...new Set(caso.instrumental.map(claveDe))]
+      .sort((a, b) => posicion(a) - posicion(b))
+      .map((clave) => ({
+        clave,
+        titulo: ETIQUETA_DE_CATEGORIA[clave] ?? 'Otros',
+        total: caso.instrumental.filter((i) => claveDe(i) === clave).length,
+        instrumentos: gruposDeLaBandeja.find((g) => g.clave === clave)?.instrumentos ?? [],
+      }))
+  }, [caso.instrumental, gruposDeLaBandeja])
 
   // Los bytes de los modelos de la bandeja se piden en segundo plano, de uno en
   // uno y cuando el navegador está ocioso, para que al pulsar un instrumento
@@ -2358,6 +2465,7 @@ export function ConsolaQuirurgica({
           perforados={new Set((fijacion?.agujeros ?? []).filter((a) => a.perforado).map((a) => a.indice))}
           alElegirDesviacion={(i, mm) => mando.current?.fijarDesviacionDelAgujero(i, mm)}
           alAcercar={(i) => mando.current?.acercarseAlAgujero(i)}
+          alElegirAgujero={(i) => mando.current?.marcarElPuntoDeBrocado(i)}
         />
       ) : null}
       {fijacion?.compresion ? (
@@ -2399,7 +2507,7 @@ export function ConsolaQuirurgica({
     if (!placa?.ajuste) return null
     const nuevo = ajusteDeLaPlacaPorPaso(placa.ajuste, accion, eje, valor, placa.sentidoDelLado ?? 0)
     if (!nuevo) return null
-    const rangos = placa.rangos ?? { largoMm: { min: -40, max: 40 }, ladoMm: { min: -15, max: 15 }, giroGrados: { min: -90, max: 90 } }
+    const rangos = placa.rangos ?? { largoMm: { min: -40, max: 40 }, ladoMm: { min: -15, max: 15 }, giroGrados: { min: -180, max: 180 } }
     const acotado = {
       largoMm: acotar(nuevo.largoMm, rangos.largoMm.min, rangos.largoMm.max),
       ladoMm: acotar(nuevo.ladoMm, rangos.ladoMm.min, rangos.ladoMm.max),
@@ -2682,15 +2790,77 @@ export function ConsolaQuirurgica({
       </div>
     )
 
-  // La bandeja con el instrumento en la mano. En el editor va en la columna de la izquierda: la de la derecha es del
-  // panel de edición, que es largo, y dejaba la bandeja fuera de la vista (era lo que se pedía: todo a la vista).
+  // La mesa de instrumental, en la columna de la izquierda para los dos (P-008 E6). En el editor ya iba allí, porque la de
+  // la derecha es del panel de edición; el residente la tenía a la derecha, bajo el paso, y la familia abierta empujaba
+  // «Aplicar paso» fuera de la vista. Ahora la izquierda —que tenía el paciente y las capas, y medio alto vacío— es la mesa,
+  // y la derecha queda para el paso.
+  const siguienteDeLaMesa =
+    siguienteEnLaBandeja && siguienteEnLaBandeja !== instrumento ? instrumentoPorId(caso.instrumental, siguienteEnLaBandeja) : null
+  // Los que ya no están en la bandeja (el editor los quitó) no se ofrecen; una placa a medida sí, que se rehace de su identificador.
+  const recientesDeLaMesa = recientes
+    .filter((id) => id !== instrumento)
+    .map((id) => instrumentoPorId(caso.instrumental, id))
+    .filter((i): i is InstrumentoDeBandeja => i !== null)
+    .slice(0, MAXIMO_DE_RECIENTES - 1)
   const bloqueDeLaBandeja = (
-        <div className="consola-bandeja-bloque">
-          <h3 className="consola-subtitulo">Instrumental · {caso.instrumental.length}</h3>
-          {/* Qué ve el residente (P-004 E3): toda la mesa por omisión, para no ir metiendo instrumento por instrumento, o
-              solo lo que el editor elija. Es una orden del editor; el residente no la ve. */}
-          {editor ? (
-            <>
+    <BarraDeInstrumental
+      familias={familiasDeLaMesa}
+      total={caso.instrumental.length}
+      abierta={categoriaAbierta}
+      alAbrir={setCategoriaAbierta}
+      busqueda={busquedaDeInstrumento}
+      alBuscar={setBusquedaDeInstrumento}
+      enLaMano={instrumentoElegido}
+      familiaEnLaMano={instrumentoElegido?.categoria ?? null}
+      siguiente={siguienteDeLaMesa}
+      recientes={recientesDeLaMesa}
+      alCoger={cogerDeLaMesa}
+      alSoltar={() => elegirInstrumento(null)}
+      vacia={
+        caso.instrumental.length === 0 ? (
+          <p className="consola-vacio">
+            {editor
+              ? 'La bandeja del caso está vacía: añada instrumentos con el botón de abajo, o se arma sola con los que piden los pasos.'
+              : 'Este caso no tiene instrumental.'}
+          </p>
+        ) : null
+      }
+      lista={(grupo) => (
+        <ul className="consola-bandeja">
+          {/* Las placas rectas a medida (P-008 E3), arriba de las de catálogo: con los agujeros y el largo que se pidan. Con algo
+              escrito en el buscador no sale: se está buscando un instrumento por su nombre, y «LC-DCP» daba primero la placa a
+              medida de esa lista y no la del catálogo. */}
+          {grupo.clave === 'placas' && busquedaDeInstrumento.trim() === '' ? (
+            <li className="consola-bandeja-a-medida">
+              <ElegirPlacaRecta enLaMano={instrumento} alElegir={cogerDeLaMesa} />
+            </li>
+          ) : null}
+          {/* Lo que no es un tornillo, como siempre; los tornillos, en subgrupos por tipo (P-004 E9, pedido 12), estén en la
+              categoría que estén: en el catálogo hay tornillos metidos en «Perforación y fijación». Se clasifican con un objeto nuevo
+              por instrumento: el compilador de React da por hecho que lo que se pasa a una función puede cambiar, y los instrumentos de
+              la bandeja son dependencia de varias memorias de aquí. */}
+          {grupo.instrumentos.filter((i) => !esUnTornillo(i)).map(filaDeLaBandeja)}
+          {TIPOS_DE_TORNILLO.map((def) => ({
+            def,
+            instrumentos: grupo.instrumentos.filter(
+              (i) => esUnTornillo(i) && tipoDelTornillo({ slug: i.slug, nombre: i.nombre, tipoDeTornillo: i.tipoDeTornillo }) === def.tipo,
+            ),
+          }))
+            .filter((sg) => sg.instrumentos.length > 0)
+            .map((sg) => (
+              <li key={sg.def.tipo} className="consola-bandeja-subgrupo">
+                <h4 className="consola-bandeja-subtitulo">{sg.def.etiqueta}</h4>
+                <ul className="consola-bandeja">{sg.instrumentos.map(filaDeLaBandeja)}</ul>
+              </li>
+            ))}
+        </ul>
+      )}
+      pie={
+        editor ? (
+          // Qué ve el residente (P-004 E3): toda la mesa por omisión, para no ir metiendo instrumento por instrumento, o
+          // solo lo que el editor elija. Es una orden del editor; el residente no la ve.
+          <div className="barra-instrumental-editor">
+            <p className="consola-rotulo">Qué ve el residente</p>
               <div className="consola-submodo" role="group" aria-label="Qué ve el residente en la bandeja">
                 {(
                   [
@@ -2712,99 +2882,18 @@ export function ConsolaQuirurgica({
               <p className="consola-ayuda">
                 {caso.bandeja === 'completa'
                   ? 'El residente ve todo el instrumental. Para limitarlo, quite instrumentos de la lista o pase a «Solo lo que elijo».'
-                  : 'El residente ve solo lo de abajo y lo que piden los pasos.'}
+                  : 'El residente ve solo lo de la mesa y lo que piden los pasos.'}
               </p>
-            </>
-          ) : null}
-          {/* Solo los instrumentos del caso, los mismos que ve el residente: los que el autor eligió en la
-              bandeja y los que piden los pasos. Y siempre con buscador: con cuarenta instrumentos, recorrer
-              las familias a ojo es lo que más tiempo quita. Se busca por palabras y sin tildes. */}
-          <label className="consola-busqueda-envoltorio">
-            <Search size={14} aria-hidden />
-            <input
-              type="search"
-              className="consola-busqueda"
-              placeholder="Buscar un instrumento…"
-              aria-label="Buscar un instrumento"
-              value={busquedaDeInstrumento}
-              onChange={(e) => setBusquedaDeInstrumento(e.target.value)}
-            />
-          </label>
-          {editor && caso.catalogoDelEditor && caso.bandeja === 'acotada' ? (
-            <AnadirALaBandeja
-              catalogo={caso.catalogoDelEditor}
-              alAnadir={(id) => editor.alAlternarEnLaBandeja(id)}
-            />
-          ) : null}
-          {caso.instrumental.length === 0 ? (
-            <p className="consola-vacio">
-              {editor
-                ? 'La bandeja del caso está vacía: añada instrumentos con el botón de arriba, o se arma sola con los que piden los pasos.'
-                : 'Este caso no tiene instrumental.'}
-            </p>
-          ) : null}
-          {gruposDeLaBandeja.map((grupo) => {
-            // Con algo escrito en el buscador se abren todas las familias que
-            // tienen coincidencias: buscar es saltarse el recorrido.
-            const abierta = busquedaDeInstrumento.trim() !== '' || categoriaAbierta === grupo.clave
-            const idDelPanel = `bandeja-${grupo.clave}`
-            const traeElElegido = grupo.instrumentos.some((i) => i.id === instrumento)
-            return (
-            <div key={grupo.clave} className={`consola-bandeja-grupo${abierta ? ' abierto' : ''}`}>
-              <button
-                type="button"
-                className="consola-bandeja-cabecera"
-                aria-expanded={abierta}
-                aria-controls={idDelPanel}
-                onClick={() => setCategoriaAbierta((antes) => (antes === grupo.clave ? null : grupo.clave))}
-              >
-                <ChevronRight size={16} aria-hidden className="consola-bandeja-flecha" />
-                <span className="consola-bandeja-titulo">{grupo.titulo}</span>
-                {traeElElegido ? (
-                  <span className="consola-bandeja-en-mano" title="Tiene el instrumento que lleva en la mano">
-                    en la mano
-                  </span>
-                ) : null}
-                <span className="consola-bandeja-cuenta u-num">{grupo.instrumentos.length}</span>
-              </button>
-              {abierta ? (
-              <ul className="consola-bandeja" id={idDelPanel}>
-                {/* Lo que no es un tornillo, como siempre; los tornillos, en subgrupos por tipo (P-004 E9, pedido 12), estén en la
-                    categoría que estén: en el catálogo hay tornillos metidos en «Perforación y fijación». Se clasifican con un objeto nuevo
-                    por instrumento: el compilador de React da por hecho que lo que se pasa a una función puede cambiar, y los instrumentos de
-                    la bandeja son dependencia de varias memorias de aquí. */}
-                {grupo.instrumentos.filter((i) => !esUnTornillo(i)).map(filaDeLaBandeja)}
-                {TIPOS_DE_TORNILLO.map((def) => ({
-                  def,
-                  instrumentos: grupo.instrumentos.filter(
-                    (i) => esUnTornillo(i) && tipoDelTornillo({ slug: i.slug, nombre: i.nombre, tipoDeTornillo: i.tipoDeTornillo }) === def.tipo,
-                  ),
-                }))
-                  .filter((sg) => sg.instrumentos.length > 0)
-                  .map((sg) => (
-                    <li key={sg.def.tipo} className="consola-bandeja-subgrupo">
-                      <h4 className="consola-bandeja-subtitulo">{sg.def.etiqueta}</h4>
-                      <ul className="consola-bandeja">{sg.instrumentos.map(filaDeLaBandeja)}</ul>
-                    </li>
-                  ))}
-              </ul>
-              ) : null}
-            </div>
-            )
-          })}
-          {gruposDeLaBandeja.length === 0 && caso.instrumental.length > 0 ? (
-            <p className="consola-vacio">Ningún instrumento coincide con la búsqueda.</p>
-          ) : null}
-
-          {/*
-            El modelo del instrumento que tiene en la mano, y solo ese.
-            Trece modelos cargando a la vez en la bandeja dejarían la consola
-            inservible en un portátil modesto, que es el equipo de referencia
-            del residente: se baja uno cada vez, cuando lo coge. (Los bytes sí se
-            piden antes, en segundo plano, para que al pulsar aparezca al
-            instante: ver `useEffect` de la precarga.)
-          */}
-        </div>
+            {caso.catalogoDelEditor && caso.bandeja === 'acotada' ? (
+              <AnadirALaBandeja
+                catalogo={caso.catalogoDelEditor}
+                alAnadir={(id) => editor.alAlternarEnLaBandeja(id)}
+              />
+            ) : null}
+          </div>
+        ) : null
+      }
+    />
   )
 
   /**
@@ -2920,7 +3009,7 @@ export function ConsolaQuirurgica({
               className="consola-boton"
               onClick={() => {
                 const id = mesaDeModelado.instrumentoId
-                if (!id || !caso.instrumental.some((i) => i.id === id)) {
+                if (!id || !instrumentoPorId(caso.instrumental, id)) {
                   anotar('La placa de la mesa ya no está en la bandeja: elija una placa y pique sobre el hueso.', 'atencion')
                   return
                 }
@@ -3273,7 +3362,9 @@ instrumentoElegido ? (
                   {ruedaDelInstrumento === 'tira'
                     ? 'hacia delante tira del hilo; hacia atrás lo afloja.'
                     : ruedaDelInstrumento === 'alarga'
-                      ? 'hacia delante alarga el tornillo; hacia atrás lo acorta.'
+                      ? tornilloQueEntra
+                        ? 'hacia delante mete el tornillo; hacia atrás lo saca (Mayúsculas afina).'
+                        : 'hacia delante alarga el tornillo; hacia atrás lo acorta.'
                       : ruedaDelInstrumento === 'separa'
                         ? 'hacia delante abre el separador colocado y la herida; hacia atrás los cierra.'
                         : ruedaDelInstrumento === 'pinza'
@@ -3492,7 +3583,7 @@ instrumentoElegido ? (
                       type="button"
                       className="consola-submodo-boton"
                       aria-pressed={false}
-                      title="Lleva el fragmento a su sitio de una vez. El paso de reducir se da por hecho y no suma puntos."
+                      title="Lleva el fragmento y los demás trozos a su sitio de una vez. El paso de reducir se da por hecho y no suma puntos."
                       onClick={reducirAutomaticamente}
                     >
                       Automática
@@ -3780,12 +3871,36 @@ instrumentoElegido ? (
                 <div className="consola-instrumento-articulaciones">
                   <p className="consola-instrumento-texto">
                     {queHace.coloca?.tipo === 'placa'
-                      ? 'Pase al modo «Fijar» y pique sobre el hueso: la placa se apoya con su largo siguiendo el hueso. Después se la lleva hacia proximal o distal, anterior o posterior, o se la angula —escribiendo la cifra o con los botones— y se pulsa «Fijar la placa». Con una puesta, la que se lleva en la mano ya no sale.'
+                      ? 'Pase al modo «Fijar» y pique sobre el hueso: la placa se apoya con su largo siguiendo el hueso. Después arrástrela a donde vaya —también a la otra cara del hueso— y, mientras la arrastra, gírela con la rueda; o llévela con las cifras y los botones. Cuando esté, pulse «Fijar la placa». Con una puesta, la que se lleva en la mano ya no sale.'
                       : queHace.coloca?.tipo === 'tornillo'
-                        ? 'Con la placa fijada: perfore el agujero con la broca, mídalo con el medidor y entonces pique en él. El tornillo entra perpendicular a la placa.'
+                        ? 'Con la placa fijada: perfore el agujero con la broca, mídalo con el medidor y entonces pique en él. El tornillo queda en la entrada y entra con la rueda, perpendicular a la placa.'
                         : 'Con la placa fijada y el agujero perforado, apoye el medidor en él: dice cuánto hueso hay debajo y qué tornillo pedir.'}
                   </p>
                   {queHace.coloca?.tipo === 'placa' ? bloqueDeLaPlacaParaLaMesa : null}
+                  {/* Otra cantidad de agujeros u otro largo sin volver a la bandeja (P-008 E3): la placa recta en la mano se cambia aquí. */}
+                  {queHace.coloca?.tipo === 'placa' && sistemaDelSlug(slugDelElegido) ? (
+                    <details className="placa-a-medida-desplegable" open={placaAMedidaElegida !== null}>
+                      <summary>Otra cantidad de agujeros u otro largo</summary>
+                      <ElegirPlacaRecta key={instrumento ?? ''} enLaMano={instrumento} alElegir={(id) => elegirInstrumento(id)} />
+                    </details>
+                  ) : null}
+                  {/* El tornillo que está entrando (pedido 13): se queda donde va mientras se pide el disparo, como la broca. */}
+                  {queHace.coloca?.tipo === 'tornillo' && tornilloQueEntra ? (
+                    <>
+                      <p className="consola-instrumento-texto" role="status">
+                        {textoDelTornilloQueEntra(tornilloQueEntra)}. Se mete y se saca con la rueda (Mayúsculas afina) y se queda ahí
+                        mientras pide el disparo.
+                      </p>
+                      <div className="consola-instrumento-acciones">
+                        <button type="button" className="consola-boton" onClick={() => mando.current?.terminarElTornillo()}>
+                          Atornillar hasta el final
+                        </button>
+                        <button type="button" className="consola-boton" onClick={() => mando.current?.sacarElTornillo()}>
+                          Sacar el tornillo
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                   {bloqueDeLaSecuencia}
                   {bloqueDeLaTrayectoria}
                   {bloqueDeLaCompresion}
@@ -3830,7 +3945,7 @@ instrumentoElegido ? (
                         const rangos = fijacion.placa?.rangos ?? {
                           largoMm: { min: -40, max: 40 },
                           ladoMm: { min: -15, max: 15 },
-                          giroGrados: { min: -90, max: 90 },
+                          giroGrados: { min: -180, max: 180 },
                         }
                         const sentidoDelLado = fijacion.placa?.sentidoDelLado ?? 0
                         const positivoDelLado = sentidoDelLado === 0 ? null : sentidoDelLado > 0 ? 'anterior' : 'posterior'
@@ -3867,9 +3982,28 @@ instrumentoElegido ? (
                               minimo={rangos.giroGrados.min}
                               maximo={rangos.giroGrados.max}
                               unidad="°"
-                              pie={ajuste.giroGrados === 0 ? 'Siguiendo el eje del hueso' : `Girada ${Math.abs(ajuste.giroGrados)}° a un lado del eje del hueso`}
+                              pie={
+                                ajuste.giroGrados === 0
+                                  ? 'Siguiendo el eje del hueso'
+                                  : Math.abs(ajuste.giroGrados) === 180
+                                    ? 'Volteada: siguiendo el eje del hueso, de punta a punta'
+                                    : `Girada ${Math.abs(ajuste.giroGrados)}° a un lado del eje del hueso`
+                              }
                               alConfirmar={(n) => cambiar('giroGrados', n)}
                             />
+                            {/* De 15 en 15 y la vuelta entera (P-008 E4): voltear una placa que no es simétrica —una L, una anatómica— sin
+                                escribir 180. */}
+                            <div className="consola-instrumento-acciones">
+                              <button type="button" className="consola-boton" aria-label="Girar la placa 15 grados a un lado" onClick={() => cambiar('giroGrados', giroEnvuelto(ajuste.giroGrados - 15))}>
+                                <RotateCcw size={14} aria-hidden /> 15°
+                              </button>
+                              <button type="button" className="consola-boton" aria-label="Girar la placa 15 grados al otro lado" onClick={() => cambiar('giroGrados', giroEnvuelto(ajuste.giroGrados + 15))}>
+                                <RotateCw size={14} aria-hidden /> 15°
+                              </button>
+                              <button type="button" className="consola-boton" onClick={() => cambiar('giroGrados', giroEnvuelto(ajuste.giroGrados + 180))}>
+                                Voltear
+                              </button>
+                            </div>
                             {fijacion.placa?.agujerosDelModelo === false ? (
                               <p className="consola-instrumento-texto">Los agujeros se repartieron a partes iguales por los orificios que escribió el editor: su posición es aproximada.</p>
                             ) : null}
@@ -4089,15 +4223,23 @@ instrumentoElegido ? (
                     <button
                       type="button"
                       className="consola-boton"
-                      onClick={() => editor.alUsarEnElPaso(instrumentoElegido.id)}
-                      disabled={editor.instrumentoDelPaso === instrumentoElegido.id}
+                      onClick={() => idDelElegidoParaElCaso && editor.alUsarEnElPaso(idDelElegidoParaElCaso)}
+                      disabled={!idDelElegidoParaElCaso || editor.instrumentoDelPaso === idDelElegidoParaElCaso}
+                      title={
+                        placaAMedidaElegida
+                          ? idDelElegidoParaElCaso
+                            ? `El paso guarda la placa de catálogo de su sistema: ${placaAMedidaElegida.sistema.nombre}.`
+                            : 'Este sistema no tiene placa en el catálogo: el paso no la puede guardar.'
+                          : undefined
+                      }
                     >
                       Es el correcto en este paso
                     </button>
                     <button
                       type="button"
                       className="consola-boton"
-                      onClick={() => editor.alAlternarEnLaBandeja(instrumentoElegido.id)}
+                      onClick={() => idDelElegidoParaElCaso && editor.alAlternarEnLaBandeja(idDelElegidoParaElCaso)}
+                      disabled={!idDelElegidoParaElCaso}
                     >
                       {instrumentoElegido.enLaBandejaDelCaso ? 'Quitar de la bandeja' : 'Añadir a la bandeja'}
                     </button>
@@ -4256,6 +4398,9 @@ instrumentoElegido ? (
           encima del lienzo y las capas bajen debajo, y un `<aside>` con
           `display: contents` pierde su papel en algunos lectores de pantalla. */}
       <div className="consola-izq">
+        {/* La mesa de instrumental, lo primero (P-008 E6): es lo que más se toca después del modelo. */}
+        {bloqueDeLaBandeja}
+
         {/* Cómo está el paciente en la mesa. Antes solo se podía orbitar con el miembro vertical, como de pie, y nadie
             opera así: «Supino» y «Prono» lo acuestan con un clic, y el giro libre deja inclinarlo a gusto. Mueve la
             vista y no el modelo, así que lo que ya está puesto (separadores, pinzas, hilo, placa) no se descoloca. */}
@@ -4350,7 +4495,6 @@ instrumentoElegido ? (
             })}
           </ul>
         </div>
-        {editor ? bloqueDeLaBandeja : null}
       </div>
 
       {/* -------------------------------------------------------- lienzo */}
@@ -4668,6 +4812,7 @@ instrumentoElegido ? (
             asasLibres={asasLibres}
             alElegirPieza={setPiezaElegida}
             alCambiarLaBroca={setBroca}
+            alCambiarElTornillo={setTornilloQueEntra}
             diametroDeTornillo={diametroDeTornillo}
             marcandoLaTrayectoria={marcandoLaTrayectoria}
             alCambiarLaTrayectoria={(e) => {
@@ -4869,6 +5014,17 @@ instrumentoElegido ? (
               lienzo={lienzoDeFluoroscopia}
               desplazamiento={desplazamientoDeFluoroscopia}
               alDesplazar={setDesplazamientoDeFluoroscopia}
+              instrumentoPuesto={broca ? 'la broca' : tornilloQueEntra ? 'el tornillo' : queHace.mide ? 'el medidor' : null}
+              alCentrarEnElInstrumento={() => {
+                const encuadre = mando.current?.encuadrarElInstrumento(fluoroscopia)
+                if (!encuadre) {
+                  // Solo el medidor puede faltar: el botón sale con él en la mano, esté o no apoyado en un orificio.
+                  anotar('El medidor no está en un agujero: apóyelo en uno perforado y vuelva a centrar.', 'atencion')
+                  return
+                }
+                setZoomDeFluoroscopia(encuadre.zoom)
+                setDesplazamientoDeFluoroscopia(encuadre.desplazamiento)
+              }}
               alElegirProyeccion={elegirProyeccion}
               alAcercar={(z) => {
                 const nuevo = limitarZoom(z)
@@ -5128,7 +5284,9 @@ instrumentoElegido ? (
                     CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string),
                   ),
                 )}
-                tomar={(destino, proyeccion, zoom, ajustes) => mando.current?.radiografiaPostoperatoria(destino, proyeccion, zoom, ajustes) ?? false}
+                tomar={(destino, proyeccion, zoom, ajustes, desplazamiento) =>
+                  mando.current?.radiografiaPostoperatoria(destino, proyeccion, zoom, ajustes, desplazamiento) ?? false
+                }
                 alGuardar={(datos) => {
                   radiografiaDelRecorrido.current = datos
                   guardarRecorrido(puntaje, complicaciones, insumos)
@@ -5309,8 +5467,6 @@ instrumentoElegido ? (
             </div>
           </>
         )}
-
-        {!editor ? bloqueDeLaBandeja : null}
       </div>
 
       {/* ------------------------------------------------- retroalimentación */}

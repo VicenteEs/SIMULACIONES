@@ -497,6 +497,45 @@ export function centroDeLaImagen(
 }
 
 /**
+ * Lo contrario de `centroDeLaImagen`: cuánto hay que correr la extremidad para que `punto` caiga en el centro de la imagen.
+ *
+ * Es el «Centrar en la broca» (P-004, pedidos 3 y 13): con el hueso entero en el círculo, una broca de 2,5 mm a medio
+ * hoyo son unos pocos píxeles, y llevarla al centro arrastrando la imagen con el zoom puesto es tantear. Lo que queda
+ * fuera del tope se queda en el tope, igual que un arrastre: el punto queda lo más cerca del centro que se puede.
+ */
+export function desplazamientoParaCentrar(
+  centro: Vec3,
+  radio: number,
+  derecha: Vec3,
+  arriba: Vec3,
+  punto: Vec3,
+  zoom = 1,
+): DesplazamientoDeLaImagen {
+  if (!(radio > 0)) return { ...SIN_DESPLAZAMIENTO }
+  const d = [punto[0] - centro[0], punto[1] - centro[1], punto[2] - centro[2]]
+  const sobre = (eje: Vec3) => d[0] * eje[0] + d[1] * eje[1] + d[2] * eje[2]
+  // El signo, al revés que en `centroDeLaImagen`: para que la cámara mire al punto, el miembro se corre en contra.
+  return limitarDesplazamiento({ x: -sobre(derecha) / radio, y: -sobre(arriba) / radio }, zoom)
+}
+
+/**
+ * Lo que abarca el radio del círculo al «Centrar en la broca»: 8 cm, un campo de 16 cm de lado a lado, que es del orden de
+ * lo que enseña un arco en C con su aumento puesto. Bastan para el hueso entero de lado a lado y la broca, el tornillo o el
+ * medidor dentro, y a esa escala una broca de 2,5 mm ya tiene ancho en la imagen.
+ */
+export const RADIO_DEL_CAMPO_AL_CENTRAR_MM = 80
+
+/**
+ * El zoom con que se centra: el que deja el radio del círculo en `RADIO_DEL_CAMPO_AL_CENTRAR_MM`, partiendo de lo que mide a 1×.
+ * Sale de la escena y no es un número fijo porque a 1× el círculo abarca el hueso visible entero: una pierna con el fémur pide
+ * más aumento que una tibia sola. Nunca aleja (mínimo 1) y no pasa del tope de la imagen.
+ */
+export function zoomParaCentrar(radioA1xMm: number): number {
+  if (!(radioA1xMm > 0)) return 1
+  return limitarZoom(Math.max(1, radioA1xMm / RADIO_DEL_CAMPO_AL_CENTRAR_MM))
+}
+
+/**
  * Cuántos segundos de escopia son «demasiados».
  *
  * La misma cifra que ya usaba el panel de los rayos X (20 s): en pabellón se

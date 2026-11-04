@@ -4,6 +4,7 @@ import {
   direccionesAnatomicas,
   numeroEscrito,
   rangosDeLaPlaca,
+  giroEnvuelto,
   sentidoSobreElEje,
   textoDelDesplazamiento,
 } from '@/lib/ejesAnatomicos'
@@ -74,7 +75,8 @@ describe('rangosDeLaPlaca', () => {
     const r = rangosDeLaPlaca({ largoDelHuesoMm: 380, anchoDelHuesoMm: 30, largoDeLaPlacaMm: 130 })
     expect(r.largoMm).toEqual({ min: -315, max: 315 })
     expect(r.ladoMm).toEqual({ min: -30, max: 30 })
-    expect(r.giroGrados).toEqual({ min: -90, max: 90 })
+    // La vuelta entera desde P-008 E4: voltear una placa asimétrica es girarla 180°.
+    expect(r.giroGrados).toEqual({ min: -180, max: 180 })
   })
 
   it('rodear el hueso tiene tope: un esqueleto de una sola malla no da un ancho de 216 mm', () => {
@@ -118,5 +120,17 @@ describe('numeroEscrito y acotar', () => {
     expect(acotar(500, -315, 315)).toBe(315)
     expect(acotar(-500, -315, 315)).toBe(-315)
     expect(acotar(7, -315, 315)).toBe(7)
+  })
+})
+
+describe('giroEnvuelto (P-008 E4)', () => {
+  it('lleva cualquier giro a (−180, 180]: voltear dos veces deja la placa como estaba', () => {
+    expect(giroEnvuelto(0)).toBe(0)
+    expect(giroEnvuelto(180)).toBe(180)
+    expect(giroEnvuelto(-180)).toBe(180)
+    expect(giroEnvuelto(190)).toBe(-170)
+    expect(giroEnvuelto(345)).toBe(-15)
+    expect(giroEnvuelto(-15)).toBe(-15)
+    expect(giroEnvuelto(giroEnvuelto(30 + 180) + 180)).toBe(30)
   })
 })

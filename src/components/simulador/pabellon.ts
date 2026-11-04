@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js'
 import { tamanoDeLaOclusion } from '@/lib/aspectoAnatomico'
+import { esDeInterfazDelModelo } from './nodosDelModelo'
 
 /**
  * La luz de un pabellón quirúrgico para el simulador (D-226).
@@ -158,7 +159,10 @@ export interface Oclusion {
  * multiplica encima. Multiplicarla sobre la imagen ya revelada no es lo correcto —oscurece también la luz directa—,
  * pero con la intensidad de aquí no se distingue, y cuesta una fracción.
  *
- * Lo que es interfaz (asas, cintas, el vello) y lo transparente no cuentan: no tapan nada.
+ * Lo que es interfaz (asas, cintas, el vello) y lo transparente no cuentan: no tapan nada. La cinta de una herida se
+ * reconoce por su nombre, como en el resto del lienzo (`esDeInterfazDelModelo`): aquí se miraba solo la marca
+ * `deInterfaz`, que ella no lleva, y entraba en el cálculo. No tiene normales, la oclusión la daba por enterrada y el
+ * velo multiplicaba su rojo por casi cero: era la «línea negra que se queda» de los cortes (P-008 E1).
  */
 export function crearOclusion(escena: THREE.Scene, camara: THREE.PerspectiveCamera): Oclusion {
   const gtao = new GTAOPass(escena, camara, 1, 1)
@@ -174,7 +178,7 @@ export function crearOclusion(escena: THREE.Scene, camara: THREE.PerspectiveCame
       const m = o as THREE.Mesh
       const material = m.isMesh ? m.material : null
       const transparente = Array.isArray(material) ? material.some((x) => x.transparent) : !!material?.transparent
-      if (o.userData.deInterfaz === true || transparente) {
+      if (esDeInterfazDelModelo(o) || transparente) {
         o.visible = false
         interno._visibilityCache.push(o)
       }

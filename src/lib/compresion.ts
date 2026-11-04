@@ -75,6 +75,16 @@ export function largoDelOvalMm(diametroDelTornilloMm: number): number {
 
 export type ZonaDelOval = 'cerca-de-la-fractura' | 'centro' | 'lejos-de-la-fractura'
 
+/**
+ * El color de cada zona, el mismo en el esquema del panel y en la marca que queda sobre la placa (pedido 14): verde lo que
+ * comprime, ámbar lo concéntrico hacia la fractura y gris el centro. Vive aquí y no en el panel para que los dos no se separen.
+ */
+export const COLOR_DE_LA_ZONA: Record<ZonaDelOval, string> = {
+  'cerca-de-la-fractura': '#e0a030',
+  centro: '#8a95a5',
+  'lejos-de-la-fractura': '#3fb950',
+}
+
 /** La fracción del semilargo del óvalo que se cuenta como «el centro»: el quinto de cada lado. */
 export const FRACCION_DEL_CENTRO = 0.2
 

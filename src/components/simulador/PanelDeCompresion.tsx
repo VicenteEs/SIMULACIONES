@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { NOMBRE_DE_LA_ZONA, resultadoDelOval, zonaDelOval, type ZonaDelOval } from '@/lib/compresion'
+import { COLOR_DE_LA_ZONA, NOMBRE_DE_LA_ZONA, resultadoDelOval, zonaDelOval, type ZonaDelOval } from '@/lib/compresion'
 
 /**
  * La vista de trabajo de un orificio oval (P-004 E10, pedido 14 de Cristóbal): «al ir a brocar, ofrecer un zoom al lugar de trabajo y
@@ -18,12 +18,6 @@ const ALTO = 56
 /** Lo que mide el óvalo dibujado, en píxeles del esquema: el semilargo del orificio ocupa media longitud. */
 const MEDIO_OVALO = 100
 
-const COLOR_DE_LA_ZONA: Record<ZonaDelOval, string> = {
-  'cerca-de-la-fractura': '#e0a030',
-  centro: '#8a95a5',
-  'lejos-de-la-fractura': '#3fb950',
-}
-
 export function PanelDeCompresion({
   agujeros,
   semilargoMm,
@@ -32,6 +26,7 @@ export function PanelDeCompresion({
   perforados,
   alElegirDesviacion,
   alAcercar,
+  alElegirAgujero,
 }: {
   /** Cuántos orificios tiene la placa. */
   agujeros: number
@@ -44,6 +39,8 @@ export function PanelDeCompresion({
   perforados: ReadonlySet<number>
   alElegirDesviacion: (indice: number, mm: number) => void
   alAcercar: (indice: number | null) => void
+  /** Se eligió otro orificio en la fila de números: el lienzo pasa a él la marca del punto de brocado (pedido 14). */
+  alElegirAgujero?: (indice: number) => void
 }) {
   const [elegido, setElegido] = useState(0)
   const [acercado, setAcercado] = useState(false)
@@ -77,7 +74,10 @@ export function PanelDeCompresion({
             className={`consola-submodo-boton${i === indice ? ' activo' : ''}`}
             aria-pressed={i === indice}
             title={perforados.has(i) ? `Agujero ${i + 1}: ya perforado` : `Agujero ${i + 1}`}
-            onClick={() => setElegido(i)}
+            onClick={() => {
+              setElegido(i)
+              alElegirAgujero?.(i)
+            }}
           >
             {i + 1}
             {perforados.has(i) ? ' ✓' : ''}

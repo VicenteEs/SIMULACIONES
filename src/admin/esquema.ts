@@ -59,6 +59,12 @@ interface CampoBase {
   ayuda?: string
   /** Ocupa media fila en el formulario. Dos seguidos comparten línea. */
   medio?: boolean
+  /**
+   * Se guarda pero no se pinta: lo escribe una herramienta y no una persona, como la posición reducida que calcula
+   * la reducción automática (P-008 E5). Siete casillas numéricas por pieza que nadie sabría rellenar solo invitaban a
+   * estropearla; y sin el campo en el esquema, `depurar` la tiraría al guardar, porque lo que no está descrito no existe.
+   */
+  oculto?: boolean
 }
 
 export type Campo =
@@ -720,6 +726,17 @@ export const Cirugias: EsquemaDeColeccion = {
                 { valor: 'implante', etiqueta: 'Implante' },
                 { valor: 'fascia', etiqueta: 'Fascia' },
               ],
+            },
+            {
+              tipo: 'grupo',
+              nombre: 'posicionReducida',
+              etiqueta: 'Posición reducida',
+              oculto: true,
+              campos: (['x', 'y', 'z', 'qx', 'qy', 'qz', 'qw'] as const).map((nombre) => ({
+                tipo: 'numero' as const,
+                nombre,
+                etiqueta: nombre,
+              })),
             },
           ],
         },

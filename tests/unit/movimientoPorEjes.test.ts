@@ -292,9 +292,18 @@ describe('el cableado', () => {
   })
 
   it('el lienzo dibuja una sola línea del eje y esconde las asas salvo con «Asas libres»', () => {
-    expect(lienzo).toContain('manipulador.grupo.visible = hay && (u.asasLibres || !u.movimientoPorEje)')
+    // Pedido 15: tampoco al agarrar el trozo, antes de elegir un eje; ahí lo que se ve es el menú.
+    expect(lienzo).toContain('manipulador.grupo.visible = hay && !!u.asasLibres')
     expect(lienzo).toContain('lineaDelEje.visible = hay && !!u.movimientoPorEje')
     expect(consola).toContain('alCambiarLasAsas={setAsasLibres}')
+  })
+
+  it('soltar la pinza en «Reducir» deja el trozo sin elegir: no quedan la línea ni el menú sobre un hueso suelto', () => {
+    const soltar = lienzo.slice(lienzo.indexOf('function soltarPinzasDeReduccion('), lienzo.indexOf('// ------------------------------------------------------------ incisiones'))
+    expect(soltar).toContain('t.alSoltarLasPinzas?.()')
+    const alSoltar = lienzo.slice(lienzo.indexOf('taller.current.alSoltarLasPinzas = () => {'))
+    expect(alSoltar.slice(0, 400)).toContain("if (ultimas.current.modo !== 'reducir' || !elegida) return")
+    expect(alSoltar.slice(0, 400)).toContain('elegirLaPieza(null)')
   })
 
   it('el arrastre con un eje elegido va por ese eje y no por el plano de la pantalla', () => {
