@@ -47,8 +47,18 @@ export default async function PaginaRegistro() {
               final pueden prometer un mensaje que nunca va a salir. */}
           <FormularioRegistro conCorreo={hayCorreo()} />
 
+          {/* El aviso, aquí además de en la casilla del último paso: esta nota
+              se ve desde el primero, y quien quiera saber qué se hace con sus
+              datos lo lee antes de escribirlos. En otra pestaña por lo mismo
+              que la casilla: navegar en esta perdería lo escrito. */}
           <p className="ac-nota">
             ¿Ya tienes cuenta? <Link href="/entrar">Entrar</Link>
+            <br />
+            Qué hacemos con tus datos:{' '}
+            <Link href="/privacidad" target="_blank" rel="noopener">
+              aviso de privacidad
+            </Link>
+            .
           </p>
         </div>
       </div>

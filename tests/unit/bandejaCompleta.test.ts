@@ -153,7 +153,8 @@ describe('el cableado', () => {
 
   it('la consola no baja de entrada los modelos de lo que está solo porque la mesa es completa', () => {
     const consola = fuente('src', 'components', 'simulador', 'ConsolaQuirurgica.tsx')
-    expect(consola).toMatch(/\.filter\(\(i\) => !i\.porOmision \|\| i\.categoria === categoriaAbierta\)/)
+    // Por familia de la mesa y no por categoría desde D-262: «Perforación y fijación» se abre en tres.
+    expect(consola).toMatch(/\.filter\(\(i\) => !i\.porOmision \|\| familiaDeLaMesa\(i\) === categoriaAbierta\)/)
   })
 })
 

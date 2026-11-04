@@ -306,7 +306,7 @@ export function guiaDelInstrumento(i: { slug?: string | null; nombre: string; ic
     return 'Solo la primera incisión, la de la piel, se hace con bisturí de piel. Después se toman los bordes con pinzas y se sigue con bisturí profundo o electrobisturí.'
   }
   if (que.roma) {
-    return 'La Metzenbaum se usa de dos maneras. Para cortar, como cualquier tijera: se traza la incisión. Para la disección roma —cuando se quiere ir con cuidado por haber estructuras delicadas— se elige «Disección roma»: se apoya la punta cerrada en el tejido con un clic, se abren las ramas con la rueda del ratón y el plano se separa por tensión, no por corte; después se avanza (otro clic más allá) y se vuelve a abrir, y así se va avanzando.'
+    return 'La Metzenbaum se usa de dos maneras. Para cortar, como cualquier tijera: se traza la incisión. Para la disección roma —cuando se quiere ir con cuidado por haber estructuras delicadas— se elige «Disección roma»: se apoya la punta cerrada en el tejido con un clic, se abren las ramas arrastrando con el botón derecho hacia arriba y el plano se separa por tensión, no por corte; después se avanza (otro clic más allá) y se vuelve a abrir, y así se va avanzando.'
   }
   if (que.corta === 'musculo') {
     return 'Bajo la piel aparece la fascia, una lámina rosada que envuelve a los músculos como un estuche. En un caso que la trae, el primer trazo profundo corta la fascia y el segundo llega al músculo: sin abrirla no se entra. Se corta con bisturí profundo o electrobisturí, y después se va separando hasta llegar al hueso.'
@@ -316,17 +316,17 @@ export function guiaDelInstrumento(i: { slug?: string | null; nombre: string; ic
   }
   if (que.pellizca) {
     return que.pellizca.conDientes
-      ? 'Las pinzas de Adson van de a dos, una frente a la otra: un clic las coloca a los dos lados de la incisión (una la toma quien opera y la otra el ayudante) y pellizcan la piel hacia arriba. La rueda las separa o las junta, tirando de los bordes; con Mayúsculas, la rueda abre o cierra las mandíbulas. Así se da tensión para cortar la piel por completo.'
+      ? 'Las pinzas de Adson van de a dos, una frente a la otra: un clic las coloca a los dos lados de la incisión (una la toma quien opera y la otra el ayudante) y pellizcan la piel hacia arriba. Arrastrando con el botón derecho, hacia arriba las separa y hacia abajo las junta, tirando de los bordes; con Mayúsculas, el arrastre abre o cierra las mandíbulas. Así se da tensión para cortar la piel por completo.'
       : 'La pinza sin dientes toma tejidos delicados sin lesionarlos. Van de a dos, una frente a la otra, y pellizcan hacia arriba, pero no dan tensión a la piel: para eso se usan las de dientes.'
   }
   if (que.separa?.apoyoEnHueso) {
-    return 'El Hohmann se apoya en el borde del hueso: haga clic sobre el hueso y retrae las partes blandas de ese lado. Se abre con la rueda del ratón o con la barra.'
+    return 'El Hohmann se apoya en el borde del hueso: haga clic sobre el hueso y retrae las partes blandas de ese lado. Se abre arrastrando con el botón derecho hacia arriba, o con la barra.'
   }
   if (que.separa?.autoestatico) {
-    return 'Autoestático: se clava a los dos lados de la herida y se queda abierto solo, con su trinquete. Haga clic en el punto de la incisión donde quiere ponerlo y ábralo con la rueda del ratón o con la barra.'
+    return 'Autoestático: se clava a los dos lados de la herida y se queda abierto solo, con su trinquete. Haga clic en el punto de la incisión donde quiere ponerlo y ábralo arrastrando con el botón derecho hacia arriba, o con la barra.'
   }
   if (que.separa) {
-    return 'Una vez tomados los bordes y con el bisturí profundo, se meten los separadores y se llega a un plano más profundo. El Farabeuf y el Senn-Miller empujan la piel hacia un lado y hacia el otro, y se usan en pareja: uno por borde, con el mango hacia fuera de la herida. Elija el plano —piel o músculo— y haga clic en la incisión: con «En pareja» (lo normal) un clic pone las dos hojas; apagado, una por clic, junto al borde que quiere sostener. Ábralos con la rueda (con Mayúsculas, solo la hoja elegida) o con la barra. Para cambiar uno de sitio, haga clic sobre él y otro clic donde quiere dejarlo (Esc lo devuelve). Para separar el músculo, baje al músculo un separador que ya esté puesto.'
+    return 'Una vez tomados los bordes y con el bisturí profundo, se meten los separadores y se llega a un plano más profundo. El Farabeuf y el Senn-Miller empujan la piel hacia un lado y hacia el otro, y se usan en pareja: uno por borde, con el mango hacia fuera de la herida. Elija el plano —piel o músculo— y haga clic en la incisión: con «En pareja» (lo normal) un clic pone las dos hojas; apagado, una por clic, junto al borde que quiere sostener. Ábralos arrastrando con el botón derecho hacia arriba (con Mayúsculas, solo la hoja elegida) o con la barra. Para cambiar uno de sitio, haga clic sobre él y otro clic donde quiere dejarlo (Esc lo devuelve). Para separar el músculo, baje al músculo un separador que ya esté puesto.'
   }
   return null
 }

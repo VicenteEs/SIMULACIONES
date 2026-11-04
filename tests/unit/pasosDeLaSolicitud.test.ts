@@ -33,6 +33,7 @@ const COMPLETA: DatosDeSolicitud = {
   programa: '',
   etapa: '',
   motivo: '',
+  privacidad: true,
 }
 
 describe('los pasos de la solicitud', () => {
@@ -75,6 +76,13 @@ describe('los pasos de la solicitud', () => {
 
   it('una etapa que no es de la lista no pasa', () => {
     expect(problemasDelPaso(1, { ...COMPLETA, etapa: 'r9' as DatosDeSolicitud['etapa'] }).etapa).toBeDefined()
+  })
+
+  it('el último no envía sin el aviso de privacidad aceptado', () => {
+    // La acción rechaza la solicitud sin él; el formulario lo dice antes, junto
+    // a la casilla, y no con el error general de abajo.
+    expect(problemasDelPaso(2, { ...COMPLETA, privacidad: false }).privacidad).toBeDefined()
+    expect(problemasDelPaso(2, COMPLETA)).toEqual({})
   })
 })
 

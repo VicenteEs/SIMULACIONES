@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  HUECO_DE_UN_TRAZO_MM,
   MARGEN_PARA_PASARSE_MM,
   PASO_DE_LA_RUEDA_MM,
   PASO_FINO_DE_LA_RUEDA_MM,
   lecturaDeLaBroca,
   profundidadTrasLaRueda,
   profundidadTrasUnCuadro,
+  salidaPorLaCorticalOpuesta,
   textoDeLaBroca,
 } from '@/lib/profundidadDeLaBroca'
 
@@ -52,6 +54,34 @@ describe('profundidadTrasLaRueda', () => {
     let p = 0
     for (let i = 0; i < 10; i++) p = profundidadTrasLaRueda(p, 30, 1, true)
     expect(p).toBe(1)
+  })
+})
+
+describe('salidaPorLaCorticalOpuesta (P-009)', () => {
+  const cruces = (...c: [number, string][]) => c.map(([distanciaMm, pieza]) => ({ distanciaMm, pieza }))
+
+  it('en un hueso solo, es la cara por la que se sale', () => {
+    expect(salidaPorLaCorticalOpuesta(cruces([24, 'tibia']))).toBe(24)
+  })
+
+  it('el peroné detrás de la tibia no es la cortical opuesta: lo que había en la pierna de E0', () => {
+    expect(salidaPorLaCorticalOpuesta(cruces([24, 'tibia'], [34, 'peroné'], [47, 'peroné']))).toBe(24)
+  })
+
+  it('cruza el trazo de una fractura reducida, y no el de una sin reducir', () => {
+    expect(salidaPorLaCorticalOpuesta(cruces([10, 'proximal'], [11, 'distal'], [26, 'distal']))).toBe(26)
+    const sinReducir = 10 + HUECO_DE_UN_TRAZO_MM + 1
+    expect(salidaPorLaCorticalOpuesta(cruces([10, 'proximal'], [sinReducir, 'distal'], [40, 'distal']))).toBe(10)
+  })
+
+  it('dentro de una misma pieza sigue, haya el hueco que haya', () => {
+    expect(salidaPorLaCorticalOpuesta(cruces([5, 'fémur'], [25, 'fémur'], [30, 'fémur']))).toBe(30)
+  })
+
+  it('una cara vista desde los dos lados no corta la cuenta, y sin cruces no hay salida', () => {
+    const dobles = cruces([10, 'a'], [10, 'a'], [11, 'b'], [11, 'b'], [26, 'b'], [26, 'b'], [36, 'c'], [36, 'c'])
+    expect(salidaPorLaCorticalOpuesta(dobles)).toBe(26)
+    expect(salidaPorLaCorticalOpuesta([])).toBeNull()
   })
 })
 
@@ -103,7 +133,7 @@ describe('el cableado', () => {
   const consola = fuente('src', 'components', 'simulador', 'ConsolaQuirurgica.tsx')
 
   it('soltar el ratón detiene el avance pero no retira la broca', () => {
-    const subir = lienzo.slice(lienzo.indexOf('const alSubir = (evento?: PointerEvent) =>'), lienzo.indexOf('const alGirarLaRueda'))
+    const subir = lienzo.slice(lienzo.indexOf('const alSubir = (evento?: PointerEvent) =>'), lienzo.indexOf('const alBajarConElDerecho'))
     expect(subir).toContain('perforando.avanzando = false')
     expect(subir).not.toContain('terminarPerforacion()')
   })
@@ -124,7 +154,8 @@ describe('el cableado', () => {
 
   it('cambiar de modo o de instrumento la retira, y el botón derecho también', () => {
     expect(lienzo).toContain("if (modo !== 'perforar') taller.current.retirarLaBroca?.()")
-    expect(lienzo).toContain('return () => taller_.current.retirarLaBroca?.()')
+    // Con las vistas previas (P-009) la limpieza hace dos cosas; retirar la broca sigue siendo la primera.
+    expect(lienzo).toMatch(/return \(\) => \{\s*taller_\.current\.retirarLaBroca\?\.\(\)/)
     expect(lienzo).toContain("superficie.addEventListener('contextmenu', alClicDerecho)")
   })
 
@@ -133,6 +164,15 @@ describe('el cableado', () => {
     expect(consola).toContain('mando.current?.retirarLaBroca()')
     expect(consola).toContain("ruedaDelInstrumento === 'perfora'")
     expect(consola).toContain('m.moverLaBroca(sentido, mayusculas)')
+  })
+
+  it('la broca y su línea de vista previa miden la cortical opuesta como el medidor (P-009)', () => {
+    const empezar = lienzo.slice(lienzo.indexOf('const empezarPerforacion = '), lienzo.indexOf('const terminarPerforacion = () =>'))
+    const vista = lienzo.slice(lienzo.indexOf('const vistaPreviaDeLaBroca = '), lienzo.indexOf('const posarBroca = '))
+    for (const trozo of [empezar, vista]) {
+      expect(trozo).toContain('medirAlLoLargoDeUnaLinea(')
+      expect(trozo).not.toContain('cruces[cruces.length - 1]')
+    }
   })
 
   it('un clic con una broca puesta la sigue metiendo, no empieza otro hoyo', () => {

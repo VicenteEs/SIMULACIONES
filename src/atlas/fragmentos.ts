@@ -19,7 +19,7 @@ import * as THREE from 'three'
 import { partirMalla, partirPorVariosPlanos, type MallaIndexada } from '@/lib/osteotomia'
 import { partirPorVariosPlanosSinTapa, partirSinTapaPorUnPlano } from '@/lib/recorteDeCapa'
 import { type AspectoDePieza, type EscenaDelAtlas, type TransformacionDePieza } from './cargador'
-import { focoDeLaTapa } from './manipular'
+import { focoDeLaTapa, puntosDeLaTapa } from './manipular'
 import { crearMaterialDeRadiografia } from './materialDeRadiografia'
 import {
   idDeFragmento,
@@ -45,6 +45,12 @@ export interface FragmentoDelAtlas {
    * plano —el marco de `recorte.ts` corta con varios— y entonces gira sobre su centro.
    */
   foco: THREE.Vector3 | null
+  /**
+   * Los vértices de esa tapa, en su sitio anatómico: dan el ancho del hueso en el
+   * foco, con el que el desplazamiento se lee también en % del diámetro (Q-010).
+   * Sin ella donde no hay `foco`.
+   */
+  tapa?: Float32Array | null
   /** Color del sistema, para volver a él al deseleccionar. */
   colorBase: THREE.Color
   /**
@@ -171,7 +177,10 @@ export function crearFragmentos(
   // Un corte de un solo plano deja en cada trozo una tapa sobre ese plano, y su
   // centro es el foco. Con varios planos no hay una tapa sino varias.
   if (!corte.otrosPlanos || corte.otrosPlanos.length === 0) {
-    for (const trozo of fragmentos) trozo.foco = focoDeLaTapa(trozo.enReposo.posiciones, corte.punto, corte.normal)
+    for (const trozo of fragmentos) {
+      trozo.foco = focoDeLaTapa(trozo.enReposo.posiciones, corte.punto, corte.normal)
+      trozo.tapa = puntosDeLaTapa(trozo.enReposo.posiciones, corte.punto, corte.normal)
+    }
   }
   return { fragmentos }
 }

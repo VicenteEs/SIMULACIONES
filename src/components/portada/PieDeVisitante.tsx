@@ -92,6 +92,9 @@ export function PieDeVisitante({ pagina, enLaPortada = true }: { pagina: PaginaL
               <li>
                 <Link href="/creditos">Créditos y licencias</Link>
               </li>
+              <li>
+                <Link href="/privacidad">Aviso de privacidad</Link>
+              </li>
             </ul>
           </nav>
         </div>

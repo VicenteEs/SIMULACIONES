@@ -36,6 +36,7 @@ import { crearLimitador, direccionDeQuienLlama } from '@/lib/ritmo'
 import { exigirContrasena, exigirCorreo, exigirTexto } from '@/lib/validacion'
 import { esperarElSuelo, exigirSinEnlaces } from '@/lib/formularioPublico'
 import { LARGOS_DE_SOLICITUD, esEtapaDeFormacion, etiquetaDeEtapa, institucionConPrograma, type EtapaDeFormacion } from '@/lib/solicitudDeCuenta'
+import { VERSION_DEL_AVISO_DE_PRIVACIDAD } from '@/lib/avisoDePrivacidad'
 import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
 import { destinoAlEntrar } from '@/lib/bienvenida'
 
@@ -483,6 +484,24 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
       )
     }
 
+    // El aviso de privacidad, antes que ningún dato: sin él aceptado no hay
+    // con qué tratar el nombre ni el correo que vienen detrás (Q-005, D-258).
+    // La casilla del formulario no basta, por lo de la cabecera: esta acción se
+    // llama por HTTP con lo que se quiera.
+    //
+    // Llega la versión que enseñaba el formulario, no un «sí», y tiene que ser
+    // la vigente. Lo que se guarda en la cuenta es qué texto se aceptó, y un
+    // «sí» a secas dejaría anotar la versión de hoy a quien abrió el formulario
+    // antes de que el aviso cambiara y aceptó el de antes.
+    const avisoAceptado = bruto.avisoDePrivacidadAceptado
+    if (avisoAceptado !== VERSION_DEL_AVISO_DE_PRIVACIDAD) {
+      throw new Error(
+        typeof avisoAceptado === 'string' && avisoAceptado.trim() !== ''
+          ? 'El aviso de privacidad cambió mientras llenabas la solicitud. Recarga la página, léelo otra vez y vuelve a aceptarlo.'
+          : 'Para pedir la cuenta tienes que aceptar el aviso de privacidad.',
+      )
+    }
+
     const nombre = exigirSinEnlaces(exigirTexto(bruto.nombre, 'El nombre', LARGOS_DE_SOLICITUD.nombre), 'El nombre')
     const email = exigirCorreo(bruto.correo)
     // El programa es opcional y viaja en la misma columna que la institución
@@ -532,7 +551,15 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
     // arriba no esperan: no saben nada de ninguna cuenta, y a quien se equivocó
     // en un campo no hay por qué hacerle esperar para corregirlo.
     try {
-      return await registrarSolicitud(payload, { nombre, email, institucion, etapaDeFormacion, motivo, password })
+      return await registrarSolicitud(payload, {
+        nombre,
+        email,
+        institucion,
+        etapaDeFormacion,
+        motivo,
+        password,
+        versionDelAvisoDePrivacidad: avisoAceptado,
+      })
     } finally {
       await esperarElSuelo(inicio)
     }
@@ -549,6 +576,7 @@ async function registrarSolicitud(
     etapaDeFormacion,
     motivo,
     password,
+    versionDelAvisoDePrivacidad,
   }: {
     nombre: string
     email: string
@@ -556,6 +584,7 @@ async function registrarSolicitud(
     etapaDeFormacion?: EtapaDeFormacion
     motivo: string
     password: string
+    versionDelAvisoDePrivacidad: string
   },
 ): Promise<null> {
   const base = direccionPublica()
@@ -581,6 +610,10 @@ async function registrarSolicitud(
   if (cuenta) {
     // La verdad se le dice al titular en su buzón, que es lo único que un
     // curioso con la dirección ajena no puede leer.
+    //
+    // Y a esa cuenta no se le anota el aviso aceptado, aunque esta llamada lo
+    // traiga: quien llama puede ser cualquiera que sepa la dirección, y anotarlo
+    // sería dejarle fabricar el consentimiento de otro.
     if (cuenta.pendiente) {
       // Quien vuelve a pedir la cuenta mientras espera no tiene «ya una cuenta
       // con la que entrar»: tiene una solicitud sin revisar, y si entra, la
@@ -611,6 +644,9 @@ async function registrarSolicitud(
     return null
   }
 
+  // Un solo instante para la solicitud y la aceptación del aviso: se aceptó al
+  // pedir la cuenta, y dos relojes leídos por separado dirían otra cosa.
+  const ahora = new Date().toISOString()
   try {
     await payload.create({
       collection: 'usuarios',
@@ -625,8 +661,12 @@ async function registrarSolicitud(
         origen: 'solicitud',
         pendiente: true,
         motivoDeSolicitud: motivo || undefined,
-        solicitadaEn: new Date().toISOString(),
+        solicitadaEn: ahora,
+        privacidadAceptadaEn: ahora,
+        versionDelAvisoDePrivacidad,
       },
+      // También es lo que deja escribir las dos columnas del aviso, cerradas a
+      // todo el mundo por acceso de campo (`Usuarios.ts`).
       overrideAccess: true,
     })
   } catch (fallo) {

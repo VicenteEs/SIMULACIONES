@@ -18,6 +18,7 @@ import { traerCompanerosDeLaPlaca } from '@/lib/companerosDeLaPlaca'
 import { traerTodaLaMesa } from '@/lib/mesaCompleta'
 import { lecturasDelResidente } from '@/lib/lecturas'
 import { recorridoGuardado } from '@/lib/progresoDelSimulador'
+import { avanceDeLaFila } from '@/lib/avanceDelCaso'
 import { Rico } from '@/components/Rico'
 import { GuiaDeLaConsola } from '@/components/simulador/GuiaDeLaConsola'
 
@@ -104,6 +105,7 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
         completadoInicial={lecturas.leida(id)}
         cirujano={typeof (usuarioEfectivo as { nombre?: unknown } | null)?.nombre === 'string' ? (usuarioEfectivo as { nombre: string }).nombre : ''}
         recorridoGuardado={recorridoGuardado(registroDeLectura)}
+        avanceGuardado={avanceDeLaFila(registroDeLectura, caso.pasos.length)}
       >
         {/* El título y el resumen van dentro para que la casilla de «leída»
             se siente a su lado, en la cabecera del caso. */}

@@ -22,14 +22,15 @@ import { LogoChessCore } from '@/components/LogoChessCore'
  * porqué está junto a esa regla.
  *
  * El `mailto:` no pasa por `ruta()`: no es una dirección de la plataforma y el
- * prefijo no le afecta. El enlace a créditos es un `<Link>`, que ya lo resuelve.
+ * prefijo no le afecta. Los enlaces a créditos y al aviso de privacidad son
+ * `<Link>`, que ya lo resuelve.
  */
 export function PieDePagina() {
   return (
     <footer className="pie-de-pagina">
       <p>
         <strong>TraumaHub</strong> · Plataforma docente de traumatología ·{' '}
-        <Link href="/creditos">Créditos y licencias</Link>
+        <Link href="/creditos">Créditos y licencias</Link> · <Link href="/privacidad">Privacidad</Link>
       </p>
       {/* El logotipo de ChessCore da la cara por quien lo desarrolló: es lo que ve el residente, quien se
           registra y quien edita, en todas las pantallas públicas. Sobre la portada marina cambia a su versión

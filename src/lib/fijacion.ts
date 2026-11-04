@@ -19,6 +19,7 @@
  *   así), pero sí lo que un paso de «bicortical» no acepta.
  */
 
+import type { ReduccionDelFoco } from './enclavado'
 import { sistemaDelSlug } from './placasRectas'
 
 export type Vec3 = [number, number, number]
@@ -267,6 +268,118 @@ export interface TornilloPuesto {
   apriete?: { apretado: boolean; texto: string; aviso: string | null }
 }
 
+/** Un trozo de hueso bajo la placa (P-009). */
+export interface TrozoBajoLaPlaca {
+  /** El nombre de su malla, que es el nodo de su pieza. */
+  nodo: string
+  /** Cuántos agujeros de la placa caen sobre él. */
+  agujeros: number
+  /** Lo más cerca que queda la placa de él, en mm: unas décimas si se apoya en él; varios milímetros, si no lo toca. */
+  holguraMinimaMm: number
+}
+
+/** Cómo quedó asentada la placa como un sólido sobre el hueso (P-009): cuánto toca y sobre qué trozos. */
+export interface ResumenDelAsiento {
+  /** Qué parte de la cara de abajo toca el hueso, a medio milímetro o menos, en %. */
+  contactoPct: number
+  /** Qué parte queda sin hueso debajo, en %: la placa se sale por un borde del hueso. */
+  sinHuesoPct: number
+  holguraMediaMm: number
+  /** Los trozos bajo la placa, del que más agujeros tiene al que menos. */
+  trozos: TrozoBajoLaPlaca[]
+  /** Los agujeros que no tienen hueso debajo. */
+  agujerosSinHueso: number
+}
+
+/**
+ * A partir de cuántos milímetros un trozo bajo la placa no está apoyado (P-009). Asentada como un sólido, la placa queda
+ * a dos décimas del trozo en que se apoya, y del que está sin reducir, a lo que mide el escalón. El milímetro deja fuera
+ * las décimas que pone la curva del hueso bajo una placa recta.
+ */
+export const NO_APOYA_MM = 1
+
+/**
+ * Hasta dónde puede estar abierto el foco para fijar con placa: los topes que un paso trae por defecto
+ * (`topesDeReduccion`, 5 mm y 5°). Más abierto, la placa se apoya en un fragmento y en el borde del otro, y la holgura
+ * bajo cada uno no lo delata: en el caso 3053 sin reducir (12,5 mm, 9,8°, 18 mm de diástasis) tocaba los dos por una
+ * esquina y el mensaje no decía nada (las capturas de «después» de P-009).
+ */
+export const FOCO_PARA_FIJAR = { desplazamientoMm: 5, angulacionGrados: 5, diastasisMm: 5 } as const
+
+/**
+ * Cuántos agujeros pide cada fragmento de una diáfisis: tres tornillos bicorticales a cada lado de la fractura, seis
+ * corticales, que es la regla de la AO para una placa de compresión. Con menos, la placa no sostiene ese fragmento.
+ */
+export const AGUJEROS_POR_FRAGMENTO = 3
+
+/**
+ * Lo que se le dice a quien opera al apoyar o al mover la placa (P-009; el dueño la quería «como si de verdad afirmara
+ * esos dos fragmentos»): sobre qué fragmento cae cada agujero, si a alguno le faltan para sostenerlo, si la placa no
+ * apoya en uno —a cuánto queda, y que se reduzca antes de fijarla— y si algún agujero se queda sin hueso debajo.
+ * `atencion` cuando hay algo que corregir antes de fijarla.
+ *
+ * `hayFractura` lo dice el caso (un trozo marcado como fragmento). Sin fractura, una placa sobre un solo trozo es lo
+ * normal y no hay lados que contar: solo se avisa de los agujeros sin hueso. `foco` es la lectura de la reducción que
+ * ve la consola; con el foco abierto, eso va primero, y lo que no apoya ya no hace falta decirlo trozo a trozo.
+ */
+export function avisoDelAsiento(
+  a: ResumenDelAsiento,
+  nombreDe: (nodo: string) => string,
+  hayFractura: boolean,
+  foco?: ReduccionDelFoco | null,
+): { texto: string; atencion: boolean } {
+  const partes: string[] = []
+  let atencion = false
+  const coma = (n: number) => n.toFixed(1).replace('.', ',').replace(/,0$/, '')
+  const abierto = hayFractura && foco ? cifrasDelFocoAbierto(foco, coma) : []
+  if (abierto.length > 0) {
+    partes.push(
+      `La fractura no está reducida (${abierto.join(', ')}): la placa no puede apoyar en los dos fragmentos. Redúzcala antes de fijarla.`,
+    )
+    atencion = true
+  }
+  const conAgujeros = a.trozos.filter((t) => t.agujeros > 0)
+  if (hayFractura && conAgujeros.length >= 2) {
+    partes.push(`Agujeros sobre cada fragmento: ${conAgujeros.map((t) => `${nombreDe(t.nodo)}, ${t.agujeros}`).join('; ')}.`)
+    // Lo que no apoya, con el foco dentro de los topes: un escalón que la lectura no ve, como un tercer fragmento.
+    const sueltos = abierto.length > 0 ? [] : conAgujeros.filter((t) => t.holguraMinimaMm > NO_APOYA_MM)
+    for (const t of sueltos) {
+      partes.push(`No apoya en ${nombreDe(t.nodo)}: queda a ${coma(t.holguraMinimaMm)} mm. Reduzca la fractura antes de fijarla.`)
+    }
+    const cortos = conAgujeros.filter((t) => t.agujeros < AGUJEROS_POR_FRAGMENTO)
+    if (cortos.length > 0) {
+      partes.push(
+        `${cortos.map((t) => nombreDe(t.nodo)).join(' y ')}: menos de ${AGUJEROS_POR_FRAGMENTO} agujeros, y así la placa no ${cortos.length > 1 ? 'los' : 'lo'} sostiene. Córrala o elija una más larga.`,
+      )
+    }
+    atencion ||= sueltos.length > 0 || cortos.length > 0
+  } else if (hayFractura && conAgujeros.length === 1) {
+    // Una placa entera sobre un fragmento no fija nada: es el error de apoyarla lejos del trazo.
+    partes.push(
+      `Todos sus agujeros caen en ${nombreDe(conAgujeros[0].nodo)}: no cruza la fractura. Córrala hasta que la fractura quede bajo su centro.`,
+    )
+    atencion = true
+  }
+  if (a.agujerosSinHueso > 0) {
+    partes.push(
+      a.agujerosSinHueso === 1
+        ? 'Un agujero se queda sin hueso debajo: la placa se sale del borde.'
+        : `${a.agujerosSinHueso} agujeros se quedan sin hueso debajo: la placa se sale del borde.`,
+    )
+    atencion = true
+  }
+  return { texto: partes.join(' '), atencion }
+}
+
+/** Las cifras del foco que pasan de lo que admite una placa, en palabras: vacío si está reducido. */
+function cifrasDelFocoAbierto(foco: ReduccionDelFoco, coma: (n: number) => string): string[] {
+  const cifras: string[] = []
+  if (foco.desplazamientoMm > FOCO_PARA_FIJAR.desplazamientoMm) cifras.push(`desplazamiento ${coma(foco.desplazamientoMm)} mm`)
+  if (foco.angulacionGrados > FOCO_PARA_FIJAR.angulacionGrados) cifras.push(`angulación ${coma(foco.angulacionGrados)}°`)
+  if ((foco.diastasisMm ?? 0) > FOCO_PARA_FIJAR.diastasisMm) cifras.push(`diástasis ${coma(foco.diastasisMm ?? 0)} mm`)
+  return cifras
+}
+
 /** Lo que hay fijado ahora mismo: la placa y sus tornillos. */
 export interface EstadoDeLaFijacion {
   placa: {
@@ -293,6 +406,8 @@ export interface EstadoDeLaFijacion {
     /** Los agujeros vienen del modelo o se repartieron por la cantidad que escribió el editor, y el aviso si no coinciden. */
     agujerosDelModelo?: boolean
     aviso?: string | null
+    /** Cómo quedó asentada (P-009): sobre qué fragmentos y con cuántos agujeros en cada uno. */
+    asiento?: ResumenDelAsiento | null
   } | null
   tornillos: TornilloPuesto[]
   /** Lo que se perforó y se midió en cada agujero, por su índice (P-003 E6). */

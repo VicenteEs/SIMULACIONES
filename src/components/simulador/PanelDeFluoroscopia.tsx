@@ -83,6 +83,7 @@ export function PanelDeFluoroscopia({
   alCambiarAncho,
   alCambiarAyudas,
   alApagar,
+  referencia = null,
 }: {
   proyeccion: ProyeccionDeFluoroscopia
   /** «disparo» (por omisión): una toma por pulsación; «video»: la imagen en vivo, que cuenta exposición. */
@@ -123,6 +124,11 @@ export function PanelDeFluoroscopia({
   alCambiarAncho: (ancho: number) => void
   alCambiarAyudas: (ayudas: AyudasDeEscopia) => void
   alApagar: () => void
+  /**
+   * La última toma de la otra proyección (P-009, mejora de uso 11), como el segundo monitor del arco en pabellón: la
+   * reducción se juzga en AP y en lateral a la vez. Una foto fija, que se renueva al disparar en esa proyección.
+   */
+  referencia?: { imagen: string; etiqueta: string } | null
 }) {
   const etiqueta = PROYECCIONES_DE_FLUOROSCOPIA.find((q) => q.valor === proyeccion)?.etiqueta
   // El arrastre sigue al puntero y no al estado: entre dos movimientos seguidos React puede no haber repintado
@@ -304,13 +310,20 @@ export function PanelDeFluoroscopia({
         onPointerCancel={alSoltar}
         onKeyDown={alTeclear}
       />
+      {referencia ? (
+        <figure className="consola-escopia-referencia">
+          {/* eslint-disable-next-line @next/next/no-img-element -- una toma hecha en el navegador, sin servidor que la optimice */}
+          <img src={referencia.imagen} alt={`Última toma ${referencia.etiqueta}`} />
+          <figcaption>Última {referencia.etiqueta}</figcaption>
+        </figure>
+      ) : null}
       {modo === 'disparo' ? (
         <>
           <button
             type="button"
             className="consola-aplicar consola-escopia-disparar"
             onClick={alDisparar}
-            title="Una toma ahora, como el pedal del arco. La imagen se queda hasta el siguiente disparo (también Intro o espacio con la imagen enfocada)."
+            title="Una toma ahora, como el pedal del arco. La imagen se queda hasta el siguiente disparo (también F desde cualquier sitio, o Intro y espacio con la imagen enfocada)."
           >
             <Zap size={14} aria-hidden /> Disparar
           </button>

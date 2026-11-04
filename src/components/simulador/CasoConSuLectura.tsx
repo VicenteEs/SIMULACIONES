@@ -4,6 +4,7 @@ import { useCallback, useState, type ReactNode } from 'react'
 import { RastreadorActividad } from '@/components/RastreadorActividad'
 import { ConsolaQuirurgica, type CasoDeConsola } from './ConsolaQuirurgica'
 import type { RecorridoGuardado } from '@/lib/progresoDelSimulador'
+import type { AvanceDelCaso } from '@/lib/avanceDelCaso'
 
 /**
  * La casilla de «leída» y la consola de un caso, puestas de acuerdo.
@@ -40,6 +41,7 @@ export function CasoConSuLectura({
   caso,
   documentoId,
   recorridoGuardado,
+  avanceGuardado = null,
   completadoInicial,
   cirujano,
   children,
@@ -49,6 +51,8 @@ export function CasoConSuLectura({
   caso: CasoDeConsola
   documentoId: string
   recorridoGuardado: RecorridoGuardado | null
+  /** Dónde se quedó en el caso, guardado en la cuenta (P-009): la consola ofrece seguir desde ahí. */
+  avanceGuardado?: AvanceDelCaso | null
   completadoInicial: boolean
   /** El título y el resumen del caso, que la página pinta en el servidor. */
   children?: ReactNode
@@ -85,6 +89,7 @@ export function CasoConSuLectura({
         caso={caso}
         documentoId={documentoId}
         recorridoGuardado={recorridoGuardado}
+        avanceGuardado={avanceGuardado}
         alMarcarComoLeido={alMarcarComoLeido}
         cirujano={cirujano}
       />

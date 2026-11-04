@@ -9,6 +9,7 @@ import {
   ejecutar,
   elegirPorNombre,
   leerArgumentos,
+  conElTrazoPedido,
   ParadaDelGuion,
   planDelCaso,
   sinSecretos,
@@ -415,6 +416,39 @@ describe('corteParaLaFractura', () => {
   })
 })
 
+describe('conElTrazoPedido (P-009)', () => {
+  const tibia = { codigo: '42', nombre: 'Tibia (diáfisis)' }
+  const oblicua = corteParaLaFractura(
+    { hueso: tibia, clasificacion: { codigo: 'A2', nombre: 'Simple oblicua', tipo: 'A' } },
+    'FJ3387',
+  )
+  const transversa = corteParaLaFractura(
+    { hueso: tibia, clasificacion: { codigo: 'A3', nombre: 'Simple transversa', tipo: 'A' } },
+    'FJ3387',
+  )
+
+  it('cambia la altura, la inclinación y la cara, y deja la pieza y el fragmento', () => {
+    const { corte, porque } = conElTrazoPedido(oblicua, { inclinacion: 35, giro: 270, posicion: 48 })
+    expect(corte).toEqual({ pieza: 'FJ3387', posicion: 48, inclinacion: 35, giro: 270, fragmento: 'distal' })
+    expect(porque).toMatch(/como se pidieron/)
+  })
+
+  it('lo que no se pide queda como lo da la clasificación', () => {
+    expect(conElTrazoPedido(oblicua, { giro: 270 }).corte).toMatchObject({ posicion: 50, inclinacion: 45, giro: 270 })
+  })
+
+  it('no cambia de fractura: la oblicua sigue en 30° o más y la transversa por debajo', () => {
+    expect(() => conElTrazoPedido(oblicua, { inclinacion: 20 })).toThrow(/oblicua.*transversal.*30°/)
+    expect(() => conElTrazoPedido(transversa, { inclinacion: 35 })).toThrow(/transversa.*oblicuo.*30°/)
+    expect(conElTrazoPedido(transversa, { inclinacion: 15 }).corte.inclinacion).toBe(15)
+  })
+
+  it('para, sin tocar nada, con un valor fuera de los mandos', () => {
+    expect(() => conElTrazoPedido(oblicua, { posicion: 99 })).toThrow(/No se ha tocado nada/)
+    expect(() => conElTrazoPedido(oblicua, { inclinacion: 80 })).toThrow(/No se ha tocado nada/)
+  })
+})
+
 describe('elegirPorNombre', () => {
   const que = { singular: 'ninguna preparación', plural: 'Preparaciones que hay' }
 
@@ -471,6 +505,15 @@ describe('las opciones y los secretos', () => {
     expect(() => leerArgumentos(['--nuevo', '--aplicar'])).toThrow(/Falta el valor/)
     // Cambiar la fractura del caso de prueba al pasar rompería lo que suponen su modelo y sus pruebas.
     expect(() => leerArgumentos(['--clasificacion', 'A3'])).toThrow(/solo vale con --nuevo/)
+  })
+
+  it('el trazo del caso nuevo: altura, inclinación y cara (P-009)', () => {
+    expect(leerArgumentos(['--nuevo', 'Otra']).trazo).toBeUndefined()
+    expect(
+      leerArgumentos(['--nuevo', 'Otra', '--inclinacion', '35', '--giro=270', '--posicion', '49,5']).trazo,
+    ).toEqual({ inclinacion: 35, giro: 270, posicion: 49.5 })
+    expect(() => leerArgumentos(['--nuevo', 'Otra', '--giro', 'medial'])).toThrow(/es un número/)
+    expect(() => leerArgumentos(['--inclinacion', '35'])).toThrow(/solo valen con --nuevo/)
   })
 
   it('no imprime la cadena de conexión ni la contraseña de dentro de una URL', () => {

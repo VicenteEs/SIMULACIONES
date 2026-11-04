@@ -660,6 +660,20 @@ export const Cirugias: EsquemaDeColeccion = {
             'Por omisión el residente tiene todo el instrumental delante, sin que haya que ir metiéndolo. «Solo lo que elijo» la limita a la lista de abajo y a lo que piden los pasos.',
         },
         {
+          tipo: 'seleccion',
+          nombre: 'modo',
+          etiqueta: 'Práctica o evaluación',
+          requerido: true,
+          porOmision: 'eleccion',
+          opciones: [
+            { valor: 'eleccion', etiqueta: 'Lo elige el residente' },
+            { valor: 'practica', etiqueta: 'Solo práctica' },
+            { valor: 'evaluacion', etiqueta: 'Solo evaluación' },
+          ],
+          ayuda:
+            'En práctica el residente ve la demostración de cada paso y puede deshacer y repetir; en evaluación no, y el recorrido cuenta como evaluado. Fíjelo solo si el caso es de examen o solo de práctica.',
+        },
+        {
           tipo: 'relacion',
           nombre: 'instrumental',
           etiqueta: 'Bandeja del caso',
@@ -905,6 +919,39 @@ export const Cirugias: EsquemaDeColeccion = {
               singular: 'Pieza',
               ayuda: 'Vacío: se mantiene lo del paso anterior.',
               campos: [{ tipo: 'texto', nombre: 'nodo', etiqueta: 'Nombre del objeto', requerido: true }],
+            },
+            {
+              tipo: 'seleccion',
+              nombre: 'posicion',
+              etiqueta: 'Posición del paciente',
+              medio: true,
+              opciones: [
+                { valor: 'de-pie', etiqueta: 'De pie (posición anatómica)' },
+                { valor: 'supino', etiqueta: 'Supino' },
+                { valor: 'prono', etiqueta: 'Prono' },
+              ],
+              ayuda: 'Vacía: la del paso anterior. El encuadre exacto se guarda desde el simulador, con «Guardar este encuadre».',
+            },
+            {
+              // Lo escribe el botón «Guardar este encuadre» del editor del simulador (P-009): diez números que nadie
+              // sabría teclear, como la posición reducida de las piezas.
+              tipo: 'grupo',
+              nombre: 'encuadre',
+              etiqueta: 'Encuadre de la cámara',
+              oculto: true,
+              campos: (['dx', 'dy', 'dz', 'ax', 'ay', 'az', 'cx', 'cy', 'cz', 'distancia'] as const).map((nombre) => ({
+                tipo: 'numero' as const,
+                nombre,
+                etiqueta: nombre,
+              })),
+            },
+            {
+              tipo: 'archivo',
+              nombre: 'demostracion',
+              etiqueta: 'Demostración (de 3 a 5 s)',
+              coleccion: 'medios',
+              acepta: 'image/webp,video/mp4,video/webm',
+              ayuda: 'Un WebP animado o un vídeo corto del gesto. Solo se ve en práctica.',
             },
             { tipo: 'area', nombre: 'exito', etiqueta: 'Si lo hace bien' },
             { tipo: 'area', nombre: 'insuficiente', etiqueta: 'Si se queda corto' },

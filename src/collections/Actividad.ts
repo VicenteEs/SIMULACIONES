@@ -316,6 +316,17 @@ export const Actividad: CollectionConfig = {
       label: 'Usó la reducción automática',
     },
     {
+      // En qué modo se hizo el último recorrido (P-009, D-258): en evaluación, sin demostración, sin deshacer y sin
+      // repetir pasos. Es lo que separa, para el docente, una nota de un ensayo. Vacío en los recorridos de antes.
+      name: 'modoDelRecorrido',
+      type: 'select',
+      label: 'Modo del último recorrido',
+      options: [
+        { label: 'Práctica', value: 'practica' },
+        { label: 'Evaluación', value: 'evaluacion' },
+      ],
+    },
+    {
       // La radiografía postoperatoria del último recorrido (P-004 E11): cirujano, diagnóstico, intervención, fecha y equipo tal
       // como salieron en la lámina. **Los datos, no la imagen**: la lámina se vuelve a hacer cuando haga falta y un PNG por
       // recorrido llenaría la base. Es lo que permitirá contar «X cirugías» de un estudiante y darle su comprobante; esa
@@ -323,6 +334,15 @@ export const Actividad: CollectionConfig = {
       name: 'radiografia',
       type: 'json',
       label: 'Radiografía postoperatoria del último recorrido',
+    },
+    {
+      // Dónde se quedó el residente en el caso (P-009, mejora de uso 12; Q-005 lo deja guardar en la cuenta): el paso,
+      // el modo y lo hecho sobre el paciente, en el mismo texto con que el lienzo lo guarda en la pestaña. Con esto el
+      // caso se sigue otro día y en otro equipo, y no solo al recargar. Lo escribe `guardarAvanceDelCaso`, con su tope
+      // de tamaño; un caso terminado lo vacía.
+      name: 'avance',
+      type: 'json',
+      admin: { readOnly: true },
     },
     {
       name: 'complicaciones',

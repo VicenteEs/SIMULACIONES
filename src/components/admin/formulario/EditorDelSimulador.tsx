@@ -12,6 +12,7 @@ import { reexportarConEstructurasSeparadas } from '@/app/(frontend)/acciones/atl
 import { useConfirmar } from '@/components/ui/Confirmar'
 import type { Campo } from '@/admin/esquema'
 import { casoDesdeElFormulario, type InstrumentoParaElEditor } from '@/lib/casoQuirurgico'
+import { encuadreDelGrupo, grupoDelEncuadre } from '@/lib/encuadreDelPaso'
 import {
   agregarPieza,
   cambiarRolDePieza,
@@ -658,6 +659,31 @@ function CapturasDelPaso({
         >
           Que este paso muestre lo que se ve ahora
         </button>
+        {/* El encuadre del paso (P-009, mejora de uso 1): se deja la cámara como se quiere que la vea el residente al
+            entrar y se guarda. Son diez números que nadie sabría teclear; por eso el campo no sale en el formulario. */}
+        <button
+          type="button"
+          className="consola-boton"
+          onClick={() => {
+            const encuadre = mando.current?.encuadreActual()
+            if (encuadre) escribir({ encuadre: grupoDelEncuadre(encuadre) })
+          }}
+        >
+          {encuadreDelGrupo(paso.encuadre) ? 'Guardar este encuadre (reemplaza el guardado)' : 'Guardar este encuadre'}
+        </button>
+        {encuadreDelGrupo(paso.encuadre) ? (
+          <button
+            type="button"
+            className="consola-boton"
+            onClick={() =>
+              escribir({
+                encuadre: { dx: null, dy: null, dz: null, ax: null, ay: null, az: null, cx: null, cy: null, cz: null, distancia: null },
+              })
+            }
+          >
+            Quitar el encuadre
+          </button>
+        ) : null}
       </div>
     </div>
   )

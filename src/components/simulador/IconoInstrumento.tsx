@@ -30,6 +30,8 @@ const TRAZOS: Record<string, string> = {
   martillo: 'M6 6 h9 v4 h-9 z M10 10 v10',
   // Mango y punta cruciforme.
   atornillador: 'M12 3 v10 M9 13 h6 v3 h-6 z M12 16 v5',
+  // Una regla con sus marcas y el gancho de la punta: el medidor de profundidad, que da su cuadro a «Medidores» (P-009).
+  medidor: 'M10 3 v15 l3 3 M10 6 h3 M10 9 h2 M10 12 h3 M10 15 h2',
   // Aguja curva con hilo.
   aguja: 'M4 16 C8 8 16 8 20 6 M20 6 l-3 1 M20 6 l-1 3',
   // Una placa con sus agujeros (los puntos son trazos de largo cero con extremos redondos).

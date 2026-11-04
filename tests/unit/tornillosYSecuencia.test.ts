@@ -407,7 +407,8 @@ describe('los campos y el cableado', () => {
   it('al terminar un tiempo se elige y se abre el siguiente, y solo se pone en la mano si el interruptor está encendido', () => {
     const avanzar = consola.slice(consola.indexOf('const avanzarLaSecuencia = '), consola.indexOf('/** La trayectoria de un tornillo con dos clics'))
     expect(avanzar).toContain('siguienteDeLaSecuencia(delObjetivo, suceso.tipo === \'tornillo\')')
-    expect(avanzar).toContain('setCategoriaAbierta(siguiente.categoria ?? null)')
+    // La familia de la mesa, no la categoría (D-262): el siguiente tornillo abre «Tornillos», no «Perforación y fijación».
+    expect(avanzar).toContain('setCategoriaAbierta(familiaDeLaMesa(siguiente))')
     expect(avanzar).toContain('if (siguienteAutomatico) elegirInstrumento(siguiente.id)')
     expect(consola).toContain('avanzarLaSecuencia(estado, suceso)')
   })

@@ -15,7 +15,6 @@ import {
   placaRectaDeLaDireccion,
   placaRectaDelId,
   placasConAgujeros,
-  rangoDeLargoMm,
 } from '@/lib/placasRectas'
 import { quePuedeColocar } from '@/lib/fijacion'
 import { diametroDelTornilloDeLaPlaca, formaDeLosAgujeros } from '@/lib/compresion'
@@ -32,16 +31,16 @@ describe('placas rectas a medida (P-008 E3)', () => {
     expect(largoDeCatalogoMm(recon, 10)).toBe(111)
   })
 
-  it('sin largo, sale con su paso de siempre; con largo, con ese largo exacto', () => {
+  it('el largo sale de los agujeros, con el paso de su sistema: solo de catálogo (D-259)', () => {
     const deCatalogo = placaRecta('lcp-3-5', 5)!
     expect(deCatalogo.pasoMm).toBe(13)
     expect(deCatalogo.largoMm).toBe(71)
-    // Lo que pidió el dueño: «5 cm y 3 agujeros, y que aparezca eso y no otro».
-    const pedida = placaRecta('lcp-3-5', 3, 50)!
-    expect(pedida.largoMm).toBe(50)
-    expect(pedida.agujeros).toBe(3)
-    expect(agujerosDeLaPlacaRectaMm(pedida)).toHaveLength(3)
-    expect(pedida.pasoMm).toBeCloseTo(44 / 3, 6)
+    expect(agujerosDeLaPlacaRectaMm(placaRecta('lcp-3-5', 3)!)).toHaveLength(3)
+    // Una sesión guardada con una placa estirada (D-254) vuelve con la de catálogo de esos agujeros.
+    const estirada = placaRectaDelId('placa-recta:lcp-3-5:3:50')!
+    expect(estirada.largoMm).toBe(45)
+    expect(estirada.pasoMm).toBe(13)
+    expect(placaRectaDeLaDireccion('procedural:placa-recta/lcp-3-5/3/50')).toEqual(estirada)
   })
 
   it('los agujeros van centrados a lo largo, a la distancia de la placa', () => {
@@ -63,14 +62,6 @@ describe('placas rectas a medida (P-008 E3)', () => {
     expect(xs[3]).toBeGreaterThan(0)
   })
 
-  it('un sistema no da cualquier largo: ni encogido hasta juntar los óvalos ni estirado hasta ser otra placa', () => {
-    expect(placaRecta('lcp-2-4', 3, 50)).toBeNull()
-    const [minimo, maximo] = rangoDeLargoMm(SISTEMAS_DE_PLACA_RECTA.find((s) => s.id === 'lcp-2-4')!, 3)
-    expect(placaRecta('lcp-2-4', 3, minimo)).not.toBeNull()
-    expect(placaRecta('lcp-2-4', 3, maximo)).not.toBeNull()
-    expect(placaRecta('lcp-2-4', 3, maximo + 1)).toBeNull()
-  })
-
   it('fuera de 2 a 16 agujeros, o con un sistema que no existe, no hay placa', () => {
     expect(placaRecta('lcp-3-5', AGUJEROS_MINIMOS - 1)).toBeNull()
     expect(placaRecta('lcp-3-5', AGUJEROS_MAXIMOS + 1)).toBeNull()
@@ -86,23 +77,21 @@ describe('placas rectas a medida (P-008 E3)', () => {
     expect(new Set(ofertas.map((o) => o.sistema.agujero))).toEqual(new Set(['oval', 'combi', 'redondo']))
   })
 
-  it('con un largo, primero las que lo dan, todas de ese largo; las que no, al final y con su rango', () => {
+  it('un largo buscado no cambia ninguna placa: las ordena, de la que más se le acerca a la que menos', () => {
     const ofertas = placasConAgujeros(3, 50)
-    const primeraQueNo = ofertas.findIndex((o) => o.placa === null)
-    expect(primeraQueNo).toBeGreaterThan(0)
-    expect(ofertas.slice(primeraQueNo).every((o) => o.placa === null)).toBe(true)
-    for (const o of ofertas.slice(0, primeraQueNo)) {
-      expect(o.placa!.largoMm).toBe(50)
-      expect(o.placa!.agujeros).toBe(3)
+    expect(ofertas).toHaveLength(SISTEMAS_DE_PLACA_RECTA.length)
+    for (const o of ofertas) {
+      expect(o.placa!.largoMm).toBe(largoDeCatalogoMm(o.sistema, 3))
+      expect(o.diferenciaMm).toBeCloseTo(o.placa!.largoMm - 50, 6)
     }
-    for (const o of ofertas.slice(primeraQueNo)) expect(50 < o.rangoMm[0] || 50 > o.rangoMm[1]).toBe(true)
-    // La que menos se estira va primero.
-    const estirado = ofertas.slice(0, primeraQueNo).map((o) => Math.abs(o.placa!.pasoMm / o.sistema.pasoMm - 1))
-    expect([...estirado].sort((a, b) => a - b)).toEqual(estirado)
+    const lejos = ofertas.map((o) => Math.abs(o.diferenciaMm!))
+    expect([...lejos].sort((a, b) => a - b)).toEqual(lejos)
+    // Sin largo, en el orden de siempre y sin diferencia.
+    expect(placasConAgujeros(3).every((o) => o.diferenciaMm === null)).toBe(true)
   })
 
   it('la dirección y el identificador dicen toda la placa: se rehace igual de ellos', () => {
-    const p = placaRecta('lc-dcp-3-5', 7, 92.5)!
+    const p = placaRecta('lc-dcp-3-5', 7)!
     expect(placaRectaDeLaDireccion(direccionDeLaPlacaRecta(p))).toEqual(p)
     expect(placaRectaDelId(idDeLaPlacaRecta(p))).toEqual(p)
     expect(placaRectaDelId('un-id-de-payload')).toBeNull()
@@ -143,7 +132,7 @@ describe('placas rectas a medida (P-008 E3)', () => {
 })
 
 describe('el modelo 3D de la placa a medida', () => {
-  const p = placaRecta('lcp-3-5', 5, 70)!
+  const p = placaRecta('lcp-3-5', 5)!
 
   it('tiene las medidas de la placa, en metros y en el marco de Blender: ancho por X, largo por Z y la cara de abajo en Y = 0', () => {
     const raiz = crearPlacaRecta(p)
@@ -151,7 +140,7 @@ describe('el modelo 3D de la placa a medida', () => {
     const caja = new THREE.Box3().setFromObject(raiz)
     const tamano = caja.getSize(new THREE.Vector3())
     expect(tamano.x * 1000).toBeCloseTo(p.sistema.anchoMm, 1)
-    expect(tamano.z * 1000).toBeCloseTo(70, 1)
+    expect(tamano.z * 1000).toBeCloseTo(71, 1)
     expect(tamano.y * 1000).toBeCloseTo(p.sistema.grosorMm, 1)
     expect(caja.min.y).toBeCloseTo(0, 6)
   })

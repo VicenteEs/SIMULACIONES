@@ -64,7 +64,9 @@ describe('el eje de la placa, con una placa de verdad en escena', () => {
     const eje = ejeDeLaPlaca(placa)
     expect(eje.length()).toBeCloseTo(1, 9)
     expect(Math.abs(eje.y)).toBeCloseTo(1, 6)
-    expect(Math.abs(eje.x)).toBeLessThan(1e-6)
+    // El largo sale ahora del eje del trozo donde se apoya (P-009), por componentes principales de su superficie: en este
+    // cilindro, a centésimas de grado del de verdad, y no exacto como cuando se copiaba el que se pasaba.
+    expect(Math.abs(eje.x)).toBeLessThan(1e-3)
   })
 
   it('con la fractura hacia un lado, los orificios del otro la tienen del lado que toca', () => {

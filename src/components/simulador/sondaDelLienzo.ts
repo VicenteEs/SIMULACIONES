@@ -1,9 +1,11 @@
 import * as THREE from 'three'
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { CapaDeLaHerida } from '@/lib/exposicion'
-import { labioDelSeparador, type SeparadorEnEscena } from './exposicionEnLaEscena'
+import { labioDelSeparador, labioEnLaPosicion, type SeparadorEnEscena } from './exposicionEnLaEscena'
 import { sitioEnLaHerida, type HeridaEnCapa } from './heridas'
-import { posicionDelAgujero, type ImplantesEnEscena } from './implantesEnLaEscena'
+import { ejeDeLaPlaca, posicionDelAgujero, type ImplantesEnEscena, type PlacaColocada } from './implantesEnLaEscena'
+import { poseActual } from './vistaDelPaciente'
+import type { EncuadreDelPaso } from '@/lib/encuadreDelPaso'
 
 /**
  * Una sonda del lienzo para las pruebas de extremo a extremo y las grabaciones del instrumental. **Solo en
@@ -29,6 +31,8 @@ export interface LoQueVeLaSonda {
   heridas?: ReadonlyMap<CapaDeLaHerida, HeridaEnCapa[]>
   separadores?: readonly SeparadorEnEscena[]
   implantes?: ImplantesEnEscena
+  /** Las mallas de hueso visibles, las mismas en que se apoya la placa: contra ellas se mide su asiento (P-009). */
+  huesos?: THREE.Mesh[]
   milimetrosPorUnidad: number
 }
 
@@ -74,6 +78,44 @@ export interface SeparadorMedido {
    * diferencia con `alLabioMm` es lo que la hoja flotaba.
    */
   comoAntesMm: number | null
+  /**
+   * Cuánto baja la punta de la pala por debajo del borde que sostiene, en milímetros, a lo largo de la normal: dentro de
+   * la herida es positivo (P-009, pedido 2: «que estén por dentro, como si de verdad estuvieran traccionando»).
+   */
+  palaBajoElBordeMm: number | null
+  /** Qué parte de la pala tapa el tejido visto desde la cámara, en %: una pala metida bajo el labio casi no se ve. */
+  palaOcultaPct: number | null
+  /**
+   * Lo que se aparta el mango, visto sobre la piel, de la dirección que va del otro labio a este: 0 es que sale derecho
+   * hacia fuera; más de 90, que cruza la herida. `null` en un autoestático, que no tiene un labio propio.
+   */
+  mangoHaciaFueraGrados: number | null
+}
+
+/**
+ * Cómo asienta la placa puesta sobre el hueso (P-009, pedido 1: «que interactúen como sólido con sólido, que no se
+ * sobrepongan ni atraviesen, que se coloque recta en el hueso como si de verdad afirmara esos dos fragmentos»). Se mide
+ * con rayos desde la cara de abajo de la placa, en una rejilla, y no con el único punto de apoyo que usa la placa al
+ * asentarse: lo que se quiere saber es justo lo que ese punto no ve.
+ */
+export interface AsientoMedido {
+  /** Lo que más se mete la cara de abajo en el hueso, en mm: 0 es que no lo atraviesa en ningún punto. */
+  penetracionMaximaMm: number
+  /** La holgura media y la mayor entre la cara de abajo y el hueso, en mm, donde hay hueso debajo. */
+  holguraMediaMm: number
+  holguraMaximaMm: number
+  /** Qué parte de la cara de abajo toca el hueso, a medio milímetro o menos, en %. */
+  contactoPct: number
+  /** Qué parte queda sin hueso debajo —fuera del borde del hueso, en el aire—, en %. */
+  sinHuesoPct: number
+  /**
+   * Lo que se tuerce la placa respecto del eje largo del hueso, sobre la cara en que se apoya, en grados: 0 es recta a
+   * lo largo del hueso. El eje es el de los trozos en que se apoya, por componentes principales, y no el eje del mundo.
+   */
+  desvioDelEjeGrados: number
+  /** Cuántos agujeros caen sobre cada trozo de hueso, por el nombre de su malla: la placa puentea el foco si son dos. */
+  agujerosPorTrozo: Record<string, number>
+  muestras: number
 }
 
 export interface HeridaMedida {
@@ -120,6 +162,60 @@ function alLabio(h: HeridaEnCapa, lado: number, punto: THREE.Vector3): number {
   return cerca
 }
 
+/** La caja de la placa en el marco de su modelo (metros, sin girar): de ahí sale la rejilla de su cara de abajo. */
+function cajaLocalDeLaPlaca(placa: PlacaColocada): THREE.Box3 {
+  placa.grupo.updateMatrixWorld(true)
+  const inversa = placa.grupo.matrixWorld.clone().invert()
+  const caja = new THREE.Box3()
+  placa.grupo.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh || !m.geometry) return
+    if (!m.geometry.boundingBox) m.geometry.computeBoundingBox()
+    caja.union(m.geometry.boundingBox!.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inversa, m.matrixWorld)))
+  })
+  return caja
+}
+
+/**
+ * El eje largo de unas mallas, por componentes principales de sus vértices en el mundo (con signo arbitrario). Es lo
+ * que un traumatólogo llama el eje del hueso, y no tiene por qué coincidir con un eje del mundo: la pierna puede venir
+ * girada unos grados en el modelo.
+ */
+function ejeLargoDeLasMallas(mallas: THREE.Mesh[]): THREE.Vector3 | null {
+  const puntos: THREE.Vector3[] = []
+  for (const m of mallas) {
+    const pos = m.geometry.getAttribute('position') as THREE.BufferAttribute | undefined
+    if (!pos) continue
+    m.updateMatrixWorld(true)
+    const paso = Math.max(1, Math.floor(pos.count / 6000))
+    for (let i = 0; i < pos.count; i += paso) puntos.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld))
+  }
+  if (puntos.length < 3) return null
+  const media = puntos.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(puntos.length)
+  const c = [0, 0, 0, 0, 0, 0] // xx, xy, xz, yy, yz, zz
+  for (const p of puntos) {
+    const x = p.x - media.x
+    const y = p.y - media.y
+    const z = p.z - media.z
+    c[0] += x * x
+    c[1] += x * y
+    c[2] += x * z
+    c[3] += y * y
+    c[4] += y * z
+    c[5] += z * z
+  }
+  // Iteración de potencias: el autovector dominante de la covarianza, que en un hueso largo es su eje.
+  let v = new THREE.Vector3(0.3, 1, 0.2).normalize()
+  for (let k = 0; k < 60; k++) {
+    v = new THREE.Vector3(
+      c[0] * v.x + c[1] * v.y + c[2] * v.z,
+      c[1] * v.x + c[3] * v.y + c[4] * v.z,
+      c[2] * v.x + c[4] * v.y + c[5] * v.z,
+    ).normalize()
+  }
+  return v
+}
+
 /** El centro de la caja de una malla a una altura (0 abajo, 1 arriba), en el mundo. */
 function puntoDe(v: LoQueVeLaSonda, nodo: string, alto: number): THREE.Vector3 | null {
   const malla = v.raiz?.getObjectByName(nodo)
@@ -140,18 +236,86 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
      */
     /**
      * Lleva la cámara encima de la última herida de esa capa, mirándola de frente por su normal: es como la ve quien
-     * opera, y el único encuadre en que se puede juzgar al milímetro dónde quedó cada hoja respecto del borde.
+     * opera, y el único encuadre en que se puede juzgar al milímetro dónde quedó cada hoja respecto del borde. Con
+     * `inclinacion` (en grados) la vista se tumba hacia un extremo de la herida y mira a lo largo de ella: así se ven
+     * las dos paredes y si las palas de los separadores bajan por dentro (P-009).
      */
-    mirarLaHerida(capa: CapaDeLaHerida, distanciaMm = 120, donde = 0.5): boolean {
+    mirarLaHerida(capa: CapaDeLaHerida, distanciaMm = 120, donde = 0.5, inclinacion = 0): boolean {
       const v = leer()
       const h = v.heridas?.get(capa)?.at(-1)
       const sitio = h ? sitioEnLaHerida(h, donde, 1) : null
       if (!sitio || !v.camara || !v.controles) return false
+      const hacia = sitio.normal.clone()
+      const antes = h ? sitioEnLaHerida(h, Math.max(0, donde - 0.1), 1) : null
+      const despues = h ? sitioEnLaHerida(h, Math.min(1, donde + 0.1), 1) : null
+      if (inclinacion && antes && despues) {
+        const aLoLargo = despues.punto.clone().sub(antes.punto)
+        aLoLargo.addScaledVector(hacia, -aLoLargo.dot(hacia))
+        if (aLoLargo.lengthSq() > 1e-12) {
+          const radianes = (inclinacion * Math.PI) / 180
+          hacia.multiplyScalar(Math.cos(radianes)).addScaledVector(aLoLargo.normalize(), Math.sin(radianes)).normalize()
+        }
+      }
       v.controles.target.copy(sitio.punto)
-      v.camara.position.copy(sitio.punto).addScaledVector(sitio.normal, distanciaMm / (v.milimetrosPorUnidad || 1000))
+      v.camara.position.copy(sitio.punto).addScaledVector(hacia, distanciaMm / (v.milimetrosPorUnidad || 1000))
       v.controles.update()
       v.pedirDibujo?.()
       return true
+    },
+    /**
+     * Lleva la cámara a la placa puesta: de frente, por su normal, o de lado, mirando a lo ancho de la placa, que es
+     * el único encuadre en que se ve si la placa se hunde en el hueso o queda en el aire (P-009). `inclinacion` gira
+     * la vista de lado hacia el frente, en grados.
+     */
+    mirarLaPlaca(desde: 'frente' | 'lado', distanciaMm = 140, inclinacion = 0): boolean {
+      const v = leer()
+      const placa = v.implantes?.placa
+      if (!placa || !v.camara || !v.controles) return false
+      placa.grupo.updateMatrixWorld(true)
+      const centro = new THREE.Box3().setFromObject(placa.grupo).getCenter(new THREE.Vector3())
+      const n = placa.normal.clone().normalize()
+      const lado = new THREE.Vector3().crossVectors(n, ejeDeLaPlaca(placa)).normalize()
+      const radianes = (inclinacion * Math.PI) / 180
+      const hacia = desde === 'frente' ? n : lado.multiplyScalar(Math.cos(radianes)).addScaledVector(n, Math.sin(radianes)).normalize()
+      v.controles.target.copy(centro)
+      v.camara.position.copy(centro).addScaledVector(hacia, distanciaMm / (v.milimetrosPorUnidad || 1000))
+      v.controles.update()
+      v.pedirDibujo?.()
+      return true
+    },
+    /**
+     * Mira un punto de una malla desde el lado de otra (`haciaNodo`), o desde el contrario con `signo` −1: la cara
+     * anterolateral de la tibia se mira desde el tibial anterior y la medial, de espaldas al peroné. Solo cuenta lo
+     * horizontal de esa dirección, para que la pierna se vea de pie y no desde los pies.
+     */
+    mirarDesde(nodo: string, alto: number, distanciaMm: number, haciaNodo: string, signo: 1 | -1 = 1): boolean {
+      const v = leer()
+      const punto = puntoDe(v, nodo, alto)
+      const otro = puntoDe(v, haciaNodo, alto)
+      if (!punto || !otro || !v.camara || !v.controles) return false
+      const hacia = otro.sub(punto).multiplyScalar(signo)
+      hacia.y = 0
+      if (hacia.lengthSq() < 1e-12) return false
+      v.controles.target.copy(punto)
+      v.camara.position.copy(punto).addScaledVector(hacia.normalize(), distanciaMm / (v.milimetrosPorUnidad || 1000))
+      v.controles.update()
+      v.pedirDibujo?.()
+      return true
+    },
+    /**
+     * Desde dónde se mira ahora, lo mismo que guarda «Guardar este encuadre» en el editor (P-009, mejora de uso 1): para
+     * dejar encuadres a un caso de prueba sin pasar por el formulario del panel.
+     */
+    encuadre(): EncuadreDelPaso | null {
+      const v = leer()
+      if (!v.camara || !v.controles) return null
+      const pose = poseActual(v.camara, v.controles)
+      return {
+        direccion: pose.direccion,
+        arriba: pose.arriba,
+        centro: v.controles.target.toArray() as [number, number, number],
+        distancia: v.camara.position.distanceTo(v.controles.target),
+      }
     },
     mirar(nodo: string, alto = 0.5, distanciaMm = 250): boolean {
       const v = leer()
@@ -245,6 +409,52 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
         const pala = new THREE.Vector3(0, 0, -1).applyQuaternion(giro)
         const mango = new THREE.Vector3(0, 1, 0).applyQuaternion(giro)
         const grados = (r: number) => Math.round((r * 180) / Math.PI)
+        // La pala: los vértices del instrumento que salen del codo hacia la pala y no hacia el mango. La punta es el
+        // que más baja; de ahí su profundidad bajo el borde y cuánto de ella tapa el tejido.
+        const enLaPala: THREE.Vector3[] = []
+        s.instrumento.grupo.updateMatrixWorld(true)
+        s.instrumento.grupo.traverse((o) => {
+          const m = o as THREE.Mesh
+          const pos = m.isMesh ? (m.geometry.getAttribute('position') as THREE.BufferAttribute | undefined) : undefined
+          if (!pos || !m.visible) return
+          const paso = Math.max(1, Math.floor(pos.count / 3000))
+          for (let i = 0; i < pos.count; i += paso) {
+            const w = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld)
+            const rel = w.clone().sub(punta)
+            if (rel.dot(mango) * mm < 3 && rel.dot(pala) * mm > 1) enLaPala.push(w)
+          }
+        })
+        let palaBajo: number | null = null
+        let oculta: number | null = null
+        if (enLaPala.length > 0) {
+          const masHonda = enLaPala.reduce((a, w) => (w.clone().sub(punta).dot(pala) > a.clone().sub(punta).dot(pala) ? w : a))
+          if (borde) palaBajo = borde.ahora.clone().sub(masHonda).dot(normal)
+          if (v.camara && v.raiz) {
+            const ojo = v.camara.getWorldPosition(new THREE.Vector3())
+            const muestra = enLaPala.filter((_, i) => i % Math.max(1, Math.floor(enLaPala.length / 40)) === 0)
+            const rayo = new THREE.Raycaster()
+            let tapadas = 0
+            for (const w of muestra) {
+              const hacia = w.clone().sub(ojo)
+              const lejos = hacia.length()
+              rayo.set(ojo, hacia.normalize())
+              rayo.far = lejos - 0.5 / mm
+              if (rayo.intersectObject(v.raiz, true).some((g) => g.object.visible && (g.object as THREE.Mesh).isMesh)) tapadas++
+            }
+            oculta = muestra.length ? Math.round((100 * tapadas) / muestra.length) : null
+          }
+        }
+        let haciaFuera: number | null = null
+        if (borde && s.datos.lado !== 0) {
+          const otro = labioEnLaPosicion(borde.herida, s.datos.lado > 0 ? -1 : 1, s.datos.posicion)
+          if (otro) {
+            // Con los labios como están ahora: en reposo los dos coinciden en la línea del corte y no dan dirección.
+            const fuera = borde.ahora.clone().sub(otro.ahora)
+            fuera.addScaledVector(normal, -fuera.dot(normal))
+            const tendido = mango.clone().addScaledVector(normal, -mango.dot(normal))
+            if (fuera.lengthSq() > 1e-12 && tendido.lengthSq() > 1e-12) haciaFuera = grados(tendido.angleTo(fuera))
+          }
+        }
         return {
           nombre: s.datos.nombre,
           plano: s.datos.plano,
@@ -261,8 +471,101 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
           },
           alLabioMm: redondo(cerca),
           comoAntesMm: redondo(cercaAntes),
+          palaBajoElBordeMm: redondo(palaBajo),
+          palaOcultaPct: oculta,
+          mangoHaciaFueraGrados: haciaFuera,
         }
       })
+    },
+    /**
+     * Dónde se ven en pantalla los dos labios de la última herida de esa capa, en `donde` (de 0 a 1 a lo largo): un
+     * Farabeuf por labio se pone con un clic a cada lado del corte, y el lado lo decide en qué labio cae el clic.
+     */
+    labiosEnPantalla(capa: CapaDeLaHerida, donde = 0.5): { mas: PuntoEnPantalla | null; menos: PuntoEnPantalla | null } | null {
+      const v = leer()
+      const h = v.heridas?.get(capa)?.at(-1)
+      if (!h) return null
+      h.malla.updateMatrixWorld(true)
+      const mas = labioEnLaPosicion(h, 1, donde)
+      const menos = labioEnLaPosicion(h, -1, donde)
+      return { mas: mas ? aPantalla(v, mas.ahora) : null, menos: menos ? aPantalla(v, menos.ahora) : null }
+    },
+    /** Cómo asienta la placa puesta: ver `AsientoMedido`. `null` sin placa o sin hueso visible. */
+    asientoDeLaPlaca(): AsientoMedido | null {
+      const v = leer()
+      const placa = v.implantes?.placa
+      const huesos = (v.huesos ?? []).filter((h) => h.visible)
+      if (!placa || huesos.length === 0) return null
+      const mm = v.milimetrosPorUnidad || 1000
+      const caja = cajaLocalDeLaPlaca(placa)
+      if (caja.isEmpty()) return null
+      const n = placa.normal.clone().normalize()
+      const abajo = n.clone().negate()
+      const rayo = new THREE.Raycaster()
+      const primerHueso = (desde: THREE.Vector3) => {
+        rayo.set(desde.clone().addScaledVector(n, 20 / mm), abajo)
+        rayo.far = 40 / mm
+        return rayo.intersectObjects(huesos, false).find((g) => g.object.visible) ?? null
+      }
+      // La rejilla: cinco filas a lo ancho y una cada dos milímetros a lo largo, a 0,3 mm del canto.
+      const margen = 0.0003
+      const largoMm = (caja.max.z - caja.min.z) * 1000
+      const columnas = Math.max(8, Math.round(largoMm / 2))
+      let contacto = 0
+      let sinHueso = 0
+      let penetracion = 0
+      const holguras: number[] = []
+      let muestras = 0
+      for (let i = 0; i < 5; i++) {
+        const x = caja.min.x + margen + ((caja.max.x - caja.min.x - 2 * margen) * i) / 4
+        for (let k = 0; k <= columnas; k++) {
+          const z = caja.min.z + margen + ((caja.max.z - caja.min.z - 2 * margen) * k) / columnas
+          const recto = new THREE.Vector3(x, placa.yMinimoLocal, z)
+          const local = placa.contorno ? placa.contorno.mapa(recto) : recto
+          const p = placa.grupo.localToWorld(local.clone())
+          muestras++
+          const golpe = primerHueso(p)
+          if (!golpe) {
+            sinHueso++
+            continue
+          }
+          // Positivo: hueco entre la placa y el hueso. Negativo: la cara de abajo está dentro del hueso.
+          const d = p.clone().sub(golpe.point).dot(n) * mm
+          if (d < 0) penetracion = Math.max(penetracion, -d)
+          if (Math.abs(d) <= 0.5) contacto++
+          holguras.push(Math.max(0, d))
+        }
+      }
+      const agujerosPorTrozo: Record<string, number> = {}
+      const trozos = new Set<THREE.Mesh>()
+      placa.agujerosMm.forEach((_, i) => {
+        const golpe = primerHueso(posicionDelAgujero(placa, i, 'abajo'))
+        const nombre = golpe ? golpe.object.name : '(sin hueso)'
+        agujerosPorTrozo[nombre] = (agujerosPorTrozo[nombre] ?? 0) + 1
+        if (golpe) trozos.add(golpe.object as THREE.Mesh)
+      })
+      const ejeDelHueso = ejeLargoDeLasMallas([...trozos])
+      let desvio = NaN
+      if (ejeDelHueso) {
+        const enLaCara = ejeDelHueso.clone().addScaledVector(n, -ejeDelHueso.dot(n))
+        const ejePlaca = ejeDeLaPlaca(placa)
+        if (enLaCara.lengthSq() > 1e-12) {
+          const a = (ejePlaca.angleTo(enLaCara.normalize()) * 180) / Math.PI
+          desvio = Math.min(a, 180 - a)
+        }
+      }
+      const decima = (x: number) => Math.round(x * 10) / 10
+      const media = holguras.length ? holguras.reduce((a, b) => a + b, 0) / holguras.length : 0
+      return {
+        penetracionMaximaMm: decima(penetracion),
+        holguraMediaMm: decima(media),
+        holguraMaximaMm: decima(holguras.length ? Math.max(...holguras) : 0),
+        contactoPct: Math.round((100 * contacto) / Math.max(1, muestras)),
+        sinHuesoPct: Math.round((100 * sinHueso) / Math.max(1, muestras)),
+        desvioDelEjeGrados: decima(desvio),
+        agujerosPorTrozo,
+        muestras,
+      }
     },
     /**
      * Dónde cae en pantalla cada agujero de la placa puesta, por la cara de arriba: una prueba que perfora, mide y

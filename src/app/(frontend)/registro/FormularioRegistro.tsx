@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowRight, Check, ChevronLeft, CircleAlert, CircleCheck, Loader2, Lock, Mail, Send } from 'lucide-react'
 import { solicitarCuenta } from '@/app/(frontend)/acciones/sesion'
 import { normalizar } from '@/lib/busqueda'
+import { VERSION_DEL_AVISO_DE_PRIVACIDAD } from '@/lib/avisoDePrivacidad'
 import {
   CLAVE_MINIMA,
   ETAPAS_DE_FORMACION,
@@ -19,7 +20,17 @@ import {
   type EtapaDeFormacion,
 } from '@/lib/solicitudDeCuenta'
 
-const VACIA: DatosDeSolicitud = { nombre: '', correo: '', clave: '', repetida: '', institucion: '', programa: '', etapa: '', motivo: '' }
+const VACIA: DatosDeSolicitud = {
+  nombre: '',
+  correo: '',
+  clave: '',
+  repetida: '',
+  institucion: '',
+  programa: '',
+  etapa: '',
+  motivo: '',
+  privacidad: false,
+}
 
 const ULTIMO = PASOS_DE_LA_SOLICITUD.length - 1
 
@@ -94,6 +105,9 @@ export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
         programa: datos.programa,
         etapaDeFormacion: datos.etapa,
         motivo: datos.motivo,
+        // La versión que enseña este formulario, y solo con la casilla marcada:
+        // la acción la compara con la vigente y es la que guarda en la cuenta.
+        avisoDePrivacidadAceptado: datos.privacidad ? VERSION_DEL_AVISO_DE_PRIVACIDAD : '',
         sitioWeb: trampa.current?.value ?? '',
       })
       if (respuesta.exito) {
@@ -419,6 +433,39 @@ export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
               ) : (
                 <p id="registro-motivo-pista" className="ac-pista">
                   Por ejemplo, en qué rotación estás o quién te habló de la plataforma. Es lo que lee el administrador al decidir.
+                </p>
+              )}
+            </div>
+            {/* El aviso de privacidad (Q-005, D-258). El enlace abre otra
+                pestaña a propósito: lo escrito en los tres pasos vive solo en
+                el estado de este formulario, y leer el aviso en esta pestaña lo
+                perdería entero justo en el último paso. La pista lo dice,
+                porque una pestaña que se abre sin aviso desorienta a quien
+                navega con lector de pantalla. */}
+            <div className="ac-casilla">
+              <label htmlFor="registro-privacidad">
+                <input
+                  {...propiedades('privacidad', true)}
+                  type="checkbox"
+                  checked={datos.privacidad}
+                  onChange={(e) => {
+                    cambiar('privacidad', e.target.checked)
+                    tocar('privacidad')
+                  }}
+                />
+                <span>
+                  He leído el{' '}
+                  <Link href="/privacidad" target="_blank" rel="noopener">
+                    aviso de privacidad
+                  </Link>{' '}
+                  y acepto que mis datos se usen para lo que ahí se explica.
+                </span>
+              </label>
+              {aviso('privacidad') ? (
+                avisoDe('privacidad')
+              ) : (
+                <p id="registro-privacidad-pista" className="ac-pista">
+                  El aviso se abre en otra pestaña: lo que llevas escrito se queda aquí.
                 </p>
               )}
             </div>

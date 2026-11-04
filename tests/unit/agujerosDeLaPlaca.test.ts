@@ -103,8 +103,9 @@ describe('colocar una placa sin agujeros en el modelo', () => {
     for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1]).toBeCloseTo(100 / 6, 2)
     expect(ys[0]).toBeCloseTo(-50 + 100 / 12, 2)
     expect(ys[5]).toBeCloseTo(50 - 100 / 12, 2)
-    // Todos sobre el eje de la placa.
-    for (const c of centros) expect(c.x).toBeCloseTo(0, 3)
+    // Todos sobre el eje de la placa. A una décima: la placa se asienta con la normal media del hueso (P-009), que en este
+    // cilindro de caras largas sale un grado de lado y corre los agujeros unas micras.
+    for (const c of centros) expect(c.x).toBeCloseTo(0, 1)
   })
 
   it('sin agujeros y sin orificios escritos, no se coloca: no habría dónde atornillar', () => {

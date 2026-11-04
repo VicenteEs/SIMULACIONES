@@ -260,8 +260,8 @@ describe('la lectura clínica', () => {
 
   it('hacia delante o hacia atrás se nombra por el extremo distal', () => {
     // Girar sobre X lleva el extremo de abajo hacia atrás: antecurvatum (ápice anterior).
-    expect(describirLectura(lee(derecha, sobreElFoco([1, 0, 0], 12)))).toBe('12° antecurvatum')
-    expect(describirLectura(lee(derecha, sobreElFoco([1, 0, 0], -12)))).toBe('12° recurvatum')
+    expect(describirLectura(lee(derecha, sobreElFoco([1, 0, 0], 12)))).toBe('12° antecurvatum (ápice anterior)')
+    expect(describirLectura(lee(derecha, sobreElFoco([1, 0, 0], -12)))).toBe('12° recurvatum (ápice posterior)')
   })
 
   it('la torsión sobre el eje largo es rotación, externa o interna según el lado', () => {
@@ -328,7 +328,7 @@ describe('escribir la lectura', () => {
   it('ordena: primero lo que se desplaza y luego lo que se angula', () => {
     expect(
       describirLectura({ lateral: -3, anteroposterior: 2, axial: 0, valgo: 5, recurvatum: -4, rotacion: 0 }),
-    ).toBe('3 mm medial · 2 mm anterior · 5° valgo · 4° antecurvatum')
+    ).toBe('3 mm medial · 2 mm anterior · 5° valgo · 4° antecurvatum (ápice anterior)')
   })
 })
 

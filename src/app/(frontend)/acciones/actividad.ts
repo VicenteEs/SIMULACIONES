@@ -20,6 +20,7 @@ import {
 } from '@/lib/progresoDelSimulador'
 import { MAXIMO_DE_INSUMOS, type InsumoDelRecorrido } from '@/lib/insumos'
 import { limpiarLosDatos, type DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
+import { avanceValido, type AvanceDelCaso } from '@/lib/avanceDelCaso'
 
 /**
  * Registro de lo que cada residente ha visitado, marcado como leído y jugado.
@@ -432,6 +433,10 @@ function resultadoValido(valor: unknown): ResultadoDeCirugia {
   if (r.reduccionAutomatica !== undefined && r.reduccionAutomatica !== null && typeof r.reduccionAutomatica !== 'boolean') {
     throw new ErrorDeValidacion('La marca de reducción automática tiene que ser verdadera o falsa.')
   }
+  // El modo (P-009): uno de los dos, o nada —un navegador de antes de este cambio no lo manda—.
+  if (r.modo !== undefined && r.modo !== 'practica' && r.modo !== 'evaluacion') {
+    throw new ErrorDeValidacion('El modo del recorrido tiene que ser práctica o evaluación.')
+  }
 
   return {
     puntaje,
@@ -440,6 +445,7 @@ function resultadoValido(valor: unknown): ResultadoDeCirugia {
     insumos: insumosCrudos.map((bruto, i) => insumoValido(bruto, i + 1)),
     reduccionAutomatica: r.reduccionAutomatica === true,
     radiografia: radiografiaValida(r.radiografia),
+    ...(r.modo === 'practica' || r.modo === 'evaluacion' ? { modo: r.modo } : {}),
   }
 }
 
@@ -480,6 +486,7 @@ export async function registrarResultadoDeCirugia(
       reduccionAutomatica: datos.reduccionAutomatica,
       // Solo si vino la clave: un guardado de antes de la radiografía no debe borrar la que ya hay.
       ...(datos.radiografia !== undefined ? { radiografia: datos.radiografia } : {}),
+      ...(datos.modo ? { modoDelRecorrido: datos.modo } : {}),
     })
   } catch (error) {
     console.error('[actividad] no se pudo guardar el resultado del caso:', error)
@@ -487,5 +494,36 @@ export async function registrarResultadoDeCirugia(
   }
   if (!escrito) {
     throw new Error('Su sesión ya no está activa. Vuelva a entrar para guardar su progreso.')
+  }
+}
+
+/**
+ * Guarda dónde se quedó el residente en un caso (P-009, mejora de uso 12): el paso, el modo, la cuenta del puntaje y lo
+ * hecho sobre el paciente al empezar ese paso (`avanceDelCaso.ts`). `null` lo borra: lo manda la consola al terminar
+ * el caso, que ya no tiene dónde seguir.
+ *
+ * Aparte de `registrarResultadoDeCirugia` y no dentro: aquel describe el recorrido para el docente y se escribe en cada
+ * hito; esto es para el residente, pesa más (lo cortado son polilíneas) y solo se escribe al cambiar de paso. Metido en
+ * el resultado, cada complicación volvería a mandar la escena entera.
+ *
+ * Lanza si no quedó escrito, como las demás: la consola dice entonces que el avance no se guardó en la cuenta, y el
+ * caso sigue igual en la pestaña.
+ */
+export async function guardarAvanceDelCaso(documentoId: unknown, avance: unknown): Promise<void> {
+  let datos: AvanceDelCaso | null
+  try {
+    datos = avanceValido(avance)
+  } catch (error) {
+    throw new ErrorDeValidacion(error instanceof Error ? error.message : 'El avance no llegó como corresponde.')
+  }
+  let escrito = false
+  try {
+    escrito = await anotar('cirugias', documentoId, { avance: datos })
+  } catch (error) {
+    console.error('[actividad] no se pudo guardar el avance del caso:', error)
+    throw new Error('No se pudo guardar en su cuenta dónde se quedó. El caso sigue en esta pestaña.')
+  }
+  if (!escrito) {
+    throw new Error('Su sesión ya no está activa. Vuelva a entrar para guardar dónde se quedó.')
   }
 }

@@ -43,6 +43,7 @@ import * as migration_20261103_002330_etapa_de_formacion from './20261103_002330
 import * as migration_20261103_005145_bienvenida_y_seccion from './20261103_005145_bienvenida_y_seccion';
 import * as migration_20261103_033928_firmas_de_la_ficha from './20261103_033928_firmas_de_la_ficha';
 import * as migration_20261103_222204_posicion_reducida_de_las_piezas from './20261103_222204_posicion_reducida_de_las_piezas';
+import * as migration_20261104_034906_privacidad_modos_y_avance from './20261104_034906_privacidad_modos_y_avance';
 
 export const migrations = [
   {
@@ -268,6 +269,11 @@ export const migrations = [
   {
     up: migration_20261103_222204_posicion_reducida_de_las_piezas.up,
     down: migration_20261103_222204_posicion_reducida_de_las_piezas.down,
-    name: '20261103_222204_posicion_reducida_de_las_piezas'
+    name: '20261103_222204_posicion_reducida_de_las_piezas',
+  },
+  {
+    up: migration_20261104_034906_privacidad_modos_y_avance.up,
+    down: migration_20261104_034906_privacidad_modos_y_avance.down,
+    name: '20261104_034906_privacidad_modos_y_avance'
   },
 ];

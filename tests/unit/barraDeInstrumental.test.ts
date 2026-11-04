@@ -4,10 +4,13 @@ import { join } from 'node:path'
 import {
   anotarReciente,
   COLUMNAS_DE_LA_MESA,
+  familiaDeLaMesa,
   finDeLaFila,
   ICONO_DE_LA_FAMILIA,
   MAXIMO_DE_RECIENTES,
+  ordenDeLasFamilias,
   ROTULO_DE_LA_FAMILIA,
+  tituloDeLaFamilia,
 } from '@/lib/barraDeInstrumental'
 import { CATEGORIAS_DE_INSTRUMENTAL, ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
 import { tieneDibujo } from '@/components/simulador/IconoInstrumento'
@@ -23,7 +26,7 @@ const fuente = (...partes: string[]) => readFileSync(join(process.cwd(), ...part
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 describe('los cuadros de la mesa', () => {
-  const familias = CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string)
+  const familias = ordenDeLasFamilias(CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string))
 
   it('cada familia del catálogo tiene un dibujo propio, que existe', () => {
     for (const f of familias) {
@@ -39,11 +42,39 @@ describe('los cuadros de la mesa', () => {
 
   it('el rótulo corto es una palabra del nombre entero, que es lo que oye el lector de pantalla', () => {
     for (const f of familias) {
-      const rotulo = ROTULO_DE_LA_FAMILIA[f]
+      // El guion blando no se lee: solo dice por dónde partir la palabra si no cabe.
+      const rotulo = ROTULO_DE_LA_FAMILIA[f]?.replace(/\u00ad/g, '')
+      const titulo = tituloDeLaFamilia(f, ETIQUETA_DE_CATEGORIA)
       expect(rotulo, f).toBeTruthy()
       expect(rotulo).not.toMatch(/\s/)
-      expect(sinTildes(ETIQUETA_DE_CATEGORIA[f]), `${rotulo} en «${ETIQUETA_DE_CATEGORIA[f]}»`).toContain(sinTildes(rotulo))
+      expect(sinTildes(titulo), `${rotulo} en «${titulo}»`).toContain(sinTildes(rotulo!))
     }
+  })
+})
+
+describe('«Perforación y fijación» en tres familias (Q-011)', () => {
+  const fijacion = (slug: string, nombre: string) => familiaDeLaMesa({ categoria: 'fijacion', slug, nombre })
+
+  it('en la mesa van brocar, medir y atornillar, en ese orden y en el sitio de la de antes', () => {
+    const orden = ordenDeLasFamilias(CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string))
+    expect(orden).not.toContain('fijacion')
+    const i = orden.indexOf('brocas')
+    expect(orden.slice(i - 1, i + 4)).toEqual(['reduccion', 'brocas', 'medidores', 'destornilladores', 'modelado'])
+  })
+
+  it('cada instrumento va a la suya por su nombre; lo que no es medidor ni destornillador, con las brocas', () => {
+    expect(fijacion('broca-3-5', 'Broca AO 3,5 mm')).toBe('brocas')
+    expect(fijacion('guia-broca-doble-dcp', 'Guía de broca doble DCP 2,5 / 3,5')).toBe('brocas')
+    expect(fijacion('machuelo-3-5', 'Machuelo 3,5 mm')).toBe('brocas')
+    expect(fijacion('medidor-profundidad', 'Medidor de profundidad')).toBe('medidores')
+    expect(fijacion('destornillador-stardrive', 'Destornillador Stardrive T15')).toBe('destornilladores')
+    expect(fijacion('limitador-torque', 'Limitador de torque 1,5 N·m')).toBe('destornilladores')
+    expect(fijacion('', 'Atornillador de bloqueo')).toBe('destornilladores')
+    // Un tornillo guardado en la categoría, con los tornillos.
+    expect(fijacion('tornillo-esponjosa-6-5', 'Tornillo de esponjosa 6,5')).toBe('tornillos')
+    // Las demás categorías no cambian.
+    expect(familiaDeLaMesa({ categoria: 'exposicion', slug: 'separador-farabeuf', nombre: 'Separador de Farabeuf' })).toBe('exposicion')
+    expect(familiaDeLaMesa({ categoria: null, slug: 'x', nombre: 'x' })).toBe('otros')
   })
 })
 

@@ -2,6 +2,11 @@
  * Las placas rectas a medida (P-008 E3): se pide una cantidad de agujeros —y, si se quiere, un largo— y aparecen las
  * placas de cada sistema que lo cumplen, cada una con su tornillo, su ancho y su forma de agujero.
  *
+ * Desde D-259 son **solo de catálogo** (Q-011, lo que recomendó Cristóbal en D-258): el largo sale de los agujeros, con
+ * la distancia de su sistema, y un largo escrito solo ordena las placas, de la que más se le acerca a la que menos.
+ * Antes la distancia entre agujeros se estiraba o se encogía hasta dar el largo pedido (D-254), y salían placas que no
+ * existen en ninguna caja: lo que el residente tiene que aprender es a elegir entre las que hay.
+ *
  * Antes cada placa era un modelo de Blender con ocho agujeros fijos: el residente que quería una LCP de cinco no la
  * tenía, y el editor que escribía «5 orificios» en el instrumento (P-004 E6) recibía la de ocho con un aviso. Una placa
  * recta es siempre la misma lámina con una fila de agujeros, así que se genera en el navegador con las medidas de su
@@ -85,19 +90,11 @@ export const SISTEMAS_DE_PLACA_RECTA: readonly SistemaDePlacaRecta[] = [
 export const AGUJEROS_MINIMOS = 2
 export const AGUJEROS_MAXIMOS = 16
 
-/**
- * Cuánto se deja estirar o encoger la distancia entre agujeros para dar el largo pedido. Encoger poco: por debajo del
- * 85 % los óvalos casi se tocan y no queda metal entre ellos. Estirar hasta el 50 %: más allá ya es otra placa con los
- * agujeros de esta, y lo que corresponde es pedir un agujero más.
- */
-export const PASO_MINIMO = 0.85
-export const PASO_MAXIMO = 1.5
-
 export interface PlacaRecta {
   sistema: SistemaDePlacaRecta
   agujeros: number
   largoMm: number
-  /** La distancia entre agujeros con que sale: la del sistema, o la que da el largo pedido. */
+  /** La distancia entre agujeros: la de su sistema, siempre (D-259). */
   pasoMm: number
 }
 
@@ -115,31 +112,16 @@ export function largoDeCatalogoMm(s: SistemaDePlacaRecta, agujeros: number): num
   return agujeros * s.pasoMm + s.extremosMm
 }
 
-/** El largo más corto y el más largo con que sale una placa de este sistema con esa cantidad de agujeros. */
-export function rangoDeLargoMm(s: SistemaDePlacaRecta, agujeros: number): [number, number] {
-  return [agujeros * s.pasoMm * PASO_MINIMO + s.extremosMm, agujeros * s.pasoMm * PASO_MAXIMO + s.extremosMm]
-}
-
 const redondear = (mm: number) => Math.round(mm * 10) / 10
 
 /**
- * La placa de un sistema con esos agujeros. Sin largo, el de catálogo; con largo, **ese largo exacto**: los agujeros
- * se reparten estirando o encogiendo su distancia (lo que pidió el dueño: «5 cm y 3 agujeros, y que aparezca eso y no
- * otro»). Devuelve `null` si el sistema no da ese largo con esos agujeros sin dejar de ser él (`PASO_MINIMO`,
- * `PASO_MAXIMO`), o si los agujeros están fuera de rango.
+ * La placa de un sistema con esos agujeros, con el largo de catálogo: sale de los agujeros y de la distancia de su
+ * sistema (D-259). Devuelve `null` si el sistema no existe o los agujeros están fuera de rango.
  */
-export function placaRecta(sistemaId: string, agujeros: number, largoMm?: number | null): PlacaRecta | null {
+export function placaRecta(sistemaId: string, agujeros: number): PlacaRecta | null {
   const sistema = sistemaDePlacaRecta(sistemaId)
   if (!sistema || !Number.isInteger(agujeros) || agujeros < AGUJEROS_MINIMOS || agujeros > AGUJEROS_MAXIMOS) return null
-  if (largoMm === undefined || largoMm === null) {
-    return { sistema, agujeros, largoMm: largoDeCatalogoMm(sistema, agujeros), pasoMm: sistema.pasoMm }
-  }
-  if (!Number.isFinite(largoMm)) return null
-  const largo = redondear(largoMm)
-  const paso = (largo - sistema.extremosMm) / agujeros
-  // Con una tolerancia de redondeo: el rango se enseña con un decimal, y quien escribe ese mismo número tiene que entrar.
-  if (paso < sistema.pasoMm * PASO_MINIMO - 0.05 / agujeros || paso > sistema.pasoMm * PASO_MAXIMO + 0.05 / agujeros) return null
-  return { sistema, agujeros, largoMm: largo, pasoMm: paso }
+  return { sistema, agujeros, largoMm: largoDeCatalogoMm(sistema, agujeros), pasoMm: sistema.pasoMm }
 }
 
 /**
@@ -181,10 +163,14 @@ export function esDireccionDePlacaRecta(url: string | null | undefined): boolean
   return !!url && url.startsWith(PREFIJO_DE_LA_DIRECCION)
 }
 
+/**
+ * La placa de una dirección. El largo que trae se deja de lado: una sesión guardada antes de D-259 con una placa
+ * estirada vuelve con la de catálogo de esos agujeros, que es la única que existe ahora.
+ */
 export function placaRectaDeLaDireccion(url: string | null | undefined): PlacaRecta | null {
   if (!esDireccionDePlacaRecta(url)) return null
-  const [sistema, agujeros, largo] = url!.slice(PREFIJO_DE_LA_DIRECCION.length).split('/')
-  return placaRecta(sistema ?? '', Number(agujeros), largo === undefined ? null : Number(largo))
+  const [sistema, agujeros] = url!.slice(PREFIJO_DE_LA_DIRECCION.length).split('/')
+  return placaRecta(sistema ?? '', Number(agujeros))
 }
 
 /**
@@ -197,37 +183,37 @@ export function idDeLaPlacaRecta(p: PlacaRecta): string {
   return `${PREFIJO_DEL_ID}${p.sistema.id}:${p.agujeros}:${redondear(p.largoMm)}`
 }
 
+/** La placa de un identificador; como en la dirección, el largo que trae no cuenta (D-259). */
 export function placaRectaDelId(id: string | null | undefined): PlacaRecta | null {
   if (!id || !id.startsWith(PREFIJO_DEL_ID)) return null
-  const [sistema, agujeros, largo] = id.slice(PREFIJO_DEL_ID.length).split(':')
-  return placaRecta(sistema ?? '', Number(agujeros), largo === undefined ? null : Number(largo))
+  const [sistema, agujeros] = id.slice(PREFIJO_DEL_ID.length).split(':')
+  return placaRecta(sistema ?? '', Number(agujeros))
 }
 
 export interface OfertaDePlacaRecta {
   sistema: SistemaDePlacaRecta
-  /** La placa con esos agujeros y ese largo, o `null` si este sistema no da ese largo (ver `rango`). */
+  /** La placa de catálogo con esos agujeros, o `null` si la cantidad está fuera de rango. */
   placa: PlacaRecta | null
-  /** Entre qué largos sale con esos agujeros. */
-  rangoMm: [number, number]
+  /** Cuánto se pasa (+) o se queda corta (−) del largo buscado, en mm; `null` sin largo buscado. */
+  diferenciaMm: number | null
 }
 
 /**
  * Todas las placas rectas con esa cantidad de agujeros (lo que pidió el dueño: «si coloca 5 agujeros, que salgan todas
- * las de esa cantidad con distintas medidas de agujero»). Con un largo, primero las que lo dan, de la que menos tiene
- * que estirarse a la que más; las que no lo dan van al final con su rango, para que se vea por qué. Sin largo, cada
- * una con el suyo, del tornillo más chico al más grande.
+ * las de esa cantidad con distintas medidas de agujero»), cada una con su largo de catálogo. Con un largo buscado,
+ * primero la que más se le acerca; sin él, del tornillo más chico al más grande.
  */
 export function placasConAgujeros(agujeros: number, largoMm?: number | null): OfertaDePlacaRecta[] {
-  const ofertas = SISTEMAS_DE_PLACA_RECTA.map((sistema): OfertaDePlacaRecta => ({
-    sistema,
-    placa: placaRecta(sistema.id, agujeros, largoMm),
-    rangoMm: rangoDeLargoMm(sistema, agujeros).map(redondear) as [number, number],
-  }))
-  if (largoMm === undefined || largoMm === null) return ofertas
-  const estirado = (o: OfertaDePlacaRecta) => (o.placa ? Math.abs(o.placa.pasoMm / o.sistema.pasoMm - 1) : Infinity)
+  const buscado = largoMm === undefined || largoMm === null || !Number.isFinite(largoMm) ? null : largoMm
+  const ofertas = SISTEMAS_DE_PLACA_RECTA.map((sistema): OfertaDePlacaRecta => {
+    const placa = placaRecta(sistema.id, agujeros)
+    return { sistema, placa, diferenciaMm: placa && buscado !== null ? redondear(placa.largoMm - buscado) : null }
+  })
+  if (buscado === null) return ofertas
+  const lejos = (o: OfertaDePlacaRecta) => (o.diferenciaMm === null ? Infinity : Math.abs(o.diferenciaMm))
   return ofertas
     .map((o, i) => ({ o, i }))
-    .sort((a, b) => estirado(a.o) - estirado(b.o) || a.i - b.i)
+    .sort((a, b) => lejos(a.o) - lejos(b.o) || a.i - b.i)
     .map(({ o }) => o)
 }
 

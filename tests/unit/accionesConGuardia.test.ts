@@ -241,6 +241,20 @@ interface Clasificacion {
 
 const USUARIO_NUEVO = ['nueva@prueba.invalid', 'Cuenta nueva', 'una-clave-larga-de-prueba', 'lector']
 const RESULTADO = { puntaje: 1, puntajeMaximo: 2, complicaciones: [] }
+const AVANCE = {
+  v: 1,
+  paso: 2,
+  modo: 'practica',
+  puntaje: 10,
+  resueltos: ['a'],
+  fallados: [],
+  complicados: [],
+  automaticas: [],
+  complicaciones: [],
+  insumos: {},
+  instantanea: { sesion: '{"v":3}', colocado: '' },
+  guardadoEn: '2026-11-04T10:00:00.000Z',
+}
 const DIFUSION = { asunto: 'Aviso', mensaje: 'Un aviso para todas las cuentas.', audiencia: 'todas' }
 
 const GUARDIAS: Record<string, Clasificacion> = {
@@ -365,6 +379,12 @@ const GUARDIAS: Record<string, Clasificacion> = {
     guardia: 'sesion',
     modulo: 'cirugias',
     argumentos: () => ['12', RESULTADO],
+  },
+  // Dónde se quedó en un caso (P-009): como el resultado, cada cuenta escribe su propia fila, y del simulador.
+  'actividad.ts:guardarAvanceDelCaso': {
+    guardia: 'sesion',
+    modulo: 'cirugias',
+    argumentos: () => ['12', AVANCE],
   },
   // Los comentarios del taller (E2, D-158): la lista es del editor y del
   // administrador, con su rol real.

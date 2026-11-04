@@ -5662,7 +5662,7 @@ desplazamiento inicial) y se jugó cada paso con «Probar este paso». Salieron 
   «Mover» (la reducción no se pudo completar a mano); la placa se apoya en la tibia proximal y deja
   holgura en la meseta; y el cursor del Weitlaner sigue mostrando una tijera.
 
-### D-171 · 2026-10-10 · vigente
+### D-171 · 2026-10-10 · superada en parte por D-267: la rueda acerca, y el instrumento va arrastrando con el botón derecho
 **La rueda maneja el instrumento, las capas mandan, cualquier trozo de hueso se mueve, la sutura se tira del
 hilo y lo cortado sobrevive a recargar.**
 Pedido del dueño tras D-170 (la prueba de punta a punta en el servidor): «las herramientas que se abren se
@@ -6478,7 +6478,7 @@ elijo» a «Toda la mesa» y la bandeja pasa de 0 a 22.
 instrumentos «señuelo» dejan de poder escasear: acertar es elegir entre todo el catálogo, que es más difícil que entre cinco; quien quiera lo
 de antes elige «Solo lo que elijo». La bandeja del residente tiene decenas de instrumentos: se recorre por familias y con el buscador.
 
-### D-196 · 2026-10-21 · vigente
+### D-196 · 2026-10-21 · superada en parte por D-267: la barra de modos queda para el editor; al residente el modo se lo pone el instrumento
 **Los modos van en una barra sobre el lienzo, de izquierda a derecha, y «Info» se llama «Seleccionar estructura».**
 Cuarta etapa de P-004 (E4). Pedido 9 de Cristóbal: «el panel lateral está medio poco práctico para maniobrar; quizás lo de elegir si orbitar,
 trazar y todo eso podría quedar arriba ordenado de izquierda a derecha; el que pusiste “información” quedaría mejor que se llame
@@ -6777,7 +6777,7 @@ Pedido del dueño sobre el simulador, a partir de capturas: al coger una herrami
 - **«Por peso» no se subió el tope de 5 MB de los modelos 3D**, y es a propósito: el propio código lo dice («por encima, la plataforma deja de abrirse en equipos modestos»); un modelo más pesado gasta más memoria de la tarjeta y empeora el blanco que se quiere evitar. Subirlo es una decisión aparte, con la medida de memoria delante.
 - **«Señalar»** es el modo, **solo del editor**, con que se declaran las piezas del caso: un clic en un trozo del modelo lo añade a «Piezas» con su nombre exacto (era el del taller de piezas). El residente no lo tiene.
 
-### D-206 · 2026-10-21 · vigente
+### D-206 · 2026-10-21 · superada en parte por D-266: el aviso deja el lienzo y va a la columna derecha; los límites siguen
 **El aviso de la herramienta sale a la derecha de su recuadro, y los límites contra el blanco suben: 20 MB por modelo y hasta 16 millones de píxeles.**
 Dos pedidos del dueño sobre D-205. (1) «Si pincho una herramienta aparece un mensaje abajo; quiero que aparezca desde el cuadrado que se desplegó, hacia la derecha». (2) «Necesito que no se vaya a blanco, quiero subir los límites: por lo general trabajaré con hartos instrumentos y tengo buenos recursos de hardware».
 - **El aviso** (`resultado` de `ConsolaQuirurgica`, el de «lo que acaba de pasar») dejó la columna derecha, bajo «Aplicar paso», y es ahora `.consola-aviso-flotante`: sobre el lienzo, **pegado al borde derecho del recuadro de la herramienta** y debajo de la barra del lienzo (para no pisar Encuadrar/Ampliar/Fluoroscopia aunque el lienzo sea angosto), con su ✕. Misma apariencia de siempre. Con el recuadro flotando (menos de 1000 px) se corre a su derecha; con el recuadro en columna, empieza donde empieza el lienzo (sigue su ancho arrastrable).
@@ -7756,7 +7756,7 @@ Hace lo que haría quien arrastra: deja el zoom y el desplazamiento en el panel,
 - (+) Cualquier otra pieza de interfaz que se reconozca por su nombre queda también fuera de la oclusión.
 - (−) Con un instrumento dentro ya no se ve el trazo entero de la incisión. Para verlo hay que quitar el separador.
 
-### D-253 · 2026-11-03 · vigente · segunda etapa de P-008 · resuelve O-081 y rehace cómo se posa la hoja de D-241
+### D-253 · 2026-11-03 · vigente · segunda etapa de P-008 · resuelve O-081 y rehace cómo se posa la hoja de D-241 · la postura de la hoja, rehecha por D-261
 **Los separadores abren al milímetro desde su hoja: el borde que sostienen se aparta lo que dice la apertura, en su sitio. La hoja de mano queda con la pala metida en el labio y el mango tendido hacia fuera.**
 
 *De dónde sale.* Pedido del dueño (P-008): «que los separadores interactúen milimétricamente, que se meta y se desplace desde el borde en ese punto de la herramienta hacia afuera; todos los separadores». A media tarea, con un dibujo en rojo sobre una captura: «la herramienta debería quedar como lo rojo, con la paleta hacia abajo y metida en el músculo como si lo estuviera corriendo; así es como se usa, siempre despejando el campo visual y traccionando desde el centro hacia afuera».
@@ -7799,7 +7799,7 @@ Capturas `linea-05` a `linea-07`.
 - (−) La cuerda es recta, y el labio de verdad se curva un poco entre la hoja y la punta. A la vista no se distingue; en la cuenta, la apertura cerca de las puntas es algo menor que la real.
 - (−) La pala tiene un ángulo fijo, de unos 15° con la vertical: no se ajusta al grosor del tejido ni se inclina a mano.
 
-### D-254 · 2026-11-03 · vigente · tercera etapa de P-008 · completa D-168 y D-198
+### D-254 · 2026-11-03 · vigente · tercera etapa de P-008 · completa D-168 y D-198 · el largo a medida, superado por D-259
 **Placas rectas a medida: se piden los agujeros y, si se quiere, el largo, y salen todas las de esa cantidad, de once sistemas con distinto tornillo. Cada una se genera en el acto con esas medidas exactas.**
 
 *De dónde sale.* Pedido del dueño (P-008): «poder elegir la cantidad de agujeros; por ejemplo, colocar una opción 5 cm y 3 agujeros y aparezca eso, no otro», y «crear varios modelos de placas para que si coloca 5 agujeros salgan todas las de esa cantidad pero diferentes medidas de agujeros».
@@ -7852,7 +7852,7 @@ En el navegador, sobre la tibia partida:
 - (−) Solo placas rectas. Las anatómicas, en T, en L o de gancho siguen siendo modelos de catálogo con sus agujeros fijos.
 - (−) Nada impide un tornillo de otro diámetro en el agujero: una placa de 2,4 acepta sin aviso el tornillo de 4,5 de la bandeja.
 
-### D-255 · 2026-11-03 · vigente · cuarta etapa de P-008 · supera en parte a D-198 (el giro de ±90° y la placa que solo se corría con cifras)
+### D-255 · 2026-11-03 · vigente · cuarta etapa de P-008 · supera en parte a D-198 (el giro de ±90° y la placa que solo se corría con cifras) · superada en parte por D-267 (girar con la rueda: ahora con Mayúsculas y el arrastre)
 **La placa apoyada se arrastra a cualquier sitio del hueso, también a la otra cara. Se gira con la rueda mientras se arrastra, da la vuelta entera y se voltea con un botón.**
 
 *De dónde sale.* Pedido del dueño (P-008): «las placas quiero que se puedan ajustar como se quiere en cualquier posición, y sean manipulables».
@@ -7980,6 +7980,455 @@ Capturas `panel-01` a `panel-05`, `editor-01` a `editor-03` y `movil-mesa`.
 - (−) Con una familia abierta, el paciente y las capas bajan; en una pantalla de 1000 px de alto quedan bajo el pliegue hasta coger el instrumento.
 - (−) Las familias son las categorías del catálogo. «Perforación» junta brocas, guías, medidores y destornilladores (32), y es la lista más larga.
 - (−) Los recientes duran lo que la página: no se guardan con el recorrido.
+
+### D-258 · 2026-11-04 · vigente · resuelve de Q-001 a Q-010 (menos Q-002, que ya lo estaba) y Q-011 en parte
+**Las respuestas del dueño a las preguntas abiertas: docente para una residencia, una sola cirugía, cesión de derechos, datos mínimos con aviso, equipo de referencia, datos públicos, dominio propio con Contabo en producción, planificación docente, y lo de Cristóbal tal como se recomendó.**
+
+El 2026-11-04 el dueño respondió de una vez todo lo que seguía abierto, sobre una recomendación por pregunta. Lo que eligió, y lo que cambia:
+
+- **Q-001 · A quién se presenta.** Como herramienta docente, a un programa de residencia de traumatología. Se muestra primero el simulador, y el módulo 05 como lo que viene. *Consecuencia:* lo que más rinde ahora es pulir el simulador y conseguir residentes que lo usen, que es el dato que después pedirá una sociedad científica o un inversionista. El módulo 05 no recibe trabajo.
+- **Q-003 · Una cirugía o tres.** Una sola, completa de principio a fin. Las demás quedan ocultas hasta que su guion esté entero.
+- **Q-004 · Autoría y licencia.** Cesión total a la plataforma. No era la recomendación —un acuerdo de licencia no exclusiva—, y se eligió porque deja un solo titular para vender o licenciar el conjunto. *Consecuencias:* (+) un solo titular de los derechos de explotación. (−) Es más difícil que los autores la firmen, y tiene que constar por escrito: la ley chilena de propiedad intelectual (17.336) pide formalidades para transferir derechos de autor, así que conviene que la redacte un abogado. Los derechos morales —que se reconozca la autoría y que no se deforme la obra— no se ceden (art. 16): las firmas de médico y kinesiólogo de las fichas (P-007) se quedan.
+- **Q-005 · Datos personales.** Lo mínimo, y el aviso ya: nombre, correo institucional, rol y el avance en el simulador. Nada de RUT, teléfono ni datos de salud, y ninguna imagen con datos de pacientes. Aviso de privacidad al registrarse, antes de que la Ley 21.719 entre en vigor el 1 de diciembre de 2026. *Consecuencia:* el avance del simulador puede guardarse en la cuenta (P-009), y el aviso entra en P-009.
+- **Q-006 · Equipo de referencia.** Un notebook de unos cinco años con gráfica integrada (Intel UHD 620 y 8 GB de RAM), pantalla de 1366 × 768 y Chrome o Edge al día; un Android de gama media solo para comprobar que la plataforma abre; 5 MB por modelo, como ya se usaba. *Consecuencia:* las capturas de P-009 se hacen también a 1366 × 768.
+- **Q-007 · TC y RM.** Conjuntos públicos con licencia clara, como TotalSegmentator (CC BY 4.0), para construir y probar toda la cadena.
+- **Q-008 · Dominio propio.** Sí. El dueño lo compra la semana del 2026-11-09, y entonces **ved pasa a ser el servidor de pruebas y Contabo el de producción**. Contabo ya tiene IP pública y Caddy: basta con apuntar el dominio y cambiar el `.env` y el Caddyfile, sin Cloudflare. *Consecuencia:* la plataforma gana un origen propio, que es la única salida que tenía O-061.
+- **Q-009 · Planificación con DICOM.** Docente, decidido por escrito antes de empezar P-002, con estudios anonimizados.
+- **Q-010 · Nombres de la lectura.** Se mantienen varo y valgo por el fragmento distal, y el plano sagital lleva su ápice: «10° antecurvatum (ápice anterior)». El desplazamiento se da también en % del diámetro del hueso. Entra en P-009.
+- **Q-011 · Lo de Cristóbal.** Placas solo de catálogo: el largo sale de los agujeros, sin estirar, lo que supera esa parte de D-254. La pala va dentro de la herida, bajo el labio, hasta el plano que se expone, lo que rehace la postura de D-253. «Perforación» se parte en Brocas y guías, Medidores y Destornilladores. Sigue abierta la lista real de placas de su servicio: las medidas de 2,4 y 2,7 salen de fichas de Movora, que fabrica implantes veterinarios, y valen como orden de magnitud.
+- **Modo práctica o evaluación** (P-009). Lo elige el residente al empezar el caso, y el editor puede fijar uno por caso.
+
+### D-259 · 2026-11-04 · vigente · E3 de P-009 · cumple Q-011 (D-258) · supera en parte a D-254 (el largo a medida)
+**Las placas rectas son las del catálogo: se piden los agujeros y el largo sale de ellos, sin estirar. El largo que se escribe ya no fabrica una placa: ordena la lista, de la más cercana a la más lejana.**
+
+*De dónde sale.* Lo recomendó Cristóbal y el dueño lo eligió en D-258 (Q-011): «placas solo de catálogo: el largo sale de los agujeros, sin estirar». Una placa de tres agujeros y 50 mm justos no está en ninguna caja, y quien aprende con ella aprende a pedir algo que no hay.
+
+*Cómo funciona* (`src/lib/placasRectas.ts`).
+- `placaRecta(sistema, agujeros)` da siempre el largo de catálogo —agujeros por distancia, más los extremos— y la distancia del sistema. Se quitaron el estirado y sus topes del 85 y el 150 % (`PASO_MINIMO`, `PASO_MAXIMO`, `rangoDeLargoMm`).
+- **El largo que se escribe ordena.** `placasConAgujeros(agujeros, largoMm)` ofrece todas las de esa cantidad, de la que menos se aparta a la que más, y cada una dice cuánto: «71 mm (21 más que lo buscado) · tornillo 3,5…». Ya no hay placas apagadas que «no dan» el largo. El campo pasa a llamarse «Largo que busca».
+- **Las direcciones guardadas vuelven al catálogo.** Una placa estirada de una sesión anterior (`placa-recta:lcp-3-5:3:50`) se abre con la de catálogo de esos agujeros, de 45 mm: la dirección se lee ya solo por su sistema y sus agujeros.
+
+*Qué se probó.* `tests/unit/placasRectas.test.ts`: el largo de catálogo (71 mm la LC-DCP 3,5 de siete agujeros), la dirección vieja que vuelve a 45 mm con la distancia de 13, la dirección igual al identificador y el orden por cercanía.
+
+*Consecuencias.*
+- (+) Lo que se elige en el simulador está en una caja de verdad.
+- (−) Una sesión guardada con una placa estirada se reabre con otro largo, y lo atornillado en sus agujeros puede quedar fuera de ellos.
+- (−) Sigue abierta la lista real de placas del servicio de Cristóbal (Q-011): las de 2,4 y 2,7 salen de fichas de un fabricante veterinario.
+
+### D-260 · 2026-11-04 · vigente · E1 de P-009 · rehace cómo se apoya la placa de D-198 y D-255
+**La placa se asienta como un sólido sobre el hueso: no lo atraviesa en ningún punto, sigue el eje del trozo en que se apoya y dice sobre qué fragmento cae cada agujero. Con la fractura sin reducir lo dice, en vez de meterse en el hueso.**
+
+*De dónde sale.* Pedido del dueño (P-009): «que la postura de las placas sea más realista, que interactúen como si fuera sólido con sólido y no se sobrepongan o atraviesen, que se coloque recto en el hueso como si de verdad afirmara esos dos fragmentos».
+
+*Lo que fallaba* (capturas de «antes» de P-009, caso 3053, a 1600 × 1000).
+- La placa se apoyaba en el punto del clic con la normal de un triángulo, y al moverla se miraban tres rayos a lo largo de un eje del mundo. Entre ellos el hueso quedaba por encima de la cara de abajo: 0,7 mm dentro con la fractura reducida, 0,8 en la cara anterolateral y **9,5 mm dentro del fragmento** con la fractura sin reducir.
+- Angulada 30°, el 43 % de su cara quedaba en el aire.
+- El largo iba por un eje del mundo, y la pierna del atlas viene girada unos grados.
+
+*Cómo funciona* (`src/components/simulador/asientoDeLaPlaca.ts`).
+- **El hueso es una nube de puntos de su superficie**, uno cada 1,5 mm y con el área que representa cada uno, sacada una vez por malla. Con solo los vértices no basta: los triángulos de un atlas miden varios milímetros, y la superficie entre ellos puede quedar por encima de la placa.
+- **La placa es un sólido rígido.** Se prueban unas 130 posturas —cabeceo a lo largo hasta 8°, ladeo a lo ancho hasta 24°— y en cada una se la sube hasta que el punto más alto del hueso bajo su huella toca su cara de abajo, con 0,2 mm de holgura. Gana la más pegada, con un premio por la parte que apoya: sobre un escalón, la placa queda plana en el fragmento más alto en vez de mecerse sobre el borde del otro (1,4 mm de holgura media frente a 1,6).
+- **El largo va por el eje del hueso**, sacado de los puntos del trozo donde se apoya, y la normal es la media de la superficie cercana, pesada por área, sin la cortical de enfrente.
+- **Se sabe qué trozo sostiene cada agujero**, y `avisoDelAsiento` (`src/lib/fijacion.ts`) lo dice al apoyar y al soltar la placa:
+  - «Agujeros sobre cada fragmento: proximal, 4; distal, 4.»
+  - Si un fragmento tiene menos de tres (`AGUJEROS_POR_FRAGMENTO`, la regla de la AO), que se corra o se elija una más larga.
+  - Si todos caen en uno, que no cruza la fractura.
+  - Si algún agujero se queda sin hueso debajo.
+  - Y, antes que nada, si el foco está más abierto que los topes de un paso (5 mm, 5° y 5 mm de diástasis, `FOCO_PARA_FIJAR`): «La fractura no está reducida (desplazamiento 12,5 mm, angulación 9,8°): la placa no puede apoyar en los dos fragmentos. Redúzcala antes de fijarla.» Sin esto, sin reducir, la placa tocaba los dos fragmentos por una esquina y la holgura bajo cada uno no lo delataba.
+
+*Qué se probó.* `tests/unit/asientoDeLaPlaca.test.ts`, nueva:
+- la nube, sus áreas y su caché;
+- la normal, que no mira la cortical de enfrente;
+- el eje de un cilindro inclinado 10°, a medio grado;
+- la placa sobre un cilindro, sobre una cara inclinada 12° y sobre dos bloques, reducidos (2 + 2 agujeros, holgura 0) y desplazados 3 mm (plana sobre el más alto, a 3 mm del otro);
+- los mensajes, el del foco abierto con su texto exacto.
+
+Se ajustaron `implantesEnLaEscena`, `agujerosDeLaPlaca` y `compresionEnLaEscena`.
+
+En el navegador, sobre el caso 3053, medido con la sonda (`asientoDeLaPlaca()`):
+
+| Escena | Dentro del hueso | Cara apoyada | Holgura media / máxima | Agujeros |
+|---|---|---|---|---|
+| Reducida | 0 mm (antes 0,7) | 15 % | 1,4 / 4,3 mm | 4 + 4 |
+| Arrastrada | 0 | 56 % | 0,5 / 1,0 mm | 6 proximales y 2 distales, con su aviso |
+| Angulada 30° | 0 | 11 % | — | 4 sin hueso (51 % de la cara) |
+| Anterolateral | 0 (antes 0,8) | — | — / 2,7 mm | — |
+| Sin reducir | 0 (antes 9,5) | — | 3,2 / 6,4 mm | con el aviso del foco |
+
+*Consecuencias.*
+- (+) La placa no atraviesa el hueso en ninguna postura, y el mensaje dice lo que miraría un cirujano: cuántos agujeros quedan a cada lado.
+- (+) Sin reducir se ve una placa apoyada en un fragmento y en el aire sobre el otro, con su aviso, en vez de una placa metida dentro.
+- (−) Reducida, la placa recta apoya el 15 % de su cara, donde antes se medía el 60 %: parte de aquel 60 % era hueso dentro de la placa. La tibia es curva y la placa recta; lo que la pega es contornearla en la mesa de modelado (D-257).
+- (−) La normal media tiene un sesgo de uno o dos grados sobre mallas de triángulos largos y finos, como el cilindro de las pruebas. En el hueso del atlas no se notó.
+- (−) Cada movimiento de la placa prueba unas 130 posturas. En el equipo de prueba no se notó; en el de referencia (Q-006) no se midió.
+
+### D-261 · 2026-11-04 · vigente · E2 de P-009 · cumple Q-011 (D-258) · rehace la postura de la hoja de D-253
+**La hoja de mano entra en la herida: el codo queda 4 mm hacia dentro del labio que sostiene y la pala baja por la pared, bajo el labio. El mango sale a 15° de la piel aunque la dirección del labio venga torcida.**
+
+*De dónde sale.* Pedido del dueño (P-009): «las herramientas aún siguen viéndose por fuera; necesito que estén por dentro, como si de verdad estuvieran traccionando». Y la recomendación de Cristóbal elegida en D-258 (Q-011): «la pala va dentro de la herida, bajo el labio, hasta el plano que se expone».
+
+*Lo que fallaba* (capturas de «antes» de P-009, caso 3053).
+- El codo de la hoja quedaba sobre el borde del labio (D-253), y la pala, a 15° de la vertical, entraba en el labio desde arriba: la hoja se veía por fuera de la herida.
+- En el músculo, un Farabeuf quedó con el mango a 63° de la piel y la pala de lado. La dirección en que se aparta el labio sale de cómo se mueve en su capa y la normal sale del clic, y en el borde de un músculo las dos se cruzan.
+
+*Cómo funciona* (`posarSeparador`, en `exposicionEnLaEscena.ts`).
+- **La dirección del labio se proyecta sobre el plano de la piel** antes de posar la hoja: el mango sale siempre a 15° de la piel y la pala a 15° de la vertical, hacia abajo.
+- **El codo entra en la herida** 4 mm hacia el centro (`CODO_DENTRO_DE_LA_HERIDA_MM`), a 1 mm sobre el borde. Con la herida poco abierta, no pasa del 40 % de lo que hay hasta el labio de enfrente (`PARTE_DE_LA_HERIDA_PARA_EL_CODO`): sin ese tope, recién puesta, la hoja cruzaba el corte y se metía en el otro labio.
+- La sonda mide cuánto baja la pala bajo el borde y qué parte queda oculta en el tejido (`palaBajoElBordeMm`, `palaOcultaPct`), y mira la herida a lo largo, tumbada (`mirarLaHerida` con `inclinacion`).
+
+*Qué se probó.* `tests/unit/separadorEnElLabio.test.ts`:
+- el codo, a 1 mm sobre el borde y 4 hacia dentro;
+- con la herida abierta 2 mm, el codo al 40 % de lo que hay hasta el otro labio;
+- con la dirección torcida hacia la normal, mango y pala a 15°.
+
+En el navegador, sobre el caso 3053, con el Farabeuf en pareja sobre el tibial anterior abierto:
+- las dos palas a 15° de la vertical, y el mango a 15° sobre la piel y hacia fuera, sin desvío;
+- la pala, 23,1 y 22,8 mm bajo el borde, oculta en el tejido entre el 95 y el 100 %;
+- vista a lo largo, cada codo dentro de la abertura, en su labio.
+
+*Consecuencias.*
+- (+) La hoja se ve trabajando dentro de la herida, como en el pabellón.
+- (+) Corrige el mango a 63° del caso 3053 y cualquier otro borde donde la dirección y la normal se crucen.
+- (−) En un músculo poco hondo la pala, más larga que la herida es honda, se engancha bajo el labio y queda oculta en el tejido, en vez de llegar al plano que se expone. Llegar al hueso pediría una pala que se acorte o se incline a mano.
+- (−) Los 4 mm son fijos: no dependen del grosor de la capa ni de la hoja.
+
+### D-262 · 2026-11-04 · vigente · E3 de P-009 · cumple Q-011 (D-258) · parte una familia de la mesa de D-257
+**«Perforación y fijación» se ve en la mesa como tres familias, Brocas y guías, Medidores y Destornilladores, en el orden en que se cogen. El catálogo no cambia.**
+
+*De dónde sale.* Recomendación de Cristóbal elegida en D-258 (Q-011). Era la familia más larga de la mesa —treinta y dos cosas en el caso de P-009, de la broca al martillo—, y para dar con el medidor había que leerla entera.
+
+*Cómo funciona* (`src/lib/barraDeInstrumental.ts`).
+- `familiaDeLaMesa` reparte por el nombre:
+  - destornillador, atornillador, limitador de torque o llave, a Destornilladores;
+  - medidor o calibrador, a Medidores;
+  - lo demás —brocas, guías, camisas, machuelos, avellanadores, el motor—, a Brocas y guías;
+  - y un tornillo guardado en esa categoría, a Tornillos.
+- `ordenDeLasFamilias` las pone donde estaba la de antes: brocar, medir, atornillar. La consola usa lo mismo para agrupar la mesa, abrir la familia del instrumento que sigue, precargar sus modelos y marcar la del que está en la mano.
+- Medidores estrena dibujo (`medidor`: una regla con su gancho), y Destornilladores usa el `atornillador`. Su rótulo lleva un guion blando, para partirse en «Destornilla-dores» en un tercio de columna.
+- El catálogo y el editor siguen con una sola categoría: es cómo se ve la mesa, no qué es cada cosa.
+
+*Qué se probó.* `tests/unit/barraDeInstrumental.test.ts`: las tres en su sitio y en su orden, cada instrumento en la suya por su nombre, y cada rótulo como palabra del nombre entero, sin contar el guion blando.
+
+*Consecuencias.*
+- (+) El medidor y el destornillador quedan a un clic, sin leer la lista de brocas.
+- (−) El reparto va por el nombre: un instrumento nuevo de esa categoría cuyo nombre no diga lo que es cae en Brocas y guías.
+- (−) El martillo y la aguja de Kirschner van con las brocas, que no es su sitio. Ninguna de las tres les queda mejor.
+
+### D-263 · 2026-11-04 · vigente · E3 de P-009 · cumple Q-010 (D-258) · completa D-160
+**La lectura de una reducción dice el ápice del plano sagital —«10° antecurvatum (ápice anterior)»— y el desplazamiento también en % del diámetro del hueso, en el atlas y en el simulador.**
+
+*De dónde sale.* Q-010, resuelta en D-258: varo y valgo siguen por el fragmento distal, el plano sagital lleva su ápice y el desplazamiento va también en %. El ápice es lo que se ve en la radiografía lateral, y «antecurvatum» a secas se leía al revés con facilidad. Y «12 mm» no dice lo mismo en un radio que en un fémur.
+
+*Cómo funciona.*
+- **En el atlas** (`describirLectura`, en `src/atlas/lecturaClinica.ts`):
+  - «10° antecurvatum (ápice anterior)» y «10° recurvatum (ápice posterior)».
+  - Cada desplazamiento de través, con su %: «8 mm lateral (33 % del diámetro)». El ancho es el de la tapa del corte del proximal, de lado a lado y de delante atrás (`puntosDeLaTapa` y `anchoEnUnaDireccion`, en `manipular.ts`).
+  - Un trozo de marco, que no tiene tapa, se queda con los milímetros. La diástasis no lleva %: a lo largo, el hueso no tiene diámetro.
+- **En el simulador**, el desglose del desplazamiento empieza por el %: en el caso de E0, «12,5 mm · 51 % del diámetro».
+  - El lienzo mide el ancho en el hueso que se le enfrenta al fragmento y en la dirección del desplazamiento (`anchoDelHuesoJuntoAlFoco`). La caja del hueso no sirve: la de una tibia la da la meseta, que dobla la diáfisis.
+  - Lo mide en siete secciones de través al eje, desde 5 mm de su extremo hasta 20 mm, o hasta 40 si el hueso es largo (el 30 % de su largo). Se queda con la más ancha (`seccionesDelHueso` y `anchoDeLasSecciones`, en `src/lib/reduccion.ts`).
+  - Primero se contaban los vértices que caían en una rebanada de 5 a 20 mm, y en la tibia de E0 dio 89 % donde hay 51. Fallaron dos cosas a la vez. La malla de un hueso recortado es pobre a lo largo de la diáfisis: esa tibia tiene 253 vértices, dos o tres cada 20 mm, y en la rebanada solo caían los del trazo. Y el trazo oblicuo deja el extremo en cuña, con secciones estrechas junto a él.
+  - Las secciones cortan los triángulos, así que no necesitan vértices en el sitio. Y se guardan por hueso (`seccionesEnElMundo`): el % se recalcula a cada movimiento del fragmento, y el hueso fijo no se mueve.
+- El % es entero y sin signo (`porcentajeDelDiametro`): el lado ya lo dicen las palabras.
+
+*Qué se probó.* `tests/unit/lecturaConApiceYPorcentaje.test.ts`, nueva:
+- el ápice;
+- el %, con ancho y sin él;
+- la tapa, que solo cuenta los puntos sobre el plano;
+- `leerReduccion` con la tapa: 8 mm laterales sobre 24 de ancho, 33 %;
+- las secciones, que no miran la metáfisis, que miden una diáfisis con anillos solo en sus extremos y que pasan la cuña de un trazo oblicuo.
+
+En la malla de la tibia de E0, fuera del navegador, las siete secciones de 5 a 40 mm dan de 7,6 a 24,5 mm de ancho: 51 %.
+
+`manipular.test.ts`, con el ápice en sus lecturas.
+
+*Consecuencias.*
+- (+) La cifra se lee como en la ficha y en la radiografía.
+- (−) El desglose del simulador sigue dando los ejes del modelo (X, Y, Z), no lateral ni anterior: sus casos no traen los ejes anatómicos del hueso, que el atlas sí mide.
+- (−) El hueso que se enfrenta al fragmento se busca por su caja: en un caso con dos huesos paralelos de huella parecida, el ancho podría ser el del otro.
+- (−) Un trazo oblicuo o espiroideo más largo que la ventana (40 mm en un hueso largo) deja todas las secciones en la cuña, y el % sale de más.
+
+### D-264 · 2026-11-04 · vigente · E7 de P-009 · cumple Q-005 (D-258)
+**La solicitud de cuenta pide aceptar un aviso de privacidad publicado en `/privacidad`; `solicitarCuenta` rechaza la que no trae la versión vigente, y la cuenta guarda cuándo se aceptó y qué versión.**
+
+*De dónde sale.* Q-005, resuelta en D-258: «lo mínimo, y el aviso ya», con el aviso al registrarse antes de que la Ley 21.719 entre en vigor el 1 de diciembre de 2026. Es la etapa E7 de P-009. El avance en el simulador va a guardarse en la cuenta, y el aviso ya lo nombra: «tu avance en el simulador».
+
+*Cómo funciona.*
+- **`/privacidad`** (`src/app/(frontend)/privacidad/page.tsx`): pública, sin sesión y con el aspecto de `/creditos`. Habla de tú y tiene diez secciones: quién es responsable, qué datos guardamos, lo que no pedimos, para qué, con qué base, quién los ve, dónde se guardan, cuánto tiempo, tus derechos y los cambios al aviso.
+  - Lo que dice que se guarda sale de las colecciones y las acciones, no de lo que se pensaba guardar. El comentario de la página dice de qué archivo sale cada afirmación: quien cambie una cambia también el aviso y su versión.
+  - Dice sin rodeos que los datos se guardan fuera de Chile, en el servidor de Contabo en St. Louis (Estados Unidos), y que eso es una transferencia internacional.
+  - No promete plazos legales: los derechos se responden «dentro de los plazos que fija la ley».
+  - Va con `noindex`: `robots.txt` ya cierra todo el dominio (D-020).
+- **`src/lib/avisoDePrivacidad.ts`**: la versión vigente (`VERSION_DEL_AVISO_DE_PRIVACIDAD = '2026-11-04'`), la dirección de contacto y el día de la versión en palabras. La comparten la página, el formulario y la acción, para que no puedan decir versiones distintas.
+  - La dirección es la de `AUTORIA`, la del pie, porque la plataforma no tiene otra.
+  - El día se formatea en UTC. Con la hora de Chile, la medianoche UTC del 4 todavía es el 3, y el aviso diría un día menos que su propia versión.
+- **El último paso de `/registro`** lleva la casilla «He leído el aviso de privacidad y acepto que mis datos se usen para lo que ahí se explica».
+  - Es un campo más del paso (`privacidad` en `DatosDeSolicitud` y en `PASOS_DE_LA_SOLICITUD`), no un botón que se enciende al marcarla: sin marcar, el envío avisa junto a la casilla y le lleva el foco, como cualquier otro campo.
+  - El enlace abre el aviso en otra pestaña, para que lo escrito no se pierda. La nota de la pantalla lo enlaza desde el primer paso.
+  - El formulario no manda un «sí»: manda la versión que enseñó (`avisoDePrivacidadAceptado`).
+- **`solicitarCuenta` lo comprueba antes que ningún campo y antes de tocar la base.**
+  - Sin versión: «Para pedir la cuenta tienes que aceptar el aviso de privacidad.»
+  - Con una que no es la vigente: que el aviso cambió y hay que volver a leerlo. Así, quien abrió el formulario antes de un cambio no queda anotado con un texto que no vio.
+  - Antes de la base, para que el rechazo no dependa de si el correo ya tiene cuenta.
+- **Dos columnas en `usuarios`**: `privacidadAceptadaEn` (fecha, el mismo instante que `solicitadaEn`) y `versionDelAvisoDePrivacidad` (texto). Llegan con la migración `20261104_034906_privacidad_modos_y_avance`, la misma que trae el esquema de P-009 (D-265): las dos se escribieron a la vez y se generaron juntas.
+  - Las escribe solo `solicitarCuenta`, por la API local. Por REST se le niegan a todos, administrador incluido, como `ultimoAcceso`: una prueba de consentimiento que se puede reescribir no prueba nada.
+  - Texto y no lista de opciones: si no, cada versión nueva del aviso pediría una migración del enum.
+- **A una cuenta que ya existe no se le anota la aceptación**, aunque la llamada la traiga: quien llama puede ser cualquiera que sepa la dirección, y anotarla sería fabricar el consentimiento de otro.
+- **Enlaces**: «Privacidad» junto a «Créditos y licencias» en el pie de la plataforma, y «Aviso de privacidad» en el pie de la portada, que esconde el otro.
+- **El panel de `/entrar` y `/registro`** decía «Tus datos solo los ven los administradores de la plataforma», más estrecho que la verdad: los editores ven a quien comenta y la firma de una ficha se ve. Ahora dice que los datos se usan solo para la plataforma y enlaza el aviso para lo demás.
+
+*Qué se probó.*
+- `tests/unit/solicitudDeCuenta.test.ts`, 7 pruebas nuevas:
+  - sin aceptación (`undefined`, `''`, `true`) la solicitud se rechaza antes de mirar la base;
+  - con la versión de un aviso anterior, también;
+  - con la vigente, la cuenta guarda la versión y una fecha igual a `solicitadaEn`;
+  - a una cuenta pendiente o activa que ya existe no se le anota nada.
+- `pasosDeLaSolicitud.test.ts`: el último paso no deja enviar sin la casilla. `usuarios.test.ts`: las dos columnas niegan crear y modificar a todos.
+- Con `autoria` y `tiposGenerados`, 112 pruebas en cinco archivos. `tsc` y `eslint` sin errores.
+- En el servidor de desarrollo, `/privacidad` responde 200 con sus diez secciones, la versión «4 de noviembre de 2026» y el correo, y `/registro` enlaza el aviso.
+
+*Consecuencias.*
+- (+) El consentimiento queda demostrable: cada cuenta pedida desde el formulario sabe cuándo aceptó y qué texto.
+- (+) El aviso dice lo que el código hace, incluido lo incómodo, y el comentario de la página dice dónde mirar cuando eso cambie.
+- (−) Las cuentas creadas desde el panel y las anteriores a este cambio no tienen aceptación anotada. Pedírsela, por ejemplo en `/bienvenida`, es otra decisión.
+- (−) El registro de acciones guarda nombre, correo y rol sin plazo de borrado, también de cuentas eliminadas y de solicitudes rechazadas, y el aviso lo dice así. Darle un plazo, o anonimizarlo al borrar la cuenta, queda pendiente.
+- (−) El responsable figura como «TraumaHub, plataforma docente de traumatología», sin nombre legal, y el contacto es la dirección general del pie. Cambiar cualquiera de los dos pide una versión nueva del aviso.
+- (−) El aviso da a Contabo como el servidor de la plataforma. Hasta el cambio de dominio, la producción sigue en ved.
+- (−) El formulario de cotización no tiene casilla propia: el aviso lo cubre con la propia solicitud como base.
+
+### D-265 · 2026-11-04 · vigente · E5 y E6 de P-009 (mejoras de uso 5 y 12) · cumple lo de los modos de D-258
+**Antes de empezar un caso, el residente elige práctica o evaluación, o sigue donde lo dejó. El avance se guarda en su cuenta al empezar cada paso, y la consola abre ampliada.**
+
+*De dónde sale.* Dos de las doce mejoras de uso que el dueño pidió implementar el 2026-11-04 («quiero implementar todo esto»):
+- la 5, un modo de práctica y otro de evaluación;
+- la 12, abrir en modo pabellón y seguir otro día.
+
+D-258 decidió que el modo lo elige el residente y que quien escribe el caso puede fijar uno. Hasta ahora todo recorrido era a la vez práctica y examen. Las ayudas puntuaban igual que el gesto limpio. Y un caso de media hora se perdía al cerrar la pestaña: la sesión de D-171 guardaba lo cortado y lo colocado en `sessionStorage`, pero no el paso ni el puntaje.
+
+*Cómo funciona.*
+- **Al abrir un caso**, una tarjeta sobre el lienzo pregunta «¿Cómo quiere hacer este caso?».
+  - Ofrece «Empezar en práctica», «Empezar en evaluación» y, si hay avance guardado, «Seguir donde lo dejó» con el paso, el modo y los puntos.
+  - Va encima del lienzo y no en otra página: el modelo se abre detrás mientras se lee. Los botones esperan a que termine de abrirse.
+  - El editor no la ve.
+- **Práctica** trae:
+  - la demostración del paso (D-266);
+  - la lista que nombra el instrumento que toca;
+  - «Deshacer» y Ctrl+Z (D-267);
+  - «Repetir este paso»;
+  - los milímetros de hueso que atravesaría la broca.
+- **Evaluación** no trae nada de eso.
+  - La lista dice «Un instrumento en la mano» sin nombrarlo.
+  - Ctrl+Z responde «En evaluación no se deshace: como en pabellón, lo hecho queda hecho.»
+- **El caso puede fijar el modo**: el campo `modo` de `Cirugias`, con «A elección del residente» por omisión. Fijado, la tarjeta solo ofrece ese y dice que así lo dejó quien escribió el caso.
+- **El recorrido guarda en qué modo se hizo**: `modoDelRecorrido`, en `actividad`.
+- **El avance** (`src/lib/avanceDelCaso.ts`) lo escribe `guardarAvanceDelCaso` en la fila de `actividad` de la cuenta, al empezar cada paso.
+  - Guarda el paso, el modo, la cuenta del puntaje y lo hecho sobre el paciente en ese momento.
+  - El servidor lo comprueba entero (`avanceValido`), con un tope de 400.000 caracteres.
+  - Al terminar el caso se borra.
+  - Se guarda al empezar el paso y no a cada gesto: es una escritura por paso, y lo que vuelve es un estado del que se sabe que es coherente.
+- **Ampliada por omisión**: la consola del residente abre como con «Ampliar»; la del editor, no.
+  - La altura de la barra y la franja de pasos ahora se mide (`--alto-de-arriba`). Con títulos de paso en dos líneas pasaba de los 124 px que se suponían, y «Deshacer», «Repetir este paso» y «Ver todas las medidas» quedaban fuera de la ventana.
+- **Esquema**: llega con la migración `20261104_034906_privacidad_modos_y_avance`, la misma de D-264.
+
+*Qué se probó.*
+- `avanceYMenuRadial.test.ts`:
+  - el avance pasa entero, y `null` es «no hay avance»;
+  - lo que no es avance se rechaza con un mensaje que dice qué falla;
+  - el tope;
+  - una fila rara, o un paso que ya no existe, se leen como «sin avance».
+- `accionesConGuardia.test.ts`: `guardarAvanceDelCaso` exige sesión y el módulo de cirugías.
+- `migraciones.test.ts`: el esquema y la última migración coinciden.
+- En el caso de E0, contra la base desechable:
+  - la tarjeta al abrir (`uso-01`);
+  - en evaluación, sin demostración, con la lista sin el nombre y con el aviso de Ctrl+Z (`evaluacion-01` y `02`).
+
+*Consecuencias.*
+- (+) Practicar deja de contar como examen, y el examen deja de tener ayudas.
+- (+) El caso se sigue otro día y en otro equipo.
+- (−) Lo hecho a mitad de un paso no viaja a otro equipo. El paso se retoma desde su principio, como con «Repetir este paso». En la misma pestaña sí sigue, por la sesión.
+- (−) La guía «Qué hay en la consola» queda debajo de la consola ampliada. Quien no la conoce solo la ve al pulsar «Reducir».
+- (−) Una escritura más por paso en `actividad`, que la portada lee entera.
+
+### D-266 · 2026-11-04 · vigente · E4 de P-009 (mejoras de uso 1 a 4) · supera en parte a D-206 (el aviso sobre el lienzo)
+**Cada paso trae su encuadre y la posición del paciente. Su tarjeta da una línea de instrucción, una demostración, la lista de lo que se mide marcándose en vivo y solo las medidas que cuentan. El resultado va a la columna derecha. Un paso se puede repetir, y terminado el caso se puede volver a cualquiera.**
+
+*De dónde sale.* Las mejoras de uso 1 a 4 del 2026-11-04.
+
+Antes:
+- La cámara se quedaba donde la dejó el paso anterior, y antes de operar había que buscar con el ratón lo que pedía el paso.
+- La instrucción era un párrafo de tres o cuatro frases.
+- Debajo del lienzo salían cuatro cifras, contaran o no.
+- Para saber qué faltaba se pulsaba «Aplicar paso» de sonda, y cada sonda fallida costaba el paso entero.
+- El resultado salía en un aviso flotante sobre el lienzo (D-206), que tapaba lo que se estaba mirando y se iba.
+
+*Cómo funciona.*
+- **El encuadre y la posición** (`src/lib/encuadreDelPaso.ts`). Cada paso de `Cirugias` gana dos campos:
+  - `posicion`: de pie, supino o prono;
+  - `encuadre`: diez números con la dirección, el arriba, el punto mirado y la distancia.
+
+  El editor los guarda con «Guardar este encuadre», tal como dejó la cámara.
+  - Al entrar en el paso, la cámara va ahí en 450 ms, girando por el arco corto (`llevarLaCamaraAlEncuadre`). En línea recta, entre dos vistas casi opuestas, pasaría por dentro del modelo.
+  - Si el paso no tiene encuadre pero sí posición, se pone la posición. Si no tiene ninguna de las dos, la cámara se queda donde estaba, así que un caso de antes de P-009 no cambia.
+  - Va en `entrarEnPaso`, por donde pasan aplicar, saltar en el editor, reiniciar y la carga del modelo.
+- **El resultado, en la columna derecha.** Lo que decía el aviso flotante va a «Lo que va pasando», con ✓ o ⚠ y el número del paso.
+  - Mientras se opera se ven las seis últimas líneas.
+  - Terminado el caso, debajo del resumen queda el registro entero.
+  - `.consola-aviso-flotante` se retiró.
+- **La tarjeta del paso** (`src/lib/listaDelPaso.ts`):
+  - una línea de instrucción (`instruccionBreve`), sin cifras;
+  - la demostración: el campo `demostracion` del paso, un WebP animado o un vídeo de 3 a 5 s, rotulado «Así se hace», solo en práctica;
+  - la lista del paso (`listaDelPaso`): cada condición con su cifra de ahora, como hecha, que falta o que se pasó;
+  - el párrafo de antes, plegado en «Instrucción completa»;
+  - de las medidas de debajo del lienzo, solo las que cuentan para el objetivo del paso (`MEDIDAS_DEL_OBJETIVO`), con «Ver todas las medidas».
+
+  Las cuentas de la lista son las de `evaluarGesto`, y por eso viven junto a él. Si dos sitios deciden «está bien», acaban diciendo cosas distintas, y una lista en verde que falla al aplicar es peor que no tenerla.
+- **«Repetir este paso»** devuelve el paciente a como estaba al empezar el paso (`instantaneasDeLosPasos`).
+  - Terminado el caso, cualquier paso de la franja se vuelve a abrir para repasarlo, sin puntuar.
+  - Un paso empezado antes de recargar la página no se puede volver a abrir, y la consola lo dice.
+- **Lo que costó con el compilador de React.** Pasar a cualquier función, durante el render, un valor que sale de un objeto mutable hace que el compilador rechace todos los `useMemo` que dependen de él («This dependency may be modified later»). Pasó con `familiaDeLaMesa(instrumentoElegido)` y con el gesto que se pasa a `listaDelPaso`.
+  - Se resolvió con memos de valores primitivos, puestos antes del retorno temprano de la consola (detrás no puede ir ningún hook).
+  - Para la función izada `aplicarPaso`, se usó una referencia (`gestoAhora`) copiada en un efecto.
+
+*Qué se probó.*
+- `listaDelPaso.test.ts`, 8 pruebas:
+  - en práctica la lista nombra el instrumento, en evaluación no;
+  - la incisión corta, buena y larga;
+  - los tres topes de la reducción;
+  - con la lista entera hecha el gesto avanza en cada objetivo, y con un punto sin hacer no;
+  - pasarse de la cortical sale como «pasado»;
+  - una línea de instrucción por objetivo.
+- `encuadreDelPaso.test.ts`, nueva, 4 pruebas:
+  - ida y vuelta de los diez números;
+  - dirección y arriba unitarios;
+  - un grupo a medias o vacío no es un encuadre;
+  - las tres posiciones.
+- En el caso de E0, con los siete pasos encuadrados en supino y las demostraciones de la incisión y de la reducción grabadas del propio simulador:
+  - al aplicar el paso 1, la cámara pasa a la meseta, y al aplicar el 2, al foco (`practica-03` y `04`);
+  - la lista se marca al coger el bisturí y al trazar 46 mm (`practica-02`);
+  - en el paso 3 se ven las tres cifras de la reducción y nada de la incisión (`practica-05`);
+  - «Repetir este paso» deja el paciente como al empezar el paso (`practica-10`).
+
+*Consecuencias.*
+- (+) Cada paso empieza mirando lo que pide, y se sabe qué falta sin gastar el paso para averiguarlo.
+- (+) El resultado se queda a la vista hasta el final.
+- (−) Los encuadres y las demostraciones los pone quien escribe el caso, paso por paso. Los casos que ya hay en ved no traen ninguno hasta que alguien los grabe; mientras, se comportan como antes.
+- (−) Una demostración es un archivo más por paso en `medios`. Payload le saca a un WebP animado una miniatura fija, que no se usa.
+
+### D-267 · 2026-11-04 · vigente · E5 y E6 de P-009 (mejoras de uso 6 a 10) · supera en parte a D-171 (la rueda), D-196 (la barra de modos) y D-255 (girar la placa con la rueda)
+**El instrumento que se coge pone el modo, y el residente no tiene barra de modos. El instrumento se maneja arrastrando con el botón derecho, y la rueda siempre acerca. Antes de soltar se ve dónde quedaría la placa y por dónde iría la broca. El clic derecho abre un menú con los cinco últimos instrumentos (teclas 1 a 5 y Q), y en práctica Ctrl+Z deshace.**
+
+*De dónde sale.* Las mejoras de uso 6 a 10 del 2026-11-04.
+
+Antes:
+- El residente elegía en una barra el modo (Orbitar, Trazar, Mover, Fijar, Coser…) además del instrumento, y un instrumento en el modo equivocado no hacía nada.
+- La rueda movía el instrumento (D-171) o acercaba el modelo, según lo que hubiera en la mano: el mismo gesto hacía dos cosas.
+- Para saber dónde quedaría una placa había que soltarla.
+- Volver al instrumento de hace un momento era ir a la mesa, abrir su familia y buscarlo.
+
+*Cómo funciona.*
+- **El instrumento manda.**
+  - Al coger uno, la consola pasa al modo que le toca. Sin nada en la mano, al del objetivo del paso: en un paso de reducir, mover.
+  - La barra de modos de D-196 queda solo para el editor. Al residente le quedan «Mirar» y «Seleccionar estructura» como botones del lienzo: se encienden, y otro clic vuelve a lo de antes.
+  - Los textos que decían «pase al modo…» se quitaron.
+- **El botón derecho maneja el instrumento** (`alBajarConElDerecho` en el lienzo).
+  - Arrastrar hacia arriba abre el separador, mete la broca o el tornillo y alarga; hacia abajo hace lo contrario.
+  - 10 px son lo que antes era una muesca de la rueda.
+  - Hasta 4 px de movimiento, es un clic.
+  - Con Mayúsculas afina o hace lo otro: gira la placa, abre solo la hoja elegida o las mandíbulas de la pinza.
+  - La rueda solo acerca.
+  - Todos los textos que mandaban «con la rueda» dicen ahora el gesto nuevo: la consola, el lienzo, el Farabeuf, el Hohmann, el autoestático, la Metzenbaum, las Adson, el tornillo que entra y la retracción.
+- **Ver antes de hacer.**
+  - Con una placa en la mano y hueso bajo el cursor se ve la placa de cristal, asentada donde quedaría (`vistaPreviaDeLaPlaca`, con el asiento de D-260).
+  - Con la broca se ve una línea de puntos de la entrada a la cortical opuesta, con los milímetros de hueso que atravesaría, medidos como los mide el medidor (D-269). Los milímetros solo salen en práctica, porque medir es parte del paso.
+  - Las dos vistas se van al sacar el cursor del lienzo.
+- **El menú radial** (`src/lib/menuRadial.ts`).
+  - Un clic derecho limpio (sin arrastre y sin una broca dentro) abre, donde está el cursor, los cinco últimos instrumentos cogidos. Junto a un borde, el aro se corre para quedar entero dentro del lienzo.
+  - Las teclas 1 a 5 los cogen sin abrirlo, y Q vuelve al anterior.
+  - Son los últimos cogidos y no los del paso: si fueran los del paso, en evaluación dirían cuál toca.
+  - En macOS y en Linux el menú contextual llega al pulsar, cuando el arrastre aún no ha empezado. Se apunta y se decide al soltar.
+- **«Deshacer» y Ctrl+Z, solo en práctica.**
+  - El lienzo avisa cuando cambia lo que hay en el paciente (`alCambiarLaEscena`), con el puntero suelto y la escena ya devuelta, y la consola lo apila (tope por paso, sin repetir el último).
+  - Deshacer vuelve a montar el lienzo con el estado anterior sin mover la cámara.
+  - El lienzo nuevo dice «Deshecho: el paciente está como antes del último cambio.» (`avisoAlRecuperar`). Antes decía «Se recuperó lo que había puesto en el paciente», que es el aviso de recargar la página, y parecía que algo se había perdido.
+  - No se puede deshacer más allá del principio del paso.
+
+*Qué se probó.*
+- `avanceYMenuRadial.test.ts`:
+  - la pila no repite el último estado, y con el tope cae lo más viejo menos el principio del paso;
+  - los cinco últimos sin repetidos;
+  - el orden en el aro;
+  - 1 a 5 y Q.
+- Las pruebas que clavan el código del lienzo siguen al gesto nuevo (`profundidadDeLaBroca`, `tornilloQueEntra`, `abordajePorPlanos`).
+- En el caso de E0:
+  - el Farabeuf en la mano, sin barra de modos y con el texto del arrastre (`uso-04`);
+  - el clic derecho con el menú (`uso-05`);
+  - la placa de cristal, la placa puesta y Ctrl+Z quitándola, con la sonda diciendo que ya no hay placa (`practica-06` a `08`);
+  - la línea de la broca (`practica-09`), que destapó lo de D-269.
+- Con Playwright en Edge, el clic derecho abre el menú con la mano vacía, con un instrumento y pulsando y soltando por separado.
+
+*Consecuencias.*
+- (+) Un gesto, una cosa: la rueda acerca siempre y el instrumento va siempre con el derecho.
+- (+) Cambiar de instrumento ya no obliga a volver a la mesa.
+- (−) En un panel táctil, arrastrar con el botón derecho es un clic con dos dedos sostenido mientras se mueve, más torpe que la rueda. La barra de cada instrumento sigue ahí para eso.
+- (−) Con el menú abierto, un segundo clic derecho cae sobre el menú y no sobre el lienzo.
+- (−) «Deshacer» solo ve lo que el lienzo guarda (lo cortado, lo puesto, lo colocado). En un modelo sin pieza de piel, la incisión es un trazo que no corta nada, y Ctrl+Z responde que no hay nada que deshacer aunque la lista marque la incisión. Pasa con la pierna de E0 (O-083).
+
+### D-268 · 2026-11-04 · vigente · E6 de P-009 (mejora de uso 11)
+**El monitor del arco en C enseña la toma nueva y, al lado, la última de la otra proyección. F dispara desde cualquier sitio.**
+
+*De dónde sale.* La mejora de uso 11 del 2026-11-04. En pabellón el arco tiene dos monitores: la toma de ahora y la de referencia, casi siempre la AP junto a la lateral. Una reducción se juzga en dos planos. Aquí, al pasar a la lateral, la AP desaparecía, y para comparar había que volver a disparar.
+
+*Cómo funciona.*
+- Cada proyección guarda su última toma (`tomasPorProyeccion`). Junto a la imagen grande, un círculo pequeño enseña la última de otra proyección, rotulado «Última AP» o «Última lateral» (`consola-escopia-referencia`).
+- F dispara como el pedal, desde cualquier sitio de la consola menos un campo de texto. Ya disparaban Intro y espacio con la imagen enfocada.
+
+*Qué se probó.* En el caso de E0, una AP con «Disparar» y una lateral con F: quedan las dos a la vista (`uso-09`).
+
+*Consecuencias.*
+- (+) La reducción se juzga en dos planos sin gastar disparos.
+- (−) La referencia es pequeña: 96 px al lado de una imagen de unos 270.
+
+### D-269 · 2026-11-04 · vigente · sale de comprobar E5 de P-009 (mejora de uso 8)
+**La cortical opuesta es la del hueso en que se entra. La broca, su línea y el medidor ya no siguen hasta otro hueso que haya detrás. Pasan de una pieza de hueso a otra solo por el trazo de una fractura reducida: 3 mm o menos.**
+
+*De dónde sale.* Al comprobar la línea de la broca en la pierna de E0 (`practica-09`), decía «atravesaría 55 mm de hueso» en una diáfisis de 24. La línea seguía de la tibia al peroné, que está detrás.
+- La broca tomaba por cortical opuesta la última superficie de hueso de la línea a menos de 150 mm.
+- El medidor y el largo sugerido del tornillo (`medirAlLoLargoDeUnaLinea`, D-201) tomaban la primera cara vista desde 120 mm más allá.
+
+Con el peroné detrás, las dos daban su cara de fuera. Así:
+- quien paraba al salir de la tibia quedaba como si no hubiera llegado;
+- quien seguía atravesaba el espacio interóseo y el peroné sin aviso de haberse pasado;
+- el medidor pedía un tornillo que acababa en el peroné.
+
+La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas de ese modelo son de dos caras, así que el rayo ve la salida de la tibia y la entrada y la salida del peroné, y se quedaba con la última.
+
+*Cómo funciona.*
+- **La regla** (`salidaPorLaCorticalOpuesta`, en `src/lib/profundidadDeLaBroca.ts`, sin three) recorre los cruces de la línea pasada la cortical cercana. Pasa a otra pieza solo si de la anterior la separa como mucho `HUECO_DE_UN_TRAZO_MM` (3 mm).
+  - Los dos fragmentos de una fractura reducida siguen siendo un hueso, y un tornillo de compresión los cruza.
+  - El peroné, a 10 mm o más, no. Un trazo sin reducir tampoco.
+  - Los cruces de una misma pieza siguen haya el hueco que haya: una pieza puede tener superficies por dentro, y un hueso curvo puede salir de sí mismo y volver a entrar.
+- **El medidor** (`medirAlLoLargoDeUnaLinea`) mira la línea desde los dos lados y junta los cruces. Así tiene todas las caras aunque el material del modelo sea de una sola, que era la razón por la que antes solo miraba desde abajo.
+- **La broca** (`empezarPerforacion`) **y su línea** (`vistaPreviaDeLaBroca`) miden con `medirAlLoLargoDeUnaLinea`, igual que el medidor.
+  - Antes la broca tenía su propia cuenta. Con un hueso detrás, la broca, la línea y el medidor podían dar tres largos distintos.
+  - La línea dice ahora el grosor del hueso y no el largo desde la entrada.
+
+*Qué se probó.*
+- `profundidadDeLaBroca.test.ts`:
+  - el peroné detrás;
+  - el trazo reducido y el sin reducir;
+  - la misma pieza con hueco;
+  - la cara vista desde los dos lados;
+  - que la broca y su línea llaman a `medirAlLoLargoDeUnaLinea`.
+- `implantesEnLaEscena.test.ts`, con dos cajas, con materiales de una y de dos caras:
+  - con el peroné a 10 mm quedan 12 mm de tibia; antes, 30;
+  - el fragmento a 1 mm suma (24 mm), y a 8 mm no (12).
+- En la pierna de E0 (`practica-09`), con la broca de 3,2 mm a 82° del eje y en el mismo punto: la línea dice «atravesaría 20 mm de hueso» y acaba en la cara de fuera de la tibia; antes decía 55 y llegaba a la del peroné.
+
+*Consecuencias.*
+- (+) La profundidad de la broca, su línea y el medidor dicen lo mismo, y es lo que mide la tibia.
+- (−) Un fragmento a más de 3 mm del otro se mide solo. En una fractura conminuta mal reducida, el tornillo que cruza fragmentos sale corto por la cuenta, aunque se pueda poner.
+- (−) Dos huesos que se tocan a menos de 3 mm se cuentan como uno: la tibia y el peroné junto a la articulación tibioperonea proximal. Es justo el tornillo que se pasa y que en pabellón se ve en la lateral.
+- (−) La vista previa de la broca lanza dos rayos en vez de uno, cada 50 ms como mucho.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -9341,12 +9790,21 @@ Todo entre las 14:27:38 y las 14:27:56 de ese día. Ninguna de esas pruebas toc�
 *Por qué importa.* El aviso parece un error de código —sugiere «a server/client branch» o «Date.now()»— y lleva a buscar en el componente lo que no está ahí. Además, React regenera el árbol en el cliente y la página funciona, así que pasa por buena.
 *Qué hacer.* Ante un desajuste de hidratación tras muchas ediciones con el servidor de desarrollo encendido, mirar primero si el HTML que llega nombra las clases de ahora, y reiniciar `next dev` antes de buscar la causa en el código.
 
+### O-083 · 2026-11-04 · baja · abierta
+**Dos fallos de datos, no de código, que se ven al operar el caso de demostración y la pierna de E0 de P-009.**
+*Dónde se ve.*
+- **Los bisturís de la mesa.** «Bisturí N°10 (piel)» y «Bisturí profundo (fascia)», los del caso de demostración, salen en la familia «Brocas y guías» y no en «Corte». `scripts/caso-de-prueba.ts` los crea sin categoría, y el catálogo les pone la de por omisión, «Perforación y fijación», que D-262 lleva a «Brocas y guías».
+- **La pierna de E0 no tiene pieza de piel.** El recorte del atlas no trajo piel: son 154 piezas, de hueso, músculo, fascia y el fragmento. El bisturí traza, pero no corta nada. Por eso:
+  - la columna izquierda le dice al residente «Ninguna pieza de este modelo es piel: márquela en «Piezas» del editor del caso», que es un aviso para el editor;
+  - Ctrl+Z no tiene nada que deshacer tras la incisión (D-267).
+*Qué hacer.* Darles «Corte» a los dos bisturís en el catálogo de ved (y su categoría en el guion), y recortar la pierna con su piel, o marcarla en «Piezas», antes de usar ese caso con residentes.
+
 ---
 
 
 ## 4. Preguntas abiertas
 
-### Q-008 · ¿Merece la pena un dominio propio para la plataforma?
+### Q-008 · ¿Merece la pena un dominio propio para la plataforma? · RESUELTA 2026-11-04 por D-258
 Hoy la dirección es `traumahub.tailc2094f.ts.net/simulaciones`: el nombre de la
 máquina se eligió, el resto no. Tailscale Funnel no admite dominios propios, así
 que un `traumahub.cl` exige cambiar de túnel a Cloudflare, que el repositorio ya
@@ -9355,7 +9813,7 @@ beneficio es una dirección que un residente pueda escribir de memoria. La
 pregunta no es técnica, es si la plataforma va a repartirse fuera del grupo que
 ya tiene el enlace guardado.
 
-### Q-001 · ¿A quién se le presenta este prototipo?
+### Q-001 · ¿A quién se le presenta este prototipo? · RESUELTA 2026-11-04 por D-258
 No es lo mismo pulir para una jefatura de servicio, para una universidad, para
 una sociedad científica o para inversión. Cambia qué módulo se muestra primero y
 cuánto se invierte en el módulo 05, que hoy es humo declarado.
@@ -9366,12 +9824,12 @@ alternativa es escribir todo en español y traducir cuando exista tracción, a
 costa de reescribir la estructura de datos más adelante (barato) y de retraducir
 todo lo escrito (caro). Decisión que conviene tomar antes de la quinta ficha.
 
-### Q-003 · ¿El módulo 04 se demuestra con una sola cirugía o con tres?
+### Q-003 · ¿El módulo 04 se demuestra con una sola cirugía o con tres? · RESUELTA 2026-11-04 por D-258
 Hoy hay una completa y dos anunciadas. Una cirugía bien hecha demuestra el
 mecanismo; tres a medias no demuestran nada. Mi lectura: mantener una hasta que
 el guion quirúrgico de la segunda esté escrito por completo.
 
-### Q-004 · ¿Quién firma la autoría del contenido y bajo qué licencia?
+### Q-004 · ¿Quién firma la autoría del contenido y bajo qué licencia? · RESUELTA 2026-11-04 por D-258
 Abierta y con fecha límite propuesta: **antes de la quinta ficha**. Hoy el
 prototipo declara que el contenido definitivo debe ser redactado por el equipo
 docente o licenciado a su titular (O-007). Con dos personas y una plataforma
@@ -9379,21 +9837,21 @@ que puede tener uso público, conviene un acuerdo escrito de autoría, licencia 
 qué ocurre con el contenido si la colaboración termina. No es papeleo: es lo
 que separa un producto propio de un litigio.
 
-### Q-005 · ¿Qué datos personales se van a recolectar de los usuarios?
+### Q-005 · ¿Qué datos personales se van a recolectar de los usuarios? · RESUELTA 2026-11-04 por D-258
 Si la plataforma registra residentes y guarda su progreso (O-006), entra en el
 ámbito de la ley chilena de protección de datos. La respuesta barata es
 recolectar el mínimo: correo institucional, nada de datos sensibles, y ningún
 dato de paciente en las imágenes que se suban. Decidirlo antes de escribir la
 primera pantalla de registro sale gratis; después, no.
 
-### Q-006 · ¿Cuál es el equipo de referencia del residente?
+### Q-006 · ¿Cuál es el equipo de referencia del residente? · RESUELTA 2026-11-04 por D-258
 El 3D se renderiza en el navegador del estudiante, no en el servidor. Hay que
 fijar un equipo mínimo de prueba —un notebook modesto, no la máquina de
 desarrollo— y un presupuesto por modelo de 5 MB comprimido. Sin ese objetivo
 explícito, los modelos crecen hasta que la plataforma deja de abrirse en la
 mitad de los equipos.
 
-### Q-007 · ¿De dónde salen las TC y RM que se van a segmentar?
+### Q-007 · ¿De dónde salen las TC y RM que se van a segmentar? · RESUELTA 2026-11-04 por D-258
 Es la pregunta que hay que responder antes de procesar el primer estudio, no
 después. Tres caminos, de menor a mayor fricción: conjuntos públicos ya
 anonimizados y con licencia clara —TotalSegmentator trae 1.200 tomografías con
@@ -9402,7 +9860,7 @@ anonimizados con autorización del comité correspondiente; o estudios propios c
 consentimiento explícito. El primero permite empezar mañana sin ningún trámite y
 es lo que recomiendo para construir y probar toda la cadena.
 
-### Q-010 · ¿Son estos los nombres que quiere Cristóbal para leer una reducción?
+### Q-010 · ¿Son estos los nombres que quiere Cristóbal para leer una reducción? · RESUELTA 2026-11-04 por D-258
 La lectura de E3 (D-160) escribe «8 mm lateral · 10° varo» y lo hace con unas
 convenciones que puso quien programó, no un traumatólogo:
 
@@ -9417,7 +9875,7 @@ Hay que preguntarle: ¿es así como las nombra en una ficha?, ¿prefiere «ápic
 «extremo distal», que es lo que dice una radiografía?, ¿quiere «procurvatum» en
 lugar de «antecurvatum»? Cambiarlo es una tabla en `src/atlas/lecturaClinica.ts`.
 
-### Q-009 · ¿Se construye la planificación con DICOM, y como docente o como clínica?
+### Q-009 · ¿Se construye la planificación con DICOM, y como docente o como clínica? · RESUELTA 2026-11-04 por D-258
 La propuso Cristóbal el 2026-10-06 y el módulo 06 la anuncia (P-001, E7). Cargar
 la tomografía de un paciente, reconstruir su fractura y planificar la cirugía del
 día siguiente cambia la naturaleza de la plataforma.
@@ -9430,7 +9888,7 @@ antes del primero (Q-005, Q-007).
 
 Mi lectura: docente primero, y decidirlo por escrito antes de empezar el P-002.
 
-### Q-011 · ¿Valen para Cristóbal las placas a medida, la postura del Farabeuf y las familias de la mesa?
+### Q-011 · ¿Valen para Cristóbal las placas a medida, la postura del Farabeuf y las familias de la mesa? · resuelta en parte por D-258: sigue abierta la lista de placas de su servicio
 - **Las placas** de los sistemas nuevos (LCP 2,4, LC-DCP 2,7, DCP 3,5, y LC-DCP 4,5 estrecha y ancha) salen de fichas de fabricantes y distribuidores (D-254); la distancia entre agujeros, el ancho y el grosor son aproximados. ¿Son las que se usan en su servicio, o faltan otras?
 - **El largo pedido** se da estirando o encogiendo la distancia entre agujeros, entre el 85 y el 150 %. ¿Le parece razonable, o prefiere que solo salgan los largos de catálogo?
 - **El Farabeuf** queda con la pala a unos 15° de la vertical y el mango a unos 15° sobre la piel (D-253), según el dibujo del dueño. ¿Es así en la mano de un ayudante?
@@ -12806,6 +13264,56 @@ Ordenadas por lo que acercan el simulador a lo que se juzga hoy en pabellón, y 
 | E5 · Reducción automática | hecha (2026-11-03) | D-256 |
 | E6 · Mesa de instrumental | hecha (2026-11-04) | D-257 |
 | E7 · Propuestas | entregadas, sin decidir | — |
+
+### P-009 · 2026-11-04 · en curso
+**Placas que asientan como un sólido, separadores dentro de la herida, las doce mejoras de uso del simulador, el aviso de privacidad y lo que el dueño decidió en D-258, comprobado con antes y después sobre una pierna nueva partida a media diáfisis.**
+
+#### De dónde sale
+
+Pedido del dueño, 2026-11-04, con la captura de los dos Farabeuf de D-253 delante:
+
+1. «Que la postura de las placas sea más realista, que interactúen como si fuera sólido con sólido y no se sobrepongan o atraviesen, que se coloque recto en el hueso como si de verdad afirmara esos dos fragmentos.»
+2. «Las herramientas aún siguen viéndose por fuera; necesito que estén por dentro, como si de verdad estuvieran traccionando.»
+3. Las doce mejoras de experiencia de uso que se le propusieron ese mismo día: «quiero implementar todo esto».
+4. «Que todas las comprobaciones sean con antes y después», sobre «algún modelo que sea una pierna, usando recorte, nueva, con alguna fractura a la mitad del hueso, no las que ya están».
+5. «Luego de terminar, sube todo al git y actualiza ved», y después doce recomendaciones nuevas.
+
+Más lo que D-258 manda al código: el aviso de privacidad y el avance en la cuenta (Q-005), la lectura con ápice y % (Q-010), y las placas de catálogo, la pala dentro y «Perforación» en tres (Q-011).
+
+#### Etapas
+
+- [x] **E0 · La pierna nueva.** «pierna derecha» con la tibia partida al 50 % por un trazo oblicuo de 35° que sube por la cara medial, que no tiene ningún otro caso: caso «P-009 · tibia 42-A2 a media diáfisis». El guion de la pierna gana `--posicion`, `--inclinacion` y `--giro` (`conElTrazoPedido`): la clasificación sola solo daba la transversa y la oblicua de 45° por fuera, y las dos ya tenían caso.
+- [x] **E1 · Placas sólidas** (pedido 1): sin atravesar el hueso, al ras, a lo largo del eje y diciendo qué fragmento sostiene cada agujero. D-260.
+- [x] **E2 · Separadores dentro de la herida** (pedido 2 y Q-011). D-261.
+- [x] **E3 · Lo de Cristóbal** (Q-010 y Q-011): placas de catálogo, «Perforación» en tres, lectura con ápice y %. D-259, D-262 y D-263.
+- [x] **E4 · Uso 1 a 4**: cada paso encuadrado y en posición; el resultado en la columna derecha; una línea, una demostración y la lista del paso; repetir un paso. D-266.
+- [x] **E5 · Uso 5 a 8**: práctica y evaluación; el instrumento manda; gestos de la mano; ver antes de hacer. D-265 y D-267.
+- [x] **E6 · Uso 9 a 12**: menú circular y teclas; deshacer; el monitor del arco con dos imágenes; abrir en modo pabellón y seguir otro día. D-265, D-267 y D-268.
+- [x] **E7 · Aviso de privacidad** (Q-005). D-264.
+- [ ] **E8 · Comprobaciones, commit, push y ved.**
+- [ ] **E9 · Doce recomendaciones nuevas.**
+
+#### Cómo se comprueba
+
+Cada etapa con capturas de antes y después, como P-008, sobre el caso de E0 y contra el PostgreSQL desechable (puerto 55432; la base de desarrollo del dueño no se toca). También a 1366 × 768, el equipo de referencia de Q-006.
+
+#### Cómo se comprobó
+
+Las capturas, con Playwright en Edge sobre el caso de E0, a 1600 × 1000 y a 1366 × 768, en cuatro recorridos:
+- **uso**: la consola al abrir, la mesa, el Farabeuf, el clic derecho, las placas, la reducción y el arco en C. Son los mismos sitios que el «antes».
+- **práctica**: la demostración y la lista, el encuadre de los pasos 2 y 3, la lectura con %, la placa de cristal, Ctrl+Z, la línea de la broca y «Repetir este paso».
+- **evaluación**: sin demostración, la lista sin el nombre y Ctrl+Z que no deshace.
+- **registro**: el aviso de privacidad.
+
+Para eso, los siete pasos del caso se encuadraron en supino, y la incisión y la reducción llevan una demostración grabada del propio simulador.
+- Encuadres y demostraciones existen solo en la base desechable. Los casos de ved no traen ninguno hasta que el editor los grabe.
+- Comprobar la línea de la broca destapó D-269: la broca contaba como tibia el peroné que hay detrás.
+
+Las cinco comprobaciones de `AGENTS.md`, contra la misma base, el 2026-11-04:
+- `typecheck`, limpio. `lint`, sin errores: quedan los 15 avisos de `<img>` que ya había.
+- `test:coverage`: pasan 5559. Fallan las tres de respaldos en Windows que ya fallaban: `directorioDeRespaldos`, 2, y `respaldoEnWindows`, 1. La cobertura queda en 86,3 % de sentencias y 77,9 % de ramas, sobre el suelo de 58. En la pasada de la orden, `autoria` se pasó de los 5 s por la carga; sola, o con `--testTimeout=20000`, pasa.
+- `test:integration`: 254 de 254.
+- `build`: bien. Sus 8 avisos de Turbopack son de `api/subidas` y `respaldosServidor`, que este cambio no toca.
 
 ---
 

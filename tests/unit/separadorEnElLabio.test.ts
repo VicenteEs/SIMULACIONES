@@ -174,15 +174,46 @@ describe('la hoja aparta el borde al milímetro, en su sitio (P-008 E2)', () => 
     })
   }
 
-  it('el codo de la hoja queda sobre ese borde, y no donde decía la cuenta de antes', () => {
+  it('el codo de la hoja entra en la herida desde ese borde, y no queda donde decía la cuenta de antes', () => {
     const { piel, heridas } = pielYFascia()
     const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel)
     aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
     posarSeparador(s, 1, heridas)
     const borde = labioDelSeparador(s, heridas)!
-    // Un milímetro por encima del borde, para que el mango no se hunda en la piel.
-    expect(s.instrumento.grupo.position.distanceTo(borde.ahora.clone().addScaledVector(s.normal, 1))).toBeLessThan(1e-6)
-    expect(alLabio(piel, 1, s.instrumento.grupo.position)).toBeLessThan(1.01)
+    // Un milímetro por encima del borde, para que el mango no se hunda en la piel, y cuatro hacia el centro de la herida
+    // (P-009): con el codo sobre el borde, la pala entraba entera en el labio y la hoja se veía por fuera.
+    const esperado = borde.ahora.clone().addScaledVector(s.normal, 1).addScaledVector(s.direccion, -4)
+    expect(s.instrumento.grupo.position.distanceTo(esperado)).toBeLessThan(1e-6)
+    expect(alLabio(piel, 1, s.instrumento.grupo.position)).toBeLessThan(4.2)
+  })
+
+  it('con la herida poco abierta, el codo no pasa de la parte que le toca: no cruza al labio de enfrente', () => {
+    const { piel, heridas } = pielYFascia()
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 2 }), piel)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    posarSeparador(s, 1, heridas)
+    const borde = labioDelSeparador(s, heridas)!
+    const enfrente = labioEnLaPosicion(piel, -1, s.datos.posicion)!
+    const hasta = enfrente.ahora.clone().sub(borde.ahora).dot(s.direccion.clone().negate())
+    const entra = borde.ahora.clone().sub(s.instrumento.grupo.position).dot(s.direccion)
+    expect(hasta).toBeGreaterThan(0)
+    expect(entra).toBeCloseTo(0.4 * hasta, 6)
+  })
+
+  it('con la dirección del labio torcida hacia la normal, el mango sigue a 15° de la piel y la pala abajo', () => {
+    // La dirección sale de cómo se mueve el labio y la normal, del clic: en el borde de un músculo se cruzan, y el caso
+    // 3053 dejó un Farabeuf con el mango a 63° de la piel y la pala de lado (las capturas de «antes» de P-009).
+    const { piel, heridas } = pielYFascia()
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel)
+    s.direccion = s.direccion.clone().addScaledVector(s.normal, 1.3).normalize()
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    posarSeparador(s, 1, heridas)
+    const giro = s.instrumento.grupo.quaternion
+    const pala = new THREE.Vector3(0, 0, -1).applyQuaternion(giro)
+    const mango = new THREE.Vector3(0, 1, 0).applyQuaternion(giro)
+    const grados = (a: THREE.Vector3, b: THREE.Vector3) => (a.angleTo(b) * 180) / Math.PI
+    expect(90 - grados(mango, s.normal)).toBeCloseTo(15, 3)
+    expect(grados(pala, s.normal.clone().negate())).toBeCloseTo(15, 3)
   })
 
   it('la pala baja metida en la herida y el mango va tendido hacia fuera, sobre su labio (el dibujo del dueño)', () => {

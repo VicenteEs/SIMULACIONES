@@ -77,6 +77,8 @@ export interface ResultadoDeCirugia {
    * (se empezó otro recorrido) y los datos la guardan.
    */
   radiografia?: DatosDeLaLamina | null
+  /** En práctica o en evaluación (P-009); `undefined` no lo toca, como la radiografía. */
+  modo?: 'practica' | 'evaluacion'
 }
 
 /** Lo que vuelve de la base: lo mismo, menos lo que la fila no traiga. */
@@ -96,6 +98,8 @@ export interface RecorridoGuardado {
   insumos: InsumoDelRecorrido[]
   /** Si en el último recorrido se usó la reducción automática; `false` en los recorridos de antes de P-004 E7. */
   reduccionAutomatica: boolean
+  /** En qué modo se hizo (P-009); `null` en los recorridos de antes, que no lo decían. */
+  modo: 'practica' | 'evaluacion' | null
 }
 
 /**
@@ -232,6 +236,7 @@ export function recorridoGuardado(fila: unknown): RecorridoGuardado | null {
     complicaciones,
     insumos,
     reduccionAutomatica: f.reduccionAutomatica === true,
+    modo: f.modoDelRecorrido === 'practica' || f.modoDelRecorrido === 'evaluacion' ? f.modoDelRecorrido : null,
   }
 }
 

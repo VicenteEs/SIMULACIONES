@@ -508,7 +508,7 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
       }
       if (accion === 'separar' && p.retraidoMm < RETRACCION_MINIMA_MM) {
         return nada(
-          `${paso.insuficiente || 'El músculo no está retraído.'} Apoye el separador en él y ábralo con la rueda (al menos ${RETRACCION_MINIMA_MM} mm).`,
+          `${paso.insuficiente || 'El músculo no está retraído.'} Apoye el separador en él y ábralo arrastrando con el botón derecho hacia arriba (al menos ${RETRACCION_MINIMA_MM} mm).`,
           RESULTADOS.PLANO_SIN_HACER,
         )
       }

@@ -1,9 +1,22 @@
 import * as THREE from 'three'
-import { juzgarTornillo, type EstadoDelAgujero, type TornilloPuesto } from '@/lib/fijacion'
+import { juzgarTornillo, type EstadoDelAgujero, type ResumenDelAsiento, type TornilloPuesto } from '@/lib/fijacion'
 import { agujerosUniformes, avisoDeOrificios, orificiosValidos } from '@/lib/agujerosDeLaPlaca'
 import type { RangosDelAjuste } from '@/lib/ejesAnatomicos'
 import { textoDelContorno, type ContornoDeLaPlaca } from '@/lib/contornoDeLaPlaca'
+import { salidaPorLaCorticalOpuesta } from '@/lib/profundidadDeLaBroca'
 import { deformarLasMallas, guardarOriginales, mapaEnElMarcoDelGrupo } from './deformacionDeLaPlaca'
+import {
+  buscarAsiento,
+  caraRecta,
+  celdaDe,
+  ejeDelHuesoCerca,
+  HOLGURA_DEL_ASIENTO_MM,
+  normalMediaCerca,
+  puntosDelHuesoCerca,
+  type Asiento,
+  type CaraDeAbajo,
+  type PuntosDelHueso,
+} from './asientoDeLaPlaca'
 
 /**
  * La placa y los tornillos sobre el hueso, dentro de la escena (D-169).
@@ -72,6 +85,10 @@ export interface PlacaColocada {
    * doblada —los agujeros se leen a través de él— y `texto` dice cómo está. Sin esto, la placa es la recta de siempre.
    */
   contorno?: { mapa: (local: THREE.Vector3) => THREE.Vector3; texto: string; contorno: ContornoDeLaPlaca }
+  /** La cara de abajo en celdas, para asentarla (P-009): se calcula una vez, con el doblez si lo trae. */
+  cara?: CaraDeAbajo
+  /** Lo que toca la placa después del último asiento: qué trozos la sostienen y cuántos agujeros caen en cada uno (P-009). */
+  asiento?: ResumenDelAsiento
 }
 
 export interface TornilloEnEscena {
@@ -268,6 +285,9 @@ export function colocarPlaca(p: {
   const medida = medirBajoElAgujero(placa, indiceDelAgujeroMasCercano(placa, p.punto), p.huesos)
   placa.separadaDelHuesoMm = medida ? Math.max(0, medida.distanciaAlHuesoMm) : 0
   p.implantes.placa = placa
+  // Y se asienta como un sólido (P-009): la postura de arriba es solo la de partida, con la normal de un triángulo. Si
+  // no se puede asentar —un modelo de prueba sin hueso alrededor—, se queda en ella, como antes.
+  ajustarPlaca(placa, p.huesos, placa.ajuste)
   return placa
 }
 
@@ -276,9 +296,12 @@ export function colocarPlaca(p: {
  * sobre el hueso»): `largoMm` la sube o la baja a lo largo del hueso, `ladoMm` la rodea de lado a lado y `giroGrados`
  * la angula alrededor de la normal; los tres se miden desde donde se apoyó la primera vez.
  *
- * Tras cada movimiento se **vuelve a asentar**: tres rayos hacia el hueso (en el centro y a un lado y otro, a lo largo
- * de la placa) dan el apoyo y la normal, y la cara de abajo queda sobre el punto más alto, **nunca dentro del hueso**;
- * después se recalcula cuánto queda separada. Devuelve `false` (y no mueve nada) si bajo el punto pedido no hay hueso.
+ * Tras cada movimiento se **vuelve a asentar como un sólido** (P-009, `asientoDeLaPlaca`): un rayo da el punto del
+ * hueso bajo el sitio pedido; la normal es la media de la superficie alrededor y el largo, el eje del trozo donde se
+ * apoya; y la placa cabecea y se ladea hasta quedar lo más pegada posible, subida lo justo para que ningún punto del
+ * hueso bajo su huella quede por encima de su cara de abajo. Antes eran tres rayos a lo largo del eje del mundo, y
+ * entre ellos —o a lo ancho— el hueso atravesaba la placa. Devuelve `false` (y no mueve nada) si bajo el punto pedido
+ * no hay hueso.
  */
 export function ajustarPlaca(
   placa: PlacaColocada,
@@ -288,44 +311,101 @@ export function ajustarPlaca(
   const unidades = 1 / placa.milimetrosPorUnidad
   const { normal: normalInicial, ejeDelHueso } = placa.anclaje
   const objetivo = objetivoDelAjuste(placa.anclaje, ajuste, unidades)
-  const hacia = normalInicial.clone().negate()
-  const medio = Math.max(2, placa.largoMm * 0.35)
-  const sondas = [0, medio, -medio].map((d) => objetivo.clone().addScaledVector(ejeDelHueso, d * unidades))
-  const golpes: { punto: THREE.Vector3; normal: THREE.Vector3 }[] = []
-  for (const origen of sondas) {
-    const r = new THREE.Raycaster(origen.clone().addScaledVector(normalInicial, 60 * unidades), hacia, 0, 200 * unidades)
-      .intersectObjects(huesos, false)
-      .find((g) => g.object.visible)
-    if (!r) continue
-    const n = r.face ? r.face.normal.clone().transformDirection(r.object.matrixWorld) : normalInicial.clone()
-    if (n.dot(normalInicial) < 0) n.negate()
-    golpes.push({ punto: r.point.clone(), normal: n })
-  }
-  // El apoyo del centro es el que manda; sin él, con lo que haya.
-  if (golpes.length === 0) return false
-  const centro = golpes[0]
-  const normal = golpes.reduce((a, g) => a.add(g.normal), new THREE.Vector3()).normalize()
-  // El eje de la placa, sobre el plano de la normal nueva y girado lo que pida el ajuste. Con la normal casi a lo largo del
+  const golpe = new THREE.Raycaster(objetivo.clone().addScaledVector(normalInicial, 60 * unidades), normalInicial.clone().negate(), 0, 200 * unidades)
+    .intersectObjects(huesos, false)
+    .find((g) => g.object.visible)
+  if (!golpe) return false
+  const apoyo = golpe.point.clone()
+  // Los puntos del hueso alrededor: los de la huella para asentarla y, más lejos, los del trozo para sacar su eje.
+  const radioDelAsiento = Math.hypot(placa.largoMm / 2, placa.anchoMm / 2) + 8
+  const radioDelEje = Math.max(40, placa.largoMm / 2 + 15)
+  const mallas = huesos.filter((h): h is THREE.Mesh => (h as THREE.Mesh).isMesh && h.visible)
+  const puntos = puntosDelHuesoCerca(mallas, apoyo, Math.max(radioDelAsiento, radioDelEje) * unidades, placa.milimetrosPorUnidad)
+  if (puntos.cantidad === 0) return false
+  const deLaCara = golpe.face ? golpe.face.normal.clone().transformDirection(golpe.object.matrixWorld) : normalInicial.clone()
+  if (deLaCara.dot(normalInicial) < 0) deLaCara.negate()
+  const normal = normalMediaCerca(puntos, apoyo, 6 * unidades, deLaCara, golpe.object) ?? deLaCara
+  const delHueso = ejeDelHuesoCerca(puntos, apoyo, radioDelEje * unidades, ejeDelHueso, golpe.object) ?? ejeDelHueso
+  // El eje de la placa, sobre el plano de la normal y girado lo que pida el ajuste. Con la normal casi a lo largo del
   // hueso (su extremo, la meseta) no hay largo del hueso sobre el que tender la placa: se dice que no, en vez de un eje de
   // ceros que dejaba la placa en NaN y fuera de la escena (P-008 E4: arrastrándola se llega a cualquier cara).
-  const eje = ejeDelHueso.clone().addScaledVector(normal, -ejeDelHueso.dot(normal))
+  const eje = delHueso.clone().addScaledVector(normal, -delHueso.dot(normal))
   if (eje.lengthSq() < 0.04) return false
   eje.normalize()
   eje.applyAxisAngle(normal, (ajuste.giroGrados * Math.PI) / 180)
-  const q = orientar(normal, eje.clone().negate())
+  placa.cara ??= caraDeLaPlaca(placa)
+  const asiento = buscarAsiento({ puntos, apoyo, normal, eje, cara: placa.cara, milimetrosPorUnidad: placa.milimetrosPorUnidad })
+  if (!asiento) return false
+  const q = orientar(asiento.normal, asiento.eje.clone().negate())
   placa.grupo.quaternion.copy(q)
-  const base = centro.punto.clone().addScaledVector(normal, 0.2 * unidades)
-  // La cara de abajo sobre el punto más alto de lo que toca: nunca dentro del hueso.
-  let subir = 0
-  for (const g of golpes) subir = Math.max(subir, g.punto.clone().sub(base).dot(normal))
-  base.addScaledVector(normal, subir)
+  const base = apoyo.clone().addScaledVector(asiento.normal, asiento.altura + HOLGURA_DEL_ASIENTO_MM * unidades)
   placa.grupo.position.copy(base).sub(placa.desdeElOrigen.clone().applyQuaternion(q))
   placa.grupo.updateMatrixWorld(true)
-  placa.normal.copy(normal)
+  placa.normal.copy(asiento.normal)
   placa.ajuste = { ...ajuste }
-  const medida = medirBajoElAgujero(placa, indiceDelAgujeroMasCercano(placa, centro.punto), huesos)
+  placa.asiento = resumirAsiento(placa, asiento, puntos)
+  const medida = medirBajoElAgujero(placa, indiceDelAgujeroMasCercano(placa, apoyo), huesos)
   placa.separadaDelHuesoMm = medida ? Math.max(0, medida.distanciaAlHuesoMm) : 0
   return true
+}
+
+/**
+ * La cara de abajo de la placa en celdas, desde el centro que se apoya (`desdeElOrigen`). En una placa doblada en la
+ * mesa (P-005 E1), cada celda lleva lo que su doblez la sube o la baja: una placa contorneada para el hueso se asienta
+ * con su forma, y no como la recta que era.
+ */
+function caraDeLaPlaca(placa: PlacaColocada): CaraDeAbajo {
+  const unidades = 1 / placa.milimetrosPorUnidad
+  const cara = caraRecta(placa.anchoMm * unidades, placa.largoMm * unidades, placa.milimetrosPorUnidad)
+  if (!placa.contorno) return cara
+  const escala = placa.grupo.scale.x || 1
+  const d = placa.desdeElOrigen
+  for (let j = 0; j < cara.filas; j++) {
+    for (let i = 0; i < cara.columnas; i++) {
+      const x = -cara.medioAncho + ((i + 0.5) * 2 * cara.medioAncho) / cara.columnas
+      const z = -cara.medioLargo + ((j + 0.5) * 2 * cara.medioLargo) / cara.filas
+      const recto = new THREE.Vector3((x + d.x) / escala, placa.yMinimoLocal, (z + d.z) / escala)
+      cara.alturas[j * cara.columnas + i] = placa.contorno.mapa(recto).y * escala - d.y
+    }
+  }
+  return cara
+}
+
+/** Lo que queda del asiento para decírselo a quien opera: cuánto toca, sobre qué trozos y con cuántos agujeros en cada uno. */
+function resumirAsiento(placa: PlacaColocada, asiento: Asiento, puntos: PuntosDelHueso): ResumenDelAsiento {
+  const cara = placa.cara!
+  const mm = placa.milimetrosPorUnidad
+  const porTrozo = new Map<number, { agujeros: number; minima: number }>()
+  const deTrozo = (t: number) => {
+    let e = porTrozo.get(t)
+    if (!e) porTrozo.set(t, (e = { agujeros: 0, minima: Infinity }))
+    return e
+  }
+  asiento.trozoDeLaCelda.forEach((t, c) => {
+    if (t < 0) return
+    const e = deTrozo(t)
+    e.minima = Math.min(e.minima, asiento.holguras[c])
+  })
+  // Cada agujero, en la celda en que cae: el trozo de esa celda es el que recibe su tornillo.
+  const escala = placa.grupo.scale.x || 1
+  const d = placa.desdeElOrigen
+  let agujerosSinHueso = 0
+  for (const [x, y] of placa.agujerosMm) {
+    const c = celdaDe(cara, (x / 1000) * escala - d.x, (-y / 1000) * escala - d.z)
+    const t = c < 0 ? -1 : asiento.trozoDeLaCelda[c]
+    if (t < 0) agujerosSinHueso++
+    else deTrozo(t).agujeros++
+  }
+  const decima = (n: number) => Math.round(n * 10) / 10
+  return {
+    contactoPct: Math.round(asiento.contacto * 100),
+    sinHuesoPct: Math.round(asiento.sinHueso * 100),
+    holguraMediaMm: decima(asiento.holguraMedia * mm),
+    trozos: [...porTrozo]
+      .map(([t, e]) => ({ nodo: puntos.mallas[t]?.name ?? '', agujeros: e.agujeros, holguraMinimaMm: decima(Math.max(0, e.minima) * mm) }))
+      .sort((a, b) => b.agujeros - a.agujeros),
+    agujerosSinHueso,
+  }
 }
 
 /** Adónde lleva un ajuste: el punto de anclaje corrido lo que pide a lo largo del hueso y de lado. */
@@ -425,6 +505,9 @@ export function medirBajoElAgujero(
  * Lo mismo que `medirBajoElAgujero` para una línea cualquiera (P-004 E9, la trayectoria de dos clics): `origen` está sobre la
  * cortical o un poco por fuera y `haciaElHueso` es unitario. La separación al hueso de una trayectoria que arranca sobre la
  * cortical es casi cero.
+ *
+ * La broca y su línea de vista previa miden también con esta (P-009): si cada una midiera a su modo, la línea diría un largo,
+ * la broca pararía en otro y el medidor pediría un tercero.
  */
 export function medirAlLoLargoDeUnaLinea(
   origen: THREE.Vector3,
@@ -439,21 +522,30 @@ export function medirAlLoLargoDeUnaLinea(
   // La cortical cercana: el primer cruce yendo de fuera al hueso. Se sale medio milímetro
   // por fuera para no depender de dónde caiga exactamente el origen.
   const salida = origen.clone().addScaledVector(arriba, 0.5 * unidadesPorMm)
-  const cercana = new THREE.Raycaster(salida, abajo, 0, alcance).intersectObjects(huesos, false).find((g) => g.object.visible)
+  const desdeArriba = new THREE.Raycaster(salida, abajo, 0, alcance).intersectObjects(huesos, false).filter((g) => g.object.visible)
+  const cercana = desdeArriba[0]
   if (!cercana) return null
-  // La cortical opuesta: el primer cruce viniendo desde el otro lado. No se mira el segundo cruce del
-  // mismo rayo porque three solo cuenta las caras que miran al rayo: al salir del hueso, la superficie
-  // «mira» hacia dentro y no se ve. Desde abajo sí es una cara de frente.
+  // La línea se mira también desde el otro lado, y se juntan los cruces de las dos pasadas. three solo cuenta las caras que
+  // su material dibuja: con un material de una cara, al salir de un hueso la superficie «mira» hacia dentro y el rayo no la
+  // ve, y desde abajo sí es una cara de frente. Juntas, las dos pasadas tienen todas las caras sea cual sea el material.
+  //
+  // Antes la cortical opuesta era el primer cruce desde abajo, a 120 mm: con el peroné detrás de la tibia, la cara de fuera
+  // del peroné (P-009, `salidaPorLaCorticalOpuesta`).
   const desdeAbajo = origen.clone().addScaledVector(abajo, alcance)
-  const opuesta = new THREE.Raycaster(desdeAbajo, arriba, 0, alcance).intersectObjects(huesos, false).find((g) => g.object.visible)
-  if (!opuesta) return null
-  const distanciaCercana = cercana.distance - 0.5 * unidadesPorMm
-  const distanciaOpuesta = alcance - opuesta.distance
-  if (distanciaOpuesta <= distanciaCercana) return null
-  return {
-    distanciaAlHuesoMm: distanciaCercana / unidadesPorMm,
-    espesorMm: (distanciaOpuesta - distanciaCercana) / unidadesPorMm,
-  }
+  const vistosDesdeAbajo = new THREE.Raycaster(desdeAbajo, arriba, 0, alcance).intersectObjects(huesos, false).filter((g) => g.object.visible)
+  // Dónde cae cada cruce en la línea, en mm desde `origen` hacia el hueso.
+  const distanciaCercanaMm = cercana.distance / unidadesPorMm - 0.5
+  const cruces = [
+    ...desdeArriba.map((g) => ({ distanciaMm: g.distance / unidadesPorMm - 0.5, pieza: g.object })),
+    ...vistosDesdeAbajo.map((g) => ({ distanciaMm: (alcance - g.distance) / unidadesPorMm, pieza: g.object })),
+  ]
+    // La misma cara vista desde los dos lados cae dos veces en el mismo sitio; la de la cortical cercana se descarta así.
+    .filter((c) => c.distanciaMm > distanciaCercanaMm + 0.01)
+    .sort((a, b) => a.distanciaMm - b.distanciaMm)
+    .map((c) => ({ distanciaMm: c.distanciaMm - distanciaCercanaMm, pieza: c.pieza }))
+  const espesorMm = salidaPorLaCorticalOpuesta(cruces)
+  if (espesorMm === null) return null
+  return { distanciaAlHuesoMm: distanciaCercanaMm, espesorMm }
 }
 
 /**

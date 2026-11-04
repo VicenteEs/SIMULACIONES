@@ -12,6 +12,7 @@ import type { EjeLargo } from '@/lib/reduccion'
 import { companerosDeLasPlacas, quePuedeColocar } from '@/lib/fijacion'
 import { objetivoDelPaso, type Objetivo } from '@/lib/simulador'
 import { transformacionValida } from '@/lib/reduccionAutomatica'
+import { encuadreDelGrupo, posicionDelPaso } from '@/lib/encuadreDelPaso'
 
 /**
  * Traduce un documento de Payload en lo que la consola necesita.
@@ -172,6 +173,14 @@ function pasosDelCaso(documento: Documento): PasoDeConsola[] {
       descripcion: p.descripcion,
       riesgo: p.riesgo,
       muestra,
+      // Lo de P-009: dónde y cómo se ve el paso, y su demostración. La dirección del archivo llega de Payload con el
+      // prefijo puesto (ver `ruta()`), y solo si la relación vino poblada: en el editor puede ser un identificador suelto.
+      posicion: posicionDelPaso(p.posicion),
+      encuadre: encuadreDelGrupo(p.encuadre),
+      demostracionUrl:
+        p.demostracion && typeof p.demostracion === 'object' ? texto((p.demostracion as Documento).url) : null,
+      demostracionTipo:
+        p.demostracion && typeof p.demostracion === 'object' ? texto((p.demostracion as Documento).mimeType) : null,
     }
   })
 }
@@ -373,6 +382,7 @@ export function casoParaLaConsola(documento: Documento): CasoDeConsola {
       giroZ: numero(desplazamiento.giroZ, 0),
     },
     pasos: pasosDelCaso(documento),
+    modo: documento.modo === 'practica' || documento.modo === 'evaluacion' ? documento.modo : 'eleccion',
     bandeja: bandejaDelDocumento(documento),
     instrumental: bandejaDelCaso(
       Array.isArray(documento.pasos) ? (documento.pasos as Documento[]) : [],

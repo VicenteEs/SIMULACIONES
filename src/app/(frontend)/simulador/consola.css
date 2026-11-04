@@ -1184,8 +1184,6 @@
 .placa-a-medida-opcion.activo .placa-a-medida-nombre svg { color: var(--c-acento); }
 .placa-a-medida-datos { font-size: 11px; line-height: 1.35; }
 /* El sistema que no da el largo pedido: queda a la vista, apagado, con el largo entre el que sí sale. */
-.placa-a-medida-no-da { display: grid; gap: 2px; padding: var(--e-1) var(--e-2); color: var(--c-rotulo); opacity: 0.75; }
-.placa-a-medida-no-da .placa-a-medida-nombre { color: var(--c-rotulo); font-weight: 600; }
 .placa-a-medida-desplegable { margin-top: var(--e-2); }
 .placa-a-medida-desplegable > summary { cursor: pointer; font-size: var(--t-xs); font-weight: 600; color: var(--c-acento); margin-bottom: var(--e-2); }
 .consola-instrumento-acciones {
@@ -1659,8 +1657,9 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
   border: 0;
   border-radius: 0;
   overflow-y: auto;
-  /* Lo de arriba (barra y pasos) mide unos 120 px: el resto de la ventana es del área de trabajo. */
-  --consola-util: calc(100dvh - 124px);
+  /* Lo de arriba (barra y pasos) lo mide la consola (`--alto-de-arriba`): con títulos de paso en dos líneas pasa de los
+     124 px que se suponían, y el pie de las columnas quedaba fuera de la ventana. */
+  --consola-util: calc(100dvh - var(--alto-de-arriba, 124px));
 }
 .consola-completa .consola-lienzo-boton[aria-pressed='true'] { background: var(--c-texto); color: var(--c-fondo); }
 body:has(.consola-completa) { overflow: hidden; }
@@ -2106,48 +2105,240 @@ body:has(.consola-completa) { overflow: hidden; }
   .consola-lienzo-marco > .asa-panel { display: none; }
 }
 
-/* ---------- el aviso de lo que acaba de pasar, a la derecha del recuadro de la herramienta (pedido del dueño) ----------
-   Antes salía abajo, bajo «Aplicar paso», en la columna derecha. Ahora flota sobre el lienzo, arriba y pegado al recuadro de la
-   herramienta (que va a la izquierda), con el mismo aspecto de siempre, justo debajo de la barra del lienzo. Si no hay recuadro, sale a la izquierda del lienzo. */
-.consola-aviso-flotante {
+/* ---------- P-009: la consola que se recorre en práctica o en evaluación ----------
+   El aviso de lo que acaba de pasar flotó un tiempo sobre el lienzo, junto al recuadro de la herramienta (pedido del dueño),
+   y tapaba lo que se estaba mirando justo cuando el gesto lo cambiaba. Ahora va en la columna derecha, bajo «Aplicar paso»:
+   `.consola-retro`, más abajo. */
+
+/* Antes de empezar: práctica o evaluación, o seguir donde se dejó. Encima del lienzo y translúcido, para que el modelo se
+   vea abrirse detrás mientras se lee; los botones esperan a que esté abierto. */
+.consola-eleccion {
   position: absolute;
-  /* Debajo de la barra del lienzo (Encuadrar, Ampliar, Fluoroscopia), que ocupa la franja de arriba: así no se pisan aunque el lienzo sea angosto. */
-  top: calc(var(--e-3) + 46px);
-  left: var(--e-3);
-  z-index: 3;
-  display: flex;
-  align-items: flex-start;
-  gap: var(--e-2);
-  max-width: min(380px, calc(100% - var(--e-3) * 2));
-  padding: var(--e-2) var(--e-3);
-  font-size: var(--t-sm);
-  background: rgba(15, 23, 41, 0.92);
-  border: 1px solid var(--c-linea-fuerte);
-  border-radius: var(--r-lg);
-  backdrop-filter: blur(6px);
-}
-.consola-aviso-flotante .consola-registro { flex: 1; min-width: 0; }
-.consola-aviso-cerrar {
-  flex: none;
+  inset: 0;
+  z-index: 6;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  padding: var(--e-4);
+  overflow-y: auto;
+  background: rgba(11, 17, 32, 0.72);
+  backdrop-filter: blur(3px);
+}
+.consola-eleccion-tarjeta {
+  display: grid;
+  gap: var(--e-3);
+  width: min(560px, 100%);
+  padding: var(--e-5);
+  background: var(--c-panel);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-lg);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+.consola-eleccion-tarjeta .consola-rotulo { margin: 0; }
+.consola-eleccion-titulo { margin: 0; font-size: 20px; font-weight: 650; line-height: 1.3; color: var(--c-texto); }
+.consola-eleccion-tarjeta .consola-ayuda { margin: 0; }
+.consola-eleccion-seguir {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  border: 1px solid var(--c-acento);
+  border-radius: var(--r);
+  background: var(--c-acento-tenue);
+}
+.consola-eleccion-seguir p { margin: 0; font-size: var(--t-sm); line-height: 1.5; color: var(--c-texto); }
+.consola-eleccion-modos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--e-3); }
+.consola-eleccion-modo {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: var(--e-3);
+  row-gap: var(--e-1);
+  padding: var(--e-3) var(--e-4);
+  font: inherit;
+  text-align: left;
+  color: var(--c-texto);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: border-color var(--dur-rapida) var(--curva), background var(--dur-rapida) var(--curva);
+}
+.consola-eleccion-modo > svg { grid-row: span 2; margin-top: 2px; color: var(--c-acento); }
+.consola-eleccion-modo:hover:not(:disabled) { border-color: var(--c-acento); }
+.consola-eleccion-modo:focus-visible { outline: 2px solid var(--c-acento); outline-offset: 2px; }
+.consola-eleccion-modo:disabled,
+.consola-eleccion-seguir .consola-aplicar:disabled { opacity: 0.55; cursor: progress; }
+.consola-eleccion-modo-nombre { font-size: var(--t-base); font-weight: 650; }
+.consola-eleccion-modo-texto { font-size: var(--t-sm); line-height: 1.45; color: var(--c-texto-2); }
+@media (max-width: 600px) {
+  .consola-eleccion { padding: var(--e-2); }
+  .consola-eleccion-tarjeta { padding: var(--e-4) var(--e-3); }
+}
+
+/* El menú radial del botón derecho: los cinco últimos instrumentos en aro, alrededor del cursor. El fondo, invisible, se
+   come el clic que lo cierra para que no llegue al paciente. */
+.consola-menu-radial-fondo { position: absolute; inset: 0; z-index: 7; }
+.consola-menu-radial { position: absolute; z-index: 8; width: 0; height: 0; }
+.consola-menu-radial::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 200px;
+  height: 200px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--c-linea);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(15, 23, 41, 0.2) 0 28%, rgba(15, 23, 41, 0.82) 29% 100%);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+.consola-menu-radial:has(.consola-menu-radial-vacio)::before { display: none; }
+.consola-menu-radial-boton {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  color: var(--c-texto);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: border-color var(--dur-rapida) var(--curva), background var(--dur-rapida) var(--curva);
+}
+.consola-menu-radial-boton:hover,
+.consola-menu-radial-boton:focus-visible { border-color: var(--c-acento); background: var(--c-panel); outline: none; }
+.consola-menu-radial-boton.activo { border-color: var(--c-acento); box-shadow: 0 0 0 3px var(--c-acento-tenue); }
+.consola-menu-radial-tecla {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 17px;
+  text-align: center;
+  color: var(--c-fondo);
+  background: var(--c-texto-2);
+  border-radius: var(--r-full);
+}
+.consola-menu-radial-centro {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
   padding: 0;
   color: var(--c-texto-2);
-  background: none;
-  border: 0;
-  border-radius: var(--r-full);
+  background: var(--c-fondo);
+  border: 1px solid var(--c-linea);
+  border-radius: 50%;
   cursor: pointer;
 }
-.consola-aviso-cerrar:hover { color: var(--c-texto); background: var(--c-panel-2); }
-/* Con el recuadro de la herramienta flotando sobre el lienzo (menos de 1000 px) el aviso se corre a su derecha... */
-.consola-lienzo-marco:has(> .consola-herramienta-ficha) > .consola-aviso-flotante {
-  left: calc(min(270px, 78%) + var(--e-3) * 2);
+.consola-menu-radial-centro:hover,
+.consola-menu-radial-centro:focus-visible { color: var(--c-texto); border-color: var(--c-linea-fuerte); outline: none; }
+.consola-menu-radial-vacio {
+  position: absolute;
+  left: 0;
+  top: 24px;
+  width: 220px;
+  margin: 0;
+  padding: var(--e-2) var(--e-3);
+  transform: translateX(-50%);
+  font-size: var(--t-xs);
+  line-height: 1.45;
+  text-align: center;
+  color: var(--c-texto-2);
+  background: var(--c-panel);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
 }
-/* ...y con él en su propia columna (1000 px o más) empieza donde empieza el lienzo. */
-@media (min-width: 1000px) {
-  .consola:not(.consola-editor) .consola-lienzo-marco:has(> .consola-herramienta-ficha) > .consola-aviso-flotante {
-    left: calc(var(--ancho-herramienta, 270px) + 8px + var(--e-3));
-  }
+
+/* «Mirar» y «Seleccionar estructura», encendidos: como el botón de la fluoroscopia. */
+.consola-lienzo-boton.activo { background: var(--c-texto); color: var(--c-fondo); border-color: var(--c-texto); }
+
+/* El paso, en una línea: lo que se busca primero, un punto más grande que la instrucción que lo explica. */
+.consola-instruccion-breve { font-size: 15px; font-weight: 550; }
+
+/* La demostración, solo en práctica: unos segundos del gesto bien hecho, en bucle. */
+.consola-demostracion {
+  position: relative;
+  margin: var(--e-3) 0 0;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
 }
+.consola-demostracion img,
+.consola-demostracion video { display: block; width: 100%; height: auto; max-height: 220px; object-fit: contain; }
+.consola-demostracion figcaption {
+  position: absolute;
+  left: var(--e-2);
+  bottom: var(--e-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  padding: 2px var(--e-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-texto);
+  background: rgba(15, 23, 41, 0.82);
+  border-radius: var(--r-full);
+}
+
+/* Lo que pide el paso, marcándose solo. El estado va en el icono y en la palabra oculta para el lector de pantalla; el
+   color, como en las medidas, es refuerzo. */
+.consola-lista-del-paso { list-style: none; display: grid; gap: var(--e-1); margin: var(--e-3) 0 0; padding: 0; }
+.consola-punto { display: flex; align-items: flex-start; gap: var(--e-2); font-size: var(--t-sm); line-height: 1.45; color: var(--c-texto-2); }
+.consola-punto > svg { flex: none; margin-top: 2px; color: var(--c-linea-fuerte); }
+.consola-punto-hecho,
+.consola-punto-pasado { color: var(--c-texto); }
+.consola-punto-hecho > svg { color: var(--c-bien); }
+.consola-punto-pasado > svg { color: var(--c-atencion); }
+.consola-punto-ahora { font-family: var(--mono); font-size: var(--t-xs); color: var(--c-rotulo); }
+
+/* La instrucción entera del docente, plegada debajo: tiene matices que la línea no. */
+.consola-instruccion-completa { margin-top: var(--e-3); }
+.consola-instruccion-completa > summary {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-texto-2);
+  cursor: pointer;
+}
+.consola-instruccion-completa > summary:hover { color: var(--c-texto); }
+.consola-instruccion-completa[open] > summary { margin-bottom: var(--e-2); }
+
+/* «Deshacer» y «Repetir este paso», bajo «Aplicar paso» y en segundo plano: corrigen, no avanzan. */
+/* Más bajos y en letra pequeña que «Aplicar paso», y en una línea: en la columna de 300 px, «Repetir este paso» se
+   partía en dos y el pie de la columna crecía. */
+.consola-accion-secundaria { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: var(--e-2); margin-top: var(--e-2); }
+.consola-accion-secundaria .consola-boton { min-height: 34px; padding: 0 var(--e-2); font-size: var(--t-xs); white-space: nowrap; }
+.consola-accion-secundaria .consola-boton:disabled { opacity: 0.45; color: var(--c-texto-2); border-color: var(--c-linea); cursor: not-allowed; }
+
+/* Lo que va pasando: lo último aparte y más grande; debajo, lo de antes. */
+.consola-retro { margin-top: var(--e-4); padding-top: var(--e-3); border-top: 1px solid var(--c-linea); }
+.consola-retro .registro-linea { color: var(--c-texto); }
+.consola-retro .consola-registro + .consola-registro { margin-top: var(--e-2); }
+.consola-registro-ultimo .registro-linea { padding: var(--e-3); font-size: var(--t-base); }
+.consola-retro .consola-vacio { color: var(--c-texto-2); }
+
+/* Las medidas que el paso no mide, a un clic. */
+.consola-medidas-todas { align-self: flex-start; min-height: 30px; margin: 0 var(--e-3) var(--e-3); font-size: var(--t-xs); }
+
+/* El monitor del arco con sus dos pantallas: junto a la toma de ahora, la última de la otra proyección. Más pequeña: es
+   para comparar, no para trabajar en ella. */
+.consola-escopia-referencia { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: var(--e-2); margin: var(--e-2) 0 0; }
+.consola-escopia-referencia img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #000; border: 2px solid var(--c-linea); border-radius: 50%; }
+.consola-escopia-referencia figcaption { font-family: var(--mono); font-size: var(--t-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-rotulo); }

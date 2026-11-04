@@ -254,6 +254,40 @@ export function focoDeLaTapa(
   return cuantos > 0 ? suma.divideScalar(cuantos) : null
 }
 
+/**
+ * Los vértices de esa misma tapa, los que caen sobre el plano: dan el ancho del
+ * hueso en el foco (`anchoEnUnaDireccion`), con el que el desplazamiento se lee
+ * también en % del diámetro (Q-010, D-258). `null` donde `focoDeLaTapa` lo da.
+ */
+export function puntosDeLaTapa(
+  posiciones: ArrayLike<number>,
+  punto: readonly [number, number, number],
+  normal: readonly [number, number, number],
+  holgura = 1e-5,
+): Float32Array | null {
+  const n = new THREE.Vector3(...normal).normalize()
+  const sobreElPlano: number[] = []
+  for (let i = 0; i + 2 < posiciones.length; i += 3) {
+    const d =
+      (posiciones[i] - punto[0]) * n.x + (posiciones[i + 1] - punto[1]) * n.y + (posiciones[i + 2] - punto[2]) * n.z
+    if (Math.abs(d) <= holgura) sobreElPlano.push(posiciones[i], posiciones[i + 1], posiciones[i + 2])
+  }
+  return sobreElPlano.length > 0 ? new Float32Array(sobreElPlano) : null
+}
+
+/** Cuánto ocupan unos puntos a lo largo de una dirección: de la proyección más baja a la más alta. */
+export function anchoEnUnaDireccion(puntos: ArrayLike<number>, direccion: readonly [number, number, number]): number {
+  const d = new THREE.Vector3(...direccion).normalize()
+  let minimo = Infinity
+  let maximo = -Infinity
+  for (let i = 0; i + 2 < puntos.length; i += 3) {
+    const t = puntos[i] * d.x + puntos[i + 1] * d.y + puntos[i + 2] * d.z
+    if (t < minimo) minimo = t
+    if (t > maximo) maximo = t
+  }
+  return maximo > minimo ? maximo - minimo : 0
+}
+
 // ----------------------------------------------------------- lectura clínica
 
 const aGrados = (r: number) => (r * 180) / Math.PI
@@ -278,6 +312,10 @@ function normalizarGrados(g: number): number {
  * relativo; la rotación, de la torsión sobre ese eje. Ninguna pasa por ángulos
  * de Euler. Valen igual cuando se mueve el proximal y el distal queda quieto:
  * lo que se lee es la posición relativa, no quién se movió.
+ *
+ * Con la tapa del proximal (`puntosDeLaTapa`), además, el ancho del hueso en el
+ * foco de lado a lado y de delante atrás: el desplazamiento se escribe entonces
+ * también en % del diámetro (Q-010).
  */
 export function leerReduccion(
   ejes: EjesDeUnHueso,
@@ -285,6 +323,7 @@ export function leerReduccion(
   proximal: TransformacionDePieza | null | undefined,
   centros: { distal: THREE.Vector3; proximal: THREE.Vector3 },
   focos: { distal: THREE.Vector3; proximal: THREE.Vector3 } | null = null,
+  tapaDelProximal: ArrayLike<number> | null = null,
 ): LecturaClinica {
   const largo = aVector(ejes.largo).normalize()
   const delante = aVector(ejes.delante).normalize()
@@ -319,6 +358,12 @@ export function leerReduccion(
     valgo: aGrados(Math.atan2(apunta.dot(fuera), apunta.dot(largo))),
     recurvatum: aGrados(Math.atan2(apunta.dot(delante), apunta.dot(largo))),
     rotacion: normalizarGrados(aGrados(torsion)) * signoDelLado,
+    ...(tapaDelProximal
+      ? {
+          anchoLateralMm: anchoEnUnaDireccion(tapaDelProximal, ejes.fuera) * 1000,
+          anchoAnteroposteriorMm: anchoEnUnaDireccion(tapaDelProximal, ejes.delante) * 1000,
+        }
+      : {}),
   }
 }
 

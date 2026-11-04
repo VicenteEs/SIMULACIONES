@@ -1042,6 +1042,7 @@ export function VisorAtlas({
         movidas?.get(proximal.id),
         { distal: distal.centro, proximal: proximal.centro },
         focos,
+        proximal.tapa ?? null,
       )
     }
     taller.current.lecturaDelFragmento = lecturaDelFragmento

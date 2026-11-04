@@ -93,6 +93,13 @@ export interface DatosDeSolicitud {
   programa: string
   etapa: EtapaDeFormacion | ''
   motivo: string
+  /**
+   * La casilla del aviso de privacidad (Q-005, D-258). Es un campo más del
+   * último paso, y no un botón que se habilita al marcarla: así avisa y lleva
+   * el foco como los demás, y quien pulsa «Enviar» sin marcarla lee por qué no
+   * sale, en vez de encontrarse un botón apagado que no explica nada.
+   */
+  privacidad: boolean
 }
 
 export type CampoDeSolicitud = keyof DatosDeSolicitud
@@ -102,7 +109,7 @@ export type ProblemasDeSolicitud = Partial<Record<CampoDeSolicitud, string>>
 export const PASOS_DE_LA_SOLICITUD = [
   { titulo: 'Tus datos', campos: ['nombre', 'correo', 'clave', 'repetida'] },
   { titulo: 'Tu institución', campos: ['institucion', 'programa', 'etapa'] },
-  { titulo: 'Confirmación', campos: ['motivo'] },
+  { titulo: 'Confirmación', campos: ['motivo', 'privacidad'] },
 ] as const satisfies readonly { titulo: string; campos: readonly CampoDeSolicitud[] }[]
 
 // La misma laxitud que `exigirCorreo`: una arroba y un punto detrás.
@@ -137,6 +144,8 @@ export function problemasDeLaSolicitud(datos: DatosDeSolicitud): ProblemasDeSoli
   if (datos.etapa && !esEtapaDeFormacion(datos.etapa)) problemas.etapa = 'Elige una opción de la lista.'
 
   if (largo(datos.motivo) > LARGOS_DE_SOLICITUD.motivo) problemas.motivo = `El mensaje no puede pasar de ${LARGOS_DE_SOLICITUD.motivo} caracteres.`
+
+  if (!datos.privacidad) problemas.privacidad = 'Para enviar la solicitud, acepta el aviso de privacidad.'
 
   return problemas
 }

@@ -13,8 +13,15 @@
  *   --nuevo "<nombre>"         no toca el caso: crea otro con ese nombre, copia de él
  *   --clasificacion A3         la clasificación AO del caso nuevo (solo con --nuevo)
  *   --separar                  cada estructura como objeto propio, no fundidas por sistema
+ *   --posicion 50              el trazo del caso nuevo: altura en % desde proximal (solo con --nuevo)
+ *   --inclinacion 35           y grados sobre el transversal, sin cambiar de transversa a oblicua
+ *   --giro 270                 y cara hacia la que sube: 0 delante, 90 fuera, 180 detrás, 270 dentro
  *
- * Las tres últimas llegaron con la preparación «p», una pierna izquierda, y el
+ * Las tres de la altura, la inclinación y la cara llegaron con P-009 (2026-11-04): el dueño pidió comprobarlo sobre
+ * una pierna nueva «con alguna fractura a la mitad del hueso, no las que ya están», y la clasificación sola solo da
+ * dos trazos, la transversa y la oblicua de 45° por fuera, que ya tenían caso (ver `conElTrazoPedido`).
+ *
+ * Las tres anteriores llegaron con la preparación «p», una pierna izquierda, y el
  * pedido del dueño del 2026-11-03: un caso nuevo sobre ella, «con fractura
  * cualquiera», y no la tibia del caso de prueba otra vez. Copiar el caso de
  * prueba trae sus pasos, su bandeja y su instrumental, que valen para cualquier
@@ -287,6 +294,42 @@ export function corteParaLaFractura(
     porque: `la fractura es ${dicha}, simple y ${forma}, a media diáfisis; se reduce el distal`,
     avisos,
   }
+}
+
+/** Lo que se puede pedir del trazo con `--posicion`, `--inclinacion` y `--giro`. */
+export type TrazoPedido = Partial<Pick<CorteDeHueso, 'posicion' | 'inclinacion' | 'giro'>>
+
+/** Los grados que separan una transversa de una oblicua en la clasificación AO de la diáfisis. */
+export const LIMITE_DE_LA_OBLICUA = 30
+
+/**
+ * El corte que sale de la clasificación, con lo que se pidió del trazo encima.
+ *
+ * Se puede mover la altura, inclinar más o menos y subir por otra cara, pero no cambiar de fractura: una transversa
+ * se queda por debajo de los 30° y una oblicua por encima, porque el caso dice cuál es y el residente lo lee en la
+ * ficha. Un trazo de 40° en un caso «transverso» enseñaría una fractura con el nombre de otra, que es peor que no
+ * tener caso.
+ */
+export function conElTrazoPedido(
+  delCaso: { corte: CorteDeHueso; porque: string },
+  trazo: TrazoPedido,
+): { corte: CorteDeHueso; porque: string } {
+  let corte: CorteDeHueso
+  try {
+    corte = normalizarCorte({ ...delCaso.corte, ...trazo })!
+  } catch (error) {
+    // `normalizarCorte` dice qué valor se sale y de qué límites; aquí solo se añade que no se tocó nada.
+    throw new ParadaDelGuion(`${(error as Error).message} No se ha tocado nada.`)
+  }
+  const eraTransversa = delCaso.corte.inclinacion < LIMITE_DE_LA_OBLICUA
+  if (eraTransversa !== corte.inclinacion < LIMITE_DE_LA_OBLICUA) {
+    throw new ParadaDelGuion(
+      `La fractura del caso es ${eraTransversa ? 'transversa' : 'oblicua'}, y un trazo de ${corte.inclinacion}° ` +
+        `sería ${eraTransversa ? 'oblicuo' : 'transversal'}: AO las separa en los ${LIMITE_DE_LA_OBLICUA}°. ` +
+        'No se ha tocado nada.',
+    )
+  }
+  return { corte, porque: `${delCaso.porque}; altura, inclinación o cara como se pidieron` }
 }
 
 // ------------------------------------------------------------ el caso nuevo
@@ -782,6 +825,8 @@ export interface OpcionesDelGuion {
   clasificacion?: string
   /** Cada estructura como objeto propio (P-003 E9); por omisión, fundidas por sistema, como el caso de prueba. */
   separar?: boolean
+  /** Altura, inclinación o cara del trazo del caso nuevo, por encima de lo que da la clasificación (P-009). */
+  trazo?: TrazoPedido
   directorioDelAtlas?: string
   /** A dónde va cada línea. Por omisión, la consola, sin secretos. */
   escribir?: (linea: string) => void
@@ -951,7 +996,9 @@ export async function ejecutar(
       `${String(fractura.clasificacion?.nombre ?? '')}.`,
   )
 
-  const { corte, porque, avisos: avisosDelCorte } = corteParaLaFractura(fractura, tibia.id)
+  const delCaso = corteParaLaFractura(fractura, tibia.id)
+  const avisosDelCorte = delCaso.avisos
+  const { corte, porque } = opciones.trazo ? conElTrazoPedido(delCaso, opciones.trazo) : delCaso
   escribir(`Corte: ${describirCorte(corte)}.`)
   escribir(`  Porque ${porque}.`)
   escribir('')
@@ -1108,6 +1155,7 @@ export function leerArgumentos(argumentos: string[]): Omit<OpcionesDelGuion, 'es
   let nuevo: string | undefined
   let clasificacion: string | undefined
   let separar = false
+  const trazo: TrazoPedido = {}
   let ayuda = false
 
   for (let i = 0; i < argumentos.length; i += 1) {
@@ -1150,6 +1198,15 @@ export function leerArgumentos(argumentos: string[]): Omit<OpcionesDelGuion, 'es
       case '--separar':
         separar = true
         break
+      case '--posicion':
+      case '--inclinacion':
+      case '--giro': {
+        const texto = valor()
+        const numero = Number(texto.replace(',', '.'))
+        if (!Number.isFinite(numero)) throw new ParadaDelGuion(`${clave} es un número de grados o de %, no «${texto}».`)
+        trazo[clave.slice(2) as keyof TrazoPedido] = numero
+        break
+      }
       case '--ayuda':
       case '-h':
       case '--help':
@@ -1158,7 +1215,7 @@ export function leerArgumentos(argumentos: string[]): Omit<OpcionesDelGuion, 'es
       default:
         throw new ParadaDelGuion(
           `No conozco la opción «${argumentos[i]}». Las que hay: --simular, --aplicar, --preparacion, --caso, ` +
-            '--tibia, --nuevo, --clasificacion, --separar.',
+            '--tibia, --nuevo, --clasificacion, --separar, --posicion, --inclinacion, --giro.',
         )
     }
   }
@@ -1167,7 +1224,22 @@ export function leerArgumentos(argumentos: string[]): Omit<OpcionesDelGuion, 'es
     // pruebas; cambiarla al pasar no es lo que pide nadie que no cree otro caso.
     throw new ParadaDelGuion('--clasificacion solo vale con --nuevo: cambia la fractura del caso que se crea.')
   }
-  return { aplicar: aplicar ?? false, preparacion, caso, tibia, nuevo, clasificacion, separar, ayuda }
+  const conTrazo = Object.keys(trazo).length > 0
+  if (conTrazo && !nuevo) {
+    // Por lo mismo: el trazo del caso de prueba es el que suponen sus pasos, su desplazamiento y sus pruebas.
+    throw new ParadaDelGuion('--posicion, --inclinacion y --giro solo valen con --nuevo: cambian el trazo del caso que se crea.')
+  }
+  return {
+    aplicar: aplicar ?? false,
+    preparacion,
+    caso,
+    tibia,
+    nuevo,
+    clasificacion,
+    separar,
+    trazo: conTrazo ? trazo : undefined,
+    ayuda,
+  }
 }
 
 const AYUDA = `Pone la preparación «${PREPARACION_POR_OMISION}» del atlas, con la tibia partida, en el caso de prueba.
@@ -1180,7 +1252,10 @@ const AYUDA = `Pone la preparación «${PREPARACION_POR_OMISION}» del atlas, co
   --tibia izquierda          parte la tibia izquierda (por omisión, la derecha)
   --nuevo "<nombre>"         crea otro caso con ese nombre, copia de --caso, y no toca este
   --clasificacion A3         la clasificación AO del caso nuevo (solo con --nuevo)
-  --separar                  cada estructura como objeto propio, no fundidas por sistema`
+  --separar                  cada estructura como objeto propio, no fundidas por sistema
+  --posicion 50              el trazo del caso nuevo: altura en % desde proximal (solo con --nuevo)
+  --inclinacion 35           y grados sobre el transversal, sin pasar de transversa a oblicua
+  --giro 270                 y cara hacia la que sube: 0 delante, 90 fuera, 180 detrás, 270 dentro`
 
 async function principal() {
   const archivoEnv = resolve(process.cwd(), '.env')

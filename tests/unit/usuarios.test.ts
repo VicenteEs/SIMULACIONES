@@ -81,6 +81,26 @@ describe('el último acceso lo anota la plataforma y nadie más', () => {
 })
 
 /**
+ * La aceptación del aviso de privacidad (Q-005, D-258) es la prueba del
+ * consentimiento, y una prueba que un administrador puede reescribir por la API
+ * no prueba nada. Las escribe `solicitarCuenta` por la API local, que se salta
+ * este acceso; quien llegue hasta aquí viene por REST.
+ */
+describe('la aceptación del aviso de privacidad la anota la solicitud y nadie más', () => {
+  for (const nombre of ['privacidadAceptadaEn', 'versionDelAvisoDePrivacidad']) {
+    it(`${nombre} se le niega a todo el mundo al crear y al modificar`, async () => {
+      const campo = campoDe(Usuarios.fields, nombre)
+      for (const operacion of ['create', 'update'] as const) {
+        expect(typeof accesoDe(campo, operacion), `${nombre} no declara access.${operacion}`).toBe('function')
+        for (const quien of [LECTOR, EDITOR, ADMIN, null]) {
+          expect(await accesoDe(campo, operacion)!(peticion(quien))).toBe(false)
+        }
+      }
+    })
+  }
+})
+
+/**
  * La cuenta desactivada no entra, venga por donde venga.
  *
  * La regla de D-020 vivía solo en `entrar()`, la pantalla propia. Pero

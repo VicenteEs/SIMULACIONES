@@ -87,7 +87,12 @@ export function PanelDeRegistro() {
       </ul>
       <p className="ac-candado">
         <Lock size={20} aria-hidden />
-        Tus datos solo los ven los administradores de la plataforma.
+        {/* Antes decía que solo los veían los administradores, y el aviso (Q-005) dice otra cosa: los editores ven los
+            comentarios con su nombre y su correo. La promesa del panel no puede ser más ancha que la del aviso. */}
+        <span>
+          Tus datos se usan solo para la plataforma. Quién los ve y dónde se guardan lo dice el{' '}
+          <Link href="/privacidad">aviso de privacidad</Link>.
+        </span>
       </p>
     </aside>
   )

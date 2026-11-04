@@ -28,22 +28,33 @@ import {
   RESULTADOS,
   topesDeReduccion,
   visibilidadDelPaso,
+  type Gesto,
   type Objetivo,
   type PasoQuirurgico,
 } from '@/lib/simulador'
-import { largoDelTrazo, medirReduccion, type EjeLargo } from '@/lib/reduccion'
+import { largoDelTrazo, medirReduccion, porcentajeDelDiametro, type EjeLargo, type Medidas } from '@/lib/reduccion'
 import { POSICIONES_DEL_PACIENTE, type PosicionDelPaciente } from '@/lib/posicionDelPaciente'
+import type { EncuadreDelPaso } from '@/lib/encuadreDelPaso'
+import { apilar, INSTANTANEA_VACIA, type AvanceDelCaso, type InstantaneaDelLienzo, type ModoDeJuego } from '@/lib/avanceDelCaso'
+import { instruccionBreve, listaDelPaso, MEDIDAS_DEL_OBJETIVO } from '@/lib/listaDelPaso'
+import { instrumentoDeLaTecla, instrumentosDelMenu, posicionEnElAro } from '@/lib/menuRadial'
 import {
   MAXIMO_DE_COMPLICACIONES,
   type ComplicacionDelCaso,
   type RecorridoGuardado,
   type ResultadoDeCirugia,
 } from '@/lib/progresoDelSimulador'
-import { marcarComoLeida, registrarResultadoDeCirugia } from '@/app/(frontend)/acciones/actividad'
+import { guardarAvanceDelCaso, marcarComoLeida, registrarResultadoDeCirugia } from '@/app/(frontend)/acciones/actividad'
 import { Rico, tieneContenido } from '@/components/Rico'
 import { IconoInstrumento } from './IconoInstrumento'
 import { BarraDeInstrumental, type FamiliaDeLaMesa } from './BarraDeInstrumental'
-import { anotarReciente, MAXIMO_DE_RECIENTES } from '@/lib/barraDeInstrumental'
+import {
+  anotarReciente,
+  familiaDeLaMesa,
+  MAXIMO_DE_RECIENTES,
+  ordenDeLasFamilias,
+  tituloDeLaFamilia,
+} from '@/lib/barraDeInstrumental'
 import { CampoNumerico } from './CampoNumerico'
 import { MenuDeMovimiento, type SeleccionDeMovimiento } from './MenuDeMovimiento'
 import { ACCIONES_DE_LA_PLACA, ajusteDeLaPlacaPorPaso, lecturaDelMovimiento } from '@/lib/movimientoPorEjes'
@@ -98,10 +109,13 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Circle,
+  ClipboardCheck,
   Drill,
   Eraser,
   Focus,
   FoldVertical,
+  GraduationCap,
   Hand,
   HandGrab,
   Info,
@@ -109,11 +123,12 @@ import {
   Maximize2,
   Minimize2,
   Move,
-  OctagonAlert,
   PenLine,
   Pin,
+  Play,
   Plus,
   Rotate3d,
+  Repeat,
   RotateCcw,
   RotateCw,
   ScanLine,
@@ -125,6 +140,7 @@ import {
   UnfoldHorizontal,
   Wrench,
   X,
+  XCircle,
   Zap,
   type LucideIcon,
 } from 'lucide-react'
@@ -267,6 +283,13 @@ export interface PasoDeConsola extends PasoQuirurgico {
   instrumentoNombre?: string | null
   /** Nombres de los nodos que se ven en este paso. Vacío: se mantiene lo anterior. */
   muestra?: string[]
+  /** La posición del paciente en este paso (P-009); sin ella, la del paso anterior. */
+  posicion?: PosicionDelPaciente | null
+  /** Desde dónde se mira al entrar en el paso (P-009), como lo guardó el editor; sin él, la cámara se queda. */
+  encuadre?: EncuadreDelPaso | null
+  /** La demostración de 3 a 5 s (P-009), con el prefijo ya puesto por Payload, y su tipo: imagen animada o vídeo. */
+  demostracionUrl?: string | null
+  demostracionTipo?: string | null
 }
 
 export interface InstrumentoDeBandeja {
@@ -327,6 +350,10 @@ export interface CasoDeConsola {
     giroZ: number
   }
   pasos: PasoDeConsola[]
+  /**
+   * Práctica o evaluación (P-009, D-258): `eleccion`, lo elige el residente al empezar; o el que fijó el editor.
+   */
+  modo: 'eleccion' | 'practica' | 'evaluacion'
   /**
    * Qué ve el residente en la bandeja (P-004 E3): `completa`, todo el catálogo de instrumental; o `acotada`, lo que el
    * editor eligió y lo que piden los pasos.
@@ -473,7 +500,7 @@ const MODO_SEPARAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
   etiqueta: 'Separar',
   icono: UnfoldHorizontal,
   ayuda:
-    'Separar: haga clic en el borde de la incisión donde quiere poner el separador (el plano lo decide el clic) o en un músculo para retraerlo, y ábralo con la rueda del ratón (o con la barra). Uno de mano abre el borde que sostiene; uno autoestático abre los dos. Otro clic en otro músculo lo separa también, sin soltar el anterior.',
+    'Separar: haga clic en el borde de la incisión donde quiere poner el separador (el plano lo decide el clic) o en un músculo para retraerlo, y ábralo arrastrando con el botón derecho hacia arriba (o con la barra). Uno de mano abre el borde que sostiene; uno autoestático abre los dos. Otro clic en otro músculo lo separa también, sin soltar el anterior.',
 }
 
 /**
@@ -485,7 +512,7 @@ const MODO_PINZAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucide
   etiqueta: 'Pinzar',
   icono: Hand,
   ayuda:
-    'Pinzar: un clic pone la pareja de pinzas, una frente a la otra, a los dos lados de la incisión (o de donde irá). La rueda las separa o las junta; Mayúsculas + rueda abre o cierra las mandíbulas. Arrastrar una pinza hacia arriba levanta más la piel.',
+    'Pinzar: un clic pone la pareja de pinzas, una frente a la otra, a los dos lados de la incisión (o de donde irá). Arrastrar con el botón derecho las separa (hacia arriba) o las junta (hacia abajo); con Mayúsculas abre o cierra las mandíbulas. Arrastrar una pinza con el izquierdo hacia arriba levanta más la piel.',
 }
 
 /**
@@ -525,7 +552,7 @@ const MODO_DISECAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucid
   etiqueta: 'Disecar',
   icono: FoldVertical,
   ayuda:
-    'Disecar (disección roma): un clic apoya la punta cerrada de la tijera en el tejido; la rueda abre las ramas y el plano se separa por tensión, sin cortar. Otro clic más allá avanza, y se vuelve a abrir.',
+    'Disecar (disección roma): un clic apoya la punta cerrada de la tijera en el tejido; arrastrar con el botón derecho hacia arriba abre las ramas y el plano se separa por tensión, sin cortar. Otro clic más allá avanza, y se vuelve a abrir.',
 }
 
 const MODO_COSER: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
@@ -546,14 +573,14 @@ const MODO_FIJAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideI
 
 /**
  * El modo del alicate y las grifas (P-005 E1): se dobla y se tuerce una placa **fuera del hueso**, sobre la mesa de modelado. Un clic en la placa apunta al
- * sitio; la rueda (o los botones del recuadro) dobla o tuerce ahí; arrastrar la placa la mueve.
+ * sitio; el arrastre con el botón derecho (o los botones del recuadro) dobla o tuerce ahí; arrastrar la placa la mueve.
  */
 const MODO_MODELAR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
   valor: 'modelar',
   etiqueta: 'Modelar',
   icono: Wrench,
   ayuda:
-    'Modelar: con una placa en la mesa, un clic sobre ella apunta al sitio donde se dobla; la rueda dobla (alicate) o tuerce (grifa) ahí, un grado por muesca —con Mayúsculas, una quinta parte—. Arrastrar la placa la mueve. No doble sobre un orificio: lo deforma.',
+    'Modelar: con una placa en la mesa, un clic sobre ella apunta al sitio donde se dobla; arrastrar con el botón derecho dobla (alicate) o tuerce (grifa) ahí, de grado en grado —con Mayúsculas, de quinto en quinto—. Arrastrar la placa la mueve. No doble sobre un orificio: lo deforma.',
 }
 
 /**
@@ -585,7 +612,54 @@ const MODO_PERFORAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Luci
   etiqueta: 'Perforar',
   icono: Drill,
   ayuda:
-    'Perforar: apunte al hueso y mantenga pulsado; la broca gira y avanza. Al soltar se queda en el hoyo —puede ir a pedir el disparo—, se mete o se saca con la rueda y se retira con «Retirar», Esc o el botón derecho. Elija antes la inclinación; la etiqueta dice el ángulo con el eje del hueso.',
+    'Perforar: apunte al hueso y mantenga pulsado; la broca gira y avanza. Al soltar se queda en el hoyo —puede ir a pedir el disparo—, se mete o se saca arrastrando con el botón derecho y se retira con «Retirar», Esc o un clic derecho. Elija antes la inclinación; la etiqueta dice el ángulo con el eje del hueso.',
+}
+
+/** Todos los modos, para nombrar el que pide el paso aunque el instrumento en la mano no lo use (P-009). */
+const TODOS_LOS_MODOS = [
+  ...MODOS,
+  MODO_SENALAR,
+  MODO_SEPARAR,
+  MODO_PINZAR,
+  MODO_REDUCIR,
+  MODO_PERFORAR,
+  MODO_FIJAR,
+  MODO_COSER,
+  MODO_ELEVAR,
+  MODO_ENCLAVAR,
+  MODO_DISECAR,
+  MODO_MODELAR,
+  MODO_INFO,
+]
+
+const NOMBRE_DEL_MODO_DE_JUEGO: Record<ModoDeJuego, string> = { practica: 'práctica', evaluacion: 'evaluación' }
+
+const NOMBRE_DE_LA_PROYECCION: Record<ProyeccionDeFluoroscopia, string> = { ap: 'AP', lateral: 'lateral', oblicua: 'oblicua' }
+
+/** La cuenta del recorrido que se guarda con el avance (P-009): lo que decide lo que vale cada paso. */
+type CuentaDelAvance = Pick<
+  AvanceDelCaso,
+  'puntaje' | 'resueltos' | 'fallados' | 'complicados' | 'automaticas' | 'complicaciones' | 'insumos'
+>
+
+const CUENTA_VACIA: CuentaDelAvance = {
+  puntaje: 0,
+  resueltos: [],
+  fallados: [],
+  complicados: [],
+  automaticas: [],
+  complicaciones: [],
+  insumos: {},
+}
+
+/**
+ * Un estado de la pila de «Deshacer» (P-009): lo que hay sobre el paciente y lo que solo sabe la consola de ese
+ * momento. La perforación y el largo del trazo no viven en la escena, y deshacer el hoyo sin ellos dejaba al paso
+ * creyendo que estaba hecho.
+ */
+type EntradaDeLaPila = InstantaneaDelLienzo & {
+  perforacion: { paso: string; hecha: PerforacionHecha } | null
+  trazoMm: number
 }
 
 /**
@@ -661,6 +735,7 @@ export function ConsolaQuirurgica({
   caso,
   documentoId,
   recorridoGuardado = null,
+  avanceGuardado = null,
   alMarcarComoLeido,
   editor,
   mandoRef,
@@ -680,6 +755,11 @@ export function ConsolaQuirurgica({
   documentoId: string
   /** Lo que quedó del último recorrido de este residente en este caso. */
   recorridoGuardado?: RecorridoGuardado | null
+  /**
+   * Dónde se quedó en este caso, de su cuenta (P-009, mejora de uso 12): al abrir se le ofrece «Seguir donde lo dejó».
+   * Solo del residente: el editor ensaya y no guarda avance.
+   */
+  avanceGuardado?: AvanceDelCaso | null
   /**
    * Avisa de que el caso quedó marcado como leído al terminarlo.
    *
@@ -816,8 +896,29 @@ export function ConsolaQuirurgica({
   // hueso es una ayuda que conviene poder quitar, porque en una radioscopia
   // real nadie lo dibuja.
   const [ayudas, setAyudas] = useState<AyudasDeEscopia>({ objetivo: false, ejes: true })
-  // La consola ocupa toda la pantalla (ver `.consola-completa`): con todos los mandos a la vista.
-  const [pantallaCompleta, setPantallaCompleta] = useState(false)
+  // La consola ocupa toda la pantalla (ver `.consola-completa`): con todos los mandos a la vista. El residente la abre
+  // así (P-009, mejora de uso 12): en el tamaño de la página, el lienzo y la columna del paso no cabían a la vez en el
+  // portátil de referencia, y lo primero que se hacía siempre era pulsar «Ampliar». El editor no, que la tiene dentro
+  // de su formulario.
+  const [pantallaCompleta, setPantallaCompleta] = useState(() => !editor)
+  // Ampliada, el área de trabajo mide la ventana menos la barra y la franja de pasos. Eso se suponía de 124 px, y con
+  // títulos de paso en dos líneas son 147: el pie de las columnas —«Deshacer», «Repetir este paso», «Ver todas las
+  // medidas»— quedaba fuera de la ventana. Se mide, y se vuelve a medir si cambia (otra anchura, otro caso).
+  useEffect(() => {
+    const raiz = raizDeLaConsola.current
+    const barra = raiz?.querySelector<HTMLElement>('.consola-barra')
+    const pasos = raiz?.querySelector<HTMLElement>('.consola-pasos')
+    if (!pantallaCompleta || !raiz || !barra || !pasos) return
+    const medir = () => raiz.style.setProperty('--alto-de-arriba', `${Math.ceil(barra.offsetHeight + pasos.offsetHeight)}px`)
+    medir()
+    const observador = new ResizeObserver(medir)
+    observador.observe(barra)
+    observador.observe(pasos)
+    return () => {
+      observador.disconnect()
+      raiz.style.removeProperty('--alto-de-arriba')
+    }
+  }, [pantallaCompleta])
   // La incisión en recta es la de siempre: la mano alzada sale temblorosa.
   const [tipoDeTrazo, setTipoDeTrazo] = useState<TipoDeTrazo>('recto')
   // «Mover todo junto» o un trozo de hueso. Sin elegir (`null`), manda el paso: reducir mueve un trozo.
@@ -980,6 +1081,42 @@ export function ConsolaQuirurgica({
   const [complicaciones, setComplicaciones] = useState<ComplicacionDelCaso[]>([])
   const [registro, setRegistro] = useState<Anotacion[]>([])
   const [resultado, setResultado] = useState<Anotacion | null>(null)
+
+  // --- cómo se juega el caso, deshacer, repetir y seguir otro día (P-009) -------------------------------------------
+  /**
+   * Práctica o evaluación (mejora de uso 5, D-258). Lo elige el residente al empezar, salvo que el editor lo haya fijado
+   * para el caso, y `null` es «todavía no eligió»: el lienzo se ve, con la elección encima. En práctica hay
+   * demostración del paso, la lista dice qué instrumento toca, se deshace y se repite el paso; en evaluación nada de
+   * eso, y el recorrido queda guardado como evaluación para el docente. El editor ensaya siempre en práctica.
+   */
+  const modoFijado: ModoDeJuego | null = caso.modo === 'practica' || caso.modo === 'evaluacion' ? caso.modo : null
+  const [modoDeJuego, setModoDeJuego] = useState<ModoDeJuego | null>(() => (editor ? 'practica' : null))
+  const enPractica = modoDeJuego !== 'evaluacion'
+  /** El avance de la cuenta que se puede seguir: el que trajo la página o, después, el último que se guardó. */
+  const [avanceParaSeguir, setAvanceParaSeguir] = useState<AvanceDelCaso | null>(avanceGuardado)
+  /** El modelo no abrió: la elección no espera a un modelo que no va a llegar. */
+  const [modeloFallido, setModeloFallido] = useState(false)
+  /** Lo que había sobre el paciente al empezar cada paso: para «Repetir este paso» y para volver a él terminado el caso. */
+  const instantaneasDeLosPasos = useRef<Map<number, InstantaneaDelLienzo>>(new Map())
+  /** Lo hecho en este paso, de más viejo a más nuevo; la base es el principio del paso (`apilar`). */
+  const pilaDeDeshacer = useRef<EntradaDeLaPila[]>([])
+  /** El lienzo se volvió a montar: lo primero que avise es lo que devolvió, y ocupa la cima en vez de apilarse. */
+  const reemplazarLaCima = useRef(false)
+  const [puedeDeshacer, setPuedeDeshacer] = useState(false)
+  /** La vista de antes de volver a montar el lienzo para deshacer: deshacer no mueve la cámara. */
+  const camaraAConservar = useRef<{ encuadre: EncuadreDelPaso; posicion: PosicionDelPaciente | null } | null>(null)
+  /** Lo que dirá el lienzo nuevo al devolver lo puesto: por qué se volvió a montar (ver `avisoAlRecuperar`). */
+  const [avisoAlRecuperar, setAvisoAlRecuperar] = useState<string | null>(null)
+  /** Terminado el caso, se vuelve a un paso para mirarlo o rehacerlo, sin puntuar (mejora de uso 4). */
+  const [repaso, setRepaso] = useState(false)
+  /** El menú radial abierto, en píxeles desde la esquina del marco del lienzo (mejora de uso 9). */
+  const [menuRadial, setMenuRadial] = useState<{ x: number; y: number } | null>(null)
+  /** Todas las medidas y no solo las del paso (mejora de uso 3). */
+  const [todasLasMedidas, setTodasLasMedidas] = useState(false)
+  /** El modo de antes de «Mirar» o «Seleccionar estructura», para volver a él con el mismo botón (mejora de uso 6). */
+  const modoAntesDeMirar = useRef<Modo | null>(null)
+  /** La última toma de cada proyección (mejora de uso 11): el monitor del arco enseña la de la otra junto a la de ahora. */
+  const [tomasPorProyeccion, setTomasPorProyeccion] = useState<Partial<Record<ProyeccionDeFluoroscopia, string>>>({})
   // Se arranca con **todo encendido** (D-171). Antes se empezaba con la piel y el músculo apagados porque el
   // modo «mover» solo agarraba el fragmento si el rayo lo golpeaba a él, y con la piel delante golpeaba la piel.
   // Ya no hace falta: «Mover» busca entre los huesos, atraviese lo que atraviese. Y a quien corta la piel le
@@ -1026,14 +1163,14 @@ export function ConsolaQuirurgica({
   const topes = paso ? topesDeReduccion(paso) : null
 
   /**
-   * Deja constancia de algo: en el pie y junto al botón.
+   * Deja constancia de algo en «Lo que va pasando», bajo «Aplicar paso» (P-009, mejora de uso 2): lo último aparte y en
+   * grande (`resultado`), y el registro con los diez de antes.
    *
-   * Las dos cosas, y no solo el pie. El registro se pinta debajo del lienzo, de
-   * las medidas y de la franja de pasos, a unos 600 px del borde superior de la
-   * consola, o sea fuera de pantalla en el portátil modesto que este módulo
-   * toma por equipo de referencia. Y un gesto que falla no cambia nada más en
-   * la pantalla: sin esta copia, el residente pulsa «Aplicar paso», no ve pasar
-   * nada y vuelve a pulsar.
+   * Eran dos sitios: el registro iba en el pie, debajo del lienzo, de las medidas y de la franja de pasos, a unos 600 px
+   * del borde superior de la consola —fuera de pantalla en el portátil modesto que este módulo toma por equipo de
+   * referencia—, y la copia de lo último se puso junto al botón porque un gesto que falla no cambia nada más en la
+   * pantalla: sin ella, el residente pulsaba «Aplicar paso», no veía pasar nada y volvía a pulsar. Ahora los dos están
+   * juntos, donde se mira después de aplicar.
    */
   const anotar = useCallback((texto: string, clase: Anotacion['clase']) => {
     setRegistro((previo) => [{ texto, clase }, ...previo].slice(0, 10))
@@ -1092,6 +1229,7 @@ export function ConsolaQuirurgica({
         reduccionAutomatica: usoLaReduccionAutomatica.current,
         // `null` borra la del recorrido anterior: la fila describe el último recorrido (P-004 E11).
         radiografia: radiografiaDelRecorrido.current,
+        ...(modoDeJuego ? { modo: modoDeJuego } : {}),
       }
       const huella = JSON.stringify(datos)
       if (huella === ultimoMandado.current) return
@@ -1128,8 +1266,54 @@ export function ConsolaQuirurgica({
         }
       })()
     },
-    [documentoId, maximo, anotar, editor],
+    [documentoId, maximo, anotar, editor, modoDeJuego],
   )
+
+  /**
+   * Guarda en la cuenta dónde se quedó (P-009, mejora de uso 12): una escritura a la vez y siempre la última, como el
+   * recorrido. `null` lo borra, al terminar el caso o al reiniciarlo: ya no hay dónde seguir. El fallo se dice y el
+   * caso sigue, que lo de la pestaña no depende de esto.
+   */
+  const avanceEnVuelo = useRef(false)
+  const avancePorMandar = useRef<{ avance: AvanceDelCaso | null } | null>(null)
+  const mandarElAvance = useCallback(
+    (avance: AvanceDelCaso | null) => {
+      if (editor) return
+      avancePorMandar.current = { avance }
+      if (avanceEnVuelo.current) return
+      avanceEnVuelo.current = true
+      void (async () => {
+        try {
+          let siguiente = avancePorMandar.current
+          while (siguiente) {
+            avancePorMandar.current = null
+            await guardarAvanceDelCaso(documentoId, siguiente.avance)
+            siguiente = avancePorMandar.current
+          }
+        } catch (error) {
+          console.error('[consola] no se pudo guardar el avance del caso:', error)
+          avancePorMandar.current = null
+          anotar('No se pudo guardar en su cuenta dónde se quedó. El caso sigue en esta pestaña.', 'atencion')
+        } finally {
+          avanceEnVuelo.current = false
+        }
+      })()
+    },
+    [documentoId, anotar, editor],
+  )
+  /**
+   * La marca de la pestaña: qué avance de la cuenta continúa la escena que la pestaña guarda. Al recargar, si es el
+   * mismo, se sigue con lo hecho a medias; si no —otro equipo, otra pestaña—, desde el principio del paso.
+   */
+  const claveDelPaso = `${claveDeLaSesion}:paso`
+  const marcarLaPestana = (avance: AvanceDelCaso | null) => {
+    try {
+      if (avance) sessionStorage.setItem(claveDelPaso, avance.guardadoEn)
+      else sessionStorage.removeItem(claveDelPaso)
+    } catch {
+      // Sin almacenamiento, al volver se devuelve lo del principio del paso: se pierde lo hecho a medias, nada más.
+    }
+  }
 
   // ------------------------------------------------- terminar es haberlo leído
   const [lecturaAlTerminar, setLecturaAlTerminar] = useState<LecturaAlTerminar>('pendiente')
@@ -1237,9 +1421,118 @@ export function ConsolaQuirurgica({
       const cambio = siguientes.size !== apagadas.size || [...siguientes].some((rol) => !apagadas.has(rol))
       if (cambio) setCapasApagadas(siguientes)
       refrescarVisibles(indicePaso, siguientes)
+      // La cámara del paso (P-009, mejora de uso 1): adonde la dejó el editor para este paso o, sin encuadre, a la
+      // posición del paciente que declara. Sin ninguna de las dos se queda donde estaba, que era lo de siempre: un
+      // caso de antes de P-009 no cambia. Va aquí y no en quien cambia de paso porque aquí pasan los cuatro caminos
+      // —aplicar, saltar en el editor, reiniciar y la carga del modelo—, y el que se olvidara dejaría un paso sin vista.
+      const pasoNuevo = caso.pasos[indicePaso]
+      if (pasoNuevo?.encuadre) {
+        mando.current?.irAlEncuadre(pasoNuevo.encuadre, pasoNuevo.posicion ?? null)
+        setPosicion(pasoNuevo.posicion ?? null)
+      } else if (pasoNuevo?.posicion) {
+        mando.current?.ponerPosicion(pasoNuevo.posicion)
+        setPosicion(pasoNuevo.posicion)
+      }
     },
     [caso.pasos, piezas, refrescarVisibles],
   )
+
+  /**
+   * Empieza un paso (P-009): lo que hay sobre el paciente queda como su principio —para «Repetir este paso», para
+   * «Deshacer» y para volver a él con el caso terminado— y, en el recorrido del residente, se guarda en la cuenta con el
+   * paso y la cuenta del puntaje. Aparte de `entrarEnPaso`, que pone las capas y la cámara y que también llama la carga
+   * del modelo: volver a montar el lienzo para deshacer pasa por allí y no empieza nada.
+   *
+   * La cuenta se pasa y no se lee del estado, por lo mismo que en `guardarRecorrido`: a quien llama le acaba de cambiar.
+   * `conocida` es para cuando el lienzo va a volver a montarse y lo que tiene ahora ya no es lo que habrá.
+   */
+  const empezarElPaso = (
+    indicePaso: number,
+    cuenta: CuentaDelAvance,
+    modoDelRecorrido: ModoDeJuego | null = modoDeJuego,
+    conocida?: InstantaneaDelLienzo,
+  ) => {
+    if (indicePaso >= caso.pasos.length) {
+      // Terminado: ya no hay dónde seguir. Repasando, ya se había borrado al terminar la primera vez.
+      if (!editor && !repaso) {
+        setAvanceParaSeguir(null)
+        marcarLaPestana(null)
+        mandarElAvance(null)
+      }
+      return
+    }
+    const instantanea = conocida ?? mando.current?.instantanea() ?? INSTANTANEA_VACIA
+    // Repasando, el principio de cada paso es el del recorrido que se hizo: rehacer uno no cambia adónde se vuelve.
+    if (!repaso || !instantaneasDeLosPasos.current.has(indicePaso)) instantaneasDeLosPasos.current.set(indicePaso, instantanea)
+    pilaDeDeshacer.current = [{ ...instantanea, perforacion: null, trazoMm: 0 }]
+    reemplazarLaCima.current = false
+    setPuedeDeshacer(false)
+    if (editor || repaso || !modoDelRecorrido) return
+    const avance: AvanceDelCaso = {
+      v: 1,
+      paso: indicePaso,
+      modo: modoDelRecorrido,
+      ...cuenta,
+      instantanea,
+      guardadoEn: new Date().toISOString(),
+    }
+    setAvanceParaSeguir(avance)
+    marcarLaPestana(avance)
+    mandarElAvance(avance)
+  }
+
+  /**
+   * Vuelve a montar el lienzo con `instantanea` sobre el paciente (P-009): así se deshace, se repite un paso y se sigue
+   * otro día. El lienzo ya sabía devolver la escena entera de la pestaña al cargar —es lo que hace al recargar la
+   * página—, y deshacer cada gesto por su cuenta (un corte, un separador, una placa con sus tornillos) eran veinte
+   * caminos de vuelta que mantener. Montarlo de nuevo cuesta leer el modelo, que ya no se vuelve a bajar
+   * (`cargarElArchivo`). Lo que la consola sabía de la escena se olvida: el lienzo nuevo lo vuelve a decir al
+   * devolverla, como al recargar.
+   */
+  const volverAlLienzo = (instantanea: InstantaneaDelLienzo, conservarLaCamara: boolean, aviso: string | null = null) => {
+    const m = mando.current
+    if (!m) return
+    const encuadre = conservarLaCamara ? m.encuadreActual() : null
+    camaraAConservar.current = encuadre ? { encuadre, posicion } : null
+    m.prepararLaVuelta({ sesion: instantanea.sesion, colocado: instantanea.colocado })
+    reemplazarLaCima.current = true
+    setAvisoAlRecuperar(aviso)
+    setMenuRadial(null)
+    setClaveDelLienzo((c) => c + 1)
+    setAlambresPuestos(null)
+    setPeriostioDespegado(null)
+    setEnclavado(null)
+    setLimitadorMontadoNm(null)
+    setInjerto(null)
+    setMesaDeModelado(null)
+    setSeparadores(null)
+    setPellizcos(null)
+    setPinzasDeReduccion(null)
+    setRetracciones([])
+    setBroca(null)
+    setTornilloQueEntra(null)
+    setDiseccion(null)
+  }
+
+  /** Lo que el lienzo avisa al cambiar la escena (P-009, mejora de uso 10): se apila para «Deshacer». */
+  const ultimaPerforacionAhora = useRef<EntradaDeLaPila['perforacion']>(null)
+  const largoDelTrazoAhora = useRef(0)
+  const alCambiarLaEscena = (instantanea: InstantaneaDelLienzo) => {
+    const pila = pilaDeDeshacer.current
+    const cima = pila[pila.length - 1]
+    if (reemplazarLaCima.current && cima) {
+      // Lo que devolvió el lienzo nuevo ocupa el sitio de lo que se le pidió devolver, con lo que la consola sabía de ello.
+      reemplazarLaCima.current = false
+      pilaDeDeshacer.current = [...pila.slice(0, -1), { ...instantanea, perforacion: cima.perforacion, trazoMm: cima.trazoMm }]
+      return
+    }
+    pilaDeDeshacer.current = apilar(pila, {
+      ...instantanea,
+      perforacion: ultimaPerforacionAhora.current,
+      trazoMm: largoDelTrazoAhora.current,
+    })
+    setPuedeDeshacer(pilaDeDeshacer.current.length > 1)
+  }
 
   const alternarCapa = (rol: string) => {
     const siguientes = new Set(capasApagadas)
@@ -1302,38 +1595,19 @@ export function ConsolaQuirurgica({
     refrescar(paso, apagadas)
   }, [firmaDeLoVisible, modeloAbierto])
 
+  /**
+   * El gesto que corrige «Aplicar paso», el de la lista del paso (`gestoActual`, más abajo), leído de aquí y no cerrado
+   * sobre él: la función se lo pasaba a `evaluarGesto`, y el compilador de React, que da por mutable lo que una función
+   * recibe, no conservaba esa memoria ni la de la lista.
+   */
+  const gestoAhora = useRef<Gesto | null>(null)
+
   // ------------------------------------------------------------- aplicar
   function aplicarPaso() {
-    if (!paso) return
+    const gesto = gestoAhora.current
+    if (!paso || !gesto) return
 
-    const evaluacion = evaluarGesto(paso, {
-      instrumento,
-      instrumentoNombre: instrumentoElegido?.nombre ?? null,
-      trazo: largoDelTrazoMm,
-      desplazamiento: reduccion.desplazamiento,
-      diastasis: reduccion.diastasis,
-      angulacion: reduccion.angulacion,
-      fuerza,
-      perforacion:
-        ultimaPerforacion && ultimaPerforacion.paso === paso.id
-          ? {
-              diametroMm: ultimaPerforacion.hecha.diametroMm,
-              anguloConElEje: ultimaPerforacion.hecha.anguloConElEje,
-              bicortical: ultimaPerforacion.hecha.bicortical,
-              sePasoMm: ultimaPerforacion.hecha.sePasoMm,
-            }
-          : undefined,
-      fijacion: resumenDeLaFijacion(fijacion),
-      plano: {
-        nodo: musculoObjetivo?.nodo ?? null,
-        accion: musculoObjetivo?.accion ?? null,
-        // Se cortó con ese músculo elegido: hay una incisión muscular que no estaba al elegirlo.
-        cortado:
-          musculoObjetivo?.accion === 'cortar' &&
-          (herida?.incisiones ?? []).some((x) => x.capa === 'musculo' && !musculoObjetivo.yaCortadas.includes(x.id)),
-        retraidoMm: retracciones.find((r) => r.nodo === musculoObjetivo?.nodo)?.aperturaMm ?? 0,
-      },
-    })
+    const evaluacion = evaluarGesto(paso, gesto)
 
     const clase: Anotacion['clase'] =
       evaluacion.resultado === RESULTADOS.CORRECTO
@@ -1352,6 +1626,8 @@ export function ConsolaQuirurgica({
     }
 
     if (!evaluacion.avanza) {
+      // Repasando no se apunta nada: ver abajo.
+      if (repaso) return
       // La cuenta se lleva aquí, en el fallo, y no en el acierto: un paso se
       // acierta una sola vez y detrás se avanza, así que preguntar «¿ya estaba
       // resuelto?» antes de sumar era una guarda que no distinguía a nadie.
@@ -1404,7 +1680,10 @@ export function ConsolaQuirurgica({
       reduccionAutomatica: automaticas.has(paso.id),
     })
     let puntajeTrasElPaso = puntaje
-    if (!resueltos.has(paso.id)) {
+    const resueltosTrasElPaso = repaso || resueltos.has(paso.id) ? resueltos : new Set(resueltos).add(paso.id)
+    // Repasando con el caso terminado (P-009, mejora de uso 4) se corrige igual, pero no se puntúa ni se guarda nada: lo
+    // que vale es el recorrido que ya se hizo, y repasarlo no puede cambiarle la nota.
+    if (!repaso && !resueltos.has(paso.id)) {
       puntajeTrasElPaso = puntaje + puntos
       setPuntaje(puntajeTrasElPaso)
       setResueltos((previos) => new Set(previos).add(paso.id))
@@ -1415,13 +1694,14 @@ export function ConsolaQuirurgica({
     // `guardarRecorrido`, que descarta la que sería idéntica a la anterior.
     // El marcador final no necesita nada aparte: el último paso es un hito como
     // los demás y lo deja guardado.
-    guardarRecorrido(puntajeTrasElPaso, complicaciones, insumos)
+    if (!repaso) guardarRecorrido(puntajeTrasElPaso, complicaciones, insumos)
 
     const siguiente = indice + 1
     // La lectura sí: es otro campo y otra acción (`marcarCasoComoLeido`). Se
     // pregunta con la misma cuenta que pinta «Caso terminado» (`terminado`),
     // para que no haya un final que se enseñe y no se marque, ni al revés.
-    if (siguiente >= caso.pasos.length) marcarCasoComoLeido()
+    if (siguiente >= caso.pasos.length && !repaso) marcarCasoComoLeido()
+    if (siguiente >= caso.pasos.length) setRepaso(false)
     setIndice(siguiente)
     elegirInstrumento(null)
     // `borrarTrazo` avisa por su cuenta con la lista vacía, y ese aviso es el
@@ -1433,6 +1713,15 @@ export function ConsolaQuirurgica({
       setModo(MODO_DEL_OBJETIVO[objetivoDelPaso(pasoSiguiente)])
     }
     entrarEnPaso(siguiente, capasApagadas)
+    empezarElPaso(siguiente, {
+      puntaje: puntajeTrasElPaso,
+      resueltos: [...resueltosTrasElPaso],
+      fallados: [...fallados],
+      complicados: [...complicados],
+      automaticas: [...automaticas],
+      complicaciones,
+      insumos,
+    })
   }
 
   async function reiniciar() {
@@ -1507,7 +1796,30 @@ export function ConsolaQuirurgica({
     setDiseccion(null)
     colocarEnDesplazamientoInicial()
     entrarEnPaso(0, capasApagadas)
+    // Un recorrido nuevo (P-009): sin repaso ni avance que seguir, y el residente vuelve a elegir cómo jugarlo. El avance
+    // de la cuenta se borra ya: si cerrara ahora, al volver se le ofrecería seguir un recorrido que acaba de tirar.
+    setRepaso(false)
+    setTomasPorProyeccion({})
+    instantaneasDeLosPasos.current = new Map()
+    if (editor) empezarElPaso(0, CUENTA_VACIA)
+    else {
+      setModoDeJuego(null)
+      setAvanceParaSeguir(null)
+      marcarLaPestana(null)
+      mandarElAvance(null)
+    }
   }
+
+  /**
+   * La medida con el desplazamiento también en % del ancho del hueso en esa dirección (Q-010, D-258), que es como se
+   * escribe en la ficha: 12 mm son media tibia o un tercio de fémur. El ancho lo mide el lienzo junto al foco; un caso
+   * sin hueso enfrentado al fragmento se queda con los milímetros.
+   */
+  const conElPorcentaje = useCallback((medidas: Medidas, posicionMm: { x: number; y: number; z: number }): Medidas => {
+    if (!(medidas.desplazamiento > 0)) return { ...medidas, porcentaje: null }
+    const ancho = mando.current?.anchoDelHuesoJuntoAlFoco(posicionMm) ?? null
+    return { ...medidas, porcentaje: porcentajeDelDiametro(medidas.desplazamiento, ancho) }
+  }, [])
 
   /**
    * Vuelve a medir preguntándole al lienzo dónde está el fragmento.
@@ -1520,15 +1832,10 @@ export function ConsolaQuirurgica({
     const estado = mando.current?.estadoDelFragmento()
     if (!estado) return
     const aMm = (u: number) => u * escalaMm
-    setReduccion(
-      medirReduccion(
-        { x: aMm(estado.posicion.x), y: aMm(estado.posicion.y), z: aMm(estado.posicion.z) },
-        estado.giros,
-        caso.ejeLargo,
-      ),
-    )
+    const posicionMm = { x: aMm(estado.posicion.x), y: aMm(estado.posicion.y), z: aMm(estado.posicion.z) }
+    setReduccion(conElPorcentaje(medirReduccion(posicionMm, estado.giros, caso.ejeLargo), posicionMm))
     setGiros(estado.giros)
-  }, [escalaMm, caso.ejeLargo])
+  }, [escalaMm, caso.ejeLargo, conElPorcentaje])
 
   /**
    * La reducción automática (P-004 E7, pedido 6 de Cristóbal): lleva el fragmento de donde esté a su sitio, con una curva
@@ -1612,13 +1919,8 @@ export function ConsolaQuirurgica({
       const aMm = (u: number) => u * escalaMm
       mando.current?.colocarFragmento(delArchivo.posicion, delArchivo.giros)
       setGiros(delArchivo.giros)
-      setReduccion(
-        medirReduccion(
-          { x: aMm(delArchivo.posicion.x), y: aMm(delArchivo.posicion.y), z: aMm(delArchivo.posicion.z) },
-          delArchivo.giros,
-          caso.ejeLargo,
-        ),
-      )
+      const posicionMm = { x: aMm(delArchivo.posicion.x), y: aMm(delArchivo.posicion.y), z: aMm(delArchivo.posicion.z) }
+      setReduccion(conElPorcentaje(medirReduccion(posicionMm, delArchivo.giros, caso.ejeLargo), posicionMm))
       return
     }
     const aUnidades = (mm: number) => mm / escalaMm
@@ -1636,8 +1938,8 @@ export function ConsolaQuirurgica({
       return
     }
     setGiros({ x: d.giroX, y: d.giroY, z: d.giroZ })
-    setReduccion(medidaInicial(caso))
-  }, [caso, escalaMm])
+    setReduccion(conElPorcentaje(medidaInicial(caso), { x: d.x, y: d.y, z: d.z }))
+  }, [caso, escalaMm, conElPorcentaje])
 
   /**
    * Salta a un paso cualquiera, solo en el editor.
@@ -1655,6 +1957,7 @@ export function ConsolaQuirurgica({
     setResultado(null)
     mando.current?.borrarTrazo()
     entrarEnPaso(destino, capasApagadas)
+    empezarElPaso(destino, CUENTA_VACIA)
   }
 
   /** Coge un instrumento: aparece en la escena y sus articulaciones vuelven a como las dejó el taller. */
@@ -1663,6 +1966,10 @@ export function ConsolaQuirurgica({
     // siempre. El modo de un paso (trazar, mover) no se toca: lo pide el paso.
     const destino = instrumentoPorId(caso.instrumental, id)
     const que = destino ? comportamientoDelInstrumento(destino) : null
+    // Al soltarlo, el residente vuelve al modo del paso si no necesita nada en la mano (P-009): sin la barra de modos
+    // no tendría cómo volver a «Mover» o a «Trazar». El editor, a mirar, como siempre.
+    const modoSinInstrumento: Modo =
+      !editor && modoDelPaso && (MODOS.some((m) => m.valor === modoDelPaso) || modoDelPaso === 'info') ? modoDelPaso : 'orbitar'
     // Al coger un instrumento se pasa solo al modo que ese instrumento usa: el bisturí, las tijeras y el
     // electrobisturí, a «Trazar»; el separador, a «Separar»; la pinza de disección, a «Pinzar»… Era lo que
     // se pedía: que el residente no tenga que acordarse de cambiar de modo después de coger la herramienta.
@@ -1678,7 +1985,7 @@ export function ConsolaQuirurgica({
     else if (que?.modela) setModo('modelar')
     else if (que?.eleva) setModo('elevar')
     else if (que?.enclava) setModo('enclavar')
-    else if (modo === 'enclavar' || modo === 'elevar' || modo === 'modelar' || modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo('orbitar')
+    else if (modo === 'enclavar' || modo === 'elevar' || modo === 'modelar' || modo === 'separar' || modo === 'pinzar' || modo === 'perforar' || modo === 'coser' || modo === 'fijar' || modo === 'disecar' || modo === 'reducir') setModo(modoSinInstrumento)
     // Cada instrumento empieza con el diámetro de su modelo, y un tornillo queda como «el último» para elegir el siguiente (P-004 E9).
     setDiametroDeTornillo(null)
     setAnchoDeLaHoja(null)
@@ -1759,6 +2066,180 @@ export function ConsolaQuirurgica({
     document.addEventListener('keydown', alTeclear)
     return () => document.removeEventListener('keydown', alTeclear)
   }, [hayBroca])
+
+  /** «Deshacer» (P-009, mejora de uso 10): el paciente vuelve al estado anterior, la vista no se mueve. Solo en práctica. */
+  const deshacer = () => {
+    if (!enPractica) {
+      anotar('En evaluación no se deshace: como en pabellón, lo hecho queda hecho.', 'atencion')
+      return
+    }
+    const pila = pilaDeDeshacer.current
+    const anterior = pila[pila.length - 2]
+    if (!anterior) {
+      anotar('No hay nada que deshacer desde que empezó este paso.', 'atencion')
+      return
+    }
+    pilaDeDeshacer.current = pila.slice(0, -1)
+    setPuedeDeshacer(pilaDeDeshacer.current.length > 1)
+    setUltimaPerforacion(anterior.perforacion)
+    setLargoDelTrazoMm(anterior.trazoMm)
+    volverAlLienzo(anterior, true, 'Deshecho: el paciente está como antes del último cambio.')
+  }
+
+  /**
+   * Lleva al principio de un paso, con el paciente como estaba al empezarlo (P-009, mejora de uso 4): «Repetir este
+   * paso» con el de ahora y, terminado el caso, cualquiera de la franja de pasos para repasarlo.
+   */
+  const volverAlPrincipioDe = (destino: number) => {
+    const inicio = instantaneasDeLosPasos.current.get(destino)
+    const elPaso = caso.pasos[destino]
+    if (!elPaso) return
+    if (!inicio) {
+      anotar(
+        'Ese paso no se puede volver a abrir: se empezó antes de recargar la página, y lo que había al empezarlo no quedó en esta pestaña.',
+        'atencion',
+      )
+      return
+    }
+    if (destino !== indice) {
+      if (editor) editor.alCambiarIndice(destino)
+      else setIndiceInterno(destino)
+    }
+    setResultado(null)
+    elegirInstrumento(null)
+    setUltimaPerforacion(null)
+    setLargoDelTrazoMm(0)
+    setFuerza(fuerzaInicial(elPaso))
+    setModo(MODO_DEL_OBJETIVO[objetivoDelPaso(elPaso)])
+    pilaDeDeshacer.current = [{ ...inicio, perforacion: null, trazoMm: 0 }]
+    setPuedeDeshacer(false)
+    volverAlLienzo(inicio, false, 'El paciente está como al empezar este paso.')
+  }
+  const repetirElPaso = () => {
+    volverAlPrincipioDe(indice)
+    anotar(`${indice + 1}. El paso vuelve a empezar: el paciente está como al empezarlo.`, 'atencion')
+  }
+  const repasarElPaso = (destino: number) => {
+    if (!instantaneasDeLosPasos.current.has(destino)) {
+      volverAlPrincipioDe(destino)
+      return
+    }
+    setRepaso(true)
+    volverAlPrincipioDe(destino)
+    anotar(`Repaso del paso ${destino + 1}: el paciente está como al empezarlo, y lo que haga ya no puntúa.`, 'atencion')
+  }
+
+  /** Lo que la pestaña guarda de la escena: con algo, empezar de nuevo tiene que vaciarla. */
+  const hayAlgoEnLaPestana = () => {
+    try {
+      return !!sessionStorage.getItem(claveDeLaSesion) || !!sessionStorage.getItem(`${claveDeLaSesion}:colocado`)
+    } catch {
+      return false
+    }
+  }
+
+  /** Empieza el caso en el modo elegido (P-009, mejora de uso 5): desde el primer paso y con el paciente entero. */
+  const empezarElCaso = (elegido: ModoDeJuego) => {
+    setModoDeJuego(elegido)
+    setRepaso(false)
+    setIndiceInterno(0)
+    setPuntaje(0)
+    setResueltos(new Set())
+    setFallados(new Set())
+    setComplicados(new Set())
+    setAutomaticas(new Set())
+    usoLaReduccionAutomatica.current = false
+    setComplicaciones([])
+    setInsumos({})
+    setResultado(null)
+    const primero = caso.pasos[0]
+    if (primero) {
+      setFuerza(fuerzaInicial(primero))
+      setModo(MODO_DEL_OBJETIVO[objetivoDelPaso(primero)])
+    }
+    instantaneasDeLosPasos.current = new Map()
+    // Lo que la pestaña devolvió de un intento anterior se tira: empezar es empezar con el paciente entero. Se mira la
+    // pestaña y no la escena porque lo colocado se devuelve sin esperar, y a medio devolver la escena parecería vacía.
+    if (hayAlgoEnLaPestana()) {
+      empezarElPaso(0, CUENTA_VACIA, elegido, INSTANTANEA_VACIA)
+      volverAlLienzo(INSTANTANEA_VACIA, false)
+    } else {
+      entrarEnPaso(0, capasApagadas)
+      empezarElPaso(0, CUENTA_VACIA, elegido)
+    }
+  }
+
+  /** «Seguir donde lo dejó» (P-009, mejora de uso 12): el paso, el modo, la cuenta del puntaje y el paciente. */
+  const seguirDondeLoDejo = () => {
+    const avance = avanceParaSeguir
+    const pasoGuardado = avance ? caso.pasos[avance.paso] : undefined
+    if (!avance || !pasoGuardado) return
+    setModoDeJuego(avance.modo)
+    setRepaso(false)
+    setIndiceInterno(avance.paso)
+    setPuntaje(avance.puntaje)
+    setResueltos(new Set(avance.resueltos))
+    setFallados(new Set(avance.fallados))
+    setComplicados(new Set(avance.complicados))
+    setAutomaticas(new Set(avance.automaticas))
+    usoLaReduccionAutomatica.current = avance.automaticas.length > 0
+    setComplicaciones(avance.complicaciones)
+    setInsumos(avance.insumos)
+    setFuerza(fuerzaInicial(pasoGuardado))
+    setModo(MODO_DEL_OBJETIVO[objetivoDelPaso(pasoGuardado)])
+    instantaneasDeLosPasos.current = new Map([[avance.paso, avance.instantanea]])
+    let marca: string | null = null
+    try {
+      marca = sessionStorage.getItem(claveDelPaso)
+    } catch {
+      marca = null
+    }
+    const base: EntradaDeLaPila = { ...avance.instantanea, perforacion: null, trazoMm: 0 }
+    if (marca === avance.guardadoEn) {
+      // La escena de esta pestaña sigue a ese avance —se recargó la página—: se queda, con lo hecho a medias.
+      const ahora = mando.current?.instantanea() ?? INSTANTANEA_VACIA
+      pilaDeDeshacer.current = apilar([base], { ...ahora, perforacion: null, trazoMm: 0 })
+      setPuedeDeshacer(pilaDeDeshacer.current.length > 1)
+      entrarEnPaso(avance.paso, capasApagadas)
+    } else {
+      // Otro equipo u otra pestaña: el paciente vuelve a como estaba al empezar ese paso.
+      pilaDeDeshacer.current = [base]
+      setPuedeDeshacer(false)
+      marcarLaPestana(avance)
+      volverAlLienzo(avance.instantanea, false)
+    }
+    anotar(
+      `Sigue en el paso ${avance.paso + 1} de ${caso.pasos.length}, en ${NOMBRE_DEL_MODO_DE_JUEGO[avance.modo]}.`,
+      'bien',
+    )
+  }
+
+  /** El clic derecho limpio sobre el lienzo (P-009, mejora de uso 9): abre el menú donde está el cursor. */
+  const abrirElMenu = (x: number, y: number) => {
+    if (!modoDeJuego) return
+    const caja = raizDeLaConsola.current?.querySelector<HTMLElement>('.consola-lienzo-marco')?.getBoundingClientRect()
+    if (!caja) return
+    // El aro mide 200 px: abierto junto a un borde, media corona quedaba fuera del lienzo y no se podía pulsar.
+    const dentro = (valor: number, largo: number) => Math.min(Math.max(valor, 104), Math.max(104, largo - 104))
+    setMenuRadial({ x: dentro(x - caja.left, caja.width), y: dentro(y - caja.top, caja.height) })
+  }
+
+  /** «Mirar» y «Seleccionar estructura» sobre el lienzo (P-009, mejora de uso 6): otro clic vuelve a lo de antes. */
+  const alternarModoDeVista = (destino: 'orbitar' | 'info') => {
+    if (modo === destino) {
+      setModo(modoAntesDeMirar.current ?? modoDelPaso ?? 'orbitar')
+      modoAntesDeMirar.current = null
+      return
+    }
+    if (modo !== 'orbitar' && modo !== 'info') modoAntesDeMirar.current = modo
+    setModo(destino)
+  }
+
+  // Lo que la pila guarda con cada estado, de este pintado: el lienzo avisa fuera de él.
+  useEffect(() => {
+    ultimaPerforacionAhora.current = ultimaPerforacion
+    largoDelTrazoAhora.current = largoDelTrazoMm
+  })
 
   const girar = (eje: 'x' | 'y' | 'z', valor: number) => {
     const nuevos = { ...giros, [eje]: valor }
@@ -1887,6 +2368,17 @@ export function ConsolaQuirurgica({
   const idDelElegido = instrumentoElegido?.id
   const orificiosDelElegido = instrumentoElegido?.orificios ?? null
   const hayElegido = instrumentoElegido !== null
+  const categoriaDelElegido = instrumentoElegido?.categoria ?? null
+  /**
+   * En qué familia de la mesa está el instrumento de la mano (D-262), con sus tres datos sueltos y en una memoria, por lo
+   * mismo que el encuadre: `familiaDeLaMesa(instrumentoElegido)` en el pintado hacía que el compilador diera por mutable
+   * el instrumento entero y rechazara todas las memorias que salen de él.
+   */
+  const familiaDelElegido = useMemo(
+    () =>
+      hayElegido ? familiaDeLaMesa({ categoria: categoriaDelElegido, slug: slugDelElegido, nombre: nombreDelElegido }) : null,
+    [hayElegido, categoriaDelElegido, slugDelElegido, nombreDelElegido],
+  )
   const instrumentoEnEscena = useMemo<InstrumentoEnEscena | null>(
     () =>
       hayElegido
@@ -1925,6 +2417,10 @@ export function ConsolaQuirurgica({
    * Qué hace la rueda del ratón con el instrumento en la mano (D-171): abre las tijeras, abre el separador
    * colocado, levanta la piel con la pinza, sube o baja la potencia del electrobisturí, tira del hilo, alarga
    * el tornillo. `null`: el instrumento no se maneja con ella y la rueda acerca el modelo.
+   *
+   * Desde P-009 (mejora de uso 7) la «rueda» del instrumento es el arrastre con el botón derecho, de muesca en muesca
+   * (`LienzoQuirurgico`), y la rueda de verdad acerca siempre: con ella el instrumento, de cerca, abría la herida sin
+   * querer. El nombre se queda en el código, que habla de muescas y de un sentido, no del dedo que las da.
    *
    * La sutura solo la usa cuando ya hay puntadas: antes de la primera no hay nada que tensar, y quitarle el
    * zoom al residente por un hilo que aún no tira de nada sería robarle la rueda para nada. La pinza, igual:
@@ -2025,7 +2521,7 @@ export function ConsolaQuirurgica({
         const ahora = Date.now()
         if (ahora - avisoDelSeparador.current > 4000) {
           avisoDelSeparador.current = ahora
-          anotar('Primero haga clic en la herida para colocar el separador; después se abre con la rueda.', 'atencion')
+          anotar('Primero haga clic en la herida para colocar el separador; después se abre arrastrando con el botón derecho hacia arriba.', 'atencion')
         }
         return true
       }
@@ -2100,20 +2596,21 @@ export function ConsolaQuirurgica({
       const texto = paraComparar(`${i.nombre} ${i.descripcion ?? ''}`)
       return palabras.every((p) => texto.includes(p))
     })
+    // Por familia de la mesa: la categoría, con «Perforación y fijación» en sus tres (Q-011).
     const porCategoria = new Map<string, InstrumentoDeBandeja[]>()
     for (const i of visibles) {
-      const clave = i.categoria ?? 'otros'
+      const clave = familiaDeLaMesa(i)
       porCategoria.set(clave, [...(porCategoria.get(clave) ?? []), i])
     }
     // En el orden del catálogo (corte, suturas, exposición…), que es el de la
     // mesa de instrumentación, y no en el que se hayan ido encontrando.
-    const orden = CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string)
+    const orden = ordenDeLasFamilias(CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string))
     const posicion = (clave: string) => (orden.includes(clave) ? orden.indexOf(clave) : orden.length)
     return [...porCategoria.entries()]
       .sort(([a], [b]) => posicion(a) - posicion(b))
       .map(([clave, instrumentos]) => ({
         clave,
-        titulo: ETIQUETA_DE_CATEGORIA[clave] ?? 'Otros',
+        titulo: tituloDeLaFamilia(clave, ETIQUETA_DE_CATEGORIA),
         instrumentos,
       }))
   }, [caso.instrumental, busquedaDeInstrumento])
@@ -2121,14 +2618,14 @@ export function ConsolaQuirurgica({
   // Todas las familias de la mesa, con cuántos instrumentos tiene cada una y cuáles deja ver el buscador (P-008 E6). Los
   // cuadros no se mueven al escribir: la familia sin coincidencias se apaga, no desaparece, para que la mesa no baile.
   const familiasDeLaMesa = useMemo((): FamiliaDeLaMesa[] => {
-    const claveDe = (i: InstrumentoDeBandeja) => i.categoria ?? 'otros'
-    const orden = CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string)
+    const claveDe = (i: InstrumentoDeBandeja) => familiaDeLaMesa(i)
+    const orden = ordenDeLasFamilias(CATEGORIAS_DE_INSTRUMENTAL.map((c) => c.value as string))
     const posicion = (clave: string) => (orden.includes(clave) ? orden.indexOf(clave) : orden.length)
     return [...new Set(caso.instrumental.map(claveDe))]
       .sort((a, b) => posicion(a) - posicion(b))
       .map((clave) => ({
         clave,
-        titulo: ETIQUETA_DE_CATEGORIA[clave] ?? 'Otros',
+        titulo: tituloDeLaFamilia(clave, ETIQUETA_DE_CATEGORIA),
         total: caso.instrumental.filter((i) => claveDe(i) === clave).length,
         instrumentos: gruposDeLaBandeja.find((g) => g.clave === clave)?.instrumentos ?? [],
       }))
@@ -2146,7 +2643,7 @@ export function ConsolaQuirurgica({
   // Con la mesa completa (P-004 E3) la bandeja son decenas de instrumentos y bajar todos sus modelos de entrada sería
   // lo que ya se evitó: se precargan los del caso y los de la familia que está abierta; los demás, al cogerlos.
   const direccionesDeLaBandeja = caso.instrumental
-    .filter((i) => !i.porOmision || i.categoria === categoriaAbierta)
+    .filter((i) => !i.porOmision || familiaDeLaMesa(i) === categoriaAbierta)
     .map((i) => i.modeloUrl ?? '')
     .join('|')
   useEffect(() => {
@@ -2224,6 +2721,14 @@ export function ConsolaQuirurgica({
     const lado = ladoDeLaImagen(lienzo.getBoundingClientRect().width, window.devicePixelRatio)
     const hecha = mando.current?.dispararFluoroscopia(lienzo, fluoroscopia, zoomDeFluoroscopia, desplazamientoDeFluoroscopia, lado, ajustesDeLaImagen)
     if (!hecha) return
+    // La toma se guarda por proyección (P-009, mejora de uso 11): el monitor enseña la última de la otra al lado, como
+    // los dos monitores del arco en pabellón, y comparar AP con lateral ya no obliga a dos disparos seguidos.
+    try {
+      const imagen = lienzo.toDataURL('image/png')
+      setTomasPorProyeccion((antes) => ({ ...antes, [fluoroscopia]: imagen }))
+    } catch {
+      // Un lienzo que no se deja leer se queda sin copia: la toma de ahora se ve igual.
+    }
     const hora = Date.now()
     setAhoraDeLaEscopia(hora)
     setUltimaToma({ hora, proyeccion: fluoroscopia, zoom: zoomDeFluoroscopia, desplazamiento: desplazamientoDeFluoroscopia })
@@ -2302,6 +2807,69 @@ export function ConsolaQuirurgica({
     if (fluoroscopiaEncendida) apagarFluoroscopia()
     else setMenuDeFluoroscopia((abierto) => !abierto)
   }
+
+  /**
+   * La F, desde cualquier sitio (P-009, mejora de uso 11): el pedal del arco. Apagado, lo enciende en AP y dispara en
+   * cuanto el monitor está montado; en vídeo no hay toma que hacer, la imagen ya es en vivo.
+   */
+  const dispararAlEncender = useRef(false)
+  const dispararAhora = useRef<() => void>(() => {})
+  useEffect(() => {
+    dispararAhora.current = dispararLaFluoroscopia
+  })
+  useEffect(() => {
+    if (fluoroscopia === null || !dispararAlEncender.current) return
+    dispararAlEncender.current = false
+    // Un cuadro después: el monitor acaba de montarse y su lienzo todavía no tiene tamaño.
+    const cuadro = requestAnimationFrame(() => dispararAhora.current())
+    return () => cancelAnimationFrame(cuadro)
+  }, [fluoroscopia])
+  const dispararDesdeElTeclado = () => {
+    if (fluoroscopia === null) {
+      dispararAlEncender.current = modoDeEscopia === 'disparo'
+      elegirProyeccion('ap')
+      return
+    }
+    if (modoDeEscopia === 'disparo') dispararLaFluoroscopia()
+  }
+
+  // Los atajos (P-009, mejoras de uso 9 a 11): 1 a 5 y Q cogen instrumentos, Ctrl+Z deshace, F dispara el arco y Esc
+  // cierra el menú. No mientras se escribe, ni antes de elegir cómo jugar. Se leen por una ref, para que cada tecla vea
+  // lo de este pintado sin volver a poner el oyente en cada uno.
+  const alAtajo = useRef<(e: KeyboardEvent) => void>(() => {})
+  useEffect(() => {
+    alAtajo.current = (e: KeyboardEvent) => {
+      const destino = e.target instanceof HTMLElement ? e.target : null
+      const etiqueta = destino?.tagName
+      if (etiqueta === 'INPUT' || etiqueta === 'TEXTAREA' || etiqueta === 'SELECT' || destino?.isContentEditable) return
+      if (!modoDeJuego || (terminado && !repaso)) return
+      if (e.key === 'Escape' && menuRadial) {
+        setMenuRadial(null)
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        deshacer()
+        return
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault()
+        dispararDesdeElTeclado()
+        return
+      }
+      const id = instrumentoDeLaTecla(e.key, recientes, instrumento)
+      if (!id) return
+      e.preventDefault()
+      elegirInstrumento(id)
+      setMenuRadial(null)
+    }
+  })
+  useEffect(() => {
+    const oyente = (e: KeyboardEvent) => alAtajo.current(e)
+    document.addEventListener('keydown', oyente)
+    return () => document.removeEventListener('keydown', oyente)
+  }, [])
 
   /**
    * Una cifra del panel de medidas contra el tope que la evalúa.
@@ -2399,7 +2967,7 @@ export function ConsolaQuirurgica({
     )
     if (!siguiente) return
     setSiguienteEnLaBandeja(siguiente.id)
-    setCategoriaAbierta(siguiente.categoria ?? null)
+    setCategoriaAbierta(familiaDeLaMesa(siguiente))
     if (siguienteAutomatico) elegirInstrumento(siguiente.id)
   }
 
@@ -2534,7 +3102,8 @@ export function ConsolaQuirurgica({
     MODO_INFO,
   ]
   const ayudaDelModo = modosVisibles.find((m) => m.valor === modo)?.ayuda ?? ''
-  const etiquetaDelModoDelPaso = MODOS.find((m) => m.valor === modoDelPaso)?.etiqueta ?? null
+  // Entre todos los modos y no solo los tres de siempre: un paso de perforar decía su modo solo con la broca en la mano.
+  const etiquetaDelModoDelPaso = TODOS_LOS_MODOS.find((m) => m.valor === modoDelPaso)?.etiqueta ?? null
   const topesDelDeslizador = paso ? rangoDelDeslizadorDeFuerza(paso) : { min: 0, max: 120 }
   const rangoUtil = paso ? rangoDeFuerzaEnTexto(paso) : null
 
@@ -2560,7 +3129,75 @@ export function ConsolaQuirurgica({
               ? ', y uno de ellos terminó en complicación, que no puntúa'
               : `, y ${pasosConComplicacion} de ellos terminaron en complicación, que no puntúan`
             : ''
-        }; las correcciones están en la retroalimentación clínica, debajo.`
+        }; las correcciones están en «Lo que va pasando», debajo.`
+
+  /**
+   * El gesto de ahora, el mismo que corrige «Aplicar paso» (P-009): de él sale también la lista del paso, y las dos
+   * cosas no pueden decir distinto. Antes se armaba dentro de `aplicarPaso`, al pulsar.
+   *
+   * En una memoria y antes del retorno temprano, por lo mismo que el encuadre del instrumento: armado en el pintado y
+   * pasado a `listaDelPaso`, el compilador de React daba por mutable el nombre del instrumento que lleva dentro, y con él
+   * todo lo que sale de `instrumentoElegido`; rechazaba las memorias de más arriba y dejaba sin optimizar la consola.
+   */
+  const gestoActual = useMemo<Gesto>(
+    () => ({
+      instrumento,
+      instrumentoNombre: nombreDelElegido || null,
+      trazo: largoDelTrazoMm,
+      desplazamiento: reduccion.desplazamiento,
+      diastasis: reduccion.diastasis,
+      angulacion: reduccion.angulacion,
+      fuerza,
+      perforacion:
+        paso && ultimaPerforacion && ultimaPerforacion.paso === paso.id
+          ? {
+              diametroMm: ultimaPerforacion.hecha.diametroMm,
+              anguloConElEje: ultimaPerforacion.hecha.anguloConElEje,
+              bicortical: ultimaPerforacion.hecha.bicortical,
+              sePasoMm: ultimaPerforacion.hecha.sePasoMm,
+            }
+          : undefined,
+      fijacion: resumenDeLaFijacion(fijacion),
+      plano: {
+        nodo: musculoObjetivo?.nodo ?? null,
+        accion: musculoObjetivo?.accion ?? null,
+        // Se cortó con ese músculo elegido: hay una incisión muscular que no estaba al elegirlo.
+        cortado:
+          musculoObjetivo?.accion === 'cortar' &&
+          (herida?.incisiones ?? []).some((x) => x.capa === 'musculo' && !musculoObjetivo.yaCortadas.includes(x.id)),
+        retraidoMm: retracciones.find((r) => r.nodo === musculoObjetivo?.nodo)?.aperturaMm ?? 0,
+      },
+    }),
+    [
+      instrumento,
+      nombreDelElegido,
+      largoDelTrazoMm,
+      reduccion.desplazamiento,
+      reduccion.diastasis,
+      reduccion.angulacion,
+      fuerza,
+      paso,
+      ultimaPerforacion,
+      fijacion,
+      musculoObjetivo,
+      herida,
+      retracciones,
+    ],
+  )
+  /** Lo que pide el paso, marcándose solo mientras se hace (P-009, mejora de uso 3). */
+  const listaDelPasoActual = useMemo(
+    () =>
+      paso
+        ? listaDelPaso(paso, gestoActual, {
+            revelarElInstrumento: enPractica,
+            nombreDelInstrumento: instrumentoPorId(caso.instrumental, paso.instrumento ?? null)?.nombre ?? null,
+          })
+        : [],
+    [paso, gestoActual, enPractica, caso.instrumental],
+  )
+  useEffect(() => {
+    gestoAhora.current = gestoActual
+  })
 
   // ------------------------------------------------------------- pintado
   // Los dos casos que no se pueden recorrer. Llevaban `admin-aviso
@@ -2659,9 +3296,15 @@ export function ConsolaQuirurgica({
       valor: `${reduccion.desplazamiento} mm`,
       // De qué eje viene: sin esto, lo que queda fuera del plano que se está
       // mirando parece un número que no baja al arrastrar.
+      // Delante, cuánto es del ancho del hueso (Q-010): así se dice en la ficha.
       desglose:
         reduccion.desplazamiento > 0
-          ? reduccion.lateral.map(({ eje, mm }) => `${eje.toUpperCase()} ${mm}`).join(' · ')
+          ? [
+              typeof reduccion.porcentaje === 'number' ? `${reduccion.porcentaje} % del diámetro` : null,
+              reduccion.lateral.map(({ eje, mm }) => `${eje.toUpperCase()} ${mm}`).join(' · '),
+            ]
+              .filter(Boolean)
+              .join(' · ')
           : undefined,
       lectura:
         objetivo === 'reduccion' && topes
@@ -2682,11 +3325,24 @@ export function ConsolaQuirurgica({
     },
     { nombre: 'Incisión', valor: `${largoDelTrazoMm} mm`, lectura: lineaDelTrazo() },
   ]
+  // Solo las que mide el paso (P-009, mejora de uso 3): en uno de trazo, desplazamiento, angulación y diástasis eran tres
+  // cifras quietas entre las que el residente buscaba la suya. El editor las ve todas: está escribiendo los rangos.
+  const medidasDelPaso = objetivo ? MEDIDAS_DEL_OBJETIVO[objetivo] : []
+  const medidasVisibles = editor || todasLasMedidas ? medidas : medidas.filter((m) => medidasDelPaso.includes(m.nombre))
+  const medidasOcultas = medidas.length - medidasVisibles.length
+
+  // Los del menú radial, los que se pueden coger todavía (P-009, mejora de uso 9).
+  const menuDeInstrumentos = instrumentosDelMenu(recientes).filter((id) => instrumentoPorId(caso.instrumental, id))
+  // La otra proyección del monitor del arco: la lateral junto a la AP, y la AP junto a cualquiera de las otras dos.
+  const otraProyeccion: ProyeccionDeFluoroscopia | null = fluoroscopia === null ? null : fluoroscopia === 'ap' ? 'lateral' : 'ap'
+  const tomaDeLaOtra = otraProyeccion ? tomasPorProyeccion[otraProyeccion] : undefined
+  const puedeEmpezar = modeloAbierto || !caso.modeloUrl || modeloFallido
+  const modosParaEmpezar: ModoDeJuego[] = modoFijado ? [modoFijado] : ['practica', 'evaluacion']
 
   const ICONO_DEL_TONO: Record<Anotacion['clase'], LucideIcon> = {
     bien: CheckCircle2,
     atencion: AlertTriangle,
-    grave: OctagonAlert,
+    grave: XCircle,
   }
   const lineaDeRegistro = (linea: Anotacion, clave: string | number) => {
     const Icono = ICONO_DEL_TONO[linea.clase]
@@ -2811,7 +3467,7 @@ export function ConsolaQuirurgica({
       busqueda={busquedaDeInstrumento}
       alBuscar={setBusquedaDeInstrumento}
       enLaMano={instrumentoElegido}
-      familiaEnLaMano={instrumentoElegido?.categoria ?? null}
+      familiaEnLaMano={familiaDelElegido}
       siguiente={siguienteDeLaMesa}
       recientes={recientesDeLaMesa}
       alCoger={cogerDeLaMesa}
@@ -3358,21 +4014,25 @@ instrumentoElegido ? (
 
               {ruedaDelInstrumento ? (
                 <p className="consola-instrumento-texto consola-instrumento-rueda">
-                  <strong>Rueda del ratón sobre el modelo:</strong>{' '}
+                  <strong>Arrastrando con el botón derecho sobre el modelo:</strong>{' '}
                   {ruedaDelInstrumento === 'tira'
-                    ? 'hacia delante tira del hilo; hacia atrás lo afloja.'
+                    ? 'hacia arriba tira del hilo; hacia abajo lo afloja.'
                     : ruedaDelInstrumento === 'alarga'
                       ? tornilloQueEntra
-                        ? 'hacia delante mete el tornillo; hacia atrás lo saca (Mayúsculas afina).'
-                        : 'hacia delante alarga el tornillo; hacia atrás lo acorta.'
+                        ? 'hacia arriba mete el tornillo; hacia abajo lo saca (Mayúsculas afina).'
+                        : 'hacia arriba alarga el tornillo; hacia abajo lo acorta.'
                       : ruedaDelInstrumento === 'separa'
-                        ? 'hacia delante abre el separador colocado y la herida; hacia atrás los cierra.'
+                        ? 'hacia arriba abre el separador colocado y la herida; hacia abajo los cierra.'
                         : ruedaDelInstrumento === 'pinza'
-                          ? 'hacia delante separa las dos pinzas, tirando de los bordes de la piel; hacia atrás las junta. Con Mayúsculas, hacia delante abre las mandíbulas y hacia atrás las cierra.'
+                          ? 'hacia arriba separa las dos pinzas, tirando de los bordes de la piel; hacia abajo las junta. Con Mayúsculas, hacia arriba abre las mandíbulas y hacia abajo las cierra.'
                           : ruedaDelInstrumento === 'potencia'
-                            ? 'hacia delante sube la potencia del electrobisturí (de 5 en 5 W); hacia atrás la baja.'
-                            : 'hacia delante abre el instrumento; hacia atrás lo cierra.'}{' '}
-                  Para acercar el modelo, Ctrl + rueda.
+                            ? 'hacia arriba sube la potencia del electrobisturí (de 5 en 5 W); hacia abajo la baja.'
+                            : ruedaDelInstrumento === 'perfora'
+                              ? 'hacia arriba mete la broca puesta; hacia abajo la saca (Mayúsculas afina).'
+                              : ruedaDelInstrumento === 'dobla' || ruedaDelInstrumento === 'tuerce'
+                                ? `hacia arriba ${ruedaDelInstrumento === 'dobla' ? 'dobla' : 'tuerce'} la placa en el sitio marcado; hacia abajo, al otro lado (Mayúsculas afina).`
+                                : 'hacia arriba abre el instrumento; hacia abajo lo cierra.'}{' '}
+                  La rueda acerca el modelo.
                 </p>
               ) : null}
 
@@ -3407,9 +4067,9 @@ instrumentoElegido ? (
                 <p className="consola-instrumento-texto" role="status">
                   {diseccion?.apoyada
                     ? diseccion.aperturas > 0
-                      ? `Punta apoyada en ${diseccion.capa === 'piel' ? 'la piel' : 'el músculo'} · ${diseccion.aperturas} ${diseccion.aperturas === 1 ? 'apertura' : 'aperturas'}. Abra las ramas con la rueda; para avanzar, haga clic más allá.`
-                      : `Punta apoyada en ${diseccion.capa === 'piel' ? 'la piel' : 'el músculo'}. Abra las ramas con la rueda del ratón: el plano se separa por tensión.`
-                    : 'Haga clic en el tejido para apoyar la punta cerrada; después se abren las ramas con la rueda del ratón y el plano se separa por tensión, sin cortar. Para avanzar, otro clic más allá.'}
+                      ? `Punta apoyada en ${diseccion.capa === 'piel' ? 'la piel' : 'el músculo'} · ${diseccion.aperturas} ${diseccion.aperturas === 1 ? 'apertura' : 'aperturas'}. Abra las ramas arrastrando con el botón derecho hacia arriba; para avanzar, haga clic más allá.`
+                      : `Punta apoyada en ${diseccion.capa === 'piel' ? 'la piel' : 'el músculo'}. Abra las ramas arrastrando con el botón derecho hacia arriba: el plano se separa por tensión.`
+                    : 'Haga clic en el tejido para apoyar la punta cerrada; después se abren las ramas arrastrando con el botón derecho hacia arriba y el plano se separa por tensión, sin cortar. Para avanzar, otro clic más allá.'}
                 </p>
               ) : queHace.corta ? (
                 <p className="consola-instrumento-texto">
@@ -3650,7 +4310,7 @@ instrumentoElegido ? (
                     </div>
                   ) : null}
                   {!queHace.separa.apoyoEnHueso && !queHace.separa.autoestatico ? (
-                    <label className="consola-interruptor" title="Un clic pone los dos separadores, uno por borde, a la misma altura. La rueda abre los dos por igual; la barra del panel, solo el elegido.">
+                    <label className="consola-interruptor" title="Un clic pone los dos separadores, uno por borde, a la misma altura. Arrastrar con el botón derecho abre los dos por igual; la barra del panel, solo el elegido.">
                       <span>En pareja</span>
                       <input type="checkbox" role="switch" checked={separadoresEnPareja} onChange={(e) => setSeparadoresEnPareja(e.target.checked)} />
                       <span className="consola-interruptor-pista" aria-hidden />
@@ -3669,7 +4329,7 @@ instrumentoElegido ? (
                         : separadoresEnPareja
                           ? 'De mano, en pareja: un clic junto a la herida pone los dos, uno por borde. Un clic en uno puesto lo levanta; otro clic lo deja donde se apunte (Esc lo devuelve).'
                           : 'De mano: haga clic junto al borde de la herida que quiere sostener; abre ese borde y el otro lo sostiene el ayudante (otra hoja). Un clic en uno puesto lo levanta; otro clic lo deja.'}{' '}
-                    Después se abre con la rueda del ratón o con la barra de abajo, hasta {queHace.separa.maximoMm} mm.{' '}
+                    Después se abre arrastrando con el botón derecho hacia arriba o con la barra de abajo, hasta {queHace.separa.maximoMm} mm.{' '}
                     {herida && herida.capas.length > 0 ? '' : 'Aún no hay herida: corte antes con un bisturí.'}
                   </p>
                   {separadores && separadores.lista.length > 0 ? (
@@ -3786,7 +4446,7 @@ instrumentoElegido ? (
                         ))}
                       </ul>
                       <p className="consola-instrumento-texto">
-                        La rueda abre o cierra el músculo marcado; Mayúsculas + rueda corre la zona retraída a lo largo del músculo. Otro clic en otro músculo lo separa también.
+                        Arrastrar con el botón derecho abre o cierra el músculo marcado; con Mayúsculas, corre la zona retraída a lo largo del músculo. Otro clic en otro músculo lo separa también.
                       </p>
                     </>
                   ) : null}
@@ -3834,8 +4494,8 @@ instrumentoElegido ? (
                     <>
                       <p className="consola-instrumento-texto" role="status">
                         Broca Ø {String(broca.diametroMm).replace('.', ',')} mm puesta{broca.agujero ? ` en el agujero ${broca.agujero}` : ''}:{' '}
-                        {textoDeLaBroca(broca.lectura, { encendida: broca.encendida, ayudaDeAprendizaje: ayudas.objetivo })}. Se mete y se saca con la
-                        rueda (Mayúsculas afina) y se queda ahí mientras pide el disparo.
+                        {textoDeLaBroca(broca.lectura, { encendida: broca.encendida, ayudaDeAprendizaje: ayudas.objetivo })}. Se mete y se saca
+                        arrastrando con el botón derecho (Mayúsculas afina) y se queda ahí mientras pide el disparo.
                       </p>
                       <div className="consola-instrumento-acciones">
                         <button type="button" className="consola-boton" onClick={() => mando.current?.apagarLaBroca()}>
@@ -3871,9 +4531,9 @@ instrumentoElegido ? (
                 <div className="consola-instrumento-articulaciones">
                   <p className="consola-instrumento-texto">
                     {queHace.coloca?.tipo === 'placa'
-                      ? 'Pase al modo «Fijar» y pique sobre el hueso: la placa se apoya con su largo siguiendo el hueso. Después arrástrela a donde vaya —también a la otra cara del hueso— y, mientras la arrastra, gírela con la rueda; o llévela con las cifras y los botones. Cuando esté, pulse «Fijar la placa». Con una puesta, la que se lleva en la mano ya no sale.'
+                      ? 'Pique sobre el hueso: la placa se apoya con su largo siguiendo el hueso. Después arrástrela a donde vaya —también a la otra cara del hueso— y, con Mayúsculas, el arrastre la gira; o llévela con las cifras y los botones. Cuando esté, pulse «Fijar la placa». Con una puesta, la que se lleva en la mano ya no sale.'
                       : queHace.coloca?.tipo === 'tornillo'
-                        ? 'Con la placa fijada: perfore el agujero con la broca, mídalo con el medidor y entonces pique en él. El tornillo queda en la entrada y entra con la rueda, perpendicular a la placa.'
+                        ? 'Con la placa fijada: perfore el agujero con la broca, mídalo con el medidor y entonces pique en él. El tornillo queda en la entrada y entra arrastrando con el botón derecho hacia arriba, perpendicular a la placa.'
                         : 'Con la placa fijada y el agujero perforado, apoye el medidor en él: dice cuánto hueso hay debajo y qué tornillo pedir.'}
                   </p>
                   {queHace.coloca?.tipo === 'placa' ? bloqueDeLaPlacaParaLaMesa : null}
@@ -3888,7 +4548,7 @@ instrumentoElegido ? (
                   {queHace.coloca?.tipo === 'tornillo' && tornilloQueEntra ? (
                     <>
                       <p className="consola-instrumento-texto" role="status">
-                        {textoDelTornilloQueEntra(tornilloQueEntra)}. Se mete y se saca con la rueda (Mayúsculas afina) y se queda ahí
+                        {textoDelTornilloQueEntra(tornilloQueEntra)}. Se mete y se saca arrastrando con el botón derecho (Mayúsculas afina) y se queda ahí
                         mientras pide el disparo.
                       </p>
                       <div className="consola-instrumento-acciones">
@@ -3922,7 +4582,7 @@ instrumentoElegido ? (
                       <output>broca Ø {String(calibreDeBrocaParaElTornillo(diametroDeTornillo ?? queHace.coloca.diametroMm)).replace('.', ',')}</output>
                     </label>
                   ) : null}
-                  {/* El largo se escribe (P-004 E6, pedido 5): el medidor deja escrito el sugerido y la rueda lo corre de a 2 mm. */}
+                  {/* El largo se escribe (P-004 E6, pedido 5): el medidor deja escrito el sugerido y el arrastre con el botón derecho lo corre de a 2 mm. */}
                   {queHace.coloca?.tipo === 'tornillo' ? (
                     <CampoNumerico
                       etiqueta="Largo del tornillo"
@@ -4080,7 +4740,7 @@ instrumentoElegido ? (
                 <div className="consola-instrumento-articulaciones">
                   {hayFascia ? (
                     <p className="consola-instrumento-texto">
-                      Cose por planos: pase al modo «Coser» y pique con un clic sobre el plano que le toca a este hilo
+                      Cose por planos: pique con un clic sobre el plano que le toca a este hilo
                       ({queHace.sutura.nombre}
                       {queHace.sutura.planos && queHace.sutura.planos.length > 0
                         ? `: ${queHace.sutura.planos.map((p) => NOMBRE_DEL_PLANO[p].toLowerCase()).join(' o ')}`
@@ -4092,10 +4752,10 @@ instrumentoElegido ? (
                     </p>
                   ) : (
                     <p className="consola-instrumento-texto">
-                      Cose: pase al modo «Coser» y pique con un clic sobre la piel. Cada clic suma una puntada y el
+                      Cose: pique con un clic sobre la piel. Cada clic suma una puntada y el
                       hilo queda dibujado entre una y otra, de {queHace.sutura.nombre}. Una puntada que cae al otro
-                      lado de la herida es la que la cierra, pero el hilo está flojo hasta que se tira de él: con la
-                      rueda del ratón (o el deslizador) se aprieta y los bordes se acercan. Lo habitual en piel es de 5 a
+                      lado de la herida es la que la cierra, pero el hilo está flojo hasta que se tira de él: arrastrando
+                      con el botón derecho hacia arriba (o con el deslizador) se aprieta y los bordes se acercan. Lo habitual en piel es de 5 a
                       10 mm entre puntadas, y apretar de más estrangula el borde.
                     </p>
                   )}
@@ -4382,6 +5042,16 @@ instrumentoElegido ? (
                 <button type="button" className="consola-paso-boton" onClick={() => irAlPaso(i)}>
                   {contenido}
                 </button>
+              ) : terminado || repaso ? (
+                // Terminado el caso, cada paso se vuelve a abrir para repasarlo (P-009, mejora de uso 4).
+                <button
+                  type="button"
+                  className="consola-paso-boton"
+                  title="Volver a este paso para mirarlo o rehacerlo, sin puntuar"
+                  onClick={() => repasarElPaso(i)}
+                >
+                  {contenido}
+                </button>
               ) : (
                 contenido
               )}
@@ -4534,33 +5204,38 @@ instrumentoElegido ? (
             pantalla). La ayuda del modo va debajo, en una línea. */}
         <div className="consola-barra-de-modos">
           <div className="consola-barra-de-modos-fila">
-            <div className="consola-barra-de-modos-botones" role="group" aria-label="Modo">
-              {modosVisibles.map((m) => {
-                const Icono = m.icono
-                const pedido = modoDelPaso === m.valor
-                return (
-                  <button
-                    key={m.valor}
-                    type="button"
-                    className={`consola-modo-barra${modo === m.valor ? ' activo' : ''}${pedido ? ' pedido' : ''}`}
-                    aria-pressed={modo === m.valor}
-                    title={m.ayuda}
-                    onClick={() => {
-                      setModo(m.valor)
-                      // Las dos maneras de usar la Metzenbaum se recuerdan: al volver a cogerla se abre como se dejó.
-                      if (m.valor === 'disecar') setUsoDeLaTijera('roma')
-                      else if (m.valor === 'trazar') setUsoDeLaTijera('cortar')
-                    }}
-                  >
-                    <Icono size={16} aria-hidden />
-                    <span className="consola-modo-barra-texto">{m.etiqueta}</span>
-                    {/* El modo que pide el paso se marca con la palabra «paso» y no se impone: cambiar de modo a mano
-                        es posible (`MODO_DEL_OBJETIVO`). */}
-                    {pedido ? <span className="consola-modo-pedido">paso</span> : null}
-                  </button>
-                )
-              })}
-            </div>
+            {/* Los botones de modo, solo para quien edita (P-009, mejora de uso 6): al residente el modo se lo pone el
+                instrumento que coge, y «Mirar» y «Seleccionar estructura» están sobre el lienzo. La barra sigue, con el
+                trazo, lo que se mueve y la ayuda. */}
+            {editor ? (
+              <div className="consola-barra-de-modos-botones" role="group" aria-label="Modo">
+                {modosVisibles.map((m) => {
+                  const Icono = m.icono
+                  const pedido = modoDelPaso === m.valor
+                  return (
+                    <button
+                      key={m.valor}
+                      type="button"
+                      className={`consola-modo-barra${modo === m.valor ? ' activo' : ''}${pedido ? ' pedido' : ''}`}
+                      aria-pressed={modo === m.valor}
+                      title={m.ayuda}
+                      onClick={() => {
+                        setModo(m.valor)
+                        // Las dos maneras de usar la Metzenbaum se recuerdan: al volver a cogerla se abre como se dejó.
+                        if (m.valor === 'disecar') setUsoDeLaTijera('roma')
+                        else if (m.valor === 'trazar') setUsoDeLaTijera('cortar')
+                      }}
+                    >
+                      <Icono size={16} aria-hidden />
+                      <span className="consola-modo-barra-texto">{m.etiqueta}</span>
+                      {/* El modo que pide el paso se marca con la palabra «paso» y no se impone: cambiar de modo a mano
+                          es posible (`MODO_DEL_OBJETIVO`). */}
+                      {pedido ? <span className="consola-modo-pedido">paso</span> : null}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
             {/* Las dos formas de trazar la incisión: la recta entre dos clics (inicio y final) y la mano alzada. La
                 recta es la de una incisión de abordaje; a mano sale temblorosa. */}
             {modo === 'trazar' ? (
@@ -4631,7 +5306,13 @@ instrumentoElegido ? (
               seleccion={movimientoPorEje}
               alElegir={setMovimientoPorEje}
               alMover={(accion, eje, valor) => mando.current?.moverPorEje(accion, eje, valor) ?? null}
-              sinObjeto={piezaElegida ? undefined : 'Pinche un trozo de hueso —con la pinza de reducción o en «Mover → Un trozo»— y elija cómo moverlo.'}
+              sinObjeto={
+                piezaElegida
+                  ? undefined
+                  : editor
+                    ? 'Pinche un trozo de hueso —con la pinza de reducción o en «Mover → Un trozo»— y elija cómo moverlo.'
+                    : 'Pinche un trozo de hueso —con la pinza de reducción, o sin nada en la mano en un paso de reducir— y elija cómo moverlo.'
+              }
               nombreDelObjeto={piezaElegida ? piezaElegida.replace(/_/g, ' ') : null}
               asasLibres={asasLibres}
               alCambiarLasAsas={setAsasLibres}
@@ -4647,7 +5328,9 @@ instrumentoElegido ? (
           ) : null}
           <p className="consola-ayuda consola-barra-de-modos-ayuda">
             {ayudaDelModo}
-            {etiquetaDelModoDelPaso ? (
+            {/* Solo en el editor (P-009, mejora de uso 6): el residente no tiene barra de modos, y el modo lo pone el
+                instrumento que coge. Qué instrumento pide el paso lo dice la lista del paso, en práctica. */}
+            {editor && etiquetaDelModoDelPaso ? (
               <span className="consola-ayuda-pedido">
                 {' '}
                 Este paso se hace en modo {etiquetaDelModoDelPaso}.
@@ -4676,16 +5359,104 @@ instrumentoElegido ? (
               className="asa-panel"
             />
           ) : null}
-          {/* Lo que acaba de pasar (un aviso, un acierto, una complicación) sale **a la derecha del recuadro de la herramienta**, sobre el
-              lienzo, donde se está mirando, y no abajo en la columna de la derecha, que en un portátil queda bajo el pliegue. Se cierra con su
-              ✕ y se reemplaza con el aviso siguiente; el registro completo sigue en el pie. */}
-          {resultado ? (
-            <div className="consola-aviso-flotante" role="status" aria-live="polite">
-              <ul className="consola-registro consola-registro-ultimo">{lineaDeRegistro(resultado, 'ultimo')}</ul>
-              <button type="button" className="consola-aviso-cerrar" aria-label="Cerrar el aviso" onClick={() => setResultado(null)}>
-                <X size={14} aria-hidden />
-              </button>
+          {/* Antes de empezar, cómo (P-009, mejoras de uso 5 y 12): práctica o evaluación, o seguir donde se dejó. Encima del
+              lienzo y no en una página aparte: el modelo se va abriendo detrás mientras se lee, y se elige con él a la vista. */}
+          {!editor && !modoDeJuego ? (
+            <div className="consola-eleccion" role="dialog" aria-labelledby="consola-eleccion-titulo">
+              <div className="consola-eleccion-tarjeta">
+                <p className="consola-rotulo">Antes de empezar</p>
+                <h3 id="consola-eleccion-titulo" className="consola-eleccion-titulo">
+                  ¿Cómo quiere hacer este caso?
+                </h3>
+                {avanceParaSeguir ? (
+                  <div className="consola-eleccion-seguir">
+                    <p>
+                      Lo dejó en el paso {avanceParaSeguir.paso + 1} de {caso.pasos.length}, en{' '}
+                      {NOMBRE_DEL_MODO_DE_JUEGO[avanceParaSeguir.modo]}, con {avanceParaSeguir.puntaje}{' '}
+                      {avanceParaSeguir.puntaje === 1 ? 'punto' : 'puntos'}.
+                    </p>
+                    <button type="button" className="consola-aplicar" disabled={!puedeEmpezar} onClick={seguirDondeLoDejo}>
+                      <Play size={16} aria-hidden /> Seguir donde lo dejó
+                    </button>
+                  </div>
+                ) : null}
+                <div className="consola-eleccion-modos">
+                  {modosParaEmpezar.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      className="consola-eleccion-modo"
+                      disabled={!puedeEmpezar}
+                      onClick={() => empezarElCaso(m)}
+                    >
+                      {m === 'practica' ? <GraduationCap size={22} aria-hidden /> : <ClipboardCheck size={22} aria-hidden />}
+                      <span className="consola-eleccion-modo-nombre">
+                        {avanceParaSeguir ? 'Empezar de nuevo en' : 'Empezar en'} {NOMBRE_DEL_MODO_DE_JUEGO[m]}
+                      </span>
+                      <span className="consola-eleccion-modo-texto">
+                        {m === 'practica'
+                          ? 'Con la demostración de cada paso, la lista que dice qué instrumento toca, «Deshacer» (Ctrl+Z) y «Repetir este paso».'
+                          : 'Como en pabellón: sin demostración, sin deshacer ni repetir. El recorrido queda guardado como evaluación.'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {modoFijado ? (
+                  <p className="consola-ayuda">Quien escribió el caso lo dejó en {NOMBRE_DEL_MODO_DE_JUEGO[modoFijado]}.</p>
+                ) : null}
+                {!puedeEmpezar ? <p className="consola-ayuda">Abriendo el modelo…</p> : null}
+              </div>
             </div>
+          ) : null}
+          {/* El menú radial (P-009, mejora de uso 9): los cinco últimos instrumentos cogidos, donde está el cursor. El fondo
+              lo cierra sin que el clic llegue al paciente. */}
+          {menuRadial ? (
+            <>
+              <div className="consola-menu-radial-fondo" onPointerDown={() => setMenuRadial(null)} onContextMenu={(e) => e.preventDefault()} />
+              <div
+                className="consola-menu-radial"
+                style={{ left: menuRadial.x, top: menuRadial.y }}
+                role="menu"
+                aria-label="Instrumentos recientes"
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                {menuDeInstrumentos.length === 0 ? (
+                  <p className="consola-menu-radial-vacio">Aún no ha cogido ningún instrumento: están en la mesa de la izquierda.</p>
+                ) : (
+                  menuDeInstrumentos.map((id, i) => {
+                    const delMenu = instrumentoPorId(caso.instrumental, id)
+                    if (!delMenu) return null
+                    const { x, y } = posicionEnElAro(i, menuDeInstrumentos.length, 72)
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        role="menuitem"
+                        className={`consola-menu-radial-boton${id === instrumento ? ' activo' : ''}`}
+                        style={{ transform: `translate(calc(${x}px - 50%), calc(${y}px - 50%))` }}
+                        title={`${delMenu.nombre} · tecla ${i + 1}`}
+                        aria-label={`${delMenu.nombre}, tecla ${i + 1}`}
+                        onClick={() => {
+                          elegirInstrumento(id)
+                          setMenuRadial(null)
+                        }}
+                      >
+                        <IconoInstrumento nombre={delMenu.icono} />
+                        <span className="consola-menu-radial-tecla">{i + 1}</span>
+                      </button>
+                    )
+                  })
+                )}
+                <button
+                  type="button"
+                  className="consola-menu-radial-centro"
+                  aria-label="Cerrar el menú"
+                  onClick={() => setMenuRadial(null)}
+                >
+                  <X size={14} aria-hidden />
+                </button>
+              </div>
+            </>
           ) : null}
           <LienzoQuirurgico
             key={claveDelLienzo}
@@ -4766,6 +5537,10 @@ instrumentoElegido ? (
             // En el editor la clave es solo el modelo: la ficha cambia de identificador al guardar un caso nuevo por
             // primera vez, y con ella la clave —se perdía la incisión—. Ver `ensayoDelEditor.ts`.
             claveDeSesion={claveDeLaSesion}
+            alCambiarLaEscena={alCambiarLaEscena}
+            alAbrirElMenu={abrirElMenu}
+            avisoAlRecuperar={avisoAlRecuperar}
+            pistas={enPractica}
             alFijar={(estado, suceso) => {
               setFijacion(estado)
               if (!suceso) return
@@ -4872,6 +5647,13 @@ instrumentoElegido ? (
               })
               colocarEnDesplazamientoInicial()
               entrarEnPaso(indice, capasApagadas)
+              // Vuelto a montar para deshacer (P-009): la vista se queda donde estaba, sin ir al encuadre del paso.
+              const camara = camaraAConservar.current
+              camaraAConservar.current = null
+              if (camara) {
+                mando.current?.irAlEncuadre(camara.encuadre, camara.posicion, 1)
+                setPosicion(camara.posicion)
+              }
               // Lo que el caso declara frente a lo que el archivo trae. Si no
               // hay nada en común, `refrescarVisibles` ya lo dijo; aquí queda
               // el caso a medias —unas piezas están y otras no— y el de un
@@ -4899,7 +5681,10 @@ instrumentoElegido ? (
             }}
             // Un modelo que no abre tiene que decirlo. Sin esto el residente
             // se queda mirando un lienzo vacío creyendo que aún carga.
-            alFallar={(mensaje) => anotar(mensaje, 'grave')}
+            alFallar={(mensaje) => {
+              setModeloFallido(true)
+              anotar(mensaje, 'grave')
+            }}
             mando={asignarMando}
           />
           {avisoDelContexto.mensaje ? (
@@ -4940,6 +5725,31 @@ instrumentoElegido ? (
             >
               <Focus size={16} aria-hidden /> Encuadrar
             </button>
+            {/* Sin la barra de modos (P-009, mejora de uso 6) al residente el modo se lo pone el instrumento. Quedan aquí las
+                dos cosas que no son de ningún instrumento: girar la vista sin tocar al paciente y pinchar una estructura
+                para leer su ficha. Con otro clic se vuelve a lo de antes. */}
+            {!editor ? (
+              <>
+                <button
+                  type="button"
+                  className={`consola-lienzo-boton${modo === 'orbitar' ? ' activo' : ''}`}
+                  aria-pressed={modo === 'orbitar'}
+                  title="Arrastrar gira la vista sin tocar al paciente. Otro clic vuelve al instrumento."
+                  onClick={() => alternarModoDeVista('orbitar')}
+                >
+                  <Rotate3d size={16} aria-hidden /> Mirar
+                </button>
+                <button
+                  type="button"
+                  className={`consola-lienzo-boton${modo === 'info' ? ' activo' : ''}`}
+                  aria-pressed={modo === 'info'}
+                  title="Un clic sobre una estructura abre su ficha. Otro clic vuelve al instrumento."
+                  onClick={() => alternarModoDeVista('info')}
+                >
+                  <Search size={16} aria-hidden /> Seleccionar estructura
+                </button>
+              </>
+            ) : null}
             {/* «El simulador excede el tamaño de la pantalla»: con esto ocupa la pantalla entera y los mandos
                 caben a la vista. En una pantalla pequeña es lo que hace falta; el modo normal queda para leer
                 la página. */}
@@ -5039,6 +5849,9 @@ instrumentoElegido ? (
               }}
               alCambiarAyudas={setAyudas}
               alApagar={apagarFluoroscopia}
+              referencia={
+                otraProyeccion && tomaDeLaOtra ? { imagen: tomaDeLaOtra, etiqueta: NOMBRE_DE_LA_PROYECCION[otraProyeccion] } : null
+              }
             />
           ) : null}
           {/* Info y el músculo elegido, a la derecha del lienzo como la fluoroscopia (no arriba): ahí no empuja el
@@ -5065,7 +5878,7 @@ instrumentoElegido ? (
                     {musculoObjetivo.accion === 'cortar' ? 'Cortando solo' : 'Separando'} <strong>{musculoObjetivo.nombre}</strong>
                     {musculoObjetivo.accion === 'separar'
                       ? retracciones.some((r) => r.nodo === musculoObjetivo.nodo)
-                        ? ` · retraído ${Math.round(retracciones.find((r) => r.nodo === musculoObjetivo.nodo)?.aperturaMm ?? 0)} mm (la rueda lo abre o lo cierra)`
+                        ? ` · retraído ${Math.round(retracciones.find((r) => r.nodo === musculoObjetivo.nodo)?.aperturaMm ?? 0)} mm (arrastrar con el botón derecho lo abre o lo cierra)`
                         : ' · haga clic en el músculo con el separador'
                       : ' · trace la incisión sobre él con el instrumento'}
                   </p>
@@ -5197,24 +6010,31 @@ instrumentoElegido ? (
           ) : null}
         </div>
 
-        <dl className="consola-medidas">
-          {medidas.map((m) => (
-            <div
-              key={m.nombre}
-              className="consola-medida"
-              data-estado={m.lectura ? m.lectura.estado : undefined}
-            >
-              <dt>{m.nombre}</dt>
-              <dd className="consola-medida-valor u-num">{m.valor}</dd>
-              {m.desglose ? <dd className="consola-desglose u-num">{m.desglose}</dd> : null}
-              {m.lectura ? (
-                <dd className="consola-medida-tope">
-                  {m.lectura.referencia} · <strong>{m.lectura.veredicto}</strong>
-                </dd>
-              ) : null}
-            </div>
-          ))}
-        </dl>
+        {medidasVisibles.length > 0 ? (
+          <dl className="consola-medidas">
+            {medidasVisibles.map((m) => (
+              <div
+                key={m.nombre}
+                className="consola-medida"
+                data-estado={m.lectura ? m.lectura.estado : undefined}
+              >
+                <dt>{m.nombre}</dt>
+                <dd className="consola-medida-valor u-num">{m.valor}</dd>
+                {m.desglose ? <dd className="consola-desglose u-num">{m.desglose}</dd> : null}
+                {m.lectura ? (
+                  <dd className="consola-medida-tope">
+                    {m.lectura.referencia} · <strong>{m.lectura.veredicto}</strong>
+                  </dd>
+                ) : null}
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        {!editor && (medidasOcultas > 0 || todasLasMedidas) ? (
+          <button type="button" className="consola-boton consola-medidas-todas" onClick={() => setTodasLasMedidas((v) => !v)}>
+            {todasLasMedidas ? 'Solo las medidas del paso' : `Ver todas las medidas (${medidasOcultas} más)`}
+          </button>
+        ) : null}
       </div>
 
       {/* ------------------------------------------------ columna derecha */}
@@ -5305,6 +6125,10 @@ instrumentoElegido ? (
                 distinguirlas volvería a igualar lo que este cambio separa. */}
             <p>{resumenDelCaso}</p>
             {bloqueDeInsumos}
+            <p className="consola-ayuda">
+              Para repasar un paso, púlselo en la franja de arriba: vuelve como estaba al empezarlo, y lo que haga ya no
+              puntúa.
+            </p>
             {/* Que quede dicho, y aquí: es el único momento en el que el
                 residente decide si repetir el caso, y saber que lo que hizo
                 no se pierde es lo que separa «repetir para mejorar» de
@@ -5348,7 +6172,48 @@ instrumentoElegido ? (
                 Paso {indice + 1} de {caso.pasos.length}
               </p>
               <h3 className="consola-objetivo-titulo">{paso.titulo}</h3>
-              <p className="consola-instruccion">{instruccionDelPaso(paso)}</p>
+              {/* Una línea de qué hacer, la demostración en práctica y la lista que se marca sola (P-009, mejora de uso 3).
+                  La instrucción entera sigue, plegada: la escribió el docente y tiene matices que la línea no. */}
+              <p className="consola-instruccion consola-instruccion-breve">{instruccionBreve(paso)}</p>
+              {enPractica && paso.demostracionUrl ? (
+                <figure className="consola-demostracion">
+                  {paso.demostracionTipo?.startsWith('video/') ? (
+                    <video src={paso.demostracionUrl} autoPlay loop muted playsInline aria-label={`Demostración: ${paso.titulo}`} />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element -- una animación de la biblioteca, que ya trae su prefijo
+                    <img src={paso.demostracionUrl} alt={`Demostración: ${paso.titulo}`} />
+                  )}
+                  <figcaption>
+                    <Play size={12} aria-hidden /> Así se hace
+                  </figcaption>
+                </figure>
+              ) : null}
+              {listaDelPasoActual.length > 0 ? (
+                <ul className="consola-lista-del-paso" aria-label="Lo que pide el paso">
+                  {listaDelPasoActual.map((p) => (
+                    <li key={p.clave} className={`consola-punto consola-punto-${p.estado}`}>
+                      {p.estado === 'hecho' ? (
+                        <CheckCircle2 size={15} aria-hidden />
+                      ) : p.estado === 'pasado' ? (
+                        <XCircle size={15} aria-hidden />
+                      ) : (
+                        <Circle size={15} aria-hidden />
+                      )}
+                      <span>
+                        {p.texto}
+                        {p.ahora ? <span className="consola-punto-ahora u-num"> · {p.ahora}</span> : null}
+                        <span className="sr-only">
+                          {p.estado === 'hecho' ? ': hecho' : p.estado === 'pasado' ? ': se pasó' : ': falta'}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <details className="consola-instruccion-completa">
+                <summary>Instrucción completa</summary>
+                <p className="consola-instruccion">{instruccionDelPaso(paso)}</p>
+              </details>
 
               {/* También fuera de un paso de trazo: dibujar no depende del
                   objetivo sino del modo, y la raya se pinta con `depthTest`
@@ -5420,7 +6285,7 @@ instrumentoElegido ? (
                 <span className="consola-rotulo">
                   Paso {indice + 1} de {caso.pasos.length} · {paso.titulo}
                 </span>
-                <span className="consola-accion-instruccion">{instruccionDelPaso(paso)}</span>
+                <span className="consola-accion-instruccion">{instruccionBreve(paso)}</span>
               </p>
 
               {objetivo === 'fuerza' ? (
@@ -5462,11 +6327,54 @@ instrumentoElegido ? (
                 <Check size={18} aria-hidden /> {editor ? 'Probar este paso' : 'Aplicar paso'}
               </button>
 
-              {/* El aviso de lo que acaba de pasar ya no va aquí abajo, bajo «Aplicar paso»: sale sobre el lienzo, pegado al recuadro de
-                  la herramienta (pedido del dueño). El registro completo sigue en el pie. */}
+              {enPractica || repaso ? (
+                <div className="consola-accion-secundaria">
+                  {enPractica ? (
+                    <button
+                      type="button"
+                      className="consola-boton"
+                      disabled={!puedeDeshacer}
+                      title="Deshace el último gesto sobre el paciente (Ctrl+Z)"
+                      onClick={deshacer}
+                    >
+                      <Undo2 size={16} aria-hidden /> Deshacer
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="consola-boton"
+                    title="El paciente vuelve a como estaba al empezar este paso"
+                    onClick={repetirElPaso}
+                  >
+                    <Repeat size={16} aria-hidden /> Repetir este paso
+                  </button>
+                </div>
+              ) : null}
             </div>
           </>
         )}
+
+        {/* Lo que va pasando, debajo de «Aplicar paso» y con ✓ y ✗ (P-009, mejora de uso 2). Estuvo flotando sobre el
+            lienzo, encima de lo que se estaba mirando, y antes en el pie, fuera de la vista: aquí queda donde se mira
+            después de aplicar, sin tapar al paciente. Lo último arriba y en grande; debajo, lo de antes.
+            Fuera del «terminado ?»: con el caso cerrado sigue bajo el puntaje, y entero, porque es donde están las
+            correcciones que cuenta el resumen. */}
+        <section className="consola-retro" aria-label="Lo que va pasando">
+          <h3 className="consola-subtitulo">Lo que va pasando</h3>
+          {resultado ? (
+            <ul className="consola-registro consola-registro-ultimo" aria-live="polite">
+              {lineaDeRegistro(resultado, 'ultimo')}
+            </ul>
+          ) : null}
+          {registro.length > (resultado ? 1 : 0) ? (
+            <ul className="consola-registro">
+              {registro.slice(resultado ? 1 : 0, terminado ? undefined : 6).map((linea, i) => lineaDeRegistro(linea, i))}
+            </ul>
+          ) : null}
+          {registro.length === 0 && !resultado ? (
+            <p className="consola-vacio">Aquí sale lo que diga cada gesto: lo bien hecho con ✓, lo que se pasó con ✗.</p>
+          ) : null}
+        </section>
       </div>
 
       {/* ------------------------------------------------- retroalimentación */}
@@ -5497,15 +6405,6 @@ instrumentoElegido ? (
             ) : null}
           </section>
         ) : null}
-
-        <section>
-          <h3 className="consola-subtitulo">Retroalimentación clínica</h3>
-          {registro.length === 0 ? (
-            <p className="consola-vacio">Todavía no ha aplicado ningún paso.</p>
-          ) : (
-            <ul className="consola-registro">{registro.map((linea, i) => lineaDeRegistro(linea, i))}</ul>
-          )}
-        </section>
 
         {/* Lo guardado de la vez anterior, entero y sin recortar a diez líneas.
             Es la mitad que faltaba: hasta hoy la corrección que el residente

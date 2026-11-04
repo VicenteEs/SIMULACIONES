@@ -20,6 +20,42 @@ export const PASO_FINO_DE_LA_RUEDA_MM = 0.1
 export const MARGEN_PARA_PASARSE_MM = 12
 
 /**
+ * Lo que puede separar dos piezas de hueso para que la broca las siga contando como un solo hueso: el trazo de una fractura
+ * reducida. Más que eso ya es parte blanda, como el espacio entre la tibia y el peroné o un trazo sin reducir.
+ */
+export const HUECO_DE_UN_TRAZO_MM = 3
+
+/**
+ * Dónde está la cortical opuesta, en mm desde la cortical cercana (P-009). `cruces` son las superficies de hueso que cruza la
+ * línea pasada la cortical cercana, en orden: a qué distancia de ella y de qué pieza.
+ *
+ * Antes era la última superficie de hueso de la línea, y eso es la cortical opuesta solo si detrás no hay otro hueso. En la
+ * pierna de E0 de P-009, una broca que cruzaba la tibia hacia el peroné salía por la cara de fuera del peroné:
+ * - la vista previa decía «atravesaría 55 mm de hueso» en una diáfisis de 24;
+ * - quien paraba al salir de la tibia quedaba como si no hubiera llegado;
+ * - el medidor pedía un tornillo que acababa en el peroné.
+ *
+ * Ahora la línea pasa a otra pieza solo si de la anterior la separa un trazo (`huecoMaximoMm`). Los dos fragmentos de una
+ * fractura reducida siguen siendo un hueso, y un tornillo de compresión los cruza. El peroné, no.
+ *
+ * Los cruces de una misma pieza no cortan la cuenta, haya el hueco que haya: una pieza puede tener superficies por dentro, y
+ * un hueso curvo puede salir de sí mismo y volver a entrar, como entre los dos cóndilos.
+ */
+export function salidaPorLaCorticalOpuesta<P>(
+  cruces: readonly { distanciaMm: number; pieza: P }[],
+  huecoMaximoMm = HUECO_DE_UN_TRAZO_MM,
+): number | null {
+  if (!cruces.length) return null
+  let salida = cruces[0].distanciaMm
+  for (let i = 1; i < cruces.length; i++) {
+    const c = cruces[i]
+    if (c.pieza !== cruces[i - 1].pieza && c.distanciaMm - salida > huecoMaximoMm) break
+    salida = c.distanciaMm
+  }
+  return salida
+}
+
+/**
  * La profundidad tras un cuadro con la broca encendida y el ratón pulsado: avanza `avanceMmPorSegundo` y no pasa de `maximaMm`.
  * `dtSegundos` se acota a 50 ms, como el bucle de dibujo, para que un cuadro largo (una pestaña en segundo plano) no clave la
  * broca de golpe en el otro lado del hueso.

@@ -2,10 +2,12 @@
  * La lectura clínica de un fragmento, y cómo se escribe (D-160).
  *
  * Está aparte de `manipular.ts` para que el taller pueda mostrarla sin traer
- * three: aquí no hay ni un vector, solo seis números y las palabras con que se
+ * three: aquí no hay ni un vector, solo cifras y las palabras con que se
  * dicen. El taller importa de forma estática lo que no pesa, y trae el visor, que
  * sí lo necesita, con `dynamic()`.
  */
+
+import { porcentajeDelDiametro } from '@/lib/reduccion'
 
 /**
  * Lo que un traumatólogo lee de un fragmento distal respecto del proximal. Los
@@ -25,6 +27,14 @@ export interface LecturaClinica {
   recurvatum: number
   /** Más: la cara anterior del distal gira hacia fuera (rotación externa). */
   rotacion: number
+  /**
+   * El ancho del hueso en el foco, de lado a lado y de delante atrás, en
+   * milímetros: con él, el desplazamiento se escribe también en % del diámetro
+   * (Q-010, D-258). Es el de la tapa del proximal; sin tapa —un trozo de marco—
+   * no se sabe, y van solo los milímetros.
+   */
+  anchoLateralMm?: number | null
+  anchoAnteroposteriorMm?: number | null
 }
 
 export const LECTURA_NULA: Readonly<LecturaClinica> = {
@@ -48,23 +58,31 @@ export function cifra(n: number): string {
 const MINIMO_QUE_SE_LEE = 0.5
 
 /**
- * La lectura en una línea, en las palabras de la ficha: «8 mm lateral · 10°
- * varo». Solo lo que pasa de medio milímetro o medio grado. Si no hay nada que
- * leer, `null`: el fragmento está en su sitio.
+ * La lectura en una línea, en las palabras de la ficha: «8 mm lateral (35 % del
+ * diámetro) · 10° varo». Solo lo que pasa de medio milímetro o medio grado. Si
+ * no hay nada que leer, `null`: el fragmento está en su sitio.
+ *
+ * Como la pidió Cristóbal (Q-010, D-258): varo y valgo se siguen leyendo por el
+ * fragmento distal; el plano sagital dice además dónde queda el ápice, que es lo
+ * que se ve en la radiografía lateral y lo que evita leer «antecurvatum» al
+ * revés; y el desplazamiento de través va también en % del diámetro. La
+ * diástasis no lleva %: a lo largo, el hueso no tiene diámetro.
  */
 export function describirLectura(lectura: LecturaClinica): string | null {
   const partes: string[] = []
-  const mm = (valor: number, mas: string, menos: string) => {
-    if (Math.abs(valor) >= MINIMO_QUE_SE_LEE) partes.push(`${cifra(valor)} mm ${valor > 0 ? mas : menos}`)
+  const mm = (valor: number, mas: string, menos: string, ancho?: number | null) => {
+    if (Math.abs(valor) < MINIMO_QUE_SE_LEE) return
+    const porcentaje = porcentajeDelDiametro(valor, ancho)
+    partes.push(`${cifra(valor)} mm ${valor > 0 ? mas : menos}${porcentaje === null ? '' : ` (${porcentaje} % del diámetro)`}`)
   }
   const grados = (valor: number, mas: string, menos: string) => {
     if (Math.abs(valor) >= MINIMO_QUE_SE_LEE) partes.push(`${cifra(valor)}° ${valor > 0 ? mas : menos}`)
   }
-  mm(lectura.lateral, 'lateral', 'medial')
-  mm(lectura.anteroposterior, 'anterior', 'posterior')
+  mm(lectura.lateral, 'lateral', 'medial', lectura.anchoLateralMm)
+  mm(lectura.anteroposterior, 'anterior', 'posterior', lectura.anchoAnteroposteriorMm)
   mm(lectura.axial, 'de diástasis', 'de acortamiento')
   grados(lectura.valgo, 'valgo', 'varo')
-  grados(lectura.recurvatum, 'recurvatum', 'antecurvatum')
+  grados(lectura.recurvatum, 'recurvatum (ápice posterior)', 'antecurvatum (ápice anterior)')
   grados(lectura.rotacion, 'de rotación externa', 'de rotación interna')
   return partes.length > 0 ? partes.join(' · ') : null
 }

@@ -226,6 +226,21 @@ export const Cirugias: CollectionConfig = {
       ],
     },
     {
+      // Práctica o evaluación (P-009, D-258). Lo elige el residente al empezar, que es lo que decidió el dueño, salvo que
+      // el editor lo fije: un caso de examen no debe dejar practicar con la demostración delante, y uno de práctica no
+      // tiene por qué contar como nota. En práctica hay demostración, deshacer y repetir el paso; en evaluación no.
+      name: 'modo',
+      type: 'select',
+      required: true,
+      defaultValue: 'eleccion',
+      label: 'Práctica o evaluación',
+      options: [
+        { label: 'Lo elige el residente', value: 'eleccion' },
+        { label: 'Solo práctica', value: 'practica' },
+        { label: 'Solo evaluación', value: 'evaluacion' },
+      ],
+    },
+    {
       name: 'instrumental',
       type: 'relationship',
       relationTo: 'instrumental',
@@ -541,6 +556,40 @@ export const Cirugias: CollectionConfig = {
               'Deje la lista vacía para que se vea lo mismo que en el paso anterior. El implante aparece en el paso que lo coloca.',
           },
           fields: [{ name: 'nodo', type: 'text', required: true, label: 'Nombre del objeto' }],
+        },
+        {
+          // En qué posición está el paciente en este paso (P-009, mejora de uso 1): el lienzo pone la cámara en ella al
+          // entrar. Vacía, se queda la del paso anterior.
+          name: 'posicion',
+          type: 'select',
+          label: 'Posición del paciente',
+          options: [
+            { label: 'De pie (posición anatómica)', value: 'de-pie' },
+            { label: 'Supino', value: 'supino' },
+            { label: 'Prono', value: 'prono' },
+          ],
+        },
+        {
+          // Desde dónde se mira al entrar en el paso (P-009, mejora de uso 1). No se escribe a mano: lo guarda el
+          // editor del simulador con «Guardar este encuadre», tal como lo dejó la cámara. En unidades del modelo:
+          // hacia dónde mira, su arriba, el punto al que mira y a qué distancia. Números sueltos, como la posición
+          // reducida de las piezas, y no un JSON: el formulario los sabe llevar y `depurar` no los tira.
+          name: 'encuadre',
+          type: 'group',
+          label: 'Encuadre de la cámara',
+          fields: (['dx', 'dy', 'dz', 'ax', 'ay', 'az', 'cx', 'cy', 'cz', 'distancia'] as const).map((name) => ({
+            name,
+            type: 'number' as const,
+            label: name,
+          })),
+        },
+        {
+          // La demostración de tres a cinco segundos (P-009, mejora de uso 3): un WebP animado o un vídeo corto de
+          // cómo se hace el gesto, que el residente ve en práctica junto a la instrucción. En evaluación no se enseña.
+          name: 'demostracion',
+          type: 'upload',
+          relationTo: 'medios',
+          label: 'Demostración (de 3 a 5 s)',
         },
         // --- qué se le dice al residente ---
         { name: 'exito', type: 'textarea', label: 'Si lo hace bien' },

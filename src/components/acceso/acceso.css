@@ -264,6 +264,16 @@ body:has(> .ac-pantalla) > .pie-de-pagina { display: none; }
 .ac-paso-bajada { max-width: 52ch; margin: 0 0 26px; font-size: 17px; line-height: 1.5; color: var(--pizarra); }
 .ac-pareja { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .ac-select-corto { max-width: 300px; }
+/* La casilla del aviso de privacidad, en el último paso (Q-005, D-258). Con su
+   clase y fuera de `.ac-campo`: esa regla le da a todo `input` el ancho entero
+   y los 46 px de alto de una caja de texto, y la casilla saldría como una barra.
+   El color de la marca ya se lo pone `estilos.css` a toda casilla. */
+.ac-casilla { display: flex; flex-direction: column; gap: 7px; }
+.ac-casilla label { display: flex; align-items: flex-start; gap: 12px; font-size: 15px; line-height: 1.5; color: var(--tinta); cursor: pointer; }
+.ac-casilla input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; cursor: pointer; }
+.ac-casilla input:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+.ac-casilla input[aria-invalid='true'] { outline: 2px solid var(--alerta); outline-offset: 2px; }
+.ac-casilla a { font-weight: 650; color: var(--marca); }
 
 .ac-navegacion { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 34px; }
 .ac-navegacion .ac-boton { margin-left: auto; }
@@ -313,6 +323,7 @@ body:has(> .ac-pantalla) > .pie-de-pagina { display: none; }
   color: var(--sobre-tinta-2);
 }
 .ac-candado svg { flex: none; color: var(--cian-claro); }
+.ac-candado a { color: var(--cian-claro); text-underline-offset: 3px; }
 
 /* ---------- tableta y teléfono ---------- */
 /* El panel de marca pasa arriba (en el registro, abajo) y pierde las figuras:

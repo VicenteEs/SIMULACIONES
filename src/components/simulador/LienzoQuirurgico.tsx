@@ -2,12 +2,19 @@
 
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { ruta } from '@/lib/rutas'
-import { desplazamientoDesde, medirReduccion, posicionAbsoluta, type EjeLargo } from '@/lib/reduccion'
+import {
+  anchoDeLasSecciones,
+  desplazamientoDesde,
+  medirReduccion,
+  posicionAbsoluta,
+  seccionesDelHueso,
+  type EjeLargo,
+} from '@/lib/reduccion'
 import { largoVisibleDelAgujero, reconciliarConElModelo } from '@/lib/simulador'
 import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import { desplazamientoDelArrastre, giroDelArrastre } from '@/atlas/transformar'
@@ -127,7 +134,9 @@ import {
   type PoseDeLaVista,
   type PosicionDelPaciente,
 } from '@/lib/posicionDelPaciente'
-import { POSE_AL_CARGAR, aplicarLaPose, poseActual, ponerLaPose } from './vistaDelPaciente'
+import { POSE_AL_CARGAR, aplicarLaPose, poseActual, ponerLaPose, sincronizarElArriba } from './vistaDelPaciente'
+import type { EncuadreDelPaso } from '@/lib/encuadreDelPaso'
+import type { InstantaneaDelLienzo } from '@/lib/avanceDelCaso'
 import type { AjustesDeLaImagen, DesplazamientoDeLaImagen, ProyeccionDeFluoroscopia } from '@/lib/radiografia'
 import {
   dibujarFluoroscopia,
@@ -264,8 +273,8 @@ import {
   retirarLaGuia,
   type EnclavadoEnLaEscena,
 } from './enclavadoEnLaEscena'
-import { agujeroBajoElPunto, ajustarPlaca, apoyoDeLaPlaca, reanclarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, quitarUnTornillo, soltarGrupo, type ImplantesEnEscena, type TornilloEnEscena } from './implantesEnLaEscena'
-import { avisoDeCalibre, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
+import { agujeroBajoElPunto, ajustarPlaca, apoyoDeLaPlaca, reanclarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, quitarUnTornillo, soltarGrupo, type ImplantesEnEscena, type PlacaColocada, type TornilloEnEscena } from './implantesEnLaEscena'
+import { avisoDeCalibre, avisoDelAsiento, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
 import {
   AVISO_DE_LA_FASCIA,
   NOMBRE_DEL_PLANO,
@@ -521,6 +530,11 @@ export interface MandoDelLienzo {
    * reducida; si no, `null`. Es el desplazamiento con que empieza un caso que no escribió ninguno.
    */
   desplazamientoDelArchivo: () => { posicion: Punto3; giros: Punto3 } | null
+  /**
+   * El ancho del hueso que se le enfrenta al fragmento, junto al foco y en la dirección dada (de través al eje largo), en
+   * milímetros: el diámetro con que la consola escribe el desplazamiento en % (Q-010). `null` si no hay ese hueso.
+   */
+  anchoDelHuesoJuntoAlFoco: (direccion: Punto3) => number | null
   /** Cuánto se apartan de su pose del archivo los trozos dados: la reducción hecha a mano. Los que no se movieron no salen. */
   reduccionHechaAMano: (nodos: readonly string[]) => Record<string, TransformacionRigida>
   /** Deja todos los trozos, también el fragmento, como vinieron en el archivo. */
@@ -671,6 +685,21 @@ export interface MandoDelLienzo {
   estadoDeLaFijacion: () => EstadoDeLaFijacion | null
   /** Encuadra lo que esté visible. */
   encuadrar: () => void
+  /** Desde dónde se mira ahora mismo (P-009): lo que el editor guarda como encuadre del paso. `null` antes de cargar. */
+  encuadreActual: () => EncuadreDelPaso | null
+  /**
+   * Lleva la cámara al encuadre de un paso (P-009, mejora de uso 1), en un movimiento corto para que se vea de dónde
+   * viene. `posicion` es la del paciente que declara el paso, si declara una: «Encuadrar» vuelve a ella.
+   */
+  irAlEncuadre: (encuadre: EncuadreDelPaso, posicion?: PosicionDelPaciente | null, ms?: number) => void
+  /** Lo que hay ahora en el paciente, como lo guarda la pestaña (P-009): para repetir el paso, deshacer o seguir otro día. */
+  instantanea: () => InstantaneaDelLienzo
+  /**
+   * Deja en la pestaña lo que el lienzo que se monte a continuación tiene que devolver, y deja de guardar (P-009). Es
+   * el primer medio de «Repetir este paso», «Deshacer» y «Seguir donde lo dejó»: se llama y después se vuelve a montar
+   * el lienzo con otra clave, que al cargar lo devuelve como devuelve lo de una recarga.
+   */
+  prepararLaVuelta: (instantanea: InstantaneaDelLienzo) => void
   /** Los nombres de los objetos que trae el archivo. */
   nodosDelModelo: () => string[]
   /**
@@ -885,6 +914,10 @@ export function LienzoQuirurgico({
   alRueda,
   capturaLaRueda = false,
   claveDeSesion,
+  alCambiarLaEscena,
+  alAbrirElMenu,
+  avisoAlRecuperar,
+  pistas = false,
   trazo: tipoDeTrazo = 'recto',
   moverTodo = false,
   alGesto,
@@ -998,6 +1031,29 @@ export function LienzoQuirurgico({
    * residente que recargaba en el paso de cerrar se encontraba con una piel sin cortar.
    */
   claveDeSesion?: string
+  /**
+   * Cambió lo que hay en el paciente (P-009, mejora de uso 10): lo cortado, lo puesto o lo colocado. Se avisa con el
+   * puntero suelto —a media maniobra cada medio segundo sería un estado a medias— y no antes de devolver lo de la
+   * sesión. La consola lo apila para «Deshacer».
+   */
+  alCambiarLaEscena?: (instantanea: InstantaneaDelLienzo) => void
+  /**
+   * Un clic derecho limpio sobre el lienzo —sin arrastre y sin una broca dentro— (P-009, mejora de uso 9): la consola
+   * abre ahí el menú radial de los instrumentos. Las coordenadas son de la ventana.
+   */
+  alAbrirElMenu?: (x: number, y: number) => void
+  /**
+   * Lo que dice el lienzo al devolver lo que había puesto en el paciente. Por omisión, que se recuperó: es lo que pasa
+   * al recargar la página. Pero el lienzo también se vuelve a montar para «Deshacer» y para «Repetir este paso»
+   * (P-009), y ahí «Se recuperó lo que había puesto» se leía como si algo se hubiera perdido: la consola dice lo que
+   * de verdad pasó.
+   */
+  avisoAlRecuperar?: string | null
+  /**
+   * En práctica (P-009): la línea de la broca dice cuánto hueso atravesaría. En evaluación la línea se ve igual, sin el
+   * número: es lo que lee el medidor, y medir es parte del paso.
+   */
+  pistas?: boolean
   /**
    * Cómo se traza la incisión: en línea recta entre dos clics (inicio y final) o a mano alzada.
    * A mano alzada sale temblorosa; una incisión de abordaje es una recta.
@@ -1209,6 +1265,12 @@ export function LienzoQuirurgico({
     siguientePellizco?: number
     /** La posición del paciente elegida con los botones, mientras la vista siga siendo esa. */
     posicion?: PosicionDelPaciente
+    /** Cuántas veces se mandó la cámara a un encuadre: el movimiento de una orden anterior se para al ver otro número. */
+    turnoDeLaCamara?: number
+    /** El lienzo va a desmontarse para volver a un estado guardado (P-009): ya no guarda nada en la pestaña. */
+    sinGuardar?: boolean
+    /** Quita la placa de cristal y la línea de la broca (P-009): las vistas previas de antes de actuar. */
+    esconderLasVistasPrevias?: () => void
     /** La disección roma en curso: los puntos donde se separó y la punta apoyada. */
     diseccion?: DiseccionActiva
     /** Corta la capa con el trazo que haya en `puntosDelTrazo`: lo expone el montaje para la disección roma. Devuelve la incisión. */
@@ -1333,6 +1395,10 @@ export function LienzoQuirurgico({
     alRueda,
     capturaLaRueda,
     claveDeSesion,
+    alCambiarLaEscena,
+    alAbrirElMenu,
+    avisoAlRecuperar,
+    pistas,
     tipoDeTrazo,
     moverTodo,
     alGesto,
@@ -1392,6 +1458,10 @@ export function LienzoQuirurgico({
       alRueda,
       capturaLaRueda,
       claveDeSesion,
+      alCambiarLaEscena,
+      alAbrirElMenu,
+      avisoAlRecuperar,
+      pistas,
       tipoDeTrazo,
       moverTodo,
       alGesto,
@@ -1422,6 +1492,7 @@ export function LienzoQuirurgico({
         heridas: taller.current.heridas,
         separadores: taller.current.separadores,
         implantes: taller.current.implantes,
+        huesos: mallasDeHuesoVisibles(taller.current, ultimas.current.piezas),
         milimetrosPorUnidad: ultimas.current.milimetrosPorUnidad,
       })),
     [],
@@ -1773,6 +1844,27 @@ export function LienzoQuirurgico({
         posicion: desplazamientoDesde(origen.posicion, posicion),
         giros: { x: giro(rotacion.x, origen.rotacion.x), y: giro(rotacion.y, origen.rotacion.y), z: giro(rotacion.z, origen.rotacion.z) },
       }
+    },
+
+    anchoDelHuesoJuntoAlFoco: (direccion) => {
+      const t = taller.current
+      const mm = ultimas.current.milimetrosPorUnidad || 1000
+      const eje = ultimas.current.ejeLargo ?? 'y'
+      const i = eje === 'x' ? 0 : eje === 'z' ? 2 : 1
+      const enfrente = huesoQueSeEnfrenta(t, ultimas.current.piezas, i, mm)
+      if (!enfrente) return null
+      // Las secciones, del lado del hueso que da al fragmento y desde 5 mm hacia dentro: el borde mismo de la fractura es
+      // irregular (una espícula da un ancho de más). Hasta 20 mm en un trozo corto, que más allá llega a la metáfisis, y
+      // hasta 40 en uno largo, para pasar la cuña de un trazo oblicuo (ver `seccionesDelHueso`).
+      const centro = new THREE.Vector3()
+      const haciaArriba = enfrente.cajaDelFragmento.getCenter(centro).getComponent(i) > enfrente.caja.getCenter(new THREE.Vector3()).getComponent(i)
+      const extremo = haciaArriba ? enfrente.caja.max.getComponent(i) : enfrente.caja.min.getComponent(i)
+      const hacia = haciaArriba ? -1 : 1
+      const largoMm = (enfrente.caja.max.getComponent(i) - enfrente.caja.min.getComponent(i)) * mm
+      const hastaMm = Math.min(40, Math.max(20, 0.3 * largoMm))
+      const [a, b] = [extremo + (hacia * 5) / mm, extremo + (hacia * hastaMm) / mm]
+      const ancho = anchoDeLasSecciones(seccionesEnElMundo(enfrente.malla, eje, Math.min(a, b), Math.max(a, b)), eje, direccion)
+      return ancho === null ? null : ancho * mm
     },
 
     reduccionHechaAMano: (nodos) => {
@@ -2191,6 +2283,51 @@ export function LienzoQuirurgico({
       encuadrarVisible(t, t.posicion ? poseDeLaPosicion(t.posicion, ultimas.current.ejeLargo) : undefined)
     },
 
+    encuadreActual: () => {
+      const { camara, controles } = taller.current
+      if (!camara || !controles) return null
+      const pose = poseActual(camara, controles)
+      return {
+        direccion: pose.direccion,
+        arriba: pose.arriba,
+        centro: controles.target.toArray() as [number, number, number],
+        distancia: camara.position.distanceTo(controles.target),
+      }
+    },
+
+    irAlEncuadre: (encuadre, posicion, ms) => {
+      const t = taller.current
+      t.posicion = posicion ?? undefined
+      llevarLaCamaraAlEncuadre(t, encuadre, ms)
+    },
+
+    instantanea: () => {
+      const t = taller.current
+      let colocado = ''
+      try {
+        colocado = serializarLoColocado(t)
+      } catch (error) {
+        console.error('[simulador] no se pudo leer lo colocado:', error)
+      }
+      return { sesion: serializarSesion(t), colocado }
+    },
+
+    prepararLaVuelta: (instantanea) => {
+      // Desde aquí este lienzo no guarda nada: lo siguiente es desmontarlo, y el último guardado —el del desmontaje—
+      // pisaría lo que se deja para el lienzo nuevo.
+      taller.current.sinGuardar = true
+      const clave = ultimas.current.claveDeSesion
+      if (!clave) return
+      try {
+        if (instantanea.sesion) sessionStorage.setItem(clave, instantanea.sesion)
+        else sessionStorage.removeItem(clave)
+        if (instantanea.colocado) sessionStorage.setItem(`${clave}:colocado`, instantanea.colocado)
+        else sessionStorage.removeItem(`${clave}:colocado`)
+      } catch {
+        // Sin almacenamiento el lienzo nuevo empieza vacío: es lo único que se puede hacer.
+      }
+    },
+
     nodosDelModelo: () => {
       const nombres: string[] = []
       taller.current.raiz?.traverse((o) => {
@@ -2402,7 +2539,7 @@ export function LienzoQuirurgico({
     let ultimoGuardado = ''
     const guardarSesion = () => {
       const clave = claveActual()
-      if (!clave) return
+      if (!clave || taller.current.sinGuardar) return
       const texto = serializarSesion(taller.current)
       if (texto === ultimoGuardado) return
       ultimoGuardado = texto
@@ -2484,6 +2621,7 @@ export function LienzoQuirurgico({
     const guardarLoColocado = () => {
       const clave = claveDeLoColocado()
       if (!clave || restaurandoLoColocado) return
+      if (taller.current.sinGuardar) return
       let texto = ''
       try {
         texto = serializarLoColocado(taller.current)
@@ -2500,9 +2638,32 @@ export function LienzoQuirurgico({
         // Sin almacenamiento o sin cuota: se sigue sin guardar, la escena no se ve afectada.
       }
     }
+    // Lo que hay en el paciente cambió (P-009): se le dice a la consola, que lo apila para «Deshacer». Con el puntero
+    // suelto y con la escena ya devuelta: lo que hay mientras se arrastra o mientras se restaura es un estado a medias.
+    let escenaLista = false
+    let punteroAbajo = false
+    let ultimaEscena: string | null = null
+    const alBajarElPuntero = () => {
+      punteroAbajo = true
+    }
+    const alSoltarElPuntero = () => {
+      punteroAbajo = false
+    }
+    superficie.addEventListener('pointerdown', alBajarElPuntero, true)
+    window.addEventListener('pointerup', alSoltarElPuntero, true)
+    window.addEventListener('pointercancel', alSoltarElPuntero, true)
+    const avisarDeLaEscena = () => {
+      const avisar = ultimas.current.alCambiarLaEscena
+      if (!avisar || !escenaLista || punteroAbajo || restaurandoLoColocado || taller.current.sinGuardar) return
+      const escena = `${ultimoGuardado}\u0000${ultimoColocado}`
+      if (escena === ultimaEscena) return
+      ultimaEscena = escena
+      avisar({ sesion: ultimoGuardado, colocado: ultimoColocado })
+    }
     const reloj = window.setInterval(() => {
       guardarSesion()
       guardarLoColocado()
+      avisarDeLaEscena()
     }, 600)
 
     /** Después de restaurar, la consola se entera de lo que volvió: su panel no sabe nada de lo que pasó antes de recargar. */
@@ -2527,7 +2688,7 @@ export function LienzoQuirurgico({
       u.alCambiarElLimitador?.(tt.limitadorNm ?? null)
       const tray = tt.trayectoriaDelTornillo
       if (tray) u.alCambiarLaTrayectoria?.({ fase: 'lista', largoMm: tray.largoMm, anguloConElEje: tray.anguloConElEje })
-      tt.decir?.('Se recuperó lo que había puesto en el paciente.')
+      tt.decir?.(u.avisoAlRecuperar ?? 'Se recuperó lo que había puesto en el paciente.')
       tt.pedirDibujo?.()
     }
     const restaurarLoGuardado = async () => {
@@ -2578,7 +2739,8 @@ export function LienzoQuirurgico({
     const cargador = new GLTFLoader()
     cargador.setDRACOLoader(draco)
     cargador.setMeshoptDecoder(MeshoptDecoder)
-    cargador.load(
+    cargarElArchivo(
+      cargador,
       url,
       (gltf) => {
         if (!vivo) return
@@ -2622,11 +2784,12 @@ export function LienzoQuirurgico({
         // a continuación y es lo que se queda.
         restaurarSesion()
         // Lo colocado sobre el hueso vuelve después de lo cortado: la placa se asienta sobre el hueso ya en su sitio.
-        void restaurarLoGuardado()
+        void restaurarLoGuardado().finally(() => {
+          escenaLista = true
+        })
         encuadrarVisible(taller.current)
         sucio = true
       },
-      undefined,
       (error) => {
         // Un fallo de carga tiene que verse. El comentario que había aquí decía
         // que «el componente de arriba ya avisa», y era falso: arriba solo se
@@ -3282,12 +3445,149 @@ export function LienzoQuirurgico({
     }
 
     /** Pone la broca sobre el hueso (o la esconde) y escribe qué ángulo lleva. */
+    // --- las vistas previas: lo que haría el clic, antes de hacerlo (P-009, mejora de uso 8) ----------------------
+    // La placa se apoyaba y la broca entraba sin saber antes dónde: se corregía después, quitando la placa o retirando la
+    // broca, y en evaluación el intento ya contaba. Ahora, con el instrumento en la mano, se ve antes: la placa de
+    // cristal asentada donde quedaría y la línea discontinua por donde iría la broca, de la entrada a la cortical
+    // opuesta. Son de interfaz —ni se pinchan ni salen en la fluoroscopia— y se van al cambiar de modo o de
+    // instrumento. Cada una se recalcula como mucho veinte veces por segundo: asentar la placa como un sólido y cruzar la
+    // broca con el hueso recorren mallas de cientos de miles de triángulos.
+    let placaPrevia: ImplantesEnEscena | null = null
+    let ultimaPlacaPrevia = 0
+    let lineaDeLaBroca: THREE.Line | null = null
+    let ultimaLineaDeLaBroca = 0
+    let huesoQueAtravesaria: number | null = null
+    const esconderLaPlacaPrevia = () => {
+      if (!placaPrevia) return
+      quitarImplantes(placaPrevia)
+      placaPrevia = null
+    }
+    const esconderLaLineaDeLaBroca = () => {
+      huesoQueAtravesaria = null
+      if (!lineaDeLaBroca) return
+      lineaDeLaBroca.removeFromParent()
+      lineaDeLaBroca.geometry.dispose()
+      ;(lineaDeLaBroca.material as THREE.Material).dispose()
+      lineaDeLaBroca = null
+    }
+    taller.current.esconderLasVistasPrevias = () => {
+      if (!placaPrevia && !lineaDeLaBroca) return
+      esconderLaPlacaPrevia()
+      esconderLaLineaDeLaBroca()
+      pedirDibujo()
+    }
+    /** La placa de la mano, de cristal y asentada sobre el hueso bajo el cursor. `false` si no hay dónde: se ve la de la mano. */
+    const vistaPreviaDeLaPlaca = (): boolean => {
+      const t = taller.current
+      const inst = ultimas.current.instrumento
+      const herramienta = t.herramienta
+      if (!t.escena || !herramienta || !inst || inst.coloca?.tipo !== 'placa' || t.implantes?.placa) {
+        esconderLaPlacaPrevia()
+        return false
+      }
+      const ahora = performance.now()
+      if (ahora - ultimaPlacaPrevia < 50) return !!placaPrevia?.placa?.grupo.visible
+      ultimaPlacaPrevia = ahora
+      const golpe = huesoBajoElCursor()
+      const previa = placaPrevia?.placa
+      if (!golpe) {
+        if (previa) previa.grupo.visible = false
+        return false
+      }
+      const huesos = mallasDeHueso()
+      if (previa) {
+        // Donde no se puede asentar, se esconde: dejarla donde estaba diría que la placa iría a otro sitio.
+        previa.grupo.visible = reanclarPlaca(previa, huesos, golpe.point, normalDelGolpe(golpe), 0)
+        return previa.grupo.visible
+      }
+      const imp = crearImplantes()
+      const eje = new THREE.Vector3(
+        ...(ultimas.current.ejeLargo === 'x' ? [1, 0, 0] : ultimas.current.ejeLargo === 'z' ? [0, 0, 1] : [0, 1, 0]),
+      )
+      const placa = colocarPlaca({
+        escena: t.escena,
+        plantilla: herramienta.raiz,
+        nombre: herramienta.meta?.nombre ?? 'Placa',
+        agujerosMm: herramienta.meta?.agujeros ?? [],
+        orificios: inst.orificios ?? null,
+        punto: golpe.point,
+        normal: normalDelGolpe(golpe),
+        ejeDelHueso: eje,
+        milimetrosPorUnidad: ultimas.current.milimetrosPorUnidad || 1000,
+        huesos,
+        implantes: imp,
+        contorno: t.mesa && t.mesa.instrumentoId && t.mesa.instrumentoId === inst.id ? t.mesa.contorno : undefined,
+      })
+      if (!placa) return false
+      // Un material para todas sus mallas, que `quitarImplantes` suelta con ellas; los clonados de la plantilla se
+      // sueltan aquí, que ya no los usa nadie.
+      const vidrio = new THREE.MeshStandardMaterial({
+        color: 0x8fd3ff,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+        metalness: 0.1,
+        roughness: 0.25,
+      })
+      placa.grupo.traverse((o) => {
+        o.userData.deInterfaz = true
+        o.raycast = () => {}
+        const m = o as THREE.Mesh
+        if (!m.isMesh) return
+        for (const material of Array.isArray(m.material) ? m.material : [m.material]) material.dispose()
+        m.material = vidrio
+        m.renderOrder = 998
+      })
+      placaPrevia = imp
+      return true
+    }
+    /** La línea por donde iría la broca, de la entrada a la cortical opuesta; devuelve cuánto hueso atravesaría, en mm. */
+    const vistaPreviaDeLaBroca = (entrada: THREE.Vector3, direccion: THREE.Vector3): number | null => {
+      const escena = taller.current.escena
+      if (!escena) return null
+      const ahora = performance.now()
+      if (ahora - ultimaLineaDeLaBroca < 50) return huesoQueAtravesaria
+      ultimaLineaDeLaBroca = ahora
+      const mmPorUnidad = ultimas.current.milimetrosPorUnidad || 1000
+      const unidadesPorMm = 1 / mmPorUnidad
+      // Con la misma cuenta que la broca al empezar a perforar, para que la línea acabe donde la broca va a parar.
+      const medida = medirAlLoLargoDeUnaLinea(entrada, direccion, mmPorUnidad, mallasDeHueso())
+      if (!medida) {
+        esconderLaLineaDeLaBroca()
+        return null
+      }
+      const largo = (medida.distanciaAlHuesoMm + medida.espesorMm) * unidadesPorMm
+      if (!lineaDeLaBroca) {
+        // Encima de todo (`depthTest` apagado): la línea es lo que va por dentro del hueso, y el hueso la taparía.
+        lineaDeLaBroca = new THREE.Line(
+          new THREE.BufferGeometry(),
+          new THREE.LineDashedMaterial({
+            color: 0xffd166,
+            dashSize: 2 * unidadesPorMm,
+            gapSize: 1.5 * unidadesPorMm,
+            depthTest: false,
+            transparent: true,
+          }),
+        )
+        lineaDeLaBroca.renderOrder = 999
+        lineaDeLaBroca.frustumCulled = false
+        lineaDeLaBroca.userData.deInterfaz = true
+        lineaDeLaBroca.raycast = () => {}
+        escena.add(lineaDeLaBroca)
+      }
+      lineaDeLaBroca.geometry.setFromPoints([entrada, entrada.clone().addScaledVector(direccion, largo)])
+      lineaDeLaBroca.computeLineDistances()
+      huesoQueAtravesaria = medida.espesorMm
+      return huesoQueAtravesaria
+    }
+
     const posarBroca = (golpe: THREE.Intersection | null) => {
       const herramienta = taller.current.herramienta
       const config = ultimas.current.instrumento?.perfora
       // Sin el modelo de la broca se perfora igual y se lee igual (D-176): lo que no hay es broca que mover.
       if (!config) return
       if (!golpe && !perforando) {
+        esconderLaLineaDeLaBroca()
         if (herramienta?.raiz.visible) {
           herramienta.raiz.visible = false
           pedirDibujo()
@@ -3297,6 +3597,10 @@ export function LienzoQuirurgico({
       }
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       const t = perforando ?? trayectoriaDeBroca(golpe!)
+      // La línea, solo antes de entrar: con la broca dentro, lo que se ve es la broca.
+      let atravesaria: number | null = null
+      if (perforando) esconderLaLineaDeLaBroca()
+      else atravesaria = vistaPreviaDeLaBroca(t.entrada, t.dirEntra)
       const profundidad = perforando?.profundidad ?? 0
       const giro = taller.current.giroDeLaBroca ?? 0
       if (herramienta) {
@@ -3313,7 +3617,7 @@ export function LienzoQuirurgico({
       taller.current.decir?.(
         perforando
           ? `${base} · ${textoDeLaBroca(lecturaDeLaBroca(profundidad / unidadesPorMm, perforando.salidaPorLaOpuesta / unidadesPorMm), { encendida: perforando.encendida, ayudaDeAprendizaje: !!ultimas.current.ayudas?.objetivo })}`
-          : `${base} · mantenga pulsado para perforar`,
+          : `${base}${atravesaria !== null && ultimas.current.pistas ? ` · atravesaría ${Math.round(atravesaria)} mm de hueso` : ''} · mantenga pulsado para perforar`,
       )
       pedirDibujo()
     }
@@ -3330,16 +3634,14 @@ export function LienzoQuirurgico({
       const config = ultimas.current.instrumento?.perfora
       if (!config) return
       const t = trayectoriaDeBroca(golpe)
-      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
-      // Hasta dónde se puede ir: se lanza un rayo desde dentro del hueso en la
-      // dirección de la broca y la última superficie que cruza es la salida por
-      // la cortical opuesta. Una pierna entera son tres capas de tejido; solo
-      // cuenta el hueso.
-      const origen = t.entrada.clone().addScaledVector(t.dirEntra, 0.4 * unidadesPorMm)
-      const alcance = new THREE.Raycaster(origen, t.dirEntra, 0, 150 * unidadesPorMm)
-      const cruces = alcance.intersectObjects(mallasDeHueso(), false)
-      const ultimo = cruces[cruces.length - 1]
-      const salidaPorLaOpuesta = ultimo ? ultimo.distance + 0.4 * unidadesPorMm : 8 * unidadesPorMm
+      const mmPorUnidad = ultimas.current.milimetrosPorUnidad || 1000
+      const unidadesPorMm = 1 / mmPorUnidad
+      // Hasta dónde se puede ir: la salida por la cortical opuesta en la dirección de la broca, medida como la mide el
+      // medidor. Una pierna entera son tres capas de tejido; solo cuenta el hueso. Antes era la última superficie de hueso
+      // de la línea, que con el peroné detrás de la tibia era la cara de fuera del peroné (P-009,
+      // `salidaPorLaCorticalOpuesta`).
+      const medida = medirAlLoLargoDeUnaLinea(t.entrada, t.dirEntra, mmPorUnidad, mallasDeHueso())
+      const salidaPorLaOpuesta = (medida ? medida.distanciaAlHuesoMm + medida.espesorMm : 8) * unidadesPorMm
       perforando = {
         ...t,
         profundidad: 0,
@@ -3351,6 +3653,7 @@ export function LienzoQuirurgico({
         avanzando: true,
         encendida: true,
       }
+      esconderLaLineaDeLaBroca()
       taller.current.giroDeLaBroca = taller.current.giroDeLaBroca ?? 0
       ultimoCuadro = performance.now()
       avisarDeLaBroca(true)
@@ -3505,10 +3808,18 @@ export function LienzoQuirurgico({
         (ultimas.current.instrumento?.coloca?.tipo === 'placa' && taller.current.implantes?.placa) ||
         (ultimas.current.instrumento?.coloca?.tipo === 'tornillo' && atornillando)
       ) {
+        esconderLaPlacaPrevia()
         if (herramienta.raiz.visible) {
           herramienta.raiz.visible = false
           pedirDibujo()
         }
+        return
+      }
+      // Con la placa en la mano y hueso debajo, lo que se ve es la de cristal asentada donde quedaría (P-009): la de la
+      // mano, ladeada junto al cursor, no dice dónde va a ir.
+      if (ultimas.current.modo === 'fijar' && ultimas.current.instrumento?.coloca?.tipo === 'placa' && vistaPreviaDeLaPlaca()) {
+        if (herramienta.raiz.visible) herramienta.raiz.visible = false
+        pedirDibujo()
         return
       }
       if (!golpe) {
@@ -3593,6 +3904,8 @@ export function LienzoQuirurgico({
       posarHerramienta(golpeParaLaHerramienta())
     }
     const esconderHerramienta = () => {
+      // Las vistas previas se van con el cursor (P-009): fuera del lienzo no hay dónde caería nada.
+      if (!perforando) taller.current.esconderLasVistasPrevias?.()
       const herramienta = taller.current.herramienta
       if (!herramienta?.raiz.visible) return
       // Lo que está puesto en un hoyo no sigue al cursor ni se esconde con él (P-004 E8, pedidos 3 y 13): el rayo muchas veces
@@ -3870,7 +4183,7 @@ export function LienzoQuirurgico({
       if (igual) {
         t.separadorActivo = igual.datos.id
         u.alSeparar?.(estadoDeLosSeparadores(t))
-        t.decir?.(`${igual.datos.nombre}: ya hay uno aquí. Ábralo con la rueda del ratón.`)
+        t.decir?.(`${igual.datos.nombre}: ya hay uno aquí. Ábralo arrastrando con el botón derecho hacia arriba.`)
         return
       }
       // En pareja (los de mano, de a dos como las pinzas): un clic pone uno por borde, a la misma altura. Con uno ya
@@ -3909,8 +4222,8 @@ export function LienzoQuirurgico({
       reaplicarSeparadores(t, u)
       t.decir?.(
         hechos.length > 1
-          ? `${hechos[0].datos.nombre} ×2 colocados ${enElPlano(c.plano)}, uno por borde. Ábralos con la rueda (Mayúsculas + rueda, solo el que está bajo el cursor).`
-          : `${hechos[0].datos.nombre} colocado ${enElPlano(c.plano)}. Ábralo con la rueda del ratón (o con la barra del panel).`,
+          ? `${hechos[0].datos.nombre} ×2 colocados ${enElPlano(c.plano)}, uno por borde. Ábralos arrastrando con el botón derecho hacia arriba (con Mayúsculas, solo el que está bajo el cursor).`
+          : `${hechos[0].datos.nombre} colocado ${enElPlano(c.plano)}. Ábralo arrastrando con el botón derecho hacia arriba (o con la barra del panel).`,
       )
       pedirDibujo()
     }
@@ -4126,8 +4439,8 @@ export function LienzoQuirurgico({
         capa === 'piel'
           ? 'Punta apoyada en la piel. La piel se incide con bisturí; la disección roma es de los planos de debajo.'
           : capa === 'fascia'
-            ? 'Punta apoyada en la fascia. Abra las ramas con la rueda del ratón: la fascia se separa del músculo por tensión.'
-            : 'Punta apoyada en el músculo. Abra las ramas con la rueda del ratón.',
+            ? 'Punta apoyada en la fascia. Abra las ramas arrastrando con el botón derecho hacia arriba: la fascia se separa del músculo por tensión.'
+            : 'Punta apoyada en el músculo. Abra las ramas arrastrando con el botón derecho hacia arriba.',
       )
       u.alDisecar?.({ capa, aperturas: d.aperturas, apoyada: true, evento: 'apoyo' })
       // Con la punta nueva, lo que se había separado en el apoyo anterior vuelve a cerrarse.
@@ -4323,7 +4636,7 @@ export function LienzoQuirurgico({
       // La tensión que ya hubiera (de una pareja anterior que se soltó) no se arrastra: nacen cerradas y sin separar.
       reaplicarSeparadores(t, u)
       avisarPellizcos(t, u)
-      t.decir?.('Pinzas puestas, una frente a la otra. La rueda las separa o las junta; con Mayúsculas abre o cierra las mandíbulas.')
+      t.decir?.('Pinzas puestas, una frente a la otra. Arrastrar con el botón derecho las separa o las junta; con Mayúsculas abre o cierra las mandíbulas.')
     }
 
     // --- la mesa de modelado (P-005 E1) -----------------------------------------------------------------
@@ -4395,7 +4708,7 @@ export function LienzoQuirurgico({
     // Antes solo se corría con las cifras del panel y dentro de un rango medido desde donde se apoyó, y el dueño pidió
     // poder dejarla «como se quiere, en cualquier posición». Fuera de la placa, el arrastre sigue siendo el de la cámara;
     // y un clic sobre ella ya no la vuelve a apoyar en el sitio del clic, que era lo que hacía antes sin querer.
-    let arrastreDeLaPlaca: { x: number; y: number; desfase: THREE.Vector3; giro: number; movido: boolean; ultimo: number } | null = null
+    let arrastreDeLaPlaca: { x: number; y: number; xDelGiro: number; desfase: THREE.Vector3; giro: number; movido: boolean; ultimo: number } | null = null
     const alBajarSobreLaPlaca = (evento: PointerEvent) => {
       const placa = taller.current.implantes?.placa
       if (ultimas.current.modo !== 'fijar' || evento.button !== 0 || !placa || placa.fijada || ultimas.current.marcandoLaTrayectoria) return
@@ -4408,7 +4721,7 @@ export function LienzoQuirurgico({
       if (!enLaPlaca && !(hueso && agujeroBajoElPunto(placa, hueso.point, 6) !== null)) return
       // Lo que hay del punto agarrado al punto de apoyo: así la placa no salta a centrarse en el cursor al empezar a moverla.
       const agarrado = hueso?.point ?? enLaPlaca!.point
-      arrastreDeLaPlaca = { x: evento.clientX, y: evento.clientY, desfase: apoyoDeLaPlaca(placa).sub(agarrado), giro: placa.ajuste.giroGrados, movido: false, ultimo: 0 }
+      arrastreDeLaPlaca = { x: evento.clientX, y: evento.clientY, xDelGiro: evento.clientX, desfase: apoyoDeLaPlaca(placa).sub(agarrado), giro: placa.ajuste.giroGrados, movido: false, ultimo: 0 }
       controles.enabled = false
       // Los demás que escuchan el clic (coser, fijar con clic) no lo ven: el gesto es de la placa.
       evento.stopImmediatePropagation()
@@ -4435,18 +4748,20 @@ export function LienzoQuirurgico({
       const ahora = performance.now()
       if (ahora - a.ultimo < 33) return
       a.ultimo = ahora
+      // Con Mayúsculas el arrastre la gira sobre su apoyo en vez de llevarla (P-009): era la rueda, que ahora solo
+      // acerca. Un grado cada cuatro píxeles a lo ancho; al soltar Mayúsculas se sigue llevando desde donde quedó.
+      if (evento.shiftKey) {
+        const placa = taller.current.implantes?.placa
+        const grados = Math.trunc((evento.clientX - a.xDelGiro) / 4)
+        if (!placa || grados === 0) return
+        a.xDelGiro += grados * 4
+        a.giro = giroEnvuelto(a.giro + grados)
+        if (ajustarPlaca(placa, mallasDeHueso(), { ...placa.ajuste, giroGrados: a.giro })) pedirDibujo()
+        return
+      }
+      a.xDelGiro = evento.clientX
       aCoordenadas(evento)
       llevarLaPlaca()
-    }
-    const alGirarLaPlaca = (evento: WheelEvent) => {
-      const a = arrastreDeLaPlaca
-      const placa = taller.current.implantes?.placa
-      if (!a || !placa) return
-      evento.preventDefault()
-      evento.stopImmediatePropagation()
-      a.giro = giroEnvuelto(a.giro + Math.sign(evento.deltaY) * (evento.shiftKey ? 1 : 5))
-      a.movido = true
-      if (ajustarPlaca(placa, mallasDeHueso(), { ...placa.ajuste, giroGrados: a.giro })) pedirDibujo()
     }
     const alSoltarLaPlaca = (evento: PointerEvent) => {
       const a = arrastreDeLaPlaca
@@ -4460,10 +4775,11 @@ export function LienzoQuirurgico({
       }
       const placa = taller.current.implantes?.placa
       if (!placa) return
+      const delAsiento = avisoDeLaPlacaPuesta(placa, ultimas.current.piezas, ultimas.current.medidasDelFoco)
       taller.current.decir?.(
         a.movido
-          ? `Placa en su nuevo sitio${placa.ajuste.giroGrados ? `, girada ${Math.abs(placa.ajuste.giroGrados)}°` : ''}${placa.separadaDelHuesoMm > 1.5 ? `: queda a ${placa.separadaDelHuesoMm.toFixed(1).replace('.', ',')} mm del hueso` : ''}. Cuando esté donde va, pulse «Fijar la placa».`
-          : 'Arrastre la placa para llevarla por el hueso; mientras la arrastra, la rueda la gira.',
+          ? `Placa en su nuevo sitio${placa.ajuste.giroGrados ? `, girada ${Math.abs(placa.ajuste.giroGrados)}°` : ''}${!delAsiento && placa.separadaDelHuesoMm > 1.5 ? `: queda a ${placa.separadaDelHuesoMm.toFixed(1).replace('.', ',')} mm del hueso` : ''}.${delAsiento?.texto ? ` ${delAsiento.texto}` : ''} Cuando esté donde va, pulse «Fijar la placa».`
+          : 'Arrastre la placa para llevarla por el hueso; con Mayúsculas, el arrastre la gira.',
       )
       ultimas.current.alFijar?.(estadoDeLaFijacion(taller.current))
       pedirDibujo()
@@ -4472,7 +4788,6 @@ export function LienzoQuirurgico({
     superficie.addEventListener('pointermove', alMoverLaPlaca)
     superficie.addEventListener('pointerup', alSoltarLaPlaca)
     superficie.addEventListener('pointercancel', alSoltarLaPlaca)
-    superficie.addEventListener('wheel', alGirarLaPlaca, { passive: false })
 
     // --- despegar el periostio (P-005 E2) ---------------------------------------------------------------
     // Con el Freer o un periostótomo en la mano, mantener pulsado y arrastrar sobre el hueso deja una franja expuesta del ancho de la hoja.
@@ -4820,6 +5135,9 @@ export function LienzoQuirurgico({
     superficie.addEventListener('pointercancel', alSoltarParaEnclavar)
 
     const alBajar = (evento: PointerEvent) => {
+      // Solo el botón principal corta, coloca o pincha. Aquí entraba cualquier botón, y el derecho maneja ahora el
+      // instrumento o abre el menú (P-009): un arrastre para abrir el separador no puede ponerlo también.
+      if (evento.button !== 0) return
       const { modo: modoActual } = ultimas.current
       if (modoActual === 'orbitar' || modoActual === 'modelar' || modoActual === 'elevar' || modoActual === 'enclavar') return
 
@@ -5763,34 +6081,16 @@ export function LienzoQuirurgico({
      * está lejos—. `posicionDeLaFractura` toma todo el resto del hueso visible y en una pierna entera cae lejos del foco.
      */
     const focoEntreLosFragmentos = (): THREE.Vector3 | null => {
-      const t = taller.current
-      const f = t.fragmento
-      if (!f) return null
-      const mm = ultimas.current.milimetrosPorUnidad || 1000
       const i = indiceDelEjeLargo()
-      const [j, k] = [0, 1, 2].filter((x) => x !== i)
-      const cajaF = new THREE.Box3().setFromObject(f)
-      const solape = (a: THREE.Box3, b: THREE.Box3, eje: number) => Math.max(0, Math.min(a.max.getComponent(eje), b.max.getComponent(eje)) - Math.max(a.min.getComponent(eje), b.min.getComponent(eje)))
-      const area = (c: THREE.Box3) => (c.max.getComponent(j) - c.min.getComponent(j)) * (c.max.getComponent(k) - c.min.getComponent(k))
-      let otra: THREE.Box3 | null = null
-      let mejor = 0.2
-      for (const h of huesoFijo(t, ultimas.current.piezas)) {
-        const c = new THREE.Box3().setFromObject(h)
-        const huecoAlLargo = Math.max(0, Math.max(c.min.getComponent(i) - cajaF.max.getComponent(i), cajaF.min.getComponent(i) - c.max.getComponent(i)))
-        if (huecoAlLargo * mm > 60) continue
-        const parecido = (solape(cajaF, c, j) * solape(cajaF, c, k)) / Math.max(area(cajaF), area(c), 1e-9)
-        if (parecido > mejor) {
-          mejor = parecido
-          otra = c
-        }
-      }
-      if (!otra) return null
+      const enfrente = huesoQueSeEnfrenta(taller.current, ultimas.current.piezas, i, ultimas.current.milimetrosPorUnidad || 1000)
+      if (!enfrente) return null
+      const { caja: otra, cajaDelFragmento: cajaF } = enfrente
       const centro = cajaF.getCenter(new THREE.Vector3())
-      const frente = (otra as THREE.Box3).getCenter(new THREE.Vector3())
+      const frente = otra.getCenter(new THREE.Vector3())
       const mitad =
         centro.getComponent(i) < frente.getComponent(i)
-          ? (cajaF.max.getComponent(i) + (otra as THREE.Box3).min.getComponent(i)) / 2
-          : (cajaF.min.getComponent(i) + (otra as THREE.Box3).max.getComponent(i)) / 2
+          ? (cajaF.max.getComponent(i) + otra.min.getComponent(i)) / 2
+          : (cajaF.min.getComponent(i) + otra.max.getComponent(i)) / 2
       return centro.setComponent(i, mitad)
     }
     const injertarConClic = () => {
@@ -5939,19 +6239,25 @@ export function LienzoQuirurgico({
         // La de la mano se esconde ya y no en el próximo movimiento del ratón: si no, se queda cruzada sobre la que se apoyó
         // hasta que se mueve el cursor (P-008 E4; `posarHerramienta` ya no la vuelve a enseñar con una puesta).
         if (herramienta.raiz.visible) herramienta.raiz.visible = false
+        esconderLaPlacaPrevia()
         // La placa de la mesa ya está en el hueso: sale de la mesa.
         if (placa.contorno && t.mesa) {
           soltarLaMesa(t.mesa)
           t.mesa = undefined
           ultimas.current.alCambiarLaMesa?.(null)
         }
+        // Asentada como un sólido (P-009), lo que importa es sobre qué fragmentos queda y si apoya en los dos; la
+        // separación bajo un agujero solo se dice si no se pudo asentar.
+        const delAsiento = avisoDeLaPlacaPuesta(placa, ultimas.current.piezas, ultimas.current.medidasDelFoco)
         decirYAvisar({
           tipo: 'placa',
           texto:
-            `${placa.nombre} apoyada${placa.contorno ? ` con la forma que se le dio (${placa.contorno.texto.toLowerCase()})` : ''}: ${placa.agujerosMm.length} agujeros${placa.agujerosDelModelo ? '' : ' (repartidos a partes iguales)'}. Muévala hacia proximal o distal, anterior o posterior, o angúlela, y pulse «Fijar la placa».` +
-            (separada > 1.5 ? ` Queda a ${separada.toFixed(1).replace('.', ',')} mm del hueso: apóyela donde el hueso sea más recto.` : '') +
+            `${placa.nombre} apoyada${placa.contorno ? ` con la forma que se le dio (${placa.contorno.texto.toLowerCase()})` : ''}: ${placa.agujerosMm.length} agujeros${placa.agujerosDelModelo ? '' : ' (repartidos a partes iguales)'}.` +
+            (delAsiento?.texto ? ` ${delAsiento.texto}` : '') +
+            (!delAsiento && separada > 1.5 ? ` Queda a ${separada.toFixed(1).replace('.', ',')} mm del hueso: apóyela donde el hueso sea más recto.` : '') +
+            ' Muévala hacia proximal o distal, anterior o posterior, o angúlela, y pulse «Fijar la placa».' +
             (placa.avisoDeOrificios ? ` ${placa.avisoDeOrificios}` : ''),
-          atencion: separada > 1.5 || !!placa.avisoDeOrificios,
+          atencion: !!delAsiento?.atencion || (!delAsiento && separada > 1.5) || !!placa.avisoDeOrificios,
         })
         return
       }
@@ -5959,7 +6265,7 @@ export function LienzoQuirurgico({
       // Con un tornillo entrando, el clic no pone otro (pedido 13): ese se termina o se saca antes, como la broca puesta.
       if (inst.coloca?.tipo === 'tornillo' && atornillando) {
         t.decir?.(
-          `El tornillo del agujero ${atornillando.agujero + 1} está entrando: métalo con la rueda o pulse «Atornillar hasta el final»; «Sacar el tornillo» lo quita.`,
+          `El tornillo del agujero ${atornillando.agujero + 1} está entrando: métalo arrastrando con el botón derecho hacia arriba o pulse «Atornillar hasta el final»; «Sacar el tornillo» lo quita.`,
         )
         return
       }
@@ -6073,7 +6379,7 @@ export function LienzoQuirurgico({
         }
         posarElTornilloQueEntra()
         t.decir?.(
-          `${textoDelTornilloQueEntra({ largoMm: puesto.largoMm, metidoMm: 0, agujero: agujero + 1 })}. Métalo con la rueda (Mayúsculas afina): se queda donde va mientras pide el disparo.`,
+          `${textoDelTornilloQueEntra({ largoMm: puesto.largoMm, metidoMm: 0, agujero: agujero + 1 })}. Métalo arrastrando con el botón derecho hacia arriba (Mayúsculas afina): se queda donde va mientras pide el disparo.`,
         )
       }
     }
@@ -6216,7 +6522,22 @@ export function LienzoQuirurgico({
       refrescarSutura(t, ultimas.current.milimetrosPorUnidad, ultimas.current.alCoser, 'ultima', ultimas.current.alHerir)
     }
 
+    // El arrastre con el botón derecho en curso (P-009): se declara aquí porque `alMover` lo mira.
+    let arrastreDerecho: {
+      x: number
+      y: number
+      yDeLaMuesca: number
+      id: number
+      movido: boolean
+      delInstrumento: boolean
+      /** Dónde se pidió el menú contextual con el botón aún abajo: lo que es (clic o arrastre) se sabe al soltar. */
+      menu?: { x: number; y: number }
+    } | null = null
+    let elDerechoArrastro = false
     const alMover = (evento: PointerEvent) => {
+      // Mientras el derecho maneja el instrumento, el cursor sube y baja para abrir o meter: el separador sobre el que se
+      // empezó sigue siendo el activo y lo de la mano no se mueve.
+      if (arrastreDerecho?.delInstrumento) return
       if (!arrastrando) {
         // Lo que se levantó con un clic (separador o pinza) sigue al cursor, y el instrumento de la mano se aparta.
         if (taller.current.separadorEnLaMano || taller.current.pinzaEnLaMano) {
@@ -6418,25 +6739,58 @@ export function LienzoQuirurgico({
      * (y el pellizco del trackpad, que el navegador manda como rueda con Ctrl) acerca el modelo a mano, porque
      * `OrbitControls` tiene el zoom apagado mientras el instrumento la usa.
      */
-    const alGirarLaRueda = (evento: WheelEvent) => {
+    // --- el arrastre con el botón derecho: lo que antes hacía la rueda (P-009, mejora de uso 7) -----------------
+    // La rueda acerca siempre. Antes, con un instrumento que la usaba, la rueda abría el separador o metía la broca y
+    // acercar pedía Ctrl: el mismo gesto hacía dos cosas según lo que hubiera en la mano, y el residente que quería mirar
+    // de cerca abría la herida sin querer. Ahora lo del instrumento se hace arrastrando con el botón derecho —hacia
+    // arriba, lo que era la rueda hacia delante: abre, mete, alarga—, una muesca cada diez píxeles, con las mismas
+    // Mayúsculas de antes. Un clic derecho sin arrastre sigue siendo un clic: retira la broca, o abre el menú de los
+    // instrumentos en la consola. Mientras el instrumento lo usa, el derecho no desplaza la vista (`enablePan`).
+    const PIXELES_POR_MUESCA = 10
+    const alBajarConElDerecho = (evento: PointerEvent) => {
+      if (evento.button !== 2) return
+      elDerechoArrastro = false
       const u = ultimas.current
-      if (!u.capturaLaRueda || !u.alRueda) return
-      evento.preventDefault()
-      // Con Mayúsculas el instrumento puede quedarse la rueda para otra cosa —las pinzas: abrir y cerrar las
-      // mandíbulas—; si no la usa, la rueda acerca el modelo como siempre.
-      if (evento.shiftKey && !evento.ctrlKey && !evento.metaKey && u.alRueda(evento.deltaY, true)) return
-      if (evento.ctrlKey || evento.metaKey || evento.shiftKey) {
-        const factor = Math.exp(Math.max(-60, Math.min(60, evento.deltaY)) * 0.0022)
-        const desde = camara.position.clone().sub(controles.target)
-        const distancia = Math.min(controles.maxDistance, Math.max(controles.minDistance, desde.length() * factor))
-        camara.position.copy(controles.target).add(desde.setLength(distancia))
-        controles.update()
-        pedirDibujo()
-        return
+      arrastreDerecho = {
+        x: evento.clientX,
+        y: evento.clientY,
+        yDeLaMuesca: evento.clientY,
+        id: evento.pointerId,
+        movido: false,
+        delInstrumento: Boolean(u.capturaLaRueda && u.alRueda),
       }
-      u.alRueda(evento.deltaY, false)
     }
-    superficie.addEventListener('wheel', alGirarLaRueda, { passive: false })
+    const alMoverConElDerecho = (evento: PointerEvent) => {
+      const a = arrastreDerecho
+      if (!a || evento.pointerId !== a.id) return
+      // Cuatro píxeles separan un clic de un arrastre: también cuando el derecho desplaza la vista, que soltado tras
+      // desplazarla no tiene que abrir el menú.
+      if (!a.movido && Math.hypot(evento.clientX - a.x, evento.clientY - a.y) > 4) a.movido = true
+      const alRueda = ultimas.current.alRueda
+      if (!a.delInstrumento || !alRueda) return
+      const muescas = Math.trunc((evento.clientY - a.yDeLaMuesca) / PIXELES_POR_MUESCA)
+      if (muescas === 0) return
+      a.yDeLaMuesca += muescas * PIXELES_POR_MUESCA
+      const delta = Math.sign(muescas) * 100
+      // Con Mayúsculas, lo fino del instrumento si lo tiene (las mandíbulas, la quinta parte de la broca); si no, lo de
+      // siempre. Con la rueda, unas Mayúsculas que el instrumento no usaba acercaban la vista; aquí no hay nada que
+      // acercar, y un arrastre que no hiciera nada parecería roto.
+      for (let i = 0; i < Math.abs(muescas); i++) {
+        if (!(evento.shiftKey && alRueda(delta, true))) alRueda(delta, false)
+      }
+    }
+    const alSoltarConElDerecho = (evento: PointerEvent) => {
+      const a = arrastreDerecho
+      if (!a || evento.pointerId !== a.id) return
+      arrastreDerecho = null
+      elDerechoArrastro = a.movido
+      // El menú contextual llegó al pulsar (macOS, Linux): era un clic si no hubo arrastre, y se atiende ahora.
+      if (a.menu && !a.movido) clicDerechoLimpio(a.menu.x, a.menu.y)
+    }
+    superficie.addEventListener('pointerdown', alBajarConElDerecho)
+    superficie.addEventListener('pointermove', alMoverConElDerecho)
+    superficie.addEventListener('pointerup', alSoltarConElDerecho)
+    superficie.addEventListener('pointercancel', alSoltarConElDerecho)
 
     // --- el giro libre ---------------------------------------------------------------------------------
     // `OrbitControls` orbita con el «arriba» fijo, y por eso el miembro no se podía acostar. Con el giro libre
@@ -6512,10 +6866,29 @@ export function LienzoQuirurgico({
     superficie.addEventListener('pointerleave', alSubir)
     superficie.addEventListener('pointerleave', esconderHerramienta)
     // El botón derecho retira la broca puesta (P-004 E8): es el gesto de sacarla, junto a «Retirar» y Esc.
+    const clicDerechoLimpio = (x: number, y: number) => {
+      if (perforando) {
+        terminarPerforacion()
+        return
+      }
+      // Un clic derecho limpio abre el menú de los instrumentos donde está el cursor (P-009, mejora de uso 9).
+      ultimas.current.alAbrirElMenu?.(x, y)
+    }
     const alClicDerecho = (evento: MouseEvent) => {
-      if (!perforando) return
       evento.preventDefault()
-      terminarPerforacion()
+      // En Windows el menú contextual sale al soltar, y para entonces ya se sabe si hubo arrastre. En macOS y en Linux
+      // sale al pulsar, con el arrastre aún por empezar: abrir ahí el menú taparía el lienzo justo cuando se iba a abrir
+      // el separador. Se apunta y lo decide `alSoltarConElDerecho`.
+      if (arrastreDerecho) {
+        arrastreDerecho.menu = { x: evento.clientX, y: evento.clientY }
+        return
+      }
+      // Tras un arrastre con el derecho —meter la broca, abrir el separador, desplazar la vista— soltar no es un clic.
+      if (elDerechoArrastro) {
+        elDerechoArrastro = false
+        return
+      }
+      clicDerechoLimpio(evento.clientX, evento.clientY)
     }
     superficie.addEventListener('contextmenu', alClicDerecho)
 
@@ -6660,7 +7033,14 @@ export function LienzoQuirurgico({
       window.clearInterval(reloj)
       guardarSesion()
       guardarLoColocado()
-      superficie.removeEventListener('wheel', alGirarLaRueda)
+      superficie.removeEventListener('pointerdown', alBajarConElDerecho)
+      superficie.removeEventListener('pointermove', alMoverConElDerecho)
+      superficie.removeEventListener('pointerup', alSoltarConElDerecho)
+      superficie.removeEventListener('pointercancel', alSoltarConElDerecho)
+      superficie.removeEventListener('pointerdown', alBajarElPuntero, true)
+      window.removeEventListener('pointerup', alSoltarElPuntero, true)
+      window.removeEventListener('pointercancel', alSoltarElPuntero, true)
+      taller.current.esconderLasVistasPrevias?.()
       superficie.removeEventListener('pointerdown', alBajarParaGirar)
       superficie.removeEventListener('pointermove', alMoverParaGirar)
       superficie.removeEventListener('pointerup', alSoltarParaGirar)
@@ -6707,7 +7087,6 @@ export function LienzoQuirurgico({
       superficie.removeEventListener('pointermove', alMoverLaPlaca)
       superficie.removeEventListener('pointerup', alSoltarLaPlaca)
       superficie.removeEventListener('pointercancel', alSoltarLaPlaca)
-      superficie.removeEventListener('wheel', alGirarLaPlaca)
       if (taller.current.mesa) {
         soltarLaMesa(taller.current.mesa)
         taller.current.mesa = undefined
@@ -6833,7 +7212,10 @@ export function LienzoQuirurgico({
   // su cuerpo: corre justo cuando cambia el instrumento, y al desmontar no hay nada que retirar.
   useEffect(() => {
     const taller_ = taller
-    return () => taller_.current.retirarLaBroca?.()
+    return () => {
+      taller_.current.retirarLaBroca?.()
+      taller_.current.esconderLasVistasPrevias?.()
+    }
   }, [idDelInstrumento])
   useEffect(() => {
     const escena = taller.current.escena
@@ -6914,7 +7296,10 @@ export function LienzoQuirurgico({
     }
     // Con el giro libre el arrastre lo gira el propio lienzo (`girarLaVista`), no los controles.
     controles.enableRotate = (modo === 'orbitar' || modo === 'coser' || modo === 'fijar') && !giroLibre
-    controles.enableZoom = !capturaLaRueda
+    // La rueda acerca siempre (P-009); el arrastre con el derecho es del instrumento cuando el instrumento lo usa.
+    controles.enableZoom = true
+    controles.enablePan = !capturaLaRueda
+    taller.current.esconderLasVistasPrevias?.()
     // Cambiar de modo o de forma de trazar deja sin terminar la recta que se había empezado.
     cancelarLaRecta(taller.current)
     // Salir de «Perforar» con una broca puesta la retira (P-004 E8): no se deja un hoyo a medias sin querer.
@@ -7217,7 +7602,7 @@ function retraerElMusculo(
   // La rueda sigue al último músculo pinchado (pincho–ruedita–pincho otra estructura–ruedita, pedido 10).
   t.retraccionActiva = nueva.id
   aplicarUnaRetraccion(nueva, unidadesPorMm)
-  t.decir?.(`${nueva.nombre} apoyado en ${nueva.nodo.replace(/_/g, ' ')}: se retrae sin cortarlo (${nueva.aperturaMm} mm). La rueda lo abre o lo cierra.`)
+  t.decir?.(`${nueva.nombre} apoyado en ${nueva.nodo.replace(/_/g, ' ')}: se retrae sin cortarlo (${nueva.aperturaMm} mm). Arrastrando con el botón derecho, hacia arriba lo abre y hacia abajo lo cierra.`)
   u.alRetraer?.(estadoDeLasRetracciones(t))
   t.pedirDibujo?.()
 }
@@ -7533,6 +7918,75 @@ const VECTOR_DEL_EJE: Record<EjeLargo, THREE.Vector3> = {
   z: new THREE.Vector3(0, 0, 1),
 }
 
+/**
+ * El trozo de hueso fijo que **se le enfrenta** al fragmento del caso: el de huella (en los dos ejes que no son el largo)
+ * más parecida a la del fragmento y pegado a él a lo largo del eje —no la fíbula, que va al lado, ni el fémur, que está
+ * lejos—. Con él se sitúa el foco del injerto y se mide el ancho del hueso del % del desplazamiento (Q-010).
+ */
+function huesoQueSeEnfrenta(
+  taller: Taller,
+  piezas: PiezaDelCaso[],
+  eje: number,
+  milimetrosPorUnidad: number,
+): { malla: THREE.Mesh; caja: THREE.Box3; cajaDelFragmento: THREE.Box3 } | null {
+  const f = taller.fragmento
+  if (!f) return null
+  const [j, k] = [0, 1, 2].filter((x) => x !== eje)
+  const cajaF = new THREE.Box3().setFromObject(f)
+  const solape = (a: THREE.Box3, b: THREE.Box3, e: number) => Math.max(0, Math.min(a.max.getComponent(e), b.max.getComponent(e)) - Math.max(a.min.getComponent(e), b.min.getComponent(e)))
+  const area = (c: THREE.Box3) => (c.max.getComponent(j) - c.min.getComponent(j)) * (c.max.getComponent(k) - c.min.getComponent(k))
+  let elegido: { malla: THREE.Mesh; caja: THREE.Box3 } | null = null
+  let mejor = 0.2
+  for (const h of huesoFijo(taller, piezas)) {
+    const c = new THREE.Box3().setFromObject(h)
+    const huecoAlLargo = Math.max(0, Math.max(c.min.getComponent(eje) - cajaF.max.getComponent(eje), cajaF.min.getComponent(eje) - c.max.getComponent(eje)))
+    if (huecoAlLargo * milimetrosPorUnidad > 60) continue
+    const parecido = (solape(cajaF, c, j) * solape(cajaF, c, k)) / Math.max(area(cajaF), area(c), 1e-9)
+    if (parecido > mejor) {
+      mejor = parecido
+      elegido = { malla: h, caja: c }
+    }
+  }
+  return elegido ? { ...elegido, cajaDelFragmento: cajaF } : null
+}
+
+/** Los vértices de cada malla en el mundo, mientras no se mueva: el ancho del foco se pide a cada arrastre del fragmento. */
+const verticesEnElMundo = new WeakMap<THREE.Mesh, { firma: string; posiciones: Float32Array }>()
+
+/**
+ * Las secciones del hueso fijo junto al foco (`seccionesDelHueso`), guardadas: el % se recalcula con cada movimiento
+ * del fragmento, y el hueso fijo no se mueve. Cortar todos sus triángulos en cada arrastre, en un hueso de cientos de
+ * miles, es lo que se nota en la mano; con las secciones guardadas solo se proyectan unos cientos de puntos.
+ */
+const seccionesGuardadas = new WeakMap<THREE.Mesh, { clave: string; secciones: number[][] }>()
+function seccionesEnElMundo(malla: THREE.Mesh, eje: EjeLargo, desde: number, hasta: number): number[][] {
+  const posiciones = posicionesEnElMundo(malla)
+  const clave = `${verticesEnElMundo.get(malla)?.firma}|${eje}|${desde}|${hasta}`
+  const guardadas = seccionesGuardadas.get(malla)
+  if (guardadas && guardadas.clave === clave) return guardadas.secciones
+  const secciones = seccionesDelHueso(posiciones, malla.geometry.index?.array ?? null, eje, desde, hasta)
+  seccionesGuardadas.set(malla, { clave, secciones })
+  return secciones
+}
+
+function posicionesEnElMundo(malla: THREE.Mesh): Float32Array {
+  malla.updateWorldMatrix(true, false)
+  const firma = malla.matrixWorld.elements.join(',')
+  const guardadas = verticesEnElMundo.get(malla)
+  if (guardadas && guardadas.firma === firma) return guardadas.posiciones
+  const atributo = malla.geometry.getAttribute('position')
+  const posiciones = new Float32Array(atributo.count * 3)
+  const v = new THREE.Vector3()
+  for (let n = 0; n < atributo.count; n++) {
+    v.fromBufferAttribute(atributo, n).applyMatrix4(malla.matrixWorld)
+    posiciones[3 * n] = v.x
+    posiciones[3 * n + 1] = v.y
+    posiciones[3 * n + 2] = v.z
+  }
+  verticesEnElMundo.set(malla, { firma, posiciones })
+  return posiciones
+}
+
 /** Las mallas visibles que no son del fragmento, y de ellas las que el caso llama hueso. */
 function huesoFijo(taller: Taller, piezas: PiezaDelCaso[]): THREE.Mesh[] {
   const { raiz, fragmento } = taller
@@ -7730,6 +8184,21 @@ function soltarLosBloqueos(t: Taller) {
   e.bloqueos = []
 }
 
+/**
+ * Lo que dice el asiento de la placa (P-009) con el nombre de cada trozo como lo ve quien opera: la etiqueta que le puso
+ * el editor o, sin ella, su nodo; y con la lectura del foco que ve la consola. `null` si la placa no se pudo asentar
+ * como un sólido (un modelo sin hueso alrededor).
+ */
+function avisoDeLaPlacaPuesta(
+  placa: PlacaColocada,
+  piezas: readonly PiezaDelCaso[],
+  foco: ReduccionDelFoco | null | undefined,
+): { texto: string; atencion: boolean } | null {
+  if (!placa.asiento) return null
+  const nombreDe = (nodo: string) => piezas.find((p) => p.nodo === nodo)?.etiqueta?.trim() || nodo.replace(/_/g, ' ')
+  return avisoDelAsiento(placa.asiento, nombreDe, piezas.some((p) => p.rol === 'fragmento'), foco)
+}
+
 export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
   const imp = taller.implantes
   const tray = taller.trayectoriaDelTornillo
@@ -7748,6 +8217,7 @@ export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
           sentidoDelLado: imp.placa.sentidoDelLado,
           agujerosDelModelo: imp.placa.agujerosDelModelo,
           aviso: imp.placa.avisoDeOrificios,
+          asiento: imp.placa.asiento ?? null,
           forma: formaDeLosAgujeros({ nombre: imp.placa.nombre }),
           semilargoDelOvalMm: semilargoDelOvalDeLaPlaca(imp.placa.nombre),
           ladoDeLaFractura: taller.ladosDeLaFractura?.() ?? {},
@@ -8983,6 +9453,98 @@ function dibujarTrazo(taller: Taller) {
   linea.userData.deInterfaz = true
   escena.add(linea)
   taller.trazo = linea
+}
+
+/**
+ * El archivo del modelo, bajado una vez por página (P-009). «Repetir este paso», «Deshacer» y «Seguir donde lo dejó»
+ * vuelven a montar el lienzo para que devuelva lo guardado como en una recarga, y cada montaje volvía a pedir el
+ * archivo entero —decenas de MB— para el mismo modelo. Se guarda el último y se lee de nuevo desde una copia: el
+ * modelo tiene que salir nuevo en cada montaje, porque lo cortado se hace sobre sus mallas, y lo único que se comparte
+ * son los bytes. Uno solo: una página abre un modelo.
+ */
+let archivoDelModelo: { url: string; datos: Promise<ArrayBuffer> } | null = null
+
+function cargarElArchivo(
+  cargador: GLTFLoader,
+  url: string,
+  alCargar: (gltf: GLTF) => void,
+  alFallar: (error: unknown) => void,
+) {
+  let archivo = archivoDelModelo
+  if (!archivo || archivo.url !== url) {
+    const datos = fetch(url).then((respuesta) => {
+      if (!respuesta.ok) throw new Error(`El servidor respondió ${respuesta.status}.`)
+      return respuesta.arrayBuffer()
+    })
+    archivo = { url, datos }
+    archivoDelModelo = archivo
+    // Un fallo no se guarda: el montaje siguiente lo vuelve a pedir.
+    datos.catch(() => {
+      if (archivoDelModelo?.datos === datos) archivoDelModelo = null
+    })
+  }
+  archivo.datos.then((datos) => {
+    try {
+      cargador.parse(datos.slice(0), THREE.LoaderUtils.extractUrlBase(url), alCargar, alFallar)
+    } catch (error) {
+      alFallar(error)
+    }
+  }, alFallar)
+}
+
+/**
+ * Lleva la cámara al encuadre de un paso (P-009) en 450 ms: el punto mirado, la dirección, la distancia y el arriba a
+ * la vez. De golpe, el residente perdía de dónde venía y cada paso parecía otro modelo; más largo, estorba a quien ya
+ * sabe el camino. La dirección gira por el arco corto y no se interpola en línea recta: entre dos vistas casi opuestas
+ * la recta pasa por dentro del modelo.
+ *
+ * El arriba se le dice a `OrbitControls` en cada cuadro (`sincronizarElArriba`), porque el bucle de dibujo llama a
+ * `controles.update()` en todos: con el arriba viejo, ese `update` recolocaba la cámara en el sistema de antes y la
+ * vista daba un salto al terminar. Si llega otra orden mientras tanto, esta se para (`turnoDeLaCamara`).
+ */
+function llevarLaCamaraAlEncuadre(
+  t: { camara?: THREE.PerspectiveCamera; controles?: OrbitControls; pedirDibujo?: () => void; turnoDeLaCamara?: number },
+  e: EncuadreDelPaso,
+  ms = 450,
+) {
+  const { camara, controles } = t
+  if (!camara || !controles) return
+  const c0 = controles.target.clone()
+  const c1 = new THREE.Vector3(...e.centro)
+  const r0 = camara.position.distanceTo(c0)
+  const d0 = r0 > 1e-9 ? camara.position.clone().sub(c0).divideScalar(r0) : new THREE.Vector3(...e.direccion)
+  const giro = new THREE.Quaternion().setFromUnitVectors(d0, new THREE.Vector3(...e.direccion))
+  const a0 = camara.up.clone().normalize()
+  const a1 = new THREE.Vector3(...e.arriba)
+  const turno = (t.turnoDeLaCamara ?? 0) + 1
+  t.turnoDeLaCamara = turno
+  const inicio = performance.now()
+  const parcial = new THREE.Quaternion()
+  const cuadro = (ahora: number) => {
+    if (t.turnoDeLaCamara !== turno) return
+    const k = Math.min(1, (ahora - inicio) / ms)
+    if (k >= 1) {
+      ponerLaPose(camara, controles, c1, e.distancia, { direccion: e.direccion, arriba: e.arriba })
+      t.pedirDibujo?.()
+      return
+    }
+    const suave = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+    parcial.identity().slerp(giro, suave)
+    controles.target.lerpVectors(c0, c1, suave)
+    camara.position
+      .copy(d0)
+      .applyQuaternion(parcial)
+      .multiplyScalar(r0 + (e.distancia - r0) * suave)
+      .add(controles.target)
+    camara.up.lerpVectors(a0, a1, suave)
+    if (camara.up.lengthSq() < 1e-8) camara.up.copy(a1)
+    camara.up.normalize()
+    camara.lookAt(controles.target)
+    sincronizarElArriba(controles, camara)
+    t.pedirDibujo?.()
+    requestAnimationFrame(cuadro)
+  }
+  requestAnimationFrame(cuadro)
 }
 
 /**

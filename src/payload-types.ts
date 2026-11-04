@@ -195,6 +195,8 @@ export interface Usuario {
   pendiente?: boolean | null;
   motivoDeSolicitud?: string | null;
   solicitadaEn?: string | null;
+  privacidadAceptadaEn?: string | null;
+  versionDelAvisoDePrivacidad?: string | null;
   /**
    * Sin marcar ninguno, ve los cinco. Marque solo para restringir.
    */
@@ -1637,6 +1639,7 @@ export interface Cirugia {
     [k: string]: unknown;
   } | null;
   bandeja: 'completa' | 'acotada';
+  modo: 'eleccion' | 'practica' | 'evaluacion';
   /**
    * Solo cuenta con «Solo lo que elijo». Entonces es lo que el residente tendrá delante, más lo que piden los pasos; declararla sirve para AÑADIR señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Con «Toda la mesa» el residente ve todo el instrumental y esta lista no se usa.
    */
@@ -1743,6 +1746,20 @@ export interface Cirugia {
               id?: string | null;
             }[]
           | null;
+        posicion?: ('de-pie' | 'supino' | 'prono') | null;
+        encuadre?: {
+          dx?: number | null;
+          dy?: number | null;
+          dz?: number | null;
+          ax?: number | null;
+          ay?: number | null;
+          az?: number | null;
+          cx?: number | null;
+          cy?: number | null;
+          cz?: number | null;
+          distancia?: number | null;
+        };
+        demostracion?: (number | null) | Medio;
         exito?: string | null;
         insuficiente?: string | null;
         excesivo?: string | null;
@@ -2091,7 +2108,17 @@ export interface Actividad {
     | boolean
     | null;
   reduccionAutomatica?: boolean | null;
+  modoDelRecorrido?: ('practica' | 'evaluacion') | null;
   radiografia?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  avance?:
     | {
         [k: string]: unknown;
       }
@@ -2625,6 +2652,8 @@ export interface UsuariosSelect<T extends boolean = true> {
   pendiente?: T;
   motivoDeSolicitud?: T;
   solicitadaEn?: T;
+  privacidadAceptadaEn?: T;
+  versionDelAvisoDePrivacidad?: T;
   modulosVisibles?: T;
   modulosEditables?: T;
   ultimoAcceso?: T;
@@ -3712,6 +3741,7 @@ export interface CirugiasSelect<T extends boolean = true> {
   codigo?: T;
   resumen?: T;
   bandeja?: T;
+  modo?: T;
   instrumental?: T;
   modelo?: T;
   milimetrosPorUnidad?: T;
@@ -3776,6 +3806,22 @@ export interface CirugiasSelect<T extends boolean = true> {
               nodo?: T;
               id?: T;
             };
+        posicion?: T;
+        encuadre?:
+          | T
+          | {
+              dx?: T;
+              dy?: T;
+              dz?: T;
+              ax?: T;
+              ay?: T;
+              az?: T;
+              cx?: T;
+              cy?: T;
+              cz?: T;
+              distancia?: T;
+            };
+        demostracion?: T;
         exito?: T;
         insuficiente?: T;
         excesivo?: T;
@@ -4050,7 +4096,9 @@ export interface ActividadSelect<T extends boolean = true> {
   puntajeMaximo?: T;
   insumos?: T;
   reduccionAutomatica?: T;
+  modoDelRecorrido?: T;
   radiografia?: T;
+  avance?: T;
   complicaciones?:
     | T
     | {

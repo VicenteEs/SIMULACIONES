@@ -6,6 +6,7 @@ import {
   colocarPlaca,
   colocarTornillo,
   crearImplantes,
+  medirAlLoLargoDeUnaLinea,
   medirBajoElAgujero,
   posicionDelAgujero,
   quitarImplantes,
@@ -99,10 +100,13 @@ describe('colocar una placa', () => {
     const { placa } = colocar()
     expect(placa).not.toBeNull()
     expect(placa.grosorMm).toBeCloseTo(3, 4)
-    expect(placa.normal.toArray()).toEqual([0, 0, 1])
+    // La normal ya no es la que se pasa, sino la media de la superficie del hueso alrededor (P-009). En este cilindro de
+    // 24 caras, con triángulos de diez centímetros de largo, la nube que la promedia no es simétrica y sale un grado de lado: se
+    // pide que esté a menos de dos, y los agujeros, en el eje a menos de una décima de milímetro.
+    expect(placa.normal.angleTo(new THREE.Vector3(0, 0, 1))).toBeLessThan((2 * Math.PI) / 180)
     // Los tres agujeros quedan en una línea paralela al eje del hueso, separados 20 mm.
     const centros = AGUJEROS.map((_, i) => posicionDelAgujero(placa, i, 'abajo'))
-    expect(centros[0].x).toBeCloseTo(0, 3)
+    expect(centros[0].x).toBeCloseTo(0, 1)
     expect(Math.abs(centros[2].y - centros[0].y)).toBeCloseTo(40, 3)
     expect(centros[1].x).toBeCloseTo(centros[0].x, 3)
     // Su cara de abajo toca el hueso, a unas décimas de milímetro.
@@ -327,4 +331,40 @@ describe('ajustar la placa ya puesta (P-003 E6)', () => {
     expect(c.placa.fijada).toBe(false)
     expect(c.placa.agujeros.size).toBe(0)
   })
+})
+
+/**
+ * La cortical opuesta con otro hueso detrás (P-009). Una «tibia» de 12 mm de grueso en Z y, detrás, otra pieza: un «peroné»
+ * a 10 mm o el fragmento distal de una fractura. La línea baja por −Z desde 0,2 mm por fuera de la tibia, fuera de las
+ * diagonales de las caras para que el rayo no caiga justo en una arista. Con materiales de una cara y de dos: los modelos
+ * del atlas son de dos, y las pruebas de arriba, de una.
+ */
+describe('medirAlLoLargoDeUnaLinea con otra pieza de hueso detrás', () => {
+  const pieza = (alto: number, z: number, lados: THREE.Side) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(12, 100, alto), new THREE.MeshBasicMaterial({ side: lados }))
+    m.position.z = z
+    m.updateMatrixWorld(true)
+    return m
+  }
+  const medir = (huesos: THREE.Object3D[]) =>
+    medirAlLoLargoDeUnaLinea(new THREE.Vector3(0.37, 0.21, 6.2), new THREE.Vector3(0, 0, -1), 1, huesos)
+
+  for (const [nombre, lados] of [
+    ['de una cara', THREE.FrontSide],
+    ['de dos caras', THREE.DoubleSide],
+  ] as const) {
+    it(`${nombre}: el peroné a 10 mm no cuenta, y el grosor es el de la tibia`, () => {
+      // La tibia va de z = 6 a −6; el peroné, de −16 a −24. Antes salían 30 mm: hasta la cara de fuera del peroné.
+      const m = medir([pieza(12, 0, lados), pieza(8, -20, lados)])
+      expect(m?.distanciaAlHuesoMm).toBeCloseTo(0.2, 3)
+      expect(m?.espesorMm).toBeCloseTo(12, 3)
+    })
+
+    it(`${nombre}: el fragmento de una fractura reducida sí cuenta, y el de una sin reducir no`, () => {
+      // El fragmento de abajo, de 11 mm, a 1 mm de la tibia: se cruza el trazo y el grosor llega a z = −18.
+      expect(medir([pieza(12, 0, lados), pieza(11, -12.5, lados)])?.espesorMm).toBeCloseTo(24, 3)
+      // El mismo fragmento a 8 mm: el trazo sin reducir es parte blanda, y el grosor se queda en la tibia.
+      expect(medir([pieza(12, 0, lados), pieza(11, -19.5, lados)])?.espesorMm).toBeCloseTo(12, 3)
+    })
+  }
 })

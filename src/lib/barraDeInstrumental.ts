@@ -14,7 +14,8 @@
 /**
  * El dibujo de `IconoInstrumento` que representa a cada familia. Los de «periostio», «fijacion» y «modelado» se
  * dibujaron para esto (`elevador`, `broca`, `placa-curva`): con el genérico, tres de los doce cuadros eran la misma
- * raya y había que leerlos.
+ * raya y había que leerlos. Al partirse «fijacion» en tres (P-009), la broca quedó para las brocas, los medidores
+ * estrenaron el suyo y los destornilladores tomaron el `atornillador`, que ya estaba dibujado.
  */
 export const ICONO_DE_LA_FAMILIA: Readonly<Record<string, string>> = {
   corte: 'bisturi',
@@ -22,7 +23,9 @@ export const ICONO_DE_LA_FAMILIA: Readonly<Record<string, string>> = {
   exposicion: 'separador',
   periostio: 'elevador',
   reduccion: 'pinza',
-  fijacion: 'broca',
+  brocas: 'broca',
+  medidores: 'medidor',
+  destornilladores: 'atornillador',
   modelado: 'placa-curva',
   enclavado: 'fresa',
   placas: 'placa',
@@ -37,7 +40,8 @@ export const ICONO_DE_LA_FAMILIA: Readonly<Record<string, string>> = {
  *
  * Cada rótulo es una palabra del nombre entero, que es el que oye el lector de pantalla: quien dice en voz alta lo que
  * ve escrito («Elevadores») tiene que dar con el botón. Por eso no «Periostio», que no está en «Periostótomos y
- * elevadores».
+ * elevadores». «Destornilladores» lleva un guion blando: no cabe entero en un tercio de la columna, y sin él se partía
+ * por cualquier letra.
  */
 export const ROTULO_DE_LA_FAMILIA: Readonly<Record<string, string>> = {
   corte: 'Corte',
@@ -45,13 +49,52 @@ export const ROTULO_DE_LA_FAMILIA: Readonly<Record<string, string>> = {
   exposicion: 'Separadores',
   periostio: 'Elevadores',
   reduccion: 'Reducción',
-  fijacion: 'Perforación',
+  brocas: 'Brocas',
+  medidores: 'Medidores',
+  destornilladores: 'Destornilla\u00addores',
   modelado: 'Modelado',
   enclavado: 'Enclavado',
   placas: 'Placas',
   tornillos: 'Tornillos',
   clavos: 'Clavos',
   injerto: 'Injerto',
+}
+
+/**
+ * Las tres familias en que se parte «Perforación y fijación» en la mesa (Q-011, D-258: lo que recomendó Cristóbal). Era
+ * la familia con más cosas —treinta y dos en el caso de P-009, de la broca al martillo— y había que leerla entera para
+ * dar con el medidor. Se parte por lo que se hace con cada cosa, que es también el orden en que se cogen: brocar, medir
+ * y atornillar. El catálogo no cambia: la categoría sigue siendo una, y esto es solo cómo se ve en la mesa.
+ */
+export const FAMILIAS_DE_LA_PERFORACION = [
+  { clave: 'brocas', titulo: 'Brocas y guías' },
+  { clave: 'medidores', titulo: 'Medidores' },
+  { clave: 'destornilladores', titulo: 'Destornilladores' },
+] as const
+
+/**
+ * La familia de la mesa de un instrumento: su categoría del catálogo, salvo «Perforación y fijación», que va en tres
+ * por su nombre. Lo que no es ni un medidor ni un destornillador —brocas, guías, camisas, machuelos, avellanadores, el
+ * motor— va con las brocas; y un tornillo guardado en esa categoría, con los tornillos, que es donde se lo busca.
+ */
+export function familiaDeLaMesa(i: { categoria?: string | null; slug?: string | null; nombre?: string | null }): string {
+  const categoria = i.categoria ?? 'otros'
+  if (categoria !== 'fijacion') return categoria
+  const texto = `${i.slug ?? ''} ${i.nombre ?? ''}`.toLowerCase()
+  if (/(^|\s)tornillo/.test(texto)) return 'tornillos'
+  if (/destornillador|atornillador|limitador|llave/.test(texto)) return 'destornilladores'
+  if (/medidor|calibrador/.test(texto)) return 'medidores'
+  return 'brocas'
+}
+
+/** Las familias de la mesa en su orden: el de las categorías del catálogo, con «Perforación y fijación» en sus tres. */
+export function ordenDeLasFamilias(categorias: readonly string[]): string[] {
+  return categorias.flatMap((c) => (c === 'fijacion' ? FAMILIAS_DE_LA_PERFORACION.map((f) => f.clave) : [c]))
+}
+
+/** El nombre entero de una familia de la mesa: el de su categoría, o el de su parte de «Perforación y fijación». */
+export function tituloDeLaFamilia(clave: string, etiquetasDeCategoria: Readonly<Record<string, string>>): string {
+  return FAMILIAS_DE_LA_PERFORACION.find((f) => f.clave === clave)?.titulo ?? etiquetasDeCategoria[clave] ?? 'Otros'
 }
 
 /** Cuadros por fila. Fijo y no `auto-fill`: la lista se despliega al final de la fila del cuadro pinchado, y para saber cuál es esa fila hay que saber cuántos caben. */

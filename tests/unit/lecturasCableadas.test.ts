@@ -106,7 +106,8 @@ describe('terminar el caso lo da por leído', () => {
 
   it('al superar el último paso, con la misma cuenta que pinta «Caso terminado»', () => {
     expect(aplicar, 'no se encontró aplicarPaso').not.toBe('')
-    expect(aplicar).toContain('if (siguiente >= caso.pasos.length) marcarCasoComoLeido()')
+    // Repasando un paso del caso ya terminado (P-009) no se vuelve a marcar: ya lo está, y repasar no puntúa.
+    expect(aplicar).toContain('if (siguiente >= caso.pasos.length && !repaso) marcarCasoComoLeido()')
     expect(CONSOLA).toContain('const terminado = indice >= caso.pasos.length')
     // Solo desde el paso superado: marcar desde la rama del fallo daría por
     // leído un caso que se quedó a medias.

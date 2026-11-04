@@ -278,6 +278,19 @@ const MAXIMO_DE_LAS_RAMAS_GRADOS = 90
 
 /** Lo que el codo de una hoja de mano queda por encima del borde, en milímetros: el mango no se hunde en la piel. */
 const CODO_SOBRE_EL_BORDE_MM = 1
+
+/**
+ * Lo que el codo de una hoja de mano entra en la herida desde su labio, en milímetros (P-009). Con el codo sobre el
+ * borde, la pala —que baja 15° hacia fuera— entraba entera en el tejido del labio: se veía el mango tendido sobre la
+ * piel y nada más, y el dueño pidió verlas «por dentro, como si de verdad estuvieran traccionando». Cuatro milímetros
+ * dentro, la pala baja por la pared de la herida a la vista y se mete bajo el labio a partir de unos quince de hondo,
+ * que es el enganche; el mango sale por encima del borde, a dos milímetros de él.
+ *
+ * Con la herida poco abierta no entra tanto: como mucho, `PARTE_DE_LA_HERIDA_PARA_EL_CODO` de lo que hay de un labio
+ * al otro. Si no, recién puesta y sin abrir, la hoja cruzaba la línea del corte y se metía en el labio de enfrente.
+ */
+const CODO_DENTRO_DE_LA_HERIDA_MM = 4
+const PARTE_DE_LA_HERIDA_PARA_EL_CODO = 0.4
 /** Lo que se hunde el centro de un autoestático bajo los bordes: los rastrillos quedan dentro de la herida. */
 const AUTOESTATICO_BAJO_LOS_BORDES_MM = 3
 /** Cuánto se acuesta un autoestático hacia la punta más cercana de la herida: las argollas no tapan el campo. */
@@ -311,7 +324,12 @@ export function posarSeparador(
   if (h) aplicarPose(h, s.ajustes, articulacionesParaLaApertura(h, s.ajustes, s.datos.aperturaMm, s.datos.maximoMm, s.datos.brazoMm))
   const encima = s.punto.clone().addScaledVector(s.normal, 0.4 * unidadesPorMm)
   const n = s.normal.clone().normalize()
-  const d = s.direccion.clone().normalize()
+  // Hacia dónde se aparta el labio, sobre el plano de la piel (P-009). La dirección sale de cómo se mueve el labio en su
+  // capa, y la normal, de dónde se hizo el clic: en el borde de un músculo las dos pueden cruzarse, y con la dirección
+  // casi a lo largo de la normal el mango salía a 63° de la piel y la pala de lado, en vez de a 15° y hacia abajo.
+  const d = s.direccion.clone().addScaledVector(n, -s.direccion.dot(n))
+  if (d.lengthSq() > 1e-12) d.normalize()
+  else d.copy(s.direccion).normalize()
   const vector = (v: readonly number[]) => new THREE.Vector3(v[0], v[1], v[2])
 
   if (s.datos.tipo === 'palanca' && s.datos.plano === 'hueso') {
@@ -353,7 +371,13 @@ export function posarSeparador(
   // a lo largo del mango. Con el mango a 75° de la normal, baja a 15° de la vertical, un poco por debajo del borde.
   const mango = vector(direccionDelMango([n.x, n.y, n.z], [d.x, d.y, d.z], 1))
   const pala = n.clone().negate().addScaledVector(mango, n.dot(mango))
-  const codo = labio.ahora.clone().addScaledVector(n, CODO_SOBRE_EL_BORDE_MM * unidadesPorMm)
+  // El codo, dentro de la herida: hacia el centro, contra la dirección en que se aparta el labio, y sin pasar de la parte
+  // que le toca de lo que hay hasta el labio de enfrente.
+  const haciaDentro = d.clone().negate()
+  const enfrente = labioEnLaPosicion(labio.herida, s.datos.lado > 0 ? -1 : 1, s.datos.posicion)
+  const hastaEnfrente = enfrente ? Math.max(0, enfrente.ahora.clone().sub(labio.ahora).dot(haciaDentro)) : Infinity
+  const adentro = Math.min(CODO_DENTRO_DE_LA_HERIDA_MM * unidadesPorMm, PARTE_DE_LA_HERIDA_PARA_EL_CODO * hastaEnfrente)
+  const codo = labio.ahora.clone().addScaledVector(n, CODO_SOBRE_EL_BORDE_MM * unidadesPorMm).addScaledVector(haciaDentro, adentro)
   posarConLosDosEjes(s.instrumento.grupo, codo, mango, pala)
 }
 

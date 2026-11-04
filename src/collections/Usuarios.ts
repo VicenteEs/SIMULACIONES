@@ -446,6 +446,38 @@ export const Usuarios: CollectionConfig = {
     },
     { name: 'solicitadaEn', type: 'date', label: 'Pedida el' },
     {
+      // Cuándo aceptó el aviso de privacidad quien pidió la cuenta (Q-005,
+      // D-258). La ley pide poder demostrar el consentimiento, y la casilla
+      // marcada en el navegador no deja rastro en ninguna parte: el rastro es
+      // esto. Lo escribe `solicitarCuenta`, en el mismo instante que
+      // `solicitadaEn`, y nadie más.
+      //
+      // Vacío en las cuentas creadas desde el panel y en las anteriores al
+      // aviso: esas personas no lo aceptaron, y la columna no lo finge.
+      //
+      // El mismo cierre de campo que `ultimoAcceso`, y con más razón: una
+      // aceptación que un administrador puede reescribir por la API no
+      // demuestra nada. La acción escribe con `overrideAccess`, que se lo salta.
+      name: 'privacidadAceptadaEn',
+      type: 'date',
+      label: 'Aceptó el aviso de privacidad el',
+      access: { create: () => false, update: () => false },
+      admin: { readOnly: true },
+    },
+    {
+      // Qué versión del aviso aceptó: `VERSION_DEL_AVISO_DE_PRIVACIDAD`
+      // (`src/lib/avisoDePrivacidad.ts`) el día que pidió la cuenta. Sin ella,
+      // la fecha de arriba no dice qué texto se aceptó en cuanto el aviso
+      // cambie. Texto y no `select`: cada versión nueva sería un valor más del
+      // enumerado de PostgreSQL y pediría su migración. El mismo cierre que la
+      // fecha, por lo mismo.
+      name: 'versionDelAvisoDePrivacidad',
+      type: 'text',
+      label: 'Versión del aviso de privacidad que aceptó',
+      access: { create: () => false, update: () => false },
+      admin: { readOnly: true },
+    },
+    {
       // Permisos por módulo. La lista vacía significa «todos», no «ninguno»:
       // es lo que evita que una cuenta recién creada no vea nada sin que se
       // entienda por qué. Restringir tiene que ser un acto deliberado.

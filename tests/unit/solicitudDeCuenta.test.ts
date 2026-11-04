@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * `solicitarCuenta` es la primera acción de la plataforma que cualquiera puede
  * llamar sin sesión y que escribe en la base. Todo lo que la hace segura vive
  * en líneas sueltas del servidor —el campo trampa, el freno, la negativa con la
- * base vacía, la cuenta que nace desactivada aunque la llamada diga otra cosa—,
+ * base vacía, la cuenta que nace desactivada aunque la llamada diga otra cosa,
+ * el aviso de privacidad que tiene que llegar aceptado—,
  * y ninguna se nota en pantalla si desaparece: el formulario sigue diciendo
  * «Solicitud enviada». Cada caso de aquí cae si se quita la línea que protege.
  *
@@ -28,7 +29,7 @@ interface Cuenta {
   pendiente?: boolean
 }
 
-const { estado, contar, buscar, crear, pedirTestigo, enviar, registrarError } = vi.hoisted(() => ({
+const { estado, contar, buscar, crear, actualizar, pedirTestigo, enviar, registrarError } = vi.hoisted(() => ({
   estado: {
     cuentas: 3,
     existentes: [] as Cuenta[],
@@ -39,6 +40,7 @@ const { estado, contar, buscar, crear, pedirTestigo, enviar, registrarError } = 
   contar: vi.fn(),
   buscar: vi.fn(),
   crear: vi.fn(),
+  actualizar: vi.fn(),
   pedirTestigo: vi.fn(),
   enviar: vi.fn(),
   registrarError: vi.fn(),
@@ -49,6 +51,7 @@ vi.mock('payload', () => ({
     count: contar,
     find: buscar,
     create: crear,
+    update: actualizar,
     forgotPassword: pedirTestigo,
     logger: { error: registrarError, warn() {}, info() {} },
   }),
@@ -72,6 +75,7 @@ vi.mock('@/correo/enviar', () => ({
 
 import { pedirEnlaceDeClave, solicitarCuenta } from '@/app/(frontend)/acciones/sesion'
 import { mensajeDeClaveNueva, mensajeDeCuentaYaExistente, mensajeDeSolicitudRecibida } from '@/correo/mensajes'
+import { VERSION_DEL_AVISO_DE_PRIVACIDAD } from '@/lib/avisoDePrivacidad'
 
 const BASE = 'https://plataforma.hospital.cl/traumahub'
 const direccionOriginal = process.env.NEXT_PUBLIC_SERVER_URL
@@ -82,6 +86,8 @@ const SOLICITUD = {
   institucion: 'Servicio de Traumatología, Hospital Regional',
   motivo: 'Residente de segundo año.',
   contrasena: 'una-frase-larga-de-prueba',
+  // Lo que manda el formulario con la casilla del aviso marcada.
+  avisoDePrivacidadAceptado: VERSION_DEL_AVISO_DE_PRIVACIDAD,
   sitioWeb: '',
 }
 
@@ -134,6 +140,7 @@ beforeEach(() => {
   })
   crear.mockReset()
   crear.mockResolvedValue({ id: 99 })
+  actualizar.mockReset()
   pedirTestigo.mockReset()
   pedirTestigo.mockResolvedValue('testigo-de-una-hora')
   enviar.mockReset()
@@ -307,6 +314,67 @@ describe('la solicitud de cuenta', { timeout: 30_000 }, () => {
     })
     expect(Object.keys(data)).not.toContain('modulosEditables')
     expect(Number.isNaN(Date.parse(String(data.solicitadaEn)))).toBe(false)
+  })
+
+  it.each([
+    ['sin la casilla', { avisoDePrivacidadAceptado: undefined }],
+    ['con la casilla vacía', { avisoDePrivacidadAceptado: '' }],
+    // Un «sí» a secas tampoco: lo que se guarda es qué versión se aceptó.
+    ['con un «sí» en lugar de la versión', { avisoDePrivacidadAceptado: true }],
+  ])('%s rechaza la solicitud antes de mirar la base', async (_, cambio) => {
+    // La casilla del formulario no es una barrera: la acción se llama por HTTP
+    // con lo que se quiera. Y antes de la base, para que el rechazo no dependa
+    // de si la cuenta existe y no diga nada de ella.
+    const respuesta = await pedirCuenta({ ...SOLICITUD, ...cambio })
+
+    expect(respuesta.exito).toBe(false)
+    expect(respuesta.mensaje).toBe('Para pedir la cuenta tienes que aceptar el aviso de privacidad.')
+    expect(contar).not.toHaveBeenCalled()
+    expect(buscar).not.toHaveBeenCalled()
+    expect(crear).not.toHaveBeenCalled()
+    expect(enviar).not.toHaveBeenCalled()
+  })
+
+  it('con la versión de un aviso anterior la rechaza y pide volver a leerlo', async () => {
+    // Quien abrió el formulario antes de que el aviso cambiara aceptó el texto
+    // de entonces: anotarle el de hoy sería decir que aceptó algo que no leyó.
+    const respuesta = await pedirCuenta({ ...SOLICITUD, avisoDePrivacidadAceptado: '2020-01-01' })
+
+    expect(respuesta.exito).toBe(false)
+    expect(respuesta.mensaje).toMatch(/cambió/)
+    expect(crear).not.toHaveBeenCalled()
+  })
+
+  it('guarda en la cuenta qué versión del aviso se aceptó, y en el mismo instante que la solicitud', async () => {
+    await pedirCuenta(SOLICITUD)
+
+    const { data, overrideAccess } = crear.mock.calls[0][0] as {
+      data: Record<string, unknown>
+      overrideAccess: boolean
+    }
+    expect(data.versionDelAvisoDePrivacidad).toBe(VERSION_DEL_AVISO_DE_PRIVACIDAD)
+    expect(Number.isNaN(Date.parse(String(data.privacidadAceptadaEn)))).toBe(false)
+    // Se aceptó al pedir la cuenta, no un instante después.
+    expect(data.privacidadAceptadaEn).toBe(data.solicitadaEn)
+    // Las dos columnas están cerradas por acceso de campo, y sin
+    // `overrideAccess` Payload las quitaría en silencio: la cuenta nacería sin
+    // rastro del aviso y la solicitud diría que todo fue bien.
+    expect(overrideAccess).toBe(true)
+  })
+
+  it.each([
+    ['pendiente', { activo: false, pendiente: true }],
+    ['activa', { activo: true }],
+  ])('a una cuenta %s que ya existe no le anota el aviso', async (_, estadoDeLaCuenta) => {
+    // Quien llama puede ser cualquiera que sepa la dirección: anotarlo le
+    // dejaría fabricar el consentimiento de su titular.
+    estado.existentes = [{ id: 7, email: SOLICITUD.correo, nombre: SOLICITUD.nombre, ...estadoDeLaCuenta }]
+
+    const respuesta = await pedirCuenta(SOLICITUD)
+
+    expect(respuesta).toEqual({ exito: true, datos: null })
+    expect(crear).not.toHaveBeenCalled()
+    expect(actualizar).not.toHaveBeenCalled()
   })
 
   it('recorta el motivo a mil caracteres antes de guardarlo', async () => {
