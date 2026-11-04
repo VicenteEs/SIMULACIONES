@@ -13203,7 +13203,7 @@ Pedido del dueño, 2026-11-02, tras dejar el archivo de Penpot «casi listo para
 | E5 · Panel | hecha (2026-11-03) | D-238 |
 | E6 · Lo que la base no guarda | propuesta aparte | — |
 
-### P-008 · 2026-11-03 · hecha en local, sin desplegar (E1 a E6); las propuestas de E7 quedan sin decidir
+### P-008 · 2026-11-03 · hecha (E1 a E6) y desplegada en ved el 2026-11-04, con P-009; las propuestas de E7 quedan sin decidir
 **Separadores al milímetro, placas a medida que se arrastran, la reducción automática del editor y del residente, la mesa de instrumental a la izquierda y la línea negra de los cortes.**
 
 #### De dónde sale
@@ -13265,7 +13265,7 @@ Ordenadas por lo que acercan el simulador a lo que se juzga hoy en pabellón, y 
 | E6 · Mesa de instrumental | hecha (2026-11-04) | D-257 |
 | E7 · Propuestas | entregadas, sin decidir | — |
 
-### P-009 · 2026-11-04 · en curso
+### P-009 · 2026-11-04 · hecha y desplegada en ved (E0 a E8); las recomendaciones de E9 quedan sin decidir
 **Placas que asientan como un sólido, separadores dentro de la herida, las doce mejoras de uso del simulador, el aviso de privacidad y lo que el dueño decidió en D-258, comprobado con antes y después sobre una pierna nueva partida a media diáfisis.**
 
 #### De dónde sale
@@ -13290,8 +13290,8 @@ Más lo que D-258 manda al código: el aviso de privacidad y el avance en la cue
 - [x] **E5 · Uso 5 a 8**: práctica y evaluación; el instrumento manda; gestos de la mano; ver antes de hacer. D-265 y D-267.
 - [x] **E6 · Uso 9 a 12**: menú circular y teclas; deshacer; el monitor del arco con dos imágenes; abrir en modo pabellón y seguir otro día. D-265, D-267 y D-268.
 - [x] **E7 · Aviso de privacidad** (Q-005). D-264.
-- [ ] **E8 · Comprobaciones, commit, push y ved.**
-- [ ] **E9 · Doce recomendaciones nuevas.**
+- [x] **E8 · Comprobaciones, commit, push y ved.** `8848216`, en ved el 2026-11-04: salud por fuera en 200 con la base bien, `/privacidad` en 200 y el registro con su enlace; se aplicaron las migraciones de P-008 y de P-009, en el lote 21. Los casos de ved no traen encuadres ni demostraciones hasta que el editor los grabe paso por paso.
+- [x] **E9 · Doce recomendaciones nuevas**: se entregaron al dueño el 2026-11-04 y ninguna está decidida. Abajo, en una línea cada una.
 
 #### Cómo se comprueba
 
@@ -13314,6 +13314,31 @@ Las cinco comprobaciones de `AGENTS.md`, contra la misma base, el 2026-11-04:
 - `test:coverage`: pasan 5559. Fallan las tres de respaldos en Windows que ya fallaban: `directorioDeRespaldos`, 2, y `respaldoEnWindows`, 1. La cobertura queda en 86,3 % de sentencias y 77,9 % de ramas, sobre el suelo de 58. En la pasada de la orden, `autoria` se pasó de los 5 s por la carga; sola, o con `--testTimeout=20000`, pasa.
 - `test:integration`: 254 de 254.
 - `build`: bien. Sus 8 avisos de Turbopack son de `api/subidas` y `respaldosServidor`, que este cambio no toca.
+
+#### Recomendaciones de E9, sin decidir
+
+Primero lo que lleva P-009 a todos los casos, después lo que hace que la evaluación mida, y al final lo que abre el simulador a más equipos. Ninguna repite las propuestas de E7 de P-008.
+
+1. **Encuadres y demostraciones por técnica.** Se grabarían una vez por técnica, relativos al eje del hueso, y los heredarían todos sus casos. Hoy van caso por caso (D-266), y los casos de ved no traen ninguno.
+2. **Grabar la demostración desde el editor.** Un botón que grabe cinco segundos del lienzo (`captureStream` y `MediaRecorder`) y los suba al paso. Hoy hay que grabar fuera y convertir a WebP.
+3. **Revisar el caso antes de publicarlo.** El editor avisaría de lo que el residente va a tropezar:
+   - modelo sin piel marcada;
+   - hueso con pocos vértices;
+   - pasos sin encuadre ni demostración;
+   - instrumentos sin familia (O-083).
+4. **El recorte del atlas con su piel y con hueso suficiente.** El de E0 salió sin piel y con una tibia de 253 vértices. De ahí el % que salía de más (D-263) y el Ctrl+Z sin nada que deshacer (D-267).
+5. **Variantes del caso en evaluación.** El mismo caso, con el desplazamiento, la angulación y el nivel del trazo sorteados dentro de un rango, para que la evaluación no se aprenda de memoria.
+6. **La referencia del experto en cada paso.** Quien escribe el caso lo opera una vez. Al terminar cada paso, el residente ve su placa, su tornillo o su clavo junto al del experto, con la diferencia en mm y en grados.
+7. **El panel del docente por residente y por paso.** Con el modo de cada recorrido (D-265), para toda la cohorte y exportable:
+   - los intentos en evaluación;
+   - los puntos por paso;
+   - los errores que más se repiten;
+   - el tiempo.
+8. **La curva de aprendizaje con una escala validada.** El puntaje se llevaría a una escala global como la de OSATS, y el residente vería su curva intento a intento. Es lo que permite decir «competente».
+9. **Repaso espaciado.** La plataforma propone qué caso o qué paso repetir y cuándo, según los errores y el tiempo desde el último intento.
+10. **Un primer caso para aprender los gestos.** Cinco minutos guiados que enseñan el arrastre con el botón derecho, el menú radial, 1 a 5 y Q, F y Ctrl+Z, haciéndolos. La guía «Qué hay en la consola» queda debajo de la consola ampliada (D-265).
+11. **Tableta y panel táctil.** Gestos de dos dedos y una rueda en pantalla para el instrumento: arrastrar con el botón derecho es torpe en un panel táctil (D-267).
+12. **Que vaya fluido en el equipo del hospital.** Calidad que se adapta sola (sombras, resolución, vello) y rayos acelerados con una jerarquía de volúmenes, medido en el equipo de referencia de Q-006.
 
 ---
 
