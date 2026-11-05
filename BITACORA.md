@@ -8537,7 +8537,7 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 *Consecuencias.*
 - (+) La lupa enseña una maniobra en vez de unas rodillas quietas, y el botón hace lo que parece.
 - (+) 114 kB en los navegadores que leen VP9, y solo cuando se llega al capítulo.
-- (−) **La tibia avanza 10 mm**, cuando un Lachman normal da de 2 a 5 con tope firme. Se exageró para que se lea en la lupa, y un traumatólogo puede leerlo como positivo aunque el cruzado esté dibujado sano. Es la constante `TRASLACION` del guion; rehacerlo tarda unos 6 minutos.
+- (−) **La tibia avanza 10 mm**, cuando un Lachman normal da de 2 a 5 con tope firme. Se exageró para que se lea en la lupa, y un traumatólogo puede leerlo como positivo aunque el cruzado esté dibujado sano. Es la constante `TRASLACION` del guion; rehacerlo tarda unos 6 minutos. Puesto a elegir entre esto y rehacerlo a 5 mm, el dueño decidió dejarlo así (2026-11-05): no volver a ofrecerlo como si fuera un descuido.
 - (−) Los huesos son la malla aligerada del atlas: la tibia sin tuberosidad ni espinas marcadas y la rótula roma. No hay meniscos, cartílago ni cápsula, ni manos: las flechas hacen de presa.
 - (−) El MP4 deja un latido mínimo en la costura del bucle (0,3 niveles de media). Solo lo ve quien recibe el MP4.
 
