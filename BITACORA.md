@@ -8577,6 +8577,13 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 - a 1000 y a 390 px, la columna no da para las dos y la insignia baja a la línea siguiente, sin desborde;
 - en el módulo 06, la insignia y el antetítulo a 14,4 px.
 
+*En ved*, desplegado con 9d61ed8 junto con D-271 a D-275 (Interpreta está en mantención allí):
+- la salud por fuera da 200, con la base bien;
+- la portada trae los textos nuevos, y «un video propio» ya no sale;
+- los dos videos se sirven bajo `/traumahub`, con su tamaño;
+- la red de la cabecera se mueve (`data-malla="viva"`) y el carrusel trae sus tres tarjetas;
+- a 1280 px la insignia va al lado de «Interpreta · Módulo 05», con su misma letra; a 1000 baja a la línea siguiente.
+
 *Consecuencias.*
 - (+) El estado del módulo se lee antes que el titular, igual que en el módulo 06.
 - (−) Por debajo de unos 1050 px de ancho, y en el teléfono, la insignia no cabe al lado y queda debajo del antetítulo.
