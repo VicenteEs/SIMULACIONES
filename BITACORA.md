@@ -8643,6 +8643,12 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 - La vista previa del worktree, con un nombre, un cargo y una descripción tan largos como los de ved, inventados. A 1280 px las tres tarjetas miden 448 y solo la larga lleva «Ver más»; abierta mide 1.059 y la de la fila siguiente baja. A 1100, con tarjetas de 189 px, la larga enseña el nombre y el cargo en cuatro renglones cada uno y nada de la descripción. A 375, la de Chesscore mide 259, la larga 448 con cuatro renglones de descripción, y no hay desborde. En la consola, solo el aviso del WebSocket de recarga del modo de desarrollo.
 - La vuelta al cerrar se comprobó por partes, porque el panel de la vista previa no anima el desplazamiento suave (tampoco un `scrollTo` cualquiera): la llamada sale con `block: 'start'` sobre la tarjeta, que estaba a −132 px, y el mismo desplazamiento en instantáneo la deja a 76, justo debajo de la barra.
 
+*En ved*, desplegado con `11d6f8e` el 2026-11-05, lanzado a las 17:40 de allí con `TUNEL=local ./scripts/actualizar.sh`, y comprobado desde fuera, sin sesión:
+- la salud da 200, con la base bien;
+- «Sobre nosotros» trae las dos tarjetas, Chesscore y el cofundador, cada una con su ventana, y del servidor no sale ningún botón;
+- la hoja de estilos que se sirve trae el alto fijo, el tope del teléfono, el desvanecido de 1,6em y la salida sin JavaScript; el código del cliente, «Ver más», «Ver menos» y el `ResizeObserver`;
+- no se miró en el navegador. Con la descripción del cofundador, de unos 560 caracteres, su tarjeta pasa el alto en cualquier ancho y lleva «Ver más»; la de Chesscore cabe.
+
 *Consecuencias.*
 - (+) Las tarjetas de una fila miden lo mismo, y una descripción larga ya no estira la suya. Se va el hueco bajo la tarjeta corta que D-277 dejó anotado.
 - (−) La tarjeta corta queda con espacio en blanco al pie: la de Chesscore, unos 110 px a 1280.
