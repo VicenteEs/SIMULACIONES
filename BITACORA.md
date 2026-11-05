@@ -13909,7 +13909,7 @@ Primero lo que lleva P-009 a todos los casos, después lo que hace que la evalua
 11. **Tableta y panel táctil.** Gestos de dos dedos y una rueda en pantalla para el instrumento: arrastrar con el botón derecho es torpe en un panel táctil (D-267).
 12. **Que vaya fluido en el equipo del hospital.** Calidad que se adapta sola (sombras, resolución, vello) y rayos acelerados con una jerarquía de volúmenes, medido en el equipo de referencia de Q-006.
 
-### P-011 · 2026-11-05 · el código, en `main` (E0 a E7); sin desplegar, y los pasos en los servidores sin dar
+### P-011 · 2026-11-05 · el código, en `main` (E0 a E7) y desplegado en ved; los pasos en los servidores, sin dar
 **La política de datos del aviso, llevada al código: los plazos de conservación, el registro sin nombre al eliminar una cuenta, aceptar el aviso al entrar, la exportación de los datos de una cuenta, el aviso final, los respaldos cifrados, y qué hacer con las solicitudes y las filtraciones.**
 
 #### De dónde sale
@@ -13938,7 +13938,7 @@ Pedido del dueño, 2026-11-05, con una propuesta que hizo suya («quiero que te 
 - [x] **E4 · El aviso final y la línea del formulario** (pedidos 5 y 6). D-294.
 - [x] **E5 · Respaldos cifrados** (pedido 7) y la regla de los respaldos de producción (pedido 8). D-295.
 - [x] **E6 · Solicitudes y filtraciones** (pedido 8). D-296.
-- [x] **E7 · Commit y push** a `main`, el 2026-11-05, con el OK del dueño («sube todo al git»). El despliegue va con los pasos 4 y 8 de E8.
+- [x] **E7 · Commit y push** a `main`, el 2026-11-05, con el OK del dueño («sube todo al git»): `4947c61`, encima de la portada de D-271 a D-276. El despliegue en ved se adelantó a la llave, a pedido del dueño ese mismo día: «En ved», abajo. En Contabo sigue yendo con el paso 4 de E8.
 - [ ] **E8 · En los servidores**, un paso a la vez, con una explicación breve y el OK del dueño antes de cada uno:
   1. [ ] **La llave.** El dueño la genera en su equipo (`age-keygen -o llave-respaldos.txt`) y guarda la privada en dos lugares distintos. A los servidores va solo la línea `Public key: age1…`. La privada no pasa por ninguna conversación ni por ningún servidor.
   2. [ ] **Contabo**: `sudo apt install age` y, en `~/traumahub/.env`, `RESPALDOS_DESTINATARIO=age1…`.
@@ -13947,8 +13947,8 @@ Pedido del dueño, 2026-11-05, con una propuesta que hizo suya («quiero que te 
   5. [ ] **Contabo**: un respaldo de prueba (`./scripts/respaldar.sh --verificar`), que sale con `.age`. El dueño lo descarga y lo comprueba en su equipo con `age -d -i llave-respaldos.txt … | gzip -t && echo integro`. Lo mismo con «Respaldar ahora», en el panel.
   6. [ ] **Contabo**: los respaldos de antes, que están en claro. O se cifran con el bucle de `docs/SERVIDOR.md` («Cifrado»), o se espera a que venzan sus treinta días. `salud.sh` dice cuántos quedan.
   7. [ ] **ved, la copia**: mirar que `/home/ved/bin/traer-respaldos-contabo.sh`, que no está en este repositorio, traiga también los `.age`, y leer su `copia.log` del día siguiente. Las copias en claro que ya trajo se cifran o se borran, como en Contabo.
-  8. [ ] **ved, mientras sea producción**: el mismo despliegue y las mismas piezas que Contabo (pasos 2 a 4), para que sus respaldos propios también salgan cifrados hasta el cambio.
-  9. [x] **Los dos espacios en blanco del aviso**, por ahora: Chesscore SpA y `contacto@chesscore.cl` (D-297). Cuando el dueño los cambie, juntos y con `VERSION_DEL_AVISO_DE_PRIVACIDAD` al día del cambio. Desde el despliegue, todas las cuentas aceptan el aviso al entrar (D-292).
+  8. [ ] **ved, mientras sea producción**: el mismo despliegue y las mismas piezas que Contabo (pasos 2 a 4), para que sus respaldos propios también salgan cifrados hasta el cambio. *El despliegue, hecho el 2026-11-05*, con la imagen que ya trae `age`. Faltan la llave en su `.env` y la línea en su `docker-compose.override.yml`, que esperan al paso 1: hasta entonces sus respaldos salen en claro, con el aviso.
+  9. [x] **Los dos espacios en blanco del aviso**, por ahora: Chesscore SpA y `contacto@chesscore.cl` (D-297). Cuando el dueño los cambie, juntos y con `VERSION_DEL_AVISO_DE_PRIVACIDAD` al día del cambio. Desde el despliegue en ved, el 2026-11-05, todas las cuentas aceptan el aviso al entrar (D-292).
   10. [ ] **El contrato con Contabo.** Confirmar que su acuerdo de tratamiento de datos cubre la cuenta de la plataforma, porque el aviso apoya en él la transferencia (D-294), y guardar una copia fuera de los servidores.
   11. [ ] **El registro de solicitudes** (D-296): abrirlo fuera de los servidores, antes del 1 de diciembre de 2026, y confirmar ahí mismo los plazos de la ley.
   12. [ ] **En el cambio definitivo**, cuando Contabo pase a producción y ved a pruebas: en ved, tirar la base y rehacerla con datos de prueba, y borrar sus respaldos propios. ved conserva solo las copias cifradas de Contabo, que no puede abrir. Desde ahí rige la regla de D-295.
@@ -13981,6 +13981,21 @@ En el navegador, con el servidor de desarrollo sobre la misma base:
 - La consola del servidor de desarrollo mostró la contraseña de la prueba al entrar: O-093.
 
 Después de completar el aviso, las comprobaciones otra vez: D-297, «Qué se probó».
+
+Al ponerlo encima de la portada de D-271 a D-276, que llegó antes a `main`, el único conflicto fue esta bitácora. Lo de arriba solo toca `src/components/portada`, `espaciosDeLaPagina.ts` y los guiones de sus capturas. Sobre el árbol combinado:
+- `typecheck`, limpio, y `lint`, sin errores;
+- las pruebas unitarias: pasan 5394 y fallan las 4 de siempre en este Windows (`directorioDeRespaldos`, 2; `subidaDeVideo`, 1; `tableroDeRevision`, 1);
+- `build`, bien.
+
+La integración no se repitió: lo que llegó no toca colecciones ni accesos, y sobre la rama había pasado 261 de 261.
+
+*En ved*, desplegado con `4947c61` el 2026-11-05, a las 14:17 de allí, con `TUNEL=local ./scripts/actualizar.sh`:
+- el respaldo previo salió **en claro**, con su aviso («falta RESPALDOS_DESTINATARIO en .env»), porque ved aún no tiene la llave (paso 8 de E8);
+- la imagen se reconstruyó con `age`, y la aplicación respondió y alcanzó la base al primer segundo;
+- por fuera, `/traumahub/api/salud` da 200 con la base bien. `/traumahub/privacidad` dice Chesscore SpA, `contacto@chesscore.cl`, St. Louis y «5 de noviembre de 2026», sin huecos;
+- ninguna de las 5 cuentas de ved tiene una versión aceptada, así que las 5 verán el aviso al entrar;
+- la primera pasada de conservación corrió a los cinco minutos (14:22), con «Plazos de conservación: corrigió el título de 2 entradas». Eran entradas cuyo título nombraba a una cuenta ya borrada o a quien pidió una cotización (D-291). No había nada vencido ni nada más que anonimizar. Después, el registro de la aplicación sigue sin errores y el contenedor sin reinicios;
+- la puerta no se probó allí, porque haría falta entrar con una cuenta real; se probó en desarrollo (arriba, y D-297).
 
 #### Sin decidir
 
