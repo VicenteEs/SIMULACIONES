@@ -6,6 +6,7 @@ import { limpiarRastroDeUsuario } from './hooks/bajaDeUsuario'
 import { armarCorreo } from '@/correo/plantilla'
 import { mensajeDeClaveNueva } from '@/correo/mensajes'
 import { registrarAccion } from '@/lib/registroServidor'
+import { anonimizarElRastroDeLaCuenta } from '@/lib/conservacionServidor'
 import { OPCIONES_DE_MODULO } from './opcionesDeModulo'
 import { ETAPAS_DE_FORMACION } from '@/lib/solicitudDeCuenta'
 import { PROFESIONES } from '@/lib/firmas'
@@ -313,6 +314,18 @@ export const Usuarios: CollectionConfig = {
             })
             return docs?.length ?? 0
           },
+          // Con el correo leído arriba: es el que guardan los envíos fallidos
+          // de las difusiones, y después del borrado ya no hay a quién
+          // preguntárselo. Con el mismo `req`, para que se deshaga con el
+          // borrado si el borrado se deshace.
+          anonimizarRegistro: async (usuarioId) => {
+            const r = await anonimizarElRastroDeLaCuenta(
+              req.payload,
+              { id: usuarioId, email: (cuenta as { email?: unknown } | null)?.email },
+              req,
+            )
+            return r.propias + r.sobreElla + r.difusiones + r.preferencias
+          },
         })
       },
     ],
@@ -446,14 +459,18 @@ export const Usuarios: CollectionConfig = {
     },
     { name: 'solicitadaEn', type: 'date', label: 'Pedida el' },
     {
-      // Cuándo aceptó el aviso de privacidad quien pidió la cuenta (Q-005,
-      // D-258). La ley pide poder demostrar el consentimiento, y la casilla
-      // marcada en el navegador no deja rastro en ninguna parte: el rastro es
-      // esto. Lo escribe `solicitarCuenta`, en el mismo instante que
-      // `solicitadaEn`, y nadie más.
+      // Cuándo aceptó el aviso de privacidad la persona (Q-005, D-258). La ley
+      // pide poder demostrar el consentimiento, y la casilla marcada en el
+      // navegador no deja rastro en ninguna parte: el rastro es esto. Lo
+      // escriben solo dos acciones: `solicitarCuenta`, en el mismo instante
+      // que `solicitadaEn`, y `aceptarElAvisoDePrivacidad`, cuando la cuenta
+      // acepta la versión vigente en la pantalla que la plantilla pone al
+      // entrar (D-292).
       //
-      // Vacío en las cuentas creadas desde el panel y en las anteriores al
-      // aviso: esas personas no lo aceptaron, y la columna no lo finge.
+      // Vacío mientras no se haya aceptado nunca —las cuentas creadas desde el
+      // panel y las anteriores al aviso, hasta su primera entrada—: la columna
+      // no finge un consentimiento que no hubo. Guarda solo la última
+      // aceptación; las anteriores quedan en el registro de acciones.
       //
       // El mismo cierre de campo que `ultimoAcceso`, y con más razón: una
       // aceptación que un administrador puede reescribir por la API no

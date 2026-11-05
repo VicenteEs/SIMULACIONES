@@ -20,6 +20,13 @@ import {
  * Lo que escribe quien pide no se toca después: el administrador cambia solo
  * el estado y sus notas. Si corrigiera el correo o el mensaje, la fila dejaría
  * de ser lo que se pidió, y es lo único que hay para contestarle.
+ *
+ * **Se borra a los doce meses de llegar** (D-290, `MESES_DE_LAS_COTIZACIONES`),
+ * se haya contestado o no: la pasada diaria de `aplicarLaConservacion` no mira
+ * el estado. Una conversación que siga viva al año ya no vive aquí sino en el
+ * correo de quien la lleva. En el registro de acciones se titula con la
+ * institución y no con el nombre de quien la pidió (D-291), para que borrarla
+ * la borre de verdad.
  */
 export const Cotizaciones: CollectionConfig = {
   slug: 'cotizaciones',

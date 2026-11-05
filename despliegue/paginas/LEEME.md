@@ -238,6 +238,14 @@ es el que aquí corresponde. Desde D-223 es también lo que sale sin decir nada,
 pero se deja escrito para que la línea no dependa del valor por omisión. El volcado se verifica antes de darlo por bueno y
 se conservan treinta días.
 
+**Cifrado (D-295).** Con `RESPALDOS_DESTINATARIO` en el `.env` y `age` en el
+anfitrión (`sudo apt install age`), cada respaldo sale cifrado para esa llave
+pública: `base-….sql.gz.age` y `medios-….tar.gz.age`. El botón del panel la
+recibe por la línea `RESPALDOS_DESTINATARIO` del override, así que un override
+copiado antes de este cambio respalda en claro desde el panel aunque el cron
+cifre: `salud.sh` lo detecta y dice cómo corregirlo. La llave privada no vive
+aquí; cómo se genera y dónde se guarda está en `docs/SERVIDOR.md`, «Cifrado».
+
 El panel (`/traumahub/admin-panel/respaldos`) crea y descarga volcados a mano.
 Lo que le permite escribir no es el bit de «otros», sino el **grupo**: el
 directorio `backups/` es del usuario que despliega, con `chmod 770`, y el

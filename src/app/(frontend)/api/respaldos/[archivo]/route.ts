@@ -4,7 +4,7 @@ import { Readable } from 'node:stream'
 import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
-import { esNombreDeRespaldo } from '@/lib/respaldos'
+import { esNombreDeRespaldo, estaCifrado } from '@/lib/respaldos'
 import { rutaDeRespaldo } from '@/lib/respaldosServidor'
 
 export const dynamic = 'force-dynamic'
@@ -43,7 +43,10 @@ export async function GET(
 
   return new Response(flujo, {
     headers: {
-      'Content-Type': 'application/gzip',
+      // Uno cifrado (D-295) no es un gzip hasta que se abre con la llave, y
+      // anunciarlo como tal invita al navegador o al sistema a intentar
+      // descomprimirlo y a decir que está dañado.
+      'Content-Type': estaCifrado(archivo) ? 'application/octet-stream' : 'application/gzip',
       'Content-Length': String(info.size),
       'Content-Disposition': `attachment; filename="${archivo}"`,
       'Cache-Control': 'no-store',

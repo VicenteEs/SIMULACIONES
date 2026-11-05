@@ -162,6 +162,14 @@ export function TableroDeRespaldos({
               </span>
             </li>
             <li>
+              <strong>Cifrado</strong>
+              <span>
+                Con <code>RESPALDOS_DESTINATARIO</code> puesto, cada archivo se cifra con age para esa llave pública y
+                termina en <code>.age</code>. Solo lo abre la llave privada, que no está en el servidor: el servidor
+                puede cifrar, pero no leer sus propias copias.
+              </span>
+            </li>
+            <li>
               <strong>Treinta días</strong>
               <span>
                 El mismo guion borra los de más de 30 días (<code>DIAS_A_CONSERVAR</code>). «Respaldar ahora» vuelca
@@ -173,7 +181,8 @@ export function TableroDeRespaldos({
               <span>
                 Desde la consola del servidor, con <code>scripts/restaurar.sh</code> (o <code>restaurar.ps1</code>):
                 pide escribir RESTAURAR, respalda antes lo actual, detiene la aplicación y reemplaza la base entera,
-                con los archivos subidos de la misma noche.
+                con los archivos subidos de la misma noche. Uno cifrado pide además la llave privada, que se lleva al
+                servidor solo para eso y se borra después.
               </span>
             </li>
           </ol>

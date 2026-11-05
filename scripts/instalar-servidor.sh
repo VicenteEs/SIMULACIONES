@@ -71,7 +71,10 @@ verde "    Docker responde y el usuario puede usarlo"
 
 paso "Comprobando utilidades del sistema"
 faltantes=""
-for cmd in git openssl curl; do
+# age cifra los respaldos (D-295). Sin el, un servidor con la llave publica
+# puesta no respalda: no se deja caer un volcado legible donde se prometio que
+# no lo habria.
+for cmd in git openssl curl age; do
   command -v "$cmd" >/dev/null 2>&1 || faltantes="$faltantes $cmd"
 done
 if [ -n "$faltantes" ]; then
@@ -102,6 +105,21 @@ else
     read -r url_publica
   done
 
+  echo
+  echo "    Los respaldos se cifran con una llave publica de age (D-295). La privada,"
+  echo "    la unica que los abre, no se pone en este servidor: se genera en su propio"
+  echo "    equipo con  age-keygen -o llave-respaldos.txt  y se guarda en dos lugares"
+  echo "    distintos. Aqui va solo la publica, la linea que empieza por age1."
+  destinatario=""
+  while :; do
+    printf "Llave publica de age (Intro para ponerla despues): "
+    read -r destinatario
+    if [ -z "$destinatario" ] || printf '%s' "$destinatario" | grep -Eq "$PATRON_DESTINATARIO_AGE"; then
+      break
+    fi
+    rojo "    no es una llave publica de age: empieza por age1 y tiene 62 caracteres"
+  done
+
   clave_bd="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
   secreto="$(openssl rand -base64 48)"
 
@@ -130,12 +148,21 @@ SMTP_DESDE=
 
 DIAS_A_CONSERVAR=30
 
+# Llave PUBLICA de age con que se cifran los respaldos (D-295). La privada no va
+# nunca en un servidor. Vacia, los respaldos salen sin cifrar y salud.sh lo
+# marca como problema.
+RESPALDOS_DESTINATARIO=$destinatario
+
 # Grupo con que el override arranca la aplicacion, para que escriba en
 # backups/ (O-067). Es el de quien instala.
 RESPALDOS_GID=$(id -g)
 ENV
   chmod 600 .env
   verde "    .env creado con secretos nuevos (permisos 600)"
+  if [ -z "$destinatario" ]; then
+    ambar "    Sin llave publica de age: los respaldos saldran SIN CIFRAR hasta que"
+    ambar "    se ponga RESPALDOS_DESTINATARIO en .env y se recree la app."
+  fi
 
   if [ "$TUNEL" = "cloudflare" ]; then
     ambar "    Recuerde poner CLOUDFLARE_TUNNEL_TOKEN en .env antes de continuar."

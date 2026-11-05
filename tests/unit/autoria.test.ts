@@ -4,14 +4,21 @@ import { extname, join, relative, sep } from 'node:path'
 import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AUTORIA } from '@/lib/autoria'
+import { VERSION_DEL_AVISO_DE_PRIVACIDAD, avisoCompleto } from '@/lib/avisoDePrivacidad'
 
 // Solo para pintar el layout público al final del archivo. Las otras pruebas
-// leen archivos y no pasan por aquí. La barra y el aviso se sustituyen porque
-// piden la base y el navegador, y lo que se mira no es a ellos.
-const { sesionActual } = vi.hoisted(() => ({ sesionActual: { activo: false } }))
+// leen archivos y no pasan por aquí. La barra, el aviso de actualización y la
+// pantalla del aviso de privacidad se sustituyen porque piden la base, el
+// navegador o el enrutador de Next, y lo que se mira no es a ellos.
+const { sesionActual } = vi.hoisted(() => ({ sesionActual: { activo: false, aceptoElAviso: true } }))
 vi.mock('@/lib/sesion', () => ({
   obtenerSesion: async () => ({
-    usuario: sesionActual.activo ? { nombre: 'Residente' } : null,
+    usuario: sesionActual.activo
+      ? {
+          nombre: 'Residente',
+          versionDelAvisoDePrivacidad: sesionActual.aceptoElAviso ? VERSION_DEL_AVISO_DE_PRIVACIDAD : null,
+        }
+      : null,
     activo: sesionActual.activo,
     rolReal: sesionActual.activo ? 'lector' : null,
     rol: sesionActual.activo ? 'lector' : null,
@@ -21,6 +28,9 @@ vi.mock('@/lib/sesion', () => ({
 }))
 vi.mock('@/components/Navegacion', () => ({ Navegacion: () => null }))
 vi.mock('@/components/AvisoActualizacion', () => ({ AvisoActualizacion: () => null }))
+// Basta con saber que se pintó la pantalla del aviso y no la página: su «Salir»
+// y su «Acepto» piden el enrutador, que fuera de Next no existe.
+vi.mock('@/components/privacidad/PantallaDelAviso', () => ({ PantallaDelAviso: () => 'pantalla-del-aviso' }))
 
 /**
  * La autoría se escribe una sola vez.
@@ -152,9 +162,19 @@ describe('el pie de página está montado', () => {
    * `<PieDePagina />` en el código: una búsqueda no distingue si la etiqueta
    * está fuera o dentro del `sesion.activo ? … : null`, ni si está comentada.
    */
-  for (const activo of [false, true]) {
-    it(`sale ${activo ? 'con' : 'sin'} sesión, con el nombre y el correo`, async () => {
-      sesionActual.activo = activo
+  const CASOS = [
+    { como: 'sin sesión', activo: false, aceptoElAviso: true },
+    { como: 'con sesión', activo: true, aceptoElAviso: true },
+    // Con el aviso de privacidad por aceptar, la plantilla pinta el aviso en
+    // lugar de la página (D-292). El pie tiene que seguir ahí: quien todavía no
+    // lo ha aceptado es otro de los que no pueden entrar.
+    { como: 'con el aviso de privacidad por aceptar', activo: true, aceptoElAviso: false },
+  ]
+
+  for (const caso of CASOS) {
+    it(`sale ${caso.como}, con el nombre y el correo`, async () => {
+      sesionActual.activo = caso.activo
+      sesionActual.aceptoElAviso = caso.aceptoElAviso
       const { default: Layout } = await import('@/app/(frontend)/layout')
       const html = renderToStaticMarkup(
         (await Layout({ children: null })) as ReactElement,
@@ -163,6 +183,10 @@ describe('el pie de página está montado', () => {
       expect(html).toContain('class="pie-de-pagina"')
       expect(html).toContain(AUTORIA.nombre)
       expect(html).toContain(`href="mailto:${AUTORIA.correo}"`)
+      // Con los huecos del aviso vacíos la puerta está apagada (`avisoCompleto`),
+      // y entonces tampoco se pinta para quien no lo aceptó.
+      const pideElAviso = caso.activo && !caso.aceptoElAviso && avisoCompleto()
+      expect(html.includes('pantalla-del-aviso')).toBe(pideElAviso)
     })
   }
 })

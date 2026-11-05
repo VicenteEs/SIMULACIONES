@@ -3,9 +3,9 @@
 import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { borrarRespaldo, respaldarAhora } from '@/app/(frontend)/acciones/respaldos'
-import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
+import { tamanoLegible, type EstadoDelCifrado, type Respaldo } from '@/lib/respaldos'
 import { ruta } from '@/lib/rutas'
-import { Archive, Database, DatabaseBackup, Download, FolderOpen, Trash2 } from 'lucide-react'
+import { Archive, Database, DatabaseBackup, Download, FolderOpen, Lock, LockOpen, Trash2 } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { useAvisos } from '@/components/ui/Avisos'
 import { useConfirmar } from '@/components/ui/Confirmar'
@@ -58,16 +58,53 @@ const motivoDeLaCaida = (fallo: unknown, porOmision: string): string =>
     ? `${porOmision} ${fallo.message}`
     : `${porOmision} Compruebe la conexión e inténtelo otra vez.`
 
+/**
+ * Qué decir del cifrado antes de pulsar «Respaldar ahora» (D-295). Nada cuando
+ * cifra: es lo normal, y la insignia de cada fila ya lo dice.
+ */
+function AvisoDelCifrado({ cifrado }: { cifrado: EstadoDelCifrado }) {
+  if (cifrado === 'cifra') return null
+  if (cifrado === 'sin-destinatario') {
+    return (
+      <div className="admin-aviso admin-aviso-atencion">
+        <strong>Los respaldos de esta máquina salen sin cifrar.</strong> Falta{' '}
+        <code>RESPALDOS_DESTINATARIO</code> (la llave pública de age) en el <code>.env</code> del servidor y en su{' '}
+        <code>docker-compose.override.yml</code>. Es lo esperado en desarrollo; en un servidor con datos de
+        personas, el aviso de privacidad promete que las copias van cifradas.
+      </div>
+    )
+  }
+  return (
+    <div className="admin-aviso admin-aviso-error" role="alert">
+      <strong>«Respaldar ahora» no puede cifrar y por eso no respalda.</strong>{' '}
+      {cifrado === 'falta-age' ? (
+        <>
+          Este servidor está configurado para cifrar, pero <code>age</code> no está donde corre la aplicación:
+          reconstruya la imagen con <code>scripts/deploy.sh</code>.
+        </>
+      ) : (
+        <>
+          <code>RESPALDOS_DESTINATARIO</code> no es una llave pública de age (empieza por «age1» y tiene 62
+          caracteres): corríjalo en el <code>.env</code> del servidor.
+        </>
+      )}
+    </div>
+  )
+}
+
 export function PanelDeRespaldos({
   respaldos,
   directorio,
   hayHerramienta,
+  cifrado = 'sin-destinatario',
   problemaDelDirectorio = null,
   tablero = null,
 }: {
   respaldos: Respaldo[]
   directorio: string
   hayHerramienta: boolean
+  /** Si «Respaldar ahora» cifra, y si no, por qué (`estadoDelCifrado`). */
+  cifrado?: EstadoDelCifrado
   /** Por qué no se puede leer o escribir en `directorio`, si pasa (O-067). */
   problemaDelDirectorio?: string | null
   /** Las cifras, el gráfico y «Cómo funciona», ya pintados en el servidor (`TableroDeRespaldos`). */
@@ -78,6 +115,8 @@ export function PanelDeRespaldos({
   const [error, setError] = useState<string | null>(null)
   const avisar = useAvisos()
   const confirmar = useConfirmar()
+  // Sin cifrar porque no se pidió, sí se respalda; porque no se puede, no.
+  const puedeCifrar = cifrado === 'cifra' || cifrado === 'sin-destinatario'
   /**
    * El resultado, como aviso flotante: un volcado tarda minutos y quien lo
    * pidió suele haber bajado a la tabla mientras tanto. El error se queda
@@ -145,7 +184,7 @@ export function PanelDeRespaldos({
             type="button"
             className="admin-btn admin-btn-primary"
             onClick={crear}
-            disabled={enCurso || !hayHerramienta}
+            disabled={enCurso || !hayHerramienta || !puedeCifrar}
           >
             <DatabaseBackup aria-hidden size={16} />
             {enCurso ? 'Respaldando…' : 'Respaldar ahora'}
@@ -182,6 +221,8 @@ export function PanelDeRespaldos({
           <code>scripts/respaldar.sh</code>.
         </div>
       ) : null}
+
+      <AvisoDelCifrado cifrado={cifrado} />
 
       {/* El aviso azul de «Cómo funciona» pasó a ser una tarjeta del tablero,
           con los pasos que de verdad dan los guiones; el directorio, a la nota
@@ -236,6 +277,14 @@ export function PanelDeRespaldos({
                         <FolderOpen aria-hidden size={12} />
                       )}
                       {r.tipo === 'base' ? 'Base de datos' : 'Archivos subidos'}
+                    </span>{' '}
+                    {/* Cada fila lo dice por su cuenta: en la misma carpeta
+                        conviven los de antes del cifrado y los de después, y
+                        uno en claro descargado y olvidado en un equipo es justo
+                        lo que el cifrado quiere evitar (D-295). */}
+                    <span className={claseDeInsignia(r.cifrado ? 'ok' : 'atencion')}>
+                      {r.cifrado ? <Lock aria-hidden size={12} /> : <LockOpen aria-hidden size={12} />}
+                      {r.cifrado ? 'Cifrado' : 'Sin cifrar'}
                     </span>
                   </td>
                   <td data-etiqueta="Fecha" className="u-nowrap">

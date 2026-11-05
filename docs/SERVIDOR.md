@@ -114,6 +114,7 @@ Todos los comandos se ejecutan desde el directorio del clon.
 | Actualizar a la última versión | `./scripts/actualizar.sh` |
 | Respaldar ahora | `./scripts/respaldar.sh --verificar` |
 | Restaurar un respaldo | `./scripts/restaurar.sh backups/base-AAAAMMDD-HHMMSS.sql.gz` |
+| Restaurar uno cifrado | `./scripts/restaurar.sh backups/base-AAAAMMDD-HHMMSS.sql.gz.age ~/llave-respaldos.txt` |
 | Ver el registro en vivo | `docker compose logs -f app` |
 | Reiniciar la aplicación | `docker compose restart app` |
 
@@ -147,7 +148,8 @@ para leerla.
   `instalar-servidor.sh` deja la misma orden en el `crontab` del usuario, a la
   misma hora: es el camino de repuesto y pierde la recuperación al encender.
 - **Qué incluye:** un volcado completo de PostgreSQL (`base-*.sql.gz`) y un
-  archivo con los medios subidos (`medios-*.tar.gz`).
+  archivo con los medios subidos (`medios-*.tar.gz`). Con la llave puesta, los
+  dos salen cifrados y llevan `.age` al final (ver «Cifrado», más abajo).
 - **Dónde:** el directorio `backups/` del clon, en el servidor, fuera del
   contenedor. Sobrevive a cualquier despliegue.
 - **Cuánto se guarda:** 30 días. Se cambia con `DIAS_A_CONSERVAR` en el `.env`.
@@ -164,6 +166,68 @@ systemctl list-timers plataforma-respaldo.timer
 journalctl -u plataforma-respaldo.service -n 50
 ```
 
+### Cifrado
+
+Los respaldos se cifran con [age](https://age-encryption.org) para una llave
+**pública** (decisión D-295). El servidor puede cifrar sus copias pero no
+leerlas: la llave **privada**, la única que las abre, no está en ningún
+servidor. Una copia robada —del disco, de la que se lleva otra máquina, de un
+portátil— no sirve sin ella.
+
+**La llave, una sola vez y en su propio equipo, no en el servidor:**
+
+```bash
+age-keygen -o llave-respaldos.txt
+```
+
+Escribe la privada en el archivo y enseña la pública por pantalla (`Public key:
+age1…`). La privada se guarda en **dos lugares distintos**, por ejemplo el
+gestor de contraseñas y un pendrive que se guarda aparte. Perderla es perder
+todos los respaldos cifrados con ella, y no hay manera de recuperarla.
+
+**En el servidor**, `age` y la pública:
+
+```bash
+sudo apt install age
+```
+
+```bash
+RESPALDOS_DESTINATARIO=age1…   # en .env, la línea que enseñó age-keygen
+```
+
+y recrear la aplicación para que el botón del panel también la use
+(`docker compose up -d app`). `./scripts/salud.sh` comprueba las piezas en su
+apartado «Cifrado de los respaldos»: que la llave del `.env` sea válida, que
+haya `age` en el servidor y en la imagen, y que la aplicación cifre para la
+misma llave que el cron.
+
+Lo que conviene saber:
+
+- **Sin `RESPALDOS_DESTINATARIO`** los respaldos salen en claro, con un aviso,
+  y `salud.sh` lo marca como problema. Con la llave puesta pero sin `age`, o
+  con la llave mal copiada, no se respalda: el guion se detiene antes que dejar
+  un volcado legible donde se prometió que no lo habría.
+- **La verificación de cada noche se hace antes de cifrar**, porque después el
+  servidor ya no puede leer lo que escribió.
+- **Comprobar un respaldo** sin escribirlo descifrado en ninguna parte, en su
+  propio equipo y después de descargarlo:
+
+  ```bash
+  age -d -i llave-respaldos.txt base-AAAAMMDD-HHMMSS.sql.gz.age | gzip -t && echo integro
+  ```
+
+- **Los respaldos de antes de la llave** siguen en claro hasta que vencen sus
+  treinta días, y `salud.sh` dice cuántos quedan. Para no esperar, se cifran a
+  mano sin perder su fecha, que es la que mira la retención:
+
+  ```bash
+  destinatario=$(grep '^RESPALDOS_DESTINATARIO=' .env | cut -d= -f2-)
+  for f in backups/base-*.sql.gz backups/medios-*.tar.gz; do
+    [ -f "$f" ] || continue
+    age -r "$destinatario" -o "$f.age" "$f" && touch -r "$f" "$f.age" && rm "$f"
+  done
+  ```
+
 ### Respaldar y descargar desde el panel
 
 En `/admin-panel/respaldos` puede crear un respaldo con un botón, ver los que
@@ -179,7 +243,10 @@ límite que conviene tener claro: el panel vuelca **solo la base**
 que llevarse solo el del panel deja fuera las imágenes, los videos y los
 modelos subidos.
 
-El panel avisa en el resumen si el último respaldo tiene más de dos días.
+El panel avisa en el resumen si el último respaldo tiene más de dos días, y
+marca cada uno como «Cifrado» o «Sin cifrar». Lo que se descarga de un
+respaldo cifrado sigue cifrado: se abre con la llave privada, en el propio
+equipo.
 
 ### Copia fuera del servidor
 
@@ -207,6 +274,29 @@ El script, en este orden: comprueba que el archivo sea un volcado legible, pide
 que escriba `RESTAURAR` con esas letras, **respalda el estado actual**, detiene
 la aplicación para que no escriba a mitad de la restauración, restaura, cuenta
 las cuentas recuperadas y vuelve a levantar la aplicación.
+
+Un respaldo cifrado se abre con la llave privada, que se trae al servidor solo
+para esto y se borra al terminar:
+
+```bash
+scp llave-respaldos.txt servidor:~/llave-respaldos.txt     # desde su equipo
+./scripts/restaurar.sh backups/base-20260906-030000.sql.gz.age ~/llave-respaldos.txt
+rm -f ~/llave-respaldos.txt
+```
+
+El volcado descifrado pasa por un temporal que el guion borra siempre, salga
+bien o mal, y el respaldo del estado previo sale cifrado como cualquier otro.
+
+> **Nunca se restaura un respaldo de producción en un servidor de pruebas ni en
+> un equipo de desarrollo** (BITACORA, D-295). Son los datos de personas reales,
+> y el aviso de privacidad dice dónde están y quién los ve. Para probar una
+> restauración, se respalda y se restaura el propio servidor de pruebas.
+
+Restaurar devuelve a la base todo lo que había en la fecha del respaldo,
+también las cuentas que se eliminaron después a petición de su dueño. Antes de
+volver a abrir la plataforma hay que eliminarlas otra vez, con el registro de
+solicitudes que se lleva fuera de los servidores: el procedimiento está en la
+BITACORA, D-296 («Cómo se atiende una solicitud sobre los datos», paso 6).
 
 Los archivos subidos los repone en el mismo paso, pero solo si en `backups/`
 hay un `medios-*.tar.gz` con la **misma marca de tiempo** que el volcado.

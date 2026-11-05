@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { VERSION_DEL_AVISO_DE_PRIVACIDAD } from '@/lib/avisoDePrivacidad'
 
 /**
  * Toda acción de servidor pasa por su guardia antes de tocar los datos.
@@ -375,6 +376,12 @@ const GUARDIAS: Record<string, Clasificacion> = {
   // La bienvenida del primer ingreso (D-237): la cuenta anota su propia fecha,
   // y el recorrido elegido tiene que ser de un módulo que ve.
   'bienvenida.ts:cerrarLaBienvenida': { guardia: 'sesion', modulo: 'cirugias', argumentos: () => ['pabellon'] },
+  // El aviso de privacidad al entrar (D-292): la cuenta acepta por sí misma, y
+  // solo la versión vigente. No cuelga de ningún módulo.
+  'privacidad.ts:aceptarElAvisoDePrivacidad': {
+    guardia: 'sesion',
+    argumentos: () => [VERSION_DEL_AVISO_DE_PRIVACIDAD],
+  },
   'actividad.ts:registrarResultadoDeCirugia': {
     guardia: 'sesion',
     modulo: 'cirugias',

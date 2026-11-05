@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useRef, useState } from 'react'
+import Link from 'next/link'
 import { Building2, Check, CircleCheck, Loader2, Mail, Send, Users } from 'lucide-react'
 import { pedirCotizacion } from '@/app/(frontend)/acciones/cotizar'
+import { MESES_DE_LAS_COTIZACIONES, plazoEnPalabras } from '@/lib/conservacion'
 import {
   LARGOS_DE_COTIZACION,
   MODULOS_COTIZABLES,
@@ -309,6 +311,19 @@ export function FormularioDeCotizacion({
         )}
       </button>
       {textos.nota ? <p className="p-formulario-nota">{textos.nota}</p> : null}
+      {/* Fija y no entre los textos que se editan desde el panel: la ley pide
+          que quien entrega sus datos tenga el aviso a la vista, y un texto
+          editable se puede borrar sin querer. En otra pestaña, como desde el
+          registro, para no perder lo escrito; `/privacidad` le dice a quien
+          llega así que puede cerrarla. */}
+      <p className="p-formulario-nota">
+        Usamos estos datos solo para responderte, y la cotización se borra a los{' '}
+        {plazoEnPalabras(MESES_DE_LAS_COTIZACIONES)}. Más en el{' '}
+        <Link href="/privacidad" target="_blank" rel="noopener">
+          aviso de privacidad
+        </Link>
+        .
+      </p>
     </form>
   )
 }

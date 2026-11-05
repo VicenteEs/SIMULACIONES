@@ -1,5 +1,6 @@
 import type { Payload, Where } from 'payload'
 import { leerTodas } from '@/lib/leerTodas'
+import { quienEnElRegistro } from '@/lib/registro'
 import { esDelEquipo } from '@/lib/seguimiento'
 import { claveDeDia, claveDeMes, claveDeSemana, contarEn, diasEntre, ultimasSemanas, ultimosDias, ultimosMeses, type Casilla } from '@/lib/series'
 import { MODULOS } from './datos'
@@ -230,11 +231,9 @@ export async function actividadReciente(payload: Payload, n = 5): Promise<Accion
     return (docs as unknown as Record<string, unknown>[]).map((d) => ({
       id: String(d.id),
       // Lo que no hizo una cuenta lo anota el servidor con su origen en
-      // minúscula («sistema», «importación»); en la tabla va como un nombre.
-      quien: (() => {
-        const texto = String(d.usuarioNombre || d.origen || 'sistema')
-        return texto.charAt(0).toUpperCase() + texto.slice(1)
-      })(),
+      // minúscula («sistema», «importación»); en la tabla va como un nombre. Sin
+      // nombre ni origen es de una cuenta eliminada (D-291), no del servidor.
+      quien: quienEnElRegistro(d),
       accion: String(d.accion ?? ''),
       coleccion: String(d.coleccion ?? ''),
       titulo: String(d.titulo ?? ''),

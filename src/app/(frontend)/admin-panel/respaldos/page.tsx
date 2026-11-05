@@ -2,6 +2,7 @@ import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import type { Respaldo } from '@/lib/respaldos'
 import {
   directorioDeRespaldos,
+  estadoDelCifrado,
   hayPgDump,
   listarRespaldos,
   problemaDelDirectorio,
@@ -29,7 +30,7 @@ export default async function PaginaRespaldos() {
   // los respaldos se perdieron (O-067). `problemaDelDirectorio` cubre además el
   // caso en que se puede listar pero no escribir, que es el que hace fallar el
   // botón.
-  const [lectura, problema, disponible] = await Promise.all([
+  const [lectura, problema, disponible, cifrado] = await Promise.all([
     listarRespaldos().then(
       (lista) => ({ lista, fallo: null as string | null }),
       (error: unknown) => ({
@@ -39,6 +40,10 @@ export default async function PaginaRespaldos() {
     ),
     problemaDelDirectorio(),
     hayPgDump(),
+    // Se dice antes de pulsar, y no en el mensaje de después: quien respalda
+    // antes de una maniobra tiene que saber si lo que va a quedar en el disco
+    // es un volcado en claro (D-295).
+    estadoDelCifrado(),
   ])
 
   const directorio = directorioDeRespaldos()
@@ -53,6 +58,7 @@ export default async function PaginaRespaldos() {
       respaldos={lectura.lista}
       directorio={directorio}
       hayHerramienta={disponible}
+      cifrado={cifrado}
       problemaDelDirectorio={lectura.fallo ?? problema}
       tablero={<TableroDeRespaldos respaldos={lectura.lista} fallo={lectura.fallo} directorio={directorio} />}
     />

@@ -79,11 +79,19 @@ chmod 770 backups 2>/dev/null || true
 
 paso "Respaldando la base antes de tocar nada"
 if servicio_en_marcha db; then
+  # Cifrado como el de cada noche (D-295): se queda treinta dias en la misma
+  # carpeta y viaja con los demas. Si el servidor esta configurado para cifrar y
+  # no puede, el despliegue se detiene aqui, antes de tocar nada.
+  preparar_cifrado
   marca=$(date +%Y%m%d-%H%M%S)
-  archivo="backups/base-$marca.sql.gz"
+  claro="backups/.base-$marca.sql.gz.parcial"
+  # El temporal en claro no sobrevive a un fallo del volcado ni del cifrado.
+  trap 'rm -f "$claro"' EXIT
   dc exec -T db \
-    pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists | gzip -9 > "$archivo"
-  verde "    respaldo en $archivo"
+    pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists | gzip -9 > "$claro"
+  guardar_respaldo "$claro" "backups/base-$marca.sql.gz"
+  trap - EXIT
+  verde "    respaldo en $RESPALDO_FINAL"
 else
   echo "    primera instalacion, no hay nada que respaldar"
 fi

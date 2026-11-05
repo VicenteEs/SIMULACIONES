@@ -89,6 +89,7 @@ describe('los respaldos agrupados por la noche en que se hicieron', () => {
     bytes,
     creado,
     tipo: nombre.startsWith('base-') ? 'base' : 'medios',
+    cifrado: nombre.endsWith('.age'),
   })
 
   // `listarRespaldos` las da de la más reciente a la más antigua.
@@ -106,6 +107,17 @@ describe('los respaldos agrupados por la noche en que se hicieron', () => {
     expect(corridas[0].medios).toBeNull()
     expect(totalDe(corridas[0])).toBe(900_000)
     expect(totalDe(corridas[1])).toBe(4_000_000)
+  })
+
+  it('una noche cifrada (D-295) se une igual que una en claro: la marca va antes del .age', () => {
+    const cifrada = [
+      respaldo('medios-20261104-033002.tar.gz.age', 3_000_000, new Date(2026, 10, 4, 3, 30, 2).toISOString()),
+      respaldo('base-20261104-033002.sql.gz.age', 1_000_000, new Date(2026, 10, 4, 3, 30, 2).toISOString()),
+      ...lista,
+    ]
+    const corridas = corridasDe(cifrada)
+    expect(corridas.map((c) => c.marca)).toEqual(['20261102-151200', '20261103-033002', '20261104-033002'])
+    expect(totalDe(corridas[2])).toBe(4_000_000)
   })
 
   it('un punto por respaldo dentro de la ventana, sin días a cero en medio', () => {

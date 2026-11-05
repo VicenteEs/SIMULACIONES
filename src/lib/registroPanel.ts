@@ -7,7 +7,7 @@
 import type { Payload, Where } from 'payload'
 import type { HojaDePlanilla } from './planilla'
 import { capacidadesPorRol, etiquetaDeRolEnRegistro, ROLES } from './permisos'
-import { accionDelRegistroEnPalabras, diaLocal, duracionCorta } from './registro'
+import { accionDelRegistroEnPalabras, diaLocal, duracionCorta, quienEnElRegistro } from './registro'
 import { claveDeDia, contarEn, sumarEn, type Casilla } from './series'
 
 type Registro = Record<string, unknown>
@@ -396,7 +396,7 @@ export async function hojasDelRegistro(payload: Payload): Promise<HojaDePlanilla
       ],
       filas: filas.map((f) => [
         f.fecha,
-        f.nombre || '—',
+        quienEnElRegistro({ usuarioNombre: f.nombre, origen: f.origen }),
         f.correo,
         etiquetaDeRolEnRegistro(f.rol),
         modulos(f.modulosVisibles),

@@ -2389,6 +2389,35 @@ dd > div blockquote p:last-child,
   border-radius: 0 var(--r) var(--r) 0;
 }
 
+/* ---------- aviso de privacidad (`TextoDelAviso`, `PantallaDelAviso`) ---------- */
+/* Lo que falta por rellenar en el aviso —el nombre del responsable y el correo
+   de privacidad— se ve como hueco y no como texto, para que nadie lo publique
+   creyendo que está terminado. Ámbar, que en esta paleta es «atención», y no
+   rojo, que es «error»: no falla nada, falta un dato. */
+.aviso-en-blanco {
+  background: var(--ambar-tenue); color: var(--ambar-texto);
+  border: 1px dashed var(--ambar); border-radius: var(--r-sm);
+  padding: 0 var(--e-1); font-weight: 600;
+}
+
+/* La pantalla que pide aceptar el aviso al entrar (D-292). La barra con los
+   dos botones se queda pegada abajo mientras se lee: el aviso son diez
+   tarjetas, y un «acepto» que solo aparece al final obliga a bajar hasta él
+   sin saber que está ahí. Pegada y no fija, para que al llegar al final se
+   quede en su sitio en lugar de tapar la última tarjeta. */
+.aviso-por-aceptar-barra {
+  position: sticky; bottom: 0; z-index: var(--z-barra);
+  margin-top: var(--e-8); padding: var(--e-4) var(--e-5);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e-4);
+  background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--r-lg);
+  box-shadow: var(--sombra-2);
+}
+/* Con `>`: el error del botón también es un `<p>`, un nivel más adentro, y con
+   el selector de descendiente heredaría el gris y el ancho de esta frase. */
+.aviso-por-aceptar-barra > p { margin: 0; flex: 1 1 320px; font-size: var(--t-sm); color: var(--pizarra); }
+.aviso-por-aceptar-botones { display: flex; flex-wrap: wrap; gap: var(--e-3); }
+.aviso-por-aceptar-error { flex-basis: 100%; margin: 0; font-size: var(--t-sm); color: var(--alerta); }
+
 /* ==========================================================================
    Pie de página (`PieDePagina.tsx`).
 

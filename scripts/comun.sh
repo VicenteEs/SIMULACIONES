@@ -99,6 +99,91 @@ servicio_en_marcha() {
   dc ps "$1" --status running -q 2>/dev/null | grep -q .
 }
 
+# --- respaldos cifrados (D-295) ---------------------------------------------
+# Los respaldos se cifran con age para la llave PUBLICA de
+# RESPALDOS_DESTINATARIO. La privada no esta en ningun servidor: este puede
+# cifrar sus copias, pero no leerlas, y una copia robada -del disco, de la que
+# se lleva ved, de un portatil- no sirve sin ella.
+#
+# Lo que se cifra es lo ya comprimido: quitando el .age con la llave queda el
+# .sql.gz o el .tar.gz de siempre, y todo lo demas (restaurar, verificar)
+# sigue igual.
+
+# Una llave publica de age: "age1" y 58 caracteres de bech32. La misma regla
+# que esDestinatarioDeAge (src/lib/respaldos.ts).
+PATRON_DESTINATARIO_AGE='^age1[02-9ac-hj-np-z]{58}$'
+
+# Decide si este respaldo se cifra, y comprueba que se pueda. Deja CIFRAR=1 o 0.
+#
+# Sin destinatario se respalda en claro, avisando: un respaldo sin cifrar es
+# mejor que ninguno, y es lo que pasa en desarrollo y en un servidor al que
+# aun no se le puso la llave. Con destinatario, en cambio, no se respalda en
+# claro nunca: si falta age o la llave esta mal copiada, el guion se detiene.
+# Un servidor configurado para cifrar que deja caer un volcado legible es justo
+# lo que el aviso de privacidad promete que no pasa.
+preparar_cifrado() {
+  if [ -z "${RESPALDOS_DESTINATARIO:-}" ]; then
+    CIFRAR=0
+    ambar "    AVISO: falta RESPALDOS_DESTINATARIO en .env; este respaldo queda SIN CIFRAR."
+    return 0
+  fi
+  printf '%s' "$RESPALDOS_DESTINATARIO" | grep -Eq "$PATRON_DESTINATARIO_AGE" ||
+    morir "RESPALDOS_DESTINATARIO no es una llave publica de age (empieza por age1 y tiene 62 caracteres).
+No se respalda sin cifrar en un servidor configurado para cifrar: corrija el .env."
+  command -v age >/dev/null 2>&1 ||
+    morir "RESPALDOS_DESTINATARIO esta puesto pero falta age en este servidor.
+Instalelo con:  sudo apt install age"
+  CIFRAR=1
+}
+
+# ¿Es un archivo de age? Mira solo la primera linea, que es lo unico que se
+# puede comprobar sin la llave privada.
+es_archivo_age() {
+  [ "$(head -c 21 "$1" 2>/dev/null)" = "age-encryption.org/v1" ]
+}
+
+# guardar_respaldo <en_claro> <destino>
+#
+# Deja el respaldo en su sitio: cifrado como <destino>.age si toca, o tal cual.
+# El archivo en claro es temporal y se borra en cuanto esta el cifrado. La ruta
+# final queda en RESPALDO_FINAL.
+#
+# El temporal en claro vive unos minutos en la carpeta de respaldos (770) del
+# mismo servidor donde la base esta en claro de todos modos: no expone nada que
+# no estuviera ya ahi. Lo que no puede salir en claro es la copia que se queda
+# treinta dias y la que viaja a ved, y esas salen ya cifradas.
+#
+# Si el cifrado falla, el guion muere sin guardar nada: el temporal lo borra la
+# trampa de salida de quien llama, y en su lugar no se deja la copia en claro.
+guardar_respaldo() {
+  local claro="$1" destino="$2"
+  if [ "${CIFRAR:-0}" -eq 1 ]; then
+    if ! age -r "$RESPALDOS_DESTINATARIO" -o "$destino.age" "$claro"; then
+      rm -f "$destino.age"
+      morir "age no pudo cifrar el respaldo, y no se guarda en claro en un servidor configurado para cifrar."
+    fi
+    if ! es_archivo_age "$destino.age"; then
+      rm -f "$destino.age"
+      morir "age no produjo un archivo cifrado valido, y no se guarda en claro en un servidor configurado para cifrar."
+    fi
+    rm -f "$claro"
+    RESPALDO_FINAL="$destino.age"
+  else
+    mv "$claro" "$destino"
+    RESPALDO_FINAL="$destino"
+  fi
+  chmod 640 "$RESPALDO_FINAL" 2>/dev/null || true
+}
+
+# Los volcados de la base y los paquetes de medios, cifrados o no, del mas
+# reciente al mas antiguo. Para el listado de restaurar.sh y para salud.sh.
+listar_volcados() {
+  ls -1t backups/base-*.sql.gz backups/base-*.sql.gz.age 2>/dev/null || true
+}
+listar_paquetes_de_medios() {
+  ls -1t backups/medios-*.tar.gz backups/medios-*.tar.gz.age 2>/dev/null || true
+}
+
 # El prefijo bajo el que se sirve la plataforma, preguntado al contenedor.
 #
 # Se pregunta y no se deduce: el prefijo se graba en la imagen al compilar

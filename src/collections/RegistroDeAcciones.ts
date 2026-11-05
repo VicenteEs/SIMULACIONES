@@ -7,15 +7,29 @@ import { ACCIONES_DEL_REGISTRO } from '@/lib/registro'
  *
  * Una fila por acto, con una **foto** de quién era la cuenta en ese momento:
  * nombre, correo, rol y módulos. El rol de hoy no explica lo que alguien pudo
- * hacer hace un mes —lo cambió un administrador—, y al borrar la cuenta la fila
- * no puede quedarse sin saber de quién era, así que `usuario` queda a nulo (la
- * clave foránea es `ON DELETE SET NULL`) y la foto sigue diciéndolo.
+ * hacer hace un mes —lo cambió un administrador—.
+ *
+ * Al borrar la cuenta, `usuario` queda a nulo (la clave foránea es `ON DELETE
+ * SET NULL`) y, desde D-291, la foto pierde el nombre y el correo: queda el
+ * acto, con el rol y los módulos de entonces, pero ya no se sabe de quién. Hasta
+ * entonces la foto seguía diciéndolo para siempre, que era justo lo que la
+ * bitácora quería y lo que el aviso de privacidad no podía defender. Lo hace
+ * `anonimizarElRastroDeLaCuenta`, dentro del borrado, y lo repite cada día
+ * `aplicarLaConservacion` (`src/lib/conservacionServidor.ts`).
+ *
+ * **Cada fila se borra a los doce meses** de su `fecha` (D-290,
+ * `MESES_DEL_REGISTRO_DE_ACCIONES`). La pregunta que responde una bitácora
+ * —¿quién tocó esto?— se hace en semanas; guardarla más es guardar a quién
+ * leyó qué sin para qué.
  *
  * Se escribe solo desde el servidor (`registrarAccion`, `src/lib/registroServidor.ts`)
  * y nunca por REST: de la API de Payload solo queda servir archivos (D-073), y
  * el acceso de aquí es el mismo de las demás colecciones de administración por
  * si algún día se reabre. Una bitácora que se puede reescribir no sirve de
  * bitácora: por eso no hay ninguna pantalla, ni acción, que edite o borre filas.
+ * Las dos únicas escrituras después de crearla son las de los plazos de arriba,
+ * que no eligen fila: quitan el nombre a todas las de una cuenta que ya no está
+ * y borran todas las que pasaron su plazo.
  *
  * Lo que **no** se guarda, a propósito: contraseñas, testigos ni el contenido de
  * las fichas. Se anota que alguien modificó «Fractura de diáfisis tibial», no

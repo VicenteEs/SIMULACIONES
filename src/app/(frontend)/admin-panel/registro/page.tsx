@@ -12,7 +12,7 @@ import { cifra } from '@/lib/graficos'
 import { iniciales } from '@/lib/iniciales'
 import { leerTodas } from '@/lib/leerTodas'
 import { capacidadesPorRol, etiquetaDeRolEnRegistro, ROLES } from '@/lib/permisos'
-import { ACCIONES_DEL_REGISTRO, accionDelRegistroEnPalabras, duracionCorta } from '@/lib/registro'
+import { ACCIONES_DEL_REGISTRO, accionDelRegistroEnPalabras, duracionCorta, quienEnElRegistro } from '@/lib/registro'
 import {
   TIPOS_DE_ACCION,
   leerRegistro,
@@ -449,7 +449,7 @@ export default async function PaginaDelRegistro({
                 <tr key={f.id}>
                   <td>{fechaHora(f.fecha)}</td>
                   <td>
-                    {f.nombre || f.origen || '—'}
+                    {quienEnElRegistro({ usuarioNombre: f.nombre, origen: f.origen })}
                     {f.correo ? (
                       <>
                         <br />

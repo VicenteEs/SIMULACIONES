@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CircleSlash,
   Copy,
+  Download,
   Hourglass,
   KeyRound,
   Pencil,
@@ -38,6 +39,7 @@ import {
 } from '@/app/(frontend)/acciones/admin'
 import { SolicitudesPendientes } from './SolicitudesPendientes'
 import { PROFESIONES, etiquetaDeProfesion, type Profesion } from '@/lib/firmas'
+import { ruta } from '@/lib/rutas'
 import './solicitudes.css'
 
 export interface UsuarioDelPanel {
@@ -957,6 +959,23 @@ export function TablaUsuarios({
                                 },
                               },
                               {
+                                /*
+                                  Para responder a quien pide sus datos (D-293):
+                                  un JSON con todo lo que la plataforma guarda
+                                  de la cuenta. Una navegación y no un `fetch`:
+                                  la ruta responde como adjunto, así que el
+                                  navegador lo descarga sin salir del panel, y
+                                  el archivo no pasa entero por la memoria de
+                                  esta pestaña. Con `ruta()`, porque es una
+                                  dirección escrita a mano.
+                                */
+                                etiqueta: 'Descargar sus datos',
+                                icono: Download,
+                                alElegir: () => {
+                                  window.location.assign(ruta(`/api/cuentas/${encodeURIComponent(u.id)}/datos`))
+                                },
+                              },
+                              {
                                 etiqueta: esUnoMismo ? 'Eliminar (es su cuenta)' : 'Eliminar la cuenta',
                                 icono: Trash2,
                                 peligro: true,
@@ -965,8 +984,12 @@ export function TablaUsuarios({
                                   if (ocupada) return
                                   const seguro = await confirmar({
                                     titulo: `¿Eliminar la cuenta de ${u.email}?`,
+                                    // Lo mismo que promete el aviso de
+                                    // privacidad, en corto (D-291). Y lo de la
+                                    // copia, porque después de borrar ya no
+                                    // hay de dónde sacarla.
                                     mensaje:
-                                      'Se pierde su historial de lectura y sus comentarios quedan sin autor. Si solo quiere retirarle el acceso, desactívela.',
+                                      'Se borran la cuenta y su avance; sus comentarios y su registro de acciones quedan sin su nombre. Si pidió una copia de sus datos, descárguela antes. Si solo quiere retirarle el acceso, desactívela.',
                                     confirmar: 'Eliminar la cuenta',
                                     peligro: true,
                                   })

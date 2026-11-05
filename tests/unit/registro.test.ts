@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCIONES_DEL_REGISTRO,
   COLECCIONES_SIN_REGISTRO,
+  CUENTA_ELIMINADA,
   cambiosDePermisos,
   diaLocal,
   duracionCorta,
   fotoDePermisos,
+  quienEnElRegistro,
   segundosDelLatido,
   LATIDO_DE_ACTIVIDAD_MS,
 } from '@/lib/registro'
@@ -60,6 +62,22 @@ describe('fotoDePermisos', () => {
   it('activo solo si es exactamente true', () => {
     expect(fotoDePermisos({ rol: 'editor', activo: 'yes' })?.activo).toBe(false)
     expect(fotoDePermisos({ rol: 'editor', activo: true, modulosVisibles: ['cirugias', 3] })?.modulosVisibles).toEqual(['cirugias'])
+  })
+})
+
+describe('quién hizo lo que cuenta una entrada', () => {
+  it('su nombre, si lo tiene', () => {
+    expect(quienEnElRegistro({ usuarioNombre: 'Fulana de Tal', origen: 'sistema' })).toBe('Fulana de Tal')
+  })
+
+  it('el origen, con mayúscula, si lo hizo el servidor', () => {
+    expect(quienEnElRegistro({ origen: 'conservación' })).toBe('Conservación')
+    expect(quienEnElRegistro({ usuarioNombre: '   ', origen: 'sistema' })).toBe('Sistema')
+  })
+
+  it('sin nombre ni origen es una cuenta que ya no existe (D-291), no un acto del servidor', () => {
+    expect(quienEnElRegistro({})).toBe(CUENTA_ELIMINADA)
+    expect(quienEnElRegistro({ usuarioNombre: null, origen: null })).toBe(CUENTA_ELIMINADA)
   })
 })
 

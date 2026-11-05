@@ -442,7 +442,7 @@ activar y, cuando exista dominio, la puerta adicional de Cloudflare Access.
 barrera. Conviene reconsiderarlo antes de dar de alta a residentes ajenos al
 equipo.
 
-### D-036 · 2026-08-31 · vigente · corregida el 2026-09-10
+### D-036 · 2026-08-31 · vigente · corregida el 2026-09-10 · los respaldos van cifrados desde D-295
 **El respaldo diario se programa solo al instalar.**
 `scripts/respaldar.sh` vuelca base y archivos subidos, descarta lo anterior a
 treinta días y aborta si el volcado sale sospechosamente pequeño.
@@ -4183,7 +4183,7 @@ ninguna y dependen del modelo 3D.
 3.298 imágenes: 0 fallos, segunda pasada sin cambios. El ensayo escribe los
 archivos en `medios/`, así que hay que vaciarla después.
 
-### D-145 · 2026-09-30 · vigente
+### D-145 · 2026-09-30 · vigente · «las filas del registro no se purgan», superado por D-290; la foto con nombre y correo de una cuenta borrada, por D-291
 **Registro de lo que hace cada cuenta, con sus permisos de entonces y su tiempo de actividad.**
 Dos colecciones, una migración (`20260930_211905`): `registro-de-acciones` (una
 fila por acto, con foto de nombre, correo, rol y módulos de ese momento, y el
@@ -8148,7 +8148,7 @@ En la malla de la tibia de E0, fuera del navegador, las siete secciones de 5 a 4
 - (−) El hueso que se enfrenta al fragmento se busca por su caja: en un caso con dos huesos paralelos de huella parecida, el ancho podría ser el del otro.
 - (−) Un trazo oblicuo o espiroideo más largo que la ventana (40 mm en un hueso largo) deja todas las secciones en la cuña, y el % sale de más.
 
-### D-264 · 2026-11-04 · vigente · E7 de P-009 · cumple Q-005 (D-258)
+### D-264 · 2026-11-04 · vigente · E7 de P-009 · cumple Q-005 (D-258) · el texto del aviso, superado por D-294; sus cinco pendientes, resueltos por D-290 a D-294
 **La solicitud de cuenta pide aceptar un aviso de privacidad publicado en `/privacidad`; `solicitarCuenta` rechaza la que no trae la versión vigente, y la cuenta guarda cuándo se aceptó y qué versión.**
 
 *De dónde sale.* Q-005, resuelta en D-258: «lo mínimo, y el aviso ya», con el aviso al registrarse antes de que la Ley 21.719 entre en vigor el 1 de diciembre de 2026. Es la etapa E7 de P-009. El avance en el simulador va a guardarse en la cuenta, y el aviso ya lo nombra: «tu avance en el simulador».
@@ -8587,6 +8587,386 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 *Consecuencias.*
 - (+) El estado del módulo se lee antes que el titular, igual que en el módulo 06.
 - (−) Por debajo de unos 1050 px de ancho, y en el teléfono, la insignia no cabe al lado y queda debajo del antetítulo.
+
+### D-290 · 2026-11-05 · vigente · E0 de P-011 · supera «las filas del registro no se purgan» de D-145 · resuelve un pendiente de D-264
+**El registro de acciones se guarda doce meses, y las cotizaciones, doce meses. Una pasada diaria dentro de la propia aplicación borra lo vencido, y el aviso toma los dos plazos de las mismas constantes.**
+
+*De dónde sale.* Pedido del dueño, 2026-11-05 (P-011): el registro de acciones «se guarda 12 meses» y las cotizaciones «se borran a los 12 meses». D-145 dejó el registro sin purga, y D-264 lo anotó como pendiente: el aviso tenía que confesar que guardaba nombre, correo y rol sin plazo, también de cuentas eliminadas.
+
+*Cómo funciona.*
+- **Los plazos** viven en `src/lib/conservacion.ts`, y en ningún otro sitio: `MESES_DEL_REGISTRO_DE_ACCIONES` y `MESES_DE_LAS_COTIZACIONES`, los dos en 12.
+  - Los leen la pasada, el aviso (`TextoDelAviso.tsx`) y la línea del formulario de cotización (D-294). Si un plazo cambia, lo que se promete cambia en el mismo cambio.
+  - Cambiar uno pide además una versión nueva del aviso, que es lo que se le dijo a la persona.
+- **El corte** (`vencimiento`) es en meses de calendario y en UTC, no en 360 días, que se comerían casi una semana de lo prometido.
+  - Un 29 de febrero, JavaScript pasa al día siguiente: lo de ese día se borra uno antes de cumplir el plazo.
+  - Es el lado bueno del error: el aviso promete que nada se guarda más de doce meses, y un día de menos no rompe esa promesa.
+- **La pasada** (`aplicarLaConservacion`, en `src/lib/conservacionServidor.ts`):
+  - **el registro**: las entradas con `fecha` vencida, con un solo `DELETE` de la capa de la base (`payload.db.deleteMany`), porque no tiene ganchos ni nada colgado;
+  - **las cotizaciones**: las de `createdAt` vencido, contestadas o no, con `payload.delete`, para que Payload se lleve lo que cuelga de cada una (sus módulos, sus bloqueos, sus preferencias). Va con `sinRegistro`: sin él, la limpieza dejaría en el registro una entrada nueva con el título de cada cotización que acaba de borrar;
+  - **lo que quedó con nombre**: repite la anonimización de D-291 sobre toda la base.
+  - Si hizo algo, deja una sola entrada `conservacion`, con origen «conservación» y el resumen: «borró 3 entradas del registro de más de 12 meses · quitó el nombre y el correo a 40 entradas de cuentas eliminadas».
+  - Si no hizo nada, no anota nada: una línea diaria de «no había nada» enterraría las que dicen algo.
+- **Cuándo corre**: `src/instrumentation.ts` llama a `programarLaConservacion` (`conservacionProgramada.ts`).
+  - La primera pasada, a los cinco minutos de arrancar el servidor, cuando ya aplicó sus migraciones; después, cada 24 horas.
+  - Solo en el entorno de Node y nunca durante `next build`.
+  - Los relojes se sueltan (`unref`), para que una pasada pendiente no impida que el contenedor se detenga.
+  - Una marca en `globalThis` evita un segundo reloj en el mismo proceso: la recarga en caliente de `next dev` puede volver a evaluar el módulo, y dos relojes harían dos pasadas a la vez sobre las mismas filas.
+  - Un error se anota en el registro del servidor y no lo tumba.
+- **Dentro de la aplicación, y no en el cron del anfitrión** donde vive el respaldo, por tres razones:
+  - los plazos se escriben una vez; en el cron habría que repetirlos en SQL, con los nombres de las tablas a mano, en un guion que el aviso no ve;
+  - corre donde corra la plataforma, sin instalar nada;
+  - la imagen de producción no trae `tsx`.
+
+*Qué se probó.*
+- `conservacion.test.ts`:
+  - el vencimiento: 365 días, en UTC, el 29 de febrero y sin tocar la fecha que recibe;
+  - el plazo en palabras, y el resumen con sus seis partes en orden;
+  - el programador, con un reloj de mentira: la primera pasada a los cinco minutos y luego cada día, los relojes sueltos, una segunda llamada que no programa nada y un error que se anota con `[conservación]`.
+- `tests/integration/privacidad.test.ts`, contra PostgreSQL: con filas de hace trece meses y de hace once, la pasada borra las de trece y deja las de once. Una segunda pasada no encuentra nada que borrar.
+
+*Consecuencias.*
+- (+) El registro y las cotizaciones tienen el plazo que dice el aviso, y el aviso no puede decir otro.
+- (+) La pasada se ve en el registro, con su resumen, solo los días que hizo algo.
+- (−) Si la aplicación está caída un día entero, ese día no hay pasada. La siguiente llega a los cinco minutos de volver.
+- (−) Las copias de seguridad guardan treinta días más lo que se borra (D-036). El aviso lo dice.
+- (−) La aceptación de las versiones anteriores del aviso queda solo en el registro (D-292), y dura doce meses: la cuenta guarda únicamente la última.
+- (−) La pasada corre también con `next dev`, sobre la base de desarrollo: una base de desarrollo con filas de hace más de un año las pierde a los cinco minutos de arrancar.
+
+### D-291 · 2026-11-05 · vigente · E1 de P-011 · supera en D-145 la foto de la cuenta que se guardaba para siempre · resuelve un pendiente de D-264
+**Al eliminar una cuenta, o rechazar una solicitud, sus entradas del registro pierden el nombre y el correo: queda la acción, con el rol y los módulos de entonces, pero ya no se sabe de quién. Lo mismo las entradas que la nombraban, sus envíos fallidos en las difusiones y sus preferencias.**
+
+*De dónde sale.* Pedido del dueño (P-011): cuando se elimina una cuenta o se rechaza una solicitud, sus entradas «pierden el nombre y el correo: queda la acción, pero ya no se sabe de quién». D-145 guardaba una foto de la cuenta en cada entrada justamente para que, al borrarla, se siguiera sabiendo de quién era.
+
+*Cómo funciona.*
+- **En el momento**, dentro del borrado. El `beforeDelete` de `Usuarios.ts` llama a `limpiarRastroDeUsuario` (`hooks/bajaDeUsuario.ts`), que hace ahora tres cosas: borra la actividad, deja los comentarios sin autor y, al final, quita el nombre del registro (`anonimizarElRastroDeLaCuenta`, en `conservacionServidor.ts`):
+  - **sus entradas**: `usuarioNombre` y `usuarioCorreo` a nulo. Se quedan el acto, la fecha, el documento, el rol y los módulos;
+  - **las que la nombran en su título**, como su alta o sus cambios de permisos: el título a nulo. Quien las hizo, si sigue, conserva su nombre;
+  - **los envíos fallidos de las difusiones** que guardan su dirección: la dirección sale del campo y también del motivo, porque los servidores de correo la repiten («550 5.1.1 <fulana@…>: Recipient address rejected»). El número de fallidos no se mueve;
+  - **sus preferencias de pantalla**, borradas antes que la fila (O-090).
+- Va con el `req` del borrado, dentro de su transacción: si el borrado se deshace, la anonimización se deshace con él.
+- Va al final, y no al principio, porque borrar la actividad y retocar los comentarios dejan sus propias entradas, y esas son de quien elimina.
+- **Rechazar una solicitud pasa por lo mismo**: las dos cosas acaban en el mismo `payload.delete` (`borrarCuentaVigilada`).
+- **El «Eliminó» de la propia cuenta** se anota sin título y con el detalle «una cuenta de rol lector» (`hooks/registrarAccion.ts`).
+- **Una cotización** se titula en el registro con la institución, no con el nombre de quien la pidió (`CAMPO_DEL_TITULO`); sin institución, con su número («#8»). Así, borrar una cotización la borra de verdad.
+- **Cada día**, la pasada de D-290 repite todo esto sobre la base entera (`anonimizarLoDeCuentasBorradas`). Alcanza lo que se borró antes de esta regla, lo que borre un guion sin pasar por el gancho y lo que vuelva con un respaldo restaurado.
+  - Una entrada de una cuenta borrada se reconoce sin saber qué cuenta era: tiene `usuario` a nulo (`ON DELETE SET NULL`) y no tiene `origen`, que `registrarAccion` pone siempre que no hay una cuenta.
+  - También corrige los títulos de las cotizaciones anotadas antes con el nombre, y borra las preferencias que quedaron huérfanas.
+  - Sobre una base ya limpia no toca ninguna fila.
+- **Con la capa de la base** (`payload.db.updateMany` y `updateOne`), por dos razones:
+  - `payload.update` con un `where` lee, valida y pasa los ganchos fila por fila. Con las miles de lecturas que deja un residente en un año, eso son minutos de borrado con la transacción abierta;
+  - `payload.update` con `sinRegistro`, sobre las difusiones y con el `req` del borrado, mezclaba ese `context` en el `req.context` compartido y no lo quitaba al terminar, así que el «Eliminó» de la cuenta ya no se anotaba.
+- **En el panel**, una entrada sin nombre ni origen se lee «Cuenta eliminada» (`quienEnElRegistro`, `src/lib/registro.ts`): en el registro, en la actividad reciente y en la planilla. Antes caía en «Sistema», como si la hubiera hecho el servidor.
+- **El diálogo de eliminar una cuenta** dice lo que se borra y lo que queda sin nombre, y que, si la persona pidió una copia de sus datos, se descargue antes.
+
+*Qué se probó.*
+- `bajaDeUsuario.test.ts`: las tres cosas y su orden.
+- `tituloEnElRegistro.test.ts`:
+  - la cotización se anota con la institución al crearla, al modificarla y al eliminarla, sin rastro del nombre ni del correo;
+  - sin institución, con «#8»;
+  - el «Eliminó» de una cuenta va sin título y con su rol.
+- `conservacion.test.ts`: el motivo pierde la dirección sin distinguir mayúsculas, y la dirección se busca tal cual (`a+b@x.cl` no casa con `aab@xxcl`).
+- `registro.test.ts`: «Cuenta eliminada», y no «Sistema».
+- `tests/integration/privacidad.test.ts`, contra PostgreSQL, al eliminar una cuenta y al rechazar una solicitud (D-293).
+
+*Consecuencias.*
+- (+) El registro sigue respondiendo qué pasó y con qué permisos, y deja de responder de quién era la cuenta que ya no existe.
+- (+) Lo que se borró antes de la regla, o se cuela por otro camino, se corrige solo al día siguiente.
+- (−) En un equipo pequeño, el rol, los módulos y las fechas de una entrada sin nombre pueden bastar para adivinar de quién era. Es lo mínimo que se deja para que el registro sirva.
+- (−) Restaurar un respaldo devuelve, vivas y con nombre, las cuentas eliminadas después de su fecha. La pasada no lo arregla, porque para ella son cuentas que existen: hay que eliminarlas otra vez (D-296).
+
+### D-292 · 2026-11-05 · vigente · E2 de P-011 · resuelve un pendiente de D-264
+**Una cuenta que no ha aceptado la versión vigente del aviso ve el aviso en lugar de cualquier página, y no sigue hasta aceptarlo. Cubre al equipo, a las cuentas que se crean desde el panel y a toda versión futura. Mientras el aviso tenga sus dos espacios en blanco (D-294), no se pide.**
+
+*De dónde sale.* Pedido del dueño (P-011): «una cuenta que no ha aceptado la versión vigente ve el aviso y debe aceptarlo para continuar», para el equipo, para las cuentas de institución que se crean desde el panel y para cualquier versión futura. D-264 lo dejó pendiente: las cuentas creadas desde el panel, y las de antes del aviso, no tenían ninguna aceptación anotada.
+
+*Cómo funciona.*
+- **La guardia está en la plantilla** (`src/app/(frontend)/layout.tsx`), que envuelve todas las páginas, el panel incluido: la guardia que vive en un solo sitio no se puede olvidar en ninguno.
+  - Con la sesión activa y `debeAceptarElAviso(sesion.usuario)`, pinta `PantallaDelAviso` en lugar de la página.
+  - Va sin menú y sin el aviso de actualización: no hay adónde ir hasta aceptar.
+  - Va sin latido de actividad, porque el tiempo activo es uno de los datos que se piden consentir.
+- **`debeAceptarElAviso`** (`src/lib/avisoDePrivacidad.ts`): la cuenta lo debe cuando la versión que guarda no es la vigente, porque no aceptó nunca o porque aceptó una anterior. Se mira la cuenta real, no la que simula un administrador con «ver como residente»: quien acepta es la persona.
+- **La pantalla** (`src/components/privacidad/`) enseña el mismo texto que publica `/privacidad` (`TextoDelAviso`, una sola copia), entero y no un resumen con un enlace, y dos botones:
+  - **«Salir»**: la cuenta queda como estaba, sin poder usarse, hasta que acepte o pida que se elimine;
+  - **«Acepto»**: llama a `aceptarElAvisoDePrivacidad` con la versión que la pantalla enseñó.
+- **`aceptarElAvisoDePrivacidad`** (`acciones/privacidad.ts`):
+  - se niega sin una sesión activa;
+  - se niega si la versión que llega no es la vigente: «El aviso de privacidad cambió mientras lo leías…». La cuenta no puede quedar anotada con un texto que no vio;
+  - anota `privacidadAceptadaEn` y `versionDelAvisoDePrivacidad` sobre la cuenta de la sesión, y solo sobre ella. No recibe ningún identificador: aceptar por otra cuenta sería fabricar su consentimiento;
+  - escribe con `overrideAccess`, porque por la API esas dos columnas siguen cerradas a todos, el administrador incluido (D-264);
+  - deja en el registro una entrada `aviso-aceptado` con la versión. La cuenta guarda solo la última aceptación; las anteriores quedan en el registro;
+  - pide que la plantilla se vuelva a pintar (`revalidatePath('/', 'layout')`), para que la pantalla deje paso a la página.
+- **Cambiar `VERSION_DEL_AVISO_DE_PRIVACIDAD` vuelve a pedir la aceptación a todas las cuentas.** Hasta ahora eso era «otra decisión»; ahora es la consecuencia, y por eso la versión no se mueve por una coma.
+- **Mientras falten los dos datos en blanco (D-294), no se pide** (`avisoCompleto`). Aceptar un aviso que no dice quién responde ni a quién se escribe no prueba nada, y obligaría a aceptarlo otra vez en cuanto se complete. `/privacidad` lo publica igual, con los huecos a la vista.
+
+*Qué se probó.*
+- `avisoDePrivacidad.test.ts`:
+  - a quién se le pide: sin aceptación, sí; con una versión anterior, sí; con la vigente, no;
+  - sin cuenta, o con el aviso incompleto, no se le pide a nadie;
+  - el formato de la versión.
+- `aceptarElAviso.test.ts`:
+  - se anota sobre la cuenta de la sesión, con la versión y la hora, y con `overrideAccess`;
+  - el registro guarda la aceptación con su versión, y la plantilla se vuelve a pintar;
+  - una versión que no es la vigente, o algo que no es una versión, no anota nada;
+  - sin sesión activa, tampoco.
+- `accionesConGuardia.test.ts`: la acción entra en la matriz de guardias, con la de sesión.
+
+*Consecuencias.*
+- (+) Toda cuenta que usa la plataforma tiene anotado qué versión aceptó y cuándo, también las que nunca pasaron por `/registro`.
+- (+) Un cambio del aviso llega a todas las cuentas cambiando solo la versión.
+- (−) Mientras falten los dos datos, no se pide a nadie, y las cuentas creadas desde el panel siguen sin aceptación (P-011).
+- (−) La guardia cubre las pantallas, no las acciones de servidor ni las rutas de la API. Una pestaña abierta antes de un cambio de versión sigue funcionando hasta que navega.
+- (−) La aceptación de una versión anterior queda solo en el registro, que se borra a los doce meses (D-290).
+
+### D-293 · 2026-11-05 · vigente · E3 de P-011
+**Un administrador descarga desde «Usuarios» todos los datos de una cuenta en un JSON, para responder a quien pide acceso a sus datos o llevárselos. El archivo trae todo lo de la persona y nada de las demás. Una prueba contra PostgreSQL comprueba que eliminar la cuenta borra lo que el aviso dice que se borra.**
+
+*De dónde sale.* Pedido del dueño (P-011): «exportar desde el panel todos los datos de una cuenta, y una prueba que demuestre que borrar una cuenta borra lo que el aviso dice». El aviso promete el acceso y la portabilidad, y hasta ahora responderlos era consultar la base a mano.
+
+*Cómo funciona.*
+- **La descarga**: «Descargar sus datos», en el menú de cada cuenta de `/admin-panel/usuarios`, navega a `GET /api/cuentas/[id]/datos` (con `ruta()`, porque es una dirección escrita a mano).
+  - Pide el rol real de administrador (`exigirAdmin`): una ruta se alcanza sin pasar por la pantalla que la ofrece, y lo que entrega es la actividad entera de una persona.
+  - El identificador, solo dígitos: lo demás es un 404 que no llega a la consulta.
+  - Responde como adjunto, `datos-de-la-cuenta-<id>-<AAAAMMDD-HHMMSS>.json`, sin caché (`no-store`).
+  - Cada descarga deja en el registro una entrada `exportacion-de-datos`, a nombre de quien descargó.
+- **Qué trae** (`datosDeUnaCuentaServidor.ts`):
+  - la cuenta, con las notas del administrador;
+  - el avance, con los datos de la radiografía postoperatoria del último recorrido, los comentarios y el tiempo activo;
+  - el registro de acciones: lo que hizo y lo que otros hicieron sobre ella;
+  - lo que hizo en las fichas en revisión, y sus sesiones de revisión;
+  - sus propuestas y sus votos del buzón de requisitos;
+  - las difusiones que escribió y los envíos que no le llegaron;
+  - sus cotizaciones, encontradas por el correo;
+  - sus preferencias de pantalla.
+  - Lleva además la versión vigente del aviso y un apartado `queContiene` que explica cada parte a quien abre el archivo, que es la persona y no un programa.
+- **Nada de las demás** (`datosDeUnaCuenta.ts`). Entregar la fila entera de una ficha o de una difusión sería responder a una solicitud de acceso con una filtración:
+  - de la cuenta no salen las llaves: la contraseña cifrada (`hash`, `salt`), los testigos y el identificador de cada sesión;
+  - de lo que otros hicieron sobre ella queda el rol de quien lo hizo, sin su nombre ni su correo;
+  - de una ficha en revisión sale qué ficha es y lo que hizo la persona, sin el texto de la ficha ni lo que hicieron los demás;
+  - de una propuesta, cuántos votos tuvo y no quiénes;
+  - de una difusión, ni su cola ni las direcciones de los demás.
+- **Que no quede nada fuera.** `CAMPOS_QUE_APUNTAN_A_UNA_CUENTA` dice en qué campos puede aparecer una cuenta, colección por colección. `datosDeUnaCuenta.test.ts` recorre los campos de todas las colecciones declaradas y falla si encuentra uno que apunte a `usuarios` y no esté en la lista: relaciones y subidas, dentro de arreglos, grupos, filas, pestañas y bloques. El día que se agregue una colección así, la prueba obliga a sumarla.
+
+*Qué se probó.*
+- `datosDeUnaCuenta.test.ts`:
+  - el recorrido de las colecciones, contra la lista;
+  - lo que se quita de cada fila;
+  - el nombre del archivo, sin nada que el navegador tenga que escapar.
+- `rutaDeDatosDeUnaCuenta.test.ts`:
+  - un 403 sin sesión, para el lector, el editor, el administrador desactivado y el lector que se ve como administrador;
+  - un 404 para la cuenta que no existe y para lo que no es un número (`abc`, `5;drop`, `-1`, `1.5`, trece dígitos);
+  - al administrador, el archivo con sus cabeceras, y la descarga en el registro.
+- `tests/integration/privacidad.test.ts`, contra PostgreSQL:
+  - **la exportación**: se siembra una cuenta con algo en cada colección que la nombra, y otra persona al lado. El archivo lo trae todo, sin las llaves y sin nada de la otra;
+  - **eliminarla borra lo que el aviso dice que se borra y deja sin nombre lo que dice que queda**: se comprueba cada frase del apartado «Cuánto tiempo» sobre su fila.
+  - Después se busca su nombre, su correo y lo que escribió de sí en **todas las tablas de la base**, columna por columna, y no aparece. Antes se comprueba que la búsqueda encuentra lo que sí está, para que una consulta mal escrita no dé la prueba por buena. Una prueba que mirara solo las colecciones conocidas no vería la tabla nueva que alguien agregue el año que viene, que es justo la que se olvidaría;
+  - **rechazar una solicitud** tampoco deja rastro de quien la pidió.
+  - Esta prueba destapó O-090.
+
+*Consecuencias.*
+- (+) Responder a una solicitud de acceso o de portabilidad es una descarga, y lo que sale está comprobado contra la base.
+- (+) Una colección nueva que apunte a una cuenta no puede quedar fuera de la exportación sin que falle una prueba.
+- (−) La descarga la hace un administrador y la manda por correo: el archivo pasa por su equipo y por el correo, y se borra del equipo después de mandarlo. La persona no puede bajarse sus datos sola.
+- (−) Las cotizaciones se encuentran por el correo. Una mandada desde otra dirección no sale en el archivo, y no cuelgan de la cuenta: eliminarla no las borra (D-296).
+
+### D-294 · 2026-11-05 · vigente · E4 de P-011 · supera el texto de D-264 (la versión 2026-11-04) · resuelve tres pendientes de D-264 · sus dos espacios en blanco, completados por ahora en D-297
+**El aviso pasa a la versión 2026-11-05. Deja en blanco solo el nombre del responsable y el correo de privacidad, y dice cuatro cosas nuevas: que el servidor es de Contabo en St. Louis, que la transferencia se apoya en el contrato con Contabo y no en el consentimiento, que las copias van cifradas y una queda en Chile, y los dos plazos nuevos. El formulario de cotización enlaza el aviso.**
+
+*De dónde sale.* Pedido del dueño (P-011):
+- el aviso final, con espacios en blanco solo para el nombre del responsable y el correo de privacidad;
+- que diga que el servidor es de Contabo en St. Louis;
+- que la transferencia se apoya en el contrato con Contabo, no en el consentimiento;
+- que los respaldos quedan en Chile, y los plazos nuevos;
+- en el formulario de cotización, una línea que enlace el aviso.
+
+D-264 dejó tres pendientes que esto resuelve: un responsable que era el nombre de un servicio («TraumaHub, plataforma docente…»), la dirección general del pie como contacto y un formulario de cotización sin aviso.
+
+*Cómo funciona.*
+- **El texto** está en `src/components/privacidad/TextoDelAviso.tsx`, un componente que pintan `/privacidad` y la pantalla de D-292: lo que se acepta y lo que se publica no pueden ser dos textos. Tiene los diez apartados de D-264, y el comentario de arriba sigue diciendo de qué archivo sale cada afirmación.
+- **Los dos espacios en blanco**: `RESPONSABLE_DE_LOS_DATOS` y `CORREO_DE_PRIVACIDAD` (`src/lib/avisoDePrivacidad.ts`), vacíos a propósito.
+  - Vacíos se pintan como un hueco a la vista (`EnBlanco`), no con un valor de relleno que se leería como verdadero.
+  - Mientras estén vacíos, la pantalla de aceptación no se enciende (`avisoCompleto`, D-292).
+  - Completarlos cambia quién responde y a quién se escribe, así que la versión pasa al día en que se completan.
+- **Dónde se guardan.** En un servidor privado virtual de Contabo en St. Louis, Estados Unidos, que el aviso llama transferencia internacional. Se apoya en el contrato con Contabo, que la obliga a tratar los datos solo para prestar el servidor y a protegerlos.
+  - La primera versión decía «al aceptar este aviso, aceptas también esa transferencia». Si alguien retira su consentimiento, sus datos no vuelven de St. Louis por eso: la base de la transferencia tiene que sostenerse sola.
+  - «Con qué base» lo repite.
+- **Las copias**: cada noche, cifradas, en el mismo servidor y en una copia que queda en Chile, en otro servidor de la plataforma. La llave que las abre no está en ninguno de los dos (D-295). Guardan treinta días lo que se borra de la plataforma.
+  - El pedido decía «los respaldos quedan en Chile». El aviso dice lo que hace el código: se hacen en Contabo, quedan ahí treinta días, y ved trae cada mañana la copia que queda en Chile.
+  - Decir solo «en Chile» habría prometido menos de lo que se hace.
+- **Cuánto tiempo**: los doce meses del registro y de las cotizaciones, tomados de `conservacion.ts` (D-290), y lo que queda sin nombre al eliminar la cuenta (D-291).
+- **Con qué base**: el consentimiento se da al pedir la cuenta o, si la creó un administrador, la primera vez que se entra (D-292). En una cotización, la base es la propia petición.
+- **Tus derechos**: se escribe desde el correo de la cuenta, y desde otra dirección se pide confirmar. La copia de los datos es un archivo JSON (D-293). Si no se responde, se puede reclamar ante la Agencia de Protección de Datos Personales.
+- **La dirección IP**: el aviso dice solo lo que hace la plataforma. La primera redacción decía «solo vive en memoria», pero el proxy de cada servidor puede anotarla en su registro de accesos, que no está en este repositorio y nadie ha mirado.
+- **Los cambios al aviso**: una versión nueva se enseña al entrar, y hay que aceptarla para seguir.
+- **El formulario de cotización** (`FormularioDeCotizacion.tsx`) lleva una línea fija: «Usamos estos datos solo para responderte, y la cotización se borra a los 12 meses. Más en el aviso de privacidad».
+  - El enlace abre el aviso en otra pestaña, como desde el registro, para no perder lo escrito.
+  - Fija, y no entre los textos que se editan desde el panel: un texto editable se puede borrar sin querer.
+- **La versión** pasa de `2026-11-04` a `2026-11-05`.
+
+*Qué se probó.*
+- `avisoDePrivacidad.test.ts`: el aviso no está completo con un espacio en blanco, ni con uno hecho solo de espacios. El día de la versión sale en palabras y sin el día de menos de la hora de Chile (D-264).
+
+*Consecuencias.*
+- (+) El aviso dice dónde están los datos y en qué se apoya llevarlos fuera de Chile, sin hacer depender eso de una casilla.
+- (+) Lo que se acepta al entrar es, palabra por palabra, lo que se publica.
+- (−) Hasta que el dueño complete los dos datos, el aviso publicado tiene dos huecos y no se pide a nadie (P-011).
+- (−) El aviso se apoya en el contrato con Contabo, y no se ha leído el de esta cuenta: confirmar que el acuerdo de tratamiento de datos de Contabo cubre a la plataforma (P-011).
+- (−) Hasta el cambio definitivo, la producción sigue en ved, en Chile, y el aviso describe ya a Contabo (como D-264).
+
+### D-295 · 2026-11-05 · vigente · E5 de P-011 · completa D-036
+**Los respaldos se cifran con age para una llave pública: los de cada noche, el de antes de cada despliegue, el de antes de una restauración y el del botón del panel. La llave privada, la única que los abre, la guarda el dueño fuera de los servidores, en dos lugares distintos. Y una regla: un respaldo de producción nunca se restaura en un servidor de pruebas ni en un equipo de desarrollo.**
+
+*De dónde sale.* Pedido del dueño (P-011): cifrar los respaldos, en Contabo y en la copia que guarda ved, con la llave guardada «fuera de los servidores, en dos lugares distintos»; y en la bitácora, la regla de no restaurar nunca un respaldo de producción en pruebas o desarrollo. Hasta ahora `respaldar.sh` (D-036) dejaba los volcados en claro en `backups/` treinta días, en Contabo y en el disco de ved que trae la copia.
+
+*Cómo funciona.*
+- **Cifrado de llave pública**, con [age](https://age-encryption.org) (X25519). El servidor cifra con la pública (`RESPALDOS_DESTINATARIO=age1…`, en el `.env`) y no puede abrir lo que escribe.
+  - Una copia robada —del disco, de la copia de ved, de una descarga olvidada en un portátil— no sirve sin la privada.
+  - Con una llave simétrica guardada en el servidor, quien se llevara el disco se llevaría también la llave.
+- **El mismo nombre, con `.age` al final**: `base-AAAAMMDD-HHMMSS.sql.gz.age` y `medios-….tar.gz.age`. Quitado el `.age` queda el `.sql.gz` de siempre, así que la retención de treinta días, la marca de tiempo y los patrones de `salud.sh` y del panel valen igual.
+- **Los guiones** (`scripts/comun.sh`: `preparar_cifrado`, `guardar_respaldo` y `es_archivo_age`):
+  - el volcado se escribe en un temporal oculto (`.base-….sql.gz.parcial`) y se verifica (`--verificar`) **antes** de cifrar, porque después el servidor ya no puede leerlo;
+  - después se cifra y se borra el temporal. La trampa de salida lo borra también si algo falla, y `respaldar.sh` barre los `.parcial` de más de un día;
+  - sin `RESPALDOS_DESTINATARIO`, respalda en claro con un aviso, y `salud.sh` lo marca como problema;
+  - con la llave mal copiada, o sin `age`, **no respalda**: el guion se detiene antes de volcar. Un volcado legible donde se prometió que no lo habría es peor que un respaldo fallido, que por lo menos se ve;
+  - si age falla a mitad, se borra lo que escribió y no se guarda nada en claro.
+  - Lo mismo hacen `deploy.sh`, en el respaldo de antes de desplegar, y `restaurar.sh`, en el del estado previo.
+- **Restaurar uno cifrado**: `./scripts/restaurar.sh backups/base-….sql.gz.age ~/llave-respaldos.txt`. La privada se trae al servidor solo para eso y se borra al terminar; el guion lo recuerda, salga bien o mal.
+  - Lo descifra una vez, a un temporal con permisos `600` que borra siempre. Leer el archivo cifrado dos veces, para comprobarlo y para restaurarlo, pediría dos veces la frase de una llave protegida con `age -p`.
+  - Con la llave equivocada se detiene antes de tocar la base o la aplicación.
+  - Los medios cifrados se abren igual.
+- **El botón del panel** (`crearRespaldo`, en `src/lib/respaldosServidor.ts`) encadena `pg_dump | gzip | age -r`, sin que el volcado en claro toque el disco.
+  - Antes de pulsar, el panel dice si va a cifrar (`estadoDelCifrado`). Sin llave, avisa que sale en claro. Con la llave y sin age, o con la llave mal copiada, el botón no se puede pulsar.
+  - Cada respaldo de la lista lleva «Cifrado» o «Sin cifrar».
+  - La descarga de uno cifrado sale como `application/octet-stream`: no es un gzip hasta abrirlo, y anunciarlo como tal invita a descomprimirlo y a decir que está dañado.
+- **La imagen** trae `age` (`Dockerfile`, `apk add … age`). La aplicación recibe `RESPALDOS_DESTINATARIO` por `docker-compose.prod.yml` y por la plantilla del override (`despliegue/paginas/docker-compose.override.yml`).
+- **`salud.sh`** tiene un apartado «Cifrado de los respaldos», que comprueba:
+  - que la llave del `.env` sea válida;
+  - que haya `age` en el anfitrión y en la imagen;
+  - que la aplicación cifre para la misma llave que el cron;
+  - que el último respaldo esté cifrado;
+  - y cuenta cuántos de antes del cifrado siguen en claro.
+- **`instalar-servidor.sh`** exige `age` y pide la llave pública. Se puede dejar vacía, con aviso.
+- **Para comprobar un respaldo** sin escribirlo descifrado en ninguna parte, en el equipo del dueño: `age -d -i llave-respaldos.txt base-….sql.gz.age | gzip -t && echo integro`. Está en `docs/SERVIDOR.md`, «Cifrado», con el bucle para cifrar los respaldos de antes sin perder su fecha.
+
+*La llave.* La genera el dueño en su propio equipo (`age-keygen -o llave-respaldos.txt`) y guarda la privada en dos lugares distintos, por ejemplo el gestor de contraseñas y un pendrive guardado aparte. Perderla es perder todos los respaldos cifrados con ella, y no hay forma de recuperarla. En los servidores va solo la pública.
+
+*La regla.* **Un respaldo de producción nunca se restaura en un servidor de pruebas ni en un equipo de desarrollo.** Tampoco se lleva ahí su base de otra manera: un `pg_dump`, una descarga del panel.
+- **Por qué**: son los datos de personas reales, y el aviso dice dónde están y quién los ve. Un servidor de pruebas o un portátil no son ninguno de esos sitios, y no tienen ni los plazos ni el cifrado.
+- **La llave privada** tampoco va nunca a esas máquinas.
+- **Para probar una restauración**, se respalda y se restaura el propio servidor de pruebas.
+- **La única excepción** es mudar la producción de un servidor a otro, como de ved a Contabo en el cambio definitivo: el destino pasa a ser el servidor que el aviso nombra.
+  - Por eso Contabo puede tener los datos de ved desde el 2026-10-27.
+  - Y por eso, en el cambio, ved tira su base y sus respaldos propios antes de pasar a ser el servidor de pruebas (P-011).
+- La regla está también en `scripts/restaurar.sh`, `docs/SERVIDOR.md` y `docs/DESPLIEGUE.md`, junto a la orden.
+
+*Qué se probó.*
+- `respaldoCifrado.test.ts`, con un `pg_dump` y un age de mentira:
+  - el botón deja un solo archivo, cifrado, sin el volcado en claro;
+  - age recibe lo ya comprimido y solo la pública, sin los espacios con que se copió;
+  - con la llave mal copiada, o sin age, se niega antes de volcar;
+  - si age se cae, se borra lo escrito;
+  - sin llave, todo sale como antes.
+- `respaldos.test.ts`: los nombres con `.age` y la llave pública. Una privada pegada por error se rechaza. El `.parcial` no se lista ni se descarga.
+- `tablerosDeAdministracion.test.ts`: el volcado y los medios de una noche cifrada se emparejan igual que los de una en claro.
+- `guionesDeRespaldo.test.ts` corre `tests/guiones/respaldosCifrados.sh`: los guiones de verdad, con un docker y un age de mentira, en doce escenarios.
+  - Respaldar: con llave, sin ella, con la llave mal copiada, sin age, y con un age que falla.
+  - Restaurar: con la llave buena, con otra, sin ninguna, y uno en claro.
+  - `salud.sh`, en tres situaciones.
+  - Con un `comun.sh` que guardaba en claro aunque hubiera llave, fallaron 18 comprobaciones.
+  - Tarda unos 12 s en Windows. Allí necesita el bash de Git, que busca donde lo instala Git para Windows; sin él, se omite y lo dice.
+- PostgreSQL 17: `psql --single-transaction` envuelve de verdad lo que le llega por la entrada estándar. Un volcado que falla a mitad no deja ninguna tabla, así que una restauración que falla deja la base como estaba.
+
+*Consecuencias.*
+- (+) Ni Contabo, ni la copia de ved, ni una descarga olvidada guardan datos legibles: la única llave que los abre está fuera de los servidores.
+- (+) Un servidor configurado para cifrar no deja nunca un volcado en claro, tampoco cuando algo falla.
+- (−) Perder las dos copias de la privada es perder todos los respaldos.
+- (−) Restaurar pide traer la privada al servidor y borrarla al terminar.
+- (−) El servidor ya no puede comprobar un respaldo después de escribirlo: lo comprueba antes de cifrarlo, y la comprobación del archivo final se hace en el equipo del dueño.
+- (−) Los respaldos de antes de la llave siguen en claro hasta que vencen sus treinta días, salvo que se cifren a mano.
+- (−) Los guiones de Windows (`scripts/*.ps1`, `docs/SERVIDOR-WINDOWS.md`) no cifran. Un servidor Windows con datos de personas reales necesita ese cambio antes de usarse.
+- (−) ved, que es producción hasta el cambio, respalda en claro mientras su `.env` no tenga la llave (P-011).
+
+### D-296 · 2026-11-05 · vigente · E6 de P-011
+**Cómo se atiende una solicitud sobre los datos, y qué se hace ante una filtración. Las solicitudes se anotan en un registro fuera de los servidores, que es también lo que permite repetir una supresión después de restaurar un respaldo.**
+
+*De dónde sale.* Pedido del dueño (P-011): en la bitácora, «qué hacer ante una filtración» y «cómo responder solicitudes de datos». La Ley 21.719 rige desde el 1 de diciembre de 2026, y el aviso (D-294) promete responder por correo «dentro de los plazos que fija la ley».
+
+*Los plazos de la ley.* Salen de cómo los resumen despachos jurídicos chilenos, no del texto: **confirmarlos en la ley (BCN) antes del 1 de diciembre**.
+- **Una solicitud** se responde dentro de 30 días corridos desde que llega, prorrogables una vez por otros 30 (art. 11 de la Ley 19.628, en la redacción de la Ley 21.719). El bloqueo temporal, en 2 días hábiles.
+- **Una filtración** con un riesgo razonable para las personas se reporta a la Agencia de Protección de Datos Personales «por los medios más expeditos posibles y sin dilaciones indebidas» (art. 14 sexies). No hay un número de horas.
+- **A las personas afectadas** hay que avisarles cuando la filtración toca datos sensibles, de menores de catorce años, o económicos, financieros, bancarios o comerciales. TraumaHub no pide ninguno de esos.
+- Esas comunicaciones se dejan registradas.
+
+*Cómo se atiende una solicitud sobre los datos.*
+1. **Se anota** en el registro de solicitudes: una planilla del dueño, fuera de los servidores. Lleva el día en que llegó, el correo de quien la pide, qué pide, el día límite, qué se hizo y cuándo se respondió.
+   - Fuera de la base, porque restaurar un respaldo devolvería el registro al día del respaldo, junto con las cuentas que se eliminaron después.
+2. **Se comprueba que es la persona.** Si escribe desde el correo de su cuenta, basta. Si no, se le escribe al correo de la cuenta para que lo confirme desde ahí. Los datos se mandan solo a ese correo, nunca a otra dirección que dé quien escribe.
+3. **Se hace lo que pide**, desde el panel:
+   - **Acceso o portabilidad**: «Descargar sus datos», en el menú de su cuenta, en «Usuarios» (D-293), y se le manda el archivo. El archivo trae también sus cotizaciones. Si no tiene cuenta y solo mandó una cotización, se le manda lo de su cotización.
+   - **Rectificación**: se corrige en «Usuarios»: nombre, correo, institución. Lo que escribió en una cotización no se corrige, porque es lo que se pidió: si está mal, se borra o se le pide que mande otra.
+   - **Supresión**:
+     - si pidió una copia, se descarga antes;
+     - se elimina la cuenta en «Usuarios», que borra la cuenta y su avance y deja sin nombre lo demás (D-291);
+     - se buscan en «Cotizaciones» las que mandó con ese correo y se borran, porque no cuelgan de la cuenta (D-293);
+     - se le dice que las copias de seguridad lo guardan, cifrado, hasta que vencen a los treinta días.
+   - **Oposición**: el único uso del que se puede pedir salir sin dejar la plataforma son los correos de novedades a todas las cuentas, las difusiones. Hoy no hay manera de excluir una cuenta de ellas (P-011): se anota y se le dice tal cual.
+   - **Bloqueo**, mientras se resuelve otra solicitud: se desactiva la cuenta, que conserva todo y deja de usarse, y se reactiva al terminar.
+4. **Se responde** por correo, a la dirección de la cuenta y dentro del plazo, diciendo qué se hizo. Si algo no se puede hacer, se dice por qué, y que puede reclamar ante la Agencia. La respuesta y su día se anotan en el registro.
+5. **Treinta días después de una supresión**, cuando ya venció el último respaldo que tenía la cuenta, en Contabo y en la copia de ved, se borra su correo del registro de solicitudes. Quedan el día y qué se pidió.
+6. **Al terminar una restauración**, se repasan en el registro las supresiones posteriores a la fecha del respaldo y se repiten, una por una.
+   - La restauración devuelve vivas y con nombre las cuentas eliminadas después, y la pasada diaria no las ve, porque para ella son cuentas que existen.
+   - `restaurar.sh` levanta la aplicación al final, así que se hace en cuanto termina, antes de avisar a nadie de que la plataforma volvió.
+
+*Qué se hace ante una filtración.* Una filtración es cualquier acceso, copia, pérdida o cambio de datos personales sin autorización. Por ejemplo: una cuenta de administrador usada por otra persona, un servidor comprometido, un error que deja ver datos de otra cuenta, un portátil perdido con una descarga, o la llave privada de los respaldos a la vista.
+1. **Contener**, lo primero:
+   - **una cuenta comprometida**: se desactiva en «Usuarios» y se cambia su contraseña;
+   - **un servidor comprometido**: se detiene la aplicación (`docker compose stop app`) y se cambia lo que pudo verse en el `.env` —`PAYLOAD_SECRET`, que cierra todas las sesiones, la clave de la base y la del correo—, y las llaves de SSH;
+   - **un error de la aplicación**: se vuelve a la versión anterior, o se retira la pantalla;
+   - **la llave privada**: se genera otra, la pública nueva va a los `.env` y se recrea la aplicación. Los respaldos cifrados con la vieja se borran en cuanto haya nuevos comprobados.
+   - Antes de borrar nada, se guarda lo que sirve para medir: el registro de acciones y los registros de la aplicación y del proxy.
+2. **Medir**: qué datos, de cuántas personas, desde cuándo y quién pudo verlos.
+   - El registro de acciones dice quién entró y qué abrió en los últimos doce meses.
+   - Un respaldo cifrado que se pierde sin la llave no expone a nadie: se anota y se sigue.
+3. **Reportar a la Agencia**, si hay un riesgo razonable para las personas, por la vía más rápida y sin esperar a saberlo todo. El reporte dice qué pasó, sus efectos, qué datos, a cuántas personas aproximadamente y qué se hizo.
+   - Si pasó en Contabo, Contabo tiene que avisar a la plataforma (su contrato, D-294), y el reporte lo hace igual la plataforma.
+4. **Avisar a las personas afectadas**, por correo y en palabras simples: qué salió, qué se hizo y qué pueden hacer.
+   - La ley no lo exige para los datos que guarda TraumaHub. Se hace igual cuando salió su correo junto con su nombre o su institución, que es lo que se usa para engañar a alguien con un correo falso: avisada, la persona lo reconoce.
+5. **Anotarlo** en esta bitácora como observación (O-nnn): qué pasó, a cuántas personas tocó, qué se hizo, a quién se avisó y cuándo. La corrección de la causa entra como decisión (D-nnn).
+
+*Consecuencias.*
+- (+) Cada derecho del aviso tiene un camino en el panel.
+- (+) La supresión no depende de recordar las cotizaciones, ni de recordar repetirla después de una restauración: lo dice el procedimiento.
+- (−) El registro de solicitudes vive fuera del repositorio y de los servidores, y depende de que el dueño lo lleve.
+- (−) Una cuenta no puede dejar de recibir las difusiones sin dejar la plataforma (P-011).
+- (−) Los plazos de la ley salen de resúmenes, no del texto: hay que confirmarlos.
+
+### D-297 · 2026-11-05 · vigente · completa, por ahora, los dos espacios en blanco de D-294
+**Responde de los datos Chesscore SpA, y las preguntas y solicitudes se escriben a `contacto@chesscore.cl`. Los dos son provisionales. Con ellos el aviso queda entero, y la plataforma pide aceptarlo al entrar.**
+
+*De dónde sale.* El dueño, el 2026-11-05, al revisar P-011: el correo es «contacto@chesscore.cl», que «luego» cambiará, y el responsable, «por ahora, la empresa Chesscore SpA».
+
+*Cómo funciona.*
+- Los dos van en `src/lib/avisoDePrivacidad.ts`, en `RESPONSABLE_DE_LOS_DATOS` y `CORREO_DE_PRIVACIDAD`. Los publica `/privacidad`, y la pantalla del aviso al entrar da el correo a quien quiere que se elimine su cuenta.
+- La versión sigue siendo la 2026-11-05. Se completaron el mismo día en que se escribió el texto y antes de desplegarlo, así que ninguna cuenta había aceptado esa versión con los huecos.
+- Con el aviso entero, `avisoCompleto()` da verdadero y se enciende la puerta de D-292. Desde el despliegue, toda cuenta que no haya aceptado la 2026-11-05 ve el aviso al entrar. Hoy son todas las de ved, que aceptaron la 2026-11-04 o ninguna.
+- La cuenta de las pruebas de extremo a extremo acepta el aviso al entrar (`tests/e2e/cuentaDePrueba.ts`), una vez por versión. Sin eso, cada versión nueva dejaría esas pruebas mirando el aviso, y fallando por algo que no es suyo.
+- `contacto@chesscore.cl` es un buzón general. Lo que llegue ahí sobre datos personales se anota el mismo día en el registro de solicitudes (D-296), porque el plazo corre desde que llega.
+
+*Qué se probó.*
+- `autoria.test.ts` falló en cuanto se encendió la puerta. Pinta la plantilla con una sesión cuya cuenta no había aceptado nada, y la pantalla del aviso pide el enrutador de Next, que en una prueba unitaria no existe. Ahora esa sesión lleva el aviso aceptado, y un caso nuevo comprueba que el pie de página sigue saliendo con el aviso por aceptar.
+- El ayudante de la cuenta e2e, con Edge contra el servidor de desarrollo y la base desechable, dos veces. Con la cuenta sin aceptar, lo acepta y llega al panel; con el aviso ya aceptado, entra sin pasar por él y no anota otra aceptación.
+  - La primera versión esperaba a que desapareciera el botón «Acepto el aviso». Pero mientras la acción corre el botón dice «Anotando…»: daba la aceptación por hecha antes de tiempo, y la página siguiente llegaba todavía con el aviso.
+- `/privacidad`, con Chesscore SpA y `contacto@chesscore.cl` y sin huecos.
+- Las cinco comprobaciones de `AGENTS.md`, otra vez:
+  - `typecheck`, limpio, y `lint`, sin errores (los 15 avisos de `<img>`);
+  - `test:integration`, 261 de 261;
+  - `test:coverage`, 5647 de 5653. Fallan las conocidas: `directorioDeRespaldos`, 2, y `subidaDeVideo`, 1; `tableroDeRevision`, 1 (O-091); y `autoria`, que se pasó de los 5 s por la carga y sola pasa;
+  - `build`, bien.
+
+*Consecuencias.*
+- (+) El aviso dice quién responde y a quién escribir, y aceptarlo al entrar deja constancia de un texto entero.
+- (−) Los dos son provisionales. Cambiar cualquiera es una versión nueva, y todas las cuentas aceptan el aviso otra vez: conviene cambiarlos juntos, en un solo despliegue.
+- (−) Un buzón general mezcla las solicitudes de datos con las demás consultas, y el plazo de la ley no espera a que alguien las separe.
+- (−) En su primera entrada después del despliegue, todo el equipo, los administradores incluidos, se encuentra el aviso antes que el panel.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -9956,6 +10336,37 @@ Todo entre las 14:27:38 y las 14:27:56 de ese día. Ninguna de esas pruebas toc�
   - la columna izquierda le dice al residente «Ninguna pieza de este modelo es piel: márquela en «Piezas» del editor del caso», que es un aviso para el editor;
   - Ctrl+Z no tiene nada que deshacer tras la incisión (D-267).
 *Qué hacer.* Darles «Corte» a los dos bisturís en el catálogo de ved (y su categoría en el guion), y recortar la pierna con su piel, o marcarla en «Piezas», antes de usar ese caso con residentes.
+
+### O-090 · 2026-11-05 · media · resuelta (D-291)
+**Payload deja en la base las preferencias de pantalla de una cuenta eliminada, sin dueño y con su contenido.**
+*Dónde se ve.* En `tests/integration/privacidad.test.ts` (Payload 3.90.2, PostgreSQL 17): después de `payload.delete` sobre una cuenta con una fila en `payload-preferences`, la fila sigue ahí, y su vínculo en `payload_preferences_rels` ya no existe.
+*Lo que se sabe.* `deleteByID.js` (y `delete.js`, el borrado con `where`) borra primero la fila de la cuenta y después llama a `deleteUserPreferences`, que busca las preferencias por su vínculo con la cuenta. Para entonces, el `ON DELETE CASCADE` de `payload_preferences_rels` ya se llevó el vínculo, y no encuentra ninguna.
+*Por qué importa.* Las preferencias guardan lo que la cuenta dejó configurado en sus pantallas, y el aviso dice que con la cuenta se borra todo lo suyo. Ninguna pantalla las enseña, así que se quedaban sin que nada lo notara.
+*Resuelta el 2026-11-05 (D-291).* `anonimizarElRastroDeLaCuenta` las borra antes que la fila, dentro de la transacción del borrado, y la pasada diaria borra las huérfanas que ya había. Si Payload lo corrige, el borrado propio sobra pero no estorba: ya no encuentra ninguna.
+
+### O-091 · 2026-11-05 · baja · abierta
+**`tableroDeRevision.test.ts` falla en un equipo con hora de Europa: espera 3,25 días medios en cola y le salen 3,27.**
+*Dónde se ve.* En las comprobaciones de P-011, en el equipo de desarrollo, que ese día tenía Windows en «Romance Standard Time» (Europe/Paris). La prueba «mide el tiempo en cola con decimales…» arma sus fechas en hora local (`new Date(2026, 10, 3 - n, hora)`), y entre el 24 y el 29 de octubre Europa cambió de hora (el 25): ese tramo mide 5 días y una hora, y la media de dos sale media hora más larga. Con `TZ=America/Santiago`, las 12 pasan.
+*Por qué importa.* Falla sin que nada haya cambiado en el código, y lleva a buscar en el último cambio lo que no está ahí. El cálculo está bien: cuenta el tiempo de verdad transcurrido. La que depende de la zona es la expectativa.
+*Qué hacer.* Armar las fechas de la prueba en UTC (`Date.UTC`), y medir contra un worktree de `origin/main` antes de culpar a un cambio propio. Ojo: desde el bash de Git, `TZ=…` no le llega a Node; hay que ponerla desde PowerShell (`$env:TZ`).
+
+### O-092 · 2026-11-05 · media · abierta
+**Si la línea del registro falla dentro de una transacción, PostgreSQL anula la transacción entera, y la operación responde «bien» sin haber guardado nada.**
+*Dónde se ve.* Las 7 de `tests/integration/estructuras.test.ts` que fallan sobre una base recién creada. D-222 y D-223 las daban por fallos que ya había en `main` y que «dependen de con qué corren a la vez». Dependen, en realidad, de que la cuenta 1 exista cuando corren, y eso depende de las pruebas que pasaron antes por la base. La prueba sube la planilla a nombre de un editor de mentira con `id: 1` que no existe en esa base:
+- la línea del registro viola la clave foránea `registro_de_acciones_usuario_id_usuarios_id_fk`;
+- `registrarAccion` lo anota («No se pudo anotar en el registro de acciones») y sigue;
+- la transacción de la subida ya está anulada, y al confirmarla PostgreSQL la deshace sin dar error;
+- la subida devuelve sus cifras («2 fichas creadas»), y al leer no hay ninguna.
+
+Con una cuenta 1 en la base, las 15 pasan (comprobado en P-011).
+*Por qué importa.* En producción quien sube existe siempre, así que hoy no pasa. Pero cualquier fallo de la línea del registro dentro de una transacción —una restricción nueva, un texto demasiado largo— deshace en silencio la operación que se quería anotar, mientras la pantalla dice que salió bien.
+*Qué hacer, sin aplicar.* Que `registrarAccion` escriba dentro de un punto de guardado (`SAVEPOINT`) cuando corre en una transacción, o fuera de ella, para que su fallo no arrastre lo demás; y que la prueba cree su editor en vez de dar por hecha la cuenta 1.
+
+### O-093 · 2026-11-05 · media · abierta
+**`next dev` escribe en su consola cada acción del servidor con sus argumentos: al entrar, el correo y la contraseña, en claro.**
+*Dónde se ve.* En la comprobación de P-011 en el navegador, la consola del servidor de desarrollo mostró `ƒ entrar("<correo>", "<contraseña>")`. Pasa con cualquier acción que reciba datos de una persona: la solicitud de cuenta, la cotización, el cambio de contraseña. Next 16 lo hace por defecto (`logging.serverFunctions`), y solo en desarrollo: `action-handler.js` lo condiciona a `NODE_ENV === 'development'`. ved y Contabo no lo escriben.
+*Por qué importa.* En desarrollo no hay datos de personas (D-295), pero sí las contraseñas de quien desarrolla. Y esa consola no se queda en la pantalla: cuando un agente arranca el servidor con la vista previa, la lee y la guarda en la transcripción de la conversación, fuera del repositorio.
+*Qué hacer, sin aplicar.* `logging: { serverFunctions: false }` en `next.config.mjs`. Se pierde la traza de las acciones en la consola de desarrollo, que sirve para depurar; por eso lo decide el dueño.
 
 ---
 
@@ -13497,6 +13908,86 @@ Primero lo que lleva P-009 a todos los casos, después lo que hace que la evalua
 10. **Un primer caso para aprender los gestos.** Cinco minutos guiados que enseñan el arrastre con el botón derecho, el menú radial, 1 a 5 y Q, F y Ctrl+Z, haciéndolos. La guía «Qué hay en la consola» queda debajo de la consola ampliada (D-265).
 11. **Tableta y panel táctil.** Gestos de dos dedos y una rueda en pantalla para el instrumento: arrastrar con el botón derecho es torpe en un panel táctil (D-267).
 12. **Que vaya fluido en el equipo del hospital.** Calidad que se adapta sola (sombras, resolución, vello) y rayos acelerados con una jerarquía de volúmenes, medido en el equipo de referencia de Q-006.
+
+### P-011 · 2026-11-05 · el código, en `main` (E0 a E7); sin desplegar, y los pasos en los servidores sin dar
+**La política de datos del aviso, llevada al código: los plazos de conservación, el registro sin nombre al eliminar una cuenta, aceptar el aviso al entrar, la exportación de los datos de una cuenta, el aviso final, los respaldos cifrados, y qué hacer con las solicitudes y las filtraciones.**
+
+#### De dónde sale
+
+Pedido del dueño, 2026-11-05, con una propuesta que hizo suya («quiero que te encargues de esto»):
+
+1. El registro de acciones se guarda 12 meses. Al eliminar una cuenta o rechazar una solicitud, sus entradas pierden el nombre y el correo.
+2. Las cotizaciones se borran a los 12 meses.
+3. Aceptar el aviso al entrar: el equipo, las cuentas de institución creadas desde el panel y cualquier versión futura.
+4. Exportar desde el panel todos los datos de una cuenta, y una prueba de que borrar una cuenta borra lo que el aviso dice.
+5. En el formulario de cotización, una línea que enlace el aviso.
+6. El aviso final, con espacios en blanco solo para el nombre del responsable y el correo de privacidad. Que diga:
+   - que el servidor es de Contabo, en St. Louis;
+   - que la transferencia se apoya en el contrato con Contabo, no en el consentimiento;
+   - que los respaldos quedan en Chile;
+   - los plazos nuevos.
+7. Cifrar los respaldos, en Contabo y en la copia que guarda ved, con la llave guardada por el dueño fuera de los servidores, en dos lugares distintos.
+8. En la bitácora: las decisiones, qué hacer ante una filtración, cómo responder solicitudes de datos y la regla de no restaurar nunca un respaldo de producción en pruebas o desarrollo.
+
+#### Etapas
+
+- [x] **E0 · Plazos de conservación** (pedidos 1 y 2). D-290.
+- [x] **E1 · El registro sin nombre** al eliminar una cuenta o rechazar una solicitud (pedido 1). D-291 y O-090.
+- [x] **E2 · Aceptar el aviso al entrar** (pedido 3). D-292.
+- [x] **E3 · Exportar los datos de una cuenta**, y la prueba del borrado (pedido 4). D-293.
+- [x] **E4 · El aviso final y la línea del formulario** (pedidos 5 y 6). D-294.
+- [x] **E5 · Respaldos cifrados** (pedido 7) y la regla de los respaldos de producción (pedido 8). D-295.
+- [x] **E6 · Solicitudes y filtraciones** (pedido 8). D-296.
+- [x] **E7 · Commit y push** a `main`, el 2026-11-05, con el OK del dueño («sube todo al git»). El despliegue va con los pasos 4 y 8 de E8.
+- [ ] **E8 · En los servidores**, un paso a la vez, con una explicación breve y el OK del dueño antes de cada uno:
+  1. [ ] **La llave.** El dueño la genera en su equipo (`age-keygen -o llave-respaldos.txt`) y guarda la privada en dos lugares distintos. A los servidores va solo la línea `Public key: age1…`. La privada no pasa por ninguna conversación ni por ningún servidor.
+  2. [ ] **Contabo**: `sudo apt install age` y, en `~/traumahub/.env`, `RESPALDOS_DESTINATARIO=age1…`.
+  3. [ ] **Contabo**: la línea `RESPALDOS_DESTINATARIO` en su `docker-compose.override.yml`, que no se versiona; se copia de la plantilla, `despliegue/paginas/docker-compose.override.yml`. Sin ella, el botón del panel respalda en claro, y `salud.sh` lo dice.
+  4. [ ] **Contabo**: `TUNEL=local ./scripts/actualizar.sh`, que reconstruye la imagen con `age`, y después `./scripts/salud.sh`, con «Cifrado de los respaldos» en verde.
+  5. [ ] **Contabo**: un respaldo de prueba (`./scripts/respaldar.sh --verificar`), que sale con `.age`. El dueño lo descarga y lo comprueba en su equipo con `age -d -i llave-respaldos.txt … | gzip -t && echo integro`. Lo mismo con «Respaldar ahora», en el panel.
+  6. [ ] **Contabo**: los respaldos de antes, que están en claro. O se cifran con el bucle de `docs/SERVIDOR.md` («Cifrado»), o se espera a que venzan sus treinta días. `salud.sh` dice cuántos quedan.
+  7. [ ] **ved, la copia**: mirar que `/home/ved/bin/traer-respaldos-contabo.sh`, que no está en este repositorio, traiga también los `.age`, y leer su `copia.log` del día siguiente. Las copias en claro que ya trajo se cifran o se borran, como en Contabo.
+  8. [ ] **ved, mientras sea producción**: el mismo despliegue y las mismas piezas que Contabo (pasos 2 a 4), para que sus respaldos propios también salgan cifrados hasta el cambio.
+  9. [x] **Los dos espacios en blanco del aviso**, por ahora: Chesscore SpA y `contacto@chesscore.cl` (D-297). Cuando el dueño los cambie, juntos y con `VERSION_DEL_AVISO_DE_PRIVACIDAD` al día del cambio. Desde el despliegue, todas las cuentas aceptan el aviso al entrar (D-292).
+  10. [ ] **El contrato con Contabo.** Confirmar que su acuerdo de tratamiento de datos cubre la cuenta de la plataforma, porque el aviso apoya en él la transferencia (D-294), y guardar una copia fuera de los servidores.
+  11. [ ] **El registro de solicitudes** (D-296): abrirlo fuera de los servidores, antes del 1 de diciembre de 2026, y confirmar ahí mismo los plazos de la ley.
+  12. [ ] **En el cambio definitivo**, cuando Contabo pase a producción y ved a pruebas: en ved, tirar la base y rehacerla con datos de prueba, y borrar sus respaldos propios. ved conserva solo las copias cifradas de Contabo, que no puede abrir. Desde ahí rige la regla de D-295.
+  13. [ ] **Las otras bases.** Mirar si alguna base de desarrollo o de pruebas viene de un respaldo de producción, la del equipo del dueño incluida. Si es así, rehacerla con datos de prueba y borrar sus respaldos, porque los de `scripts/*.ps1` no van cifrados.
+
+#### Cómo se comprobó
+
+Las cinco comprobaciones de `AGENTS.md`, el 2026-11-05, contra un PostgreSQL desechable (puerto 55436; la base de desarrollo del dueño no se toca):
+- `typecheck`, limpio. `lint`, sin errores: quedan los 15 avisos de `<img>` que ya había.
+- `test:coverage`: pasan 5639 y fallan 12, ninguna por este cambio:
+  - las 7 de `estructuras`, porque la base recién creada no tenía la cuenta 1 que la prueba da por hecha (O-092);
+  - `directorioDeRespaldos`, 2, y `subidaDeVideo`, 1, que ya fallaban en este Windows;
+  - `tableroDeRevision`, 1, por la hora de Europa del equipo (O-091);
+  - `autoria`, 1, que se pasó de los 5 s por la carga; con `--testTimeout=20000`, pasa.
+- La cobertura queda en 86,5 % de sentencias y 78,1 % de ramas, sobre el suelo de 58 (P-009: 86,3 y 77,9). Con pruebas que fallan, vitest no da la cifra: se midió con `--coverage.reportOnFailure`.
+- `test:integration`: sobre la base recién creada, 254 de 261, y las 7 que fallan son las de `estructuras`. Con una cuenta 1 en la base, 261 de 261, las 7 nuevas de `privacidad.test.ts` incluidas.
+- `build`: bien. Sus 8 avisos de Turbopack son de `api/subidas` y `respaldosServidor`, los mismos que en P-009.
+
+Los guiones de respaldo, con su banco en bash: D-295, «Qué se probó».
+
+En el navegador, con el servidor de desarrollo sobre la misma base:
+- `/privacidad`: los dos espacios en blanco salen como «[nombre del responsable]» y «[correo de privacidad]». Dice Contabo en St. Louis, la transferencia apoyada en el contrato, las copias cifradas con una en Chile, los 12 meses y «versión del 5 de noviembre de 2026».
+- La portada: la línea del formulario de cotización, que abre el aviso en otra pestaña.
+- La puerta, con los dos espacios rellenados solo para la prueba y devueltos a `''` al terminar:
+  - una administradora que no lo ha aceptado entra y ve el aviso, sin la navegación, con «Salir» y «Acepto el aviso»;
+  - al aceptarlo pasa al panel, y su cuenta guarda la fecha y la versión 2026-11-05;
+  - el registro muestra «Aceptó el aviso de privacidad», con la versión.
+- «Descargar sus datos», en el menú de cada cuenta. `/api/cuentas/1/datos` devuelve el JSON como adjunto y sin caché, y sin sesión responde 403.
+- Respaldos: el aviso ámbar de que salen sin cifrar, que es lo que toca en una máquina sin llave.
+- La consola del servidor de desarrollo mostró la contraseña de la prueba al entrar: O-093.
+
+Después de completar el aviso, las comprobaciones otra vez: D-297, «Qué se probó».
+
+#### Sin decidir
+
+- **Dejar de recibir las difusiones sin eliminar la cuenta**, para atender una oposición (D-296).
+- **El registro de accesos del proxy** (Caddy en Contabo, el proxy de ved): cuánto guarda, con qué IP y qué plazo darle. El aviso no promete nada sobre él (D-294).
+- **Que la persona descargue sus datos ella misma**, sin pasar por un administrador (D-293).
+- **Cifrar los respaldos de Windows** (`scripts/*.ps1`), si alguna vez un servidor Windows guarda datos de personas reales (D-295).
 
 ---
 

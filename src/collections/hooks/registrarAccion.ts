@@ -23,9 +23,25 @@ import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
 
 type Registro = Record<string, unknown>
 
-const titulo = (doc: Registro): string | undefined => {
+/**
+ * Las colecciones cuyo título en el registro no es el primer campo que
+ * encuentra la lista de abajo.
+ *
+ * Una cotización lleva primero `nombre`, que es el de la persona de fuera que
+ * la pidió, y el registro guardaba ese nombre en cada «Creó» y cada «Modificó»
+ * de la cotización. Al borrarla —porque lo pidió, o a los doce meses— el
+ * nombre seguía en el registro, que es justo lo que el plazo existe para que no
+ * pase (D-291). La institución dice lo mismo para quien lee el registro
+ * —«llegó una cotización del Hospital X»— sin decir de quién.
+ */
+const CAMPO_DEL_TITULO: Record<string, string> = { cotizaciones: 'institucion' }
+
+const titulo = (doc: Registro, slug?: string): string | undefined => {
+  const propio = slug === undefined ? undefined : CAMPO_DEL_TITULO[slug]
   // `nombreOriginal` es el de la estructura anatómica (D-179): sin él, el registro diría «#1432».
-  for (const campo of ['nombre', 'titulo', 'asunto', 'alt', 'email', 'filename', 'texto', 'nombreOriginal']) {
+  for (const campo of propio
+    ? [propio]
+    : ['nombre', 'titulo', 'asunto', 'alt', 'email', 'filename', 'texto', 'nombreOriginal']) {
     const valor = doc[campo]
     if (typeof valor === 'string' && valor.trim()) return valor.trim().slice(0, 200)
   }
@@ -135,7 +151,7 @@ const despuesDeCambiar =
         usuario,
         coleccion: slug,
         documentoId: nuevo.id as number,
-        titulo: titulo(nuevo),
+        titulo: titulo(nuevo, slug),
         detalle: estado ? `estado: ${estado === 'published' ? 'publicada' : 'borrador'}` : undefined,
       },
       req,
@@ -149,9 +165,24 @@ const despuesDeEliminar =
     if (silenciado(req) || !req.payload) return doc
     const actor = await actorDeLaPeticion(req)
     const usuario = typeof actor === 'object' && actor !== null ? actor : null
+    const borrado = doc as Registro
+    // La cuenta que se elimina no deja su nombre en la entrada que cuenta que se
+    // eliminó (D-291). Todo lo demás que la nombraba se acaba de anonimizar en
+    // su `beforeDelete`; esta entrada se escribe después, y con el título de
+    // siempre —el primer campo, `nombre`— habría vuelto a guardar el nombre en
+    // el mismo instante en que se quitaba de todas las otras. Queda el rol, que
+    // es lo que dice qué se dio de baja.
+    const deLaCuenta = slug === 'usuarios'
     await registrarAccion(
       req.payload,
-      { accion: 'elimino', usuario, coleccion: slug, documentoId: (doc as Registro).id as number, titulo: titulo(doc as Registro) },
+      {
+        accion: 'elimino',
+        usuario,
+        coleccion: slug,
+        documentoId: borrado.id as number,
+        titulo: deLaCuenta ? undefined : titulo(borrado, slug),
+        detalle: deLaCuenta ? `una cuenta de rol ${String(borrado.rol ?? '—')}` : undefined,
+      },
       req,
     )
     return doc

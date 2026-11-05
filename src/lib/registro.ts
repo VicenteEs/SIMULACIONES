@@ -33,12 +33,43 @@ export const ACCIONES_DEL_REGISTRO = [
   { value: 'importacion', label: 'Importó contenido' },
   // Una planilla del listado de estructuras anatómicas subida desde el panel (D-179).
   { value: 'subida-de-planilla', label: 'Subió una planilla' },
+  // La pasada diaria de los plazos (D-290): lo que borró por vencido y lo que
+  // dejó sin nombre. Solo se anota cuando hizo algo.
+  { value: 'conservacion', label: 'Aplicó los plazos de conservación' },
+  // La cuenta aceptó la versión vigente del aviso al entrar (D-292). La fecha y
+  // la versión quedan en la cuenta; esta línea dice además cuándo la vio.
+  { value: 'aviso-aceptado', label: 'Aceptó el aviso de privacidad' },
+  // Un administrador descargó todo lo que la plataforma guarda de una cuenta,
+  // para responder a una solicitud de acceso o de portabilidad (D-293).
+  { value: 'exportacion-de-datos', label: 'Exportó los datos de una cuenta' },
 ] as const
 
 export type AccionDelRegistro = (typeof ACCIONES_DEL_REGISTRO)[number]['value']
 
 export const accionDelRegistroEnPalabras = (accion: unknown): string =>
   ACCIONES_DEL_REGISTRO.find((a) => a.value === accion)?.label ?? String(accion ?? '—')
+
+/** Lo que se lee donde iría el nombre en una entrada de una cuenta que ya no existe. */
+export const CUENTA_ELIMINADA = 'Cuenta eliminada'
+
+/**
+ * Quién hizo lo que cuenta una entrada, en palabras: su nombre, el origen si lo
+ * hizo el servidor, o «Cuenta eliminada».
+ *
+ * Las tres pantallas que lo pintan decían `nombre || origen || 'sistema'`, y
+ * desde que las entradas de una cuenta borrada pierden el nombre (D-291) esa
+ * cadena las presentaba como actos del servidor: «Sistema leyó la ficha X».
+ * No hay ambigüedad que resolver: lo que el servidor anota por su cuenta lleva
+ * siempre su `origen` (`registrarAccion`), así que una entrada sin nombre y sin
+ * origen solo puede ser de una cuenta que ya no está.
+ */
+export function quienEnElRegistro(entrada: { usuarioNombre?: unknown; origen?: unknown }): string {
+  const nombre = typeof entrada.usuarioNombre === 'string' ? entrada.usuarioNombre.trim() : ''
+  if (nombre) return nombre
+  const origen = typeof entrada.origen === 'string' ? entrada.origen.trim() : ''
+  if (origen) return origen.charAt(0).toUpperCase() + origen.slice(1)
+  return CUENTA_ELIMINADA
+}
 
 /**
  * Las colecciones que no dejan huella en el registro.

@@ -111,12 +111,12 @@ El detalle, incluido qué hacer cuando Docker no arranca en Windows, está en
 | Carpeta | Qué hay |
 |---|---|
 | `src/` | La aplicación entera |
-| `tests/` | `unit/` sin base de datos, `integration/` con PostgreSQL, `e2e/` con Playwright |
+| `tests/` | `unit/` sin base de datos, `integration/` con PostgreSQL, `e2e/` con Playwright, y `guiones/`, el banco en bash de los guiones de respaldo, que corre una prueba de `unit/` (D-295) |
 | `scripts/` | Operación: arranque local, instalación del servidor, despliegue, actualización, respaldo, restauración y salud |
 | `docs/` | La documentación |
 | `public/` | Estáticos que se sirven sin comprobar sesión, incluido `public/atlas/` con la geometría del atlas anatómico |
 | `medios/` | Los archivos subidos, los modelos 3D en `medios/modelos/` y las fotos de la portada en `medios/pagina/`. Fuera de `public/` a propósito; su contenido no se versiona |
-| `backups/` | Respaldos `base-AAAAMMDD-HHMMSS.sql.gz` y `medios-AAAAMMDD-HHMMSS.tar.gz`. Ignorada por git |
+| `backups/` | Respaldos `base-AAAAMMDD-HHMMSS.sql.gz` y `medios-AAAAMMDD-HHMMSS.tar.gz`, con `.age` al final cuando van cifrados (D-295). Ignorada por git |
 | `despliegue/` | Plantillas para convivir con las demás páginas del servidor compartido |
 | `archivo/` | El prototipo original, como referencia. No se ejecuta ni se despliega |
 | `.claude/` | Permisos locales del asistente de código |

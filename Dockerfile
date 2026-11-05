@@ -64,7 +64,11 @@ ENV NEXT_PUBLIC_BASE_PATH=$BASE_PATH
 # El cliente de PostgreSQL viaja en la imagen para que el panel pueda respaldar
 # la base sin abrir una sesion SSH. Son unos pocos megabytes y evitan que el
 # unico camino al respaldo sea la linea de comandos del servidor.
-RUN apk add --no-cache postgresql17-client
+#
+# Y age, para que «Respaldar ahora» cifre como cifra el respaldo de cada noche
+# (D-295): sin el, el boton se niega en un servidor configurado para cifrar,
+# que es mejor que dejar en el disco un volcado en claro que nadie esperaba.
+RUN apk add --no-cache postgresql17-client age
 
 # Chromium para «Guardar PDF» (D-244): el servidor imprime la ficha con la
 # misma hoja de estilos de impresion y entrega el archivo hecho, en vez de

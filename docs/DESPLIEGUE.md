@@ -187,7 +187,12 @@ PAYLOAD_SECRET=             # generar: openssl rand -base64 48
 NEXT_PUBLIC_SERVER_URL=     # tras el proxy, https://<servidor>/traumahub
 CLOUDFLARE_TUNNEL_TOKEN=    # solo en el modo cloudflare
 RESPALDOS_GID=              # tras el proxy: el `id -g` de quien despliega, si no es 1000
+RESPALDOS_DESTINATARIO=     # la llave pública de age con que se cifran los respaldos (D-295)
 ```
+
+La última no la exige `deploy.sh`, pero sin ella los respaldos salen sin cifrar
+y `salud.sh` lo marca como problema. Cómo se genera la llave y dónde se guarda la
+privada está en `docs/SERVIDOR.md`, «Cifrado».
 
 El resto de las variables, con su explicación, está en `.env.example`.
 
@@ -197,7 +202,9 @@ arranca con el secreto de ejemplo es peor que uno que no arranca: parece
 correcto. El token del túnel solo se exige cuando `TUNEL=cloudflare`.
 
 Si la base ya está en marcha, la respalda antes de reconstruir, en
-`backups/base-AAAAMMDD-HHMMSS.sql.gz`. Solo la base: los archivos subidos no
+`backups/base-AAAAMMDD-HHMMSS.sql.gz` (con `.age` al final si hay llave: se
+cifra como el de cada noche, y si no puede cifrar se detiene antes de tocar
+nada). Solo la base: los archivos subidos no
 entran en ese respaldo, de esos se encarga el respaldo diario. Después espera
 hasta 90 segundos a que la aplicación responda en `/api/salud`. La consulta la
 hace desde dentro del contenedor, porque en ninguno de los dos modos hay un
@@ -360,7 +367,8 @@ Escribir el volcado a mano en una línea de cron parece equivalente y no lo es.
 Hay cuatro razones, y todas se descubren tarde.
 
 **El nombre.** `src/lib/respaldos.ts` reconoce exactamente dos patrones,
-`base-AAAAMMDD-HHMMSS.sql.gz` y `medios-AAAAMMDD-HHMMSS.tar.gz`. Un archivo con
+`base-AAAAMMDD-HHMMSS.sql.gz` y `medios-AAAAMMDD-HHMMSS.tar.gz`, con o sin el
+`.age` del cifrado al final. Un archivo con
 cualquier otro nombre es invisible: no aparece en el panel de respaldos, no se
 puede descargar ni borrar desde ahí, la retención de `respaldar.sh` no lo limpia
 porque busca esos mismos patrones, y `salud.sh` no lo cuenta ni mira su
@@ -383,6 +391,11 @@ días, treinta por omisión, y si se define `COPIA_REMOTA=usuario@maquina:/ruta`
 copia fuera del servidor con rsync. Un respaldo que vive en la misma máquina que
 la base protege del error, no del incendio.
 
+**El cifrado.** Con `RESPALDOS_DESTINATARIO` en el `.env`, cifra cada archivo
+para esa llave pública antes de guardarlo, y la copia externa viaja ya cifrada
+(D-295). Un `pg_dump` en el cron dejaría la base entera legible en el disco y
+en cada copia.
+
 ### Respaldar a mano
 
 Antes de una maniobra arriesgada, o para probar que todo esto funciona:
@@ -399,6 +412,18 @@ ejecución crea sus propios archivos fechados y no pisa los anteriores.
 ```bash
 ./scripts/restaurar.sh backups/base-20260906-030000.sql.gz
 ```
+
+Uno cifrado se abre con la llave privada, que se trae al servidor solo para
+esto y se borra después (`docs/SERVIDOR.md`, «Restaurar»):
+
+```bash
+./scripts/restaurar.sh backups/base-20260906-030000.sql.gz.age ~/llave-respaldos.txt
+```
+
+Nunca un respaldo de producción en un servidor de pruebas ni en un equipo de
+desarrollo (BITACORA, D-295). Y al terminar, las cuentas eliminadas después de
+la fecha del respaldo vuelven: se eliminan otra vez con el registro de
+solicitudes (BITACORA, D-296).
 
 Sin argumento lista los diez volcados más recientes. Pide escribir `RESTAURAR`
 antes de tocar nada, respalda el estado actual por si acaso y detiene la
@@ -418,6 +443,9 @@ con la plataforma en pie:
 ```bash
 gzip -dc backups/medios-FECHA.tar.gz | docker compose exec -T app tar xf - -C /app
 ```
+
+Si el paquete está cifrado, se abre antes con la llave:
+`age -d -i ~/llave-respaldos.txt backups/medios-FECHA.tar.gz.age | gzip -dc | …`.
 
 Con `-f docker-compose.prod.yml` en el modo Cloudflare. Los archivos subidos
 viven en el volumen `medios`, montado en `/app/medios` dentro del contenedor:

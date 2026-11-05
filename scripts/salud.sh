@@ -3,8 +3,9 @@
 #
 #   ./scripts/salud.sh
 #
-# Responde a las cinco preguntas que se hacen cuando algo va mal, en el orden en
-# que conviene hacerselas: contenedores, base, aplicacion, respaldos y espacio.
+# Responde a las seis preguntas que se hacen cuando algo va mal, en el orden en
+# que conviene hacerselas: contenedores, base, aplicacion, respaldos, su cifrado
+# y espacio.
 # Devuelve codigo distinto de cero si algo esta mal, para poder encadenarlo.
 set -uo pipefail
 
@@ -80,7 +81,9 @@ esac
 echo
 
 echo "Respaldos"
-ultimo=$(ls -1t backups/base-*.sql.gz 2>/dev/null | head -1 || true)
+# Cifrados (D-295) o no: los de antes de la llave siguen contando como respaldo
+# mientras no venzan sus treinta dias.
+ultimo=$(listar_volcados | head -1)
 if [ -z "$ultimo" ]; then
   fallo "no hay ningun respaldo de la base"
 else
@@ -91,13 +94,13 @@ else
   else
     fallo "el ultimo respaldo tiene $edad dias: $ultimo"
   fi
-  echo "    conservados: $(ls -1 backups/base-*.sql.gz 2>/dev/null | wc -l)"
+  echo "    conservados: $(listar_volcados | wc -l)"
 fi
 
 # Los medios se miran aparte. La base se puede volver a escribir; las imagenes,
 # los videos y los modelos 3D que subio el traumatologo, no. Mirar solo el
 # volcado dejaba el estado en verde mientras lo irreemplazable no se respaldaba.
-ultimo_medios=$(ls -1t backups/medios-*.tar.gz 2>/dev/null | head -1 || true)
+ultimo_medios=$(listar_paquetes_de_medios | head -1)
 if [ -z "$ultimo_medios" ]; then
   ambar "  ·  no hay ningun respaldo de los archivos subidos"
   echo "     (normal si todavia no se ha subido ninguna imagen ni modelo)"
@@ -124,6 +127,60 @@ elif crontab -l 2>/dev/null | grep -q respaldar.sh; then
   bien "respaldo programado en cron"
 else
   fallo "el respaldo diario no esta programado"
+fi
+echo
+
+# El aviso de privacidad dice que las copias van cifradas, asi que un respaldo
+# en claro en un servidor es un problema y no una nota. Se miran las piezas que
+# tienen que coincidir, porque cada una falla por su lado y en silencio: la
+# llave del .env (la usa el cron), la del contenedor (la usa el boton del
+# panel, y le llega por una linea del override, que en el servidor no se
+# versiona) y el age de cada uno.
+echo "Cifrado de los respaldos"
+destinatario="${RESPALDOS_DESTINATARIO:-}"
+if [ -z "$destinatario" ]; then
+  fallo "los respaldos salen SIN CIFRAR: falta RESPALDOS_DESTINATARIO en .env (D-295)"
+elif ! printf '%s' "$destinatario" | grep -Eq "$PATRON_DESTINATARIO_AGE"; then
+  fallo "RESPALDOS_DESTINATARIO no es una llave publica de age: el respaldo de la noche no se hara"
+else
+  # Solo el final: basta para reconocerla.
+  bien "se cifra para la llave ...${destinatario: -8}"
+  if command -v age >/dev/null 2>&1; then
+    bien "age instalado en el servidor"
+  else
+    fallo "falta age en el servidor: el respaldo de la noche no se hara (sudo apt install age)"
+  fi
+  if servicio_en_marcha app; then
+    en_la_app=$(dc exec -T app printenv RESPALDOS_DESTINATARIO 2>/dev/null | tr -d '\r')
+    if [ -z "$en_la_app" ]; then
+      fallo "el panel respalda SIN CIFRAR: a la app no le llega RESPALDOS_DESTINATARIO"
+      echo "      copie la plantilla del override y recree la app:"
+      echo "      cp despliegue/paginas/docker-compose.override.yml . && docker compose up -d app"
+    elif [ "$en_la_app" != "$destinatario" ]; then
+      fallo "el panel cifra para otra llave (...${en_la_app: -8}); recree la app: $(orden_compose) up -d app"
+    else
+      bien "el panel cifra para la misma llave"
+    fi
+    if ! dc exec -T app sh -c 'command -v age' >/dev/null 2>&1; then
+      fallo "la imagen de la app no trae age: el boton del panel no respalda; vuelva a desplegar"
+    fi
+  fi
+  if [ -n "$ultimo" ] && ! es_archivo_age "$ultimo"; then
+    fallo "el ultimo respaldo esta SIN CIFRAR aunque hay llave: $ultimo"
+  fi
+  # Los de antes de la llave no se cifran solos: se descartan a los treinta
+  # dias, o se cifran a mano (BITACORA, D-295). Mientras, que se vea cuantos son.
+  en_claro=0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    es_archivo_age "$f" || en_claro=$((en_claro + 1))
+  done <<EN_CLARO
+$(listar_volcados)
+$(listar_paquetes_de_medios)
+EN_CLARO
+  if [ "$en_claro" -gt 0 ]; then
+    nota "$en_claro respaldo(s) de antes del cifrado siguen en claro en backups/"
+  fi
 fi
 echo
 

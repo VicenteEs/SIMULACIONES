@@ -10,6 +10,10 @@
  * cron —`base-20260906-030000.sql.gz`—, de modo que los respaldos creados desde
  * el panel y los automáticos son indistinguibles: una sola retención los limpia
  * y un solo script los restaura.
+ *
+ * Cifrado (D-295), el mismo nombre con `.age` al final: `base-…sql.gz.age`. Se
+ * cifra lo ya comprimido, así que quitando el `.age` con la llave queda el
+ * archivo de siempre, y `restaurar.sh` lo trata igual.
  */
 
 export interface Respaldo {
@@ -17,9 +21,32 @@ export interface Respaldo {
   bytes: number
   creado: string
   tipo: 'base' | 'medios'
+  /** Si está cifrado con age (D-295). Uno sin cifrar es de antes, o de un servidor sin `RESPALDOS_DESTINATARIO`. */
+  cifrado: boolean
 }
 
-const PATRON_NOMBRE = /^(base|medios)-\d{8}-\d{6}\.(sql\.gz|tar\.gz)$/
+const PATRON_NOMBRE = /^(base|medios)-\d{8}-\d{6}\.(sql\.gz|tar\.gz)(\.age)?$/
+
+/** La extensión de un respaldo cifrado. */
+export const EXTENSION_CIFRADA = '.age'
+
+export const estaCifrado = (nombre: string): boolean => nombre.endsWith(EXTENSION_CIFRADA)
+
+/**
+ * Una llave pública de age: `age1` y 58 caracteres del alfabeto bech32, que no
+ * tiene «1», «b», «i» ni «o». Se comprueba antes de cifrar porque un
+ * destinatario mal copiado no cifra para nadie: age falla, y si no fallara, el
+ * respaldo saldría para una llave que no existe y no se podría abrir nunca.
+ */
+export const esDestinatarioDeAge = (valor: unknown): valor is string =>
+  typeof valor === 'string' && /^age1[02-9ac-hj-np-z]{58}$/.test(valor)
+
+/**
+ * Cómo está el cifrado de los respaldos que se hacen desde el panel. Aquí y no
+ * junto a quien lo calcula (`estadoDelCifrado`, en `respaldosServidor.ts`)
+ * porque el panel lo pinta en el navegador.
+ */
+export type EstadoDelCifrado = 'cifra' | 'sin-destinatario' | 'destinatario-invalido' | 'falta-age'
 
 /**
  * Comprueba que el nombre sea uno de los nuestros.
