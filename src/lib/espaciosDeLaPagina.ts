@@ -38,6 +38,8 @@ export type ImagenDePartida =
   | 'corte-coronal'
   | 'corte-axial'
   | 'corte-sagital'
+  | 'maniobra-lachman'
+  | 'tecnica-osteosintesis'
 
 interface Comun {
   /** Estable: es la clave que se guarda en la base. Cambiarlo deja huérfano lo ya cambiado. */
@@ -207,8 +209,23 @@ const FOTOS: EspacioDeFoto[] = [
   foto('portada.capas.piel', 'Cabecera y Estudia', 'Capa de piel', 'capa-piel', 'El cuerpo entero del atlas, de frente, con la piel.', VERTICAL, CAPAS_CALZAN),
   foto('portada.capas.musculo', 'Cabecera y Estudia', 'Capa de músculo', 'capa-musculo', 'El mismo cuerpo sin la piel: la capa de los músculos.', VERTICAL, CAPAS_CALZAN),
   foto('portada.capas.hueso', 'Cabecera y Estudia', 'Capa de hueso', 'capa-hueso', 'El mismo cuerpo con solo el esqueleto.', VERTICAL, CAPAS_CALZAN),
-  foto('portada.examina.imagen', 'Examina', 'Imagen del capítulo', 'capa-musculo', 'La musculatura del atlas, donde se sitúan las maniobras del examen físico.', 'Vertical, de 1000 px de ancho o más. Una foto de una maniobra también sirve.'),
-  foto('portada.tecnica.imagen', 'Técnica AO', 'Imagen del capítulo', 'capa-hueso', 'El esqueleto del atlas, sobre el que se explica la técnica.', 'Vertical, de 1000 px de ancho o más.'),
+  foto(
+    'portada.examina.imagen',
+    'Examina',
+    'Imagen del capítulo',
+    'maniobra-lachman',
+    'Prueba de Lachman en una rodilla derecha flexionada unos 25°, vista desde el lado medial: con el muslo sujeto, la tibia se adelanta bajo el fémur y el ligamento cruzado anterior se tensa.',
+    'Cuadrada, de 720 px o más. Se recorta en círculo.',
+    'Con la imagen de partida, encima corre el video de la maniobra. Una foto subida la reemplaza a ella y al video.',
+  ),
+  foto(
+    'portada.tecnica.imagen',
+    'Técnica AO',
+    'Imagen del capítulo',
+    'tecnica-osteosintesis',
+    'Tibia y peroné derechos con una fractura oblicua de la diáfisis de la tibia, reducida y fijada con una placa recta y tres tornillos a cada lado del trazo.',
+    'Vertical, en proporción 11:16 (880 × 1280 px, por ejemplo). Con fondo transparente se ve el azul de la tarjeta.',
+  ),
   foto('portada.opera.consola', 'Opera', 'Captura de la consola', 'consola', 'La consola del simulador quirúrgico, con la pierna del caso y la fluoroscopia.', 'Apaisada, 3:2, de 1600 px de ancho o más.'),
   foto('portada.opera.fluoroscopia', 'Opera', 'Imagen de fluoroscopia', 'fluoroscopia', 'La imagen lateral del arco en C sobre la diáfisis de la tibia.', 'Cuadrada, de 400 px o más. Se recorta en círculo.'),
   foto('portada.interpreta.coronal', 'Interpreta', 'Corte coronal', 'corte-coronal', 'Corte coronal del tórax del atlas.', 'Vertical u horizontal, de 900 px o más, con fondo transparente.'),
@@ -217,6 +234,40 @@ const FOTOS: EspacioDeFoto[] = [
 ]
 
 // ------------------------------------------------------------ portada: textos
+
+/**
+ * Las tarjetas de «El problema» (D-272): lo de antes, tachado; el título; la
+ * frase de «con TraumaHub», y hasta tres puntos. Los títulos y los puntos de
+ * las dos primeras son los del texto de sugerencias del 2026-11-05; los de la
+ * tercera no venían en él y son una propuesta, a confirmar con el dueño.
+ *
+ * Las filas conservan los ids de antes de ser tarjetas (`fila-n.antes`,
+ * `fila-n.con`): un texto que el administrador ya hubiera cambiado sigue en
+ * su sitio.
+ */
+const TARJETAS_DEL_PROBLEMA = [
+  {
+    antes: 'Láminas de atlas en dos dimensiones',
+    titulo: 'Modelo 3D',
+    con: 'Un cuerpo 3D que giras, abres por capas y cortas en tres planos',
+    puntos: ['Girar, acercar y orbitar modelo', 'Distintos planos anatómicos', 'Estructuras rotuladas y explicadas'],
+  },
+  {
+    antes: 'La primera osteosíntesis, con el paciente en la mesa',
+    titulo: 'Simulación quirúrgica',
+    con: 'El caso ensayado antes: instrumental, fluoroscopia y fuerza en newtons',
+    puntos: ['Instrumental adecuado', 'Libertad de movimiento', 'Apoyo con fluoroscopia'],
+  },
+  {
+    antes: 'Apuntes, PDF y videos repartidos por todas partes',
+    titulo: 'Biblioteca clínica',
+    con: 'Diagnósticos, maniobras, técnica quirúrgica y lectura de imágenes en un solo recorrido',
+    puntos: ['Clasificaciones y criterios de decisión', 'Maniobras con su técnica e interpretación', 'Contenido revisado por especialistas'],
+  },
+] as const
+
+/** Casillas de puntos por tarjeta: las que sobran quedan vacías y no se pintan. */
+const PUNTOS_POR_TARJETA = 3
 
 const cabecera = textos('portada', 'Cabecera', 'portada.hero')
 const problema = textos('portada', 'El problema', 'portada.problema')
@@ -241,21 +292,33 @@ const TEXTOS_DE_LA_PORTADA: EspacioDeTexto[] = [
   cabecera.linea('pregunta-de-cuenta', 'Antes del enlace «Entrar»', '¿Ya tienes cuenta?', LARGO.antetitulo),
 
   problema.linea('antetitulo', 'Antetítulo', 'El problema', LARGO.antetitulo),
-  problema.linea('titular', 'Titular', 'La traumatología se aprende con las manos. El material, casi siempre, *es plano.*', LARGO.titular, false, AYUDA_RESALTADO),
+  problema.linea('titular', 'Titular', 'La traumatología se aprende haciendo. La información escrita *resulta insuficiente.*', LARGO.titular, false, AYUDA_RESALTADO),
   problema.parrafo(
     'bajada',
     'Bajada',
-    'TraumaHub cambia el orden: primero el cuerpo en tres dimensiones, después la mesa, y la primera vez en el pabellón ya no es la primera.',
+    'TraumaHub reúne ambas cosas: comprensión de la traumatología desde el diagnóstico hasta el manejo definitivo, incorporando simulación quirúrgica de alta fidelidad.',
     LARGO.bajada,
   ),
-  ...[
-    ['Láminas de atlas en dos dimensiones', 'Un cuerpo 3D que giras, abres por capas y cortas en tres planos'],
-    ['La primera osteosíntesis, con el paciente en la mesa', 'El caso ensayado antes: instrumental, fluoroscopia y fuerza en newtons'],
-    ['Apuntes, PDF y videos repartidos por todas partes', 'Fichas, maniobras, técnica y lectura de imágenes en un solo recorrido'],
-  ].flatMap(([antes, con], i) => [
-    problema.linea(`fila-${i + 1}.antes`, `Fila ${i + 1} · antes`, antes, LARGO.detalle, true),
-    problema.linea(`fila-${i + 1}.con`, `Fila ${i + 1} · con TraumaHub`, con, LARGO.detalle, true),
-  ]),
+  problema.linea(
+    'cita',
+    'Frase destacada (bajo la bajada)',
+    'La primera vez en el pabellón ya no es la primera',
+    LARGO.titular,
+    true,
+    'Las comillas las pone la página. Vacía, no se muestra.',
+  ),
+  ...TARJETAS_DEL_PROBLEMA.flatMap((tarjeta, i) => {
+    const fila = `fila-${i + 1}`
+    const nombre = `Tarjeta ${i + 1}`
+    return [
+      problema.linea(`${fila}.antes`, `${nombre} · antes (tachado)`, tarjeta.antes, LARGO.detalle, true),
+      problema.linea(`${fila}.titulo`, `${nombre} · título`, tarjeta.titulo, LARGO.punto, true, 'Vacío, la frase de «con TraumaHub» hace de título.'),
+      problema.linea(`${fila}.con`, `${nombre} · con TraumaHub`, tarjeta.con, LARGO.detalle, true),
+      ...Array.from({ length: PUNTOS_POR_TARJETA }, (_, k) =>
+        problema.linea(`${fila}.punto-${k + 1}`, `${nombre} · punto ${k + 1}`, tarjeta.puntos[k] ?? '', LARGO.punto, true),
+      ),
+    ]
+  }),
 
   ...capitulo({
     clave: 'estudia',
@@ -276,7 +339,7 @@ const TEXTOS_DE_LA_PORTADA: EspacioDeTexto[] = [
     antetitulo: 'Examina · Módulo 02',
     titular: 'Aprende qué buscar y qué significa lo que encuentras',
     bajada:
-      'Maniobras por segmento con su técnica, la interpretación y un video propio. Lo que se enseña junto a la cama del paciente, disponible a cualquier hora.',
+      'Maniobras por segmento con su técnica y su interpretación. Lo que se enseña junto a la cama del paciente, disponible a cualquier hora.',
     puntos: [
       ['Técnica y video', 'Cómo se ejecuta cada maniobra, con el video del equipo.'],
       ['Interpretación', 'Qué indica el hallazgo y cómo se lee.'],
@@ -293,8 +356,8 @@ const TEXTOS_DE_LA_PORTADA: EspacioDeTexto[] = [
       'El paso a paso quirúrgico con el principio AO detrás de cada gesto: abordaje, reducción y fijación, en el orden en que se hacen.',
     puntos: [
       ['Paso a paso', 'Del abordaje a la fijación, sin saltarse el criterio.'],
-      ['El principio AO en cada paso', 'Por qué se hace así, y no solo cómo.'],
-      ['Clasificación AO del caso', 'Cada caso parte de su clasificación.'],
+      ['Los principios AO en cada paso', 'Por qué se hace así, y no solo cómo.'],
+      ['Clasificaciones AO del caso', 'Cada caso parte de su clasificación.'],
     ],
     boton: 'Ver la técnica AO',
   }),

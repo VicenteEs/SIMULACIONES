@@ -41,6 +41,19 @@ Las capas y los cortes salen de `scripts/atlas/capturas/capas_y_cortes.py` (las 
 Cada capa tarda unos 20 s y cada corte entre 3 y 9 minutos (el coronal, con otras tomas dibujándose a la vez). Si el modelo cambia (otra piel, otra fascia), hay que rehacerlas: estas imágenes
 son del modelo de hoy y no se actualizan solas.
 
+### Las dos de la portada que no viven en esta carpeta (D-274, D-275)
+
+Salen de los mismos huesos, pero no son capturas para Figma: son los originales de la portada, y cada guion los deja donde
+los lee la página. La cabecera de cada uno dice cómo se corre.
+
+| Qué | Guion | Dónde queda |
+|---|---|---|
+| La prueba de Lachman en video, para la lupa de Examina | `scripts/atlas/capturas/maniobra_lachman.py` | `public/portada/maniobra-lachman.mp4` y `.webm`, y el póster en `src/components/portada/imagenes/maniobra-lachman.webp` |
+| La tibia con la fractura fijada con placa, para la tarjeta de Técnica AO | `scripts/atlas/capturas/tecnica_ao.py` | `src/components/portada/imagenes/tecnica-osteosintesis.webp` |
+
+Si cambia el encuadre de la tibia, `--marcas` imprime dónde caen los tres pasos, y hay que copiarlos a `PASOS_AO` en
+`src/components/portada/Ilustraciones.tsx`.
+
 ## Para ponerlas en Figma
 
 El archivo «TraumaHub · Sitio web y aplicación» está en el plan Starter, que da 20 llamadas al mes al servidor de Figma, y se

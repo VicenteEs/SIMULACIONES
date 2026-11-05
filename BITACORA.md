@@ -8430,6 +8430,157 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 - (−) Dos huesos que se tocan a menos de 3 mm se cuentan como uno: la tibia y el peroné junto a la articulación tibioperonea proximal. Es justo el tornillo que se pasa y que en pabellón se ve en la lateral.
 - (−) La vista previa de la broca lanza dos rayos en vez de uno, cada 50 ms como mucho.
 
+### D-271 · 2026-11-05 · vigente · cambia el fondo de la primera pantalla de D-231
+**La malla del fondo de la primera pantalla se mueve y responde: los nodos derivan, se apartan del puntero y una pulsación deja una onda. Solo ahí: el resto de la portada y las pantallas de acceso siguen con la malla quieta.**
+
+*De dónde sale.* Pedido del dueño, 2026-11-05: que los nodos y grafos del fondo «sean interactivos y se vayan moviendo solamente en la primera parte de la pantalla».
+
+*Cómo funciona.* `MallaViva` (`src/components/portada/MallaViva.tsx`) pinta en un lienzo encima del SVG de `MallaDeNodos`, que sigue dentro.
+- **Los nodos**: uno por cada 14.000 px² (entre 26 y 110), sembrados con semilla sobre una rejilla con holgura, como el SVG. Derivan a 15 px/s y rebotan en los bordes. Uno de cada nueve es más grande, con halo y un latido lento.
+- **Las aristas** unen los nodos a menos de 110–175 px, según el ancho, y se apagan cuanto más largas.
+- **El puntero**, hasta 210 px: aparta los nodos, enciende las aristas cercanas y tiende hilos hacia ellos. Al irse, cada nodo vuelve a su deriva.
+- **Pulsar** —o tocar con el dedo— lanza una onda que empuja los nodos hacia fuera. Cuatro a la vez como mucho.
+- **Se escucha la sección, no el lienzo.** El lienzo sigue con `pointer-events: none`: está detrás del texto, y si recibiera el puntero «Cotizar para mi servicio» dejaría de poder pulsarse.
+- Con el dedo, mover no cuenta, porque es alguien desplazando la página. El toque sí deja su onda.
+
+*Lo que cuesta.*
+- Se para cuando la cabecera sale de la pantalla (`IntersectionObserver`) y con la pestaña oculta. Un cuadro tras una pausa no cuenta como un salto de varios segundos.
+- El lienzo va a densidad 2 como mucho: a 3 pesa el doble y una línea de un píxel no se ve mejor.
+- Con 110 nodos son unas 6.000 parejas por cuadro.
+
+*Sin movimiento.* Sin JavaScript o con «reducir movimiento» se queda el SVG quieto de siempre: el lienzo solo lo tapa cuando ya dibujó su primer cuadro (`data-malla="viva"`). La opacidad del 16 % pasó del contenedor al SVG, porque la malla viva dosifica la suya nodo a nodo y cerca del puntero se enciende más.
+
+*Qué se probó.* En `/vista-previa` a 1440 × 900: el lienzo en marcha, la opacidad de los nodos que se dobla al acercar el puntero, y capturas con el puntero y sin él. A 390 px, sin desborde horizontal.
+
+*Consecuencias.*
+- (+) La primera pantalla invita a tocar, que es lo que la plataforma promete.
+- (−) Una animación más corriendo mientras se mira la cabecera. En un móvil viejo se notará en la batería antes que en la fluidez.
+- (−) Los números —densidad, alcance, empuje, opacidades— son a ojo sobre una pantalla. Están arriba de `MallaViva.tsx`.
+
+### D-272 · 2026-11-05 · vigente · cambia «El problema» de D-231 y sus textos
+**«El problema» con los textos nuevos, y su columna derecha en tres tarjetas que pasan solas cada 7 s: «Modelo 3D», «Simulación quirúrgica» y «Biblioteca clínica».**
+
+*De dónde sale.* Pedido del dueño, 2026-11-05: que las tres filas de la derecha («Un cuerpo 3D que giras…», «El caso ensayado antes…», «Fichas, maniobras…») sean tarjetas en carrusel que se desplacen cada tantos segundos. Con el pedido llegó un texto de sugerencias para esta sección y para Técnica AO.
+
+*Los textos.* Todos siguen en «Medios de la página».
+- **Titular**: «La traumatología se aprende haciendo. La información escrita *resulta insuficiente.*»
+- **Bajada**: «TraumaHub reúne ambas cosas: comprensión de la traumatología desde el diagnóstico hasta el manejo definitivo, incorporando simulación quirúrgica de alta fidelidad». «Comprensión» va en minúscula: tras los dos puntos sigue la misma oración.
+- **Frase destacada**, nueva (`portada.problema.cita`): «La primera vez en el pabellón ya no es la primera», con las comillas que pone la página. La sugerencia traía una coma tras «pabellón», entre el sujeto y el verbo, y se quitó. Vacía, no sale.
+- **Las tarjetas**: lo de antes, tachado; un título nuevo (`fila-n.titulo`); la frase de «con TraumaHub», y hasta tres puntos (`fila-n.punto-1` a `-3`).
+  - Las dos primeras, tal como las traía la sugerencia.
+  - La tercera traía solo la frase («Diagnósticos, maniobras, técnica quirúrgica y lectura de imágenes en un solo recorrido»). El título «Biblioteca clínica» y sus tres puntos son una propuesta, a confirmar con el dueño.
+  - Conservan los ids de las filas (`fila-n.antes`, `fila-n.con`): un texto que el administrador hubiera cambiado sigue en su sitio.
+- **Técnica AO**: «Los principios AO en cada paso» y «Clasificaciones AO del caso», como pedían las flechas de la sugerencia; el dueño confirmó después que ahí solo se pedía el plural. El chip de la ilustración pasa a «Principios AO» con ellos (D-275).
+
+*El carrusel* (`CarruselDelProblema.tsx`).
+- **Siete segundos por tarjeta**: dan para leer el título, la frase y los tres puntos. Las capas de Estudia cambian cada tres (D-273), pero allí no hay nada que leer.
+- **El reloj es la barra de progreso del punto activo**, una animación CSS, y el cambio llega con su `animationend` (`rotacion.ts`). Pausar es pausar la animación. Con un `setInterval`, la barra y el cambio se desacompasaban.
+  - La trampa: con «reducir movimiento», `estilos.css` acorta toda animación a 0,01 ms, y la barra terminaría al instante y giraría sin parar. El manejador vuelve a preguntar por la preferencia en el momento, no al estado de React, porque la barra ya corre antes de hidratar.
+- **El desliz** usa la API de animaciones sobre tarjetas apiladas en una misma celda. Con una tira y `translateX`, pasar de la tercera a la primera rebobinaba las tres de golpe; así la que entra viene siempre del lado hacia el que se avanza. La ventana mide lo que la tarjeta más alta y no salta de alto.
+- **Cuándo gira.** Solo a la vista, y quieto con el puntero encima. Parado del todo en cuanto alguien usa los mandos, desliza con el dedo (48 px o más) o entra con el teclado: volver a girar mientras se lee la tarjeta elegida sería quitársela de delante, y es lo que pide el patrón de carrusel de WAI-ARIA.
+- **Los mandos**: pausa y reanudar (WCAG 2.2.2), un punto por tarjeta con su barra y las flechas, anterior y siguiente. Las tarjetas ocultas van con `inert`.
+- Con «reducir movimiento», ni gira ni desliza, y el botón de pausa no sale.
+
+*Qué se probó.* En `/vista-previa` a 1440: el paso solo a la segunda y a la tercera tarjeta; «Tarjeta siguiente» las cambia, detiene el giro y deja el botón en «Reanudar el carrusel»; al terminar, solo la actual visible y sin animaciones colgadas. A 390 px, la tarjeta y los mandos caben sin desborde. `espaciosDeLaPagina.test.ts` sigue en verde con los espacios nuevos.
+
+*Consecuencias.*
+- (+) La sección dice lo mismo con menos texto a la vista, y cada promesa lleva sus tres puntos.
+- (−) Quien no espera ni usa los mandos solo lee la primera tarjeta.
+- (−) **Una base con algún texto de esta sección ya cambiado en «Medios de la página» sigue mostrando el suyo.** El código cambia el original, no lo guardado. En ved se miró antes de desplegar, porque el dueño quería ver los nuevos: ni un texto ni una foto guardados (`textos_pagina` y `medios_pagina`, vacías), y no hubo nada que restaurar.
+- (−) «Clasificaciones AO del caso» va en plural, como lo pidió el dueño, aunque cada caso tenga una sola clasificación. Se cambia en «Medios de la página».
+
+### D-273 · 2026-11-05 · vigente · completa el selector de capas de D-236
+**Las capas de Estudia pasan solas cada tres segundos —músculo, hueso, piel— con una línea en la capa activa que dice cuánto falta.**
+
+*De dónde sale.* Pedido del dueño, 2026-11-05: que los tres cuerpos de Estudia «vayan rotando igual cada 3 segundos, se vaya cambiando el selector».
+
+*Cómo funciona.* `CapasDelCuerpo` usa el mismo reloj que el carrusel de D-272 (`rotacion.ts`): una barra de 3 s dentro del botón activo, y el cambio en su `animationend`. Empieza en Músculo, como antes, y sigue el orden del abanico: la capa de la derecha pasa al frente y la del frente, a la izquierda.
+- Quieto mientras no se ve y con el puntero encima.
+- Parado del todo en cuanto alguien elige una capa, con el ratón o con las flechas, o entra con el teclado. Si girara con el foco dentro, el foco quedaría en una capa que ya no es la elegida.
+- Con «reducir movimiento», no gira.
+- El cambio de 0,8 s de D-245 deja 2,2 s de cuerpo quieto en cada capa. No hay texto que leer, así que no se alargó como el carrusel.
+
+*Qué se probó.* En `/vista-previa` a 1440: el selector pasó de Músculo a Hueso, a Piel y otra vez a Músculo en capturas seguidas, con la barra en marcha. A 390 px, el selector con su barra bajo la capa activa.
+
+*Consecuencias.*
+- (+) Quien no toca el selector ve las tres capas igual.
+- (−) Quien quiere mirar una capa con calma tiene que elegirla o dejar el ratón encima.
+- (−) No tiene botón de pausa propio: lo para elegir cualquier capa, y para siempre. Es lo que pide WCAG 2.2.2, aunque menos a la vista que el botón del carrusel.
+
+### D-274 · 2026-11-05 · vigente · cambia la ilustración de Examina de D-231
+**La lupa de Examina pasa en video la prueba de Lachman, hecha en Blender sobre la rodilla del atlas: en bucle, sin sonido y con un botón para pausarla. El rótulo «Video propio de la maniobra» se quitó.**
+
+*De dónde sale.* Pedido del dueño, 2026-11-05: quitar ese rótulo y poner en el video «uno representativo», hecho en Blender si hacía falta, «pero quiero que se vea bien lo que se quiere representar». Hasta entonces la lupa ampliaba al 200 % las rodillas de la capa de músculo, con un dibujo de «play» que no hacía nada.
+
+*Qué se ve* (`scripts/atlas/capturas/maniobra_lachman.py`, sobre el atlas completo).
+- La rodilla derecha a 25° de flexión, que es donde se hace el Lachman (a 90° sería el cajón anterior), con el paciente tumbado y vista desde el lado medial.
+- El cóndilo femoral medial, dibujado como un vidrio para que se vea el cruzado anterior sin cortar el hueso. El cruzado anterior va resaltado y se enciende al tensarse; el posterior, apagado.
+- Dos flechas: una sujeta el muslo y la otra tira de la tibia hacia delante. Sin texto dentro del video: el rótulo lo pone la página.
+- Seis segundos en bucle: reposo, tirón, tope firme, vuelta y reposo. El último cuadro es el primero, y el bucle cierra sin salto.
+
+*Cómo se sirve.*
+- **Dos formatos**: WebM (VP9, 114 kB) primero y MP4 (H.264, 447 kB) para el navegador que no lea VP9. 720 × 720 y sin audio, en `public/portada/`; sus rutas pasan por `ruta()`.
+- **El póster es el cuadro del tope**, como imagen de partida de «Medios de la página» (`maniobra-lachman.webp`). Es lo que se ve mientras el video no llega, sin JavaScript o con «reducir movimiento», y lo que lee el lector de pantalla. El video va escondido de la lectura, porque repite lo mismo.
+- **El MP4 traía el índice al final**, y el FFmpeg de Blender no deja pedir otra cosa: el navegador tenía que pedir el final del archivo antes de pintar el primer cuadro. `moov_delante`, en el guion, lo pasa delante. El resultado decodifica idéntico al original.
+- **`LupaConVideo`**: el video empieza a bajar cuando la lupa llega a la pantalla (`preload="none"`) y se pausa fuera de ella. El redondel blanco es ahora un botón que pausa y reanuda: WCAG 2.2.2 pide poder parar lo que se mueve solo, y este bucle no termina. Con «reducir movimiento» no arranca solo, pero el botón lo pone en marcha. El video aparece con su primer cuadro y no antes: un `<video>` sin datos puede pintarse negro encima del póster.
+- **Con una foto subida por el administrador**, la lupa la muestra quieta y sin botón. El video es de esta rodilla, y un «play» que no reproduce nada promete lo que no hay.
+
+*La bajada.* El dueño pidió quitar de ella «un video propio» después de ver el video, y queda «Maniobras por segmento con su técnica y su interpretación». El punto «Técnica y video» sigue diciendo «con el video del equipo»: habla del video de cada maniobra dentro del módulo, no de esta animación.
+
+*Qué se probó.* En un servidor de desarrollo contra una base desechable:
+- a 1160 px, el video corre, cubre la lupa y el botón dice «Pausar el video de la maniobra»;
+- pulsarlo lo deja quieto (en 2,95 s durante segundo y medio), y volver a pulsarlo lo reanuda;
+- al salir de la pantalla se pausa, y al volver sigue;
+- a 390 px, la lupa, el rótulo y el botón caben sin desborde;
+- el MP4 corregido y el original, comparados en Chrome en tres instantes: los mismos píxeles.
+
+*Consecuencias.*
+- (+) La lupa enseña una maniobra en vez de unas rodillas quietas, y el botón hace lo que parece.
+- (+) 114 kB en los navegadores que leen VP9, y solo cuando se llega al capítulo.
+- (−) **La tibia avanza 10 mm**, cuando un Lachman normal da de 2 a 5 con tope firme. Se exageró para que se lea en la lupa, y un traumatólogo puede leerlo como positivo aunque el cruzado esté dibujado sano. Es la constante `TRASLACION` del guion; rehacerlo tarda unos 6 minutos.
+- (−) Los huesos son la malla aligerada del atlas: la tibia sin tuberosidad ni espinas marcadas y la rótula roma. No hay meniscos, cartílago ni cápsula, ni manos: las flechas hacen de presa.
+- (−) El MP4 deja un latido mínimo en la costura del bucle (0,3 niveles de media). Solo lo ve quien recibe el MP4.
+
+### D-275 · 2026-11-05 · vigente · cambia la ilustración de Técnica AO de D-231
+**La tarjeta de Técnica AO deja el esqueleto y muestra una tibia con una fractura diafisaria reducida y fijada con placa, hecha en Blender. Los tres pasos señalan la placa, y el chip pasa a «Principios AO».**
+
+*De dónde sale.* Pedido del dueño, 2026-11-05: cambiar la imagen del esqueleto de «Cada gesto, con el porqué que lo sostiene» por «algo más representativo» de lo que se quiere mostrar. Era la capa de hueso del atlas recortada a la pierna, con los pasos marcados sobre una tibia sana.
+
+*Qué se ve* (`scripts/atlas/capturas/tecnica_ao.py`).
+- La tibia y el peroné derechos del caso del simulador, con una fractura oblicua de la diáfisis reducida y una placa recta en la cara medial: tres tornillos a cada lado del trazo.
+- Vista casi medial, con la cámara a 72°. Desde anteromedial, el peroné quedaba entero detrás de la tibia y la imagen era un hueso suelto.
+- La placa y los tornillos salen del instrumental del simulador, pero no a escala: la placa se alargó dos agujeros y todo va al 80 %, porque la tibia del atlas es más delgada que una de verdad. Los tornillos van dorados: en gris se perdían en los agujeros.
+- 880 × 1280 px, la proporción de la tarjeta, con fondo transparente: 18 kB en WebP.
+
+*Los pasos.* `PASOS_AO` lleva ahora el centro de cada círculo, medido con la misma cámara (`--marcas` del guion): 1 Abordaje en el extremo proximal de la placa, 2 Reducción en el trazo y 3 Fijación en los tornillos distales. Van pegados al borde de la tibia y no encima: en una tarjeta de 440 px, un círculo de 28 px tapaba justo lo que señalaba. Se quitó el recorte que encuadraba la tibia dentro del esqueleto.
+
+*Qué se probó.* A 1440 y a 390 px: los tres círculos junto a la tibia, sus líneas sobre la placa y los rótulos dentro de la pantalla, sin desborde.
+
+*Consecuencias.*
+- (+) La tarjeta dice osteosíntesis a primera vista, que es de lo que trata el capítulo.
+- (−) Es la malla aligerada del atlas, subdividida. A tamaño de tarjeta se lee como tibia, pero la meseta parece un bloque y la cresta queda redondeada.
+- (−) La placa es pequeña en la tarjeta (unos 18 px de ancho) y del trazo asoman solo dos puntas. No hay margen para agrandarla: el hueso ya ocupa del 11 % al 98 % del alto.
+- (−) Si cambia el encuadre, hay que volver a medir `PASOS_AO` con `--marcas`.
+
+### D-276 · 2026-11-05 · vigente · completa en la portada lo de los módulos en mantención de D-217
+**El capítulo de un módulo en mantención lleva «Próximamente» junto a su antetítulo y no en el sitio del botón. En la portada, la insignia va con la letra del antetítulo, aquí y en el módulo 06.**
+
+*De dónde sale.* Pedido del dueño, 2026-11-05, sobre la captura de Interpreta, que en su base está en mantención: «quiero que el próximamente aparezca al lado del módulo 5 con el mismo tamaño de la letra». Hasta entonces la insignia ocupaba el sitio del botón, debajo de los puntos y a 11 px. Se leía al final, cuando el capítulo ya se había leído como abierto.
+
+*Qué cambia.*
+- **`Capitulo.tsx`**: en mantención, la insignia va dentro del antetítulo («Interpreta · Módulo 05 Próximamente»), en una fila flexible con 10 px de hueco, como la del módulo 06. Sin botón, la fila del botón no se pinta; en Opera seguiría, por la lupa de fluoroscopia que la acompaña.
+- **`portada.css`**: dentro de un antetítulo, la insignia toma su tamaño de letra (14,4 px en la portada) y no los 11 px que tiene en la aplicación. Vale también para el módulo 06, que ya la llevaba al lado pero más chica: las dos de la portada miden lo mismo.
+- Fuera de la portada (la barra, el menú, la página del módulo), la insignia sigue como estaba.
+
+*Qué se probó.* Con Interpreta en mantención en una base desechable:
+- a 1440 px, la insignia en la misma línea que «Interpreta · Módulo 05» y con la misma letra;
+- a 1000 y a 390 px, la columna no da para las dos y la insignia baja a la línea siguiente, sin desborde;
+- en el módulo 06, la insignia y el antetítulo a 14,4 px.
+
+*Consecuencias.*
+- (+) El estado del módulo se lee antes que el titular, igual que en el módulo 06.
+- (−) Por debajo de unos 1050 px de ancho, y en el teléfono, la insignia no cabe al lado y queda debajo del antetítulo.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

@@ -101,6 +101,12 @@ html:has(> body > .portada) { scroll-behavior: smooth; scroll-padding-top: 76px;
 /* El tono del módulo sobre marino (el naranja de Opera) se aclara: tal cual
    se queda por debajo de 3:1. */
 .p-oscuro.p-capitulo .p-antetitulo { color: color-mix(in srgb, var(--tono) 45%, #fff); }
+/* «Próximamente» junto al antetítulo: en el módulo 06 y en el capítulo de un
+   módulo en mantención (D-276). Va con la letra del antetítulo y no con los
+   11 px que la insignia tiene en la aplicación: a su lado se leía como una
+   nota, y no como el estado del módulo. */
+.p-antetitulo .insignia-proximamente { font-size: 1em; line-height: 1.35; }
+.p-antetitulo-con-insignia { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 
 .p-titular {
   margin: 0 0 var(--e-6);
@@ -364,7 +370,10 @@ html:has(> body > .portada) { scroll-behavior: smooth; scroll-padding-top: 76px;
   padding: calc(var(--p-barra) + clamp(48px, 8vh, 110px)) 0 clamp(72px, 9vh, 110px);
   overflow: hidden;
 }
-.p-hero-fondo { position: absolute; inset: 0; color: var(--cian); opacity: 0.16; pointer-events: none; }
+/* La opacidad va en el SVG y no en el contenedor: la malla viva (D-271) dosifica
+   la suya nodo a nodo, y cerca del puntero se enciende más de lo que dejaría un
+   16 % puesto encima de todo. */
+.p-hero-fondo { position: absolute; inset: 0; color: var(--cian); pointer-events: none; }
 /* El degradado de la primera pantalla va en diagonal y el de «El problema» en
    vertical, así que en la costura cada lado tenía un azul distinto según la
    columna, y se veía una línea. El pie de la primera pantalla se funde al azul
@@ -377,7 +386,12 @@ html:has(> body > .portada) { scroll-behavior: smooth; scroll-padding-top: 76px;
   background: linear-gradient(180deg in oklab, transparent, var(--marino-2));
   pointer-events: none;
 }
-.p-hero-malla { display: block; width: 100%; height: 100%; }
+.p-hero-malla { display: block; width: 100%; height: 100%; opacity: 0.16; }
+/* El lienzo solo aparece cuando ya dibujó su primer cuadro; hasta entonces, y
+   sin JavaScript o con «reducir movimiento», se queda la malla quieta. */
+.p-hero-lienzo { position: absolute; inset: 0; display: none; width: 100%; height: 100%; }
+.p-hero-fondo[data-malla='viva'] .p-hero-malla { display: none; }
+.p-hero-fondo[data-malla='viva'] .p-hero-lienzo { display: block; }
 .p-hero-rejilla {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
@@ -482,18 +496,127 @@ html:has(> body > .portada) { scroll-behavior: smooth; scroll-padding-top: 76px;
   align-items: start;
   gap: var(--e-10) var(--p-hueco);
 }
-.p-problema-filas { margin: 0; padding: 0; list-style: none; }
-.p-problema-fila { padding: var(--e-6) 0; border-bottom: 1px solid var(--sobre-tinta-filete); }
-.p-problema-fila:first-child { padding-top: 0; }
-.p-problema-fila:last-child { border-bottom: 0; }
+/* Las tarjetas se alinean al centro del planteamiento y no a su antetítulo:
+   arriba del todo quedaban más altas que el titular y se leían primero. */
+.p-problema-rejilla { align-items: center; }
+.p-problema-cita {
+  max-width: 30ch;
+  margin: 0;
+  padding: 4px 0 4px 20px;
+  border-left: 3px solid var(--cian);
+  font-size: calc(clamp(20px, 1.9vw, 25px) * var(--p-tipo-titular));
+  font-weight: 650;
+  font-style: italic;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-wrap: balance;
+}
 /* El rótulo en su propia columna: en línea con el texto, cuando el tachado
    se partía en dos líneas la segunda empezaba debajo de «Antes». */
-.p-problema-antes { display: flex; align-items: baseline; gap: 8px; margin: 0 0 var(--e-3); color: var(--sobre-tinta-3); font-size: calc(15px * var(--p-tipo)); }
+.p-problema-antes { display: flex; align-items: baseline; gap: 8px; margin: 0; color: var(--sobre-tinta-3); font-size: calc(15px * var(--p-tipo)); }
 .p-problema-antes .p-rotulo-mono { flex: none; }
-.p-problema-con { display: flex; align-items: flex-start; gap: var(--e-4); }
-.p-problema-con p { display: flex; flex-direction: column; gap: 4px; margin: 0; }
-.p-problema-con .p-rotulo-mono { color: var(--cian-claro); }
-.p-problema-con strong { font-size: calc(19px * var(--p-tipo)); font-weight: 650; line-height: 1.35; color: #fff; }
+
+/* El carrusel de tarjetas (D-272). Las tarjetas comparten la misma celda: la
+   ventana mide lo que la más alta y no cambia de alto al pasar de una a otra. */
+.p-carrusel { display: flex; flex-direction: column; gap: var(--e-5); min-width: 0; }
+.p-carrusel-ventana {
+  display: grid;
+  overflow: hidden;
+  border-radius: 24px;
+  /* El dedo que baja por la página sigue bajando; el que va de lado pasa la tarjeta. */
+  touch-action: pan-y;
+}
+.p-tarjeta-problema {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-5);
+  padding: clamp(24px, 3vw, 36px);
+  border: 1px solid var(--sobre-tinta-borde);
+  border-radius: 24px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--cian) 16%, transparent), transparent 62%),
+    color-mix(in srgb, #fff 5%, transparent);
+  visibility: hidden;
+}
+.p-tarjeta-problema[data-actual] { visibility: visible; }
+.p-tarjeta-problema .p-problema-antes { padding-bottom: var(--e-4); border-bottom: 1px solid var(--sobre-tinta-filete); }
+.p-tarjeta-problema-cabeza { display: flex; align-items: center; gap: var(--e-4); }
+.p-tarjeta-problema-cabeza p { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+.p-tarjeta-problema-cabeza .p-rotulo-mono { color: var(--cian-claro); }
+.p-tarjeta-problema-cabeza strong {
+  font-size: calc(clamp(22px, 2vw, 27px) * var(--p-tipo-titular));
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: #fff;
+}
+.p-tarjeta-problema-texto { margin: 0; font-size: calc(17px * var(--p-tipo)); line-height: 1.5; color: var(--sobre-tinta-2); }
+.p-tarjeta-problema-puntos { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.p-tarjeta-problema-puntos li { display: flex; align-items: flex-start; gap: 12px; font-size: calc(16px * var(--p-tipo)); font-weight: 550; line-height: 1.4; color: #fff; }
+.p-tarjeta-problema-marca {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cian) 24%, transparent);
+  color: var(--cian-claro);
+}
+
+.p-carrusel-mandos { display: flex; align-items: center; justify-content: space-between; gap: var(--e-4); }
+.p-carrusel-mandos-grupo { display: flex; align-items: center; gap: var(--e-3); }
+.p-carrusel-boton {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--sobre-tinta-borde-fuerte);
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color var(--dur-rapida), border-color var(--dur-rapida);
+}
+.p-carrusel-boton:hover { background: var(--sobre-tinta-velo-2); border-color: var(--cian-claro); }
+.p-carrusel-puntos { display: flex; align-items: center; }
+/* El botón es más grande que la marca que se ve: 28 px de alto para el dedo
+   (WCAG 2.5.8 pide 24), con la marca de 8 px en medio. */
+.p-carrusel-punto { display: grid; place-items: center; height: 32px; padding: 0 4px; border: 0; background: none; cursor: pointer; }
+.p-carrusel-marca {
+  position: relative;
+  display: block;
+  width: 8px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, #fff 30%, transparent);
+  transition: width var(--dur) var(--p-curva-suave), background-color var(--dur-rapida);
+}
+.p-carrusel-punto:hover .p-carrusel-marca { background: color-mix(in srgb, #fff 55%, transparent); }
+.p-carrusel-punto[aria-current] .p-carrusel-marca { width: 36px; background: color-mix(in srgb, #fff 20%, transparent); }
+/* Detenido, la marca de la actual va llena: ya no hay nada que esperar. */
+.p-carrusel-punto[data-lleno] .p-carrusel-marca { background: var(--cian); }
+.p-carrusel-progreso {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--cian);
+  transform-origin: left center;
+  animation-name: p-progreso;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.p-carrusel[data-quieto] .p-carrusel-progreso { animation-play-state: paused; }
+@keyframes p-progreso {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
 
 /* ---------- los capítulos ---------- */
 .p-capitulo { position: relative; padding: clamp(80px, 9vw, 130px) 0; }
@@ -643,6 +766,8 @@ html:has(> body > .portada) { scroll-behavior: smooth; scroll-padding-top: 76px;
 }
 .p-capas-selector { display: inline-flex; gap: 4px; padding: 5px; border-radius: var(--r-full); background: #fff; box-shadow: var(--sombra-2); }
 .p-capas-selector button {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -659,6 +784,22 @@ html:has(> body > .portada) { scroll-behavior: smooth; scroll-padding-top: 76px;
 }
 .p-capas-selector button:hover:not([aria-checked='true']) { background: var(--marca-tenue); color: var(--marca-honda); }
 .p-capas-selector button[aria-checked='true'] { background: var(--marca); color: #fff; }
+/* Lo que falta para la capa siguiente mientras gira sola (D-273): una línea
+   fina en el pie de la píldora, que se nota sin competir con el nombre. */
+.p-capas-progreso {
+  position: absolute;
+  right: 16px;
+  bottom: 5px;
+  left: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, #fff 75%, transparent);
+  transform-origin: left center;
+  animation-name: p-progreso;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.p-capas[data-quieto] .p-capas-progreso { animation-play-state: paused; }
 
 /* Examina: la lupa. */
 .p-ilus { position: relative; margin: 0; }
@@ -674,13 +815,35 @@ html:has(> body > .portada) { scroll-behavior: smooth; scroll-padding-top: 76px;
   box-shadow: 0 30px 60px rgba(12, 26, 56, 0.25);
 }
 .p-lupa-foto { position: absolute; inset: 0; background: transparent; }
+/* El póster de partida (D-274) ya es la rodilla, cuadrada y encuadrada para el
+   círculo: llena la lupa entera. Antes era el cuerpo entero, ampliado al 200 %
+   hasta las rodillas. */
 .p-lupa-foto img { width: 100%; height: 100%; object-fit: cover; }
-/* La captura de partida es el cuerpo entero: se amplía hasta las rodillas. */
-.p-ilus-examina[data-original] .p-lupa-foto { inset: auto; top: -318%; left: -50%; width: 200%; }
-.p-ilus-examina[data-original] .p-lupa-foto img { height: auto; object-fit: contain; }
 .p-ilus-segmento { position: absolute; top: 7%; right: 4%; z-index: 2; }
 .p-ilus-video { position: absolute; right: 0; bottom: 4%; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .p-ilus-video-boton { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; background: #fff; color: var(--tono); box-shadow: var(--sombra-3); }
+/* El video de la maniobra (D-274) va encima de su póster y aparece con su
+   primer cuadro: un `<video>` sin datos todavía puede pintarse negro, y
+   taparía el póster justo mientras carga. */
+.p-lupa-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--dur) var(--p-curva-suave);
+}
+.p-lupa-video[data-visible] { opacity: 1; }
+/* Con el video, el redondel es un botón de verdad (pausar y reanudar). */
+button.p-ilus-video-boton {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  transition: transform var(--dur-rapida) var(--p-curva-suave), box-shadow var(--dur-rapida);
+}
+button.p-ilus-video-boton:hover { transform: scale(1.06); }
+button.p-ilus-video-boton:focus-visible { outline: 3px solid var(--tono); outline-offset: 4px; }
 
 /* Técnica: la tibia en su tarjeta. */
 .p-ilus-tecnica { width: 100%; max-width: 560px; }
@@ -693,8 +856,10 @@ html:has(> body > .portada) { scroll-behavior: smooth; scroll-padding-top: 76px;
   box-shadow: 0 40px 80px rgba(40, 30, 110, 0.25);
 }
 .p-tecnica-foto { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; background: transparent; }
+/* La osteosíntesis de partida (D-275) tiene la proporción de la tarjeta y se
+   pinta entera, sin el recorte con que antes se encuadraba la tibia dentro del
+   esqueleto completo. */
 .p-tecnica-foto img { width: 100%; height: 100%; object-fit: cover; }
-.p-ilus-tecnica[data-original] .p-tecnica-foto img { position: absolute; top: -122%; left: -14%; width: 128%; height: auto; object-fit: contain; }
 .p-tarjeta-marina > .p-chip-sobre-marino { position: absolute; top: 18px; left: 18px; z-index: 2; }
 .p-chip-sobre-marino {
   background: var(--tono);
@@ -707,7 +872,8 @@ html:has(> body > .portada) { scroll-behavior: smooth; scroll-padding-top: 76px;
 }
 .p-chip-sobre-marino svg { color: #fff; }
 .p-tecnica-pasos { position: absolute; inset: 0; z-index: 2; margin: 0; padding: 0; list-style: none; }
-.p-tecnica-pasos li { position: absolute; left: 30%; right: -34%; display: flex; align-items: center; transform: translateY(-50%); }
+/* El `left` y el `top` de cada paso los pone `PASOS_AO`, medidos sobre la imagen. */
+.p-tecnica-pasos li { position: absolute; right: -34%; display: flex; align-items: center; transform: translateY(-50%); }
 .p-tecnica-pasos li::after { content: ''; flex: 1; order: 1; height: 1px; background: color-mix(in srgb, var(--tono) 55%, #fff); }
 .p-tecnica-pasos .p-chip { order: 2; }
 .p-tecnica-numero {

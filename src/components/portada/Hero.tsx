@@ -1,11 +1,11 @@
 import Link from 'next/link'
 import { ArrowRight, ArrowDown } from 'lucide-react'
-import { MallaDeNodos } from '@/components/MallaDeNodos'
 import { ImagenConCarga } from '@/components/ui/ImagenConCarga'
 import { cifra } from '@/lib/graficos'
 import type { PaginaLeida } from '@/lib/mediosDeLaPagina'
 import type { CapaDelCuerpo } from './capitulos'
 import type { FotoParaPintar } from './fotos'
+import { MallaViva } from './MallaViva'
 import { Resaltado } from './Resaltado'
 
 const NOMBRE_DE_CAPA: Record<CapaDelCuerpo, string> = { piel: 'Piel', musculo: 'Músculo', hueso: 'Hueso' }
@@ -40,9 +40,7 @@ export function Hero({
 
   return (
     <section className="p-hero p-oscuro" aria-labelledby="p-hero-titular">
-      <div className="p-hero-fondo" aria-hidden="true">
-        <MallaDeNodos className="p-hero-malla" />
-      </div>
+      <MallaViva />
       <div className="p-contenedor p-hero-rejilla">
         <div className="p-hero-texto">
           {t('antetitulo') ? (

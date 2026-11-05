@@ -8,6 +8,8 @@ import fluoroscopia from './imagenes/fluoroscopia.webp'
 import corteCoronal from './imagenes/corte-coronal.webp'
 import corteAxial from './imagenes/corte-axial.webp'
 import corteSagital from './imagenes/corte-sagital.webp'
+import maniobraLachman from './imagenes/maniobra-lachman.webp'
+import tecnicaOsteosintesis from './imagenes/tecnica-osteosintesis.webp'
 
 /**
  * Las capturas del atlas con que parten las fotos de las páginas públicas
@@ -33,4 +35,6 @@ export const IMAGENES_DE_PARTIDA: Record<ImagenDePartida, StaticImageData> = {
   'corte-coronal': corteCoronal,
   'corte-axial': corteAxial,
   'corte-sagital': corteSagital,
+  'maniobra-lachman': maniobraLachman,
+  'tecnica-osteosintesis': tecnicaOsteosintesis,
 }

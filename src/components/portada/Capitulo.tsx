@@ -16,8 +16,10 @@ import { Resaltado } from './Resaltado'
  * columna, el texto primero: la ilustración sin su titular no se entiende.
  *
  * Un módulo en mantención conserva su capítulo —lo que el módulo es no cambia
- * por estar en obras— pero no ofrece entrar: el botón se cambia por la
- * insignia «Próximamente», la misma que lleva el módulo 06.
+ * por estar en obras— pero no ofrece entrar: el botón desaparece y la insignia
+ * «Próximamente», la misma que lleva el módulo 06, va junto a su antetítulo
+ * (D-276). Hasta entonces ocupaba el sitio del botón, debajo de los puntos, y
+ * se leía al final, cuando quien mira ya había leído el capítulo como abierto.
  */
 export function Capitulo({
   capitulo: c,
@@ -43,9 +45,7 @@ export function Capitulo({
     .filter((p) => p.titulo)
   const idDelTitular = `p-${c.clave}-titular`
 
-  const accion = enMantencion ? (
-    <span className="insignia-proximamente">{ROTULO_PROXIMAMENTE}</span>
-  ) : (
+  const accion = enMantencion ? null : (
     <Link href={c.ruta} className={c.destacado ? 'p-boton p-boton-cian p-boton-lg' : 'p-enlace-flecha'}>
       {t('boton')}
       <ArrowRight size={c.destacado ? 18 : 16} aria-hidden />
@@ -74,7 +74,15 @@ export function Capitulo({
           <span className="p-nodo" aria-hidden="true">
             {c.numero}
           </span>
-          <p className="p-antetitulo">{t('antetitulo')}</p>
+          {enMantencion ? (
+            <p className="p-antetitulo p-antetitulo-con-insignia">
+              {/* El hueco lo da la fila flexible; el espacio separa las dos
+                  palabras cuando la página se lee sin estilos. */}
+              {t('antetitulo')} <span className="insignia-proximamente">{ROTULO_PROXIMAMENTE}</span>
+            </p>
+          ) : (
+            <p className="p-antetitulo">{t('antetitulo')}</p>
+          )}
           <h2 id={idDelTitular} className="p-titular">
             <Resaltado texto={t('titular')} />
           </h2>
@@ -99,10 +107,14 @@ export function Capitulo({
           </ul>
         ) : null}
 
-        <div className="p-capitulo-accion">
-          {accion}
-          {junto}
-        </div>
+        {/* Sin botón ni compañía, la fila no se pinta: vacía, su relleno
+            separaba los puntos del borde del capítulo más que en los demás. */}
+        {accion || junto ? (
+          <div className="p-capitulo-accion">
+            {accion}
+            {junto}
+          </div>
+        ) : null}
       </div>
     </section>
   )

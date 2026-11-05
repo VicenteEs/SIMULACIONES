@@ -1,6 +1,8 @@
-import { MapPin, Play, ShieldCheck } from 'lucide-react'
+import { MapPin, ShieldCheck } from 'lucide-react'
 import { ImagenConCarga } from '@/components/ui/ImagenConCarga'
+import { ruta } from '@/lib/rutas'
 import type { FotoParaPintar } from './fotos'
+import { LupaConVideo, type FuenteDeVideo } from './LupaConVideo'
 
 /**
  * Las ilustraciones de los capítulos Examina, Técnica AO, Opera e Interpreta
@@ -11,7 +13,9 @@ import type { FotoParaPintar } from './fotos'
  * sobre la tibia, los números sobre la consola— solo salen con la captura de
  * partida (`data-original`): sus posiciones se midieron sobre ella, y sobre
  * una foto que suba el administrador apuntarían a cualquier parte. Los que no
- * señalan nada —«Por segmento», «Axial»— salen siempre.
+ * señalan nada —«Por segmento», «Axial»— salen siempre. El video de Examina
+ * también va solo con la de partida, que es su póster: sobre otra foto
+ * correría una rodilla que no es la que se ve.
  *
  * Los rótulos son parte del dibujo y no texto comercial, y por eso no están
  * en «Medios de la página»: dicen qué se ve, como el `alt` de la foto.
@@ -31,45 +35,69 @@ function Foto({ foto, sizes, className }: { foto: FotoParaPintar; sizes: string;
   )
 }
 
-/** Examina: la lupa sobre las rodillas, con el rótulo del segmento y el del video. */
+/**
+ * El video de la prueba de Lachman (D-274), en el orden en que se prueban. El
+ * WebM va primero: pesa una cuarta parte y cierra el bucle sin salto; el MP4
+ * queda para el navegador que no lea VP9. Escritas a mano, las dos rutas
+ * pasan por `ruta()`.
+ */
+const VIDEO_DEL_LACHMAN: readonly FuenteDeVideo[] = [
+  { src: ruta('/portada/maniobra-lachman.webm'), tipo: 'video/webm; codecs="vp9"' },
+  { src: ruta('/portada/maniobra-lachman.mp4'), tipo: 'video/mp4' },
+]
+
+/**
+ * Examina: la lupa con la prueba de Lachman en video y el rótulo del segmento.
+ * Con una foto subida, la lupa la muestra quieta y sin el botón: un «play»
+ * que no reproduce nada promete un video que no hay.
+ */
 export function IlustracionExamina({ foto }: { foto: FotoParaPintar }) {
   return (
     <figure className="p-ilus p-ilus-examina" data-original={foto.original || undefined}>
-      <div className="p-lupa">
-        <Foto foto={foto} sizes="(max-width: 900px) 80vw, 560px" className="p-lupa-foto" />
-      </div>
+      {foto.original ? (
+        <LupaConVideo foto={foto} fuentes={VIDEO_DEL_LACHMAN} />
+      ) : (
+        <div className="p-lupa">
+          <Foto foto={foto} sizes="(max-width: 900px) 80vw, 560px" className="p-lupa-foto" />
+        </div>
+      )}
       <span className="p-chip p-ilus-segmento" aria-hidden="true">
         <MapPin size={15} /> Por segmento
-      </span>
-      <span className="p-ilus-video" aria-hidden="true">
-        <span className="p-ilus-video-boton">
-          <Play size={30} />
-        </span>
-        <span className="p-chip p-chip-tono">Video propio de la maniobra</span>
       </span>
     </figure>
   )
 }
 
+/**
+ * Dónde caen los tres números sobre la osteosíntesis de partida (D-275), en
+ * tanto por ciento de la tarjeta: el centro de cada círculo. Van pegados al
+ * borde de la tibia y no encima de lo que señalan: en una tarjeta de 440 px
+ * un círculo de 28 px tapaba justo eso —la placa mide unos 18 px de ancho y
+ * del trazo asoman dos puntas de 7—. La línea que sale de cada uno cruza la
+ * placa a su altura: el extremo proximal, el trazo y los tornillos distales.
+ */
 const PASOS_AO = [
-  { n: 1, rotulo: 'Abordaje', alto: 36 },
-  { n: 2, rotulo: 'Reducción', alto: 56 },
-  { n: 3, rotulo: 'Fijación', alto: 75 },
+  { n: 1, rotulo: 'Abordaje', x: 26.6, y: 48 },
+  { n: 2, rotulo: 'Reducción', x: 28.6, y: 62.4 },
+  { n: 3, rotulo: 'Fijación', x: 29.6, y: 70.7 },
 ] as const
 
-/** Técnica AO: la tibia en una tarjeta marina, con abordaje, reducción y fijación marcados. */
+/** La mitad del círculo del número (`.p-tecnica-numero`): `left` es su borde y `PASOS_AO`, su centro. */
+const MEDIO_CIRCULO_PX = 14
+
+/** Técnica AO: la tibia fracturada y fijada con su placa, en una tarjeta marina, con abordaje, reducción y fijación marcados. */
 export function IlustracionTecnica({ foto }: { foto: FotoParaPintar }) {
   return (
     <figure className="p-ilus p-ilus-tecnica" data-original={foto.original || undefined}>
       <div className="p-tarjeta-marina">
         <Foto foto={foto} sizes="(max-width: 900px) 80vw, 440px" className="p-tecnica-foto" />
         <span className="p-chip p-chip-sobre-marino" aria-hidden="true">
-          <ShieldCheck size={14} /> Principio AO
+          <ShieldCheck size={14} /> Principios AO
         </span>
         {foto.original ? (
           <ol className="p-tecnica-pasos" aria-label="Los tres tiempos de la técnica">
             {PASOS_AO.map((p) => (
-              <li key={p.n} style={{ top: `${p.alto}%` }}>
+              <li key={p.n} style={{ left: `calc(${p.x}% - ${MEDIO_CIRCULO_PX}px)`, top: `${p.y}%` }}>
                 <span className="p-tecnica-numero" aria-hidden="true">
                   {p.n}
                 </span>
