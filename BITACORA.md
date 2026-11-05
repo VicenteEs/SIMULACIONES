@@ -8608,6 +8608,13 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 - En un worktree con el commit exacto y una base desechable: tipos sin errores; lint sin errores y sin avisos nuevos; la suite entera, 5.670 pasadas y 5 fallos, los de siempre en Windows (respaldos y `subidaDeVideo`) más uno de `respaldoCifrado` que pasa solo, tres veces de tres, con el cambio y sin él; cobertura del 86 % (el umbral es 58); la integración obligatoria, 261 de 261; y el build con `/traumahub`.
 - La portada de ese worktree, con un colaborador inventado con foto vertical y otro sin foto. A 1280 px, Chesscore arriba a la izquierda, el de la foto a la derecha y 70 px más abajo, y el tercero en la fila siguiente con sus iniciales; a 375 px, una columna en el mismo orden y sin desborde. La ruta da 200 con la foto, como `image/jpeg` y con caché de una hora; da 404 con otro número, con un nombre y con un camino; y `api/medios/file/…` sin sesión sigue en 403. Ahí salió que la foto medía 76 × 135 y no 76 × 76: dentro de la rejilla del círculo, `height: 100%` no se resolvía y el encuadre no se aplicaba. Ahora va en absoluto.
 
+*En ved*, desplegado con `311b0e0` el 2026-11-05, lanzado a las 16:36 de allí con `TUNEL=local ./scripts/actualizar.sh`, y comprobado desde fuera, sin sesión:
+- la salud da 200, con la base bien;
+- «Sobre nosotros» trae dos tarjetas, Chesscore primero y detrás el cofundador, con el cargo y la foto que tiene en «Equipo»; la tarjeta escrita a mano ya no sale;
+- la foto (`/traumahub/api/foto-del-equipo/3300`) da 200, como `image/jpeg` de 65 KB, con caché de una hora y `Cross-Origin-Resource-Policy`; con otro número o con un nombre da 404, y `api/medios/file/…` sin sesión sigue en 403;
+- la CSP de la ruta no llega: la respuesta trae solo la general de `next.config.mjs`. No es de este cambio, y alcanza a todo archivo subido (O-094);
+- en el navegador lo miró el dueño, en una captura: la foto encuadrada en el círculo y la segunda tarjeta más abajo. En la columna angosta, la descripción larga estiraba esa tarjeta hasta unos 1.000 px, y de ahí sale D-278.
+
 *Consecuencias.*
 - (+) Lo que se guarda en «Equipo» es lo que se ve en la portada, sin pasar por «Medios de la página».
 - (−) **Guardar en «Equipo» es publicar.** No hay borrador ni casilla para que alguien figure en la pestaña interna y no en la portada. Si hace falta, es un campo nuevo con su migración.
@@ -9825,7 +9832,7 @@ Tailscale, que al arrancar la máquina todavía no existe. *Pendiente:* que
 `start-all.sh` espere a Tailscale o compruebe el proxy después de levantarlo, y
 algo que avise: tres días caído sin que nadie lo supiera es el dato.
 
-### O-056 · 2026-09-20 · alta · resuelta
+### O-056 · 2026-09-20 · alta · resuelta · su CSP no llega al navegador: O-094
 **Un SVG subido a `medios` ejecutaba guiones con la sesión de quien lo abriera.**
 Revisión de seguridad de todo el repositorio. `medios` admite `image/svg+xml`, y
 un SVG es un documento: dentro de un `<img>` no ejecuta nada, pero su dirección
@@ -10395,6 +10402,13 @@ Con una cuenta 1 en la base, las 15 pasan (comprobado en P-011).
 *Dónde se ve.* En la comprobación de P-011 en el navegador, la consola del servidor de desarrollo mostró `ƒ entrar("<correo>", "<contraseña>")`. Pasa con cualquier acción que reciba datos de una persona: la solicitud de cuenta, la cotización, el cambio de contraseña. Next 16 lo hace por defecto (`logging.serverFunctions`), y solo en desarrollo: `action-handler.js` lo condiciona a `NODE_ENV === 'development'`. ved y Contabo no lo escriben.
 *Por qué importa.* En desarrollo no hay datos de personas (D-295), pero sí las contraseñas de quien desarrolla. Y esa consola no se queda en la pantalla: cuando un agente arranca el servidor con la vista previa, la lee y la guarda en la transcripción de la conversación, fuera del repositorio.
 *Qué hacer, sin aplicar.* `logging: { serverFunctions: false }` en `next.config.mjs`. Se pierde la traza de las acciones en la consola de desarrollo, que sirve para depurar; por eso lo decide el dueño.
+
+### O-094 · 2026-11-05 · alta · abierta
+**La CSP que una ruta le pone a un archivo no llega al navegador: llega la general de `next.config.mjs`, que no lleva `sandbox`. El arreglo de O-056 no protege, y un SVG subido a `medios` vuelve a poder ejecutar guiones.**
+*Dónde se ve.* En ved, al comprobar D-277. `api/foto-del-equipo/3300` sale con una sola `Content-Security-Policy`, la de `/:path*` (`frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`), y no con la que le pone la ruta (`default-src 'none'; sandbox; frame-ancestors 'none'`). Las cabeceras de la ruta que `next.config.mjs` no fija sí llegan: `Cache-Control` y `Cross-Origin-Resource-Policy`. En la vista previa con `next dev` pasa lo mismo.
+*Lo que se sabe.* Next 16.3.8 escribe primero en la respuesta las cabeceras de `next.config.mjs`, y de las de la ruta copia solo las que todavía no están (`next/dist/server/send-response.js`, `isHeaderPresent`). Las únicas que se suman a una ya puesta son `set-cookie`, `www-authenticate`, `proxy-authenticate` y `vary`. Los archivos de `medios`, `medios-pagina` y `modelos-3d` salen por la ruta de Payload, que para Next es una ruta más, con la CSP de `cacheDeArchivoPrivado`. Esa no se miró en ved, porque pide sesión, pero pasa por el mismo `send-response.js`. El comentario de `cacheDeArchivoPrivado` da por hecho lo contrario («esta cabecera sustituye a la de `next.config.mjs`»), y lo mismo `espaciosDeLaPagina.ts`. `tests/unit/cabecerasDeArchivos.test.ts` mira lo que devuelve la función, no lo que llega.
+*Por qué importa.* Es O-056 otra vez abierta: un editor sube un SVG con `<script>`, le pasa la dirección a un administrador, y el guion corre en el origen de la plataforma con la sesión de este. Hoy ved no tiene ningún SVG en `medios` (0 de 3.299), así que no hay ninguno con el que aprovecharlo. En `api/pagina` y `api/foto-del-equipo`, que solo sirven PNG, JPG o WEBP y con `nosniff`, la CSP perdida era una segunda capa.
+*Qué hacer, sin aplicar.* Fijar la CSP de los archivos en `next.config.mjs`, en una entrada para sus caminos detrás de la de `/:path*`: ahí, de dos entradas que fijan la misma cabecera, gana la última. Y comprobarlo en la respuesta y no en la función: contra `next start`, o desde fuera después de desplegar.
 
 ---
 
