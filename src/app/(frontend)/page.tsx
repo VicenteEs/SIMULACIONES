@@ -7,7 +7,7 @@ import { InsigniaMantencion } from '@/components/ui/InsigniaMantencion'
 import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { COLUMNAS_PARA_SABERLO, dondeSeQuedo, type DondeSeQuedo } from '@/lib/dondeSeQuedo'
 import { PortadaPublica } from '@/components/portada/PortadaPublica'
-import { leerLaPaginaPublica } from '@/components/portada/datos'
+import { leerElEquipoPublico, leerLaPaginaPublica } from '@/components/portada/datos'
 import { ruta } from '@/lib/rutas'
 import { recorridoGuardado, type RecorridoGuardado } from '@/lib/progresoDelSimulador'
 // `modulos.ts` no importa Payload a propósito (lo explica su cabecera), así que
@@ -91,9 +91,11 @@ export default async function Inicio() {
   // La portada pública v2 de Penpot (P-007 E3). Sus textos y sus fotos son los
   // de «Medios de la página», y el capítulo de un módulo en mantención se
   // queda sin botón de entrar (D-156): quien no ha entrado se trata como un
-  // residente.
+  // residente. Las tarjetas de «Sobre nosotros», después de la de Chesscore,
+  // son las de la pestaña «Equipo» (D-277).
   if (!usuario) {
-    return <PortadaPublica pagina={await leerLaPaginaPublica()} enMantencion={enMantencion} />
+    const [pagina, equipo] = await Promise.all([leerLaPaginaPublica(), leerElEquipoPublico()])
+    return <PortadaPublica pagina={pagina} equipo={equipo} enMantencion={enMantencion} />
   }
 
   // -------------------------------------------------- cuenta sin activar

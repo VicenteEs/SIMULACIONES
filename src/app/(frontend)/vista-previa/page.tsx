@@ -4,7 +4,7 @@ import { Eye } from 'lucide-react'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { PaginaDePlanes } from '@/components/portada/PaginaDePlanes'
 import { PortadaPublica } from '@/components/portada/PortadaPublica'
-import { leerLaPaginaPublica } from '@/components/portada/datos'
+import { leerElEquipoPublico, leerLaPaginaPublica } from '@/components/portada/datos'
 import { PAGINAS_PUBLICAS } from '@/lib/espaciosDeLaPagina'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 
@@ -30,7 +30,12 @@ export default async function VistaPrevia({ searchParams }: { searchParams: Prom
   await exigirPanel('admin')
   const { pagina } = await searchParams
   const cual = PAGINAS_PUBLICAS.find((p) => p.id === pagina) ?? PAGINAS_PUBLICAS[0]
-  const [leida, enMantencion] = await Promise.all([leerLaPaginaPublica(), modulosEnMantencion()])
+  const [leida, enMantencion, equipo] = await Promise.all([
+    leerLaPaginaPublica(),
+    modulosEnMantencion(),
+    // Solo la portada lleva el equipo (D-277); `/planes` no lo pinta.
+    cual.id === 'planes' ? [] : leerElEquipoPublico(),
+  ])
 
   const aviso = (
     <aside className="p-vista-previa" aria-label="Vista previa">
@@ -43,6 +48,6 @@ export default async function VistaPrevia({ searchParams }: { searchParams: Prom
   return cual.id === 'planes' ? (
     <PaginaDePlanes pagina={leida} vistaPrevia={aviso} />
   ) : (
-    <PortadaPublica pagina={leida} enMantencion={enMantencion} vistaPrevia={aviso} />
+    <PortadaPublica pagina={leida} equipo={equipo} enMantencion={enMantencion} vistaPrevia={aviso} />
   )
 }

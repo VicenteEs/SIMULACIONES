@@ -7265,7 +7265,7 @@ Es la etapa E2 de P-007. Por dentro se llama `medios-pagina` (y `medios_pagina` 
 
 *Consecuencias.* (+) El dueño cambia la portada y los planes sin pedir un despliegue. (+) Lo que cambia queda en el registro de acciones (D-145), con quién y cuándo. (−) **Varios textos de partida son borrador mío y no del dueño**: las respuestas a «¿Necesito instalar algo?», «¿Los casos son pacientes reales?» y «¿Cómo se contrata?» de la portada, y a «¿Cuánto tarda la respuesta?», «¿Podemos cargar nuestros propios casos?» y «¿Funciona en el teléfono?» de los planes; las prestaciones de cada plan y la comparativa vienen de Penpot (D-232), y en ella «Soporte» y «Puesta en marcha» son suposición. Hay que revisarlos desde la pestaña antes de abrir la portada al público. (−) Las fotos de partida son capturas del atlas recortadas a mano (`src/components/portada/imagenes/`); si cambia el aspecto del modelo, hay que rehacerlas, y las tres capas tienen que salir del mismo encuadre para que se superpongan. (−) `next/image` guarda en `.next/cache/images` cada foto optimizada, también las retiradas; el nombre por huella hace que nunca sirva una vieja, pero la caché crece hasta que se limpia. (−) Se dejó sin `images.localPatterns`: restringir qué rutas locales optimiza `next/image` se decide al montar la portada (E3), comprobando que las importadas siguen pasando. (−) La vista previa `/vista-previa` pasa a E3: enseña la portada nueva, que se arma allí.
 
-### D-236 · 2026-11-03 · vigente · tercera etapa de P-007 · la cápsula del cuerpo la retira D-239
+### D-236 · 2026-11-03 · vigente · tercera etapa de P-007 · la cápsula del cuerpo la retira D-239 · la tarjeta de la persona de «Sobre nosotros» la retira D-277
 
 **El visitante ve la portada comercial de Penpot entera, puede pedir una cotización por formulario que llega a la pestaña «Cotizaciones» del panel y por correo, tiene la página `/planes`, y entra y pide la cuenta en las pantallas partidas del diseño, con la solicitud en tres pasos.**
 Es la etapa E3 de P-007, y amplía D-020: `/planes` se sirve sin sesión.
@@ -8587,6 +8587,34 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 *Consecuencias.*
 - (+) El estado del módulo se lee antes que el titular, igual que en el módulo 06.
 - (−) Por debajo de unos 1050 px de ancho, y en el teléfono, la insignia no cabe al lado y queda debajo del antetítulo.
+
+### D-277 · 2026-11-05 · vigente · retira la tarjeta de la persona de «Sobre nosotros» (D-236)
+**«Sobre nosotros» enseña la tarjeta de Chesscore y detrás a cada colaborador de la pestaña «Equipo», con su cargo y su foto. La tarjeta de la persona, escrita a mano en «Medios de la página», se retira.**
+
+*De dónde sale.* Pedido del dueño, 2026-11-05, sobre una captura de ved. En «Equipo» ya había dado de alta al cofundador y director del equipo clínico, con su cargo y su foto, y la portada seguía con la segunda tarjeta de siempre: el nombre de `AUTORIA` y el cargo «Desarrollo». «Quiero que se mantenga el de Chesscore siempre primero, y luego solo aparezcan los cargos publicados.»
+
+*Por qué no se veía.* La portada no leía la colección `equipo`. Las dos tarjetas eran texto de «Medios de la página» (`portada.nosotros.empresa.*` y `.persona.*`), y el comentario de `SobreNosotros.tsx` daba el motivo: la colección la lee solo quien tiene cuenta (D-217), y la portada la ve cualquiera. Guardar en la pestaña no podía cambiar nada aquí.
+
+*Qué cambia.*
+- **`leerEquipoPublico`** (`src/lib/equipoPublico.ts`) lee la colección con `overrideAccess`, como `leerCambios` (quien pregunta es la plataforma), y con `select`: de cada fila salen nombre, cargo, descripción y foto. La regla de la colección no se toca; abrirla le daría a cualquiera, por la API, el listado entero con sus fechas.
+- **El orden.** Chesscore va siempre primero: no es una fila de la colección y ningún número de orden la desplaza. Detrás, el orden de la pestaña (`orden` y, a igual orden, el nombre en español). Es una sola regla, `ordenDelEquipo`, para la portada y para `/equipo`.
+- **«Solo los publicados».** La colección no tiene borrador, así que publicado es lo guardado en la pestaña. Se retiran los dos espacios de la tarjeta de la persona; una fila suya que quede en la base se ignora. La ayuda de `empresa.nombre` dice ahora de dónde salen las demás tarjetas.
+- **La foto.** Vive en `medios`, que sin sesión contesta 403 (D-020): en la portada habría salido rota. La ruta nueva `api/foto-del-equipo/[medio]` la entrega sin sesión solo si ese archivo es la foto de alguien del equipo y es PNG, JPG o WEBP (`fotoDelEquipoPublica`), y en su tamaño `ancho` si Payload lo hizo. Llega un número; el nombre sale de la fila y el camino se comprueba dentro de la carpeta. La caché es pública por una hora, no por un año como en «Medios de la página»: la dirección es el número del archivo y no la huella de su contenido. Una foto que no se puede servir no se ofrece, y la tarjeta pinta las iniciales.
+- **La tarjeta.** El círculo de 76 px lleva la foto, encuadrada al 22 % de su alto: un retrato de teléfono es 9:16, y centrado el círculo se quedaba con el pecho. Debajo, el nombre, el cargo y la descripción. Ya no lleva el correo de contacto, que debajo de una persona se leía como suyo; sigue en la columna de la izquierda. Las iniciales de la tarjeta sin foto no cuentan el tratamiento: con «Dr.» delante, el círculo decía «D» y la inicial del segundo nombre.
+- **La pestaña lo avisa.** La descripción del listado dice que lo guardado sale en la portada, y la ayuda del orden, que Chesscore va siempre primero.
+
+*Qué se probó.*
+- `tests/unit/equipoPublico.test.ts`, 17 pruebas: el orden; que cada tarjeta lleva solo sus cuatro datos; que la consulta va con `overrideAccess` y `select`; que la ruta no entrega un archivo de `medios` que no sea la foto de nadie, ni un vídeo, ni un SVG, ni lo que no es un número (sin llegar a la base); las cabeceras; y la sección pintada: Chesscore primero, la tarjeta escrita a mano fuera, las columnas, foto o iniciales.
+- En un worktree con el commit exacto y una base desechable: tipos sin errores; lint sin errores y sin avisos nuevos; la suite entera, 5.670 pasadas y 5 fallos, los de siempre en Windows (respaldos y `subidaDeVideo`) más uno de `respaldoCifrado` que pasa solo, tres veces de tres, con el cambio y sin él; cobertura del 86 % (el umbral es 58); la integración obligatoria, 261 de 261; y el build con `/traumahub`.
+- La portada de ese worktree, con un colaborador inventado con foto vertical y otro sin foto. A 1280 px, Chesscore arriba a la izquierda, el de la foto a la derecha y 70 px más abajo, y el tercero en la fila siguiente con sus iniciales; a 375 px, una columna en el mismo orden y sin desborde. La ruta da 200 con la foto, como `image/jpeg` y con caché de una hora; da 404 con otro número, con un nombre y con un camino; y `api/medios/file/…` sin sesión sigue en 403. Ahí salió que la foto medía 76 × 135 y no 76 × 76: dentro de la rejilla del círculo, `height: 100%` no se resolvía y el encuadre no se aplicaba. Ahora va en absoluto.
+
+*Consecuencias.*
+- (+) Lo que se guarda en «Equipo» es lo que se ve en la portada, sin pasar por «Medios de la página».
+- (−) **Guardar en «Equipo» es publicar.** No hay borrador ni casilla para que alguien figure en la pestaña interna y no en la portada. Si hace falta, es un campo nuevo con su migración.
+- (−) La tarjeta del dueño, que salía escrita a mano, ya no sale: para figurar, se da de alta en «Equipo» como cualquiera.
+- (−) La foto de quien deja el equipo puede seguir hasta una hora en la caché de quien ya la vio.
+- (−) Con tres tarjetas o más, las filas se alinean: bajo una tarjeta corta queda un hueco si su vecina de la derecha es más larga. Con una descripción de tres frases son unos 300 px.
+- (−) `/equipo` sigue con sus propias iniciales (las dos primeras palabras, tratamiento incluido); con foto no se nota.
 
 ### D-290 · 2026-11-05 · vigente · E0 de P-011 · supera «las filas del registro no se purgan» de D-145 · resuelve un pendiente de D-264
 **El registro de acciones se guarda doce meses, y las cotizaciones, doce meses. Una pasada diaria dentro de la propia aplicación borra lo vencido, y el aviso toma los dos plazos de las mismas constantes.**

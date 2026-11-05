@@ -1,14 +1,27 @@
 import { Library, Mail, ShieldCheck } from 'lucide-react'
 import { LogoChessCore } from '@/components/LogoChessCore'
+import type { ColaboradorPublico } from '@/lib/equipoPublico'
 import type { PaginaLeida } from '@/lib/mediosDeLaPagina'
 import { Hilo } from './Hilo'
 import { Resaltado } from './Resaltado'
 
 const ICONOS = [ShieldCheck, Library] as const
 
-/** Las iniciales para el círculo de la tarjeta: la primera letra del primer nombre y del primer apellido. */
-function iniciales(nombre: string): string {
-  const partes = nombre.trim().split(/\s+/)
+/**
+ * Las iniciales para el círculo de la tarjeta sin foto: la primera letra del
+ * primer nombre y del primer apellido.
+ *
+ * El tratamiento no cuenta, como en `src/lib/iniciales.ts`: con «Dr.» delante,
+ * el nombre tenía una palabra de más, la tercera dejaba de ser el apellido y
+ * el círculo de un médico decía «D» y la inicial de su segundo nombre. Se
+ * quita toda palabra que termina en punto —«Dr.», «Dra.», «Prof.», «Klgo.»— y
+ * «Dr» o «Dra» sin él.
+ */
+export function iniciales(nombre: string): string {
+  const partes = nombre
+    .trim()
+    .split(/\s+/)
+    .filter((p) => p && !p.endsWith('.') && !/^(dr|dra)$/i.test(p))
   const primera = partes[0]?.[0] ?? ''
   // «Ana María Pérez Soto» → «AP»: con cuatro palabras, la tercera es
   // el primer apellido; con dos o tres, la última palabra lo es casi siempre.
@@ -18,23 +31,29 @@ function iniciales(nombre: string): string {
 
 /**
  * «Sobre nosotros»: quién desarrolla la plataforma, dos sellos de confianza y
- * dos tarjetas, la de la empresa y la de la persona.
+ * las tarjetas del equipo.
  *
- * No lee la colección `equipo`: esa la lee solo quien tiene cuenta, porque la
- * pestaña «Equipo» es de la plataforma cerrada (D-217), y esta página la ve
- * cualquiera. Las dos tarjetas son texto de «Medios de la página», y una con el
- * nombre vacío no se pinta. Penpot dibujaba dos tarjetas más, punteadas y
- * marcadas «Ejemplo»: aquí no están, porque en una página pública una persona
- * de ejemplo se lee como una persona.
+ * La de Chesscore va siempre primero y es texto de «Medios de la página»: con
+ * el nombre vacío no se pinta. Detrás, una tarjeta por cada colaborador de la
+ * pestaña «Equipo», en su orden (D-277). Antes la segunda tarjeta era también
+ * texto de la página, con un nombre y un cargo escritos a mano, y por eso un
+ * cargo nuevo guardado en «Equipo» no llegaba nunca aquí: ahora solo salen los
+ * de la pestaña, y lo que se guarda allí es lo que se ve.
+ *
+ * Penpot dibujaba dos tarjetas más, punteadas y marcadas «Ejemplo»: no están,
+ * porque en una página pública una persona de ejemplo se lee como una persona.
  */
-export function SobreNosotros({ pagina }: { pagina: PaginaLeida }) {
+export function SobreNosotros({ pagina, equipo }: { pagina: PaginaLeida; equipo: readonly ColaboradorPublico[] }) {
   const t = (clave: string) => pagina.texto(`portada.nosotros.${clave}`)
   const correo = pagina.texto('general.correo')
   const sellos = [1, 2]
     .map((n, i) => ({ n, titulo: t(`sello-${n}.titulo`), texto: t(`sello-${n}.texto`), Icono: ICONOS[i] }))
     .filter((s) => s.titulo)
   const empresa = t('empresa.nombre')
-  const persona = t('persona.nombre')
+  // Las tarjetas de la columna derecha bajan un poco, como la segunda del
+  // diseño. La columna se cuenta con la de la empresa delante, que puede no
+  // estar: sin ella, el primer colaborador pasa a la izquierda.
+  const delante = empresa ? 1 : 0
 
   return (
     <section id="nosotros" data-ancla="nosotros" className="p-nosotros p-claro" aria-labelledby="p-nosotros-titular">
@@ -80,16 +99,26 @@ export function SobreNosotros({ pagina }: { pagina: PaginaLeida }) {
               {t('empresa.texto') ? <p className="p-tarjeta-texto">{t('empresa.texto')}</p> : null}
             </article>
           ) : null}
-          {persona ? (
-            <article className="p-tarjeta-equipo p-tarjeta-equipo-baja">
+          {equipo.map((colaborador, i) => (
+            <article
+              key={colaborador.id}
+              className={(delante + i) % 2 === 1 ? 'p-tarjeta-equipo p-tarjeta-equipo-baja' : 'p-tarjeta-equipo'}
+            >
               <span className="p-avatar" aria-hidden="true">
-                {iniciales(persona)}
+                {colaborador.foto ? (
+                  // Sin texto alternativo porque el nombre va justo debajo, y
+                  // el círculo entero ya está oculto al lector de pantalla.
+                  // eslint-disable-next-line @next/next/no-img-element -- un círculo de 76 px, y la dirección ya trae el prefijo (`direccionDeFotoDelEquipo`)
+                  <img src={colaborador.foto} alt="" width={76} height={76} loading="lazy" decoding="async" />
+                ) : (
+                  iniciales(colaborador.nombre)
+                )}
               </span>
-              <h3>{persona}</h3>
-              {t('persona.cargo') ? <p className="p-tarjeta-cargo">{t('persona.cargo')}</p> : null}
-              <p className="p-tarjeta-texto">{correo}</p>
+              <h3>{colaborador.nombre}</h3>
+              {colaborador.cargo ? <p className="p-tarjeta-cargo">{colaborador.cargo}</p> : null}
+              {colaborador.descripcion ? <p className="p-tarjeta-texto">{colaborador.descripcion}</p> : null}
             </article>
-          ) : null}
+          ))}
         </div>
       </div>
     </section>

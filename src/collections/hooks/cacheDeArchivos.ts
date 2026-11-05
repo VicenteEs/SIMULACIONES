@@ -70,3 +70,19 @@ export function cabecerasDeArchivoPublico(headers: Headers): Headers {
   headers.set('Cross-Origin-Resource-Policy', 'same-origin')
   return headers
 }
+
+/**
+ * Las de una foto del equipo en la portada (D-277), que se sirve sin sesión por
+ * `api/foto-del-equipo/[medio]`.
+ *
+ * Las de arriba, salvo la caché: una hora y no un año. Esta dirección es el
+ * número del archivo en `medios` y no la huella de su contenido, así que no
+ * cumple lo que hace honesto al `immutable`. Y quien deja el equipo deja de
+ * verse en la portada al guardar, pero su foto seguiría un año en la caché de
+ * quien ya la vio; así es una hora como mucho.
+ */
+export function cabecerasDeFotoDelEquipo(headers: Headers): Headers {
+  cabecerasDeArchivoPublico(headers)
+  headers.set('Cache-Control', 'public, max-age=3600, must-revalidate')
+  return headers
+}

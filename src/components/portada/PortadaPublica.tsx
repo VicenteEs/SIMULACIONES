@@ -1,6 +1,7 @@
 import type React from 'react'
 import { MODULOS } from '@/app/(frontend)/admin-panel/modulos'
 import { RevelarAlBajar } from '@/components/ui/RevelarAlBajar'
+import type { ColaboradorPublico } from '@/lib/equipoPublico'
 import type { PaginaLeida } from '@/lib/mediosDeLaPagina'
 import { BarraDeVisitante } from './BarraDeVisitante'
 import { CapasDelCuerpo } from './CapasDelCuerpo'
@@ -25,18 +26,21 @@ import './portada.css'
  * La reciben dos páginas: `/` cuando no hay sesión, y `/vista-previa` para que
  * el administrador vea lo que cambió en «Medios de la página» tal como lo ve
  * un visitante. Por eso no lee nada por su cuenta: todo llega en `pagina`
- * (`leerLaPaginaPublica`) y en `enMantencion`, y las dos páginas pintan lo
- * mismo con lo mismo.
+ * (`leerLaPaginaPublica`), en `equipo` (`leerElEquipoPublico`, D-277) y en
+ * `enMantencion`, y las dos páginas pintan lo mismo con lo mismo.
  *
  * Cada sección después de la primera aparece al bajar (`RevelarAlBajar`), que
  * no esconde nada sin JavaScript ni con «reducir movimiento».
  */
 export function PortadaPublica({
   pagina,
+  equipo,
   enMantencion,
   vistaPrevia,
 }: {
   pagina: PaginaLeida
+  /** Las tarjetas de la pestaña «Equipo», ya ordenadas, que van detrás de la de Chesscore. */
+  equipo: readonly ColaboradorPublico[]
   enMantencion: readonly string[]
   /** El aviso de arriba de `/vista-previa`; la portada de verdad no lo lleva. */
   vistaPrevia?: React.ReactNode
@@ -91,7 +95,7 @@ export function PortadaPublica({
         <ComoEmpezar pagina={pagina} />
       </RevelarAlBajar>
       <RevelarAlBajar>
-        <SobreNosotros pagina={pagina} />
+        <SobreNosotros pagina={pagina} equipo={equipo} />
       </RevelarAlBajar>
       <RevelarAlBajar>
         <PreguntasFrecuentes pagina={pagina} />

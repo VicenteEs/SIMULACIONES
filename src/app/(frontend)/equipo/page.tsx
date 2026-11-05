@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { ordenDelEquipo } from '@/lib/equipoPublico'
 import { obtenerSesion } from '@/lib/sesion'
 import { SinAcceso, Miga } from '@/components/Estados'
 import { Vacio } from '@/components/ui/Vacio'
@@ -28,9 +29,8 @@ function iniciales(nombre: string): string {
  * acceso puesto, como los listados de los módulos, y no con `overrideAccess`:
  * es lo que mantiene a esta página dentro de la plataforma cerrada (D-020).
  *
- * El orden lo da el administrador (`orden`) y, a igual orden, el nombre. Se
- * ordena aquí y no en la consulta para que el desempate use el alfabeto del
- * español: la base ordenaría «Álvaro» después de «Zoe». Son unas pocas filas.
+ * El orden es el de la portada, que enseña a las mismas personas en público
+ * (D-277): `ordenDelEquipo` explica por qué se ordena aquí y no en la consulta.
  */
 export default async function Equipo() {
   const { activo, usuarioEfectivo } = await obtenerSesion()
@@ -47,9 +47,7 @@ export default async function Equipo() {
     })
     .catch(() => ({ docs: [] }))
 
-  const personas = [...docs].sort(
-    (a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.nombre.localeCompare(b.nombre, 'es'),
-  )
+  const personas = [...docs].sort(ordenDelEquipo)
 
   return (
     <main>

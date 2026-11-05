@@ -420,11 +420,20 @@ const TEXTOS_DE_LA_PORTADA: EspacioDeTexto[] = [
     ['Contenido revisado', 'Cada ficha la revisa una persona antes de publicarse.'],
     ['Atlas con licencia abierta', 'BodyParts3D, CC BY 4.0, con su atribución a la vista.'],
   ]),
-  nosotros.linea('empresa.nombre', 'Tarjeta de la empresa · nombre', 'Chesscore', LARGO.punto, true, 'Vacía, la tarjeta no se muestra.'),
+  // La tarjeta de la empresa va siempre primero; las de las personas ya no son
+  // texto de la página sino las filas de la pestaña «Equipo» (D-277). Los dos
+  // espacios de la «tarjeta de la persona» se quitaron con eso: una fila suya
+  // que quede en la base se ignora, como la de cualquier espacio retirado.
+  nosotros.linea(
+    'empresa.nombre',
+    'Tarjeta de la empresa · nombre',
+    'Chesscore',
+    LARGO.punto,
+    true,
+    'Vacía, la tarjeta no se muestra. Las tarjetas que la siguen son las de la pestaña «Equipo».',
+  ),
   nosotros.linea('empresa.cargo', 'Tarjeta de la empresa · qué hace', 'Desarrollo de la plataforma', LARGO.punto, true),
   nosotros.parrafo('empresa.texto', 'Tarjeta de la empresa · texto', 'Diseña, construye y mantiene TraumaHub.', LARGO.detalle, true),
-  nosotros.linea('persona.nombre', 'Tarjeta de la persona · nombre', AUTORIA.nombre, LARGO.punto, true, 'Vacía, la tarjeta no se muestra.'),
-  nosotros.linea('persona.cargo', 'Tarjeta de la persona · cargo', 'Desarrollo', LARGO.punto, true),
 
   frecuentes.linea('antetitulo', 'Antetítulo', 'Preguntas frecuentes', LARGO.antetitulo),
   frecuentes.linea('titular', 'Titular', 'Lo que suelen preguntar antes de cotizar', LARGO.titular, false, AYUDA_RESALTADO),

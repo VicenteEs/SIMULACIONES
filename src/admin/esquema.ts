@@ -1661,7 +1661,10 @@ export const Equipo: EsquemaDeColeccion = {
   plural: 'Equipo',
   genero: 'm',
   titulo: 'nombre',
-  descripcion: 'Las personas que llevan la plataforma, con su foto, su cargo y una descripción breve.',
+  // Lo dice porque la colección no tiene borrador: guardar es publicar en la
+  // portada, que ve cualquiera sin cuenta (D-277).
+  descripcion:
+    'Las personas que llevan la plataforma, con su foto, su cargo y una descripción breve. Al guardar salen en la portada, que ve cualquiera, detrás de la tarjeta de Chesscore.',
   versionada: false,
   familia: 'apoyo',
   soloAdmin: true,
@@ -1697,7 +1700,7 @@ export const Equipo: EsquemaDeColeccion = {
           tipo: 'numero',
           nombre: 'orden',
           etiqueta: 'Orden de aparición',
-          ayuda: 'De menor a mayor. A igual orden, por nombre.',
+          ayuda: 'De menor a mayor, aquí y en la portada, donde la tarjeta de Chesscore va siempre primero. A igual orden, por nombre.',
         },
       ],
     },

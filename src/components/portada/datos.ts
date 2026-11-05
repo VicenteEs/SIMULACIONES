@@ -1,6 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { leerCatalogo } from '@/lib/catalogoDelAtlas'
+import { leerEquipoPublico, type ColaboradorPublico } from '@/lib/equipoPublico'
 import { leerLaPagina, type PaginaLeida } from '@/lib/mediosDeLaPagina'
 
 /**
@@ -21,4 +22,20 @@ export async function leerLaPaginaPublica(): Promise<PaginaLeida> {
       .catch(() => null),
   ])
   return leerLaPagina(payload, { piezas })
+}
+
+/**
+ * Las tarjetas de la pestaña «Equipo» para «Sobre nosotros» (D-277).
+ *
+ * Con la misma regla que lo de arriba: si la base no responde, la sección sale
+ * con la tarjeta de Chesscore sola —que es texto de la página y no de la
+ * colección— y no con la pantalla de error.
+ */
+export async function leerElEquipoPublico(): Promise<ColaboradorPublico[]> {
+  try {
+    return await leerEquipoPublico(await getPayload({ config }))
+  } catch (fallo) {
+    console.error('[portada] no se pudo leer el equipo; sale solo la tarjeta de la empresa', fallo)
+    return []
+  }
 }
