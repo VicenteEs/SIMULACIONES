@@ -1002,7 +1002,46 @@ button.p-ilus-video-boton:focus-visible { outline: 3px solid var(--tono); outlin
 .p-nosotros { position: relative; padding: clamp(90px, 10vw, 130px) 0; background: linear-gradient(180deg, var(--superficie-2), var(--papel)); }
 .p-nosotros .p-bajada { margin-bottom: var(--e-6); }
 .p-tarjetas-equipo { --nodo-x: -38px; position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--e-6); }
-.p-tarjeta-equipo { padding: 26px; border: 1px solid var(--linea); border-radius: 16px; background: var(--superficie); box-shadow: var(--sombra-1); }
+/* Todas del mismo alto, y lo que no cabe se abre con «Ver más» (D-278,
+   `TarjetaDelEquipo.tsx`). Antes cada una medía lo que su texto, y en la
+   columna angosta una descripción larga estiraba la suya hasta unos 1.000 px.
+   El alto se multiplica por el escalón de letra, como cada tamaño de este
+   archivo: en píxeles fijos, la letra más grande dejaba menos renglones a la
+   vista. 400 (448 con la letra de la portada) deja entera la de Chesscore y,
+   en la columna angosta, con el nombre y el cargo de un médico en tres o
+   cuatro renglones cada uno, todavía dos o tres de su descripción; con 380 se
+   veía uno. En columna flexible, para que la ventana tome lo que deja el
+   botón. */
+.p-tarjeta-equipo { --alto-de-la-tarjeta: calc(400px * var(--p-tipo)); display: flex; flex-direction: column; height: var(--alto-de-la-tarjeta); padding: 26px; border: 1px solid var(--linea); border-radius: 16px; background: var(--superficie); box-shadow: var(--sombra-1); }
+.p-tarjeta-equipo[data-abierta] { height: auto; }
+.p-tarjeta-ventana { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.p-tarjeta-equipo[data-abierta] .p-tarjeta-ventana { overflow: visible; }
+/* El alto de la ventana no es un número entero de renglones: sin el
+   desvanecido, el último quedaba cortado por la mitad de la letra. Un renglón
+   y medio y no más: en la columna angosta, con el nombre y el cargo en tres
+   renglones cada uno, de la descripción se ven dos, y con 3em se desvanecían
+   los dos. */
+.p-tarjeta-equipo[data-recortada] .p-tarjeta-ventana {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6em), transparent);
+}
+/* En relativo por el `.sr-only` de dentro, que es absoluto y sin un antecesor
+   posicionado se va a medir contra la página. */
+.p-tarjeta-mas { position: relative; align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 4px 0; border: 0; background: none; color: var(--marca); font: inherit; font-size: calc(14.5px * var(--p-tipo)); font-weight: 650; cursor: pointer; }
+.p-tarjeta-mas:hover { color: var(--marca-honda); text-decoration: underline; text-underline-offset: 3px; }
+.p-tarjeta-mas:focus-visible { outline: 2px solid var(--marca); outline-offset: 3px; border-radius: 4px; }
+.p-tarjeta-mas svg { flex: none; }
+.p-tarjeta-equipo[data-abierta] .p-tarjeta-mas svg { transform: rotate(180deg); }
+@media (prefers-reduced-motion: no-preference) {
+  .p-tarjeta-mas svg { transition: transform 0.2s var(--p-curva-suave); }
+}
+/* Sin JavaScript no hay botón que la abra: mide lo que su texto, como antes.
+   Con la rejilla delante para pesar más que el tope del teléfono, que va más
+   abajo en el archivo y con el mismo peso ganaría. */
+@media (scripting: none) {
+  .p-tarjetas-equipo > .p-tarjeta-equipo { height: auto; max-height: none; }
+  .p-tarjeta-ventana { overflow: visible; }
+}
 .p-tarjeta-equipo h3 { margin: 16px 0 10px; font-size: calc(20px * var(--p-tipo)); font-weight: 700; letter-spacing: -0.01em; color: var(--tinta); }
 .p-tarjeta-equipo-baja { margin-top: 70px; }
 .p-tarjeta-cargo { margin: 0 0 12px; font-size: calc(15px * var(--p-tipo)); font-weight: 650; color: var(--marca); }
@@ -1267,6 +1306,11 @@ button.p-ilus-video-boton:focus-visible { outline: 3px solid var(--tono); outlin
   .p-campos,
   .p-tarjetas-equipo,
   .p-pie-rejilla { grid-template-columns: minmax(0, 1fr); }
+  /* Una debajo de otra no hay vecina con la que igualar el alto, y el fijo
+     dejaba en blanco la mitad de la de Chesscore. Aquí es un tope: la corta
+     mide lo que su texto, y la que lo pasa lleva su «Ver más» igual (D-278). */
+  .p-tarjeta-equipo { height: auto; max-height: var(--alto-de-la-tarjeta); }
+  .p-tarjeta-equipo[data-abierta] { max-height: none; }
   .p-tecnica-pasos li { right: -26%; }
   .p-ilus-video-boton { width: 64px; height: 64px; }
 }

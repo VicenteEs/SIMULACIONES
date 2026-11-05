@@ -199,6 +199,14 @@ describe('«Sobre nosotros» en la portada', () => {
     expect(bajas(await pintar(equipo, { 'portada.nosotros.empresa.nombre': '' }))).toEqual([false, true, false])
   })
 
+  it('del servidor salen todas con su ventana y sin «Ver más», que aparece al medir en el navegador (D-278)', async () => {
+    const html = await pintar([colaborador('1', 'Tomás Ibáñez', 'x'), colaborador('2', 'Zoe Araya', 'y')])
+    expect(html.match(/<article /g)).toHaveLength(3)
+    expect(html.match(/class="p-tarjeta-ventana"/g)).toHaveLength(3)
+    expect(html).not.toContain('<button')
+    expect(html).not.toContain('data-recortada')
+  })
+
   it('con foto, el círculo la lleva; sin ella, las iniciales', async () => {
     const html = await pintar([colaborador('1', 'Tomás Ibáñez', 'x', '/api/foto-del-equipo/10'), colaborador('2', 'Zoe Araya', 'y')])
     expect(html).toContain('<img src="/api/foto-del-equipo/10" alt=""')

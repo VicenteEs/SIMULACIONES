@@ -4,6 +4,7 @@ import type { ColaboradorPublico } from '@/lib/equipoPublico'
 import type { PaginaLeida } from '@/lib/mediosDeLaPagina'
 import { Hilo } from './Hilo'
 import { Resaltado } from './Resaltado'
+import { TarjetaDelEquipo } from './TarjetaDelEquipo'
 
 const ICONOS = [ShieldCheck, Library] as const
 
@@ -39,6 +40,10 @@ export function iniciales(nombre: string): string {
  * texto de la página, con un nombre y un cargo escritos a mano, y por eso un
  * cargo nuevo guardado en «Equipo» no llegaba nunca aquí: ahora solo salen los
  * de la pestaña, y lo que se guarda allí es lo que se ve.
+ *
+ * Todas las tarjetas miden lo mismo, y la que no cabe en ese alto se abre con
+ * «Ver más» (D-278): eso lo resuelve `TarjetaDelEquipo`, que mide en el
+ * navegador. Lo de dentro se pinta aquí, en el servidor.
  *
  * Penpot dibujaba dos tarjetas más, punteadas y marcadas «Ejemplo»: no están,
  * porque en una página pública una persona de ejemplo se lee como una persona.
@@ -90,20 +95,17 @@ export function SobreNosotros({ pagina, equipo }: { pagina: PaginaLeida; equipo:
             Eq
           </span>
           {empresa ? (
-            <article className="p-tarjeta-equipo">
+            <TarjetaDelEquipo nombre={empresa}>
               <span className="p-tarjeta-logo">
                 <LogoChessCore sobre="papel" alto={44} />
               </span>
               <h3>{empresa}</h3>
               {t('empresa.cargo') ? <p className="p-tarjeta-cargo">{t('empresa.cargo')}</p> : null}
               {t('empresa.texto') ? <p className="p-tarjeta-texto">{t('empresa.texto')}</p> : null}
-            </article>
+            </TarjetaDelEquipo>
           ) : null}
           {equipo.map((colaborador, i) => (
-            <article
-              key={colaborador.id}
-              className={(delante + i) % 2 === 1 ? 'p-tarjeta-equipo p-tarjeta-equipo-baja' : 'p-tarjeta-equipo'}
-            >
+            <TarjetaDelEquipo key={colaborador.id} nombre={colaborador.nombre} baja={(delante + i) % 2 === 1}>
               <span className="p-avatar" aria-hidden="true">
                 {colaborador.foto ? (
                   // Sin texto alternativo porque el nombre va justo debajo, y
@@ -117,7 +119,7 @@ export function SobreNosotros({ pagina, equipo }: { pagina: PaginaLeida; equipo:
               <h3>{colaborador.nombre}</h3>
               {colaborador.cargo ? <p className="p-tarjeta-cargo">{colaborador.cargo}</p> : null}
               {colaborador.descripcion ? <p className="p-tarjeta-texto">{colaborador.descripcion}</p> : null}
-            </article>
+            </TarjetaDelEquipo>
           ))}
         </div>
       </div>

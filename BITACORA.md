@@ -8588,7 +8588,7 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 - (+) El estado del módulo se lee antes que el titular, igual que en el módulo 06.
 - (−) Por debajo de unos 1050 px de ancho, y en el teléfono, la insignia no cabe al lado y queda debajo del antetítulo.
 
-### D-277 · 2026-11-05 · vigente · retira la tarjeta de la persona de «Sobre nosotros» (D-236)
+### D-277 · 2026-11-05 · vigente · retira la tarjeta de la persona de «Sobre nosotros» (D-236) · el alto de las tarjetas lo fija D-278
 **«Sobre nosotros» enseña la tarjeta de Chesscore y detrás a cada colaborador de la pestaña «Equipo», con su cargo y su foto. La tarjeta de la persona, escrita a mano en «Medios de la página», se retira.**
 
 *De dónde sale.* Pedido del dueño, 2026-11-05, sobre una captura de ved. En «Equipo» ya había dado de alta al cofundador y director del equipo clínico, con su cargo y su foto, y la portada seguía con la segunda tarjeta de siempre: el nombre de `AUTORIA` y el cargo «Desarrollo». «Quiero que se mantenga el de Chesscore siempre primero, y luego solo aparezcan los cargos publicados.»
@@ -8622,6 +8622,33 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 - (−) La foto de quien deja el equipo puede seguir hasta una hora en la caché de quien ya la vio.
 - (−) Con tres tarjetas o más, las filas se alinean: bajo una tarjeta corta queda un hueco si su vecina de la derecha es más larga. Con una descripción de tres frases son unos 300 px.
 - (−) `/equipo` sigue con sus propias iniciales (las dos primeras palabras, tratamiento incluido); con foto no se nota.
+
+### D-278 · 2026-11-05 · vigente · el alto de las tarjetas de «Sobre nosotros» (D-277)
+**Las tarjetas de «Sobre nosotros» miden todas lo mismo, y la que no cabe en ese alto se abre con «Ver más».**
+
+*De dónde sale.* Pedido del dueño, 2026-11-05, con una captura de ved recién desplegada D-277. La tarjeta del cofundador, con una descripción de unos 560 caracteres, medía unos 1.000 px en la columna angosta, al lado de la de Chesscore, de 290. «Quiero que sean de alto fijo, y si el texto excede, colocar ver más para que se expanda el texto.»
+
+*Qué cambia.*
+- **El alto.** `calc(400px * var(--p-tipo))`, que con la letra de la portada son 448 px, para todas. Sigue al escalón de letra como cada tamaño de `portada.css`: en píxeles fijos, la letra más grande dejaba menos renglones a la vista. Con 400 cabe entera la de Chesscore y, en la columna angosta, el nombre y el cargo de un médico en tres renglones cada uno y dos o tres de su descripción. Con 380 se veía uno.
+- **«Ver más».** Lo pone `TarjetaDelEquipo`, un componente de cliente que solo mide y abre: lo de dentro se sigue pintando en el servidor, en `SobreNosotros`. El botón sale únicamente si el contenido no cabe en su ventana, y eso se mide en el navegador y no contando letras, porque depende del ancho de la columna, del escalón de letra y de cuándo llega la fuente. Se vuelve a medir con `ResizeObserver` sobre la ventana y sobre el contenido: la ventana tiene alto fijo, y lo que crece al llegar la fuente es lo de dentro.
+- **Abierta**, la tarjeta mide lo que su texto y empuja solo a las de las filas siguientes. «Ver menos» la cierra y, si su comienzo había quedado por encima de la pantalla, la trae de vuelta debajo de la barra fija: sin eso, quien bajó leyendo hasta el botón se quedaba mirando la sección siguiente.
+- **El corte.** El último renglón visible se desvanece, en 1,6em, en vez de quedar partido por la mitad de la letra. Con 3em se desvanecían los dos únicos renglones de descripción que se veían.
+- **En el teléfono**, con las tarjetas una debajo de otra, el alto es un tope y no un fijo: no hay vecina con la que igualarlo, y la de Chesscore quedaba con media tarjeta en blanco. La que pasa el tope lleva su «Ver más» igual.
+- **Sin JavaScript** no habría cómo abrirla, y `@media (scripting: none)` le devuelve su alto natural.
+- **Para el lector de pantalla** no cambia nada: el recorte es `overflow: hidden` y el texto se lee entero. El botón lleva `aria-expanded`, `aria-controls` y el nombre de la tarjeta, oculto a la vista («Ver más sobre …»), para que tres «Ver más» seguidos no suenen iguales.
+
+*Qué se probó.*
+- `tests/unit/tarjetaDelEquipo.test.ts`, 8 pruebas que montan el componente de verdad en happy-dom, con los altos puestos a mano y un `ResizeObserver` falso: sin botón si cabe; «Ver más» abre y «Ver menos» cierra, con `aria-expanded` y `aria-controls`; vuelve a medir al cambiar de tamaño, y el botón se va si ahora cabe; un píxel de holgura; al cerrar con el comienzo fuera de la pantalla la trae de vuelta, y si se ve no mueve nada. En la hoja de estilos, el alto fijo, el tope del teléfono y la salida sin JavaScript. Y en `equipoPublico.test.ts`, que del servidor salen todas con su ventana y sin botón.
+- En un worktree con el commit: tipos sin errores; lint sin errores y con los 15 avisos de antes, ninguno en estos archivos; la suite entera, 5.678 pasadas y 6 fallos, todos del entorno Windows y ninguno de la portada (los de respaldos: permisos con `chmod`, el desfase de 4 h y la marca BOM de PowerShell; y `subidaDeVideo`, por los CRLF); cobertura del 86 %; la integración obligatoria, 261 de 261; y el build con `/traumahub`.
+- La vista previa del worktree, con un nombre, un cargo y una descripción tan largos como los de ved, inventados. A 1280 px las tres tarjetas miden 448 y solo la larga lleva «Ver más»; abierta mide 1.059 y la de la fila siguiente baja. A 1100, con tarjetas de 189 px, la larga enseña el nombre y el cargo en cuatro renglones cada uno y nada de la descripción. A 375, la de Chesscore mide 259, la larga 448 con cuatro renglones de descripción, y no hay desborde. En la consola, solo el aviso del WebSocket de recarga del modo de desarrollo.
+- La vuelta al cerrar se comprobó por partes, porque el panel de la vista previa no anima el desplazamiento suave (tampoco un `scrollTo` cualquiera): la llamada sale con `block: 'start'` sobre la tarjeta, que estaba a −132 px, y el mismo desplazamiento en instantáneo la deja a 76, justo debajo de la barra.
+
+*Consecuencias.*
+- (+) Las tarjetas de una fila miden lo mismo, y una descripción larga ya no estira la suya. Se va el hueco bajo la tarjeta corta que D-277 dejó anotado.
+- (−) La tarjeta corta queda con espacio en blanco al pie: la de Chesscore, unos 110 px a 1280.
+- (−) En una columna angosta, con un nombre y un cargo largos, de la descripción no se ve nada hasta pulsar «Ver más»: a 1100 px de ancho, con tarjetas de 189.
+- (−) Antes de que llegue el JavaScript, la tarjeta larga sale cortada y sin botón; el botón aparece al hidratar, sin que nada se mueva.
+- (−) `@media (scripting: none)` es de 2023 (Chrome 120, Safari 17): un navegador anterior sin JavaScript deja sin leer lo que no cabe.
 
 ### D-290 · 2026-11-05 · vigente · E0 de P-011 · supera «las filas del registro no se purgan» de D-145 · resuelve un pendiente de D-264
 **El registro de acciones se guarda doce meses, y las cotizaciones, doce meses. Una pasada diaria dentro de la propia aplicación borra lo vencido, y el aviso toma los dos plazos de las mismas constantes.**
