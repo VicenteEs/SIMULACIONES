@@ -16329,7 +16329,7 @@ Comprobaciones de E9 con E7 y E8 hechas, y con D-329 y D-330, el 2026-11-06, con
   - siguen con sus vasos como «músculo» hasta que alguien pulse «Rellenar desde el modelo» (D-317);
   - uno con un paso de reducción y sin referencia deja de poder publicarse en cuanto se guarda (D-306).
 
-### P-013 · 2026-11-06 · hecha: catorce de los dieciséis pedidos de Cristóbal, comprobados en el navegador
+### P-013 · 2026-11-06 · hecha: catorce de los dieciséis pedidos de Cristóbal, comprobados en el navegador, en `main` y desplegados en ved el 2026-11-06
 **Los pedidos de Cristóbal después de probar el simulador, hechos de una y comprobados uno por uno en el navegador. Todos menos el paño azul (10), que espera, y la propuesta visual en HTML (13), que el dueño ya había hecho.**
 
 #### De dónde sale
@@ -16396,7 +16396,14 @@ Hechas el 2026-11-06, contra la base desechable de 55432:
   - 12: sobre cada botón del cuadro, su explicación.
   - 15: una incisión corta, alargada desde una de sus puntas amarillas, se mide entera: 54 mm.
   - 16: «Cerrar la herida» cierra la fascia entera de un clic, y la piel con corchetes o con nylon.
-- Falta: desplegar en ved.
+- ~~Falta: desplegar en ved.~~ Hecho el 2026-11-06, abajo.
+
+*En ved*, desplegado con `910c961` el 2026-11-06, lanzado a las 17:52 de allí con `TUNEL=local ./scripts/actualizar.sh`. Trajo dos commits desde `6e44fe5`: `a517028` y `910c961`.
+- El respaldo previo salió en claro, con su aviso, como desde P-011: ved aún no tiene la llave.
+- La imagen se reconstruyó, con los 8 avisos de siempre del build, y la aplicación respondió y alcanzó la base al primer segundo.
+- Sin migraciones, como se esperaba. El registro de la aplicación no tiene errores, y el contenedor está sano y sin reinicios.
+- Por fuera, `/traumahub/api/salud` da 200 con la base bien.
+- No se miró en el navegador, porque allí hace falta entrar con una cuenta real; se miró en desarrollo, arriba.
 
 #### Lo que queda
 
