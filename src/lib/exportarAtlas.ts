@@ -64,6 +64,13 @@ export interface PiezaLeida {
   normales: Int16Array
   indices: Uint32Array
   /**
+   * Lo más estrecho del canal medular, en mm, si el hueso es de los que lo tienen (D-336, del catálogo). Va al archivo
+   * en los `extras` del nodo, y de ahí al fresado del simulador; los dos trozos de un hueso partido lo heredan.
+   */
+  istmoMm?: number
+  /** Si el hueso es de los que tienen canal (D-336), aunque el trozo no lo traiga: el de la meseta tibial no lo trae. */
+  conCanal?: boolean
+  /**
    * Solo en los dos trozos de un hueso partido (ver `partirLaPieza`): de qué
    * lado del corte es y si es el fragmento que se mueve. Los dos trozos
    * conservan el `id` de la pieza entera, y es a propósito: así los dos siguen
@@ -345,6 +352,10 @@ export function agruparParaGlb(
         ...(separar || protagonistas.has(pieza.id) ? { atlasId: pieza.id } : {}),
         ...(pieza.fma ? { fma: pieza.fma } : {}),
         ...(pieza.trozo ? { trozo: pieza.trozo.lado } : {}),
+        // Lo del canal medular (D-336): el istmo, para el fresado, y que el hueso lo tiene, para pintar la tapa de un
+        // corte en la metáfisis con su cortical fina aunque el trozo no traiga canal (D-337).
+        ...(pieza.istmoMm ? { istmoMm: pieza.istmoMm } : {}),
+        ...(pieza.conCanal ? { canalMedular: true } : {}),
         ...conAspecto(aspectoPropioDe(pieza.nombre)?.grupo),
       },
     })

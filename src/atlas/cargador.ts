@@ -23,6 +23,7 @@
  */
 
 import { densidadDelSistema } from '@/lib/radiografia'
+import { ATRIBUTO_DEL_CANAL, SIN_CANAL_POR_OMISION } from './canalDeLaGeometria'
 import { GANANCIA_DE_LA_RADIOGRAFIA } from './materialDeRadiografia'
 import * as THREE from 'three'
 import { ruta } from '@/lib/rutas'
@@ -321,6 +322,9 @@ export function montarEscena(
     const posiciones = new Float32Array(vertices * 3)
     const normales = new Int16Array(vertices * 3)
     const dePieza = new Float32Array(vertices)
+    // La pared del canal medular de los huesos que lo tienen (D-336): la radiografía no la suma. Solo se crea en el
+    // sistema que tenga alguno; los demás leen 0 (`SIN_CANAL_POR_OMISION`).
+    const delCanal = grupo.some((g) => g.pieza.canal) ? new Float32Array(vertices) : null
     // Uint32 siempre: el sistema arterial pasa holgadamente de 65.535 vértices
     // y un Uint16 daría una malla rota de un modo difícil de diagnosticar.
     const orden = new Uint32Array(cantidadIndices)
@@ -334,6 +338,7 @@ export function montarEscena(
       posiciones.set(new Float32Array(bufer, pieza.pos, pieza.vertices * 3), vBase * 3)
       normales.set(new Int16Array(bufer, pieza.nor, pieza.vertices * 3), vBase * 3)
       dePieza.fill(indice, vBase, vBase + pieza.vertices)
+      if (delCanal && pieza.canal) delCanal.fill(1, vBase + pieza.canal.vertice, vBase + pieza.vertices)
 
       const suyos = new Uint32Array(bufer, pieza.idx, pieza.indices)
       for (let k = 0; k < suyos.length; k += 1) orden[iBase + k] = suyos[k] + vBase
@@ -350,6 +355,7 @@ export function montarEscena(
     // tarjeta, que es la mitad de memoria que un flotante sin diferencia visible.
     geometria.setAttribute('normal', new THREE.BufferAttribute(normales, 3, true))
     geometria.setAttribute('dePieza', new THREE.BufferAttribute(dePieza, 1))
+    if (delCanal) geometria.setAttribute(ATRIBUTO_DEL_CANAL, new THREE.BufferAttribute(delCanal, 1))
     geometria.setIndex(new THREE.BufferAttribute(orden, 1))
     geometria.computeBoundingSphere()
 
@@ -430,6 +436,7 @@ function materialDelSistema(
   // El rayado de fibras de una fascia (P-006, F-12): se dibuja aquí, según la posición, y no se guarda en
   // el atlas. Sin coordenadas de textura, porque una fascia es un manguito de forma arbitraria.
   material.userData.fibras = aspecto.fibras ? 1 : 0
+  ;(material as THREE.Material & { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = SIN_CANAL_POR_OMISION
 
   material.onBeforeCompile = (sombreador) => {
     sombreador.uniforms.estados = { value: estados }
@@ -445,6 +452,8 @@ function materialDelSistema(
 
     sombreador.vertexShader = `
       attribute float dePieza;
+      attribute float ${ATRIBUTO_DEL_CANAL};
+      varying float vCanal;
       varying vec3 vPosicionLocal;
       uniform sampler2D estados;
       uniform float ladoEstados;
@@ -475,6 +484,7 @@ function materialDelSistema(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         vPosicionLocal = position;
+        vCanal = ${ATRIBUTO_DEL_CANAL};
         float fila = floor(dePieza / ladoEstados);
         vec2 uvEstado = vec2((mod(dePieza, ladoEstados) + 0.5) / ladoEstados,
                              (fila + 0.5) / ladoEstados);
@@ -492,6 +502,7 @@ function materialDelSistema(
       )
 
     sombreador.fragmentShader = `
+      varying float vCanal;
       varying float vVisible;
       varying float vResaltada;
       varying float vSeleccionada;
@@ -552,6 +563,8 @@ function materialDelSistema(
         '#include <dithering_fragment>',
         `#include <dithering_fragment>
         if (rayosX > 0.5) {
+          // La pared del canal medular no suma (ver \`crearMaterialDeRadiografia\`).
+          if (vCanal > 0.5) discard;
           float rasante = 1.0 - abs(normalize(vNormal).z);
           float aporte = densidadRx * (0.045 + 0.2 * pow(rasante, 1.5)) * gananciaRx + vSeleccionada * 0.18;
           gl_FragColor = vec4(vec3(1.0), clamp(aporte, 0.0, 1.0));

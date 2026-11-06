@@ -1,4 +1,5 @@
 import type { LecturaClinica } from '@/atlas/lecturaClinica'
+import type { GestoDeMas } from './gestoDeMas'
 import {
   evaluarGesto,
   juicioDelBloqueo,
@@ -23,7 +24,8 @@ import {
  * bastar.
  *
  * Ahora el navegador manda, con el puntaje, **lo que se hizo en cada paso**: los gestos que evaluó y lo que no sale del
- * gesto —la reducción automática, el bloqueo del foco, la lesión de un vaso o un nervio y la medida de partida—. El
+ * gesto —la reducción automática, el bloqueo del foco, la lesión de un vaso o un nervio, el gesto de más en evaluación y
+ * la medida de partida—. El
  * servidor los vuelve a pasar por las mismas funciones del motor (`evaluarGesto`, `puntosDelPaso`, `puntajeMaximo`) con
  * la regla de D-059 y guarda su cuenta. Si no coincide con la del navegador, guarda las dos y lo marca.
  *
@@ -50,6 +52,12 @@ export interface GestosDelPaso {
   bloqueo?: MedidaDeLaReduccion
   /** El primer vaso o nervio que se cortó o se perforó en este paso (P-012 E6): la complicación de lesionarlo. */
   lesion?: LesionDeEstructura
+  /**
+   * En evaluación, la primera incisión aparte o trayectoria de más en el paso que mide la primera (D-330): otra
+   * complicación. La consola la anota solo en evaluación; el servidor no lo vuelve a mirar, porque la marca solo puede
+   * bajar la nota de quien la manda.
+   */
+  deMas?: GestoDeMas
 }
 
 /** El recorrido entero, para la nota. */
@@ -128,6 +136,10 @@ export const conLesion = (recorrido: RecorridoDelCaso, paso: string, lesion: Les
     p.lesion ? p : { ...p, lesion: { rol: lesion.rol, nombre: lesion.nombre.slice(0, 200), como: lesion.como } },
   )
 
+/** El recorrido con el primer gesto de más de un paso (D-330); los siguientes no cambian la nota. */
+export const conGestoDeMas = (recorrido: RecorridoDelCaso, paso: string, que: GestoDeMas): RecorridoDelCaso =>
+  conElPaso(recorrido, paso, (p) => (p.deMas ? p : { ...p, deMas: que }))
+
 /** El recorrido con la medida de partida. */
 export const conPartida = (recorrido: RecorridoDelCaso, partida: MedidaDeLaReduccion | null): RecorridoDelCaso => ({
   ...recorrido,
@@ -190,8 +202,8 @@ export function gestoParaLaNota(g: Gesto): Gesto {
 /**
  * La nota que sale de rehacer el recorrido con los pasos del caso.
  *
- * Paso a paso, en el orden del guion: el bloqueo fuera de los topes, la lesión de un vaso o un nervio y cada gesto que
- * dañó encienden la complicación,
+ * Paso a paso, en el orden del guion: el bloqueo fuera de los topes, la lesión de un vaso o un nervio, el gesto de más y
+ * cada gesto que dañó encienden la complicación,
  * cada gesto que falló sin dañar enciende el fallo, y el primero que supera el paso cobra lo que diga `puntosDelPaso`
  * con esas banderas, la automática y el «sin nada que reducir» de la partida. Un paso sin gesto que lo supere no suma.
  * Un paso del recorrido que el caso ya no tiene no cuenta: lo que vale es el guion que hay hoy.
@@ -208,7 +220,7 @@ export function notaDelRecorrido(
     if (!hecho) return
     let fallo = false
     let complicacion =
-      (!!hecho.bloqueo && juicioDelBloqueo(hecho.bloqueo, topesDelFoco(pasos, indice)) !== null) || !!hecho.lesion
+      (!!hecho.bloqueo && juicioDelBloqueo(hecho.bloqueo, topesDelFoco(pasos, indice)) !== null) || !!hecho.lesion || !!hecho.deMas
     for (const gesto of hecho.intentos) {
       const clase = claseDelIntento(paso, gesto)
       if (clase === 'acierto') {
@@ -317,6 +329,12 @@ function lesionValida(v: unknown, que: string): LesionDeEstructura {
   return { rol: v.rol, nombre: v.nombre, como: v.como }
 }
 
+/** El gesto de más de un paso (D-330), o un error: por lo mismo que la lesión, se rechaza y no se arregla. */
+function gestoDeMasValido(v: unknown, que: string): GestoDeMas {
+  if (v !== 'incision' && v !== 'trayectoria') throw new Error(`${que} no llegó como corresponde.`)
+  return v
+}
+
 /** Un gesto del recorrido, rehecho campo a campo: solo lo que el motor sabe leer y solo si tiene la forma que espera. */
 function gestoValido(v: unknown, que: string): Gesto {
   if (!esObjeto(v)) throw new Error(`${que} no llegó como corresponde.`)
@@ -381,6 +399,7 @@ export function recorridoValido(valor: unknown): RecorridoDelCaso {
       ...(bruto.automatica === true ? { automatica: true } : {}),
       ...(bruto.bloqueo !== undefined && bruto.bloqueo !== null ? { bloqueo: medidaValida(bruto.bloqueo, `El bloqueo del paso ${i + 1} del recorrido`) } : {}),
       ...(bruto.lesion !== undefined && bruto.lesion !== null ? { lesion: lesionValida(bruto.lesion, `La lesión del paso ${i + 1} del recorrido`) } : {}),
+      ...(bruto.deMas !== undefined && bruto.deMas !== null ? { deMas: gestoDeMasValido(bruto.deMas, `El gesto de más del paso ${i + 1} del recorrido`) } : {}),
     }
   })
   // En evaluación la consola no ofrece la reducción automática (E4 de P-012). Un recorrido que dice las dos cosas no

@@ -115,6 +115,22 @@ describe('lo cortado', () => {
     expect(b.max).toBeCloseTo(0.5, 5)
   })
 
+  it('el istmo y la marca del canal (D-336) son del hueso: los llevan sus trozos, y el hueso entero también', () => {
+    // Cada pieza que sale de aquí se arma de nuevo, y antes nacía sin ellos: un caso exportado desde la preparación
+    // guardada llegaba al simulador sin istmo, y el fresado juzgaba con los 11 mm de una tibia en cualquier hueso.
+    const conCanal = { ...hueso('T'), istmoMm: 10.8, conCanal: true }
+    const partida = reproducirPreparacion(contenido({ cortes: [corte] }), [conCanal])
+    expect(partida.piezas).toHaveLength(2)
+    for (const p of partida.piezas) expect(p).toMatchObject({ istmoMm: 10.8, conCanal: true })
+    for (const p of partida.partido!.piezas) expect(p).toMatchObject({ istmoMm: 10.8, conCanal: true })
+    expect(reproducirPreparacion(contenido(), [conCanal]).piezas[0]).toMatchObject({ istmoMm: 10.8, conCanal: true })
+    // Y un hueso sin canal no gana nada.
+    for (const p of reproducirPreparacion(contenido({ cortes: [corte] }), [hueso('T')]).piezas) {
+      expect(p).not.toHaveProperty('istmoMm')
+      expect(p).not.toHaveProperty('conCanal')
+    }
+  })
+
   it('un trozo apagado no sale, y la otra mitad sigue sin ser «el fragmento»', () => {
     const r = reproducirPreparacion(contenido({ cortes: [corte], apagados: ['T#b'] }), [hueso('T')])
     expect(r.piezas.map((p) => p.id)).toEqual(['T#a'])

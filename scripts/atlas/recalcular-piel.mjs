@@ -21,8 +21,10 @@
  *    que ninguna cara se dé la vuelta. Lo poco que eso no resuelve se remata subiendo la cara por su propia
  *    normal. Lo mismo, antes, con la piel de cada oreja sobre la oreja anatómica.
  * 3. La cara de dentro de la piel —la que se ve en el labio de una incisión— se rehace a partir de la de
- *    fuera, con su misma malla: `ESPESOR` por debajo, o menos donde lo de dentro está
- *    más cerca, y nunca a menos de `HOLGURA_DE_DENTRO` de ello.
+ *    fuera, con su misma malla: `ESPESOR_CON_LA_GRASA` por debajo en el cuerpo y `ESPESOR_DE_LA_DERMIS` en la
+ *    cabeza (`espesorPedido`, D-331), o menos donde lo de dentro está más cerca, y nunca a menos de
+ *    `HOLGURA_DE_DENTRO` de ello. Los vasos y los nervios no cuentan (`limitaLaGrasa`): van dentro de la
+ *    grasa.
  * 4. Comprueba lo que exige la prueba (`tests/unit/geometriaDePiel.test.ts`), con las mismas funciones.
  *    Si no se cumple, no escribe.
  * 5. Rehace el paquete de la piel con las demás piezas byte a byte iguales (se comprueba), anota la
@@ -49,6 +51,7 @@ import {
   cubiertaPorElCuerpo,
   envolventeConPendiente,
   filtroDeCercania,
+  limitaLaGrasa,
   normalesDeVertice,
   profundidadBajoLaPiel,
   puntosDeLoDeDentro,
@@ -76,9 +79,35 @@ const ALCANCE = 0.03
  */
 const TOPE = 0.018
 const PASADAS = 18
-/** El espesor de la piel de verdad: la dermis y la epidermis de una pierna. */
-const ESPESOR = 0.002
+/** La dermis y la epidermis de una pierna: lo que mide la piel en la cabeza, donde no lleva grasa (D-331). */
+const ESPESOR_DE_LA_DERMIS = 0.002
+/**
+ * La dermis con 2 mm de grasa debajo (E8 de P-012, D-331): lo que mide la piel en el resto del cuerpo. Es el grosor fijo
+ * que eligió el dueño. Con un grosor único fijado por el sitio más estrecho —los retináculos del tobillo, el dorso de
+ * la mano— la grasa sería cero, y con lo que cabe en cada sitio cambiaría de una zona a otra. Donde no cabe, se
+ * adelgaza: `debajoEnElEntorno` y la comprobación de abajo no cambian.
+ */
+const ESPESOR_CON_LA_GRASA = 0.004
+/**
+ * Entre estas dos alturas el cuello pasa de la piel con grasa a la de la cabeza, sin escalón: de la base del cuello
+ * al mentón, que está a y = 1,507 (`referenciasDelCuerpo.json`). Por altura y no por región: en la posición anatómica
+ * no hay nada más que la cabeza por encima de los hombros.
+ */
+const CUELLO = { desde: 1.44, hasta: 1.5 }
+/**
+ * Lo que el grosor puede cambiar por metro de piel donde la grasa se adelgaza: con 0,25, de 4 mm a 1 mm en 12 mm de
+ * piel. Sin este freno, un vértice que no cabe junto a uno que sí dejaba en la pared de la herida un escalón de
+ * varios milímetros de un labio al de al lado.
+ */
+const PENDIENTE_DEL_GROSOR = 0.25
 const ESPESOR_MINIMO = 0.0003
+
+/** El grosor que se le pide a la piel a la altura `y`: con la grasa abajo, sin ella en la cabeza, y suave en el cuello. */
+function espesorPedido(y) {
+  const t = Math.min(1, Math.max(0, (y - CUELLO.desde) / (CUELLO.hasta - CUELLO.desde)))
+  const suave = t * t * (3 - 2 * t)
+  return ESPESOR_CON_LA_GRASA + (ESPESOR_DE_LA_DERMIS - ESPESOR_CON_LA_GRASA) * suave
+}
 /** La cara de dentro tampoco puede tocar lo de dentro: se queda a esto de lo más superficial que tenga debajo. */
 const HOLGURA_DE_DENTRO = 0.0008
 /** Lo que la oreja anatómica queda bajo su piel. La prueba pide la mitad (`HOLGURA_DE_LA_OREJA`). */
@@ -424,7 +453,9 @@ for (let i = 0; i < nPuntos; i++) {
   }
   if (mejor >= HOLGURA_MINIMA) deFuera[i] = NaN
 }
-const cuentaParaDentro = (i) => !Number.isNaN(deFuera[i])
+// Los vasos y los nervios van dentro de la grasa (`limitaLaGrasa`, D-331): la cara de fuera los cubre, pero la de
+// dentro pasa por debajo de ellos. Es la misma regla que `comprobarLaPiel` para la cara de dentro.
+const cuentaParaDentro = (i) => !Number.isNaN(deFuera[i]) && limitaLaGrasa(catalogo.piezas[origen[i]])
 // Cuánto hay debajo de cada vértice: lo menos profundo de los puntos que rige cada triángulo que lo toca.
 const debajo = new Float64Array(cuerpo.vertices).fill(ALCANCE)
 for (let i = 0; i < nPuntos; i++) {
@@ -445,7 +476,15 @@ const normalesFinales = normalesDeVertice(posicion, cuerpo.tri, identidad, cuerp
 // debajo de lo que la fina cubre: junto a la oreja, la fascia del cuero cabelludo quedaba 2 mm por encima de la cara
 // de dentro, y acercar sus vértices a la de fuera no lo arreglaba, porque lo que se hundía era el medio de la cara.
 const espesor = new Float64Array(cuerpo.vertices)
-for (let v = 0; v < cuerpo.vertices; v++) espesor[v] = Math.max(ESPESOR_MINIMO, Math.min(ESPESOR, debajoEnElEntorno[v] - HOLGURA_DE_DENTRO))
+for (let v = 0; v < cuerpo.vertices; v++) espesor[v] = Math.min(espesorPedido(posicion[v * 3 + 1]), debajoEnElEntorno[v] - HOLGURA_DE_DENTRO)
+// Donde la grasa no cabe se adelgaza con pendiente (`PENDIENTE_DEL_GROSOR`), y no de golpe: el mayor grosor que no
+// pasa de lo que cabe en cada vértice y no cambia más que eso entre vecinos. `envolventeConPendiente` busca el menor
+// campo que no baja de lo pedido; con lo que le falta a cada vértice para el grosor entero, da lo contrario.
+{
+  const falta = Float64Array.from(espesor, (e) => ESPESOR_CON_LA_GRASA - e)
+  const envolvente = envolventeConPendiente(falta, vecinos, posicion, PENDIENTE_DEL_GROSOR)
+  for (let v = 0; v < cuerpo.vertices; v++) espesor[v] = Math.max(ESPESOR_MINIMO, ESPESOR_CON_LA_GRASA - envolvente[v])
+}
 const dentro = new Float32Array(cuerpo.vertices * 3)
 const ponerLaCaraDeDentro = () => {
   for (let v = 0; v < cuerpo.vertices; v++) {
@@ -464,7 +503,7 @@ ponerLaCaraDeDentro()
 {
   const objetivo = 2 * HOLGURA_BAJO_LA_CARA_DE_DENTRO
   const cercanos = []
-  for (let i = 0; i < nPuntos; i++) if (deFuera[i] < ESPESOR + 0.004 && cuentaParaDentro(i)) cercanos.push(i)
+  for (let i = 0; i < nPuntos; i++) if (deFuera[i] < ESPESOR_CON_LA_GRASA + 0.004 && cuentaParaDentro(i)) cercanos.push(i)
   for (let pasada = 1; pasada <= PASADAS; pasada++) {
     const b = crearBuscador(dentro, cuerpo.tri, { celda: 0.006, tambienEnterradas: medida.buscador.enterrada })
     const acercar = new Float64Array(cuerpo.vertices)
@@ -487,6 +526,20 @@ ponerLaCaraDeDentro()
     ponerLaCaraDeDentro()
     dicho(`Cara de dentro, pasada ${pasada}: ${faltan} puntos a menos de ${objetivo * 1000} mm; se acerca a la de fuera`)
   }
+}
+// Cuánta grasa quedó, sin la cabeza: el dueño eligió 2 mm sabiendo que no caben en todas partes (D-331).
+{
+  let cuerpoSinCabeza = 0
+  let entera = 0
+  let sinGrasa = 0
+  for (let v = 0; v < cuerpo.vertices; v++) {
+    if (posicion[v * 3 + 1] >= CUELLO.desde) continue
+    cuerpoSinCabeza++
+    if (espesor[v] >= ESPESOR_CON_LA_GRASA - 0.0001) entera++
+    if (espesor[v] <= ESPESOR_DE_LA_DERMIS + 0.0001) sinGrasa++
+  }
+  const pct = (n) => ((100 * n) / cuerpoSinCabeza).toFixed(1).replace('.', ',')
+  dicho(`La grasa, sin la cabeza: entera en el ${pct(entera)} % de los vértices; sin nada de grasa, en el ${pct(sinGrasa)} %`)
 }
 // Con las caras al revés: miran hacia el cuerpo, como la de BodyParts3D.
 const triDentro = new Uint32Array(cuerpo.tri.length)
@@ -608,7 +661,7 @@ const piezas = catalogo.piezas.map((p) => {
     vertices: verticesTotales,
     indices: indicesTotales,
     caja: [minimo, maximo],
-    recalculada: `D-224, holgura ${HOLGURA * 1000} mm`,
+    recalculada: `D-224 y D-331, holgura ${HOLGURA * 1000} mm y ${ESPESOR_CON_LA_GRASA * 1000} mm de piel con la grasa`,
   }
 })
 for (const p of piezas.filter((q) => q.paquete === numero && q.id !== piel.id)) {

@@ -15,10 +15,12 @@
  *   que asoma entre dos de ellos.
  * - **La oreja anatómica, dentro de su piel**, a `HOLGURA_DE_LA_OREJA`.
  * - **La cara de dentro de la piel tampoco toca nada**: lo de dentro queda bajo ella a
- *   `HOLGURA_BAJO_LA_CARA_DE_DENTRO`.
- * - **La fascia superficial, por dentro de la piel**, a `HOLGURA_DE_LA_FASCIA_SUPERFICIAL`. No empuja
- *   la piel —se calcula a partir de ella, ver `cubiertaPorElCuerpo`—, así que se mide aparte: si la piel
- *   se rehace y las fascias no, aquí se ve.
+ *   `HOLGURA_BAJO_LA_CARA_DE_DENTRO`. Menos los vasos y los nervios (`limitaLaGrasa`, D-331): van dentro
+ *   de la grasa, entre las dos caras, y solo se les pide que queden bajo la de fuera.
+ * - **La fascia superficial, bajo la piel entera**, a `HOLGURA_DE_LA_FASCIA_SUPERFICIAL` de la cara de
+ *   dentro (D-332): va justo donde termina la piel con su grasa, y no puede meterse en ese grosor. No
+ *   empuja la piel —se calcula a partir de ella, ver `cubiertaPorElCuerpo`—, así que se mide aparte: si la
+ *   piel se rehace y las fascias no, aquí se ve.
  */
 
 import {
@@ -28,6 +30,7 @@ import {
   crearBuscador,
   cubiertaPorElCuerpo,
   filtroDeCercania,
+  limitaLaGrasa,
   profundidadBajoLaPiel,
   puntosDeLoDeDentro,
 } from './geometriaDePiel.mjs'
@@ -44,9 +47,10 @@ export const HOLGURA_DE_LA_OREJA = 0.0005
  */
 export const HOLGURA_BAJO_LA_CARA_DE_DENTRO = 0.0002
 /**
- * La fascia superficial bajo la piel. `capas.py` la busca a un milímetro de ella, pero sobre una rejilla de 3 mm que
- * en los pliegues la deja asomar, y `fascias/bajo-la-piel.mjs` la hunde o la recorta donde lo hace; lo que se exige es
- * que no asome.
+ * La fascia superficial bajo la cara de dentro de la piel (D-332). `capas.py` la busca a medio milímetro de ella, pero
+ * sobre una rejilla de 3 mm que en los pliegues la deja asomar, y `fascias/bajo-la-piel.mjs` la hunde o la recorta
+ * donde lo hace; lo que se exige es que no se meta en el grosor de la piel. Hasta D-332 se medía bajo la cara de
+ * fuera, cuando la lámina iba a medio camino del músculo y la piel no tenía grasa.
  */
 export const HOLGURA_DE_LA_FASCIA_SUPERFICIAL = 0
 /** Lo que está más hondo que esto bajo la piel no la toca. */
@@ -85,6 +89,45 @@ function copiaCaraACara(fuera, dentro) {
 }
 
 /**
+ * Los buscadores de las cáscaras de la piel (las de `cascarasDeLaPiel`): el del cuerpo, los de las orejas y el de la
+ * cara de dentro, vuelta para que «por debajo» quiera decir lo mismo que en la de fuera. Los usan `comprobarLaPiel` y
+ * `fascias/bajo-la-piel.mjs`, que tienen que medir igual: si no, el guion dejaría una fascia que la prueba rechaza.
+ */
+export function buscadoresDeLaPiel(pos, { cuerpo, orejas, dentro }) {
+  const delCuerpo = crearBuscador(pos, cuerpo, { celda: 0.006 })
+  const deLasOrejas = orejas.map((tri) => crearBuscador(pos, tri, { celda: 0.004 }))
+  // La cara de dentro mira al cuerpo: con las caras al revés, «por debajo» quiere decir lo mismo que en la de fuera.
+  // Y no mira lo que copia una cara de fuera enterrada, que está dentro de la piel igual (ver `crearBuscador`).
+  const vuelta = dentro ? darLaVuelta(dentro) : null
+  const deDentro = vuelta
+    ? crearBuscador(pos, vuelta, { celda: 0.006, tambienEnterradas: copiaCaraACara(cuerpo, vuelta) ? delCuerpo.enterrada : null })
+    : null
+  return { delCuerpo, deLasOrejas, deDentro }
+}
+
+/**
+ * Lo que un punto de la fascia superficial queda bajo la piel entera, positivo por debajo (D-332): bajo la cara de
+ * dentro, porque la lámina va donde termina la piel con su grasa. Junto a la oreja, lo que no queda bajo la cáscara
+ * del cuerpo puede quedar bajo la de la oreja, que no tiene cara de dentro; entonces cuenta esa, como con lo de dentro
+ * en `comprobarLaPiel`. `seguro` es el atajo de `profundidadBajoLaPiel`: por debajo de él, la medida es exacta.
+ */
+export function profundidadDeLaFasciaSuperficial({ delCuerpo, deLasOrejas, deDentro }, x, y, z, seguro = HOLGURA_MINIMA) {
+  const r = profundidadBajoLaPiel(delCuerpo, x, y, z, ALCANCE, seguro)
+  const bajoElCuerpo = r ? r.profundidad : ALCANCE
+  if (bajoElCuerpo < 0) {
+    let bajoLaOreja = bajoElCuerpo
+    for (const b of deLasOrejas) {
+      const o = profundidadBajoLaPiel(b, x, y, z, ALCANCE, seguro)
+      if (o) bajoLaOreja = Math.max(bajoLaOreja, o.profundidad)
+    }
+    return bajoLaOreja
+  }
+  if (!deDentro) return bajoElCuerpo
+  const d = profundidadBajoLaPiel(deDentro, x, y, z, ALCANCE, seguro)
+  return Math.min(bajoElCuerpo, d ? d.profundidad : ALCANCE)
+}
+
+/**
  * Mide la piel `pieza` (posiciones, índices y cuántos vértices) contra las `piezas` del catálogo, que
  * se leen con `leer(pieza) → { pos, idx }`. Devuelve si cumple, las líneas que lo cuentan y las medidas.
  *
@@ -109,12 +152,8 @@ export function comprobarLaPiel({ pieza, piezas, leer, conLaFasciaSuperficial = 
   const { puntos, origen } = puntosDeLoDeDentro(piezas, leer, cubiertaPorElCuerpo, cerca)
   const n = puntos.length / 3
 
-  const delCuerpo = crearBuscador(pos, cuerpo, { celda: 0.006 })
-  const deLasOrejas = orejas.map((tri) => crearBuscador(pos, tri, { celda: 0.004 }))
-  // La cara de dentro mira al cuerpo: con las caras al revés, «por debajo» quiere decir lo mismo que en la de fuera.
-  // Y no mira lo que copia una cara de fuera enterrada, que está dentro de la piel igual (ver `crearBuscador`).
-  const vuelta = dentro ? darLaVuelta(dentro) : null
-  const deDentro = vuelta ? crearBuscador(pos, vuelta, { celda: 0.006, tambienEnterradas: copiaCaraACara(cuerpo, vuelta) ? delCuerpo.enterrada : null }) : null
+  const buscadores = buscadoresDeLaPiel(pos, { cuerpo, orejas, dentro })
+  const { delCuerpo, deLasOrejas, deDentro } = buscadores
 
   let peor = Infinity
   let peorBajoLaCaraDeDentro = Infinity
@@ -143,7 +182,7 @@ export function comprobarLaPiel({ pieza, piezas, leer, conLaFasciaSuperficial = 
       e.peor = Math.min(e.peor, profundidad)
       porPieza.set(nombre, e)
     }
-    if (deDentro && !porLaOreja) {
+    if (deDentro && !porLaOreja && limitaLaGrasa(piezas[origen[i]])) {
       const d = profundidadBajoLaPiel(deDentro, x, y, z, ALCANCE, HOLGURA_BAJO_LA_CARA_DE_DENTRO)
       const p = d ? d.profundidad : ALCANCE
       peorBajoLaCaraDeDentro = Math.min(peorBajoLaCaraDeDentro, p)
@@ -180,29 +219,22 @@ export function comprobarLaPiel({ pieza, piezas, leer, conLaFasciaSuperficial = 
   lineas.push(`La oreja: ${orejas.length} cáscaras; su vértice más superficial a ${(peorEnLaOreja * 1000).toFixed(2)} mm, ${fueraDeLaOreja} sin ${HOLGURA_DE_LA_OREJA * 1000} mm`)
   if (fueraDeLaOreja > 0) fallos.push({ pieza: NOMBRE_DE_LA_OREJA, puntos: fueraDeLaOreja, peor: peorEnLaOreja })
 
-  // La fascia superficial, contra la piel del cuerpo o la de una oreja, como lo de dentro.
+  // La fascia superficial, bajo la piel entera: bajo la cara de dentro, o bajo la de una oreja.
   const superficial = puntosDeLoDeDentro(piezas, leer, (p) => conLaFasciaSuperficial && p.sistema === SISTEMA_DE_LA_FASCIA_SUPERFICIAL, cerca)
   let peorDeLaFascia = Infinity
   let fascia = 0
   for (let i = 0; i < superficial.puntos.length / 3; i++) {
     const x = superficial.puntos[i * 3], y = superficial.puntos[i * 3 + 1], z = superficial.puntos[i * 3 + 2]
-    const r = profundidadBajoLaPiel(delCuerpo, x, y, z, ALCANCE, HOLGURA_MINIMA)
-    let profundidad = r ? r.profundidad : ALCANCE
-    if (profundidad < HOLGURA_DE_LA_FASCIA_SUPERFICIAL) {
-      for (const b of deLasOrejas) {
-        const o = profundidadBajoLaPiel(b, x, y, z, ALCANCE, HOLGURA_MINIMA)
-        if (o) profundidad = Math.max(profundidad, o.profundidad)
-      }
-    }
+    const profundidad = profundidadDeLaFasciaSuperficial(buscadores, x, y, z)
     peorDeLaFascia = Math.min(peorDeLaFascia, profundidad)
     if (profundidad < HOLGURA_DE_LA_FASCIA_SUPERFICIAL) fascia++
   }
   if (superficial.puntos.length) {
-    lineas.push(`La fascia superficial: ${(superficial.puntos.length / 3).toLocaleString('es-CL')} puntos cerca de la piel; el más superficial a ${(peorDeLaFascia * 1000).toFixed(2)} mm, ${fascia} por fuera`)
+    lineas.push(`La fascia superficial: ${(superficial.puntos.length / 3).toLocaleString('es-CL')} puntos cerca de la piel; el más superficial a ${(peorDeLaFascia * 1000).toFixed(2)} mm bajo la cara de dentro, ${fascia} metidos en la piel`)
   }
   if (fascia > 0) {
     fallos.push({ pieza: '(fascia superficial)', puntos: fascia, peor: peorDeLaFascia })
-    lineas.push(`  falla la fascia superficial: ${fascia} puntos por fuera de la piel (¿se pasó scripts/atlas/fascias/bajo-la-piel.mjs?)`)
+    lineas.push(`  falla la fascia superficial: ${fascia} puntos metidos en el grosor de la piel (¿se pasó scripts/atlas/fascias/bajo-la-piel.mjs?)`)
   }
 
   return {

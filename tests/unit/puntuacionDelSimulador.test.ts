@@ -200,6 +200,20 @@ describe('la instrucción de pantalla', () => {
     expect(texto).toContain('5 mm de desplazamiento')
     expect(texto).toContain('5 mm de diástasis')
   })
+
+  it('la de evaluación no dice los topes de la reducción ni el largo de la incisión (D-329)', () => {
+    const reduccion: PasoQuirurgico = { objetivo: 'reduccion', toleranciaDesplazamiento: 2 }
+    const trazo: PasoQuirurgico = { objetivo: 'trazo', trazoMinimo: 40, trazoMaximo: 80 }
+    for (const paso of [reduccion, trazo]) {
+      expect(instruccionDelPaso(paso), paso.objetivo).toMatch(/\d/)
+      const sinTopes = instruccionDelPaso(paso, { conTopes: false })
+      expect(sinTopes, paso.objetivo).not.toMatch(/\d/)
+      // Lo demás de la frase se queda: el instrumento y el modo.
+      expect(sinTopes).toContain('Coja el instrumento de la mesa de instrumental')
+    }
+    // Lo que no es una medida sigue con su cifra: el dueño decidió sobre las medidas.
+    expect(instruccionDelPaso(pasoDeFuerza, { conTopes: false })).toContain('8–20 N')
+  })
 })
 
 describe('los rangos escritos', () => {

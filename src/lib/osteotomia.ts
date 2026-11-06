@@ -85,6 +85,31 @@ const HOLGURA = 1e-6
  */
 const SOLDADURA = 1e-7
 
+/**
+ * A qué distancia dos puntos de corte distintos se funden en uno: una micra,
+ * lo mismo que `HOLGURA` (D-339).
+ *
+ * Earcut deja triángulos de astilla en una tapa, entre puntos del contorno que
+ * están casi en recta, y el corte siguiente parte las dos aristas largas de la
+ * astilla en dos puntos casi iguales: en la cuña fragmentada de la tibia
+ * derecha, a 0,03 µm el uno del otro. Por índice la malla sigue cerrada, pero
+ * quien la suelde por posición —el `soldar` del corte siguiente, a 0,1 µm, o
+ * cualquier herramienta que la abra— junta esos dos puntos: el triangulito que
+ * los une se queda sin área, sus aristas caen sobre las de los vecinos, y una
+ * arista con cuatro triángulos ya no es la de un sólido. Con los huesos largos
+ * de antes de D-335, de unos 650 triángulos, la tabla de las 90 piezas tenía una
+ * sola fractura abierta en ellos; con los de veintitrés mil, cada tapa tiene
+ * muchos más puntos —y el canal le suma un segundo contorno—, y tenía siete.
+ * En los huesos pequeños pasaba desde siempre, en 63 patrones, y se había
+ * tomado por lo que cuesta cortar tan poco hueso.
+ *
+ * Fundidos aquí, la malla que sale no tiene dos vértices distintos a menos de
+ * una micra: los originales quedan a una micra o más del plano por `HOLGURA`, y
+ * los de corte, a una micra o más entre sí. Mover un punto menos de eso no lo
+ * ve nadie, por lo mismo que allí.
+ */
+const FUSION = 1e-6
+
 /** Cuántas veces se intenta apartar el plano antes de rendirse. */
 const INTENTOS = 16
 
@@ -183,17 +208,22 @@ export function partirMalla(malla: MallaIndexada, plano: PlanoDeLaMalla): Result
   const positivo = new TrozoEnObra(vertices, esInt16)
   const negativo = new TrozoEnObra(vertices, esInt16)
 
-  /** Posición del punto de corte de una arista geométrica, idéntica en sus copias. */
+  /** Posición de cada punto de corte que se queda, por su clave: los fundidos en otro (ver `FUSION`) no entran. */
   const puntosDeCorte = new Map<string, V3>()
+  /** De cada arista geométrica, la clave del punto en que acabó su corte: el suyo, o el de otro a menos de `FUSION`. */
+  const fundidoEn = new Map<string, string>()
+  /** Los puntos que se quedan, por celdas de `FUSION` de lado, para encontrar el vecino sin mirarlos todos. */
+  const celdasDeCorte = new Map<string, string[]>()
   const claveGeometrica = (a: number, b: number) => {
     const ca = canonico[a]
     const cb = canonico[b]
     return ca < cb ? `${ca}:${cb}` : `${cb}:${ca}`
   }
-  const posicionDeCorte = (a: number, b: number): V3 => {
+  /** La clave del punto de corte de la arista a–b, idéntica en todas las copias de la arista. */
+  const claveDelCorte = (a: number, b: number): string => {
     const clave = claveGeometrica(a, b)
-    const hecha = puntosDeCorte.get(clave)
-    if (hecha) return hecha
+    const hecha = fundidoEn.get(clave)
+    if (hecha !== undefined) return hecha
     const ca = canonico[a]
     const cb = canonico[b]
     const lo = representante[Math.min(ca, cb)]
@@ -204,8 +234,29 @@ export function partirMalla(malla: MallaIndexada, plano: PlanoDeLaMalla): Result
       posiciones[lo * 3 + 1] + t * (posiciones[hi * 3 + 1] - posiciones[lo * 3 + 1]),
       posiciones[lo * 3 + 2] + t * (posiciones[hi * 3 + 2] - posiciones[lo * 3 + 2]),
     ]
+    const cx = Math.floor(p[0] / FUSION)
+    const cy = Math.floor(p[1] / FUSION)
+    const cz = Math.floor(p[2] / FUSION)
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dz = -1; dz <= 1; dz += 1) {
+          for (const otro of celdasDeCorte.get(`${cx + dx},${cy + dy},${cz + dz}`) ?? []) {
+            const q = puntosDeCorte.get(otro)!
+            if (Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]) < FUSION) {
+              fundidoEn.set(clave, otro)
+              return otro
+            }
+          }
+        }
+      }
+    }
     puntosDeCorte.set(clave, p)
-    return p
+    fundidoEn.set(clave, clave)
+    const celda = `${cx},${cy},${cz}`
+    const lista = celdasDeCorte.get(celda)
+    if (lista) lista.push(clave)
+    else celdasDeCorte.set(celda, [clave])
+    return clave
   }
   const normalDeCorte = (a: number, b: number): V3 => {
     const t = distancia[a] / (distancia[a] - distancia[b])
@@ -253,10 +304,25 @@ export function partirMalla(malla: MallaIndexada, plano: PlanoDeLaMalla): Result
     const ladoDeA = positivos === 1 ? positivo : negativo
     const ladoDeBC = positivos === 1 ? negativo : positivo
 
-    const P = claveGeometrica(A, B)
-    const Q = claveGeometrica(A, C)
-    const pP = posicionDeCorte(A, B)
-    const pQ = posicionDeCorte(A, C)
+    const P = claveDelCorte(A, B)
+    const Q = claveDelCorte(A, C)
+    const pP = puntosDeCorte.get(P)!
+    const pQ = puntosDeCorte.get(Q)!
+
+    if (P === Q) {
+      // Los dos cortes se fundieron en un punto (ver `FUSION`): el pico de A y
+      // la mitad P → C → Q del cuadrilátero se quedan sin área, y no se emiten;
+      // tampoco el segmento, que empezaría y acabaría en el mismo sitio. Lo que
+      // queda, P → B → C, cierra con los vecinos por las aristas de siempre, y
+      // del lado de A los dos triángulos de al lado comparten ahora la arista
+      // A → P, que antes rodeaba este.
+      const clave = `${Math.min(A, B)}_${Math.max(A, B)}`
+      ladoDeBC.puntoDeCorte(clave, pP, normalDeCorte(A, B))
+      const b = ladoDeBC.original(B, posiciones, normales)
+      const c = ladoDeBC.original(C, posiciones, normales)
+      ladoDeBC.indicesDirectos(ladoDeBC.corte(clave), b, c)
+      continue
+    }
 
     for (const destino of [ladoDeA, ladoDeBC]) {
       destino.puntoDeCorte(`${Math.min(A, B)}_${Math.max(A, B)}`, pP, normalDeCorte(A, B))

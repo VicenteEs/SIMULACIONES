@@ -147,10 +147,27 @@ node scripts/atlas/agregar-fascias.mjs --aplicar
 ```
 
 `generar.py` de la piel hace la superficie lisa; `recalcular-piel.mjs` la empuja hasta cubrirlo todo, le pone la cara de
-dentro, comprueba lo que exige `tests/unit/geometriaDePiel.test.ts` y no escribe si no se cumple (unos doce minutos).
-`bajo-la-piel.mjs` hunde o recorta lo poco de la fascia superficial que la rejilla de `capas.py` deja asomar en los
-pliegues (entre los dedos, la entrepierna, el ángulo de los ojos). La misma prueba falla si la fascia superficial asoma
-por la piel, que es lo que pasa si se saltan los tres últimos pasos o el penúltimo.
+dentro, comprueba lo que exige `tests/unit/geometriaDePiel.test.ts` y no escribe si no se cumple (unos dieciocho minutos).
+Desde D-331 la cara de dentro va 4 mm por debajo en el cuerpo —2 de dermis y 2 de grasa— y 2 en la cabeza, y se adelgaza
+donde no cabe; los vasos y los nervios quedan dentro de la grasa. La fascia superficial va justo bajo esa cara de dentro
+(D-332), y `bajo-la-piel.mjs` hunde o recorta lo poco que la rejilla de `capas.py` deja metido en el grosor de la piel
+(entre los dedos, la entrepierna, el ángulo de los ojos). La misma prueba falla si la fascia superficial se mete en la
+piel, que es lo que pasa si se saltan los tres últimos pasos o el penúltimo.
+
+**Los huesos largos, también (D-335, D-336).** `preparar.mjs` devuelve los catorce huesos largos de BodyParts3D: sin canal
+medular, y a lo largo de la diáfisis, caras planas de varios centímetros. Se rehacen al final, después de la piel y las
+fascias:
+
+```bash
+python scripts/atlas/huesos/generar.py
+node scripts/atlas/poner-huesos.mjs --aplicar
+```
+
+`generar.py` parte de los huesos tal como estaban en el commit `e03f345`, leídos del historial de git y no del atlas, para
+no suavizar lo ya suavizado. Deja cada hueso liso, con su canal, en `scripts/atlas/huesos/salida/`, que no se versiona;
+tarda unos minutos y llega a unos 2 GB de memoria con el fémur. `poner-huesos.mjs` los comprueba con la prueba de la piel
+y, solo con `--aplicar`, rehace los paquetes 12 y 13 y la atribución. `tests/unit/canalMedular.test.ts` falla si el atlas
+vuelve a tener los huesos de antes.
 
 **La pigmentación depende de la piel (D-227).** Lo que el exportador pinta —codos, labios, areolas, párpados— se ancla a
 setenta puntos medidos sobre la piel de arriba, en `src/atlas/referenciasDelCuerpo.json`. Si la piel se regenera, hay que

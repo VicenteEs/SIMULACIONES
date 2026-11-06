@@ -475,10 +475,10 @@ describe('los patrones de fractura sobre los huesos del atlas', () => {
           // plano. Para los pequeños se usa la de siempre, la 1, que es también la
           // de `SABIDO_QUE_NO_SALE`.
           const grande = ['humero', 'radio', 'cubito', 'femur', 'tibia', 'peroneo'].includes(hueso)
-          // La conminuta focal usa la semilla para el lado y la torsión de sus esquirlas, y
-          // la 7 es una de las que dejan una tibia con un trozo abierto: se barrieron 40 y
-          // la 1 sale bien en los seis huesos largos.
-          const receta: RecetaDeFractura = { ...recetaPorOmision(id, hueso, 2, grupo), semilla: grande && grupo !== 'CM' ? 7 : 1 }
+          // Hasta D-339 la conminuta focal usaba aquí la 1, porque con la 7 la tibia dejaba un
+          // trozo abierto. Eran dos puntos de corte casi iguales y no la semilla: desde entonces
+          // salen las 40 en los huesos largos, y la conminuta usa la 7 como los demás.
+          const receta: RecetaDeFractura = { ...recetaPorOmision(id, hueso, 2, grupo), semilla: grande ? 7 : 1 }
           expect(fragmentosEsperados(receta)).toBe(esperados)
           const cortes = cortesDeLaFractura(receta, eje)
           expect(cortes.length).toBeGreaterThan(0)
@@ -581,69 +581,33 @@ describe('los patrones de fractura sobre los huesos del atlas', () => {
 // ------------------------------------------------- todas las piezas, una por una
 
 /**
- * Lo que se sabe que no sale bien, pieza por pieza (E4-Q1, D-168).
+ * Lo que se sabe que no sale bien, pieza por pieza (E4-Q1, D-168, D-339).
  *
  * Con las 90 piezas del asistente se comprobó cada patrón: casi todos salen en
  * tres fragmentos cerrados que suman el hueso. En unas pocas falanges y huesos
- * del pie —de 30 mm, con cortes de 4 mm de grosor— el patrón sale con la malla
- * abierta por algún sitio (`abierta`) o el plano no llega a cortar (`error`).
+ * del pie —de 30 mm, con cortes de 4 mm de grosor— y en las dos clavículas, el
+ * plano no llega a cortar (`error`).
+ *
+ * Hasta D-339 la lista era de 53 piezas, porque además 63 patrones salían con
+ * la malla abierta por algún sitio (`abierta`), casi todos en los huesos
+ * pequeños. Se tomaron por lo que cuesta cortar tan poco hueso, y eran otra
+ * cosa: dos puntos de corte a centésimas de micra, que el corte ahora funde en
+ * uno. Si vuelve a aparecer una `abierta`, es eso mismo o algo nuevo, y no el
+ * tamaño del hueso.
+ *
  * No se esconde: queda escrito aquí, y la prueba falla tanto si algo nuevo se
  * rompe como si algo viejo se arregla, para que la lista no mienta en ningún
  * sentido. La pantalla lo dice en la nota del hueso (`HuesoDeLaTabla.nota`).
  */
 const SABIDO_QUE_NO_SALE: Record<string, string> = {
-  FJ3180: 'C3|abierta,CM|abierta',
-  FJ3181: 'CM|abierta',
-  FJ3183: 'A3|abierta,CM|abierta',
-  FJ3185: 'C3|abierta,CM|abierta',
-  FJ3186: 'CM|abierta',
-  FJ3189: 'CM|abierta',
-  FJ3190: 'C3|abierta',
-  FJ3191: 'C3|abierta,CM|abierta',
-  FJ3195: 'CM|abierta',
   FJ3237: 'CM|error',
-  FJ3240: 'C3|abierta,CM|abierta',
-  FJ3241: 'CM|abierta',
-  FJ3243: 'CM|abierta',
-  FJ3247: 'CM|abierta',
-  FJ3250: 'CM|abierta',
-  FJ3253: 'B3|abierta,CM|abierta',
-  FJ3277: 'CM|abierta',
   FJ3291: 'B3|error',
   FJ3292: 'B3|error,CM|error',
-  FJ3293: 'C3|abierta,CM|abierta',
-  FJ3294: 'CM|abierta',
-  FJ3296: 'CM|abierta',
-  FJ3297: 'CM|abierta',
-  FJ3298: 'C3|abierta',
   FJ3299: 'B3|error',
-  FJ3300: 'CM|abierta',
-  FJ3301: 'C2|abierta,C3|abierta,CM|abierta',
-  FJ3302: 'C3|abierta,CM|abierta',
-  FJ3303: 'CM|abierta',
-  FJ3304: 'CM|abierta',
-  FJ3305: 'B3|abierta,C3|abierta,CM|abierta',
   FJ3306: 'B3|error,CM|error',
-  FJ3310: 'B2|abierta,B3|abierta,C3|abierta',
-  FJ3311: 'CM|abierta',
-  FJ3312: 'C3|abierta,CM|abierta',
-  FJ3315: 'CM|abierta',
-  FJ3316: 'B3|error,CM|abierta',
-  FJ3318: 'CM|abierta',
-  FJ3320: 'CM|abierta',
-  FJ3322: 'CM|abierta',
+  FJ3316: 'B3|error',
   FJ3323: 'B3|error',
-  FJ3324: 'CM|abierta',
   FJ3326: 'B3|error',
-  FJ3327: 'B2|abierta,B3|abierta',
-  FJ3328: 'B2|abierta,B3|abierta,C3|abierta',
-  FJ3329: 'B3|abierta',
-  FJ3350: 'CM|abierta',
-  FJ3351: 'CM|abierta',
-  FJ3352: 'CM|abierta',
-  FJ3354: 'CM|abierta',
-  FJ3358: 'CM|abierta',
-  FJ3359: 'CM|abierta',
   FJ3362: 'CM|error',
 }
 

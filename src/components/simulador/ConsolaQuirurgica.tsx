@@ -18,6 +18,7 @@ import {
   fuerzaInicial,
   instruccionDelPaso,
   juicioDelBloqueo,
+  juicioDelGestoDeMas,
   juicioDeLaLesion,
   medidaInicial,
   objetivoDelPaso,
@@ -41,6 +42,7 @@ import {
 import {
   conAutomatica,
   conBloqueo,
+  conGestoDeMas,
   conIntento,
   conLesion,
   medidaParaLaNota,
@@ -48,6 +50,15 @@ import {
   type RecorridoDelCaso,
 } from '@/lib/notaDelRecorrido'
 import { conLaAnotacion, type Anotacion as AnotacionDelRegistro } from '@/lib/registroDeLaConsola'
+import {
+  conIncision,
+  conTrayectoria,
+  gestoQueMide,
+  pasoEnCurso,
+  type GestoDeMas,
+  type GestosDelPasoEnCurso,
+  type TrayectoriaDeLaBroca,
+} from '@/lib/gestoDeMas'
 import { largoDelTrazo, medidasDeLaLectura, medirReduccion, porcentajeDelDiametro, type EjeLargo, type Medidas } from '@/lib/reduccion'
 import { describirLectura, LECTURA_NULA } from '@/atlas/lecturaClinica'
 import { POSICIONES_DEL_PACIENTE, type PosicionDelPaciente } from '@/lib/posicionDelPaciente'
@@ -1916,6 +1927,41 @@ export function ConsolaQuirurgica({
     anotar(`${indice + 1}. ${juicio.mensaje}`, 'grave')
     if (editor || repaso || resueltos.has(paso.id)) return
     recorridoDeLaNota.current = conBloqueo(recorridoDeLaNota.current, paso.id, medida)
+    setComplicados((previos) => (previos.has(paso.id) ? previos : new Set(previos).add(paso.id)))
+    const nuevas = [
+      ...complicaciones,
+      { paso: paso.id, numero: indice + 1, titulo: paso.titulo ?? null, resultado: juicio.resultado, detalle: juicio.mensaje },
+    ].slice(-MAXIMO_DE_COMPLICACIONES)
+    setComplicaciones(nuevas)
+    guardarRecorrido(puntaje, nuevas, insumos)
+  }
+
+  /**
+   * Lo hecho en el paso de ahora que cuenta para el gesto de más (D-330): las incisiones nuevas de cada capa y las
+   * trayectorias perforadas. Es del paso y no del caso, y por eso se rehace cuando el que llega es de otro paso. No se
+   * guarda con el avance: quien deja el caso a medio paso y lo sigue otro día empieza la cuenta de cero.
+   */
+  const gestosDelPasoEnCurso = useRef<GestosDelPasoEnCurso | null>(null)
+
+  /**
+   * En evaluación, si lo que acaba de hacer el residente es un segundo gesto aparte en el paso que mide el primero
+   * (D-330): una segunda incisión en la misma capa en el paso del trazo, o una segunda trayectoria en el de la
+   * perforación. Es una complicación, como cortar un vaso, y se juzga cuando pasa por lo mismo. En práctica y en el
+   * editor no se cuenta: ahí se borra y se repite.
+   */
+  function vigilarElGestoDeMas(que: GestoDeMas, contar: (hecho: GestosDelPasoEnCurso) => { hecho: GestosDelPasoEnCurso; deMas: boolean }) {
+    // Dicho en positivo: con «distinto de evaluación», hasta elegir el modo la consola contaba como práctica (E4).
+    const enEvaluacion = modoDeJuego === 'evaluacion'
+    if (!paso || !enEvaluacion || editor || repaso || resueltos.has(paso.id)) return
+    if (gestoQueMide(objetivoDelPaso(paso)) !== que) return
+    const previo = gestosDelPasoEnCurso.current?.paso === paso.id ? gestosDelPasoEnCurso.current : pasoEnCurso(paso.id)
+    const { hecho, deMas } = contar(previo)
+    gestosDelPasoEnCurso.current = hecho
+    // La complicación es una bandera por paso (D-059): la tercera incisión no cuesta más que la segunda, y no se repite.
+    if (!deMas || recorridoDeLaNota.current.pasos.some((p) => p.paso === paso.id && p.deMas)) return
+    const juicio = juicioDelGestoDeMas(que)
+    anotar(`${indice + 1}. ${juicio.mensaje}`, 'grave')
+    recorridoDeLaNota.current = conGestoDeMas(recorridoDeLaNota.current, paso.id, que)
     setComplicados((previos) => (previos.has(paso.id) ? previos : new Set(previos).add(paso.id)))
     const nuevas = [
       ...complicaciones,
@@ -6299,6 +6345,7 @@ instrumentoElegido ? (
               avanzarLaSecuencia(estado, suceso)
             }}
             alLesionar={vigilarLaLesion}
+            alIncidir={(incision) => vigilarElGestoDeMas('incision', (hecho) => conIncision(hecho, incision))}
             alPerforar={(hecha) => {
               usarElDeLaMano()
               if (paso) setUltimaPerforacion({ paso: paso.id, hecha })
@@ -6316,6 +6363,9 @@ instrumentoElegido ? (
                 }${torcida ? ' No quedó perpendicular al eje del hueso.' : ''}`,
                 larga || torcida ? 'atencion' : 'bien',
               )
+              // Después de decir qué agujero es: el registro lee «perforación de…» y debajo por qué cuesta el paso.
+              const trayectoria: TrayectoriaDeLaBroca = { entradaMm: hecha.entradaMm, direccion: hecha.direccion }
+              vigilarElGestoDeMas('trayectoria', (hecho) => conTrayectoria(hecho, trayectoria))
             }}
             instrumento={instrumentoEnEscena}
             milimetrosPorUnidad={escalaMm}
@@ -6825,22 +6875,18 @@ instrumentoElegido ? (
               <div
                 key={m.nombre}
                 className="consola-medida"
-                // En evaluación, la cifra y su tope, sin el «dentro» ni el color (E4 de P-012): es el verde de la lista
-                // dicho en otro sitio.
+                // En evaluación, solo la cifra (D-329). Sin el «dentro» ni el color, que eran el verde de la lista dicho
+                // en otro sitio (E4 de P-012), y sin el tope: con la cifra al lado, compararlas era el mismo veredicto.
                 data-estado={m.lectura && enPractica ? m.lectura.estado : undefined}
               >
                 <dt>{m.nombre}</dt>
                 <dd className="consola-medida-valor u-num">{m.valor}</dd>
                 {m.desglose ? <dd className="consola-desglose u-num">{m.desglose}</dd> : null}
-                {m.lectura ? (
+                {m.lectura && enPractica ? (
                   <dd className="consola-medida-tope">
                     {m.lectura.referencia}
-                    {enPractica ? (
-                      <>
-                        {' · '}
-                        <strong>{m.lectura.veredicto}</strong>
-                      </>
-                    ) : null}
+                    {' · '}
+                    <strong>{m.lectura.veredicto}</strong>
                   </dd>
                 ) : null}
               </div>
@@ -7132,13 +7178,17 @@ instrumentoElegido ? (
                   ))}
                 </ul>
               ) : null}
-              {/* Dicho una vez, para que el gris no se lea como un verde apagado (E4 de P-012). */}
+              {/* Dicho una vez, para que el gris no se lea como un verde apagado (E4 de P-012), y para que la falta de
+                  los topes no parezca un fallo de la consola (D-329). */}
               {!enPractica && listaDelPasoActual.length > 0 ? (
-                <p className="consola-ayuda">En evaluación la lista no dice si está bien: marca en gris lo que ya hizo.</p>
+                <p className="consola-ayuda">
+                  En evaluación la lista no dice si está bien ni hasta dónde se acepta: marca en gris lo que ya hizo.
+                </p>
               ) : null}
               <details className="consola-instruccion-completa">
                 <summary>Instrucción completa</summary>
-                <p className="consola-instruccion">{instruccionDelPaso(paso)}</p>
+                {/* Sin los topes en evaluación (D-329): escritos aquí, quitarlos de las medidas y de la lista no quitaba nada. */}
+                <p className="consola-instruccion">{instruccionDelPaso(paso, { conTopes: enPractica })}</p>
               </details>
 
               {/* También fuera de un paso de trazo: dibujar no depende del

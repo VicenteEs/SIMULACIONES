@@ -540,13 +540,15 @@ BRAZO_X = -0.165
 
 FASCIA_SUPERFICIAL = Grupo(
     id='fascia-superficial',
-    descripcion='La tela subcutánea de todo el cuerpo: lo que hay entre la piel y la envolvente de las fascias profundas.',
+    descripcion='La tela subcutánea de todo el cuerpo: la lámina que queda justo bajo la piel con su grasa (D-332).',
     h=0.003,
     radio_segun_y=((0.0, 0.0),),
     separacion=0.0,
     entradas=lambda atlas: [],
     tipo='superficial',
-    parametros={'alfa': 0.4, 'envolventes': _ENVOLVENTES},
+    # Medio milímetro bajo la cara de dentro de la piel (ver `capas.superficial`). Las envolventes ya no colocan la
+    # lámina: solo sirven para comprobar que no se mete en la fascia profunda.
+    parametros={'bajo_la_cara_de_dentro': 0.0005, 'envolventes': _ENVOLVENTES},
     densidad=12000.0,
     piezas=(
         Pieza(

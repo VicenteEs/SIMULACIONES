@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { ATRIBUTO_DEL_CANAL, marcarElCanal } from '@/atlas/canalDeLaGeometria'
 
 /**
  * El asiento de la placa sobre el hueso, como un sólido sobre otro (P-009). Pedido del dueño, 2026-11-04: «que la
@@ -52,6 +53,12 @@ interface NubeLocal {
 
 const NUBES = new WeakMap<THREE.BufferGeometry, NubeLocal>()
 
+/** La marca del canal medular de la geometría (`aCanal`), calculándola si nadie la puso todavía; `null` si no tiene. */
+function canalDeLaMalla(geometria: THREE.BufferGeometry): ArrayLike<number> | null {
+  if (!marcarElCanal(geometria)) return null
+  return (geometria.getAttribute(ATRIBUTO_DEL_CANAL) as THREE.BufferAttribute).array
+}
+
 /**
  * La superficie de una geometría como puntos cada `paso` (en sus unidades), con la normal de su triángulo. Se recorre
  * cada triángulo desde un vértice, a pasos a lo largo de sus dos lados: un triángulo largo y estrecho —los de un
@@ -67,6 +74,9 @@ export function nubeDeLaGeometria(geometria: THREE.BufferGeometry, paso: number)
   if (pos) {
     const indice = geometria.getIndex()
     const triangulos = Math.floor((indice ? indice.count : pos.count) / 3)
+    // La pared del canal medular (D-336) no es donde apoya la placa: con ella, la normal media de un sitio y el eje del
+    // hueso cerca de él mezclarían caras que miran hacia dentro del hueso.
+    const delCanal = canalDeLaMalla(geometria)
     const a = new THREE.Vector3()
     const b = new THREE.Vector3()
     const c = new THREE.Vector3()
@@ -74,6 +84,7 @@ export function nubeDeLaGeometria(geometria: THREE.BufferGeometry, paso: number)
     const ac = new THREE.Vector3()
     const n = new THREE.Vector3()
     for (let t = 0; t < triangulos; t++) {
+      if (delCanal && delCanal[indice ? indice.getX(3 * t) : 3 * t]) continue
       a.fromBufferAttribute(pos, indice ? indice.getX(3 * t) : 3 * t)
       b.fromBufferAttribute(pos, indice ? indice.getX(3 * t + 1) : 3 * t + 1)
       c.fromBufferAttribute(pos, indice ? indice.getX(3 * t + 2) : 3 * t + 2)

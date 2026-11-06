@@ -294,6 +294,11 @@ export function reproducirPreparacion(contenido: Partial<ContenidoDeInstancia>, 
         normales: puesta.normales as Int16Array,
         indices: puesta.indices,
         ...(hoja.id !== pieza.id ? { sufijo: sufijoDeTrozo(hoja.id) } : {}),
+        // Lo del canal medular (D-336) es del hueso y no de la malla: cada trozo lo hereda. Sin esto, un hueso partido en
+        // el taller llegaba al simulador sin su istmo —el fresado juzgaba con los 11 mm de una tibia, también en un
+        // húmero— y el trozo de la metáfisis, sin canal propio, pintaba su tapa con la regla de un hueso sin canal.
+        ...(pieza.istmoMm ? { istmoMm: pieza.istmoMm } : {}),
+        ...(pieza.conCanal ? { conCanal: true } : {}),
       })
       if (pedidas.has(hoja.id) || estaMovida(hoja.transformacion) || (partida && esDeFractura)) sueltas.add(hoja.id)
     }

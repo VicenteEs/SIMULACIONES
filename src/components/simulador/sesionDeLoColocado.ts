@@ -8,7 +8,7 @@ import type { RangosDelAjuste } from '@/lib/ejesAnatomicos'
 import type { Huella } from '@/lib/periostio'
 import type { PerforacionDeLaTrayectoria, CompresionTotal } from '@/lib/compresion'
 import { ajustarPlaca, clonarConRecursos, colocarPlaca, crearImplantes } from './implantesEnLaEscena'
-import { cambiarLaGuia, colocarElClavo, colocarLaGuia, crearEnclavado, medirElCanal, ponerElCanal, ponerLaEntrada } from './enclavadoEnLaEscena'
+import { cambiarLaGuia, colocarElClavo, colocarLaGuia, crearEnclavado, istmoDelHueso, medirElCanal, ponerElCanal, ponerLaEntrada } from './enclavadoEnLaEscena'
 import { colocarBloque, crearInjerto, MAXIMO_DE_TROZOS } from './injertoEnLaEscena'
 import { reponerHuellas, crearPeriostio } from './periostioEnLaEscena'
 import type { Taller } from './LienzoQuirurgico'
@@ -365,6 +365,7 @@ export async function restaurarLoColocado(texto: string, c: ContextoDeLaRestaura
           cajaDistal: distal ? new THREE.Box3().setFromObject(distal) : null,
           eje: c.ejeLargo,
           milimetrosPorUnidad: mm,
+          istmoMm: istmoDelHueso(proximal),
         })
         ponerLaEntrada(escena, e, punto, vector(q.entrada.normal), canal, mm, { proximal, distal })
         if (q.guia) {

@@ -150,9 +150,14 @@ describe('restaurar lo colocado en una escena nueva', () => {
     e.bloqueos = [{ orificio: 'D1', zona: 'distal', tornilloId: -1, punteria: 'acierta', bloquea: true }]
     const texto = serializarLoColocado(a)
 
+    // Sin istmo en el hueso, el de partida; al restaurarse, el canal se vuelve a medir con el que traiga el hueso
+    // (D-336), que es el que juzga el fresado.
+    expect(canal.istmoMm).toBe(11)
     const b = escenaConHuesoPartido()
+    b.escena!.getObjectByName('Tibia_fragmento_proximal')!.userData.istmoMm = 10.8
     await restaurarLoColocado(texto, contexto(b))
     const r = b.enclavado!
+    expect(r.entrada?.canal.istmoMm).toBe(10.8)
     expect(r.entrada?.canal.origen.y).toBeCloseTo(0.19, 5)
     expect(r.entrada?.proximal.name).toBe('Tibia_fragmento_proximal')
     expect(r.guia?.avanceMm).toBe(300)

@@ -86,7 +86,25 @@ export interface ParametrosDeCorte {
   unidadesPorMm?: number
   /** A qué incisión pertenece esta herida (P-003 E4). Sin él, la 0. */
   incision?: number
+  /**
+   * Si la capa tiene grosor, hasta dónde por debajo de la superficie se busca su cara de dentro, en unidades del
+   * mundo: con él, el corte levanta la pared de cada labio (D-333). Lo pide la piel (`GROSOR_MAXIMO_DE_LA_PIEL_MM`).
+   */
+  pared?: number
 }
+
+/**
+ * La piel con su grasa mide 4 mm en el cuerpo y 2 en la cabeza (D-331). La cara de dentro se busca hasta 6 mm por
+ * debajo: con margen para lo que el telón la encuentra más abajo en una curva, y sin llegar a lo que hay bajo la piel.
+ */
+export const GROSOR_MAXIMO_DE_LA_PIEL_MM = 6
+
+/**
+ * El atributo que lee el sombreador de la piel para pintar la pared de una herida (D-333): 0 fuera de ella y, en ella,
+ * 1 más los milímetros bajo la superficie. Va corrido en uno para que el 0 diga «no es de la pared»: el labio de
+ * arriba de la pared está a 0 mm, igual que el resto de la piel.
+ */
+export const ATRIBUTO_DE_LA_PARED = 'aPared'
 
 /**
  * Cada cuánto, como mucho, hay un vértice en los labios de una herida, en milímetros (P-008 E2). La hoja más angosta
@@ -187,6 +205,11 @@ export function cortarCapa(
   const indices = indice
     ? Uint32Array.from(indice.array as ArrayLike<number>)
     : Uint32Array.from({ length: posicion.count }, (_, i) => i)
+  // El sombreador de la piel lee el atributo de la pared en todas sus geometrías: también en la de antes del corte,
+  // que es la que vuelve al cerrar. Si alguna no lo tuviera, leería lo que dejó otro programa en esa ranura.
+  if (parametros.pared && !original.getAttribute(ATRIBUTO_DE_LA_PARED)) {
+    original.setAttribute(ATRIBUTO_DE_LA_PARED, new THREE.BufferAttribute(new Float32Array(posicion.count), 1))
+  }
 
   const alcanceLocal = parametros.alcance / escala
   const corte = cortarMalla(
@@ -199,6 +222,7 @@ export function cortarCapa(
       // franja que rodea a la incisión.
       holgura: alcanceLocal,
       pasoDelLabio: (PASO_DEL_LABIO_MM * (parametros.unidadesPorMm ?? 0.001)) / escala,
+      pared: parametros.pared ? parametros.pared / escala : undefined,
     },
   )
   if (!corte) return null
@@ -208,6 +232,16 @@ export function cortarCapa(
   for (const nombre of Object.keys(original.attributes)) {
     if (nombre === 'position' || nombre === 'normal') continue
     nueva.setAttribute(nombre, copiarAtributo(original.attributes[nombre], corte.origen))
+  }
+  // La pared de esta herida: lo que cada vértice suyo queda bajo la superficie, en milímetros (ver
+  // `ATRIBUTO_DE_LA_PARED`). La de otra herida anterior ya vino copiada con lo demás.
+  const marcaDeLaPared = nueva.getAttribute(ATRIBUTO_DE_LA_PARED) as THREE.BufferAttribute | undefined
+  if (marcaDeLaPared) {
+    const mmPorUnidad = escala / (parametros.unidadesPorMm ?? 0.001)
+    const marca = marcaDeLaPared.array as Float32Array
+    corte.pared.forEach((hondura, i) => {
+      if (hondura >= 0) marca[i] = 1 + hondura * mmPorUnidad
+    })
   }
   nueva.setIndex(new THREE.BufferAttribute(corte.indices, 1))
   nueva.computeVertexNormals()

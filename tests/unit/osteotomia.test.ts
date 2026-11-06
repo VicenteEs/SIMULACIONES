@@ -102,6 +102,31 @@ function indicesValidos(malla: MallaIndexada): boolean {
   )
 }
 
+/**
+ * La menor distancia entre dos posiciones distintas de la malla; las repetidas
+ * bit a bit (las costuras, la tapa sobre la cáscara) son un solo punto y no
+ * cuentan.
+ */
+function menorDistanciaEntreVertices(malla: MallaIndexada): number {
+  const p = malla.posiciones
+  const unicas: number[][] = []
+  const vistas = new Set<string>()
+  for (let v = 0; v < p.length; v += 3) {
+    const clave = `${p[v]},${p[v + 1]},${p[v + 2]}`
+    if (vistas.has(clave)) continue
+    vistas.add(clave)
+    unicas.push([p[v], p[v + 1], p[v + 2]])
+  }
+  let menor = Infinity
+  for (let i = 0; i < unicas.length; i += 1) {
+    for (let j = i + 1; j < unicas.length; j += 1) {
+      const [a, b] = [unicas[i], unicas[j]]
+      menor = Math.min(menor, Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]))
+    }
+  }
+  return menor
+}
+
 /** Una geometría de three a la forma del atlas, con las normales en Int16 si se pide. */
 function deThree(geometria: THREE.BufferGeometry, enInt16 = false): MallaIndexada {
   const normales = geometria.getAttribute('normal').array as Float32Array
@@ -256,6 +281,62 @@ describe('partir una malla cerrada', () => {
     expect(r.lazos).toEqual({ tapados: 2, abiertos: 0 })
   })
 
+  it('dos puntos de corte a menos de una micra se funden en uno, y el trozo sigue cerrado al soldarlo (D-339)', () => {
+    // Lo que pasó en la cuña fragmentada de la tibia: una astilla —dos aristas
+    // casi en recta que salen del mismo vértice— y un plano a siete micras de
+    // ese vértice, que corta las dos a una milésima de micra la una de la otra.
+    // Sin fundirlos, cualquiera que suelde por posición junta los dos puntos, y
+    // el triangulito que los unía deja sus aristas encima de las de al lado.
+    //
+    // Aquí la astilla está dos veces, en las dos esquinas de la base de una cara
+    // de una pirámide, porque esa cara tiene un segundo vértice Y′ a una micra
+    // de la punta. La pirámide apunta a −x y tiene la base en x = 1 cm.
+    const Y = [0, 0, 0]
+    const B1 = [0.01, -0.005, -0.005]
+    const B2 = [0.01, 0.005, -0.005]
+    const B3 = [0.01, 0.005, 0.005]
+    const B4 = [0.01, -0.005, 0.005]
+    // Dentro de la cara Y–B1–B4, a 1,1 µm de la punta, hacia el medio de B1–B4.
+    const Yp = [1e-6, -5e-7, 0]
+    const puntos = [Y, B1, B2, B3, B4, Yp]
+    const centro = [0.0075, 0, 0]
+    const piramide: MallaIndexada = {
+      posiciones: Float32Array.from(puntos.flat()),
+      normales: Float32Array.from(
+        puntos.flatMap((q) => {
+          const d = q.map((x, k) => x - centro[k])
+          const l = Math.hypot(d[0], d[1], d[2])
+          return d.map((x) => x / l)
+        }),
+      ),
+      indices: Uint32Array.from([
+        // La base, mirando a +x.
+        1, 2, 3, 1, 3, 4,
+        // Tres caras enteras.
+        0, 2, 1, 0, 3, 2, 0, 4, 3,
+        // La cuarta, en tres: una astilla en B1, el resto y una astilla en B4.
+        0, 1, 5, 5, 1, 4, 0, 5, 4,
+      ]),
+    }
+    expect(cerrada(piramide)).toEqual({ cerrada: true, malas: 0 })
+    expect(volumen(piramide)).toBeGreaterThan(0)
+
+    // A siete micras de la base: los dos cortes de cada astilla caen a 0,0008 µm.
+    const r = partirMalla(piramide, { punto: [0.01 - 7e-6, 0, 0], normal: [1, 0, 0] })
+    expect(r.avisos).toEqual([])
+    // El contorno es el cuadrado de siempre, de cuatro puntos y no de seis.
+    expect(r.lazos).toEqual({ tapados: 1, abiertos: 0 })
+    for (const trozo of [r.haciaLaNormal, r.contraLaNormal]) {
+      expect(indicesValidos(trozo)).toBe(true)
+      expect(cerrada(trozo)).toEqual({ cerrada: true, malas: 0 })
+      expect(volumen(trozo)).toBeGreaterThan(0)
+      // Lo que promete `FUSION`: ningún par de vértices distintos a menos de una
+      // micra, salvo los que ya venían así en la malla de partida (aquí, ninguno).
+      expect(menorDistanciaEntreVertices(trozo)).toBeGreaterThan(1e-6)
+    }
+    expect((volumen(r.haciaLaNormal) + volumen(r.contraLaNormal)) / volumen(piramide)).toBeCloseTo(1, 5)
+  })
+
   it('interpola las normales en flotante y las devuelve en Int16', () => {
     const cilindro = deThree(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 16, 1), true)
     const r = comprobarCorteLimpio(cilindro, [0, 0.05, 0], [0.2, 1, 0.1])
@@ -407,7 +488,9 @@ describe('la tibia derecha del atlas', () => {
     const eje = ejeDelHueso(tibia.posiciones, tibia.indices)!
     const plano = planoDelCorte(eje, corte)
     const r = comprobarCorteLimpio(tibia, plano.punto, plano.normal)
-    expect(r.lazos).toEqual({ tapados: 1, abiertos: 0 })
+    // Dos contornos en cada corte: el de fuera y el del canal medular (D-336), que los tres cortan porque caen en la
+    // diáfisis. La tapa es el anillo de la cortical, con el canal en medio.
+    expect(r.lazos).toEqual({ tapados: 2, abiertos: 0 })
     // El distal es el que queda hacia la normal: su caja está más abajo.
     const alturaMedia = (m: MallaIndexada) => {
       let y = 0

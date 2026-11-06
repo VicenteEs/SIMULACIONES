@@ -152,13 +152,77 @@ def leer_pieza_generada(registro):
     return pos.astype(np.float64), idx.astype(np.int64)
 
 
-def cortar_en_z(objeto, z, cerrar, grosor=0.012):
+def _lazos(aristas):
+    """Las aristas de un corte, agrupadas en lazos: las que comparten vértices son del mismo."""
+    pendientes = {e for e in aristas if e.is_valid}
+    lazos = []
+    while pendientes:
+        pila = [pendientes.pop()]
+        lazo = []
+        while pila:
+            e = pila.pop()
+            lazo.append(e)
+            for v in e.verts:
+                for vecina in v.link_edges:
+                    if vecina in pendientes:
+                        pendientes.remove(vecina)
+                        pila.append(vecina)
+        lazos.append(lazo)
+    return lazos
+
+
+def _cerrar_la_piel(bm, objeto, aristas):
+    """
+    Cierra el corte de la piel como es: un anillo entre la cara de fuera y la de dentro (D-334), y no un disco.
+
+    La piel trae dos caras (D-224), y desde D-331 hay 4 mm de dermis y grasa entre ellas. Tapar cada lazo por su cuenta
+    ponía dos discos de piel encima de todo lo que hay dentro. Aquí cada lazo de la cara de dentro (los de la ranura de
+    la grasa, `separar_la_grasa`) se une con el de fuera más cercano, y el anillo lleva la pared de la piel, con la
+    `hondura` de cada vértice: 0 fuera, y en el de dentro lo que queda del de fuera. Lo que no tiene pareja —una oreja—
+    se tapa como antes.
+    """
+    ranura_grasa = objeto.get('ranura_de_la_grasa')
+    lazos = _lazos(aristas)
+    if ranura_grasa is None:
+        for lazo in lazos:
+            bmesh.ops.holes_fill(bm, edges=lazo, sides=0)
+        return
+    es_de_dentro = lambda lazo: any(f.material_index == ranura_grasa for e in lazo for f in e.link_faces)  # noqa: E731
+    centro = lambda lazo: sum((v.co for e in lazo for v in e.verts), Vector()) / (2 * len(lazo))  # noqa: E731
+    de_fuera = [lazo for lazo in lazos if not es_de_dentro(lazo)]
+    de_dentro = [lazo for lazo in lazos if es_de_dentro(lazo)]
+    hondura = bm.verts.layers.float.get('hondura') or bm.verts.layers.float.new('hondura')
+    ranura_pared = ASPECTO.ranura_de_la_pared(objeto)
+    usados = set()
+    for lazo in de_dentro:
+        c = centro(lazo)
+        libres = [k for k in range(len(de_fuera)) if k not in usados]
+        if not libres:
+            break
+        k = min(libres, key=lambda j: (centro(de_fuera[j]) - c).length)
+        usados.add(k)
+        fuera = {v for e in de_fuera[k] for v in e.verts}
+        for v in fuera:
+            v[hondura] = 0.0
+        for v in {v for e in lazo for v in e.verts}:
+            v[hondura] = min((v.co - w.co).length for w in fuera)
+        hecho = bmesh.ops.bridge_loops(bm, edges=de_fuera[k] + lazo)
+        for f in hecho.get('faces', []):
+            f.material_index = ranura_pared
+            f.smooth = False
+    for k, lazo in enumerate(de_fuera):
+        if k not in usados:
+            bmesh.ops.holes_fill(bm, edges=[e for e in lazo if e.is_valid], sides=0)
+
+
+def cortar_en_z(objeto, z, cerrar, grosor=0.012, con_pared=False):
     """
     Deja de un objeto la rebanada de `grosor` metros que acaba en la altura `z` (Blender), y la tapa si es cerrado.
 
     Es el corte transversal de la imagen B del PDF. Una rebanada y no «todo lo de abajo» porque la
     cámara mira desde arriba y vería, además del corte, el pie entero por detrás. Las fascias, que
-    son láminas abiertas, quedan como anillos sin tapar.
+    son láminas abiertas, quedan como anillos sin tapar. La piel, `con_pared`, se cierra con su anillo de
+    dermis y grasa (`_cerrar_la_piel`).
     """
     bm = bmesh.new()
     bm.from_mesh(objeto.data)
@@ -172,7 +236,10 @@ def cortar_en_z(objeto, z, cerrar, grosor=0.012):
         plane_co=(0, 0, z - grosor), plane_no=(0, 0, 1), clear_outer=False, clear_inner=True,
     )
     corte_abajo = [e for e in resultado['geom_cut'] if isinstance(e, bmesh.types.BMEdge)]
-    if cerrar:
+    if con_pared:
+        for borde in (corte_arriba, corte_abajo):
+            _cerrar_la_piel(bm, objeto, [e for e in borde if e.is_valid])
+    elif cerrar:
         for borde in (corte_arriba, corte_abajo):
             borde = [e for e in borde if e.is_valid]
             if borde:
@@ -523,7 +590,8 @@ def dibujar(args, centro, extension, objetos, corte_z):
                 continue
             for objeto, _es_contexto, info in objetos:
                 sistema = str(info.get('sistema', ''))
-                cortar_en_z(objeto, corte_z, sistema in SISTEMAS_CERRADOS)
+                cortar_en_z(objeto, corte_z, sistema in SISTEMAS_CERRADOS,
+                            con_pared=sistema == 'integumentary' and args.colores == 'aspecto')
             camara.data.ortho_scale = 0.42
             apuntar(camara, (centro[0], centro[1], corte_z), direcciones[nombre], 1.0)
         elif nombre == 'detalle':

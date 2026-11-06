@@ -37,6 +37,18 @@ export const APARTE_POR_NOMBRE =
  */
 export const SISTEMA_DE_LA_FASCIA_SUPERFICIAL = 'fascia-superficial'
 
+/**
+ * Lo que va dentro de la grasa de la piel y no la limita (D-331): los vasos, los nervios y lo linfático. La cara de
+ * fuera los cubre como a todo lo de dentro, pero la de dentro pasa por debajo de ellos, porque en el cuerpo las venas y
+ * los nervios superficiales corren por el tejido subcutáneo. Es lo que se supuso al medir cuánto cabía (el 85 % de la
+ * piel sin la cabeza con 2 mm de grasa, D-331). Contándolos, la grasa se adelgazaba a lo largo de cada vena y quedaba
+ * entera en el 63 %.
+ */
+export const SISTEMAS_DENTRO_DE_LA_GRASA = new Set(['arterial', 'venous', 'lymphatic', 'nervous'])
+
+/** Si lo de dentro de esta pieza limita la cara de dentro de la piel: todo lo que la grasa no puede atravesar. */
+export const limitaLaGrasa = (pieza) => !SISTEMAS_DENTRO_DE_LA_GRASA.has(pieza.sistema)
+
 /** Si una pieza del catálogo es «lo de dentro» que la cáscara del cuerpo tiene que cubrir con holgura. */
 export function cubiertaPorElCuerpo(pieza) {
   return (

@@ -76,6 +76,18 @@ describe('agrupar para exportar', () => {
     expect(objetos.map((o) => o.nombre)).toEqual(['Right tibia'])
   })
 
+  it('el hueso con canal medular lleva su istmo y la marca del canal en los extras, y el que no, nada (D-336)', () => {
+    // De ahí los lee el simulador: el istmo, para el fresado y el paso de la guía; la marca, para pintar con cortical
+    // fina la tapa de un corte en la metáfisis, que no trae canal propio (D-337).
+    const objetos = agruparParaGlb(
+      [{ ...pieza('Right tibia', 'esqueleto'), istmoMm: 10.8, conCanal: true }, pieza('Right patella', 'esqueleto', 2)],
+      { protagonistas: ['Right tibia', 'Right patella'] },
+    )
+    expect(objetos[0].extras).toMatchObject({ istmoMm: 10.8, canalMedular: true })
+    expect(objetos[1].extras).not.toHaveProperty('istmoMm')
+    expect(objetos[1].extras).not.toHaveProperty('canalMedular')
+  })
+
   it('el color del sistema llega al material, y sin color no se rompe', () => {
     expect(colorDeGltf('#12509e')).toEqual([18 / 255, 80 / 255, 158 / 255, 1])
     expect(colorDeGltf(undefined)).toEqual([0.8, 0.8, 0.8, 1])

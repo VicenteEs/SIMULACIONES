@@ -52,7 +52,9 @@ export interface OpcionesDeLaLista {
    * Si la lista dice si lo de ahora se acierta (E4 de P-012). En práctica sí: es para lo que existe, para que «Aplicar
    * paso» no se use de sonda. En evaluación no. Una lista que se pone en verde al acertar es una corrección en vivo, y
    * en pabellón nadie avisa de que la reducción ya vale. Ahí dice qué hay que hacer, marca en gris lo que ya tiene
-   * hecho algo que medir y no enseña las cifras de ahora (`sinJuzgar`).
+   * hecho algo que medir y no enseña las cifras de ahora (`sinJuzgar`). Tampoco los topes de lo que miden las medidas
+   * de debajo del lienzo, la reducción y el largo de la incisión (D-329): las medidas dan la cifra, y con el tope
+   * escrito en la lista compararlas era el veredicto otra vez.
    */
   juzgar: boolean
 }
@@ -181,7 +183,7 @@ function listaJuzgada(paso: PasoQuirurgico, gesto: Gesto, opciones: OpcionesDeLa
       const rango = rangoDeTrazoEnTexto(paso)
       lista.push({
         clave: 'trazo',
-        texto: rango ? `Incisión de ${rango}` : 'Una incisión trazada',
+        texto: !rango ? 'Una incisión trazada' : opciones.juzgar ? `Incisión de ${rango}` : 'Una incisión del largo que pide el paso',
         estado: enElRango(largo, paso.trazoMinimo, paso.trazoMaximo, largo <= 0),
         ahora: largo > 0 ? `${coma(largo)} mm` : undefined,
       })
@@ -217,7 +219,7 @@ function listaJuzgada(paso: PasoQuirurgico, gesto: Gesto, opciones: OpcionesDeLa
         const medido = typeof valor === 'number' && Number.isFinite(valor)
         lista.push({
           clave,
-          texto: `${texto} hasta ${coma(tope)}${unidad === '°' ? '°' : ` ${unidad}`}`,
+          texto: opciones.juzgar ? `${texto} hasta ${coma(tope)}${unidad === '°' ? '°' : ` ${unidad}`}` : `${texto} dentro del tope`,
           estado: medido && valor <= tope ? 'hecho' : 'falta',
           ahora: medido ? `${coma(valor)}${unidad === '°' ? '°' : ` ${unidad}`}` : undefined,
         })

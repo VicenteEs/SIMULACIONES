@@ -28,6 +28,11 @@ export interface TapaDeCorte {
   radio: number
   /** La distancia al borde de cada celda, de 0 (en el borde o fuera) a 255 (`radio`), fila a fila. */
   distancia: Uint8Array
+  /**
+   * Cuántos de sus contornos son agujeros, dentro de otro. La tapa de una diáfisis con su canal medular (D-336) tiene
+   * uno: es un anillo, y el sombreador la pinta entera de cortical (D-337).
+   */
+  agujeros: number
 }
 
 const resta = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
@@ -43,6 +48,51 @@ const leer = (arreglo: ArrayLike<number>, i: number): Vec3 => [arreglo[i * 3], a
 function triangulosDe(indices: ArrayLike<number> | null, vertices: number): ArrayLike<number> {
   if (indices) return indices
   return Uint32Array.from({ length: vertices - (vertices % 3) }, (_, i) => i)
+}
+
+/**
+ * Los vértices de cada tapa de corte, sin más: los que comparten normal y plano, en grupos de al menos `minimo`. Es
+ * el reconocimiento de `tapasDeCorte`, aparte para quien solo necesita saber qué vértices son de una tapa
+ * (`triangulosDelCanal`). `diagonal` es la de la caja de la malla: el plano se compara en proporción a ella.
+ */
+function gruposDeTapa(posiciones: ArrayLike<number>, normales: ArrayLike<number>, diagonal: number, minimo: number): number[][] {
+  const n = Math.floor(posiciones.length / 3)
+  // La normal se compara a una diezmilésima, y el plano a una cienmilésima de la malla: las normales de una tapa son
+  // la misma cifra escrita varias veces, pero pasan por un Int16 al exportarse.
+  const grupos = new Map<string, number[]>()
+  for (let i = 0; i < n; i++) {
+    const m = leer(normales, i)
+    if (Math.abs(Math.hypot(m[0], m[1], m[2]) - 1) > 0.01) continue
+    const d = punto(m, leer(posiciones, i)) / diagonal
+    const clave = `${Math.round(m[0] * 1e4)},${Math.round(m[1] * 1e4)},${Math.round(m[2] * 1e4)},${Math.round(d * 1e5)}`
+    const g = grupos.get(clave)
+    if (g) g.push(i)
+    else grupos.set(clave, [i])
+  }
+  return [...grupos.values()].filter((g) => g.length >= minimo)
+}
+
+/** La diagonal de la caja de los vértices, o 1 si no tiene: la escala con que se comparan posiciones y planos. */
+export function diagonalDe(posiciones: ArrayLike<number>): number {
+  const n = Math.floor(posiciones.length / 3)
+  let lo: Vec3 = [Infinity, Infinity, Infinity]
+  let hi: Vec3 = [-Infinity, -Infinity, -Infinity]
+  for (let i = 0; i < n; i++) {
+    const p = leer(posiciones, i)
+    lo = [Math.min(lo[0], p[0]), Math.min(lo[1], p[1]), Math.min(lo[2], p[2])]
+    hi = [Math.max(hi[0], p[0]), Math.max(hi[1], p[1]), Math.max(hi[2], p[2])]
+  }
+  return n > 0 ? Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) || 1 : 1
+}
+
+/**
+ * 1 en cada vértice que es de la tapa de un corte (ver `tapasDeCorte`), 0 en los demás. De todas las tapas, no solo
+ * de las cuatro que caben en el sombreador.
+ */
+export function verticesDeLasTapas(posiciones: ArrayLike<number>, normales: ArrayLike<number>, { minimo = 12 }: { minimo?: number } = {}): Uint8Array {
+  const marca = new Uint8Array(Math.floor(posiciones.length / 3))
+  for (const g of gruposDeTapa(posiciones, normales, diagonalDe(posiciones), minimo)) for (const v of g) marca[v] = 1
+  return marca
 }
 
 /**
@@ -71,22 +121,9 @@ export function tapasDeCorte(
     hi = [Math.max(hi[0], p[0]), Math.max(hi[1], p[1]), Math.max(hi[2], p[2])]
   }
   const diagonal = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) || 1
-  // La normal se compara a una diezmilésima, y el plano a una cienmilésima de la malla: las normales de una tapa son
-  // la misma cifra escrita varias veces, pero pasan por un Int16 al exportarse.
-  const grupos = new Map<string, number[]>()
-  for (let i = 0; i < n; i++) {
-    const m = leer(normales, i)
-    if (Math.abs(Math.hypot(m[0], m[1], m[2]) - 1) > 0.01) continue
-    const d = punto(m, leer(posiciones, i)) / diagonal
-    const clave = `${Math.round(m[0] * 1e4)},${Math.round(m[1] * 1e4)},${Math.round(m[2] * 1e4)},${Math.round(d * 1e5)}`
-    const g = grupos.get(clave)
-    if (g) g.push(i)
-    else grupos.set(clave, [i])
-  }
   const triangulos = triangulosDe(indices, n)
   const tapas: TapaDeCorte[] = []
-  for (const vertices of grupos.values()) {
-    if (vertices.length < minimo) continue
+  for (const vertices of gruposDeTapa(posiciones, normales, diagonal, minimo)) {
     const enLaTapa = new Set(vertices)
     // Los vértices de la tapa, soldados por posición: si vinieran sin soldar, cada arista saldría como borde.
     const soldado = new Map<string, number>()
@@ -146,6 +183,7 @@ export function tapasDeCorte(
     tmin -= margen
     tmax += margen
     const segmentos = borde.map((u) => [...enElPlano(u.a), ...enElPlano(u.b)])
+    const agujeros = agujerosDelBorde(borde, segmentos)
     const lado = LADO_DEL_CAMPO_DE_LA_TAPA
     const crudo = new Float64Array(lado * lado)
     let radio = 0
@@ -184,9 +222,56 @@ export function tapasDeCorte(
       ejeV: [ejeV[0] / anchoV, ejeV[1] / anchoV, ejeV[2] / anchoV],
       radio,
       distancia,
+      agujeros,
     })
   }
   return tapas.sort((a, b) => b.vertices.length - a.vertices.length).slice(0, maximo)
+}
+
+/**
+ * Cuántos contornos del borde de una tapa quedan dentro de otro: los agujeros. `borde` son las aristas (entre vértices
+ * ya soldados) y `segmentos`, las mismas en el plano de la tapa. Un contorno es lo que queda unido por sus aristas; está
+ * dentro de otro si un punto suyo lo está, por la paridad del rayo, como en el campo de la tapa.
+ */
+function agujerosDelBorde(borde: readonly { a: number; b: number }[], segmentos: readonly number[][]): number {
+  const padre = new Map<number, number>()
+  const raiz = (v: number): number => {
+    let r = v
+    while (padre.has(r) && padre.get(r) !== r) r = padre.get(r)!
+    return r
+  }
+  for (const { a, b } of borde) {
+    if (!padre.has(a)) padre.set(a, a)
+    if (!padre.has(b)) padre.set(b, b)
+    const ra = raiz(a), rb = raiz(b)
+    if (ra !== rb) padre.set(ra, rb)
+  }
+  const contornos = new Map<number, number[]>()
+  borde.forEach(({ a }, k) => {
+    const r = raiz(a)
+    const lista = contornos.get(r)
+    if (lista) lista.push(k)
+    else contornos.set(r, [k])
+  })
+  const lista = [...contornos.values()]
+  if (lista.length < 2) return 0
+  let agujeros = 0
+  for (const propio of lista) {
+    const [s0, t0, s1, t1] = segmentos[propio[0]]
+    const s = (s0 + s1) / 2, t = (t0 + t1) / 2
+    let dentroDe = 0
+    for (const otro of lista) {
+      if (otro === propio) continue
+      let cruces = 0
+      for (const k of otro) {
+        const [a0, b0, a1, b1] = segmentos[k]
+        if (b0 > t !== b1 > t && s < a0 + ((t - b0) / (b1 - b0)) * (a1 - a0)) cruces++
+      }
+      if (cruces % 2 === 1) dentroDe++
+    }
+    if (dentroDe % 2 === 1) agujeros++
+  }
+  return agujeros
 }
 
 /**

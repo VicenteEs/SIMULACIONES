@@ -248,15 +248,17 @@ export interface HuesoDeLaTabla {
   conIdentificador?: boolean
   /**
    * Un aviso para quien construye la fractura: lo que este hueso no garantiza.
-   * En los huesos de la mano y del pie, de 30 a 50 mm, los cortes en cuña y los
-   * segmentarios fragmentados pueden salir con la malla abierta o no llegar a
-   * cortar (`SABIDO_QUE_NO_SALE` en las pruebas lo lista pieza por pieza).
+   * En los huesos de la mano y del pie, de 30 a 50 mm, la cuña fragmentada y la
+   * conminuta focal pueden no llegar a cortar (`SABIDO_QUE_NO_SALE` en las
+   * pruebas lo lista pieza por pieza). Hasta D-339 decía también que podían
+   * salir con la malla abierta, y eso no era el tamaño del hueso sino dos puntos
+   * de corte casi iguales, que el corte ya funde en uno.
    */
   nota?: string
 }
 
 const NOTA_DE_LOS_PEQUENOS =
-  'Hueso pequeño: con tan poco hueso, los cortes en cuña, los segmentarios fragmentados y la conminuta focal pueden salir con la malla abierta o no llegar a cortar. Si pasa, cambie la posición o elija otro grupo.'
+  'Hueso pequeño: con tan poco hueso, la cuña fragmentada y la conminuta focal pueden no llegar a cortar. Si pasa, cambie la posición o elija otro grupo.'
 
 export const HUESOS_AO: readonly HuesoDeLaTabla[] = [
   { id: 'humero', codigo: '1', nombre: 'Húmero' },

@@ -277,6 +277,8 @@ export async function exportarPreparacion(
       // Ya corregido: `leerCatalogo` pasa el catálogo por `corregirCatalogo`.
       sistema: pieza.sistema,
       fma: pieza.fma,
+      ...(pieza.istmoMm ? { istmoMm: pieza.istmoMm } : {}),
+      ...(pieza.canal ? { conCanal: true } : {}),
       // Copias, no vistas: las vistas apuntan al paquete entero y al
       // reindexar se escribiría sobre él.
       posiciones: new Float32Array(new Float32Array(bufer, pieza.pos, pieza.vertices * 3)),

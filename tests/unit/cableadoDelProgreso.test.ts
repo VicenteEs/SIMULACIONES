@@ -106,9 +106,14 @@ describe('la consola manda lo que calcula', () => {
     // Y un quinto, al bloquear el foco con la fractura sin reducir (D-308): es una complicación, el mismo hito que la de
     // `aplicarPaso`, solo que llega por el lienzo al poner el tornillo y no por el botón.
     // Y un sexto, al cortar o perforar un vaso o un nervio (P-012 E6): otra complicación que llega por el lienzo.
-    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(6)
-    const bloqueo = CONSOLA.slice(CONSOLA.indexOf('function vigilarElBloqueo('), CONSOLA.indexOf('function vigilarLaLesion('))
+    // Y un séptimo, al repetir en evaluación el gesto que mide el paso (D-330): una segunda incisión en la misma capa o una
+    // segunda trayectoria, que también es una complicación y también llega por el lienzo.
+    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(7)
+    const bloqueo = CONSOLA.slice(CONSOLA.indexOf('function vigilarElBloqueo('), CONSOLA.indexOf('function vigilarElGestoDeMas('))
     expect(veces(bloqueo, 'guardarRecorrido(')).toBe(1)
+    const gesto = CONSOLA.slice(CONSOLA.indexOf('function vigilarElGestoDeMas('), CONSOLA.indexOf('function vigilarLaLesion('))
+    expect(gesto, 'no se encontró vigilarElGestoDeMas').not.toBe('')
+    expect(veces(gesto, 'guardarRecorrido(')).toBe(1)
     const lesion = CONSOLA.slice(CONSOLA.indexOf('function vigilarLaLesion('), CONSOLA.indexOf('function aplicarPaso()'))
     expect(lesion, 'no se encontró vigilarLaLesion').not.toBe('')
     expect(veces(lesion, 'guardarRecorrido(')).toBe(1)

@@ -89,3 +89,8 @@ __pycache__/
 # Lo mismo para la piel (D-224): la malla lisa que deja `python scripts/atlas/piel/generar.py` y que
 # `recalcular-piel.mjs` empuja y escribe en el atlas. Pesa unos megabytes y se rehace en un minuto.
 /scripts/atlas/piel/salida/
+
+# Y para los huesos largos (D-335, D-336): las mallas y el manifiesto de medidas que deja
+# `python scripts/atlas/huesos/generar.py`, y que `node scripts/atlas/poner-huesos.mjs --aplicar`
+# escribe en el atlas. Lo que viaja es el resultado, public/atlas/cuerpo-12 y cuerpo-13.
+/scripts/atlas/huesos/salida/

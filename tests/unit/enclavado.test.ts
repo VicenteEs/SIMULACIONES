@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { comportamientoDelInstrumento } from '@/lib/comportamientoDelInstrumento'
 import {
   ANGULACION_QUE_PASA_GRADOS,
+  AYUDA_DEL_DEDO_MM,
   AVANCE_POR_GOLPE_JUSTO_MM,
   AVANCE_POR_GOLPE_SUELTO_MM,
   CABEZAS_DE_FRESA_MM,
@@ -11,6 +12,7 @@ import {
   DESPLAZAMIENTO_QUE_PASA_MM,
   ENCLAVADO_VACIO,
   ENTRADA_ACEPTABLE_DESDE_EL_EXTREMO_MM,
+  ISTMO_POR_OMISION_MM,
   MARGEN_DISTAL_DE_LA_GUIA_MM,
   avanceMaximoDeLaGuia,
   avancePorGolpeMm,
@@ -81,6 +83,22 @@ describe('el paso de la guía por el foco', () => {
     expect(juzgarElPasoDeLaGuia({ ...r, desplazamientoMm: DESPLAZAMIENTO_QUE_PASA_CON_DEDO_MM + 1 }, true).pasa).toBe(false)
   })
 
+  it('lo que pasa depende del istmo del hueso, y el dedo ayuda lo mismo en todos (D-336)', () => {
+    // Un húmero del atlas mide 9 mm de istmo y un fémur 14,5: con la cifra de una tibia, uno se atascaba de menos y el
+    // otro de más.
+    const r = (desplazamientoMm: number) => ({ desplazamientoMm, angulacionGrados: 0 })
+    expect(juzgarElPasoDeLaGuia(r(5), false, 9).pasa).toBe(false)
+    expect(juzgarElPasoDeLaGuia(r(4), false, 9).pasa).toBe(true)
+    expect(juzgarElPasoDeLaGuia(r(7), false, 14.5).pasa).toBe(true)
+    expect(juzgarElPasoDeLaGuia(r(4.5 + AYUDA_DEL_DEDO_MM - 0.1), true, 9).pasa).toBe(true)
+    expect(juzgarElPasoDeLaGuia(r(4.5 + AYUDA_DEL_DEDO_MM + 0.1), true, 9).pasa).toBe(false)
+    // Sin istmo, el de partida: lo de antes, sin cambiar una cifra.
+    expect(ISTMO_POR_OMISION_MM / 2).toBe(DESPLAZAMIENTO_QUE_PASA_MM)
+    expect(ISTMO_POR_OMISION_MM / 2 + AYUDA_DEL_DEDO_MM).toBe(DESPLAZAMIENTO_QUE_PASA_CON_DEDO_MM)
+    expect(juzgarElPasoDeLaGuia(r(DESPLAZAMIENTO_QUE_PASA_MM + 0.5), false)).toEqual(juzgarElPasoDeLaGuia(r(DESPLAZAMIENTO_QUE_PASA_MM + 0.5), false, ISTMO_POR_OMISION_MM))
+    expect(juzgarElPasoDeLaGuia(r(DESPLAZAMIENTO_QUE_PASA_MM + 0.5), false, 9).aviso).toMatch(/pasa con menos de 4,5 mm/)
+  })
+
   it('un foco muy angulado tampoco se pasa, aunque esté centrado', () => {
     const j = juzgarElPasoDeLaGuia({ desplazamientoMm: 0, angulacionGrados: ANGULACION_QUE_PASA_GRADOS + 3 }, false)
     expect(j.pasa).toBe(false)
@@ -115,6 +133,16 @@ describe('el fresado', () => {
 
   it('empezar con una cabeza demasiado grande para el istmo avisa', () => {
     expect(juzgarElFresado([11], 9).aviso).toMatch(/demasiado grande para el istmo/)
+  })
+
+  it('con el istmo del hueso: en uno estrecho la más chica sigue siendo la buena, y en uno ancho se puede empezar mayor', () => {
+    // El húmero del atlas (9 mm, D-336): 8,5 pasa de «istmo menos 1», pero no hay cabeza más chica con que empezar, y el
+    // aviso pediría justo lo que se hizo.
+    expect(juzgarElFresado([CABEZAS_DE_FRESA_MM[0]], null, 9).aviso).toBeNull()
+    expect(juzgarElFresado([9], null, 9).aviso).toMatch(/demasiado grande para el istmo \(9 mm\)/)
+    // El fémur (14,5 mm): empezar con 11 no es empezar grande.
+    expect(juzgarElFresado([11], null, 14.5).aviso).toBeNull()
+    expect(juzgarElFresado([11], null).aviso).toMatch(/demasiado grande/)
   })
 
   it('con menos de 1 mm sobre el clavo falta fresar, y con más de 2 se fresó de más', () => {

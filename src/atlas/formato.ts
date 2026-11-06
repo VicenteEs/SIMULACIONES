@@ -83,6 +83,20 @@ export interface PiezaDelAtlas {
    * este campo, un catálogo con fascias diría que BodyParts3D tiene 2.241 piezas.
    */
   generada?: string
+  /**
+   * Solo los catorce huesos largos que rehace `scripts/atlas/poner-huesos.mjs` (P-012 E7, D-335): lisos y con su canal
+   * medular. Lo lee la atribución, que tiene que declararlos como modificados.
+   */
+  rehecha?: string
+  /**
+   * Dónde empieza, dentro de la pieza, la cáscara del canal medular (D-336): sus vértices y sus índices van después de
+   * los de la cara de fuera. El visor lo usa para que la radiografía no sume la pared del canal. Después de partir el
+   * hueso ya no vale —el corte rehace los índices—, y por eso el simulador reconoce el canal por la forma
+   * (`triangulosDelCanal`).
+   */
+  canal?: { vertice: number; indice: number }
+  /** Lo más estrecho del canal en la diáfisis, en mm (D-336): lo que pasa una fresa sin tocar la cortical. */
+  istmoMm?: number
   paquete: number
   pos: number
   nor: number

@@ -226,6 +226,26 @@ export function fasciasDeclaradas(catalogo) {
 }
 
 /**
+ * La viñeta que declara los huesos largos rehechos (P-012 E7, D-335), o `null` si el atlas no tiene ninguno.
+ *
+ * Son una modificación de piezas de BodyParts3D, y CC BY 4.0 obliga a decirla. Sin esta viñeta, la de la piel
+ * seguiría diciendo que el resto de la geometría no cambió, y ya no sería verdad. El canal medular, además, es
+ * geometría que el origen no trae: se dice, como las fascias, para que no pase por suya. Los nombres van como en
+ * BodyParts3D, que es como se buscan en el material de origen.
+ */
+export function huesosDeclarados(catalogo) {
+  const rehechos = catalogo.piezas.filter((p) => p.rehecha)
+  if (rehechos.length === 0) return null
+  const conCanal = rehechos.filter((p) => p.canal).length
+  return vineta(`${rehechos.length === 1 ? 'un hueso rehecho' : `${enLetras(rehechos.length)} huesos largos rehechos`} a partir de los originales
+    (${rehechos.map((p) => p.nombre).join(', ')}): su superficie, sacada de nuevo del volumen del original suavizado,
+    con lados de unos 2 mm, sin salir en ningún punto más de un cuarto de milímetro del original${conCanal ? `; y, dentro de
+    la diáfisis de ${conCanal === rehechos.length ? 'cada uno' : `${enLetras(conCanal)} de ellos`}, una cáscara que BodyParts3D no trae: el canal medular, hundido
+    bajo la superficie una fracción del ancho del hueso en cada altura y cerrado en cúpula hacia los extremos` : ''}. Los
+    calcula scripts/atlas/huesos/generar.py;`)
+}
+
+/**
  * El ATRIBUCION.md entero.
  *
  * Recibe el catálogo tal como sale de la preparación, con los sistemas del
@@ -243,6 +263,7 @@ export function atribucion(
   // generadas se declaran aparte y no cuentan como una pieza más del material de origen.
   const deOrigen = { ...catalogo, piezas: catalogo.piezas.filter((p) => !p.generada) }
   const fascias = fasciasDeclaradas(catalogo)
+  const huesos = huesosDeclarados(catalogo)
 
   return `# Atribución del atlas anatómico
 
@@ -278,9 +299,11 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
   cada oreja, como una cáscara aparte a poco más de un milímetro de la oreja
   anatómica; todo ello subido hacia afuera, a lo largo de su normal, allí donde
   las estructuras de debajo quedaban a menos de 2 mm; y la cáscara interior,
-  rehecha a partir de la exterior. Solo cambia la piel; el resto de la geometría
-  no;
-- geometría empaquetada en ${catalogo.paquetes.length - (fascias ? 1 : 0)} archivos binarios comprimidos;
+  rehecha a partir de la exterior. ${huesos ? `Aparte de la piel, solo cambian los huesos
+  de la viñeta siguiente;` : `Solo cambia la piel; el resto de la geometría
+  no;`}
+${huesos ? `${huesos}
+` : ''}- geometría empaquetada en ${catalogo.paquetes.length - (fascias ? 1 : 0)} archivos binarios comprimidos;
 - añadida una clasificación por **región anatómica** que el material original no
   traía: se toma de los conceptos FMA de región del propio atlas (cabeza, tórax,
   miembro superior derecho) cuando la pieza figura entre sus elementos y, si no,

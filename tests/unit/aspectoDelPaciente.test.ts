@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import {
+  CORTICAL_DE_LA_METAFISIS_MM,
+  CORTICAL_DEL_ANILLO_MM,
   LINEA_DE_LO_DIFUSO,
   aplicarAlSombreador,
   aspectoDe,
   campoDeLasTapas,
+  grosorDeLaTapa,
   crearAspectoDelModelo,
   materialConAspecto,
   soltarElAspecto,
@@ -90,6 +93,17 @@ describe('el sombreador de cada aspecto', () => {
     expect(conAspecto('ojo').vertexShader).not.toContain('aTapa')
   })
 
+  it('el hueso lee su canal medular y la cortical de cada tapa, y nada más los lee (D-336, D-337)', () => {
+    const hueso = conAspecto('hueso')
+    expect(hueso.vertexShader).toContain('attribute float aCanal;')
+    expect(hueso.vertexShader).toContain('vCanal = aCanal;')
+    expect(hueso.fragmentShader).toContain('uniform float uTapaGrosor[ 4 ];')
+    // La pared del canal es esponjoso, como las caras de detrás; y con grosor 0, la regla de antes.
+    expect(hueso.fragmentShader).toContain('step( 0.5, vCanal )')
+    expect(hueso.fragmentShader).toContain('uTapaGrosor[ k ] > 0.0 ? uTapaGrosor[ k ] : clamp( 0.3 * uTapaRadio[ k ] * uMmPorUnidad, 0.8, 5.0 )')
+    for (const otro of ['piel', 'fascia', 'musculo', 'humedo', 'ojo'] as const) expect(conAspecto(otro).vertexShader).not.toContain('aCanal')
+  })
+
   it('la piel lee la humedad del color por vértice, solo cuando el material lo trae', () => {
     // Lo rojo y húmedo (los labios) lleva el verde muy bajo; con `USE_COLOR` apagado la rama no se compila y la
     // piel sin pigmentación sigue exactamente igual que antes.
@@ -138,6 +152,25 @@ describe('el material con aspecto', () => {
     m.onBeforeCompile(s as unknown as THREE.WebGLProgramParametersWithUniforms, undefined as unknown as THREE.WebGLRenderer)
     expect(s.uniforms.uEjeFibra).toBeUndefined()
     expect(s.uniforms.uFibra).toBeUndefined()
+  })
+
+  it('el hueso lee 0 en las tapas y el canal que su malla no trae, y no lo que otro programa dejó en la ranura', () => {
+    const m = materialConAspecto(new THREE.MeshStandardMaterial(), 'hueso', { mmPorUnidad: 1, unidadesPorMm: 1 }) as THREE.MeshPhysicalMaterial & {
+      defaultAttributeValues?: Record<string, number[]>
+    }
+    expect(m.defaultAttributeValues).toEqual({ aCanal: [0], aTapa: [0] })
+    const s = { vertexShader: THREE.ShaderLib.physical.vertexShader, fragmentShader: THREE.ShaderLib.physical.fragmentShader, uniforms: {} as Record<string, THREE.IUniform> }
+    m.onBeforeCompile(s as unknown as THREE.WebGLProgramParametersWithUniforms, undefined as unknown as THREE.WebGLRenderer)
+    expect(s.uniforms.uTapaGrosor.value).toEqual([0, 0, 0, 0])
+  })
+
+  it('la cortical de la tapa: el anillo de una diáfisis, entero; el disco de una metáfisis, fino; sin canal, la regla de antes', () => {
+    expect(grosorDeLaTapa({ agujeros: 1 }, true)).toBe(CORTICAL_DEL_ANILLO_MM)
+    expect(grosorDeLaTapa({ agujeros: 0 }, true)).toBe(CORTICAL_DE_LA_METAFISIS_MM)
+    expect(grosorDeLaTapa({ agujeros: 0 }, false)).toBe(0)
+    expect(grosorDeLaTapa({ agujeros: 1 }, false)).toBe(0)
+    // El anillo de una diáfisis del atlas no llega a 5 mm de ancho por ningún lado: con 5, va entero de cortical.
+    expect(CORTICAL_DEL_ANILLO_MM).toBeGreaterThanOrEqual(5)
   })
 
   it('suelta la textura de las tapas del hueso cuando se suelta el material', () => {
@@ -194,6 +227,68 @@ describe('vestir el modelo', () => {
     const tapa = hueso.geometry.getAttribute('aTapa')
     expect([...(tapa.array as Float32Array)].filter((x) => x === 1).length).toBeGreaterThan(40)
     expect(piel.castShadow && piel.receiveShadow && hueso.castShadow).toBe(true)
+  })
+
+  it('en un hueso con canal marca su pared y pinta de cortical entera el anillo de la tapa (D-336, D-337)', () => {
+    /** Un tubo de 12 mm de radio con su canal de 6, partido como el del paciente: el anillo de la tapa mide 6 mm. */
+    const conCanal = () => {
+      const deThree = (c: THREE.CylinderGeometry, alReves: boolean) => {
+        const indices = Uint32Array.from(c.getIndex()!.array)
+        if (alReves) for (let t = 0; t < indices.length; t += 3) [indices[t + 1], indices[t + 2]] = [indices[t + 2], indices[t + 1]]
+        const normales = Float32Array.from(c.getAttribute('normal').array, (x) => (alReves ? -x : x))
+        return { posiciones: Float32Array.from(c.getAttribute('position').array), normales, indices }
+      }
+      const fuera = deThree(new THREE.CylinderGeometry(12, 12, 100, 48, 20, true), false)
+      const canal = deThree(new THREE.CylinderGeometry(6, 6, 60, 32, 12, true), true)
+      const desde = fuera.posiciones.length / 3
+      const { haciaLaNormal } = partirMalla(
+        {
+          posiciones: Float32Array.from([...fuera.posiciones, ...canal.posiciones]),
+          normales: Float32Array.from([...fuera.normales, ...canal.normales]),
+          indices: Uint32Array.from([...fuera.indices, ...Array.from(canal.indices, (i) => i + desde)]),
+        },
+        { punto: [0, 5, 0], normal: [0, 1, 0] },
+      )
+      const g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.BufferAttribute(haciaLaNormal.posiciones, 3))
+      g.setAttribute('normal', new THREE.BufferAttribute(haciaLaNormal.normales, 3))
+      g.setIndex(new THREE.BufferAttribute(haciaLaNormal.indices, 1))
+      return g
+    }
+    const grosores = (m: THREE.Mesh) => {
+      const s = { vertexShader: THREE.ShaderLib.physical.vertexShader, fragmentShader: THREE.ShaderLib.physical.fragmentShader, uniforms: {} as Record<string, THREE.IUniform> }
+      ;(m.material as THREE.Material).onBeforeCompile(s as unknown as THREE.WebGLProgramParametersWithUniforms, undefined as unknown as THREE.WebGLRenderer)
+      return s.uniforms.uTapaGrosor.value as number[]
+    }
+
+    const conElCanal = paciente()
+    conElCanal.hueso.geometry = conCanal()
+    vestirElModelo(crearAspectoDelModelo(), conElCanal.raiz, conElCanal.rolDe, 1)
+    const g = conElCanal.hueso.geometry
+    const marca = g.getAttribute('aCanal')
+    const posicion = g.getAttribute('position')
+    const normal = g.getAttribute('normal')
+    // Es canal la pared de 6 mm, y no la de 12 ni la tapa, que lleva la normal del corte.
+    let mal = 0
+    let delCanal = 0
+    for (let i = 0; i < posicion.count; i++) {
+      const esperado = Math.hypot(posicion.getX(i), posicion.getZ(i)) < 9 && Math.abs(normal.getY(i)) < 0.5 ? 1 : 0
+      if (marca.getX(i) !== esperado) mal++
+      delCanal += marca.getX(i)
+    }
+    expect(mal).toBe(0)
+    expect(delCanal).toBeGreaterThan(100)
+    expect(grosores(conElCanal.hueso)).toEqual([CORTICAL_DEL_ANILLO_MM, 0, 0, 0])
+
+    // Sin canal, la regla de antes; y si el archivo dice que el hueso lo tiene, es la tapa de una metáfisis.
+    const sinCanal = paciente()
+    vestirElModelo(crearAspectoDelModelo(), sinCanal.raiz, sinCanal.rolDe, 1)
+    expect([...(sinCanal.hueso.geometry.getAttribute('aCanal').array as Float32Array)].every((x) => x === 0)).toBe(true)
+    expect(grosores(sinCanal.hueso)).toEqual([0, 0, 0, 0])
+    const metafisis = paciente()
+    metafisis.hueso.userData.canalMedular = true
+    vestirElModelo(crearAspectoDelModelo(), metafisis.raiz, metafisis.rolDe, 1)
+    expect(grosores(metafisis.hueso)).toEqual([CORTICAL_DE_LA_METAFISIS_MM, 0, 0, 0])
   })
 
   it('no pone vello donde el archivo pinta mucosa, y deja el resto de la piel como estaba', () => {

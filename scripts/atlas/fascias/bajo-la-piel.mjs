@@ -1,5 +1,6 @@
 /**
- * Mete la fascia superficial bajo la piel donde `generar.py` la deja asomar (D-224).
+ * Mete la fascia superficial bajo la piel donde `generar.py` la deja asomar (D-224), y desde D-332 bajo la piel
+ * entera: bajo su cara de dentro, donde termina la grasa.
  *
  *   node scripts/atlas/fascias/bajo-la-piel.mjs              # dice qué haría
  *   node scripts/atlas/fascias/bajo-la-piel.mjs --aplicar    # reescribe las piezas en salida/
@@ -14,10 +15,15 @@
  * ojos. La comprobación de `capas.py` no lo ve: tolera lo que sobresale el relleno, 2,75 mm. Aquí se mide con el
  * mismo buscador que la prueba (`comprobarPiel.mjs`), que cuenta vueltas y no confunde un pliegue con un agujero.
  *
+ * Desde D-332 la lámina va justo bajo la cara de dentro de la piel —`capas.py` la busca a medio milímetro, y sale a uno
+ * de mediana—, y no a mitad de camino del músculo: lo que no puede es meterse en los 4 mm de la piel con su grasa. Se
+ * mide con `profundidadDeLaFasciaSuperficial`, la misma función que la prueba, y con su mismo `seguro`.
+ *
  * Qué hace, en dos pasos.
  *  1. **Hunde** lo que asoma poco: donde un vértice o un punto de un triángulo (los que mide la prueba) queda a menos
- *     de `OBJETIVO` bajo la piel del cuerpo o la de una oreja, baja sus vértices por la normal de la fascia lo que falte, repartido entre
- *     los vecinos como `recalcular-piel.mjs` reparte el empuje de la piel, y nunca más de `TOPE` en total.
+ *     de `OBJETIVO` bajo la cara de dentro de la piel o bajo la piel de una oreja, baja sus vértices por la normal de
+ *     la fascia lo que falte, repartido entre los vecinos como `recalcular-piel.mjs` reparte el empuje de la piel, y
+ *     nunca más de `TOPE` en total.
  *  2. **Recorta** lo que hundido no entra. Se intentó hundirlo todo, y divergía: la lámina que el campo tiende sobre la
  *     abertura de los ojos y entre los muslos no tiene piel por dentro a la que llegar —detrás está la cuenca del ojo,
  *     encima el hueco entre los muslos—, y bajarla la alejaba más, hasta 3 cm en doce pasadas. Esa lámina no existe en
@@ -29,21 +35,25 @@
  * a vértice y triángulo a triángulo (`tests/unit/fascias.test.ts`), y la piel no es simétrica del todo; cada vértice
  * se hunde lo que pida él o su simétrico, y un triángulo se quita si falla él o el suyo.
  *
- * Lo hundido no se mide contra la fascia profunda: en esos milímetros puede quedar por debajo de ella.
+ * Lo hundido no se mide contra la fascia profunda: en esos milímetros puede quedar por debajo de ella. Desde D-332 es
+ * menos probable que antes, porque la cara de dentro de la piel deja 0,8 mm sobre lo que tiene debajo.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gunzipSync } from 'node:zlib'
-import { HOLGURA_DE_LA_FASCIA_SUPERFICIAL, cascarasDeLaPiel } from '../comprobarPiel.mjs'
+import {
+  HOLGURA_DE_LA_FASCIA_SUPERFICIAL,
+  buscadoresDeLaPiel,
+  cascarasDeLaPiel,
+  profundidadDeLaFasciaSuperficial,
+} from '../comprobarPiel.mjs'
 import {
   NOMBRE_DE_LA_PIEL,
   PASO_DE_LAS_GENERADAS,
   SISTEMA_DE_LA_FASCIA_SUPERFICIAL,
-  crearBuscador,
   muestrasDelTriangulo,
   normalesDeVertice,
-  profundidadBajoLaPiel,
   relajarEmpuje,
   vecinosDe,
   verticesSoldados,
@@ -55,17 +65,16 @@ const ATLAS = join(RAIZ, 'public', 'atlas')
 const aplicar = process.argv.includes('--aplicar')
 
 /**
- * Lo que la fascia queda bajo la piel donde se la hunde: la mitad del milímetro que `capas.py` busca. Lo que se recorta
- * es lo que queda por fuera, que es lo que la prueba no admite (`HOLGURA_DE_LA_FASCIA_SUPERFICIAL`).
+ * Lo que la fascia queda bajo la cara de dentro de la piel donde se la hunde: la mitad del medio milímetro que
+ * `capas.py` busca. Lo que se recorta es lo que queda metido en la piel, que es lo que la prueba no admite
+ * (`HOLGURA_DE_LA_FASCIA_SUPERFICIAL`).
  */
-const OBJETIVO = 0.0005
+const OBJETIVO = 0.00025
 /**
  * Lo más que se hunde un vértice. Entre los dedos lo que asoma son dos milímetros, y se hunde; en el ojo y entre los
  * muslos asoma más y hundir no lo arregla (ver arriba).
  */
 const TOPE = 0.0025
-/** Hasta dónde se mira alrededor de la piel, como en `comprobarPiel.mjs`. */
-const ALCANCE = 0.03
 const PASADAS = 8
 /** Menos que esto no es mover: no se le rehace la normal. */
 const QUIETO = 1e-6
@@ -82,24 +91,20 @@ const fallar = (mensaje) => {
 const catalogo = JSON.parse(readFileSync(join(ATLAS, 'catalogo.json'), 'utf8'))
 const piel = catalogo.piezas.find((p) => p.nombre === NOMBRE_DE_LA_PIEL)
 if (!piel?.recalculada) fallar('La piel del atlas no es la de D-224.\nEjecute antes: node scripts/atlas/recalcular-piel.mjs --aplicar')
+if (!piel.recalculada.includes('D-331')) fallar('La piel del atlas no trae la grasa de D-331.\nEjecute antes: node scripts/atlas/recalcular-piel.mjs --aplicar')
 const paquete = gunzipSync(readFileSync(join(ATLAS, catalogo.paquetes[piel.paquete].archivo)))
 const posPiel = new Float32Array(paquete.buffer.slice(paquete.byteOffset + piel.pos, paquete.byteOffset + piel.pos + piel.vertices * 12))
 const idxPiel = new Uint32Array(paquete.buffer.slice(paquete.byteOffset + piel.idx, paquete.byteOffset + piel.idx + piel.indices * 4))
-const { cuerpo, orejas } = cascarasDeLaPiel(posPiel, idxPiel, piel.vertices)
-const delCuerpo = crearBuscador(posPiel, cuerpo, { celda: 0.006 })
-const deLasOrejas = orejas.map((tri) => crearBuscador(posPiel, tri, { celda: 0.004 }))
-/** Lo que un punto queda bajo la piel del cuerpo o, si no, bajo la de una oreja: como lo mide `comprobarLaPiel`. */
-const profundidad = (x, y, z) => {
-  const r = profundidadBajoLaPiel(delCuerpo, x, y, z, ALCANCE, OBJETIVO)
-  let d = r ? r.profundidad : ALCANCE
-  if (d < OBJETIVO) {
-    for (const b of deLasOrejas) {
-      const o = profundidadBajoLaPiel(b, x, y, z, ALCANCE, OBJETIVO)
-      if (o) d = Math.max(d, o.profundidad)
-    }
-  }
-  return d
-}
+const cascaras = cascarasDeLaPiel(posPiel, idxPiel, piel.vertices)
+if (!cascaras.dentro) fallar('La piel del atlas no trae cara de dentro.\nEjecute antes: node scripts/atlas/recalcular-piel.mjs --aplicar')
+const buscadores = buscadoresDeLaPiel(posPiel, cascaras)
+/**
+ * Lo que un punto queda bajo la piel entera, como lo mide `comprobarLaPiel`: con su mismo `seguro`, el de omisión
+ * (`HOLGURA_MINIMA`). Con `OBJETIVO` de `seguro`, un punto a menos de un milímetro que caía detrás del triángulo más
+ * cercano se daba por bueno sin contar vueltas, y la prueba, que sí las cuenta, encontró uno metido en la piel en un
+ * pliegue: el guion lo había dejado y la prueba lo rechazaba (D-332).
+ */
+const profundidad = (x, y, z) => profundidadDeLaFasciaSuperficial(buscadores, x, y, z)
 
 // --- la fascia superficial -------------------------------------------------------------------
 if (!existsSync(join(SALIDA, 'manifiesto.json'))) {
@@ -210,7 +215,7 @@ const hundido = new Float64Array(total)
 let medida = medir()
 {
   const { faltan, peor } = resumen(medida, HOLGURA_DE_LA_FASCIA_SUPERFICIAL)
-  dicho(`Por fuera de la piel: ${faltan} puntos; el que más, ${(-peor * 1000).toFixed(2)} mm`)
+  dicho(`Metidos en la piel: ${faltan} puntos; el que más, ${(-peor * 1000).toFixed(2)} mm por encima de la cara de dentro`)
 }
 for (let pasada = 1; pasada <= PASADAS; pasada++) {
   const necesita = new Float64Array(total)

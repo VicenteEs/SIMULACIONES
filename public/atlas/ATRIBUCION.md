@@ -32,8 +32,17 @@ CC BY 4.0 exige indicar si se modificó el material. Se modificó así:
   cada oreja, como una cáscara aparte a poco más de un milímetro de la oreja
   anatómica; todo ello subido hacia afuera, a lo largo de su normal, allí donde
   las estructuras de debajo quedaban a menos de 2 mm; y la cáscara interior,
-  rehecha a partir de la exterior. Solo cambia la piel; el resto de la geometría
-  no;
+  rehecha a partir de la exterior. Aparte de la piel, solo cambian los huesos
+  de la viñeta siguiente;
+- 14 huesos largos rehechos a partir de los originales (Left clavicle, Left
+  femur, Left fibula, Left humerus, Left radius, Left tibia, Left ulna, Right
+  radius, Right clavicle, Right femur, Right fibula, Right humerus, Right tibia,
+  Right ulna): su superficie, sacada de nuevo del volumen del original
+  suavizado, con lados de unos 2 mm, sin salir en ningún punto más de un cuarto
+  de milímetro del original; y, dentro de la diáfisis de cada uno, una cáscara
+  que BodyParts3D no trae: el canal medular, hundido bajo la superficie una
+  fracción del ancho del hueso en cada altura y cerrado en cúpula hacia los
+  extremos. Los calcula scripts/atlas/huesos/generar.py;
 - geometría empaquetada en 15 archivos binarios comprimidos;
 - añadida una clasificación por **región anatómica** que el material original no
   traía: se toma de los conceptos FMA de región del propio atlas (cabeza, tórax,
@@ -110,4 +119,4 @@ marcada en el catálogo y el árbol anatómico la señala con un distintivo.
   quirúrgica sobre un paciente concreto.
 
 ---
-Preparación `bp3d-4.0-2c754ecf` · 2.829.501 triángulos
+Preparación `bp3d-4.0-9a998534` · 3.143.641 triángulos

@@ -169,6 +169,8 @@ export const NOMBRE_DEL_DESENLACE: Record<Resultado, string> = {
   [RESULTADOS.PLANO_SIN_HACER]: 'Plano sin hacer',
   [RESULTADOS.LESION_VASCULAR]: 'Lesión vascular',
   [RESULTADOS.LESION_NERVIOSA]: 'Lesión nerviosa',
+  [RESULTADOS.INCISION_DE_MAS]: 'Incisión de más',
+  [RESULTADOS.TRAYECTORIA_DE_MAS]: 'Trayectoria de más',
   [RESULTADOS.CORRECTO]: 'Correcto',
 }
 

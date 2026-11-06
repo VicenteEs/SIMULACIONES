@@ -25,6 +25,12 @@ Qué se hace con cada tejido, y por qué:
   - **Piel**: tono de piel, subsuperficie, translúcida si el archivo la trae así. Con el color por vértice que
     escribe la exportación (D-227) —codos, labios, pezones, párpados— se multiplica el tono de la piel por él, y
     donde el vértice es rojo y húmedo (los labios) la rugosidad baja.
+  - **Grasa de la piel** (D-331, D-334): la cara de dentro de la piel, que es donde termina la grasa. Amarilla, en
+    lóbulos de un par de milímetros separados por tabiques blanquecinos, brillante porque está mojada y es
+    aceitosa. Va en su propia ranura (`separar_la_grasa`).
+  - **Pared de la piel** (D-334): el anillo que deja el corte de la vista entre la cara de fuera y la de dentro.
+    Dermis blanca rosada con el punteado de los capilares hasta 2 mm, y la grasa debajo, por el atributo
+    `hondura` que pone el corte. Es lo mismo que pinta el simulador en la pared de una herida (D-333).
   - **Ojos y córnea** (D-227): el color sale entero del vértice —blanco marfil, iris con su anillo, pupila— y se
     le pone brillo de superficie mojada; la córnea es un casquete casi transparente que da el reflejo.
   - **Tendones y ligamentos** (tejido conectivo): blanco amarillento con fibras.
@@ -361,6 +367,147 @@ def _piel(material, principal, eje, objeto=None):
         arbol.links.new(mapa.outputs['Result'], principal.inputs['Roughness'])
 
 
+#: Lo que mide la dermis con la epidermis, en metros: debajo empieza la grasa (`ESPESOR_DE_LA_DERMIS`, D-331).
+DERMIS_M = 0.002
+
+
+def _lobulos_de_grasa(arbol, coordenadas, x=-1000, y=-200):
+    """
+    El color y el relieve de la grasa: celdas de Voronoi de unos 2 mm —los lóbulos—, amarillas con su variación, y su
+    borde blanquecino, que son los tabiques de colágeno. El relieve hunde los tabiques.
+    """
+    celdas = _nodo(arbol, 'ShaderNodeTexVoronoi', x, y)
+    celdas.feature = 'DISTANCE_TO_EDGE'
+    celdas.inputs['Scale'].default_value = 450.0
+    arbol.links.new(coordenadas, celdas.inputs['Vector'])
+    borde = celdas.outputs['Distance']
+    variacion = _ruido(arbol, coordenadas, 300.0, 3.0, 0.5, x=x, y=y - 300)
+    amarilla = _rampa(arbol, x + 300, y + 250, variacion, [(0.3, (0.84, 0.62, 0.2, 1)), (0.7, (0.98, 0.85, 0.45, 1))])
+    tabique = _rampa(arbol, x + 300, y - 100, borde, [(0.0, (1, 1, 1, 1)), (0.08, (0, 0, 0, 1))])
+    _, color = _mezcla(arbol, x + 600, y + 100, amarilla, (0.95, 0.88, 0.76, 1), tabique)
+    return color, borde
+
+
+def _grasa(material, principal, eje, objeto=None):
+    arbol = material.node_tree
+    coord = _nodo(arbol, 'ShaderNodeTexCoord', -1300, 0).outputs['Object']
+    color, relieve = _lobulos_de_grasa(arbol, coord)
+    _desconectar(arbol, principal.inputs['Base Color'])
+    arbol.links.new(color, principal.inputs['Base Color'])
+    _bump(arbol, relieve, 0.4, 0.0006, principal)
+    _poner(principal, 'Roughness', 0.3)
+    _poner(principal, ('Coat Weight', 'Clearcoat'), 0.4)
+    _poner(principal, ('Coat Roughness', 'Clearcoat Roughness'), 0.15)
+    _poner(principal, ('Subsurface Weight', 'Subsurface'), 0.4)
+    _poner(principal, 'Subsurface Radius', (1.0, 0.7, 0.3))
+    _poner(principal, 'Subsurface Scale', 0.004)
+
+
+def _pared_de_la_piel(material, principal, eje, objeto=None):
+    """La piel por dentro: la dermis hasta `DERMIS_M` bajo la superficie y la grasa debajo, por el atributo `hondura`."""
+    arbol = material.node_tree
+    coord = _nodo(arbol, 'ShaderNodeTexCoord', -1300, 0).outputs['Object']
+    hondura = _nodo(arbol, 'ShaderNodeAttribute', -1300, 500)
+    hondura.attribute_name = 'hondura'
+    en_la_grasa = _nodo(arbol, 'ShaderNodeMapRange', -1000, 500)
+    en_la_grasa.clamp = True
+    en_la_grasa.inputs['From Min'].default_value = DERMIS_M - 0.00025
+    en_la_grasa.inputs['From Max'].default_value = DERMIS_M + 0.00025
+    arbol.links.new(hondura.outputs['Fac'], en_la_grasa.inputs['Value'])
+    grasa, relieve = _lobulos_de_grasa(arbol, coord)
+    capilar = _rampa(arbol, -700, 700, _ruido(arbol, coord, 2400.0, 2.0, 0.5, x=-1000, y=800), [(0.62, (0, 0, 0, 1)), (0.7, (1, 1, 1, 1))])
+    _, dermis = _mezcla(arbol, -400, 700, (0.9, 0.72, 0.68, 1), (0.62, 0.1, 0.09, 1), capilar)
+    _, color = _mezcla(arbol, -200, 400, dermis, grasa, en_la_grasa.outputs['Result'])
+    _desconectar(arbol, principal.inputs['Base Color'])
+    arbol.links.new(color, principal.inputs['Base Color'])
+    _bump(arbol, relieve, 0.3, 0.0005, principal)
+    _poner(principal, 'Roughness', 0.32)
+    _poner(principal, ('Coat Weight', 'Clearcoat'), 0.35)
+    _poner(principal, ('Subsurface Weight', 'Subsurface'), 0.3)
+    _poner(principal, 'Subsurface Radius', (1.0, 0.5, 0.3))
+    _poner(principal, 'Subsurface Scale', 0.003)
+
+
+def _material_nuevo(objeto, nombre, funcion):
+    """Un material propio en una ranura nueva del objeto, con el aspecto de `funcion`. Devuelve el número de la ranura."""
+    material = bpy.data.materials.new(f'{objeto.name} · {nombre}')
+    material.use_nodes = True
+    try:
+        material.surface_render_method = 'DITHERED'
+    except Exception:
+        pass
+    objeto.data.materials.append(material)
+    funcion(material, _principal(material), None, objeto)
+    return len(objeto.data.materials) - 1
+
+
+def cara_de_dentro(malla):
+    """
+    Los polígonos de la cara de dentro de la piel, o una lista vacía.
+
+    La pieza «Skin» trae sueltas la cara de fuera, las orejas y la de dentro, que es la única de volumen negativo porque
+    sus caras miran al cuerpo: la regla de `cascarasDeLaPiel` (`comprobarPiel.mjs`) y de `capas.cara_de_dentro`.
+    """
+    import numpy as np
+
+    n = len(malla.vertices)
+    caras = len(malla.polygons)
+    if not caras:
+        return []
+    cuantos = np.zeros(caras, np.int32)
+    malla.polygons.foreach_get('loop_total', cuantos)
+    if (cuantos != 3).any():
+        return []
+    tri = np.zeros(caras * 3, np.int64)
+    malla.polygons.foreach_get('vertices', tri)
+    tri = tri.reshape(-1, 3)
+    pos = np.zeros(n * 3, np.float64)
+    malla.vertices.foreach_get('co', pos)
+    pos = pos.reshape(-1, 3)
+    padre = list(range(n))
+
+    def raiz(i):
+        while padre[i] != i:
+            padre[i] = padre[padre[i]]
+            i = padre[i]
+        return i
+
+    for a, b, c in tri.tolist():
+        ra, rb = raiz(a), raiz(b)
+        if ra != rb:
+            padre[ra] = rb
+        rc, rb = raiz(c), raiz(b)
+        if rc != rb:
+            padre[rc] = rb
+    etiqueta = np.array([raiz(i) for i in range(n)])[tri[:, 0]]
+    volumen = np.einsum('ij,ij->i', pos[tri[:, 0]], np.cross(pos[tri[:, 1]], pos[tri[:, 2]])) / 6
+    cascaras, inversa = np.unique(etiqueta, return_inverse=True)
+    por_cascara = np.bincount(inversa, weights=volumen)
+    la_de_dentro = int(np.argmin(por_cascara))
+    if por_cascara[la_de_dentro] >= 0:
+        return []
+    return np.nonzero(inversa == la_de_dentro)[0].tolist()
+
+
+def separar_la_grasa(objeto):
+    """Pone la cara de dentro de la piel en una ranura propia con la grasa. Devuelve si la encontró."""
+    poligonos = cara_de_dentro(objeto.data)
+    if not poligonos:
+        return False
+    ranura = _material_nuevo(objeto, 'grasa', _grasa)
+    for i in poligonos:
+        objeto.data.polygons[i].material_index = ranura
+    objeto['ranura_de_la_grasa'] = ranura
+    return True
+
+
+def ranura_de_la_pared(objeto):
+    """La ranura de la pared de la piel del objeto, que se crea la primera vez que el corte la pide."""
+    if 'ranura_de_la_pared' not in objeto:
+        objeto['ranura_de_la_pared'] = _material_nuevo(objeto, 'pared', _pared_de_la_piel)
+    return objeto['ranura_de_la_pared']
+
+
 def _ojos(material, principal, eje, objeto=None):
     """Esclera, iris y pupila: el color es el del vértice y lo demás, el brillo de lo mojado."""
     arbol = material.node_tree
@@ -453,4 +600,7 @@ def aplicar(objeto, sistema):
         except Exception:
             pass
         funcion(material, _principal(material), eje, objeto)
+    # La piel trae su cara de dentro (D-224), y desde D-331 es donde termina la grasa: va con su propio material.
+    if sistema == 'integumentary':
+        separar_la_grasa(objeto)
     return True

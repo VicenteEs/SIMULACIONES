@@ -495,6 +495,45 @@ describe('el atlas con la piel recalculada', () => {
     expect(dentro?.length).toBe(cuerpo.length)
   })
 
+  it('mide 4 mm con la grasa en el cuerpo y 2 en la cabeza, y no más en ninguna parte (D-331)', async () => {
+    // El dueño eligió un grosor fijo: 2 mm de grasa bajo los 2 de piel, sin grasa en la cabeza, y más delgada solo donde
+    // no cabe. La cara de dentro es la de fuera hundida vértice a vértice (`recalcular-piel.mjs`), así que el grosor de
+    // cada vértice es lo que lo separa de su copia. Medido al escribirla: entera en el 72,4 % del cuerpo sin la cabeza y
+    // sin grasa en el 12,8 %. El suelo de la prueba queda un poco por debajo, para que la pida y no la copie.
+    expect(piel.recalculada).toMatch(/D-331/)
+    const c = await comprobacion()
+    const pos = posiciones(piel)
+    const { cuerpo, dentro } = c.cascarasDeLaPiel(pos, indices(piel), piel.vertices)
+    const corrimiento = dentro![0] - cuerpo[0]
+    const grosor = new Map<number, number>()
+    for (const v of cuerpo) {
+      if (grosor.has(v)) continue
+      const w = v + corrimiento
+      grosor.set(v, Math.hypot(pos[v * 3] - pos[w * 3], pos[v * 3 + 1] - pos[w * 3 + 1], pos[v * 3 + 2] - pos[w * 3 + 2]))
+    }
+    let enElCuerpo = 0
+    let entera = 0
+    let masGruesa = 0
+    let enLaCabeza = 0
+    let masGruesaEnLaCabeza = 0
+    for (const [v, g] of grosor) {
+      const y = pos[v * 3 + 1]
+      if (y < 1.44) {
+        enElCuerpo++
+        if (g >= 0.0039) entera++
+        masGruesa = Math.max(masGruesa, g)
+      } else if (y > 1.5) {
+        enLaCabeza++
+        masGruesaEnLaCabeza = Math.max(masGruesaEnLaCabeza, g)
+      }
+    }
+    expect(enElCuerpo).toBeGreaterThan(50_000)
+    expect(enLaCabeza).toBeGreaterThan(5_000)
+    expect(masGruesa).toBeLessThan(0.00401)
+    expect(masGruesaEnLaCabeza).toBeLessThan(0.00201)
+    expect(entera / enElCuerpo).toBeGreaterThan(0.7)
+  })
+
   it('la caja de la piel es la de sus vértices', () => {
     const pos = posiciones(piel)
     const min = [Infinity, Infinity, Infinity]

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { ejesDelPaciente, type EjeDelHueso } from '@/lib/posicionDelPaciente'
 import { juzgarElBloqueo, orificiosDelClavo, posicionDelOrificioMm, type OrificioDelClavo, type Punteria } from '@/lib/bloqueoDelClavo'
 import {
+  ISTMO_POR_OMISION_MM,
   LARGO_DE_LA_GUIA_MM,
   DIAMETRO_DE_LA_GUIA_MM,
   avanceMaximoDeLaGuia,
@@ -37,6 +38,20 @@ export interface CanalMedido {
   anteriorMm: number
   /** Por dónde cruza un tornillo de bloqueo el clavo: perpendicular al canal, hacia el lado del paciente. Unitario. */
   transversal: THREE.Vector3
+  /** Lo más estrecho del canal, en mm: el que trae el hueso en su archivo (D-336), o el de partida (`ISTMO_POR_OMISION_MM`). */
+  istmoMm: number
+}
+
+/**
+ * El istmo que trae un hueso en los `extras` de su nodo (D-336, `istmoMm`), mirando también a sus padres: un nodo con
+ * varias primitivas llega como un grupo, y los `extras` quedan en él. `null` si no lo trae, como un caso de antes.
+ */
+export function istmoDelHueso(objeto: THREE.Object3D | null): number | null {
+  for (let o = objeto; o; o = o.parent) {
+    const istmo = o.userData?.istmoMm
+    if (typeof istmo === 'number' && istmo > 0) return istmo
+  }
+  return null
 }
 
 /**
@@ -50,6 +65,8 @@ export function medirElCanal(p: {
   cajaDistal: THREE.Box3 | null
   eje: EjeDelHueso
   milimetrosPorUnidad: number
+  /** El del hueso (`istmoDelHueso`), si lo trae. */
+  istmoMm?: number | null
 }): CanalMedido {
   const mm = p.milimetrosPorUnidad
   const e = ejesDelPaciente(p.eje)
@@ -87,6 +104,7 @@ export function medirElCanal(p: {
     desdeElExtremoMm: (extremoProximal - p.entrada.dot(hueso)) * mm,
     desviacionMm: Math.abs(p.entrada.dot(lado) - centro.dot(lado)) * mm,
     anteriorMm: (p.entrada.dot(frente) - centro.dot(frente)) * mm,
+    istmoMm: p.istmoMm ?? ISTMO_POR_OMISION_MM,
   }
 }
 
@@ -164,6 +182,7 @@ export function remedirElCanal(e: EnclavadoEnLaEscena, eje: EjeDelHueso, milimet
     cajaDistal: distal ? new THREE.Box3().setFromObject(distal) : null,
     eje,
     milimetrosPorUnidad,
+    istmoMm: antes.istmoMm,
   })
   const cambio = Math.abs(nuevo.largoDelCanalMm - antes.largoDelCanalMm) > 0.05 || (nuevo.distanciaAlFocoMm ?? -1) !== (antes.distanciaAlFocoMm ?? -1)
   // La medida de la entrada se conserva tal como se juzgó al marcarla; solo cambia lo que depende de dónde están los trozos.
@@ -342,7 +361,7 @@ export function retirarLaGuia(e: EnclavadoEnLaEscena) {
 /** ¿Pasa la guía por el foco con la reducción de ahora? Si el hueso no está partido, siempre. */
 export function juicioDelPasoDeLaGuia(e: EnclavadoEnLaEscena, reduccion: ReduccionDelFoco | null) {
   if (!e.entrada || e.entrada.canal.distanciaAlFocoMm === null || !reduccion) return { pasa: true, aviso: null }
-  return juzgarElPasoDeLaGuia(reduccion, e.dedoPuesto)
+  return juzgarElPasoDeLaGuia(reduccion, e.dedoPuesto, e.entrada.canal.istmoMm)
 }
 
 /** Hasta dónde puede avanzar la guía con la reducción de ahora, en mm. */
@@ -386,7 +405,7 @@ export function estadoDelEnclavado(e: EnclavadoEnLaEscena, reduccion: ReduccionD
     entrada,
     guia,
     dedoPuesto: e.dedoPuesto,
-    fresado: { ...juzgarElFresado(e.cabezasMm, clavoMm), cabezasMm: [...e.cabezasMm] },
+    fresado: { ...juzgarElFresado(e.cabezasMm, clavoMm, e.entrada?.canal.istmoMm), cabezasMm: [...e.cabezasMm] },
     guiaCambiada: e.guiaCambiada,
     arcoMontado: e.arcoMontado,
     clavo: e.clavo && e.entrada ? estadoDelClavo(e, e.clavo, e.entrada.canal.largoDelCanalMm) : null,

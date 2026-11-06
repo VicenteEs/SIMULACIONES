@@ -121,11 +121,17 @@ describe('en evaluación nada dice si se acierta (D-313)', () => {
     expect(estilos).toContain('.consola-punto-anotado > svg { color: var(--c-rotulo); }')
   })
 
-  it('las medidas dan la cifra y el tope, sin el veredicto ni el color', () => {
+  it('las medidas dan solo la cifra (D-329): sin el tope, el veredicto ni el color', () => {
     expect(consola).toContain('data-estado={m.lectura && enPractica ? m.lectura.estado : undefined}')
+    // La línea del tope entera, detrás de la práctica: con el tope a la vista, la cifra al lado era el veredicto.
+    expect(consola.match(/<dd className="consola-medida-tope">/g)).toHaveLength(1)
+    expect(consola).toContain('{m.lectura && enPractica ? (\n                  <dd className="consola-medida-tope">')
     const tope = entre('<dd className="consola-medida-tope">', '</dd>')
-    expect(tope).toContain('{enPractica ? (')
+    expect(tope).toContain('{m.lectura.referencia}')
     expect(tope).toContain('<strong>{m.lectura.veredicto}</strong>')
+    // Y la instrucción completa, que los repetía en una frase.
+    expect(consola).toContain('instruccionDelPaso(paso, { conTopes: enPractica })')
+    expect(consola).not.toMatch(/instruccionDelPaso\(paso\)/)
   })
 
   it('la escopia no dibuja dónde debe quedar el fragmento ni dice si la angulación está dentro', () => {

@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { ATRIBUTO_DEL_CANAL, SIN_CANAL_POR_OMISION } from './canalDeLaGeometria'
 
 /**
  * El material de la radiografía, el mismo para el taller anatómico y para el simulador.
@@ -12,6 +13,11 @@ import * as THREE from 'three'
  * En el atlas la radiografía de las piezas enteras va dentro del sombreador de su sistema
  * (`cargador.ts`, que parte del material estándar de three); esto es para lo que no pasa
  * por ahí: los trozos sueltos de un hueso partido y todo lo del simulador.
+ *
+ * La pared del canal medular (D-336, el atributo `aCanal`) no suma. Con superficies que solo
+ * suman, el canal no puede restar lo que el hueso no absorbe ahí, y sumarlo era peor: la
+ * diáfisis salía más blanca por el medio que por los bordes, y con una raya clara de más a
+ * cada lado, en el borde del canal. Sin ella el hueso se ve como antes de tener canal.
  */
 
 /**
@@ -30,12 +36,15 @@ export function crearMaterialDeRadiografia(
   densidad: number,
   ganancia: number = GANANCIA_DE_LA_RADIOGRAFIA,
 ): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     uniforms: { uDensidad: { value: densidad }, uGanancia: { value: ganancia } },
     vertexShader: /* glsl */ `
+      attribute float ${ATRIBUTO_DEL_CANAL};
       varying vec3 vNormal;
+      varying float vCanal;
       void main() {
         vNormal = normalize(normalMatrix * normal);
+        vCanal = ${ATRIBUTO_DEL_CANAL};
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -43,7 +52,9 @@ export function crearMaterialDeRadiografia(
       uniform float uDensidad;
       uniform float uGanancia;
       varying vec3 vNormal;
+      varying float vCanal;
       void main() {
+        if (vCanal > 0.5) discard;
         // 0 de frente, 1 rasante: un rayo rasante atraviesa más material (ver aporteDeLaSuperficie).
         float rasante = 1.0 - abs(normalize(vNormal).z);
         float aporte = uDensidad * (0.045 + 0.2 * pow(rasante, 1.5)) * uGanancia;
@@ -60,4 +71,7 @@ export function crearMaterialDeRadiografia(
     blendSrc: THREE.SrcAlphaFactor,
     blendDst: THREE.OneFactor,
   })
+  // Lo que no trae el atributo —la piel, el músculo, el metal— no tiene canal.
+  material.defaultAttributeValues = { ...material.defaultAttributeValues, ...SIN_CANAL_POR_OMISION }
+  return material
 }

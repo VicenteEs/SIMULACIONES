@@ -55,7 +55,17 @@ import {
 import { cargarModeloDelInstrumento } from '@/instrumental/cargarModelo'
 import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental/modelo'
 import type { PlanoDeCorte } from '@/lib/comportamientoDelInstrumento'
-import { ANCHO_VISIBLE_DE_LA_INCISION_MM, abrirCapa, cerrarCapa, cortarCapa, ladoDeLaHerida, refrescarBordes, sitioEnLaHerida, type HeridaEnCapa } from './heridas'
+import {
+  ANCHO_VISIBLE_DE_LA_INCISION_MM,
+  GROSOR_MAXIMO_DE_LA_PIEL_MM,
+  abrirCapa,
+  cerrarCapa,
+  cortarCapa,
+  ladoDeLaHerida,
+  refrescarBordes,
+  sitioEnLaHerida,
+  type HeridaEnCapa,
+} from './heridas'
 import { incisionQueAlarga, UMBRAL_PARA_ALARGAR_MM, type Punto, type ResumenDeIncision } from '@/lib/incisiones'
 import { juicioDeLaPotencia, type ModoDelElectrobisturi } from '@/lib/electrobisturi'
 import {
@@ -275,6 +285,7 @@ import {
   crearEnclavado,
   estadoDelEnclavado,
   juicioDelPasoDeLaGuia,
+  istmoDelHueso,
   medirElCanal,
   ponerElCanal,
   ponerLaEntrada,
@@ -904,6 +915,12 @@ export interface PerforacionHecha {
   bicortical: boolean
   /** Cuánto pasó de largo la cortical opuesta, en mm: más de unos pocos es riesgo para las partes blandas. */
   sePasoMm: number
+  /**
+   * Dónde entró la broca, en mm de la escena, y hacia dónde iba (D-330): con ellas la consola sabe si una perforación
+   * repasa la trayectoria de antes —la broca de núcleo por el agujero de deslizamiento— o es otro agujero.
+   */
+  entradaMm: Punto
+  direccion: Punto
 }
 
 /**
@@ -956,6 +973,7 @@ export function LienzoQuirurgico({
   alHerir,
   alPerforar,
   alLesionar,
+  alIncidir,
   alCoser,
   alFijar,
   largoDeTornillo = 24,
@@ -1059,6 +1077,11 @@ export function LienzoQuirurgico({
    * alarga vuelve a cortar lo que ya estaba cortado, y eso no es otra lesión.
    */
   alLesionar?: (lesion: LesionDeEstructura) => void
+  /**
+   * Un trazo de verdad abrió una incisión nueva (D-330): no la que alarga otra, ni la que rehace la sesión, un reintento
+   * o una disección. Es lo que la consola cuenta para saber si en el paso hay una segunda aparte.
+   */
+  alIncidir?: (incision: { id: number; capa: PlanoDeCorte }) => void
   /** Cambió la sutura: se puso una puntada, se deshizo una o se quitó todo. `null` si ya no hay sutura. */
   alCoser?: (estado: EstadoDeLaSutura | null) => void
   /** Cambió la fijación (placa, tornillos) o se midió un agujero. */
@@ -1443,6 +1466,7 @@ export function LienzoQuirurgico({
     alHerir,
     alPerforar,
     alLesionar,
+    alIncidir,
     alCoser,
     alFijar,
     largoDeTornillo,
@@ -1507,6 +1531,7 @@ export function LienzoQuirurgico({
       alHerir,
       alPerforar,
       alLesionar,
+      alIncidir,
       alCoser,
       alFijar,
       largoDeTornillo,
@@ -3411,6 +3436,9 @@ export function LienzoQuirurgico({
         alcance: 30 * unidadesPorMm,
         unidadesPorMm,
         incision: id,
+        // La piel tiene grosor: dermis y grasa entre sus dos caras (D-331), y el corte levanta la pared que se ve al
+        // abrir (D-333). La fascia superficial, que se corta con ella, es una lámina y no la encuentra.
+        pared: plano === 'piel' ? GROSOR_MAXIMO_DE_LA_PIEL_MM * unidadesPorMm : undefined,
       }
       const hechas: HeridaEnCapa[] = []
       for (const malla of mallas) {
@@ -3449,6 +3477,8 @@ export function LienzoQuirurgico({
       // Un vaso o un nervio que el trazo de ahora partió es una complicación (P-012 E6). Solo con un trazo de verdad: lo
       // que rehace la sesión o una incisión ya se contó cuando pasó.
       if (!desdeLaSesion && !esRehacer && !deDiseccion) {
+        // Antes que las lesiones: si la incisión es de más, el registro lo dice antes que lo que partió.
+        if (!previo) ultimas.current.alIncidir?.({ id, capa: plano })
         for (const herida of hechas) {
           if (yaCortadas.has(herida.malla.name)) continue
           const pieza = ultimas.current.piezas.find((p) => p.nodo === herida.malla.name)
@@ -3795,6 +3825,12 @@ export function LienzoQuirurgico({
       }
     }
 
+    /** La entrada en mm y la dirección de una perforación, para `PerforacionHecha` (D-330). */
+    const trayectoriaDeLaBroca = (p: Perforacion, unidadesPorMm: number): Pick<PerforacionHecha, 'entradaMm' | 'direccion'> => ({
+      entradaMm: [p.entrada.x / unidadesPorMm, p.entrada.y / unidadesPorMm, p.entrada.z / unidadesPorMm],
+      direccion: [p.dirEntra.x, p.dirEntra.y, p.dirEntra.z],
+    })
+
     const terminarPerforacion = () => {
       const p = perforando
       perforando = null
@@ -3843,6 +3879,7 @@ export function LienzoQuirurgico({
           anguloConElEje: p.anguloConElEje,
           bicortical: juicio.bicortical,
           sePasoMm: juicio.sePasoMm,
+          ...trayectoriaDeLaBroca(p, unidadesPorMm),
         })
         pedirDibujo()
         return
@@ -3914,6 +3951,7 @@ export function LienzoQuirurgico({
         anguloConElEje: p.anguloConElEje,
         bicortical: p.profundidad >= p.salidaPorLaOpuesta - 0.5 * unidadesPorMm,
         sePasoMm: sePaso / unidadesPorMm,
+        ...trayectoriaDeLaBroca(p, unidadesPorMm),
       })
       taller.current.decir?.('')
       pedirDibujo()
@@ -5033,7 +5071,7 @@ export function LienzoQuirurgico({
         return
       }
       const e = (t.enclavado ??= crearEnclavado())
-      const canal = medirElCanal({ entrada: golpe.point.clone(), cajaProximal: cajaA, cajaDistal: cajaB, eje, milimetrosPorUnidad: mm })
+      const canal = medirElCanal({ entrada: golpe.point.clone(), cajaProximal: cajaA, cajaDistal: cajaB, eje, milimetrosPorUnidad: mm, istmoMm: istmoDelHueso(pieza) })
       // Una entrada nueva invalida lo que dependía de la anterior: la guía y el fresado se rehacen.
       soltarLosBloqueos(t)
       retirarLaGuia(e)

@@ -23,6 +23,7 @@
  */
 
 import type { LecturaClinica } from '@/atlas/lecturaClinica'
+import type { GestoDeMas } from './gestoDeMas'
 import { esEstructuraNoble } from '@/lib/piezasDelCaso'
 import {
   desplazamientoCompleto,
@@ -63,6 +64,9 @@ export const RESULTADOS = {
   // P-012 E6: cortar o perforar un vaso o un nervio.
   LESION_VASCULAR: 'lesion-vascular',
   LESION_NERVIOSA: 'lesion-nerviosa',
+  // D-330: en evaluación, una segunda incisión aparte o una segunda trayectoria en el paso que mide la primera.
+  INCISION_DE_MAS: 'incision-de-mas',
+  TRAYECTORIA_DE_MAS: 'trayectoria-de-mas',
   CORRECTO: 'correcto',
 } as const
 
@@ -465,6 +469,25 @@ export function juicioDeLaLesion(lesion: LesionDeEstructura): Evaluacion {
     lesion.rol === 'vaso' ? RESULTADOS.LESION_VASCULAR : RESULTADOS.LESION_NERVIOSA,
     true,
   )
+}
+
+/**
+ * Lo que cuesta, en evaluación, el gesto de más (D-330): una complicación del paso, como lesionar un vaso. Se juzga
+ * cuando pasa y no al aplicar, por lo mismo que aquella: la incisión de antes no se descose, y medido al aplicar bastaría
+ * con hacer la segunda en el paso siguiente.
+ */
+export function juicioDelGestoDeMas(que: GestoDeMas): Evaluacion {
+  return que === 'incision'
+    ? nada(
+        'Una segunda incisión aparte, en el paso que mide la incisión: la primera queda en el paciente. En pabellón son dos heridas que cerrar y dos cicatrices.',
+        RESULTADOS.INCISION_DE_MAS,
+        true,
+      )
+    : nada(
+        'Una segunda trayectoria, en el paso que mide la perforación: el primer agujero queda en el hueso. En pabellón, un agujero de más debilita el hueso y puede llevarse la broca o el tornillo que vengan después.',
+        RESULTADOS.TRAYECTORIA_DE_MAS,
+        true,
+      )
 }
 
 /** Las dos técnicas de reducción, con sus topes por omisión (D-305). */
@@ -967,8 +990,14 @@ export function puntosDelPaso(paso: PasoQuirurgico, historial: HistorialDelPaso)
  *
  * Sirve para escribir la instrucción en pantalla sin repetir la lógica de
  * evaluación en la interfaz.
+ *
+ * `conTopes: false` es la de evaluación (D-329): sin el largo de la incisión ni
+ * los topes de la reducción, que son lo que las medidas ya no dicen ahí. Lo
+ * demás se queda —la broca, la inclinación, los tornillos, la fuerza—, porque
+ * el dueño decidió sobre las medidas, y lo que sigue escrito aquí está anotado
+ * en la decisión para que lo vea.
  */
-export function instruccionDelPaso(paso: PasoQuirurgico): string {
+export function instruccionDelPaso(paso: PasoQuirurgico, { conTopes = true }: { conTopes?: boolean } = {}): string {
   // Las cuatro ramas empiezan por el instrumento porque `evaluarGesto` lo exige
   // en las cuatro: sin instrumento no hay gesto, sea cual sea el objetivo. Solo
   // dos lo nombraban, y en un paso de trazo la instrucción decía «active el modo
@@ -979,15 +1008,14 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
 
   switch (objetivoDelPaso(paso)) {
     case 'trazo': {
-      const rango = rangoDeTrazoEnTexto(paso)
+      const rango = conTopes ? rangoDeTrazoEnTexto(paso) : null
       return conInstrumento(
         `active el modo Trazar para arrastrar sobre el modelo.${rango ? ` Objetivo: ${rango}.` : ''}`,
       )
     }
     case 'reduccion': {
-      return conInstrumento(
-        `active el modo Mover, arrastre el fragmento a su sitio y corrija la angulación. Se aceptan hasta ${topesEnTexto(topesDeReduccion(paso))}.`,
-      )
+      const topes = conTopes ? ` Se aceptan hasta ${topesEnTexto(topesDeReduccion(paso))}.` : ''
+      return conInstrumento(`active el modo Mover, arrastre el fragmento a su sitio y corrija la angulación.${topes}`)
     }
     case 'fuerza': {
       // El rango se escribe también aquí, y no solo en el rótulo del

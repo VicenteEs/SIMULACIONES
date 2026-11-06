@@ -67,6 +67,12 @@ export type { RecetaDeFractura, FracturaDeInstancia }
  * cambia qué semillas fallan—, y esta combinación dejó a los seis huesos largos con
  * menos de una semilla de cada diez fallida. Vale lo mismo que un número de
  * lotería: si se toca, hay que repetir el barrido (`tests/unit/fracturasAO.test.ts`).
+ *
+ * Desde D-339 no sale ningún trozo abierto con ninguna de las 40 semillas en los
+ * diez huesos largos que se barrieron: aquellos fallos eran dos puntos de corte
+ * casi iguales y no la forma del patrón, así que el barrido ya no elegiría nada.
+ * Los números se quedan porque una fractura guardada es su receta, y cambiarlos
+ * movería sus cortes.
  */
 const FONDO_DE_LA_ESQUIRLA = 0.65
 const INCLINACION_DEL_NUCLEO = (60 * Math.PI) / 180

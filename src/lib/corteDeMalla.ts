@@ -35,6 +35,18 @@
  * cada labio por esa dirección, con su peso, tanto como diga la apertura: el
  * tejido cercano se arrastra y el lejano no se entera, que es lo que hace un
  * separador de verdad.
+ *
+ * ## La pared, en la piel (D-333)
+ *
+ * La piel tiene dos caras: la de fuera y la de dentro, 4 mm más abajo en el cuerpo
+ * y 2 en la cabeza (D-331). El telón parte las dos, y cada una abre sus labios;
+ * entre el labio de fuera y el de dentro de un mismo lado no había nada, y por el
+ * hueco se veía el otro lado de la herida. Con `pared`, cada lado se cierra con una
+ * tira de triángulos de un labio al otro: lo que se ve de la dermis y de la grasa
+ * al abrir. Sus vértices son copias de los de los labios, con su mismo lado, su
+ * peso y su dirección: la pared se abre con ellos, y su normal es la suya y no la
+ * de la piel. Cada copia dice lo que queda bajo la superficie (`pared`), que es lo
+ * que el sombreador usa para pintar la dermis arriba y la grasa debajo.
  */
 
 export type Vec3 = [number, number, number]
@@ -72,6 +84,12 @@ export interface OpcionesDeCorte {
    * centímetros, el labio es una recta entre ellos y una hoja de 10 mm apoyada en medio no tiene tejido que mover.
    */
   pasoDelLabio?: number
+  /**
+   * Si la capa tiene grosor —la piel, con su cara de dentro (D-331)—, hasta dónde por debajo de la cara de fuera se
+   * busca la de dentro, en las unidades de la malla. Con él, el corte levanta la pared de cada labio (D-333). Sin él,
+   * o si no hay otra cara a esa distancia, el corte es el de siempre.
+   */
+  pared?: number
 }
 
 export interface MallaCortada extends MallaPlana {
@@ -102,8 +120,17 @@ export interface MallaCortada extends MallaPlana {
    * ellos queda por dentro de la pierna y se ve a trozos. La cinta de la herida se tiende por aquí.
    */
   curva: CurvaDeIncision
-  /** Cada labio, de un extremo de la incisión al otro: para dibujar su borde. */
+  /**
+   * Cada labio, de un extremo de la incisión al otro: para dibujar su borde. Con pared, solo los de la cara de fuera:
+   * los de dentro, mezclados por su posición a lo largo, hacían del borde un serrucho de 4 mm de alto, y la hoja de
+   * un separador apoyada en medio agarraba un poco de cada cara.
+   */
   labios: { mas: number[]; menos: number[] }
+  /**
+   * Lo que cada vértice de la pared de la herida queda bajo la superficie, en las unidades de la malla, y −1 en los
+   * que no son de la pared (D-333).
+   */
+  pared: Float32Array
   /** Cuántas aristas se partieron: 0 quiere decir que la incisión no tocó la malla. */
   aristasPartidas: number
 }
@@ -250,6 +277,177 @@ export function proyectar(curva: CurvaDeIncision, p: Vec3): Proyeccion {
   }
 }
 
+// ------------------------------------------------------------------------ la pared
+
+/** A qué cáscara suelta pertenece cada vértice: las que no comparten ningún triángulo son cáscaras distintas. */
+function cascarasDe(indices: Uint32Array, n: number): Int32Array {
+  const padre = new Int32Array(n)
+  for (let i = 0; i < n; i++) padre[i] = i
+  const raiz = (i: number) => {
+    while (padre[i] !== i) {
+      padre[i] = padre[padre[i]]
+      i = padre[i]
+    }
+    return i
+  }
+  const unir = (x: number, y: number) => {
+    const a = raiz(x)
+    const b = raiz(y)
+    if (a !== b) padre[a] = b
+  }
+  for (let t = 0; t + 2 < indices.length; t += 3) {
+    unir(indices[t], indices[t + 1])
+    unir(indices[t + 1], indices[t + 2])
+  }
+  for (let i = 0; i < n; i++) padre[i] = raiz(i)
+  return padre
+}
+
+interface VerticeDelLabio {
+  i: number
+  t: number
+}
+
+/** Lo más cerca que queda `p` de la polilínea que forman `cadena` (posiciones por `leerVertice`). */
+function distanciaACadena(p: Vec3, cadena: readonly number[], leerVertice: (i: number) => Vec3): number {
+  let mejor = Infinity
+  for (let k = 0; k < cadena.length; k++) {
+    const a = leerVertice(cadena[k])
+    if (k + 1 === cadena.length) {
+      mejor = Math.min(mejor, largo(resta(p, a)))
+      break
+    }
+    const ab = resta(leerVertice(cadena[k + 1]), a)
+    const l2 = punto(ab, ab)
+    const u = l2 > 0 ? Math.min(1, Math.max(0, punto(resta(p, a), ab) / l2)) : 0
+    mejor = Math.min(mejor, largo(resta(p, suma(a, por(ab, u)))))
+  }
+  return mejor
+}
+
+/**
+ * Las dos tiras de la pared, una por lado (D-333). La cara de fuera es la cáscara cuyos labios quedan más altos —es
+ * la que se trazó—; la de dentro, la que queda más cerca por debajo de ella, y nunca a más de `grosorMaximo`. Si no
+ * la hay (la oreja, que es una cáscara sin cara de dentro), no se levanta nada.
+ *
+ * Cada lado es la cadena de fuera y la de dentro, cada una con sus puntas, ordenadas a lo largo, y se cosen como una
+ * cremallera: avanza la que tiene el siguiente vértice antes. Las puntas son de los dos lados: ahí las dos tiras se
+ * juntan y la herida queda cerrada en sus extremos, sin un agujero hacia el grosor de la piel.
+ */
+function levantarLaPared({
+  curva,
+  cascara,
+  leerVertice,
+  ladoDe,
+  origenDe,
+  labios,
+  puntas,
+  grosorMaximo,
+  nuevoVertice,
+  indices,
+}: {
+  curva: CurvaDeIncision
+  cascara: (i: number) => number
+  leerVertice: (i: number) => Vec3
+  ladoDe: (i: number) => number
+  origenDe: (i: number) => number
+  labios: { mas: VerticeDelLabio[]; menos: VerticeDelLabio[] }
+  puntas: VerticeDelLabio[]
+  grosorMaximo: number
+  nuevoVertice: (p: Vec3, origen: number, lado: number, t: number) => number
+  indices: number[]
+}): { labios: { mas: VerticeDelLabio[]; menos: VerticeDelLabio[] }; hondura: Map<number, number> } | null {
+  const todos = [...labios.mas, ...labios.menos]
+  const alturas = new Map<number, { suma: number; n: number }>()
+  for (const v of todos) {
+    const c = cascara(v.i)
+    const e = alturas.get(c) ?? { suma: 0, n: 0 }
+    e.suma += proyectar(curva, leerVertice(v.i)).altura
+    e.n++
+    alturas.set(c, e)
+  }
+  if (alturas.size < 2) return null
+  const fuera = [...alturas].sort((a, b) => b[1].suma / b[1].n - a[1].suma / a[1].n)[0][0]
+  const deFuera = todos.filter((v) => cascara(v.i) === fuera).map((v) => v.i)
+  let dentro = -1
+  let mejor = Infinity
+  for (const [c] of alturas) {
+    if (c === fuera) continue
+    const suyos = todos.filter((v) => cascara(v.i) === c)
+    // Con dos docenas de muestras basta para saber cuál está debajo: las cadenas tienen cientos de vértices.
+    const paso = Math.max(1, Math.floor(suyos.length / 24))
+    let suma = 0
+    let n = 0
+    for (let k = 0; k < suyos.length; k += paso) {
+      const p = leerVertice(suyos[k].i)
+      let cerca = Infinity
+      for (const w of deFuera) cerca = Math.min(cerca, largo(resta(p, leerVertice(w))))
+      suma += cerca
+      n++
+    }
+    if (suma / n < mejor) {
+      mejor = suma / n
+      dentro = c
+    }
+  }
+  if (dentro < 0 || mejor > grosorMaximo) return null
+  // La de dentro tiene que quedar debajo, y no al lado: dos islas de una misma lámina cortadas a la vez están a la
+  // misma altura, y coserlas sería tender una pared entre ellas.
+  const media = (c: number) => alturas.get(c)!.suma / alturas.get(c)!.n
+  if (media(fuera) - media(dentro) < 0.5 * mejor) return null
+
+  const hondura = new Map<number, number>()
+  // Una arista más larga que esto no es de la pared: es una cadena que se quedó sin pareja en un extremo.
+  const limite = 3 * grosorMaximo
+  for (const lado of [1, -1] as const) {
+    const delLado = lado > 0 ? labios.mas : labios.menos
+    const cadena = (c: number) =>
+      [...delLado.filter((v) => cascara(v.i) === c), ...puntas.filter((v) => cascara(v.i) === c)].sort((a, b) => a.t - b.t)
+    const a = cadena(fuera)
+    const b = cadena(dentro)
+    if (a.length < 2 || b.length < 2) continue
+    // Copias, con el lado de su vértice: las de las puntas, sin lado, no se mueven al abrir, como ellas.
+    const copia = (v: VerticeDelLabio) => nuevoVertice(leerVertice(v.i), origenDe(v.i), ladoDe(v.i), v.t)
+    const enA = a.map(copia)
+    const enB = b.map(copia)
+    for (const v of enA) hondura.set(v, 0)
+    const cadenaDeFuera = a.map((v) => v.i)
+    b.forEach((v, k) => hondura.set(enB[k], distanciaACadena(leerVertice(v.i), cadenaDeFuera, leerVertice)))
+    const poner = (x: number, y: number, z: number) => {
+      const px = leerVertice(x)
+      const py = leerVertice(y)
+      const pz = leerVertice(z)
+      const lados = [largo(resta(py, px)), largo(resta(pz, py)), largo(resta(px, pz))]
+      const mayor = Math.max(...lados)
+      if (mayor > limite) return
+      const normal = cruz(resta(py, px), resta(pz, px))
+      // Sin área no tiene normal: dos copias de la misma punta.
+      if (largo(normal) <= 1e-6 * mayor * mayor) return
+      // La pared de un lado mira hacia el otro: la normal, contra el sentido en que se separa su labio.
+      const centro = por(suma(suma(px, py), pz), 1 / 3)
+      const quiere = por(proyectar(curva, centro).direccion, -lado)
+      if (punto(normal, quiere) >= 0) indices.push(x, y, z)
+      else indices.push(x, z, y)
+    }
+    let i = 0
+    let j = 0
+    while (i < a.length - 1 || j < b.length - 1) {
+      const avanzaFuera = j >= b.length - 1 || (i < a.length - 1 && a[i + 1].t <= b[j + 1].t)
+      if (avanzaFuera) {
+        poner(enA[i], enA[i + 1], enB[j])
+        i++
+      } else {
+        poner(enA[i], enB[j + 1], enB[j])
+        j++
+      }
+    }
+  }
+  return {
+    labios: { mas: labios.mas.filter((v) => cascara(v.i) === fuera), menos: labios.menos.filter((v) => cascara(v.i) === fuera) },
+    hondura,
+  }
+}
+
 // ------------------------------------------------------------------------ cortar
 
 const suave = (x: number) => {
@@ -392,7 +590,9 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
     lista.t.push(t)
     return lista.origen.length - 1
   }
-  const labios = { mas: [] as { i: number; t: number }[], menos: [] as { i: number; t: number }[] }
+  const labios = { mas: [] as VerticeDelLabio[], menos: [] as VerticeDelLabio[] }
+  /** Los vértices sencillos donde acaba cada grieta: la pared los necesita para cerrarse en las puntas. */
+  const puntas: VerticeDelLabio[] = []
   for (const p of partidas.values()) {
     if (p.pasa) {
       p.mas = nuevoVertice(p.posicion, p.a, 1, p.t)
@@ -401,6 +601,7 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
       labios.menos.push({ i: p.menos, t: p.t })
     } else {
       p.mas = p.menos = nuevoVertice(p.posicion, p.a, 0, p.t)
+      puntas.push({ i: p.mas, t: p.t })
     }
   }
   /** Los puntos de la grieta entre dos cruces, sin los extremos, a no más de `pasoDelLabio` uno de otro. */
@@ -468,7 +669,27 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
     for (let j = cadenaResto.length - 2; j >= 0; j--) indices.push(c, cadenaResto[j + 1], cadenaResto[j])
   }
 
-  // -- 6. peso y dirección de cada vértice ---------------------------------------
+  // -- 6. la pared, si la capa tiene grosor (D-333) -------------------------------
+  // Antes de los pesos: las copias toman los suyos por su posición, que es la de su labio, y se abren con él.
+  let deLaPared: ReturnType<typeof levantarLaPared> = null
+  if (opciones.pared && opciones.pared > 0) {
+    const cascaras = cascarasDe(malla.indices, nVertices)
+    const leerVertice = (i: number): Vec3 => [lista.posiciones[3 * i], lista.posiciones[3 * i + 1], lista.posiciones[3 * i + 2]]
+    deLaPared = levantarLaPared({
+      curva,
+      cascara: (i) => cascaras[lista.origen[i]],
+      leerVertice,
+      ladoDe: (i) => lista.lado[i],
+      origenDe: (i) => lista.origen[i],
+      labios,
+      puntas,
+      grosorMaximo: opciones.pared,
+      nuevoVertice,
+      indices,
+    })
+  }
+
+  // -- 7. peso y dirección de cada vértice ---------------------------------------
   const total = lista.origen.length
   const posiciones = Float32Array.from(lista.posiciones)
   const peso = new Float32Array(total)
@@ -492,8 +713,11 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
   }
   // Los vértices de la punta (sencillos) no se mueven: la herida acaba cerrada.
   for (let i = nVertices; i < total; i++) if (lado[i] === 0) peso[i] = pesoLateral[i] = 0
+  const pared = new Float32Array(total).fill(-1)
+  if (deLaPared) for (const [v, h] of deLaPared.hondura) pared[v] = h
 
-  const ordenar = (cadena: { i: number; t: number }[]) => cadena.sort((x, y) => x.t - y.t).map((x) => x.i)
+  const ordenar = (cadena: VerticeDelLabio[]) => [...cadena].sort((x, y) => x.t - y.t).map((x) => x.i)
+  const visibles = deLaPared ? deLaPared.labios : labios
 
   return {
     posiciones,
@@ -505,7 +729,8 @@ export function cortarMalla(malla: MallaPlana, incision: IncisionSobreLaMalla, o
     lado,
     largoT,
     curva,
-    labios: { mas: ordenar(labios.mas), menos: ordenar(labios.menos) },
+    labios: { mas: ordenar(visibles.mas), menos: ordenar(visibles.menos) },
+    pared,
     aristasPartidas: partidas.size,
   }
 }

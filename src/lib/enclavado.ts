@@ -16,7 +16,10 @@ import { juzgarElBloqueo, type OrificioDelClavo, type Punteria } from './bloqueo
 
 /** Calibre de la guía de punta de oliva, en mm. */
 export const DIAMETRO_DE_LA_GUIA_MM = 3
-/** Ancho del canal medular en el istmo, en mm. Es el de una tibia de adulto; sirve de partida cuando el caso no lo dice. */
+/**
+ * Ancho del canal medular en el istmo, en mm. Es el de una tibia de adulto; sirve de partida cuando el caso no lo dice.
+ * Un hueso del atlas con canal (D-336) lo trae medido en su archivo (`istmoMm`), y entonces se usa ese.
+ */
 export const ISTMO_POR_OMISION_MM = 11
 
 /** Hasta dónde llega la entrada ideal desde el extremo proximal del hueso, en mm (tibia: justo por delante de la meseta, sobre el tubérculo). */
@@ -37,6 +40,11 @@ export const MARGEN_DISTAL_DE_LA_GUIA_MM = 10
 export const DESPLAZAMIENTO_QUE_PASA_MM = ISTMO_POR_OMISION_MM / 2
 /** Con el dedo reductor empujando el canal distal hacia la línea, se pasa un poco más. */
 export const DESPLAZAMIENTO_QUE_PASA_CON_DEDO_MM = 9
+/**
+ * Lo que añade el dedo reductor a la mitad del istmo: con el de partida, de 5,5 a 9 mm. Se suma y no se fija, para que
+ * con el istmo de otro hueso (D-336) el dedo ayude lo mismo: el de un húmero es más estrecho que el de una tibia.
+ */
+export const AYUDA_DEL_DEDO_MM = DESPLAZAMIENTO_QUE_PASA_CON_DEDO_MM - DESPLAZAMIENTO_QUE_PASA_MM
 /** Angulación máxima del foco para que la guía siga el canal, en grados. */
 export const ANGULACION_QUE_PASA_GRADOS = 15
 export const ANGULACION_QUE_PASA_CON_DEDO_GRADOS = 25
@@ -102,10 +110,10 @@ export interface JuicioDelPaso {
 /**
  * ¿Pasa la guía por el foco? Los canales de los dos fragmentos tienen que estar a menos de la mitad del istmo uno del otro, y el eje, en línea;
  * con el **dedo reductor** puesto, que empuja el canal del fragmento hacia la guía, se admite algo más. Si no, la punta de oliva se apoya en la
- * cortical del otro fragmento y se atasca: forzarla la saca del hueso.
+ * cortical del otro fragmento y se atasca: forzarla la saca del hueso. `istmoMm` es el del hueso, si se sabe.
  */
-export function juzgarElPasoDeLaGuia(r: ReduccionDelFoco, conDedo: boolean): JuicioDelPaso {
-  const maximo = conDedo ? DESPLAZAMIENTO_QUE_PASA_CON_DEDO_MM : DESPLAZAMIENTO_QUE_PASA_MM
+export function juzgarElPasoDeLaGuia(r: ReduccionDelFoco, conDedo: boolean, istmoMm = ISTMO_POR_OMISION_MM): JuicioDelPaso {
+  const maximo = istmoMm / 2 + (conDedo ? AYUDA_DEL_DEDO_MM : 0)
   const angulo = conDedo ? ANGULACION_QUE_PASA_CON_DEDO_GRADOS : ANGULACION_QUE_PASA_GRADOS
   const f = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',')
   if (r.desplazamientoMm > maximo) {
@@ -150,12 +158,15 @@ export interface JuicioDelFresado {
  * Juzga el fresado: `cabezasMm` son las cabezas que pasaron, en el orden en que pasaron. Se empieza por una cabeza pequeña, se sube de 0,5 en 0,5
  * (un salto de más de 1 mm calienta el hueso y sube la presión) hasta quedar 1 a 1,5 mm sobre el calibre del clavo, y no se pasa de ahí: fresar de más
  * adelgaza las corticales y le quita al clavo el apoyo que lo estabiliza. Sin clavo conocido, se juzga solo el modo de subir.
+ *
+ * Empezar con la cabeza más chica de la caja nunca es empezar demasiado grande, aunque el istmo sea estrecho: con el de un
+ * húmero del atlas (9 mm, D-336) no habría manera de empezar bien, y el aviso pediría lo que ya se hizo.
  */
 export function juzgarElFresado(cabezasMm: readonly number[], clavoMm: number | null, istmoMm = ISTMO_POR_OMISION_MM): JuicioDelFresado {
   const f = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',')
   if (cabezasMm.length === 0) return { listo: false, mayorMm: 0, aviso: null }
   const mayor = Math.max(...cabezasMm)
-  if (cabezasMm[0] > istmoMm - 1) {
+  if (cabezasMm[0] > istmoMm - 1 && cabezasMm[0] > CABEZAS_DE_FRESA_MM[0]) {
     return { listo: false, mayorMm: mayor, aviso: `Se empezó con una cabeza de ${f(cabezasMm[0])} mm, demasiado grande para el istmo (${f(istmoMm)} mm): se empieza con la más chica (${f(CABEZAS_DE_FRESA_MM[0])} mm) y se sube.` }
   }
   for (let i = 1; i < cabezasMm.length; i++) {

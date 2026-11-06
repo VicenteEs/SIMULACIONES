@@ -5491,7 +5491,7 @@ de una sola pieza se parten juntas; el corte rehace la geometría de la malla al
 que en una malla de cientos de miles de triángulos tarda (hay que medirlo con un modelo
 real); la broca no cuenta en el puntaje ni toca el fragmento.
 
-### D-168 · 2026-10-10 · vigente
+### D-168 · 2026-10-10 · vigente · lo que no sale de las fracturas, reducido por D-339
 **Los implantes entran al catálogo (placas, tornillos, clavos, injerto) y el asistente de
 fracturas aprende los huesos pequeños y la espiroidea.**
 Respuestas de Cristóbal a las cinco preguntas, tal como quedaron en la lista de pendientes:
@@ -5540,8 +5540,9 @@ hueso ya puede tener varias piezas del atlas (`piezasDelHueso`).
   en 38 de los 40 huesos pequeños probados.
 - *Lo que todavía no sale* está escrito pieza por pieza en `SABIDO_QUE_NO_SALE`
   (`tests/unit/fracturasAO.test.ts`): 24 de las 90 piezas, casi todas falanges del pie y
-  de la mano de 30 mm, con la malla abierta en algún grupo o con un plano que no llega a
-  cortar. La prueba falla si algo nuevo se rompe y también si algo viejo se arregla, y la
+  de la mano de 30 mm, ~~con la malla abierta en algún grupo o~~ (superado en D-339: la malla
+  abierta eran dos puntos de corte casi iguales, no el tamaño del hueso) con un plano que no
+  llega a cortar. La prueba falla si algo nuevo se rompe y también si algo viejo se arregla, y la
   pantalla lo avisa con una nota en esos huesos.
 - *Fuera, a propósito:* la **rótula**, la escápula, el astrágalo y el calcáneo. Se
   clasifican por lo que pasa en la superficie articular y el asistente todavía no sabe
@@ -5555,7 +5556,7 @@ asistente construye fracturas en 90 piezas con el atlas de verdad como banco de 
 repositorio); un tercio de los huesos pequeños no ofrece todos los grupos; los códigos de mano
 y pie son nuestros hasta que Cristóbal los valide; y la espiroidea no es una hélice.
 
-### D-169 · 2026-10-10 · vigente
+### D-169 · 2026-10-10 · vigente · las conminutas que no salían, casi todas arregladas por D-339
 **El editor rehace las piezas al cambiar de modelo, la fractura en martillo, los códigos de
 mano y pie contrastados con AO/OTA 2018, la sutura, la placa y los tornillos sobre el hueso,
 la broca y la fijación que puntúan, y el buscador por clasificación AO (E6, primera parte).**
@@ -5589,13 +5590,18 @@ parte por un plano tumbado: **6 fragmentos**. Código «42-C»: AO 2018 no numer
 en la diáfisis (el folleto del compendio dice 12B y 12C), y no se inventa un número.
 - *Tres diseños fallaron antes* —planos por el eje girados entre sí; tres esquirlas a 120°; partir
   una esquirla— y dejaban fragmentos abiertos en casi todos los huesos. El actual sale en los
-  largos con la semilla 1 (barridas 40 semillas por hueso: de 1 a 6 fallos por 40).
+  largos con la semilla 1 (barridas 40 semillas por hueso: de 1 a 6 fallos por 40). (Desde
+  D-339 sale con las 40 en los diez huesos largos barridos: aquellos fallos eran dos puntos de
+  corte casi iguales, no el diseño.)
 - `EjeDelHueso` gana `perfil` (el radio por tajadas): el máximo de la tibia es tres veces el de la
   diáfisis, y un plano a medio radio quedaba fuera del hueso.
 - *Una trampa de la prueba:* `cerrada` redondeaba a la micra y daba por abiertos trozos que la
   librería (que suelda a 0,1 micra) trata como cerrados. Ahora suelda por celdas igual que ella.
-- Sin resolver: 29 piezas no sacan la conminuta (falanges de 15–30 mm, la clavícula, el radio
-  izquierdo y algunos metacarpianos). Están en `SABIDO_QUE_NO_SALE`, 53 entradas en total.
+- ~~Sin resolver: 29 piezas no sacan la conminuta (falanges de 15–30 mm, la clavícula, el radio
+  izquierdo y algunos metacarpianos). Están en `SABIDO_QUE_NO_SALE`, 53 entradas en total.~~
+  (superado en D-339: casi todas eran trozos abiertos por dos puntos de corte casi iguales; sin
+  la conminuta quedan cuatro piezas, las dos clavículas y dos falanges medias de la mano, y la
+  tabla baja a 9 entradas.)
 
 *Los códigos, contrastados con el compendio AO/OTA 2018* (folleto de la edición, p. 10): mano 7
 con metacarpianos **77** y falanges **78**; pie 8 con metatarsianos **87** y falanges **88**. El
@@ -6824,7 +6830,7 @@ Pedido del dueño: «las placas quiero que se puedan doblar no estando en el hue
 - **Lo que queda de E3 y no está hecho:** la **camisa con guía y trocar** (que la aguja o la broca entren guiadas por ella) y el **motor** con su regla de calor (rpm, irrigación). La aguja tampoco **fija** todavía
   una reducción (mantener los fragmentos mientras se pone el implante definitivo). Se retoman después de E4 a E7.
 
-### D-210 · 2026-10-21 · vigente
+### D-210 · 2026-10-21 · vigente · el istmo, el de cada hueso desde D-338
 **El enclavado endomedular se hace por pasos con sus herramientas: entrada, guía de punta de oliva, dedo reductor, fresado y cambio de guía (P-005 E4).**
 - **Reglas, puras y con pruebas** (`src/lib/enclavado.ts`, 32 pruebas): la **entrada** se juzga por la distancia al extremo proximal (ideal hasta 25 mm, aceptable hasta 40), la desviación de la línea del canal (5 y 10 mm) y que esté por
   delante. La **guía** pasa el foco si los canales están a menos de la mitad del istmo (5,5 mm) y el foco angulado menos de 15°; con el **dedo reductor**, 9 mm y 25°. El **fresado** empieza por una cabeza
@@ -7110,7 +7116,7 @@ Pedido del dueño: «recalcular la superficie de la piel porque está muy tosca 
 *Qué vigila la prueba.* `tests/unit/geometriaDePiel.test.ts`: con esferas, el buscador (las cáscaras, las vueltas en un solape, las caras enterradas y las que se le dan por enterradas, la profundidad y su cota); con un triángulo, la rejilla de lo que se mide; con el atlas, que la piel lleve la marca de D-224, que tenga cuerpo, dos orejas y cara de dentro, que su caja sea la de sus vértices, que **`comprobarLaPiel` cumpla** —todo lo de dentro a 1 mm por lo menos bajo la piel del cuerpo o la de una oreja, la oreja a medio milímetro bajo la suya, lo de dentro a 0,2 mm bajo la cara de dentro y la fascia superficial sin asomar— y que la rodilla no se haya movido.
 *Consecuencias.* (+) La piel es una superficie curva y no un poliedro; la oreja tiene hélix, concha y lóbulo; y la holgura es una garantía comprobada en cada regeneración, no una medida de un día. (+) Se rehace desde el origen cada vez: es idempotente, y D-159 no lo era. (−) **Diez veces más piel**: de 22.902 vértices y 44.744 triángulos a 244.927 y 489.368, unos 10 MB más en la tarjeta con la piel encendida, y el paquete 10 pasa de 2,1 a 8,9 MB, que los navegadores vuelven a bajar una vez. Un caso exportado con piel pesa más (la cabeza, de 6,3 a 9,2 MB). (−) Regenerarla pide Python con `numpy` y `scipy` y unos doce minutos de Node, y son seis pasos en orden (`README.md`); `preparar.mjs` sigue devolviendo la piel de origen, así que después hay que volver a pasarlos. (−) La holgura de 2 mm es un mínimo, no un ajuste: donde hubo que subir mucho queda un abultamiento suave de dos o tres centímetros que la anatomía de BodyParts3D pide pero que en un cuerpo no se ve tanto. Se midió dónde: en la cara interna de la pierna, sobre la safena mayor, que en el atlas va por fuera de la piel de origen (hasta 12 mm); en la nariz, sobre los cartílagos alares (13 mm); y en la cara lateral del muslo, sobre la fascia lata y la cintilla iliotibial (8 mm). (−) La fascia superficial tiene agujeros donde se recortó: entre los dedos, en la entrepierna y en el ángulo de los ojos; y donde se hundió, puede quedar por debajo de la fascia profunda en esos dos milímetros, porque contra ella no se mide. (−) La oreja de la piel es la anatómica engordada 1,2 mm y suavizada: no tiene más detalle que la de origen. (−) Los casos ya exportados llevan la piel de antes hasta que se vuelvan a exportar desde el taller. (−) El recorte de la piel al exportar una zona (`recortarMalla`, que deja solo los triángulos con sus tres vértices dentro) deja con la piel nueva un borde dentado de unos milímetros, donde con la de antes, de triángulos de centímetros, salía casi recto. No se tocó el exportador: cortar los triángulos del borde por el plano sería lo suyo, y es otra tarea.
 
-### D-225 · 2026-10-31 · vigente
+### D-225 · 2026-10-31 · vigente · la cortical de la tapa de un hueso con canal, cambiada por D-337
 **El paciente del simulador se viste por tejido: piel con poros, relieve y dispersión bajo la superficie, vello, músculo con fibras y mojado, y hueso poroso con cortical y esponjoso a la vista en el corte. Sin una sola textura.**
 El dueño pidió «materiales PBR en piel, con textura, normal map y un efecto de dispersión subsuperficial aproximado, además de vello con tarjetas o instancias» y que los huesos «se vean más realistas, como en porosidad, etc., no en forma». Hasta ahora cada pieza llevaba el color liso que trae el GLB y un `MeshStandardMaterial`: el hueso era yeso y la piel, plástico.
 *Por qué sin texturas.* Los modelos que exporta el taller no llevan coordenadas de textura (F-12), así que no hay dónde pegar una imagen de poros. La otra vía, proyectar imágenes en triplanar, son tres lecturas por mapa y por píxel y varios megabytes por mapa en la tarjeta. Todo el detalle sale del sombreador, con **ruido sólido calculado en el espacio del objeto y en milímetros** (`aspectoDelPaciente.ts`): no tiene costuras, no ocupa memoria, vale para los casos ya guardados sin reexportar, y sigue a la malla cuando una herida la abre o un fragmento se mueve. El relieve se saca de la altura de cada píxel con las derivadas de pantalla (el método de Mikkelsen), que no pide tangentes. El detalle fino **se apaga cuando un píxel cubre más de lo que mide** (`desvanecer`): sin eso, un poro de medio milímetro con la pierna entera en pantalla era un hormigueo que se movía con la cámara.
@@ -9554,7 +9560,7 @@ Durante el caso la consola enseña las últimas seis, como antes; al terminar, t
 - (+) Lo que se hace en el caso se hace siempre en un modo, y las ayudas son las de ese modo.
 - (−) Mientras la tarjeta está abierta tampoco se puede «Ampliar» ni girar la vista. El modelo se ve detrás, pero no se toca hasta elegir.
 
-### D-313 · 2026-11-05 · vigente · E4 de P-012 · corrige, en evaluación, la lista viva de P-009 (mejora de uso 3)
+### D-313 · 2026-11-05 · vigente · E4 de P-012 · corrige, en evaluación, la lista viva de P-009 (mejora de uso 3) · las medidas en evaluación, superadas por D-329
 **En evaluación nada dice si se acierta. La lista marca en gris lo hecho, nunca en verde ni en rojo, y sin la cifra de ahora. Las medidas dan la cifra y su tope, sin veredicto. La escopia no dibuja dónde debe quedar el fragmento.**
 
 *De dónde sale.* La auditoría de P-010 (débil 4). En evaluación, la lista del paso se ponía en verde al acertar, que es corregir en vivo: en pabellón nadie avisa de que la reducción ya vale. Y en práctica, «Un instrumento en la mano» se ponía en verde con cualquiera cuando el instrumento del paso no estaba en el instrumental del caso.
@@ -9586,8 +9592,9 @@ Durante el caso la consola enseña las últimas seis, como antes; al terminar, t
 *Consecuencias.*
 - (+) La nota de evaluación mide lo que el residente sabe ver, no lo que la lista le confirma.
 - (−) **Las cifras se quedan.** Las medidas siguen diciendo, por ejemplo, «2,4 mm · hasta 2 mm», y la escopia los grados entre los dos ejes. Comparar una cifra con su tope es fácil. Se dejan porque son lo que mediría la regla del arco, y quitarlas cambia qué se evalúa. Queda para que lo decida el dueño.
+  *Lo decidió el 2026-11-06:* solo la cifra, sin el tope (D-329).
 
-### D-314 · 2026-11-05 · vigente · E4 de P-012
+### D-314 · 2026-11-05 · vigente · E4 de P-012 · la puerta que dejó abierta la cierra D-330
 **«Siguiente» y los botones que deshacen, solo en práctica y en el editor. En evaluación, la secuencia no elige el instrumento, y lo hecho mal sobre el paciente se queda.**
 
 *De dónde sale.* La auditoría de P-010 (débil 4). «Deshacer» y «Repetir este paso» ya miraban el modo (D-258); estos no:
@@ -9611,6 +9618,7 @@ Durante el caso la consola enseña las últimas seis, como antes; al terminar, t
 *Consecuencias.*
 - (+) En evaluación, el instrumental se pide entero y lo hecho mal no se borra.
 - (−) **Queda una puerta abierta.** En evaluación se puede trazar otra incisión, o perforar otro agujero, y la lista y la nota miden la última. La anterior queda en el paciente, pero no se cobra. Cerrarlo es decidir qué cuesta un gesto de más, y queda para después.
+  *Lo decidió el dueño el 2026-11-06:* el paso vale cero, como una complicación (D-330).
 
 ### D-315 · 2026-11-05 · vigente · E4 de P-012
 **La reducción automática es una acción con pregunta, solo en práctica y en el editor, y se deshace con un solo «Deshacer». El paso sigue sin puntos aunque se deshaga.**
@@ -9930,6 +9938,7 @@ Durante el caso la consola enseña las últimas seis, como antes; al terminar, t
   - un doble clic con «Mirar», 86 px por debajo del centro, deja ese punto a 6 px del centro del lienzo, a la misma distancia y con la misma mirada;
   - la E sin herida lo dice y no mueve la cámara, y el botón «Herida» no sale.
 - **No se vio en el navegador la E con una herida.** En el caso de prueba, la incisión de dos clics se mide y se cobra (113 mm, «mayor de lo necesario»), pero la sonda del lienzo no da ninguna herida que encuadrar. Queda para la comprobación de E9, con una pierna nueva del taller.
+  - Se vio en E9, el 2026-11-06, sobre la pierna derecha del taller con piel: con una incisión de 26 mm, la E deja su mitad a 0,05 px del centro del lienzo, mira a 0,6° de la normal de la herida y la incisión ocupa el 52 % del lado estrecho. Es el 60 % de los 30 mm del mínimo, porque 26 mm no llegan a los 15 mm de radio. La E sin herida sigue diciéndolo sin mover la cámara.
 - `acercarComoSeMira.test.ts`: las muescas de cada navegador, la homotecia y sus topes, la ida y vuelta al mismo sitio, el encuadre de la herida, y el cableado del lienzo y de la consola.
 
 *Consecuencias.*
@@ -9967,6 +9976,385 @@ Durante el caso la consola enseña las últimas seis, como antes; al terminar, t
 *Consecuencias.*
 - (+) `npm run lint` vuelve a medir solo lo que se sube.
 - (−) Si algún día se guarda código en `.claude/`, el linter no lo verá.
+
+### D-329 · 2026-11-06 · vigente · E4 de P-012 · supera en D-313 «las medidas dan la cifra y su tope»
+**En evaluación, las medidas dan solo la cifra. Ni el panel, ni la lista, ni la instrucción completa dicen el tope de la reducción ni el largo que pide la incisión.**
+
+*De dónde sale.* El (−) de D-313. Las medidas decían «2,4 mm» y debajo «tope 2 mm», y comparar las dos era el veredicto que D-313 había quitado. El dueño lo decidió el 2026-11-06: solo la cifra. Se puede medir, como con la regla del arco, pero el tope lo tiene que saber el residente. En práctica no cambia nada.
+
+*Cómo funciona.*
+- **Las medidas** de debajo del lienzo: en evaluación no sale la línea del tope (`consola-medida-tope`). Ni «tope 2 mm», ni «topes 5° · 10° · 10° (coronal, sagital, rotación)», ni «objetivo 60–100 mm».
+- **La lista** (`listaDelPaso`, con `juzgar: false`):
+  - «Desplazamiento hasta 2 mm» pasa a «Desplazamiento dentro del tope», y lo mismo cada plano y lo de a lo largo;
+  - «Incisión de 60–100 mm» pasa a «Una incisión del largo que pide el paso»;
+  - las claves no cambian, porque se mide lo mismo.
+- **La instrucción completa** (`instruccionDelPaso(paso, { conTopes })`): sin «Objetivo: …» en el trazo ni «Se aceptan hasta …» en la reducción. Si se quedaban ahí, quitarlos de las medidas y de la lista no quitaba nada.
+- **La línea de debajo de la lista** lo dice: en evaluación, la lista no dice «si está bien ni hasta dónde se acepta». Sin ella, un tope que falta parece un fallo de la consola.
+- El editor ensaya en práctica y lo sigue viendo todo.
+
+*Lo que no cambia, a sabiendas.*
+- **Las demás cifras de lo que pide el paso:** la broca (Ø), la inclinación de la perforación, los 2 mm de la cortical opuesta, los tornillos, la retracción y el rango de la fuerza.
+  - Lo decidido fue sobre las medidas.
+  - La fuerza se mide en newtons del simulador, y eso no es algo que el residente pueda traer sabido.
+  - La inclinación sí tiene la forma de las medidas: el lienzo da en vivo los grados de la broca, y la lista y la instrucción dicen el rango. Queda para el dueño.
+- **El registro al fallar** sigue diciendo cuánto se pasó y el tope: «(2,4 mm de desplazamiento, hasta 2 mm)». El paso ya quedó cobrado a la mitad (`puntosDelPaso`), y el registro es también lo que lee el docente.
+
+*Qué se probó.*
+- `listaDelPaso.test.ts`: en evaluación, ningún texto de la reducción ni de la incisión lleva una cifra, con un tope único y con topes por plano. Las claves son las mismas que en práctica.
+- `puntuacionDelSimulador.test.ts`: la instrucción sin topes conserva el instrumento y el modo, y la de la fuerza sigue con su rango.
+- `evaluacionSinAyudas.test.ts`: la línea del tope, entera detrás de la práctica, y la instrucción pedida con `conTopes: enPractica`.
+
+*Consecuencias.*
+- (+) En evaluación, lo que se acepta lo pone el residente.
+- (−) Quien no sepa el tope no tiene dónde mirarlo durante la evaluación. Es lo que se busca, pero la primera vez puede parecer que falta algo, y por eso la línea de debajo de la lista.
+- (−) Quedan cifras con la misma forma, sobre todo la inclinación de la broca.
+
+### D-330 · 2026-11-06 · vigente · E4 de P-012 · cierra la puerta que dejó abierta D-314
+**En evaluación, una segunda incisión aparte en el paso que mide la incisión, o una segunda trayectoria en el que mide la perforación, es una complicación: el paso vale cero y queda en el registro.**
+
+*De dónde sale.* El (−) de D-314: la lista y la nota medían el último gesto, y el anterior quedaba en el paciente sin costar nada. El dueño lo decidió el 2026-11-06: el paso vale cero, como una complicación. Alargar la misma incisión no es otra, ni repasar la misma trayectoria con otra broca, como la de deslizamiento y la de núcleo de un tornillo de tracción.
+
+*Cómo funciona.*
+- **Qué es otro gesto** (`src/lib/gestoDeMas.ts`, sin `three`):
+  - las incisiones se cuentan por capa. La fascia que se abre bajo la piel es la misma herida que se profundiza, no otra al lado;
+  - alargar una incisión no la cambia: el lienzo le deja su número (`incisionQueAlarga`) y no avisa;
+  - dos perforaciones van por la misma trayectoria si entran a menos de 3 mm (`MISMA_ENTRADA_MM`) y se apartan menos de 15° (`MISMA_DIRECCION_GRADOS`), sin mirar el sentido. Los 3 mm cubren con margen la broca más gruesa de la tabla, de 4,5 mm, y dos agujeros a menos de su diámetro se tocan.
+- **El lienzo lo dice.** `alIncidir` avisa de cada incisión nueva, solo con un trazo de verdad: ni la sesión que se recarga, ni el reintento, ni la disección. Y `PerforacionHecha` trae la entrada en mm y la dirección.
+- **La consola lo cobra** (`vigilarElGestoDeMas`):
+  - solo en evaluación, fuera del editor y del repaso, con el paso sin superar, y en el paso cuyo objetivo mide ese gesto (`gestoQueMide`). En la fijación se perfora un agujero por tornillo, y ahí no se cuenta;
+  - se juzga cuando pasa, como la lesión de un vaso (E6). Medido al aplicar, bastaría con hacer la segunda incisión en el paso siguiente;
+  - una vez por paso, porque la complicación es una bandera (D-059): la tercera incisión no cuesta más que la segunda.
+- **El servidor lo cobra igual** (D-310). El recorrido guarda `deMas` en el paso, y `notaDelRecorrido` lo cuenta como complicación. Uno roto se rechaza entero, como la lesión. El servidor no mira el modo: la marca solo puede bajar la nota de quien la manda.
+- **Dos desenlaces nuevos**, «Incisión de más» y «Trayectoria de más». La columna los guarda en texto (`Actividad.ts`), así que no hay migración.
+
+*Qué se probó.* `gestoDeMas.test.ts`:
+- qué objetivo mide cada gesto;
+- la misma trayectoria a uno y otro lado de los 3 mm y de los 15°, y por el otro lado del agujero;
+- las incisiones por capa, y la de deslizamiento y la de núcleo como una sola trayectoria;
+- el juicio, los dos nombres y el paso a cero;
+- la nota del servidor con la marca, la primera del paso, lo que llega por HTTP y uno roto;
+- en la fuente, el aviso del lienzo detrás de la guarda de los trazos de verdad y la consola detrás de la evaluación.
+
+*Consecuencias.*
+- (+) En evaluación, lo mal puesto se queda y se cobra, como en pabellón.
+- (−) La cuenta del paso no se guarda con el avance. Quien deja el caso a medio paso y lo sigue otro día empieza la cuenta de cero.
+- (−) 3 mm y 15° son un criterio de la consola, no de Cristóbal, y quedan para que los valide.
+
+### D-331 · 2026-11-06 · vigente · E8 de P-012 · amplía D-224
+**La piel mide 4 mm con su grasa en el cuerpo y 2 en la cabeza. Baja la cara de dentro, la de fuera no se mueve y, donde no cabe, la grasa se adelgaza.**
+
+*De dónde sale.* E8, que el dueño decidió el 2026-11-06. En sus palabras: «no quiero mover nada, quiero que sea toda del mismo grosor pero solo agrandar la piel hacia adentro pero cambiando el color y textura donde corresponda, por ejemplo en la cabeza no». El grosor es fijo: 2 mm de grasa bajo los 2 mm de piel.
+
+*Cómo funciona* (`recalcular-piel.mjs`).
+- **No hay tercera cara.** La decisión 3 de E8 decía «la cara honda como tercera cara», pero la piel ya tenía una cara de dentro (D-224), que es lo que se ve en el labio de una incisión. Bajar esa cara es, en palabras del dueño, «agrandar la piel hacia adentro». Una tercera cara habría dejado dos superficies a 2 mm una de otra, sin nada que ver entre ellas.
+- **El grosor pedido** (`espesorPedido`) es de 4 mm (`ESPESOR_CON_LA_GRASA`) hasta y = 1,44 y de 2 mm (`ESPESOR_DE_LA_DERMIS`) desde el mentón, en y = 1,5. Entre las dos alturas cambia poco a poco (`CUELLO`). Así se resuelve el paso del cuello a la cabeza sin escalón, que estaba pendiente.
+- **Donde no cabe:**
+  - la cara de dentro queda a `HOLGURA_DE_DENTRO` (0,8 mm) de lo más superficial que tenga debajo, contado en el entorno del vértice;
+  - el grosor cambia como mucho 0,25 mm por cada milímetro de piel (`PENDIENTE_DEL_GROSOR`). Sin esa pendiente, un vértice donde la grasa no cabe, junto a otro donde sí, dejaba en la pared de la herida un escalón de varios milímetros.
+- **Los vasos, los nervios y lo linfático no limitan la grasa** (`limitaLaGrasa`, `SISTEMAS_DENTRO_DE_LA_GRASA`): van dentro de ella, como en el cuerpo, y la cara de fuera los cubre como a todo lo demás. Así se supuso al medir el 85 %. Si se cuentan, la grasa se adelgaza a lo largo de cada vena y queda entera solo en el 63 %.
+- **La cara de fuera y las orejas no cambian:** comparadas vértice a vértice contra el commit anterior, son las mismas. Solo se movió la cara de dentro, como mucho 3,4 mm.
+
+*Lo que salió.* Sin contar la cabeza, la grasa queda entera (los 2 mm) en el 72,4 % de los vértices. En el 14,8 % es más delgada y en el 12,8 % no hay grasa. No es el 85 % que se midió al conversarlo, por tres razones:
+- aquella medida pedía medio milímetro de holgura, y esta pide 0,8;
+- aquella miraba cada punto por separado, y esta, el entorno de cada vértice;
+- la pendiente adelgaza un anillo alrededor de cada sitio estrecho.
+
+Las dos últimas tienen su motivo: que nada cruce la cara de dentro entre un vértice y otro, y que la pared no tenga escalones. Para tener más grasa entera, lo que más ayuda es subir la pendiente, a cambio de escalones más bruscos. Queda para el dueño.
+
+*Qué se probó.*
+- La comprobación de D-224, ahora también con la cara de dentro (`HOLGURA_BAJO_LA_CARA_DE_DENTRO`, 0,2 mm). Lo más superficial queda a 0,40 mm bajo la cara de dentro y a 1,16 mm bajo la de fuera.
+- `geometriaDePiel.test.ts`: la marca D-331, como mucho 4 mm en el cuerpo y 2 en la cabeza, y la grasa entera en más del 70 % del cuerpo.
+
+*Consecuencias.*
+- (+) Al cortar la piel hay 4 mm de pared, con la grasa amarilla bajo la dermis (D-333).
+- (+) No se movió nada más: ni la cara de fuera, ni la fascia profunda, ni el músculo, ni el hueso.
+- (−) La grasa entera cubre el 72 % y no el 85 %.
+- (−) Los casos guardados siguen con la piel de 2 mm hasta que se vuelvan a exportar desde el taller.
+- (−) `recalcular-piel.mjs` tarda unos 15 minutos.
+
+### D-332 · 2026-11-06 · vigente · E8 de P-012 · cambia dónde va la fascia superficial de P-006
+**La fascia superficial va justo bajo la piel con su grasa, a 1 mm de mediana bajo la cara de dentro, y ya no a mitad de camino del músculo.**
+
+*De dónde sale.* La decisión 4 de E8: «que quede justo al terminar el espesor de la piel con grasa». Hasta ahora la lámina iba entre la piel y la envolvente profunda, al 40 % del espesor contado desde la profunda. Hacía de grasa, porque la grasa no estaba.
+
+*Cómo funciona.*
+- **El campo:** `capas.superficial` saca la lámina del campo de la cara de dentro de la piel (`campo_de_la_cara_de_dentro`), corrido medio milímetro hacia el cuerpo. Ya no se mezcla con la envolvente profunda, que solo sirve para comprobarla.
+- **Dónde queda:** medido al generarla, la mediana de cada pieza está entre 0,8 y 1,3 mm bajo la cara de dentro. La gaussiana del campo la hunde un poco más en lo convexo.
+- **Lo que se mete en la piel:** `bajo-la-piel.mjs` la mide contra la piel entera (`profundidadDeLaFasciaSuperficial`). Lo que entra en los 4 mm lo hunde, hasta 2,5 mm, y lo que ni así queda fuera lo recorta.
+  - Recorta 968 triángulos de unos 39.000, en la ingle, la axila, entre los dedos y en la espalda.
+  - Son los sitios donde el campo tiende la lámina sobre un hueco que en el cuerpo no tiene.
+- **La prueba** (`comprobarLaPiel`) exige que ningún punto de la lámina quede dentro del grosor de la piel: por debajo de la cara de dentro, con `HOLGURA_DE_LA_FASCIA_SUPERFICIAL` en 0. Hasta D-332 se medía bajo la cara de fuera.
+
+*Dos errores que aparecieron al hacerlo.*
+- **El campo de la cara de dentro era, en realidad, el de la piel de fuera.**
+  - Por qué: `muestrear_superficie` mete siempre todos los vértices de la malla, y la pieza «Skin» trae también los de la cara de fuera. Con ellos, el vóxel de grosor los unía en una cáscara, y la inundación se paraba ahí.
+  - Qué pasaba: la lámina salía metida en la piel, en el pie 2 mm por encima de la cara de dentro. El hundido habría recortado el 65 % de la fascia del pie y el 54 % de la de la mano.
+  - El arreglo: ahora se compacta la malla antes de muestrear. Sola, la cara de dentro no sella sus aberturas con un vóxel; hacen falta dos, y así el relleno sale de 67 L.
+- **El guion y la prueba medían distinto.** `bajo-la-piel.mjs` pasaba 0,25 mm como `seguro`, y la prueba 1 mm. Para un punto entre esas dos profundidades, el guion se fiaba de que estuviera «detrás del triángulo más cercano», y la prueba contaba vueltas. Un punto en un pliegue pasaba en el guion y no en la prueba. Ahora los dos usan el mismo `seguro`.
+
+*Consecuencias.*
+- (+) Al cortar la piel entera, lo primero que aparece debajo es la lámina.
+- (+) La lámina ya no hace de grasa. Entre ella y la fascia profunda queda el hueco de antes: en la pierna, 9 mm de mediana (`espacio_bajo_la_piel_mm` del manifiesto).
+- (−) En la ingle, la axila y entre los dedos, la lámina tiene agujeros donde se recortó, igual que antes de E8.
+
+### D-333 · 2026-11-06 · vigente · E8 de P-012
+**Al cortar la piel, la consola levanta la pared de la herida entre la cara de fuera y la de dentro: arriba la dermis, blanca rosada y punteada, y debajo la grasa amarilla.**
+
+*De dónde sale.* Lo que quedaba por resolver en E8: «hoy el corte separa las caras de la piel sin dibujar nada entre ellas, y con 2 mm no se notaba». Con 4 mm se nota, y en pabellón la grasa se ve justo ahí.
+
+*Cómo funciona.*
+- **Dónde va la pared.** `cortarMallaPorCurva` (`corteDeMalla.ts`), con la opción `pared`, separa las cáscaras de la malla (`cascarasDe`):
+  - la de fuera es la de los labios más altos, y la de dentro, la más cercana a ella;
+  - por cada lado de la herida, `levantarLaPared` une en cremallera la cadena de labios de una cáscara con la de la otra.
+- **Se abre con la herida.** Los vértices de la pared son copias de los del labio: se abren con él al separar la herida y tienen sus propias normales, hacia el otro lado.
+- **Cuándo hay pared.** Solo si la cara de dentro está a menos de `GROSOR_MAXIMO_DE_LA_PIEL_MM` (6 mm) y las dos cáscaras están de verdad una sobre otra. Dos islas una al lado de otra no la tienen.
+- **La hondura.** Cada vértice de la pared la lleva en el atributo `aPared` (`ATRIBUTO_DE_LA_PARED`): 1 más los milímetros bajo la cara de fuera. Fuera de la pared vale 0. Al cerrar la herida, todo vuelve a como estaba.
+- **El color.** Con esa hondura, el sombreador de la piel (`aspectoDelPaciente.ts`) pinta dos capas:
+  - hasta `DERMIS_MM` (2 mm), la dermis, blanca rosada y con capilares;
+  - debajo, la grasa: amarilla, en lóbulos con tabiques más claros, más brillante y con relieve.
+
+  Es el material de Blender (D-334), repetido como pide D-225.
+- **Los labios.** La línea negra de E1 y los separadores siguen ahora solo los labios de la cara de fuera. Antes mezclaban las dos caras, y la línea iba en zigzag de una a otra.
+
+*Qué se probó* (`paredDeLaHerida.test.ts`):
+- en una losa de dos caras separadas 4 mm:
+  - la hondura es 0 en la cara de fuera y 4 en la de dentro;
+  - las normales de la pared quedan de lado, cada lado mirando al otro;
+  - los labios quedan solo en la cara de fuera;
+  - la pared se abre con sus labios;
+- no hay pared en una sola lámina, en dos islas una al lado de otra ni con la cara de dentro a 10 mm;
+- en la escena, el atributo y su vuelta al cerrar;
+- el lienzo pide la pared solo en el plano de la piel, y el sombreador declara `aPared` solo en la piel.
+
+*Consecuencias.*
+- (+) La incisión enseña la piel por dentro.
+- (−) La piel de 4 mm solo llega a la consola cuando el caso se vuelve a exportar desde el taller.
+
+### D-334 · 2026-11-06 · vigente · E8 de P-012
+**En Blender, la cara de dentro de la piel lleva el material de la grasa, y el corte de la vista dibuja el anillo de la piel con su dermis y su grasa.**
+
+*De dónde sale.* La decisión 7 de E8: la textura y los colores se hacen en Blender, muy realistas, y el simulador los repite.
+
+*Cómo funciona* (`aspecto_en_blender.py`, `vista_en_blender.py`).
+- **La grasa** (`_grasa`, `_lobulos_de_grasa`):
+  - el material son celdas de Voronoi de unos 2 mm, amarillas y con variación, con el borde blanquecino de los tabiques; es brillante y tiene algo de subsuperficie;
+  - va en su propia ranura de material. Para dársela, se busca la cara de dentro: es la única cáscara de volumen negativo (`cara_de_dentro`, `separar_la_grasa`).
+- **La pared** (`_pared_de_la_piel`): hasta 2 mm de hondura, la dermis, con el punteado de los capilares; debajo, la grasa. La hondura la da el atributo `hondura`.
+- **El corte** (`_cerrar_la_piel`): cada lazo de la cara de dentro se une por un anillo con el lazo de fuera más cercano, y cada vértice lleva su hondura. Antes se tapaba cada lazo por separado y quedaban dos discos de piel encima de todo lo de dentro. Lo que no tiene pareja, como una oreja, se sigue tapando como antes.
+
+*Qué se probó.* Se dibujó el corte de la pierna izquierda a y = 0,3. Se ven, de fuera a dentro: el anillo de piel, con la dermis por fuera y la banda amarilla de la grasa por dentro, la fascia y los músculos.
+
+*Consecuencias.*
+- (+) La vista de Blender y la consola pintan igual la piel por dentro.
+- (−) El material es procedural: no lleva ninguna textura fotográfica.
+
+### D-335 · 2026-11-06 · vigente · E7 de P-012 · reemplaza, en los 14 huesos largos, la malla de BodyParts3D
+**Los catorce huesos largos del atlas se rehacen lisos, con lados de unos 2 mm, sin asomar en ningún punto más de un cuarto de milímetro del hueso de antes.**
+
+*De dónde sale.* Las decisiones 1 a 3 de E7.
+- **Primero se midió el original de BodyParts3D**, con el permiso del dueño: `isa_BP3D_4.0_obj_99.zip`, de 136 MB, de `dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/` (BodyParts3D 4.0, CC BY 4.0). Los dos OBJ que se distribuyen vienen ya reducidos («99 % polygon reduction»).
+- **No tiene la resolución que se esperaba.** La tibia izquierda tiene ahí 880 vértices, con la arista mediana en 5,2 mm, el p95 en 27,5 y la más larga en 168 mm, la misma que en el atlas. Los 14 huesos suman 13.347 vértices, frente a los 5.228 del atlas; con lados de 2 mm, solo la tibia serían unos 12.000.
+- Así que, por la decisión 2, se hizo (a), la malla lisa, y después (b), el canal (D-336). Del archivo solo se leyeron los 14 huesos, y se borró al terminar.
+
+*Cómo funciona* (`scripts/atlas/huesos/generar.py`).
+- **Parte de los huesos de e03f345**, tal como los dejó `preparar.mjs`, leídos del historial de git. Partir de los que ya estén en el atlas sería suavizar lo suavizado, y el guion no se podría repetir.
+- **El campo.** Rellena el hueso en una rejilla de 0,5 mm, saca su distancia con signo y la suaviza con una gaussiana de 1,5 mm: se redondean las aristas entre caras planas y queda la forma.
+- **La superficie.** Sale con *Surface Nets* en una rejilla de 2 mm, un vértice por celda. Cada vértice se lleva a la superficie del campo fino y se relaja a lo largo de ella, para que los triángulos salgan parejos.
+- **Nada asoma.** Lo que queda a más de 0,25 mm fuera del hueso de origen se vuelve a meter por su normal. Lo liso redondea hacia fuera lo cóncavo, y fuera del hueso todo está calculado contra el de antes: el músculo, las fascias y la cara de dentro de la piel (D-331).
+- **Si la superficie sale con aristas de más de dos caras**, se repite con la rejilla corrida de medio en medio milímetro y, si ninguna sirve, con una de 1,5 mm. Pasó en tres aristas de una cresta fina del fémur, que se arregló corriendo la rejilla, y en el cúbito derecho, que necesitó la de 1,5 mm.
+- **Al atlas los lleva `scripts/atlas/poner-huesos.mjs`.**
+  - Primero los comprueba con la prueba de la piel (`comprobarLaPiel`), y sin `--aplicar` se para ahí.
+  - Con `--aplicar` rehace los paquetes 12 y 13, y las demás piezas quedan byte a byte como estaban.
+  - Escribe en el catálogo `rehecha`, el canal y el istmo (D-336).
+  - Vuelve a escribir `ATRIBUCION.md` con una viñeta que declara el cambio (`huesosDeclarados`, decisión 4).
+
+*Lo que salió* (el manifiesto del generador, izquierdo / derecho):
+
+| Hueso | Vértices de la cara de fuera | Arista mediana (mm) | Volumen frente al de antes |
+|---|---|---|---|
+| Fémur | 20.968 / 21.050 | 1,76 / 1,75 | −1,1 % |
+| Tibia | 14.032 / 14.020 | 1,79 | −1,5 % |
+| Peroné | 5.380 / 5.394 | 1,86 | −7,3 % / −7,4 % |
+| Húmero | 9.608 / 9.654 | 1,75 / 1,74 | −2,3 % |
+| Radio | 4.010 / 3.956 | 1,76 | −6,6 % / −6,7 % |
+| Cúbito | 3.942 / 7.092 | 1,76 / 1,31 | −7,4 % / −7,0 % |
+| Clavícula | 2.902 / 2.906 | 1,74 | −6,9 % |
+
+- **Cerradas.** Todas las cáscaras, la de fuera y la del canal, sin aristas de borde ni de más de dos caras.
+- **Las aristas.** La más larga mide 3,2 mm en toda la serie.
+- **Lo que asoma.** Antes de meterla, lo liso asomaba de 0,29 a 0,83 mm; después, como mucho 0,25.
+- **Por dentro.** La superficie nueva queda de mediana entre 0,05 y 0,17 mm por dentro de la de antes, y en lo más hondo, entre 0,7 y 1,4 mm. Por eso los huesos finos pierden un 7 % de volumen.
+- **La piel.** Su prueba pasa con los huesos nuevos con las mismas cifras de D-331: 1,16 mm bajo la cara de fuera y 0,40 bajo la de dentro.
+- **El tamaño.** Con el canal, los 14 huesos pasan de 5.228 vértices y 9.052 triángulos a 161.508 y 322.904. Los paquetes 12 y 13 pasan de 2,3 y 2,2 MB a 4,4 MB cada uno, comprimidos.
+
+*Los casos guardados* (decisión 5). Siguen con el hueso de antes hasta que se vuelvan a exportar. Al exportarlos de nuevo, sus cortes caen donde caían:
+- el eje del hueso nuevo, sin contar el canal (D-336), se aparta del de antes como mucho:
+  - 1,4 mm en el centro, en los húmeros;
+  - 0,3° en la dirección, en las clavículas;
+  - 2,2 mm en los extremos;
+- el plano de tres cortes del taller (al 50 %, sin inclinar; al 30 %, 60° hacia 180°; al 70 %, 45° hacia 90°) se mueve como mucho 1,6 mm, en el cúbito, y 0,3°.
+
+Lo fija `canalMedular.test.ts`, que trae escrito el eje de antes de cada hueso.
+
+*Consecuencias.*
+- (+) A lo largo de la diáfisis, el hueso ya no es una sucesión de caras planas de varios centímetros. Ahí apoyan la placa a medida, la entrada de la broca y la luz.
+- (+) La forma es la de antes: nada asoma, y nada de lo que lo rodea hubo que rehacerlo.
+- (−) Los huesos finos (peroné, radio, cúbito y clavícula) pierden un 7 % de volumen, sobre todo en las crestas.
+- (−) El esqueleto del atlas pesa 4,4 MB más.
+- (−) Si se vuelve a correr `preparar.mjs`, los huesos vuelven a ser los de BodyParts3D hasta pasar los dos guiones (`README.md`). `canalMedular.test.ts` falla mientras tanto.
+
+### D-336 · 2026-11-06 · vigente · E7 de P-012
+**Los catorce huesos largos traen su canal medular: una segunda cáscara dentro de la diáfisis, hundida un 23 % del ancho del hueso y cerrada en cúpula hacia la metáfisis. El simulador la reconoce por la forma, sin que el archivo la nombre.**
+
+*De dónde sale.* La opción (b) de E7, que dependía de (a) (D-335). Con el canal:
+- la tapa del corte deja de ser un disco lleno;
+- la broca encuentra dos corticales con el canal entre medio;
+- la fresa y el clavo tienen un canal que medir.
+
+*Cómo funciona.*
+- **La forma** (`generar.py`). Es la superficie lisa de D-335, hundida el grosor de la cortical:
+  - el 23 % del ancho del hueso en cada altura (el diámetro de la mayor esfera que cabe), entre 1,5 y 6,5 mm;
+  - solo en la diáfisis, entre los dos cuadrados de Heim, como `segmentosAO.ts`;
+  - entra 12 mm en la metáfisis y se cierra en cúpula;
+  - las esquinas de la sección se redondean con una gaussiana de 1,5 mm. Hundida sin más, la sección triangular de la tibia dejaba un canal triangular de esquinas vivas.
+- **Un cambio respecto de la propuesta**, que pedía una cara a 1–2 mm también en la metáfisis. Dentro de la cortical de la metáfisis no hay hueco sino esponjoso, y el corte de una meseta tibial enseñaría una cáscara vacía. Ahí la tapa sigue siendo un disco lleno, con su cortical pintada (D-337).
+- **En el archivo**, el canal va después de la cara de fuera, en la misma pieza, con sus caras hacia dentro del canal: la pieza sigue siendo el sólido del hueso, con un hueco. El catálogo dice dónde empieza (`canal: { vertice, indice }`).
+- **Se reconoce por la forma** (`triangulosDelCanal`, en `src/lib/canalMedular.ts`), y no por el catálogo, que no llega a un trozo partido en el taller o en la consola, a la malla fundida de un sistema ni a un caso ya exportado.
+  1. Se sueldan los vértices por posición.
+  2. Se dejan fuera las tapas de corte: la de un anillo une las dos cáscaras.
+  3. Se juntan los triángulos por vértice.
+  4. Es canal la parte que mira hacia dentro y cabe en otra mayor que mira hacia fuera. Lo segundo protege a una pieza con todas las caras al revés, que si no se tomaría entera por canal.
+- **Lo que lo usa**, con el atributo `aCanal` (`src/atlas/canalDeLaGeometria.ts`):
+  - el sombreador del hueso, que pinta la pared del canal como el esponjoso (D-337);
+  - la radiografía, que no la suma. Con superficies que solo suman, el canal no puede restar el hueso que falta, y sumarlo dibujaba la diáfisis más blanca por el medio, con una raya clara de más en cada borde del canal. Sin ella, el hueso se ve como antes;
+  - el eje del hueso (`ejeDelHueso`), que no la cuenta: sobre ese eje están escritos los cortes de los casos guardados;
+  - el asiento de la placa, que no apoya en ella;
+  - la broca no cambió: `salidaPorLaCorticalOpuesta` ya seguía a través de las caras de la misma pieza, y ahora encuentra las dos corticales.
+- **Lo que no trae el atributo lo lee como 0** (`SIN_CANAL_POR_OMISION`, en `defaultAttributeValues`). WebGL no deja a cero un atributo que falta: deja el último valor fijo de esa ranura, que puede ser el de otro programa, y una malla sin canal se dibujaría entera como si lo fuera.
+
+*Lo que salió* (izquierdo / derecho):
+
+| Hueso | Cortical mediana en la diáfisis (mm) | Istmo (mm) | Largo del canal (mm) |
+|---|---|---|---|
+| Fémur | 5,3 | 14,7 / 14,4 | 289 |
+| Tibia | 4,0 / 4,1 | 10,8 | 251 |
+| Peroné | 2,0 | 4,0 | 345 |
+| Húmero | 3,8 / 3,7 | 9,3 / 9,0 | 199 |
+| Radio | 2,0 | 4,8 / 5,0 | 190 |
+| Cúbito | 2,0 | 3,4 / 3,6 | 212 |
+| Clavícula | 2,0 | 4,0 / 4,1 | 90 |
+
+El istmo es lo más estrecho del canal: el diámetro del mayor círculo que cabe en su sección, cada 2 mm a lo largo de la diáfisis. La primera medida lo tomaba desde el centro del canal y daba 8,4 mm en la tibia, porque la sección no es redonda.
+
+*Qué se probó* (`canalMedular.test.ts`).
+- Con tubos de juguete:
+  - el canal, entero, y nada de fuera;
+  - una pieza sin canal, y otra con las caras al revés, no tienen;
+  - un tramo dentro de una malla fundida;
+  - partido, cada trozo conserva su canal y la tapa es un anillo.
+- Con el atlas:
+  - los 14, rehechos, con su canal y su istmo;
+  - el canal se reconoce justo donde el catálogo dice que empieza;
+  - las dos cáscaras están cerradas, y el canal dentro;
+  - la tibia partida deja un anillo en cada trozo.
+- La radiografía, el asiento de la placa, `marcarElCanal` y el istmo en el nodo.
+
+*Consecuencias.*
+- (+) La tapa de un corte en la diáfisis es el anillo de la cortical, con el canal en medio.
+- (+) La broca cruza dos corticales.
+- (+) El fresado y la guía juzgan con el istmo de cada hueso (D-338).
+- (−) El fémur sale con 14,5 mm de istmo, ancho para un adulto pero posible, y el húmero con 9.
+- (−) Una fracción única para los 14 deja la cortical del peroné, el radio, el cúbito y la clavícula en 2 mm, cerca del mínimo de 1,5.
+- (−) Los casos guardados no tienen canal hasta que se vuelvan a exportar.
+
+### D-337 · 2026-11-06 · vigente · E7 de P-012 · cambia la regla de la cortical de la tapa de D-225
+**La tapa del corte de un hueso con canal lleva la cortical que le toca: en la diáfisis, el anillo entero; en la metáfisis, 1,5 mm alrededor del esponjoso. La pared del canal se pinta como el esponjoso.**
+
+*De dónde sale.* Con el canal (D-336), la regla de antes no servía. Pinta de cortical un 30 % de lo que la tapa se aleja de su borde, entre 0,8 y 5 mm:
+- en el anillo de una diáfisis dejaba esponjoso en medio de la cortical;
+- en la metáfisis, donde la cortical es fina, pintaba varios milímetros.
+
+*Cómo funciona.*
+- **Los agujeros.** `tapasDeCorte` cuenta los de cada tapa (`agujeros`): los contornos que quedan dentro de otro. `partirMalla` ya tapaba con un anillo un corte de dos contornos anidados.
+- **La regla** (`grosorDeLaTapa`), en un hueso con canal:
+  - una tapa con agujero lleva 5 mm (`CORTICAL_DEL_ANILLO_MM`), más que el ancho de cualquier anillo del atlas, así que va entera de cortical. En un corte junto a la cúpula, donde el anillo ya es más ancho, el medio queda esponjoso;
+  - una sin agujero, 1,5 mm (`CORTICAL_DE_LA_METAFISIS_MM`), como la de una meseta tibial o un radio distal.
+
+  Sin canal, 0, que en el sombreador (`uTapaGrosor`) es la regla de antes.
+- **Qué hueso tiene canal.** Lo tiene si la malla lo trae o si lo dice el archivo (`canalMedular`, en los `extras`, D-338). El trozo de la meseta no trae canal, pero es de un hueso que lo tiene.
+- **La pared del canal**, que se ve por el agujero del anillo, se pinta de esponjoso, como las caras de detrás de la cáscara.
+
+*Qué se probó.*
+- En `aspectoDelPaciente.test.ts`:
+  - la regla;
+  - el sombreador del hueso declara `aCanal` y `uTapaGrosor`, y ningún otro aspecto lee `aCanal`;
+  - un hueso vestido con canal marca su pared y da 5 mm a su anillo;
+  - sin canal, 0; y con la marca del archivo, sin canal propio, 1,5.
+- En `osteotomia.test.ts`, la tibia partida tiene ahora dos contornos tapados: el de fuera y el del canal.
+
+*Consecuencias.*
+- (+) El corte de la diáfisis enseña el anillo de la cortical alrededor de la médula.
+- (−) Un caso exportado antes de D-336 sigue con la regla de antes.
+
+### D-338 · 2026-11-06 · vigente · E7 de P-012 · amplía D-210
+**El istmo de cada hueso viaja en su archivo, y el enclavado juzga con él el paso de la guía por el foco y la primera cabeza de la fresa.**
+
+*De dónde sale.* Hasta D-336, el simulador usaba en todo hueso el istmo de una tibia de adulto, 11 mm (`ISTMO_POR_OMISION_MM`). Con el canal medido, cada hueso trae el suyo.
+
+*Cómo funciona.*
+- **El viaje.** El catálogo lo trae en `istmoMm` (D-336). La exportación lo escribe en los `extras` del nodo junto con la marca `canalMedular`, y los dos trozos de un hueso partido los heredan.
+- **Un error que apareció al hacerlo.** Al reproducir la preparación guardada (`reproducirPreparacion`), cada pieza se armaba de nuevo sin ellos. Un caso exportado desde la preparación guardada habría perdido el istmo, con el hueso partido o entero. Se arregló, con su prueba.
+- **En la consola.** Lo lee del nodo o de sus padres (`istmoDelHueso`) y lo guarda en el canal medido (`CanalMedido.istmoMm`), también al restaurar lo colocado. Lo usan:
+  - **la guía**, que pasa el foco con un desplazamiento de menos de la mitad del istmo, y el dedo reductor suma 3,5 mm (`AYUDA_DEL_DEDO_MM`). Con 11 mm son los 5,5 y 9 mm de antes;
+  - **la primera cabeza de la fresa**, que es demasiado grande si pasa de «istmo menos 1 mm», salvo que sea la más chica de la caja. En el húmero, de 9 mm, empezar con 8,5 avisaba, y no hay otra con que empezar.
+- **Sin istmo en el archivo**, como en un caso de antes, se sigue con 11 mm.
+
+*Qué se probó.*
+- En `enclavado.test.ts`: la guía con el istmo de un húmero y de un fémur, y el dedo; y la primera cabeza en uno estrecho y en uno ancho.
+- En `exportarAtlas.test.ts` y `reproducirPreparacion.test.ts`, los extras y la herencia.
+- En `sesionDeLoColocado.test.ts`, el istmo al restaurar.
+
+*Consecuencias.*
+- (+) Un fémur y un húmero se fresan con sus cifras.
+- (−) La regla de la guía (la mitad del istmo y 3,5 mm del dedo) es la de la tibia. En el fémur y el húmero no la ha validado Cristóbal.
+
+### D-339 · 2026-11-06 · vigente · E7 de P-012 · supera la malla abierta de D-168 y D-169
+**El corte funde en uno los puntos de corte que caen a menos de una micra. Con eso no sale abierta ninguna fractura de las pruebas, tampoco las 63 de los huesos pequeños que se daban por perdidas.**
+
+*De dónde sale.* Con los huesos de E7 (D-335), las pruebas de las fracturas daban fragmentos abiertos que antes no daban:
+- tres en la prueba de cada hueso: la cuña fragmentada de la tibia derecha y la conminuta focal de la tibia y del húmero derechos;
+- siete patrones nuevos en la tabla de las 90 piezas, en siete de los 14 huesos rehechos.
+
+No eran agujeros. Cada trozo traía cuatro aristas con cuatro triángulos cada una, de un milímetro o menos, sobre la tapa de un corte anterior.
+
+*Qué pasaba.*
+- Earcut deja en una tapa triángulos de astilla, entre puntos del contorno casi en recta. Si el corte siguiente pasa cerca de la punta de una astilla, parte sus dos aristas largas en dos puntos casi iguales. En la cuña de la tibia, la punta estaba a 7 µm del plano, y los dos puntos, a 0,03 µm el uno del otro.
+- Por índice la malla seguía cerrada. Pero quien la suelda por posición junta los dos puntos: la prueba, a 0,3 µm, y el propio corte siguiente, a 0,1 µm (`SOLDADURA`). El triangulito que los unía se queda entonces sin área, y sus aristas caen encima de las de al lado.
+- Con los huesos largos de antes, de unos 650 triángulos, la tabla tenía una sola fractura abierta en ellos, la conminuta del radio izquierdo. Con los de 23 000, cada tapa tiene muchos más puntos, y el canal le suma un segundo contorno.
+
+*Cómo se arregló.* Para cada punto de corte nuevo, `partirMalla` busca otro ya hecho a menos de una micra (`FUSION`, lo mismo que `HOLGURA`), por celdas de ese lado. Si lo hay, usa ese.
+- Si los dos cortes de un triángulo acaban en el mismo punto, su pico y la mitad de su cuadrilátero se quedan sin área. No se emiten, y tampoco su segmento del contorno. Lo que queda cierra con los vecinos.
+- Así, la malla que sale no tiene dos vértices distintos a menos de una micra. Los originales están a una micra o más del plano, por `HOLGURA`, y los de corte, a una micra o más entre sí.
+
+*Lo que arregló de paso.* Las 63 «abiertas» de `SABIDO_QUE_NO_SALE` (D-168, D-169), en 45 piezas, casi todas falanges y huesos del pie. Se habían tomado por lo que cuesta cortar tan poco hueso, y eran esto mismo.
+- **La tabla** baja de 53 piezas a 9:
+  - siete falanges de la mano, donde la cuña fragmentada no llega a cortar, y en dos de ellas tampoco la conminuta;
+  - las dos clavículas, que no sacan la conminuta, como ya decía su nota.
+- **La nota de los huesos pequeños** ya no dice que puedan salir con la malla abierta.
+- **Los números de la conminuta focal** se eligieron barriendo semillas y contando trozos abiertos (D-169). Ese criterio ya no decide nada, pero los números se quedan: una fractura guardada es su receta, y cambiarlos movería sus cortes.
+
+*Qué se probó.*
+- En `osteotomia.test.ts`: una pirámide con dos astillas, cortada a 7 µm de la base, con los cortes de cada astilla a 0,0008 µm. Los dos trozos cierran al soldarlos y no traen dos vértices a menos de una micra. Sin la fusión, la prueba falla con 12 aristas malas.
+- En `fracturasAO.test.ts`: la tabla nueva. Los patrones de cada hueso largo usan ahora la semilla 7 también en la conminuta, que hasta aquí usaba la 1 porque la 7 dejaba la tibia abierta.
+- Un barrido fuera de la suite: 40 semillas de la cuña fragmentada, la segmentaria fragmentada y la conminuta focal en diez huesos largos, los seis derechos y la tibia, el fémur, el húmero y el radio izquierdos. Son 1200 fracturas.
+  - No salió ningún fragmento abierto.
+  - El plano no llega a cortar en 6 cuñas: 4 de 40 en el radio derecho y 2 de 40 en el izquierdo.
+
+*Consecuencias.*
+- (+) Un hueso partido varias veces sigue siendo un sólido, también para quien lo suelde por posición fuera de aquí.
+- (+) Los huesos pequeños ofrecen casi todos los grupos.
+- (−) Un punto de corte puede quedar hasta una micra fuera de su sitio exacto. Nadie lo ve, por lo mismo que `HOLGURA`.
+- (−) Si todos los cortes alrededor de un vértice caen a menos de una micra entre sí, ese pico no sale como un trozo aparte: se pierde. Es un pico más fino que una micra.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -11404,6 +11792,12 @@ Con una cuenta 1 en la base, las 15 pasan (comprobado en P-011).
 *Lo que se sabe.* Next 16.3.8 escribe primero en la respuesta las cabeceras de `next.config.mjs`, y de las de la ruta copia solo las que todavía no están (`next/dist/server/send-response.js`, `isHeaderPresent`). Las únicas que se suman a una ya puesta son `set-cookie`, `www-authenticate`, `proxy-authenticate` y `vary`. Los archivos de `medios`, `medios-pagina` y `modelos-3d` salen por la ruta de Payload, que para Next es una ruta más, con la CSP de `cacheDeArchivoPrivado`. Esa no se miró en ved, porque pide sesión, pero pasa por el mismo `send-response.js`. El comentario de `cacheDeArchivoPrivado` da por hecho lo contrario («esta cabecera sustituye a la de `next.config.mjs`»), y lo mismo `espaciosDeLaPagina.ts`. `tests/unit/cabecerasDeArchivos.test.ts` mira lo que devuelve la función, no lo que llega.
 *Por qué importa.* Es O-056 otra vez abierta: un editor sube un SVG con `<script>`, le pasa la dirección a un administrador, y el guion corre en el origen de la plataforma con la sesión de este. Hoy ved no tiene ningún SVG en `medios` (0 de 3.299), así que no hay ninguno con el que aprovecharlo. En `api/pagina` y `api/foto-del-equipo`, que solo sirven PNG, JPG o WEBP y con `nosniff`, la CSP perdida era una segunda capa.
 *Qué hacer, sin aplicar.* Fijar la CSP de los archivos en `next.config.mjs`, en una entrada para sus caminos detrás de la de `/:path*`: ahí, de dos entradas que fijan la misma cabecera, gana la última. Y comprobarlo en la respuesta y no en la función: contra `next start`, o desde fuera después de desplegar.
+
+### O-095 · 2026-11-06 · media · abierta
+**En evaluación, el registro de la perforación todavía juzga. Dice «No quedó perpendicular al eje del hueso» o «Se pasó … de la cortical opuesta», y la línea sale en ámbar o en verde.**
+*Dónde se ve.* En `alPerforar`, en la consola, al hacer D-330. El registro describe cada agujero —calibre, profundidad, si es bicortical, los grados— y detrás le añade su juicio, en los dos modos. D-313 quitó el juicio de la lista y de las medidas, pero esta línea no la miró.
+*Por qué importa.* Es el veredicto que D-313 quería fuera de la evaluación, dicho en el registro. Y «perpendicular» es el juicio de un paso que la pida: en un tornillo de tracción en oblicuo, la frase es falsa.
+*Qué hacer, sin aplicar.* En evaluación, la descripción sin el juicio. El registro solo tiene tres clases, `bien`, `atencion` y `grave`, y no hay una neutra: hace falta una, o la línea saldría en verde. Es una decisión de cómo se ve el registro, y por eso no se tocó.
 
 ---
 
@@ -15223,7 +15617,7 @@ La integración no se repitió: lo que llegó no toca colecciones ni accesos, y 
 - **Que la persona descargue sus datos ella misma**, sin pasar por un administrador (D-293).
 - **Cifrar los respaldos de Windows** (`scripts/*.ps1`), si alguna vez un servidor Windows guarda datos de personas reales (D-295).
 
-### P-012 · 2026-11-05 · en marcha: E0 a E6 hechas en local; lo que quedaba para conversar, decidido el 2026-11-06
+### P-012 · 2026-11-05 · en marcha: E0 a E8 hechas y comprobadas en local; queda el commit y ved
 **Lo más débil del simulador según la auditoría de P-010, llevado a un plan:**
 - que la reducción tenga dónde volver y se mida como en clínica;
 - que la nota vea los errores que importan, y la calcule el servidor;
@@ -15388,7 +15782,7 @@ Las demás propuestas de P-010 siguen allí sin decidir: paños, lámpara, punto
   - las series de largos;
   - las que fijaban lo de antes, corregidas: en `fijacion.test.ts`, «2,7 → 1,9» y «90 → 60».
 
-- [x] **E4 · La evaluación sin ayudas** (débil 4). Hecha en local el 2026-11-05: D-312 a D-316, sin migración. Quedaban dos puntos para decidir: las cifras de las medidas, que siguen a la vista (D-313), y la incisión o el agujero de más, que no se cobran (D-314). El dueño los decidió el 2026-11-06, y están al final de esta etapa, por hacer.
+- [x] **E4 · La evaluación sin ayudas** (débil 4). Hecha en local el 2026-11-05: D-312 a D-316, sin migración. Quedaban dos puntos para decidir: las cifras de las medidas, que siguen a la vista (D-313), y la incisión o el agujero de más, que no se cobran (D-314). El dueño los decidió el 2026-11-06, y se hicieron ese día (D-329 y D-330), sin migración: están al final de esta etapa.
   1. **Nada responde hasta elegir.** La tarjeta de D-265 pasa a ser modal de verdad: el resto queda `inert`. Sin modo elegido no hay práctica: `enPractica` pasa a ser `modo === 'practica'` y no `!== 'evaluacion'`.
   2. **La lista no dice si se acierta.** En evaluación dice qué hay que hacer y marca lo hecho en gris, nunca en verde. En práctica, «Un instrumento en la mano» se pone verde solo con el que toca. Hoy se pone verde con cualquiera, también en evaluación.
   3. **«Siguiente» y los deshaceres que no miran el modo**, solo en práctica. «Siguiente» le pasa a la mano el instrumento que toca.
@@ -15400,9 +15794,9 @@ Las demás propuestas de P-010 siguen allí sin decidir: paños, lámpara, punto
      Hoy parece un interruptor.
   5. **El modo queda fijo en el recorrido.** Cambiarlo es empezar de nuevo, y el servidor lo guarda con la nota de E2.
 
-  Decidido con el dueño el 2026-11-06, por hacer:
-  - [ ] **Las medidas, solo con la cifra** (D-313). En evaluación, cada medida da su cifra sin el tope: ni «tope 2 mm», ni «topes 5° · 10° · 10°», ni el rango de la incisión. Se puede medir, como con la regla del arco, pero el tope lo tiene que saber el residente. En práctica no cambia nada.
-  - [ ] **El gesto de más deja el paso en cero** (D-314). En evaluación, una segunda incisión aparte en el paso que mide la incisión, o una segunda trayectoria en el paso que mide una perforación, cuenta como complicación: el paso vale cero y queda anotado en el registro. Alargar la misma incisión no es otra, ni repasar la misma trayectoria con otra broca (la de deslizamiento y la de núcleo de un tornillo de tracción).
+  Decidido con el dueño el 2026-11-06:
+  - [x] **Las medidas, solo con la cifra** (D-313). Hecho el 2026-11-06: D-329. En evaluación, cada medida da su cifra sin el tope: ni «tope 2 mm», ni «topes 5° · 10° · 10°», ni el rango de la incisión. Se puede medir, como con la regla del arco, pero el tope lo tiene que saber el residente. En práctica no cambia nada.
+  - [x] **El gesto de más deja el paso en cero** (D-314). Hecho el 2026-11-06: D-330. En evaluación, una segunda incisión aparte en el paso que mide la incisión, o una segunda trayectoria en el paso que mide una perforación, cuenta como complicación: el paso vale cero y queda anotado en el registro. Alargar la misma incisión no es otra, ni repasar la misma trayectoria con otra broca (la de deslizamiento y la de núcleo de un tornillo de tracción).
 
 - [x] **E5 · La pantalla de pabellón** (débil 6 y las propuestas 10, 12, 14 y 18). Hecha en local el 2026-11-05: D-321 a D-327, con la migración `20261105_222046_manguito_y_tiempos`. Los casos guardados no usan manguito hasta que su autor lo marque (D-323). La E con una herida no se llegó a ver en el navegador: queda para E9 (D-326).
   1. **El lienzo grande en 1366 × 657.** La meta es pasar del 29 % de la pantalla a más del 70 %:
@@ -15451,7 +15845,7 @@ Las demás propuestas de P-010 siguen allí sin decidir: paños, lámpara, punto
   3. **FJ2190**, la «Right fibular vein» que el atlas pone en el muslo izquierdo, se corrige con las demás correcciones del atlas.
   4. **Los nervios del miembro inferior**, que el atlas no trae: sus 139 piezas del sistema nervioso están en la cabeza. Queda para conversar de dónde traerlos (BodyParts3D completo o Z-Anatomy, que sale de él) y con qué licencia.
 
-- [ ] **E7 · El hueso** (débil 5, la otra parte). Se conversó con el dueño el 2026-11-06: lo decidido, al final.
+- [x] **E7 · El hueso** (débil 5, la otra parte). Se conversó con el dueño el 2026-11-06: lo decidido, al final. Hecha en local el 2026-11-06: D-335 a D-339, sin migración. D-339 arregla el corte, que con los huesos nuevos dejaba abiertas algunas fracturas, y de paso las de los huesos pequeños. El original de BodyParts3D no tenía la resolución que se esperaba, así que se hizo (a) y después (b). El canal es solo de la diáfisis y no llega a la metáfisis, como decía la propuesta; el porqué, en D-336.
   - **Medido en el atlas:**
     - la tibia izquierda tiene 331 vértices para 38 cm;
     - su arista mediana es de 10,6 mm (p90, 28 mm), y la más larga, de 168 mm;
@@ -15476,8 +15870,14 @@ Las demás propuestas de P-010 siguen allí sin decidir: paños, lámpara, punto
     3. Los 14 huesos largos, y no solo los de la pierna.
     4. El cambio se declara en `ATRIBUCION.md` (lo escribe `atribucion.mjs`), como pide CC BY 4.0.
     5. Los casos guardados siguen con el hueso de antes hasta que se vuelvan a exportar. Hay que comprobar que los cortes de fractura del taller salen igual sobre la malla nueva.
+  - **Cómo se resolvió cada una:**
+    1. El original se midió: `isa_BP3D_4.0_obj_99.zip`, de 136 MB, ya viene reducido, y su tibia tiene 880 vértices, con la arista más larga en 168 mm, como la del atlas (D-335).
+    2. Por eso (a), la malla lisa con lados de unos 2 mm (D-335), y después (b), el canal medular (D-336). Con el canal, la cortical de la tapa (D-337) y el istmo de cada hueso en el enclavado (D-338).
+    3. Los 14, hechos.
+    4. `ATRIBUCION.md` declara los huesos rehechos en una viñeta propia, que escribe `atribucion.mjs` (`huesosDeclarados`).
+    5. Comprobado: los cortes caen a menos de 1,6 mm y 0,3° de donde caían (D-335).
 
-- [ ] **E8 · El subcutáneo con espesor, parte de la piel.** Se conversó con el dueño el 2026-11-06: lo decidido, al final. La propuesta de apoyar la grasa en la fascia no se hace.
+- [x] **E8 · El subcutáneo con espesor, parte de la piel.** Se conversó con el dueño el 2026-11-06: lo decidido, al final. La propuesta de apoyar la grasa en la fascia no se hace. Hecha en local el 2026-11-06: D-331 a D-334, sin migración. La grasa entera de 2 mm cubre el 72,4 % del cuerpo sin la cabeza y no el 85 % que se midió al conversarlo; el porqué, en D-331.
   - **Cómo está hoy el modelo.** Medido en el atlas, con las correcciones de sistema de `correcciones-de-sistema.json`: en la pierna y el muslo izquierdos, 8.695 vértices de la cara de fuera de la piel, con un rayo por la normal hacia dentro.
     - **La piel es una cáscara de 2 mm.** Tiene la cara de fuera, que es la que se ve, y la de dentro 2 mm más honda (de 1,2 a 2 mm donde algo queda cerca). Según D-224, la de dentro es la que se ve en el labio de una incisión.
     - **La fascia superficial es una lámina sin volumen** (`fascia-superficial`, amarilla, con rol `piel`). Queda de 3 a 11 mm bajo la piel, según la zona.
@@ -15537,18 +15937,18 @@ Las demás propuestas de P-010 siguen allí sin decidir: paños, lámpara, punto
   - **Lo decidido con el dueño.** En sus palabras: «no quiero mover nada, quiero que sea toda del mismo grosor pero solo agrandar la piel hacia adentro pero cambiando el color y textura donde corresponda, por ejemplo en la cabeza no».
     1. **Grosor fijo:** 2 mm de grasa bajo los 2 mm de piel, 4 mm en total. Donde no cabe, que es el 15 % de la piel sin la cabeza, la grasa se adelgaza hasta lo que cabe, sin cruzar nada de lo que limita. No se mueve nada de lo que ya hay: ni la cara de fuera de la piel, ni la fascia, ni el músculo, ni el hueso.
     2. **En la cabeza no hay grasa:** la piel queda como hoy. En el resto del cuerpo, sí.
-    3. **Una sola pieza «Piel»**, con la cara honda como tercera cara.
+    3. **Una sola pieza «Piel»**, con la cara honda como tercera cara. Al hacerlo no hizo falta la tercera: la piel ya tenía su cara de dentro (D-224), y lo que se bajó fue esa, que es «agrandar la piel hacia adentro» (D-331).
     4. **La lámina de la fascia superficial** va justo donde termina la grasa.
     5. **Se abre como la piel:** la corta el mismo trazo del bisturí de piel, como hasta ahora.
     6. **Se cierra con la piel, como hoy**, sin plano de sutura propio. Es la respuesta del dueño a P4-Q1.
     7. **Cómo se hace:** la geometría, con Python, como las fascias de D-218; la textura y los colores, en Blender, y muy realistas. Lo que se ve de la grasa es sobre todo la pared de la herida, que la consola tendrá que construir al cortar y que en Blender no existe: el sombreador del simulador repetirá el material de Blender, como con los demás tejidos (D-225).
     8. Los casos guardados no cambian hasta que se vuelvan a exportar desde el taller.
-  - **Por resolver al hacerlo:**
-    - el paso del cuello a la cabeza, sin escalón;
-    - la pared de la herida, con la dermis y la grasa a la vista: hoy el corte separa las caras de la piel sin dibujar nada entre ellas, y con 2 mm no se notaba;
-    - la comprobación de que nada cruza la cara honda, con las mismas funciones que la de D-224.
+  - **Por resolver al hacerlo**, y cómo se resolvió:
+    - el paso del cuello a la cabeza, sin escalón: de 4 a 2 mm entre y = 1,44 y el mentón (D-331);
+    - la pared de la herida, con la dermis y la grasa a la vista: hoy el corte separa las caras de la piel sin dibujar nada entre ellas, y con 2 mm no se notaba. La consola la levanta al cortar (D-333), y Blender la dibuja en su corte (D-334);
+    - la comprobación de que nada cruza la cara honda, con las mismas funciones que la de D-224: `comprobarLaPiel` mide ya bajo la cara de dentro, con los vasos y los nervios dentro de la grasa (D-331), y la fascia superficial contra la piel entera (D-332).
 
-- [ ] **E9 · Comprobaciones, commit y ved.** Las cinco de `AGENTS.md`, y en el navegador con una pierna nueva del taller. El commit y ved, con el OK del dueño.
+- [ ] **E9 · Comprobaciones, commit y ved.** Las cinco de `AGENTS.md`, y en el navegador con una pierna nueva del taller. El commit y ved, con el OK del dueño. Las comprobaciones se hicieron el 2026-11-06 y están abajo. El OK para el commit y ved, el mismo día: «sube los cambios al git y despliegalo en ved».
 
 #### Cómo se comprobó
 
@@ -15567,7 +15967,26 @@ Comprobaciones de E9 con E0 a E6 hechas, entre el 2026-11-05 y el 2026-11-06, co
   - Cobertura: 86,6 % de las sentencias, 79 % de las ramas, 87,7 % de las funciones y 87,9 % de las líneas. El umbral es 58.
 - `npm run test:integration`, obligatoria: pasan 254 de 261. Las 7 que fallan son las de `estructuras` (O-092), y la matriz de roles pasa entera.
 - `next build`, como el de Docker (`NEXT_PUBLIC_BASE_PATH=/traumahub`): compila. Sus 8 avisos («Dynamic filesystem access») son de `api/subidas` y de `respaldosServidor.ts`, y ya estaban.
-- Falta: el navegador con una pierna nueva del taller, donde ver la E con una herida (D-326); el commit y ved.
+- ~~Falta: el navegador con una pierna nueva del taller, donde ver la E con una herida (D-326); el commit y ved.~~ El navegador se hizo en la vuelta siguiente, abajo.
+
+Comprobaciones de E9 con E7 y E8 hechas, y con D-329 y D-330, el 2026-11-06, contra la misma base desechable:
+- `tsc --noEmit`: sin errores.
+- `npm run lint`: sin errores (15 avisos).
+- La suite con cobertura: pasan 6052, fallan 10 y una se omite.
+  - Las diez son las de la línea de base: las 7 de `estructuras`, `directorioDeRespaldos` (2) y `respaldoEnWindows` (1).
+  - Tres pruebas se pusieron al día en esta vuelta:
+    - `cableadoDelProgreso` y `lecturasCableadas` contaban seis llamadas a `guardarRecorrido`, y D-330 añadió la séptima, la del gesto de más;
+    - `fracturasAO` encontró trozos abiertos con los huesos nuevos de D-335. Era el corte, y se arregló en D-339.
+  - Cobertura: 86,9 % de las sentencias, 79,2 % de las ramas, 87,9 % de las funciones y 88,2 % de las líneas.
+- `npm run test:integration`, obligatoria: pasan 254 de 261. Las 7 que fallan son las de `estructuras` (O-092), y la matriz de roles pasa entera.
+- `next build`, como el de Docker: compila, con los mismos 8 avisos.
+- El barrido de D-339: 1200 fracturas en los huesos largos, ninguna abierta.
+- En el navegador, sobre una pierna derecha nueva del taller: la preparación «pierna derecha», con su piel, exportada a un caso 42-A2 con `pierna-derecha-en-el-caso.ts --nuevo`.
+  - La E encuadra la herida (D-326; las cifras, en esa entrada).
+  - Con dos Farabeuf abiertos 20 mm, la pared de la herida enseña la piel y, debajo, la banda amarilla de la grasa; al fondo, la fascia y el músculo (D-333).
+  - La radioscopia AP de la pierna, a 1×, 2× y 4×: el hueso se ve como antes, sin la raya clara de más en los bordes del canal (D-336).
+  - El foco de la fractura, con la piel, la fascia y el músculo apagados: la tapa de la diáfisis enseña el anillo blanco de la cortical y, por su agujero, la pared del canal pintada de esponjoso (D-337).
+- Falta: el commit y ved.
 
 ---
 

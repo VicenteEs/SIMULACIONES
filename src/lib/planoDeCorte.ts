@@ -17,6 +17,8 @@
  * plano en un sitio y el archivo saldría partido en otro, y nada lo diría.
  */
 
+import { triangulosDelCanal } from './canalMedular'
+
 export type Vector3 = [number, number, number]
 
 /** Qué trozo es el fragmento que el residente reduce en la consola. */
@@ -236,6 +238,9 @@ export function ejeDelHueso(
 ): EjeDelHueso | null {
   const fin = inicio + cuenta - (cuenta % 3)
   const vertices = Math.floor(posiciones.length / 3)
+  // El canal medular (D-336) no cuenta: es una cáscara dentro de la diáfisis, y con él el centro se iba hacia ella y el
+  // eje cambiaba respecto del hueso de antes. Los cortes de los casos guardados se escribieron sobre ese eje.
+  const delCanal = triangulosDelCanal(posiciones, indices, { inicio, cuenta })
   const leer = (i: number): Vector3 => [
     posiciones[i * 3],
     posiciones[i * 3 + 1],
@@ -250,6 +255,7 @@ export function ejeDelHueso(
   const max: Vector3 = [-Infinity, -Infinity, -Infinity]
 
   for (let t = inicio; t < fin; t += 3) {
+    if (delCanal[(t - inicio) / 3]) continue
     const ia = indices[t]
     const ib = indices[t + 1]
     const ic = indices[t + 2]

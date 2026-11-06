@@ -10,7 +10,8 @@ import {
   type Vec3,
 } from '@/lib/aspectoAnatomico'
 import type { RolDePieza } from '@/lib/piezasDelCaso'
-import type { HeridaEnCapa } from './heridas'
+import { ATRIBUTO_DEL_CANAL, SIN_CANAL_POR_OMISION, flotantesDe, marcarElCanal } from '@/atlas/canalDeLaGeometria'
+import { ATRIBUTO_DE_LA_PARED, type HeridaEnCapa } from './heridas'
 
 /**
  * Cómo se ve el paciente en el simulador (D-225): la piel, el hueso, el músculo y lo demás, cada uno con su
@@ -124,7 +125,21 @@ const VERTICE = /* glsl */ `
 varying vec3 vPosObjeto;
 `
 
-/** La piel: poros, surcos finos, manchas de color, y la luz que entra y sale roja por el borde de la sombra. */
+/**
+ * Lo que mide la dermis con la epidermis, en milímetros: debajo empieza la grasa. Es el `ESPESOR_DE_LA_DERMIS` de
+ * `scripts/atlas/recalcular-piel.mjs` (D-331), y la piel de la cabeza, que no lleva grasa, mide eso entera.
+ */
+export const DERMIS_MM = 2
+
+/**
+ * La piel: poros, surcos finos, manchas de color, y la luz que entra y sale roja por el borde de la sombra.
+ *
+ * Y la pared de una herida (D-333), que es la piel por dentro: el borde de la epidermis, la dermis blanca rosada con el
+ * punteado de los capilares que sangran, y desde `DERMIS_MM` la grasa, amarilla, en lóbulos de un par de milímetros
+ * separados por tabiques blanquecinos, y brillante, porque está mojada y es aceitosa. `vPared` es 1 más los milímetros
+ * bajo la superficie (ver `ATRIBUTO_DE_LA_PARED`), así que la frontera entre las dos cae donde cae en cada sitio: donde
+ * la piel se adelgazó porque la grasa no cabía, la pared es casi toda dermis, como en la cabeza.
+ */
 const PIEL = /* glsl */ `
 vec3 pMm = vPosObjeto * uMmPorUnidad;
 float huella = max( length( fwidth( pMm ) ), 1e-4 );
@@ -141,11 +156,28 @@ float humedad = 0.0;
 humedad = smoothstep( 0.62, 0.34, vColor.g );
 #endif
 float rugosidadDelAspecto = 0.1 * poro + 0.06 * ( mancha - 0.5 ) - 0.22 * humedad;
+if ( vPared > 0.5 ) {
+  float hondo = vPared - 1.0;
+  float lobulo = ruido3( pMm * 0.8 + 2.3 );
+  float tabique = 1.0 - smoothstep( 0.03, 0.1, abs( lobulo - 0.5 ) );
+  vec3 grasa = mix( vec3( 0.84, 0.62, 0.2 ), vec3( 0.98, 0.85, 0.45 ), smoothstep( 0.25, 0.75, capas3( pMm * 0.9 + 6.1 ) ) );
+  grasa = mix( grasa, vec3( 0.95, 0.88, 0.76 ), 0.6 * tabique );
+  float capilar = smoothstep( 0.9, 0.97, ruido3( pMm * 2.4 + 1.9 ) ) * desvanecer( 0.5, huella );
+  vec3 dermis = mix( vec3( 0.9, 0.72, 0.68 ), vec3( 0.62, 0.1, 0.09 ), 0.7 * capilar );
+  float enLaGrasa = smoothstep( ${DERMIS_MM.toFixed(1)} - 0.25, ${DERMIS_MM.toFixed(1)} + 0.25, hondo );
+  diffuseColor.rgb = mix( diffuseColor.rgb, mix( dermis, grasa, enLaGrasa ), smoothstep( 0.04, 0.2, hondo ) );
+  alturaDelAspecto = mix( 0.01 * capilar, 0.05 * ( lobulo - 0.5 ) - 0.03 * tabique, enLaGrasa ) * uUnidadesPorMm;
+  rugosidadDelAspecto = mix( - 0.12, - 0.3, enLaGrasa );
+}
 `
 
 /**
  * El hueso: la cortical con sus poros, el grano y los agujeros nutricios; y el esponjoso donde se ve el interior,
- * que es en las tapas de un corte (con el anillo de cortical alrededor) y en las caras de detrás de la cáscara.
+ * que es en las tapas de un corte (con el anillo de cortical alrededor), en las caras de detrás de la cáscara y en la
+ * pared del canal medular (D-336), que se ve por el agujero del anillo de una diáfisis cortada.
+ *
+ * Cuánta cortical lleva la tapa (D-337) lo dice `uTapaGrosor`, en mm, que se calcula al marcar las tapas
+ * (`grosorDeLaTapa`); con 0, la regla de antes, de un hueso sin canal: un 30 % de lo que la tapa se aleja de su borde.
  */
 const HUESO = /* glsl */ `
 vec3 pMm = vPosObjeto * uMmPorUnidad;
@@ -158,14 +190,14 @@ float foramen = smoothstep( 0.93, 0.97, ruido3( pMm * 0.22 + 11.0 ) ) * desvanec
 // hueso era yeso blanco. El picado de dos milímetros y el moteado de marfil son lo que se ve de él a un metro.
 float picado = smoothstep( 0.74, 0.95, ruido3( pMm * 0.45 + 5.0 ) ) * desvanecer( 2.2, huella );
 float moteado = capas3( pMm * 0.12 + 1.7 );
-float esponjoso = gl_FrontFacing ? 0.0 : 1.0;
+float esponjoso = max( gl_FrontFacing ? 0.0 : 1.0, step( 0.5, vCanal ) );
 float cortical = 0.0;
 if ( vTapa > 0.5 ) {
   int k = int( vTapa + 0.5 ) - 1;
   vec3 d = vPosObjeto - uTapaOrigen[ k ];
   vec2 enLaTapa = clamp( vec2( dot( d, uTapaU[ k ] ), dot( d, uTapaV[ k ] ) ), 0.0, 1.0 );
   float alBorde = texture2D( uCampoDeLasTapas, vec2( ( float( k ) + enLaTapa.x ) / 4.0, enLaTapa.y ) ).r * uTapaRadio[ k ] * uMmPorUnidad;
-  float grosor = clamp( 0.3 * uTapaRadio[ k ] * uMmPorUnidad, 0.8, 5.0 );
+  float grosor = uTapaGrosor[ k ] > 0.0 ? uTapaGrosor[ k ] : clamp( 0.3 * uTapaRadio[ k ] * uMmPorUnidad, 0.8, 5.0 );
   cortical = 1.0 - smoothstep( grosor * 0.8, grosor * 1.2, alBorde );
   esponjoso = 1.0 - cortical;
 }
@@ -240,9 +272,20 @@ export function aplicarAlSombreador(
 ) {
   Object.assign(sombreador.uniforms, uniformes)
   const conTapas = aspecto === 'hueso'
+  const conPared = aspecto === 'piel'
   sombreador.vertexShader = sombreador.vertexShader
-    .replace('#include <common>', VERTICE + (conTapas ? 'attribute float aTapa;\nvarying float vTapa;\n' : ''))
-    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPosObjeto = transformed;\n' + (conTapas ? 'vTapa = aTapa;\n' : ''))
+    .replace(
+      '#include <common>',
+      VERTICE +
+        (conTapas ? `attribute float aTapa;\nvarying float vTapa;\nattribute float ${ATRIBUTO_DEL_CANAL};\nvarying float vCanal;\n` : '') +
+        (conPared ? `attribute float ${ATRIBUTO_DE_LA_PARED};\nvarying float vPared;\n` : ''),
+    )
+    .replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\nvPosObjeto = transformed;\n' +
+        (conTapas ? `vTapa = aTapa;\nvCanal = ${ATRIBUTO_DEL_CANAL};\n` : '') +
+        (conPared ? `vPared = ${ATRIBUTO_DE_LA_PARED};\n` : ''),
+    )
   const propio =
     aspecto === 'piel'
       ? PIEL
@@ -254,8 +297,9 @@ export function aplicarAlSombreador(
   const declaraciones =
     RUIDO +
     (conTapas
-      ? 'varying float vTapa;\nuniform vec3 uTapaOrigen[ 4 ];\nuniform vec3 uTapaU[ 4 ];\nuniform vec3 uTapaV[ 4 ];\nuniform float uTapaRadio[ 4 ];\nuniform sampler2D uCampoDeLasTapas;\n'
+      ? 'varying float vTapa;\nvarying float vCanal;\nuniform vec3 uTapaOrigen[ 4 ];\nuniform vec3 uTapaU[ 4 ];\nuniform vec3 uTapaV[ 4 ];\nuniform float uTapaRadio[ 4 ];\nuniform float uTapaGrosor[ 4 ];\nuniform sampler2D uCampoDeLasTapas;\n'
       : '') +
+    (conPared ? 'varying float vPared;\n' : '') +
     (aspecto === 'piel' || aspecto === 'hueso' || aspecto === 'ojo' ? '' : 'uniform vec3 uEjeFibra;\nuniform float uFibra;\n')
   let fragmento = sombreador.fragmentShader
     .replace('#include <clipping_planes_pars_fragment>', '#include <clipping_planes_pars_fragment>\n' + declaraciones)
@@ -326,7 +370,14 @@ export function materialConAspecto(
     uniformes.uTapaU = { value: t.ejeU }
     uniformes.uTapaV = { value: t.ejeV }
     uniformes.uTapaRadio = { value: t.radio }
+    uniformes.uTapaGrosor = { value: t.grosor }
     uniformes.uCampoDeLasTapas = { value: t.textura }
+    // Una malla de hueso sin los atributos de las tapas y del canal —una que no pasó por `marcarLasTapas`— los lee como
+    // 0, y no como lo último que quedó fijo en esa posición de la tarjeta (ver `SIN_CANAL_POR_OMISION`).
+    ;(material as THREE.Material & { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
+      ...SIN_CANAL_POR_OMISION,
+      aTapa: [0],
+    }
     // La textura de las tapas es de este material: se va con él.
     material.addEventListener('dispose', () => t.textura.dispose())
   } else if (aspecto !== 'piel' && aspecto !== 'ojo') {
@@ -344,20 +395,41 @@ export interface CampoDeLasTapas {
   ejeU: THREE.Vector3[]
   ejeV: THREE.Vector3[]
   radio: number[]
+  /** La cortical de cada tapa, en mm; 0 es la regla de un hueso sin canal (ver `grosorDeLaTapa`). */
+  grosor: number[]
   textura: THREE.DataTexture
 }
 
+/**
+ * La cortical de la tapa de un corte de un hueso con canal medular (D-337), en mm.
+ *
+ * En la diáfisis la tapa es un anillo (D-336), y el anillo es la cortical: va entera, hasta 5 mm del borde de fuera y
+ * del de dentro, que es más de lo que mide de ancho una diáfisis del atlas. Si el anillo sale más ancho —un corte junto
+ * a la cúpula del canal, donde ya empieza la metáfisis—, el centro del anillo queda esponjoso. En la metáfisis la tapa
+ * es un disco, y su cortical es fina, de 1,5 mm, como la de una meseta tibial o un radio distal.
+ *
+ * Un hueso sin canal —el de un caso exportado antes de D-336, una vértebra, la pelvis— da 0: el sombreador sigue con
+ * la regla de antes.
+ */
+export const CORTICAL_DEL_ANILLO_MM = 5
+export const CORTICAL_DE_LA_METAFISIS_MM = 1.5
+export function grosorDeLaTapa(tapa: { agujeros: number }, conCanal: boolean): number {
+  if (!conCanal) return 0
+  return tapa.agujeros > 0 ? CORTICAL_DEL_ANILLO_MM : CORTICAL_DE_LA_METAFISIS_MM
+}
+
 /** Las cuatro tapas que caben, en los uniformes del sombreador, y sus campos de distancias juntos en una textura. */
-export function campoDeLasTapas(tapas: ReturnType<typeof tapasDeCorte>): CampoDeLasTapas {
+export function campoDeLasTapas(tapas: ReturnType<typeof tapasDeCorte>, { conCanal = false }: { conCanal?: boolean } = {}): CampoDeLasTapas {
   const lado = LADO_DEL_CAMPO_DE_LA_TAPA
   const datos = new Uint8Array(lado * 4 * lado)
-  const campo: CampoDeLasTapas = { origen: [], ejeU: [], ejeV: [], radio: [], textura: new THREE.DataTexture(datos, lado * 4, lado, THREE.RedFormat) }
+  const campo: CampoDeLasTapas = { origen: [], ejeU: [], ejeV: [], radio: [], grosor: [], textura: new THREE.DataTexture(datos, lado * 4, lado, THREE.RedFormat) }
   for (let k = 0; k < 4; k++) {
     const t = tapas[k]
     campo.origen.push(new THREE.Vector3(...(t?.origen ?? [0, 0, 0])))
     campo.ejeU.push(new THREE.Vector3(...(t?.ejeU ?? [0, 0, 0])))
     campo.ejeV.push(new THREE.Vector3(...(t?.ejeV ?? [0, 0, 0])))
     campo.radio.push(t?.radio ?? 0)
+    campo.grosor.push(t ? grosorDeLaTapa(t, conCanal) : 0)
     if (!t) continue
     for (let j = 0; j < lado; j++) datos.set(t.distancia.subarray(j * lado, (j + 1) * lado), j * lado * 4 + k * lado)
   }
@@ -365,20 +437,6 @@ export function campoDeLasTapas(tapas: ReturnType<typeof tapasDeCorte>): CampoDe
   campo.textura.minFilter = THREE.LinearFilter
   campo.textura.needsUpdate = true
   return campo
-}
-
-/**
- * Las tres componentes de un atributo como flotantes. Un modelo comprimido (Meshopt, cuantizado) trae las posiciones y
- * las normales en enteros normalizados: leer su arreglo tal cual daba normales de 32767 y ninguna tapa reconocida.
- */
-function flotantesDe(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): Float32Array {
-  const salida = new Float32Array(a.count * 3)
-  for (let i = 0; i < a.count; i++) {
-    salida[i * 3] = a.getX(i)
-    salida[i * 3 + 1] = a.getY(i)
-    salida[i * 3 + 2] = a.getZ(i)
-  }
-  return salida
 }
 
 // ----------------------------------------------------------------------------------------------- vello
@@ -530,7 +588,23 @@ export function crearAspectoDelModelo(): AspectoDelModelo {
 const deInterfaz = (o: THREE.Object3D) =>
   o.userData.deInterfaz === true || o.name === 'cinta-de-la-herida' || o.name === 'borde-de-la-herida'
 
-/** Las tapas de una malla de hueso, en el atributo `aTapa` que lee el sombreador (0 fuera, 1 a 4 la tapa). */
+/**
+ * La piel lleva siempre el atributo de la pared (D-333), en cero hasta que una herida levanta la suya: el sombreador lo
+ * lee en todas sus mallas, y en una que no lo trajera leería lo que otro programa dejó en esa ranura. Lo que ya lo
+ * tiene —una piel cortada antes de vestirla— se deja como está.
+ */
+function marcarLaPared(malla: THREE.Mesh) {
+  const g = malla.geometry
+  const posicion = g.getAttribute('position')
+  if (!posicion || g.getAttribute(ATRIBUTO_DE_LA_PARED)) return
+  g.setAttribute(ATRIBUTO_DE_LA_PARED, new THREE.BufferAttribute(new Float32Array(posicion.count), 1))
+}
+
+/**
+ * Las tapas de una malla de hueso, en el atributo `aTapa` que lee el sombreador (0 fuera, 1 a 4 la tapa), y su canal
+ * medular, en `aCanal` (`marcarElCanal`). El hueso tiene canal si lo trae la malla o si lo dice el archivo
+ * (`canalMedular`, de los `extras`): un trozo de meseta tibial no trae canal, y su tapa es de un hueso que sí lo tiene.
+ */
 function marcarLasTapas(malla: THREE.Mesh): CampoDeLasTapas {
   const g = malla.geometry
   const posicion = g.getAttribute('position')
@@ -541,7 +615,8 @@ function marcarLasTapas(malla: THREE.Mesh): CampoDeLasTapas {
     for (const v of t.vertices) marca[v] = k + 1
   })
   g.setAttribute('aTapa', new THREE.BufferAttribute(marca, 1))
-  return campoDeLasTapas(tapas)
+  const conCanal = marcarElCanal(g) || malla.userData.canalMedular === true
+  return campoDeLasTapas(tapas, { conCanal })
 }
 
 function desvestir(malla: THREE.Mesh, vestido: Vestido) {
@@ -597,6 +672,7 @@ export function vestirElModelo(
     malla.material = propio
     const vestido: Vestido = { aspecto, original, propio }
     if (aspecto === 'piel') {
+      marcarLaPared(malla)
       const v = crearVello(malla, delObjeto)
       if (v) {
         malla.add(v.vello)

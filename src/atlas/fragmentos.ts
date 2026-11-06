@@ -20,6 +20,7 @@ import { partirMalla, partirPorVariosPlanos, type MallaIndexada } from '@/lib/os
 import { partirPorVariosPlanosSinTapa, partirSinTapaPorUnPlano } from '@/lib/recorteDeCapa'
 import { type AspectoDePieza, type EscenaDelAtlas, type TransformacionDePieza } from './cargador'
 import { focoDeLaTapa, puntosDeLaTapa } from './manipular'
+import { marcarElCanal } from './canalDeLaGeometria'
 import { crearMaterialDeRadiografia } from './materialDeRadiografia'
 import {
   idDeFragmento,
@@ -214,6 +215,9 @@ export function fragmentosDeLasMitades(
     }
     const { malla, centro } = aMalla(trozo, material.color, material.roughness, escena.opacidadesIniciales?.[indice] ?? 1)
     malla.name = idDeFragmento(pieza, lado)
+    // El canal medular del trozo (D-336), para que su radiografía no sume la pared. Una fascia no tiene: es una lámina,
+    // y su cara de dentro no es ningún canal.
+    if (escena.cascaras?.[indice] !== 1) marcarElCanal(malla.geometry)
     return {
       id: malla.name,
       pieza: piezaDe(pieza),

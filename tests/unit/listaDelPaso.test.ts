@@ -163,9 +163,36 @@ describe('la lista del paso', () => {
       const paso: PasoQuirurgico = { objetivo: 'fijacion', tornillosMinimos: 4, exigeBicortical: true, exigeCompresion: true }
       const gesto: Gesto = { instrumento: 'x', fijacion: { placa: true, tornillos: 2, bicorticales: 2, largos: 0, compresionMm: 0.4 } }
       const textos = (opciones: typeof practica) => listaDelPaso(paso, gesto, opciones).map((p) => [p.clave, p.texto])
-      // El texto del instrumento es lo único que cambia: en evaluación no se nombra.
+      // En la fijación, el texto del instrumento es lo único que cambia: en evaluación no se nombra.
       expect(textos(evaluacion).slice(1)).toEqual(textos(practica).slice(1))
       expect(textos(evaluacion)[0]).toEqual(['instrumento', 'Un instrumento en la mano'])
+    })
+
+    it('la reducción y la incisión, sin su tope (D-329): la medida da la cifra, y el tope lo sabe el residente', () => {
+      const textos = (paso: PasoQuirurgico, gesto: Gesto, opciones: typeof practica) =>
+        listaDelPaso(paso, gesto, opciones).slice(1).map((p) => p.texto)
+      const reduccion: PasoQuirurgico = { objetivo: 'reduccion', toleranciaDesplazamiento: 2, toleranciaAngulacion: 5 }
+      const porPlano: PasoQuirurgico = { objetivo: 'reduccion', tecnicaDeReduccion: 'anatomica', toleranciaAcortamiento: 3 }
+      const lectura = { lateral: 1, anteroposterior: 0, axial: -1, valgo: 2, recurvatum: 1, rotacion: 3 }
+      const casos: [PasoQuirurgico, Gesto][] = [
+        [trazo, { instrumento: 'bisturi', trazo: 90 }],
+        [reduccion, { instrumento: 'x', desplazamiento: 1, angulacion: 2, diastasis: 0 }],
+        [porPlano, { instrumento: 'x', desplazamiento: 1, angulacion: 3, diastasis: 1, lectura }],
+      ]
+      for (const [paso, gesto] of casos) {
+        // En práctica, con su cifra; en evaluación, ninguna.
+        expect(textos(paso, gesto, practica).join(' ')).toMatch(/\d/)
+        for (const texto of textos(paso, gesto, evaluacion)) expect(texto, JSON.stringify(paso)).not.toMatch(/\d/)
+      }
+      expect(textos(trazo, { instrumento: 'bisturi', trazo: 90 }, evaluacion)).toEqual(['Una incisión del largo que pide el paso'])
+      expect(textos(reduccion, { instrumento: 'x', desplazamiento: 1, angulacion: 2, diastasis: 0 }, evaluacion)).toEqual([
+        'Desplazamiento dentro del tope',
+        'Angulación dentro del tope',
+        'Diástasis dentro del tope',
+      ])
+      // Las mismas claves en los dos modos: lo que cambia es el texto, no qué se mide.
+      const claves = (opciones: typeof practica) => listaDelPaso(porPlano, casos[2][1], opciones).map((p) => p.clave)
+      expect(claves(evaluacion)).toEqual(claves(practica))
     })
   })
 

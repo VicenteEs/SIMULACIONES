@@ -57,6 +57,7 @@ class Contexto:
         self.atlas = atlas
         self.directorio = directorio
         self._piel = None
+        self._dentro = None
         self._profunda = None
 
     def rejilla_del_cuerpo(self, h=0.003):
@@ -78,6 +79,39 @@ class Contexto:
             dicho(f'  piel: {C.volumen_de_la_mascara(relleno, h):.1f} L ({time.time() - t0:.0f} s)')
             self._piel = (rejilla, C.campo_con_signo(relleno, h), relleno)
         return self._piel
+
+    def campo_de_la_cara_de_dentro(self, h=0.003):
+        """
+        La distancia con signo a la cara de dentro de la piel (negativa por debajo de ella), en la rejilla de la piel.
+
+        La cara de dentro la pone `recalcular-piel.mjs` bajo la de fuera, con su misma malla: 4 mm por debajo en el
+        cuerpo y 2 en la cabeza, o menos donde lo de dentro está más cerca (D-331). Tiene los mismos bordes abiertos
+        que la de fuera, un poco hacia dentro, y hacen falta dos vóxeles de grosor para sellarlos (ver abajo).
+        """
+        if self._dentro is None:
+            t0 = time.time()
+            rejilla, _, _ = self.campo_de_la_piel(h)
+            piel = self.atlas.por_nombre('Skin')[0]
+            v, f = self.atlas.malla(piel)
+            caras = cara_de_dentro(v, f)
+            if caras is None:
+                raise SystemExit(
+                    'La piel del atlas no trae cara de dentro.\nEjecute antes: node scripts/atlas/recalcular-piel.mjs --aplicar'
+                )
+            # Solo sus vértices: `muestrear_superficie` mete siempre todos los de la malla, y la pieza trae también los
+            # de la cara de fuera. Con ellos, el vóxel de grosor los unía en una cáscara a 4 mm de la cara de dentro, la
+            # inundación se paraba ahí y el campo era el de la piel de fuera: la lámina salía dentro de la piel, a 2 mm
+            # de mediana por encima de la cara de dentro, y `bajo-la-piel.mjs` recortaba dos tercios de la del pie.
+            v, caras = M.compactar(v, caras)
+            puntos = C.muestrear_superficie(v, caras, 0.75 * h, SEMILLA)
+            # Y con dos vóxeles de grosor, no uno: sola, la cara de dentro no sella con uno sus aberturas (los ojos, la
+            # boca), la inundación entra al cuerpo y el relleno sale de 6 L. Con dos sale de 67, con tres igual, y el
+            # campo en la propia cara de dentro vale −1,72 mm de mediana, el mismo sesgo que el de la piel en la suya
+            # (−1,73): el nivel de `SESGO_DEL_RELLENO` acierta en las dos.
+            relleno = C.rellenar(C.ocupar(rejilla, puntos), engrosar=2)
+            dicho(f'  cara de dentro de la piel: {C.volumen_de_la_mascara(relleno, h):.1f} L ({time.time() - t0:.0f} s)')
+            self._dentro = (rejilla, C.campo_con_signo(relleno, h), relleno)
+        return self._dentro
 
     def piel_en(self, rejilla):
         """
@@ -118,6 +152,32 @@ class Contexto:
                 dicho(f'  envolvente de {grupo.id}: {len(piezas)} piezas ({time.time() - t0:.0f} s)')
             self._profunda = (rejilla, C.campo_con_signo(union, h), union)
         return self._profunda
+
+
+def cara_de_dentro(v, f):
+    """
+    Los triángulos de la cara de dentro de la piel, o `None` si no la tiene.
+
+    La pieza «Skin» trae varias cáscaras sueltas: la del cuerpo, las dos orejas y la cara de dentro, que es una copia
+    de la del cuerpo con los vértices corridos hacia dentro. La de dentro es la única de volumen negativo, porque sus
+    caras miran al cuerpo. Es la misma regla que `cascarasDeLaPiel`, de `comprobarPiel.mjs`.
+    """
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+
+    n = len(v)
+    filas = np.concatenate([f[:, 0], f[:, 1], f[:, 2]])
+    columnas = np.concatenate([f[:, 1], f[:, 2], f[:, 0]])
+    grafo = coo_matrix((np.ones(len(filas), np.int8), (filas, columnas)), shape=(n, n))
+    _, etiqueta = connected_components(grafo, directed=False)
+    de_cada_cara = etiqueta[f[:, 0]]
+    a, b, c = (v[f[:, k]].astype(np.float64) for k in range(3))
+    volumen = np.einsum('ij,ij->i', a, np.cross(b, c)) / 6
+    por_cascara = np.bincount(de_cada_cara, weights=volumen)
+    la_de_dentro = int(np.argmin(por_cascara))
+    if por_cascara[la_de_dentro] >= 0:
+        return None
+    return f[de_cada_cara == la_de_dentro]
 
 
 # ------------------------------------------------------------------ envoltura
@@ -244,33 +304,34 @@ def _comprobar_envoltura(pieza, v, f, relleno, rejilla, puntos_de_entrada, h, ap
 
 def superficial(atlas, grupo, ctx):
     """
-    La tela subcutánea: una lámina **entre** la piel y la envolvente profunda del cuerpo entero.
+    La tela subcutánea: la lámina que queda justo bajo la piel con su grasa (D-332, E8 de P-012).
 
-    Es lo que hay entre las dos, así que su campo es una mezcla de las distancias a ellas. Con `SD_p` la
-    distancia con signo a la envolvente profunda y `SD_s` la distancia con signo a la piel (las dos
-    negativas dentro), el campo `F = (1 − α) · SD_p + α · SD_s` vale cero justo donde la distancia a la
-    profunda es la fracción `α` del espesor total: en una pierna con dos centímetros de grasa, a ocho
-    milímetros de la fascia profunda; sobre el borde cortante de la tibia, donde la piel casi toca la
-    profunda, a un milímetro de las dos, en vez de cruzarlas.
+    Hasta D-332 iba **entre** la piel y la envolvente profunda, a la fracción α = 0,4 del espesor contada desde la
+    profunda: la mezcla `(1 − α) · SD_p + α · SD_s` de las dos distancias. La lámina hacía de grasa, porque la grasa no
+    estaba. Con E8 la grasa es parte de la piel: la cara de dentro de la piel queda 4 mm por debajo de la de fuera en el
+    cuerpo y 2 en la cabeza, o menos donde no cabe (D-331). El dueño pidió la fascia «justo al terminar el espesor de la
+    piel con grasa». Es lo que aparece al cortar la piel entera.
 
-    `α` está en `grupo.parametros['alfa']` (0,4): más cerca de la profunda que de la piel, que es donde la
-    fascia superficial —una membrana dentro de la grasa— está en la cara y el tronco.
+    Por eso el campo es el de la cara de dentro, corrido `grupo.parametros['bajo_la_cara_de_dentro']` (medio milímetro)
+    hacia el cuerpo. La cara de dentro ya deja `HOLGURA_DE_DENTRO` (0,8 mm) sobre lo más superficial que tiene debajo:
+    medio milímetro más abajo, la lámina todavía no toca ni el músculo ni la fascia profunda. Medido al generarla, queda
+    de 0,8 a 1,3 mm bajo la cara de dentro según la zona (la mediana de cada pieza): la gaussiana del campo la hunde un
+    poco más en lo convexo, que es casi todo el cuerpo. Lo que se mete en el grosor de la piel —en la rejilla de 3 mm,
+    sobre todo en la ingle, en la axila y entre los dedos— lo hunde o lo recorta `bajo-la-piel.mjs`.
 
-    Se fuerza a quedar **dentro de la piel**: donde la envolvente profunda sobresale de la piel (los
-    sitios donde el cierre rellena huecos de más, la axila, la ingle) el campo cruzaría la piel hacia
-    fuera; el máximo con la piel desplazada un milímetro lo evita.
+    Ya no se mezcla con la envolvente profunda. Donde la envolvente sobresale de la piel (la axila, la ingle, donde el
+    cierre rellena de más), la mezcla sacaba la lámina por fuera, y había que atajarla con un máximo contra la piel. La
+    cara de dentro, en cambio, no sobresale nunca. La envolvente se sigue leyendo, pero solo para comprobar la lámina
+    (`_comprobar_entre_capas`).
     """
     t0 = time.time()
-    alfa = grupo.parametros.get('alfa', 0.4)
     rejilla, sd_piel, _ = ctx.campo_de_la_piel(grupo.h)
+    _, sd_dentro, _ = ctx.campo_de_la_cara_de_dentro(grupo.h)
     _, sd_profunda, _ = ctx.campo_de_la_envolvente(grupo.parametros['envolventes'], grupo.h)
-    campo = (1 - alfa) * sd_profunda + alfa * sd_piel
-    # Un milímetro bajo la piel como mucho: el campo de la piel desplazado.
-    campo = np.maximum(campo, sd_piel + 0.001)
-    campo = C.suavizar(campo, grupo.sigma)
+    campo = C.suavizar(sd_dentro + grupo.parametros['bajo_la_cara_de_dentro'], grupo.sigma)
     dicho(f'  campo de la capa superficial listo ({time.time() - t0:.0f} s)')
 
-    # Los dos campos tienen el mismo sesgo de relleno, que se suma entero: se compensa una vez, en el nivel.
+    # El campo de la cara de dentro tiene el sesgo del relleno, como cualquier otro: se compensa en el nivel.
     nivel = -C.SESGO_DEL_RELLENO * grupo.h
     verts, caras = C.superficie_de_la_rejilla(campo, rejilla, nivel)
     dicho(f'  superficie fina: {len(verts):,} vértices, {len(caras):,} triángulos ({time.time() - t0:.0f} s)')
@@ -300,14 +361,16 @@ def _comprobar_entre_capas(v, f, rejilla, sd_piel, sd_profunda, h):
     fuera_de_la_piel = float((en_la_piel > tolerancia).mean())
     dentro_de_la_profunda = float((en_la_profunda < -tolerancia).mean())
     bordes, triples = M.aristas_de_borde(f)
-    espesor = en_la_profunda - en_la_piel  # distancia de la lámina a la profunda más a la piel: el espesor de la grasa aquí
+    # De la piel a la profunda, pasando por la lámina: todo lo que hay bajo la piel. Hasta D-331 era la grasa, que la
+    # lámina representaba; desde entonces la grasa es parte de la piel y esto es la grasa más el hueco de debajo.
+    espacio = en_la_profunda - en_la_piel
     medidas = {
         'triangulos': int(len(f)),
         'vertices': int(len(v)),
         'area_m2': round(M.area_total(v, f), 4),
         'fuera_de_la_piel_pct': round(fuera_de_la_piel * 100, 2),
         'dentro_de_la_profunda_pct': round(dentro_de_la_profunda * 100, 2),
-        'espesor_medio_de_la_grasa_mm': round(float(np.mean(espesor)) * 1000, 2),
+        'espacio_bajo_la_piel_mm': round(float(np.mean(espacio)) * 1000, 2),
         'aristas_de_borde': bordes,
         'aristas_triples': triples,
     }
