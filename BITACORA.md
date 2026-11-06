@@ -15617,7 +15617,7 @@ La integración no se repitió: lo que llegó no toca colecciones ni accesos, y 
 - **Que la persona descargue sus datos ella misma**, sin pasar por un administrador (D-293).
 - **Cifrar los respaldos de Windows** (`scripts/*.ps1`), si alguna vez un servidor Windows guarda datos de personas reales (D-295).
 
-### P-012 · 2026-11-05 · en marcha: E0 a E8 hechas y comprobadas en local; queda el commit y ved
+### P-012 · 2026-11-05 · hecha: E0 a E9, en `main` y desplegada en ved el 2026-11-06
 **Lo más débil del simulador según la auditoría de P-010, llevado a un plan:**
 - que la reducción tenga dónde volver y se mida como en clínica;
 - que la nota vea los errores que importan, y la calcule el servidor;
@@ -15948,7 +15948,7 @@ Las demás propuestas de P-010 siguen allí sin decidir: paños, lámpara, punto
     - la pared de la herida, con la dermis y la grasa a la vista: hoy el corte separa las caras de la piel sin dibujar nada entre ellas, y con 2 mm no se notaba. La consola la levanta al cortar (D-333), y Blender la dibuja en su corte (D-334);
     - la comprobación de que nada cruza la cara honda, con las mismas funciones que la de D-224: `comprobarLaPiel` mide ya bajo la cara de dentro, con los vasos y los nervios dentro de la grasa (D-331), y la fascia superficial contra la piel entera (D-332).
 
-- [ ] **E9 · Comprobaciones, commit y ved.** Las cinco de `AGENTS.md`, y en el navegador con una pierna nueva del taller. El commit y ved, con el OK del dueño. Las comprobaciones se hicieron el 2026-11-06 y están abajo. El OK para el commit y ved, el mismo día: «sube los cambios al git y despliegalo en ved».
+- [x] **E9 · Comprobaciones, commit y ved.** Las cinco de `AGENTS.md`, y en el navegador con una pierna nueva del taller. El commit y ved, con el OK del dueño. Las comprobaciones se hicieron el 2026-11-06 y están abajo. El OK para el commit y ved, el mismo día: «sube los cambios al git y despliegalo en ved». Commit y push a `main` ese día, encima de `f5006cd`: `e03f345` (E0 a E6) y `6e44fe5` (E7, E8 y D-329 a D-339). Desplegada en ved a continuación: «En ved», abajo.
 
 #### Cómo se comprobó
 
@@ -15986,7 +15986,18 @@ Comprobaciones de E9 con E7 y E8 hechas, y con D-329 y D-330, el 2026-11-06, con
   - Con dos Farabeuf abiertos 20 mm, la pared de la herida enseña la piel y, debajo, la banda amarilla de la grasa; al fondo, la fascia y el músculo (D-333).
   - La radioscopia AP de la pierna, a 1×, 2× y 4×: el hueso se ve como antes, sin la raya clara de más en los bordes del canal (D-336).
   - El foco de la fractura, con la piel, la fascia y el músculo apagados: la tapa de la diáfisis enseña el anillo blanco de la cortical y, por su agujero, la pared del canal pintada de esponjoso (D-337).
-- Falta: el commit y ved.
+- ~~Falta: el commit y ved.~~ Hechos el 2026-11-06: arriba, en E9, y abajo.
+
+*En ved*, desplegado con `6e44fe5` el 2026-11-06, lanzado a las 10:50 de allí con `TUNEL=local ./scripts/actualizar.sh`. Trajo tres commits desde `11d6f8e`: `f5006cd`, `e03f345` y `6e44fe5`.
+- El respaldo previo salió en claro, con su aviso, como desde P-011: ved aún no tiene la llave.
+- La imagen se reconstruyó, y la aplicación respondió y alcanzó la base al primer segundo.
+- Al arrancar se aplicaron las cuatro migraciones de P-012: `topes_por_plano`, `tornillos_por_fragmento_y_nota_del_servidor`, `rol_vaso_y_nervio` y `manguito_y_tiempos`. El registro de la aplicación sigue sin errores, y el contenedor, sano y sin reinicios.
+- Por fuera, `/traumahub/api/salud` da 200 con la base bien. El catálogo del atlas que se sirve es el nuevo (`bp3d-4.0-9a998534`), y los cuatro `cuerpo-*.bin.gz` miden lo mismo que en el repositorio.
+- No se miró en el navegador, porque allí hace falta entrar con una cuenta real; se miró en desarrollo, arriba.
+- Lo que ya avisaban sus entradas vale ahora en ved:
+  - los casos guardados no tienen manguito hasta que su autor lo marque (D-323);
+  - siguen con sus vasos como «músculo» hasta que alguien pulse «Rellenar desde el modelo» (D-317);
+  - uno con un paso de reducción y sin referencia deja de poder publicarse en cuanto se guarda (D-306).
 
 ---
 
