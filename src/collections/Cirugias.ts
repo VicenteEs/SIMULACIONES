@@ -11,6 +11,7 @@ import { editorClinico, pilaDeBloques } from '@/blocks'
 // arrastrar código de servidor al paquete del navegador. Lo que entra por aquí
 // son datos sin código.
 import { REGLAS_DEL_OBJETIVO_DEL_PASO } from '@/admin/esquema'
+import { motivoSinNadaQueReducir } from '@/lib/reduccionDelCaso'
 
 /**
  * Los cuatro modos de evaluación, en un solo sitio.
@@ -64,7 +65,7 @@ const OBJETIVOS = [
  */
 const exigeElRangoDeSuObjetivo = (
   valor: string | null | undefined,
-  { siblingData }: { siblingData?: unknown },
+  { data, siblingData }: { data?: unknown; siblingData?: unknown },
 ): string | true => {
   // Payload instala su validación de `select` solo si el campo no trae la suya
   // (`fields/config/sanitize.js`: `if (typeof field.validate === 'undefined')`),
@@ -116,6 +117,15 @@ const exigeElRangoDeSuObjetivo = (
   // el arreglo va en una migración en lugar de darse por innecesario.
   for (const regla of REGLAS_DEL_OBJETIVO_DEL_PASO.prohibe) {
     if (valor === regla.opcion && declara(regla.campos)) return regla.mensaje
+  }
+
+  // La reducción no tiene regla en la lista porque sus tolerancias siempre traen número; lo que le puede faltar está
+  // fuera de la fila: un trozo que empiece en algún sitio del que haya que traerlo (D-306). Sin él, el paso se aprueba
+  // sin mover nada, que es el regalo que P-010 encontró. Se mira el documento entero (`data`) porque el desplazamiento
+  // inicial y las piezas son del caso. El panel adelanta el mismo motivo con la misma función (`revisa` en el esquema).
+  if (valor === 'reduccion') {
+    const motivo = motivoSinNadaQueReducir(data)
+    if (motivo) return motivo
   }
 
   return true
@@ -252,6 +262,26 @@ export const Cirugias: CollectionConfig = {
       },
     },
 
+    // --- el manguito --------------------------------------------------------
+    // El manguito de isquemia (P-012 E5). Con él, la consola enseña su reloj y un botón para inflarlo y soltarlo; avisa
+    // media hora antes del tope y marca cuando se pasa (`src/lib/relojesDelCaso.ts`). Tres columnas planas y no un grupo:
+    // son tres datos del caso, como la bandeja o el modo. Sin presión o sin tope, la consola usa lo habitual en el miembro
+    // inferior, 300 mmHg y 120 minutos, de modo que marcar la casilla basta. Los topes son los del panel
+    // (`src/admin/esquema.ts`): separados, el panel dejaría escribir un número que el servidor devuelve en inglés.
+    {
+      name: 'usaManguito',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Se opera con manguito de isquemia',
+    },
+    {
+      type: 'row',
+      fields: [
+        { name: 'presionDelManguito', type: 'number', min: 50, max: 500, label: 'Presión del manguito (mmHg)' },
+        { name: 'topeDelManguito', type: 'number', min: 10, max: 240, label: 'Tope seguido del manguito (min)' },
+      ],
+    },
+
     // --- el modelo ---------------------------------------------------------
     {
       name: 'modelo',
@@ -327,10 +357,14 @@ export const Cirugias: CollectionConfig = {
             // Última, y no entre la piel y el músculo donde se ve: así la ordena Postgres al añadirla a un
             // enumerado ya creado (migración `20261024_160000_rol_fascia`).
             { label: 'Fascia', value: 'fascia' },
+            // Detrás de la fascia por la misma razón (P-012 E6, migración `rol_vaso_y_nervio`). Se encienden y apagan con
+            // el músculo, pero cortarlos o perforarlos es una complicación, y para eso la consola tiene que saber cuáles son.
+            { label: 'Vaso', value: 'vaso' },
+            { label: 'Nervio', value: 'nervio' },
           ],
           admin: {
             description:
-              'Piel, fascia y músculo forman las capas que se encienden y apagan. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.',
+              'Piel, fascia y músculo forman las capas que se encienden y apagan; vasos y nervios van con el músculo, y cortarlos o perforarlos es una complicación. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.',
           },
         },
         {
@@ -494,6 +528,33 @@ export const Cirugias: CollectionConfig = {
           admin: { condition: (_, hermanos) => hermanos?.objetivo === 'reduccion' },
         },
         {
+          // La técnica pone los topes de cada plano por omisión (D-305): la alineación, los de Trafton para la diáfisis;
+          // la anatómica, 2° y 2 mm. Sin `defaultValue` a propósito, y al revés que las tres de arriba: vacía, el paso se
+          // mide como antes, con el tope único de la angulación, de modo que ningún caso ya publicado cambia de nota sin
+          // que alguien lo elija. Y así un valor aquí sí prueba que alguien lo eligió.
+          name: 'tecnicaDeReduccion',
+          type: 'select',
+          label: 'Técnica de la reducción',
+          options: [
+            { label: 'Alineación (estabilidad relativa: clavo, placa puente)', value: 'alineacion' },
+            { label: 'Anatómica (estabilidad absoluta: tracción, compresión, foco articular)', value: 'anatomica' },
+          ],
+          admin: { condition: (_, hermanos) => hermanos?.objetivo === 'reduccion' },
+        },
+        {
+          // Un tope por plano, en grados, y el del acortamiento en milímetros (D-305). Vacíos, los pone la técnica; sin
+          // técnica tampoco, el giro se juzga entero contra «Angulación aceptable». Con uno solo escrito, los otros dos
+          // planos toman ese tope único: medirlos sin tope los regalaría.
+          type: 'row',
+          fields: [
+            { name: 'toleranciaCoronal', type: 'number', label: 'Varo o valgo aceptable (°)' },
+            { name: 'toleranciaSagital', type: 'number', label: 'Antecurvatum o recurvatum aceptable (°)' },
+            { name: 'toleranciaRotacion', type: 'number', label: 'Rotación aceptable (°)' },
+            { name: 'toleranciaAcortamiento', type: 'number', label: 'Acortamiento aceptable (mm)' },
+          ],
+          admin: { condition: (_, hermanos) => hermanos?.objetivo === 'reduccion' },
+        },
+        {
           type: 'row',
           fields: [
             { name: 'fuerzaMinima', type: 'number', label: 'Fuerza mínima útil (N)' },
@@ -517,6 +578,20 @@ export const Cirugias: CollectionConfig = {
             { name: 'exigeBicortical', type: 'checkbox', label: 'Tienen que ser bicorticales' },
           ],
           admin: { condition: (_, hermanos) => hermanos?.objetivo === 'fijacion' || hermanos?.objetivo === 'perforacion' },
+        },
+        {
+          // D-309: el total de `tornillosMinimos` no basta —seis tornillos en un solo trozo aprobaban—, así que cada
+          // fragmento principal cuenta los suyos. Sin `defaultValue` a propósito, como los demás números del objetivo:
+          // vacío es «lo de la AO» (`tornillosPorFragmentoPorOmision`), y un número escrito es una decisión del editor.
+          name: 'tornillosPorFragmento',
+          type: 'number',
+          min: 0,
+          label: 'Tornillos por fragmento principal',
+          admin: {
+            description:
+              'Vacío: lo de la AO para la diáfisis, 3 en tibia y antebrazo, 4 en fémur y húmero, y 3 si todos son bloqueados. 0: no se cuentan por fragmento.',
+            condition: (_, hermanos) => hermanos?.objetivo === 'fijacion',
+          },
         },
         {
           // Opcional (P-004 E10): el paso de fijación exige que lo puesto comprima la fractura.

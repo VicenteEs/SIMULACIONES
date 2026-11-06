@@ -94,10 +94,13 @@ export const INSTRUMENTAL_BASE: readonly InstrumentoBase[] = [
   { slug: 'pinza-reduccion-puntas', nombre: 'Pinza de reducción con puntas (camarón / Weber)', categoria: 'reduccion', icono: 'pinza', descripcion: 'Tira de un fragmento con dos puntas que se clavan en el hueso.', especificaciones: 'Largo 180 mm · cremallera · dos puntas por mandíbula.' },
   { slug: 'pinza-reduccion-bola', nombre: 'Pinza de reducción de punta de bola', categoria: 'reduccion', icono: 'pinza', descripcion: 'Reduce fragmentos de pelvis y acetábulo sin dañar el hueso.', especificaciones: 'Largo 250 mm · cremallera · esferas de 4,6 mm.' },
   // ------------------------------------------------------------ perforación y fijación
-  { slug: 'broca-2-5', nombre: 'Broca AO 2,5 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Túnel piloto del tornillo cortical de 3,5 mm y del bloqueado LCP.', especificaciones: 'Ø 2,5 × 110 mm (110–150 mm en pequeño fragmento) · acople rápido AO.' },
+  // Hasta D-300 la de 2,5 decía servir también para el bloqueado LCP, que lleva la de 2,8; la de 2,5 es la de su núcleo cortical.
+  { slug: 'broca-2-5', nombre: 'Broca AO 2,5 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Túnel piloto del tornillo cortical de 3,5 mm y del de esponjosa de 4,0 mm.', especificaciones: 'Ø 2,5 × 110 mm (110–150 mm en pequeño fragmento) · acople rápido AO.' },
+  { slug: 'broca-2-8', nombre: 'Broca AO 2,8 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Túnel del tornillo bloqueado LCP de 3,5 mm, a través de la guía roscada.', especificaciones: 'Ø 2,8 × 165 mm · marcas de profundidad · pequeño fragmento · acople rápido AO.' },
   { slug: 'broca-3-2', nombre: 'Broca AO 3,2 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Túnel piloto del tornillo cortical de 4,5 mm y del de esponjosa de 6,5 mm.', especificaciones: 'Ø 3,2 × 145 mm (145–195 mm en gran fragmento) · acople rápido AO.' },
   { slug: 'guia-broca-doble-dcp', nombre: 'Guía de broca doble DCP 2,5 / 3,5', categoria: 'fijacion', icono: 'guia', descripcion: 'Centra la broca (extremo neutro, verde) o la desplaza para comprimir (excéntrico, dorado).', especificaciones: 'Largo 78 mm · para broca de 2,5 mm (también 3,2/4,5 en gran fragmento).' },
-  { slug: 'guia-broca-roscada-lcp', nombre: 'Guía de broca roscada LCP 2,5', categoria: 'fijacion', icono: 'guia', descripcion: 'Se enrosca en la placa bloqueada y fija la trayectoria a 90°.', especificaciones: 'Largo 92 mm · para tornillos bloqueados de 2,4, 3,5 y 5,0 mm.' },
+  // La guía es la de la broca de 2,8 del bloqueado de 3,5 (D-300): cada bloqueado tiene la suya, con el calibre de su broca.
+  { slug: 'guia-broca-roscada-lcp', nombre: 'Guía de broca roscada LCP 2,8', categoria: 'fijacion', icono: 'guia', descripcion: 'Se enrosca en la placa bloqueada y fija la trayectoria a 90°.', especificaciones: 'Largo 92 mm · para la broca de 2,8 mm del tornillo bloqueado de 3,5 mm.' },
   { slug: 'camisa-proteccion-trocar', nombre: 'Camisa de protección con guía y trocar', categoria: 'fijacion', icono: 'guia', descripcion: 'Protege las partes blandas y deja la guía concéntrica sobre el hueso.', especificaciones: 'Camisa Ø 8 mm · guía interna Ø 6 mm · trocar de tres facetas · largo 96 mm.' },
   { slug: 'medidor-profundidad', nombre: 'Medidor de profundidad AO', categoria: 'fijacion', icono: 'generico', descripcion: 'Da el largo del tornillo tras perforar.', especificaciones: 'Escala de 0 a 60 mm (pequeño fragmento) o a 110 mm (gran fragmento) · gancho en la punta.' },
   { slug: 'avellanador', nombre: 'Avellanador 6,0 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Talla el lecho de la cabeza del tornillo para no fisurar el hueso.', especificaciones: 'Cabeza Ø 6,0 mm (tornillos 2,7 y 3,5) u 8,0 mm (tornillos 4,5).' },
@@ -107,7 +110,9 @@ export const INSTRUMENTAL_BASE: readonly InstrumentoBase[] = [
   { slug: 'destornillador-stardrive', nombre: 'Destornillador Stardrive T15', categoria: 'fijacion', icono: 'atornillador', descripcion: 'Coloca los tornillos bloqueados LCP de 3,5 mm sin resbalar.', especificaciones: 'Stardrive T15 (T8 en 2,0/2,4; T25 en 5,0) · largo 210 mm.' },
   { slug: 'limitador-torque', nombre: 'Limitador de torque 1,5 N·m', categoria: 'fijacion', icono: 'atornillador', descripcion: 'Evita barrer la rosca de una placa bloqueada.', especificaciones: '0,8 N·m (2,4 mm), 1,5 N·m (3,5 mm) y 4,0 N·m (5,0 mm) · acople AO.' },
   { slug: 'motor-quirurgico', nombre: 'Motor quirúrgico a batería', categoria: 'fijacion', icono: 'generico', descripcion: 'Mueve la broca, la fresa y el destornillador a motor.', especificaciones: 'Cuerpo de pistola · mandril AO / Hudson · gatillo.' },
-  { slug: 'martillo', nombre: 'Martillo con caras de nailon', categoria: 'fijacion', icono: 'martillo', descripcion: 'Golpea el clavo, el separador de Hohmann y los impactores.', especificaciones: 'Cabeza Ø 40 mm con dos caras de nailon · mango de 260 mm.' },
+  // En «Enclavado» y no en «Perforación y fijación» (D-270): en la mesa, esta categoría se parte en brocas, medidores y
+  // destornilladores, y el martillo acababa entre las brocas. Donde más se usa es al meter el clavo.
+  { slug: 'martillo', nombre: 'Martillo con caras de nailon', categoria: 'enclavado', icono: 'martillo', descripcion: 'Golpea el clavo, el separador de Hohmann y los impactores.', especificaciones: 'Cabeza Ø 40 mm con dos caras de nailon · mango de 260 mm.' },
   // ------------------------------------------------------------ modelado
   { slug: 'grifas-torsion', nombre: 'Grifa de torsión (bending iron)', categoria: 'modelado', icono: 'generico', descripcion: 'Dobla y tuerce la placa en los tres planos. Se usan en pareja.', especificaciones: 'Largo 250 mm · ranuras de 2,7/3,5 y 4,5 mm.' },
   { slug: 'alicate-doblado', nombre: 'Alicate de doblado de tres puntos', categoria: 'modelado', icono: 'pinza', descripcion: 'Dobla placas de reconstrucción de 3,5 y 4,5 mm.', especificaciones: 'Largo 215 mm · tres clavijas · empuñaduras de goma.' },
@@ -121,7 +126,8 @@ export const INSTRUMENTAL_BASE: readonly InstrumentoBase[] = [
   { slug: 'arco-insercion', nombre: 'Arco de inserción del clavo (guía proximal)', categoria: 'enclavado', icono: 'guia', descripcion: 'Guía los tornillos de bloqueo proximales del clavo.', especificaciones: 'Específico de cada clavo · perno de conexión · camisas de bloqueo.' },
   // ------------------------------------------------- brocas que faltaban (D-168)
   { slug: 'broca-1-5', nombre: 'Broca AO 1,5 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Túnel piloto del tornillo de 2,0 mm en minifragmentos (mano, falanges).', especificaciones: 'Ø 1,5 × 60 mm · sistema mini · acople rápido AO.' },
-  { slug: 'broca-2-0', nombre: 'Broca AO 2,0 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Túnel piloto del tornillo de 2,7 mm y del bloqueado de 2,4 mm.', especificaciones: 'Ø 2,0 × 80 mm · fragmento pequeño · acople rápido AO.' },
+  // El bloqueado de 2,4 lleva la de 1,8 (D-300); esta es la del 2,7, cortical o bloqueado.
+  { slug: 'broca-2-0', nombre: 'Broca AO 2,0 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Túnel piloto del tornillo cortical y del bloqueado de 2,7 mm.', especificaciones: 'Ø 2,0 × 80 mm · fragmento pequeño · acople rápido AO.' },
   { slug: 'broca-3-5', nombre: 'Broca AO 3,5 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Agujero de deslizamiento del tornillo cortical de 3,5 mm usado como tornillo de tracción.', especificaciones: 'Ø 3,5 × 110 mm · acople rápido AO.' },
   { slug: 'broca-4-5', nombre: 'Broca AO 4,5 mm', categoria: 'fijacion', icono: 'fresa', descripcion: 'Agujero de deslizamiento del tornillo cortical de 4,5 mm usado como tornillo de tracción.', especificaciones: 'Ø 4,5 × 145 mm · acople rápido AO.' },
   // ------------------------------------------------------------ placas (D-168)
@@ -148,3 +154,86 @@ export const INSTRUMENTAL_BASE: readonly InstrumentoBase[] = [
   { slug: 'injerto-oseo-tricortical', nombre: 'Injerto óseo tricortical de cresta ilíaca', categoria: 'injerto', icono: 'injerto', descripcion: 'Bloque con tres corticales y esponjosa, para rellenar un defecto estructural y dar soporte.', especificaciones: 'Unos 30 × 15 × 18 mm · autoinjerto de la cresta ilíaca.' },
   { slug: 'injerto-oseo-esponjoso', nombre: 'Injerto óseo esponjoso en trozos', categoria: 'injerto', icono: 'injerto', descripcion: 'Esponjosa en fragmentos de 3 a 8 mm, para alojar en un defecto o en el foco de una pseudoartrosis.', especificaciones: 'Trozos de 3 a 8 mm · autoinjerto de la cresta ilíaca o de la metáfisis.' },
 ]
+
+/** Sin tildes, en minúsculas y con espacios en vez de guiones: «Porta-agujas» y «Portaagujas» se buscan igual. */
+function paraComparar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+const BASE_POR_SLUG = new Map<string, CategoriaDeInstrumental>(INSTRUMENTAL_BASE.map((b) => [b.slug, b.categoria]))
+const BASE_POR_NOMBRE = new Map<string, CategoriaDeInstrumental>(
+  INSTRUMENTAL_BASE.map((b) => [paraComparar(b.nombre), b.categoria]),
+)
+
+/**
+ * Las palabras que delatan cada familia, en el orden en que se prueban: gana la primera que aparece en el nombre.
+ *
+ * El orden no es el de la mesa, y tiene dos razones. El periostótomo de Farabeuf va antes que el separador de
+ * Farabeuf, y el dedo reductor endomedular antes que las pinzas de reducción: el apellido y la raíz no bastan, la
+ * palabra que manda es la otra. Y el martillo va con el clavo por lo dicho en la base.
+ */
+const PALABRAS_DE_CADA_CATEGORIA: readonly (readonly [CategoriaDeInstrumental, RegExp])[] = [
+  ['periostio', /periostotomo|elevador|freer|legra|cobb/],
+  ['enclavado', /endomedular|intramedular|punzon|fresa flexible|fresa canulada|impactador|punta de oliva|tubo de intercambio|arco de insercion|martillo/],
+  ['corte', /bisturi|tijera|diseccion/],
+  ['suturas', /porta ?agujas|sutura/],
+  ['exposicion', /separador|hohmann|gelpi|weitlaner|senn miller|beckman/],
+  ['reduccion', /pinza de reduccion|verbrugge|weber/],
+  ['modelado', /grifa|alicate de doblado|plantilla/],
+  // La última, para lo que llega sin categoría: el atornillador de bloqueo del guion no caía en ninguna y salía en
+  // «Otros». Con la categoría por omisión da igual, porque ya es esta.
+  ['fijacion', /broca|destornillador|atornillador|limitador|medidor|calibrador|machuelo|avellanador|motor|camisa|kirschner/],
+]
+
+/**
+ * Los implantes se reconocen por la **primera** palabra y no por cualquiera: un «Destornillador» o un «Medidor de largo
+ * de tornillo» llevan «tornillo» dentro y no son tornillos. El clavo no está: «Clavo de Steinmann» es una aguja gruesa
+ * y no un clavo endomedular, y la base ya trae los suyos con su categoría.
+ */
+const IMPLANTE_POR_LA_PRIMERA_PALABRA: Readonly<Record<string, CategoriaDeInstrumental>> = {
+  tornillo: 'tornillos',
+  placa: 'placas',
+  injerto: 'injerto',
+}
+
+function categoriaPorElNombre(slug: string, nombre: string): CategoriaDeInstrumental | null {
+  const deLaBase = BASE_POR_SLUG.get(slug) ?? BASE_POR_NOMBRE.get(paraComparar(nombre))
+  if (deLaBase) return deLaBase
+  const texto = paraComparar(nombre || slug)
+  const implante = IMPLANTE_POR_LA_PRIMERA_PALABRA[texto.split(' ')[0] ?? '']
+  if (implante) return implante
+  return PALABRAS_DE_CADA_CATEGORIA.find(([, palabras]) => palabras.test(texto))?.[0] ?? null
+}
+
+/**
+ * La categoría con que un instrumento se ve en el simulador: en qué familia de la mesa está, y bajo qué título sale en
+ * los insumos y al añadirlo a la bandeja (O-083, D-270).
+ *
+ * Manda la del catálogo, salvo cuando es «Perforación y fijación» o falta. Esa es la que la columna pone por omisión
+ * (`defaultValue` en `catalogos.ts`, y la migración `20261008_210126` se la dio a todas las filas que ya existían), y en
+ * la base no se distingue la elegida de la heredada. Así acabaron en «Brocas y guías» los dos bisturís, la tijera, el
+ * portaagujas, la pinza de disección, la de reducción y los cuatro instrumentos del clavo que `scripts/caso-de-prueba.ts`
+ * creaba sin categoría: el residente leía «En la mano: Bisturí N°10 (piel)», abría «Corte» y no estaba.
+ *
+ * Se corrige al leer, y no con una migración de datos, para que valga con las filas que ya hay en el servidor y en
+ * cualquier base sin tocar ni el esquema ni lo guardado. Primero se busca el instrumento en la base de arriba, por su
+ * slug o por su nombre; si no está, decide el nombre con las palabras de cada familia. Lo que no dice nada se queda en
+ * «Perforación y fijación», que es donde van la broca, la guía y el motor.
+ *
+ * El coste: un instrumento puesto adrede en «Perforación y fijación» con nombre de otra familia —un separador que
+ * alguien quisiera junto a las brocas— cambia de sitio. No se ha visto ninguno, y el arreglo es darle otro nombre.
+ */
+export function categoriaDelInstrumento(i: {
+  categoria?: string | null
+  slug?: string | null
+  nombre?: string | null
+}): string | null {
+  const guardada = i.categoria || null
+  if (guardada && guardada !== 'fijacion') return guardada
+  return categoriaPorElNombre(i.slug ?? '', i.nombre ?? '') ?? guardada
+}

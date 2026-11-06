@@ -22,6 +22,8 @@
  * ninguna prueba llegaba.
  */
 
+import type { LecturaClinica } from '@/atlas/lecturaClinica'
+import { esEstructuraNoble } from '@/lib/piezasDelCaso'
 import {
   desplazamientoCompleto,
   medirReduccion,
@@ -49,11 +51,18 @@ export const RESULTADOS = {
   TORNILLOS_INSUFICIENTES: 'tornillos-insuficientes',
   TORNILLO_UNICORTICAL: 'tornillo-unicortical',
   TORNILLO_LARGO: 'tornillo-largo',
+  // D-309: un fragmento principal sin los tornillos que lo sostienen, o la placa entera sobre uno solo.
+  TORNILLOS_POR_FRAGMENTO: 'tornillos-por-fragmento',
+  // D-308: el implante bloqueó el foco con la fractura fuera de los topes de la reducción.
+  FIJACION_SIN_REDUCIR: 'fijacion-sin-reducir',
   // P-004 E10: la fijación que tiene que comprimir y no comprime.
   SIN_COMPRESION: 'sin-compresion',
   // P-003 E10: trabajar por planos, un músculo concreto.
   SIN_MUSCULO_ELEGIDO: 'sin-musculo-elegido',
   PLANO_SIN_HACER: 'plano-sin-hacer',
+  // P-012 E6: cortar o perforar un vaso o un nervio.
+  LESION_VASCULAR: 'lesion-vascular',
+  LESION_NERVIOSA: 'lesion-nerviosa',
   CORRECTO: 'correcto',
 } as const
 
@@ -75,6 +84,17 @@ export interface PasoQuirurgico {
   toleranciaDesplazamiento?: number | null
   toleranciaDiastasis?: number | null
   toleranciaAngulacion?: number | null
+  /**
+   * Reducción (D-305): la técnica que decide los topes por omisión de cada plano. «Alineación» es la estabilidad
+   * relativa (clavo, placa puente), con los criterios de Trafton; «anatómica», la absoluta (tracción, compresión, foco
+   * articular). Vacía, el paso se mide como antes: un solo tope para el giro total.
+   */
+  tecnicaDeReduccion?: TecnicaDeReduccion | null
+  /** Reducción (D-305): el tope de cada plano, en grados, y el del acortamiento, en mm. Vacíos, los de la técnica. */
+  toleranciaCoronal?: number | null
+  toleranciaSagital?: number | null
+  toleranciaRotacion?: number | null
+  toleranciaAcortamiento?: number | null
   fuerzaMinima?: number | null
   fuerzaMaxima?: number | null
   /** Perforación (D-169): el calibre que debe tener la broca, en mm. Vacío: cualquiera. */
@@ -84,8 +104,13 @@ export interface PasoQuirurgico {
   anguloMaximo?: number | null
   /** Perforación y fijación: se exige que crucen las dos corticales. */
   exigeBicortical?: boolean | null
-  /** Fijación: cuántos tornillos hacen falta como mínimo. */
+  /** Fijación: cuántos tornillos hacen falta como mínimo, contados todos juntos. */
   tornillosMinimos?: number | null
+  /**
+   * Fijación (D-309): cuántos tornillos de la placa pide **cada** fragmento principal. Vacío, lo de la AO para una placa
+   * en la diáfisis (`tornillosPorFragmentoPorOmision`); 0, el paso no los cuenta por fragmento.
+   */
+  tornillosPorFragmento?: number | null
   /**
    * Fijación (P-004 E10): la fijación tiene que comprimir la fractura —con un orificio oval y un tornillo excéntrico, con la broca de
    * deslizamiento o con rosca parcial—. Opcional: sin marcar, el paso no mira la compresión.
@@ -112,6 +137,11 @@ export interface Gesto {
   diastasis?: number
   /** Cuánto queda angulado, en grados. */
   angulacion?: number
+  /**
+   * La reducción leída como en la ficha (D-303): de ella salen el tope por plano y la diferencia entre diástasis y
+   * acortamiento. Sin ella —un gesto armado a mano, o de antes— se juzga con las tres cifras de arriba.
+   */
+  lectura?: LecturaClinica | null
   fuerza?: number
   /** La última perforación hecha en el paso, o `undefined` si no hay ninguna. */
   perforacion?: {
@@ -121,14 +151,59 @@ export interface Gesto {
     /** Cuánto pasó de largo la cortical opuesta, en mm. */
     sePasoMm: number
   }
-  /** Lo que hay fijado: si hay placa, cuántos tornillos, cuántos bicorticales y cuántos largos. */
-  fijacion?: { placa: boolean; tornillos: number; bicorticales: number; largos: number; compresionMm?: number }
+  /**
+   * Lo que hay fijado: si hay placa, cuántos tornillos, cuántos bicorticales y cuántos largos.
+   *
+   * `porFragmento` (D-309) son los tornillos de la placa en cada fragmento principal: los dos trozos con más agujeros
+   * debajo. Solo llega con fractura y con la placa asentada; sin él, el paso cuenta los tornillos todos juntos, como antes.
+   * Con un solo trozo en la lista, la placa entera cae sobre un fragmento y no cruza la fractura.
+   */
+  fijacion?: {
+    placa: boolean
+    tornillos: number
+    bicorticales: number
+    largos: number
+    compresionMm?: number
+    porFragmento?: TornillosDelFragmento[]
+  }
   /**
    * El músculo elegido con «Info» y lo hecho con él (P-003 E10): su nodo, si se va a cortar o a separar, si se cortó
    * y cuánto está retraído. `nodo` es `null` mientras no se haya elegido ninguno.
    */
   plano?: { nodo: string | null; accion: 'cortar' | 'separar' | null; cortado: boolean; retraidoMm: number }
 }
+
+/** Los tornillos de la placa en un fragmento principal (D-309). */
+export interface TornillosDelFragmento {
+  /** El nodo de la malla del trozo: de él sale el hueso, y del hueso lo que pide la AO. */
+  nodo: string
+  /** Cómo lo ve quien opera: la etiqueta de la pieza o, sin ella, el nodo. */
+  nombre: string
+  tornillos: number
+  /** Cuántos de esos son bloqueados: con todos bloqueados bastan tres también en el fémur y el húmero. */
+  bloqueados: number
+}
+
+/**
+ * Cuántos tornillos de la placa pide un fragmento principal por omisión (D-309): lo de la AO para una placa en la
+ * diáfisis.
+ *
+ * - Tres bicorticales, seis corticales, en la tibia, el antebrazo y lo que no se reconozca.
+ * - Cuatro en el fémur y el húmero, que cargan más: siete u ocho corticales.
+ * - Tres cuando todos los del fragmento son bloqueados, como en una placa puente, sea cual sea el hueso.
+ *
+ * Los valida Cristóbal; hasta entonces mandan estos. El hueso sale del nombre del nodo («femur_distal»,
+ * «humero_proximal») porque es lo único que el motor sabe de él: un modelo con otros nombres pide tres, que es lo menos
+ * que la AO acepta en una diáfisis, y el editor lo cambia en el paso.
+ */
+export function tornillosPorFragmentoPorOmision(trozo: Pick<TornillosDelFragmento, 'nodo' | 'tornillos' | 'bloqueados'>): number {
+  if (trozo.tornillos > 0 && trozo.bloqueados >= trozo.tornillos) return 3
+  return /f[eé]mur|h[uú]mer/i.test(trozo.nodo) ? 4 : 3
+}
+
+/** Lo que un paso pide a un fragmento: lo que escribió el editor o, sin nada escrito, lo de la AO. */
+export const tornillosQuePideElFragmento = (paso: PasoQuirurgico, trozo: TornillosDelFragmento): number =>
+  typeof paso.tornillosPorFragmento === 'number' ? paso.tornillosPorFragmento : tornillosPorFragmentoPorOmision(trozo)
 
 export interface Evaluacion {
   resultado: Resultado
@@ -173,6 +248,7 @@ const nada = (mensaje: string, resultado: Resultado, complicacion = false): Eval
 })
 
 const redondear1 = (n: number) => Math.round(n * 10) / 10
+const conComa = (n: number) => String(redondear1(n)).replace('.', ',')
 
 /**
  * Los tres topes contra los que se mide la reducción, ya resueltos.
@@ -192,17 +268,243 @@ const redondear1 = (n: number) => Math.round(n * 10) / 10
  * escritos (`defaultValue: 5` en `Cirugias.ts`); los respaldos son para lo que
  * devuelva la API de antes de esa migración.
  */
-export function topesDeReduccion(paso: PasoQuirurgico): {
-  desplazamiento: number
-  diastasis: number
-  angulacion: number
-} {
-  const desplazamiento = paso.toleranciaDesplazamiento ?? 5
+export function topesDeReduccion(paso: PasoQuirurgico): TopesDeReduccion {
+  const tecnica = paso.tecnicaDeReduccion && paso.tecnicaDeReduccion in TOPES_POR_TECNICA ? TOPES_POR_TECNICA[paso.tecnicaDeReduccion] : null
+  // La técnica pone techo y no suelo (D-305): el desplazamiento y la diástasis llevan `DEFAULT 5` en la base, así que
+  // un 5 ahí no prueba que nadie lo eligiera, y una reducción anatómica con 5 mm de escalón no lo es. Lo que sí se
+  // tecleó más estricto, manda.
+  const conTecho = (valor: number, techo: number | undefined) => (typeof techo === 'number' ? Math.min(valor, techo) : valor)
+  const desplazamientoEscrito = paso.toleranciaDesplazamiento ?? 5
+  const desplazamiento = conTecho(desplazamientoEscrito, tecnica?.desplazamiento)
+  const diastasis = conTecho(paso.toleranciaDiastasis ?? desplazamientoEscrito, tecnica?.diastasis)
+  const angulacion = paso.toleranciaAngulacion ?? 5
+  const coronal = paso.toleranciaCoronal ?? tecnica?.coronal ?? null
+  const sagital = paso.toleranciaSagital ?? tecnica?.sagital ?? null
+  const rotacion = paso.toleranciaRotacion ?? tecnica?.rotacion ?? null
+  const porPlano = coronal !== null || sagital !== null || rotacion !== null
   return {
     desplazamiento,
-    diastasis: paso.toleranciaDiastasis ?? desplazamiento,
-    angulacion: paso.toleranciaAngulacion ?? 5,
+    diastasis,
+    angulacion,
+    // Con un plano pedido, los que no se pidieron toman el tope del giro total: medirlos «sin tope» los regalaría.
+    coronal: porPlano ? (coronal ?? angulacion) : null,
+    sagital: porPlano ? (sagital ?? angulacion) : null,
+    rotacion: porPlano ? (rotacion ?? angulacion) : null,
+    acortamiento: paso.toleranciaAcortamiento ?? tecnica?.acortamiento ?? diastasis,
   }
+}
+
+/**
+ * Lo que una reducción tiene fuera de sus topes, dicho cifra a cifra; vacío si está dentro (D-305).
+ *
+ * Con la lectura clínica del gesto, el giro se juzga plano a plano si el paso lo pide, y a lo largo del eje se separa
+ * lo que los trozos se abren (diástasis) de lo que cabalgan (acortamiento). Sin ella —un gesto de antes, o armado a
+ * mano— se juzga como siempre: el giro total y lo de a lo largo en los dos sentidos. Si el paso pide topes por plano y
+ * el gesto no trae con qué partir el giro, se le exige al total el más estricto: no hay forma de saber de qué plano es.
+ *
+ * Los planos se nombran sin varo ni valgo: el motor no sabe de qué lado es el hueso, y la consola, que sí, ya lo dice
+ * en su panel. Un «8° de valgo» escrito aquí en una pierna izquierda podría ser un varo.
+ */
+export function reduccionFueraDeLosTopes(gesto: MedidaDeLaReduccion, topes: TopesDeReduccion): string[] {
+  const l = gesto.lectura ?? null
+  const fuera: string[] = []
+  const mira = (valor: number, tope: number, texto: string, unidad: 'mm' | '°') => {
+    if (!(valor <= tope)) {
+      // Con un decimal y no con `cifra`, que redondea a entero desde 10: «10° (hasta 10°)» para un 10,4 que no pasa.
+      const cuanto = Number.isFinite(valor) ? conComa(valor) : '?'
+      fuera.push(unidad === '°' ? `${cuanto}° ${texto} (hasta ${conComa(tope)}°)` : `${cuanto} mm ${texto} (hasta ${conComa(tope)} mm)`)
+    }
+  }
+  mira(gesto.desplazamiento ?? Infinity, topes.desplazamiento, 'de desplazamiento', 'mm')
+  if (l) {
+    mira(Math.max(0, redondear1(l.axial)), topes.diastasis, 'de diástasis', 'mm')
+    mira(Math.max(0, redondear1(-l.axial)), topes.acortamiento, 'de acortamiento', 'mm')
+  } else {
+    // Sin la lectura no se sabe hacia dónde: la cifra de siempre, contra el más estricto de los dos.
+    mira(gesto.diastasis ?? Infinity, Math.min(topes.diastasis, topes.acortamiento), 'de diástasis', 'mm')
+  }
+  if (topes.coronal !== null && topes.sagital !== null && topes.rotacion !== null) {
+    if (l) {
+      mira(Math.abs(redondear1(l.valgo)), topes.coronal, 'en el plano coronal', '°')
+      mira(Math.abs(redondear1(l.recurvatum)), topes.sagital, 'en el plano sagital', '°')
+      mira(Math.abs(redondear1(l.rotacion)), topes.rotacion, 'de rotación', '°')
+    } else {
+      mira(gesto.angulacion ?? Infinity, Math.min(topes.coronal, topes.sagital, topes.rotacion), 'de angulación', '°')
+    }
+  } else {
+    mira(gesto.angulacion ?? Infinity, topes.angulacion, 'de angulación', '°')
+  }
+  return fuera
+}
+
+/**
+ * Los topes dichos en una frase, para la instrucción: «5 mm de desplazamiento, 5 mm de diástasis y 5° de angulación».
+ * El acortamiento y los planos solo salen si el paso los pide, para que un caso de antes lea lo mismo que leía.
+ */
+export function topesEnTexto(topes: TopesDeReduccion): string {
+  const partes = [`${conComa(topes.desplazamiento)} mm de desplazamiento`, `${conComa(topes.diastasis)} mm de diástasis`]
+  if (topes.acortamiento !== topes.diastasis) partes.push(`${conComa(topes.acortamiento)} mm de acortamiento`)
+  if (topes.coronal !== null && topes.sagital !== null && topes.rotacion !== null) {
+    partes.push(`${conComa(topes.coronal)}° en el plano coronal`, `${conComa(topes.sagital)}° en el sagital`, `${conComa(topes.rotacion)}° de rotación`)
+  } else {
+    partes.push(`${conComa(topes.angulacion)}° de angulación`)
+  }
+  return `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1]}`
+}
+
+/** Lo de un gesto que mira la reducción: las tres cifras y, si la hay, la lectura clínica que las parte (D-303). */
+export type MedidaDeLaReduccion = Pick<Gesto, 'desplazamiento' | 'diastasis' | 'angulacion' | 'lectura'>
+
+/**
+ * Lo que se le dice a quien recorre un paso de reducción que no tiene nada que reducir (D-306).
+ *
+ * Nombra las dos causas porque la consola no sabe cuál es: un trozo que empieza en su sitio puede ser un caso sin
+ * referencia —exportado reducido y sin desplazamiento escrito, o desplazado y sin su posición reducida, que lee la pose
+ * del archivo como la buena— o un desplazamiento escrito más pequeño que los topes. Las dos las arregla el editor, y
+ * las dos dejan el paso sin nada que medir.
+ */
+export const SIN_NADA_QUE_REDUCIR =
+  'Este paso no tiene nada que reducir: el trozo empieza ya dentro de lo que se acepta, porque el caso no sabe dónde va o no lo desplazó. Se puede aplicar, pero no suma puntos ni cuenta en el máximo.'
+
+/**
+ * Los pasos de reducción que el caso regala: los que se aprobarían sin mover nada (D-306).
+ *
+ * Se juzgan con la medida **de partida**, la del trozo recién colocado en su desplazamiento inicial, y no con la de
+ * cuando empieza cada paso: un segundo paso de reducción —alinear y después ajustar— empieza donde lo dejó el primero,
+ * y estar dentro de sus topes ahí es haberlo hecho bien, no un regalo. Lo que se pregunta es del caso: si el trozo
+ * empieza en algún sitio del que haya que traerlo.
+ *
+ * `null` es que no hay qué medir —el modelo no trae el fragmento—, y deja fuera todos los pasos de reducción: la
+ * consola mide ceros sobre un hueso que no se mueve, y antes eso aprobaba el paso.
+ *
+ * Es la otra cara de la regla que corta al publicar (`motivoSinNadaQueReducir`): aquella mira lo que guarda la fila y
+ * no deja publicar el caso que seguro regala; esta mira la escena, que es la única que sabe si el desplazamiento
+ * escrito cabe dentro de los topes o si el modelo trae su referencia. Hacen falta las dos porque los casos ya publicados
+ * no pasan otra vez por la primera hasta que alguien los guarda.
+ */
+export function pasosSinNadaQueReducir(
+  pasos: readonly (PasoQuirurgico & { id: string })[],
+  partida: MedidaDeLaReduccion | null,
+): Set<string> {
+  const sin = new Set<string>()
+  for (const paso of pasos) {
+    if (objetivoDelPaso(paso) !== 'reduccion') continue
+    if (!partida || reduccionFueraDeLosTopes(partida, topesDeReduccion(paso)).length === 0) sin.add(paso.id)
+  }
+  return sin
+}
+
+/**
+ * Los topes con que se juzga la reducción cuando el implante bloquea el foco (D-308).
+ *
+ * Son los del último paso de reducción hasta el paso en que se está: es la reducción que el caso acaba de pedir, y la
+ * que el implante congela. Si el caso todavía no ha pedido ninguna —se fija antes de reducir—, los del primero que la
+ * pida. Un caso sin pasos de reducción se juzga con los topes por omisión de `topesDeReduccion`, 5 mm y 5°, que son los
+ * mismos de `FOCO_PARA_FIJAR` (`fijacion.ts`): lo que la placa ya avisaba al apoyarse.
+ */
+export function topesDelFoco(pasos: readonly PasoQuirurgico[], indice: number): TopesDeReduccion {
+  for (let i = Math.min(indice, pasos.length - 1); i >= 0; i--) {
+    if (objetivoDelPaso(pasos[i]) === 'reduccion') return topesDeReduccion(pasos[i])
+  }
+  const primero = pasos.find((p) => objetivoDelPaso(p) === 'reduccion')
+  return topesDeReduccion(primero ?? {})
+}
+
+/**
+ * Lo que pasa cuando un implante bloquea el foco: `null` si la reducción estaba dentro de los topes, y una complicación
+ * si no (D-308).
+ *
+ * Bloquear el foco es lo que lo deja quieto: un tornillo que cruza el trazo, la placa con tornillos en los dos
+ * fragmentos o el clavo bloqueado arriba y abajo (`focoBloqueado`, en `fijacion.ts`). En pabellón es lo peor que puede
+ * pasar con una reducción mala, porque el implante la congela, y por eso es una complicación y no un fallo: cuesta el
+ * paso entero. Antes `FOCO_PARA_FIJAR` solo avisaba al apoyar la placa, y fijar sin reducir daba todos los puntos.
+ *
+ * Se juzga en ese momento y no al pulsar «Aplicar paso», porque la escena deja seguir moviendo el trozo con los
+ * tornillos puestos: medido al aplicar, bastaba con fijar mal y reducir después.
+ */
+export function juicioDelBloqueo(medida: MedidaDeLaReduccion, topes: TopesDeReduccion): Evaluacion | null {
+  const fuera = reduccionFueraDeLosTopes(medida, topes)
+  if (fuera.length === 0) return null
+  return nada(
+    `Fijó en mala posición: el implante bloqueó el foco con la fractura sin reducir (${fuera.join(' · ')}). En pabellón habría que retirarlo, reducir y volver a fijar.`,
+    RESULTADOS.FIJACION_SIN_REDUCIR,
+    true,
+  )
+}
+
+/** Un vaso o un nervio cortado o perforado (P-012 E6), tal como lo cuenta el lienzo. */
+export interface LesionDeEstructura {
+  rol: 'vaso' | 'nervio'
+  /** El nombre con que el caso enseña la pieza, o el del objeto si no tiene. */
+  nombre: string
+  /** El bisturí que lo partió, o la broca o la aguja que lo atravesó al pasarse de la cortical opuesta. */
+  como: 'corte' | 'perforacion'
+}
+
+/**
+ * Lo que cuesta cortar o perforar un vaso o un nervio: una complicación del paso, siempre (P-012 E6).
+ *
+ * Hasta E6 los vasos y los nervios eran «músculo», y el trazo que partía la arteria tibial anterior costaba lo mismo
+ * que el que partía el tibial anterior: nada. En pabellón es lo que se teme de cada abordaje —una arteria cortada
+ * sangra y hay que repararla; un nervio cortado deja su déficit—, y por eso es una complicación y no un fallo: cuesta
+ * el paso entero, como fijar sin reducir (D-308). Y como aquel, se juzga cuando pasa y no al pulsar «Aplicar paso»:
+ * lo cortado no se descorta, y medido al aplicar bastaría con cortar en un paso y aplicar en otro.
+ *
+ * No hay medida que estar dentro o fuera: el lienzo ya decidió que se tocó. Por eso esto no devuelve `null`.
+ */
+export function juicioDeLaLesion(lesion: LesionDeEstructura): Evaluacion {
+  const que = lesion.rol === 'vaso' ? 'un vaso' : 'un nervio'
+  const como =
+    lesion.como === 'corte' ? `El trazo cortó ${que}` : `Al pasarse de la cortical opuesta, la perforación atravesó ${que}`
+  const consecuencia =
+    lesion.rol === 'vaso'
+      ? 'En pabellón habría que controlar el sangrado y reparar o ligar el vaso.'
+      : 'En pabellón habría que buscar los cabos y repararlo, y el déficit puede quedar.'
+  return nada(
+    `${como}: ${lesion.nombre}. ${consecuencia}`,
+    lesion.rol === 'vaso' ? RESULTADOS.LESION_VASCULAR : RESULTADOS.LESION_NERVIOSA,
+    true,
+  )
+}
+
+/** Las dos técnicas de reducción, con sus topes por omisión (D-305). */
+export type TecnicaDeReduccion = 'alineacion' | 'anatomica'
+
+/**
+ * Los topes por omisión de cada técnica (D-305). Los valida Cristóbal; hasta entonces mandan estos, y están aquí, en un
+ * solo sitio, con su fuente.
+ *
+ * - **Alineación** (estabilidad relativa: clavo, placa puente). Los criterios de Trafton para la diáfisis de tibia:
+ *   varo o valgo hasta 5°, angulación sagital hasta 10°, rotación hasta 10° y acortamiento hasta 10 mm (hay fuentes
+ *   que aceptan 15; se toma el más estricto mientras no se valide). No pone techo a la traslación: Trafton la pide como
+ *   contacto cortical, y eso ya lo dice el % del diámetro.
+ * - **Anatómica** (estabilidad absoluta: tornillo de tracción, placa de compresión, foco articular): 2° en cada plano y
+ *   2 mm de traslación, de diástasis y de acortamiento. Es la tolerancia de un escalón articular, y la de una fractura
+ *   simple que se va a comprimir: con más hueco no hay compresión que valga.
+ */
+export const TOPES_POR_TECNICA: Readonly<
+  Record<
+    TecnicaDeReduccion,
+    { coronal: number; sagital: number; rotacion: number; acortamiento: number; desplazamiento?: number; diastasis?: number }
+  >
+> = {
+  alineacion: { coronal: 5, sagital: 10, rotacion: 10, acortamiento: 10 },
+  anatomica: { coronal: 2, sagital: 2, rotacion: 2, acortamiento: 2, desplazamiento: 2, diastasis: 2 },
+}
+
+/** Los topes de la reducción ya resueltos: lo que pinta la consola y contra lo que se juzga. */
+export interface TopesDeReduccion {
+  desplazamiento: number
+  /** Lo que se pueden separar los trozos a lo largo del eje. */
+  diastasis: number
+  /** El giro total. Es el que manda mientras el paso no pida un tope por plano. */
+  angulacion: number
+  /** Por plano, en grados; `null` mientras el paso no pida ninguno (D-305). */
+  coronal: number | null
+  sagital: number | null
+  rotacion: number | null
+  /** Lo que pueden cabalgar los trozos. Sin pedirlo, el de la diástasis: antes las dos cosas eran una sola cifra. */
+  acortamiento: number
 }
 
 /** «8–20 N», «desde 8 N», «hasta 20 N»: un rango con un extremo o con los dos. */
@@ -276,7 +578,8 @@ export function objetivoDelPaso(paso: PasoQuirurgico): Objetivo {
   // Los números de la perforación y de la fijación se crearon sin `DEFAULT`
   // (D-169): un número ahí lo tecleó una persona, igual que el rango de la fuerza.
   if (declara(paso.anguloMinimo, paso.anguloMaximo)) return 'perforacion'
-  if (declara(paso.tornillosMinimos)) return 'fijacion'
+  // Los tornillos por fragmento (D-309) tampoco tienen `DEFAULT`: un número ahí también lo tecleó alguien.
+  if (declara(paso.tornillosMinimos, paso.tornillosPorFragmento)) return 'fijacion'
   // Las tres tolerancias no deducen nada cuando el paso ya trae 'instrumento'
   // escrito: tienen `defaultValue: 5` en `Cirugias.ts` y `DEFAULT 5` en la
   // migración, de modo que **toda** fila las lleva puestas. Deducir de ellas
@@ -369,22 +672,10 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
       // medida que no cuenta enseña justo lo contrario de lo que se pretende:
       // el residente aprendería que un hueco de 18 mm entre los fragmentos da
       // igual, porque la consola le dejó pasar.
-      const desplazamiento = gesto.desplazamiento ?? Infinity
-      const diastasis = gesto.diastasis ?? Infinity
-      const angulacion = gesto.angulacion ?? Infinity
-      const {
-        desplazamiento: topeDesplazamiento,
-        diastasis: topeDiastasis,
-        angulacion: topeAngulacion,
-      } = topesDeReduccion(paso)
-
-      if (
-        desplazamiento > topeDesplazamiento ||
-        diastasis > topeDiastasis ||
-        angulacion > topeAngulacion
-      ) {
+      const fuera = reduccionFueraDeLosTopes(gesto, topesDeReduccion(paso))
+      if (fuera.length > 0) {
         return nada(
-          `${paso.insuficiente || 'La reducción todavía no es aceptable.'} (${redondear1(desplazamiento)} mm de desplazamiento, ${redondear1(diastasis)} mm de diástasis y ${redondear1(angulacion)}° · se aceptan hasta ${topeDesplazamiento} mm, ${topeDiastasis} mm y ${topeAngulacion}°)`,
+          `${paso.insuficiente || 'La reducción todavía no es aceptable.'} (${fuera.join(' · ')})`,
           RESULTADOS.REDUCCION_INSUFICIENTE,
         )
       }
@@ -419,6 +710,19 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
         )
       }
       const { calibreBroca, anguloMinimo, anguloMaximo } = paso
+      // Pasarse de la cortical opuesta daña lo que hay detrás —tendones, nervios, vasos—: es una complicación, no un
+      // reintento, y cuesta el paso entero (`puntosDelPaso`).
+      //
+      // Va primero, antes que el calibre y el ángulo (D-307). Iba al final, y la broca equivocada que además se pasaba
+      // 12 mm salía como «calibre»: un fallo inocuo que al reintentar deja la mitad del paso. El daño ya estaba hecho y
+      // no costaba nada, porque se miraba antes lo que no dañaba. Lo que dañó se cobra aunque falte otra cosa.
+      if (p.sePasoMm > PASARSE_DE_LA_CORTICAL_MM) {
+        return nada(
+          `${paso.excesivo || 'La broca pasó de largo la cortical opuesta: riesgo para las partes blandas.'} (${redondear1(p.sePasoMm)} mm de más · hasta ${PASARSE_DE_LA_CORTICAL_MM} mm se tolera)`,
+          RESULTADOS.PERFORACION_PASADA,
+          true,
+        )
+      }
       // El calibre se compara a la décima: 3,2 y 3,25 son la misma broca en pabellón.
       if (typeof calibreBroca === 'number' && Math.abs(p.diametroMm - calibreBroca) > 0.05) {
         return nada(
@@ -440,15 +744,6 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
           RESULTADOS.PERFORACION_UNICORTICAL,
         )
       }
-      // Pasarse de la cortical opuesta daña lo que hay detrás —tendones, nervios, vasos—: es una
-      // complicación, no un reintento, y cuesta el paso entero (`puntosDelPaso`).
-      if (p.sePasoMm > PASARSE_DE_LA_CORTICAL_MM) {
-        return nada(
-          `${paso.excesivo || 'La broca pasó de largo la cortical opuesta: riesgo para las partes blandas.'} (${redondear1(p.sePasoMm)} mm de más · hasta ${PASARSE_DE_LA_CORTICAL_MM} mm se tolera)`,
-          RESULTADOS.PERFORACION_PASADA,
-          true,
-        )
-      }
       return bien(paso.exito)
     }
 
@@ -461,6 +756,14 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
           RESULTADOS.SIN_PLACA,
         )
       }
+      // El tornillo largo primero, por lo mismo que la broca pasada (D-307): ya dañó, y cuenta aunque falte un tornillo.
+      if (f.largos > 0) {
+        return nada(
+          `${paso.excesivo || 'Hay tornillos largos: la punta asoma de más por la cortical opuesta y roza las partes blandas.'} (${f.largos} ${f.largos === 1 ? 'tornillo largo' : 'tornillos largos'})`,
+          RESULTADOS.TORNILLO_LARGO,
+          true,
+        )
+      }
       const necesarios = paso.tornillosMinimos ?? 1
       if (f.tornillos < necesarios) {
         return nada(
@@ -468,17 +771,30 @@ export function evaluarGesto(paso: PasoQuirurgico, gesto: Gesto): Evaluacion {
           RESULTADOS.TORNILLOS_INSUFICIENTES,
         )
       }
+      // Por fragmento principal (D-309): el total no basta. Seis tornillos en un solo trozo aprobaban un paso que pedía
+      // seis, y una placa así no sostiene nada: el otro fragmento queda colgando. Un 0 escrito en el paso lo apaga.
+      const porFragmento = paso.tornillosPorFragmento === 0 ? undefined : f.porFragmento
+      if (porFragmento && porFragmento.length < 2) {
+        return nada(
+          `${paso.insuficiente || 'La placa no cruza la fractura: cada fragmento principal necesita sus tornillos.'} (${
+            porFragmento.length === 1 ? `todos sus agujeros caen en ${porFragmento[0].nombre}` : 'ningún agujero cae sobre el hueso'
+          })`,
+          RESULTADOS.TORNILLOS_POR_FRAGMENTO,
+        )
+      }
+      const cortos = (porFragmento ?? []).filter((t) => t.tornillos < tornillosQuePideElFragmento(paso, t))
+      if (cortos.length > 0) {
+        return nada(
+          `${paso.insuficiente || 'Un fragmento principal no queda sostenido: la placa necesita sus tornillos a cada lado de la fractura.'} (${cortos
+            .map((t) => `${t.nombre}: ${t.tornillos} de ${tornillosQuePideElFragmento(paso, t)} tornillos`)
+            .join(' · ')})`,
+          RESULTADOS.TORNILLOS_POR_FRAGMENTO,
+        )
+      }
       if (paso.exigeBicortical && f.bicorticales < f.tornillos) {
         return nada(
           `${paso.insuficiente || 'Hay tornillos que no cruzan las dos corticales.'} (${f.bicorticales} de ${f.tornillos} bicorticales)`,
           RESULTADOS.TORNILLO_UNICORTICAL,
-        )
-      }
-      if (f.largos > 0) {
-        return nada(
-          `${paso.excesivo || 'Hay tornillos largos: la punta asoma de más por la cortical opuesta y roza las partes blandas.'} (${f.largos} ${f.largos === 1 ? 'tornillo largo' : 'tornillos largos'})`,
-          RESULTADOS.TORNILLO_LARGO,
-          true,
         )
       }
       if (paso.exigeCompresion && !((f.compresionMm ?? 0) > 0)) {
@@ -564,9 +880,19 @@ export function fuerzaInicial(paso: PasoQuirurgico): number {
  * bajara con cada tropiezo escondería lo que costó el caso—, pero son dos
  * cuentas de lo mismo: cambiar esta sin mirar la otra deja un marcador que
  * miente en una dirección o en la otra.
+ *
+ * Los `excluidos` son los pasos que no miden nada (D-306, `pasosSinNadaQueReducir`): no dan puntos, y dejarlos en el
+ * máximo bajaría el porcentaje de todos los residentes por un defecto del caso, que no es suyo. Así el recorrido se lee
+ * igual que si el caso no trajera ese paso.
  */
-export function puntajeMaximo(pasos: PasoQuirurgico[]): number {
-  return pasos.reduce((total, paso) => total + valorDelPaso(paso), 0)
+export function puntajeMaximo(
+  pasos: readonly (PasoQuirurgico & { id?: string })[],
+  excluidos: ReadonlySet<string> = new Set(),
+): number {
+  return pasos.reduce(
+    (total, paso) => total + (paso.id !== undefined && excluidos.has(paso.id) ? 0 : valorDelPaso(paso)),
+    0,
+  )
 }
 
 /** Lo que el residente arrastra de este mismo paso cuando por fin lo acierta. */
@@ -580,6 +906,11 @@ export interface HistorialDelPaso {
    * llevó a cero sin mover nada a mano, así que el ejercicio de reducir no puntúa. Solo cuenta en un paso de reducción.
    */
   reduccionAutomatica?: boolean
+  /**
+   * El paso no tenía nada que reducir: el trozo empezaba ya dentro de los topes (D-306, `pasosSinNadaQueReducir`). Se
+   * aprueba sin mover nada, así que no puntúa. Solo cuenta en un paso de reducción.
+   */
+  sinNadaQueReducir?: boolean
 }
 
 /**
@@ -625,6 +956,8 @@ export function puntosDelPaso(paso: PasoQuirurgico, historial: HistorialDelPaso)
   // La automática da el paso por hecho para no entramparse si el objetivo docente es otro, pero no vale lo mismo que
   // reducirlo a mano: el ejercicio se mantiene «porque da realidad» y por eso se puede evitar, no regalar.
   if (historial.reduccionAutomatica && objetivoDelPaso(paso) === 'reduccion') return 0
+  // Lo mismo que la automática, con otra causa: lo que se aprueba sin mover nada no se cobra (D-306).
+  if (historial.sinNadaQueReducir && objetivoDelPaso(paso) === 'reduccion') return 0
   const valor = valorDelPaso(paso)
   return historial.fallo ? Math.floor(valor / 2) : valor
 }
@@ -642,7 +975,7 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
   // Trazar y arrastre» sin una palabra de la bandeja: el residente trazaba,
   // pulsaba y recibía un «Seleccione un instrumento» que contradecía la única
   // frase que la consola le había dado.
-  const conInstrumento = (resto: string) => `Coja el instrumento de la bandeja y ${resto}`
+  const conInstrumento = (resto: string) => `Coja el instrumento de la mesa de instrumental y ${resto}`
 
   switch (objetivoDelPaso(paso)) {
     case 'trazo': {
@@ -652,9 +985,8 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
       )
     }
     case 'reduccion': {
-      const topes = topesDeReduccion(paso)
       return conInstrumento(
-        `active el modo Mover, arrastre el fragmento a su sitio y corrija la angulación. Se aceptan hasta ${topes.desplazamiento} mm de desplazamiento, ${topes.diastasis} mm de diástasis y ${topes.angulacion}° de angulación.`,
+        `active el modo Mover, arrastre el fragmento a su sitio y corrija la angulación. Se aceptan hasta ${topesEnTexto(topesDeReduccion(paso))}.`,
       )
     }
     case 'fuerza': {
@@ -682,8 +1014,16 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
     }
     case 'fijacion': {
       const n = paso.tornillosMinimos ?? 1
+      // Lo que pide cada fragmento (D-309), dicho antes de operar: contado sin avisar, el paso se suspendería por una
+      // regla que la instrucción no nombra.
+      const porFragmento =
+        paso.tornillosPorFragmento === 0
+          ? ''
+          : typeof paso.tornillosPorFragmento === 'number'
+            ? ` Cada fragmento principal lleva al menos ${paso.tornillosPorFragmento}.`
+            : ' Cada fragmento principal lleva los suyos: 3 en la tibia y el antebrazo, 4 en el fémur y el húmero, y 3 si todos son bloqueados.'
       return conInstrumento(
-        `active el modo Fijar: apoye la placa sobre el hueso y ponga ${n} ${n === 1 ? 'tornillo' : 'tornillos'} en sus agujeros.${paso.exigeBicortical ? ' Los tornillos tienen que cruzar las dos corticales.' : ''}${paso.exigeCompresion ? ' La fijación tiene que comprimir la fractura.' : ''} Mida antes con el medidor de profundidad.`,
+        `active el modo Fijar: apoye la placa sobre el hueso y ponga ${n} ${n === 1 ? 'tornillo' : 'tornillos'} en sus agujeros.${porFragmento}${paso.exigeBicortical ? ' Los tornillos tienen que cruzar las dos corticales.' : ''}${paso.exigeCompresion ? ' La fijación tiene que comprimir la fractura.' : ''} Mida antes con el medidor de profundidad.`,
       )
     }
     case 'planos': {
@@ -693,7 +1033,7 @@ export function instruccionDelPaso(paso: PasoQuirurgico): string {
       )
     }
     default:
-      return 'Elija el instrumento correcto de la bandeja y aplique el paso.'
+      return 'Elija el instrumento correcto de la mesa de instrumental y aplique el paso.'
   }
 }
 
@@ -796,9 +1136,14 @@ export function visibilidadDelPaso(
  * A qué interruptor de la consola pertenece un papel: el fragmento móvil es hueso y se apaga con el hueso.
  * Antes el fragmento no tenía capa —ningún interruptor se llamaba «fragmento»— y se quedaba a la vista con
  * el hueso apagado.
+ *
+ * Los vasos y los nervios, con el músculo (P-012 E6). Tampoco tienen interruptor propio, y sin esta línea
+ * pasaría lo mismo que con el fragmento: con el músculo apagado, la arteria y el nervio flotarían solos
+ * delante del hueso.
  */
 export function capaDelRol(rol: string): string {
-  return rol === 'fragmento' ? 'hueso' : rol
+  if (rol === 'fragmento') return 'hueso'
+  return esEstructuraNoble(rol) ? 'musculo' : rol
 }
 
 /**

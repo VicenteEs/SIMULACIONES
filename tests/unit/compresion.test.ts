@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   COMPRESION_MAXIMA_POR_TORNILLO_MM,
   FRACCION_DEL_CENTRO,
+  HASTA_LA_CORTICAL_LEJANA_MM,
   NOMBRE_DE_LA_TECNICA,
   calibresPorFragmento,
   compresionAplicable,
@@ -165,6 +166,57 @@ describe('los calibres por fragmento', () => {
 
   it('sin perforaciones, nada', () => {
     expect(calibresPorFragmento([], 15)).toEqual({ cercanoMm: null, lejanoMm: null })
+  })
+
+  // D-302: el agujero del lejano es el de la cortical lejana, la broca más gruesa que llegó a ella.
+  it('la de deslizamiento que atraviesa las dos corticales deja el lejano ancho aunque después pase la de núcleo', () => {
+    const c = calibresPorFragmento(
+      [
+        { diametroMm: 3.5, profundidadMm: 30 },
+        { diametroMm: 2.5, profundidadMm: 30 },
+      ],
+      15,
+    )
+    expect(c).toEqual({ cercanoMm: 3.5, lejanoMm: 3.5 })
+    // Y con eso la rosca no agarra: no comprime. Antes de D-302 daba el lejano de 2,5 y comprimía.
+    expect(resultadoDelDeslizamiento({ ...c, diametroExteriorMm: 3.5 }).mm).toBe(0)
+  })
+
+  it('la de deslizamiento que pasa un poco la fractura sin llegar a la cortical lejana sigue valiendo', () => {
+    const c = calibresPorFragmento(
+      [
+        { diametroMm: 3.5, profundidadMm: 17 },
+        { diametroMm: 2.5, profundidadMm: 30 },
+      ],
+      15,
+    )
+    expect(c).toEqual({ cercanoMm: 3.5, lejanoMm: 2.5 })
+    expect(resultadoDelDeslizamiento({ ...c, diametroExteriorMm: 3.5 }).mm).toBe(1)
+  })
+
+  it('la que se queda a menos de 2 mm del fondo se llevó la cortical lejana', () => {
+    const casi = calibresPorFragmento(
+      [
+        { diametroMm: 2.5, profundidadMm: 30 },
+        { diametroMm: 3.5, profundidadMm: 28.5 },
+      ],
+      15,
+    )
+    expect(casi.lejanoMm).toBe(3.5)
+    const lejos = calibresPorFragmento(
+      [
+        { diametroMm: 2.5, profundidadMm: 30 },
+        { diametroMm: 3.5, profundidadMm: 27.5 },
+      ],
+      15,
+    )
+    expect(lejos.lejanoMm).toBe(2.5)
+    expect(HASTA_LA_CORTICAL_LEJANA_MM).toBe(2)
+  })
+
+  it('el núcleo del tornillo depende de su clase: un bloqueado de 3,5 pediría 2,8 en el lejano', () => {
+    expect(resultadoDelDeslizamiento({ cercanoMm: 3.5, lejanoMm: 2.8, diametroExteriorMm: 3.5, clase: { bloqueado: true } }).mm).toBe(1)
+    expect(resultadoDelDeslizamiento({ cercanoMm: 3.5, lejanoMm: 2.8, diametroExteriorMm: 3.5, clase: { tipo: 'cortical' } }).mm).toBe(0)
   })
 })
 

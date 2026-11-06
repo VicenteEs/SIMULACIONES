@@ -52,7 +52,16 @@ function buscarCampo(
 }
 
 const validar = buscarCampo(Cirugias.fields as unknown as CampoDeEsquema[], 'objetivo')!
-  .validate as (valor: unknown, opciones: { siblingData?: unknown }) => string | true
+  .validate as (valor: unknown, opciones: { data?: unknown; siblingData?: unknown }) => string | true
+
+/**
+ * El caso alrededor de la fila, como lo pasa Payload: con el fragmento marcado y desplazado, para que el paso que se
+ * vuelve reducción tenga algo que reducir (D-306) y lo único que se juzgue sea la fila.
+ */
+const CASO_QUE_REDUCE = {
+  piezas: [{ nodo: 'tibia_distal', rol: 'fragmento' }],
+  desplazamientoInicial: { x: 4, y: 0, z: 0, giroX: 0, giroY: 0, giroZ: 0 },
+}
 
 /**
  * Las formas que el `DEFAULT` de la columna dejó en la base, y la que puede
@@ -109,7 +118,7 @@ describe('la migración escribe lo que el motor ya deducía', () => {
 
   it.each(FILAS_ANTIGUAS)('$como vuelve a publicarse con el objetivo escrito', ({ paso, esperado }) => {
     const corregido = { ...paso, objetivo: esperado }
-    expect(validar(esperado, { siblingData: corregido })).toBe(true)
+    expect(validar(esperado, { data: CASO_QUE_REDUCE, siblingData: corregido })).toBe(true)
   })
 
   it('un paso de instrumento de verdad no lo toca nadie', () => {

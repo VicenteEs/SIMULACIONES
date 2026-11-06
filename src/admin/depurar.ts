@@ -12,7 +12,8 @@
  * genérico no sea un agujero, así que conviene que siga siendo aburrida.
  */
 
-import { camposDe, type Campo, type EsquemaDeColeccion } from './esquema'
+import { camposDe, type Campo, type EsquemaDeColeccion, type RevisionDelDocumento } from './esquema'
+import { revisarLaReduccionDelCaso } from '@/lib/reduccionDelCaso'
 import { bloqueDe, esBloqueConocido } from './bloques'
 import { desdeLexical, estaVacio, haciaLexical } from '@/lib/textoRico'
 import { leerTablaPegada } from '@/lib/tablaPegada'
@@ -400,7 +401,26 @@ export function faltantes(
     profundo,
   )
 
+  // Las reglas del documento entero, que no caben en un campo ni en sus hermanos (D-306). Bajo `profundo` por lo mismo
+  // que las de arriba: Payload no las mira al guardar un borrador, y un caso a medio escribir no tiene por qué tener ya
+  // su desplazamiento.
+  if (profundo) {
+    for (const seccion of esquema.secciones) {
+      for (const revision of seccion.revisa ?? []) problemas.push(...REVISIONES_DEL_DOCUMENTO[revision](documento))
+    }
+  }
+
   return problemas
+}
+
+/**
+ * La regla de cada revisión que una sección puede pedir por su nombre (`Seccion.revisa`).
+ *
+ * El esquema dice cuál y aquí se dice cómo, porque el esquema viaja al navegador como prop y no puede llevar funciones.
+ * El `Record` sobre el tipo hace que una revisión nueva declarada allá sin su regla aquí no compile.
+ */
+const REVISIONES_DEL_DOCUMENTO: Record<RevisionDelDocumento, (documento: Record<string, unknown>) => string[]> = {
+  reduccion: revisarLaReduccionDelCaso,
 }
 
 /**

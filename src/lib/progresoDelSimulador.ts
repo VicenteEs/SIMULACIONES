@@ -28,6 +28,8 @@
 import { RESULTADOS, type Resultado } from '@/lib/simulador'
 import { MAXIMO_DE_INSUMOS, type InsumoDelRecorrido } from '@/lib/insumos'
 import type { DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
+import { sinTiempos, tiemposValidos, type TiemposDelRecorrido } from '@/lib/relojesDelCaso'
+import type { RecorridoDelCaso } from '@/lib/notaDelRecorrido'
 
 /**
  * Cuántas complicaciones caben en un recorrido.
@@ -79,6 +81,16 @@ export interface ResultadoDeCirugia {
   radiografia?: DatosDeLaLamina | null
   /** En práctica o en evaluación (P-009); `undefined` no lo toca, como la radiografía. */
   modo?: 'practica' | 'evaluacion'
+  /**
+   * Con qué rehace el servidor la nota (D-310): los gestos de cada paso y la medida de partida. Sin él —un navegador de
+   * antes—, el puntaje se guarda como llega y se marca «sin comprobar».
+   */
+  recorrido?: RecorridoDelCaso
+  /**
+   * Los relojes y la cuenta del arco hasta este hito (P-012 E5). `undefined` no los toca (un navegador de antes); lo que
+   * llega los sustituye, y vacío los borra: un recorrido nuevo no puede quedarse con los tiempos del anterior.
+   */
+  tiempos?: TiemposDelRecorrido
 }
 
 /** Lo que vuelve de la base: lo mismo, menos lo que la fila no traiga. */
@@ -100,6 +112,8 @@ export interface RecorridoGuardado {
   reduccionAutomatica: boolean
   /** En qué modo se hizo (P-009); `null` en los recorridos de antes, que no lo decían. */
   modo: 'practica' | 'evaluacion' | null
+  /** Lo que contaron los relojes y el arco (P-012 E5). Falta en los recorridos de antes y en los que no contaron nada. */
+  tiempos?: TiemposDelRecorrido
 }
 
 /**
@@ -148,9 +162,13 @@ export const NOMBRE_DEL_DESENLACE: Record<Resultado, string> = {
   [RESULTADOS.TORNILLOS_INSUFICIENTES]: 'Faltan tornillos',
   [RESULTADOS.TORNILLO_UNICORTICAL]: 'Tornillo unicortical',
   [RESULTADOS.TORNILLO_LARGO]: 'Tornillo largo',
+  [RESULTADOS.TORNILLOS_POR_FRAGMENTO]: 'Fragmento sin sus tornillos',
+  [RESULTADOS.FIJACION_SIN_REDUCIR]: 'Fijó en mala posición',
   [RESULTADOS.SIN_COMPRESION]: 'Sin compresión',
   [RESULTADOS.SIN_MUSCULO_ELEGIDO]: 'Músculo sin elegir',
   [RESULTADOS.PLANO_SIN_HACER]: 'Plano sin hacer',
+  [RESULTADOS.LESION_VASCULAR]: 'Lesión vascular',
+  [RESULTADOS.LESION_NERVIOSA]: 'Lesión nerviosa',
   [RESULTADOS.CORRECTO]: 'Correcto',
 }
 
@@ -229,6 +247,7 @@ export function recorridoGuardado(fila: unknown): RecorridoGuardado | null {
 
   const puntaje = cuenta(f.puntaje)
   if (puntaje === null && complicaciones.length === 0 && insumos.length === 0) return null
+  const tiempos = f.tiempos === null || f.tiempos === undefined ? null : tiemposValidos(f.tiempos)
 
   return {
     puntaje: puntaje ?? 0,
@@ -237,6 +256,8 @@ export function recorridoGuardado(fila: unknown): RecorridoGuardado | null {
     insumos,
     reduccionAutomatica: f.reduccionAutomatica === true,
     modo: f.modoDelRecorrido === 'practica' || f.modoDelRecorrido === 'evaluacion' ? f.modoDelRecorrido : null,
+    // Rehechos con las reglas de la acción que los guarda: una fila tocada a mano no pinta un reloj roto.
+    ...(tiempos && !sinTiempos(tiempos) ? { tiempos } : {}),
   }
 }
 

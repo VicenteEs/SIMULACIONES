@@ -22,17 +22,19 @@
  */
 
 import * as THREE from 'three'
+import { gradosDelGiro, QUIETO_GRADOS, QUIETO_MM, type TransformacionRigida } from './transformacionRigida'
 
-/** Un movimiento rígido: primero el giro (cuaternión) y después la traslación, en las unidades del modelo. */
-export interface TransformacionRigida {
-  x: number
-  y: number
-  z: number
-  qx: number
-  qy: number
-  qz: number
-  qw: number
-}
+// El movimiento y su validación viven sin three en `transformacionRigida.ts` (D-304); se siguen exportando de aquí
+// para quien ya los importaba de este archivo.
+export {
+  esCasiIdentidad,
+  gradosDelGiro,
+  IDENTIDAD,
+  QUIETO_GRADOS,
+  QUIETO_MM,
+  transformacionValida,
+  type TransformacionRigida,
+} from './transformacionRigida'
 
 /** Un trozo tal como está en el archivo: sus vértices en el marco común y sus triángulos. */
 export interface TrozoParaReducir {
@@ -74,10 +76,6 @@ export interface ResultadoDeLaReduccion {
   sueltos: string[]
 }
 
-/** Lo que se considera ya en su sitio: no merece guardarse ni moverse. */
-export const QUIETO_MM = 0.01
-export const QUIETO_GRADOS = 0.01
-
 const TOLERANCIA_MM = 0.1
 /** Triángulos más pequeños que esto tienen la normal demasiado ruidosa para decidir de qué plano son. */
 const AREA_MINIMA_MM2 = 0.001
@@ -87,8 +85,6 @@ const VERTICES_DE_UNA_TAPA = 5
 const AREA_DE_UNA_TAPA_MM2 = 1
 /** Por debajo de esta parte de su superficie en tapas, un objeto sin pareja no se cuenta como trozo suelto. */
 const PARTE_DE_TAPA = 0.02
-
-export const IDENTIDAD: TransformacionRigida = { x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 }
 
 export function matrizDe(t: TransformacionRigida, destino = new THREE.Matrix4()): THREE.Matrix4 {
   const giro = new THREE.Quaternion(t.qx, t.qy, t.qz, t.qw).normalize()
@@ -102,28 +98,6 @@ export function transformacionDe(m: THREE.Matrix4): TransformacionRigida {
   return { x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w }
 }
 
-/**
- * La transformación guardada en una pieza del caso, o `null`.
- *
- * Lo que llega de la base no se da por bueno: una fila con un número de menos, o un cuaternión que no es un giro,
- * movería el trozo a cualquier parte, y el residente vería un hueso roto donde el editor dejó uno reducido. Mejor
- * ignorarla y que el trozo se quede donde está en el archivo.
- */
-export function transformacionValida(valor: unknown): TransformacionRigida | null {
-  if (!valor || typeof valor !== 'object') return null
-  const v = valor as Record<string, unknown>
-  const claves = ['x', 'y', 'z', 'qx', 'qy', 'qz', 'qw'] as const
-  if (!claves.every((k) => typeof v[k] === 'number' && Number.isFinite(v[k]))) return null
-  const t = Object.fromEntries(claves.map((k) => [k, v[k] as number])) as unknown as TransformacionRigida
-  const largo = Math.hypot(t.qx, t.qy, t.qz, t.qw)
-  if (Math.abs(largo - 1) > 1e-3) return null
-  return { ...t, qx: t.qx / largo, qy: t.qy / largo, qz: t.qz / largo, qw: t.qw / largo }
-}
-
-/** Cuánto gira un cuaternión, en grados. */
-export function gradosDelGiro(t: TransformacionRigida): number {
-  return (2 * Math.acos(Math.min(1, Math.abs(t.qw))) * 180) / Math.PI
-}
 
 // ------------------------------------------------------------------ las tapas
 
@@ -564,11 +538,6 @@ export function reducirPorLasCarasDeCorte(trozos: TrozoParaReducir[], opciones: 
     }
   }
   return resultado
-}
-
-/** Si un movimiento guardado es, en la práctica, quedarse quieto: no merece guardarse. */
-export function esCasiIdentidad(t: TransformacionRigida, milimetrosPorUnidad: number): boolean {
-  return Math.hypot(t.x, t.y, t.z) * milimetrosPorUnidad < QUIETO_MM && gradosDelGiro(t) < QUIETO_GRADOS
 }
 
 /** Si lo colocado se queda donde estaba: entonces no hay nada que guardar ni que mover. */

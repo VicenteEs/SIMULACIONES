@@ -9,6 +9,9 @@ import { finDeLaFila, ICONO_DE_LA_FAMILIA, ROTULO_DE_LA_FAMILIA } from '@/lib/ba
 /** Lo que la mesa enseña de un instrumento fuera de su lista —en la mano, el siguiente, los recientes—: nombre y dibujo. */
 export type InstrumentoDeLaMesa = Pick<InstrumentoDeBandeja, 'id' | 'nombre' | 'icono'>
 
+/** Un sitio de la mesa de Mayo (P-012 E5): el instrumento, la tecla que lo coge y si es el de la mano. */
+export type SitioDeLaMesa = InstrumentoDeLaMesa & { tecla: number; enLaMano: boolean }
+
 /** Una familia de la mesa: cuántos instrumentos tiene en la bandeja y cuáles deja ver el buscador. */
 export interface FamiliaDeLaMesa {
   clave: string
@@ -27,6 +30,7 @@ export interface FamiliaDeLaMesa {
  * placa», las del editor—, los tornillos partidos por tipo y la placa a medida. Aquí se decide dónde y cuándo se ven.
  */
 export function BarraDeInstrumental({
+  accion,
   familias,
   total,
   abierta,
@@ -43,6 +47,8 @@ export function BarraDeInstrumental({
   pie,
   vacia,
 }: {
+  /** Lo que va junto al título: en la consola del residente, «Plegar la mesa» (P-012 E5). */
+  accion?: ReactNode
   familias: FamiliaDeLaMesa[]
   total: number
   /** La familia desplegada. */
@@ -54,7 +60,8 @@ export function BarraDeInstrumental({
   familiaEnLaMano: string | null
   /** El que toca después en la secuencia brocar · medir · atornillar, si no es el de la mano. */
   siguiente: InstrumentoDeLaMesa | null
-  recientes: InstrumentoDeLaMesa[]
+  /** Los sitios ocupados de la mesa de Mayo, en el orden de sus teclas (P-012 E5). */
+  recientes: SitioDeLaMesa[]
   alCoger: (id: string) => void
   alSoltar: () => void
   lista: (familia: FamiliaDeLaMesa) => ReactNode
@@ -101,7 +108,12 @@ export function BarraDeInstrumental({
 
   return (
     <div className="consola-bandeja-bloque barra-instrumental" onKeyDown={alTeclear}>
-      <h3 className="consola-subtitulo">Instrumental · {total}</h3>
+      {/* «Mesa de instrumental» en todas partes (P-012 E5): eran «Instrumental» aquí, «la bandeja» en los avisos y «la mesa»
+          a secas también para la de modelado, y el residente no sabía si eran tres sitios. */}
+      <div className="barra-instrumental-cabecera">
+        <h3 className="consola-subtitulo">Mesa de instrumental · {total}</h3>
+        {accion}
+      </div>
 
       {/* Lo primero que se mira: qué hay en la mano. Grande, con su dibujo, y con «Soltar» a un clic; antes solo se sabía
           por un borde naranja en una fila de la bandeja, que con la familia cerrada ni se veía. */}
@@ -134,13 +146,26 @@ export function BarraDeInstrumental({
         </button>
       ) : null}
 
+      {/* La mesa de Mayo (P-012 E5): cada instrumento en el sitio de su tecla, también el de la mano, para que el orden no
+          cambie al coger. Antes eran «los recientes», el último primero y sin el de la mano: la lista se reordenaba con
+          cada instrumento y el número de las teclas con ella. */}
       {recientes.length > 0 ? (
         <div className="barra-instrumental-recientes">
-          <p className="consola-rotulo">Recientes</p>
+          <p className="consola-rotulo">Mesa de Mayo · teclas 1 a 5</p>
           <ul>
             {recientes.map((r) => (
               <li key={r.id}>
-                <button type="button" className="barra-instrumental-reciente" title={r.nombre} onClick={() => alCoger(r.id)}>
+                <button
+                  type="button"
+                  className={`barra-instrumental-reciente${r.enLaMano ? ' en-la-mano' : ''}`}
+                  title={`${r.nombre} · tecla ${r.tecla}`}
+                  aria-label={`${r.nombre}, tecla ${r.tecla}${r.enLaMano ? ', en la mano' : ''}`}
+                  aria-pressed={r.enLaMano}
+                  onClick={() => alCoger(r.id)}
+                >
+                  <span className="barra-instrumental-tecla u-num" aria-hidden>
+                    {r.tecla}
+                  </span>
                   <IconoInstrumento nombre={r.icono} />
                   <span>{r.nombre}</span>
                 </button>

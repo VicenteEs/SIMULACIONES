@@ -25,7 +25,7 @@
 
 import * as THREE from 'three'
 import type { TransformacionDePieza } from './cargador'
-import type { LecturaClinica } from './lecturaClinica'
+import { lecturaDelDesvio, type LecturaClinica } from './lecturaClinica'
 import type { EjeDelGesto } from './transformar'
 
 export { LECTURA_NULA, cifra, describirLectura, type LecturaClinica } from './lecturaClinica'
@@ -290,14 +290,6 @@ export function anchoEnUnaDireccion(puntos: ArrayLike<number>, direccion: readon
 
 // ----------------------------------------------------------- lectura clínica
 
-const aGrados = (r: number) => (r * 180) / Math.PI
-
-/** Un ángulo en (−180°, 180°]. */
-function normalizarGrados(g: number): number {
-  const v = (((g % 360) + 540) % 360) - 180
-  return v === -180 ? 180 : v
-}
-
 /**
  * Cuánto está desplazado y angulado un fragmento distal respecto del proximal.
  *
@@ -313,6 +305,12 @@ function normalizarGrados(g: number): number {
  * de Euler. Valen igual cuando se mueve el proximal y el distal queda quieto:
  * lo que se lee es la posición relativa, no quién se movió.
  *
+ * La cuenta es `lecturaDelDesvio`, la misma con que mide la consola (D-303).
+ * Aquí solo se arma el desvío: el giro del distal visto desde el proximal y la
+ * separación de los focos, con los ejes **girados como esté el proximal**. Antes
+ * se leía contra los ejes en reposo, que da lo mismo mientras se mueva uno solo
+ * de los dos —el caso de siempre— y mezcla los planos cuando se mueven los dos.
+ *
  * Con la tapa del proximal (`puntosDeLaTapa`), además, el ancho del hueso en el
  * foco de lado a lado y de delante atrás: el desplazamiento se escribe entonces
  * también en % del diámetro (Q-010).
@@ -325,39 +323,29 @@ export function leerReduccion(
   focos: { distal: THREE.Vector3; proximal: THREE.Vector3 } | null = null,
   tapaDelProximal: ArrayLike<number> | null = null,
 ): LecturaClinica {
-  const largo = aVector(ejes.largo).normalize()
-  const delante = aVector(ejes.delante).normalize()
-  const fuera = aVector(ejes.fuera).normalize()
-
   const qDistal = new THREE.Quaternion(...(distal?.girar ?? [0, 0, 0, 1]))
   const qProximal = new THREE.Quaternion(...(proximal?.girar ?? [0, 0, 0, 1]))
-  // Lo que el distal se ha movido de más respecto de como el proximal lo lleva.
+  // Lo que el distal se ha movido de más respecto de como el proximal lo lleva, en el marco del mundo.
   const relativo = qDistal.clone().multiply(qProximal.clone().invert()).normalize()
+  // Y los ejes del hueso como los lleva el proximal, que es contra lo que se lee.
+  const delProximal = (v: readonly [number, number, number]) => {
+    const girado = aVector(v).normalize().applyQuaternion(qProximal)
+    return [girado.x, girado.y, girado.z] as const
+  }
 
   const donde = focos ?? centros
   const pd = puntoActual(centros.distal, donde.distal, distal)
   const pp = puntoActual(centros.proximal, donde.proximal, proximal)
   // Sin foco, la diferencia de centros en reposo no es cero: se resta lo que ya había.
   const enReposo = donde.distal.clone().sub(donde.proximal)
-  const separacion = pd.sub(pp).sub(enReposo)
-
-  const apunta = largo.clone().applyQuaternion(relativo)
-
-  // Torsión sobre el largo: la parte del giro que no cambia hacia dónde apunta el eje.
-  const dot = relativo.x * largo.x + relativo.y * largo.y + relativo.z * largo.z
-  const torsion = 2 * Math.atan2(dot, relativo.w)
-  // La rotación se cuenta hacia fuera del cuerpo en cada lado: el sentido de la
-  // regla de la mano derecha sobre el largo es hacia fuera en un lado y hacia
-  // dentro en el otro, y `fuera` ya sabe cuál es cuál.
-  const signoDelLado = Math.sign(new THREE.Vector3().crossVectors(largo, delante).dot(fuera)) || 1
+  // En metros, como el atlas: la lectura va en milímetros.
+  const separacion = pd.sub(pp).sub(enReposo).multiplyScalar(1000)
 
   return {
-    lateral: separacion.dot(fuera) * 1000,
-    anteroposterior: separacion.dot(delante) * 1000,
-    axial: separacion.dot(largo) * 1000,
-    valgo: aGrados(Math.atan2(apunta.dot(fuera), apunta.dot(largo))),
-    recurvatum: aGrados(Math.atan2(apunta.dot(delante), apunta.dot(largo))),
-    rotacion: normalizarGrados(aGrados(torsion)) * signoDelLado,
+    ...lecturaDelDesvio(
+      { giro: [relativo.x, relativo.y, relativo.z, relativo.w], separacionMm: [separacion.x, separacion.y, separacion.z] },
+      { largo: delProximal(ejes.largo), delante: delProximal(ejes.delante), fuera: delProximal(ejes.fuera) },
+    ),
     ...(tapaDelProximal
       ? {
           anchoLateralMm: anchoEnUnaDireccion(tapaDelProximal, ejes.fuera) * 1000,

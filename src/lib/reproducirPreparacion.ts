@@ -12,8 +12,9 @@ import {
 import { esSistemaDeFascia } from '@/atlas/fascias'
 import { partirMalla, partirPorVariosPlanos, type MallaIndexada } from '@/lib/osteotomia'
 import { partirPorVariosPlanosSinTapa, partirSinTapaPorUnPlano } from '@/lib/recorteDeCapa'
-import type { HuesoPartidoDeAntes, PiezaLeida } from '@/lib/exportarAtlas'
-import type { TrozoDelHueso, Vector3 } from '@/lib/planoDeCorte'
+import { ladoDelHueso, type HuesoPartidoDeAntes, type PiezaLeida, type ReferenciaDeLaReduccion } from '@/lib/exportarAtlas'
+import { ejeDelHueso, type TrozoDelHueso, type Vector3 } from '@/lib/planoDeCorte'
+import { componer, delTaller, girarConLa, IDENTIDAD, invertir, type TransformacionRigida } from '@/lib/transformacionRigida'
 
 /**
  * Rehacer en el servidor lo que el taller enseña, a partir de lo que guarda.
@@ -135,6 +136,54 @@ export function colocarMalla(malla: MallaIndexada, t: Transformacion, centro: Ve
     normales[i + 2] = Math.round(r[2] * k)
   }
   return { posiciones, normales, indices: malla.indices.slice() }
+}
+
+/**
+ * A dónde vuelve el fragmento y con qué ejes se lee (P-012 E1, D-304), con lo que el taller le hizo a cada trozo.
+ *
+ * El taller coloca cada trozo con `centro + mover + giro·(p − centro)` (`colocarMalla`). Reducido es que el fragmento
+ * quede **como lo lleva el otro trozo**, así que su posición reducida es el movimiento del otro deshecho el suyo:
+ * M_otro ∘ M_fragmento⁻¹. Si solo se movió el fragmento, es su inversa. Si se movió también el otro —la receta AO
+ * angula el trozo más pequeño, que en una fractura proximal es el proximal, y aquí el fragmento es siempre el distal—,
+ * el fragmento vuelve junto a él y no al sitio del atlas: es lo que el residente ve en la consola, y lo único que puede
+ * alinear.
+ *
+ * Los ejes son los del hueso entero en reposo (`ejeDelHueso`), girados como el otro trozo: son los del hueso reducido.
+ * La normal del corte va como queda el fragmento en el archivo, y hacia distal, para que no dependa de qué lado del
+ * plano se llamó `a` al cortar.
+ */
+export function referenciaDeLaReduccion(
+  hueso: Pick<PiezaLeida, 'posiciones' | 'indices'>,
+  fragmento: { malla: MallaIndexada; transformacion: Transformacion },
+  otro: { malla: MallaIndexada; transformacion: Transformacion },
+  normalDelCorte: Vector3 | null,
+): ReferenciaDeLaReduccion | null {
+  const eje = ejeDelHueso(hueso.posiciones, hueso.indices)
+  if (!eje) return null
+  const movimiento = (h: { malla: MallaIndexada; transformacion: Transformacion }): TransformacionRigida =>
+    estaMovida(h.transformacion)
+      ? delTaller(centroDe(h.malla.posiciones), h.transformacion?.mover ?? [0, 0, 0], h.transformacion?.girar ?? [0, 0, 0, 1])
+      : IDENTIDAD
+  const delFragmento = movimiento(fragmento)
+  const delOtro = movimiento(otro)
+  const comoElOtro = (v: Vector3): Vector3 => girarConLa(delOtro, v)
+  let normal: Vector3 | null = null
+  if (normalDelCorte) {
+    const largo = Math.hypot(normalDelCorte[0], normalDelCorte[1], normalDelCorte[2]) || 1
+    const haciaDistal =
+      normalDelCorte[0] * eje.direccion[0] + normalDelCorte[1] * eje.direccion[1] + normalDelCorte[2] * eje.direccion[2] >= 0 ? 1 : -1
+    normal = girarConLa(delFragmento, [
+      (haciaDistal * normalDelCorte[0]) / largo,
+      (haciaDistal * normalDelCorte[1]) / largo,
+      (haciaDistal * normalDelCorte[2]) / largo,
+    ])
+  }
+  return {
+    posicionReducida: componer(delOtro, invertir(delFragmento)),
+    ejes: { largo: comoElOtro(eje.direccion), delante: comoElOtro(eje.delante), fuera: comoElOtro(eje.fuera) },
+    lado: ladoDelHueso(eje),
+    normalDelTrazo: normal,
+  }
 }
 
 /** Parte una malla por un corte guardado. `null` si el corte no atraviesa la pieza: igual que en el taller, se salta. */
@@ -285,6 +334,7 @@ export function reproducirPreparacion(contenido: Partial<ContenidoDeInstancia>, 
       return hoja ? { ...p, trozo: { lado: lado(hoja), fragmento: hoja === distal } } : p
     })
     const receta = (contenido.fracturas ?? []).find((f) => f.pieza === raiz.id)
+    const deUnPlano = corte && !(corte.otrosPlanos && corte.otrosPlanos.length > 0) ? corte.normal : null
     partido = {
       piezas: marcadas,
       corte: {
@@ -292,6 +342,8 @@ export function reproducirPreparacion(contenido: Partial<ContenidoDeInstancia>, 
         descripcion: receta ? `fractura ${receta.codigo}` : 'el corte guardado en la preparación',
         avisos: [...new Set(hojas.flatMap((h) => h.avisos))].map((a) => `Al partir «${nombreEnEspanol(raiz.nombre)}»: ${a}`),
         punto: puesto,
+        // Lo que el taller sabe y el archivo no decía: a dónde vuelve el trozo (D-304).
+        referencia: referenciaDeLaReduccion(raiz, distal, proximal, deUnPlano),
       },
       fragmento: 'distal',
     }

@@ -50,6 +50,11 @@ const eslintConfig = defineConfig([
     // minimizado. Revisarlo daba un error de estilo sobre un archivo ajeno que
     // aquí no se puede arreglar ni tiene sentido arreglar.
     'public/**',
+    // `.claude/` es de la aplicación de escritorio, y en `.claude/worktrees/` abre los worktrees de otras sesiones:
+    // copias enteras del proyecto, a medio hacer. Revisarlas desde aquí sumaba sus errores a los de lo que se sube —388
+    // de una sola, en E9 de P-012 (D-328)— y la orden de `AGENTS.md` fallaba por código ajeno. Cada worktree se revisa
+    // desde su carpeta.
+    '.claude/**',
   ]),
 ])
 

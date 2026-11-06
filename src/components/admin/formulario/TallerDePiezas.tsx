@@ -51,11 +51,16 @@ const LienzoQuirurgico = dynamic(
   },
 )
 
-/** Los cinco papeles, con el nombre que entiende un traumatólogo. */
+/**
+ * Los papeles, con el nombre que entiende un traumatólogo, en el orden en que se los encuentra al operar. El de la base
+ * es otro —el de Postgres, que añade al final—, y aquí no importa: lo que se compara con la colección es que estén.
+ */
 const ROLES: { valor: PiezaDelCaso['rol']; etiqueta: string }[] = [
   { valor: 'piel', etiqueta: 'Piel' },
   { valor: 'fascia', etiqueta: 'Fascia' },
   { valor: 'musculo', etiqueta: 'Músculo' },
+  { valor: 'vaso', etiqueta: 'Vaso' },
+  { valor: 'nervio', etiqueta: 'Nervio' },
   { valor: 'hueso', etiqueta: 'Hueso fijo' },
   { valor: 'fragmento', etiqueta: 'Fragmento móvil' },
   { valor: 'implante', etiqueta: 'Implante' },
@@ -180,6 +185,19 @@ export function TallerDePiezas({
           ? 'puesta la etiqueta de 1 fila que no la tenía'
           : `puestas las etiquetas de ${resultado.etiquetadas} filas que no la tenían`
       partes.push(partes.length === 0 ? etiquetas.replace(/^p/, 'P') : etiquetas)
+    }
+    // La que trae el archivo del taller (D-304): sin ella, el paso de reducción no tiene contra qué medir.
+    if (resultado.conPosicionReducida > 0) {
+      const reducida = 'puesta la posición reducida que trae el modelo'
+      partes.push(partes.length === 0 ? reducida.replace(/^p/, 'P') : reducida)
+    }
+    // Los de antes de P-012 (E6), que figuraban como músculo porque no había otro papel que ponerles.
+    if (resultado.conSuPapel > 0) {
+      const papel =
+        resultado.conSuPapel === 1
+          ? 'puesto su papel a 1 vaso o nervio que figuraba como músculo'
+          : `puesto su papel a ${resultado.conSuPapel} vasos o nervios que figuraban como músculo`
+      partes.push(partes.length === 0 ? papel.replace(/^p/, 'P') : papel)
     }
     // El archivo del atlas no marca ningún fragmento —qué trozo se reduce es
     // una decisión clínica, no anatómica—, así que se recuerda aquí en vez de

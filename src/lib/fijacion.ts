@@ -21,6 +21,9 @@
 
 import type { ReduccionDelFoco } from './enclavado'
 import { sistemaDelSlug } from './placasRectas'
+// Solo el tipo: `tornillos.ts` importa este módulo, y un `import` de valor en sentido contrario sería un ciclo.
+import type { TipoDeTornillo } from './tornillos'
+import type { TornillosDelFragmento } from './simulador'
 
 export type Vec3 = [number, number, number]
 
@@ -61,7 +64,9 @@ const COLOCA_POR_SLUG: Readonly<Record<string, QueColoca>> = {
 // ------------------------------------------------- lo que acompaña a cada placa (P-003 E6)
 
 const PARA_3_5 = ['tornillo-cortical-3-5', 'broca-2-5', 'medidor-profundidad', 'destornillador-hexagonal']
-const PARA_LCP = ['tornillo-bloqueado-lcp-3-5', 'guia-broca-roscada-lcp', 'destornillador-stardrive']
+// La broca de 2,8 es la del bloqueado de 3,5 (D-300): hasta entonces la placa LCP se ofrecía sin ella, y su tornillo solo se podía
+// perforar con la de 2,5 del cortical, que deja el agujero estrecho.
+const PARA_LCP = ['tornillo-bloqueado-lcp-3-5', 'broca-2-8', 'guia-broca-roscada-lcp', 'destornillador-stardrive']
 const PARA_4_5 = ['tornillo-esponjosa-6-5', 'broca-3-2', 'broca-4-5', 'medidor-profundidad', 'destornillador-hexagonal']
 
 /**
@@ -91,15 +96,99 @@ export function companerosDeLasPlacas(slugsDePlacas: readonly (string | null | u
   return [...salida]
 }
 
+// ------------------------------------------------- la broca de cada tornillo (D-300)
+
 /**
- * El calibre de la broca que lleva cada tornillo: lo que se perfora **antes** de atornillar. El cortical y el
- * bloqueado de 3,5 mm, con 2,5; el de esponjosa de 6,5 y el cortical de 4,5, con 3,2; el de bloqueo de clavo de 5,0, con 4,3.
- * Otro calibre, el 70 % redondeado a décimas (la regla del calibre de núcleo).
+ * Lo que hace falta saber de un tornillo, además del diámetro, para elegir su broca. El diámetro solo no basta: el bloqueado de 3,5
+ * lleva 2,8 y el cortical del mismo diámetro, 2,5; el perno de un clavo de 5,0 lleva 4,2 y el bloqueado de placa de 5,0, 4,3.
  */
-export function calibreDeBrocaParaElTornillo(diametroMm: number): number {
-  const conocidos: Record<string, number> = { '3.5': 2.5, '4.5': 3.2, '6.5': 3.2, '5': 4.3 }
-  const clave = String(Math.round(diametroMm * 10) / 10)
-  return conocidos[clave] ?? Math.round(diametroMm * 0.7 * 10) / 10
+export interface ClaseDelTornillo {
+  /** El tipo de la bandeja (`tipoDelTornillo`): cortical, de esponjosa, de rosca parcial, bloqueado… */
+  tipo?: TipoDeTornillo | null
+  /** De cabeza roscada, que se traba en la placa (`QueColoca.bloqueado`). */
+  bloqueado?: boolean
+  /** Va por un orificio de un clavo y no por una placa (`QueColoca.soloConClavo`): es un perno de bloqueo. */
+  deClavo?: boolean
+}
+
+export type FamiliaDeBroca = 'cortical' | 'bloqueado' | 'esponjosa' | 'perno-de-clavo'
+
+/**
+ * La broca de cada tornillo, por familia y por diámetro exterior, de las guías de técnica de AO. La clave es el diámetro con un
+ * decimal, como la escribe `String` (2,0 es `'2'`). Las que falta confirmar con la guía de su implante están en
+ * `BROCAS_POR_CONFIRMAR`; las valida Cristóbal.
+ *
+ * Antes de D-300 había una sola tabla por diámetro (3,5 → 2,5; 4,5 y 6,5 → 3,2; 5 → 4,3) y lo demás salía del 70 %. Con ella el
+ * bloqueado de 3,5 se perforaba con 2,5, como el cortical, y el residente que usaba la broca buena oía que «el agujero quedó ancho».
+ * Del 70 % salían el 2,7 con 1,9, el 2,4 con 1,7 y la esponjosa de 4,0 con 2,8: ninguna de esas brocas existe.
+ */
+export const BROCA_DEL_TORNILLO: Readonly<Record<FamiliaDeBroca, Readonly<Record<string, number>>>> = {
+  cortical: { '4.5': 3.2, '3.5': 2.5, '2.7': 2, '2.4': 1.8, '2': 1.5, '1.5': 1.1 },
+  bloqueado: { '5': 4.3, '3.5': 2.8, '2.7': 2, '2.4': 1.8, '2': 1.5 },
+  esponjosa: { '6.5': 3.2, '4': 2.5 },
+  'perno-de-clavo': { '5': 4.2, '4': 3.2 },
+}
+
+/** Las cifras de `BROCA_DEL_TORNILLO` que se usan sin haberlas confirmado con la guía de técnica de su implante. */
+export const BROCAS_POR_CONFIRMAR: readonly { familia: FamiliaDeBroca; diametroMm: number; nota: string }[] = [
+  { familia: 'bloqueado', diametroMm: 5, nota: 'La de AO es de 4,3; otro fabricante usa 4,1.' },
+  { familia: 'perno-de-clavo', diametroMm: 5, nota: 'La del clavo tibial de AO; otro clavo puede pedir otra.' },
+  { familia: 'perno-de-clavo', diametroMm: 4, nota: 'La del clavo tibial de AO; otro clavo puede pedir otra.' },
+]
+
+/** La clave de un diámetro en la tabla: con un decimal, sin ceros de más. */
+const claveDelDiametro = (diametroMm: number) => String(Math.round(diametroMm * 10) / 10)
+
+/** En qué familias de la tabla se busca la broca de un tornillo, en orden: manda la primera que tenga su diámetro. */
+function familiasDelTornillo(clase: ClaseDelTornillo): readonly FamiliaDeBroca[] {
+  if (clase.deClavo) return ['perno-de-clavo']
+  // Un tornillo de cabeza roscada lleva la broca del bloqueado aunque su tipo diga otra cosa: su núcleo es más grueso.
+  if (clase.bloqueado || clase.tipo === 'bloqueado') return ['bloqueado']
+  if (clase.tipo === 'cortical') return ['cortical']
+  // La rosca parcial es de esponjosa (4,0 y 6,5) o maleolar (4,5, con la broca del cortical de 4,5).
+  if (clase.tipo === 'esponjosa' || clase.tipo === 'rosca-parcial') return ['esponjosa', 'cortical']
+  // El canulado se perfora sobre la aguja guía con su propia broca canulada, que la tabla no tiene: sale estimado.
+  if (clase.tipo === 'canulado') return []
+  // Sin tipo, el mismo orden que la tabla única de antes de D-300: el cortical (3,5 y 4,5), la esponjosa (6,5) y el bloqueado (5,0).
+  return ['cortical', 'esponjosa', 'bloqueado']
+}
+
+export interface BrocaDelTornillo {
+  mm: number
+  /** No sale de la tabla de AO sino de la regla del 70 % (el calibre de núcleo): la consola lo dice para que no pase por una cifra de AO. */
+  estimada: boolean
+}
+
+/** La broca que lleva un tornillo: lo que se perfora **antes** de atornillarlo. */
+export function brocaDelTornillo(diametroMm: number, clase: ClaseDelTornillo = {}): BrocaDelTornillo {
+  const clave = claveDelDiametro(diametroMm)
+  for (const familia of familiasDelTornillo(clase)) {
+    const mm = BROCA_DEL_TORNILLO[familia][clave]
+    if (mm !== undefined) return { mm, estimada: false }
+  }
+  return { mm: Math.round(diametroMm * 0.7 * 10) / 10, estimada: true }
+}
+
+/** El calibre de la broca de un tornillo, en mm (`brocaDelTornillo` sin decir si es estimada). */
+export function calibreDeBrocaParaElTornillo(diametroMm: number, clase: ClaseDelTornillo = {}): number {
+  return brocaDelTornillo(diametroMm, clase).mm
+}
+
+/** La clase de un tornillo a partir de lo que coloca y de su tipo en la bandeja. */
+export function claseDelTornillo(coloca: QueColoca | null | undefined, tipo?: TipoDeTornillo | null): ClaseDelTornillo {
+  if (!coloca || coloca.tipo !== 'tornillo') return { tipo: tipo ?? null }
+  return { tipo: tipo ?? null, bloqueado: coloca.bloqueado, deClavo: !!coloca.soloConClavo }
+}
+
+/** Cómo se nombra el tornillo en un aviso: «este tornillo bloqueado de 3,5 mm». */
+function nombreDeLaClase(clase: ClaseDelTornillo): string {
+  if (clase.deClavo) return 'perno de bloqueo'
+  if (clase.bloqueado || clase.tipo === 'bloqueado') return 'tornillo bloqueado'
+  if (clase.tipo === 'cortical') return 'tornillo cortical'
+  if (clase.tipo === 'esponjosa') return 'tornillo de esponjosa'
+  if (clase.tipo === 'rosca-parcial') return 'tornillo de rosca parcial'
+  if (clase.tipo === 'canulado') return 'tornillo canulado'
+  return 'tornillo'
 }
 
 /** Qué se anotó en un agujero de la placa: lo que se perforó y lo que se midió. */
@@ -138,14 +227,18 @@ export function textoDeLoQueFalta(falta: 'perforar' | 'medir', agujero: number, 
   return `Falta medir el agujero ${n}: el tornillo se pide del largo que dice el medidor.`
 }
 
-/** Si la broca con que se perforó no es la del tornillo, qué se avisa; `null` si es la que corresponde. */
-export function avisoDeCalibre(perforadoMm: number, tornilloMm: number): string | null {
-  const esperado = calibreDeBrocaParaElTornillo(tornilloMm)
-  if (Math.abs(perforadoMm - esperado) < 0.05) return null
+/**
+ * Si la broca con que se perforó no es la del tornillo, qué se avisa; `null` si es la que corresponde. Sin la clase, el tornillo se
+ * juzga como antes de D-300, por el diámetro solo: un bloqueado de 3,5 pasaría por cortical y pediría la broca de 2,5.
+ */
+export function avisoDeCalibre(perforadoMm: number, tornilloMm: number, clase: ClaseDelTornillo = {}): string | null {
+  const broca = brocaDelTornillo(tornilloMm, clase)
+  if (Math.abs(perforadoMm - broca.mm) < 0.05) return null
   const f = (n: number) => String(n).replace('.', ',')
-  return perforadoMm < esperado
-    ? `Se perforó con ${f(perforadoMm)} mm y este tornillo de ${f(tornilloMm)} mm lleva ${f(esperado)} mm: el agujero quedó estrecho.`
-    : `Se perforó con ${f(perforadoMm)} mm y este tornillo de ${f(tornilloMm)} mm lleva ${f(esperado)} mm: el agujero quedó ancho y el tornillo no agarra.`
+  const lleva = `este ${nombreDeLaClase(clase)} de ${f(tornilloMm)} mm lleva ${f(broca.mm)} mm${broca.estimada ? ' (estimado: no está en la tabla de AO)' : ''}`
+  return perforadoMm < broca.mm
+    ? `Se perforó con ${f(perforadoMm)} mm y ${lleva}: el agujero quedó estrecho.`
+    : `Se perforó con ${f(perforadoMm)} mm y ${lleva}: el agujero quedó ancho y el tornillo no agarra.`
 }
 
 /** Qué coloca un instrumento, o `null` si no es una placa ni un tornillo de placa. */
@@ -161,26 +254,91 @@ export function sirveParaMedir(i: { slug?: string | null }): boolean {
 }
 
 /**
- * El rango en que se acepta un largo de tornillo escrito (P-004 E6, pedido 5): de 8 a 120 mm. Es más ancho que el de las
- * sugerencias del medidor (10–60) a propósito: un fémur pide tornillos más largos, y escribir un largo absurdo lo juzga
- * `juzgarTornillo` y no este tope.
+ * El rango en que se acepta un largo de tornillo escrito (P-004 E6, pedido 5): de 8 a 120 mm. Es más ancho que el de cada serie
+ * (`SERIES_DE_LARGOS`) a propósito: escribir un largo absurdo lo juzga `juzgarTornillo` y no este tope.
  */
 export const MINIMO_DEL_TORNILLO_MM = 8
 export const MAXIMO_DEL_TORNILLO_MM = 120
 
+// ------------------------------------------------- los largos que existen (D-301)
+
+/** Los largos en que viene un tornillo: del más corto al más largo, de `pasoMm` en `pasoMm`. */
+export interface SerieDeLargos {
+  minimoMm: number
+  maximoMm: number
+  pasoMm: number
+  /** Cómo se dice en pantalla, con su artículo: «en el pequeño fragmento», «en la esponjosa de 6,5». */
+  nombre: string
+}
+
 /**
- * El largo de tornillo que se pide para un espesor medido: lo medido y dos milímetros, en pasos de 2.
+ * Las series del catálogo base (`INSTRUMENTAL_BASE`, en `instrumental.ts`): el cortical y el bloqueado de 3,5, de 10 a 60 mm de 2 en 2;
+ * la esponjosa de 6,5, de 30 a 120 de 5 en 5; el perno del clavo, de 20 a 100. El medidor mide hasta 60 en el pequeño fragmento y
+ * hasta 110 en el gran fragmento, como dice su ficha.
+ *
+ * Antes de D-301 el medidor nunca sugería más de 60: en una diáfisis de fémur, o con la placa de 4,5 sobre una tibia gruesa, pedía un
+ * tornillo que el propio `juzgarTornillo` daba por unicortical.
+ */
+export const SERIES_DE_LARGOS = {
+  pequenoFragmento: { minimoMm: 10, maximoMm: 60, pasoMm: 2, nombre: 'el pequeño fragmento' },
+  granFragmento: { minimoMm: 10, maximoMm: 110, pasoMm: 2, nombre: 'el gran fragmento' },
+  esponjosa65: { minimoMm: 30, maximoMm: 120, pasoMm: 5, nombre: 'la esponjosa de 6,5' },
+  pernoDeClavo: { minimoMm: 20, maximoMm: 100, pasoMm: 2, nombre: 'los pernos del clavo' },
+} as const satisfies Record<string, SerieDeLargos>
+
+/**
+ * La serie de un sistema, sabiendo solo con qué broca se perforó: con menos de 3 mm (2,5 y 2,8, y las del minifragmento) es el pequeño
+ * fragmento; con más (3,2 y 4,3), el gran fragmento. Es lo que sabe el medidor cuando entra en el agujero, antes de que se elija el
+ * tornillo.
+ */
+export function serieDelSistema(brocaMm: number | null | undefined): SerieDeLargos {
+  return typeof brocaMm === 'number' && brocaMm >= 3 ? SERIES_DE_LARGOS.granFragmento : SERIES_DE_LARGOS.pequenoFragmento
+}
+
+/** La serie de un tornillo conocido, por su diámetro y su clase. */
+export function serieDelTornillo(diametroMm: number, clase: ClaseDelTornillo = {}): SerieDeLargos {
+  if (clase.deClavo) return SERIES_DE_LARGOS.pernoDeClavo
+  if ((clase.tipo === 'esponjosa' || clase.tipo === 'rosca-parcial') && diametroMm >= 6) return SERIES_DE_LARGOS.esponjosa65
+  return diametroMm <= 4 ? SERIES_DE_LARGOS.pequenoFragmento : SERIES_DE_LARGOS.granFragmento
+}
+
+/** El largo de la serie que sigue a `mm`, o el mismo si existe: el más corto que no se queda corto, sin salir de la serie. */
+export function largoDeLaSerie(mm: number, serie: SerieDeLargos): number {
+  // Una millonésima de paso de margen: un espesor de 20 mm que llega como 20,000000001 no tiene que pedir el tornillo siguiente.
+  const pasos = Math.ceil((mm - serie.minimoMm) / serie.pasoMm - 1e-6)
+  return Math.min(serie.maximoMm, Math.max(serie.minimoMm, serie.minimoMm + pasos * serie.pasoMm))
+}
+
+/** Lo que tiene que medir el tornillo para un espesor medido: el espesor, la placa y la holgura, y dos milímetros de punta. */
+function largoQueHaceFalta(espesorMm: number, antesDelHuesoMm: number): number {
+  return espesorMm + Math.max(0, antesDelHuesoMm) + 2
+}
+
+/**
+ * El largo de tornillo que se pide para un espesor medido: lo medido y dos milímetros, redondeado al largo siguiente de la serie.
  *
  * `antesDelHuesoMm` es lo que hay entre la cara de arriba de la placa y la cortical cercana (la placa
  * misma y la holgura si no apoya del todo). El medidor de profundidad de verdad lee desde la placa, así
  * que lo cuenta. Sin él, el servidor pedía un tornillo de 36 mm para un agujero en el que solo el de 52
  * cruzaba las dos corticales: la placa del caso de prueba quedaba 14 mm sobre el hueso, y el medidor
  * mandaba a poner un tornillo que juzgaba corto él mismo.
+ *
+ * Sin serie, la del pequeño fragmento, que es la que había antes de D-301.
  */
-export function largoSugerido(espesorMm: number, antesDelHuesoMm = 0): number {
-  if (!(espesorMm > 0)) return 10
-  const total = espesorMm + Math.max(0, antesDelHuesoMm)
-  return Math.min(60, Math.max(10, Math.ceil((total + 2) / 2) * 2))
+export function largoSugerido(espesorMm: number, antesDelHuesoMm = 0, serie: SerieDeLargos = SERIES_DE_LARGOS.pequenoFragmento): number {
+  if (!(espesorMm > 0)) return serie.minimoMm
+  return largoDeLaSerie(largoQueHaceFalta(espesorMm, antesDelHuesoMm), serie)
+}
+
+/**
+ * Lo que se le dice a quien mide cuando el tornillo más largo de la serie no alcanza: cuánto haría falta y hasta dónde llega. `null` si
+ * alcanza. Antes de D-301 el medidor pedía el de 60 sin decir nada, aunque no llegara a la cortical opuesta.
+ */
+export function avisoDelLargo(espesorMm: number, antesDelHuesoMm: number, serie: SerieDeLargos): string | null {
+  if (!(espesorMm > 0)) return null
+  const hacenFalta = largoQueHaceFalta(espesorMm, antesDelHuesoMm)
+  if (hacenFalta <= serie.maximoMm + 1e-6) return null
+  return `Harían falta ${Math.ceil(hacenFalta)} mm, y en ${serie.nombre} el más largo es de ${serie.maximoMm} mm.`
 }
 
 /** Hasta cuánto puede asomar la punta por la cortical opuesta antes de molestar a las partes blandas. */
@@ -266,6 +424,11 @@ export interface TornilloPuesto {
   punteria?: 'acierta' | 'roza' | 'falla'
   /** Con qué se apretó y qué se avisó (P-005 E6); sin esto, el tornillo está puesto y sin apretar. */
   apriete?: { apretado: boolean; texto: string; aviso: string | null }
+  /**
+   * Puesto por una trayectoria que cruza la fractura (D-308): pasa de un fragmento al otro y bloquea el foco, comprima
+   * o no. Lo marca la escena, que es la que sabe dónde corta la trayectoria al trazo.
+   */
+  cruzaLaFractura?: boolean
 }
 
 /** Un trozo de hueso bajo la placa (P-009). */
@@ -289,6 +452,12 @@ export interface ResumenDelAsiento {
   trozos: TrozoBajoLaPlaca[]
   /** Los agujeros que no tienen hueso debajo. */
   agujerosSinHueso: number
+  /**
+   * El trozo bajo cada agujero, por su índice (D-309): el nodo de su malla, o `null` si ese agujero no tiene hueso debajo.
+   * Es lo que permite contar los tornillos por fragmento y saber cuándo la placa ya toma los dos. Opcional porque una
+   * sesión guardada antes no lo trae: sin él se cuentan todos juntos, como antes.
+   */
+  trozoDeCadaAgujero?: (string | null)[]
 }
 
 /**
@@ -421,17 +590,78 @@ export interface EstadoDeLaFijacion {
   compresion?: { mm: number; tecnicas: ('excentrico' | 'deslizamiento' | 'rosca-parcial')[] } | null
 }
 
+/** Lo que `resumenDeLaFijacion` necesita saber del caso para contar por fragmento (D-309). */
+export interface OpcionesDelResumen {
+  /** El caso tiene un trozo marcado como fragmento: hay fractura, y hay lados que contar. */
+  hayFractura?: boolean
+  /** Cómo se nombra un trozo ante quien opera: la etiqueta de su pieza o, sin ella, el nodo. */
+  nombreDe?: (nodo: string) => string
+}
+
+/** Los tornillos puestos por los agujeros de la placa: ni los de una trayectoria ni los del clavo. */
+const deLaPlaca = (t: TornilloPuesto) => !t.libre && !t.deClavo && t.agujero >= 0
+
+/**
+ * Los tornillos de la placa en cada fragmento principal (D-309), o `undefined` si no hay con qué contarlos: sin fractura,
+ * sin placa o con una placa asentada antes de que el asiento dijera el trozo de cada agujero.
+ *
+ * Los principales son los dos trozos con más agujeros debajo. Un tercero —una mariposa bajo la placa— no tiene que
+ * llevar tres tornillos, y contarlo dejaría sin aprobar una placa bien puesta.
+ */
+function tornillosPorFragmento(estado: EstadoDeLaFijacion, opciones: OpcionesDelResumen): TornillosDelFragmento[] | undefined {
+  const porAgujero = estado.placa?.asiento?.trozoDeCadaAgujero
+  if (!opciones.hayFractura || !estado.placa?.asiento || !porAgujero) return undefined
+  const nombreDe = opciones.nombreDe ?? ((nodo: string) => nodo.replace(/_/g, ' '))
+  return estado.placa.asiento.trozos
+    .filter((t) => t.agujeros > 0)
+    .slice(0, 2)
+    .map((t) => {
+      const suyos = estado.tornillos.filter((s) => deLaPlaca(s) && porAgujero[s.agujero] === t.nodo)
+      return { nodo: t.nodo, nombre: nombreDe(t.nodo), tornillos: suyos.length, bloqueados: suyos.filter((s) => s.bloqueado).length }
+    })
+}
+
+/**
+ * Si lo puesto ya bloquea el foco (D-308): los dos fragmentos quedan unidos por el implante y la reducción, congelada.
+ *
+ * - Un tornillo que cruza la fractura: el de tracción, o cualquiera puesto por una trayectoria que pasa de un trozo al
+ *   otro (`cruzaLaFractura`, que marca la escena).
+ * - La placa con tornillos en dos fragmentos. Con el primero en un trozo la placa todavía se puede corregir; el que
+ *   entra en el segundo es el que fija.
+ * - El clavo con un tornillo de bloqueo que agarró su orificio arriba y otro abajo. Uno que falló el orificio no bloquea
+ *   nada (`bloqueoDelClavo.ts`).
+ *
+ * Es la regla de cuándo se mide la reducción para el error de fijar sin reducir (`juicioDelBloqueo`, `simulador.ts`).
+ */
+export function focoBloqueado(estado: EstadoDeLaFijacion | null): boolean {
+  if (!estado) return false
+  const tornillos = estado.tornillos
+  if (tornillos.some((t) => t.cruzaLaFractura)) return true
+  const agarra = (t: TornilloPuesto, zona: 'P' | 'D') => !!t.deClavo?.startsWith(zona) && t.punteria !== 'falla'
+  if (tornillos.some((t) => agarra(t, 'P')) && tornillos.some((t) => agarra(t, 'D'))) return true
+  const porAgujero = estado.placa?.asiento?.trozoDeCadaAgujero
+  if (!porAgujero) return false
+  const trozos = new Set(tornillos.filter(deLaPlaca).map((t) => porAgujero[t.agujero] ?? null).filter((n): n is string => !!n))
+  return trozos.size >= 2
+}
+
 /**
  * El resumen de la fijación para evaluar un paso: cuántos tornillos y cuántos
  * son bicorticales. Una placa sin tornillos no fija nada.
+ *
+ * Con `opciones.hayFractura`, además los tornillos de la placa en cada fragmento principal (D-309).
  */
-export function resumenDeLaFijacion(estado: EstadoDeLaFijacion | null): {
+export function resumenDeLaFijacion(
+  estado: EstadoDeLaFijacion | null,
+  opciones: OpcionesDelResumen = {},
+): {
   placa: boolean
   tornillos: number
   bicorticales: number
   largos: number
   /** Cuánto se comprimió la fractura con lo puesto, en mm (P-004 E10). */
   compresionMm: number
+  porFragmento?: TornillosDelFragmento[]
 } {
   const compresionMm = estado?.compresion?.mm ?? 0
   // Sin placa pero con tornillos (los de una trayectoria de dos clics, P-004 E9) se cuentan igual: un tornillo de tracción es una fijación.
@@ -444,11 +674,13 @@ export function resumenDeLaFijacion(estado: EstadoDeLaFijacion | null): {
       compresionMm,
     }
   }
+  const porFragmento = tornillosPorFragmento(estado, opciones)
   return {
     placa: true,
     tornillos: estado.tornillos.length,
     bicorticales: estado.tornillos.filter((t) => t.bicortical).length,
     largos: estado.tornillos.filter((t) => t.puntaFueraMm > PUNTA_FUERA_MAXIMA_MM).length,
     compresionMm,
+    ...(porFragmento ? { porFragmento } : {}),
   }
 }

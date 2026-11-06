@@ -9,7 +9,7 @@
  * Es puro y sin three: lo lee la consola y se prueba con números.
  */
 
-import { calibreDeBrocaParaElTornillo, type EstadoDelAgujero } from './fijacion'
+import { calibreDeBrocaParaElTornillo, type ClaseDelTornillo, type EstadoDelAgujero } from './fijacion'
 
 export type TipoDeTornillo = 'cortical' | 'esponjosa' | 'rosca-parcial' | 'bloqueado' | 'canulado' | 'otro'
 
@@ -117,7 +117,7 @@ export function instrumentoDeLaEtapa<T extends CandidatoDeLaSecuencia>(
   etapa: EtapaDeFijacion,
   bandeja: readonly T[],
   queHace: (i: T) => QueHaceElCandidato,
-  preferencias: { ultimoTornilloId?: string | null; diametroDelTornilloMm?: number | null } = {},
+  preferencias: { ultimoTornilloId?: string | null; diametroDelTornilloMm?: number | null; claseDelTornillo?: ClaseDelTornillo } = {},
 ): T | null {
   if (etapa === 'medir') return bandeja.find((i) => queHace(i).mide) ?? null
   if (etapa === 'atornillar') {
@@ -126,7 +126,8 @@ export function instrumentoDeLaEtapa<T extends CandidatoDeLaSecuencia>(
   }
   const brocas = bandeja.filter((i) => queHace(i).perfora)
   if (preferencias.diametroDelTornilloMm) {
-    const calibre = calibreDeBrocaParaElTornillo(preferencias.diametroDelTornilloMm)
+    // Con la clase (D-300): después de un bloqueado de 3,5 se ofrece la de 2,8, no la de 2,5 del cortical.
+    const calibre = calibreDeBrocaParaElTornillo(preferencias.diametroDelTornilloMm, preferencias.claseDelTornillo)
     const justa = brocas.find((i) => Math.abs((queHace(i).diametroMm ?? -1) - calibre) < 0.05)
     if (justa) return justa
   }

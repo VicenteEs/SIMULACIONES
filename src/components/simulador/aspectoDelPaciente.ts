@@ -44,7 +44,9 @@ const sinTildes = (texto: string) => texto.normalize('NFD').replace(/[̀-ͯ]/g, 
 /**
  * Qué aspecto lleva una pieza. El papel del caso manda, con dos matices que el papel no distingue: la fascia
  * superficial va con la piel (se corta con ella) pero no es piel ni lleva vello, y bajo «músculo» entran también
- * vasos, nervios, tendones y ligamentos, que no tienen fibras de músculo.
+ * tendones y ligamentos, que no tienen fibras de músculo. Los vasos y los nervios llevan su papel desde P-012 (E6) y
+ * el aspecto de lo húmedo con él; los casos guardados antes los siguen trayendo como «músculo», y para ellos queda
+ * el nombre.
  *
  * El sistema llega en los `extras` que escribe el exportador del atlas (`exportarAtlas.ts`). Los nombres de
  * BodyParts3D no dicen «muscle» («Right soleus»), así que un modelo sin sistema —uno viejo, uno de otra fuente— se
@@ -61,6 +63,7 @@ export function aspectoDe(pieza: Nombrada, rol: RolDePieza | undefined): Aspecto
   if (rol === 'piel') return esFascia ? 'fascia' : 'piel'
   if (rol === 'fascia') return 'fascia'
   if (rol === 'hueso' || rol === 'fragmento') return 'hueso'
+  if (rol === 'vaso' || rol === 'nervio') return 'humedo'
   // «arter» y no «arteri»: en inglés es «artery», y la femoral salía con fibras de músculo.
   if (/tendon|ligament|vena|vein|arter|nervi|nerve/.test(nombre)) return 'humedo'
   if (!sistema || sistema === 'muscular') return 'musculo'

@@ -44,6 +44,10 @@ import * as migration_20261103_005145_bienvenida_y_seccion from './20261103_0051
 import * as migration_20261103_033928_firmas_de_la_ficha from './20261103_033928_firmas_de_la_ficha';
 import * as migration_20261103_222204_posicion_reducida_de_las_piezas from './20261103_222204_posicion_reducida_de_las_piezas';
 import * as migration_20261104_034906_privacidad_modos_y_avance from './20261104_034906_privacidad_modos_y_avance';
+import * as migration_20261105_185336_topes_por_plano from './20261105_185336_topes_por_plano';
+import * as migration_20261105_193153_tornillos_por_fragmento_y_nota_del_servidor from './20261105_193153_tornillos_por_fragmento_y_nota_del_servidor';
+import * as migration_20261105_204916_rol_vaso_y_nervio from './20261105_204916_rol_vaso_y_nervio';
+import * as migration_20261105_222046_manguito_y_tiempos from './20261105_222046_manguito_y_tiempos';
 
 export const migrations = [
   {
@@ -274,6 +278,26 @@ export const migrations = [
   {
     up: migration_20261104_034906_privacidad_modos_y_avance.up,
     down: migration_20261104_034906_privacidad_modos_y_avance.down,
-    name: '20261104_034906_privacidad_modos_y_avance'
+    name: '20261104_034906_privacidad_modos_y_avance',
+  },
+  {
+    up: migration_20261105_185336_topes_por_plano.up,
+    down: migration_20261105_185336_topes_por_plano.down,
+    name: '20261105_185336_topes_por_plano',
+  },
+  {
+    up: migration_20261105_193153_tornillos_por_fragmento_y_nota_del_servidor.up,
+    down: migration_20261105_193153_tornillos_por_fragmento_y_nota_del_servidor.down,
+    name: '20261105_193153_tornillos_por_fragmento_y_nota_del_servidor',
+  },
+  {
+    up: migration_20261105_204916_rol_vaso_y_nervio.up,
+    down: migration_20261105_204916_rol_vaso_y_nervio.down,
+    name: '20261105_204916_rol_vaso_y_nervio',
+  },
+  {
+    up: migration_20261105_222046_manguito_y_tiempos.up,
+    down: migration_20261105_222046_manguito_y_tiempos.down,
+    name: '20261105_222046_manguito_y_tiempos'
   },
 ];

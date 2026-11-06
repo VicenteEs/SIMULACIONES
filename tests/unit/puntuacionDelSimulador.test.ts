@@ -109,10 +109,15 @@ describe('el tope del marcador y lo que de verdad se cobra', () => {
 
 describe('los topes de la reducción', () => {
   it('la diástasis hereda el tope del desplazamiento cuando el paso no la declara', () => {
+    // Sin técnica ni topes por plano, los planos no se piden y el acortamiento es la diástasis: lo de antes (D-305).
     expect(topesDeReduccion({ toleranciaDesplazamiento: 2 })).toEqual({
       desplazamiento: 2,
       diastasis: 2,
       angulacion: 5,
+      coronal: null,
+      sagital: null,
+      rotacion: null,
+      acortamiento: 2,
     })
   })
 
@@ -123,11 +128,19 @@ describe('los topes de la reducción', () => {
         toleranciaDiastasis: 8,
         toleranciaAngulacion: 3,
       }),
-    ).toEqual({ desplazamiento: 2, diastasis: 8, angulacion: 3 })
+    ).toEqual({ desplazamiento: 2, diastasis: 8, angulacion: 3, coronal: null, sagital: null, rotacion: null, acortamiento: 8 })
   })
 
   it('sin nada declarado quedan los respaldos que usa la evaluación', () => {
-    expect(topesDeReduccion({})).toEqual({ desplazamiento: 5, diastasis: 5, angulacion: 5 })
+    expect(topesDeReduccion({})).toEqual({
+      desplazamiento: 5,
+      diastasis: 5,
+      angulacion: 5,
+      coronal: null,
+      sagital: null,
+      rotacion: null,
+      acortamiento: 5,
+    })
   })
 
   it('son los mismos números con los que se juzga el gesto', () => {

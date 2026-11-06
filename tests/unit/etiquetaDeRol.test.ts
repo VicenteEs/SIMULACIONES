@@ -16,13 +16,13 @@ import { Cirugias } from '@/collections/Cirugias'
  * colección, las etiquetas no.
  *
  * `ETIQUETA_DE_ROL` se lee del esquema del panel. Estas pruebas atan las tres
- * puntas que pueden moverse sin que nada falle: que estén los cinco papeles,
+ * puntas que pueden moverse sin que nada falle: que estén todos los papeles,
  * que digan lo mismo que la colección de Payload, y que el taller del atlas la
  * use en vez de volver a escribir su tabla.
  */
 
 describe('la etiqueta de cada papel', () => {
-  it('existe para los cinco papeles, y para ninguno más', () => {
+  it('existe para todos los papeles, y para ninguno más', () => {
     // Derivada de un dato, el compilador ya no garantiza que estén todos: un
     // papel nuevo en `ROLES_DE_PIEZA` sin opción en el esquema se enseñaría en
     // crudo en el taller del atlas, y esta es la única alarma.

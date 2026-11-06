@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { apilar, avanceDeLaFila, avanceValido, INSTANTANEA_VACIA, TOPE_DEL_AVANCE, type AvanceDelCaso } from '@/lib/avanceDelCaso'
-import { EN_EL_MENU, instrumentoDeLaTecla, instrumentosDelMenu, posicionEnElAro } from '@/lib/menuRadial'
+import {
+  cogerEnLaMesa,
+  EN_EL_MENU,
+  instrumentoDeLaTecla,
+  instrumentosDelMenu,
+  MESA_VACIA,
+  posicionEnElAro,
+  sitiosDeLaMesa,
+  type MesaDeMayo,
+} from '@/lib/menuRadial'
 
 const avance = (cambios: Partial<AvanceDelCaso> = {}): AvanceDelCaso => ({
   v: 1,
@@ -79,13 +88,67 @@ describe('el menú radial y los atajos (P-009, mejora de uso 9)', () => {
     expect(posicionEnElAro(2, 4, 60)).toEqual({ x: 0, y: 60 })
   })
 
-  it('1 a 5 cogen por orden; Q vuelve al anterior, o al último si la mano está vacía', () => {
-    const recientes = ['broca', 'medidor', 'tornillo']
-    expect(instrumentoDeLaTecla('2', recientes, 'broca')).toBe('medidor')
-    expect(instrumentoDeLaTecla('5', recientes, 'broca')).toBeNull()
-    expect(instrumentoDeLaTecla('q', recientes, 'broca')).toBe('medidor')
-    expect(instrumentoDeLaTecla('Q', recientes, null)).toBe('broca')
-    expect(instrumentoDeLaTecla('q', ['broca'], 'broca')).toBeNull()
-    expect(instrumentoDeLaTecla('x', recientes, null)).toBeNull()
+  // Coger uno tras otro, como en la consola.
+  const cogiendo = (...ids: string[]): MesaDeMayo => ids.reduce(cogerEnLaMesa, MESA_VACIA)
+
+  it('1 a 5 cogen el de su sitio; Q vuelve al anterior, o al último si la mano está vacía', () => {
+    // La tornillo se cogió el último, pero sigue en el sitio 3: el sitio es el del orden de llegada.
+    const mesa = cogiendo('broca', 'medidor', 'tornillo')
+    expect(mesa.sitios).toEqual(['broca', 'medidor', 'tornillo', null, null])
+    expect(instrumentoDeLaTecla('2', mesa, 'tornillo')).toBe('medidor')
+    expect(instrumentoDeLaTecla('5', mesa, 'tornillo')).toBeNull()
+    expect(instrumentoDeLaTecla('q', mesa, 'tornillo')).toBe('medidor')
+    expect(instrumentoDeLaTecla('Q', mesa, null)).toBe('tornillo')
+    expect(instrumentoDeLaTecla('q', cogiendo('broca'), 'broca')).toBeNull()
+    expect(instrumentoDeLaTecla('x', mesa, null)).toBeNull()
+    expect(instrumentoDeLaTecla('1', MESA_VACIA, null)).toBeNull()
+  })
+})
+
+describe('la mesa de Mayo, con sitios fijos (P-012 E5)', () => {
+  const cogiendo = (...ids: string[]): MesaDeMayo => ids.reduce(cogerEnLaMesa, MESA_VACIA)
+
+  it('volver a coger uno no mueve a nadie: la broca sigue siendo el 1 después de coger el medidor', () => {
+    // Era el fallo de antes: la tecla 1 era siempre la última cogida, y cada instrumento renumeraba a los demás.
+    const mesa = cogiendo('broca', 'medidor', 'broca', 'medidor', 'broca')
+    expect(mesa.sitios.slice(0, 2)).toEqual(['broca', 'medidor'])
+    expect(instrumentoDeLaTecla('1', mesa, 'broca')).toBe('broca')
+    expect(instrumentoDeLaTecla('2', mesa, 'broca')).toBe('medidor')
+  })
+
+  it('con la mesa llena, el que entra ocupa el sitio del que lleva más tiempo sin usarse', () => {
+    const llena = cogiendo('a', 'b', 'c', 'd', 'e')
+    expect(llena.sitios).toEqual(['a', 'b', 'c', 'd', 'e'])
+    // Se vuelve a la «a»: el que lleva más tiempo sin usarse pasa a ser la «b».
+    const conF = cogiendo('a', 'b', 'c', 'd', 'e', 'a', 'f')
+    expect(conF.sitios).toEqual(['a', 'f', 'c', 'd', 'e'])
+    // Los demás no se movieron de su tecla.
+    for (const [i, id] of ['a', null, 'c', 'd', 'e'].entries()) if (id) expect(conF.sitios[i]).toBe(id)
+  })
+
+  it('el que vuelve tras salir de la mesa ocupa un sitio libre, no el suyo de antes a la fuerza', () => {
+    const mesa = cogiendo('a', 'b', 'c', 'd', 'e', 'f', 'a')
+    // La «a» salió al entrar la «f» (que ocupó su sitio, el 1); al volver, sale la «b», la más vieja, y la «a» va al 2.
+    expect(mesa.sitios).toEqual(['f', 'a', 'c', 'd', 'e'])
+  })
+
+  it('siempre cinco sitios y nunca un instrumento dos veces', () => {
+    const ids = ['a', 'b', 'c', 'a', 'd', 'e', 'f', 'g', 'b', 'a', 'h', 'c']
+    let mesa = MESA_VACIA
+    for (const id of ids) {
+      mesa = cogerEnLaMesa(mesa, id)
+      const ocupados = mesa.sitios.filter((s): s is string => s !== null)
+      expect(mesa.sitios).toHaveLength(EN_EL_MENU)
+      expect(new Set(ocupados).size).toBe(ocupados.length)
+      // Los de la mesa son justo los cinco últimos cogidos.
+      expect([...ocupados].sort()).toEqual([...instrumentosDelMenu(mesa.recientes)].sort())
+      expect(mesa.sitios).toContain(id)
+    }
+  })
+
+  it('un sitio que ya no vale se vacía en vez de correr a los demás', () => {
+    // Los recientes ya no traen la «b» (fuera de los cinco): su sitio queda libre para el siguiente.
+    expect(sitiosDeLaMesa(['a', 'b', 'c'], ['c', 'a'])).toEqual(['a', null, 'c', null, null])
+    expect(sitiosDeLaMesa([], ['b', 'a'])).toEqual(['a', 'b', null, null, null])
   })
 })

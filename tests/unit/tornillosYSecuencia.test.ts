@@ -158,6 +158,12 @@ describe('instrumentoDeLaEtapa', () => {
     expect(instrumentoDeLaEtapa('brocar', bandeja, que)?.id).toBe('b25')
   })
 
+  it('después de un bloqueado de 3,5, la de 2,8 y no la de 2,5 del cortical (D-300)', () => {
+    const conLaDe28: C[] = [...bandeja, { id: 'b28', nombre: 'Broca 2,8', hace: { perfora: true, mide: false, tornillo: false, diametroMm: 2.8 } }]
+    expect(instrumentoDeLaEtapa('brocar', conLaDe28, que, { diametroDelTornilloMm: 3.5, claseDelTornillo: { bloqueado: true } })?.id).toBe('b28')
+    expect(instrumentoDeLaEtapa('brocar', conLaDe28, que, { diametroDelTornilloMm: 3.5, claseDelTornillo: { tipo: 'cortical' } })?.id).toBe('b25')
+  })
+
   it('sin instrumento para ese tiempo, null', () => {
     const sinMedidor = bandeja.filter((i) => i.id !== 'med')
     expect(instrumentoDeLaEtapa('medir', sinMedidor, que)).toBeNull()

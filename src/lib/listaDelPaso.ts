@@ -5,6 +5,7 @@ import {
   rangoDeTrazoEnTexto,
   RETRACCION_MINIMA_MM,
   topesDeReduccion,
+  tornillosQuePideElFragmento,
   type Gesto,
   type Objetivo,
   type PasoQuirurgico,
@@ -25,8 +26,11 @@ import {
  * lista. La prueba (`listaDelPaso.test.ts`) cruza las dos: con la lista entera hecha, el gesto avanza.
  */
 
-/** `hecho`: se cumple. `falta`: todavía no. `pasado`: se pasó, y aplicar ahora sería una complicación. */
-export type EstadoDelPunto = 'hecho' | 'falta' | 'pasado'
+/**
+ * `hecho`: se cumple. `falta`: todavía no. `pasado`: se pasó, y aplicar ahora sería una complicación. `anotado`: solo en
+ * evaluación, ya hay hecho algo de lo que el punto mide, y no se dice si está bien (E4 de P-012).
+ */
+export type EstadoDelPunto = 'hecho' | 'falta' | 'pasado' | 'anotado'
 
 export interface PuntoDeLaLista {
   clave: string
@@ -44,6 +48,13 @@ export interface OpcionesDeLaLista {
   revelarElInstrumento: boolean
   /** El nombre del instrumento del paso, para decirlo cuando se puede. */
   nombreDelInstrumento?: string | null
+  /**
+   * Si la lista dice si lo de ahora se acierta (E4 de P-012). En práctica sí: es para lo que existe, para que «Aplicar
+   * paso» no se use de sonda. En evaluación no. Una lista que se pone en verde al acertar es una corrección en vivo, y
+   * en pabellón nadie avisa de que la reducción ya vale. Ahí dice qué hay que hacer, marca en gris lo que ya tiene
+   * hecho algo que medir y no enseña las cifras de ahora (`sinJuzgar`).
+   */
+  juzgar: boolean
 }
 
 const coma = (n: number) => (Math.round(n * 10) / 10).toString().replace('.', ',')
@@ -98,14 +109,66 @@ function enElRango(
   return 'hecho'
 }
 
-/** La lista del paso con lo que el residente tiene hecho ahora mismo (el mismo `Gesto` que juzga `evaluarGesto`). */
+/**
+ * La lista del paso con lo que el residente tiene hecho ahora mismo (el mismo `Gesto` que juzga `evaluarGesto`): en
+ * práctica, cada punto juzgado; en evaluación, sin juzgar (`juzgar`).
+ */
 export function listaDelPaso(paso: PasoQuirurgico, gesto: Gesto, opciones: OpcionesDeLaLista): PuntoDeLaLista[] {
+  const lista = listaJuzgada(paso, gesto, opciones)
+  if (opciones.juzgar) return lista
+  // Se rehace cada punto desde su clave, y no se copia lo demás: un `estado` o un `ahora` que se colaran de la lista
+  // juzgada acabarían en el texto oculto para el lector de pantalla, que también se lee.
+  return lista.map(({ clave, texto }) => ({ clave, texto, estado: sinJuzgar(clave, paso, gesto) ? 'anotado' : 'falta' }))
+}
+
+/**
+ * En evaluación, si un punto ya tiene hecho algo que medir (E4 de P-012): la incisión trazada, la perforación, la placa,
+ * los tornillos, el músculo elegido. Es la acción y no si salió bien: el punto del calibre se marca con cualquier broca.
+ *
+ * La reducción y la fuerza no se marcan nunca. Se miden desde que empieza el paso, con el trozo sin tocar y el
+ * deslizador en su sitio, y no hay un gesto que diga «ya lo hice» sin decir también si quedó dentro.
+ */
+function sinJuzgar(clave: string, paso: PasoQuirurgico, gesto: Gesto): boolean {
+  const f = gesto.fijacion
+  switch (clave) {
+    case 'instrumento':
+      return !!gesto.instrumento
+    case 'trazo':
+      return (gesto.trazo ?? 0) > 0
+    case 'perforar':
+    case 'calibre':
+    case 'angulo':
+    case 'bicortical':
+    case 'sinPasarse':
+      return !!gesto.perforacion
+    case 'placa':
+      return !!f && (f.placa || (!!paso.exigeCompresion && f.tornillos > 0))
+    case 'tornillos':
+    case 'porFragmento':
+    case 'bicorticales':
+    case 'largos':
+    case 'compresion':
+      return (f?.tornillos ?? 0) > 0
+    case 'musculo':
+      return !!gesto.plano?.nodo && gesto.plano.accion === (paso.accionDelPlano === 'separar' ? 'separar' : 'cortar')
+    case 'retraido':
+      return (gesto.plano?.retraidoMm ?? 0) > 0
+    case 'cortado':
+      return !!gesto.plano?.cortado
+    default:
+      return false
+  }
+}
+
+function listaJuzgada(paso: PasoQuirurgico, gesto: Gesto, opciones: OpcionesDeLaLista): PuntoDeLaLista[] {
   const lista: PuntoDeLaLista[] = []
   const nombre = opciones.nombreDelInstrumento?.trim()
-  if (paso.instrumento && opciones.revelarElInstrumento && nombre) {
+  if (paso.instrumento && opciones.revelarElInstrumento) {
+    // Sin nombre —el instrumento del paso no está en el instrumental del caso— la lista seguía con «Un instrumento en la
+    // mano» y se ponía en verde con cualquiera, también en práctica (E4 de P-012): un verde que decía que valía lo que no.
     lista.push({
       clave: 'instrumento',
-      texto: `En la mano: ${nombre}`,
+      texto: nombre ? `En la mano: ${nombre}` : 'El instrumento del paso en la mano',
       estado: gesto.instrumento === paso.instrumento ? 'hecho' : 'falta',
     })
   } else {
@@ -126,10 +189,29 @@ export function listaDelPaso(paso: PasoQuirurgico, gesto: Gesto, opciones: Opcio
     }
     case 'reduccion': {
       const topes = topesDeReduccion(paso)
+      const l = gesto.lectura ?? null
+      const porPlano = topes.coronal !== null && topes.sagital !== null && topes.rotacion !== null
+      // Las mismas cifras que juzga `reduccionFueraDeLosTopes` (D-305): con la lectura y topes por plano, el giro va
+      // plano a plano; con un tope de acortamiento propio, lo de a lo largo se parte en los dos sentidos.
+      const angulos: [string, string, number | undefined, number, string][] =
+        porPlano && l
+          ? [
+              ['coronal', 'Plano coronal (varo o valgo)', Math.abs(l.valgo), topes.coronal!, '°'],
+              ['sagital', 'Plano sagital', Math.abs(l.recurvatum), topes.sagital!, '°'],
+              ['rotacion', 'Rotación', Math.abs(l.rotacion), topes.rotacion!, '°'],
+            ]
+          : [['angulacion', 'Angulación', gesto.angulacion, porPlano ? Math.min(topes.coronal!, topes.sagital!, topes.rotacion!) : topes.angulacion, '°']]
+      const aLoLargo: [string, string, number | undefined, number, string][] =
+        l && topes.acortamiento !== topes.diastasis
+          ? [
+              ['diastasis', 'Diástasis', Math.max(0, l.axial), topes.diastasis, 'mm'],
+              ['acortamiento', 'Acortamiento', Math.max(0, -l.axial), topes.acortamiento, 'mm'],
+            ]
+          : [['diastasis', 'Diástasis', gesto.diastasis, Math.min(topes.diastasis, topes.acortamiento), 'mm']]
       const cifras: [string, string, number | undefined, number, string][] = [
         ['desplazamiento', 'Desplazamiento', gesto.desplazamiento, topes.desplazamiento, 'mm'],
-        ['angulacion', 'Angulación', gesto.angulacion, topes.angulacion, '°'],
-        ['diastasis', 'Diástasis', gesto.diastasis, topes.diastasis, 'mm'],
+        ...angulos,
+        ...aLoLargo,
       ]
       for (const [clave, texto, valor, tope, unidad] of cifras) {
         const medido = typeof valor === 'number' && Number.isFinite(valor)
@@ -200,6 +282,21 @@ export function listaDelPaso(paso: PasoQuirurgico, gesto: Gesto, opciones: Opcio
         estado: tornillos >= necesarios ? 'hecho' : 'falta',
         ahora: `${tornillos} de ${necesarios}`,
       })
+      // Por fragmento principal (D-309), con lo que pide cada uno. Solo aparece con la placa asentada sobre una
+      // fractura, que es cuando el gesto trae con qué contarlo: antes, un punto que no se puede cumplir dejaría la lista
+      // en rojo en un caso sin fractura.
+      const porFragmento = paso.tornillosPorFragmento === 0 ? undefined : f?.porFragmento
+      if (porFragmento) {
+        const cruza = porFragmento.length >= 2
+        lista.push({
+          clave: 'porFragmento',
+          texto: 'Los suyos en cada fragmento principal',
+          estado: cruza && porFragmento.every((t) => t.tornillos >= tornillosQuePideElFragmento(paso, t)) ? 'hecho' : 'falta',
+          ahora: cruza
+            ? porFragmento.map((t) => `${t.nombre}, ${t.tornillos} de ${tornillosQuePideElFragmento(paso, t)}`).join(' · ')
+            : 'la placa no cruza la fractura',
+        })
+      }
       if (paso.exigeBicortical) {
         lista.push({
           clave: 'bicorticales',

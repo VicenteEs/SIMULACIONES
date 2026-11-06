@@ -10,6 +10,8 @@
  * un gesto son lo que se puede equivocar sin que se note (el trazo que corta el músculo con la fascia intacta encima).
  */
 
+import { esEstructuraNoble } from './piezasDelCaso'
+
 /** De la superficie hacia dentro: la piel, la fascia que la cubre por debajo, y el músculo. */
 export type PlanoBlando = 'piel' | 'fascia' | 'musculo'
 
@@ -25,9 +27,15 @@ export const NOMBRE_DEL_PLANO: Readonly<Record<PlanoBlando, string>> = {
   musculo: 'Planos profundos',
 }
 
-/** El plano al que pertenece una pieza por su papel en el caso, o `null` si no es de partes blandas (el hueso). */
+/**
+ * El plano al que pertenece una pieza por su papel en el caso, o `null` si no es de partes blandas (el hueso).
+ *
+ * Los vasos y los nervios son del plano muscular (P-012 E6): van entre los músculos, el bisturí profundo los
+ * alcanza y la sutura del plano los cubre. Tienen papel propio para que cortarlos cuente, no plano propio.
+ */
 export function planoDelRol(rol: string | undefined | null): PlanoBlando | null {
   if (rol === 'piel' || rol === 'fascia' || rol === 'musculo') return rol
+  if (esEstructuraNoble(rol)) return 'musculo'
   return null
 }
 

@@ -2,14 +2,23 @@ import { describe, expect, it } from 'vitest'
 import { INSTRUMENTAL_BASE } from '@/lib/instrumental'
 import {
   AGUJERO_VIRGEN,
+  BROCA_DEL_TORNILLO,
+  BROCAS_POR_CONFIRMAR,
   COMPANEROS_DE_LA_PLACA,
   PUNTA_FUERA_MAXIMA_MM,
+  SERIES_DE_LARGOS,
   agujeroMasCercano,
   avisoDeCalibre,
+  avisoDelLargo,
+  brocaDelTornillo,
   calibreDeBrocaParaElTornillo,
+  claseDelTornillo,
   companerosDeLasPlacas,
+  largoDeLaSerie,
   loQueFaltaPara,
   quePuedeColocar,
+  serieDelSistema,
+  serieDelTornillo,
   textoDeLoQueFalta,
   juzgarTornillo,
   largoSugerido,
@@ -176,16 +185,73 @@ describe('lo que acompaña a cada placa (P-003 E6)', () => {
   })
 })
 
-describe('la broca de cada tornillo (P-003 E6)', () => {
-  it('2,5 para el cortical y el bloqueado de 3,5; 3,2 para el de esponjosa; 4,3 para el de bloqueo de clavo', () => {
+describe('la broca de cada tornillo (P-003 E6, por clase desde D-300)', () => {
+  it('sin clase, la de antes: 2,5 para el de 3,5; 3,2 para el de 4,5 y el de esponjosa de 6,5; 4,3 para el de 5,0', () => {
     expect(calibreDeBrocaParaElTornillo(3.5)).toBe(2.5)
     expect(calibreDeBrocaParaElTornillo(6.5)).toBe(3.2)
     expect(calibreDeBrocaParaElTornillo(4.5)).toBe(3.2)
     expect(calibreDeBrocaParaElTornillo(5)).toBe(4.3)
   })
 
-  it('otro calibre sale del 70 % redondeado a décimas', () => {
-    expect(calibreDeBrocaParaElTornillo(2.7)).toBe(1.9)
+  it('el bloqueado de 3,5 lleva la de 2,8, no la de 2,5 del cortical (D-300)', () => {
+    expect(calibreDeBrocaParaElTornillo(3.5, { bloqueado: true })).toBe(2.8)
+    expect(calibreDeBrocaParaElTornillo(3.5, { tipo: 'bloqueado' })).toBe(2.8)
+    expect(calibreDeBrocaParaElTornillo(3.5, { tipo: 'cortical' })).toBe(2.5)
+    // Cabeza roscada manda aunque el tipo escrito diga cortical: el núcleo del bloqueado es más grueso.
+    expect(calibreDeBrocaParaElTornillo(3.5, { tipo: 'cortical', bloqueado: true })).toBe(2.8)
+  })
+
+  it('el perno de un clavo de 5,0 lleva 4,2 y el bloqueado de placa de 5,0, 4,3', () => {
+    expect(calibreDeBrocaParaElTornillo(5, { bloqueado: true, deClavo: true })).toBe(4.2)
+    expect(calibreDeBrocaParaElTornillo(4, { deClavo: true })).toBe(3.2)
+    expect(calibreDeBrocaParaElTornillo(5, { bloqueado: true })).toBe(4.3)
+  })
+
+  it('la tabla de AO entera, por familia', () => {
+    const casos: [number, Parameters<typeof calibreDeBrocaParaElTornillo>[1], number][] = [
+      [4.5, { tipo: 'cortical' }, 3.2],
+      [3.5, { tipo: 'cortical' }, 2.5],
+      [2.7, { tipo: 'cortical' }, 2],
+      [2.4, { tipo: 'cortical' }, 1.8],
+      [2, { tipo: 'cortical' }, 1.5],
+      [1.5, { tipo: 'cortical' }, 1.1],
+      [5, { tipo: 'bloqueado' }, 4.3],
+      [3.5, { tipo: 'bloqueado' }, 2.8],
+      [2.7, { tipo: 'bloqueado' }, 2],
+      [2.4, { tipo: 'bloqueado' }, 1.8],
+      [2, { tipo: 'bloqueado' }, 1.5],
+      [6.5, { tipo: 'esponjosa' }, 3.2],
+      [4, { tipo: 'esponjosa' }, 2.5],
+      [6.5, { tipo: 'rosca-parcial' }, 3.2],
+      [4, { tipo: 'rosca-parcial' }, 2.5],
+      // El maleolar es de rosca parcial y lleva la broca del cortical de 4,5.
+      [4.5, { tipo: 'rosca-parcial' }, 3.2],
+    ]
+    for (const [diametro, clase, broca] of casos) expect(calibreDeBrocaParaElTornillo(diametro, clase), `${diametro} ${clase?.tipo}`).toBe(broca)
+  })
+
+  it('las que daba el 70 % y no existen salen ahora de la tabla: el 2,7 con 2,0, el 2,4 con 1,8, la esponjosa de 4,0 con 2,5', () => {
+    expect(calibreDeBrocaParaElTornillo(2.7)).toBe(2)
+    expect(calibreDeBrocaParaElTornillo(2.4)).toBe(1.8)
+    expect(calibreDeBrocaParaElTornillo(4)).toBe(2.5)
+  })
+
+  it('un diámetro que no está en la tabla sale del 70 % y lo dice', () => {
+    expect(brocaDelTornillo(7)).toEqual({ mm: 4.9, estimada: true })
+    expect(brocaDelTornillo(3.5)).toEqual({ mm: 2.5, estimada: false })
+    // El canulado va con su broca canulada, que la tabla no tiene.
+    expect(brocaDelTornillo(7, { tipo: 'canulado' }).estimada).toBe(true)
+    expect(brocaDelTornillo(3.5, { tipo: 'canulado' }).estimada).toBe(true)
+  })
+
+  it('las cifras por confirmar están en la tabla', () => {
+    for (const c of BROCAS_POR_CONFIRMAR) expect(BROCA_DEL_TORNILLO[c.familia][String(c.diametroMm)]).toBeTypeOf('number')
+  })
+
+  it('la clase sale de lo que coloca el tornillo y de su tipo', () => {
+    expect(claseDelTornillo(quePuedeColocar({ slug: 'tornillo-bloqueado-lcp-3-5' }), 'bloqueado')).toEqual({ tipo: 'bloqueado', bloqueado: true, deClavo: false })
+    expect(claseDelTornillo(quePuedeColocar({ slug: 'tornillo-bloqueo-clavo-5-0' }), 'bloqueado')).toEqual({ tipo: 'bloqueado', bloqueado: true, deClavo: true })
+    expect(claseDelTornillo(null, 'cortical')).toEqual({ tipo: 'cortical' })
   })
 
   it('avisa si el agujero quedó estrecho o ancho, y calla si es el que toca', () => {
@@ -193,6 +259,61 @@ describe('la broca de cada tornillo (P-003 E6)', () => {
     expect(avisoDeCalibre(2.0, 3.5)).toMatch(/estrecho/)
     expect(avisoDeCalibre(3.2, 3.5)).toMatch(/ancho/)
     expect(avisoDeCalibre(3.2, 6.5)).toBeNull()
+  })
+
+  it('el bloqueado de 3,5 perforado con la de 2,5 queda estrecho, y con la de 2,8 es el que toca (D-300)', () => {
+    expect(avisoDeCalibre(2.8, 3.5, { bloqueado: true })).toBeNull()
+    const aviso = avisoDeCalibre(2.5, 3.5, { bloqueado: true })
+    expect(aviso).toMatch(/estrecho/)
+    expect(aviso).toContain('tornillo bloqueado de 3,5 mm lleva 2,8 mm')
+  })
+
+  it('si la broca es estimada, el aviso lo dice', () => {
+    expect(avisoDeCalibre(3.5, 7, { tipo: 'canulado' })).toContain('estimado')
+  })
+})
+
+describe('los largos que existen (D-301)', () => {
+  it('el medidor del gran fragmento pasa de 60: un hueso de 70 con 5 mm de placa pide 78', () => {
+    expect(largoSugerido(70, 5, SERIES_DE_LARGOS.granFragmento)).toBe(78)
+    expect(largoSugerido(90, 0, SERIES_DE_LARGOS.granFragmento)).toBe(92)
+    expect(largoSugerido(120, 0, SERIES_DE_LARGOS.granFragmento)).toBe(110)
+  })
+
+  it('la esponjosa de 6,5 viene de 5 en 5 desde 30', () => {
+    expect(largoSugerido(45, 0, SERIES_DE_LARGOS.esponjosa65)).toBe(50)
+    expect(largoSugerido(10, 0, SERIES_DE_LARGOS.esponjosa65)).toBe(30)
+    expect(largoDeLaSerie(50, SERIES_DE_LARGOS.esponjosa65)).toBe(50)
+    expect(largoDeLaSerie(48, SERIES_DE_LARGOS.esponjosa65)).toBe(50)
+  })
+
+  it('un largo que ya existe no se corre al siguiente por una décima de micra', () => {
+    expect(largoSugerido(20.0000000001)).toBe(22)
+    expect(largoDeLaSerie(48, SERIES_DE_LARGOS.pequenoFragmento)).toBe(48)
+    expect(largoDeLaSerie(47, SERIES_DE_LARGOS.pequenoFragmento)).toBe(48)
+  })
+
+  it('la serie del sistema la da la broca con que se perforó', () => {
+    expect(serieDelSistema(2.5)).toBe(SERIES_DE_LARGOS.pequenoFragmento)
+    expect(serieDelSistema(2.8)).toBe(SERIES_DE_LARGOS.pequenoFragmento)
+    expect(serieDelSistema(3.2)).toBe(SERIES_DE_LARGOS.granFragmento)
+    expect(serieDelSistema(4.3)).toBe(SERIES_DE_LARGOS.granFragmento)
+    expect(serieDelSistema(null)).toBe(SERIES_DE_LARGOS.pequenoFragmento)
+  })
+
+  it('la serie de un tornillo conocido', () => {
+    expect(serieDelTornillo(3.5, { tipo: 'cortical' })).toBe(SERIES_DE_LARGOS.pequenoFragmento)
+    expect(serieDelTornillo(3.5, { bloqueado: true })).toBe(SERIES_DE_LARGOS.pequenoFragmento)
+    expect(serieDelTornillo(6.5, { tipo: 'esponjosa' })).toBe(SERIES_DE_LARGOS.esponjosa65)
+    expect(serieDelTornillo(4.5, { tipo: 'cortical' })).toBe(SERIES_DE_LARGOS.granFragmento)
+    expect(serieDelTornillo(5, { deClavo: true })).toBe(SERIES_DE_LARGOS.pernoDeClavo)
+  })
+
+  it('cuando el más largo de la serie no alcanza, lo dice; cuando alcanza, calla', () => {
+    expect(avisoDelLargo(70, 5, SERIES_DE_LARGOS.pequenoFragmento)).toBe('Harían falta 77 mm, y en el pequeño fragmento el más largo es de 60 mm.')
+    expect(avisoDelLargo(70, 5, SERIES_DE_LARGOS.granFragmento)).toBeNull()
+    expect(avisoDelLargo(56, 2, SERIES_DE_LARGOS.pequenoFragmento)).toBeNull()
+    expect(avisoDelLargo(0, 2, SERIES_DE_LARGOS.pequenoFragmento)).toBeNull()
   })
 })
 

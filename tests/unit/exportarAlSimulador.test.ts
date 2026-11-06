@@ -348,7 +348,7 @@ describe('el taller de piezas rellena solo', () => {
     ).toBe('hueso')
   })
 
-  it('los cinco papeles son exactamente los del campo del caso', () => {
+  it('los papeles son exactamente los del campo del caso', () => {
     // Un papel nuevo en la colección que no estuviera aquí haría que el taller
     // descartara en silencio las propuestas que lo usaran.
     const campo = flattenAllFields({ fields: Cirugias.fields }).find(

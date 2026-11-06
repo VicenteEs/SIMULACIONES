@@ -390,11 +390,16 @@ function resumirAsiento(placa: PlacaColocada, asiento: Asiento, puntos: PuntosDe
   const escala = placa.grupo.scale.x || 1
   const d = placa.desdeElOrigen
   let agujerosSinHueso = 0
+  // El trozo de cada agujero, por su índice (D-309): con él se cuentan los tornillos por fragmento y se sabe cuándo la
+  // placa ya toma los dos, que es cuando bloquea el foco (D-308).
+  const trozoDeCadaAgujero: (string | null)[] = []
   for (const [x, y] of placa.agujerosMm) {
     const c = celdaDe(cara, (x / 1000) * escala - d.x, (-y / 1000) * escala - d.z)
     const t = c < 0 ? -1 : asiento.trozoDeLaCelda[c]
     if (t < 0) agujerosSinHueso++
     else deTrozo(t).agujeros++
+    // El mismo nombre que lleva su trozo en `trozos`, vacío incluido, para que contar por fragmento los encuentre.
+    trozoDeCadaAgujero.push(t < 0 ? null : (puntos.mallas[t]?.name ?? ''))
   }
   const decima = (n: number) => Math.round(n * 10) / 10
   return {
@@ -405,6 +410,7 @@ function resumirAsiento(placa: PlacaColocada, asiento: Asiento, puntos: PuntosDe
       .map(([t, e]) => ({ nodo: puntos.mallas[t]?.name ?? '', agujeros: e.agujeros, holguraMinimaMm: decima(Math.max(0, e.minima) * mm) }))
       .sort((a, b) => b.agujeros - a.agujeros),
     agujerosSinHueso,
+    trozoDeCadaAgujero,
   }
 }
 

@@ -22,6 +22,15 @@ export interface MaterialDelObjeto {
   barniz?: number
 }
 
+/** Lo que cabe en los `extras` de un nodo: JSON, sin funciones ni `undefined`. */
+export type ValorDeExtras =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly ValorDeExtras[]
+  | { readonly [clave: string]: ValorDeExtras }
+
 /** Lo que hace falta saber de un objeto para escribirlo. */
 export interface ObjetoParaGlb {
   /** Nombre del NODO: es lo que la consola busca para encender y apagar. */
@@ -60,8 +69,13 @@ export interface ObjetoParaGlb {
    *
    * No se admite la clave `name`: el cargador de three guarda ahí el nombre del
    * nodo antes de copiar los extras, y una `name` propia lo pisaría.
+   *
+   * Hasta P-012 eran solo textos, números y verdaderos o falsos. El fragmento
+   * lleva desde entonces su posición reducida, sus ejes y la normal del trazo
+   * (D-304), que son un objeto y listas: glTF admite ahí cualquier JSON, y three
+   * y Blender lo copian tal cual.
    */
-  extras?: Record<string, string | number | boolean>
+  extras?: Record<string, ValorDeExtras>
   /**
    * Dónde queda el origen del NODO, en las coordenadas del archivo. Las
    * posiciones van relativas a él.

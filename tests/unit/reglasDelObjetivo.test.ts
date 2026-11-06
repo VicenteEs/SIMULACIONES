@@ -76,9 +76,19 @@ const mensajesDelPanel = (opcion: string): string[] => {
 }
 
 /** El aviso que da el panel al publicar un caso con ese único paso dentro. */
-const avisosDelPanel = (paso: Record<string, unknown>): string => {
+/**
+ * Un caso con algo que reducir (D-306): el fragmento marcado y desplazado al empezar. Va en todos los documentos para que
+ * lo único que se juzgue sea la fila del paso; la regla del caso entero tiene su prueba abajo.
+ */
+const LO_QUE_REDUCE = {
+  piezas: [{ nodo: 'tibia_distal', rol: 'fragmento' }],
+  desplazamientoInicial: { x: 4, y: 0, z: 0, giroX: 0, giroY: 0, giroZ: 0 },
+}
+
+const avisosDelPanel = (paso: Record<string, unknown>, caso: Record<string, unknown> = LO_QUE_REDUCE): string => {
   const documento = depurarDocumento(cirugias, {
     nombre: 'Clavo endomedular de tibia',
+    ...caso,
     pasos: [{ titulo: 'Paso de prueba', ...paso }],
   })
   return faltantes(cirugias, documento).join(' ')
@@ -124,6 +134,12 @@ describe('publicar un paso con el objetivo mal acompañado', () => {
     expect(aviso).toContain('En paso 1:')
   })
 
+  it('avisa del instrumento con tornillos por fragmento, y la colección dice lo mismo (D-309)', () => {
+    // La columna no tiene `DEFAULT`: un número ahí lo tecleó alguien, y `objetivoDelPaso` lo lee como fijación.
+    expect(avisosDelPanel({ objetivo: 'instrumento', tornillosPorFragmento: 3 })).toContain('borre esos números')
+    expect(mensajesDelPanel('instrumento')).toContain(validarEnLaColeccion('instrumento', { tornillosPorFragmento: 3 }))
+  })
+
   it('avisa también del instrumento con un rango de incisión', () => {
     expect(avisosDelPanel({ objetivo: 'instrumento', trazoMaximo: 80 })).toContain(
       'borre esos números',
@@ -158,6 +174,28 @@ describe('publicar un paso con el objetivo mal acompañado', () => {
     expect(avisosDelPanel({ objetivo: 'instrumento' })).toBe('')
     expect(avisosDelPanel({ objetivo: 'fuerza', fuerzaMinima: 20 })).toBe('')
     expect(avisosDelPanel({ objetivo: 'reduccion' })).toBe('')
+  })
+
+  it('la reducción sin nada que reducir dice lo mismo en los dos sitios, y en el panel una sola vez', () => {
+    // La regla es del caso y no de la fila (D-306): el panel la pide por su nombre en la sección «Simulador»
+    // (`revisa`) y la colección la mira en `data`, las dos con `motivoSinNadaQueReducir`.
+    const sinReferencia = { piezas: [{ nodo: 'tibia_distal', rol: 'fragmento' }], desplazamientoInicial: { x: 0, y: 0, z: 0, giroX: 0, giroY: 0, giroZ: 0 } }
+    const delPanel = avisosDelPanel({ objetivo: 'reduccion' }, sinReferencia)
+    const deLaColeccion = (campoDeLaColeccion!.validate as (v: string, o: { data?: unknown; siblingData?: unknown }) => string | true)(
+      'reduccion',
+      { data: sinReferencia, siblingData: { objetivo: 'reduccion' } },
+    )
+    expect(typeof deLaColeccion).toBe('string')
+    expect(delPanel).toContain(String(deLaColeccion))
+    expect(delPanel).toContain('En paso 1:')
+    expect(delPanel.split(String(deLaColeccion))).toHaveLength(2)
+    // Y sin fragmento, el otro motivo, también igual en los dos.
+    const sinFragmento = { piezas: [{ nodo: 'tibia', rol: 'hueso' }] }
+    const otro = (campoDeLaColeccion!.validate as (v: string, o: { data?: unknown; siblingData?: unknown }) => string | true)(
+      'reduccion',
+      { data: sinFragmento, siblingData: { objetivo: 'reduccion' } },
+    )
+    expect(avisosDelPanel({ objetivo: 'reduccion' }, sinFragmento)).toContain(String(otro))
   })
 
   it('guardar un borrador no lo impide', () => {

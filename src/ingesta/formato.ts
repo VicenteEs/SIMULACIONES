@@ -363,6 +363,15 @@ export const INDICACIONES: Readonly<Record<ModuloDeIngesta, Readonly<Record<stri
       'Solo con objetivo «reduccion»: la diástasis aceptable, en milímetros. Si la fuente no lo dice, déjelo vacío.',
     'pasos.toleranciaAngulacion':
       'Solo con objetivo «reduccion»: la angulación aceptable, en grados. Si la fuente no lo dice, déjelo vacío.',
+    'pasos.tecnicaDeReduccion':
+      'Solo con objetivo «reduccion»: «alineacion» (clavo, placa puente) o «anatomica» (tornillo de tracción, placa de compresión, foco articular). Pone los topes de cada plano por omisión. Si la fuente no lo dice, déjelo vacío.',
+    'pasos.toleranciaCoronal':
+      'Solo con objetivo «reduccion»: el varo o valgo aceptable, en grados. Vacío: el de la técnica.',
+    'pasos.toleranciaSagital':
+      'Solo con objetivo «reduccion»: el antecurvatum o recurvatum aceptable, en grados. Vacío: el de la técnica.',
+    'pasos.toleranciaRotacion': 'Solo con objetivo «reduccion»: la rotación aceptable, en grados. Vacío: la de la técnica.',
+    'pasos.toleranciaAcortamiento':
+      'Solo con objetivo «reduccion»: el acortamiento aceptable, en milímetros. Vacío: el de la técnica.',
     'pasos.fuerzaMinima':
       'Solo con objetivo «fuerza»: la fuerza mínima útil, en newtons. Los libros rara vez la dan: sin ella, no use ese objetivo.',
     'pasos.fuerzaMaxima': 'Solo con objetivo «fuerza»: la fuerza máxima útil, en newtons.',
@@ -371,6 +380,8 @@ export const INDICACIONES: Readonly<Record<ModuloDeIngesta, Readonly<Record<stri
       'Solo con objetivo «perforacion»: el ángulo mínimo con el eje del hueso, en grados (90 es perpendicular). Hace falta al menos uno de los dos ángulos.',
     'pasos.anguloMaximo': 'Solo con objetivo «perforacion»: el ángulo máximo con el eje del hueso, en grados.',
     'pasos.tornillosMinimos': 'Solo con objetivo «fijacion»: cuántos tornillos hacen falta en la placa.',
+    'pasos.tornillosPorFragmento':
+      'Solo con objetivo «fijacion»: cuántos tornillos de la placa lleva cada fragmento principal. Vacío: lo de la AO (3 en tibia y antebrazo, 4 en fémur y húmero, 3 si todos son bloqueados). 0: no se cuentan por fragmento.',
     'pasos.musculoDelPlano': 'Solo con objetivo «planos»: el nombre del objeto del músculo en el modelo (por ejemplo «Tibial_anterior_derecho»).',
     'pasos.accionDelPlano': 'Solo con objetivo «planos»: «cortar» o «separar» (retraerlo sin cortarlo).',
     'pasos.exigeBicortical': 'Con «perforacion» o «fijacion»: si tienen que cruzar las dos corticales (verdadero o falso).',

@@ -6,8 +6,8 @@ import { instruccionBreve, listaDelPaso, MEDIDAS_DEL_OBJETIVO } from '@/lib/list
  * La lista viva del paso (P-009, mejora de uso 3). Lo que importa es que no mienta: si todos sus puntos están hechos,
  * «Aplicar paso» avanza, y si uno se pasó, aplicar es una complicación. Por eso se cruza con `evaluarGesto`.
  */
-const practica = { revelarElInstrumento: true, nombreDelInstrumento: 'Bisturí n.º 10' }
-const evaluacion = { revelarElInstrumento: false, nombreDelInstrumento: 'Bisturí n.º 10' }
+const practica = { revelarElInstrumento: true, nombreDelInstrumento: 'Bisturí n.º 10', juzgar: true }
+const evaluacion = { revelarElInstrumento: false, nombreDelInstrumento: 'Bisturí n.º 10', juzgar: false }
 
 const estados = (paso: PasoQuirurgico, gesto: Gesto, opciones = practica) =>
   Object.fromEntries(listaDelPaso(paso, gesto, opciones).map((p) => [p.clave, p.estado]))
@@ -17,12 +17,20 @@ const todoHecho = (paso: PasoQuirurgico, gesto: Gesto, opciones = practica) =>
 describe('la lista del paso', () => {
   const trazo: PasoQuirurgico = { objetivo: 'trazo', instrumento: 'bisturi', trazoMinimo: 80, trazoMaximo: 120 }
 
-  it('en práctica nombra el instrumento; en evaluación no dice cuál es', () => {
+  it('en práctica nombra el instrumento; en evaluación no dice cuál es, y lo anota sin juzgarlo', () => {
     const [enPractica] = listaDelPaso(trazo, { instrumento: 'otro' }, practica)
     expect(enPractica).toMatchObject({ texto: 'En la mano: Bisturí n.º 10', estado: 'falta' })
     const [enEvaluacion] = listaDelPaso(trazo, { instrumento: 'otro' }, evaluacion)
-    expect(enEvaluacion).toMatchObject({ texto: 'Un instrumento en la mano', estado: 'hecho' })
+    expect(enEvaluacion).toMatchObject({ texto: 'Un instrumento en la mano', estado: 'anotado' })
     expect(enEvaluacion.texto).not.toContain('Bisturí')
+  })
+
+  it('en práctica, sin el nombre del instrumento la lista no se pone en verde con cualquiera (E4 de P-012)', () => {
+    const sinNombre = { ...practica, nombreDelInstrumento: null }
+    const [conOtro] = listaDelPaso(trazo, { instrumento: 'otro' }, sinNombre)
+    expect(conOtro).toMatchObject({ texto: 'El instrumento del paso en la mano', estado: 'falta' })
+    const [conElSuyo] = listaDelPaso(trazo, { instrumento: 'bisturi' }, sinNombre)
+    expect(conElSuyo.estado).toBe('hecho')
   })
 
   it('la incisión: corta falta, en el rango está hecha y larga se pasó, con la cifra de ahora', () => {
@@ -98,11 +106,67 @@ describe('la lista del paso', () => {
     expect(evaluarGesto(placa, larga).complicacion).toBe(true)
   })
 
-  it('en evaluación, el músculo se marca con cualquiera elegido: con el del paso diría cuál era', () => {
+  it('en evaluación, el músculo se anota con cualquiera elegido: con el del paso diría cuál era', () => {
     const paso: PasoQuirurgico = { objetivo: 'planos', musculoDelPlano: 'tibial_anterior', accionDelPlano: 'cortar' }
     const otro: Gesto = { instrumento: 'x', plano: { nodo: 'gastrocnemio', accion: 'cortar', cortado: false, retraidoMm: 0 } }
     expect(estados(paso, otro, practica).musculo).toBe('falta')
-    expect(estados(paso, otro, evaluacion).musculo).toBe('hecho')
+    expect(estados(paso, otro, evaluacion).musculo).toBe('anotado')
+    // Con la acción contraria no se anota: el punto dice «con Cortar».
+    const separado: Gesto = { instrumento: 'x', plano: { nodo: 'gastrocnemio', accion: 'separar', cortado: false, retraidoMm: 6 } }
+    expect(estados(paso, separado, evaluacion).musculo).toBe('falta')
+  })
+
+  describe('en evaluación la lista no juzga (E4 de P-012)', () => {
+    it('ningún punto sale en verde ni en rojo, ni con la cifra de ahora', () => {
+      const casos: [PasoQuirurgico, Gesto][] = [
+        [trazo, { instrumento: 'bisturi', trazo: 140 }],
+        [{ objetivo: 'reduccion' }, { instrumento: 'x', desplazamiento: 1, angulacion: 2, diastasis: 0 }],
+        [{ objetivo: 'fuerza', fuerzaMinima: 200, fuerzaMaxima: 400 }, { instrumento: 'x', fuerza: 300 }],
+        [
+          { objetivo: 'perforacion', calibreBroca: 3.2, anguloMinimo: 80, anguloMaximo: 100, exigeBicortical: true },
+          { instrumento: 'x', perforacion: { diametroMm: 4.5, anguloConElEje: 60, bicortical: false, sePasoMm: 9 } },
+        ],
+        [
+          { objetivo: 'fijacion', tornillosMinimos: 6, exigeBicortical: true, exigeCompresion: true },
+          { instrumento: 'x', fijacion: { placa: true, tornillos: 3, bicorticales: 1, largos: 2, compresionMm: 0 } },
+        ],
+        [
+          { objetivo: 'planos', musculoDelPlano: 'tibial_anterior', accionDelPlano: 'separar' },
+          { instrumento: 'x', plano: { nodo: 'gastrocnemio', accion: 'separar', cortado: false, retraidoMm: 2 } },
+        ],
+      ]
+      for (const [paso, gesto] of casos) {
+        for (const p of listaDelPaso(paso, gesto, evaluacion)) {
+          expect(['anotado', 'falta'], `${p.clave} de ${JSON.stringify(paso)}`).toContain(p.estado)
+          expect(p.ahora, p.clave).toBeUndefined()
+        }
+      }
+    })
+
+    it('anota lo que ya tiene hecho algo que medir, aunque esté mal', () => {
+      const broca: PasoQuirurgico = { objetivo: 'perforacion', calibreBroca: 3.2, exigeBicortical: true }
+      const mala: Gesto = { instrumento: 'x', perforacion: { diametroMm: 4.5, anguloConElEje: 60, bicortical: false, sePasoMm: 9 } }
+      expect(estados(broca, mala, practica)).toMatchObject({ calibre: 'falta', bicortical: 'falta', sinPasarse: 'pasado' })
+      expect(estados(broca, mala, evaluacion)).toMatchObject({ perforar: 'anotado', calibre: 'anotado', bicortical: 'anotado', sinPasarse: 'anotado' })
+      expect(estados(broca, { instrumento: 'x' }, evaluacion)).toMatchObject({ perforar: 'falta', calibre: 'falta' })
+      expect(estados(trazo, { instrumento: 'bisturi', trazo: 0 }, evaluacion).trazo).toBe('falta')
+      expect(estados(trazo, { instrumento: 'bisturi', trazo: 20 }, evaluacion).trazo).toBe('anotado')
+    })
+
+    it('la reducción y la fuerza no se anotan nunca: se miden desde el principio del paso', () => {
+      const dentro = estados({ objetivo: 'reduccion' }, { instrumento: 'x', desplazamiento: 0, angulacion: 0, diastasis: 0 }, evaluacion)
+      expect(dentro).toMatchObject({ desplazamiento: 'falta', angulacion: 'falta', diastasis: 'falta' })
+      expect(estados({ objetivo: 'fuerza', fuerzaMinima: 200 }, { instrumento: 'x', fuerza: 300 }, evaluacion).fuerza).toBe('falta')
+    })
+
+    it('los mismos puntos, con el mismo texto, que en práctica', () => {
+      const paso: PasoQuirurgico = { objetivo: 'fijacion', tornillosMinimos: 4, exigeBicortical: true, exigeCompresion: true }
+      const gesto: Gesto = { instrumento: 'x', fijacion: { placa: true, tornillos: 2, bicorticales: 2, largos: 0, compresionMm: 0.4 } }
+      const textos = (opciones: typeof practica) => listaDelPaso(paso, gesto, opciones).map((p) => [p.clave, p.texto])
+      // El texto del instrumento es lo único que cambia: en evaluación no se nombra.
+      expect(textos(evaluacion).slice(1)).toEqual(textos(practica).slice(1))
+      expect(textos(evaluacion)[0]).toEqual(['instrumento', 'Un instrumento en la mano'])
+    })
   })
 
   it('una línea de instrucción por objetivo, sin cifras; y las medidas que cuentan en cada uno', () => {

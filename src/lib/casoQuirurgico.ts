@@ -10,9 +10,11 @@ import type { Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import { ajustesValidos, type AjustesDeInstrumento } from '@/instrumental/modelo'
 import type { EjeLargo } from '@/lib/reduccion'
 import { companerosDeLasPlacas, quePuedeColocar } from '@/lib/fijacion'
+import { categoriaDelInstrumento } from '@/lib/instrumental'
 import { objetivoDelPaso, type Objetivo } from '@/lib/simulador'
 import { transformacionValida } from '@/lib/reduccionAutomatica'
 import { encuadreDelGrupo, posicionDelPaso } from '@/lib/encuadreDelPaso'
+import { manguitoDelDocumento } from '@/lib/relojesDelCaso'
 
 /**
  * Traduce un documento de Payload en lo que la consola necesita.
@@ -120,6 +122,17 @@ function pasosDelCaso(documento: Documento): PasoDeConsola[] {
         typeof p.toleranciaDiastasis === 'number' ? p.toleranciaDiastasis : null,
       toleranciaAngulacion:
         typeof p.toleranciaAngulacion === 'number' ? p.toleranciaAngulacion : null,
+      // Los topes por plano (D-305): una técnica que no está en la lista se lee como ninguna, y el paso se mide como antes.
+      tecnicaDeReduccion:
+        p.tecnicaDeReduccion === 'alineacion'
+          ? ('alineacion' as const)
+          : p.tecnicaDeReduccion === 'anatomica'
+            ? ('anatomica' as const)
+            : null,
+      toleranciaCoronal: typeof p.toleranciaCoronal === 'number' ? p.toleranciaCoronal : null,
+      toleranciaSagital: typeof p.toleranciaSagital === 'number' ? p.toleranciaSagital : null,
+      toleranciaRotacion: typeof p.toleranciaRotacion === 'number' ? p.toleranciaRotacion : null,
+      toleranciaAcortamiento: typeof p.toleranciaAcortamiento === 'number' ? p.toleranciaAcortamiento : null,
       fuerzaMinima: typeof p.fuerzaMinima === 'number' ? p.fuerzaMinima : null,
       fuerzaMaxima: typeof p.fuerzaMaxima === 'number' ? p.fuerzaMaxima : null,
       calibreBroca: typeof p.calibreBroca === 'number' ? p.calibreBroca : null,
@@ -128,6 +141,7 @@ function pasosDelCaso(documento: Documento): PasoDeConsola[] {
       exigeBicortical: p.exigeBicortical === true,
       exigeCompresion: p.exigeCompresion === true,
       tornillosMinimos: typeof p.tornillosMinimos === 'number' ? p.tornillosMinimos : null,
+      tornillosPorFragmento: typeof p.tornillosPorFragmento === 'number' ? p.tornillosPorFragmento : null,
       musculoDelPlano: texto(p.musculoDelPlano),
       accionDelPlano: p.accionDelPlano === 'separar' ? ('separar' as const) : p.accionDelPlano === 'cortar' ? ('cortar' as const) : null,
     }
@@ -203,8 +217,11 @@ function instrumentoDeBandeja(bruto: unknown): InstrumentoDeBandeja | null {
     descripcion: texto(doc.descripcion),
     // La categoría del catálogo («Corte y disección», «Suturas y cierre»…): la
     // bandeja se recorre por ella, como el instrumentador ordena la mesa, y no
-    // como una lista plana de cuarenta cuadros (D-167).
-    categoria: texto(doc.categoria),
+    // como una lista plana de cuarenta cuadros (D-167). Pasa por
+    // `categoriaDelInstrumento` aquí, donde el documento se vuelve instrumento de
+    // la consola, y no en cada sitio que la lee: la mesa, los insumos y «Añadir a
+    // la bandeja» tienen que poner el bisturí en el mismo sitio (D-270).
+    categoria: categoriaDelInstrumento({ categoria: texto(doc.categoria), slug: texto(doc.slug), nombre }),
     // El identificador con que se reconoce qué hace en la escena (corta,
     // separa, perfora): ver `comportamientoDelInstrumento`.
     slug: texto(doc.slug),
@@ -384,6 +401,8 @@ export function casoParaLaConsola(documento: Documento): CasoDeConsola {
     pasos: pasosDelCaso(documento),
     modo: documento.modo === 'practica' || documento.modo === 'evaluacion' ? documento.modo : 'eleccion',
     bandeja: bandejaDelDocumento(documento),
+    // Con su presión y su tope ya saneados (P-012 E5): un caso mal escrito no deja al residente sin reloj.
+    manguito: manguitoDelDocumento(documento.usaManguito, documento.presionDelManguito, documento.topeDelManguito),
     instrumental: bandejaDelCaso(
       Array.isArray(documento.pasos) ? (documento.pasos as Documento[]) : [],
       documento.instrumental,
@@ -497,7 +516,8 @@ export function casoDesdeElFormulario(
     modeloUrl: i.modeloUrl,
     encuadreDelModelo: null,
     ajustes: i.ajustes,
-    categoria: i.categoria,
+    // La misma corrección que `instrumentoDeBandeja`: el editor ve la mesa del residente (D-270).
+    categoria: categoriaDelInstrumento(i),
     slug: i.slug ?? null,
     // Con la mesa completa todo está en la bandeja del residente (P-004 E3).
     enLaBandejaDelCaso: completa || enLaBandeja.has(i.id),

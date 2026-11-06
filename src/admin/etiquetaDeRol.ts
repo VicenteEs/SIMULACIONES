@@ -13,10 +13,10 @@ import type { RolDePieza } from '@/lib/piezasDelCaso'
  * lista.
  *
  * El tipo es `Partial` a propósito. Derivado de un dato y no escrito papel a
- * papel, el compilador ya no puede garantizar que estén los cinco, y un
+ * papel, el compilador ya no puede garantizar que estén todos, y un
  * `Record` completo mentiría justo el día en que alguien añadiera un papel a
  * `ROLES_DE_PIEZA` sin darle opción en el esquema. Quien lo lea tiene que tener
- * a mano un respaldo —el valor crudo—, y que estén los cinco lo comprueba
+ * a mano un respaldo —el valor crudo—, y que estén todos lo comprueba
  * `tests/unit/etiquetaDeRol.test.ts` contra `ROLES_DE_PIEZA` y contra las
  * etiquetas de la colección de Payload.
  */

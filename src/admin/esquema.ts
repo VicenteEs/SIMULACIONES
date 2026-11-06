@@ -211,7 +211,27 @@ export interface Seccion {
    * formulario.
    */
   vista?: 'simulador'
+  /**
+   * Las revisiones del documento entero que se hacen al publicar, además de las
+   * de cada campo (D-306).
+   *
+   * Hay reglas que no caben en un campo ni en sus hermanos: que un paso de
+   * reducción tenga algo que reducir depende del desplazamiento inicial y de
+   * las piezas, que están fuera de la fila del paso. Se declaran por su nombre
+   * y no como una función porque el esquema viaja de la página del servidor al
+   * formulario del navegador como prop, y una función no se puede mandar así;
+   * la función la pone `faltantes` (`src/admin/depurar.ts`), igual que la
+   * pantalla de `vista` la pone el formulario.
+   *
+   * Van en la sección y no en la colección porque el formulario pregunta
+   * sección por sección (`faltantesDeSeccion`): así el aviso sale en la pestaña
+   * donde se arregla, y una sola vez.
+   */
+  revisa?: readonly RevisionDelDocumento[]
 }
+
+/** Las revisiones del documento entero que una sección puede pedir (ver `Seccion.revisa`). */
+export type RevisionDelDocumento = 'reduccion'
 
 export interface Columna {
   nombre: string
@@ -531,7 +551,9 @@ export const CasosAO: EsquemaDeColeccion = {
  *
  * `reduccion` no tiene regla a propósito: sus tres tolerancias tienen
  * `defaultValue: 5` y `DEFAULT 5` en la migración, de modo que siempre hay
- * rango contra el que medir.
+ * rango contra el que medir. Lo que sí le puede faltar está fuera de la fila
+ * —un trozo que empiece desplazado, D-306—, y eso lo revisa la sección
+ * «Simulador» con `revisa: ['reduccion']`.
  */
 export const REGLAS_DEL_OBJETIVO_DEL_PASO: {
   exige: ReglaDeSeleccion[]
@@ -578,7 +600,17 @@ export const REGLAS_DEL_OBJETIVO_DEL_PASO: {
       // fuerza y trazo se crearon sin `DEFAULT`, y ahí un número lo tecleó una
       // persona.
       opcion: 'instrumento',
-      campos: ['fuerzaMinima', 'fuerzaMaxima', 'trazoMinimo', 'trazoMaximo', 'anguloMinimo', 'anguloMaximo', 'tornillosMinimos'],
+      campos: [
+        'fuerzaMinima',
+        'fuerzaMaxima',
+        'trazoMinimo',
+        'trazoMaximo',
+        'anguloMinimo',
+        'anguloMaximo',
+        'tornillosMinimos',
+        // Sin `DEFAULT` en la columna (D-309): un número ahí también lo tecleó alguien, y `objetivoDelPaso` lo lee.
+        'tornillosPorFragmento',
+      ],
       mensaje:
         'Un paso que solo pide elegir el instrumento no puede llevar además un rango de fuerza, de incisión, de ángulo o de tornillos: borre esos números, o cambie el objetivo al que de verdad se mide.',
     },
@@ -636,6 +668,8 @@ export const Cirugias: EsquemaDeColeccion = {
     {
       titulo: 'Simulador',
       vista: 'simulador',
+      // Que los pasos de reducción tengan algo que reducir (D-306): mira el desplazamiento inicial y las piezas.
+      revisa: ['reduccion'],
       descripcion:
         'Es la consola del residente, con el editor encima: lo que se escribe a la derecha se ve cambiar en el lienzo y en el paso. El modelo se exporta desde Blender con el hueso ya partido y REDUCIDO, con cada trozo como un objeto con nombre. El desplazamiento de la fractura se describe en «El caso» del panel, no en el archivo: así la reducción correcta es siempre volver al cero y la consola puede medir cuánto falta.',
       campos: [
@@ -681,6 +715,35 @@ export const Cirugias: EsquemaDeColeccion = {
           multiple: true,
           ayuda:
             'Solo cuenta con «Solo lo que elijo». Declararla sirve para añadir señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Lo que un paso necesita se añade solo, aunque aquí falte.',
+        },
+        {
+          // El manguito de isquemia (P-012 E5). Los topes, los mismos de la colección: `depurarCampo` recorta con estos y
+          // Payload rechaza con aquellos.
+          tipo: 'casilla',
+          nombre: 'usaManguito',
+          etiqueta: 'Se opera con manguito de isquemia',
+          ayuda:
+            'La consola enseña entonces el reloj del manguito y un botón para inflarlo y soltarlo. Avisa media hora antes del tope y lo marca cuando se pasa; el tiempo queda guardado con el recorrido.',
+        },
+        {
+          tipo: 'numero',
+          nombre: 'presionDelManguito',
+          etiqueta: 'Presión del manguito (mmHg)',
+          medio: true,
+          min: 50,
+          max: 500,
+          paso: 10,
+          ayuda: 'Vacía, 300 mmHg: lo habitual en el muslo.',
+        },
+        {
+          tipo: 'numero',
+          nombre: 'topeDelManguito',
+          etiqueta: 'Tope seguido (min)',
+          medio: true,
+          min: 10,
+          max: 240,
+          paso: 5,
+          ayuda: 'Vacío, 120 minutos. Soltar y volver a inflar empieza otro período.',
         },
         {
           tipo: 'numero',
@@ -739,6 +802,8 @@ export const Cirugias: EsquemaDeColeccion = {
                 { valor: 'fragmento', etiqueta: 'Fragmento móvil' },
                 { valor: 'implante', etiqueta: 'Implante' },
                 { valor: 'fascia', etiqueta: 'Fascia' },
+                { valor: 'vaso', etiqueta: 'Vaso' },
+                { valor: 'nervio', etiqueta: 'Nervio' },
               ],
             },
             {
@@ -851,6 +916,42 @@ export const Cirugias: EsquemaDeColeccion = {
               etiqueta: 'Angulación aceptable (°)',
               medio: true,
             },
+            // Los topes por plano (D-305). Vacíos, el paso se mide como antes: con la angulación de arriba, entera.
+            {
+              tipo: 'seleccion',
+              nombre: 'tecnicaDeReduccion',
+              etiqueta: 'Técnica de la reducción',
+              opciones: [
+                { valor: 'alineacion', etiqueta: 'Alineación (estabilidad relativa: clavo, placa puente)' },
+                { valor: 'anatomica', etiqueta: 'Anatómica (estabilidad absoluta: tracción, compresión, foco articular)' },
+              ],
+              ayuda:
+                'Pone los topes de cada plano: alineación, los de Trafton para la diáfisis (varo o valgo 5°, sagital 10°, rotación 10°, acortamiento 10 mm); anatómica, 2° en cada plano y 2 mm. Lo que escriba abajo manda sobre ella. Sin técnica ni topes por plano, el giro se juzga entero contra la angulación.',
+            },
+            {
+              tipo: 'numero',
+              nombre: 'toleranciaCoronal',
+              etiqueta: 'Varo o valgo aceptable (°)',
+              medio: true,
+            },
+            {
+              tipo: 'numero',
+              nombre: 'toleranciaSagital',
+              etiqueta: 'Antecurvatum o recurvatum aceptable (°)',
+              medio: true,
+            },
+            {
+              tipo: 'numero',
+              nombre: 'toleranciaRotacion',
+              etiqueta: 'Rotación aceptable (°)',
+              medio: true,
+            },
+            {
+              tipo: 'numero',
+              nombre: 'toleranciaAcortamiento',
+              etiqueta: 'Acortamiento aceptable (mm)',
+              medio: true,
+            },
             {
               tipo: 'numero',
               nombre: 'fuerzaMinima',
@@ -880,6 +981,15 @@ export const Cirugias: EsquemaDeColeccion = {
               etiqueta: 'Tornillos que hacen falta',
               medio: true,
               ayuda: 'Solo si el objetivo es fijar con placa.',
+            },
+            {
+              // D-309: el total no basta, seis tornillos en un solo trozo aprobaban.
+              tipo: 'numero',
+              nombre: 'tornillosPorFragmento',
+              etiqueta: 'Tornillos por fragmento principal',
+              medio: true,
+              ayuda:
+                'Solo para fijar con placa. Vacío: lo de la AO para la diáfisis, 3 en tibia y antebrazo, 4 en fémur y húmero, y 3 si todos son bloqueados. 0: no se cuentan por fragmento.',
             },
             {
               tipo: 'casilla',

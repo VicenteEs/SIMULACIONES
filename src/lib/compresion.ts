@@ -17,7 +17,7 @@
  * Es puro y sin three: se prueba con números.
  */
 
-import { calibreDeBrocaParaElTornillo } from './fijacion'
+import { calibreDeBrocaParaElTornillo, type ClaseDelTornillo } from './fijacion'
 
 /** Cuánto comprime, como máximo, un tornillo (el de una placa de compresión dinámica), en mm. */
 export const COMPRESION_MAXIMA_POR_TORNILLO_MM = 1
@@ -150,10 +150,23 @@ export interface PerforacionDeLaTrayectoria {
 }
 
 /**
+ * Hasta cuánto antes del fondo de la trayectoria se cuenta que una broca llegó a la cortical lejana, en mm. La cortical de una
+ * diáfisis mide de 4 a 6 mm: una broca que se queda a menos de 2 mm del fondo se llevó casi toda, y la rosca ya no tiene dónde agarrar.
+ */
+export const HASTA_LA_CORTICAL_LEJANA_MM = 2
+
+/**
  * Los calibres con que quedó perforado cada fragmento, a partir de lo perforado por la trayectoria y de a qué distancia de la
- * entrada la cruza la fractura (`distanciaALaFracturaMm`). El **cercano** es lo que va de la entrada a la fractura: lo que se
- * perforó con la broca **más grande** que pasó por ahí. El **lejano** es lo que hay más allá: lo perforado por una broca que
- * llegó más lejos que la fractura (la más chica, si hubo dos). `null`: ese fragmento no se perforó.
+ * entrada la cruza la fractura (`distanciaALaFracturaMm`). `null`: ese fragmento no se perforó.
+ *
+ * - El **cercano** es lo que va de la entrada a la fractura: lo que se perforó con la broca **más grande** que entró.
+ * - El **lejano** es el agujero en la cortical lejana, que es donde agarra la rosca: el de la broca **más grande** de las que llegaron
+ *   a ella, a menos de `HASTA_LA_CORTICAL_LEJANA_MM` del punto más hondo que se perforó.
+ *
+ * Hasta D-302 el lejano era la broca **más chica** de las que pasaron la fractura. Con la de deslizamiento atravesando las dos
+ * corticales y después la de núcleo por el mismo agujero, la más chica era la de núcleo, y la cuenta daba por comprimida una fractura
+ * en la que la rosca no agarra en ninguna parte. La de deslizamiento que pasa un poco la fractura sin llegar a la cortical lejana
+ * sigue valiendo, como en pabellón: el agujero de la cortical lejana sigue siendo el de núcleo.
  */
 export function calibresPorFragmento(
   perforaciones: readonly PerforacionDeLaTrayectoria[],
@@ -161,9 +174,11 @@ export function calibresPorFragmento(
 ): { cercanoMm: number | null; lejanoMm: number | null } {
   const alCercano = perforaciones.filter((p) => p.profundidadMm > 0.5)
   const alLejano = perforaciones.filter((p) => p.profundidadMm > distanciaALaFracturaMm + 0.5)
+  const fondo = Math.max(...alLejano.map((p) => p.profundidadMm))
+  const enLaCorticalLejana = alLejano.filter((p) => p.profundidadMm >= fondo - HASTA_LA_CORTICAL_LEJANA_MM)
   return {
     cercanoMm: alCercano.length > 0 ? Math.max(...alCercano.map((p) => p.diametroMm)) : null,
-    lejanoMm: alLejano.length > 0 ? Math.min(...alLejano.map((p) => p.diametroMm)) : null,
+    lejanoMm: enLaCorticalLejana.length > 0 ? Math.max(...enLaCorticalLejana.map((p) => p.diametroMm)) : null,
   }
 }
 
@@ -177,8 +192,10 @@ export function resultadoDelDeslizamiento(p: {
   cercanoMm: number | null
   lejanoMm: number | null
   diametroExteriorMm: number
+  /** De qué clase es el tornillo, para saber su núcleo (D-300). Sin ella, el del cortical o la esponjosa de ese diámetro. */
+  clase?: ClaseDelTornillo
 }): ResultadoDeCompresion {
-  const nucleo = calibreDeBrocaParaElTornillo(p.diametroExteriorMm)
+  const nucleo = calibreDeBrocaParaElTornillo(p.diametroExteriorMm, p.clase)
   const f = (n: number) => String(n).replace('.', ',')
   if (p.cercanoMm === null || p.lejanoMm === null) {
     return {

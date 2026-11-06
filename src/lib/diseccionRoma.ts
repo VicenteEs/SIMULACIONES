@@ -16,6 +16,7 @@
  */
 
 import type { CapaDeLaHerida } from './exposicion'
+import { planoDelRol } from './planosBlandos'
 
 type Vec3 = [number, number, number]
 
@@ -49,12 +50,15 @@ export function aperturaPorLabioEnMm(fraccion: number, maximoMm: number): number
   return (f * maximoMm) / 2
 }
 
-/** La capa de partes blandas que corresponde al papel de la pieza tocada, o `null` si no es blanda (el hueso). */
+/**
+ * La capa de partes blandas que corresponde al papel de la pieza tocada, o `null` si no es blanda (el hueso).
+ *
+ * Es `planoDelRol` con otro nombre, y por eso lo llama en vez de repetirlo: con su propia lista, un vaso tocado con
+ * las tijeras de disección no era de ninguna capa y la disección no se abría, aunque el vaso se apagase con el
+ * músculo (P-012 E6).
+ */
 export function capaBlandaDelRol(rol: string | undefined): CapaDeLaHerida | null {
-  if (rol === 'piel') return 'piel'
-  if (rol === 'fascia') return 'fascia'
-  if (rol === 'musculo') return 'musculo'
-  return null
+  return planoDelRol(rol)
 }
 
 const resta = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]

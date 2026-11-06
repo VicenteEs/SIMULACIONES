@@ -201,6 +201,14 @@ describe('la placa sobre dos fragmentos', () => {
     expect(a.contactoPct).toBeGreaterThanOrEqual(90)
   })
 
+  it('dice el trozo de cada agujero, que es con lo que se cuentan los tornillos por fragmento (D-309)', () => {
+    const a = poner(0).placa.asiento!
+    expect(a.trozoDeCadaAgujero).toHaveLength(4)
+    const cuantos = (nodo: string) => a.trozoDeCadaAgujero!.filter((n) => n === nodo).length
+    expect(cuantos('Tibia_fragmento_proximal')).toBe(trozo(a, 'Tibia_fragmento_proximal')!.agujeros)
+    expect(cuantos('Tibia_fragmento_distal')).toBe(trozo(a, 'Tibia_fragmento_distal')!.agujeros)
+  })
+
   it('sin reducir, se apoya de lleno en el fragmento que sobresale y no se mete en él', () => {
     // El distal, 3 mm por encima: antes la placa se apoyaba en el proximal y atravesaba el distal (9,5 mm en el caso
     // 3053 del «antes» de P-009).

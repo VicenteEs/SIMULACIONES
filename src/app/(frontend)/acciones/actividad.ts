@@ -21,6 +21,9 @@ import {
 import { MAXIMO_DE_INSUMOS, type InsumoDelRecorrido } from '@/lib/insumos'
 import { limpiarLosDatos, type DatosDeLaLamina } from '@/lib/laminaPostoperatoria'
 import { avanceValido, type AvanceDelCaso } from '@/lib/avanceDelCaso'
+import { sinTiempos, tiemposValidos } from '@/lib/relojesDelCaso'
+import { comprobacionDeLaNota, notaDelRecorrido, recorridoValido, type RecorridoDelCaso } from '@/lib/notaDelRecorrido'
+import { casoParaLaConsola } from '@/lib/casoQuirurgico'
 
 /**
  * Registro de lo que cada residente ha visitado, marcado como leído y jugado.
@@ -438,6 +441,18 @@ function resultadoValido(valor: unknown): ResultadoDeCirugia {
     throw new ErrorDeValidacion('El modo del recorrido tiene que ser práctica o evaluación.')
   }
 
+  // Con qué rehacer la nota (D-310). Roto no tira el resultado entero, a diferencia de lo de arriba: se perderían las
+  // complicaciones de un recorrido de verdad por un tropiezo de forma. Se guarda «sin comprobar», que es lo que el
+  // docente ve, y el motivo queda en el registro del servidor.
+  let recorrido: RecorridoDelCaso | null = null
+  if (r.recorrido !== undefined && r.recorrido !== null) {
+    try {
+      recorrido = recorridoValido(r.recorrido)
+    } catch (error) {
+      console.error('[actividad] el recorrido de la nota no llegó como corresponde:', error)
+    }
+  }
+
   return {
     puntaje,
     puntajeMaximo,
@@ -446,6 +461,42 @@ function resultadoValido(valor: unknown): ResultadoDeCirugia {
     reduccionAutomatica: r.reduccionAutomatica === true,
     radiografia: radiografiaValida(r.radiografia),
     ...(r.modo === 'practica' || r.modo === 'evaluacion' ? { modo: r.modo } : {}),
+    ...(recorrido ? { recorrido } : {}),
+    // Los relojes (P-012 E5), campo a campo: uno mal contado se queda fuera y no tira el resto, por lo mismo que el
+    // recorrido de la nota. Sin la clave no se tocan (un navegador de antes).
+    ...(r.tiempos !== undefined ? { tiempos: tiemposValidos(r.tiempos) } : {}),
+  }
+}
+
+/**
+ * La nota rehecha con los pasos del caso (D-310), o `null` si no se pudo: sin sesión, sin caso o con un fallo al leerlo.
+ *
+ * El caso se lee como lo lee la página que monta la consola —con el usuario efectivo y su acceso— y pasa por
+ * `casoParaLaConsola`, que es de donde la consola saca sus pasos: con dos lecturas distintas, la del servidor mediría
+ * con otro objetivo o con otros topes, y la nota no coincidiría por un motivo que no es del residente. Profundidad 0
+ * porque de los pasos solo hace falta el identificador del instrumento, que `idDeRelacion` saca igual del número.
+ *
+ * Un fallo aquí no impide guardar el recorrido: queda «sin comprobar», con el puntaje que llegó.
+ */
+async function notaDelServidor(
+  documentoId: unknown,
+  recorrido: RecorridoDelCaso,
+): Promise<{ puntaje: number; puntajeMaximo: number } | null> {
+  try {
+    const { activo, usuarioEfectivo } = await obtenerSesion()
+    if (!activo || !usuarioEfectivo) return null
+    const payload = await getPayload({ config })
+    const cirugia = await payload.findByID({
+      collection: 'cirugias',
+      id: exigirIdentificador(documentoId, 'La ficha'),
+      overrideAccess: false,
+      user: usuarioEfectivo as never,
+      depth: 0,
+    })
+    return notaDelRecorrido(casoParaLaConsola(cirugia as unknown as Record<string, unknown>).pasos, recorrido)
+  } catch (error) {
+    console.error('[actividad] no se pudo rehacer la nota del recorrido:', error)
+    return null
   }
 }
 
@@ -475,18 +526,41 @@ export async function registrarResultadoDeCirugia(
   // se puede reintentar, así que su mensaje tiene que llegar tal cual al
   // registro del servidor en vez de esconderse detrás de «vuelva a intentarlo».
   const datos = resultadoValido(resultado)
+  // La nota la pone el servidor (D-310): la suya si pudo rehacerla, y la del navegador al lado si no coinciden.
+  const delServidor = datos.recorrido ? await notaDelServidor(documentoId, datos.recorrido) : null
+  const nota = comprobacionDeLaNota(delServidor, { puntaje: datos.puntaje, puntajeMaximo: datos.puntajeMaximo })
+  // Al registro del servidor también: un descuadre sin trampa detrás es un error del motor o del recorrido, y esta línea
+  // es la que permite encontrarlo.
+  if (nota.comprobacion === 'no-coincide') {
+    console.warn(
+      `[actividad] la nota del caso ${String(documentoId)} no coincide: servidor ${nota.puntaje}/${nota.puntajeMaximo}, navegador ${datos.puntaje}/${datos.puntajeMaximo}.`,
+    )
+  }
+  // El modo de la fila, el del recorrido cuando lo trae (E4 de P-012): se fija al empezar el caso y viaja con lo que
+  // rehace la nota. El que llega suelto con el resultado es el de la pantalla al mandar, y queda solo para los recorridos
+  // de antes. Si no coinciden, manda el del recorrido y se apunta, por lo mismo que la nota.
+  const modo = datos.recorrido?.modo ?? datos.modo
+  if (datos.recorrido?.modo && datos.modo && datos.modo !== datos.recorrido.modo) {
+    console.warn(
+      `[actividad] el modo del caso ${String(documentoId)} no es el de su recorrido: llegó ${datos.modo} y el recorrido es de ${datos.recorrido.modo}.`,
+    )
+  }
 
   let escrito = false
   try {
     escrito = await anotar('cirugias', documentoId, {
-      puntaje: datos.puntaje,
-      puntajeMaximo: datos.puntajeMaximo,
+      puntaje: nota.puntaje,
+      puntajeMaximo: nota.puntajeMaximo,
+      comprobacionDeLaNota: nota.comprobacion,
+      notaDelNavegador: nota.delNavegador,
       complicaciones: datos.complicaciones,
       insumos: datos.insumos,
       reduccionAutomatica: datos.reduccionAutomatica,
       // Solo si vino la clave: un guardado de antes de la radiografía no debe borrar la que ya hay.
       ...(datos.radiografia !== undefined ? { radiografia: datos.radiografia } : {}),
-      ...(datos.modo ? { modoDelRecorrido: datos.modo } : {}),
+      ...(modo ? { modoDelRecorrido: modo } : {}),
+      // Vacíos se guardan como `null` y no como `{}`: la fila de un recorrido sin nada contado no gana un objeto que leer.
+      ...(datos.tiempos !== undefined ? { tiempos: sinTiempos(datos.tiempos) ? null : datos.tiempos } : {}),
     })
   } catch (error) {
     console.error('[actividad] no se pudo guardar el resultado del caso:', error)

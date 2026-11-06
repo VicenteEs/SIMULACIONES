@@ -56,10 +56,20 @@ type Fila = Record<string, unknown>
 const CAMPOS_DEL_OBJETIVO: Record<string, string[]> = {
   instrumento: [],
   trazo: ['trazoMinimo', 'trazoMaximo'],
-  reduccion: ['toleranciaDesplazamiento', 'toleranciaDiastasis', 'toleranciaAngulacion'],
+  reduccion: [
+    'toleranciaDesplazamiento',
+    'toleranciaDiastasis',
+    'toleranciaAngulacion',
+    // Los topes por plano y la técnica que los pone (D-305).
+    'tecnicaDeReduccion',
+    'toleranciaCoronal',
+    'toleranciaSagital',
+    'toleranciaRotacion',
+    'toleranciaAcortamiento',
+  ],
   fuerza: ['fuerzaMinima', 'fuerzaMaxima'],
   perforacion: ['calibreBroca', 'anguloMinimo', 'anguloMaximo', 'exigeBicortical'],
-  fijacion: ['tornillosMinimos', 'exigeBicortical', 'exigeCompresion'],
+  fijacion: ['tornillosMinimos', 'tornillosPorFragmento', 'exigeBicortical', 'exigeCompresion'],
   planos: ['musculoDelPlano', 'accionDelPlano'],
 }
 const TODOS_LOS_RANGOS = Object.values(CAMPOS_DEL_OBJETIVO).flat()
@@ -68,6 +78,8 @@ const ROLES: { valor: RolDePieza; etiqueta: string }[] = [
   { valor: 'piel', etiqueta: 'Piel' },
   { valor: 'fascia', etiqueta: 'Fascia' },
   { valor: 'musculo', etiqueta: 'Músculo' },
+  { valor: 'vaso', etiqueta: 'Vaso' },
+  { valor: 'nervio', etiqueta: 'Nervio' },
   { valor: 'hueso', etiqueta: 'Hueso fijo' },
   { valor: 'fragmento', etiqueta: 'Fragmento móvil' },
   { valor: 'implante', etiqueta: 'Implante' },
@@ -736,7 +748,11 @@ function PanelDePiezas({
     alCambiarPiezas(resultado.piezas)
     setAviso(
       `${resultado.nuevas > 0 ? `Añadidas ${resultado.nuevas}` : 'Ninguna nueva'}` +
-        `${resultado.etiquetadas > 0 ? `, etiquetadas ${resultado.etiquetadas}` : ''} desde el modelo.` +
+        `${resultado.etiquetadas > 0 ? `, etiquetadas ${resultado.etiquetadas}` : ''}` +
+        // La que trae el archivo del taller (D-304): sin ella, el paso de reducción no tiene contra qué medir.
+        `${resultado.conPosicionReducida > 0 ? ', con la posición reducida que trae el modelo' : ''}` +
+        // Los de antes de P-012 (E6), que figuraban como músculo porque no había otro papel.
+        `${resultado.conSuPapel > 0 ? `, ${resultado.conSuPapel === 1 ? '1 vaso o nervio' : `${resultado.conSuPapel} vasos o nervios`} con su papel` : ''} desde el modelo.` +
         (hayFragmento(resultado.piezas) ? '' : ' Falta marcar cuál es el fragmento móvil.'),
     )
   }

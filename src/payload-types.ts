@@ -482,7 +482,7 @@ export interface Instrumental {
    */
   slug?: string | null;
   /**
-   * Agrupa el listado del taller. No cambia nada del simulador.
+   * Agrupa el taller y la mesa de instrumental del simulador, donde el residente busca cada instrumento por su familia. Si se deja en «Perforación y fijación» y el nombre dice otra cosa (bisturí, tijera, separador…), la mesa lo pone en su familia.
    */
   categoria?:
     | (
@@ -1644,6 +1644,9 @@ export interface Cirugia {
    * Solo cuenta con «Solo lo que elijo». Entonces es lo que el residente tendrá delante, más lo que piden los pasos; declararla sirve para AÑADIR señuelos: instrumentos que no usa ningún paso pero que en pabellón estarían ahí. Con «Toda la mesa» el residente ve todo el instrumental y esta lista no se usa.
    */
   instrumental?: (number | Instrumental)[] | null;
+  usaManguito?: boolean | null;
+  presionDelManguito?: number | null;
+  topeDelManguito?: number | null;
   /**
    * Archivo .glb exportado desde Blender con el hueso ya partido. Cada trozo, un objeto con nombre.
    */
@@ -1664,9 +1667,9 @@ export interface Cirugia {
         nodo: string;
         etiqueta?: string | null;
         /**
-         * Piel, fascia y músculo forman las capas que se encienden y apagan. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.
+         * Piel, fascia y músculo forman las capas que se encienden y apagan; vasos y nervios van con el músculo, y cortarlos o perforarlos es una complicación. El fragmento móvil es el que se reduce. El implante empieza oculto y aparece cuando el paso lo coloca.
          */
-        rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia';
+        rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia' | 'vaso' | 'nervio';
         /**
          * La calcula «Reducir automáticamente» en el editor del simulador. Vacía si el modelo ya trae el trozo en su sitio.
          */
@@ -1724,6 +1727,11 @@ export interface Cirugia {
         toleranciaDesplazamiento?: number | null;
         toleranciaDiastasis?: number | null;
         toleranciaAngulacion?: number | null;
+        tecnicaDeReduccion?: ('alineacion' | 'anatomica') | null;
+        toleranciaCoronal?: number | null;
+        toleranciaSagital?: number | null;
+        toleranciaRotacion?: number | null;
+        toleranciaAcortamiento?: number | null;
         fuerzaMinima?: number | null;
         fuerzaMaxima?: number | null;
         calibreBroca?: number | null;
@@ -1731,6 +1739,10 @@ export interface Cirugia {
         anguloMaximo?: number | null;
         tornillosMinimos?: number | null;
         exigeBicortical?: boolean | null;
+        /**
+         * Vacío: lo de la AO para la diáfisis, 3 en tibia y antebrazo, 4 en fémur y húmero, y 3 si todos son bloqueados. 0: no se cuentan por fragmento.
+         */
+        tornillosPorFragmento?: number | null;
         /**
          * Placa de compresión con un tornillo excéntrico en el orificio oval, o tornillo de tracción con broca de deslizamiento o rosca parcial. Sin marcar, el paso no mira la compresión.
          */
@@ -2109,7 +2121,26 @@ export interface Actividad {
     | null;
   reduccionAutomatica?: boolean | null;
   modoDelRecorrido?: ('practica' | 'evaluacion') | null;
+  comprobacionDeLaNota?: ('coincide' | 'no-coincide' | 'sin-comprobar') | null;
+  notaDelNavegador?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   radiografia?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  tiempos?:
     | {
         [k: string]: unknown;
       }
@@ -3743,6 +3774,9 @@ export interface CirugiasSelect<T extends boolean = true> {
   bandeja?: T;
   modo?: T;
   instrumental?: T;
+  usaManguito?: T;
+  presionDelManguito?: T;
+  topeDelManguito?: T;
   modelo?: T;
   milimetrosPorUnidad?: T;
   ejeLargo?: T;
@@ -3790,6 +3824,11 @@ export interface CirugiasSelect<T extends boolean = true> {
         toleranciaDesplazamiento?: T;
         toleranciaDiastasis?: T;
         toleranciaAngulacion?: T;
+        tecnicaDeReduccion?: T;
+        toleranciaCoronal?: T;
+        toleranciaSagital?: T;
+        toleranciaRotacion?: T;
+        toleranciaAcortamiento?: T;
         fuerzaMinima?: T;
         fuerzaMaxima?: T;
         calibreBroca?: T;
@@ -3797,6 +3836,7 @@ export interface CirugiasSelect<T extends boolean = true> {
         anguloMaximo?: T;
         tornillosMinimos?: T;
         exigeBicortical?: T;
+        tornillosPorFragmento?: T;
         exigeCompresion?: T;
         musculoDelPlano?: T;
         accionDelPlano?: T;
@@ -4097,7 +4137,10 @@ export interface ActividadSelect<T extends boolean = true> {
   insumos?: T;
   reduccionAutomatica?: T;
   modoDelRecorrido?: T;
+  comprobacionDeLaNota?: T;
+  notaDelNavegador?: T;
   radiografia?: T;
+  tiempos?: T;
   avance?: T;
   complicaciones?:
     | T

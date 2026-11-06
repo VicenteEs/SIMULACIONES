@@ -8,8 +8,11 @@
  * quiere. Por eso cada familia es ahora un cuadro con su dibujo, todas a la vista a la vez, y al pinchar uno se
  * despliega su lista justo debajo.
  *
- * Sin imports, como `instrumental.ts`: lo leen la consola y las pruebas.
+ * Solo importa `instrumental.ts`, que no importa nada: lo leen la consola y las pruebas, y ninguna debe arrastrar a
+ * Payload ni a three por esto.
  */
+
+import { categoriaDelInstrumento } from '@/lib/instrumental'
 
 /**
  * El dibujo de `IconoInstrumento` que representa a cada familia. Los de «periostio», «fijacion» y «modelado» se
@@ -73,15 +76,18 @@ export const FAMILIAS_DE_LA_PERFORACION = [
 ] as const
 
 /**
- * La familia de la mesa de un instrumento: su categoría del catálogo, salvo «Perforación y fijación», que va en tres
- * por su nombre. Lo que no es ni un medidor ni un destornillador —brocas, guías, camisas, machuelos, avellanadores, el
- * motor— va con las brocas; y un tornillo guardado en esa categoría, con los tornillos, que es donde se lo busca.
+ * La familia de la mesa de un instrumento: su categoría (`categoriaDelInstrumento`, que pone en su sitio lo que quedó
+ * en «Perforación y fijación» por omisión), salvo esa misma, que va en tres por su nombre. Lo que no es ni un medidor
+ * ni un destornillador —brocas, guías, camisas, machuelos, avellanadores, el motor— va con las brocas.
+ *
+ * El tornillo guardado en esa categoría ya no se mira aquí: lo saca `categoriaDelInstrumento` por la primera palabra.
+ * Antes se buscaba «tornillo» en todo el nombre y antes que nada, y un «Medidor de largo de tornillo» habría ido a los
+ * tornillos. Por lo mismo, el destornillador y el medidor se prueban antes de caer en las brocas.
  */
 export function familiaDeLaMesa(i: { categoria?: string | null; slug?: string | null; nombre?: string | null }): string {
-  const categoria = i.categoria ?? 'otros'
+  const categoria = categoriaDelInstrumento(i) ?? 'otros'
   if (categoria !== 'fijacion') return categoria
   const texto = `${i.slug ?? ''} ${i.nombre ?? ''}`.toLowerCase()
-  if (/(^|\s)tornillo/.test(texto)) return 'tornillos'
   if (/destornillador|atornillador|limitador|llave/.test(texto)) return 'destornilladores'
   if (/medidor|calibrador/.test(texto)) return 'medidores'
   return 'brocas'

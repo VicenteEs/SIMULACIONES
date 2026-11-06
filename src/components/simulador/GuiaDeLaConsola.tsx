@@ -71,12 +71,13 @@ const LLAMADAS = [
   {
     icono: Scan,
     titulo: 'Fluoroscopia en vivo',
-    texto: 'Dispare el arco en C en AP, lateral u oblicua, acerque la imagen y arrastre la extremidad bajo el haz.',
+    texto:
+      'Dispare el arco en C en AP, lateral u oblicua, acerque la imagen y arrastre la extremidad bajo el haz. La M agranda el monitor, con la última toma de la otra proyección al lado.',
   },
   {
     icono: Wrench,
-    titulo: 'Instrumental',
-    texto: 'La bandeja por familias: cada paso pide el instrumento correcto, y la consola lo comprueba al usarlo.',
+    titulo: 'Mesa de instrumental',
+    texto: 'Por familias, o pedido por su nombre con la tecla I: cada paso pide el instrumento correcto, y la consola lo comprueba al usarlo.',
   },
 ]
 

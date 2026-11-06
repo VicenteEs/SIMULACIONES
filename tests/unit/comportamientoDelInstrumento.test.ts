@@ -27,6 +27,7 @@ describe('comportamiento del instrumental', () => {
       'broca-1-5',
       'broca-2-0',
       'broca-2-5',
+      'broca-2-8',
       'broca-3-2',
       'broca-3-5',
       'broca-4-5',
@@ -53,6 +54,8 @@ describe('comportamiento del instrumental', () => {
 
   it('las brocas perforan con su calibre, y el instrumental común no hace nada', () => {
     expect(comportamientoDelInstrumento(base('broca-2-5')).perfora?.diametroMm).toBe(2.5)
+    // La del bloqueado LCP de 3,5 (D-300).
+    expect(comportamientoDelInstrumento(base('broca-2-8')).perfora?.diametroMm).toBe(2.8)
     expect(comportamientoDelInstrumento(base('broca-3-2')).perfora?.diametroMm).toBe(3.2)
     // Las de minifragmentos y la de deslizamiento: cada calibre es el suyo.
     expect(comportamientoDelInstrumento(base('broca-1-5')).perfora?.diametroMm).toBe(1.5)

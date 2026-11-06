@@ -15,14 +15,24 @@ import {
   seccionesDelHueso,
   type EjeLargo,
 } from '@/lib/reduccion'
-import { largoVisibleDelAgujero, reconciliarConElModelo } from '@/lib/simulador'
+import {
+  largoVisibleDelAgujero,
+  PASARSE_DE_LA_CORTICAL_MM,
+  reconciliarConElModelo,
+  type LesionDeEstructura,
+} from '@/lib/simulador'
 import { crearGizmo, escalaDelGizmo, type AsaDelGizmo } from '@/atlas/gizmo'
 import { desplazamientoDelArrastre, giroDelArrastre } from '@/atlas/transformar'
 import { ajustarAlSalto, barridoEnPantalla, centroLocalDe, colocarEnElMundo, moverPiezaPorEje } from './asasDelHueso'
-import { propuestaDelNodo, traducirMuestra, type PiezaEnEdicion } from '@/lib/piezasDelCaso'
+import { esEstructuraNoble, propuestaDelNodo, traducirMuestra, type PiezaEnEdicion, type RolDePieza } from '@/lib/piezasDelCaso'
 import { esCasiIdentidad, reducirPorLasCarasDeCorte, type ResultadoDeLaReduccion, type TransformacionRigida } from '@/lib/reduccionAutomatica'
+import { transformacionValida } from '@/lib/transformacionRigida'
+import { anguloDelGiro, lecturaDelDesvio, type LecturaClinica } from '@/atlas/lecturaClinica'
 import {
   correrElOrigenDelArchivo,
+  desvioDelFragmento,
+  ejesDelFragmento,
+  trozoDelFragmento,
   nodosDeHuesoDelArchivo,
   poseDelArchivo,
   poseDelTrayecto,
@@ -136,6 +146,7 @@ import {
 } from '@/lib/posicionDelPaciente'
 import { POSE_AL_CARGAR, aplicarLaPose, poseActual, ponerLaPose, sincronizarElArriba } from './vistaDelPaciente'
 import type { EncuadreDelPaso } from '@/lib/encuadreDelPaso'
+import { acercarHacia, encuadreDeLaHerida, MAS_CERCA_MM, MAS_LEJOS_MM, muescasDeLaRueda } from '@/lib/acercarComoSeMira'
 import type { InstantaneaDelLienzo } from '@/lib/avanceDelCaso'
 import type { AjustesDeLaImagen, DesplazamientoDeLaImagen, ProyeccionDeFluoroscopia } from '@/lib/radiografia'
 import {
@@ -274,12 +285,25 @@ import {
   type EnclavadoEnLaEscena,
 } from './enclavadoEnLaEscena'
 import { agujeroBajoElPunto, ajustarPlaca, apoyoDeLaPlaca, reanclarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, quitarUnTornillo, soltarGrupo, type ImplantesEnEscena, type PlacaColocada, type TornilloEnEscena } from './implantesEnLaEscena'
-import { avisoDeCalibre, avisoDelAsiento, largoSugerido, loQueFaltaPara, textoDeLoQueFalta, type EstadoDelAgujero, type EstadoDeLaFijacion, type QueColoca } from '@/lib/fijacion'
+import {
+  avisoDeCalibre,
+  avisoDelAsiento,
+  avisoDelLargo,
+  claseDelTornillo,
+  largoSugerido,
+  loQueFaltaPara,
+  serieDelSistema,
+  textoDeLoQueFalta,
+  type EstadoDelAgujero,
+  type EstadoDeLaFijacion,
+  type QueColoca,
+} from '@/lib/fijacion'
 import {
   AVISO_DE_LA_FASCIA,
   NOMBRE_DEL_PLANO,
   PLANOS_BLANDOS,
   PROFUNDIDAD_DEL_PLANO,
+  planoDelRol,
   planoQueCorta,
   type PlanoBlando,
 } from '@/lib/planosBlandos'
@@ -411,6 +435,18 @@ interface OpcionesDelCorte {
   reemplaza?: number
 }
 
+/** El fragmento leído como en la ficha (D-303): lo que devuelve `lecturaDelFragmento`. */
+export interface LecturaDelFragmento {
+  /** Distal respecto del proximal, en milímetros y grados, con el signo de la ficha (`LecturaClinica`). */
+  lectura: LecturaClinica
+  /** La angulación total, por el camino más corto. */
+  angulacion: number
+  /** Cuánto se ha ido el foco, en milímetros y en los ejes del modelo: con eso se mide el % del diámetro. */
+  separacionMm: Punto3
+  /** Si se sabe de qué lado es el hueso. Sin él, varo y valgo podrían salir al revés y se dicen sin el sentido. */
+  ladoConocido: boolean
+}
+
 export interface MandoDelLienzo {
   /**
    * Enciende o apaga los nodos indicados.
@@ -444,6 +480,12 @@ export interface MandoDelLienzo {
   girarFragmento: (giros: Punto3) => void
   /** Dónde está el fragmento ahora, en unidades del archivo y en grados. */
   estadoDelFragmento: () => { posicion: Punto3; giros: Punto3 }
+  /**
+   * El fragmento leído como en la ficha (D-303): en su foco, contra su sitio de reposo, con el giro de verdad y
+   * partido en planos. Es lo que mide la consola; `estadoDelFragmento` sigue siendo lo que mueven sus mandos. `null`
+   * sin fragmento o sin sitio de reposo.
+   */
+  lecturaDelFragmento: () => LecturaDelFragmento | null
   /**
    * Borra el trazo dibujado. La herida que ese trazo abrió **se queda**: el
    * residente pasa de un paso a otro y la piel cortada sigue cortada. Con
@@ -685,6 +727,11 @@ export interface MandoDelLienzo {
   estadoDeLaFijacion: () => EstadoDeLaFijacion | null
   /** Encuadra lo que esté visible. */
   encuadrar: () => void
+  /**
+   * «Encuadrar la herida» (P-012 E5, tecla E): la incisión en el centro y de frente, en un movimiento corto. `false` si
+   * todavía no hay ninguna, para que la consola lo diga en vez de no hacer nada.
+   */
+  encuadrarLaHerida: () => boolean
   /** Desde dónde se mira ahora mismo (P-009): lo que el editor guarda como encuadre del paso. `null` antes de cargar. */
   encuadreActual: () => EncuadreDelPaso | null
   /**
@@ -875,7 +922,7 @@ export interface AyudasDeEscopia {
 
 export interface PiezaDelCaso {
   nodo: string
-  rol: 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia'
+  rol: RolDePieza
   etiqueta?: string | null
   /**
    * Lo que lleva el trozo de donde está en el archivo a donde va reducido (P-008 E5), o nada si el archivo ya lo trae
@@ -908,6 +955,7 @@ export function LienzoQuirurgico({
   alCargarInstrumento,
   alHerir,
   alPerforar,
+  alLesionar,
   alCoser,
   alFijar,
   largoDeTornillo = 24,
@@ -1006,6 +1054,11 @@ export function LienzoQuirurgico({
   alHerir?: (estado: EstadoDeLasHeridas | null) => void
   /** Se terminó un agujero (se soltó el botón con la broca). */
   alPerforar?: (hecha: PerforacionHecha) => void
+  /**
+   * Se cortó o se perforó un vaso o un nervio (P-012 E6). Una vez por estructura y por herida: la incisión que se
+   * alarga vuelve a cortar lo que ya estaba cortado, y eso no es otra lesión.
+   */
+  alLesionar?: (lesion: LesionDeEstructura) => void
   /** Cambió la sutura: se puso una puntada, se deshizo una o se quitó todo. `null` si ya no hay sutura. */
   alCoser?: (estado: EstadoDeLaSutura | null) => void
   /** Cambió la fijación (placa, tornillos) o se midió un agujero. */
@@ -1389,6 +1442,7 @@ export function LienzoQuirurgico({
     alCargarInstrumento,
     alHerir,
     alPerforar,
+    alLesionar,
     alCoser,
     alFijar,
     largoDeTornillo,
@@ -1452,6 +1506,7 @@ export function LienzoQuirurgico({
       alCargarInstrumento,
       alHerir,
       alPerforar,
+      alLesionar,
       alCoser,
       alFijar,
       largoDeTornillo,
@@ -1595,6 +1650,26 @@ export function LienzoQuirurgico({
         origen.rotacion.z + radianes(giros.z),
       )
       taller.current.pedirDibujo?.()
+    },
+
+    lecturaDelFragmento: () => {
+      const t = taller.current
+      const { fragmento: f, origenDelFragmento: origen, raiz } = t
+      if (!f || !origen || !raiz) return null
+      // El sitio de reposo como pose del nodo: el mismo que usan `colocarFragmento` y la reducción automática.
+      const reposo = new THREE.Matrix4().compose(origen.posicion, new THREE.Quaternion().setFromEuler(origen.rotacion), f.scale)
+      // Se mide en el origen del nodo, que es el foco cuando el archivo lo puso ahí (`focoEnElOrigen`, D-304) y, en un
+      // modelo de antes, el centro del trozo (`pivoteEnSuCentro`): ahí medía la consola y ahí sigue midiendo.
+      const desvio = desvioDelFragmento(raiz, f, reposo)
+      const mm = ultimas.current.milimetrosPorUnidad || 1000
+      const separacionMm: [number, number, number] = [desvio.separacion[0] * mm, desvio.separacion[1] * mm, desvio.separacion[2] * mm]
+      const { ejes, ladoConocido } = ejesDelFragmento(f, ultimas.current.ejeLargo ?? 'y')
+      return {
+        lectura: lecturaDelDesvio({ giro: desvio.giro, separacionMm }, ejes, trozoQueSeMueve(t, ultimas.current.piezas, ejes.largo, mm)),
+        angulacion: anguloDelGiro(desvio.giro),
+        separacionMm: { x: separacionMm[0], y: separacionMm[1], z: separacionMm[2] },
+        ladoConocido,
+      }
     },
 
     estadoDelFragmento: () => {
@@ -2128,7 +2203,7 @@ export function LienzoQuirurgico({
     doblarLaPlaca: (cambio) => {
       const t = taller.current
       const mesa = t.mesa
-      if (!mesa) return 'Ponga primero una placa en la mesa: con una placa en la mano, «Llevar a la mesa de modelado».'
+      if (!mesa) return 'Ponga primero una placa en la mesa de modelado: con una placa en la mano, «Llevar a la mesa de modelado».'
       if (mesa.sitioMm === null) return 'Apunte primero al sitio: un clic sobre la placa marca dónde se dobla.'
       const soloTorsion = (cambio.flexionGrados ?? 0) === 0
       const bajo = orificioBajoElDoblez(orificiosSMm(mesa), mesa.sitioMm, soloTorsion)
@@ -2281,6 +2356,32 @@ export function LienzoQuirurgico({
     encuadrar: () => {
       const t = taller.current
       encuadrarVisible(t, t.posicion ? poseDeLaPosicion(t.posicion, ultimas.current.ejeLargo) : undefined)
+    },
+
+    // Todas las heridas de todas las capas: las profundas están debajo de la de la piel, así que la caja es casi la
+    // misma, y con la piel ya cerrada queda la del músculo. Los puntos del trazo están en el mundo (`heridas.ts`).
+    encuadrarLaHerida: () => {
+      const t = taller.current
+      const { camara, controles } = t
+      if (!camara || !controles) return false
+      const puntos: [number, number, number][] = []
+      const normales: [number, number, number][] = []
+      for (const lista of t.heridas.values()) {
+        for (const h of lista) {
+          for (const p of h.trazo.puntos) puntos.push([p.x, p.y, p.z])
+          for (const n of h.trazo.normales) normales.push([n.x, n.y, n.z])
+        }
+      }
+      const encuadre = encuadreDeLaHerida(
+        puntos,
+        normales,
+        poseActual(camara, controles),
+        { fovGrados: camara.fov, aspecto: camara.aspect },
+        1 / (ultimas.current.milimetrosPorUnidad || 1000),
+      )
+      if (!encuadre) return false
+      llevarLaCamaraAlEncuadre(t, encuadre)
+      return true
     },
 
     encuadreActual: () => {
@@ -3237,7 +3338,14 @@ export function LienzoQuirurgico({
         aviso('La incisión es demasiado corta para abrir la herida: trace al menos 5 mm.')
         return undefined
       }
-      const nombres = new Set(ultimas.current.piezas.filter((p) => p.rol === plano).map((p) => p.nodo))
+      // Las piezas del plano, que para el muscular son también sus vasos y sus nervios (P-012 E6): el bisturí profundo
+      // los alcanza como alcanza el músculo, y por eso cortarlos se puede. La disección roma, no: aparta lo que encuentra
+      // en vez de partirlo, y el vaso se queda cruzando la herida, que es como se lo ve en pabellón.
+      const nombres = new Set(
+        ultimas.current.piezas
+          .filter((p) => planoDelRol(p.rol) === plano && !(deDiseccion && esEstructuraNoble(p.rol)))
+          .map((p) => p.nodo),
+      )
       // Con un músculo elegido para cortar (P-003 E10) el bisturí profundo corta solo ese y no toda la capa.
       const elegido = ultimas.current.musculoObjetivo
       if (plano === 'musculo' && elegido?.accion === 'cortar' && nombres.has(elegido.nodo)) {
@@ -3286,6 +3394,9 @@ export function LienzoQuirurgico({
         }
       }
       const previo = id !== undefined ? (t.cortes ?? []).find((c) => c.id === id) : undefined
+      // Lo que ya estaba cortado antes de este trazo, mirado antes de cerrar la incisión que se alarga: alargarla la
+      // cierra y la corta otra vez entera, y el vaso que partió la primera mitad no es otra lesión (P-012 E6).
+      const yaCortadas = new Set([...(t.heridas?.values() ?? [])].flat().map((h) => h.malla.name))
       if (id === undefined) id = t.siguienteIncision = (t.siguienteIncision ?? 0) + 1
       else t.siguienteIncision = Math.max(t.siguienteIncision ?? 0, id)
       // La incisión de antes que se alarga o se reemplaza se cierra para hacerla de nuevo: sus separadores y sus
@@ -3335,6 +3446,16 @@ export function LienzoQuirurgico({
       t.heridas.set(plano, [...(t.heridas.get(plano) ?? []), ...hechas])
       t.ultimaHerida = plano
       t.ultimaIncision = id
+      // Un vaso o un nervio que el trazo de ahora partió es una complicación (P-012 E6). Solo con un trazo de verdad: lo
+      // que rehace la sesión o una incisión ya se contó cuando pasó.
+      if (!desdeLaSesion && !esRehacer && !deDiseccion) {
+        for (const herida of hechas) {
+          if (yaCortadas.has(herida.malla.name)) continue
+          const pieza = ultimas.current.piezas.find((p) => p.nodo === herida.malla.name)
+          if (!pieza || !esEstructuraNoble(pieza.rol)) continue
+          ultimas.current.alLesionar?.({ rol: pieza.rol, nombre: pieza.etiqueta?.trim() || pieza.nodo, como: 'corte' })
+        }
+      }
       // Un corte nuevo cambia la piel por debajo de las puntadas de antes: se quitan, y con ellas lo que
       // habían cerrado. Sin esto la sutura vieja seguía diciendo «cerrada al 100 %» sobre una herida abierta.
       t.aperturaAntesDeCoser = undefined
@@ -3660,6 +3781,20 @@ export function LienzoQuirurgico({
       pedirDibujo()
     }
 
+    /**
+     * Los vasos y los nervios que la broca o la aguja atravesaron al pasarse de la cortical opuesta (P-012 E6), uno por
+     * estructura. Solo si se pasó más de lo que se tolera: lo tolerado no le cuesta nada a la nota, y no puede costarle
+     * aquí lo que allí no cuesta.
+     */
+    const avisarDeLoQueAtraviesa = (p: Perforacion, radio: number, unidadesPorMm: number) => {
+      const sePaso = Math.max(0, p.profundidad - p.salidaPorLaOpuesta)
+      if (sePaso / unidadesPorMm <= PASARSE_DE_LA_CORTICAL_MM) return
+      const salida = p.entrada.clone().addScaledVector(p.dirEntra, p.salidaPorLaOpuesta)
+      for (const pieza of nobleQueAtraviesa(taller.current, ultimas.current.piezas, salida, p.dirEntra, sePaso, radio)) {
+        ultimas.current.alLesionar?.({ rol: pieza.rol, nombre: pieza.etiqueta?.trim() || pieza.nodo, como: 'perforacion' })
+      }
+    }
+
     const terminarPerforacion = () => {
       const p = perforando
       perforando = null
@@ -3699,6 +3834,7 @@ export function LienzoQuirurgico({
           ;(viejo.malla.material as THREE.Material).dispose()
         }
         const juicio = juzgarElAlambre(puestos[puestos.length - 1])
+        avisarDeLoQueAtraviesa(p, radio, unidadesPorMm)
         ultimas.current.alCambiarLosAlambres?.(resumenDeLosAlambres(puestos))
         taller.current.decir?.(juicio.aviso ?? `Aguja de Kirschner puesta: ${puestos[puestos.length - 1].profundidadMm.toFixed(0)} mm, bicortical.`)
         ultimas.current.alPerforar?.({
@@ -3733,6 +3869,7 @@ export function LienzoQuirurgico({
         ;(viejo.material as THREE.Material).dispose()
       }
       const sePaso = Math.max(0, p.profundidad - p.salidaPorLaOpuesta)
+      avisarDeLoQueAtraviesa(p, radio, unidadesPorMm)
       // Perforado por la trayectoria de dos clics (P-004 E9): se anota en ella lo mismo que en un agujero de placa, y volver a
       // perforarla borra lo medido, porque el hoyo es otro.
       const porLaTrayectoria = taller.current.trayectoriaDelTornillo
@@ -5841,12 +5978,15 @@ export function LienzoQuirurgico({
           t.decir?.('Por esa trayectoria no hay hueso que medir.')
           return
         }
-        const sugerido = largoSugerido(medida.espesorMm, medida.distanciaAlHuesoMm)
+        // La serie la da la broca con que se perforó (D-301): el medidor entra antes de que se elija el tornillo.
+        const serie = serieDelSistema(libre.estado.perforado?.diametroMm)
+        const sugerido = largoSugerido(medida.espesorMm, medida.distanciaAlHuesoMm, serie)
+        const noAlcanza = avisoDelLargo(medida.espesorMm, medida.distanciaAlHuesoMm, serie)
         libre.estado = { perforado: libre.estado.perforado, medido: { espesorMm: medida.espesorMm, sugeridoMm: sugerido } }
         decirYAvisar({
           tipo: 'medida',
-          texto: `Trayectoria: hueso de ${medida.espesorMm.toFixed(0)} mm. Pida un tornillo de ${sugerido} mm.`,
-          atencion: false,
+          texto: `Trayectoria: hueso de ${medida.espesorMm.toFixed(0)} mm. Pida un tornillo de ${sugerido} mm.${noAlcanza ? ` ${noAlcanza}` : ''}`,
+          atencion: !!noAlcanza,
           largoSugeridoMm: sugerido,
           libre: true,
         })
@@ -5859,7 +5999,9 @@ export function LienzoQuirurgico({
         }
         if (falta('atornillar')) return
         const diametro = u.diametroDeTornillo ?? inst.coloca.diametroMm
-        const calibre = avisoDeCalibre(libre.estado.perforado!.diametroMm, diametro)
+        // La clase dice qué broca lleva (D-300): el bloqueado de 3,5 va con 2,8 y el cortical, con 2,5.
+        const clase = claseDelTornillo(inst.coloca, inst.tornillo?.tipo)
+        const calibre = avisoDeCalibre(libre.estado.perforado!.diametroMm, diametro, clase)
         const id = (t.siguienteTornilloLibre = (t.siguienteTornilloLibre ?? 0) + 1) * -1
         const puesto = colocarTornilloEnLinea({
           escena: t.escena,
@@ -5884,12 +6026,16 @@ export function LienzoQuirurgico({
         // Si la trayectoria cruza la fractura, el tornillo de tracción puede comprimir de dos formas (P-004 E10): con la broca de
         // deslizamiento —el cercano grande, el lejano de núcleo— o con la rosca parcial toda en el lejano.
         let compresion = ''
-        const distancia = inst.coloca.bloqueado ? null : distanciaALaFracturaPorLaTrayectoria(libre)
+        // Cruzar la fractura bloquea el foco aunque el tornillo no comprima, el bloqueado incluido (D-308): se marca
+        // antes de avisar, porque con el aviso la consola mide la reducción que el tornillo acaba de congelar.
+        const cruzaHasta = distanciaALaFracturaPorLaTrayectoria(libre)
+        if (cruzaHasta !== null && cruzaHasta < puesto.largoMm) puesto.cruzaLaFractura = true
+        const distancia = inst.coloca.bloqueado ? null : cruzaHasta
         if (distancia !== null && distancia < puesto.largoMm) {
           const resultado =
             inst.tornillo?.tipo === 'rosca-parcial'
               ? resultadoDeLaRoscaParcial({ roscaMm: inst.tornillo.roscaMm ?? 16, largoMm: puesto.largoMm, distanciaALaFracturaMm: distancia })
-              : resultadoDelDeslizamiento({ ...calibresPorFragmento(libre.perforaciones, distancia), diametroExteriorMm: diametro })
+              : resultadoDelDeslizamiento({ ...calibresPorFragmento(libre.perforaciones, distancia), diametroExteriorMm: diametro, clase })
           compresion = aplicarLaCompresion(resultado)
         }
         decirYAvisar({
@@ -6308,14 +6454,17 @@ export function LienzoQuirurgico({
           return
         }
         const antesDelHueso = placa.grosorMm + medida.distanciaAlHuesoMm
-        const sugerido = largoSugerido(medida.espesorMm, antesDelHueso)
+        // La serie la da la broca con que se perforó el agujero (D-301): el medidor entra antes de que se elija el tornillo.
+        const serie = serieDelSistema(placa.agujeros.get(agujero)?.perforado?.diametroMm)
+        const sugerido = largoSugerido(medida.espesorMm, antesDelHueso, serie)
+        const noAlcanza = avisoDelLargo(medida.espesorMm, antesDelHueso, serie)
         placa.agujeros.set(agujero, { perforado: placa.agujeros.get(agujero)!.perforado, medido: { espesorMm: medida.espesorMm, sugeridoMm: sugerido } })
         decirYAvisar({
           tipo: 'medida',
           texto: `Agujero ${agujero + 1}: hueso de ${medida.espesorMm.toFixed(0)} mm${
             antesDelHueso >= 1 ? ` y ${antesDelHueso.toFixed(0)} mm de placa y holgura` : ''
-          }. Pida un tornillo de ${sugerido} mm.`,
-          atencion: false,
+          }. Pida un tornillo de ${sugerido} mm.${noAlcanza ? ` ${noAlcanza}` : ''}`,
+          atencion: !!noAlcanza,
           largoSugeridoMm: sugerido,
           agujero,
         })
@@ -6338,7 +6487,7 @@ export function LienzoQuirurgico({
         }
         // El diámetro que eligió el residente en la lista (P-004 E9), o el del modelo.
         const diametro = ultimas.current.diametroDeTornillo ?? inst.coloca.diametroMm
-        const calibre = avisoDeCalibre(placa.agujeros.get(agujero)!.perforado!.diametroMm, diametro)
+        const calibre = avisoDeCalibre(placa.agujeros.get(agujero)!.perforado!.diametroMm, diametro, claseDelTornillo(inst.coloca, inst.tornillo?.tipo))
         const puesto = colocarTornillo({
           escena: t.escena,
           plantilla: herramienta.raiz,
@@ -6892,6 +7041,64 @@ export function LienzoQuirurgico({
     }
     superficie.addEventListener('contextmenu', alClicDerecho)
 
+    // --- acercar como se mira (P-012 E5) ----------------------------------------------------------------------------
+    // La rueda acerca hacia lo que hay bajo el cursor y no hacia el centro de la vista (`acercarComoSeMira.ts`). Va en la
+    // fase de captura de la superficie, antes de que la rueda llegue al lienzo: `OrbitControls` la escucha ahí y acercaría
+    // también, a su manera. Su zoom no se apaga, porque es el mismo que atiende el pellizco de dos dedos en una tableta.
+    let focoDeLaRueda: { x: number; y: number; cuando: number; punto: THREE.Vector3 | null } | null = null
+    const alRodar = (evento: WheelEvent) => {
+      evento.preventDefault()
+      evento.stopPropagation()
+      const muescas = muescasDeLaRueda(evento)
+      if (muescas === 0) return
+      // El punto bajo el cursor se busca una vez por gesto: la homotecia lo deja quieto en la pantalla, así que mientras
+      // el cursor no se mueve sigue siendo el mismo, y cada rayo recorre el modelo entero. Un gesto nuevo lo busca de
+      // nuevo, porque entre medias la vista pudo moverse sola (el encuadre de un paso).
+      const ahora = performance.now()
+      const f = focoDeLaRueda
+      if (!f || ahora - f.cuando > 250 || Math.hypot(evento.clientX - f.x, evento.clientY - f.y) > 2) {
+        apuntarA(evento.clientX, evento.clientY)
+        const golpe = superficieBajoElCursor()
+        focoDeLaRueda = { x: evento.clientX, y: evento.clientY, cuando: ahora, punto: golpe ? golpe.point.clone() : null }
+      } else {
+        f.cuando = ahora
+      }
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const vista = acercarHacia(
+        { camara: camara.position.toArray(), mirado: controles.target.toArray() },
+        (focoDeLaRueda?.punto ?? controles.target).toArray(),
+        muescas,
+        { minimo: MAS_CERCA_MM * unidadesPorMm, maximo: MAS_LEJOS_MM * unidadesPorMm },
+      )
+      if (!vista) return
+      // Acercar a mano para el movimiento de cámara que estuviera en curso: el último gesto manda.
+      taller.current.turnoDeLaCamara = (taller.current.turnoDeLaCamara ?? 0) + 1
+      camara.position.fromArray(vista.camara)
+      controles.target.fromArray(vista.mirado)
+      controles.update()
+      pedirDibujo()
+    }
+    superficie.addEventListener('wheel', alRodar, { capture: true, passive: false })
+
+    // El doble clic centra la vista donde se pulsa (P-012 E5), sin acercar: después la vista gira alrededor de ese punto.
+    // Solo mirando («Mirar») o leyendo fichas, donde un clic no hace nada en el paciente: con el bisturí o la broca, los
+    // dos clics del doble clic ya habrían marcado o perforado antes de que llegara.
+    const alDobleClic = (evento: MouseEvent) => {
+      const modo = ultimas.current.modo
+      if (modo !== 'orbitar' && modo !== 'info') return
+      apuntarA(evento.clientX, evento.clientY)
+      const golpe = superficieBajoElCursor()
+      if (!golpe) return
+      evento.preventDefault()
+      const pose = poseActual(camara, controles)
+      llevarLaCamaraAlEncuadre(
+        taller.current,
+        { ...pose, centro: golpe.point.toArray(), distancia: camara.position.distanceTo(controles.target) },
+        300,
+      )
+    }
+    superficie.addEventListener('dblclick', alDobleClic)
+
     const observador = new ResizeObserver(() => {
       if (!contenedor.clientWidth) return
       camara.aspect = contenedor.clientWidth / Math.max(1, contenedor.clientHeight)
@@ -7096,6 +7303,8 @@ export function LienzoQuirurgico({
       superficie.removeEventListener('pointerleave', alSubir)
       superficie.removeEventListener('pointerleave', esconderHerramienta)
       superficie.removeEventListener('contextmenu', alClicDerecho)
+      superficie.removeEventListener('wheel', alRodar, { capture: true })
+      superficie.removeEventListener('dblclick', alDobleClic)
       controles.dispose()
       // El decodificador Draco es lo único que se crea aquí y no cuelga de la
       // escena, así que `liberar` no lo alcanza: cada instancia levanta su
@@ -7784,7 +7993,9 @@ function buscarFragmento(raiz: THREE.Object3D, piezas: PiezaDelCaso[]): THREE.Ob
   }
   if (!nombre && !porConvencion) return undefined
   const fragmento = (nombre ? raiz.getObjectByName(nombre) : porConvencion) ?? undefined
-  if (fragmento) pivoteEnSuCentro(fragmento)
+  // El archivo del taller ya trae el origen en el foco (`focoEnElOrigen`, D-304): correrlo al centro del trozo era
+  // deshacer lo que `pivoteEnElFoco` hizo a propósito, y girar el fragmento sobre su mitad corría la fractura de lado.
+  if (fragmento && fragmento.userData.focoEnElOrigen !== true) pivoteEnSuCentro(fragmento)
   return fragmento
 }
 
@@ -7853,6 +8064,14 @@ function pivoteEnSuCentro(fragmento: THREE.Object3D) {
 function aplicarPosicionesReducidas(t: Taller, piezas: PiezaDelCaso[]): boolean {
   if (!t.raiz) return false
   const conPosicion = piezas.flatMap((p) => (p.posicionReducida ? [[p.nodo, p.posicionReducida] as const] : []))
+  // La del archivo, si la fila del fragmento no trae la suya (D-304). Hace falta aquí y no basta con que la consola la
+  // pase a las piezas (`piezasConLasDelModelo`): la consola solo lee los nodos del archivo después de que cargue, y para
+  // entonces el fragmento ya se colocó contra el reposo de antes.
+  const f0 = t.fragmento
+  const delArchivo = f0 && !conPosicion.some(([nodo]) => nodo === f0.name) ? transformacionValida(f0.userData.posicionReducida) : null
+  if (f0 && delArchivo) conPosicion.push([f0.name, delArchivo] as const)
+  // Por nodo, para que la misma posición llegada por los dos caminos dé la misma clave y no se rehaga.
+  conPosicion.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
   const clave = `${t.fragmento?.name ?? ''}|${JSON.stringify(conPosicion)}`
   if (clave === t.claveDeLaReduccion) return false
   const primeraVez = t.claveDeLaReduccion === undefined
@@ -7923,6 +8142,31 @@ const VECTOR_DEL_EJE: Record<EjeLargo, THREE.Vector3> = {
  * más parecida a la del fragmento y pegado a él a lo largo del eje —no la fíbula, que va al lado, ni el fémur, que está
  * lejos—. Con él se sitúa el foco del injerto y se mide el ancho del hueso del % del desplazamiento (Q-010).
  */
+/**
+ * Si el fragmento es el trozo distal o el proximal (D-303). La lectura clínica es siempre la del distal respecto del
+ * proximal, y un proximal que se mueve se lee al revés: si se tomara por distal, su varo saldría como valgo.
+ *
+ * Lo dice el archivo del atlas (`trozo`). Si no, se mira de qué lado del hueso fijo que tiene enfrente cae a lo largo
+ * del eje; sin hueso enfrente, distal, que es el convenio del exportador («…_fragmento_distal»).
+ */
+function trozoQueSeMueve(
+  t: Taller,
+  piezas: PiezaDelCaso[],
+  largo: readonly [number, number, number],
+  milimetrosPorUnidad: number,
+): 'distal' | 'proximal' {
+  const f = t.fragmento
+  if (!f) return 'distal'
+  const escrito = trozoDelFragmento(f)
+  if (escrito) return escrito
+  const i = [0, 1, 2].reduce((a, b) => (Math.abs(largo[b]) > Math.abs(largo[a]) ? b : a), 0)
+  const enfrente = huesoQueSeEnfrenta(t, piezas, i, milimetrosPorUnidad)
+  if (!enfrente) return 'distal'
+  const delFragmento = enfrente.cajaDelFragmento.getCenter(new THREE.Vector3())
+  const delHueso = enfrente.caja.getCenter(new THREE.Vector3())
+  return delFragmento.sub(delHueso).dot(new THREE.Vector3(largo[0], largo[1], largo[2])) >= 0 ? 'distal' : 'proximal'
+}
+
 function huesoQueSeEnfrenta(
   taller: Taller,
   piezas: PiezaDelCaso[],
@@ -8322,7 +8566,7 @@ function mallasDeHuesoVisibles(t: Taller, piezas: PiezaDelCaso[]): THREE.Mesh[] 
     ? conRol
     : todas.filter((m) => {
         const rol = rolDe.get(m.name)
-        return rol !== 'piel' && rol !== 'fascia' && rol !== 'musculo' && rol !== 'implante'
+        return rol !== 'piel' && rol !== 'fascia' && rol !== 'musculo' && rol !== 'implante' && !esEstructuraNoble(rol)
       })
 }
 
@@ -8336,9 +8580,61 @@ function mallasConRol(t: Taller, piezas: PiezaDelCaso[], roles: readonly string[
     const m = o as THREE.Mesh
     if (!m.isMesh || !m.visible || esDeInterfazDelModelo(m)) return
     const rol = rolDe.get(m.name)
-    if (rol && roles.includes(rol)) salida.push(m)
+    // Pedir el plano muscular es pedir también sus vasos y sus nervios (P-012 E6): el separador se apoya en ellos y la
+    // herida del plano los cubre, como antes de que tuvieran papel propio.
+    if (rol && (roles.includes(rol) || (esEstructuraNoble(rol) && roles.includes('musculo')))) salida.push(m)
   })
   return salida
+}
+
+/** Una pieza de vaso o de nervio, con el papel ya estrechado para quien lo lea. */
+type PiezaNoble = PiezaDelCaso & { rol: LesionDeEstructura['rol'] }
+const esPiezaNoble = (p: PiezaDelCaso): p is PiezaNoble => esEstructuraNoble(p.rol)
+
+/**
+ * Las piezas de vaso o de nervio que atraviesa un tramo recto de un calibre dado (P-012 E6): el que la broca o la aguja
+ * recorrieron más allá de la cortical opuesta.
+ *
+ * Cinco rayos —el eje y cuatro por el borde del calibre— y no uno: una broca de 3,2 mm que roza la arteria con el
+ * borde la lesiona igual, y el rayo del eje pasaría de largo. Se miran **encendidas o no**: apagar la capa del músculo
+ * no saca al nervio del paciente, y la broca que se pasa lo encuentra igual.
+ */
+function nobleQueAtraviesa(
+  t: Taller,
+  piezas: PiezaDelCaso[],
+  desde: THREE.Vector3,
+  direccion: THREE.Vector3,
+  largo: number,
+  radio: number,
+): PiezaNoble[] {
+  const raiz = t.raiz
+  if (!raiz || largo <= 0) return []
+  const nobles = new Map(piezas.filter(esPiezaNoble).map((p) => [p.nodo, p]))
+  if (nobles.size === 0) return []
+  const mallas: THREE.Mesh[] = []
+  raiz.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (m.isMesh && nobles.has(m.name)) mallas.push(m)
+  })
+  if (mallas.length === 0) return []
+  const eje = direccion.clone().normalize()
+  const u = new THREE.Vector3().crossVectors(eje, Math.abs(eje.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize()
+  const v = new THREE.Vector3().crossVectors(eje, u).normalize()
+  const origenes = [
+    desde.clone(),
+    desde.clone().addScaledVector(u, radio),
+    desde.clone().addScaledVector(u, -radio),
+    desde.clone().addScaledVector(v, radio),
+    desde.clone().addScaledVector(v, -radio),
+  ]
+  const tocadas = new Map<string, PiezaNoble>()
+  for (const origen of origenes) {
+    for (const g of new THREE.Raycaster(origen, eje, 0, largo).intersectObjects(mallas, false)) {
+      const pieza = nobles.get(g.object.name)
+      if (pieza) tocadas.set(pieza.nodo, pieza)
+    }
+  }
+  return [...tocadas.values()]
 }
 
 const separadorActivo = (t: Taller): SeparadorEnEscena | undefined =>

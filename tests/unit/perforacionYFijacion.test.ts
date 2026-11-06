@@ -86,6 +86,16 @@ describe('un paso que evalúa la perforación', () => {
     expect(evaluarGesto(paso, perforar({ sePasoMm: PASARSE_DE_LA_CORTICAL_MM })).avanza).toBe(true)
   })
 
+  it('pasarse se cobra aunque la broca sea de otro calibre o esté torcida (D-307)', () => {
+    // Iba al final: la broca equivocada que además se pasaba 12 mm salía como «calibre», un fallo que al reintentar
+    // deja la mitad del paso. El daño ya estaba hecho.
+    const deOtroCalibre = evaluarGesto(paso, perforar({ diametroMm: 2.5, sePasoMm: PASARSE_DE_LA_CORTICAL_MM + 10 }))
+    expect(deOtroCalibre.resultado).toBe(RESULTADOS.PERFORACION_PASADA)
+    expect(deOtroCalibre.complicacion).toBe(true)
+    const torcida = evaluarGesto(paso, perforar({ anguloConElEje: 40, bicortical: false, sePasoMm: PASARSE_DE_LA_CORTICAL_MM + 1 }))
+    expect(torcida.resultado).toBe(RESULTADOS.PERFORACION_PASADA)
+  })
+
   it('la complicación cuesta el paso entero y el fallo, la mitad (puntosDelPaso)', () => {
     expect(puntosDelPaso(paso, { fallo: false, complicacion: false })).toBe(10)
     expect(puntosDelPaso(paso, { fallo: true, complicacion: false })).toBe(5)
@@ -145,6 +155,12 @@ describe('un paso que evalúa la fijación', () => {
     const e = evaluarGesto(paso, gesto({ placa: true, tornillos: 2, bicorticales: 2, largos: 1 }))
     expect(e.resultado).toBe(RESULTADOS.TORNILLO_LARGO)
     expect(e.complicacion).toBe(true)
+  })
+
+  it('un tornillo largo se cobra aunque falten tornillos o no sean bicorticales (D-307)', () => {
+    const faltan = evaluarGesto(paso, gesto({ placa: true, tornillos: 1, bicorticales: 0, largos: 1 }))
+    expect(faltan.resultado).toBe(RESULTADOS.TORNILLO_LARGO)
+    expect(faltan.complicacion).toBe(true)
   })
 
   it('sin número de tornillos declarado, con uno basta', () => {

@@ -248,15 +248,19 @@ export const Actividad: CollectionConfig = {
        * lleva `defaultValue: 0`, que pondría a todo el mundo un cero de salida
        * y dejaría el marcador contando partidas que nadie jugó.
        *
-       * Lo calcula `puntosDelPaso` en el navegador y lo manda la consola; el
-       * servidor no lo recalcula y no puede: tendría que repetir la simulación
-       * entera. Eso significa que un residente puede escribir el puntaje que
-       * quiera con un `PATCH` a su propia fila, igual que podía hasta hoy
-       * inspeccionar la consola. Se acepta porque esto es seguimiento de
-       * progreso y no una nota: sirve para que él vea lo que le costó el caso y
-       * para que el administrador sepa quién lo ha recorrido. El día que cuente
-       * como evaluación, la cuenta tiene que mudarse al servidor —el gesto
-       * viaja, el puntaje se calcula aquí— y no basta con cerrar el campo.
+       * Lo calcula el servidor desde D-310. La consola manda, con su cuenta, los
+       * gestos de cada paso (`RecorridoDelCaso`, `src/lib/notaDelRecorrido.ts`),
+       * y `registrarResultadoDeCirugia` los vuelve a pasar por `evaluarGesto` y
+       * `puntosDelPaso` con los pasos del caso. Lo que se guarda aquí es esa
+       * cuenta; la del navegador queda en `notaDelNavegador` cuando no coincide,
+       * y `comprobacionDeLaNota` dice qué pasó.
+       *
+       * Hasta entonces lo calculaba el navegador y se guardaba tal cual, y quien
+       * llamara a la acción por HTTP —se puede, tenga o no la consola delante—
+       * escribía el número que quisiera. Eso es lo que se cerró. Lo que no se
+       * cerró es falsificar las medidas: salen de la escena, que es del
+       * navegador, y un gesto inventado con todo dentro de los topes saca la nota
+       * entera. Para eso haría falta repetir la simulación aquí.
        */
       name: 'puntaje',
       type: 'number',
@@ -327,6 +331,28 @@ export const Actividad: CollectionConfig = {
       ],
     },
     {
+      // Si el servidor pudo comprobar la nota del último recorrido (D-310). «Coincide»: rehízo la cuenta con los gestos
+      // y salió lo mismo que en el navegador. «No coincide»: se guardó la del servidor y la del navegador queda al lado,
+      // en `notaDelNavegador`. «Sin comprobar»: no llegó con qué —un navegador de antes, o un recorrido roto— o el caso
+      // no se pudo leer, y el puntaje es el que llegó. Vacío en los recorridos de antes. Es lo que el docente mira antes
+      // de fiarse de una nota.
+      name: 'comprobacionDeLaNota',
+      type: 'select',
+      label: 'Comprobación de la nota',
+      options: [
+        { label: 'Coincide con la del navegador', value: 'coincide' },
+        { label: 'No coincide: se guardó la del servidor', value: 'no-coincide' },
+        { label: 'Sin comprobar', value: 'sin-comprobar' },
+      ],
+    },
+    {
+      // La nota que calculó el navegador, solo cuando no coincide con la del servidor (D-310): `{ puntaje, puntajeMaximo }`.
+      // JSON y no dos columnas porque van juntos o no van: un numerador sin su denominador no dice nada.
+      name: 'notaDelNavegador',
+      type: 'json',
+      label: 'La nota del navegador, cuando no coincide',
+    },
+    {
       // La radiografía postoperatoria del último recorrido (P-004 E11): cirujano, diagnóstico, intervención, fecha y equipo tal
       // como salieron en la lámina. **Los datos, no la imagen**: la lámina se vuelve a hacer cuando haga falta y un PNG por
       // recorrido llenaría la base. Es lo que permitirá contar «X cirugías» de un estudiante y darle su comprobante; esa
@@ -334,6 +360,17 @@ export const Actividad: CollectionConfig = {
       name: 'radiografia',
       type: 'json',
       label: 'Radiografía postoperatoria del último recorrido',
+    },
+    {
+      // Lo que contaron los relojes y el arco en el último recorrido (P-012 E5): segundos desde la incisión, de manguito
+      // (en total y en el período más largo, con el tope en minutos con que se juzgó) y la cuenta de disparos y de vídeo.
+      // Es lo que le dice al docente si un caso de media hora se hizo con el manguito inflado tres horas o con cien
+      // disparos, cosa que hasta aquí no quedaba escrita en ninguna parte. JSON por lo mismo que `insumos`: se escribe y
+      // se lee entero, y lo rehacen campo a campo `registrarResultadoDeCirugia` y `recorridoGuardado` con las reglas de
+      // `src/lib/relojesDelCaso.ts`. Vacío en los recorridos de antes.
+      name: 'tiempos',
+      type: 'json',
+      label: 'Tiempos del último recorrido',
     },
     {
       // Dónde se quedó el residente en el caso (P-009, mejora de uso 12; Q-005 lo deja guardar en la cuenta): el paso,

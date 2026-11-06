@@ -46,7 +46,7 @@ describe('el orden de los modos', () => {
 
 describe('la barra', () => {
   it('es hermana anterior del marco del lienzo y no su hija: dentro chocaba con Encuadrar, Ampliar y Fluoroscopia', () => {
-    const barra = consola.indexOf('<div className="consola-barra-de-modos">')
+    const barra = consola.indexOf('<div className="consola-barra-de-modos"')
     const marco = consola.indexOf('<div className={`consola-lienzo-marco modo-${modo}`}>')
     expect(barra).toBeGreaterThan(-1)
     expect(marco).toBeGreaterThan(barra)
@@ -60,7 +60,7 @@ describe('la barra', () => {
   })
 
   it('lleva los modos, los submodos de trazar y de mover, y la ayuda debajo', () => {
-    const barra = consola.slice(consola.indexOf('<div className="consola-barra-de-modos">'), consola.indexOf('consola-lienzo-marco modo-'))
+    const barra = consola.slice(consola.indexOf('<div className="consola-barra-de-modos"'), consola.indexOf('consola-lienzo-marco modo-'))
     expect(barra).toContain('modosVisibles.map(')
     expect(barra).toContain('aria-label="Cómo se traza la incisión"')
     expect(barra).toContain('aria-label="Qué se mueve"')

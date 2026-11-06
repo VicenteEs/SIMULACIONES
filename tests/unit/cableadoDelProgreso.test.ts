@@ -103,7 +103,15 @@ describe('la consola manda lo que calcula', () => {
     // Y un tercer hito, fuera de `aplicarPaso`: elegir la reducción automática (P-004 E7), que cambia lo que puntúa el recorrido y
     // no puede esperar al paso siguiente. Sigue siendo un gesto raro y deliberado, no una escritura por clic.
     // Y un cuarto, al descargar la lámina de la radiografía postoperatoria (P-004 E11): los datos escritos viajan con el recorrido.
-    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(4)
+    // Y un quinto, al bloquear el foco con la fractura sin reducir (D-308): es una complicación, el mismo hito que la de
+    // `aplicarPaso`, solo que llega por el lienzo al poner el tornillo y no por el botón.
+    // Y un sexto, al cortar o perforar un vaso o un nervio (P-012 E6): otra complicación que llega por el lienzo.
+    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(6)
+    const bloqueo = CONSOLA.slice(CONSOLA.indexOf('function vigilarElBloqueo('), CONSOLA.indexOf('function vigilarLaLesion('))
+    expect(veces(bloqueo, 'guardarRecorrido(')).toBe(1)
+    const lesion = CONSOLA.slice(CONSOLA.indexOf('function vigilarLaLesion('), CONSOLA.indexOf('function aplicarPaso()'))
+    expect(lesion, 'no se encontró vigilarLaLesion').not.toBe('')
+    expect(veces(lesion, 'guardarRecorrido(')).toBe(1)
     const automatica = CONSOLA.slice(CONSOLA.indexOf('const reducirAutomaticamente = '), CONSOLA.indexOf('const colocarEnDesplazamientoInicial'))
     expect(veces(automatica, 'guardarRecorrido(')).toBe(1)
   })

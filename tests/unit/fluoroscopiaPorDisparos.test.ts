@@ -140,7 +140,12 @@ describe('el modo por omisión y lo que corre en cada modo', () => {
   it('los segundos de exposición solo cuentan en vídeo', () => {
     // Las fotos no cuentan (pedido de Cristóbal): el reloj de los segundos mira el modo.
     expect(consola).toMatch(/const enVideo = fluoroscopiaEncendida && modoDeEscopia === 'video'/)
-    expect(consola).toMatch(/if \(!enVideo\) return\n\s+const reloj = window\.setInterval\(\(\) => setSegundosDeEscopia/)
+    // El mismo segundo suma a la exposición de esta vez, la del aviso al apagar, y a la del caso, la que se ve en el
+    // recuadro y se guarda con el recorrido (P-012 E5). Con dos intervalos podrían desfasarse, y el recuadro diría un
+    // tiempo y el aviso otro.
+    expect(consola).toMatch(
+      /if \(!enVideo\) return\r?\n\s+const reloj = window\.setInterval\(\(\) => \{\r?\n\s+setSegundosDeEscopia\(\(s\) => s \+ 1\)\r?\n\s+setExposicion\(\(e\) => \(\{ \.\.\.e, segundosDeVideo: e\.segundosDeVideo \+ 1 \}\)\)/,
+    )
   })
 
   it('el dibujo continuo solo corre en vídeo: en disparo no hay ningún intervalo de dibujo', () => {

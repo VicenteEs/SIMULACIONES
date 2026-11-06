@@ -9,7 +9,10 @@
  * cosas se ve mirando la pantalla, y las dos se ven mirando una prueba.
  */
 
-export type RolDePieza = 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia'
+import { rolDeSistema } from '@/atlas/clasificacion'
+import { transformacionValida, type TransformacionRigida } from './transformacionRigida'
+
+export type RolDePieza = 'piel' | 'musculo' | 'hueso' | 'fragmento' | 'implante' | 'fascia' | 'vaso' | 'nervio'
 
 export interface PiezaEnEdicion {
   nodo?: unknown
@@ -29,10 +32,11 @@ export const hayFragmento = (piezas: PiezaEnEdicion[]): boolean =>
   piezas.some((p) => p.rol === 'fragmento')
 
 /**
- * Los seis papeles que acepta el `select` de `rol` en `src/collections/Cirugias.ts`.
+ * Los ocho papeles que acepta el `select` de `rol` en `src/collections/Cirugias.ts`.
  *
- * `fascia` es el último (P-006): la capa entre la piel y el músculo. Va al final y no entre medias porque
- * así lo ordena Postgres al añadir un valor a un enumerado, y la prueba compara la lista tal cual.
+ * `fascia` va detrás de los cinco primeros (P-006): la capa entre la piel y el músculo. Va al final y no entre
+ * medias porque así lo ordena Postgres al añadir un valor a un enumerado, y la prueba compara la lista tal cual.
+ * `vaso` y `nervio` (P-012 E6) van detrás de ella por lo mismo.
  *
  * Una copia, sí, y por eso vigilada: `tests/unit/exportarAlSimulador.test.ts`
  * la compara con las opciones de la colección. Sin esa prueba, un papel nuevo
@@ -46,10 +50,49 @@ export const ROLES_DE_PIEZA: readonly RolDePieza[] = [
   'fragmento',
   'implante',
   'fascia',
+  'vaso',
+  'nervio',
 ]
+
+/**
+ * ¿Es un vaso o un nervio? (P-012 E6).
+ *
+ * Son las «estructuras nobles» del quirófano: lo que se busca, se identifica y se aparta. No forman un plano
+ * propio —van entre los músculos, y la consola los enciende, los apaga, los separa y los cose con el plano
+ * muscular— pero tampoco son músculo: un músculo se corta para llegar al hueso, y una arteria cortada es una
+ * complicación. Hasta E6 eran «músculo», y cortar la arteria tibial anterior pesaba lo mismo que cortar el
+ * tibial anterior: nada.
+ *
+ * Vive aquí, con los papeles, para que las tres traducciones de papel a capa —`capaDelRol` de la consola,
+ * `planoDelRol` de los planos blandos y `capaBlandaDelRol` de la disección— lo pregunten al mismo sitio. Con
+ * una copia en cada una, el próximo papel acabaría en el plano muscular para una y fuera de todo para otra, y
+ * el vaso se apagaría con el músculo pero no se dejaría separar con él.
+ */
+export const esEstructuraNoble = (rol: unknown): rol is 'vaso' | 'nervio' => rol === 'vaso' || rol === 'nervio'
 
 const esRolDePieza = (valor: unknown): valor is RolDePieza =>
   typeof valor === 'string' && (ROLES_DE_PIEZA as readonly string[]).includes(valor)
+
+/**
+ * El papel que escribe el archivo, puesto al día (P-012 E6), o `null` si no escribe ninguno que se entienda.
+ *
+ * El exportador del atlas escribe el papel que daba `ROL_DE_SISTEMA` el día de la exportación y, al lado, el sistema,
+ * para poder rehacerlo si la tabla cambia (`exportarAtlas.ts`). Cambió en E6: hasta entonces las arterias, las venas y
+ * los nervios salían como «músculo», y así los traen todos los modelos exportados antes. Con el sistema al lado, ese
+ * «músculo» se lee como lo que es. Sin esto, ningún modelo de antes tendría un solo vaso, y la lesión solo podría pasar
+ * en los que se exporten de nuevo.
+ *
+ * Solo ese cambio, y no rehacer el papel entero desde el sistema: el fragmento no sale de él (lo marca quien parte el
+ * hueso en el taller), y la fascia superficial va con la piel aunque su sistema no sea el de la piel.
+ */
+function rolDelArchivo(datos: { rol?: unknown; sistema?: unknown }): RolDePieza | null {
+  if (!esRolDePieza(datos.rol)) return null
+  if (datos.rol === 'musculo' && typeof datos.sistema === 'string') {
+    const deHoy = rolDeSistema(datos.sistema)
+    if (esEstructuraNoble(deHoy)) return deHoy
+  }
+  return datos.rol
+}
 
 /**
  * Lo que un objeto del modelo dice de sí mismo: qué papel le toca y cómo se
@@ -59,13 +102,18 @@ export interface PropuestaDelModelo {
   nodo: string
   rol: RolDePieza
   etiqueta: string
+  /**
+   * A dónde vuelve el trozo reducido, si el archivo lo trae (D-304): lo escribe la exportación del taller en el
+   * fragmento. Va en la propuesta para que llegue al caso como llega el rol, sin pulsar «Reducir automáticamente».
+   */
+  posicionReducida?: TransformacionRigida
 }
 
 /**
  * Lee la propuesta que el exportador del atlas deja pegada a un objeto.
  *
  * Llega por `userData`, que es donde `GLTFLoader` copia los `extras` de glTF
- * (ver `src/lib/glb.ts`). Se exigen las dos cosas —un rol de los cinco y una
+ * (ver `src/lib/glb.ts`). Se exigen las dos cosas —un rol de `ROLES_DE_PIEZA` y una
  * etiqueta con texto— y si falta cualquiera no hay propuesta. No es rigor por
  * rigor: un modelo que sale de Blender puede traer propiedades personalizadas
  * con esos mismos nombres y cualquier contenido, y un `rol: "Hueso"` con
@@ -75,10 +123,15 @@ export interface PropuestaDelModelo {
  */
 export function propuestaDelNodo(nodo: string, datos: unknown): PropuestaDelModelo | null {
   if (!nodo || !datos || typeof datos !== 'object') return null
-  const { rol, etiqueta } = datos as { rol?: unknown; etiqueta?: unknown }
-  if (!esRolDePieza(rol)) return null
+  const escrito = datos as { rol?: unknown; sistema?: unknown; etiqueta?: unknown; posicionReducida?: unknown }
+  const { etiqueta, posicionReducida } = escrito
+  const rol = rolDelArchivo(escrito)
+  if (!rol) return null
   if (typeof etiqueta !== 'string' || !etiqueta.trim()) return null
-  return { nodo, rol, etiqueta: etiqueta.trim() }
+  // Con la misma desconfianza que lo que llega de la base: un objeto de Blender puede traer una propiedad con ese nombre
+  // y cualquier cosa dentro, y siete números que no son un giro mandarían el trozo a cualquier parte.
+  const reducida = transformacionValida(posicionReducida)
+  return { nodo, rol, etiqueta: etiqueta.trim(), ...(reducida ? { posicionReducida: reducida } : {}) }
 }
 
 /**
@@ -96,7 +149,13 @@ export function rolPorElNombre(nodo: string): RolDePieza | null {
   // La fascia profunda es su propia capa (P-006); la superficial va con la piel (se incide con ella). El
   // tensor de la fascia lata es un músculo que lleva la palabra en el nombre: no es fascia.
   if (/(fascia|aponeuros)/.test(n) && !/tensor/.test(n)) return /superficial/.test(n) ? 'piel' : 'fascia'
-  if (/(muscul|muscle|tendon|vena|vein|arteri|nervi|nerve|conectivo|connective|ligament)/.test(n)) return 'musculo'
+  // Los vasos y los nervios antes que el músculo y que el hueso (P-012 E6): «Musculocutaneous nerve» es un nervio
+  // aunque nombre al músculo, y «Left anterior tibial artery» una arteria aunque nombre a la tibia. Primero el
+  // vaso, porque la arteria que acompaña a un nervio lleva el del nervio en el nombre y sigue siendo arteria. «arter» y no
+  // «arteri», como en `aspectoDe`: en inglés es «artery», y con «arteri» la tibial anterior caía en la regla del hueso.
+  if (/(arter|vena|vein|vaso|vascular)/.test(n)) return 'vaso'
+  if (/(nervi|nerve)/.test(n)) return 'nervio'
+  if (/(muscul|muscle|tendon|conectivo|connective|ligament)/.test(n)) return 'musculo'
   if (
     /(hueso|bone|esquelet|skelet|tibia|femur|peron|fibul|humer|radio|radius|cubito|ulna|clavicul|escapul|scapul|pelvis|vertebr|astragal|talus|calcane|metatars|metacarp|falange|phalan|rotula|patella|carpo|tarso|craneo|costill)/.test(
       n,
@@ -122,19 +181,38 @@ export function rolPorElNombre(nodo: string): RolDePieza | null {
  *    que sugiere su nombre (`rolPorElNombre`). Lo que no se entiende se queda fuera, como antes.
  *  - **Un solo fragmento.** Si el caso ya marcó cuál es el fragmento que se mide, otro que el archivo llame «fragmento»
  *    entra como hueso: dos fragmentos móviles se juegan sin ningún error y el residente reduce el que no se mide.
+ *  - **La posición reducida del archivo llena el hueco, no pisa** (D-304). Una fila declarada sin la suya toma la que
+ *    trae su objeto: no tenerla no es haber decidido que el trozo va donde está, sino que el caso no lo sabía, y la
+ *    exportación del taller ahora lo escribe. Una fila que ya trae la suya —la de «Reducir automáticamente»— se queda
+ *    con ella.
  */
-export function piezasConLasDelModelo<T extends { nodo: string; rol: RolDePieza; etiqueta?: string | null }>(
+export function piezasConLasDelModelo<
+  T extends { nodo: string; rol: RolDePieza; etiqueta?: string | null; posicionReducida?: TransformacionRigida | null },
+>(
   declaradas: readonly T[],
   nodosDelModelo: readonly { nodo: string; datos: unknown }[],
-): (T | { nodo: string; rol: RolDePieza; etiqueta: string })[] {
+): (T | { nodo: string; rol: RolDePieza; etiqueta: string; posicionReducida?: TransformacionRigida })[] {
   if (nodosDelModelo.length === 0) return [...declaradas]
+  const reducidaDelArchivo = new Map<string, TransformacionRigida>()
+  for (const { nodo, datos } of nodosDelModelo) {
+    const escrita = datos && typeof datos === 'object' ? (datos as { posicionReducida?: unknown }).posicionReducida : null
+    const reducida = transformacionValida(escrita)
+    if (nodo && reducida && !reducidaDelArchivo.has(nodo)) reducidaDelArchivo.set(nodo, reducida)
+  }
+  let completadas = 0
+  const conLaDelArchivo = declaradas.map((p) => {
+    const delArchivo = p.posicionReducida ? undefined : reducidaDelArchivo.get(p.nodo)
+    if (!delArchivo) return p
+    completadas += 1
+    return { ...p, posicionReducida: delArchivo }
+  })
   const declarados = new Set(declaradas.map((p) => p.nodo))
   let hayFragmentoDeclarado = declaradas.some((p) => p.rol === 'fragmento')
-  const anadidas: { nodo: string; rol: RolDePieza; etiqueta: string }[] = []
+  const anadidas: { nodo: string; rol: RolDePieza; etiqueta: string; posicionReducida?: TransformacionRigida }[] = []
   for (const { nodo, datos } of nodosDelModelo) {
     if (!nodo || declarados.has(nodo)) continue
-    const escrito = datos && typeof datos === 'object' ? (datos as { rol?: unknown; etiqueta?: unknown }) : {}
-    let rol: RolDePieza | null = esRolDePieza(escrito.rol) ? escrito.rol : rolPorElNombre(nodo)
+    const escrito = datos && typeof datos === 'object' ? (datos as { rol?: unknown; sistema?: unknown; etiqueta?: unknown }) : {}
+    let rol: RolDePieza | null = rolDelArchivo(escrito) ?? rolPorElNombre(nodo)
     if (!rol) continue
     if (rol === 'fragmento') {
       if (hayFragmentoDeclarado) rol = 'hueso'
@@ -142,9 +220,11 @@ export function piezasConLasDelModelo<T extends { nodo: string; rol: RolDePieza;
     }
     const etiqueta = typeof escrito.etiqueta === 'string' && escrito.etiqueta.trim() ? escrito.etiqueta.trim() : nodo
     declarados.add(nodo)
-    anadidas.push({ nodo, rol, etiqueta })
+    const reducida = reducidaDelArchivo.get(nodo)
+    anadidas.push({ nodo, rol, etiqueta, ...(reducida ? { posicionReducida: reducida } : {}) })
   }
-  return anadidas.length === 0 ? [...declaradas] : [...declaradas, ...anadidas]
+  if (anadidas.length === 0 && completadas === 0) return [...declaradas]
+  return [...conLaDelArchivo, ...anadidas]
 }
 
 /** Las propuestas de un modelo entero, en el orden en que trae los objetos. */
@@ -209,6 +289,10 @@ export function agregarPieza(
  *    del que quedó por omisión, y en la duda gana el médico. Solo se le pone la
  *    etiqueta si la tenía vacía, que es como quedan las filas añadidas con un
  *    clic: una etiqueta en blanco no es algo escrito que se pueda pisar.
+ *    La excepción es un vaso o un nervio declarado «músculo» (P-012 E6): hasta
+ *    E6 no había otro papel que ponerle, así que ese «músculo» no lo eligió
+ *    nadie, y sin cambiarlo los casos de antes no tendrían ningún vaso que
+ *    cuidar. Se cuenta aparte (`conSuPapel`) para que el aviso lo diga.
  *  - Un solo fragmento, como en `cambiarRolDePieza`: si ya lo hay, o si el
  *    modelo propone más de uno, los demás entran como hueso.
  *  - Los objetos sin propuesta no entran. Un modelo que no viene del atlas no
@@ -221,15 +305,29 @@ export function agregarPieza(
 export function rellenarDesdeElModelo(
   piezas: PiezaEnEdicion[],
   propuestas: PropuestaDelModelo[],
-): { piezas: PiezaEnEdicion[]; nuevas: number; etiquetadas: number } {
+): { piezas: PiezaEnEdicion[]; nuevas: number; etiquetadas: number; conPosicionReducida: number; conSuPapel: number } {
   const porNodo = new Map(propuestas.map((p) => [p.nodo, p]))
   let etiquetadas = 0
+  let conSuPapel = 0
+  // La posición reducida que trae el archivo (D-304) se pone como la etiqueta: solo donde falta. Una fila con la suya
+  // la sacó «Reducir automáticamente» o la escribió el editor, y eso es una decisión.
+  let conPosicionReducida = 0
   const tocadas = piezas.map((fila) => {
     const propuesta = porNodo.get(nodoDe(fila))
+    if (!propuesta) return fila
     const vacia = typeof fila.etiqueta !== 'string' || !fila.etiqueta.trim()
-    if (!propuesta || !vacia) return fila
-    etiquetadas += 1
-    return { ...fila, etiqueta: propuesta.etiqueta }
+    const sinReducida = !!propuesta.posicionReducida && !transformacionValida(fila.posicionReducida)
+    const aSuPapel = fila.rol === 'musculo' && esEstructuraNoble(propuesta.rol)
+    if (!vacia && !sinReducida && !aSuPapel) return fila
+    if (vacia) etiquetadas += 1
+    if (sinReducida) conPosicionReducida += 1
+    if (aSuPapel) conSuPapel += 1
+    return {
+      ...fila,
+      ...(vacia ? { etiqueta: propuesta.etiqueta } : {}),
+      ...(sinReducida ? { posicionReducida: propuesta.posicionReducida } : {}),
+      ...(aSuPapel ? { rol: propuesta.rol } : {}),
+    }
   })
 
   const ya = new Set(nodosDeclarados(piezas))
@@ -243,11 +341,19 @@ export function rellenarDesdeElModelo(
       if (conFragmento) rol = 'hueso'
       conFragmento = true
     }
-    nuevas.push({ nodo: propuesta.nodo, rol, etiqueta: propuesta.etiqueta })
+    if (propuesta.posicionReducida) conPosicionReducida += 1
+    nuevas.push({
+      nodo: propuesta.nodo,
+      rol,
+      etiqueta: propuesta.etiqueta,
+      ...(propuesta.posicionReducida ? { posicionReducida: propuesta.posicionReducida } : {}),
+    })
   }
 
-  if (nuevas.length === 0 && etiquetadas === 0) return { piezas, nuevas: 0, etiquetadas: 0 }
-  return { piezas: [...tocadas, ...nuevas], nuevas: nuevas.length, etiquetadas }
+  if (nuevas.length === 0 && etiquetadas === 0 && conPosicionReducida === 0 && conSuPapel === 0) {
+    return { piezas, nuevas: 0, etiquetadas: 0, conPosicionReducida: 0, conSuPapel: 0 }
+  }
+  return { piezas: [...tocadas, ...nuevas], nuevas: nuevas.length, etiquetadas, conPosicionReducida, conSuPapel }
 }
 
 /**

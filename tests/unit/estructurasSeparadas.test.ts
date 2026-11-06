@@ -34,8 +34,8 @@ describe('exportar con las estructuras separadas (P-003 E9)', () => {
     const o = agruparParaGlb(PIEZAS, { separarEstructuras: true })
     expect(o).toHaveLength(5)
     expect(o.map((x) => x.extras?.atlasId)).toEqual(['FJ1', 'FJ2', 'FJ3', 'FJ4', 'FJ5'])
-    // El rol sale del sistema, como en las protagonistas.
-    expect(o.map((x) => x.extras?.rol)).toEqual(['hueso', 'musculo', 'musculo', 'musculo', 'musculo'])
+    // El rol sale del sistema, como en las protagonistas: la arteria y el nervio con el suyo desde P-012 (E6).
+    expect(o.map((x) => x.extras?.rol)).toEqual(['hueso', 'musculo', 'musculo', 'vaso', 'nervio'])
     expect(o.every((x) => typeof x.extras?.nombreOriginal === 'string')).toBe(true)
   })
 

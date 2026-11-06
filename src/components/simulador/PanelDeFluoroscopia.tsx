@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
-import { Crosshair, RotateCcw, ScanLine, X, Zap } from 'lucide-react'
+import { Crosshair, Maximize2, Minimize2, RotateCcw, ScanLine, X, Zap } from 'lucide-react'
 import {
   AJUSTES_DE_LA_IMAGEN_POR_OMISION,
   ANCHO_MAXIMO_DEL_RECUADRO,
@@ -28,6 +28,7 @@ import {
 } from '@/lib/radiografia'
 import { MODOS_DE_ESCOPIA, type ModoDeEscopia } from './ajustesDeLaImagen'
 import type { AyudasDeEscopia } from './LienzoQuirurgico'
+import type { ExposicionDelCaso } from '@/lib/relojesDelCaso'
 
 /** Los acercamientos que se piden de un toque; el deslizador y la rueda cubren lo que hay entre medias. */
 const ZOOMS_RAPIDOS = [1, 2, 4] as const
@@ -52,6 +53,13 @@ const enEspanol = (n: number) => n.toFixed(1).replace('.', ',')
  * estrecha: un borde que se arrastra, y un deslizador «Tamaño» para quien no puede arrastrar —teclado, dedo
  * torpe—. Más ancho no es solo más grande: la imagen se redibuja con más píxeles (`ladoDeLaImagen`), o agrandada
  * se vería borrosa.
+ *
+ * **En grande** (P-012 E5) el mismo recuadro pasa a ocupar el lienzo, con la toma de ahora y la última de la otra
+ * proyección una junto a la otra, del mismo tamaño: en pabellón son dos monitores, y una reducción se juzga en los dos
+ * planos. Antes la de referencia medía 96 px al lado de una de unos 270. Es el mismo componente y el mismo lienzo, no una
+ * copia: así la imagen sigue siendo la que se arrastra, se acerca y se dispara, y se dibuja con los píxeles del tamaño
+ * nuevo en cuanto se vuelve a pintar (`ladoDeLaImagen`). Lo que en grande no hace falta —el ancho del recuadro, los
+ * ajustes finos, las ayudas— se esconde, y vuelve al volver al recuadro.
  *
  * Es un componente aparte y no parte de la consola por lo mismo que la consola ya no lleva el resto de su
  * marcado: es lo único que cambia con el reloj de la exposición, y en la consola, con su estado entero,
@@ -84,6 +92,10 @@ export function PanelDeFluoroscopia({
   alCambiarAyudas,
   alApagar,
   referencia = null,
+  objetivoPermitido = true,
+  enGrande = false,
+  alAgrandar,
+  exposicion = null,
 }: {
   proyeccion: ProyeccionDeFluoroscopia
   /** «disparo» (por omisión): una toma por pulsación; «video»: la imagen en vivo, que cuenta exposición. */
@@ -103,7 +115,7 @@ export function PanelDeFluoroscopia({
   hayFragmento: boolean
   /** Los grados entre el eje del hueso fijo y el del fragmento. */
   angulacion: number
-  /** El tope de angulación del paso, si el paso mide la reducción. */
+  /** El tope de angulación del paso, si el paso mide la reducción y se puede decir si se está dentro (solo en práctica). */
   topeDeAngulacion: number | null
   /** Donde se dibuja la imagen: el lienzo 2D que `mando.dibujarFluoroscopia` rellena. */
   lienzo: RefObject<HTMLCanvasElement | null>
@@ -126,9 +138,22 @@ export function PanelDeFluoroscopia({
   alApagar: () => void
   /**
    * La última toma de la otra proyección (P-009, mejora de uso 11), como el segundo monitor del arco en pabellón: la
-   * reducción se juzga en AP y en lateral a la vez. Una foto fija, que se renueva al disparar en esa proyección.
+   * reducción se juzga en AP y en lateral a la vez. Una foto fija, que se renueva al disparar en esa proyección. `imagen`
+   * nula: todavía no se disparó en esa proyección; en el recuadro no sale nada, y en grande, el monitor apagado.
    */
-  referencia?: { imagen: string; etiqueta: string } | null
+  referencia?: { imagen: string | null; etiqueta: string } | null
+  /**
+   * Si «Dónde debe quedar» se puede encender (E4 de P-012). En evaluación no: es la silueta del fragmento ya reducido,
+   * la respuesta del paso dibujada encima de la imagen. Se queda el interruptor, apagado y con el porqué, y no se
+   * esconde: si desaparece, quien lo usó en práctica lo busca y cree que la consola falla.
+   */
+  objetivoPermitido?: boolean
+  /** El monitor en grande, sobre el lienzo (P-012 E5). */
+  enGrande?: boolean
+  /** Agranda o devuelve al recuadro: el botón de la cabecera, la M y el doble clic en la imagen. Sin él, no se agranda. */
+  alAgrandar?: (enGrande: boolean) => void
+  /** Los disparos y los segundos de vídeo del caso entero (P-012 E5), siempre a la vista. */
+  exposicion?: ExposicionDelCaso | null
 }) {
   const etiqueta = PROYECCIONES_DE_FLUOROSCOPIA.find((q) => q.valor === proyeccion)?.etiqueta
   // El arrastre sigue al puntero y no al estado: entre dos movimientos seguidos React puede no haber repintado
@@ -248,7 +273,13 @@ export function PanelDeFluoroscopia({
   const estilo = { '--ancho-escopia': `${ancho}px` } as CSSProperties
 
   return (
-    <div ref={recuadro} className="consola-escopia" role="group" aria-label="Fluoroscopia" style={estilo}>
+    <div
+      ref={recuadro}
+      className={`consola-escopia${enGrande ? ' en-grande' : ''}`}
+      role="group"
+      aria-label={enGrande ? 'Monitor del arco en C, en grande' : 'Fluoroscopia'}
+      style={estilo}
+    >
       <div
         className="consola-escopia-borde"
         role="separator"
@@ -280,7 +311,35 @@ export function PanelDeFluoroscopia({
           // Una toma no es exposición que contar (pedido de Cristóbal): aquí solo se dice de cuándo es la imagen.
           <span className="consola-escopia-tiempo u-num">{haceSegundos === null ? 'sin toma' : `hace ${haceSegundos} s`}</span>
         )}
+        {alAgrandar ? (
+          <button
+            type="button"
+            className="consola-escopia-agrandar"
+            aria-pressed={enGrande}
+            aria-keyshortcuts="M"
+            aria-label={enGrande ? 'Volver al recuadro' : 'Ver el monitor en grande'}
+            title={
+              enGrande
+                ? 'Volver al recuadro (M, Esc o doble clic en la imagen)'
+                : 'El monitor en grande, con la última toma de la otra proyección al lado (M o doble clic en la imagen)'
+            }
+            onClick={() => alAgrandar(!enGrande)}
+          >
+            {enGrande ? <Minimize2 size={14} aria-hidden /> : <Maximize2 size={14} aria-hidden />}
+          </button>
+        ) : null}
       </p>
+      {/* Lo que lleva el caso de rayos, a la vista siempre y no solo al apagar: la dosis es lo que más se descuida al
+          aprender, y un número que se ve subir enseña más que un aviso al final. */}
+      {exposicion ? (
+        <p
+          className="consola-escopia-dosis u-num"
+          title="Lo que lleva el caso entero: cada disparo y cada segundo de vídeo es radiación para el paciente y para el equipo."
+        >
+          {exposicion.disparos} {exposicion.disparos === 1 ? 'disparo' : 'disparos'} · {exposicion.segundosDeVideo} s de vídeo
+          en el caso
+        </p>
+      ) : null}
       <div className="consola-escopia-modos" role="group" aria-label="Modo de la fluoroscopia">
         {MODOS_DE_ESCOPIA.map((m) => (
           <button
@@ -295,219 +354,244 @@ export function PanelDeFluoroscopia({
           </button>
         ))}
       </div>
-      <canvas
-        ref={lienzo}
-        className="consola-escopia-imagen"
-        width={384}
-        height={384}
-        role="img"
-        tabIndex={0}
-        aria-label={`Imagen de fluoroscopia, proyección ${etiqueta}, acercada ${enEspanol(zoom)} veces. Arrastre para mover la extremidad; con el teclado, las flechas; más y menos acercan.`}
-        title="Arrastre para subir o bajar la extremidad bajo el arco; la rueda acerca y aleja"
-        onPointerDown={alBajar}
-        onPointerMove={alMover}
-        onPointerUp={alSoltar}
-        onPointerCancel={alSoltar}
-        onKeyDown={alTeclear}
-      />
-      {referencia ? (
-        <figure className="consola-escopia-referencia">
-          {/* eslint-disable-next-line @next/next/no-img-element -- una toma hecha en el navegador, sin servidor que la optimice */}
-          <img src={referencia.imagen} alt={`Última toma ${referencia.etiqueta}`} />
-          <figcaption>Última {referencia.etiqueta}</figcaption>
+      {/* Las dos imágenes, en una caja que en el recuadro no cuenta (`display: contents`) y en grande es la fila de los dos
+          monitores. El lienzo ocupa el mismo sitio del árbol en los dos casos: si React lo volviera a crear al agrandar, la
+          toma que tiene pintada se perdería. */}
+      <div className="consola-escopia-monitores">
+        <figure className="consola-escopia-actual">
+          <canvas
+            ref={lienzo}
+            className="consola-escopia-imagen"
+            width={384}
+            height={384}
+            role="img"
+            tabIndex={0}
+            aria-label={`Imagen de fluoroscopia, proyección ${etiqueta}, acercada ${enEspanol(zoom)} veces. Arrastre para mover la extremidad; con el teclado, las flechas; más y menos acercan.`}
+            title="Arrastre para subir o bajar la extremidad bajo el arco; la rueda acerca y aleja; el doble clic agranda el monitor"
+            onPointerDown={alBajar}
+            onPointerMove={alMover}
+            onPointerUp={alSoltar}
+            onPointerCancel={alSoltar}
+            onKeyDown={alTeclear}
+            onDoubleClick={alAgrandar ? () => alAgrandar(!enGrande) : undefined}
+          />
+          {enGrande ? (
+            <figcaption>
+              {etiqueta} · {modo === 'video' ? 'en vivo' : 'la toma de ahora'}
+            </figcaption>
+          ) : null}
         </figure>
-      ) : null}
-      {modo === 'disparo' ? (
-        <>
-          <button
-            type="button"
-            className="consola-aplicar consola-escopia-disparar"
-            onClick={alDisparar}
-            title="Una toma ahora, como el pedal del arco. La imagen se queda hasta el siguiente disparo (también F desde cualquier sitio, o Intro y espacio con la imagen enfocada)."
-          >
-            <Zap size={14} aria-hidden /> Disparar
-          </button>
-          {/* Lo que cambia la imagen no la repinta hasta disparar: se dice, para que no parezca que no responde. */}
-          <p className="consola-escopia-lectura" role="status">
-            {haceSegundos === null
-              ? 'Todavía no hay toma: pulse «Disparar» para tomar la imagen.'
-              : desactualizada
-                ? 'La imagen es de la toma anterior: cambió la proyección, el acercamiento o la posición. Dispare otra vez.'
-                : 'Imagen de la última toma.'}
-          </p>
-        </>
-      ) : null}
-      {/* Con la broca, el tornillo o el medidor en un agujero (pedidos 3 y 13): a 1× la pierna entera ocupa el círculo y lo que
-          se quiere leer —cuánto falta para la cortical opuesta— son unos pocos píxeles. Se centra y se acerca de una vez. */}
-      {instrumentoPuesto && alCentrarEnElInstrumento ? (
-        <button type="button" className="consola-boton consola-boton-ancho" onClick={alCentrarEnElInstrumento}>
-          <Crosshair size={14} aria-hidden /> Centrar en {instrumentoPuesto}
-        </button>
-      ) : null}
-      <p className="consola-escopia-lectura consola-escopia-mover">
-        <small>Arrastre la imagen para subir o bajar la extremidad.</small>
-        {corrido ? (
-          <button type="button" className="consola-escopia-centrar" onClick={() => alDesplazar(SIN_DESPLAZAMIENTO)}>
-            <Crosshair size={12} aria-hidden /> Centrar
+        {/* En grande sale aunque no haya toma de la otra proyección: el segundo monitor, apagado, dice qué falta. */}
+        {referencia && (referencia.imagen || enGrande) ? (
+          <figure className="consola-escopia-referencia">
+            {referencia.imagen ? (
+              // eslint-disable-next-line @next/next/no-img-element -- una toma hecha en el navegador, sin servidor que la optimice
+              <img src={referencia.imagen} alt={`Última toma ${referencia.etiqueta}`} />
+            ) : (
+              <span className="consola-escopia-sin-toma">
+                Sin toma {referencia.etiqueta} todavía: pase a {referencia.etiqueta} y dispare.
+              </span>
+            )}
+            <figcaption>Última {referencia.etiqueta}</figcaption>
+          </figure>
+        ) : null}
+      </div>
+      {/* Los mandos, en otra caja que en el recuadro no cuenta y en grande es la fila de abajo. */}
+      <div className="consola-escopia-mandos">
+        {modo === 'disparo' ? (
+          <>
+            <button
+              type="button"
+              className="consola-aplicar consola-escopia-disparar"
+              onClick={alDisparar}
+              title="Una toma ahora, como el pedal del arco. La imagen se queda hasta el siguiente disparo (también F desde cualquier sitio, o Intro y espacio con la imagen enfocada)."
+            >
+              <Zap size={14} aria-hidden /> Disparar
+            </button>
+            {/* Lo que cambia la imagen no la repinta hasta disparar: se dice, para que no parezca que no responde. */}
+            <p className="consola-escopia-lectura" role="status">
+              {haceSegundos === null
+                ? 'Todavía no hay toma: pulse «Disparar» para tomar la imagen.'
+                : desactualizada
+                  ? 'La imagen es de la toma anterior: cambió la proyección, el acercamiento o la posición. Dispare otra vez.'
+                  : 'Imagen de la última toma.'}
+            </p>
+          </>
+        ) : null}
+        {/* Con la broca, el tornillo o el medidor en un agujero (pedidos 3 y 13): a 1× la pierna entera ocupa el círculo y lo que
+            se quiere leer —cuánto falta para la cortical opuesta— son unos pocos píxeles. Se centra y se acerca de una vez. */}
+        {instrumentoPuesto && alCentrarEnElInstrumento ? (
+          <button type="button" className="consola-boton consola-boton-ancho" onClick={alCentrarEnElInstrumento}>
+            <Crosshair size={14} aria-hidden /> Centrar en {instrumentoPuesto}
           </button>
         ) : null}
-      </p>
-      <div className="consola-escopia-vistas" role="group" aria-label="Proyección">
-        {PROYECCIONES_DE_FLUOROSCOPIA.map((q) => (
-          <button
-            key={q.valor}
-            type="button"
-            className={`consola-escopia-vista${proyeccion === q.valor ? ' activo' : ''}`}
-            aria-pressed={proyeccion === q.valor}
-            title={q.ayuda}
-            onClick={() => alElegirProyeccion(q.valor)}
-          >
-            {q.etiqueta}
-          </button>
-        ))}
-      </div>
-      <label className="consola-instrumento-articulacion consola-escopia-zoom">
-        <span>Acercar</span>
-        <input
-          type="range"
-          min={ZOOM_MINIMO_DE_LA_IMAGEN}
-          max={ZOOM_MAXIMO_DE_LA_IMAGEN}
-          step={0.1}
-          value={zoom}
-          onChange={(e) => alAcercar(limitarZoom(Number(e.target.value)))}
-          aria-label="Acercar la imagen de la fluoroscopia"
-        />
-        <output>{enEspanol(zoom)}×</output>
-      </label>
-      <div className="consola-escopia-zooms" role="group" aria-label="Acercamientos rápidos">
-        {ZOOMS_RAPIDOS.map((z) => (
-          <button
-            key={z}
-            type="button"
-            className={`consola-escopia-vista${Math.abs(zoom - z) < 0.05 ? ' activo' : ''}`}
-            aria-pressed={Math.abs(zoom - z) < 0.05}
-            onClick={() => alAcercar(z)}
-          >
-            {z}×
-          </button>
-        ))}
-      </div>
-      <label className="consola-instrumento-articulacion consola-escopia-zoom">
-        <span>Tamaño</span>
-        <input
-          type="range"
-          min={ANCHO_MINIMO_DEL_RECUADRO}
-          max={ANCHO_MAXIMO_DEL_RECUADRO}
-          step={4}
-          value={ancho}
-          onChange={(e) => alCambiarAncho(limitarAnchoDelRecuadro(Number(e.target.value), disponible()))}
-          aria-label="Tamaño de la imagen de la fluoroscopia"
-        />
-        <output>{ancho} px</output>
-      </label>
-      <details className="consola-escopia-ajustes">
-        <summary>Ajustes de imagen</summary>
-        <label className="consola-instrumento-articulacion consola-escopia-zoom">
-          <span>Penetración</span>
-          <input
-            type="range"
-            min={KV_MINIMO}
-            max={KV_MAXIMO}
-            step={1}
-            value={ajustes.kv}
-            onChange={(e) => alCambiarAjustes(limitarAjustes({ ...ajustes, kv: Number(e.target.value) }))}
-            aria-label="Penetración de la imagen, en kilovoltios: con pocos se ve más opaco; con muchos, el rayo atraviesa más"
-          />
-          <output>{ajustes.kv} kV</output>
-        </label>
-        <label className="consola-instrumento-articulacion consola-escopia-zoom">
-          <span>Contraste</span>
-          <input
-            type="range"
-            min={CONTRASTE_MINIMO}
-            max={CONTRASTE_MAXIMO}
-            step={0.05}
-            value={ajustes.contraste}
-            onChange={(e) => alCambiarAjustes(limitarAjustes({ ...ajustes, contraste: Number(e.target.value) }))}
-            aria-label="Contraste de la imagen"
-          />
-          <output>{ajustes.contraste.toFixed(2).replace('.', ',')}×</output>
-        </label>
-        <label className="consola-instrumento-articulacion consola-escopia-zoom">
-          <span>Brillo</span>
-          <input
-            type="range"
-            min={-BRILLO_MAXIMO * 100}
-            max={BRILLO_MAXIMO * 100}
-            step={1}
-            value={Math.round(ajustes.brillo * 100)}
-            onChange={(e) => alCambiarAjustes(limitarAjustes({ ...ajustes, brillo: Number(e.target.value) / 100 }))}
-            aria-label="Brillo de la imagen"
-          />
-          <output>{`${ajustes.brillo > 0 ? '+' : ''}${Math.round(ajustes.brillo * 100)} %`}</output>
-        </label>
-        <div className="consola-escopia-filtros" role="group" aria-label="Filtro de la imagen">
-          {FILTROS_DE_FLUOROSCOPIA.map((f) => (
+        <p className="consola-escopia-lectura consola-escopia-mover">
+          <small>Arrastre la imagen para subir o bajar la extremidad.</small>
+          {corrido ? (
+            <button type="button" className="consola-escopia-centrar" onClick={() => alDesplazar(SIN_DESPLAZAMIENTO)}>
+              <Crosshair size={12} aria-hidden /> Centrar
+            </button>
+          ) : null}
+        </p>
+        <div className="consola-escopia-vistas" role="group" aria-label="Proyección">
+          {PROYECCIONES_DE_FLUOROSCOPIA.map((q) => (
             <button
-              key={f.valor}
+              key={q.valor}
               type="button"
-              className={`consola-escopia-vista${ajustes.filtro === f.valor ? ' activo' : ''}`}
-              aria-pressed={ajustes.filtro === f.valor}
-              title={f.ayuda}
-              onClick={() => alCambiarAjustes({ ...ajustes, filtro: f.valor })}
+              className={`consola-escopia-vista${proyeccion === q.valor ? ' activo' : ''}`}
+              aria-pressed={proyeccion === q.valor}
+              title={q.ayuda}
+              onClick={() => alElegirProyeccion(q.valor)}
             >
-              {f.etiqueta}
+              {q.etiqueta}
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="consola-escopia-centrar"
-          disabled={JSON.stringify(ajustes) === JSON.stringify(AJUSTES_DE_LA_IMAGEN_POR_OMISION)}
-          onClick={() => alCambiarAjustes({ ...AJUSTES_DE_LA_IMAGEN_POR_OMISION })}
-        >
-          <RotateCcw size={12} aria-hidden /> Restablecer
+        <label className="consola-instrumento-articulacion consola-escopia-zoom consola-escopia-acercar">
+          <span>Acercar</span>
+          <input
+            type="range"
+            min={ZOOM_MINIMO_DE_LA_IMAGEN}
+            max={ZOOM_MAXIMO_DE_LA_IMAGEN}
+            step={0.1}
+            value={zoom}
+            onChange={(e) => alAcercar(limitarZoom(Number(e.target.value)))}
+            aria-label="Acercar la imagen de la fluoroscopia"
+          />
+          <output>{enEspanol(zoom)}×</output>
+        </label>
+        <div className="consola-escopia-zooms" role="group" aria-label="Acercamientos rápidos">
+          {ZOOMS_RAPIDOS.map((z) => (
+            <button
+              key={z}
+              type="button"
+              className={`consola-escopia-vista${Math.abs(zoom - z) < 0.05 ? ' activo' : ''}`}
+              aria-pressed={Math.abs(zoom - z) < 0.05}
+              onClick={() => alAcercar(z)}
+            >
+              {z}×
+            </button>
+          ))}
+        </div>
+        <label className="consola-instrumento-articulacion consola-escopia-zoom consola-escopia-tamano">
+          <span>Tamaño</span>
+          <input
+            type="range"
+            min={ANCHO_MINIMO_DEL_RECUADRO}
+            max={ANCHO_MAXIMO_DEL_RECUADRO}
+            step={4}
+            value={ancho}
+            onChange={(e) => alCambiarAncho(limitarAnchoDelRecuadro(Number(e.target.value), disponible()))}
+            aria-label="Tamaño de la imagen de la fluoroscopia"
+          />
+          <output>{ancho} px</output>
+        </label>
+        <details className="consola-escopia-ajustes">
+          <summary>Ajustes de imagen</summary>
+          <label className="consola-instrumento-articulacion consola-escopia-zoom">
+            <span>Penetración</span>
+            <input
+              type="range"
+              min={KV_MINIMO}
+              max={KV_MAXIMO}
+              step={1}
+              value={ajustes.kv}
+              onChange={(e) => alCambiarAjustes(limitarAjustes({ ...ajustes, kv: Number(e.target.value) }))}
+              aria-label="Penetración de la imagen, en kilovoltios: con pocos se ve más opaco; con muchos, el rayo atraviesa más"
+            />
+            <output>{ajustes.kv} kV</output>
+          </label>
+          <label className="consola-instrumento-articulacion consola-escopia-zoom">
+            <span>Contraste</span>
+            <input
+              type="range"
+              min={CONTRASTE_MINIMO}
+              max={CONTRASTE_MAXIMO}
+              step={0.05}
+              value={ajustes.contraste}
+              onChange={(e) => alCambiarAjustes(limitarAjustes({ ...ajustes, contraste: Number(e.target.value) }))}
+              aria-label="Contraste de la imagen"
+            />
+            <output>{ajustes.contraste.toFixed(2).replace('.', ',')}×</output>
+          </label>
+          <label className="consola-instrumento-articulacion consola-escopia-zoom">
+            <span>Brillo</span>
+            <input
+              type="range"
+              min={-BRILLO_MAXIMO * 100}
+              max={BRILLO_MAXIMO * 100}
+              step={1}
+              value={Math.round(ajustes.brillo * 100)}
+              onChange={(e) => alCambiarAjustes(limitarAjustes({ ...ajustes, brillo: Number(e.target.value) / 100 }))}
+              aria-label="Brillo de la imagen"
+            />
+            <output>{`${ajustes.brillo > 0 ? '+' : ''}${Math.round(ajustes.brillo * 100)} %`}</output>
+          </label>
+          <div className="consola-escopia-filtros" role="group" aria-label="Filtro de la imagen">
+            {FILTROS_DE_FLUOROSCOPIA.map((f) => (
+              <button
+                key={f.valor}
+                type="button"
+                className={`consola-escopia-vista${ajustes.filtro === f.valor ? ' activo' : ''}`}
+                aria-pressed={ajustes.filtro === f.valor}
+                title={f.ayuda}
+                onClick={() => alCambiarAjustes({ ...ajustes, filtro: f.valor })}
+              >
+                {f.etiqueta}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="consola-escopia-centrar"
+            disabled={JSON.stringify(ajustes) === JSON.stringify(AJUSTES_DE_LA_IMAGEN_POR_OMISION)}
+            onClick={() => alCambiarAjustes({ ...AJUSTES_DE_LA_IMAGEN_POR_OMISION })}
+          >
+            <RotateCcw size={12} aria-hidden /> Restablecer
+          </button>
+        </details>
+        <label className="consola-escopia-opcion">
+          <input
+            type="checkbox"
+            checked={ayudas.ejes}
+            onChange={(e) => alCambiarAyudas({ ...ayudas, ejes: e.target.checked })}
+          />
+          <span>
+            Guía de ejes
+            <small>verde, el hueso fijo · ámbar, el fragmento (en la vista de la izquierda)</small>
+          </span>
+        </label>
+        <label className="consola-escopia-opcion">
+          <input
+            type="checkbox"
+            checked={ayudas.objetivo && objetivoPermitido}
+            disabled={!hayFragmento || !objetivoPermitido}
+            onChange={(e) => alCambiarAyudas({ ...ayudas, objetivo: e.target.checked })}
+          />
+          <span>
+            Dónde debe quedar
+            <small>
+              {objetivoPermitido ? 'silueta verde del fragmento reducido' : 'no se usa en evaluación: en pabellón nadie la dibuja'}
+            </small>
+          </span>
+        </label>
+        {ayudas.ejes ? (
+          <p className="consola-escopia-lectura">
+            Entre los dos ejes hay <strong className="u-num">{angulacion}°</strong>
+            {topeDeAngulacion !== null
+              ? angulacion > topeDeAngulacion
+                ? `: se pasa del tope de ${topeDeAngulacion}°.`
+                : `: dentro del tope de ${topeDeAngulacion}°.`
+              : '.'}
+          </p>
+        ) : null}
+        {modo === 'video' && segundos > SEGUNDOS_DE_ESCOPIA_ALTOS ? (
+          <p className="consola-escopia-aviso">Mucha exposición. En pabellón se dispara, se mira y se apaga.</p>
+        ) : null}
+        <button type="button" className="consola-boton consola-boton-ancho" onClick={alApagar}>
+          <X size={14} aria-hidden /> Apagar la fluoroscopia
         </button>
-      </details>
-      <label className="consola-escopia-opcion">
-        <input
-          type="checkbox"
-          checked={ayudas.ejes}
-          onChange={(e) => alCambiarAyudas({ ...ayudas, ejes: e.target.checked })}
-        />
-        <span>
-          Guía de ejes
-          <small>verde, el hueso fijo · ámbar, el fragmento (en la vista de la izquierda)</small>
-        </span>
-      </label>
-      <label className="consola-escopia-opcion">
-        <input
-          type="checkbox"
-          checked={ayudas.objetivo}
-          disabled={!hayFragmento}
-          onChange={(e) => alCambiarAyudas({ ...ayudas, objetivo: e.target.checked })}
-        />
-        <span>
-          Dónde debe quedar
-          <small>silueta verde del fragmento reducido</small>
-        </span>
-      </label>
-      {ayudas.ejes ? (
-        <p className="consola-escopia-lectura">
-          Entre los dos ejes hay <strong className="u-num">{angulacion}°</strong>
-          {topeDeAngulacion !== null
-            ? angulacion > topeDeAngulacion
-              ? `: se pasa del tope de ${topeDeAngulacion}°.`
-              : `: dentro del tope de ${topeDeAngulacion}°.`
-            : '.'}
-        </p>
-      ) : null}
-      {modo === 'video' && segundos > SEGUNDOS_DE_ESCOPIA_ALTOS ? (
-        <p className="consola-escopia-aviso">Mucha exposición. En pabellón se dispara, se mira y se apaga.</p>
-      ) : null}
-      <button type="button" className="consola-boton consola-boton-ancho" onClick={alApagar}>
-        <X size={14} aria-hidden /> Apagar la fluoroscopia
-      </button>
+      </div>
     </div>
   )
 }

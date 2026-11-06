@@ -287,7 +287,7 @@ describe('el cableado', () => {
   it('el menú sale con un trozo suelto y con la placa puesta sin fijar, y vive en la barra de modos', () => {
     expect(consola).toContain("const menuDelTrozo = (modo === 'mover' && !moverTodoEfectivo) || modo === 'reducir'")
     expect(consola).toContain("const menuDeLaPlaca = modo === 'fijar' && !!fijacion?.placa && !fijacion.placa.fijada")
-    const barra = consola.slice(consola.indexOf('<div className="consola-barra-de-modos">'), consola.indexOf('consola-lienzo-marco modo-'))
+    const barra = consola.slice(consola.indexOf('<div className="consola-barra-de-modos"'), consola.indexOf('consola-lienzo-marco modo-'))
     expect(barra).toContain('<MenuDeMovimiento')
   })
 
@@ -311,9 +311,12 @@ describe('el cableado', () => {
     expect(lienzo).toContain('desplazamientoDelArrastre(camara, a.pivote')
   })
 
-  it('el panel de la pinza ofrece Manual y Automática, y la automática anima 600 ms', () => {
+  it('el panel de la pinza ofrece la reducción automática con su pregunta, y anima 600 ms', () => {
     expect(consola).toContain('aria-label="Reducción"')
-    expect(consola).toContain('onClick={reducirAutomaticamente}')
+    // Una acción con pregunta y no el interruptor «Manual | Automática» de antes (E4 de P-012).
+    expect(consola).toContain('onClick={() => void pedirLaReduccionAutomatica()}')
+    expect(consola).not.toContain('onClick={reducirAutomaticamente}')
+    expect(consola).toContain("titulo: '¿Reducir automáticamente?'")
     expect(consola).toContain('const DURACION_DE_LA_REDUCCION_MS = 600')
   })
 

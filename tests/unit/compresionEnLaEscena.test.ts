@@ -223,7 +223,10 @@ describe('los campos, la migración y el cableado', () => {
     expect(lienzo).toContain('resultadoDelDeslizamiento({ ...calibresPorFragmento(libre.perforaciones, distancia)')
     // Un tornillo bloqueado no comprime, ni en el óvalo ni por la trayectoria.
     expect(lienzo).toContain("const oval = !puesto.bloqueado && formaDeLosAgujeros({ nombre: placa.nombre }) !== 'redondo'")
-    expect(lienzo).toContain('inst.coloca.bloqueado ? null : distanciaALaFracturaPorLaTrayectoria(libre)')
+    // La distancia al trazo se mide para todos —cruzarlo bloquea el foco, comprima o no (D-308)—, y el bloqueado no la
+    // usa para comprimir.
+    expect(lienzo).toContain('const cruzaHasta = distanciaALaFracturaPorLaTrayectoria(libre)')
+    expect(lienzo).toContain('inst.coloca.bloqueado ? null : cruzaHasta')
   })
 
   it('la compresión mueve el fragmento hacia su sitio y no pasa de lo separado', () => {

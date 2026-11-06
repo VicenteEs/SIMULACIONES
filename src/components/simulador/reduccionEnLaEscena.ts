@@ -168,3 +168,85 @@ export function posesReducidasDe(
   }
   return poses
 }
+
+// ------------------------------------------------ la lectura del fragmento
+
+/**
+ * Cuánto se ha desviado el fragmento de su sitio de reposo, en el espacio del modelo (D-303): el giro que lo lleva de
+ * donde debería estar a donde está y lo que se ha ido el punto `focoLocal` (en el espacio del propio fragmento).
+ *
+ * Contra matrices y no restando ángulos de Euler, que es lo que hacía `estadoDelFragmento`: la resta da el giro de
+ * verdad solo si el trozo parte sin girar, y desde P-008 E5 un fragmento puede partir girado —se exporta ya
+ * desplazado—. `referenciaEnElPadre` es el sitio de reposo como pose del nodo, relativa a su padre: la que guarda el
+ * lienzo en `origenDelFragmento`.
+ */
+export function desvioDelFragmento(
+  raiz: THREE.Object3D,
+  objeto: THREE.Object3D,
+  referenciaEnElPadre: THREE.Matrix4,
+  focoLocal: THREE.Vector3 = new THREE.Vector3(),
+): { giro: [number, number, number, number]; separacion: [number, number, number] } {
+  raiz.updateMatrixWorld(true)
+  objeto.updateMatrix()
+  const padre = delPadreALaRaiz(raiz, objeto)
+  const ahora = padre.clone().multiply(objeto.matrix)
+  const debido = padre.clone().multiply(referenciaEnElPadre)
+  const enAhora = focoLocal.clone().applyMatrix4(ahora)
+  const enSuSitio = focoLocal.clone().applyMatrix4(debido)
+  const giroAhora = new THREE.Quaternion()
+  const giroDebido = new THREE.Quaternion()
+  ahora.decompose(new THREE.Vector3(), giroAhora, new THREE.Vector3())
+  debido.decompose(new THREE.Vector3(), giroDebido, new THREE.Vector3())
+  const giro = giroAhora.multiply(giroDebido.invert()).normalize()
+  return { giro: [giro.x, giro.y, giro.z, giro.w], separacion: [enAhora.x - enSuSitio.x, enAhora.y - enSuSitio.y, enAhora.z - enSuSitio.z] }
+}
+
+const esTerna = (v: unknown): v is [number, number, number] =>
+  Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n)) && Math.hypot(v[0], v[1], v[2]) > 1e-9
+
+/** El lado que dice el nombre de un objeto, en español o en el inglés del atlas; `null` si no lo dice. */
+export function ladoPorElNombre(...nombres: unknown[]): 'derecho' | 'izquierdo' | null {
+  for (const nombre of nombres) {
+    if (typeof nombre !== 'string') continue
+    const n = nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    // Sin `\b`: en un nombre de nodo el guion bajo es parte de la palabra, y «Tibia_derecha_fragmento» no tiene límite
+    // de palabra antes ni después de «derecha».
+    if (/right|derech/.test(n)) return 'derecho'
+    if (/left|izquierd/.test(n)) return 'izquierdo'
+  }
+  return null
+}
+
+/**
+ * Los ejes con que se lee el fragmento, en el espacio del modelo (D-303), y si se sabe de qué lado es.
+ *
+ * Los trae el archivo que sale del taller (`ejeLargo`, `ejeDelante`, `ejeFuera`, D-304), medidos sobre el hueso entero
+ * y girados como el otro trozo. Un modelo anterior o hecho en Blender no los trae, y entonces se suponen los del atlas
+ * de pie: el largo hacia abajo por el eje del caso, delante +Z y fuera según el lado, que se lee de `lado` o del nombre
+ * («Right tibia», «Tibia derecha»). Sin lado conocido se toma el derecho y se dice: las magnitudes son las mismas en
+ * los dos lados, pero varo y valgo saldrían al revés en una pierna izquierda.
+ */
+export function ejesDelFragmento(
+  objeto: THREE.Object3D,
+  ejeLargo: 'x' | 'y' | 'z' = 'y',
+): { ejes: { largo: [number, number, number]; delante: [number, number, number]; fuera: [number, number, number] }; ladoConocido: boolean } {
+  const datos = objeto.userData ?? {}
+  if (esTerna(datos.ejeLargo) && esTerna(datos.ejeDelante) && esTerna(datos.ejeFuera)) {
+    return { ejes: { largo: datos.ejeLargo, delante: datos.ejeDelante, fuera: datos.ejeFuera }, ladoConocido: true }
+  }
+  const escrito = datos.lado === 'derecho' || datos.lado === 'izquierdo' ? datos.lado : null
+  const lado = escrito ?? ladoPorElNombre(datos.nombreOriginal, datos.etiqueta, objeto.name)
+  const i = ejeLargo === 'x' ? 0 : ejeLargo === 'z' ? 2 : 1
+  const largo: [number, number, number] = [0, 0, 0]
+  largo[i] = -1
+  const delante: [number, number, number] = i === 2 ? [0, 1, 0] : [0, 0, 1]
+  const cruz = new THREE.Vector3(...largo).cross(new THREE.Vector3(...delante))
+  const signo = lado === 'izquierdo' ? -1 : 1
+  return { ejes: { largo, delante, fuera: [cruz.x * signo, cruz.y * signo, cruz.z * signo] }, ladoConocido: lado !== null }
+}
+
+/** De qué trozo es el fragmento, si el archivo lo dice (`trozo`, que escribe la exportación del atlas). */
+export function trozoDelFragmento(objeto: THREE.Object3D): 'distal' | 'proximal' | null {
+  const trozo = objeto.userData?.trozo
+  return trozo === 'distal' || trozo === 'proximal' ? trozo : null
+}

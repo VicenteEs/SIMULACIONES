@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, ScanLine, Trash2 } from 'lucide-react'
+import { Download, Maximize2, Minimize2, ScanLine, Trash2 } from 'lucide-react'
 import { ruta } from '@/lib/rutas'
 import { pngConTextos } from '@/lib/pngConMetadatos'
 import {
@@ -99,6 +99,30 @@ export function RadiografiaPostoperatoria({
 
   const [logo, setLogo] = useState<HTMLImageElement | null>(null)
   const lienzoDeLaLamina = useRef<HTMLCanvasElement>(null)
+  // La lámina a pantalla completa (P-012 E5): en la columna se veía a 223 × 126, y es una placa de 1920 × 1080 que se
+  // mira para juzgar la fijación. Es el mismo lienzo con otra clase, no una copia: lo que se ve es lo que se descarga.
+  const [ampliada, setAmpliada] = useState(false)
+  const botonAmpliar = useRef<HTMLButtonElement>(null)
+  const botonCerrarAmpliada = useRef<HTMLButtonElement>(null)
+
+  // Esc la devuelve a su sitio, y el foco va y vuelve con ella: al cerrar, al botón que la abrió.
+  useEffect(() => {
+    if (!ampliada) return
+    // El botón que la abrió está siempre: se copia aquí porque al limpiar React ya puede haber cambiado la referencia.
+    const abrio = botonAmpliar.current
+    botonCerrarAmpliada.current?.focus()
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      setAmpliada(false)
+    }
+    document.addEventListener('keydown', alTeclear, true)
+    return () => {
+      document.removeEventListener('keydown', alTeclear, true)
+      abrio?.focus()
+    }
+  }, [ampliada])
 
   // El logotipo se carga una vez. Si no llega, la lámina lleva el nombre escrito y se puede descargar igual.
   useEffect(() => {
@@ -296,12 +320,28 @@ export function RadiografiaPostoperatoria({
 
       <canvas
         ref={lienzoDeLaLamina}
-        className="radiografia-post-lamina"
+        className={`radiografia-post-lamina${ampliada ? ' ampliada' : ''}`}
         width={ANCHO_DE_LA_LAMINA}
         height={ALTO_DE_LA_LAMINA}
         role="img"
-        aria-label="Vista previa de la lámina"
+        aria-label={ampliada ? 'La lámina a pantalla completa' : 'Vista previa de la lámina'}
+        title={ampliada ? 'Clic o Esc para volver' : 'Doble clic para verla a pantalla completa'}
+        onDoubleClick={() => setAmpliada(true)}
+        onClick={ampliada ? () => setAmpliada(false) : undefined}
       />
+      {ampliada ? (
+        <button
+          ref={botonCerrarAmpliada}
+          type="button"
+          className="consola-boton radiografia-post-cerrar-ampliada"
+          onClick={() => setAmpliada(false)}
+        >
+          <Minimize2 size={16} aria-hidden /> Volver (Esc)
+        </button>
+      ) : null}
+      <button ref={botonAmpliar} type="button" className="consola-boton" onClick={() => setAmpliada(true)}>
+        <Maximize2 size={16} aria-hidden /> Ver la lámina a pantalla completa
+      </button>
       <button type="button" className="consola-aplicar" onClick={descargar} disabled={tomas.length === 0}>
         <Download size={16} aria-hidden /> Descargar lámina (PNG)
       </button>

@@ -1,5 +1,7 @@
 import type { ComplicacionDelCaso } from './progresoDelSimulador'
 import type { RegistroDeInsumos } from './insumos'
+import { recorridoValido, type RecorridoDelCaso } from './notaDelRecorrido'
+import { sinTiempos, tiemposValidos, type TiemposDelRecorrido } from './relojesDelCaso'
 
 /**
  * Dónde se quedó el residente en un caso del simulador (P-009, mejora de uso 12), y lo hecho sobre el paciente al
@@ -49,6 +51,16 @@ export interface AvanceDelCaso {
   instantanea: InstantaneaDelLienzo
   /** Cuándo se guardó, en ISO: distingue este avance del que la pestaña ya tiene restaurado. */
   guardadoEn: string
+  /**
+   * Con qué rehace el servidor la nota (D-310): sin esto, el que sigue otro día manda un puntaje que el servidor no
+   * puede comprobar. Opcional porque los avances de antes no lo traen.
+   */
+  recorrido?: RecorridoDelCaso
+  /**
+   * Los relojes y la cuenta del arco al empezar el paso (P-012 E5): al seguir otro día, el procedimiento, el manguito y
+   * los rayos siguen desde ahí. Opcional porque los avances de antes no lo traen, y entonces se sigue con todo a cero.
+   */
+  tiempos?: TiemposDelRecorrido
 }
 
 /**
@@ -106,11 +118,28 @@ export function avanceValido(valor: unknown): AvanceDelCaso | null {
     insumos: a.insumos as RegistroDeInsumos,
     instantanea: { sesion: i.sesion, colocado: i.colocado },
     guardadoEn: a.guardadoEn,
+    // Rehecho con las mismas reglas que el que llega con el resultado: es el mismo recorrido, guardado en otro sitio.
+    ...(a.recorrido !== undefined && a.recorrido !== null ? { recorrido: recorridoValido(a.recorrido) } : {}),
+    ...tiemposDelAvance(a.tiempos),
+  }
+  // El modo del recorrido es el del caso entero (E4 de P-012). Seguir en evaluación lo empezado en práctica, o al revés,
+  // no es seguir: es otro recorrido, y se empieza de nuevo.
+  if (avance.recorrido?.modo && avance.recorrido.modo !== avance.modo) {
+    throw new Error('El modo del avance no es el de su recorrido.')
   }
   if (JSON.stringify(avance).length > TOPE_DEL_AVANCE) {
     throw new Error('Lo hecho sobre el paciente ocupa demasiado para guardarlo en la cuenta.')
   }
   return avance
+}
+
+/**
+ * Los tiempos del avance, rehechos con las reglas del resultado. Un reloj roto no tira el avance, a diferencia de lo
+ * demás: perder dónde se quedó por un segundo mal contado sería peor que seguir con ese reloj a cero.
+ */
+function tiemposDelAvance(valor: unknown): { tiempos?: TiemposDelRecorrido } {
+  const tiempos = tiemposValidos(valor)
+  return sinTiempos(tiempos) ? {} : { tiempos }
 }
 
 /** El avance de una fila de `actividad`, o `null` si no hay o no se reconoce: la página no se cae por una fila rara. */

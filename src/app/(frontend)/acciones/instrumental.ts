@@ -19,6 +19,7 @@ import { accion, exigirAdmin, exigirEditor, type Respuesta } from '@/lib/guardia
 import { exigirIdentificador, exigirTexto, textoOpcional } from '@/lib/validacion'
 import {
   CATEGORIAS_DE_INSTRUMENTAL,
+  categoriaDelInstrumento,
   INSTRUMENTAL_BASE,
   slugDeArchivo,
   slugDeInstrumento,
@@ -82,12 +83,18 @@ const ICONOS = new Set(['generico', 'bisturi', 'separador', 'pinza', 'tijera', '
 function datosDescriptivos(entrada: unknown) {
   if (!entrada || typeof entrada !== 'object') throw new Error('No llegó nada que guardar.')
   const e = entrada as Record<string, unknown>
-  const categoria = typeof e.categoria === 'string' && CATEGORIAS.has(e.categoria) ? e.categoria : 'fijacion'
   const icono = typeof e.icono === 'string' && ICONOS.has(e.icono) ? e.icono : 'generico'
   const nombre = exigirTexto(e.nombre, 'El nombre', 120)
+  const slug = slugDeInstrumento(typeof e.slug === 'string' && e.slug.trim() ? e.slug : nombre) || undefined
+  // Sin categoría válida, la que dice el nombre, y solo si no dice nada «Perforación y fijación». Antes era siempre
+  // esa, sin avisar, y así se llenó de bisturís la familia de las brocas (O-083, D-270).
+  const categoria =
+    typeof e.categoria === 'string' && CATEGORIAS.has(e.categoria)
+      ? e.categoria
+      : (categoriaDelInstrumento({ slug, nombre }) ?? 'fijacion')
   return {
     nombre,
-    slug: slugDeInstrumento(typeof e.slug === 'string' && e.slug.trim() ? e.slug : nombre) || undefined,
+    slug,
     categoria,
     icono,
     descripcion: textoOpcional(e.descripcion, 'Para qué sirve', 600) ?? '',

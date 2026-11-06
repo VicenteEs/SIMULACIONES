@@ -23,22 +23,30 @@ import type { RolDePieza } from '@/lib/piezasDelCaso'
  * La consola tiene tres capas de tejido y las ordena por **profundidad**, que es
  * como se opera: se incide la piel, se separan las partes blandas y se llega al
  * hueso. «Músculo» es, en la práctica, la capa de partes blandas: lo que hay
- * entre la piel y el hueso. Por eso van ahí también los vasos, los nervios, los
- * tendones y los ligamentos: en un abordaje de pierna aparecen entre la piel y
- * la tibia, y apagarlos por separado exigiría capas que la consola no tiene.
+ * entre la piel y el hueso. Por eso van ahí también los tendones y los
+ * ligamentos: en un abordaje de pierna aparecen entre la piel y la tibia, y
+ * apagarlos por separado exigiría capas que la consola no tiene.
  *
- * Si algún día hacen falta capas propias para vasos o nervios, el cambio empieza
- * por añadir el rol en `src/collections/Cirugias.ts` —con su migración, porque
- * es un `select`— y termina aquí.
+ * ## Los vasos y los nervios, en ese plano pero con su papel
+ *
+ * Fueron «músculo» hasta P-012 (E6). Siguen en ese plano —se encienden, se
+ * apagan, se separan y se cosen con él (`esEstructuraNoble`)—, pero tienen papel
+ * propio, `vaso` y `nervio`, porque no se tratan igual: el músculo se corta para
+ * llegar al hueso, y una arteria cortada o un nervio perforado es una
+ * complicación. Con los dos en «músculo», la consola no podía distinguirlos.
+ *
+ * El linfático se queda en «músculo». Sus vasos son de calibre mínimo y su
+ * lesión no es la que se vigila en un abordaje de miembro, y contarla junto a la
+ * de la arteria femoral enseñaría a temer lo que no importa.
  */
 export const ROL_DE_SISTEMA: Readonly<Record<string, RolDePieza>> = {
   integumentary: 'piel',
   skeletal: 'hueso',
   muscular: 'musculo',
   connective: 'musculo',
-  arterial: 'musculo',
-  venous: 'musculo',
-  nervous: 'musculo',
+  arterial: 'vaso',
+  venous: 'vaso',
+  nervous: 'nervio',
   lymphatic: 'musculo',
   cardiac: 'musculo',
   respiratory: 'musculo',

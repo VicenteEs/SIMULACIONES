@@ -17,7 +17,7 @@ import { MAXIMO_DE_COMPLICACIONES } from '@/lib/progresoDelSimulador'
  * colgarle una partida a una ficha de la biblioteca.
  */
 
-const { estado, buscar, actualizar, crear } = vi.hoisted(() => ({
+const { estado, buscar, actualizar, crear, leerCaso } = vi.hoisted(() => ({
   estado: {
     usuario: { id: 4, rol: 'lector', activo: true } as Record<string, unknown> | null,
     activo: true,
@@ -25,6 +25,8 @@ const { estado, buscar, actualizar, crear } = vi.hoisted(() => ({
   buscar: vi.fn(),
   actualizar: vi.fn(),
   crear: vi.fn(),
+  // El caso que lee el servidor para rehacer la nota (D-310).
+  leerCaso: vi.fn(),
 }))
 
 vi.mock('@/lib/sesion', () => ({
@@ -39,7 +41,7 @@ vi.mock('@/lib/sesion', () => ({
 }))
 
 vi.mock('payload', () => ({
-  getPayload: async () => ({ find: buscar, update: actualizar, create: crear }),
+  getPayload: async () => ({ find: buscar, update: actualizar, create: crear, findByID: leerCaso }),
 }))
 
 vi.mock('@payload-config', () => ({ default: {} }))
@@ -62,6 +64,28 @@ const recorrido = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 
+/**
+ * Un caso de dos pasos de 10, como lo devuelve Payload con profundidad 0: el instrumento es un número. El segundo pide
+ * una incisión de 40 a 60 mm.
+ */
+const CASO_DE_DOS_PASOS = {
+  id: 7,
+  nombre: 'Caso de prueba',
+  pasos: [
+    { id: 'p1', titulo: 'Coger el bisturí', objetivo: 'instrumento', instrumento: 3, puntos: 10 },
+    { id: 'p2', titulo: 'Incisión', objetivo: 'trazo', instrumento: 3, trazoMinimo: 40, trazoMaximo: 60, puntos: 10 },
+  ],
+}
+
+/** El recorrido de ese caso: el primero a la primera, el segundo tras una incisión corta. Vale 10 + 5 de 20. */
+const RECORRIDO_DE_LA_NOTA = {
+  v: 1,
+  pasos: [
+    { paso: 'p1', intentos: [{ instrumento: '3' }] },
+    { paso: 'p2', intentos: [{ instrumento: '3', trazo: 30 }, { instrumento: '3', trazo: 50 }] },
+  ],
+}
+
 /** Lo que acabó en la base, venga de un `create` o de un `update`. */
 const loEscrito = (): Record<string, unknown> =>
   (crear.mock.calls[0]?.[0] ?? actualizar.mock.calls[0]?.[0]).data as Record<string, unknown>
@@ -70,6 +94,8 @@ beforeEach(() => {
   buscar.mockReset()
   actualizar.mockReset()
   crear.mockReset()
+  leerCaso.mockReset()
+  leerCaso.mockResolvedValue(CASO_DE_DOS_PASOS)
   buscar.mockResolvedValue({ docs: [] })
   actualizar.mockResolvedValue({ id: 1 })
   crear.mockResolvedValue({ id: 1 })
@@ -107,6 +133,10 @@ describe('guardar el recorrido de un caso', () => {
     expect(actualizar.mock.calls[0][0].data).toEqual({
       puntaje: 18,
       puntajeMaximo: 40,
+      // Sin recorrido con que rehacerla, la nota es la que llegó y se dice (D-310); el `null` borra la del navegador
+      // de un recorrido anterior que no coincidiera.
+      comprobacionDeLaNota: 'sin-comprobar',
+      notaDelNavegador: null,
       complicaciones: [],
       insumos: [],
       reduccionAutomatica: false,
@@ -279,5 +309,95 @@ describe('cuando no se puede escribir', () => {
     await expect(registrarResultadoDeCirugia('7', recorrido())).resolves.toBeUndefined()
     expect(actualizar).toHaveBeenCalledTimes(1)
     expect(actualizar.mock.calls[0][0].id).toBe(5)
+  })
+})
+
+describe('la nota la pone el servidor (D-310)', () => {
+  it('rehace la cuenta con los pasos del caso y, si coincide, lo dice', async () => {
+    await registrarResultadoDeCirugia('7', recorrido({ puntaje: 15, puntajeMaximo: 20, recorrido: RECORRIDO_DE_LA_NOTA }))
+    expect(loEscrito()).toMatchObject({ puntaje: 15, puntajeMaximo: 20, comprobacionDeLaNota: 'coincide', notaDelNavegador: null })
+    // Con el acceso de quien juega, como la página que monta la consola: un caso que no puede ver no se lee.
+    expect(leerCaso).toHaveBeenCalledWith(expect.objectContaining({ collection: 'cirugias', id: '7', overrideAccess: false, depth: 0 }))
+  })
+
+  it('un puntaje escrito a mano no pasa: se guarda el del servidor y el del navegador queda al lado', async () => {
+    // Lo que se cerró: la acción se llama por HTTP con lo que se le mande, y antes un 20 de 20 se guardaba tal cual.
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await registrarResultadoDeCirugia('7', recorrido({ puntaje: 20, puntajeMaximo: 20, recorrido: RECORRIDO_DE_LA_NOTA }))
+    expect(loEscrito()).toMatchObject({
+      puntaje: 15,
+      puntajeMaximo: 20,
+      comprobacionDeLaNota: 'no-coincide',
+      notaDelNavegador: { puntaje: 20, puntajeMaximo: 20 },
+    })
+  })
+
+  it('un recorrido roto no tira el resultado: se guarda sin comprobar, con sus complicaciones', async () => {
+    await registrarResultadoDeCirugia('7', recorrido({ recorrido: { v: 1, pasos: 'no es una lista' } }))
+    expect(loEscrito()).toMatchObject({ puntaje: 18, puntajeMaximo: 40, comprobacionDeLaNota: 'sin-comprobar' })
+    expect(loEscrito().complicaciones as unknown[]).toHaveLength(1)
+    expect(leerCaso).not.toHaveBeenCalled()
+  })
+
+  it('si el caso no se puede leer, tampoco se pierde el recorrido', async () => {
+    leerCaso.mockRejectedValue(new Error('Forbidden'))
+    await registrarResultadoDeCirugia('7', recorrido({ recorrido: RECORRIDO_DE_LA_NOTA }))
+    expect(loEscrito()).toMatchObject({ puntaje: 18, puntajeMaximo: 40, comprobacionDeLaNota: 'sin-comprobar', notaDelNavegador: null })
+  })
+})
+
+describe('el modo de la fila es el del recorrido (E4 de P-012)', () => {
+  // El espía de `console.warn` es el mismo de una prueba a otra: se vacía para contar solo lo de cada una.
+  it('con el recorrido, manda su modo aunque el resultado diga otro, y se apunta', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    aviso.mockClear()
+    await registrarResultadoDeCirugia(
+      '7',
+      recorrido({ puntaje: 15, puntajeMaximo: 20, modo: 'practica', recorrido: { ...RECORRIDO_DE_LA_NOTA, modo: 'evaluacion' } }),
+    )
+    expect(loEscrito()).toMatchObject({ modoDelRecorrido: 'evaluacion', comprobacionDeLaNota: 'coincide' })
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/no es el de su recorrido/))
+  })
+
+  it('si coinciden no se apunta nada, y un recorrido de antes, sin modo, deja el del resultado', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    aviso.mockClear()
+    await registrarResultadoDeCirugia(
+      '7',
+      recorrido({ puntaje: 15, puntajeMaximo: 20, modo: 'evaluacion', recorrido: { ...RECORRIDO_DE_LA_NOTA, modo: 'evaluacion' } }),
+    )
+    expect(loEscrito()).toMatchObject({ modoDelRecorrido: 'evaluacion' })
+    expect(aviso).not.toHaveBeenCalled()
+    crear.mockClear()
+    await registrarResultadoDeCirugia('7', recorrido({ puntaje: 15, puntajeMaximo: 20, modo: 'practica', recorrido: RECORRIDO_DE_LA_NOTA }))
+    expect(loEscrito()).toMatchObject({ modoDelRecorrido: 'practica', comprobacionDeLaNota: 'coincide' })
+  })
+
+  it('una evaluación con reducción automática no salió de la consola: queda sin comprobar', async () => {
+    const enEvaluacion = { v: 1, modo: 'evaluacion', pasos: [{ paso: 'p1', intentos: [{ instrumento: '3' }], automatica: true }] }
+    await registrarResultadoDeCirugia('7', recorrido({ modo: 'evaluacion', recorrido: enEvaluacion }))
+    expect(loEscrito()).toMatchObject({ comprobacionDeLaNota: 'sin-comprobar', modoDelRecorrido: 'evaluacion' })
+    expect(leerCaso).not.toHaveBeenCalled()
+  })
+})
+
+describe('los tiempos del recorrido (P-012 E5)', () => {
+  it('se guardan rehechos campo a campo: lo mal contado se queda fuera y no tira el resto', async () => {
+    await registrarResultadoDeCirugia('7', recorrido({ tiempos: { procedimiento: 2520, disparos: 14, escopia: 20.5, manguito: -1 } }))
+    expect(loEscrito()).toMatchObject({ puntaje: 18, tiempos: { procedimiento: 2520, disparos: 14 } })
+    expect(loEscrito().tiempos).not.toHaveProperty('escopia')
+  })
+
+  it('sin la clave no se tocan, que es lo que manda un navegador de antes', async () => {
+    await registrarResultadoDeCirugia('7', recorrido())
+    expect(loEscrito()).not.toHaveProperty('tiempos')
+  })
+
+  it('vacíos o rotos se guardan como nada: un recorrido nuevo no se queda con los del anterior', async () => {
+    await registrarResultadoDeCirugia('7', recorrido({ tiempos: {} }))
+    expect(loEscrito().tiempos).toBeNull()
+    crear.mockClear()
+    await registrarResultadoDeCirugia('7', recorrido({ tiempos: 'roto' }))
+    expect(loEscrito()).toMatchObject({ puntaje: 18, tiempos: null })
   })
 })

@@ -19,9 +19,11 @@ import {
   ejeDelHueso,
   planoDelCorte,
   type CorteDeHueso,
+  type EjeDelHueso,
   type TrozoDelHueso,
   type Vector3,
 } from '@/lib/planoDeCorte'
+import { enUnMarcoCorrido, IDENTIDAD, type TransformacionRigida } from '@/lib/transformacionRigida'
 
 /**
  * De una preparación del atlas a un modelo que la consola pueda abrir.
@@ -137,9 +139,41 @@ export interface OpcionesDeExportacion {
  */
 export interface HuesoPartidoDeAntes {
   piezas: PiezaLeida[]
-  corte: Pick<CorteExportado, 'etiqueta' | 'descripcion' | 'avisos'> & { punto: Vector3 }
+  corte: Pick<CorteExportado, 'etiqueta' | 'descripcion' | 'avisos'> & {
+    punto: Vector3
+    /** Dónde vuelve el fragmento y con qué ejes se lee (D-304). Sin ella, el archivo sale como antes. */
+    referencia?: ReferenciaDeLaReduccion | null
+  }
   fragmento: TrozoDelHueso
 }
+
+/**
+ * Lo que el fragmento lleva para que la consola sepa a dónde vuelve y lo lea como en clínica (P-012 E1, D-304).
+ *
+ * Hasta aquí el archivo no decía dónde va el trozo reducido. La consola leía la pose del archivo como la reducida, y un
+ * fragmento que el taller dejó angulado 11° se veía angulado y se medía en 0 mm y 0°: un paso de reducción se aprobaba
+ * sin mover nada. El taller sí lo sabe —es él quien movió el trozo, con la receta AO o a mano—, así que lo escribe.
+ *
+ * Todo en las coordenadas del **cuerpo** del atlas, como las piezas que salen de `reproducirPreparacion`;
+ * `prepararExportacion` lo pasa a las del archivo cuando ya sabe cuánto centró.
+ */
+export interface ReferenciaDeLaReduccion {
+  /**
+   * Lo que lleva el fragmento de donde queda en el archivo a donde va reducido, con el formato de `posicionReducida`
+   * del caso: primero el giro y después la traslación. Reducido es **como lo lleva el otro trozo**: si el taller movió
+   * también el proximal, el distal vuelve junto a él y no al sitio del atlas, que es lo que se ve en la consola.
+   */
+  posicionReducida: TransformacionRigida
+  /** Los ejes del hueso reducido —de proximal a distal, delante y fuera—, girados como el otro trozo. */
+  ejes: { largo: Vector3; delante: Vector3; fuera: Vector3 }
+  lado: 'derecho' | 'izquierdo'
+  /** La normal del trazo como queda el fragmento en el archivo, hacia distal. `null` en un corte de varios planos. */
+  normalDelTrazo: Vector3 | null
+}
+
+/** El lado de un hueso por la mitad del atlas en que cae: la derecha está en x negativa (ver `ejeDelHueso`). */
+export const ladoDelHueso = (eje: Pick<EjeDelHueso, 'centro'>): 'derecho' | 'izquierdo' =>
+  eje.centro[0] < 0 ? 'derecho' : 'izquierdo'
 
 /** Lo que se exportó del corte, con los nombres de nodo que salieron. */
 export interface CorteExportado {
@@ -844,7 +878,9 @@ export function centrarEnSuCaja(objetos: ObjetoParaGlb[]): {
 export function piezasDelArchivo(objetos: ObjetoParaGlb[]): PiezaExportada[] {
   return objetos.flatMap((objeto) => {
     const propuesta = propuestaDelNodo(nombreDeNodo(objeto.nombre), objeto.extras)
-    return propuesta ? [propuesta] : []
+    // Las tres claves y no la propuesta entera: el taller del atlas lee esta forma exacta, y la propuesta del fragmento
+    // lleva desde D-304 también su posición reducida, que es del caso y no de lo que se anuncia.
+    return propuesta ? [{ nodo: propuesta.nodo, etiqueta: propuesta.etiqueta, rol: propuesta.rol }] : []
   })
 }
 
@@ -929,7 +965,7 @@ export function partirLaPieza(
   opciones: OpcionesDeExportacion = {},
 ): {
   piezas: PiezaLeida[]
-  corte: (Pick<CorteExportado, 'etiqueta' | 'descripcion' | 'avisos'> & { punto: Vector3 }) | null
+  corte: HuesoPartidoDeAntes['corte'] | null
 } {
   const corte = opciones.corte
   if (!corte) return { piezas, corte: null }
@@ -992,6 +1028,13 @@ export function partirLaPieza(
       descripcion: describirCorte(corte),
       avisos: partida.avisos.map((aviso) => `Al partir «${etiqueta}»: ${aviso}`),
       punto: plano.punto,
+      // Partido aquí, ningún trozo se movió: el archivo ya los trae reducidos, y eso también es saber dónde van (D-304).
+      referencia: {
+        posicionReducida: { ...IDENTIDAD },
+        ejes: { largo: eje.direccion, delante: eje.delante, fuera: eje.fuera },
+        lado: ladoDelHueso(eje),
+        normalDelTrazo: plano.normal,
+      },
     },
   }
 }
@@ -1042,6 +1085,50 @@ export function pivoteEnElFoco(
 }
 
 /**
+ * Escribe en el fragmento a dónde vuelve y con qué ejes se lee (P-012 E1, D-304), ya en las coordenadas del archivo.
+ *
+ * Va después de `pivoteEnElFoco` por dos cosas que solo se saben entonces: cuánto se centró —la posición reducida va
+ * en el marco del archivo, y centrar es restarle `centro` a todo— y que el origen del nodo ya es el foco, que es lo que
+ * afirma `focoEnElOrigen`. El giro no cambia al centrar; la traslación sí (`enUnMarcoCorrido`). Los ejes y la normal
+ * son direcciones, y centrar no las mueve.
+ *
+ * Las claves, y quién las lee:
+ *  - `posicionReducida`: `propuestaDelNodo`, que la pasa a la fila del caso, y el lienzo de la consola cuando la fila no
+ *    trae la suya. Es la misma forma que guarda «Reducir automáticamente».
+ *  - `focoEnElOrigen`: el lienzo, que entonces no corre el origen al centro del trozo (`pivoteEnSuCentro`) y gira y
+ *    mide en la fractura.
+ *  - `ejeLargo`, `ejeDelante`, `ejeFuera` y `lado`: la lectura clínica (`lecturaDelDesvio`), que sin ellos no sabe qué
+ *    es varo y qué es valgo en esta pierna.
+ *  - `normalDelTrazo`: hacia distal, como sale el trozo en el archivo. Hoy no la usa nadie para medir; va porque el
+ *    plano de la fractura es lo que se tarda en reconstruir y lo que necesitará la diástasis de un trazo oblicuo.
+ */
+export function conLaReferencia(
+  objetos: ObjetoParaGlb[],
+  lado: TrozoDelHueso,
+  referencia: ReferenciaDeLaReduccion,
+  centro: Vector3,
+): ObjetoParaGlb[] {
+  const enElArchivo = enUnMarcoCorrido(referencia.posicionReducida, centro)
+  const lista = (v: Vector3) => [v[0], v[1], v[2]]
+  return objetos.map((objeto) => {
+    if (objeto.extras?.trozo !== lado || objeto.extras?.rol !== 'fragmento') return objeto
+    return {
+      ...objeto,
+      extras: {
+        ...objeto.extras,
+        posicionReducida: { ...enElArchivo },
+        focoEnElOrigen: true,
+        ejeLargo: lista(referencia.ejes.largo),
+        ejeDelante: lista(referencia.ejes.delante),
+        ejeFuera: lista(referencia.ejes.fuera),
+        lado: referencia.lado,
+        ...(referencia.normalDelTrazo ? { normalDelTrazo: lista(referencia.normalDelTrazo) } : {}),
+      },
+    }
+  })
+}
+
+/**
  * El camino entero, de las piezas leídas al contenido del archivo.
  *
  * Es lo único que la acción llama, y el orden importa:
@@ -1055,6 +1142,8 @@ export function pivoteEnElFoco(
  *  4. Centrar, porque trasladar no cambia ni nombres ni extras.
  *  5. Con un hueso partido, poner el origen del fragmento en el foco
  *     (`pivoteEnElFoco`), que necesita saber cuánto se centró.
+ *  6. Y escribir en el fragmento a dónde vuelve y con qué ejes se lee
+ *     (`conLaReferencia`, D-304), que necesita las dos cosas anteriores.
  *
  * Devuelve también lo que hay que avisar: `sinTraducir`, `pielRecortada` y
  * `pielFuera`. Salen de aquí y no se calculan en la acción porque la acción no
@@ -1085,10 +1174,14 @@ export function prepararExportacion(
   const pivote: Vector3 | null = partido
     ? [partido.punto[0] - centro[0], partido.punto[1] - centro[1], partido.punto[2] - centro[2]]
     : null
-  const objetos =
+  const conPivote =
     partido && pivote && fragmentoQueSeMueve
       ? pivoteEnElFoco(centrado.objetos, fragmentoQueSeMueve, pivote)
       : centrado.objetos
+  const objetos =
+    partido?.referencia && pivote && fragmentoQueSeMueve
+      ? conLaReferencia(conPivote, fragmentoQueSeMueve, partido.referencia, centro)
+      : conPivote
   const archivo = piezasDelArchivo(objetos)
 
   // La regla de un solo fragmento, comprobada sobre lo que va a salir y no sobre

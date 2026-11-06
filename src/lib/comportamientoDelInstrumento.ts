@@ -179,6 +179,8 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
   'broca-1-5': { ...NADA, perfora: { diametroMm: 1.5, avanceMmPorSegundo: 9 } },
   'broca-2-0': { ...NADA, perfora: { diametroMm: 2.0, avanceMmPorSegundo: 9 } },
   'broca-2-5': { ...NADA, perfora: { diametroMm: 2.5, avanceMmPorSegundo: 9 } },
+  // La del bloqueado LCP de 3,5 (D-300).
+  'broca-2-8': { ...NADA, perfora: { diametroMm: 2.8, avanceMmPorSegundo: 9 } },
   'broca-3-2': { ...NADA, perfora: { diametroMm: 3.2, avanceMmPorSegundo: 9 } },
   'broca-3-5': { ...NADA, perfora: { diametroMm: 3.5, avanceMmPorSegundo: 9 } },
   'broca-4-5': { ...NADA, perfora: { diametroMm: 4.5, avanceMmPorSegundo: 8 } },

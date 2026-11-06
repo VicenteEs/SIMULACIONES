@@ -69,20 +69,23 @@ const FASES = [
   { nombre: 'Cierre', orden: 4 },
 ]
 
+// Cada uno con su categoría (D-270). Sin ella la columna ponía la de por omisión, «Perforación y fijación», y en la
+// mesa del simulador los bisturís, la tijera y el portaagujas salían entre las brocas (O-083). La consola ya los pone en
+// su sitio al leer, por el nombre; esto es para que lo guardado diga lo mismo que la mesa.
 const INSTRUMENTAL = [
-  { nombre: 'Bisturí N°10 (piel)', icono: 'bisturi', orden: 1 },
-  { nombre: 'Bisturí profundo (fascia)', icono: 'bisturi', orden: 2 },
-  { nombre: 'Separador de Farabeuf', icono: 'separador', orden: 3 },
-  { nombre: 'Separador de Hohmann', icono: 'separador', orden: 4 },
-  { nombre: 'Pinza de reducción', icono: 'pinza', orden: 5 },
-  { nombre: 'Punzón de entrada', icono: 'punzon', orden: 6 },
-  { nombre: 'Guía endomedular', icono: 'guia', orden: 7 },
-  { nombre: 'Fresa flexible', icono: 'fresa', orden: 8 },
-  { nombre: 'Impactador de clavo', icono: 'martillo', orden: 9 },
-  { nombre: 'Atornillador de bloqueo', icono: 'atornillador', orden: 10 },
-  { nombre: 'Pinza de disección', icono: 'pinza', orden: 11 },
-  { nombre: 'Porta-agujas', icono: 'aguja', orden: 12 },
-  { nombre: 'Tijera de Mayo', icono: 'tijera', orden: 13 },
+  { nombre: 'Bisturí N°10 (piel)', categoria: 'corte', icono: 'bisturi', orden: 1 },
+  { nombre: 'Bisturí profundo (fascia)', categoria: 'corte', icono: 'bisturi', orden: 2 },
+  { nombre: 'Separador de Farabeuf', categoria: 'exposicion', icono: 'separador', orden: 3 },
+  { nombre: 'Separador de Hohmann', categoria: 'exposicion', icono: 'separador', orden: 4 },
+  { nombre: 'Pinza de reducción', categoria: 'reduccion', icono: 'pinza', orden: 5 },
+  { nombre: 'Punzón de entrada', categoria: 'enclavado', icono: 'punzon', orden: 6 },
+  { nombre: 'Guía endomedular', categoria: 'enclavado', icono: 'guia', orden: 7 },
+  { nombre: 'Fresa flexible', categoria: 'enclavado', icono: 'fresa', orden: 8 },
+  { nombre: 'Impactador de clavo', categoria: 'enclavado', icono: 'martillo', orden: 9 },
+  { nombre: 'Atornillador de bloqueo', categoria: 'fijacion', icono: 'atornillador', orden: 10 },
+  { nombre: 'Pinza de disección', categoria: 'corte', icono: 'pinza', orden: 11 },
+  { nombre: 'Porta-agujas', categoria: 'suturas', icono: 'aguja', orden: 12 },
+  { nombre: 'Tijera de Mayo', categoria: 'corte', icono: 'tijera', orden: 13 },
 ]
 
 // --------------------------------------------------------------- utilidades

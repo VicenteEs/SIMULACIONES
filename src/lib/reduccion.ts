@@ -22,6 +22,8 @@
  * revés. Aquí se prueba sin navegador.
  */
 
+import type { LecturaClinica } from '@/atlas/lecturaClinica'
+
 export type EjeLargo = 'x' | 'y' | 'z'
 
 export interface Desplazamiento {
@@ -55,6 +57,13 @@ export interface Medidas {
    * pedirle al lienzo que mida el hueso; `medirReduccion` no lo sabe y lo deja sin poner.
    */
   porcentaje?: number | null
+  /**
+   * La lectura clínica de la que salen las tres cifras (D-303): varo o valgo, recurvatum, rotación, y si los trozos se
+   * separan o cabalgan. La pone `medidasDeLaLectura`; sin ella las cifras salen de los ejes del modelo.
+   */
+  lectura?: LecturaClinica | null
+  /** Si se sabe de qué lado es el hueso: sin él, la lectura se dice sin varo ni valgo (ver `describirLectura`). */
+  ladoConocido?: boolean
 }
 
 const numero = (v: number | null | undefined): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
@@ -101,6 +110,34 @@ export function medirReduccion(
     lateral: laterales.map(({ eje, mm }) => ({ eje, mm: redondear1(Math.abs(mm)) })),
     diastasis: redondear1(diastasis),
     angulacion: redondear1(anguloTotal(girosGrados)),
+  }
+}
+
+/**
+ * Las medidas de la consola a partir de la lectura clínica del fragmento (D-303).
+ *
+ * El desplazamiento es lo que el foco se ha ido de través al eje del hueso —lateral y anteroposterior, con Pitágoras,
+ * como antes—; la diástasis, lo que se ha ido a lo largo, en los dos sentidos, como antes; y la angulación, el giro
+ * total de verdad, sin pasar por Euler. La lectura va entera para el tope por plano, con cada cifra redondeada como las
+ * otras tres: juzgar un 5,04° contra un tope de 5° que en pantalla se lee «5°» sería suspender por un decimal escondido.
+ */
+export function medidasDeLaLectura(lectura: LecturaClinica, angulacionGrados: number, ladoConocido = true): Medidas {
+  const redondeada: LecturaClinica = {
+    ...lectura,
+    lateral: redondear1(lectura.lateral),
+    anteroposterior: redondear1(lectura.anteroposterior),
+    axial: redondear1(lectura.axial),
+    valgo: redondear1(lectura.valgo),
+    recurvatum: redondear1(lectura.recurvatum),
+    rotacion: redondear1(lectura.rotacion),
+  }
+  return {
+    desplazamiento: redondear1(Math.hypot(lectura.lateral, lectura.anteroposterior)),
+    lateral: [],
+    diastasis: redondear1(Math.abs(lectura.axial)),
+    angulacion: redondear1(angulacionGrados),
+    lectura: redondeada,
+    ladoConocido,
   }
 }
 

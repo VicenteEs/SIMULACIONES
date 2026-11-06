@@ -47,7 +47,10 @@ describe('el panel de la placa', () => {
 
   it('el largo del tornillo se escribe, de 8 a 120 mm, y la rueda respeta el mismo rango', () => {
     expect(consola).toContain('etiqueta="Largo del tornillo"')
-    expect(consola).toContain('entre(MINIMO_DEL_TORNILLO_MM, MAXIMO_DEL_TORNILLO_MM, antes + sentido * 2)')
+    // La rueda avanza lo que avanza la serie del tornillo en la mano (D-301): de 2 en 2 los corticales y de 5 en 5 la
+    // esponjosa de 6,5. Con el 2 fijo, la rueda dejaba en 47 mm una esponjosa que solo viene en 45 y 50.
+    expect(consola).toContain('entre(MINIMO_DEL_TORNILLO_MM, MAXIMO_DEL_TORNILLO_MM, antes + sentido * pasoDelLargo)')
+    expect(consola).toContain('serieDelTornillo(queHace.coloca.diametroMm, claseDelElegido).pasoMm')
     expect(consola).not.toContain('aria-label="Largo del tornillo"')
   })
 

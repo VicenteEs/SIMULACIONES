@@ -219,7 +219,11 @@ export const Instrumental: CollectionConfig = {
       label: 'Categoría',
       defaultValue: 'fijacion',
       options: CATEGORIAS_DE_INSTRUMENTAL.map((c) => ({ label: c.label, value: c.value })),
-      admin: { description: 'Agrupa el listado del taller. No cambia nada del simulador.' },
+      // Decía «No cambia nada del simulador», y es falso desde D-257: la mesa del residente se ordena por ella (D-270).
+      admin: {
+        description:
+          'Agrupa el taller y la mesa de instrumental del simulador, donde el residente busca cada instrumento por su familia. Si se deja en «Perforación y fijación» y el nombre dice otra cosa (bisturí, tijera, separador…), la mesa lo pone en su familia.',
+      },
     },
     {
       name: 'icono',

@@ -1651,7 +1651,7 @@ misma jornada —el catálogo bajó a 0,0001 y el bloque se quedó en 0,01—, q
 exactamente la mitad de un arreglo dándose por hecha estando viva.
 
 
-### D-084 · 2026-09-13 · vigente · amplía D-078
+### D-084 · 2026-09-13 · vigente · amplía D-078 · superada en parte por D-310 (el puntaje lo rehace el servidor)
 **El puntaje y las complicaciones sobreviven al recargado, y son seguimiento y
 no una nota.**
 La respuesta del traumatólogo fue una palabra: «sobreviven». Hasta hoy vivían en
@@ -8430,6 +8430,48 @@ La vista previa de D-267 no trajo el fallo, solo lo hizo visible. Las 154 mallas
 - (−) Dos huesos que se tocan a menos de 3 mm se cuentan como uno: la tibia y el peroné junto a la articulación tibioperonea proximal. Es justo el tornillo que se pasa y que en pabellón se ve en la lateral.
 - (−) La vista previa de la broca lanza dos rayos en vez de uno, cada 50 ms como mucho.
 
+### D-270 · 2026-11-05 · vigente · sale de la auditoría de P-010 · resuelve la mitad de O-083 (los bisturís) · supera en parte a D-262 (el reparto por el nombre)
+**Un instrumento guardado en «Perforación y fijación», o sin categoría, va en la mesa a la familia que dice su nombre. La corrección se hace al leer, en el sitio donde el documento se vuelve instrumento de la consola, y no toca ni el esquema ni lo guardado.**
+
+*De dónde sale.* El dueño, el 2026-11-05: «ordenar los bisturí que están en otro lado, ordenarlos donde van». En la pierna nueva de P-010, la mesa tenía 24 instrumentos en «Brocas y guías», y 11 no iban ahí:
+- los dos bisturís del guion;
+- la tijera, el portaagujas, la pinza de disección y la de reducción;
+- el punzón, la guía endomedular, la fresa flexible y el impactador;
+- el martillo de la base.
+
+La aguja de Kirschner y el motor sí se quedan: se usan con las brocas.
+
+El residente leía «En la mano: Bisturí N°10 (piel)», abría «Corte» y no estaba. Y los insumos del final ponían el bisturí bajo «Perforación y fijación».
+
+*Por qué pasaba.* `scripts/caso-de-prueba.ts` crea sus trece instrumentos sin categoría, y la columna les pone la de por omisión. La migración `20261008_210126` se la dio también a todas las filas que ya existían. D-262 parte esa categoría por el nombre en brocas, medidores y destornilladores, y lo que no es ni medidor ni destornillador cae en las brocas. En la base, «Perforación y fijación» elegida y heredada son el mismo valor.
+
+*Cómo funciona.*
+- **`categoriaDelInstrumento`** (`src/lib/instrumental.ts`). La categoría guardada manda, salvo que sea «fijacion» o falte. Entonces:
+  - primero se busca el instrumento en `INSTRUMENTAL_BASE`, por su slug o por su nombre;
+  - si no está, decide el nombre con las palabras de cada familia (`PALABRAS_DE_CADA_CATEGORIA`). El periostótomo de Farabeuf va antes que el separador de Farabeuf, y el dedo reductor endomedular antes que las pinzas de reducción;
+  - un implante se reconoce solo por la primera palabra («Tornillo…», «Placa…», «Injerto…»): un destornillador o un «Medidor de largo de tornillo» llevan «tornillo» dentro;
+  - lo que no dice nada se queda donde estaba.
+- **Se aplica donde el documento se vuelve instrumento de la consola**: en `instrumentoDeBandeja`, para el residente, y en `comoInstrumento`, para el editor (`src/lib/casoQuirurgico.ts`). Así la mesa, los insumos y «Añadir a la bandeja» dicen lo mismo, sin repetir la cuenta en cada uno.
+- **`familiaDeLaMesa`** pasa por la misma función. En su reparto, el destornillador y el medidor se prueban antes de caer en las brocas, y el tornillo ya no se busca en todo el nombre.
+- **El martillo pasa a «Enclavado» en la base.** Sigue siendo el que golpea los impactores, pero donde más se usa es al meter el clavo.
+- **El origen de los datos.** El guion lleva la categoría de cada uno. El servidor (`datosDescriptivos`) toma la que dice el nombre cuando no le llega ninguna válida; antes ponía «fijacion» sin avisar.
+- **La descripción del campo** decía «No cambia nada del simulador», y es falso desde D-257.
+
+*Qué se probó.*
+- En `barraDeInstrumental.test.ts`:
+  - los trece del guion, con «fijacion» y sin categoría;
+  - el guion guarda ya la categoría que la mesa les da;
+  - cada instrumento de la base, con «fijacion» y por su slug o por su nombre, vuelve a la suya;
+  - los nombres trampa;
+  - una categoría elegida se respeta.
+- En la pierna de P-010, recargada: «Corte» pasa de 7 a 11: los cuatro bisturís, el electrobisturí, tres tijeras y tres pinzas de disección. «Brocas y guías» baja de 24 a 13, solo de perforación. «Enclavado» sube a 11, con el martillo, y «Suturas» y «Reducción» reciben el portaagujas y la pinza del guion.
+
+*Consecuencias.*
+- (+) Las filas que ya hay en ved se ven en su sitio sin migrar datos ni tocar el esquema.
+- (−) En el catálogo guardado siguen en «Perforación y fijación», y así salen en el taller de instrumental, que agrupa por lo guardado. Se corrigen editando cada uno.
+- (−) Un instrumento puesto adrede en «Perforación y fijación» con nombre de otra familia, como un separador que alguien quisiera junto a las brocas, cambia de sitio. No se ha visto ninguno, y el arreglo es darle otra categoría.
+- (−) Los gemelos siguen ahí, ahora juntos: «Bisturí N°10 (piel)» y «Bisturí de piel (mango 4, hoja 22)», «Tijera de Mayo» y «Tijera de Mayo recta», «Porta-agujas» y «Portaagujas de Mayo-Hegar». Son dos guiones que crean el mismo instrumento con otro nombre.
+
 ### D-271 · 2026-11-05 · vigente · cambia el fondo de la primera pantalla de D-231
 **La malla del fondo de la primera pantalla se mueve y responde: los nodos derivan, se apartan del puntero y una pulsación deja una onda. Solo ahí: el resto de la portada y las pantallas de acceso siguen con la malla quieta.**
 
@@ -9035,6 +9077,896 @@ D-264 dejó tres pendientes que esto resuelve: un responsable que era el nombre 
 - (−) Los dos son provisionales. Cambiar cualquiera es una versión nueva, y todas las cuentas aceptan el aviso otra vez: conviene cambiarlos juntos, en un solo despliegue.
 - (−) Un buzón general mezcla las solicitudes de datos con las demás consultas, y el plazo de la ley no espera a que alguien las separe.
 - (−) En su primera entrada después del despliegue, todo el equipo, los administradores incluidos, se encuentra el aviso antes que el panel.
+
+### D-300 · 2026-11-05 · vigente · E3 de P-012 · supera la tabla de brocas de P-003 E6
+**La broca de cada tornillo sale de una tabla de AO por clase de tornillo, y no solo del diámetro. El bloqueado de 3,5 lleva la de 2,8, que entra en el catálogo.**
+
+*De dónde sale.* La auditoría de P-010 (débil 3) encontró que `calibreDeBrocaParaElTornillo` miraba solo el diámetro:
+- el bloqueado de 3,5 pedía la de 2,5, como el cortical, y la consola le decía «el agujero quedó ancho» a quien usaba la buena;
+- lo que no estaba en su tabla de cuatro filas salía del 70 %: el 2,7 con 1,9, el 2,4 con 1,7 y la esponjosa de 4,0 con 2,8. Ninguna de esas brocas existe;
+- el catálogo no tenía broca de 2,8, así que el bloqueado de la placa LCP no se podía perforar bien.
+
+*Cómo funciona.*
+- `BROCA_DEL_TORNILLO` (`src/lib/fijacion.ts`) tiene cuatro familias:
+  - cortical: 4,5 → 3,2; 3,5 → 2,5; 2,7 → 2,0; 2,4 → 1,8; 2,0 → 1,5; 1,5 → 1,1;
+  - bloqueado: 5,0 → 4,3; 3,5 → 2,8; 2,7 → 2,0; 2,4 → 1,8; 2,0 → 1,5;
+  - esponjosa: 6,5 → 3,2; 4,0 → 2,5;
+  - perno de clavo: 5,0 → 4,2; 4,0 → 3,2.
+- `BROCAS_POR_CONFIRMAR` dice cuáles no están confirmadas con su guía de técnica: el bloqueado de 5,0 (otro fabricante usa 4,1) y los dos pernos. Las valida Cristóbal.
+- `ClaseDelTornillo` lleva el tipo de la bandeja (`tipoDelTornillo`), si la cabeza es roscada y si va en un clavo. `claseDelTornillo(coloca, tipo)` la arma con lo que ya sabe la consola.
+  - La cabeza roscada manda aunque el tipo diga otra cosa.
+  - La rosca parcial busca en la esponjosa y luego en el cortical: el maleolar de 4,5 lleva la de 3,2.
+  - El canulado no está en la tabla: va con su broca canulada.
+- Sin clase, el orden es el de la tabla de antes (cortical, esponjosa, bloqueado). Las llamadas viejas dan lo mismo en 3,5, 4,5, 6,5 y 5,0.
+- Lo que no está en la tabla sigue saliendo del 70 %, pero `brocaDelTornillo` dice `estimada`. La consola escribe «(estimada)» junto a la broca y el aviso de calibre lo dice.
+- La clase llega a los cuatro sitios que piden la broca:
+  - el aviso de calibre de un agujero de placa y de una trayectoria de dos clics (`LienzoQuirurgico.tsx`);
+  - el núcleo de la técnica de deslizamiento (`resultadoDelDeslizamiento`, D-302);
+  - la broca que la secuencia ofrece después de un tornillo (`instrumentoDeLaEtapa`);
+  - la cifra «broca Ø» bajo el diámetro, en el panel del instrumento.
+- El aviso nombra el tornillo: «este tornillo bloqueado de 3,5 mm lleva 2,8 mm».
+- La broca de 2,8 (`broca-2-8`):
+  - su guion de Blender (`scripts/instrumental/broca_2_8.py`), de 165 mm con marcas de profundidad;
+  - su comportamiento (perfora 2,8);
+  - su ficha en `INSTRUMENTAL_BASE`;
+  - va con la placa LCP (`PARA_LCP`).
+- Se corrigieron tres textos del catálogo:
+  - la de 2,5 decía servir también al bloqueado LCP; ahora, al cortical de 3,5 y a la esponjosa de 4,0;
+  - la de 2,0 decía servir al bloqueado de 2,4, que lleva 1,8; ahora, al cortical y al bloqueado de 2,7;
+  - la guía roscada se llamaba «LCP 2,5» y decía servir a tres bloqueados. Ahora es «LCP 2,8», la de la broca del bloqueado de 3,5, y su guion tiene el agujero de 2,9.
+
+*Qué se probó.* `fijacion.test.ts`:
+- la tabla entera;
+- el bloqueado frente al cortical de 3,5;
+- el perno frente al bloqueado de 5,0;
+- la estimación y su aviso;
+- que las cifras por confirmar estén en la tabla;
+- la clase desde lo que coloca.
+
+`tornillosYSecuencia.test.ts`: después de un bloqueado, la secuencia ofrece la de 2,8. `comportamientoDelInstrumento.test.ts`: la de 2,8 perfora con 2,8. La prueba que fijaba «2,7 → 1,9» se cambió: ahora 2,7 da 2,0.
+
+*Consecuencias.*
+- (+) El residente que perfora el bloqueado con la de 2,8 ya no oye que se equivocó, y el que usa la de 2,5 sí.
+- (+) Las cifras clínicas están en una tabla que Cristóbal puede leer, con las dudosas marcadas.
+- (−) En ved, la broca de 2,8 entra con «Completar el catálogo» o con `scripts/instrumental-a-sql.ts`, que crean lo que falta por `slug`. Los tres textos corregidos no cambian en las filas que ya existen: esas dos acciones no tocan lo que hay. Se corrigen a mano en el taller de instrumental. El modelo de la guía roscada solo cambia si se vuelve a subir con `--reemplazar`.
+- (−) Sigue faltando el gran fragmento: el cortical de 4,5, el bloqueado de 5,0 con su broca de 4,3 y la broca de 4,2 de los pernos del clavo. La placa LCP de 4,5 se ofrece con los tornillos de 3,5.
+
+### D-301 · 2026-11-05 · vigente · E3 de P-012 · supera el tope de 60 mm de `largoSugerido` (D-169)
+**El medidor sugiere el largo siguiente de la serie del sistema, que pasa de 60 mm en el gran fragmento, y dice cuándo el más largo no alcanza.**
+
+*De dónde sale.* La auditoría de P-010 (débil 3): `largoSugerido` cortaba en 60 mm. En una diáfisis de fémur, o con una placa de 4,5 sobre una tibia gruesa, el medidor pedía el de 60 y el propio `juzgarTornillo` lo daba por unicortical, sin que nadie lo dijera.
+
+*Cómo funciona.*
+- `SERIES_DE_LARGOS` (`src/lib/fijacion.ts`), con las cifras del catálogo base:
+  - pequeño fragmento, de 10 a 60 mm de 2 en 2 (el cortical y el bloqueado de 3,5);
+  - gran fragmento, de 10 a 110 de 2 en 2 (lo que mide el medidor de gran fragmento);
+  - esponjosa de 6,5, de 30 a 120 de 5 en 5;
+  - pernos del clavo, de 20 a 100 de 2 en 2.
+- El medidor entra antes de que se elija el tornillo, así que la serie la da la broca con que se perforó ese agujero (`serieDelSistema`): con menos de 3 mm es el pequeño fragmento; con 3,2 o 4,3, el gran fragmento.
+- `largoSugerido(espesor, antes, serie)` redondea al largo siguiente de la serie. Sin serie, la del pequeño fragmento: lo de antes.
+- `avisoDelLargo` dice cuándo el más largo no alcanza: «Harían falta 77 mm, y en el pequeño fragmento el más largo es de 60 mm». El aviso sale en la medida, marcada como atención.
+- Al coger un tornillo, la consola lleva el largo escrito al siguiente que existe en la serie de ese tornillo (`serieDelTornillo`, `largoDeLaSerie`). La esponjosa de 6,5 pasa de 48 a 50. Si el editor escribió un largo en el instrumento, manda ese, como en P-004 E6.
+- El campo del largo y el arrastre con el botón derecho avanzan de un largo de la serie: 2 mm, o 5 en la esponjosa de 6,5.
+
+*Qué se probó.* `fijacion.test.ts`:
+- las cuentas de antes siguen iguales sin serie, incluido «90 → 60»;
+- el gran fragmento pasa de 60 y para en 110;
+- la esponjosa va de 5 en 5;
+- un largo que ya existe no salta al siguiente por ruido de coma flotante;
+- la serie por la broca y por el tornillo;
+- el aviso cuando no alcanza.
+
+*Consecuencias.*
+- (+) En el gran fragmento el medidor pide el tornillo que cruza las dos corticales.
+- (+) Cuando el más largo de la serie no alcanza, se dice en vez de pedirlo callado.
+- (−) El mensaje de la medida («Pida un tornillo de 48 mm») se escribe antes de elegir el tornillo. Si después se coge la esponjosa de 6,5, el campo pasa a 50 y el mensaje queda con 48.
+- (−) Las series son las del catálogo base. Un tornillo que el editor cargó con otra serie usa la de su sistema.
+
+### D-302 · 2026-11-05 · vigente · E3 de P-012 · corrige `calibresPorFragmento` de P-004 E10
+**En la técnica de deslizamiento, el agujero del fragmento lejano es el de la broca más gruesa que llegó a la cortical lejana. Antes era el de la más chica que pasó la fractura.**
+
+*De dónde sale.* La auditoría de P-010 (débil 3): con la broca de deslizamiento atravesando las dos corticales y después la de núcleo por el mismo agujero, `calibresPorFragmento` tomaba la más chica (`Math.min`). Daba el lejano de 2,5 y la fractura por comprimida, cuando en la cortical lejana había un agujero de 3,5 y la rosca no agarraba en ninguna parte. Es el error de técnica que más se enseña del tornillo de tracción, y la cuenta lo premiaba.
+
+*Cómo funciona.*
+- El lejano es la broca más gruesa de las que pasaron la fractura y llegaron a menos de `HASTA_LA_CORTICAL_LEJANA_MM` (2 mm) del punto más hondo de la trayectoria (`src/lib/compresion.ts`).
+- La cortical de una diáfisis mide de 4 a 6 mm. Una broca que se queda a menos de 2 mm del fondo se llevó casi toda.
+- La de deslizamiento que pasa un poco la fractura sin llegar a la cortical lejana sigue valiendo, como en pabellón.
+- `resultadoDelDeslizamiento` recibe la clase del tornillo (D-300) para saber su núcleo.
+
+*Qué se probó.* `compresion.test.ts`:
+- la de 3,5 hasta el fondo y la de 2,5 después: el lejano queda de 3,5 y no comprime;
+- la de 3,5 hasta 2 mm pasada la fractura: el lejano queda de 2,5 y comprime;
+- el borde de los 2 mm, a cada lado;
+- el núcleo según la clase.
+
+`compresionEnLaEscena.test.ts` sigue viendo la misma llamada en el lienzo.
+
+*Consecuencias.*
+- (+) Una compresión que no existe ya no da puntos ni se anota como hecha.
+- (−) El cercano sigue siendo la broca más gruesa que entró, aunque solo entrara unos milímetros. En la diáfisis basta con pasar la cortical cercana, porque el canal está vacío; en la metáfisis, el hueso esponjoso agarra la rosca hasta la fractura, y eso la cuenta no lo ve.
+
+### D-303 · 2026-11-05 · vigente · E1 de P-012 · supera la medida por resta de Euler de `estadoDelFragmento`
+**La consola mide la reducción con la misma lectura que el taller: en el foco, con el giro relativo, plano a plano y con el lado.**
+
+*De dónde sale.* La auditoría de P-010 (débil 1):
+- la consola restaba ángulos de Euler eje por eje (`estadoDelFragmento`) y los sumaba en una «angulación»;
+- la resta solo es exacta si el trozo empieza sin giro, y desde P-008 E5 puede empezar girado;
+- no separaba varo, recurvatum y rotación;
+- medía en el centro de la caja del trozo (`pivoteEnSuCentro`) y no en la fractura.
+
+*Cómo funciona.*
+- La cuenta es una sola: `lecturaDelDesvio` (`src/atlas/lecturaClinica.ts`), sin three. La usan `leerReduccion` en el taller (`src/atlas/manipular.ts`) y `lecturaDelFragmento` en el lienzo.
+  - Recibe el giro relativo en cuaternión, la separación del foco en milímetros y los ejes del hueso: el largo de proximal a distal, delante y fuera.
+  - El varo o valgo y el recurvatum o antecurvatum salen de hacia dónde apunta el eje largo girado. La rotación sale de la torsión sobre él. Nada pasa por Euler.
+  - La rotación se cuenta hacia fuera en cada lado: la terna de ejes ya dice de qué lado es.
+  - Si el que se mueve es el proximal, se lee el distal visto desde él: (q⁻¹, −q⁻¹·s).
+- En el lienzo (`LienzoQuirurgico.tsx` y `reduccionEnLaEscena.ts`):
+  - `desvioDelFragmento` saca el giro y la separación contra matrices, entre la pose de ahora y la de reposo (`origenDelFragmento`);
+  - `ejesDelFragmento` usa los ejes del archivo (D-304) o, si no los trae, los del atlas de pie, con el lado por `lado` o por el nombre (`ladoPorElNombre`). Sin lado conocido toma el derecho y lo dice;
+  - `trozoQueSeMueve` usa el `trozo` del archivo o, si falta, cuál de los dos queda más abajo en el eje largo;
+  - a un fragmento que trae `focoEnElOrigen` no se le corre el origen al centro: gira y se mide en la fractura.
+- En la consola, `recalcularMedidas` y `colocarEnDesplazamientoInicial` miden con la lectura (`medidasDeLaLectura`, `src/lib/reduccion.ts`):
+  - el desplazamiento es la hipotenusa del lateral y el anteroposterior;
+  - la diástasis es el axial sin signo;
+  - la angulación es el giro total del cuaternión.
+- El panel de medidas dice los planos con su nombre clínico. Sin lado conocido los dice sin el sentido («en el plano coronal»), para no llamar valgo a un varo.
+- `estadoDelFragmento` y su resta quedan para los mandos de girar, que son los que la usan.
+
+*Qué se probó.* `lecturaDelDesvio.test.ts`:
+- un varo puro, un recurvatum puro y una rotación pura, un plano cada vez;
+- el mismo giro es valgo en una pierna y varo en la otra, con la misma cifra;
+- el signo de la traslación, de la diástasis y del acortamiento;
+- el proximal que se mueve;
+- un trozo que parte girado: el desvío da 8° de varo y la resta de Euler no;
+- los ejes del archivo, los supuestos y el lado.
+
+Las 66 de `manipular` siguen pasando sin cambiar.
+
+*Consecuencias.*
+- (+) El taller y la consola dicen la misma cifra del mismo trozo.
+- (+) Un trozo que parte girado se mide bien.
+- (−) Un modelo ya exportado no trae `focoEnElOrigen`, así que se sigue midiendo en el centro de su caja hasta que se vuelva a exportar. Un giro alrededor de ese centro mueve el foco y se lee como traslación.
+- (−) Sin ejes en el archivo ni lado en el nombre se supone la pierna derecha. En una izquierda, varo y valgo saldrían cambiados, y por eso el panel no los nombra entonces.
+
+### D-304 · 2026-11-05 · vigente · E1 de P-012 · completa P-008 E5
+**La exportación del taller escribe en el fragmento a dónde vuelve reducido y con qué ejes se lee. Eso llega a la fila del caso sin pulsar «Reducir automáticamente».**
+
+*De dónde sale.* La auditoría de P-010 (débil 1): el taller anguló el fragmento 11° y la consola marcaba 0 mm y 0°. El archivo no decía dónde iba el trozo reducido, y la consola leía la pose del archivo como la buena.
+
+*Cómo funciona.*
+- `referenciaDeLaReduccion` (`src/lib/reproducirPreparacion.ts`) la calcula con lo que el taller le hizo a cada trozo (`centro + mover + giro·(p − centro)`):
+  - la posición reducida es M_otro ∘ M_fragmento⁻¹. Si solo se movió el fragmento, es su inversa. Si se movió también el otro, el fragmento vuelve junto a él, que es lo que el residente ve y lo único que puede alinear;
+  - los ejes son los del hueso entero en reposo (`ejeDelHueso`), girados como el otro trozo;
+  - el lado sale de `ladoDelHueso`: la derecha del atlas está en x negativa;
+  - la normal del trazo va hacia distal y como quedó el fragmento. Solo en un corte de un plano.
+- Un corte sin movimiento (`partirLaPieza`) escribe la identidad, con los ejes y el lado.
+- `conLaReferencia` (`src/lib/exportarAtlas.ts`) la escribe en los `extras` del nodo del fragmento, en coordenadas del archivo (`enUnMarcoCorrido`, por el centrado):
+  - `posicionReducida` y `focoEnElOrigen`;
+  - `ejeLargo`, `ejeDelante`, `ejeFuera` y `lado`;
+  - `normalDelTrazo`.
+
+  Para eso los `extras` admiten listas y objetos (`ValorDeExtras`, `src/lib/glb.ts`).
+- Las cuentas rígidas sin three viven en `src/lib/transformacionRigida.ts` (`componer`, `invertir`, `delTaller`, `enUnMarcoCorrido`…). Las comparten la reducción automática y la exportación.
+- Llega al caso por tres caminos, y ninguno pisa lo que ya hay:
+  - `propuestaDelNodo` la pasa en la propuesta, y «Rellenar desde el modelo» la escribe en la fila que no la tiene (`rellenarDesdeElModelo`) y lo cuenta en su mensaje;
+  - la consola la toma para la fila que no la tiene (`piezasConLasDelModelo`);
+  - el lienzo la lee del nodo si la fila no la trae (`aplicarPosicionesReducidas`), porque la consola solo lee los nodos del archivo después de cargar.
+
+*Qué se probó.* `referenciaDeLaReduccion.test.ts`, con una caja que hace de tibia derecha:
+- sin mover nada, la identidad con los ejes y el lado;
+- con el distal movido, la posición reducida deshace el movimiento, vértice a vértice;
+- con el proximal movido también, el distal vuelve junto a él y los ejes giran con él;
+- en el archivo, solo el fragmento la lleva, y en coordenadas centradas;
+- de ahí pasa a la fila, y el caso ya tiene algo que reducir;
+- ni `propuestaDelNodo`, ni `piezasConLasDelModelo`, ni «Rellenar» pisan una posición reducida que ya estaba.
+
+Las cuentas rígidas, en `lecturaDelDesvio.test.ts`.
+
+*Consecuencias.*
+- (+) Un modelo nuevo del taller trae su referencia: la reducción se mide desde el primer arrastre.
+- (+) Los casos que usan la «Reducción automática» del editor no cambian: manda su fila.
+- (−) Los modelos ya exportados no la traen. Para tenerla:
+  - se vuelve a exportar la preparación desde el taller (la preparación guardada se rehace sola);
+  - en cada caso que use ese modelo se pulsa «Rellenar desde el modelo».
+
+  Hasta entonces esos casos dependen del desplazamiento inicial escrito.
+- (−) La normal del trazo va en el archivo y todavía no la usa nadie. Es para la diástasis de un trazo oblicuo.
+
+### D-305 · 2026-11-05 · vigente · E1 de P-012 · completa las tres tolerancias de la reducción
+**Un tope por plano y por técnica: la alineación con los criterios de Trafton, la anatómica con 2° y 2 mm. Sin técnica ni topes por plano, el paso se mide como antes.**
+
+*De dónde sale.* La auditoría de P-010 (débil 1): un solo tope de 5° valía para los tres giros, cuando en una diáfisis de tibia se aceptan 5° de varo y 10° de recurvatum. La diástasis y el acortamiento eran una sola cifra sin signo.
+
+*Cómo funciona.*
+- Cinco campos nuevos del paso, sin `defaultValue`, con su migración (`20261105_185336_topes_por_plano`):
+  - `tecnicaDeReduccion`: alineación o anatómica;
+  - `toleranciaCoronal`, `toleranciaSagital` y `toleranciaRotacion`, en grados;
+  - `toleranciaAcortamiento`, en milímetros.
+- `TOPES_POR_TECNICA` (`src/lib/simulador.ts`) tiene las cifras con su fuente, para que las valide Cristóbal:
+  - alineación (estabilidad relativa: clavo, placa puente), con los criterios de Trafton para la diáfisis de tibia: coronal 5°, sagital 10°, rotación 10° y acortamiento 10 mm. Hay fuentes que aceptan 15 mm; se toma el más estricto;
+  - anatómica (estabilidad absoluta y foco articular): 2° en cada plano y 2 mm de traslación, de diástasis y de acortamiento.
+- `topesDeReduccion` los resuelve así:
+  - lo tecleado por plano manda sobre la técnica;
+  - la técnica pone techo y no suelo al desplazamiento y a la diástasis, porque la base les pone 5 por omisión y un 5 ahí no prueba que nadie lo eligiera;
+  - con un plano pedido, los otros toman el tope de la angulación: medirlos sin tope los regalaría;
+  - sin técnica ni planos, como antes: el giro total contra la angulación, y el acortamiento con el tope de la diástasis.
+- `reduccionFueraDeLosTopes` juzga cifra a cifra y dice lo que se pasa: «10,4° en el plano sagital (hasta 10°)».
+  - Con la lectura de D-303, separa la diástasis del acortamiento por el signo del axial.
+  - Sin la lectura, juzga el giro total contra el plano más estricto.
+  - Nombra los planos sin varo ni valgo, porque el motor no sabe de qué lado es la pierna.
+- La misma regla sale en la lista del paso (`listaDelPaso`), en la instrucción (`topesEnTexto`) y en las líneas de tope del panel de medidas.
+- El selector de técnica y los cuatro números van con la reducción, en el formulario y en el editor del simulador.
+
+*Qué se probó.* `topesPorPlano.test.ts`:
+- los topes de cada técnica, y el techo frente al 5 de la base;
+- lo tecleado manda, y un plano solo arrastra a los otros;
+- un caso con 4° de varo, 8° de recurvatum y 3° de rotación (9,4° de giro total) pasa con la alineación y sigue sin pasar en un caso de antes;
+- los textos de lo que se pasa, sin varo ni valgo;
+- la diástasis y el acortamiento por separado;
+- la lista enseña las mismas cifras que juzga el motor.
+
+`puntuacionDelSimulador.test.ts`: los topes de antes, con los campos nuevos en `null`.
+
+*Consecuencias.*
+- (+) Un caso de clavo deja de suspender una reducción que Trafton acepta.
+- (+) Ningún caso de ved cambia de nota hasta que alguien elija la técnica.
+- (−) Las cifras de Trafton son de la diáfisis de tibia. El fémur, el húmero y el antebrazo tienen otras, y hasta tenerlas el editor las escribe a mano.
+- (−) Sin la lectura —un gesto armado a mano— los planos no se pueden separar, y el total se juzga contra el más estricto. Eso puede suspender algo que, plano a plano, pasaría.
+
+### D-306 · 2026-11-05 · vigente · E1 de P-012
+**Un paso de reducción que empieza ya reducido no se regala: no puntúa, no cuenta en el máximo y se le dice al residente. El caso no se publica sin algo que reducir.**
+
+*De dónde sale.* La auditoría de P-010 (débil 1): un paso de reducción se aprobaba sin mover nada cuando el trozo empezaba en su sitio. Pasaba en dos casos:
+- el caso no tenía referencia: exportado reducido y sin desplazamiento escrito, o desplazado y sin posición reducida;
+- el desplazamiento escrito era menor que los topes.
+
+La consola leía lo que no sabía como cero, y cero aprueba.
+
+*Cómo funciona.* Son dos mitades, porque cada una ve lo que la otra no.
+- **En la consola** (`pasosSinNadaQueReducir`, `src/lib/simulador.ts`):
+  - se mide la partida: el trozo recién colocado en su desplazamiento inicial. Sin fragmento en el modelo, no hay partida;
+  - un paso de reducción cuyos topes ya cumple la partida no tiene nada que reducir;
+  - se mira la partida y no el comienzo de cada paso. Un segundo paso de reducción empieza donde lo dejó el primero, y ahí estar dentro de los topes es haberlo hecho bien;
+  - el paso se puede aplicar, para que el residente no se quede atascado. Pero `puntosDelPaso` da 0 (`sinNadaQueReducir`) y `puntajeMaximo` no lo cuenta: el porcentaje de nadie baja por un defecto del caso;
+  - la tarjeta del paso lo dice antes de aplicarlo, en los dos modos, y el registro lo repite al aprobarlo: «Este paso no tiene nada que reducir…». En el editor, el ensayo lo avisa.
+- **Al publicar** (`motivoSinNadaQueReducir`, `src/lib/reduccionDelCaso.ts`), con lo que guarda la fila:
+  - sin una pieza marcada como fragmento, no se publica;
+  - con ella, hace falta el desplazamiento inicial escrito (D-058) o una posición reducida que mueva algo (P-008 E5 y D-304);
+  - la colección lo corta en `exigeElRangoDeSuObjetivo`, mirando el documento entero (`data`);
+  - el panel lo adelanta en español, una vez por caso y en la pestaña «Simulador». El esquema pide la revisión por su nombre (`revisa: ['reduccion']` en la sección) porque viaja al navegador como prop y no puede llevar funciones. La función la pone `faltantes`.
+- Hacen falta las dos. Los casos ya publicados no pasan por la segunda hasta que alguien los guarda. Y la segunda no ve si el desplazamiento cabe en los topes, ni la referencia que trae el archivo.
+
+*Qué se probó.*
+- `topesPorPlano.test.ts`:
+  - la partida dentro y fuera de los topes de las dos técnicas;
+  - el trozo exactamente en su sitio, y el caso sin fragmento;
+  - cero puntos y fuera del máximo;
+  - los motivos para no publicar, con los dos convenios, la identidad, lo casi nulo y lo que no es número;
+  - el aviso del panel, una vez por caso, solo al publicar y solo en «Simulador».
+- `cirugias.test.ts` y `reglasDelObjetivo.test.ts`: la colección lo corta y el panel dice lo mismo.
+- Las pruebas que validaban un paso de reducción sin documento pasan ahora uno con algo que reducir.
+
+*Consecuencias.*
+- (+) Fijar sin haber reducido (E2) ya tiene contra qué medirse: la reducción deja de leerse como cero.
+- (+) Un caso roto se ve en el editor antes de que lo vea un residente.
+- (−) Un caso de ved con un paso de reducción y sin referencia deja de poder publicarse en cuanto se guarda. Se arregla de dos maneras:
+  - escribiendo el desplazamiento inicial;
+  - con el modelo del taller exportado de nuevo, pulsando «Rellenar desde el modelo».
+
+  Hasta que alguien lo guarde, el caso sigue publicado y la consola le quita los puntos a ese paso.
+- (−) La regla de publicar no lee el archivo, así que un modelo que trae su referencia en los `extras` pide igual el clic en «Rellenar». A cambio, lo que decide la nota queda escrito en el caso.
+- (−) Si el caso regala un paso, el máximo baja al cargar el modelo. Es la cuenta honesta, pero el «/ máximo» puede cambiar en la primera carga.
+
+### D-307 · 2026-11-05 · vigente · E2 de P-012 · corrige el orden de la perforación y la fijación de D-169
+**Lo que daña se cobra antes que lo que falta: la broca que se pasa de la cortical y el tornillo largo son complicación aunque además haya un fallo inocuo.**
+
+*De dónde sale.* La auditoría de P-010 (débil 2). La broca de otro calibre que además se pasaba 12 mm de la cortical opuesta salía como «calibre», un fallo inocuo: al reintentar deja la mitad del paso (D-059). El daño ya estaba hecho, y con él el paso valía cero. Pasaba porque `evaluarGesto` miraba primero el calibre y el ángulo, y la cortical al final. En la fijación pasaba lo mismo con el tornillo largo, que se miraba después de contar los tornillos y la bicorticalidad.
+
+*Cómo funciona.*
+- En la perforación, `sePasoMm > PASARSE_DE_LA_CORTICAL_MM` va primero, antes del calibre, el ángulo y la bicorticalidad.
+- En la fijación, en cuanto hay placa: los tornillos largos van antes que el total, los de cada fragmento (D-309), la bicorticalidad y la compresión.
+- La regla queda escrita en el comentario de cada rama: lo que dañó se cobra aunque falte otra cosa.
+
+*Qué se probó.* `perforacionYFijacion.test.ts`:
+- la broca pasada de otro calibre, y la pasada torcida y unicortical, dan `PERFORACION_PASADA` con complicación;
+- el tornillo largo con tornillos de menos y sin bicorticales da `TORNILLO_LARGO`.
+
+*Consecuencias.*
+- (+) La nota cobra el daño, que es lo que pesa en pabellón.
+- (−) El mensaje dice solo la complicación: quien además usó la broca equivocada se entera al reintentar. Se prefirió a juntar dos mensajes en uno que no se lee.
+
+### D-308 · 2026-11-05 · vigente · E2 de P-012 · completa el aviso de `FOCO_PARA_FIJAR` de D-260
+**Fijar sin haber reducido es una complicación. La reducción se mide en el momento en que el implante bloquea el foco, con los topes del paso de reducción.**
+
+*De dónde sale.* La auditoría de P-010 (débil 2): fijar sin haber reducido daba todos los puntos.
+- `FOCO_PARA_FIJAR` avisaba al apoyar la placa, y nada más.
+- La escena deja mover el trozo con los tornillos puestos. Medido al pulsar «Aplicar paso», bastaba con fijar mal y reducir después.
+
+*Cómo funciona.*
+- **Cuándo queda bloqueado el foco** (`focoBloqueado`, `src/lib/fijacion.ts`):
+  - un tornillo que cruza la fractura. Lo marca la escena (`cruzaLaFractura`) cuando la trayectoria corta el trazo antes de donde acaba el tornillo: el de tracción, comprima o no, y cualquiera puesto por una trayectoria de dos clics;
+  - la placa con tornillos en dos fragmentos. Con el primero en un trozo, la placa todavía se corrige; el que entra en el otro es el que fija. El trozo de cada agujero lo da el asiento (`trozoDeCadaAgujero`, D-309);
+  - el clavo con un tornillo de bloqueo arriba y otro abajo que agarraron su orificio. Rozar agarra; fallar el orificio no bloquea nada.
+- **Con qué topes** (`topesDelFoco`, `src/lib/simulador.ts`):
+  - los del último paso de reducción hasta el paso en que se está, que es la reducción que el implante congela;
+  - si se fija antes de que el caso pida reducir, los del primero que la pida;
+  - sin pasos de reducción, los de siempre, 5 mm y 5°, que son los de `FOCO_PARA_FIJAR`.
+- **El juicio** (`juicioDelBloqueo`): dentro de los topes, nada. Fuera, la complicación `fijacion-sin-reducir`, con las cifras que pasan: «Fijó en mala posición: el implante bloqueó el foco con la fractura sin reducir (…). En pabellón habría que retirarlo, reducir y volver a fijar.».
+- **En la consola** (`vigilarElBloqueo`, `ConsolaQuirurgica.tsx`), por donde pasa cada cambio de la fijación:
+  - solo con un trozo marcado como fragmento: sin fractura no hay foco;
+  - se juzga una vez por bloqueo, al pasar de libre a bloqueado, y solo si lo bloqueó un tornillo recién puesto. Lo restaurado de una sesión llega sin suceso: se marca y no se juzga, porque se juzgó cuando pasó. Un modelo recién cargado empieza sin foco bloqueado;
+  - fuera de los topes se anota en rojo. El paso en curso queda con su complicación, que al superarlo lo deja en cero (D-059), y entra en el registro de complicaciones que se guarda en la cuenta;
+  - en el editor, al repasar o con el paso ya superado se dice, pero no cuenta.
+- El paso no se cierra solo: como las demás complicaciones, no avanza, y se termina igual, con cero. Es lo que el plan llamaba «se cierra con cero».
+
+*Qué se probó.*
+- `fijarSinReducir.test.ts`:
+  - cuándo bloquea: la placa en uno y en dos trozos, el agujero sin hueso, la sesión de antes, los tornillos de trayectoria y del clavo, el que cruza el trazo, el clavo arriba y abajo con acierto, roce y fallo;
+  - los topes: el último antes, el primero después, el caso terminado y el caso sin pasos de reducción;
+  - el juicio: dentro, fuera con su mensaje, una medida sin cifras y la técnica anatómica plano a plano;
+  - el cableado de la consola.
+- `compresionEnLaEscena.test.ts` vigila que la escena marque el tornillo que cruza.
+- `cableadoDelProgreso.test.ts` y `lecturasCableadas.test.ts` cuentan el quinto guardado del recorrido, el del bloqueo.
+
+*Consecuencias.*
+- (+) Fijar mal y reducir después deja de servir: cuenta la reducción que el implante congeló.
+- (+) La regla es la misma en el navegador y en el servidor: el bloqueo viaja con el recorrido y el servidor lo vuelve a juzgar con sus topes (D-310).
+- (−) Se mide lo que la consola ve en ese momento: si la lectura de la reducción se equivoca, el juicio también. Una medida sin cifras se juzga fuera de los topes.
+- (−) Una sesión guardada antes de D-309 no sabe sobre qué trozo cae cada agujero: con ella la placa no bloquea hasta volver a apoyarla. El aviso de `FOCO_PARA_FIJAR` sigue.
+- (−) Que el tornillo cruza el trazo solo lo marca la trayectoria de dos clics. Un tornillo de placa por un agujero que caiga justo sobre el trazo no se marca, y la placa bloquea igual en cuanto toma el segundo fragmento.
+
+### D-309 · 2026-11-05 · vigente · E2 de P-012 · completa `tornillosMinimos` de D-169 y `AGUJEROS_POR_FRAGMENTO` de D-260
+**Los tornillos de la placa se cuentan por fragmento principal: tres en la tibia y el antebrazo, cuatro en el fémur y el húmero, tres si todos son bloqueados, o lo que escriba el editor en el paso.**
+
+*De dónde sale.* La auditoría de P-010 (débil 2).
+- `tornillosMinimos` cuenta el total, y seis tornillos en un solo trozo aprobaban un paso que pedía seis. La placa no sostenía el otro fragmento y la nota decía que sí.
+- `AGUJEROS_POR_FRAGMENTO` avisaba de los agujeros al apoyar la placa, pero no contaba tornillos.
+
+*Cómo funciona.*
+- **La escena** da el trozo bajo cada agujero de la placa (`trozoDeCadaAgujero` en el asiento, `implantesEnLaEscena.ts`), o `null` si no tiene hueso debajo.
+- **El resumen** (`resumenDeLaFijacion`, `src/lib/fijacion.ts`), con fractura en el caso:
+  - cuenta los tornillos de la placa en los dos trozos con más agujeros, y cuántos son bloqueados;
+  - un tercero, como una mariposa bajo la placa, no cuenta: pedirle tres tornillos dejaría sin aprobar una placa bien puesta;
+  - los tornillos de una trayectoria y los del clavo no son de la placa;
+  - el nombre es la etiqueta de la pieza o, sin ella, el nodo.
+- **Lo que pide cada fragmento por omisión** (`tornillosPorFragmentoPorOmision`, `src/lib/simulador.ts`) es lo de la AO para una placa en la diáfisis. Los valida Cristóbal; hasta entonces mandan estos:
+  - tres bicorticales, seis corticales, en la tibia, el antebrazo y lo que no se reconozca;
+  - cuatro en el fémur y el húmero, que se reconocen por el nombre del nodo;
+  - tres si todos los del fragmento son bloqueados, como en una placa puente.
+- **El campo nuevo del paso, `tornillosPorFragmento`** (un número, solo en los pasos de fijación):
+  - un número manda sobre lo de la AO, y el 0 apaga la cuenta, para la placa que se apoya a propósito en un solo trozo. Vacío es lo de la AO;
+  - sin `DEFAULT` en la columna, como `tornillosMinimos`: un número ahí lo tecleó alguien. Por eso entra en la regla que no deja a un paso de «instrumento» llevar números de otro objetivo, en el panel y en la colección, y un paso sin objetivo que solo lo escribe se deduce de fijación.
+- **La evaluación**, después del total:
+  - con todos los agujeros en un fragmento, o ninguno sobre el hueso, «La placa no cruza la fractura…»;
+  - con algún fragmento corto, cuál y cuántos de cuántos;
+  - es el desenlace `tornillos-por-fragmento`, un fallo y no una complicación: no daña, pero no fija.
+- **La instrucción** del paso lo dice antes de operar. **La lista** trae su punto, «Los suyos en cada fragmento principal», con lo que lleva cada uno. Solo aparece con la placa asentada sobre una fractura, que es cuando hay con qué contarlo.
+- Sin la cuenta (sin fractura, sin placa, o una sesión guardada antes, que no trae el trozo de cada agujero) se juzga el total, como antes.
+- El formato de la ingesta documenta el campo, y de paso los de E1 que faltaban: `tecnicaDeReduccion` y las tolerancias por plano y de acortamiento.
+
+*Qué se probó.*
+- `tornillosPorFragmento.test.ts`:
+  - lo de la AO por hueso y con bloqueados, el número escrito y el 0;
+  - seis en un trozo, ninguno sobre el hueso, tres y tres, dos y cuatro, y el fémur con y sin bloqueados;
+  - que el total va antes, la instrucción y la deducción del objetivo;
+  - que la lista diga lo mismo que la evaluación;
+  - el resumen con la mariposa, con los tornillos de trayectoria y del clavo, sin nombre, sin fractura y con una sesión de antes.
+- `asientoDeLaPlaca.test.ts`: el trozo de cada agujero sobre dos fragmentos de verdad.
+- `reglasDelObjetivo.test.ts`: el «instrumento» con el número, en el panel y en la colección.
+
+*Consecuencias.*
+- (+) Una placa sobre un solo trozo ya no aprueba, y el residente sabe cuál fragmento se quedó corto.
+- (+) Los casos de fémur y húmero piden lo suyo sin que el editor escriba nada.
+- (−) El hueso se reconoce por el nombre del nodo. Un modelo con otros nombres pide tres, lo menos que la AO acepta en una diáfisis, y el editor lo corrige en el paso.
+- (−) Un caso cuya placa no tiene agujeros para tanto (una de cuatro, dos por lado) deja de poder aprobarse hasta que el editor escriba en el paso lo que pide, o un 0. La lista y el mensaje lo dicen, y el editor lo ve al ensayar. Hay que revisarlo en los casos de ved antes de subir.
+- (−) La migración `20261105_193153_tornillos_por_fragmento_y_nota_del_servidor` añade la columna a `cirugias_pasos` y a sus versiones.
+
+### D-310 · 2026-11-05 · vigente · E2 de P-012 · supera en parte a D-084 (el puntaje como seguimiento que el servidor no recalcula)
+**La nota la rehace el servidor. El navegador manda lo que se hizo en cada paso, y se guarda la cuenta del servidor, con la del navegador al lado si no coinciden.**
+
+*De dónde sale.* La auditoría de P-010 (débil 2): el puntaje lo calculaba el navegador y el servidor lo guardaba tal cual. Un residente podía escribir el que quisiera con una llamada a su propia fila, y D-084 lo aceptaba porque era seguimiento y no una nota. Con el modo evaluación (D-258, D-265) y el panel docente por delante (E9-7 de P-009), deja de bastar.
+
+*Cómo funciona.*
+- **Lo que viaja** (`RecorridoDelCaso`, `src/lib/notaDelRecorrido.ts`):
+  - de cada paso tocado, el primer gesto que falló, el primero que dañó y el que lo superó;
+  - si se eligió la reducción automática;
+  - el bloqueo del foco fuera de los topes (D-308);
+  - del caso, la medida de partida (D-306).
+- **La consola lo lleva** con `conIntento`, `conAutomatica` y `conBloqueo`, y lo manda con cada hito y con el resultado. Viaja también dentro del avance guardado, para que seguir donde se dejó no lo pierda.
+- **Por qué tres gestos y no todos.** `puntosDelPaso` mira dos banderas, no dos contadores (D-059): para rehacer la cuenta basta, de cada paso, la primera vez de cada clase. Todos serían decenas de kB por caso en cada hito.
+- **Lo que llega se rehace entero** (`recorridoValido`):
+  - campo a campo, solo lo que el motor sabe leer y con la forma que espera;
+  - con topes de tamaño (120 000 caracteres), de pasos y de gestos por paso;
+  - un número que no es número se queda fuera, y el motor lo lee como lo peor: un dato roto nunca aprueba.
+- **El servidor** (`registrarResultadoDeCirugia`, `acciones/actividad.ts`):
+  - lee el caso con los permisos de quien juega, como la página;
+  - rehace la nota con `notaDelRecorrido`: los mismos `evaluarGesto`, `puntosDelPaso` y `puntajeMaximo` que la consola, paso a paso en el orden del guion;
+  - un paso del recorrido que el caso ya no tiene no cuenta.
+- **Lo que se guarda** (`comprobacionDeLaNota`):
+  - la nota del servidor, con la marca nueva `comprobacionDeLaNota`;
+  - si coincide con la del navegador, «coincide»;
+  - si no, «no-coincide», con la del navegador en `notaDelNavegador` y un aviso en el registro del servidor;
+  - si no se pudo rehacer (un recorrido roto, un navegador de antes, un caso que no se puede leer), la del navegador, «sin-comprobar». Un recorrido roto no hace perder el resultado ni las complicaciones.
+- Los dos campos nuevos de `actividad` van en la migración de D-309.
+
+*Qué se probó.*
+- `notaDelRecorrido.test.ts`:
+  - la regla de D-059, rehecha;
+  - que guardar solo el primer gesto de cada clase da la misma nota que rehacer todos: 300 recorridos al azar, con semilla;
+  - la automática, el bloqueo con los topes del foco, la partida y los pasos sin nada que reducir;
+  - lo que viaja de cada gesto, y la comprobación con su margen;
+  - lo que llega por HTTP (entero, roto, con sus topes, saneado), también dentro del avance;
+  - el cableado de la consola.
+- `resultadoDeCirugia.test.ts`:
+  - la nota que coincide;
+  - una nota falsificada de 20/20 se guarda como 15/20, «no-coincide»;
+  - un recorrido roto y un caso que no se lee dan «sin-comprobar».
+
+*Consecuencias.*
+- (+) Escribir el puntaje a mano ya no sirve: no hay número que el servidor se crea sin rehacerlo.
+- (+) Una diferencia entre las dos cuentas queda a la vista. Si aparece sin trampa, es una regla que el navegador y el servidor aplican distinto, y se ve en la fila.
+- (−) No cierra falsificar las medidas, que siguen saliendo de la escena, que es del navegador. Quien mande un gesto inventado con todo dentro de los topes saca la nota entera. Cerrarlo pediría repetir la simulación en el servidor.
+- (−) Cada resultado cuesta una lectura más del caso.
+- (−) El servidor juzga con el guion de hoy. Si el editor cambia un paso entre que se jugó y se registró, manda el nuevo.
+- (−) Las filas de antes quedan sin marca, y las que lleguen sin recorrido, «sin-comprobar».
+
+### D-311 · 2026-11-05 · vigente · E2 de P-012 · cumple lo que prometió D-266
+**El registro de «Lo que va pasando» queda entero, con un tope por tamaño, y dice cuándo se cayó lo más viejo.**
+
+*De dónde sale.* La auditoría de P-010. El registro se recortaba a diez anotaciones (`.slice(0, 10)`), y D-266 prometía que, terminado el caso, quedaría entero debajo del resumen. En un caso de siete pasos, diez líneas no cubrían ni el último.
+
+*Cómo funciona.* `conLaAnotacion` (`src/lib/registroDeLaConsola.ts`):
+- lo nuevo va delante;
+- el tope es de 200 000 caracteres y no de líneas: lo que importa es que la columna no crezca sin freno en una pestaña que pasa media hora abierta;
+- pasado el tope se cae lo más viejo, y una línea al final lo dice. Un registro que se calla lo que perdió vuelve a prometer que está entero;
+- lo que se acaba de decir se queda siempre.
+
+Durante el caso la consola enseña las últimas seis, como antes; al terminar, todo.
+
+*Qué se probó.* `registroDeLaConsola.test.ts`: el orden, trescientas líneas sin recorte, el tope con su línea de aviso (que no se repite), la anotación larga que se queda, y que la consola anote con él.
+
+*Consecuencias.*
+- (+) Al terminar se repasa el recorrido entero.
+- (−) Sigue viviendo en la pestaña y se pierde al recargar. Lo que dura es la nota y el registro de complicaciones, que se guardan en la cuenta.
+
+### D-312 · 2026-11-05 · vigente · E4 de P-012 · completa D-265 (la elección del modo encima del lienzo)
+**Hasta elegir cómo se hace el caso, nada responde: la tarjeta de la elección es modal y el resto de la consola queda `inert`. Sin modo elegido no hay práctica.**
+
+*De dónde sale.* La auditoría de P-010 (débil 4). La tarjeta de D-265 tapaba el lienzo y nada más. La barra, la mesa, la columna del paso y el pie seguían a un clic o a un tabulador: se cogía instrumental y se aplicaban pasos sin modo. Y como `enPractica` era `modo !== 'evaluacion'`, lo que se hiciera ahí se hacía con todas las ayudas de la práctica.
+
+*Cómo funciona.* En `ConsolaQuirurgica.tsx`:
+- `enPractica` pasa a ser `modoDeJuego === 'practica'`. El editor sigue igual: ensaya en práctica desde el primer pintado.
+- Mientras se elige (`eligiendo`), quedan `inert`:
+  - la barra;
+  - la franja de pasos;
+  - la columna izquierda, con la mesa;
+  - la barra de modos y el panel de la herramienta;
+  - los mandos del lienzo y las medidas;
+  - la columna derecha y el pie.
+
+  `inert` los saca a la vez del ratón, del teclado y del lector de pantalla.
+- La tarjeta recibe el foco al abrirse, sin desplazar la página, para que el lector diga qué se pregunta. Su fondo no lleva aro de foco: no es un mando.
+- **Sin `aria-modal`.** La tarjeta es modal para la consola y no para la página. Con él, algunos lectores esconden también el menú del sitio, que sigue sirviendo para irse.
+
+*Qué se probó.* `evaluacionSinAyudas.test.ts`: la práctica estricta, las nueve regiones inertes, y el foco de la tarjeta sin `aria-modal`. Las pruebas de la barra de modos y de la mesa (`barraDeModos`, `movimientoPorEjes`, `barraDeInstrumental`) buscaban la etiqueta de apertura tal cual. Ahora la buscan sin cerrar, para que el atributo nuevo no las rompa.
+
+*Consecuencias.*
+- (+) Lo que se hace en el caso se hace siempre en un modo, y las ayudas son las de ese modo.
+- (−) Mientras la tarjeta está abierta tampoco se puede «Ampliar» ni girar la vista. El modelo se ve detrás, pero no se toca hasta elegir.
+
+### D-313 · 2026-11-05 · vigente · E4 de P-012 · corrige, en evaluación, la lista viva de P-009 (mejora de uso 3)
+**En evaluación nada dice si se acierta. La lista marca en gris lo hecho, nunca en verde ni en rojo, y sin la cifra de ahora. Las medidas dan la cifra y su tope, sin veredicto. La escopia no dibuja dónde debe quedar el fragmento.**
+
+*De dónde sale.* La auditoría de P-010 (débil 4). En evaluación, la lista del paso se ponía en verde al acertar, que es corregir en vivo: en pabellón nadie avisa de que la reducción ya vale. Y en práctica, «Un instrumento en la mano» se ponía en verde con cualquiera cuando el instrumento del paso no estaba en el instrumental del caso.
+
+*Cómo funciona.*
+- **La lista** (`listaDelPaso`, opción nueva `juzgar`, obligatoria):
+  - en práctica, como hasta ahora;
+  - en evaluación, los mismos puntos con el mismo texto, en dos estados: `falta`, o `anotado` si ya hay hecho algo que el punto mide (`sinJuzgar`);
+  - `anotado` es la acción y no si salió bien: el punto del calibre se marca con cualquier broca, el de los tornillos con el primero y el del músculo con cualquiera elegido para la acción del paso;
+  - la reducción y la fuerza no se anotan nunca. Se miden desde que empieza el paso, con el trozo sin tocar y el deslizador en su sitio, y no hay gesto que diga «ya lo hice» sin decir también si quedó dentro;
+  - en la consola, el gris es el del rótulo (`.consola-punto-anotado`) y no un verde apagado, que se seguiría leyendo como «bien». Para el lector de pantalla, «hecho, sin juzgar», y debajo de la lista una línea lo dice.
+- **El instrumento en práctica:** sin nombre que dar, el punto dice «El instrumento del paso en la mano» y se pone en verde solo con ese.
+- **Las medidas** de debajo del lienzo: en evaluación, la cifra y el tope, sin el «dentro» ni el color.
+- **La escopia:**
+  - las ayudas que reciben el lienzo, el panel y el texto de la broca salen de un solo sitio (`ayudasDeLaEscopia`). En evaluación, sin «Dónde debe quedar», la silueta del fragmento ya reducido;
+  - el interruptor se queda, apagado, con el porqué («no se usa en evaluación»). Si desaparece, quien lo usó en práctica lo busca y cree que la consola falla;
+  - la lectura de los ejes da los grados, sin «dentro del tope».
+
+*Qué se probó.*
+- `listaDelPaso.test.ts`:
+  - en evaluación, ningún punto en verde ni en rojo ni con cifra, en los seis objetivos;
+  - lo anotado, aunque esté mal;
+  - la reducción y la fuerza, nunca anotadas;
+  - los mismos textos que en práctica;
+  - el instrumento sin nombre.
+- `evaluacionSinAyudas.test.ts`: el cableado de las medidas, de la escopia (lienzo, panel y broca con las mismas ayudas) y del interruptor apagado.
+- `tornillosPorFragmento` y `topesPorPlano` piden la lista juzgada, que es lo que comprueban.
+
+*Consecuencias.*
+- (+) La nota de evaluación mide lo que el residente sabe ver, no lo que la lista le confirma.
+- (−) **Las cifras se quedan.** Las medidas siguen diciendo, por ejemplo, «2,4 mm · hasta 2 mm», y la escopia los grados entre los dos ejes. Comparar una cifra con su tope es fácil. Se dejan porque son lo que mediría la regla del arco, y quitarlas cambia qué se evalúa. Queda para que lo decida el dueño.
+
+### D-314 · 2026-11-05 · vigente · E4 de P-012
+**«Siguiente» y los botones que deshacen, solo en práctica y en el editor. En evaluación, la secuencia no elige el instrumento, y lo hecho mal sobre el paciente se queda.**
+
+*De dónde sale.* La auditoría de P-010 (débil 4). «Deshacer» y «Repetir este paso» ya miraban el modo (D-258); estos no:
+- «Siguiente» (P-004 E9) le pasaba a la mano la broca, el medidor o el tornillo que tocaba, del calibre del último tornillo, y abría su familia en la mesa;
+- «Quitar agujeros», «Cerrar la herida» y la cruz de cada incisión deshacían lo hecho;
+- «Borrar trazo» cerraba la última incisión.
+
+*Cómo funciona.*
+- **La secuencia** (`avanzarLaSecuencia`): en evaluación anota el tiempo que toca y nada más. Sin la marca «siguiente» en la mesa, sin abrir familia, sin poner nada en la mano. El bloque de los tres tiempos con su interruptor no sale. Al empezar el caso se borra la marca que hubiera dejado el recorrido anterior.
+- **«Quitar agujeros», «Cerrar la herida» o «Cerrar todas las heridas», y la cruz de cada incisión:** solo en práctica y en el editor. Cerrar es deshacer la incisión, no suturarla.
+- **«Borrar trazo»**:
+  - en el paso de la incisión no está: borrarla y trazar otra es repetir el paso gratis;
+  - en los demás pasos sale «Quitar la raya», que quita solo el dibujo (`borrarTrazo(false)`) y deja la herida. Era lo que pedía este botón: la raya se pinta sin prueba de profundidad y tapa el fragmento desde cualquier lado. Fuera de su paso no cuenta, porque `evaluarGesto` solo mide el trazo en él.
+
+*Qué se probó.* `evaluacionSinAyudas.test.ts`:
+- que la secuencia corta antes de cada una de sus tres ayudas;
+- la mesa sin marca, el bloque sin pintar y la marca borrada al empezar;
+- los botones de deshacer detrás de la práctica;
+- un solo `borrarTrazo(true)`, y «Quitar la raya» fuera del paso del trazo.
+
+*Consecuencias.*
+- (+) En evaluación, el instrumental se pide entero y lo hecho mal no se borra.
+- (−) **Queda una puerta abierta.** En evaluación se puede trazar otra incisión, o perforar otro agujero, y la lista y la nota miden la última. La anterior queda en el paciente, pero no se cobra. Cerrarlo es decidir qué cuesta un gesto de más, y queda para después.
+
+### D-315 · 2026-11-05 · vigente · E4 de P-012
+**La reducción automática es una acción con pregunta, solo en práctica y en el editor, y se deshace con un solo «Deshacer». El paso sigue sin puntos aunque se deshaga.**
+
+*De dónde sale.* La auditoría de P-010 (débil 4). «Automática» estaba al lado de «Manual», con la forma de un interruptor de dos posiciones: «Manual» no hacía nada, y un clic en la otra dejaba el paso de reducir sin puntos sin decirlo antes. Estaba también en evaluación. Y deshacerla no volvía a donde estaba el fragmento. El reloj del lienzo apila cada 600 ms, y la animación dura otros tantos: se apilaba un trozo a medio camino.
+
+*Cómo funciona.*
+- **El botón:** «Reducción automática…», un botón de acción y no un interruptor, solo en práctica y en el editor. `reducirAutomaticamente` rechaza además el modo evaluación, para el camino que no pase por el botón.
+- **La pregunta:** al residente se le pregunta con el diálogo de la plataforma (`confirmar`), con lo que cuesta: el paso queda sin puntos, aunque después lo deshaga con «Deshacer» (Ctrl+Z). Al editor no se le pregunta, porque la usa para colocar el caso y no puntúa.
+- **Deshacer:**
+  - mientras anima no se apila nada (`alCambiarLaEscena`);
+  - la reducción apila lo de antes al empezar y lo de después al terminar (`apilarLaEscenaDeAhora`), sin esperar al reloj. Así un Ctrl+Z rápido no salta un estado de más.
+- **La marca se queda aunque se deshaga.** Si no, reducir solo, mirar cómo queda y deshacer enseñaría la respuesta gratis.
+- **El reloj de la curva** es el del primer cuadro y no el de `performance.now()` al pulsar. Con la pregunta delante, el compilador de React (`react-hooks/purity`) ya no aceptaba la llamada.
+
+*Qué se probó.* `evaluacionSinAyudas.test.ts` (la guarda, la pregunta, el botón detrás de la práctica, el apilado de antes y de después, y nada a medias) y `movimientoPorEjes.test.ts`, que pedía el interruptor y ahora pide la acción con su pregunta.
+
+*Consecuencias.*
+- (+) Nadie reduce solo sin querer, y en evaluación no se puede.
+- (+) Deshacer devuelve el fragmento a donde estaba.
+- (−) Una pregunta más en práctica, en un gesto que ya era raro.
+
+### D-316 · 2026-11-05 · vigente · E4 de P-012 · amplía D-310
+**El modo queda fijo en el recorrido. La consola lo pone al empezar el caso y el servidor guarda ese, con la nota. Un recorrido en evaluación con reducción automática no se rehace.**
+
+*De dónde sale.* El punto 5 de E4. El modo de la fila salía del que acompañaba a cada resultado, que es el de la pantalla al mandar, y nada lo ataba al recorrido que rehace la nota (D-310).
+
+*Cómo funciona.*
+- **El modo** (`RecorridoDelCaso.modo`):
+  - lo pone `empezarElCaso` y ya no cambia, porque cambiar de modo es empezar otro recorrido;
+  - «Seguir donde lo dejó» lo toma del avance;
+  - `avanceValido` no deja pasar un avance con un modo distinto del de su recorrido.
+- **Lo que llega** (`recorridoValido`):
+  - un modo que no es ninguno de los dos no pasa;
+  - un recorrido en evaluación que trae la reducción automática no salió de esta consola (D-315). No se rehace, y la fila queda «sin comprobar», que es lo que el docente tiene que ver. Rehacerlo daría una nota que coincide sobre un recorrido que no pudo pasar.
+- **El servidor** (`registrarResultadoDeCirugia`): guarda el modo del recorrido cuando lo trae. Si el que llega suelto es otro, manda el del recorrido y lo apunta en su registro, como la nota. Los recorridos de antes de E4 no lo traen y siguen con el de antes.
+- Sin migración: `modoDelRecorrido` ya existía, y el recorrido no se guarda en ninguna columna.
+
+*Qué se probó.*
+- `evaluacionSinAyudas.test.ts`: el modo en el recorrido, roto o ausente; la evaluación con automática; el avance con otro modo; y el cableado de la consola y del servidor.
+- `resultadoDeCirugia.test.ts`: el del recorrido manda y se apunta, sin aviso si coinciden, el de antes sin modo, y la evaluación con automática «sin comprobar».
+- `notaDelRecorrido.test.ts`: el recorrido empieza con su modo.
+
+*Consecuencias.*
+- (+) El docente ve en qué modo se empezó el recorrido que puntúa, no el de la pantalla en el último hito.
+- (−) El modo lo sigue diciendo el navegador, como las medidas (D-310). Un navegador modificado puede declarar evaluación lo que hizo en práctica.
+
+### D-317 · 2026-11-05 · vigente · E6 de P-012
+**Las arterias, las venas y los nervios dejan de ser «músculo»: tienen papel propio, `vaso` y `nervio`, en la colección (con su migración), en la tabla del atlas y en la regla por nombre.**
+
+*De dónde sale.* El punto 1 de E6 (débil 5). La tabla `ROL_DE_SISTEMA` mandaba `arterial`, `venous` y `nervous` a «músculo», y su propio comentario decía que el cambio empezaba por el rol en la colección.
+
+*Cómo funciona.*
+- **El papel.** `RolDePieza` y `ROLES_DE_PIEZA` suman `vaso` y `nervio` detrás de `fascia`: es el orden en que Postgres añade valores a un enumerado, y la prueba compara la lista tal cual.
+- **La colección.** El `select` de `Cirugias.ts` los ofrece, con su migración (`20261105_204916_rol_vaso_y_nervio`): un `ALTER TYPE … ADD VALUE` por valor en cada uno de los dos enumerados. La bajada devuelve a «músculo» las filas que los usen antes de rehacer el tipo, como la de la fascia.
+- **Las listas.** El esquema del panel, los dos talleres y el lienzo los nombran. En los talleres van tras el músculo, que es donde se los encuentra al operar.
+- **La tabla del atlas.** Arterial y venoso pasan a `vaso`, y nervioso a `nervio`. El linfático se queda en «músculo»: su lesión no es la que se vigila en un abordaje de miembro.
+- **El nombre** (`rolPorElNombre`, para los modelos sin papel escrito). El vaso y el nervio se miran antes que el músculo y que el hueso: «Left anterior tibial artery» nombra la tibia y es una arteria.
+  - Arreglado de paso: buscaba «arteri», que no está en el inglés «artery». La arteria tibial caía en la regla del hueso y salía hueso fijo. Ahora busca «arter», como ya hacía `aspectoDe`.
+- **Los modelos exportados antes** traen «músculo» con el sistema al lado. `rolDelArchivo` (`piezasDelCaso.ts`) lee el «músculo» de un sistema que hoy es vaso o nervio como lo que es. Lo demás que diga el archivo manda: el fragmento, y la fascia superficial con la piel.
+- **Los casos guardados** tienen esas filas declaradas como «músculo», y lo declarado manda. Con una excepción: «Rellenar desde el modelo» pone su papel a la fila «músculo» de un objeto que el modelo dice vaso o nervio, y lo cuenta en su aviso (`conSuPapel`). Antes de E6 no había otro papel que ponerle, así que ese «músculo» no lo eligió nadie. Una fila con otro papel no se toca.
+
+*Qué se probó.*
+- `vasosYNervios.test.ts`:
+  - la lista y su orden, y la tabla del atlas;
+  - los nombres, con el de la tibial;
+  - el modelo de antes leído al día, y lo demás que manda;
+  - «Rellenar», que cambia solo la fila «músculo» de un vaso y la segunda vez no hace nada.
+- `estructurasSeparadas.test.ts`, `etiquetaDeRol.test.ts` y `exportarAlSimulador.test.ts`, al día.
+- `migraciones.test.ts`: el esquema y la última migración no se separan. La migración se aplicó en la base desechable.
+
+*Consecuencias.*
+- (+) La consola distingue lo que se corta para llegar al hueso de lo que no se puede cortar.
+- (+) Los modelos exportados antes no hay que volver a exportarlos.
+- (−) Los casos guardados siguen con sus vasos como «músculo» hasta que alguien pulse «Rellenar desde el modelo» en su editor. No se cambian solos: cambiaría la nota de un caso publicado sin que su autor lo supiera.
+- (−) Un vaso marcado «músculo» a propósito, después de E6, vuelve a «vaso» si se pulsa «Rellenar». El aviso lo dice.
+
+### D-318 · 2026-11-05 · vigente · E6 de P-012
+**Los vasos y los nervios siguen en el plano muscular: se encienden y se apagan con el músculo, y se separan y se cosen con él. La disección roma no los corta.**
+
+*De dónde sale.* El punto 2 de E6: «se apagan con las partes blandas». Con papel propio y nada más, quedaban fuera de todo:
+- ningún interruptor los apagaba, como le pasaba al fragmento antes de `capaDelRol`;
+- el separador no se apoyaba en ellos;
+- y la caída de `mallasDeHuesoVisibles`, sin huesos declarados, los habría tomado por hueso.
+
+*Cómo funciona.*
+- **La pregunta**, en un solo sitio: `esEstructuraNoble` (`piezasDelCaso.ts`).
+- **Las tres traducciones de papel a capa** la hacen:
+  - `capaDelRol`: los interruptores de la consola y lo que enseña cada paso;
+  - `planoDelRol`: los planos blandos y la sutura;
+  - `capaBlandaDelRol`: la disección, que ahora llama a `planoDelRol` en vez de repetir su lista.
+- **En el lienzo:**
+  - `mallasConRol` da los vasos y los nervios a quien pide el plano muscular: el separador, la herida y la disección;
+  - el bisturí profundo los corta con el músculo (`aplicarElCorte`);
+  - la caída de `mallasDeHuesoVisibles` ya no los toma por hueso.
+- **La disección roma no los corta.** Aparta lo que encuentra en vez de partirlo, y el vaso se queda cruzando la herida, que es como se lo ve en pabellón.
+- **Se ven húmedos**, sin fibras, como ya se veían por el nombre (`aspectoDe`).
+
+*Qué se probó.* `vasosYNervios.test.ts`:
+- las tres traducciones, y la de la sutura;
+- con el músculo apagado, no quedan flotando delante del hueso;
+- un paso que enseña un vaso enciende el interruptor del músculo, y no inventa otro;
+- el aspecto;
+- y en el código del lienzo: el plano muscular con lo noble, la disección que lo aparta y la caída del hueso.
+
+*Consecuencias.*
+- (+) Para el residente nada cambia de sitio: los vasos están donde estaban y se apagan con lo mismo.
+- (−) No hay interruptor para ver solo los vasos. Para enseñar el paquete neurovascular de un abordaje sirve que el paso declare lo que se ve.
+
+### D-319 · 2026-11-05 · vigente · E6 de P-012 · amplía D-308 y D-310
+**Cortar un vaso o un nervio con el bisturí, o atravesarlo con la broca o la aguja al pasarse de la cortical opuesta, es una complicación del paso en que se está. Cuesta el paso entero, en la consola y en la nota que rehace el servidor.**
+
+*De dónde sale.* El punto 2 de E6. El trazo que partía la arteria tibial anterior costaba lo mismo que el que partía el tibial anterior: nada. Y la broca pasada de largo se cobraba por los milímetros, sin mirar qué había detrás.
+
+*Cómo funciona.*
+- **El juicio** (`juicioDeLaLesion`, `simulador.ts`). Siempre es una complicación, `LESION_VASCULAR` o `LESION_NERVIOSA`, con lo que se lesionó y qué habría que hacer en pabellón. No hay medida que pueda quedar dentro de un tope: el lienzo ya decidió que se tocó.
+- **El corte** (`aplicarElCorte`). Un vaso o un nervio que parte el trazo de ahora llama a `alLesionar`.
+  - Solo con un trazo de verdad. Lo que rehace la sesión y el rehacer de una incisión ya se contaron cuando pasaron, y la herida de una disección no los corta.
+  - Lo que ya estaba cortado antes del trazo no vuelve a contar. Alargar una incisión la cierra y la corta otra vez entera, así que se mira antes de cerrarla.
+- **La broca y la aguja** (`avisarDeLoQueAtraviesa`).
+  - Solo si se pasaron más de lo que se tolera (`PASARSE_DE_LA_CORTICAL_MM`, 3 mm). Lo tolerado no le cuesta nada a la nota y no puede costar aquí.
+  - Cinco rayos, el eje y cuatro por el borde del calibre, desde la salida del hueso hasta la punta (`nobleQueAtraviesa`). Una broca de 3,2 mm que roza la arteria con el borde la lesiona igual.
+  - Con lo apagado incluido: apagar el músculo no saca al nervio del paciente.
+- **La consola** (`vigilarLaLesion`), como `vigilarElBloqueo` (D-308).
+  - Lo anota siempre. También en el editor, que es donde el autor descubre que su abordaje pasa por encima de la safena, y repasando.
+  - Lo cobra en el paso en que se está, si no está superado: `complicados`, la lista de complicaciones y `guardarRecorrido`.
+- **La nota del servidor** (D-310).
+  - El recorrido lleva de cada paso la primera lesión (`conLesion`), y `notaDelRecorrido` la cuenta como complicación.
+  - `recorridoValido` la rehace campo a campo y rechaza entera una rota. Si se quedara fuera, devolvería los puntos de un paso que el navegador ya dio por complicado, y las dos notas dejarían de coincidir.
+- **Sin migración para el desenlace:** `complicaciones.resultado` es texto validado contra `RESULTADOS`. `NOMBRE_DEL_DESENLACE` les da nombre en el panel: «Lesión vascular» y «Lesión nerviosa».
+
+*Qué se probó.*
+- `vasosYNervios.test.ts`:
+  - el juicio de los dos, con su texto;
+  - los desenlaces, que se pueden guardar y tienen nombre;
+  - la nota rehecha: el paso de la lesión no suma, tampoco con la lesión antes del gesto;
+  - la primera lesión por paso;
+  - lo que llega por HTTP, roto de cuatro maneras o con campos de más;
+  - en el código: la guarda del corte, lo ya cortado, la broca y la aguja, y la consola.
+- `cableadoDelProgreso.test.ts` y `lecturasCableadas.test.ts`: el sexto `guardarRecorrido`.
+
+*Consecuencias.*
+- (+) El abordaje se juzga por lo que respeta, que es lo que se aprende de él.
+- (−) La lesión depende de la malla. Con las piezas del atlas, de un centímetro de lado, un trazo que en el paciente pasaría a dos milímetros de la arteria puede tocarla, y al revés. Por eso la broca tiene la tolerancia de la nota, y por eso E7 (el hueso) y E8 (el subcutáneo) importan también aquí.
+- (−) Con un vaso no se puede hacer nada más que no cortarlo: ni ligarlo ni apartarlo con un separador propio.
+- (−) El caso de prueba (`ejemplos/tibia-de-prueba.glb`) no trae vasos. Se ve en un caso exportado del atlas con el sistema arterial.
+
+### D-320 · 2026-11-05 · vigente · E6 de P-012
+**FJ2190 y los nervios del miembro inferior quedan fuera de E6, con su porqué.**
+
+*De dónde sale.* Los puntos 3 y 4 de E6.
+
+*Qué se decidió.*
+- **FJ2190**, la «Right fibular vein» que el atlas pone en el muslo izquierdo, no se corrige todavía. Las correcciones de hoy cambian el sistema de una pieza por su nombre (`correcciones-de-sistema.json`), y esta tiene bien el sistema: lo que está mal es el nombre. Faltan dos cosas:
+  - saber qué vena es de verdad, que por su sitio es una del muslo izquierdo y tiene que identificarla alguien que la vea;
+  - un mecanismo de correcciones de nombre, declarado como las otras en el ATRIBUCION.md, porque CC BY 4.0 obliga a decir qué se modificó.
+
+  Corregirla a ciegas cambiaría un error por otro.
+- **Los nervios del miembro inferior** quedan para conversar, como decía el plan. El atlas no los trae: sus 139 piezas del sistema nervioso están en la cabeza. Hasta entonces solo tienen papel `nervio` los modelos que traigan nervios de otra fuente.
+
+*Consecuencias.*
+- (+) Ninguna corrección sin fuente.
+- (−) En la pierna, de lo noble solo cuentan las arterias y las venas.
+
+### D-321 · 2026-11-05 · vigente · E5 de P-012
+**En un portátil, el lienzo pasa del 28 % de la ventana a más del 70 %: las dos columnas se pliegan a un riel, la ficha de la herramienta a un botón, y en una pantalla baja las barras se aprietan a una línea.**
+
+*De dónde sale.* El punto 1 de E5 (débil 6). A 1366 × 658, la ventana de un portátil de 1366 × 768, el lienzo medía 771 × 326 px: el 28 % de la ventana (la auditoría de P-010 decía el 29 %). Se lo comían dos columnas de 264 y 316 px, la ficha de la herramienta de 270 px al lado y cuatro barras arriba y abajo.
+
+*Cómo funciona.*
+- **Lo plegado lo recuerda el navegador** (`plegados.ts`): `usePlegado`, sobre `useSyncExternalStore` y `localStorage`, con cuatro claves (`consola.plegada.mesa`, `consola.plegada.paso`, `consola.plegada.herramienta` y `consola.instrumento.visor3d`). Sin almacenamiento, lo plegado vale hasta recargar.
+- **Las columnas** se pliegan a un riel de 52 px (las clases `izq-plegada` y `der-plegada`; `--col-*` manda sobre el ancho que dejó el asa).
+  - En el de la izquierda queda lo que se toca sin mirar la mesa: desplegarla, lo que hay en la mano, los sitios de la mesa de Mayo con su tecla (D-325), «Pedir instrumento» (D-324) y los interruptores de las capas.
+  - En el de la derecha, lo que no puede esperar: desplegarla, «N/M», «Aplicar paso», «Deshacer» en práctica y lo último que pasó.
+  - Lo de la columna se queda montado y solo se esconde: al desplegarla está como se dejó, con la familia abierta y lo escrito en el buscador.
+- **La ficha de la herramienta** se pliega a un botón de la barra del lienzo, con el nombre de lo que hay en la mano. El visor 3D del instrumento sale solo a pedido.
+- **La barra del lienzo ya no tapa el título de la ficha.** Al lado del lienzo, empieza donde acaba la ficha; encima del lienzo (menos de 1000 px de ancho), la ficha empieza bajo su primera fila.
+- **«Paso N de M»** sale en el riel o en la columna, nunca en los dos.
+- **El foco** pasa al botón que deshace lo que se acaba de hacer (`enfocarDespues`). Sin eso, plegar dejaba el foco en un botón que ya no está, y el teclado volvía al principio de la página.
+- **En una pantalla baja** (más de 900 px de ancho y 820 o menos de alto), cada barra se aprieta a una línea.
+- **En el editor no se pliega nada:** allí las columnas son su formulario. En el móvil no hay columnas, y lo plegado no cuenta.
+
+*Qué se probó.*
+- En el navegador, a 1366 × 657 y con las dos columnas plegadas, el lienzo mide 1247 × 509 en el paso 1 (70,6 %) y 1247 × 526 en el paso 2 (73 %). El foco pasa bien al plegar y al desplegar, y «Paso N de M» sale una vez. En el móvil (375 × 812): la mesa a la vista, sin rieles ni botones de plegar, y un solo «Paso 1 de 7».
+- `pantallaDelPortatil.test.ts`: las claves; que las clases las lee el CSS; que solo el editor usa a pelo el ancho del asa; el paso del foco; y la media de la pantalla baja.
+
+*Consecuencias.*
+- (+) Se opera con el paciente en casi toda la pantalla, sin perder la mano, las teclas ni «Aplicar paso».
+- (−) Plegada, la columna del paso esconde el registro entero: queda lo último que pasó. Plegarla es decisión del residente, y el navegador la recuerda también el día de la evaluación.
+
+### D-322 · 2026-11-05 · vigente · E5 de P-012 · amplía D-268
+**El monitor del arco se agranda sobre el lienzo con la M o con doble clic en la imagen: las dos últimas tomas, AP y lateral, una junto a la otra y del mismo tamaño, con los disparos y los segundos de vídeo a la vista. La lámina postoperatoria se ve a pantalla completa.**
+
+*De dónde sale.* El punto 2 de E5. En pabellón el arco tiene dos monitores. Aquí, a 1366 × 657, la toma de la otra proyección medía 96 px junto a la nueva, de 228 (D-268), y la lámina postoperatoria se veía a 223 × 126.
+
+*Cómo funciona.*
+- **Es el mismo recuadro con otra clase** (`en-grande`), no otro componente: lo que el panel hace en pequeño lo hace igual en grande.
+- **Se abre** con la M, con el botón de agrandar del panel (`aria-keyshortcuts="M"`) o con doble clic en la imagen. Con el arco apagado, la M lo dice en vez de no hacer nada.
+- **Se cierra** con la M o con Esc. Ese Esc se atiende antes que el oyente que retira la broca (`stopImmediatePropagation`): cerrar el monitor no puede soltar lo que hay en la mano.
+- **Las dos imágenes miden lo mismo**, lo más que quepa: el recuadro es un contenedor (`container-type: size`), y cada imagen mide `min(50cqw − el espacio, 100cqh − 32px)`.
+- **Los rayos:** los disparos y los segundos de vídeo, en una línea del recuadro (`consola-escopia-dosis`). Vuelven a cero con un recorrido nuevo, y se guardan con los tiempos (D-323).
+- **La lámina postoperatoria** se amplía a pantalla completa (`ampliada`). Su Esc va en la fase de captura y no llega a la consola, y el foco vuelve adonde estaba.
+
+*Qué se probó.*
+- En el navegador, a 1366 × 657: las dos tomas pasan de 96 y 228 px a 303 × 303 cada una, y la lámina de 223 × 126 a 1366 × 658.
+- `pantallaDelPortatil.test.ts`: la M y su aviso, el Esc antes que el de la broca, la clase y las unidades del contenedor, la cuenta que vuelve a cero, y el Esc de la lámina.
+
+*Consecuencias.*
+- (+) Se compara la AP con la lateral como en pabellón, y la radiación se ve mientras se gasta.
+- (−) Los rayos se cuentan, pero no se juzgan: ni tope ni nota. Pasarlos a dosis pediría saber del arco lo que el caso no declara.
+
+### D-323 · 2026-11-05 · vigente · E5 de P-012
+**Dos relojes en la cabecera de la consola: el del procedimiento, desde la primera incisión, y el del manguito, si el caso lo usa, con su presión y su tope. Lo contado viaja, con los rayos del arco, en el resultado y en el avance de cada paso.**
+
+*De dónde sale.* El punto 3 de E5. En pabellón hay un reloj en la pared y otro en el manguito, y el arco lleva la cuenta de lo que dispara. La consola no tenía ninguno: un caso se podía hacer con el manguito inflado tres horas o con cien disparos, y nada lo decía ni lo dejaba escrito.
+
+*Cómo funciona* (`relojesDelCaso.ts`, `RelojesDeLaConsola.tsx`).
+- **El caso declara el manguito** en tres campos nuevos de `Cirugias`, con su migración (`20261105_222046_manguito_y_tiempos`): `usaManguito`, `presionDelManguito` (de 50 a 500 mmHg; vacía, 300) y `topeDelManguito` (de 10 a 240 min; vacío, 120). El panel los pide en la pestaña «Simulador», bajo el instrumental. Un valor roto o fuera de rango toma el de por omisión (`manguitoDelDocumento`).
+- **El reloj del procedimiento** arranca con la primera incisión: el trazo con un instrumento que corta, o la herida que se abre. Se para al terminar el caso.
+  - Las dos vías hacen falta: la raya del bisturí en el paso de incisión no abre herida, y es el corte de piel para quien opera.
+  - El trazo avisa unas treinta veces por incisión, y una guarda corta antes del `setState`.
+- **El del manguito** se infla y se suelta con un botón, y la consola lo anota cada vez.
+  - El tope es de **un período seguido**: soltar y volver a inflar empieza otro, como se hace en pabellón para reperfundir. Se guardan dos cuentas, lo inflado en total y el período más largo. Con una sola, quien suelta a los 100 minutos y vuelve a inflar se vería pasado del tope sin estarlo.
+  - Avisa media hora antes del tope, a los 90 de 120, y nunca antes de la mitad del tope, para que uno corto no avise casi al inflar. En el aviso se pone ámbar; pasado el tope, rojo, y la consola lo anota como grave.
+- **Tiempo de verdad, no simulado.** Los relojes cuentan lo que tarda quien opera, como el de la pared. Con la consola cerrada no cuentan: no se estaba operando.
+- **Lo contado se guarda** (`TiemposDelRecorrido`) con el resultado, en `actividad.tiempos`, para el docente, y con el avance de cada paso, para seguir otro día. Es una sola forma para los dos sitios, para que no digan cosas distintas del mismo recorrido.
+  - «Seguir donde lo dejó» pone los relojes donde quedaron, y en marcha.
+  - `topeDelManguito` se guarda con los tiempos por lo mismo que `puntajeMaximo`: si el autor cambia el tope mañana, «pasó del tope» tiene que seguir leyéndose en los recorridos de hoy.
+  - Lo que llega roto se descarta campo a campo (`tiemposValidos`), y nunca rechaza el avance ni el resultado.
+- **El final lo dice en palabras:** «42 min desde la incisión · manguito 1 h 5 min (el período más largo, …) · 14 disparos y 20 s de vídeo». «Su recorrido anterior» lo dice también, con «Sus tiempos».
+- **Sin región viva.** Un segundero que se anunciara leería un número cada segundo; los avisos van al registro, como todo lo demás. El segundero repinta solo su caja, no la consola.
+- **La hora no se lee al pintar.** Llega por una ref que se pone en un efecto (`horaDeAhora`), porque el compilador de React rechaza `Date.now()` donde no puede asegurar que no se está pintando (`react-hooks/purity`).
+
+*Qué se decidió además.* El tope se marca, no se cobra. Los relojes son del navegador: el servidor guarda lo que le llega sin poder comprobarlo, y la nota que rehace (D-310) no puede depender de eso. Además, lo que dura un caso en la consola no es lo que dura en pabellón.
+
+*Qué se probó.*
+- En el navegador, a 1366 × 657, con el caso de prueba marcado con manguito en la base desechable:
+  - la cabecera sigue en una línea, de 38,8 px, y los relojes ocupan 325 px;
+  - inflar cambia la clase y lo anota, y el reloj del procedimiento arranca con un trazo de 73,6 mm;
+  - al aplicar el paso 1, la fila de `actividad` guarda `procedimiento` 9 s, `manguito` 112, `manguitoSeguido` 112, `manguitoInflado` 112, `topeDelManguito` 120 y los rayos a cero, y el avance guarda lo mismo;
+  - al recargar y «Seguir donde lo dejó», los dos siguen corriendo (0:12 y 1:55);
+  - con el reloj del navegador adelantado, ámbar a los 91 minutos y rojo a los 125; con los plazos acortados, los dos avisos salen en orden;
+  - «Su recorrido anterior» dice «Sus tiempos: 9 s desde la incisión · manguito 1 min · 0 disparos»;
+  - en el móvil (375 × 812), los relojes van en su propia fila, de 30 px, sin desbordar;
+  - tras «Reiniciar el caso», los dos a cero y el manguito suelto.
+- `relojesDelCaso.test.ts`; `resultadoDeCirugia.test.ts`, los tiempos del resultado; `pantallaDelPortatil.test.ts`, dónde arrancan, se paran, vuelven a cero, se guardan y se recuperan; y `migraciones.test.ts`. La migración se aplicó en la base desechable.
+
+*Consecuencias.*
+- (+) El docente ve cuánto tardó cada residente y cuánto tuvo inflado el manguito, y el residente ve correr la isquemia.
+- (−) En una práctica de media hora no llega el aviso de los 90 minutos. Un autor que quiera enseñarlo baja el tope del caso, que admite desde 10.
+- (−) Los casos guardados no tienen manguito hasta que su autor lo marque.
+- (−) Lo contado es del navegador y se puede falsear: por eso no toca la nota.
+
+### D-324 · 2026-11-05 · vigente · E5 de P-012
+**Con la tecla I se pide un instrumento por su nombre, como a la arsenalera: «bisturi», Intro, y está en la mano. La lista sale de cuánto se parece el nombre a lo escrito, nunca del paso.**
+
+*De dónde sale.* El punto 4 de E5. En pabellón el cirujano no busca en la mesa: pide «¡Farabeuf!» y se lo ponen en la mano. Aquí había que abrir su familia en la columna de la izquierda, o escribir en el buscador de la mesa, que solo se ve con esa columna desplegada y que, con más de una coincidencia, no coge ninguna al pulsar Intro.
+
+*Cómo funciona* (`pedirInstrumento.ts`, `PedirInstrumento.tsx`).
+- **Se abre** con la I desde cualquier sitio, o con «Pedir instrumento» en la barra del lienzo y en el riel de la mesa plegada (D-321). No mientras se escribe, ni antes de elegir el modo.
+- **Lee como el buscador de la mesa:** por palabras, sin tildes ni mayúsculas (`paraComparar`, de D-270), y con la misma regla —cada palabra, en el nombre o en la descripción—, para que los dos no discrepen nunca sobre qué hay en la mesa. Lo que añade es el orden.
+- **El orden.** Primero, el nombre que empieza por lo escrito. Después, el que tiene cada palabra al principio de una de las suyas («sep hohm» da el separador de Hohmann). Luego, el que la tiene dentro. Y al final, el que solo la dice en la descripción. A igualdad, el orden de la mesa y después el alfabeto.
+- **Nunca el paso, en ningún modo.** Si subiera el que pide el paso, el buscador diría qué instrumento toca, que en evaluación es justo lo que se mide (lo mismo que el menú radial). Tampoco en práctica: un buscador que sugiriera en práctica y no en evaluación enseñaría a fiarse de algo que el día de la evaluación desaparece.
+- **Intro** pone en la mano el marcado, que es el primero mientras no se mueva con las flechas. **Esc** cierra sin llegar a los oyentes que sueltan lo de la mano. Se ven ocho como mucho, y un instrumento repetido en la bandeja sale una vez.
+
+*Qué se probó.*
+- En el navegador: «bisturi», sin tilde, encuentra los dos bisturís, e Intro pone el primero en la mano. «farabeuf» y «punzon» encuentran el suyo.
+- `pedirInstrumento.test.ts`: el orden, las tildes, las palabras sueltas, que encuentra lo mismo que el buscador de la mesa, que el orden de la bandeja no cuenta, los repetidos y el tope de ocho; y en la consola, la I, el botón, el Esc y el Intro.
+
+*Consecuencias.*
+- (+) Se llega al instrumento sin desplegar la mesa, que es lo que permite plegarla (D-321).
+- (−) Quien no sabe cómo se llama no lo encuentra: el buscador no sugiere. En evaluación es lo que se quiere; en práctica sigue la lista del paso.
+
+### D-325 · 2026-11-05 · vigente · E5 de P-012 · completa P-008 E6 y la mejora de uso 9 de P-009
+**La mesa de Mayo tiene sitios fijos: las teclas 1 a 5 no se renumeran. El instrumento que ya tiene número lo conserva, y el que entra ocupa el primer sitio libre o, con la mesa llena, el del que lleva más tiempo sin usarse. Un recorrido nuevo empieza con la mesa vacía.**
+
+*De dónde sale.* El punto 5 de E5. La tecla 1 era siempre el último instrumento cogido, la 2 el anterior, y así: cada uno que entraba en la mano renumeraba a los demás, y la broca que era el 2 pasaba a ser el 3 al coger el medidor. Se acababa mirando el menú antes de cada tecla, que es justo lo que un atajo tiene que ahorrar. En pabellón la mesa de Mayo no se reordena: cada instrumento vuelve a su sitio, y la mano lo busca ahí sin mirar.
+
+*Cómo funciona* (`menuRadial.ts`).
+- **`MesaDeMayo`** guarda el instrumento de cada tecla y los cogidos, el más reciente primero. `sitiosDeLaMesa` deja en su sitio al que ya lo tiene y pone al que entra en el primero libre. Con la mesa llena, el único que sale de los cinco últimos es el que lleva más tiempo sin usarse, así que siempre hay justo un sitio para el que entra.
+- **Las teclas.** De la 1 a la 5, el del sitio de esa tecla. La Q sigue con los recientes: el anterior al de la mano o, con la mano vacía, el último.
+- **El menú radial** pone a cada uno en el ángulo de su tecla. Un sitio vacío deja un hueco: la mano no tiene que volver a aprender dónde está cada uno.
+- **En la mesa,** «Mesa de Mayo · teclas 1 a 5»: cada sitio con su número delante, también el de la mano, marcado (`aria-pressed`). Antes eran «Recientes», sin el de la mano, y la lista se reordenaba con cada instrumento.
+- **Lo que el editor quita de la bandeja** deja su sitio vacío, en vez de correr a los demás.
+- **El orden de las familias** de la mesa ya era fijo (`ordenDeLasFamilias`, del catálogo): no había nada que cambiar.
+- **Un recorrido nuevo empieza con la mesa vacía** (`empezarElCaso`). Se vio en el navegador al comprobar esta entrada. Con sitios fijos, la mesa sobrevivía a «Reiniciar el caso», y una evaluación empezaba con los últimos instrumentos de una práctica guiada por la lista del paso, a una tecla de distancia. Antes de E5 los recientes también sobrevivían, pero se renumeraban.
+
+*Qué se probó.*
+- En el navegador: el bisturí, el Farabeuf y el punzón, pedidos por su nombre, quedan en el 1, el 2 y el 3. La tecla 1 coge el bisturí y la 3 el punzón, y ningún número se mueve. Antes, al coger el punzón, el bisturí habría pasado a ser el 3.
+- `avanceYMenuRadial.test.ts`: volver a coger uno no mueve a nadie; con la mesa llena sale el que lleva más tiempo sin usarse; el que vuelve ocupa un sitio libre; siempre cinco sitios, sin repetidos; y un sitio que ya no vale se vacía.
+- `barraDeInstrumental.test.ts`: la tecla de cada sitio, también la del de la mano, y la mesa vacía al empezar.
+
+*Consecuencias.*
+- (+) La mano aprende dónde está cada uno.
+- (−) Con seis o más instrumentos en rotación, el sexto echa al que lleva más tiempo sin usarse, que puede ser uno que se vuelva a necesitar pronto. La mesa de Mayo de verdad tiene el mismo límite, y la mesa entera está a una tecla (I).
+
+### D-326 · 2026-11-05 · vigente · E5 de P-012
+**La rueda acerca un 15 % por muesca hacia lo que hay bajo el cursor, sin pasar de 2 cm de la superficie. El doble clic centra la vista donde se pulsa, y la E encuadra la herida.**
+
+*De dónde sale.* El punto 6 de E5. En la auditoría de P-010 hicieron falta 25 vueltas de rueda para pasar de la pierna entera a una vista en la que trazar 10 cm de incisión, y eran dos problemas a la vez. La rueda de `OrbitControls` acerca un 5 % por muesca, y lo hace hacia el punto al que mira la cámara, que al cargar es el centro de la pierna. Lo que se quería ver de cerca se iba saliendo del lienzo mientras se acercaba, y había que desplazar la vista y volver a acercar.
+
+*Cómo funciona* (`acercarComoSeMira.ts`, puro y sin three).
+- **La rueda** es una homotecia con centro en el punto de la superficie bajo el cursor. Ese punto se queda quieto en la pantalla, y la cámara y el punto mirado se le acercan en la misma proporción. La distancia baja en proporción a la que hay: mucho de lejos y poco de cerca.
+  - Las 25 muescas de la auditoría (0,95²⁵ = 0,28 de la distancia) son ahora 8 (0,85⁸ = 0,27), sin desplazar la vista entre medias. Como el punto mirado también se acerca, después la vista gira alrededor de lo que se miraba.
+  - Topes: 20 mm de la superficie, porque más cerca la cámara cortaría la piel con su plano cercano, y 5 m, para que una rueda insistente no deje la pierna en un punto del fondo.
+  - Tres muescas por evento como mucho. Las líneas de Firefox cuentan, y el pellizco del panel táctil (rueda con Ctrl) acerca como la rueda.
+  - Se atiende en la fase de captura de la superficie, antes de `OrbitControls`. Su zoom no se apaga, porque es el que atiende el pellizco de dos dedos en una tableta.
+  - El punto bajo el cursor se busca una vez por gesto: cada rayo recorre el modelo entero.
+- **El doble clic** centra la vista donde se pulsa, sin acercar. Solo con «Mirar» o «Seleccionar estructura», donde un clic no hace nada en el paciente: con el bisturí o la broca, los dos clics ya habrían marcado o perforado.
+- **«Encuadrar la herida»**, con la E o con el botón «Herida», que solo sale cuando hay una. Pone la herida en el centro y de frente, por sus normales, ocupando el 60 % del lado estrecho del lienzo. Una herida pequeña no se encuadra al microscopio (15 mm de radio como mínimo), y si las normales no se ponen de acuerdo, se mira desde donde se miraba. Sin herida, la E lo dice.
+
+*Qué se probó.*
+- En el navegador, sobre la tibia del caso de prueba:
+  - una muesca deja la cámara al 0,85 de la distancia;
+  - el centro de la homotecia sale igual calculado desde la cámara y desde el punto mirado, y es el punto del hueso bajo el cursor; la mirada no cambia;
+  - ocho muescas dejan el 0,2725 de la distancia, y la rueda se para a 20 mm del hueso, a las 24 muescas desde 855 mm;
+  - un doble clic con «Mirar», 86 px por debajo del centro, deja ese punto a 6 px del centro del lienzo, a la misma distancia y con la misma mirada;
+  - la E sin herida lo dice y no mueve la cámara, y el botón «Herida» no sale.
+- **No se vio en el navegador la E con una herida.** En el caso de prueba, la incisión de dos clics se mide y se cobra (113 mm, «mayor de lo necesario»), pero la sonda del lienzo no da ninguna herida que encuadrar. Queda para la comprobación de E9, con una pierna nueva del taller.
+- `acercarComoSeMira.test.ts`: las muescas de cada navegador, la homotecia y sus topes, la ida y vuelta al mismo sitio, el encuadre de la herida, y el cableado del lienzo y de la consola.
+
+*Consecuencias.*
+- (+) Se acerca adonde se mira, en un tercio de las vueltas.
+- (−) En una tableta, el pellizco de dos dedos sigue acercando hacia el centro de la vista, como hace `OrbitControls`.
+
+### D-327 · 2026-11-05 · vigente · E5 de P-012
+**Palabras: «Pantalla completa» y «Tamaño de la página» en vez de «Ampliar» y «Reducir»; «mesa de instrumental», «mesa de modelado» y «bandeja», cada una para una sola cosa; y «Reiniciar el caso», igual en el botón y en el diálogo.**
+
+*De dónde sale.* El punto 7 de E5.
+- En este simulador, reducir es la maniobra de la fractura, y quien buscaba el modo «Reducir» encontraba antes el botón de la pantalla.
+- La mesa de la izquierda era «Instrumental» en su título, «la bandeja» en los avisos y «la mesa», a secas, como la de doblar placas: no se sabía si eran tres sitios.
+- El botón decía «Reiniciar caso», y el diálogo que lo confirma, «Reiniciar el caso»: no se sabía si eran la misma orden.
+
+*Qué se decidió.*
+- **«Mesa de instrumental»**, la de la izquierda, en todas partes: su título, los avisos, la guía, el menú radial, el buscador de D-324 y los consejos de `simulador.ts`.
+- **«Mesa de modelado»**, la de doblar placas, también en los avisos que decían «la mesa».
+- **«Bandeja»**, solo en el editor, donde es la lista de instrumentos que declara el caso.
+- **«Reiniciar el caso»**, en el botón y en el diálogo.
+- La guía de la consola dice que la I pide un instrumento por su nombre.
+
+*Qué se probó.* En el navegador, el diálogo «¿Reiniciar el caso?» con su botón «Reiniciar el caso», y «Tamaño de la página» en la barra del lienzo. En `src` no queda ninguno de los textos de antes. Las pruebas que los citaban, al día (`barraDeInstrumental.test.ts`).
+
+*Consecuencias.*
+- (+) Una cosa, un nombre.
+- (−) Las capturas de los manuales que enseñen «Ampliar», «Instrumental» o «Reiniciar caso» quedan viejas hasta que se rehagan.
+
+### D-328 · 2026-11-06 · vigente · E9 de P-012
+**El linter no mira `.claude/`: allí abre la aplicación de escritorio los worktrees de otras sesiones, que son copias enteras del proyecto.**
+
+*De dónde sale.* Las comprobaciones de E9. `npm run lint` desde `D:\simulaciones` dio 388 errores, todos en `.claude/worktrees/politica-de-datos`, el worktree de otra sesión. Sin esa carpeta, el proyecto daba cero. Con ella, la orden de `AGENTS.md` falla por código que no es el que se sube, y una puerta que falla siempre acaba por no mirarse.
+
+*Qué se decidió.* `.claude/**` entra en los `globalIgnores` de `eslint.config.mjs`, junto a `.next` y `coverage`. Cada worktree se revisa desde su propia carpeta. En `.claude/` no hay código del proyecto: solo la configuración de la aplicación y esos worktrees.
+
+*Consecuencias.*
+- (+) `npm run lint` vuelve a medir solo lo que se sube.
+- (−) Si algún día se guarda código en `.claude/`, el linter no lo verá.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -10396,7 +11328,7 @@ Todo entre las 14:27:38 y las 14:27:56 de ese día. Ninguna de esas pruebas toc�
 *Por qué importa.* El aviso parece un error de código —sugiere «a server/client branch» o «Date.now()»— y lleva a buscar en el componente lo que no está ahí. Además, React regenera el árbol en el cliente y la página funciona, así que pasa por buena.
 *Qué hacer.* Ante un desajuste de hidratación tras muchas ediciones con el servidor de desarrollo encendido, mirar primero si el HTML que llega nombra las clases de ahora, y reiniciar `next dev` antes de buscar la causa en el código.
 
-### O-083 · 2026-11-04 · baja · abierta
+### O-083 · 2026-11-04 · baja · los bisturís, resueltos (D-270); la pierna sin piel, abierta (O-084)
 **Dos fallos de datos, no de código, que se ven al operar el caso de demostración y la pierna de E0 de P-009.**
 *Dónde se ve.*
 - **Los bisturís de la mesa.** «Bisturí N°10 (piel)» y «Bisturí profundo (fascia)», los del caso de demostración, salen en la familia «Brocas y guías» y no en «Corte». `scripts/caso-de-prueba.ts` los crea sin categoría, y el catálogo les pone la de por omisión, «Perforación y fijación», que D-262 lleva a «Brocas y guías».
@@ -10404,6 +11336,36 @@ Todo entre las 14:27:38 y las 14:27:56 de ese día. Ninguna de esas pruebas toc�
   - la columna izquierda le dice al residente «Ninguna pieza de este modelo es piel: márquela en «Piezas» del editor del caso», que es un aviso para el editor;
   - Ctrl+Z no tiene nada que deshacer tras la incisión (D-267).
 *Qué hacer.* Darles «Corte» a los dos bisturís en el catálogo de ved (y su categoría en el guion), y recortar la pierna con su piel, o marcarla en «Piezas», antes de usar ese caso con residentes.
+*Resuelta en parte el 2026-11-05 (D-270).* No hizo falta tocar el catálogo de ved: la mesa pone en «Corte» los dos bisturís, y en su familia los otros nueve que caían en «Brocas y guías». El guion ya los crea con categoría. Lo de la piel sigue abierto: en P-010 se recortó una pierna con su piel, pero nada impide exportar una sin ella ni avisa (O-084).
+
+### O-084 · 2026-11-05 · media · abierta
+**Lo que se vio al llevar una pierna nueva del taller anatómico al simulador (P-010): el trozo sale desplazado y el caso lo da por reducido, el hueso es la malla más pobre y la exportación repetida no se distingue.**
+*Dónde se ve.* La pierna izquierda se recortó en el taller, del tercio distal del muslo al pie y con su piel: 144 piezas. La tibia se partió con 42-A3 al 50 %, y el taller anguló el fragmento distal 11°. Se exportó como modelo y con ella se escribió el caso «Pierna izquierda · tibia 42-A3 · auditoría», operado como residente a 1366 × 657, el alto útil de Chrome en una pantalla de 1366 × 768. Todo en la base desechable.
+- **La reducción regalada.** La consola lee 0 mm de desplazamiento, 0° de angulación y 0 mm de diástasis sobre un fragmento que se ve angulado.
+  - El taller sabe cuánto lo movió, pero la exportación no lo escribe: `posicionReducida` solo la pone «Reducir automáticamente», en el editor.
+  - Sin ella, el sitio de reposo es donde está el trozo en el archivo (`aplicarPosicionesReducidas`).
+  - Quien elige el modelo, escribe sus pasos y publica, sin pasar por ese botón, deja un paso de reducción que se aprueba sin tocar nada. Nada lo avisa al publicar.
+- **El hueso es la malla más pobre del modelo.** Los dos trozos de la tibia tienen 253 y 182 vértices; la piel recortada, 32.781. En el atlas, la tibia izquierda tiene 331 vértices para unos 38 cm, el peroné 149 y el fémur 459. Ya lo señaló E9-4 de P-009, y sigue pasando con cualquier hueso largo: el corte no quita nada, la malla llega así.
+- **Vasos y nervios.**
+  - Arterias y venas salen con rol «músculo».
+  - El atlas no trae nervios del miembro inferior: sus 139 piezas del sistema nervioso están en la cabeza.
+  - FJ2190, «Right fibular vein», está en el muslo izquierdo, así que la pierna izquierda trae una «Vena_peronea_derecha_1». Es un error de etiqueta del atlas.
+- **Dos exportaciones, dos modelos iguales.** El primer clic en «Exportar como modelo» no dio señal de estar trabajando y se pulsó otra vez. Salieron dos modelos con el mismo nombre (71 y 72), y el desplegable del caso los ofrece como dos líneas idénticas.
+- **«Reducir» no es reducir.** En la barra del lienzo, «Reducir» devuelve la consola al tamaño de la página, y es lo contrario de «Ampliar». En un simulador de reducción y fijación, la palabra se lee como la maniobra.
+- **El lienzo, a 1366 × 657.**
+  - Al abrir, con la consola ya a pantalla completa, mide 771 × 333: el 29 % de la pantalla. Al terminar el caso, sin las medidas del paso debajo, llega a 771 × 427.
+  - Con un instrumento en la mano, su panel ocupa unos 150 px del lienzo, y la barra flotante tapa el título del panel.
+  - La lámina de la radiografía postoperatoria, de 1920 × 1080, se ve a 223 × 126 en la columna derecha.
+- **El acercamiento.** Hicieron falta 25 vueltas de rueda para pasar de la pierna entera a una vista en la que trazar 10 cm de incisión. Con la pierna entera en el lienzo, cada píxel son unos 3 mm.
+- **La posición del paciente.** Un paso nuevo sale «De pie» por omisión. En una pierna, casi todo se opera en supino.
+
+*Qué funcionó.*
+- El modelo del atlas se abrió en el editor y en la consola sin ajustes. Las piezas tomaron su papel de los `extras`, sin rellenar «Piezas».
+- La incisión de 98 mm sobre la piel nueva cayó dentro del rango, con la lista en verde, y dio 20 de 20.
+- La radiografía AP muestra la pierna con el trazo a media tibia.
+- Apagar la piel, la fascia y el músculo deja ver los huesos.
+
+*Propuesta, sin aplicar.* Están en P-010: que la exportación escriba la posición reducida de cada trozo (es la inversa del desplazamiento que el taller acaba de aplicar), y que el editor no publique un caso con reducción y fragmento sin ella.
 
 ### O-090 · 2026-11-05 · media · resuelta (D-291)
 **Payload deja en la base las preferencias de pantalla de una cuenta eliminada, sin dueño y con su contenido.**
@@ -13745,6 +14707,7 @@ como «completa» · E12.4 `D-nnn` de cierre y revisión de este plan.
 - **P4-Q1 · ¿Se acepta que la fascia superficial vaya con el plano de la piel?** Se propone así porque en una incisión real se
   abre «piel y celular subcutáneo» de un solo trazo. Si prefiere un plano propio para el subcutáneo (para suturarlo aparte, con
   Vicryl 3-0), es un rol más y la etapa E10 sube una sesión.
+  *La respondió el dueño el 2026-11-06, en P-012 E8:* el subcutáneo es parte de la piel, se abre con ella y se cierra con ella, sin plano propio.
 - **P4-Q2 · ¿Fasciotomía?** El modelo de E7 deja la pierna lista para ensayar una fasciotomía de los cuatro compartimentos.
   ¿Es un caso que quiera tener? No cambia el plan, pero decide si E10 incluye el corte de la fascia **a lo largo** y no solo
   de través.
@@ -13984,6 +14947,187 @@ Primero lo que lleva P-009 a todos los casos, después lo que hace que la evalua
 11. **Tableta y panel táctil.** Gestos de dos dedos y una rueda en pantalla para el instrumento: arrastrar con el botón derecho es torpe en un panel táctil (D-267).
 12. **Que vaya fluido en el equipo del hospital.** Calidad que se adapta sola (sombras, resolución, vello) y rayos acelerados con una jerarquía de volúmenes, medido en el equipo de referencia de Q-006.
 
+### P-010 · 2026-11-05 · auditoría hecha y la mesa ordenada (D-270); las propuestas quedan sin decidir
+**Auditoría del simulador quirúrgico entero, probada con una pierna nueva salida del taller anatómico. Qué está más desarrollado, qué falta, la mesa de instrumental en orden y propuestas para que operar se parezca más a operar de verdad.**
+
+#### De dónde sale
+
+Pedido del dueño, 2026-11-05:
+1. «Una auditoría completa del simulador quirúrgico»: qué está más desarrollado y qué le falta, revisando todos los códigos relacionados.
+2. Probarlo «con un modelo nuevo cortado desde el taller anatómico y no uno usado con anterioridad»: una pierna sacada con la herramienta de recorte y fracturada a la mitad.
+3. Qué es lo más fuerte y qué lo más débil.
+4. «Ordenar los bisturí que están en otro lado, ordenarlos donde van».
+5. Al terminar, proponer mejoras de usabilidad y de vista para que se asemeje a una cirugía real.
+
+#### Etapas
+
+- [x] **E0 · Leer el código.** Tres revisiones en paralelo, de solo lectura:
+  - el motor y la evaluación (`src/lib`);
+  - la consola, la mesa y el editor;
+  - el taller anatómico y la exportación.
+
+  Las afirmaciones graves se comprobaron a mano antes de escribirlas aquí.
+- [x] **E1 · La pierna nueva.** La izquierda, que no tenía ningún caso: recortada con su piel, la tibia partida con 42-A3 al 50 % y exportada. O-084.
+- [x] **E2 · Operarla como residente**, a 1366 × 657. O-084.
+- [x] **E3 · Cada instrumento en su familia.** D-270.
+- [x] **E4 · Comprobaciones**, abajo.
+- [ ] **E5 · Las propuestas.** Sin decidir.
+
+#### Lo más desarrollado
+
+1. **El juicio del gesto.** `evaluarGesto` es la única fuente de verdad. La lista del paso sale de las mismas cuentas, y una prueba las cruza. Los puntos siguen una regla escrita: todos al primer intento, la mitad tras un fallo y ninguno con complicación (D-059).
+2. **Reglas puras, sin three y muy probadas.**
+   - la compresión, con 53 pruebas;
+   - el clavo y su bloqueo, 76;
+   - la exposición, 56;
+   - la sutura y los planos, 53;
+   - los tornillos, 37;
+   - la radiografía, 55;
+   - la broca, 25.
+3. **El taller anatómico guarda la intención y no la geometría**, y el servidor la rehace igual al exportar.
+   - `partirMalla` suelda, aparta y tapa sin dejar el hueso abierto.
+   - Las recetas AO son deterministas.
+   - El papel de cada pieza viaja en los `extras`: el modelo de E1 entró al caso sin rellenar «Piezas».
+4. **La consola.**
+   - La mesa por familias, con «En la mano», «Siguiente» y «Recientes».
+   - «Aplicar paso» siempre a la vista.
+   - El pedal F.
+   - Se recupera sola si se pierde el contexto WebGL.
+   - El editor ensaya en la misma consola que ve el residente.
+5. **La reducción automática por caras de corte**, y `leerReduccion` del taller. Esta última es la mejor medición del repositorio: mide en el foco, con los ejes del hueso, y separa valgo, recurvatum y rotación.
+
+#### Lo más débil
+
+1. **La reducción, que es el nombre de la consola.**
+   - Se regala si el modelo viene del atlas sin pasar por «Reducir automáticamente» (O-084), o si el caso no tiene fragmento marcado: la medida es cero (`ConsolaQuirurgica.tsx`, en la comprobación del paso).
+   - Se mide en el centro de la caja del trozo y no en el foco (`pivoteEnSuCentro`).
+   - La angulación resta ángulos de Euler (`estadoDelFragmento`), lo que solo es exacto si el trozo parte sin giro. Desde P-008 E5 puede partir girado.
+   - Un solo tope de 5° vale para varo, recurvatum y rotación.
+   - El taller ya mide bien (`leerReduccion`), y la consola no lo usa.
+2. **Lo que la nota no ve.**
+   - Fijar sin haber reducido da todos los puntos: el paso de fijación no lee la reducción, y `FOCO_PARA_FIJAR` solo avisa.
+   - Seis tornillos en un solo fragmento aprueban.
+   - Con la broca equivocada y pasándose 12 mm, el resultado es «calibre» (la mitad al reintentar) y no complicación (cero): se mira antes.
+   - El puntaje lo calcula el navegador y el servidor lo acepta (`resultadoValido`). `Actividad.ts` decía que bastaba mientras no fuera nota, y desde D-265 hay modo evaluación.
+3. **Las cuentas de los implantes.**
+   - Si las dos brocas pasan la fractura, el fragmento lejano toma la **menor** (`calibresPorFragmento`, `Math.min`). El agujero es el de la mayor, así que se da por comprimida una fractura en la que la rosca no agarra.
+   - Calibres de broca: el bloqueado de 3,5 sale con 2,5 (es 2,8). Por la regla del 70 %, el 2,7 da 1,9 (es 2,0), el 2,4 da 1,7 (es 1,8) y el esponjosa de 4,0 da 2,8 (es 2,5).
+   - El medidor sugiere hasta 60 mm (`largoSugerido`), aunque la base lo describe hasta 110 en gran fragmento.
+4. **La evaluación conserva ayudas.**
+   - Mientras no se elige el modo, la consola está en práctica (`enPractica`), y la tarjeta de elección no es modal: la mesa y «Aplicar paso» funcionan detrás.
+   - En evaluación, «Un instrumento en la mano» sale en verde con cualquier instrumento.
+   - «Siguiente» pasa solo el instrumento a la mano.
+   - Varios deshaceres no miran el modo.
+   - «Automática» parece un interruptor, no se puede deshacer y no pide confirmación.
+   - El registro guarda 10 líneas, aunque D-266 lo promete entero.
+5. **El hueso y las partes blandas.**
+   - Las mallas del hueso son las más pobres: 331 vértices la tibia (O-084).
+   - No hay cortical ni canal medular: la tapa es un disco lleno.
+   - El trazo es siempre un plano, también la espiroidea.
+   - Vasos y nervios son «músculo», y el miembro inferior no tiene nervios.
+   - No hay tejido subcutáneo con espesor.
+6. **La pantalla del equipo de referencia.** A 1366 × 657, el lienzo mide 771 × 333 al abrir: el 29 % de la pantalla. Con un instrumento en la mano y el arco abierto, al modelo le quedan unos 200 px de ancho. La lámina de la radiografía se ve a 223 × 126.
+7. **Los datos de entrada.**
+   - Las categorías por omisión (resuelto en D-270).
+   - Los gemelos de la mesa.
+   - Una exportación sin piel que nadie avisa.
+   - Las exportaciones repetidas.
+   - Los avisos del servidor que no llegan al taller: «ninguno sale marcado», con tibia y peroné rotos, queda solo en las notas.
+8. **La forma del código.**
+   - `ConsolaQuirurgica.tsx`: 6.563 líneas, con un componente de unas 5.700 y un centenar de estados.
+   - `LienzoQuirurgico.tsx`: 9.616 líneas.
+   - La puesta a cero está en tres sitios.
+   - Varias pruebas fijan la forma del código con expresiones regulares.
+
+#### Cómo se comprobó
+
+En el navegador del escritorio, contra el PostgreSQL desechable (puerto 55432; la base del dueño no se toca):
+- **E1, en el taller.** La pierna se recortó con la piel encendida y el borde del recuadro en el hueco entre las rodillas: 144 piezas, de ellas 117 del miembro inferior izquierdo, 26 del pie y la piel. La tibia se partió con el asistente (42 → diáfisis → A → A3, al 50 %), y la preparación se exportó: 4,42 MB, 145 mallas, 118.821 vértices.
+- **E2, en el simulador.** El caso se escribió en el editor del panel: el modelo, un paso de incisión de 60 a 140 mm con «Bisturí N°10 (piel)» y la posición supina. Se operó como residente a 1366 × 657, en práctica:
+  - la mesa;
+  - la búsqueda «bistur»;
+  - la incisión, primero de 180 mm y fuera de rango, y después de 98 mm;
+  - «Aplicar paso»;
+  - la radiografía postoperatoria AP;
+  - las capas apagadas.
+
+Las cinco comprobaciones de `AGENTS.md`, el 2026-11-05:
+- `typecheck`, limpio. `lint`, sin errores: quedan los 15 avisos de `<img>`, ninguno en estos archivos.
+- La suite con cobertura (`vitest --coverage --testTimeout=20000`): pasan 5571. Fallan 4 que no son de este cambio:
+  - las tres de respaldos en Windows que ya fallaban;
+  - una de `espaciosDeLaPagina`, de la portada que otra sesión estaba editando a la vez en este checkout. Corregida por esa sesión, pasa.
+
+  La cobertura queda en 86,25 % de sentencias y 77,84 % de ramas.
+- `test:integration`: 254 de 254.
+- `build`: bien, con los 8 avisos de Turbopack de siempre (`respaldos` y `api/subidas`).
+
+#### Propuestas, sin decidir
+
+Primero lo que hace que el caso diga la verdad, después lo que hace que la vista y el uso se parezcan a pabellón, y al final lo que hace que la nota mida. No se repiten las de E7 de P-008 ni las de E9 de P-009: donde tocan lo mismo, se dice.
+
+**Que el caso diga la verdad**
+1. **La posición reducida sale con la exportación.** El taller sabe cuánto movió cada trozo: que escriba la inversa como `posicionReducida`. Y que el editor no publique un caso con paso de reducción y fragmento sin ella. Es lo que cierra la reducción regalada de O-084.
+2. **Que la consola mida con `leerReduccion`:** en el foco, un tope por plano (varo o valgo, recurvatum, rotación) y la diástasis con signo. El taller y la consola dirían lo mismo.
+3. **Arreglos de pocas líneas, cada uno con su prueba:**
+   - `Math.max` en el fragmento lejano;
+   - la tabla de brocas por tipo de tornillo;
+   - el medidor hasta 110 mm en gran fragmento;
+   - la complicación antes que el calibre.
+4. **La evaluación sin ayudas:**
+   - práctica solo si se eligió;
+   - la tarjeta de elección modal de verdad;
+   - la lista sin estado en evaluación;
+   - deshaceres y «Siguiente» atados al modo;
+   - confirmación para «Automática» y para «Empezar de nuevo» cuando hay avance guardado.
+5. **La exportación honesta:**
+   - avisar si no hay piel, y pintar en el recuadro los avisos del servidor;
+   - un solo modelo por preparación: la segunda exportación lo reemplaza o lo numera;
+   - el botón ocupado mientras exporta.
+
+   Amplía E9-3 y E9-4 de P-009.
+
+**Que se vea como en pabellón**
+6. **El campo quirúrgico.**
+   - Paños que cubren todo menos la zona de la incisión.
+   - La piel de esa zona teñida de antiséptico.
+   - El manguito de isquemia en el muslo y el pie en su media.
+   - La pierna apoyada sobre la mesa.
+
+   Hoy se opera una pierna suelta en el vacío. Con los paños, la orientación y el lado se leen solos, y el encuadre de cada paso tiene un marco.
+7. **La luz de la lámpara.** Un foco cenital sobre el campo y el resto en penumbra, en vez de la luz de estudio pareja. Es barato (una luz de foco y bajar la ambiente) y es lo que más cambia la sensación de estar operando.
+8. **El punto de vista del cirujano.** De pie al lado de la mesa, a la altura de los ojos, del lado en que se opera. Girar la cabeza, sí; volar bajo la mesa o atravesar la pierna, no. Hoy la cámara orbita libre (en el taller, en E1, llegó a quedar dentro del cuerpo). Un «Vista del ayudante», al otro lado, para los pasos que lo piden.
+9. **Tejido que responde.**
+   - La incisión sangra un poco, y el electrobisturí la seca.
+   - Entre la piel y la fascia, un tejido subcutáneo con espesor.
+   - El hueso con su cortical y su canal: la tapa del corte dejaría de ser un disco lleno.
+10. **El monitor del arco en C como en pabellón.** Grande, que pueda ocupar el lienzo o abrirse en otra ventana (en pabellón es otra pantalla). La lámina postoperatoria, a pantalla completa con un clic. La dosis acumulada a la vista. Amplía E7-4 de P-008.
+11. **Estructuras en riesgo con nombre.** Un rol propio para vasos y nervios, con complicación si se cortan: el peroneo común junto a la cabeza del peroné, la arteria tibial anterior, la safena. Hace falta traer al atlas los nervios del miembro inferior, que no tiene.
+
+**Que se use como en pabellón**
+12. **Pedir el instrumento por su nombre.** Una tecla abre el buscador, como quien lo pide a la arsenalera: «bisturí» y Intro. Y la mesa de Mayo con sitios fijos, sin gemelos y con las teclas 1 a 5 que no se renumeran al cambiar de instrumento.
+13. **El sonido.** El motor de la broca que cambia de tono al pasar la cortical opuesta, el golpe del martillo y el disparo del arco. En pabellón la cortical opuesta se oye y se siente; aquí es la única pista que puede sustituir al tacto.
+14. **El tiempo.** Un reloj del procedimiento y otro del manguito, con su límite. Amplía E9-7 de P-009, que pide el tiempo para el docente: esto es para el residente, mientras opera.
+15. **La pausa de seguridad al empezar.** La lista de cirugía segura de la OMS en tres preguntas: paciente, procedimiento y **lado**. El caso es de la pierna izquierda, y operar el lado equivocado es un error real que el simulador puede enseñar a evitar.
+16. **La pantalla de 1366.**
+    - El panel del instrumento plegable, y su visor 3D solo a pedido: hoy le quita al lienzo unos 150 px.
+    - La barra flotante del lienzo, que no tape el título de ese panel.
+    - Un solo «Paso N de M».
+17. **Acercar como se mira.** La rueda que acerca en proporción a la distancia, doble clic para centrar en un punto y «Encuadrar la herida». En E2 hicieron falta 25 vueltas de rueda.
+18. **Palabras que no confundan.**
+    - «Reducir» el lienzo pasa a «Tamaño de la página»: en este simulador, reducir es otra cosa.
+    - Un solo nombre para la mesa.
+    - «Reiniciar» en los dos sitios.
+    - La guía al día: dice «en vivo» y la escopia es por disparo.
+
+**Que la nota mida**
+19. **El puntaje en el servidor.** `evaluarGesto` es puro: basta con mandar el gesto. Antes del panel docente de E9-7, porque sobre cifras que escribe el navegador no se puede decir «competente».
+20. **Errores críticos que cierran el paso**, guardados aparte del puntaje:
+    - fijar sin reducir;
+    - la broca que atraviesa;
+    - el tornillo en la articulación;
+    - el lado equivocado (15).
+21. **Lo que ya existe y solo avisa, que cuente:** tres tornillos por fragmento, la reducción antes de fijar, el periostio despegado y los nudos que estrangulan. El juicio AO del montaje entero ya está propuesto en E7-1 de P-008.
+
 ### P-011 · 2026-11-05 · el código, en `main` (E0 a E7) y desplegado en ved; los pasos en los servidores, sin dar
 **La política de datos del aviso, llevada al código: los plazos de conservación, el registro sin nombre al eliminar una cuenta, aceptar el aviso al entrar, la exportación de los datos de una cuenta, el aviso final, los respaldos cifrados, y qué hacer con las solicitudes y las filtraciones.**
 
@@ -14078,6 +15222,352 @@ La integración no se repitió: lo que llegó no toca colecciones ni accesos, y 
 - **El registro de accesos del proxy** (Caddy en Contabo, el proxy de ved): cuánto guarda, con qué IP y qué plazo darle. El aviso no promete nada sobre él (D-294).
 - **Que la persona descargue sus datos ella misma**, sin pasar por un administrador (D-293).
 - **Cifrar los respaldos de Windows** (`scripts/*.ps1`), si alguna vez un servidor Windows guarda datos de personas reales (D-295).
+
+### P-012 · 2026-11-05 · en marcha: E0 a E6 hechas en local; lo que quedaba para conversar, decidido el 2026-11-06
+**Lo más débil del simulador según la auditoría de P-010, llevado a un plan:**
+- que la reducción tenga dónde volver y se mida como en clínica;
+- que la nota vea los errores que importan, y la calcule el servidor;
+- que cada implante se perfore y se mida como en AO;
+- que la evaluación no tenga ayudas;
+- que la pantalla de 1366 sirva para operar;
+- que el modelo tenga vasos y nervios con nombre, hueso con cortical y un subcutáneo con espesor.
+
+#### De dónde sale
+
+Pedido del dueño, 2026-11-05, sobre la lista «Lo más débil» de P-010: «quiero que generes un plan sumamente detallado y experto para esto … luego que crees el plan comiénzalo de una pero deja una copia en la bitácora». Entra:
+1. La reducción regalada (débil 1 de P-010).
+2. Lo que la nota no ve: fijar sin reducir, seis tornillos en un solo trozo y el puntaje que escribe el navegador (débil 2).
+3. Las cuentas de los implantes:
+   - la compresión en la que la rosca no agarra;
+   - las brocas que no son las de AO;
+   - el medidor que no pasa de 60 mm (débil 3).
+4. La evaluación con ayudas (débil 4).
+5. El hueso pobre, sin cortical ni canal, y los vasos y nervios como «músculo» (débil 5).
+6. La pantalla de 1366 (débil 6).
+7. Tres de las propuestas de P-010:
+   - pedir el instrumento por su nombre, con la mesa de sitios fijos (12);
+   - el reloj del procedimiento y el del manguito, y el monitor del arco en grande (14 y 10);
+   - las palabras que confunden (18).
+
+Aparte, y para conversar antes de hacerlo: «quiero que lo conversemos y analices muy bien el modelo como está, quiero que sea parte de la piel y agregarlo por dentro y no modificar la piel más externa, todos los cambios hacia adentro haya tejido subcutáneo con espesor». Es E8.
+
+Las demás propuestas de P-010 siguen allí sin decidir: paños, lámpara, punto de vista del cirujano, sonido, pausa de seguridad y sangrado.
+
+#### Cómo se decide en este plan
+
+1. **La consola no inventa la verdad.** Si el caso no sabe dónde va el trozo, un paso de reducción no se aprueba solo: no da puntos, se lo dice al residente, y el editor lo avisa antes de publicar. Hoy es al revés: lo que no se sabe se lee como cero.
+2. **Una sola cuenta para cada cosa.**
+   - La reducción se mide con `leerReduccion`, la misma en el taller y en la consola.
+   - La nota la da `evaluarGesto` con la regla de D-059, la misma en el navegador y en el servidor.
+3. **Las cifras clínicas viven en una sola tabla con su fuente**, y la que no está confirmada lo dice. Las valida Cristóbal; hasta entonces mandan las de AO.
+4. **Los casos guardados abren igual.** Lo nuevo se lee con valores por omisión que dan lo de antes. La excepción es lo que antes era un regalo: eso se dice.
+5. **Cada etapa sale con sus pruebas y su decisión**, de D-300 en adelante.
+
+#### Orden
+
+1. **E3 primero:** son reglas puras y pequeñas, cada una con su prueba.
+2. **E1**, que es la base de E2: no se puede castigar fijar sin reducir mientras la reducción se lea como cero.
+3. **E2.**
+4. **E4**, antes que E5, porque el buscador y la mesa de E5 tienen que respetar la evaluación.
+5. **E6**, que lleva migración.
+6. **E5**, que se comprueba en el navegador.
+7. **E7 y E8** esperaban la conversación, que fue el 2026-11-06: lo decidido está en cada una.
+
+#### Etapas
+
+- [x] **E0 · Leer y medir.**
+  - Cuatro revisiones de código de solo lectura:
+    - la reducción, del taller a la consola;
+    - la nota, el guardado y el modo;
+    - la pantalla, la cámara, la mesa y el arco;
+    - la piel, la incisión y el atlas.
+  - Dos medidas del atlas con guiones de la sesión que no lo tocan (`analizar-piel.mjs`, `analizar-hueso.mjs`). Sus números están en E7 y E8.
+  - Por el camino se vio que el catálogo no trae la broca de 2,8 (E3).
+
+- [x] **E1 · Que la reducción tenga referencia y se mida como en clínica** (débil 1). Hecha en local el 2026-11-05: D-303, D-304, D-305 y D-306, con la migración `20261105_185336_topes_por_plano`. Lo de E1.5 queda así: un modelo ya exportado tiene su referencia al volver a exportarlo desde el taller, y el caso la recibe con «Rellenar desde el modelo»; el caso que no la tenga no se publica (D-306).
+  1. **La exportación del taller escribe, por trozo, a dónde vuelve.**
+     - El taller sabe qué le hizo a cada trozo: la receta AO y el ajuste a mano. Que escriba en los `extras` del nodo:
+       - la inversa de ese desplazamiento, en el formato de `posicionReducida`: giro en cuaternión y traslación en unidades del modelo;
+       - el foco: un punto del trazo y su normal;
+       - los ejes del hueso (largo, anterior y medial) y el lado.
+     - `propuestaDelNodo` la pasa al caso como ya pasa el rol, sin que nadie pulse «Reducir automáticamente».
+  2. **La consola mide con `leerReduccion`, la del taller.**
+     - Mide en el foco y no en el centro de la caja (`pivoteEnSuCentro`).
+     - Usa el giro relativo, sin restar ángulos de Euler. `estadoDelFragmento` los resta, y eso solo es exacto si el trozo parte sin giro (desde P-008 E5 puede partir girado).
+     - Separa:
+       - varo o valgo (coronal);
+       - antecurvatum o recurvatum (sagital);
+       - rotación interna o externa (axial);
+       - acortamiento o diástasis (axial, con signo);
+       - traslación anteroposterior y mediolateral.
+     - El nombre del desvío depende del lado y de qué trozo se mueve. En una pierna izquierda, medial es −x en el atlas.
+  3. **Un tope por plano.** Hoy un solo tope de 5° vale para los tres giros. Hay dos juegos por omisión, según la técnica del paso:
+     - *Alineación* (estabilidad relativa: clavo, placa puente), con los criterios de Trafton para la diáfisis de tibia:
+       - varo o valgo ≤ 5°;
+       - angulación sagital ≤ 10°;
+       - rotación ≤ 10°;
+       - acortamiento ≤ 10 mm. Hay fuentes que aceptan hasta 15.
+     - *Anatómica* (estabilidad absoluta: tornillo de tracción, placa de compresión, foco articular): ≤ 2° en cada plano, y ≤ 2 mm de traslación y de diástasis.
+
+     Van en campos nuevos del paso, con su migración. Vacíos, valen el tope único de hoy (`toleranciaAngulacion`): ningún caso de ved cambia de nota sin que alguien lo decida.
+  4. **Un paso sin nada que reducir no se regala.**
+     - Si al empezar el paso el trozo ya está dentro de los topes, no da puntos. Pasa cuando falta la referencia, que lee la pose del archivo como reducida, o cuando nadie lo desplazó.
+     - Se lo dice al residente: «Este paso no tiene nada que reducir: el caso no sabe dónde va el trozo».
+     - El editor lo avisa y no lo deja publicar.
+     - Vale para los dos convenios: el de D-058 (exportado reducido, con `desplazamientoInicial`) y el de P-008 E5 (exportado desplazado, con `posicionReducida`).
+  5. **Los modelos ya exportados.** El taller guarda la intención y el servidor la rehace (lo más desarrollado 3 de P-010). Al volver a exportar la preparación, la referencia sale sola. Falta ver cómo llega a los casos que ya usan ese modelo.
+
+  Pruebas:
+  - la medida con giros hechos a propósito: varo puro, recurvatum puro, rotación pura, y un trozo que parte girado (el caso que confunde la resta de Euler);
+  - los dos lados, y el trozo distal y el proximal;
+  - los `extras` de la exportación;
+  - `propuestaDelNodo`;
+  - el paso sin nada que reducir.
+
+- [x] **E2 · Que la nota vea lo que importa** (débil 2). Hecha en local el 2026-11-05: D-307 a D-311, con la migración `20261105_193153_tornillos_por_fragmento_y_nota_del_servidor`. El punto 1 queda así: el paso no se cierra solo; como las demás complicaciones, no avanza, y al superarlo vale cero (D-308).
+  1. **Fijar fuera de la reducción es un error crítico.**
+     - Al poner el implante que bloquea el foco se mide la reducción con lo de E1: un tornillo que cruza el trazo, el primer tornillo de una placa que toma los dos trozos o el bloqueo de un clavo.
+     - Si está fuera de los topes, el paso se cierra con cero y queda anotado «fijó en mala posición». Hoy `FOCO_PARA_FIJAR` solo avisa.
+     - En pabellón es lo peor que puede pasar: el implante congela la mala reducción.
+  2. **Tornillos por fragmento principal.**
+     - `tornillosMinimos` cuenta el total, y por eso seis tornillos en un solo trozo aprueban.
+     - Pasa a contarse por trozo. Por omisión, lo de AO para placas en la diáfisis:
+       - tres bicorticales por trozo (seis corticales) en tibia y antebrazo;
+       - cuatro en fémur y húmero;
+       - tres por trozo con bloqueados en puente.
+     - `AGUJEROS_POR_FRAGMENTO = 3` ya existe y solo avisa: pasa a contar.
+  3. **La complicación antes que el calibre.** Hoy, la broca equivocada que además se pasa 12 mm da «calibre», que deja la mitad al reintentar, y no «complicación», que deja cero. Pasa porque el calibre se mira primero. El orden se invierte en `evaluarGesto`.
+  4. **La nota la calcula el servidor.**
+     - El navegador manda, con cada paso, lo que `evaluarGesto` necesita: el instrumento, las medidas y el estado de la reducción.
+     - El servidor rehace la cuenta con la misma función y la regla de D-059, y guarda la suya.
+     - Si no coincide con la del navegador, guarda las dos y lo marca.
+     - No protege de quien falsifica las medidas, que siguen saliendo del navegador. Sí cierra escribir el puntaje a mano, y hace falta antes del panel docente (E9-7 de P-009).
+  5. **El registro entero**, como prometió D-266: sin el `.slice(0, 10)`, con un tope por tamaño.
+
+- [x] **E3 · Las cuentas de los implantes** (débil 3). Hecha el 2026-11-05: D-300, D-301 y D-302.
+  1. **El agujero del fragmento lejano es el de la broca más gruesa que llegó a su cortical.**
+     - `calibresPorFragmento` toma hoy la menor de las brocas que pasaron el trazo (`Math.min`). Así, con la de deslizamiento atravesando las dos corticales, da por comprimida una fractura en la que la rosca no agarra.
+     - Pasa a mirar el agujero en la cortical lejana: la broca más gruesa de las que llegaron a menos de 2 mm del fondo.
+     - La de deslizamiento que pasa un poco el trazo sin llegar a la cortical lejana sigue valiendo, como en pabellón.
+  2. **La broca de cada tornillo, por tipo, con la tabla de AO.** `calibreDeBrocaParaElTornillo` pasa a mirar si el tornillo es bloqueado o de clavo:
+
+     | Tornillo | Broca (mm) |
+     |---|---|
+     | Cortical 4,5 / 3,5 / 2,7 / 2,4 / 2,0 / 1,5 | 3,2 / 2,5 / 2,0 / 1,8 / 1,5 / 1,1 |
+     | Bloqueado 5,0 / 3,5 / 2,7 / 2,4 / 2,0 | 4,3 / **2,8** / 2,0 / 1,8 / 1,5 |
+     | Esponjosa 6,5 / 4,0 | 3,2 / 2,5 |
+     | Perno de clavo 5,0 / 4,0 | 4,2 / 3,2 |
+
+     Hay tres cifras por confirmar con su guía de técnica:
+     - el bloqueado de 5,0: otro fabricante usa 4,1;
+     - los dos pernos de clavo.
+
+     Un diámetro que no está en la tabla sigue con la regla del 70 %, y la consola dice que es una estimación.
+
+     Hoy salen: el bloqueado de 3,5 con 2,5; el 2,7 con 1,9; el 2,4 con 1,7; y la esponjosa de 4,0 con 2,8.
+  3. **Las brocas que faltan en el catálogo.**
+     - No hay broca de 2,8: el bloqueado LCP de 3,5 no se podía perforar con la suya. Entra `broca-2-8`, con su modelo de Blender como las demás, junto a los compañeros de la placa LCP (`PARA_LCP`).
+     - Se corrigen tres descripciones:
+       - la broca de 2,5 decía «y del bloqueado LCP»;
+       - la de 2,0 decía «y del bloqueado de 2,4», que lleva 1,8;
+       - la guía roscada se llamaba «LCP 2,5».
+     - Queda anotado lo que falta del gran fragmento: las placas de 4,5 se ofrecen hoy con tornillos de 3,5.
+       - el cortical de 4,5;
+       - el bloqueado de 5,0 y su broca de 4,3;
+       - la broca de 4,2 de los pernos del clavo.
+  4. **El medidor sugiere el largo que existe.** `largoSugerido` corta en 60 mm, y pasa a redondear al siguiente largo de la serie del tornillo:
+     - cortical y bloqueado de 3,5: de 10 a 60 mm, de 2 en 2, como dice el catálogo;
+     - esponjosa de 6,5: de 30 a 120, de 5 en 5;
+     - perno de clavo: de 20 a 100.
+
+     Sin un tornillo conocido, la serie la da el sistema: pequeño fragmento hasta 60 y gran fragmento hasta 110, como dice el medidor del catálogo.
+
+  Pruebas:
+  - los tres casos del agujero lejano: la broca gruesa que atraviesa todo, la que pasa el trazo sin llegar, y la que llega a menos de 2 mm;
+  - la tabla entera;
+  - las series de largos;
+  - las que fijaban lo de antes, corregidas: en `fijacion.test.ts`, «2,7 → 1,9» y «90 → 60».
+
+- [x] **E4 · La evaluación sin ayudas** (débil 4). Hecha en local el 2026-11-05: D-312 a D-316, sin migración. Quedaban dos puntos para decidir: las cifras de las medidas, que siguen a la vista (D-313), y la incisión o el agujero de más, que no se cobran (D-314). El dueño los decidió el 2026-11-06, y están al final de esta etapa, por hacer.
+  1. **Nada responde hasta elegir.** La tarjeta de D-265 pasa a ser modal de verdad: el resto queda `inert`. Sin modo elegido no hay práctica: `enPractica` pasa a ser `modo === 'practica'` y no `!== 'evaluacion'`.
+  2. **La lista no dice si se acierta.** En evaluación dice qué hay que hacer y marca lo hecho en gris, nunca en verde. En práctica, «Un instrumento en la mano» se pone verde solo con el que toca. Hoy se pone verde con cualquiera, también en evaluación.
+  3. **«Siguiente» y los deshaceres que no miran el modo**, solo en práctica. «Siguiente» le pasa a la mano el instrumento que toca.
+  4. **«Automática»**, la reducción automática:
+     - solo en el editor y en práctica;
+     - con confirmación;
+     - y que se pueda deshacer.
+
+     Hoy parece un interruptor.
+  5. **El modo queda fijo en el recorrido.** Cambiarlo es empezar de nuevo, y el servidor lo guarda con la nota de E2.
+
+  Decidido con el dueño el 2026-11-06, por hacer:
+  - [ ] **Las medidas, solo con la cifra** (D-313). En evaluación, cada medida da su cifra sin el tope: ni «tope 2 mm», ni «topes 5° · 10° · 10°», ni el rango de la incisión. Se puede medir, como con la regla del arco, pero el tope lo tiene que saber el residente. En práctica no cambia nada.
+  - [ ] **El gesto de más deja el paso en cero** (D-314). En evaluación, una segunda incisión aparte en el paso que mide la incisión, o una segunda trayectoria en el paso que mide una perforación, cuenta como complicación: el paso vale cero y queda anotado en el registro. Alargar la misma incisión no es otra, ni repasar la misma trayectoria con otra broca (la de deslizamiento y la de núcleo de un tornillo de tracción).
+
+- [x] **E5 · La pantalla de pabellón** (débil 6 y las propuestas 10, 12, 14 y 18). Hecha en local el 2026-11-05: D-321 a D-327, con la migración `20261105_222046_manguito_y_tiempos`. Los casos guardados no usan manguito hasta que su autor lo marque (D-323). La E con una herida no se llegó a ver en el navegador: queda para E9 (D-326).
+  1. **El lienzo grande en 1366 × 657.** La meta es pasar del 29 % de la pantalla a más del 70 %:
+     - la columna derecha, plegable;
+     - el panel del instrumento, plegable, con su visor 3D solo a pedido;
+     - la barra flotante, sin tapar el título de ese panel;
+     - un solo «Paso N de M».
+  2. **El monitor del arco en grande.**
+     - Una tecla, o doble clic en la imagen, lo agranda sobre el lienzo con las dos últimas tomas, AP y lateral, una junto a la otra. En pabellón son dos monitores.
+     - La lámina postoperatoria se ve a pantalla completa.
+     - Los disparos y la dosis quedan a la vista.
+
+     Hoy la toma de referencia mide 96 px junto a una de unos 270 (D-268), y la lámina se ve a 223 × 126.
+  3. **Los relojes.**
+     - El del procedimiento cuenta desde la incisión.
+     - El del manguito, si el caso lo usa. Es un campo nuevo del caso, con la presión y el tope.
+       - Se infla y se desinfla con un botón.
+       - Avisa a los 90 minutos y marca los 120, lo habitual en el miembro inferior.
+     - Los dos quedan guardados en el recorrido.
+  4. **Pedir el instrumento por su nombre.**
+     - Una tecla abre el buscador desde cualquier sitio, como quien se lo pide a la arsenalera. Se escribe «bisturí», Intro lo pasa a la mano y Esc cierra.
+     - No importan las tildes ni las mayúsculas: lo resuelve `paraComparar`, de D-270.
+     - En evaluación, el orden de los resultados no depende del paso.
+  5. **La mesa de Mayo, con sitios fijos.**
+     - Las teclas 1 a 5 no se renumeran: el instrumento que ya tiene número lo conserva, y el que entra ocupa el sitio del que lleva más tiempo sin usarse.
+     - En la mesa, el orden no cambia durante el caso.
+  6. **Acercar como se mira.**
+     - La rueda acerca en proporción a la distancia.
+     - El doble clic centra la vista donde se pulsa.
+     - Una tecla, «Encuadrar la herida».
+
+     En la auditoría hicieron falta 25 vueltas de rueda.
+  7. **Palabras.**
+     - «Reducir», en el lienzo, pasa a «Tamaño de la página», y «Ampliar» a «Pantalla completa»: en este simulador, reducir es la maniobra.
+     - Un solo nombre para la mesa.
+     - «Reiniciar», el mismo en los dos sitios.
+
+- [x] **E6 · Vasos y nervios con su rol** (débil 5, una parte). Hecha en local el 2026-11-05: D-317 a D-320, con la migración `20261105_204916_rol_vaso_y_nervio`. Los puntos 3 (FJ2190) y 4 (los nervios del miembro inferior) quedan fuera, con su porqué (D-320). Los casos guardados pasan sus vasos a su papel con «Rellenar desde el modelo» (D-317).
+  1. **Roles `vaso` y `nervio`:**
+     - en `RolDePieza`;
+     - en el `select` de `Cirugias.ts`, con su migración (`ALTER TYPE … ADD VALUE`);
+     - en `ROL_DE_SISTEMA`.
+
+     Hoy esa tabla manda arterias, venas y nervios a «músculo». Su propio comentario (`src/atlas/clasificacion.ts`) dice que el cambio empieza así.
+  2. **En la consola:** se apagan con las partes blandas, y cortarlos o perforarlos es complicación.
+  3. **FJ2190**, la «Right fibular vein» que el atlas pone en el muslo izquierdo, se corrige con las demás correcciones del atlas.
+  4. **Los nervios del miembro inferior**, que el atlas no trae: sus 139 piezas del sistema nervioso están en la cabeza. Queda para conversar de dónde traerlos (BodyParts3D completo o Z-Anatomy, que sale de él) y con qué licencia.
+
+- [ ] **E7 · El hueso** (débil 5, la otra parte). Se conversó con el dueño el 2026-11-06: lo decidido, al final.
+  - **Medido en el atlas:**
+    - la tibia izquierda tiene 331 vértices para 38 cm;
+    - su arista mediana es de 10,6 mm (p90, 28 mm), y la más larga, de 168 mm;
+    - el 27 % de sus triángulos tienen un lado de más de 2 cm;
+    - el peroné tiene el 46 % así, y el fémur el 27 %.
+  - **Qué significa:** el corte a media diáfisis es un polígono de unos 26 lados, que basta. A lo largo, en cambio, la diáfisis es una sucesión de caras planas de varios centímetros. Ahí apoyan la placa a medida, la entrada de la broca y la luz. La piel a la misma altura tiene unos 500 puntos.
+  - **Opciones:**
+    - (a) Rehacer la malla de los huesos largos con lados de unos 2 mm, suavizada, con la misma garantía medida que la piel de D-224 (nada asoma).
+    - (b) La cortical y el canal: una cara interior del hueso largo a la profundidad de la cortical, de 4 a 6 mm en la diáfisis y de 1 a 2 en la metáfisis. Con ella:
+      - la tapa del corte deja de ser un disco lleno;
+      - la broca encuentra dos corticales con el canal entre medio;
+      - la fresa y el clavo tienen un canal que medir.
+    - (c) Traer huesos de más resolución, si la fuente los tiene.
+
+    (a) y (b) se pueden hacer juntas, y (b) depende de (a).
+  - **Lo que se vio al conversarlo, el 2026-11-06.**
+    - El hueso del atlas no es el de BodyParts3D tal cual. `preparar.mjs` parte de una versión ya optimizada para el navegador, simplificada con meshoptimizer con un error de hasta el 0,2 % del tamaño de cada pieza (`ATRIBUCION.md`): unos 0,8 mm en la tibia. El original, que se descarga de la página de BodyParts3D con la misma licencia, debería tener muchos más vértices. Si los tiene, (c) es traer ese original y no buscar otra fuente.
+    - Lo que pesaría, medido con un guion de la sesión que no toca el atlas (`area-de-huesos.mjs`): los 14 huesos largos —fémur, tibia, peroné, húmero, radio, cúbito y clavícula, de los dos lados— suman hoy 5.228 vértices. Con triángulos de 2 mm de lado serían unos 104.000: la tibia, unos 12.000; el fémur, 17.600; el peroné, 5.000. Con la cara del canal, el doble.
+  - **Lo decidido con el dueño:**
+    1. Primero se mide el original de BodyParts3D. Antes de descargarlo, el dueño da su permiso, con el archivo, el origen y el tamaño a la vista.
+    2. Si el original tiene la resolución que se espera, se usa (c), y después (b), la cortical y el canal. Si no, (a) y después (b).
+    3. Los 14 huesos largos, y no solo los de la pierna.
+    4. El cambio se declara en `ATRIBUCION.md` (lo escribe `atribucion.mjs`), como pide CC BY 4.0.
+    5. Los casos guardados siguen con el hueso de antes hasta que se vuelvan a exportar. Hay que comprobar que los cortes de fractura del taller salen igual sobre la malla nueva.
+
+- [ ] **E8 · El subcutáneo con espesor, parte de la piel.** Se conversó con el dueño el 2026-11-06: lo decidido, al final. La propuesta de apoyar la grasa en la fascia no se hace.
+  - **Cómo está hoy el modelo.** Medido en el atlas, con las correcciones de sistema de `correcciones-de-sistema.json`: en la pierna y el muslo izquierdos, 8.695 vértices de la cara de fuera de la piel, con un rayo por la normal hacia dentro.
+    - **La piel es una cáscara de 2 mm.** Tiene la cara de fuera, que es la que se ve, y la de dentro 2 mm más honda (de 1,2 a 2 mm donde algo queda cerca). Según D-224, la de dentro es la que se ve en el labio de una incisión.
+    - **La fascia superficial es una lámina sin volumen** (`fascia-superficial`, amarilla, con rol `piel`). Queda de 3 a 11 mm bajo la piel, según la zona.
+    - **La fascia profunda** (crural y lata) queda a esta profundidad bajo la piel de fuera:
+
+      | Zona | Profundidad (mm) |
+      |---|---|
+      | Anterolateral del tercio medio | 4 |
+      | Posteromedial | 3,7 |
+      | Anterior | 7,2 |
+      | Anteromedial | 9 |
+      | Pantorrilla, tercio medio | 11,4 |
+      | Pantorrilla, tercio proximal | 18,6 |
+      | Muslo distal | 9,7 |
+
+    - **El hueso de la cara anteromedial y de la cresta**, la tibia subcutánea, queda a 8,4–9,5 mm.
+    - **Entre la cara de dentro de la piel y la fascia profunda no hay nada.**
+  - **La grasa que cabría sin mover nada.** Va de la cara de dentro a lo primero hondo, menos 0,5 mm de holgura. Mediana y, entre corchetes, del p10 al p90:
+
+    | Zona | Grasa (mm) |
+    |---|---|
+    | Pantorrilla | 11,6 [6,7–17,2] |
+    | Muslo distal | 7,2 [0,8–16,9] |
+    | Lateral | 6,6 |
+    | Posterolateral | 6,5 |
+    | Anterior | 6,1 |
+    | Medial | 5,9 |
+    | Cara anteromedial de la tibia | 5,8 [0,9–9,5] |
+    | Anterolateral | 4 |
+    | Posteromedial | 2,8, con el 41 % de sus vértices bajo 2 mm |
+
+    Es lo esperable: poca sobre la tibia y más en la pantorrilla y el muslo, aunque el muslo de BodyParts3D es delgado.
+  - **La propuesta.** El subcutáneo es parte de la piel: una tercera cara, «la cara honda».
+    - Sale de la cara de fuera hacia dentro y se apoya en la fascia profunda, con 0,5 mm de holgura. Donde no hay fascia, se apoya en el músculo o en el hueso.
+    - Tiene un mínimo de 1 mm y un máximo de unos 25 mm.
+    - Va suavizada, para que no copie las facetas de la fascia, cuya arista mediana es de 7,6 mm. La de la piel es de 3,7.
+    - No se tocan la cara de fuera, la fascia profunda, el músculo ni el hueso: todo el cambio va hacia dentro.
+    - En la incisión, la pared enseña tres capas: la dermis (2 mm, blanca y rosada), la grasa amarilla y lobulillada, y debajo la fascia nacarada.
+  - **Lo que hay que decidir:**
+    1. ¿Espesor como lo deja el atlas, de 2,8 a 11,6 mm, o una tabla por zona? Una tabla obligaría a hundir la fascia y el músculo donde no cabe.
+    2. ¿Una sola pieza «Piel» con tres caras, como se pidió, o una pieza aparte con rol `piel`?
+    3. ¿La lámina de la fascia superficial se queda dentro de la grasa, como la hoja membranosa, o se retira en los miembros?
+    4. ¿El subcutáneo se sutura aparte, con Vicryl 3-0, o se cierra con la piel? Es P4-Q1, todavía sin respuesta.
+  - **Medido para un grosor único, el 2026-11-06.** Con un guion de la sesión que no toca el atlas (`medir-espacio.mjs`): los 88.009 puntos de la cara de fuera de la piel del cuerpo, sin la cabeza, hasta lo primero que la grasa no puede atravesar (fascia profunda, músculo, hueso, tendón u órgano). Los vasos y los nervios no cuentan, porque en el cuerpo van dentro de la grasa.
+    - En el 1 % más estrecho caben 2,3 mm, y la piel ya mide 2. Los sitios más estrechos, de 0,3 a 1,5 mm, son los retináculos de los extensores del tobillo, el dorso de la mano y la falange de un dedo. Un grosor único fijado por el sitio más estrecho da cero de grasa.
+    - Cuánto del cuerpo, sin la cabeza, cubre cada grosor fijo, con medio milímetro de holgura:
+
+      | Grasa | Piel entera | Cabe en |
+      |---|---|---|
+      | 1 mm | 3 mm | 91 % |
+      | 2 mm | 4 mm | 85 % |
+      | 3 mm | 5 mm | 77 % |
+      | 4 mm | 6 mm | 70 % |
+      | 6 mm | 8 mm | 55 % |
+
+    - Con un grosor fijo, bajo la grasa sigue el hueco de hoy hasta la fascia profunda: en la pierna, 9 mm de mediana.
+  - **Lo decidido con el dueño.** En sus palabras: «no quiero mover nada, quiero que sea toda del mismo grosor pero solo agrandar la piel hacia adentro pero cambiando el color y textura donde corresponda, por ejemplo en la cabeza no».
+    1. **Grosor fijo:** 2 mm de grasa bajo los 2 mm de piel, 4 mm en total. Donde no cabe, que es el 15 % de la piel sin la cabeza, la grasa se adelgaza hasta lo que cabe, sin cruzar nada de lo que limita. No se mueve nada de lo que ya hay: ni la cara de fuera de la piel, ni la fascia, ni el músculo, ni el hueso.
+    2. **En la cabeza no hay grasa:** la piel queda como hoy. En el resto del cuerpo, sí.
+    3. **Una sola pieza «Piel»**, con la cara honda como tercera cara.
+    4. **La lámina de la fascia superficial** va justo donde termina la grasa.
+    5. **Se abre como la piel:** la corta el mismo trazo del bisturí de piel, como hasta ahora.
+    6. **Se cierra con la piel, como hoy**, sin plano de sutura propio. Es la respuesta del dueño a P4-Q1.
+    7. **Cómo se hace:** la geometría, con Python, como las fascias de D-218; la textura y los colores, en Blender, y muy realistas. Lo que se ve de la grasa es sobre todo la pared de la herida, que la consola tendrá que construir al cortar y que en Blender no existe: el sombreador del simulador repetirá el material de Blender, como con los demás tejidos (D-225).
+    8. Los casos guardados no cambian hasta que se vuelvan a exportar desde el taller.
+  - **Por resolver al hacerlo:**
+    - el paso del cuello a la cabeza, sin escalón;
+    - la pared de la herida, con la dermis y la grasa a la vista: hoy el corte separa las caras de la piel sin dibujar nada entre ellas, y con 2 mm no se notaba;
+    - la comprobación de que nada cruza la cara honda, con las mismas funciones que la de D-224.
+
+- [ ] **E9 · Comprobaciones, commit y ved.** Las cinco de `AGENTS.md`, y en el navegador con una pierna nueva del taller. El commit y ved, con el OK del dueño.
+
+#### Cómo se comprobó
+
+Línea de base antes de tocar nada, el 2026-11-05: la suite entera (`vitest run`) contra un PostgreSQL desechable en el puerto 55432; la base del dueño no se toca.
+- Pasan 5653 y fallan 12, ninguna del simulador:
+  - las 7 de `estructuras`, por O-092;
+  - una de `privacidad`, por la misma cuenta 1 que falta;
+  - `directorioDeRespaldos` (2), `respaldoCifrado` (1) y `respaldoEnWindows` (1), del entorno Windows.
+
+Comprobaciones de E9 con E0 a E6 hechas, entre el 2026-11-05 y el 2026-11-06, contra la misma base desechable:
+- `tsc --noEmit`: sin errores.
+- `npm run lint`: sin errores (15 avisos), con `.claude/` fuera de la revisión (D-328).
+- La suite con cobertura: pasan 5962 y fallan 11.
+  - Diez ya fallaban en la línea de base: las 7 de `estructuras`, `directorioDeRespaldos` (2) y `respaldoEnWindows` (1).
+  - La otra era de E5: `fluoroscopiaPorDisparos` exigía la forma vieja del intervalo de la escopia, que ahora suma también los segundos del caso (D-322). Se puso al día y pasa.
+  - Cobertura: 86,6 % de las sentencias, 79 % de las ramas, 87,7 % de las funciones y 87,9 % de las líneas. El umbral es 58.
+- `npm run test:integration`, obligatoria: pasan 254 de 261. Las 7 que fallan son las de `estructuras` (O-092), y la matriz de roles pasa entera.
+- `next build`, como el de Docker (`NEXT_PUBLIC_BASE_PATH=/traumahub`): compila. Sus 8 avisos («Dynamic filesystem access») son de `api/subidas` y de `respaldosServidor.ts`, y ya estaban.
+- Falta: el navegador con una pierna nueva del taller, donde ver la E con una herida (D-326); el commit y ved.
 
 ---
 
