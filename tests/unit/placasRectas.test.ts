@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import * as THREE from 'three'
 import {
   AGUJEROS_MAXIMOS,
@@ -6,6 +8,7 @@ import {
   SISTEMAS_DE_PLACA_RECTA,
   agujerosDeLaPlacaRectaMm,
   direccionDeLaPlacaRecta,
+  idDelCatalogoParaElPaso,
   idDeLaPlacaRecta,
   instrumentoDeLaPlacaRecta,
   largoDeCatalogoMm,
@@ -185,5 +188,32 @@ describe('el modelo 3D de la placa a medida', () => {
     let fallo = false
     cargarModeloDelInstrumento('procedural:placa-recta/no-existe/5', () => {}, () => (fallo = true))
     expect(fallo).toBe(true)
+  })
+})
+
+describe('la placa elegida por sus agujeros cuenta en el paso como la de su sistema (P-013, pedido 4)', () => {
+  const catalogo = [
+    { id: '67', slug: 'placa-lcp-recta-3-5' },
+    { id: '66', slug: 'placa-lc-dcp-3-5' },
+    { id: '38', slug: 'broca-2-5' },
+  ]
+
+  it('una LCP 3,5 de 10 agujeros vale por la LCP 3,5 del catálogo, y lo que no es placa a medida pasa tal cual', () => {
+    const lcp10 = placaRecta('lcp-3-5', 10)!
+    expect(idDelCatalogoParaElPaso(idDeLaPlacaRecta(lcp10), catalogo)).toBe('67')
+    expect(idDelCatalogoParaElPaso('38', catalogo)).toBe('38')
+    expect(idDelCatalogoParaElPaso(null, catalogo)).toBeNull()
+  })
+
+  it('un sistema sin placa en el catálogo no inventa una', () => {
+    expect(idDelCatalogoParaElPaso(idDeLaPlacaRecta(placaRecta('lcp-2-4', 6)!), catalogo)).toBeNull()
+  })
+
+  it('el gesto del residente lleva el instrumento traducido, y el selector de agujeros sale abierto', () => {
+    const consola = readFileSync(join(process.cwd(), 'src/components/simulador/ConsolaQuirurgica.tsx'), 'utf8')
+    const gesto = consola.slice(consola.indexOf('const gestoActual = useMemo<Gesto>('), consola.indexOf('/** Lo que pide el paso, marcándose solo'))
+    expect(gesto).toContain('instrumento: idDelCatalogoParaElPaso(instrumento, caso.instrumental) ?? instrumento,')
+    expect(consola).toContain('<details className="placa-a-medida-desplegable" open>')
+    expect(consola).toContain('<summary>Cantidad de agujeros (orificios) y largo</summary>')
   })
 })

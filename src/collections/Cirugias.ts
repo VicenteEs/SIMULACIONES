@@ -659,12 +659,14 @@ export const Cirugias: CollectionConfig = {
           })),
         },
         {
-          // La demostración de tres a cinco segundos (P-009, mejora de uso 3): un WebP animado o un vídeo corto de
-          // cómo se hace el gesto, que el residente ve en práctica junto a la instrucción. En evaluación no se enseña.
+          // La demostración (P-009, mejora de uso 3): un WebP animado o un vídeo de cómo se hace el gesto, que el
+          // residente ve en práctica junto a la instrucción. En evaluación no se enseña. Nació de tres a cinco segundos;
+          // desde P-013 (pedido 11) el editor la graba en el simulador con cuadros explicativos, y dura lo que tarde en
+          // explicarse. Es solo la etiqueta: la columna es la misma, y no hace falta migración.
           name: 'demostracion',
           type: 'upload',
           relationTo: 'medios',
-          label: 'Demostración (de 3 a 5 s)',
+          label: 'Demostración',
         },
         // --- qué se le dice al residente ---
         { name: 'exito', type: 'textarea', label: 'Si lo hace bien' },

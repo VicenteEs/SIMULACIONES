@@ -196,6 +196,25 @@ export interface ResumenDeUnPlano {
   cierre: number
   cierreMaximo: number
   tension: number
+  /** Los hilos con que se cosió este plano, en el orden en que aparecen (P-013, pedido 16): cada línea lleva el suyo. */
+  hilos: string[]
+  /** Se cerró con «Cerrar el plano», de un clic: el aviso final no le cuenta la separación puntada a puntada. */
+  asistida: boolean
+  /** Se cerró con corchetes: lo que se cuenta son corchetes, no puntadas. */
+  corchetes: boolean
+}
+
+/** Los hilos de una lista de puntadas, sin repetir y en orden: el de cada una, o el de la sutura si no trae el suyo. */
+export function hilosDeLasPuntadas(
+  puntos: readonly PuntoDeSutura[],
+  porDefecto: Pick<HiloDeSutura, 'nombre'> | null,
+): string[] {
+  const nombres: string[] = []
+  for (const p of puntos) {
+    const nombre = p.hilo?.nombre ?? porDefecto?.nombre
+    if (nombre && !nombres.includes(nombre)) nombres.push(nombre)
+  }
+  return nombres
 }
 
 /** El resumen de cada plano donde hay puntadas o herida, en orden de la superficie hacia dentro. */
@@ -204,12 +223,16 @@ export function resumirPorPlanos(
   cierres: Partial<Record<PlanoBlando, CierreDeUnPlano>>,
   tensiones: Partial<Record<PlanoBlando, number>>,
   heridas: readonly PlanoBlando[],
+  /** Las puntadas, para saber con qué hilo y cómo se cerró cada plano (P-013, pedido 16). */
+  puntos: readonly PuntoDeSutura[] = [],
+  hiloPorDefecto: Pick<HiloDeSutura, 'nombre' | 'tipo'> | null = null,
 ): ResumenDeUnPlano[] {
   const planos: PlanoBlando[] = (['piel', 'fascia', 'musculo'] as const).filter(
     (p) => porPlano[p] !== undefined || heridas.includes(p),
   )
   return planos.map((plano) => {
     const m = porPlano[plano]
+    const delPlano = puntos.filter((p) => (p.plano ?? 'piel') === plano)
     return {
       plano,
       nombre: NOMBRE_DEL_PLANO[plano],
@@ -222,6 +245,36 @@ export function resumirPorPlanos(
       cierre: cierres[plano]?.cierre ?? 0,
       cierreMaximo: cierres[plano]?.cierreMaximo ?? 0,
       tension: tensiones[plano] ?? 0,
+      hilos: hilosDeLasPuntadas(delPlano, hiloPorDefecto),
+      asistida: delPlano.length > 0 && delPlano.every((p) => p.asistida),
+      corchetes: delPlano.length > 0 && delPlano.every((p) => (p.hilo ?? hiloPorDefecto)?.tipo === 'corchete'),
     }
   })
+}
+
+/**
+ * Lo que se dice cuando la herida queda cerrada entera (P-013, pedido 16). Antes era una sola frase con el rango de la piel,
+ * «(5 a 10 mm)», dicha también de la fascia, que se mide de 8 a 15: ahora cada plano lleva su rango. Lo cerrado de un clic no
+ * cuenta la separación puntada a puntada, que la puso el simulador y no quien opera; y los corchetes se cuentan como corchetes.
+ * `bien` es si todo lo cosido a mano quedó bien espaciado.
+ */
+export function textoDeLaHeridaCerrada(planos: readonly ResumenDeUnPlano[]): { texto: string; bien: boolean } {
+  const conAlgo = [...planos]
+    .filter((p) => p.puntadas > 0 && p.plano !== 'musculo')
+    .sort((a, b) => (a.plano === b.plano ? 0 : a.plano === 'fascia' ? -1 : 1))
+  let bien = true
+  const partes = conAlgo.map((p) => {
+    const nombre = p.nombre.toLowerCase()
+    const hilos = p.hilos.join(' y ')
+    if (p.corchetes) {
+      const corchetes = Math.ceil(p.puntadas / 2)
+      return `${nombre} con ${corchetes} ${corchetes === 1 ? 'corchete' : 'corchetes'}`
+    }
+    if (p.asistida) return `${nombre} con una sutura continua de ${hilos} (${p.puntadas} puntadas)`
+    const ideal = SEPARACION_IDEAL_POR_PLANO[p.plano]
+    if (p.bienEspaciadas < p.tramos) bien = false
+    return `${nombre} con ${p.puntadas} puntadas de ${hilos}, ${p.bienEspaciadas} de ${p.tramos} bien espaciadas (${ideal.min} a ${ideal.max} mm)`
+  })
+  if (partes.length === 0) return { texto: 'Herida cerrada.', bien: true }
+  return { texto: `Herida cerrada por planos: ${partes.join('; ')}.`, bien }
 }

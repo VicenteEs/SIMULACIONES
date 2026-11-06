@@ -1,10 +1,10 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
-import { CircleHelp, Layers, Scan, Wrench, X } from 'lucide-react'
+import { CircleHelp, Flag, Layers, Scan, Wrench, X } from 'lucide-react'
 
 /**
- * «Qué hay en la consola»: tres llamadas numeradas bajo la consola del
+ * «Qué hay en la consola»: cuatro llamadas numeradas bajo la consola del
  * simulador, como en el tablero de Penpot (P-007 E4, D-237). Salen la primera
  * vez; quien las cierra no las vuelve a ver hasta que pulse «Qué hay en la
  * consola» para abrirlas otra vez.
@@ -78,6 +78,13 @@ const LLAMADAS = [
     icono: Wrench,
     titulo: 'Mesa de instrumental',
     texto: 'Por familias, o pedido por su nombre con la tecla I: cada paso pide el instrumento correcto, y la consola lo comprueba al usarlo.',
+  },
+  // La cuarta (P-013, pedido 2): Cristóbal no supo dónde terminar para pedir la radiografía postoperatoria.
+  {
+    icono: Flag,
+    titulo: 'Terminar y radiografía',
+    texto:
+      'El caso termina al aprobar el último paso, o antes con «Terminar la cirugía», arriba a la derecha. Al final se ofrece la radiografía postoperatoria; si la omite, puede pedirla después desde ahí mismo.',
   },
 ]
 

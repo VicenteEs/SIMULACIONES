@@ -12,6 +12,7 @@ import {
 import type { RolDePieza } from '@/lib/piezasDelCaso'
 import { ATRIBUTO_DEL_CANAL, SIN_CANAL_POR_OMISION, flotantesDe, marcarElCanal } from '@/atlas/canalDeLaGeometria'
 import { ATRIBUTO_DE_LA_PARED, type HeridaEnCapa } from './heridas'
+import { marcarLaCaraDeDentro } from './abultamientoEnLaEscena'
 
 /**
  * Cómo se ve el paciente en el simulador (D-225): la piel, el hueso, el músculo y lo demás, cada uno con su
@@ -673,6 +674,8 @@ export function vestirElModelo(
     const vestido: Vestido = { aspecto, original, propio }
     if (aspecto === 'piel') {
       marcarLaPared(malla)
+      // Antes de que la sesión devuelva sus heridas: cortada, la pared une sus dos caras y ya no se separan (P-013).
+      marcarLaCaraDeDentro(malla)
       const v = crearVello(malla, delObjeto)
       if (v) {
         malla.add(v.vello)

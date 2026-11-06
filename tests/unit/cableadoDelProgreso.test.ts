@@ -94,9 +94,10 @@ describe('la consola manda lo que calcula', () => {
     // Ni en cada gesto —eso es una escritura por clic, y pulsar sin instrumento
     // no cambia nada que guardar— ni solo al terminar, que pierde entero al que
     // cierra la pestaña a mitad. Dos llamadas, ni una más ni una menos.
+    // Hasta `terminarLaCirugia`, que va justo después y guarda su propio hito (D-341): antes se cortaba en `reiniciar`.
     const aplicar = CONSOLA.slice(
       CONSOLA.indexOf('function aplicarPaso()'),
-      CONSOLA.indexOf('function reiniciar()'),
+      CONSOLA.indexOf('async function terminarLaCirugia()'),
     )
     expect(aplicar, 'no se encontró aplicarPaso').not.toBe('')
     expect(veces(aplicar, 'guardarRecorrido(')).toBe(2)
@@ -108,7 +109,12 @@ describe('la consola manda lo que calcula', () => {
     // Y un sexto, al cortar o perforar un vaso o un nervio (P-012 E6): otra complicación que llega por el lienzo.
     // Y un séptimo, al repetir en evaluación el gesto que mide el paso (D-330): una segunda incisión en la misma capa o una
     // segunda trayectoria, que también es una complicación y también llega por el lienzo.
-    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(7)
+    // Y un octavo, al terminar la cirugía antes de aprobar el último paso (D-341): es el mismo final, y el recorrido se guarda
+    // terminado aunque queden pasos sin hacer.
+    expect(veces(CONSOLA, 'guardarRecorrido(')).toBe(8)
+    const terminar = CONSOLA.slice(CONSOLA.indexOf('async function terminarLaCirugia()'), CONSOLA.indexOf('async function reiniciar()'))
+    expect(terminar, 'no se encontró terminarLaCirugia').not.toBe('')
+    expect(veces(terminar, 'guardarRecorrido(')).toBe(1)
     const bloqueo = CONSOLA.slice(CONSOLA.indexOf('function vigilarElBloqueo('), CONSOLA.indexOf('function vigilarElGestoDeMas('))
     expect(veces(bloqueo, 'guardarRecorrido(')).toBe(1)
     const gesto = CONSOLA.slice(CONSOLA.indexOf('function vigilarElGestoDeMas('), CONSOLA.indexOf('function vigilarLaLesion('))

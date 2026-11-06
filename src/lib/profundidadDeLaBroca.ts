@@ -40,19 +40,34 @@ export const HUECO_DE_UN_TRAZO_MM = 3
  *
  * Los cruces de una misma pieza no cortan la cuenta, haya el hueco que haya: una pieza puede tener superficies por dentro, y
  * un hueso curvo puede salir de sí mismo y volver a entrar, como entre los dos cóndilos.
+ *
+ * `mismoHueso` (P-013, pedido 9) dice si dos piezas distintas son trozos de un mismo hueso. Con ella, la línea pasa a otra
+ * pieza solo si lo son, y dentro del trazo: el peroné distal toca la tibia en la sindesmosis y el astrágalo en la mortaja a
+ * menos de 3 mm, y un tornillo de placa de peroné medía 60 mm donde lleva 12. Sin ella, la regla de antes, por pieza.
  */
 export function salidaPorLaCorticalOpuesta<P>(
   cruces: readonly { distanciaMm: number; pieza: P }[],
   huecoMaximoMm = HUECO_DE_UN_TRAZO_MM,
+  mismoHueso: (a: P, b: P) => boolean = () => true,
 ): number | null {
   if (!cruces.length) return null
   let salida = cruces[0].distanciaMm
   for (let i = 1; i < cruces.length; i++) {
     const c = cruces[i]
-    if (c.pieza !== cruces[i - 1].pieza && c.distanciaMm - salida > huecoMaximoMm) break
+    const anterior = cruces[i - 1].pieza
+    if (c.pieza !== anterior && (c.distanciaMm - salida > huecoMaximoMm || !mismoHueso(anterior, c.pieza))) break
     salida = c.distanciaMm
   }
   return salida
+}
+
+/**
+ * El hueso del que es un objeto, por su nombre de nodo: el corte de la exportación llama a sus dos trozos
+ * «Tibia_derecha_fragmento_proximal» y «…_distal» (`nombreDeNodo` de «Tibia derecha, fragmento distal»), y sin ese final
+ * los dos son «Tibia_derecha». Un hueso entero se queda con su nombre.
+ */
+export function huesoDelNodo(nombre: string): string {
+  return nombre.replace(/_fragmento_(proximal|distal)$/i, '')
 }
 
 /**

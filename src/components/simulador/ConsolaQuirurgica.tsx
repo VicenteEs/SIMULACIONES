@@ -81,15 +81,42 @@ import { usePlegado } from './plegados'
 import { familiaDeLaMesa, ordenDeLasFamilias, tituloDeLaFamilia } from '@/lib/barraDeInstrumental'
 import { CampoNumerico } from './CampoNumerico'
 import { MenuDeMovimiento, type SeleccionDeMovimiento } from './MenuDeMovimiento'
+import { CuadroDeReduccion, type EleccionDeLaReduccion } from './CuadroDeReduccion'
+import { CuadroDelCierre, type EstadoDelPlanoQueSeCierra } from './CuadroDelCierre'
+import { DemostracionDelPaso } from './DemostracionDelPaso'
+import { EL_PLANO, type PlanoQueSeCierra } from '@/lib/cierreDeUnClic'
+import { textoDeLaHeridaCerrada } from '@/lib/planosDeLaSutura'
+import type { HiloDeSutura } from '@/lib/sutura'
+import { MenuDelObjeto } from './MenuDelObjeto'
+import {
+  accionesDelObjeto,
+  claveDelObjeto,
+  nombreDelObjeto,
+  objetosPuestos,
+  type AccionDelObjeto,
+  type ContextoDelMenu,
+  type ObjetoPuesto,
+} from '@/lib/menuDelObjeto'
 import { ACCIONES_DE_LA_PLACA, ajusteDeLaPlacaPorPaso, lecturaDelMovimiento } from '@/lib/movimientoPorEjes'
 import { acotar, giroEnvuelto } from '@/lib/ejesAnatomicos'
 import { textoDelDesplazamiento } from '@/lib/ejesAnatomicos'
 import { textoDeLaBroca } from '@/lib/profundidadDeLaBroca'
 import { textoDelTornilloQueEntra } from '@/lib/tornilloQueEntra'
-import { NOMBRE_DE_LA_TECNICA } from '@/lib/compresion'
+import { diametroDelTornilloDeLaPlaca, NOMBRE_DE_LA_TECNICA } from '@/lib/compresion'
 import { PanelDeCompresion } from './PanelDeCompresion'
 import { ElegirPlacaRecta } from './ElegirPlacaRecta'
-import { instrumentoDeLaPlacaRecta, modeloConLosAgujerosEscritos, placaRectaDelId, sistemaDelSlug } from '@/lib/placasRectas'
+import {
+  agujerosQueSePuedenPedir,
+  idDeLaPlacaRecta,
+  idDelCatalogoParaElPaso,
+  instrumentoDeLaPlacaRecta,
+  modeloConLosAgujerosEscritos,
+  nombreDeLaPlacaRecta,
+  placaRecta,
+  placaRectaDelId,
+  sistemaDeLaPlacaPuesta,
+  sistemaDelSlug,
+} from '@/lib/placasRectas'
 import { RadiografiaPostoperatoria } from './RadiografiaPostoperatoria'
 import { AsaDeAncho } from './AsaDeAncho'
 import type { EstadoDeLaMesa } from './mesaDeModelado'
@@ -135,6 +162,7 @@ import {
   ETAPAS_DE_FIJACION,
   diametrosDelTipo,
   instrumentoDeLaEtapa,
+  preferenciasDeLaPlacaFijada,
   siguienteDeLaSecuencia,
   TIPOS_DE_TORNILLO,
   definicionDelTipo,
@@ -151,6 +179,7 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   ArrowUpFromLine,
+  Bandage,
   Box,
   Check,
   CheckCircle2,
@@ -180,6 +209,7 @@ import {
   Plus,
   Rotate3d,
   Repeat,
+  Flag,
   RotateCcw,
   RotateCw,
   ScanLine,
@@ -349,7 +379,7 @@ export interface PasoDeConsola extends PasoQuirurgico {
   posicion?: PosicionDelPaciente | null
   /** Desde dónde se mira al entrar en el paso (P-009), como lo guardó el editor; sin él, la cámara se queda. */
   encuadre?: EncuadreDelPaso | null
-  /** La demostración de 3 a 5 s (P-009), con el prefijo ya puesto por Payload, y su tipo: imagen animada o vídeo. */
+  /** La demostración del paso (P-009), con el prefijo ya puesto por Payload, y su tipo: imagen animada o vídeo. */
   demostracionUrl?: string | null
   demostracionTipo?: string | null
 }
@@ -583,14 +613,15 @@ const MODO_PINZAR: { valor: Modo; etiqueta: string; ayuda: string; icono: Lucide
 
 /**
  * El modo de las pinzas de reducción (P-003 E5): un clic en un trozo de hueso deja la pinza agarrándolo, y el trozo se
- * mueve con las asas del taller (flechas y aros) con la pinza puesta hasta que se la suelta.
+ * mueve con el menú Trasladar · Angular · Rotar o arrastrándolo, con la pinza puesta hasta que se la suelta. Hasta P-013
+ * (pedido 6) decía «las flechas y los aros», que desde D-250 solo salen con «Asas libres».
  */
 const MODO_REDUCIR: { valor: Modo; etiqueta: string; ayuda: string; icono: LucideIcon } = {
   valor: 'reducir',
   etiqueta: 'Reducir',
   icono: HandGrab,
   ayuda:
-    'Reducir: un clic en un trozo de hueso deja la pinza agarrándolo. Llévelo a su sitio con las flechas y los aros mirando la fluoroscopia; la pinza va con él. Un clic en la pinza la suelta.',
+    'Reducir: un clic en un trozo de hueso deja la pinza agarrándolo; el que agarraría se tiñe al pasar el cursor. Llévelo a su sitio con el menú Trasladar · Angular · Rotar, o arrastrándolo, mirando la fluoroscopia; la pinza va con él. Un clic en la pinza abre su menú, con «Soltar la pinza».',
 }
 
 /**
@@ -1132,6 +1163,17 @@ export function ConsolaQuirurgica({
   )
   // Un caso con fascia tiene un plano más entre la piel y el músculo: la herida, los separadores y el cierre lo cuentan (P-006).
   const hayFascia = piezas.some((p) => p.rol === 'fascia')
+  /**
+   * Las filas del cuadro «Cerrar la herida» (P-013, pedido 16): la fascia solo si el caso la trae, porque sin ella no hay plano
+   * que cerrar aparte y todo se cierra con la piel (como al coser a mano), y cuánto está cerrada cada una.
+   */
+  const planosDelCierre: EstadoDelPlanoQueSeCierra[] = (hayFascia ? (['fascia', 'piel'] as const) : (['piel'] as const)).map(
+    (plano) => ({
+      plano,
+      conHerida: hayFascia ? !!herida?.capas.includes(plano) : (herida?.capas.length ?? 0) > 0,
+      cierre: hayFascia ? (sutura?.planos?.find((p) => p.plano === plano)?.cierre ?? 0) : (sutura?.cierre ?? 0),
+    }),
+  )
   const planosDelCampo: CapaDeLaHerida[] = hayFascia ? ['piel', 'fascia', 'musculo'] : ['piel', 'musculo']
   const [fuerza, setFuerza] = useState(() => fuerzaInicial(caso.pasos[0] ?? {}))
   // La geometría del trazo no sube a React: de ella solo se usa un número, y el
@@ -1255,6 +1297,22 @@ export function ConsolaQuirurgica({
   const [repaso, setRepaso] = useState(false)
   /** El menú radial abierto, en píxeles desde la esquina del marco del lienzo (mejora de uso 9). */
   const [menuRadial, setMenuRadial] = useState<{ x: number; y: number } | null>(null)
+  // El cuadro «Reducción manual / Reducción automática» (P-013, pedido 12) y el paso en que ya se ofreció: sale una vez por
+  // paso, y no cada vez que se vuelve a coger la pinza o a abrir su familia.
+  const [cuadroDeReduccion, setCuadroDeReduccion] = useState(false)
+  /**
+   * El cuadro «Cerrar la herida» y el cierre armado en él (P-013, pedido 16): con el modo de coser, el próximo clic sobre ese
+   * plano lo cierra entero. Se arma solo mientras se cose: elegir un instrumento o pasar a «Mirar» lo deja sin efecto.
+   */
+  const [cuadroDelCierre, setCuadroDelCierre] = useState(false)
+  const [cierreArmado, setCierreArmado] = useState<{ plano: PlanoQueSeCierra; hilo: HiloDeSutura } | null>(null)
+  const [reduccionOfrecidaEn, setReduccionOfrecidaEn] = useState<string | null>(null)
+  /**
+   * El menú de algo puesto en el paciente (P-013, pedidos 7 y 14), abierto donde se pinchó. Guarda la clave y no el objeto:
+   * el objeto se lee de lo puesto en cada pintado, para que el menú diga la apertura de ahora y se cierre solo si lo que
+   * muestra se retiró por otro lado.
+   */
+  const [menuDelObjeto, setMenuDelObjeto] = useState<{ clave: string; x: number; y: number } | null>(null)
   /** El buscador de «Pedir un instrumento» abierto (P-012 E5, tecla I): ver `PedirInstrumento.tsx`. */
   const [pidiendo, setPidiendo] = useState(false)
   // Lo que quien mira dejó plegado para que el lienzo crezca (P-012 E5): ver `plegados.ts`. Solo en la consola del
@@ -2102,6 +2160,8 @@ export function ConsolaQuirurgica({
     // para que no haya un final que se enseñe y no se marque, ni al revés.
     if (siguiente >= caso.pasos.length && !repaso) marcarCasoComoLeido()
     if (siguiente >= caso.pasos.length) setRepaso(false)
+    // El final vive en la columna de la derecha: plegada, el caso terminaba sin enseñar nada (P-013, pedido 2).
+    if (siguiente >= caso.pasos.length) plegarElPaso(false)
     setIndice(siguiente)
     elegirInstrumento(null)
     // `borrarTrazo` avisa por su cuenta con la lista vacía, y ese aviso es el
@@ -2116,6 +2176,55 @@ export function ConsolaQuirurgica({
     empezarElPaso(siguiente, {
       puntaje: puntajeTrasElPaso,
       resueltos: [...resueltosTrasElPaso],
+      fallados: [...fallados],
+      complicados: [...complicados],
+      automaticas: [...automaticas],
+      complicaciones,
+      insumos,
+      recorrido: recorridoDeLaNota.current,
+      tiempos: lecturaDeLosRelojes.current(horaDeAhora.current()),
+    })
+  }
+
+  /**
+   * «Terminar la cirugía» (P-013, pedido 2 de Cristóbal: «no supe dónde poner "terminar" para que me pudiera dar la opción
+   * de tomar la Rx postoperatoria»). Hasta aquí el final llegaba solo al aprobar el último paso, y el que quería cerrar
+   * antes —o no encontraba cómo seguir— no llegaba nunca a la radiografía.
+   *
+   * Lleva al mismo final que aprobar el último paso y por el mismo camino (`entrarEnPaso` y `empezarElPaso` con el índice
+   * de después del último: paran los relojes y borran el avance). Lo que falta queda sin puntos sin hacer nada aparte: la
+   * nota cuenta solo lo aprobado (`notaDelRecorrido`), y por eso la pregunta lo dice con el número.
+   */
+  async function terminarLaCirugia() {
+    if (terminado) return
+    const faltan = caso.pasos.length - indice
+    const quedan =
+      faltan === 1 ? 'Queda 1 paso sin hacer, y no sumará puntos.' : `Quedan ${faltan} pasos sin hacer, y no sumarán puntos.`
+    if (
+      !(await confirmar({
+        titulo: '¿Terminar la cirugía?',
+        mensaje: repaso
+          ? 'Vuelve al final del caso. Repasando no se puntúa nada.'
+          : `${quedan} Después podrá tomar la radiografía postoperatoria.`,
+        confirmar: 'Terminar la cirugía',
+      }))
+    )
+      return
+    const final = caso.pasos.length
+    if (!repaso) {
+      guardarRecorrido(puntaje, complicaciones, insumos)
+      marcarCasoComoLeido()
+    }
+    setRepaso(false)
+    setIndice(final)
+    elegirInstrumento(null)
+    mando.current?.borrarTrazo()
+    setRadiografiaPost('invitacion')
+    plegarElPaso(false)
+    entrarEnPaso(final, capasApagadas)
+    empezarElPaso(final, {
+      puntaje,
+      resueltos: [...resueltos],
       fallados: [...fallados],
       complicados: [...complicados],
       automaticas: [...automaticas],
@@ -2355,6 +2464,43 @@ export function ConsolaQuirurgica({
     reducirAutomaticamente()
   }
 
+  /**
+   * Ofrece el cuadro «Reducción manual / Reducción automática» (P-013, pedido 12 de Cristóbal): al coger una pinza de
+   * reducción o al abrir la familia «Reducción» de la mesa, en el paso de reducir. Solo en práctica y fuera del editor: en
+   * evaluación no hay automática (D-315) y no hay nada que elegir, y el editor la tiene en el panel para colocar el caso.
+   * Tampoco si ya se eligió en este paso, si ya se redujo solo, o si el caso no trae nada que reducir: el cuadro ofrecería
+   * algo que no va a pasar.
+   *
+   * Lo que hay que reducir se lee de las piezas del caso y no del mando del lienzo, y lo ya ofrecido va en un estado y no en
+   * una referencia: esto corre al coger un instrumento, y `elegirInstrumento` se llama también desde el aro del botón derecho,
+   * que se pinta en una lista; el compilador de React no deja que lo que se llama desde ahí lea referencias. Si el modelo
+   * perdió el trozo marcado, la automática lo dice al pedirla.
+   */
+  const ofrecerLaReduccion = () => {
+    if (!enPractica || editor || !paso || objetivo !== 'reduccion') return
+    if (reduccionOfrecidaEn === paso.id || automaticas.has(paso.id)) return
+    if (!piezas.some((p) => p.rol === 'fragmento' || !!p.posicionReducida)) return
+    setReduccionOfrecidaEn(paso.id)
+    setCuadroDeReduccion(true)
+  }
+
+  /**
+   * Lo que se eligió en el cuadro. «Manual» deja una pinza de reducción en la mano —la que ya estaba, o la primera de la
+   * bandeja—, que es lo que pedía el botón «Manual» de antes y no hacía. «Automática» reduce sin la pregunta del panel:
+   * el cuadro ya es la pregunta, y su botón dice lo que cuesta.
+   */
+  const elegirLaReduccion = (cual: EleccionDeLaReduccion) => {
+    setCuadroDeReduccion(false)
+    if (cual === 'automatica') {
+      reducirAutomaticamente()
+      return
+    }
+    const enLaMano = instrumentoPorId(caso.instrumental, instrumento)
+    if (enLaMano && comportamientoDelInstrumento(enLaMano).reduce) return
+    const pinza = caso.instrumental.find((i) => comportamientoDelInstrumento(i).reduce)
+    if (pinza) elegirInstrumento(pinza.id)
+  }
+
   /** Deja el fragmento donde empieza el caso: desplazado, sin reducir. */
   const colocarEnDesplazamientoInicial = useCallback(() => {
     // Los otros trozos de hueso que se movieron con «Mover» vuelven también a su sitio.
@@ -2429,8 +2575,21 @@ export function ConsolaQuirurgica({
     empezarElPaso(destino, CUENTA_VACIA)
   }
 
+  /**
+   * Arma el cierre de un plano (P-013, pedido 16): suelta lo que haya en la mano y pasa a coser, y el próximo clic sobre ese
+   * plano lo cierra entero con `hilo`.
+   */
+  const armarElCierre = (plano: PlanoQueSeCierra, hilo: HiloDeSutura) => {
+    elegirInstrumento(null)
+    setModo('coser')
+    setCierreArmado({ plano, hilo })
+    anotar(`Pique sobre ${EL_PLANO[plano]}: queda cerrada entera con ${hilo.tipo === 'corchete' ? 'corchetes' : hilo.nombre}.`, 'bien')
+  }
+
   /** Coge un instrumento: aparece en la escena y sus articulaciones vuelven a como las dejó el taller. */
   const elegirInstrumento = (id: string | null) => {
+    // Coger o soltar un instrumento desarma el cierre de un clic: el clic vuelve a ser del instrumento (P-013, pedido 16).
+    setCierreArmado(null)
     // Un separador o una broca llevan su modo; al soltarlos se vuelve al de
     // siempre. El modo de un paso (trazar, mover) no se toca: lo pide el paso.
     const destino = instrumentoPorId(caso.instrumental, id)
@@ -2472,6 +2631,8 @@ export function ConsolaQuirurgica({
     setDiseccion(null)
     setInstrumento(id)
     if (id) setMesaDeMayo((antes) => cogerEnLaMesa(antes, id))
+    // Coger la pinza de reducción en el paso de reducir es «seleccionar reducción» (P-013, pedido 12).
+    if (que?.reduce) ofrecerLaReduccion()
     setArticulacionesDeclaradas([])
     setArticulacionesMovidas({})
     setErrorDelInstrumento(null)
@@ -2485,6 +2646,146 @@ export function ConsolaQuirurgica({
     elegirInstrumento(id)
     setCategoriaAbierta(null)
     setBusquedaDeInstrumento('')
+  }
+
+  // ------------------------------------------------------------ el menú de lo puesto (P-013, pedidos 7 y 14)
+  /**
+   * Lo que está puesto en el paciente, de lo que el lienzo ya le cuenta a la consola: es la lista «En uso» de la mesa y de
+   * ella sale el objeto del menú abierto, así que la lista, el menú y el panel de cada cosa dicen lo mismo.
+   */
+  const objetosEnUso = objetosPuestos({
+    separadores,
+    pellizcos,
+    pinzasDeReduccion,
+    fijacion,
+    alambres: alambresPuestos,
+    clavo: enclavado?.clavo ?? null,
+    injerto,
+  })
+  const objetoDelMenu = menuDelObjeto ? (objetosEnUso.find((o) => claveDelObjeto(o) === menuDelObjeto.clave) ?? null) : null
+  const abrirElMenuDelObjeto = (objeto: ObjetoPuesto, x: number, y: number) => {
+    setMenuRadial(null)
+    setMenuDelObjeto({ clave: claveDelObjeto(objeto), x, y })
+  }
+  /**
+   * El tornillo de la bandeja con que se cambia uno puesto: del mismo diámetro y la misma clase —bloqueado o no, de placa o
+   * de clavo—, y el último que se usó si es uno de ellos. `null` si la bandeja no tiene otro igual: entonces solo se retira.
+   * Cada instrumento se lee con un objeto nuevo: el compilador de React da por hecho que lo que se pasa a una función puede
+   * cambiar, y la bandeja es dependencia de varias memorias de aquí.
+   */
+  const tornilloParaCambiar = (o: Extract<ObjetoPuesto, { tipo: 'tornillo' }>) => {
+    const candidatos = caso.instrumental.filter((i) => {
+      const c = comportamientoDelInstrumento({ slug: i.slug, nombre: i.nombre, icono: i.icono }).coloca
+      return c?.tipo === 'tornillo' && Math.abs(c.diametroMm - o.diametroMm) < 0.05 && c.bloqueado === o.bloqueado && !!c.soloConClavo === !!o.deClavo
+    })
+    return candidatos.find((i) => i.id === ultimoTornillo) ?? candidatos[0] ?? null
+  }
+  const contextoDelMenu = (o: ObjetoPuesto): ContextoDelMenu => {
+    const planosConHerida = herida?.capas ?? []
+    if (o.tipo === 'tornillo') {
+      const otro = tornilloParaCambiar(o)
+      const coloca = otro ? comportamientoDelInstrumento({ slug: otro.slug, nombre: otro.nombre, icono: otro.icono }).coloca : null
+      const medido =
+        o.agujero !== null ? fijacion?.agujeros?.find((a) => a.indice === o.agujero)?.medido : o.libre ? fijacion?.trayectoria?.medido : null
+      return {
+        planosConHerida,
+        serieDelTornillo:
+          otro && coloca?.tipo === 'tornillo'
+            ? serieDelTornillo(o.diametroMm, claseDelTornillo(coloca, tipoDelTornillo({ slug: otro.slug, nombre: otro.nombre, tipoDeTornillo: otro.tipoDeTornillo })))
+            : null,
+        sugeridoMm: medido?.sugeridoMm ?? null,
+      }
+    }
+    if (o.tipo === 'placa') {
+      const bandeja = caso.instrumental.map((i) => ({ nombre: i.nombre, slug: i.slug }))
+      return { planosConHerida, agujerosPosibles: sistemaDeLaPlacaPuesta(o.nombre, bandeja) ? agujerosQueSePuedenPedir() : [] }
+    }
+    if (o.tipo === 'pinza-de-piel') return { planosConHerida, alturaMaximaDeLaPinzaMm: ALTURA_MAXIMA_DEL_PELLIZCO_MM }
+    return { planosConHerida }
+  }
+  /**
+   * Lo que hace cada opción, con los mandos que ya tenían los paneles de cada cosa: el menú es otro camino hasta ellos, no
+   * otra manera de hacerlo. «Cambiar» retira y pone en la mano el de la medida elegida (ver `menuDelObjeto.ts`).
+   */
+  const elegirEnElMenuDelObjeto = async (o: ObjetoPuesto, a: AccionDelObjeto, valor?: number) => {
+    const m = mando.current
+    if (!m) return
+    // Los deslizadores dejan el menú abierto: la apertura se ajusta mirando cómo se abre la herida.
+    if (a.id !== 'apertura' && a.id !== 'levantar') setMenuDelObjeto(null)
+    switch (o.tipo) {
+      case 'separador':
+        if (a.id === 'mover') {
+          // Con su instrumento en la mano y en «Separar»: el lienzo devuelve a su sitio lo levantado fuera de ese modo, y el
+          // clic que lo deja es el de «Separar».
+          if (instrumento !== o.instrumentoId && instrumentoPorId(caso.instrumental, o.instrumentoId)) elegirInstrumento(o.instrumentoId)
+          else if (modo !== 'separar') setModo('separar')
+          if (m.levantarSeparador(o.id)) anotar(`${o.nombre} en la mano: un clic junto al borde de la herida lo deja; Esc lo devuelve.`, 'bien')
+        } else if (a.id === 'plano') m.cambiarPlanoDelSeparador(o.id, a.plano)
+        else if (a.id === 'apertura' && valor !== undefined) m.abrirSeparador(valor, o.id)
+        else if (a.id === 'retirar') m.quitarSeparador(o.id)
+        return
+      case 'pinza-de-piel':
+        if (a.id === 'levantar' && valor !== undefined) {
+          m.elegirPellizco(o.id)
+          m.levantarPellizco(valor - o.alturaMm)
+        } else if (a.id === 'retirar') m.soltarPellizco(o.id)
+        return
+      case 'pinza-de-reduccion':
+        if (a.id === 'retirar') m.soltarPinzaDeReduccion(o.id)
+        return
+      case 'placa': {
+        if (a.id === 'soltar-la-fijacion') {
+          m.fijarLaPlaca(false)
+          return
+        }
+        if (a.id === 'cambiar') {
+          const bandeja = caso.instrumental.map((i) => ({ nombre: i.nombre, slug: i.slug }))
+          const sistema = sistemaDeLaPlacaPuesta(o.nombre, bandeja)
+          const nueva = sistema && valor !== undefined ? placaRecta(sistema.id, valor) : null
+          if (!nueva) return
+          if (
+            o.tornillos > 0 &&
+            !(await confirmar({
+              titulo: `¿Cambiarla por una de ${valor} agujeros?`,
+              mensaje: `Se retira la placa puesta con ${o.tornillos === 1 ? 'su tornillo' : `sus ${o.tornillos} tornillos`}.`,
+              confirmar: 'Cambiar la placa',
+            }))
+          )
+            return
+          m.quitarImplantes(true)
+          elegirInstrumento(idDeLaPlacaRecta(nueva))
+          anotar(`Placa retirada. En la mano, la ${nombreDeLaPlacaRecta(nueva)}: apóyela sobre el hueso con un clic.`, 'bien')
+          return
+        }
+        if (a.id === 'retirar') {
+          if (a.pregunta && !(await confirmar({ titulo: '¿Retirar la placa?', mensaje: a.pregunta, confirmar: 'Retirar la placa' }))) return
+          m.quitarImplantes(true)
+        }
+        return
+      }
+      case 'tornillo':
+        if (a.id === 'cambiar' && valor !== undefined) {
+          const otro = tornilloParaCambiar(o)
+          if (!otro || !m.quitarUnTornillo(o.id)) return
+          elegirInstrumento(otro.id)
+          // Después de elegirlo: `elegirInstrumento` le pone el largo que trae el tornillo o el que dejó el medidor.
+          setLargoDeTornillo(valor)
+          const donde = o.deClavo ? `el orificio ${o.deClavo} del clavo` : o.libre ? 'la trayectoria' : `el agujero ${(o.agujero ?? 0) + 1}`
+          anotar(`En la mano, un tornillo de ${String(valor).replace('.', ',')} mm: haga clic en ${donde} para ponerlo.`, 'bien')
+        } else if (a.id === 'retirar') m.quitarUnTornillo(o.id)
+        return
+      case 'aguja':
+        if (a.id === 'retirar-todas') m.quitarLosAlambres()
+        else if (a.id === 'retirar') m.quitarUnaAguja(o.numero)
+        return
+      case 'clavo':
+        if (a.id === 'quitar-el-enclavado') m.quitarElEnclavado()
+        else if (a.id === 'retirar') m.retirarElClavo()
+        return
+      case 'injerto':
+        if (a.id === 'retirar') m.quitarElInjerto()
+        return
+    }
   }
 
   // El ensayo del editor sobrevive a que la consola se vuelva a montar (ver `ensayoDelEditor.ts`): el
@@ -2764,7 +3065,7 @@ export function ConsolaQuirurgica({
    */
   const placaAMedidaElegida = placaRectaDelId(instrumento)
   const idDelElegidoParaElCaso = placaAMedidaElegida
-    ? ((caso.catalogoDelEditor ?? caso.instrumental).find((i) => i.slug === placaAMedidaElegida.sistema.slug)?.id ?? null)
+    ? idDelCatalogoParaElPaso(instrumento, caso.catalogoDelEditor ?? caso.instrumental)
     : (instrumentoElegido?.id ?? null)
   /**
    * Anota que el instrumento de la mano **hizo algo**. Se llama desde los avisos del lienzo —que ya dicen cuándo se cortó,
@@ -3504,16 +3805,22 @@ export function ConsolaQuirurgica({
    * el instrumento que corresponde; con «Poner el siguiente en la mano» encendido (lo está de entrada) pasa además a la mano.
    */
   const avanzarLaSecuencia = (estado: EstadoDeLaFijacion | null, suceso: SucesoDeFijacion) => {
-    if (suceso.tipo === 'placa') {
+    // Fijar la placa es el primer tiempo de la secuencia (P-013, pedido 3): «que al fijar la placa se despliegue al tiro la
+    // broca». Apoyarla o soltarla solo devuelve la secuencia a «brocar», como antes; fijarla sigue hasta abajo y, en práctica,
+    // pone en la mano la broca del sistema de la placa.
+    const placaFijada = suceso.tipo === 'placa' && !!estado?.placa?.fijada
+    if (suceso.tipo === 'placa' && !placaFijada) {
       setEtapaDeFijacion('brocar')
       return
     }
-    if (suceso.agujero === undefined && !suceso.libre) return
-    const delObjetivo = suceso.libre
-      ? estado?.trayectoria
-        ? { perforado: estado.trayectoria.perforado, medido: estado.trayectoria.medido }
-        : null
-      : (estado?.agujeros?.find((a) => a.indice === suceso.agujero) ?? null)
+    if (!placaFijada && suceso.agujero === undefined && !suceso.libre) return
+    const delObjetivo = placaFijada
+      ? null
+      : suceso.libre
+        ? estado?.trayectoria
+          ? { perforado: estado.trayectoria.perforado, medido: estado.trayectoria.medido }
+          : null
+        : (estado?.agujeros?.find((a) => a.indice === suceso.agujero) ?? null)
     const etapa = siguienteDeLaSecuencia(delObjetivo, suceso.tipo === 'tornillo')
     setEtapaDeFijacion(etapa)
     // En evaluación, nada más (E4 de P-012). Lo de abajo elige la broca, el medidor o el tornillo que tocan, del calibre
@@ -3528,6 +3835,17 @@ export function ConsolaQuirurgica({
     }
     const ultimo = suceso.tipo === 'tornillo' ? instrumento : ultimoTornillo
     const delUltimo = delTornillo(ultimo)
+    // Con la placa fijada manda su sistema y no el diámetro que quedó en el panel, que puede ser de otra placa: al fijarla y en
+    // cada uno de sus orificios. Antes valía solo al fijarla, y tras medir el primer orificio de una de tercio de caña se ofrecía
+    // el primer tornillo de la bandeja, un bloqueado LCP.
+    const sobreLaPlaca = !suceso.libre && !!estado?.placa?.fijada
+    const preferencias = {
+      ...(sobreLaPlaca && estado?.placa
+        ? preferenciasDeLaPlacaFijada(diametroDelTornilloDeLaPlaca(estado.placa.nombre), ultimo && delUltimo ? { id: ultimo, ...delUltimo } : null)
+        : { ultimoTornilloId: ultimo, diametroDelTornilloMm: diametroDeTornillo ?? delUltimo?.diametroMm ?? null, claseDelTornillo: delUltimo?.clase }),
+      // Lo perforado decide qué tornillo entra: el cortical de 3,5 en lo hecho con la de 2,5 y el bloqueado en lo de la de 2,8.
+      brocaDelOrificioMm: delObjetivo?.perforado?.diametroMm ?? null,
+    }
     const siguiente = instrumentoDeLaEtapa(
       etapa,
       // Una copia: el compilador de React da por hecho que lo que se pasa a una función puede cambiar, y `caso.instrumental` es
@@ -3540,9 +3858,10 @@ export function ConsolaQuirurgica({
           mide: !!c.mide,
           tornillo: c.coloca?.tipo === 'tornillo',
           diametroMm: c.perfora?.diametroMm ?? (c.coloca?.tipo === 'tornillo' ? c.coloca.diametroMm : undefined),
+          clase: c.coloca?.tipo === 'tornillo' ? claseDelTornillo(c.coloca, tipoDelTornillo(i)) : undefined,
         }
       },
-      { ultimoTornilloId: ultimo, diametroDelTornilloMm: diametroDeTornillo ?? delUltimo?.diametroMm ?? null, claseDelTornillo: delUltimo?.clase },
+      preferencias,
     )
     if (!siguiente) return
     setSiguienteEnLaBandeja(siguiente.id)
@@ -3636,7 +3955,7 @@ export function ConsolaQuirurgica({
           </li>
         ))}
       </ol>
-      <p className="consola-instrumento-texto">{textoDeLaSecuencia(etapaDeFijacion, siguienteEnLaBandeja !== null)}</p>
+      <p className="consola-instrumento-texto">{textoDeLaSecuencia(etapaDeFijacion, (fijacion?.tornillos.length ?? 0) > 0)}</p>
       <label className="consola-interruptor" title="Al terminar un tiempo, el instrumento que sigue pasa solo a la mano y se abre en la bandeja.">
         <span>Poner el siguiente en la mano</span>
         <input type="checkbox" role="switch" checked={siguienteAutomatico} onChange={(e) => setSiguienteAutomatico(e.target.checked)} />
@@ -3723,7 +4042,10 @@ export function ConsolaQuirurgica({
    */
   const gestoActual = useMemo<Gesto>(
     () => ({
-      instrumento,
+      // Una placa elegida por sus agujeros cuenta como la de catálogo de su sistema (P-013, pedido 4); con el
+      // identificador a medida, la placa correcta salía «no es el instrumento de este paso». Si su sistema no tiene placa
+      // en la bandeja, se queda con el suyo y el paso lo juzga como lo que es: otra placa.
+      instrumento: idDelCatalogoParaElPaso(instrumento, caso.instrumental) ?? instrumento,
       instrumentoNombre: nombreDelElegido || null,
       trazo: largoDelTrazoMm,
       desplazamiento: reduccion.desplazamiento,
@@ -3758,6 +4080,7 @@ export function ConsolaQuirurgica({
     }),
     [
       instrumento,
+      caso.instrumental,
       nombreDelElegido,
       largoDelTrazoMm,
       reduccion.desplazamiento,
@@ -4106,7 +4429,11 @@ export function ConsolaQuirurgica({
       familias={familiasDeLaMesa}
       total={caso.instrumental.length}
       abierta={categoriaAbierta}
-      alAbrir={setCategoriaAbierta}
+      alAbrir={(clave) => {
+        setCategoriaAbierta(clave)
+        // Abrir la familia «Reducción» de la mesa también lo es (P-013, pedido 12): el cuadro sale antes de elegir pinza.
+        if (clave === 'reduccion') ofrecerLaReduccion()
+      }}
       busqueda={busquedaDeInstrumento}
       alBuscar={setBusquedaDeInstrumento}
       enLaMano={instrumentoElegido}
@@ -4115,6 +4442,36 @@ export function ConsolaQuirurgica({
       recientes={recientesDeLaMesa}
       alCoger={cogerDeLaMesa}
       alSoltar={() => elegirInstrumento(null)}
+      enUso={
+        objetosEnUso.length > 0 ? (
+          <div className="barra-instrumental-en-uso">
+            <p className="consola-rotulo">En uso en el paciente · {objetosEnUso.length}</p>
+            <ul>
+              {objetosEnUso.map((o) => {
+                const clave = claveDelObjeto(o)
+                const abierto = menuDelObjeto?.clave === clave
+                return (
+                  <li key={clave}>
+                    <button
+                      type="button"
+                      className={`barra-instrumental-en-uso-fila${abierto ? ' abierto' : ''}`}
+                      aria-haspopup="menu"
+                      aria-expanded={abierto}
+                      title="Abrir su menú: moverlo, cambiarlo o retirarlo"
+                      onClick={(e) => {
+                        const caja = e.currentTarget.getBoundingClientRect()
+                        abrirElMenuDelObjeto(o, caja.right, caja.top)
+                      }}
+                    >
+                      {nombreDelObjeto(o)}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : null
+      }
       vacia={
         caso.instrumental.length === 0 ? (
           <p className="consola-vacio">
@@ -4732,6 +5089,10 @@ instrumentoElegido ? (
                   Corta {queHace.corta === 'piel' ? 'la piel' : 'los planos de debajo de la piel'}: en el modo
                   «Trazar», dos clics marcan el inicio y el final de la incisión (o arrastre, a mano alzada, si
                   elige esa opción). La malla se abre a lo largo del trazo.
+                  {/* P-013, pedido 15: alargar ya se podía, pero nadie lo decía. */}
+                  {' '}
+                  Para alargar una incisión corta, empiece el trazo nuevo a menos de 5 mm de una de sus puntas (las marcas
+                  amarillas): se une a ella, y el paso mide la incisión entera.
                 </p>
               ) : null}
 
@@ -4885,9 +5246,9 @@ instrumentoElegido ? (
               {queHace.reduce ? (
                 <div className="consola-instrumento-articulaciones">
                   <p className="consola-instrumento-texto">
-                    Pinza de reducción: haga clic en un trozo de hueso para agarrarlo. Llévelo a su sitio con las flechas y los aros
-                    mirando la fluoroscopia; la pinza va con él. Un clic en la pinza la suelta. Caben dos: la de quien opera y la del
-                    ayudante.
+                    Pinza de reducción: haga clic en un trozo de hueso para agarrarlo; el que agarraría se tiñe al pasar el cursor.
+                    Llévelo a su sitio con el menú Trasladar · Angular · Rotar, o arrastrándolo, mirando la fluoroscopia; la pinza va
+                    con él. Un clic en la pinza abre su menú, con «Soltar la pinza». Caben dos: la de quien opera y la del ayudante.
                   </p>
                   {/* La reducción automática (P-004 E7, pedido 6): quita todo el desplazamiento de una vez, para no
                       entramparse en la reducción cuando el objetivo es otro; el ejercicio de reducir queda sin puntuar.
@@ -4983,8 +5344,8 @@ instrumentoElegido ? (
                       : queHace.separa.autoestatico
                         ? 'Autoestático: haga clic en el punto de la incisión donde quiere ponerlo; se clava a los dos bordes y se queda abierto solo.'
                         : separadoresEnPareja
-                          ? 'De mano, en pareja: un clic junto a la herida pone los dos, uno por borde. Un clic en uno puesto lo levanta; otro clic lo deja donde se apunte (Esc lo devuelve).'
-                          : 'De mano: haga clic junto al borde de la herida que quiere sostener; abre ese borde y el otro lo sostiene el ayudante (otra hoja). Un clic en uno puesto lo levanta; otro clic lo deja.'}{' '}
+                          ? 'De mano, en pareja: un clic junto a la herida pone los dos, uno por borde. Un clic en uno puesto abre su menú: moverlo en el mismo plano, llevarlo a otro plano, abrirlo o retirarlo.'
+                          : 'De mano: haga clic junto al borde de la herida que quiere sostener; abre ese borde y el otro lo sostiene el ayudante (otra hoja). Un clic en uno puesto abre su menú: moverlo en el mismo plano, llevarlo a otro plano, abrirlo o retirarlo.'}{' '}
                     Después se abre arrastrando con el botón derecho hacia arriba o con la barra de abajo, hasta {queHace.separa.maximoMm} mm.{' '}
                     {herida && herida.capas.length > 0 ? '' : 'Aún no hay herida: corte antes con un bisturí.'}
                   </p>
@@ -5197,10 +5558,12 @@ instrumentoElegido ? (
                         : 'Con la placa fijada y el agujero perforado, apoye el medidor en él: dice cuánto hueso hay debajo y qué tornillo pedir.'}
                   </p>
                   {queHace.coloca?.tipo === 'placa' ? bloqueDeLaPlacaParaLaMesa : null}
-                  {/* Otra cantidad de agujeros u otro largo sin volver a la bandeja (P-008 E3): la placa recta en la mano se cambia aquí. */}
+                  {/* Otra cantidad de agujeros u otro largo sin volver a la bandeja (P-008 E3): la placa recta en la mano se cambia aquí.
+                      Abierto de entrada (P-013, pedido 4): plegado y con ese título, Cristóbal no lo encontró y pidió «poder elegir
+                      la cantidad de orificios de la placa», que ya se podía. */}
                   {queHace.coloca?.tipo === 'placa' && sistemaDelSlug(slugDelElegido) ? (
-                    <details className="placa-a-medida-desplegable" open={placaAMedidaElegida !== null}>
-                      <summary>Otra cantidad de agujeros u otro largo</summary>
+                    <details className="placa-a-medida-desplegable" open>
+                      <summary>Cantidad de agujeros (orificios) y largo</summary>
                       <ElegirPlacaRecta key={instrumento ?? ''} enLaMano={instrumento} alElegir={(id) => elegirInstrumento(id)} />
                     </details>
                   ) : null}
@@ -5358,10 +5721,28 @@ instrumentoElegido ? (
                                     ? `perforado Ø ${String(a.perforado.diametroMm).replace('.', ',')}${a.medido ? ` · medido ${Math.round(a.medido.espesorMm)} mm` : ' · falta medir'}`
                                     : 'sin perforar'}
                               </span>
+                              {t ? (
+                                // Sacar un tornillo para poner otro (P-013, pedido 5) desde su fila: «Quitar los tornillos» los
+                                // saca todos, y el orificio había que volver a perforarlo y medirlo uno por uno.
+                                <button
+                                  type="button"
+                                  className="consola-separador-quitar"
+                                  aria-label={`Retirar el tornillo del agujero ${i + 1}`}
+                                  title="Retirar este tornillo"
+                                  onClick={() => mando.current?.quitarUnTornillo(i)}
+                                >
+                                  <X size={14} aria-hidden />
+                                </button>
+                              ) : null}
                             </li>
                           )
                         })}
                       </ul>
+                      {fijacion.tornillos.some((x) => !x.libre && !x.deClavo) ? (
+                        <p className="consola-instrumento-texto">
+                          La ✕ de una fila retira ese tornillo: el orificio queda perforado y medido, y se pone otro con un clic. Con un tornillo en la mano, el clic sobre un agujero que ya tiene el suyo lo cambia.
+                        </p>
+                      ) : null}
                       <div className="consola-instrumento-acciones">
                         <button type="button" className="consola-boton" onClick={() => mando.current?.fijarLaPlaca(false)}>
                           Soltar el ajuste
@@ -5667,6 +6048,14 @@ instrumentoElegido ? (
             «/ 12», leído de corrido como una tercera pieza del marcador. Ahora
             va aparte, sin relleno y con su icono, y antes de borrar pregunta
             con el diálogo propio (`reiniciar`). */}
+        {/* «Terminar» (P-013, pedido 2): Cristóbal no supo dónde terminar para que le diera la radiografía postoperatoria.
+            El final solo llegaba al aprobar el último paso. Va al lado de «Reiniciar», que es donde se busca lo que
+            toca al caso entero, y pregunta antes, contando los pasos que quedan sin puntos. */}
+        {!terminado && !editor ? (
+          <button type="button" className="consola-terminar" onClick={() => void terminarLaCirugia()}>
+            <Flag size={16} aria-hidden /> Terminar la cirugía
+          </button>
+        ) : null}
         <button type="button" className="consola-reiniciar" onClick={() => void reiniciar()}>
           <RotateCcw size={16} aria-hidden /> {editor ? 'Reiniciar el ensayo' : 'Reiniciar el caso'}
         </button>
@@ -5875,8 +6264,15 @@ instrumentoElegido ? (
               </ul>
             ) : null}
             {herida.capas.length > 0 && enPractica ? (
-              <button type="button" className="consola-boton consola-boton-ancho" onClick={() => mando.current?.cerrarHeridas()}>
-                <Undo2 size={16} aria-hidden /> {herida.incisiones.length > 1 ? 'Cerrar todas las heridas' : 'Cerrar la herida'}
+              // Se llamaba «Cerrar la herida», y desde P-013 (pedido 16) ese nombre es el del cierre por planos, que sutura: este
+              // deshace la incisión como si no se hubiera hecho, y con el mismo nombre los dos se confundían.
+              <button
+                type="button"
+                className="consola-boton consola-boton-ancho"
+                title="Deshace la incisión como si no se hubiera hecho; no es suturarla. Para suturar, «Cerrar la herida» sobre el lienzo."
+                onClick={() => mando.current?.cerrarHeridas()}
+              >
+                <Undo2 size={16} aria-hidden /> {herida.incisiones.length > 1 ? 'Deshacer todas las incisiones' : 'Deshacer la incisión'}
               </button>
             ) : null}
           </div>
@@ -6194,6 +6590,34 @@ instrumentoElegido ? (
               alCerrar={() => setPidiendo(false)}
             />
           ) : null}
+          {cuadroDelCierre && herida && herida.capas.length > 0 ? (
+            <CuadroDelCierre
+              planos={planosDelCierre}
+              armado={modo === 'coser' ? (cierreArmado?.plano ?? null) : null}
+              alArmar={armarElCierre}
+              alReabrir={(plano) => {
+                mando.current?.quitarElCierreDe(plano)
+                anotar(`Se quitó el cierre de ${EL_PLANO[plano]}: la herida vuelve a abrirse.`, 'atencion')
+              }}
+              alCerrar={() => {
+                setCuadroDelCierre(false)
+                setCierreArmado(null)
+              }}
+            />
+          ) : null}
+          {cuadroDeReduccion && enPractica && !editor && objetivo === 'reduccion' ? (
+            <CuadroDeReduccion alElegir={elegirLaReduccion} alCerrar={() => setCuadroDeReduccion(false)} />
+          ) : null}
+          {objetoDelMenu && menuDelObjeto ? (
+            <MenuDelObjeto
+              objeto={objetoDelMenu}
+              acciones={accionesDelObjeto(objetoDelMenu, contextoDelMenu(objetoDelMenu))}
+              x={menuDelObjeto.x}
+              y={menuDelObjeto.y}
+              alElegir={(accion, valor) => void elegirEnElMenuDelObjeto(objetoDelMenu, accion, valor)}
+              alCerrar={() => setMenuDelObjeto(null)}
+            />
+          ) : null}
           {/* El menú radial (P-009, mejora de uso 9): los cinco últimos instrumentos cogidos, donde está el cursor. El fondo
               lo cierra sin que el clic llegue al paciente. */}
           {menuRadial ? (
@@ -6314,10 +6738,19 @@ instrumentoElegido ? (
               }
               if (estado.cierre >= 0.999 && !estado.juicioDeLaTension?.estrangula && !heridaCerradaDicha.current) {
                 heridaCerradaDicha.current = true
-                anotar(
-                  `Herida cerrada con ${estado.puntadas} puntadas de ${estado.hilo}, ${estado.bienEspaciadas} de ${estado.tramos} bien espaciadas (5 a 10 mm).`,
-                  estado.bienEspaciadas === estado.tramos ? 'bien' : 'atencion',
-                )
+                // Por planos, cada uno con su rango: la fascia no se mide de 5 a 10 mm como la piel (P-013, pedido 16).
+                const final =
+                  estado.planos && estado.planos.length > 0
+                    ? textoDeLaHeridaCerrada(estado.planos)
+                    : estado.corchetes
+                      ? { texto: `Herida cerrada con ${Math.ceil(estado.puntadas / 2)} corchetes.`, bien: true }
+                      : estado.asistida
+                        ? { texto: `Herida cerrada con una sutura continua de ${estado.hilo} (${estado.puntadas} puntadas).`, bien: true }
+                        : {
+                            texto: `Herida cerrada con ${estado.puntadas} puntadas de ${estado.hilo}, ${estado.bienEspaciadas} de ${estado.tramos} bien espaciadas (5 a 10 mm).`,
+                            bien: estado.bienEspaciadas === estado.tramos,
+                          }
+                anotar(final.texto, final.bien ? 'bien' : 'atencion')
               }
               if (estado.cierre < 0.999) heridaCerradaDicha.current = false
             }}
@@ -6329,6 +6762,20 @@ instrumentoElegido ? (
             claveDeSesion={claveDeLaSesion}
             alCambiarLaEscena={alCambiarLaEscena}
             alAbrirElMenu={abrirElMenu}
+            alPincharUnObjeto={abrirElMenuDelObjeto}
+            cierreDeUnClic={modo === 'coser' ? cierreArmado : null}
+            alCerrarElPlano={(cerrado) => {
+              anotar(cerrado.texto, 'bien')
+              // El sobre de hilo (o la corchetera) es un insumo, aunque no se haya cogido de la mesa.
+              setInsumos((r) =>
+                anotarUso(r, {
+                  nombre: cerrado.hilo.tipo === 'corchete' ? 'Corchetera de piel' : `Sutura ${cerrado.hilo.nombre}`,
+                  categoria: 'suturas',
+                }),
+              )
+              // Cerrado el plano, el clic deja de coser: vuelve a lo del paso, como al soltar un instrumento.
+              elegirInstrumento(null)
+            }}
             avisoAlRecuperar={avisoAlRecuperar}
             pistas={enPractica}
             alFijar={(estado, suceso) => {
@@ -6575,6 +7022,19 @@ instrumentoElegido ? (
                 onClick={() => mando.current?.encuadrarLaHerida()}
               >
                 <Crosshair size={16} aria-hidden /> Herida
+              </button>
+            ) : null}
+            {/* «Cerrar la herida» (P-013, pedido 16), solo con una herida: abre el cuadro de los planos. */}
+            {herida && herida.capas.length > 0 ? (
+              <button
+                type="button"
+                className={`consola-lienzo-boton${cuadroDelCierre ? ' activo' : ''}`}
+                aria-haspopup="dialog"
+                aria-expanded={cuadroDelCierre}
+                title="Cerrar la herida por planos: elegir el hilo de cada uno y cerrarlo entero con un clic"
+                onClick={() => setCuadroDelCierre((v) => !v)}
+              >
+                <Bandage size={16} aria-hidden /> Cerrar la herida
               </button>
             ) : null}
             {/* Sin la barra de modos (P-009, mejora de uso 6) al residente el modo se lo pone el instrumento. Quedan aquí las
@@ -7049,6 +7509,14 @@ instrumentoElegido ? (
                 alCerrar={() => setRadiografiaPost('omitida')}
               />
             ) : null}
+            {/* Omitirla no es para siempre (P-013, pedido 2): antes, la única vuelta era repetir el caso entero. */}
+            {radiografiaPost === 'omitida' && !editor ? (
+              <div className="consola-fin-acciones">
+                <button type="button" className="consola-boton" onClick={() => setRadiografiaPost('abierta')}>
+                  <ScanLine size={16} aria-hidden /> Tomar la radiografía postoperatoria
+                </button>
+              </div>
+            ) : null}
             <p className="consola-fin-puntaje">
               <span className="u-num">{puntaje}</span>
               <span className="consola-fin-total u-num"> / {maximo} puntos</span>
@@ -7138,17 +7606,7 @@ instrumentoElegido ? (
                 </p>
               ) : null}
               {enPractica && paso.demostracionUrl ? (
-                <figure className="consola-demostracion">
-                  {paso.demostracionTipo?.startsWith('video/') ? (
-                    <video src={paso.demostracionUrl} autoPlay loop muted playsInline aria-label={`Demostración: ${paso.titulo}`} />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element -- una animación de la biblioteca, que ya trae su prefijo
-                    <img src={paso.demostracionUrl} alt={`Demostración: ${paso.titulo}`} />
-                  )}
-                  <figcaption>
-                    <Play size={12} aria-hidden /> Así se hace
-                  </figcaption>
-                </figure>
+                <DemostracionDelPaso url={paso.demostracionUrl} tipo={paso.demostracionTipo ?? null} titulo={paso.titulo ?? ''} />
               ) : null}
               {listaDelPasoActual.length > 0 ? (
                 <ul className="consola-lista-del-paso" aria-label="Lo que pide el paso">

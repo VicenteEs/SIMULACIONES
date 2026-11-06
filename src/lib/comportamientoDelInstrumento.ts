@@ -314,7 +314,7 @@ export function guiaDelInstrumento(i: { slug?: string | null; nombre: string; ic
     return 'Bajo la piel aparece la fascia, una lámina rosada que envuelve a los músculos como un estuche. En un caso que la trae, el primer trazo profundo corta la fascia y el segundo llega al músculo: sin abrirla no se entra. Se corta con bisturí profundo o electrobisturí, y después se va separando hasta llegar al hueso.'
   }
   if (que.reduce) {
-    return 'La pinza de reducción toma el hueso: con ella en la mano, un clic en un trozo la deja agarrándolo. Después se mueve el trozo con las flechas y los aros, mirando la fluoroscopia, y la pinza va con él hasta que se la suelta. Hace falta que el abordaje llegue hasta el hueso.'
+    return 'La pinza de reducción toma el hueso: con ella en la mano, un clic en un trozo la deja agarrándolo. Después se mueve el trozo con el menú Trasladar · Angular · Rotar, o arrastrándolo, mirando la fluoroscopia, y la pinza va con él hasta que se la suelta: un clic en ella abre su menú. Hace falta que el abordaje llegue hasta el hueso.'
   }
   if (que.pellizca) {
     return que.pellizca.conDientes

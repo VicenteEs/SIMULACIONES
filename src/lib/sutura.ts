@@ -37,6 +37,14 @@ export interface PuntoDeSutura {
    */
   plano?: PlanoBlando
   /**
+   * El hilo de la línea de esta puntada (P-013, pedido 16). Antes la sutura entera tenía un solo hilo y cambiarlo a mitad
+   * repintaba todas las puntadas con el nuevo: la fascia cerrada con Vicryl se volvía negra al pasar al nailon de la piel.
+   * Ausente en lo guardado antes: el de la sutura.
+   */
+  hilo?: HiloDeSutura
+  /** La puso «Cerrar el plano», de un clic, y no quien cose (P-013, pedido 16): su separación no se juzga una a una. */
+  asistida?: boolean
+  /**
    * Dónde se picó. `punto` es dónde está **ahora**: al tirar del hilo el labio de la herida se mueve y se
    * lleva la puntada con él (D-171), y las medidas de la sutura se hacen con el sitio donde se picó, no con
    * el que queda al apretar.
@@ -220,7 +228,8 @@ export function juicioDeLaTension(p: {
   if (p.tension < TENSION_DE_CIERRE - 0.05) {
     return { texto: 'El hilo aún está flojo: siga tirando hasta que los bordes se toquen.', atencion: true, estrangula: false }
   }
-  return { texto: 'Bordes afrontados: los labios se tocan sin estrangular la piel.', atencion: false, estrangula: false }
+  // «El borde» y no «la piel»: el mismo juicio vale para la fascia, que desde P-013 se cierra también de un clic (pedido 16).
+  return { texto: 'Bordes afrontados: los labios se tocan sin estrangular el borde.', atencion: false, estrangula: false }
 }
 
 /** Lo que se dice de la última puntada, o `null` si estuvo bien (o fue la primera). */
@@ -253,6 +262,11 @@ export interface HiloDeSutura {
    * creado a mano en el panel) va a cualquiera, porque no se juzga lo que no se sabe.
    */
   planos?: readonly PlanoBlando[]
+  /**
+   * Hilo o corchetes (P-013, pedido 16). Un corchete no es un hilo tendido entre puntadas: cada uno une los dos labios donde
+   * cae, y se dibuja como una grapa de acero. Ausente, hilo, que es lo que había.
+   */
+  tipo?: 'hilo' | 'corchete'
 }
 
 const HILOS: Readonly<Record<string, HiloDeSutura>> = {

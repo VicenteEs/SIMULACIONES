@@ -107,6 +107,29 @@ export function sistemaDelSlug(slug: string | null | undefined): SistemaDePlacaR
   return slug ? SISTEMAS_DE_PLACA_RECTA.find((s) => s.slug === slug) : undefined
 }
 
+/**
+ * El sistema de una placa ya puesta, por el nombre con que la cuenta la escena (P-013, pedido 14): para ofrecer otra del
+ * mismo sistema con otros agujeros. Una a medida lleva el nombre de su sistema delante (`nombreDeLaPlacaRecta`); una del
+ * catálogo, el de su instrumento en la bandeja, que trae el slug. Se busca por el nombre y no por lo que hay en la mano
+ * porque al recuperar la sesión la placa vuelve puesta sin que nadie la haya cogido.
+ *
+ * Una anatómica, una en T o en L no tienen sistema de placa recta: no se cambian por otra de otros agujeros, se retiran.
+ */
+export function sistemaDeLaPlacaPuesta(
+  nombre: string,
+  bandeja: readonly { nombre: string; slug?: string | null }[],
+): SistemaDePlacaRecta | undefined {
+  return (
+    sistemaDelSlug(bandeja.find((i) => i.nombre === nombre)?.slug) ??
+    SISTEMAS_DE_PLACA_RECTA.find((s) => nombre === s.nombre || nombre.startsWith(`${s.nombre} ·`))
+  )
+}
+
+/** De cuántos agujeros se puede pedir una placa recta: todos los que el catálogo admite. */
+export function agujerosQueSePuedenPedir(): number[] {
+  return Array.from({ length: AGUJEROS_MAXIMOS - AGUJEROS_MINIMOS + 1 }, (_, i) => AGUJEROS_MINIMOS + i)
+}
+
 /** Lo que mide la placa del sistema con esos agujeros y su distancia de siempre. */
 export function largoDeCatalogoMm(s: SistemaDePlacaRecta, agujeros: number): number {
   return agujeros * s.pasoMm + s.extremosMm
@@ -188,6 +211,25 @@ export function placaRectaDelId(id: string | null | undefined): PlacaRecta | nul
   if (!id || !id.startsWith(PREFIJO_DEL_ID)) return null
   const [sistema, agujeros] = id.slice(PREFIJO_DEL_ID.length).split(':')
   return placaRecta(sistema ?? '', Number(agujeros))
+}
+
+/**
+ * Con qué instrumento del catálogo cuenta un paso lo que hay en la mano: una placa elegida por sus agujeros vale por la
+ * placa de catálogo de su sistema; cualquier otra cosa, por sí misma. `null` si es una placa a medida cuyo sistema no tiene
+ * placa en el catálogo (la LCP 2,4, la DCP 3,5…).
+ *
+ * Existía solo para el editor (P-008 E3), que marca instrumentos del catálogo en el paso. El paso del residente comparaba
+ * el identificador tal cual, `placa-recta:lcp-3-5:8:…` contra el número del catálogo, y la placa correcta elegida por sus
+ * agujeros salía «no es el instrumento de este paso» (P-013, pedido 4). Cuántos agujeros lleva es decisión del residente:
+ * lo que pide el paso es el sistema.
+ */
+export function idDelCatalogoParaElPaso(
+  id: string | null,
+  catalogo: readonly { id: string; slug?: string | null }[],
+): string | null {
+  const placa = placaRectaDelId(id)
+  if (!placa) return id
+  return catalogo.find((i) => i.slug === placa.sistema.slug)?.id ?? null
 }
 
 export interface OfertaDePlacaRecta {

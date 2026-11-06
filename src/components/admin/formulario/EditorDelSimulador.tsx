@@ -26,7 +26,8 @@ import {
   type PiezaEnEdicion,
   type RolDePieza,
 } from '@/lib/piezasDelCaso'
-import { CLAVE_DE_FILA, nuevaClave } from '@/admin/identidadDeBloques'
+import { CLAVE_DE_FILA, claveEstable, nuevaClave } from '@/admin/identidadDeBloques'
+import { PanelDeGrabacion, useGrabadoraDelPaso } from './GrabadoraDelPaso'
 import { FilaDeCampos, valoresPorOmision, type Relaciones } from './Campos'
 import { transformacionValida, yaEstaEnSuSitio, type ResultadoDeLaReduccion, type TransformacionRigida } from '@/lib/reduccionAutomatica'
 import { PasosEntreCirugias } from './PasosEntreCirugias'
@@ -198,6 +199,22 @@ export function EditorDelSimulador({
 
   const escribirVariosDelPaso = (cambios: Fila) =>
     escribirPasos(pasos.map((p, i) => (i === indiceVigente ? { ...p, ...cambios } : p)))
+
+  // La grabación de la demostración (P-013, pedido 11) termina de subir segundos o minutos después de pulsar, y para
+  // entonces puede estar abierto otro paso, o haberse escrito en este: se escribe sobre los pasos de ese momento, y en
+  // el paso por su clave, no en el abierto. Es lo que hace `escritorPorClave` con los bloques, por la misma razón.
+  const pasosVigentes = useRef({ pasos, escribirPasos })
+  useEffect(() => {
+    pasosVigentes.current = { pasos, escribirPasos }
+  }, [pasos, escribirPasos])
+  const escribirEnElPaso = useCallback((clave: string, cambios: Fila) => {
+    const { pasos: ahora, escribirPasos: escribir } = pasosVigentes.current
+    const i = ahora.findIndex((p) => claveEstable(p) === clave)
+    if (i < 0) return false
+    escribir(ahora.map((p, j) => (j === i ? { ...p, ...cambios } : p)))
+    return true
+  }, [])
+  const grabadora = useGrabadoraDelPaso(mando)
 
   const anadirPaso = () => {
     const nuevo = { ...valoresPorOmision(camposDelPaso), [CLAVE_DE_FILA]: nuevaClave() }
@@ -445,6 +462,12 @@ export function EditorDelSimulador({
             vivo={vivo}
             mando={mando}
             escribir={escribirVariosDelPaso}
+          />
+          <PanelDeGrabacion
+            grabadora={grabadora}
+            paso={pasoActual}
+            numero={indiceVigente + 1}
+            escribirEnElPaso={escribirEnElPaso}
           />
         </div>
       ) : null}

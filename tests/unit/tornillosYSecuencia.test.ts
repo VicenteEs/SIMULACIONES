@@ -8,6 +8,7 @@ import {
   definicionDelTipo,
   diametrosDelTipo,
   instrumentoDeLaEtapa,
+  preferenciasDeLaPlacaFijada,
   siguienteDeLaSecuencia,
   textoDeLaSecuencia,
   tipoDeTornilloValido,
@@ -16,6 +17,7 @@ import {
 } from '@/lib/tornillos'
 import { colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, colocarTornillo, colocarPlaca } from '@/components/simulador/implantesEnLaEscena'
 import { AGUJERO_VIRGEN, calibreDeBrocaParaElTornillo, loQueFaltaPara } from '@/lib/fijacion'
+import { diametroDelTornilloDeLaPlaca } from '@/lib/compresion'
 import { Instrumental } from '@/collections/catalogos'
 import { Instrumental as InstrumentalEsquema, camposDe } from '@/admin/esquema'
 import { casoParaLaConsola } from '@/lib/casoQuirurgico'
@@ -168,6 +170,90 @@ describe('instrumentoDeLaEtapa', () => {
     const sinMedidor = bandeja.filter((i) => i.id !== 'med')
     expect(instrumentoDeLaEtapa('medir', sinMedidor, que)).toBeNull()
     expect(instrumentoDeLaEtapa('atornillar', [], que)).toBeNull()
+  })
+})
+
+describe('la placa fijada abre la secuencia con su broca (P-013, pedido 3)', () => {
+  type C = { id: string; nombre: string; hace: QueHaceElCandidato }
+  const bandeja: C[] = [
+    { id: 'b25', nombre: 'Broca 2,5', hace: { perfora: true, mide: false, tornillo: false, diametroMm: 2.5 } },
+    { id: 'b28', nombre: 'Broca 2,8', hace: { perfora: true, mide: false, tornillo: false, diametroMm: 2.8 } },
+    { id: 'b32', nombre: 'Broca 3,2', hace: { perfora: true, mide: false, tornillo: false, diametroMm: 3.2 } },
+  ]
+  const que = (i: C) => i.hace
+
+  it('el sistema de la placa y cortical: la de 2,5 en una 3,5 y la de 3,2 en una 4,5, aunque sea de orificios combinados', () => {
+    expect(instrumentoDeLaEtapa('brocar', bandeja, que, preferenciasDeLaPlacaFijada(diametroDelTornilloDeLaPlaca('Placa LCP recta 3,5'), null))?.id).toBe('b25')
+    expect(instrumentoDeLaEtapa('brocar', bandeja, que, preferenciasDeLaPlacaFijada(diametroDelTornilloDeLaPlaca('Placa DCP 4,5'), null))?.id).toBe('b32')
+  })
+
+  it('si ya hubo un tornillo de ese sistema, manda el último; uno de otro diámetro no cuenta', () => {
+    const bloqueado = { id: 't-lcp', diametroMm: 3.5, clase: { bloqueado: true } }
+    expect(instrumentoDeLaEtapa('brocar', bandeja, que, preferenciasDeLaPlacaFijada(3.5, bloqueado))?.id).toBe('b28')
+    expect(preferenciasDeLaPlacaFijada(4.5, bloqueado)).toEqual({ ultimoTornilloId: null, diametroDelTornilloMm: 4.5, claseDelTornillo: { tipo: 'cortical' } })
+  })
+
+  it('la consola sigue hasta poner la broca en la mano solo con la placa fijada, y en evaluación no (D-314)', () => {
+    const consola = readFileSync(join(process.cwd(), 'src/components/simulador/ConsolaQuirurgica.tsx'), 'utf8')
+    const avanzar = consola.slice(consola.indexOf('const avanzarLaSecuencia = '), consola.indexOf('/** La trayectoria de un tornillo con dos clics'))
+    expect(avanzar).toContain("const placaFijada = suceso.tipo === 'placa' && !!estado?.placa?.fijada")
+    expect(avanzar).toContain("if (suceso.tipo === 'placa' && !placaFijada) {")
+    expect(avanzar).toContain('preferenciasDeLaPlacaFijada(diametroDelTornilloDeLaPlaca(estado.placa.nombre)')
+    expect(avanzar.indexOf('if (!enPractica) return')).toBeLessThan(avanzar.indexOf('preferenciasDeLaPlacaFijada('))
+  })
+})
+
+describe('el tornillo que entra en lo perforado (P-013)', () => {
+  type C = { id: string; nombre: string; hace: QueHaceElCandidato }
+  // El bloqueado va primero a propósito: así venía la bandeja del caso en que se vio el fallo.
+  const bandeja: C[] = [
+    { id: 'lcp35', nombre: 'Tornillo bloqueado LCP 3,5', hace: { perfora: false, mide: false, tornillo: true, diametroMm: 3.5, clase: { tipo: 'bloqueado', bloqueado: true } } },
+    { id: 'esp40', nombre: 'Tornillo de esponjosa 4,0', hace: { perfora: false, mide: false, tornillo: true, diametroMm: 4, clase: { tipo: 'esponjosa' } } },
+    { id: 'cor35', nombre: 'Tornillo cortical 3,5', hace: { perfora: false, mide: false, tornillo: true, diametroMm: 3.5, clase: { tipo: 'cortical' } } },
+    { id: 'cor45', nombre: 'Tornillo cortical 4,5', hace: { perfora: false, mide: false, tornillo: true, diametroMm: 4.5, clase: { tipo: 'cortical' } } },
+  ]
+  const que = (i: C) => i.hace
+  const tercioDeCana = preferenciasDeLaPlacaFijada(diametroDelTornilloDeLaPlaca('Placa de tercio de caña 3,5 mm'), null)
+
+  it('en una de tercio de caña, el cortical de 3,5 y no el primero de la bandeja', () => {
+    expect(instrumentoDeLaEtapa('atornillar', bandeja, que, tercioDeCana)?.id).toBe('cor35')
+    expect(instrumentoDeLaEtapa('atornillar', bandeja, que, { ...tercioDeCana, brocaDelOrificioMm: 2.5 })?.id).toBe('cor35')
+  })
+
+  it('lo perforado manda: en lo hecho con la de 2,8 entra el bloqueado, aunque el último fuera un cortical', () => {
+    const despuesDeUnCortical = { ultimoTornilloId: 'cor35', diametroDelTornilloMm: 3.5, claseDelTornillo: { tipo: 'cortical' as const } }
+    expect(instrumentoDeLaEtapa('atornillar', bandeja, que, { ...despuesDeUnCortical, brocaDelOrificioMm: 2.8 })?.id).toBe('lcp35')
+  })
+
+  it('el último que se usó sigue mandando si entra en lo perforado', () => {
+    // El de esponjosa de 4,0 y el cortical de 3,5 llevan la misma broca, la de 2,5.
+    expect(instrumentoDeLaEtapa('atornillar', bandeja, que, { ...tercioDeCana, ultimoTornilloId: 'esp40', brocaDelOrificioMm: 2.5 })?.id).toBe('esp40')
+  })
+
+  it('con una broca que no es de ningún tornillo de la bandeja, se elige entre todos, como antes', () => {
+    expect(instrumentoDeLaEtapa('atornillar', bandeja, que, { ultimoTornilloId: 'cor45', brocaDelOrificioMm: 2 })?.id).toBe('cor45')
+    expect(instrumentoDeLaEtapa('atornillar', bandeja, que, { brocaDelOrificioMm: 2 })?.id).toBe('lcp35')
+  })
+
+  it('la consola pasa lo perforado y la clase de cada tornillo, y la placa manda en todos sus orificios', () => {
+    const consola = readFileSync(join(process.cwd(), 'src/components/simulador/ConsolaQuirurgica.tsx'), 'utf8')
+    const avanzar = consola.slice(consola.indexOf('const avanzarLaSecuencia = '), consola.indexOf('/** La trayectoria de un tornillo con dos clics'))
+    expect(avanzar).toContain('const sobreLaPlaca = !suceso.libre && !!estado?.placa?.fijada')
+    expect(avanzar).toContain('brocaDelOrificioMm: delObjetivo?.perforado?.diametroMm ?? null')
+    expect(avanzar).toContain("clase: c.coloca?.tipo === 'tornillo' ? claseDelTornillo(c.coloca, tipoDelTornillo(i)) : undefined")
+  })
+})
+
+describe('la frase de la secuencia (P-013)', () => {
+  it('antes del primer tornillo, «Primero se broca»; con uno puesto, «Orificio terminado»', () => {
+    expect(textoDeLaSecuencia('brocar', false)).toBe('Primero se broca.')
+    expect(textoDeLaSecuencia('brocar', true)).toMatch(/^Orificio terminado/)
+  })
+
+  it('la consola lo decide por los tornillos puestos y no por lo que ofrece la bandeja, que desde el pedido 3 incluye la broca al fijar', () => {
+    const consola = readFileSync(join(process.cwd(), 'src/components/simulador/ConsolaQuirurgica.tsx'), 'utf8')
+    expect(consola).toContain('textoDeLaSecuencia(etapaDeFijacion, (fijacion?.tornillos.length ?? 0) > 0)')
+    expect(consola).not.toContain('textoDeLaSecuencia(etapaDeFijacion, siguienteEnLaBandeja !== null)')
   })
 })
 

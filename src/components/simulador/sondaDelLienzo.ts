@@ -5,7 +5,15 @@ import { labioDelSeparador, labioEnLaPosicion, type SeparadorEnEscena } from './
 import { sitioEnLaHerida, type HeridaEnCapa } from './heridas'
 import { ejeDeLaPlaca, posicionDelAgujero, type ImplantesEnEscena, type PlacaColocada } from './implantesEnLaEscena'
 import { poseActual } from './vistaDelPaciente'
+import {
+  abultamientoMaximoMm,
+  apagarElAbultamiento,
+  dondeSubioMas,
+  ultimaCuentaDeLaPiel,
+  type CuentaDeLaPiel,
+} from './abultamientoEnLaEscena'
 import type { EncuadreDelPaso } from '@/lib/encuadreDelPaso'
+import type { PuntoDeSutura } from '@/lib/sutura'
 
 /**
  * Una sonda del lienzo para las pruebas de extremo a extremo y las grabaciones del instrumental. **Solo en
@@ -33,6 +41,10 @@ export interface LoQueVeLaSonda {
   implantes?: ImplantesEnEscena
   /** Las mallas de hueso visibles, las mismas en que se apoya la placa: contra ellas se mide su asiento (P-009). */
   huesos?: THREE.Mesh[]
+  /** Las mallas de piel: para medir cuánto se abultaron sobre lo que las empuja (P-013, pedidos 1 y 8). */
+  pieles?: THREE.Mesh[]
+  /** Lo cosido: para medir cómo reparte las puntadas un cierre de un clic (P-013, pedido 16). */
+  sutura?: { puntos: readonly PuntoDeSutura[] }
   milimetrosPorUnidad: number
 }
 
@@ -230,6 +242,74 @@ function puntoDe(v: LoQueVeLaSonda, nodo: string, alto: number): THREE.Vector3 |
 
 export function crearLaSonda(leer: () => LoQueVeLaSonda) {
   return {
+    /**
+     * Cuánto subió cada malla de piel sobre lo que la empuja, en mm (P-013, pedidos 1 y 8): con la placa puesta y la piel
+     * cerrada, o con el trozo desplazado contra la piel sana, tiene que ser más que cero.
+     */
+    /** Lo que costó la última vez que la piel se puso al día: tiene que caber en un cuadro mientras se arrastra un trozo. */
+    cuentaDeLaPiel(): CuentaDeLaPiel | null {
+      return ultimaCuentaDeLaPiel()
+    },
+    /**
+     * Encuadra la cámara donde más subió la piel, mirando de medio lado (`deLado`, de 0 de frente a 1 de perfil) para que
+     * se vea el bulto contra el fondo. Devuelve si había bulto.
+     */
+    mirarElAbultamiento(distanciaMm = 220, deLado = 0.75): boolean {
+      const v = leer()
+      const donde = (v.pieles ?? []).map((m) => dondeSubioMas(m)).find(Boolean)
+      if (!donde || !v.camara || !v.controles) return false
+      const lado = new THREE.Vector3().crossVectors(donde.haciaFuera, new THREE.Vector3(0, 1, 0))
+      if (lado.lengthSq() < 1e-6) lado.set(1, 0, 0)
+      const desde = donde.haciaFuera.clone().multiplyScalar(1 - deLado).add(lado.normalize().multiplyScalar(deLado)).normalize()
+      v.controles.target.copy(donde.punto)
+      v.camara.position.copy(donde.punto).addScaledVector(desde, distanciaMm / (v.milimetrosPorUnidad || 1000))
+      v.controles.update()
+      v.pedirDibujo?.()
+      return true
+    },
+    /** Apaga o enciende el abultamiento, para ver la misma escena con y sin él. */
+    abultarLaPiel(si: boolean): void {
+      apagarElAbultamiento(!si)
+      leer().pedirDibujo?.()
+    },
+    abultamientoDeLaPiel(): { nodo: string; mm: number }[] {
+      const v = leer()
+      return (v.pieles ?? []).map((m) => ({ nodo: m.name, mm: Math.round(abultamientoMaximoMm(m, v.milimetrosPorUnidad || 1000) * 10) / 10 }))
+    },
+    /**
+     * Las puntadas cosidas, en orden, con su plano, su lado y cuánto las separa de la anterior de su línea, en mm y donde se
+     * picaron. Es lo que deja comprobar que el cierre de un clic las reparte parejas (P-013, pedido 16): en una captura se
+     * ven, pero no se miden.
+     */
+    puntadas(): { plano: string; lado: number; asistida: boolean; separacionMm: number | null; t: number | null; alLabioMm: number | null }[] {
+      const v = leer()
+      const puntos = v.sutura?.puntos ?? []
+      const mm = v.milimetrosPorUnidad || 1000
+      const de = (q: PuntoDeSutura) => q.base ?? q.punto
+      return puntos.map((p, i) => {
+        const a = i > 0 && !p.nuevaLinea ? de(puntos[i - 1]) : null
+        const b = de(p)
+        const separacionMm = a ? Math.round(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) * mm * 10) / 10 : null
+        // A cuánto queda del borde de su labio: la mordida, que en un cierre de un clic es de 3 a 4 mm.
+        const h = p.ref ? [...(v.heridas?.values() ?? [])].flat().find((x) => x.malla.uuid === p.ref!.malla) : undefined
+        const alLabioMm = h ? Math.round(alLabio(h, p.lado, new THREE.Vector3(...b)) * mm * 10) / 10 : null
+        return { plano: p.plano ?? 'piel', lado: p.lado, asistida: !!p.asistida, separacionMm, t: typeof p.ref?.t === 'number' ? Math.round(p.ref.t * 1000) / 1000 : null, alLabioMm }
+      })
+    },
+    /**
+     * Todo lo que toca el rayo de la cámara en ese punto de la pantalla, del más cercano al más lejano, también lo oculto.
+     * Cuando un clic en el lienzo «no hace nada», casi siempre es que el rayo no dio en lo que se ve, y desde fuera eso no
+     * se distingue de un manejador que no llegó a correr.
+     */
+    golpesEn(x: number, y: number): { nodo: string; visible: boolean; distanciaMm: number }[] {
+      const v = leer()
+      if (!v.render || !v.camara || !v.raiz) return []
+      const caja = v.render.domElement.getBoundingClientRect()
+      const rayo = new THREE.Raycaster()
+      rayo.setFromCamera(new THREE.Vector2(((x - caja.left) / caja.width) * 2 - 1, -((y - caja.top) / caja.height) * 2 + 1), v.camara)
+      const mm = v.milimetrosPorUnidad || 1000
+      return rayo.intersectObject(v.raiz, true).map((g) => ({ nodo: g.object.name, visible: g.object.visible, distanciaMm: Math.round(g.distance * mm * 10) / 10 }))
+    },
     /**
      * Lleva la cámara a mirar ese punto desde `distanciaMm`, por el mismo lado desde el que mira ahora. Es el
      * encuadre de quien se acerca a la herida antes de operar; un vídeo con la pierna entera no enseña nada.

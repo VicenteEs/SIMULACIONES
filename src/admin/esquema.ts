@@ -1058,10 +1058,13 @@ export const Cirugias: EsquemaDeColeccion = {
             {
               tipo: 'archivo',
               nombre: 'demostracion',
-              etiqueta: 'Demostración (de 3 a 5 s)',
+              // Sin «de 3 a 5 s» desde P-013 (pedido 11): grabada con sus cuadros explicativos, una demostración dura lo
+              // que tarde en explicarse el gesto.
+              etiqueta: 'Demostración',
               coleccion: 'medios',
               acepta: 'image/webp,video/mp4,video/webm',
-              ayuda: 'Un WebP animado o un vídeo corto del gesto. Solo se ve en práctica.',
+              ayuda:
+                'Un WebP animado o un vídeo del gesto. Se graba desde aquí, con «Grabar la demostración» al pie del paso. Solo se ve en práctica.',
             },
             { tipo: 'area', nombre: 'exito', etiqueta: 'Si lo hace bien' },
             { tipo: 'area', nombre: 'insuficiente', etiqueta: 'Si se queda corto' },

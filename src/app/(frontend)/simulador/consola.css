@@ -195,8 +195,10 @@
 
 /* «Reiniciar» sin relleno, apartado del marcador y rojo solo al pasar por
    encima: es el único botón de la consola cuyo clic accidental se pierde el
-   recorrido (por eso además pregunta antes). */
-.consola-reiniciar {
+   recorrido (por eso además pregunta antes). «Terminar la cirugía» (P-013, pedido 2) lleva su misma forma
+   al lado, pero se enciende con el acento y no con el rojo: no borra nada. */
+.consola-reiniciar,
+.consola-terminar {
   display: inline-flex;
   align-items: center;
   gap: var(--e-2);
@@ -212,6 +214,7 @@
   transition: color var(--dur-rapida) var(--curva), border-color var(--dur-rapida) var(--curva);
 }
 .consola-reiniciar:hover { color: var(--c-grave); border-color: var(--c-grave); }
+.consola-terminar:hover { color: var(--c-acento); border-color: var(--c-acento); }
 
 /* ---------- pasos: la barra de progreso del caso ---------- */
 .consola-pasos {
@@ -1415,6 +1418,8 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
   .consola-datos dt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .consola-datos dd { margin: 0; font-size: var(--t-xs); font-weight: 600; color: var(--c-texto-2); }
   .consola-reiniciar { grid-area: reiniciar; font-size: var(--t-xs); }
+  /* En el móvil, una fila propia debajo: en la de «Reiniciar» se montaban uno sobre el otro. */
+  .consola-terminar { grid-column: 1 / -1; justify-content: center; font-size: var(--t-xs); }
 
   .consola-pasos-fila { order: 1; }
   .consola-pasos { padding: var(--e-2) var(--e-4); }
@@ -1608,7 +1613,8 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
   .consola-titulo { font-size: var(--t-base); }
   .consola-insignia { width: 32px; height: 32px; }
   .consola-puntaje-numero { font-size: 28px; }
-  .consola-reiniciar { min-height: 34px; }
+  .consola-reiniciar,
+  .consola-terminar { min-height: 34px; }
   .consola-pasos { padding: var(--e-1) var(--e-5); }
   .consola-paso { flex-basis: 132px; padding: var(--e-1) var(--e-2) var(--e-1) 0; }
 
@@ -1648,7 +1654,8 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
   .consola-datos > div { min-width: 0; }
   .consola-datos dd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 18ch; }
   .consola-marcador { flex: none; min-width: 96px; }
-  .consola-reiniciar { flex: none; }
+  .consola-reiniciar,
+  .consola-terminar { flex: none; }
 
   /* El modo, el lienzo y las capas son lo que más se toca: se aprietan los botones del modo. */
   .consola-modo { min-height: 48px; }
@@ -2206,6 +2213,203 @@ body:has(.consola-completa) { overflow: hidden; }
   .consola-eleccion-tarjeta { padding: var(--e-4) var(--e-3); }
 }
 
+/* El cuadro «Reducción manual / Reducción automática» (P-013, pedido 12): encima del lienzo y centrado, sin fondo que lo
+   tape, porque mientras se lee hay que ver el fragmento que se va a reducir. Lo que cuesta va en el botón; lo que explica,
+   debajo, con el botón que se está mirando marcado. */
+.consola-cuadro-reduccion {
+  position: absolute;
+  z-index: 9;
+  top: var(--e-4);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100% - 2 * var(--e-3)));
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  color: var(--c-texto);
+  background: var(--c-panel);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.consola-cuadro-reduccion-cabecera { display: flex; align-items: center; justify-content: space-between; gap: var(--e-2); }
+.consola-cuadro-reduccion-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: var(--e-2); }
+.consola-cuadro-reduccion-opcion {
+  display: grid;
+  justify-items: center;
+  gap: var(--e-1);
+  min-height: 96px;
+  padding: var(--e-3) var(--e-2);
+  font: inherit;
+  text-align: center;
+  color: var(--c-texto);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.consola-cuadro-reduccion-opcion:hover,
+.consola-cuadro-reduccion-opcion:focus-visible,
+.consola-cuadro-reduccion-opcion.explicando { border-color: var(--c-acento); box-shadow: inset 0 0 0 1px var(--c-acento); }
+.consola-cuadro-reduccion-titulo { font-weight: 600; }
+.consola-cuadro-reduccion-costo { font-size: var(--t-xs); color: var(--c-texto-2); }
+.consola-cuadro-reduccion-explicacion { margin: 0; font-size: var(--t-sm); line-height: 1.45; color: var(--c-texto-2); }
+/* El cuadro «Cerrar la herida» (P-013, pedido 16): abajo a la izquierda, porque el clic que cierra es sobre la herida, que
+   queda en el centro del lienzo. */
+.consola-cuadro-cierre {
+  position: absolute;
+  z-index: 9;
+  left: var(--e-3);
+  bottom: var(--e-3);
+  width: min(340px, calc(100% - 2 * var(--e-3)));
+  max-height: calc(100% - 2 * var(--e-3));
+  overflow-y: auto;
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  color: var(--c-texto);
+  background: var(--c-panel);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.consola-cuadro-cierre-ayuda,
+.consola-cuadro-cierre-nota,
+.consola-cuadro-cierre-descripcion { margin: 0; font-size: var(--t-sm); line-height: 1.45; color: var(--c-texto-2); }
+.consola-cuadro-cierre-nota { font-size: var(--t-xs); }
+.consola-cuadro-cierre-plano {
+  display: grid;
+  gap: var(--e-2);
+  margin: 0;
+  padding: var(--e-2) var(--e-3) var(--e-3);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+  background: var(--c-panel-2);
+}
+.consola-cuadro-cierre-plano.armado { border-color: var(--c-acento); box-shadow: inset 0 0 0 1px var(--c-acento); }
+.consola-cuadro-cierre-plano legend { padding: 0 var(--e-1); font-weight: 600; }
+.consola-cuadro-cierre-estado { font-weight: 400; color: var(--c-texto-2); }
+.consola-cuadro-cierre-hilos { display: flex; flex-wrap: wrap; gap: var(--e-1); }
+.consola-cuadro-cierre-hilo {
+  padding: var(--e-1) var(--e-2);
+  font: inherit;
+  font-size: var(--t-sm);
+  color: var(--c-texto);
+  background: var(--c-panel);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.consola-cuadro-cierre-hilo:hover,
+.consola-cuadro-cierre-hilo:focus-visible { border-color: var(--c-acento); }
+.consola-cuadro-cierre-hilo.elegido { border-color: var(--c-acento); background: color-mix(in srgb, var(--c-acento) 18%, var(--c-panel)); }
+.consola-cuadro-cierre-calibre { display: flex; align-items: center; gap: var(--e-2); font-size: var(--t-sm); }
+.consola-cuadro-cierre-calibre select { font: inherit; color: var(--c-texto); background: var(--c-panel); border: 1px solid var(--c-linea); border-radius: var(--r); padding: 2px var(--e-1); }
+@media (max-width: 600px) {
+  .consola-cuadro-reduccion-opciones { grid-template-columns: 1fr; }
+  .consola-cuadro-reduccion-opcion { min-height: 0; }
+}
+
+/* El menú de lo puesto en el paciente (P-013, pedidos 7 y 14). Fijo a la ventana y no al lienzo: se abre también desde
+   la lista «En uso» de la mesa, que queda fuera del lienzo. Por encima del cuadro de la reducción y del aro: es lo último que
+   se abrió. El fondo, invisible, se come el clic que lo cierra, como el del aro. */
+.consola-menu-objeto-fondo { position: fixed; inset: 0; z-index: 30; }
+.consola-menu-objeto {
+  position: fixed;
+  z-index: 31;
+  display: grid;
+  gap: 2px;
+  width: min(290px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: var(--e-2);
+  color: var(--c-texto);
+  background: var(--c-panel);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.consola-menu-objeto-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+  padding: 0 0 var(--e-1) var(--e-1);
+  margin-bottom: var(--e-1);
+  border-bottom: 1px solid var(--c-linea);
+}
+.consola-menu-objeto-cabecera strong { font-size: var(--t-sm); line-height: 1.3; }
+.consola-menu-objeto-boton {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  padding: var(--e-1) var(--e-2);
+  font: inherit;
+  font-size: var(--t-sm);
+  text-align: left;
+  color: var(--c-texto);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.consola-menu-objeto-boton:hover,
+.consola-menu-objeto-boton:focus-visible { background: var(--c-acento-tenue); border-color: var(--c-acento); outline: none; }
+/* «Retirar» va siempre al final, separado y en el tono de lo grave: es lo único del menú que saca algo del paciente. */
+.consola-menu-objeto-boton.retirar { margin-top: var(--e-1); color: var(--c-grave); border-top-color: var(--c-linea); border-radius: 0 0 var(--r-sm) var(--r-sm); }
+.consola-menu-objeto-boton.retirar:hover,
+.consola-menu-objeto-boton.retirar:focus-visible { background: rgba(255, 154, 143, 0.12); border-color: var(--c-grave); border-radius: var(--r-sm); }
+.consola-menu-objeto-deslizador { display: grid; gap: 2px; padding: var(--e-1) var(--e-2); font-size: var(--t-sm); }
+.consola-menu-objeto-deslizador output { font-variant-numeric: tabular-nums; color: var(--c-acento); }
+.consola-menu-objeto-deslizador input { width: 100%; accent-color: var(--c-acento-solido); }
+.consola-menu-objeto-cambiar { display: grid; gap: var(--e-1); padding: var(--e-1) var(--e-2); }
+.consola-menu-objeto-rotulo { font-size: var(--t-sm); }
+.consola-menu-objeto-opciones { display: flex; flex-wrap: wrap; gap: 4px; }
+.consola-menu-objeto-opcion {
+  min-width: 40px;
+  min-height: 30px;
+  padding: 2px var(--e-2);
+  font: inherit;
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-texto-2);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r-full);
+  cursor: pointer;
+}
+.consola-menu-objeto-opcion:hover,
+.consola-menu-objeto-opcion:focus-visible { color: var(--c-texto); border-color: var(--c-acento); outline: none; }
+/* La puesta no se elige (sería cambiarla por sí misma), pero se ve dónde está; la que pidió el medidor, con su borde verde. */
+.consola-menu-objeto-opcion.actual { color: var(--c-texto); background: var(--c-acento-tenue); border-color: var(--c-acento); cursor: default; }
+.consola-menu-objeto-opcion.sugerida { border-color: var(--c-bien); color: var(--c-bien); }
+
+/* «En uso en el paciente» (P-013, pedido 14), debajo de «En la mano»: una fila por cosa puesta, que abre su menú. */
+/* El mínimo en cero y la pista que puede encogerse: sin ellos el renglón más largo, que no se parte («Placa de tercio de
+   caña 3,5 mm · 6 agujeros · 78 mm»), fijaba el ancho de la columna de la bandeja, que es una rejilla, y la mesa entera se
+   desbordaba de lado: la cabecera perdía su botón de plegar y «Soltar» quedaba cortado. */
+.barra-instrumental-en-uso { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--e-1); min-width: 0; }
+.barra-instrumental-en-uso .consola-rotulo { font-size: 10px; }
+.barra-instrumental-en-uso ul { display: flex; flex-wrap: wrap; gap: var(--e-1); margin: 0; padding: 0; list-style: none; }
+.barra-instrumental-en-uso li { min-width: 0; max-width: 100%; }
+.barra-instrumental-en-uso-fila {
+  max-width: 100%;
+  min-height: 30px;
+  padding: 2px var(--e-2);
+  overflow: hidden;
+  font: inherit;
+  font-size: var(--t-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--c-texto-2);
+  background: var(--c-panel-2);
+  border: 1px solid var(--c-linea);
+  border-radius: var(--r-full);
+  cursor: pointer;
+}
+.barra-instrumental-en-uso-fila:hover { color: var(--c-texto); border-color: var(--c-linea-fuerte); }
+.barra-instrumental-en-uso-fila.abierto { color: var(--c-texto); background: var(--c-acento-tenue); border-color: var(--c-acento); }
+
 /* El menú radial del botón derecho: los cinco últimos instrumentos en aro, alrededor del cursor. El fondo, invisible, se
    come el clic que lo cierra para que no llegue al paciente. */
 .consola-menu-radial-fondo { position: absolute; inset: 0; z-index: 7; }
@@ -2367,21 +2571,74 @@ body:has(.consola-completa) { overflow: hidden; }
 }
 .consola-demostracion img,
 .consola-demostracion video { display: block; width: 100%; height: auto; max-height: 220px; object-fit: contain; }
+/* Una franja bajo el vídeo y no una pastilla encima (P-013, pedido 11): encima tapaba el cuadro explicativo que el
+   editor graba abajo. */
 .consola-demostracion figcaption {
-  position: absolute;
-  left: var(--e-2);
-  bottom: var(--e-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+  padding: 4px var(--e-2);
+  background: var(--c-panel-2);
+  border-top: 1px solid var(--c-linea);
+}
+.consola-demostracion figcaption > span {
   display: inline-flex;
   align-items: center;
   gap: var(--e-1);
-  padding: 2px var(--e-2);
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--c-texto);
-  background: rgba(15, 23, 41, 0.82);
-  border-radius: var(--r-full);
+}
+/* «Ver en grande» (P-013, pedido 11): con cuadros explicativos dentro, a 220 px de alto la letra cuesta. */
+.consola-demostracion-ampliar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  min-height: 26px;
+  padding: 0 var(--e-2);
+  font: inherit;
+  font-size: var(--t-xs);
+  color: var(--c-texto);
+  background: transparent;
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.consola-demostracion-ampliar:hover,
+.consola-demostracion-ampliar:focus-visible { color: var(--c-acento); border-color: var(--c-acento); }
+.consola-demostracion-velo {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--e-4);
+  background: rgba(5, 9, 18, 0.78);
+}
+.consola-demostracion-grande {
+  display: grid;
+  gap: var(--e-2);
+  width: min(1100px, 100%);
+  max-height: 100%;
+  padding: var(--e-3);
+  color: var(--c-texto);
+  background: var(--c-panel);
+  border: 1px solid var(--c-linea-fuerte);
+  border-radius: var(--r-lg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.consola-demostracion-grande-cabecera { display: flex; align-items: center; justify-content: space-between; gap: var(--e-2); }
+.consola-demostracion-grande video,
+.consola-demostracion-grande img {
+  display: block;
+  width: 100%;
+  max-height: calc(100vh - 140px);
+  object-fit: contain;
+  background: #000;
+  border-radius: var(--r);
 }
 
 /* Lo que pide el paso, marcándose solo. El estado va en el icono y en la palabra oculta para el lector de pantalla; el

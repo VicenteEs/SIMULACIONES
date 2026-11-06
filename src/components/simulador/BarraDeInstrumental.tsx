@@ -45,6 +45,7 @@ export function BarraDeInstrumental({
   alSoltar,
   lista,
   pie,
+  enUso,
   vacia,
 }: {
   /** Lo que va junto al título: en la consola del residente, «Plegar la mesa» (P-012 E5). */
@@ -67,6 +68,12 @@ export function BarraDeInstrumental({
   lista: (familia: FamiliaDeLaMesa) => ReactNode
   /** Lo del editor, debajo de la mesa: qué ve el residente y añadir a la bandeja. */
   pie?: ReactNode
+  /**
+   * Lo puesto en el paciente, debajo de lo que hay en la mano (P-013, pedido 14: «instrumental en uso»): cada cosa abre su
+   * menú. Va aquí porque es la otra mitad de la misma pregunta —qué tengo y qué dejé puesto—, y no en la ficha de la
+   * herramienta, que cambia con cada instrumento.
+   */
+  enUso?: ReactNode
   /** Lo que se dice con la bandeja vacía. */
   vacia?: ReactNode
 }) {
@@ -131,6 +138,8 @@ export function BarraDeInstrumental({
           </button>
         ) : null}
       </div>
+
+      {enUso}
 
       {siguiente ? (
         <button

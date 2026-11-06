@@ -10356,6 +10356,323 @@ No eran agujeros. Cada trozo traía cuatro aristas con cuatro triángulos cada u
 - (−) Un punto de corte puede quedar hasta una micra fuera de su sitio exacto. Nadie lo ve, por lo mismo que `HOLGURA`.
 - (−) Si todos los cortes alrededor de un vértice caen a menos de una micra entre sí, ese pico no sale como un trozo aparte: se pierde. Es un pico más fino que una micra.
 
+### D-340 · 2026-11-06 · vigente · pedidos 1 y 8 de P-013
+**La piel se hincha sobre lo que tiene debajo: la placa, los tornillos y los trozos de hueso que se movieron. Antes, la piel cerrada dejaba la placa o el fragmento por fuera.**
+
+*De dónde sale.* Dos pedidos de Cristóbal que son el mismo problema:
+- 1: «al cerrar, la mitad de la placa quedó afuera de la piel».
+- 8: «hacer que la piel se hinche y no que el fragmento óseo se salga por encima de ella».
+
+La piel del modelo está hecha para cubrir el hueso en su sitio. Una placa de 3 o 4 mm sobre un peroné con apenas piel encima, o un trozo desplazado, quedaban fuera, y cerrar la herida devolvía los labios a donde estaban.
+
+*Cómo se hizo.*
+- **La cuenta**, en `src/lib/abultamientoDeLaPiel.ts`, pura y en milímetros: cuánto sube cada vértice de la piel para que lo de debajo quede tapado.
+  - La cara de fuera queda 2,8 mm por encima de lo que empuja: los 2 mm de dermis y la holgura de dentro de D-331. La grasa se aplasta, que es lo que hace donde no cabe.
+  - Lo que sube un punto se reparte 12 mm a cada lado, en campana, con una meseta de 2,5 mm y 45° de pendiente como mucho. La piel se tiende sobre la placa como una sábana, sin pico en el borde.
+  - Sube 30 mm como mucho. Se probó con 50: el trozo distal del caso de prueba, desplazado 12,5 y 18 mm, asomaba 45 mm por el maléolo, y la piel se tendía hacia la otra pierna como una cortina. Un desplazamiento así es el de una fractura abierta, y así se ve.
+  - Lo que empuja se muestrea cada 3 mm. A 1,5 mm, la tibia distal desplazada costaba 27 ms en cada cuadro del arrastre.
+- **La escena**, en `abultamientoEnLaEscena.ts`. Es la última capa de lo que mueve la piel: se suma antes de cada dibujo, encima de lo que dejan la herida, los separadores y las puntadas, y se guarda la piel sin él. Así ninguno de esos tuvo que cambiar.
+  - `cortarCapa` lo quita antes de cortar: una herida cortada con el bulto dentro se cerraría abultada para siempre.
+  - La cara de dentro de la piel se marca al vestirla, antes de que la sesión devuelva sus heridas. Después del primer corte ya no se puede: la pared de la herida une las dos caras.
+- **Qué empuja.** La placa, los tornillos y los trozos que se mueven o traen posición reducida.
+  - El hueso quieto no: el modelo ya lo trae cubierto.
+  - Las agujas de Kirschner tampoco, porque salen de la piel a propósito; ni el clavo, que entra por su incisión.
+- **Qué sube.** Solo la piel vestida como piel. El caso pone la fascia superficial con el papel de «piel», porque se corta con ella, pero está debajo: con la holgura de la piel, saldría por encima de ella justo sobre la placa.
+- El hilo de la sutura se apoya en la piel abultada (`hiloEnLaEscena.ts`).
+
+*Qué se probó.* `abultamientoDeLaPiel.test.ts`. En el navegador, la misma vista sin el abultamiento y con él, que la sonda apaga para comparar:
+- Sobre la placa del peroné, el borde de la placa atraviesa la piel sin él y queda tapado con él. La piel subió hasta 13,3 mm.
+- Lo mismo con el fragmento distal desplazado (pedido 8).
+
+*Consecuencias.*
+- (+) Una placa bien puesta no sale por fuera de una piel cerrada, y un trozo mal reducido abulta en vez de atravesar.
+- (−) Pasados los 30 mm, el hueso se ve. Es a propósito.
+- (−) Las partes blandas no acompañan al trozo: la piel tapa lo que en el paciente taparían también la fascia y el músculo.
+
+### D-341 · 2026-11-06 · vigente · pedido 2 de P-013
+**«Terminar la cirugía», junto a «Reiniciar el caso», lleva al final del caso y a la radiografía postoperatoria. Omitir la radiografía ya no es para siempre.**
+
+*De dónde sale.* Cristóbal: «no supe dónde poner "terminar" para que me pudiera dar la opción de tomar la Rx postoperatoria». El final llegaba solo al aprobar el último paso. Quien quería cerrar antes, o no encontraba cómo seguir, no llegaba nunca a la radiografía.
+
+*Cómo se hizo.*
+- El botón va en la cabecera, al lado de «Reiniciar el caso», que es donde se busca lo que toca al caso entero. No sale en el editor ni con el caso terminado.
+- Pregunta antes, y dice lo que se pierde: «Quedan N pasos sin hacer, y no sumarán puntos. Después podrá tomar la radiografía postoperatoria.» Repasando, dice que no se puntúa nada.
+- Lleva al mismo final que aprobar el último paso y por el mismo camino: `entrarEnPaso` y `empezarElPaso` con el índice de después del último. Paran los relojes y se borra el avance.
+  - Lo que falta queda sin puntos sin hacer nada aparte, porque la nota cuenta solo lo aprobado.
+- El final vive en la columna de la derecha. Si estaba plegada, se despliega: antes, el caso terminaba sin enseñar nada.
+- «Omitir» la radiografía deja un botón, «Tomar la radiografía postoperatoria». Antes, la única vuelta era repetir el caso entero.
+- La guía de la consola tiene una cuarta parada, que enseña dónde se termina.
+
+*Qué se probó.* `terminarYRadiografia.test.ts`. En el navegador:
+- la pregunta;
+- el final con la invitación a la radiografía;
+- la radiografía omitida y pedida otra vez;
+- la AP tomada y la lámina a pantalla completa.
+
+*Consecuencias.*
+- (+) Se llega a la radiografía sin aprobar todos los pasos.
+- (−) Se puede terminar con pasos sin hacer. La nota lo refleja, y la pregunta lo avisa con el número.
+
+### D-342 · 2026-11-06 · vigente · pedido 3 de P-013 · amplía la secuencia de P-004 E9
+**Fijar la placa es el primer tiempo de la secuencia brocar · medir · atornillar: pone en la mano la broca del sistema de la placa. Y el tornillo que se ofrece después de medir es uno que entra en lo perforado.**
+
+*De dónde sale.* Cristóbal: «al fijar la placa, que se despliegue al tiro la broca, y no ir a buscarla al menú». La secuencia de P-004 E9 arrancaba con el primer orificio perforado, y buscar la broca quedaba a cargo del residente.
+
+*Cómo se hizo.* Al fijar la placa, en práctica, la secuencia elige la broca con `preferenciasDeLaPlacaFijada`:
+- **El diámetro lo pone el sistema de la placa**: el 3,5 de una tercio de caña o de una LC-DCP 3,5, el 4,5 de una ancha. No lo pone el último tornillo de la consola, que puede ser de otra placa.
+- **La clase, cortical.** En una placa de orificios combinados lo primero que entra es un tornillo convencional, que aprieta la placa contra el hueso. Es la regla de AO del montaje híbrido.
+- Si la placa se soltó y se volvió a fijar, y ya hubo un tornillo de ese diámetro, manda ese.
+
+En evaluación no se pone nada en la mano (D-314): pedir el instrumento es parte de lo que se evalúa. Apoyar o soltar la placa solo devuelve la secuencia a «brocar», como antes.
+
+*Lo que se vio al recorrerlo, y se arregló.*
+- **La frase.** Recién fijada la placa, el panel decía «Orificio terminado. Siguiente: broque el siguiente.».
+  - La consola lo deducía de que hubiera algo ofrecido en la bandeja, y desde este pedido fijar la placa ofrece la broca.
+  - Ahora lo decide que haya un tornillo puesto. Sin ninguno, «Primero se broca.».
+- **El tornillo.** Después de medir el primer orificio de una placa de tercio de caña, pasaba a la mano el bloqueado LCP de 3,5, el primero de la bandeja. No se traba en esos orificios, y lleva la broca de 2,8 en un orificio hecho con la de 2,5.
+  - Ahora `instrumentoDeLaEtapa` elige entre los tornillos que entran en lo perforado: los que llevan esa broca, según el diámetro y la clase de cada uno (D-300).
+  - De esos, el último que se usó; si no, el del diámetro de la placa; si no, el primero.
+  - Con una broca que no es de ningún tornillo de la bandeja se elige entre todos, como antes. El aviso de la broca equivocada es de la evaluación, no de la secuencia.
+- **Las preferencias de la placa** valen ahora en cada orificio de la placa fijada, no solo al fijarla. Así el primer tornillo sale del sistema de la placa y no del diámetro que quedó en el panel.
+
+*Qué se probó.*
+- `tornillosYSecuencia.test.ts`, con siete pruebas nuevas:
+  - el cortical en una de tercio de caña, y no el primero de la bandeja;
+  - el bloqueado en lo hecho con la de 2,8, aunque el último fuera un cortical;
+  - el de esponjosa de 4,0 si fue el último, porque lleva la misma broca que el cortical de 3,5;
+  - una broca que no es de ningún tornillo;
+  - lo que la consola le pasa, y la frase, en dos.
+- En el navegador, con una tercio de caña de 6 agujeros sobre el peroné:
+  - fijada, la broca de 2,5 en la mano y «Primero se broca.»;
+  - perforado el agujero 3, el medidor;
+  - medido, 10 mm de hueso y un tornillo de 20 mm, y el «Tornillo cortical 3,5 mm» en la mano;
+  - puesto el tornillo, otra vez la broca y «Orificio terminado».
+
+*Consecuencias.*
+- (+) La secuencia entera, de fijar la placa al último tornillo, sin ir a la mesa.
+- (+) El tornillo ofrecido entra en el agujero hecho. Ya no se ofrece un bloqueado en una placa que no lo lleva.
+- (−) En una placa de orificios combinados se ofrece primero el cortical. Quien quiera empezar con un bloqueado broca con la de 2,8, y la secuencia le ofrece el bloqueado; o lo pide.
+
+### D-343 · 2026-11-06 · vigente · pedido 4 de P-013 · amplía P-008 E3
+**«Cantidad de agujeros (orificios) y largo» sale abierto con la placa en la mano. Y la placa elegida por sus agujeros cuenta en el paso como la de catálogo de su sistema.**
+
+*De dónde sale.* Cristóbal pidió «poder elegir la cantidad de orificios de la placa». Se podía desde P-008 E3, pero el desplegable salía plegado y no lo encontró.
+
+*Qué pasaba además.* El paso del residente comparaba el identificador tal cual: `placa-recta:lcp-3-5:8:…` contra el número del catálogo. La placa correcta, elegida por sus agujeros, salía «no es el instrumento de este paso».
+
+*Cómo se arregló.* `idDelCatalogoParaElPaso`, que existía para el editor, se usa ahora también en el paso del residente. Cuántos agujeros lleva es decisión del residente; lo que pide el paso es el sistema.
+
+*Qué se probó.* `placasRectas.test.ts`. En el navegador, el desplegable abierto de entrada, y una tercio de caña de 6 agujeros y 78 mm en la mano.
+
+*Consecuencias.*
+- (+) Se ve sin buscarlo.
+- (−) Ocupa sitio en el panel de la herramienta mientras se tiene la placa en la mano. Se pliega a mano.
+
+### D-344 · 2026-11-06 · vigente · pedido 5 de P-013
+**Se puede sacar un solo tornillo. El orificio queda perforado y medido, y la secuencia ofrece otra vez el tornillo.**
+
+*De dónde sale.* Cristóbal: «necesito poder sacar un tornillo para poner otro». Solo estaba «Quitar los tornillos», que los quitaba todos.
+
+*Cómo se hizo.*
+- `quitarUnTornillo`, en el lienzo:
+  - el de un agujero de la placa, por su índice;
+  - el de la trayectoria o el de bloqueo del clavo, por su número negativo, que es la clave con que los guarda la escena.
+- El orificio queda perforado y medido, como en el quirófano. El suceso `retirado` devuelve la secuencia a «atornillar» en ese orificio, y no gasta insumo: el tornillo sale entero.
+- Se saca con la ✕ de su fila en «Agujeros de la placa», y desde su menú (D-346).
+- Un clic con un tornillo en la mano sobre un agujero que ya tenía el suyo lo cambia. El de antes sale de la escena y de la lista en ese momento y no cuando asienta el nuevo: si este se sacara a medias, el panel seguiría contando el viejo.
+
+*Qué se probó.* `retirarUnTornillo.test.ts`. En el navegador: el tornillo puesto; retirado, con el agujero aún perforado y medido; y otro puesto de un clic.
+
+*Consecuencias.*
+- (+) Corregir un tornillo no obliga a quitarlos todos.
+- (−) El orificio se queda con la medida de antes: si se pone uno de otro largo, nadie lo vuelve a medir.
+
+### D-345 · 2026-11-06 · vigente · pedido 6 de P-013 · ajusta D-171
+**El clic de «Mover» y de la pinza de reducción prefiere el trozo de la fractura y el que se estaba moviendo. Lo que agarraría se tiñe antes del clic, y el temblor del clic ya no mueve nada.**
+
+*De dónde sale.* Cristóbal: «a veces al intentar tomar el fragmento de fíbula, pesco el talo y desarmo todo».
+
+D-171 dejó agarrar cualquier trozo que el rayo toque primero, a propósito: con una tibia partida en cuatro, el residente quiere empujar el que sea. En el tobillo eso cuesta. El peroné distal es fino y el astrágalo está pegado detrás, y un clic un pelo fuera del peroné agarraba el astrágalo y lo sacaba de su sitio.
+
+*Cómo se hizo.* `trozoQueSeAgarra`, en `src/lib/agarrarElTrozo.ts`, pura:
+- **Prefiere, no prohíbe.** Primero, lo que se estaba moviendo y los trozos del foco: el fragmento que el caso mide y los que traen posición reducida. Cuentan si están bajo el cursor, hasta 30 mm detrás del primer hueso tocado, o a 9 px del cursor.
+  - Si no hay ninguno, lo de siempre: el primer hueso que toca el rayo. El astrágalo se sigue pudiendo mover, apuntándole donde no haya peroné.
+  - 30 mm cubren el tobillo de canto sin llegar al maléolo del otro lado. 9 px llegan al borde de un peroné de 12 a 15 px sin alcanzar la tibia de enfrente.
+- **El tinte.** Mientras el cursor pasa, lo que agarraría el clic se tiñe, como en «Seleccionar estructura».
+- **El margen.** El clic no se vuelve arrastre hasta que el cursor se mueve 5 px. Antes, el temblor de la mano al pulsar ya desplazaba el trozo un milímetro.
+
+*Qué se probó.*
+- `agarrarElTrozo.test.ts`, también con el astrágalo.
+- En el navegador, sobre la pierna del caso de prueba. Acaba en el tobillo, sin pie, y no tiene astrágalo; el vecino del fragmento distal es el peroné, dentro de la malla «Esqueleto».
+  - Con el cursor en el peroné a 3 px de la tibia, se tiñe el fragmento distal; a 12 px, el peroné.
+  - Un clic con 2 px de temblor deja la pinza puesta, y nada se mueve: las medidas siguen iguales.
+  - Un arrastre de 23 px baja el fragmento 17,9 px en pantalla, y la diástasis pasa de 6 a 1,9 mm. El peroné y el fragmento proximal no se mueven.
+
+*Consecuencias.*
+- (+) Agarrar el fragmento junto a otro hueso no desarma la reducción.
+- (−) Para mover un hueso vecino del foco hay que apuntarle lejos del fragmento, a más de 9 px.
+
+### D-346 · 2026-11-06 · vigente · pedidos 7 y 14 de P-013
+**Lo puesto en el paciente abre su propio menú, con un clic en la escena o en su fila de «En uso en el paciente», debajo de «En la mano». «Retirar» está siempre, y los implantes se cambian por otra medida.**
+
+*De dónde sale.* Dos pedidos de Cristóbal que son el mismo menú visto desde dos sitios:
+- 7: «que al pinchar el que está puesto en el paciente se despliegue su propio menú, y no tener que ir a buscarlo en el listado para manipularlo».
+- 14: «la gracia de "instrumental en uso" es que al pinchar alguno de esos te permita jugar con las opciones […] Siempre debe aparecer la de retirar. Si seleccionamos los implantes, que ofrezca "retirar" o "cambiar". Al cambiar, ofrecer longitudes (placa en orificios, tornillo en mm)».
+
+*Cómo se hizo.* Qué ofrece cada cosa está en `src/lib/menuDelObjeto.ts`, sin three ni React. La consola lo pinta (`MenuDelObjeto.tsx`) y hace lo elegido con los mandos que ya había.
+- **Un separador**: «Mover en este mismo plano», llevarlo a otro plano blando, su apertura y «Retirar del campo». El Hohmann se apoya en el hueso y no cambia de plano.
+- **Las pinzas.** La de piel: cuánto levanta, y retirarla. La de reducción: «Retirar (soltar la pinza)».
+- **La placa**:
+  - «Soltar la fijación para moverla», si no tiene tornillos;
+  - «Cambiar por otra de» N agujeros, del mismo sistema, con una pregunta antes;
+  - «Retirar la placa», que avisa si se lleva tornillos.
+- **Un tornillo**: «Cambiar por otro de» N mm, de su serie, y «Retirar el tornillo» (D-344).
+- **Lo demás.** Una aguja de Kirschner, esa o todas. El clavo, él o todo el enclavado. El injerto.
+- **«Cambiar» no cambia el implante en su sitio.** Lo retira y pone en la mano el de la medida elegida, a un clic del orificio. Es lo que pasa en pabellón, y el tornillo nuevo entra con el gesto de siempre, que se evalúa.
+- **El separador.** Un clic sobre él lo levantaba para dejarlo en otro sitio; ahora abre su menú, y eso es «Mover en este mismo plano». La rueda sigue abriendo y cerrando el que está bajo el cursor.
+- **El menú** va fijo a la ventana y se corre para quedar entero. Su fondo, invisible, se come el clic que lo cierra: cerrar el menú no corta ni cose.
+
+*Lo que se arregló al comprobarlo.* La fila más larga de «En uso» no se parte («Placa de tercio de caña 3,5 mm · 6 agujeros · 78 mm») y fijaba el ancho de la columna de la mesa. La mesa entera se desbordaba de lado: la cabecera perdía su botón de plegar y «Soltar» quedaba cortado. La pista de la rejilla es ahora `minmax(0, 1fr)`.
+
+*Qué se probó.* `menuDelObjeto.test.ts`. En el navegador:
+- los menús del separador, de la pinza, de la placa y del tornillo;
+- un tornillo cambiado a 20 mm desde su menú;
+- la placa cambiada por una de 8 agujeros, con su pregunta, puesta otra vez y fijada.
+
+*Consecuencias.*
+- (+) Lo puesto se maneja donde está.
+- (−) Un clic sobre un separador ya no lo levanta: hay que elegir «Mover en este mismo plano».
+
+### D-347 · 2026-11-06 · vigente · pedido 9 de P-013
+**El medidor solo suma trozos de un mismo hueso. En el peroné distal medía también la tibia y el astrágalo de detrás: 60 mm donde iban 12.**
+
+*De dónde sale.* Cristóbal: «usé el medidor para brocar la fíbula y me daba» 60 mm.
+
+*Qué pasaba.* `salidaPorLaCorticalOpuesta` deja que la línea pase de una pieza a otra si el hueco entre ellas no llega a 3 mm, para no cortar la cuenta en un trazo de fractura. El peroné distal toca la tibia en la sindesmosis y el astrágalo en la mortaja a menos de 3 mm, y la línea seguía por ellos.
+
+*Cómo se arregló.* Recibe `mismoHueso`, y la línea pasa a otra pieza solo si las dos son trozos de un mismo hueso. Se ve por el nombre de nodo (`huesoDelNodo`): «Tibia_derecha_fragmento_distal» es de «Tibia_derecha». Sin ella, la regla de antes.
+
+*Qué se probó.*
+- `medidorEnElPerone.test.ts`, sobre el peroné del atlas con la tibia y el astrágalo detrás.
+- En el navegador, en el peroné del caso de prueba: 10 a 11 mm de hueso, y un tornillo de 20 mm. Ahí no salían los 60 mm: la tibia queda a unos 24 mm del peroné por la línea de la broca.
+
+*Consecuencias.*
+- (+) La medida es la del hueso que se broca.
+- (−) Sigue sin separar dos huesos que vienen fundidos en una sola malla, como la «Esqueleto» del caso de prueba: los cruces de una misma pieza nunca cortaron la cuenta.
+
+### D-348 · 2026-11-06 · vigente · pedido 11 de P-013 · amplía la demostración de P-009
+**El editor graba la demostración de un paso en el propio simulador, con los cuadros explicativos quemados en el vídeo, y la deja en el campo «Demostración» de ese paso. El residente la puede ver en grande.**
+
+*De dónde sale.* Cristóbal: «a los editores permitirnos el modo grabar», con cuadros explicativos encima.
+
+*Cómo se hizo.*
+- **«Grabar la demostración»**, en el editor del simulador (`GrabadoraDelPaso.tsx`). Graba solo el lienzo, sin el panel ni el ratón, con `MediaRecorder`: WebM, o MP4 en Safari.
+- **Los cuadros** salen del «Qué se hace» del paso, uno por párrafo, y el editor los puede reescribir.
+  - Van quemados en la imagen y no como subtítulos aparte. Un archivo de subtítulos pediría un campo donde guardarlo y alguien que lo sincronice; el vídeo con el texto dentro se ve igual en el panel, en grande y descargado.
+- **Sin migración.** Va al campo de siempre, «Demostración» (P-009), que ya aceptaba WebM y MP4. Su etiqueta pierde el «de 3 a 5 s».
+- **El paso por su clave.** La grabación tarda en subir, y mientras puede abrirse otro paso: se apunta en el suyo por su clave estable, no en el que esté abierto.
+  - El estado vive en el editor entero y no en la pestaña del paso: cambiar de pestaña cortaba la grabación y la tiraba.
+- **El tamaño.** 1280 × 720 como mucho, a 2,5 Mb/s, y para sola al 90 % del techo de los medios.
+  - El lienzo del editor mide unos 500 px de ancho. Mientras graba se dibuja con más píxeles (`razonParaGrabar`), con los mismos techos de `razonDePixeles`.
+  - El fondo del lienzo es un degradado de CSS detrás de un lienzo transparente. Se pinta en cada cuadro grabado, leído de su estilo.
+- **En el panel del residente**, «Así se hace» pasa a una franja bajo el vídeo: encima tapaba el cuadro de abajo. «Ver en grande» lo abre al ancho de la pantalla, con controles.
+
+*Qué se probó.* `grabacionDelPaso.test.ts` y `controlDelContexto.test.ts`. En el navegador:
+- el panel de grabación, grabando, y lo grabado con sus tres cuadros;
+- apuntado en el paso;
+- visto en el panel del residente y en grande.
+
+La grabación de prueba se subió a la base desechable y se borró al terminar.
+
+*Consecuencias.*
+- (+) Las demostraciones salen del mismo simulador, con su texto.
+- (−) El texto queda en la imagen: corregir una errata es volver a grabar.
+- (−) Un minuto de vídeo pesa unos 19 MB.
+
+### D-349 · 2026-11-06 · vigente · pedido 12 de P-013 · no deshace D-315
+**Al coger la pinza de reducción, o al abrir la familia «Reducción» de la mesa, en el paso de reducir sale un cuadro «Reducción manual / Reducción automática». Cada botón se explica al pasar por encima.**
+
+*De dónde sale.* Cristóbal: «al seleccionar "reducción" que aparezca un cuadro encima que diga "Reducción manual / Reducción automática"; al posarse sobre cada botón, que explique de qué se trata».
+
+*Cómo se hizo.*
+- **No es el interruptor que quitó E4 de P-012** (D-315). Ahí «Manual» no hacía nada y «Automática» dejaba el paso sin puntos sin decirlo antes. Aquí cada botón hace algo: «Manual» deja la pinza en la mano y «Automática» lleva los trozos a su sitio.
+- **Lo que cuesta va en el propio botón** («suma puntos», «sin puntos»), no solo en la explicación.
+- **La explicación** sale al pasar el ratón y al llegar con el teclado. `title` tarda un segundo, no sale con el teclado y en una tableta no existe.
+- **Cuándo.** En práctica, en el paso de reducir, una vez por paso. Cerrarlo sin elegir no hace nada: las dos siguen en el panel de la pinza.
+- Va encima del lienzo, centrado y sin fondo que lo tape.
+
+*Qué se probó.* `cuadroDeReduccion.test.ts`. En el navegador, el cuadro con la explicación de cada botón.
+
+*Consecuencias.*
+- (+) Se elige sabiendo lo que cuesta.
+- (−) Un clic más la primera vez que se coge la pinza en cada paso de reducir.
+
+### D-350 · 2026-11-06 · vigente · pedido 15 de P-013 · amplía D-181
+**Alargar una incisión se ve y se mide entera. Con algo que corta en la mano, sus puntas se marcan en amarillo, y el paso mide la incisión unida, no el trozo añadido.**
+
+*De dónde sale.* Cristóbal: «necesito poder extender incisiones que me hayan quedado cortas». Ya se podía —un trazo que empieza a menos de 5 mm de una punta se une a su incisión (D-181)—, pero nada lo decía.
+
+*Qué pasaba además.* El paso medía el trazo nuevo solo, que salía «corta»: se castigaba justo lo que había que hacer.
+
+*Cómo se hizo.*
+- **Las puntas** de cada incisión se marcan en amarillo mientras se tiene en la mano algo que corta. Son interfaz: no se pinchan, la fluoroscopia no las ve, y no las tapa el relieve.
+- **El texto del instrumento** dice cómo alargar.
+- **Al unirse**, la consola recibe la incisión entera como si fuera el trazo, y el registro dice cuánto mide de punta a punta.
+
+*Qué se probó.* `alargarIncision.test.ts`. En el navegador, una incisión corta con sus puntas, y la misma alargada, medida entera.
+
+*Consecuencias.*
+- (+) Alargar no se castiga.
+- (−) Las marcas salen siempre que se tiene un bisturí en la mano, también cuando no se quiere alargar.
+
+### D-351 · 2026-11-06 · vigente · pedido 16 de P-013 · amplía el cierre por planos de P-006 E11
+**«Cerrar la herida» abre un cuadro con los planos, de lo profundo a lo superficial, cada uno con su hilo y su calibre. «Cerrar» lo arma, y un clic sobre ese plano en el paciente lo cierra entero.**
+
+*De dónde sale.* Cristóbal: «Pondría algo como "cerrar fascia" y que permita elegir el hilo y su diámetro y pinchar la fascia y que quede toda cerrada […] Elegir el hilo "nylon, monocryl, corchetes" y que al pinchar la piel, que quede cerrado».
+
+El cierre por planos se cosía puntada a puntada: de nueve a once clics para ocho a diez centímetros de piel, y después tirar del hilo. Es el gesto que se enseña al enseñar a suturar, y sigue ahí con los hilos de la mesa. Pero al final de una osteosíntesis lo que se practica es la osteosíntesis.
+
+*Cómo se hizo.*
+- **El cuadro** (`CuadroDelCierre.tsx`) tiene una fila para la fascia, si el caso la trae, y otra para la piel.
+  - Fascia: Vicryl (0, 2-0 o 3-0; de entrada, 2-0) o PDS (0 o 2-0).
+  - Piel: nylon (de 2-0 a 5-0; de entrada, 3-0), Monocryl (de 3-0 a 5-0) o corchetes.
+  - El calibre se elige dentro del hilo. No hay un instrumento por calibre que llene la mesa de sobres.
+- **«Cerrar» no cierra.** Arma el cierre, y es el clic sobre ese plano en el paciente el que lo cierra. Así se sigue aprendiendo dónde está cada plano, que es lo que enseña el cierre por planos. Un clic sobre otro plano dice cuál era.
+- **Dónde van las puntadas**, en `src/lib/cierreDeUnClic.ts`, puro:
+  - un hilo es una sutura continua, y cada puntada cruza la herida. El cierre de un clic se mide igual que el cosido a mano (D-169);
+  - el paso es el 70 % de lo que cierra cada cruce: 7 mm en piel y 10,5 en fascia. Con el 100 %, la punta que no alcanzaba el último cruce se veía abierta;
+  - los corchetes van cada 7 mm, y cada uno es una línea con una punta en cada labio, a la misma altura;
+  - ninguna puntada va en la misma punta de la herida: van a 3 mm de cada extremo.
+- **Cerrado entero.** Quita lo cosido a mano en ese plano: «que quede toda cerrada» es el pedido. La separación de lo que puso el cierre no se juzga puntada a puntada.
+- **Cada línea lleva su hilo.** Antes la sutura tenía uno solo, y cambiarlo repintaba con el último lo ya cosido. La fascia y la piel suelen llevar distintos.
+- **«Reabrir»** quita lo cosido en un plano, y su herida vuelve a abrirse, por si se cerró la piel antes que la fascia.
+- **El subcutáneo** no tiene fila: la grasa va pegada a la piel (D-331) y se cierra con ella. El cuadro lo dice.
+- **El otro «Cerrar la herida».** El botón del panel que se llamaba así deshace la incisión como si no se hubiera hecho. Ahora se llama «Deshacer la incisión»: con el mismo nombre, los dos se confundían.
+
+*Qué se probó.* `cierreDeUnClic.test.ts`. En el navegador, sobre un abordaje: la fascia cerrada de un clic con Vicryl, y la piel con corchetes y con nylon.
+
+*Consecuencias.*
+- (+) Cerrar una herida de 10 cm son dos clics por plano.
+- (−) Ningún paso puntúa la sutura: antes hay que acordar qué es un buen cierre.
+
+### D-352 · 2026-11-06 · vigente · pedido 16 de P-013
+**Lo que se arregló de la sutura por planos al comprobar el cierre de un clic.**
+
+- **La otra hoja de la fascia.** La última puntada de la fascia caía a unos 36 mm de la herida.
+  - Un corte hondo de la fascia atraviesa a veces otra hoja de la misma malla, unos 35 mm detrás, y sus vértices entraban en los labios.
+  - Ahora solo cuentan los que en reposo están a 6 mm o menos de la curva de la incisión.
+  - El corte no se tocó: queda en O-096.
+- **Las puntadas, donde dice el plan.** `puntadaSobreElLabio` buscaba el vértice del labio más cercano a cada posición. Ahora interpola a lo largo del labio.
+- **El plano al recargar.** La sesión volvía con el plano de la piel, y la tensión guardada —la de la fascia recién cerrada— se juzgaba contra una piel sin puntadas. Salía «Ninguna puntada cruza la herida» sobre una fascia bien cerrada. Ahora el plano es el de la última puntada, como al deshacer una.
+- **La lectura.** Con la fascia cerrada salía «herida cerrada al 0 %», porque a la herida le faltaba la piel. Ahora dice lo cerrado del plano en que se cose y, aparte, lo de la herida entera.
+- **El orden del registro.** «Herida cerrada por planos» salía debajo de lo que cerró el último clic, y no encima: el cierre se anuncia ahora antes de refrescar la sutura.
+- **«El borde».** El juicio de la tensión decía «sin estrangular la piel» también en la fascia.
+- **La sonda** cuenta las puntadas y lo que toca cada rayo, para comprobar cómo reparte el cierre.
+
+*Consecuencias.*
+- (+) La fascia cerrada de un clic se ve cerrada y se lee cerrada, también al volver a la sesión.
+- (−) El filtro de la hoja vale para el cierre. Otro que use los labios del corte de la fascia verá las dos hojas (O-096).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -11798,6 +12115,19 @@ Con una cuenta 1 en la base, las 15 pasan (comprobado en P-011).
 *Dónde se ve.* En `alPerforar`, en la consola, al hacer D-330. El registro describe cada agujero —calibre, profundidad, si es bicortical, los grados— y detrás le añade su juicio, en los dos modos. D-313 quitó el juicio de la lista y de las medidas, pero esta línea no la miró.
 *Por qué importa.* Es el veredicto que D-313 quería fuera de la evaluación, dicho en el registro. Y «perpendicular» es el juicio de un paso que la pida: en un tornillo de tracción en oblicuo, la frase es falsa.
 *Qué hacer, sin aplicar.* En evaluación, la descripción sin el juicio. El registro solo tiene tres clases, `bien`, `atencion` y `grave`, y no hay una neutra: hace falta una, o la línea saldría en verde. Es una decisión de cómo se ve el registro, y por eso no se tocó.
+
+### O-096 · 2026-11-06 · baja · abierta
+**Un corte hondo de la fascia atraviesa a veces otra hoja de la misma malla, unos 35 mm detrás de la incisión, y sus vértices entran en los labios de la herida.**
+*Dónde se vio.* Al comprobar el cierre de un clic (D-351): la última puntada de la fascia caía a unos 36 mm de la herida. Los vértices de la otra hoja traían un `largoT` válido, y el cierre los tomaba por labio.
+*Lo que se hizo.* Solo el cierre los filtra: cuentan los vértices que en reposo están a 6 mm o menos de la curva de la incisión (D-352). El corte sigue cortando las dos hojas.
+*Por qué importa.* Lo que use los labios del corte de la fascia sin ese filtro —el separador, la lectura de lo abierto— puede ver las dos hojas. No se vio que pase.
+*Qué hacer, sin aplicar.* Acotar el corte de la fascia a la hoja que toca la incisión: por conectividad desde el primer triángulo cortado, o con el mismo límite de distancia al trazo. Toca `corteDeMalla`, que cortan todas las capas, y por eso pide su propia prueba.
+
+### O-097 · 2026-11-06 · baja · abierta
+**La barra de lectura del lienzo conserva el último texto de la broca después de soltarla.**
+*Dónde se vio.* Al recorrer el pedido 3 de P-013 (D-342): retirada la broca con Esc, la barra de abajo del lienzo seguía diciendo «Broca Ø 2,5 mm puesta en el agujero 3…» hasta el gesto siguiente.
+*Por qué importa.* Poco: el panel y el registro dicen lo que hay en la mano. Pero la barra habla de un instrumento que ya no está.
+*Qué hacer, sin aplicar.* Vaciarla al soltar el instrumento que la escribió, como se vacía al cambiar de modo.
 
 ---
 
@@ -15998,6 +16328,81 @@ Comprobaciones de E9 con E7 y E8 hechas, y con D-329 y D-330, el 2026-11-06, con
   - los casos guardados no tienen manguito hasta que su autor lo marque (D-323);
   - siguen con sus vasos como «músculo» hasta que alguien pulse «Rellenar desde el modelo» (D-317);
   - uno con un paso de reducción y sin referencia deja de poder publicarse en cuanto se guarda (D-306).
+
+### P-013 · 2026-11-06 · hecha: catorce de los dieciséis pedidos de Cristóbal, comprobados en el navegador
+**Los pedidos de Cristóbal después de probar el simulador, hechos de una y comprobados uno por uno en el navegador. Todos menos el paño azul (10), que espera, y la propuesta visual en HTML (13), que el dueño ya había hecho.**
+
+#### De dónde sale
+
+Pedido del dueño, 2026-11-06, sobre la lista de Cristóbal: «quiero que hagas todos de una y todos confirmados, lo del paño azul todavia no, lo de la propuesta visual de html olvidalo no lo hagas era un archivo que ya implementé». Y para cerrar: «al final de todo cuando todo este comprobado y me dejes evidencias de cada punto aca en el chat subelo todo el git y despliegalo en ved».
+
+#### Lo hecho
+
+| Pedido | Lo que pidió Cristóbal | Decisión |
+|---|---|---|
+| 1 y 8 | Que la placa y el fragmento no salgan por encima de la piel: que la piel se hinche | D-340 |
+| 2 | Dónde terminar, para tomar la radiografía postoperatoria | D-341 |
+| 3 | Al fijar la placa, la broca en la mano sin ir a buscarla | D-342 |
+| 4 | Elegir la cantidad de orificios de la placa | D-343 |
+| 5 | Sacar un tornillo para poner otro | D-344 |
+| 6 | Tomar el fragmento de peroné sin pescar el astrágalo | D-345 |
+| 7 y 14 | El menú propio de lo puesto en el paciente, y el «instrumental en uso» | D-346 |
+| 9 | El medidor daba 60 mm en el peroné | D-347 |
+| 11 | Que los editores graben la demostración, con cuadros explicativos | D-348 |
+| 12 | El cuadro «Reducción manual / Reducción automática» | D-349 |
+| 15 | Alargar una incisión corta | D-350 |
+| 16 | Cerrar la fascia y la piel de un clic, eligiendo el hilo | D-351 y D-352 |
+| 10 | El paño azul | Espera: «todavía no» |
+| 13 | La propuesta visual en HTML | Fuera: ya estaba hecha |
+
+#### Cómo se trabajó
+
+- Cada pedido salió con su prueba unitaria y su recorrido en el navegador. El recorrido fue sobre un caso de prueba, «Pierna P-013 (prueba)»: una pierna derecha del taller con clavo endomedular, en una base desechable.
+- Las capturas de cada pedido se le dieron al dueño en la conversación. No se guardan en el repositorio.
+- Lo que el recorrido encontró se arregló en la misma vuelta, y está en la decisión de su pedido:
+  - la frase y el tornillo de la secuencia (D-342);
+  - la mesa que se desbordaba con «En uso» (D-346);
+  - la sutura por planos (D-352).
+- Lo que no se arregló queda en O-096 y O-097.
+- De paso: `scripts/instrumental-a-sql.ts`, sin `--prefijo`, dejaba fuera el primer argumento, que es la carpeta, y fallaba siempre con «Uso: …».
+
+#### Sin migración
+
+Ningún pedido cambia el esquema. La etiqueta de «Demostración» cambia en `Cirugias.ts` y en `esquema.ts`, pero la columna es la misma, y `migraciones.test.ts` pasa.
+
+#### Comprobaciones
+
+Hechas el 2026-11-06, contra la base desechable de 55432:
+- `tsc --noEmit`: sin errores.
+- `npm run lint`: sin errores. Quedan los mismos 15 avisos, en archivos que esta vuelta no toca.
+- La suite con cobertura: pasan 6228, fallan 3 y una se omite.
+  - Las tres son las de Windows de siempre: `directorioDeRespaldos` (2) y `respaldoEnWindows` (1).
+  - La primera pasada dio 7 fallos.
+    - Dos eran de esta vuelta: `cableadoDelProgreso` y `lecturasCableadas` contaban siete llamadas a `guardarRecorrido`, y terminar la cirugía añade la octava (pedido 2, D-341). Se pusieron al día.
+    - Otros dos, `autoria` y `respaldoCifrado`, vencieron bajo la carga de la suite entera. Pasan solos y en la segunda pasada.
+  - Cobertura: 87,1 % de las sentencias, 79,1 % de las ramas, 88 % de las funciones y 88,4 % de las líneas. El umbral es 58.
+- `npm run test:integration`, obligatoria: pasan las 261. Pasan también las 7 de `estructuras`, porque esta base tiene la cuenta 1 que dan por hecha; O-092 sigue abierta.
+- `next build`, como el de Docker (`NEXT_PUBLIC_BASE_PATH=/traumahub`): compila, con los 8 avisos de siempre.
+- En el navegador, sobre «Pierna P-013 (prueba)», cada pedido con sus capturas. Las cifras están en cada decisión.
+  - 1 y 8: con el abultamiento apagado, el borde de la placa y el fragmento desplazado salen por la piel; encendido, la piel los tapa.
+  - 2: «Terminar la cirugía» pregunta y cuenta los pasos sin puntos. El final invita a la radiografía, que se puede omitir y pedir después; la AP sale y se abre a pantalla completa.
+  - 3: fijada la placa, la broca de 2,5 en la mano; perforado, el medidor; medido, el tornillo cortical de 3,5; puesto, otra vez la broca. La primera vuelta encontró la frase y el tornillo equivocados, y se arreglaron (D-342).
+  - 4: con la placa en la mano, el selector de agujeros sale abierto, y se pide una de tercio de caña de 6 agujeros y 78 mm.
+  - 5: un tornillo retirado con la ✕ deja el agujero perforado y medido, y otro entra de un clic.
+  - 6: lo que cuenta D-345, con el peroné en el lugar del astrágalo.
+  - 7 y 14: el menú del separador, de la pinza, de la placa y del tornillo. Un tornillo se cambió a 20 mm, y una placa a 8 agujeros, que pregunta antes.
+  - 9: el medidor en el peroné da 10 a 11 mm de hueso, no 60, y pide un tornillo de 20 mm.
+  - 11: el editor graba la demostración con sus cuadros dentro del vídeo. Queda apuntada en el paso, y el residente la ve, también en grande.
+  - 12: sobre cada botón del cuadro, su explicación.
+  - 15: una incisión corta, alargada desde una de sus puntas amarillas, se mide entera: 54 mm.
+  - 16: «Cerrar la herida» cierra la fascia entera de un clic, y la piel con corchetes o con nylon.
+- Falta: desplegar en ved.
+
+#### Lo que queda
+
+- El paño azul (pedido 10), cuando el dueño lo diga.
+- O-096 y O-097.
+- Puntuar la sutura (D-351): antes hay que acordar con Cristóbal qué es un buen cierre.
 
 ---
 

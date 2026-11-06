@@ -12,6 +12,7 @@ import {
   calidadDelDibujo,
   cuantoFaltaParaRemontarse,
   razonDePixeles,
+  razonParaGrabar,
   crearLimitadorDeFallos,
   loQueSeEnseña,
 } from '@/lib/controlDelContexto'
@@ -165,6 +166,16 @@ describe('más margen contra el blanco (pedido del dueño)', () => {
     expect(razonDePixeles(1, 800, 500, 2)).toBe(1)
     // Nunca baja de media razón, por feo que sea el lienzo.
     expect(razonDePixeles(2, 40000, 40000, 2)).toBe(0.5)
+  })
+
+  it('al grabar la demostración el lienzo del editor se dibuja con más píxeles, con los mismos techos (P-013, pedido 11)', () => {
+    // El lienzo del editor, de 460 px en una pantalla de densidad 1: sube hasta medir 1280 de verdad.
+    expect(460 * razonParaGrabar(1, 460, 358, 3, 1280)).toBeCloseTo(1280, 6)
+    // Uno pequeño se queda en el tope de la calidad, y uno que ya mide más no se toca.
+    expect(razonParaGrabar(1, 300, 240, 3, 1280)).toBe(3)
+    expect(razonParaGrabar(2, 1400, 800, 3, 1280)).toBe(2)
+    // Un equipo que ya perdió el contexto dos veces no pasa de 1 por un vídeo.
+    expect(razonParaGrabar(1, 460, 358, calidadDelDibujo(2).razonMaxima, 1280)).toBe(1)
   })
 
   it('el lienzo cuenta las pérdidas y pide menos al volver a montarse', () => {

@@ -3,7 +3,7 @@ import { juzgarTornillo, type EstadoDelAgujero, type ResumenDelAsiento, type Tor
 import { agujerosUniformes, avisoDeOrificios, orificiosValidos } from '@/lib/agujerosDeLaPlaca'
 import type { RangosDelAjuste } from '@/lib/ejesAnatomicos'
 import { textoDelContorno, type ContornoDeLaPlaca } from '@/lib/contornoDeLaPlaca'
-import { salidaPorLaCorticalOpuesta } from '@/lib/profundidadDeLaBroca'
+import { huesoDelNodo, salidaPorLaCorticalOpuesta } from '@/lib/profundidadDeLaBroca'
 import { deformarLasMallas, guardarOriginales, mapaEnElMarcoDelGrupo } from './deformacionDeLaPlaca'
 import {
   buscarAsiento,
@@ -549,9 +549,20 @@ export function medirAlLoLargoDeUnaLinea(
     .filter((c) => c.distanciaMm > distanciaCercanaMm + 0.01)
     .sort((a, b) => a.distanciaMm - b.distanciaMm)
     .map((c) => ({ distanciaMm: c.distanciaMm - distanciaCercanaMm, pieza: c.pieza }))
-  const espesorMm = salidaPorLaCorticalOpuesta(cruces)
+  // Entre trozos de un mismo hueso y nunca a otro (P-013, pedido 9): el peroné distal, con la tibia y el astrágalo a menos
+  // de 3 mm, medía 60 mm donde el tornillo lleva 12.
+  const espesorMm = salidaPorLaCorticalOpuesta(cruces, undefined, (a, b) => huesoDelNodo(nombreDelNodo(a)) === huesoDelNodo(nombreDelNodo(b)))
   if (espesorMm === null) return null
   return { distanciaAlHuesoMm: distanciaCercanaMm, espesorMm }
+}
+
+/**
+ * El nombre de nodo de una malla: el suyo o, si three la dejó sin nombre (una primitiva de un nodo con varias), el del
+ * primer padre que lo tenga.
+ */
+function nombreDelNodo(objeto: THREE.Object3D): string {
+  for (let o: THREE.Object3D | null = objeto; o; o = o.parent) if (o.name) return o.name
+  return ''
 }
 
 /**

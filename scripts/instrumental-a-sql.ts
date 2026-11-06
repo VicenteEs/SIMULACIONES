@@ -32,7 +32,9 @@ import { INSTRUMENTAL_BASE } from '../src/lib/instrumental'
 const argumentos = process.argv.slice(2)
 const indicePrefijo = argumentos.indexOf('--prefijo')
 const prefijo = indicePrefijo >= 0 ? (argumentos[indicePrefijo + 1] ?? '') : ''
-const carpeta = argumentos.find((a, i) => !a.startsWith('--') && i !== indicePrefijo + 1)
+// Sin `--prefijo`, `indicePrefijo + 1` vale 0: la comparación sola dejaba fuera el primer argumento, que es justo donde va
+// la carpeta, y la orden de uso que se imprime abajo fallaba siempre con «Uso: …».
+const carpeta = argumentos.find((a, i) => !a.startsWith('--') && (indicePrefijo < 0 || i !== indicePrefijo + 1))
 const reemplazar = argumentos.includes('--reemplazar')
 
 if (!carpeta) {

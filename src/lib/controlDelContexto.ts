@@ -75,6 +75,24 @@ export function razonDePixeles(densidadDePantalla: number, ancho: number, alto: 
   return Math.max(0.5, Math.min(densidadDePantalla, razonMaxima, porMemoria))
 }
 
+/**
+ * La razón de píxeles mientras el editor graba la demostración de un paso (P-013, pedido 11).
+ *
+ * El lienzo del editor mide unos 500 px de ancho, entre la mesa y el panel, y grabado a su tamaño el vídeo se ve
+ * borroso en grande. Mientras se graba se pide la razón que haga medir al lienzo `anchoDeseado` píxeles reales, si es
+ * más que la de la pantalla. Los techos son los de `razonDePixeles`, también el de la calidad: un equipo que ya perdió
+ * el contexto no se arriesga a perderlo otra vez por un vídeo.
+ */
+export function razonParaGrabar(
+  densidadDePantalla: number,
+  ancho: number,
+  alto: number,
+  razonMaxima: number,
+  anchoDeseado: number,
+): number {
+  return razonDePixeles(Math.max(densidadDePantalla, anchoDeseado / Math.max(1, ancho)), ancho, alto, razonMaxima)
+}
+
 export type EstadoDelContexto =
   | { fase: 'vivo' }
   | { fase: 'perdido'; desde: number }
