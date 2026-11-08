@@ -14,6 +14,7 @@ import { exigirIdentificador } from '@/lib/validacion'
 import { leerCatalogo } from '@/lib/catalogoDelAtlas'
 import { leerFicha } from '@/lib/estructurasServidor'
 import { identificadoresDeInstrumento } from '@/lib/abordajeDelMusculo'
+import { atlasIdDeLaPieza } from '@/lib/estructuras'
 
 /** Lo que el modo «Seleccionar estructura» del simulador enseña de una estructura: la ficha sin las notas internas. */
 export interface FichaParaElSimulador {
@@ -45,7 +46,9 @@ export async function leerFichaParaElSimulador(atlasId: unknown): Promise<Respue
   return accion(async () => {
     const { usuario, activo } = await obtenerSesion()
     if (!usuario || !activo) throw new ErrorDeAcceso('Acceso denegado: inicie sesión.')
-    const id = exigirIdentificador(atlasId, 'La pieza')
+    // Un músculo que el recorte del taller partió sale del modelo con el id de su trozo (`FJ1478#a`), no con el de la pieza,
+    // y la almohadilla no pasa la validación: sin esto la ficha de cualquier músculo o hueso recortado no abría (D-353).
+    const id = exigirIdentificador(typeof atlasId === 'string' ? atlasIdDeLaPieza(atlasId) : atlasId, 'La pieza')
     const ficha = await leerFicha(await getPayload({ config }), await leerCatalogo(), id)
     if (!ficha || ficha.oculta) return null
     return {

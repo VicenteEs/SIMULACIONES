@@ -10673,6 +10673,22 @@ El cierre por planos se cosía puntada a puntada: de nueve a once clics para och
 - (+) La fascia cerrada de un clic se ve cerrada y se lee cerrada, también al volver a la sesión.
 - (−) El filtro de la hoja vale para el cierre. Otro que use los labios del corte de la fascia verá las dos hojas (O-096).
 
+### D-353 · 2026-11-07 · vigente · hallazgo al fotografiar el manual del simulador
+**La ficha de una estructura recortada en el taller no abría en el simulador.**
+
+- **Qué pasaba.** El modo «Seleccionar estructura» pide la ficha con el identificador que la pieza lleva en el modelo.
+  - Cuando el recorte del taller parte un músculo o un hueso, cada trozo sale con el id de su trozo (`FJ1478#a`) y no con el de la pieza (`FJ1478`).
+  - `leerFichaParaElSimulador` pasaba ese id tal cual a `exigirIdentificador`, que lo rechazaba por la almohadilla. La acción fallaba y el panel quedaba sin ficha.
+  - Afectaba justo a lo que produce la herramienta «Recortar» (el caso del brazo del atlas, D-336): casi todo músculo y todo hueso partido.
+- **Qué se hizo.** La acción pasa el id por `atlasIdDeLaPieza` antes de validarlo y lee la ficha de la pieza entera. `atlasIdDeLaPieza` ya existía y tiene su prueba en `tests/unit/estructuras.test.ts`.
+- **Por qué no se vio antes.** Los casos de prueba usaban modelos importados enteros, sin trozos. Apareció al preparar los manuales con un brazo recortado de «Cuerpo».
+
+*Qué se probó.* En el navegador, sobre el brazo derecho recortado: con «Seleccionar estructura», el bíceps y el húmero abren su ficha. La acción en sí no tiene prueba propia: lee con Payload y la guardia de sesión la cubre `accionesConGuardia.test.ts`.
+
+*Consecuencias.*
+- (+) La ficha se abre sobre cualquier trozo de una pieza partida.
+- (−) La ficha es la de la pieza entera: no distingue entre «_1» y «_2». Es lo que el residente espera, pero quien quiera una ficha por trozo tendría que pedirlo.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
