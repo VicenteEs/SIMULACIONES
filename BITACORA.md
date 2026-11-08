@@ -10685,6 +10685,14 @@ El cierre por planos se cosía puntada a puntada: de nueve a once clics para och
 
 *Qué se probó.* En el navegador, sobre el brazo derecho recortado: con «Seleccionar estructura», el bíceps y el húmero abren su ficha. La acción en sí no tiene prueba propia: lee con Payload y la guardia de sesión la cubre `accionesConGuardia.test.ts`.
 
+*Antes de subir* (2026-11-08), contra una base desechable: `typecheck` y `lint` sin errores (los 15 avisos de `<img>` ya estaban); la suite entera, con 6.228 pruebas pasadas y las 3 de respaldos que fallan en Windows desde antes (`directorioDeRespaldos` ×2 y `respaldoEnWindows`), y la cobertura de líneas en 88 % (el umbral es 58 %); `npm run test:integration`, 261 de 261; y `npm run build`, con los 8 avisos de siempre.
+
+*En ved*, desplegado con `765cbe8` el 2026-11-08 (01:56 de aquí; 21:56 del día 7 allí) con `TUNEL=local ./scripts/actualizar.sh`. Trajo dos commits desde `910c961`: `2fb0bc6` (solo la bitácora de P-013) y `765cbe8`.
+- El respaldo previo salió en claro, con su aviso, como desde P-011: ved aún no tiene la llave.
+- La imagen se reconstruyó con los avisos de siempre del build; el contenedor quedó sano y sin reinicios, y el registro de la aplicación no tiene errores.
+- Sin migraciones, como se esperaba. Por fuera, `/traumahub/api/salud` da 200 con la base bien.
+- No se abrió la ficha en ved: allí hace falta entrar con una cuenta real. Queda comprobada en desarrollo, arriba.
+
 *Consecuencias.*
 - (+) La ficha se abre sobre cualquier trozo de una pieza partida.
 - (−) La ficha es la de la pieza entera: no distingue entre «_1» y «_2». Es lo que el residente espera, pero quien quiera una ficha por trozo tendría que pedirlo.
