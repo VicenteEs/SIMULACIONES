@@ -208,8 +208,10 @@ se retiró (D-038) y el panel es propio, con su guardia única en
 `src/app/(frontend)/admin-panel/acceso.ts`. Y los archivos subidos **no** están
 en `public/`: allí Next los servía como estáticos, sin comprobar la sesión;
 ahora los entrega Payload por `/api/<colección>/file/<nombre>`, que sí comprueba
-el acceso. Esa dirección la pone Payload en el campo `url` de cada archivo, ya
-con el prefijo si la plataforma vive bajo uno, y se usa tal cual. Añadírselo
+el acceso. Esa dirección la pone Payload en el campo `url` de cada archivo al
+leerlo, ya con el prefijo si la plataforma vive bajo uno, y se usa tal cual. En
+la base se guarda sin prefijo (D-370), para que la misma copia sirva en ved, que
+va bajo `/traumahub`, y en `traumahub.cl`, que va en la raíz. Añadírselo
 otra vez en `routes.api` fue justo lo que dejó un 404 en toda imagen, todo vídeo
 y todo modelo 3D del servidor: ver el comentario de `routes` en
 `src/payload.config.ts`.

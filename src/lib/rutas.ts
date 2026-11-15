@@ -65,6 +65,31 @@ export function ruta(camino: string): string {
 }
 
 /**
+ * La inversa de `ruta()`: el camino dentro de la aplicación, sin el prefijo de
+ * la instalación. Es lo que se guarda en la base (D-370).
+ *
+ * La base guardaba el prefijo de la instalación que la escribió. La `url` de
+ * cada archivo subido salía como `/traumahub/api/…` y la «Última página» de la
+ * planilla como `/traumahub/biblioteca/3`. Copiada a Contabo, que va en la raíz,
+ * esa base habría dicho cosas que ahí no existen. Una base sin prefijo vale
+ * igual en ved y en Contabo: cada instalación lo pone al servir, con `ruta()`
+ * o con el `basePath` de Next.
+ *
+ * Quita el prefijo una sola vez y solo si es el tramo entero. Con
+ * `/traumahubx/…`, el camino no pertenece a la aplicación, y se devuelve tal
+ * cual. El prefijo se recibe como argumento porque la `url` de un archivo la
+ * arma Payload con `NEXT_BASE_PATH`, no con `PREFIJO`. Las dos valen lo mismo
+ * al compilar, pero conviene quitar justo lo que se puso.
+ */
+export function sinPrefijo(camino: string, prefijo: string = PREFIJO): string {
+  const tramo = prefijo.replace(/\/+$/, '')
+  if (!tramo || !camino.startsWith(tramo)) return camino
+  const resto = camino.slice(tramo.length)
+  if (resto === '') return '/'
+  return resto.startsWith('/') ? resto : camino
+}
+
+/**
  * Origen de una dirección: esquema, servidor y puerto, sin ruta.
  *
  * Es lo que el navegador manda en la cabecera `Origin`, y por tanto lo único

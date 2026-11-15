@@ -1,6 +1,18 @@
 import type { CollectionConfig } from 'payload'
 import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
 import { cacheDeArchivoPrivado } from './hooks/cacheDeArchivos'
+import { camposDeDireccionSinPrefijo } from './hooks/direccionSinPrefijo'
+
+/**
+ * Los tamaños que Payload saca de cada imagen. Están en una constante porque
+ * los usan dos sitios: `imageSizes` y los campos que guardan la `url` de cada
+ * tamaño sin prefijo (D-370). Un tamaño nuevo escrito solo en uno de los dos
+ * guardaría su `url` con el prefijo.
+ */
+const TAMANOS = [
+  { name: 'miniatura', width: 400, height: 300, position: 'centre' as const },
+  { name: 'ancho', width: 1400 },
+]
 
 /**
  * Imágenes y videos que el traumatólogo inserta en los bloques.
@@ -78,12 +90,11 @@ export const Medios: CollectionConfig = {
       'video/mp4',
       'video/webm',
     ],
-    imageSizes: [
-      { name: 'miniatura', width: 400, height: 300, position: 'centre' },
-      { name: 'ancho', width: 1400 },
-    ],
+    imageSizes: TAMANOS,
   },
   fields: [
+    // La `url`, y la de cada tamaño, guardadas sin prefijo (D-370).
+    ...camposDeDireccionSinPrefijo(TAMANOS.map((t) => t.name)),
     {
       name: 'alt',
       type: 'text',

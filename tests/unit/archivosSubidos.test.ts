@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { formatAdminURL } from 'payload/shared'
+import type { CollectionConfig, Field } from 'payload'
 import { Medios } from '@/collections/Medios'
+import { MediosPagina } from '@/collections/MediosPagina'
 import { Modelos3D } from '@/collections/Modelos3D'
+import { COLECCIONES } from '@/collections'
+import { guardarSinPrefijo } from '@/collections/hooks/direccionSinPrefijo'
 
 /**
  * Los archivos subidos: dónde viven y con qué dirección se piden.
@@ -70,6 +74,61 @@ describe('la dirección de un archivo lleva el prefijo una sola vez', () => {
       )
     } finally {
       if (previo !== undefined) process.env.NEXT_BASE_PATH = previo
+    }
+  })
+})
+
+describe('lo guardado no lleva el prefijo de la instalación (D-370)', () => {
+  /** Los ganchos `beforeChange` del campo `name` dentro de `campos`, si lo hay. */
+  const ganchosDe = (campos: Field[], name: string) => {
+    const campo = campos.find((c) => 'name' in c && c.name === name) as
+      | (Field & { hooks?: { beforeChange?: unknown[] }; fields?: Field[] })
+      | undefined
+    return campo
+  }
+
+  it('toda colección de subida guarda su url con el gancho', () => {
+    // La que se olvide guarda `/traumahub/api/…` en ved, y la copia de su base
+    // vuelve a llevar el prefijo a Contabo.
+    const deSubida = COLECCIONES.filter((c) => c.upload)
+    expect(deSubida.map((c) => c.slug).sort()).toEqual(['medios', 'medios-pagina', 'modelos-3d'])
+    for (const coleccion of deSubida) {
+      expect(ganchosDe(coleccion.fields, 'url')?.hooks?.beforeChange, coleccion.slug).toContain(guardarSinPrefijo)
+    }
+  })
+
+  it('y también la de cada tamaño de imagen, sin que falte ninguno', () => {
+    for (const coleccion of [Medios, MediosPagina, Modelos3D] as CollectionConfig[]) {
+      const tamanos = ((coleccion.upload as { imageSizes?: { name: string }[] }).imageSizes ?? []).map((t) => t.name)
+      const grupo = ganchosDe(coleccion.fields, 'sizes')
+      if (tamanos.length === 0) {
+        expect(grupo, coleccion.slug).toBeUndefined()
+        continue
+      }
+      for (const tamano of tamanos) {
+        const subgrupo = ganchosDe(grupo?.fields ?? [], tamano)
+        expect(ganchosDe(subgrupo?.fields ?? [], 'url')?.hooks?.beforeChange, `${coleccion.slug}.${tamano}`).toContain(
+          guardarSinPrefijo,
+        )
+      }
+    }
+  })
+
+  it('el gancho quita lo que Payload puso, y deja lo demás', () => {
+    const previo = process.env.NEXT_BASE_PATH
+    process.env.NEXT_BASE_PATH = '/traumahub'
+    try {
+      // Lo que escribe Payload al subir: `formatAdminURL` en modo relativo.
+      const escrita = formatAdminURL({ apiRoute: '/api', path: '/modelos-3d/file/tibia.glb', relative: true })
+      expect(escrita).toBe('/traumahub/api/modelos-3d/file/tibia.glb')
+      const gancho = guardarSinPrefijo as unknown as (args: { value: unknown }) => unknown
+      expect(gancho({ value: escrita })).toBe('/api/modelos-3d/file/tibia.glb')
+      expect(gancho({ value: '/api/medios/file/a.png' })).toBe('/api/medios/file/a.png')
+      expect(gancho({ value: null })).toBeNull()
+      expect(gancho({ value: undefined })).toBeUndefined()
+    } finally {
+      if (previo === undefined) delete process.env.NEXT_BASE_PATH
+      else process.env.NEXT_BASE_PATH = previo
     }
   })
 })

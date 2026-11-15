@@ -2,6 +2,7 @@ import type { CollectionConfig } from 'payload'
 import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
 import { validarModelo3D } from '@/uploads/validarModelo3D'
 import { cacheDeArchivoPrivado } from './hooks/cacheDeArchivos'
+import { camposDeDireccionSinPrefijo } from './hooks/direccionSinPrefijo'
 
 /**
  * Modelos tridimensionales obtenidos de TC y RM segmentadas (decisión D-022).
@@ -72,6 +73,8 @@ export const Modelos3D: CollectionConfig = {
     ],
   },
   fields: [
+    // La `url`, guardada sin prefijo (D-370).
+    ...camposDeDireccionSinPrefijo(),
     { name: 'nombre', type: 'text', required: true, label: 'Nombre del modelo' },
     {
       // La carpeta (P-004 E1): lo que el residente lleva en la mano o un trozo del cuerpo. Hasta aquí todos los

@@ -11258,6 +11258,33 @@ Lo pidió el dueño el mismo día, al cerrar el plan.
 - (−) El componente deja de servir donde el logo no deba ser enlace, por ejemplo dentro de otro enlace: un `<a>` dentro de otro no es HTML válido. Hoy no pasa en ninguno de los cuatro sitios. Si un día hiciera falta, bastaría una propiedad que lo apague.
 - (−) La imagen tiene `display: block` (`estilos.css`). La caja pasa al `<a>` que la envuelve, que además necesita un anillo de foco visible sobre el marino y sobre el papel.
 
+### D-379 · 2026-11-15 · vigente · P-016 E1
+**Cómo se quita el prefijo de la base (D-370): un gancho detrás del de Payload en cada `url`, el latido corregido en el servidor, y una migración que reconoce cualquier prefijo.**
+
+- **Lo que se midió en ved**, columna por columna, en todas las de texto y JSON, buscando `/traumahub`, `tailc2094f` y `sslip.io`:
+  - `modelos_3d.url`: 80 filas con prefijo y 2 sin él;
+  - `medios.url` y `medios.sizes_miniatura_url`: 1 fila con prefijo de 3299;
+  - `tiempo_activo.ultima_ruta`: las 60;
+  - nada más, ni direcciones absolutas de ved o de Contabo.
+- **De dónde salían las dos formas.** Payload escribe la `url` al subir y en cada actualización, aunque solo cambie el nombre, con `formatAdminURL`, que antepone `NEXT_BASE_PATH`. Ese valor lo deja `withPayload` al compilar. Lo subido por la página llevaba el prefijo. Lo subido por un guion, que corre fuera de Next, no.
+- **El gancho va en el campo y no en la colección.**
+  - El `beforeChange` de la colección corre antes que los de los campos (`collections/operations/create.js` y `utilities/update.js`), así que el de Payload volvía a poner el prefijo encima.
+  - Un campo `url` declarado en la colección no reemplaza al de Payload: `mergeBaseFields` los funde con `deepmerge`, que concatena los arreglos de ganchos. El nuestro corre detrás y recibe lo que escribió Payload.
+  - Lo mismo para cada tamaño de `medios`, que se declaran una vez (`TAMANOS`) para `imageSizes` y para los campos.
+  - Está en `src/collections/hooks/direccionSinPrefijo.ts`.
+- **El latido se corrige en la acción del servidor** (`acciones/registro.ts`), con `sinPrefijo()` de `src/lib/rutas.ts`, la inversa de `ruta()`. En el navegador no bastaba: las pestañas abiertas con el código de antes seguirían mandando el prefijo.
+- **La migración** (`20261115_130004_datos_sin_prefijo`) no cambia el esquema. Su instantánea es copia de la anterior.
+  - En las direcciones reconoce el prefijo por lo que viene detrás (`/api/<colección>/file/<archivo>`), y así vale para cualquiera.
+  - En la «Última página» no hay nada así detrás. Quita los prefijos conocidos: el de la instalación, `/traumahub` y `/simulaciones`.
+  - No se deshace: la base no guarda qué fila llevaba prefijo, y tampoco hace falta.
+- **`scripts/instrumental-a-sql.ts`** rechaza `--prefijo` con su motivo, en vez de ignorarlo. Ignorado, el valor `/traumahub` se habría tomado por la carpeta de los modelos.
+
+*Consecuencias.*
+- (+) La misma base vale en ved y en Contabo. La «Última página» se lee igual en las dos.
+- (+) `tests/integration/datosSinPrefijo.test.ts` sube un modelo y una imagen con `NEXT_BASE_PATH=/traumahub` y lee la columna por SQL. Con el gancho apagado falla en tres de sus cinco pruebas: lo que sostiene esta decisión está vigilado.
+- (−) Depende de que Payload siga fundiendo los campos con `deepmerge`. Si un día los reemplazara, su gancho de `url` desaparecería y la columna quedaría vacía al subir: la misma prueba lo diría.
+- (−) Un prefijo que no sea ninguno de los tres seguiría en la «Última página» de una base vieja. Es solo un texto de la planilla.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -17257,7 +17284,12 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
 
 #### Etapas
 
-- [ ] **E1 · Los datos sin prefijo (D-370).** La migración, y lo que desde entonces se guarda sin prefijo. Se despliega en ved y se comprueba que los modelos, las imágenes y la planilla siguen bien en `ved.tailc2094f.ts.net:10000/traumahub/`.
+- [ ] **E1 · Los datos sin prefijo (D-370).** La migración, y lo que desde entonces se guarda sin prefijo. Se despliega en ved y se comprueba que los modelos, las imágenes y la planilla siguen bien en `ved.tailc2094f.ts.net:10000/traumahub/`. *Hecha en local el 2026-11-15 (D-379); falta desplegarla en ved.* Comprobado antes de subir:
+  - `typecheck` limpio, y `lint` sin errores, con los 15 avisos de `<img>` de siempre;
+  - la suite entera: 6519 pruebas bien. Fallan las 3 de respaldos que fallan siempre en Windows. Cobertura del 88 %, sobre un umbral de 58;
+  - `test:integration`: 266 de 266, con las 5 nuevas de `datosSinPrefijo`;
+  - `build` como el de Docker, con `/traumahub`: compila, con los 8 avisos de siempre.
+  - De paso, `esquema.test.ts` aprendió a no entrar en `url` ni en `sizes`. Siguen siendo campos de Payload, aunque ahora se declaren para el gancho.
 - [ ] **E2 · Contabo igual a ved, en `traumahub.cl` (D-369).** Un paso a la vez en los servidores, con una explicación breve y el OK del dueño antes de cada uno:
   1. **Cloudflare:** la cuenta y la zona `traumahub.cl`, los servidores de nombre en nic.cl, y los registros del correo copiados como «solo DNS».
   2. **Contabo al día:** a `main` y sin prefijo, con `BASE_PATH` vacío en su `docker-compose.override.yml`. El `.env` nuevo lleva:

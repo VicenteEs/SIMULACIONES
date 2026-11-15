@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import { registrarLatido } from '@/lib/registroServidor'
+import { sinPrefijo } from '@/lib/rutas'
 
 /**
  * El latido de actividad: «sigo aquí, y tocando la plataforma» (D-145).
@@ -24,7 +25,15 @@ export async function registrarLatidoDeActividad(rutaActual: unknown): Promise<v
     if (!activo || id === undefined || id === null) return
     // Solo la ruta, sin datos de la consulta: pueden llevar un correo o una
     // búsqueda, y al registro solo le interesa en qué pantalla estaba.
-    const ruta = typeof rutaActual === 'string' ? rutaActual.split('?')[0].split('#')[0] : ''
+    //
+    // Y sin el prefijo de la instalación (D-370). El latido manda
+    // `window.location.pathname`, que lo trae, y la base no debe guardarlo:
+    // copiada de ved a Contabo, la «Última página» diría `/traumahub/…` en una
+    // plataforma que va en la raíz. Se quita aquí y no en el navegador porque
+    // así también se corrige lo que manden las pestañas abiertas con el código
+    // de antes.
+    const ruta =
+      typeof rutaActual === 'string' ? sinPrefijo(rutaActual.split('?')[0].split('#')[0]) : ''
     const payload = await getPayload({ config })
     await registrarLatido(payload, id as string | number, ruta || '/')
   } catch (error) {

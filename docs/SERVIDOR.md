@@ -365,10 +365,13 @@ Lo que se comprobó para que esto funcione, y lo que lo rompería:
   instalador crea ese mismo usuario; si en el `.env` del Ubuntu se cambió
   `POSTGRES_USER`, la restauración falla en la primera tabla —sin dañar nada,
   porque va en una transacción—.
-- **El prefijo no importa.** La base guarda direcciones con el `/simulaciones`
-  del Windows, pero Payload recalcula la de cada archivo al leerla, con el
-  nombre del archivo y la configuración del servidor que la sirve. El Ubuntu
-  puede salir con otro prefijo o sin ninguno.
+- **El prefijo no importa.** Una base de antes del 2026-11-15 guarda
+  direcciones con el prefijo de quien la escribió (`/simulaciones` en el
+  Windows, `/traumahub` en ved), pero Payload recalcula la de cada archivo al
+  leerla, con el nombre del archivo y la configuración del servidor que la
+  sirve. Desde la migración `20261115_130004_datos_sin_prefijo` la base ya no
+  guarda ninguno (D-370), y la migración se lo quita a la que llegue con él. El
+  Ubuntu puede salir con otro prefijo o sin ninguno.
 - **Las migraciones.** El volcado trae su tabla `payload_migrations`, sin la
   marca de modo desarrollo. Si el código del Ubuntu es más nuevo que el
   respaldo, las pendientes se aplican solas al levantar la aplicación.

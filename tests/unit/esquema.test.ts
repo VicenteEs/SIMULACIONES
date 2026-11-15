@@ -63,11 +63,14 @@ function nombresDeCampos(campos: Field[]): Set<string> {
  * definición del bloque, y de esos se encarga el par de pruebas de abajo —una
  * por dirección—, que usan esta misma función sobre `bloque.fields`.
  */
-function nombresDeCamposHondo(campos: Field[]): Set<string> {
+function nombresDeCamposHondo(campos: Field[], sinEntrarEn: ReadonlySet<string> = new Set()): Set<string> {
   const nombres = new Set<string>()
   const recorrer = (lista: Field[]) => {
     for (const campo of lista) {
-      if ('name' in campo && typeof campo.name === 'string') nombres.add(campo.name)
+      if ('name' in campo && typeof campo.name === 'string') {
+        nombres.add(campo.name)
+        if (sinEntrarEn.has(campo.name)) continue
+      }
       if ('tabs' in campo && Array.isArray(campo.tabs)) {
         for (const pestana of campo.tabs) recorrer(pestana.fields as Field[])
       }
@@ -86,6 +89,12 @@ function nombresDeCamposHondo(campos: Field[]): Set<string> {
  * una colección versionada y los seis del archivo subido—. Si alguno llegara a
  * declararse a mano en una colección, la comprobación de abajo lo reclamaría en
  * el panel, donde no pinta nada.
+ *
+ * `url` y `sizes` sí se declaran a mano desde D-370, pero solo para colgarles el
+ * gancho que guarda la dirección sin prefijo (`hooks/direccionSinPrefijo.ts`):
+ * siguen siendo de Payload, y Payload los funde con los suyos. Por eso la
+ * comprobación tampoco entra en ellos. Dentro de `sizes` van los tamaños de la
+ * imagen (`miniatura`, `ancho`), que el panel no edita.
  */
 const LOS_PONE_PAYLOAD = new Set([
   'id',
@@ -233,7 +242,7 @@ describe('el esquema del panel cubre las colecciones', () => {
     for (const esquema of ESQUEMAS) {
       const coleccion = COLECCIONES.find((c) => c.slug === esquema.slug)!
       const enElEsquema = new Set([...recorrerCampos(camposDe(esquema))].map((c) => c.nombre))
-      for (const nombre of nombresDeCamposHondo(coleccion.fields)) {
+      for (const nombre of nombresDeCamposHondo(coleccion.fields, LOS_PONE_PAYLOAD)) {
         if (LOS_PONE_PAYLOAD.has(nombre)) continue
         if (LOS_ESCRIBE_OTRA_PANTALLA.has(`${esquema.slug}.${nombre}`)) continue
         expect(enElEsquema, `${esquema.slug}.${nombre} falta en el esquema del panel`).toContain(

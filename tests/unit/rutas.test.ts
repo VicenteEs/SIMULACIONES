@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { origenDe, ruta } from '@/lib/rutas'
+import { origenDe, ruta, sinPrefijo } from '@/lib/rutas'
 
 /**
  * El prefijo bajo el que vive la plataforma cuando comparte servidor con otras
@@ -17,6 +17,41 @@ describe('rutas con prefijo', () => {
   it('deja en paz lo que no es una ruta absoluta', () => {
     expect(ruta('https://ejemplo.cl/x.png')).toBe('https://ejemplo.cl/x.png')
     expect(ruta('relativo.png')).toBe('relativo.png')
+  })
+})
+
+describe('el camino sin prefijo, que es lo que se guarda (D-370)', () => {
+  it('quita el prefijo una vez', () => {
+    expect(sinPrefijo('/traumahub/biblioteca/3', '/traumahub')).toBe('/biblioteca/3')
+    expect(sinPrefijo('/traumahub/api/medios/file/a.png', '/traumahub')).toBe('/api/medios/file/a.png')
+    // El prefijo dos veces es el error de O-019. Se quita uno y el otro se deja
+    // a la vista, sin taparlo.
+    expect(sinPrefijo('/traumahub/traumahub/x', '/traumahub')).toBe('/traumahub/x')
+  })
+
+  it('la portada, con o sin barra final, queda en la raíz', () => {
+    expect(sinPrefijo('/traumahub', '/traumahub')).toBe('/')
+    expect(sinPrefijo('/traumahub/', '/traumahub')).toBe('/')
+    expect(sinPrefijo('/traumahub/', '/traumahub/')).toBe('/')
+  })
+
+  it('no corta un tramo que solo empieza igual', () => {
+    // `/traumahubx` no es la plataforma bajo `/traumahub`: cortarlo dejaría
+    // una ruta inventada, `x/…`.
+    expect(sinPrefijo('/traumahubx/biblioteca', '/traumahub')).toBe('/traumahubx/biblioteca')
+  })
+
+  it('sin prefijo, o con un camino que no lo trae, no cambia nada', () => {
+    expect(sinPrefijo('/biblioteca/3', '')).toBe('/biblioteca/3')
+    expect(sinPrefijo('/biblioteca/3', '/traumahub')).toBe('/biblioteca/3')
+    expect(sinPrefijo('/api/medios/file/a.png', '/traumahub')).toBe('/api/medios/file/a.png')
+    expect(sinPrefijo('https://ejemplo.cl/traumahub/x', '/traumahub')).toBe('https://ejemplo.cl/traumahub/x')
+  })
+
+  it('es la inversa de ruta()', () => {
+    // Estas pruebas corren sin prefijo (ver arriba), así que se comprueba con
+    // el de omisión, que es el de la instalación.
+    for (const camino of ['/', '/biblioteca/3', '/api/salud']) expect(sinPrefijo(ruta(camino))).toBe(camino)
   })
 })
 

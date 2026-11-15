@@ -3,6 +3,7 @@ import type { CollectionBeforeOperationHook, CollectionConfig } from 'payload'
 import { administracionDeUsuarios } from '@/access/payload'
 import { TIPOS_DE_FOTO, espacioDeFoto, nombreDeFoto } from '@/lib/espaciosDeLaPagina'
 import { cacheDeArchivoPrivado } from './hooks/cacheDeArchivos'
+import { camposDeDireccionSinPrefijo } from './hooks/direccionSinPrefijo'
 
 /**
  * El nombre del archivo sale de su contenido, no del que trajo quien lo subió.
@@ -79,6 +80,8 @@ export const MediosPagina: CollectionConfig = {
     resizeOptions: { width: 2560, height: 2560, fit: 'inside', withoutEnlargement: true },
   },
   fields: [
+    // La `url`, guardada sin prefijo (D-370). Sin tamaños: ver `resizeOptions`.
+    ...camposDeDireccionSinPrefijo(),
     {
       name: 'espacio',
       type: 'text',

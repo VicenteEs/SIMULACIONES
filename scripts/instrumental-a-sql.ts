@@ -1,7 +1,7 @@
 /**
  * Escribe el SQL que completa el catálogo de instrumental y enlaza sus modelos.
  *
- *   npx tsx scripts/instrumental-a-sql.ts <carpeta con los .glb> [--prefijo /traumahub] [--reemplazar] > carga.sql
+ *   npx tsx scripts/instrumental-a-sql.ts <carpeta con los .glb> [--reemplazar] > carga.sql
  *
  * Por qué SQL y no `payload.create`: en el servidor, la plataforma corre dentro de
  * una imagen que no trae `tsx`, y la «Completar el catálogo» y «Cargar varios
@@ -21,24 +21,28 @@
  * en una transacción. **No copia los archivos**: eso lo hace quien lo ejecuta, a
  * la carpeta de medios (`medios/modelos`), con el mismo nombre que lleva el `.glb`.
  *
- * `--prefijo` es el que lleva la dirección del archivo en esa instalación
- * (`/traumahub` en ved, `/simulaciones` en desarrollo): la plataforma guarda la
- * dirección completa en `url`.
+ * La `url` se escribe sin el prefijo de la instalación, en ved y en cualquier
+ * otra (D-370). Hasta el 2026-11-15 se pedía `--prefijo /traumahub` para
+ * copiar lo que guardaba Payload al subir. Desde entonces Payload tampoco lo
+ * guarda, y la dirección con que se pide el archivo la rehace al leer.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { INSTRUMENTAL_BASE } from '../src/lib/instrumental'
 
 const argumentos = process.argv.slice(2)
-const indicePrefijo = argumentos.indexOf('--prefijo')
-const prefijo = indicePrefijo >= 0 ? (argumentos[indicePrefijo + 1] ?? '') : ''
-// Sin `--prefijo`, `indicePrefijo + 1` vale 0: la comparación sola dejaba fuera el primer argumento, que es justo donde va
-// la carpeta, y la orden de uso que se imprime abajo fallaba siempre con «Uso: …».
-const carpeta = argumentos.find((a, i) => !a.startsWith('--') && (indicePrefijo < 0 || i !== indicePrefijo + 1))
+// Se rechaza en vez de ignorarse. Ignorado, `/traumahub` pasaría por la carpeta
+// de los modelos, y el error diría que no existe una carpeta que nadie quiso
+// nombrar.
+if (argumentos.includes('--prefijo')) {
+  console.error('`--prefijo` ya no existe: la base guarda las direcciones sin prefijo (D-370). Quítelo de la orden.')
+  process.exit(2)
+}
+const carpeta = argumentos.find((a) => !a.startsWith('--'))
 const reemplazar = argumentos.includes('--reemplazar')
 
 if (!carpeta) {
-  console.error('Uso: npx tsx scripts/instrumental-a-sql.ts <carpeta> [--prefijo /traumahub] [--reemplazar]')
+  console.error('Uso: npx tsx scripts/instrumental-a-sql.ts <carpeta> [--reemplazar]')
   process.exit(2)
 }
 
@@ -95,7 +99,7 @@ for (const archivo of archivos) {
   const tris = triangulos(bytes)
   salida.push(
     `INSERT INTO modelos_3d (nombre, clase, origen, anonimizado, triangulos, notas, url, filename, mime_type, filesize) ` +
-      `SELECT ${q(nombre)}, 'herramienta'::enum_modelos_3d_clase, 'sintetico'::enum_modelos_3d_origen, false, ${tris ?? 'NULL'}, ${q(NOTAS)}, ${q(`${prefijo}/api/modelos-3d/file/${archivo}`)}, ` +
+      `SELECT ${q(nombre)}, 'herramienta'::enum_modelos_3d_clase, 'sintetico'::enum_modelos_3d_origen, false, ${tris ?? 'NULL'}, ${q(NOTAS)}, ${q(`/api/modelos-3d/file/${archivo}`)}, ` +
       `${q(archivo)}, 'model/gltf-binary', ${statSync(ruta).size} ` +
       `WHERE NOT EXISTS (SELECT 1 FROM modelos_3d WHERE filename = ${q(archivo)});`,
   )
