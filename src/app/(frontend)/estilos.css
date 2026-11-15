@@ -1429,7 +1429,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
      ficha impresa para pabellón puede ser justo lo que manda las últimas
      líneas a una hoja más. */
   nav, .barra, .miga, .boton, .boton-imprimir, .barra-acciones, .rastreador-actividad, .formulario-comentario, .comentar, .pie-de-pagina,
-  .examen-herramientas,
+  .examen-herramientas, .aviso-de-pruebas,
   .pestana-eyebrow, .ficha-pestanas, .ficha-lateral, .firmas-de-la-ficha {
     display: none !important;
   }
@@ -2442,6 +2442,23 @@ dd > div blockquote p:last-child,
    320 px no cabe entera en la línea con el nombre: sin esto empujaba la página
    hacia un lado. */
 .pie-de-pagina-correo { overflow-wrap: anywhere; }
+
+/* ==========================================================================
+   La franja del servidor de pruebas (D-385), solo en ved. Ámbar y no rojo: no
+   es un error, es dónde se está. El texto va en `--ambar-texto` (5,9:1 sobre
+   el tenue); `--ambar` solo da 3,7:1 y queda para el borde. En el flujo de la
+   página, no fija, y fuera del papel (la regla de impresión de arriba).
+   ========================================================================== */
+.aviso-de-pruebas {
+  background: var(--ambar-tenue);
+  color: var(--ambar-texto);
+  border-bottom: 1px solid var(--ambar);
+  padding: var(--e-2) var(--e-6);
+  text-align: center;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+.aviso-de-pruebas a { color: inherit; font-weight: 600; text-decoration: underline; }
 
 /* La firma con el logotipo de ChessCore. «Desarrollado por» y el logo van en una línea y el logo se
    alinea con la base del texto; en un teléfono de 320 px envuelven sin empujar la página. */

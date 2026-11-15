@@ -11378,6 +11378,22 @@ Lo pidió el dueño el mismo día, al cerrar el plan.
 - (−) Nada en la pantalla de ved dice que es el servidor de pruebas. Con las mismas cuentas y el mismo contenido, es fácil crear una ficha allí por costumbre y perderla para producción.
 - (−) La regla depende de que alguien la recuerde cuando entre la primera cuenta ajena. Queda escrita aquí y en el paso 12 de E8 de P-011.
 
+### D-385 · 2026-11-15 · vigente · P-016 E2 · sigue a D-384
+**ved lleva una franja de «Servidor de pruebas» arriba de cada página, y «[Pruebas]» delante del título de cada pestaña.**
+
+- **Por qué.** Desde D-384, ved y `traumahub.cl` tienen las mismas cuentas, el mismo contenido y el mismo aspecto. Lo que se escribe en ved no llega a producción, y nada en la pantalla lo decía. El dueño la pidió el mismo día: «ponlo».
+- **Cómo se enciende.** Con la variable `SERVIDOR_DE_PRUEBAS` del servidor, cuyo valor es la dirección de producción a la que lleva la franja. En ved vale `https://traumahub.cl`. Contabo y desarrollo no la tienen, y no sale. No se deduce del nombre de la máquina ni de `NEXT_PUBLIC_SERVER_URL`: eso habría marcado como de pruebas cualquier instalación distinta de `traumahub.cl`, incluida la de desarrollo, y el día que cambiara la dirección de producción, a la propia producción.
+  - Se lee en cada petición, porque la plantilla es `force-dynamic`. Basta con el `.env` y con recrear el contenedor, sin reconstruir la imagen.
+  - La plantilla del override la pasa al contenedor (`SERVIDOR_DE_PRUEBAS: ${SERVIDOR_DE_PRUEBAS:-}`), y una prueba lo vigila. Sin esa línea, ponerla en el `.env` no habría hecho nada, como pasó con `SMTP_NOMBRE`.
+  - Si el valor no es una dirección `https`, la franja sale igual pero sin enlace: si la variable está puesta, alguien quiso marcar el servidor. Vacía, o con `0`, `no` o `false`, no sale.
+- **Dónde va.** Lo primero dentro de `<body>`, también antes de entrar y con el aviso de privacidad delante, porque es en `/entrar` donde se decide en qué servidor trabajar. Va en el flujo de la página y no fija: el sitio y el panel ya tienen barras pegadas arriba, y una tercera las habría tapado. Tiene el ámbar de las advertencias y no el rojo, porque no es un error sino dónde se está. No sale al imprimir: el servidor hace los PDF con la hoja de impresión.
+- **El título.** La plantilla pasa a `generateMetadata`, con `title.template` = `[Pruebas] %s`. Con ved y `traumahub.cl` abiertos a la vez, la franja no se ve desde la barra de pestañas.
+
+*Consecuencias.*
+- (+) Ya no se crea una ficha en ved creyendo que es producción sin que la pantalla lo diga.
+- (−) Al hacer scroll, la franja se va con la página. Lo que se queda a la vista es el título de la pestaña.
+- (−) La plantilla del override cambió. Contabo tiene que copiarla en su próximo despliegue, porque si no `salud.sh` marca la diferencia. Es inofensiva, porque allí la variable no está. ved la copia ahora.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

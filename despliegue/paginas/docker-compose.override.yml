@@ -99,6 +99,11 @@ services:
       # por omisión de `payload.config.ts` coincide con el que se quería.
       SMTP_NOMBRE: ${SMTP_NOMBRE:-TraumaHub}
       DIFUSION_CORREOS_POR_HORA: ${DIFUSION_CORREOS_POR_HORA:-}
+      # La franja «Servidor de pruebas» en lo alto de cada página (D-385). En
+      # ved, su .env dice la dirección de producción a la que lleva la franja;
+      # en Contabo no está, y no sale. Como las dos de arriba: sin esta línea,
+      # ponerla en el .env no haría nada.
+      SERVIDOR_DE_PRUEBAS: ${SERVIDOR_DE_PRUEBAS:-}
     volumes:
       # Los archivos subidos sobreviven a cada despliegue.
       - medios:/app/medios

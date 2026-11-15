@@ -14,9 +14,13 @@ import '@fontsource-variable/inter'
 import './estilos.css'
 import './ui.css'
 import { ruta } from '@/lib/rutas'
+import { AvisoDeServidorDePruebas } from '@/components/AvisoDeServidorDePruebas'
+import { PREFIJO_DEL_TITULO, servidorDePruebas } from '@/lib/servidorDePruebas'
 
-export const metadata: Metadata = {
-  title: 'Plataforma docente de traumatología',
+const TITULO = 'Plataforma docente de traumatología'
+
+const METADATOS: Metadata = {
+  title: TITULO,
   description: 'Estudio, exploración física, técnica quirúrgica y lectura de imágenes.',
   // Acceso cerrado: la plataforma no debe indexarse (decisión D-020).
   robots: { index: false, follow: false },
@@ -27,10 +31,26 @@ export const metadata: Metadata = {
   },
 }
 
+/**
+ * En el servidor de pruebas cada pestaña empieza por «[Pruebas]» (D-385): con
+ * ved y `traumahub.cl` abiertos a la vez, la franja de la página no se ve desde
+ * la barra de pestañas. Es una función y no la constante de antes porque la
+ * variable se lee en cada petición, no al compilar.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  if (!servidorDePruebas(process.env.SERVIDOR_DE_PRUEBAS)) return METADATOS
+  return {
+    ...METADATOS,
+    // La plantilla vale para los títulos de las páginas hijas; `default`, para las que no ponen ninguno.
+    title: { default: `${PREFIJO_DEL_TITULO} ${TITULO}`, template: `${PREFIJO_DEL_TITULO} %s` },
+  }
+}
+
 export const dynamic = 'force-dynamic'
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const sesion = await obtenerSesion()
+  const pruebas = servidorDePruebas(process.env.SERVIDOR_DE_PRUEBAS)
   // Una cuenta que no ha aceptado la versión vigente del aviso ve el aviso en
   // lugar de lo que pidió, sea la página que sea (D-292). Aquí y no en cada
   // página porque esta plantilla envuelve a todas, el panel incluido: la
@@ -49,6 +69,10 @@ export default async function Layout({ children }: { children: React.ReactNode }
   return (
     <html lang="es">
       <body data-tema={tema}>
+        {/* Lo primero de la página, también antes de entrar y con el aviso de
+            privacidad delante: es en `/entrar` donde se decide en qué servidor
+            se va a trabajar. */}
+        {pruebas ? <AvisoDeServidorDePruebas produccion={pruebas.produccion} /> : null}
         {dentro ? (
           <Navegacion
             nombre={sesion.usuario?.nombre as string | undefined}
