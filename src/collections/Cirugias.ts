@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { avisarAlPublicar } from './hooks/avisarAlPublicar'
 import { avisarDeInstrumentosPropuestos } from './hooks/instrumentosPropuestos'
+import { escribirLaVersionDelFormato } from './hooks/formatoDelCaso'
 import { lecturaDeBorradores, lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { editorClinico, pilaDeBloques } from '@/blocks'
 // La única vez que una colección importa del esquema del panel, y va contra la
@@ -177,9 +178,21 @@ export const Cirugias: CollectionConfig = {
   // cinco modulos.
   // `avisarDeInstrumentosPropuestos` es solo de las cirugías: son las únicas
   // fichas con pasos que piden instrumento.
-  hooks: { afterChange: [avisarAlPublicar, avisarDeInstrumentosPropuestos] },
+  hooks: {
+    beforeChange: [escribirLaVersionDelFormato],
+    afterChange: [avisarAlPublicar, avisarDeInstrumentosPropuestos],
+  },
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre del caso' },
+    {
+      // Con qué formato se escribió el caso (D-373, `formatoDelCaso.ts`). Lo pone
+      // `escribirLaVersionDelFormato` en cada guardado; el panel no lo enseña ni
+      // lo edita.
+      name: 'versionDelFormato',
+      type: 'number',
+      label: 'Versión del formato',
+      admin: { readOnly: true, hidden: true },
+    },
 
     // --- el caso -----------------------------------------------------------
     {

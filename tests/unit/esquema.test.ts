@@ -123,7 +123,13 @@ const LOS_PONE_PAYLOAD = new Set([
  * hacerlo. Consecuencia conocida: duplicar un instrumento desde el panel de
  * contenido no copia sus retoques.
  */
-const LOS_ESCRIBE_OTRA_PANTALLA = new Set(['instrumental.ajustes'])
+const LOS_ESCRIBE_OTRA_PANTALLA = new Set([
+  'instrumental.ajustes',
+  // La versión del formato del caso (D-373) no la escribe nadie a mano: la pone
+  // un gancho en cada guardado (`escribirLaVersionDelFormato`). Editarla
+  // marcaría el caso con un formato que no es el suyo.
+  'cirugias.versionDelFormato',
+])
 
 /**
  * Campos obligatorios de primer nivel de una colección.

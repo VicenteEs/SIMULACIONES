@@ -15,6 +15,7 @@ import { objetivoDelPaso, type Objetivo } from '@/lib/simulador'
 import { transformacionValida } from '@/lib/reduccionAutomatica'
 import { encuadreDelGrupo, posicionDelPaso } from '@/lib/encuadreDelPaso'
 import { manguitoDelDocumento } from '@/lib/relojesDelCaso'
+import { alFormatoActual, VERSION_DEL_FORMATO_DEL_CASO } from '@/lib/formatoDelCaso'
 import { centroDesdeElArchivo, centroDesdeLasNotas, panoDelCaso, type CampoDelCaso } from '@/lib/campoQuirurgico'
 
 /**
@@ -396,7 +397,13 @@ function campoDelDocumento(documento: Documento): CampoDelCaso {
   }
 }
 
-export function casoParaLaConsola(documento: Documento): CasoDeConsola {
+export function casoParaLaConsola(documentoLeido: Documento): CasoDeConsola {
+  // Antes que nada, el formato (D-373): las conversiones que le falten a un caso
+  // viejo, y un alto con su mensaje si lo escribió un simulador más nuevo. Aquí
+  // y no en cada llamada porque por aquí pasan la consola del residente, la
+  // nota del servidor y el editor; las correcciones de abajo son las del
+  // formato 1 y siguen valiendo.
+  const documento = alFormatoActual(documentoLeido)
   const modelo = documento.modelo
   const desplazamiento = (documento.desplazamientoInicial ?? {}) as Documento
 
@@ -521,6 +528,10 @@ export function casoDesdeElFormulario(
 
   const base = casoParaLaConsola({
     ...valores,
+    // Lo del formulario ya está en el formato de este código: lo escribe este
+    // mismo editor. Sin la marca contaría como un caso de antes de D-373, y la
+    // primera conversión que no sea la identidad lo reescribiría encima.
+    versionDelFormato: VERSION_DEL_FORMATO_DEL_CASO,
     modelo: modelo ? { id: modelo.id, url: modelo.url ?? null, centroEnElCuerpo: modelo.centroEnElCuerpo ?? null } : null,
     hueso: poblarNombre('huesos-ao', valores.hueso),
     clasificacion: poblarNombre('clasificaciones-ao', valores.clasificacion),

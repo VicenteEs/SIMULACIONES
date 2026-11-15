@@ -17512,6 +17512,17 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   7. **ved pasa a pruebas:** ~~cuentas inventadas (paso 12 de E8 de P-011)~~. *Hecho el 2026-11-15, con las cuentas del equipo tal como están (D-384):* ved queda como servidor de pruebas, sin borrar nada, porque las 5 cuentas son del equipo y no hay usuarios reales. Desde las 18:53 la producción es `traumahub.cl`, y hasta las 19:25 no había cambiado ninguna fila de ved después de la copia. El aviso del 15 de noviembre, que nombra a Cloudflare, puede llegar a ved con la próxima actualización: a ved no se entra por Cloudflare, pero en el servidor de pruebas solo está el equipo.
 - [ ] **E3 · Proteger lo que ya existe**, antes de abrir a instituciones:
   - los casos, con versión de formato y con el ensayo antes de cada despliegue (D-373);
+    - *la versión de formato, hecha el 2026-11-15:*
+      - `formatoDelCaso.ts` lleva `VERSION_DEL_FORMATO_DEL_CASO = 1` y `CONVERSIONES`, una por versión, y una prueba lo exige;
+      - la versión 1 es el formato de ese día tal como lo lee `casoParaLaConsola`, con sus correcciones al leer, así que la conversión 0 → 1 es la identidad;
+      - `casoParaLaConsola` convierte al entrar, y para con un mensaje un caso de un formato más nuevo. Pasa si se vuelve a una imagen anterior después de una migración de formato, y leerlo igual daría un puntaje que no es el suyo;
+      - el gancho `escribirLaVersionDelFormato` pone la versión en cada guardado (editor, «Duplicar», publicar, API), y se niega a guardar encima de un caso más nuevo;
+      - el editor marca lo del formulario como del formato actual;
+      - la migración `20261115_224829_formato_de_los_casos` añade la columna a `cirugias` y a `_cirugias_v` y escribe el 1 en todo lo que había;
+      - el campo no se edita en el panel, y está en la lista de excepciones de `esquema.test.ts`;
+      - pruebas: `formatoDelCaso.test.ts` (unitaria) y `tests/integration/formatoDelCaso.test.ts` (borrador, publicado, versiones y la migración tal cual);
+      - **cómo se cambia el formato desde ahora:** se sube la versión, se añade la conversión al final de `CONVERSIONES` y se escribe una migración que la aplique a `cirugias` y a `_cirugias_v`;
+    - *pendiente:* la resolución de referencia de cada caso y el ensayo antes de desplegar;
   - los modelos: uno en uso no se borra, y se reemplaza con «Reemplazar por…» (D-372). Además, borrar una preparación se lleva los modelos que exportó y nadie usa, cada archivo lleva un nombre único, y se limpian una vez los modelos sobrantes de ved, con el OK del dueño;
   - las sesiones: una por cuenta, con alertas de entradas imposibles (D-374).
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
