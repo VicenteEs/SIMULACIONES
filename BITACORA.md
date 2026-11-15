@@ -11459,6 +11459,18 @@ Comprobado antes de subir:
 - `build` con `/traumahub`, bien;
 - la suite, 6587 bien y una omitida, con cobertura de 87,6 % de sentencias, 79,5 % de ramas, 88,2 % de funciones y 89 % de líneas, contra el 58 % del umbral. Fallan 3 que no tocan nada de esto: las dos de `directorioDeRespaldos` y una de `respaldoEnWindows`, las de siempre en Windows. La cifra sale con `--coverage.reportOnFailure`, porque con pruebas que fallan vitest no mira el umbral.
 
+*Desplegado en ved el 2026-11-16 (`5dfcb1b`), con el ensayo dentro.* `actualizar.sh` pasó ved de `c5544ab` a `5dfcb1b`, y el ensayo hizo esto:
+- construyó su etapa, copió la base a `ensayo_20261115202522` y aplicó en la copia las dos migraciones nuevas (la del formato y la de las referencias);
+- abrió los 2 casos publicados, el 10 y el 11, con sus modelos y sin piezas que falten, y dio 0 errores y 2 avisos: ninguno tiene todavía su resolución de referencia;
+- tardó 1,4 s en abrir los casos.
+
+Comprobado después:
+- no quedó ni la base temporal, ni la imagen, ni el contenedor del ensayo;
+- la base de verdad tiene las dos migraciones (lote 25), los dos casos con la versión 1 del formato y la tabla de referencias vacía;
+- las 5 cuentas siguen ahí (D-384), y la salud por fuera da 200.
+
+En el registro salieron dos ruidos que no eran del ensayo: el aviso de Docker de que el constructor viejo está en desuso (ved no tiene `buildx`) y el de versión nueva de npm. Desde el commit siguiente, lo de la construcción solo se enseña si falla, y npm no avisa.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -17569,7 +17581,8 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - la colección `resoluciones-de-referencia`, una por caso, con su migración `20261115_225931_resoluciones_de_referencia`, la acción `grabarResolucionDeReferencia` y el botón al final del caso para quien edita el simulador;
       - `scripts/ensayar-casos.sh` en `deploy.sh`, entre construir y levantar, con `SIN_ENSAYO=1` para saltarlo;
       - pruebas: `ensayoDeLosCasos.test.ts`, `ensayoEnElDespliegue.test.ts`, `resolucionDeReferencia.test.ts`, `botonDeLaReferencia.test.ts` y `tests/integration/resolucionDeReferencia.test.ts`;
-      - *pendiente:* el primer despliegue con el ensayo en ved, y grabar la referencia de cada caso publicado (trabajo del equipo; el ensayo avisa de los que no la tienen);
+      - desplegado en ved el 2026-11-16, donde el ensayo abrió los 2 casos publicados sin errores;
+      - *pendiente:* grabar la referencia de cada caso publicado, que es trabajo del equipo (el ensayo avisa de los que no la tienen), y el primer despliegue con el ensayo en Contabo;
   - los modelos: uno en uso no se borra, y se reemplaza con «Reemplazar por…» (D-372). Además, borrar una preparación se lleva los modelos que exportó y nadie usa, cada archivo lleva un nombre único, y se limpian una vez los modelos sobrantes de ved, con el OK del dueño;
   - las sesiones: una por cuenta, con alertas de entradas imposibles (D-374).
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.

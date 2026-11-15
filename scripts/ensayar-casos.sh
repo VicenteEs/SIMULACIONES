@@ -34,8 +34,10 @@ marca="$(date +%Y%m%d%H%M%S)"
 BASE="ensayo_$marca"
 IMAGEN_DEL_ENSAYO="plataforma-trauma:ensayo"
 CONTENEDOR="traumahub-ensayo-$marca"
+REGISTRO_DE_LA_IMAGEN="$(mktemp)"
 
 limpiar() {
+  rm -f "$REGISTRO_DE_LA_IMAGEN"
   docker rm -f "$CONTENEDOR" >/dev/null 2>&1 || true
   dc exec -T db sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1"' _ "$BASE" </dev/null >/dev/null 2>&1 || true
   docker image rm "$IMAGEN_DEL_ENSAYO" >/dev/null 2>&1 || true
@@ -45,8 +47,18 @@ trap limpiar EXIT
 # La etapa `ensayo` del Dockerfile: las dependencias de la imagen y el codigo,
 # sin compilar. Reutiliza la cache de la construccion que deploy.sh acaba de
 # hacer, asi que solo copia el codigo.
+#
+# Lo que escribe la construccion se guarda y solo se ensena si falla: en ved,
+# sin buildx, cada construccion avisa de que el constructor viejo esta en
+# desuso, y ese aviso entre las lineas del ensayo no dice nada de los casos.
 echo "    preparando el entorno del ensayo"
-docker build --quiet --target ensayo -t "$IMAGEN_DEL_ENSAYO" . >/dev/null
+if ! docker build --quiet --target ensayo -t "$IMAGEN_DEL_ENSAYO" . >"$REGISTRO_DE_LA_IMAGEN" 2>&1; then
+  cat "$REGISTRO_DE_LA_IMAGEN" >&2
+  morir "No se pudo preparar el entorno del ensayo."
+fi
+
+# Sin el aviso de version nueva de npm, que sale en cada `npx` y no es del ensayo.
+SIN_AVISOS_DE_NPM=(-e NPM_CONFIG_UPDATE_NOTIFIER=false)
 
 # Las tablas que no viajan las dice el propio codigo, que es donde vive la
 # lista y su prueba (`COLECCIONES_SIN_COPIAR`): copiada aqui, la coleccion de
@@ -54,7 +66,7 @@ docker build --quiet --target ensayo -t "$IMAGEN_DEL_ENSAYO" . >/dev/null
 sin_copiar=()
 while IFS= read -r patron; do
   [ -n "$patron" ] && sin_copiar+=("--exclude-table-data=$patron")
-done < <(docker run --rm "$IMAGEN_DEL_ENSAYO" npx tsx scripts/ensayar-casos.ts --tablas-sin-copiar </dev/null)
+done < <(docker run --rm "${SIN_AVISOS_DE_NPM[@]}" "$IMAGEN_DEL_ENSAYO" npx tsx scripts/ensayar-casos.ts --tablas-sin-copiar </dev/null)
 [ "${#sin_copiar[@]}" -gt 0 ] || morir "El ensayo no devolvio la lista de tablas sin copiar: no se copia nada a ciegas."
 
 echo "    copiando el contenido a una base temporal ($BASE)"
@@ -89,7 +101,7 @@ echo "    abriendo cada caso con el codigo nuevo"
 # tiempo: un ensayo colgado no puede dejar el despliegue esperando para siempre.
 export DATABASE_URI="postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@db:5432/$BASE"
 set +e
-timeout 900 docker run --rm --name "$CONTENEDOR" --network "$red" "${montaje[@]}" \
+timeout 900 docker run --rm --name "$CONTENEDOR" --network "$red" "${montaje[@]}" "${SIN_AVISOS_DE_NPM[@]}" \
   -e NODE_ENV=production -e DATABASE_URI -e PAYLOAD_SECRET -e DIRECTORIO_DE_MEDIOS=/app/medios \
   "$IMAGEN_DEL_ENSAYO" npx tsx scripts/ensayar-casos.ts </dev/null 2>&1 | sed 's/^/      /'
 resultado="${PIPESTATUS[0]}"
