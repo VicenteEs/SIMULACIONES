@@ -138,8 +138,15 @@ Instalelo con:  sudo apt install age"
 
 # ¿Es un archivo de age? Mira solo la primera linea, que es lo unico que se
 # puede comprobar sin la llave privada.
+#
+# El `tr -d '\0'` es por los que NO son de age: la cabecera de un gzip lleva
+# bytes nulos, y al meterlos en una variable bash avisaba «ignored null byte in
+# input». La respuesta salia bien igual, pero el aviso aparecia en restaurar.sh
+# justo antes de pedir RESTAURAR, y sonaba a archivo roto (paso 4 de E2 de
+# P-016). Quitarlos no puede dar un falso si: con algun nulo quedan menos de 21
+# caracteres, y la cabecera de age tiene 21.
 es_archivo_age() {
-  [ "$(head -c 21 "$1" 2>/dev/null)" = "age-encryption.org/v1" ]
+  [ "$(head -c 21 "$1" 2>/dev/null | tr -d '\0')" = "age-encryption.org/v1" ]
 }
 
 # guardar_respaldo <en_claro> <destino>

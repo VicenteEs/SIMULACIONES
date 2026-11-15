@@ -223,6 +223,10 @@ comprobar "el previo salio en claro, con aviso" bash -c "[ \"\$(ls '$P/backups' 
 comprobar "ningun temporal" [ "$(parciales)" -eq 0 ]
 comprobar "recuerda repetir las supresiones" grep -q "Vuelva a eliminar las cuentas" <<<"$salida"
 comprobar "no pide borrar una llave que no hubo" bash -c "! grep -q 'Borre ahora la llave privada' <<<\"\$0\"" "$salida"
+# Mirar si un gzip es de age leia sus bytes nulos en una variable, y bash
+# avisaba «ignored null byte» al empezar la restauracion de verdad del paso 4
+# de E2 de P-016: suena a archivo roto justo cuando se va a escribir RESTAURAR.
+comprobar "no avisa de bytes nulos" bash -c "! grep -q 'null byte' <<<\"\$0\"" "$salida"
 
 echo "== 10. salud con todo en orden =="
 nuevo_proyecto "$PUB"
@@ -240,6 +244,7 @@ salida=$(DESTINATARIO_EN_LA_APP="" APP_SIN_AGE=1 bash "$P/scripts/salud.sh" 2>&1
 comprobar "el panel respalda sin cifrar" grep -q "el panel respalda SIN CIFRAR" <<<"$salida"
 comprobar "la imagen sin age" grep -q "la imagen de la app no trae age" <<<"$salida"
 comprobar "cuenta el viejo en claro" grep -q "1 respaldo(s) de antes del cifrado" <<<"$salida"
+comprobar "no avisa de bytes nulos" bash -c "! grep -q 'null byte' <<<\"\$0\"" "$salida"
 comprobar "el ultimo sigue siendo el cifrado" bash -c "! grep -q 'el ultimo respaldo esta SIN CIFRAR' <<<\"\$0\"" "$salida"
 salida=$(DESTINATARIO_EN_LA_APP="$OTRA" bash "$P/scripts/salud.sh" 2>&1)
 comprobar "la app con otra llave" grep -q "el panel cifra para otra llave (...zzzzzzzz)" <<<"$salida"
