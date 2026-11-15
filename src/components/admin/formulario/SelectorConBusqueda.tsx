@@ -46,7 +46,10 @@ interface PropsComunes {
   opciones: Opcion[]
   /** Colección a la que apunta la relación: decide si se puede agregar y a qué. */
   coleccion: string
-  /** Cuando agregar cambia lo que el resto del formulario tiene cargado. */
+  /**
+   * Vuelve a pedir la lista: después de agregar, y al abrir el desplegable
+   * (como mucho cada `REFRESCO_AL_ABRIR_MS`).
+   */
   alRecargar?: () => void
   /** Texto del cuadro cuando no hay nada elegido. */
   marcador?: string
@@ -71,12 +74,25 @@ type Props =
       requerido?: boolean
     })
 
+/**
+ * Cada cuánto, como mucho, se vuelve a pedir la lista al abrir (D-372).
+ *
+ * La lista se pide al montar el formulario y no cambiaba más: un modelo borrado
+ * desde otra pestaña seguía ofreciéndose hasta recargar la página, y elegirlo
+ * guardaba una relación con algo que ya no existe. Pedirla en cada apertura
+ * sería una acción de servidor por clic; cada medio minuto basta para lo que
+ * cambia mientras alguien tiene la ficha abierta.
+ */
+export const REFRESCO_AL_ABRIR_MS = 30_000
+
 export function SelectorConBusqueda(props: Props) {
   const { id, idDeLaAyuda, coleccion, alRecargar, marcador, puedeAgregar = true, etiquetaDelCampo } = props
   const ficha = useContext(ContextoDeFicha)
   const idLista = useId()
   const contenedor = useRef<HTMLDivElement>(null)
   const cuadro = useRef<HTMLInputElement>(null)
+  // Cuándo se pidió la lista al abrir por última vez (ver `REFRESCO_AL_ABRIR_MS`).
+  const pedidaAlAbrir = useRef(0)
 
   const [abierto, setAbierto] = useState(false)
   const [escrito, setEscrito] = useState('')
@@ -145,6 +161,11 @@ export function SelectorConBusqueda(props: Props) {
 
   function abrir() {
     if (abierto) return
+    const ahora = Date.now()
+    if (alRecargar && ahora - pedidaAlAbrir.current > REFRESCO_AL_ABRIR_MS) {
+      pedidaAlAbrir.current = ahora
+      alRecargar()
+    }
     setAbierto(true)
     setEscrito('')
     setActivo(0)

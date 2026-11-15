@@ -313,6 +313,7 @@ export interface Modelos3D {
    */
   triangulos?: number | null;
   notas?: string | null;
+  preparacion?: (number | null) | InstanciasAtlas;
   /**
    * Con qué ángulo y a qué distancia abre este modelo. Vacío: lo encuadra el visor.
    */
@@ -2835,6 +2836,7 @@ export interface Modelos3DSelect<T extends boolean = true> {
   anonimizado?: T;
   triangulos?: T;
   notas?: T;
+  preparacion?: T;
   encuadre?:
     | T
     | {

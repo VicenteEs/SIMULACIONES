@@ -390,6 +390,8 @@ export async function exportarPreparacion(
       clase: 'cuerpo',
       origen: 'sintetico',
       anonimizado: true,
+      // Para que borrar la preparación se lleve los modelos que nadie usa (D-372).
+      preparacion: Number(identificador),
       notas:
         `Exportado de la preparación «${String(instancia.nombre ?? '')}» del atlas anatómico ` +
         `(${catalogo.version}), con ${encontradas.length} piezas. ` +

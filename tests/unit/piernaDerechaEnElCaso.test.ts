@@ -584,6 +584,8 @@ describe('ejecutar, con la exportación de verdad', () => {
     const nuevo = modelos[1]
     const caso = casoDe(memoria)
     expect(caso.modelo).toBe(nuevo.id)
+    // Sabe de qué preparación salió, para que borrarla se lo lleve si nadie lo usa (D-372).
+    expect(nuevo.preparacion).toBe(memoria.tablas.get('instancias-atlas')![0].id)
     expect(caso.modelo).not.toBe(modeloViejo.id)
 
     const piezas = caso.piezas!

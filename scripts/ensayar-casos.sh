@@ -109,7 +109,7 @@ set -e
 unset DATABASE_URI
 
 case "$resultado" in
-  0) verde "    los casos abren y sus referencias dan la misma nota" ;;
+  0) verde "    los casos abren con el codigo nuevo, y las referencias que hay dan la misma nota" ;;
   1) rojo "    el codigo nuevo rompe algun caso: vea los ERROR de arriba"; exit 1 ;;
   124) rojo "    el ensayo no termino en 15 minutos"; exit 1 ;;
   *) rojo "    el ensayo no pudo terminar (salida $resultado)"; exit 1 ;;

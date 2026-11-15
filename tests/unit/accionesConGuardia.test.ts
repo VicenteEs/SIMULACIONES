@@ -308,6 +308,8 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'atlas.ts:guardarInstancia': { guardia: 'editor', argumentos: () => [null, { nombre: 'Preparación' }] },
   'atlas.ts:duplicarInstancia': { guardia: 'editor', argumentos: () => ['5'] },
   'atlas.ts:eliminarInstancia': { guardia: 'editor', argumentos: () => ['5'] },
+  // Cambia un modelo por otro en todo lo que lo usa (D-372); que quien lo pide edite cada ficha lo mira dentro.
+  'modelos.ts:reemplazarModeloEnTodo': { guardia: 'editor', argumentos: () => ['5', '6'] },
   'atlas.ts:exportarComoModelo': { guardia: 'editor', argumentos: () => ['5'] },
   // Crea un modelo nuevo: es de quien edita (P-003 E9).
   'atlas.ts:reexportarConEstructurasSeparadas': { guardia: 'editor', argumentos: () => ['5'] },

@@ -133,7 +133,7 @@ describe('el taller del atlas y el trabajo sin guardar', () => {
     // Y la negativa llega a la pantalla: pasa por `conAviso`, que pinta el
     // `mensaje` de la acción —los títulos de las fichas— y no uno genérico.
     expect(eliminar).toContain('() => eliminarInstancia(g.id)')
-    expect(entre('const conAviso = (', 'const resumen')).toContain(
+    expect(entre('const conAviso = <T,>(', 'const resumen')).toContain(
       "setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo completar.' })",
     )
   })

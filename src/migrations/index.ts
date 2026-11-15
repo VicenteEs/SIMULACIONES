@@ -52,6 +52,7 @@ import * as migration_20261115_004640_campo_quirurgico_y_tema from './20261115_0
 import * as migration_20261115_130004_datos_sin_prefijo from './20261115_130004_datos_sin_prefijo';
 import * as migration_20261115_224829_formato_de_los_casos from './20261115_224829_formato_de_los_casos';
 import * as migration_20261115_225931_resoluciones_de_referencia from './20261115_225931_resoluciones_de_referencia';
+import * as migration_20261115_234719_modelo_con_su_preparacion from './20261115_234719_modelo_con_su_preparacion';
 
 export const migrations = [
   {
@@ -323,5 +324,10 @@ export const migrations = [
     up: migration_20261115_225931_resoluciones_de_referencia.up,
     down: migration_20261115_225931_resoluciones_de_referencia.down,
     name: '20261115_225931_resoluciones_de_referencia',
+  },
+  {
+    up: migration_20261115_234719_modelo_con_su_preparacion.up,
+    down: migration_20261115_234719_modelo_con_su_preparacion.down,
+    name: '20261115_234719_modelo_con_su_preparacion',
   },
 ];

@@ -1,8 +1,9 @@
 import type { CollectionConfig } from 'payload'
 import { lecturaSimple, escrituraDeContenido } from '@/access/payload'
-import { validarModelo3D } from '@/uploads/validarModelo3D'
+import { nombreQueNoSeReutiliza, validarModelo3D } from '@/uploads/validarModelo3D'
 import { cacheDeArchivoPrivado } from './hooks/cacheDeArchivos'
 import { camposDeDireccionSinPrefijo } from './hooks/direccionSinPrefijo'
+import { negarElBorradoDeUnModeloEnUso } from './hooks/modeloEnUso'
 
 /**
  * Modelos tridimensionales obtenidos de TC y RM segmentadas (decisión D-022).
@@ -38,6 +39,8 @@ export const Modelos3D: CollectionConfig = {
     mimeTypes: ['model/gltf-binary', 'application/octet-stream'],
   },
   hooks: {
+    // Un modelo en uso no se borra (D-372): ver el gancho.
+    beforeDelete: [negarElBorradoDeUnModeloEnUso],
     // `beforeOperation` y no `beforeValidate`, y la diferencia no es de estilo.
     //
     // Payload prepara el archivo en `generateFileData`, que corre **antes** del
@@ -68,7 +71,12 @@ export const Modelos3D: CollectionConfig = {
         if (!resultado.valido) {
           throw new Error(resultado.motivo ?? 'El archivo no es un modelo 3D válido.')
         }
-        if (resultado.nombreSeguro) archivo.name = resultado.nombreSeguro
+        // Saneado y con una marca única, para que la dirección no sea nunca la
+        // de un modelo borrado (ver `nombreQueNoSeReutiliza`).
+        archivo.name = nombreQueNoSeReutiliza(
+          resultado.nombreSeguro ?? archivo.name,
+          globalThis.crypto.randomUUID().slice(0, 8),
+        )
       },
     ],
   },
@@ -124,6 +132,22 @@ export const Modelos3D: CollectionConfig = {
       },
     },
     { name: 'notas', type: 'textarea', label: 'Notas del procesamiento' },
+    {
+      // De qué preparación del atlas salió (D-372). Sin esto, borrar una
+      // preparación dejaba sus modelos para siempre: el modelo no sabía de
+      // dónde venía, y en ved quedaron ocho de dieciséis preparaciones borradas
+      // en cinco minutos, ofreciéndose en el desplegable de cada caso. Con ella,
+      // `eliminarInstancia` borra los que nadie usa y nombra los que se quedan.
+      // La escribe `exportarPreparacion`, no se edita a mano. La base la pone a
+      // nulo al borrar la preparación, y entonces el modelo queda como uno
+      // subido a mano.
+      name: 'preparacion',
+      type: 'relationship',
+      relationTo: 'instancias-atlas',
+      index: true,
+      label: 'Preparación del atlas de la que salió',
+      admin: { readOnly: true },
+    },
     {
       /**
        * Desde qué ángulo abre este modelo, para que el residente lo vea

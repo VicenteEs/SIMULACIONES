@@ -129,6 +129,7 @@ export function FormularioDocumento({
   revision = null,
   esAdmin = false,
   usuarioId,
+  anexo = null,
 }: {
   esquema: EsquemaDeColeccion
   documento: Record<string, unknown>
@@ -144,6 +145,12 @@ export function FormularioDocumento({
   esAdmin?: boolean
   /** Quién edita, para que la copia local de una persona no se le ofrezca a otra. */
   usuarioId: string
+  /**
+   * Lo que la página añade encima de los campos y que no es un campo: hoy,
+   * «Dónde se usa» en la ficha de un modelo 3D (D-372). Lo arma el servidor,
+   * que es quien puede preguntar a la base.
+   */
+  anexo?: React.ReactNode
 }) {
   const router = useRouter()
   const [enCurso, iniciar] = useTransition()
@@ -1291,6 +1298,8 @@ export function FormularioDocumento({
           alCambiarNota={setNota}
         />
       ) : null}
+
+      {anexo}
 
       {/* Pestañas con el patrón de pestañas de ARIA: flechas para moverse,
           Inicio y Fin, y solo la activa en el orden del tabulador. Eran botones

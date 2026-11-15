@@ -11471,6 +11471,43 @@ Comprobado después:
 
 En el registro salieron dos ruidos que no eran del ensayo: el aviso de Docker de que el constructor viejo está en desuso (ved no tiene `buildx`) y el de versión nueva de npm. Desde el commit siguiente, lo de la construcción solo se enseña si falla, y npm no avisa.
 
+### D-387 · 2026-11-16 · vigente · P-016 E3 · sigue a D-372
+**Un modelo en uso no se borra: lo niega un gancho que pregunta a la base qué columnas apuntan a los modelos, y la ficha del modelo enseña dónde se usa y lo reemplaza en todos los sitios a la vez.**
+
+- **El borrado se niega en el `beforeDelete` de `modelos-3d`** (`negarElBorradoDeUnModeloEnUso`), así que vale para el menú de la ficha, la tabla del listado y la API.
+  - En `afterDelete` llegaría tarde: la base ya habría puesto a nulo lo que el gancho tiene que mirar. Es lo mismo que pasó con la referencia en D-386.
+  - El error es `ModeloEnUso`, con 409 e `isPublic`, y nombra hasta ocho documentos con su título y su tipo («Cirugía simulada», «Caso AO»…).
+  - Lo que es de módulos que quien borra no edita cuenta para negar el borrado, pero no se nombra, igual que en `mensajeDePreparacionEnUso`.
+- **Qué mirar sale del catálogo de PostgreSQL, no de una lista.**
+  - `usosDeUnModeloServidor.ts` pide a `pg_constraint` las columnas con clave ajena a `modelos_3d`, que son justo las que la base pondría a nulo.
+  - `clasificarColumnas` (`usosDeUnModelo.ts`) dice de qué colección es cada una y por dónde se llega al documento: el documento, una fila hija (bloque o lista), la versión o la hija de una versión.
+  - Hoy son 15 columnas en 6 colecciones: el caso, el instrumento, los pasos de técnica AO y el bloque «Modelo 3D» de los cinco módulos, con sus versiones.
+  - Se descartó recorrer los campos de la configuración, como en `usosDeLaPreparacion.ts`. `where` no distingue la pestaña de un bloque, y volver de una tabla de bloques a su ruta de campos es justo lo que no se puede escribir bien.
+  - Lo que no encaja en ninguna vía sale en `sinClasificar`, y la prueba de integración exige que esté vacío contra la base real. Un campo de modelo nuevo dentro de una lista de un bloque para las pruebas, en vez de quedarse sin mirar.
+  - Cuentan el documento y su última versión. Las versiones viejas no retienen el modelo, y al borrarlo quedan a nulo, como decía D-372.
+- **«Dónde se usa» en la ficha del modelo** (`UsosDelModelo.tsx`, en el hueco `anexo` de `FormularioDocumento`): lo que lo usa, con un enlace a su ficha, y «Reemplazar por…» con los modelos de la misma carpeta.
+  - `reemplazarModeloEnTodo` lo cambia todo de una vez, por SQL y en una transacción, en las mismas columnas que mira el borrado. Con `payload.update` habría que reescribir las pilas de bloques enteras, y en un documento con un borrador pendiente se publicaría el borrador.
+  - Solo entre modelos de la misma carpeta, y solo si quien lo pide edita todo lo que cambia: como el reemplazo es de una vez, una ficha ajena lo frena entero.
+  - Mueve el `updated_at` de cada documento tocado. El ensayo del despliegue trata como error de código que una referencia cambie de nota en un caso que nadie tocó (D-386), y cambiarle el modelo es tocarlo.
+  - En el instrumento, quita los retoques del taller, como hace `enlazarModelo` al subirle otro modelo: apuntaban a nodos del archivo viejo.
+  - No rehace las piezas del caso. El editor las rehace al abrirlo si no queda ninguna (`repararPiezasConElModelo`), y si quedan algunas se las enseña a su autor. El ensayo avisa de las que faltan.
+  - Por ir por SQL, no pasa por el gancho del registro de acciones. La acción anota una línea por documento, con el modelo de antes y el de después.
+- **Los demás arreglos de D-372:**
+  - `modelos-3d` gana el campo `preparacion`, con la migración `20261115_234719_modelo_con_su_preparacion`, y lo llena `exportarPreparacion`. La migración enlaza los modelos que ya había por su nombre, «<preparación> · del atlas», cuando ese nombre es de una sola preparación;
+  - `eliminarInstancia` busca los modelos de la preparación antes de borrarla (la base pone la relación a nulo), y después los borra uno a uno por el borrado de siempre. El gancho deja los que algo usa, y el taller los nombra;
+  - el desplegable de modelos dice «nombre · #número · fecha», más «sin usar» si nada lo usa (`etiquetaDeModelo`), y pone los del mismo nombre del más nuevo al más viejo;
+  - cada desplegable de relación vuelve a pedir su lista al abrirse, como mucho cada 30 s (`REFRESCO_AL_ABRIR_MS`);
+  - cada archivo subido lleva una marca de 8 caracteres antes de la extensión (`nombreQueNoSeReutiliza`), así que una dirección es de un solo archivo para siempre.
+- **Lo que queda:** limpiar una sola vez los modelos sobrantes de ved, con el OK del dueño (D-372). Los de las preparaciones borradas el 2026-11-04 no tienen con qué enlazarse, así que no se van solos.
+
+*Consecuencias.*
+- (+) Borrar un modelo ya no deja sin modelo ningún caso, instrumento, paso ni bloque, venga de donde venga el borrado.
+- (+) Un campo de modelo que se añada mañana entra solo en la comprobación, o para las pruebas si no se sabe leer.
+- (−) La búsqueda y el reemplazo dependen de cómo nombra Payload sus tablas (`_x_v`, `_parent_id`, `latest`). Si una versión nueva lo cambia, lo dice la prueba de integración, no el servidor.
+- (−) Un reemplazo no rehace las piezas: si el modelo nuevo llama distinto a sus objetos, hay que abrir cada caso.
+- (−) Abrir un desplegable de relación es, como mucho cada medio minuto, una acción de servidor más.
+- (−) Los archivos ya subidos conservan su nombre; la marca solo la llevan los nuevos.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -17584,6 +17621,12 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - desplegado en ved el 2026-11-16, donde el ensayo abrió los 2 casos publicados sin errores;
       - *pendiente:* grabar la referencia de cada caso publicado, que es trabajo del equipo (el ensayo avisa de los que no la tienen), y el primer despliegue con el ensayo en Contabo;
   - los modelos: uno en uso no se borra, y se reemplaza con «Reemplazar por…» (D-372). Además, borrar una preparación se lleva los modelos que exportó y nadie usa, cada archivo lleva un nombre único, y se limpian una vez los modelos sobrantes de ved, con el OK del dueño;
+    - *hecho el 2026-11-16 (D-387):*
+      - el gancho `negarElBorradoDeUnModeloEnUso`, que lee del catálogo de PostgreSQL las columnas que apuntan a los modelos, y «Dónde se usa» con «Reemplazar por…» en la ficha del modelo;
+      - la relación `preparacion`, con su migración `20261115_234719_modelo_con_su_preparacion`, y el borrado de los modelos sin usar al borrar la preparación;
+      - el desplegable con número, fecha y «sin usar», que vuelve a pedir la lista al abrirse, y la marca única en el nombre de cada archivo subido;
+      - pruebas: `usosDeUnModelo.test.ts` (unitaria) y `tests/integration/usosDeUnModelo.test.ts`, que exige que toda columna de modelo de la base se sepa leer;
+      - *pendiente:* la limpieza de los modelos sobrantes de ved, con el OK del dueño;
   - las sesiones: una por cuenta, con alertas de entradas imposibles (D-374).
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
 - [ ] **E5 · Las instituciones (D-371).**

@@ -604,3 +604,13 @@
 .archivo-elegido { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--e-2); margin: 0; font-size: var(--t-sm); }
 .archivo-elegido-nombre { font-size: var(--t-xs); color: var(--mudo); overflow-wrap: anywhere; }
 .archivo-fila > .selector-busqueda { flex: 1 1 auto; min-width: 0; }
+
+/* «Dónde se usa» en la ficha de un modelo 3D (`UsosDelModelo.tsx`, D-372). */
+.usos-del-modelo { display: grid; gap: var(--e-3); margin-bottom: var(--e-4); }
+.usos-del-modelo-titulo { margin: 0; font-size: var(--t-lg); }
+.usos-del-modelo-nota { margin: 0; font-size: var(--t-sm); color: var(--mudo); }
+.usos-del-modelo-lista { margin: 0; padding-left: 1.2em; display: grid; gap: var(--e-1); }
+.usos-del-modelo-etiqueta { font-size: var(--t-xs); color: var(--pizarra); }
+.usos-del-modelo-reemplazo { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--e-3); }
+.usos-del-modelo-campo { display: grid; gap: var(--e-1); flex: 1 1 280px; min-width: 0; font-size: var(--t-sm); }
+.usos-del-modelo-campo .admin-select { width: 100%; }

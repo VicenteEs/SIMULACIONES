@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Modelos3D } from '@/collections/Modelos3D'
+import { nombreQueNoSeReutiliza } from '@/uploads/validarModelo3D'
 
 /**
  * El gancho que valida el modelo subido, en el sitio donde sirve de algo.
@@ -43,14 +44,25 @@ describe('la subida de un modelo 3D se comprueba antes de tocar el disco', () =>
   it('sanea el nombre del archivo antes de que Payload lo lea', () => {
     const archivo = archivoDePrueba('../../etc/passwd.glb')
     correr(archivo)
-    expect(archivo.name).toBe('etc-passwd.glb')
+    expect(archivo.name).toMatch(/^etc-passwd-[0-9a-f]{8}\.glb$/)
   })
 
   it('también con una ruta al estilo de Windows', () => {
     const bs = String.fromCharCode(92)
     const archivo = archivoDePrueba(['..', '..', 'Windows', 'System32', 'algo.glb'].join(bs))
     correr(archivo)
-    expect(archivo.name).toBe('Windows-System32-algo.glb')
+    expect(archivo.name).toMatch(/^Windows-System32-algo-[0-9a-f]{8}\.glb$/)
+  })
+
+  it('cada subida lleva su marca: un nombre que dejó libre un borrado no vuelve a salir (D-372)', () => {
+    const una = archivoDePrueba('tibia.glb')
+    const otra = archivoDePrueba('tibia.glb')
+    correr(una)
+    correr(otra)
+    expect(una.name).not.toBe(otra.name)
+    expect(nombreQueNoSeReutiliza('tibia.glb', 'abc12345')).toBe('tibia-abc12345.glb')
+    expect(nombreQueNoSeReutiliza('sin-extension', 'abc12345')).toBe('sin-extension-abc12345')
+    expect(nombreQueNoSeReutiliza('.glb', 'abc12345')).toBe('modelo-abc12345.glb')
   })
 
   it('rechaza en español lo que no es un modelo, sin esperar a Payload', () => {

@@ -73,6 +73,7 @@ import type { AspectoDePieza, TransformacionDePieza } from '@/atlas/cargador'
 // sin three. Lo que no puede entrar así es `@/atlas/cargador` (ver abajo).
 import { nombreEnEspanol, tieneTraduccion } from '@/atlas/nombres'
 import type { RolDePieza } from '@/lib/piezasDelCaso'
+import { mensajeDePreparacionEliminada } from '@/lib/usosDeUnModelo'
 // Los dos, sin three: `clasificacion.ts` es una tabla y `planoDeCorte.ts` es
 // aritmética que se prohíbe a sí mismo importar three. La mitad del corte que sí
 // lo necesita, `osteotomia.ts`, no se importa desde aquí; y `CorteExportado` es
@@ -1980,9 +1981,11 @@ export function TallerDeAtlas({
     })
   }
 
-  const conAviso = (
-    tarea: () => Promise<{ exito: boolean; mensaje?: string }>,
-    exitoso: string,
+  const conAviso = <T,>(
+    tarea: () => Promise<{ exito: boolean; mensaje?: string; datos?: T }>,
+    // Un texto, o lo que se diga a partir de lo que devolvió la acción: al
+    // eliminar, cuántos modelos se fueron con la preparación (D-372).
+    exitoso: string | ((datos: T | undefined) => string),
     alLograrlo?: () => void,
   ) => {
     setAviso(null)
@@ -1995,7 +1998,7 @@ export function TallerDeAtlas({
           // `aviso`, y puesto detrás se llevaba por delante el «Preparación
           // eliminada.» que acababa de escribirse.
           alLograrlo?.()
-          setAviso({ tipo: 'ok', texto: exitoso })
+          setAviso({ tipo: 'ok', texto: typeof exitoso === 'string' ? exitoso : exitoso(r.datos) })
           refrescarLista()
         } else {
           setAviso({ tipo: 'error', texto: r.mensaje ?? 'No se pudo completar.' })
@@ -3379,7 +3382,7 @@ export function TallerDeAtlas({
                         }
                         conAviso(
                           () => eliminarInstancia(g.id),
-                          'Preparación eliminada.',
+                          mensajeDePreparacionEliminada,
                           // Vaciar el taller solo si de verdad se borró. Cuando
                           // la acción falla —sesión caducada— la preparación
                           // sigue en la base, y limpiarla de la pantalla se

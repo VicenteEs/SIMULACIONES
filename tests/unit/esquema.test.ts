@@ -129,6 +129,9 @@ const LOS_ESCRIBE_OTRA_PANTALLA = new Set([
   // un gancho en cada guardado (`escribirLaVersionDelFormato`). Editarla
   // marcaría el caso con un formato que no es el suyo.
   'cirugias.versionDelFormato',
+  // De qué preparación salió el modelo (D-372): lo escribe la exportación del
+  // atlas, y a mano sería una mentira que borraría modelos ajenos con ella.
+  'modelos-3d.preparacion',
 ])
 
 /**

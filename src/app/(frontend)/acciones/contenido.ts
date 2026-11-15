@@ -14,6 +14,8 @@
  */
 
 import { revalidatePath } from 'next/cache'
+import { etiquetaDeModelo } from '@/lib/usosDeUnModelo'
+import { modelosEnUso } from '@/lib/usosDeUnModeloServidor'
 import { accion, exigirEdicionDe, type Respuesta } from '@/lib/guardias'
 import { esColeccionEditable, esquemaDe, type EsquemaDeColeccion } from '@/admin/esquema'
 import {
@@ -360,20 +362,32 @@ export async function opcionesDeRelacion(
     // medios, modelos, segmentos, catálogos y preparaciones del atlas—, así que
     // cualquier editor las sigue listando igual.
     const { payload } = await exigirEdicionDe(slug)
-    const { docs } = await payload.find({
-      collection: slug as never,
-      limit: 500,
-      sort: slug === 'segmentos' ? 'orden' : titulo,
-      depth: 0,
-      overrideAccess: true,
-    })
+    const esDeModelos = slug === 'modelos-3d'
+    const [{ docs }, enUso] = await Promise.all([
+      payload.find({
+        collection: slug as never,
+        limit: 500,
+        // Los del mismo nombre, el más reciente primero: suele ser el bueno.
+        sort: slug === 'segmentos' ? 'orden' : esDeModelos ? [titulo, '-createdAt'] : titulo,
+        depth: 0,
+        overrideAccess: true,
+      }),
+      // Para el «sin usar» (D-372). Si la pregunta falla, el desplegable sale
+      // igual, sin la marca: no saberlo no es lo mismo que no usarse.
+      esDeModelos ? modelosEnUso(payload).catch(() => null) : Promise.resolve(null),
+    ])
     return docs.map((documento) => {
       const doc = documento as unknown as Record<string, unknown>
       const piezas = doc.numeroDePiezas
       return {
         id: String(doc.id),
         etiqueta:
-          String(doc[titulo] ?? doc.filename ?? `#${doc.id}`) +
+          // Un modelo, con su número y su fecha: cada exportación del atlas
+          // crea uno con la misma etiqueta, y con el nombre solo no se
+          // distinguían (`etiquetaDeModelo`).
+          (esDeModelos
+            ? etiquetaDeModelo(doc, enUso ? enUso.has(String(doc.id)) : undefined)
+            : String(doc[titulo] ?? doc.filename ?? `#${doc.id}`)) +
           (typeof piezas === 'number' ? ` · ${piezas} piezas` : ''),
         url: typeof doc.url === 'string' ? doc.url : undefined,
         tipo: typeof doc.mimeType === 'string' ? doc.mimeType : undefined,

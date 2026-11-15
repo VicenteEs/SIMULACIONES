@@ -16,6 +16,7 @@
 import { basename, resolve } from 'node:path'
 import { revalidatePath } from 'next/cache'
 import { piezasDelArchivo } from '@/lib/piezasDeUnModelo'
+import { etiquetaDeModelo } from '@/lib/usosDeUnModelo'
 import { accion, exigirEditor, type Respuesta } from '@/lib/guardias'
 import { puedeEditarModulo, type UsuarioSesion } from '@/access/reglas'
 import { exigirIdentificador, exigirTexto, textoOpcional } from '@/lib/validacion'
@@ -391,8 +392,14 @@ async function documentosQueUsanLaPreparacion(
  * al borrar— así que el aviso era lo único entre el clic y una ficha publicada
  * con el visor vacío. Ahora se rechaza diciendo cuáles, para que el
  * traumatólogo decida si quita el bloque o se queda con la preparación.
+ *
+ * Y se lleva los modelos que exportó y nadie usa (D-372). Antes se quedaban: el
+ * modelo no sabía de qué preparación salía, y cada exportación seguía en el
+ * desplegable de los casos con la etiqueta de una preparación que ya no
+ * existía. Los que algo usa se quedan, porque borrarlos dejaría un caso sin
+ * modelo, y se nombran en la respuesta para que se sepa por qué siguen ahí.
  */
-export async function eliminarInstancia(id: unknown): Promise<Respuesta> {
+export async function eliminarInstancia(id: unknown): Promise<Respuesta<{ modelosBorrados: number; modelosQueSeQuedan: string[] }>> {
   return accion(async () => {
     const { payload, usuario } = await exigirEditor()
     const identificador = exigirIdentificador(id, 'La preparación')
@@ -408,13 +415,42 @@ export async function eliminarInstancia(id: unknown): Promise<Respuesta> {
       )
     }
 
+    // Antes de borrar: la base pone a nulo la relación al borrar la preparación.
+    const exportados = (
+      await payload.find({
+        collection: 'modelos-3d',
+        where: { preparacion: { equals: identificador } },
+        depth: 0,
+        pagination: false,
+        overrideAccess: true,
+        select: { nombre: true, createdAt: true },
+      })
+    ).docs as unknown as { id: unknown; nombre?: unknown; createdAt?: unknown }[]
+
     await payload.delete({
       collection: 'instancias-atlas',
       id: identificador,
       user: usuario as never,
     })
+
+    // Uno a uno y por el borrado de siempre: el gancho de la colección
+    // (`negarElBorradoDeUnModeloEnUso`) es el que decide si se puede, y un
+    // modelo que alguien puso en un caso mientras tanto se queda.
+    let modelosBorrados = 0
+    const modelosQueSeQuedan: string[] = []
+    for (const modelo of exportados) {
+      try {
+        await payload.delete({ collection: 'modelos-3d', id: String(modelo.id), user: usuario as never, overrideAccess: true })
+        modelosBorrados++
+      } catch (error) {
+        // Lo esperado es que algo lo use; lo demás se anota, porque el modelo
+        // se queda igual y sin esto no habría forma de saber por qué.
+        if ((error as { name?: unknown }).name !== 'ModeloEnUso') console.error('[atlas] no se borró un modelo exportado:', error)
+        modelosQueSeQuedan.push(etiquetaDeModelo(modelo))
+      }
+    }
     revalidatePath(RUTA_PANEL)
-    return null
+    return { modelosBorrados, modelosQueSeQuedan }
   })
 }
 

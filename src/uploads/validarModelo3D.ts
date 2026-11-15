@@ -65,6 +65,28 @@ export function nombreSeguroDeArchivo(nombre: string): string {
     .replace(/-{2,}/g, '-')
 }
 
+/**
+ * El nombre con una marca propia antes de la extensión: `tibia.glb` →
+ * `tibia-3f9a1c2e.glb` (D-372).
+ *
+ * Payload, al ver el nombre libre, lo usa tal cual, y uno que dejó libre un
+ * borrado vuelve a salir (`getSafeFilename` solo mira si choca con uno que
+ * existe). La dirección del archivo no lleva versión, así que una pestaña
+ * abierta seguía sirviendo los bytes del modelo borrado desde la caché de
+ * `cargarElArchivo` (`LienzoQuirurgico.tsx`) y de `useGLTF` (`Visor3D.tsx`), y
+ * el navegador, hasta una hora más. Pasó en ved: el modelo 25 se borró a las
+ * 20:24 del 2026-10-08 y el 26 salió a las 20:26 con su mismo nombre. Con la
+ * marca, una dirección es de un solo archivo para siempre.
+ *
+ * La marca va aparte para poder probarlo: el gancho la saca al azar.
+ */
+export function nombreQueNoSeReutiliza(nombre: string, marca: string): string {
+  const punto = nombre.lastIndexOf('.')
+  const base = punto >= 0 ? nombre.slice(0, punto) : nombre
+  const extension = punto >= 0 ? nombre.slice(punto) : ''
+  return `${base || 'modelo'}-${marca}${extension}`
+}
+
 export function validarModelo3D(entrada: EntradaModelo3D): ResultadoValidacion {
   const { nombre, contenido } = entrada
   const bytes = entrada.bytes ?? contenido.length
