@@ -33,8 +33,13 @@
  * los dos más adelante cambia quién responde o a quién se escribe, y la versión
  * pasa al día del cambio. Cada cambio hace aceptar el aviso otra vez a todas
  * las cuentas: por eso conviene cambiarlos juntos.
+ *
+ * La del 2026-11-15 suma a Cloudflare, por donde pasan las visitas desde el
+ * túnel de E2 de P-016 (D-382). Solo vale donde hay túnel: en ved, que no lo
+ * tiene, este texto diría algo falso, y por eso ved no se actualiza con él
+ * hasta pasar a pruebas.
  */
-export const VERSION_DEL_AVISO_DE_PRIVACIDAD = '2026-11-05'
+export const VERSION_DEL_AVISO_DE_PRIVACIDAD = '2026-11-15'
 
 /**
  * Quién responde de los datos: el nombre de la persona o de la entidad que es

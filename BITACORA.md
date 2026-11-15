@@ -11305,6 +11305,58 @@ Lo pidió el dueño el mismo día, al cerrar el plan.
 - (−) El certificado del servidor de correo dependía de esa zona para renovarse (O-103).
 - `https://traumahub.cl` sigue sin abrir: el TLS falla porque Caddy, en Contabo, solo tiene el certificado de `195-26-240-163.sslip.io`. Ya era así antes del cambio, y lo arregla el paso 3.
 
+### D-381 · 2026-11-15 · vigente · P-016 E2
+**El túnel de Contabo va en un compose aparte, como iba Caddy, y la dirección pública pasa a `traumahub.cl` con él y no antes.**
+
+- **El túnel reemplaza a Caddy pieza por pieza** (`despliegue/contabo/tunel/docker-compose.yml`). Vive en `~/tunel`, fuera del clon, con el token en su propio `.env`, y habla con la aplicación por la red `proxy`, en `http://traumahub:3000`.
+  - No se usó `TUNEL=cloudflare` (`docker-compose.prod.yml`). Cambia el nombre del contenedor de la aplicación (`trauma-app` en vez de `traumahub-app`) y el de su imagen.
+  - Además le falta lo que la plantilla de `despliegue/paginas` fue ganando: el usuario 1001 con el grupo de los respaldos (O-067), `cap_drop`, `SMTP_NOMBRE` y la red `proxy`.
+  - Pasarse a esa variante habría sido mudar la aplicación entera para cambiar solo la puerta. Contabo sigue desplegando con `TUNEL=local`.
+- **La regla de caché pasa a E4, y el comodín a E5.** Las dos estaban en el paso 3.
+  - **Caché.** Lo que vale la pena guardar ya lo guarda Cloudflare sin regla: guarda por extensión lo que llega con `public` y `max-age`, que es `_next/static` y el atlas (`next.config.mjs`). Y no guarda nada `private`, que es como salen los archivos con sesión (`cacheDeArchivoPrivado`). Una regla a mano solo podría equivocarse en la dirección peligrosa: guardar un archivo de alguien con sesión y dárselo a quien no la tiene. Si la medición de E4 la pide, se pone ahí. Lo que sí se comprueba en el paso 6 es que un archivo con sesión no salga de la caché (`cf-cache-status` distinto de `HIT`).
+  - **Comodín.** Puesto antes de que la aplicación sepa de subdominios, cualquier `algo.traumahub.cl` serviría la plataforma con un origen que Payload no reconoce, y nadie podría entrar (el CSRF de arriba). Va con E5, junto con el código que lo atiende.
+- **`NEXT_PUBLIC_SERVER_URL=https://traumahub.cl` se pone en el paso 3, con el túnel, y no en el 2 como decía el plan.** Payload mete ese origen en su lista de CSRF y descarta la cookie de sesión de toda petición cuyo `Origin` sea otro (O-018). Con `traumahub.cl` puesto antes de que abra, nadie podría entrar por `sslip.io`, y Contabo se quedaría sin ninguna dirección con sesión entre los dos pasos. En el paso 2 queda `https://195-26-240-163.sslip.io`, ya sin `/traumahub`.
+
+*Consecuencias.*
+- (+) Cambiar la puerta no toca la aplicación ni su base: se levanta el túnel, se comprueba y se baja Caddy. Si el túnel falla, Caddy vuelve con un `docker compose up -d` en `~/caddy`.
+- (+) La plantilla queda versionada. La de Caddy nunca lo estuvo.
+- (−) Contabo y ved ya no se despliegan igual: ved va tras Nginx Proxy Manager y Contabo tras el túnel, con dos composes de entrada que este repositorio no administra. `docker-compose.prod.yml` sigue en el repositorio, sin uso en ninguno de los dos.
+
+### D-382 · 2026-11-15 · vigente · P-016 E2 · actualiza D-294
+**El aviso de privacidad nombra a Cloudflare: versión del 2026-11-15.**
+
+- **Qué dice de nuevo** (`TextoDelAviso.tsx`):
+  - en «Para que la plataforma funcione», que Cloudflare también ve la IP;
+  - en «Con qué base», que la transferencia se apoya en los contratos con Contabo y con Cloudflare;
+  - en «Quién los ve», que los datos pasan por los equipos de Cloudflare en cada visita;
+  - en «Dónde se guardan», un párrafo propio. Cloudflare cifra la conexión con el navegador y la reenvía por el túnel. Mientras tanto ve la IP y lo que viaja, la contraseña incluida, y puede anotar la visita en sus registros. No guarda ni la base ni los archivos.
+- **Por qué con todas las letras, y no como «un proveedor más».** El túnel abre el TLS en el borde de Cloudflare: ve cada petición en claro. El aviso promete solo lo que hace el código (D-294), y callar eso sería prometer menos de lo que pasa.
+- **La versión pasa al 2026-11-15**, y con ella todas las cuentas vuelven a aceptar el aviso al entrar (D-292).
+- **Solo se despliega donde hay túnel.** En ved, que no lo tiene, el texto diría algo falso. ved no se actualiza con él hasta pasar a pruebas (paso 7 de E2). Si antes hiciera falta llevar a ved otro arreglo, se lleva sin este cambio.
+
+*Consecuencias.*
+- (+) El texto que se acepta en Contabo dice lo que pasa desde el primer día del túnel.
+- (−) Cada cuenta copiada de ved tendrá que aceptarlo otra vez la primera vez que entre a `traumahub.cl`. Es lo que se busca, pero es un paso más el día del cambio.
+- (−) Falta el contrato: el acuerdo de tratamiento de datos de Cloudflare (su DPA), descargado y guardado fuera de los servidores, como el de Contabo (paso 10 de E8 de P-011). El texto se apoya en él.
+- (−) No lo ha leído el abogado. Lo revisa con todo lo demás en E8 de P-016.
+- (−) E3 guardará la IP, el país y el equipo de cada sesión (D-374). Desde ese día «no la guarda en su base de datos» deja de ser cierto. El aviso cambia en el mismo cambio, con otra versión.
+
+### D-383 · 2026-11-15 · vigente · P-016 E2
+**El prefijo con que se compila sale del `.env` de cada servidor: la plantilla de `despliegue/paginas` es la misma para ved y para Contabo.**
+
+- **Lo que pasó.** El paso 2 dejó a Contabo sin prefijo, editando a mano el `BASE_PATH: /traumahub` de su copia del override. `salud.sh` exige que esa copia sea igual a la plantilla, para que no se repitan O-054 ni O-067, así que marcó la diferencia y aconsejó «cópiela y recree la app». Quien le hiciera caso habría vuelto a compilar Contabo con `/traumahub`.
+- **El arreglo.** La plantilla dice `BASE_PATH: ${BASE_PATH-/traumahub}`:
+  - sin la variable, `/traumahub`: ved no cambia nada;
+  - con `BASE_PATH=` vacío en el `.env`, la raíz: Contabo lo tiene desde ese día;
+  - va con `-` y no con `:-`, porque vacío tiene que querer decir vacío, no «el de siempre».
+  - Probado en Contabo con `docker compose config`: con la línea vacía da `""`, y sin ella da `/traumahub`.
+- **`.env.example`** documenta la variable, comentada.
+
+*Consecuencias.*
+- (+) Los dos servidores vuelven a tener la copia exacta de la plantilla, y la comprobación de `salud.sh` sigue valiendo para los dos.
+- (−) En ved, la próxima actualización hará que `salud.sh` pida copiar la plantilla nueva, porque la de su carpeta es la de antes. Copiarla es seguro: sin `BASE_PATH` en su `.env`, sigue en `/traumahub`.
+- (−) El prefijo vive en dos sitios de cada servidor: `BASE_PATH`, para compilar, y la ruta de `NEXT_PUBLIC_SERVER_URL`, para los enlaces de los correos. Nada comprueba que digan lo mismo, y un enlace mal enviado ya no se corrige.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -17330,21 +17382,35 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
 - [ ] **E2 · Contabo igual a ved, en `traumahub.cl` (D-369).** Un paso a la vez en los servidores, con una explicación breve y el OK del dueño antes de cada uno:
   1. **Cloudflare:** la cuenta y la zona `traumahub.cl`, los servidores de nombre en nic.cl, y los registros del correo copiados como «solo DNS». *Hecho el 2026-11-15 (D-380): NIC ya delega en Cloudflare, los registros responden igual que en Freehost, y el correo llega y sale. Queda vigilar el certificado del correo en enero (O-103).*
   2. **Contabo al día:** a `main` y sin prefijo, con `BASE_PATH` vacío en su `docker-compose.override.yml`. El `.env` nuevo lleva:
-     - `NEXT_PUBLIC_SERVER_URL=https://traumahub.cl`;
+     - ~~`NEXT_PUBLIC_SERVER_URL=https://traumahub.cl`~~: pasa al paso 3, con el túnel (D-381). Aquí queda `https://195-26-240-163.sslip.io`, sin prefijo;
      - el correo `contacto@traumahub.cl`, cuya clave escribe el dueño;
      - la llave de respaldos de P-011 (pasos 1 a 5 de su E8).
-  3. **El túnel:** `cloudflared`, con un token que escribe el dueño en el `.env`. Caddy fuera, y los puertos 80 y 443 cerrados. En Cloudflare:
-     - la regla de caché;
+
+     *Hecha la primera parte el 2026-11-15:*
+     - respaldo manual verificado antes de tocar nada, y copia del override, del `.env` y del Caddyfile de antes en `~/antes-e2/`;
+     - Contabo en `ecb7dd5`, compilado sin prefijo con `BASE_PATH=` en su `.env` (D-383), y Caddy sirviendo la raíz de `195-26-240-163.sslip.io`;
+     - la migración de E1 quitó el prefijo a 76 modelos y 45 filas de tiempo activo, y no queda ninguna fila con `/traumahub`;
+     - desde fuera: portada, `/entrar`, `/privacidad` y salud con 200, y las 27 imágenes de la portada bien. `/traumahub` da 404, como debe;
+     - `SMTP_USUARIO` y `SMTP_DESDE` pasan a `contacto@traumahub.cl`. `SMTP_HOST` sigue en `mail.chesscore.cl`, cuyo certificado no depende de O-103.
+
+     Falta la clave del correo, que escribe el dueño, y la llave de respaldos.
+  3. **El túnel:** `cloudflared` en `~/tunel`, un compose aparte como el de Caddy (D-381), con un token que escribe el dueño en su `.env`. `NEXT_PUBLIC_SERVER_URL=https://traumahub.cl` y el aviso nuevo (paso 5) entran con él. Caddy fuera, y los puertos 80 y 443 cerrados. En Cloudflare:
+     - ~~la regla de caché~~: a E4, si la medición la pide (D-381);
      - `www` hacia `traumahub.cl`;
      - HTTPS siempre;
-     - el comodín `*.traumahub.cl`, con su regla en el túnel.
+     - ~~el comodín `*.traumahub.cl`, con su regla en el túnel~~: a E5, con el código que atiende los subdominios (D-381).
   4. **La copia:** la base y los archivos de ved pasan a Contabo.
-  5. **El aviso de privacidad:** versión nueva que nombra a Cloudflare, y su acuerdo de datos guardado fuera de los servidores.
+  5. **El aviso de privacidad:** versión nueva que nombra a Cloudflare, y su acuerdo de datos guardado fuera de los servidores. *El texto, escrito el 2026-11-15 (D-382): versión del 2026-11-15. Se despliega con el túnel. Falta el acuerdo de Cloudflare.* Comprobado antes de subir:
+     - `typecheck` limpio, y `lint` sin errores, con los 15 avisos de siempre;
+     - la suite, 6518 pruebas bien. Fallan las 3 de respaldos que fallan siempre en Windows, y `autoria`, que con la carga pasó de los 5 s y sola pasa (10 de 10). Con fallos, vitest no da la cifra de cobertura, y no se repitió la pasada: el cambio es texto del aviso;
+     - `test:integration`, 266 de 266;
+     - `build` con `/traumahub`, bien.
   6. **Pruebas:**
      - la web y el inicio de sesión;
      - el correo de clave nueva, con SPF, DKIM y DMARC en «PASS»;
      - los modelos 3D y el PDF;
-     - la IP que ve el freno de intentos.
+     - la IP que ve el freno de intentos;
+     - que un archivo con sesión no salga de la caché de Cloudflare (`cf-cache-status` distinto de `HIT`), y que sin sesión dé 403 (D-381).
   7. **ved pasa a pruebas:** cuentas inventadas (paso 12 de E8 de P-011).
 - [ ] **E3 · Proteger lo que ya existe**, antes de abrir a instituciones:
   - los casos, con versión de formato y con el ensayo antes de cada despliegue (D-373);
@@ -17353,7 +17419,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
 - [ ] **E5 · Las instituciones (D-371).**
   - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;
-  - el subdominio;
+  - el subdominio, con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381);
   - la pestaña «Instituciones», con el botón «Crear institución»;
   - los tres roles de institución y el enlace de invitación;
   - el bloqueo, con sus 12 meses, y la exportación;

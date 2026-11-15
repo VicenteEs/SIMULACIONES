@@ -48,6 +48,13 @@ import { MESES_DE_LAS_COTIZACIONES, MESES_DEL_REGISTRO_DE_ACCIONES, plazoEnPalab
  * casilla algo que tiene que sostenerse solo: si la persona retira su
  * consentimiento, sus datos no vuelven de St. Louis por eso.
  *
+ * Cloudflare entra en la versión del 2026-11-15 (D-382), con el túnel de E2 de
+ * P-016. No guarda nada de la plataforma, pero cada visita pasa por él ya
+ * descifrada: ve la IP y lo que viaja, la contraseña al entrar incluida. Por
+ * eso se nombra en «Quién los ve» y en «Dónde se guardan», y no solo como un
+ * proveedor más: callarlo sería prometer menos de lo que pasa, que es lo que
+ * el párrafo de arriba prohíbe.
+ *
  * Los dos espacios en blanco —quién responde y a qué correo se escribe— salen
  * de `RESPONSABLE_DE_LOS_DATOS` y `CORREO_DE_PRIVACIDAD`. Vacíos, se pintan como
  * hueco a la vista (`EnBlanco`) y no con un valor de relleno, que se leería
@@ -146,7 +153,8 @@ export function TextoDelAviso() {
           Tu navegador guarda una cookie de sesión, que te mantiene dentro hasta ocho horas, y algunas
           preferencias de pantalla y copias de lo que estás editando, que se quedan en tu equipo. Tu dirección IP
           se usa para frenar abusos, como demasiados intentos de entrada: la plataforma la tiene en memoria para
-          eso y no la guarda en su base de datos. No usamos cookies de publicidad ni herramientas de analítica de
+          eso y no la guarda en su base de datos. Cloudflare, por donde pasa cada visita, también la ve, como se
+          explica en «Dónde se guardan». No usamos cookies de publicidad ni herramientas de analítica de
           terceros.
         </p>
       </Seccion>
@@ -188,8 +196,8 @@ export function TextoDelAviso() {
         </p>
         <p>Si pides una cotización, la base es tu propia petición: usamos esos datos solo para contestarla.</p>
         <p>
-          El envío de tus datos a Estados Unidos no depende de que aceptes este aviso: se apoya en el contrato
-          con el proveedor del servidor, como se explica en «Dónde se guardan».
+          El envío de tus datos a Estados Unidos no depende de que aceptes este aviso: se apoya en los contratos
+          con el proveedor del servidor y con Cloudflare, como se explica en «Dónde se guardan».
         </p>
       </Seccion>
 
@@ -201,7 +209,7 @@ export function TextoDelAviso() {
         </ul>
         <p>
           Además, los datos están en los equipos de los proveedores que alojan la plataforma y que envían sus
-          correos. Nadie más los recibe.
+          correos, y pasan por los de Cloudflare en cada visita. Nadie más los recibe.
         </p>
       </Seccion>
 
@@ -212,6 +220,14 @@ export function TextoDelAviso() {
           internacional de datos. Esa transferencia se apoya en el contrato de la plataforma con Contabo, que la
           obliga a tratar los datos solo para prestarnos el servidor y a protegerlos, y no en que aceptes este
           aviso.
+        </p>
+        <p>
+          Para llegar a ese servidor, cada visita pasa antes por la red de Cloudflare, una empresa de Estados
+          Unidos con centros de datos en muchos países, Chile incluido. Cloudflare cifra la conexión con tu
+          navegador y la reenvía al servidor por un túnel cifrado. Mientras la reenvía ve tu dirección IP y lo que
+          envías y recibes, también tu contraseña al entrar, y puede anotar la visita en sus propios registros. No
+          guarda la base de datos ni los archivos de la plataforma. Igual que con Contabo, eso se apoya en el
+          contrato de la plataforma con Cloudflare, que lo obliga a usar esos datos solo para prestar el servicio.
         </p>
         <p>
           Cada noche se hace una copia de seguridad, y se guarda cifrada: en ese mismo servidor y en una copia

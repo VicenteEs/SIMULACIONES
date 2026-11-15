@@ -1,0 +1,43 @@
+# El túnel de Cloudflare de Contabo (paso 3 de E2 de P-016, D-381).
+#
+# Reemplaza a Caddy pieza por pieza: un compose aparte, fuera del clon, que
+# habla con TraumaHub por la red externa `proxy`, la misma que declara el
+# `docker-compose.override.yml` de la aplicación. No se usa la variante
+# `TUNEL=cloudflare` del repositorio (`docker-compose.prod.yml`): cambia el
+# nombre del contenedor y de la imagen de la aplicación, y no trae lo que la
+# plantilla de `despliegue/paginas` fue ganando (el usuario 1001 con el grupo
+# de los respaldos, `cap_drop`, `SMTP_NOMBRE`, la red `proxy`). Pasarse a ella
+# habría sido mudar la aplicación entera para cambiar solo la puerta.
+#
+# Instalación en el servidor:
+#   mkdir -p ~/tunel && cp despliegue/contabo/tunel/docker-compose.yml ~/tunel/
+#   (en ~/tunel/.env, con permisos 600: TUNNEL_TOKEN=<el token del panel>)
+#   cd ~/tunel && docker compose up -d
+#
+# En el panel de Cloudflare, el nombre público apunta a `http://traumahub:3000`:
+# `traumahub` es el alias de la aplicación en la red `proxy`.
+services:
+  tunel:
+    image: cloudflare/cloudflared:latest
+    container_name: tunel
+    restart: unless-stopped
+    # El token entra por el entorno, que `cloudflared` lee solo, y no por
+    # `--token`: la línea de órdenes de un proceso la ve cualquier usuario de la
+    # máquina con `ps`, y ese token es la llave del túnel.
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?falta el token del túnel en ~/tunel/.env}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks: [proxy]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  proxy:
+    external: true

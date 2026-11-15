@@ -39,7 +39,15 @@ services:
       dockerfile: Dockerfile
       args:
         # El prefijo se incrusta al compilar. Cambiarlo exige reconstruir.
-        BASE_PATH: /traumahub
+        #
+        # Sale del .env del anfitrión y no se escribe aquí (D-383): con el valor
+        # fijo, Contabo —en la raíz desde E2 de P-016— tenía que editar su copia,
+        # y `salud.sh`, que exige la copia exacta de esta plantilla, le pedía
+        # volver a copiarla, es decir, recompilar con `/traumahub`. Sin la
+        # variable vale `/traumahub`, que es ved. Con `BASE_PATH=` vacío en el
+        # .env, la raíz. Va con `-` y no con `:-` porque vacío tiene que querer
+        # decir vacío, no «el de siempre».
+        BASE_PATH: ${BASE_PATH-/traumahub}
     image: traumahub:local
     container_name: traumahub-app
     restart: unless-stopped
