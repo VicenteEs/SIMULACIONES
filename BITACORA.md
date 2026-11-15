@@ -17440,6 +17440,11 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
      - los modelos 3D y el PDF;
      - la IP que ve el freno de intentos;
      - que un archivo con sesión no salga de la caché de Cloudflare (`cf-cache-status` distinto de `HIT`), y que sin sesión dé 403 (D-381).
+
+     *Hechas el 2026-11-15, después de la copia:*
+     - la web, el inicio de sesión y la IP: ver los pasos 3 y 4. El dueño entró con su cuenta de ved, ya sobre la base copiada;
+     - el correo: el dueño pulsó «Enviarme un correo de prueba» en Sistema → Correo saliente, y en Gmail llegó con SPF, DKIM y DMARC en «PASS». Es el botón del panel y no el correo de clave nueva, pero los dos salen por el mismo transporte y con el mismo remitente, `contacto@traumahub.cl`;
+     - sin sesión, un archivo de `medios` da 403 con `cf-cache-status: BYPASS` (paso 4).
   7. **ved pasa a pruebas:** cuentas inventadas (paso 12 de E8 de P-011).
 - [ ] **E3 · Proteger lo que ya existe**, antes de abrir a instituciones:
   - los casos, con versión de formato y con el ensayo antes de cada despliegue (D-373);
