@@ -11394,6 +11394,28 @@ Lo pidió el dueño el mismo día, al cerrar el plan.
 - (−) Al hacer scroll, la franja se va con la página. Lo que se queda a la vista es el título de la pestaña.
 - (−) La plantilla del override cambió. Contabo tiene que copiarla en su próximo despliegue, porque si no `salud.sh` marca la diferencia. Es inofensiva, porque allí la variable no está. ved la copia ahora.
 
+*Desplegado en ved el 2026-11-15 (`c5544ab`).* Con su `.env` y su override de antes guardados en `~/antes-d385` del usuario `ved`:
+- se puso la plantilla de `main` como override y `SERVIDOR_DE_PRUEBAS=https://traumahub.cl` en el `.env`;
+- se lanzó `TUNEL=local ./scripts/actualizar.sh`, que pasó ved de `0127743` a `c5544ab`.
+
+Comprobado:
+- `docker compose config` da `BASE_PATH: /traumahub`;
+- `/entrar` lleva la franja con el enlace, y la pestaña dice «[Pruebas] Entrar · Plataforma docente de traumatología»;
+- la portada la enseña sobre su barra, legible;
+- `traumahub.cl` no la tiene;
+- `salud.sh` de ved da la copia exacta de la plantilla, y un solo problema: los respaldos sin cifrar, como se decidió en D-384.
+
+Con el mismo despliegue llegó a ved el aviso del 15 de noviembre: las cuentas del equipo lo aceptan al entrar.
+
+Comprobado antes de subir:
+- `typecheck` limpio, y `lint` sin errores, con los 15 avisos de siempre;
+- `test:integration`, 266 de 266;
+- `build` con `/traumahub`, bien;
+- la suite: 6527 bien. La prueba nueva vencía los 5 s bajo carga al importar la plantilla, y ahora la importa una vez antes de las pruebas. Fallan 6 que no tocan nada de esto:
+  - `directorioDeRespaldos`, dos, las de siempre en Windows;
+  - `autoria`, por la carga: sola pasa;
+  - las tres de `respaldoEnWindows`, también solas. Una es el desfase de 4 horas ya visto. Las otras dos reciben una marca BOM delante del volcado, que parece venir del PowerShell 7.7 de este equipo. Ningún `.ps1` cambió.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
