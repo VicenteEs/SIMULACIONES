@@ -7987,7 +7987,7 @@ Capturas `panel-01` a `panel-05`, `editor-01` a `editor-03` y `movil-mesa`.
 - (−) Las familias son las categorías del catálogo. «Perforación» junta brocas, guías, medidores y destornilladores (32), y es la lista más larga.
 - (−) Los recientes duran lo que la página: no se guardan con el recorrido.
 
-### D-258 · 2026-11-04 · vigente · resuelve de Q-001 a Q-010 (menos Q-002, que ya lo estaba) y Q-011 en parte
+### D-258 · 2026-11-04 · vigente · resuelve de Q-001 a Q-010 (menos Q-002, que ya lo estaba) y Q-011 en parte · el «sin Cloudflare» de Q-008, superado por D-369
 **Las respuestas del dueño a las preguntas abiertas: docente para una residencia, una sola cirugía, cesión de derechos, datos mínimos con aviso, equipo de referencia, datos públicos, dominio propio con Contabo en producción, planificación docente, y lo de Cristóbal tal como se recomendó.**
 
 El 2026-11-04 el dueño respondió de una vez todo lo que seguía abierto, sobre una recomendación por pregunta. Lo que eligió, y lo que cambia:
@@ -11027,6 +11027,236 @@ El trazo hondo se apoya en lo que el ratón encuentra —un músculo, un vaso, e
 *Consecuencias.*
 - (+) Las capas de una herida honda quedan en escalera, cada una bajo la de encima.
 - (−) Lo poco que la fascia se abre sola (2 mm) va también paralelo a la piel, no a su superficie: se mete o se sale de ella un milímetro donde va inclinada. No se ve.
+
+### D-369 · 2026-11-15 · vigente · P-016 · supera el «sin Cloudflare» de Q-008 en D-258 y vuelve a la vía de D-010
+**Producción en `traumahub.cl`, en la raíz y detrás de Cloudflare Tunnel, y cada institución en `nombre.traumahub.cl`. ved sigue en `/traumahub` como servidor de pruebas.**
+
+- **La dirección.** `https://traumahub.cl`, sin prefijo. `traumahub.com` no es del dueño: lo registró otra persona en 2020 y lo tiene estacionado en NameBright (whois del 2026-11-15).
+- **La entrada.** Cloudflare Tunnel, la vía que el repositorio ya trae (`docker-compose.prod.yml`, `docs/CLOUDFLARE.md`):
+  - en Contabo se quita Caddy y se cierran los puertos 80 y 443; queda solo el 22;
+  - el certificado lo da Cloudflare, para `traumahub.cl` y para `*.traumahub.cl`.
+- **El correo** sigue en el cPanel de Freehost.
+  - `traumahub.cl` es alias de `chesscore.cl` desde el 2026-11-05, con el buzón `contacto@`, los reenvíos `privacidad@` y `dmarc@`, Email Routing en «Local» y el DKIM de cPanel.
+  - Cuando el DNS pase a Cloudflare, sus registros se copian allá en modo «solo DNS»: el MX, `mail`, el SPF sin `+a`, el DKIM y el DMARC.
+- **ved** sigue en `https://ved.tailc2094f.ts.net:10000/traumahub/`, compilado con prefijo, como servidor de pruebas.
+  - Desde la copia de ved a Contabo (E2 de P-016) tiene el mismo contenido que producción, pero cuentas inventadas.
+  - Las fichas, los casos y los modelos se copian cuando haga falta; las cuentas, la actividad y el registro no (D-295).
+
+*Por qué Cloudflare.* Con una institución por subdominio, el comodín `*.traumahub.cl` sale con su certificado gratis, y crear una institución no toca nada en el servidor (D-371). Además frena ataques y bots, y deja Contabo sin puertos web abiertos: aunque alguien conozca la IP, a la plataforma solo se llega por el túnel.
+
+*Consecuencias.*
+- (+) Una institución nueva no pide DNS ni certificado.
+- (−) Cloudflare descifra el tráfico en su borde: es otro encargado, en Estados Unidos. El aviso de D-294 necesita una versión nueva que lo nombre, y hay que guardar una copia de su acuerdo de tratamiento de datos.
+- (−) El DNS se lleva en Cloudflare y el correo en cPanel. Si cPanel cambia la llave DKIM, hay que copiarla a mano.
+- (−) Los límites del plan gratis:
+  - 100 MB por petición, por encima de los techos de 50 y 20 MB de la plataforma (O-044);
+  - 100 s por respuesta, que `/api/cambios` no alcanza porque envía algo cada 15 s.
+- (−) Cloudflare guarda en caché según la extensión (imágenes, vídeos, PDF), y hay archivos que solo puede ver quien tiene cuenta. Una regla de caché tiene que dejar fuera todo menos `/_next/static`.
+- (−) El freno de intentos toma el último valor de `X-Forwarded-For` (`ritmo.ts`). Con el túnel directo a la aplicación es la IP de quien visita; con otro proxy entre medio sería la de Cloudflare. Se comprueba al montarlo.
+
+### D-370 · 2026-11-15 · vigente · P-016
+**La base deja de guardar el prefijo de la instalación, para que una misma copia sirva en ved, con `/traumahub`, y en Contabo, en la raíz.**
+
+- **Lo que se encontró.** Payload no usa la dirección guardada de un archivo subido.
+  - Si empieza por `/`, la rehace al leer con el nombre del archivo, `serverURL` y `NEXT_BASE_PATH` (`generateFilePathOrURL`, en `node_modules/payload/dist/uploads/`).
+  - Las 76 filas de `modelos_3d` con `/traumahub/api/modelos-3d/…`, en la copia de ved que tiene Contabo, no impiden llevarla a la raíz: los modelos cargan igual. Eran la razón para mantener el prefijo en Contabo, y no hacía falta.
+- **Lo que sí se ve con el prefijo:** la «Última página» de la planilla de actividad. Sale de `tiempo_activo.ultima_ruta`, que se escribe con `window.location.pathname` (`LatidoDeActividad.tsx`).
+- **Se decide:**
+  - una migración que quita el prefijo de lo guardado: la `url` de `modelos-3d`, la de `medios` y sus tamaños, la de `medios-pagina` y `ultima_ruta`;
+  - que desde entonces se guarde sin él: la `url` que escribe Payload al subir, la ruta del latido sin `PREFIJO`, y `scripts/instrumental-a-sql.ts` sin `--prefijo`;
+  - ved no cambia de dirección.
+
+*Consecuencias.*
+- (+) Un respaldo vale igual en las dos instalaciones, y la base no engaña a quien la lea.
+- (−) En ved no cambia nada que se vea fuera de la planilla: es limpieza.
+- (−) La migración tiene que reconocer cualquier prefijo (`/traumahub` en ved, `/simulaciones` en desarrollo), no solo uno.
+
+### D-371 · 2026-11-15 · vigente · P-016
+**Varias instituciones en una sola plataforma y una sola base, con cada fila marcada con su institución. Cada institución se crea desde el panel con un botón, y su subdominio funciona en el acto.**
+
+- **La separación.**
+  - Todo lo que pertenece a una institución lleva su marca: sus cuentas, su contenido, su actividad, su registro y su tiempo activo.
+  - El filtro vive en un solo lugar, las reglas de `src/access/reglas.ts`, y PostgreSQL lo repite con seguridad por filas como segunda barrera.
+  - La matriz de roles de D-107 y D-108 (`tests/integration/roles.test.ts`) se amplía para cruzar instituciones: ninguna cuenta lee ni escribe lo de otra.
+  - Se descartó un contenedor por institución, con aplicación y base propias: unos 300 MB cada una, cada actualización repetida N veces y el contenido central copiado a todas. Queda abierto solo para una institución que lo exija por contrato.
+- **El subdominio.**
+  - El proxy de Next lee el anfitrión y de ahí saca la institución. `traumahub.cl` es la central.
+  - La sesión es de cada subdominio: la cookie no pasa de una institución a otra.
+  - Crear una institución es crear una fila. El registro comodín `*.traumahub.cl` en Cloudflare, su certificado y la regla comodín del túnel se ponen una sola vez (E2 de P-016), así que el botón «Crear institución» no toca DNS, certificados ni contenedores.
+  - Un subdominio sin institución muestra «esta institución no existe».
+  - Hay nombres reservados que ninguna institución puede tomar: `www`, `mail` (tiene su propio registro hacia Freehost, que gana al comodín), `api`, `admin`, `traumahub`, `ved`, `pruebas` y `estado`, más los que se agreguen.
+  - En ved no hay subdominios, porque Tailscale Funnel no los admite: la institución se elige con un selector que solo existe en pruebas.
+- **El ciclo de vida.**
+  - El administrador de TraumaHub da el alta con el correo del administrador de la institución, el cupo, la modalidad y las fechas.
+  - La modalidad es piloto (15 días por omisión) o definitiva.
+  - Al vencer, la institución se bloquea: nadie entra y nada se borra. El administrador de TraumaHub extiende el plazo o la pasa a definitiva, y todo sigue tal cual. También puede cambiar el cupo cuando quiera.
+  - El cupo cuenta cuentas activas: desactivar una libera su lugar.
+  - Con 12 meses de bloqueo, se avisa al administrador de TraumaHub y al de la institución, y después se borran los datos personales de sus alumnos. Antes de eso, su contenido se puede exportar. Es el mismo plazo de D-290.
+- **Las cuentas.**
+  - Los alumnos entran con un enlace de invitación de su institución, y el administrador de esta los aprueba hasta llenar el cupo.
+  - Hay tres roles dentro de una institución:
+    - **Administrador:** usuarios, permisos, estadísticas, auditoría y actividad, solo de los suyos. No ve Sistema, Difusión, Medios de la página, Equipo, Respaldos ni Cotizaciones.
+    - **Docente:** crea y edita el contenido de su institución.
+    - **Alumno:** lee y practica.
+- **El contenido.**
+  - Lo central publicado lo ven todas, sin poder editarlo.
+  - Lo propio lo ve solo la institución que lo creó. Se publica con la misma revisión con doble firma de hoy, con revisores de la propia institución: un médico y un kinesiólogo con cuenta de docente.
+  - Los cambios del simulador llegan a todas a la vez, porque es una sola plataforma.
+- **Los comentarios** van todos solo a TraumaHub, también los que hablan del contenido propio de una institución. Las instituciones no los ven.
+- **La entrada como fantasma.**
+  - El administrador de TraumaHub entra a cualquier institución sin aparecer en sus listas, en su registro ni en sus estadísticas.
+  - El registro central anota cada entrada y lo que hizo.
+  - El contrato con la institución dice que el soporte de TraumaHub puede entrar.
+
+*Consecuencias.*
+- (+) Un despliegue actualiza a todas, y exportar o borrar una institución entera es una consulta.
+- (+) Una institución nueva queda lista en segundos, sin intervenir el servidor.
+- (−) Un fallo del filtro enseñaría datos de otra institución. Por eso la segunda barrera en la base y la matriz de pruebas.
+- (−) Un comentario sobre una ficha propia de una institución llega a TraumaHub, que no puede editarla: hay que reenviárselo.
+- (−) Una institución sin un médico y un kinesiólogo no puede publicar contenido propio.
+- (−) Lo legal: lo habitual es que cada institución sea responsable de los datos de sus alumnos y TraumaHub su encargado. Eso pide un contrato con cada una (art. 15 bis de la ley 21.719) y un aviso nuevo, que revisa el abogado (E8 de P-016).
+
+### D-372 · 2026-11-15 · vigente · P-016
+**Un modelo 3D en uso no se borra: el panel enseña dónde se usa y ofrece reemplazarlo en todos los sitios a la vez.**
+
+- **Hoy el borrado es real.**
+  - `eliminarDocumento` (`acciones/contenido.ts`) llama a `payload.delete`, que borra el archivo de `medios/modelos`.
+  - Las claves foráneas ponen a NULL las referencias, también en las versiones: el caso, el instrumento, el paso de técnica AO y el bloque «Modelo 3D» de los cinco módulos.
+  - Nadie comprueba antes si el modelo se usa.
+  - El resultado:
+    - el caso queda sin modelo;
+    - la ficha queda con un bloque que dice «se eliminó del catálogo» y que no valida al volver a guardarla;
+    - los nombres de nodo de las piezas y de los pasos del caso quedan sueltos.
+- **Se decide:**
+  - antes de borrar, el panel lista lo que usa el modelo: casos, instrumental, pasos de técnica AO y bloques de los cinco módulos;
+  - si algo lo usa, no se borra;
+  - «Reemplazar por…» lo cambia en todos los sitios a la vez;
+  - las versiones antiguas no impiden el borrado: son historia.
+- **Lo que el dueño ve como «modelos viejos» en los selectores del simulador no son modelos borrados que hayan quedado.** Se revisó el 2026-11-15.
+  - **Borrar un modelo funciona.**
+    - ved, en `5d512fb`, tiene 82 filas en `modelos_3d` y 82 `.glb` en `/app/medios/modelos`, sin sobrantes de un lado ni del otro.
+    - De los 32 modelos borrados (según el registro) no queda ninguna referencia, tampoco en las versiones.
+    - Una prueba de crear, enlazar, borrar y buscar, en una base desechable, no encontró ningún selector que los devuelva.
+  - **Son modelos que nunca se borraron:** los que se exportaron de preparaciones del atlas.
+    - `eliminarInstancia` (`acciones/atlas.ts`) borra la preparación y deja sus modelos, y el modelo no guarda de qué preparación salió.
+    - Cada exportación y cada «Volver a exportar» crean un modelo nuevo con la misma etiqueta, y el desplegable muestra solo el nombre.
+    - En ved, de los 12 modelos del cuerpo, 10 no los usa ningún caso.
+    - Ocho de ellos (101 a 105, 108, 109 y 111) vienen de las 16 preparaciones borradas el 2026-11-04 entre las 13:36 y las 13:41. El 111 lo usa el caso 11.
+    - Hay tres «ejemplo_vicente · del atlas» (112 a 114) exportados en dos minutos.
+  - **Una causa más: el contenido viejo bajo un nombre nuevo.**
+    - Payload reutiliza el nombre de archivo que deja libre un borrado (`getSafeFilename`), y la dirección no lleva versión.
+    - Con eso, una pestaña abierta sirve los bytes viejos desde la caché de `cargarElArchivo` (`LienzoQuirurgico.tsx`) y la de `useGLTF` (`Visor3D.tsx`), y el navegador lo hace hasta una hora más.
+    - Ya pasó una vez en ved: el modelo 25 se borró a las 20:24 del 2026-10-08, y el 26 se creó a las 20:26.
+  - **Y una menor:** con el formulario abierto, la lista no se refresca. Un modelo borrado desde otra pestaña sigue en ella hasta recargar.
+- **Los arreglos, con lo de arriba:**
+  - borrar una preparación borra también los modelos que exportó y nadie usa, y nombra los que se quedan porque están en uso. Para eso, `modelos-3d` gana una relación `preparacion`, que llena `exportarPreparacion.ts`, con su migración;
+  - el desplegable distingue los modelos: con fecha o número, y «sin usar» si nadie lo usa;
+  - cada archivo subido lleva un sufijo único, así que una dirección no se reutiliza nunca;
+  - la lista de modelos se vuelve a pedir al abrir el desplegable;
+  - limpieza de ved una sola vez, con el OK del dueño: los modelos 101 a 105, 108 y 109, y dos de los tres «ejemplo_vicente», según cuál diga que vale.
+
+*Consecuencias.*
+- (+) Borrar un modelo ya no rompe ningún caso ni ninguna ficha.
+- (−) Borrar un modelo en uso obliga a reemplazarlo antes.
+- (−) Restaurar una versión antigua que apuntaba a un modelo borrado la deja sin modelo, como hoy.
+
+### D-373 · 2026-11-15 · vigente · P-016
+**Que un cambio del simulador no estropee los casos creados: cada caso lleva su versión de formato, y antes de cada despliegue se ensayan todos los casos reales.**
+
+- **Hoy:**
+  - `casoQuirurgico.ts` ya corrige al leer algunos datos viejos: la escala, el objetivo de los pasos antiguos, la bandeja, el modo y el manguito;
+  - los arreglos de fondo van en migraciones;
+  - pero los casos no guardan una versión de formato, y ninguna prueba abre casos reales.
+- **Se decide:**
+  - cada caso guarda la versión de formato con que se escribió, y cada cambio de formato trae su conversión numerada de una versión a la siguiente;
+  - antes de cada despliegue, un ensayo abre todos los casos de una copia de producción y comprueba que cargan en la consola y que la resolución de referencia de cada uno saca el mismo puntaje.
+- Se descartó atar cada caso a la versión del simulador con que se creó: habría que mantener vivas las versiones viejas.
+
+*Consecuencias.*
+- (+) Un cambio que rompe un caso se ve antes de llegar a las instituciones.
+- (−) Cada caso necesita una resolución de referencia grabada para comparar el puntaje.
+- (−) La copia para el ensayo sale de producción, así que lleva solo contenido, sin cuentas ni actividad (D-295).
+
+### D-374 · 2026-11-15 · vigente · P-016
+**Una sola sesión abierta por cuenta, y alertas al administrador de TraumaHub cuando una cuenta entra de una forma imposible para una sola persona.**
+
+- **Hoy** la sesión dura 8 horas, una cuenta puede estar abierta en varios equipos a la vez, y `usuarios_sessions` solo guarda cuándo se creó y cuándo vence.
+- **Se decide:**
+  - al entrar, se cierran las demás sesiones de la cuenta, y el equipo que la tenía abierta ve «Se inició sesión en otro equipo»;
+  - cada sesión guarda el equipo (navegador y sistema), la IP y el país;
+  - si una cuenta entra desde lugares o equipos imposibles para una sola persona, se avisa al administrador de TraumaHub, no al de la institución.
+- Se descartaron por ahora dos medidas:
+  - limitar los equipos de cada cuenta y pedir un código por correo para uno nuevo;
+  - la marca de agua con el nombre del alumno.
+
+*Consecuencias.*
+- (+) Compartir una cuenta deja de ser cómodo.
+- (−) Un alumno no puede tener la plataforma abierta en dos equipos a la vez.
+- (−) La IP, el país y el equipo son datos personales nuevos: el aviso tiene que decirlo, con su plazo.
+
+### D-375 · 2026-11-15 · vigente · P-016
+**Las difusiones eligen institución (una, varias o todas) y el rol dentro de ellas, y salen por correo y como aviso dentro de la plataforma.**
+
+- Hoy salen solo por correo, a todas las cuentas o a un rol (`src/correo/difusion.ts`).
+- El aviso dentro de la plataforma aparece al entrar, con una campana para los que no se han leído.
+
+*Consecuencias.*
+- (+) Una actualización del servidor se anuncia de una vez a todas las instituciones, o solo a sus administradores.
+- (−) El aviso dentro de la plataforma tiene que guardar quién lo leyó: una fila por cuenta y aviso.
+
+### D-376 · 2026-11-15 · vigente · P-016
+**Para 50 a 300 personas a la vez en el primer año: primero se mide con una prueba de carga en Contabo, y se optimiza lo que la medición señale.**
+
+- **Hoy:**
+  - nada se guarda en caché: 55 páginas son `force-dynamic`;
+  - la base atiende 10 conexiones a la vez, el pool por omisión de `pg`;
+  - los archivos no traen ETag, así que pasada su hora se descargan enteros otra vez;
+  - Contabo tiene 6 núcleos y 11 GB.
+- **En orden:**
+  1. la prueba de carga, con 300 usuarios simulados;
+  2. más conexiones a la base;
+  3. caché del contenido publicado, que se renueva al publicar;
+  4. ETag en los archivos;
+  5. Cloudflare guarda lo estático.
+- **Varios procesos de la aplicación, solo si la medición lo pide.** Antes hay que llevar a la base lo que hoy vive en la memoria de un solo proceso: el freno de intentos (`ritmo.ts`), la presencia, la cuenta de publicaciones, la cola de difusión y la conservación programada.
+
+*Consecuencias.*
+- (+) Se optimiza lo que de verdad pesa.
+- (−) La prueba de carga tiene que correr antes del primer piloto, contra producción todavía cerrada o contra una copia.
+
+### D-377 · 2026-11-15 · vigente · P-016
+**Una pestaña de monitoreo en el panel del administrador de TraumaHub, solo para la producción en Contabo: el estado del servidor, las visitas por página, y el tráfico y los ataques que ve Cloudflare.**
+
+- **Hoy** «Sistema» revisa la base, los respaldos, el correo, el disco y la memoria del propio proceso. No mira la CPU, la memoria del servidor ni los contenedores, y nada cuenta visitas por página.
+- **El estado del servidor:** CPU, memoria, disco y contenedores, en vivo.
+- **Las visitas por página:** Umami, instalado en el propio Contabo y sin cookies.
+- **El tráfico y los ataques:** lo que Cloudflare da de la zona.
+- El dueño marcó además «otra cosa» sin decir cuál: queda pendiente.
+
+*Consecuencias.*
+- (+) Umami sin cookies no pide consentimiento ni manda datos fuera del servidor.
+- (−) Leer la CPU y los contenedores desde la aplicación pide darle acceso de solo lectura al estado de Docker, o un agente pequeño. Hay que hacerlo sin abrirle el socket de Docker entero.
+
+### D-378 · 2026-11-15 · vigente · P-016
+**Todo logo de ChessCore lleva a `https://chesscore.cl`, esté donde esté.**
+
+Lo pidió el dueño el mismo día, al cerrar el plan.
+
+- **Hoy** el logo sale en cuatro sitios, y en ninguno es un enlace:
+  - la firma del menú lateral del panel (`admin-panel/layout.tsx`);
+  - el pie de las páginas con sesión (`PieDePagina.tsx`), en sus dos versiones, la negra y la blanca, que el CSS alterna según el fondo;
+  - el pie de la portada pública (`PieDeVisitante.tsx`);
+  - la tarjeta de ChessCore en «Sobre nosotros» (`SobreNosotros.tsx`).
+- **El enlace va dentro de `LogoChessCore`** y no en cada sitio que lo usa. Así el logo que se agregue mañana nace enlazado, y no queda un quinto sitio olvidado.
+- **Se abre en otra pestaña:** sale de la plataforma, y quien está a mitad de un caso o de una ficha no la pierde. Con `rel="noopener"` y sin `noreferrer`, para que chesscore.cl vea que la visita viene de TraumaHub.
+- **El enlace dice adónde lleva.** Un enlace hecho solo de una imagen se anuncia por su texto alternativo, y «ChessCore · De peones a reyes» no avisa de que abre otro sitio.
+- **La dirección no pasa por `ruta()`:** es absoluta y de otro dominio, y el prefijo solo vale para lo propio.
+- **Vale igual en los subdominios de las instituciones (D-371):** el logo es el mismo en todas.
+
+*Consecuencias.*
+- (+) Es un cambio en un solo archivo, y cualquier logo nuevo sale enlazado.
+- (−) El componente deja de servir donde el logo no deba ser enlace, por ejemplo dentro de otro enlace: un `<a>` dentro de otro no es HTML válido. Hoy no pasa en ninguno de los cuatro sitios. Si un día hiciera falta, bastaría una propiedad que lo apague.
+- (−) La imagen tiene `display: block` (`estilos.css`). La caja pasa al `<a>` que la envuelve, que además necesita un anillo de foco visible sobre el marino y sobre el papel.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -16988,6 +17218,99 @@ En el caso 4, con el mismo recorrido de E0: la piel recién cortada es un ojal d
 Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que anotan O-099 y O-100.
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
+
+### P-016 · 2026-11-15 · plan decidido, sin empezar
+**TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
+
+#### De dónde sale
+
+Pedido del dueño, 2026-11-15:
+- todo en `traumahub.cl`, sin `/traumahub`;
+- ved sigue en su dirección, pero sin el prefijo en la base;
+- copiar ved a Contabo para que queden iguales.
+
+Y después, hacer de la plataforma un SaaS:
+- cada institución en su subdominio, en piloto o definitiva, con un cupo de alumnos y plazos que se extienden sin borrar nada;
+- un administrador de institución con permisos acotados;
+- su contenido propio, separado del central;
+- el administrador de TraumaHub como usuario fantasma;
+- difusiones por institución;
+- que los cambios del simulador lleguen a todas sin estropear los casos;
+- que borrar un modelo lo borre de todos lados;
+- medidas contra cuentas compartidas;
+- que no se ponga lento con mucho tráfico;
+- y una pestaña de monitoreo.
+
+Pidió que primero se le explicaran las opciones con lo que ya existe y se le preguntara todo. Respondió veinte preguntas el mismo día; sus respuestas están en D-369 a D-377. También preguntó si podrá crear `institucion.traumahub.cl` desde la página con un botón: sí, y no toca el servidor (D-371). Al cerrar el plan sumó una cosa más: que cualquier logo de ChessCore lleve a chesscore.cl (D-378).
+
+#### Lo que había el 2026-11-15
+
+- **Instituciones:** no existen como entidad, solo un texto libre en la cuenta. Hay tres roles: admin, editor y lector.
+- **Modelos 3D:** el borrado es real, y lo que los usaba queda con el hueco (D-372).
+- **Casos:** no tienen versión de formato, y ninguna prueba abre casos reales (D-373).
+- **Difusiones:** solo por correo, a todas las cuentas o a un rol.
+- **Sesiones:** se pueden abrir en varios equipos a la vez y no guardan ni el equipo ni la IP.
+- **Caché:** no hay ninguna, y varias piezas viven en la memoria de un solo proceso (D-376).
+- **Monitoreo:** no hay métricas del servidor ni recuento de visitas (D-377).
+- **Contabo:** sigue en `8a0b688`, del 2026-10-30, con Caddy y el prefijo. ved va en `8061093`.
+- **Recursos:** Contabo tiene 6 núcleos y 11 GB; ved, 32 núcleos y 94 GB.
+
+#### Etapas
+
+- [ ] **E1 · Los datos sin prefijo (D-370).** La migración, y lo que desde entonces se guarda sin prefijo. Se despliega en ved y se comprueba que los modelos, las imágenes y la planilla siguen bien en `ved.tailc2094f.ts.net:10000/traumahub/`.
+- [ ] **E2 · Contabo igual a ved, en `traumahub.cl` (D-369).** Un paso a la vez en los servidores, con una explicación breve y el OK del dueño antes de cada uno:
+  1. **Cloudflare:** la cuenta y la zona `traumahub.cl`, los servidores de nombre en nic.cl, y los registros del correo copiados como «solo DNS».
+  2. **Contabo al día:** a `main` y sin prefijo, con `BASE_PATH` vacío en su `docker-compose.override.yml`. El `.env` nuevo lleva:
+     - `NEXT_PUBLIC_SERVER_URL=https://traumahub.cl`;
+     - el correo `contacto@traumahub.cl`, cuya clave escribe el dueño;
+     - la llave de respaldos de P-011 (pasos 1 a 5 de su E8).
+  3. **El túnel:** `cloudflared`, con un token que escribe el dueño en el `.env`. Caddy fuera, y los puertos 80 y 443 cerrados. En Cloudflare:
+     - la regla de caché;
+     - `www` hacia `traumahub.cl`;
+     - HTTPS siempre;
+     - el comodín `*.traumahub.cl`, con su regla en el túnel.
+  4. **La copia:** la base y los archivos de ved pasan a Contabo.
+  5. **El aviso de privacidad:** versión nueva que nombra a Cloudflare, y su acuerdo de datos guardado fuera de los servidores.
+  6. **Pruebas:**
+     - la web y el inicio de sesión;
+     - el correo de clave nueva, con SPF, DKIM y DMARC en «PASS»;
+     - los modelos 3D y el PDF;
+     - la IP que ve el freno de intentos.
+  7. **ved pasa a pruebas:** cuentas inventadas (paso 12 de E8 de P-011).
+- [ ] **E3 · Proteger lo que ya existe**, antes de abrir a instituciones:
+  - los casos, con versión de formato y con el ensayo antes de cada despliegue (D-373);
+  - los modelos: uno en uso no se borra, y se reemplaza con «Reemplazar por…» (D-372). Además, borrar una preparación se lleva los modelos que exportó y nadie usa, cada archivo lleva un nombre único, y se limpian una vez los modelos sobrantes de ved, con el OK del dueño;
+  - las sesiones: una por cuenta, con alertas de entradas imposibles (D-374).
+- [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
+- [ ] **E5 · Las instituciones (D-371).**
+  - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;
+  - el subdominio;
+  - la pestaña «Instituciones», con el botón «Crear institución»;
+  - los tres roles de institución y el enlace de invitación;
+  - el bloqueo, con sus 12 meses, y la exportación;
+  - la entrada como fantasma.
+- [ ] **E6 · Las difusiones (D-375).**
+- [ ] **E7 · El monitoreo (D-377).**
+- [ ] **E8 · Lo legal, antes del primer piloto.** Todo con el abogado:
+  - un aviso nuevo, que diga:
+    - que Cloudflare es encargado;
+    - que cada sesión guarda IP, país y equipo;
+    - que cada institución es responsable de los datos de sus alumnos;
+  - el contrato con cada institución (art. 15 bis);
+  - los términos de uso.
+- [ ] **E9 · Los logos de ChessCore llevan a chesscore.cl (D-378).**
+  - el enlace, dentro de `LogoChessCore`;
+  - una prueba de que los cuatro sitios lo traen;
+  - la comprobación con el teclado, sobre fondo claro y oscuro.
+
+E2 va después de E1, para copiar una base ya limpia. E5 necesita el comodín de E2 y las protecciones de E3. E4 puede ir en paralelo a E3. E9 no depende de nada y puede salir con el despliegue de E1.
+
+#### Sin decidir
+
+- La «otra cosa» que el dueño marcó para el monitoreo.
+- Los instrumentos sin modelo de ved: quedan fuera de la limpieza de E3, y se revisan con el dueño en el servidor.
+- Un contenedor propio para la institución que lo exija por contrato (D-371).
+- Las medidas descartadas por ahora contra las cuentas compartidas: equipos registrados y marca de agua (D-374).
 
 ---
 
